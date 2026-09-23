@@ -16,7 +16,18 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'cl
 export type EnterIntent =
 	| { type: 'create'; name: string }
 	| { type: 'join'; roomId: string; name: string; role: JoinRole }
-	| { type: 'resume'; roomId: string; token: string };
+	| { type: 'resume'; roomId: string; sessionToken: string };
+
+/** Messages sent once seated: everything that is not an entry intent. */
+export type RoomAction = Exclude<ClientMessage, EnterIntent>;
+
+/** A rejected action (e.g. an illegal move). The connection itself is fine. */
+export interface ActionError {
+	code: ErrorCode | 'offline';
+	message: string;
+	/** Increments per error, so repeated identical errors still re-trigger UI. */
+	seq: number;
+}
 
 export interface ConnectionError {
 	code: ErrorCode | 'unreachable' | 'replaced' | 'closed';
@@ -66,6 +77,7 @@ export class RoomConnection {
 	room = $state<RoomSnapshot | null>(null);
 	playerId = $state<string | null>(null);
 	error = $state<ConnectionError | null>(null);
+	actionError = $state<ActionError | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
 
 	private ws: WebSocket | null = null;
@@ -73,6 +85,7 @@ export class RoomConnection {
 	private attempt = 0;
 	private retryTimer: ReturnType<typeof setTimeout> | undefined;
 	private disposed = false;
+	private errorSeq = 0;
 	private welcomeWaiters: { resolve: () => void; reject: (e: ConnectionError) => void }[] = [];
 
 	constructor(
@@ -90,6 +103,16 @@ export class RoomConnection {
 			return Promise.reject(this.error ?? { code: 'closed', message: 'Connection closed.' });
 		}
 		return new Promise((resolve, reject) => this.welcomeWaiters.push({ resolve, reject }));
+	}
+
+	/** Sends an in-room action. The server's broadcast, not this call, updates `room`. */
+	send(action: RoomAction): boolean {
+		if (this.status !== 'connected' || this.ws?.readyState !== WebSocket.OPEN) {
+			this.reportActionError('offline', 'Not connected to the table right now.');
+			return false;
+		}
+		this.ws.send(JSON.stringify(action));
+		return true;
 	}
 
 	close(reason: ConnectionError = { code: 'closed', message: 'Connection closed.' }): void {
@@ -131,15 +154,19 @@ export class RoomConnection {
 				this.status = 'connected';
 				this.error = null;
 				this.attempt = 0;
-				saveSession(msg.room.id, msg.token);
+				saveSession(msg.room.id, msg.sessionToken);
 				// Any later reconnect must resume this seat rather than create or join again.
-				this.intent = { type: 'resume', roomId: msg.room.id, token: msg.token };
+				this.intent = { type: 'resume', roomId: msg.room.id, sessionToken: msg.sessionToken };
 				for (const w of this.welcomeWaiters.splice(0)) w.resolve();
 				return;
 			case 'error':
 				console.warn(`[room] server error ${msg.code}: ${msg.message}`);
+				if (this.status === 'connected') {
+					this.reportActionError(msg.code, msg.message);
+					return;
+				}
 				this.error = { code: msg.code, message: msg.message };
-				if (this.status !== 'connected' && FATAL.has(msg.code)) {
+				if (FATAL.has(msg.code)) {
 					if (msg.code === 'session_not_found' && this.intent.type === 'resume') {
 						saveSession(this.intent.roomId, null);
 					}
@@ -166,6 +193,10 @@ export class RoomConnection {
 		const delay = Math.min(500 * 2 ** this.attempt, MAX_BACKOFF_MS);
 		this.attempt++;
 		this.retryTimer = setTimeout(() => this.open(), delay);
+	}
+
+	private reportActionError(code: ActionError['code'], message: string): void {
+		this.actionError = { code, message, seq: ++this.errorSeq };
 	}
 
 	private fail(error: ConnectionError): void {

@@ -99,8 +99,10 @@ describe('game server', () => {
 		const player = await connect();
 		player.send({ type: 'join', roomId: gmWelcome.room.id, name: 'Pip', role: 'player' });
 		const playerWelcome = await player.expect('welcome');
-		expect(JSON.stringify(playerWelcome)).not.toContain(gmWelcome.token);
-		expect(JSON.stringify(await gm.expect('player_joined'))).not.toContain(playerWelcome.token);
+		expect(JSON.stringify(playerWelcome)).not.toContain(gmWelcome.sessionToken);
+		expect(JSON.stringify(await gm.expect('player_joined'))).not.toContain(
+			playerWelcome.sessionToken
+		);
 	});
 
 	it('broadcasts disconnects and restores identity on resume', async () => {
@@ -109,7 +111,7 @@ describe('game server', () => {
 		const { room } = await gm.expect('welcome');
 		const player = await connect();
 		player.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
-		const { playerId, token } = await player.expect('welcome');
+		const { playerId, sessionToken } = await player.expect('welcome');
 		await gm.expect('player_joined');
 
 		player.ws.close();
@@ -120,7 +122,7 @@ describe('game server', () => {
 		});
 
 		const again = await connect();
-		again.send({ type: 'resume', roomId: room.id, token });
+		again.send({ type: 'resume', roomId: room.id, sessionToken });
 		const resumed = await again.expect('welcome');
 		expect(resumed.playerId).toBe(playerId);
 		expect(resumed.room.players.find((p) => p.id === playerId)).toMatchObject({
@@ -133,10 +135,10 @@ describe('game server', () => {
 	it('closes the older socket when a session is resumed elsewhere without marking it offline', async () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });
-		const { room, token, playerId } = await gm.expect('welcome');
+		const { room, sessionToken, playerId } = await gm.expect('welcome');
 
 		const second = await connect();
-		second.send({ type: 'resume', roomId: room.id, token });
+		second.send({ type: 'resume', roomId: room.id, sessionToken });
 		await second.expect('welcome');
 		expect(await gm.closed).toBe(CLOSE_SESSION_REPLACED);
 		expect(server.rooms.get(room.id)?.players.get(playerId)?.connected).toBe(true);
@@ -172,7 +174,7 @@ describe('game server', () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });
 		const { room } = await gm.expect('welcome');
-		client.send({ type: 'resume', roomId: room.id, token: '0'.repeat(64) });
+		client.send({ type: 'resume', roomId: room.id, sessionToken: '0'.repeat(64) });
 		expect(await client.expect('error')).toMatchObject({ code: 'session_not_found' });
 	});
 
@@ -183,5 +185,163 @@ describe('game server', () => {
 		client.send({ type: 'join', roomId: room.id, name: 'Twin', role: 'player' });
 		expect(await client.expect('error')).toMatchObject({ code: 'already_joined' });
 		expect(server.rooms.get(room.id)?.players.size).toBe(1);
+	});
+});
+
+describe('tokens over the wire', () => {
+	/** A room with a GM, two players and a spectator, all seated and drained of join broadcasts. */
+	async function table() {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const seat = async (name: string, role: 'player' | 'spectator') => {
+			const c = await connect();
+			c.send({ type: 'join', roomId: room.id, name, role });
+			const { playerId } = await c.expect('welcome');
+			return { c, id: playerId };
+		};
+		const pip = await seat('Pip', 'player');
+		const ivy = await seat('Ivy', 'player');
+		const sam = await seat('Sam', 'spectator');
+		// Drain player_joined broadcasts: GM saw 3, Pip 2, Ivy 1.
+		for (let i = 0; i < 3; i++) await gm.expect('player_joined');
+		for (let i = 0; i < 2; i++) await pip.c.expect('player_joined');
+		await ivy.c.expect('player_joined');
+		return { roomId: room.id, gm, pip, ivy, sam };
+	}
+
+	async function placeToken(
+		gm: TestClient,
+		others: TestClient[],
+		pos: { x: number; y: number },
+		ownerId: string | null
+	) {
+		gm.send({ type: 'token_create', name: 'Mini', color: '#2e86c1', pos, ownerId });
+		const { token } = await gm.expect('token_upserted');
+		for (const c of others) expect((await c.expect('token_upserted')).token).toEqual(token);
+		return token;
+	}
+
+	it('syncs a player moving their own token to everyone', async () => {
+		const { gm, pip, ivy, sam } = await table();
+		const token = await placeToken(gm, [pip.c, ivy.c, sam.c], { x: 0, y: 0 }, pip.id);
+
+		pip.c.send({ type: 'token_move', tokenId: token.id, to: { x: 4, y: 2 } });
+		for (const c of [gm, pip.c, ivy.c, sam.c]) {
+			expect(await c.expect('token_moved')).toEqual({
+				type: 'token_moved',
+				tokenId: token.id,
+				pos: { x: 4, y: 2 },
+				byPlayerId: pip.id
+			});
+		}
+	});
+
+	it('rejects a player moving a token they do not control, and nobody sees a move', async () => {
+		const { roomId, gm, pip, ivy, sam } = await table();
+		const pipsToken = await placeToken(gm, [pip.c, ivy.c, sam.c], { x: 0, y: 0 }, pip.id);
+		const npc = await placeToken(gm, [pip.c, ivy.c, sam.c], { x: 1, y: 0 }, null);
+
+		ivy.c.send({ type: 'token_move', tokenId: pipsToken.id, to: { x: 5, y: 5 } });
+		expect(await ivy.c.expect('error')).toMatchObject({ code: 'forbidden' });
+		pip.c.send({ type: 'token_move', tokenId: npc.id, to: { x: 5, y: 5 } });
+		expect(await pip.c.expect('error')).toMatchObject({ code: 'forbidden' });
+		sam.c.send({ type: 'token_move', tokenId: npc.id, to: { x: 5, y: 5 } });
+		expect(await sam.c.expect('error')).toMatchObject({ code: 'forbidden' });
+
+		const tokens = server.rooms.get(roomId)!.tokens;
+		expect(tokens.get(pipsToken.id)?.pos).toEqual({ x: 0, y: 0 });
+		expect(tokens.get(npc.id)?.pos).toEqual({ x: 1, y: 0 });
+
+		// The next thing the GM hears is a legitimate move, proving no rejected move was broadcast.
+		gm.send({ type: 'token_move', tokenId: npc.id, to: { x: 2, y: 0 } });
+		expect(await gm.expect('token_moved')).toMatchObject({ tokenId: npc.id, pos: { x: 2, y: 0 } });
+		expect(await ivy.c.expect('token_moved')).toMatchObject({ tokenId: npc.id });
+	});
+
+	it('keeps scene edits GM-only', async () => {
+		const { gm, pip, ivy, sam } = await table();
+		const token = await placeToken(gm, [pip.c, ivy.c, sam.c], { x: 0, y: 0 }, null);
+
+		pip.c.send({
+			type: 'token_create',
+			name: 'Mine',
+			color: '#000000',
+			pos: { x: 3, y: 3 },
+			ownerId: pip.id
+		});
+		expect(await pip.c.expect('error')).toMatchObject({ code: 'forbidden' });
+		pip.c.send({ type: 'token_update', tokenId: token.id, patch: { ownerId: pip.id } });
+		expect(await pip.c.expect('error')).toMatchObject({ code: 'forbidden' });
+		pip.c.send({ type: 'token_delete', tokenId: token.id });
+		expect(await pip.c.expect('error')).toMatchObject({ code: 'forbidden' });
+
+		gm.send({ type: 'token_update', tokenId: token.id, patch: { ownerId: pip.id, name: 'Pip' } });
+		for (const c of [gm, pip.c, ivy.c, sam.c]) {
+			expect((await c.expect('token_upserted')).token).toMatchObject({
+				ownerId: pip.id,
+				name: 'Pip'
+			});
+		}
+		gm.send({ type: 'token_delete', tokenId: token.id });
+		for (const c of [gm, pip.c, ivy.c, sam.c]) {
+			expect(await c.expect('token_deleted')).toMatchObject({ tokenId: token.id });
+		}
+	});
+
+	it('includes tokens in the snapshot for late joiners', async () => {
+		const { roomId, gm, pip, ivy, sam } = await table();
+		const token = await placeToken(gm, [pip.c, ivy.c, sam.c], { x: 7, y: 8 }, pip.id);
+
+		const late = await connect();
+		late.send({ type: 'join', roomId, name: 'Late', role: 'spectator' });
+		expect((await late.expect('welcome')).room.tokens).toEqual([token]);
+	});
+
+	it('restores token control after the owner reconnects', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId, sessionToken } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+		gm.send({
+			type: 'token_create',
+			name: 'Pip',
+			color: '#27ae60',
+			pos: { x: 0, y: 0 },
+			ownerId: playerId
+		});
+		const { token } = await gm.expect('token_upserted');
+		await pip.expect('token_upserted');
+
+		pip.ws.close();
+		await gm.expect('player_presence');
+		const back = await connect();
+		back.send({ type: 'resume', roomId: room.id, sessionToken });
+		await back.expect('welcome');
+		back.send({ type: 'token_move', tokenId: token.id, to: { x: 1, y: 1 } });
+		expect(await back.expect('token_moved')).toMatchObject({ byPlayerId: playerId });
+	});
+
+	it('requires joining before any in-room action', async () => {
+		const client = await connect();
+		client.send({ type: 'token_move', tokenId: 'x', to: { x: 0, y: 0 } });
+		expect(await client.expect('error')).toMatchObject({ code: 'not_joined' });
+	});
+
+	it.each([
+		['fractional cell', { type: 'token_move', tokenId: 'x', to: { x: 1.5, y: 0 } }],
+		['string cell', { type: 'token_move', tokenId: 'x', to: { x: '1', y: 0 } }],
+		[
+			'bad colour',
+			{ type: 'token_create', name: 'A', color: 'red', pos: { x: 0, y: 0 }, ownerId: null }
+		],
+		['empty patch', { type: 'token_update', tokenId: 'x', patch: {} }]
+	])('rejects malformed token payload: %s', async (_label, payload) => {
+		const { gm } = await table();
+		gm.send(payload);
+		expect(await gm.expect('error')).toMatchObject({ code: 'invalid_message' });
 	});
 });

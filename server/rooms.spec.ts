@@ -45,7 +45,7 @@ describe('RoomManager', () => {
 	it('resumes a session by token and restores its identity and role', () => {
 		const { rooms, room, player } = createRoom();
 		rooms.setConnected(room, player, false);
-		const resumed = rooms.resume(room.id, player.token);
+		const resumed = rooms.resume(room.id, player.sessionToken);
 		expect(resumed.ok && resumed.player.id).toBe(player.id);
 		expect(resumed.ok && resumed.player.role).toBe('gm');
 		expect(player.connected).toBe(true);
@@ -55,11 +55,11 @@ describe('RoomManager', () => {
 		});
 	});
 
-	it('keeps tokens out of snapshots', () => {
+	it('keeps session tokens out of snapshots', () => {
 		const { room, player } = createRoom();
 		const json = JSON.stringify(snapshot(room));
-		expect(json).not.toContain(player.token);
-		expect(json).not.toContain('token');
+		expect(json).not.toContain(player.sessionToken);
+		expect(json).not.toContain('sessionToken');
 	});
 
 	it('prunes rooms only after they have been empty for the TTL', () => {
@@ -73,7 +73,7 @@ describe('RoomManager', () => {
 	it('does not prune a room someone reconnected to', () => {
 		const { rooms, room, player } = createRoom();
 		rooms.setConnected(room, player, false, 0);
-		rooms.resume(room.id, player.token);
+		rooms.resume(room.id, player.sessionToken);
 		expect(rooms.prune(1, 10_000)).toEqual([]);
 	});
 });

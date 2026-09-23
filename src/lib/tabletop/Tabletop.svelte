@@ -1,8 +1,32 @@
 <script lang="ts">
-	import type { SquareGrid } from '$lib/game/grid';
-	import { createTabletop, type CameraView, type Tabletop } from './renderer';
+	import type { GridPos, SquareGrid } from '$lib/game/grid';
+	import type { Token } from '$lib/game/token';
+	import {
+		createTabletop,
+		type CameraView,
+		type HighlightKind,
+		type Tabletop,
+		type TabletopEvents
+	} from './renderer';
 
-	let { grid, view = 'tactical' }: { grid: SquareGrid; view?: CameraView } = $props();
+	interface Props extends Partial<TabletopEvents> {
+		grid: SquareGrid;
+		tokens: readonly Token[];
+		selectedId?: string | null;
+		highlight?: { cell: GridPos; kind: HighlightKind } | null;
+		view?: CameraView;
+	}
+
+	let {
+		grid,
+		tokens,
+		selectedId = null,
+		highlight = null,
+		view = 'tactical',
+		onTokenClick,
+		onCellClick,
+		onHover
+	}: Props = $props();
 
 	let canvas: HTMLCanvasElement;
 	let tabletop = $state<Tabletop | null>(null);
@@ -10,7 +34,12 @@
 
 	$effect(() => {
 		try {
-			const t = createTabletop(canvas);
+			// Handlers read the current props at call time, so the renderer never needs rebuilding.
+			const t = createTabletop(canvas, {
+				onTokenClick: (id) => onTokenClick?.(id),
+				onCellClick: (pos) => onCellClick?.(pos),
+				onHover: (pos, id) => onHover?.(pos, id)
+			});
 			tabletop = t;
 			return () => {
 				t.dispose();
@@ -23,7 +52,20 @@
 	});
 
 	$effect(() => {
-		tabletop?.setGrid(grid);
+		tabletop?.setGrid($state.snapshot(grid));
+	});
+
+	$effect(() => {
+		// Snapshot reads every field, so any token change re-runs this; the layer diffs.
+		tabletop?.setTokens($state.snapshot(tokens) as Token[]);
+	});
+
+	$effect(() => {
+		tabletop?.setSelected(selectedId);
+	});
+
+	$effect(() => {
+		tabletop?.setHighlight(highlight?.cell ?? null, highlight?.kind ?? 'move');
 	});
 
 	$effect(() => {

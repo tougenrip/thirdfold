@@ -1,15 +1,29 @@
 // three.js view of the tabletop. Pure presentation: it is handed domain data
-// (the grid) and never owns or mutates game state. Renders on demand rather
-// than every frame, so an idle table costs nothing.
+// (grid, tokens, selection) and reports what the user pointed at as grid
+// cells and token ids. It never owns or mutates game state. Renders on
+// demand rather than every frame, so an idle table costs nothing.
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { SquareGrid } from '$lib/game/grid';
+import { gridToWorld, worldToGrid, type GridPos, type SquareGrid } from '$lib/game/grid';
+import type { Token } from '$lib/game/token';
+import { TokenLayer } from './tokens';
 
 export type CameraView = 'tactical' | 'tabletop';
+/** How a highlighted cell should read: a valid target, an invalid one, or a placement spot. */
+export type HighlightKind = 'move' | 'blocked' | 'place';
+
+export interface TabletopEvents {
+	onTokenClick(tokenId: string): void;
+	onCellClick(pos: GridPos): void;
+	onHover(pos: GridPos | null, tokenId: string | null): void;
+}
 
 export interface Tabletop {
 	setGrid(grid: SquareGrid): void;
+	setTokens(tokens: readonly Token[]): void;
+	setSelected(tokenId: string | null): void;
+	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	setView(view: CameraView): void;
 	dispose(): void;
 }
@@ -17,12 +31,18 @@ export interface Tabletop {
 const TABLE_MARGIN = 3;
 const TABLE_THICKNESS = 0.6;
 const VIEW_TRANSITION_MS = 450;
+/** Pointer travel (px) below which a press-release counts as a click rather than a camera drag. */
+const CLICK_SLOP_PX = 6;
 
 const COLORS = {
 	background: 0x16120f,
 	table: 0x5a3b24,
 	surface: 0x2f4a3a,
-	gridLine: 0xd8cfb4
+	gridLine: 0xd8cfb4,
+	highlight: { move: 0xe0a458, blocked: 0xe27a6b, place: 0x7fc47a } satisfies Record<
+		HighlightKind,
+		number
+	>
 };
 
 /** Camera offset from the table centre for each view, scaled by the grid's size. */
@@ -39,7 +59,7 @@ function viewPose(
 	return { position: new THREE.Vector3(extent * 0.42, extent * 0.34, extent * 0.78), target };
 }
 
-export function createTabletop(canvas: HTMLCanvasElement): Tabletop {
+export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents): Tabletop {
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 	renderer.shadowMap.enabled = true;
@@ -69,10 +89,23 @@ export function createTabletop(canvas: HTMLCanvasElement): Tabletop {
 
 	const table = new THREE.Group();
 	scene.add(table);
+	const tokenLayer = new TokenLayer();
+	scene.add(tokenLayer.group);
+
+	const highlight = new THREE.Mesh(
+		new THREE.PlaneGeometry(0.94, 0.94),
+		new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.35, depthWrite: false })
+	);
+	highlight.rotation.x = -Math.PI / 2;
+	highlight.visible = false;
+	scene.add(highlight);
+
+	let tokens: readonly Token[] = [];
 
 	let grid: SquareGrid | null = null;
 	let extent = 20;
 	let frame = 0;
+	let lastFrameTime = 0;
 	let transition: {
 		from: { position: THREE.Vector3; target: THREE.Vector3 };
 		to: { position: THREE.Vector3; target: THREE.Vector3 };
@@ -85,6 +118,10 @@ export function createTabletop(canvas: HTMLCanvasElement): Tabletop {
 
 	function render(now: number): void {
 		frame = 0;
+		// Clamp so the first frame after an idle period does not jump animations to the end.
+		const dt = Math.min(now - lastFrameTime, 50);
+		lastFrameTime = now;
+		if (tokenLayer.tick(dt)) requestRender();
 		if (transition) {
 			const t = Math.min((now - transition.start) / VIEW_TRANSITION_MS, 1);
 			const k = 1 - (1 - t) ** 3;
@@ -178,6 +215,62 @@ export function createTabletop(canvas: HTMLCanvasElement): Tabletop {
 	observer.observe(canvas);
 	controls.addEventListener('change', requestRender);
 
+	// Picking: translate pointer positions into a token id or a logical grid cell.
+	const raycaster = new THREE.Raycaster();
+	const pointer = new THREE.Vector2();
+	const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+	const hitPoint = new THREE.Vector3();
+
+	function pickAt(event: PointerEvent): { cell: GridPos | null; tokenId: string | null } {
+		const rect = canvas.getBoundingClientRect();
+		pointer.set(
+			((event.clientX - rect.left) / rect.width) * 2 - 1,
+			-((event.clientY - rect.top) / rect.height) * 2 + 1
+		);
+		raycaster.setFromCamera(pointer, camera);
+		const tokenId = tokenLayer.pick(raycaster);
+		const onTable = grid && raycaster.ray.intersectPlane(tablePlane, hitPoint);
+		return { tokenId, cell: onTable && grid ? worldToGrid(grid, hitPoint) : null };
+	}
+
+	let press: { x: number; y: number } | null = null;
+	let hoverKey = '';
+
+	function onPointerDown(event: PointerEvent): void {
+		press = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+	}
+
+	function onPointerUp(event: PointerEvent): void {
+		if (!press || event.button !== 0) return;
+		const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+		press = null;
+		if (moved > CLICK_SLOP_PX) return;
+		const { tokenId, cell } = pickAt(event);
+		if (tokenId) events.onTokenClick(tokenId);
+		else if (cell) events.onCellClick(cell);
+	}
+
+	function onPointerMove(event: PointerEvent): void {
+		if (event.buttons !== 0) return; // dragging the camera
+		const { tokenId, cell } = pickAt(event);
+		canvas.style.cursor = tokenId ? 'pointer' : '';
+		const key = `${cell?.x},${cell?.y},${tokenId}`;
+		if (key === hoverKey) return;
+		hoverKey = key;
+		events.onHover(cell, tokenId);
+	}
+
+	function onPointerLeave(): void {
+		if (hoverKey === '') return;
+		hoverKey = '';
+		events.onHover(null, null);
+	}
+
+	canvas.addEventListener('pointerdown', onPointerDown);
+	canvas.addEventListener('pointerup', onPointerUp);
+	canvas.addEventListener('pointermove', onPointerMove);
+	canvas.addEventListener('pointerleave', onPointerLeave);
+
 	let view: CameraView = 'tactical';
 
 	return {
@@ -193,11 +286,30 @@ export function createTabletop(canvas: HTMLCanvasElement): Tabletop {
 			}
 			grid = { ...next };
 			buildTable(grid);
+			tokenLayer.sync(tokens, grid);
 			if (first) {
 				const pose = viewPose(view, extent);
 				camera.position.copy(pose.position);
 				controls.target.copy(pose.target);
 			}
+			requestRender();
+		},
+		setTokens(next) {
+			tokens = next;
+			if (grid && tokenLayer.sync(tokens, grid)) requestRender();
+		},
+		setSelected(tokenId) {
+			if (tokenLayer.setSelected(tokenId)) requestRender();
+		},
+		setHighlight(cell, kind) {
+			const visible = !!(cell && grid);
+			if (cell && grid) {
+				const w = gridToWorld(grid, cell);
+				highlight.position.set(w.x, 0.01, w.z);
+				highlight.scale.setScalar(grid.cellSize);
+				highlight.material.color.setHex(COLORS.highlight[kind]);
+			}
+			highlight.visible = visible;
 			requestRender();
 		},
 		setView(next) {
@@ -212,8 +324,15 @@ export function createTabletop(canvas: HTMLCanvasElement): Tabletop {
 		dispose() {
 			cancelAnimationFrame(frame);
 			observer.disconnect();
+			canvas.removeEventListener('pointerdown', onPointerDown);
+			canvas.removeEventListener('pointerup', onPointerUp);
+			canvas.removeEventListener('pointermove', onPointerMove);
+			canvas.removeEventListener('pointerleave', onPointerLeave);
 			controls.dispose();
 			disposeGroup(table);
+			tokenLayer.dispose();
+			highlight.geometry.dispose();
+			highlight.material.dispose();
 			renderer.dispose();
 		}
 	};

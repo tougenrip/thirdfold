@@ -3,6 +3,7 @@
 
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
+import type { Token } from '../src/lib/game/token';
 import {
 	normalizeName,
 	type ErrorCode,
@@ -17,7 +18,7 @@ export interface Player {
 	name: string;
 	role: Role;
 	/** Secret proving identity on reconnect. Never broadcast. */
-	token: string;
+	sessionToken: string;
 	connected: boolean;
 }
 
@@ -25,6 +26,7 @@ export interface Room {
 	id: string;
 	grid: SquareGrid;
 	players: Map<string, Player>;
+	tokens: Map<string, Token>;
 	/** When the last player disconnected, or null while anyone is connected. */
 	emptySince: number | null;
 }
@@ -33,7 +35,10 @@ export type Result<T> = ({ ok: true } & T) | { ok: false; code: ErrorCode; messa
 
 const ROOM_ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-function fail(code: ErrorCode, message: string): { ok: false; code: ErrorCode; message: string } {
+export function fail(
+	code: ErrorCode,
+	message: string
+): { ok: false; code: ErrorCode; message: string } {
 	return { ok: false, code, message };
 }
 
@@ -45,7 +50,8 @@ export function snapshot(room: Room): RoomSnapshot {
 	return {
 		id: room.id,
 		grid: { ...room.grid },
-		players: [...room.players.values()].map(toPublicPlayer)
+		players: [...room.players.values()].map(toPublicPlayer),
+		tokens: [...room.tokens.values()].map((t) => ({ ...t, pos: { ...t.pos } }))
 	};
 }
 
@@ -68,6 +74,7 @@ export class RoomManager {
 			id: this.newRoomId(),
 			grid: { ...DEFAULT_GRID },
 			players: new Map(),
+			tokens: new Map(),
 			emptySince: null
 		};
 		const player = this.addPlayer(room, name, 'gm');
@@ -88,10 +95,10 @@ export class RoomManager {
 		return { ok: true, room, player: this.addPlayer(room, name, role) };
 	}
 
-	resume(roomId: string, token: string): Result<{ room: Room; player: Player }> {
+	resume(roomId: string, sessionToken: string): Result<{ room: Room; player: Player }> {
 		const room = this.rooms.get(roomId);
 		if (!room) return fail('room_not_found', `Room ${roomId} does not exist.`);
-		const player = [...room.players.values()].find((p) => p.token === token);
+		const player = [...room.players.values()].find((p) => p.sessionToken === sessionToken);
 		if (!player) return fail('session_not_found', 'Session expired. Join the room again.');
 		this.setConnected(room, player, true);
 		return { ok: true, room, player };
@@ -120,7 +127,7 @@ export class RoomManager {
 			id: randomUUID(),
 			name,
 			role,
-			token: randomBytes(32).toString('hex'),
+			sessionToken: randomBytes(32).toString('hex'),
 			connected: true
 		};
 		room.players.set(player.id, player);

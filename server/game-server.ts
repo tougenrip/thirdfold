@@ -9,6 +9,7 @@ import {
 	type ServerMessage
 } from '../src/lib/game/protocol';
 import { RoomManager, snapshot, toPublicPlayer, type Player, type Room } from './rooms';
+import { createToken, deleteToken, moveToken, updateToken } from './scene';
 
 export interface GameServerOptions {
 	port: number;
@@ -73,14 +74,34 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			seats.delete(previous);
 			previous.close(CLOSE_SESSION_REPLACED, 'Session opened elsewhere');
 		}
-		send(ws, { type: 'welcome', playerId: player.id, token: player.token, room: snapshot(room) });
+		send(ws, {
+			type: 'welcome',
+			playerId: player.id,
+			sessionToken: player.sessionToken,
+			room: snapshot(room)
+		});
 	}
 
 	function handle(ws: WebSocket, msg: ClientMessage): void {
-		if (seats.has(ws)) {
-			sendError(ws, 'already_joined', 'This connection is already in a room.');
-			return;
+		const s = seats.get(ws);
+		const room = s && rooms.get(s.roomId);
+		const player = s && room?.players.get(s.playerId);
+		switch (msg.type) {
+			case 'create':
+			case 'join':
+			case 'resume':
+				if (s) return sendError(ws, 'already_joined', 'This connection is already in a room.');
+				return handleEntry(ws, msg);
+			default:
+				if (!room || !player) return sendError(ws, 'not_joined', 'Join a room first.');
+				return handleInRoom(ws, room, player, msg);
 		}
+	}
+
+	function handleEntry(
+		ws: WebSocket,
+		msg: Extract<ClientMessage, { type: 'create' | 'join' | 'resume' }>
+	): void {
 		switch (msg.type) {
 			case 'create': {
 				const result = rooms.create(msg.name);
@@ -101,7 +122,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				return;
 			}
 			case 'resume': {
-				const result = rooms.resume(msg.roomId, msg.token);
+				const result = rooms.resume(msg.roomId, msg.sessionToken);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				seat(ws, result.room, result.player);
 				broadcast(
@@ -110,6 +131,42 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					result.player.id
 				);
 				return;
+			}
+		}
+	}
+
+	/** In-room actions: the scene module decides; this only relays the outcome. */
+	function handleInRoom(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		msg: Exclude<ClientMessage, { type: 'create' | 'join' | 'resume' }>
+	): void {
+		switch (msg.type) {
+			case 'token_create': {
+				const result = createToken(room, player, msg);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return broadcast(room.id, { type: 'token_upserted', token: result.token });
+			}
+			case 'token_move': {
+				const result = moveToken(room, player, msg.tokenId, msg.to);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return broadcast(room.id, {
+					type: 'token_moved',
+					tokenId: result.token.id,
+					pos: result.token.pos,
+					byPlayerId: player.id
+				});
+			}
+			case 'token_update': {
+				const result = updateToken(room, player, msg.tokenId, msg.patch);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return broadcast(room.id, { type: 'token_upserted', token: result.token });
+			}
+			case 'token_delete': {
+				const result = deleteToken(room, player, msg.tokenId);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return broadcast(room.id, { type: 'token_deleted', tokenId: msg.tokenId });
 			}
 		}
 	}

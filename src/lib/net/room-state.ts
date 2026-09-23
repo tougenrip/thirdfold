@@ -17,6 +17,22 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 			if (player) player.connected = msg.connected;
 			return true;
 		}
+		case 'token_upserted': {
+			const i = room.tokens.findIndex((t) => t.id === msg.token.id);
+			if (i === -1) room.tokens.push(msg.token);
+			else room.tokens[i] = msg.token;
+			return true;
+		}
+		case 'token_moved': {
+			const token = room.tokens.find((t) => t.id === msg.tokenId);
+			if (token) token.pos = msg.pos;
+			return true;
+		}
+		case 'token_deleted': {
+			const i = room.tokens.findIndex((t) => t.id === msg.tokenId);
+			if (i !== -1) room.tokens.splice(i, 1);
+			return true;
+		}
 		default:
 			return false;
 	}
