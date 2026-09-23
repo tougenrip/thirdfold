@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-thirdfold is a browser-based, real-time multiplayer **3D virtual tabletop (VTT)** for tabletop RPGs. It should feel like a living 3D miniature tabletop, not a 2D VTT with a 3D renderer added on. The repo is currently only the platform scaffold (SvelteKit + Capacitor + Tauri, local Supabase, Redis). No VTT code exists yet.
+thirdfold is a browser-based, real-time multiplayer **3D virtual tabletop (VTT)** for tabletop RPGs. It should feel like a living 3D miniature tabletop, not a 2D VTT with a 3D renderer added on. Milestone 1 is done: create/join a room over an authoritative WebSocket server, see a 3D table and the connected players. Tokens, dice, chat, editor, visibility and persistence are not built yet.
 
 ## Commands
 
@@ -13,9 +13,10 @@ npm install
 cp .env.example .env        # set VITE_SUPABASE_ANON_KEY from `npx supabase start` output
 npm run db:start            # local Supabase (API :54321, Postgres :54322, Studio :54323); db:stop
 npm run cache:up            # Redis :6379 via docker compose; cache:down
+npm run server              # authoritative game server, ws://localhost:8787 (tsx watch)
 npm run dev                 # web on http://localhost:1420 (strictPort)
 
-npm run check               # svelte-kit sync + svelte-check (typecheck)
+npm run check               # svelte-check for the app + `tsc -p server` for the game server
 npm run lint                # prettier --check + eslint
 npm run format              # prettier --write
 npm test                    # all vitest projects, run once
@@ -24,7 +25,7 @@ npm run build               # static SPA into build/
 
 Tests are split into two Vitest projects in `vite.config.ts`:
 
-- `server` runs in Node and picks up `src/**/*.{test,spec}.ts`. Put pure domain logic tests here (grid, dice, permissions, serialization).
+- `server` runs in Node and picks up `src/**/*.{test,spec}.ts` plus `server/**/*.{test,spec}.ts`. Put pure domain logic tests here (grid, dice, permissions, serialization). `server/game-server.spec.ts` starts a real server on port 0 and drives it with `ws` clients; extend it for every new multiplayer action.
 - `client` runs in headless Chromium through Playwright and picks up `src/**/*.svelte.{test,spec}.ts`, the component tests.
 
 Run a subset:
@@ -41,11 +42,21 @@ Schema changes: `npx supabase migration new <name>`, write SQL in `supabase/migr
 
 Native targets: `npm run desktop` / `desktop:build` builds Tauri. `npm run android` / `ios` builds, runs `cap sync`, and launches Capacitor. `android/` and `ios/` are generated and gitignored. Recreate them with `npx cap add <platform>`. Native builds only pick up web changes after `npm run mobile:sync`.
 
-## Architecture constraints
+## Architecture
 
-- **The frontend is a static SPA.** It uses `adapter-static` with `fallback: 'index.html'`, and `+layout.ts` sets `ssr = false` and `prerender = false`. It has no SvelteKit server routes, hooks, or form actions. The same bundle ships in the Tauri and Capacitor shells. Code that needs a secret, direct DB access, Redis, or **authoritative game logic** cannot live in `src/`. It belongs behind Supabase (Postgres functions/RLS, Realtime, Edge Functions) or in a separate server process. Choosing where the authoritative multiplayer server lives is a real decision. Make it deliberately; don't let validation drift into the client.
+Three layers, each importable only in one direction:
+
+- **`src/lib/game/`: shared domain + wire protocol.** Plain TypeScript with no DOM, Svelte, three.js or Node APIs, and relative imports only (no `$lib`), because the game server imports it directly. `grid.ts` holds logical grid ↔ world conversions. `protocol.ts` defines every `ClientMessage`/`ServerMessage` and `parseClientMessage`, the only way network input becomes typed data.
+- **`server/`: the authoritative game server** (Node + `ws`, run with `tsx`, own `server/tsconfig.json`). `rooms.ts` is socket-free room state (`RoomManager`, returns `Result` values with an `ErrorCode`). `game-server.ts` is transport: parse frame → validate → mutate `RoomManager` → reply/broadcast. State is in memory; rooms are pruned after 10 min with nobody connected. New game actions go into `protocol.ts` (message + parser case), then into `RoomManager` (the rule), then `game-server.ts` (the fan-out).
+- **Client (`src/lib/net`, `src/lib/tabletop`, `src/routes`).** `RoomConnection` (`room-connection.svelte.ts`) owns the socket and exposes `$state` (`status`, `room`, `playerId`, `error`). The server's snapshot is the client's shared state. Broadcasts are folded in by the pure `applyRoomUpdate` in `room-state.ts`. Components must not mutate `conn.room`; they send intents. `tabletop/renderer.ts` is imperative three.js (render on demand, no per-frame loop when idle), and `Tabletop.svelte` just mounts it and forwards props.
+
+Identity and reconnection: the welcome message carries a secret 64-hex `token` (never broadcast; tests assert this). The client stores it in `localStorage` under `thirdfold:session:<roomId>` and, after any drop, reconnects with `resume` using exponential backoff. Resuming a seat from a second socket closes the older one with code `4001` (`CLOSE_SESSION_REPLACED`, duplicated in the client). The room creator is the only GM; `join` accepts only `player`/`spectator`. The landing page hands its already-seated connection to `/room/[id]` via `handOff`/`takeHandoff`, so navigation doesn't re-handshake.
+
+## Platform constraints
+
+- **The frontend is a static SPA.** It uses `adapter-static` with `fallback: 'index.html'`, and `+layout.ts` sets `ssr = false` and `prerender = false`. It has no SvelteKit server routes, hooks, or form actions. The same bundle ships in the Tauri and Capacitor shells. Anything needing a secret, direct DB access, Redis, or authoritative game logic goes in `server/` (or behind Supabase), never in `src/`.
 - `VITE_*` env values are inlined into the bundle at build time. Only the anon/publishable key belongs there, never the service_role key.
-- `src/lib/api.ts` rewrites `localhost` to `10.0.2.2` for the Android emulator. Always build API URLs from `API_URL`, not from `import.meta.env` directly. `src/lib/supabase.ts` is the shared Supabase client.
+- `src/lib/api.ts` rewrites `localhost` to `10.0.2.2` for the Android emulator. Build URLs from `API_URL` / `GAME_SERVER_URL`, not from `import.meta.env` directly. `GAME_SERVER_URL` defaults to port 8787 on the page's host (localhost inside native shells), overridable with `VITE_GAME_SERVER_URL`. `src/lib/supabase.ts` is the shared Supabase client (unused so far).
 - Svelte 5 runes mode is forced for all project files (`vite.config.ts` `compilerOptions.runes`). Use `$state`/`$derived`/`$props`, not legacy `export let`/stores syntax.
 - Formatting uses tabs, single quotes, and no trailing commas, with a print width of 100 (`prettier.config.js`).
 
@@ -82,7 +93,7 @@ The brief sets behavior, not stack. Extend the existing architecture. Don't add 
 
 **Required test coverage.** Tests must cover grid conversion, movement/distance, dice parsing and results, permission validation, scene serialization, room join/leave, and multiplayer sync of movement, dice, and chat. One automated test must specifically prove **a player cannot move a token they don't control**.
 
-**Workflow.** Build in small vertical milestones. Each one should be runnable and pass `check`, `lint`, `test`, and `build`. The first milestone is: browser → 3D tabletop → multiplayer connection → join room → see connected players.
+**Workflow.** Build in small vertical milestones. Each one should be runnable and pass `check`, `lint`, `test`, and `build`. Milestone 1 (browser → 3D tabletop → multiplayer connection → join room → see connected players) is complete.
 
 **MVP done.** The MVP is done when all of the following work without manual code or DB edits:
 
