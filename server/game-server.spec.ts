@@ -3,20 +3,36 @@ import { WebSocket } from 'ws';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 
+class Queue {
+	private items: ServerMessage[] = [];
+	private waiters: ((msg: ServerMessage) => void)[] = [];
+
+	push(msg: ServerMessage): void {
+		const waiter = this.waiters.shift();
+		if (waiter) waiter(msg);
+		else this.items.push(msg);
+	}
+
+	next(): Promise<ServerMessage> {
+		const queued = this.items.shift();
+		if (queued) return Promise.resolve(queued);
+		return new Promise((resolve) => this.waiters.push(resolve));
+	}
+}
+
 /** A test client that buffers every server message so assertions can await them in order. */
 class TestClient {
 	readonly ws: WebSocket;
-	private inbox: ServerMessage[] = [];
-	private waiters: ((msg: ServerMessage) => void)[] = [];
 	readonly closed: Promise<number>;
+	// Room log messages ('chat') are queued apart from state messages, so tests
+	// about tokens or presence don't have to step over system notices.
+	private queues = { state: new Queue(), chat: new Queue() };
 
 	constructor(port: number) {
 		this.ws = new WebSocket(`ws://127.0.0.1:${port}`);
 		this.ws.on('message', (data) => {
 			const msg = JSON.parse(data.toString()) as ServerMessage;
-			const waiter = this.waiters.shift();
-			if (waiter) waiter(msg);
-			else this.inbox.push(msg);
+			this.queues[msg.type === 'chat' ? 'chat' : 'state'].push(msg);
 		});
 		this.closed = new Promise((resolve) => this.ws.on('close', (code) => resolve(code)));
 	}
@@ -32,16 +48,10 @@ class TestClient {
 		this.ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
 	}
 
-	next(): Promise<ServerMessage> {
-		const queued = this.inbox.shift();
-		if (queued) return Promise.resolve(queued);
-		return new Promise((resolve) => this.waiters.push(resolve));
-	}
-
 	async expect<T extends ServerMessage['type']>(
 		type: T
 	): Promise<Extract<ServerMessage, { type: T }>> {
-		const msg = await this.next();
+		const msg = await this.queues[type === 'chat' ? 'chat' : 'state'].next();
 		expect(msg.type).toBe(type);
 		return msg as Extract<ServerMessage, { type: T }>;
 	}
@@ -343,5 +353,120 @@ describe('tokens over the wire', () => {
 		const { gm } = await table();
 		gm.send(payload);
 		expect(await gm.expect('error')).toMatchObject({ code: 'invalid_message' });
+	});
+});
+
+describe('chat and dice over the wire', () => {
+	async function pair() {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const welcome = await pip.expect('welcome');
+		await gm.expect('player_joined');
+		return { roomId: room.id, gm, pip, pipId: welcome.playerId, pipLog: welcome.room.log };
+	}
+
+	it('logs joins as system messages, including in the joiner’s own snapshot', async () => {
+		const { gm, pipLog } = await pair();
+		expect(pipLog.map((m) => m.kind === 'system' && m.text)).toEqual([
+			'Gemma opened the table as GM.',
+			'Pip joined as a player.'
+		]);
+		expect((await gm.expect('chat')).message).toMatchObject({
+			kind: 'system',
+			text: 'Pip joined as a player.'
+		});
+	});
+
+	it('delivers chat to everyone with the server-known author', async () => {
+		const { gm, pip, pipId } = await pair();
+		await gm.expect('chat'); // join notice
+		pip.send({ type: 'chat_send', text: 'Hello <b>table</b>', authorName: 'The GM' });
+		for (const c of [gm, pip]) {
+			expect((await c.expect('chat')).message).toMatchObject({
+				kind: 'chat',
+				authorId: pipId,
+				authorName: 'Pip',
+				text: 'Hello <b>table</b>'
+			});
+		}
+	});
+
+	it('rolls on the server and shows everyone the same result, ignoring client-sent results', async () => {
+		const { gm, pip, pipId } = await pair();
+		await gm.expect('chat');
+		pip.send({ type: 'dice_roll', expression: '1d20+5', total: 25, roll: { total: 25 } });
+		const seen = await Promise.all([gm.expect('chat'), pip.expect('chat')]);
+		expect(seen[0].message).toEqual(seen[1].message);
+		const message = seen[0].message;
+		expect(message).toMatchObject({ kind: 'roll', authorId: pipId });
+		if (message.kind !== 'roll') throw new Error('expected a roll');
+		expect(message.roll.expression).toBe('1d20+5');
+		const [d20] = message.roll.terms;
+		expect(d20.kind === 'dice' && d20.rolls[0]).toBeGreaterThanOrEqual(1);
+		expect(message.roll.total).toBe((d20.kind === 'dice' ? d20.rolls[0] : 0) + 5);
+		expect(message.roll.total).toBeLessThanOrEqual(25);
+	});
+
+	it('lets spectators chat and roll', async () => {
+		const { roomId, gm } = await pair();
+		await gm.expect('chat');
+		const sam = await connect();
+		sam.send({ type: 'join', roomId, name: 'Sam', role: 'spectator' });
+		await sam.expect('welcome');
+		await gm.expect('chat'); // Sam's join notice
+		sam.send({ type: 'dice_roll', expression: 'd6' });
+		expect((await gm.expect('chat')).message).toMatchObject({ kind: 'roll', authorName: 'Sam' });
+		sam.send({ type: 'chat_send', text: 'watching' });
+		expect((await gm.expect('chat')).message).toMatchObject({ kind: 'chat', text: 'watching' });
+	});
+
+	it('rejects bad dice and empty chat only to the sender', async () => {
+		const { gm, pip } = await pair();
+		await gm.expect('chat');
+		pip.send({ type: 'dice_roll', expression: '1d20; process.exit()' });
+		expect(await pip.expect('error')).toMatchObject({ code: 'invalid_dice' });
+		pip.send({ type: 'chat_send', text: '   ' });
+		expect(await pip.expect('error')).toMatchObject({ code: 'invalid_chat' });
+		pip.send({ type: 'chat_send', text: 'ok' });
+		expect((await gm.expect('chat')).message).toMatchObject({ text: 'ok' });
+	});
+
+	it('rate-limits chat floods per player', async () => {
+		const { pip } = await pair();
+		for (let i = 0; i < 9; i++) pip.send({ type: 'chat_send', text: `spam ${i}` });
+		expect(await pip.expect('error')).toMatchObject({ code: 'rate_limited' });
+	});
+
+	it('announces token actions and gives late joiners the log', async () => {
+		const { roomId, gm, pip, pipId } = await pair();
+		await gm.expect('chat');
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 0, y: 0 },
+			ownerId: pipId
+		});
+		const { token } = await gm.expect('token_upserted');
+		expect((await gm.expect('chat')).message).toMatchObject({ text: 'Gemma placed Hero (Pip).' });
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 3, y: 1 } });
+		expect((await gm.expect('chat')).message).toMatchObject({ text: 'Pip moved Hero 3 cells.' });
+		gm.send({ type: 'token_update', tokenId: token.id, patch: { ownerId: null } });
+		expect((await gm.expect('chat')).message).toMatchObject({ text: 'Gemma took back Hero.' });
+
+		const late = await connect();
+		late.send({ type: 'join', roomId, name: 'Late', role: 'spectator' });
+		const texts = (await late.expect('welcome')).room.log.map((m) =>
+			m.kind === 'system' ? m.text : m.kind
+		);
+		expect(texts.slice(-4)).toEqual([
+			'Gemma placed Hero (Pip).',
+			'Pip moved Hero 3 cells.',
+			'Gemma took back Hero.',
+			'Late joined as a spectator.'
+		]);
 	});
 });

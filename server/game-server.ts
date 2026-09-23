@@ -8,6 +8,11 @@ import {
 	type ErrorCode,
 	type ServerMessage
 } from '../src/lib/game/protocol';
+import type { ChatMessage } from '../src/lib/game/chat';
+import type { DieRoller } from '../src/lib/game/dice';
+import { gridDistance } from '../src/lib/game/grid';
+import { postChat, postRoll, postSystem, secureRoller } from './chat';
+import { RateLimiter } from './rate-limit';
 import { RoomManager, snapshot, toPublicPlayer, type Player, type Room } from './rooms';
 import { createToken, deleteToken, moveToken, updateToken } from './scene';
 
@@ -17,6 +22,8 @@ export interface GameServerOptions {
 	/** How long a room survives with nobody connected. */
 	emptyRoomTtlMs?: number;
 	heartbeatMs?: number;
+	/** Die roller for dice_roll; defaults to crypto randomness. Tests inject a fixed one. */
+	rollDie?: DieRoller;
 }
 
 export interface GameServer {
@@ -29,6 +36,7 @@ export interface GameServer {
 export const CLOSE_SESSION_REPLACED = 4001;
 
 const MAX_PAYLOAD_BYTES = 16 * 1024;
+const ROLE_NAMES = { gm: 'GM', player: 'a player', spectator: 'a spectator' } as const;
 
 interface Seat {
 	roomId: string;
@@ -36,8 +44,10 @@ interface Seat {
 }
 
 export function startGameServer(options: GameServerOptions): Promise<GameServer> {
-	const { emptyRoomTtlMs = 10 * 60_000, heartbeatMs = 30_000 } = options;
+	const { emptyRoomTtlMs = 10 * 60_000, heartbeatMs = 30_000, rollDie = secureRoller } = options;
 	const rooms = new RoomManager();
+	// Chat and dice: bursts of 8, then one every 750 ms per player.
+	const chatLimiter = new RateLimiter(8, 4 / 3);
 	/** roomId -> playerId -> the socket currently holding that seat. */
 	const sockets = new Map<string, Map<string, WebSocket>>();
 	const seats = new WeakMap<WebSocket, Seat>();
@@ -106,6 +116,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'create': {
 				const result = rooms.create(msg.name);
 				if (!result.ok) return sendError(ws, result.code, result.message);
+				postSystem(result.room, `${result.player.name} opened the table as GM.`);
 				seat(ws, result.room, result.player);
 				console.info(`[room ${result.room.id}] created by ${result.player.name}`);
 				return;
@@ -113,12 +124,12 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'join': {
 				const result = rooms.join(msg.roomId, msg.name, msg.role);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				seat(ws, result.room, result.player);
-				broadcast(
-					result.room.id,
-					{ type: 'player_joined', player: toPublicPlayer(result.player) },
-					result.player.id
-				);
+				const { room, player } = result;
+				// Logged before seating so the joiner's snapshot already contains it.
+				const notice = postSystem(room, `${player.name} joined as ${ROLE_NAMES[player.role]}.`);
+				seat(ws, room, player);
+				broadcast(room.id, { type: 'player_joined', player: toPublicPlayer(player) }, player.id);
+				broadcast(room.id, { type: 'chat', message: notice }, player.id);
 				return;
 			}
 			case 'resume': {
@@ -135,7 +146,16 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		}
 	}
 
-	/** In-room actions: the scene module decides; this only relays the outcome. */
+	function announce(room: Room, message: ChatMessage): void {
+		broadcast(room.id, { type: 'chat', message });
+	}
+
+	function tokenName(room: Room, name: string, ownerId: string | null): string {
+		const owner = ownerId && room.players.get(ownerId);
+		return owner ? `${name} (${owner.name})` : name;
+	}
+
+	/** In-room actions: the scene and chat modules decide; this only relays the outcome. */
 	function handleInRoom(
 		ws: WebSocket,
 		room: Room,
@@ -146,27 +166,68 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'token_create': {
 				const result = createToken(room, player, msg);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				return broadcast(room.id, { type: 'token_upserted', token: result.token });
+				const { token } = result;
+				broadcast(room.id, { type: 'token_upserted', token });
+				return announce(
+					room,
+					postSystem(room, `${player.name} placed ${tokenName(room, token.name, token.ownerId)}.`)
+				);
 			}
 			case 'token_move': {
 				const result = moveToken(room, player, msg.tokenId, msg.to);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				return broadcast(room.id, {
+				const { token, from } = result;
+				broadcast(room.id, {
 					type: 'token_moved',
-					tokenId: result.token.id,
-					pos: result.token.pos,
+					tokenId: token.id,
+					pos: token.pos,
 					byPlayerId: player.id
 				});
+				const cells = gridDistance(from, token.pos);
+				return announce(
+					room,
+					postSystem(
+						room,
+						`${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`
+					)
+				);
 			}
 			case 'token_update': {
 				const result = updateToken(room, player, msg.tokenId, msg.patch);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				return broadcast(room.id, { type: 'token_upserted', token: result.token });
+				const { token, previousOwnerId } = result;
+				broadcast(room.id, { type: 'token_upserted', token });
+				if (token.ownerId !== previousOwnerId) {
+					const owner = token.ownerId && room.players.get(token.ownerId);
+					announce(
+						room,
+						postSystem(
+							room,
+							owner
+								? `${player.name} gave ${token.name} to ${owner.name}.`
+								: `${player.name} took back ${token.name}.`
+						)
+					);
+				}
+				return;
 			}
 			case 'token_delete': {
 				const result = deleteToken(room, player, msg.tokenId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				return broadcast(room.id, { type: 'token_deleted', tokenId: msg.tokenId });
+				broadcast(room.id, { type: 'token_deleted', tokenId: msg.tokenId });
+				return announce(room, postSystem(room, `${player.name} removed ${result.token.name}.`));
+			}
+			case 'chat_send':
+			case 'dice_roll': {
+				if (!chatLimiter.take(player.id)) {
+					return sendError(ws, 'rate_limited', 'Slow down a little before sending more.');
+				}
+				const result =
+					msg.type === 'chat_send'
+						? postChat(room, player, msg.text)
+						: postRoll(room, player, msg.expression, rollDie);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return announce(room, result.message);
 			}
 		}
 	}

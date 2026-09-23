@@ -2,6 +2,7 @@
 // arriving from the network is untrusted: parse it with parseClientMessage /
 // parseServerMessage rather than casting.
 
+import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
 
@@ -21,6 +22,8 @@ export interface RoomSnapshot {
 	grid: SquareGrid;
 	players: PublicPlayer[];
 	tokens: Token[];
+	/** Most recent room log entries, oldest first. */
+	log: ChatMessage[];
 }
 
 /** Fields the GM may change on an existing token. Omitted fields stay as they are. */
@@ -43,7 +46,9 @@ export type ClientMessage =
 	  }
 	| { type: 'token_move'; tokenId: string; to: GridPos }
 	| { type: 'token_update'; tokenId: string; patch: TokenPatch }
-	| { type: 'token_delete'; tokenId: string };
+	| { type: 'token_delete'; tokenId: string }
+	| { type: 'chat_send'; text: string }
+	| { type: 'dice_roll'; expression: string };
 
 export type ErrorCode =
 	| 'invalid_message'
@@ -58,6 +63,9 @@ export type ErrorCode =
 	| 'invalid_position'
 	| 'cell_occupied'
 	| 'limit_reached'
+	| 'invalid_chat'
+	| 'invalid_dice'
+	| 'rate_limited'
 	| 'server_error';
 
 export type ServerMessage =
@@ -69,6 +77,8 @@ export type ServerMessage =
 	| { type: 'token_upserted'; token: Token }
 	| { type: 'token_moved'; tokenId: string; pos: GridPos; byPlayerId: string }
 	| { type: 'token_deleted'; tokenId: string }
+	/** A new room log entry: chat, a dice result, or a system notice. */
+	| { type: 'chat'; message: ChatMessage }
 	| { type: 'error'; code: ErrorCode; message: string };
 
 export const NAME_MAX_LENGTH = 32;
@@ -170,6 +180,12 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		}
 		case 'token_delete':
 			return isId(data.tokenId) ? { type: 'token_delete', tokenId: data.tokenId } : null;
+		case 'chat_send':
+			return typeof data.text === 'string' ? { type: 'chat_send', text: data.text } : null;
+		case 'dice_roll':
+			return typeof data.expression === 'string'
+				? { type: 'dice_roll', expression: data.expression }
+				: null;
 		default:
 			return null;
 	}
@@ -184,6 +200,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		token_upserted: (d) => isRecord(d.token),
 		token_moved: (d) => typeof d.tokenId === 'string' && parseGridPos(d.pos) !== null,
 		token_deleted: (d) => typeof d.tokenId === 'string',
+		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};
 

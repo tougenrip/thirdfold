@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LOG_LIMIT } from '$lib/game/chat';
 import { DEFAULT_GRID } from '$lib/game/grid';
 import type { RoomSnapshot } from '$lib/game/protocol';
 import { applyRoomUpdate } from './room-state';
@@ -8,7 +9,8 @@ function room(): RoomSnapshot {
 		id: 'ABC234',
 		grid: DEFAULT_GRID,
 		players: [{ id: 'gm', name: 'Gemma', role: 'gm', connected: true }],
-		tokens: []
+		tokens: [],
+		log: []
 	};
 }
 
@@ -63,5 +65,22 @@ describe('applyRoomUpdate', () => {
 		});
 		applyRoomUpdate(r, { type: 'token_deleted', tokenId: 'nope' });
 		expect(r).toEqual(room());
+	});
+
+	it('appends log entries in order, skips duplicates and keeps the cap', () => {
+		const r = room();
+		for (let seq = 1; seq <= LOG_LIMIT + 3; seq++) {
+			applyRoomUpdate(r, {
+				type: 'chat',
+				message: { seq, at: 0, kind: 'system', text: `n${seq}` }
+			});
+		}
+		applyRoomUpdate(r, {
+			type: 'chat',
+			message: { seq: 5, at: 0, kind: 'system', text: 'late dup' }
+		});
+		expect(r.log).toHaveLength(LOG_LIMIT);
+		expect(r.log[0].seq).toBe(4);
+		expect(r.log.at(-1)?.seq).toBe(LOG_LIMIT + 3);
 	});
 });

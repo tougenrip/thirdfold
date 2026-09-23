@@ -3,6 +3,7 @@
 
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
+import type { ChatMessage } from '../src/lib/game/chat';
 import type { Token } from '../src/lib/game/token';
 import {
 	normalizeName,
@@ -27,6 +28,9 @@ export interface Room {
 	grid: SquareGrid;
 	players: Map<string, Player>;
 	tokens: Map<string, Token>;
+	/** Recent room log, oldest first, capped at LOG_LIMIT. */
+	log: ChatMessage[];
+	nextSeq: number;
 	/** When the last player disconnected, or null while anyone is connected. */
 	emptySince: number | null;
 }
@@ -51,7 +55,8 @@ export function snapshot(room: Room): RoomSnapshot {
 		id: room.id,
 		grid: { ...room.grid },
 		players: [...room.players.values()].map(toPublicPlayer),
-		tokens: [...room.tokens.values()].map((t) => ({ ...t, pos: { ...t.pos } }))
+		tokens: [...room.tokens.values()].map((t) => ({ ...t, pos: { ...t.pos } })),
+		log: [...room.log]
 	};
 }
 
@@ -75,6 +80,8 @@ export class RoomManager {
 			grid: { ...DEFAULT_GRID },
 			players: new Map(),
 			tokens: new Map(),
+			log: [],
+			nextSeq: 1,
 			emptySince: null
 		};
 		const player = this.addPlayer(room, name, 'gm');

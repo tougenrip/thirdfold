@@ -7,6 +7,9 @@
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
 	import Tabletop from '$lib/tabletop/Tabletop.svelte';
 	import type { CameraView, HighlightKind } from '$lib/tabletop/renderer';
+	import type { ChatMessage } from '$lib/game/chat';
+	import { formatBreakdown } from '$lib/game/dice';
+	import ChatPanel from './ChatPanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 
 	let { conn }: { conn: RoomConnection } = $props();
@@ -18,6 +21,9 @@
 	let hoverCell = $state<GridPos | null>(null);
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
+	let rollCard = $state<Extract<ChatMessage, { kind: 'roll' }> | null>(null);
+	// Only rolls that arrive while we're here pop up; history in the snapshot does not.
+	let lastAnnouncedSeq: number | null = null;
 
 	const room = $derived(conn.room);
 	const me = $derived(conn.me);
@@ -67,6 +73,24 @@
 	$effect(() => {
 		const err = conn.actionError;
 		if (err) showToast(err.message);
+	});
+
+	$effect(() => {
+		if (!room) return;
+		const latest = room.log.at(-1);
+		if (lastAnnouncedSeq === null) {
+			lastAnnouncedSeq = latest?.seq ?? 0;
+			return;
+		}
+		if (!latest || latest.seq <= lastAnnouncedSeq) return;
+		lastAnnouncedSeq = latest.seq;
+		if (latest.kind === 'roll') rollCard = latest;
+	});
+
+	$effect(() => {
+		if (!rollCard) return;
+		const timer = setTimeout(() => (rollCard = null), 4000);
+		return () => clearTimeout(timer);
 	});
 
 	$effect(() => {
@@ -195,7 +219,26 @@
 			{/if}
 		</aside>
 
+		<section class="chat-dock panel">
+			<ChatPanel
+				log={room.log}
+				myId={me.id}
+				send={(action) => conn.send(action)}
+				onError={showToast}
+			/>
+		</section>
+
 		<p class="hint" aria-live="polite">{hint}</p>
+
+		{#if rollCard}
+			{#key rollCard.seq}
+				<div class="roll-card" role="status">
+					<span class="who">{rollCard.authorName} rolled {rollCard.roll.expression}</span>
+					<span class="big">{rollCard.roll.total}</span>
+					<span class="how">{formatBreakdown(rollCard.roll)}</span>
+				</div>
+			{/key}
+		{/if}
 	{:else}
 		<p class="loading">{conn.error?.message ?? 'Connecting to the table…'}</p>
 	{/if}
@@ -359,6 +402,64 @@
 	.role[data-role='gm'] {
 		border-color: var(--accent);
 		color: var(--accent);
+	}
+
+	.chat-dock {
+		position: absolute;
+		left: 0.75rem;
+		bottom: 0.75rem;
+		width: min(21rem, calc(100% - 1.5rem));
+		height: min(24rem, 42vh);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.roll-card {
+		position: absolute;
+		top: 32%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		display: grid;
+		justify-items: center;
+		gap: 0.2rem;
+		padding: 0.9rem 1.6rem;
+		background: var(--panel-solid);
+		border: 1px solid var(--accent);
+		border-radius: 14px;
+		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+		pointer-events: none;
+		animation: pop 260ms cubic-bezier(0.2, 1.4, 0.4, 1);
+	}
+
+	.roll-card .who {
+		color: var(--muted);
+		font-size: 0.9rem;
+	}
+
+	.roll-card .big {
+		font-size: 3rem;
+		font-weight: 800;
+		line-height: 1;
+		color: var(--accent);
+	}
+
+	.roll-card .how {
+		font-family: ui-monospace, monospace;
+		font-size: 0.85rem;
+		color: var(--muted);
+	}
+
+	@keyframes pop {
+		from {
+			transform: translate(-50%, -50%) scale(0.6);
+			opacity: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.roll-card {
+			animation: none;
+		}
 	}
 
 	.hint {

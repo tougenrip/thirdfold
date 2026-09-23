@@ -1,6 +1,7 @@
 // Client mirror of authoritative room state. The server is the source of
 // truth; this only folds its broadcasts into the last snapshot it sent.
 
+import { LOG_LIMIT } from '$lib/game/chat';
 import type { RoomSnapshot, ServerMessage } from '$lib/game/protocol';
 
 /** Applies a room broadcast in place. Returns false for messages that are not room updates. */
@@ -31,6 +32,13 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 		case 'token_deleted': {
 			const i = room.tokens.findIndex((t) => t.id === msg.tokenId);
 			if (i !== -1) room.tokens.splice(i, 1);
+			return true;
+		}
+		case 'chat': {
+			const last = room.log.at(-1);
+			if (last && last.seq >= msg.message.seq) return true; // already have it
+			room.log.push(msg.message);
+			if (room.log.length > LOG_LIMIT) room.log.splice(0, room.log.length - LOG_LIMIT);
 			return true;
 		}
 		default:

@@ -62,14 +62,15 @@ export function moveToken(
 	actor: Player,
 	tokenId: string,
 	to: GridPos
-): Result<{ token: Token }> {
+): Result<{ token: Token; from: GridPos }> {
 	const token = room.tokens.get(tokenId);
 	if (!token) return fail('token_not_found', 'That token no longer exists.');
 	if (!canMoveToken(actor, token)) return fail('forbidden', 'You cannot move that token.');
 	const cell = checkCell(room, to, token.id);
 	if (!cell.ok) return cell;
+	const from = token.pos;
 	token.pos = { x: to.x, y: to.y };
-	return { ok: true, token };
+	return { ok: true, token, from };
 }
 
 export function updateToken(
@@ -77,7 +78,7 @@ export function updateToken(
 	actor: Player,
 	tokenId: string,
 	patch: TokenPatch
-): Result<{ token: Token }> {
+): Result<{ token: Token; previousOwnerId: string | null }> {
 	if (!canEditScene(actor)) return FORBIDDEN_EDIT;
 	const token = room.tokens.get(tokenId);
 	if (!token) return fail('token_not_found', 'That token no longer exists.');
@@ -90,14 +91,17 @@ export function updateToken(
 		if (!owner.ok) return owner;
 	}
 
+	const previousOwnerId = token.ownerId;
 	token.name = name;
 	if (patch.color !== undefined) token.color = patch.color;
 	if (patch.ownerId !== undefined) token.ownerId = patch.ownerId;
-	return { ok: true, token };
+	return { ok: true, token, previousOwnerId };
 }
 
-export function deleteToken(room: Room, actor: Player, tokenId: string): Result<object> {
+export function deleteToken(room: Room, actor: Player, tokenId: string): Result<{ token: Token }> {
 	if (!canEditScene(actor)) return FORBIDDEN_EDIT;
-	if (!room.tokens.delete(tokenId)) return fail('token_not_found', 'That token no longer exists.');
-	return { ok: true };
+	const token = room.tokens.get(tokenId);
+	if (!token) return fail('token_not_found', 'That token no longer exists.');
+	room.tokens.delete(tokenId);
+	return { ok: true, token };
 }
