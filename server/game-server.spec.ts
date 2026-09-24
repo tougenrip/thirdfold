@@ -7,7 +7,7 @@ import type { AdventureView } from '../src/lib/adventure/adventure';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
-import { FileSceneStore, type SceneStore } from './scene-store';
+import { FileSceneStore, MemorySceneStore, type SceneStore } from './scene-store';
 import { beginAdventure, claimCharacter, postSentries, startAdventure } from './adventure/engine';
 import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
 import { recordOrigins } from './adventure/objects';
@@ -742,13 +742,13 @@ describe('fog of war over the wire', () => {
 });
 
 describe('saving and loading scenes over the wire', () => {
-	async function gmRoom(target: GameServer) {
+	async function gmRoom(target: GameServer, gmKey?: string) {
 		const gm = new TestClient(target.port);
 		clients.push(gm);
 		await gm.opened();
-		gm.send({ type: 'create', name: 'Gemma' });
-		const { room } = await gm.expect('welcome');
-		return { gm, roomId: room.id };
+		gm.send({ type: 'create', name: 'Gemma', ...(gmKey ? { gmKey } : {}) });
+		const welcome = await gm.expect('welcome');
+		return { gm, roomId: welcome.room.id, gmKey: welcome.gmKey! };
 	}
 
 	it('saves a table, survives a server restart, and rebuilds it in a new room for everyone', async () => {
@@ -759,7 +759,7 @@ describe('saving and loading scenes over the wire', () => {
 			sceneStore: new FileSceneStore(dir)
 		});
 		try {
-			const { gm } = await gmRoom(first);
+			const { gm, gmKey } = await gmRoom(first);
 			gm.send({ type: 'object_create', kind: 'wall', a: { x: 5, y: 0 }, b: { x: 5, y: 10 } });
 			await gm.expect('objects_changed');
 			gm.send({ type: 'object_create', kind: 'door', a: { x: 5, y: 4 }, b: { x: 5, y: 5 } });
@@ -790,7 +790,8 @@ describe('saving and loading scenes over the wire', () => {
 				sceneStore: new FileSceneStore(dir)
 			});
 			try {
-				const { gm: gm2, roomId } = await gmRoom(second);
+				// The same GM (by their key, on any device) opens a new table on their save.
+				const { gm: gm2, roomId } = await gmRoom(second, gmKey);
 				const pip = new TestClient(second.port);
 				clients.push(pip);
 				await pip.opened();
@@ -869,7 +870,10 @@ describe('saving and loading scenes over the wire', () => {
 	it('reports storage failures instead of hanging', async () => {
 		const broken: SceneStore = {
 			save: () => Promise.reject(new Error('disk full')),
-			load: () => Promise.reject(new Error('disk gone'))
+			load: () => Promise.reject(new Error('disk gone')),
+			ownerOf: () => Promise.reject(new Error('disk gone')),
+			list: () => Promise.reject(new Error('disk gone')),
+			remove: () => Promise.reject(new Error('disk gone'))
 		};
 		const failing = await startGameServer({ port: 0, host: '127.0.0.1', sceneStore: broken });
 		const errorLog = console.error;
@@ -1856,3 +1860,152 @@ describe('session recovery over the wire', () => {
 		expect(welcome.room.adventure?.stage).toBe('playing');
 	});
 });
+
+describe('save and resume over the wire', () => {
+	async function restartWith(options: Partial<Parameters<typeof startGameServer>[0]>) {
+		await server.close();
+		server = await startGameServer({ port: 0, host: '127.0.0.1', patrolMs: 0, ...options });
+	}
+
+	async function openTable(extra: Record<string, unknown> = {}) {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma', ...extra });
+		return { gm, welcome: await gm.expect('welcome') };
+	}
+
+	async function joinAs(roomId: string, name: string) {
+		const c = await connect();
+		const frames: string[] = [];
+		c.ws.on('message', (d) => frames.push(d.toString()));
+		c.send({ type: 'join', roomId, name, role: 'player' });
+		return { c, frames, welcome: await c.expect('welcome') };
+	}
+
+	/** Lists a GM's saves from outside any table, as the landing page does. */
+	async function savesOf(gmKey: string) {
+		const c = await connect();
+		c.send({ type: 'scene_list', gmKey });
+		return (await c.expect('scene_list')).scenes;
+	}
+
+	it('issues a GM a lasting key of their own, and never shows it to anyone else', async () => {
+		const { welcome } = await openTable();
+		expect(welcome.gmKey).toMatch(/^[0-9a-f]{64}$/);
+		const pip = await joinAs(welcome.room.id, 'Pip');
+		expect(pip.welcome.gmKey).toBeUndefined();
+		const again = await openTable({ gmKey: welcome.gmKey });
+		expect(again.welcome.gmKey).toBe(welcome.gmKey);
+		expect(pip.frames.join('')).not.toContain(welcome.gmKey!);
+	});
+
+	it('continues a story from the last save: the chapter, the characters and what they found', async () => {
+		const store = new MemorySceneStore();
+		await restartWith({ sceneStore: store, autosaveMs: 0 });
+		const { gm, welcome } = await openTable();
+		const gmKey = welcome.gmKey!;
+		gm.send({ type: 'adventure_start' });
+		await gm.until('room_reset');
+		const pip = await joinAs(welcome.room.id, 'Pip');
+		pip.c.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await pip.c.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await pip.c.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		// The Warden finds the glint in the road: evidence only they know.
+		pip.c.send({ type: 'token_move', tokenId: warden.token.id, to: { x: 12, y: 21 } });
+		await pip.c.until('token_moved');
+		pip.c.send({ type: 'adventure_interact', targetId: 'charm', verb: null });
+		await pip.c.until('adventure_update', (m) => (m.adventure?.clues.length ?? 0) > 0);
+		gm.send({ type: 'adventure_direct', direction: { op: 'event', event: 'talked_maren' } });
+		await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.objectives.find((o) => o.id === 'innkeeper')?.done
+		);
+
+		// The table saved itself as the story went on.
+		let saves = await savesOf(gmKey);
+		for (let i = 0; i < 20 && !saves[0]?.story?.party.length; i++) {
+			await new Promise((r) => setTimeout(r, 50));
+			saves = await savesOf(gmKey);
+		}
+		expect(saves).toHaveLength(1);
+		expect(saves[0]).toMatchObject({
+			auto: true,
+			story: {
+				title: 'The Hollow Bell',
+				chapter: 'The quiet village',
+				location: 'Bellweather',
+				party: ['The Warden (Pip)']
+			}
+		});
+
+		// Everyone leaves. Another day, on another device with the GM's key: Continue.
+		gm.ws.terminate();
+		pip.c.ws.terminate();
+		const next = await openTable({ gmKey, continueFrom: saves[0].id });
+		const story = next.welcome.room.adventure!;
+		expect(story).toMatchObject({ stage: 'playing', chapter: { id: 'village' } });
+		expect(story.objectives.find((o) => o.id === 'innkeeper')?.done).toBe(true);
+		expect(story.characters.find((c) => c.id === 'warden')).toMatchObject({ inPlay: true });
+		// Pip comes back under the same name: the Warden, and what the Warden found, are theirs again.
+		const back = await joinAs(next.welcome.room.id, 'Pip');
+		const view = back.welcome.room.adventure!;
+		expect(view.characters.find((c) => c.id === 'warden')?.playerId).toBe(back.welcome.playerId);
+		expect(view.clues).toEqual([expect.objectContaining({ id: 'tinbell', mine: true })]);
+		// Continuing keeps saving into the same save.
+		next.gm.send({ type: 'adventure_direct', direction: { op: 'event', event: 'well_clue' } });
+		await next.gm.until('adventure_update', (m) => m.adventure?.chapter.id === 'discover_bell');
+		let after = await savesOf(gmKey);
+		for (let i = 0; i < 20 && after[0]?.story?.chapter !== 'What the bell woke'; i++) {
+			await new Promise((r) => setTimeout(r, 50));
+			after = await savesOf(gmKey);
+		}
+		expect(after.map((x) => x.id)).toEqual([saves[0].id]);
+		expect(after[0].story?.chapter).toBe('What the bell woke');
+	});
+
+	it('keeps a GM’s saves to that GM: no one else lists, loads, continues or deletes them', async () => {
+		const store = new MemorySceneStore();
+		await restartWith({ sceneStore: store });
+		const alice = await openTable();
+		alice.gm.send({ type: 'scene_save', name: 'Crypt' });
+		const { sceneId } = await alice.gm.expect('scene_saved');
+		alice.gm.send({ type: 'scene_list' });
+		expect((await alice.gm.until('scene_list')).scenes.map((x) => x.id)).toEqual([sceneId]);
+
+		const bob = await openTable();
+		expect(await savesOf(bob.welcome.gmKey!)).toEqual([]);
+		bob.gm.send({ type: 'scene_load', sceneId });
+		expect(await bob.gm.until('error')).toMatchObject({ code: 'scene_not_found' });
+		bob.gm.send({ type: 'scene_delete', sceneId });
+		expect(await bob.gm.until('error')).toMatchObject({ code: 'scene_not_found' });
+		const sneak = await connect();
+		sneak.send({
+			type: 'create',
+			name: 'Mallory',
+			gmKey: bob.welcome.gmKey,
+			continueFrom: sceneId
+		});
+		expect(await sneak.expect('error')).toMatchObject({ code: 'scene_not_found' });
+
+		// Its owner can.
+		alice.gm.send({ type: 'scene_delete', sceneId });
+		expect((await alice.gm.until('scene_list')).scenes).toEqual([]);
+	});
+
+	it('still loads saves from before GM keys, by their id', async () => {
+		const store = new MemorySceneStore();
+		await restartWith({ sceneStore: store });
+		const { gm } = await openTable();
+		const file = exportScene(makeOldTable(), 'Old');
+		const id = await store.save(file, { owner: null });
+		gm.send({ type: 'scene_load', sceneId: id });
+		expect((await gm.until('room_reset')).room.sceneName).toBe('Old');
+	});
+});
+
+/** A table saved by an older server: no owner. */
+function makeOldTable() {
+	const created = new RoomManager().create('Old');
+	if (!created.ok) throw new Error(created.message);
+	return created.room;
+}

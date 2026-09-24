@@ -4,8 +4,10 @@
 		SCENE_FILE_MAX_BYTES,
 		SCENE_NAME_MAX_LENGTH
 	} from '$lib/game/scene-file';
+	import type { SavedScene } from '$lib/game/protocol';
 	import type { RoomAction, SceneReply } from '$lib/net/room-connection.svelte';
 	import { loadSavedScenes, storeSavedScenes, type SavedSceneRef } from '$lib/prefs';
+	import { lastPlayed } from './when';
 
 	interface Props {
 		/** The room's current scene name; the name box follows it. */
@@ -19,7 +21,16 @@
 
 	// Follows the table's scene (after a load, import or reconnect) but stays editable in between.
 	let name = $derived(sceneName);
+	/** The GM's saves, kept on the server under their GM key (any device). */
+	let saves = $state<SavedScene[] | null>(null);
+	/** Older saves this browser remembers, from before saves had owners; still loadable by id. */
 	let saved = $state<SavedSceneRef[]>(loadSavedScenes());
+	const older = $derived(saved.filter((s) => !saves?.some((x) => x.id === s.sceneId)));
+
+	// Ask for the list once the panel is shown (and again after each save).
+	$effect(() => {
+		send({ type: 'scene_list' });
+	});
 	/** Scene waiting for a second click to confirm replacing the table. */
 	let confirming = $state<string | null>(null);
 	let fileInput: HTMLInputElement;
@@ -32,9 +43,9 @@
 		if (!reply || reply.seq === lastHandled) return;
 		lastHandled = reply.seq;
 		if (reply.type === 'scene_saved') {
-			const entry = { sceneId: reply.sceneId, name: reply.name, savedAt: reply.savedAt };
-			saved = [entry, ...saved.filter((s) => s.sceneId !== entry.sceneId)];
-			storeSavedScenes(saved);
+			send({ type: 'scene_list' });
+		} else if (reply.type === 'scene_list') {
+			saves = reply.scenes;
 		} else {
 			download(reply.file.name, JSON.stringify(reply.file, null, 2));
 		}
@@ -67,18 +78,29 @@
 		if (n) send({ type: 'scene_export', name: n });
 	}
 
-	function load(scene: SavedSceneRef) {
-		if (confirming !== scene.sceneId) {
-			confirming = scene.sceneId;
+	function load(sceneId: string) {
+		if (confirming !== sceneId) {
+			confirming = sceneId;
 			return;
 		}
 		confirming = null;
-		send({ type: 'scene_load', sceneId: scene.sceneId });
+		send({ type: 'scene_load', sceneId });
 	}
 
 	function forget(scene: SavedSceneRef) {
 		saved = saved.filter((s) => s.sceneId !== scene.sceneId);
 		storeSavedScenes(saved);
+	}
+
+	/** Deletes one of the GM's saves for good (a second click confirms). */
+	let deleting = $state<string | null>(null);
+	function remove(scene: SavedScene) {
+		if (deleting !== scene.id) {
+			deleting = scene.id;
+			return;
+		}
+		deleting = null;
+		send({ type: 'scene_delete', sceneId: scene.id });
 	}
 
 	async function importFile(event: Event) {
@@ -108,9 +130,54 @@
 		<button class="primary" type="submit">Save</button>
 	</form>
 
-	{#if saved.length > 0}
-		<ul class="saved" aria-label="Saved scenes">
-			{#each saved as scene (scene.sceneId)}
+	{#if saves === null}
+		<p class="muted">Looking up your saves…</p>
+	{:else if saves.length === 0 && older.length === 0}
+		<p class="muted">Your saves appear here, on any device with your GM key.</p>
+	{/if}
+	{#if saves?.length}
+		<ul class="saved" aria-label="Your saves">
+			{#each saves as scene (scene.id)}
+				<li>
+					<span class="info">
+						<span class="name">
+							{scene.auto ? (scene.story?.title ?? scene.name) : scene.name}{#if scene.auto}<span
+									class="auto"
+								>
+									· autosave</span
+								>{/if}
+						</span>
+						<span class="when">
+							{lastPlayed(scene.savedAt)}{scene.story
+								? ` · ${scene.story.chapter}, ${scene.story.location}`
+								: ''}
+						</span>
+					</span>
+					<button
+						type="button"
+						class:warn={confirming === scene.id}
+						onclick={() => load(scene.id)}
+						onblur={() => confirming === scene.id && (confirming = null)}
+					>
+						{confirming === scene.id ? 'Replace table?' : 'Load'}
+					</button>
+					<button
+						type="button"
+						class="forget"
+						class:warn={deleting === scene.id}
+						aria-label={`Delete ${scene.name}`}
+						title={deleting === scene.id ? 'Click again to delete for good' : 'Delete this save'}
+						onclick={() => remove(scene)}
+						onblur={() => deleting === scene.id && (deleting = null)}>×</button
+					>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+	{#if older.length > 0}
+		<p class="muted">Older saves in this browser</p>
+		<ul class="saved" aria-label="Older saves in this browser">
+			{#each older as scene (scene.sceneId)}
 				<li>
 					<span class="info">
 						<span class="name">{scene.name}</span>
@@ -119,7 +186,7 @@
 					<button
 						type="button"
 						class:warn={confirming === scene.sceneId}
-						onclick={() => load(scene)}
+						onclick={() => load(scene.sceneId)}
 						onblur={() => confirming === scene.sceneId && (confirming = null)}
 					>
 						{confirming === scene.sceneId ? 'Replace table?' : 'Load'}
@@ -134,8 +201,6 @@
 				</li>
 			{/each}
 		</ul>
-	{:else}
-		<p class="muted">Saved scenes appear here, in this browser.</p>
 	{/if}
 
 	<div class="files">
@@ -193,6 +258,11 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.auto {
+		color: var(--muted);
+		font-size: 0.72rem;
 	}
 
 	.when {

@@ -52,6 +52,17 @@ export interface Room {
 	paused: boolean;
 	/** Paused only because the GM lost their connection; lifted when they are back. */
 	pausedForGm?: boolean;
+	/** Whose saves this table's are: the hash of its GM's lasting key (see gm-keys.ts). */
+	gmOwner?: string;
+	/** The save the table keeps of its story as it goes on (its autosave slot), once made. */
+	autosaveId?: string;
+	/**
+	 * After a load: tokens whose saved owner isn't at the table yet (token id → their
+	 * lowercase name), and what each saved player had explored, by lowercase name. A
+	 * player joining under that name gets both back (see `reclaim` in scene-io.ts).
+	 */
+	awaiting?: Map<string, string>;
+	discovery?: Map<string, string>;
 	fog: {
 		enabled: boolean;
 		/** Cells the GM has revealed to everyone. */
@@ -122,6 +133,11 @@ export class RoomManager {
 	/** Every open room. */
 	all(): IterableIterator<Room> {
 		return this.rooms.values();
+	}
+
+	/** Closes a room at once (a table that failed to open). */
+	remove(roomId: string): void {
+		this.rooms.delete(roomId);
 	}
 
 	/** Takes in a room restored after a restart (see room-store.ts); false if its id is taken. */

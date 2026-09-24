@@ -272,6 +272,29 @@ describe('adventure messages', () => {
 		expect(direct('skip')).toBeNull();
 	});
 
+	it('parses a GM opening a table with their key, continuing a save, and listing saves', () => {
+		const key = 'a'.repeat(64);
+		const save = 'b'.repeat(32);
+		expect(
+			parseClientMessage({ type: 'create', name: 'Gia', gmKey: key, continueFrom: save })
+		).toEqual({ type: 'create', name: 'Gia', gmKey: key, continueFrom: save });
+		expect(parseClientMessage({ type: 'create', name: 'Gia' })).toEqual({
+			type: 'create',
+			name: 'Gia'
+		});
+		expect(parseClientMessage({ type: 'create', name: 'Gia', gmKey: 'short' })).toBeNull();
+		expect(parseClientMessage({ type: 'create', name: 'Gia', continueFrom: '../x' })).toBeNull();
+		expect(parseClientMessage({ type: 'scene_list' })).toEqual({ type: 'scene_list' });
+		expect(parseClientMessage({ type: 'scene_list', gmKey: key })).toEqual({
+			type: 'scene_list',
+			gmKey: key
+		});
+		expect(parseClientMessage({ type: 'scene_list', gmKey: 7 })).toBeNull();
+		expect(parseClientMessage({ type: 'scene_delete', sceneId: save })).not.toBeNull();
+		expect(parseClientMessage({ type: 'scene_delete', sceneId: 'x' })).toBeNull();
+		expect(parseServerMessage({ type: 'scene_list', scenes: [] })).not.toBeNull();
+	});
+
 	it('parses pausing and secret rolls', () => {
 		expect(parseClientMessage({ type: 'pause_set', paused: true })).toEqual({
 			type: 'pause_set',

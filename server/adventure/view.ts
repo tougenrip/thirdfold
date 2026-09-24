@@ -10,6 +10,7 @@ import {
 } from '../../src/lib/adventure/adventure';
 import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
+import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
 import { CLUES, CUES, ENDINGS, OUTCOMES, TEXT, TITLE, type ClueDef, type ClueId } from './content';
 import { ENEMIES } from './enemies';
@@ -31,6 +32,23 @@ import { actionOfVerb, objectDef, OBJECTS } from './objects';
 import type { AdventureState, Statuses } from './state';
 import { NPC_IDS, NPCS } from './npcs';
 import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, objectivesFor } from './story';
+
+/** Where a story saved now had got to, for the GM's list of saves (null for a table without one). */
+export function storySummary(room: Room): SavedScene['story'] {
+	const adventure = room.adventure;
+	if (!adventure) return null;
+	return {
+		title: TITLE,
+		chapter: CHAPTERS[adventure.chapter].title,
+		location: LOCATIONS[adventure.location].name,
+		party: [...adventure.characters].flatMap(([id, state]) => {
+			const token = room.tokens.get(state.tokenId);
+			if (!token) return [];
+			const player = token.ownerId && room.players.get(token.ownerId);
+			return [player ? `${CHARACTERS[id].name} (${player.name})` : CHARACTERS[id].name];
+		})
+	};
+}
 
 /** What a player joining the party finds, wherever it is. */
 const WELCOME: Record<LocationId, string> = {

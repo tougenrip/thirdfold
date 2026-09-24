@@ -6,7 +6,7 @@ import { saveAdventure } from './adventure/persist';
 import type { Token } from '../src/lib/game/token';
 import { decodeLevels } from '../src/lib/game/terrain';
 import { decodeMask, emptyMask } from '../src/lib/game/visibility';
-import type { Room } from './rooms';
+import type { Player, Room } from './rooms';
 
 export function exportScene(room: Room, name: string, now = new Date()): SceneFile {
 	return serializeScene(
@@ -40,6 +40,30 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
  * of the same name had discovered when it was saved; everyone else starts
  * with nothing explored.
  */
+/**
+ * A player joining a table loaded from a save: under the name a saved owner
+ * had, they get that owner's tokens (their character) and what they had
+ * explored back. Returns the tokens handed back.
+ */
+export function reclaim(room: Room, player: Player): string[] {
+	if (player.role !== 'player') return [];
+	const name = player.name.toLowerCase();
+	const back: string[] = [];
+	for (const [tokenId, owner] of room.awaiting ?? []) {
+		const token = room.tokens.get(tokenId);
+		if (owner !== name || !token || token.ownerId) continue;
+		token.ownerId = player.id;
+		room.awaiting!.delete(tokenId);
+		back.push(tokenId);
+	}
+	const mask = room.discovery?.get(name);
+	if (mask && back.length) {
+		const saved = decodeMask(mask, room.grid.width * room.grid.height);
+		for (let i = 0; i < saved.length; i++) if (saved[i]) player.explored[i] = 1;
+	}
+	return back;
+}
+
 export function applyScene(room: Room, scene: SceneFile): void {
 	const players = [...room.players.values()].filter((p) => p.role === 'player');
 	const ownerFor = (owner: SceneFile['tokens'][number]['owner']): string | null => {
@@ -52,11 +76,13 @@ export function applyScene(room: Room, scene: SceneFile): void {
 
 	room.sceneName = scene.name;
 	room.grid = { ...scene.grid };
+	room.awaiting = new Map();
 	room.tokens = new Map(
-		scene.tokens.map(({ owner, ...t }): [string, Token] => [
-			t.id,
-			{ ...structuredClone(t), ownerId: ownerFor(owner) }
-		])
+		scene.tokens.map(({ owner, ...t }): [string, Token] => {
+			const ownerId = ownerFor(owner);
+			if (owner && !ownerId && owner.name) room.awaiting!.set(t.id, owner.name.toLowerCase());
+			return [t.id, { ...structuredClone(t), ownerId }];
+		})
 	);
 	room.objects = new Map(scene.objects.map((o) => [o.id, structuredClone(o)]));
 	room.props = new Map(scene.props.map((p) => [p.id, structuredClone(p)]));
@@ -76,6 +102,7 @@ export function applyScene(room: Room, scene: SceneFile): void {
 	const discovered = new Map(
 		Object.entries(scene.discovery).map(([name, mask]) => [name.toLowerCase(), mask])
 	);
+	room.discovery = discovered;
 	for (const p of room.players.values()) {
 		const mask = discovered.get(p.name.toLowerCase());
 		p.explored = mask ? decodeMask(mask, size) : emptyMask(room.grid);

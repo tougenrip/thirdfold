@@ -53,3 +53,30 @@ export function storeSavedScenes(list: SavedSceneRef[]): void {
 		// ignore: the scene is still saved on the server, just not remembered here
 	}
 }
+
+const GM_KEY = 'thirdfold:gm-key';
+const GM_KEY_PATTERN = /^[0-9a-f]{64}$/;
+
+/**
+ * This browser's GM key: what makes a GM's saves theirs (see server/gm-keys.ts).
+ * Issued by the server the first time this browser opens a table; the GM can
+ * copy it to another device. Secret, like a password.
+ */
+export function loadGmKey(): string | null {
+	try {
+		const key = localStorage.getItem(GM_KEY);
+		return key && GM_KEY_PATTERN.test(key) ? key : null;
+	} catch {
+		return null;
+	}
+}
+
+export function saveGmKey(key: string): boolean {
+	if (!GM_KEY_PATTERN.test(key)) return false;
+	try {
+		localStorage.setItem(GM_KEY, key);
+		return true;
+	} catch {
+		return false;
+	}
+}

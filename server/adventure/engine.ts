@@ -373,7 +373,16 @@ export function claimCharacter(room: Room, actor: Player, id: CharacterId): Outc
 	const mine = characterOf(room, actor.id);
 	if (mine) return fail('forbidden', `You are already playing ${CHARACTERS[mine.id].name}.`);
 	const existing = adventure.characters.get(id);
-	if (existing && room.tokens.has(existing.tokenId)) {
+	const theirs = existing && room.tokens.get(existing.tokenId);
+	// A character in the story that nobody plays (a continued table, a player who left): take it up.
+	if (existing && theirs && !theirs.ownerId && adventure.stage !== 'choosing') {
+		theirs.ownerId = actor.id;
+		return {
+			ok: true,
+			log: [postSystem(room, `${actor.name} takes up ${CHARACTERS[id].name} again.`)]
+		};
+	}
+	if (existing && theirs) {
 		return fail('character_taken', `${CHARACTERS[id].name} is already taken.`);
 	}
 	const token = placeCharacter(room, adventure.location, id, actor.id);
