@@ -4,6 +4,7 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
 import type { ChatMessage } from '../src/lib/game/chat';
+import type { DieRoller } from '../src/lib/game/dice';
 import type { Ambient, Light } from '../src/lib/game/lights';
 import type { SceneObject } from '../src/lib/game/objects';
 import type { Prop } from '../src/lib/game/props';
@@ -55,6 +56,8 @@ export interface Room {
 	emptySince: number | null;
 	/** The adventure being played at this table, or null for a free table. */
 	adventure: AdventureState | null;
+	/** The dice the story rolls when no action brings its own (initiative); secure dice if unset. */
+	dice?: DieRoller;
 }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; code: ErrorCode; message: string };

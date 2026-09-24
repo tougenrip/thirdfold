@@ -219,12 +219,10 @@
 							: `${party.length} of 4 characters chosen. Begin when everyone is ready.`}
 					</p>
 				{/if}
-				{#if adventure.encounter?.phase === 'players'}
-					<button
-						type="button"
-						onclick={() => send({ type: 'adventure_control', op: 'end_round' })}
-					>
-						End the players' turn
+				{#if adventure.encounter}
+					{@const up = adventure.encounter.order[adventure.encounter.current]}
+					<button type="button" onclick={() => send({ type: 'adventure_control', op: 'end_turn' })}>
+						End {up ? `${up.name}'s` : 'this'} turn
 					</button>
 				{/if}
 

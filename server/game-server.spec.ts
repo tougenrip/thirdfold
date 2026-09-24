@@ -986,6 +986,15 @@ describe('The Hollow Bell over the wire', () => {
 		untilAdventure(client, (a) => a.chapter.id === chapter);
 
 	it('plays the whole story from the village to an ending, with both sides seeing the same story', async () => {
+		// Enemies wait a moment before their turns, so the GM can clear the later fights first.
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 150,
+			mechanismDelayScale: 0
+		});
 		const { gm, pip, pipId } = await table();
 
 		pip.send({ type: 'adventure_start' });
@@ -1040,16 +1049,27 @@ describe('The Hollow Bell over the wire', () => {
 		expect(fight.clues.map((c) => c.id)).toEqual(['scratches']);
 		const [hound] = fight.encounter!.enemies;
 		expect(hound).toMatchObject({ name: 'Hollow Hound', hp: 16, maxHp: 16 });
+		// Initiative, rolled on the server: the Hound (d20 + 3) goes before the Warden (d20 + 0),
+		// and both sides see the same order.
+		const order = (a: AdventureView) => a.encounter!.order.map((t) => `${t.name} ${t.initiative}`);
+		expect(order(fight)).toEqual(['Hollow Hound 23', 'The Warden 20']);
+		const wardenUp = (a: AdventureView) =>
+			a.encounter?.order[a.encounter.current]?.characterId === 'warden';
+		expect(order(await untilAdventure(gm, wardenUp))).toEqual(order(fight));
+		await untilAdventure(pip, wardenUp);
 
-		// 1d20+5 hits for 1d8+3 = 11; the Hound bites back for 8; the second blow kills it.
+		// The Hound bit for 8; 1d20+5 hits it for 1d8+3 = 11. The Warden ends its turn, the
+		// Hound bites again, and the Warden's second blow kills it.
 		pip.send({ type: 'adventure_act', actionId: 'blade', targetId: hound.tokenId });
+		pip.send({ type: 'adventure_end_turn' });
 		for (;;) {
 			const { message } = await gm.expect('chat');
-			if (message.kind === 'system' && message.text === 'Round 2. Your move.') break;
+			if (message.kind === 'system' && message.text === 'Round 2.') break;
 		}
+		await untilAdventure(pip, (a) => wardenUp(a) && a.encounter!.round === 2);
 		pip.send({ type: 'adventure_act', actionId: 'blade', targetId: hound.tokenId });
 		const after = await untilAdventure(gm, (a) => !a.encounter);
-		expect(after.characters.find((c) => c.id === 'warden')?.hp).toBe(22);
+		expect(after.characters.find((c) => c.id === 'warden')?.hp).toBe(14);
 		expect(after.ledger?.encounters).toEqual([{ id: 'well', state: 'won' }]);
 
 		// Up through the open gate to the mountain path, and on to a new table.
@@ -1101,7 +1121,11 @@ describe('The Hollow Bell over the wire', () => {
 		door('mn-secret-door');
 		move({ x: 7, y: 5 });
 		const rung = await untilChapter(gm, 'bell_rings');
-		expect(rung.encounter?.enemies).toHaveLength(2);
+		expect(rung.encounter?.enemies.map((e) => e.name)).toEqual([
+			'Hollow Hound',
+			'Hollow Hound',
+			'Bell Cultist'
+		]);
 		for (const e of rung.encounter!.enemies) {
 			gm.send({ type: 'token_delete', tokenId: e.tokenId });
 		}
@@ -1135,6 +1159,15 @@ describe('The Hollow Bell over the wire', () => {
 		move({ x: 3, y: 8 });
 		const hollow = (await pip.until('room_reset')).room;
 		expect(hollow.adventure).toMatchObject({ chapter: { id: 'the_hollow' } });
+		// The Bell Keeper and its cultists: the GM clears them away.
+		const guarded = (await gm.until('room_reset')).room.adventure!.encounter!;
+		expect(guarded.enemies.map((e) => e.name).sort()).toEqual([
+			'Bell Cultist',
+			'Bell Cultist',
+			'Bell Keeper'
+		]);
+		for (const e of guarded.enemies) gm.send({ type: 'token_delete', tokenId: e.tokenId });
+		await untilAdventure(pip, (a) => a.encounter === null);
 
 		// Tobin, and the final choice (after a breath: talking shares the chat rate limit).
 		await new Promise((resolve) => setTimeout(resolve, 800));
@@ -1145,7 +1178,7 @@ describe('The Hollow Bell over the wire', () => {
 		const done = await untilAdventure(gm, (a) => a.stage === 'complete');
 		expect(done.ending).toMatchObject({ id: 'silent', title: 'The Long Silence' });
 		expect(done.objectives.every((o) => o.done)).toBe(true);
-		expect(done.ledger?.events).toHaveLength(14);
+		expect(done.ledger?.events).toHaveLength(15);
 		expect((await untilAdventure(pip, (a) => a.stage === 'complete')).completedAt).toBeGreaterThan(
 			0
 		);

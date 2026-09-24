@@ -155,7 +155,7 @@ export type ClientMessage =
 	| { type: 'adventure_sense'; sense: Sense }
 	/** Player: tell the party about evidence their character found. */
 	| { type: 'adventure_share'; clueId: string }
-	/** GM: end the players' phase now, start the section over, or stop the adventure (the table stays). */
+	/** GM: end whoever's turn it is now, start the story over, or stop the adventure (the table stays). */
 	| { type: 'adventure_control'; op: AdventureControl }
 	/** GM: set a character's hit points and statuses, or bring them back from the dead. */
 	| { type: 'adventure_override'; characterId: CharacterId; patch: CharacterPatch };
@@ -169,7 +169,7 @@ export interface CharacterPatch {
 	revive?: true;
 }
 
-export type AdventureControl = 'end_round' | 'restart' | 'end';
+export type AdventureControl = 'end_turn' | 'restart' | 'end';
 
 export type ErrorCode =
 	| 'invalid_message'
@@ -530,7 +530,7 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'adventure_decide', decisionId: data.decisionId, optionId: data.optionId }
 				: null;
 		case 'adventure_control':
-			return data.op === 'end_round' || data.op === 'restart' || data.op === 'end'
+			return data.op === 'end_turn' || data.op === 'restart' || data.op === 'end'
 				? { type: 'adventure_control', op: data.op }
 				: null;
 		default:

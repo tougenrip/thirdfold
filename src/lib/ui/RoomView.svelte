@@ -104,7 +104,15 @@
 	const movesLeft = $derived.by(() => {
 		const encounter = adventure?.encounter;
 		if (!encounter || !myCharacter || selectedId !== myCharacter.tokenId) return null;
-		return Math.max(0, CHARACTERS[myCharacter.id].speed - (encounter.moved[myCharacter.id] ?? 0));
+		// Only on its own turn, and only as far as this turn allows (half when slowed).
+		if (encounter.order[encounter.current]?.characterId !== myCharacter.id) return 0;
+		return Math.max(0, encounter.speed - (encounter.moved[myCharacter.id] ?? 0));
+	});
+	/** Whose turn it is in a fight, when this viewer can see their token. */
+	const active = $derived.by(() => {
+		const encounter = adventure?.encounter;
+		const up = encounter?.order[encounter.current];
+		return up?.tokenId ? { tokenId: up.tokenId, enemy: up.kind === 'enemy' } : null;
 	});
 	/** Fallen characters' tokens, drawn lying down. */
 	const fallen = $derived(
@@ -701,8 +709,10 @@
 
 	// An aimed action is dropped when it can no longer be used.
 	$effect(() => {
-		const phase = adventure?.encounter?.phase;
-		if (targeting && (!myCharacter || myCharacter.downed || phase === 'enemies')) targeting = null;
+		const encounter = adventure?.encounter;
+		const up = encounter?.order[encounter.current];
+		const myTurn = !encounter || up?.characterId === myCharacter?.id;
+		if (targeting && (!myCharacter || myCharacter.downed || !myTurn)) targeting = null;
 	});
 
 	// In an adventure, a player's own character is always the one ready to move.
@@ -758,6 +768,7 @@
 				{terrain}
 				cue={cuePlay}
 				motion={conn.motion}
+				{active}
 				{highlight}
 				{view}
 				{onClick}
@@ -897,18 +908,31 @@
 
 		{#if adventure?.encounter}
 			{@const encounter = adventure.encounter}
-			<div class="encounter" role="status">
-				<span class="round">Round {encounter.round}</span>
-				<span class="phase">{encounter.phase === 'players' ? "Party's turn" : "Enemies' turn"}</span
-				>
-				{#each encounter.enemies as e (e.tokenId)}
-					<span class="foe">
-						{e.name}
-						<span class="foe-hp"><span style:width={`${(100 * e.hp) / e.maxHp}%`}></span></span>
-						{e.hp}/{e.maxHp}
-					</span>
+			<ol class="encounter" aria-label={`Round ${encounter.round}, turn order`}>
+				<li class="round">Round {encounter.round}</li>
+				{#each encounter.order as t, i (i)}
+					{@const foe = t.tokenId
+						? encounter.enemies.find((e) => e.tokenId === t.tokenId)
+						: undefined}
+					<li
+						class="turn"
+						class:enemy={t.kind === 'enemy'}
+						class:current={i === encounter.current}
+						class:out={t.out}
+						aria-current={i === encounter.current ? 'true' : undefined}
+						title={`Initiative ${t.initiative}`}
+					>
+						<span class="init">{t.initiative}</span>
+						{t.name}
+						{#if foe}
+							<span class="foe-hp"
+								><span style:width={`${(100 * foe.hp) / foe.maxHp}%`}></span></span
+							>
+							<span class="foe-num">{foe.hp}/{foe.maxHp}</span>
+						{/if}
+					</li>
 				{/each}
-			</div>
+			</ol>
 		{/if}
 
 		{#if adventure && myCharacter && myCharacterToken}
@@ -1255,6 +1279,8 @@
 	}
 
 	.encounter {
+		list-style: none;
+		margin: 0;
 		position: absolute;
 		top: 5rem;
 		left: 50%;
@@ -1277,15 +1303,33 @@
 		color: var(--danger);
 	}
 
-	.encounter .phase {
-		color: var(--muted);
-	}
-
-	.foe {
+	.encounter .turn {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: 0.35rem;
+		padding: 0.1rem 0.55rem;
+		border-radius: 999px;
+		border: 1px solid transparent;
 		font-variant-numeric: tabular-nums;
+	}
+	.encounter .turn.enemy {
+		color: #e8b4a8;
+	}
+	.encounter .turn.current {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 22%, transparent);
+		font-weight: 700;
+	}
+	.encounter .turn.out {
+		opacity: 0.4;
+		text-decoration: line-through;
+	}
+	.encounter .init {
+		font-size: 0.75rem;
+		color: var(--muted);
+	}
+	.foe-num {
+		font-size: 0.8rem;
 	}
 
 	.foe-hp {

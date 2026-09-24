@@ -81,6 +81,8 @@ export interface Tabletop {
 	setSelected(tokenId: string | null): void;
 	/** Lays these tokens down (fallen characters); stands the others up. */
 	setFallen(tokenIds: readonly string[]): void;
+	/** Marks the token whose turn it is in a fight (an enemy's in red), or none. */
+	setActive(tokenId: string | null, enemy: boolean): void;
 	/** Floats combat text (damage, healing, a status) up from a token. */
 	showFloat(tokenId: string, text: string, color: string): void;
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
@@ -636,6 +638,9 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		setFallen(tokenIds) {
 			fallen = new Set(tokenIds);
 			if (tokenLayer.setFallen(fallen)) requestRender();
+		},
+		setActive(tokenId, enemy) {
+			if (tokenLayer.setActive(tokenId, enemy)) requestRender();
 		},
 		showFloat(tokenId, text, color) {
 			if (tokenLayer.float(tokenId, text, color)) requestRender();

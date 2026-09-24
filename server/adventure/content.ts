@@ -3,7 +3,6 @@
 // as log entries and adventure state once they happen.
 
 import type { EvidenceKind } from '../../src/lib/adventure/adventure';
-import type { Attack } from '../../src/lib/adventure/characters';
 import type { EndingId, EventId } from './story';
 
 /** A piece of evidence the party can come by. */
@@ -195,19 +194,6 @@ export const CLUES = {
 
 export type ClueId = keyof typeof CLUES;
 
-export const HOUND = {
-	name: 'Hollow Hound',
-	color: '#c9d1d6',
-	armor: 1,
-	speed: 6,
-	vision: 8,
-	attack: { name: 'Bite', range: 1, toHit: 4, damage: '1d6+2' } satisfies Attack,
-	/** Tougher with a bigger party. */
-	hpFor: (characters: number) => 10 + 6 * Math.max(1, characters),
-	/** The two that come up the stair when the bell rings are younger and weaker. */
-	pupHpFor: (characters: number) => 6 + 3 * Math.max(1, characters)
-};
-
 /** Narration, spoken lines and prepared read-aloud text. */
 export const TEXT = {
 	started: `${TITLE}. Choose your characters.`,
@@ -288,7 +274,7 @@ export const TEXT = {
 	chamber:
 		'Behind the wall, a narrow ringing chamber. A bell rope hangs through a hole in the ceiling, and a single candle burns on a crate.',
 	bellRings:
-		'The rope jerks in the still air, and far below your feet the Bell speaks. Not in the tower: under the floor. The iron grate bursts upward, and two pale shapes spill out of the stair.',
+		'The rope jerks in the still air, and far below your feet the Bell speaks. Not in the tower: under the floor. The iron grate bursts upward, and two pale shapes spill out of the stair. A robed figure climbs up after them, a sling already whirling.',
 	chamberWon:
 		'The last hound falls apart into chiming ash. With a shriek of iron the grate drops back over the stair and holds fast. Its chain runs up the wall and across the ceiling to a lever by the door.',
 	leverPulled: 'The lever groans down in its slot.',
@@ -305,6 +291,12 @@ export const TEXT = {
 	chainsBroken:
 		'The rusted links give with a crack. The chains fall away from the great doors, and they can be opened from inside.',
 	downStair: 'The stair turns and turns. The air grows warm, then damp, then hums.',
+	keeper:
+		'Between you and the Bell stands a tall figure in an iron helm shaped like a bell, a great hammer in one hand and a small black bell in the other. Two robed cultists rise from their knees on either side. “No further,” says the Bell Keeper, and rings.',
+	keeperToll:
+		'The Bell Keeper rings its little black bell. The note goes through you like cold water.',
+	keeperFalls:
+		'The Bell Keeper goes down on one knee, then onto its face. Its little bell rolls away across the stone and rings once. Under the great Bell, Tobin has not moved.',
 
 	// The Hollow
 	hollow:

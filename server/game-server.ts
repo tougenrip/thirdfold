@@ -196,6 +196,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'create': {
 				const result = rooms.create(msg.name);
 				if (!result.ok) return sendError(ws, result.code, result.message);
+				// The story's own rolls (initiative) use the server's dice too.
+				result.room.dice = rollDie;
 				postSystem(result.room, `${result.player.name} opened the table as GM.`);
 				seat(ws, result.room, result.player);
 				console.info(`[room ${result.room.id}] created by ${result.player.name}`);
@@ -266,8 +268,9 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		const resumed = room.adventure;
 		if (!resumed) return;
 		announce(room, postSystem(room, adventure.resumeNotice(resumed)));
-		// A save made while the enemies were acting picks up with their turn.
-		if (resumed.encounter?.phase === 'enemies') scheduleEnemyTurn(room, resumed.encounter.turn);
+		// A save made on an enemy's turn picks up with it.
+		const enemyTurn = adventure.pendingEnemyTurn(resumed);
+		if (enemyTurn !== null) scheduleEnemyTurn(room, enemyTurn);
 		// So does a mechanism that was playing out.
 		for (const next of adventure.pendingMechanisms(resumed)) scheduleMechanism(room, next);
 	}

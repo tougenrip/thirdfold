@@ -7,7 +7,8 @@ import { CHAPTER_IDS, type AdventureView } from '../../src/lib/adventure/adventu
 import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
-import { CLUES, CUES, ENDINGS, HOUND, TITLE, type ClueDef, type ClueId } from './content';
+import { CLUES, CUES, ENDINGS, TITLE, type ClueDef, type ClueId } from './content';
+import { ENEMIES } from './enemies';
 import { chapterNumber, characterOf, objectCells, objectState, usesLeft, verbsFor } from './engine';
 import { LOCATIONS } from './locations';
 import { actionOfVerb, objectDef, OBJECTS } from './objects';
@@ -128,17 +129,41 @@ export function adventureView(
 				: null,
 		encounter: encounter && {
 			round: encounter.round,
-			phase: encounter.phase,
+			order: encounter.order.map((t) => {
+				if (t.kind === 'enemy') {
+					const e = encounter.enemies.get(t.tokenId);
+					return {
+						kind: 'enemy' as const,
+						characterId: null,
+						name: e ? ENEMIES[e.kind].name : 'Enemy',
+						initiative: t.initiative,
+						tokenId: tokenIds.has(t.tokenId) ? t.tokenId : null,
+						out: !e
+					};
+				}
+				const state = adventure.characters.get(t.id);
+				const token = state && room.tokens.get(state.tokenId);
+				return {
+					kind: 'character' as const,
+					characterId: t.id,
+					name: CHARACTERS[t.id].name,
+					initiative: t.initiative,
+					tokenId: token && tokenIds.has(token.id) ? token.id : null,
+					out: !token || !state || state.hp <= 0 || state.dead
+				};
+			}),
+			current: encounter.current,
 			acted: [...encounter.acted],
 			moved: Object.fromEntries(encounter.moved),
+			speed: encounter.speed,
 			enemies: [...encounter.enemies]
 				.filter(([tokenId]) => tokenIds.has(tokenId))
 				.map(([tokenId, e]) => ({
 					tokenId,
-					name: room.tokens.get(tokenId)?.name ?? HOUND.name,
+					name: room.tokens.get(tokenId)?.name ?? ENEMIES[e.kind].name,
 					hp: e.hp,
 					maxHp: e.maxHp,
-					defense: defenseFor(HOUND.armor),
+					defense: defenseFor(ENEMIES[e.kind].armor),
 					statuses: listStatuses(e.statuses)
 				}))
 		},

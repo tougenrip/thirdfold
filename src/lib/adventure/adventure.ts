@@ -325,14 +325,32 @@ export interface EnemyStatus {
 	statuses: ActiveStatus[];
 }
 
+/** A place in the turn order, as a viewer sees it. */
+export interface TurnView {
+	kind: 'character' | 'enemy';
+	/** The character, for a character's turn. */
+	characterId: CharacterId | null;
+	name: string;
+	/** What it rolled for initiative. */
+	initiative: number;
+	/** Its token, when this viewer can see it. */
+	tokenId: string | null;
+	/** Gone from the fight (a fallen enemy), or down or dead (a character): its turns are skipped. */
+	out: boolean;
+}
+
 export interface EncounterView {
 	round: number;
-	/** Characters act (in any order) in the players' phase, then the enemies act. */
-	phase: 'players' | 'enemies';
-	/** Characters who have used their action (or ended their turn) this round. */
+	/** Everyone in the fight, in initiative order. */
+	order: TurnView[];
+	/** Whose turn it is: an index into `order`. */
+	current: number;
+	/** Characters who have used their action this round. */
 	acted: CharacterId[];
 	/** Cells each character has moved this round. */
 	moved: Partial<Record<CharacterId, number>>;
+	/** Cells the character whose turn it is may move this turn. */
+	speed: number;
 	/** Enemies this viewer can see. */
 	enemies: EnemyStatus[];
 }

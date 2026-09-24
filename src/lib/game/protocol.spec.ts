@@ -151,6 +151,12 @@ describe('adventure messages', () => {
 		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'wizard' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'toString' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_control', op: 'win' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_control', op: 'end_turn' })).toEqual({
+			type: 'adventure_control',
+			op: 'end_turn'
+		});
+		// The old players'-phase control is gone with turn order.
+		expect(parseClientMessage({ type: 'adventure_control', op: 'end_round' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_interact', targetId: 'chest' })).toEqual({
 			type: 'adventure_interact',
 			targetId: 'chest',
