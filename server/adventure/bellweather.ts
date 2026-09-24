@@ -51,6 +51,16 @@ export const IDS = {
 	charmGlow: 'hb-charm-glow'
 } as const;
 
+/** The mountain path north out of the village, up to the monastery: where the first bell draws the eye. */
+export const MOUNTAIN_PATH: GridPos = { x: 11, y: 2 };
+
+/**
+ * What the first bell shows a newly arrived party: the path up the mountain
+ * beyond the fence, where the camera looks. They remember its shape (not who
+ * is on it), as they will the Hollow's; the village itself they find on foot.
+ */
+export const FIRST_GLIMPSE = { from: { x: 10, y: 0 }, to: { x: 13, y: 2 } };
+
 /** Where a newcomer's first find lies: in the road, a few steps from where the party arrives. */
 export const CHARM_AT: GridPos = { x: 12, y: 20 };
 

@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { Cue } from '$lib/game/chat';
+	import type { Cue, Shot } from '$lib/game/chat';
 	import type { Motion } from '$lib/game/motion';
 
 	/** A cinematic moment to play once; `seq` (the log entry's) increases so each plays once. */
@@ -9,6 +9,8 @@
 		cues: Cue[];
 		/** The prop to swing (the bell), if this viewer has it on the table. */
 		swingPropId: string | null;
+		/** The camera move the latest of them calls for, if any. */
+		shot: Shot | null;
 	}
 
 	/** Motions to play once; `seq` increases so each batch plays once. */
@@ -145,6 +147,7 @@
 		if (!tabletop || !cue || cue.seq <= lastCue) return;
 		lastCue = cue.seq;
 		for (const c of cue.cues) tabletop.playCue(c, cue.swingPropId);
+		if (cue.shot) tabletop.playShot(cue.shot);
 	});
 
 	$effect(() => {

@@ -1679,6 +1679,13 @@ describe('The Hollow Bell over the wire', () => {
 		gm.send({ type: 'adventure_begin' });
 		const playing = await untilAdventure(pip, (a) => a.stage === 'playing');
 		expect(playing.welcome.title).toBe('Welcome to Bellweather');
+		// The first bell: the arrival calls for the camera to look up the mountain path.
+		for (;;) {
+			const { message } = await pip.expect('chat');
+			if (message.kind !== 'narration' || !message.shot) continue;
+			expect(message.shot).toEqual({ focus: { x: 11, y: 2 }, frame: 'wide' });
+			break;
+		}
 		expect(playing.welcome.text).toMatch(/^Dusk settles over Bellweather/);
 		expect(playing.objectives.find((o) => !o.done && !o.optional)?.id).toBe('innkeeper');
 

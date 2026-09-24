@@ -2,6 +2,7 @@
 // ordered stream. Text is always plain text; clients must render it as such.
 
 import type { DiceRoll } from './dice';
+import type { GridPos } from './grid';
 
 /**
  * Who may read a log entry, when not everyone: the GM only, or the GM and
@@ -18,6 +19,17 @@ export type LogAudience = 'gm' | { players: string[] };
 export type Cue = 'toll' | 'flash';
 
 export const CUES: readonly Cue[] = ['toll', 'flash'];
+
+/**
+ * A camera move a moment calls for: look at `focus` (a cell; null for the
+ * whole table), framed close or wide, or pulled right back to show the
+ * table's scale, then give the camera back to the viewer. Presentation only;
+ * a viewer can take the camera back at any time.
+ */
+export interface Shot {
+	focus: GridPos | null;
+	frame: 'close' | 'wide' | 'table';
+}
 
 export type ChatMessage =
 	| { seq: number; at: number; kind: 'chat'; authorId: string; authorName: string; text: string }
@@ -40,6 +52,7 @@ export type ChatMessage =
 			speaker?: string;
 			audience?: LogAudience;
 			cue?: Cue;
+			shot?: Shot;
 	  }
 	| {
 			seq: number;

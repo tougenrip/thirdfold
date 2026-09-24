@@ -44,7 +44,8 @@ import {
 	NARRATION_MAX_LENGTH,
 	normalizeChatText,
 	type ChatMessage,
-	type LogAudience
+	type LogAudience,
+	type Shot
 } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
 import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
@@ -71,7 +72,7 @@ import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
 import { lightFor, obstacles } from '../scene';
 import { applyScene } from '../scene-io';
-import { IDS, PATH_AREA, WELL_RING } from './bellweather';
+import { FIRST_GLIMPSE, IDS, MOUNTAIN_PATH, PATH_AREA, WELL_RING } from './bellweather';
 import {
 	CLUES,
 	CUES,
@@ -88,10 +89,17 @@ import {
 import { areaAt, LOCATIONS } from './locations';
 import { ENEMIES, ENEMY_KINDS, PUP_HP, type EnemyDef, type EnemyKind } from './enemies';
 import { HEART_GRID, HEART_IDS, HEART_RING } from './heart';
-import { CAVERN, CULTIST_ROUNDS, HOLLOW_IDS, KEEPER_POST, PIT_RING } from './hollow';
+import { CAVERN, CULTIST_ROUNDS, HOLLOW_IDS, KEEPER_POST, PIT_AT, PIT_RING } from './hollow';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
 import { MECHANISMS, TRIGGERS, type MechanismId } from './mechanisms';
-import { CHAMBER, MONASTERY_IDS, STAIR, STAIR_RING } from './monastery';
+import {
+	BELL_AT as TOWER_BELL,
+	CHAMBER,
+	MONASTERY_IDS,
+	SECRET_EDGE,
+	STAIR,
+	STAIR_RING
+} from './monastery';
 import {
 	actionOfVerb,
 	applyLook,
@@ -406,7 +414,11 @@ export function beginAdventure(room: Room, actor: Player, now = Date.now()): Out
 	}
 	adventure.stage = 'playing';
 	adventure.begunAt = now;
-	return { ok: true, log: [appendLog(room, { kind: 'narration', text: TEXT.arrival })] };
+	firstGlimpse(room);
+	return {
+		ok: true,
+		log: [shoot(appendLog(room, { kind: 'narration', text: TEXT.arrival }), SHOTS.firstBell)]
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -463,6 +475,40 @@ function unlock(room: Room, adventure: AdventureState, id: ClueId): ChatMessage[
 	const def: ClueDef = CLUES[id];
 	const event = def.unlocks;
 	return event ? happen(room, adventure, event).log : [];
+}
+
+/**
+ * Cinematic moments: the camera shots a few lines of narration call for
+ * (presentation only, played by each client; see src/lib/tabletop/shots.ts).
+ * Few and short, so the game never turns into a string of cutscenes.
+ */
+export const SHOTS = {
+	/** The first bell: the party arrives, and the eye goes up the mountain path to the monastery. */
+	firstBell: { focus: MOUNTAIN_PATH, frame: 'wide' },
+	/** The tower bell swings as the party enters the nave. */
+	bellRing: { focus: TOWER_BELL, frame: 'close' },
+	/** Saint Agna turns, and there is a door where there was wall. */
+	hiddenDoor: { focus: SECRET_EDGE.a, frame: 'close' },
+	/** The Hollow, all of it, in the Bell's light. */
+	hollow: { focus: null, frame: 'table' },
+	/** Tobin found: what he stands over, the pit. */
+	pit: { focus: PIT_AT, frame: 'close' },
+	/** The final encounter: the Hollow rising out of its pit. */
+	waking: { focus: PIT_AT, frame: 'wide' }
+} as const satisfies Record<string, Shot>;
+
+/** As the first bell draws their eye up the mountain, every player takes in the way there. */
+function firstGlimpse(room: Room): void {
+	for (const i of rectCells(room.grid, FIRST_GLIMPSE.from, FIRST_GLIMPSE.to)) {
+		for (const p of room.players.values()) if (p.role !== 'gm') p.explored[i] = 1;
+	}
+}
+
+/** The same line of narration, calling for a camera shot. */
+function shoot(message: ChatMessage, shot: Shot): ChatMessage {
+	if (message.kind === 'narration')
+		message.shot = { ...shot, focus: shot.focus && { ...shot.focus } };
+	return message;
 }
 
 function say(room: Room, text: string, speaker?: string, audience?: LogAudience): ChatMessage {
@@ -881,7 +927,7 @@ function respond(
 			if (door && objectState(adventure, door) === 'hidden') {
 				setObjectState(room, adventure, door, 'closed');
 			}
-			return then([say(room, TEXT.agna)], 'found_hidden_door');
+			return then([shoot(say(room, TEXT.agna), SHOTS.hiddenDoor)], 'found_hidden_door');
 		}
 		case 'rope:examine':
 			return told(...clue('splice'));
@@ -1235,7 +1281,7 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			break;
 		case 'enter_monastery':
 			// The signature moment: the tower bell swings, and something answers far below.
-			tell(say(room, TEXT.nave), toll(room, TEXT.firstToll));
+			tell(say(room, TEXT.nave), shoot(toll(room, TEXT.firstToll), SHOTS.bellRing));
 			break;
 		case 'bell_rings': {
 			tell(say(room, TEXT.chamber));
@@ -1265,13 +1311,18 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			tell(say(room, TEXT.downStair), say(room, TEXT.hollow));
 			// The Bell sounds as the party arrives: its light shows them the whole Hollow for a
 			// moment, and they remember its shape (not who stands in it).
-			tell(flare(room, TEXT.hollowFlash));
+			tell(shoot(flare(room, TEXT.hollowFlash), SHOTS.hollow));
 			for (const p of room.players.values()) if (p.role !== 'gm') p.explored.fill(1);
 			tell(say(room, TEXT.hollowWatch));
 			break;
 		case 'the_pit':
 			// Phase 1: they see what sleeps below, unless they already have.
-			tell(say(room, adventure.events.includes('saw_hollow') ? TEXT.pitKnown : TEXT.pitStirs));
+			tell(
+				shoot(
+					say(room, adventure.events.includes('saw_hollow') ? TEXT.pitKnown : TEXT.pitStirs),
+					SHOTS.pit
+				)
+			);
 			break;
 		case 'the_waking': {
 			// Phase 2: the Hollow stirs, the island cracks, and its tendrils come up.
@@ -1553,6 +1604,8 @@ const ENCOUNTERS: Record<
 		reveal?: { from: GridPos; to: GridPos };
 		/** Said as the fight begins. */
 		opening?: string;
+		/** The camera shot its opening calls for. */
+		shot?: Shot;
 		/** More foes, depending on what the party did before. */
 		more?: (adventure: AdventureState) => readonly Foe[];
 	}
@@ -1586,7 +1639,8 @@ const ENCOUNTERS: Record<
 		// It remembers a hand that touched the Bell before.
 		more: (adventure) => (adventure.objects.get('bell') === 'used' ? [{ kind: 'tendril' }] : []),
 		reveal: CAVERN,
-		opening: TEXT.waking
+		opening: TEXT.waking,
+		shot: SHOTS.waking
 	},
 	// The Bell destroyed: the Hollow rises against the party.
 	wrath: {
@@ -1806,7 +1860,9 @@ export function startEncounter(
 		...(spotted
 			? [say(room, `The ${spotted.by.name} spots ${CHARACTERS[spotted.who.id].name}!`)]
 			: []),
-		...(def.opening ? [say(room, def.opening)] : []),
+		...(def.opening
+			? [def.shot ? shoot(say(room, def.opening), def.shot) : say(room, def.opening)]
+			: []),
 		postSystem(
 			room,
 			`Initiative: ${rolled.map((r) => `${r.name} ${r.entry.initiative}`).join(', ')}. Round 1.`
@@ -2785,7 +2841,8 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	if (begun) {
 		next.stage = 'playing';
 		next.begunAt = now;
-		log.push(say(room, TEXT.arrival));
+		log.push(shoot(say(room, TEXT.arrival), SHOTS.firstBell));
+		firstGlimpse(room);
 	}
 	return { reset: true, log };
 }
