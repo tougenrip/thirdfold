@@ -69,6 +69,8 @@ export interface GameServerOptions {
 	enemyTurnDelayMs?: number;
 	/** Multiplies the pauses between a mechanism's steps (tests pass 0 to run them at once). */
 	mechanismDelayScale?: number;
+	/** How often sentries outside a fight take a step on their rounds; 0 turns patrols off. */
+	patrolMs?: number;
 }
 
 export interface GameServer {
@@ -95,7 +97,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		heartbeatMs = 30_000,
 		rollDie = secureRoller,
 		enemyTurnDelayMs = 2500,
-		mechanismDelayScale = 1
+		mechanismDelayScale = 1,
+		patrolMs = 1500
 	} = options;
 	const rooms = new RoomManager();
 	// Chat and dice: bursts of 8, then one every 750 ms per player.
@@ -673,6 +676,21 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		ws.on('error', (err) => console.warn('[game-server] socket error', err.message));
 	});
 
+	// Outside fights, sentries walk their rounds and look about, a step at a time.
+	const patrols =
+		patrolMs > 0
+			? setInterval(() => {
+					for (const room of rooms.all()) {
+						try {
+							const outcome = adventure.patrol(room);
+							if (outcome) applyOutcome(room, outcome);
+						} catch (err) {
+							console.error(`[room ${room.id}] patrol failed`, err);
+						}
+					}
+				}, patrolMs)
+			: null;
+
 	const heartbeat = setInterval(() => {
 		for (const ws of wss.clients) {
 			if (!alive.has(ws)) {
@@ -696,6 +714,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				close: () =>
 					new Promise<void>((done) => {
 						clearInterval(heartbeat);
+						if (patrols) clearInterval(patrols);
 						for (const timer of timers) clearTimeout(timer);
 						timers.clear();
 						for (const ws of wss.clients) ws.terminate();

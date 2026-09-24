@@ -293,6 +293,8 @@ export const TEXT = {
 	downStair: 'The stair turns and turns. The air grows warm, then damp, then hums.',
 	keeper:
 		'Between you and the Bell stands a tall figure in an iron helm shaped like a bell, a great hammer in one hand and a small black bell in the other. Two robed cultists rise from their knees on either side. “No further,” says the Bell Keeper, and rings.',
+	hollowWatch:
+		'Two lanterns move slowly between the rocks, carried by robed figures on their rounds. By the Bell, a tall shape in an iron helm stands watch over the boy. Keep to the dark, or be seen.',
 	keeperToll:
 		'The Bell Keeper rings its little black bell. The note goes through you like cold water.',
 	keeperFalls:

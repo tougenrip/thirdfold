@@ -74,7 +74,7 @@ const myTurn = () => {
 };
 /** The GM clears the enemies off the table: each removal is a defeat. */
 const clearEnemies = () => {
-	for (const id of hounds()) {
+	for (const id of [...hounds(), ...story().sentries.keys()]) {
 		room.tokens.delete(id);
 		afterTokenDeleted(room, id);
 	}
@@ -276,12 +276,22 @@ describe('playing the story through', () => {
 		expect(me().token.pos).toEqual(HOLLOW_SPAWN[0]);
 		expect(story().npcs.get('tobin')).toBe('entranced');
 
-		// The Bell Keeper and two cultists stand between the party and the Bell.
+		// In the dark, the Bell Keeper stands watch and two cultists walk their rounds.
+		expect(room.ambient).toBe('dark');
+		expect(story().encounter).toBeNull();
+		expect([...story().sentries.values()].map((s) => s.kind)).toEqual([
+			'keeper',
+			'cultist',
+			'cultist'
+		]);
+		// Walking up to the boy, the Keeper beside him sees the Warden: the fight begins.
+		walk({ x: 9, y: 5 });
 		expect([...story().encounter!.enemies.values()].map((e) => e.kind)).toEqual([
 			'keeper',
 			'cultist',
 			'cultist'
 		]);
+		expect(story().sentries.size).toBe(0);
 		expect(interact(room, ana, 'tobin')).toMatchObject({ ok: false });
 		clearEnemies();
 		expect(story().encounters.get('hollow')).toBe('won');

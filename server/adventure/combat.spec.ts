@@ -13,12 +13,18 @@ import {
 	characterOf,
 	claimCharacter,
 	endTurn,
+	afterMove,
+	patrol,
 	pendingEnemyTurn,
+	postSentries,
 	runEnemyTurn,
 	startAdventure,
 	startEncounter
 } from './engine';
 import type { EnemyKind } from './enemies';
+import { CULTIST_ROUNDS, HOLLOW_SPAWN, hollowScene, KEEPER_POST } from './hollow';
+import { recordOrigins } from './objects';
+import { applyScene } from '../scene-io';
 import { readAdventure, saveAdventure } from './persist';
 import { adventureView } from './view';
 
@@ -80,11 +86,21 @@ const turnTo = (id: CharacterId) => {
 	encounter.current = encounter.order.findIndex((t) => t.kind === 'character' && t.id === id);
 	encounter.speed = CHARACTERS[id].speed;
 };
+/** The Hollow's fight, here in the square: the Keeper and its cultists, all at once. */
+const fight = () => {
+	postSentries(room, story(), 'hollow');
+	return startEncounter(room, story(), 'hollow');
+};
+/** Puts the Keeper somewhere and makes that its post. */
+const guardAt = (keeper: string, pos: GridPos) => {
+	put(keeper, pos);
+	story().encounter!.enemies.get(keeper)!.post = { ...pos };
+};
 const texts = (log: ChatMessage[]) => log.flatMap((m) => ('text' in m ? [m.text] : []));
 
 describe('initiative', () => {
 	it('orders everyone by a server roll, characters first on a tie, and starts with the first', () => {
-		const started = startEncounter(room, story(), 'hollow');
+		const started = fight();
 		const encounter = story().encounter!;
 		// d20 at its highest: cultists 21, the Warden and the Saint 20, the Keeper 20.
 		expect(encounter.order.map((t) => (t.kind === 'character' ? t.id : 'enemy'))).toEqual([
@@ -119,7 +135,7 @@ describe('initiative', () => {
 	});
 
 	it('skips the fallen, and bleeds the downed at their turn', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [keeper] = foes('keeper');
 		only(keeper);
 		saint().state.hp = 0;
@@ -135,7 +151,7 @@ describe('initiative', () => {
 
 describe('the Bell Cultist', () => {
 	it('slings from where it stands when someone is in range and in sight', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [cultist] = foes('cultist');
 		only(cultist);
 		put(cultist, { x: 17, y: 16 });
@@ -147,7 +163,7 @@ describe('the Bell Cultist', () => {
 	});
 
 	it('draws its knife on whoever stands beside it, the weakest first', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [cultist] = foes('cultist');
 		only(cultist);
 		put(cultist, { x: 13, y: 15 });
@@ -157,14 +173,14 @@ describe('the Bell Cultist', () => {
 	});
 
 	it('closes in until it has a shot, then takes it', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [cultist] = foes('cultist');
 		only(cultist);
-		put(cultist, { x: 22, y: 16 });
+		put(cultist, { x: 21, y: 16 });
 		const out = enemyTurn(cultist);
 		const pos = room.tokens.get(cultist)!.pos;
 		// It walked no further than it had to: now five cells or less from its mark.
-		expect(pos).not.toEqual({ x: 22, y: 16 });
+		expect(pos).not.toEqual({ x: 21, y: 16 });
 		expect(Math.max(Math.abs(pos.x - 13), Math.abs(pos.y - 16))).toBeLessThanOrEqual(5);
 		expect(out.log[0]).toMatchObject({ attack: 'Sling' });
 	});
@@ -172,10 +188,10 @@ describe('the Bell Cultist', () => {
 
 describe('the Bell Keeper', () => {
 	it('tolls when the party crowds it, rests a turn, then hammers', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [keeper] = foes('keeper');
 		only(keeper);
-		put(keeper, { x: 13, y: 14 });
+		guardAt(keeper, { x: 13, y: 14 });
 		const tolled = enemyTurn(keeper);
 		expect(tolled.log[0]).toMatchObject({ kind: 'ability', ability: 'Toll', amount: -4 });
 		expect(warden().state.hp).toBe(CHARACTERS.warden.hp - 4);
@@ -196,10 +212,10 @@ describe('the Bell Keeper', () => {
 	});
 
 	it('is hard to hit and survives a blow', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [keeper] = foes('keeper');
 		only(keeper);
-		put(keeper, { x: 14, y: 16 });
+		guardAt(keeper, { x: 14, y: 16 });
 		turnTo('warden');
 		const blow = ok(act(room, ana, 'blade', keeper, max));
 		expect(blow.log[0]).toMatchObject({
@@ -214,7 +230,7 @@ describe('the Bell Keeper', () => {
 
 describe('the fight’s turns', () => {
 	it('passes the turn on when the enemy whose turn it is is removed', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [first] = story().encounter!.order;
 		const turn = story().encounter!.turn;
 		if (first.kind !== 'enemy') throw new Error('an enemy should lead');
@@ -227,7 +243,7 @@ describe('the fight’s turns', () => {
 	});
 
 	it('lets burning finish an enemy on its own turn, and moves on', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [cultist] = foes('cultist');
 		const enemy = story().encounter!.enemies.get(cultist)!;
 		enemy.hp = 2;
@@ -244,7 +260,7 @@ describe('the fight’s turns', () => {
 	});
 
 	it('saves the turn order mid-fight and reads it back, and reads saves from before initiative', () => {
-		startEncounter(room, story(), 'hollow');
+		fight();
 		const [keeper] = foes('keeper');
 		story().encounter!.enemies.get(keeper)!.rest = 1;
 		const file = parseSceneFile(JSON.parse(JSON.stringify(exportScene(room, 'Mid-fight'))));
@@ -256,18 +272,18 @@ describe('the fight’s turns', () => {
 
 		// An older save: a players' phase, no order.
 		const saved = file.scene.adventure!;
-		const fight = saved.state.encounter as Record<string, unknown>;
+		const battle = saved.state.encounter as Record<string, unknown>;
 		const old = {
 			...saved,
 			state: {
 				...saved.state,
 				encounter: {
-					id: fight.id,
+					id: battle.id,
 					round: 2,
 					phase: 'players',
 					acted: [],
 					moved: {},
-					enemies: fight.enemies,
+					enemies: battle.enemies,
 					turn: 7
 				}
 			}
@@ -285,9 +301,124 @@ describe('the fight’s turns', () => {
 			...saved,
 			state: {
 				...saved.state,
-				encounter: { ...fight, order: [{ enemy: 'nobody', initiative: 3 }] }
+				encounter: { ...battle, order: [{ enemy: 'nobody', initiative: 3 }] }
 			}
 		};
 		expect(readAdventure(tampered, file.scene)).toMatchObject({ ok: false });
+	});
+});
+
+describe('the Hollow’s watch, outside a fight', () => {
+	/** The party at the foot of the stair in the dark Hollow, the Keeper and cultists on watch. */
+	function inTheHollow() {
+		const party = [warden().token, saint().token];
+		applyScene(room, hollowScene());
+		party.forEach((t, i) => {
+			t.pos = { ...HOLLOW_SPAWN[i] };
+			room.tokens.set(t.id, t);
+		});
+		story().location = 'hollow';
+		story().chapter = 'the_hollow';
+		story().origins = recordOrigins(room);
+		postSentries(room, story(), 'hollow');
+		const watch = [...story().sentries].map(([id, s]) => ({ id, kind: s.kind }));
+		return {
+			keeper: watch.find((w) => w.kind === 'keeper')!.id,
+			cultists: watch.filter((w) => w.kind === 'cultist').map((w) => w.id)
+		};
+	}
+
+	it('stands the Keeper at its post and walks the cultists round with their lanterns', () => {
+		const { keeper, cultists } = inTheHollow();
+		expect(room.ambient).toBe('dark');
+		expect(room.tokens.get(keeper)!.pos).toEqual(KEEPER_POST);
+		expect(cultists.map((id) => room.tokens.get(id)!.light)).toEqual([2, 2]);
+		const before = cultists.map((id) => ({ ...room.tokens.get(id)!.pos }));
+		expect(patrol(room)).toMatchObject({ log: [] });
+		cultists.forEach((id, i) => {
+			const now = room.tokens.get(id)!.pos;
+			expect(now).not.toEqual(before[i]);
+			expect(Math.max(Math.abs(now.x - before[i].x), Math.abs(now.y - before[i].y))).toBe(1);
+		});
+		expect(room.tokens.get(keeper)!.pos).toEqual(KEEPER_POST);
+		expect(story().encounter).toBeNull();
+		// Its round, walked on and on, brings it back to where it began.
+		const start = CULTIST_ROUNDS[0][0];
+		const seen: string[] = [];
+		for (let i = 0; i < 40; i++) {
+			patrol(room);
+			if (story().encounter) break;
+			const p = room.tokens.get(cultists[0])!.pos;
+			seen.push(`${p.x},${p.y}`);
+		}
+		expect(seen).toContain(`${start.x},${start.y}`);
+	});
+
+	it('does not see a character keeping to the dark, sees one in its lantern light or carrying one', () => {
+		const { cultists } = inTheHollow();
+		const [, cultist] = cultists;
+		put(cultist, { x: 11, y: 11 });
+		put(saint().token.id, { x: 3, y: 14 });
+		// Three cells off, in the dark beyond the lantern: unseen.
+		put(warden().token.id, { x: 9, y: 14 });
+		expect(afterMove(room, warden().token, null).log).toEqual([]);
+		expect(story().encounter).toBeNull();
+		// Carrying a light, the same cell gives the Warden away.
+		warden().token.light = 3;
+		const seen = afterMove(room, warden().token, null);
+		expect(texts(seen.log)).toContain('The Bell Cultist spots The Warden!');
+		expect(story().encounter!.enemies.size).toBe(3);
+		// Everyone on watch joined the fight, knowing where the Warden was.
+		expect(story().sentries.size).toBe(0);
+		expect(story().encounter!.enemies.get(cultist)!.lastSeen).toEqual({ x: 9, y: 14 });
+	});
+
+	it('sees whoever walks right up to it, light or none', () => {
+		const { keeper } = inTheHollow();
+		put(warden().token.id, { x: 9, y: 5 });
+		const seen = afterMove(room, warden().token, null);
+		expect(texts(seen.log)).toContain('The Bell Keeper spots The Warden!');
+		expect(story().encounter!.enemies.get(keeper)!.post).toEqual(KEEPER_POST);
+	});
+
+	it('lets the GM clear the watch away: the way is clear', () => {
+		inTheHollow();
+		let last = { log: [] as ChatMessage[] };
+		for (const id of [...story().sentries.keys()]) {
+			room.tokens.delete(id);
+			last = afterTokenDeleted(room, id);
+		}
+		expect(texts(last.log)).toContain('The way is clear.');
+		expect(story().events).toContain('won_hollow');
+		expect(story().encounters.get('hollow')).toBe('won');
+	});
+
+	it('saves the watch where it stands and on its round', () => {
+		inTheHollow();
+		patrol(room);
+		const file = parseSceneFile(JSON.parse(JSON.stringify(exportScene(room, 'On watch'))));
+		if (!file.ok) throw new Error(file.error);
+		const read = readAdventure(file.scene.adventure!, file.scene);
+		if (!read.ok) throw new Error(read.error);
+		expect(read.adventure.sentries).toEqual(story().sentries);
+	});
+});
+
+describe('turning on whoever hurts it', () => {
+	it('sends the Hound after the one who last hit it', () => {
+		startEncounter(room, story(), 'well');
+		const [hound] = foes('hound');
+		const enemy = story().encounter!.enemies.get(hound)!;
+		enemy.hp = 99;
+		put(hound, { x: 14, y: 16 });
+		enemy.target = 'warden';
+		turnTo('saint');
+		put(saint().token.id, { x: 15, y: 16 });
+		ok(act(room, ben, 'mace', hound, max));
+		expect(enemy.lastHitBy).toBe('saint');
+		const out = enemyTurn(hound);
+		expect(texts(out.log)).toContain('The Hollow Hound turns on The Saint.');
+		expect(out.log.find((m) => m.kind === 'attack')).toMatchObject({ targetName: 'The Saint' });
+		expect(enemy.lastHitBy).toBeUndefined();
 	});
 });

@@ -29,6 +29,8 @@ export interface EnemyDef {
 	armor: number;
 	speed: number;
 	vision: number;
+	/** Light it carries, in cells (a cultist's lantern); 0 for none. */
+	light: number;
 	/** Added to its d20 for initiative. */
 	initiative: number;
 	/** Hit points for a party of this many characters. */
@@ -50,6 +52,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 		armor: 1,
 		speed: 6,
 		vision: 8,
+		light: 0,
 		initiative: 3,
 		hp: (n) => 10 + 6 * party(n),
 		attacks: [{ name: 'Bite', range: 1, toHit: 4, damage: '1d6+2' }],
@@ -62,6 +65,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 		armor: 1,
 		speed: 5,
 		vision: 8,
+		light: 2,
 		initiative: 1,
 		hp: (n) => 6 + 3 * party(n),
 		attacks: [
@@ -77,6 +81,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 		armor: 4,
 		speed: 4,
 		vision: 8,
+		light: 0,
 		initiative: 0,
 		hp: (n) => 20 + 10 * party(n),
 		attacks: [{ name: 'Bell hammer', range: 1, toHit: 5, damage: '1d10+2' }],

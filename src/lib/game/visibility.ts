@@ -121,6 +121,29 @@ export function addVision(
 	}
 }
 
+/**
+ * Whether something at `from` with sight `radius` sees the cell `to`: within
+ * the same round radius as `addVision`, with a clear line, and, when `lit` is
+ * given (the dark), only if light reaches it or it is right beside.
+ */
+export function sees(
+	grid: SquareGrid,
+	blocked: Blockers,
+	lit: CellMask | null,
+	from: GridPos,
+	radius: number,
+	to: GridPos
+): boolean {
+	if (!inBounds(grid, from) || !inBounds(grid, to)) return false;
+	const dx = to.x - from.x;
+	const dy = to.y - from.y;
+	const r = Math.floor(radius);
+	if (dx * dx + dy * dy > r * r + r) return false;
+	const close = Math.abs(dx) <= 1 && Math.abs(dy) <= 1;
+	if (lit && !close && !lit[cellIndex(grid, to)]) return false;
+	return hasLineOfSight(blocked, from, to);
+}
+
 /** Marks every cell of the inclusive rectangle between two cells. */
 export function rectCells(grid: SquareGrid, a: GridPos, b: GridPos): number[] {
 	const cells: number[] = [];

@@ -35,6 +35,7 @@ import type {
 	Finding,
 	Encounter,
 	EnemyState,
+	Sentry,
 	Statuses,
 	TurnEntry
 } from './state';
@@ -110,6 +111,17 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			),
 			carried: entriesOf(adventure.carried),
 			running: entriesOf(adventure.running),
+			sentries: Object.fromEntries(
+				[...adventure.sentries].map(([id, s]) => [
+					id,
+					{
+						kind: s.kind,
+						encounter: s.encounter,
+						route: s.route.map((c) => ({ ...c })),
+						leg: s.leg
+					}
+				])
+			),
 			cuesRead: [...adventure.cuesRead],
 			encounter: adventure.encounter && {
 				id: adventure.encounter.id,
@@ -131,7 +143,11 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 							hp: e.hp,
 							maxHp: e.maxHp,
 							statuses: statuses(e.statuses),
-							rest: e.rest
+							rest: e.rest,
+							...(e.post ? { post: { ...e.post } } : {}),
+							...(e.target ? { target: e.target } : {}),
+							...(e.lastHitBy ? { lastHitBy: e.lastHitBy } : {}),
+							...(e.lastSeen ? { lastSeen: { ...e.lastSeen } } : {})
 						}
 					])
 				),
@@ -339,6 +355,23 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		running.set(mechanism, int(step, 1, MECHANISMS[mechanism].steps.length - 1, 'mechanisms'));
 	}
 
+	// Saves from before sentries have none on the table.
+	const sentries = new Map<string, Sentry>();
+	for (const [tokenId, raw] of Object.entries(
+		data.sentries === undefined ? {} : record(data.sentries, 'sentries')
+	)) {
+		check(tokenIds.has(tokenId) && !characterTokens.has(tokenId), 'sentries');
+		const sentry = record(raw, 'sentries');
+		const route = list(sentry.route, 'sentries').map((c) => cell(c, scene, 'sentries'));
+		check(route.length > 0 && route.length <= 16, 'sentries');
+		sentries.set(tokenId, {
+			kind: oneOf(sentry.kind, ENEMY_KINDS, 'sentries'),
+			encounter: oneOf(sentry.encounter, ENCOUNTER_IDS, 'sentries'),
+			route,
+			leg: int(sentry.leg, 0, route.length - 1, 'sentries')
+		});
+	}
+
 	let encounter: Encounter | null = null;
 	if (data.encounter !== null) {
 		const e = record(data.encounter, 'fight');
@@ -356,7 +389,11 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 				maxHp,
 				statuses: statuses(enemy.statuses, 'enemy'),
 				// Saves from before enemies had specials have none resting.
-				rest: enemy.rest === undefined ? 0 : int(enemy.rest, 0, COUNT_MAX, 'enemy')
+				rest: enemy.rest === undefined ? 0 : int(enemy.rest, 0, COUNT_MAX, 'enemy'),
+				...(enemy.post === undefined ? {} : { post: cell(enemy.post, scene, 'enemy') }),
+				...(enemy.lastSeen === undefined ? {} : { lastSeen: cell(enemy.lastSeen, scene, 'enemy') }),
+				...(enemy.target === undefined ? {} : { target: character(enemy.target, 'enemy') }),
+				...(enemy.lastHitBy === undefined ? {} : { lastHitBy: character(enemy.lastHitBy, 'enemy') })
 			});
 		}
 		const order = turnOrder(e, characters, enemies);
@@ -446,6 +483,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		origins,
 		carried,
 		running,
+		sentries,
 		cuesRead: new Set(
 			uniqueList(
 				data.cuesRead,
@@ -457,6 +495,19 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		begunAt: time(data.begunAt, 'time'),
 		completedAt: time(data.completedAt, 'time')
 	};
+}
+
+/** A cell on the saved table. */
+function cell(value: unknown, scene: SceneFile, what: string): GridPos {
+	const c = record(value, what);
+	const at = { x: c.x as number, y: c.y as number };
+	check(Number.isInteger(at.x) && Number.isInteger(at.y) && inBounds(scene.grid, at), what);
+	return at;
+}
+
+function character(value: unknown, what: string): CharacterId {
+	check(isCharacterId(value), what);
+	return value;
 }
 
 /**
