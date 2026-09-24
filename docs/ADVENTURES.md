@@ -6,9 +6,15 @@ write one: as TypeScript data in `server/adventures/` (built in, like The
 Hollow Bell), or as an **adventure file**, plain JSON, in the builder at
 `/builder`, with no code at all (see the end of this page). The adventures live in
 `server/adventures/`, one folder each, and are listed in
-`server/adventures/index.ts` (the first is the one a GM's "Start" sets up).
-The Hollow Bell (`server/adventures/hollow-bell/`) is the reference: every
-part of the structure below exists because it needed it.
+`server/adventures/index.ts`, which is the catalog a GM chooses from in
+the Adventure panel (each with its `about` line; the first is the default
+when a start names none). The Hollow Bell (`server/adventures/hollow-bell/`)
+is the reference: every part of the structure below exists because it
+needed it. _The Last Train to Blackwater_ (`server/adventures/blackwater/`)
+is the proof that the structure is general: a supernatural western aboard a
+night train, written as an adventure file (see the end of this page) and
+built in with `loadAdventureFile`, so it uses nothing The Hollow Bell's
+TypeScript can that a creator can't.
 
 ```
 Adventure (AdventureDef, server/adventure/define.ts)
@@ -176,3 +182,25 @@ A save whose content doesn't match its id is refused.
 **Rewards** (`{ reward: 'The silver key' }`) are what the party earns. They
 are kept with the story, listed in the Adventure panel, and shown on the
 end screen.
+
+## Built in as a file: The Last Train to Blackwater
+
+`server/adventures/blackwater/` is an adventure file written in TypeScript
+only so its tables can be built with the same helpers (`tables.ts`: the
+train, four cars end to end with the prairie off the map as `void` floor;
+the locomotive; the ghost town) and its text kept readable (`story.ts`,
+`blackwaterFile()`); `index.ts` passes it through `loadAdventureFile`
+exactly as a GM's upload is, and refuses to start the server if it has any
+problem. Seven chapters: a passenger vanishes, a frost trail to the locked
+baggage car (a key the conductor hands over, carried to the door and the
+strongbox), the coffins' dead, midnight (the lamps go out and the dead
+passengers walk the aisles as sentries), the dead engineer at the throttle,
+and the bridge: throw the brake (_Stopped Short_), make the conductor face
+the dead (_Laid to Rest_; a different option once he has confessed), or
+ride on (a branch chapter at Blackwater, a last fight, _End of the Line_).
+Its characters' introductions come from the file's `intros`. Tests are in
+`server/adventures/blackwater/blackwater.spec.ts` (every ending, the first
+find, a save at the bridge).
+
+A trigger area never fires mid-fight: walking into one only counts once
+the fight at hand is over.

@@ -504,6 +504,8 @@ export interface Voice {
 export interface AdventureDef {
 	id: string;
 	title: string;
+	/** A line or two for whoever picks it. */
+	about?: string;
 	/** The version of its saved state (see persist.ts). */
 	version: number;
 	characters: Readonly<Record<string, CharacterDef>>;

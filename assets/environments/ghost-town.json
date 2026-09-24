@@ -1,0 +1,7 @@
+{
+	"name": "Ghost town",
+	"surface": "desert",
+	"ground": "rail-ballast",
+	"walls": "weathered-wood",
+	"table": "oak"
+}

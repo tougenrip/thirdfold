@@ -2,6 +2,7 @@
 // when the GM sets up a story.
 
 import type { AdventureDef } from '../adventure/define';
+import { BLACKWATER } from './blackwater';
 import { HOLLOW_BELL } from './hollow-bell';
 
-export const ADVENTURES: readonly AdventureDef[] = [HOLLOW_BELL];
+export const ADVENTURES: readonly AdventureDef[] = [HOLLOW_BELL, BLACKWATER];

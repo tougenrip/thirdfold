@@ -109,6 +109,24 @@
 				]
 			}
 		},
+		"hatted-shade": {
+			"file": "models/hatted-shade.601aa10c.glb",
+			"bytes": 21436,
+			"kind": "enemy",
+			"triangles": 896,
+			"bounds": {
+				"min": [
+					-0.276,
+					0,
+					-0.28
+				],
+				"max": [
+					0.276,
+					1.03,
+					0.29
+				]
+			}
+		},
 		"hound": {
 			"file": "models/hound.0dc2d521.glb",
 			"bytes": 30936,
@@ -325,6 +343,24 @@
 				]
 			}
 		},
+		"wide-hat": {
+			"file": "models/wide-hat.e7c82a3f.glb",
+			"bytes": 16100,
+			"kind": "npc",
+			"triangles": 604,
+			"bounds": {
+				"min": [
+					-0.246,
+					0,
+					-0.25
+				],
+				"max": [
+					0.246,
+					1.03,
+					0.25
+				]
+			}
+		},
 		"altar": {
 			"file": "models/altar.2ecddf68.glb",
 			"bytes": 7296,
@@ -452,6 +488,24 @@
 					0.95,
 					2.68,
 					0.65
+				]
+			}
+		},
+		"boiler": {
+			"file": "models/boiler.95fa67e1.glb",
+			"bytes": 7844,
+			"kind": "prop",
+			"triangles": 180,
+			"bounds": {
+				"min": [
+					-0.8,
+					0,
+					-0.8
+				],
+				"max": [
+					0.8,
+					1.95,
+					0.85
 				]
 			}
 		},
@@ -596,6 +650,42 @@
 					0.42,
 					0.56,
 					0.31
+				]
+			}
+		},
+		"coffin-open": {
+			"file": "models/coffin-open.d4228be9.glb",
+			"bytes": 2516,
+			"kind": "prop",
+			"triangles": 36,
+			"bounds": {
+				"min": [
+					-0.31,
+					-0.118,
+					-0.85
+				],
+				"max": [
+					0.568,
+					0.518,
+					0.92
+				]
+			}
+		},
+		"coffin": {
+			"file": "models/coffin.ae8a8aac.glb",
+			"bytes": 3056,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.33,
+					0,
+					-0.87
+				],
+				"max": [
+					0.33,
+					0.42,
+					0.87
 				]
 			}
 		},
@@ -779,6 +869,24 @@
 				]
 			}
 		},
+		"keys": {
+			"file": "models/keys.db12febb.glb",
+			"bytes": 4648,
+			"kind": "prop",
+			"triangles": 96,
+			"bounds": {
+				"min": [
+					-0.118,
+					0.015,
+					-0.12
+				],
+				"max": [
+					0.15,
+					0.055,
+					0.3
+				]
+			}
+		},
 		"lever-down": {
 			"file": "models/lever-down.e1cf3285.glb",
 			"bytes": 9636,
@@ -838,6 +946,24 @@
 					0.42,
 					1.5,
 					0.05
+				]
+			}
+		},
+		"paper": {
+			"file": "models/paper.58e74404.glb",
+			"bytes": 1968,
+			"kind": "prop",
+			"triangles": 24,
+			"bounds": {
+				"min": [
+					-0.16,
+					0.005,
+					-0.128
+				],
+				"max": [
+					0.16,
+					0.018,
+					0.128
 				]
 			}
 		},
@@ -982,6 +1108,42 @@
 					0.4,
 					1.5,
 					0.4
+				]
+			}
+		},
+		"stove": {
+			"file": "models/stove.f6a96a35.glb",
+			"bytes": 13220,
+			"kind": "prop",
+			"triangles": 508,
+			"bounds": {
+				"min": [
+					-0.25,
+					0,
+					-0.25
+				],
+				"max": [
+					0.25,
+					1.35,
+					0.25
+				]
+			}
+		},
+		"strongbox": {
+			"file": "models/strongbox.f0f676a5.glb",
+			"bytes": 2488,
+			"kind": "prop",
+			"triangles": 36,
+			"bounds": {
+				"min": [
+					-0.31,
+					0,
+					-0.24
+				],
+				"max": [
+					0.31,
+					0.46,
+					0.25
 				]
 			}
 		},
@@ -1211,6 +1373,37 @@
 			"color": "#6b2a2e",
 			"roughness": 0.55,
 			"metalness": 0
+		},
+		"railcar-floor": {
+			"color": "#8a6a4e",
+			"roughness": 0.8,
+			"metalness": 0,
+			"map": "planks",
+			"cells": 1
+		},
+		"rail-ballast": {
+			"color": "#7a6a58",
+			"roughness": 0.95,
+			"metalness": 0,
+			"map": "earth",
+			"cells": 2
+		},
+		"railcar-wall": {
+			"color": "#6b2f24",
+			"roughness": 0.7,
+			"metalness": 0
+		},
+		"desert": {
+			"color": "#c9a877",
+			"roughness": 0.95,
+			"metalness": 0,
+			"map": "earth",
+			"cells": 3
+		},
+		"weathered-wood": {
+			"color": "#8a7b66",
+			"roughness": 0.9,
+			"metalness": 0
 		}
 	},
 	"environments": {
@@ -1221,11 +1414,25 @@
 			"walls": "ancient-stone",
 			"table": "oak"
 		},
+		"ghost-town": {
+			"name": "Ghost town",
+			"surface": "desert",
+			"ground": "rail-ballast",
+			"walls": "weathered-wood",
+			"table": "oak"
+		},
 		"living-cave": {
 			"name": "Living cave",
 			"surface": "flesh",
 			"ground": "flesh",
 			"walls": "sinew",
+			"table": "oak"
+		},
+		"railcar": {
+			"name": "Railcar",
+			"surface": "railcar-floor",
+			"ground": "rail-ballast",
+			"walls": "railcar-wall",
 			"table": "oak"
 		},
 		"stone-halls": {

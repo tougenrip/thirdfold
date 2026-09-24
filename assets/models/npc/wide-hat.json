@@ -1,0 +1,9 @@
+{
+	"parts": [
+		{ "shape": "cone", "size": [0.42, 0.6, 0.42], "at": [0, 0.3, 0], "accent": true },
+		{ "shape": "cylinder", "size": [0.22, 0.2, 0.2], "at": [0, 0.58, 0], "accent": true },
+		{ "shape": "sphere", "size": [0.3, 0.315, 0.3], "at": [0, 0.76, 0], "color": "#d8a47f" },
+		{ "shape": "cylinder", "size": [0.5, 0.03, 0.5], "at": [0, 0.87, 0], "color": "#3b2a1c" },
+		{ "shape": "cylinder", "size": [0.26, 0.16, 0.26], "at": [0, 0.95, 0], "color": "#3b2a1c" }
+	]
+}

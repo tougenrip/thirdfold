@@ -1,0 +1,7 @@
+{
+	"name": "Railcar",
+	"surface": "railcar-floor",
+	"ground": "rail-ballast",
+	"walls": "railcar-wall",
+	"table": "oak"
+}

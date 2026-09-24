@@ -1138,7 +1138,13 @@
 
 			{#if adventure || isGm}
 				<div class="panel">
-					<AdventurePanel {adventure} {isGm} players={room.players} send={act} />
+					<AdventurePanel
+						{adventure}
+						{isGm}
+						players={room.players}
+						adventures={room.adventures}
+						send={act}
+					/>
 				</div>
 			{/if}
 

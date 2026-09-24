@@ -22,6 +22,11 @@ export function defaultAdventure(): AdventureDef {
 	return ADVENTURES[0];
 }
 
+/** The adventures this server offers GMs, in order. */
+export function builtInAdventures(): readonly AdventureDef[] {
+	return ADVENTURES;
+}
+
 /** An adventure by id, or undefined if this server doesn't have it. */
 export function findAdventure(id: string): AdventureDef | undefined {
 	return [...ADVENTURES, ...added].find((a) => a.id === id) ?? custom.get(id)?.adventure;
