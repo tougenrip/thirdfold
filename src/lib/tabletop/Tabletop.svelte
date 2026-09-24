@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import type { Cue } from '$lib/game/chat';
+	import type { Motion } from '$lib/game/motion';
 
 	/** A cinematic moment to play once; `seq` (the log entry's) increases so each plays once. */
 	export interface CuePlay {
@@ -7,6 +8,12 @@
 		cue: Cue;
 		/** The prop to swing (the bell), if this viewer has it on the table. */
 		swingPropId: string | null;
+	}
+
+	/** Motions to play once; `seq` increases so each batch plays once. */
+	export interface MotionPlay {
+		seq: number;
+		motions: Motion[];
 	}
 
 	/** Combat text to float up from a token once; `id` increases so each shows once. */
@@ -62,6 +69,7 @@
 		/** Each cell's level, or null for a flat table. */
 		terrain?: Uint8Array | null;
 		cue?: CuePlay | null;
+		motion?: MotionPlay | null;
 	}
 
 	let {
@@ -86,6 +94,7 @@
 		floats = [],
 		terrain = null,
 		cue = null,
+		motion = null,
 		onClick,
 		onHover
 	}: Props = $props();
@@ -196,6 +205,14 @@
 			floatedId = f.id;
 			tabletop.showFloat(f.tokenId, f.text, f.color);
 		}
+	});
+
+	// After the props: a motion may be for a prop that has only just arrived.
+	let lastMotion = -1;
+	$effect(() => {
+		if (!tabletop || !motion || motion.seq <= lastMotion) return;
+		lastMotion = motion.seq;
+		tabletop.playMotions($state.snapshot(motion.motions) as Motion[]);
 	});
 </script>
 

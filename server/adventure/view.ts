@@ -10,7 +10,7 @@ import type { Player, Room } from '../rooms';
 import { CLUES, CUES, ENDINGS, HOUND, TITLE, type ClueDef, type ClueId } from './content';
 import { chapterNumber, characterOf, objectCells, objectState, usesLeft, verbsFor } from './engine';
 import { LOCATIONS } from './locations';
-import { actionOfVerb, OBJECTS } from './objects';
+import { actionOfVerb, objectDef, OBJECTS } from './objects';
 import type { Statuses } from './state';
 import { NPC_IDS, NPCS } from './npcs';
 import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, objectivesFor } from './story';
@@ -78,7 +78,11 @@ export function adventureView(
 				statuses: token && state ? listStatuses(state.statuses) : [],
 				usesLeft: Object.fromEntries(
 					CHARACTERS[id].actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
-				)
+				),
+				carrying: [...adventure.carried].flatMap(([item, by]) => {
+					const def = by === id && token ? objectDef(item) : undefined;
+					return def ? [{ id: def.id, name: def.name }] : [];
+				})
 			};
 		}),
 		interactables: OBJECTS.flatMap((def) => {
@@ -86,7 +90,11 @@ export function adventureView(
 			const verbs = verbsFor(adventure, def);
 			const cells = objectCells(room, def);
 			if (state === 'hidden' || verbs.length === 0 || !cells) return [];
-			if (known && !cells.some((c) => known[cellIndex(room.grid, c)])) return [];
+			// What a character carries is theirs to use (and the GM's to see).
+			const carrier = adventure.carried.get(def.id);
+			if (carrier !== undefined) {
+				if (viewer.role !== 'gm' && carrier !== mine) return [];
+			} else if (known && !cells.some((c) => known[cellIndex(room.grid, c)])) return [];
 			return [
 				{
 					id: def.id,
@@ -94,10 +102,12 @@ export function adventureView(
 					kind: def.kind,
 					state,
 					cells,
+					carried: carrier !== undefined && carrier === mine,
 					verbs: verbs.map((v) => ({
 						id: v.id,
 						label: v.label,
 						action: actionOfVerb(v),
+						physical: v.physical ?? null,
 						check: v.check && state !== 'used' ? { ...v.check } : null,
 						tried: mine !== null && adventure.tried.has(`${mine}:${def.id}:${v.id}`)
 					}))
@@ -106,7 +116,9 @@ export function adventureView(
 		}),
 		objects:
 			viewer.role === 'gm'
-				? OBJECTS.filter((def) => def.location === adventure.location).map((def) => ({
+				? OBJECTS.filter((def) =>
+						def.carry ? objectCells(room, def) !== null : def.location === adventure.location
+					).map((def) => ({
 						id: def.id,
 						name: def.name,
 						kind: def.kind,

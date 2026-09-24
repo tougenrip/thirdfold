@@ -2,6 +2,7 @@
 // reconnects with the session token after drops, and exposes reactive state.
 
 import { GAME_SERVER_URL } from '$lib/api';
+import type { Motion } from '$lib/game/motion';
 import {
 	parseServerMessage,
 	type ClientMessage,
@@ -85,6 +86,8 @@ export class RoomConnection {
 	error = $state<ConnectionError | null>(null);
 	actionError = $state<ActionError | null>(null);
 	sceneReply = $state<SceneReply | null>(null);
+	/** The latest motions to show; `seq` increases so each batch plays once. */
+	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
 
 	private ws: WebSocket | null = null;
@@ -182,6 +185,9 @@ export class RoomConnection {
 				return;
 			case 'room_reset':
 				this.room = msg.room;
+				return;
+			case 'motion':
+				this.motion = { seq: ++this.errorSeq, motions: msg.motions };
 				return;
 			case 'scene_saved':
 			case 'scene_exported':

@@ -757,6 +757,7 @@
 				{floats}
 				{terrain}
 				cue={cuePlay}
+				motion={conn.motion}
 				{highlight}
 				{view}
 				{onClick}

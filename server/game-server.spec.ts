@@ -953,7 +953,8 @@ describe('The Hollow Bell over the wire', () => {
 			port: 0,
 			host: '127.0.0.1',
 			rollDie: (sides) => sides,
-			enemyTurnDelayMs: 0
+			enemyTurnDelayMs: 0,
+			mechanismDelayScale: 0
 		});
 	});
 
@@ -1106,12 +1107,37 @@ describe('The Hollow Bell over the wire', () => {
 		}
 		await untilChapter(pip, 'descend');
 
+		// The grate slams shut as the last hound falls .
+		const motionsOf = async (client: TestClient, count: number) => {
+			const seen: string[] = [];
+			while (seen.length < count) {
+				const { motions } = await client.until('motion');
+				seen.push(...motions.map((m) => `${m.propId}:${m.kind}:${m.sound}`));
+			}
+			return seen;
+		};
+		expect(await motionsOf(pip, 1)).toEqual(['mn-grate:shake:clank']);
+		expect(await motionsOf(gm, 1)).toEqual(['mn-grate:shake:clank']);
+
+		// The lever by the door lifts it, step by step on the server, and both sides
+		// see the same chain: the lever, the chain, the grate.
+		move({ x: 6, y: 7 });
+		use('lever');
+		const chain = [
+			'mn-lever:swing:clank',
+			'mn-chamber-chains:shake:rattle',
+			'mn-grate:shake:grind'
+		];
+		expect(await motionsOf(pip, 3)).toEqual(chain);
+		expect(await motionsOf(gm, 3)).toEqual(chain);
+
 		// Down the stair to the Hollow.
 		move({ x: 3, y: 8 });
 		const hollow = (await pip.until('room_reset')).room;
 		expect(hollow.adventure).toMatchObject({ chapter: { id: 'the_hollow' } });
 
-		// Tobin, and the final choice.
+		// Tobin, and the final choice (after a breath: talking shares the chat rate limit).
+		await new Promise((resolve) => setTimeout(resolve, 800));
 		move({ x: 9, y: 5 });
 		use('tobin');
 		await untilAdventure(pip, (a) => a.decision?.id === 'bell');
@@ -1119,7 +1145,7 @@ describe('The Hollow Bell over the wire', () => {
 		const done = await untilAdventure(gm, (a) => a.stage === 'complete');
 		expect(done.ending).toMatchObject({ id: 'silent', title: 'The Long Silence' });
 		expect(done.objectives.every((o) => o.done)).toBe(true);
-		expect(done.ledger?.events).toHaveLength(13);
+		expect(done.ledger?.events).toHaveLength(14);
 		expect((await untilAdventure(pip, (a) => a.stage === 'complete')).completedAt).toBeGreaterThan(
 			0
 		);
@@ -1232,6 +1258,34 @@ describe('The Hollow Bell over the wire', () => {
 		expect(shared.clues[0]).toMatchObject({ id: 'footprints', shared: true, mine: false });
 		expect(shared.objectives.find((o) => o.id === 'tobin')?.done).toBe(true);
 		expect(boFrames.some((f) => f.includes('boot prints'))).toBe(true);
+	});
+
+	it('shows a motion to those who can see the prop, and only the sound to the rest', async () => {
+		const { gm, pip } = await table();
+		const bo = await connect();
+		gm.send({ type: 'adventure_start' });
+		const { room: snapshot } = await pip.until('room_reset');
+		bo.send({ type: 'join', roomId: snapshot.id, name: 'Bo', role: 'player' });
+		await bo.expect('welcome');
+		const boFrames: string[] = [];
+		bo.ws.on('message', (data) => boFrames.push(data.toString()));
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await tokenNamed(pip, 'The Warden');
+		bo.send({ type: 'adventure_claim', characterId: 'veil' });
+		await tokenNamed(bo, 'The Veil');
+		gm.send({ type: 'adventure_begin' });
+		await untilAdventure(pip, (a) => a.stage === 'playing');
+
+		// The Warden smashes the old crate in the square; the Veil, back on the road, only hears it.
+		pip.send({ type: 'token_move', tokenId: warden.id, to: { x: 10, y: 12 } });
+		pip.send({ type: 'adventure_interact', targetId: 'crate', verb: 'break' });
+		const smashed = { propId: 'hb-crate1', kind: 'shake', sound: 'crack' };
+		expect((await pip.until('motion')).motions).toEqual([smashed]);
+		expect((await gm.until('motion')).motions).toEqual([smashed]);
+		expect((await bo.until('motion')).motions).toEqual([
+			{ propId: null, kind: null, sound: 'crack' }
+		]);
+		expect(boFrames.some((f) => f.includes('hb-crate1'))).toBe(false);
 	});
 
 	it('lets only the GM adjust a character, and everyone sees the change', async () => {

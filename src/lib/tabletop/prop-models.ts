@@ -12,12 +12,27 @@ export interface Part {
 	size: [number, number, number];
 	at: [number, number, number];
 	color: number;
-	/** Swings with the prop (a hanging bell and its chains), about SWING_PIVOT. */
+	/** Swings with the prop (a hanging bell and its chains, a lever's handle), about its pivot. */
 	swings?: boolean;
 }
 
-/** Height (model units) of the beam a swinging prop hangs from. */
+/** Height (model units) of the beam a hanging bell swings from. */
 export const SWING_PIVOT = 2.55;
+
+/** Height each asset's swinging parts turn about (a bell's beam, a lever's hinge). */
+export const SWING_PIVOTS: Partial<Record<AssetId, number>> = {
+	'belfry-bell': SWING_PIVOT,
+	lever: 0.22,
+	'lever-down': 0.22
+};
+
+/** How far a motion's swing throws the swinging parts to begin with (radians). */
+export const SWING_THROW: Partial<Record<AssetId, number>> = {
+	'belfry-bell': 0.5,
+	// Pulled: the handle comes down from upright and settles, bouncing a little.
+	'lever-down': -Math.PI / 2,
+	lever: Math.PI / 2
+};
 
 const WOOD = 0x8a5a33;
 const DARK_WOOD = 0x5a3a22;
@@ -192,5 +207,29 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'cylinder', size: [0.04, 0.5, 0.04], at: [0.15, 2.3, 0], color: IRON, swings: true },
 		{ shape: 'cone', size: [0.9, 0.9, 0.9], at: [0, 1.65, 0], color: 0x7a6a3a, swings: true },
 		{ shape: 'sphere', size: [0.16, 0.16, 0.16], at: [0, 1.15, 0], color: IRON, swings: true }
+	],
+	// An iron lever in a stone block: up, and pulled down toward the room.
+	lever: [
+		{ shape: 'box', size: [0.5, 0.3, 0.5], at: [0, 0.15, 0], color: STONE },
+		{ shape: 'box', size: [0.12, 0.04, 0.36], at: [0, 0.31, 0], color: 0x141210 },
+		{ shape: 'box', size: [0.07, 0.75, 0.07], at: [0, 0.6, 0], color: IRON, swings: true },
+		{ shape: 'sphere', size: [0.16, 0.16, 0.16], at: [0, 0.98, 0], color: DARK_WOOD, swings: true }
+	],
+	'lever-down': [
+		{ shape: 'box', size: [0.5, 0.3, 0.5], at: [0, 0.15, 0], color: STONE },
+		{ shape: 'box', size: [0.12, 0.04, 0.36], at: [0, 0.31, 0], color: 0x141210 },
+		{ shape: 'box', size: [0.07, 0.07, 0.75], at: [0, 0.26, 0.38], color: IRON, swings: true },
+		{
+			shape: 'sphere',
+			size: [0.16, 0.16, 0.16],
+			at: [0, 0.26, 0.76],
+			color: DARK_WOOD,
+			swings: true
+		}
+	],
+	handbell: [
+		{ shape: 'cone', size: [0.34, 0.32, 0.34], at: [0, 0.16, 0], color: 0xc9a24a },
+		{ shape: 'cylinder', size: [0.06, 0.24, 0.06], at: [0, 0.42, 0], color: DARK_WOOD },
+		{ shape: 'sphere', size: [0.1, 0.1, 0.1], at: [0, 0.56, 0], color: DARK_WOOD }
 	]
 };

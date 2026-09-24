@@ -16,6 +16,7 @@ import {
 	type SquareGrid
 } from '$lib/game/grid';
 import type { Cue } from '$lib/game/chat';
+import type { Motion } from '$lib/game/motion';
 import { lightSources, type Ambient, type Light } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
 import { obstaclesFor, type Prop } from '$lib/game/props';
@@ -27,6 +28,7 @@ import { groundFor, type Ground } from './ground';
 import { TerrainLayer } from './terrain';
 import { LightingLayer } from './lighting';
 import { PropLayer } from './props';
+import { playSound } from './sounds';
 import { DiceLayer, type DiceThrow } from './dice3d';
 import { FogLayer, type FogMode } from './fog';
 import { TokenLayer } from './tokens';
@@ -86,6 +88,8 @@ export interface Tabletop {
 	setTerrain(levels: Uint8Array | null): void;
 	/** Plays a cinematic moment; `swingPropId` is the bell to swing, if it is on the table. */
 	playCue(cue: Cue, swingPropId: string | null): void;
+	/** Plays motions on props (a lever swinging, a chain shaking) and their sounds. */
+	playMotions(motions: readonly Motion[]): void;
 	setView(view: CameraView): void;
 	dispose(): void;
 }
@@ -166,6 +170,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const reducedMotion =
 		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 	const propLayer = new PropLayer();
+	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer({ hemisphere, sun, lamp, scene });
@@ -287,7 +292,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		const fx = effects.tick(now);
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
 		if (!fx.active) swinging = null;
-		if (tokensMoving || doorsMoving || diceRolling || fx.active) requestRender();
+		const propsMoving = propLayer.tick(now);
+		if (tokensMoving || doorsMoving || diceRolling || fx.active || propsMoving) requestRender();
 		if (!reducedMotion) {
 			const flickering = lighting.flicker(now);
 			const drifting = ambience.tick(now);
@@ -655,6 +661,14 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			wallLayer.sync(objects, grid, ground);
 			propLayer.sync(props, grid, ground);
 			refreshLighting();
+			requestRender();
+		},
+		playMotions(motions) {
+			const now = performance.now();
+			for (const m of motions) {
+				if (m.propId && m.kind) propLayer.animate(m.propId, m.kind, now);
+				if (m.sound) playSound(m.sound);
+			}
 			requestRender();
 		},
 		playCue(cue, swingPropId) {

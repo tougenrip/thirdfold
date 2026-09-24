@@ -138,6 +138,40 @@ export const EVIDENCE_KINDS: Record<EvidenceKind, string> = {
 	testimony: 'Testimony'
 };
 
+/**
+ * What a character physically does to a thing. Most change its state (the
+ * table shows the new state); pushing, pulling and rotating move its prop,
+ * picking up takes it off the table into the character's hands, dropping
+ * puts it back down, and triggering sets off a mechanism, a chain of
+ * changes the server plays out step by step.
+ */
+export type Physical =
+	| 'push'
+	| 'pull'
+	| 'open'
+	| 'close'
+	| 'pick_up'
+	| 'drop'
+	| 'rotate'
+	| 'activate'
+	| 'destroy'
+	| 'move'
+	| 'trigger';
+
+export const PHYSICAL_ACTIONS: Record<Physical, string> = {
+	push: 'Push',
+	pull: 'Pull',
+	open: 'Open',
+	close: 'Close',
+	pick_up: 'Pick up',
+	drop: 'Drop',
+	rotate: 'Rotate',
+	activate: 'Activate',
+	destroy: 'Destroy',
+	move: 'Move',
+	trigger: 'Trigger'
+};
+
 /** A check a character must pass: a d20 plus one of its stats, against a difficulty. */
 export interface Check {
 	stat: StatId;
@@ -181,6 +215,8 @@ export interface CharacterStatus {
 	statuses: ActiveStatus[];
 	/** Uses left this encounter per action id; null means unlimited. */
 	usesLeft: Record<string, number | null>;
+	/** What it carries, by world object. */
+	carrying: { id: string; name: string }[];
 }
 
 export interface ActiveStatus {
@@ -206,7 +242,9 @@ export type ObjectState =
 	| 'closed'
 	/** A fire burning (torches, braziers). */
 	| 'lit'
-	| 'unlit';
+	| 'unlit'
+	/** In a character's hands, off the table. */
+	| 'carried';
 
 export const OBJECT_STATES: readonly ObjectState[] = [
 	'hidden',
@@ -219,7 +257,8 @@ export const OBJECT_STATES: readonly ObjectState[] = [
 	'opened',
 	'closed',
 	'lit',
-	'unlit'
+	'unlit',
+	'carried'
 ];
 
 export function isObjectState(value: unknown): value is ObjectState {
@@ -237,7 +276,11 @@ export type ObjectKind =
 	| 'corpse'
 	| 'secret'
 	| 'container'
-	| 'landmark';
+	| 'landmark'
+	/** A lever, a counterweight: something that works something else. */
+	| 'mechanism'
+	/** Something a character can pick up and carry. */
+	| 'item';
 
 /** Something in the world a character can walk up to and use. */
 export interface Interactable {
@@ -245,13 +288,17 @@ export interface Interactable {
 	name: string;
 	kind: ObjectKind;
 	state: ObjectState;
-	/** The cells it occupies; a character must stand beside one of them. */
+	/** The cells it occupies; a character must stand beside one of them. Empty when carried. */
 	cells: GridPos[];
+	/** This viewer's character is carrying it. */
+	carried: boolean;
 	/** What can be done with it now, e.g. { id: 'open', label: 'Open the chest' }. */
 	verbs: {
 		id: string;
 		label: string;
 		action: InvestigationAction;
+		/** What it physically does, if it does something to the thing. */
+		physical: Physical | null;
 		/** A check to pass first, if any. */
 		check: Check | null;
 		/** This viewer's character already tried the check and failed. */

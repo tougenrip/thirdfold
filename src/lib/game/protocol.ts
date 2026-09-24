@@ -19,6 +19,7 @@ import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
 import type { SceneObject } from './objects';
+import type { Motion } from './motion';
 import { isAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
 import type { SceneFile } from './scene-file';
 import { MAX_LEVEL } from './terrain';
@@ -229,6 +230,8 @@ export type ServerMessage =
 	| { type: 'room_reset'; room: RoomSnapshot }
 	/** A new room log entry: chat, a dice result, or a system notice. */
 	| { type: 'chat'; message: ChatMessage }
+	/** Something on the table moves or sounds (a lever swings, a chain rattles); presentation only. */
+	| { type: 'motion'; motions: Motion[] }
 	/** The adventure changed (as this client may know it); null when it ended. */
 	| { type: 'adventure_update'; adventure: AdventureView | null }
 	| { type: 'error'; code: ErrorCode; message: string };
@@ -555,6 +558,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
 		adventure_update: (d) => d.adventure === null || isRecord(d.adventure),
+		motion: (d) => Array.isArray(d.motions),
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};
 

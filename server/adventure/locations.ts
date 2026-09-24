@@ -40,15 +40,27 @@ export const AREAS: readonly Area[] = [
 		location: 'monastery',
 		...CHAMBER
 	},
-	{ event: 'reached_stair', during: 'descend', location: 'monastery', ...STAIR }
+	{
+		event: 'reached_stair',
+		during: 'descend',
+		location: 'monastery',
+		after: 'opened_grate',
+		...STAIR
+	}
 ];
 
 /** The area `pos` starts an event in, while the story waits for it there. */
-export function areaAt(location: LocationId, chapter: string, pos: GridPos): Area | undefined {
+export function areaAt(
+	location: LocationId,
+	chapter: string,
+	events: readonly string[],
+	pos: GridPos
+): Area | undefined {
 	return AREAS.find(
 		(a) =>
 			a.location === location &&
 			a.during === chapter &&
+			(!a.after || events.includes(a.after)) &&
 			pos.x >= a.from.x &&
 			pos.x <= a.to.x &&
 			pos.y >= a.from.y &&

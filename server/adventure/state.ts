@@ -14,6 +14,7 @@ import type {
 	ObjectState
 } from '../../src/lib/adventure/adventure';
 import type { CharacterId, StatusId } from '../../src/lib/adventure/characters';
+import type { MechanismId } from './mechanisms';
 import type { Origins } from './objects';
 import type { NpcId } from './npcs';
 import type { DecisionId, EncounterId, EndingId, EventId } from './story';
@@ -96,8 +97,12 @@ export interface AdventureState {
 	ending: EndingId | null;
 	/** Each world object's state, by object id (see objects.ts). Kept after the party moves on. */
 	objects: Map<string, ObjectState>;
-	/** Where object props at this location started, for their looks. */
+	/** Where object props at this location stand before their looks (moved by pushing, pulling, turning, dropping), and carried items' looks. */
 	origins: Origins;
+	/** Items in characters' hands, by world object id. */
+	carried: Map<string, CharacterId>;
+	/** Mechanisms playing out, and the step each runs next. */
+	running: Map<MechanismId, number>;
 	/** Read-aloud cues the GM has used. */
 	cuesRead: Set<string>;
 	encounter: Encounter | null;
