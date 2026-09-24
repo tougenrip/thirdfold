@@ -12,14 +12,18 @@
 // the enemies' turn should be scheduled. The game server owns timing and
 // transport; nothing here touches a socket or a timer.
 
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import {
 	canReach,
 	inActionRange,
 	inAttackRange,
+	EVIDENCE_KINDS,
+	INVESTIGATION_ACTIONS,
 	type ChapterId,
+	type Check,
 	type LocationId,
-	type ObjectState
+	type ObjectState,
+	type Sense
 } from '../../src/lib/adventure/adventure';
 import {
 	actionOf,
@@ -27,13 +31,19 @@ import {
 	CHARACTER_IDS,
 	CHARACTERS,
 	defenseFor,
+	STATS,
 	STATUSES,
 	toHitFor,
 	type Action,
 	type CharacterDef,
 	type CharacterId
 } from '../../src/lib/adventure/characters';
-import { NARRATION_MAX_LENGTH, normalizeChatText, type ChatMessage } from '../../src/lib/game/chat';
+import {
+	NARRATION_MAX_LENGTH,
+	normalizeChatText,
+	type ChatMessage,
+	type LogAudience
+} from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
 import { gridDistance, type GridPos } from '../../src/lib/game/grid';
 import { cellsBeside, findPath, type Door, type Obstacles } from '../../src/lib/game/objects';
@@ -46,10 +56,21 @@ import { fail, type Player, type Result, type Room } from '../rooms';
 import { obstacles } from '../scene';
 import { applyScene } from '../scene-io';
 import { IDS, PATH_AREA, WELL_RING } from './bellweather';
-import { CLUES, CUES, ENDINGS, HOUND, PROMISE_KEPT, TEXT, TITLE, type ClueId } from './content';
+import {
+	CLUES,
+	CUES,
+	ENDINGS,
+	HOUND,
+	PROMISE_KEPT,
+	TEXT,
+	TITLE,
+	type ClueDef,
+	type ClueId
+} from './content';
 import { areaAt, LOCATIONS } from './locations';
 import { CHAMBER, STAIR_RING } from './monastery';
 import {
+	actionOfVerb,
 	applyLook,
 	initialStates,
 	objectDef,
@@ -61,6 +82,7 @@ import {
 	type ObjectDef,
 	type Verb
 } from './objects';
+import { SIGNS } from './signs';
 import type { AdventureState, CharacterState, Encounter, EnemyState, Statuses } from './state';
 import {
 	CHAPTERS,
@@ -236,7 +258,8 @@ function newState(room: Room): AdventureState {
 		chapter: 'village',
 		location: 'bellweather',
 		characters: new Map(),
-		clues: [],
+		evidence: new Map(),
+		tried: new Set(),
 		events: [],
 		defeated: [],
 		npcs: new Map(NPC_IDS.map((id) => [id, NPCS[id].states[0]])),
@@ -326,17 +349,91 @@ export function beginAdventure(room: Room, actor: Player, now = Date.now()): Out
 // ---------------------------------------------------------------------------
 // Interacting with the world
 
-function addClue(room: Room, adventure: AdventureState, id: ClueId): ChatMessage[] {
-	if (adventure.clues.includes(id)) return [];
-	adventure.clues.push(id);
-	return [postSystem(room, `New clue: ${CLUES[id].title}.`)];
+/** Dice for checks when the game server doesn't pass its own. */
+const RANDOM: DieRoller = (sides) => randomInt(1, sides + 1);
+
+/** Only this player (and the GM) reads the entry. */
+const only = (playerId: string): LogAudience => ({ players: [playerId] });
+
+/** Whether a character knows a piece of evidence: they found it, or the party shares it. */
+export function knows(adventure: AdventureState, who: CharacterId | null, id: string): boolean {
+	const f = adventure.evidence.get(id);
+	return !!f && (f.shared || (who !== null && f.by.includes(who)));
 }
 
-function say(room: Room, text: string, speaker?: string): ChatMessage {
-	return appendLog(
-		room,
-		speaker ? { kind: 'narration', text, speaker } : { kind: 'narration', text }
-	);
+/**
+ * Records evidence. Found by a character (`finder`), only that character
+ * knows it until their player shares it; with no finder (someone said it
+ * aloud, or everyone saw it) the whole party knows it at once. Evidence the
+ * whole party comes to know can move the story on (`unlocks`).
+ */
+function addClue(
+	room: Room,
+	adventure: AdventureState,
+	id: ClueId,
+	finder: { id: CharacterId; playerId: string } | null
+): ChatMessage[] {
+	const def = CLUES[id];
+	const found = adventure.evidence.get(id);
+	if (!finder) {
+		if (found?.shared) return [];
+		if (found) found.shared = true;
+		else adventure.evidence.set(id, { by: [], shared: true });
+		return [postSystem(room, `New evidence: ${def.title}.`), ...unlock(room, adventure, id)];
+	}
+	if (found?.shared || found?.by.includes(finder.id)) return [];
+	if (found) found.by.push(finder.id);
+	else adventure.evidence.set(id, { by: [finder.id], shared: false });
+	const name = CHARACTERS[finder.id].name;
+	return [
+		postSystem(room, `${name} found something (${EVIDENCE_KINDS[def.kind].toLowerCase()}).`),
+		postSystem(
+			room,
+			`New evidence: ${def.title}. Only ${name} knows it; share it with the party from the evidence list.`,
+			only(finder.playerId)
+		)
+	];
+}
+
+/** Evidence the party now knows may raise a story event (which can unlock objectives). */
+function unlock(room: Room, adventure: AdventureState, id: ClueId): ChatMessage[] {
+	const def: ClueDef = CLUES[id];
+	const event = def.unlocks;
+	return event ? happen(room, adventure, event).log : [];
+}
+
+function say(room: Room, text: string, speaker?: string, audience?: LogAudience): ChatMessage {
+	return appendLog(room, {
+		kind: 'narration',
+		text,
+		...(speaker ? { speaker } : {}),
+		...(audience ? { audience } : {})
+	});
+}
+
+/** A d20 plus the character's stat against a difficulty, rolled here and logged for all. */
+function rollCheck(
+	room: Room,
+	actor: Player,
+	me: Played,
+	action: string,
+	check: Check,
+	roller: DieRoller
+): { entry: ChatMessage; success: boolean } {
+	const bonus = CHARACTERS[me.id].stats[check.stat];
+	const rolled = roll(bonus ? `1d20+${bonus}` : '1d20', roller);
+	const success = rolled.total >= check.dc;
+	const entry = appendLog(room, {
+		kind: 'check',
+		authorId: actor.id,
+		authorName: CHARACTERS[me.id].name,
+		action,
+		stat: STATS.find((s) => s.id === check.stat)?.name ?? check.stat,
+		roll: rolled,
+		dc: check.dc,
+		success
+	});
+	return { entry, success };
 }
 
 /**
@@ -348,7 +445,8 @@ export function interact(
 	room: Room,
 	actor: Player,
 	targetId: string,
-	verbId: string | null = null
+	verbId: string | null = null,
+	roller: DieRoller = RANDOM
 ): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
@@ -375,10 +473,36 @@ export function interact(
 		return fail('out_of_reach', `Move ${CHARACTERS[me.id].name} next to it first.`);
 	}
 	const before = state!;
+	let checked: ChatMessage[] = [];
+	// A check stands between the character and what's there to find, once per character.
+	if (verb.check && before !== 'used') {
+		const key = `${me.id}:${def.id}:${verb.id}`;
+		const name = CHARACTERS[me.id].name;
+		if (adventure.tried.has(key)) {
+			return fail('forbidden', `${name} has tried that already. Someone else might see more.`);
+		}
+		const check = rollCheck(room, actor, me, verb.label, verb.check, roller);
+		if (!check.success) {
+			adventure.tried.add(key);
+			return {
+				ok: true,
+				log: [check.entry, say(room, TEXT.nothingFound, undefined, only(actor.id))]
+			};
+		}
+		checked = [check.entry];
+	}
 	if (verb.to) setObjectState(room, adventure, def, verb.to);
-	const outcome = respond(room, adventure, def, verb, before);
-	const reactions = react(room, adventure, `${def.id}:${verb.id}`, me.token.pos);
-	return { ok: true, ...merge(outcome, { log: reactions }) };
+	const outcome = respond(room, adventure, def, verb, before, me, actor);
+	// What someone says about a private find would give it away: only the finder hears it.
+	const investigating = actionOfVerb(verb) !== 'interact';
+	const reactions = react(
+		room,
+		adventure,
+		`${def.id}:${verb.id}`,
+		me.token.pos,
+		investigating ? only(actor.id) : undefined
+	);
+	return { ok: true, ...merge({ log: checked }, merge(outcome, { log: reactions })) };
 }
 
 /** What happens in the story when a verb is done: narration, clues, events. */
@@ -387,7 +511,9 @@ function respond(
 	adventure: AdventureState,
 	def: ObjectDef,
 	verb: Verb,
-	before: ObjectState
+	before: ObjectState,
+	me: Played,
+	actor: Player
 ): Outcome {
 	const has = (event: EventId) => adventure.events.includes(event);
 	const told = (...log: ChatMessage[]): Outcome => ({ log });
@@ -395,14 +521,19 @@ function respond(
 		const next = happen(room, adventure, event);
 		return { ...next, log: [...log, ...next.log] };
 	};
-	const clue = (id: ClueId) => [say(room, CLUES[id].text), ...addClue(room, adventure, id)];
-	if (verb.id === 'talk' && isNpcId(def.id)) return talk(room, adventure, def.id);
+	// What a character finds by investigating is theirs until they share it.
+	const clue = (id: ClueId) => [
+		say(room, CLUES[id].text, undefined, only(actor.id)),
+		...addClue(room, adventure, id, { id: me.id, playerId: actor.id })
+	];
+	if (verb.id === 'talk' && isNpcId(def.id)) return talk(room, adventure, def.id, me.id);
 	switch (`${def.id}:${verb.id}`) {
 		case 'well:examine': {
 			if (has('well_clue')) return told(say(room, CLUES.scratches.text));
 			if (!has('talked_maren')) return told(say(room, TEXT.wellEarly));
 			return then(
-				[say(room, TEXT.wellClue), ...addClue(room, adventure, 'scratches')],
+				// Everyone sees what climbs out, so everyone knows.
+				[say(room, TEXT.wellClue), ...addClue(room, adventure, 'scratches', null)],
 				'well_clue'
 			);
 		}
@@ -459,7 +590,7 @@ function respond(
 		case 'ringers:examine':
 			return before === 'used'
 				? told(say(room, TEXT.ringers))
-				: told(say(room, TEXT.ringers), ...addClue(room, adventure, 'empty-graves'));
+				: told(say(room, TEXT.ringers), ...clue('empty-graves'));
 		case 'anvil:examine':
 			return told(say(room, TEXT.anvil));
 		case 'loom:examine':
@@ -479,11 +610,17 @@ function respond(
 // People: talking, reacting, and where they stand
 
 /** Whether a line's conditions hold now, for a speaker in `state`. */
-function holds(adventure: AdventureState, state: string, when: When | undefined): boolean {
+function holds(
+	adventure: AdventureState,
+	state: string,
+	when: When | undefined,
+	who: CharacterId | null
+): boolean {
 	if (!when) return true;
 	const has = (e: EventId) => adventure.events.includes(e);
 	if (when.state && !when.state.includes(state)) return false;
-	if (when.clues && !when.clues.every((c) => adventure.clues.includes(c))) return false;
+	// People react to what the one talking to them knows.
+	if (when.clues && !when.clues.every((c) => knows(adventure, who, c))) return false;
 	if (when.events && !when.events.every(has)) return false;
 	if (when.not && when.not.some(has)) return false;
 	if (when.pending && adventure.pending !== when.pending) return false;
@@ -498,19 +635,91 @@ function holds(adventure: AdventureState, state: string, when: When | undefined)
  * Talking to someone: they say the first of their lines that applies, which
  * may give a clue, change how they feel, move the story on or tend wounds.
  */
-function talk(room: Room, adventure: AdventureState, id: NpcId): Outcome {
+function talk(room: Room, adventure: AdventureState, id: NpcId, who: CharacterId): Outcome {
 	const npc = NPCS[id];
 	const state = adventure.npcs.get(id) ?? npc.states[0];
 	const line = npc.lines.find(
-		(l) => !(l.once && adventure.said.has(`${id}:${l.id}`)) && holds(adventure, state, l.if)
+		(l) => !(l.once && adventure.said.has(`${id}:${l.id}`)) && holds(adventure, state, l.if, who)
 	);
 	if (!line) return { log: [] };
 	adventure.said.add(`${id}:${line.id}`);
 	const log = [line.narrated ? say(room, line.text) : say(room, line.text, npc.speaker)];
-	if (line.clue) log.push(...addClue(room, adventure, line.clue));
+	// Said aloud: the whole party hears it.
+	if (line.clue) log.push(...addClue(room, adventure, line.clue, null));
 	if (line.becomes) adventure.npcs.set(id, line.becomes);
 	if (line.heals) log.push(...tend(room, adventure, line.heals));
 	return line.event ? merge({ log }, happen(room, adventure, line.event)) : { log };
+}
+
+/**
+ * Player: their character listens, or looks around, where it stands, and may
+ * pick up signs nearby (each behind a check, one try per character).
+ */
+export function sense(
+	room: Room,
+	actor: Player,
+	what: Sense,
+	roller: DieRoller = RANDOM
+): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	const me = characterOf(room, actor.id);
+	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
+	const unable = unableReason(me);
+	if (unable) return fail('forbidden', unable);
+	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
+	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
+	const blocked = obstacles(room);
+	const signs = SIGNS.filter(
+		(s) =>
+			s.location === adventure.location &&
+			s.sense === what &&
+			gridDistance(me.token.pos, s.at) <= s.range &&
+			hasLineOfSight(blocked, me.token.pos, s.at) &&
+			!knows(adventure, me.id, s.clue) &&
+			!adventure.tried.has(`${me.id}:sign:${s.id}`)
+	);
+	const verb = INVESTIGATION_ACTIONS[what];
+	if (signs.length === 0) {
+		const nothing = what === 'listen' ? TEXT.hearNothing : TEXT.seeNothing;
+		return { ok: true, log: [say(room, nothing, undefined, only(actor.id))] };
+	}
+	const log: ChatMessage[] = [];
+	for (const s of signs) {
+		const check = rollCheck(room, actor, me, verb, s.check, roller);
+		log.push(check.entry);
+		if (!check.success) {
+			adventure.tried.add(`${me.id}:sign:${s.id}`);
+			log.push(say(room, TEXT.cantMakeOut, undefined, only(actor.id)));
+			continue;
+		}
+		log.push(say(room, CLUES[s.clue].text, undefined, only(actor.id)));
+		log.push(...addClue(room, adventure, s.clue, { id: me.id, playerId: actor.id }));
+	}
+	return { ok: true, log };
+}
+
+/** Player (or the GM): tells the whole party about evidence their character found. */
+export function share(room: Room, actor: Player, clueId: string): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	const found = adventure.evidence.get(clueId);
+	const me = actor.role === 'gm' ? null : characterOf(room, actor.id);
+	if (!found || (actor.role !== 'gm' && (!me || !found.by.includes(me.id)))) {
+		return fail('forbidden', 'You have nothing like that to share.');
+	}
+	if (found.shared) return fail('forbidden', 'The party already knows that.');
+	found.shared = true;
+	const id = clueId as ClueId;
+	const by = me ? CHARACTERS[me.id].name : actor.name;
+	return {
+		ok: true,
+		log: [
+			postSystem(room, `${by} shared evidence: ${CLUES[id].title}.`),
+			say(room, CLUES[id].text),
+			...unlock(room, adventure, id)
+		]
+	};
 }
 
 /** Every standing character recovers up to `hp`. */
@@ -528,7 +737,13 @@ function tend(room: Room, adventure: AdventureState, hp: number): ChatMessage[] 
  * within earshot of `near`) or when something happens (`event:<id>`). Each
  * reaction is heard once.
  */
-function react(room: Room, adventure: AdventureState, on: string, near?: GridPos): ChatMessage[] {
+function react(
+	room: Room,
+	adventure: AdventureState,
+	on: string,
+	near?: GridPos,
+	audience?: LogAudience
+): ChatMessage[] {
 	const log: ChatMessage[] = [];
 	for (const r of REACTIONS) {
 		if (r.on !== on || adventure.said.has(`reaction:${r.id}`)) continue;
@@ -537,7 +752,7 @@ function react(room: Room, adventure: AdventureState, on: string, near?: GridPos
 		if (!token) continue;
 		if (r.within !== undefined && near && gridDistance(token.pos, near) > r.within) continue;
 		adventure.said.add(`reaction:${r.id}`);
-		log.push(say(room, r.text, npc.speaker));
+		log.push(say(room, r.text, npc.speaker, audience));
 	}
 	return log;
 }

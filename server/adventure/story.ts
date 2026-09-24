@@ -38,7 +38,11 @@ export type EventId =
 	| 'reached_stair'
 	| 'found_tobin'
 	/** The party decided what to do with the Bell. */
-	| 'decided_bell';
+	| 'decided_bell'
+	/** The party knows where Tobin went (shared evidence or testimony). */
+	| 'learned_tobin'
+	/** The party knows Saint Agna holds the way to the ringers. */
+	| 'learned_agna';
 
 export const EVENT_IDS: readonly EventId[] = [
 	'talked_maren',
@@ -53,12 +57,16 @@ export const EVENT_IDS: readonly EventId[] = [
 	'won_chamber',
 	'reached_stair',
 	'found_tobin',
-	'decided_bell'
+	'decided_bell',
+	'learned_tobin',
+	'learned_agna'
 ];
 
 interface ObjectiveDef {
 	id: string;
 	text: string;
+	/** Worth doing, but the story goes on without it. */
+	optional?: boolean;
 	/** Shown once this has happened (always shown if omitted). */
 	after?: EventId;
 	/** Done once this has happened. */
@@ -86,7 +94,8 @@ export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 				text: 'Examine the old well in the square',
 				after: 'talked_maren',
 				done: 'well_clue'
-			}
+			},
+			{ id: 'tobin', text: 'Find out where Tobin went', optional: true, done: 'learned_tobin' }
 		],
 		next: { on: 'well_clue', to: 'discover_bell' }
 	},
@@ -115,7 +124,14 @@ export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 				text: 'Find whoever keeps the lamp lit in the gatehouse',
 				done: 'talked_oswin'
 			},
-			{ id: 'way-in', text: 'Find a way into the monastery', done: 'entered_nave' }
+			{ id: 'way-in', text: 'Find a way into the monastery', done: 'entered_nave' },
+			{
+				id: 'agna',
+				text: 'Find what Saint Agna holds: the way to the ringers',
+				optional: true,
+				after: 'learned_agna',
+				done: 'found_hidden_door'
+			}
 		],
 		next: { on: 'entered_nave', to: 'enter_monastery' }
 	},
@@ -193,7 +209,12 @@ export function objectivesFor(
 		.filter((id) => CHAPTERS[id].location === here)
 		.flatMap((id) => CHAPTERS[id].objectives)
 		.filter((o) => !o.after || events.includes(o.after))
-		.map((o) => ({ id: o.id, text: o.text, done: events.includes(o.done) }));
+		.map((o) => ({
+			id: o.id,
+			text: o.text,
+			done: events.includes(o.done),
+			...(o.optional ? { optional: true } : {})
+		}));
 }
 
 /** Places that start an event when a character walks into them, while their chapter waits for it. */

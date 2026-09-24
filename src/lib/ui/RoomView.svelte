@@ -85,7 +85,7 @@
 	// Only rolls that arrive while we're here pop up; history in the snapshot does not.
 	let lastAnnouncedSeq: number | null = null;
 
-	type RollEntry = Extract<ChatMessage, { kind: 'roll' | 'attack' | 'ability' }>;
+	type RollEntry = Extract<ChatMessage, { kind: 'roll' | 'attack' | 'ability' | 'check' }>;
 
 	const room = $derived(conn.room);
 	const me = $derived(conn.me);
@@ -409,9 +409,16 @@
 		}
 		if (!latest || latest.seq <= lastAnnouncedSeq) return;
 		lastAnnouncedSeq = latest.seq;
-		if (latest.kind !== 'roll' && latest.kind !== 'attack' && latest.kind !== 'ability') return;
+		if (
+			latest.kind !== 'roll' &&
+			latest.kind !== 'attack' &&
+			latest.kind !== 'ability' &&
+			latest.kind !== 'check'
+		) {
+			return;
+		}
 		const dice =
-			latest.kind === 'roll'
+			latest.kind === 'roll' || latest.kind === 'check'
 				? diceToThrow(latest.roll)
 				: latest.kind === 'attack'
 					? [...diceToThrow(latest.toHit), ...(latest.damage ? diceToThrow(latest.damage) : [])]
@@ -899,6 +906,12 @@
 						<span class="who">{rollCard.authorName} rolled {rollCard.roll.expression}</span>
 						<span class="big">{rollCard.roll.total}</span>
 						<span class="how">{formatBreakdown(rollCard.roll)}</span>
+					{:else if rollCard.kind === 'check'}
+						<span class="who">{rollCard.authorName} · {rollCard.action}</span>
+						<span class="big" class:miss={!rollCard.success}>{rollCard.roll.total}</span>
+						<span class="how">
+							{rollCard.stat} check vs {rollCard.dc} · {rollCard.success ? 'found' : 'nothing'}
+						</span>
 					{:else if rollCard.kind === 'ability'}
 						<span class="who">
 							{rollCard.authorName} · {rollCard.ability}{rollCard.targetName

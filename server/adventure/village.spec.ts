@@ -42,6 +42,7 @@ beforeEach(() => {
 });
 
 const story = () => room.adventure!;
+const found = () => [...story().evidence.keys()];
 const me = () => characterOf(room, ana.id)!;
 const villagers = NPC_IDS.filter((id) => NPCS[id].location === 'bellweather');
 const tokenOf = (id: NpcId) => room.tokens.get(NPCS[id].token)!;
@@ -141,16 +142,16 @@ describe('talking to people', () => {
 	it('hands out clues once, then moves on to other lines', () => {
 		const first = talkTo('bertram');
 		expect(first.log[0]).toMatchObject({ kind: 'narration', speaker: 'Bertram' });
-		expect(story().clues).toEqual(['legend']);
+		expect(found()).toEqual(['legend']);
 		const again = talkTo('bertram');
 		expect(again.log).toHaveLength(1);
-		expect(story().clues).toEqual(['legend']);
+		expect(found()).toEqual(['legend']);
 		expect(story().said.has('bertram:legend')).toBe(true);
 	});
 
 	it('collects a clue from each of the village’s witnesses', () => {
 		for (const id of ['edda', 'aldric', 'wynn', 'nell', 'gregor', 'crane'] as NpcId[]) talkTo(id);
-		expect(story().clues).toEqual(['bread', 'tracks', 'saint', 'empty-graves', 'shears', 'lights']);
+		expect(found()).toEqual(['bread', 'tracks', 'saint', 'empty-graves', 'shears', 'lights']);
 		expect(story().npcs.get('edda')).toBe('hopeful');
 		expect(story().npcs.get('crane')).toBe('frightened');
 	});
@@ -158,10 +159,10 @@ describe('talking to people', () => {
 	it('reacts to what the party has found and done', () => {
 		// Pell keeps his promise until the party has Tobin's drawing.
 		expect(talkTo('pell').log[0]).toMatchObject({ speaker: 'Pell' });
-		expect(story().clues).not.toContain('promise');
-		story().clues.push('drawing');
+		expect(found()).not.toContain('promise');
+		story().evidence.set('drawing', { by: [me().id], shared: false });
 		talkTo('pell');
-		expect(story().clues).toContain('promise');
+		expect(found()).toContain('promise');
 		expect(story().npcs.get('pell')).toBe('talking');
 
 		// Gregor has words about his crate.
@@ -171,9 +172,9 @@ describe('talking to people', () => {
 		const told = talkTo('gregor');
 		expect(told.log[0]).toMatchObject({ speaker: 'Gregor' });
 		expect(story().npcs.get('gregor')).toBe('angry');
-		expect(story().clues).not.toContain('shears');
+		expect(found()).not.toContain('shears');
 		talkTo('gregor');
-		expect(story().clues).toContain('shears');
+		expect(found()).toContain('shears');
 	});
 
 	it('only calls out reactions within earshot, once', () => {
@@ -186,7 +187,7 @@ describe('talking to people', () => {
 		beside({ x: 31, y: 19 });
 		expect(gridDistance(me().token.pos, tokenOf('nell').pos)).toBeLessThanOrEqual(8);
 		expect(spoken(ok(interact(room, ana, 'ringers')).log)).toEqual(['Nell']);
-		expect(story().clues).toContain('empty-graves');
+		expect(found()).toContain('empty-graves');
 	});
 });
 

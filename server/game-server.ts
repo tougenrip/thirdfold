@@ -296,6 +296,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		const chatty =
 			msg.type === 'adventure_interact' ||
 			msg.type === 'adventure_decide' ||
+			msg.type === 'adventure_sense' ||
+			msg.type === 'adventure_share' ||
 			msg.type === 'adventure_narrate' ||
 			msg.type === 'adventure_cue' ||
 			msg.type === 'adventure_claim' ||
@@ -314,7 +316,11 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				case 'adventure_begin':
 					return adventure.beginAdventure(room, player);
 				case 'adventure_interact':
-					return adventure.interact(room, player, msg.targetId, msg.verb);
+					return adventure.interact(room, player, msg.targetId, msg.verb, rollDie);
+				case 'adventure_sense':
+					return adventure.sense(room, player, msg.sense, rollDie);
+				case 'adventure_share':
+					return adventure.share(room, player, msg.clueId);
 				case 'adventure_object':
 					return adventure.setObject(room, player, msg.objectId, msg.state);
 				case 'adventure_act':
@@ -573,6 +579,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'adventure_narrate':
 			case 'adventure_cue':
 			case 'adventure_decide':
+			case 'adventure_sense':
+			case 'adventure_share':
 			case 'adventure_control':
 				return handleAdventure(ws, room, player, msg);
 		}

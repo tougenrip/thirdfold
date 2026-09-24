@@ -3,7 +3,12 @@
 // send the expression.
 
 import { randomInt } from 'node:crypto';
-import { LOG_LIMIT, normalizeChatText, type ChatMessage } from '../src/lib/game/chat';
+import {
+	LOG_LIMIT,
+	normalizeChatText,
+	type ChatMessage,
+	type LogAudience
+} from '../src/lib/game/chat';
 import { parseDice, rollDice, type DieRoller } from '../src/lib/game/dice';
 import { fail, type Player, type Result, type Room } from './rooms';
 
@@ -50,7 +55,10 @@ export function postRoll(
 	};
 }
 
-/** Posts a notice; `audience: 'gm'` keeps it from players and spectators (e.g. it names a hidden NPC). */
-export function postSystem(room: Room, text: string, audience?: 'gm'): ChatMessage {
+/**
+ * Posts a notice; `audience: 'gm'` keeps it from players and spectators (e.g.
+ * it names a hidden NPC), `{ players }` shows it only to those players (and the GM).
+ */
+export function postSystem(room: Room, text: string, audience?: LogAudience): ChatMessage {
 	return appendLog(room, audience ? { kind: 'system', text, audience } : { kind: 'system', text });
 }

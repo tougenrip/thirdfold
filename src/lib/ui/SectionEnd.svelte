@@ -60,7 +60,7 @@
 				<dt>Time played</dt>
 				<dd>{played()}</dd>
 			{/if}
-			<dt>Clues found</dt>
+			<dt>Evidence found</dt>
 			<dd>{adventure.clues.length}</dd>
 			{#each adventure.decisions as d (d.id)}
 				<dt>{d.id === 'bell' ? 'The Bell' : 'Promised'}</dt>

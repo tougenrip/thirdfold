@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { CHAT_MAX_LENGTH, parseChatInput, type ChatMessage } from '$lib/game/chat';
+	import {
+		CHAT_MAX_LENGTH,
+		parseChatInput,
+		type ChatMessage,
+		type LogAudience
+	} from '$lib/game/chat';
 	import { parseDice, STANDARD_DICE } from '$lib/game/dice';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 
@@ -17,6 +22,10 @@
 	let stickToBottom = true;
 
 	const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+
+	/** Marks entries not everyone at the table can read. */
+	const privacy = (audience: LogAudience) =>
+		audience === 'gm' ? 'GM only' : audience.players.includes(myId) ? 'Only you' : 'Private';
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -55,9 +64,22 @@
 			<li class={m.kind} class:mine={'authorId' in m && m.authorId === myId}>
 				{#if m.kind === 'system'}
 					<span class="text">{m.text}</span>
+					{#if m.audience}<span class="private">{privacy(m.audience)}</span>{/if}
 				{:else if m.kind === 'narration'}
 					{#if m.speaker}<span class="speaker">{m.speaker}</span>{/if}
 					<p class="text">{m.text}</p>
+					{#if m.audience}<span class="private">{privacy(m.audience)}</span>{/if}
+				{:else if m.kind === 'check'}
+					<header>
+						<span class="author">{m.authorName}</span>
+						<span class="versus">{m.action} · {m.stat}</span>
+					</header>
+					<p class="roll-result">
+						<span class="expr">{m.roll.expression}</span>
+						<span class="total">{m.roll.total}</span>
+						<span class="expr">vs {m.dc}</span>
+						<span class="verdict" class:hit={m.success}>{m.success ? 'Found' : 'Nothing'}</span>
+					</p>
 				{:else if m.kind === 'ability'}
 					<header>
 						<span class="author">{m.authorName}</span>
@@ -251,6 +273,15 @@
 		border: 1px solid var(--border);
 		border-radius: 8px;
 		background: rgba(0, 0, 0, 0.25);
+	}
+
+	.private {
+		display: block;
+		margin-top: 0.2rem;
+		font-size: 0.7rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--accent);
 	}
 
 	.expr {

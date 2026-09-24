@@ -1,5 +1,10 @@
 <script lang="ts">
-	import type { AdventureView, CharacterStatus, ObjectState } from '$lib/adventure/adventure';
+	import {
+		EVIDENCE_KINDS,
+		type AdventureView,
+		type CharacterStatus,
+		type ObjectState
+	} from '$lib/adventure/adventure';
 	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { PublicPlayer } from '$lib/game/protocol';
@@ -75,9 +80,11 @@
 
 		<ul class="objectives" aria-label="Objectives">
 			{#each adventure.objectives as o (o.id)}
-				<li class:done={o.done}>
-					<span class="mark" aria-hidden="true">{o.done ? '✓' : '◆'}</span>
-					<span>{o.text}</span>
+				<li class:done={o.done} class:optional={o.optional}>
+					<span class="mark" aria-hidden="true">{o.done ? '✓' : o.optional ? '◇' : '◆'}</span>
+					<span
+						>{o.text}{#if o.optional}<small class="opt">(optional)</small>{/if}</span
+					>
 				</li>
 			{/each}
 		</ul>
@@ -155,12 +162,26 @@
 
 		{#if adventure.clues.length}
 			<details class="clues" open>
-				<summary>Clues ({adventure.clues.length})</summary>
+				<summary>Evidence ({adventure.clues.length})</summary>
 				<ul>
 					{#each adventure.clues as clue (clue.id)}
-						<li>
+						<li class:secret={!clue.shared}>
+							<span class="evidence-kind">{EVIDENCE_KINDS[clue.kind]}</span>
 							<strong>{clue.title}</strong>
 							<p>{clue.text}</p>
+							{#if !clue.shared}
+								<p class="who-knows">
+									{clue.mine ? 'Only you know this.' : `Known only to ${clue.foundBy.join(', ')}.`}
+								</p>
+								{#if clue.mine || isGm}
+									<button
+										type="button"
+										onclick={() => send({ type: 'adventure_share', clueId: clue.id })}
+									>
+										Share with the party
+									</button>
+								{/if}
+							{/if}
 						</li>
 					{/each}
 				</ul>
@@ -474,6 +495,38 @@
 	.people small {
 		display: block;
 		color: var(--muted);
+	}
+
+	.objectives .opt {
+		margin-left: 0.3em;
+	}
+
+	.objectives .optional:not(.done) {
+		color: var(--muted);
+	}
+
+	.evidence-kind {
+		display: block;
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--muted);
+	}
+
+	.clues .secret {
+		padding-left: 0.5rem;
+		border-left: 2px solid var(--accent);
+	}
+
+	.clues .who-knows {
+		color: var(--accent);
+		font-size: 0.8rem;
+	}
+
+	.clues button {
+		margin-top: 0.3rem;
+		padding: 0.15rem 0.5rem;
+		font-size: 0.8rem;
 	}
 
 	.clues p {

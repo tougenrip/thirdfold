@@ -199,6 +199,20 @@ describe('adventure messages', () => {
 		}
 	});
 
+	it('parses listening, looking around and sharing evidence', () => {
+		expect(parseClientMessage({ type: 'adventure_sense', sense: 'listen' })).toEqual({
+			type: 'adventure_sense',
+			sense: 'listen'
+		});
+		expect(parseClientMessage({ type: 'adventure_sense', sense: 'observe' })).not.toBeNull();
+		expect(parseClientMessage({ type: 'adventure_sense', sense: 'search' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_share', clueId: 'rope' })).toEqual({
+			type: 'adventure_share',
+			clueId: 'rope'
+		});
+		expect(parseClientMessage({ type: 'adventure_share', clueId: '' })).toBeNull();
+	});
+
 	it('accepts adventure updates, including the adventure ending', () => {
 		expect(parseServerMessage({ type: 'adventure_update', adventure: null })).not.toBeNull();
 		expect(parseServerMessage({ type: 'adventure_update', adventure: 'x' })).toBeNull();

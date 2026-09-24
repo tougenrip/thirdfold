@@ -166,7 +166,9 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 }
 
 export function canSeeLogEntry(viewer: Player, message: ChatMessage): boolean {
-	return !(message.kind === 'system' && message.audience === 'gm' && viewer.role !== 'gm');
+	const audience = 'audience' in message ? message.audience : undefined;
+	if (!audience || viewer.role === 'gm') return true;
+	return audience !== 'gm' && audience.players.includes(viewer.id);
 }
 
 export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapshot {

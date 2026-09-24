@@ -52,6 +52,13 @@ export interface Encounter {
 	turn: number;
 }
 
+export interface Finding {
+	/** Characters who found it themselves (they know it even before it is shared). */
+	by: CharacterId[];
+	/** The whole party knows it: it was shared, or everyone heard it. */
+	shared: boolean;
+}
+
 export interface Decision {
 	option: string;
 	/** Who answered: a character's name, or the GM's. */
@@ -65,8 +72,13 @@ export interface AdventureState {
 	/** The table the party is on. */
 	location: LocationId;
 	characters: Map<CharacterId, CharacterState>;
-	/** Clue ids in the order they were found. */
-	clues: string[];
+	/**
+	 * Evidence found, in the order it was found, by clue id: who found it
+	 * themselves, and whether the whole party knows it.
+	 */
+	evidence: Map<string, Finding>;
+	/** Checks already failed, one try each: `<character>:<object>:<verb>` or `<character>:sign:<id>`. */
+	tried: Set<string>;
 	/** Story events that have happened, in order (see story.ts). */
 	events: EventId[];
 	/** Enemies the party has beaten, by name, in order. */
