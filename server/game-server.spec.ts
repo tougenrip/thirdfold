@@ -425,6 +425,21 @@ describe('chat and dice over the wire', () => {
 		}
 	});
 
+	it('keeps a secret roll between the roller and the GM', async () => {
+		const { gm, pip, pipId } = await pair();
+		await gm.expect('chat'); // join notice
+		gm.send({ type: 'dice_roll', expression: '1d20', secret: true });
+		expect((await gm.expect('chat')).message).toMatchObject({ kind: 'roll', audience: 'gm' });
+		pip.send({ type: 'dice_roll', expression: '1d6', secret: true });
+		// Pip's next log entry is its own secret roll: the GM's never reached it.
+		expect((await pip.expect('chat')).message).toMatchObject({
+			kind: 'roll',
+			authorId: pipId,
+			audience: { players: [pipId] }
+		});
+		expect((await gm.expect('chat')).message).toMatchObject({ kind: 'roll', authorId: pipId });
+	});
+
 	it('rolls on the server and shows everyone the same result, ignoring client-sent results', async () => {
 		const { gm, pip, pipId } = await pair();
 		await gm.expect('chat');
@@ -1599,5 +1614,53 @@ describe('The Hollow Bell over the wire', () => {
 		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
 		pip.send({ type: 'adventure_claim', characterId: 'wizard' });
 		expect(await pip.until('error')).toMatchObject({ code: 'invalid_message' });
+	});
+	it('lets the GM pause the game, skip ahead, and bring on and take back an enemy', async () => {
+		const { gm, pip } = await table();
+		pip.send({ type: 'pause_set', paused: true });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await tokenNamed(pip, 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await untilAdventure(pip, (a) => a.stage === 'playing');
+		const director = await untilAdventure(gm, (a) => a.stage === 'playing');
+		expect(director.director?.skip).toBe('What the bell woke');
+
+		// Paused: the players can't move or act, and everyone is told.
+		gm.send({ type: 'pause_set', paused: true });
+		expect(await pip.until('pause_update')).toEqual({ type: 'pause_update', paused: true });
+		const step = { x: warden.pos.x, y: warden.pos.y - 1 };
+		pip.send({ type: 'token_move', tokenId: warden.id, to: step });
+		expect(await pip.until('error')).toMatchObject({ code: 'paused' });
+		pip.send({ type: 'adventure_sense', sense: 'listen' });
+		expect(await pip.until('error')).toMatchObject({ code: 'paused' });
+
+		// While paused, an enemy the GM brings on waits where it was put.
+		const pos = { x: warden.pos.x + 3, y: warden.pos.y };
+		gm.send({ type: 'adventure_direct', direction: { op: 'spawn', kind: 'cultist', pos } });
+		const watching = await untilAdventure(gm, (a) => (a.director?.foes.length ?? 0) > 0);
+		expect(watching.encounter).toBeNull();
+		const [cultist] = watching.director!.foes;
+		gm.send({ type: 'token_delete', tokenId: cultist.tokenId });
+		await untilAdventure(gm, (a) => a.director?.foes.length === 0);
+
+		gm.send({ type: 'pause_set', paused: false });
+		expect(await pip.until('pause_update')).toEqual({ type: 'pause_update', paused: false });
+		pip.send({ type: 'token_move', tokenId: warden.id, to: step });
+		expect(await pip.until('token_moved')).toMatchObject({ tokenId: warden.id, pos: step });
+
+		// Skipping: the well's fight starts, then is won, and the players see it.
+		gm.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		await untilChapter(pip, 'discover_bell');
+		gm.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		const won = await untilAdventure(pip, (a) => a.encounter === null);
+		expect(won.chapter.id).toBe('discover_bell');
+		expect(won.director).toBeNull();
+
+		// Players can't direct.
+		pip.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
 	});
 });

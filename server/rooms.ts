@@ -48,6 +48,8 @@ export interface Room {
 	flashUntil?: number;
 	/** Name of the scene on the table: set when it is saved, loaded or imported. */
 	sceneName: string;
+	/** The GM has paused the game: players can't move or act, and enemies wait. */
+	paused: boolean;
 	fog: {
 		enabled: boolean;
 		/** Cells the GM has revealed to everyone. */
@@ -112,6 +114,7 @@ export class RoomManager {
 			ambient: 'day',
 			terrain: null,
 			darkness: null,
+			paused: false,
 			sceneName: 'Untitled scene',
 			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID), shared: false },
 			log: [],

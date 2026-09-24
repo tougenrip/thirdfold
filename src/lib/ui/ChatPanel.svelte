@@ -37,7 +37,11 @@
 		}
 		const sent =
 			input.type === 'roll'
-				? send({ type: 'dice_roll', expression: input.expression })
+				? send(
+						input.secret
+							? { type: 'dice_roll', expression: input.expression, secret: true }
+							: { type: 'dice_roll', expression: input.expression }
+					)
 				: draft.trim() && send({ type: 'chat_send', text: input.text });
 		if (sent) draft = '';
 	}
@@ -111,6 +115,9 @@
 						<span class="author">{m.authorName}</span>
 						<time datetime={new Date(m.at).toISOString()}>{time.format(m.at)}</time>
 					</header>
+					{#if m.kind === 'roll' && m.audience}
+						<span class="private">Secret roll · {privacy(m.audience)}</span>
+					{/if}
 					{#if m.kind === 'chat'}
 						<p class="text">{m.text}</p>
 					{:else}
@@ -158,6 +165,7 @@
 			bind:value={draft}
 			maxlength={CHAT_MAX_LENGTH}
 			placeholder="Message, or /roll 2d6+3"
+			title="/roll 2d6+3 rolls for everyone to see; /gmroll rolls for you and the GM only"
 			aria-label="Chat message"
 			autocomplete="off"
 		/>

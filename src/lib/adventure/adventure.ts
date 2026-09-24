@@ -106,6 +106,22 @@ export interface StoryLedger {
 	encounters: { id: string; state: EncounterState }[];
 }
 
+/** GM only: what the GM can direct from here (see `Direction` in protocol.ts). */
+export interface DirectorView {
+	/** Enemies on the table: in the fight (with hp), or standing watch (hp null). */
+	foes: { tokenId: string; name: string; hp: number | null; maxHp: number | null }[];
+	/** The people of the story at this location, on the table. */
+	people: { tokenId: string; name: string }[];
+	/** Story events that have not happened yet. */
+	events: { id: string; label: string }[];
+	/** Fights that can be fought where the party is, and how each stands (null: not started). */
+	encounters: { id: string; name: string; state: EncounterState | null }[];
+	/** The enemies the GM can bring on. */
+	enemies: { kind: string; name: string }[];
+	/** What skipping ahead leads to, or null when it can't (a choice is waiting). */
+	skip: string | null;
+}
+
 /** Where a fight is in its life. Encounters not listed have not started. */
 export type EncounterState = 'active' | 'won' | 'lost';
 
@@ -401,6 +417,8 @@ export interface AdventureView {
 	ending: EndingView | null;
 	/** GM only: triggered events, defeated enemies, NPC states and encounters. */
 	ledger: StoryLedger | null;
+	/** GM only: what the GM can direct. */
+	director: DirectorView | null;
 	/** When the GM began play (ms since epoch), for the time played. */
 	begunAt: number | null;
 	completedAt: number | null;

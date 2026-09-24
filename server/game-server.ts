@@ -87,6 +87,19 @@ export const CLOSE_SESSION_REPLACED = 4001;
 
 // Large enough for an uploaded scene file plus framing; everything else is far smaller.
 const MAX_PAYLOAD_BYTES = SCENE_FILE_MAX_BYTES + 64 * 1024;
+/** While the game is paused, players can't do these (chat, dice and picking characters still work). */
+const PAUSED_ACTIONS = new Set<ClientMessage['type']>([
+	'token_move',
+	'door_toggle',
+	'adventure_interact',
+	'adventure_act',
+	'adventure_end_turn',
+	'adventure_decide',
+	'adventure_sense',
+	'adventure_share'
+]);
+/** How often a paused mechanism looks again whether the game has carried on. */
+const PAUSED_RETRY_MS = 250;
 const ROLE_NAMES = { gm: 'GM', player: 'a player', spectator: 'a spectator' } as const;
 
 interface Seat {
@@ -325,18 +338,21 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	/** Runs a mechanism's next step after its pause (see server/adventure/mechanisms.ts). */
 	function scheduleMechanism(
 		room: Room,
-		next: { id: MechanismId; step: number; delay: number }
+		next: { id: MechanismId; step: number; delay: number },
+		wait = next.delay * mechanismDelayScale
 	): void {
 		const timer = setTimeout(() => {
 			timers.delete(timer);
 			if (rooms.get(room.id) !== room) return;
+			// Paused: the mechanism holds where it is, and tries again after the same pause.
+			if (room.paused) return scheduleMechanism(room, next, PAUSED_RETRY_MS);
 			try {
 				const outcome = adventure.runMechanism(room, next.id, next.step);
 				if (outcome) applyOutcome(room, outcome);
 			} catch (err) {
 				console.error(`[room ${room.id}] mechanism failed`, err);
 			}
-		}, next.delay * mechanismDelayScale);
+		}, wait);
 		timers.add(timer);
 	}
 
@@ -344,6 +360,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		const timer = setTimeout(() => {
 			timers.delete(timer);
 			if (rooms.get(room.id) !== room) return;
+			// Paused: the turn waits, and is scheduled again when the game carries on.
+			if (room.paused) return;
 			try {
 				const outcome = adventure.runEnemyTurn(room, turn, rollDie);
 				if (outcome) applyOutcome(room, outcome);
@@ -403,6 +421,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					return adventure.decide(room, player, msg.decisionId, msg.optionId);
 				case 'adventure_control':
 					return adventure.control(room, player, msg.op);
+				case 'adventure_direct':
+					return adventure.direct(room, player, msg.direction);
 				case 'adventure_override':
 					return adventure.override(room, player, msg.characterId, msg.patch);
 			}
@@ -480,7 +500,29 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		player: Player,
 		msg: Exclude<ClientMessage, { type: 'create' | 'join' | 'resume' }>
 	): void {
+		if (room.paused && player.role !== 'gm' && PAUSED_ACTIONS.has(msg.type)) {
+			return sendError(ws, 'paused', 'The GM has paused the game.');
+		}
 		switch (msg.type) {
+			case 'pause_set': {
+				if (!canEditScene(player)) return sendError(ws, 'forbidden', 'Only the GM can pause.');
+				if (room.paused === msg.paused) return;
+				room.paused = msg.paused;
+				syncRoom(room);
+				announce(
+					room,
+					postSystem(
+						room,
+						msg.paused
+							? `${player.name} paused the game.`
+							: `${player.name} carried on with the game.`
+					)
+				);
+				// The enemy whose turn was waiting takes it now.
+				const waiting = !msg.paused && room.adventure && adventure.pendingEnemyTurn(room.adventure);
+				if (typeof waiting === 'number') scheduleEnemyTurn(room, waiting);
+				return;
+			}
 			case 'token_create': {
 				const result = createToken(room, player, msg);
 				if (!result.ok) return sendError(ws, result.code, result.message);
@@ -659,7 +701,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				const result =
 					msg.type === 'chat_send'
 						? postChat(room, player, msg.text)
-						: postRoll(room, player, msg.expression, rollDie);
+						: postRoll(room, player, msg.expression, rollDie, msg.secret === true);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return announce(room, result.message);
 			}
@@ -678,6 +720,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'adventure_sense':
 			case 'adventure_share':
 			case 'adventure_control':
+			case 'adventure_direct':
 				return handleAdventure(ws, room, player, msg);
 		}
 	}

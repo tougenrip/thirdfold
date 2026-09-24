@@ -250,6 +250,46 @@ describe('adventure messages', () => {
 		expect(parseClientMessage({ type: 'adventure_share', clueId: '' })).toBeNull();
 	});
 
+	it('parses the GM directing the story, and only well-formed directions', () => {
+		const direct = (direction: unknown) =>
+			parseClientMessage({ type: 'adventure_direct', direction });
+		expect(direct({ op: 'skip', extra: 1 })).toEqual({
+			type: 'adventure_direct',
+			direction: { op: 'skip' }
+		});
+		expect(direct({ op: 'event', event: 'won_well' })).toMatchObject({
+			direction: { op: 'event', event: 'won_well' }
+		});
+		expect(direct({ op: 'encounter_start', encounter: 'well' })).not.toBeNull();
+		expect(direct({ op: 'encounter_end', result: 'called_off' })).not.toBeNull();
+		expect(direct({ op: 'spawn', kind: 'hound', pos: { x: 1, y: 2 } })).toMatchObject({
+			direction: { op: 'spawn', kind: 'hound', pos: { x: 1, y: 2 } }
+		});
+		expect(direct({ op: 'encounter_end', result: 'lost' })).toBeNull();
+		expect(direct({ op: 'spawn', kind: 'hound', pos: { x: 1.5, y: 2 } })).toBeNull();
+		expect(direct({ op: 'event', event: '' })).toBeNull();
+		expect(direct({ op: 'teleport' })).toBeNull();
+		expect(direct('skip')).toBeNull();
+	});
+
+	it('parses pausing and secret rolls', () => {
+		expect(parseClientMessage({ type: 'pause_set', paused: true })).toEqual({
+			type: 'pause_set',
+			paused: true
+		});
+		expect(parseClientMessage({ type: 'pause_set', paused: 'yes' })).toBeNull();
+		expect(parseClientMessage({ type: 'dice_roll', expression: '1d20', secret: true })).toEqual({
+			type: 'dice_roll',
+			expression: '1d20',
+			secret: true
+		});
+		expect(parseClientMessage({ type: 'dice_roll', expression: '1d20', secret: 'no' })).toEqual({
+			type: 'dice_roll',
+			expression: '1d20'
+		});
+		expect(parseServerMessage({ type: 'pause_update', paused: false })).not.toBeNull();
+	});
+
 	it('parses the GM shaping the ground, within the levels there are', () => {
 		const from = { x: 1, y: 2 };
 		const to = { x: 3, y: 4 };

@@ -41,9 +41,10 @@ export interface View {
 	terrain: string | null;
 	/** The dark areas this viewer knows (explored cells), or null for none. */
 	darkness: string | null;
+	paused: boolean;
 }
 
-type SceneView = Omit<View, 'adventure' | 'terrain' | 'darkness'>;
+type SceneView = Omit<View, 'adventure' | 'terrain' | 'darkness' | 'paused'>;
 
 const noFog = (room: Room): FogView => ({
 	enabled: false,
@@ -129,7 +130,13 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 	// The ground's shape is scenery like walls: known where explored.
 	const terrain = room.terrain && encodeLevels(knownLevels(room.terrain, known));
 	const darkness = room.darkness && knownDarkness(room.darkness, known);
-	return { ...scene, adventure: adventureView(room, viewer, tokenIds, known), terrain, darkness };
+	return {
+		...scene,
+		adventure: adventureView(room, viewer, tokenIds, known),
+		terrain,
+		darkness,
+		paused: room.paused
+	};
 }
 
 /** The dark areas among the cells a viewer knows (all of them for null), or null if it knows none. */
@@ -228,7 +235,8 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		log: room.log.filter((m) => canSeeLogEntry(viewer, m)),
 		adventure: view.adventure && structuredClone(view.adventure),
 		terrain: view.terrain,
-		darkness: view.darkness
+		darkness: view.darkness,
+		paused: view.paused
 	};
 }
 
@@ -243,6 +251,7 @@ export interface SentView {
 	adventure: string;
 	terrain: string | null;
 	darkness: string | null;
+	paused: boolean;
 }
 
 export function sentFrom(view: View): SentView {
@@ -255,7 +264,8 @@ export function sentFrom(view: View): SentView {
 		fog: JSON.stringify(view.fog),
 		adventure: JSON.stringify(view.adventure),
 		terrain: view.terrain,
-		darkness: view.darkness
+		darkness: view.darkness,
+		paused: view.paused
 	};
 }
 
@@ -305,6 +315,7 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 	if (prev.darkness !== view.darkness) {
 		messages.push({ type: 'darkness_update', darkness: view.darkness });
 	}
+	if (prev.paused !== view.paused) messages.push({ type: 'pause_update', paused: view.paused });
 
 	const tokenIds = new Set(view.tokens.map((t) => t.id));
 	for (const id of prev.tokens.keys()) {

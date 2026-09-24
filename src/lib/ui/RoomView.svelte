@@ -36,6 +36,7 @@
 	} from '$lib/game/props';
 	import ActionBar from './ActionBar.svelte';
 	import AdventurePanel from './AdventurePanel.svelte';
+	import DirectorPanel from './DirectorPanel.svelte';
 	import Decision from './Decision.svelte';
 	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
 	import CharacterSelect from './CharacterSelect.svelte';
@@ -56,6 +57,8 @@
 	let tool = $state<BuildTool>('select');
 	let selectedId = $state<string | null>(null);
 	let placing = $state<TokenDraft | null>(null);
+	/** GM: the kind of enemy the next click on the table brings on. */
+	let spawning = $state<string | null>(null);
 	let hover = $state<Pick | null>(null);
 	/** First corner of the wall being drawn. */
 	let wallStart = $state<GridPos | null>(null);
@@ -381,7 +384,7 @@
 
 	const highlight = $derived.by((): { cell: GridPos; kind: HighlightKind } | null => {
 		if (!hoverCell || tool !== 'select' || selectedProp) return null;
-		if (placing) return { cell: hoverCell, kind: occupant ? 'blocked' : 'place' };
+		if (placing || spawning) return { cell: hoverCell, kind: occupant ? 'blocked' : 'place' };
 		if (selected && !doorUnder(hover)) {
 			const taken = occupant && occupant.id !== selected.id;
 			return { cell: hoverCell, kind: taken || !reachable ? 'blocked' : 'move' };
@@ -391,6 +394,10 @@
 
 	const hint = $derived.by(() => {
 		if (placing) return `Click an empty cell to place ${placing.name}. Esc to cancel.`;
+		if (spawning) {
+			const name = adventure?.director?.enemies.find((e) => e.kind === spawning)?.name;
+			return `Click an empty cell to bring on ${name ?? 'the enemy'}. Esc to stop.`;
+		}
 		if (tool === 'wall') {
 			if (!wallStart) return 'Wall: click a grid corner to start.';
 			return (
@@ -554,6 +561,7 @@
 
 	function setTool(next: BuildTool) {
 		tool = next;
+		spawning = null;
 		wallStart = null;
 		areaStart = null;
 		placing = null;
@@ -572,6 +580,15 @@
 			if (tokenAt(room.tokens, pick.cell)) return showToast('That cell is taken.');
 			conn.send({ type: 'token_create', ...placing, pos: pick.cell });
 			placing = null;
+			return;
+		}
+		if (spawning) {
+			if (!pick.cell) return;
+			if (tokenAt(room.tokens, pick.cell)) return showToast('That cell is taken.');
+			conn.send({
+				type: 'adventure_direct',
+				direction: { op: 'spawn', kind: spawning, pos: pick.cell }
+			});
 			return;
 		}
 		switch (tool) {
@@ -746,6 +763,10 @@
 			return;
 		}
 		if (event.key === 'Escape') {
+			if (spawning) {
+				spawning = null;
+				return;
+			}
 			if (targeting) {
 				targeting = null;
 				return;
@@ -888,6 +909,39 @@
 				</ul>
 			</section>
 
+			{#if isGm && adventure && adventure.stage !== 'choosing'}
+				<div class="panel">
+					<DirectorPanel
+						{adventure}
+						paused={room.paused}
+						ambient={room.ambient}
+						lights={room.lights}
+						fogEnabled={room.fog.enabled}
+						fogShared={room.fog.shared}
+						{tool}
+						{spawning}
+						send={(action) => conn.send(action)}
+						onTool={setTool}
+						onSpawn={(kind) => {
+							setTool('select');
+							spawning = kind;
+						}}
+						onSelectToken={(id) => {
+							setTool('select');
+							selectedId = id;
+						}}
+						onFogAll={(reveal) =>
+							conn.send({
+								type: 'fog_area',
+								from: { x: 0, y: 0 },
+								to: { x: room.grid.width - 1, y: room.grid.height - 1 },
+								reveal
+							})}
+						onError={showToast}
+					/>
+				</div>
+			{/if}
+
 			{#if adventure || isGm}
 				<div class="panel">
 					<AdventurePanel
@@ -987,6 +1041,12 @@
 		</section>
 
 		<p class="hint" aria-live="polite">{hint}</p>
+
+		{#if room.paused}
+			<p class="paused" role="status">
+				Paused{isGm ? ': players can’t move or act until you carry on' : ' by the GM'}
+			</p>
+		{/if}
 
 		{#if adventure?.encounter}
 			{@const encounter = adventure.encounter}
@@ -1334,6 +1394,22 @@
 		.roll-card {
 			animation: none;
 		}
+	}
+
+	.paused {
+		position: absolute;
+		top: 4rem;
+		left: 50%;
+		transform: translateX(-50%);
+		margin: 0;
+		padding: 0.4rem 1rem;
+		background: var(--panel);
+		border: 1px solid var(--accent);
+		border-radius: 999px;
+		color: var(--accent);
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		pointer-events: none;
 	}
 
 	.hint {
