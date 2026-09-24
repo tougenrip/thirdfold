@@ -11,6 +11,7 @@ import {
 import type { ChatMessage } from '../src/lib/game/chat';
 import type { DieRoller } from '../src/lib/game/dice';
 import { gridDistance } from '../src/lib/game/grid';
+import { heardOnly, type Motion } from '../src/lib/game/motion';
 import { postChat, postRoll, postSystem, secureRoller } from './chat';
 import { canEditScene } from '../src/lib/game/permissions';
 import {
@@ -19,6 +20,7 @@ import {
 	SCENE_FILE_MAX_BYTES
 } from '../src/lib/game/scene-file';
 import * as adventure from './adventure/engine';
+import type { MechanismId } from './adventure/mechanisms';
 import { readAdventure } from './adventure/persist';
 import { RateLimiter } from './rate-limit';
 import { applyScene, exportScene } from './scene-io';
@@ -65,6 +67,8 @@ export interface GameServerOptions {
 	sceneStore?: SceneStore;
 	/** Pause before enemies act in an adventure fight, so players can follow the dice. */
 	enemyTurnDelayMs?: number;
+	/** Multiplies the pauses between a mechanism's steps (tests pass 0 to run them at once). */
+	mechanismDelayScale?: number;
 }
 
 export interface GameServer {
@@ -90,7 +94,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		emptyRoomTtlMs = 10 * 60_000,
 		heartbeatMs = 30_000,
 		rollDie = secureRoller,
-		enemyTurnDelayMs = 2500
+		enemyTurnDelayMs = 2500,
+		mechanismDelayScale = 1
 	} = options;
 	const rooms = new RoomManager();
 	// Chat and dice: bursts of 8, then one every 750 ms per player.
@@ -263,6 +268,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		announce(room, postSystem(room, adventure.resumeNotice(resumed)));
 		// A save made while the enemies were acting picks up with their turn.
 		if (resumed.encounter?.phase === 'enemies') scheduleEnemyTurn(room, resumed.encounter.turn);
+		// So does a mechanism that was playing out.
+		for (const next of adventure.pendingMechanisms(resumed)) scheduleMechanism(room, next);
 	}
 
 	/** Relays what an adventure action did: new views (or a fresh table), its log, and the enemies' turn. */
@@ -270,7 +277,42 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		if (outcome.reset) resetRoom(room);
 		else syncRoom(room, movedBy);
 		for (const message of outcome.log) announce(room, message);
+		if (outcome.motions) showMotions(room, outcome.motions);
 		if (outcome.enemyTurn !== undefined) scheduleEnemyTurn(room, outcome.enemyTurn);
+		for (const next of outcome.mechanisms ?? []) scheduleMechanism(room, next);
+	}
+
+	/**
+	 * Motions go to the viewers who can see the prop that moves (so its id
+	 * never reaches anyone else); the rest only hear it, if it makes a sound.
+	 */
+	function showMotions(room: Room, motions: readonly Motion[]): void {
+		for (const [playerId, ws] of sockets.get(room.id) ?? []) {
+			const sent = sentViews.get(ws);
+			if (!room.players.has(playerId) || !sent) continue;
+			const seen = motions.flatMap((m) =>
+				m.propId === null || sent.props.has(m.propId) ? [m] : (heardOnly(m) ?? [])
+			);
+			if (seen.length) send(ws, { type: 'motion', motions: seen });
+		}
+	}
+
+	/** Runs a mechanism's next step after its pause (see server/adventure/mechanisms.ts). */
+	function scheduleMechanism(
+		room: Room,
+		next: { id: MechanismId; step: number; delay: number }
+	): void {
+		const timer = setTimeout(() => {
+			timers.delete(timer);
+			if (rooms.get(room.id) !== room) return;
+			try {
+				const outcome = adventure.runMechanism(room, next.id, next.step);
+				if (outcome) applyOutcome(room, outcome);
+			} catch (err) {
+				console.error(`[room ${room.id}] mechanism failed`, err);
+			}
+		}, next.delay * mechanismDelayScale);
+		timers.add(timer);
 	}
 
 	function scheduleEnemyTurn(room: Room, turn: number): void {
@@ -439,13 +481,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					`${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`,
 					token.ownerId
 				);
-				const outcome = adventure.afterMove(room, token, allowed.cost);
 				// Walking somewhere can move the story on, even to another table.
-				if (outcome.reset) resetRoom(room);
-				else syncRoom(room, player.id);
-				for (const message of outcome.log) announce(room, message);
-				if (outcome.enemyTurn !== undefined) scheduleEnemyTurn(room, outcome.enemyTurn);
-				return;
+				return applyOutcome(room, adventure.afterMove(room, token, allowed.cost), player.id);
 			}
 			case 'token_update': {
 				const result = updateToken(room, player, msg.tokenId, msg.patch);
@@ -471,11 +508,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				// Notice first, so the story it may set off is announced after it, in log order.
 				tokenNotice(room, `${player.name} removed ${result.token.name}.`, result.token.ownerId);
-				const outcome = adventure.afterTokenDeleted(room, msg.tokenId);
-				if (outcome.reset) resetRoom(room);
-				else syncRoom(room);
-				for (const message of outcome.log) announce(room, message);
-				return;
+				return applyOutcome(room, adventure.afterTokenDeleted(room, msg.tokenId, result.token.pos));
 			}
 			case 'object_create': {
 				const result = createObject(room, player, msg.kind, msg.a, msg.b);

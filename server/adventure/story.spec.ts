@@ -18,12 +18,15 @@ import {
 	decide,
 	doorLock,
 	interact,
+	pendingMechanisms,
+	runMechanism,
 	startAdventure
 } from './engine';
 import { HOLLOW_SPAWN, hollowScene } from './hollow';
 import { LOCATIONS } from './locations';
 import {
 	CHAMBER,
+	LEVER_AT,
 	MONASTERY_IDS,
 	MONASTERY_SPAWN,
 	monasteryScene,
@@ -68,6 +71,21 @@ const clearEnemies = () => {
 		room.tokens.delete(id);
 		afterTokenDeleted(room, id);
 	}
+};
+
+/** Runs every mechanism step still waiting, as the game server would after its pauses. */
+const settle = () => {
+	for (let i = 0; i < 20 && story().running.size > 0; i++) {
+		for (const next of pendingMechanisms(story())) runMechanism(room, next.id, next.step);
+	}
+};
+
+/** Pulls the ringing chamber's lever and lets the grate lift. */
+const pullLever = () => {
+	walk({ x: LEVER_AT.x - 1, y: LEVER_AT.y });
+	const pulled = ok(interact(room, ana, 'lever'));
+	settle();
+	return pulled;
 };
 
 function begun(): void {
@@ -221,6 +239,20 @@ describe('playing the story through', () => {
 		expect(story()).toMatchObject({ chapter: 'descend', encounter: null });
 		expect(story().defeated).toHaveLength(3);
 
+		// The grate slams back down; the stair does nothing until the lever lifts it.
+		expect(room.props.get(MONASTERY_IDS.grate)?.assetId).toBe('grate');
+		expect(walk(STAIR.from).reset).toBeUndefined();
+		expect(story().chapter).toBe('descend');
+		const pulled = pullLever();
+		// The lever swings at once; the chain and the grate follow step by step.
+		expect(pulled.motions).toEqual([
+			{ propId: MONASTERY_IDS.lever, kind: 'swing', sound: 'clank' }
+		]);
+		expect(pulled.mechanisms).toEqual([{ id: 'grate', step: 1, delay: 900 }]);
+		expect(room.props.get(MONASTERY_IDS.lever)?.assetId).toBe('lever-down');
+		expect(room.props.get(MONASTERY_IDS.grate)?.assetId).toBe('stairs');
+		expect(story().events).toContain('opened_grate');
+
 		// Down the stair to the Hollow.
 		expect(walk(STAIR.from).reset).toBe(true);
 		expect(story()).toMatchObject({ chapter: 'the_hollow', location: 'hollow' });
@@ -260,6 +292,7 @@ describe('playing the story through', () => {
 		ok(interact(room, ana, 'agna'));
 		walk({ x: 7, y: 5 });
 		clearEnemies();
+		pullLever();
 		walk(STAIR.from);
 		walk({ x: 9, y: 5 });
 		ok(interact(room, ana, 'tobin'));

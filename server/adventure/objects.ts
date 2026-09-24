@@ -14,10 +14,12 @@ import type {
 	InvestigationAction,
 	LocationId,
 	ObjectKind,
-	ObjectState
+	ObjectState,
+	Physical
 } from '../../src/lib/adventure/adventure';
 import type { GridPos } from '../../src/lib/game/grid';
-import type { AssetId } from '../../src/lib/game/props';
+import type { Sound } from '../../src/lib/game/motion';
+import type { AssetId, Rotation } from '../../src/lib/game/props';
 import type { Room } from '../rooms';
 import { IDS } from './bellweather';
 import { HOLLOW_IDS } from './hollow';
@@ -35,6 +37,12 @@ export interface Verb {
 	action?: InvestigationAction;
 	/** A check the character must pass first; one try per character. */
 	check?: Check;
+	/** What it physically does (see `Physical`); a change of state if omitted. */
+	physical?: Physical;
+	/** A carried item (world object id) the character must be holding. */
+	needs?: string;
+	/** The sound it makes, if not the usual one for what it does. */
+	sound?: Sound;
 }
 
 const ACTION_BY_VERB: Record<string, InvestigationAction> = {
@@ -75,6 +83,8 @@ export interface ObjectDef {
 	disabledText?: string;
 	/** A secret door's edge: while hidden it is a plain wall (`<door id>-sealed`) there. */
 	secret?: { a: GridPos; b: GridPos };
+	/** An item: it can be picked up, carried from table to table, and put down anywhere. */
+	carry?: true;
 }
 
 const any: readonly ObjectState[] = ['visible', 'interactable', 'used'];
@@ -145,14 +155,15 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'closed',
 		states: ['closed', 'opened', 'used', 'disabled', 'destroyed'],
 		verbs: [
-			{ id: 'open', label: 'Open the chest', from: ['closed'], to: 'opened' },
+			{ id: 'open', label: 'Open the chest', from: ['closed'], to: 'opened', physical: 'open' },
 			{
 				id: 'search',
 				label: 'Search the chest',
 				from: ['opened', 'used'],
 				to: 'used',
 				check: { stat: 'wits', dc: 8 }
-			}
+			},
+			{ id: 'close', label: 'Close the chest', from: ['opened'], to: 'closed', physical: 'close' }
 		],
 		looks: {
 			opened: { assetId: 'chest-open' },
@@ -169,7 +180,9 @@ export const OBJECTS: readonly ObjectDef[] = [
 		thing: { prop: IDS.rug },
 		initial: 'interactable',
 		states: ['interactable', 'moved'],
-		verbs: [{ id: 'lift', label: 'Lift the rug', from: ['interactable'], to: 'moved' }],
+		verbs: [
+			{ id: 'lift', label: 'Lift the rug', from: ['interactable'], to: 'moved', physical: 'move' }
+		],
 		looks: { moved: { offset: { x: 2, y: 0 } } }
 	},
 	{
@@ -181,7 +194,13 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'hidden',
 		states: ['hidden', 'closed', 'opened', 'used'],
 		verbs: [
-			{ id: 'open', label: 'Pry up the floorboard', from: ['closed'], to: 'opened' },
+			{
+				id: 'open',
+				label: 'Pry up the floorboard',
+				from: ['closed'],
+				to: 'opened',
+				physical: 'open'
+			},
 			{ id: 'search', label: 'Reach into the gap', from: ['opened', 'used'], to: 'used' }
 		],
 		looks: { opened: { assetId: 'hatch-open' }, used: { assetId: 'hatch-open' } }
@@ -195,7 +214,13 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'interactable',
 		states: ['interactable', 'destroyed'],
 		verbs: [
-			{ id: 'break', label: 'Break open the crate', from: ['interactable'], to: 'destroyed' }
+			{
+				id: 'break',
+				label: 'Break open the crate',
+				from: ['interactable'],
+				to: 'destroyed',
+				physical: 'destroy'
+			}
 		],
 		looks: { destroyed: { assetId: 'rubble' } }
 	},
@@ -209,7 +234,7 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'unlit',
 		states: ['unlit', 'lit', 'disabled'],
 		verbs: [
-			{ id: 'light', label: 'Light the brazier', from: ['unlit'], to: 'lit' },
+			{ id: 'light', label: 'Light the brazier', from: ['unlit'], to: 'lit', physical: 'activate' },
 			{ id: 'extinguish', label: 'Put out the brazier', from: ['lit'], to: 'unlit' }
 		],
 		looks: { lit: { lit: true }, unlit: { lit: false }, disabled: { lit: false } }
@@ -412,7 +437,15 @@ export const OBJECTS: readonly ObjectDef[] = [
 		thing: { prop: MONASTERY_IDS.agna },
 		initial: 'interactable',
 		states: ['interactable', 'used'],
-		verbs: [{ id: 'turn', label: 'Turn the bell in her hands', from: ['interactable'], to: 'used' }]
+		verbs: [
+			{
+				id: 'turn',
+				label: 'Turn the bell in her hands',
+				from: ['interactable'],
+				to: 'used',
+				physical: 'rotate'
+			}
+		]
 	},
 	{
 		id: 'rope',
@@ -436,7 +469,7 @@ export const OBJECTS: readonly ObjectDef[] = [
 		states: ['disabled', 'opened'],
 		verbs: [],
 		looks: { opened: { assetId: 'stairs' } },
-		disabledText: 'The grate is rusted shut.'
+		disabledText: 'The grate won’t lift by hand. Its chain runs up into the wall.'
 	},
 	{
 		id: 'gatehouse-door',
@@ -509,6 +542,104 @@ export const OBJECTS: readonly ObjectDef[] = [
 				check: { stat: 'wits', dc: 9 }
 			}
 		]
+	},
+	{
+		id: 'lever',
+		name: 'The lever',
+		kind: 'mechanism',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.lever },
+		initial: 'interactable',
+		states: ['interactable', 'used', 'disabled'],
+		verbs: [
+			{
+				id: 'pull',
+				label: 'Pull the lever',
+				from: ['interactable'],
+				to: 'used',
+				physical: 'trigger'
+			}
+		],
+		looks: { used: { assetId: 'lever-down' } },
+		disabledText: 'The lever is rusted fast.'
+	},
+	{
+		id: 'chamber-crate',
+		name: 'Heavy crate',
+		kind: 'container',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.crate },
+		initial: 'interactable',
+		states: ['interactable', 'moved'],
+		verbs: [
+			{
+				id: 'push',
+				label: 'Push the crate',
+				from: ['interactable', 'moved'],
+				to: 'moved',
+				physical: 'push'
+			},
+			{
+				id: 'pull',
+				label: 'Drag the crate',
+				from: ['interactable', 'moved'],
+				to: 'moved',
+				physical: 'pull'
+			}
+		]
+	},
+	{
+		id: 'handbell',
+		name: 'Hand bell',
+		kind: 'item',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.handbell },
+		carry: true,
+		initial: 'interactable',
+		states: ['interactable', 'hidden'],
+		verbs: [
+			{
+				id: 'take',
+				label: 'Take the hand bell',
+				from: ['interactable'],
+				to: 'carried',
+				physical: 'pick_up'
+			},
+			{
+				id: 'ring',
+				label: 'Ring the hand bell',
+				from: ['carried'],
+				physical: 'activate',
+				sound: 'chime'
+			},
+			{
+				id: 'drop',
+				label: 'Put down the hand bell',
+				from: ['carried'],
+				to: 'interactable',
+				physical: 'drop'
+			}
+		]
+	},
+	{
+		id: 'door-chains',
+		name: 'Chains on the great doors',
+		kind: 'landmark',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.doorChains },
+		initial: 'interactable',
+		states: ['interactable', 'destroyed'],
+		verbs: [
+			{
+				id: 'break',
+				label: 'Break the chains',
+				from: ['interactable'],
+				to: 'destroyed',
+				physical: 'destroy',
+				check: { stat: 'might', dc: 10 }
+			}
+		],
+		looks: { destroyed: { assetId: 'rubble' } }
 	},
 	// The Hollow
 	{
@@ -584,7 +715,14 @@ export function initialStates(): Map<string, ObjectState> {
 }
 
 /** Where each moved prop started, so a look's offset is always from the scene position. */
-export type Origins = Map<string, { pos: GridPos; assetId: AssetId }>;
+export type Origins = Map<string, Origin>;
+
+/** Where an object's prop stands and how it looks before its state's look; moved by pushing, pulling, turning and dropping. */
+export interface Origin {
+	pos: GridPos;
+	assetId: AssetId;
+	rotation: Rotation;
+}
 
 /** The world objects at a location. */
 export function objectsAt(location: LocationId): ObjectDef[] {
@@ -597,7 +735,8 @@ export function recordOrigins(room: Room): Origins {
 	for (const def of OBJECTS) {
 		const id = propIdOf(def);
 		const prop = id ? room.props.get(id) : undefined;
-		if (prop) origins.set(def.id, { pos: { ...prop.pos }, assetId: prop.assetId });
+		if (prop)
+			origins.set(def.id, { pos: { ...prop.pos }, assetId: prop.assetId, rotation: prop.rotation });
 	}
 	return origins;
 }
@@ -606,12 +745,26 @@ export function recordOrigins(room: Room): Origins {
 export function applyLook(room: Room, def: ObjectDef, state: ObjectState, origins: Origins): void {
 	const look = def.looks?.[state] ?? {};
 	const propId = propIdOf(def);
-	const prop = propId ? room.props.get(propId) : undefined;
 	const origin = origins.get(def.id);
+	// An item in someone's hands is off the table; put down, it is back where it was left.
+	if (propId && def.carry) {
+		if (state === 'carried') room.props.delete(propId);
+		else if (origin && !room.props.has(propId)) {
+			room.props.set(propId, {
+				id: propId,
+				assetId: origin.assetId,
+				pos: { ...origin.pos },
+				rotation: origin.rotation,
+				scale: 1
+			});
+		}
+	}
+	const prop = propId ? room.props.get(propId) : undefined;
 	if (prop && origin) {
 		prop.assetId = look.assetId ?? origin.assetId;
 		const offset = look.offset ?? { x: 0, y: 0 };
 		prop.pos = { x: origin.pos.x + offset.x, y: origin.pos.y + offset.y };
+		prop.rotation = origin.rotation;
 	}
 	if ('door' in def.thing) {
 		if (def.secret) revealDoor(room, def.thing.door, def.secret, state !== 'hidden');

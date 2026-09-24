@@ -34,6 +34,8 @@ export type EventId =
 	| 'found_hidden_door'
 	| 'entered_chamber'
 	| 'won_chamber'
+	/** The lever in the ringing chamber lifted the grate off the stair. */
+	| 'opened_grate'
 	/** A character stood on the stair beneath the tower. */
 	| 'reached_stair'
 	| 'found_tobin'
@@ -55,6 +57,7 @@ export const EVENT_IDS: readonly EventId[] = [
 	'found_hidden_door',
 	'entered_chamber',
 	'won_chamber',
+	'opened_grate',
 	'reached_stair',
 	'found_tobin',
 	'decided_bell',
@@ -167,7 +170,13 @@ export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 		title: 'Down into the dark',
 		location: 'monastery',
 		objectives: [
-			{ id: 'stair', text: 'Take the stair down beneath the tower', done: 'reached_stair' }
+			{ id: 'grate', text: 'Find a way to lift the grate', done: 'opened_grate' },
+			{
+				id: 'stair',
+				text: 'Take the stair down beneath the tower',
+				after: 'opened_grate',
+				done: 'reached_stair'
+			}
 		],
 		next: { on: 'reached_stair', to: 'the_hollow' }
 	},
@@ -222,6 +231,8 @@ export interface Area {
 	event: EventId;
 	during: ChapterId;
 	location: LocationId;
+	/** Only once this has happened. */
+	after?: EventId;
 	/** Inclusive rectangle of cells. */
 	from: GridPos;
 	to: GridPos;

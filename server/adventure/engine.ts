@@ -23,6 +23,7 @@ import {
 	type Check,
 	type LocationId,
 	type ObjectState,
+	type Physical,
 	type Sense
 } from '../../src/lib/adventure/adventure';
 import {
@@ -45,9 +46,22 @@ import {
 	type LogAudience
 } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
-import { gridDistance, type GridPos } from '../../src/lib/game/grid';
-import { cellsBeside, findPath, type Door, type Obstacles } from '../../src/lib/game/objects';
-import { footprintCells, isSolidCell } from '../../src/lib/game/props';
+import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
+import type { Motion, Sound } from '../../src/lib/game/motion';
+import {
+	canStep,
+	cellsBeside,
+	findPath,
+	type Door,
+	type Obstacles
+} from '../../src/lib/game/objects';
+import {
+	footprintCells,
+	isSolidCell,
+	obstaclesFor,
+	type Prop,
+	type Rotation
+} from '../../src/lib/game/props';
 import type { AdventureControl, CharacterPatch } from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
 import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
@@ -68,7 +82,8 @@ import {
 	type ClueId
 } from './content';
 import { areaAt, LOCATIONS } from './locations';
-import { CHAMBER, STAIR_RING } from './monastery';
+import { MECHANISMS, TRIGGERS, type MechanismId } from './mechanisms';
+import { CHAMBER, MONASTERY_IDS, STAIR, STAIR_RING } from './monastery';
 import {
 	actionOfVerb,
 	applyLook,
@@ -102,6 +117,10 @@ export interface Outcome {
 	reset?: boolean;
 	/** The enemies should act: run `runEnemyTurn` for this encounter turn (after a pause). */
 	enemyTurn?: number;
+	/** How the changes show: motions and sounds on props, sent after syncing. */
+	motions?: Motion[];
+	/** Mechanism steps to run later: `runMechanism(id, step)` after `delay` ms. */
+	mechanisms?: { id: MechanismId; step: number; delay: number }[];
 }
 
 type Outcomes = Result<Outcome>;
@@ -111,6 +130,12 @@ const GM_ONLY = fail('forbidden', 'Only the GM can do that.');
 
 /** The cells a world object covers now, or null if it is not on the table. */
 export function objectCells(room: Room, def: ObjectDef): GridPos[] | null {
+	// An item is wherever it was put down, on any table, and nowhere while carried.
+	if (def.carry && 'prop' in def.thing) {
+		if (room.adventure?.carried.has(def.id)) return [];
+		const prop = room.props.get(def.thing.prop);
+		return prop ? footprintCells(prop) : null;
+	}
 	if (room.adventure && def.location !== room.adventure.location) return null;
 	if ('token' in def.thing) {
 		const token = room.tokens.get(def.thing.token);
@@ -270,6 +295,8 @@ function newState(room: Room): AdventureState {
 		ending: null,
 		objects: initialStates(),
 		origins: recordOrigins(room),
+		carried: new Map(),
+		running: new Map(),
 		cuesRead: new Set(),
 		encounter: null,
 		begunAt: null,
@@ -474,15 +501,25 @@ export function interact(
 				: `There's nothing more to do with the ${def.name.toLowerCase()}.`
 		);
 	}
-	if (!canReach(obstacles(room), me.token.pos, cells)) {
-		return fail('out_of_reach', `Move ${CHARACTERS[me.id].name} next to it first.`);
+	const name = CHARACTERS[me.id].name;
+	const carrier = adventure.carried.get(def.id);
+	if (carrier !== undefined) {
+		if (carrier !== me.id) return fail('forbidden', 'Someone else is carrying that.');
+	} else if (!canReach(obstacles(room), me.token.pos, cells)) {
+		return fail('out_of_reach', `Move ${name} next to it first.`);
 	}
+	if (verb.needs && adventure.carried.get(verb.needs) !== me.id) {
+		const needed = objectDef(verb.needs)?.name.toLowerCase() ?? 'something';
+		return fail('forbidden', `${name} needs the ${needed} for that.`);
+	}
+	// Work out a move before any check is rolled, so a blocked push costs nothing.
+	const moving = verb.physical ? plan(room, adventure, def, verb.physical, me) : null;
+	if (moving && !moving.ok) return fail('forbidden', moving.message);
 	const before = state!;
 	let checked: ChatMessage[] = [];
 	// A check stands between the character and what's there to find, once per character.
 	if (verb.check && before !== 'used') {
 		const key = `${me.id}:${def.id}:${verb.id}`;
-		const name = CHARACTERS[me.id].name;
 		if (adventure.tried.has(key)) {
 			return fail('forbidden', `${name} has tried that already. Someone else might see more.`);
 		}
@@ -496,8 +533,13 @@ export function interact(
 		}
 		checked = [check.entry];
 	}
+	if (moving?.ok) moving.apply();
 	if (verb.to) setObjectState(room, adventure, def, verb.to);
-	const outcome = respond(room, adventure, def, verb, before, me, actor);
+	let outcome = respond(room, adventure, def, verb, before, me, actor);
+	const shown = motionFor(def, verb);
+	if (shown) outcome = merge({ log: [], motions: [shown] }, outcome);
+	const mechanism = TRIGGERS[`${def.id}:${verb.id}`];
+	if (mechanism) outcome = merge(outcome, startMechanism(room, adventure, mechanism));
 	// What someone says about a private find would give it away: only the finder hears it.
 	const investigating = actionOfVerb(verb) !== 'interact';
 	const reactions = react(
@@ -508,6 +550,198 @@ export function interact(
 		investigating ? only(actor.id) : undefined
 	);
 	return { ok: true, ...merge({ log: checked }, merge(outcome, { log: reactions })) };
+}
+
+type Plan = { ok: true; apply: () => void } | { ok: false; message: string };
+
+/**
+ * What a physical verb does to the object's place, checked before anything
+ * changes: pushing moves it a cell away from the character, pulling drags
+ * it a cell toward the character (who steps back), turning rotates it a
+ * quarter, picking up takes it into the character's hands, dropping puts
+ * it down where the character stands. Null for verbs that only change state.
+ */
+function plan(
+	room: Room,
+	adventure: AdventureState,
+	def: ObjectDef,
+	physical: Physical,
+	me: Played
+): Plan | null {
+	const propId = propIdOf(def);
+	const origin = adventure.origins.get(def.id);
+	const relook = () => applyLook(room, def, objectState(adventure, def), adventure.origins);
+	if (physical === 'pick_up') {
+		return { ok: true, apply: () => adventure.carried.set(def.id, me.id) };
+	}
+	if (physical === 'drop') {
+		if (!origin) return { ok: false, message: 'There is nowhere to put it down.' };
+		return {
+			ok: true,
+			apply: () => {
+				adventure.carried.delete(def.id);
+				origin.pos = { ...me.token.pos };
+			}
+		};
+	}
+	const prop = propId ? room.props.get(propId) : undefined;
+	if (!prop || !origin) return null;
+	const name = def.name.toLowerCase();
+	if (physical === 'rotate') {
+		const rotation = ((origin.rotation + 1) % 4) as Rotation;
+		if (!fits(room, prop, { ...prop, rotation }, null)) {
+			return { ok: false, message: `There isn’t room to turn the ${name}.` };
+		}
+		return {
+			ok: true,
+			apply: () => {
+				origin.rotation = rotation;
+				relook();
+			}
+		};
+	}
+	if (physical !== 'push' && physical !== 'pull') return null;
+	// Square to it: beside one of its cells, not at a corner.
+	const beside = footprintCells(prop).find(
+		(c) => Math.abs(c.x - me.token.pos.x) + Math.abs(c.y - me.token.pos.y) === 1
+	);
+	if (!beside) return { ok: false, message: `Stand square to the ${name} to ${physical} it.` };
+	const away = { x: beside.x - me.token.pos.x, y: beside.y - me.token.pos.y };
+	const dir = physical === 'push' ? away : { x: -away.x, y: -away.y };
+	const moved = { ...prop, pos: { x: prop.pos.x + dir.x, y: prop.pos.y + dir.y } };
+	// Pulling, the character steps back to make room.
+	const back = { x: me.token.pos.x + dir.x, y: me.token.pos.y + dir.y };
+	if (physical === 'pull') {
+		const blocked = obstacles(room);
+		if (
+			!inBounds(room.grid, back) ||
+			!isFree(room, back, blocked) ||
+			!canStep(blocked, me.token.pos, back)
+		) {
+			return { ok: false, message: `There’s no room behind ${CHARACTERS[me.id].name} to pull.` };
+		}
+	}
+	if (!fits(room, prop, moved, physical === 'pull' ? me.token.id : null)) {
+		return { ok: false, message: TEXT.crateBlocked.replace('crate', name) };
+	}
+	return {
+		ok: true,
+		apply: () => {
+			origin.pos = { x: origin.pos.x + dir.x, y: origin.pos.y + dir.y };
+			if (physical === 'pull') me.token.pos = back;
+			relook();
+		}
+	};
+}
+
+/**
+ * Whether `prop` can go to `to` (moved a cell, or turned): every cell it
+ * would cover is on the table, open and unoccupied (but for `ignoreToken`),
+ * and, moving, it slides there without crossing a wall or a drop.
+ */
+function fits(room: Room, prop: Prop, to: Prop, ignoreToken: string | null): boolean {
+	const others = obstaclesFor(
+		room.grid,
+		room.objects.values(),
+		[...room.props.values()].filter((p) => p.id !== prop.id),
+		room.terrain
+	);
+	const from = footprintCells(prop);
+	const dx = to.pos.x - prop.pos.x;
+	const dy = to.pos.y - prop.pos.y;
+	const slides = to.rotation === prop.rotation;
+	return footprintCells(to).every((cell) => {
+		if (!inBounds(room.grid, cell) || !isFree(room, cell, others, ignoreToken ?? undefined))
+			return false;
+		if (!slides) return true;
+		const was = { x: cell.x - dx, y: cell.y - dy };
+		return !from.some((c) => c.x === was.x && c.y === was.y) || canStep(others, was, cell);
+	});
+}
+
+/** The motion and sound each kind of physical verb makes, unless the verb says otherwise. */
+const PHYSICAL_MOTION: Partial<Record<Physical, Pick<Motion, 'kind' | 'sound'>>> = {
+	push: { kind: null, sound: 'scrape' },
+	pull: { kind: null, sound: 'scrape' },
+	move: { kind: null, sound: 'scrape' },
+	open: { kind: null, sound: 'thud' },
+	close: { kind: null, sound: 'thud' },
+	pick_up: { kind: null, sound: 'scrape' },
+	drop: { kind: 'land', sound: 'thud' },
+	rotate: { kind: null, sound: 'grind' },
+	destroy: { kind: 'shake', sound: 'crack' }
+};
+
+/** How doing `verb` to an object shows on the table, if it shows at all. */
+function motionFor(def: ObjectDef, verb: Verb): Motion | null {
+	const base = verb.physical ? PHYSICAL_MOTION[verb.physical] : undefined;
+	const sound: Sound | null = verb.sound ?? base?.sound ?? null;
+	if (!base && !sound) return null;
+	return { propId: propIdOf(def), kind: base?.kind ?? null, sound };
+}
+
+// ---------------------------------------------------------------------------
+// Mechanisms (see mechanisms.ts)
+
+/** Sets a mechanism going: its first step now, the rest scheduled by the game server. */
+function startMechanism(room: Room, adventure: AdventureState, id: MechanismId): Outcome {
+	if (adventure.running.has(id)) return { log: [] };
+	adventure.running.set(id, 0);
+	return runSteps(room, adventure, id);
+}
+
+/**
+ * Runs a mechanism's next step, if it is still waiting for that step at this
+ * table (a stale or repeated call does nothing), with any steps right after it.
+ */
+export function runMechanism(room: Room, id: MechanismId, step: number): Outcome | null {
+	const adventure = room.adventure;
+	if (!adventure || adventure.running.get(id) !== step) return null;
+	if (MECHANISMS[id].location !== adventure.location) {
+		adventure.running.delete(id);
+		return null;
+	}
+	return runSteps(room, adventure, id);
+}
+
+function runSteps(room: Room, adventure: AdventureState, id: MechanismId): Outcome {
+	const steps = MECHANISMS[id].steps;
+	let outcome: Outcome = { log: [] };
+	let index = adventure.running.get(id) ?? 0;
+	do {
+		const step = steps[index];
+		if (step.set) {
+			const def = objectDef(step.set.object);
+			if (def) setObjectState(room, adventure, def, step.set.state);
+		}
+		if (step.motion) {
+			const { prop, kind, sound } = step.motion;
+			outcome = merge(outcome, { log: [], motions: [{ propId: prop, kind, sound }] });
+		}
+		if (step.text) outcome = merge(outcome, { log: [say(room, step.text)] });
+		index += 1;
+		if (index >= steps.length) adventure.running.delete(id);
+		else adventure.running.set(id, index);
+		if (step.event) outcome = merge(outcome, happen(room, adventure, step.event));
+	} while (index < steps.length && steps[index].after === 0 && adventure.running.get(id) === index);
+	if (index < steps.length && adventure.running.get(id) === index) {
+		outcome = merge(outcome, {
+			log: [],
+			mechanisms: [{ id, step: index, delay: steps[index].after }]
+		});
+	}
+	return outcome;
+}
+
+/** Mechanisms waiting for their next step, to schedule after a save is loaded. */
+export function pendingMechanisms(
+	adventure: AdventureState
+): { id: MechanismId; step: number; delay: number }[] {
+	return [...adventure.running].map(([id, step]) => ({
+		id,
+		step,
+		delay: MECHANISMS[id].steps[step]?.after ?? 0
+	}));
 }
 
 /** What happens in the story when a verb is done: narration, clues, events. */
@@ -608,6 +842,26 @@ function respond(
 			return told(...clue('tollings'));
 		case 'belfry-bell:search':
 			return before === 'used' ? told(say(room, TEXT.bellEmpty)) : told(...clue('clapperless'));
+		case 'chamber-crate:push':
+		case 'chamber-crate:pull':
+			// Moving it the first time shows what it hid.
+			return adventure.evidence.has('tally')
+				? told(say(room, TEXT.crateMoved))
+				: told(...clue('tally'));
+		case 'handbell:take':
+			return told(say(room, TEXT.handbellTaken, undefined, only(actor.id)));
+		case 'handbell:ring': {
+			if (adventure.said.has('handbell:rung')) return told(say(room, TEXT.handbellAgain));
+			adventure.said.add('handbell:rung');
+			return told(say(room, TEXT.handbellRung), ...tend(room, adventure, 2));
+		}
+		case 'door-chains:break': {
+			const doors = objectDef('great-door');
+			if (doors && objectState(adventure, doors) === 'disabled') {
+				setObjectState(room, adventure, doors, 'closed');
+			}
+			return told(say(room, TEXT.chainsBroken));
+		}
 		case 'bones:search':
 			return before === 'used' ? told(say(room, TEXT.bonesEmpty)) : told(...clue('badges'));
 		default:
@@ -787,11 +1041,19 @@ function settlePeople(room: Room, adventure: AdventureState): void {
 // ---------------------------------------------------------------------------
 // The story: events, chapters, places, decisions
 
-const merge = (a: Outcome, b: Outcome): Outcome => ({
-	log: [...a.log, ...b.log],
-	...(a.reset || b.reset ? { reset: true } : {}),
-	...((b.enemyTurn ?? a.enemyTurn) !== undefined ? { enemyTurn: b.enemyTurn ?? a.enemyTurn } : {})
-});
+const merge = (a: Outcome, b: Outcome): Outcome => {
+	const motions = [...(a.motions ?? []), ...(b.motions ?? [])];
+	const mechanisms = [...(a.mechanisms ?? []), ...(b.mechanisms ?? [])];
+	return {
+		log: [...a.log, ...b.log],
+		...(a.reset || b.reset ? { reset: true } : {}),
+		...((b.enemyTurn ?? a.enemyTurn) !== undefined
+			? { enemyTurn: b.enemyTurn ?? a.enemyTurn }
+			: {}),
+		...(motions.length ? { motions } : {}),
+		...(mechanisms.length ? { mechanisms } : {})
+	};
+};
 
 /**
  * Something happened in the story. Records it (once), does what it does to
@@ -828,6 +1090,14 @@ export function happen(
 		case 'talked_oswin':
 			outcome = offer(room, adventure, 'promise');
 			break;
+		case 'opened_grate': {
+			// Someone already standing on the grate is on the stair now.
+			const onStair = played(room, adventure).find(
+				(c) => c.token.pos.x === STAIR.from.x && c.token.pos.y === STAIR.from.y
+			);
+			if (onStair) outcome = happen(room, adventure, 'reached_stair', now);
+			break;
+		}
 	}
 	outcome = merge(outcome, { log: react(room, adventure, `event:${event}`) });
 	const next = transition(adventure.chapter, event);
@@ -869,9 +1139,17 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			tell(toll(room, TEXT.bellRings), ...startEncounter(room, adventure, 'chamber'));
 			break;
 		}
-		case 'descend':
+		case 'descend': {
+			// The grate slams back down: the lever by the door lifts it (see mechanisms.ts).
+			const grate = objectDef('grate');
+			if (grate) setObjectState(room, adventure, grate, 'disabled');
 			tell(say(room, TEXT.chamberWon));
+			outcome = merge(outcome, {
+				log: [],
+				motions: [{ propId: MONASTERY_IDS.grate, kind: 'shake', sound: 'clank' }]
+			});
 			break;
+		}
 		case 'the_hollow':
 			adventure.npcs.set('tobin', 'entranced');
 			tell(say(room, TEXT.downStair), say(room, TEXT.hollow));
@@ -913,9 +1191,18 @@ function travel(room: Room, adventure: AdventureState, to: LocationId): void {
 		ownerId: c.token.ownerId,
 		tokenId: c.token.id
 	}));
+	// What the party carries comes along, looks and all.
+	const carried = [...adventure.carried.keys()].flatMap((id) => {
+		const origin = adventure.origins.get(id);
+		return origin ? [[id, origin] as const] : [];
+	});
 	applyScene(room, LOCATIONS[to].scene());
 	adventure.location = to;
 	adventure.origins = recordOrigins(room);
+	for (const [id, origin] of carried) adventure.origins.set(id, origin);
+	for (const id of adventure.running.keys()) {
+		if (MECHANISMS[id].location !== to) adventure.running.delete(id);
+	}
 	for (const def of objectsAt(to))
 		applyLook(room, def, objectState(adventure, def), adventure.origins);
 	for (const c of party) {
@@ -1004,6 +1291,9 @@ export function setObject(
 	}
 	if (!objectCells(room, def))
 		return fail('object_not_found', `The ${def.name} isn't on the table.`);
+	if (adventure.carried.has(def.id)) {
+		return fail('forbidden', `Someone is carrying the ${def.name.toLowerCase()}.`);
+	}
 	setObjectState(room, adventure, def, state);
 	return {
 		ok: true,
@@ -1310,7 +1600,7 @@ function enemyDies(room: Room, encounter: Encounter, token: Token): void {
 		rotation: 0,
 		scale: 1
 	});
-	adventure.origins.set(remains.id, { pos: { ...token.pos }, assetId: 'ashes' });
+	adventure.origins.set(remains.id, { pos: { ...token.pos }, assetId: 'ashes', rotation: 0 });
 	setObjectState(room, adventure, remains, 'interactable');
 }
 
@@ -1541,7 +1831,7 @@ export function afterMove(
 		adventure.encounter.moved.set(me.id, (adventure.encounter.moved.get(me.id) ?? 0) + cost);
 	}
 	if (adventure.stage !== 'playing') return { log: [] };
-	const area = areaAt(adventure.location, adventure.chapter, token.pos);
+	const area = areaAt(adventure.location, adventure.chapter, adventure.events, token.pos);
 	return area ? happen(room, adventure, area.event, now) : { log: [] };
 }
 
@@ -1563,11 +1853,21 @@ export function afterDoorToggle(room: Room, door: Door): void {
 }
 
 /** After the GM removed a token: a character leaves the story, an enemy leaves the fight. */
-export function afterTokenDeleted(room: Room, tokenId: string): Outcome {
+export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): Outcome {
 	const adventure = room.adventure;
 	if (!adventure) return { log: [] };
 	for (const [id, state] of adventure.characters) {
-		if (state.tokenId === tokenId) adventure.characters.delete(id);
+		if (state.tokenId !== tokenId) continue;
+		adventure.characters.delete(id);
+		// What it carried falls where it stood.
+		for (const [itemId, by] of adventure.carried) {
+			const def = objectDef(itemId);
+			const origin = adventure.origins.get(itemId);
+			if (by !== id || !def) continue;
+			adventure.carried.delete(itemId);
+			if (origin && pos) origin.pos = { ...pos };
+			setObjectState(room, adventure, def, origin && pos ? def.initial : 'hidden');
+		}
 	}
 	const encounter = adventure.encounter;
 	if (!encounter || !encounter.enemies.delete(tokenId)) return { log: [] };

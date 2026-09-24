@@ -105,7 +105,7 @@
 		{/if}
 
 		<button class="primary" type="button" onclick={onClose}>
-			{intro ? 'Into Bellweather' : 'Close'}
+			{intro ? 'Into the story' : 'Close'}
 		</button>
 	</div>
 </div>

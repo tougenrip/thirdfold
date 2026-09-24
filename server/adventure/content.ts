@@ -134,6 +134,12 @@ export const CLUES = {
 		title: 'The book of tollings',
 		text: 'The brothers’ ledgers record every tolling of the Bell: once in forty years, each time three ringers “sent down by Saint Agna’s door”. The last entry is forty years old, and the ink is shaky.'
 	},
+	tally: {
+		id: 'tally',
+		kind: 'environment',
+		title: 'Tally marks behind the crate',
+		text: 'Where the crate stood, scratched low on the wall at a child’s height: row on row of tally marks, and a crooked T. Tobin waited here a long time, counting the tolls.'
+	},
 	clapperless: {
 		id: 'clapperless',
 		kind: 'object',
@@ -284,7 +290,20 @@ export const TEXT = {
 	bellRings:
 		'The rope jerks in the still air, and far below your feet the Bell speaks. Not in the tower: under the floor. The iron grate bursts upward, and two pale shapes spill out of the stair.',
 	chamberWon:
-		'The last hound falls apart into chiming ash. The broken grate hangs open, and a stair winds down into the rock, toward the sound of the Bell.',
+		'The last hound falls apart into chiming ash. With a shriek of iron the grate drops back over the stair and holds fast. Its chain runs up the wall and across the ceiling to a lever by the door.',
+	leverPulled: 'The lever groans down in its slot.',
+	chainRuns:
+		'Chain runs rattling up through the wall. Somewhere above, a counterweight drops, and the whole chamber shudders.',
+	grateLifts:
+		'The grate grinds up and back on its hinges. Below it, a stair winds down into the rock, toward the sound of the Bell.',
+	crateMoved: 'The crate scrapes across the flagstones.',
+	crateBlocked: 'The crate won’t go that way.',
+	handbellTaken: 'The hand bell is heavier than it looks. Its clapper is tied off with a rag.',
+	handbellRung:
+		'You shake the rag loose and ring. One thin, clean note walks out through the stone, and for a breath the hum beneath everything falls quiet. The ringers rang these to walk their brothers down. You all stand a little steadier.',
+	handbellAgain: 'The hand bell rings out, clear and small, and fades.',
+	chainsBroken:
+		'The rusted links give with a crack. The chains fall away from the great doors, and they can be opened from inside.',
 	downStair: 'The stair turns and turns. The air grows warm, then damp, then hums.',
 
 	// The Hollow

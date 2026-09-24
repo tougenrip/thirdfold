@@ -22,9 +22,10 @@ import {
 	type StatusId
 } from '../../src/lib/adventure/characters';
 import { inBounds, type GridPos } from '../../src/lib/game/grid';
-import { isAssetId } from '../../src/lib/game/props';
+import { isAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { CLUES, CUES } from './content';
+import { MECHANISM_IDS, MECHANISMS, type MechanismId } from './mechanisms';
 import { objectDef, type Origins } from './objects';
 import type {
 	AdventureState,
@@ -100,8 +101,13 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			ending: adventure.ending,
 			objects: entriesOf(adventure.objects),
 			origins: Object.fromEntries(
-				[...adventure.origins].map(([id, o]) => [id, { pos: { ...o.pos }, assetId: o.assetId }])
+				[...adventure.origins].map(([id, o]) => [
+					id,
+					{ pos: { ...o.pos }, assetId: o.assetId, rotation: o.rotation }
+				])
 			),
+			carried: entriesOf(adventure.carried),
+			running: entriesOf(adventure.running),
 			cuesRead: [...adventure.cuesRead],
 			encounter: adventure.encounter && {
 				id: adventure.encounter.id,
@@ -274,7 +280,13 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	for (const [id, state] of Object.entries(record(data.objects, 'objects'))) {
 		const def = objectDef(id);
 		check(def && isObjectState(state), 'object');
-		check(def.states.includes(state) || state === def.initial || isDoorState(def, state), 'object');
+		check(
+			def.states.includes(state) ||
+				state === def.initial ||
+				isDoorState(def, state) ||
+				(def.carry && state === 'carried'),
+			'object'
+		);
 		objects.set(id, state);
 	}
 
@@ -283,10 +295,34 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		const def = objectDef(id);
 		const o = record(raw, 'object');
 		const pos = record(o.pos, 'object');
-		check(def && def.location === location && isAssetId(o.assetId), 'object');
+		// Items go from table to table with the party; everything else stays where it was.
+		check(def && (def.location === location || def.carry) && isAssetId(o.assetId), 'object');
 		const at: GridPos = { x: pos.x as number, y: pos.y as number };
 		check(Number.isInteger(at.x) && Number.isInteger(at.y) && inBounds(scene.grid, at), 'object');
-		origins.set(id, { pos: at, assetId: o.assetId });
+		// Saves from before things could be turned have none.
+		const rotation = (o.rotation === undefined ? 0 : int(o.rotation, 0, 3, 'object')) as Rotation;
+		origins.set(id, { pos: at, assetId: o.assetId, rotation });
+	}
+
+	// Saves from before things could be carried have nothing in anyone's hands.
+	const carried = new Map<string, CharacterId>();
+	for (const [id, who] of Object.entries(
+		data.carried === undefined ? {} : record(data.carried, 'items')
+	)) {
+		const def = objectDef(id);
+		check(def?.carry && isCharacterId(who) && characters.has(who), 'items');
+		check(objects.get(id) === 'carried' && origins.has(id), 'items');
+		carried.set(id, who);
+	}
+	for (const [id, state] of objects) check(state !== 'carried' || carried.has(id), 'items');
+
+	const running = new Map<MechanismId, number>();
+	for (const [id, step] of Object.entries(
+		data.running === undefined ? {} : record(data.running, 'mechanisms')
+	)) {
+		const mechanism = oneOf(id, MECHANISM_IDS, 'mechanisms');
+		check(MECHANISMS[mechanism].location === location, 'mechanisms');
+		running.set(mechanism, int(step, 1, MECHANISMS[mechanism].steps.length - 1, 'mechanisms'));
 	}
 
 	let encounter: Encounter | null = null;
@@ -374,6 +410,8 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		ending,
 		objects,
 		origins,
+		carried,
+		running,
 		cuesRead: new Set(
 			uniqueList(
 				data.cuesRead,

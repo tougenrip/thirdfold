@@ -3,6 +3,7 @@
 		canReach,
 		inActionRange,
 		INVESTIGATION_ACTIONS,
+		PHYSICAL_ACTIONS,
 		type AdventureView,
 		type CharacterStatus,
 		type Check,
@@ -57,7 +58,7 @@
 	const nearby = $derived(
 		encounter || !able || adventure.stage === 'choosing'
 			? []
-			: adventure.interactables.filter((i) => canReach(blocked, token.pos, i.cells))
+			: adventure.interactables.filter((i) => i.carried || canReach(blocked, token.pos, i.cells))
 	);
 	/** Actions that make sense now: everything in a fight, only healing outside one. */
 	const actions = $derived(
@@ -136,6 +137,10 @@
 		if (acted) return 'Done for this round. Waiting for the others.';
 		return `Your turn: ${movesLeft} ${movesLeft === 1 ? 'cell' : 'cells'} of movement, one action.`;
 	});
+	/** What a verb is: how it investigates, or what it physically does. */
+	function kindOf(v: AdventureView['interactables'][number]['verbs'][number]): string {
+		return v.physical ? PHYSICAL_ACTIONS[v.physical] : INVESTIGATION_ACTIONS[v.action];
+	}
 	const hpPercent = $derived(Math.round((100 * character.hp) / character.maxHp));
 </script>
 
@@ -155,6 +160,9 @@
 		</span>
 		{#each character.statuses as s (s.id)}
 			<span class="chip" title={STATUSES[s.id].about}>{STATUSES[s.id].name}</span>
+		{/each}
+		{#each character.carrying as item (item.id)}
+			<span class="chip carrying" title="Carrying">{item.name}</span>
 		{/each}
 	</div>
 	<p class="status" aria-live="polite">{status}</p>
@@ -191,10 +199,10 @@
 							? `${def.name} has tried this. Someone else might see more.`
 							: v.check
 								? checkText(v.check)
-								: INVESTIGATION_ACTIONS[v.action]}
+								: kindOf(v)}
 						onclick={() => send({ type: 'adventure_interact', targetId: i.id, verb: v.id })}
 					>
-						<small class="kind">{INVESTIGATION_ACTIONS[v.action]}</small>
+						<small class="kind">{kindOf(v)}</small>
 						{v.label}
 						{#if v.check && !v.tried}<small>{v.check.dc}</small>{/if}
 					</button>
@@ -312,6 +320,10 @@
 		border-radius: 999px;
 		border: 1px solid var(--accent);
 		color: var(--accent);
+	}
+	.chip.carrying {
+		border-color: var(--muted, #b8ad96);
+		color: inherit;
 	}
 
 	.status {

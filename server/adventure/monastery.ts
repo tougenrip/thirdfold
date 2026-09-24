@@ -32,7 +32,12 @@ export const MONASTERY_IDS = {
 	rope: 'mn-rope',
 	grate: 'mn-grate',
 	ledgers: 'mn-ledgers',
-	bell: 'mn-bell'
+	bell: 'mn-bell',
+	lever: 'mn-lever',
+	crate: 'mn-chamber-crate',
+	chamberChains: 'mn-chamber-chains',
+	handbell: 'mn-handbell',
+	doorChains: 'mn-door-chains'
 } as const;
 
 /** The edge of the secret door, in the wall between the nave and the ringing chamber. */
@@ -66,6 +71,9 @@ export const STAIR_RING: readonly GridPos[] = [
 	{ x: 3, y: 9 },
 	{ x: 4, y: 9 }
 ];
+
+/** The lever that lifts the grate, by the ringing chamber's door. */
+export const LEVER_AT: GridPos = { x: 7, y: 7 };
 
 /** Levels of the monastery's raised places. */
 export const LEVELS = { gallery: 5, ledge: 5, belfry: 10 } as const;
@@ -163,7 +171,7 @@ export function monasteryScene(now = new Date()): SceneFile {
 				prop('mn-pillar1', 'pillar', 10, 3),
 				prop('mn-pillar3', 'pillar', 10, 9),
 				// Chains barring the great doors from inside.
-				prop('mn-door-chains', 'chains', 13, 9),
+				prop(I.doorChains, 'chains', 13, 9),
 				// The gallery: the brothers' ledgers.
 				prop(I.ledgers, 'bookshelf', 20, 2),
 				// The belfry: the bell on its chains, and a brazier long gone cold.
@@ -172,11 +180,14 @@ export function monasteryScene(now = new Date()): SceneFile {
 				// The ringing chamber.
 				prop(I.rope, 'rope', 4, 4),
 				prop(I.grate, 'grate', STAIR.from.x, STAIR.from.y),
-				prop('mn-chamber-crate', 'crate', 6, 2),
-				prop('mn-chamber-chains', 'chains', 2, 3),
+				prop(I.crate, 'crate', 6, 2),
+				// The grate's chain runs up the wall and across to the lever by the door.
+				prop(I.chamberChains, 'chains', 2, 3),
+				prop(I.lever, 'lever', LEVER_AT.x, LEVER_AT.y),
 				// The gatehouse.
 				prop('mn-gh-bed', 'bed', 2, 16),
 				prop('mn-gh-table', 'table', 3, 13),
+				prop(I.handbell, 'handbell', 5, 13),
 				// The courtyard and its graves.
 				prop(I.grave, 'gravestone', 15, 13),
 				prop('mn-grave2', 'gravestone', 17, 13),
