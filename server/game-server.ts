@@ -22,7 +22,9 @@ import {
 	SCENE_FILE_MAX_BYTES
 } from '../src/lib/game/scene-file';
 import * as adventure from './adventure/engine';
+import { loadCustomAdventure } from './adventure/custom';
 import { readAdventure } from './adventure/persist';
+import { trackInUse } from './adventure/registry';
 import { RateLimiter } from './rate-limit';
 import { applyScene, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
@@ -30,7 +32,7 @@ import { keyOwner, newGmKey } from './gm-keys';
 import { newSceneId } from './scene-store';
 import { storySummary } from './adventure/view';
 import { MemorySceneStore, type SceneStore } from './scene-store';
-import { RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
+import { fail, RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
 import {
 	createObject,
 	createToken,
@@ -154,6 +156,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const chatLimiter = new RateLimiter(8, 4 / 3);
 	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
 	const sceneLimiter = new RateLimiter(4, 0.25);
+	// Creators' adventures a table is playing are kept while it plays them.
+	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
 	/** roomId -> playerId -> the socket currently holding that seat. */
 	const sockets = new Map<string, Map<string, WebSocket>>();
@@ -615,8 +619,17 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 		const result = (() => {
 			switch (msg.type) {
-				case 'adventure_start':
-					return adventure.startAdventure(room, player);
+				case 'adventure_start': {
+					if (msg.file === undefined) return adventure.startAdventure(room, player);
+					if (player.role !== 'gm') return fail('forbidden', 'Only the GM can do that.');
+					if (!sceneLimiter.take(player.id)) {
+						return fail('rate_limited', 'Give it a moment before trying again.');
+					}
+					// A creator's adventure: checked in full, then played like any other.
+					const custom = loadCustomAdventure(msg.file);
+					if (!custom.ok) return fail('invalid_message', custom.error);
+					return adventure.startAdventure(room, player, custom.adventure.id);
+				}
 				case 'adventure_claim':
 					return adventure.claimCharacter(room, player, msg.characterId);
 				case 'adventure_release':

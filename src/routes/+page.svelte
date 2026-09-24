@@ -231,6 +231,11 @@
 		</form>
 	</div>
 
+	<p class="build">
+		<a href={resolve('/builder')}>Build your own adventure</a>
+		<span class="muted">: its places, people, fights, choices and endings, no code needed.</span>
+	</p>
+
 	<details class="key">
 		<summary>Your GM key</summary>
 		{#if gmKey}
@@ -272,6 +277,10 @@
 </main>
 
 <style>
+	.build {
+		margin: 1.2rem 0 0;
+	}
+
 	main {
 		max-width: 44rem;
 		margin: 0 auto;

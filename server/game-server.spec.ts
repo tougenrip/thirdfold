@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { AdventureView } from '../src/lib/adventure/adventure';
+import { exampleAdventure } from '../src/lib/adventure/example';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
@@ -1234,6 +1235,48 @@ describe('custom tables over the wire', () => {
 		gm.send({ type: 'scene_load', sceneId });
 		const { room } = await gm.until('room_reset');
 		expect(decodeFloor(room.floor!, 400)![3 * 20 + 3]).toBe(FLOOR_IDS.indexOf('grass'));
+	});
+});
+
+describe("creators' adventures over the wire", () => {
+	it('lets the GM start an adventure file; players play it as any other', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		const file = JSON.parse(JSON.stringify(exampleAdventure()));
+
+		pip.send({ type: 'adventure_start', file });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_start', file: { ...file, start: { ...file.start, chapter: 'x' } } });
+		expect(await gm.until('error')).toMatchObject({
+			code: 'invalid_message',
+			message: expect.stringContaining('no chapter "x"')
+		});
+
+		gm.send({ type: 'adventure_start', file });
+		const reset = await pip.until('room_reset');
+		expect(reset.room).toMatchObject({ sceneName: 'The mill yard', grid: { width: 14 } });
+		expect(reset.room.adventure).toMatchObject({
+			id: expect.stringMatching(/^custom-/),
+			title: 'The Miller’s Key',
+			stage: 'choosing',
+			chapter: { id: 'the_mill', number: 1, of: 3 }
+		});
+		pip.send({ type: 'adventure_claim', characterId: 'saint' });
+		const saint = await pip.until('token_upserted', (m) => m.token.name === 'The Saint');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		pip.send({ type: 'token_move', tokenId: saint.token.id, to: { x: 6, y: 9 } });
+		await pip.until('token_moved');
+		pip.send({ type: 'adventure_interact', targetId: 'miller', verb: null });
+		const told = await pip.until('adventure_update', (m) => m.adventure?.chapter.id === 'the_key');
+		expect(told.adventure!.objectives.map((o) => [o.id, o.done])).toEqual([
+			['ask', true],
+			['find', false]
+		]);
 	});
 });
 

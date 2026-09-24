@@ -138,6 +138,8 @@ export interface AdventureState {
 	npcs: Map<NpcId, string>;
 	/** Lines already said (`<npc>:<line>`) and reactions heard (`reaction:<id>`). */
 	said: Set<string>;
+	/** What the party has earned (`reward` effects), in order. */
+	rewards: string[];
 	/** Choices made, by decision id. */
 	decisions: Map<DecisionId, Decision>;
 	/** The choice put to the party and not yet answered. */

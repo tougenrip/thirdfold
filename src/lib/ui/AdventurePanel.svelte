@@ -188,6 +188,17 @@
 			</details>
 		{/if}
 
+		{#if adventure.rewards.length}
+			<details class="clues" open>
+				<summary>Rewards ({adventure.rewards.length})</summary>
+				<ul aria-label="Rewards">
+					{#each adventure.rewards as reward (reward)}
+						<li><strong>{reward}</strong></li>
+					{/each}
+				</ul>
+			</details>
+		{/if}
+
 		{#if adventure.decisions.length}
 			<details class="clues">
 				<summary>Choices made ({adventure.decisions.length})</summary>

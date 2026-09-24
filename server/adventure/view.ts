@@ -279,6 +279,7 @@ export function adventureView(
 		begunAt: adventure.begunAt,
 		completedAt: adventure.completedAt,
 		summary: summaryOf(adventure),
+		rewards: [...adventure.rewards],
 		cues:
 			viewer.role === 'gm'
 				? A.cues.map((c) => ({ ...c, read: adventure.cuesRead.has(c.id) }))

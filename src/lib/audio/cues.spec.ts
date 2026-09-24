@@ -201,6 +201,10 @@ describe('the music', () => {
 		expect(
 			musicFor(story({ location: { id: 'hollow', name: 'The Hollow' } }), 'dark')
 		).toMatchObject({ mood: 'hollow', intensity: 1 });
+		// A creator's own places have no music of their own: they get the village's.
+		expect(
+			musicFor(story({ location: { id: 'yard', name: 'The mill yard' } }), 'day')
+		).toMatchObject({ mood: 'village' });
 	});
 
 	it('rises for a choice and a fight, and highest in the finale', () => {

@@ -1,7 +1,10 @@
 # Writing an adventure
 
 An adventure is data. The engine (`server/adventure/`) runs whichever
-adventure a table is playing, and knows none of them. The adventures live in
+adventure a table is playing, and knows none of them. There are two ways to
+write one: as TypeScript data in `server/adventures/` (built in, like The
+Hollow Bell), or as an **adventure file**, plain JSON, in the builder at
+`/builder`, with no code at all (see the end of this page). The adventures live in
 `server/adventures/`, one folder each, and are listed in
 `server/adventures/index.ts` (the first is the one a GM's "Start" sets up).
 The Hollow Bell (`server/adventures/hollow-bell/`) is the reference: every
@@ -115,3 +118,61 @@ figures against the asset manifest (docs/ASSETS.md).
 Saves carry the adventure's `id` and `version`; `persist.ts` reads a save
 back against that adventure's own ids. `renamed` maps answers and endings an
 older version used to the current ones.
+
+## Adventure files and the builder
+
+An adventure file (`src/lib/adventure/file.ts`, format `thirdfold-adventure`,
+version 1) is `AdventureDef` written as JSON:
+
+- **Tables are scene files.** Build one at a table (Scene panel: New table,
+  floors, walls, doors, props, lights, raised ground), export it with Export
+  file, and bring it into a place in the builder.
+- **An enemy's hit points** are `{ base, perCharacter }`.
+- **Characters** are picked from the character library by id.
+- **People** stand on their table by themselves. Their token is `npc-<id>`
+  unless the file names one, and each can be talked to, unless the file
+  defines an object with the same id.
+- **Ids** come from the record keys: chapters, choices, clues, mechanisms,
+  enemies.
+- **The rules' own words** (`voice`) default to plain ones.
+
+`parseAdventureFile` checks every field and drops what it doesn't know.
+`compileAdventure` makes the `AdventureDef`. `loadAdventureFile` does both
+and adds `validateAdventure`'s problems, plus the file's own: no characters,
+spawn cells off the table, or an object whose prop isn't on its table.
+
+The builder (`/builder`, `src/lib/builder/`) keeps its draft in the browser.
+It opens and saves adventure files, and starts from an example, _The
+Miller's Key_ (`src/lib/adventure/example.ts`). Each part has a section:
+
+- **Overview:** title, characters, where it starts, the arrival, read-aloud
+  passages.
+- **Scenes:** places and their tables.
+- **Flow:** chapters in order, their objectives, what moves each on and what
+  its opening does, plus events and what they do. A summary shows the
+  chapter-to-chapter flow and the branches choices take.
+- **People:** dialogue lines with conditions and effects, and reactions.
+- **Fights:** enemies and encounters.
+- **Things & triggers:** objects, their verbs and rules, trigger areas, and
+  clues.
+- **Choices & endings:** choices (branches), and each answer's ending.
+- **Check:** every problem, and the rewards the party can earn.
+- **File:** the raw JSON, for what the forms don't cover (mechanisms, signs,
+  phases of a fight, the rules' own words).
+
+Effects are edited in lists: say, find or tell a clue, make an event happen,
+give a reward, set an object's state, change someone's state, offer a choice,
+start a fight, go to a chapter, heal, time of day, reveal, people to their
+places, remember, and "if…" rules. Conditions are lists of events, clues,
+chapters, states and choices.
+
+**Play it** opens a new table as its GM and starts the adventure
+(`adventure_start` with the file). The server checks the file in full
+(`server/adventure/custom.ts`). The adventure's id is `custom-` plus a hash
+of the checked file, so the same file is the same adventure. A save of the
+story carries the file (`SavedStory.content`), so it loads on any server.
+A save whose content doesn't match its id is refused.
+
+**Rewards** (`{ reward: 'The silver key' }`) are what the party earns. They
+are kept with the story, listed in the Adventure panel, and shown on the
+end screen.
