@@ -309,7 +309,8 @@ function placeCharacter(
 		pos: { ...cell },
 		ownerId,
 		vision: def.vision,
-		light: def.light
+		light: def.light,
+		model: id
 	};
 	room.tokens.set(token.id, token);
 	return token;
@@ -1679,7 +1680,8 @@ function enemyToken(kind: EnemyKind, pos: GridPos): Token {
 		pos: { ...pos },
 		ownerId: null,
 		vision: def.vision,
-		light: def.light
+		light: def.light,
+		model: def.model
 	};
 }
 

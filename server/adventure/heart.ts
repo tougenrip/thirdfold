@@ -52,6 +52,7 @@ export function heartScene(now = new Date()): SceneFile {
 			name: 'The Heart of the Hollow',
 			grid: HEART_GRID,
 			ambient: 'dark',
+			environment: 'living-cave',
 			arrival: { from: { x: 4, y: 9 }, to: { x: 11, y: 13 } },
 			tokens: [],
 			terrain: [{ ...DAIS, level: 1 }],

@@ -1,7 +1,9 @@
-// Props for the three.js view. Every part of every asset is one
-// InstancedMesh, so a room full of crates costs a crate's few draw calls.
-// Part colours travel as instance colours, which also carry the selection
-// and hover tint. Placement comes from the Prop data; this only draws it.
+// Props for the three.js view. Each asset's model (see models.ts: loaded on
+// first use) is one InstancedMesh, two if it has swinging parts, so a room
+// full of crates costs one draw call. Until the model has loaded, the prop
+// shows as a plain box on its footprint. Colours are in the model; instance
+// colours carry the selection, hover and hidden tints. Placement comes from
+// the Prop data; this only draws it.
 //
 // A prop that moves or turns glides to its new place, so a push, a pull or
 // a turn reads the same on every client; motions from the server (a shake,
@@ -11,9 +13,23 @@
 import * as THREE from 'three';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { MOTION_MS, type MotionKind } from '$lib/game/motion';
-import { ASSET_IDS, footprintCells, footprintSize, type AssetId, type Prop } from '$lib/game/props';
+import {
+	ASSET_IDS,
+	ASSETS,
+	footprintCells,
+	footprintSize,
+	type AssetId,
+	type Prop
+} from '$lib/game/props';
 import type { Ground } from './ground';
-import { PROP_MODELS, SWING_PIVOTS, SWING_THROW, type Shape } from './prop-models';
+import { loadModel, modelNow, type LoadedModel } from './models';
+
+/** A placeholder's height and colour, until the model has loaded. */
+const PLACEHOLDER_HEIGHT = 0.5;
+const PLACEHOLDER = new THREE.Color(0x8a7f70);
+/** How far a swing throws swinging parts when the model doesn't say. */
+const DEFAULT_THROW = 0.4;
+const WHITE = new THREE.Color(0xffffff);
 
 /** How long a prop takes to glide to a new place or turn. */
 const GLIDE_MS = 450;
@@ -41,22 +57,29 @@ const HOVERED = new THREE.Color(0xe27a6b);
 const GHOST = new THREE.Color(0xb8c6e0);
 
 interface AssetMeshes {
-	parts: THREE.InstancedMesh[];
+	parts: { mesh: THREE.InstancedMesh; swings: boolean }[];
 	/** Prop id for each instance index. */
 	owners: string[];
 	capacity: number;
+	/** The model these meshes draw, or null for the placeholder. */
+	model: LoadedModel | null;
 }
 
 export class PropLayer {
 	readonly group = new THREE.Group();
-	private geometries: Record<Shape, THREE.BufferGeometry> = {
-		box: new THREE.BoxGeometry(1, 1, 1),
-		cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, 18),
-		sphere: new THREE.SphereGeometry(0.5, 16, 12),
-		cone: new THREE.ConeGeometry(0.5, 1, 18)
-	};
-	// White: the instance colour supplies each part's colour.
-	private material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 });
+	private placeholder = new THREE.BoxGeometry(1, 1, 1);
+	/** Models: their colours are vertex colours; the instance colour tints them. */
+	private material = new THREE.MeshStandardMaterial({
+		color: 0xffffff,
+		roughness: 0.75,
+		vertexColors: true
+	});
+	private placeholderMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+	/** Assets whose model has been asked for. */
+	private requested = new Set<AssetId>();
+
+	/** `onModel` is told when a model has arrived and the props have been drawn again. */
+	constructor(private readonly onModel: () => void = () => {}) {}
 	private meshes = new Map<AssetId, AssetMeshes>();
 	private props: readonly Prop[] = [];
 	private selectedId: string | null = null;
@@ -110,7 +133,8 @@ export class PropLayer {
 	animate(id: string, kind: MotionKind, now: number): void {
 		const prop = this.props.find((p) => p.id === id);
 		if (!prop || this.reducedMotion) return;
-		this.start(id, { kind, start: now, throw: SWING_THROW[prop.assetId] ?? 0.4 });
+		const swing = modelNow(prop.assetId)?.entry.swing;
+		this.start(id, { kind, start: now, throw: swing?.throw ?? DEFAULT_THROW });
 		this.tick(now);
 	}
 
@@ -162,7 +186,16 @@ export class PropLayer {
 		for (const [assetId, list] of byAsset) {
 			const meshes = this.ensure(assetId, list.length);
 			if (!meshes) continue;
-			const model = PROP_MODELS[assetId];
+			// A placeholder is a box on the unrotated footprint; a model is already in place.
+			const def = ASSETS[assetId];
+			const local = meshes.model
+				? new THREE.Matrix4()
+				: new THREE.Matrix4().compose(
+						new THREE.Vector3(0, PLACEHOLDER_HEIGHT / 2, 0),
+						new THREE.Quaternion(),
+						new THREE.Vector3(def.w * 0.9, PLACEHOLDER_HEIGHT, def.h * 0.9)
+					);
+			const pivot = meshes.model?.entry.swing?.pivot ?? 0;
 			meshes.owners = list.map((p) => p.id);
 			list.forEach((p, i) => {
 				const at = this.centre(p, grid);
@@ -182,23 +215,18 @@ export class PropLayer {
 				const angle = (this.swings.get(p.id) ?? 0) + (pose?.swing ?? 0);
 				if (angle) {
 					// Rotate about the pivot: up to it, tilt, back down.
-					const pivot = SWING_PIVOTS[p.assetId] ?? 0;
 					swing
 						.makeTranslation(0, pivot, 0)
 						.multiply(tilt.makeRotationX(angle))
 						.multiply(new THREE.Matrix4().makeTranslation(0, -pivot, 0));
 				}
-				model.forEach((m, j) => {
-					part.compose(
-						new THREE.Vector3(...m.at),
-						new THREE.Quaternion(),
-						new THREE.Vector3(...m.size)
-					);
-					if (angle && m.swings) part.premultiply(swing);
-					meshes.parts[j].setMatrixAt(i, out.multiplyMatrices(base, part));
-				});
+				for (const { mesh, swings } of meshes.parts) {
+					part.copy(local);
+					if (angle && swings) part.premultiply(swing);
+					mesh.setMatrixAt(i, out.multiplyMatrices(base, part));
+				}
 			});
-			for (const mesh of meshes.parts) {
+			for (const { mesh } of meshes.parts) {
 				mesh.count = list.length;
 				mesh.instanceMatrix.needsUpdate = true;
 				mesh.computeBoundingSphere();
@@ -239,54 +267,74 @@ export class PropLayer {
 	}
 
 	dispose(): void {
-		for (const m of this.meshes.values()) for (const mesh of m.parts) mesh.dispose();
-		Object.values(this.geometries).forEach((g) => g.dispose());
+		for (const m of this.meshes.values()) for (const { mesh } of m.parts) mesh.dispose();
+		this.placeholder.dispose();
 		this.material.dispose();
+		this.placeholderMaterial.dispose();
 	}
 
-	/** Meshes for an asset with room for `count` props, growing in chunks; none if never used. */
+	/**
+	 * Meshes for an asset with room for `count` props, growing in chunks; none if never
+	 * used. Asks for the asset's model the first time; they are made again when it arrives.
+	 */
 	private ensure(assetId: AssetId, count: number): AssetMeshes | null {
 		let meshes = this.meshes.get(assetId);
 		if (!meshes && count === 0) return null;
-		if (meshes && meshes.capacity >= count) return meshes;
-		if (meshes)
-			for (const mesh of meshes.parts) {
-				this.group.remove(mesh);
-				mesh.dispose();
-			}
+		if (!this.requested.has(assetId)) {
+			this.requested.add(assetId);
+			void loadModel(assetId).then((model) => {
+				if (!model) return;
+				this.drop(assetId);
+				if (this.last) this.layout(this.props, this.last.grid, this.last.ground);
+				this.onModel();
+			});
+		}
+		const model = modelNow(assetId) ?? null;
+		if (meshes && meshes.capacity >= count && meshes.model === model) return meshes;
+		this.drop(assetId);
 		const capacity = Math.max(8, Math.ceil(count * 1.5));
-		meshes = {
-			capacity,
-			owners: [],
-			parts: PROP_MODELS[assetId].map((m) => {
-				const mesh = new THREE.InstancedMesh(this.geometries[m.shape], this.material, capacity);
-				mesh.userData.assetId = assetId;
-				mesh.castShadow = true;
-				mesh.receiveShadow = true;
-				mesh.count = 0;
-				this.group.add(mesh);
-				return mesh;
-			})
+		const make = (geometry: THREE.BufferGeometry, material: THREE.Material) => {
+			const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+			mesh.userData.assetId = assetId;
+			mesh.castShadow = true;
+			mesh.receiveShadow = true;
+			mesh.count = 0;
+			this.group.add(mesh);
+			return mesh;
 		};
+		const parts: AssetMeshes['parts'] = [];
+		if (model) {
+			if (model.body) parts.push({ mesh: make(model.body, this.material), swings: false });
+			if (model.swing) parts.push({ mesh: make(model.swing, this.material), swings: true });
+		} else parts.push({ mesh: make(this.placeholder, this.placeholderMaterial), swings: false });
+		meshes = { capacity, owners: [], parts, model };
 		this.meshes.set(assetId, meshes);
 		return meshes;
+	}
+
+	/** Takes an asset's meshes off the table (its geometry is the model's, kept for next time). */
+	private drop(assetId: AssetId): void {
+		const meshes = this.meshes.get(assetId);
+		if (!meshes) return;
+		for (const { mesh } of meshes.parts) {
+			this.group.remove(mesh);
+			mesh.dispose();
+		}
+		this.meshes.delete(assetId);
 	}
 
 	private paint(): void {
 		const color = new THREE.Color();
 		const hidden = new Set(this.props.filter((p) => p.hidden).map((p) => p.id));
-		for (const [assetId, meshes] of this.meshes) {
-			const model = PROP_MODELS[assetId];
+		for (const meshes of this.meshes.values()) {
 			meshes.owners.forEach((id, i) => {
 				const tint = id === this.selectedId ? SELECTED : id === this.hoveredId ? HOVERED : null;
-				model.forEach((m, j) => {
-					color.setHex(m.color);
-					if (hidden.has(id)) color.lerp(GHOST, 0.7);
-					if (tint) color.lerp(tint, 0.55);
-					meshes.parts[j].setColorAt(i, color);
-				});
+				color.copy(meshes.model ? WHITE : PLACEHOLDER);
+				if (hidden.has(id)) color.lerp(GHOST, 0.7);
+				if (tint) color.lerp(tint, 0.55);
+				for (const { mesh } of meshes.parts) mesh.setColorAt(i, color);
 			});
-			for (const mesh of meshes.parts)
+			for (const { mesh } of meshes.parts)
 				if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 		}
 	}

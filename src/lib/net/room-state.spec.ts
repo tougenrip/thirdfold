@@ -20,7 +20,8 @@ function room(): RoomSnapshot {
 		adventure: null,
 		terrain: null,
 		darkness: null,
-		paused: false
+		paused: false,
+		environment: null
 	};
 }
 

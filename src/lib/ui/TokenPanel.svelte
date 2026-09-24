@@ -13,6 +13,8 @@
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import { MAX_VISION } from '$lib/game/visibility';
 	import { MAX_LIGHT_RADIUS } from '$lib/game/lights';
+	import { loadManifest } from '$lib/assets/load';
+	import type { ModelKind } from '$lib/assets/manifest';
 
 	interface Props {
 		isGm: boolean;
@@ -31,6 +33,23 @@
 	let draft = $state<TokenDraft>({ name: '', color: TOKEN_COLORS[0], ownerId: null });
 
 	const owners = $derived(players.filter((p) => p.role === 'player'));
+
+	/** Figures a token can be drawn as, by kind (props aren't figures). */
+	const FIGURE_KINDS: [ModelKind, string][] = [
+		['character', 'Characters'],
+		['npc', 'People'],
+		['enemy', 'Creatures']
+	];
+	let figures = $state<{ id: string; kind: ModelKind }[]>([]);
+	$effect(() => {
+		if (!isGm) return;
+		void loadManifest().then((m) => {
+			figures = Object.entries(m.models)
+				.filter(([, e]) => e.kind !== 'prop')
+				.map(([id, e]) => ({ id, kind: e.kind }));
+		});
+	});
+	const figureName = (id: string) => id.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
 	const playerName = (id: string | null) =>
 		id === null ? 'GM only' : (players.find((p) => p.id === id)?.name ?? 'Unknown');
 	const listed = $derived(isGm ? tokens : tokens.filter((t) => t.ownerId === myId));
@@ -149,6 +168,30 @@
 					aria-label="Token light"
 					onchange={(e) => setLight(selected, e.currentTarget.valueAsNumber)}
 				/>
+			</label>
+			<label class="row">
+				<span class="muted small">Figure</span>
+				<select
+					value={selected.model ?? ''}
+					aria-label="Token figure"
+					onchange={(e) =>
+						send({
+							type: 'token_update',
+							tokenId: selected.id,
+							patch: { model: e.currentTarget.value || null }
+						})}
+				>
+					<option value="">Plain miniature</option>
+					{#each FIGURE_KINDS as [kind, label] (kind)}
+						{#if figures.some((f) => f.kind === kind)}
+							<optgroup {label}>
+								{#each figures.filter((f) => f.kind === kind) as f (f.id)}
+									<option value={f.id}>{figureName(f.id)}</option>
+								{/each}
+							</optgroup>
+						{/if}
+					{/each}
+				</select>
 			</label>
 			<label class="row check">
 				<input

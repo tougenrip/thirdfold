@@ -848,7 +848,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 7, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 8, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',
@@ -942,6 +942,47 @@ describe('lighting over the wire', () => {
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
 		pip.send({ type: 'ambient_set', ambient: 'day' });
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+	});
+
+	it('lets the GM set how the table looks and what a token is drawn as, by asset id only', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		expect(room.environment).toBeNull();
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		await gm.expect('player_joined');
+
+		gm.send({ type: 'environment_set', environment: 'village' });
+		expect(await pip.expect('environment_update')).toEqual({
+			type: 'environment_update',
+			environment: 'village'
+		});
+		pip.send({ type: 'environment_set', environment: 'cavern' });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 3, y: 3 },
+			ownerId: null
+		});
+		const { token } = await pip.until('token_upserted');
+		gm.send({ type: 'token_update', tokenId: token.id, patch: { model: 'warden' } });
+		expect((await pip.until('token_upserted')).token).toMatchObject({
+			id: token.id,
+			model: 'warden'
+		});
+
+		// Both come back with the table.
+		gm.send({ type: 'scene_export', name: 'Dressed' });
+		const { file } = await gm.until('scene_exported');
+		expect(file).toMatchObject({ version: 8, environment: 'village' });
+		expect(file.tokens[0]).toMatchObject({ model: 'warden' });
+		gm.send({ type: 'token_update', tokenId: token.id, patch: { model: null } });
+		expect((await pip.until('token_upserted')).token.model).toBeUndefined();
 	});
 
 	it('hides what stands in a dark area by day, and a flash shows it for a moment', async () => {

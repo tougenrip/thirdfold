@@ -1,0 +1,7 @@
+{
+	"name": "Village",
+	"surface": "village-grass",
+	"ground": "village-earth",
+	"walls": "plaster",
+	"table": "oak"
+}

@@ -7,10 +7,12 @@
 
 import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
+import { dress, type Look } from './environment';
 import type { Ground } from './ground';
 
-const STONE = new THREE.Color(0x77705f);
-const HIGH_STONE = new THREE.Color(0x9a9281);
+const STONE = 0x77705f;
+/** Higher ground is drawn this much paler. */
+const HIGHER = 0.25;
 
 export class TerrainLayer {
 	readonly group = new THREE.Group();
@@ -21,6 +23,19 @@ export class TerrainLayer {
 	private cells: number[] = [];
 	private grid: SquareGrid | null = null;
 	private maxLevel = 1;
+	private low = new THREE.Color(STONE);
+	private high = new THREE.Color(STONE).lerp(new THREE.Color(0xffffff), HIGHER);
+
+	constructor() {
+		dress(this.material, null, 0xffffff);
+	}
+
+	/** The environment's ground (null: plain stone). Shade again afterwards. */
+	setLook(look: Look | null): void {
+		dress(this.material, look && { ...look, color: new THREE.Color(0xffffff) }, 0xffffff);
+		this.low.set(look ? look.color : STONE);
+		this.high.copy(this.low).lerp(new THREE.Color(0xffffff), HIGHER);
+	}
 
 	/** Rebuilds the raised cells. The ground changes rarely, so a full rebuild is fine. */
 	sync(grid: SquareGrid, ground: Ground): void {
@@ -70,7 +85,7 @@ export class TerrainLayer {
 		if (!this.mesh || !levels) return;
 		const color = new THREE.Color();
 		this.cells.forEach((i, n) => {
-			color.copy(STONE).lerp(HIGH_STONE, levels[i] / this.maxLevel);
+			color.copy(this.low).lerp(this.high, levels[i] / this.maxLevel);
 			if (brightness) color.multiplyScalar(brightness[i]);
 			this.mesh!.setColorAt(n, color);
 		});

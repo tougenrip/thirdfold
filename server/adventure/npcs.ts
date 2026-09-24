@@ -77,6 +77,8 @@ export interface NpcDef {
 	speaker: string;
 	token: string;
 	color: string;
+	/** The figure they are drawn as (a model in assets/models/npc), tinted with `color`. */
+	model: string;
 	location: LocationId;
 	/** Where they are found, for the GM. */
 	home: string;
@@ -90,6 +92,7 @@ export interface NpcDef {
 export const NPCS: Record<NpcId, NpcDef> = {
 	maren: {
 		id: 'maren',
+		model: 'villager',
 		name: 'Maren',
 		role: 'Innkeeper of the Tolling Rest',
 		speaker: 'Maren',
@@ -119,6 +122,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	bertram: {
 		id: 'bertram',
+		model: 'elder',
 		name: 'Old Bertram',
 		role: 'The oldest man in Bellweather',
 		speaker: 'Bertram',
@@ -149,6 +153,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	edda: {
 		id: 'edda',
+		model: 'villager',
 		name: 'Edda Hale',
 		role: 'Tobin’s mother',
 		speaker: 'Edda',
@@ -182,6 +187,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	pell: {
 		id: 'pell',
+		model: 'child',
 		name: 'Pell',
 		role: 'Tobin’s best friend, ten years old',
 		speaker: 'Pell',
@@ -218,6 +224,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	rosa: {
 		id: 'rosa',
+		model: 'villager',
 		name: 'Rosa',
 		role: 'Herbalist with a stall in the square',
 		speaker: 'Rosa',
@@ -249,6 +256,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	aldric: {
 		id: 'aldric',
+		model: 'watchman',
 		name: 'Aldric',
 		role: 'The village watchman',
 		speaker: 'Aldric',
@@ -279,6 +287,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	wynn: {
 		id: 'wynn',
+		model: 'priest',
 		name: 'Father Wynn',
 		role: 'Priest of the chapel of Saint Agna',
 		speaker: 'Father Wynn',
@@ -310,6 +319,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	nell: {
 		id: 'nell',
+		model: 'gravedigger',
 		name: 'Nell',
 		role: 'Gravedigger',
 		speaker: 'Nell',
@@ -338,6 +348,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	gregor: {
 		id: 'gregor',
+		model: 'smith',
 		name: 'Gregor',
 		role: 'Blacksmith',
 		speaker: 'Gregor',
@@ -369,6 +380,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	crane: {
 		id: 'crane',
+		model: 'villager',
 		name: 'Widow Crane',
 		role: 'Weaver, who watches from her window',
 		speaker: 'Widow Crane',
@@ -396,6 +408,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	oswin: {
 		id: 'oswin',
+		model: 'monk',
 		name: 'Brother Oswin',
 		role: 'The last brother of the monastery',
 		speaker: 'Oswin',
@@ -419,6 +432,7 @@ export const NPCS: Record<NpcId, NpcDef> = {
 	},
 	tobin: {
 		id: 'tobin',
+		model: 'child',
 		name: 'Tobin Hale',
 		role: 'The missing boy',
 		speaker: 'Tobin',
@@ -460,6 +474,7 @@ export function npcTokens(location: LocationId): SavedToken[] {
 			pos: { ...npc.places.calm },
 			vision: 6,
 			light: 0,
+			model: npc.model,
 			owner: null
 		};
 	});

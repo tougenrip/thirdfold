@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import type { AssetId, Rotation } from '$lib/game/props';
+	import { loadManifest } from '$lib/assets/load';
 
 	export type BuildTool =
 		| 'select'
@@ -47,6 +48,9 @@
 		onFogAll(reveal: boolean): void;
 		onFogShared(shared: boolean): void;
 		onAmbient(ambient: Ambient): void;
+		/** How the table looks: an environment asset's id, or null for the plain table. */
+		environment: string | null;
+		onEnvironment(environment: string | null): void;
 		onLightDraft(draft: LightDraft): void;
 		onPropDraft(draft: PropDraft): void;
 		/** The level the height tool sets cells to. */
@@ -66,6 +70,8 @@
 		onFogAll,
 		onFogShared,
 		onAmbient,
+		environment,
+		onEnvironment,
 		onLightDraft,
 		onPropDraft,
 		heightLevel,
@@ -75,6 +81,13 @@
 	const BLOCKS_HINT = { none: 'walk over', movement: 'blocks movement', sight: 'blocks sight' };
 
 	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
+
+	let environments = $state<[string, string][]>([]);
+	$effect(() => {
+		void loadManifest().then((m) => {
+			environments = Object.entries(m.environments).map(([id, e]) => [id, e.name]);
+		});
+	});
 
 	const BUILD: { id: BuildTool; label: string; key: string }[] = [
 		{ id: 'select', label: 'Select', key: 'V' },
@@ -140,6 +153,19 @@
 				>
 			{/each}
 		</div>
+		<label class="environment">
+			<span class="muted">Looks like</span>
+			<select
+				value={environment ?? ''}
+				aria-label="How the table looks"
+				onchange={(e) => onEnvironment(e.currentTarget.value || null)}
+			>
+				<option value="">Plain table</option>
+				{#each environments as [id, name] (id)}
+					<option value={id}>{name}</option>
+				{/each}
+			</select>
+		</label>
 		{@render toolButton({ id: 'dark', label: 'Dark area', key: 'N' })}
 		{#if tool === 'dark'}
 			<p class="muted">
@@ -289,6 +315,17 @@
 		margin-top: 0.6rem;
 		padding-top: 0.6rem;
 		border-top: 1px solid var(--border);
+	}
+
+	.environment {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.environment select {
+		flex: 1;
 	}
 
 	.ambient {

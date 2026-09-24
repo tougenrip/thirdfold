@@ -1,7 +1,7 @@
 // Props: furniture and scenery. An asset (from the built-in catalog) says
 // what a thing is: its name, its footprint on the grid, and what it blocks.
 // A prop is one placement of an asset: where, which way round, how big.
-// How assets look lives in the renderer (tabletop/prop-models.ts); only what
+// How assets look is a model with the same id (assets/models/prop, built by the asset pipeline); only what
 // matters to the rules lives here.
 
 import { blockingEdges, windowEdges, type Obstacles, type SceneObject } from './objects';

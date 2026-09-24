@@ -33,6 +33,8 @@ export type Behavior =
 	| 'grasp';
 
 export interface EnemyDef {
+	/** The figure it is drawn as (a model in assets/models/enemy). */
+	model: string;
 	kind: EnemyKind;
 	name: string;
 	/** Token colour, `#rrggbb`. */
@@ -58,6 +60,7 @@ const party = (n: number) => Math.max(1, n);
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	hound: {
 		kind: 'hound',
+		model: 'hound',
 		name: 'Hollow Hound',
 		color: '#c9d1d6',
 		armor: 1,
@@ -71,6 +74,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	},
 	cultist: {
 		kind: 'cultist',
+		model: 'robed-figure',
 		name: 'Bell Cultist',
 		color: '#8a3b3b',
 		armor: 1,
@@ -87,6 +91,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	},
 	keeper: {
 		kind: 'keeper',
+		model: 'armored-brute',
 		name: 'Bell Keeper',
 		color: '#3b3f5c',
 		armor: 4,
@@ -101,6 +106,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	},
 	tendril: {
 		kind: 'tendril',
+		model: 'tentacle',
 		name: 'Hollow Tendril',
 		color: '#b7a9c9',
 		armor: 0,
@@ -114,6 +120,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	},
 	hand: {
 		kind: 'hand',
+		model: 'giant-hand',
 		name: 'The Hollow’s Hand',
 		color: '#6d6478',
 		armor: 2,
@@ -127,6 +134,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	},
 	heart: {
 		kind: 'heart',
+		model: 'pulsing-mass',
 		name: 'The Hollow’s Heart',
 		color: '#7a1f2b',
 		armor: 3,

@@ -15,6 +15,7 @@ import {
 	type CharacterId,
 	type StatusId
 } from '../adventure/characters';
+import { ASSET_ID_PATTERN } from '../assets/manifest';
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
@@ -63,6 +64,8 @@ export interface RoomSnapshot {
 	darkness: string | null;
 	/** The GM has paused the game. */
 	paused: boolean;
+	/** How the table looks (an environment asset's id), or null for the plain table. */
+	environment: string | null;
 }
 
 /** Fields the GM may change on an existing token. Omitted fields stay as they are. */
@@ -74,6 +77,8 @@ export interface TokenPatch {
 	light?: number;
 	/** Keep it out of players' views (true), or show it again (false). */
 	hidden?: boolean;
+	/** The model it is drawn as (an asset id), or null for the plain miniature. */
+	model?: string | null;
 }
 
 /** Fields the GM may change on a placed prop: move, rotate, scale. */
@@ -134,6 +139,8 @@ export type ClientMessage =
 	| { type: 'light_delete'; lightId: string }
 	/** GM: the room's ambient light level. */
 	| { type: 'ambient_set'; ambient: Ambient }
+	/** GM: how the table looks (an environment asset's id), or null for the plain table. */
+	| { type: 'environment_set'; environment: string | null }
 	/** GM: set the level (elevation) of every cell in the rectangle between two cells. */
 	| { type: 'terrain_set'; from: GridPos; to: GridPos; level: number }
 	| { type: 'darkness_set'; from: GridPos; to: GridPos; dark: boolean }
@@ -286,6 +293,7 @@ export type ServerMessage =
 	/** Light sources added/changed and removed. */
 	| { type: 'lights_changed'; upserted: Light[]; removed: string[] }
 	| { type: 'ambient_update'; ambient: Ambient }
+	| { type: 'environment_update'; environment: string | null }
 	/** This client's visibility changed (vision moved, doors, GM reveal, fog toggled). */
 	| { type: 'fog_update'; fog: FogView }
 	/** The ground this client knows changed (the GM reshaped it, or more of it was explored). */
@@ -373,6 +381,11 @@ function parseOwner(value: unknown): string | null | undefined {
 	return isId(value) ? value : undefined;
 }
 
+/** A reference to an asset (a model, an environment) by id: only ever the id, never content. */
+function isAssetRef(value: unknown): value is string {
+	return typeof value === 'string' && ASSET_ID_PATTERN.test(value);
+}
+
 function parseTokenPatch(value: unknown): TokenPatch | null {
 	if (!isRecord(value)) return null;
 	const patch: TokenPatch = {};
@@ -402,6 +415,11 @@ function parseTokenPatch(value: unknown): TokenPatch | null {
 	if ('hidden' in value) {
 		if (typeof value.hidden !== 'boolean') return null;
 		patch.hidden = value.hidden;
+	}
+	if ('model' in value) {
+		const model = value.model;
+		if (model !== null && !isAssetRef(model)) return null;
+		patch.model = model;
 	}
 	return Object.keys(patch).length > 0 ? patch : null;
 }
@@ -594,6 +612,12 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'darkness_set', from, to, dark: data.dark }
 				: null;
 		}
+		case 'environment_set': {
+			const environment = data.environment;
+			return environment === null || isAssetRef(environment)
+				? { type: 'environment_set', environment }
+				: null;
+		}
 		case 'ambient_set':
 			return AMBIENTS.includes(data.ambient as Ambient)
 				? { type: 'ambient_set', ambient: data.ambient as Ambient }
@@ -699,6 +723,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		props_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		ambient_update: (d) => typeof d.ambient === 'string',
+		environment_update: (d) => d.environment === null || typeof d.environment === 'string',
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
 		darkness_update: (d) => d.darkness === null || typeof d.darkness === 'string',

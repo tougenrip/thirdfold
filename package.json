@@ -8,6 +8,8 @@
 		"server": "tsx watch server/index.ts",
 		"server:start": "tsx server/index.ts",
 		"build": "vite build",
+		"assets": "tsx server/assets/build.ts",
+		"assets:check": "tsx server/assets/build.ts --check",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p server",

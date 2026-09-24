@@ -117,7 +117,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(7);
+		expect(file.version).toBe(8);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -132,7 +132,7 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(7);
+		expect(parsed.scene.version).toBe(8);
 		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
@@ -190,7 +190,7 @@ describe('scene file v4: the story played at the table', () => {
 		v3.version = 3;
 		delete v3.adventure;
 		const parsed = parseSceneFile(v3);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 7, adventure: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 8, adventure: null });
 	});
 
 	it('keeps a story through a round trip, as a copy', () => {
@@ -225,7 +225,7 @@ describe('scene file v5: elevation and windows', () => {
 		v4.version = 4;
 		delete v4.terrain;
 		const parsed = parseSceneFile(v4);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 7, terrain: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 8, terrain: null });
 	});
 
 	it('keeps dark areas through a round trip, and upgrades a v6 file to none', () => {
@@ -242,7 +242,30 @@ describe('scene file v5: elevation and windows', () => {
 		const v6 = saved();
 		v6.version = 6;
 		delete v6.darkness;
-		expect(parseSceneFile(v6)).toMatchObject({ ok: true, scene: { version: 7, darkness: null } });
+		expect(parseSceneFile(v6)).toMatchObject({ ok: true, scene: { version: 8, darkness: null } });
+	});
+
+	it('keeps the environment and token models (v8), only as asset ids', () => {
+		const file = saved();
+		file.environment = 'village';
+		(file.tokens[0] as { model?: string }).model = 'warden';
+		const parsed = parseSceneFile(JSON.parse(JSON.stringify(file)));
+		if (!parsed.ok) throw new Error(parsed.error);
+		expect(parsed.scene.environment).toBe('village');
+		expect(parsed.scene.tokens[0].model).toBe('warden');
+		expect(parseSceneFile({ ...file, environment: '<script>' })).toMatchObject({ ok: false });
+		expect(parseSceneFile({ ...file, environment: { url: 'x' } })).toMatchObject({ ok: false });
+		const badModel = structuredClone(file);
+		(badModel.tokens[0] as { model?: unknown }).model = 'https://example.com/x.glb';
+		expect(parseSceneFile(badModel)).toMatchObject({ ok: false });
+		// Saves from before v8 have the plain table and plain miniatures.
+		const v7 = saved();
+		v7.version = 7 as 8;
+		delete (v7 as { environment?: unknown }).environment;
+		expect(parseSceneFile(v7)).toMatchObject({
+			ok: true,
+			scene: { version: 8, environment: null }
+		});
 	});
 
 	it('keeps levels and windows through a round trip', () => {

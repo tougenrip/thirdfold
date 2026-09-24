@@ -1,0 +1,7 @@
+{
+	"name": "Stone halls",
+	"surface": "flagstones",
+	"ground": "monastery-stone",
+	"walls": "monastery-stone",
+	"table": "oak"
+}

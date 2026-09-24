@@ -65,6 +65,8 @@ export interface TableParts {
 	terrain?: readonly Rise[];
 	/** Dark areas (inclusive rectangles): only light lets anyone see there, whatever the ambient. */
 	dark?: readonly { from: GridPos; to: GridPos }[];
+	/** How it looks: an environment asset (assets/environments). */
+	environment: string;
 }
 
 /** A rectangle of cells at one level. */
@@ -111,7 +113,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		discovery: {},
 		adventure: null,
 		terrain: levels ? encodeLevels(levels) : null,
-		darkness: darkness.some((v) => v) ? encodeMask(darkness) : null
+		darkness: darkness.some((v) => v) ? encodeMask(darkness) : null,
+		environment: parts.environment
 	};
 }
 

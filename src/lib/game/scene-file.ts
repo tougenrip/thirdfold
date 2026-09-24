@@ -37,14 +37,17 @@ import {
 import { MAX_TOKENS_PER_ROOM, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { decodeLevels, encodeLevels, type LevelMap } from './terrain';
 import { decodeMask, encodeMask, MAX_VISION } from './visibility';
+import { ASSET_ID_PATTERN } from '../assets/manifest';
 
 /**
  * v2 added lights, the ambient level and token-carried light; v3 added props;
  * v4 added the state of a story being played at the table; v5 added
  * elevation (each cell's level) and windows; v6 added shared party vision,
- * hidden tokens and props, and what each player has discovered.
+ * hidden tokens and props, and what each player has discovered; v7 added
+ * dark areas; v8 added the table's environment (how it looks: an asset id)
+ * and each token's model (an asset id, optional).
  */
-export const SCENE_FILE_VERSION = 7;
+export const SCENE_FILE_VERSION = 8;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -108,8 +111,14 @@ export interface SceneFileV7 extends Omit<SceneFileV6, 'version'> {
 	darkness: string | null;
 }
 
+export interface SceneFileV8 extends Omit<SceneFileV7, 'version'> {
+	version: 8;
+	/** How the table looks: an environment asset's id, or null for the plain table. */
+	environment: string | null;
+}
+
 /** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV7;
+export type SceneFile = SceneFileV8;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -131,6 +140,8 @@ export interface SceneSource {
 	terrain?: LevelMap | null;
 	/** The dark areas, or null for none. */
 	darkness?: Uint8Array | null;
+	/** How the table looks (an environment asset's id), or null. */
+	environment?: string | null;
 }
 
 export function normalizeSceneName(raw: unknown): string | null {
@@ -163,6 +174,7 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		adventure: source.adventure ? structuredClone(source.adventure) : null,
 		terrain: source.terrain ? encodeLevels(source.terrain) : null,
 		darkness: source.darkness?.some((v) => v) ? encodeMask(source.darkness) : null,
+		environment: source.environment ?? null,
 		discovery: Object.fromEntries(
 			[...(source.discovery ?? [])]
 				.filter(([, mask]) => mask.some((v) => v))
@@ -230,6 +242,10 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 		// v6 → v7: no dark areas.
 		upgraded = { ...upgraded, version: 7, darkness: null };
 	}
+	if (upgraded.version === 7) {
+		// v7 → v8: the plain table, and plain miniatures.
+		upgraded = { ...upgraded, version: 8, environment: null };
+	}
 	return upgraded;
 }
 
@@ -294,6 +310,12 @@ export function parseSceneFile(input: unknown): SceneParse {
 		if (raw.hidden !== undefined && typeof raw.hidden !== 'boolean') {
 			return bad(`${tokenName} is neither hidden nor shown.`);
 		}
+		if (
+			raw.model !== undefined &&
+			(typeof raw.model !== 'string' || !ASSET_ID_PATTERN.test(raw.model))
+		) {
+			return bad(`${tokenName} has an invalid model.`);
+		}
 		let owner: SavedToken['owner'] = null;
 		if (raw.owner !== null && raw.owner !== undefined) {
 			if (!isRecord(raw.owner) || typeof raw.owner.id !== 'string' || !ID.test(raw.owner.id)) {
@@ -311,6 +333,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			vision,
 			light,
 			...(raw.hidden === true ? { hidden: true as const } : {}),
+			...(typeof raw.model === 'string' ? { model: raw.model } : {}),
 			owner
 		});
 	}
@@ -463,6 +486,15 @@ export function parseSceneFile(input: unknown): SceneParse {
 		darkness = dark.some((v) => v) ? encodeMask(dark) : null;
 	}
 
+	// How it looks: only an asset's id.
+	const environment = data.environment ?? null;
+	if (
+		environment !== null &&
+		(typeof environment !== 'string' || !ASSET_ID_PATTERN.test(environment))
+	) {
+		return bad('The environment is not valid.');
+	}
+
 	// The story: plain JSON here; its module checks the rest when it loads it.
 	let adventure: SavedStory | null = null;
 	if (data.adventure !== null && data.adventure !== undefined) {
@@ -501,6 +533,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			adventure,
 			terrain,
 			darkness,
+			environment,
 			discovery
 		}
 	};

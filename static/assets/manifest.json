@@ -1,0 +1,1260 @@
+{
+	"version": 1,
+	"models": {
+		"ember": {
+			"file": "models/ember.43d21356.glb",
+			"bytes": 28516,
+			"kind": "character",
+			"triangles": 1272,
+			"bounds": {
+				"min": [
+					-0.217,
+					0,
+					-0.22
+				],
+				"max": [
+					0.31,
+					1.15,
+					0.22
+				]
+			}
+		},
+		"saint": {
+			"file": "models/saint.9b0c9851.glb",
+			"bytes": 13740,
+			"kind": "character",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.283,
+					0,
+					-0.22
+				],
+				"max": [
+					0.217,
+					0.96,
+					0.268
+				]
+			}
+		},
+		"veil": {
+			"file": "models/veil.b514bfdc.glb",
+			"bytes": 14880,
+			"kind": "character",
+			"triangles": 764,
+			"bounds": {
+				"min": [
+					-0.241,
+					0,
+					-0.21
+				],
+				"max": [
+					0.241,
+					0.87,
+					0.21
+				]
+			}
+		},
+		"warden": {
+			"file": "models/warden.bc25ba67.glb",
+			"bytes": 17016,
+			"kind": "character",
+			"triangles": 616,
+			"bounds": {
+				"min": [
+					-0.315,
+					0,
+					-0.17
+				],
+				"max": [
+					0.29,
+					0.89,
+					0.24
+				]
+			}
+		},
+		"armored-brute": {
+			"file": "models/armored-brute.1e3fc884.glb",
+			"bytes": 18384,
+			"kind": "enemy",
+			"triangles": 640,
+			"bounds": {
+				"min": [
+					-0.438,
+					0,
+					-0.22
+				],
+				"max": [
+					0.44,
+					1.05,
+					0.22
+				]
+			}
+		},
+		"giant-hand": {
+			"file": "models/giant-hand.54761626.glb",
+			"bytes": 13256,
+			"kind": "enemy",
+			"triangles": 444,
+			"bounds": {
+				"min": [
+					-0.463,
+					-0.04,
+					-0.25
+				],
+				"max": [
+					0.25,
+					0.702,
+					0.297
+				]
+			}
+		},
+		"hound": {
+			"file": "models/hound.0dc2d521.glb",
+			"bytes": 30936,
+			"kind": "enemy",
+			"triangles": 1136,
+			"bounds": {
+				"min": [
+					-0.13,
+					0,
+					-0.485
+				],
+				"max": [
+					0.13,
+					0.65,
+					0.6
+				]
+			}
+		},
+		"pulsing-mass": {
+			"file": "models/pulsing-mass.71b526f3.glb",
+			"bytes": 18920,
+			"kind": "enemy",
+			"triangles": 920,
+			"bounds": {
+				"min": [
+					-0.35,
+					0.05,
+					-0.347
+				],
+				"max": [
+					0.35,
+					0.78,
+					0.31
+				]
+			}
+		},
+		"robed-figure": {
+			"file": "models/robed-figure.d112ef17.glb",
+			"bytes": 16992,
+			"kind": "enemy",
+			"triangles": 824,
+			"bounds": {
+				"min": [
+					-0.299,
+					0,
+					-0.22
+				],
+				"max": [
+					0.288,
+					0.88,
+					0.22
+				]
+			}
+		},
+		"tentacle": {
+			"file": "models/tentacle.14d8b1e6.glb",
+			"bytes": 27404,
+			"kind": "enemy",
+			"triangles": 1308,
+			"bounds": {
+				"min": [
+					-0.148,
+					0,
+					-0.15
+				],
+				"max": [
+					0.282,
+					1.084,
+					0.189
+				]
+			}
+		},
+		"child": {
+			"file": "models/child.b29197f6.glb",
+			"bytes": 17980,
+			"kind": "npc",
+			"triangles": 848,
+			"bounds": {
+				"min": [
+					-0.14,
+					0,
+					-0.15
+				],
+				"max": [
+					0.14,
+					0.707,
+					0.14
+				]
+			}
+		},
+		"elder": {
+			"file": "models/elder.b5a53331.glb",
+			"bytes": 20636,
+			"kind": "npc",
+			"triangles": 920,
+			"bounds": {
+				"min": [
+					-0.15,
+					0,
+					-0.15
+				],
+				"max": [
+					0.237,
+					0.858,
+					0.165
+				]
+			}
+		},
+		"gravedigger": {
+			"file": "models/gravedigger.b776df81.glb",
+			"bytes": 18240,
+			"kind": "npc",
+			"triangles": 652,
+			"bounds": {
+				"min": [
+					-0.158,
+					-0.03,
+					-0.15
+				],
+				"max": [
+					0.31,
+					0.93,
+					0.15
+				]
+			}
+		},
+		"monk": {
+			"file": "models/monk.9aede13c.glb",
+			"bytes": 16448,
+			"kind": "npc",
+			"triangles": 812,
+			"bounds": {
+				"min": [
+					-0.227,
+					0,
+					-0.23
+				],
+				"max": [
+					0.227,
+					0.87,
+					0.23
+				]
+			}
+		},
+		"priest": {
+			"file": "models/priest.73357485.glb",
+			"bytes": 10512,
+			"kind": "npc",
+			"triangles": 412,
+			"bounds": {
+				"min": [
+					-0.217,
+					0,
+					-0.22
+				],
+				"max": [
+					0.217,
+					0.918,
+					0.256
+				]
+			}
+		},
+		"smith": {
+			"file": "models/smith.5a991d2b.glb",
+			"bytes": 19980,
+			"kind": "npc",
+			"triangles": 872,
+			"bounds": {
+				"min": [
+					-0.177,
+					0,
+					-0.16
+				],
+				"max": [
+					0.36,
+					0.888,
+					0.17
+				]
+			}
+		},
+		"villager": {
+			"file": "models/villager.db6b742b.glb",
+			"bytes": 17868,
+			"kind": "npc",
+			"triangles": 824,
+			"bounds": {
+				"min": [
+					-0.207,
+					0,
+					-0.21
+				],
+				"max": [
+					0.207,
+					0.918,
+					0.215
+				]
+			}
+		},
+		"watchman": {
+			"file": "models/watchman.e5e2211c.glb",
+			"bytes": 21084,
+			"kind": "npc",
+			"triangles": 712,
+			"bounds": {
+				"min": [
+					-0.279,
+					0,
+					-0.16
+				],
+				"max": [
+					0.274,
+					1.24,
+					0.16
+				]
+			}
+		},
+		"altar": {
+			"file": "models/altar.2ecddf68.glb",
+			"bytes": 7296,
+			"kind": "prop",
+			"triangles": 168,
+			"bounds": {
+				"min": [
+					-0.95,
+					0,
+					-0.45
+				],
+				"max": [
+					0.95,
+					1.26,
+					0.45
+				]
+			}
+		},
+		"anvil": {
+			"file": "models/anvil.4639f8b7.glb",
+			"bytes": 3668,
+			"kind": "prop",
+			"triangles": 60,
+			"bounds": {
+				"min": [
+					-0.35,
+					0,
+					-0.175
+				],
+				"max": [
+					0.548,
+					0.67,
+					0.175
+				]
+			}
+		},
+		"ashes": {
+			"file": "models/ashes.b165f2fb.glb",
+			"bytes": 11792,
+			"kind": "prop",
+			"triangles": 460,
+			"bounds": {
+				"min": [
+					-0.394,
+					-0.01,
+					-0.3
+				],
+				"max": [
+					0.394,
+					0.18,
+					0.3
+				]
+			}
+		},
+		"barrel": {
+			"file": "models/barrel.6a621d91.glb",
+			"bytes": 8864,
+			"kind": "prop",
+			"triangles": 216,
+			"bounds": {
+				"min": [
+					-0.364,
+					0,
+					-0.37
+				],
+				"max": [
+					0.364,
+					0.9,
+					0.37
+				]
+			}
+		},
+		"bed": {
+			"file": "models/bed.13798cf7.glb",
+			"bytes": 3052,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.45,
+					0,
+					-0.96
+				],
+				"max": [
+					0.45,
+					0.7,
+					0.95
+				]
+			}
+		},
+		"belfry-bell": {
+			"file": "models/belfry-bell.65284073.glb",
+			"bytes": 16756,
+			"kind": "prop",
+			"triangles": 568,
+			"bounds": {
+				"min": [
+					-0.65,
+					0,
+					-0.45
+				],
+				"max": [
+					0.65,
+					2.68,
+					0.45
+				]
+			},
+			"swing": {
+				"pivot": 2.55,
+				"throw": 0.5
+			}
+		},
+		"bell": {
+			"file": "models/bell.dcddd0a9.glb",
+			"bytes": 10752,
+			"kind": "prop",
+			"triangles": 424,
+			"bounds": {
+				"min": [
+					-0.95,
+					0,
+					-0.65
+				],
+				"max": [
+					0.95,
+					2.68,
+					0.65
+				]
+			}
+		},
+		"bookshelf": {
+			"file": "models/bookshelf.7efb81b0.glb",
+			"bytes": 3052,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.95,
+					0,
+					-0.225
+				],
+				"max": [
+					0.95,
+					1.8,
+					0.24
+				]
+			}
+		},
+		"brazier": {
+			"file": "models/brazier.2c1b49a3.glb",
+			"bytes": 11540,
+			"kind": "prop",
+			"triangles": 288,
+			"bounds": {
+				"min": [
+					-0.295,
+					0,
+					-0.3
+				],
+				"max": [
+					0.295,
+					0.89,
+					0.3
+				]
+			}
+		},
+		"broken-bell": {
+			"file": "models/broken-bell.be590db4.glb",
+			"bytes": 4760,
+			"kind": "prop",
+			"triangles": 84,
+			"bounds": {
+				"min": [
+					-1.55,
+					-0.1,
+					-1.45
+				],
+				"max": [
+					1.5,
+					2.3,
+					1.25
+				]
+			}
+		},
+		"carvings": {
+			"file": "models/carvings.89ed8e26.glb",
+			"bytes": 9592,
+			"kind": "prop",
+			"triangles": 400,
+			"bounds": {
+				"min": [
+					-0.45,
+					0,
+					-0.46
+				],
+				"max": [
+					0.45,
+					1.1,
+					-0.315
+				]
+			}
+		},
+		"chains": {
+			"file": "models/chains.0669f14f.glb",
+			"bytes": 21936,
+			"kind": "prop",
+			"triangles": 920,
+			"bounds": {
+				"min": [
+					-0.26,
+					0.24,
+					-0.16
+				],
+				"max": [
+					0.31,
+					2.3,
+					0.125
+				]
+			}
+		},
+		"chair": {
+			"file": "models/chair.c50bf515.glb",
+			"bytes": 4104,
+			"kind": "prop",
+			"triangles": 72,
+			"bounds": {
+				"min": [
+					-0.25,
+					0,
+					-0.25
+				],
+				"max": [
+					0.25,
+					0.97,
+					0.25
+				]
+			}
+		},
+		"chest-open": {
+			"file": "models/chest-open.300da21d.glb",
+			"bytes": 3056,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.42,
+					0,
+					-0.35
+				],
+				"max": [
+					0.42,
+					1.015,
+					0.36
+				]
+			}
+		},
+		"chest": {
+			"file": "models/chest.278a1d61.glb",
+			"bytes": 2500,
+			"kind": "prop",
+			"triangles": 36,
+			"bounds": {
+				"min": [
+					-0.42,
+					0,
+					-0.295
+				],
+				"max": [
+					0.42,
+					0.56,
+					0.31
+				]
+			}
+		},
+		"crack": {
+			"file": "models/crack.c1567410.glb",
+			"bytes": 2508,
+			"kind": "prop",
+			"triangles": 36,
+			"bounds": {
+				"min": [
+					-0.45,
+					0.005,
+					-0.25
+				],
+				"max": [
+					0.45,
+					0.035,
+					0.45
+				]
+			}
+		},
+		"crate": {
+			"file": "models/crate.19ff9d96.glb",
+			"bytes": 1948,
+			"kind": "prop",
+			"triangles": 24,
+			"bounds": {
+				"min": [
+					-0.42,
+					0,
+					-0.42
+				],
+				"max": [
+					0.42,
+					0.8,
+					0.42
+				]
+			}
+		},
+		"gear": {
+			"file": "models/gear.f2600d66.glb",
+			"bytes": 9900,
+			"kind": "prop",
+			"triangles": 240,
+			"bounds": {
+				"min": [
+					-1,
+					0,
+					-1
+				],
+				"max": [
+					1,
+					1.3,
+					1
+				]
+			}
+		},
+		"grate": {
+			"file": "models/grate.8203a03f.glb",
+			"bytes": 3052,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.4,
+					0,
+					-0.4
+				],
+				"max": [
+					0.4,
+					0.05,
+					0.4
+				]
+			}
+		},
+		"gravestone": {
+			"file": "models/gravestone.a49a6555.glb",
+			"bytes": 1948,
+			"kind": "prop",
+			"triangles": 24,
+			"bounds": {
+				"min": [
+					-0.3,
+					0,
+					-0.27
+				],
+				"max": [
+					0.3,
+					0.8,
+					0.45
+				]
+			}
+		},
+		"great-bell": {
+			"file": "models/great-bell.4883796b.glb",
+			"bytes": 17204,
+			"kind": "prop",
+			"triangles": 592,
+			"bounds": {
+				"min": [
+					-1.45,
+					0,
+					-1.425
+				],
+				"max": [
+					1.45,
+					4.35,
+					1.425
+				]
+			}
+		},
+		"handbell": {
+			"file": "models/handbell.5d91fcc4.glb",
+			"bytes": 11776,
+			"kind": "prop",
+			"triangles": 460,
+			"bounds": {
+				"min": [
+					-0.167,
+					0,
+					-0.17
+				],
+				"max": [
+					0.167,
+					0.61,
+					0.17
+				]
+			}
+		},
+		"hatch-open": {
+			"file": "models/hatch-open.bd866af8.glb",
+			"bytes": 1944,
+			"kind": "prop",
+			"triangles": 24,
+			"bounds": {
+				"min": [
+					-0.4,
+					0,
+					-0.415
+				],
+				"max": [
+					0.4,
+					0.8,
+					0.35
+				]
+			}
+		},
+		"hatch": {
+			"file": "models/hatch.302693f1.glb",
+			"bytes": 1944,
+			"kind": "prop",
+			"triangles": 24,
+			"bounds": {
+				"min": [
+					-0.4,
+					0,
+					-0.4
+				],
+				"max": [
+					0.4,
+					0.038,
+					0.4
+				]
+			}
+		},
+		"heart": {
+			"file": "models/heart.bcd49f98.glb",
+			"bytes": 23032,
+			"kind": "prop",
+			"triangles": 944,
+			"bounds": {
+				"min": [
+					-1.4,
+					0,
+					-1.3
+				],
+				"max": [
+					1.4,
+					2.6,
+					1.35
+				]
+			}
+		},
+		"lever-down": {
+			"file": "models/lever-down.e1cf3285.glb",
+			"bytes": 9636,
+			"kind": "prop",
+			"triangles": 388,
+			"bounds": {
+				"min": [
+					-0.25,
+					0,
+					-0.25
+				],
+				"max": [
+					0.25,
+					0.34,
+					0.84
+				]
+			},
+			"swing": {
+				"pivot": 0.22,
+				"throw": -1.5708
+			}
+		},
+		"lever": {
+			"file": "models/lever.57e39809.glb",
+			"bytes": 9636,
+			"kind": "prop",
+			"triangles": 388,
+			"bounds": {
+				"min": [
+					-0.25,
+					0,
+					-0.25
+				],
+				"max": [
+					0.25,
+					1.06,
+					0.25
+				]
+			},
+			"swing": {
+				"pivot": 0.22,
+				"throw": 1.5708
+			}
+		},
+		"noticeboard": {
+			"file": "models/noticeboard.b002d876.glb",
+			"bytes": 3596,
+			"kind": "prop",
+			"triangles": 60,
+			"bounds": {
+				"min": [
+					-0.42,
+					0,
+					-0.04
+				],
+				"max": [
+					0.42,
+					1.5,
+					0.05
+				]
+			}
+		},
+		"pew": {
+			"file": "models/pew.341ebe3e.glb",
+			"bytes": 3076,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.9,
+					-0.005,
+					-0.23
+				],
+				"max": [
+					0.9,
+					0.97,
+					0.225
+				]
+			}
+		},
+		"pillar": {
+			"file": "models/pillar.e718fd26.glb",
+			"bytes": 4628,
+			"kind": "prop",
+			"triangles": 96,
+			"bounds": {
+				"min": [
+					-0.45,
+					0,
+					-0.45
+				],
+				"max": [
+					0.45,
+					2.36,
+					0.45
+				]
+			}
+		},
+		"rope": {
+			"file": "models/rope.726131ce.glb",
+			"bytes": 10056,
+			"kind": "prop",
+			"triangles": 424,
+			"bounds": {
+				"min": [
+					-0.08,
+					0,
+					-0.08
+				],
+				"max": [
+					0.08,
+					2.6,
+					0.08
+				]
+			}
+		},
+		"rubble": {
+			"file": "models/rubble.a4106dba.glb",
+			"bytes": 3040,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.4,
+					0,
+					-0.32
+				],
+				"max": [
+					0.375,
+					0.12,
+					0.29
+				]
+			}
+		},
+		"rug": {
+			"file": "models/rug.10079dfc.glb",
+			"bytes": 1408,
+			"kind": "prop",
+			"triangles": 12,
+			"bounds": {
+				"min": [
+					-0.95,
+					0.002,
+					-0.95
+				],
+				"max": [
+					0.95,
+					0.022,
+					0.95
+				]
+			}
+		},
+		"sconce": {
+			"file": "models/sconce.5e41d518.glb",
+			"bytes": 10584,
+			"kind": "prop",
+			"triangles": 252,
+			"bounds": {
+				"min": [
+					-0.148,
+					0,
+					-0.15
+				],
+				"max": [
+					0.148,
+					1.22,
+					0.15
+				]
+			}
+		},
+		"stairs": {
+			"file": "models/stairs.400b0c45.glb",
+			"bytes": 3056,
+			"kind": "prop",
+			"triangles": 48,
+			"bounds": {
+				"min": [
+					-0.45,
+					0,
+					-0.45
+				],
+				"max": [
+					0.45,
+					0.035,
+					0.45
+				]
+			}
+		},
+		"statue": {
+			"file": "models/statue.7a42c58a.glb",
+			"bytes": 10592,
+			"kind": "prop",
+			"triangles": 436,
+			"bounds": {
+				"min": [
+					-0.4,
+					0,
+					-0.4
+				],
+				"max": [
+					0.4,
+					1.5,
+					0.4
+				]
+			}
+		},
+		"table": {
+			"file": "models/table.3a6779b8.glb",
+			"bytes": 3608,
+			"kind": "prop",
+			"triangles": 60,
+			"bounds": {
+				"min": [
+					-0.95,
+					0,
+					-0.45
+				],
+				"max": [
+					0.95,
+					0.76,
+					0.45
+				]
+			}
+		},
+		"tree": {
+			"file": "models/tree.a685b5e2.glb",
+			"bytes": 6948,
+			"kind": "prop",
+			"triangles": 144,
+			"bounds": {
+				"min": [
+					-0.542,
+					0,
+					-0.55
+				],
+				"max": [
+					0.542,
+					2.7,
+					0.55
+				]
+			}
+		},
+		"water-lg": {
+			"file": "models/water-lg.dd0a2e6b.glb",
+			"bytes": 1324,
+			"kind": "prop",
+			"triangles": 12,
+			"bounds": {
+				"min": [
+					-2,
+					0,
+					-2
+				],
+				"max": [
+					2,
+					0.04,
+					2
+				]
+			}
+		},
+		"water-sm": {
+			"file": "models/water-sm.b61cc84b.glb",
+			"bytes": 1332,
+			"kind": "prop",
+			"triangles": 12,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.5
+				],
+				"max": [
+					0.5,
+					0.04,
+					0.5
+				]
+			}
+		},
+		"water": {
+			"file": "models/water.423e338b.glb",
+			"bytes": 1324,
+			"kind": "prop",
+			"triangles": 12,
+			"bounds": {
+				"min": [
+					-1,
+					0,
+					-1
+				],
+				"max": [
+					1,
+					0.04,
+					1
+				]
+			}
+		},
+		"well": {
+			"file": "models/well.bd05d56c.glb",
+			"bytes": 10464,
+			"kind": "prop",
+			"triangles": 252,
+			"bounds": {
+				"min": [
+					-0.75,
+					0,
+					-0.75
+				],
+				"max": [
+					0.75,
+					1.95,
+					0.75
+				]
+			}
+		}
+	},
+	"textures": {
+		"cave": {
+			"file": "textures/cave.7f019050.png",
+			"bytes": 9168,
+			"width": 128,
+			"height": 128
+		},
+		"earth": {
+			"file": "textures/earth.7ddfc394.png",
+			"bytes": 10245,
+			"width": 128,
+			"height": 128
+		},
+		"flagstones": {
+			"file": "textures/flagstones.a9be9fad.png",
+			"bytes": 11619,
+			"width": 128,
+			"height": 128
+		},
+		"flesh": {
+			"file": "textures/flesh.f24c20fb.png",
+			"bytes": 10138,
+			"width": 128,
+			"height": 128
+		},
+		"grass": {
+			"file": "textures/grass.a62dc809.png",
+			"bytes": 9818,
+			"width": 128,
+			"height": 128
+		},
+		"planks": {
+			"file": "textures/planks.0b8541ad.png",
+			"bytes": 11740,
+			"width": 128,
+			"height": 128
+		},
+		"rock": {
+			"file": "textures/rock.51df64a3.png",
+			"bytes": 4243,
+			"width": 64,
+			"height": 64
+		}
+	},
+	"materials": {
+		"village-grass": {
+			"color": "#ffffff",
+			"roughness": 0.95,
+			"metalness": 0,
+			"map": "grass",
+			"cells": 3
+		},
+		"village-earth": {
+			"color": "#ffffff",
+			"roughness": 0.9,
+			"metalness": 0,
+			"map": "earth",
+			"cells": 2
+		},
+		"plaster": {
+			"color": "#a39a88",
+			"roughness": 0.85,
+			"metalness": 0
+		},
+		"oak": {
+			"color": "#ffffff",
+			"roughness": 0.7,
+			"metalness": 0,
+			"map": "planks",
+			"cells": 2
+		},
+		"flagstones": {
+			"color": "#ffffff",
+			"roughness": 0.85,
+			"metalness": 0,
+			"map": "flagstones",
+			"cells": 2
+		},
+		"monastery-stone": {
+			"color": "#8d8578",
+			"roughness": 0.9,
+			"metalness": 0,
+			"map": "rock",
+			"cells": 2
+		},
+		"cave-floor": {
+			"color": "#ffffff",
+			"roughness": 0.95,
+			"metalness": 0,
+			"map": "cave",
+			"cells": 4
+		},
+		"cave-rock": {
+			"color": "#6e675c",
+			"roughness": 0.95,
+			"metalness": 0,
+			"map": "rock",
+			"cells": 2
+		},
+		"ancient-stone": {
+			"color": "#7d7667",
+			"roughness": 0.9,
+			"metalness": 0,
+			"map": "flagstones",
+			"cells": 2
+		},
+		"flesh": {
+			"color": "#ffffff",
+			"roughness": 0.6,
+			"metalness": 0,
+			"map": "flesh",
+			"cells": 3
+		},
+		"sinew": {
+			"color": "#6b2a2e",
+			"roughness": 0.55,
+			"metalness": 0
+		}
+	},
+	"environments": {
+		"cavern": {
+			"name": "Cavern",
+			"surface": "cave-floor",
+			"ground": "cave-rock",
+			"walls": "ancient-stone",
+			"table": "oak"
+		},
+		"living-cave": {
+			"name": "Living cave",
+			"surface": "flesh",
+			"ground": "flesh",
+			"walls": "sinew",
+			"table": "oak"
+		},
+		"stone-halls": {
+			"name": "Stone halls",
+			"surface": "flagstones",
+			"ground": "monastery-stone",
+			"walls": "monastery-stone",
+			"table": "oak"
+		},
+		"village": {
+			"name": "Village",
+			"surface": "village-grass",
+			"ground": "village-earth",
+			"walls": "plaster",
+			"table": "oak"
+		}
+	},
+	"audio": {
+		"bell-great": {
+			"file": "audio/bell-great.d370c2af.wav",
+			"bytes": 288044,
+			"format": "wav",
+			"duration": 9
+		},
+		"bell-hand": {
+			"file": "audio/bell-hand.0af6d182.wav",
+			"bytes": 70444,
+			"format": "wav",
+			"duration": 2.2
+		}
+	}
+}

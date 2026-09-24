@@ -193,6 +193,7 @@ export function hollowScene(now = new Date()): SceneFile {
 			name: 'The Hollow',
 			grid: HOLLOW_GRID,
 			ambient: 'dark',
+			environment: 'cavern',
 			arrival: LANDING,
 			tokens: npcTokens('hollow'),
 			terrain: TERRAIN,

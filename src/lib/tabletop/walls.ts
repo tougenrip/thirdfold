@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { edgeKey, unitEdges, type Door, type SceneObject } from '$lib/game/objects';
+import { dress, type Look } from './environment';
 import { WALL_HEIGHT, type Ground } from './ground';
 
 export { WALL_HEIGHT };
@@ -19,7 +20,7 @@ const WALL_THICKNESS = 0.14;
 const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_MS = 260;
 
-const WALL_COLOR = new THREE.Color(0x8d8578);
+const WALL_COLOR = 0x8d8578;
 const WALL_HOVER_COLOR = new THREE.Color(0xe27a6b);
 const DOOR_COLOR = 0x7a4a26;
 
@@ -36,6 +37,19 @@ export class WallLayer {
 	private grid: SquareGrid | null = null;
 	private wallGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
 	private wallMaterial = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+	/** The walls' colour (the environment's, or plain stone), carried as instance colour. */
+	private wallColor = new THREE.Color(WALL_COLOR);
+
+	constructor() {
+		dress(this.wallMaterial, null, 0xffffff);
+	}
+
+	/** The environment's walls (null: plain stone). */
+	setLook(look: Look | null): void {
+		dress(this.wallMaterial, look && { ...look, color: new THREE.Color(0xffffff) }, 0xffffff);
+		this.wallColor.set(look ? look.color : WALL_COLOR);
+		this.applyHover();
+	}
 	private walls: THREE.InstancedMesh | null = null;
 	/** Object id for each wall instance, so picking can map back to the wall. */
 	private instanceOwner: string[] = [];
@@ -170,7 +184,7 @@ export class WallLayer {
 		for (const pieces of units.values()) {
 			for (const { owner, matrix } of pieces) {
 				this.walls.setMatrixAt(i, matrix);
-				this.walls.setColorAt(i, WALL_COLOR);
+				this.walls.setColorAt(i, this.wallColor);
 				this.instanceOwner.push(owner);
 				i++;
 			}
@@ -228,7 +242,7 @@ export class WallLayer {
 		const hoveredWall = this.objects.some((o) => o.id === this.hoveredId && o.kind === 'wall');
 		for (let i = 0; i < this.walls.count; i++) {
 			const hot = hoveredWall && this.instanceOwner[i] === this.hoveredId;
-			this.walls.setColorAt(i, hot ? WALL_HOVER_COLOR : WALL_COLOR);
+			this.walls.setColorAt(i, hot ? WALL_HOVER_COLOR : this.wallColor);
 		}
 		if (this.walls.instanceColor) this.walls.instanceColor.needsUpdate = true;
 	}
