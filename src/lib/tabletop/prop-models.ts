@@ -40,6 +40,7 @@ const LIGHT_WOOD = 0xb68a55;
 const STONE = 0x9a948a;
 const LIGHT_STONE = 0xc9c3b6;
 const IRON = 0x3d3a38;
+const WATER = 0x0c2733;
 
 const legs = (dx: number, dz: number, h: number, t = 0.08): Part[] =>
 	[
@@ -244,5 +245,29 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'box', size: [0.3, 0.08, 0.03], at: [0, 0.85, -0.33], color: 0xe8dcc0 },
 		{ shape: 'sphere', size: [0.16, 0.16, 0.03], at: [0.2, 0.55, -0.33], color: 0xe8dcc0 },
 		{ shape: 'box', size: [0.08, 0.3, 0.03], at: [0.05, 0.35, -0.33], color: 0xe8dcc0 }
-	]
+	],
+	'great-bell': [
+		// The frame: four black posts and a beam across the top.
+		{ shape: 'box', size: [0.25, 4.2, 0.25], at: [-1.3, 2.1, -1.3], color: IRON },
+		{ shape: 'box', size: [0.25, 4.2, 0.25], at: [1.3, 2.1, -1.3], color: IRON },
+		{ shape: 'box', size: [0.25, 4.2, 0.25], at: [-1.3, 2.1, 1.3], color: IRON },
+		{ shape: 'box', size: [0.25, 4.2, 0.25], at: [1.3, 2.1, 1.3], color: IRON },
+		{ shape: 'box', size: [2.9, 0.3, 0.3], at: [0, 4.2, 0], color: IRON },
+		// The Bell itself: vast, black, hanging clear of the floor, with its lip glowing faintly.
+		{ shape: 'cylinder', size: [0.5, 0.5, 0.5], at: [0, 3.8, 0], color: 0x1d1d24 },
+		{ shape: 'cone', size: [2.4, 2.6, 2.4], at: [0, 2.3, 0], color: 0x1d1d24 },
+		{ shape: 'cylinder', size: [2.5, 0.18, 2.5], at: [0, 1.05, 0], color: 0x5b7fb5 },
+		{ shape: 'sphere', size: [0.4, 0.4, 0.4], at: [0, 1.0, 0], color: 0x2a2a33 }
+	],
+	gear: [
+		// A great cog on its drum, the teeth standing proud of the rim.
+		{ shape: 'cylinder', size: [0.5, 0.9, 0.5], at: [0, 0.45, 0], color: IRON },
+		{ shape: 'cylinder', size: [1.7, 0.22, 1.7], at: [0, 1.0, 0], color: 0x6b5a3e },
+		{ shape: 'box', size: [2.0, 0.2, 0.22], at: [0, 1.0, 0], color: 0x6b5a3e },
+		{ shape: 'box', size: [0.22, 0.2, 2.0], at: [0, 1.0, 0], color: 0x6b5a3e },
+		{ shape: 'cylinder', size: [0.4, 0.3, 0.4], at: [0, 1.15, 0], color: IRON }
+	],
+	water: [{ shape: 'box', size: [2, 0.04, 2], at: [0, 0.02, 0], color: WATER }],
+	'water-sm': [{ shape: 'box', size: [1, 0.04, 1], at: [0, 0.02, 0], color: WATER }],
+	'water-lg': [{ shape: 'box', size: [4, 0.04, 4], at: [0, 0.02, 0], color: WATER }]
 };

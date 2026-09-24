@@ -18,7 +18,13 @@ import {
 	startAdventure,
 	startEncounter
 } from './engine';
-import { CLEFT_EDGE, HOLLOW_IDS, HOLLOW_SPAWN, hollowScene } from './hollow';
+import {
+	CLEFT_EDGE,
+	HOLLOW_IDS,
+	HOLLOW_SPAWN,
+	hollowScene,
+	TORCH_AT as HOLLOW_TORCH
+} from './hollow';
 import {
 	CARVINGS_AT,
 	CHAMBER,
@@ -190,11 +196,16 @@ describe('the ringing chamber in the dark', () => {
 describe('the Hollow', () => {
 	beforeEach(() => at(hollowScene, HOLLOW_SPAWN, 'hollow'));
 
-	it('has a cleft in the rock that is there only while the cultists’ torch burns', () => {
+	/** Beside the Bell, west of Tobin. */
+	const atBell = { x: 22, y: 11 };
+	/** From the cultists' ledge into the island, through the cleft. */
+	const ledge = { x: 16, y: 13 };
+	const inside = { x: 17, y: 13 };
+
+	it('has a cleft in the island wall that is there only while the cultists’ torch burns', () => {
 		expect(room.objects.get(HOLLOW_IDS.cleft)).toMatchObject({ kind: 'door', open: true });
-		// Through the cleft, straight from the alcove to the pit side.
-		expect(canStep(obstacles(room), { x: 17, y: 5 }, { x: 17, y: 4 })).toBe(true);
-		put(ana, { x: 18, y: 9 });
+		expect(canStep(obstacles(room), ledge, inside)).toBe(true);
+		put(ana, { x: HOLLOW_TORCH.x, y: HOLLOW_TORCH.y + 1 });
 		const out = ok(interact(room, ana, 'hollow-torch', 'extinguish'));
 		expect(out.log.at(-1)).toMatchObject({ kind: 'narration' });
 		expect(room.lights.get(HOLLOW_IDS.torchLight)?.on).toBe(false);
@@ -204,23 +215,18 @@ describe('the Hollow', () => {
 			a: CLEFT_EDGE.a,
 			b: CLEFT_EDGE.b
 		});
-		expect(canStep(obstacles(room), { x: 17, y: 5 }, { x: 17, y: 4 })).toBe(false);
+		expect(canStep(obstacles(room), ledge, inside)).toBe(false);
 
-		put(ana, { x: 18, y: 9 });
 		ok(interact(room, ana, 'hollow-torch', 'light'));
 		expect(room.objects.get(HOLLOW_IDS.cleft)).toMatchObject({ kind: 'door' });
-		expect(canStep(obstacles(room), { x: 17, y: 5 }, { x: 17, y: 4 })).toBe(true);
+		expect(canStep(obstacles(room), ledge, inside)).toBe(true);
 	});
 
 	it('lights the whole cavern for a moment when the Bell is touched, and the watch sees who is there', () => {
-		postSentries(room, story(), 'hollow');
-		// Ana at the Bell; someone in the dark to the west, within her sight but not the Bell's glow.
-		put(ana, { x: 8, y: 3 });
-		put(ben, { x: 9, y: 14 });
-		const far = { x: 3, y: 3 };
+		// Ana at the Bell; someone in the dark by the island's west wall, within her sight but not the Bell's glow.
+		put(ana, atBell);
+		const far = { x: 18, y: 14 };
 		expect(lightFor(room, obstacles(room))?.[cellIndex(room.grid, far)]).toBe(0);
-		room.adventure!.sentries.clear();
-		room.adventure!.encounter = null;
 		const lurkerId = lurker(far);
 		expect(tokenNames(ana)).not.toContain('Lurker');
 
@@ -242,8 +248,8 @@ describe('the Hollow', () => {
 
 	it('starts the fight when the flash shows the party to the watch', () => {
 		postSentries(room, story(), 'hollow');
-		// One cultist on watch in the south-west; the rest of the watch gone.
-		const [watcher, ...rest] = [...story().sentries.keys()].filter(
+		// Only the cultist on the terrace keeps watch; the rest of the watch is gone.
+		const [, watcher] = [...story().sentries.keys()].filter(
 			(id) => story().sentries.get(id)!.kind === 'cultist'
 		);
 		for (const id of [...story().sentries.keys()]) {
@@ -251,12 +257,11 @@ describe('the Hollow', () => {
 			story().sentries.delete(id);
 			room.tokens.delete(id);
 		}
-		expect(rest).toHaveLength(1);
-		room.tokens.get(watcher)!.pos = { x: 6, y: 13 };
+		room.tokens.get(watcher)!.pos = { x: 38, y: 28 };
 		// Ben in the dark, out of its lantern's reach but well within its sight; Ana at the Bell, far off.
-		put(ben, { x: 6, y: 9 });
-		put(ana, { x: 8, y: 3 });
-		expect(lightFor(room, obstacles(room))?.[cellIndex(room.grid, { x: 6, y: 9 })]).toBe(0);
+		put(ben, { x: 38, y: 31 });
+		put(ana, atBell);
+		expect(lightFor(room, obstacles(room))?.[cellIndex(room.grid, { x: 38, y: 31 })]).toBe(0);
 		expect(story().encounter).toBeNull();
 
 		const out = ok(interact(room, ana, 'bell', 'examine'));
