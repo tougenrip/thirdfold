@@ -16,7 +16,6 @@ import { randomInt, randomUUID } from 'node:crypto';
 import {
 	canReach,
 	inActionRange,
-	inAttackRange,
 	EVIDENCE_KINDS,
 	INVESTIGATION_ACTIONS,
 	type ChapterId,
@@ -47,6 +46,7 @@ import {
 	type LogAudience
 } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
+import { lightSources, litMask } from '../../src/lib/game/lights';
 import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
 import type { Motion, Sound } from '../../src/lib/game/motion';
 import {
@@ -83,7 +83,8 @@ import {
 } from './content';
 import { areaAt, LOCATIONS } from './locations';
 import { ENEMIES, PUP_HP, type EnemyDef, type EnemyKind } from './enemies';
-import { CAVERN, KEEPER_RING } from './hollow';
+import { CAVERN, CULTIST_ROUNDS, KEEPER_POST } from './hollow';
+import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
 import { MECHANISMS, TRIGGERS, type MechanismId } from './mechanisms';
 import { CHAMBER, MONASTERY_IDS, STAIR, STAIR_RING } from './monastery';
 import {
@@ -306,6 +307,7 @@ function newState(room: Room): AdventureState {
 		origins: recordOrigins(room),
 		carried: new Map(),
 		running: new Map(),
+		sentries: new Map(),
 		cuesRead: new Set(),
 		encounter: null,
 		begunAt: null,
@@ -1162,8 +1164,9 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 		}
 		case 'the_hollow':
 			adventure.npcs.set('tobin', 'entranced');
-			tell(say(room, TEXT.downStair), say(room, TEXT.hollow));
-			outcome = merge(outcome, startEncounter(room, adventure, 'hollow'));
+			// The Keeper stands watch by the Bell and cultists walk the dark with lanterns: sneak or fight.
+			postSentries(room, adventure, 'hollow');
+			tell(say(room, TEXT.downStair), say(room, TEXT.hollow), say(room, TEXT.hollowWatch));
 			break;
 		case 'final_decision':
 			outcome = merge(outcome, offer(room, adventure, 'bell'));
@@ -1209,6 +1212,7 @@ function travel(room: Room, adventure: AdventureState, to: LocationId): void {
 	});
 	applyScene(room, LOCATIONS[to].scene());
 	adventure.location = to;
+	adventure.sentries.clear();
 	adventure.origins = recordOrigins(room);
 	for (const [id, origin] of carried) adventure.origins.set(id, origin);
 	for (const id of adventure.running.keys()) {
@@ -1327,6 +1331,8 @@ const ENCOUNTERS: Record<
 	{
 		ring: readonly GridPos[];
 		foes: readonly Foe[];
+		/** Enemies already on the table, walking their rounds or standing guard (see `postSentries`). */
+		sentries?: readonly { kind: EnemyKind; route: readonly GridPos[] }[];
 		reveal: { from: GridPos; to: GridPos };
 		/** Said as the fight begins. */
 		opening?: string;
@@ -1345,12 +1351,110 @@ const ENCOUNTERS: Record<
 		reveal: CHAMBER
 	},
 	hollow: {
-		ring: KEEPER_RING,
-		foes: [{ kind: 'keeper' }, { kind: 'cultist' }, { kind: 'cultist' }],
+		ring: [],
+		foes: [],
+		sentries: [
+			{ kind: 'keeper', route: [KEEPER_POST] },
+			...CULTIST_ROUNDS.map((route) => ({ kind: 'cultist' as const, route }))
+		],
 		reveal: CAVERN,
 		opening: TEXT.keeper
 	}
 };
+
+/** The enemy's token, as it stands on the table. */
+function enemyToken(kind: EnemyKind, pos: GridPos): Token {
+	const def = ENEMIES[kind];
+	return {
+		id: randomUUID(),
+		name: def.name,
+		color: def.color,
+		pos: { ...pos },
+		ownerId: null,
+		vision: def.vision,
+		light: def.light
+	};
+}
+
+/**
+ * Puts a fight's sentries on the table: they walk their rounds (`patrol`)
+ * or stand guard until one of them spots a character (`detect`), and then
+ * the fight begins with them.
+ */
+export function postSentries(room: Room, adventure: AdventureState, id: EncounterId): void {
+	for (const sentry of ENCOUNTERS[id].sentries ?? []) {
+		const at = sentry.route.find((c) => isFree(room, c));
+		if (!at) continue;
+		const token = enemyToken(sentry.kind, at);
+		room.tokens.set(token.id, token);
+		adventure.sentries.set(token.id, {
+			kind: sentry.kind,
+			encounter: id,
+			route: sentry.route.map((c) => ({ ...c })),
+			leg: 0
+		});
+	}
+}
+
+/** What the enemies see: the table's obstacles and light, the standing party, the Bell. */
+function situationFor(room: Room, adventure: AdventureState, selfId: string): Situation {
+	const blocked = obstacles(room);
+	const lit =
+		room.ambient === 'dark'
+			? litMask(room.grid, blocked, lightSources(room.lights.values(), room.tokens.values()))
+			: null;
+	const bellDef = objectDef('bell');
+	const bellCells = bellDef && objectCells(room, bellDef);
+	return {
+		grid: room.grid,
+		blocked,
+		lit,
+		foes: standing(room, adventure).map((c) => ({ id: c.id, pos: c.token.pos, hp: c.state.hp })),
+		free: (c) => isFree(room, c, blocked, selfId),
+		bell:
+			bellDef && bellCells?.length
+				? { cells: bellCells, touched: objectState(adventure, bellDef) === 'used' }
+				: null
+	};
+}
+
+/**
+ * Outside a fight: every sentry takes a step on its round, then looks about.
+ * Run by the game server on a slow timer. Null when nothing moved.
+ */
+export function patrol(room: Room): Outcome | null {
+	const adventure = room.adventure;
+	if (!adventure || adventure.encounter || adventure.stage !== 'playing') return null;
+	let moved = false;
+	for (const [id, sentry] of adventure.sentries) {
+		const token = room.tokens.get(id);
+		if (!token || sentry.route.length <= 1) continue;
+		const situation = situationFor(room, adventure, id);
+		const step = patrolStep(situation, token.pos, sentry.route, sentry.leg);
+		sentry.leg = step.leg;
+		if (step.pos.x === token.pos.x && step.pos.y === token.pos.y) continue;
+		token.pos = step.pos;
+		moved = true;
+	}
+	const spotted = detect(room, adventure);
+	return spotted ?? (moved ? { log: [] } : null);
+}
+
+/** Outside a fight: if a sentry can see a standing character, the fight begins. */
+function detect(room: Room, adventure: AdventureState): Outcome | null {
+	if (adventure.encounter || adventure.stage !== 'playing') return null;
+	for (const [id, sentry] of adventure.sentries) {
+		const token = room.tokens.get(id);
+		if (!token) continue;
+		const [spotted] = seenBy(situationFor(room, adventure, id), {
+			kind: sentry.kind,
+			pos: token.pos
+		});
+		if (spotted)
+			return startEncounter(room, adventure, sentry.encounter, { by: token, who: spotted });
+	}
+	return null;
+}
 
 /** The dice the story rolls when no action brings its own (initiative): the room's, or secure ones. */
 const diceOf = (room: Room): DieRoller => room.dice ?? RANDOM;
@@ -1360,7 +1464,12 @@ const diceOf = (room: Room): DieRoller => room.dice ?? RANDOM;
  * Agility for characters, plus its own bonus for each enemy), and the first
  * in the order takes their turn.
  */
-export function startEncounter(room: Room, adventure: AdventureState, id: EncounterId): Outcome {
+export function startEncounter(
+	room: Room,
+	adventure: AdventureState,
+	id: EncounterId,
+	spotted?: { by: Token; who: Foe_ }
+): Outcome {
 	const def = ENCOUNTERS[id];
 	const party = standing(room, adventure);
 	const spawn = LOCATIONS[adventure.location].spawn;
@@ -1368,19 +1477,37 @@ export function startEncounter(room: Room, adventure: AdventureState, id: Encoun
 	for (const foe of def.foes) {
 		const cell = def.ring.find((c) => isFree(room, c)) ?? spawn.find((c) => isFree(room, c));
 		if (!cell) break;
-		const kind = ENEMIES[foe.kind];
-		const token: Token = {
-			id: randomUUID(),
-			name: kind.name,
-			color: kind.color,
-			pos: { ...cell },
-			ownerId: null,
-			vision: kind.vision,
-			light: 0
-		};
+		const token = enemyToken(foe.kind, cell);
 		room.tokens.set(token.id, token);
-		const hp = (foe.hp ?? kind.hp)(party.length);
-		enemies.set(token.id, { kind: foe.kind, hp, maxHp: hp, statuses: new Map(), rest: 0 });
+		const hp = (foe.hp ?? ENEMIES[foe.kind].hp)(party.length);
+		// It comes up beside the party: it knows where the nearest of them stands.
+		const nearest = party.reduce<Played | null>(
+			(a, b) => (!a || gridDistance(cell, b.token.pos) < gridDistance(cell, a.token.pos) ? b : a),
+			null
+		);
+		enemies.set(token.id, {
+			kind: foe.kind,
+			hp,
+			maxHp: hp,
+			statuses: new Map(),
+			rest: 0,
+			...(nearest ? { lastSeen: { ...nearest.token.pos } } : {})
+		});
+	}
+	// Sentries on the table join the fight where they stand, knowing where they saw someone.
+	for (const [tokenId, sentry] of [...adventure.sentries]) {
+		if (sentry.encounter !== id || !room.tokens.has(tokenId)) continue;
+		adventure.sentries.delete(tokenId);
+		const hp = ENEMIES[sentry.kind].hp(party.length);
+		enemies.set(tokenId, {
+			kind: sentry.kind,
+			hp,
+			maxHp: hp,
+			statuses: new Map(),
+			rest: 0,
+			post: { ...sentry.route[0] },
+			...(spotted ? { lastSeen: { ...spotted.who.pos } } : {})
+		});
 	}
 	if (enemies.size === 0) return { log: [] };
 	adventure.encounters.set(id, 'active');
@@ -1431,6 +1558,9 @@ export function startEncounter(room: Room, adventure: AdventureState, id: Encoun
 	adventure.encounter = encounter;
 	for (const i of rectCells(room.grid, def.reveal.from, def.reveal.to)) room.fog.revealed[i] = 1;
 	const log = [
+		...(spotted
+			? [say(room, `The ${spotted.by.name} spots ${CHARACTERS[spotted.who.id].name}!`)]
+			: []),
 		...(def.opening ? [say(room, def.opening)] : []),
 		postSystem(
 			room,
@@ -1642,6 +1772,7 @@ function attackEnemy(
 	const result = strike(toHitFor(def, action), action.dice ?? '1d4', defense, roller);
 	let outcome: string | undefined;
 	let effect: string | undefined;
+	if (result.hit) enemy.lastHitBy = def.id;
 	if (result.damage) {
 		enemy.hp = Math.max(0, enemy.hp - result.damage.total);
 		if (enemy.hp === 0) {
@@ -1858,12 +1989,13 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 	tick(enemy.statuses);
 	if (enemy.rest > 0) enemy.rest--;
 	log.push(...enemyActs(room, adventure, enemy, token, speed, roller));
+	enemy.lastHitBy = undefined;
 	if (standing(room, adventure).length === 0)
 		return { log: [...log, ...defeat(room, adventure, encounter)] };
 	return merge({ log }, advance(room, adventure, encounter));
 }
 
-/** What an enemy does on its turn, by its kind's behavior. */
+/** What an enemy does on its turn: its kind decides (see ai.ts), and the rules carry it out. */
 function enemyActs(
 	room: Room,
 	adventure: AdventureState,
@@ -1872,75 +2004,43 @@ function enemyActs(
 	speed: number,
 	roller: DieRoller
 ): ChatMessage[] {
-	const kind = ENEMIES[enemy.kind];
-	const targets = standing(room, adventure);
-	if (targets.length === 0) return [];
-	const blocked = obstacles(room);
-	const [melee, ranged] = kind.attacks;
-	const inReach = (attack: Attack, from: GridPos) =>
-		targets.filter((t) => inAttackRange(blocked, from, t.token.pos, attack.range));
-	const weakest = (list: Played[]) => list.reduce((a, b) => (b.state.hp < a.state.hp ? b : a));
-
-	// The Keeper tolls when the party crowds it, then must rest before it can again.
-	if (kind.toll && enemy.rest === 0) {
-		const toll = kind.toll;
-		const near = targets.filter(
-			(t) =>
-				gridDistance(token.pos, t.token.pos) <= toll.range &&
-				hasLineOfSight(blocked, token.pos, t.token.pos)
-		);
-		if (near.length > 0) {
+	if (standing(room, adventure).length === 0) return [];
+	const decided = planTurn(situationFor(room, adventure, token.id), {
+		kind: enemy.kind,
+		pos: token.pos,
+		hp: enemy.hp,
+		maxHp: enemy.maxHp,
+		speed,
+		rest: enemy.rest,
+		target: enemy.target,
+		lastHitBy: enemy.lastHitBy,
+		lastSeen: enemy.lastSeen,
+		post: enemy.post
+	});
+	const last = decided.path.at(-1);
+	if (last) token.pos = { ...last };
+	enemy.target = decided.target;
+	enemy.lastSeen = decided.lastSeen && { ...decided.lastSeen };
+	const log: ChatMessage[] = [];
+	const who = (id: CharacterId) => played(room, adventure).find((c) => c.id === id);
+	const deed = decided.deed;
+	if (decided.note === 'turns on' && decided.target) {
+		log.push(say(room, `The ${token.name} turns on ${CHARACTERS[decided.target].name}.`));
+	} else if (decided.note) {
+		log.push(say(room, `The ${token.name} ${decided.note}.`));
+	}
+	if (deed?.kind === 'attack') {
+		const target = who(deed.target);
+		if (target) log.push(enemyAttack(room, token, deed.attack, target, roller));
+	} else if (deed?.kind === 'toll') {
+		const toll = ENEMIES[enemy.kind].toll;
+		const targets = deed.targets.flatMap((id) => who(id) ?? []);
+		if (toll && targets.length) {
 			enemy.rest = toll.every;
-			return [toll_(room, token, near, toll, roller)];
+			log.push(toll_(room, token, targets, toll, roller));
 		}
 	}
-
-	if (kind.behavior === 'skirmish' && ranged) {
-		// Beside someone: the knife. Otherwise sling from where it stands, or find a spot to.
-		const beside = inReach(melee, token.pos);
-		if (beside.length) return [enemyAttack(room, token, melee, weakest(beside), roller)];
-		let shots = inReach(ranged, token.pos);
-		if (shots.length === 0) {
-			const path = findPath(
-				room.grid,
-				blocked,
-				token.pos,
-				(c) => inReach(ranged, c).length > 0,
-				(c) => isFree(room, c, blocked, token.id)
-			);
-			const steps = path?.slice(0, speed) ?? [];
-			if (steps.length) token.pos = { ...steps[steps.length - 1] };
-			shots = inReach(ranged, token.pos);
-		}
-		if (shots.length === 0) return [];
-		const nearest = shots.reduce((a, b) =>
-			gridDistance(token.pos, b.token.pos) < gridDistance(token.pos, a.token.pos) ? b : a
-		);
-		return [enemyAttack(room, token, ranged, nearest, roller)];
-	}
-
-	// Rush (and the Keeper between tolls): the nearest character it can get beside, by walking distance.
-	let best: { target: Played; path: GridPos[] } | null = null;
-	for (const target of targets) {
-		const beside = (c: GridPos) =>
-			gridDistance(c, target.token.pos) <= 1 && hasLineOfSight(blocked, c, target.token.pos);
-		const path = beside(token.pos)
-			? []
-			: findPath(room.grid, blocked, token.pos, beside, (c) => isFree(room, c, blocked, token.id));
-		if (!path) continue;
-		if (
-			!best ||
-			path.length < best.path.length ||
-			(path.length === best.path.length && target.state.hp < best.target.state.hp)
-		) {
-			best = { target, path };
-		}
-	}
-	if (!best) return [];
-	const steps = best.path.slice(0, speed);
-	if (steps.length) token.pos = { ...steps[steps.length - 1] };
-	if (!inAttackRange(blocked, token.pos, best.target.token.pos, melee.range)) return [];
-	return [enemyAttack(room, token, melee, best.target, roller)];
+	return log;
 }
 
 /** An enemy attacks a character: to-hit against its defense, damage on a hit. */
@@ -2100,7 +2200,10 @@ export function afterMove(
 	}
 	if (adventure.stage !== 'playing') return { log: [] };
 	const area = areaAt(adventure.location, adventure.chapter, adventure.events, token.pos);
-	return area ? happen(room, adventure, area.event, now) : { log: [] };
+	const story = area ? happen(room, adventure, area.event, now) : { log: [] };
+	// Walking into a sentry's sight starts its fight.
+	const spotted = story.reset ? null : detect(room, adventure);
+	return spotted ? merge(story, spotted) : story;
 }
 
 /** Why a door won't open for this actor, or null if it will. The GM can always force it. */
@@ -2136,6 +2239,20 @@ export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): O
 			if (origin && pos) origin.pos = { ...pos };
 			setObjectState(room, adventure, def, origin && pos ? def.initial : 'hidden');
 		}
+	}
+	const sentry = adventure.sentries.get(tokenId);
+	if (sentry) {
+		adventure.sentries.delete(tokenId);
+		// The last of them gone before any fight: the way is clear.
+		const left = [...adventure.sentries.values()].some((s) => s.encounter === sentry.encounter);
+		if (!left && !adventure.encounters.has(sentry.encounter)) {
+			adventure.encounters.set(sentry.encounter, 'won');
+			return merge(
+				{ log: [postSystem(room, 'The way is clear.')] },
+				happen(room, adventure, WON[sentry.encounter].event)
+			);
+		}
+		return { log: [] };
 	}
 	const encounter = adventure.encounter;
 	if (!encounter) return { log: [] };

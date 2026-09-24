@@ -30,14 +30,23 @@ export const HOLLOW_SPAWN: readonly GridPos[] = [
 	{ x: 11, y: 15 }
 ];
 
-/** Where the Bell Keeper and its cultists stand between the party and the Bell. */
-export const KEEPER_RING: readonly GridPos[] = [
-	{ x: 10, y: 6 },
-	{ x: 8, y: 5 },
-	{ x: 12, y: 5 },
-	{ x: 9, y: 6 },
-	{ x: 11, y: 6 },
-	{ x: 6, y: 5 }
+/** Where the Bell Keeper stands guard, beside Tobin and the Bell. */
+export const KEEPER_POST: GridPos = { x: 10, y: 5 };
+
+/** The rounds the two cultists walk with their lanterns, across the cavern floor. */
+export const CULTIST_ROUNDS: readonly (readonly GridPos[])[] = [
+	[
+		{ x: 6, y: 7 },
+		{ x: 6, y: 11 },
+		{ x: 9, y: 11 },
+		{ x: 9, y: 7 }
+	],
+	[
+		{ x: 14, y: 7 },
+		{ x: 14, y: 11 },
+		{ x: 11, y: 11 },
+		{ x: 11, y: 8 }
+	]
 ];
 
 /** The cavern floor, lit up for the fight. */
@@ -49,7 +58,7 @@ export function hollowScene(now = new Date()): SceneFile {
 		{
 			name: 'The Hollow',
 			grid: HOLLOW_GRID,
-			ambient: 'dusk',
+			ambient: 'dark',
 			arrival: { from: { x: 6, y: 11 }, to: { x: 13, y: 15 } },
 			tokens: npcTokens('hollow'),
 			objects: [
@@ -77,7 +86,7 @@ export function hollowScene(now = new Date()): SceneFile {
 			lights: [
 				light('ho-bell-glow', 10, 3, 5, '#7fb6ff'),
 				light('ho-pit-glow', 14, 3, 3, '#9c6cff'),
-				light('ho-stair-light', 12, 14, 3, '#ffd27a')
+				light('ho-stair-light', 12, 15, 1, '#ffd27a')
 			]
 		},
 		now

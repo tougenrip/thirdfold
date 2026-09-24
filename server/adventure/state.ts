@@ -14,6 +14,7 @@ import type {
 	ObjectState
 } from '../../src/lib/adventure/adventure';
 import type { CharacterId, StatusId } from '../../src/lib/adventure/characters';
+import type { GridPos } from '../../src/lib/game/grid';
 import type { EnemyKind } from './enemies';
 import type { MechanismId } from './mechanisms';
 import type { Origins } from './objects';
@@ -41,6 +42,25 @@ export interface EnemyState {
 	statuses: Statuses;
 	/** Turns before it can use its special again (the Keeper's toll); 0 when ready. */
 	rest: number;
+	/** Where it stands guard (the Keeper's post by the Bell). */
+	post?: GridPos;
+	/** Who it is after. */
+	target?: CharacterId;
+	/** Who hurt it last. */
+	lastHitBy?: CharacterId;
+	/** Where it last saw a character. */
+	lastSeen?: GridPos;
+}
+
+/** An enemy on the table outside a fight: walking its round, or standing guard, until it spots someone. */
+export interface Sentry {
+	kind: EnemyKind;
+	/** The fight it starts when it spots someone. */
+	encounter: EncounterId;
+	/** Waypoints it walks between in a loop; one point is a post it guards. */
+	route: GridPos[];
+	/** The waypoint it is walking to. */
+	leg: number;
 }
 
 /** Someone with a place in the turn order. */
@@ -118,6 +138,8 @@ export interface AdventureState {
 	carried: Map<string, CharacterId>;
 	/** Mechanisms playing out, and the step each runs next. */
 	running: Map<MechanismId, number>;
+	/** Enemies on the table outside a fight, by token id. */
+	sentries: Map<string, Sentry>;
 	/** Read-aloud cues the GM has used. */
 	cuesRead: Set<string>;
 	encounter: Encounter | null;

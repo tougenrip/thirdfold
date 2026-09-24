@@ -86,6 +86,11 @@ export class RoomManager {
 		return this.rooms.size;
 	}
 
+	/** Every open room. */
+	all(): IterableIterator<Room> {
+		return this.rooms.values();
+	}
+
 	/** Creates a room whose creator becomes its GM. */
 	create(rawName: unknown): Result<{ room: Room; player: Player }> {
 		const name = normalizeName(rawName);

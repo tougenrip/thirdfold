@@ -8,6 +8,11 @@ import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { FileSceneStore, type SceneStore } from './scene-store';
+import { beginAdventure, claimCharacter, postSentries, startAdventure } from './adventure/engine';
+import { HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
+import { recordOrigins } from './adventure/objects';
+import { RoomManager } from './rooms';
+import { applyScene, exportScene } from './scene-io';
 
 class Queue {
 	private items: ServerMessage[] = [];
@@ -954,7 +959,8 @@ describe('The Hollow Bell over the wire', () => {
 			host: '127.0.0.1',
 			rollDie: (sides) => sides,
 			enemyTurnDelayMs: 0,
-			mechanismDelayScale: 0
+			mechanismDelayScale: 0,
+			patrolMs: 0
 		});
 	});
 
@@ -993,7 +999,8 @@ describe('The Hollow Bell over the wire', () => {
 			host: '127.0.0.1',
 			rollDie: (sides) => sides,
 			enemyTurnDelayMs: 150,
-			mechanismDelayScale: 0
+			mechanismDelayScale: 0,
+			patrolMs: 0
 		});
 		const { gm, pip, pipId } = await table();
 
@@ -1159,15 +1166,17 @@ describe('The Hollow Bell over the wire', () => {
 		move({ x: 3, y: 8 });
 		const hollow = (await pip.until('room_reset')).room;
 		expect(hollow.adventure).toMatchObject({ chapter: { id: 'the_hollow' } });
-		// The Bell Keeper and its cultists: the GM clears them away.
-		const guarded = (await gm.until('room_reset')).room.adventure!.encounter!;
-		expect(guarded.enemies.map((e) => e.name).sort()).toEqual([
+		// The Bell Keeper stands watch and its cultists walk their rounds: the GM clears them away.
+		const below = (await gm.until('room_reset')).room;
+		expect(below.adventure!.encounter).toBeNull();
+		const watch = below.tokens.filter((t) => t.name.startsWith('Bell '));
+		expect(watch.map((t) => t.name).sort()).toEqual([
 			'Bell Cultist',
 			'Bell Cultist',
 			'Bell Keeper'
 		]);
-		for (const e of guarded.enemies) gm.send({ type: 'token_delete', tokenId: e.tokenId });
-		await untilAdventure(pip, (a) => a.encounter === null);
+		for (const t of watch) gm.send({ type: 'token_delete', tokenId: t.id });
+		await untilAdventure(pip, (a) => !!a.objectives.find((o) => o.id === 'keeper')?.done);
 
 		// Tobin, and the final choice (after a breath: talking shares the chat rate limit).
 		await new Promise((resolve) => setTimeout(resolve, 800));
@@ -1182,6 +1191,71 @@ describe('The Hollow Bell over the wire', () => {
 		expect((await untilAdventure(pip, (a) => a.stage === 'complete')).completedAt).toBeGreaterThan(
 			0
 		);
+	});
+
+	it('walks the Hollow’s sentries on the server, and starts the fight when one spots a character', async () => {
+		// A table in the Hollow, dark, with Pip's Warden at the foot of the stair and the watch posted.
+		const staged = new RoomManager();
+		const made = staged.create('Gemma');
+		if (!made.ok) throw new Error(made.message);
+		const joined = staged.join(made.room.id, 'Pip', 'player');
+		if (!joined.ok) throw new Error(joined.message);
+		startAdventure(made.room, made.player);
+		claimCharacter(made.room, joined.player, 'warden');
+		beginAdventure(made.room, made.player);
+		const story = made.room.adventure!;
+		const warden = [...made.room.tokens.values()].find((t) => t.name === 'The Warden')!;
+		applyScene(made.room, hollowScene());
+		warden.pos = { ...HOLLOW_SPAWN[0] };
+		made.room.tokens.set(warden.id, warden);
+		story.location = 'hollow';
+		story.chapter = 'the_hollow';
+		story.origins = recordOrigins(made.room);
+		postSentries(made.room, story, 'hollow');
+		const file = exportScene(made.room, 'The Hollow');
+
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 0,
+			patrolMs: 20
+		});
+		const { gm, pip } = await table();
+		gm.send({ type: 'scene_import', file });
+		const { room } = await gm.until('room_reset');
+		await pip.until('room_reset');
+		expect(room.ambient).toBe('dark');
+		expect(room.adventure!.encounter).toBeNull();
+		const cultist = room.tokens.find((t) => t.name === 'Bell Cultist')!;
+
+		// Nobody acts, and the cultists walk their rounds on the server.
+		for (;;) {
+			const moved = await gm.until('token_moved');
+			if (moved.tokenId === cultist.id) {
+				expect(moved.pos).not.toEqual(cultist.pos);
+				break;
+			}
+		}
+
+		// Up to the boy: the Keeper beside him sees the Warden, and the fight begins for both.
+		const me = room.tokens.find((t) => t.name === 'The Warden')!;
+		pip.send({ type: 'token_move', tokenId: me.id, to: { x: 9, y: 5 } });
+		const spotted = await untilAdventure(gm, (a) => a.encounter !== null);
+		expect(spotted.encounter!.order.map((t) => t.name).sort()).toEqual([
+			'Bell Cultist',
+			'Bell Cultist',
+			'Bell Keeper',
+			'The Warden'
+		]);
+		expect((await untilAdventure(pip, (a) => a.encounter !== null)).encounter!.order).toEqual(
+			spotted.encounter!.order.map((t) => ({ ...t, tokenId: expect.anything() }))
+		);
+		for (;;) {
+			const { message } = await pip.expect('chat');
+			if (message.kind === 'narration' && message.text.startsWith('The Bell Keeper spots')) break;
+		}
 	});
 
 	it('saves the story with the table and picks it up again on load', async () => {
