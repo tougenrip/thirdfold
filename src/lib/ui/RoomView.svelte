@@ -578,14 +578,17 @@
 		lastAnnouncedSeq = latest.seq;
 		// A cue can arrive among other entries (a move notice after it): look at all new ones.
 		const cued = room.log.flatMap((m) =>
-			m.seq > since && m.kind === 'narration' && m.cue ? [{ seq: m.seq, cue: m.cue }] : []
+			m.seq > since && m.kind === 'narration' && (m.cue || m.shot)
+				? [{ seq: m.seq, cue: m.cue, shot: m.shot }]
+				: []
 		);
 		if (cued.length) {
 			const bell = room.props.find((p) => p.assetId === 'belfry-bell');
 			cuePlay = {
 				seq: cued.at(-1)!.seq,
-				cues: [...new Set(cued.map((c) => c.cue))],
-				swingPropId: bell?.id ?? null
+				cues: [...new Set(cued.flatMap((c) => (c.cue ? [c.cue] : [])))],
+				swingPropId: bell?.id ?? null,
+				shot: cued.findLast((c) => c.shot)?.shot ?? null
 			};
 		}
 		if (

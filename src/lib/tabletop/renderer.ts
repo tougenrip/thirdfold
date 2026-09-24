@@ -15,7 +15,8 @@ import {
 	type GridPos,
 	type SquareGrid
 } from '$lib/game/grid';
-import type { Cue } from '$lib/game/chat';
+import type { Cue, Shot } from '$lib/game/chat';
+import { shotAt, shotPose, type Pose } from './shots';
 import type { Motion } from '$lib/game/motion';
 import { lightSources, type Ambient, type Light } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
@@ -94,6 +95,8 @@ export interface Tabletop {
 	setDarkness(mask: Uint8Array | null): void;
 	/** Plays a cinematic moment; `swingPropId` is the bell to swing, if it is on the table. */
 	playCue(cue: Cue, swingPropId: string | null): void;
+	/** Points the camera at something for a moment (see shots.ts), then gives it back. */
+	playShot(shot: Shot): void;
 	/** Plays motions on props (a lever swinging, a chain shaking) and their sounds. */
 	playMotions(motions: readonly Motion[]): void;
 	setView(view: CameraView): void;
@@ -297,6 +300,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	let extent = 20;
 	let frame = 0;
 	let lastFrameTime = 0;
+	/** A cinematic shot in progress: where the camera was, where it goes, since when. */
+	let shot: { home: Pose; to: Pose; start: number } | null = null;
+	const endShot = () => {
+		shot = null;
+	};
 	let transition: {
 		from: { position: THREE.Vector3; target: THREE.Vector3 };
 		to: { position: THREE.Vector3; target: THREE.Vector3 };
@@ -325,6 +333,13 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			const flickering = lighting.flicker(now);
 			const drifting = ambience.tick(now);
 			if (flickering || drifting) scheduleAmbient();
+		}
+		if (shot) {
+			const { pose, done } = shotAt(shot.home, shot.to, now - shot.start);
+			camera.position.set(pose.position.x, pose.position.y, pose.position.z);
+			controls.target.set(pose.target.x, pose.target.y, pose.target.z);
+			if (done) shot = null;
+			else requestRender();
 		}
 		if (transition) {
 			const t = Math.min((now - transition.start) / VIEW_TRANSITION_MS, 1);
@@ -497,6 +512,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	let hoverKey = '';
 
 	function onPointerDown(event: PointerEvent): void {
+		// Taking hold of the camera ends a cinematic shot where it is.
+		endShot();
 		press = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
 	}
 
@@ -525,6 +542,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	}
 
 	canvas.addEventListener('pointerdown', onPointerDown);
+	canvas.addEventListener('wheel', endShot, { passive: true });
 	canvas.addEventListener('pointerup', onPointerUp);
 	canvas.addEventListener('pointermove', onPointerMove);
 	canvas.addEventListener('pointerleave', onPointerLeave);
@@ -557,6 +575,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			// replaces any view change still in flight, which would aim at the old table.
 			const pose = viewPose(view, extent);
 			transition = null;
+			shot = null;
 			camera.position.copy(pose.position);
 			controls.target.copy(pose.target);
 			requestRender();
@@ -728,8 +747,24 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			effects.play(cue, performance.now(), reducedMotion);
 			requestRender();
 		},
+		playShot(next) {
+			if (reducedMotion || !grid) return;
+			transition = null;
+			const home = {
+				position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+				target: { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+			};
+			const focus = next.focus && {
+				...gridToWorld(grid, next.focus),
+				y: ground?.floorY(next.focus) ?? 0
+			};
+			const to = shotPose(home, focus, next.frame, extent, grid.cellSize);
+			shot = { home, to, start: performance.now() };
+			requestRender();
+		},
 		setView(next) {
 			view = next;
+			shot = null;
 			transition = {
 				from: { position: camera.position.clone(), target: controls.target.clone() },
 				to: viewPose(next, extent),
@@ -743,6 +778,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			canvas.removeEventListener('pointerdown', onPointerDown);
 			canvas.removeEventListener('pointerup', onPointerUp);
 			canvas.removeEventListener('pointermove', onPointerMove);
+			canvas.removeEventListener('wheel', endShot);
 			canvas.removeEventListener('pointerleave', onPointerLeave);
 			controls.dispose();
 			disposeGroup(table);
