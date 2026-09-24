@@ -1008,6 +1008,26 @@ describe('The Hollow Bell over the wire', () => {
 		}
 	});
 
+	it('never sends players a hidden object until it is revealed, fog or no fog', async () => {
+		const { gm, pip } = await table();
+		const frames: string[] = [];
+		pip.ws.on('message', (data) => frames.push(data.toString()));
+		gm.send({ type: 'adventure_start' });
+		const { room } = await pip.until('room_reset');
+		expect(room.props.some((p) => p.id === 'hb-hatch')).toBe(false);
+		expect((await gm.until('room_reset')).room.props.some((p) => p.id === 'hb-hatch')).toBe(true);
+
+		gm.send({ type: 'fog_set', enabled: false });
+		await pip.until('fog_update');
+		expect(frames.some((f) => f.includes('hb-hatch'))).toBe(false);
+
+		pip.send({ type: 'adventure_object', objectId: 'hatch', state: 'closed' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_object', objectId: 'hatch', state: 'closed' });
+		const revealed = await pip.until('props_changed');
+		expect(revealed.upserted.map((p) => p.id)).toContain('hb-hatch');
+	});
+
 	it('keeps each character to one player and rejects actions that make no sense yet', async () => {
 		const { gm, pip } = await table();
 		const bo = await connect();

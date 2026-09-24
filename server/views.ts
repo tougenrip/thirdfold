@@ -22,6 +22,7 @@ import {
 	type CellMask,
 	type FogView
 } from '../src/lib/game/visibility';
+import { hiddenPropIds } from './adventure/engine';
 import { adventureView } from './adventure/view';
 import { toPublicPlayer, type Player, type Room } from './rooms';
 
@@ -96,6 +97,11 @@ function touches(room: Room, o: SceneObject, mask: CellMask): boolean {
  */
 export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneContext(room)): View {
 	const scene = sceneViewFor(room, viewer, ctx);
+	// Secret things the story hasn't revealed stay off players' tables, fog or not.
+	if (viewer.role !== 'gm') {
+		const hidden = hiddenPropIds(room);
+		if (hidden.size) scene.props = scene.props.filter((p) => !hidden.has(p.id));
+	}
 	const known = room.fog.enabled && viewer.role !== 'gm' ? viewer.explored : null;
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
 	return { ...scene, adventure: adventureView(room, viewer, tokenIds, known) };

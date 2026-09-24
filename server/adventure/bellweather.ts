@@ -21,7 +21,19 @@ export const IDS = {
 	well: 'hb-well',
 	noticeboard: 'hb-noticeboard',
 	chest: 'hb-chest',
-	gate: 'hb-gate'
+	gate: 'hb-gate',
+	innDoor: 'hb-inn-door',
+	haleDoor: 'hb-hale-door',
+	shelf: 'hb-inn-shelf',
+	innTable: 'hb-inn-table1',
+	shrine: 'hb-shrine',
+	rug: 'hb-hale-rug',
+	hatch: 'hb-hatch',
+	crate: 'hb-crate1',
+	brazier: 'hb-brazier',
+	brazierLight: 'hb-brazier-light',
+	/** Added when the Hound dies, where it fell. */
+	remains: 'hb-remains'
 } as const;
 
 /** Where characters appear, in order: the village road at the south edge. */
@@ -122,14 +134,14 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		wall('hb-inn-w', { x: 2, y: 7 }, { x: 2, y: 13 }),
 		wall('hb-inn-s', { x: 2, y: 13 }, { x: 9, y: 13 }),
 		wall('hb-inn-e1', { x: 9, y: 7 }, { x: 9, y: 10 }),
-		door('hb-inn-door', { x: 9, y: 10 }, { x: 9, y: 11 }),
+		door(IDS.innDoor, { x: 9, y: 10 }, { x: 9, y: 11 }),
 		wall('hb-inn-e2', { x: 9, y: 11 }, { x: 9, y: 13 }),
 		// The Hale house: x 15-21, y 7-11, door on the west side.
 		wall('hb-hale-n', { x: 15, y: 7 }, { x: 22, y: 7 }),
 		wall('hb-hale-e', { x: 22, y: 7 }, { x: 22, y: 12 }),
 		wall('hb-hale-s', { x: 15, y: 12 }, { x: 22, y: 12 }),
 		wall('hb-hale-w1', { x: 15, y: 7 }, { x: 15, y: 9 }),
-		door('hb-hale-door', { x: 15, y: 9 }, { x: 15, y: 10 }),
+		door(IDS.haleDoor, { x: 15, y: 9 }, { x: 15, y: 10 }),
 		wall('hb-hale-w2', { x: 15, y: 10 }, { x: 15, y: 12 })
 	];
 
@@ -137,20 +149,24 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		prop(IDS.well, 'well', 11, 13),
 		prop(IDS.noticeboard, 'noticeboard', 11, 8),
 		// Inside the inn.
-		prop('hb-inn-table1', 'table', 3, 8),
+		prop(IDS.innTable, 'table', 3, 8),
 		prop('hb-inn-chair1', 'chair', 3, 9),
 		prop('hb-inn-chair2', 'chair', 4, 9),
 		prop('hb-inn-table2', 'table', 3, 11),
 		prop('hb-inn-chair3', 'chair', 5, 11),
 		prop('hb-inn-barrel1', 'barrel', 8, 7),
 		prop('hb-inn-barrel2', 'barrel', 8, 12),
-		prop('hb-inn-shelf', 'bookshelf', 5, 7),
+		prop(IDS.shelf, 'bookshelf', 5, 7),
 		// Inside the Hale house.
 		prop('hb-hale-bed', 'bed', 20, 8),
 		prop(IDS.chest, 'chest', 17, 8),
-		prop('hb-hale-rug', 'rug', 17, 10),
+		prop(IDS.rug, 'rug', 17, 10),
+		// Under the rug, found only by lifting it.
+		prop(IDS.hatch, 'hatch', 17, 10),
 		// Outside.
-		prop('hb-crate1', 'crate', 10, 11),
+		prop(IDS.crate, 'crate', 10, 11),
+		prop(IDS.shrine, 'statue', 8, 16),
+		prop(IDS.brazier, 'brazier', 14, 6),
 		prop('hb-barrel1', 'barrel', 14, 15),
 		prop('hb-crate2', 'crate', 6, 15),
 		...TREES.map(([x, y], i) => prop(`hb-tree${i + 1}`, 'tree', x, y))
@@ -160,7 +176,8 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		light('hb-lamp-square', 13, 11, 4, '#ffa04d'),
 		light('hb-lamp-road', 10, 16, 4, '#ffa04d'),
 		light('hb-inn-candle', 5, 10, 4, '#ffd27a'),
-		light('hb-hale-candle', 18, 9, 3, '#ffd27a')
+		light('hb-hale-candle', 18, 9, 3, '#ffd27a'),
+		{ ...light(IDS.brazierLight, 14, 6, 3, '#ffa04d'), on: false }
 	];
 
 	const tokens: SavedToken[] = [

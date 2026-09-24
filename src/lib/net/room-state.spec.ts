@@ -167,6 +167,7 @@ describe('applyRoomUpdate', () => {
 			clues: [],
 			characters: [],
 			interactables: [],
+			objects: null,
 			encounter: null,
 			begunAt: 1,
 			completedAt: null,

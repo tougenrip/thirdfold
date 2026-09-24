@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AdventureView, CharacterStatus } from '$lib/adventure/adventure';
+	import type { AdventureView, CharacterStatus, ObjectState } from '$lib/adventure/adventure';
 	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { PublicPlayer } from '$lib/game/protocol';
@@ -203,6 +203,37 @@
 					<button type="submit" disabled={!narration.trim()}>Narrate</button>
 				</form>
 
+				{#if adventure.objects?.length}
+					<details class="world">
+						<summary>World objects</summary>
+						<ul>
+							{#each adventure.objects as o (o.id)}
+								<li>
+									<label for={`object-${o.id}`}>
+										{o.name}
+										<small>{o.kind}</small>
+									</label>
+									<select
+										id={`object-${o.id}`}
+										value={o.state}
+										class:hidden-state={o.state === 'hidden'}
+										onchange={(e) =>
+											send({
+												type: 'adventure_object',
+												objectId: o.id,
+												state: e.currentTarget.value as ObjectState
+											})}
+									>
+										{#each o.states as state (state)}
+											<option value={state}>{state}</option>
+										{/each}
+									</select>
+								</li>
+							{/each}
+						</ul>
+					</details>
+				{/if}
+
 				{#if adventure.cues?.length}
 					<details class="cues">
 						<summary>Read aloud</summary>
@@ -402,6 +433,38 @@
 		border-radius: 6px;
 		padding: 0.45rem 0.6rem;
 		resize: vertical;
+	}
+
+	.world ul {
+		margin-top: 0.4rem;
+	}
+
+	.world li {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		font-size: 0.85rem;
+	}
+
+	.world label {
+		display: grid;
+		min-width: 0;
+	}
+
+	.world small {
+		color: var(--muted);
+		font-size: 0.75rem;
+	}
+
+	.world select {
+		padding: 0.2rem 0.35rem;
+		font-size: 0.8rem;
+	}
+
+	.world .hidden-state {
+		color: var(--muted);
+		font-style: italic;
 	}
 
 	.cues ul {

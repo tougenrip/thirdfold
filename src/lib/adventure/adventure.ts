@@ -65,13 +65,75 @@ export interface ActiveStatus {
 	rounds: number;
 }
 
-/** Something a character can walk up to and use: a person to talk to, an object to examine. */
+/** Where a world object is in its life: seen, used, opened, broken, … */
+export type ObjectState =
+	/** Not in the world for players yet (a secret not found). */
+	| 'hidden'
+	/** There, but nothing can be done with it right now. */
+	| 'visible'
+	| 'interactable'
+	/** Done with: searched, read. */
+	| 'used'
+	/** Can't be used: locked, jammed, chained. */
+	| 'disabled'
+	| 'destroyed'
+	| 'moved'
+	| 'opened'
+	| 'closed'
+	/** A fire burning (torches, braziers). */
+	| 'lit'
+	| 'unlit';
+
+export const OBJECT_STATES: readonly ObjectState[] = [
+	'hidden',
+	'visible',
+	'interactable',
+	'used',
+	'disabled',
+	'destroyed',
+	'moved',
+	'opened',
+	'closed',
+	'lit',
+	'unlit'
+];
+
+export function isObjectState(value: unknown): value is ObjectState {
+	return typeof value === 'string' && (OBJECT_STATES as readonly string[]).includes(value);
+}
+
+export type ObjectKind =
+	| 'npc'
+	| 'door'
+	| 'chest'
+	| 'book'
+	| 'table'
+	| 'torch'
+	| 'ritual'
+	| 'corpse'
+	| 'secret'
+	| 'container'
+	| 'landmark';
+
+/** Something in the world a character can walk up to and use. */
 export interface Interactable {
 	id: string;
-	/** Button text, e.g. "Talk to Maren". */
-	label: string;
+	name: string;
+	kind: ObjectKind;
+	state: ObjectState;
 	/** The cells it occupies; a character must stand beside one of them. */
 	cells: GridPos[];
+	/** What can be done with it now, e.g. { id: 'open', label: 'Open the chest' }. */
+	verbs: { id: string; label: string }[];
+}
+
+/** For the GM: every world object and the states it can be put in. */
+export interface WorldObject {
+	id: string;
+	name: string;
+	kind: ObjectKind;
+	state: ObjectState;
+	states: ObjectState[];
 }
 
 export interface EnemyStatus {
@@ -111,8 +173,10 @@ export interface AdventureView {
 	objectives: Objective[];
 	clues: Clue[];
 	characters: CharacterStatus[];
-	/** Things this viewer knows are there to interact with. */
+	/** Things this viewer knows are there and can do something with now. */
 	interactables: Interactable[];
+	/** GM only: every world object, hidden ones included, with its state. */
+	objects: WorldObject[] | null;
 	encounter: EncounterView | null;
 	/** When the GM began play (ms since epoch), for the time played. */
 	begunAt: number | null;

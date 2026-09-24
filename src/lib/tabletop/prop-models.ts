@@ -95,5 +95,36 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'box', size: [0.84, 0.6, 0.06], at: [0, 1.15, 0], color: WOOD },
 		{ shape: 'box', size: [0.26, 0.32, 0.02], at: [-0.18, 1.18, 0.04], color: 0xe8e0c8 },
 		{ shape: 'box', size: [0.22, 0.26, 0.02], at: [0.2, 1.12, 0.04], color: 0xd9cfae }
+	],
+	'chest-open': [
+		{ shape: 'box', size: [0.8, 0.42, 0.55], at: [0, 0.21, 0], color: WOOD },
+		{ shape: 'box', size: [0.72, 0.04, 0.47], at: [0, 0.4, 0], color: 0x1a120c },
+		{ shape: 'box', size: [0.84, 0.59, 0.1], at: [0, 0.72, -0.3], color: DARK_WOOD },
+		{ shape: 'box', size: [0.12, 0.04, 0.14], at: [0, 0.2, 0.29], color: 0xd4ac0d }
+	],
+	rubble: [
+		{ shape: 'box', size: [0.7, 0.06, 0.14], at: [-0.05, 0.03, -0.15], color: LIGHT_WOOD },
+		{ shape: 'box', size: [0.55, 0.06, 0.14], at: [0.1, 0.07, 0.05], color: DARK_WOOD },
+		{ shape: 'box', size: [0.45, 0.06, 0.14], at: [-0.1, 0.03, 0.22], color: LIGHT_WOOD },
+		{ shape: 'box', size: [0.14, 0.12, 0.14], at: [0.28, 0.06, -0.25], color: DARK_WOOD }
+	],
+	hatch: [
+		{ shape: 'box', size: [0.8, 0.03, 0.8], at: [0, 0.015, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [0.1, 0.035, 0.1], at: [0.25, 0.02, 0], color: IRON }
+	],
+	'hatch-open': [
+		{ shape: 'box', size: [0.7, 0.02, 0.7], at: [0, 0.01, 0], color: 0x0c0907 },
+		{ shape: 'box', size: [0.8, 0.8, 0.03], at: [0, 0.4, -0.4], color: DARK_WOOD }
+	],
+	brazier: [
+		{ shape: 'cylinder', size: [0.12, 0.7, 0.12], at: [0, 0.35, 0], color: IRON },
+		{ shape: 'cylinder', size: [0.5, 0.08, 0.5], at: [0, 0.05, 0], color: IRON },
+		{ shape: 'cylinder', size: [0.6, 0.2, 0.6], at: [0, 0.78, 0], color: IRON },
+		{ shape: 'cylinder', size: [0.5, 0.06, 0.5], at: [0, 0.86, 0], color: 0x2a1d14 }
+	],
+	ashes: [
+		{ shape: 'cylinder', size: [0.8, 0.05, 0.6], at: [0, 0.025, 0], color: 0x8f8a84 },
+		{ shape: 'sphere', size: [0.25, 0.12, 0.2], at: [0.15, 0.05, 0.05], color: 0xb9b3aa },
+		{ shape: 'cone', size: [0.14, 0.18, 0.14], at: [-0.2, 0.09, -0.1], color: 0xb08d57 }
 	]
 };

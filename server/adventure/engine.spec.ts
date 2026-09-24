@@ -25,10 +25,13 @@ import {
 	override,
 	readCue,
 	releaseCharacter,
+	setObject,
 	runEnemyTurn,
 	startAdventure
 } from './engine';
 import { adventureView } from './view';
+import { viewFor } from '../views';
+import { hiddenPropIds } from './engine';
 
 /** Every die shows its highest face: attacks always hit for maximum damage. */
 const max: DieRoller = (sides) => sides;
@@ -207,6 +210,8 @@ describe('investigating', () => {
 		ok(interact(room, ana, 'noticeboard'));
 		ok(interact(room, ana, 'noticeboard'));
 		put(id, { x: 17, y: 9 });
+		// Open it, then search it.
+		ok(interact(room, ana, 'chest'));
 		ok(interact(room, ana, 'chest'));
 		expect(room.adventure?.clues).toEqual(['notice', 'rope']);
 
@@ -550,5 +555,113 @@ describe('character gameplay', () => {
 			mace: null,
 			mend: 1
 		});
+	});
+});
+
+describe('world objects', () => {
+	const prop = (id: string) => room.props.get(id)!;
+	const state = (id: string) => room.adventure!.objects.get(id);
+
+	it('opens the chest before it can be searched, and the table shows it open', () => {
+		const id = playing({ x: 17, y: 9 });
+		expect(interact(room, ana, 'chest', 'search')).toMatchObject({ ok: false });
+		ok(interact(room, ana, 'chest', 'open'));
+		expect(state('chest')).toBe('opened');
+		expect(prop(IDS.chest).assetId).toBe('chest-open');
+		ok(interact(room, ana, 'chest', 'search'));
+		expect(state('chest')).toBe('used');
+		expect(room.adventure?.clues).toContain('rope');
+		const again = ok(interact(room, ana, 'chest'));
+		expect(again.log[0]).toMatchObject({ kind: 'narration' });
+		void id;
+	});
+
+	it('keeps the floorboard secret until the rug is lifted, even from raw views', () => {
+		playing({ x: 16, y: 11 });
+		// Fog off, so only the secret keeps it from players.
+		room.fog.enabled = false;
+		const seen = () => viewFor(room, ben).props.some((p) => p.id === IDS.hatch);
+		expect(state('hatch')).toBe('hidden');
+		expect(hiddenPropIds(room).has(IDS.hatch)).toBe(true);
+		expect(seen()).toBe(false);
+		expect(viewFor(room, gm).props.some((p) => p.id === IDS.hatch)).toBe(true);
+		expect(interact(room, ana, 'hatch')).toMatchObject({ ok: false, code: 'object_not_found' });
+
+		ok(interact(room, ana, 'rug', 'lift'));
+		expect(state('rug')).toBe('moved');
+		expect(prop(IDS.rug).pos).toEqual({ x: 19, y: 10 });
+		expect(state('hatch')).toBe('closed');
+		expect(seen()).toBe(true);
+
+		ok(interact(room, ana, 'hatch', 'open'));
+		expect(prop(IDS.hatch).assetId).toBe('hatch-open');
+		ok(interact(room, ana, 'hatch', 'search'));
+		expect(room.adventure?.clues).toContain('drawing');
+	});
+
+	it('breaks the crate into rubble that no longer blocks the way', () => {
+		const id = playing({ x: 11, y: 11 });
+		expect(isSolidCell(obstacles(room), { x: 10, y: 11 })).toBe(true);
+		ok(interact(room, ana, 'crate', 'break'));
+		expect(state('crate')).toBe('destroyed');
+		expect(prop(IDS.crate).assetId).toBe('rubble');
+		expect(isSolidCell(obstacles(room), { x: 10, y: 11 })).toBe(false);
+		expect(interact(room, ana, 'crate')).toMatchObject({ ok: false });
+		void id;
+	});
+
+	it('lights and puts out the brazier, switching its light', () => {
+		playing({ x: 13, y: 6 });
+		const light = room.lights.get(IDS.brazierLight)!;
+		expect(light.on).toBe(false);
+		ok(interact(room, ana, 'brazier', 'light'));
+		expect(light.on).toBe(true);
+		expect(interact(room, ana, 'brazier', 'light')).toMatchObject({ ok: false });
+		ok(interact(room, ana, 'brazier', 'extinguish'));
+		expect(light.on).toBe(false);
+	});
+
+	it('leaves the Hound’s remains where it fell, to be searched', () => {
+		const id = fighting();
+		const houndId = hound();
+		put(houndId, { x: 12, y: 12 });
+		room.adventure!.encounter!.enemies.get(houndId)!.hp = 1;
+		ok(act(room, ana, 'blade', houndId, max));
+		expect(prop(IDS.remains)).toMatchObject({ assetId: 'ashes', pos: { x: 12, y: 12 } });
+		expect(state('remains')).toBe('interactable');
+		ok(interact(room, ana, 'remains', 'search'));
+		expect(room.adventure?.clues).toContain('clapper');
+		void id;
+	});
+
+	it('lets only the GM set object states, which take effect on the table', () => {
+		playing();
+		expect(setObject(room, ana, 'gate', 'opened')).toMatchObject({ ok: false, code: 'forbidden' });
+		expect(setObject(room, gm, 'gate', 'lit')).toMatchObject({ ok: false });
+		expect(setObject(room, gm, 'nothing', 'opened')).toMatchObject({ ok: false });
+		const gate = room.objects.get(IDS.gate)!;
+		expect(doorLock(room, ana, gate as never)).toBe('The gate is chained shut.');
+		const out = ok(setObject(room, gm, 'gate', 'opened'));
+		expect(out.log[0]).toMatchObject({ kind: 'system', audience: 'gm' });
+		expect(gate).toMatchObject({ open: true });
+		expect(doorLock(room, ana, gate as never)).toBeNull();
+
+		ok(setObject(room, gm, 'hatch', 'closed'));
+		expect(hiddenPropIds(room).has(IDS.hatch)).toBe(false);
+		ok(setObject(room, gm, 'hatch', 'hidden'));
+		expect(hiddenPropIds(room).has(IDS.hatch)).toBe(true);
+
+		const gmView = adventureView(room, gm, new Set(), null)!;
+		expect(gmView.objects?.find((o) => o.id === 'gate')).toMatchObject({ state: 'opened' });
+		expect(adventureView(room, ana, new Set(), null)!.objects).toBeNull();
+	});
+
+	it('offers each object only the verbs its state allows', () => {
+		playing();
+		const view = adventureView(room, ana, new Set(), null)!;
+		const chest = view.interactables.find((i) => i.id === 'chest');
+		expect(chest?.verbs.map((v) => v.id)).toEqual(['open']);
+		expect(view.interactables.some((i) => i.id === 'hatch')).toBe(false);
+		expect(view.interactables.some((i) => i.id === 'gate')).toBe(false);
 	});
 });

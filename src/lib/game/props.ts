@@ -31,7 +31,13 @@ export const ASSETS = {
 	tree: { name: 'Tree', w: 1, h: 1, blocks: 'sight' },
 	rug: { name: 'Rug', w: 2, h: 2, blocks: 'none' },
 	well: { name: 'Well', w: 2, h: 2, blocks: 'movement' },
-	noticeboard: { name: 'Notice board', w: 1, h: 1, blocks: 'movement' }
+	noticeboard: { name: 'Notice board', w: 1, h: 1, blocks: 'movement' },
+	'chest-open': { name: 'Open chest', w: 1, h: 1, blocks: 'movement' },
+	rubble: { name: 'Rubble', w: 1, h: 1, blocks: 'none' },
+	hatch: { name: 'Floor hatch', w: 1, h: 1, blocks: 'none' },
+	'hatch-open': { name: 'Open hatch', w: 1, h: 1, blocks: 'none' },
+	brazier: { name: 'Brazier', w: 1, h: 1, blocks: 'movement' },
+	ashes: { name: 'Ashes', w: 1, h: 1, blocks: 'none' }
 } as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;

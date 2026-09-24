@@ -151,6 +151,23 @@ describe('adventure messages', () => {
 		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'wizard' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'toString' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_control', op: 'win' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_interact', targetId: 'chest' })).toEqual({
+			type: 'adventure_interact',
+			targetId: 'chest',
+			verb: null
+		});
+		expect(
+			parseClientMessage({ type: 'adventure_interact', targetId: 'chest', verb: 'open' })
+		).toMatchObject({ verb: 'open' });
+		expect(
+			parseClientMessage({ type: 'adventure_interact', targetId: 'chest', verb: 3 })
+		).toBeNull();
+		expect(
+			parseClientMessage({ type: 'adventure_object', objectId: 'gate', state: 'opened' })
+		).toEqual({ type: 'adventure_object', objectId: 'gate', state: 'opened' });
+		expect(
+			parseClientMessage({ type: 'adventure_object', objectId: 'gate', state: 'melted' })
+		).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_act', actionId: 'blade' })).toBeNull();
 		for (const patch of [
 			{},

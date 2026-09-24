@@ -12,7 +12,7 @@ import {
 	canReach,
 	inActionRange,
 	inAttackRange,
-	type AdventureStage
+	type ObjectState
 } from '../../src/lib/adventure/adventure';
 import {
 	actionOf,
@@ -29,7 +29,7 @@ import {
 import { NARRATION_MAX_LENGTH, normalizeChatText, type ChatMessage } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
 import { gridDistance, type GridPos } from '../../src/lib/game/grid';
-import { findPath, type Door, type Obstacles } from '../../src/lib/game/objects';
+import { cellsBeside, findPath, type Door, type Obstacles } from '../../src/lib/game/objects';
 import { footprintCells, isSolidCell } from '../../src/lib/game/props';
 import type { AdventureControl, CharacterPatch } from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
@@ -40,6 +40,17 @@ import { obstacles } from '../scene';
 import { applyScene } from '../scene-io';
 import { bellweatherScene, EXIT, IDS, PATH_AREA, SPAWN, WELL_RING } from './bellweather';
 import { CLUES, CUES, HOUND, TEXT, TITLE, type ClueId } from './content';
+import {
+	applyLook,
+	initialStates,
+	objectDef,
+	objectForDoor,
+	OBJECTS,
+	propIdOf,
+	recordOrigins,
+	type ObjectDef,
+	type Verb
+} from './objects';
 import type { AdventureState, CharacterState, Encounter, EnemyState, Statuses } from './state';
 
 export interface Outcome {
@@ -56,27 +67,47 @@ type Outcomes = Result<Outcome>;
 const NO_ADVENTURE = fail('no_adventure', 'No adventure is running at this table.');
 const GM_ONLY = fail('forbidden', 'Only the GM can do that.');
 
-/** Things a character can walk up to and use, and what they are in the scene. */
-export const INTERACTABLES = [
-	{ id: 'maren', label: 'Talk to Maren', token: IDS.maren },
-	{ id: 'well', label: 'Examine the well', prop: IDS.well },
-	{ id: 'noticeboard', label: 'Read the notice board', prop: IDS.noticeboard },
-	{ id: 'chest', label: 'Search the chest', prop: IDS.chest }
-] as const;
-
-type InteractableId = (typeof INTERACTABLES)[number]['id'];
-
-/** The cells an interactable covers now, or null if it is gone from the table. */
-export function interactableCells(
-	room: Room,
-	def: (typeof INTERACTABLES)[number]
-): GridPos[] | null {
-	if ('token' in def) {
-		const token = room.tokens.get(def.token);
+/** The cells a world object covers now, or null if it is not on the table. */
+export function objectCells(room: Room, def: ObjectDef): GridPos[] | null {
+	if ('token' in def.thing) {
+		const token = room.tokens.get(def.thing.token);
 		return token ? [token.pos] : null;
 	}
-	const prop = room.props.get(def.prop);
+	if ('door' in def.thing) {
+		const door = room.objects.get(def.thing.door);
+		return door ? cellsBeside(room.grid, door) : null;
+	}
+	const prop = room.props.get(def.thing.prop);
 	return prop ? footprintCells(prop) : null;
+}
+
+/** The state of a world object (its starting state if the adventure has not touched it). */
+export function objectState(adventure: AdventureState, def: ObjectDef): ObjectState {
+	return adventure.objects.get(def.id) ?? def.initial;
+}
+
+/** What can be done with an object in the state it is in. */
+export function verbsFor(adventure: AdventureState, def: ObjectDef): readonly Verb[] {
+	const state = objectState(adventure, def);
+	return def.verbs.filter((v) => v.from.includes(state));
+}
+
+/** Puts an object in a state and makes the table show it. */
+function setObjectState(room: Room, adventure: AdventureState, def: ObjectDef, state: ObjectState) {
+	adventure.objects.set(def.id, state);
+	applyLook(room, def, state, adventure.origins);
+}
+
+/** Props players must not see: hidden world objects. The GM still sees them. */
+export function hiddenPropIds(room: Room): Set<string> {
+	const hidden = new Set<string>();
+	const adventure = room.adventure;
+	if (!adventure) return hidden;
+	for (const def of OBJECTS) {
+		const id = propIdOf(def);
+		if (id && objectState(adventure, def) === 'hidden') hidden.add(id);
+	}
+	return hidden;
 }
 
 // ---------------------------------------------------------------------------
@@ -170,12 +201,15 @@ function placeCharacter(room: Room, id: CharacterId, ownerId: string | null): To
 // ---------------------------------------------------------------------------
 // Starting, choosing characters, beginning
 
-function newState(): AdventureState {
+/** Fresh story state for a table that has just been set to Bellweather. */
+function newState(room: Room): AdventureState {
 	return {
 		id: 'hollow-bell',
 		stage: 'choosing',
 		characters: new Map(),
 		clues: [],
+		objects: initialStates(),
+		origins: recordOrigins(room),
 		cuesRead: new Set(),
 		encounter: null,
 		begunAt: null,
@@ -187,7 +221,7 @@ function newState(): AdventureState {
 export function startAdventure(room: Room, actor: Player): Outcomes {
 	if (actor.role !== 'gm') return GM_ONLY;
 	applyScene(room, bellweatherScene());
-	room.adventure = newState();
+	room.adventure = newState(room);
 	return {
 		ok: true,
 		reset: true,
@@ -268,30 +302,57 @@ function say(room: Room, text: string, speaker?: string): ChatMessage {
 	);
 }
 
-/** Player: their character talks to, examines or searches something beside it. */
-export function interact(room: Room, actor: Player, targetId: string): Outcomes {
+/**
+ * Player: their character does something to a world object beside it: talks,
+ * examines, opens, searches, breaks, lights. `verbId` picks what; null takes
+ * the first thing that can be done to the object in its state.
+ */
+export function interact(
+	room: Room,
+	actor: Player,
+	targetId: string,
+	verbId: string | null = null
+): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
-	const def = INTERACTABLES.find((i) => i.id === targetId);
-	const cells = def && interactableCells(room, def);
-	if (!def || !cells) return fail('object_not_found', "That isn't here any more.");
+	const def = objectDef(targetId);
+	const cells = def && objectCells(room, def);
+	const state = def && objectState(adventure, def);
+	if (!def || !cells || state === 'hidden') return fail('object_not_found', "That isn't here.");
 	const me = characterOf(room, actor.id);
 	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
 	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
+	const verb = verbsFor(adventure, def).find((v) => verbId === null || v.id === verbId);
+	if (!verb) {
+		return fail(
+			'forbidden',
+			state === 'disabled'
+				? (def.disabledText ?? `The ${def.name.toLowerCase()} can't be used.`)
+				: `There's nothing more to do with the ${def.name.toLowerCase()}.`
+		);
+	}
 	if (!canReach(obstacles(room), me.token.pos, cells)) {
 		return fail('out_of_reach', `Move ${CHARACTERS[me.id].name} next to it first.`);
 	}
-	const log = respond(room, adventure, def.id);
-	return { ok: true, log };
+	const before = state!;
+	if (verb.to) setObjectState(room, adventure, def, verb.to);
+	return { ok: true, log: respond(room, adventure, def, verb, before) };
 }
 
-function respond(room: Room, adventure: AdventureState, id: InteractableId): ChatMessage[] {
+/** What happens in the story when a verb is done: narration, clues, the next stage. */
+function respond(
+	room: Room,
+	adventure: AdventureState,
+	def: ObjectDef,
+	verb: Verb,
+	before: ObjectState
+): ChatMessage[] {
 	const stage = adventure.stage;
-	switch (id) {
-		case 'maren': {
+	switch (`${def.id}:${verb.id}`) {
+		case 'maren:talk': {
 			if (stage === 'arrival') {
 				adventure.stage = 'investigate';
 				return [say(room, TEXT.marenArrival, 'Maren')];
@@ -304,18 +365,77 @@ function respond(room: Room, adventure: AdventureState, id: InteractableId): Cha
 						: TEXT.marenInvestigate;
 			return [say(room, line, 'Maren')];
 		}
-		case 'well': {
+		case 'well:examine': {
 			if (stage !== 'investigate') {
 				return [say(room, stage === 'arrival' ? TEXT.wellEarly : CLUES.scratches.text)];
 			}
 			const log = [say(room, TEXT.wellClue), ...addClue(room, adventure, 'scratches')];
 			return [...log, ...startEncounter(room, adventure)];
 		}
-		case 'noticeboard':
+		case 'noticeboard:read':
 			return [say(room, CLUES.notice.text), ...addClue(room, adventure, 'notice')];
-		case 'chest':
-			return [say(room, CLUES.rope.text), ...addClue(room, adventure, 'rope')];
+		case 'register:read':
+			return [say(room, CLUES.register.text), ...addClue(room, adventure, 'register')];
+		case 'table:examine':
+			return [say(room, before === 'used' ? TEXT.tableAgain : TEXT.table)];
+		case 'shrine:pray':
+			return [say(room, TEXT.shrine)];
+		case 'chest:open':
+			return [say(room, TEXT.chestOpen)];
+		case 'chest:search':
+			return before === 'used'
+				? [say(room, TEXT.chestEmpty)]
+				: [say(room, CLUES.rope.text), ...addClue(room, adventure, 'rope')];
+		case 'rug:lift': {
+			const hatch = objectDef('hatch');
+			if (hatch && objectState(adventure, hatch) === 'hidden') {
+				setObjectState(room, adventure, hatch, 'closed');
+			}
+			return [say(room, TEXT.rug)];
+		}
+		case 'hatch:open':
+			return [];
+		case 'hatch:search':
+			return before === 'used'
+				? [say(room, TEXT.hatchEmpty)]
+				: [say(room, CLUES.drawing.text), ...addClue(room, adventure, 'drawing')];
+		case 'crate:break':
+			return [say(room, TEXT.crate)];
+		case 'brazier:light':
+			return [say(room, TEXT.brazierLit)];
+		case 'brazier:extinguish':
+			return [say(room, TEXT.brazierOut)];
+		case 'remains:search':
+			return before === 'used'
+				? [say(room, TEXT.remainsEmpty)]
+				: [say(room, CLUES.clapper.text), ...addClue(room, adventure, 'clapper')];
+		default:
+			return [];
 	}
+}
+
+/** GM: puts any world object in one of its states: reveal a secret, unlock a door, break a crate. */
+export function setObject(
+	room: Room,
+	actor: Player,
+	objectId: string,
+	state: ObjectState
+): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	const def = objectDef(objectId);
+	if (!def) return fail('object_not_found', 'There is no such object.');
+	if (!def.states.includes(state)) {
+		return fail('invalid_message', `The ${def.name.toLowerCase()} can't be ${state}.`);
+	}
+	if (!objectCells(room, def))
+		return fail('object_not_found', `The ${def.name} isn't on the table.`);
+	setObjectState(room, adventure, def, state);
+	return {
+		ok: true,
+		log: [postSystem(room, `${actor.name} set ${def.name} to ${state}.`, 'gm')]
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -463,8 +583,7 @@ function attackEnemy(
 	if (result.damage) {
 		enemy.hp = Math.max(0, enemy.hp - result.damage.total);
 		if (enemy.hp === 0) {
-			encounter.enemies.delete(target.id);
-			room.tokens.delete(target.id);
+			enemyDies(room, encounter, target);
 			outcome = `The ${target.name} falls.`;
 		} else if (action.applies) {
 			enemy.statuses.set(action.applies.status, action.applies.rounds);
@@ -576,6 +695,24 @@ function afterAction(
 	return { log, enemyTurn: enemiesAct(encounter) };
 }
 
+/** An enemy is gone from the fight and the table; the Hound leaves its ashes where it fell. */
+function enemyDies(room: Room, encounter: Encounter, token: Token): void {
+	encounter.enemies.delete(token.id);
+	room.tokens.delete(token.id);
+	const adventure = room.adventure;
+	const remains = objectDef('remains');
+	if (!adventure || !remains || room.props.has(IDS.remains)) return;
+	room.props.set(IDS.remains, {
+		id: IDS.remains,
+		assetId: 'ashes',
+		pos: { ...token.pos },
+		rotation: 0,
+		scale: 1
+	});
+	adventure.origins.set(remains.id, { pos: { ...token.pos }, assetId: 'ashes' });
+	setObjectState(room, adventure, remains, 'interactable');
+}
+
 function enemiesAct(encounter: Encounter): number {
 	encounter.phase = 'enemies';
 	return ++encounter.turn;
@@ -595,8 +732,8 @@ function victory(room: Room, adventure: AdventureState): ChatMessage[] {
 		c.state.statuses.clear();
 		c.state.uses.clear();
 	}
-	const gate = room.objects.get(IDS.gate);
-	if (gate?.kind === 'door') gate.open = true;
+	const gate = objectDef('gate');
+	if (gate) setObjectState(room, adventure, gate, 'opened');
 	for (const i of rectCells(room.grid, PATH_AREA.from, PATH_AREA.to)) room.fog.revealed[i] = 1;
 	log.push(say(room, TEXT.gateOpens));
 	return log;
@@ -699,10 +836,7 @@ function burn(
 	const rolled = roll('1d4', roller);
 	enemy.hp = Math.max(0, enemy.hp - rolled.total);
 	const dies = enemy.hp === 0;
-	if (dies) {
-		encounter.enemies.delete(token.id);
-		room.tokens.delete(token.id);
-	}
+	if (dies) enemyDies(room, encounter, token);
 	return appendLog(room, {
 		kind: 'ability',
 		authorId: token.id,
@@ -819,10 +953,19 @@ export function afterMove(
 
 /** Why a door won't open for this actor, or null if it will. The GM can always force it. */
 export function doorLock(room: Room, actor: Player, door: Door): string | null {
-	const stage = room.adventure?.stage;
-	if (!stage || actor.role === 'gm' || door.id !== IDS.gate) return null;
-	const open: AdventureStage[] = ['aftermath', 'complete'];
-	return open.includes(stage) ? null : TEXT.gateLocked;
+	const adventure = room.adventure;
+	const def = objectForDoor(door.id);
+	if (!adventure || !def || actor.role === 'gm') return null;
+	return objectState(adventure, def) === 'disabled'
+		? (def.disabledText ?? 'It will not open.')
+		: null;
+}
+
+/** After a door was opened or closed: its world object follows. */
+export function afterDoorToggle(room: Room, door: Door): void {
+	const adventure = room.adventure;
+	const def = objectForDoor(door.id);
+	if (adventure && def) adventure.objects.set(def.id, door.open ? 'opened' : 'closed');
 }
 
 /** After the GM removed a token: a character leaves the story, an enemy leaves the fight. */
@@ -895,7 +1038,7 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	const keep = played(room, adventure).map((c) => ({ id: c.id, ownerId: c.token.ownerId }));
 	const begun = adventure.stage !== 'choosing';
 	applyScene(room, bellweatherScene());
-	const next = newState();
+	const next = newState(room);
 	for (const { id, ownerId } of keep) {
 		const owner = ownerId && room.players.get(ownerId);
 		const token = placeCharacter(room, id, owner && owner.role === 'player' ? owner.id : null);
