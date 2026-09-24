@@ -16,6 +16,8 @@
 	import { tokenAt } from '$lib/game/token';
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
 	import Tabletop from '$lib/tabletop/Tabletop.svelte';
+	import type { DiceThrow } from '$lib/tabletop/dice3d';
+	import { diceToThrow } from '$lib/tabletop/dice-throw';
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
 	import { DEFAULT_LIGHT_RADIUS, LIGHT_COLORS, type Light } from '$lib/game/lights';
 	import {
@@ -56,6 +58,10 @@
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
 	let rollCard = $state<Extract<ChatMessage, { kind: 'roll' }> | null>(null);
+	/** The roll being thrown as 3D dice; its card shows once they land. */
+	let diceThrow = $state<DiceThrow | null>(null);
+	let pendingCard: Extract<ChatMessage, { kind: 'roll' }> | null = null;
+	let cardTimer: ReturnType<typeof setTimeout> | undefined;
 	// Only rolls that arrive while we're here pop up; history in the snapshot does not.
 	let lastAnnouncedSeq: number | null = null;
 
@@ -272,8 +278,27 @@
 		}
 		if (!latest || latest.seq <= lastAnnouncedSeq) return;
 		lastAnnouncedSeq = latest.seq;
-		if (latest.kind === 'roll') rollCard = latest;
+		if (latest.kind !== 'roll') return;
+		const dice = diceToThrow(latest.roll);
+		if (dice.length === 0) {
+			rollCard = latest;
+			return;
+		}
+		// Dice in the roller's token colour when they have one.
+		const color = room.tokens.find((t) => t.ownerId === latest.authorId)?.color ?? '#efe6d2';
+		pendingCard = latest;
+		diceThrow = { seq: latest.seq, dice, color };
 	});
+
+	function onDiceThrown(seq: number, ms: number) {
+		const card = pendingCard;
+		if (!card || card.seq !== seq) return;
+		pendingCard = null;
+		clearTimeout(cardTimer);
+		cardTimer = setTimeout(() => (rollCard = card), ms);
+	}
+
+	$effect(() => () => clearTimeout(cardTimer));
 
 	$effect(() => {
 		if (!rollCard) return;
@@ -500,6 +525,8 @@
 				ambient={room.ambient}
 				lights={room.lights}
 				props={room.props}
+				{diceThrow}
+				{onDiceThrown}
 				selectedPropId={selectedProp?.id ?? null}
 				{hoveredPropId}
 				fogMode={isGm ? 'gm' : 'player'}

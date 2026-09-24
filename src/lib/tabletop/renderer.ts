@@ -22,6 +22,7 @@ import type { Token } from '$lib/game/token';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 import { LightingLayer } from './lighting';
 import { PropLayer } from './props';
+import { DiceLayer, type DiceThrow } from './dice3d';
 import { FogLayer, type FogMode } from './fog';
 import { TokenLayer } from './tokens';
 import { WALL_HEIGHT, WallLayer } from './walls';
@@ -66,6 +67,8 @@ export interface Tabletop {
 	setFog(fog: FogView | null, mode: FogMode): void;
 	setLighting(ambient: Ambient, lights: readonly Light[]): void;
 	setProps(props: readonly Prop[]): void;
+	/** Throws 3D dice for a roll. Returns ms until they have landed. */
+	throwDice(t: DiceThrow): number;
 	setSelectedProp(propId: string | null): void;
 	setHoveredProp(propId: string | null): void;
 	setSelected(tokenId: string | null): void;
@@ -143,6 +146,10 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const fogLayer = new FogLayer();
 	scene.add(fogLayer.mesh);
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
+	const diceLayer = new DiceLayer();
+	scene.add(diceLayer.group);
+	const reducedMotion =
+		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 	const propLayer = new PropLayer();
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
@@ -215,7 +222,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		lastFrameTime = now;
 		const tokensMoving = tokenLayer.tick(dt);
 		const doorsMoving = wallLayer.tick(dt);
-		if (tokensMoving || doorsMoving) requestRender();
+		const diceRolling = diceLayer.tick(now);
+		if (tokensMoving || doorsMoving || diceRolling) requestRender();
 		if (transition) {
 			const t = Math.min((now - transition.start) / VIEW_TRANSITION_MS, 1);
 			const k = 1 - (1 - t) ** 3;
@@ -486,6 +494,25 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			refreshLighting();
 			requestRender();
 		},
+		throwDice(t) {
+			if (!grid || t.dice.length === 0) return 0;
+			// Land around what the camera is looking at; throw from the viewer's side.
+			const center = new THREE.Vector3(controls.target.x, 0, controls.target.z);
+			const toward = new THREE.Vector3(
+				camera.position.x - center.x,
+				0,
+				camera.position.z - center.z
+			);
+			if (toward.lengthSq() < 1e-6) toward.set(0, 0, 1);
+			toward.normalize().multiplyScalar(grid.cellSize * 5);
+			const from = center
+				.clone()
+				.add(toward)
+				.setY(grid.cellSize * 2.5);
+			const ms = diceLayer.throw(t, center, from, grid.cellSize, reducedMotion);
+			requestRender();
+			return ms;
+		},
 		setProps(next) {
 			props = next;
 			if (!grid) return;
@@ -541,6 +568,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			fogLayer.dispose();
 			lighting.dispose();
 			propLayer.dispose();
+			diceLayer.dispose();
 			previewGroup.clear();
 			previewBox.dispose();
 			previewCorner.dispose();

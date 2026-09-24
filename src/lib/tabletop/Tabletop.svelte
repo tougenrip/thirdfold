@@ -5,6 +5,7 @@
 	import type { FogView } from '$lib/game/visibility';
 	import type { Ambient, Light } from '$lib/game/lights';
 	import type { Prop } from '$lib/game/props';
+	import type { DiceThrow } from './dice3d';
 	import type { FogMode } from './fog';
 	import {
 		createTabletop,
@@ -23,6 +24,10 @@
 		ambient?: Ambient;
 		lights?: readonly Light[];
 		props?: readonly Prop[];
+		/** The latest roll to throw as 3D dice; a new `seq` throws again. */
+		diceThrow?: DiceThrow | null;
+		/** Told how long the dice take to land, so the result can appear as they settle. */
+		onDiceThrown?: (seq: number, ms: number) => void;
 		selectedPropId?: string | null;
 		hoveredPropId?: string | null;
 		fogMode?: FogMode;
@@ -41,6 +46,8 @@
 		ambient = 'day',
 		lights = [],
 		props = [],
+		diceThrow = null,
+		onDiceThrown,
 		selectedPropId = null,
 		hoveredPropId = null,
 		fogMode = 'player',
@@ -98,6 +105,14 @@
 
 	$effect(() => {
 		tabletop?.setProps($state.snapshot(props) as Prop[]);
+	});
+
+	let thrownSeq = -1;
+	$effect(() => {
+		if (!tabletop || !diceThrow || diceThrow.seq === thrownSeq) return;
+		thrownSeq = diceThrow.seq;
+		const ms = tabletop.throwDice($state.snapshot(diceThrow) as DiceThrow);
+		onDiceThrown?.(diceThrow.seq, ms);
 	});
 
 	$effect(() => {
