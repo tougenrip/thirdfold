@@ -10,13 +10,13 @@
 	} from '$lib/net/room-connection.svelte';
 	import { loadName, saveName } from '$lib/prefs';
 	import RoomView from '$lib/ui/RoomView.svelte';
+	import Steps from '$lib/ui/Steps.svelte';
 
 	const roomId = $derived(page.params.id?.toUpperCase() ?? '');
 	const validId = $derived(ROOM_ID_PATTERN.test(roomId));
 
 	let conn = $state<RoomConnection | null>(null);
 	let name = $state(loadName());
-	let role = $state<JoinRole>('player');
 
 	// (Re)attach whenever the room in the URL changes: reuse the connection the
 	// landing page opened, else resume a saved seat, else ask the user to join.
@@ -41,8 +41,8 @@
 		validId && !roomMissing && (conn === null || errorCode === 'session_not_found')
 	);
 
-	function join(event: SubmitEvent) {
-		event.preventDefault();
+	function join(event: SubmitEvent | null, role: JoinRole) {
+		event?.preventDefault();
 		const trimmed = name.trim();
 		if (!trimmed) return;
 		saveName(trimmed);
@@ -64,24 +64,36 @@
 	</main>
 {:else if needsJoin}
 	<main class="notice">
-		<h1>Join room {roomId}</h1>
+		<Steps current={1} />
+		<p class="kicker">Room {roomId}</p>
+		<h1>You’re invited to play</h1>
 		{#if errorCode === 'session_not_found'}
-			<p>Your previous seat in this room has expired. Join again to continue.</p>
+			<p>Your previous seat in this room has expired. Join again to carry on.</p>
+		{:else}
+			<p>Tell the table your name, and you’ll pick a character next.</p>
 		{/if}
-		<form onsubmit={join}>
-			<input
-				bind:value={name}
-				maxlength={NAME_MAX_LENGTH}
-				placeholder="Your name"
-				aria-label="Your name"
-				autocomplete="nickname"
-			/>
-			<select bind:value={role} aria-label="Join as">
-				<option value="player">Player</option>
-				<option value="spectator">Spectator</option>
-			</select>
-			<button class="primary" type="submit" disabled={!name.trim()}>Join</button>
+		<form onsubmit={(e) => join(e, 'player')}>
+			<label class="field">
+				<span>Your name</span>
+				<!-- svelte-ignore a11y_autofocus -->
+				<input
+					bind:value={name}
+					maxlength={NAME_MAX_LENGTH}
+					placeholder="e.g. Morgan"
+					autocomplete="nickname"
+					autofocus
+				/>
+			</label>
+			<button class="primary" type="submit" disabled={!name.trim()}>Join the game</button>
 		</form>
+		<button
+			type="button"
+			class="watch"
+			disabled={!name.trim()}
+			onclick={() => join(null, 'spectator')}
+		>
+			Just watch instead
+		</button>
 		{#if conn?.error && errorCode !== 'session_not_found'}
 			<p class="error" role="alert">{conn.error.message}</p>
 		{/if}
@@ -99,9 +111,42 @@
 
 	.notice form {
 		display: grid;
-		grid-template-columns: 1fr auto auto;
+		grid-template-columns: 1fr auto;
+		align-items: end;
 		gap: 0.5rem;
-		margin-top: 1rem;
+		margin-top: 1.25rem;
+	}
+
+	.kicker {
+		margin: 1.5rem 0 0;
+		color: var(--muted);
+		font-size: 0.85rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.notice h1 {
+		margin: 0.2rem 0 0.4rem;
+	}
+
+	.field {
+		display: grid;
+		gap: 0.3rem;
+	}
+
+	.field span {
+		color: var(--muted);
+		font-size: 0.85rem;
+	}
+
+	.watch {
+		margin-top: 0.75rem;
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--muted);
+		text-decoration: underline;
+		font-size: 0.85rem;
 	}
 
 	.notice a {

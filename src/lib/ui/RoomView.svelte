@@ -41,6 +41,18 @@
 	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
 	import CharacterSelect from './CharacterSelect.svelte';
 	import CharacterSheet from './CharacterSheet.svelte';
+	import TutorialCoach from './TutorialCoach.svelte';
+	import Welcome from './Welcome.svelte';
+	import {
+		loadProgress,
+		NEW_PLAYER,
+		record,
+		saveProgress,
+		signalOf,
+		type Signal,
+		type TutorialProgress
+	} from './tutorial';
+	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import SectionEnd from './SectionEnd.svelte';
 	import PropInspector from './PropInspector.svelte';
 	import ChatPanel from './ChatPanel.svelte';
@@ -120,6 +132,35 @@
 		return runs;
 	}
 	const me = $derived(conn.me);
+
+	/** A new player's way into the game (see tutorial.ts): the welcome, then learning by doing. */
+	let tutorial = $state<TutorialProgress>(NEW_PLAYER);
+	let tutorialRoom: string | null = null;
+	$effect(() => {
+		const id = room?.id;
+		if (!id || me?.role !== 'player' || tutorialRoom === id) return;
+		tutorialRoom = id;
+		tutorial = loadProgress(localStorage, id);
+	});
+
+	function setTutorial(next: TutorialProgress) {
+		tutorial = next;
+		if (room) saveProgress(localStorage, room.id, next);
+	}
+
+	function learned(signal: Signal) {
+		if (me?.role !== 'player') return;
+		const next = record(tutorial, signal);
+		if (next !== tutorial) setTutorial(next);
+	}
+
+	/** Sends an action to the server, noting what the tutorial is waiting for. */
+	function act(action: RoomAction): boolean {
+		const sent = conn.send(action);
+		const signal = sent ? signalOf(action) : null;
+		if (signal) learned(signal);
+		return sent;
+	}
 	const isGm = $derived(me?.role === 'gm');
 	const adventure = $derived(room?.adventure ?? null);
 	const myCharacter = $derived(
@@ -578,14 +619,14 @@
 		if (placing) {
 			if (!pick.cell) return;
 			if (tokenAt(room.tokens, pick.cell)) return showToast('That cell is taken.');
-			conn.send({ type: 'token_create', ...placing, pos: pick.cell });
+			act({ type: 'token_create', ...placing, pos: pick.cell });
 			placing = null;
 			return;
 		}
 		if (spawning) {
 			if (!pick.cell) return;
 			if (tokenAt(room.tokens, pick.cell)) return showToast('That cell is taken.');
-			conn.send({
+			act({
 				type: 'adventure_direct',
 				direction: { op: 'spawn', kind: spawning, pos: pick.cell }
 			});
@@ -595,7 +636,7 @@
 			case 'wall':
 				return clickWall(pick);
 			case 'door':
-				if (pick.edge) conn.send({ type: 'object_create', kind: 'door', ...pick.edge });
+				if (pick.edge) act({ type: 'object_create', kind: 'door', ...pick.edge });
 				return;
 			case 'height': {
 				if (!pick.cell) return;
@@ -603,7 +644,7 @@
 					areaStart = pick.cell;
 					return;
 				}
-				conn.send({ type: 'terrain_set', from: areaStart, to: pick.cell, level: heightLevel });
+				act({ type: 'terrain_set', from: areaStart, to: pick.cell, level: heightLevel });
 				areaStart = null;
 				return;
 			}
@@ -614,7 +655,7 @@
 					areaStart = pick.cell;
 					return;
 				}
-				conn.send({ type: 'fog_area', from: areaStart, to: pick.cell, reveal: tool === 'reveal' });
+				act({ type: 'fog_area', from: areaStart, to: pick.cell, reveal: tool === 'reveal' });
 				areaStart = null;
 				return;
 			}
@@ -625,23 +666,23 @@
 					return;
 				}
 				const dark = !isDark(areaStart);
-				conn.send({ type: 'darkness_set', from: areaStart, to: pick.cell, dark });
+				act({ type: 'darkness_set', from: areaStart, to: pick.cell, dark });
 				areaStart = null;
 				return;
 			}
 			case 'reveal-room':
 			case 'hide-room': {
 				if (!pick.cell) return;
-				conn.send({ type: 'fog_room', cell: pick.cell, reveal: tool === 'reveal-room' });
+				act({ type: 'fog_room', cell: pick.cell, reveal: tool === 'reveal-room' });
 				return;
 			}
 			case 'erase': {
 				const target = objectUnder(pick);
-				if (target) return void conn.send({ type: 'object_delete', objectId: target.id });
+				if (target) return void act({ type: 'object_delete', objectId: target.id });
 				const light = lightUnder(pick);
-				if (light) return void conn.send({ type: 'light_delete', lightId: light.id });
+				if (light) return void act({ type: 'light_delete', lightId: light.id });
 				const prop = propUnder(pick);
-				if (prop) conn.send({ type: 'prop_delete', propId: prop.id });
+				if (prop) act({ type: 'prop_delete', propId: prop.id });
 				return;
 			}
 			case 'prop': {
@@ -649,15 +690,15 @@
 				const placement = { ...propDraft, pos: pick.cell };
 				const problem = placementProblem(room.grid, placement, room.tokens, room.props);
 				if (problem) return showToast(problem.message);
-				conn.send({ type: 'prop_create', ...placement });
+				act({ type: 'prop_create', ...placement });
 				return;
 			}
 			case 'light': {
 				const existing = lightUnder(pick);
 				if (existing) {
-					conn.send({ type: 'light_update', lightId: existing.id, patch: { on: !existing.on } });
+					act({ type: 'light_update', lightId: existing.id, patch: { on: !existing.on } });
 				} else if (pick.cell) {
-					conn.send({ type: 'light_create', pos: pick.cell, ...lightDraft });
+					act({ type: 'light_create', pos: pick.cell, ...lightDraft });
 				}
 				return;
 			}
@@ -678,7 +719,7 @@
 			return;
 		}
 		if (wallProblem) return showToast(wallProblem);
-		conn.send({ type: 'object_create', kind: 'wall', a: wallStart, b: end });
+		act({ type: 'object_create', kind: 'wall', a: wallStart, b: end });
 		wallStart = end; // keep drawing from here
 	}
 
@@ -693,7 +734,7 @@
 			const moved = { ...selectedProp, pos: pick.cell };
 			const problem = placementProblem(room.grid, moved, room.tokens, room.props, selectedProp.id);
 			if (problem) return showToast(problem.message);
-			conn.send({ type: 'prop_update', propId: selectedProp.id, patch: { pos: pick.cell } });
+			act({ type: 'prop_update', propId: selectedProp.id, patch: { pos: pick.cell } });
 			return;
 		}
 		const target = adventureTarget(pick);
@@ -701,7 +742,7 @@
 			if (!target.inReach) {
 				return showToast(target.kind === 'act' ? 'Out of reach.' : 'Walk up to it first.');
 			}
-			conn.send(
+			act(
 				target.kind === 'act'
 					? { type: 'adventure_act', actionId: target.actionId, targetId: target.id }
 					: { type: 'adventure_interact', targetId: target.id, verb: target.verb }
@@ -729,7 +770,7 @@
 						: 'Spectators cannot open doors.'
 				);
 			}
-			conn.send({ type: 'door_toggle', objectId: door.id });
+			act({ type: 'door_toggle', objectId: door.id });
 			return;
 		}
 		if (isGm && !selected) {
@@ -741,7 +782,7 @@
 		}
 		if (!selected || !pick.cell) return;
 		if (selected.pos.x === pick.cell.x && selected.pos.y === pick.cell.y) return;
-		conn.send({ type: 'token_move', tokenId: selected.id, to: pick.cell });
+		act({ type: 'token_move', tokenId: selected.id, to: pick.cell });
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -753,12 +794,12 @@
 			if (tool === 'prop') propDraft = { ...propDraft, rotation: rotateBy(propDraft.rotation, by) };
 			else if (selectedProp) {
 				const rotation = rotateBy(selectedProp.rotation, by);
-				conn.send({ type: 'prop_update', propId: selectedProp.id, patch: { rotation } });
+				act({ type: 'prop_update', propId: selectedProp.id, patch: { rotation } });
 			}
 			return;
 		}
 		if (isGm && !typing && selectedProp && (event.key === 'Delete' || event.key === 'Backspace')) {
-			conn.send({ type: 'prop_delete', propId: selectedProp.id });
+			act({ type: 'prop_delete', propId: selectedProp.id });
 			selectedPropId = null;
 			return;
 		}
@@ -798,6 +839,27 @@
 		const next = shortcut[event.key.toLowerCase()];
 		if (next) setTool(next);
 	}
+
+	// The tutorial's first step is done once the character has walked somewhere.
+	let lastSpot: { id: string; x: number; y: number } | null = null;
+	$effect(() => {
+		const t = myCharacterToken;
+		if (!t) return;
+		const moved = lastSpot?.id === t.id && (lastSpot.x !== t.pos.x || lastSpot.y !== t.pos.y);
+		lastSpot = { id: t.id, x: t.pos.x, y: t.pos.y };
+		if (moved && adventure?.stage === 'playing') learned('move');
+	});
+
+	$effect(() => {
+		if (sheetOpen) learned('sheet');
+	});
+
+	const firstGoal = $derived(
+		adventure?.objectives.find((o) => !o.done && !o.optional)?.text ?? null
+	);
+	const learning = $derived(
+		me?.role === 'player' && !!myCharacter && adventure?.stage === 'playing'
+	);
 
 	// Introduce a character when this player takes it (not when a reload finds it already taken).
 	$effect(() => {
@@ -920,7 +982,7 @@
 						fogShared={room.fog.shared}
 						{tool}
 						{spawning}
-						send={(action) => conn.send(action)}
+						send={act}
 						onTool={setTool}
 						onSpawn={(kind) => {
 							setTool('select');
@@ -931,7 +993,7 @@
 							selectedId = id;
 						}}
 						onFogAll={(reveal) =>
-							conn.send({
+							act({
 								type: 'fog_area',
 								from: { x: 0, y: 0 },
 								to: { x: room.grid.width - 1, y: room.grid.height - 1 },
@@ -944,22 +1006,13 @@
 
 			{#if adventure || isGm}
 				<div class="panel">
-					<AdventurePanel
-						{adventure}
-						{isGm}
-						players={room.players}
-						send={(action) => conn.send(action)}
-					/>
+					<AdventurePanel {adventure} {isGm} players={room.players} send={act} />
 				</div>
 			{/if}
 
 			{#if selectedProp}
 				<div class="panel">
-					<PropInspector
-						prop={selectedProp}
-						send={(action) => conn.send(action)}
-						onDone={() => (selectedPropId = null)}
-					/>
+					<PropInspector prop={selectedProp} send={act} onDone={() => (selectedPropId = null)} />
 				</div>
 			{/if}
 
@@ -969,22 +1022,22 @@
 						{tool}
 						fogEnabled={room.fog.enabled}
 						fogShared={room.fog.shared}
-						onFogShared={(shared) => conn.send({ type: 'fog_share', shared })}
+						onFogShared={(shared) => act({ type: 'fog_share', shared })}
 						ambient={room.ambient}
 						{lightDraft}
 						{propDraft}
 						onTool={setTool}
 						onPropDraft={(draft) => (propDraft = draft)}
-						onAmbient={(ambient) => conn.send({ type: 'ambient_set', ambient })}
+						onAmbient={(ambient) => act({ type: 'ambient_set', ambient })}
 						onLightDraft={(draft) => (lightDraft = draft)}
 						{heightLevel}
 						onHeightLevel={(level) => (heightLevel = level)}
 						onFog={(enabled) => {
 							if (!enabled && FOG_TOOLS.includes(tool)) setTool('select');
-							conn.send({ type: 'fog_set', enabled });
+							act({ type: 'fog_set', enabled });
 						}}
 						onFogAll={(reveal) =>
-							conn.send({
+							act({
 								type: 'fog_area',
 								from: { x: 0, y: 0 },
 								to: { x: room.grid.width - 1, y: room.grid.height - 1 },
@@ -999,7 +1052,7 @@
 					<ScenePanel
 						sceneName={room.sceneName}
 						reply={conn.sceneReply}
-						send={(action) => conn.send(action)}
+						send={act}
 						onError={showToast}
 					/>
 				</div>
@@ -1025,19 +1078,14 @@
 							tool = 'select';
 							placing = draft;
 						}}
-						send={(action) => conn.send(action)}
+						send={act}
 					/>
 				</div>
 			{/if}
 		</aside>
 
 		<section class="chat-dock panel">
-			<ChatPanel
-				log={room.log}
-				myId={me.id}
-				send={(action) => conn.send(action)}
-				onError={showToast}
-			/>
+			<ChatPanel log={room.log} myId={me.id} send={act} onError={showToast} />
 		</section>
 
 		<p class="hint" aria-live="polite">{hint}</p>
@@ -1093,7 +1141,7 @@
 					{targeting}
 					onTargeting={(id) => (targeting = id)}
 					onSheet={() => (sheetOpen = true)}
-					send={(action) => conn.send(action)}
+					send={act}
 				/>
 			</div>
 		{/if}
@@ -1156,12 +1204,37 @@
 			<Decision
 				decision={adventure.decision}
 				canAnswer={isGm || (!!myCharacter && !myCharacter.downed && !myCharacter.dead)}
-				send={(action) => conn.send(action)}
+				send={act}
 			/>
 		{/if}
 
+		{#if learning && adventure && myCharacter && tutorial.stage === 'welcome' && introFor === null && !sheetOpen}
+			<Welcome
+				{adventure}
+				characterName={CHARACTERS[myCharacter.id].name}
+				onLearn={() => setTutorial({ ...tutorial, stage: 'tutorial' })}
+				onSkip={() => setTutorial({ ...tutorial, stage: 'done' })}
+			/>
+		{/if}
+
+		{#if learning && tutorial.stage === 'tutorial' && !adventure?.encounter}
+			<TutorialCoach
+				progress={tutorial}
+				goal={firstGoal}
+				onStart={() => setTutorial({ ...tutorial, stage: 'done' })}
+				onSkip={() => setTutorial({ ...tutorial, stage: 'done' })}
+			/>
+		{/if}
+
+		{#if me.role === 'player' && !adventure}
+			<p class="waiting" role="status">
+				You’re at the table. The GM is setting up; the story starts soon. Say hello in the chat
+				meanwhile.
+			</p>
+		{/if}
+
 		{#if adventure && me.role === 'player' && !myCharacter && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
-			<CharacterSelect {adventure} players={room.players} send={(action) => conn.send(action)} />
+			<CharacterSelect {adventure} players={room.players} send={act} />
 		{/if}
 
 		{#if adventure && endKey && dismissedEnd !== endKey}
@@ -1169,7 +1242,7 @@
 				{adventure}
 				players={room.players}
 				{isGm}
-				send={(action) => conn.send(action)}
+				send={act}
 				onClose={() => (dismissedEnd = endKey)}
 			/>
 		{/if}
@@ -1394,6 +1467,26 @@
 		.roll-card {
 			animation: none;
 		}
+	}
+
+	.waiting {
+		position: absolute;
+		top: 4.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		width: max-content;
+		max-width: calc(100% - 2rem);
+		margin: 0;
+		padding: 0.6rem 1rem;
+		background: var(--panel-solid);
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		text-align: center;
 	}
 
 	.paused {

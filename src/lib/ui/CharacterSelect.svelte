@@ -3,6 +3,7 @@
 	import { CHARACTER_IDS, CHARACTERS, defenseFor, describeAction } from '$lib/adventure/characters';
 	import type { PublicPlayer } from '$lib/game/protocol';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
+	import Steps from './Steps.svelte';
 
 	interface Props {
 		adventure: AdventureView;
@@ -25,8 +26,13 @@
 <div class="backdrop">
 	<section class="select" aria-labelledby="choose-title">
 		<header>
+			<Steps current={2} />
 			<p class="kicker">{adventure.title} · {adventure.location.name}</p>
 			<h2 id="choose-title">Choose your character</h2>
+			<p class="help">
+				Pick whoever sounds like you. Each has two actions; you can change your mind until the story
+				begins.
+			</p>
 		</header>
 		<ul>
 			{#each CHARACTER_IDS as id (id)}
@@ -85,9 +91,15 @@
 	}
 
 	.kicker {
-		margin: 0;
+		margin: 0.8rem 0 0;
 		color: var(--muted);
 		font-size: 0.85rem;
+	}
+
+	.help {
+		margin: 0;
+		color: var(--muted);
+		font-size: 0.9rem;
 	}
 
 	h2 {

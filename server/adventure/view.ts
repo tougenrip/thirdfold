@@ -3,11 +3,15 @@
 // is in that viewer's view, things to interact with only once their cells
 // have been seen, and the read-aloud passages only for the GM.
 
-import { CHAPTER_IDS, type AdventureView } from '../../src/lib/adventure/adventure';
+import {
+	CHAPTER_IDS,
+	type AdventureView,
+	type LocationId
+} from '../../src/lib/adventure/adventure';
 import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
-import { CLUES, CUES, ENDINGS, OUTCOMES, TITLE, type ClueDef, type ClueId } from './content';
+import { CLUES, CUES, ENDINGS, OUTCOMES, TEXT, TITLE, type ClueDef, type ClueId } from './content';
 import { ENEMIES } from './enemies';
 import {
 	chapterNumber,
@@ -27,6 +31,14 @@ import { actionOfVerb, objectDef, OBJECTS } from './objects';
 import type { Statuses } from './state';
 import { NPC_IDS, NPCS } from './npcs';
 import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, objectivesFor } from './story';
+
+/** What a player joining the party finds, wherever it is. */
+const WELCOME: Record<LocationId, string> = {
+	bellweather: TEXT.arrival,
+	monastery: TEXT.leaveVillage,
+	hollow: TEXT.hollow,
+	heart: TEXT.chooseDescent
+};
 
 const listStatuses = (statuses: Statuses) => [...statuses].map(([id, rounds]) => ({ id, rounds }));
 
@@ -222,6 +234,10 @@ export function adventureView(
 					}
 				: null,
 		director: viewer.role === 'gm' ? directorOptions(room, adventure) : null,
+		welcome: {
+			title: `Welcome to ${LOCATIONS[adventure.location].name}`,
+			text: WELCOME[adventure.location]
+		},
 		begunAt: adventure.begunAt,
 		completedAt: adventure.completedAt,
 		cues:
