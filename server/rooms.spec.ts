@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROOM_ID_PATTERN } from '../src/lib/game/protocol';
-import { RoomManager, snapshot } from './rooms';
+import { RoomManager } from './rooms';
+import { snapshotFor, viewFor } from './views';
 
 function createRoom(rooms = new RoomManager()) {
 	const created = rooms.create('Game Master');
@@ -57,7 +58,7 @@ describe('RoomManager', () => {
 
 	it('keeps session tokens out of snapshots', () => {
 		const { room, player } = createRoom();
-		const json = JSON.stringify(snapshot(room));
+		const json = JSON.stringify(snapshotFor(room, player, viewFor(room, player)));
 		expect(json).not.toContain(player.sessionToken);
 		expect(json).not.toContain('sessionToken');
 	});

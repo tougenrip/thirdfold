@@ -6,7 +6,14 @@ import type { DiceRoll } from './dice';
 export type ChatMessage =
 	| { seq: number; at: number; kind: 'chat'; authorId: string; authorName: string; text: string }
 	| { seq: number; at: number; kind: 'roll'; authorId: string; authorName: string; roll: DiceRoll }
-	| { seq: number; at: number; kind: 'system'; text: string };
+	| {
+			seq: number;
+			at: number;
+			kind: 'system';
+			text: string;
+			/** 'gm' for notices that would reveal hidden things (e.g. an NPC placed in the dark). */
+			audience?: 'gm';
+	  };
 
 export const CHAT_MAX_LENGTH = 500;
 /** Messages kept per room and sent to (re)joining clients. */

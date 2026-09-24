@@ -35,6 +35,8 @@
 	let hover = $state<Pick | null>(null);
 	/** First corner of the wall being drawn. */
 	let wallStart = $state<GridPos | null>(null);
+	/** First cell of the area being revealed or hidden. */
+	let areaStart = $state<GridPos | null>(null);
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
 	let rollCard = $state<Extract<ChatMessage, { kind: 'roll' }> | null>(null);
@@ -93,6 +95,9 @@
 			}
 			return items;
 		}
+		if ((tool === 'reveal' || tool === 'hide') && hover.cell) {
+			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: tool }];
+		}
 		if (tool === 'door' && hover.edge) {
 			const existing = room && objectOnEdge(room.objects, hover.edge);
 			return [
@@ -138,6 +143,12 @@
 		}
 		if (tool === 'door') return 'Door: click a grid line. Placing a door in a wall cuts a doorway.';
 		if (tool === 'erase') return 'Erase: click a wall or door to remove it.';
+		if (tool === 'reveal' || tool === 'hide') {
+			const verb = tool === 'reveal' ? 'reveal to' : 'hide from';
+			return areaStart
+				? `Click the opposite corner cell to ${verb} the players. Esc to cancel.`
+				: `${tool === 'reveal' ? 'Reveal' : 'Hide'}: click a cell to start an area.`;
+		}
 		if (hoveredObjectId && doorUnder(hover)) {
 			const door = doorUnder(hover)!;
 			return `Click to ${door.open ? 'close' : 'open'} the door.`;
@@ -149,6 +160,9 @@
 			return `Moving ${selected.name}: click a cell${suffix}${way}. Esc to deselect.`;
 		}
 		if (me?.role === 'spectator') return 'You are watching this table.';
+		if (!isGm && room?.fog.enabled && !room.tokens.some((t) => t.ownerId === me?.id)) {
+			return 'Fog of war is on. You see what the GM reveals.';
+		}
 		if (!isGm && room && !room.tokens.some((t) => t.ownerId === me?.id)) {
 			return 'Waiting for the GM to give you a token.';
 		}
@@ -193,6 +207,7 @@
 	function setTool(next: BuildTool) {
 		tool = next;
 		wallStart = null;
+		areaStart = null;
 		placing = null;
 		selectedId = null;
 	}
@@ -212,6 +227,17 @@
 			case 'door':
 				if (pick.edge) conn.send({ type: 'object_create', kind: 'door', ...pick.edge });
 				return;
+			case 'reveal':
+			case 'hide': {
+				if (!pick.cell) return;
+				if (!areaStart) {
+					areaStart = pick.cell;
+					return;
+				}
+				conn.send({ type: 'fog_area', from: areaStart, to: pick.cell, reveal: tool === 'reveal' });
+				areaStart = null;
+				return;
+			}
 			case 'erase': {
 				const target = objectUnder(pick);
 				if (target) conn.send({ type: 'object_delete', objectId: target.id });
@@ -269,8 +295,10 @@
 
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
-			if (wallStart) wallStart = null;
-			else if (tool !== 'select') tool = 'select';
+			if (wallStart || areaStart) {
+				wallStart = null;
+				areaStart = null;
+			} else if (tool !== 'select') tool = 'select';
 			placing = null;
 			selectedId = null;
 			return;
@@ -279,7 +307,13 @@
 		const target = event.target as HTMLElement | null;
 		if (!isGm || event.ctrlKey || event.metaKey || event.altKey) return;
 		if (target?.closest('input, textarea, select, [contenteditable]')) return;
-		const shortcut: Record<string, BuildTool> = { v: 'select', w: 'wall', d: 'door', e: 'erase' };
+		const shortcut: Record<string, BuildTool> = {
+			v: 'select',
+			w: 'wall',
+			d: 'door',
+			e: 'erase',
+			...(room?.fog.enabled ? { r: 'reveal', h: 'hide' } : {})
+		};
 		const next = shortcut[event.key.toLowerCase()];
 		if (next) setTool(next);
 	}
@@ -313,6 +347,8 @@
 				grid={room.grid}
 				tokens={room.tokens}
 				objects={room.objects}
+				fog={room.fog}
+				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
 				{preview}
 				selectedId={selected?.id ?? null}
@@ -357,7 +393,22 @@
 
 			{#if isGm}
 				<div class="panel">
-					<BuildPanel {tool} onTool={setTool} />
+					<BuildPanel
+						{tool}
+						fogEnabled={room.fog.enabled}
+						onTool={setTool}
+						onFog={(enabled) => {
+							if (!enabled && (tool === 'reveal' || tool === 'hide')) setTool('select');
+							conn.send({ type: 'fog_set', enabled });
+						}}
+						onFogAll={(reveal) =>
+							conn.send({
+								type: 'fog_area',
+								from: { x: 0, y: 0 },
+								to: { x: room.grid.width - 1, y: room.grid.height - 1 },
+								reveal
+							})}
+					/>
 				</div>
 			{/if}
 

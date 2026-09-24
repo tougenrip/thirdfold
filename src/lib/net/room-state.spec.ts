@@ -11,6 +11,7 @@ function room(): RoomSnapshot {
 		players: [{ id: 'gm', name: 'Gemma', role: 'gm', connected: true }],
 		tokens: [],
 		objects: [],
+		fog: { enabled: false, visible: '', explored: '' },
 		log: []
 	};
 }
@@ -38,7 +39,14 @@ describe('applyRoomUpdate', () => {
 
 	it('adds, replaces, moves and deletes tokens', () => {
 		const r = room();
-		const token = { id: 't1', name: 'Orc', color: '#c0392b', pos: { x: 0, y: 0 }, ownerId: null };
+		const token = {
+			id: 't1',
+			name: 'Orc',
+			color: '#c0392b',
+			pos: { x: 0, y: 0 },
+			ownerId: null,
+			vision: 6
+		};
 		applyRoomUpdate(r, { type: 'token_upserted', token });
 		applyRoomUpdate(r, { type: 'token_upserted', token: { ...token, name: 'Orc chief' } });
 		expect(r.tokens).toHaveLength(1);
@@ -101,5 +109,12 @@ describe('applyRoomUpdate', () => {
 		expect(r.objects.find((o) => o.id === 'w')?.b).toEqual({ x: 5, y: 4 });
 		applyRoomUpdate(r, { type: 'objects_changed', upserted: [], removed: ['w', 'unknown'] });
 		expect(r.objects.map((o) => o.id)).toEqual(['d']);
+	});
+
+	it('replaces the fog view', () => {
+		const r = room();
+		const fog = { enabled: true, visible: 'AQ==', explored: 'Aw==' };
+		applyRoomUpdate(r, { type: 'fog_update', fog });
+		expect(r.fog).toEqual(fog);
 	});
 });

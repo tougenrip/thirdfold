@@ -17,6 +17,8 @@ import {
 } from '$lib/game/grid';
 import type { SceneObject } from '$lib/game/objects';
 import type { Token } from '$lib/game/token';
+import type { FogView } from '$lib/game/visibility';
+import { FogLayer, type FogMode } from './fog';
 import { TokenLayer } from './tokens';
 import { WALL_HEIGHT, WallLayer } from './walls';
 
@@ -43,7 +45,9 @@ export interface TabletopEvents {
 /** Editor feedback drawn on the table: a wall/door outline or a corner marker. */
 export type PreviewItem =
 	| { kind: 'segment'; a: GridPos; b: GridPos; tone: 'valid' | 'invalid' | 'door' }
-	| { kind: 'corner'; at: GridPos };
+	| { kind: 'corner'; at: GridPos }
+	/** A rectangle of cells, e.g. the area the GM is about to reveal or hide. */
+	| { kind: 'area'; from: GridPos; to: GridPos; tone: 'reveal' | 'hide' };
 
 export interface Tabletop {
 	setGrid(grid: SquareGrid): void;
@@ -51,6 +55,7 @@ export interface Tabletop {
 	setObjects(objects: readonly SceneObject[]): void;
 	setHoveredObject(objectId: string | null): void;
 	setPreview(items: readonly PreviewItem[]): void;
+	setFog(fog: FogView | null, mode: FogMode): void;
 	setSelected(tokenId: string | null): void;
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	setView(view: CameraView): void;
@@ -122,16 +127,22 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer();
 	scene.add(wallLayer.group);
+	const fogLayer = new FogLayer();
+	scene.add(fogLayer.mesh);
+	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
 
 	// Editor previews reuse one geometry and three materials; only transforms change.
 	const previewGroup = new THREE.Group();
+	previewGroup.renderOrder = 2;
 	scene.add(previewGroup);
 	const previewBox = new THREE.BoxGeometry(1, 1, 1);
 	const previewCorner = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16);
 	const previewMaterials = {
 		valid: new THREE.MeshBasicMaterial({ color: 0x7fc47a, transparent: true, opacity: 0.55 }),
 		invalid: new THREE.MeshBasicMaterial({ color: 0xe27a6b, transparent: true, opacity: 0.55 }),
-		door: new THREE.MeshBasicMaterial({ color: 0xe0a458, transparent: true, opacity: 0.7 })
+		door: new THREE.MeshBasicMaterial({ color: 0xe0a458, transparent: true, opacity: 0.7 }),
+		reveal: new THREE.MeshBasicMaterial({ color: 0xf2e6d0, transparent: true, opacity: 0.25 }),
+		hide: new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 })
 	};
 
 	const highlight = new THREE.Mesh(
@@ -140,6 +151,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	);
 	highlight.rotation.x = -Math.PI / 2;
 	highlight.visible = false;
+	highlight.renderOrder = 2; // above the fog overlay
 	scene.add(highlight);
 
 	let tokens: readonly Token[] = [];
@@ -362,6 +374,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			buildTable(grid);
 			tokenLayer.sync(tokens, grid);
 			wallLayer.sync(objects, grid);
+			fogLayer.update(grid, fogState.fog, fogState.mode);
 			if (first) {
 				const pose = viewPose(view, extent);
 				camera.position.copy(pose.position);
@@ -387,6 +400,15 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			if (grid) {
 				const size = grid.cellSize;
 				for (const item of items) {
+					if (item.kind === 'area') {
+						const a = gridToWorld(grid, item.from);
+						const b = gridToWorld(grid, item.to);
+						const area = new THREE.Mesh(previewBox, previewMaterials[item.tone]);
+						area.position.set((a.x + b.x) / 2, 0.02 * size, (a.z + b.z) / 2);
+						area.scale.set(Math.abs(b.x - a.x) + size, 0.04 * size, Math.abs(b.z - a.z) + size);
+						previewGroup.add(area);
+						continue;
+					}
 					if (item.kind === 'corner') {
 						const w = cornerToWorld(grid, item.at);
 						const marker = new THREE.Mesh(previewCorner, previewMaterials.valid);
@@ -408,6 +430,12 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			}
 			requestRender();
 		},
+		setFog(fog, mode) {
+			fogState = { fog, mode };
+			if (!grid) return;
+			fogLayer.update(grid, fog, mode);
+			requestRender();
+		},
 		setSelected(tokenId) {
 			if (tokenLayer.setSelected(tokenId)) requestRender();
 		},
@@ -415,7 +443,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			const visible = !!(cell && grid);
 			if (cell && grid) {
 				const w = gridToWorld(grid, cell);
-				highlight.position.set(w.x, 0.01, w.z);
+				highlight.position.set(w.x, 0.04, w.z);
 				highlight.scale.setScalar(grid.cellSize);
 				highlight.material.color.setHex(COLORS.highlight[kind]);
 			}
@@ -442,6 +470,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			disposeGroup(table);
 			tokenLayer.dispose();
 			wallLayer.dispose();
+			fogLayer.dispose();
 			previewGroup.clear();
 			previewBox.dispose();
 			previewCorner.dispose();

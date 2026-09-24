@@ -13,7 +13,7 @@ import type { DieRoller } from '../src/lib/game/dice';
 import { gridDistance } from '../src/lib/game/grid';
 import { postChat, postRoll, postSystem, secureRoller } from './chat';
 import { RateLimiter } from './rate-limit';
-import { RoomManager, snapshot, toPublicPlayer, type Player, type Room } from './rooms';
+import { RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
 import {
 	createObject,
 	createToken,
@@ -21,8 +21,19 @@ import {
 	deleteToken,
 	moveToken,
 	toggleDoor,
+	fogArea,
+	setFog,
 	updateToken
 } from './scene';
+import {
+	canSeeLogEntry,
+	diffView,
+	sentFrom,
+	snapshotFor,
+	viewFor,
+	viewsFor,
+	type SentView
+} from './views';
 
 export interface GameServerOptions {
 	port: number;
@@ -60,6 +71,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	const sockets = new Map<string, Map<string, WebSocket>>();
 	const seats = new WeakMap<WebSocket, Seat>();
 	const alive = new WeakSet<WebSocket>();
+	/** What each socket was last sent of the (fog-filtered) scene, to diff against. */
+	const sentViews = new WeakMap<WebSocket, SentView>();
 
 	const wss = new WebSocketServer({
 		port: options.port,
@@ -92,12 +105,33 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			seats.delete(previous);
 			previous.close(CLOSE_SESSION_REPLACED, 'Session opened elsewhere');
 		}
+		const view = viewFor(room, player);
+		sentViews.set(ws, sentFrom(view));
 		send(ws, {
 			type: 'welcome',
 			playerId: player.id,
 			sessionToken: player.sessionToken,
-			room: snapshot(room)
+			room: snapshotFor(room, player, view)
 		});
+	}
+
+	/**
+	 * After any scene change: recompute every connected viewer's view and send
+	 * each the difference from what they had. Hidden things never go out.
+	 */
+	function syncRoom(room: Room, movedBy?: string): void {
+		const roomSockets = sockets.get(room.id);
+		if (!roomSockets) return;
+		const viewers = [...roomSockets.keys()]
+			.map((id) => room.players.get(id))
+			.filter((p): p is Player => !!p);
+		for (const [player, view] of viewsFor(room, viewers)) {
+			const ws = roomSockets.get(player.id);
+			const prev = ws && sentViews.get(ws);
+			if (!ws || !prev) continue;
+			for (const msg of diffView(prev, view, movedBy)) send(ws, msg);
+			sentViews.set(ws, sentFrom(view));
+		}
 	}
 
 	function handle(ws: WebSocket, msg: ClientMessage): void {
@@ -155,7 +189,16 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	}
 
 	function announce(room: Room, message: ChatMessage): void {
-		broadcast(room.id, { type: 'chat', message });
+		const frame = JSON.stringify({ type: 'chat', message } satisfies ServerMessage);
+		for (const [playerId, ws] of sockets.get(room.id) ?? []) {
+			const viewer = room.players.get(playerId);
+			if (viewer && canSeeLogEntry(viewer, message) && ws.readyState === ws.OPEN) ws.send(frame);
+		}
+	}
+
+	/** Notices naming a GM-only token stay with the GM: it may be hidden from the players. */
+	function tokenNotice(room: Room, text: string, ownerId: string | null): void {
+		announce(room, postSystem(room, text, ownerId ? undefined : 'gm'));
 	}
 
 	function tokenName(room: Room, name: string, ownerId: string | null): string {
@@ -175,36 +218,30 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				const result = createToken(room, player, msg);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { token } = result;
-				broadcast(room.id, { type: 'token_upserted', token });
-				return announce(
+				syncRoom(room);
+				return tokenNotice(
 					room,
-					postSystem(room, `${player.name} placed ${tokenName(room, token.name, token.ownerId)}.`)
+					`${player.name} placed ${tokenName(room, token.name, token.ownerId)}.`,
+					token.ownerId
 				);
 			}
 			case 'token_move': {
 				const result = moveToken(room, player, msg.tokenId, msg.to);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { token, from } = result;
-				broadcast(room.id, {
-					type: 'token_moved',
-					tokenId: token.id,
-					pos: token.pos,
-					byPlayerId: player.id
-				});
+				syncRoom(room, player.id);
 				const cells = gridDistance(from, token.pos);
-				return announce(
+				return tokenNotice(
 					room,
-					postSystem(
-						room,
-						`${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`
-					)
+					`${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`,
+					token.ownerId
 				);
 			}
 			case 'token_update': {
 				const result = updateToken(room, player, msg.tokenId, msg.patch);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { token, previousOwnerId } = result;
-				broadcast(room.id, { type: 'token_upserted', token });
+				syncRoom(room);
 				if (token.ownerId !== previousOwnerId) {
 					const owner = token.ownerId && room.players.get(token.ownerId);
 					announce(
@@ -222,35 +259,46 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'token_delete': {
 				const result = deleteToken(room, player, msg.tokenId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				broadcast(room.id, { type: 'token_deleted', tokenId: msg.tokenId });
-				return announce(room, postSystem(room, `${player.name} removed ${result.token.name}.`));
+				syncRoom(room);
+				return tokenNotice(
+					room,
+					`${player.name} removed ${result.token.name}.`,
+					result.token.ownerId
+				);
 			}
 			case 'object_create': {
 				const result = createObject(room, player, msg.kind, msg.a, msg.b);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				return broadcast(room.id, {
-					type: 'objects_changed',
-					upserted: result.upserted,
-					removed: result.removed
-				});
+				return syncRoom(room);
 			}
 			case 'object_delete': {
 				const result = deleteObject(room, player, msg.objectId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				return broadcast(room.id, {
-					type: 'objects_changed',
-					upserted: [],
-					removed: [msg.objectId]
-				});
+				return syncRoom(room);
 			}
 			case 'door_toggle': {
 				const result = toggleDoor(room, player, msg.objectId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
-				broadcast(room.id, { type: 'objects_changed', upserted: [result.door], removed: [] });
+				syncRoom(room);
 				return announce(
 					room,
 					postSystem(room, `${player.name} ${result.door.open ? 'opened' : 'closed'} a door.`)
 				);
+			}
+			case 'fog_set': {
+				const result = setFog(room, player, msg.enabled);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				if (!result.changed) return;
+				syncRoom(room);
+				return announce(
+					room,
+					postSystem(room, `${player.name} turned fog of war ${msg.enabled ? 'on' : 'off'}.`)
+				);
+			}
+			case 'fog_area': {
+				const result = fogArea(room, player, msg.from, msg.to, msg.reveal);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
 			}
 			case 'chat_send':
 			case 'dice_roll': {

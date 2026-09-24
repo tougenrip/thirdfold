@@ -11,6 +11,7 @@
 	import { NAME_MAX_LENGTH, type PublicPlayer } from '$lib/game/protocol';
 	import { TOKEN_COLORS, type Token } from '$lib/game/token';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
+	import { MAX_VISION } from '$lib/game/visibility';
 
 	interface Props {
 		isGm: boolean;
@@ -43,6 +44,13 @@
 			(TOKEN_COLORS.indexOf(draft.color as (typeof TOKEN_COLORS)[number]) + 1) %
 			TOKEN_COLORS.length;
 		draft = { name: '', color: TOKEN_COLORS[next], ownerId: draft.ownerId };
+	}
+
+	function setVision(token: Token, value: number) {
+		const vision = Math.round(value);
+		if (Number.isFinite(vision) && vision >= 0 && vision <= MAX_VISION && vision !== token.vision) {
+			send({ type: 'token_update', tokenId: token.id, patch: { vision } });
+		}
 	}
 
 	function rename(token: Token, value: string) {
@@ -104,6 +112,18 @@
 						<option value={p.id}>{p.name}</option>
 					{/each}
 				</select>
+			</label>
+			<label class="row">
+				<span class="muted small">Vision (cells, used when fog is on)</span>
+				<input
+					type="number"
+					min="0"
+					max={MAX_VISION}
+					step="1"
+					value={selected.vision}
+					aria-label="Token vision"
+					onchange={(e) => setVision(selected, e.currentTarget.valueAsNumber)}
+				/>
 			</label>
 			<div class="swatches" role="group" aria-label="Token colour">
 				{#each TOKEN_COLORS as color (color)}

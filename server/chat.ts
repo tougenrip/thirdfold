@@ -50,6 +50,7 @@ export function postRoll(
 	};
 }
 
-export function postSystem(room: Room, text: string): ChatMessage {
-	return appendLog(room, { kind: 'system', text });
+/** Posts a notice; `audience: 'gm'` keeps it from players and spectators (e.g. it names a hidden NPC). */
+export function postSystem(room: Room, text: string, audience?: 'gm'): ChatMessage {
+	return appendLog(room, audience ? { kind: 'system', text, audience } : { kind: 'system', text });
 }

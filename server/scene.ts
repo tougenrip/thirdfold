@@ -19,6 +19,7 @@ import {
 import { canEditScene, canMoveToken, canUseDoor } from '../src/lib/game/permissions';
 import { normalizeName, type TokenPatch } from '../src/lib/game/protocol';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
+import { DEFAULT_VISION, rectCells } from '../src/lib/game/visibility';
 import { fail, type Player, type Result, type Room } from './rooms';
 
 export interface NewToken {
@@ -41,9 +42,8 @@ function checkOwner(room: Room, ownerId: string | null): Result<object> {
 function checkCell(room: Room, pos: GridPos, movingId?: string): Result<object> {
 	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the table.');
 	const occupant = tokenAt(room.tokens.values(), pos);
-	if (occupant && occupant.id !== movingId) {
-		return fail('cell_occupied', `${occupant.name} is already on that cell.`);
-	}
+	// No name here: under fog the occupant may be a token the mover cannot see.
+	if (occupant && occupant.id !== movingId) return fail('cell_occupied', 'That cell is occupied.');
 	return { ok: true };
 }
 
@@ -64,7 +64,8 @@ export function createToken(room: Room, actor: Player, input: NewToken): Result<
 		name,
 		color: input.color,
 		pos: { x: input.pos.x, y: input.pos.y },
-		ownerId: input.ownerId
+		ownerId: input.ownerId,
+		vision: DEFAULT_VISION
 	};
 	room.tokens.set(token.id, token);
 	return { ok: true, token };
@@ -116,6 +117,7 @@ export function updateToken(
 	token.name = name;
 	if (patch.color !== undefined) token.color = patch.color;
 	if (patch.ownerId !== undefined) token.ownerId = patch.ownerId;
+	if (patch.vision !== undefined) token.vision = patch.vision;
 	return { ok: true, token, previousOwnerId };
 }
 
@@ -208,4 +210,35 @@ export function toggleDoor(room: Room, actor: Player, objectId: string): Result<
 	}
 	door.open = !door.open;
 	return { ok: true, door };
+}
+
+export function setFog(room: Room, actor: Player, enabled: boolean): Result<{ changed: boolean }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM controls fog of war.');
+	const changed = room.fog.enabled !== enabled;
+	room.fog.enabled = enabled;
+	return { ok: true, changed };
+}
+
+/**
+ * Reveals the rectangle between two cells to everyone, or hides it again.
+ * Hiding also makes players forget they explored it, so the area goes dark
+ * until their tokens see it anew.
+ */
+export function fogArea(
+	room: Room,
+	actor: Player,
+	from: GridPos,
+	to: GridPos,
+	reveal: boolean
+): Result<{ cells: number }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can reveal or hide the map.');
+	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
+		return fail('invalid_position', 'That area is off the table.');
+	}
+	const cells = rectCells(room.grid, from, to);
+	for (const i of cells) {
+		room.fog.revealed[i] = reveal ? 1 : 0;
+		if (!reveal) for (const p of room.players.values()) p.explored[i] = 0;
+	}
+	return { ok: true, cells: cells.length };
 }

@@ -538,3 +538,98 @@ describe('walls and doors over the wire', () => {
 		expect(await gm.expect('error')).toMatchObject({ code: 'invalid_message' });
 	});
 });
+
+describe('fog of war over the wire', () => {
+	it('never sends a player hidden tokens or notices about them, and reveals them when seen', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		const pipFrames: string[] = [];
+		pip.ws.on('message', (data) => pipFrames.push(data.toString()));
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+
+		gm.send({ type: 'fog_set', enabled: true });
+		expect((await pip.expect('fog_update')).fog.enabled).toBe(true);
+		expect((await gm.expect('fog_update')).fog.enabled).toBe(true);
+
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 2, y: 2 },
+			ownerId: playerId
+		});
+		expect((await pip.expect('fog_update')).fog.enabled).toBe(true);
+		const { token: hero } = await pip.expect('token_upserted');
+		await gm.expect('fog_update');
+		await gm.expect('token_upserted');
+
+		// A secret NPC far outside Pip's vision.
+		gm.send({
+			type: 'token_create',
+			name: 'Lurking Dragon',
+			color: '#8e44ad',
+			pos: { x: 17, y: 17 },
+			ownerId: null
+		});
+		const { token: dragon } = await gm.expect('token_upserted');
+		await gm.untilNotice('Gemma placed Lurking Dragon.');
+
+		// Pip walks toward it; still out of range.
+		pip.send({ type: 'token_move', tokenId: hero.id, to: { x: 6, y: 6 } });
+		await pip.expect('fog_update');
+		await pip.expect('token_moved');
+		expect(pipFrames.join('\n')).not.toContain('Lurking Dragon');
+		expect(pipFrames.join('\n')).not.toContain(dragon.id);
+
+		// Within range: the dragon appears for Pip.
+		pip.send({ type: 'token_move', tokenId: hero.id, to: { x: 13, y: 13 } });
+		await pip.expect('fog_update');
+		await pip.expect('token_moved');
+		expect((await pip.expect('token_upserted')).token).toMatchObject({
+			id: dragon.id,
+			name: 'Lurking Dragon'
+		});
+
+		// When the GM moves the dragon back out of sight, it vanishes for Pip.
+		gm.send({ type: 'token_move', tokenId: dragon.id, to: { x: 19, y: 0 } });
+		expect(await pip.expect('token_deleted')).toEqual({
+			type: 'token_deleted',
+			tokenId: dragon.id
+		});
+	});
+
+	it('reveals an area the GM uncovers, and hides it again', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		gm.send({ type: 'fog_set', enabled: true });
+		await gm.expect('fog_update');
+		gm.send({
+			type: 'token_create',
+			name: 'Chest',
+			color: '#d4ac0d',
+			pos: { x: 5, y: 5 },
+			ownerId: null
+		});
+		await gm.expect('token_upserted');
+
+		const sam = await connect();
+		sam.send({ type: 'join', roomId: room.id, name: 'Sam', role: 'spectator' });
+		expect((await sam.expect('welcome')).room.tokens).toEqual([]);
+
+		gm.send({ type: 'fog_area', from: { x: 4, y: 4 }, to: { x: 6, y: 6 }, reveal: true });
+		await sam.expect('fog_update');
+		expect((await sam.expect('token_upserted')).token.name).toBe('Chest');
+
+		gm.send({ type: 'fog_area', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, reveal: false });
+		await sam.expect('fog_update');
+		expect(await sam.expect('token_deleted')).toMatchObject({ type: 'token_deleted' });
+
+		sam.send({ type: 'fog_area', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, reveal: true });
+		expect(await sam.expect('error')).toMatchObject({ code: 'forbidden' });
+	});
+});

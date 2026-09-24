@@ -2,6 +2,8 @@
 	import type { GridPos, SquareGrid } from '$lib/game/grid';
 	import type { SceneObject } from '$lib/game/objects';
 	import type { Token } from '$lib/game/token';
+	import type { FogView } from '$lib/game/visibility';
+	import type { FogMode } from './fog';
 	import {
 		createTabletop,
 		type CameraView,
@@ -15,6 +17,8 @@
 		grid: SquareGrid;
 		tokens: readonly Token[];
 		objects: readonly SceneObject[];
+		fog?: FogView | null;
+		fogMode?: FogMode;
 		hoveredObjectId?: string | null;
 		preview?: readonly PreviewItem[];
 		selectedId?: string | null;
@@ -26,6 +30,8 @@
 		grid,
 		tokens,
 		objects,
+		fog = null,
+		fogMode = 'player',
 		hoveredObjectId = null,
 		preview = [],
 		selectedId = null,
@@ -68,6 +74,10 @@
 
 	$effect(() => {
 		tabletop?.setObjects($state.snapshot(objects) as SceneObject[]);
+	});
+
+	$effect(() => {
+		tabletop?.setFog(fog ? { ...fog } : null, fogMode);
 	});
 
 	$effect(() => {

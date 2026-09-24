@@ -6,6 +6,7 @@ import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import type { SceneObject } from './objects';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
+import { MAX_VISION, type FogView } from './visibility';
 
 export type Role = 'gm' | 'player' | 'spectator';
 /** Roles a client may ask for when joining. GM is only ever the room creator. */
@@ -25,6 +26,8 @@ export interface RoomSnapshot {
 	tokens: Token[];
 	/** Walls and doors. */
 	objects: SceneObject[];
+	/** What this client may see. With fog on, tokens and objects above are already filtered to it. */
+	fog: FogView;
 	/** Most recent room log entries, oldest first. */
 	log: ChatMessage[];
 }
@@ -34,6 +37,7 @@ export interface TokenPatch {
 	name?: string;
 	color?: string;
 	ownerId?: string | null;
+	vision?: number;
 }
 
 export type ClientMessage =
@@ -55,6 +59,10 @@ export type ClientMessage =
 	| { type: 'object_delete'; objectId: string }
 	/** Open or close a door: the GM always, a player only with a token beside it. */
 	| { type: 'door_toggle'; objectId: string }
+	/** GM: turn fog of war on or off for the room. */
+	| { type: 'fog_set'; enabled: boolean }
+	/** GM: reveal (or hide again) the rectangle of cells between two corner cells. */
+	| { type: 'fog_area'; from: GridPos; to: GridPos; reveal: boolean }
 	| { type: 'chat_send'; text: string }
 	| { type: 'dice_roll'; expression: string };
 
@@ -91,6 +99,8 @@ export type ServerMessage =
 	| { type: 'token_deleted'; tokenId: string }
 	/** Scene objects added/changed and removed, applied together (e.g. a wall split by a door). */
 	| { type: 'objects_changed'; upserted: SceneObject[]; removed: string[] }
+	/** This client's visibility changed (vision moved, doors, GM reveal, fog toggled). */
+	| { type: 'fog_update'; fog: FogView }
 	/** A new room log entry: chat, a dice result, or a system notice. */
 	| { type: 'chat'; message: ChatMessage }
 	| { type: 'error'; code: ErrorCode; message: string };
@@ -149,6 +159,11 @@ function parseTokenPatch(value: unknown): TokenPatch | null {
 		if (!isColor(value.color)) return null;
 		patch.color = value.color;
 	}
+	if ('vision' in value) {
+		const v = value.vision;
+		if (!Number.isInteger(v) || (v as number) < 0 || (v as number) > MAX_VISION) return null;
+		patch.vision = v as number;
+	}
 	if ('ownerId' in value) {
 		const owner = parseOwner(value.ownerId);
 		if (owner === undefined) return null;
@@ -204,6 +219,14 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return isId(data.objectId) ? { type: 'object_delete', objectId: data.objectId } : null;
 		case 'door_toggle':
 			return isId(data.objectId) ? { type: 'door_toggle', objectId: data.objectId } : null;
+		case 'fog_set':
+			return typeof data.enabled === 'boolean' ? { type: 'fog_set', enabled: data.enabled } : null;
+		case 'fog_area': {
+			const from = parseGridPos(data.from);
+			const to = parseGridPos(data.to);
+			if (!from || !to || typeof data.reveal !== 'boolean') return null;
+			return { type: 'fog_area', from, to, reveal: data.reveal };
+		}
 		case 'chat_send':
 			return typeof data.text === 'string' ? { type: 'chat_send', text: data.text } : null;
 		case 'dice_roll':
@@ -224,6 +247,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		token_upserted: (d) => isRecord(d.token),
 		token_moved: (d) => typeof d.tokenId === 'string' && parseGridPos(d.pos) !== null,
 		token_deleted: (d) => typeof d.tokenId === 'string',
+		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'

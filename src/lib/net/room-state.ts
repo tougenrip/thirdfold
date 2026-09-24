@@ -41,6 +41,9 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 			room.objects = [...next, ...msg.upserted];
 			return true;
 		}
+		case 'fog_update':
+			room.fog = msg.fog;
+			return true;
 		case 'chat': {
 			const last = room.log.at(-1);
 			if (last && last.seq >= msg.message.seq) return true; // already have it

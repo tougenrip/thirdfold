@@ -6,13 +6,13 @@ import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
 import type { ChatMessage } from '../src/lib/game/chat';
 import type { SceneObject } from '../src/lib/game/objects';
 import type { Token } from '../src/lib/game/token';
+import { emptyMask, type CellMask } from '../src/lib/game/visibility';
 import {
 	normalizeName,
 	type ErrorCode,
 	type JoinRole,
 	type PublicPlayer,
-	type Role,
-	type RoomSnapshot
+	type Role
 } from '../src/lib/game/protocol';
 
 export interface Player {
@@ -22,6 +22,8 @@ export interface Player {
 	/** Secret proving identity on reconnect. Never broadcast. */
 	sessionToken: string;
 	connected: boolean;
+	/** Cells this player has ever seen while fog was on; kept across reconnects. */
+	explored: CellMask;
 }
 
 export interface Room {
@@ -30,6 +32,11 @@ export interface Room {
 	players: Map<string, Player>;
 	tokens: Map<string, Token>;
 	objects: Map<string, SceneObject>;
+	fog: {
+		enabled: boolean;
+		/** Cells the GM has revealed to everyone. */
+		revealed: CellMask;
+	};
 	/** Recent room log, oldest first, capped at LOG_LIMIT. */
 	log: ChatMessage[];
 	nextSeq: number;
@@ -50,17 +57,6 @@ export function fail(
 
 export function toPublicPlayer(p: Player): PublicPlayer {
 	return { id: p.id, name: p.name, role: p.role, connected: p.connected };
-}
-
-export function snapshot(room: Room): RoomSnapshot {
-	return {
-		id: room.id,
-		grid: { ...room.grid },
-		players: [...room.players.values()].map(toPublicPlayer),
-		tokens: [...room.tokens.values()].map((t) => ({ ...t, pos: { ...t.pos } })),
-		objects: [...room.objects.values()].map((o) => structuredClone(o)),
-		log: [...room.log]
-	};
 }
 
 export class RoomManager {
@@ -84,6 +80,7 @@ export class RoomManager {
 			players: new Map(),
 			tokens: new Map(),
 			objects: new Map(),
+			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID) },
 			log: [],
 			nextSeq: 1,
 			emptySince: null
@@ -139,7 +136,8 @@ export class RoomManager {
 			name,
 			role,
 			sessionToken: randomBytes(32).toString('hex'),
-			connected: true
+			connected: true,
+			explored: emptyMask(room.grid)
 		};
 		room.players.set(player.id, player);
 		room.emptySince = null;
