@@ -85,6 +85,8 @@ export interface DecisionMade {
 export interface EndingView {
 	/** Which ending: silence, descent or communion. */
 	id: string;
+	/** The first words of the end screen, e.g. "The Bell is silent". */
+	headline: string;
 	/** The ending's name, e.g. "Silence". */
 	title: string;
 	/** How the party came to it, e.g. "The Bell Broken". */
@@ -95,6 +97,20 @@ export interface EndingView {
 	scene: string;
 	/** What came of it all, e.g. { label: 'The Bell', value: 'Broken' }. */
 	result: { label: string; value: string }[];
+}
+
+/** What the party did, shown when the story is over (won or lost). */
+export interface SessionSummary {
+	/** Fights won. */
+	fightsWon: number;
+	/** Enemies that fell. */
+	foesDefeated: number;
+	/** Pieces of evidence found, by anyone. */
+	evidence: number;
+	/** Chapters played through, the last one included. */
+	chapters: number;
+	/** Players who asked to play again. */
+	again: string[];
 }
 
 /** GM only: the story's bookkeeping, for following along and checking a save. */
@@ -428,7 +444,10 @@ export interface AdventureView {
 	firstFind: { objectId: string; cells: GridPos[]; clueId: string } | null;
 	/** When the GM began play (ms since epoch), for the time played. */
 	begunAt: number | null;
+	/** When the story ended, won or lost. */
 	completedAt: number | null;
+	/** What the party did, once the story is over; null while it goes on. */
+	summary: SessionSummary | null;
 	/** GM only: prepared text to read aloud. */
 	cues: ReadAloud[] | null;
 }

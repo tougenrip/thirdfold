@@ -1353,9 +1353,26 @@ describe('The Hollow Bell over the wire', () => {
 		});
 		expect(done.objectives.every((o) => o.done)).toBe(true);
 		expect(done.ledger?.events).toHaveLength(18);
-		expect((await untilAdventure(pip, (a) => a.stage === 'complete')).completedAt).toBeGreaterThan(
-			0
+		const ended = await untilAdventure(pip, (a) => a.stage === 'complete');
+		expect(ended.completedAt).toBeGreaterThan(0);
+		// The session's end screen: its headline and the tally, for everyone.
+		expect(ended.ending?.headline).toBe('The Bell is silent');
+		expect(ended.summary).toMatchObject({ chapters: 12, again: [] });
+		expect(ended.summary!.fightsWon).toBeGreaterThan(0);
+
+		// Pip asks to play again (once), and the GM replays with the same party.
+		pip.send({ type: 'adventure_again' });
+		for (;;) {
+			const { message } = await gm.expect('chat');
+			if (message.kind === 'system' && message.text === 'Pip would like to play again.') break;
+		}
+		expect((await untilAdventure(gm, (a) => a.summary?.again.length === 1)).summary?.again).toEqual(
+			[pipId]
 		);
+		gm.send({ type: 'adventure_control', op: 'restart' });
+		const again = (await pip.until('room_reset')).room.adventure!;
+		expect(again).toMatchObject({ stage: 'playing', summary: null, completedAt: null });
+		expect(again.characters.find((c) => c.id === 'warden')?.playerId).toBe(pipId);
 	}, 15_000);
 
 	it('walks the Hollow’s sentries on the server, and starts the fight when one spots a character', async () => {

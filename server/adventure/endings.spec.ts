@@ -7,9 +7,11 @@ import { RoomManager, type Player, type Room } from '../rooms';
 import { applyScene, exportScene } from '../scene-io';
 import {
 	afterTokenDeleted,
+	askAgain,
 	beginAdventure,
 	characterOf,
 	claimCharacter,
+	control,
 	decide,
 	interact,
 	sense,
@@ -236,5 +238,49 @@ describe('each ending’s final state', () => {
 			results.add(JSON.stringify(ending().result));
 		}
 		expect(results.size).toBe(4);
+	});
+});
+
+describe('the session’s end', () => {
+	const view = () => adventureView(room, ana, new Set(room.tokens.keys()), null)!;
+
+	it('opens with a headline for each ending, and tallies what the party did', () => {
+		expect(view().summary).toBeNull();
+		toTheChoice();
+		ok(decide(room, ana, 'bell', 'silence', 5000));
+		expect(ending().headline).toBe('The Bell is silent');
+		expect(view()).toMatchObject({ begunAt: 1000, completedAt: 5000 });
+		expect(view().summary).toEqual({
+			fightsWon: [...story().encounters.values()].filter((s) => s === 'won').length,
+			foesDefeated: story().defeated.length,
+			evidence: story().evidence.size,
+			chapters: 12,
+			again: []
+		});
+		expect(view().summary!.fightsWon).toBeGreaterThanOrEqual(2);
+	});
+
+	it('lets players ask the GM to play again, once each, and the GM replay with the same party', () => {
+		expect(askAgain(room, ana)).toMatchObject({ ok: false, code: 'forbidden' });
+		toTheChoice();
+		ok(decide(room, ana, 'bell', 'use', 5000));
+		expect(askAgain(room, gm)).toMatchObject({ ok: false, code: 'forbidden' });
+		expect(texts(ok(askAgain(room, ana)).log)).toEqual(['Ana would like to play again.']);
+		expect(ok(askAgain(room, ana)).log).toEqual([]);
+		expect(view().summary!.again).toEqual([ana.id]);
+
+		const replay = ok(control(room, gm, 'restart', 9000));
+		expect(replay.reset).toBe(true);
+		expect(story()).toMatchObject({
+			stage: 'playing',
+			chapter: 'village',
+			location: 'bellweather',
+			begunAt: 9000,
+			completedAt: null,
+			ending: null
+		});
+		expect(view().summary).toBeNull();
+		expect(me().id).toBe('warden');
+		expect(me().token.ownerId).toBe(ana.id);
 	});
 });

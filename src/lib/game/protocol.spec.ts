@@ -172,6 +172,9 @@ describe('adventure messages', () => {
 			type: 'adventure_control',
 			op: 'restart'
 		});
+		expect(parseClientMessage({ type: 'adventure_again', extra: 1 })).toEqual({
+			type: 'adventure_again'
+		});
 		expect(parseClientMessage({ type: 'adventure_narrate', text: 'Hush.' })).toEqual({
 			type: 'adventure_narrate',
 			text: 'Hush.'

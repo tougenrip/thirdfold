@@ -6,7 +6,8 @@
 import {
 	CHAPTER_IDS,
 	type AdventureView,
-	type LocationId
+	type LocationId,
+	type SessionSummary
 } from '../../src/lib/adventure/adventure';
 import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
@@ -239,6 +240,7 @@ export function adventureView(
 		})),
 		ending: adventure.ending && {
 			id: adventure.ending,
+			headline: OUTCOMES[bellAnswer(adventure)].headline,
 			title: ENDINGS[adventure.ending].title,
 			subtitle: OUTCOMES[bellAnswer(adventure)].subtitle,
 			text: OUTCOMES[bellAnswer(adventure)].text,
@@ -270,7 +272,20 @@ export function adventureView(
 		},
 		begunAt: adventure.begunAt,
 		completedAt: adventure.completedAt,
+		summary: summaryOf(adventure),
 		cues:
 			viewer.role === 'gm' ? CUES.map((c) => ({ ...c, read: adventure.cuesRead.has(c.id) })) : null
+	};
+}
+
+/** What the party did, once the story is over. */
+function summaryOf(adventure: AdventureState): SessionSummary | null {
+	if (adventure.stage !== 'complete' && adventure.stage !== 'defeat') return null;
+	return {
+		fightsWon: [...adventure.encounters.values()].filter((s) => s === 'won').length,
+		foesDefeated: adventure.defeated.length,
+		evidence: adventure.evidence.size,
+		chapters: chapterNumber(adventure.chapter),
+		again: [...(adventure.again ?? [])]
 	};
 }
