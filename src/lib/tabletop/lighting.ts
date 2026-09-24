@@ -51,6 +51,10 @@ export class LightingLayer {
 	private ambient: Ambient = 'day';
 	/** Per-cell brightness from the last update (0 dark - 1 lit), or null by day. */
 	private brightness: Float32Array | null = null;
+	/** Whether the table has dark areas (they darken even by day, and their flames flicker). */
+	private hasDark = false;
+	private hemisphere = PRESETS.day.hemisphere;
+	private flash = 0;
 
 	constructor(private readonly base: SceneLights) {
 		this.overlay = new THREE.Mesh(
@@ -74,7 +78,8 @@ export class LightingLayer {
 	/**
 	 * Recomputes lighting. `visible` (players under fog) marks cells the server
 	 * says the viewer can see; in the dark those are lit by definition, even if
-	 * the light itself is out of the viewer's knowledge.
+	 * the light itself is out of the viewer's knowledge. `dark` marks the
+	 * table's dark areas, which are as dark as night whatever the ambient.
 	 */
 	update(
 		grid: SquareGrid,
@@ -83,19 +88,22 @@ export class LightingLayer {
 		sources: readonly LightSource[],
 		blocked: Blockers,
 		visible: Uint8Array | null,
-		ground: Ground | null = null
+		ground: Ground | null = null,
+		dark: Uint8Array | null = null
 	): void {
 		const preset = PRESETS[ambient];
 		this.ambient = ambient;
 		this.base.scene.background = new THREE.Color(preset.background);
 		if (this.base.scene.fog instanceof THREE.Fog)
 			this.base.scene.fog.color.setHex(preset.background);
-		this.base.hemisphere.intensity = preset.hemisphere;
+		this.hemisphere = preset.hemisphere;
+		this.base.hemisphere.intensity = preset.hemisphere + this.flash * 1.5;
+		this.hasDark = !!dark?.some((v) => v);
 		this.base.sun.intensity = preset.sun;
 		this.base.sun.castShadow = preset.sun > 0;
 		this.base.lamp.intensity = preset.lamp;
 
-		this.updateOverlay(grid, preset.dark, sources, blocked, visible);
+		this.updateOverlay(grid, preset.dark, sources, blocked, visible, dark);
 		this.updatePool(grid, sources, ambient, ground);
 		this.updateFixtures(grid, lights, ground);
 	}
@@ -124,9 +132,10 @@ export class LightingLayer {
 		darkness: number,
 		sources: readonly LightSource[],
 		blocked: Blockers,
-		visible: Uint8Array | null
+		visible: Uint8Array | null,
+		dark: Uint8Array | null
 	): void {
-		if (darkness === 0) {
+		if (darkness === 0 && !this.hasDark) {
 			this.overlay.visible = false;
 			this.brightness = null;
 			return;
@@ -155,11 +164,13 @@ export class LightingLayer {
 			// Rows flipped: texture row 0 is the plane's +z edge, grid row 0 is at −z.
 			const o = ((grid.height - 1 - y) * grid.width + x) * 4;
 			const level = Math.max(levels[i], visible?.[i] ? 0.55 : 0);
+			// A dark area is as dark as night, whatever the hour.
+			const shade = dark?.[i] ? Math.max(darkness, PRESETS.dark.dark) : darkness;
 			data[o] = 4;
 			data[o + 1] = 3;
 			data[o + 2] = 8;
-			data[o + 3] = Math.round(255 * darkness * (1 - level));
-			this.brightness[i] = 1 - darkness * (1 - level);
+			data[o + 3] = Math.round(255 * shade * (1 - level));
+			this.brightness[i] = 1 - shade * (1 - level);
 		}
 		this.texture.needsUpdate = true;
 		this.overlay.scale.set(grid.width * grid.cellSize, grid.height * grid.cellSize, 1);
@@ -196,9 +207,21 @@ export class LightingLayer {
 		});
 	}
 
-	/** Whether anything flickers: lit flames after dark. */
+	/** Whether anything flickers: lit flames after dark, or in a dark area. */
 	get flickers(): boolean {
-		return this.ambient !== 'day' && this.steady.some((v) => v > 0);
+		return (this.ambient !== 'day' || this.hasDark) && this.steady.some((v) => v > 0);
+	}
+
+	/**
+	 * A flash of light over the table (0 none, 1 full): the darkness overlay
+	 * thins and the sky light rises, for the moment a flash lasts. Cosmetic;
+	 * what the flash lets players see comes from the server as fog.
+	 */
+	setFlash(k: number): void {
+		if (k === this.flash) return;
+		this.flash = k;
+		this.overlay.material.opacity = 1 - 0.85 * k;
+		this.base.hemisphere.intensity = this.hemisphere + k * 1.5;
 	}
 
 	/**

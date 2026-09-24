@@ -63,6 +63,8 @@ export interface TableParts {
 	arrival: { from: GridPos; to: GridPos };
 	/** Raised ground, applied in order (later areas win); the rest is level 0. */
 	terrain?: readonly Rise[];
+	/** Dark areas (inclusive rectangles): only light lets anyone see there, whatever the ambient. */
+	dark?: readonly { from: GridPos; to: GridPos }[];
 }
 
 /** A rectangle of cells at one level. */
@@ -91,6 +93,9 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 	for (const r of parts.terrain ?? []) {
 		levels = withLevel(levels ?? flatLevels(parts.grid), parts.grid, r.from, r.to, r.level);
 	}
+	const darkness = emptyMask(parts.grid);
+	for (const d of parts.dark ?? [])
+		for (const i of rectCells(parts.grid, d.from, d.to)) darkness[i] = 1;
 	return {
 		format: 'thirdfold-scene',
 		version: SCENE_FILE_VERSION,
@@ -105,7 +110,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		fog: { enabled: true, revealed: encodeMask(revealed), shared: false },
 		discovery: {},
 		adventure: null,
-		terrain: levels ? encodeLevels(levels) : null
+		terrain: levels ? encodeLevels(levels) : null,
+		darkness: darkness.some((v) => v) ? encodeMask(darkness) : null
 	};
 }
 

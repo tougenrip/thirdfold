@@ -231,5 +231,18 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'cone', size: [0.34, 0.32, 0.34], at: [0, 0.16, 0], color: 0xc9a24a },
 		{ shape: 'cylinder', size: [0.06, 0.24, 0.06], at: [0, 0.42, 0], color: DARK_WOOD },
 		{ shape: 'sphere', size: [0.1, 0.1, 0.1], at: [0, 0.56, 0], color: DARK_WOOD }
+	],
+	sconce: [
+		{ shape: 'cylinder', size: [0.3, 0.05, 0.3], at: [0, 0.025, 0], color: IRON },
+		{ shape: 'cylinder', size: [0.06, 1.0, 0.06], at: [0, 0.5, 0], color: IRON },
+		{ shape: 'cone', size: [0.2, 0.18, 0.2], at: [0, 1.05, 0], color: IRON },
+		{ shape: 'cylinder', size: [0.1, 0.12, 0.1], at: [0, 1.16, 0], color: 0x2a1d14 }
+	],
+	carvings: [
+		{ shape: 'box', size: [0.9, 1.1, 0.12], at: [0, 0.55, -0.4], color: STONE },
+		{ shape: 'box', size: [0.08, 0.5, 0.03], at: [-0.25, 0.6, -0.33], color: 0xe8dcc0 },
+		{ shape: 'box', size: [0.3, 0.08, 0.03], at: [0, 0.85, -0.33], color: 0xe8dcc0 },
+		{ shape: 'sphere', size: [0.16, 0.16, 0.03], at: [0.2, 0.55, -0.33], color: 0xe8dcc0 },
+		{ shape: 'box', size: [0.08, 0.3, 0.03], at: [0.05, 0.35, -0.33], color: 0xe8dcc0 }
 	]
 };

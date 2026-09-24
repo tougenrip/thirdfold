@@ -17,6 +17,7 @@
 	import type { Role } from '$lib/game/protocol';
 	import { tokenAt } from '$lib/game/token';
 	import { roomAround, roomBoundary } from '$lib/game/rooms';
+	import { cellIndex, decodeMask } from '$lib/game/visibility';
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
 	import Tabletop, { type CuePlay, type FloatText } from '$lib/tabletop/Tabletop.svelte';
 	import { decodeLevels } from '$lib/game/terrain';
@@ -151,6 +152,12 @@
 	);
 	const hoverCell = $derived(hover?.cell ?? null);
 	/** The ground's levels as far as this client knows them; null for a flat table. */
+	const darkness = $derived(
+		room?.darkness ? decodeMask(room.darkness, room.grid.width * room.grid.height) : null
+	);
+	/** Whether a cell is in one of the table's dark areas. */
+	const isDark = (cell: GridPos) =>
+		!!room && !!darkness && darkness[cellIndex(room.grid, cell)] === 1;
 	const terrain = $derived(
 		room?.terrain ? decodeLevels(room.terrain, room.grid.width * room.grid.height) : null
 	);
@@ -258,6 +265,10 @@
 		}
 		if (tool === 'height' && hover.cell) {
 			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: 'valid' }];
+		}
+		if (tool === 'dark' && hover.cell) {
+			const from = areaStart ?? hover.cell;
+			return [{ kind: 'area', from, to: hover.cell, tone: isDark(from) ? 'reveal' : 'hide' }];
 		}
 		if (tool === 'door' && hover.edge) {
 			const existing = room && objectOnEdge(room.objects, hover.edge);
@@ -405,6 +416,12 @@
 				? `Click to switch this light ${existing.on ? 'off' : 'on'}.`
 				: 'Light: click a cell to place a light there. Click a light to switch it on or off.';
 		}
+		if (tool === 'dark') {
+			const lifting = areaStart && isDark(areaStart);
+			return areaStart
+				? `Click the opposite corner cell to ${lifting ? 'lift the dark from' : 'darken'} the area. Esc to cancel.`
+				: 'Dark area: click a cell to start an area (a dark cell lifts the dark instead).';
+		}
 		if (tool === 'height') {
 			return areaStart
 				? `Click the opposite corner cell to set the area to level ${heightLevel}. Esc to cancel.`
@@ -474,10 +491,16 @@
 		const since = lastAnnouncedSeq;
 		lastAnnouncedSeq = latest.seq;
 		// A cue can arrive among other entries (a move notice after it): look at all new ones.
-		const cued = room.log.findLast((m) => m.seq > since && m.kind === 'narration' && m.cue);
-		if (cued?.kind === 'narration' && cued.cue) {
+		const cued = room.log.flatMap((m) =>
+			m.seq > since && m.kind === 'narration' && m.cue ? [{ seq: m.seq, cue: m.cue }] : []
+		);
+		if (cued.length) {
 			const bell = room.props.find((p) => p.assetId === 'belfry-bell');
-			cuePlay = { seq: cued.seq, cue: cued.cue, swingPropId: bell?.id ?? null };
+			cuePlay = {
+				seq: cued.at(-1)!.seq,
+				cues: [...new Set(cued.map((c) => c.cue))],
+				swingPropId: bell?.id ?? null
+			};
 		}
 		if (
 			latest.kind !== 'roll' &&
@@ -575,6 +598,17 @@
 					return;
 				}
 				conn.send({ type: 'fog_area', from: areaStart, to: pick.cell, reveal: tool === 'reveal' });
+				areaStart = null;
+				return;
+			}
+			case 'dark': {
+				if (!pick.cell) return;
+				if (!areaStart) {
+					areaStart = pick.cell;
+					return;
+				}
+				const dark = !isDark(areaStart);
+				conn.send({ type: 'darkness_set', from: areaStart, to: pick.cell, dark });
 				areaStart = null;
 				return;
 			}
@@ -737,6 +771,7 @@
 			l: 'light',
 			p: 'prop',
 			g: 'height',
+			n: 'dark',
 			...(room?.fog.enabled ? { r: 'reveal', h: 'hide', o: 'reveal-room', k: 'hide-room' } : {})
 		};
 		const next = shortcut[event.key.toLowerCase()];
@@ -810,6 +845,7 @@
 				{fallen}
 				{floats}
 				{terrain}
+				{darkness}
 				cue={cuePlay}
 				motion={conn.motion}
 				{active}

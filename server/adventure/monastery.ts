@@ -37,7 +37,11 @@ export const MONASTERY_IDS = {
 	crate: 'mn-chamber-crate',
 	chamberChains: 'mn-chamber-chains',
 	handbell: 'mn-handbell',
-	doorChains: 'mn-door-chains'
+	doorChains: 'mn-door-chains',
+	/** A torch stand in the ringing chamber, cold; lit, it shows the ringers' carvings. */
+	torch: 'mn-chamber-torch',
+	torchLight: 'mn-chamber-torch-light',
+	carvings: 'mn-carvings'
 } as const;
 
 /** The edge of the secret door, in the wall between the nave and the ringing chamber. */
@@ -71,6 +75,11 @@ export const STAIR_RING: readonly GridPos[] = [
 	{ x: 3, y: 9 },
 	{ x: 4, y: 9 }
 ];
+
+/** The ringing chamber's torch stand, just inside the hidden door. */
+export const TORCH_AT: GridPos = { x: 6, y: 5 };
+/** The ringers' carvings on the chamber's north wall, above the rope. */
+export const CARVINGS_AT: GridPos = { x: 4, y: 2 };
 
 /** The lever that lifts the grate, by the ringing chamber's door. */
 export const LEVER_AT: GridPos = { x: 7, y: 7 };
@@ -115,6 +124,8 @@ export function monasteryScene(now = new Date()): SceneFile {
 			arrival: { from: { x: 8, y: 14 }, to: { x: 16, y: 19 } },
 			tokens: npcTokens('monastery'),
 			terrain: TERRAIN,
+			// The sealed chamber is dark whatever the hour: only a flame shows anything there.
+			dark: [CHAMBER],
 			objects: [
 				// The monastery: x 2-21, y 2-9, the great doors in the south wall.
 				wall('mn-north', { x: 2, y: 2 }, { x: 22, y: 2 }),
@@ -184,6 +195,8 @@ export function monasteryScene(now = new Date()): SceneFile {
 				// The grate's chain runs up the wall and across to the lever by the door.
 				prop(I.chamberChains, 'chains', 2, 3),
 				prop(I.lever, 'lever', LEVER_AT.x, LEVER_AT.y),
+				prop(I.torch, 'sconce', TORCH_AT.x, TORCH_AT.y),
+				prop(I.carvings, 'carvings', CARVINGS_AT.x, CARVINGS_AT.y),
 				// The gatehouse.
 				prop('mn-gh-bed', 'bed', 2, 16),
 				prop('mn-gh-table', 'table', 3, 13),
@@ -207,8 +220,9 @@ export function monasteryScene(now = new Date()): SceneFile {
 				light('mn-gh-lamp', 2, 14, 3, '#ffd27a'),
 				light('mn-gate-lamp', 7, 16, 3, '#ffa04d'),
 				light('mn-altar-candles', 14, 3, 4, '#ffe3a8'),
-				// Someone lit a candle in the sealed chamber not long ago.
-				light('mn-chamber-candle', 5, 3, 3, '#ffd27a'),
+				// Someone lit a candle in the sealed chamber not long ago; it has burned right down.
+				light('mn-chamber-candle', 5, 3, 1, '#ffd27a'),
+				light(I.torchLight, TORCH_AT.x, TORCH_AT.y, 4, '#ffa04d', false),
 				light('mn-gallery-lamp', 20, 6, 3, '#ffd27a'),
 				light('mn-ledge-lamp', 23, 9, 2, '#ffa04d'),
 				// Moonlight through the belfry arches.

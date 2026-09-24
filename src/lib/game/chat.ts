@@ -10,13 +10,14 @@ import type { DiceRoll } from './dice';
 export type LogAudience = 'gm' | { players: string[] };
 
 /**
- * A cinematic moment for clients to play with a line of narration, e.g. the
- * bell tolling: the bell swings, dust falls, the table shakes. Presentation
- * only; nothing about the game state depends on it.
+ * A cinematic moment for clients to play with a line of narration: the bell
+ * tolling (the bell swings, dust falls, the table shakes), or a flash of
+ * light over the table. Presentation only; nothing about the game state
+ * depends on it (a flash's effect on sight is the server's, sent as fog).
  */
-export type Cue = 'toll';
+export type Cue = 'toll' | 'flash';
 
-export const CUES: readonly Cue[] = ['toll'];
+export const CUES: readonly Cue[] = ['toll', 'flash'];
 
 export type ChatMessage =
 	| { seq: number; at: number; kind: 'chat'; authorId: string; authorName: string; text: string }

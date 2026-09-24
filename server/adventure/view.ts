@@ -9,7 +9,15 @@ import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
 import { CLUES, CUES, ENDINGS, TITLE, type ClueDef, type ClueId } from './content';
 import { ENEMIES } from './enemies';
-import { chapterNumber, characterOf, objectCells, objectState, usesLeft, verbsFor } from './engine';
+import {
+	chapterNumber,
+	characterOf,
+	objectCells,
+	objectState,
+	shownState,
+	usesLeft,
+	verbsFor
+} from './engine';
 import { LOCATIONS } from './locations';
 import { actionOfVerb, objectDef, OBJECTS } from './objects';
 import type { Statuses } from './state';
@@ -90,7 +98,7 @@ export function adventureView(
 			const state = objectState(adventure, def);
 			const verbs = verbsFor(adventure, def);
 			const cells = objectCells(room, def);
-			if (state === 'hidden' || verbs.length === 0 || !cells) return [];
+			if (shownState(adventure, def) === 'hidden' || verbs.length === 0 || !cells) return [];
 			// What a character carries is theirs to use (and the GM's to see).
 			const carrier = adventure.carried.get(def.id);
 			if (carrier !== undefined) {

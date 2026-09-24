@@ -63,10 +63,15 @@
 	);
 	/** The character can use an action now: its turn, and it hasn't yet. */
 	const myTurn = $derived(isMine && !acted && able);
+	/** What is in reach to use; in a fight only a torch, on this character's turn, as its action. */
 	const nearby = $derived(
-		encounter || !able || adventure.stage === 'choosing'
+		!able || adventure.stage === 'choosing' || (encounter && !myTurn)
 			? []
-			: adventure.interactables.filter((i) => i.carried || canReach(blocked, token.pos, i.cells))
+			: adventure.interactables.filter(
+					(i) =>
+						(!encounter || i.kind === 'torch') &&
+						(i.carried || canReach(blocked, token.pos, i.cells))
+				)
 	);
 	/** Actions that make sense now: everything in a fight, only healing outside one. */
 	const actions = $derived(

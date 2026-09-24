@@ -44,7 +44,7 @@ import { decodeMask, encodeMask, MAX_VISION } from './visibility';
  * elevation (each cell's level) and windows; v6 added shared party vision,
  * hidden tokens and props, and what each player has discovered.
  */
-export const SCENE_FILE_VERSION = 6;
+export const SCENE_FILE_VERSION = 7;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -102,8 +102,14 @@ export interface SceneFileV6 extends Omit<SceneFileV5, 'version' | 'fog'> {
 	discovery: Record<string, string>;
 }
 
+export interface SceneFileV7 extends Omit<SceneFileV6, 'version'> {
+	version: 7;
+	/** The dark areas, where only light lets anyone see (a base64 CellMask); null for none. */
+	darkness: string | null;
+}
+
 /** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV6;
+export type SceneFile = SceneFileV7;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -123,6 +129,8 @@ export interface SceneSource {
 	adventure?: SavedStory | null;
 	/** Each cell's level, or null for a flat table. */
 	terrain?: LevelMap | null;
+	/** The dark areas, or null for none. */
+	darkness?: Uint8Array | null;
 }
 
 export function normalizeSceneName(raw: unknown): string | null {
@@ -154,6 +162,7 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		},
 		adventure: source.adventure ? structuredClone(source.adventure) : null,
 		terrain: source.terrain ? encodeLevels(source.terrain) : null,
+		darkness: source.darkness?.some((v) => v) ? encodeMask(source.darkness) : null,
 		discovery: Object.fromEntries(
 			[...(source.discovery ?? [])]
 				.filter(([, mask]) => mask.some((v) => v))
@@ -216,6 +225,10 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 		// v6: the party's sight was always each player's own; nobody's discoveries were kept.
 		const fog = isRecord(upgraded.fog) ? { ...upgraded.fog, shared: false } : upgraded.fog;
 		upgraded = { ...upgraded, version: 6, fog, discovery: {} };
+	}
+	if (upgraded.version === 6) {
+		// v6 → v7: no dark areas.
+		upgraded = { ...upgraded, version: 7, darkness: null };
 	}
 	return upgraded;
 }
@@ -442,6 +455,14 @@ export function parseSceneFile(input: unknown): SceneParse {
 		terrain = levels.some((l) => l !== 0) ? encodeLevels(levels) : null;
 	}
 
+	// Dark areas
+	let darkness: string | null = null;
+	if (data.darkness !== null && data.darkness !== undefined) {
+		if (typeof data.darkness !== 'string') return bad('The dark areas are not valid.');
+		const dark = decodeMask(data.darkness, width * height);
+		darkness = dark.some((v) => v) ? encodeMask(dark) : null;
+	}
+
 	// The story: plain JSON here; its module checks the rest when it loads it.
 	let adventure: SavedStory | null = null;
 	if (data.adventure !== null && data.adventure !== undefined) {
@@ -479,6 +500,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask), shared },
 			adventure,
 			terrain,
+			darkness,
 			discovery
 		}
 	};

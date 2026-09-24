@@ -3,12 +3,17 @@
 // swings, dust sifts down over the table, the table shakes a little, and a
 // huge dark shape passes slowly underneath. Presentation only: driven by the
 // wall clock like the dice, and never sent over the network. With reduced
-// motion the bell still swings, gently, and nothing else moves.
+// motion the bell still swings, gently, and nothing else moves. The flash:
+// the whole table lights up at once and fades back into the dark over a
+// couple of seconds (it plays alongside a toll; reduced motion keeps it, as
+// it is the one sign of what the server's fog is showing for that moment).
 
 import * as THREE from 'three';
 import type { Cue } from '$lib/game/chat';
 
 const TOLL_MS = 7000;
+/** As long as the server's flash (FLASH_MS in the adventure engine). */
+const FLASH_MS = 2500;
 const DUST = 420;
 
 export interface EffectFrame {
@@ -18,6 +23,8 @@ export interface EffectFrame {
 	bellAngle: number;
 	/** Camera shake to add this frame. */
 	shake: THREE.Vector3;
+	/** How bright a flash is now: 0 none, 1 everything lit. */
+	flash: number;
 }
 
 export class EffectsLayer {
@@ -28,6 +35,8 @@ export class EffectsLayer {
 	private shadowTexture: THREE.CanvasTexture | null;
 	private start = 0;
 	private cue: Cue | null = null;
+	/** When the last flash began, or null when none is playing. */
+	private flashStart: number | null = null;
 	private size = { w: 20, d: 20, top: 4 };
 	private reduced = false;
 
@@ -76,6 +85,10 @@ export class EffectsLayer {
 	}
 
 	play(cue: Cue, now: number, reducedMotion: boolean): void {
+		if (cue === 'flash') {
+			this.flashStart = now;
+			return;
+		}
 		this.cue = cue;
 		this.start = now;
 		this.reduced = reducedMotion;
@@ -98,7 +111,21 @@ export class EffectsLayer {
 
 	/** Advances the effect to wall-clock time `now`. */
 	tick(now: number): EffectFrame {
-		const frame: EffectFrame = { active: false, bellAngle: 0, shake: new THREE.Vector3() };
+		const frame: EffectFrame = {
+			active: false,
+			bellAngle: 0,
+			shake: new THREE.Vector3(),
+			flash: 0
+		};
+		if (this.flashStart !== null) {
+			const f = (now - this.flashStart) / FLASH_MS;
+			if (f >= 1) this.flashStart = null;
+			else {
+				frame.active = true;
+				// A near-instant flare, held a moment, then a slow fall back into the dark.
+				frame.flash = f < 0.05 ? f / 0.05 : f < 0.3 ? 1 : 1 - (f - 0.3) / 0.7;
+			}
+		}
 		if (!this.cue) return frame;
 		const t = (now - this.start) / 1000;
 		if (t * 1000 >= TOLL_MS) {
