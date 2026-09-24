@@ -187,6 +187,7 @@ describe('applyRoomUpdate', () => {
 			ledger: null,
 			director: null,
 			welcome: { title: 'Welcome', text: 'Hello.' },
+			firstFind: null,
 			begunAt: 1,
 			completedAt: null,
 			cues: null

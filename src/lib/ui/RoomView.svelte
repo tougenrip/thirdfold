@@ -44,6 +44,7 @@
 	import TutorialCoach from './TutorialCoach.svelte';
 	import Welcome from './Welcome.svelte';
 	import {
+		currentStep,
 		loadProgress,
 		NEW_PLAYER,
 		record,
@@ -157,7 +158,8 @@
 	/** Sends an action to the server, noting what the tutorial is waiting for. */
 	function act(action: RoomAction): boolean {
 		const sent = conn.send(action);
-		const signal = sent ? signalOf(action) : null;
+		const kindOf = (id: string) => adventure?.interactables.find((o) => o.id === id)?.kind;
+		const signal = sent ? signalOf(action, kindOf) : null;
 		if (signal) learned(signal);
 		return sent;
 	}
@@ -854,6 +856,31 @@
 		if (sheetOpen) learned('sheet');
 	});
 
+	// The first find: coming up beside it, then finding what it holds (once the server says so).
+	const firstFind = $derived(adventure?.firstFind ?? null);
+	const foundFirst = $derived.by(() => {
+		const id = firstFind?.clueId;
+		const clue = id ? adventure?.clues.find((c) => c.id === id && c.mine) : undefined;
+		return clue ? { title: clue.title, text: clue.text } : null;
+	});
+	$effect(() => {
+		const t = myCharacterToken;
+		if (!t || !firstFind || adventure?.stage !== 'playing') return;
+		if (firstFind.cells.some((c) => gridDistance(c, t.pos) <= 1)) learned('approach');
+	});
+	$effect(() => {
+		if (foundFirst) {
+			learned('approach');
+			learned('inspect');
+		}
+	});
+	/** Onboarding's glow on the table, while the player is being shown to it. */
+	const beacon = $derived.by((): PreviewItem[] => {
+		const step = tutorial.stage === 'tutorial' ? currentStep(tutorial, !!firstFind) : null;
+		if (!firstFind || (step?.id !== 'approach' && step?.id !== 'inspect')) return [];
+		return firstFind.cells.map((at) => ({ kind: 'beacon', at }));
+	});
+
 	const firstGoal = $derived(
 		adventure?.objectives.find((o) => !o.done && !o.optional)?.text ?? null
 	);
@@ -923,7 +950,7 @@
 				{hoveredPropId}
 				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
-				{preview}
+				preview={beacon.length ? [...preview, ...beacon] : preview}
 				selectedId={selected?.id ?? null}
 				{fallen}
 				{floats}
@@ -1220,7 +1247,10 @@
 		{#if learning && tutorial.stage === 'tutorial' && !adventure?.encounter}
 			<TutorialCoach
 				progress={tutorial}
+				hasFind={!!firstFind || tutorial.done.includes('inspect')}
+				found={foundFirst}
 				goal={firstGoal}
+				onDone={learned}
 				onStart={() => setTutorial({ ...tutorial, stage: 'done' })}
 				onSkip={() => setTutorial({ ...tutorial, stage: 'done' })}
 			/>

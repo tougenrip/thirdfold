@@ -868,6 +868,8 @@ function respond(
 			return told(say(room, TEXT.brazierLit));
 		case 'brazier:extinguish':
 			return told(say(room, TEXT.brazierOut));
+		case 'charm:examine':
+			return told(...clue('tinbell'));
 		case 'remains:search':
 			return before === 'used' ? told(say(room, TEXT.remainsEmpty)) : told(...clue('clapper'));
 		case 'graves:read':
@@ -1005,6 +1007,9 @@ function talk(room: Room, adventure: AdventureState, id: NpcId, who: CharacterId
  * Player: their character listens, or looks around, where it stands, and may
  * pick up signs nearby (each behind a check, one try per character).
  */
+/** How far away looking around notices something there to be noticed. */
+const NOTICE_RANGE = 8;
+
 export function sense(
 	room: Room,
 	actor: Player,
@@ -1031,11 +1036,23 @@ export function sense(
 			!adventure.tried.has(`${me.id}:sign:${s.id}`)
 	);
 	const verb = INVESTIGATION_ACTIONS[what];
+	// Looking around, a character notices what is there to be noticed (a newcomer's first find).
+	const noticed = OBJECTS.flatMap((def) => {
+		if (what !== 'observe' || !def.noticed || def.location !== adventure.location) return [];
+		if (shownState(adventure, def) !== 'interactable') return [];
+		if (def.firstFind && knows(adventure, me.id, def.firstFind)) return [];
+		const seen = (objectCells(room, def) ?? []).some(
+			(c) =>
+				gridDistance(me.token.pos, c) <= NOTICE_RANGE && hasLineOfSight(blocked, me.token.pos, c)
+		);
+		return seen ? [say(room, def.noticed, undefined, only(actor.id))] : [];
+	});
 	if (signs.length === 0) {
+		if (noticed.length) return { ok: true, log: noticed };
 		const nothing = what === 'listen' ? TEXT.hearNothing : TEXT.seeNothing;
 		return { ok: true, log: [say(room, nothing, undefined, only(actor.id))] };
 	}
-	const log: ChatMessage[] = [];
+	const log: ChatMessage[] = [...noticed];
 	for (const s of signs) {
 		const check = rollCheck(room, actor, me, verb, s.check, roller);
 		log.push(check.entry);

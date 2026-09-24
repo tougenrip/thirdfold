@@ -421,6 +421,11 @@ export interface AdventureView {
 	director: DirectorView | null;
 	/** How the place the party is in greets someone arriving (a new player's welcome card). */
 	welcome: { title: string; text: string };
+	/**
+	 * Something here for a new player to find first (onboarding shows it glowing and has them
+	 * walk up and inspect it): the object, where it lies, and the evidence it gives. Null if none.
+	 */
+	firstFind: { objectId: string; cells: GridPos[]; clueId: string } | null;
 	/** When the GM began play (ms since epoch), for the time played. */
 	begunAt: number | null;
 	completedAt: number | null;
