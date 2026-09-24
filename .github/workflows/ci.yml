@@ -35,3 +35,47 @@ jobs:
       # Live Supabase tests skip themselves without SUPABASE_* env.
       - run: npm test
       - run: npm run build
+
+  supabase:
+    # Runs the live SupabaseSceneStore tests against a local Supabase with the
+    # repo's migrations applied: the round trip, RLS locking out the browser
+    # key, and the table's constraints.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Only the database, API gateway, auth and REST are needed; auth is kept
+      # because `supabase status` only reports the keys with it running.
+      # `start` applies supabase/migrations to the fresh database.
+      - name: Start Supabase
+        run: npx supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      # Local development keys, generated for this throwaway stack.
+      - name: Export Supabase env
+        run: |
+          eval "$(npx supabase status -o env)"
+          test -n "$API_URL" && test -n "$SECRET_KEY" && test -n "$PUBLISHABLE_KEY"
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "SUPABASE_SERVICE_KEY=$SECRET_KEY"
+            echo "SUPABASE_ANON_KEY=$PUBLISHABLE_KEY"
+          } >> "$GITHUB_ENV"
+
+      # The live tests skip themselves without the env above, so fail the job
+      # if any test was skipped rather than pass without running them.
+      - name: Run live Supabase tests
+        run: |
+          npx vitest run --project server server/supabase-scene-store.spec.ts --reporter=default --reporter=json --outputFile=vitest-supabase.json
+          node -e "const r=require('./vitest-supabase.json'); const skipped=r.numPendingTests+r.numTodoTests; if (skipped||!r.numPassedTests) { console.error('Supabase tests skipped: ' + skipped + ', passed: ' + r.numPassedTests); process.exit(1) }"
+
+      - name: Stop Supabase
+        if: always()
+        run: npx supabase stop --no-backup
