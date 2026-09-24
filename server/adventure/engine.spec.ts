@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CHARACTERS } from '../../src/lib/adventure/characters';
+import { CHARACTERS, type CharacterId } from '../../src/lib/adventure/characters';
 import type { DieRoller } from '../../src/lib/game/dice';
 import type { GridPos } from '../../src/lib/game/grid';
 import { isReachable } from '../../src/lib/game/objects';
@@ -58,11 +58,19 @@ function setup(): void {
 	ana = ok(rooms.join(room.id, 'Ana', 'player')).player;
 	ben = ok(rooms.join(room.id, 'Ben', 'player')).player;
 	watcher = ok(rooms.join(room.id, 'Wes', 'spectator')).player;
+	// Initiative rolls high for everyone: the order follows the bonuses.
+	room.dice = max;
 }
 
 const token = (id: string) => room.tokens.get(id)!;
 const put = (tokenId: string, pos: GridPos) => (token(tokenId).pos = { ...pos });
 const hound = () => [...room.adventure!.encounter!.enemies.keys()][0];
+/** Gives a character the turn, whatever initiative said. */
+function turnTo(id: CharacterId): void {
+	const encounter = room.adventure!.encounter!;
+	encounter.current = encounter.order.findIndex((t) => t.kind === 'character' && t.id === id);
+	encounter.speed = CHARACTERS[id].speed;
+}
 /** Evidence found by anyone, in the order found. */
 const found = () => [...room.adventure!.evidence.keys()];
 
@@ -82,6 +90,7 @@ function fighting(): string {
 	ok(interact(room, ana, 'maren'));
 	put(id, { x: 11, y: 12 });
 	ok(interact(room, ana, 'well'));
+	turnTo('warden');
 	return id;
 }
 
@@ -228,7 +237,41 @@ describe('investigating', () => {
 });
 
 describe('the fight at the well', () => {
-	it('limits movement to the character’s speed each round', () => {
+	it('rolls initiative on the server and gives turns in its order', () => {
+		room.dice = max;
+		const id = playing({ x: 7, y: 10 });
+		ok(interact(room, ana, 'maren'));
+		put(id, { x: 11, y: 12 });
+		// The Hound (d20 + 3) beats the Warden (d20 + 0): it goes first.
+		const started = ok(interact(room, ana, 'well'));
+		const encounter = room.adventure!.encounter!;
+		expect(encounter.order).toEqual([
+			{ kind: 'enemy', tokenId: hound(), initiative: 23 },
+			{ kind: 'character', id: 'warden', initiative: 20 }
+		]);
+		expect(encounter.current).toBe(0);
+		expect(started.enemyTurn).toBe(encounter.turn);
+		expect(started.log.map((m) => ('text' in m ? m.text : ''))).toContain(
+			'Initiative: Hollow Hound 23, The Warden 20. Round 1.'
+		);
+		expect(act(room, ana, 'blade', hound(), max)).toMatchObject({
+			code: 'not_your_turn',
+			message: "It's the Hollow Hound's turn."
+		});
+		expect(checkMove(room, ana, id, { x: 10, y: 12 })).toMatchObject({ code: 'not_your_turn' });
+
+		// The Hound's turn runs, and hands the turn to the Warden.
+		const out = runEnemyTurn(room, started.enemyTurn!, max)!;
+		expect(out.log.map((m) => ('text' in m ? m.text : ''))).toContain("The Warden's turn.");
+		expect(encounter.current).toBe(1);
+		expect(out.enemyTurn).toBeUndefined();
+		// Ending the Warden's turn starts round 2, with the Hound up again.
+		const ended = ok(endTurn(room, ana));
+		expect(encounter).toMatchObject({ round: 2, current: 0 });
+		expect(ended.enemyTurn).toBe(encounter.turn);
+	});
+
+	it('limits movement to the character’s speed on its turn', () => {
 		const id = fighting();
 		put(hound(), { x: 16, y: 16 });
 		// Along the road south of the Hale house, from (11, 12).
@@ -244,8 +287,8 @@ describe('the fight at the well', () => {
 		});
 	});
 
-	it('resolves attacks on the server and ends the round once everyone has acted', () => {
-		const id = fighting();
+	it('resolves attacks on the server, one action a turn', () => {
+		fighting();
 		const houndId = hound();
 		put(houndId, { x: 16, y: 16 });
 		expect(act(room, ana, 'blade', houndId, max)).toMatchObject({
@@ -261,14 +304,26 @@ describe('the fight at the well', () => {
 		expect(room.adventure!.encounter!.enemies.get(houndId)!.hp).toBe(hp);
 		expect(act(room, ana, 'blade', houndId, max)).toMatchObject({
 			ok: false,
-			code: 'not_your_turn'
+			message: 'The Warden has already acted this turn.'
 		});
-		// Ana was the only character, so the enemies are up.
-		expect(hit.enemyTurn).toBe(2);
-		expect(checkMove(room, ana, id, { x: 10, y: 12 })).toMatchObject({ code: 'not_your_turn' });
+		// Acted, with movement left: the turn is the Warden's until it ends it.
+		expect(hit.enemyTurn).toBeUndefined();
+		const ended = ok(endTurn(room, ana));
+		expect(ended.enemyTurn).toBe(room.adventure!.encounter!.turn);
 	});
 
-	it('runs the Hound: it closes in, bites, and hands the next round back', () => {
+	it('ends the turn by itself once the character has acted and walked its full speed', () => {
+		const id = fighting();
+		const houndId = hound();
+		put(houndId, { x: 12, y: 12 });
+		room.adventure!.encounter!.enemies.get(houndId)!.hp = 99;
+		ok(act(room, ana, 'blade', houndId, min));
+		put(id, { x: 11, y: 17 });
+		const moved = afterMove(room, token(id), 5);
+		expect(moved.enemyTurn).toBe(room.adventure!.encounter!.turn);
+	});
+
+	it('runs the Hound: it closes in, bites, and hands the turn on', () => {
 		const id = fighting();
 		const houndId = hound();
 		put(houndId, { x: 16, y: 16 });
@@ -281,7 +336,6 @@ describe('the fight at the well', () => {
 		expect(out.log[0]).toMatchObject({ kind: 'attack', authorId: houndId, hit: true });
 		// 1d6+2 at its highest.
 		expect(characterOf(room, ana.id)!.state.hp).toBe(CHARACTERS.warden.hp - 8);
-		expect(room.adventure!.encounter).toMatchObject({ round: 2, phase: 'players' });
 		expect(checkMove(room, ana, id, { x: 9, y: 12 })).toMatchObject({ ok: true });
 		// A second run of the same turn does nothing.
 		expect(runEnemyTurn(room, turn, max)).toBeNull();
@@ -297,6 +351,7 @@ describe('the fight at the well', () => {
 
 		const result = ok(act(room, ana, 'blade', houndId, max));
 		expect(result.log[0]).toMatchObject({ kind: 'attack', outcome: 'The Hollow Hound falls.' });
+		expect(result.log[1]).toMatchObject({ kind: 'system', text: 'The fight is won in 1 round.' });
 		expect(room.tokens.has(houndId)).toBe(false);
 		expect(room.adventure).toMatchObject({ chapter: 'discover_bell', encounter: null });
 		expect(room.adventure?.encounters.get('well')).toBe('won');
@@ -331,16 +386,20 @@ describe('the fight at the well', () => {
 		expect(checkMove(room, ana, downed.token.id, { x: 10, y: 11 })).toMatchObject({ ok: false });
 	});
 
-	it('lets the GM end the players’ turn, or remove the Hound to end the fight', () => {
+	it('lets the GM end whoever’s turn it is, or remove the Hound to end the fight', () => {
 		fighting();
-		expect(control(room, ana, 'end_round')).toMatchObject({ ok: false, code: 'forbidden' });
-		expect(ok(control(room, gm, 'end_round')).enemyTurn).toBe(2);
+		expect(control(room, ana, 'end_turn')).toMatchObject({ ok: false, code: 'forbidden' });
+		const ended = ok(control(room, gm, 'end_turn'));
+		expect(ended.log[0]).toMatchObject({ text: "Gia ended The Warden's turn." });
+		expect(ended.enemyTurn).toBe(room.adventure!.encounter!.turn);
 
 		const houndId = hound();
 		room.tokens.delete(houndId);
 		const out = afterTokenDeleted(room, houndId);
 		expect(out.log.length).toBeGreaterThan(0);
 		expect(room.adventure?.events).toContain('won_well');
+		// The Hound's scheduled turn no longer runs.
+		expect(runEnemyTurn(room, ended.enemyTurn!, max)).toBeNull();
 	});
 });
 
@@ -442,13 +501,19 @@ describe('character gameplay', () => {
 
 	it('guards the Warden and allies beside with a shield wall until the enemies have acted', () => {
 		const { warden, saint, houndId } = party();
+		// The Hound, then the Warden, then the Saint.
+		turnTo('warden');
 		put(houndId, { x: 12, y: 11 });
 		const wall = ok(act(room, ana, 'shield-wall', null, max));
 		expect(wall.log[0]).toMatchObject({ kind: 'ability', ability: 'Shield wall' });
 		expect([...warden.state.statuses.keys()]).toEqual(['guarded']);
 		expect([...saint.state.statuses.keys()]).toEqual(['guarded']);
 
-		const turn = ok(endTurn(room, ben)).enemyTurn!;
+		ok(endTurn(room, ana));
+		// The Saint's turn comes before the Hound's: its guard holds past it.
+		ok(endTurn(room, ben));
+		expect([...saint.state.statuses.keys()]).toEqual(['guarded']);
+		const turn = room.adventure!.encounter!.turn;
 		const out = runEnemyTurn(room, turn, max)!;
 		// 1d20+4 at its highest (24) against 10 + 3 armor + 2 guard: still a hit, but defense was 15.
 		expect(out.log.find((m) => m.kind === 'attack')).toMatchObject({ defense: 15 });
@@ -467,19 +532,22 @@ describe('character gameplay', () => {
 		const houndId = hound();
 		room.adventure!.encounter!.enemies.get(houndId)!.hp = 50;
 
+		// The Veil (d20 + 4) goes before the Hound (d20 + 3).
+		expect(room.adventure!.encounter!.current).toBe(0);
 		const cut = ok(act(room, ana, 'hamstring', houndId, max));
 		expect(cut.log[0]).toMatchObject({ kind: 'attack', hit: true, effect: 'Slowed' });
 		expect(room.adventure!.encounter!.enemies.get(houndId)!.statuses.get('slowed')).toBe(1);
 		// Far away and slowed, it only gets 3 steps closer.
 		put(houndId, { x: 19, y: 16 });
-		runEnemyTurn(room, cut.enemyTurn!, max);
+		runEnemyTurn(room, ok(endTurn(room, ana)).enemyTurn!, max);
 		expect(token(houndId).pos.x).toBe(16);
 		expect(room.adventure!.encounter!.enemies.get(houndId)!.statuses.size).toBe(0);
 
 		put(houndId, { x: 12, y: 12 });
 		ok(act(room, ana, 'hamstring', houndId, max));
-		room.adventure!.encounter!.acted.clear();
-		room.adventure!.encounter!.phase = 'players';
+		put(houndId, { x: 19, y: 16 });
+		runEnemyTurn(room, ok(endTurn(room, ana)).enemyTurn!, min);
+		put(houndId, { x: 12, y: 12 });
 		expect(act(room, ana, 'hamstring', houndId, max)).toMatchObject({
 			ok: false,
 			message: 'Hamstring is spent until the next fight.'
@@ -499,10 +567,11 @@ describe('character gameplay', () => {
 		const enemy = room.adventure!.encounter!.enemies.get(houndId)!;
 		enemy.hp = 40;
 		put(houndId, { x: 14, y: 12 });
+		turnTo('ember');
 
-		const burst = ok(act(room, ana, 'flame-burst', houndId, max));
+		ok(act(room, ana, 'flame-burst', houndId, max));
 		expect(enemy.hp).toBe(40 - 14);
-		const out = runEnemyTurn(room, burst.enemyTurn!, max)!;
+		const out = runEnemyTurn(room, ok(endTurn(room, ana)).enemyTurn!, max)!;
 		expect(out.log[0]).toMatchObject({ kind: 'ability', ability: 'Burning', amount: -4 });
 		expect(enemy.hp).toBe(40 - 14 - 4);
 		expect(enemy.statuses.get('burning')).toBe(1);
@@ -517,6 +586,7 @@ describe('character gameplay', () => {
 			message: 'The Warden is down.'
 		});
 
+		turnTo('saint');
 		put(saint.token.id, { x: 5, y: 15 });
 		expect(act(room, ben, 'mend', warden.token.id, max)).toMatchObject({ code: 'out_of_reach' });
 		put(saint.token.id, { x: 10, y: 12 });
@@ -543,6 +613,8 @@ describe('character gameplay', () => {
 		put(houndId, { x: 20, y: 18 });
 		room.adventure!.encounter!.enemies.get(houndId)!.hp = 99;
 		warden.state.hp = 0;
+		turnTo('saint');
+		// The Warden bleeds at each of its turns, between the Hound's and the Saint's.
 		for (let i = 0; i < 3; i++) {
 			const turn = ok(endTurn(room, ben)).enemyTurn!;
 			// Keep the Hound away from the Saint so only the bleeding matters.
@@ -570,6 +642,7 @@ describe('character gameplay', () => {
 
 	it('tells each player how many uses their abilities have left', () => {
 		const { saint } = party();
+		turnTo('saint');
 		saint.state.hp = 10;
 		ok(act(room, ben, 'mend', saint.token.id, max));
 		const view = adventureView(room, ben, new Set([saint.token.id]), null)!;

@@ -84,11 +84,21 @@ export class TokenLayer {
 		ringGeometry,
 		new THREE.MeshBasicMaterial({ color: 0xe0a458, transparent: true, opacity: 0.95 })
 	);
+	/** Whose turn it is in a fight: an arrow over that mini. */
+	private activeId: string | null = null;
+	private readonly marker = new THREE.Mesh(
+		new THREE.ConeGeometry(0.14, 0.3, 4),
+		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
+	);
 
 	constructor() {
 		this.ring.rotation.x = -Math.PI / 2;
 		this.ring.visible = false;
 		this.ring.raycast = () => {};
+		// Point down at the mini.
+		this.marker.rotation.x = Math.PI;
+		this.marker.visible = false;
+		this.marker.raycast = () => {};
 	}
 
 	/** Brings the minis in line with `tokens`. Returns true if anything changed on screen. */
@@ -160,6 +170,17 @@ export class TokenLayer {
 		return true;
 	}
 
+	/** Marks whose turn it is (an enemy's in red), or nobody's. Returns true if anything changed. */
+	setActive(id: string | null, enemy = false): boolean {
+		const color = enemy ? 0xe27a6b : 0xe0a458;
+		const material = this.marker.material as THREE.MeshBasicMaterial;
+		if (this.activeId === id && material.color.getHex() === color) return false;
+		this.activeId = id;
+		material.color.setHex(color);
+		this.updateRing();
+		return true;
+	}
+
 	/** Lays down the minis in `ids` (fallen characters) and stands the rest up. Returns true if any changed. */
 	setFallen(ids: ReadonlySet<string>): boolean {
 		let changed = false;
@@ -224,6 +245,8 @@ export class TokenLayer {
 		}
 		this.entries.clear();
 		(this.ring.material as THREE.Material).dispose();
+		this.marker.geometry.dispose();
+		(this.marker.material as THREE.Material).dispose();
 	}
 
 	private create(token: Token, at: THREE.Vector3): Entry {
@@ -286,8 +309,21 @@ export class TokenLayer {
 		this.floats = this.floats.filter((f) => f.tokenId !== tokenId);
 	}
 
-	/** Keeps the selection ring under the selected mini, even mid-move. */
+	/** Keeps the selection ring under the selected mini and the turn arrow over the active one, even mid-move. */
 	private updateRing(): boolean {
+		const active = this.activeId ? this.entries.get(this.activeId) : undefined;
+		const markerWas = this.marker.visible;
+		this.marker.visible = !!active;
+		if (active) {
+			if (!this.marker.parent) this.group.add(this.marker);
+			const size = this.grid?.cellSize ?? 1;
+			this.marker.position.set(
+				active.root.position.x,
+				active.root.position.y + (LABEL_HEIGHT + 0.5) * size,
+				active.root.position.z
+			);
+			this.marker.scale.setScalar(size);
+		}
 		const entry = this.selectedId ? this.entries.get(this.selectedId) : undefined;
 		const wasVisible = this.ring.visible;
 		this.ring.visible = !!entry;
@@ -300,6 +336,6 @@ export class TokenLayer {
 			);
 			this.ring.scale.setScalar(this.grid?.cellSize ?? 1);
 		}
-		return wasVisible !== this.ring.visible;
+		return wasVisible !== this.ring.visible || markerWas !== this.marker.visible;
 	}
 }

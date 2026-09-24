@@ -25,6 +25,7 @@ import { inBounds, type GridPos } from '../../src/lib/game/grid';
 import { isAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { CLUES, CUES } from './content';
+import { ENEMY_KINDS } from './enemies';
 import { MECHANISM_IDS, MECHANISMS, type MechanismId } from './mechanisms';
 import { objectDef, type Origins } from './objects';
 import type {
@@ -34,7 +35,8 @@ import type {
 	Finding,
 	Encounter,
 	EnemyState,
-	Statuses
+	Statuses,
+	TurnEntry
 } from './state';
 import {
 	CHAPTERS,
@@ -112,13 +114,25 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			encounter: adventure.encounter && {
 				id: adventure.encounter.id,
 				round: adventure.encounter.round,
-				phase: adventure.encounter.phase,
+				order: adventure.encounter.order.map((t) =>
+					t.kind === 'character'
+						? { character: t.id, initiative: t.initiative }
+						: { enemy: t.tokenId, initiative: t.initiative }
+				),
+				current: adventure.encounter.current,
+				speed: adventure.encounter.speed,
 				acted: [...adventure.encounter.acted],
 				moved: entriesOf(adventure.encounter.moved),
 				enemies: Object.fromEntries(
 					[...adventure.encounter.enemies].map(([id, e]) => [
 						id,
-						{ kind: e.kind, hp: e.hp, maxHp: e.maxHp, statuses: statuses(e.statuses) }
+						{
+							kind: e.kind,
+							hp: e.hp,
+							maxHp: e.maxHp,
+							statuses: statuses(e.statuses),
+							rest: e.rest
+						}
 					])
 				),
 				turn: adventure.encounter.turn
@@ -334,15 +348,28 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		for (const [tokenId, raw] of Object.entries(record(e.enemies, 'enemies'))) {
 			check(tokenIds.has(tokenId) && !characterTokens.has(tokenId), 'enemy');
 			const enemy = record(raw, 'enemy');
-			check(enemy.kind === 'hound', 'enemy');
+			const kind = oneOf(enemy.kind, ENEMY_KINDS, 'enemy');
 			const maxHp = int(enemy.maxHp, 1, COUNT_MAX, 'enemy');
 			enemies.set(tokenId, {
-				kind: 'hound',
+				kind,
 				hp: int(enemy.hp, 1, maxHp, 'enemy'),
 				maxHp,
-				statuses: statuses(enemy.statuses, 'enemy')
+				statuses: statuses(enemy.statuses, 'enemy'),
+				// Saves from before enemies had specials have none resting.
+				rest: enemy.rest === undefined ? 0 : int(enemy.rest, 0, COUNT_MAX, 'enemy')
 			});
 		}
+		const order = turnOrder(e, characters, enemies);
+		// Saves from before initiative: whoever the old phase was waiting on goes first.
+		const firstEnemy = order.findIndex((t) => t.kind === 'enemy');
+		const current =
+			e.current === undefined
+				? e.phase === 'enemies'
+					? firstEnemy
+					: 0
+				: int(e.current, 0, order.length - 1, 'turn order');
+		const up = order[current];
+		check(up, 'turn order');
 		const moved = new Map<CharacterId, number>();
 		for (const [who, n] of Object.entries(record(e.moved, 'movement'))) {
 			check(isCharacterId(who), 'movement');
@@ -351,7 +378,14 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		encounter = {
 			id,
 			round: int(e.round, 1, COUNT_MAX, 'round'),
-			phase: oneOf(e.phase, ['players', 'enemies'] as const, 'phase'),
+			order,
+			current,
+			speed:
+				e.speed === undefined
+					? up.kind === 'character'
+						? CHARACTERS[up.id].speed
+						: 0
+					: int(e.speed, 0, COUNT_MAX, 'movement'),
 			acted: new Set(
 				list(e.acted, 'turns').map((who) => {
 					check(isCharacterId(who), 'turns');
@@ -423,6 +457,48 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		begunAt: time(data.begunAt, 'time'),
 		completedAt: time(data.completedAt, 'time')
 	};
+}
+
+/**
+ * The turn order of a saved fight: every entry a character in the story or
+ * an enemy in the fight, each once, and every enemy in it. Saves from before
+ * initiative have none: the characters, then the enemies.
+ */
+function turnOrder(
+	e: Record<string, unknown>,
+	characters: Map<CharacterId, CharacterState>,
+	enemies: Map<string, EnemyState>
+): TurnEntry[] {
+	if (e.order === undefined) {
+		return [
+			...[...characters.keys()].map((id): TurnEntry => ({ kind: 'character', id, initiative: 0 })),
+			...[...enemies.keys()].map((tokenId): TurnEntry => ({
+				kind: 'enemy',
+				tokenId,
+				initiative: 0
+			}))
+		];
+	}
+	const seen = new Set<string>();
+	const order = list(e.order, 'turn order').map((raw): TurnEntry => {
+		const t = record(raw, 'turn order');
+		const initiative = int(t.initiative, -COUNT_MAX, COUNT_MAX, 'turn order');
+		if (t.enemy !== undefined) {
+			check(
+				typeof t.enemy === 'string' && enemies.has(t.enemy) && !seen.has(t.enemy),
+				'turn order'
+			);
+			seen.add(t.enemy);
+			return { kind: 'enemy', tokenId: t.enemy, initiative };
+		}
+		check(isCharacterId(t.character) && characters.has(t.character), 'turn order');
+		check(!seen.has(t.character), 'turn order');
+		seen.add(t.character);
+		return { kind: 'character', id: t.character, initiative };
+	});
+	for (const id of enemies.keys()) check(seen.has(id), 'turn order');
+	check(order.length > 0, 'turn order');
+	return order;
 }
 
 /** Doors follow their scene door, so any door may be saved opened or closed. */

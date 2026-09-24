@@ -14,6 +14,7 @@ import type {
 	ObjectState
 } from '../../src/lib/adventure/adventure';
 import type { CharacterId, StatusId } from '../../src/lib/adventure/characters';
+import type { EnemyKind } from './enemies';
 import type { MechanismId } from './mechanisms';
 import type { Origins } from './objects';
 import type { NpcId } from './npcs';
@@ -34,22 +35,36 @@ export interface CharacterState {
 }
 
 export interface EnemyState {
-	kind: 'hound';
+	kind: EnemyKind;
 	hp: number;
 	maxHp: number;
 	statuses: Statuses;
+	/** Turns before it can use its special again (the Keeper's toll); 0 when ready. */
+	rest: number;
 }
+
+/** Someone with a place in the turn order. */
+export type Combatant = { kind: 'character'; id: CharacterId } | { kind: 'enemy'; tokenId: string };
+
+/** A place in the turn order: who, and what they rolled for initiative. */
+export type TurnEntry = Combatant & { initiative: number };
 
 export interface Encounter {
 	id: EncounterId;
 	round: number;
-	phase: 'players' | 'enemies';
+	/** Everyone in the fight, in initiative order; turns go down the list, then round again. */
+	order: TurnEntry[];
+	/** Whose turn it is: an index into `order`. */
+	current: number;
+	/** Characters who have used their action this round. */
 	acted: Set<CharacterId>;
 	/** Cells moved this round, per character. */
 	moved: Map<CharacterId, number>;
+	/** Cells the character whose turn it is may move this turn (half its speed when slowed). */
+	speed: number;
 	/** By token id. */
 	enemies: Map<string, EnemyState>;
-	/** Bumped whenever the phase changes, so a stale scheduled enemy turn does nothing. */
+	/** Bumped on every turn, so a stale scheduled enemy turn does nothing. */
 	turn: number;
 }
 

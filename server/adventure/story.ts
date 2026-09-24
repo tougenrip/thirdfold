@@ -38,6 +38,8 @@ export type EventId =
 	| 'opened_grate'
 	/** A character stood on the stair beneath the tower. */
 	| 'reached_stair'
+	/** The Bell Keeper and its cultists were beaten in the Hollow. */
+	| 'won_hollow'
 	| 'found_tobin'
 	/** The party decided what to do with the Bell. */
 	| 'decided_bell'
@@ -59,6 +61,7 @@ export const EVENT_IDS: readonly EventId[] = [
 	'won_chamber',
 	'opened_grate',
 	'reached_stair',
+	'won_hollow',
 	'found_tobin',
 	'decided_bell',
 	'learned_tobin',
@@ -184,7 +187,10 @@ export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 		id: 'the_hollow',
 		title: 'The Hollow',
 		location: 'hollow',
-		objectives: [{ id: 'tobin', text: 'Find Tobin', done: 'found_tobin' }],
+		objectives: [
+			{ id: 'keeper', text: 'Get past the Bell Keeper', done: 'won_hollow' },
+			{ id: 'tobin', text: 'Find Tobin', after: 'won_hollow', done: 'found_tobin' }
+		],
 		next: { on: 'found_tobin', to: 'final_decision' }
 	},
 	final_decision: {
@@ -267,9 +273,9 @@ export const DECISIONS: Record<DecisionId, DecisionDef> = {
 	}
 };
 
-export type EncounterId = 'well' | 'chamber';
+export type EncounterId = 'well' | 'chamber' | 'hollow';
 
-export const ENCOUNTER_IDS: readonly EncounterId[] = ['well', 'chamber'];
+export const ENCOUNTER_IDS: readonly EncounterId[] = ['well', 'chamber', 'hollow'];
 
 export type EndingId = 'kept' | 'broken' | 'silent';
 

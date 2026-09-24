@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CHAPTER_IDS } from '../../src/lib/adventure/adventure';
+import { CHARACTERS } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import { isReachable } from '../../src/lib/game/objects';
 import { isSolidCell } from '../../src/lib/game/props';
@@ -65,6 +66,12 @@ const walk = (pos: GridPos, now?: number) => {
 	return afterMove(room, me().token, null, now);
 };
 const hounds = () => [...(story().encounter?.enemies.keys() ?? [])];
+/** Hands Ana's character the turn, whatever initiative said. */
+const myTurn = () => {
+	const encounter = story().encounter!;
+	encounter.current = encounter.order.findIndex((t) => t.kind === 'character' && t.id === me().id);
+	encounter.speed = CHARACTERS[me().id].speed;
+};
 /** The GM clears the enemies off the table: each removal is a defeat. */
 const clearEnemies = () => {
 	for (const id of hounds()) {
@@ -101,6 +108,7 @@ function throughVillage(): void {
 	ok(interact(room, ana, 'maren'));
 	walk({ x: 11, y: 12 });
 	ok(interact(room, ana, 'well'));
+	myTurn();
 	const hound = hounds()[0];
 	room.tokens.get(hound)!.pos = { x: 12, y: 12 };
 	story().encounter!.enemies.get(hound)!.hp = 1;
@@ -230,14 +238,23 @@ describe('playing the story through', () => {
 		expect(room.objects.get(MONASTERY_IDS.secretDoor)).toMatchObject({ kind: 'door' });
 		expect(room.objects.has(`${MONASTERY_IDS.secretDoor}-sealed`)).toBe(false);
 
-		// The chamber: the bell rings, the grate bursts, two hounds come up.
+		// The chamber: the bell rings, the grate bursts, two hounds and a cultist come up.
 		walk({ x: 7, y: 5 });
 		expect(story().chapter).toBe('bell_rings');
-		expect(hounds()).toHaveLength(2);
+		expect([...story().encounter!.enemies.values()].map((e) => e.kind)).toEqual([
+			'hound',
+			'hound',
+			'cultist'
+		]);
 		expect(room.props.get(MONASTERY_IDS.grate)?.assetId).toBe('stairs');
 		clearEnemies();
 		expect(story()).toMatchObject({ chapter: 'descend', encounter: null });
-		expect(story().defeated).toHaveLength(3);
+		expect(story().defeated).toEqual([
+			'Hollow Hound',
+			'Hollow Hound',
+			'Hollow Hound',
+			'Bell Cultist'
+		]);
 
 		// The grate slams back down; the stair does nothing until the lever lifts it.
 		expect(room.props.get(MONASTERY_IDS.grate)?.assetId).toBe('grate');
@@ -258,6 +275,17 @@ describe('playing the story through', () => {
 		expect(story()).toMatchObject({ chapter: 'the_hollow', location: 'hollow' });
 		expect(me().token.pos).toEqual(HOLLOW_SPAWN[0]);
 		expect(story().npcs.get('tobin')).toBe('entranced');
+
+		// The Bell Keeper and two cultists stand between the party and the Bell.
+		expect([...story().encounter!.enemies.values()].map((e) => e.kind)).toEqual([
+			'keeper',
+			'cultist',
+			'cultist'
+		]);
+		expect(interact(room, ana, 'tobin')).toMatchObject({ ok: false });
+		clearEnemies();
+		expect(story().encounters.get('hollow')).toBe('won');
+		expect(story().events).toContain('won_hollow');
 
 		// Tobin, and the final decision.
 		walk({ x: 9, y: 5 });
@@ -294,6 +322,7 @@ describe('playing the story through', () => {
 		clearEnemies();
 		pullLever();
 		walk(STAIR.from);
+		clearEnemies();
 		walk({ x: 9, y: 5 });
 		ok(interact(room, ana, 'tobin'));
 		ok(decide(room, gm, 'bell', 'break'));
@@ -352,7 +381,8 @@ describe('saving the story with the table', () => {
 		const read = readAdventure(scene.adventure!, scene);
 		if (!read.ok) throw new Error(read.error);
 		expect(saveAdventure(read.adventure)).toEqual(saveAdventure(story()));
-		expect(read.adventure.encounter?.enemies.size).toBe(2);
+		expect(read.adventure.encounter?.enemies.size).toBe(3);
+		expect(read.adventure.encounter?.order).toEqual(story().encounter?.order);
 		// The found door is saved as a door, not the wall it was.
 		expect(scene.objects.find((o) => o.id === MONASTERY_IDS.secretDoor)?.kind).toBe('door');
 	});

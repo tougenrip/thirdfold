@@ -70,6 +70,8 @@
 		terrain?: Uint8Array | null;
 		cue?: CuePlay | null;
 		motion?: MotionPlay | null;
+		/** Whose turn it is in a fight, marked over the token. */
+		active?: { tokenId: string; enemy: boolean } | null;
 	}
 
 	let {
@@ -95,6 +97,7 @@
 		terrain = null,
 		cue = null,
 		motion = null,
+		active = null,
 		onClick,
 		onHover
 	}: Props = $props();
@@ -205,6 +208,10 @@
 			floatedId = f.id;
 			tabletop.showFloat(f.tokenId, f.text, f.color);
 		}
+	});
+
+	$effect(() => {
+		tabletop?.setActive(active?.tokenId ?? null, active?.enemy ?? false);
 	});
 
 	// After the props: a motion may be for a prop that has only just arrived.

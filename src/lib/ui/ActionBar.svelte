@@ -51,10 +51,18 @@
 	const encounter = $derived(adventure.encounter);
 	const acted = $derived(!!encounter?.acted.includes(character.id));
 	const able = $derived(!character.downed && !character.dead);
+	/** Whose turn it is, in a fight. */
+	const up = $derived(encounter ? encounter.order[encounter.current] : undefined);
+	const isMine = $derived(!!encounter && up?.characterId === character.id);
 	const movesLeft = $derived(
-		encounter ? Math.max(0, def.speed - (encounter.moved[character.id] ?? 0)) : null
+		encounter
+			? isMine
+				? Math.max(0, encounter.speed - (encounter.moved[character.id] ?? 0))
+				: 0
+			: null
 	);
-	const myTurn = $derived(!!encounter && encounter.phase === 'players' && !acted && able);
+	/** The character can use an action now: its turn, and it hasn't yet. */
+	const myTurn = $derived(isMine && !acted && able);
 	const nearby = $derived(
 		encounter || !able || adventure.stage === 'choosing'
 			? []
@@ -133,9 +141,10 @@
 				? 'Something here you can use.'
 				: 'Click a cell to walk there. Go up to people and things.';
 		}
-		if (encounter.phase === 'enemies') return "The enemies' turn…";
-		if (acted) return 'Done for this round. Waiting for the others.';
-		return `Your turn: ${movesLeft} ${movesLeft === 1 ? 'cell' : 'cells'} of movement, one action.`;
+		if (!isMine) return `${up?.name ?? 'Someone else'}'s turn…`;
+		const cells = `${movesLeft} ${movesLeft === 1 ? 'cell' : 'cells'} of movement`;
+		if (acted) return `Your turn: ${cells} left, then end your turn.`;
+		return `Your turn: ${cells}, one action.`;
 	});
 	/** What a verb is: how it investigates, or what it physically does. */
 	function kindOf(v: AdventureView['interactables'][number]['verbs'][number]): string {
@@ -237,7 +246,8 @@
 			{#if encounter && able}
 				<button
 					type="button"
-					disabled={!myTurn}
+					class:primary={isMine && acted}
+					disabled={!isMine}
 					onclick={() => send({ type: 'adventure_end_turn' })}
 				>
 					End turn

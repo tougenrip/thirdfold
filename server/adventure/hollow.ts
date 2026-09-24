@@ -30,6 +30,19 @@ export const HOLLOW_SPAWN: readonly GridPos[] = [
 	{ x: 11, y: 15 }
 ];
 
+/** Where the Bell Keeper and its cultists stand between the party and the Bell. */
+export const KEEPER_RING: readonly GridPos[] = [
+	{ x: 10, y: 6 },
+	{ x: 8, y: 5 },
+	{ x: 12, y: 5 },
+	{ x: 9, y: 6 },
+	{ x: 11, y: 6 },
+	{ x: 6, y: 5 }
+];
+
+/** The cavern floor, lit up for the fight. */
+export const CAVERN = { from: { x: 4, y: 1 }, to: { x: 15, y: 15 } };
+
 export function hollowScene(now = new Date()): SceneFile {
 	const I = HOLLOW_IDS;
 	return table(
