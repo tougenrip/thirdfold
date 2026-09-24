@@ -12,6 +12,7 @@
 	import { listSaves } from '$lib/net/saves';
 	import { loadGmKey, loadName, saveGmKey, saveName } from '$lib/prefs';
 	import { lastPlayed } from '$lib/ui/when';
+	import { prefetchRenderer } from '$lib/tabletop/load';
 
 	let name = $state(loadName());
 	let code = $state('');
@@ -101,6 +102,9 @@
 		event.preventDefault();
 		if (canJoin) enter({ type: 'join', roomId, name: name.trim(), role: 'player' });
 	}
+
+	// The table's 3D renderer is the biggest download: fetch it while the visitor is still here.
+	$effect(() => prefetchRenderer());
 </script>
 
 <main>

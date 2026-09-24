@@ -11,6 +11,7 @@
 	import { loadName, saveName } from '$lib/prefs';
 	import RoomView from '$lib/ui/RoomView.svelte';
 	import Steps from '$lib/ui/Steps.svelte';
+	import { prefetchRenderer } from '$lib/tabletop/load';
 
 	const roomId = $derived(page.params.id?.toUpperCase() ?? '');
 	const validId = $derived(ROOM_ID_PATTERN.test(roomId));
@@ -50,6 +51,9 @@
 		const intent: EnterIntent = { type: 'join', roomId, name: trimmed, role };
 		conn = new RoomConnection(intent);
 	}
+
+	// The table's 3D renderer is the biggest download: fetch it while the visitor is still here.
+	$effect(() => prefetchRenderer());
 </script>
 
 <svelte:head>

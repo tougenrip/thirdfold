@@ -32,6 +32,7 @@ import { PropLayer } from './props';
 import { playSound } from './sounds';
 import { DiceLayer, type DiceThrow } from './dice3d';
 import { FogLayer, type FogMode } from './fog';
+import { PerfRecorder, type PerfStats } from './perf';
 import { TokenLayer } from './tokens';
 import { WALL_HEIGHT, WallLayer } from './walls';
 
@@ -100,6 +101,14 @@ export interface Tabletop {
 	/** Plays motions on props (a lever swinging, a chain shaking) and their sounds. */
 	playMotions(motions: readonly Motion[]): void;
 	setView(view: CameraView): void;
+	/** What rendering has cost so far (see perf.ts). */
+	stats(): PerfStats;
+	/**
+	 * Draws the current view `frames` times, waiting for the GPU each time: the
+	 * main thread's ms per frame (`cpu`) and the whole frame's until drawn (`gpu`).
+	 */
+	benchmark(frames: number): { cpu: number; gpu: number; drawCalls: number };
+	resetStats(): void;
 	dispose(): void;
 }
 
@@ -141,8 +150,16 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	// Only the ambient mist clips (to the table).
 	renderer.localClippingEnabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
+	// The sun's shadows are drawn again only when something on the table changed (see
+	// shadowsDirty), not when just the camera moves or flames flicker: that pass draws the
+	// whole scene a second time.
+	renderer.shadowMap.autoUpdate = false;
+	let shadowsDirty = true;
+	/** Things moved in the last frame: their final step changes shadows too. */
+	let wasMoving = false;
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
+	const perf = new PerfRecorder();
 	const scene = new THREE.Scene();
 	scene.background = new THREE.Color(COLORS.background);
 	scene.fog = new THREE.Fog(COLORS.background, 40, 90);
@@ -211,7 +228,18 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	}
 
 	/** Light depends on tokens (carried light), walls (blocking), fog (player visibility) and lights. */
+	/**
+	 * Light has to be worked out again. Several updates often come together (a new
+	 * table brings grid, tokens, walls, props, fog and lights), so it is worked out
+	 * once, just before the next frame.
+	 */
+	let lightingStale = false;
 	function refreshLighting(): void {
+		lightingStale = true;
+		requestRender();
+	}
+
+	function relight(): void {
 		if (!grid) return;
 		const fog = fogState.fog;
 		const visible =
@@ -317,6 +345,17 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 
 	function render(now: number): void {
 		frame = 0;
+		perf.frame(now);
+		const start = performance.now();
+		drawFrame(now);
+		perf.add('frame', performance.now() - start);
+	}
+
+	function drawFrame(now: number): void {
+		if (lightingStale) {
+			lightingStale = false;
+			perf.time('lighting', relight);
+		}
 		// Clamp so the first frame after an idle period does not jump animations to the end.
 		const dt = Math.min(now - lastFrameTime, 50);
 		lastFrameTime = now;
@@ -328,7 +367,10 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
 		if (!fx.active) swinging = null;
 		const propsMoving = propLayer.tick(now);
-		if (tokensMoving || doorsMoving || diceRolling || fx.active || propsMoving) requestRender();
+		const moving = tokensMoving || doorsMoving || diceRolling || fx.active || propsMoving;
+		if (moving) requestRender();
+		if (moving || wasMoving) shadowsDirty = true;
+		wasMoving = moving;
 		if (!reducedMotion) {
 			const flickering = lighting.flicker(now);
 			const drifting = ambience.tick(now);
@@ -355,7 +397,14 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		// A shudder from a cue: offset the camera for this frame only.
 		shakeOffset.copy(fx.shake);
 		camera.position.add(shakeOffset);
+		// With the sun out (after dark) its shadows show nowhere: leave them until it is back.
+		const sunShines = sun.intensity > 0;
+		renderer.shadowMap.needsUpdate = shadowsDirty && sunShines;
+		if (renderer.shadowMap.needsUpdate) perf.add('shadows', 0);
+		if (sunShines) shadowsDirty = false;
+		const draw = performance.now();
 		renderer.render(scene, camera);
+		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
 	}
 
@@ -527,7 +576,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 
 	function onPointerMove(event: PointerEvent): void {
 		if (event.buttons !== 0) return; // dragging the camera
-		const pick = pickAt(event);
+		const pick = perf.time('pick', () => pickAt(event));
 		canvas.style.cursor = pick.tokenId || pick.objectId ? 'pointer' : '';
 		const key = pickKey(pick);
 		if (key === hoverKey) return;
@@ -549,7 +598,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 
 	let view: CameraView = 'tactical';
 
-	return {
+	const tabletop: Tabletop = {
 		setGrid(next) {
 			if (
 				grid &&
@@ -801,6 +850,68 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			highlight.geometry.dispose();
 			highlight.material.dispose();
 			renderer.dispose();
+		},
+		stats() {
+			const { render, memory, programs } = renderer.info;
+			return {
+				...perf.snapshot(performance.now()),
+				drawCalls: render.calls,
+				triangles: render.triangles,
+				geometries: memory.geometries,
+				textures: memory.textures,
+				programs: programs?.length ?? 0
+			};
+		},
+		resetStats() {
+			perf.reset();
+		},
+		benchmark(frames) {
+			const gl = renderer.getContext();
+			const pixel = new Uint8Array(4);
+			let cpu = 0;
+			let gpu = 0;
+			for (let i = 0; i < frames; i++) {
+				const start = performance.now();
+				renderer.render(scene, camera);
+				cpu += performance.now() - start;
+				// Reading a pixel back waits until the frame has been drawn.
+				gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+				gpu += performance.now() - start;
+			}
+			return { cpu: cpu / frames, gpu: gpu / frames, drawCalls: renderer.info.render.calls };
 		}
 	};
+	// Changes to the table redraw the sun's shadows on the next frame; updates from the room
+	// are also timed (what each costs on the main thread).
+	for (const key of [...TIMED, ...RESHADOWS]) {
+		const update = tabletop[key] as (...args: unknown[]) => unknown;
+		const timed = (TIMED as readonly string[]).includes(key);
+		(tabletop[key] as (...args: unknown[]) => unknown) = (...args) => {
+			shadowsDirty = true;
+			return timed ? perf.time(key, () => update(...args)) : update(...args);
+		};
+	}
+	return tabletop;
 }
+
+/** Other changes that can move what casts a shadow (the camera, hover and highlights don't). */
+const RESHADOWS = [
+	'setFallen',
+	'setActive',
+	'showFloat',
+	'throwDice',
+	'playMotions',
+	'playCue'
+] as const satisfies readonly (keyof Tabletop)[];
+
+/** The updates whose cost is measured. */
+const TIMED = [
+	'setGrid',
+	'setTokens',
+	'setObjects',
+	'setProps',
+	'setFog',
+	'setLighting',
+	'setDarkness',
+	'setTerrain'
+] as const satisfies readonly (keyof Tabletop)[];

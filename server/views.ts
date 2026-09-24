@@ -17,15 +17,15 @@ import { encodeLevels, knownLevels } from '../src/lib/game/terrain';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
 import {
-	addVision,
 	cellIndex,
 	emptyMask,
 	encodeMask,
 	type CellMask,
-	type FogView
+	type FogView,
+	type SightCache
 } from '../src/lib/game/visibility';
 import { hiddenPropIds } from './adventure/engine';
-import { lightFor } from './scene';
+import { lightFor, sightsFor } from './scene';
 import { adventureView } from './adventure/view';
 import { toPublicPlayer, type Player, type Room } from './rooms';
 
@@ -60,11 +60,14 @@ export interface SceneContext {
 	lit: CellMask | null;
 	/** The room (walled-in space, see rooms.ts) each player-owned token stands in; none on open ground. */
 	rooms: Map<string, number[]>;
+	/** Each sight worked out once, and kept across syncs while the obstacles stay the same. */
+	sights: SightCache;
 }
 
 export function sceneContext(room: Room): SceneContext {
 	const blocked = obstaclesFor(room.grid, room.objects.values(), room.props.values(), room.terrain);
-	const lit = lightFor(room, blocked);
+	const sights = sightsFor(room, blocked);
+	const lit = lightFor(room, blocked, Date.now(), sights.add);
 	const boundary = roomBoundary(room.objects.values());
 	const rooms = new Map<string, number[]>();
 	if (room.fog.enabled) {
@@ -74,7 +77,7 @@ export function sceneContext(room: Room): SceneContext {
 			if (cells) rooms.set(t.id, cells);
 		}
 	}
-	return { blocked, lit, rooms };
+	return { blocked, lit, rooms, sights };
 }
 
 /**
@@ -85,12 +88,11 @@ function visionOf(room: Room, playerIds: ReadonlySet<string>, ctx: SceneContext)
 	const mask = room.fog.revealed.slice();
 	for (const t of room.tokens.values()) {
 		if (!t.ownerId || !playerIds.has(t.ownerId)) continue;
+		const sight = ctx.sights.sight(room.grid, t.pos, t.vision);
 		if (!ctx.lit) {
-			addVision(room.grid, ctx.blocked, t.pos, t.vision, mask);
+			for (let i = 0; i < sight.length; i++) if (sight[i]) mask[i] = 1;
 			continue;
 		}
-		const sight = emptyMask(room.grid);
-		addVision(room.grid, ctx.blocked, t.pos, t.vision, sight);
 		const own = cellIndex(room.grid, t.pos);
 		for (let i = 0; i < sight.length; i++) if (sight[i] && (ctx.lit[i] || i === own)) mask[i] = 1;
 	}

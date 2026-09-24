@@ -123,6 +123,99 @@ export function addVision(
 	}
 }
 
+/** Adds what a source at `origin` with `radius` sees to `into` (addVision, or a cache of it). */
+export type VisionAdder = (
+	grid: SquareGrid,
+	blocked: Blockers,
+	origin: GridPos,
+	radius: number,
+	into: CellMask
+) => void;
+
+/** Sights kept at most, so a cache can't grow without bound. */
+export const MAX_CACHED_SIGHTS = 1024;
+
+/**
+ * Sights (what a source at a cell with a radius sees: a token's vision, a
+ * light's reach) kept while the obstacles stay the same. Line of sight is
+ * most of the work in a sync, and most actions move one token, so nearly
+ * every sight can be reused. `use` it with each sync's obstacles: it forgets
+ * everything when they changed (compared by content, so rebuilt but equal
+ * obstacles keep it). Unioning cached sights gives exactly what addVision
+ * into one shared mask gives.
+ */
+export class SightCache {
+	private signature = '';
+	private blocked: Blockers | null = null;
+	private readonly sights = new Map<string, CellMask>();
+	/** Sights worked out (not found in the cache) since it was made; for tests and measuring. */
+	computed = 0;
+
+	constructor(private readonly max = MAX_CACHED_SIGHTS) {}
+
+	/** Starts a round with these obstacles: the cache is kept only if they are the same as before. */
+	use(grid: SquareGrid, blocked: Blockers): this {
+		const signature = obstacleSignature(grid, blocked);
+		if (signature !== this.signature) {
+			this.signature = signature;
+			this.sights.clear();
+		}
+		this.blocked = blocked;
+		return this;
+	}
+
+	/** What a source at `origin` with `radius` sees (don't modify it). */
+	sight(grid: SquareGrid, origin: GridPos, radius: number): CellMask {
+		if (!this.blocked) throw new Error('SightCache: call use() first');
+		const key = `${origin.x},${origin.y},${radius}`;
+		let sight = this.sights.get(key);
+		if (!sight) {
+			sight = emptyMask(grid);
+			addVision(grid, this.blocked, origin, radius, sight);
+			this.computed++;
+			if (this.sights.size >= this.max) this.sights.clear();
+			this.sights.set(key, sight);
+		}
+		return sight;
+	}
+
+	/** A VisionAdder for the obstacles in use (any other obstacles are worked out afresh). */
+	readonly add: VisionAdder = (grid, blocked, origin, radius, into) => {
+		if (blocked !== this.blocked || !inBounds(grid, origin) || radius < 0) {
+			addVision(grid, blocked, origin, radius, into);
+			return;
+		}
+		const sight = this.sight(grid, origin, radius);
+		for (let i = 0; i < into.length; i++) if (sight[i]) into[i] = 1;
+	};
+}
+
+/** Everything about obstacles that decides a sight, as a string to compare. */
+function obstacleSignature(grid: SquareGrid, blockers: Blockers): string {
+	const o = asObstacles(blockers);
+	const set = (s: ReadonlySet<string> | null | undefined) => (s ? [...s].sort().join(';') : '-');
+	return [
+		grid.width,
+		grid.height,
+		set(o.edges),
+		set(o.windows),
+		hashBytes(o.solid),
+		hashBytes(o.opaque),
+		hashBytes(o.levels)
+	].join('|');
+}
+
+/** FNV-1a over the bytes, with the length; '-' for none. */
+function hashBytes(bytes: Uint8Array | null | undefined): string {
+	if (!bytes) return '-';
+	let h = 0x811c9dc5;
+	for (let i = 0; i < bytes.length; i++) {
+		h ^= bytes[i];
+		h = Math.imul(h, 0x01000193);
+	}
+	return `${bytes.length}:${(h >>> 0).toString(36)}`;
+}
+
 /**
  * Whether something at `from` with sight `radius` sees the cell `to`: within
  * the same round radius as `addVision`, with a clear line, and, when `lit` is

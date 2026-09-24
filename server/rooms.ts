@@ -1,6 +1,7 @@
 // Authoritative room state. Pure logic with no sockets, so it can be tested
 // directly and the transport can change without touching the rules.
 
+import type { SightCache } from '../src/lib/game/visibility';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
 import type { ChatMessage } from '../src/lib/game/chat';
@@ -46,6 +47,8 @@ export interface Room {
 	darkness: CellMask | null;
 	/** Until when (ms since epoch) a flash lights the whole table, if one is going. */
 	flashUntil?: number;
+	/** Sights worked out for this table, kept while its walls, props and ground stay the same (not saved). */
+	sights?: SightCache;
 	/** Name of the scene on the table: set when it is saved, loaded or imported. */
 	sceneName: string;
 	/** The GM has paused the game: players can't move or act, and enemies wait. */

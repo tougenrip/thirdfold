@@ -8,8 +8,10 @@ import {
 	emptyMask,
 	encodeMask,
 	hasLineOfSight,
-	rectCells
+	rectCells,
+	SightCache
 } from './visibility';
+import { obstaclesFor } from './props';
 
 const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 12, height: 12 };
 const wall = (ax: number, ay: number, bx: number, by: number): SceneObject => ({
@@ -77,6 +79,63 @@ describe('addVision', () => {
 		const mask = emptyMask(grid);
 		addVision(grid, new Set(), c(2, 2), 0, mask);
 		expect(mask.reduce((n, v) => n + v, 0)).toBe(1);
+	});
+});
+
+describe('SightCache', () => {
+	const door = (open: boolean): SceneObject[] => [
+		wall(5, 0, 5, 3),
+		{ id: 'd', kind: 'door', a: c(5, 3), b: c(5, 4), open },
+		wall(5, 4, 5, 12)
+	];
+	const seenFrom = (objects: SceneObject[], sources: [number, number, number][]) => {
+		const mask = emptyMask(grid);
+		for (const [x, y, r] of sources) addVision(grid, blockingEdges(objects), c(x, y), r, mask);
+		return mask;
+	};
+
+	it('gives exactly what addVision into one shared mask gives', () => {
+		const blocked = obstaclesFor(grid, door(false));
+		const cache = new SightCache().use(grid, blocked);
+		const sources: [number, number, number][] = [
+			[2, 3, 6],
+			[4, 8, 3],
+			[8, 3, 4],
+			[2, 3, 6]
+		];
+		const mask = emptyMask(grid);
+		for (const [x, y, r] of sources) cache.add(grid, blocked, c(x, y), r, mask);
+		expect([...mask]).toEqual([...seenFrom(door(false), sources)]);
+		// The repeated source was worked out once.
+		expect(cache.computed).toBe(3);
+	});
+
+	it('keeps sights across rounds while the obstacles stay the same, even rebuilt', () => {
+		const cache = new SightCache();
+		cache.use(grid, obstaclesFor(grid, door(false))).sight(grid, c(2, 3), 6);
+		cache.use(grid, obstaclesFor(grid, door(false))).sight(grid, c(2, 3), 6);
+		expect(cache.computed).toBe(1);
+	});
+
+	it('forgets them when the obstacles change: a door opened sees through', () => {
+		const cache = new SightCache();
+		const shut = cache.use(grid, obstaclesFor(grid, door(false))).sight(grid, c(2, 3), 6);
+		expect(shut[cellIndex(grid, c(7, 3))]).toBe(0);
+		const open = cache.use(grid, obstaclesFor(grid, door(true))).sight(grid, c(2, 3), 6);
+		expect(open[cellIndex(grid, c(7, 3))]).toBe(1);
+		expect(cache.computed).toBe(2);
+	});
+
+	it('works out sights for other obstacles afresh, and stays bounded', () => {
+		const cache = new SightCache(2).use(grid, obstaclesFor(grid, door(false)));
+		const other = blockingEdges(door(true));
+		const mask = emptyMask(grid);
+		cache.add(grid, other, c(2, 3), 6, mask);
+		expect(mask[cellIndex(grid, c(7, 3))]).toBe(1);
+		expect(cache.computed).toBe(0);
+		for (let x = 0; x < 5; x++) cache.sight(grid, c(x, 0), 2);
+		cache.sight(grid, c(4, 0), 2);
+		expect(cache.computed).toBe(5);
 	});
 });
 
