@@ -33,6 +33,9 @@ export interface LiveRoom {
 	paused: boolean;
 	/** Paused only because the GM lost their connection (lifted when they are back). */
 	pausedForGm: boolean;
+	/** Whose saves the table's are (a GM key's hash), and its autosave slot. */
+	gmOwner?: string;
+	autosaveId?: string;
 }
 
 export interface RoomStore {
@@ -60,7 +63,9 @@ export function serializeRoom(room: Room, now = new Date()): LiveRoom {
 		nextSeq: room.nextSeq,
 		emptySince: room.emptySince,
 		paused: room.paused,
-		pausedForGm: room.pausedForGm === true
+		pausedForGm: room.pausedForGm === true,
+		...(room.gmOwner ? { gmOwner: room.gmOwner } : {}),
+		...(room.autosaveId ? { autosaveId: room.autosaveId } : {})
 	};
 }
 
@@ -159,6 +164,12 @@ export function restoreRoom(raw: unknown, now = Date.now()): Restored {
 		typeof raw.emptySince === 'number' && Number.isFinite(raw.emptySince) ? raw.emptySince : now;
 	room.paused = raw.paused === true;
 	room.pausedForGm = raw.pausedForGm === true;
+	if (typeof raw.gmOwner === 'string' && /^[0-9a-f]{64}$/.test(raw.gmOwner)) {
+		room.gmOwner = raw.gmOwner;
+	}
+	if (typeof raw.autosaveId === 'string' && /^[0-9a-f]{32}$/.test(raw.autosaveId)) {
+		room.autosaveId = raw.autosaveId;
+	}
 	return { ok: true, room };
 }
 

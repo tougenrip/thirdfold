@@ -93,7 +93,12 @@ export interface LightPatch {
 }
 
 export type ClientMessage =
-	| { type: 'create'; name: string }
+	/**
+	 * Opens a table as its GM. `gmKey` is the GM's lasting key (their saves are
+	 * theirs by it; the server issues one if none is given); `continueFrom` is a
+	 * save of theirs to open the table on.
+	 */
+	| { type: 'create'; name: string; gmKey?: string; continueFrom?: string }
 	| { type: 'join'; roomId: string; name: string; role: JoinRole }
 	| { type: 'resume'; roomId: string; sessionToken: string }
 	| {
@@ -140,6 +145,13 @@ export type ClientMessage =
 	| { type: 'scene_export'; name: string }
 	/** GM: replace the table with an uploaded scene file. The server validates it fully. */
 	| { type: 'scene_import'; file: unknown }
+	/**
+	 * A GM's saves, newest first. At a table the GM's own; before joining one,
+	 * the saves of `gmKey` (on the landing page). Replies with scene_list.
+	 */
+	| { type: 'scene_list'; gmKey?: string }
+	/** GM: forget one of their saves. */
+	| { type: 'scene_delete'; sceneId: string }
 	| { type: 'chat_send'; text: string }
 	/** Roll dice; `secret` shows the result only to the roller and the GM. */
 	| { type: 'dice_roll'; expression: string; secret?: true }
@@ -186,6 +198,21 @@ export interface CharacterPatch {
 	/** Bring a dead character back (at 1 HP if they had none). */
 	revive?: true;
 }
+
+/** One of a GM's saves, as their list shows it. */
+export interface SavedScene {
+	id: string;
+	name: string;
+	savedAt: string;
+	/** Saved by the table itself as the story went on (the GM's own saves are false). */
+	auto: boolean;
+	/** The story saved with it, if any: where it had got to and who was playing. */
+	story: { title: string; chapter: string; location: string; party: string[] } | null;
+}
+
+/** A GM's lasting key, like a session token: 64 hex characters, secret. */
+export const GM_KEY_PATTERN = /^[0-9a-f]{64}$/;
+const SCENE_ID = /^[0-9a-f]{32}$/;
 
 export type AdventureControl = 'end_turn' | 'restart' | 'end';
 
@@ -239,8 +266,11 @@ export type ErrorCode =
 	| 'server_error';
 
 export type ServerMessage =
-	/** Sent to a client once it has created, joined or resumed a room. `sessionToken` is private to that client. */
-	| { type: 'welcome'; playerId: string; sessionToken: string; room: RoomSnapshot }
+	/**
+	 * Sent to a client once it has created, joined or resumed a room. `sessionToken`
+	 * is private to that client; so is `gmKey`, sent only to the GM who opened the table.
+	 */
+	| { type: 'welcome'; playerId: string; sessionToken: string; room: RoomSnapshot; gmKey?: string }
 	| { type: 'player_joined'; player: PublicPlayer }
 	| { type: 'player_presence'; playerId: string; connected: boolean }
 	/** A token was created or its properties changed. */
@@ -262,6 +292,8 @@ export type ServerMessage =
 	| { type: 'pause_update'; paused: boolean }
 	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
 	| { type: 'scene_saved'; sceneId: string; name: string; savedAt: string }
+	/** To the GM who asked: their saves, newest first. */
+	| { type: 'scene_list'; scenes: SavedScene[] }
 	/** To the GM who asked: the current table as a scene file. */
 	| { type: 'scene_exported'; file: SceneFile }
 	/** The whole table changed (a scene was loaded): replace local room state with this. */
@@ -449,8 +481,19 @@ function parseCharacterPatch(value: unknown): CharacterPatch | null {
 export function parseClientMessage(data: unknown): ClientMessage | null {
 	if (!isRecord(data)) return null;
 	switch (data.type) {
-		case 'create':
-			return typeof data.name === 'string' ? { type: 'create', name: data.name } : null;
+		case 'create': {
+			if (typeof data.name !== 'string') return null;
+			const msg: Extract<ClientMessage, { type: 'create' }> = { type: 'create', name: data.name };
+			if (data.gmKey !== undefined) {
+				if (typeof data.gmKey !== 'string' || !GM_KEY_PATTERN.test(data.gmKey)) return null;
+				msg.gmKey = data.gmKey;
+			}
+			if (data.continueFrom !== undefined) {
+				if (typeof data.continueFrom !== 'string' || !SCENE_ID.test(data.continueFrom)) return null;
+				msg.continueFrom = data.continueFrom;
+			}
+			return msg;
+		}
 		case 'join':
 			if (!isRoomId(data.roomId) || typeof data.name !== 'string') return null;
 			if (data.role !== 'player' && data.role !== 'spectator') return null;
@@ -563,6 +606,15 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				: null;
 		case 'scene_import':
 			return isRecord(data.file) ? { type: 'scene_import', file: data.file } : null;
+		case 'scene_list':
+			if (data.gmKey === undefined) return { type: 'scene_list' };
+			return typeof data.gmKey === 'string' && GM_KEY_PATTERN.test(data.gmKey)
+				? { type: 'scene_list', gmKey: data.gmKey }
+				: null;
+		case 'scene_delete':
+			return typeof data.sceneId === 'string' && SCENE_ID.test(data.sceneId)
+				? { type: 'scene_delete', sceneId: data.sceneId }
+				: null;
 		case 'chat_send':
 			return typeof data.text === 'string' ? { type: 'chat_send', text: data.text } : null;
 		case 'dice_roll':
@@ -637,6 +689,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		token_moved: (d) => typeof d.tokenId === 'string' && parseGridPos(d.pos) !== null,
 		token_deleted: (d) => typeof d.tokenId === 'string',
 		scene_saved: (d) => typeof d.sceneId === 'string' && typeof d.name === 'string',
+		scene_list: (d) => Array.isArray(d.scenes),
 		scene_exported: (d) => isRecord(d.file),
 		room_reset: (d) => isRecord(d.room),
 		props_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),

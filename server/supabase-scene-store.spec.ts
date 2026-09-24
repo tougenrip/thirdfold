@@ -42,7 +42,18 @@ describe('SupabaseSceneStore (unit)', () => {
 		expect(id).toMatch(SCENE_ID_PATTERN);
 		expect(calls).toEqual([
 			['from', 'scenes'],
-			['insert', { id, name: 'Crypt', data: scene }]
+			[
+				'insert',
+				{
+					id,
+					name: 'Crypt',
+					data: scene,
+					owner: null,
+					auto: false,
+					summary: null,
+					saved_at: scene.savedAt
+				}
+			]
 		]);
 	});
 
@@ -99,6 +110,57 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseSceneStore (live Supab
 		expect(badId.error).not.toBeNull();
 		const badName = await admin.from('scenes').insert({ id: 'd'.repeat(32), name: '', data: {} });
 		expect(badName.error).not.toBeNull();
+	});
+});
+
+describe.skipIf(!url || !serviceKey || !anonKey)('Owned saves (live Supabase)', () => {
+	const owner = (c: string) => c.repeat(64);
+
+	it('lists a GM’s own saves newest first, replaces one in place, and forgets it for its owner only', async () => {
+		const store = SupabaseSceneStore.connect(url!, serviceKey!);
+		const alice = owner(String(Math.floor(Math.random() * 10)));
+		const bob = owner('e');
+		for (const s of await store.list(alice)) await store.remove(s.id, alice);
+		const story = {
+			title: 'The Hollow Bell',
+			chapter: 'The quiet village',
+			location: 'Bellweather',
+			party: ['The Warden (Ana)']
+		};
+		const older = await store.save(
+			{ ...scene, savedAt: '2026-09-23T20:00:00.000Z' },
+			{ owner: alice }
+		);
+		const auto = await store.save(
+			{ ...scene, savedAt: '2026-09-24T21:43:00.000Z' },
+			{ owner: alice, auto: true, story }
+		);
+		const mine = await store.list(alice);
+		expect(mine.map((x) => x.id)).toEqual([auto, older]);
+		expect(mine[0]).toMatchObject({ auto: true, story, savedAt: '2026-09-24T21:43:00.000Z' });
+		expect(await store.ownerOf(auto)).toBe(alice);
+		await store.save(
+			{ ...scene, savedAt: '2026-09-25T09:00:00.000Z' },
+			{ owner: alice, auto: true, story },
+			auto
+		);
+		expect((await store.list(alice))[0]).toMatchObject({
+			id: auto,
+			savedAt: '2026-09-25T09:00:00.000Z'
+		});
+		await expect(store.save(scene, { owner: bob }, auto)).rejects.toThrow(/someone else/);
+		expect(await store.remove(auto, bob)).toBe(false);
+		expect(await store.remove(auto, alice)).toBe(true);
+		expect(await store.load(auto)).toBeNull();
+		await store.remove(older, alice);
+	});
+
+	it('refuses an owner that is not a key hash at the database', async () => {
+		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+		const bad = await admin
+			.from('scenes')
+			.insert({ id: '9'.repeat(32), name: 'x', data: {}, owner: 'not-a-hash' });
+		expect(bad.error).not.toBeNull();
 	});
 });
 

@@ -11,20 +11,24 @@ import {
 	type RoomSnapshot,
 	type ServerMessage
 } from '$lib/game/protocol';
+import { saveGmKey } from '$lib/prefs';
 import { applyRoomUpdate } from './room-state';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
 export type EnterIntent =
-	| { type: 'create'; name: string }
+	| { type: 'create'; name: string; gmKey?: string; continueFrom?: string }
 	| { type: 'join'; roomId: string; name: string; role: JoinRole }
 	| { type: 'resume'; roomId: string; sessionToken: string };
 
 /** Messages sent once seated: everything that is not an entry intent. */
 export type RoomAction = Exclude<ClientMessage, EnterIntent>;
 
-/** A reply meant only for this client (scene saved or exported), tagged so each one is handled once. */
-export type SceneReply = Extract<ServerMessage, { type: 'scene_saved' | 'scene_exported' }> & {
+/** A reply meant only for this client (a save, an export, the GM's saves), tagged so each one is handled once. */
+export type SceneReply = Extract<
+	ServerMessage,
+	{ type: 'scene_saved' | 'scene_exported' | 'scene_list' }
+> & {
 	seq: number;
 };
 
@@ -191,6 +195,8 @@ export class RoomConnection {
 				this.attempt = 0;
 				this.retryAt = null;
 				saveSession(msg.room.id, msg.sessionToken);
+				// The GM's lasting key: their saves are theirs by it, on this device and any other.
+				if (msg.gmKey) saveGmKey(msg.gmKey);
 				// Any later reconnect must resume this seat rather than create or join again.
 				this.intent = { type: 'resume', roomId: msg.room.id, sessionToken: msg.sessionToken };
 				for (const w of this.welcomeWaiters.splice(0)) w.resolve();
@@ -217,6 +223,7 @@ export class RoomConnection {
 				return;
 			case 'scene_saved':
 			case 'scene_exported':
+			case 'scene_list':
 				this.sceneReply = { ...msg, seq: ++this.errorSeq };
 				return;
 			default:

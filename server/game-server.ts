@@ -23,8 +23,11 @@ import * as adventure from './adventure/engine';
 import type { MechanismId } from './adventure/mechanisms';
 import { readAdventure } from './adventure/persist';
 import { RateLimiter } from './rate-limit';
-import { applyScene, exportScene } from './scene-io';
+import { applyScene, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
+import { keyOwner, newGmKey } from './gm-keys';
+import { newSceneId } from './scene-store';
+import { storySummary } from './adventure/view';
 import { MemorySceneStore, type SceneStore } from './scene-store';
 import { RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
 import {
@@ -84,6 +87,8 @@ export interface GameServerOptions {
 	roomSaveMs?: number;
 	/** How long a fight waits for a character whose player is away before their turn passes. */
 	awayTurnMs?: number;
+	/** How long after a change a story in play is autosaved to its GM's saves. */
+	autosaveMs?: number;
 }
 
 export interface GameServer {
@@ -137,7 +142,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		mechanismDelayScale = 1,
 		patrolMs = 1500,
 		roomSaveMs = 1000,
-		awayTurnMs = 20_000
+		awayTurnMs = 20_000,
+		autosaveMs = 30_000
 	} = options;
 	const rooms = new RoomManager();
 	const roomStore = options.roomStore ?? null;
@@ -178,7 +184,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 	}
 
-	function seat(ws: WebSocket, room: Room, player: Player): void {
+	function seat(ws: WebSocket, room: Room, player: Player, gmKey?: string): void {
 		touch(room);
 		let roomSockets = sockets.get(room.id);
 		if (!roomSockets) sockets.set(room.id, (roomSockets = new Map()));
@@ -195,7 +201,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			type: 'welcome',
 			playerId: player.id,
 			sessionToken: player.sessionToken,
-			room: snapshotFor(room, player, view)
+			room: snapshotFor(room, player, view),
+			...(gmKey ? { gmKey } : {})
 		});
 	}
 
@@ -243,6 +250,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'resume':
 				if (s) return sendError(ws, 'already_joined', 'This connection is already in a room.');
 				return handleEntry(ws, msg);
+			case 'scene_list':
+				// Before joining a table (the landing page), a GM lists their saves by their key.
+				if (!room || !player) {
+					if (!msg.gmKey) return sendError(ws, 'not_joined', 'Join a room first.');
+					void listSaves(ws, keyOwner(msg.gmKey), `key:${keyOwner(msg.gmKey)}`);
+					return;
+				}
+				return handleInRoom(ws, room, player, msg);
 			default:
 				if (!room || !player) return sendError(ws, 'not_joined', 'Join a room first.');
 				return handleInRoom(ws, room, player, msg);
@@ -254,20 +269,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		msg: Extract<ClientMessage, { type: 'create' | 'join' | 'resume' }>
 	): void {
 		switch (msg.type) {
-			case 'create': {
-				const result = rooms.create(msg.name);
-				if (!result.ok) return sendError(ws, result.code, result.message);
-				// The story's own rolls (initiative) use the server's dice too.
-				result.room.dice = rollDie;
-				postSystem(result.room, `${result.player.name} opened the table as GM.`);
-				seat(ws, result.room, result.player);
-				console.info(`[room ${result.room.id}] created by ${result.player.name}`);
+			case 'create':
+				void create(ws, msg);
 				return;
-			}
 			case 'join': {
 				const result = rooms.join(msg.roomId, msg.name, msg.role);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { room, player } = result;
+				// Back at a continued table under their old name: their character is theirs again.
+				const back = reclaim(room, player);
 				// Joining a story under way: they catch up on the ground the party has explored.
 				if (room.adventure && room.adventure.stage !== 'choosing' && player.role === 'player') {
 					for (const other of room.players.values()) {
@@ -280,6 +290,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				// Logged before seating so the joiner's snapshot already contains it.
 				const notice = postSystem(room, `${player.name} joined as ${ROLE_NAMES[player.role]}.`);
 				seat(ws, room, player);
+				if (back.length) syncRoom(room);
 				broadcast(room.id, { type: 'player_joined', player: toPublicPlayer(player) }, player.id);
 				broadcast(room.id, { type: 'chat', message: notice }, player.id);
 				return;
@@ -306,6 +317,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function touch(room: Room): void {
+		scheduleAutosave(room);
 		if (!roomStore) return;
 		dirty.add(room);
 		saveTimer ??= setTimeout(() => void saveDirty(), roomSaveMs);
@@ -372,6 +384,95 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			if (outcome) applyOutcome(room, outcome);
 		}, awayTurnMs);
 		timers.add(timer);
+	}
+
+	/**
+	 * Opens a table for a GM: under their lasting key (a new one if they have
+	 * none), and on one of their saves if they are continuing a story.
+	 */
+	async function create(ws: WebSocket, msg: Extract<ClientMessage, { type: 'create' }>) {
+		const key = msg.gmKey ?? newGmKey();
+		const owner = keyOwner(key);
+		let saved: unknown = null;
+		let auto = false;
+		if (msg.continueFrom) {
+			try {
+				if ((await sceneStore.ownerOf(msg.continueFrom)) !== owner) {
+					return sendError(ws, 'scene_not_found', 'That save is not one of yours.');
+				}
+				saved = await sceneStore.load(msg.continueFrom);
+				auto = (await sceneStore.list(owner)).some((x) => x.id === msg.continueFrom && x.auto);
+			} catch (err) {
+				console.error('[game-server] continue failed', err);
+				return sendError(ws, 'persistence_failed', 'That save could not be opened. Try again.');
+			}
+			if (saved === null) return sendError(ws, 'scene_not_found', 'That save no longer exists.');
+		}
+		// The socket may have gone, or been seated, while storage was busy.
+		if (ws.readyState !== ws.OPEN || seats.has(ws)) return;
+		const result = rooms.create(msg.name);
+		if (!result.ok) return sendError(ws, result.code, result.message);
+		const { room, player } = result;
+		// The story's own rolls (initiative) use the server's dice too.
+		room.dice = rollDie;
+		room.gmOwner = owner;
+		postSystem(room, `${player.name} opened the table as GM.`);
+		if (saved !== null) {
+			try {
+				loadIntoRoom(room, player, saved, 'continued');
+			} catch (err) {
+				rooms.remove(room.id);
+				if (err instanceof SceneError) return sendError(ws, err.code, err.message);
+				throw err;
+			}
+			// Continuing from the table's own save keeps saving into it.
+			if (auto) room.autosaveId = msg.continueFrom;
+		}
+		seat(ws, room, player, key);
+		console.info(`[room ${room.id}] created by ${player.name}`);
+	}
+
+	/** Sends a GM their saves, newest first. */
+	async function listSaves(ws: WebSocket, owner: string, limitKey: string): Promise<void> {
+		if (!sceneLimiter.take(limitKey)) {
+			return sendError(ws, 'rate_limited', 'Give it a moment before asking again.');
+		}
+		try {
+			send(ws, { type: 'scene_list', scenes: await sceneStore.list(owner) });
+		} catch (err) {
+			console.error('[game-server] listing saves failed', err);
+			sendError(ws, 'persistence_failed', 'Your saves could not be listed. Try again.');
+		}
+	}
+
+	// -------------------------------------------------------------------
+	// Autosave: a story in play is kept among its GM's saves as it goes on.
+
+	const autosaves = new Map<Room, ReturnType<typeof setTimeout>>();
+
+	function scheduleAutosave(room: Room): void {
+		if (!room.gmOwner || !room.adventure || room.adventure.stage === 'choosing') return;
+		if (autosaves.has(room)) return;
+		const timer = setTimeout(() => {
+			autosaves.delete(room);
+			void autosave(room);
+		}, autosaveMs);
+		autosaves.set(room, timer);
+	}
+
+	async function autosave(room: Room): Promise<void> {
+		if (!room.gmOwner || !room.adventure || rooms.get(room.id) !== room) return;
+		room.autosaveId ??= newSceneId();
+		try {
+			const file = exportScene(room, room.sceneName);
+			await sceneStore.save(
+				file,
+				{ owner: room.gmOwner, auto: true, story: storySummary(room) },
+				room.autosaveId
+			);
+		} catch (err) {
+			console.error(`[room ${room.id}] autosave failed`, err);
+		}
 	}
 
 	function announce(room: Room, message: ChatMessage): void {
@@ -567,12 +668,20 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						return sendError(ws, 'invalid_scene', 'This scene is too large to save.');
 					}
 					if (msg.type === 'scene_export') return send(ws, { type: 'scene_exported', file });
-					const sceneId = await sceneStore.save(file);
+					const sceneId = await sceneStore.save(file, {
+						owner: room.gmOwner ?? null,
+						story: storySummary(room)
+					});
 					room.sceneName = name;
 					send(ws, { type: 'scene_saved', sceneId, name, savedAt: file.savedAt });
 					return announce(room, postSystem(room, `${player.name} saved the scene “${name}”.`));
 				}
 				case 'scene_load': {
+					// A GM loads their own saves (and saves from before GM keys, by their id).
+					const owner = await sceneStore.ownerOf(msg.sceneId);
+					if (owner === undefined || (owner !== null && owner !== room.gmOwner)) {
+						return sendError(ws, 'scene_not_found', 'That saved scene no longer exists.');
+					}
 					const data = await sceneStore.load(msg.sceneId);
 					if (data === null) {
 						return sendError(ws, 'scene_not_found', 'That saved scene no longer exists.');
@@ -583,6 +692,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				}
 				case 'scene_import':
 					return loadIntoRoom(room, player, msg.file, 'imported');
+				case 'scene_list':
+					if (!room.gmOwner) return send(ws, { type: 'scene_list', scenes: [] });
+					return send(ws, { type: 'scene_list', scenes: await sceneStore.list(room.gmOwner) });
+				case 'scene_delete':
+					if (!room.gmOwner || !(await sceneStore.remove(msg.sceneId, room.gmOwner))) {
+						return sendError(ws, 'scene_not_found', 'That save is not one of yours.');
+					}
+					if (room.autosaveId === msg.sceneId) room.autosaveId = undefined;
+					return send(ws, { type: 'scene_list', scenes: await sceneStore.list(room.gmOwner) });
 			}
 		} catch (err) {
 			if (err instanceof SceneError) return sendError(ws, err.code, err.message);
@@ -809,6 +927,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'scene_load':
 			case 'scene_export':
 			case 'scene_import':
+			case 'scene_list':
+			case 'scene_delete':
 				void handleScene(ws, room, player, msg);
 				return;
 			case 'chat_send':
@@ -923,6 +1043,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			alive.delete(ws);
 			ws.ping();
 		}
+		// A table closing (nobody back for a while) keeps its story among its GM's saves.
+		for (const room of rooms.all()) {
+			if (room.emptySince !== null && Date.now() - room.emptySince >= emptyRoomTtlMs) {
+				clearTimeout(autosaves.get(room));
+				autosaves.delete(room);
+				void autosave(room);
+			}
+		}
 		for (const id of rooms.prune(emptyRoomTtlMs)) {
 			console.info(`[room ${id}] closed (empty)`);
 			roomStore?.remove(id).catch((err) => console.error(`[room ${id}] could not be removed`, err));
@@ -943,6 +1071,12 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					for (const timer of timers) clearTimeout(timer);
 					timers.clear();
 					if (saveTimer) clearTimeout(saveTimer);
+					// Stories in play are saved once more for their GMs.
+					for (const [room, timer] of autosaves) {
+						clearTimeout(timer);
+						await autosave(room);
+					}
+					autosaves.clear();
 					// Every room is kept as it stands, so a restart picks up where this left off.
 					for (const room of rooms.all()) dirty.add(room);
 					await saveDirty();

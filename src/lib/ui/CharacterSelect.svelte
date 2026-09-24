@@ -16,9 +16,14 @@
 	const status = (id: (typeof CHARACTER_IDS)[number]) =>
 		adventure.characters.find((c) => c.id === id);
 	const baseDefense = defenseFor(0);
+	/** In the story with nobody playing it (a continued game): a player can take it up. */
+	const unclaimed = (id: (typeof CHARACTER_IDS)[number]) => {
+		const s = status(id);
+		return !!s?.inPlay && !s.playerId && adventure.stage !== 'choosing';
+	};
 	const takenBy = (id: (typeof CHARACTER_IDS)[number]) => {
 		const s = status(id);
-		if (!s?.inPlay) return null;
+		if (!s?.inPlay || unclaimed(id)) return null;
 		return (s.playerId && players.find((p) => p.id === s.playerId)?.name) || 'the GM';
 	};
 </script>
@@ -56,7 +61,13 @@
 						{#each c.actions as action (action.id)}
 							<span class="attack"><b>{action.name}</b>: {describeAction(c, action)}</span>
 						{/each}
-						<span class="pick">{taken ? `Taken by ${taken}` : `Play ${c.name}`}</span>
+						<span class="pick"
+							>{taken
+								? `Taken by ${taken}`
+								: unclaimed(id)
+									? `Take up ${c.name} again`
+									: `Play ${c.name}`}</span
+						>
 					</button>
 				</li>
 			{/each}
