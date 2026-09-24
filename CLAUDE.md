@@ -38,6 +38,8 @@ npx vitest run -t "test name"
 
 `expect.requireAssertions` is on, so a test with no assertions fails. The live Supabase tests in `server/supabase-scene-store.spec.ts` are skipped unless `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `SUPABASE_ANON_KEY` are set; to run them, start local Supabase (`npm run db:start`, which needs a Docker daemon), apply migrations (`npx supabase migration up`), and export the values from `npx supabase status -o env` (`API_URL`, `SECRET_KEY`, `PUBLISHABLE_KEY`). The `client` project needs a Playwright Chromium that matches the installed `playwright` version.
 
+CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`, with two jobs. `verify` runs `npm ci`, installs Playwright's Chromium, then `check`, `lint`, `test` (both projects) and `build`. `supabase` starts a local Supabase with the migrations applied (`npx supabase start`, only the services the tests need), exports `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`/`SUPABASE_ANON_KEY` from `supabase status -o env`, and runs `server/supabase-scene-store.spec.ts`, failing if any test was skipped. A change that needs new env for tests must wire it into the workflow, or the tests will silently skip there.
+
 Schema changes: `npx supabase migration new <name>`, write SQL in `supabase/migrations/`, then `npx supabase db reset`. This drops local data. RLS is on for new tables, so a table without a policy returns empty results.
 
 Native targets: `npm run desktop` / `desktop:build` builds Tauri. `npm run android` / `ios` builds, runs `cap sync`, and launches Capacitor. `android/` and `ios/` are generated and gitignored. Recreate them with `npx cap add <platform>`. Native builds only pick up web changes after `npm run mobile:sync`.
@@ -93,7 +95,7 @@ The brief sets behavior, not stack. Extend the existing architecture. Don't add 
 
 **Required test coverage.** Tests must cover grid conversion, movement/distance, dice parsing and results, permission validation, scene serialization, room join/leave, and multiplayer sync of movement, dice, and chat. One automated test must specifically prove **a player cannot move a token they don't control**.
 
-**Workflow.** Build in small vertical milestones. Each one should be runnable and pass `check`, `lint`, `test`, and `build`. Milestones 1 (join a room, see the table and players), 2 (tokens and movement), 3 (dice and chat), 4 (walls and doors), 5 (fog of war) and 6 (save/load) are complete, which completes the MVP flow below; 7 (lighting), 8 (props and the object editor), 9 (3D dice) and 10 (Supabase scene storage) are complete too.
+**Workflow.** Build in small vertical milestones. Each one should be runnable and pass `check`, `lint`, `test`, and `build`. Milestones 1 (join a room, see the table and players), 2 (tokens and movement), 3 (dice and chat), 4 (walls and doors), 5 (fog of war) and 6 (save/load) are complete, which completes the MVP flow below; 7 (lighting), 8 (props and the object editor), 9 (3D dice) and 10 (Supabase scene storage) are complete too. The roadmap is tracked in GitHub issues: #4 is the tracking issue, with each milestone and each open work item as a sub-issue. Close the matching sub-issue when its work merges, and add new work there as a sub-issue.
 
 **MVP done.** The MVP is done when all of the following work without manual code or DB edits:
 
