@@ -25,11 +25,20 @@ import {
 	type SceneObject
 } from './objects';
 import { normalizeName } from './protocol';
+import {
+	footprintCells,
+	footprintInBounds,
+	isAssetId,
+	MAX_PROPS_PER_ROOM,
+	PROP_SCALE,
+	propBlocks,
+	type Prop
+} from './props';
 import { MAX_TOKENS_PER_ROOM, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { decodeMask, encodeMask, MAX_VISION } from './visibility';
 
-/** v2 added lights, the ambient level and token-carried light. */
-export const SCENE_FILE_VERSION = 2;
+/** v2 added lights, the ambient level and token-carried light; v3 added props. */
+export const SCENE_FILE_VERSION = 3;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -40,22 +49,23 @@ export interface SavedToken extends Omit<Token, 'ownerId'> {
 	owner: { id: string; name: string } | null;
 }
 
-export interface SceneFileV2 {
+export interface SceneFileV3 {
 	format: 'thirdfold-scene';
-	version: 2;
+	version: 3;
 	name: string;
 	/** ISO timestamp. */
 	savedAt: string;
 	grid: SquareGrid;
 	tokens: SavedToken[];
 	objects: SceneObject[];
+	props: Prop[];
 	lights: Light[];
 	ambient: Ambient;
 	fog: { enabled: boolean; revealed: string };
 }
 
 /** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV2;
+export type SceneFile = SceneFileV3;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -63,6 +73,7 @@ export interface SceneSource {
 	grid: SquareGrid;
 	tokens: Iterable<Token>;
 	objects: Iterable<SceneObject>;
+	props: Iterable<Prop>;
 	lights: Iterable<Light>;
 	ambient: Ambient;
 	fog: { enabled: boolean; revealed: Uint8Array };
@@ -89,6 +100,7 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 			owner: ownerId ? { id: ownerId, name: source.playerName(ownerId) ?? '' } : null
 		})),
 		objects: [...source.objects].map((o) => structuredClone(o)),
+		props: [...source.props].map((p) => structuredClone(p)),
 		lights: [...source.lights].map((l) => structuredClone(l)),
 		ambient: source.ambient,
 		fog: { enabled: source.fog.enabled, revealed: encodeMask(source.fog.revealed) }
@@ -130,6 +142,10 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 				? upgraded.tokens.map((t) => (isRecord(t) ? { ...t, light: 0 } : t))
 				: upgraded.tokens
 		};
+	}
+	if (upgraded.version === 2) {
+		// v2 → v3: no props yet.
+		upgraded = { ...upgraded, version: 3, props: [] };
 	}
 	return upgraded;
 }
@@ -254,6 +270,41 @@ export function parseSceneFile(input: unknown): SceneParse {
 		}
 	}
 
+	// Props: same placement rules as live editing.
+	if (!Array.isArray(data.props) || data.props.length > MAX_PROPS_PER_ROOM) {
+		return bad(`A scene holds at most ${MAX_PROPS_PER_ROOM} props.`);
+	}
+	const props: Prop[] = [];
+	const solidCells = new Set<string>();
+	for (const t of tokens) solidCells.add(`${t.pos.x},${t.pos.y}`);
+	for (const raw of data.props as unknown[]) {
+		if (!isRecord(raw) || typeof raw.id !== 'string' || !ID.test(raw.id) || ids.has(raw.id)) {
+			return bad('A prop has a missing or duplicate id.');
+		}
+		if (!isAssetId(raw.assetId)) return bad('A prop uses an unknown asset.');
+		const rotation = int(raw.rotation, 0, 3) as Prop['rotation'] | null;
+		if (rotation === null) return bad('A prop has an invalid rotation.');
+		const scale = raw.scale;
+		if (typeof scale !== 'number' || !(scale >= PROP_SCALE.min && scale <= PROP_SCALE.max)) {
+			return bad('A prop has an invalid scale.');
+		}
+		const pos = isRecord(raw.pos) ? { x: raw.pos.x as number, y: raw.pos.y as number } : null;
+		if (!pos || !Number.isInteger(pos.x) || !Number.isInteger(pos.y)) {
+			return bad('A prop is off the table.');
+		}
+		const prop: Prop = { id: raw.id, assetId: raw.assetId, pos, rotation, scale };
+		if (!footprintInBounds(grid, prop)) return bad('A prop is off the table.');
+		if (propBlocks(prop) !== 'none') {
+			for (const c of footprintCells(prop)) {
+				const key = `${c.x},${c.y}`;
+				if (solidCells.has(key)) return bad(`A prop overlaps a token or another prop at ${key}.`);
+				solidCells.add(key);
+			}
+		}
+		ids.add(raw.id);
+		props.push(prop);
+	}
+
 	// Lights
 	if (!Array.isArray(data.lights) || data.lights.length > MAX_LIGHTS_PER_ROOM) {
 		return bad(`A scene holds at most ${MAX_LIGHTS_PER_ROOM} lights.`);
@@ -292,6 +343,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			grid,
 			tokens,
 			objects,
+			props,
 			lights,
 			ambient: data.ambient as Ambient,
 			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask) }

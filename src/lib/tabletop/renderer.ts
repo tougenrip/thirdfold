@@ -16,10 +16,12 @@ import {
 	type SquareGrid
 } from '$lib/game/grid';
 import { lightSources, type Ambient, type Light } from '$lib/game/lights';
-import { blockingEdges, type SceneObject } from '$lib/game/objects';
+import type { SceneObject } from '$lib/game/objects';
+import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 import { LightingLayer } from './lighting';
+import { PropLayer } from './props';
 import { FogLayer, type FogMode } from './fog';
 import { TokenLayer } from './tokens';
 import { WALL_HEIGHT, WallLayer } from './walls';
@@ -39,6 +41,8 @@ export interface Pick {
 	objectId: string | null;
 	/** A light fixture under the pointer. */
 	lightId: string | null;
+	/** A prop under the pointer. */
+	propId: string | null;
 }
 
 export interface TabletopEvents {
@@ -51,7 +55,7 @@ export type PreviewItem =
 	| { kind: 'segment'; a: GridPos; b: GridPos; tone: 'valid' | 'invalid' | 'door' }
 	| { kind: 'corner'; at: GridPos }
 	/** A rectangle of cells, e.g. the area the GM is about to reveal or hide. */
-	| { kind: 'area'; from: GridPos; to: GridPos; tone: 'reveal' | 'hide' };
+	| { kind: 'area'; from: GridPos; to: GridPos; tone: 'reveal' | 'hide' | 'valid' | 'invalid' };
 
 export interface Tabletop {
 	setGrid(grid: SquareGrid): void;
@@ -61,6 +65,9 @@ export interface Tabletop {
 	setPreview(items: readonly PreviewItem[]): void;
 	setFog(fog: FogView | null, mode: FogMode): void;
 	setLighting(ambient: Ambient, lights: readonly Light[]): void;
+	setProps(props: readonly Prop[]): void;
+	setSelectedProp(propId: string | null): void;
+	setHoveredProp(propId: string | null): void;
 	setSelected(tokenId: string | null): void;
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	setView(view: CameraView): void;
@@ -136,6 +143,9 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const fogLayer = new FogLayer();
 	scene.add(fogLayer.mesh);
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
+	const propLayer = new PropLayer();
+	scene.add(propLayer.group);
+	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer({ hemisphere, sun, lamp, scene });
 	scene.add(lighting.group);
 	let lightState: { ambient: Ambient; lights: readonly Light[] } = { ambient: 'day', lights: [] };
@@ -153,7 +163,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			lightState.ambient,
 			lightState.lights,
 			lightSources(lightState.lights, tokens),
-			blockingEdges(objects),
+			obstaclesFor(grid, objects, props),
 			visible
 		);
 	}
@@ -315,6 +325,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		const tokenId = tokenLayer.pick(raycaster);
 		const objectId = tokenId ? null : wallLayer.pick(raycaster);
 		const lightId = tokenId || objectId ? null : lighting.pick(raycaster);
+		const propId = tokenId || objectId || lightId ? null : propLayer.pick(raycaster);
 		const pick: Pick = {
 			cell: null,
 			corner: null,
@@ -322,7 +333,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			edgeDistance: Infinity,
 			tokenId,
 			objectId,
-			lightId
+			lightId,
+			propId
 		};
 		if (!grid || !raycaster.ray.intersectPlane(tablePlane, hitPoint)) return pick;
 		pick.cell = worldToGrid(grid, hitPoint);
@@ -347,7 +359,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			p.edgeDistance < 0.2,
 			p.tokenId,
 			p.objectId,
-			p.lightId
+			p.lightId,
+			p.propId
 		].join('|');
 	}
 
@@ -404,6 +417,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			buildTable(grid);
 			tokenLayer.sync(tokens, grid);
 			wallLayer.sync(objects, grid);
+			propLayer.sync(props, grid);
 			fogLayer.update(grid, fogState.fog, fogState.mode);
 			refreshLighting();
 			if (first) {
@@ -472,6 +486,19 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			refreshLighting();
 			requestRender();
 		},
+		setProps(next) {
+			props = next;
+			if (!grid) return;
+			propLayer.sync(props, grid);
+			refreshLighting();
+			requestRender();
+		},
+		setSelectedProp(propId) {
+			if (propLayer.setSelected(propId)) requestRender();
+		},
+		setHoveredProp(propId) {
+			if (propLayer.setHovered(propId)) requestRender();
+		},
 		setLighting(ambient, lights) {
 			lightState = { ambient, lights };
 			refreshLighting();
@@ -513,6 +540,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			wallLayer.dispose();
 			fogLayer.dispose();
 			lighting.dispose();
+			propLayer.dispose();
 			previewGroup.clear();
 			previewBox.dispose();
 			previewCorner.dispose();

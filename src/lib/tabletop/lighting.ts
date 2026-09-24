@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { lightLevels, type Ambient, type Light, type LightSource } from '$lib/game/lights';
+import type { Blockers } from '$lib/game/objects';
 
 /** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
 const POOL_SIZE = 8;
@@ -73,7 +74,7 @@ export class LightingLayer {
 		ambient: Ambient,
 		lights: readonly Light[],
 		sources: readonly LightSource[],
-		blocked: ReadonlySet<string>,
+		blocked: Blockers,
 		visible: Uint8Array | null
 	): void {
 		const preset = PRESETS[ambient];
@@ -113,7 +114,7 @@ export class LightingLayer {
 		grid: SquareGrid,
 		darkness: number,
 		sources: readonly LightSource[],
-		blocked: ReadonlySet<string>,
+		blocked: Blockers,
 		visible: Uint8Array | null
 	): void {
 		if (darkness === 0) {

@@ -5,6 +5,7 @@ import { postSystem } from './chat';
 import {
 	createLight,
 	createObject,
+	createProp,
 	createToken,
 	fogArea,
 	moveToken,
@@ -256,5 +257,20 @@ describe('lighting and visibility', () => {
 			code: 'forbidden'
 		});
 		expect(room.ambient).toBe('dark');
+	});
+});
+
+describe('props and visibility', () => {
+	it('hides what stands behind a pillar and only sends props that have been seen', () => {
+		const { room, gm, pip } = setup();
+		setFog(room, gm, true);
+		token(room, gm, 'Hero', 2, 5, pip.id);
+		token(room, gm, 'Lurker', 6, 5);
+		expect(names(room, pip)).toEqual(['Hero', 'Lurker']);
+		createProp(room, gm, { assetId: 'pillar', pos: { x: 4, y: 5 }, rotation: 0 });
+		createProp(room, gm, { assetId: 'chest', pos: { x: 17, y: 17 }, rotation: 0 });
+		expect(names(room, pip)).toEqual(['Hero']);
+		expect(viewFor(room, pip).props.map((p) => p.assetId)).toEqual(['pillar']);
+		expect(viewFor(room, gm).props).toHaveLength(2);
 	});
 });

@@ -101,24 +101,56 @@ export function cellsBeside(grid: SquareGrid, e: GridEdge): GridPos[] {
 }
 
 /**
+ * Everything that blocks, for movement and sight: wall and closed-door edges,
+ * plus cells that can't be entered (`solid`) or seen past (`opaque`), e.g.
+ * props. Masks are row-major over a grid `width` cells wide.
+ */
+export interface Obstacles {
+	edges: ReadonlySet<string>;
+	width: number;
+	solid: Uint8Array | null;
+	opaque: Uint8Array | null;
+}
+
+/** Obstacles, or just blocking edges (walls and doors only). */
+export type Blockers = Obstacles | ReadonlySet<string>;
+
+export function asObstacles(blockers: Blockers): Obstacles {
+	return 'edges' in blockers ? blockers : { edges: blockers, width: 0, solid: null, opaque: null };
+}
+
+/**
  * Whether a token can step from `from` to an adjacent cell (including
  * diagonals). A diagonal step needs at least one open L-shaped route around
  * the corner, so a wall corner can't be squeezed through.
  */
-export function canStep(blocked: ReadonlySet<string>, from: GridPos, to: GridPos): boolean {
+export function canStep(
+	blockers: Blockers,
+	from: GridPos,
+	to: GridPos,
+	mode: 'move' | 'sight' = 'move',
+	target: GridPos = to
+): boolean {
+	const o = asObstacles(blockers);
+	const cells = mode === 'move' ? o.solid : o.opaque;
+	// Entering a solid cell is never allowed; an opaque one only as the thing being looked at.
+	const enter = (c: GridPos) =>
+		!cells ||
+		!cells[c.y * o.width + c.x] ||
+		(mode === 'sight' && c.x === target.x && c.y === target.y);
 	const dx = to.x - from.x;
 	const dy = to.y - from.y;
-	const open = (p: GridPos, q: GridPos) => !blocked.has(edgeKey(edgeBetween(p, q)));
+	const open = (p: GridPos, q: GridPos) => !o.edges.has(edgeKey(edgeBetween(p, q))) && enter(q);
 	if (Math.abs(dx) + Math.abs(dy) === 1) return open(from, to);
 	const viaX = { x: to.x, y: from.y };
 	const viaY = { x: from.x, y: to.y };
 	return (open(from, viaX) && open(viaX, to)) || (open(from, viaY) && open(viaY, to));
 }
 
-/** Whether `to` can be walked to from `from` without crossing a wall or closed door. */
+/** Whether `to` can be walked to from `from` without crossing a wall, closed door or solid prop. */
 export function isReachable(
 	grid: SquareGrid,
-	blocked: ReadonlySet<string>,
+	blocked: Blockers,
 	from: GridPos,
 	to: GridPos
 ): boolean {

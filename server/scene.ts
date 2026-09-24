@@ -4,7 +4,6 @@
 import { randomUUID } from 'node:crypto';
 import { inBounds, type GridPos } from '../src/lib/game/grid';
 import {
-	blockingEdges,
 	cutWall,
 	edgeKey,
 	isReachable,
@@ -18,10 +17,29 @@ import {
 } from '../src/lib/game/objects';
 import { canEditScene, canMoveToken, canUseDoor } from '../src/lib/game/permissions';
 import { MAX_LIGHTS_PER_ROOM, type Ambient, type Light } from '../src/lib/game/lights';
-import { normalizeName, type LightPatch, type TokenPatch } from '../src/lib/game/protocol';
+import {
+	isSolidCell,
+	MAX_PROPS_PER_ROOM,
+	obstaclesFor,
+	placementProblem,
+	type AssetId,
+	type Prop,
+	type Rotation
+} from '../src/lib/game/props';
+import {
+	normalizeName,
+	type LightPatch,
+	type PropPatch,
+	type TokenPatch
+} from '../src/lib/game/protocol';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
 import { DEFAULT_VISION, rectCells } from '../src/lib/game/visibility';
 import { fail, type Player, type Result, type Room } from './rooms';
+
+/** Walls, closed doors and blocking props, as movement and sight see them. */
+export function obstacles(room: Room) {
+	return obstaclesFor(room.grid, room.objects.values(), room.props.values());
+}
 
 export interface NewToken {
 	name: string;
@@ -45,6 +63,8 @@ function checkCell(room: Room, pos: GridPos, movingId?: string): Result<object> 
 	const occupant = tokenAt(room.tokens.values(), pos);
 	// No name here: under fog the occupant may be a token the mover cannot see.
 	if (occupant && occupant.id !== movingId) return fail('cell_occupied', 'That cell is occupied.');
+	if (isSolidCell(obstacles(room), pos))
+		return fail('cell_occupied', 'Something is in the way there.');
 	return { ok: true };
 }
 
@@ -86,10 +106,7 @@ export function moveToken(
 	if (!cell.ok) return cell;
 	// Players walk: the destination must be reachable without crossing walls or
 	// closed doors. The GM places freely.
-	if (
-		actor.role !== 'gm' &&
-		!isReachable(room.grid, blockingEdges(room.objects.values()), token.pos, to)
-	) {
+	if (actor.role !== 'gm' && !isReachable(room.grid, obstacles(room), token.pos, to)) {
 		return fail('no_path', "There's no way through to that cell.");
 	}
 	const from = token.pos;
@@ -303,4 +320,71 @@ export function setAmbient(
 	const changed = room.ambient !== ambient;
 	room.ambient = ambient;
 	return { ok: true, changed };
+}
+
+const FORBIDDEN_PROPS = fail('forbidden', 'Only the GM can place and arrange props.');
+
+function checkPlacement(
+	room: Room,
+	placement: Pick<Prop, 'assetId' | 'pos' | 'rotation'>,
+	selfId?: string
+): Result<object> {
+	const problem = placementProblem(
+		room.grid,
+		placement,
+		room.tokens.values(),
+		room.props.values(),
+		selfId
+	);
+	return problem ? fail(problem.code, problem.message) : { ok: true };
+}
+
+export function createProp(
+	room: Room,
+	actor: Player,
+	input: { assetId: AssetId; pos: GridPos; rotation: Rotation }
+): Result<{ prop: Prop }> {
+	if (!canEditScene(actor)) return FORBIDDEN_PROPS;
+	if (room.props.size >= MAX_PROPS_PER_ROOM) {
+		return fail('limit_reached', `A room can hold at most ${MAX_PROPS_PER_ROOM} props.`);
+	}
+	const prop: Prop = {
+		id: randomUUID(),
+		assetId: input.assetId,
+		pos: { x: input.pos.x, y: input.pos.y },
+		rotation: input.rotation,
+		scale: 1
+	};
+	const ok = checkPlacement(room, prop);
+	if (!ok.ok) return ok;
+	room.props.set(prop.id, prop);
+	return { ok: true, prop };
+}
+
+/** Moves, rotates and/or scales a prop. The whole change applies or none of it does. */
+export function updateProp(
+	room: Room,
+	actor: Player,
+	propId: string,
+	patch: PropPatch
+): Result<{ prop: Prop }> {
+	if (!canEditScene(actor)) return FORBIDDEN_PROPS;
+	const prop = room.props.get(propId);
+	if (!prop) return fail('prop_not_found', 'That prop no longer exists.');
+	const next: Prop = {
+		...prop,
+		pos: patch.pos ? { x: patch.pos.x, y: patch.pos.y } : prop.pos,
+		rotation: patch.rotation ?? prop.rotation,
+		scale: patch.scale ?? prop.scale
+	};
+	const ok = checkPlacement(room, next, prop.id);
+	if (!ok.ok) return ok;
+	Object.assign(prop, next);
+	return { ok: true, prop };
+}
+
+export function deleteProp(room: Room, actor: Player, propId: string): Result<object> {
+	if (!canEditScene(actor)) return FORBIDDEN_PROPS;
+	if (!room.props.delete(propId)) return fail('prop_not_found', 'That prop no longer exists.');
+	return { ok: true };
 }

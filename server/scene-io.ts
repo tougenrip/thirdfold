@@ -12,6 +12,7 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 			grid: room.grid,
 			tokens: room.tokens.values(),
 			objects: room.objects.values(),
+			props: room.props.values(),
 			lights: room.lights.values(),
 			ambient: room.ambient,
 			fog: room.fog,
@@ -46,6 +47,7 @@ export function applyScene(room: Room, scene: SceneFile): void {
 		])
 	);
 	room.objects = new Map(scene.objects.map((o) => [o.id, structuredClone(o)]));
+	room.props = new Map(scene.props.map((p) => [p.id, structuredClone(p)]));
 	room.lights = new Map(scene.lights.map((l) => [l.id, structuredClone(l)]));
 	room.ambient = scene.ambient;
 	const size = room.grid.width * room.grid.height;

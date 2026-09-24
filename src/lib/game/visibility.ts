@@ -4,7 +4,7 @@
 // movement, within a round vision radius.
 
 import { inBounds, type GridPos, type SquareGrid } from './grid';
-import { canStep } from './objects';
+import { canStep, type Blockers } from './objects';
 
 /** One byte per cell, row-major (`y * width + x`); non-zero means "in the set". */
 export type CellMask = Uint8Array;
@@ -35,7 +35,7 @@ export function cellIndex(grid: SquareGrid, c: GridPos): number {
  * movement sense, so walls and closed doors block sight and a line exactly
  * through a wall corner is blocked unless one side of the corner is open.
  */
-export function hasLineOfSight(blocked: ReadonlySet<string>, from: GridPos, to: GridPos): boolean {
+export function hasLineOfSight(blocked: Blockers, from: GridPos, to: GridPos): boolean {
 	const nx = Math.abs(to.x - from.x);
 	const ny = Math.abs(to.y - from.y);
 	const sx = Math.sign(to.x - from.x);
@@ -56,7 +56,7 @@ export function hasLineOfSight(blocked: ReadonlySet<string>, from: GridPos, to: 
 					: { x, y: y + sy };
 		if (decision <= 0) ix++;
 		if (decision >= 0) iy++;
-		if (!canStep(blocked, { x, y }, next)) return false;
+		if (!canStep(blocked, { x, y }, next, 'sight', to)) return false;
 		x = next.x;
 		y = next.y;
 	}
@@ -66,7 +66,7 @@ export function hasLineOfSight(blocked: ReadonlySet<string>, from: GridPos, to: 
 /** Marks every cell visible from `origin` within `radius` cells (round) into `into`. */
 export function addVision(
 	grid: SquareGrid,
-	blocked: ReadonlySet<string>,
+	blocked: Blockers,
 	origin: GridPos,
 	radius: number,
 	into: CellMask

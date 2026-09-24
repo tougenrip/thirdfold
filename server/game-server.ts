@@ -30,11 +30,14 @@ import {
 	moveToken,
 	toggleDoor,
 	createLight,
+	createProp,
 	deleteLight,
+	deleteProp,
 	fogArea,
 	setAmbient,
 	setFog,
 	updateLight,
+	updateProp,
 	updateToken
 } from './scene';
 import {
@@ -390,6 +393,21 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			}
 			case 'fog_area': {
 				const result = fogArea(room, player, msg.from, msg.to, msg.reveal);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'prop_create': {
+				const result = createProp(room, player, msg);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'prop_update': {
+				const result = updateProp(room, player, msg.propId, msg.patch);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'prop_delete': {
+				const result = deleteProp(room, player, msg.propId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
 			}

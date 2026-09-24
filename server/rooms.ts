@@ -6,6 +6,7 @@ import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
 import type { ChatMessage } from '../src/lib/game/chat';
 import type { Ambient, Light } from '../src/lib/game/lights';
 import type { SceneObject } from '../src/lib/game/objects';
+import type { Prop } from '../src/lib/game/props';
 import type { Token } from '../src/lib/game/token';
 import { emptyMask, type CellMask } from '../src/lib/game/visibility';
 import {
@@ -33,6 +34,7 @@ export interface Room {
 	players: Map<string, Player>;
 	tokens: Map<string, Token>;
 	objects: Map<string, SceneObject>;
+	props: Map<string, Prop>;
 	lights: Map<string, Light>;
 	ambient: Ambient;
 	/** Name of the scene on the table: set when it is saved, loaded or imported. */
@@ -85,6 +87,7 @@ export class RoomManager {
 			players: new Map(),
 			tokens: new Map(),
 			objects: new Map(),
+			props: new Map(),
 			lights: new Map(),
 			ambient: 'day',
 			sceneName: 'Untitled scene',

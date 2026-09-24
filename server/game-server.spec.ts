@@ -754,7 +754,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 2, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 3, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',
@@ -845,5 +845,52 @@ describe('lighting over the wire', () => {
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
 		pip.send({ type: 'ambient_set', ambient: 'day' });
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+	});
+});
+
+describe('props over the wire', () => {
+	it('syncs prop edits, keeps them GM-only, and blocks movement', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+
+		gm.send({ type: 'prop_create', assetId: 'table', pos: { x: 4, y: 4 }, rotation: 1 });
+		const { upserted } = await pip.until('props_changed');
+		expect(upserted[0]).toMatchObject({
+			assetId: 'table',
+			pos: { x: 4, y: 4 },
+			rotation: 1,
+			scale: 1
+		});
+		const table = upserted[0];
+
+		gm.send({ type: 'prop_update', propId: table.id, patch: { rotation: 0, scale: 1.5 } });
+		expect((await pip.until('props_changed')).upserted[0]).toMatchObject({
+			rotation: 0,
+			scale: 1.5
+		});
+
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 4, y: 3 },
+			ownerId: playerId
+		});
+		const { token } = await pip.until('token_upserted');
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 5, y: 4 } });
+		expect(await pip.expect('error')).toMatchObject({ code: 'cell_occupied' });
+
+		pip.send({ type: 'prop_update', propId: table.id, patch: { pos: { x: 0, y: 0 } } });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+		pip.send({ type: 'prop_create', assetId: 'dragon', pos: { x: 0, y: 0 }, rotation: 0 });
+		expect(await pip.expect('error')).toMatchObject({ code: 'invalid_message' });
+
+		gm.send({ type: 'prop_delete', propId: table.id });
+		expect(await pip.until('props_changed')).toMatchObject({ upserted: [], removed: [table.id] });
 	});
 });

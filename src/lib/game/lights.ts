@@ -6,6 +6,7 @@
 // lit cells within its vision, plus its own cell). Day and dusk are look only.
 
 import { inBounds, type GridPos, type SquareGrid } from './grid';
+import type { Blockers } from './objects';
 import { addVision, cellIndex, emptyMask, hasLineOfSight, type CellMask } from './visibility';
 
 export type Ambient = 'day' | 'dusk' | 'dark';
@@ -58,7 +59,7 @@ export function lightSources(
 /** Cells reached by any light source. */
 export function litMask(
 	grid: SquareGrid,
-	blocked: ReadonlySet<string>,
+	blocked: Blockers,
 	sources: Iterable<LightSource>
 ): CellMask {
 	const mask = emptyMask(grid);
@@ -73,7 +74,7 @@ export function litMask(
  */
 export function lightLevels(
 	grid: SquareGrid,
-	blocked: ReadonlySet<string>,
+	blocked: Blockers,
 	sources: Iterable<LightSource>
 ): Float32Array {
 	const levels = new Float32Array(grid.width * grid.height);

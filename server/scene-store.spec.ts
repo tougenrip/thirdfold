@@ -11,6 +11,7 @@ const scene = serializeScene('Crypt', {
 	grid: DEFAULT_GRID,
 	tokens: [],
 	objects: [{ id: 'w', kind: 'wall', a: { x: 0, y: 1 }, b: { x: 3, y: 1 } }],
+	props: [],
 	lights: [],
 	ambient: 'day',
 	fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID) },

@@ -36,6 +36,7 @@ function source(): SceneSource {
 		grid: DEFAULT_GRID,
 		tokens,
 		objects,
+		props: [{ id: 'crate-1', assetId: 'crate', pos: { x: 6, y: 6 }, rotation: 0, scale: 1 }],
 		lights: [{ id: 'l1', pos: { x: 4, y: 4 }, radius: 5, color: '#ffa04d', on: true }],
 		ambient: 'dark',
 		fog: { enabled: true, revealed },
@@ -116,7 +117,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(2);
+		expect(file.version).toBe(3);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -131,7 +132,8 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(2);
+		expect(parsed.scene.version).toBe(3);
+		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
 		expect(parsed.scene.tokens.map((t) => t.light)).toEqual([0, 0]);
@@ -146,6 +148,31 @@ describe('scene file v2: lights', () => {
 		['a light id clashing with a token', (d) => (d.lights[0].id = d.tokens[0].id), /duplicate id/],
 		['an unknown ambient', (d) => (d.ambient = 'eclipse'), /ambient/],
 		['a bad token light', (d) => (d.tokens[0].light = -2), /light radius/]
+	])('rejects %s', (_label, mutate, error) => {
+		const data = saved();
+		mutate(data);
+		const parsed = parseSceneFile(data);
+		expect(!parsed.ok && parsed.error).toMatch(error);
+	});
+});
+
+describe('scene file v3: props', () => {
+	it('keeps props through a round trip', () => {
+		const file = serializeScene('Crypt', source());
+		const parsed = parseSceneFile(JSON.parse(JSON.stringify(file)));
+		expect(parsed.ok && parsed.scene.props).toEqual([
+			{ id: 'crate-1', assetId: 'crate', pos: { x: 6, y: 6 }, rotation: 0, scale: 1 }
+		]);
+	});
+
+	type Mutation = (d: ReturnType<typeof saved>) => void;
+	it.each<[string, Mutation, RegExp]>([
+		['an unknown asset', (d) => (d.props[0].assetId = 'dragon'), /unknown asset/],
+		['a prototype key as asset', (d) => (d.props[0].assetId = '__proto__'), /unknown asset/],
+		['a bad rotation', (d) => (d.props[0].rotation = 5), /rotation/],
+		['a giant prop', (d) => (d.props[0].scale = 40), /scale/],
+		['a prop off the table', (d) => (d.props[0].pos = { x: 20, y: 0 }), /off the table/],
+		['a prop on a token', (d) => (d.props[0].pos = { ...d.tokens[0].pos }), /overlaps/]
 	])('rejects %s', (_label, mutate, error) => {
 		const data = saved();
 		mutate(data);

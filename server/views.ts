@@ -9,7 +9,8 @@
 
 import type { ChatMessage } from '../src/lib/game/chat';
 import { lightSources, litMask, type Ambient, type Light } from '../src/lib/game/lights';
-import { blockingEdges, cellsBeside, unitEdges, type SceneObject } from '../src/lib/game/objects';
+import { cellsBeside, unitEdges, type Obstacles, type SceneObject } from '../src/lib/game/objects';
+import { footprintCells, obstaclesFor, type Prop } from '../src/lib/game/props';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
 import {
@@ -25,6 +26,7 @@ import { toPublicPlayer, type Player, type Room } from './rooms';
 export interface View {
 	tokens: Token[];
 	objects: SceneObject[];
+	props: Prop[];
 	lights: Light[];
 	ambient: Ambient;
 	fog: FogView;
@@ -34,13 +36,13 @@ const NO_FOG: FogView = { enabled: false, visible: '', explored: '' };
 
 /** Per-change facts shared by every viewer's view; computed once per sync. */
 export interface SceneContext {
-	blocked: ReadonlySet<string>;
+	blocked: Obstacles;
 	/** Cells light reaches, when it matters (dark ambient); null means "everything is lit". */
 	lit: CellMask | null;
 }
 
 export function sceneContext(room: Room): SceneContext {
-	const blocked = blockingEdges(room.objects.values());
+	const blocked = obstaclesFor(room.grid, room.objects.values(), room.props.values());
 	const lit =
 		room.ambient === 'dark'
 			? litMask(room.grid, blocked, lightSources(room.lights.values(), room.tokens.values()))
@@ -91,9 +93,17 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 	const allTokens = [...room.tokens.values()];
 	const allObjects = [...room.objects.values()];
 	const allLights = [...room.lights.values()];
+	const allProps = [...room.props.values()];
 	const ambient = room.ambient;
 	if (!room.fog.enabled) {
-		return { tokens: allTokens, objects: allObjects, lights: allLights, ambient, fog: NO_FOG };
+		return {
+			tokens: allTokens,
+			objects: allObjects,
+			props: allProps,
+			lights: allLights,
+			ambient,
+			fog: NO_FOG
+		};
 	}
 
 	if (viewer.role === 'gm') {
@@ -106,6 +116,7 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 		return {
 			tokens: allTokens,
 			objects: allObjects,
+			props: allProps,
 			lights: allLights,
 			ambient,
 			fog: { enabled: true, visible: encodeMask(visible), explored: encodeMask(explored) }
@@ -122,7 +133,10 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 	return {
 		tokens: allTokens.filter((t) => t.ownerId === viewer.id || at(t)),
 		objects: allObjects.filter((o) => touches(room, o, viewer.explored)),
-		// Light fixtures are like walls: known once their cell has been seen.
+		// Props and light fixtures are like walls: known once their cells have been seen.
+		props: allProps.filter((p) =>
+			footprintCells(p).some((c) => viewer.explored[cellIndex(room.grid, c)] === 1)
+		),
 		lights: allLights.filter((l) => viewer.explored[cellIndex(room.grid, l.pos)] === 1),
 		ambient,
 		fog: {
@@ -145,6 +159,7 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		players: [...room.players.values()].map(toPublicPlayer),
 		tokens: view.tokens.map((t) => structuredClone(t)),
 		objects: view.objects.map((o) => structuredClone(o)),
+		props: view.props.map((p) => structuredClone(p)),
 		lights: view.lights.map((l) => structuredClone(l)),
 		ambient: view.ambient,
 		fog: view.fog,
@@ -156,6 +171,7 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 export interface SentView {
 	tokens: Map<string, string>;
 	objects: Map<string, string>;
+	props: Map<string, string>;
 	lights: Map<string, string>;
 	ambient: Ambient;
 	fog: string;
@@ -165,6 +181,7 @@ export function sentFrom(view: View): SentView {
 	return {
 		tokens: new Map(view.tokens.map((t) => [t.id, JSON.stringify(t)])),
 		objects: new Map(view.objects.map((o) => [o.id, JSON.stringify(o)])),
+		props: new Map(view.props.map((p) => [p.id, JSON.stringify(p)])),
 		lights: new Map(view.lights.map((l) => [l.id, JSON.stringify(l)])),
 		ambient: view.ambient,
 		fog: JSON.stringify(view.fog)
@@ -184,6 +201,17 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 	const removed = [...prev.objects.keys()].filter((id) => !ids.has(id));
 	if (upserted.length || removed.length) {
 		messages.push({ type: 'objects_changed', upserted: structuredClone(upserted), removed });
+	}
+
+	const propsUp = view.props.filter((p) => prev.props.get(p.id) !== JSON.stringify(p));
+	const propIds = new Set(view.props.map((p) => p.id));
+	const propsGone = [...prev.props.keys()].filter((id) => !propIds.has(id));
+	if (propsUp.length || propsGone.length) {
+		messages.push({
+			type: 'props_changed',
+			upserted: structuredClone(propsUp),
+			removed: propsGone
+		});
 	}
 
 	const lightsUp = view.lights.filter((l) => prev.lights.get(l.id) !== JSON.stringify(l));

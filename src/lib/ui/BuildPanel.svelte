@@ -1,5 +1,14 @@
 <script lang="ts" module>
-	export type BuildTool = 'select' | 'wall' | 'door' | 'erase' | 'reveal' | 'hide' | 'light';
+	import type { AssetId, Rotation } from '$lib/game/props';
+
+	export type BuildTool =
+		'select' | 'wall' | 'door' | 'erase' | 'reveal' | 'hide' | 'light' | 'prop';
+
+	/** The prop the GM is about to place. */
+	export interface PropDraft {
+		assetId: AssetId;
+		rotation: Rotation;
+	}
 
 	/** Settings for the next light the GM places. */
 	export interface LightDraft {
@@ -10,17 +19,20 @@
 
 <script lang="ts">
 	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
+	import { ASSET_IDS, ASSETS } from '$lib/game/props';
 
 	interface Props {
 		tool: BuildTool;
 		fogEnabled: boolean;
 		ambient: Ambient;
 		lightDraft: LightDraft;
+		propDraft: PropDraft;
 		onTool(tool: BuildTool): void;
 		onFog(enabled: boolean): void;
 		onFogAll(reveal: boolean): void;
 		onAmbient(ambient: Ambient): void;
 		onLightDraft(draft: LightDraft): void;
+		onPropDraft(draft: PropDraft): void;
 	}
 
 	let {
@@ -28,12 +40,16 @@
 		fogEnabled,
 		ambient,
 		lightDraft,
+		propDraft,
 		onTool,
 		onFog,
 		onFogAll,
 		onAmbient,
-		onLightDraft
+		onLightDraft,
+		onPropDraft
 	}: Props = $props();
+
+	const BLOCKS_HINT = { none: 'walk over', movement: 'blocks movement', sight: 'blocks sight' };
 
 	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
 
@@ -65,6 +81,30 @@
 	<h2>Build</h2>
 	<div class="tools four" role="toolbar" aria-label="Build tools">
 		{#each BUILD as t (t.id)}{@render toolButton(t)}{/each}
+	</div>
+
+	<div class="section">
+		{@render toolButton({ id: 'prop', label: 'Place prop', key: 'P' })}
+		{#if tool === 'prop'}
+			<div class="palette" role="radiogroup" aria-label="Prop">
+				{#each ASSET_IDS as id (id)}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={propDraft.assetId === id}
+						title={`${ASSETS[id].name}: ${BLOCKS_HINT[ASSETS[id].blocks]}`}
+						onclick={() => onPropDraft({ ...propDraft, assetId: id })}>{ASSETS[id].name}</button
+					>
+				{/each}
+			</div>
+			<button
+				type="button"
+				title="Rotate ( [ or ] )"
+				onclick={() =>
+					onPropDraft({ ...propDraft, rotation: ((propDraft.rotation + 1) % 4) as Rotation })}
+				>Rotate ⟳ ({propDraft.rotation * 90}°)</button
+			>
+		{/if}
 	</div>
 
 	<div class="section">
@@ -167,6 +207,22 @@
 		font-family: ui-monospace, monospace;
 		font-size: 0.65rem;
 		color: var(--muted);
+	}
+
+	.palette {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.25rem;
+	}
+
+	.palette button {
+		font-size: 0.75rem;
+		padding: 0.3rem 0.2rem;
+	}
+
+	.palette [aria-checked='true'] {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 
 	.section {

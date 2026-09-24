@@ -6,6 +6,7 @@ import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
 import type { SceneObject } from './objects';
+import { isAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
 import type { SceneFile } from './scene-file';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
@@ -30,6 +31,8 @@ export interface RoomSnapshot {
 	tokens: Token[];
 	/** Walls and doors. */
 	objects: SceneObject[];
+	/** Furniture and scenery (with fog on: ones this client has seen). */
+	props: Prop[];
 	/** Light sources this client knows of (with fog on: ones it has seen). */
 	lights: Light[];
 	ambient: Ambient;
@@ -46,6 +49,13 @@ export interface TokenPatch {
 	ownerId?: string | null;
 	vision?: number;
 	light?: number;
+}
+
+/** Fields the GM may change on a placed prop: move, rotate, scale. */
+export interface PropPatch {
+	pos?: GridPos;
+	rotation?: Rotation;
+	scale?: number;
 }
 
 /** Fields the GM may change on an existing light. */
@@ -78,6 +88,10 @@ export type ClientMessage =
 	| { type: 'fog_set'; enabled: boolean }
 	/** GM: reveal (or hide again) the rectangle of cells between two corner cells. */
 	| { type: 'fog_area'; from: GridPos; to: GridPos; reveal: boolean }
+	/** GM: place a prop from the catalog, its footprint starting at `pos`. */
+	| { type: 'prop_create'; assetId: AssetId; pos: GridPos; rotation: Rotation }
+	| { type: 'prop_update'; propId: string; patch: PropPatch }
+	| { type: 'prop_delete'; propId: string }
 	/** GM: place a light source on a cell. */
 	| { type: 'light_create'; pos: GridPos; radius: number; color: string }
 	| { type: 'light_update'; lightId: string; patch: LightPatch }
@@ -113,6 +127,7 @@ export type ErrorCode =
 	| 'edge_occupied'
 	| 'no_path'
 	| 'light_not_found'
+	| 'prop_not_found'
 	| 'scene_not_found'
 	| 'invalid_scene'
 	| 'persistence_failed'
@@ -132,6 +147,8 @@ export type ServerMessage =
 	| { type: 'token_deleted'; tokenId: string }
 	/** Scene objects added/changed and removed, applied together (e.g. a wall split by a door). */
 	| { type: 'objects_changed'; upserted: SceneObject[]; removed: string[] }
+	/** Props added/changed and removed. */
+	| { type: 'props_changed'; upserted: Prop[]; removed: string[] }
 	/** Light sources added/changed and removed. */
 	| { type: 'lights_changed'; upserted: Light[]; removed: string[] }
 	| { type: 'ambient_update'; ambient: Ambient }
@@ -219,6 +236,30 @@ function parseTokenPatch(value: unknown): TokenPatch | null {
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
+function isRotation(value: unknown): value is Rotation {
+	return value === 0 || value === 1 || value === 2 || value === 3;
+}
+
+function parsePropPatch(value: unknown): PropPatch | null {
+	if (!isRecord(value)) return null;
+	const patch: PropPatch = {};
+	if ('pos' in value) {
+		const pos = parseGridPos(value.pos);
+		if (!pos) return null;
+		patch.pos = pos;
+	}
+	if ('rotation' in value) {
+		if (!isRotation(value.rotation)) return null;
+		patch.rotation = value.rotation;
+	}
+	if ('scale' in value) {
+		const s = value.scale;
+		if (typeof s !== 'number' || !(s >= PROP_SCALE.min && s <= PROP_SCALE.max)) return null;
+		patch.scale = s;
+	}
+	return Object.keys(patch).length > 0 ? patch : null;
+}
+
 function isLightRadius(value: unknown): value is number {
 	return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= MAX_LIGHT_RADIUS;
 }
@@ -296,6 +337,19 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			if (!from || !to || typeof data.reveal !== 'boolean') return null;
 			return { type: 'fog_area', from, to, reveal: data.reveal };
 		}
+		case 'prop_create': {
+			const pos = parseGridPos(data.pos);
+			if (!isAssetId(data.assetId) || !pos || !isRotation(data.rotation)) return null;
+			return { type: 'prop_create', assetId: data.assetId, pos, rotation: data.rotation };
+		}
+		case 'prop_update': {
+			const patch = parsePropPatch(data.patch);
+			return isId(data.propId) && patch
+				? { type: 'prop_update', propId: data.propId, patch }
+				: null;
+		}
+		case 'prop_delete':
+			return isId(data.propId) ? { type: 'prop_delete', propId: data.propId } : null;
 		case 'light_create': {
 			const pos = parseGridPos(data.pos);
 			if (!pos || !isLightRadius(data.radius) || !isColor(data.color)) return null;
@@ -346,6 +400,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		scene_saved: (d) => typeof d.sceneId === 'string' && typeof d.name === 'string',
 		scene_exported: (d) => isRecord(d.file),
 		room_reset: (d) => isRecord(d.room),
+		props_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		ambient_update: (d) => typeof d.ambient === 'string',
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',

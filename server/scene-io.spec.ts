@@ -5,10 +5,12 @@ import { applyScene, exportScene } from './scene-io';
 import {
 	createLight,
 	createObject,
+	createProp,
 	createToken,
 	fogArea,
 	setAmbient,
 	setFog,
+	updateProp,
 	updateToken
 } from './scene';
 
@@ -120,5 +122,21 @@ describe('lights in saved scenes', () => {
 			{ pos: { x: 3, y: 3 }, radius: 5, color: '#8f7bff', on: true }
 		]);
 		expect([...fresh.room.tokens.values()][0].light).toBe(2);
+	});
+});
+
+describe('props in saved scenes', () => {
+	it('saves and restores props with rotation and size', () => {
+		const t = room();
+		const made = createProp(t.room, t.gm, { assetId: 'table', pos: { x: 3, y: 3 }, rotation: 1 });
+		if (!made.ok) throw new Error(made.message);
+		updateProp(t.room, t.gm, made.prop.id, { scale: 1.5 });
+		const file = exportScene(t.room, 'Tavern');
+
+		const fresh = room();
+		applyScene(fresh.room, file);
+		expect([...fresh.room.props.values()]).toEqual([
+			{ id: made.prop.id, assetId: 'table', pos: { x: 3, y: 3 }, rotation: 1, scale: 1.5 }
+		]);
 	});
 });

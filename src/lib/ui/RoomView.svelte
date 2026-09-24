@@ -5,7 +5,6 @@
 	import { gridDistance, type GridPos } from '$lib/game/grid';
 	import {
 		alignToAxis,
-		blockingEdges,
 		isReachable,
 		objectOnEdge,
 		segmentProblem,
@@ -19,7 +18,16 @@
 	import Tabletop from '$lib/tabletop/Tabletop.svelte';
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
 	import { DEFAULT_LIGHT_RADIUS, LIGHT_COLORS, type Light } from '$lib/game/lights';
-	import BuildPanel, { type BuildTool, type LightDraft } from './BuildPanel.svelte';
+	import {
+		footprintSize,
+		obstaclesFor,
+		placementProblem,
+		propAt,
+		type Prop,
+		type Rotation
+	} from '$lib/game/props';
+	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
+	import PropInspector from './PropInspector.svelte';
 	import ChatPanel from './ChatPanel.svelte';
 	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
@@ -43,6 +51,8 @@
 		radius: DEFAULT_LIGHT_RADIUS,
 		color: LIGHT_COLORS[0].color
 	});
+	let propDraft = $state<PropDraft>({ assetId: 'table', rotation: 0 });
+	let selectedPropId = $state<string | null>(null);
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
 	let rollCard = $state<Extract<ChatMessage, { kind: 'roll' }> | null>(null);
@@ -53,7 +63,12 @@
 	const me = $derived(conn.me);
 	const isGm = $derived(me?.role === 'gm');
 	const hoverCell = $derived(hover?.cell ?? null);
-	const blocked = $derived(blockingEdges(room?.objects ?? []));
+	const blocked = $derived(
+		room ? obstaclesFor(room.grid, room.objects, room.props) : new Set<string>()
+	);
+	const selectedProp = $derived(
+		(isGm && selectedPropId && room?.props.find((p) => p.id === selectedPropId)) || null
+	);
 	const canMove = (tokenId: string | null) => {
 		const token = tokenId && room?.tokens.find((t) => t.id === tokenId);
 		return !!(token && me && canMoveToken(me, token));
@@ -79,6 +94,28 @@
 		if (pick.lightId) return room.lights.find((l) => l.id === pick.lightId);
 		const cell = pick.cell;
 		return cell ? room.lights.find((l) => l.pos.x === cell.x && l.pos.y === cell.y) : undefined;
+	}
+
+	/** A prop under the pointer, or covering the pointed-at cell. */
+	function propUnder(pick: Pick | null): Prop | undefined {
+		if (!pick || !room) return undefined;
+		if (pick.propId) return room.props.find((p) => p.id === pick.propId);
+		return pick.cell ? propAt(room.props, pick.cell) : undefined;
+	}
+
+	/** A prop's footprint as a preview rectangle, green where it may stand and red where not. */
+	function footprintPreview(placement: Omit<Prop, 'id' | 'scale'>, selfId?: string): PreviewItem[] {
+		if (!room) return [];
+		const { w, h } = footprintSize(placement.assetId, placement.rotation);
+		const problem = placementProblem(room.grid, placement, room.tokens, room.props, selfId);
+		return [
+			{
+				kind: 'area',
+				from: placement.pos,
+				to: { x: placement.pos.x + w - 1, y: placement.pos.y + h - 1 },
+				tone: problem ? 'invalid' : 'valid'
+			}
+		];
 	}
 
 	const doorUnder = (pick: Pick | null): Door | undefined => {
@@ -109,6 +146,10 @@
 			}
 			return items;
 		}
+		if (tool === 'prop' && hover.cell) return footprintPreview({ ...propDraft, pos: hover.cell });
+		if (tool === 'select' && selectedProp && hover.cell && hover.propId !== selectedProp.id) {
+			return footprintPreview({ ...selectedProp, pos: hover.cell }, selectedProp.id);
+		}
 		if ((tool === 'reveal' || tool === 'hide') && hover.cell) {
 			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: tool }];
 		}
@@ -128,6 +169,17 @@
 		return null;
 	});
 
+	const hoveredPropId = $derived.by(() => {
+		if (!isGm || placing) return null;
+		if (tool === 'erase' && !objectUnder(hover) && !lightUnder(hover)) {
+			return propUnder(hover)?.id ?? null;
+		}
+		if (tool === 'select' && !selected && !selectedProp && !hover?.tokenId && !doorUnder(hover)) {
+			return propUnder(hover)?.id ?? null;
+		}
+		return null;
+	});
+
 	const reachable = $derived(
 		!!(
 			selected &&
@@ -138,7 +190,7 @@
 	);
 
 	const highlight = $derived.by((): { cell: GridPos; kind: HighlightKind } | null => {
-		if (!hoverCell || tool !== 'select') return null;
+		if (!hoverCell || tool !== 'select' || selectedProp) return null;
 		if (placing) return { cell: hoverCell, kind: occupant ? 'blocked' : 'place' };
 		if (selected && !doorUnder(hover)) {
 			const taken = occupant && occupant.id !== selected.id;
@@ -156,7 +208,18 @@
 			);
 		}
 		if (tool === 'door') return 'Door: click a grid line. Placing a door in a wall cuts a doorway.';
-		if (tool === 'erase') return 'Erase: click a wall, door or light to remove it.';
+		if (tool === 'erase') return 'Erase: click a wall, door, light or prop to remove it.';
+		if (tool === 'prop') {
+			const problem =
+				hover?.cell && room
+					? placementProblem(room.grid, { ...propDraft, pos: hover.cell }, room.tokens, room.props)
+					: null;
+			return problem?.message ?? 'Prop: click to place. [ and ] rotate. Esc to stop.';
+		}
+		if (selectedProp) {
+			return 'Click a cell to move the prop. [ and ] rotate, Delete removes, Esc deselects.';
+		}
+		if (hoveredPropId) return 'Click to select this prop.';
 		if (tool === 'light') {
 			const existing = lightUnder(hover);
 			return existing
@@ -230,6 +293,11 @@
 		areaStart = null;
 		placing = null;
 		selectedId = null;
+		selectedPropId = null;
+	}
+
+	function rotateBy(rotation: Rotation, by: 1 | -1): Rotation {
+		return ((rotation + by + 4) % 4) as Rotation;
 	}
 
 	function onClick(pick: Pick) {
@@ -262,7 +330,17 @@
 				const target = objectUnder(pick);
 				if (target) return void conn.send({ type: 'object_delete', objectId: target.id });
 				const light = lightUnder(pick);
-				if (light) conn.send({ type: 'light_delete', lightId: light.id });
+				if (light) return void conn.send({ type: 'light_delete', lightId: light.id });
+				const prop = propUnder(pick);
+				if (prop) conn.send({ type: 'prop_delete', propId: prop.id });
+				return;
+			}
+			case 'prop': {
+				if (!pick.cell) return;
+				const placement = { ...propDraft, pos: pick.cell };
+				const problem = placementProblem(room.grid, placement, room.tokens, room.props);
+				if (problem) return showToast(problem.message);
+				conn.send({ type: 'prop_create', ...placement });
 				return;
 			}
 			case 'light': {
@@ -297,7 +375,20 @@
 
 	function clickSelect(pick: Pick) {
 		if (!room || !me) return;
+		if (selectedProp && !pick.tokenId) {
+			// A selected prop moves to wherever the GM clicks; clicking it again lets go.
+			if (pick.propId === selectedProp.id || !pick.cell) {
+				selectedPropId = null;
+				return;
+			}
+			const moved = { ...selectedProp, pos: pick.cell };
+			const problem = placementProblem(room.grid, moved, room.tokens, room.props, selectedProp.id);
+			if (problem) return showToast(problem.message);
+			conn.send({ type: 'prop_update', propId: selectedProp.id, patch: { pos: pick.cell } });
+			return;
+		}
 		if (pick.tokenId) {
+			selectedPropId = null;
 			const id = pick.tokenId;
 			if (canMove(id)) {
 				selectedId = selectedId === id ? null : id;
@@ -319,13 +410,38 @@
 			conn.send({ type: 'door_toggle', objectId: door.id });
 			return;
 		}
+		if (isGm && !selected) {
+			const prop = propUnder(pick);
+			if (prop) {
+				selectedPropId = prop.id;
+				return;
+			}
+		}
 		if (!selected || !pick.cell) return;
 		if (selected.pos.x === pick.cell.x && selected.pos.y === pick.cell.y) return;
 		conn.send({ type: 'token_move', tokenId: selected.id, to: pick.cell });
 	}
 
 	function onKeydown(event: KeyboardEvent) {
+		const typing = (event.target as HTMLElement | null)?.closest(
+			'input, textarea, select, [contenteditable]'
+		);
+		if (isGm && !typing && (event.key === '[' || event.key === ']')) {
+			const by = event.key === ']' ? 1 : -1;
+			if (tool === 'prop') propDraft = { ...propDraft, rotation: rotateBy(propDraft.rotation, by) };
+			else if (selectedProp) {
+				const rotation = rotateBy(selectedProp.rotation, by);
+				conn.send({ type: 'prop_update', propId: selectedProp.id, patch: { rotation } });
+			}
+			return;
+		}
+		if (isGm && !typing && selectedProp && (event.key === 'Delete' || event.key === 'Backspace')) {
+			conn.send({ type: 'prop_delete', propId: selectedProp.id });
+			selectedPropId = null;
+			return;
+		}
 		if (event.key === 'Escape') {
+			selectedPropId = null;
 			if (wallStart || areaStart) {
 				wallStart = null;
 				areaStart = null;
@@ -344,6 +460,7 @@
 			d: 'door',
 			e: 'erase',
 			l: 'light',
+			p: 'prop',
 			...(room?.fog.enabled ? { r: 'reveal', h: 'hide' } : {})
 		};
 		const next = shortcut[event.key.toLowerCase()];
@@ -382,6 +499,9 @@
 				fog={room.fog}
 				ambient={room.ambient}
 				lights={room.lights}
+				props={room.props}
+				selectedPropId={selectedProp?.id ?? null}
+				{hoveredPropId}
 				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
 				{preview}
@@ -425,6 +545,16 @@
 				</ul>
 			</section>
 
+			{#if selectedProp}
+				<div class="panel">
+					<PropInspector
+						prop={selectedProp}
+						send={(action) => conn.send(action)}
+						onDone={() => (selectedPropId = null)}
+					/>
+				</div>
+			{/if}
+
 			{#if isGm}
 				<div class="panel">
 					<BuildPanel
@@ -432,7 +562,9 @@
 						fogEnabled={room.fog.enabled}
 						ambient={room.ambient}
 						{lightDraft}
+						{propDraft}
 						onTool={setTool}
+						onPropDraft={(draft) => (propDraft = draft)}
 						onAmbient={(ambient) => conn.send({ type: 'ambient_set', ambient })}
 						onLightDraft={(draft) => (lightDraft = draft)}
 						onFog={(enabled) => {

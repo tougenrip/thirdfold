@@ -3,11 +3,14 @@ import { MAX_TOKENS_PER_ROOM } from '../src/lib/game/token';
 import { RoomManager, type Player, type Room } from './rooms';
 import {
 	createObject,
+	createProp,
 	createToken,
 	deleteObject,
+	deleteProp,
 	deleteToken,
 	moveToken,
 	toggleDoor,
+	updateProp,
 	updateToken
 } from './scene';
 
@@ -264,5 +267,81 @@ describe('walls and doors', () => {
 		expect(deleteObject(room, pip, wall.id)).toMatchObject({ code: 'forbidden' });
 		expect(deleteObject(room, gm, wall.id)).toMatchObject({ ok: true });
 		expect(deleteObject(room, gm, wall.id)).toMatchObject({ code: 'object_not_found' });
+	});
+});
+
+describe('props', () => {
+	const c = (x: number, y: number) => ({ x, y });
+
+	function placeProp(
+		room: Room,
+		gm: Player,
+		assetId: Parameters<typeof createProp>[2]['assetId'],
+		x: number,
+		y: number,
+		rotation: 0 | 1 | 2 | 3 = 0
+	) {
+		const r = createProp(room, gm, { assetId, pos: c(x, y), rotation });
+		if (!r.ok) throw new Error(r.message);
+		return r.prop;
+	}
+
+	it('lets only the GM place, arrange and remove props', () => {
+		const { room, gm, pip } = setup();
+		expect(createProp(room, pip, { assetId: 'crate', pos: c(1, 1), rotation: 0 })).toMatchObject({
+			code: 'forbidden'
+		});
+		const crate = placeProp(room, gm, 'crate', 1, 1);
+		expect(updateProp(room, pip, crate.id, { pos: c(2, 2) })).toMatchObject({ code: 'forbidden' });
+		expect(deleteProp(room, pip, crate.id)).toMatchObject({ code: 'forbidden' });
+		expect(deleteProp(room, gm, crate.id)).toMatchObject({ ok: true });
+		expect(deleteProp(room, gm, crate.id)).toMatchObject({ code: 'prop_not_found' });
+	});
+
+	it('keeps footprints on the table, including after rotating', () => {
+		const { room, gm } = setup();
+		expect(createProp(room, gm, { assetId: 'table', pos: c(19, 0), rotation: 0 })).toMatchObject({
+			code: 'invalid_position'
+		});
+		const table = placeProp(room, gm, 'table', 19, 0, 1);
+		expect(updateProp(room, gm, table.id, { rotation: 0 })).toMatchObject({
+			code: 'invalid_position'
+		});
+		expect(table.rotation).toBe(1);
+	});
+
+	it('will not put a blocking prop on a token or another blocking prop, but rugs go anywhere', () => {
+		const { room, gm, pip } = setup();
+		place(room, gm, 3, 3, pip.id);
+		expect(createProp(room, gm, { assetId: 'crate', pos: c(3, 3), rotation: 0 })).toMatchObject({
+			code: 'cell_occupied'
+		});
+		placeProp(room, gm, 'rug', 2, 2);
+		const table = placeProp(room, gm, 'table', 5, 5);
+		expect(createProp(room, gm, { assetId: 'barrel', pos: c(6, 5), rotation: 0 })).toMatchObject({
+			code: 'cell_occupied'
+		});
+		expect(createProp(room, gm, { assetId: 'chair', pos: c(6, 5), rotation: 0 })).toMatchObject({
+			ok: true
+		});
+		// Moving a prop onto its own old footprint is fine.
+		expect(updateProp(room, gm, table.id, { pos: c(6, 5) })).toMatchObject({ ok: true });
+	});
+
+	it('blocks tokens from standing in or walking through solid props', () => {
+		const { room, gm, pip } = setup();
+		const hero = place(room, gm, 4, 4, pip.id);
+		// A wall of bookshelves across the room, with a gap at x=10..11.
+		for (const x of [0, 2, 4, 6, 8, 12, 14, 16, 18]) placeProp(room, gm, 'bookshelf', x, 6);
+		expect(moveToken(room, pip, hero.id, c(4, 6))).toMatchObject({ code: 'cell_occupied' });
+		expect(moveToken(room, pip, hero.id, c(4, 9))).toMatchObject({ ok: true }); // via the gap
+		placeProp(room, gm, 'crate', 10, 6);
+		placeProp(room, gm, 'crate', 11, 6);
+		expect(moveToken(room, pip, hero.id, c(4, 2))).toMatchObject({ code: 'no_path' });
+		expect(
+			createToken(room, gm, { name: 'Ghost', color: '#ecf0f1', pos: c(10, 6), ownerId: null })
+		).toMatchObject({
+			code: 'cell_occupied'
+		});
 	});
 });

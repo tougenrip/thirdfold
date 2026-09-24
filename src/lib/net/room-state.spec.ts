@@ -12,6 +12,7 @@ function room(): RoomSnapshot {
 		players: [{ id: 'gm', name: 'Gemma', role: 'gm', connected: true }],
 		tokens: [],
 		objects: [],
+		props: [],
 		lights: [],
 		ambient: 'day',
 		fog: { enabled: false, visible: '', explored: '' },
@@ -132,5 +133,25 @@ describe('applyRoomUpdate', () => {
 		expect(r.lights).toEqual([]);
 		applyRoomUpdate(r, { type: 'ambient_update', ambient: 'dark' });
 		expect(r.ambient).toBe('dark');
+	});
+
+	it('applies prop changes', () => {
+		const r = room();
+		const crate = {
+			id: 'p1',
+			assetId: 'crate' as const,
+			pos: { x: 1, y: 1 },
+			rotation: 0 as const,
+			scale: 1
+		};
+		applyRoomUpdate(r, { type: 'props_changed', upserted: [crate], removed: [] });
+		applyRoomUpdate(r, {
+			type: 'props_changed',
+			upserted: [{ ...crate, rotation: 2 }],
+			removed: []
+		});
+		expect(r.props).toEqual([{ ...crate, rotation: 2 }]);
+		applyRoomUpdate(r, { type: 'props_changed', upserted: [], removed: ['p1'] });
+		expect(r.props).toEqual([]);
 	});
 });
