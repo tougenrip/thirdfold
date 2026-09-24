@@ -311,9 +311,9 @@ export const TEXT = {
 		'The rusted links give with a crack. The chains fall away from the great doors, and they can be opened from inside.',
 	downStair: 'The stair turns and turns. The air grows warm, then damp, then hums.',
 	keeper:
-		'Between you and the Bell stands a tall figure in an iron helm shaped like a bell, a great hammer in one hand and a small black bell in the other. Two robed cultists rise from their knees on either side. “No further,” says the Bell Keeper, and rings.',
+		'Between you and the Bell stands a tall figure in an iron helm shaped like a bell, a great hammer in one hand and a small black bell in the other. Across the water the cultists’ lanterns swing round and come running. “No further,” says the Bell Keeper, and rings.',
 	hollowWatch:
-		'Two lanterns move slowly between the rocks, carried by robed figures on their rounds. By the Bell, a tall shape in an iron helm stands watch over the boy. Keep to the dark, or be seen.',
+		'Two lanterns move slowly in the dark, carried by robed figures on their rounds: one among the ruins on the western shore, one on the eastern terraces. On the island, by the Bell, a tall shape in an iron helm stands watch over the boy and the causeway gate. Keep to the dark, or be seen.',
 	keeperToll:
 		'The Bell Keeper rings its little black bell. The note goes through you like cold water.',
 	keeperFalls:
@@ -321,7 +321,9 @@ export const TEXT = {
 
 	// The Hollow
 	hollow:
-		'The stair opens into a cavern. At its far end, the Hollow Bell hangs from the rock over a black pit, its rope running up into the dark. A boy stands under it, holding the rope, perfectly still.',
+		'The stair ends on a landing of wet stone, and the dark in front of you is not a cave. It is a world. Your lantern light falls a few yards and gives up.',
+	hollowFlash:
+		'Somewhere ahead, the Bell sounds, once, and the whole Hollow flares blue. For one heartbeat you see it all: a black lake wider than Bellweather, a causeway running out across it to an island walled in stone older than the monastery; on the island, among gears as tall as houses, the Hollow Bell hanging in its frame over a pit, and a boy standing under it with the rope in his hands. Ruins on the western shore. Terraces climbing the eastern wall to a shelf of statues. And beyond the island, nothing: a void with no far side. Then the dark comes back, and you have to remember.',
 	tobinFound:
 		'Tobin turns his head slowly. His eyes are wide and blank. “It told me to ring,” he whispers. “It said it was lonely.” In the pit, something shifts, and many eyes begin to open.',
 	tobinAfter: 'Tobin clings to your sleeve and will not let go.',

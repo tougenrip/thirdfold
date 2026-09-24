@@ -103,8 +103,16 @@ export class TokenLayer {
 		this.marker.raycast = () => {};
 	}
 
-	/** Brings the minis in line with `tokens`. Returns true if anything changed on screen. */
-	sync(tokens: readonly Token[], grid: SquareGrid, ground: Ground | null = null): boolean {
+	/**
+	 * Brings the minis in line with `tokens`. Returns true if anything changed on
+	 * screen. With `snap`, everything jumps to its place instead of gliding (a new table).
+	 */
+	sync(
+		tokens: readonly Token[],
+		grid: SquareGrid,
+		ground: Ground | null = null,
+		snap = false
+	): boolean {
 		const gridChanged =
 			!this.grid ||
 			this.grid.width !== grid.width ||
@@ -145,7 +153,7 @@ export class TokenLayer {
 				changed = true;
 			}
 			entry.root.scale.setScalar(grid.cellSize);
-			if (gridChanged) {
+			if (gridChanged || snap) {
 				entry.root.position.copy(target);
 				entry.from.copy(target);
 				entry.to.copy(target);

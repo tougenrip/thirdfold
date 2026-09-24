@@ -426,7 +426,8 @@ export const NPCS: Record<NpcId, NpcDef> = {
 		color: '#d9a441',
 		location: 'hollow',
 		home: 'Under the Bell',
-		places: { calm: { x: 9, y: 4 } },
+		// TOBIN_AT in hollow.ts, beneath the Bell.
+		places: { calm: { x: 24, y: 11 } },
 		states: ['missing', 'entranced', 'safe'],
 		lines: [
 			{ id: 'found', text: TEXT.tobinFound, if: { not: ['found_tobin'] }, event: 'found_tobin' },

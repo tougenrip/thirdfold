@@ -1225,7 +1225,12 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			adventure.npcs.set('tobin', 'entranced');
 			// The Keeper stands watch by the Bell and cultists walk the dark with lanterns: sneak or fight.
 			postSentries(room, adventure, 'hollow');
-			tell(say(room, TEXT.downStair), say(room, TEXT.hollow), say(room, TEXT.hollowWatch));
+			tell(say(room, TEXT.downStair), say(room, TEXT.hollow));
+			// The Bell sounds as the party arrives: its light shows them the whole Hollow for a
+			// moment, and they remember its shape (not who stands in it).
+			tell(flare(room, TEXT.hollowFlash));
+			for (const p of room.players.values()) if (p.role !== 'gm') p.explored.fill(1);
+			tell(say(room, TEXT.hollowWatch));
 			break;
 		case 'final_decision':
 			outcome = merge(outcome, offer(room, adventure, 'bell'));

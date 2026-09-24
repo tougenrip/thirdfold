@@ -9,7 +9,7 @@ import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { FileSceneStore, type SceneStore } from './scene-store';
 import { beginAdventure, claimCharacter, postSentries, startAdventure } from './adventure/engine';
-import { HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
+import { BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
 import { recordOrigins } from './adventure/objects';
 import { RoomManager } from './rooms';
 import { applyScene, exportScene } from './scene-io';
@@ -1296,7 +1296,7 @@ describe('The Hollow Bell over the wire', () => {
 
 		// Tobin, and the final choice (after a breath: talking shares the chat rate limit).
 		await new Promise((resolve) => setTimeout(resolve, 800));
-		move({ x: 9, y: 5 });
+		move(BY_TOBIN);
 		use('tobin');
 		await untilAdventure(pip, (a) => a.decision?.id === 'bell');
 		pip.send({ type: 'adventure_decide', decisionId: 'bell', optionId: 'leave' });
@@ -1357,7 +1357,7 @@ describe('The Hollow Bell over the wire', () => {
 
 		// Up to the boy: the Keeper beside him sees the Warden, and the fight begins for both.
 		const me = room.tokens.find((t) => t.name === 'The Warden')!;
-		pip.send({ type: 'token_move', tokenId: me.id, to: { x: 9, y: 5 } });
+		pip.send({ type: 'token_move', tokenId: me.id, to: BY_TOBIN });
 		const spotted = await untilAdventure(gm, (a) => a.encounter !== null);
 		expect(spotted.encounter!.order.map((t) => t.name).sort()).toEqual([
 			'Bell Cultist',
@@ -1365,9 +1365,12 @@ describe('The Hollow Bell over the wire', () => {
 			'Bell Keeper',
 			'The Warden'
 		]);
-		expect((await untilAdventure(pip, (a) => a.encounter !== null)).encounter!.order).toEqual(
-			spotted.encounter!.order.map((t) => ({ ...t, tokenId: expect.anything() }))
+		// Pip gets the same order, though not the tokens of cultists far off in the dark.
+		const seen = (await untilAdventure(pip, (a) => a.encounter !== null)).encounter!.order;
+		expect(seen.map((t) => [t.name, t.initiative])).toEqual(
+			spotted.encounter!.order.map((t) => [t.name, t.initiative])
 		);
+		expect(seen.find((t) => t.name === 'Bell Keeper')?.tokenId).not.toBeNull();
 		for (;;) {
 			const { message } = await pip.expect('chat');
 			if (message.kind === 'narration' && message.text.startsWith('The Bell Keeper spots')) break;

@@ -52,7 +52,12 @@ export const ASSETS = {
 	'lever-down': { name: 'Lever (pulled)', w: 1, h: 1, blocks: 'movement' },
 	handbell: { name: 'Hand bell', w: 1, h: 1, blocks: 'none' },
 	sconce: { name: 'Torch stand', w: 1, h: 1, blocks: 'none' },
-	carvings: { name: 'Carvings', w: 1, h: 1, blocks: 'none' }
+	carvings: { name: 'Carvings', w: 1, h: 1, blocks: 'none' },
+	'great-bell': { name: 'Giant bell', w: 3, h: 3, blocks: 'movement' },
+	gear: { name: 'Great gear', w: 2, h: 2, blocks: 'movement' },
+	water: { name: 'Dark water', w: 2, h: 2, blocks: 'none' },
+	'water-sm': { name: 'Dark water (small)', w: 1, h: 1, blocks: 'none' },
+	'water-lg': { name: 'Dark water (large)', w: 4, h: 4, blocks: 'none' }
 } as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;

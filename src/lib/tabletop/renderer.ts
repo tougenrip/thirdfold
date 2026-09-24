@@ -181,6 +181,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(lighting.group);
 	let lightState: { ambient: Ambient; lights: readonly Light[] } = { ambient: 'day', lights: [] };
 	let darkness: Uint8Array | null = null;
+	/** The table was just replaced: the next tokens snap into place. */
+	let freshTable = false;
 	const ambience = new AmbienceLayer();
 	scene.add(ambience.group);
 	const terrainLayer = new TerrainLayer();
@@ -522,6 +524,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 				return;
 			}
 			grid = { ...next };
+			freshTable = true;
 			if (levels && levels.length !== grid.width * grid.height) levels = null;
 			ground = groundFor(grid, levels);
 			buildTable(grid);
@@ -543,7 +546,10 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		setTokens(next) {
 			tokens = next;
 			if (!grid) return;
-			tokenLayer.sync(tokens, grid, ground);
+			// The first tokens after a new table take their places at once: nobody glides in from
+			// where they stood on the last one.
+			tokenLayer.sync(tokens, grid, ground, freshTable);
+			freshTable = false;
 			tokenLayer.setFallen(fallen);
 			refreshLighting();
 			requestRender();

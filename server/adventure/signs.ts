@@ -5,6 +5,7 @@
 import type { Check, LocationId, Sense } from '../../src/lib/adventure/adventure';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { ClueId } from './content';
+import { PIT_AT } from './hollow';
 
 export interface Sign {
 	id: string;
@@ -79,7 +80,7 @@ export const SIGNS: readonly Sign[] = [
 		id: 'pit-eye',
 		location: 'hollow',
 		sense: 'observe',
-		at: { x: 13, y: 3 },
+		at: PIT_AT,
 		range: 4,
 		check: { stat: 'spirit', dc: 12 },
 		clue: 'sleeper'

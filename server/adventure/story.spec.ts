@@ -23,7 +23,7 @@ import {
 	runMechanism,
 	startAdventure
 } from './engine';
-import { HOLLOW_SPAWN, hollowScene } from './hollow';
+import { BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './hollow';
 import { LOCATIONS } from './locations';
 import {
 	CHAMBER,
@@ -285,7 +285,7 @@ describe('playing the story through', () => {
 			'cultist'
 		]);
 		// Walking up to the boy, the Keeper beside him sees the Warden: the fight begins.
-		walk({ x: 9, y: 5 });
+		walk(BY_TOBIN);
 		expect([...story().encounter!.enemies.values()].map((e) => e.kind)).toEqual([
 			'keeper',
 			'cultist',
@@ -298,7 +298,7 @@ describe('playing the story through', () => {
 		expect(story().events).toContain('won_hollow');
 
 		// Tobin, and the final decision.
-		walk({ x: 9, y: 5 });
+		walk(BY_TOBIN);
 		ok(interact(room, ana, 'tobin'));
 		expect(story()).toMatchObject({ chapter: 'final_decision', pending: 'bell' });
 		const end = ok(decide(room, ana, 'bell', 'ring', 5000));
@@ -333,7 +333,7 @@ describe('playing the story through', () => {
 		pullLever();
 		walk(STAIR.from);
 		clearEnemies();
-		walk({ x: 9, y: 5 });
+		walk(BY_TOBIN);
 		ok(interact(room, ana, 'tobin'));
 		ok(decide(room, gm, 'bell', 'break'));
 		expect(story()).toMatchObject({ ending: 'broken', stage: 'complete' });

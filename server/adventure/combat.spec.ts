@@ -22,7 +22,7 @@ import {
 	startEncounter
 } from './engine';
 import type { EnemyKind } from './enemies';
-import { CULTIST_ROUNDS, HOLLOW_SPAWN, hollowScene, KEEPER_POST } from './hollow';
+import { BY_TOBIN, CULTIST_ROUNDS, HOLLOW_SPAWN, hollowScene, KEEPER_POST } from './hollow';
 import { recordOrigins } from './objects';
 import { applyScene } from '../scene-io';
 import { readAdventure, saveAdventure } from './persist';
@@ -88,6 +88,8 @@ const turnTo = (id: CharacterId) => {
 };
 /** The Hollow's fight, here in the square: the Keeper and its cultists, all at once. */
 const fight = () => {
+	// The Keeper's post in the Hollow is where a chapel pew stands in Bellweather: clear it.
+	room.props.delete('hb-chapel-pew3');
 	postSentries(room, story(), 'hollow');
 	return startEncounter(room, story(), 'hollow');
 };
@@ -357,10 +359,11 @@ describe('the Hollow’s watch, outside a fight', () => {
 	it('does not see a character keeping to the dark, sees one in its lantern light or carrying one', () => {
 		const { cultists } = inTheHollow();
 		const [, cultist] = cultists;
-		put(cultist, { x: 11, y: 11 });
-		put(saint().token.id, { x: 3, y: 14 });
+		// The cultist on the east terrace; the Saint far off on the landing.
+		put(cultist, { x: 38, y: 28 });
+		put(saint().token.id, HOLLOW_SPAWN[2]);
 		// Three cells off, in the dark beyond the lantern: unseen.
-		put(warden().token.id, { x: 9, y: 14 });
+		put(warden().token.id, { x: 38, y: 31 });
 		expect(afterMove(room, warden().token, null).log).toEqual([]);
 		expect(story().encounter).toBeNull();
 		// Carrying a light, the same cell gives the Warden away.
@@ -370,12 +373,12 @@ describe('the Hollow’s watch, outside a fight', () => {
 		expect(story().encounter!.enemies.size).toBe(3);
 		// Everyone on watch joined the fight, knowing where the Warden was.
 		expect(story().sentries.size).toBe(0);
-		expect(story().encounter!.enemies.get(cultist)!.lastSeen).toEqual({ x: 9, y: 14 });
+		expect(story().encounter!.enemies.get(cultist)!.lastSeen).toEqual({ x: 38, y: 31 });
 	});
 
 	it('sees whoever walks right up to it, light or none', () => {
 		const { keeper } = inTheHollow();
-		put(warden().token.id, { x: 9, y: 5 });
+		put(warden().token.id, BY_TOBIN);
 		const seen = afterMove(room, warden().token, null);
 		expect(texts(seen.log)).toContain('The Bell Keeper spots The Warden!');
 		expect(story().encounter!.enemies.get(keeper)!.post).toEqual(KEEPER_POST);
