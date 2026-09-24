@@ -190,6 +190,7 @@ describe('applyRoomUpdate', () => {
 			firstFind: null,
 			begunAt: 1,
 			completedAt: null,
+			summary: null,
 			cues: null
 		};
 		expect(applyRoomUpdate(r, { type: 'adventure_update', adventure })).toBe(true);

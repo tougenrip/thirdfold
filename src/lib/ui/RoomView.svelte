@@ -1345,10 +1345,15 @@
 			<SectionEnd
 				{adventure}
 				players={room.players}
+				me={me.id}
 				{isGm}
 				send={act}
 				onClose={() => (dismissedEnd = endKey)}
 			/>
+		{:else if adventure && endKey}
+			<button class="summary-pill" type="button" onclick={() => (dismissedEnd = null)}>
+				{adventure.stage === 'complete' ? 'Adventure complete' : 'Adventure failed'} · Summary
+			</button>
 		{/if}
 	{:else}
 		<p class="loading">{conn.error?.message ?? 'Connecting to the table…'}</p>
@@ -1762,6 +1767,20 @@
 		bottom: auto;
 		border-color: var(--accent);
 		z-index: 6;
+	}
+
+	.summary-pill {
+		position: absolute;
+		top: 5.25rem;
+		left: 50%;
+		transform: translateX(-50%);
+		padding: 0.35rem 0.9rem;
+		border: 1px solid var(--accent);
+		border-radius: 999px;
+		background: var(--panel-solid);
+		color: var(--accent);
+		font-size: 0.85rem;
+		cursor: pointer;
 	}
 
 	.banner {

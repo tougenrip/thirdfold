@@ -636,6 +636,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return adventure.decide(room, player, msg.decisionId, msg.optionId);
 				case 'adventure_control':
 					return adventure.control(room, player, msg.op);
+				case 'adventure_again':
+					return adventure.askAgain(room, player);
 				case 'adventure_direct':
 					return adventure.direct(room, player, msg.direction);
 				case 'adventure_override':
@@ -958,6 +960,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_sense':
 			case 'adventure_share':
 			case 'adventure_control':
+			case 'adventure_again':
 			case 'adventure_direct':
 				return handleAdventure(ws, room, player, msg);
 		}

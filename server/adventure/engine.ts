@@ -2273,10 +2273,16 @@ function victory(room: Room, adventure: AdventureState): Outcome {
 }
 
 /** Every character is down or dead: the fight, and the story, are lost. */
-function defeat(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+function defeat(
+	room: Room,
+	adventure: AdventureState,
+	encounter: Encounter,
+	now = Date.now()
+): ChatMessage[] {
 	adventure.encounters.set(encounter.id, 'lost');
 	adventure.encounter = null;
 	adventure.stage = 'defeat';
+	adventure.completedAt = now;
 	return [say(room, TEXT.defeat)];
 }
 
@@ -2857,6 +2863,23 @@ export function control(
 				log: [postSystem(room, `${actor.name} ended ${TITLE}. The table stays as it is.`)]
 			};
 	}
+}
+
+/**
+ * A player at the end screen asks the GM to play the story again: a notice
+ * for the table, once per player per ending (the GM replays with "restart").
+ */
+export function askAgain(room: Room, actor: Player): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (adventure.stage !== 'complete' && adventure.stage !== 'defeat') {
+		return fail('forbidden', 'The story is still going.');
+	}
+	if (actor.role !== 'player') return fail('forbidden', 'Only players ask to play again.');
+	adventure.again ??= new Set();
+	if (adventure.again.has(actor.id)) return { ok: true, log: [] };
+	adventure.again.add(actor.id);
+	return { ok: true, log: [postSystem(room, `${actor.name} would like to play again.`)] };
 }
 
 /** Starts the story over in Bellweather; everyone keeps their character, back on the road at full health. */

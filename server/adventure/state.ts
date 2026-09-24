@@ -153,4 +153,6 @@ export interface AdventureState {
 	encounter: Encounter | null;
 	begunAt: number | null;
 	completedAt: number | null;
+	/** Players who asked to play again once the story ended (not saved: it is only for this ending). */
+	again?: Set<string>;
 }

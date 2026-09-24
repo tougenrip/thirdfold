@@ -398,9 +398,17 @@ export type BellAnswer = 'destroy' | 'silence' | 'use' | 'descend';
  */
 export const OUTCOMES: Record<
 	BellAnswer,
-	{ subtitle: string; text: string; scene: string; result: { label: string; value: string }[] }
+	{
+		/** The first words of the session's end screen. */
+		headline: string;
+		subtitle: string;
+		text: string;
+		scene: string;
+		result: { label: string; value: string }[];
+	}
 > = {
 	destroy: {
+		headline: 'The Bell is broken',
 		subtitle: 'The Bell Broken',
 		text: 'The Bell lies in pieces on the island, and the humming has stopped. So has whatever held the thing below: it sinks back into the pit, wounded, and the dark closes over it. You carry Tobin up the stair into the dawn. Nothing binds the Hollow now but its wounds. Bellweather will need more than lamps.',
 		scene:
@@ -413,6 +421,7 @@ export const OUTCOMES: Record<
 		]
 	},
 	silence: {
+		headline: 'The Bell is silent',
 		subtitle: 'The Bell Silenced',
 		text: 'You cut the rope and bind the Bell’s lip in cloth and leather until it can make no sound. Silenced, it cannot call anything up; it cannot hold anything down, either. As you carry Tobin up the stair, the hum below changes, deepens, like something turning over in its sleep. It will wake. Not tonight, not this year. But it will.',
 		scene:
@@ -425,6 +434,7 @@ export const OUTCOMES: Record<
 		]
 	},
 	use: {
+		headline: 'The Bell has spoken',
 		subtitle: 'The Bell Spoken',
 		text: 'You ring the Bell once, and listen. The Hollow answers, not in words, but you understand it: it has been alone under the mountain for longer than there have been mountains, and the Bell was the only voice that ever reached it. You carry Tobin up into the dawn. Someone will come down again, not to bind it, but to talk.',
 		scene:
@@ -437,6 +447,7 @@ export const OUTCOMES: Record<
 		]
 	},
 	descend: {
+		headline: 'The Hollow is still',
 		subtitle: 'Into the Heart',
 		text: 'In the heart of the Hollow you still what beat there for longer than there have been mountains. It does not die the way people die. It dies the way a mountain would: slowly, and all at once, and with a sound you feel rather than hear. You climb back up the roots to Tobin, and above you the Bell rings once more, by itself, for the last time.',
 		scene:

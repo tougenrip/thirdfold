@@ -382,6 +382,8 @@ describe('the fight at the well', () => {
 		const out = runEnemyTurn(room, turn, max)!;
 		expect(out.log[0]).toMatchObject({ outcome: 'The Warden falls!' });
 		expect(room.adventure).toMatchObject({ stage: 'defeat', encounter: null });
+		// The time played ends with the defeat, for the end screen.
+		expect(room.adventure?.completedAt).toEqual(expect.any(Number));
 		const downed = characterOf(room, ana.id)!;
 		expect(checkMove(room, ana, downed.token.id, { x: 10, y: 11 })).toMatchObject({ ok: false });
 	});

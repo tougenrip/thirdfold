@@ -185,6 +185,8 @@ export type ClientMessage =
 	| { type: 'adventure_share'; clueId: string }
 	/** GM: end whoever's turn it is now, start the story over, or stop the adventure (the table stays). */
 	| { type: 'adventure_control'; op: AdventureControl }
+	/** Player, once the story is over: ask the GM to play it again. */
+	| { type: 'adventure_again' }
 	/** GM: direct the story (raise an event, skip a scene, start or end a fight, bring on an enemy). */
 	| { type: 'adventure_direct'; direction: Direction }
 	/** GM: set a character's hit points and statuses, or bring them back from the dead. */
@@ -670,6 +672,8 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return isId(data.decisionId) && isId(data.optionId)
 				? { type: 'adventure_decide', decisionId: data.decisionId, optionId: data.optionId }
 				: null;
+		case 'adventure_again':
+			return { type: 'adventure_again' };
 		case 'adventure_control':
 			return data.op === 'end_turn' || data.op === 'restart' || data.op === 'end'
 				? { type: 'adventure_control', op: data.op }
