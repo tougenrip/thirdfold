@@ -21,10 +21,21 @@ npm run server            # game server on ws://localhost:8787 (watch mode)
 npm run dev               # web on http://localhost:1420
 ```
 
-The game server keeps rooms in memory and saves scenes as JSON files in
-`./data/scenes` (override with `SCENES_DIR`). The GM saves from the Scene panel;
+The game server keeps rooms in memory. The GM saves scenes from the Scene panel;
 the browser remembers which scenes it saved, and scenes can also be exported to
-and imported from a file.
+and imported from a file. Saved scenes go to JSON files in `./data/scenes`
+(override with `SCENES_DIR`), or to Supabase when the server is started with
+`SUPABASE_URL` and `SUPABASE_SERVICE_KEY`:
+
+```bash
+npm run db:start                      # local Supabase
+npx supabase migration up             # creates public.scenes (RLS on, no client access)
+SUPABASE_URL=http://127.0.0.1:54321 \
+SUPABASE_SERVICE_KEY=<SECRET_KEY from npx supabase status> npm run server
+```
+
+The service key bypasses row-level security, so it belongs to the game server
+only, never in a `VITE_` variable.
 
 Open http://localhost:1420, enter a name and create a room. Share the invite
 link (or the six-letter room code) so others can join as Player or Spectator.
