@@ -61,6 +61,9 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 		case 'fog_update':
 			room.fog = msg.fog;
 			return true;
+		case 'terrain_update':
+			room.terrain = msg.terrain;
+			return true;
 		case 'adventure_update':
 			room.adventure = msg.adventure;
 			return true;

@@ -4,7 +4,7 @@
 // How assets look lives in the renderer (tabletop/prop-models.ts); only what
 // matters to the rules lives here.
 
-import { blockingEdges, type Obstacles, type SceneObject } from './objects';
+import { blockingEdges, windowEdges, type Obstacles, type SceneObject } from './objects';
 import { inBounds, type GridPos, type SquareGrid } from './grid';
 
 /** 'movement': can't walk into it. 'sight': can't walk into or see past it. */
@@ -45,7 +45,9 @@ export const ASSETS = {
 	stairs: { name: 'Stair down', w: 1, h: 1, blocks: 'none' },
 	rope: { name: 'Bell rope', w: 1, h: 1, blocks: 'none' },
 	bell: { name: 'Great bell', w: 2, h: 2, blocks: 'movement' },
-	anvil: { name: 'Anvil', w: 1, h: 1, blocks: 'movement' }
+	anvil: { name: 'Anvil', w: 1, h: 1, blocks: 'movement' },
+	chains: { name: 'Hanging chains', w: 1, h: 1, blocks: 'none' },
+	'belfry-bell': { name: 'Hanging bell', w: 1, h: 1, blocks: 'movement' }
 } as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;
@@ -108,11 +110,15 @@ export function propAt(props: Iterable<Prop>, cell: GridPos): Prop | undefined {
 	return found;
 }
 
-/** All blockers on a table: walls and closed doors, plus the cells props make solid or opaque. */
+/**
+ * All blockers on a table: walls, windows and closed doors, the cells props
+ * make solid or opaque, and each cell's level if the table has elevation.
+ */
 export function obstaclesFor(
 	grid: SquareGrid,
 	objects: Iterable<SceneObject>,
-	props: Iterable<Prop> = []
+	props: Iterable<Prop> = [],
+	levels: Uint8Array | null = null
 ): Obstacles {
 	const size = grid.width * grid.height;
 	let solid: Uint8Array | null = null;
@@ -128,7 +134,16 @@ export function obstaclesFor(
 			if (blocks === 'sight') opaque![c.y * grid.width + c.x] = 1;
 		}
 	}
-	return { edges: blockingEdges(objects), width: grid.width, solid, opaque };
+	const all = [...objects];
+	const windows = windowEdges(all);
+	return {
+		edges: blockingEdges(all),
+		width: grid.width,
+		solid,
+		opaque,
+		windows: windows.size ? windows : null,
+		levels
+	};
 }
 
 /** Whether a cell can be stood on: on the grid and not inside a blocking prop. */

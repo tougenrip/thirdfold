@@ -17,7 +17,8 @@ function room(): RoomSnapshot {
 		ambient: 'day',
 		fog: { enabled: false, visible: '', explored: '' },
 		log: [],
-		adventure: null
+		adventure: null,
+		terrain: null
 	};
 }
 

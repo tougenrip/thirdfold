@@ -15,12 +15,16 @@ import {
 	type GridPos,
 	type SquareGrid
 } from '$lib/game/grid';
+import type { Cue } from '$lib/game/chat';
 import { lightSources, type Ambient, type Light } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
 import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 import { AmbienceLayer } from './ambience';
+import { EffectsLayer } from './effects';
+import { groundFor, type Ground } from './ground';
+import { TerrainLayer } from './terrain';
 import { LightingLayer } from './lighting';
 import { PropLayer } from './props';
 import { DiceLayer, type DiceThrow } from './dice3d';
@@ -78,6 +82,10 @@ export interface Tabletop {
 	/** Floats combat text (damage, healing, a status) up from a token. */
 	showFloat(tokenId: string, text: string, color: string): void;
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
+	/** Each cell's level (elevation), or null for a flat table. */
+	setTerrain(levels: Uint8Array | null): void;
+	/** Plays a cinematic moment; `swingPropId` is the bell to swing, if it is on the table. */
+	playCue(cue: Cue, swingPropId: string | null): void;
 	setView(view: CameraView): void;
 	dispose(): void;
 }
@@ -165,6 +173,15 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	let lightState: { ambient: Ambient; lights: readonly Light[] } = { ambient: 'day', lights: [] };
 	const ambience = new AmbienceLayer();
 	scene.add(ambience.group);
+	const terrainLayer = new TerrainLayer();
+	scene.add(terrainLayer.group);
+	const effects = new EffectsLayer();
+	scene.add(effects.group);
+	let levels: Uint8Array | null = null;
+	let ground: Ground | null = null;
+	/** The prop the current cue swings (the bell). */
+	let swinging: string | null = null;
+	const shakeOffset = new THREE.Vector3();
 	/** Flickering flames and drifting mist redraw at a slow, fixed rate, never per frame. */
 	const AMBIENT_FRAME_MS = 80;
 	let ambientTimer: ReturnType<typeof setTimeout> | 0 = 0;
@@ -190,9 +207,31 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			lightState.ambient,
 			lightState.lights,
 			lightSources(lightState.lights, tokens),
-			obstaclesFor(grid, objects, props),
-			visible
+			obstaclesFor(grid, objects, props, levels),
+			visible,
+			ground
 		);
+		shadeTerrain();
+	}
+
+	/** Raised ground under fog and darkness, by the same rules as the flat overlays. */
+	function shadeTerrain(): void {
+		if (!grid || !levels) return;
+		const size = grid.width * grid.height;
+		const light = lighting.cellBrightness;
+		const fog = fogState.fog;
+		const visible = fog?.enabled ? decodeMask(fog.visible, size) : null;
+		const explored = fog?.enabled ? decodeMask(fog.explored, size) : null;
+		const shade = new Float32Array(size);
+		for (let i = 0; i < size; i++) {
+			let b = light ? light[i] : 1;
+			if (visible && explored) {
+				if (fogState.mode === 'gm') b *= visible[i] ? 1 : 0.8;
+				else b *= visible[i] ? 1 : explored[i] ? 0.45 : 0.04;
+			}
+			shade[i] = b;
+		}
+		terrainLayer.shade(shade, levels);
 	}
 
 	// Editor previews reuse one geometry and three materials; only transforms change.
@@ -245,7 +284,10 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		const tokensMoving = tokenLayer.tick(dt);
 		const doorsMoving = wallLayer.tick(dt);
 		const diceRolling = diceLayer.tick(now);
-		if (tokensMoving || doorsMoving || diceRolling) requestRender();
+		const fx = effects.tick(now);
+		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
+		if (!fx.active) swinging = null;
+		if (tokensMoving || doorsMoving || diceRolling || fx.active) requestRender();
 		if (!reducedMotion) {
 			const flickering = lighting.flicker(now);
 			const drifting = ambience.tick(now);
@@ -262,7 +304,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		// With damping enabled, update() emits 'change' while the camera is still settling,
 		// which schedules the next frame; once still, rendering stops.
 		controls.update();
+		// A shudder from a cue: offset the camera for this frame only.
+		shakeOffset.copy(fx.shake);
+		camera.position.add(shakeOffset);
 		renderer.render(scene, camera);
+		camera.position.sub(shakeOffset);
 	}
 
 	function disposeGroup(group: THREE.Group): void {
@@ -317,6 +363,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		table.add(slab, surface, lines);
 
 		extent = Math.max(w, d) + TABLE_MARGIN * 2;
+		effects.setBounds(w, d, Math.max(4, extent * 0.2));
 		const half = extent / 2;
 		Object.assign(sun.shadow.camera, {
 			left: -half,
@@ -371,8 +418,22 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			lightId,
 			propId
 		};
-		if (!grid || !raycaster.ray.intersectPlane(tablePlane, hitPoint)) return pick;
-		pick.cell = worldToGrid(grid, hitPoint);
+		if (!grid) return pick;
+		// Raised ground first: pointing at a balcony picks the balcony, not the floor under it.
+		const raised = terrainLayer.pick(raycaster);
+		const onPlane = raycaster.ray.intersectPlane(tablePlane, hitPoint);
+		if (
+			raised &&
+			(!onPlane ||
+				raised.point.distanceTo(raycaster.ray.origin) <= onPlane.distanceTo(raycaster.ray.origin))
+		) {
+			hitPoint.copy(raised.point);
+			pick.cell = { x: raised.cell % grid.width, y: Math.floor(raised.cell / grid.width) };
+		} else if (onPlane) {
+			pick.cell = worldToGrid(grid, hitPoint);
+		} else {
+			return pick;
+		}
 		pick.corner = worldToCorner(grid, hitPoint);
 		pick.edge = worldToEdge(grid, hitPoint);
 		if (pick.edge) {
@@ -448,11 +509,14 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 				return;
 			}
 			grid = { ...next };
+			if (levels && levels.length !== grid.width * grid.height) levels = null;
+			ground = groundFor(grid, levels);
 			buildTable(grid);
-			tokenLayer.sync(tokens, grid);
+			terrainLayer.sync(grid, ground);
+			tokenLayer.sync(tokens, grid, ground);
 			tokenLayer.setFallen(fallen);
-			wallLayer.sync(objects, grid);
-			propLayer.sync(props, grid);
+			wallLayer.sync(objects, grid, ground);
+			propLayer.sync(props, grid, ground);
 			fogLayer.update(grid, fogState.fog, fogState.mode);
 			refreshLighting();
 			// A new table size (first load, a loaded scene, an adventure): frame it. This
@@ -466,7 +530,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		setTokens(next) {
 			tokens = next;
 			if (!grid) return;
-			tokenLayer.sync(tokens, grid);
+			tokenLayer.sync(tokens, grid, ground);
 			tokenLayer.setFallen(fallen);
 			refreshLighting();
 			requestRender();
@@ -474,7 +538,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		setObjects(next) {
 			objects = next;
 			if (!grid) return;
-			wallLayer.sync(objects, grid);
+			wallLayer.sync(objects, grid, ground!);
 			refreshLighting();
 			requestRender();
 		},
@@ -545,7 +609,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		setProps(next) {
 			props = next;
 			if (!grid) return;
-			propLayer.sync(props, grid);
+			propLayer.sync(props, grid, ground);
 			refreshLighting();
 			requestRender();
 		},
@@ -574,11 +638,28 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			const visible = !!(cell && grid);
 			if (cell && grid) {
 				const w = gridToWorld(grid, cell);
-				highlight.position.set(w.x, 0.04, w.z);
+				highlight.position.set(w.x, (ground?.floorY(cell) ?? 0) + 0.04, w.z);
 				highlight.scale.setScalar(grid.cellSize);
 				highlight.material.color.setHex(COLORS.highlight[kind]);
 			}
 			highlight.visible = visible;
+			requestRender();
+		},
+		setTerrain(next) {
+			levels = next;
+			if (!grid) return;
+			if (levels && levels.length !== grid.width * grid.height) levels = null;
+			ground = groundFor(grid, levels);
+			terrainLayer.sync(grid, ground);
+			tokenLayer.sync(tokens, grid, ground);
+			wallLayer.sync(objects, grid, ground);
+			propLayer.sync(props, grid, ground);
+			refreshLighting();
+			requestRender();
+		},
+		playCue(cue, swingPropId) {
+			swinging = swingPropId;
+			effects.play(cue, performance.now(), reducedMotion);
 			requestRender();
 		},
 		setView(next) {
@@ -605,6 +686,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			lighting.dispose();
 			if (ambientTimer) clearTimeout(ambientTimer);
 			ambience.dispose();
+			terrainLayer.dispose();
+			effects.dispose();
 			propLayer.dispose();
 			diceLayer.dispose();
 			previewGroup.clear();

@@ -9,6 +9,15 @@ import type { DiceRoll } from './dice';
  */
 export type LogAudience = 'gm' | { players: string[] };
 
+/**
+ * A cinematic moment for clients to play with a line of narration, e.g. the
+ * bell tolling: the bell swings, dust falls, the table shakes. Presentation
+ * only; nothing about the game state depends on it.
+ */
+export type Cue = 'toll';
+
+export const CUES: readonly Cue[] = ['toll'];
+
 export type ChatMessage =
 	| { seq: number; at: number; kind: 'chat'; authorId: string; authorName: string; text: string }
 	| { seq: number; at: number; kind: 'roll'; authorId: string; authorName: string; roll: DiceRoll }
@@ -20,6 +29,7 @@ export type ChatMessage =
 			text: string;
 			speaker?: string;
 			audience?: LogAudience;
+			cue?: Cue;
 	  }
 	| {
 			seq: number;

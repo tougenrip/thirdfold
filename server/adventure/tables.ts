@@ -7,6 +7,7 @@ import type { Ambient, Light } from '../../src/lib/game/lights';
 import type { SceneObject } from '../../src/lib/game/objects';
 import type { AssetId, Prop, Rotation } from '../../src/lib/game/props';
 import { SCENE_FILE_VERSION, type SavedToken, type SceneFile } from '../../src/lib/game/scene-file';
+import { encodeLevels, flatLevels, withLevel, type LevelMap } from '../../src/lib/game/terrain';
 import { emptyMask, encodeMask, rectCells } from '../../src/lib/game/visibility';
 
 export const wall = (id: string, a: GridPos, b: GridPos): SceneObject => ({
@@ -14,6 +15,15 @@ export const wall = (id: string, a: GridPos, b: GridPos): SceneObject => ({
 	kind: 'wall',
 	a,
 	b
+});
+
+/** A wall you can see through but not pass: a window, an arrow slit, a railing. */
+export const window = (id: string, a: GridPos, b: GridPos): SceneObject => ({
+	id,
+	kind: 'wall',
+	a,
+	b,
+	window: true
 });
 
 export const door = (id: string, a: GridPos, b: GridPos): SceneObject => ({
@@ -51,11 +61,36 @@ export interface TableParts {
 	ambient: Ambient;
 	/** Already in view when the party arrives: an inclusive rectangle of cells. */
 	arrival: { from: GridPos; to: GridPos };
+	/** Raised ground, applied in order (later areas win); the rest is level 0. */
+	terrain?: readonly Rise[];
 }
+
+/** A rectangle of cells at one level. */
+export interface Rise {
+	from: GridPos;
+	to: GridPos;
+	level: number;
+}
+
+/**
+ * A stair: `cells` in order from the bottom, each one level up from the
+ * last, starting at `from` + 1 (so it climbs off a floor at level `from`).
+ * Each cell may be a rectangle to make the stair wider.
+ */
+export function stair(from: number, cells: readonly { from: GridPos; to: GridPos }[]): Rise[] {
+	return cells.map((c, i) => ({ ...c, level: from + i + 1 }));
+}
+
+/** A one-cell rectangle. */
+export const at = (x: number, y: number) => ({ from: { x, y }, to: { x, y } });
 
 export function table(parts: TableParts, now = new Date()): SceneFile {
 	const revealed = emptyMask(parts.grid);
 	for (const i of rectCells(parts.grid, parts.arrival.from, parts.arrival.to)) revealed[i] = 1;
+	let levels: LevelMap | null = null;
+	for (const r of parts.terrain ?? []) {
+		levels = withLevel(levels ?? flatLevels(parts.grid), parts.grid, r.from, r.to, r.level);
+	}
 	return {
 		format: 'thirdfold-scene',
 		version: SCENE_FILE_VERSION,
@@ -68,7 +103,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		lights: parts.lights,
 		ambient: parts.ambient,
 		fog: { enabled: true, revealed: encodeMask(revealed) },
-		adventure: null
+		adventure: null,
+		terrain: levels ? encodeLevels(levels) : null
 	};
 }
 

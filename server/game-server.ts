@@ -38,6 +38,7 @@ import {
 	fogArea,
 	setAmbient,
 	setFog,
+	setTerrain,
 	updateLight,
 	updateProp,
 	updateToken
@@ -431,12 +432,17 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { token, from } = result;
 				const cells = gridDistance(from, token.pos);
-				const notice = `${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`;
+				// The notice goes first: the log is announced in order, and clients drop
+				// entries older than one they already have.
+				tokenNotice(
+					room,
+					`${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`,
+					token.ownerId
+				);
 				const outcome = adventure.afterMove(room, token, allowed.cost);
 				// Walking somewhere can move the story on, even to another table.
 				if (outcome.reset) resetRoom(room);
 				else syncRoom(room, player.id);
-				tokenNotice(room, notice, token.ownerId);
 				for (const message of outcome.log) announce(room, message);
 				if (outcome.enemyTurn !== undefined) scheduleEnemyTurn(room, outcome.enemyTurn);
 				return;
@@ -463,10 +469,11 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'token_delete': {
 				const result = deleteToken(room, player, msg.tokenId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
+				// Notice first, so the story it may set off is announced after it, in log order.
+				tokenNotice(room, `${player.name} removed ${result.token.name}.`, result.token.ownerId);
 				const outcome = adventure.afterTokenDeleted(room, msg.tokenId);
 				if (outcome.reset) resetRoom(room);
 				else syncRoom(room);
-				tokenNotice(room, `${player.name} removed ${result.token.name}.`, result.token.ownerId);
 				for (const message of outcome.log) announce(room, message);
 				return;
 			}
@@ -502,6 +509,11 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					room,
 					postSystem(room, `${player.name} turned fog of war ${msg.enabled ? 'on' : 'off'}.`)
 				);
+			}
+			case 'terrain_set': {
+				const result = setTerrain(room, player, msg.from, msg.to, msg.level);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
 			}
 			case 'fog_area': {
 				const result = fogArea(room, player, msg.from, msg.to, msg.reveal);

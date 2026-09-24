@@ -127,6 +127,19 @@ export const CLUES = {
 		title: 'The last ringers',
 		text: 'Among the bones: three tin badges stamped with a bell. The last ringers never climbed back up. They stayed to keep the Bell quiet.'
 	},
+	tollings: {
+		id: 'tollings',
+		kind: 'document',
+		unlocks: 'learned_agna',
+		title: 'The book of tollings',
+		text: 'The brothers’ ledgers record every tolling of the Bell: once in forty years, each time three ringers “sent down by Saint Agna’s door”. The last entry is forty years old, and the ink is shaky.'
+	},
+	clapperless: {
+		id: 'clapperless',
+		kind: 'object',
+		title: 'A bell without a voice',
+		text: 'The tower bell has no clapper: it was cut out long ago, the stump filed smooth. This bell has never rung in living memory. Whatever has been ringing, it isn’t this one.'
+	},
 	hum: {
 		id: 'hum',
 		kind: 'environment',
@@ -262,6 +275,8 @@ export const TEXT = {
 	graves:
 		'Forty-one graves, forty-one brothers. The newest stone is blank. Oswin must have cut it for himself.',
 	nave: 'The nave is cold and very still. Dust lies thick on the pews, except for one line of small footprints running to the statue by the west wall.',
+	firstToll:
+		'High in the tower, the bell begins to swing on its chains, though no one is near it. It makes no sound. The sound comes from below: one deep note that rolls up through the stone. Dust sifts down from the rafters, the pews creak, and far beneath your feet something vast turns over in its sleep.',
 	agna: 'You turn the little bronze bell in Saint Agna’s hands. Something clanks behind the west wall, and a section of stone swings inward on old hinges.',
 	agnaAgain: 'The bronze bell in her hands will not turn back.',
 	chamber:
@@ -280,7 +295,8 @@ export const TEXT = {
 	tobinAfter: 'Tobin clings to your sleeve and will not let go.',
 	bell: 'The Bell is black iron, older than the monastery, and cold as the bottom of a well. Every surface is cut with tiny, careful eyes.',
 	pit: 'You look down. The dark looks back, with far too many eyes, and hums the Bell’s note.',
-	bonesEmpty: 'Only bones now.'
+	bonesEmpty: 'Only bones now.',
+	bellEmpty: 'Dust and a dead bird inside the bell. No clapper.'
 };
 
 /** How the story ends, by the choice made at the Bell. */

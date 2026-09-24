@@ -411,6 +411,11 @@ function say(room: Room, text: string, speaker?: string, audience?: LogAudience)
 	});
 }
 
+/** Narration that every client plays as the bell tolling. */
+function toll(room: Room, text: string): ChatMessage {
+	return appendLog(room, { kind: 'narration', text, cue: 'toll' });
+}
+
 /** A d20 plus the character's stat against a difficulty, rolled here and logged for all. */
 function rollCheck(
 	room: Room,
@@ -599,6 +604,10 @@ function respond(
 			return told(say(room, TEXT.stall));
 		case 'waystone:read':
 			return told(say(room, TEXT.waystone));
+		case 'ledgers:read':
+			return told(...clue('tollings'));
+		case 'belfry-bell:search':
+			return before === 'used' ? told(say(room, TEXT.bellEmpty)) : told(...clue('clapperless'));
 		case 'bones:search':
 			return before === 'used' ? told(say(room, TEXT.bonesEmpty)) : told(...clue('badges'));
 		default:
@@ -850,13 +859,14 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			tell(say(room, TEXT.leaveVillage));
 			break;
 		case 'enter_monastery':
-			tell(say(room, TEXT.nave));
+			// The signature moment: the tower bell swings, and something answers far below.
+			tell(say(room, TEXT.nave), toll(room, TEXT.firstToll));
 			break;
 		case 'bell_rings': {
 			tell(say(room, TEXT.chamber));
 			const grate = objectDef('grate');
 			if (grate) setObjectState(room, adventure, grate, 'opened');
-			tell(say(room, TEXT.bellRings), ...startEncounter(room, adventure, 'chamber'));
+			tell(toll(room, TEXT.bellRings), ...startEncounter(room, adventure, 'chamber'));
 			break;
 		}
 		case 'descend':

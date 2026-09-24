@@ -8,6 +8,7 @@ import type { Ambient, Light } from '../src/lib/game/lights';
 import type { SceneObject } from '../src/lib/game/objects';
 import type { Prop } from '../src/lib/game/props';
 import type { Token } from '../src/lib/game/token';
+import type { LevelMap } from '../src/lib/game/terrain';
 import type { AdventureState } from './adventure/state';
 import { emptyMask, type CellMask } from '../src/lib/game/visibility';
 import {
@@ -38,6 +39,8 @@ export interface Room {
 	props: Map<string, Prop>;
 	lights: Map<string, Light>;
 	ambient: Ambient;
+	/** Each cell's level (elevation), or null for a flat table. */
+	terrain: LevelMap | null;
 	/** Name of the scene on the table: set when it is saved, loaded or imported. */
 	sceneName: string;
 	fog: {
@@ -93,6 +96,7 @@ export class RoomManager {
 			props: new Map(),
 			lights: new Map(),
 			ambient: 'day',
+			terrain: null,
 			sceneName: 'Untitled scene',
 			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID) },
 			log: [],

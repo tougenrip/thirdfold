@@ -213,6 +213,23 @@ describe('adventure messages', () => {
 		expect(parseClientMessage({ type: 'adventure_share', clueId: '' })).toBeNull();
 	});
 
+	it('parses the GM shaping the ground, within the levels there are', () => {
+		const from = { x: 1, y: 2 };
+		const to = { x: 3, y: 4 };
+		expect(parseClientMessage({ type: 'terrain_set', from, to, level: 5 })).toEqual({
+			type: 'terrain_set',
+			from,
+			to,
+			level: 5
+		});
+		for (const level of [-1, 2.5, 41, '5', null]) {
+			expect(parseClientMessage({ type: 'terrain_set', from, to, level })).toBeNull();
+		}
+		expect(parseClientMessage({ type: 'terrain_set', from, level: 1 })).toBeNull();
+		expect(parseServerMessage({ type: 'terrain_update', terrain: null })).not.toBeNull();
+		expect(parseServerMessage({ type: 'terrain_update', terrain: 5 })).toBeNull();
+	});
+
 	it('accepts adventure updates, including the adventure ending', () => {
 		expect(parseServerMessage({ type: 'adventure_update', adventure: null })).not.toBeNull();
 		expect(parseServerMessage({ type: 'adventure_update', adventure: 'x' })).toBeNull();

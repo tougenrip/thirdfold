@@ -5,8 +5,9 @@
 
 import * as THREE from 'three';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
-import { ASSET_IDS, footprintSize, type AssetId, type Prop } from '$lib/game/props';
-import { PROP_MODELS, type Shape } from './prop-models';
+import { ASSET_IDS, footprintCells, footprintSize, type AssetId, type Prop } from '$lib/game/props';
+import type { Ground } from './ground';
+import { PROP_MODELS, SWING_PIVOT, type Shape } from './prop-models';
 
 const SELECTED = new THREE.Color(0xe0a458);
 const HOVERED = new THREE.Color(0xe27a6b);
@@ -32,9 +33,13 @@ export class PropLayer {
 	private props: readonly Prop[] = [];
 	private selectedId: string | null = null;
 	private hoveredId: string | null = null;
+	/** Swing angles (radians) of props that are swinging, by id. */
+	private swings = new Map<string, number>();
+	private last: { grid: SquareGrid; ground: Ground | null } | null = null;
 
-	sync(props: readonly Prop[], grid: SquareGrid): void {
+	sync(props: readonly Prop[], grid: SquareGrid, ground: Ground | null = null): void {
 		this.props = props;
+		this.last = { grid, ground };
 		const byAsset = new Map<AssetId, Prop[]>(ASSET_IDS.map((id) => [id, []]));
 		for (const p of props) byAsset.get(p.assetId)?.push(p);
 
@@ -43,6 +48,8 @@ export class PropLayer {
 		const out = new THREE.Matrix4();
 		const turn = new THREE.Quaternion();
 		const up = new THREE.Vector3(0, 1, 0);
+		const swing = new THREE.Matrix4();
+		const tilt = new THREE.Matrix4();
 		for (const [assetId, list] of byAsset) {
 			const meshes = this.ensure(assetId, list.length);
 			if (!meshes) continue;
@@ -52,21 +59,32 @@ export class PropLayer {
 				const { w, h } = footprintSize(p.assetId, p.rotation);
 				const corner = cornerToWorld(grid, p.pos);
 				turn.setFromAxisAngle(up, -p.rotation * (Math.PI / 2));
+				// On the highest floor under it (a prop on a balcony stands on the balcony).
+				const floor = ground ? Math.max(...footprintCells(p).map((c) => ground.floorY(c))) : 0;
 				base.compose(
 					new THREE.Vector3(
 						corner.x + (w * grid.cellSize) / 2,
-						0,
+						floor,
 						corner.z + (h * grid.cellSize) / 2
 					),
 					turn,
 					new THREE.Vector3().setScalar(grid.cellSize * p.scale)
 				);
+				const angle = this.swings.get(p.id) ?? 0;
+				if (angle) {
+					// Rotate about the beam: up to the pivot, tilt, back down.
+					swing
+						.makeTranslation(0, SWING_PIVOT, 0)
+						.multiply(tilt.makeRotationX(angle))
+						.multiply(new THREE.Matrix4().makeTranslation(0, -SWING_PIVOT, 0));
+				}
 				model.forEach((m, j) => {
 					part.compose(
 						new THREE.Vector3(...m.at),
 						new THREE.Quaternion(),
 						new THREE.Vector3(...m.size)
 					);
+					if (angle && m.swings) part.premultiply(swing);
 					meshes.parts[j].setMatrixAt(i, out.multiplyMatrices(base, part));
 				});
 			});
@@ -77,6 +95,15 @@ export class PropLayer {
 			}
 		}
 		this.paint();
+	}
+
+	/** Swings a hanging prop to `angle` radians (0 is at rest). Returns true if anything moved. */
+	setSwing(id: string, angle: number): boolean {
+		if ((this.swings.get(id) ?? 0) === angle || !this.last) return false;
+		if (angle) this.swings.set(id, angle);
+		else this.swings.delete(id);
+		this.sync(this.props, this.last.grid, this.last.ground);
+		return true;
 	}
 
 	/** Returns true if the tint changed. */

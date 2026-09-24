@@ -2,7 +2,7 @@
 	import type { AssetId, Rotation } from '$lib/game/props';
 
 	export type BuildTool =
-		'select' | 'wall' | 'door' | 'erase' | 'reveal' | 'hide' | 'light' | 'prop';
+		'select' | 'wall' | 'door' | 'erase' | 'reveal' | 'hide' | 'light' | 'prop' | 'height';
 
 	/** The prop the GM is about to place. */
 	export interface PropDraft {
@@ -20,6 +20,8 @@
 <script lang="ts">
 	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
 	import { ASSET_IDS, ASSETS } from '$lib/game/props';
+	import { MAX_LEVEL } from '$lib/game/terrain';
+	import { WALL_LEVELS } from '$lib/game/visibility';
 
 	interface Props {
 		tool: BuildTool;
@@ -33,6 +35,9 @@
 		onAmbient(ambient: Ambient): void;
 		onLightDraft(draft: LightDraft): void;
 		onPropDraft(draft: PropDraft): void;
+		/** The level the height tool sets cells to. */
+		heightLevel: number;
+		onHeightLevel(level: number): void;
 	}
 
 	let {
@@ -46,7 +51,9 @@
 		onFogAll,
 		onAmbient,
 		onLightDraft,
-		onPropDraft
+		onPropDraft,
+		heightLevel,
+		onHeightLevel
 	}: Props = $props();
 
 	const BLOCKS_HINT = { none: 'walk over', movement: 'blocks movement', sight: 'blocks sight' };
@@ -115,6 +122,24 @@
 				>
 			{/each}
 		</div>
+		{@render toolButton({ id: 'height', label: 'Shape ground', key: 'G' })}
+		{#if tool === 'height'}
+			<label class="row">
+				<span class="muted">Level (0 floor, {WALL_LEVELS} a wall high)</span>
+				<input
+					type="number"
+					min="0"
+					max={MAX_LEVEL}
+					value={heightLevel}
+					aria-label="Ground level"
+					onchange={(e) => {
+						const level = Math.round(e.currentTarget.valueAsNumber);
+						if (level >= 0 && level <= MAX_LEVEL) onHeightLevel(level);
+					}}
+				/>
+			</label>
+			<p class="muted">Click two corners of an area. Stairs rise one level a cell.</p>
+		{/if}
 		{@render toolButton({ id: 'light', label: 'Place light', key: 'L' })}
 		{#if tool === 'light'}
 			<label class="row">

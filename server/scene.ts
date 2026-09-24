@@ -32,13 +32,14 @@ import {
 	type PropPatch,
 	type TokenPatch
 } from '../src/lib/game/protocol';
+import { MAX_LEVEL, withLevel } from '../src/lib/game/terrain';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
 import { DEFAULT_VISION, rectCells } from '../src/lib/game/visibility';
 import { fail, type Player, type Result, type Room } from './rooms';
 
 /** Walls, closed doors and blocking props, as movement and sight see them. */
 export function obstacles(room: Room) {
-	return obstaclesFor(room.grid, room.objects.values(), room.props.values());
+	return obstaclesFor(room.grid, room.objects.values(), room.props.values(), room.terrain);
 }
 
 export interface NewToken {
@@ -261,6 +262,25 @@ export function fogArea(
 		if (!reveal) for (const p of room.players.values()) p.explored[i] = 0;
 	}
 	return { ok: true, cells: cells.length };
+}
+
+/** GM: sets the level of every cell in a rectangle (0 is the floor). */
+export function setTerrain(
+	room: Room,
+	actor: Player,
+	from: GridPos,
+	to: GridPos,
+	level: number
+): Result<{ cells: number }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM shapes the ground.');
+	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
+		return fail('invalid_position', 'That area is off the table.');
+	}
+	if (!Number.isInteger(level) || level < 0 || level > MAX_LEVEL) {
+		return fail('invalid_position', `Levels run from 0 to ${MAX_LEVEL}.`);
+	}
+	room.terrain = withLevel(room.terrain, room.grid, from, to, level);
+	return { ok: true, cells: rectCells(room.grid, from, to).length };
 }
 
 const FORBIDDEN_LIGHTS = fail('forbidden', 'Only the GM controls lights.');

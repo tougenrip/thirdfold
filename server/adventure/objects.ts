@@ -482,6 +482,34 @@ export const OBJECTS: readonly ObjectDef[] = [
 		verbs: [],
 		secret: SECRET_EDGE
 	},
+	{
+		id: 'ledgers',
+		name: 'The brothers’ ledgers',
+		kind: 'book',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.ledgers },
+		initial: 'interactable',
+		states: any,
+		verbs: [{ id: 'read', label: 'Read the ledgers', from: ['interactable', 'used'], to: 'used' }]
+	},
+	{
+		id: 'belfry-bell',
+		name: 'The tower bell',
+		kind: 'landmark',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.bell },
+		initial: 'interactable',
+		states: any,
+		verbs: [
+			{
+				id: 'search',
+				label: 'Look inside the bell',
+				from: ['interactable', 'used'],
+				to: 'used',
+				check: { stat: 'wits', dc: 9 }
+			}
+		]
+	},
 	// The Hollow
 	{
 		id: 'bell',

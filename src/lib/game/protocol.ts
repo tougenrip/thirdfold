@@ -21,6 +21,7 @@ import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
 import type { SceneObject } from './objects';
 import { isAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
 import type { SceneFile } from './scene-file';
+import { MAX_LEVEL } from './terrain';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
 
@@ -55,6 +56,8 @@ export interface RoomSnapshot {
 	log: ChatMessage[];
 	/** The adventure being played at this table (as this client may know it), or null for a free table. */
 	adventure: AdventureView | null;
+	/** Each cell's level (base64, see terrain.ts), as far as this client knows the ground; null when flat. */
+	terrain: string | null;
 }
 
 /** Fields the GM may change on an existing token. Omitted fields stay as they are. */
@@ -113,6 +116,8 @@ export type ClientMessage =
 	| { type: 'light_delete'; lightId: string }
 	/** GM: the room's ambient light level. */
 	| { type: 'ambient_set'; ambient: Ambient }
+	/** GM: set the level (elevation) of every cell in the rectangle between two cells. */
+	| { type: 'terrain_set'; from: GridPos; to: GridPos; level: number }
 	/** GM: save the current table under a name. Replies with scene_saved. */
 	| { type: 'scene_save'; name: string }
 	/** GM: replace the table with a saved scene. */
@@ -214,6 +219,8 @@ export type ServerMessage =
 	| { type: 'ambient_update'; ambient: Ambient }
 	/** This client's visibility changed (vision moved, doors, GM reveal, fog toggled). */
 	| { type: 'fog_update'; fog: FogView }
+	/** The ground this client knows changed (the GM reshaped it, or more of it was explored). */
+	| { type: 'terrain_update'; terrain: string | null }
 	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
 	| { type: 'scene_saved'; sceneId: string; name: string; savedAt: string }
 	/** To the GM who asked: the current table as a scene file. */
@@ -445,6 +452,18 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		}
 		case 'light_delete':
 			return isId(data.lightId) ? { type: 'light_delete', lightId: data.lightId } : null;
+		case 'terrain_set': {
+			const from = parseGridPos(data.from);
+			const to = parseGridPos(data.to);
+			const level = data.level;
+			return from &&
+				to &&
+				Number.isInteger(level) &&
+				(level as number) >= 0 &&
+				(level as number) <= MAX_LEVEL
+				? { type: 'terrain_set', from, to, level: level as number }
+				: null;
+		}
 		case 'ambient_set':
 			return AMBIENTS.includes(data.ambient as Ambient)
 				? { type: 'ambient_set', ambient: data.ambient as Ambient }
@@ -532,6 +551,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		ambient_update: (d) => typeof d.ambient === 'string',
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
+		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
 		adventure_update: (d) => d.adventure === null || isRecord(d.adventure),
