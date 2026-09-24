@@ -214,3 +214,57 @@ export function alignToAxis(from: GridPos, to: GridPos): GridPos {
 		? { x: to.x, y: from.y }
 		: { x: from.x, y: to.y };
 }
+
+/**
+ * Shortest walk from `from` to the nearest cell `goal` accepts, as the cells
+ * stepped onto in order (not including `from`); null when none can be
+ * reached. Steps follow `canStep`, so walls, closed doors and solid props
+ * block; `passable` can rule out more cells (e.g. ones other tokens stand on).
+ * Every step costs one cell, diagonals included, like `gridDistance`.
+ */
+export function findPath(
+	grid: SquareGrid,
+	blocked: Blockers,
+	from: GridPos,
+	goal: (cell: GridPos) => boolean,
+	passable: (cell: GridPos) => boolean = () => true
+): GridPos[] | null {
+	if (!inBounds(grid, from)) return null;
+	if (goal(from)) return [];
+	const key = (p: GridPos) => p.y * grid.width + p.x;
+	const prev = new Int32Array(grid.width * grid.height).fill(-1);
+	prev[key(from)] = key(from);
+	const queue: GridPos[] = [from];
+	for (let i = 0; i < queue.length; i++) {
+		const cur = queue[i];
+		for (let dy = -1; dy <= 1; dy++) {
+			for (let dx = -1; dx <= 1; dx++) {
+				if (!dx && !dy) continue;
+				const next = { x: cur.x + dx, y: cur.y + dy };
+				if (!inBounds(grid, next) || prev[key(next)] !== -1) continue;
+				if (!canStep(blocked, cur, next) || !passable(next)) continue;
+				prev[key(next)] = key(cur);
+				if (goal(next)) {
+					const path = [next];
+					for (let k = key(cur); k !== key(from); k = prev[k]) {
+						path.unshift({ x: k % grid.width, y: Math.floor(k / grid.width) });
+					}
+					return path;
+				}
+				queue.push(next);
+			}
+		}
+	}
+	return null;
+}
+
+/** Steps needed to walk from `from` to `to`, or null when there's no way through. */
+export function walkDistance(
+	grid: SquareGrid,
+	blocked: Blockers,
+	from: GridPos,
+	to: GridPos
+): number | null {
+	if (!inBounds(grid, to)) return null;
+	return findPath(grid, blocked, from, (c) => c.x === to.x && c.y === to.y)?.length ?? null;
+}

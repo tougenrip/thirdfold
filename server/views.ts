@@ -7,6 +7,7 @@
 // After every change the game server recomputes each viewer's view and sends
 // only the difference from what that viewer was last sent (diffView).
 
+import type { AdventureView } from '../src/lib/adventure/adventure';
 import type { ChatMessage } from '../src/lib/game/chat';
 import { lightSources, litMask, type Ambient, type Light } from '../src/lib/game/lights';
 import { cellsBeside, unitEdges, type Obstacles, type SceneObject } from '../src/lib/game/objects';
@@ -21,6 +22,7 @@ import {
 	type CellMask,
 	type FogView
 } from '../src/lib/game/visibility';
+import { adventureView } from './adventure/view';
 import { toPublicPlayer, type Player, type Room } from './rooms';
 
 export interface View {
@@ -30,7 +32,10 @@ export interface View {
 	lights: Light[];
 	ambient: Ambient;
 	fog: FogView;
+	adventure: AdventureView | null;
 }
+
+type SceneView = Omit<View, 'adventure'>;
 
 const NO_FOG: FogView = { enabled: false, visible: '', explored: '' };
 
@@ -90,6 +95,13 @@ function touches(room: Room, o: SceneObject, mask: CellMask): boolean {
  * records newly seen cells as explored, so call it once per viewer per change.
  */
 export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneContext(room)): View {
+	const scene = sceneViewFor(room, viewer, ctx);
+	const known = room.fog.enabled && viewer.role !== 'gm' ? viewer.explored : null;
+	const tokenIds = new Set(scene.tokens.map((t) => t.id));
+	return { ...scene, adventure: adventureView(room, viewer, tokenIds, known) };
+}
+
+function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView {
 	const allTokens = [...room.tokens.values()];
 	const allObjects = [...room.objects.values()];
 	const allLights = [...room.lights.values()];
@@ -163,7 +175,8 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		lights: view.lights.map((l) => structuredClone(l)),
 		ambient: view.ambient,
 		fog: view.fog,
-		log: room.log.filter((m) => canSeeLogEntry(viewer, m))
+		log: room.log.filter((m) => canSeeLogEntry(viewer, m)),
+		adventure: view.adventure && structuredClone(view.adventure)
 	};
 }
 
@@ -175,6 +188,7 @@ export interface SentView {
 	lights: Map<string, string>;
 	ambient: Ambient;
 	fog: string;
+	adventure: string;
 }
 
 export function sentFrom(view: View): SentView {
@@ -184,7 +198,8 @@ export function sentFrom(view: View): SentView {
 		props: new Map(view.props.map((p) => [p.id, JSON.stringify(p)])),
 		lights: new Map(view.lights.map((l) => [l.id, JSON.stringify(l)])),
 		ambient: view.ambient,
-		fog: JSON.stringify(view.fog)
+		fog: JSON.stringify(view.fog),
+		adventure: JSON.stringify(view.adventure)
 	};
 }
 
@@ -243,6 +258,10 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 		} else {
 			messages.push({ type: 'token_upserted', token: structuredClone(t) });
 		}
+	}
+	// Last, so the tokens it refers to have arrived.
+	if (prev.adventure !== JSON.stringify(view.adventure)) {
+		messages.push({ type: 'adventure_update', adventure: structuredClone(view.adventure) });
 	}
 	return messages;
 }

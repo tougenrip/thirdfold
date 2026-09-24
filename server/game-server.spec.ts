@@ -894,3 +894,115 @@ describe('props over the wire', () => {
 		expect(await pip.until('props_changed')).toMatchObject({ upserted: [], removed: [table.id] });
 	});
 });
+
+describe('The Hollow Bell over the wire', () => {
+	beforeEach(async () => {
+		// Every die rolls its highest face, and the enemies act without a pause.
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 0
+		});
+	});
+
+	async function table() {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId: pipId } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+		return { gm, pip, pipId };
+	}
+
+	async function untilStage(client: TestClient, stage: string) {
+		for (;;) {
+			const msg = await client.until('adventure_update');
+			if (msg.adventure?.stage === stage) return msg.adventure;
+		}
+	}
+
+	it('plays the opening section from start to finish, with both sides seeing the same story', async () => {
+		const { gm, pip, pipId } = await table();
+
+		pip.send({ type: 'adventure_start' });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_start' });
+		const reset = await pip.until('room_reset');
+		expect(reset.room.adventure).toMatchObject({ title: 'The Hollow Bell', stage: 'choosing' });
+		expect(reset.room.adventure?.cues).toBeNull();
+		expect((await gm.until('room_reset')).room.adventure?.cues?.length).toBeGreaterThan(0);
+
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const claimed = await gm.until('adventure_update');
+		expect(claimed.adventure?.characters.find((c) => c.id === 'warden')).toMatchObject({
+			inPlay: true,
+			playerId: pipId
+		});
+		const warden = (await pip.until('token_upserted')).token;
+		expect(warden).toMatchObject({ name: 'The Warden', ownerId: pipId });
+
+		gm.send({ type: 'adventure_begin' });
+		await untilStage(pip, 'arrival');
+
+		// Into the inn to talk to Maren: open the door, walk in, talk.
+		const move = (to: { x: number; y: number }) =>
+			pip.send({ type: 'token_move', tokenId: warden.id, to });
+		move({ x: 9, y: 10 });
+		pip.send({ type: 'door_toggle', objectId: 'hb-inn-door' });
+		move({ x: 7, y: 10 });
+		pip.send({ type: 'adventure_interact', targetId: 'maren' });
+		const told = await untilStage(gm, 'investigate');
+		expect(told.objectives.find((o) => o.id === 'innkeeper')?.done).toBe(true);
+
+		// The gate is chained until the Hound is dealt with.
+		pip.send({ type: 'door_toggle', objectId: 'hb-gate' });
+		expect(await pip.until('error')).toMatchObject({ message: 'The gate is chained shut.' });
+
+		// The well: a clue, and the Hound climbs out beside the Warden.
+		move({ x: 11, y: 12 });
+		pip.send({ type: 'adventure_interact', targetId: 'well' });
+		const fight = await untilStage(pip, 'encounter');
+		expect(fight.clues.map((c) => c.id)).toEqual(['scratches']);
+		const [hound] = fight.encounter!.enemies;
+		expect(hound).toMatchObject({ name: 'Hollow Hound', hp: 16, maxHp: 16 });
+
+		// 1d20+5 hits for 1d8+3 = 11; the Hound bites back for 8; the second blow kills it.
+		pip.send({ type: 'adventure_attack', targetId: hound.tokenId });
+		for (;;) {
+			const { message } = await gm.expect('chat');
+			if (message.kind === 'system' && message.text === 'Round 2. Your move.') break;
+		}
+		pip.send({ type: 'adventure_attack', targetId: hound.tokenId });
+		const after = await untilStage(gm, 'aftermath');
+		expect(after.characters.find((c) => c.id === 'warden')?.hp).toBe(22);
+		expect(after.encounter).toBeNull();
+
+		// Up through the open gate to the mountain path: the section ends.
+		move({ x: 11, y: 1 });
+		const done = await untilStage(gm, 'complete');
+		expect(done.objectives.every((o) => o.done)).toBe(true);
+		expect((await untilStage(pip, 'complete')).completedAt).toBeGreaterThan(0);
+	});
+
+	it('keeps each character to one player and rejects actions that make no sense yet', async () => {
+		const { gm, pip } = await table();
+		const bo = await connect();
+		gm.send({ type: 'adventure_start' });
+		const { room: snapshot } = await pip.until('room_reset');
+		bo.send({ type: 'join', roomId: snapshot.id, name: 'Bo', role: 'player' });
+		await bo.expect('welcome');
+
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		await pip.until('token_upserted');
+		bo.send({ type: 'adventure_claim', characterId: 'veil' });
+		expect(await bo.until('error')).toMatchObject({ code: 'character_taken' });
+		pip.send({ type: 'adventure_attack', targetId: 'nobody' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		pip.send({ type: 'adventure_claim', characterId: 'wizard' });
+		expect(await pip.until('error')).toMatchObject({ code: 'invalid_message' });
+	});
+});

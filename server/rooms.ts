@@ -8,6 +8,7 @@ import type { Ambient, Light } from '../src/lib/game/lights';
 import type { SceneObject } from '../src/lib/game/objects';
 import type { Prop } from '../src/lib/game/props';
 import type { Token } from '../src/lib/game/token';
+import type { AdventureState } from './adventure/state';
 import { emptyMask, type CellMask } from '../src/lib/game/visibility';
 import {
 	normalizeName,
@@ -49,6 +50,8 @@ export interface Room {
 	nextSeq: number;
 	/** When the last player disconnected, or null while anyone is connected. */
 	emptySince: number | null;
+	/** The adventure being played at this table, or null for a free table. */
+	adventure: AdventureState | null;
 }
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; code: ErrorCode; message: string };
@@ -94,7 +97,8 @@ export class RoomManager {
 			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID) },
 			log: [],
 			nextSeq: 1,
-			emptySince: null
+			emptySince: null,
+			adventure: null
 		};
 		const player = this.addPlayer(room, name, 'gm');
 		this.rooms.set(room.id, room);

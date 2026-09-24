@@ -18,6 +18,7 @@ import {
 	parseSceneFile,
 	SCENE_FILE_MAX_BYTES
 } from '../src/lib/game/scene-file';
+import * as adventure from './adventure/engine';
 import { RateLimiter } from './rate-limit';
 import { applyScene, exportScene } from './scene-io';
 import { MemorySceneStore, type SceneStore } from './scene-store';
@@ -60,6 +61,8 @@ export interface GameServerOptions {
 	rollDie?: DieRoller;
 	/** Where saved scenes go. Defaults to memory (lost on exit); server/index.ts passes a file store. */
 	sceneStore?: SceneStore;
+	/** Pause before enemies act in an adventure fight, so players can follow the dice. */
+	enemyTurnDelayMs?: number;
 }
 
 export interface GameServer {
@@ -81,7 +84,12 @@ interface Seat {
 }
 
 export function startGameServer(options: GameServerOptions): Promise<GameServer> {
-	const { emptyRoomTtlMs = 10 * 60_000, heartbeatMs = 30_000, rollDie = secureRoller } = options;
+	const {
+		emptyRoomTtlMs = 10 * 60_000,
+		heartbeatMs = 30_000,
+		rollDie = secureRoller,
+		enemyTurnDelayMs = 2500
+	} = options;
 	const rooms = new RoomManager();
 	// Chat and dice: bursts of 8, then one every 750 ms per player.
 	const chatLimiter = new RateLimiter(8, 4 / 3);
@@ -94,6 +102,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	const alive = new WeakSet<WebSocket>();
 	/** What each socket was last sent of the (fog-filtered) scene, to diff against. */
 	const sentViews = new WeakMap<WebSocket, SentView>();
+	/** Scheduled enemy turns, cleared on shutdown. */
+	const timers = new Set<ReturnType<typeof setTimeout>>();
 
 	const wss = new WebSocketServer({
 		port: options.port,
@@ -236,8 +246,78 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		const parsed = parseSceneFile(data);
 		if (!parsed.ok) throw new SceneError('invalid_scene', parsed.error);
 		applyScene(room, parsed.scene);
+		// A different table ends the story that was being played on this one.
+		const ended = room.adventure !== null;
+		room.adventure = null;
 		resetRoom(room);
 		announce(room, postSystem(room, `${player.name} ${verb} the scene “${parsed.scene.name}”.`));
+		if (ended) announce(room, postSystem(room, 'The adventure ended with the old table.'));
+	}
+
+	/** Relays what an adventure action did: new views (or a fresh table), its log, and the enemies' turn. */
+	function applyOutcome(room: Room, outcome: adventure.Outcome, movedBy?: string): void {
+		if (outcome.reset) resetRoom(room);
+		else syncRoom(room, movedBy);
+		for (const message of outcome.log) announce(room, message);
+		if (outcome.enemyTurn !== undefined) scheduleEnemyTurn(room, outcome.enemyTurn);
+	}
+
+	function scheduleEnemyTurn(room: Room, turn: number): void {
+		const timer = setTimeout(() => {
+			timers.delete(timer);
+			if (rooms.get(room.id) !== room) return;
+			try {
+				const outcome = adventure.runEnemyTurn(room, turn, rollDie);
+				if (outcome) applyOutcome(room, outcome);
+			} catch (err) {
+				console.error(`[room ${room.id}] enemy turn failed`, err);
+			}
+		}, enemyTurnDelayMs);
+		timers.add(timer);
+	}
+
+	function handleAdventure(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		msg: Extract<ClientMessage, { type: `adventure_${string}` }>
+	): void {
+		// Talking, narration and picking characters add to the log, so they share the chat rate limit.
+		const chatty =
+			msg.type === 'adventure_interact' ||
+			msg.type === 'adventure_narrate' ||
+			msg.type === 'adventure_cue' ||
+			msg.type === 'adventure_claim' ||
+			msg.type === 'adventure_release';
+		if (chatty && !chatLimiter.take(player.id)) {
+			return sendError(ws, 'rate_limited', 'Slow down a little.');
+		}
+		const result = (() => {
+			switch (msg.type) {
+				case 'adventure_start':
+					return adventure.startAdventure(room, player);
+				case 'adventure_claim':
+					return adventure.claimCharacter(room, player, msg.characterId);
+				case 'adventure_release':
+					return adventure.releaseCharacter(room, player);
+				case 'adventure_begin':
+					return adventure.beginAdventure(room, player);
+				case 'adventure_interact':
+					return adventure.interact(room, player, msg.targetId);
+				case 'adventure_attack':
+					return adventure.attack(room, player, msg.targetId, rollDie);
+				case 'adventure_end_turn':
+					return adventure.endTurn(room, player);
+				case 'adventure_narrate':
+					return adventure.narrate(room, player, msg.text);
+				case 'adventure_cue':
+					return adventure.readCue(room, player, msg.cueId);
+				case 'adventure_control':
+					return adventure.control(room, player, msg.op);
+			}
+		})();
+		if (!result.ok) return sendError(ws, result.code, result.message);
+		applyOutcome(room, result);
 	}
 
 	/** Save/load/import/export. Storage is async, so errors come back as messages, never throws. */
@@ -322,16 +402,21 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				);
 			}
 			case 'token_move': {
+				const allowed = adventure.checkMove(room, player, msg.tokenId, msg.to);
+				if (!allowed.ok) return sendError(ws, allowed.code, allowed.message);
 				const result = moveToken(room, player, msg.tokenId, msg.to);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { token, from } = result;
+				const outcome = adventure.afterMove(room, token, allowed.cost);
 				syncRoom(room, player.id);
 				const cells = gridDistance(from, token.pos);
-				return tokenNotice(
+				tokenNotice(
 					room,
 					`${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`,
 					token.ownerId
 				);
+				for (const message of outcome.log) announce(room, message);
+				return;
 			}
 			case 'token_update': {
 				const result = updateToken(room, player, msg.tokenId, msg.patch);
@@ -355,12 +440,11 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'token_delete': {
 				const result = deleteToken(room, player, msg.tokenId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
+				const outcome = adventure.afterTokenDeleted(room, msg.tokenId);
 				syncRoom(room);
-				return tokenNotice(
-					room,
-					`${player.name} removed ${result.token.name}.`,
-					result.token.ownerId
-				);
+				tokenNotice(room, `${player.name} removed ${result.token.name}.`, result.token.ownerId);
+				for (const message of outcome.log) announce(room, message);
+				return;
 			}
 			case 'object_create': {
 				const result = createObject(room, player, msg.kind, msg.a, msg.b);
@@ -373,6 +457,9 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				return syncRoom(room);
 			}
 			case 'door_toggle': {
+				const door = room.objects.get(msg.objectId);
+				const locked = door?.kind === 'door' && adventure.doorLock(room, player, door);
+				if (locked) return sendError(ws, 'forbidden', locked);
 				const result = toggleDoor(room, player, msg.objectId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				syncRoom(room);
@@ -455,6 +542,17 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return announce(room, result.message);
 			}
+			case 'adventure_start':
+			case 'adventure_claim':
+			case 'adventure_release':
+			case 'adventure_begin':
+			case 'adventure_interact':
+			case 'adventure_attack':
+			case 'adventure_end_turn':
+			case 'adventure_narrate':
+			case 'adventure_cue':
+			case 'adventure_control':
+				return handleAdventure(ws, room, player, msg);
 		}
 	}
 
@@ -520,6 +618,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				close: () =>
 					new Promise<void>((done) => {
 						clearInterval(heartbeat);
+						for (const timer of timers) clearTimeout(timer);
+						timers.clear();
 						for (const ws of wss.clients) ws.terminate();
 						wss.close(() => done());
 					})

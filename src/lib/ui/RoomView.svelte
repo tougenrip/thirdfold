@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { canReach, inAttackRange } from '$lib/adventure/adventure';
+	import { CHARACTERS } from '$lib/adventure/characters';
 	import type { ChatMessage } from '$lib/game/chat';
 	import { formatBreakdown } from '$lib/game/dice';
 	import { gridDistance, type GridPos } from '$lib/game/grid';
 	import {
 		alignToAxis,
-		isReachable,
 		objectOnEdge,
+		walkDistance,
 		segmentProblem,
 		type Door,
 		type SceneObject
@@ -21,6 +23,7 @@
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
 	import { DEFAULT_LIGHT_RADIUS, LIGHT_COLORS, type Light } from '$lib/game/lights';
 	import {
+		footprintCells,
 		footprintSize,
 		obstaclesFor,
 		placementProblem,
@@ -28,7 +31,11 @@
 		type Prop,
 		type Rotation
 	} from '$lib/game/props';
+	import ActionBar from './ActionBar.svelte';
+	import AdventurePanel from './AdventurePanel.svelte';
 	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
+	import CharacterSelect from './CharacterSelect.svelte';
+	import SectionEnd from './SectionEnd.svelte';
 	import PropInspector from './PropInspector.svelte';
 	import ChatPanel from './ChatPanel.svelte';
 	import ScenePanel from './ScenePanel.svelte';
@@ -57,17 +64,39 @@
 	let selectedPropId = $state<string | null>(null);
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
-	let rollCard = $state<Extract<ChatMessage, { kind: 'roll' }> | null>(null);
+	let rollCard = $state<RollEntry | null>(null);
 	/** The roll being thrown as 3D dice; its card shows once they land. */
 	let diceThrow = $state<DiceThrow | null>(null);
-	let pendingCard: Extract<ChatMessage, { kind: 'roll' }> | null = null;
+	let pendingCard: RollEntry | null = null;
+	/** The end-of-section screen the viewer closed to look around (by stage and time). */
+	let dismissedEnd = $state<string | null>(null);
 	let cardTimer: ReturnType<typeof setTimeout> | undefined;
 	// Only rolls that arrive while we're here pop up; history in the snapshot does not.
 	let lastAnnouncedSeq: number | null = null;
 
+	type RollEntry = Extract<ChatMessage, { kind: 'roll' | 'attack' }>;
+
 	const room = $derived(conn.room);
 	const me = $derived(conn.me);
 	const isGm = $derived(me?.role === 'gm');
+	const adventure = $derived(room?.adventure ?? null);
+	const myCharacter = $derived(
+		(me && adventure?.characters.find((c) => c.inPlay && c.playerId === me.id)) || null
+	);
+	const myCharacterToken = $derived(
+		(myCharacter && room?.tokens.find((t) => t.id === myCharacter.tokenId)) || null
+	);
+	/** Cells my character may still move this round, while a fight is on and it is selected. */
+	const movesLeft = $derived.by(() => {
+		const encounter = adventure?.encounter;
+		if (!encounter || !myCharacter || selectedId !== myCharacter.tokenId) return null;
+		return Math.max(0, CHARACTERS[myCharacter.id].speed - (encounter.moved[myCharacter.id] ?? 0));
+	});
+	const endKey = $derived(
+		adventure && (adventure.stage === 'complete' || adventure.stage === 'defeat')
+			? `${adventure.stage}:${adventure.completedAt ?? adventure.begunAt}`
+			: null
+	);
 	const hoverCell = $derived(hover?.cell ?? null);
 	const blocked = $derived(
 		room ? obstaclesFor(room.grid, room.objects, room.props) : new Set<string>()
@@ -175,7 +204,32 @@
 		return null;
 	});
 
+	/** What the adventure lets my character use or attack at a pick, if anything. */
+	function adventureTarget(
+		pick: Pick | null
+	): { kind: 'interact' | 'attack'; id: string; name: string; inReach: boolean } | null {
+		if (!pick || !room || !adventure || !myCharacter || !myCharacterToken || isGm) return null;
+		const token = pick.tokenId ? room.tokens.find((t) => t.id === pick.tokenId) : undefined;
+		const enemy = token && adventure.encounter?.enemies.find((e) => e.tokenId === token.id);
+		if (token && enemy) {
+			const range = CHARACTERS[myCharacter.id].attack.range;
+			const inReach = inAttackRange(blocked, myCharacterToken.pos, token.pos, range);
+			return { kind: 'attack', id: token.id, name: token.name, inReach };
+		}
+		// Talking and searching wait until the fight is over (and until play has begun).
+		if (adventure.encounter || adventure.stage === 'choosing' || myCharacter.downed) return null;
+		const prop = !token && pick.propId ? room.props.find((p) => p.id === pick.propId) : undefined;
+		const cells = token ? [token.pos] : prop ? footprintCells(prop) : [];
+		const thing = adventure.interactables.find((i) =>
+			i.cells.some((c) => cells.some((d) => d.x === c.x && d.y === c.y))
+		);
+		if (!thing) return null;
+		const inReach = canReach(blocked, myCharacterToken.pos, thing.cells);
+		return { kind: 'interact', id: thing.id, name: thing.label, inReach };
+	}
+
 	const hoveredPropId = $derived.by(() => {
+		if (!isGm && hover?.propId && adventureTarget(hover)) return hover.propId;
 		if (!isGm || placing) return null;
 		if (tool === 'erase' && !objectUnder(hover) && !lightUnder(hover)) {
 			return propUnder(hover)?.id ?? null;
@@ -186,13 +240,16 @@
 		return null;
 	});
 
+	/** Steps for the selected token to walk to the hovered cell (null: no way there). */
+	const steps = $derived(
+		selected && hoverCell && room && !isGm
+			? walkDistance(room.grid, blocked, selected.pos, hoverCell)
+			: null
+	);
 	const reachable = $derived(
-		!!(
-			selected &&
-			hoverCell &&
-			room &&
-			(isGm || isReachable(room.grid, blocked, selected.pos, hoverCell))
-		)
+		!!selected &&
+			!!hoverCell &&
+			(isGm || (steps !== null && (movesLeft === null || steps <= movesLeft)))
 	);
 
 	const highlight = $derived.by((): { cell: GridPos; kind: HighlightKind } | null => {
@@ -225,7 +282,7 @@
 		if (selectedProp) {
 			return 'Click a cell to move the prop. [ and ] rotate, Delete removes, Esc deselects.';
 		}
-		if (hoveredPropId) return 'Click to select this prop.';
+		if (hoveredPropId && isGm) return 'Click to select this prop.';
 		if (tool === 'light') {
 			const existing = lightUnder(hover);
 			return existing
@@ -242,11 +299,24 @@
 			const door = doorUnder(hover)!;
 			return `Click to ${door.open ? 'close' : 'open'} the door.`;
 		}
+		const target = adventureTarget(hover);
+		if (target) {
+			if (!target.inReach) {
+				return target.kind === 'attack'
+					? `${target.name} is out of reach.`
+					: 'Walk up to it to interact.';
+			}
+			return target.kind === 'attack'
+				? `Click to attack the ${target.name}.`
+				: `Click to ${target.name[0].toLowerCase()}${target.name.slice(1)}.`;
+		}
 		if (selected) {
-			const distance = hoverCell ? gridDistance(selected.pos, hoverCell) : null;
+			const distance = hoverCell ? (steps ?? gridDistance(selected.pos, hoverCell)) : null;
 			const suffix = distance ? ` · ${distance} ${distance === 1 ? 'cell' : 'cells'}` : '';
-			const way = hoverCell && !reachable ? ' · no way through' : '';
-			return `Moving ${selected.name}: click a cell${suffix}${way}. Esc to deselect.`;
+			const left = movesLeft === null ? '' : ` · ${movesLeft} left this round`;
+			const way =
+				hoverCell && !reachable ? (steps === null ? ' · no way through' : ' · too far') : '';
+			return `Moving ${selected.name}: click a cell${suffix}${way}${left}.`;
 		}
 		if (me?.role === 'spectator') return 'You are watching this table.';
 		if (!isGm && room?.fog.enabled && !room.tokens.some((t) => t.ownerId === me?.id)) {
@@ -278,14 +348,19 @@
 		}
 		if (!latest || latest.seq <= lastAnnouncedSeq) return;
 		lastAnnouncedSeq = latest.seq;
-		if (latest.kind !== 'roll') return;
-		const dice = diceToThrow(latest.roll);
+		if (latest.kind !== 'roll' && latest.kind !== 'attack') return;
+		const dice =
+			latest.kind === 'roll'
+				? diceToThrow(latest.roll)
+				: [...diceToThrow(latest.toHit), ...(latest.damage ? diceToThrow(latest.damage) : [])];
 		if (dice.length === 0) {
 			rollCard = latest;
 			return;
 		}
-		// Dice in the roller's token colour when they have one.
-		const color = room.tokens.find((t) => t.ownerId === latest.authorId)?.color ?? '#efe6d2';
+		// Dice in the roller's token colour when they have one (an enemy rolls in its own).
+		const color =
+			room.tokens.find((t) => t.ownerId === latest.authorId || t.id === latest.authorId)?.color ??
+			'#efe6d2';
 		pendingCard = latest;
 		diceThrow = { seq: latest.seq, dice, color };
 	});
@@ -412,6 +487,20 @@
 			conn.send({ type: 'prop_update', propId: selectedProp.id, patch: { pos: pick.cell } });
 			return;
 		}
+		const target = adventureTarget(pick);
+		if (target) {
+			if (!target.inReach) {
+				return showToast(
+					target.kind === 'attack' ? `The ${target.name} is out of reach.` : 'Walk up to it first.'
+				);
+			}
+			conn.send(
+				target.kind === 'attack'
+					? { type: 'adventure_attack', targetId: target.id }
+					: { type: 'adventure_interact', targetId: target.id }
+			);
+			return;
+		}
 		if (pick.tokenId) {
 			selectedPropId = null;
 			const id = pick.tokenId;
@@ -491,6 +580,13 @@
 		const next = shortcut[event.key.toLowerCase()];
 		if (next) setTool(next);
 	}
+
+	// In an adventure, a player's own character is always the one ready to move.
+	$effect(() => {
+		if (myCharacterToken && !selectedId && !placing && tool === 'select') {
+			selectedId = myCharacterToken.id;
+		}
+	});
 
 	async function copyInvite() {
 		try {
@@ -572,6 +668,17 @@
 				</ul>
 			</section>
 
+			{#if adventure || isGm}
+				<div class="panel">
+					<AdventurePanel
+						{adventure}
+						{isGm}
+						players={room.players}
+						send={(action) => conn.send(action)}
+					/>
+				</div>
+			{/if}
+
 			{#if selectedProp}
 				<div class="panel">
 					<PropInspector
@@ -620,7 +727,8 @@
 				</div>
 			{/if}
 
-			{#if me.role !== 'spectator'}
+			<!-- In an adventure a player's character is handled by the action bar. -->
+			{#if isGm || (me.role === 'player' && !adventure)}
 				<div class="panel">
 					<TokenPanel
 						{isGm}
@@ -656,14 +764,70 @@
 
 		<p class="hint" aria-live="polite">{hint}</p>
 
+		{#if adventure?.encounter}
+			{@const encounter = adventure.encounter}
+			<div class="encounter" role="status">
+				<span class="round">Round {encounter.round}</span>
+				<span class="phase">{encounter.phase === 'players' ? "Party's turn" : "Enemies' turn"}</span
+				>
+				{#each encounter.enemies as e (e.tokenId)}
+					<span class="foe">
+						{e.name}
+						<span class="foe-hp"><span style:width={`${(100 * e.hp) / e.maxHp}%`}></span></span>
+						{e.hp}/{e.maxHp}
+					</span>
+				{/each}
+			</div>
+		{/if}
+
+		{#if adventure && myCharacter && myCharacterToken}
+			<div class="action-dock">
+				<ActionBar
+					{adventure}
+					character={myCharacter}
+					token={myCharacterToken}
+					tokens={room.tokens}
+					{blocked}
+					send={(action) => conn.send(action)}
+				/>
+			</div>
+		{/if}
+
 		{#if rollCard}
 			{#key rollCard.seq}
 				<div class="roll-card" role="status">
-					<span class="who">{rollCard.authorName} rolled {rollCard.roll.expression}</span>
-					<span class="big">{rollCard.roll.total}</span>
-					<span class="how">{formatBreakdown(rollCard.roll)}</span>
+					{#if rollCard.kind === 'roll'}
+						<span class="who">{rollCard.authorName} rolled {rollCard.roll.expression}</span>
+						<span class="big">{rollCard.roll.total}</span>
+						<span class="how">{formatBreakdown(rollCard.roll)}</span>
+					{:else}
+						<span class="who"
+							>{rollCard.authorName} · {rollCard.attack} → {rollCard.targetName}</span
+						>
+						<span class="big" class:miss={!rollCard.hit}>
+							{rollCard.hit ? `${rollCard.damage?.total ?? 0}` : 'Miss'}
+						</span>
+						<span class="how">
+							{rollCard.toHit.total} vs {rollCard.defense}{rollCard.hit ? ' · hit, damage' : ''}
+						</span>
+						{#if rollCard.outcome}<span class="outcome">{rollCard.outcome}</span>{/if}
+					{/if}
 				</div>
 			{/key}
+		{/if}
+
+		{#if adventure && me.role === 'player' && !myCharacter && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
+			<CharacterSelect {adventure} players={room.players} send={(action) => conn.send(action)} />
+		{/if}
+
+		{#if adventure && endKey && dismissedEnd !== endKey}
+			<SectionEnd
+				{adventure}
+				players={room.players}
+				{isGm}
+				send={(action) => conn.send(action)}
+				onClose={() => (dismissedEnd = endKey)}
+			/>
 		{/if}
 	{:else}
 		<p class="loading">{conn.error?.message ?? 'Connecting to the table…'}</p>
@@ -907,13 +1071,81 @@
 	.toast {
 		position: absolute;
 		left: 50%;
-		bottom: 3.75rem;
+		top: 5.25rem;
+		z-index: 2;
 		transform: translateX(-50%);
 		padding: 0.5rem 0.9rem;
 		max-width: calc(100% - 2rem);
 		background: var(--panel-solid);
 		border: 1px solid var(--danger);
 		border-radius: 8px;
+	}
+
+	.encounter {
+		position: absolute;
+		top: 5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.4rem 0.9rem;
+		max-width: calc(100% - 2rem);
+		background: var(--panel-solid);
+		border: 1px solid var(--danger);
+		border-radius: 999px;
+		font-size: 0.9rem;
+		pointer-events: none;
+	}
+
+	.encounter .round {
+		font-weight: 700;
+		color: var(--danger);
+	}
+
+	.encounter .phase {
+		color: var(--muted);
+	}
+
+	.foe {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.foe-hp {
+		width: 4.5rem;
+		height: 0.5rem;
+		border-radius: 999px;
+		background: #120e0b;
+		border: 1px solid var(--border);
+		overflow: hidden;
+	}
+
+	.foe-hp span {
+		display: block;
+		height: 100%;
+		background: var(--danger);
+		transition: width 300ms ease;
+	}
+
+	.action-dock {
+		position: absolute;
+		left: 50%;
+		bottom: 3.4rem;
+		transform: translateX(-50%);
+		max-width: calc(100% - 2rem);
+	}
+
+	.roll-card .big.miss {
+		color: var(--muted);
+		font-size: 2.2rem;
+	}
+
+	.roll-card .outcome {
+		font-weight: 700;
 	}
 
 	.loading {

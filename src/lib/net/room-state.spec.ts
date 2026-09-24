@@ -16,7 +16,8 @@ function room(): RoomSnapshot {
 		lights: [],
 		ambient: 'day',
 		fog: { enabled: false, visible: '', explored: '' },
-		log: []
+		log: [],
+		adventure: null
 	};
 }
 
@@ -153,5 +154,27 @@ describe('applyRoomUpdate', () => {
 		expect(r.props).toEqual([{ ...crate, rotation: 2 }]);
 		applyRoomUpdate(r, { type: 'props_changed', upserted: [], removed: ['p1'] });
 		expect(r.props).toEqual([]);
+	});
+
+	it('replaces the adventure state, and clears it when the adventure ends', () => {
+		const r = room();
+		const adventure = {
+			id: 'hollow-bell' as const,
+			title: 'The Hollow Bell',
+			section: 'Part One',
+			stage: 'arrival' as const,
+			objectives: [],
+			clues: [],
+			characters: [],
+			interactables: [],
+			encounter: null,
+			begunAt: 1,
+			completedAt: null,
+			cues: null
+		};
+		expect(applyRoomUpdate(r, { type: 'adventure_update', adventure })).toBe(true);
+		expect(r.adventure).toEqual(adventure);
+		applyRoomUpdate(r, { type: 'adventure_update', adventure: null });
+		expect(r.adventure).toBeNull();
 	});
 });

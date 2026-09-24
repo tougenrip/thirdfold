@@ -106,3 +106,41 @@ describe('parseServerMessage', () => {
 		).toBeNull();
 	});
 });
+
+describe('adventure messages', () => {
+	it('accepts well-formed adventure actions and drops extra fields', () => {
+		expect(parseClientMessage({ type: 'adventure_start', adventureId: 'x' })).toEqual({
+			type: 'adventure_start'
+		});
+		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'veil' })).toEqual({
+			type: 'adventure_claim',
+			characterId: 'veil'
+		});
+		expect(parseClientMessage({ type: 'adventure_attack', targetId: 't1' })).toEqual({
+			type: 'adventure_attack',
+			targetId: 't1'
+		});
+		expect(parseClientMessage({ type: 'adventure_control', op: 'restart' })).toEqual({
+			type: 'adventure_control',
+			op: 'restart'
+		});
+		expect(parseClientMessage({ type: 'adventure_narrate', text: 'Hush.' })).toEqual({
+			type: 'adventure_narrate',
+			text: 'Hush.'
+		});
+	});
+
+	it('rejects unknown characters, controls and malformed targets', () => {
+		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'wizard' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'toString' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_control', op: 'win' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_interact', targetId: '' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_cue', cueId: 7 })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_narrate' })).toBeNull();
+	});
+
+	it('accepts adventure updates, including the adventure ending', () => {
+		expect(parseServerMessage({ type: 'adventure_update', adventure: null })).not.toBeNull();
+		expect(parseServerMessage({ type: 'adventure_update', adventure: 'x' })).toBeNull();
+	});
+});

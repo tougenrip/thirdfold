@@ -412,7 +412,6 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 
 	return {
 		setGrid(next) {
-			const first = grid === null;
 			if (
 				grid &&
 				grid.width === next.width &&
@@ -428,11 +427,12 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			propLayer.sync(props, grid);
 			fogLayer.update(grid, fogState.fog, fogState.mode);
 			refreshLighting();
-			if (first) {
-				const pose = viewPose(view, extent);
-				camera.position.copy(pose.position);
-				controls.target.copy(pose.target);
-			}
+			// A new table size (first load, a loaded scene, an adventure): frame it. This
+			// replaces any view change still in flight, which would aim at the old table.
+			const pose = viewPose(view, extent);
+			transition = null;
+			camera.position.copy(pose.position);
+			controls.target.copy(pose.target);
 			requestRender();
 		},
 		setTokens(next) {
