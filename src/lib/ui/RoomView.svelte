@@ -20,6 +20,7 @@
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
 	import BuildPanel, { type BuildTool } from './BuildPanel.svelte';
 	import ChatPanel from './ChatPanel.svelte';
+	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 
 	let { conn }: { conn: RoomConnection } = $props();
@@ -408,6 +409,17 @@
 								to: { x: room.grid.width - 1, y: room.grid.height - 1 },
 								reveal
 							})}
+					/>
+				</div>
+			{/if}
+
+			{#if isGm}
+				<div class="panel">
+					<ScenePanel
+						sceneName={room.sceneName}
+						reply={conn.sceneReply}
+						send={(action) => conn.send(action)}
+						onError={showToast}
 					/>
 				</div>
 			{/if}

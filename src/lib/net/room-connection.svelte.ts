@@ -7,7 +7,8 @@ import {
 	type ClientMessage,
 	type ErrorCode,
 	type JoinRole,
-	type RoomSnapshot
+	type RoomSnapshot,
+	type ServerMessage
 } from '$lib/game/protocol';
 import { applyRoomUpdate } from './room-state';
 
@@ -20,6 +21,11 @@ export type EnterIntent =
 
 /** Messages sent once seated: everything that is not an entry intent. */
 export type RoomAction = Exclude<ClientMessage, EnterIntent>;
+
+/** A reply meant only for this client (scene saved or exported), tagged so each one is handled once. */
+export type SceneReply = Extract<ServerMessage, { type: 'scene_saved' | 'scene_exported' }> & {
+	seq: number;
+};
 
 /** A rejected action (e.g. an illegal move). The connection itself is fine. */
 export interface ActionError {
@@ -78,6 +84,7 @@ export class RoomConnection {
 	playerId = $state<string | null>(null);
 	error = $state<ConnectionError | null>(null);
 	actionError = $state<ActionError | null>(null);
+	sceneReply = $state<SceneReply | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
 
 	private ws: WebSocket | null = null;
@@ -172,6 +179,13 @@ export class RoomConnection {
 					}
 					this.fail(this.error);
 				}
+				return;
+			case 'room_reset':
+				this.room = msg.room;
+				return;
+			case 'scene_saved':
+			case 'scene_exported':
+				this.sceneReply = { ...msg, seq: ++this.errorSeq };
 				return;
 			default:
 				if (this.room) applyRoomUpdate(this.room, msg);

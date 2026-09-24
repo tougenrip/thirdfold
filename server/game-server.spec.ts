@@ -1,7 +1,11 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
+import { FileSceneStore, type SceneStore } from './scene-store';
 
 class Queue {
 	private items: ServerMessage[] = [];
@@ -631,5 +635,151 @@ describe('fog of war over the wire', () => {
 
 		sam.send({ type: 'fog_area', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, reveal: true });
 		expect(await sam.expect('error')).toMatchObject({ code: 'forbidden' });
+	});
+});
+
+describe('saving and loading scenes over the wire', () => {
+	async function gmRoom(target: GameServer) {
+		const gm = new TestClient(target.port);
+		clients.push(gm);
+		await gm.opened();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		return { gm, roomId: room.id };
+	}
+
+	it('saves a table, survives a server restart, and rebuilds it in a new room for everyone', async () => {
+		const dir = await mkdtemp(path.join(tmpdir(), 'thirdfold-wire-'));
+		const first = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			sceneStore: new FileSceneStore(dir)
+		});
+		try {
+			const { gm } = await gmRoom(first);
+			gm.send({ type: 'object_create', kind: 'wall', a: { x: 5, y: 0 }, b: { x: 5, y: 10 } });
+			await gm.expect('objects_changed');
+			gm.send({ type: 'object_create', kind: 'door', a: { x: 5, y: 4 }, b: { x: 5, y: 5 } });
+			await gm.expect('objects_changed');
+			gm.send({
+				type: 'token_create',
+				name: 'Orc',
+				color: '#c0392b',
+				pos: { x: 8, y: 4 },
+				ownerId: null
+			});
+			await gm.expect('token_upserted');
+
+			gm.send({ type: 'scene_save', name: 'Crypt' });
+			const saved = await gm.expect('scene_saved');
+			expect(saved).toMatchObject({
+				name: 'Crypt',
+				sceneId: expect.stringMatching(/^[0-9a-f]{32}$/)
+			});
+			await gm.untilNotice('Gemma saved the scene “Crypt”.');
+			gm.ws.terminate();
+			await first.close();
+
+			// A brand-new server process: only the files on disk carry over.
+			const second = await startGameServer({
+				port: 0,
+				host: '127.0.0.1',
+				sceneStore: new FileSceneStore(dir)
+			});
+			try {
+				const { gm: gm2, roomId } = await gmRoom(second);
+				const pip = new TestClient(second.port);
+				clients.push(pip);
+				await pip.opened();
+				pip.send({ type: 'join', roomId, name: 'Pip', role: 'player' });
+				await pip.expect('welcome');
+				await gm2.expect('player_joined');
+
+				gm2.send({ type: 'scene_load', sceneId: saved.sceneId });
+				for (const c of [gm2, pip]) {
+					const { room } = await c.expect('room_reset');
+					expect(room.objects.map((o) => o.kind).sort()).toEqual(['door', 'wall', 'wall']);
+					expect(room.tokens.map((t) => t.name)).toEqual(['Orc']);
+					expect(room.players.map((p) => p.name)).toEqual(['Gemma', 'Pip']);
+				}
+				await pip.untilNotice('Gemma loaded the scene “Crypt”.');
+
+				// The loaded table is live: normal actions keep working on it.
+				const orc = second.rooms.get(roomId)!.tokens.values().next().value!;
+				gm2.send({ type: 'token_move', tokenId: orc.id, to: { x: 9, y: 4 } });
+				expect(await pip.expect('token_moved')).toMatchObject({ pos: { x: 9, y: 4 } });
+			} finally {
+				await second.close();
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('keeps scene management GM-only', async () => {
+		const { gm, roomId } = await gmRoom(server);
+		const pip = await connect();
+		pip.send({ type: 'join', roomId, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		await gm.expect('player_joined');
+		for (const msg of [
+			{ type: 'scene_save', name: 'Mine' },
+			{ type: 'scene_export', name: 'Mine' },
+			{ type: 'scene_load', sceneId: '0'.repeat(32) }
+		]) {
+			pip.send(msg);
+			expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+		}
+	});
+
+	it('exports the table to the GM and imports it back, rejecting bad files', async () => {
+		const { gm } = await gmRoom(server);
+		gm.send({
+			type: 'token_create',
+			name: 'Orc',
+			color: '#c0392b',
+			pos: { x: 8, y: 4 },
+			ownerId: null
+		});
+		await gm.expect('token_upserted');
+		gm.send({ type: 'scene_export', name: 'Backup' });
+		const { file } = await gm.expect('scene_exported');
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 1, name: 'Backup' });
+
+		gm.send({
+			type: 'scene_import',
+			file: { ...file, tokens: [{ ...file.tokens[0], pos: { x: 99, y: 0 } }] }
+		});
+		expect(await gm.expect('error')).toMatchObject({
+			code: 'invalid_scene',
+			message: expect.stringMatching(/off the table/)
+		});
+		gm.send({ type: 'scene_load', sceneId: 'f'.repeat(32) });
+		expect(await gm.expect('error')).toMatchObject({ code: 'scene_not_found' });
+
+		gm.send({ type: 'token_delete', tokenId: file.tokens[0].id });
+		await gm.expect('token_deleted');
+		gm.send({ type: 'scene_import', file });
+		expect((await gm.expect('room_reset')).room.tokens.map((t) => t.name)).toEqual(['Orc']);
+	});
+
+	it('reports storage failures instead of hanging', async () => {
+		const broken: SceneStore = {
+			save: () => Promise.reject(new Error('disk full')),
+			load: () => Promise.reject(new Error('disk gone'))
+		};
+		const failing = await startGameServer({ port: 0, host: '127.0.0.1', sceneStore: broken });
+		const errorLog = console.error;
+		console.error = () => {};
+		try {
+			const { gm } = await gmRoom(failing);
+			gm.send({ type: 'scene_save', name: 'Crypt' });
+			expect(await gm.expect('error')).toMatchObject({ code: 'persistence_failed' });
+			gm.send({ type: 'scene_load', sceneId: 'a'.repeat(32) });
+			expect(await gm.expect('error')).toMatchObject({ code: 'persistence_failed' });
+		} finally {
+			console.error = errorLog;
+			await failing.close();
+		}
 	});
 });

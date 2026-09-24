@@ -21,6 +21,11 @@ npm run server            # game server on ws://localhost:8787 (watch mode)
 npm run dev               # web on http://localhost:1420
 ```
 
+The game server keeps rooms in memory and saves scenes as JSON files in
+`./data/scenes` (override with `SCENES_DIR`). The GM saves from the Scene panel;
+the browser remembers which scenes it saved, and scenes can also be exported to
+and imported from a file.
+
 Open http://localhost:1420, enter a name and create a room. Share the invite
 link (or the six-letter room code) so others can join as Player or Spectator.
 Other machines on your LAN can use `http://<your-ip>:1420`; the client reaches

@@ -5,6 +5,7 @@
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import type { SceneObject } from './objects';
+import type { SceneFile } from './scene-file';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
 
@@ -21,6 +22,8 @@ export interface PublicPlayer {
 
 export interface RoomSnapshot {
 	id: string;
+	/** Name of the scene on the table (last saved, loaded or imported). */
+	sceneName: string;
 	grid: SquareGrid;
 	players: PublicPlayer[];
 	tokens: Token[];
@@ -63,6 +66,14 @@ export type ClientMessage =
 	| { type: 'fog_set'; enabled: boolean }
 	/** GM: reveal (or hide again) the rectangle of cells between two corner cells. */
 	| { type: 'fog_area'; from: GridPos; to: GridPos; reveal: boolean }
+	/** GM: save the current table under a name. Replies with scene_saved. */
+	| { type: 'scene_save'; name: string }
+	/** GM: replace the table with a saved scene. */
+	| { type: 'scene_load'; sceneId: string }
+	/** GM: get the current table as a scene file (to download). Replies with scene_exported. */
+	| { type: 'scene_export'; name: string }
+	/** GM: replace the table with an uploaded scene file. The server validates it fully. */
+	| { type: 'scene_import'; file: unknown }
 	| { type: 'chat_send'; text: string }
 	| { type: 'dice_roll'; expression: string };
 
@@ -83,6 +94,9 @@ export type ErrorCode =
 	| 'object_not_found'
 	| 'edge_occupied'
 	| 'no_path'
+	| 'scene_not_found'
+	| 'invalid_scene'
+	| 'persistence_failed'
 	| 'invalid_chat'
 	| 'invalid_dice'
 	| 'rate_limited'
@@ -101,6 +115,12 @@ export type ServerMessage =
 	| { type: 'objects_changed'; upserted: SceneObject[]; removed: string[] }
 	/** This client's visibility changed (vision moved, doors, GM reveal, fog toggled). */
 	| { type: 'fog_update'; fog: FogView }
+	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
+	| { type: 'scene_saved'; sceneId: string; name: string; savedAt: string }
+	/** To the GM who asked: the current table as a scene file. */
+	| { type: 'scene_exported'; file: SceneFile }
+	/** The whole table changed (a scene was loaded): replace local room state with this. */
+	| { type: 'room_reset'; room: RoomSnapshot }
 	/** A new room log entry: chat, a dice result, or a system notice. */
 	| { type: 'chat'; message: ChatMessage }
 	| { type: 'error'; code: ErrorCode; message: string };
@@ -227,6 +247,16 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			if (!from || !to || typeof data.reveal !== 'boolean') return null;
 			return { type: 'fog_area', from, to, reveal: data.reveal };
 		}
+		case 'scene_save':
+			return typeof data.name === 'string' ? { type: 'scene_save', name: data.name } : null;
+		case 'scene_export':
+			return typeof data.name === 'string' ? { type: 'scene_export', name: data.name } : null;
+		case 'scene_load':
+			return typeof data.sceneId === 'string' && /^[0-9a-f]{32}$/.test(data.sceneId)
+				? { type: 'scene_load', sceneId: data.sceneId }
+				: null;
+		case 'scene_import':
+			return isRecord(data.file) ? { type: 'scene_import', file: data.file } : null;
 		case 'chat_send':
 			return typeof data.text === 'string' ? { type: 'chat_send', text: data.text } : null;
 		case 'dice_roll':
@@ -247,6 +277,9 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		token_upserted: (d) => isRecord(d.token),
 		token_moved: (d) => typeof d.tokenId === 'string' && parseGridPos(d.pos) !== null,
 		token_deleted: (d) => typeof d.tokenId === 'string',
+		scene_saved: (d) => typeof d.sceneId === 'string' && typeof d.name === 'string',
+		scene_exported: (d) => isRecord(d.file),
+		room_reset: (d) => isRecord(d.room),
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',

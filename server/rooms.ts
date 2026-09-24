@@ -32,6 +32,8 @@ export interface Room {
 	players: Map<string, Player>;
 	tokens: Map<string, Token>;
 	objects: Map<string, SceneObject>;
+	/** Name of the scene on the table: set when it is saved, loaded or imported. */
+	sceneName: string;
 	fog: {
 		enabled: boolean;
 		/** Cells the GM has revealed to everyone. */
@@ -80,6 +82,7 @@ export class RoomManager {
 			players: new Map(),
 			tokens: new Map(),
 			objects: new Map(),
+			sceneName: 'Untitled scene',
 			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID) },
 			log: [],
 			nextSeq: 1,

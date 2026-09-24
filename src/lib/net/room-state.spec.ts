@@ -7,6 +7,7 @@ import { applyRoomUpdate } from './room-state';
 function room(): RoomSnapshot {
 	return {
 		id: 'ABC234',
+		sceneName: 'Untitled scene',
 		grid: DEFAULT_GRID,
 		players: [{ id: 'gm', name: 'Gemma', role: 'gm', connected: true }],
 		tokens: [],

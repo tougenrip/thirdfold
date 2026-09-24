@@ -27,3 +27,6 @@ src-tauri/target/
 ios/
 android/
 .capacitor/
+
+# Saved scenes (server/index.ts, SCENES_DIR)
+/data/

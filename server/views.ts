@@ -98,6 +98,7 @@ export function canSeeLogEntry(viewer: Player, message: ChatMessage): boolean {
 export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapshot {
 	return {
 		id: room.id,
+		sceneName: room.sceneName,
 		grid: { ...room.grid },
 		players: [...room.players.values()].map(toPublicPlayer),
 		tokens: view.tokens.map((t) => structuredClone(t)),

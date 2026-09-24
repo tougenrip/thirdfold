@@ -40,8 +40,12 @@
 	// Follow new messages unless the reader has scrolled up to look at history.
 	$effect.pre(() => {
 		void log.length;
-		if (!list || !stickToBottom) return;
-		queueMicrotask(() => (list.scrollTop = list.scrollHeight));
+		const el = list;
+		if (!el || !stickToBottom) return;
+		// Runs after the DOM update; the panel may be gone by then (e.g. navigating away).
+		queueMicrotask(() => {
+			if (el.isConnected) el.scrollTop = el.scrollHeight;
+		});
 	});
 </script>
 

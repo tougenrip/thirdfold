@@ -12,7 +12,15 @@ import type { ChatMessage } from '../src/lib/game/chat';
 import type { DieRoller } from '../src/lib/game/dice';
 import { gridDistance } from '../src/lib/game/grid';
 import { postChat, postRoll, postSystem, secureRoller } from './chat';
+import { canEditScene } from '../src/lib/game/permissions';
+import {
+	normalizeSceneName,
+	parseSceneFile,
+	SCENE_FILE_MAX_BYTES
+} from '../src/lib/game/scene-file';
 import { RateLimiter } from './rate-limit';
+import { applyScene, exportScene } from './scene-io';
+import { MemorySceneStore, type SceneStore } from './scene-store';
 import { RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
 import {
 	createObject,
@@ -43,6 +51,8 @@ export interface GameServerOptions {
 	heartbeatMs?: number;
 	/** Die roller for dice_roll; defaults to crypto randomness. Tests inject a fixed one. */
 	rollDie?: DieRoller;
+	/** Where saved scenes go. Defaults to memory (lost on exit); server/index.ts passes a file store. */
+	sceneStore?: SceneStore;
 }
 
 export interface GameServer {
@@ -54,7 +64,8 @@ export interface GameServer {
 /** Close code sent to a socket whose session was taken over by a newer connection. */
 export const CLOSE_SESSION_REPLACED = 4001;
 
-const MAX_PAYLOAD_BYTES = 16 * 1024;
+// Large enough for an uploaded scene file plus framing; everything else is far smaller.
+const MAX_PAYLOAD_BYTES = SCENE_FILE_MAX_BYTES + 64 * 1024;
 const ROLE_NAMES = { gm: 'GM', player: 'a player', spectator: 'a spectator' } as const;
 
 interface Seat {
@@ -67,6 +78,9 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	const rooms = new RoomManager();
 	// Chat and dice: bursts of 8, then one every 750 ms per player.
 	const chatLimiter = new RateLimiter(8, 4 / 3);
+	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
+	const sceneLimiter = new RateLimiter(4, 0.25);
+	const sceneStore = options.sceneStore ?? new MemorySceneStore();
 	/** roomId -> playerId -> the socket currently holding that seat. */
 	const sockets = new Map<string, Map<string, WebSocket>>();
 	const seats = new WeakMap<WebSocket, Seat>();
@@ -196,6 +210,81 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		}
 	}
 
+	/** The whole table was replaced: give every viewer a fresh snapshot and restart their diffs. */
+	function resetRoom(room: Room): void {
+		const roomSockets = sockets.get(room.id);
+		if (!roomSockets) return;
+		const viewers = [...roomSockets.keys()]
+			.map((id) => room.players.get(id))
+			.filter((p): p is Player => !!p);
+		for (const [player, view] of viewsFor(room, viewers)) {
+			const ws = roomSockets.get(player.id);
+			if (!ws) continue;
+			sentViews.set(ws, sentFrom(view));
+			send(ws, { type: 'room_reset', room: snapshotFor(room, player, view) });
+		}
+	}
+
+	function loadIntoRoom(room: Room, player: Player, data: unknown, verb: string): void {
+		const parsed = parseSceneFile(data);
+		if (!parsed.ok) throw new SceneError('invalid_scene', parsed.error);
+		applyScene(room, parsed.scene);
+		resetRoom(room);
+		announce(room, postSystem(room, `${player.name} ${verb} the scene “${parsed.scene.name}”.`));
+	}
+
+	/** Save/load/import/export. Storage is async, so errors come back as messages, never throws. */
+	async function handleScene(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		msg: Extract<ClientMessage, { type: `scene_${string}` }>
+	): Promise<void> {
+		if (!canEditScene(player)) return sendError(ws, 'forbidden', 'Only the GM manages scenes.');
+		if (!sceneLimiter.take(player.id)) {
+			return sendError(ws, 'rate_limited', 'Give it a moment before the next save or load.');
+		}
+		try {
+			switch (msg.type) {
+				case 'scene_save':
+				case 'scene_export': {
+					const name = normalizeSceneName(msg.name);
+					if (!name) return sendError(ws, 'invalid_name', 'Scene names are 1-48 characters.');
+					const file = exportScene(room, name);
+					if (JSON.stringify(file).length > SCENE_FILE_MAX_BYTES) {
+						return sendError(ws, 'invalid_scene', 'This scene is too large to save.');
+					}
+					if (msg.type === 'scene_export') return send(ws, { type: 'scene_exported', file });
+					const sceneId = await sceneStore.save(file);
+					room.sceneName = name;
+					send(ws, { type: 'scene_saved', sceneId, name, savedAt: file.savedAt });
+					return announce(room, postSystem(room, `${player.name} saved the scene “${name}”.`));
+				}
+				case 'scene_load': {
+					const data = await sceneStore.load(msg.sceneId);
+					if (data === null) {
+						return sendError(ws, 'scene_not_found', 'That saved scene no longer exists.');
+					}
+					// The room may have closed while storage was busy.
+					if (rooms.get(room.id) !== room) return;
+					return loadIntoRoom(room, player, data, 'loaded');
+				}
+				case 'scene_import':
+					return loadIntoRoom(room, player, msg.file, 'imported');
+			}
+		} catch (err) {
+			if (err instanceof SceneError) return sendError(ws, err.code, err.message);
+			console.error(`[room ${room.id}] ${msg.type} failed`, err);
+			sendError(
+				ws,
+				'persistence_failed',
+				msg.type === 'scene_save'
+					? 'The scene could not be saved. Try again.'
+					: 'The scene could not be loaded. Try again.'
+			);
+		}
+	}
+
 	/** Notices naming a GM-only token stay with the GM: it may be hidden from the players. */
 	function tokenNotice(room: Room, text: string, ownerId: string | null): void {
 		announce(room, postSystem(room, text, ownerId ? undefined : 'gm'));
@@ -300,6 +389,12 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
 			}
+			case 'scene_save':
+			case 'scene_load':
+			case 'scene_export':
+			case 'scene_import':
+				void handleScene(ws, room, player, msg);
+				return;
 			case 'chat_send':
 			case 'dice_roll': {
 				if (!chatLimiter.take(player.id)) {
@@ -383,4 +478,13 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			});
 		});
 	});
+}
+
+class SceneError extends Error {
+	constructor(
+		readonly code: ErrorCode,
+		message: string
+	) {
+		super(message);
+	}
 }
