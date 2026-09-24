@@ -58,6 +58,15 @@
 				{:else if m.kind === 'narration'}
 					{#if m.speaker}<span class="speaker">{m.speaker}</span>{/if}
 					<p class="text">{m.text}</p>
+				{:else if m.kind === 'ability'}
+					<header>
+						<span class="author">{m.authorName}</span>
+						<span class="versus">{m.ability}{m.targetName ? ` → ${m.targetName}` : ''}</span>
+					</header>
+					<p class="text">
+						{m.text}
+						{#if m.roll}<span class="expr">({m.roll.expression}: {m.roll.total})</span>{/if}
+					</p>
 				{:else if m.kind === 'attack'}
 					<header>
 						<span class="author">{m.authorName}</span>
@@ -73,6 +82,7 @@
 							<span class="total damage">{m.damage.total} damage</span>
 						{/if}
 					</p>
+					{#if m.effect}<p class="outcome">{m.targetName} is {m.effect.toLowerCase()}.</p>{/if}
 					{#if m.outcome}<p class="outcome">{m.outcome}</p>{/if}
 				{:else}
 					<header>

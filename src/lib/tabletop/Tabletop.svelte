@@ -1,3 +1,13 @@
+<script lang="ts" module>
+	/** Combat text to float up from a token once; `id` increases so each shows once. */
+	export interface FloatText {
+		id: number;
+		tokenId: string;
+		text: string;
+		color: string;
+	}
+</script>
+
 <script lang="ts">
 	import type { GridPos, SquareGrid } from '$lib/game/grid';
 	import type { SceneObject } from '$lib/game/objects';
@@ -36,6 +46,9 @@
 		selectedId?: string | null;
 		highlight?: { cell: GridPos; kind: HighlightKind } | null;
 		view?: CameraView;
+		/** Tokens drawn lying down (fallen characters). */
+		fallen?: readonly string[];
+		floats?: readonly FloatText[];
 	}
 
 	let {
@@ -56,6 +69,8 @@
 		selectedId = null,
 		highlight = null,
 		view = 'tactical',
+		fallen = [],
+		floats = [],
 		onClick,
 		onHover
 	}: Props = $props();
@@ -141,6 +156,20 @@
 
 	$effect(() => {
 		tabletop?.setView(view);
+	});
+
+	$effect(() => {
+		tabletop?.setFallen([...fallen]);
+	});
+
+	let floatedId = 0;
+	$effect(() => {
+		if (!tabletop) return;
+		for (const f of floats) {
+			if (f.id <= floatedId) continue;
+			floatedId = f.id;
+			tabletop.showFloat(f.tokenId, f.text, f.color);
+		}
 	});
 </script>
 

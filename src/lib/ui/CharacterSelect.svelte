@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { AdventureView } from '$lib/adventure/adventure';
-	import { CHARACTER_IDS, CHARACTERS, defenseFor } from '$lib/adventure/characters';
+	import { CHARACTER_IDS, CHARACTERS, defenseFor, describeAction } from '$lib/adventure/characters';
 	import type { PublicPlayer } from '$lib/game/protocol';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 
@@ -14,9 +14,6 @@
 
 	const status = (id: (typeof CHARACTER_IDS)[number]) =>
 		adventure.characters.find((c) => c.id === id);
-	const attackLine = ({ attack }: (typeof CHARACTERS)[keyof typeof CHARACTERS]) =>
-		`${attack.name}: ${attack.range === 1 ? 'melee' : `range ${attack.range}`}, ` +
-		`+${attack.toHit} to hit, ${attack.damage} damage`;
 	const baseDefense = defenseFor(0);
 	const takenBy = (id: (typeof CHARACTER_IDS)[number]) => {
 		const s = status(id);
@@ -50,14 +47,17 @@
 							<span><b>{c.armor}</b> Armor</span>
 							<span><b>{c.speed}</b> Speed</span>
 						</span>
-						<span class="attack">{attackLine(c)}</span>
+						{#each c.actions as action (action.id)}
+							<span class="attack"><b>{action.name}</b>: {describeAction(c, action)}</span>
+						{/each}
 						<span class="pick">{taken ? `Taken by ${taken}` : `Play ${c.name}`}</span>
 					</button>
 				</li>
 			{/each}
 		</ul>
 		<p class="note">
-			To hit, roll a d20 plus the attack's bonus and reach {baseDefense} + the target's armor.
+			To hit, roll a d20 plus the attack's bonus and reach {baseDefense} + the target's armor. Limited
+			abilities come back at the start of each fight.
 		</p>
 	</section>
 </div>

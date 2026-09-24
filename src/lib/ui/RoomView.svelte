@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { canReach, inAttackRange } from '$lib/adventure/adventure';
-	import { CHARACTERS } from '$lib/adventure/characters';
+	import { canReach, inActionRange } from '$lib/adventure/adventure';
+	import { actionOf, CHARACTERS, type CharacterId } from '$lib/adventure/characters';
 	import type { ChatMessage } from '$lib/game/chat';
 	import { formatBreakdown } from '$lib/game/dice';
 	import { gridDistance, type GridPos } from '$lib/game/grid';
@@ -17,7 +17,7 @@
 	import type { Role } from '$lib/game/protocol';
 	import { tokenAt } from '$lib/game/token';
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
-	import Tabletop from '$lib/tabletop/Tabletop.svelte';
+	import Tabletop, { type FloatText } from '$lib/tabletop/Tabletop.svelte';
 	import type { DiceThrow } from '$lib/tabletop/dice3d';
 	import { diceToThrow } from '$lib/tabletop/dice-throw';
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
@@ -35,6 +35,7 @@
 	import AdventurePanel from './AdventurePanel.svelte';
 	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
 	import CharacterSelect from './CharacterSelect.svelte';
+	import CharacterSheet from './CharacterSheet.svelte';
 	import SectionEnd from './SectionEnd.svelte';
 	import PropInspector from './PropInspector.svelte';
 	import ChatPanel from './ChatPanel.svelte';
@@ -70,11 +71,20 @@
 	let pendingCard: RollEntry | null = null;
 	/** The end-of-section screen the viewer closed to look around (by stage and time). */
 	let dismissedEnd = $state<string | null>(null);
+	/** An action of my character waiting for a target. */
+	let targeting = $state<string | null>(null);
+	let sheetOpen = $state(false);
+	/** The character just taken, to introduce. */
+	let introFor = $state<CharacterId | null>(null);
+	/** My character as last seen; undefined until the room has loaded. */
+	let knownCharacter: CharacterId | null | undefined = undefined;
+	let floats = $state<FloatText[]>([]);
+	let floatSeq = 0;
 	let cardTimer: ReturnType<typeof setTimeout> | undefined;
 	// Only rolls that arrive while we're here pop up; history in the snapshot does not.
 	let lastAnnouncedSeq: number | null = null;
 
-	type RollEntry = Extract<ChatMessage, { kind: 'roll' | 'attack' }>;
+	type RollEntry = Extract<ChatMessage, { kind: 'roll' | 'attack' | 'ability' }>;
 
 	const room = $derived(conn.room);
 	const me = $derived(conn.me);
@@ -92,6 +102,12 @@
 		if (!encounter || !myCharacter || selectedId !== myCharacter.tokenId) return null;
 		return Math.max(0, CHARACTERS[myCharacter.id].speed - (encounter.moved[myCharacter.id] ?? 0));
 	});
+	/** Fallen characters' tokens, drawn lying down. */
+	const fallen = $derived(
+		(adventure?.characters ?? []).flatMap((c) =>
+			c.tokenId && (c.downed || c.dead) ? [c.tokenId] : []
+		)
+	);
 	const endKey = $derived(
 		adventure && (adventure.stage === 'complete' || adventure.stage === 'defeat')
 			? `${adventure.stage}:${adventure.completedAt ?? adventure.begunAt}`
@@ -204,20 +220,36 @@
 		return null;
 	});
 
-	/** What the adventure lets my character use or attack at a pick, if anything. */
-	function adventureTarget(
-		pick: Pick | null
-	): { kind: 'interact' | 'attack'; id: string; name: string; inReach: boolean } | null {
+	type AdventureTarget =
+		| { kind: 'interact'; id: string; name: string; inReach: boolean }
+		| { kind: 'act'; actionId: string; id: string; name: string; inReach: boolean };
+
+	/**
+	 * What clicking a pick would make my character do, if anything: the action
+	 * being aimed, else the basic attack on an enemy, else talking to or
+	 * examining something.
+	 */
+	function adventureTarget(pick: Pick | null): AdventureTarget | null {
 		if (!pick || !room || !adventure || !myCharacter || !myCharacterToken || isGm) return null;
+		if (myCharacter.downed || myCharacter.dead) return null;
+		const def = CHARACTERS[myCharacter.id];
 		const token = pick.tokenId ? room.tokens.find((t) => t.id === pick.tokenId) : undefined;
 		const enemy = token && adventure.encounter?.enemies.find((e) => e.tokenId === token.id);
+		const ally = token && adventure.characters.find((c) => c.tokenId === token.id && !c.dead);
+		const aimed = targeting ? actionOf(def, targeting) : undefined;
+		if (aimed && token && (aimed.target === 'enemy' ? enemy : ally)) {
+			const name = `${aimed.name} on ${enemy ? `the ${token.name}` : token.name}`;
+			const inReach = inActionRange(blocked, myCharacterToken.pos, token.pos, aimed);
+			return { kind: 'act', actionId: aimed.id, id: token.id, name, inReach };
+		}
 		if (token && enemy) {
-			const range = CHARACTERS[myCharacter.id].attack.range;
-			const inReach = inAttackRange(blocked, myCharacterToken.pos, token.pos, range);
-			return { kind: 'attack', id: token.id, name: token.name, inReach };
+			const basic = def.actions[0];
+			const inReach = inActionRange(blocked, myCharacterToken.pos, token.pos, basic);
+			const name = `${basic.name} on the ${token.name}`;
+			return { kind: 'act', actionId: basic.id, id: token.id, name, inReach };
 		}
 		// Talking and searching wait until the fight is over (and until play has begun).
-		if (adventure.encounter || adventure.stage === 'choosing' || myCharacter.downed) return null;
+		if (adventure.encounter || adventure.stage === 'choosing') return null;
 		const prop = !token && pick.propId ? room.props.find((p) => p.id === pick.propId) : undefined;
 		const cells = token ? [token.pos] : prop ? footprintCells(prop) : [];
 		const thing = adventure.interactables.find((i) =>
@@ -226,6 +258,33 @@
 		if (!thing) return null;
 		const inReach = canReach(blocked, myCharacterToken.pos, thing.cells);
 		return { kind: 'interact', id: thing.id, name: thing.label, inReach };
+	}
+
+	/** Floats what an attack or ability did over the tokens involved. */
+	function floatResult(entry: RollEntry) {
+		if (!room) return;
+		const add = (tokenId: string | null | undefined, text: string, color: string) => {
+			if (tokenId) floats = [...floats.slice(-19), { id: ++floatSeq, tokenId, text, color }];
+		};
+		if (entry.kind === 'attack') {
+			if (!entry.hit) add(entry.targetId, 'Miss', '#b3a38a');
+			else add(entry.targetId, `-${entry.damage?.total ?? 0}`, '#ff7b6b');
+			if (entry.effect) add(entry.targetId, entry.effect, '#e0a458');
+		} else if (entry.kind === 'ability') {
+			if (entry.amount !== null && entry.amount !== 0) {
+				const color = entry.amount > 0 ? '#7fc47a' : '#ff9a4d';
+				add(entry.targetId, `${entry.amount > 0 ? '+' : ''}${entry.amount}`, color);
+			} else if (!entry.targetId) {
+				// A guard: over the one who raised it.
+				const caster = room.tokens.find((t) => t.ownerId === entry.authorId);
+				add(caster?.id, entry.ability, '#e0a458');
+			}
+		}
+	}
+
+	function showCard(entry: RollEntry) {
+		rollCard = entry;
+		floatResult(entry);
 	}
 
 	const hoveredPropId = $derived.by(() => {
@@ -302,14 +361,13 @@
 		const target = adventureTarget(hover);
 		if (target) {
 			if (!target.inReach) {
-				return target.kind === 'attack'
-					? `${target.name} is out of reach.`
-					: 'Walk up to it to interact.';
+				return target.kind === 'act' ? 'Out of reach.' : 'Walk up to it to interact.';
 			}
-			return target.kind === 'attack'
-				? `Click to attack the ${target.name}.`
+			return target.kind === 'act'
+				? `Click: ${target.name}.`
 				: `Click to ${target.name[0].toLowerCase()}${target.name.slice(1)}.`;
 		}
+		if (targeting) return 'Choose a target on the table or in the action bar. Esc to cancel.';
 		if (selected) {
 			const distance = hoverCell ? (steps ?? gridDistance(selected.pos, hoverCell)) : null;
 			const suffix = distance ? ` · ${distance} ${distance === 1 ? 'cell' : 'cells'}` : '';
@@ -348,13 +406,17 @@
 		}
 		if (!latest || latest.seq <= lastAnnouncedSeq) return;
 		lastAnnouncedSeq = latest.seq;
-		if (latest.kind !== 'roll' && latest.kind !== 'attack') return;
+		if (latest.kind !== 'roll' && latest.kind !== 'attack' && latest.kind !== 'ability') return;
 		const dice =
 			latest.kind === 'roll'
 				? diceToThrow(latest.roll)
-				: [...diceToThrow(latest.toHit), ...(latest.damage ? diceToThrow(latest.damage) : [])];
+				: latest.kind === 'attack'
+					? [...diceToThrow(latest.toHit), ...(latest.damage ? diceToThrow(latest.damage) : [])]
+					: latest.roll
+						? diceToThrow(latest.roll)
+						: [];
 		if (dice.length === 0) {
-			rollCard = latest;
+			showCard(latest);
 			return;
 		}
 		// Dice in the roller's token colour when they have one (an enemy rolls in its own).
@@ -370,7 +432,7 @@
 		if (!card || card.seq !== seq) return;
 		pendingCard = null;
 		clearTimeout(cardTimer);
-		cardTimer = setTimeout(() => (rollCard = card), ms);
+		cardTimer = setTimeout(() => showCard(card), ms);
 	}
 
 	$effect(() => () => clearTimeout(cardTimer));
@@ -490,15 +552,14 @@
 		const target = adventureTarget(pick);
 		if (target) {
 			if (!target.inReach) {
-				return showToast(
-					target.kind === 'attack' ? `The ${target.name} is out of reach.` : 'Walk up to it first.'
-				);
+				return showToast(target.kind === 'act' ? 'Out of reach.' : 'Walk up to it first.');
 			}
 			conn.send(
-				target.kind === 'attack'
-					? { type: 'adventure_attack', targetId: target.id }
+				target.kind === 'act'
+					? { type: 'adventure_act', actionId: target.actionId, targetId: target.id }
 					: { type: 'adventure_interact', targetId: target.id }
 			);
+			targeting = null;
 			return;
 		}
 		if (pick.tokenId) {
@@ -555,6 +616,10 @@
 			return;
 		}
 		if (event.key === 'Escape') {
+			if (targeting) {
+				targeting = null;
+				return;
+			}
 			selectedPropId = null;
 			if (wallStart || areaStart) {
 				wallStart = null;
@@ -580,6 +645,20 @@
 		const next = shortcut[event.key.toLowerCase()];
 		if (next) setTool(next);
 	}
+
+	// Introduce a character when this player takes it (not when a reload finds it already taken).
+	$effect(() => {
+		if (!room) return;
+		const id = myCharacter?.id ?? null;
+		if (knownCharacter !== undefined && id && id !== knownCharacter) introFor = id;
+		knownCharacter = id;
+	});
+
+	// An aimed action is dropped when it can no longer be used.
+	$effect(() => {
+		const phase = adventure?.encounter?.phase;
+		if (targeting && (!myCharacter || myCharacter.downed || phase === 'enemies')) targeting = null;
+	});
 
 	// In an adventure, a player's own character is always the one ready to move.
 	$effect(() => {
@@ -629,6 +708,8 @@
 				{hoveredObjectId}
 				{preview}
 				selectedId={selected?.id ?? null}
+				{fallen}
+				{floats}
 				{highlight}
 				{view}
 				{onClick}
@@ -788,9 +869,24 @@
 					token={myCharacterToken}
 					tokens={room.tokens}
 					{blocked}
+					{targeting}
+					onTargeting={(id) => (targeting = id)}
+					onSheet={() => (sheetOpen = true)}
 					send={(action) => conn.send(action)}
 				/>
 			</div>
+		{/if}
+
+		{#if myCharacter && (introFor === myCharacter.id || sheetOpen)}
+			<CharacterSheet
+				character={CHARACTERS[myCharacter.id]}
+				status={myCharacter}
+				intro={introFor === myCharacter.id}
+				onClose={() => {
+					introFor = null;
+					sheetOpen = false;
+				}}
+			/>
 		{/if}
 
 		{#if rollCard}
@@ -800,6 +896,18 @@
 						<span class="who">{rollCard.authorName} rolled {rollCard.roll.expression}</span>
 						<span class="big">{rollCard.roll.total}</span>
 						<span class="how">{formatBreakdown(rollCard.roll)}</span>
+					{:else if rollCard.kind === 'ability'}
+						<span class="who">
+							{rollCard.authorName} · {rollCard.ability}{rollCard.targetName
+								? ` → ${rollCard.targetName}`
+								: ''}
+						</span>
+						{#if rollCard.amount !== null}
+							<span class="big" class:heal={rollCard.amount > 0}>
+								{rollCard.amount > 0 ? '+' : ''}{rollCard.amount}
+							</span>
+						{/if}
+						<span class="how">{rollCard.text}</span>
 					{:else}
 						<span class="who"
 							>{rollCard.authorName} · {rollCard.attack} → {rollCard.targetName}</span
@@ -810,6 +918,7 @@
 						<span class="how">
 							{rollCard.toHit.total} vs {rollCard.defense}{rollCard.hit ? ' · hit, damage' : ''}
 						</span>
+						{#if rollCard.effect}<span class="outcome">{rollCard.effect}</span>{/if}
 						{#if rollCard.outcome}<span class="outcome">{rollCard.outcome}</span>{/if}
 					{/if}
 				</div>
@@ -1142,6 +1251,10 @@
 	.roll-card .big.miss {
 		color: var(--muted);
 		font-size: 2.2rem;
+	}
+
+	.roll-card .big.heal {
+		color: var(--ok);
 	}
 
 	.roll-card .outcome {

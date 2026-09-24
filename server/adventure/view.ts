@@ -8,7 +8,10 @@ import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/c
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
 import { CLUES, CUES, HOUND, objectivesFor, SECTION, TITLE } from './content';
-import { INTERACTABLES, interactableCells } from './engine';
+import { INTERACTABLES, interactableCells, usesLeft } from './engine';
+import type { Statuses } from './state';
+
+const listStatuses = (statuses: Statuses) => [...statuses].map(([id, rounds]) => ({ id, rounds }));
 
 /**
  * The adventure as `viewer` may know it. `tokenIds` are the tokens in the
@@ -41,7 +44,13 @@ export function adventureView(
 				tokenId: token && tokenIds.has(token.id) ? token.id : null,
 				hp: token && state ? state.hp : maxHp,
 				maxHp,
-				downed: !!token && !!state && state.hp <= 0
+				downed: !!token && !!state && state.hp <= 0 && !state.dead,
+				dead: !!token && !!state && state.dead,
+				downedFor: state?.downedFor ?? 0,
+				statuses: token && state ? listStatuses(state.statuses) : [],
+				usesLeft: Object.fromEntries(
+					CHARACTERS[id].actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
+				)
 			};
 		}),
 		interactables: INTERACTABLES.flatMap((def) => {
@@ -62,7 +71,8 @@ export function adventureView(
 					name: room.tokens.get(tokenId)?.name ?? HOUND.name,
 					hp: e.hp,
 					maxHp: e.maxHp,
-					defense: defenseFor(HOUND.armor)
+					defense: defenseFor(HOUND.armor),
+					statuses: listStatuses(e.statuses)
 				}))
 		},
 		begunAt: adventure.begunAt,

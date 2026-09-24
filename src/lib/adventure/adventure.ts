@@ -9,7 +9,7 @@
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
 import { hasLineOfSight } from '../game/visibility';
-import type { CharacterId } from './characters';
+import type { Action, CharacterId, StatusId } from './characters';
 
 export type AdventureId = 'hollow-bell';
 
@@ -48,7 +48,21 @@ export interface CharacterStatus {
 	tokenId: string | null;
 	hp: number;
 	maxHp: number;
+	/** At 0 HP: can't move or act, and dies if not healed in time. */
 	downed: boolean;
+	/** Gone for the rest of the section. */
+	dead: boolean;
+	/** Rounds a downed character has been down. */
+	downedFor: number;
+	statuses: ActiveStatus[];
+	/** Uses left this encounter per action id; null means unlimited. */
+	usesLeft: Record<string, number | null>;
+}
+
+export interface ActiveStatus {
+	id: StatusId;
+	/** Rounds left, counting the current one. */
+	rounds: number;
 }
 
 /** Something a character can walk up to and use: a person to talk to, an object to examine. */
@@ -67,6 +81,7 @@ export interface EnemyStatus {
 	maxHp: number;
 	/** What an attack roll must reach to hit it. */
 	defense: number;
+	statuses: ActiveStatus[];
 }
 
 export interface EncounterView {
@@ -119,4 +134,15 @@ export function inAttackRange(
 	range: number
 ): boolean {
 	return gridDistance(from, to) <= range && hasLineOfSight(blocked, from, to);
+}
+
+/** Whether an action can be aimed from `from` at `to`: within its range, with a clear line. */
+export function inActionRange(
+	blocked: Blockers,
+	from: GridPos,
+	to: GridPos,
+	action: Pick<Action, 'range' | 'target'>
+): boolean {
+	if (action.target === 'self') return true;
+	return inAttackRange(blocked, from, to, Math.max(1, action.range));
 }

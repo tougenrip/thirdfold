@@ -12,7 +12,7 @@ import { bellweatherScene, EXIT, IDS, PATH_AREA, SPAWN } from './bellweather';
 import {
 	afterMove,
 	afterTokenDeleted,
-	attack,
+	act,
 	beginAdventure,
 	characterOf,
 	checkMove,
@@ -22,6 +22,7 @@ import {
 	endTurn,
 	interact,
 	narrate,
+	override,
 	readCue,
 	releaseCharacter,
 	runEnemyTurn,
@@ -235,15 +236,21 @@ describe('the fight at the well', () => {
 		const id = fighting();
 		const houndId = hound();
 		put(houndId, { x: 16, y: 16 });
-		expect(attack(room, ana, houndId, max)).toMatchObject({ ok: false, code: 'out_of_reach' });
+		expect(act(room, ana, 'blade', houndId, max)).toMatchObject({
+			ok: false,
+			code: 'out_of_reach'
+		});
 		put(houndId, { x: 12, y: 12 });
-		expect(attack(room, ben, houndId, max)).toMatchObject({ ok: false, code: 'forbidden' });
+		expect(act(room, ben, 'blade', houndId, max)).toMatchObject({ ok: false, code: 'forbidden' });
 
 		const hp = room.adventure!.encounter!.enemies.get(houndId)!.hp;
-		const hit = ok(attack(room, ana, houndId, min));
+		const hit = ok(act(room, ana, 'blade', houndId, min));
 		expect(hit.log[0]).toMatchObject({ kind: 'attack', hit: false, damage: null });
 		expect(room.adventure!.encounter!.enemies.get(houndId)!.hp).toBe(hp);
-		expect(attack(room, ana, houndId, max)).toMatchObject({ ok: false, code: 'not_your_turn' });
+		expect(act(room, ana, 'blade', houndId, max)).toMatchObject({
+			ok: false,
+			code: 'not_your_turn'
+		});
 		// Ana was the only character, so the enemies are up.
 		expect(hit.enemyTurn).toBe(2);
 		expect(checkMove(room, ana, id, { x: 10, y: 12 })).toMatchObject({ code: 'not_your_turn' });
@@ -276,7 +283,7 @@ describe('the fight at the well', () => {
 		expect(gate.kind === 'door' && doorLock(room, ana, gate)).toBe('The gate is chained shut.');
 		room.adventure!.encounter!.enemies.get(houndId)!.hp = 1;
 
-		const result = ok(attack(room, ana, houndId, max));
+		const result = ok(act(room, ana, 'blade', houndId, max));
 		expect(result.log[0]).toMatchObject({ kind: 'attack', outcome: 'The Hollow Hound falls.' });
 		expect(room.tokens.has(houndId)).toBe(false);
 		expect(room.adventure).toMatchObject({ stage: 'aftermath', encounter: null });
@@ -380,5 +387,168 @@ describe('what each viewer is told', () => {
 		ben.explored[cellIndex(room.grid, well.pos)] = 1;
 		const seen = adventureView(room, ben, new Set(), ben.explored)!;
 		expect(seen.interactables.map((i) => i.id)).toEqual(['well']);
+	});
+});
+
+describe('character gameplay', () => {
+	/** The Warden (Ana) and the Saint (Ben) side by side at the well, with the Hound out. */
+	function party() {
+		ok(startAdventure(room, gm));
+		ok(claimCharacter(room, ana, 'warden'));
+		ok(claimCharacter(room, ben, 'saint'));
+		ok(beginAdventure(room, gm, 1000));
+		const warden = characterOf(room, ana.id)!;
+		const saint = characterOf(room, ben.id)!;
+		put(warden.token.id, { x: 7, y: 10 });
+		ok(interact(room, ana, 'maren'));
+		put(warden.token.id, { x: 11, y: 12 });
+		put(saint.token.id, { x: 10, y: 12 });
+		ok(interact(room, ana, 'well'));
+		return { warden, saint, houndId: hound() };
+	}
+
+	it('introduces a character when a player takes it', () => {
+		ok(startAdventure(room, gm));
+		const claimed = ok(claimCharacter(room, ana, 'veil'));
+		expect(claimed.log.at(-1)).toMatchObject({ kind: 'narration', text: CHARACTERS.veil.intro });
+	});
+
+	it('guards the Warden and allies beside with a shield wall until the enemies have acted', () => {
+		const { warden, saint, houndId } = party();
+		put(houndId, { x: 12, y: 11 });
+		const wall = ok(act(room, ana, 'shield-wall', null, max));
+		expect(wall.log[0]).toMatchObject({ kind: 'ability', ability: 'Shield wall' });
+		expect([...warden.state.statuses.keys()]).toEqual(['guarded']);
+		expect([...saint.state.statuses.keys()]).toEqual(['guarded']);
+
+		const turn = ok(endTurn(room, ben)).enemyTurn!;
+		const out = runEnemyTurn(room, turn, max)!;
+		// 1d20+4 at its highest (24) against 10 + 3 armor + 2 guard: still a hit, but defense was 15.
+		expect(out.log.find((m) => m.kind === 'attack')).toMatchObject({ defense: 15 });
+		expect(warden.state.statuses.size).toBe(0);
+	});
+
+	it('slows the Hound with a hamstring, twice per fight at most', () => {
+		ok(startAdventure(room, gm));
+		ok(claimCharacter(room, ana, 'veil'));
+		ok(beginAdventure(room, gm));
+		const veil = characterOf(room, ana.id)!;
+		put(veil.token.id, { x: 7, y: 10 });
+		ok(interact(room, ana, 'maren'));
+		put(veil.token.id, { x: 11, y: 12 });
+		ok(interact(room, ana, 'well'));
+		const houndId = hound();
+		room.adventure!.encounter!.enemies.get(houndId)!.hp = 50;
+
+		const cut = ok(act(room, ana, 'hamstring', houndId, max));
+		expect(cut.log[0]).toMatchObject({ kind: 'attack', hit: true, effect: 'Slowed' });
+		expect(room.adventure!.encounter!.enemies.get(houndId)!.statuses.get('slowed')).toBe(1);
+		// Far away and slowed, it only gets 3 steps closer.
+		put(houndId, { x: 19, y: 16 });
+		runEnemyTurn(room, cut.enemyTurn!, max);
+		expect(token(houndId).pos.x).toBe(16);
+		expect(room.adventure!.encounter!.enemies.get(houndId)!.statuses.size).toBe(0);
+
+		put(houndId, { x: 12, y: 12 });
+		ok(act(room, ana, 'hamstring', houndId, max));
+		room.adventure!.encounter!.acted.clear();
+		room.adventure!.encounter!.phase = 'players';
+		expect(act(room, ana, 'hamstring', houndId, max)).toMatchObject({
+			ok: false,
+			message: 'Hamstring is spent until the next fight.'
+		});
+	});
+
+	it('sets the Hound burning: fire eats at it at the start of its next two turns', () => {
+		ok(startAdventure(room, gm));
+		ok(claimCharacter(room, ana, 'ember'));
+		ok(beginAdventure(room, gm));
+		const ember = characterOf(room, ana.id)!;
+		put(ember.token.id, { x: 7, y: 10 });
+		ok(interact(room, ana, 'maren'));
+		put(ember.token.id, { x: 11, y: 12 });
+		ok(interact(room, ana, 'well'));
+		const houndId = hound();
+		const enemy = room.adventure!.encounter!.enemies.get(houndId)!;
+		enemy.hp = 40;
+		put(houndId, { x: 14, y: 12 });
+
+		const burst = ok(act(room, ana, 'flame-burst', houndId, max));
+		expect(enemy.hp).toBe(40 - 14);
+		const out = runEnemyTurn(room, burst.enemyTurn!, max)!;
+		expect(out.log[0]).toMatchObject({ kind: 'ability', ability: 'Burning', amount: -4 });
+		expect(enemy.hp).toBe(40 - 14 - 4);
+		expect(enemy.statuses.get('burning')).toBe(1);
+	});
+
+	it('mends an ally in reach, lifts the fallen, and heals outside a fight too', () => {
+		const { warden, saint, houndId } = party();
+		put(houndId, { x: 16, y: 16 });
+		warden.state.hp = 0;
+		expect(act(room, ana, 'blade', houndId, max)).toMatchObject({
+			ok: false,
+			message: 'The Warden is down.'
+		});
+
+		put(saint.token.id, { x: 5, y: 15 });
+		expect(act(room, ben, 'mend', warden.token.id, max)).toMatchObject({ code: 'out_of_reach' });
+		put(saint.token.id, { x: 10, y: 12 });
+		const mended = ok(act(room, ben, 'mend', warden.token.id, max));
+		expect(mended.log[0]).toMatchObject({ kind: 'ability', amount: 11 });
+		expect(warden.state.hp).toBe(11);
+
+		ok(control(room, gm, 'end'));
+		ok(startAdventure(room, gm));
+		ok(claimCharacter(room, ben, 'saint'));
+		ok(beginAdventure(room, gm));
+		const me = characterOf(room, ben.id)!;
+		me.state.hp = 5;
+		ok(act(room, ben, 'mend', me.token.id, max));
+		expect(me.state.hp).toBe(16);
+		expect(act(room, ben, 'mace', me.token.id, max)).toMatchObject({
+			ok: false,
+			message: 'There is nothing to fight.'
+		});
+	});
+
+	it('lets a downed character bleed out after three rounds, beyond healing but not beyond the GM', () => {
+		const { warden, saint, houndId } = party();
+		put(houndId, { x: 20, y: 18 });
+		room.adventure!.encounter!.enemies.get(houndId)!.hp = 99;
+		warden.state.hp = 0;
+		for (let i = 0; i < 3; i++) {
+			const turn = ok(endTurn(room, ben)).enemyTurn!;
+			// Keep the Hound away from the Saint so only the bleeding matters.
+			put(houndId, { x: 20, y: 18 });
+			runEnemyTurn(room, turn, min);
+			put(houndId, { x: 20, y: 18 });
+		}
+		expect(warden.state).toMatchObject({ dead: true, downedFor: 3 });
+		expect(act(room, ben, 'mend', warden.token.id, max)).toMatchObject({
+			ok: false,
+			message: 'The Warden is beyond help.'
+		});
+		const view = adventureView(room, ana, new Set([warden.token.id]), null)!;
+		expect(view.characters.find((c) => c.id === 'warden')).toMatchObject({
+			dead: true,
+			downed: false
+		});
+
+		expect(override(room, ana, 'warden', { revive: true })).toMatchObject({ ok: false });
+		ok(override(room, gm, 'warden', { revive: true, hp: 12, statuses: ['guarded'] }));
+		expect(warden.state).toMatchObject({ dead: false, hp: 12, downedFor: 0 });
+		expect([...warden.state.statuses.keys()]).toEqual(['guarded']);
+		void saint;
+	});
+
+	it('tells each player how many uses their abilities have left', () => {
+		const { saint } = party();
+		saint.state.hp = 10;
+		ok(act(room, ben, 'mend', saint.token.id, max));
+		const view = adventureView(room, ben, new Set([saint.token.id]), null)!;
+		expect(view.characters.find((c) => c.id === 'saint')?.usesLeft).toEqual({
+			mace: null,
+			mend: 1
+		});
 	});
 });

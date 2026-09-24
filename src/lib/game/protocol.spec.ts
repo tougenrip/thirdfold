@@ -116,9 +116,26 @@ describe('adventure messages', () => {
 			type: 'adventure_claim',
 			characterId: 'veil'
 		});
-		expect(parseClientMessage({ type: 'adventure_attack', targetId: 't1' })).toEqual({
-			type: 'adventure_attack',
-			targetId: 't1'
+		expect(parseClientMessage({ type: 'adventure_act', actionId: 'mend', targetId: 't1' })).toEqual(
+			{
+				type: 'adventure_act',
+				actionId: 'mend',
+				targetId: 't1'
+			}
+		);
+		expect(
+			parseClientMessage({ type: 'adventure_act', actionId: 'shield-wall', targetId: null })
+		).toEqual({ type: 'adventure_act', actionId: 'shield-wall', targetId: null });
+		expect(
+			parseClientMessage({
+				type: 'adventure_override',
+				characterId: 'saint',
+				patch: { hp: 4, statuses: ['guarded', 'guarded'], revive: true, extra: 1 }
+			})
+		).toEqual({
+			type: 'adventure_override',
+			characterId: 'saint',
+			patch: { hp: 4, statuses: ['guarded'], revive: true }
 		});
 		expect(parseClientMessage({ type: 'adventure_control', op: 'restart' })).toEqual({
 			type: 'adventure_control',
@@ -134,6 +151,18 @@ describe('adventure messages', () => {
 		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'wizard' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'toString' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_control', op: 'win' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_act', actionId: 'blade' })).toBeNull();
+		for (const patch of [
+			{},
+			{ hp: -1 },
+			{ hp: 2.5 },
+			{ statuses: ['cursed'] },
+			{ revive: false }
+		]) {
+			expect(
+				parseClientMessage({ type: 'adventure_override', characterId: 'veil', patch })
+			).toBeNull();
+		}
 		expect(parseClientMessage({ type: 'adventure_interact', targetId: '' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_cue', cueId: 7 })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_narrate' })).toBeNull();

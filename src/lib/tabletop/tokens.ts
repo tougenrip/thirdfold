@@ -1,6 +1,7 @@
 // Token miniatures for the three.js view: builds one mini per token, diffs
 // incoming token state against what is on screen, and animates moves. The
-// logical position always comes from the Token; the tween is cosmetic.
+// logical position always comes from the Token; the tween is cosmetic. Minis
+// can also lie down (a fallen character) and show floating combat text.
 
 import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
@@ -8,6 +9,9 @@ import type { Token } from '$lib/game/token';
 
 interface Entry {
 	root: THREE.Group;
+	/** Torso and head: tipped over when the character has fallen. */
+	figure: THREE.Group;
+	fallen: boolean;
 	body: THREE.MeshStandardMaterial;
 	label: THREE.Sprite;
 	name: string;
@@ -21,6 +25,13 @@ interface Entry {
 
 const HOP_HEIGHT = 0.35;
 const LABEL_HEIGHT = 1.3;
+const FLOAT_MS = 1500;
+
+interface Float {
+	sprite: THREE.Sprite;
+	tokenId: string;
+	age: number;
+}
 
 // Shared by every mini; sized for a 1-unit cell and scaled per grid.
 const baseGeometry = new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32);
@@ -29,20 +40,20 @@ const headGeometry = new THREE.SphereGeometry(0.19, 24, 16);
 const ringGeometry = new THREE.RingGeometry(0.47, 0.56, 48);
 const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1612, roughness: 0.6 });
 
-function makeLabel(name: string): THREE.Sprite {
+function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite {
 	const canvas = document.createElement('canvas');
 	canvas.width = 256;
 	canvas.height = 64;
 	const ctx = canvas.getContext('2d')!;
-	ctx.font = '600 30px system-ui, sans-serif';
+	ctx.font = bold ? '800 40px system-ui, sans-serif' : '600 30px system-ui, sans-serif';
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 	const width = Math.min(ctx.measureText(name).width + 28, 256);
 	ctx.fillStyle = 'rgba(20, 15, 11, 0.78)';
 	ctx.beginPath();
-	ctx.roundRect((256 - width) / 2, 10, width, 44, 12);
+	ctx.roundRect((256 - width) / 2, 8, width, 48, 12);
 	ctx.fill();
-	ctx.fillStyle = '#f2e6d0';
+	ctx.fillStyle = color;
 	ctx.fillText(name, 128, 33, 232);
 	const texture = new THREE.CanvasTexture(canvas);
 	texture.colorSpace = THREE.SRGBColorSpace;
@@ -65,6 +76,7 @@ function disposeLabel(sprite: THREE.Sprite): void {
 export class TokenLayer {
 	readonly group = new THREE.Group();
 	private entries = new Map<string, Entry>();
+	private floats: Float[] = [];
 	private grid: SquareGrid | null = null;
 	private selectedId: string | null = null;
 	private readonly ring = new THREE.Mesh(
@@ -129,6 +141,7 @@ export class TokenLayer {
 
 		for (const [id, entry] of this.entries) {
 			if (seen.has(id)) continue;
+			this.dropFloats(id);
 			this.group.remove(entry.root);
 			disposeLabel(entry.label);
 			entry.body.dispose();
@@ -145,9 +158,39 @@ export class TokenLayer {
 		return true;
 	}
 
+	/** Lays down the minis in `ids` (fallen characters) and stands the rest up. Returns true if any changed. */
+	setFallen(ids: ReadonlySet<string>): boolean {
+		let changed = false;
+		for (const [id, entry] of this.entries) {
+			const fallen = ids.has(id);
+			if (entry.fallen === fallen) continue;
+			entry.fallen = fallen;
+			// Tip the figure over sideways so it lies on its base.
+			entry.figure.rotation.z = fallen ? Math.PI / 2 : 0;
+			entry.figure.position.set(fallen ? 0.38 : 0, fallen ? 0.28 : 0, 0);
+			changed = true;
+		}
+		return changed;
+	}
+
+	/** Floats `text` up from a mini and fades it out, e.g. damage dealt. */
+	float(tokenId: string, text: string, color: string): boolean {
+		const entry = this.entries.get(tokenId);
+		if (!entry) return false;
+		const sprite = makeLabel(text, color, true);
+		sprite.scale.set(1.3, 0.33, 1);
+		// Several at once stack instead of overlapping.
+		const stacked = this.floats.filter((f) => f.tokenId === tokenId).length;
+		sprite.position.y = LABEL_HEIGHT + 0.35 + stacked * 0.35;
+		sprite.renderOrder = 2;
+		entry.root.add(sprite);
+		this.floats.push({ sprite, tokenId, age: 0 });
+		return true;
+	}
+
 	/** Advances move animations by `dt` ms. Returns true while any mini is still moving. */
 	tick(dt: number): boolean {
-		let moving = false;
+		let moving = this.tickFloats(dt);
 		for (const entry of this.entries.values()) {
 			if (entry.t >= 1) continue;
 			entry.t = Math.min(entry.t + dt / entry.duration, 1);
@@ -170,6 +213,8 @@ export class TokenLayer {
 	}
 
 	dispose(): void {
+		for (const f of this.floats) disposeLabel(f.sprite);
+		this.floats = [];
 		for (const entry of this.entries.values()) {
 			disposeLabel(entry.label);
 			entry.body.dispose();
@@ -193,13 +238,17 @@ export class TokenLayer {
 			m.castShadow = true;
 			m.receiveShadow = true;
 		}
+		const figure = new THREE.Group();
+		figure.add(torso, head);
 		const label = makeLabel(token.name);
-		root.add(base, torso, head, label);
+		root.add(base, figure, label);
 		root.position.copy(at);
 		this.group.add(root);
 
 		const entry: Entry = {
 			root,
+			figure,
+			fallen: false,
 			body,
 			label,
 			name: token.name,
@@ -211,6 +260,27 @@ export class TokenLayer {
 		};
 		this.entries.set(token.id, entry);
 		return entry;
+	}
+
+	private tickFloats(dt: number): boolean {
+		for (const f of this.floats) {
+			f.age += dt;
+			const t = Math.min(f.age / FLOAT_MS, 1);
+			f.sprite.position.y += (dt / FLOAT_MS) * 0.7;
+			f.sprite.material.opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
+		}
+		const done = this.floats.filter((f) => f.age >= FLOAT_MS);
+		for (const f of done) {
+			f.sprite.removeFromParent();
+			disposeLabel(f.sprite);
+		}
+		this.floats = this.floats.filter((f) => f.age < FLOAT_MS);
+		return this.floats.length > 0;
+	}
+
+	private dropFloats(tokenId: string): void {
+		for (const f of this.floats) if (f.tokenId === tokenId) disposeLabel(f.sprite);
+		this.floats = this.floats.filter((f) => f.tokenId !== tokenId);
 	}
 
 	/** Keeps the selection ring under the selected mini, even mid-move. */

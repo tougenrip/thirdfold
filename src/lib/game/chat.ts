@@ -24,6 +24,8 @@ export type ChatMessage =
 			/** Who attacked, e.g. "The Warden". */
 			authorName: string;
 			attack: string;
+			/** The target's token, for effects drawn over it. */
+			targetId?: string;
 			targetName: string;
 			toHit: DiceRoll;
 			defense: number;
@@ -31,6 +33,24 @@ export type ChatMessage =
 			damage: DiceRoll | null;
 			/** What came of it, e.g. "The Hollow Hound falls." */
 			outcome?: string;
+			/** A status it put on the target, e.g. "Slowed". */
+			effect?: string;
+	  }
+	| {
+			seq: number;
+			at: number;
+			/** Something other than an attack: healing, a guard, fire burning. */
+			kind: 'ability';
+			authorId: string;
+			authorName: string;
+			ability: string;
+			targetId: string | null;
+			targetName: string | null;
+			/** The dice rolled, if any (e.g. healing). */
+			roll: DiceRoll | null;
+			/** Hit points gained (positive) or lost (negative) by the target. */
+			amount: number | null;
+			text: string;
 	  }
 	| {
 			seq: number;
