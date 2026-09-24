@@ -80,3 +80,22 @@ export function saveGmKey(key: string): boolean {
 		return false;
 	}
 }
+
+const CREATOR_KEY = 'thirdfold:creator';
+
+/** The name this browser last published adventures under. */
+export function loadCreatorName(): string {
+	try {
+		return localStorage.getItem(CREATOR_KEY) ?? '';
+	} catch {
+		return '';
+	}
+}
+
+export function saveCreatorName(name: string): void {
+	try {
+		localStorage.setItem(CREATOR_KEY, name);
+	} catch {
+		// ignore
+	}
+}

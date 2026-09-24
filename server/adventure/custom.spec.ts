@@ -90,4 +90,34 @@ describe("creators' adventures", () => {
 		expect(room.adventure).toMatchObject({ stage: 'complete', ending: 'honour' });
 		expect(room.adventure!.rewards).toEqual(['The cellar key', 'The miller’s thanks']);
 	});
+
+	it('remembers a library adventure’s source in a save, and refuses a bad one', () => {
+		const rooms = new RoomManager();
+		const created = ok(rooms.create('Gia'));
+		const room = created.room;
+		const id = ok(loadCustomAdventure(file())).adventure.id;
+		ok(engine.startAdventure(room, created.player, id));
+		const source = {
+			id: 'a'.repeat(32),
+			version: 3,
+			creator: { id: 'b'.repeat(16), name: 'Mira' }
+		};
+		room.adventure!.library = source;
+		const saved = JSON.parse(JSON.stringify(exportScene(room, 'Mill')));
+		const parsed = parseSceneFile(saved);
+		if (!parsed.ok) throw new Error(parsed.error);
+		expect(ok(readAdventure(parsed.scene.adventure!, parsed.scene)).adventure.library).toEqual(
+			source
+		);
+		// Starting over keeps where it came from.
+		ok(engine.control(room, created.player, 'restart'));
+		expect(room.adventure!.library).toEqual(source);
+
+		const bad = structuredClone(parsed.scene.adventure!);
+		(bad.state as { library: { version: number } }).library.version = 0;
+		expect(readAdventure(bad, parsed.scene)).toMatchObject({ ok: false });
+		const named = structuredClone(parsed.scene.adventure!);
+		(named.state as { library: { creator: { name: string } } }).library.creator.name = '';
+		expect(readAdventure(named, parsed.scene)).toMatchObject({ ok: false });
+	});
 });

@@ -11,6 +11,8 @@
 	} from '$lib/net/room-connection.svelte';
 	import type { SavedScene } from '$lib/game/protocol';
 	import { listSaves } from '$lib/net/saves';
+	import { listGames } from '$lib/net/library';
+	import type { PublicGame } from '$lib/game/library';
 	import { loadGmKey, loadName, saveGmKey, saveName } from '$lib/prefs';
 	import { lastPlayed } from '$lib/ui/when';
 	import { sharedCode } from '$lib/ui/share';
@@ -118,6 +120,24 @@
 	function join(event: SubmitEvent) {
 		event.preventDefault();
 		if (canJoin) enter({ type: 'join', roomId, name: name.trim(), role: 'player' });
+	}
+
+	/** Games their GMs listed for anyone to join. */
+	let games = $state<PublicGame[] | null>(null);
+	let gamesError = $state<string | null>(null);
+
+	function refreshGames() {
+		gamesError = null;
+		listGames().then(
+			(list) => (games = list),
+			(err: Error) => (gamesError = err.message)
+		);
+	}
+
+	$effect(() => refreshGames());
+
+	function joinGame(game: PublicGame, role: 'player' | 'spectator') {
+		if (canCreate) enter({ type: 'join', roomId: game.roomId, name: name.trim(), role });
 	}
 
 	// The table's 3D renderer is the biggest download: fetch it while the visitor is still here.
@@ -231,6 +251,54 @@
 		</form>
 	</div>
 
+	<section class="games" aria-labelledby="games-title">
+		<div class="games-head">
+			<h2 id="games-title">Open games</h2>
+			<button type="button" onclick={refreshGames}>Refresh</button>
+		</div>
+		{#if gamesError}
+			<p class="muted">The open games could not be looked up just now: {gamesError}</p>
+		{:else if games === null}
+			<p class="muted">Looking…</p>
+		{:else if games.length === 0}
+			<p class="muted">
+				No open games right now. Games are invite-only unless their GM lists them.
+			</p>
+		{:else}
+			<ul class="saves">
+				{#each games as game (game.roomId)}
+					<li>
+						<span>
+							<strong>{game.title}</strong>
+							<span class="muted">
+								GM {game.gm} · {game.players}
+								{game.players === 1 ? 'player' : 'players'}{game.status ? ` · ${game.status}` : ''}
+							</span>
+						</span>
+						<span class="actions">
+							<button type="button" disabled={!canCreate} onclick={() => joinGame(game, 'player')}>
+								Join
+							</button>
+							<button
+								type="button"
+								class="watch"
+								disabled={!canCreate}
+								onclick={() => joinGame(game, 'spectator')}
+							>
+								Watch
+							</button>
+						</span>
+					</li>
+				{/each}
+			</ul>
+			{#if !name.trim()}<p class="hint">Enter your name above to join one.</p>{/if}
+		{/if}
+	</section>
+
+	<p class="build">
+		<a href={resolve('/library')}>Adventure library</a>
+		<span class="muted">: adventures people built, to run for your table.</span>
+	</p>
 	<p class="build">
 		<a href={resolve('/builder')}>Build your own adventure</a>
 		<span class="muted">: its places, people, fights, choices and endings, no code needed.</span>
@@ -279,6 +347,27 @@
 <style>
 	.build {
 		margin: 1.2rem 0 0;
+	}
+
+	.games {
+		margin-top: 1.5rem;
+	}
+
+	.games-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.games h2 {
+		margin: 0 0 0.4rem;
+		font-size: 1.15rem;
+	}
+
+	.actions {
+		display: flex !important;
+		gap: 0.6rem;
+		align-items: center;
 	}
 
 	main {

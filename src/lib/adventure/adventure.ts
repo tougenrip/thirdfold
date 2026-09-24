@@ -8,6 +8,7 @@
 
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
+import type { Creator } from '../game/library';
 import { hasLineOfSight } from '../game/visibility';
 import type { Action, CharacterId, StatId, StatusId } from './characters';
 
@@ -422,8 +423,21 @@ export interface AdventureView {
 	summary: SessionSummary | null;
 	/** What the party has earned so far, in order. */
 	rewards: string[];
+	/** Where the adventure came from, when it is from the library; null otherwise. */
+	library: LibrarySourceView | null;
 	/** GM only: prepared text to read aloud. */
 	cues: ReadAloud[] | null;
+}
+
+/** A library adventure a table plays: which version, whose, and what this viewer made of it. */
+export interface LibrarySourceView {
+	id: string;
+	version: number;
+	creator: Creator;
+	/** The stars this viewer gave it, or null. */
+	rated: number | null;
+	/** Whether this viewer may rate it (they played it, it is over, and it isn't their own). */
+	canRate: boolean;
 }
 
 /** Whether a character standing at `from` can reach something covering `cells`: beside it, not through a wall. */

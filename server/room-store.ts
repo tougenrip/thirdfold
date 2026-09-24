@@ -31,6 +31,8 @@ export interface LiveRoom {
 	/** When the room last had nobody connected; null while someone was. */
 	emptySince: number | null;
 	paused: boolean;
+	/** Listed for anyone to join (absent in rooms kept before listing). */
+	listed?: boolean;
 	/** Paused only because the GM lost their connection (lifted when they are back). */
 	pausedForGm: boolean;
 	/** Whose saves the table's are (a GM key's hash), and its autosave slot. */
@@ -63,6 +65,7 @@ export function serializeRoom(room: Room, now = new Date()): LiveRoom {
 		nextSeq: room.nextSeq,
 		emptySince: room.emptySince,
 		paused: room.paused,
+		listed: room.listed,
 		pausedForGm: room.pausedForGm === true,
 		...(room.gmOwner ? { gmOwner: room.gmOwner } : {}),
 		...(room.autosaveId ? { autosaveId: room.autosaveId } : {})
@@ -163,6 +166,7 @@ export function restoreRoom(raw: unknown, now = Date.now()): Restored {
 	room.emptySince =
 		typeof raw.emptySince === 'number' && Number.isFinite(raw.emptySince) ? raw.emptySince : now;
 	room.paused = raw.paused === true;
+	room.listed = raw.listed === true;
 	room.pausedForGm = raw.pausedForGm === true;
 	if (typeof raw.gmOwner === 'string' && /^[0-9a-f]{64}$/.test(raw.gmOwner)) {
 		room.gmOwner = raw.gmOwner;

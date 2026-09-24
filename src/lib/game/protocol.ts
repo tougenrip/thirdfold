@@ -19,6 +19,17 @@ import type { Motion } from './motion';
 import { isAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
 import type { SceneFile } from './scene-file';
 import { isFloorId, type FloorId } from './floor';
+import {
+	CREATOR_ID_PATTERN,
+	LIBRARY_ID_PATTERN,
+	LIBRARY_LIMITS,
+	LIBRARY_SORTS,
+	type Creator,
+	type LibraryListing,
+	type LibrarySort,
+	type MyAdventure,
+	type PublicGame
+} from './library';
 import { MAX_LEVEL } from './terrain';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
@@ -73,6 +84,8 @@ export interface RoomSnapshot {
 	paused: boolean;
 	/** How the table looks (an environment asset's id), or null for the plain table. */
 	environment: string | null;
+	/** The GM lists this game for anyone to find and join (else only its invite link leads here). */
+	listed: boolean;
 }
 
 /** Fields the GM may change on an existing token. Omitted fields stay as they are. */
@@ -187,8 +200,42 @@ export type ClientMessage =
 	/** GM: pause the game (players can't move or act; enemies wait) or carry on. */
 	| { type: 'pause_set'; paused: boolean }
 	/** GM: set up The Hollow Bell on this table (replaces the table). */
-	/** GM: set up the server's adventure, or a creator's from an adventure file (checked in full). */
-	| { type: 'adventure_start'; adventureId?: string; file?: unknown }
+	/**
+	 * GM: set up the server's adventure (`adventureId`), one from the library
+	 * (`libraryId`, its latest version or `version`), or a creator's from an
+	 * adventure file (checked in full).
+	 */
+	| {
+			type: 'adventure_start';
+			adventureId?: string;
+			libraryId?: string;
+			version?: number;
+			file?: unknown;
+	  }
+	/** Player or GM, once a library adventure's story is over: 1-5 stars for it. */
+	| { type: 'adventure_rate'; stars: number }
+	/** GM: list this game for anyone to find and join, or make it invite-only again. */
+	| { type: 'room_listing'; listed: boolean }
+	/** Anyone, at a table or not: the library's listed adventures (a creator's, with `creator`). */
+	| { type: 'library_list'; query?: string; creator?: string; sort?: LibrarySort }
+	/** A creator's own published adventures, listed or not, by their GM key. */
+	| { type: 'library_mine'; gmKey: string }
+	/**
+	 * Publishes an adventure file (checked in full) under a creator name; with
+	 * `adventureId`, as the next version of one of the creator's. Without a
+	 * GM key the server issues one (sent back in library_published).
+	 */
+	| {
+			type: 'library_publish';
+			gmKey?: string;
+			creator: string;
+			file: unknown;
+			adventureId?: string;
+	  }
+	/** A creator lists, unlists or removes one of their adventures. Replies with library_mine. */
+	| { type: 'library_manage'; gmKey: string; adventureId: string; op: LibraryOp }
+	/** Anyone: the games GMs have listed. */
+	| { type: 'games_list' }
 	/** Player: play this character (one each). */
 	| { type: 'adventure_claim'; characterId: CharacterId }
 	/** Player: give back your character, before play begins. */
@@ -251,6 +298,9 @@ export const NEW_TABLE_LIMITS = { min: 4, max: 64 } as const;
 
 export type AdventureControl = 'end_turn' | 'restart' | 'end';
 
+export const LIBRARY_OPS = ['list', 'unlist', 'remove'] as const;
+export type LibraryOp = (typeof LIBRARY_OPS)[number];
+
 /**
  * What the GM directs. Ids are the story's own (events, fights, enemy kinds),
  * offered to the GM in its view of the adventure; the server checks them.
@@ -288,6 +338,7 @@ export type ErrorCode =
 	| 'light_not_found'
 	| 'prop_not_found'
 	| 'scene_not_found'
+	| 'adventure_not_found'
 	| 'invalid_scene'
 	| 'persistence_failed'
 	| 'invalid_chat'
@@ -343,6 +394,16 @@ export type ServerMessage =
 	| { type: 'motion'; motions: Motion[] }
 	/** The adventure changed (as this client may know it); null when it ended. */
 	| { type: 'adventure_update'; adventure: AdventureView | null }
+	/** The GM listed the game, or made it invite-only. */
+	| { type: 'listing_update'; listed: boolean }
+	/** To whoever asked: adventures in the library (and whose, when a creator's were asked for). */
+	| { type: 'library_list'; adventures: LibraryListing[]; creator: Creator | null }
+	/** To a creator: their own adventures. */
+	| { type: 'library_mine'; adventures: MyAdventure[] }
+	/** To the creator who published: where it is. `gmKey` only when the server just issued it. */
+	| { type: 'library_published'; adventureId: string; version: number; gmKey?: string }
+	/** To whoever asked: the games open to join. */
+	| { type: 'games_list'; games: PublicGame[] }
 	| { type: 'error'; code: ErrorCode; message: string };
 
 export const NAME_MAX_LENGTH = 32;
@@ -364,6 +425,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isId(value: unknown): value is string {
 	return typeof value === 'string' && value.length > 0 && value.length <= ID_MAX_LENGTH;
+}
+
+function isGmKey(value: unknown): value is string {
+	return typeof value === 'string' && GM_KEY_PATTERN.test(value);
+}
+
+function isLibraryId(value: unknown): value is string {
+	return typeof value === 'string' && LIBRARY_ID_PATTERN.test(value);
+}
+
+function isVersion(value: unknown): value is number {
+	return (
+		Number.isInteger(value) &&
+		(value as number) >= 1 &&
+		(value as number) <= LIBRARY_LIMITS.versions
+	);
 }
 
 function isRoomId(value: unknown): value is string {
@@ -715,12 +792,74 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			if (data.file !== undefined) {
 				return isRecord(data.file) ? { type: 'adventure_start', file: data.file } : null;
 			}
+			if (data.libraryId !== undefined) {
+				if (!isLibraryId(data.libraryId)) return null;
+				if (data.version === undefined) {
+					return { type: 'adventure_start', libraryId: data.libraryId };
+				}
+				return isVersion(data.version)
+					? { type: 'adventure_start', libraryId: data.libraryId, version: data.version }
+					: null;
+			}
 			if (data.adventureId !== undefined) {
 				return isId(data.adventureId)
 					? { type: 'adventure_start', adventureId: data.adventureId }
 					: null;
 			}
 			return { type: 'adventure_start' };
+		case 'adventure_rate':
+			return Number.isInteger(data.stars) &&
+				(data.stars as number) >= 1 &&
+				(data.stars as number) <= 5
+				? { type: 'adventure_rate', stars: data.stars as number }
+				: null;
+		case 'room_listing':
+			return typeof data.listed === 'boolean'
+				? { type: 'room_listing', listed: data.listed }
+				: null;
+		case 'library_list': {
+			const out: Extract<ClientMessage, { type: 'library_list' }> = { type: 'library_list' };
+			if (data.query !== undefined) {
+				if (typeof data.query !== 'string' || data.query.length > LIBRARY_LIMITS.query) return null;
+				out.query = data.query;
+			}
+			if (data.creator !== undefined) {
+				if (typeof data.creator !== 'string' || !CREATOR_ID_PATTERN.test(data.creator)) return null;
+				out.creator = data.creator;
+			}
+			if (data.sort !== undefined) {
+				if (!LIBRARY_SORTS.includes(data.sort as LibrarySort)) return null;
+				out.sort = data.sort as LibrarySort;
+			}
+			return out;
+		}
+		case 'library_mine':
+			return isGmKey(data.gmKey) ? { type: 'library_mine', gmKey: data.gmKey } : null;
+		case 'library_publish': {
+			if (typeof data.creator !== 'string' || !isRecord(data.file)) return null;
+			if (data.gmKey !== undefined && !isGmKey(data.gmKey)) return null;
+			if (data.adventureId !== undefined && !isLibraryId(data.adventureId)) return null;
+			return {
+				type: 'library_publish',
+				creator: data.creator,
+				file: data.file,
+				...(data.gmKey !== undefined ? { gmKey: data.gmKey } : {}),
+				...(data.adventureId !== undefined ? { adventureId: data.adventureId } : {})
+			};
+		}
+		case 'library_manage':
+			return isGmKey(data.gmKey) &&
+				isLibraryId(data.adventureId) &&
+				LIBRARY_OPS.includes(data.op as LibraryOp)
+				? {
+						type: 'library_manage',
+						gmKey: data.gmKey,
+						adventureId: data.adventureId,
+						op: data.op as LibraryOp
+					}
+				: null;
+		case 'games_list':
+			return { type: 'games_list' };
 		case 'adventure_release':
 		case 'adventure_begin':
 		case 'adventure_end_turn':
@@ -800,6 +939,11 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
 		adventure_update: (d) => d.adventure === null || isRecord(d.adventure),
 		motion: (d) => Array.isArray(d.motions),
+		listing_update: (d) => typeof d.listed === 'boolean',
+		library_list: (d) => Array.isArray(d.adventures),
+		library_mine: (d) => Array.isArray(d.adventures),
+		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
+		games_list: (d) => Array.isArray(d.games),
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};
 

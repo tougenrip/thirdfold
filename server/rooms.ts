@@ -58,6 +58,8 @@ export interface Room {
 	sceneName: string;
 	/** The GM has paused the game: players can't move or act, and enemies wait. */
 	paused: boolean;
+	/** The GM listed the game for anyone to find (see games_list); else it is invite-only. */
+	listed: boolean;
 	/** Paused only because the GM lost their connection; lifted when they are back. */
 	pausedForGm?: boolean;
 	/** Whose saves this table's are: the hash of its GM's lasting key (see gm-keys.ts). */
@@ -120,6 +122,7 @@ export function newRoom(id: string): Room {
 		floor: null,
 		environment: null,
 		paused: false,
+		listed: false,
 		sceneName: 'Untitled scene',
 		fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID), shared: false },
 		log: [],

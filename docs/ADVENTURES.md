@@ -204,3 +204,33 @@ find, a save at the bridge).
 
 A trigger area never fires mid-fight: walking into one only counts once
 the fight at hand is over.
+
+## Publishing to the library
+
+The builder's **Publish** section puts the adventure in the library
+(`/library`), under a creator name, by this browser's GM key (the server
+issues one on a first publish if the browser has none). The server checks the
+file exactly as it would to play it (`loadAdventureFile`), so only playable
+adventures are published. Publishing again, as a version of one of the
+creator's adventures, adds a version: tables that start it later get the
+latest, and a table already playing keeps the file it started with (its saves
+carry that file, as any creator's adventure's do). A creator can take an
+adventure out of the library (it stays theirs to run) or remove it with every
+version.
+
+The library (`server/library-store.ts`) keeps each adventure's versions,
+plays and ratings: files in `data/library` (`LIBRARY_DIR`), or Supabase
+tables `library_adventures`, `library_versions` and `library_ratings` with the
+functions `library_publish`, `library_play` and `library_rate`, all reachable
+only with the server's secret key. A creator is shown by a public id derived
+from their key's hash (`creatorIdOf`), never the key or the hash; their page is
+`/library?creator=<id>`. The library lists the latest versions, searched by
+title, description and creator, ordered by rating (a few ratings count for
+less), plays or date.
+
+A GM runs a library adventure from the library page, or from the Adventure
+panel at a table (`adventure_start` with `libraryId`); the story remembers
+where it came from (`AdventureState.library`, saved), and the panel credits its
+creator. When the story is over, everyone who played it (players with a
+character, and the GM unless it is their own) can give it 1-5 stars
+(`adventure_rate`), once each; rating again replaces their stars.

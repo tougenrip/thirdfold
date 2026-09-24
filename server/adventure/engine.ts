@@ -70,6 +70,7 @@ import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
 import { lightFor, obstacles } from '../scene';
 import { applyScene } from '../scene-io';
+import { creatorIdOf } from '../library-store';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
 import {
 	AMBUSH,
@@ -2698,6 +2699,28 @@ export function askAgain(room: Room, actor: Player): Outcomes {
 	return { ok: true, log: [postSystem(room, `${actor.name} would like to play again.`)] };
 }
 
+/**
+ * Why `viewer` may not rate the library adventure this table played, or
+ * null when they may: it is from the library, its story is over, they
+ * played it (a player with a character, or the GM), and it isn't theirs.
+ */
+export function cannotRate(room: Room, viewer: Player): string | null {
+	const adventure = room.adventure;
+	const source = adventure?.library;
+	if (!adventure || !source) return 'This adventure is not from the library.';
+	if (adventure.stage !== 'complete' && adventure.stage !== 'defeat') {
+		return 'Rate it once the story is over.';
+	}
+	if (viewer.role === 'spectator') return 'Only those who played it rate it.';
+	if (viewer.role === 'player' && !characterOf(room, viewer.id)) {
+		return 'Only those who played it rate it.';
+	}
+	if (viewer.role === 'gm' && room.gmOwner && creatorIdOf(room.gmOwner) === source.creator.id) {
+		return 'You made this adventure.';
+	}
+	return null;
+}
+
 /** Starts the story over at its first table; everyone keeps their character, back at the start at full health. */
 function restart(room: Room, adventure: AdventureState, actor: Player, now: number): Outcome {
 	const A = content(adventure);
@@ -2716,6 +2739,9 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 		);
 		if (token) next.characters.set(id, newCharacter(token.id, A.characters[id]));
 	}
+	// The same adventure from the same place in the library, and what the table made of it.
+	if (adventure.library) next.library = adventure.library;
+	if (adventure.rated) next.rated = adventure.rated;
 	room.adventure = next;
 	const log = [postSystem(room, `${actor.name} started the story over.`)];
 	if (!begun) return { reset: true, log };

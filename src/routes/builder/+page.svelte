@@ -35,6 +35,7 @@
 	import ListInput from '$lib/builder/ListInput.svelte';
 	import RulesEditor from '$lib/builder/RulesEditor.svelte';
 	import WhenEditor from '$lib/builder/WhenEditor.svelte';
+	import PublishPanel from '$lib/builder/PublishPanel.svelte';
 	import { handOff, RoomConnection } from '$lib/net/room-connection.svelte';
 	import { loadGmKey, loadName, saveName } from '$lib/prefs';
 
@@ -72,6 +73,7 @@
 		['things', 'Things & triggers'],
 		['choices', 'Choices & endings'],
 		['check', 'Check'],
+		['publish', 'Publish'],
 		['json', 'File']
 	] as const;
 	let section = $state<(typeof SECTIONS)[number][0]>('overview');
@@ -1564,6 +1566,8 @@
 					{Object.keys(draft.endings.names).length} endings.
 				</p>
 			</section>
+		{:else if section === 'publish'}
+			<PublishPanel file={() => $state.snapshot(draft)} ready={checked.ok} title={draft.title} />
 		{:else if section === 'json'}
 			<section>
 				<h2>The adventure file</h2>

@@ -26,6 +26,15 @@ import { loadCustomAdventure } from './adventure/custom';
 import { readAdventure } from './adventure/persist';
 import { builtInAdventures, trackInUse } from './adventure/registry';
 import { RateLimiter } from './rate-limit';
+import { createHash } from 'node:crypto';
+import { ADVENTURE_FILE_MAX_BYTES, loadAdventureFile } from '../src/lib/adventure/file';
+import {
+	LIBRARY_LIMITS,
+	normalizeCreatorName,
+	normalizeQuery,
+	type PublicGame
+} from '../src/lib/game/library';
+import { LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
 import { applyScene, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { keyOwner, newGmKey } from './gm-keys';
@@ -94,6 +103,8 @@ export interface GameServerOptions {
 	awayTurnMs?: number;
 	/** How long after a change a story in play is autosaved to its GM's saves. */
 	autosaveMs?: number;
+	/** The adventure library (see library-store.ts). Defaults to memory. */
+	libraryStore?: LibraryStore;
 }
 
 export interface GameServer {
@@ -159,6 +170,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	// Creators' adventures a table is playing are kept while it plays them.
 	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
+	const libraryStore = options.libraryStore ?? new MemoryLibraryStore();
+	// Browsing the library and the open games: a few asks a second per connection.
+	const browseLimiter = new RateLimiter(10, 2);
+	// Publishing and changing the library: a handful, then one every 20 s per creator.
+	const publishLimiter = new RateLimiter(5, 0.05);
+	/** Each connection's key for the browse limit (connections are not seated when browsing). */
+	const connectionIds = new WeakMap<WebSocket, string>();
+	let nextConnection = 0;
 	/** roomId -> playerId -> the socket currently holding that seat. */
 	const sockets = new Map<string, Map<string, WebSocket>>();
 	const seats = new WeakMap<WebSocket, Seat>();
@@ -257,6 +276,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'resume':
 				if (s) return sendError(ws, 'already_joined', 'This connection is already in a room.');
 				return handleEntry(ws, msg);
+			case 'library_list':
+			case 'library_mine':
+			case 'library_publish':
+			case 'library_manage':
+			case 'games_list':
+				// The library and the open games: at a table or not.
+				void handleLibrary(ws, msg);
+				return;
 			case 'scene_list':
 				// Before joining a table (the landing page), a GM lists their saves by their key.
 				if (!room || !player) {
@@ -604,6 +631,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		player: Player,
 		msg: Extract<ClientMessage, { type: `adventure_${string}` }>
 	): void {
+		// The library is storage: these two answer when it has.
+		if (msg.type === 'adventure_start' && msg.libraryId !== undefined) {
+			void startFromLibrary(ws, room, player, msg.libraryId, msg.version);
+			return;
+		}
+		if (msg.type === 'adventure_rate') {
+			void rate(ws, room, player, msg.stars);
+			return;
+		}
 		// Talking, narration and picking characters add to the log, so they share the chat rate limit.
 		const chatty =
 			msg.type === 'adventure_interact' ||
@@ -671,6 +707,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return adventure.override(room, player, msg.characterId, msg.patch);
 			}
 		})();
+		if (!result) return;
 		if (!result.ok) return sendError(ws, result.code, result.message);
 		applyOutcome(room, result);
 	}
@@ -1027,8 +1064,211 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_control':
 			case 'adventure_again':
 			case 'adventure_direct':
+			case 'adventure_rate':
 				return handleAdventure(ws, room, player, msg);
+			case 'room_listing': {
+				if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');
+				if (room.listed === msg.listed) return;
+				room.listed = msg.listed;
+				touch(room);
+				broadcast(room.id, { type: 'listing_update', listed: room.listed });
+				return announce(
+					room,
+					postSystem(
+						room,
+						room.listed
+							? `${player.name} listed the game: anyone can find it and join.`
+							: `${player.name} made the game invite-only.`
+					)
+				);
+			}
 		}
+	}
+
+	// -------------------------------------------------------------------
+	// The adventure library and the open games (see library-store.ts).
+
+	function connectionKey(ws: WebSocket): string {
+		let id = connectionIds.get(ws);
+		if (!id) connectionIds.set(ws, (id = `ws:${++nextConnection}`));
+		return id;
+	}
+
+	/** The games GMs listed, with somebody at them, most players first. */
+	function publicGames(): PublicGame[] {
+		const games: PublicGame[] = [];
+		for (const room of rooms.all()) {
+			if (!room.listed || !sockets.get(room.id)?.size) continue;
+			const people = [...room.players.values()];
+			const story = room.adventure;
+			const A = story && adventure.content(story);
+			games.push({
+				roomId: room.id,
+				title: A ? A.title : room.sceneName,
+				gm: people.find((p) => p.role === 'gm')?.name ?? '',
+				players: people.filter((p) => p.role === 'player').length,
+				status: !story
+					? null
+					: story.stage === 'choosing'
+						? 'Choosing characters'
+						: story.stage === 'playing'
+							? `Chapter ${adventure.chapterNumber(A!, story.chapter)} of ${Object.keys(A!.chapters).length}`
+							: 'Finished'
+			});
+		}
+		return games.sort((a, b) => b.players - a.players).slice(0, LIBRARY_LIMITS.games);
+	}
+
+	async function handleLibrary(
+		ws: WebSocket,
+		msg: Extract<
+			ClientMessage,
+			{
+				type: 'library_list' | 'library_mine' | 'library_publish' | 'library_manage' | 'games_list';
+			}
+		>
+	): Promise<void> {
+		const browsing = msg.type === 'library_list' || msg.type === 'games_list';
+		const limited = browsing
+			? browseLimiter.take(connectionKey(ws))
+			: publishLimiter.take(msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws));
+		if (!limited) return sendError(ws, 'rate_limited', 'Give it a moment before asking again.');
+		try {
+			switch (msg.type) {
+				case 'games_list':
+					return send(ws, { type: 'games_list', games: publicGames() });
+				case 'library_list': {
+					const found = await libraryStore.list({
+						query: normalizeQuery(msg.query),
+						creator: msg.creator ?? null,
+						sort: msg.sort ?? 'top'
+					});
+					return send(ws, { type: 'library_list', ...found });
+				}
+				case 'library_mine':
+					return send(ws, {
+						type: 'library_mine',
+						adventures: await libraryStore.mine(keyOwner(msg.gmKey))
+					});
+				case 'library_manage': {
+					const owner = keyOwner(msg.gmKey);
+					const done =
+						msg.op === 'remove'
+							? await libraryStore.remove(msg.adventureId, owner)
+							: await libraryStore.setListed(msg.adventureId, owner, msg.op === 'list');
+					if (!done) return sendError(ws, 'forbidden', 'That adventure is not one of yours.');
+					return send(ws, { type: 'library_mine', adventures: await libraryStore.mine(owner) });
+				}
+				case 'library_publish': {
+					const creator = normalizeCreatorName(msg.creator);
+					if (!creator) {
+						return sendError(
+							ws,
+							'invalid_name',
+							`Creator names are 1-${LIBRARY_LIMITS.creatorName} characters.`
+						);
+					}
+					if (JSON.stringify(msg.file).length > ADVENTURE_FILE_MAX_BYTES) {
+						return sendError(ws, 'invalid_message', 'That adventure is too large.');
+					}
+					// Checked in full, as it would be to play it: only playable adventures are published.
+					const loaded = loadAdventureFile(msg.file, 'custom-publish');
+					if (!loaded.ok) return sendError(ws, 'invalid_message', loaded.error);
+					const issued = msg.gmKey ? null : newGmKey();
+					const owner = keyOwner(msg.gmKey ?? issued!);
+					const published = await libraryStore.publish(
+						{
+							owner,
+							creatorName: creator,
+							title: loaded.file.title,
+							about: loaded.file.about ?? '',
+							file: loaded.file
+						},
+						msg.adventureId
+					);
+					send(ws, {
+						type: 'library_published',
+						adventureId: published.id,
+						version: published.version,
+						...(issued ? { gmKey: issued } : {})
+					});
+					return send(ws, { type: 'library_mine', adventures: await libraryStore.mine(owner) });
+				}
+			}
+		} catch (err) {
+			if (err instanceof LibraryError) {
+				const code =
+					err.code === 'too_many'
+						? 'limit_reached'
+						: err.code === 'forbidden'
+							? 'forbidden'
+							: 'adventure_not_found';
+				return sendError(ws, code, err.message);
+			}
+			console.error('[library] failed', err);
+			sendError(ws, 'persistence_failed', 'The library could not be reached. Try again.');
+		}
+	}
+
+	/** GM: sets up an adventure from the library (its latest version, or `version`). */
+	async function startFromLibrary(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		id: string,
+		version?: number
+	): Promise<void> {
+		if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');
+		if (!sceneLimiter.take(player.id)) {
+			return sendError(ws, 'rate_limited', 'Give it a moment before trying again.');
+		}
+		let copy;
+		try {
+			copy = await libraryStore.get(id, version);
+		} catch (err) {
+			console.error('[library] reading failed', err);
+			return sendError(ws, 'persistence_failed', 'The library could not be reached. Try again.');
+		}
+		// An unlisted adventure is still its creator's to play.
+		if (!copy || (!copy.listed && copy.owner !== room.gmOwner)) {
+			return sendError(ws, 'adventure_not_found', 'That adventure is not in the library.');
+		}
+		if (rooms.get(room.id) !== room) return;
+		const custom = loadCustomAdventure(copy.file);
+		if (!custom.ok) return sendError(ws, 'invalid_message', custom.error);
+		const result = adventure.startAdventure(room, player, custom.adventure.id);
+		if (!result.ok) return sendError(ws, result.code, result.message);
+		room.adventure!.library = {
+			id,
+			version: copy.listing.version,
+			creator: { ...copy.listing.creator }
+		};
+		applyOutcome(room, result);
+		libraryStore.played(id).catch((err) => console.error('[library] counting a play failed', err));
+	}
+
+	/** Someone who played a library adventure rates it, once the story is over. */
+	async function rate(ws: WebSocket, room: Room, player: Player, stars: number): Promise<void> {
+		const reason = adventure.cannotRate(room, player);
+		if (reason) return sendError(ws, 'forbidden', reason);
+		if (!chatLimiter.take(player.id)) return sendError(ws, 'rate_limited', 'Slow down a little.');
+		const story = room.adventure!;
+		const source = story.library!;
+		// One rating per GM (by their key), and per player at this table.
+		const rater =
+			player.role === 'gm' && room.gmOwner
+				? room.gmOwner
+				: createHash('sha256').update(`thirdfold-rater:${room.id}:${player.id}`).digest('hex');
+		try {
+			await libraryStore.rate(source.id, rater, stars);
+		} catch (err) {
+			if (err instanceof LibraryError) return sendError(ws, 'adventure_not_found', err.message);
+			console.error('[library] rating failed', err);
+			return sendError(ws, 'persistence_failed', 'Your rating could not be kept. Try again.');
+		}
+		if (room.adventure !== story) return;
+		(story.rated ??= new Map()).set(player.id, stars);
+		syncRoom(room);
 	}
 
 	function onClose(ws: WebSocket): void {

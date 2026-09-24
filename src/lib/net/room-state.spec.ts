@@ -23,7 +23,8 @@ function room(): RoomSnapshot {
 		floor: null,
 		darkness: null,
 		paused: false,
-		environment: null
+		environment: null,
+		listed: false
 	};
 }
 
@@ -44,6 +45,14 @@ describe('applyRoomUpdate', () => {
 		expect(r.paused).toBe(false);
 	});
 
+	it('follows the GM listing the game and making it invite-only', () => {
+		const r = room();
+		expect(applyRoomUpdate(r, { type: 'listing_update', listed: true })).toBe(true);
+		expect(r.listed).toBe(true);
+		applyRoomUpdate(r, { type: 'listing_update', listed: false });
+		expect(r.listed).toBe(false);
+	});
+
 	it('tracks presence', () => {
 		const r = room();
 		applyRoomUpdate(r, { type: 'player_presence', playerId: 'gm', connected: false });
@@ -53,6 +62,7 @@ describe('applyRoomUpdate', () => {
 	it('ignores non-room messages', () => {
 		const r = room();
 		expect(applyRoomUpdate(r, { type: 'error', code: 'server_error', message: 'x' })).toBe(false);
+		expect(applyRoomUpdate(r, { type: 'games_list', games: [] })).toBe(false);
 		expect(r).toEqual(room());
 	});
 
@@ -195,6 +205,7 @@ describe('applyRoomUpdate', () => {
 			completedAt: null,
 			summary: null,
 			rewards: [],
+			library: null,
 			cues: null
 		};
 		expect(applyRoomUpdate(r, { type: 'adventure_update', adventure })).toBe(true);

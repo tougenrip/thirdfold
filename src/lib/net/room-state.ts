@@ -79,6 +79,9 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 		case 'adventure_update':
 			room.adventure = msg.adventure;
 			return true;
+		case 'listing_update':
+			room.listed = msg.listed;
+			return true;
 		case 'chat': {
 			const last = room.log.at(-1);
 			if (last && last.seq >= msg.message.seq) return true; // already have it
