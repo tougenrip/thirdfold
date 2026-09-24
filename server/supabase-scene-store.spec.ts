@@ -5,6 +5,8 @@ import { parseSceneFile, serializeScene } from '../src/lib/game/scene-file';
 import { emptyMask } from '../src/lib/game/visibility';
 import { SCENE_ID_PATTERN } from './scene-store';
 import { SupabaseSceneStore } from './supabase-scene-store';
+import { restoreRoom, serializeRoom, SupabaseRoomStore } from './room-store';
+import { RoomManager } from './rooms';
 
 const scene = serializeScene('Crypt', {
 	grid: DEFAULT_GRID,
@@ -97,5 +99,45 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseSceneStore (live Supab
 		expect(badId.error).not.toBeNull();
 		const badName = await admin.from('scenes').insert({ id: 'd'.repeat(32), name: '', data: {} });
 		expect(badName.error).not.toBeNull();
+	});
+});
+
+describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseRoomStore (live Supabase)', () => {
+	const liveRoom = () => {
+		const rooms = new RoomManager();
+		const created = rooms.create('Gia');
+		if (!created.ok) throw new Error(created.message);
+		return serializeRoom(created.room);
+	};
+
+	it('keeps a live room in Postgres, replaces it on save, and forgets it on remove', async () => {
+		const store = SupabaseRoomStore.connect(url!, serviceKey!);
+		const room = liveRoom();
+		await store.save(room);
+		await store.save({ ...room, nextSeq: room.nextSeq + 1 });
+		const kept = (await store.loadAll()).filter((r) => (r as { id: string }).id === room.id);
+		expect(kept).toHaveLength(1);
+		const back = restoreRoom(kept[0]);
+		expect(back.ok && back.room.nextSeq).toBe(room.nextSeq + 1);
+		await store.remove(room.id);
+		const gone = (await store.loadAll()).filter((r) => (r as { id: string }).id === room.id);
+		expect(gone).toEqual([]);
+	});
+
+	it('keeps live rooms (and their session tokens) away from the browser key', async () => {
+		const room = liveRoom();
+		await SupabaseRoomStore.connect(url!, serviceKey!).save(room);
+		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
+		const all = await browser.from('live_rooms').select('data');
+		expect(all.data ?? []).toEqual([]);
+		const write = await browser.from('live_rooms').insert({ id: 'ABCDEF', data: {} });
+		expect(write.error).not.toBeNull();
+		await SupabaseRoomStore.connect(url!, serviceKey!).remove(room.id);
+	});
+
+	it('rejects rows that are not rooms at the database too', async () => {
+		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+		const bad = await admin.from('live_rooms').insert({ id: '../x', data: {} });
+		expect(bad.error).not.toBeNull();
 	});
 });

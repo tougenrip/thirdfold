@@ -12,6 +12,7 @@ import { beginAdventure, claimCharacter, postSentries, startAdventure } from './
 import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
 import { recordOrigins } from './adventure/objects';
 import { RoomManager } from './rooms';
+import { MemoryRoomStore } from './room-store';
 import { applyScene, exportScene } from './scene-io';
 
 class Queue {
@@ -1698,5 +1699,160 @@ describe('The Hollow Bell over the wire', () => {
 		pip.send({ type: 'adventure_interact', targetId: find.objectId, verb: null });
 		const found = await untilAdventure(pip, (a) => a.clues.length > 0);
 		expect(found.clues[0]).toMatchObject({ id: 'tinbell', mine: true, shared: false });
+	});
+});
+
+describe('session recovery over the wire', () => {
+	const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+	async function restart(options: Parameters<typeof startGameServer>[0]) {
+		await server.close();
+		server = await startGameServer(options);
+	}
+
+	/** A GM and a player at a table; returns their seats' secret tokens too. */
+	async function seated() {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const gmWelcome = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: gmWelcome.room.id, name: 'Pip', role: 'player' });
+		const pipWelcome = await pip.expect('welcome');
+		await gm.expect('player_joined');
+		return { gm, pip, roomId: gmWelcome.room.id, gmWelcome, pipWelcome };
+	}
+
+	async function resume(roomId: string, sessionToken: string) {
+		const c = await connect();
+		c.send({ type: 'resume', roomId, sessionToken });
+		return { c, welcome: await c.expect('welcome') };
+	}
+
+	it('keeps a game going across a server restart: same seats, owned tokens, log and scene', async () => {
+		const store = new MemoryRoomStore();
+		await restart({ port: 0, host: '127.0.0.1', roomStore: store, roomSaveMs: 0 });
+		const { gm, pip, roomId, gmWelcome, pipWelcome } = await seated();
+		gm.send({
+			type: 'token_create',
+			name: 'Scout',
+			color: '#2e86de',
+			pos: { x: 2, y: 2 },
+			ownerId: pipWelcome.playerId
+		});
+		const { token } = await pip.until('token_upserted');
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 4, y: 2 } });
+		await gm.until('token_moved');
+		pip.send({ type: 'chat_send', text: 'Still here?' });
+		await gm.until('chat', (m) => m.message.kind === 'chat');
+		gm.send({ type: 'object_create', kind: 'wall', a: { x: 0, y: 6 }, b: { x: 4, y: 6 } });
+		await pip.until('objects_changed');
+
+		// The server goes down (a deploy) and comes back with the rooms it kept.
+		await restart({ port: 0, host: '127.0.0.1', roomStore: store, roomSaveMs: 0 });
+		expect(server.rooms.get(roomId)).toBeDefined();
+
+		const back = await resume(roomId, gmWelcome.sessionToken);
+		expect(back.welcome.playerId).toBe(gmWelcome.playerId);
+		const pipBack = await resume(roomId, pipWelcome.sessionToken);
+		expect(pipBack.welcome.playerId).toBe(pipWelcome.playerId);
+		const snapshot = pipBack.welcome.room;
+		expect(snapshot.tokens.find((t) => t.id === token.id)).toMatchObject({
+			pos: { x: 4, y: 2 },
+			ownerId: pipWelcome.playerId
+		});
+		expect(snapshot.objects).toHaveLength(1);
+		expect(snapshot.log.some((m) => m.kind === 'chat' && m.text === 'Still here?')).toBe(true);
+		// The seat still owns its token: it can move it.
+		pipBack.c.send({ type: 'token_move', tokenId: token.id, to: { x: 5, y: 2 } });
+		expect(await back.c.until('token_moved')).toMatchObject({ pos: { x: 5, y: 2 } });
+		// And a session token never goes out to anyone else.
+		expect(JSON.stringify(snapshot)).not.toContain(gmWelcome.sessionToken);
+	});
+
+	it('still closes a kept room once nobody has come back to it', async () => {
+		const store = new MemoryRoomStore();
+		await restart({ port: 0, host: '127.0.0.1', roomStore: store, roomSaveMs: 0 });
+		const { roomId } = await seated();
+		await restart({
+			port: 0,
+			host: '127.0.0.1',
+			roomStore: store,
+			roomSaveMs: 0,
+			emptyRoomTtlMs: 60,
+			heartbeatMs: 20
+		});
+		expect(server.rooms.get(roomId)).toBeDefined();
+		await sleep(250);
+		expect(server.rooms.get(roomId)).toBeUndefined();
+		expect(store.rooms.has(roomId)).toBe(false);
+	});
+
+	it('waits for a GM whose connection dropped mid-story, and carries on when they are back', async () => {
+		const { gm, pip, roomId, gmWelcome } = await seated();
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		gm.ws.terminate();
+		expect(await pip.until('pause_update')).toEqual({ type: 'pause_update', paused: true });
+		await pip.untilNotice('The GM lost their connection. The game waits for them.');
+		pip.send({ type: 'token_move', tokenId: warden.token.id, to: { x: 11, y: 24 } });
+		expect(await pip.until('error')).toMatchObject({ code: 'paused' });
+
+		await resume(roomId, gmWelcome.sessionToken);
+		expect(await pip.until('pause_update')).toEqual({ type: 'pause_update', paused: false });
+		await pip.untilNotice('The GM is back.');
+	});
+
+	it('passes the turn of a character whose player has gone, after a while', async () => {
+		await restart({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 0,
+			patrolMs: 0,
+			awayTurnMs: 80
+		});
+		const { gm, pip } = await seated();
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await gm.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'encounter_start', encounter: 'well' }
+		});
+		// The Hound (d20 + 3) goes first; then it is the Warden's turn.
+		await gm.until('adventure_update', (m) => {
+			const e = m.adventure?.encounter;
+			return !!e && e.order[e.current]?.characterId === 'warden';
+		});
+		pip.ws.terminate();
+		await gm.untilNotice("The Warden's player is away; their turn passes.");
+	});
+
+	it('catches a late joiner up on the ground the party has explored', async () => {
+		const { gm, pip, roomId, pipWelcome } = await seated();
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		const room = server.rooms.get(roomId)!;
+		const pipSeat = room.players.get(pipWelcome.playerId)!;
+		pipSeat.explored[7] = 1;
+
+		const late = await connect();
+		late.send({ type: 'join', roomId, name: 'Lou', role: 'player' });
+		const welcome = await late.expect('welcome');
+		const lou = room.players.get(welcome.playerId)!;
+		expect(lou.explored[7]).toBe(1);
+		expect(welcome.room.adventure?.stage).toBe('playing');
 	});
 });

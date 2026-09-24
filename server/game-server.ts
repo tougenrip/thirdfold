@@ -24,6 +24,7 @@ import type { MechanismId } from './adventure/mechanisms';
 import { readAdventure } from './adventure/persist';
 import { RateLimiter } from './rate-limit';
 import { applyScene, exportScene } from './scene-io';
+import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { MemorySceneStore, type SceneStore } from './scene-store';
 import { RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
 import {
@@ -74,6 +75,15 @@ export interface GameServerOptions {
 	mechanismDelayScale?: number;
 	/** How often sentries outside a fight take a step on their rounds; 0 turns patrols off. */
 	patrolMs?: number;
+	/**
+	 * Where live rooms are kept so a restart doesn't end a game (see room-store.ts).
+	 * Rooms in it are restored at startup; without one, rooms live only in memory.
+	 */
+	roomStore?: RoomStore;
+	/** How long after a change a room is saved to the room store (changes in between go together). */
+	roomSaveMs?: number;
+	/** How long a fight waits for a character whose player is away before their turn passes. */
+	awayTurnMs?: number;
 }
 
 export interface GameServer {
@@ -107,16 +117,30 @@ interface Seat {
 	playerId: string;
 }
 
-export function startGameServer(options: GameServerOptions): Promise<GameServer> {
+/** Starts the game server, first bringing back the live rooms in `options.roomStore`, if any. */
+export async function startGameServer(options: GameServerOptions): Promise<GameServer> {
+	const restored: Room[] = [];
+	for (const raw of options.roomStore ? await options.roomStore.loadAll() : []) {
+		const result = restoreRoom(raw);
+		if (result.ok) restored.push(result.room);
+		else console.warn(`[rooms] skipped a stored room: ${result.error}`);
+	}
+	return serve(options, restored);
+}
+
+function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer> {
 	const {
 		emptyRoomTtlMs = 10 * 60_000,
 		heartbeatMs = 30_000,
 		rollDie = secureRoller,
 		enemyTurnDelayMs = 2500,
 		mechanismDelayScale = 1,
-		patrolMs = 1500
+		patrolMs = 1500,
+		roomSaveMs = 1000,
+		awayTurnMs = 20_000
 	} = options;
 	const rooms = new RoomManager();
+	const roomStore = options.roomStore ?? null;
 	// Chat and dice: bursts of 8, then one every 750 ms per player.
 	const chatLimiter = new RateLimiter(8, 4 / 3);
 	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
@@ -155,6 +179,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	}
 
 	function seat(ws: WebSocket, room: Room, player: Player): void {
+		touch(room);
 		let roomSockets = sockets.get(room.id);
 		if (!roomSockets) sockets.set(room.id, (roomSockets = new Map()));
 		const previous = roomSockets.get(player.id);
@@ -179,6 +204,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	 * each the difference from what they had. Hidden things never go out.
 	 */
 	function syncRoom(room: Room, movedBy?: string): void {
+		touch(room);
 		const roomSockets = sockets.get(room.id);
 		if (!roomSockets) return;
 		const viewers = [...roomSockets.keys()]
@@ -242,6 +268,15 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				const result = rooms.join(msg.roomId, msg.name, msg.role);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { room, player } = result;
+				// Joining a story under way: they catch up on the ground the party has explored.
+				if (room.adventure && room.adventure.stage !== 'choosing' && player.role === 'player') {
+					for (const other of room.players.values()) {
+						if (other.role !== 'player' || other === player) continue;
+						for (let i = 0; i < player.explored.length; i++) {
+							if (other.explored[i]) player.explored[i] = 1;
+						}
+					}
+				}
 				// Logged before seating so the joiner's snapshot already contains it.
 				const notice = postSystem(room, `${player.name} joined as ${ROLE_NAMES[player.role]}.`);
 				seat(ws, room, player);
@@ -258,12 +293,89 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					{ type: 'player_presence', playerId: result.player.id, connected: true },
 					result.player.id
 				);
+				if (result.player.role === 'gm') gmBack(result.room);
 				return;
 			}
 		}
 	}
 
+	// -------------------------------------------------------------------
+	// Keeping live rooms (see room-store.ts): a changed room is saved a moment later.
+
+	const dirty = new Set<Room>();
+	let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function touch(room: Room): void {
+		if (!roomStore) return;
+		dirty.add(room);
+		saveTimer ??= setTimeout(() => void saveDirty(), roomSaveMs);
+	}
+
+	async function saveDirty(): Promise<void> {
+		saveTimer = null;
+		const pending = [...dirty];
+		dirty.clear();
+		for (const room of pending) {
+			if (rooms.get(room.id) !== room) continue;
+			try {
+				await roomStore?.save(serializeRoom(room));
+			} catch (err) {
+				console.error(`[room ${room.id}] could not be kept`, err);
+				touch(room);
+			}
+		}
+	}
+
+	// -------------------------------------------------------------------
+	// People coming and going
+
+	/** The GM's connection dropped mid-story: the game waits for them. */
+	function gmAway(room: Room): void {
+		if (room.adventure?.stage !== 'playing' || room.paused) return;
+		room.paused = true;
+		room.pausedForGm = true;
+		syncRoom(room);
+		announce(room, postSystem(room, 'The GM lost their connection. The game waits for them.'));
+	}
+
+	/** The GM is back: a pause the GM's absence caused is lifted. */
+	function gmBack(room: Room): void {
+		if (!room.pausedForGm) return;
+		room.paused = false;
+		room.pausedForGm = false;
+		syncRoom(room);
+		announce(room, postSystem(room, 'The GM is back.'));
+		resumeTimers(room);
+	}
+
+	/** Enemy turns and away turns that waited (for a pause, or a restart) go on. */
+	function resumeTimers(room: Room): void {
+		const story = room.adventure;
+		if (!story) return;
+		const enemyTurn = adventure.pendingEnemyTurn(story);
+		if (enemyTurn !== null) scheduleEnemyTurn(room, enemyTurn);
+		watchAwayTurn(room);
+	}
+
+	/** Whether a player has a socket at the table now. */
+	const isHere = (room: Room, playerId: string) => !!sockets.get(room.id)?.has(playerId);
+
+	/** A fight waits a while for a character whose player is away, then their turn passes. */
+	function watchAwayTurn(room: Room): void {
+		const turn = adventure.awayTurn(room, (id) => isHere(room, id));
+		if (turn === null) return;
+		const timer = setTimeout(() => {
+			timers.delete(timer);
+			if (rooms.get(room.id) !== room || room.paused) return;
+			if (adventure.awayTurn(room, (id) => isHere(room, id)) !== turn) return;
+			const outcome = adventure.passAwayTurn(room, turn);
+			if (outcome) applyOutcome(room, outcome);
+		}, awayTurnMs);
+		timers.add(timer);
+	}
+
 	function announce(room: Room, message: ChatMessage): void {
+		touch(room);
 		const frame = JSON.stringify({ type: 'chat', message } satisfies ServerMessage);
 		for (const [playerId, ws] of sockets.get(room.id) ?? []) {
 			const viewer = room.players.get(playerId);
@@ -273,6 +385,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 
 	/** The whole table was replaced: give every viewer a fresh snapshot and restart their diffs. */
 	function resetRoom(room: Room): void {
+		touch(room);
 		const roomSockets = sockets.get(room.id);
 		if (!roomSockets) return;
 		const viewers = [...roomSockets.keys()]
@@ -318,6 +431,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		if (outcome.motions) showMotions(room, outcome.motions);
 		if (outcome.enemyTurn !== undefined) scheduleEnemyTurn(room, outcome.enemyTurn);
 		for (const next of outcome.mechanisms ?? []) scheduleMechanism(room, next);
+		watchAwayTurn(room);
 	}
 
 	/**
@@ -501,7 +615,11 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		msg: Exclude<ClientMessage, { type: 'create' | 'join' | 'resume' }>
 	): void {
 		if (room.paused && player.role !== 'gm' && PAUSED_ACTIONS.has(msg.type)) {
-			return sendError(ws, 'paused', 'The GM has paused the game.');
+			return sendError(
+				ws,
+				'paused',
+				room.pausedForGm ? 'The game waits for the GM to reconnect.' : 'The GM has paused the game.'
+			);
 		}
 		switch (msg.type) {
 			case 'pause_set': {
@@ -738,7 +856,10 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		const player = room?.players.get(s.playerId);
 		if (!room || !player) return;
 		rooms.setConnected(room, player, false);
+		touch(room);
 		broadcast(room.id, { type: 'player_presence', playerId: player.id, connected: false });
+		if (player.role === 'gm') gmAway(room);
+		else watchAwayTurn(room);
 	}
 
 	wss.on('connection', (ws) => {
@@ -764,6 +885,20 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		ws.on('error', (err) => console.warn('[game-server] socket error', err.message));
 	});
 
+	// Rooms kept from before a restart: nobody is connected yet, so a story waits for its GM.
+	for (const room of restored) {
+		if (!rooms.adopt(room)) continue;
+		room.dice = rollDie;
+		if (room.adventure?.stage === 'playing' && !room.paused) {
+			room.paused = true;
+			room.pausedForGm = true;
+		}
+		for (const next of room.adventure ? adventure.pendingMechanisms(room.adventure) : []) {
+			scheduleMechanism(room, next);
+		}
+		console.info(`[room ${room.id}] restored`);
+	}
+
 	// Outside fights, sentries walk their rounds and look about, a step at a time.
 	const patrols =
 		patrolMs > 0
@@ -788,7 +923,10 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			alive.delete(ws);
 			ws.ping();
 		}
-		for (const id of rooms.prune(emptyRoomTtlMs)) console.info(`[room ${id}] closed (empty)`);
+		for (const id of rooms.prune(emptyRoomTtlMs)) {
+			console.info(`[room ${id}] closed (empty)`);
+			roomStore?.remove(id).catch((err) => console.error(`[room ${id}] could not be removed`, err));
+		}
 	}, heartbeatMs);
 
 	return new Promise((resolve, reject) => {
@@ -799,15 +937,18 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			resolve({
 				port: address && typeof address === 'object' ? address.port : options.port,
 				rooms,
-				close: () =>
-					new Promise<void>((done) => {
-						clearInterval(heartbeat);
-						if (patrols) clearInterval(patrols);
-						for (const timer of timers) clearTimeout(timer);
-						timers.clear();
-						for (const ws of wss.clients) ws.terminate();
-						wss.close(() => done());
-					})
+				close: async () => {
+					clearInterval(heartbeat);
+					if (patrols) clearInterval(patrols);
+					for (const timer of timers) clearTimeout(timer);
+					timers.clear();
+					if (saveTimer) clearTimeout(saveTimer);
+					// Every room is kept as it stands, so a restart picks up where this left off.
+					for (const room of rooms.all()) dirty.add(room);
+					await saveDirty();
+					for (const ws of wss.clients) ws.terminate();
+					await new Promise<void>((done) => wss.close(() => done()));
+				}
 			});
 		});
 	});

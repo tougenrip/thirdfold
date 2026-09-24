@@ -50,6 +50,8 @@ export interface Room {
 	sceneName: string;
 	/** The GM has paused the game: players can't move or act, and enemies wait. */
 	paused: boolean;
+	/** Paused only because the GM lost their connection; lifted when they are back. */
+	pausedForGm?: boolean;
 	fog: {
 		enabled: boolean;
 		/** Cells the GM has revealed to everyone. */
@@ -83,6 +85,29 @@ export function toPublicPlayer(p: Player): PublicPlayer {
 	return { id: p.id, name: p.name, role: p.role, connected: p.connected };
 }
 
+/** An empty room (a blank table, nobody in it) with this id. */
+export function newRoom(id: string): Room {
+	return {
+		id,
+		grid: { ...DEFAULT_GRID },
+		players: new Map(),
+		tokens: new Map(),
+		objects: new Map(),
+		props: new Map(),
+		lights: new Map(),
+		ambient: 'day',
+		terrain: null,
+		darkness: null,
+		paused: false,
+		sceneName: 'Untitled scene',
+		fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID), shared: false },
+		log: [],
+		nextSeq: 1,
+		emptySince: null,
+		adventure: null
+	};
+}
+
 export class RoomManager {
 	private rooms = new Map<string, Room>();
 
@@ -99,29 +124,18 @@ export class RoomManager {
 		return this.rooms.values();
 	}
 
+	/** Takes in a room restored after a restart (see room-store.ts); false if its id is taken. */
+	adopt(room: Room): boolean {
+		if (this.rooms.has(room.id)) return false;
+		this.rooms.set(room.id, room);
+		return true;
+	}
+
 	/** Creates a room whose creator becomes its GM. */
 	create(rawName: unknown): Result<{ room: Room; player: Player }> {
 		const name = normalizeName(rawName);
 		if (!name) return fail('invalid_name', 'Name must be 1-32 characters.');
-		const room: Room = {
-			id: this.newRoomId(),
-			grid: { ...DEFAULT_GRID },
-			players: new Map(),
-			tokens: new Map(),
-			objects: new Map(),
-			props: new Map(),
-			lights: new Map(),
-			ambient: 'day',
-			terrain: null,
-			darkness: null,
-			paused: false,
-			sceneName: 'Untitled scene',
-			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID), shared: false },
-			log: [],
-			nextSeq: 1,
-			emptySince: null,
-			adventure: null
-		};
+		const room = newRoom(this.newRoomId());
 		const player = this.addPlayer(room, name, 'gm');
 		this.rooms.set(room.id, room);
 		return { ok: true, room, player };
