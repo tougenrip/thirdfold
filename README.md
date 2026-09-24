@@ -1,7 +1,10 @@
 # thirdfold
 
+A real-time multiplayer 3D virtual tabletop for tabletop RPGs.
+
 One SvelteKit codebase for web, Android/iOS (Capacitor) and desktop (Tauri),
-backed by a local Supabase stack and a Redis cache, all in Docker.
+an authoritative Node WebSocket game server (`server/`), and a local Supabase
+stack plus Redis cache in Docker.
 
 The frontend is a static SPA (`adapter-static`, `ssr = false`): no server
 routes or form actions. Anything needing a secret, the database directly, or
@@ -14,8 +17,31 @@ npm install
 cp .env.example .env      # fill VITE_SUPABASE_ANON_KEY from `npx supabase start`
 npm run db:start          # local Supabase: API :54321, Postgres :54322, Studio :54323
 npm run cache:up          # Redis :6379 (server-side only)
+npm run server            # game server on ws://localhost:8787 (watch mode)
 npm run dev               # web on http://localhost:1420
 ```
+
+The game server keeps rooms in memory. The GM saves scenes from the Scene panel;
+the browser remembers which scenes it saved, and scenes can also be exported to
+and imported from a file. Saved scenes go to JSON files in `./data/scenes`
+(override with `SCENES_DIR`), or to Supabase when the server is started with
+`SUPABASE_URL` and `SUPABASE_SERVICE_KEY`:
+
+```bash
+npm run db:start                      # local Supabase
+npx supabase migration up             # creates public.scenes (RLS on, no client access)
+SUPABASE_URL=http://127.0.0.1:54321 \
+SUPABASE_SERVICE_KEY=<SECRET_KEY from npx supabase status> npm run server
+```
+
+The service key bypasses row-level security, so it belongs to the game server
+only, never in a `VITE_` variable.
+
+Open http://localhost:1420, enter a name and create a room. Share the invite
+link (or the six-letter room code) so others can join as Player or Spectator.
+Other machines on your LAN can use `http://<your-ip>:1420`; the client reaches
+the game server on port 8787 of the same host unless `VITE_GAME_SERVER_URL`
+is set.
 
 ## Targets
 

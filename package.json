@@ -5,10 +5,12 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
+		"server": "tsx watch server/index.ts",
+		"server:start": "tsx server/index.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p server",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
@@ -33,6 +35,8 @@
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@tauri-apps/cli": "^2.11.5",
 		"@types/node": "^22",
+		"@types/three": "^0.186.0",
+		"@types/ws": "^8.18.1",
 		"@vitest/browser-playwright": "^4.1.8",
 		"eslint": "^10.4.1",
 		"eslint-config-prettier": "^10.1.8",
@@ -44,6 +48,7 @@
 		"supabase": "^2.117.0",
 		"svelte": "^5.56.1",
 		"svelte-check": "^4.6.0",
+		"tsx": "^4.23.15",
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.60.1",
 		"vite": "^8.0.16",
@@ -53,6 +58,8 @@
 	"dependencies": {
 		"@capacitor/android": "^8.5.2",
 		"@capacitor/core": "^8.5.2",
-		"@supabase/supabase-js": "^2.117.1"
+		"@supabase/supabase-js": "^2.117.1",
+		"three": "^0.186.0",
+		"ws": "^8.21.3"
 	}
 }
