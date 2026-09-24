@@ -41,6 +41,7 @@ import {
 	type TokenPatch
 } from '../src/lib/game/protocol';
 import { roomAround, roomBoundary } from '../src/lib/game/rooms';
+import { withFloor, type FloorId } from '../src/lib/game/floor';
 import { MAX_LEVEL, withLevel } from '../src/lib/game/terrain';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
 import {
@@ -54,7 +55,13 @@ import { fail, type Player, type Result, type Room } from './rooms';
 
 /** Walls, closed doors and blocking props, as movement and sight see them. */
 export function obstacles(room: Room) {
-	return obstaclesFor(room.grid, room.objects.values(), room.props.values(), room.terrain);
+	return obstaclesFor(
+		room.grid,
+		room.objects.values(),
+		room.props.values(),
+		room.terrain,
+		room.floor
+	);
 }
 
 export interface NewToken {
@@ -336,6 +343,34 @@ export function setTerrain(
 	}
 	room.terrain = withLevel(room.terrain, room.grid, from, to, level);
 	return { ok: true, cells: rectCells(room.grid, from, to).length };
+}
+
+/**
+ * GM: paints every cell of a rectangle with a floor (stone, wood, water...),
+ * or marks it off the map (`void`: nobody can stand there). Refused where a
+ * token stands on cells it would put off the map.
+ */
+export function setFloor(
+	room: Room,
+	actor: Player,
+	from: GridPos,
+	to: GridPos,
+	floor: FloorId
+): Result<{ cells: number }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM paints the floor.');
+	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
+		return fail('invalid_position', 'That area is off the table.');
+	}
+	const cells = rectCells(room.grid, from, to);
+	if (floor === 'void') {
+		const inside = new Set(cells);
+		const stranded = [...room.tokens.values()].some((t) =>
+			inside.has(t.pos.y * room.grid.width + t.pos.x)
+		);
+		if (stranded) return fail('cell_occupied', 'Move the tokens off that area first.');
+	}
+	room.floor = withFloor(room.floor, room.grid, from, to, floor);
+	return { ok: true, cells: cells.length };
 }
 
 /** GM: makes an area dark (only light lets anyone see there) or not. */

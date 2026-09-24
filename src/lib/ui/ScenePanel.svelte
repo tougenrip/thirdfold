@@ -4,7 +4,9 @@
 		SCENE_FILE_MAX_BYTES,
 		SCENE_NAME_MAX_LENGTH
 	} from '$lib/game/scene-file';
-	import type { SavedScene } from '$lib/game/protocol';
+	import { NEW_TABLE_LIMITS, type SavedScene } from '$lib/game/protocol';
+	import { loadManifest } from '$lib/assets/load';
+	import { sharedCode, sharedLink } from './share';
 	import type { RoomAction, SceneReply } from '$lib/net/room-connection.svelte';
 	import { loadSavedScenes, storeSavedScenes, type SavedSceneRef } from '$lib/prefs';
 	import { lastPlayed } from './when';
@@ -46,6 +48,9 @@
 			send({ type: 'scene_list' });
 		} else if (reply.type === 'scene_list') {
 			saves = reply.scenes;
+		} else if (reply.type === 'scene_shared') {
+			shared = { name: reply.name, link: sharedLink(location.origin, reply.code) };
+			copied = false;
 		} else {
 			download(reply.file.name, JSON.stringify(reply.file, null, 2));
 		}
@@ -101,6 +106,70 @@
 		}
 		deleting = null;
 		send({ type: 'scene_delete', sceneId: scene.id });
+	}
+
+	/** The table last shared: its name and the link that opens it. */
+	let shared = $state<{ name: string; link: string } | null>(null);
+	let copied = $state(false);
+
+	function share() {
+		const n = currentName();
+		if (n) send({ type: 'scene_share', name: n });
+	}
+
+	async function copyLink() {
+		if (!shared) return;
+		try {
+			await navigator.clipboard.writeText(shared.link);
+			copied = true;
+		} catch {
+			onError('Copying failed: select the link and copy it.');
+		}
+	}
+
+	/** A shared table's link or code, pasted to open it here. */
+	let openCode = $state('');
+	function openShared(event: SubmitEvent) {
+		event.preventDefault();
+		const code = sharedCode(openCode);
+		if (!code) return onError('That is not a shared table link or code.');
+		openCode = '';
+		send({ type: 'scene_load', sceneId: code });
+	}
+
+	// A new, empty table.
+	let creating = $state(false);
+	let newName = $state('New table');
+	let newWidth = $state(20);
+	let newHeight = $state(20);
+	let newLook = $state('');
+	let environments = $state<[string, string][]>([]);
+	$effect(() => {
+		if (!creating) return;
+		void loadManifest().then((m) => {
+			environments = Object.entries(m.environments).map(([id, e]) => [id, e.name]);
+		});
+	});
+	const sizeOk = (n: number) =>
+		Number.isInteger(n) && n >= NEW_TABLE_LIMITS.min && n <= NEW_TABLE_LIMITS.max;
+
+	function createTable(event: SubmitEvent) {
+		event.preventDefault();
+		const n = normalizeSceneName(newName);
+		if (!n) return onError(`Scene names are 1-${SCENE_NAME_MAX_LENGTH} characters.`);
+		if (!sizeOk(newWidth) || !sizeOk(newHeight)) {
+			return onError(
+				`Tables are ${NEW_TABLE_LIMITS.min} to ${NEW_TABLE_LIMITS.max} cells on a side.`
+			);
+		}
+		send({
+			type: 'scene_new',
+			name: n,
+			width: newWidth,
+			height: newHeight,
+			environment: newLook || null
+		});
+		creating = false;
 	}
 
 	async function importFile(event: Event) {
@@ -206,6 +275,10 @@
 	<div class="files">
 		<button type="button" onclick={exportFile}>Export file</button>
 		<button type="button" onclick={() => fileInput.click()}>Import file</button>
+		<button type="button" onclick={share}>Share table</button>
+		<button type="button" aria-expanded={creating} onclick={() => (creating = !creating)}>
+			New table
+		</button>
 		<input
 			bind:this={fileInput}
 			type="file"
@@ -214,6 +287,73 @@
 			onchange={importFile}
 		/>
 	</div>
+
+	{#if shared}
+		<div class="shared" role="status">
+			<p class="muted">
+				Anyone with this link opens a copy of “{shared.name}” (the table, not the story or who
+				played whom):
+			</p>
+			<div class="row">
+				<input
+					readonly
+					value={shared.link}
+					aria-label="Shared table link"
+					onfocus={(e) => e.currentTarget.select()}
+				/>
+				<button type="button" onclick={copyLink}>{copied ? 'Copied' : 'Copy'}</button>
+			</div>
+		</div>
+	{/if}
+
+	{#if creating}
+		<form class="new" onsubmit={createTable} aria-label="New table">
+			<label>
+				<span class="muted">Name</span>
+				<input bind:value={newName} maxlength={SCENE_NAME_MAX_LENGTH} />
+			</label>
+			<div class="size">
+				<label>
+					<span class="muted">Width</span>
+					<input
+						type="number"
+						min={NEW_TABLE_LIMITS.min}
+						max={NEW_TABLE_LIMITS.max}
+						bind:value={newWidth}
+					/>
+				</label>
+				<label>
+					<span class="muted">Height</span>
+					<input
+						type="number"
+						min={NEW_TABLE_LIMITS.min}
+						max={NEW_TABLE_LIMITS.max}
+						bind:value={newHeight}
+					/>
+				</label>
+			</div>
+			<label>
+				<span class="muted">Looks like</span>
+				<select bind:value={newLook}>
+					<option value="">Plain table</option>
+					{#each environments as [id, envName] (id)}
+						<option value={id}>{envName}</option>
+					{/each}
+				</select>
+			</label>
+			<p class="muted">An empty table replaces this one (save first to keep it).</p>
+			<button class="primary" type="submit">Create table</button>
+		</form>
+	{/if}
+
+	<form class="open" onsubmit={openShared}>
+		<input
+			bind:value={openCode}
+			placeholder="Shared table link or code"
+			aria-label="Shared table link or code"
+		/>
+		<button type="submit">Open</button>
+	</form>
 </section>
 
 <style>
@@ -299,5 +439,51 @@
 
 	.files button {
 		font-size: 0.8rem;
+	}
+
+	.shared .row,
+	.open {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 0.3rem;
+		margin-top: 0.4rem;
+	}
+
+	.open {
+		margin-top: 0.6rem;
+	}
+
+	.shared input,
+	.open input {
+		min-width: 0;
+		font-size: 0.8rem;
+	}
+
+	.new {
+		display: grid;
+		gap: 0.4rem;
+		margin-top: 0.6rem;
+		padding: 0.5rem;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+	}
+
+	.new label {
+		display: grid;
+		gap: 0.15rem;
+	}
+
+	.new .muted {
+		margin: 0;
+	}
+
+	.size {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem;
+	}
+
+	.size input {
+		min-width: 0;
 	}
 </style>

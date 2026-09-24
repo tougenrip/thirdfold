@@ -27,7 +27,7 @@ export type RoomAction = Exclude<ClientMessage, EnterIntent>;
 /** A reply meant only for this client (a save, an export, the GM's saves), tagged so each one is handled once. */
 export type SceneReply = Extract<
 	ServerMessage,
-	{ type: 'scene_saved' | 'scene_exported' | 'scene_list' }
+	{ type: 'scene_saved' | 'scene_exported' | 'scene_list' | 'scene_shared' }
 > & {
 	seq: number;
 };
@@ -224,6 +224,7 @@ export class RoomConnection {
 			case 'scene_saved':
 			case 'scene_exported':
 			case 'scene_list':
+			case 'scene_shared':
 				this.sceneReply = { ...msg, seq: ++this.errorSeq };
 				return;
 			default:

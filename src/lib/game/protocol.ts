@@ -18,6 +18,7 @@ import type { SceneObject } from './objects';
 import type { Motion } from './motion';
 import { isAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
 import type { SceneFile } from './scene-file';
+import { isFloorId, type FloorId } from './floor';
 import { MAX_LEVEL } from './terrain';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
@@ -55,6 +56,8 @@ export interface RoomSnapshot {
 	adventure: AdventureView | null;
 	/** Each cell's level (base64, see terrain.ts), as far as this client knows the ground; null when flat. */
 	terrain: string | null;
+	/** What each cell is made of (base64, see floor.ts), as far as this client knows; null when nothing is painted. */
+	floor: string | null;
 	/** The table's dark areas (a base64 CellMask), as far as this client knows them; null for none. */
 	darkness: string | null;
 	/** The GM has paused the game. */
@@ -138,6 +141,8 @@ export type ClientMessage =
 	| { type: 'environment_set'; environment: string | null }
 	/** GM: set the level (elevation) of every cell in the rectangle between two cells. */
 	| { type: 'terrain_set'; from: GridPos; to: GridPos; level: number }
+	/** GM: paints an area's floor, or puts it off the map (`void`). */
+	| { type: 'floor_set'; from: GridPos; to: GridPos; floor: FloorId }
 	| { type: 'darkness_set'; from: GridPos; to: GridPos; dark: boolean }
 	/** GM: save the current table under a name. Replies with scene_saved. */
 	| { type: 'scene_save'; name: string }
@@ -154,6 +159,19 @@ export type ClientMessage =
 	| { type: 'scene_list'; gmKey?: string }
 	/** GM: forget one of their saves. */
 	| { type: 'scene_delete'; sceneId: string }
+	/** GM: replace the table with a new, empty one of this size and look. */
+	| {
+			type: 'scene_new';
+			name: string;
+			width: number;
+			height: number;
+			environment: string | null;
+	  }
+	/**
+	 * GM: share the current table (the world, without the story or who plays
+	 * whom). Replies with scene_shared: a code any GM can open it with.
+	 */
+	| { type: 'scene_share'; name: string }
 	| { type: 'chat_send'; text: string }
 	/** Roll dice; `secret` shows the result only to the roller and the GM. */
 	| { type: 'dice_roll'; expression: string; secret?: true }
@@ -217,6 +235,9 @@ export interface SavedScene {
 /** A GM's lasting key, like a session token: 64 hex characters, secret. */
 export const GM_KEY_PATTERN = /^[0-9a-f]{64}$/;
 const SCENE_ID = /^[0-9a-f]{32}$/;
+
+/** The sides of a new table, in cells. */
+export const NEW_TABLE_LIMITS = { min: 4, max: 64 } as const;
 
 export type AdventureControl = 'end_turn' | 'restart' | 'end';
 
@@ -293,6 +314,7 @@ export type ServerMessage =
 	| { type: 'fog_update'; fog: FogView }
 	/** The ground this client knows changed (the GM reshaped it, or more of it was explored). */
 	| { type: 'terrain_update'; terrain: string | null }
+	| { type: 'floor_update'; floor: string | null }
 	| { type: 'darkness_update'; darkness: string | null }
 	| { type: 'pause_update'; paused: boolean }
 	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
@@ -301,6 +323,8 @@ export type ServerMessage =
 	| { type: 'scene_list'; scenes: SavedScene[] }
 	/** To the GM who asked: the current table as a scene file. */
 	| { type: 'scene_exported'; file: SceneFile }
+	/** To the GM who shared: the code (a scene id) that opens the shared table. */
+	| { type: 'scene_shared'; code: string; name: string }
 	/** The whole table changed (a scene was loaded): replace local room state with this. */
 	| { type: 'room_reset'; room: RoomSnapshot }
 	/** A new room log entry: chat, a dice result, or a system notice. */
@@ -600,6 +624,13 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'terrain_set', from, to, level: level as number }
 				: null;
 		}
+		case 'floor_set': {
+			const from = parseGridPos(data.from);
+			const to = parseGridPos(data.to);
+			return from && to && isFloorId(data.floor)
+				? { type: 'floor_set', from, to, floor: data.floor }
+				: null;
+		}
 		case 'darkness_set': {
 			const from = parseGridPos(data.from);
 			const to = parseGridPos(data.to);
@@ -636,6 +667,27 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return typeof data.sceneId === 'string' && SCENE_ID.test(data.sceneId)
 				? { type: 'scene_delete', sceneId: data.sceneId }
 				: null;
+		case 'scene_new': {
+			const size = (v: unknown) =>
+				Number.isInteger(v) &&
+				(v as number) >= NEW_TABLE_LIMITS.min &&
+				(v as number) <= NEW_TABLE_LIMITS.max;
+			const environment = data.environment ?? null;
+			return typeof data.name === 'string' &&
+				size(data.width) &&
+				size(data.height) &&
+				(environment === null || isAssetRef(environment))
+				? {
+						type: 'scene_new',
+						name: data.name,
+						width: data.width as number,
+						height: data.height as number,
+						environment
+					}
+				: null;
+		}
+		case 'scene_share':
+			return typeof data.name === 'string' ? { type: 'scene_share', name: data.name } : null;
 		case 'chat_send':
 			return typeof data.text === 'string' ? { type: 'chat_send', text: data.text } : null;
 		case 'dice_roll':
@@ -714,6 +766,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		scene_saved: (d) => typeof d.sceneId === 'string' && typeof d.name === 'string',
 		scene_list: (d) => Array.isArray(d.scenes),
 		scene_exported: (d) => isRecord(d.file),
+		scene_shared: (d) => typeof d.code === 'string' && typeof d.name === 'string',
 		room_reset: (d) => isRecord(d.room),
 		props_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
@@ -721,6 +774,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		environment_update: (d) => d.environment === null || typeof d.environment === 'string',
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
+		floor_update: (d) => d.floor === null || typeof d.floor === 'string',
 		darkness_update: (d) => d.darkness === null || typeof d.darkness === 'string',
 		pause_update: (d) => typeof d.paused === 'boolean',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),

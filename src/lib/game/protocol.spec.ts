@@ -344,6 +344,42 @@ describe('adventure messages', () => {
 		expect(parseServerMessage({ type: 'pause_update', paused: false })).not.toBeNull();
 	});
 
+	it('parses painting floors, only with floors there are', () => {
+		const from = { x: 1, y: 2 };
+		const to = { x: 3, y: 4 };
+		expect(parseClientMessage({ type: 'floor_set', from, to, floor: 'void' })).toEqual({
+			type: 'floor_set',
+			from,
+			to,
+			floor: 'void'
+		});
+		for (const floor of ['lava', 3, null, 'toString']) {
+			expect(parseClientMessage({ type: 'floor_set', from, to, floor })).toBeNull();
+		}
+		expect(parseServerMessage({ type: 'floor_update', floor: null })).not.toBeNull();
+		expect(parseServerMessage({ type: 'floor_update', floor: 5 })).toBeNull();
+	});
+
+	it('parses a new table within the sizes allowed, and sharing a table', () => {
+		const table = { type: 'scene_new', name: 'Field', width: 12, height: 8, environment: null };
+		expect(parseClientMessage(table)).toEqual(table);
+		expect(parseClientMessage({ ...table, environment: 'village' })).toMatchObject({
+			environment: 'village'
+		});
+		for (const width of [3, 65, 7.5, '12']) {
+			expect(parseClientMessage({ ...table, width })).toBeNull();
+		}
+		expect(parseClientMessage({ ...table, environment: 'https://x/y' })).toBeNull();
+		expect(parseClientMessage({ type: 'scene_share', name: 'Mill' })).toEqual({
+			type: 'scene_share',
+			name: 'Mill'
+		});
+		expect(parseClientMessage({ type: 'scene_share' })).toBeNull();
+		expect(
+			parseServerMessage({ type: 'scene_shared', code: 'a'.repeat(32), name: 'Mill' })
+		).not.toBeNull();
+	});
+
 	it('parses the GM shaping the ground, within the levels there are', () => {
 		const from = { x: 1, y: 2 };
 		const to = { x: 3, y: 4 };

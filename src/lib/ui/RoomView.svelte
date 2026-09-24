@@ -20,6 +20,7 @@
 	import { cellIndex, decodeMask } from '$lib/game/visibility';
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
 	import Tabletop, { type CuePlay, type FloatText } from '$lib/tabletop/Tabletop.svelte';
+	import { decodeFloor, FLOORS, type FloorId } from '$lib/game/floor';
 	import { decodeLevels } from '$lib/game/terrain';
 	import type { DiceThrow } from '$lib/tabletop/dice3d';
 	import { diceToThrow } from '$lib/tabletop/dice-throw';
@@ -117,6 +118,8 @@
 	let areaStart = $state<GridPos | null>(null);
 	/** The level the GM's height tool sets. */
 	let heightLevel = $state(5);
+	/** The floor the GM's floor tool paints. */
+	let floorDraft = $state<FloorId>('stone');
 
 	let lightDraft = $state<LightDraft>({
 		radius: DEFAULT_LIGHT_RADIUS,
@@ -244,11 +247,14 @@
 	/** Whether a cell is in one of the table's dark areas. */
 	const isDark = (cell: GridPos) =>
 		!!room && !!darkness && darkness[cellIndex(room.grid, cell)] === 1;
+	const floor = $derived(
+		room?.floor ? decodeFloor(room.floor, room.grid.width * room.grid.height) : null
+	);
 	const terrain = $derived(
 		room?.terrain ? decodeLevels(room.terrain, room.grid.width * room.grid.height) : null
 	);
 	const blocked = $derived(
-		room ? obstaclesFor(room.grid, room.objects, room.props, terrain) : new Set<string>()
+		room ? obstaclesFor(room.grid, room.objects, room.props, terrain, floor) : new Set<string>()
 	);
 	/** The last cinematic cue in the log, to play once. */
 	let cuePlay = $state<CuePlay | null>(null);
@@ -348,6 +354,9 @@
 				to,
 				tone: tool === 'reveal-room' ? 'reveal' : 'hide'
 			}));
+		}
+		if (tool === 'floor' && hover.cell) {
+			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: 'valid' }];
 		}
 		if (tool === 'height' && hover.cell) {
 			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: 'valid' }];
@@ -511,6 +520,12 @@
 			return areaStart
 				? `Click the opposite corner cell to ${lifting ? 'lift the dark from' : 'darken'} the area. Esc to cancel.`
 				: 'Dark area: click a cell to start an area (a dark cell lifts the dark instead).';
+		}
+		if (tool === 'floor') {
+			const name = FLOORS.find((f) => f.id === floorDraft)!.name.toLowerCase();
+			return areaStart
+				? `Click the opposite corner cell to paint the area ${name}. Esc to cancel.`
+				: `Paint floor: click a cell to start an area of ${name}.`;
 		}
 		if (tool === 'height') {
 			return areaStart
@@ -716,6 +731,16 @@
 			case 'door':
 				if (pick.edge) act({ type: 'object_create', kind: 'door', ...pick.edge });
 				return;
+			case 'floor': {
+				if (!pick.cell) return;
+				if (!areaStart) {
+					areaStart = pick.cell;
+					return;
+				}
+				act({ type: 'floor_set', from: areaStart, to: pick.cell, floor: floorDraft });
+				areaStart = null;
+				return;
+			}
 			case 'height': {
 				if (!pick.cell) return;
 				if (!areaStart) {
@@ -911,6 +936,7 @@
 			l: 'light',
 			p: 'prop',
 			g: 'height',
+			f: 'floor',
 			n: 'dark',
 			...(room?.fog.enabled ? { r: 'reveal', h: 'hide', o: 'reveal-room', k: 'hide-room' } : {})
 		};
@@ -1031,6 +1057,7 @@
 				{fallen}
 				{floats}
 				{terrain}
+				{floor}
 				{darkness}
 				environment={room.environment}
 				cue={cuePlay}
@@ -1139,6 +1166,8 @@
 						onLightDraft={(draft) => (lightDraft = draft)}
 						{heightLevel}
 						onHeightLevel={(level) => (heightLevel = level)}
+						{floorDraft}
+						onFloorDraft={(next) => (floorDraft = next)}
 						onFog={(enabled) => {
 							if (!enabled && FOG_TOOLS.includes(tool)) setTool('select');
 							act({ type: 'fog_set', enabled });

@@ -10,6 +10,7 @@ import type { Ambient, Light } from '../src/lib/game/lights';
 import type { SceneObject } from '../src/lib/game/objects';
 import type { Prop } from '../src/lib/game/props';
 import type { Token } from '../src/lib/game/token';
+import type { FloorMap } from '../src/lib/game/floor';
 import type { LevelMap } from '../src/lib/game/terrain';
 import type { AdventureState } from './adventure/state';
 import { emptyMask, type CellMask } from '../src/lib/game/visibility';
@@ -45,6 +46,8 @@ export interface Room {
 	terrain: LevelMap | null;
 	/** Dark areas: cells where only light lets anyone see, whatever the ambient; null for none. */
 	darkness: CellMask | null;
+	/** What each cell is made of (see floor.ts), or null when nothing is painted. */
+	floor: FloorMap | null;
 	/** How the table looks: an environment asset's id, or null for the plain table. */
 	environment: string | null;
 	/** Until when (ms since epoch) a flash lights the whole table, if one is going. */
@@ -114,6 +117,7 @@ export function newRoom(id: string): Room {
 		ambient: 'day',
 		terrain: null,
 		darkness: null,
+		floor: null,
 		environment: null,
 		paused: false,
 		sceneName: 'Untitled scene',

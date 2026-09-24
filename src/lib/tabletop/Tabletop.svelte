@@ -72,6 +72,8 @@
 		floats?: readonly FloatText[];
 		/** Each cell's level, or null for a flat table. */
 		terrain?: Uint8Array | null;
+		/** What each cell is made of, or null when nothing is painted. */
+		floor?: Uint8Array | null;
 		/** The table's dark areas, one byte per cell, or null for none. */
 		darkness?: Uint8Array | null;
 		/** How the table looks: an environment asset's id, or null for the plain table. */
@@ -103,6 +105,7 @@
 		fallen = [],
 		floats = [],
 		terrain = null,
+		floor = null,
 		darkness = null,
 		environment = null,
 		cue = null,
@@ -168,6 +171,10 @@
 
 	$effect(() => {
 		tabletop?.setTerrain(terrain);
+	});
+
+	$effect(() => {
+		tabletop?.setFloor(floor);
 	});
 
 	$effect(() => {

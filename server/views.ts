@@ -11,8 +11,9 @@ import type { AdventureView } from '../src/lib/adventure/adventure';
 import type { ChatMessage } from '../src/lib/game/chat';
 import type { Ambient, Light } from '../src/lib/game/lights';
 import { cellsBeside, unitEdges, type Obstacles, type SceneObject } from '../src/lib/game/objects';
-import { footprintCells, obstaclesFor, type Prop } from '../src/lib/game/props';
+import { footprintCells, type Prop } from '../src/lib/game/props';
 import { roomAround, roomBoundary } from '../src/lib/game/rooms';
+import { encodeFloor, knownFloor } from '../src/lib/game/floor';
 import { encodeLevels, knownLevels } from '../src/lib/game/terrain';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
@@ -25,7 +26,7 @@ import {
 	type SightCache
 } from '../src/lib/game/visibility';
 import { hiddenPropIds } from './adventure/engine';
-import { lightFor, sightsFor } from './scene';
+import { lightFor, obstacles, sightsFor } from './scene';
 import { adventureView } from './adventure/view';
 import { toPublicPlayer, type Player, type Room } from './rooms';
 
@@ -41,12 +42,17 @@ export interface View {
 	terrain: string | null;
 	/** The dark areas this viewer knows (explored cells), or null for none. */
 	darkness: string | null;
+	/** The floors this viewer knows (explored cells), or null when none are painted. */
+	floor: string | null;
 	paused: boolean;
 	/** How the table looks (an environment asset's id): the same for everyone. */
 	environment: string | null;
 }
 
-type SceneView = Omit<View, 'adventure' | 'terrain' | 'darkness' | 'paused' | 'environment'>;
+type SceneView = Omit<
+	View,
+	'adventure' | 'terrain' | 'darkness' | 'floor' | 'paused' | 'environment'
+>;
 
 const noFog = (room: Room): FogView => ({
 	enabled: false,
@@ -67,7 +73,7 @@ export interface SceneContext {
 }
 
 export function sceneContext(room: Room): SceneContext {
-	const blocked = obstaclesFor(room.grid, room.objects.values(), room.props.values(), room.terrain);
+	const blocked = obstacles(room);
 	const sights = sightsFor(room, blocked);
 	const lit = lightFor(room, blocked, Date.now(), sights.add);
 	const boundary = roomBoundary(room.objects.values());
@@ -134,11 +140,13 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 	// The ground's shape is scenery like walls: known where explored.
 	const terrain = room.terrain && encodeLevels(knownLevels(room.terrain, known));
 	const darkness = room.darkness && knownDarkness(room.darkness, known);
+	const floor = room.floor && encodeFloor(knownFloor(room.floor, known));
 	return {
 		...scene,
 		adventure: adventureView(room, viewer, tokenIds, known),
 		terrain,
 		darkness,
+		floor,
 		paused: room.paused,
 		environment: room.environment
 	};
@@ -241,6 +249,7 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		adventure: view.adventure && structuredClone(view.adventure),
 		terrain: view.terrain,
 		darkness: view.darkness,
+		floor: view.floor,
 		paused: view.paused,
 		environment: view.environment
 	};
@@ -257,6 +266,7 @@ export interface SentView {
 	adventure: string;
 	terrain: string | null;
 	darkness: string | null;
+	floor: string | null;
 	paused: boolean;
 	environment: string | null;
 }
@@ -272,6 +282,7 @@ export function sentFrom(view: View): SentView {
 		adventure: JSON.stringify(view.adventure),
 		terrain: view.terrain,
 		darkness: view.darkness,
+		floor: view.floor,
 		paused: view.paused,
 		environment: view.environment
 	};
@@ -323,6 +334,7 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 	if (prev.darkness !== view.darkness) {
 		messages.push({ type: 'darkness_update', darkness: view.darkness });
 	}
+	if (prev.floor !== view.floor) messages.push({ type: 'floor_update', floor: view.floor });
 	if (prev.paused !== view.paused) messages.push({ type: 'pause_update', paused: view.paused });
 	if (prev.environment !== view.environment) {
 		messages.push({ type: 'environment_update', environment: view.environment });

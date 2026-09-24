@@ -5,6 +5,7 @@
 // matters to the rules lives here.
 
 import { blockingEdges, windowEdges, type Obstacles, type SceneObject } from './objects';
+import { VOID, type FloorMap } from './floor';
 import { inBounds, type GridPos, type SquareGrid } from './grid';
 
 /** 'movement': can't walk into it. 'sight': can't walk into or see past it. */
@@ -127,17 +128,24 @@ export function propAt(props: Iterable<Prop>, cell: GridPos): Prop | undefined {
 
 /**
  * All blockers on a table: walls, windows and closed doors, the cells props
- * make solid or opaque, and each cell's level if the table has elevation.
+ * make solid or opaque, cells off the map (a `void` floor), and each cell's
+ * level if the table has elevation.
  */
 export function obstaclesFor(
 	grid: SquareGrid,
 	objects: Iterable<SceneObject>,
 	props: Iterable<Prop> = [],
-	levels: Uint8Array | null = null
+	levels: Uint8Array | null = null,
+	floor: FloorMap | null = null
 ): Obstacles {
 	const size = grid.width * grid.height;
 	let solid: Uint8Array | null = null;
 	let opaque: Uint8Array | null = null;
+	// Off the map: nobody stands there.
+	if (floor?.includes(VOID)) {
+		solid = new Uint8Array(size);
+		for (let i = 0; i < size; i++) if (floor[i] === VOID) solid[i] = 1;
+	}
 	for (const p of props) {
 		const blocks = propBlocks(p);
 		if (blocks === 'none') continue;

@@ -70,6 +70,9 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 		case 'environment_update':
 			room.environment = msg.environment;
 			return true;
+		case 'floor_update':
+			room.floor = msg.floor;
+			return true;
 		case 'terrain_update':
 			room.terrain = msg.terrain;
 			return true;

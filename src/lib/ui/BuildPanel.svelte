@@ -14,6 +14,7 @@
 		| 'light'
 		| 'prop'
 		| 'height'
+		| 'floor'
 		| 'dark';
 
 	/** The prop the GM is about to place. */
@@ -32,7 +33,9 @@
 <script lang="ts">
 	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
 	import { ASSET_IDS, ASSETS } from '$lib/game/props';
+	import { FLOORS, type FloorId } from '$lib/game/floor';
 	import { MAX_LEVEL } from '$lib/game/terrain';
+	import { FLOOR_LOOKS } from '$lib/tabletop/floor';
 	import { WALL_LEVELS } from '$lib/game/visibility';
 
 	interface Props {
@@ -56,6 +59,9 @@
 		/** The level the height tool sets cells to. */
 		heightLevel: number;
 		onHeightLevel(level: number): void;
+		/** The floor the floor tool paints. */
+		floorDraft: FloorId;
+		onFloorDraft(floor: FloorId): void;
 	}
 
 	let {
@@ -75,8 +81,13 @@
 		onLightDraft,
 		onPropDraft,
 		heightLevel,
-		onHeightLevel
+		onHeightLevel,
+		floorDraft,
+		onFloorDraft
 	}: Props = $props();
+
+	const floorSwatch = (id: FloorId) =>
+		id === 'plain' ? 'transparent' : `#${FLOOR_LOOKS[id].color.toString(16).padStart(6, '0')}`;
 
 	const BLOCKS_HINT = { none: 'walk over', movement: 'blocks movement', sight: 'blocks sight' };
 
@@ -171,6 +182,26 @@
 			<p class="muted">
 				Click two corners. Only light lets anyone see in a dark area, even by day. Start on a dark
 				cell to lift the dark instead.
+			</p>
+		{/if}
+		{@render toolButton({ id: 'floor', label: 'Paint floor', key: 'F' })}
+		{#if tool === 'floor'}
+			<div class="floors" role="group" aria-label="Floor">
+				{#each FLOORS as f (f.id)}
+					<button
+						type="button"
+						class="floor-choice"
+						aria-pressed={floorDraft === f.id}
+						onclick={() => onFloorDraft(f.id)}
+					>
+						<span class="chip" class:plain={f.id === 'plain'} style:background={floorSwatch(f.id)}
+						></span>
+						{f.name}
+					</button>
+				{/each}
+			</div>
+			<p class="muted">
+				Click two corners of an area. Off the map: nobody can stand there. Table clears the paint.
 			</p>
 		{/if}
 		{@render toolButton({ id: 'height', label: 'Shape ground', key: 'G' })}
@@ -353,6 +384,36 @@
 
 	.muted {
 		color: var(--muted);
+	}
+
+	.floors {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.25rem;
+	}
+
+	.floor-choice {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.25rem 0.4rem;
+		font-size: 0.85rem;
+		text-align: left;
+	}
+
+	.floor-choice[aria-pressed='true'] {
+		border-color: var(--accent);
+	}
+
+	.chip {
+		width: 0.9rem;
+		height: 0.9rem;
+		border-radius: 3px;
+		flex: none;
+	}
+
+	.chip.plain {
+		border: 1px dashed var(--muted, #888);
 	}
 
 	.swatches {

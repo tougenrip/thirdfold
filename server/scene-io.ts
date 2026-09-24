@@ -4,6 +4,7 @@
 import { serializeScene, type SceneFile } from '../src/lib/game/scene-file';
 import { saveAdventure } from './adventure/persist';
 import type { Token } from '../src/lib/game/token';
+import { decodeFloor } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import { decodeMask, emptyMask } from '../src/lib/game/visibility';
 import type { Player, Room } from './rooms';
@@ -27,6 +28,7 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 			adventure: room.adventure && saveAdventure(room.adventure),
 			terrain: room.terrain,
 			darkness: room.darkness,
+			floor: room.floor,
 			environment: room.environment
 		},
 		now
@@ -94,6 +96,7 @@ export function applyScene(room: Room, scene: SceneFile): void {
 		: null;
 	const size = room.grid.width * room.grid.height;
 	room.darkness = scene.darkness ? decodeMask(scene.darkness, size) : null;
+	room.floor = scene.floor ? decodeFloor(scene.floor, size) : null;
 	room.environment = scene.environment;
 	room.flashUntil = undefined;
 	room.fog = {

@@ -32,6 +32,7 @@ import { LightingLayer } from './lighting';
 import { PropLayer } from './props';
 import { playSound } from './sounds';
 import { DiceLayer, type DiceThrow } from './dice3d';
+import { FloorLayer } from './floor';
 import { FogLayer, type FogMode } from './fog';
 import { PerfRecorder, type PerfStats } from './perf';
 import { TokenLayer } from './tokens';
@@ -93,6 +94,8 @@ export interface Tabletop {
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	/** Each cell's level (elevation), or null for a flat table. */
 	setTerrain(levels: Uint8Array | null): void;
+	/** What each cell is made of (see floor.ts), or null when nothing is painted. */
+	setFloor(floor: Uint8Array | null): void;
 	/** How the table looks (an environment asset's id), or null for the plain table. */
 	setEnvironment(id: string | null): void;
 	/** The table's dark areas (one byte per cell), or null for none. */
@@ -197,6 +200,9 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(wallLayer.group);
 	const fogLayer = new FogLayer();
 	scene.add(fogLayer.mesh);
+	const floorLayer = new FloorLayer();
+	scene.add(floorLayer.mesh);
+	let floor: Uint8Array | null = null;
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
 	const diceLayer = new DiceLayer();
 	scene.add(diceLayer.group);
@@ -263,7 +269,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			lightState.ambient,
 			lightState.lights,
 			lightSources(lightState.lights, tokens),
-			obstaclesFor(grid, objects, props, levels),
+			obstaclesFor(grid, objects, props, levels, floor),
 			visible,
 			ground,
 			darkness
@@ -651,6 +657,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			wallLayer.sync(objects, grid, ground);
 			propLayer.sync(props, grid, ground);
 			fogLayer.update(grid, fogState.fog, fogState.mode);
+			floorLayer.update(grid, floor);
+			terrainLayer.setFloor(floor);
 			refreshLighting();
 			// A new table size (first load, a loaded scene, an adventure): frame it. This
 			// replaces any view change still in flight, which would aim at the old table.
@@ -830,6 +838,15 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			refreshLighting();
 			requestRender();
 		},
+		setFloor(next) {
+			floor = next;
+			if (!grid) return;
+			if (floor && floor.length !== grid.width * grid.height) floor = null;
+			floorLayer.update(grid, floor);
+			terrainLayer.setFloor(floor);
+			refreshLighting();
+			requestRender();
+		},
 		playMotions(motions) {
 			const now = performance.now();
 			for (const m of motions) {
@@ -885,6 +902,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			tokenLayer.dispose();
 			wallLayer.dispose();
 			fogLayer.dispose();
+			floorLayer.dispose();
 			lighting.dispose();
 			if (ambientTimer) clearTimeout(ambientTimer);
 			ambience.dispose();
@@ -965,5 +983,6 @@ const TIMED = [
 	'setLighting',
 	'setDarkness',
 	'setTerrain',
+	'setFloor',
 	'setEnvironment'
 ] as const satisfies readonly (keyof Tabletop)[];
