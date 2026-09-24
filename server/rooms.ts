@@ -4,6 +4,7 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
 import type { ChatMessage } from '../src/lib/game/chat';
+import type { SceneObject } from '../src/lib/game/objects';
 import type { Token } from '../src/lib/game/token';
 import {
 	normalizeName,
@@ -28,6 +29,7 @@ export interface Room {
 	grid: SquareGrid;
 	players: Map<string, Player>;
 	tokens: Map<string, Token>;
+	objects: Map<string, SceneObject>;
 	/** Recent room log, oldest first, capped at LOG_LIMIT. */
 	log: ChatMessage[];
 	nextSeq: number;
@@ -56,6 +58,7 @@ export function snapshot(room: Room): RoomSnapshot {
 		grid: { ...room.grid },
 		players: [...room.players.values()].map(toPublicPlayer),
 		tokens: [...room.tokens.values()].map((t) => ({ ...t, pos: { ...t.pos } })),
+		objects: [...room.objects.values()].map((o) => structuredClone(o)),
 		log: [...room.log]
 	};
 }
@@ -80,6 +83,7 @@ export class RoomManager {
 			grid: { ...DEFAULT_GRID },
 			players: new Map(),
 			tokens: new Map(),
+			objects: new Map(),
 			log: [],
 			nextSeq: 1,
 			emptySince: null

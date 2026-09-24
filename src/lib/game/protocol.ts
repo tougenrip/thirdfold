@@ -4,6 +4,7 @@
 
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
+import type { SceneObject } from './objects';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
 
 export type Role = 'gm' | 'player' | 'spectator';
@@ -22,6 +23,8 @@ export interface RoomSnapshot {
 	grid: SquareGrid;
 	players: PublicPlayer[];
 	tokens: Token[];
+	/** Walls and doors. */
+	objects: SceneObject[];
 	/** Most recent room log entries, oldest first. */
 	log: ChatMessage[];
 }
@@ -47,6 +50,11 @@ export type ClientMessage =
 	| { type: 'token_move'; tokenId: string; to: GridPos }
 	| { type: 'token_update'; tokenId: string; patch: TokenPatch }
 	| { type: 'token_delete'; tokenId: string }
+	/** GM: a wall between two corners, or a door on one unit edge (cut into any wall there). */
+	| { type: 'object_create'; kind: 'wall' | 'door'; a: GridPos; b: GridPos }
+	| { type: 'object_delete'; objectId: string }
+	/** Open or close a door: the GM always, a player only with a token beside it. */
+	| { type: 'door_toggle'; objectId: string }
 	| { type: 'chat_send'; text: string }
 	| { type: 'dice_roll'; expression: string };
 
@@ -63,6 +71,10 @@ export type ErrorCode =
 	| 'invalid_position'
 	| 'cell_occupied'
 	| 'limit_reached'
+	| 'invalid_object'
+	| 'object_not_found'
+	| 'edge_occupied'
+	| 'no_path'
 	| 'invalid_chat'
 	| 'invalid_dice'
 	| 'rate_limited'
@@ -77,6 +89,8 @@ export type ServerMessage =
 	| { type: 'token_upserted'; token: Token }
 	| { type: 'token_moved'; tokenId: string; pos: GridPos; byPlayerId: string }
 	| { type: 'token_deleted'; tokenId: string }
+	/** Scene objects added/changed and removed, applied together (e.g. a wall split by a door). */
+	| { type: 'objects_changed'; upserted: SceneObject[]; removed: string[] }
 	/** A new room log entry: chat, a dice result, or a system notice. */
 	| { type: 'chat'; message: ChatMessage }
 	| { type: 'error'; code: ErrorCode; message: string };
@@ -180,6 +194,16 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		}
 		case 'token_delete':
 			return isId(data.tokenId) ? { type: 'token_delete', tokenId: data.tokenId } : null;
+		case 'object_create': {
+			const a = parseGridPos(data.a);
+			const b = parseGridPos(data.b);
+			if ((data.kind !== 'wall' && data.kind !== 'door') || !a || !b) return null;
+			return { type: 'object_create', kind: data.kind, a, b };
+		}
+		case 'object_delete':
+			return isId(data.objectId) ? { type: 'object_delete', objectId: data.objectId } : null;
+		case 'door_toggle':
+			return isId(data.objectId) ? { type: 'door_toggle', objectId: data.objectId } : null;
 		case 'chat_send':
 			return typeof data.text === 'string' ? { type: 'chat_send', text: data.text } : null;
 		case 'dice_roll':
@@ -200,6 +224,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		token_upserted: (d) => isRecord(d.token),
 		token_moved: (d) => typeof d.tokenId === 'string' && parseGridPos(d.pos) !== null,
 		token_deleted: (d) => typeof d.tokenId === 'string',
+		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};

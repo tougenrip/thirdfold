@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_TOKENS_PER_ROOM } from '../src/lib/game/token';
 import { RoomManager, type Player, type Room } from './rooms';
-import { createToken, deleteToken, moveToken, updateToken } from './scene';
+import {
+	createObject,
+	createToken,
+	deleteObject,
+	deleteToken,
+	moveToken,
+	toggleDoor,
+	updateToken
+} from './scene';
 
 function setup() {
 	const rooms = new RoomManager();
@@ -156,5 +164,105 @@ describe('updateToken / deleteToken', () => {
 		expect(token.ownerId).toBeNull();
 		expect(deleteToken(room, gm, token.id)).toMatchObject({ ok: true });
 		expect(room.tokens.size).toBe(0);
+	});
+});
+
+describe('walls and doors', () => {
+	const c = (x: number, y: number) => ({ x, y });
+
+	function build(
+		room: Room,
+		gm: Player,
+		kind: 'wall' | 'door',
+		a: [number, number],
+		b: [number, number]
+	) {
+		const r = createObject(room, gm, kind, c(...a), c(...b));
+		if (!r.ok) throw new Error(r.message);
+		return r;
+	}
+
+	it('lets only the GM build, and validates the segment', () => {
+		const { room, gm, pip } = setup();
+		expect(createObject(room, pip, 'wall', c(0, 0), c(3, 0))).toMatchObject({ code: 'forbidden' });
+		expect(createObject(room, gm, 'wall', c(0, 0), c(3, 3))).toMatchObject({
+			code: 'invalid_object'
+		});
+		expect(createObject(room, gm, 'wall', c(0, 0), c(21, 0))).toMatchObject({
+			code: 'invalid_object'
+		});
+		expect(createObject(room, gm, 'door', c(0, 0), c(2, 0))).toMatchObject({
+			code: 'invalid_object'
+		});
+		expect(build(room, gm, 'wall', [3, 0], [0, 0]).upserted[0]).toMatchObject({
+			a: c(0, 0),
+			b: c(3, 0)
+		});
+		expect(room.objects.size).toBe(1);
+	});
+
+	it('cuts a doorway when a door is placed in a wall', () => {
+		const { room, gm } = setup();
+		const wallId = build(room, gm, 'wall', [5, 0], [5, 10]).upserted[0].id;
+		const r = build(room, gm, 'door', [5, 4], [5, 5]);
+		expect(r.removed).toEqual([]);
+		expect(r.upserted.map((o) => [o.kind, o.a, o.b])).toEqual([
+			['wall', c(5, 0), c(5, 4)],
+			['wall', c(5, 5), c(5, 10)],
+			['door', c(5, 4), c(5, 5)]
+		]);
+		expect(r.upserted[0].id).toBe(wallId);
+		expect(room.objects.size).toBe(3);
+		expect(createObject(room, gm, 'door', c(5, 4), c(5, 5))).toMatchObject({
+			code: 'edge_occupied'
+		});
+		expect(createObject(room, gm, 'wall', c(5, 2), c(5, 6))).toMatchObject({
+			code: 'edge_occupied'
+		});
+	});
+
+	it('removes a one-square wall entirely when a door replaces it', () => {
+		const { room, gm } = setup();
+		const wallId = build(room, gm, 'wall', [2, 2], [3, 2]).upserted[0].id;
+		expect(build(room, gm, 'door', [2, 2], [3, 2]).removed).toEqual([wallId]);
+		expect([...room.objects.values()].map((o) => o.kind)).toEqual(['door']);
+	});
+
+	it('stops players walking through walls and closed doors, but not the GM', () => {
+		const { room, gm, pip } = setup();
+		build(room, gm, 'wall', [5, 0], [5, 20]);
+		const door = build(room, gm, 'door', [5, 4], [5, 5]).upserted.at(-1)!;
+		const hero = place(room, gm, 4, 4, pip.id);
+
+		expect(moveToken(room, pip, hero.id, c(8, 8))).toMatchObject({ ok: false, code: 'no_path' });
+		expect(hero.pos).toEqual(c(4, 4));
+
+		expect(toggleDoor(room, pip, door.id)).toMatchObject({ ok: true, door: { open: true } });
+		expect(moveToken(room, pip, hero.id, c(8, 8))).toMatchObject({ ok: true });
+
+		const npc = place(room, gm, 0, 0);
+		toggleDoor(room, gm, door.id);
+		expect(moveToken(room, gm, npc.id, c(9, 9))).toMatchObject({ ok: true });
+	});
+
+	it('lets a player use a door only with their own token beside it', () => {
+		const { room, gm, pip, ivy, sam } = setup();
+		const door = build(room, gm, 'door', [5, 4], [5, 5]).upserted[0];
+		place(room, gm, 4, 4, pip.id); // west of the door
+		place(room, gm, 7, 4, ivy.id); // two cells east: too far
+
+		expect(toggleDoor(room, ivy, door.id)).toMatchObject({ ok: false, code: 'forbidden' });
+		expect(toggleDoor(room, sam, door.id)).toMatchObject({ ok: false, code: 'forbidden' });
+		expect(toggleDoor(room, pip, door.id)).toMatchObject({ ok: true });
+		expect(toggleDoor(room, gm, door.id)).toMatchObject({ ok: true, door: { open: false } });
+		expect(toggleDoor(room, gm, 'nope')).toMatchObject({ code: 'object_not_found' });
+	});
+
+	it('deletes objects GM-only', () => {
+		const { room, gm, pip } = setup();
+		const wall = build(room, gm, 'wall', [0, 1], [4, 1]).upserted[0];
+		expect(deleteObject(room, pip, wall.id)).toMatchObject({ code: 'forbidden' });
+		expect(deleteObject(room, gm, wall.id)).toMatchObject({ ok: true });
+		expect(deleteObject(room, gm, wall.id)).toMatchObject({ code: 'object_not_found' });
 	});
 });

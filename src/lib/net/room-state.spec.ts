@@ -10,6 +10,7 @@ function room(): RoomSnapshot {
 		grid: DEFAULT_GRID,
 		players: [{ id: 'gm', name: 'Gemma', role: 'gm', connected: true }],
 		tokens: [],
+		objects: [],
 		log: []
 	};
 }
@@ -82,5 +83,23 @@ describe('applyRoomUpdate', () => {
 		expect(r.log).toHaveLength(LOG_LIMIT);
 		expect(r.log[0].seq).toBe(4);
 		expect(r.log.at(-1)?.seq).toBe(LOG_LIMIT + 3);
+	});
+
+	it('applies object upserts and removals together', () => {
+		const r = room();
+		const wall = { id: 'w', kind: 'wall' as const, a: { x: 5, y: 0 }, b: { x: 5, y: 10 } };
+		applyRoomUpdate(r, { type: 'objects_changed', upserted: [wall], removed: [] });
+		applyRoomUpdate(r, {
+			type: 'objects_changed',
+			upserted: [
+				{ ...wall, b: { x: 5, y: 4 } },
+				{ id: 'd', kind: 'door', a: { x: 5, y: 4 }, b: { x: 5, y: 5 }, open: false }
+			],
+			removed: []
+		});
+		expect(r.objects).toHaveLength(2);
+		expect(r.objects.find((o) => o.id === 'w')?.b).toEqual({ x: 5, y: 4 });
+		applyRoomUpdate(r, { type: 'objects_changed', upserted: [], removed: ['w', 'unknown'] });
+		expect(r.objects.map((o) => o.id)).toEqual(['d']);
 	});
 });

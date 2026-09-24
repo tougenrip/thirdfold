@@ -1,27 +1,56 @@
 // three.js view of the tabletop. Pure presentation: it is handed domain data
-// (grid, tokens, selection) and reports what the user pointed at as grid
-// cells and token ids. It never owns or mutates game state. Renders on
+// (grid, tokens, walls and doors, selection, editor previews) and reports what
+// the user pointed at in grid terms: cell, corner, edge, token and object ids. It never owns or mutates game state. Renders on
 // demand rather than every frame, so an idle table costs nothing.
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { gridToWorld, worldToGrid, type GridPos, type SquareGrid } from '$lib/game/grid';
+import {
+	cornerToWorld,
+	gridToWorld,
+	worldToCorner,
+	worldToEdge,
+	worldToGrid,
+	type GridEdge,
+	type GridPos,
+	type SquareGrid
+} from '$lib/game/grid';
+import type { SceneObject } from '$lib/game/objects';
 import type { Token } from '$lib/game/token';
 import { TokenLayer } from './tokens';
+import { WALL_HEIGHT, WallLayer } from './walls';
 
 export type CameraView = 'tactical' | 'tabletop';
 /** How a highlighted cell should read: a valid target, an invalid one, or a placement spot. */
 export type HighlightKind = 'move' | 'blocked' | 'place';
 
-export interface TabletopEvents {
-	onTokenClick(tokenId: string): void;
-	onCellClick(pos: GridPos): void;
-	onHover(pos: GridPos | null, tokenId: string | null): void;
+/** Everything under the pointer, in grid terms. Fields are null when not applicable. */
+export interface Pick {
+	cell: GridPos | null;
+	corner: GridPos | null;
+	edge: GridEdge | null;
+	/** Distance from the pointer to `edge`, in cells (0 = on the line). */
+	edgeDistance: number;
+	tokenId: string | null;
+	objectId: string | null;
 }
+
+export interface TabletopEvents {
+	onClick(pick: Pick): void;
+	onHover(pick: Pick | null): void;
+}
+
+/** Editor feedback drawn on the table: a wall/door outline or a corner marker. */
+export type PreviewItem =
+	| { kind: 'segment'; a: GridPos; b: GridPos; tone: 'valid' | 'invalid' | 'door' }
+	| { kind: 'corner'; at: GridPos };
 
 export interface Tabletop {
 	setGrid(grid: SquareGrid): void;
 	setTokens(tokens: readonly Token[]): void;
+	setObjects(objects: readonly SceneObject[]): void;
+	setHoveredObject(objectId: string | null): void;
+	setPreview(items: readonly PreviewItem[]): void;
 	setSelected(tokenId: string | null): void;
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	setView(view: CameraView): void;
@@ -91,6 +120,19 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(table);
 	const tokenLayer = new TokenLayer();
 	scene.add(tokenLayer.group);
+	const wallLayer = new WallLayer();
+	scene.add(wallLayer.group);
+
+	// Editor previews reuse one geometry and three materials; only transforms change.
+	const previewGroup = new THREE.Group();
+	scene.add(previewGroup);
+	const previewBox = new THREE.BoxGeometry(1, 1, 1);
+	const previewCorner = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16);
+	const previewMaterials = {
+		valid: new THREE.MeshBasicMaterial({ color: 0x7fc47a, transparent: true, opacity: 0.55 }),
+		invalid: new THREE.MeshBasicMaterial({ color: 0xe27a6b, transparent: true, opacity: 0.55 }),
+		door: new THREE.MeshBasicMaterial({ color: 0xe0a458, transparent: true, opacity: 0.7 })
+	};
 
 	const highlight = new THREE.Mesh(
 		new THREE.PlaneGeometry(0.94, 0.94),
@@ -101,6 +143,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(highlight);
 
 	let tokens: readonly Token[] = [];
+	let objects: readonly SceneObject[] = [];
 
 	let grid: SquareGrid | null = null;
 	let extent = 20;
@@ -121,7 +164,9 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		// Clamp so the first frame after an idle period does not jump animations to the end.
 		const dt = Math.min(now - lastFrameTime, 50);
 		lastFrameTime = now;
-		if (tokenLayer.tick(dt)) requestRender();
+		const tokensMoving = tokenLayer.tick(dt);
+		const doorsMoving = wallLayer.tick(dt);
+		if (tokensMoving || doorsMoving) requestRender();
 		if (transition) {
 			const t = Math.min((now - transition.start) / VIEW_TRANSITION_MS, 1);
 			const k = 1 - (1 - t) ** 3;
@@ -221,7 +266,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 	const hitPoint = new THREE.Vector3();
 
-	function pickAt(event: PointerEvent): { cell: GridPos | null; tokenId: string | null } {
+	function pickAt(event: PointerEvent): Pick {
 		const rect = canvas.getBoundingClientRect();
 		pointer.set(
 			((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -229,8 +274,39 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		);
 		raycaster.setFromCamera(pointer, camera);
 		const tokenId = tokenLayer.pick(raycaster);
-		const onTable = grid && raycaster.ray.intersectPlane(tablePlane, hitPoint);
-		return { tokenId, cell: onTable && grid ? worldToGrid(grid, hitPoint) : null };
+		const objectId = tokenId ? null : wallLayer.pick(raycaster);
+		const pick: Pick = {
+			cell: null,
+			corner: null,
+			edge: null,
+			edgeDistance: Infinity,
+			tokenId,
+			objectId
+		};
+		if (!grid || !raycaster.ray.intersectPlane(tablePlane, hitPoint)) return pick;
+		pick.cell = worldToGrid(grid, hitPoint);
+		pick.corner = worldToCorner(grid, hitPoint);
+		pick.edge = worldToEdge(grid, hitPoint);
+		if (pick.edge) {
+			const a = cornerToWorld(grid, pick.edge.a);
+			const vertical = pick.edge.a.x === pick.edge.b.x;
+			pick.edgeDistance = Math.abs(vertical ? hitPoint.x - a.x : hitPoint.z - a.z) / grid.cellSize;
+		}
+		return pick;
+	}
+
+	function pickKey(p: Pick): string {
+		const e = p.edge ? `${p.edge.a.x},${p.edge.a.y},${p.edge.b.x},${p.edge.b.y}` : '';
+		return [
+			p.cell?.x,
+			p.cell?.y,
+			p.corner?.x,
+			p.corner?.y,
+			e,
+			p.edgeDistance < 0.2,
+			p.tokenId,
+			p.objectId
+		].join('|');
 	}
 
 	let press: { x: number; y: number } | null = null;
@@ -245,25 +321,23 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
 		press = null;
 		if (moved > CLICK_SLOP_PX) return;
-		const { tokenId, cell } = pickAt(event);
-		if (tokenId) events.onTokenClick(tokenId);
-		else if (cell) events.onCellClick(cell);
+		events.onClick(pickAt(event));
 	}
 
 	function onPointerMove(event: PointerEvent): void {
 		if (event.buttons !== 0) return; // dragging the camera
-		const { tokenId, cell } = pickAt(event);
-		canvas.style.cursor = tokenId ? 'pointer' : '';
-		const key = `${cell?.x},${cell?.y},${tokenId}`;
+		const pick = pickAt(event);
+		canvas.style.cursor = pick.tokenId || pick.objectId ? 'pointer' : '';
+		const key = pickKey(pick);
 		if (key === hoverKey) return;
 		hoverKey = key;
-		events.onHover(cell, tokenId);
+		events.onHover(pick);
 	}
 
 	function onPointerLeave(): void {
 		if (hoverKey === '') return;
 		hoverKey = '';
-		events.onHover(null, null);
+		events.onHover(null);
 	}
 
 	canvas.addEventListener('pointerdown', onPointerDown);
@@ -287,6 +361,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			grid = { ...next };
 			buildTable(grid);
 			tokenLayer.sync(tokens, grid);
+			wallLayer.sync(objects, grid);
 			if (first) {
 				const pose = viewPose(view, extent);
 				camera.position.copy(pose.position);
@@ -297,6 +372,41 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		setTokens(next) {
 			tokens = next;
 			if (grid && tokenLayer.sync(tokens, grid)) requestRender();
+		},
+		setObjects(next) {
+			objects = next;
+			if (!grid) return;
+			wallLayer.sync(objects, grid);
+			requestRender();
+		},
+		setHoveredObject(objectId) {
+			if (wallLayer.setHovered(objectId)) requestRender();
+		},
+		setPreview(items) {
+			previewGroup.clear();
+			if (grid) {
+				const size = grid.cellSize;
+				for (const item of items) {
+					if (item.kind === 'corner') {
+						const w = cornerToWorld(grid, item.at);
+						const marker = new THREE.Mesh(previewCorner, previewMaterials.valid);
+						marker.position.set(w.x, 0.15 * size, w.z);
+						marker.scale.setScalar(size);
+						previewGroup.add(marker);
+						continue;
+					}
+					const p = cornerToWorld(grid, item.a);
+					const q = cornerToWorld(grid, item.b);
+					const length = Math.hypot(q.x - p.x, q.z - p.z);
+					const height = WALL_HEIGHT * size * (item.tone === 'door' ? 0.9 : 0.5);
+					const box = new THREE.Mesh(previewBox, previewMaterials[item.tone]);
+					box.position.set((p.x + q.x) / 2, height / 2, (p.z + q.z) / 2);
+					box.rotation.y = Math.atan2(-(q.z - p.z), q.x - p.x);
+					box.scale.set(length + 0.12 * size, height, 0.18 * size);
+					previewGroup.add(box);
+				}
+			}
+			requestRender();
 		},
 		setSelected(tokenId) {
 			if (tokenLayer.setSelected(tokenId)) requestRender();
@@ -331,6 +441,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			controls.dispose();
 			disposeGroup(table);
 			tokenLayer.dispose();
+			wallLayer.dispose();
+			previewGroup.clear();
+			previewBox.dispose();
+			previewCorner.dispose();
+			Object.values(previewMaterials).forEach((m) => m.dispose());
 			highlight.geometry.dispose();
 			highlight.material.dispose();
 			renderer.dispose();

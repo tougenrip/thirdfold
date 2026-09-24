@@ -14,7 +14,15 @@ import { gridDistance } from '../src/lib/game/grid';
 import { postChat, postRoll, postSystem, secureRoller } from './chat';
 import { RateLimiter } from './rate-limit';
 import { RoomManager, snapshot, toPublicPlayer, type Player, type Room } from './rooms';
-import { createToken, deleteToken, moveToken, updateToken } from './scene';
+import {
+	createObject,
+	createToken,
+	deleteObject,
+	deleteToken,
+	moveToken,
+	toggleDoor,
+	updateToken
+} from './scene';
 
 export interface GameServerOptions {
 	port: number;
@@ -216,6 +224,33 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				broadcast(room.id, { type: 'token_deleted', tokenId: msg.tokenId });
 				return announce(room, postSystem(room, `${player.name} removed ${result.token.name}.`));
+			}
+			case 'object_create': {
+				const result = createObject(room, player, msg.kind, msg.a, msg.b);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return broadcast(room.id, {
+					type: 'objects_changed',
+					upserted: result.upserted,
+					removed: result.removed
+				});
+			}
+			case 'object_delete': {
+				const result = deleteObject(room, player, msg.objectId);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return broadcast(room.id, {
+					type: 'objects_changed',
+					upserted: [],
+					removed: [msg.objectId]
+				});
+			}
+			case 'door_toggle': {
+				const result = toggleDoor(room, player, msg.objectId);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				broadcast(room.id, { type: 'objects_changed', upserted: [result.door], removed: [] });
+				return announce(
+					room,
+					postSystem(room, `${player.name} ${result.door.open ? 'opened' : 'closed'} a door.`)
+				);
 			}
 			case 'chat_send':
 			case 'dice_roll': {

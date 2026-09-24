@@ -1,24 +1,40 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import type { ChatMessage } from '$lib/game/chat';
+	import { formatBreakdown } from '$lib/game/dice';
 	import { gridDistance, type GridPos } from '$lib/game/grid';
-	import { canMoveToken } from '$lib/game/permissions';
+	import {
+		alignToAxis,
+		blockingEdges,
+		isReachable,
+		objectOnEdge,
+		segmentProblem,
+		type Door,
+		type SceneObject
+	} from '$lib/game/objects';
+	import { canMoveToken, canUseDoor } from '$lib/game/permissions';
 	import type { Role } from '$lib/game/protocol';
 	import { tokenAt } from '$lib/game/token';
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
 	import Tabletop from '$lib/tabletop/Tabletop.svelte';
-	import type { CameraView, HighlightKind } from '$lib/tabletop/renderer';
-	import type { ChatMessage } from '$lib/game/chat';
-	import { formatBreakdown } from '$lib/game/dice';
+	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
+	import BuildPanel, { type BuildTool } from './BuildPanel.svelte';
 	import ChatPanel from './ChatPanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 
 	let { conn }: { conn: RoomConnection } = $props();
 
+	/** How close (in cells) the pointer must be to a grid line to target the wall or door on it. */
+	const EDGE_REACH = 0.22;
+
 	// Local UI state only. Shared state lives in conn.room and changes only via server broadcasts.
 	let view = $state<CameraView>('tactical');
+	let tool = $state<BuildTool>('select');
 	let selectedId = $state<string | null>(null);
 	let placing = $state<TokenDraft | null>(null);
-	let hoverCell = $state<GridPos | null>(null);
+	let hover = $state<Pick | null>(null);
+	/** First corner of the wall being drawn. */
+	let wallStart = $state<GridPos | null>(null);
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
 	let rollCard = $state<Extract<ChatMessage, { kind: 'roll' }> | null>(null);
@@ -28,6 +44,8 @@
 	const room = $derived(conn.room);
 	const me = $derived(conn.me);
 	const isGm = $derived(me?.role === 'gm');
+	const hoverCell = $derived(hover?.cell ?? null);
+	const blocked = $derived(blockingEdges(room?.objects ?? []));
 	const canMove = (tokenId: string | null) => {
 		const token = tokenId && room?.tokens.find((t) => t.id === tokenId);
 		return !!(token && me && canMoveToken(me, token));
@@ -40,30 +58,103 @@
 	);
 	const occupant = $derived(hoverCell && room ? tokenAt(room.tokens, hoverCell) : undefined);
 
+	/** The wall or door the pointer targets: one it is over in 3D, else one on the grid line it is near. */
+	function objectUnder(pick: Pick | null): SceneObject | undefined {
+		if (!pick || !room) return undefined;
+		if (pick.objectId) return room.objects.find((o) => o.id === pick.objectId);
+		if (pick.edge && pick.edgeDistance <= EDGE_REACH) return objectOnEdge(room.objects, pick.edge);
+		return undefined;
+	}
+	const doorUnder = (pick: Pick | null): Door | undefined => {
+		const o = objectUnder(pick);
+		return o?.kind === 'door' ? o : undefined;
+	};
+
+	/** The far end of the wall being drawn, snapped onto a row or column through its start. */
+	const wallEnd = $derived(
+		wallStart && hover?.corner ? alignToAxis(wallStart, hover.corner) : null
+	);
+	const wallProblem = $derived(
+		room && wallStart && wallEnd ? segmentProblem(room.grid, wallStart, wallEnd) : null
+	);
+
+	const preview = $derived.by((): PreviewItem[] => {
+		if (!hover || placing) return [];
+		if (tool === 'wall') {
+			if (!wallStart) return hover.corner ? [{ kind: 'corner', at: hover.corner }] : [];
+			const items: PreviewItem[] = [{ kind: 'corner', at: wallStart }];
+			if (wallEnd && (wallEnd.x !== wallStart.x || wallEnd.y !== wallStart.y)) {
+				items.push({
+					kind: 'segment',
+					a: wallStart,
+					b: wallEnd,
+					tone: wallProblem ? 'invalid' : 'valid'
+				});
+			}
+			return items;
+		}
+		if (tool === 'door' && hover.edge) {
+			const existing = room && objectOnEdge(room.objects, hover.edge);
+			return [
+				{ kind: 'segment', ...hover.edge, tone: existing?.kind === 'door' ? 'invalid' : 'door' }
+			];
+		}
+		return [];
+	});
+
+	const hoveredObjectId = $derived.by(() => {
+		if (placing) return null;
+		if (tool === 'erase') return objectUnder(hover)?.id ?? null;
+		if (tool === 'select' && !hover?.tokenId) return doorUnder(hover)?.id ?? null;
+		return null;
+	});
+
+	const reachable = $derived(
+		!!(
+			selected &&
+			hoverCell &&
+			room &&
+			(isGm || isReachable(room.grid, blocked, selected.pos, hoverCell))
+		)
+	);
+
 	const highlight = $derived.by((): { cell: GridPos; kind: HighlightKind } | null => {
-		if (!hoverCell) return null;
+		if (!hoverCell || tool !== 'select') return null;
 		if (placing) return { cell: hoverCell, kind: occupant ? 'blocked' : 'place' };
-		if (selected) {
-			const blocked = occupant && occupant.id !== selected.id;
-			return { cell: hoverCell, kind: blocked ? 'blocked' : 'move' };
+		if (selected && !doorUnder(hover)) {
+			const taken = occupant && occupant.id !== selected.id;
+			return { cell: hoverCell, kind: taken || !reachable ? 'blocked' : 'move' };
 		}
 		return null;
 	});
 
 	const hint = $derived.by(() => {
 		if (placing) return `Click an empty cell to place ${placing.name}. Esc to cancel.`;
+		if (tool === 'wall') {
+			if (!wallStart) return 'Wall: click a grid corner to start.';
+			return (
+				wallProblem ?? 'Click another corner to finish this wall and start the next. Esc to stop.'
+			);
+		}
+		if (tool === 'door') return 'Door: click a grid line. Placing a door in a wall cuts a doorway.';
+		if (tool === 'erase') return 'Erase: click a wall or door to remove it.';
+		if (hoveredObjectId && doorUnder(hover)) {
+			const door = doorUnder(hover)!;
+			return `Click to ${door.open ? 'close' : 'open'} the door.`;
+		}
 		if (selected) {
 			const distance = hoverCell ? gridDistance(selected.pos, hoverCell) : null;
 			const suffix = distance ? ` · ${distance} ${distance === 1 ? 'cell' : 'cells'}` : '';
-			return `Moving ${selected.name}: click a cell${suffix}. Esc to deselect.`;
+			const way = hoverCell && !reachable ? ' · no way through' : '';
+			return `Moving ${selected.name}: click a cell${suffix}${way}. Esc to deselect.`;
 		}
 		if (me?.role === 'spectator') return 'You are watching this table.';
 		if (!isGm && room && !room.tokens.some((t) => t.ownerId === me?.id)) {
 			return 'Waiting for the GM to give you a token.';
 		}
 		return isGm
-			? 'Click any token to move it, or add one from the Tokens panel.'
-			: 'Click one of your tokens to move it.';
+			? 'Click any token to move it, or build with the tools in the side panel.'
+			: 'Click one of your tokens to move it, or a door next to it to open it.';
 	});
 
 	function showToast(message: string) {
@@ -99,32 +190,98 @@
 		return () => clearTimeout(timer);
 	});
 
-	function onTokenClick(id: string) {
-		if (placing) return;
-		if (canMove(id)) {
-			selectedId = selectedId === id ? null : id;
-			return;
-		}
-		const token = room?.tokens.find((t) => t.id === id);
-		if (token) showToast(`${token.name} isn't yours to move.`);
+	function setTool(next: BuildTool) {
+		tool = next;
+		wallStart = null;
+		placing = null;
+		selectedId = null;
 	}
 
-	function onCellClick(cell: GridPos) {
+	function onClick(pick: Pick) {
+		if (!room || !me) return;
 		if (placing) {
-			if (tokenAt(room?.tokens ?? [], cell)) return showToast('That cell is taken.');
-			conn.send({ type: 'token_create', ...placing, pos: cell });
+			if (!pick.cell) return;
+			if (tokenAt(room.tokens, pick.cell)) return showToast('That cell is taken.');
+			conn.send({ type: 'token_create', ...placing, pos: pick.cell });
 			placing = null;
 			return;
 		}
-		if (!selected) return;
-		if (selected.pos.x === cell.x && selected.pos.y === cell.y) return;
-		conn.send({ type: 'token_move', tokenId: selected.id, to: cell });
+		switch (tool) {
+			case 'wall':
+				return clickWall(pick);
+			case 'door':
+				if (pick.edge) conn.send({ type: 'object_create', kind: 'door', ...pick.edge });
+				return;
+			case 'erase': {
+				const target = objectUnder(pick);
+				if (target) conn.send({ type: 'object_delete', objectId: target.id });
+				return;
+			}
+			case 'select':
+				return clickSelect(pick);
+		}
+	}
+
+	function clickWall(pick: Pick) {
+		if (!pick.corner) return;
+		if (!wallStart) {
+			wallStart = pick.corner;
+			return;
+		}
+		const end = alignToAxis(wallStart, pick.corner);
+		if (end.x === wallStart.x && end.y === wallStart.y) {
+			wallStart = null;
+			return;
+		}
+		if (wallProblem) return showToast(wallProblem);
+		conn.send({ type: 'object_create', kind: 'wall', a: wallStart, b: end });
+		wallStart = end; // keep drawing from here
+	}
+
+	function clickSelect(pick: Pick) {
+		if (!room || !me) return;
+		if (pick.tokenId) {
+			const id = pick.tokenId;
+			if (canMove(id)) {
+				selectedId = selectedId === id ? null : id;
+				return;
+			}
+			const token = room.tokens.find((t) => t.id === id);
+			if (token) showToast(`${token.name} isn't yours to move.`);
+			return;
+		}
+		const door = doorUnder(pick);
+		if (door) {
+			if (!canUseDoor(me, door, room.tokens, room.grid)) {
+				return showToast(
+					me.role === 'player'
+						? 'Move one of your tokens next to the door first.'
+						: 'Spectators cannot open doors.'
+				);
+			}
+			conn.send({ type: 'door_toggle', objectId: door.id });
+			return;
+		}
+		if (!selected || !pick.cell) return;
+		if (selected.pos.x === pick.cell.x && selected.pos.y === pick.cell.y) return;
+		conn.send({ type: 'token_move', tokenId: selected.id, to: pick.cell });
 	}
 
 	function onKeydown(event: KeyboardEvent) {
-		if (event.key !== 'Escape') return;
-		placing = null;
-		selectedId = null;
+		if (event.key === 'Escape') {
+			if (wallStart) wallStart = null;
+			else if (tool !== 'select') tool = 'select';
+			placing = null;
+			selectedId = null;
+			return;
+		}
+		// Tool shortcuts, but never while typing.
+		const target = event.target as HTMLElement | null;
+		if (!isGm || event.ctrlKey || event.metaKey || event.altKey) return;
+		if (target?.closest('input, textarea, select, [contenteditable]')) return;
+		const shortcut: Record<string, BuildTool> = { v: 'select', w: 'wall', d: 'door', e: 'erase' };
+		const next = shortcut[event.key.toLowerCase()];
+		if (next) setTool(next);
 	}
 
 	async function copyInvite() {
@@ -155,12 +312,14 @@
 			<Tabletop
 				grid={room.grid}
 				tokens={room.tokens}
+				objects={room.objects}
+				{hoveredObjectId}
+				{preview}
 				selectedId={selected?.id ?? null}
 				{highlight}
 				{view}
-				{onTokenClick}
-				{onCellClick}
-				onHover={(cell) => (hoverCell = cell)}
+				{onClick}
+				onHover={(pick) => (hover = pick)}
 			/>
 		</div>
 	{/if}
@@ -196,6 +355,12 @@
 				</ul>
 			</section>
 
+			{#if isGm}
+				<div class="panel">
+					<BuildPanel {tool} onTool={setTool} />
+				</div>
+			{/if}
+
 			{#if me.role !== 'spectator'}
 				<div class="panel">
 					<TokenPanel
@@ -207,10 +372,12 @@
 						{placing}
 						onSelect={(id) => {
 							placing = null;
+							tool = 'select';
 							selectedId = id;
 						}}
 						onPlace={(draft) => {
 							selectedId = null;
+							tool = 'select';
 							placing = draft;
 						}}
 						send={(action) => conn.send(action)}

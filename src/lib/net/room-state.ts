@@ -34,6 +34,13 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 			if (i !== -1) room.tokens.splice(i, 1);
 			return true;
 		}
+		case 'objects_changed': {
+			const removed = new Set(msg.removed);
+			const upserted = new Map(msg.upserted.map((o) => [o.id, o]));
+			const next = room.objects.filter((o) => !removed.has(o.id) && !upserted.has(o.id));
+			room.objects = [...next, ...msg.upserted];
+			return true;
+		}
 		case 'chat': {
 			const last = room.log.at(-1);
 			if (last && last.seq >= msg.message.seq) return true; // already have it

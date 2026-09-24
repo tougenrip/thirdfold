@@ -3,7 +3,20 @@
 
 import { randomUUID } from 'node:crypto';
 import { inBounds, type GridPos } from '../src/lib/game/grid';
-import { canEditScene, canMoveToken } from '../src/lib/game/permissions';
+import {
+	blockingEdges,
+	cutWall,
+	edgeKey,
+	isReachable,
+	isUnitEdge,
+	MAX_OBJECTS_PER_ROOM,
+	orderCorners,
+	segmentProblem,
+	unitEdges,
+	type Door,
+	type SceneObject
+} from '../src/lib/game/objects';
+import { canEditScene, canMoveToken, canUseDoor } from '../src/lib/game/permissions';
 import { normalizeName, type TokenPatch } from '../src/lib/game/protocol';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
 import { fail, type Player, type Result, type Room } from './rooms';
@@ -68,6 +81,14 @@ export function moveToken(
 	if (!canMoveToken(actor, token)) return fail('forbidden', 'You cannot move that token.');
 	const cell = checkCell(room, to, token.id);
 	if (!cell.ok) return cell;
+	// Players walk: the destination must be reachable without crossing walls or
+	// closed doors. The GM places freely.
+	if (
+		actor.role !== 'gm' &&
+		!isReachable(room.grid, blockingEdges(room.objects.values()), token.pos, to)
+	) {
+		return fail('no_path', "There's no way through to that cell.");
+	}
 	const from = token.pos;
 	token.pos = { x: to.x, y: to.y };
 	return { ok: true, token, from };
@@ -104,4 +125,87 @@ export function deleteToken(room: Room, actor: Player, tokenId: string): Result<
 	if (!token) return fail('token_not_found', 'That token no longer exists.');
 	room.tokens.delete(tokenId);
 	return { ok: true, token };
+}
+
+export interface ObjectChanges {
+	upserted: SceneObject[];
+	removed: string[];
+}
+
+export function createObject(
+	room: Room,
+	actor: Player,
+	kind: 'wall' | 'door',
+	a: GridPos,
+	b: GridPos
+): Result<ObjectChanges> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can build walls and doors.');
+	if (room.objects.size >= MAX_OBJECTS_PER_ROOM) {
+		return fail(
+			'limit_reached',
+			`A room can hold at most ${MAX_OBJECTS_PER_ROOM} walls and doors.`
+		);
+	}
+	const problem = segmentProblem(room.grid, a, b);
+	if (problem) return fail('invalid_object', problem);
+	if (kind === 'door' && !isUnitEdge(a, b)) {
+		return fail('invalid_object', 'A door spans exactly one grid square.');
+	}
+	const ends = orderCorners({ x: a.x, y: a.y }, { x: b.x, y: b.y });
+
+	// Nothing may overlap an existing door.
+	const doorEdges = new Set<string>();
+	for (const o of room.objects.values()) if (o.kind === 'door') doorEdges.add(edgeKey(o));
+	if (unitEdges(ends.a, ends.b).some((e) => doorEdges.has(edgeKey(e)))) {
+		return fail('edge_occupied', 'There is already a door there.');
+	}
+
+	if (kind === 'wall') {
+		const wall: SceneObject = { id: randomUUID(), kind: 'wall', ...ends };
+		room.objects.set(wall.id, wall);
+		return { ok: true, upserted: [wall], removed: [] };
+	}
+
+	// A door placed in a wall cuts a doorway: split every wall covering that edge.
+	const door: Door = { id: randomUUID(), kind: 'door', ...ends, open: false };
+	const changes: ObjectChanges = { upserted: [], removed: [] };
+	for (const o of [...room.objects.values()]) {
+		if (o.kind !== 'wall') continue;
+		const pieces = cutWall(o, door, randomUUID);
+		if (pieces.length === 1 && pieces[0] === o) continue;
+		room.objects.delete(o.id);
+		for (const piece of pieces) room.objects.set(piece.id, piece);
+		changes.upserted.push(...pieces);
+		if (!pieces.some((p) => p.id === o.id)) changes.removed.push(o.id);
+	}
+	room.objects.set(door.id, door);
+	changes.upserted.push(door);
+	return { ok: true, ...changes };
+}
+
+export function deleteObject(
+	room: Room,
+	actor: Player,
+	objectId: string
+): Result<{ object: SceneObject }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can remove walls and doors.');
+	const object = room.objects.get(objectId);
+	if (!object) return fail('object_not_found', 'That wall or door no longer exists.');
+	room.objects.delete(objectId);
+	return { ok: true, object };
+}
+
+export function toggleDoor(room: Room, actor: Player, objectId: string): Result<{ door: Door }> {
+	const door = room.objects.get(objectId);
+	if (!door || door.kind !== 'door') return fail('object_not_found', 'That door no longer exists.');
+	if (!canUseDoor(actor, door, room.tokens.values(), room.grid)) {
+		return fail(
+			'forbidden',
+			actor.role === 'player'
+				? 'Move one of your tokens next to the door first.'
+				: 'You cannot open doors.'
+		);
+	}
+	door.open = !door.open;
+	return { ok: true, door };
 }

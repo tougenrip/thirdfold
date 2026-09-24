@@ -58,3 +58,57 @@ export function inBounds(grid: SquareGrid, pos: GridPos): boolean {
 export function gridDistance(a: GridPos, b: GridPos): number {
 	return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 }
+
+// Corners and edges. Walls and doors run along grid lines, between cells. A
+// corner is a grid-line intersection: x in [0, width], y in [0, height], with
+// corner (x, y) being the min-x/min-y corner of cell (x, y).
+
+/** A unit segment of a grid line between two adjacent corners, with `a` before `b`. */
+export interface GridEdge {
+	a: GridPos;
+	b: GridPos;
+}
+
+export function cornerInBounds(grid: SquareGrid, c: GridPos): boolean {
+	return (
+		Number.isInteger(c.x) &&
+		Number.isInteger(c.y) &&
+		c.x >= 0 &&
+		c.y >= 0 &&
+		c.x <= grid.width &&
+		c.y <= grid.height
+	);
+}
+
+export function cornerToWorld(grid: SquareGrid, c: GridPos): WorldPos {
+	return {
+		x: (c.x - grid.width / 2) * grid.cellSize,
+		y: 0,
+		z: (c.y - grid.height / 2) * grid.cellSize
+	};
+}
+
+/** Nearest corner to a world point, or null when it falls outside the grid. */
+export function worldToCorner(grid: SquareGrid, world: Pick<WorldPos, 'x' | 'z'>): GridPos | null {
+	const c = {
+		x: Math.round(world.x / grid.cellSize + grid.width / 2),
+		y: Math.round(world.z / grid.cellSize + grid.height / 2)
+	};
+	return cornerInBounds(grid, c) ? c : null;
+}
+
+/** Nearest unit edge to a world point, or null off the grid. */
+export function worldToEdge(grid: SquareGrid, world: Pick<WorldPos, 'x' | 'z'>): GridEdge | null {
+	const u = world.x / grid.cellSize + grid.width / 2;
+	const v = world.z / grid.cellSize + grid.height / 2;
+	if (u < 0 || v < 0 || u > grid.width || v > grid.height) return null;
+	const nearX = Math.round(u);
+	const nearY = Math.round(v);
+	if (Math.abs(u - nearX) <= Math.abs(v - nearY)) {
+		// Closest to a vertical line x = nearX.
+		const y = Math.min(Math.floor(v), grid.height - 1);
+		return { a: { x: nearX, y }, b: { x: nearX, y: y + 1 } };
+	}
+	const x = Math.min(Math.floor(u), grid.width - 1);
+	return { a: { x, y: nearY }, b: { x: x + 1, y: nearY } };
+}

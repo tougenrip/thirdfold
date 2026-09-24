@@ -48,6 +48,14 @@ class TestClient {
 		this.ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
 	}
 
+	/** Reads the log stream forward until a system notice with this text, skipping earlier entries. */
+	async untilNotice(text: string): Promise<void> {
+		for (;;) {
+			const { message } = await this.expect('chat');
+			if (message.kind === 'system' && message.text === text) return;
+		}
+	}
+
 	async expect<T extends ServerMessage['type']>(
 		type: T
 	): Promise<Extract<ServerMessage, { type: T }>> {
@@ -468,5 +476,65 @@ describe('chat and dice over the wire', () => {
 			'Gemma took back Hero.',
 			'Late joined as a spectator.'
 		]);
+	});
+});
+
+describe('walls and doors over the wire', () => {
+	it('syncs walls and doors, blocks a player at a closed door, and lets them open it', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+
+		gm.send({ type: 'object_create', kind: 'wall', a: { x: 5, y: 0 }, b: { x: 5, y: 20 } });
+		for (const c of [gm, pip]) expect((await c.expect('objects_changed')).upserted).toHaveLength(1);
+		gm.send({ type: 'object_create', kind: 'door', a: { x: 5, y: 4 }, b: { x: 5, y: 5 } });
+		const cut = await pip.expect('objects_changed');
+		await gm.expect('objects_changed');
+		expect(cut.upserted.map((o) => o.kind)).toEqual(['wall', 'wall', 'door']);
+		const door = cut.upserted[2];
+
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 4, y: 4 },
+			ownerId: playerId
+		});
+		const { token } = await pip.expect('token_upserted');
+		await gm.expect('token_upserted');
+
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 8, y: 4 } });
+		expect(await pip.expect('error')).toMatchObject({ code: 'no_path' });
+		pip.send({ type: 'object_create', kind: 'wall', a: { x: 0, y: 1 }, b: { x: 2, y: 1 } });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+
+		pip.send({ type: 'door_toggle', objectId: door.id });
+		for (const c of [gm, pip]) {
+			expect((await c.expect('objects_changed')).upserted).toEqual([{ ...door, open: true }]);
+		}
+		await gm.untilNotice('Pip opened a door.');
+
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 8, y: 4 } });
+		expect(await gm.expect('token_moved')).toMatchObject({ pos: { x: 8, y: 4 } });
+
+		const late = await connect();
+		late.send({ type: 'join', roomId: room.id, name: 'Late', role: 'spectator' });
+		const { room: snap } = await late.expect('welcome');
+		expect(snap.objects).toHaveLength(3);
+		expect(snap.objects.find((o) => o.id === door.id)).toMatchObject({ open: true });
+	});
+
+	it('rejects malformed object payloads', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		await gm.expect('welcome');
+		gm.send({ type: 'object_create', kind: 'portal', a: { x: 0, y: 0 }, b: { x: 1, y: 0 } });
+		expect(await gm.expect('error')).toMatchObject({ code: 'invalid_message' });
+		gm.send({ type: 'object_create', kind: 'wall', a: { x: 0, y: 0 } });
+		expect(await gm.expect('error')).toMatchObject({ code: 'invalid_message' });
 	});
 });
