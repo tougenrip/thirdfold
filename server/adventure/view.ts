@@ -3,65 +3,74 @@
 // is in that viewer's view, things to interact with only once their cells
 // have been seen, and the read-aloud passages only for the GM.
 
-import {
-	CHAPTER_IDS,
-	type AdventureView,
-	type LocationId,
-	type SessionSummary
-} from '../../src/lib/adventure/adventure';
-import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
+import type { AdventureView, Objective, SessionSummary } from '../../src/lib/adventure/adventure';
+import { defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
-import { CLUES, CUES, ENDINGS, OUTCOMES, TEXT, TITLE, type ClueDef, type ClueId } from './content';
-import { ENEMIES } from './enemies';
+import { AMBUSH, type AdventureDef } from './define';
 import {
 	chapterNumber,
 	characterOf,
+	content,
+	counterOf,
 	directorOptions,
+	endingAnswer,
 	objectCells,
 	objectState,
-	bellAnswer,
 	optionLabel,
-	PULLS_TO_HOLD,
 	shownState,
 	usesLeft,
 	verbsFor
 } from './engine';
-import { LOCATIONS } from './locations';
-import { actionOfVerb, objectDef, OBJECTS } from './objects';
 import type { AdventureState, Statuses } from './state';
-import { NPC_IDS, NPCS } from './npcs';
-import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, objectivesFor } from './story';
+import { actionOfVerb, objectDef } from './world';
 
 /** Where a story saved now had got to, for the GM's list of saves (null for a table without one). */
 export function storySummary(room: Room): SavedScene['story'] {
 	const adventure = room.adventure;
 	if (!adventure) return null;
+	const A = content(adventure);
 	return {
-		title: TITLE,
-		chapter: CHAPTERS[adventure.chapter].title,
-		location: LOCATIONS[adventure.location].name,
+		title: A.title,
+		chapter: A.chapters[adventure.chapter].title,
+		location: A.locations[adventure.location].name,
 		party: [...adventure.characters].flatMap(([id, state]) => {
 			const token = room.tokens.get(state.tokenId);
 			if (!token) return [];
 			const player = token.ownerId && room.players.get(token.ownerId);
-			return [player ? `${CHARACTERS[id].name} (${player.name})` : CHARACTERS[id].name];
+			const name = A.characters[id]?.name ?? id;
+			return [player ? `${name} (${player.name})` : name];
 		})
 	};
 }
 
-/** What a player joining the party finds, wherever it is. */
-const WELCOME: Record<LocationId, string> = {
-	bellweather: TEXT.arrival,
-	monastery: TEXT.leaveVillage,
-	hollow: TEXT.hollow,
-	heart: TEXT.chooseDescent
-};
+/**
+ * What the party is trying to do: the objectives of every chapter so far at
+ * this location, done or not, leaving out those not yet heard of.
+ */
+export function objectivesFor(A: AdventureDef, adventure: AdventureState): Objective[] {
+	if (adventure.stage === 'choosing')
+		return [{ id: 'choose', text: 'Choose your characters', done: false }];
+	const events = adventure.events;
+	const here = A.chapters[adventure.chapter].location;
+	const ids = Object.keys(A.chapters);
+	return ids
+		.slice(0, ids.indexOf(adventure.chapter) + 1)
+		.filter((id) => A.chapters[id].location === here)
+		.flatMap((id) => A.chapters[id].objectives)
+		.filter((o) => !o.after || events.includes(o.after))
+		.map((o) => ({
+			id: o.id,
+			text: o.text,
+			done: events.includes(o.done),
+			...(o.optional ? { optional: true } : {})
+		}));
+}
 
 /** The newcomer's first find where the party is, while it can be found. */
 function firstFind(room: Room, adventure: AdventureState): AdventureView['firstFind'] {
-	for (const def of OBJECTS) {
+	for (const def of content(adventure).objects) {
 		if (!def.firstFind || def.location !== adventure.location) continue;
 		const cells = objectCells(room, def);
 		if (!cells?.length || shownState(adventure, def) !== 'interactable') continue;
@@ -84,20 +93,22 @@ export function adventureView(
 ): AdventureView | null {
 	const adventure = room.adventure;
 	if (!adventure) return null;
+	const A = content(adventure);
 	const encounter = adventure.encounter;
 	// Evidence someone found alone stays theirs (and the GM's) until they share it.
 	const mine = viewer.role === 'player' ? (characterOf(room, viewer.id)?.id ?? null) : null;
 	const clues = [...adventure.evidence].flatMap(([id, found]) => {
 		const own = mine !== null && found.by.includes(mine);
 		if (!found.shared && !own && viewer.role !== 'gm') return [];
-		const def: ClueDef = CLUES[id as ClueId];
+		const def = A.clues[id];
+		if (!def) return [];
 		return [
 			{
 				id,
 				title: def.title,
 				text: def.text,
 				kind: def.kind,
-				foundBy: found.by.map((c) => CHARACTERS[c].name),
+				foundBy: found.by.map((c) => A.characters[c]?.name ?? c),
 				shared: found.shared,
 				mine: own
 			}
@@ -105,21 +116,21 @@ export function adventureView(
 	});
 	return {
 		id: adventure.id,
-		title: TITLE,
+		title: A.title,
 		stage: adventure.stage,
 		chapter: {
 			id: adventure.chapter,
-			title: CHAPTERS[adventure.chapter].title,
-			number: chapterNumber(adventure.chapter),
-			of: CHAPTER_IDS.length
+			title: A.chapters[adventure.chapter].title,
+			number: chapterNumber(A, adventure.chapter),
+			of: Object.keys(A.chapters).length
 		},
-		location: { id: adventure.location, name: LOCATIONS[adventure.location].name },
-		objectives: objectivesFor(adventure.stage, adventure.chapter, adventure.events),
+		location: { id: adventure.location, name: A.locations[adventure.location].name },
+		objectives: objectivesFor(A, adventure),
 		clues,
-		characters: CHARACTER_IDS.map((id) => {
+		characters: Object.entries(A.characters).map(([id, def]) => {
 			const state = adventure.characters.get(id);
 			const token = state && room.tokens.get(state.tokenId);
-			const maxHp = CHARACTERS[id].hp;
+			const maxHp = def.hp;
 			return {
 				id,
 				inPlay: !!token,
@@ -132,15 +143,15 @@ export function adventureView(
 				downedFor: state?.downedFor ?? 0,
 				statuses: token && state ? listStatuses(state.statuses) : [],
 				usesLeft: Object.fromEntries(
-					CHARACTERS[id].actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
+					def.actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
 				),
 				carrying: [...adventure.carried].flatMap(([item, by]) => {
-					const def = by === id && token ? objectDef(item) : undefined;
-					return def ? [{ id: def.id, name: def.name }] : [];
+					const thing = by === id && token ? objectDef(A, item) : undefined;
+					return thing ? [{ id: thing.id, name: thing.name }] : [];
 				})
 			};
 		}),
-		interactables: OBJECTS.flatMap((def) => {
+		interactables: A.objects.flatMap((def) => {
 			const state = objectState(adventure, def);
 			const verbs = verbsFor(adventure, def);
 			const cells = objectCells(room, def);
@@ -172,15 +183,17 @@ export function adventureView(
 		}),
 		objects:
 			viewer.role === 'gm'
-				? OBJECTS.filter((def) =>
-						def.carry ? objectCells(room, def) !== null : def.location === adventure.location
-					).map((def) => ({
-						id: def.id,
-						name: def.name,
-						kind: def.kind,
-						state: objectState(adventure, def),
-						states: [...def.states]
-					}))
+				? A.objects
+						.filter((def) =>
+							def.carry ? objectCells(room, def) !== null : def.location === adventure.location
+						)
+						.map((def) => ({
+							id: def.id,
+							name: def.name,
+							kind: def.kind,
+							state: objectState(adventure, def),
+							states: [...def.states]
+						}))
 				: null,
 		encounter: encounter && {
 			round: encounter.round,
@@ -190,7 +203,7 @@ export function adventureView(
 					return {
 						kind: 'enemy' as const,
 						characterId: null,
-						name: e ? ENEMIES[e.kind].name : 'Enemy',
+						name: e ? (A.enemies[e.kind]?.name ?? 'Enemy') : 'Enemy',
 						initiative: t.initiative,
 						tokenId: tokenIds.has(t.tokenId) ? t.tokenId : null,
 						out: !e
@@ -201,15 +214,14 @@ export function adventureView(
 				return {
 					kind: 'character' as const,
 					characterId: t.id,
-					name: CHARACTERS[t.id].name,
+					name: A.characters[t.id]?.name ?? t.id,
 					initiative: t.initiative,
 					tokenId: token && tokenIds.has(token.id) ? token.id : null,
 					out: !token || !state || state.hp <= 0 || state.dead
 				};
 			}),
 			current: encounter.current,
-			bell:
-				encounter.finale === 'ringing' ? { pulls: encounter.pulls ?? 0, of: PULLS_TO_HOLD } : null,
+			counter: counterOf(adventure),
 			acted: [...encounter.acted],
 			moved: Object.fromEntries(encounter.moved),
 			speed: encounter.speed,
@@ -217,48 +229,42 @@ export function adventureView(
 				.filter(([tokenId]) => tokenIds.has(tokenId))
 				.map(([tokenId, e]) => ({
 					tokenId,
-					name: room.tokens.get(tokenId)?.name ?? ENEMIES[e.kind].name,
+					name: room.tokens.get(tokenId)?.name ?? A.enemies[e.kind]?.name ?? 'Enemy',
 					hp: e.hp,
 					maxHp: e.maxHp,
-					defense: defenseFor(ENEMIES[e.kind].armor),
+					defense: defenseFor(A.enemies[e.kind]?.armor ?? 0),
 					statuses: listStatuses(e.statuses)
 				}))
 		},
-		decision: adventure.pending && {
-			id: adventure.pending,
-			prompt: DECISIONS[adventure.pending].prompt,
-			options: DECISIONS[adventure.pending].options.map((o) => ({
-				id: o.id,
-				label: optionLabel(adventure, adventure.pending!, o)
-			}))
-		},
+		decision: adventure.pending
+			? {
+					id: adventure.pending,
+					prompt: A.decisions[adventure.pending].prompt,
+					options: A.decisions[adventure.pending].options.map((o) => ({
+						id: o.id,
+						label: optionLabel(adventure, adventure.pending!, o)
+					}))
+				}
+			: null,
 		decisions: [...adventure.decisions].map(([id, d]) => ({
 			id,
-			prompt: DECISIONS[id].prompt,
-			choice: DECISIONS[id].options.find((o) => o.id === d.option)?.label ?? d.option,
+			prompt: A.decisions[id]?.prompt ?? id,
+			choice: A.decisions[id]?.options.find((o) => o.id === d.option)?.label ?? d.option,
 			by: d.by
 		})),
-		ending: adventure.ending && {
-			id: adventure.ending,
-			headline: OUTCOMES[bellAnswer(adventure)].headline,
-			title: ENDINGS[adventure.ending].title,
-			subtitle: OUTCOMES[bellAnswer(adventure)].subtitle,
-			text: OUTCOMES[bellAnswer(adventure)].text,
-			scene: OUTCOMES[bellAnswer(adventure)].scene,
-			result: OUTCOMES[bellAnswer(adventure)].result.map((r) => ({ ...r }))
-		},
+		ending: endingView(A, adventure),
 		ledger:
 			viewer.role === 'gm'
 				? {
 						events: [...adventure.events],
 						defeated: [...adventure.defeated],
-						npcs: NPC_IDS.map((id) => ({
-							id,
-							name: NPCS[id].name,
-							home: NPCS[id].home,
-							state: adventure.npcs.get(id) ?? NPCS[id].states[0]
+						npcs: Object.values(A.npcs).map((npc) => ({
+							id: npc.id,
+							name: npc.name,
+							home: npc.home,
+							state: adventure.npcs.get(npc.id) ?? npc.states[0]
 						})),
-						encounters: ENCOUNTER_IDS.flatMap((id) => {
+						encounters: [...Object.keys(A.encounters), AMBUSH].flatMap((id) => {
 							const state = adventure.encounters.get(id);
 							return state ? [{ id, state }] : [];
 						})
@@ -267,14 +273,16 @@ export function adventureView(
 		director: viewer.role === 'gm' ? directorOptions(room, adventure) : null,
 		firstFind: firstFind(room, adventure),
 		welcome: {
-			title: `Welcome to ${LOCATIONS[adventure.location].name}`,
-			text: WELCOME[adventure.location]
+			title: `Welcome to ${A.locations[adventure.location].name}`,
+			text: A.locations[adventure.location].welcome
 		},
 		begunAt: adventure.begunAt,
 		completedAt: adventure.completedAt,
 		summary: summaryOf(adventure),
 		cues:
-			viewer.role === 'gm' ? CUES.map((c) => ({ ...c, read: adventure.cuesRead.has(c.id) })) : null
+			viewer.role === 'gm'
+				? A.cues.map((c) => ({ ...c, read: adventure.cuesRead.has(c.id) }))
+				: null
 	};
 }
 
@@ -285,7 +293,22 @@ function summaryOf(adventure: AdventureState): SessionSummary | null {
 		fightsWon: [...adventure.encounters.values()].filter((s) => s === 'won').length,
 		foesDefeated: adventure.defeated.length,
 		evidence: adventure.evidence.size,
-		chapters: chapterNumber(adventure.chapter),
+		chapters: chapterNumber(content(adventure), adventure.chapter),
 		again: [...(adventure.again ?? [])]
+	};
+}
+
+/** How the story ended, if it has: the ending its deciding answer led to. */
+function endingView(A: AdventureDef, adventure: AdventureState): AdventureView['ending'] {
+	if (!adventure.ending) return null;
+	const def = A.endings.byAnswer[endingAnswer(adventure)];
+	return {
+		id: adventure.ending,
+		headline: def.headline,
+		title: A.endings.names[adventure.ending]?.title ?? adventure.ending,
+		subtitle: def.subtitle,
+		text: def.text,
+		scene: def.scene,
+		result: def.result.map((r) => ({ ...r }))
 	};
 }

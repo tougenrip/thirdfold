@@ -9,13 +9,13 @@
 //
 // The grid runs x to the east and y to the south.
 
-import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
-import type { Light } from '../../src/lib/game/lights';
-import type { SceneObject } from '../../src/lib/game/objects';
-import type { Prop } from '../../src/lib/game/props';
-import type { SceneFile } from '../../src/lib/game/scene-file';
+import type { GridPos, SquareGrid } from '../../../src/lib/game/grid';
+import type { Light } from '../../../src/lib/game/lights';
+import type { SceneObject } from '../../../src/lib/game/objects';
+import type { Prop } from '../../../src/lib/game/props';
+import type { SceneFile } from '../../../src/lib/game/scene-file';
 import { npcTokens } from './npcs';
-import { door, light, prop, table, wall } from './tables';
+import { door, light, prop, table, wall } from '../../adventure/tables';
 
 export const GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 36, height: 28 };
 

@@ -17,9 +17,16 @@ import {
 	sense,
 	startAdventure
 } from './engine';
-import { HEART_IDS, HEART_SPAWN } from './heart';
-import { BESIDE_PIT, BY_TOBIN, HOLLOW_IDS, HOLLOW_SPAWN, hollowScene } from './hollow';
-import { recordOrigins } from './objects';
+import { HEART_IDS, HEART_SPAWN } from '../adventures/hollow-bell/heart';
+import {
+	BESIDE_PIT,
+	BY_TOBIN,
+	HOLLOW_IDS,
+	HOLLOW_SPAWN,
+	hollowScene
+} from '../adventures/hollow-bell/hollow';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import { recordOrigins } from './world';
 import { readAdventure } from './persist';
 import { adventureView } from './view';
 
@@ -55,7 +62,7 @@ beforeEach(() => {
 	story().chapter = 'the_hollow';
 	story().events.push('won_hollow');
 	story().encounters.set('hollow', 'won');
-	story().origins = recordOrigins(room);
+	story().origins = recordOrigins(HOLLOW_BELL, room);
 	put(BY_TOBIN);
 });
 
@@ -230,7 +237,7 @@ describe('each ending’s final state', () => {
 			});
 			Object.assign(story(), { location: 'hollow', chapter: 'the_hollow' });
 			story().events.push('won_hollow');
-			story().origins = recordOrigins(room);
+			story().origins = recordOrigins(HOLLOW_BELL, room);
 			put(BY_TOBIN);
 			toTheChoice();
 			ok(decide(room, ana, 'bell', answer));

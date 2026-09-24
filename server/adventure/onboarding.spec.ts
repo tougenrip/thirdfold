@@ -4,7 +4,7 @@ import { gridDistance, type GridPos } from '../../src/lib/game/grid';
 import { isReachable } from '../../src/lib/game/objects';
 import { RoomManager, type Player, type Room } from '../rooms';
 import { lightFor, obstacles } from '../scene';
-import { CHARM_AT, IDS, SPAWN } from './bellweather';
+import { CHARM_AT, IDS, SPAWN } from '../adventures/hollow-bell/bellweather';
 import {
 	beginAdventure,
 	characterOf,

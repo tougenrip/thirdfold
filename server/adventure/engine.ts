@@ -1,11 +1,15 @@
-// The Hollow Bell's rules. Every action takes the acting player and checks
-// role, ownership, reach and turn order before changing anything, like the
-// scene actions in server/scene.ts. Dice are rolled here, on the server.
+// The rules of an adventure, for whichever adventure the table is playing
+// (see define.ts for what an adventure is made of, and server/adventures
+// for the adventures themselves; nothing here knows any one of them). Every
+// action takes the acting player and checks role, ownership, reach and turn
+// order before changing anything, like the scene actions in server/scene.ts.
+// Dice are rolled here, on the server.
 //
-// The story moves by events (see story.ts): an action that matters to the
-// story calls `happen`, which records the event, does what it does to the
-// table, and moves to the next chapter when the current one was waiting for
-// it, travelling to another table when the chapter is played elsewhere.
+// The story moves by events: an action that matters to the story calls
+// `happen`, which records the event, does what the adventure says it does
+// (its effects, see `run`), and moves to the next chapter when the current
+// one was waiting for it, travelling to another table when the chapter is
+// played elsewhere.
 //
 // Actions return an Outcome: the log entries they added (the game server
 // announces them after syncing views) and whether the table was replaced or
@@ -18,10 +22,8 @@ import {
 	inActionRange,
 	EVIDENCE_KINDS,
 	INVESTIGATION_ACTIONS,
-	type ChapterId,
 	type Check,
 	type DirectorView,
-	type LocationId,
 	type ObjectState,
 	type Physical,
 	type Sense
@@ -29,16 +31,13 @@ import {
 import {
 	actionOf,
 	BLEED_OUT_ROUNDS,
-	CHARACTER_IDS,
-	CHARACTERS,
 	defenseFor,
 	STATS,
 	STATUSES,
 	toHitFor,
 	type Action,
 	type Attack,
-	type CharacterDef,
-	type CharacterId
+	type CharacterDef
 } from '../../src/lib/adventure/characters';
 import {
 	NARRATION_MAX_LENGTH,
@@ -49,7 +48,6 @@ import {
 } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
 import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
-import type { Light } from '../../src/lib/game/lights';
 import type { Motion, Sound } from '../../src/lib/game/motion';
 import {
 	canStep,
@@ -72,48 +70,23 @@ import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
 import { lightFor, obstacles } from '../scene';
 import { applyScene } from '../scene-io';
-import { FIRST_GLIMPSE, IDS, MOUNTAIN_PATH, PATH_AREA, WELL_RING } from './bellweather';
-import {
-	CLUES,
-	CUES,
-	ENDINGS,
-	OUTCOMES,
-	PROMISE_KEPT,
-	SPOKEN_KNOWING,
-	TEXT,
-	TITLE,
-	type BellAnswer,
-	type ClueDef,
-	type ClueId
-} from './content';
-import { areaAt, LOCATIONS } from './locations';
-import { ENEMIES, ENEMY_KINDS, PUP_HP, type EnemyDef, type EnemyKind } from './enemies';
-import { HEART_GRID, HEART_IDS, HEART_RING } from './heart';
-import { CAVERN, CULTIST_ROUNDS, HOLLOW_IDS, KEEPER_POST, PIT_AT, PIT_RING } from './hollow';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
-import { MECHANISMS, TRIGGERS, type MechanismId } from './mechanisms';
 import {
-	BELL_AT as TOWER_BELL,
-	CHAMBER,
-	MONASTERY_IDS,
-	SECRET_EDGE,
-	STAIR,
-	STAIR_RING
-} from './monastery';
-import {
-	actionOfVerb,
-	applyLook,
-	initialStates,
-	objectDef,
-	objectForDoor,
-	OBJECTS,
-	objectsAt,
-	propIdOf,
-	recordOrigins,
+	AMBUSH,
+	type AdventureDef,
+	type Area,
+	type AreaDef,
+	type Effect,
+	type EncounterDef,
+	type EndingDef,
+	type EnemyDef,
+	type HazardDef,
 	type ObjectDef,
-	type Verb
-} from './objects';
-import { SIGNS } from './signs';
+	type PhaseDef,
+	type Verb,
+	type When
+} from './define';
+import { contentOf, defaultAdventure, findAdventure } from './registry';
 import type {
 	AdventureState,
 	CharacterState,
@@ -123,19 +96,20 @@ import type {
 	TurnEntry
 } from './state';
 import {
-	CHAPTERS,
-	DECISIONS,
-	ENCOUNTER_IDS,
-	ENCOUNTER_INFO,
-	ENDING_FOR,
-	EVENT_IDS,
-	EVENT_LABELS,
-	transition,
-	type DecisionId,
-	type EncounterId,
-	type EventId
-} from './story';
-import { isNpcId, NPC_IDS, NPCS, placeFor, REACTIONS, type NpcId, type When } from './npcs';
+	actionOfVerb,
+	applyLook,
+	initialStates,
+	objectDef,
+	objectForDoor,
+	objectsAt,
+	propIdOf,
+	recordOrigins
+} from './world';
+
+/** The content of the adventure a story is of. */
+export function content(adventure: AdventureState): AdventureDef {
+	return contentOf(adventure.id);
+}
 
 export interface Outcome {
 	/** Log entries added, oldest first; announce them after syncing. */
@@ -147,7 +121,7 @@ export interface Outcome {
 	/** How the changes show: motions and sounds on props, sent after syncing. */
 	motions?: Motion[];
 	/** Mechanism steps to run later: `runMechanism(id, step)` after `delay` ms. */
-	mechanisms?: { id: MechanismId; step: number; delay: number }[];
+	mechanisms?: { id: string; step: number; delay: number }[];
 }
 
 type Outcomes = Result<Outcome>;
@@ -187,7 +161,7 @@ export function objectState(adventure: AdventureState, def: ObjectDef): ObjectSt
  */
 export function shownState(adventure: AdventureState, def: ObjectDef): ObjectState {
 	const state = objectState(adventure, def);
-	const light = def.litBy ? objectDef(def.litBy) : undefined;
+	const light = def.litBy ? objectDef(content(adventure), def.litBy) : undefined;
 	return light && objectState(adventure, light) !== 'lit' ? 'hidden' : state;
 }
 
@@ -202,7 +176,7 @@ function setObjectState(room: Room, adventure: AdventureState, def: ObjectDef, s
 	adventure.objects.set(def.id, state);
 	applyLook(room, def, shownState(adventure, def), adventure.origins);
 	// Lighting or putting out a light shows or hides what only it reveals.
-	for (const other of OBJECTS) {
+	for (const other of content(adventure).objects) {
 		if (other.litBy === def.id && objectCells(room, other)) {
 			applyLook(room, other, shownState(adventure, other), adventure.origins);
 		}
@@ -214,7 +188,7 @@ export function hiddenPropIds(room: Room): Set<string> {
 	const hidden = new Set<string>();
 	const adventure = room.adventure;
 	if (!adventure) return hidden;
-	for (const def of OBJECTS) {
+	for (const def of content(adventure).objects) {
 		const id = propIdOf(def);
 		if (id && shownState(adventure, def) === 'hidden') hidden.add(id);
 	}
@@ -225,7 +199,8 @@ export function hiddenPropIds(room: Room): Set<string> {
 // Characters
 
 interface Played {
-	id: CharacterId;
+	id: string;
+	def: CharacterDef;
 	state: CharacterState;
 	token: Token;
 }
@@ -233,10 +208,10 @@ interface Played {
 /** Characters on the table (their token exists), with their state. */
 function played(room: Room, adventure: AdventureState): Played[] {
 	const list: Played[] = [];
-	for (const id of CHARACTER_IDS) {
+	for (const [id, def] of Object.entries(content(adventure).characters)) {
 		const state = adventure.characters.get(id);
 		const token = state && room.tokens.get(state.tokenId);
-		if (state && token) list.push({ id, state, token });
+		if (state && token) list.push({ id, def, state, token });
 	}
 	return list;
 }
@@ -246,10 +221,10 @@ function standing(room: Room, adventure: AdventureState): Played[] {
 	return played(room, adventure).filter((c) => c.state.hp > 0 && !c.state.dead);
 }
 
-function newCharacter(tokenId: string, id: CharacterId): CharacterState {
+function newCharacter(tokenId: string, def: CharacterDef): CharacterState {
 	return {
 		tokenId,
-		hp: CHARACTERS[id].hp,
+		hp: def.hp,
 		statuses: new Map(),
 		uses: new Map(),
 		downedFor: 0,
@@ -264,7 +239,7 @@ export function usesLeft(state: CharacterState, action: Action): number | null {
 
 /** Why a character can't act or move right now, or null if it can. */
 function unableReason(me: Played): string | null {
-	const name = CHARACTERS[me.id].name;
+	const name = me.def.name;
 	if (me.state.dead) return `${name} is dead.`;
 	if (me.state.hp <= 0) return `${name} is down.`;
 	return null;
@@ -294,14 +269,15 @@ function isFree(
 
 function placeCharacter(
 	room: Room,
-	location: LocationId,
-	id: CharacterId,
+	A: AdventureDef,
+	location: string,
+	id: string,
 	ownerId: string | null,
 	tokenId: string = randomUUID()
 ): Token | null {
-	const cell = LOCATIONS[location].spawn.find((c) => isFree(room, c));
+	const cell = A.locations[location].spawn.find((c) => isFree(room, c));
 	if (!cell) return null;
-	const def = CHARACTERS[id];
+	const def = A.characters[id];
 	const token: Token = {
 		id: tokenId,
 		name: def.name,
@@ -319,26 +295,26 @@ function placeCharacter(
 // ---------------------------------------------------------------------------
 // Starting, choosing characters, beginning
 
-/** Fresh story state for a table that has just been set to Bellweather. */
-function newState(room: Room): AdventureState {
+/** Fresh story state for a table that has just been set to the adventure's first table. */
+function newState(A: AdventureDef, room: Room): AdventureState {
 	return {
-		id: 'hollow-bell',
+		id: A.id,
 		stage: 'choosing',
-		chapter: 'village',
-		location: 'bellweather',
+		chapter: A.start.chapter,
+		location: A.start.location,
 		characters: new Map(),
 		evidence: new Map(),
 		tried: new Set(),
 		events: [],
 		defeated: [],
-		npcs: new Map(NPC_IDS.map((id) => [id, NPCS[id].states[0]])),
+		npcs: new Map(Object.values(A.npcs).map((npc) => [npc.id, npc.states[0]])),
 		said: new Set(),
 		decisions: new Map(),
 		pending: null,
 		encounters: new Map(),
 		ending: null,
-		objects: initialStates(),
-		origins: recordOrigins(room),
+		objects: initialStates(A),
+		origins: recordOrigins(A, room),
 		carried: new Map(),
 		running: new Map(),
 		sentries: new Map(),
@@ -349,30 +325,35 @@ function newState(room: Room): AdventureState {
 	};
 }
 
-/** GM: sets up The Hollow Bell. Replaces the table with Bellweather. */
-export function startAdventure(room: Room, actor: Player): Outcomes {
+/** GM: sets up an adventure (the server's first, unless another is named). Replaces the table with its first. */
+export function startAdventure(room: Room, actor: Player, id?: string): Outcomes {
 	if (actor.role !== 'gm') return GM_ONLY;
-	applyScene(room, LOCATIONS.bellweather.scene());
-	room.adventure = newState(room);
+	const A = id === undefined ? defaultAdventure() : findAdventure(id);
+	if (!A) return fail('invalid_message', 'There is no such adventure on this server.');
+	applyScene(room, A.locations[A.start.location].scene());
+	room.adventure = newState(A, room);
 	return {
 		ok: true,
 		reset: true,
 		log: [
-			postSystem(room, `${actor.name} set up ${TITLE}.`),
-			appendLog(room, { kind: 'narration', text: TEXT.started })
+			postSystem(room, `${actor.name} set up ${A.title}.`),
+			appendLog(room, { kind: 'narration', text: A.voice.started })
 		]
 	};
 }
 
-export function claimCharacter(room: Room, actor: Player, id: CharacterId): Outcomes {
+export function claimCharacter(room: Room, actor: Player, id: string): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
+	const A = content(adventure);
+	const def = Object.hasOwn(A.characters, id) ? A.characters[id] : undefined;
+	if (!def) return fail('invalid_message', 'There is no such character in this story.');
 	if (actor.role !== 'player') return fail('forbidden', 'Only players can take a character.');
 	if (adventure.stage === 'complete' || adventure.stage === 'defeat') {
 		return fail('forbidden', 'This story is over.');
 	}
 	const mine = characterOf(room, actor.id);
-	if (mine) return fail('forbidden', `You are already playing ${CHARACTERS[mine.id].name}.`);
+	if (mine) return fail('forbidden', `You are already playing ${mine.def.name}.`);
 	const existing = adventure.characters.get(id);
 	const theirs = existing && room.tokens.get(existing.tokenId);
 	// A character in the story that nobody plays (a continued table, a player who left): take it up.
@@ -380,21 +361,18 @@ export function claimCharacter(room: Room, actor: Player, id: CharacterId): Outc
 		theirs.ownerId = actor.id;
 		return {
 			ok: true,
-			log: [postSystem(room, `${actor.name} takes up ${CHARACTERS[id].name} again.`)]
+			log: [postSystem(room, `${actor.name} takes up ${def.name} again.`)]
 		};
 	}
 	if (existing && theirs) {
-		return fail('character_taken', `${CHARACTERS[id].name} is already taken.`);
+		return fail('character_taken', `${def.name} is already taken.`);
 	}
-	const token = placeCharacter(room, adventure.location, id, actor.id);
+	const token = placeCharacter(room, A, adventure.location, id, actor.id);
 	if (!token) return fail('cell_occupied', 'There is no room on the road. Ask the GM to clear it.');
-	adventure.characters.set(id, newCharacter(token.id, id));
+	adventure.characters.set(id, newCharacter(token.id, def));
 	return {
 		ok: true,
-		log: [
-			postSystem(room, `${actor.name} is playing ${CHARACTERS[id].name}.`),
-			say(room, CHARACTERS[id].intro)
-		]
+		log: [postSystem(room, `${actor.name} is playing ${def.name}.`), say(room, def.intro)]
 	};
 }
 
@@ -410,7 +388,7 @@ export function releaseCharacter(room: Room, actor: Player): Outcomes {
 	adventure.characters.delete(mine.id);
 	return {
 		ok: true,
-		log: [postSystem(room, `${actor.name} put ${CHARACTERS[mine.id].name} back.`)]
+		log: [postSystem(room, `${actor.name} put ${mine.def.name} back.`)]
 	};
 }
 
@@ -424,11 +402,7 @@ export function beginAdventure(room: Room, actor: Player, now = Date.now()): Out
 	}
 	adventure.stage = 'playing';
 	adventure.begunAt = now;
-	firstGlimpse(room);
-	return {
-		ok: true,
-		log: [shoot(appendLog(room, { kind: 'narration', text: TEXT.arrival }), SHOTS.firstBell)]
-	};
+	return { ok: true, ...run(room, adventure, content(adventure).start.arrival, { now }) };
 }
 
 // ---------------------------------------------------------------------------
@@ -441,7 +415,7 @@ const RANDOM: DieRoller = (sides) => randomInt(1, sides + 1);
 const only = (playerId: string): LogAudience => ({ players: [playerId] });
 
 /** Whether a character knows a piece of evidence: they found it, or the party shares it. */
-export function knows(adventure: AdventureState, who: CharacterId | null, id: string): boolean {
+export function knows(adventure: AdventureState, who: string | null, id: string): boolean {
 	const f = adventure.evidence.get(id);
 	return !!f && (f.shared || (who !== null && f.by.includes(who)));
 }
@@ -455,63 +429,42 @@ export function knows(adventure: AdventureState, who: CharacterId | null, id: st
 export function addClue(
 	room: Room,
 	adventure: AdventureState,
-	id: ClueId,
-	finder: { id: CharacterId; playerId: string } | null
-): ChatMessage[] {
-	const def = CLUES[id];
+	id: string,
+	finder: { id: string; playerId: string } | null
+): Outcome {
+	const A = content(adventure);
+	const def = A.clues[id];
+	if (!def) return { log: [] };
 	const found = adventure.evidence.get(id);
 	if (!finder) {
-		if (found?.shared) return [];
+		if (found?.shared) return { log: [] };
 		if (found) found.shared = true;
 		else adventure.evidence.set(id, { by: [], shared: true });
-		return [postSystem(room, `New evidence: ${def.title}.`), ...unlock(room, adventure, id)];
+		return merge(
+			{ log: [postSystem(room, `New evidence: ${def.title}.`)] },
+			unlock(room, adventure, id)
+		);
 	}
-	if (found?.shared || found?.by.includes(finder.id)) return [];
+	if (found?.shared || found?.by.includes(finder.id)) return { log: [] };
 	if (found) found.by.push(finder.id);
 	else adventure.evidence.set(id, { by: [finder.id], shared: false });
-	const name = CHARACTERS[finder.id].name;
-	return [
-		postSystem(room, `${name} found something (${EVIDENCE_KINDS[def.kind].toLowerCase()}).`),
-		postSystem(
-			room,
-			`New evidence: ${def.title}. Only ${name} knows it; share it with the party from the evidence list.`,
-			only(finder.playerId)
-		)
-	];
+	const name = A.characters[finder.id]?.name ?? finder.id;
+	return {
+		log: [
+			postSystem(room, `${name} found something (${EVIDENCE_KINDS[def.kind].toLowerCase()}).`),
+			postSystem(
+				room,
+				`New evidence: ${def.title}. Only ${name} knows it; share it with the party from the evidence list.`,
+				only(finder.playerId)
+			)
+		]
+	};
 }
 
 /** Evidence the party now knows may raise a story event (which can unlock objectives). */
-function unlock(room: Room, adventure: AdventureState, id: ClueId): ChatMessage[] {
-	const def: ClueDef = CLUES[id];
-	const event = def.unlocks;
-	return event ? happen(room, adventure, event).log : [];
-}
-
-/**
- * Cinematic moments: the camera shots a few lines of narration call for
- * (presentation only, played by each client; see src/lib/tabletop/shots.ts).
- * Few and short, so the game never turns into a string of cutscenes.
- */
-export const SHOTS = {
-	/** The first bell: the party arrives, and the eye goes up the mountain path to the monastery. */
-	firstBell: { focus: MOUNTAIN_PATH, frame: 'wide' },
-	/** The tower bell swings as the party enters the nave. */
-	bellRing: { focus: TOWER_BELL, frame: 'close' },
-	/** Saint Agna turns, and there is a door where there was wall. */
-	hiddenDoor: { focus: SECRET_EDGE.a, frame: 'close' },
-	/** The Hollow, all of it, in the Bell's light. */
-	hollow: { focus: null, frame: 'table' },
-	/** Tobin found: what he stands over, the pit. */
-	pit: { focus: PIT_AT, frame: 'close' },
-	/** The final encounter: the Hollow rising out of its pit. */
-	waking: { focus: PIT_AT, frame: 'wide' }
-} as const satisfies Record<string, Shot>;
-
-/** As the first bell draws their eye up the mountain, every player takes in the way there. */
-function firstGlimpse(room: Room): void {
-	for (const i of rectCells(room.grid, FIRST_GLIMPSE.from, FIRST_GLIMPSE.to)) {
-		for (const p of room.players.values()) if (p.role !== 'gm') p.explored[i] = 1;
-	}
+function unlock(room: Room, adventure: AdventureState, id: string): Outcome {
+	const event = content(adventure).clues[id]?.unlocks;
+	return event ? happen(room, adventure, event) : { log: [] };
 }
 
 /** The same line of narration, calling for a camera shot. */
@@ -530,7 +483,7 @@ function say(room: Room, text: string, speaker?: string, audience?: LogAudience)
 	});
 }
 
-/** How long a flash (the Bell's note as light) lights the whole table. */
+/** How long a flash (a great light, like the Bell's note) lights the whole table. */
 export const FLASH_MS = 2500;
 
 /**
@@ -543,7 +496,7 @@ function flare(room: Room, text: string): ChatMessage {
 	return appendLog(room, { kind: 'narration', text, cue: 'flash' });
 }
 
-/** Narration that every client plays as the bell tolling. */
+/** Narration that every client plays as a bell tolling. */
 function toll(room: Room, text: string): ChatMessage {
 	return appendLog(room, { kind: 'narration', text, cue: 'toll' });
 }
@@ -557,13 +510,13 @@ function rollCheck(
 	check: Check,
 	roller: DieRoller
 ): { entry: ChatMessage; success: boolean } {
-	const bonus = CHARACTERS[me.id].stats[check.stat];
+	const bonus = me.def.stats[check.stat];
 	const rolled = roll(bonus ? `1d20+${bonus}` : '1d20', roller);
 	const success = rolled.total >= check.dc;
 	const entry = appendLog(room, {
 		kind: 'check',
 		authorId: actor.id,
-		authorName: CHARACTERS[me.id].name,
+		authorName: me.def.name,
 		action,
 		stat: STATS.find((s) => s.id === check.stat)?.name ?? check.stat,
 		roll: rolled,
@@ -587,7 +540,8 @@ export function interact(
 ): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
-	const def = objectDef(targetId);
+	const A = content(adventure);
+	const def = objectDef(A, targetId);
 	const cells = def && objectCells(room, def);
 	const state = def && objectState(adventure, def);
 	if (!def || !cells || shownState(adventure, def) === 'hidden') {
@@ -599,16 +553,16 @@ export function interact(
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
 	if (adventure.stage !== 'playing') return fail('forbidden', 'This story is over.');
-	// In a fight there's time only for what can be done in one (a torch, the Bell's rope), as the turn's action.
+	// In a fight there's time only for what can be done in one (a torch, a rope), as the turn's action.
 	const encounter = adventure.encounter;
 	const verb = verbsFor(adventure, def).find(
 		(v) => (verbId === null || v.id === verbId) && (!encounter || v.inFight)
 	);
 	if (encounter) {
-		if (!verb) return fail('not_your_turn', TEXT.notNow);
+		if (!verb) return fail('not_your_turn', A.voice.notNow);
 		if (!isTurnOf(encounter, me.id)) return fail('not_your_turn', notYourTurn(room, encounter));
 		if (encounter.acted.has(me.id)) {
-			return fail('not_your_turn', `${CHARACTERS[me.id].name} has already acted this turn.`);
+			return fail('not_your_turn', `${me.def.name} has already acted this turn.`);
 		}
 	}
 	if (!verb) {
@@ -619,7 +573,7 @@ export function interact(
 				: `There's nothing more to do with the ${def.name.toLowerCase()}.`
 		);
 	}
-	const name = CHARACTERS[me.id].name;
+	const name = me.def.name;
 	const carrier = adventure.carried.get(def.id);
 	if (carrier !== undefined) {
 		if (carrier !== me.id) return fail('forbidden', 'Someone else is carrying that.');
@@ -627,7 +581,7 @@ export function interact(
 		return fail('out_of_reach', `Move ${name} next to it first.`);
 	}
 	if (verb.needs && adventure.carried.get(verb.needs) !== me.id) {
-		const needed = objectDef(verb.needs)?.name.toLowerCase() ?? 'something';
+		const needed = objectDef(A, verb.needs)?.name.toLowerCase() ?? 'something';
 		return fail('forbidden', `${name} needs the ${needed} for that.`);
 	}
 	// Work out a move before any check is rolled, so a blocked push costs nothing.
@@ -646,7 +600,7 @@ export function interact(
 			adventure.tried.add(key);
 			return {
 				ok: true,
-				log: [check.entry, say(room, TEXT.nothingFound, undefined, only(actor.id))]
+				log: [check.entry, say(room, A.voice.nothingFound, undefined, only(actor.id))]
 			};
 		}
 		checked = [check.entry];
@@ -656,8 +610,7 @@ export function interact(
 	let outcome = respond(room, adventure, def, verb, before, me, actor);
 	const shown = motionFor(def, verb);
 	if (shown) outcome = merge({ log: [], motions: [shown] }, outcome);
-	const mechanism = TRIGGERS[`${def.id}:${verb.id}`];
-	if (mechanism) outcome = merge(outcome, startMechanism(room, adventure, mechanism));
+	if (verb.triggers) outcome = merge(outcome, startMechanism(room, adventure, verb.triggers));
 	// What someone says about a private find would give it away: only the finder hears it.
 	const investigating = actionOfVerb(verb) !== 'interact';
 	const reactions = react(
@@ -739,11 +692,11 @@ function plan(
 			!isFree(room, back, blocked) ||
 			!canStep(blocked, me.token.pos, back)
 		) {
-			return { ok: false, message: `There’s no room behind ${CHARACTERS[me.id].name} to pull.` };
+			return { ok: false, message: `There’s no room behind ${me.def.name} to pull.` };
 		}
 	}
 	if (!fits(room, prop, moved, physical === 'pull' ? me.token.id : null)) {
-		return { ok: false, message: TEXT.crateBlocked.replace('crate', name) };
+		return { ok: false, message: content(adventure).voice.blocked.replace('{name}', name) };
 	}
 	return {
 		ok: true,
@@ -802,11 +755,11 @@ function motionFor(def: ObjectDef, verb: Verb): Motion | null {
 }
 
 // ---------------------------------------------------------------------------
-// Mechanisms (see mechanisms.ts)
+// Mechanisms: chains of changes, played out step by step
 
 /** Sets a mechanism going: its first step now, the rest scheduled by the game server. */
-function startMechanism(room: Room, adventure: AdventureState, id: MechanismId): Outcome {
-	if (adventure.running.has(id)) return { log: [] };
+function startMechanism(room: Room, adventure: AdventureState, id: string): Outcome {
+	if (adventure.running.has(id) || !content(adventure).mechanisms[id]) return { log: [] };
 	adventure.running.set(id, 0);
 	return runSteps(room, adventure, id);
 }
@@ -815,24 +768,25 @@ function startMechanism(room: Room, adventure: AdventureState, id: MechanismId):
  * Runs a mechanism's next step, if it is still waiting for that step at this
  * table (a stale or repeated call does nothing), with any steps right after it.
  */
-export function runMechanism(room: Room, id: MechanismId, step: number): Outcome | null {
+export function runMechanism(room: Room, id: string, step: number): Outcome | null {
 	const adventure = room.adventure;
 	if (!adventure || adventure.running.get(id) !== step) return null;
-	if (MECHANISMS[id].location !== adventure.location) {
+	if (content(adventure).mechanisms[id]?.location !== adventure.location) {
 		adventure.running.delete(id);
 		return null;
 	}
 	return runSteps(room, adventure, id);
 }
 
-function runSteps(room: Room, adventure: AdventureState, id: MechanismId): Outcome {
-	const steps = MECHANISMS[id].steps;
+function runSteps(room: Room, adventure: AdventureState, id: string): Outcome {
+	const A = content(adventure);
+	const steps = A.mechanisms[id].steps;
 	let outcome: Outcome = { log: [] };
 	let index = adventure.running.get(id) ?? 0;
 	do {
 		const step = steps[index];
 		if (step.set) {
-			const def = objectDef(step.set.object);
+			const def = objectDef(A, step.set.object);
 			if (def) setObjectState(room, adventure, def, step.set.state);
 		}
 		if (step.motion) {
@@ -857,15 +811,16 @@ function runSteps(room: Room, adventure: AdventureState, id: MechanismId): Outco
 /** Mechanisms waiting for their next step, to schedule after a save is loaded. */
 export function pendingMechanisms(
 	adventure: AdventureState
-): { id: MechanismId; step: number; delay: number }[] {
+): { id: string; step: number; delay: number }[] {
+	const A = content(adventure);
 	return [...adventure.running].map(([id, step]) => ({
 		id,
 		step,
-		delay: MECHANISMS[id].steps[step]?.after ?? 0
+		delay: A.mechanisms[id]?.steps[step]?.after ?? 0
 	}));
 }
 
-/** What happens in the story when a verb is done: narration, clues, events. */
+/** What happens in the story when a verb is done: a talk, or the verb's first rule that holds. */
 function respond(
 	room: Room,
 	adventure: AdventureState,
@@ -875,197 +830,223 @@ function respond(
 	me: Played,
 	actor: Player
 ): Outcome {
-	const has = (event: EventId) => adventure.events.includes(event);
-	const told = (...log: ChatMessage[]): Outcome => ({ log });
-	const then = (log: ChatMessage[], event: EventId): Outcome => {
-		const next = happen(room, adventure, event);
-		return { ...next, log: [...log, ...next.log] };
-	};
-	// What a character finds by investigating is theirs until they share it.
-	const clue = (id: ClueId) => [
-		say(room, CLUES[id].text, undefined, only(actor.id)),
-		...addClue(room, adventure, id, { id: me.id, playerId: actor.id })
-	];
-	if (verb.id === 'talk' && isNpcId(def.id)) return talk(room, adventure, def.id, me.id);
-	switch (`${def.id}:${verb.id}`) {
-		case 'well:examine': {
-			if (has('well_clue')) return told(say(room, CLUES.scratches.text));
-			if (!has('talked_maren')) return told(say(room, TEXT.wellEarly));
-			return then(
-				// Everyone sees what climbs out, so everyone knows.
-				[say(room, TEXT.wellClue), ...addClue(room, adventure, 'scratches', null)],
-				'well_clue'
-			);
-		}
-		case 'noticeboard:read':
-			return told(...clue('notice'));
-		case 'register:read':
-			return told(...clue('register'));
-		case 'table:examine':
-			return told(say(room, before === 'used' ? TEXT.tableAgain : TEXT.table));
-		case 'shrine:pray':
-			return told(say(room, TEXT.shrine));
-		case 'chest:open':
-			return told(say(room, TEXT.chestOpen));
-		case 'chest:search':
-			return before === 'used' ? told(say(room, TEXT.chestEmpty)) : told(...clue('rope'));
-		case 'rug:lift': {
-			const hatch = objectDef('hatch');
-			if (hatch && objectState(adventure, hatch) === 'hidden') {
-				setObjectState(room, adventure, hatch, 'closed');
-			}
-			return told(say(room, TEXT.rug));
-		}
-		case 'hatch:search':
-			return before === 'used' ? told(say(room, TEXT.hatchEmpty)) : told(...clue('drawing'));
-		case 'crate:break':
-			return told(say(room, TEXT.crate));
-		case 'brazier:light':
-			return told(say(room, TEXT.brazierLit));
-		case 'brazier:extinguish':
-			return told(say(room, TEXT.brazierOut));
-		case 'charm:examine':
-			return told(...clue('tinbell'));
-		case 'remains:search':
-			return before === 'used' ? told(say(room, TEXT.remainsEmpty)) : told(...clue('clapper'));
-		case 'graves:read':
-			return told(say(room, TEXT.graves));
-		case 'altar:read':
-			return told(...clue('chronicle'));
-		case 'agna:turn': {
-			const door = objectDef('secret-door');
-			if (door && objectState(adventure, door) === 'hidden') {
-				setObjectState(room, adventure, door, 'closed');
-			}
-			return then([shoot(say(room, TEXT.agna), SHOTS.hiddenDoor)], 'found_hidden_door');
-		}
-		case 'rope:examine':
-			return told(...clue('splice'));
-		case 'bell:examine': {
-			if (before !== 'interactable') return told(say(room, TEXT.bell));
-			// The first touch: the Bell's note lights the cavern, and whoever watches sees who is there.
-			const lit = told(say(room, TEXT.bell), flare(room, TEXT.bellFlash));
-			return merge(lit, detect(room, adventure) ?? { log: [] });
-		}
-		case 'chamber-torch:light':
-			return told(say(room, TEXT.chamberTorchLit));
-		case 'chamber-torch:extinguish':
-			return told(say(room, TEXT.chamberTorchOut));
-		case 'carvings:read':
-			return adventure.evidence.has('rule')
-				? told(say(room, TEXT.carvingsAgain))
-				: told(...clue('rule'));
-		case 'hollow-torch:extinguish':
-			return told(say(room, TEXT.hollowTorchOut));
-		case 'hollow-torch:light':
-			return told(say(room, TEXT.hollowTorchLit));
-		case 'pit:examine':
-			if (adventure.chapter === 'the_pit') return then([say(room, TEXT.pitHollow)], 'saw_hollow');
-			return told(say(room, TEXT.pit));
-		case 'bell-rope:pull':
-			return pull(room, adventure, TEXT.pulled);
-		case 'chapel-rope:examine':
-			return told(say(room, TEXT.chapelRope));
-		case 'chapel-agna:examine':
-			return told(say(room, TEXT.chapelAgna));
-		case 'ringers:examine':
-			return before === 'used'
-				? told(say(room, TEXT.ringers))
-				: told(say(room, TEXT.ringers), ...clue('empty-graves'));
-		case 'anvil:examine':
-			return told(say(room, TEXT.anvil));
-		case 'loom:examine':
-			return told(say(room, TEXT.loom));
-		case 'stall:examine':
-			return told(say(room, TEXT.stall));
-		case 'waystone:read':
-			return told(say(room, TEXT.waystone));
-		case 'ledgers:read':
-			return told(...clue('tollings'));
-		case 'belfry-bell:search':
-			return before === 'used' ? told(say(room, TEXT.bellEmpty)) : told(...clue('clapperless'));
-		case 'chamber-crate:push':
-		case 'chamber-crate:pull':
-			// Moving it the first time shows what it hid.
-			return adventure.evidence.has('tally')
-				? told(say(room, TEXT.crateMoved))
-				: told(...clue('tally'));
-		case 'handbell:take':
-			return told(say(room, TEXT.handbellTaken, undefined, only(actor.id)));
-		case 'handbell:ring': {
-			// While the Bell rings itself, the hand bell answers it from anywhere: as good as a pull.
-			if (adventure.encounter?.finale === 'ringing')
-				return pull(room, adventure, TEXT.handbellAnswers);
-			if (adventure.said.has('handbell:rung')) return told(say(room, TEXT.handbellAgain));
-			adventure.said.add('handbell:rung');
-			return told(say(room, TEXT.handbellRung), ...tend(room, adventure, 2));
-		}
-		case 'door-chains:break': {
-			const doors = objectDef('great-door');
-			if (doors && objectState(adventure, doors) === 'disabled') {
-				setObjectState(room, adventure, doors, 'closed');
-			}
-			return told(say(room, TEXT.chainsBroken));
-		}
-		case 'bones:search':
-			return before === 'used' ? told(say(room, TEXT.bonesEmpty)) : told(...clue('badges'));
-		default:
-			return told();
+	if (verb.id === 'talk' && content(adventure).npcs[def.id])
+		return talk(room, adventure, def.id, me.id);
+	const rule = verb.does?.find((r) => holds(adventure, r.if, me.id, before));
+	return rule ? run(room, adventure, rule.do, { actor, me }) : { log: [] };
+}
+
+// ---------------------------------------------------------------------------
+// Conditions and effects: what the adventure's data says happens
+
+/** Whether conditions hold now, for the character `who` and something in `state`. */
+export function holds(
+	adventure: AdventureState,
+	when: When | undefined,
+	who: string | null = null,
+	state?: string
+): boolean {
+	if (!when) return true;
+	const A = content(adventure);
+	const has = (e: string) => adventure.events.includes(e);
+	const found = (c: string) => adventure.evidence.has(c);
+	if (when.state && (state === undefined || !when.state.includes(state))) return false;
+	// People react to what the one talking to them knows.
+	if (when.clues && !when.clues.every((c) => knows(adventure, who, c))) return false;
+	if (when.found && !when.found.every(found)) return false;
+	if (when.unfound && when.unfound.some(found)) return false;
+	if (when.events && !when.events.every(has)) return false;
+	if (when.not && when.not.some(has)) return false;
+	if (when.pending && adventure.pending !== when.pending) return false;
+	for (const [id, states] of Object.entries(when.objects ?? {})) {
+		const def = objectDef(A, id);
+		if (!def || !states.includes(objectState(adventure, def))) return false;
 	}
+	if (when.chapter && !when.chapter.includes(adventure.chapter)) return false;
+	if (when.said && !when.said.every((s) => adventure.said.has(s))) return false;
+	if (when.unsaid && when.unsaid.some((s) => adventure.said.has(s))) return false;
+	for (const [id, option] of Object.entries(when.chose ?? {})) {
+		if (adventure.decisions.get(id)?.option !== option) return false;
+	}
+	if (when.phase !== undefined && adventure.encounter?.finale !== when.phase) return false;
+	for (const [id, fight] of Object.entries(when.fights ?? {})) {
+		if ((adventure.encounters.get(id) ?? 'none') !== fight) return false;
+	}
+	return true;
+}
+
+/** Who effects are done by, if anyone: the player and their character. */
+interface Doer {
+	actor?: Player;
+	me?: Played;
+	now?: number;
+}
+
+/** Does effects, in order, and returns what the table should hear and see. */
+export function run(
+	room: Room,
+	adventure: AdventureState,
+	effects: readonly Effect[],
+	by: Doer = {}
+): Outcome {
+	let outcome: Outcome = { log: [] };
+	const add = (next: Outcome) => (outcome = merge(outcome, next));
+	const tell = (...log: ChatMessage[]) => add({ log });
+	const now = by.now ?? Date.now();
+	const A = content(adventure);
+	for (const effect of effects) {
+		if ('say' in effect) {
+			const audience = effect.private && by.actor ? only(by.actor.id) : undefined;
+			const line =
+				effect.cue === 'flash'
+					? flare(room, effect.say)
+					: effect.cue === 'toll'
+						? toll(room, effect.say)
+						: say(room, effect.say, effect.speaker, audience);
+			tell(effect.shot ? shoot(line, effect.shot) : line);
+		} else if ('clue' in effect) {
+			// What a character finds by investigating is theirs until they share it.
+			const def = A.clues[effect.clue];
+			if (by.me && by.actor) {
+				if (def) tell(say(room, def.text, undefined, only(by.actor.id)));
+				add(addClue(room, adventure, effect.clue, { id: by.me.id, playerId: by.actor.id }));
+			} else {
+				if (def) tell(say(room, def.text));
+				add(addClue(room, adventure, effect.clue, null));
+			}
+		} else if ('tell' in effect) {
+			add(addClue(room, adventure, effect.tell, null));
+		} else if ('event' in effect) {
+			add(happen(room, adventure, effect.event, now));
+		} else if ('set' in effect) {
+			const def = objectDef(A, effect.set);
+			if (!def || (effect.if && objectState(adventure, def) !== effect.if)) continue;
+			setObjectState(room, adventure, def, effect.to === 'initial' ? def.initial : effect.to);
+		} else if ('npc' in effect) {
+			adventure.npcs.set(effect.npc, effect.becomes);
+		} else if ('offer' in effect) {
+			add(offer(room, adventure, effect.offer));
+		} else if ('fight' in effect) {
+			add(startEncounter(room, adventure, effect.fight));
+		} else if ('enter' in effect) {
+			add(enter(room, adventure, effect.enter, now));
+		} else if ('post' in effect) {
+			postSentries(room, adventure, effect.post);
+		} else if ('settle' in effect) {
+			settlePeople(room, adventure);
+		} else if ('reveal' in effect) {
+			if (effect.reveal === 'all') room.fog.revealed.fill(1);
+			else {
+				const { from, to } = effect.reveal;
+				for (const i of rectCells(room.grid, from, to)) room.fog.revealed[i] = 1;
+			}
+		} else if ('explore' in effect) {
+			const area = effect.explore;
+			const cells = area === 'all' ? null : rectCells(room.grid, area.from, area.to);
+			for (const p of room.players.values()) {
+				if (p.role === 'gm') continue;
+				if (!cells) p.explored.fill(1);
+				else for (const i of cells) p.explored[i] = 1;
+			}
+		} else if ('motion' in effect) {
+			const { prop, kind, sound } = effect.motion;
+			add({ log: [], motions: [{ propId: prop, kind, sound }] });
+		} else if ('heal' in effect) {
+			tell(...tend(room, adventure, effect.heal));
+		} else if ('detect' in effect) {
+			const spotted = detect(room, adventure);
+			if (spotted) add(spotted);
+		} else if ('remember' in effect) {
+			adventure.said.add(effect.remember);
+		} else if ('count' in effect) {
+			add(count(room, adventure, effect.count, effect.else));
+		} else if ('phase' in effect) {
+			const encounter = adventure.encounter;
+			if (encounter) {
+				encounter.finale = effect.phase;
+				encounter.pulls = 0;
+				encounter.pulled = false;
+			}
+		} else if ('hazard' in effect) {
+			const encounter = adventure.encounter;
+			if (encounter) tell(...openHazard(room, adventure, encounter));
+		} else if ('light' in effect) {
+			const light = room.lights.get(effect.light);
+			if (!light) continue;
+			if (effect.on !== undefined) light.on = effect.on;
+			if (effect.color !== undefined) light.color = effect.color;
+			if (effect.radius !== undefined) light.radius = effect.radius;
+		} else if ('prop' in effect) {
+			const prop = room.props.get(effect.prop);
+			if (prop) prop.assetId = effect.asset;
+		} else if ('ambient' in effect) {
+			room.ambient = effect.ambient;
+		} else if ('hurt' in effect) {
+			const def = objectDef(A, effect.hurt.near);
+			const cells = (def && objectCells(room, def)) ?? [];
+			const dice = diceOf(room);
+			for (const c of standing(room, adventure)) {
+				if (!cells.some((b) => gridDistance(b, c.token.pos) <= effect.hurt.within)) continue;
+				const text = effect.hurt.text.replace('{name}', c.def.name);
+				tell(hurt(room, c, roll(effect.hurt.dice, dice).total, text));
+			}
+		} else if ('spawn' in effect) {
+			const encounter = adventure.encounter;
+			const cell = effect.spawn.at.find((c) => isFree(room, c));
+			const def = A.enemies[effect.spawn.kind];
+			if (!encounter || !cell || !def) continue;
+			const token = enemyToken(A, effect.spawn.kind, cell);
+			room.tokens.set(token.id, token);
+			const hp = def.hp(standing(room, adventure).length);
+			encounter.enemies.set(token.id, {
+				kind: effect.spawn.kind,
+				hp,
+				maxHp: hp,
+				statuses: new Map(),
+				rest: 0
+			});
+			encounter.order.push({ kind: 'enemy', tokenId: token.id, initiative: 0 });
+			tell(say(room, effect.spawn.text));
+		} else if ('rules' in effect) {
+			const rule = effect.rules.find((r) => holds(adventure, r.if, by.me?.id ?? null));
+			if (rule) add(run(room, adventure, rule.do, by));
+		}
+	}
+	return outcome;
 }
 
 // ---------------------------------------------------------------------------
 // People: talking, reacting, and where they stand
 
-/** Whether a line's conditions hold now, for a speaker in `state`. */
-function holds(
-	adventure: AdventureState,
-	state: string,
-	when: When | undefined,
-	who: CharacterId | null
-): boolean {
-	if (!when) return true;
-	const has = (e: EventId) => adventure.events.includes(e);
-	if (when.state && !when.state.includes(state)) return false;
-	// People react to what the one talking to them knows.
-	if (when.clues && !when.clues.every((c) => knows(adventure, who, c))) return false;
-	if (when.events && !when.events.every(has)) return false;
-	if (when.not && when.not.some(has)) return false;
-	if (when.pending && adventure.pending !== when.pending) return false;
-	for (const [id, states] of Object.entries(when.objects ?? {})) {
-		const def = objectDef(id);
-		if (!def || !states.includes(objectState(adventure, def))) return false;
-	}
-	return true;
-}
-
 /**
  * Talking to someone: they say the first of their lines that applies, which
  * may give a clue, change how they feel, move the story on or tend wounds.
  */
-function talk(room: Room, adventure: AdventureState, id: NpcId, who: CharacterId): Outcome {
-	const npc = NPCS[id];
+function talk(room: Room, adventure: AdventureState, id: string, who: string): Outcome {
+	const npc = content(adventure).npcs[id];
 	const state = adventure.npcs.get(id) ?? npc.states[0];
 	const line = npc.lines.find(
-		(l) => !(l.once && adventure.said.has(`${id}:${l.id}`)) && holds(adventure, state, l.if, who)
+		(l) => !(l.once && adventure.said.has(`${id}:${l.id}`)) && holds(adventure, l.if, who, state)
 	);
 	if (!line) return { log: [] };
 	adventure.said.add(`${id}:${line.id}`);
-	const log = [line.narrated ? say(room, line.text) : say(room, line.text, npc.speaker)];
+	let outcome: Outcome = {
+		log: [line.narrated ? say(room, line.text) : say(room, line.text, npc.speaker)]
+	};
 	// Said aloud: the whole party hears it.
-	if (line.clue) log.push(...addClue(room, adventure, line.clue, null));
+	if (line.clue) outcome = merge(outcome, addClue(room, adventure, line.clue, null));
 	if (line.becomes) adventure.npcs.set(id, line.becomes);
-	if (line.heals) log.push(...tend(room, adventure, line.heals));
-	return line.event ? merge({ log }, happen(room, adventure, line.event)) : { log };
+	if (line.heals) outcome = merge(outcome, { log: tend(room, adventure, line.heals) });
+	return line.event ? merge(outcome, happen(room, adventure, line.event)) : outcome;
 }
+
+/** How far away looking around notices something there to be noticed. */
+const NOTICE_RANGE = 8;
 
 /**
  * Player: their character listens, or looks around, where it stands, and may
  * pick up signs nearby (each behind a check, one try per character).
  */
-/** How far away looking around notices something there to be noticed. */
-const NOTICE_RANGE = 8;
-
 export function sense(
 	room: Room,
 	actor: Player,
@@ -1074,15 +1055,16 @@ export function sense(
 ): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
+	const A = content(adventure);
 	const me = characterOf(room, actor.id);
 	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
 	if (adventure.stage !== 'playing') return fail('forbidden', 'This story is over.');
-	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
+	if (adventure.encounter) return fail('not_your_turn', A.voice.notNow);
 	const blocked = obstacles(room);
-	const signs = SIGNS.filter(
+	const signs = A.signs.filter(
 		(s) =>
 			s.location === adventure.location &&
 			s.sense === what &&
@@ -1093,7 +1075,7 @@ export function sense(
 	);
 	const verb = INVESTIGATION_ACTIONS[what];
 	// Looking around, a character notices what is there to be noticed (a newcomer's first find).
-	const noticed = OBJECTS.flatMap((def) => {
+	const noticed = A.objects.flatMap((def) => {
 		if (what !== 'observe' || !def.noticed || def.location !== adventure.location) return [];
 		if (shownState(adventure, def) !== 'interactable') return [];
 		if (def.firstFind && knows(adventure, me.id, def.firstFind)) return [];
@@ -1105,7 +1087,7 @@ export function sense(
 	});
 	if (signs.length === 0) {
 		if (noticed.length) return { ok: true, log: noticed };
-		const nothing = what === 'listen' ? TEXT.hearNothing : TEXT.seeNothing;
+		const nothing = what === 'listen' ? A.voice.hearNothing : A.voice.seeNothing;
 		return { ok: true, log: [say(room, nothing, undefined, only(actor.id))] };
 	}
 	const log: ChatMessage[] = [...noticed];
@@ -1114,11 +1096,12 @@ export function sense(
 		log.push(check.entry);
 		if (!check.success) {
 			adventure.tried.add(`${me.id}:sign:${s.id}`);
-			log.push(say(room, TEXT.cantMakeOut, undefined, only(actor.id)));
+			log.push(say(room, A.voice.cantMakeOut, undefined, only(actor.id)));
 			continue;
 		}
-		log.push(say(room, CLUES[s.clue].text, undefined, only(actor.id)));
-		log.push(...addClue(room, adventure, s.clue, { id: me.id, playerId: actor.id }));
+		const clue = A.clues[s.clue];
+		if (clue) log.push(say(room, clue.text, undefined, only(actor.id)));
+		log.push(...addClue(room, adventure, s.clue, { id: me.id, playerId: actor.id }).log);
 	}
 	return { ok: true, log };
 }
@@ -1134,26 +1117,23 @@ export function share(room: Room, actor: Player, clueId: string): Outcomes {
 	}
 	if (found.shared) return fail('forbidden', 'The party already knows that.');
 	found.shared = true;
-	const id = clueId as ClueId;
-	const by = me ? CHARACTERS[me.id].name : actor.name;
-	return {
-		ok: true,
+	const clue = content(adventure).clues[clueId];
+	const by = me ? me.def.name : actor.name;
+	const told = {
 		log: [
-			postSystem(room, `${by} shared evidence: ${CLUES[id].title}.`),
-			say(room, CLUES[id].text),
-			...unlock(room, adventure, id)
+			postSystem(room, `${by} shared evidence: ${clue?.title ?? clueId}.`),
+			...(clue ? [say(room, clue.text)] : [])
 		]
 	};
+	return { ok: true, ...merge(told, unlock(room, adventure, clueId)) };
 }
 
 /** Every standing character recovers up to `hp`. */
 function tend(room: Room, adventure: AdventureState, hp: number): ChatMessage[] {
-	const healed = standing(room, adventure).filter((c) => c.state.hp < CHARACTERS[c.id].hp);
-	for (const c of healed) c.state.hp = Math.min(CHARACTERS[c.id].hp, c.state.hp + hp);
+	const healed = standing(room, adventure).filter((c) => c.state.hp < c.def.hp);
+	for (const c of healed) c.state.hp = Math.min(c.def.hp, c.state.hp + hp);
 	if (healed.length === 0) return [];
-	return [
-		postSystem(room, `${healed.map((c) => CHARACTERS[c.id].name).join(', ')} recovered some HP.`)
-	];
+	return [postSystem(room, `${healed.map((c) => c.def.name).join(', ')} recovered some HP.`)];
 }
 
 /**
@@ -1168,12 +1148,13 @@ function react(
 	near?: GridPos,
 	audience?: LogAudience
 ): ChatMessage[] {
+	const A = content(adventure);
 	const log: ChatMessage[] = [];
-	for (const r of REACTIONS) {
+	for (const r of A.reactions) {
 		if (r.on !== on || adventure.said.has(`reaction:${r.id}`)) continue;
-		const npc = NPCS[r.npc];
-		const token = npc.location === adventure.location ? room.tokens.get(npc.token) : undefined;
-		if (!token) continue;
+		const npc = A.npcs[r.npc];
+		const token = npc?.location === adventure.location ? room.tokens.get(npc.token) : undefined;
+		if (!npc || !token) continue;
 		if (r.within !== undefined && near && gridDistance(token.pos, near) > r.within) continue;
 		adventure.said.add(`reaction:${r.id}`);
 		log.push(say(room, r.text, npc.speaker, audience));
@@ -1181,20 +1162,14 @@ function react(
 	return log;
 }
 
-/** The village while the Hound is loose, after it is dead, or neither. */
-function villagePhase(adventure: AdventureState): 'calm' | 'hiding' | 'after' {
-	if (adventure.encounters.get('well') === 'active') return 'hiding';
-	return adventure.events.includes('won_well') ? 'after' : 'calm';
-}
-
-/** People go where they belong now: indoors while the Hound is loose, back out after. */
+/** People go where they belong now (the adventure's `peoplePlaces`: the first that holds, else calm). */
 function settlePeople(room: Room, adventure: AdventureState): void {
-	const phase = villagePhase(adventure);
-	for (const id of NPC_IDS) {
-		const npc = NPCS[id];
+	const A = content(adventure);
+	const place = A.peoplePlaces.find((p) => holds(adventure, p.if))?.place ?? 'calm';
+	for (const npc of Object.values(A.npcs)) {
 		const token = npc.location === adventure.location ? room.tokens.get(npc.token) : undefined;
 		if (!token) continue;
-		const to = placeFor(npc, phase);
+		const to = npc.places[place] ?? npc.places.calm;
 		if ((token.pos.x !== to.x || token.pos.y !== to.y) && isFree(room, to)) token.pos = { ...to };
 	}
 }
@@ -1216,6 +1191,31 @@ const merge = (a: Outcome, b: Outcome): Outcome => {
 	};
 };
 
+/** The chapter `event` leads to from `chapter`: undefined if it doesn't end it, null if the story ends. */
+export function transition(
+	A: AdventureDef,
+	chapter: string,
+	event: string
+): string | null | undefined {
+	const next = A.chapters[chapter]?.next;
+	return next && next.on === event ? next.to : undefined;
+}
+
+/** Whether a cell is in an area. */
+const inside = (area: Area, pos: GridPos) =>
+	pos.x >= area.from.x && pos.x <= area.to.x && pos.y >= area.from.y && pos.y <= area.to.y;
+
+/** The area `pos` raises an event in, while the story waits for it there. */
+function areaAt(adventure: AdventureState, pos: GridPos): AreaDef | undefined {
+	return content(adventure).areas.find(
+		(a) =>
+			a.location === adventure.location &&
+			a.during === adventure.chapter &&
+			(!a.after || adventure.events.includes(a.after)) &&
+			inside(a, pos)
+	);
+}
+
 /**
  * Something happened in the story. Records it (once), does what it does to
  * the table, and moves on to the next chapter if the current one was waiting
@@ -1224,44 +1224,21 @@ const merge = (a: Outcome, b: Outcome): Outcome => {
 export function happen(
 	room: Room,
 	adventure: AdventureState,
-	event: EventId,
+	event: string,
 	now = Date.now()
 ): Outcome {
 	if (adventure.events.includes(event)) return { log: [] };
 	adventure.events.push(event);
-	let outcome: Outcome = { log: [] };
-	switch (event) {
-		case 'won_well': {
-			adventure.npcs.set('maren', 'hopeful');
-			settlePeople(room, adventure);
-			const gate = objectDef('gate');
-			if (gate) setObjectState(room, adventure, gate, 'opened');
-			for (const i of rectCells(room.grid, PATH_AREA.from, PATH_AREA.to)) room.fog.revealed[i] = 1;
-			outcome = { log: [say(room, TEXT.gateOpens)] };
-			break;
-		}
-		case 'promised': {
-			adventure.npcs.set('oswin', 'trusting');
-			const door = objectDef('side-door');
-			if (door && objectState(adventure, door) === 'disabled') {
-				setObjectState(room, adventure, door, 'closed');
-			}
-			break;
-		}
-		case 'talked_oswin':
-			outcome = offer(room, adventure, 'promise');
-			break;
-		case 'opened_grate': {
-			// Someone already standing on the grate is on the stair now.
-			const onStair = played(room, adventure).find(
-				(c) => c.token.pos.x === STAIR.from.x && c.token.pos.y === STAIR.from.y
-			);
-			if (onStair) outcome = happen(room, adventure, 'reached_stair', now);
-			break;
-		}
+	const A = content(adventure);
+	let outcome = run(room, adventure, A.events[event]?.does ?? [], { now });
+	// An area that waited for this: someone already standing in it walks in now.
+	for (const area of A.areas) {
+		if (area.after !== event) continue;
+		const there = played(room, adventure).some((c) => areaAt(adventure, c.token.pos) === area);
+		if (there) outcome = merge(outcome, happen(room, adventure, area.event, now));
 	}
 	outcome = merge(outcome, { log: react(room, adventure, `event:${event}`) });
-	const next = transition(adventure.chapter, event);
+	const next = transition(A, adventure.chapter, event);
 	if (next === undefined) return outcome;
 	return merge(
 		outcome,
@@ -1270,112 +1247,23 @@ export function happen(
 }
 
 /** The party moves into a chapter: to its table, if it is played elsewhere, and what opens it. */
-function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: number): Outcome {
+function enter(room: Room, adventure: AdventureState, chapter: string, now: number): Outcome {
+	const A = content(adventure);
 	adventure.chapter = chapter;
-	const def = CHAPTERS[chapter];
+	const def = A.chapters[chapter];
 	let outcome: Outcome = {
-		log: [postSystem(room, `Chapter ${chapterNumber(chapter)}: ${def.title}.`)]
+		log: [postSystem(room, `Chapter ${chapterNumber(A, chapter)}: ${def.title}.`)]
 	};
 	if (def.location !== adventure.location) {
 		travel(room, adventure, def.location);
 		outcome.reset = true;
 	}
-	const tell = (...log: ChatMessage[]) => (outcome = merge(outcome, { log }));
-	switch (chapter) {
-		case 'discover_bell':
-			outcome = merge(outcome, startEncounter(room, adventure, 'well'));
-			settlePeople(room, adventure);
-			break;
-		case 'investigate_monastery':
-			tell(say(room, TEXT.leaveVillage));
-			break;
-		case 'enter_monastery':
-			// The signature moment: the tower bell swings, and something answers far below.
-			tell(say(room, TEXT.nave), shoot(toll(room, TEXT.firstToll), SHOTS.bellRing));
-			break;
-		case 'bell_rings': {
-			tell(say(room, TEXT.chamber));
-			const grate = objectDef('grate');
-			if (grate) setObjectState(room, adventure, grate, 'opened');
-			tell(toll(room, TEXT.bellRings));
-			outcome = merge(outcome, startEncounter(room, adventure, 'chamber'));
-			// The note lights the dark chamber for a moment: long enough to see what came up.
-			outcome = merge(outcome, { log: [flare(room, TEXT.chamberFlash)] });
-			break;
-		}
-		case 'descend': {
-			// The grate slams back down: the lever by the door lifts it (see mechanisms.ts).
-			const grate = objectDef('grate');
-			if (grate) setObjectState(room, adventure, grate, 'disabled');
-			tell(say(room, TEXT.chamberWon));
-			outcome = merge(outcome, {
-				log: [],
-				motions: [{ propId: MONASTERY_IDS.grate, kind: 'shake', sound: 'clank' }]
-			});
-			break;
-		}
-		case 'the_hollow':
-			adventure.npcs.set('tobin', 'entranced');
-			// The Keeper stands watch by the Bell and cultists walk the dark with lanterns: sneak or fight.
-			postSentries(room, adventure, 'hollow');
-			tell(say(room, TEXT.downStair), say(room, TEXT.hollow));
-			// The Bell sounds as the party arrives: its light shows them the whole Hollow for a
-			// moment, and they remember its shape (not who stands in it).
-			tell(shoot(flare(room, TEXT.hollowFlash), SHOTS.hollow));
-			for (const p of room.players.values()) if (p.role !== 'gm') p.explored.fill(1);
-			tell(say(room, TEXT.hollowWatch));
-			break;
-		case 'the_pit':
-			// Phase 1: they see what sleeps below, unless they already have.
-			tell(
-				shoot(
-					say(room, adventure.events.includes('saw_hollow') ? TEXT.pitKnown : TEXT.pitStirs),
-					SHOTS.pit
-				)
-			);
-			break;
-		case 'the_waking': {
-			// Phase 2: the Hollow stirs, the island cracks, and its tendrils come up.
-			const remembers = adventure.objects.get('bell') === 'used';
-			outcome = merge(outcome, startEncounter(room, adventure, 'waking'));
-			if (remembers) tell(say(room, TEXT.remembersTouch));
-			const waking = adventure.encounter;
-			if (waking?.finale) tell(...crack(room, adventure, waking));
-			break;
-		}
-		case 'the_ringing': {
-			// Phase 3: the Bell rings itself each round until someone takes the rope.
-			const waking = adventure.encounter;
-			if (waking?.id !== 'waking') break;
-			waking.finale = 'ringing';
-			waking.pulls = 0;
-			waking.pulled = false;
-			const rope = objectDef('bell-rope');
-			if (rope) setObjectState(room, adventure, rope, 'interactable');
-			tell(say(room, TEXT.ringing));
-			if (adventure.events.includes('learned_rule')) tell(say(room, TEXT.ringingRule));
-			// Freed by Pell's name, Tobin takes hold of the rope himself.
-			if (adventure.said.has('tobin:pell')) {
-				waking.pulls = 1;
-				waking.pulled = true;
-				tell(say(room, `${TEXT.tobinPulls} (1 of ${PULLS_TO_HOLD})`));
-			}
-			break;
-		}
-		case 'final_decision':
-			// Phase 4: what becomes of the Bell.
-			outcome = merge(outcome, offer(room, adventure, 'bell'));
-			break;
-		case 'the_descent':
-			// The Descent: the Hollow's heart, and what guards it.
-			outcome = merge(outcome, startEncounter(room, adventure, 'heart'));
-			break;
-	}
+	outcome = merge(outcome, run(room, adventure, def.opening ?? [], { now }));
 	// The event this chapter waits for may already have happened (a GM
 	// move, a save from an older build): move straight on.
 	const waitingFor = def.next.on;
-	if (adventure.events.includes(waitingFor)) {
-		const next = transition(chapter, waitingFor);
+	if (adventure.chapter === chapter && adventure.events.includes(waitingFor)) {
+		const next = transition(A, chapter, waitingFor);
 		if (next) outcome = merge(outcome, enter(room, adventure, next, now));
 		else if (next === null) outcome = merge(outcome, end(room, adventure, now));
 	}
@@ -1384,13 +1272,14 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 
 /** Told to the table when a saved story is loaded back. */
 export function resumeNotice(adventure: AdventureState): string {
-	if (adventure.stage === 'complete')
-		return `${TITLE} is over here: ${CHAPTERS[adventure.chapter].title}.`;
-	return `${TITLE} continues. Chapter ${chapterNumber(adventure.chapter)}: ${CHAPTERS[adventure.chapter].title}.`;
+	const A = content(adventure);
+	const title = A.chapters[adventure.chapter].title;
+	if (adventure.stage === 'complete') return `${A.title} is over here: ${title}.`;
+	return `${A.title} continues. Chapter ${chapterNumber(A, adventure.chapter)}: ${title}.`;
 }
 
-export function chapterNumber(chapter: ChapterId): number {
-	return Object.keys(CHAPTERS).indexOf(chapter) + 1;
+export function chapterNumber(A: AdventureDef, chapter: string): number {
+	return Object.keys(A.chapters).indexOf(chapter) + 1;
 }
 
 /**
@@ -1398,7 +1287,8 @@ export function chapterNumber(chapter: ChapterId): number {
  * every character in play arrives at its spawn with the same token, owner
  * and condition.
  */
-function travel(room: Room, adventure: AdventureState, to: LocationId): void {
+function travel(room: Room, adventure: AdventureState, to: string): void {
+	const A = content(adventure);
 	const party = played(room, adventure).map((c) => ({
 		id: c.id,
 		ownerId: c.token.ownerId,
@@ -1411,108 +1301,78 @@ function travel(room: Room, adventure: AdventureState, to: LocationId): void {
 	});
 	// Whether the party shares its sight is the GM's choice for the whole story.
 	const shared = room.fog.shared;
-	applyScene(room, LOCATIONS[to].scene());
+	applyScene(room, A.locations[to].scene());
 	room.fog.shared = shared;
 	adventure.location = to;
 	adventure.sentries.clear();
-	adventure.origins = recordOrigins(room);
+	adventure.origins = recordOrigins(A, room);
 	for (const [id, origin] of carried) adventure.origins.set(id, origin);
 	for (const id of adventure.running.keys()) {
-		if (MECHANISMS[id].location !== to) adventure.running.delete(id);
+		if (A.mechanisms[id]?.location !== to) adventure.running.delete(id);
 	}
-	for (const def of objectsAt(to))
+	for (const def of objectsAt(A, to))
 		applyLook(room, def, shownState(adventure, def), adventure.origins);
 	for (const c of party) {
-		if (!placeCharacter(room, to, c.id, c.ownerId, c.tokenId)) adventure.characters.delete(c.id);
+		if (!placeCharacter(room, A, to, c.id, c.ownerId, c.tokenId)) adventure.characters.delete(c.id);
 	}
 }
 
 /** Puts a choice to the party. */
-function offer(room: Room, adventure: AdventureState, id: DecisionId): Outcome {
-	if (adventure.decisions.has(id)) return { log: [] };
+function offer(room: Room, adventure: AdventureState, id: string): Outcome {
+	const def = content(adventure).decisions[id];
+	if (!def || adventure.decisions.has(id)) return { log: [] };
 	adventure.pending = id;
-	return { log: [postSystem(room, `A choice: ${DECISIONS[id].prompt}`)] };
+	return { log: [postSystem(room, `A choice: ${def.prompt}`)] };
 }
 
-/** The answer that ends the story (silence if somehow there is none). */
-export function bellAnswer(adventure: AdventureState): BellAnswer {
-	const option = adventure.decisions.get('bell')?.option;
-	return option && option in OUTCOMES ? (option as BellAnswer) : 'silence';
+/** The answer the story ends on: the deciding choice's, or the adventure's fallback. */
+export function endingAnswer(adventure: AdventureState): string {
+	const E = content(adventure).endings;
+	const option = adventure.decisions.get(E.decision)?.option;
+	return option && option in E.byAnswer ? option : E.fallback;
 }
 
 /**
- * The story has reached its ending: one of three (Silence, Descent,
- * Communion), each with its own final scene on the table, narration and
- * result, and the session is complete.
+ * The story has reached its ending: the one its deciding answer leads to,
+ * with its own final scene on the table, narration and result, and the
+ * session is complete.
  */
 function end(room: Room, adventure: AdventureState, now: number): Outcome {
-	const answer = bellAnswer(adventure);
-	const outcome = OUTCOMES[answer];
-	const ending = ENDING_FOR[answer] ?? 'silence';
-	adventure.ending = ending;
+	const A = content(adventure);
+	const answer = endingAnswer(adventure);
+	const def = A.endings.byAnswer[answer];
+	adventure.ending = def.ending;
 	adventure.stage = 'complete';
 	adventure.completedAt = now;
-	adventure.npcs.set('tobin', 'safe');
-	const log = [say(room, outcome.text)];
-	if (answer === 'use') {
-		// What the Hollow makes of them depends on what they know.
-		const knowsRule = adventure.events.includes('learned_rule');
-		const knowsSleeper = adventure.evidence.has('sleeper');
-		if (knowsRule) log.push(say(room, SPOKEN_KNOWING.rule));
-		if (knowsSleeper) log.push(say(room, SPOKEN_KNOWING.sleeper));
-		if (!knowsRule && !knowsSleeper) log.push(say(room, SPOKEN_KNOWING.neither));
+	let outcome: Outcome = { log: [say(room, def.text)] };
+	for (const rule of def.lines ?? []) {
+		if (holds(adventure, rule.if)) outcome = merge(outcome, run(room, adventure, rule.do, { now }));
 	}
-	const promise = adventure.decisions.get('promise')?.option;
-	const coda = promise && PROMISE_KEPT[promise]?.[answer];
-	if (coda) log.push(say(room, coda));
-	log.push(finalScene(room, adventure, answer));
-	log.push(postSystem(room, `${TITLE}: ${ENDINGS[ending].title}. ${outcome.subtitle}.`));
-	return { log };
+	outcome = merge(outcome, run(room, adventure, def.does ?? [], { now }));
+	const name = A.endings.names[def.ending]?.title ?? def.ending;
+	return merge(outcome, {
+		log: [
+			finalScene(room, adventure, def),
+			postSystem(room, `${A.title}: ${name}. ${def.subtitle}.`)
+		]
+	});
 }
 
 /**
- * The table as the story leaves it: every ending changes the place it ends in
- * (lights, the Bell, the Heart) and then shows all of it to everyone, with
- * nothing left moving. Returns the last narration, which plays the ending's cue.
+ * The table as the story leaves it: the ending has changed the place it ends
+ * in, and now all of it is shown to everyone, with nothing left moving.
+ * Returns the last narration, which plays the ending's cue.
  */
-function finalScene(room: Room, adventure: AdventureState, answer: BellAnswer): ChatMessage {
-	const light = (id: string, change: Partial<Light>) => {
-		const l = room.lights.get(id);
-		if (l) Object.assign(l, change);
-	};
-	const glows = ['ho-lake-glow-1', 'ho-lake-glow-2', 'ho-lake-glow-3', 'ho-watch-glow'];
-	switch (answer) {
-		case 'destroy': {
-			// The Bell split on the floor, and every light the Hollow gave gone out.
-			const bell = room.props.get(HOLLOW_IDS.bell);
-			if (bell) bell.assetId = 'broken-bell';
-			for (const id of ['ho-bell-glow', 'ho-pit-glow', ...glows]) light(id, { on: false });
-			break;
-		}
-		case 'silence':
-			// The Bell dark in its frame; the eye below red, and open.
-			light('ho-bell-glow', { on: false });
-			light('ho-pit-glow', { color: '#c0392b', radius: 5, on: true });
-			break;
-		case 'use':
-			// The whole Hollow lit a calm blue: nothing in it hides from anyone now.
-			room.ambient = 'dusk';
-			light('ho-bell-glow', { color: '#9fd0ff', radius: 12, on: true });
-			light('ho-pit-glow', { color: '#7fb6ff', radius: 4, on: true });
-			for (const id of glows) light(id, { radius: 4, on: true });
-			break;
-		case 'descend':
-			// The Heart still and grey, its glow gone out.
-			light(HEART_IDS.heartLight, { on: false });
-			break;
-	}
+function finalScene(room: Room, adventure: AdventureState, ending: EndingDef): ChatMessage {
 	// Nothing is left moving: the watch and whatever cracked or rose are gone.
 	for (const id of adventure.sentries.keys()) room.tokens.delete(id);
 	adventure.sentries.clear();
-	for (const id of [...room.props.keys()]) if (id.startsWith('ho-crack-')) room.props.delete(id);
+	const prefixes = hazardPrefixes(content(adventure));
+	for (const id of [...room.props.keys()]) {
+		if (prefixes.some((p) => id.startsWith(p))) room.props.delete(id);
+	}
 	room.fog.revealed.fill(1);
-	const scene = OUTCOMES[answer].scene;
-	return answer === 'use' ? flare(room, scene) : toll(room, scene);
+	return ending.cue === 'flash' ? flare(room, ending.scene) : toll(room, ending.scene);
 }
 
 /**
@@ -1531,7 +1391,8 @@ export function decide(
 	if (adventure.pending !== decisionId) {
 		return fail('forbidden', 'There is no such choice to make right now.');
 	}
-	const def = DECISIONS[adventure.pending];
+	const A = content(adventure);
+	const def = A.decisions[adventure.pending];
 	const option = def.options.find((o) => o.id === optionId);
 	if (!option) return fail('invalid_message', 'That is not one of the choices.');
 	let by = actor.name;
@@ -1540,30 +1401,23 @@ export function decide(
 		if (!me) return fail('forbidden', 'Only a character in the story can choose.');
 		const unable = unableReason(me);
 		if (unable) return fail('forbidden', unable);
-		by = CHARACTERS[me.id].name;
+		by = me.def.name;
 	}
-	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
+	if (adventure.encounter) return fail('not_your_turn', A.voice.notNow);
 	adventure.decisions.set(def.id, { option: option.id, by });
 	adventure.pending = null;
-	let outcome: Outcome = { log: [postSystem(room, `${by} chose: ${option.label}.`)] };
-	if (def.id === 'promise') {
-		const line = option.id === 'boy' ? TEXT.oswinBoy : TEXT.oswinSilence;
-		outcome = merge(outcome, { log: [say(room, line, 'Oswin')] });
-		outcome = merge(outcome, happen(room, adventure, 'promised', now));
-	} else if (option.id === 'descend') {
-		// Down into the pit: the story ends in the Hollow's heart, if the party comes back up.
-		outcome = merge(outcome, { log: [say(room, TEXT.chooseDescent)] });
-		outcome = merge(outcome, happen(room, adventure, 'chose_descent', now));
-		outcome = merge(outcome, enter(room, adventure, 'the_descent', now));
-	} else if (option.id === 'destroy') {
-		// Destroy the Bell, and the Hollow attacks: the story ends only if the party survives it.
-		outcome = merge(outcome, { log: [say(room, TEXT.chooseDestroy)] });
-		outcome = merge(outcome, happen(room, adventure, 'chose_destroy', now));
-		outcome = merge(outcome, startEncounter(room, adventure, 'wrath'));
-	} else {
-		outcome = merge(outcome, happen(room, adventure, 'decided_bell', now));
-	}
-	return { ok: true, ...outcome };
+	const log = [postSystem(room, `${by} chose: ${option.label}.`)];
+	return { ok: true, ...merge({ log }, run(room, adventure, option.does, { actor, now })) };
+}
+
+/** How a choice reads now, given what the party did and knows. */
+export function optionLabel(
+	adventure: AdventureState,
+	decision: string,
+	option: { id: string; label: string }
+): string {
+	const def = content(adventure).decisions[decision]?.options.find((o) => o.id === option.id);
+	return def?.labels?.find((l) => holds(adventure, l.if))?.label ?? option.label;
 }
 
 /** GM: puts any world object in one of its states: reveal a secret, unlock a door, break a crate. */
@@ -1576,7 +1430,7 @@ export function setObject(
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
 	if (actor.role !== 'gm') return GM_ONLY;
-	const def = objectDef(objectId);
+	const def = objectDef(content(adventure), objectId);
 	if (!def) return fail('object_not_found', 'There is no such object.');
 	if (!def.states.includes(state)) {
 		return fail('invalid_message', `The ${def.name.toLowerCase()} can't be ${state}.`);
@@ -1596,83 +1450,34 @@ export function setObject(
 // ---------------------------------------------------------------------------
 // The encounter
 
-/** A foe in a fight: its kind, and hit points if not the kind's usual. */
-interface Foe {
-	kind: EnemyKind;
-	hp?: (characters: number) => number;
-}
-
-/** The fights in the story: who comes, where they appear, what lights up. */
-const ENCOUNTERS: Record<
-	EncounterId,
-	{
-		ring: readonly GridPos[];
-		foes: readonly Foe[];
-		/** Enemies already on the table, walking their rounds or standing guard (see `postSentries`). */
-		sentries?: readonly { kind: EnemyKind; route: readonly GridPos[] }[];
-		/** Shown to everyone as the fight begins. */
-		reveal?: { from: GridPos; to: GridPos };
-		/** Said as the fight begins. */
-		opening?: string;
-		/** The camera shot its opening calls for. */
-		shot?: Shot;
-		/** More foes, depending on what the party did before. */
-		more?: (adventure: AdventureState) => readonly Foe[];
-	}
-> = {
-	well: {
-		ring: WELL_RING,
-		foes: [{ kind: 'hound' }],
-		// The square, so the whole party can see the fight.
-		reveal: { from: { x: 8, y: 10 }, to: { x: 16, y: 17 } },
-		opening: TEXT.houndEmerges
-	},
-	chamber: {
-		ring: STAIR_RING,
-		foes: [{ kind: 'hound', hp: PUP_HP }, { kind: 'hound', hp: PUP_HP }, { kind: 'cultist' }],
-		reveal: CHAMBER
-	},
-	hollow: {
-		ring: [],
-		foes: [],
-		sentries: [
-			{ kind: 'keeper', route: [KEEPER_POST] },
-			...CULTIST_ROUNDS.map((route) => ({ kind: 'cultist' as const, route }))
-		],
-		reveal: CAVERN,
-		opening: TEXT.keeper
-	},
-	// The finale's second and third phases: the Hollow wakes, then the Bell rings itself.
-	waking: {
-		ring: PIT_RING,
-		foes: [{ kind: 'tendril' }, { kind: 'tendril' }, { kind: 'tendril' }],
-		// It remembers a hand that touched the Bell before.
-		more: (adventure) => (adventure.objects.get('bell') === 'used' ? [{ kind: 'tendril' }] : []),
-		reveal: CAVERN,
-		opening: TEXT.waking,
-		shot: SHOTS.waking
-	},
-	// The Bell destroyed: the Hollow rises against the party.
-	wrath: {
-		ring: PIT_RING,
-		foes: [{ kind: 'hand' }, { kind: 'tendril' }, { kind: 'tendril' }],
-		reveal: CAVERN,
-		opening: TEXT.wrath
-	},
-	// The Descent: the Hollow's Heart on its dais, and what uncurls from the stone around it.
-	heart: {
-		ring: HEART_RING,
-		foes: [{ kind: 'heart' }, { kind: 'tendril' }, { kind: 'tendril' }],
-		reveal: { from: { x: 0, y: 0 }, to: { x: HEART_GRID.width - 1, y: HEART_GRID.height - 1 } },
-		opening: TEXT.heart
-	},
-	// The GM's own: whoever the GM brought on (see `spawn`), wherever the party is.
-	ambush: { ring: [], foes: [] }
+/** The GM's own fight: whoever the GM brought on, anywhere. */
+const AMBUSH_DEF: EncounterDef = {
+	name: 'The enemies you placed',
+	location: null,
+	ring: [],
+	foes: []
 };
 
+/** A fight of the adventure's, or the GM's own. */
+export function encounterDef(A: AdventureDef, id: string): EncounterDef | undefined {
+	return id === AMBUSH ? AMBUSH_DEF : A.encounters[id];
+}
+
+/** Every fight there can be: the adventure's, then the GM's own. */
+export function encounterIds(A: AdventureDef): string[] {
+	return [...Object.keys(A.encounters), AMBUSH];
+}
+
+/** The rules of the phase a fight is in, if it has phases. */
+function phaseOf(A: AdventureDef, encounter: Encounter): PhaseDef | undefined {
+	return encounter.finale
+		? encounterDef(A, encounter.id)?.phases?.all[encounter.finale]
+		: undefined;
+}
+
 /** The enemy's token, as it stands on the table. */
-function enemyToken(kind: EnemyKind, pos: GridPos): Token {
-	const def = ENEMIES[kind];
+function enemyToken(A: AdventureDef, kind: string, pos: GridPos): Token {
+	const def = A.enemies[kind];
 	return {
 		id: randomUUID(),
 		name: def.name,
@@ -1690,11 +1495,12 @@ function enemyToken(kind: EnemyKind, pos: GridPos): Token {
  * or stand guard until one of them spots a character (`detect`), and then
  * the fight begins with them.
  */
-export function postSentries(room: Room, adventure: AdventureState, id: EncounterId): void {
-	for (const sentry of ENCOUNTERS[id].sentries ?? []) {
+export function postSentries(room: Room, adventure: AdventureState, id: string): void {
+	const A = content(adventure);
+	for (const sentry of encounterDef(A, id)?.sentries ?? []) {
 		const at = sentry.route.find((c) => isFree(room, c));
 		if (!at) continue;
-		const token = enemyToken(sentry.kind, at);
+		const token = enemyToken(A, sentry.kind, at);
 		room.tokens.set(token.id, token);
 		adventure.sentries.set(token.id, {
 			kind: sentry.kind,
@@ -1705,22 +1511,24 @@ export function postSentries(room: Room, adventure: AdventureState, id: Encounte
 	}
 }
 
-/** What the enemies see: the table's obstacles and light, the standing party, the Bell. */
+/** What the enemies see: the table's obstacles and light, the standing party, what they guard. */
 function situationFor(room: Room, adventure: AdventureState, selfId: string): Situation {
+	const A = content(adventure);
 	const blocked = obstacles(room);
 	const lit = lightFor(room, blocked);
-	const bellDef = objectDef('bell');
-	const bellCells = bellDef && objectCells(room, bellDef);
+	const wardDef = A.ward && objectDef(A, A.ward.object);
+	const wardCells = wardDef && objectCells(room, wardDef);
 	return {
 		grid: room.grid,
 		blocked,
 		lit,
 		foes: standing(room, adventure).map((c) => ({ id: c.id, pos: c.token.pos, hp: c.state.hp })),
 		free: (c) => isFree(room, c, blocked, selfId),
-		bell:
-			bellDef && bellCells?.length
-				? { cells: bellCells, touched: objectState(adventure, bellDef) === 'used' }
-				: null
+		ward:
+			A.ward && wardDef && wardCells?.length
+				? { cells: wardCells, touched: objectState(adventure, wardDef) === A.ward.touched }
+				: null,
+		enemies: A.enemies
 	};
 }
 
@@ -1774,19 +1582,23 @@ const diceOf = (room: Room): DieRoller => room.dice ?? RANDOM;
 export function startEncounter(
 	room: Room,
 	adventure: AdventureState,
-	id: EncounterId,
+	id: string,
 	spotted?: { by: Token; who: Foe_ }
 ): Outcome {
-	const def = ENCOUNTERS[id];
+	const A = content(adventure);
+	const def = encounterDef(A, id);
+	if (!def) return { log: [] };
 	const party = standing(room, adventure);
-	const spawn = LOCATIONS[adventure.location].spawn;
+	const spawn = A.locations[adventure.location].spawn;
 	const enemies = new Map<string, EnemyState>();
-	for (const foe of [...def.foes, ...(def.more?.(adventure) ?? [])]) {
+	const more = (def.more ?? []).flatMap((m) => (holds(adventure, m.if) ? m.foes : []));
+	for (const foe of [...def.foes, ...more]) {
+		const kind = A.enemies[foe.kind];
 		const cell = def.ring.find((c) => isFree(room, c)) ?? spawn.find((c) => isFree(room, c));
-		if (!cell) break;
-		const token = enemyToken(foe.kind, cell);
+		if (!cell || !kind) break;
+		const token = enemyToken(A, foe.kind, cell);
 		room.tokens.set(token.id, token);
-		const hp = (foe.hp ?? ENEMIES[foe.kind].hp)(party.length);
+		const hp = (foe.hp ?? kind.hp)(party.length);
 		// It comes up beside the party: it knows where the nearest of them stands.
 		const nearest = party.reduce<Played | null>(
 			(a, b) => (!a || gridDistance(cell, b.token.pos) < gridDistance(cell, a.token.pos) ? b : a),
@@ -1805,7 +1617,7 @@ export function startEncounter(
 	for (const [tokenId, sentry] of [...adventure.sentries]) {
 		if (sentry.encounter !== id || !room.tokens.has(tokenId)) continue;
 		adventure.sentries.delete(tokenId);
-		const hp = ENEMIES[sentry.kind].hp(party.length);
+		const hp = A.enemies[sentry.kind].hp(party.length);
 		enemies.set(tokenId, {
 			kind: sentry.kind,
 			hp,
@@ -1825,20 +1637,20 @@ export function startEncounter(
 	const dice = diceOf(room);
 	const rolled: { entry: TurnEntry; name: string; bonus: number; order: number }[] = [];
 	for (const c of played(room, adventure)) {
-		const bonus = CHARACTERS[c.id].stats.agility;
+		const bonus = c.def.stats.agility;
 		rolled.push({
 			entry: { kind: 'character', id: c.id, initiative: roll(`1d20+${bonus}`, dice).total },
-			name: CHARACTERS[c.id].name,
+			name: c.def.name,
 			bonus,
 			order: rolled.length
 		});
 	}
 	for (const [tokenId, enemy] of enemies) {
-		const bonus = ENEMIES[enemy.kind].initiative;
+		const bonus = A.enemies[enemy.kind].initiative;
 		const total = roll(bonus ? `1d20+${bonus}` : '1d20', dice).total;
 		rolled.push({
 			entry: { kind: 'enemy', tokenId, initiative: total },
-			name: ENEMIES[enemy.kind].name,
+			name: A.enemies[enemy.kind].name,
 			bonus,
 			order: rolled.length
 		});
@@ -1861,7 +1673,7 @@ export function startEncounter(
 		speed: 0,
 		enemies,
 		turn: 1,
-		...(id === 'waking' ? { finale: 'waking' as const, cracks: [], pulls: 0, pulled: false } : {})
+		...(def.phases ? { finale: def.phases.first, cracks: [], pulls: 0, pulled: false } : {})
 	};
 	adventure.encounter = encounter;
 	if (def.reveal) {
@@ -1869,7 +1681,12 @@ export function startEncounter(
 	}
 	const log = [
 		...(spotted
-			? [say(room, `The ${spotted.by.name} spots ${CHARACTERS[spotted.who.id].name}!`)]
+			? [
+					say(
+						room,
+						`The ${spotted.by.name} spots ${A.characters[spotted.who.id]?.name ?? 'someone'}!`
+					)
+				]
 			: []),
 		...(def.opening
 			? [def.shot ? shoot(say(room, def.opening), def.shot) : say(room, def.opening)]
@@ -1899,7 +1716,7 @@ function turnOf(encounter: Encounter | null): TurnEntry | null {
 }
 
 /** Whether it is this character's turn. */
-function isTurnOf(encounter: Encounter, id: CharacterId): boolean {
+function isTurnOf(encounter: Encounter, id: string): boolean {
 	const entry = turnOf(encounter);
 	return entry?.kind === 'character' && entry.id === id;
 }
@@ -1920,6 +1737,7 @@ function tick(statuses: Statuses): void {
  * returned as `enemyTurn` for the game server to run after a pause.
  */
 function advance(room: Room, adventure: AdventureState, encounter: Encounter): Outcome {
+	const A = content(adventure);
 	const log: ChatMessage[] = [];
 	for (let tries = 0; tries <= encounter.order.length * 2; tries++) {
 		encounter.current++;
@@ -1930,7 +1748,7 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			encounter.moved.clear();
 			log.push(postSystem(room, `Round ${encounter.round}.`));
 			if (encounter.finale) {
-				log.push(...roundOfWaking(room, adventure, encounter));
+				log.push(...roundOfPhase(room, adventure, encounter));
 				if (standing(room, adventure).length === 0) {
 					return { log: [...log, ...defeat(room, adventure, encounter)] };
 				}
@@ -1944,7 +1762,7 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 		}
 		const c = played(room, adventure).find((p) => p.id === entry.id);
 		if (!c || c.state.dead) continue;
-		const def = CHARACTERS[c.id];
+		const def = c.def;
 		const slowed = c.state.statuses.has('slowed');
 		tick(c.state.statuses);
 		if (c.state.hp <= 0) {
@@ -1952,7 +1770,7 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			if (c.state.downedFor >= BLEED_OUT_ROUNDS) {
 				c.state.dead = true;
 				c.state.statuses.clear();
-				log.push(say(room, `${def.name} is gone. The lamplight doesn't reach them any more.`));
+				log.push(say(room, A.voice.gone.replace('{name}', def.name)));
 			} else {
 				const left = BLEED_OUT_ROUNDS - c.state.downedFor;
 				log.push(
@@ -1993,7 +1811,7 @@ function strike(bonus: number, damage: string, defense: number, roller: DieRolle
 
 /** Defense against attacks, counting a guard. */
 function characterDefense(c: Played): number {
-	return defenseFor(CHARACTERS[c.id].armor + (c.state.statuses.has('guarded') ? 2 : 0));
+	return defenseFor(c.def.armor + (c.state.statuses.has('guarded') ? 2 : 0));
 }
 
 /**
@@ -2012,7 +1830,7 @@ export function act(
 	if (!adventure) return NO_ADVENTURE;
 	const me = characterOf(room, actor.id);
 	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
-	const def = CHARACTERS[me.id];
+	const def = me.def;
 	const action = actionOf(def, actionId);
 	if (!action) return fail('invalid_message', `${def.name} can't do that.`);
 	const unable = unableReason(me);
@@ -2044,13 +1862,13 @@ export function act(
 					: `The ${target.name} is out of range or out of sight.`
 			);
 		}
-		log = [attackEnemy(room, actor, def, action, encounter, enemy, target, roller)];
+		log = [attackEnemy(room, actor, me, action, encounter, enemy, target, roller)];
 	} else if (action.target === 'ally') {
 		const ally = targetId ? characterByToken(room, targetId) : null;
 		if (!ally) return fail('token_not_found', 'Choose one of the party.');
-		if (ally.state.dead) return fail('forbidden', `${CHARACTERS[ally.id].name} is beyond help.`);
+		if (ally.state.dead) return fail('forbidden', `${ally.def.name} is beyond help.`);
 		if (!inActionRange(blocked, me.token.pos, ally.token.pos, action)) {
-			return fail('out_of_reach', `${CHARACTERS[ally.id].name} is out of reach.`);
+			return fail('out_of_reach', `${ally.def.name} is out of reach.`);
 		}
 		log = [heal(room, actor, def, action, ally, roller)];
 	} else {
@@ -2063,13 +1881,15 @@ export function act(
 	return { ok: true, ...afterAction(room, adventure, encounter, me, log) };
 }
 
-/** Who is taking the current turn, by name ("the Hollow Hound" for an enemy). */
+/** Who is taking the current turn, by name ("the Hound" for an enemy). */
 function turnName(room: Room, encounter: Encounter): string {
 	const entry = turnOf(encounter);
 	if (!entry) return 'nobody';
-	return entry.kind === 'character'
-		? CHARACTERS[entry.id].name
-		: `the ${room.tokens.get(entry.tokenId)?.name ?? 'enemy'}`;
+	if (entry.kind === 'character') {
+		const adventure = room.adventure;
+		return (adventure && content(adventure).characters[entry.id]?.name) ?? entry.id;
+	}
+	return `the ${room.tokens.get(entry.tokenId)?.name ?? 'enemy'}`;
 }
 
 /** Why it isn't this character's turn: whose it is. */
@@ -2080,18 +1900,19 @@ function notYourTurn(room: Room, encounter: Encounter): string {
 function attackEnemy(
 	room: Room,
 	actor: Player,
-	def: CharacterDef,
+	me: Played,
 	action: Action,
 	encounter: Encounter,
 	enemy: EnemyState,
 	target: Token,
 	roller: DieRoller
 ): ChatMessage {
-	const defense = defenseFor(ENEMIES[enemy.kind].armor);
-	const result = strike(toHitFor(def, action), action.dice ?? '1d4', defense, roller);
+	const A = content(room.adventure!);
+	const defense = defenseFor(A.enemies[enemy.kind].armor);
+	const result = strike(toHitFor(me.def, action), action.dice ?? '1d4', defense, roller);
 	let outcome: string | undefined;
 	let effect: string | undefined;
-	if (result.hit) enemy.lastHitBy = def.id;
+	if (result.hit) enemy.lastHitBy = me.id;
 	if (result.damage) {
 		enemy.hp = Math.max(0, enemy.hp - result.damage.total);
 		if (enemy.hp === 0) {
@@ -2105,7 +1926,7 @@ function attackEnemy(
 	return appendLog(room, {
 		kind: 'attack',
 		authorId: actor.id,
-		authorName: def.name,
+		authorName: me.def.name,
 		attack: action.name,
 		targetId: target.id,
 		targetName: target.name,
@@ -2127,11 +1948,11 @@ function heal(
 	roller: DieRoller
 ): ChatMessage {
 	const rolled = roll(action.dice ?? '1d4', roller);
-	const maxHp = CHARACTERS[ally.id].hp;
+	const maxHp = ally.def.hp;
 	const before = ally.state.hp;
 	ally.state.hp = Math.min(maxHp, before + rolled.total);
 	ally.state.downedFor = 0;
-	const name = CHARACTERS[ally.id].name;
+	const name = ally.def.name;
 	const gained = ally.state.hp - before;
 	return appendLog(room, {
 		kind: 'ability',
@@ -2165,17 +1986,17 @@ function guard(
 	// Statuses count down at their bearer's turn: an ally whose turn is still to come this
 	// round gets one more, so the guard holds until the enemies have acted.
 	const encounter = adventure.encounter;
-	const place = (id: CharacterId) =>
+	const place = (id: string) =>
 		encounter?.order.findIndex((t) => t.kind === 'character' && t.id === id) ?? -1;
 	for (const c of guarded) {
 		const later = encounter && c.id !== me.id && place(c.id) > encounter.current;
 		c.state.statuses.set(status.status, status.rounds + (later ? 1 : 0));
 	}
-	const names = guarded.map((c) => CHARACTERS[c.id].name);
+	const names = guarded.map((c) => c.def.name);
 	return appendLog(room, {
 		kind: 'ability',
 		authorId: actor.id,
-		authorName: CHARACTERS[me.id].name,
+		authorName: me.def.name,
 		ability: action.name,
 		targetId: null,
 		targetName: null,
@@ -2219,59 +2040,55 @@ function afterAction(
 	return { log };
 }
 
-/** An enemy is gone from the fight and the table; the well's Hound leaves its ashes where it fell. */
+/** An enemy is gone from the fight and the table; a fight's first fallen may leave remains. */
 function enemyDies(room: Room, encounter: Encounter, token: Token): void {
 	encounter.enemies.delete(token.id);
 	leaveOrder(encounter, token.id);
 	room.tokens.delete(token.id);
 	const adventure = room.adventure;
 	adventure?.defeated.push(token.name);
-	const remains = objectDef('remains');
-	if (!adventure || encounter.id !== 'well' || !remains || room.props.has(IDS.remains)) return;
-	room.props.set(IDS.remains, {
-		id: IDS.remains,
-		assetId: 'ashes',
+	if (!adventure) return;
+	const A = content(adventure);
+	const remains = encounterDef(A, encounter.id)?.remains;
+	const def = remains && objectDef(A, remains.object);
+	if (!remains || !def || room.props.has(remains.prop)) return;
+	room.props.set(remains.prop, {
+		id: remains.prop,
+		assetId: remains.asset,
 		pos: { ...token.pos },
 		rotation: 0,
 		scale: 1
 	});
-	adventure.origins.set(remains.id, { pos: { ...token.pos }, assetId: 'ashes', rotation: 0 });
-	setObjectState(room, adventure, remains, 'interactable');
+	adventure.origins.set(def.id, { pos: { ...token.pos }, assetId: remains.asset, rotation: 0 });
+	setObjectState(room, adventure, def, 'interactable');
 }
-
-const WON: Record<EncounterId, { event?: EventId; text?: string }> = {
-	well: { event: 'won_well', text: TEXT.houndFalls },
-	chamber: { event: 'won_chamber' },
-	hollow: { event: 'won_hollow', text: TEXT.keeperFalls },
-	waking: { event: 'bell_held' },
-	wrath: { event: 'decided_bell', text: TEXT.wrathWon },
-	heart: { event: 'decided_bell', text: TEXT.heartWon },
-	ambush: {}
-};
 
 /** The fight is won: the fallen get back up, and the story hears of it. */
 function victory(room: Room, adventure: AdventureState): Outcome {
+	const A = content(adventure);
 	const encounter = adventure.encounter;
-	const id = encounter?.id ?? 'well';
+	const id = encounter?.id ?? AMBUSH;
+	const won = encounterDef(A, id)?.won ?? {};
 	adventure.encounter = null;
 	adventure.encounters.set(id, 'won');
 	const rounds = encounter?.round ?? 1;
 	const log = [
 		postSystem(room, `The fight is won in ${rounds} ${rounds === 1 ? 'round' : 'rounds'}.`)
 	];
-	if (WON[id].text) log.push(say(room, WON[id].text));
+	if (won.text) log.push(say(room, won.text));
 	const fallen = played(room, adventure).filter((c) => c.state.hp <= 0 && !c.state.dead);
 	for (const c of fallen) {
 		c.state.hp = 1;
 		c.state.downedFor = 0;
 	}
-	if (fallen.length) log.push(say(room, TEXT.revive));
+	if (fallen.length) log.push(say(room, A.voice.revive));
 	for (const c of played(room, adventure)) {
 		c.state.statuses.clear();
 		c.state.uses.clear();
 	}
-	const event = WON[id].event;
-	return event ? merge({ log }, happen(room, adventure, event)) : { log };
+	let outcome = merge({ log }, run(room, adventure, won.does ?? []));
+	if (won.event) outcome = merge(outcome, happen(room, adventure, won.event));
+	return outcome;
 }
 
 /** Every character is down or dead: the fight, and the story, are lost. */
@@ -2285,7 +2102,7 @@ function defeat(
 	adventure.encounter = null;
 	adventure.stage = 'defeat';
 	adventure.completedAt = now;
-	return [say(room, TEXT.defeat)];
+	return [say(room, content(adventure).voice.defeat)];
 }
 
 /**
@@ -2312,9 +2129,8 @@ export function passAwayTurn(room: Room, turn: number): Outcome | null {
 	const entry = turnOf(encounter ?? null);
 	if (!adventure || !encounter || encounter.turn !== turn || entry?.kind !== 'character')
 		return null;
-	const log = [
-		postSystem(room, `${CHARACTERS[entry.id].name}'s player is away; their turn passes.`)
-	];
+	const name = content(adventure).characters[entry.id]?.name ?? entry.id;
+	const log = [postSystem(room, `${name}'s player is away; their turn passes.`)];
 	return merge({ log }, advance(room, adventure, encounter));
 }
 
@@ -2326,7 +2142,7 @@ export function pendingEnemyTurn(adventure: AdventureState): number | null {
 
 /**
  * An enemy takes its turn: burning eats at it, its statuses count down, and
- * it acts as its kind does (see enemies.ts). Then the turn passes on, or the
+ * it acts as its kind does (see ai.ts). Then the turn passes on, or the
  * party has fallen. Returns null when `turn` is stale (the fight moved on
  * while this was scheduled).
  */
@@ -2350,7 +2166,7 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 			);
 		}
 	}
-	const kind = ENEMIES[enemy.kind];
+	const kind = content(adventure).enemies[enemy.kind];
 	const speed = enemy.statuses.has('slowed') ? Math.floor(kind.speed / 2) : kind.speed;
 	tick(enemy.statuses);
 	if (enemy.rest > 0) enemy.rest--;
@@ -2388,10 +2204,12 @@ function enemyActs(
 	enemy.target = decided.target;
 	enemy.lastSeen = decided.lastSeen && { ...decided.lastSeen };
 	const log: ChatMessage[] = [];
-	const who = (id: CharacterId) => played(room, adventure).find((c) => c.id === id);
+	const who = (id: string) => played(room, adventure).find((c) => c.id === id);
 	const deed = decided.deed;
 	if (decided.note === 'turns on' && decided.target) {
-		log.push(say(room, `The ${token.name} turns on ${CHARACTERS[decided.target].name}.`));
+		log.push(
+			say(room, `The ${token.name} turns on ${who(decided.target)?.def.name ?? 'someone'}.`)
+		);
 	} else if (decided.note) {
 		log.push(say(room, `The ${token.name} ${decided.note}.`));
 	}
@@ -2399,11 +2217,11 @@ function enemyActs(
 		const target = who(deed.target);
 		if (target) log.push(enemyAttack(room, token, deed.attack, target, roller));
 	} else if (deed?.kind === 'toll') {
-		const toll = ENEMIES[enemy.kind].toll;
+		const toll = content(adventure).enemies[enemy.kind].toll;
 		const targets = deed.targets.flatMap((id) => who(id) ?? []);
 		if (toll && targets.length) {
 			enemy.rest = toll.every;
-			log.push(toll_(room, token, targets, toll, roller), flare(room, TEXT.tollFlash));
+			log.push(tollOn(room, token, targets, toll, roller), flare(room, toll.flash));
 		}
 	}
 	return log;
@@ -2417,7 +2235,6 @@ function enemyAttack(
 	target: Played,
 	roller: DieRoller
 ): ChatMessage {
-	const def = CHARACTERS[target.id];
 	const defense = characterDefense(target);
 	const result = strike(attack.toHit, attack.damage, defense, roller);
 	let outcome: string | undefined;
@@ -2425,7 +2242,7 @@ function enemyAttack(
 		target.state.hp = Math.max(0, target.state.hp - result.damage.total);
 		if (target.state.hp === 0) {
 			target.state.downedFor = 0;
-			outcome = `${def.name} falls!`;
+			outcome = `${target.def.name} falls!`;
 		}
 	}
 	return appendLog(room, {
@@ -2434,7 +2251,7 @@ function enemyAttack(
 		authorName: token.name,
 		attack: attack.name,
 		targetId: target.token.id,
-		targetName: def.name,
+		targetName: target.def.name,
 		toHit: result.toHit,
 		defense,
 		hit: result.hit,
@@ -2443,8 +2260,8 @@ function enemyAttack(
 	});
 }
 
-/** The Keeper's toll: everyone close by takes the damage and is slowed on their next turn. */
-function toll_(
+/** A toll: everyone close by takes the damage and is slowed on their next turn. */
+function tollOn(
 	room: Room,
 	token: Token,
 	near: Played[],
@@ -2457,10 +2274,10 @@ function toll_(
 		t.state.hp = Math.max(0, t.state.hp - rolled.total);
 		if (t.state.hp === 0) {
 			t.state.downedFor = 0;
-			fell.push(CHARACTERS[t.id].name);
+			fell.push(t.def.name);
 		} else t.state.statuses.set('slowed', toll.rounds);
 	}
-	const names = near.map((t) => CHARACTERS[t.id].name);
+	const names = near.map((t) => t.def.name);
 	return appendLog(room, {
 		kind: 'ability',
 		authorId: token.id,
@@ -2470,7 +2287,7 @@ function toll_(
 		targetName: near.length === 1 ? names[0] : null,
 		roll: rolled,
 		amount: -rolled.total,
-		text: `${TEXT.keeperToll} ${names.join(', ')} ${near.length === 1 ? 'takes' : 'each take'} ${rolled.total} and ${near.length === 1 ? 'is' : 'are'} slowed.${fell.length ? ` ${fell.join(', ')} ${fell.length === 1 ? 'falls' : 'fall'}!` : ''}`
+		text: `${toll.text} ${names.join(', ')} ${near.length === 1 ? 'takes' : 'each take'} ${rolled.total} and ${near.length === 1 ? 'is' : 'are'} slowed.${fell.length ? ` ${fell.join(', ')} ${fell.length === 1 ? 'falls' : 'fall'}!` : ''}`
 	});
 }
 
@@ -2518,7 +2335,7 @@ export function checkMove(
 	const adventure = room.adventure;
 	const me = characterByToken(room, tokenId);
 	if (!adventure || !me || actor.role === 'gm') return { ok: true, cost: null };
-	const def = CHARACTERS[me.id];
+	const def = me.def;
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
@@ -2565,7 +2382,7 @@ export function afterMove(
 		}
 	}
 	if (adventure.stage !== 'playing') return { log: [] };
-	const area = areaAt(adventure.location, adventure.chapter, adventure.events, token.pos);
+	const area = areaAt(adventure, token.pos);
 	const story = area ? happen(room, adventure, area.event, now) : { log: [] };
 	// Walking into a sentry's sight starts its fight.
 	const spotted = story.reset ? null : detect(room, adventure);
@@ -2575,7 +2392,7 @@ export function afterMove(
 /** Why a door won't open for this actor, or null if it will. The GM can always force it. */
 export function doorLock(room: Room, actor: Player, door: Door): string | null {
 	const adventure = room.adventure;
-	const def = objectForDoor(door.id);
+	const def = adventure && objectForDoor(content(adventure), door.id);
 	if (!adventure || !def || actor.role === 'gm') return null;
 	return objectState(adventure, def) === 'disabled'
 		? (def.disabledText ?? 'It will not open.')
@@ -2585,7 +2402,7 @@ export function doorLock(room: Room, actor: Player, door: Door): string | null {
 /** After a door was opened or closed: its world object follows. */
 export function afterDoorToggle(room: Room, door: Door): void {
 	const adventure = room.adventure;
-	const def = objectForDoor(door.id);
+	const def = adventure && objectForDoor(content(adventure), door.id);
 	if (adventure && def) adventure.objects.set(def.id, door.open ? 'opened' : 'closed');
 }
 
@@ -2593,12 +2410,13 @@ export function afterDoorToggle(room: Room, door: Door): void {
 export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): Outcome {
 	const adventure = room.adventure;
 	if (!adventure) return { log: [] };
+	const A = content(adventure);
 	for (const [id, state] of adventure.characters) {
 		if (state.tokenId !== tokenId) continue;
 		adventure.characters.delete(id);
 		// What it carried falls where it stood.
 		for (const [itemId, by] of adventure.carried) {
-			const def = objectDef(itemId);
+			const def = objectDef(A, itemId);
 			const origin = adventure.origins.get(itemId);
 			if (by !== id || !def) continue;
 			adventure.carried.delete(itemId);
@@ -2612,9 +2430,9 @@ export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): O
 		// The last of them gone before any fight: the way is clear.
 		const left = [...adventure.sentries.values()].some((s) => s.encounter === sentry.encounter);
 		// (Not the GM's own: taking back an enemy the GM brought on clears nothing.)
-		if (!left && !adventure.encounters.has(sentry.encounter) && sentry.encounter !== 'ambush') {
+		if (!left && !adventure.encounters.has(sentry.encounter) && sentry.encounter !== AMBUSH) {
 			adventure.encounters.set(sentry.encounter, 'won');
-			const event = WON[sentry.encounter].event;
+			const event = encounterDef(A, sentry.encounter)?.won?.event;
 			const clear = { log: [postSystem(room, 'The way is clear.')] };
 			return event ? merge(clear, happen(room, adventure, event)) : clear;
 		}
@@ -2630,7 +2448,7 @@ export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): O
 	if (enemy) {
 		encounter.enemies.delete(tokenId);
 		leaveOrder(encounter, tokenId);
-		adventure.defeated.push(ENEMIES[enemy.kind].name);
+		adventure.defeated.push(A.enemies[enemy.kind]?.name ?? enemy.kind);
 		const done = cleared(room, adventure, encounter);
 		if (done?.over) return done.outcome;
 		if (done) {
@@ -2643,15 +2461,12 @@ export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): O
 }
 
 // ---------------------------------------------------------------------------
-// The finale: the Hollow's waking
-
-/** Pulls on the rope that hold the Bell still (the ringers' rule). */
-export const PULLS_TO_HOLD = 3;
+// Fights with phases: hazards underfoot, and a counter the party works toward
 
 /**
- * No enemies left. Most fights are won; in the Hollow's waking, the first
- * wave down means the Bell starts ringing itself (and the fight goes on until
- * it is held). `over` says whether the caller should stop there.
+ * No enemies left. Most fights are won; in a phase that says otherwise, an
+ * event happens (the fight goes on), or the fight simply goes on. `over`
+ * says whether the caller should stop there.
  */
 function cleared(
 	room: Room,
@@ -2659,58 +2474,77 @@ function cleared(
 	encounter: Encounter
 ): { over: boolean; outcome: Outcome } | null {
 	if (encounter.enemies.size > 0) return null;
-	if (!encounter.finale) return { over: true, outcome: victory(room, adventure) };
-	if (encounter.finale === 'ringing') return null;
-	return { over: false, outcome: happen(room, adventure, 'bell_rings_itself') };
+	const phase = phaseOf(content(adventure), encounter);
+	if (!phase?.cleared) return { over: true, outcome: victory(room, adventure) };
+	if (phase.cleared === 'continue') return null;
+	return { over: false, outcome: happen(room, adventure, phase.cleared.event) };
 }
 
 /**
- * A new round of the Hollow's waking: the floor heaves under whoever stayed on
- * the cracks, new cracks open under the party, and then either the waking
- * turns to the Bell ringing itself (from the third round), or the Bell,
- * unless someone pulled its rope, rings itself: everyone near it is hurt,
- * its note lights the cavern, and another tendril comes up.
+ * A new round of a fight with phases: the hazard strikes whoever stayed on
+ * it, then either the phase gives way to the next (its `until` round), or,
+ * with a counter, what happens depends on whether anything counted this
+ * round; then the hazard opens again under the party.
  */
-function roundOfWaking(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
-	const log = heave(room, adventure, encounter);
-	if (encounter.finale === 'waking' && encounter.round >= 3) {
-		log.push(...happen(room, adventure, 'bell_rings_itself').log);
-	} else if (encounter.finale === 'ringing') {
-		if (encounter.pulled) log.push(say(room, TEXT.strains));
-		else log.push(...selfRing(room, adventure, encounter));
+function roundOfPhase(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+	const A = content(adventure);
+	const phase = phaseOf(A, encounter);
+	const log = strikeHazard(room, adventure, encounter);
+	if (phase?.until && encounter.round >= phase.until.round) {
+		log.push(...happen(room, adventure, phase.until.event).log);
+	} else if (phase?.counter) {
+		const effects = encounter.pulled ? phase.answered : phase.unanswered;
+		log.push(...run(room, adventure, effects ?? []).log);
 		encounter.pulled = false;
 	}
-	log.push(...crack(room, adventure, encounter));
+	log.push(...openHazard(room, adventure, encounter));
 	return log;
 }
 
-/** Whoever still stands on a crack when the floor heaves is hurt, and the cracks close. */
-function heave(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+/** The hazard of the phase a fight is in. */
+function hazardOf(A: AdventureDef, encounter: Encounter): HazardDef | undefined {
+	return phaseOf(A, encounter)?.hazard;
+}
+
+/** Every hazard's prop id prefix, to clear them all. */
+function hazardPrefixes(A: AdventureDef): string[] {
+	return Object.values(A.encounters).flatMap((e) =>
+		Object.values(e.phases?.all ?? {}).flatMap((p) => (p.hazard ? [p.hazard.prefix] : []))
+	);
+}
+
+/** Whoever still stands on the hazard when it strikes is hurt, and it closes. */
+function strikeHazard(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
 	const cracks = encounter.cracks ?? [];
-	if (!cracks.length) return [];
-	const log = [say(room, TEXT.heave)];
+	const hazard = hazardOf(content(adventure), encounter);
+	if (!cracks.length || !hazard) {
+		clearHazard(room, adventure, encounter);
+		return [];
+	}
+	const log = [say(room, hazard.heaves)];
 	const on = (p: GridPos) => cracks.some((c) => c.x === p.x && c.y === p.y);
 	for (const c of standing(room, adventure)) {
 		if (!on(c.token.pos)) continue;
-		const rolled = roll('1d6', diceOf(room));
-		log.push(
-			hurt(room, c, rolled.total, `${CHARACTERS[c.id].name} is caught as the stone gives way`)
-		);
+		const rolled = roll(hazard.damage, diceOf(room));
+		log.push(hurt(room, c, rolled.total, hazard.caught.replace('{name}', c.def.name)));
 	}
-	clearCracks(room, encounter);
+	clearHazard(room, adventure, encounter);
 	return log;
 }
 
-/** New cracks open under each standing character and the cells beside them. */
-function crack(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+/** The hazard opens under each standing character and the cells beside them. */
+function openHazard(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+	const A = content(adventure);
+	const hazard = hazardOf(A, encounter);
+	if (!hazard) return [];
 	const blocked = obstacles(room);
-	const bell = objectDef('bell');
-	const bellCells = (bell && objectCells(room, bell)) ?? [];
+	const avoid = hazard.avoid ? objectDef(A, hazard.avoid) : undefined;
+	const avoided = (avoid && objectCells(room, avoid)) ?? [];
 	const cells: GridPos[] = [];
 	const add = (c: GridPos) => {
 		if (!inBounds(room.grid, c) || isSolidCell(blocked, c)) return;
 		if (room.terrain && room.terrain[c.y * room.grid.width + c.x] === 0) return;
-		if (bellCells.some((b) => b.x === c.x && b.y === c.y)) return;
+		if (avoided.some((b) => b.x === c.x && b.y === c.y)) return;
 		if (!cells.some((o) => o.x === c.x && o.y === c.y)) cells.push(c);
 	};
 	for (const c of standing(room, adventure)) {
@@ -2727,94 +2561,62 @@ function crack(room: Room, adventure: AdventureState, encounter: Encounter): Cha
 	}
 	encounter.cracks = cells;
 	for (const c of cells) {
-		const id = crackId(c);
-		room.props.set(id, { id, assetId: 'crack', pos: { ...c }, rotation: 0, scale: 1 });
+		const id = `${hazard.prefix}${c.x}-${c.y}`;
+		room.props.set(id, { id, assetId: hazard.asset, pos: { ...c }, rotation: 0, scale: 1 });
 	}
-	return cells.length ? [say(room, TEXT.cracks)] : [];
+	return cells.length ? [say(room, hazard.opens)] : [];
 }
 
-const crackId = (c: GridPos) => `ho-crack-${c.x}-${c.y}`;
-
-function clearCracks(room: Room, encounter: Encounter): void {
-	for (const c of encounter.cracks ?? []) room.props.delete(crackId(c));
+/** The hazard closes: its props leave the table. */
+function clearHazard(room: Room, adventure: AdventureState, encounter: Encounter): void {
+	const prefixes = hazardPrefixes(content(adventure));
+	for (const c of encounter.cracks ?? []) {
+		for (const prefix of prefixes) room.props.delete(`${prefix}${c.x}-${c.y}`);
+	}
 	encounter.cracks = [];
 }
 
-/** The Bell rings itself: everyone near it is hurt, its light floods the cavern, and more of the Hollow rises. */
-function selfRing(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
-	const log = [flare(room, TEXT.selfRings)];
-	const bell = objectDef('bell');
-	const bellCells = (bell && objectCells(room, bell)) ?? [];
-	const dice = diceOf(room);
-	for (const c of standing(room, adventure)) {
-		if (!bellCells.some((b) => gridDistance(b, c.token.pos) <= 5)) continue;
-		log.push(
-			hurt(room, c, roll('1d6', dice).total, `The note goes through ${CHARACTERS[c.id].name}`)
-		);
-	}
-	const cell = PIT_RING.find((c) => isFree(room, c));
-	if (cell) {
-		const token = enemyToken('tendril', cell);
-		room.tokens.set(token.id, token);
-		const hp = ENEMIES.tendril.hp(standing(room, adventure).length);
-		encounter.enemies.set(token.id, {
-			kind: 'tendril',
-			hp,
-			maxHp: hp,
-			statuses: new Map(),
-			rest: 0
-		});
-		encounter.order.push({ kind: 'enemy', tokenId: token.id, initiative: 0 });
-		log.push(say(room, 'Another tendril comes up out of the pit.'));
-	}
-	return log;
-}
-
-/** Damage from the Hollow itself (the floor, the Bell's note); at 0 the character is down. */
+/** Damage from the place itself (the floor, a great note); at 0 the character is down. */
 function hurt(room: Room, c: Played, amount: number, what: string): ChatMessage {
 	c.state.hp = Math.max(0, c.state.hp - amount);
 	const down = c.state.hp === 0;
 	if (down) c.state.downedFor = 0;
-	return say(room, `${what}: ${amount} damage.${down ? ` ${CHARACTERS[c.id].name} falls!` : ''}`);
+	return say(room, `${what}: ${amount} damage.${down ? ` ${c.def.name} falls!` : ''}`);
+}
+
+/** The counter of the phase a fight is in, if it has one. */
+export function counterOf(
+	adventure: AdventureState
+): { label: string; count: number; of: number } | null {
+	const encounter = adventure.encounter;
+	const counter = encounter && phaseOf(content(adventure), encounter)?.counter;
+	return counter && encounter
+		? { label: counter.label, count: encounter.pulls ?? 0, of: counter.target }
+		: null;
 }
 
 /**
- * A pull on the Bell's rope (or the hand bell answering it): the Bell can't
- * ring itself this round, and the third pull holds it: the tendrils sink,
- * the cracks close, and the choice of what becomes of the Bell follows.
+ * One step toward the counter of the phase a fight is in (a pull on a rope):
+ * the round is answered, and at its target the counter's effects happen, the
+ * foes are gone, the hazard closes, and the fight is won. With no counter
+ * running, `otherwise` is said.
  */
-function pull(room: Room, adventure: AdventureState, text: string): Outcome {
+function count(room: Room, adventure: AdventureState, text: string, otherwise?: string): Outcome {
 	const encounter = adventure.encounter;
-	if (encounter?.finale !== 'ringing') return { log: [say(room, TEXT.strains)] };
+	const counter = encounter && phaseOf(content(adventure), encounter)?.counter;
+	if (!encounter || !counter) return { log: otherwise ? [say(room, otherwise)] : [] };
 	encounter.pulls = (encounter.pulls ?? 0) + 1;
 	encounter.pulled = true;
-	const log = [say(room, `${text} (${encounter.pulls} of ${PULLS_TO_HOLD})`)];
-	if (encounter.pulls < PULLS_TO_HOLD) return { log };
-	log.push(say(room, TEXT.held));
+	const log = [say(room, `${text} (${encounter.pulls} of ${counter.target})`)];
+	if (encounter.pulls < counter.target) return { log };
+	let outcome = merge({ log }, run(room, adventure, counter.reached));
 	for (const tokenId of [...encounter.enemies.keys()]) {
 		encounter.enemies.delete(tokenId);
 		room.tokens.delete(tokenId);
 	}
-	clearCracks(room, encounter);
-	const rope = objectDef('bell-rope');
-	if (rope) setObjectState(room, adventure, rope, 'used');
-	return merge({ log }, victory(room, adventure));
-}
-
-/** How a choice reads now, given what the party did and knows. */
-export function optionLabel(
-	adventure: AdventureState,
-	decision: DecisionId,
-	option: { id: string; label: string }
-): string {
-	if (decision !== 'bell') return option.label;
-	if (option.id === 'silence' && adventure.decisions.get('promise')?.option === 'silence') {
-		return 'Silence the Bell, as you promised Oswin';
-	}
-	if (option.id === 'use' && adventure.events.includes('learned_rule')) {
-		return 'Use the Bell: ring it as the ringers did, and speak to what is below';
-	}
-	return option.label;
+	clearHazard(room, adventure, encounter);
+	outcome = merge(outcome, victory(room, adventure));
+	return outcome;
 }
 
 // ---------------------------------------------------------------------------
@@ -2833,7 +2635,7 @@ export function readCue(room: Room, actor: Player, cueId: string): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
 	if (actor.role !== 'gm') return GM_ONLY;
-	const cue = CUES.find((c) => c.id === cueId);
+	const cue = content(adventure).cues.find((c) => c.id === cueId);
 	if (!cue) return fail('invalid_message', 'There is no such passage.');
 	adventure.cuesRead.add(cue.id);
 	return { ok: true, log: [say(room, cue.text)] };
@@ -2862,7 +2664,12 @@ export function control(
 			room.adventure = null;
 			return {
 				ok: true,
-				log: [postSystem(room, `${actor.name} ended ${TITLE}. The table stays as it is.`)]
+				log: [
+					postSystem(
+						room,
+						`${actor.name} ended ${content(adventure).title}. The table stays as it is.`
+					)
+				]
 			};
 	}
 }
@@ -2884,46 +2691,41 @@ export function askAgain(room: Room, actor: Player): Outcomes {
 	return { ok: true, log: [postSystem(room, `${actor.name} would like to play again.`)] };
 }
 
-/** Starts the story over in Bellweather; everyone keeps their character, back on the road at full health. */
+/** Starts the story over at its first table; everyone keeps their character, back at the start at full health. */
 function restart(room: Room, adventure: AdventureState, actor: Player, now: number): Outcome {
+	const A = content(adventure);
 	const keep = played(room, adventure).map((c) => ({ id: c.id, ownerId: c.token.ownerId }));
 	const begun = adventure.stage !== 'choosing';
-	applyScene(room, LOCATIONS.bellweather.scene());
-	const next = newState(room);
+	applyScene(room, A.locations[A.start.location].scene());
+	const next = newState(A, room);
 	for (const { id, ownerId } of keep) {
 		const owner = ownerId && room.players.get(ownerId);
 		const token = placeCharacter(
 			room,
+			A,
 			next.location,
 			id,
 			owner && owner.role === 'player' ? owner.id : null
 		);
-		if (token) next.characters.set(id, newCharacter(token.id, id));
+		if (token) next.characters.set(id, newCharacter(token.id, A.characters[id]));
 	}
 	room.adventure = next;
 	const log = [postSystem(room, `${actor.name} started the story over.`)];
-	if (begun) {
-		next.stage = 'playing';
-		next.begunAt = now;
-		log.push(shoot(say(room, TEXT.arrival), SHOTS.firstBell));
-		firstGlimpse(room);
-	}
-	return { reset: true, log };
+	if (!begun) return { reset: true, log };
+	next.stage = 'playing';
+	next.begunAt = now;
+	return merge({ reset: true, log }, run(room, next, A.start.arrival, { now }));
 }
 
 /** GM: sets a character's hit points and statuses, or brings them back from the dead. */
-export function override(
-	room: Room,
-	actor: Player,
-	id: CharacterId,
-	patch: CharacterPatch
-): Outcomes {
+export function override(room: Room, actor: Player, id: string, patch: CharacterPatch): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
 	if (actor.role !== 'gm') return GM_ONLY;
 	const c = played(room, adventure).find((p) => p.id === id);
-	if (!c) return fail('token_not_found', `${CHARACTERS[id].name} is not in play.`);
-	const def = CHARACTERS[id];
+	const def = c?.def;
+	if (!c || !def)
+		return fail('token_not_found', `${def?.name ?? 'That character'} is not in play.`);
 	const changes: string[] = [];
 	if (patch.revive && c.state.dead) {
 		c.state.dead = false;
@@ -2981,57 +2783,62 @@ export function direct(
 
 /** The events the GM may still make happen, and the fights that can start where the party is. */
 export function directorOptions(room: Room, adventure: AdventureState): DirectorView {
+	const A = content(adventure);
 	const encounter = adventure.encounter;
 	const foes = [
 		...[...(encounter?.enemies ?? [])].map(([tokenId, e]) => ({
 			tokenId,
-			name: ENEMIES[e.kind].name,
+			name: A.enemies[e.kind]?.name ?? e.kind,
 			hp: e.hp,
 			maxHp: e.maxHp
 		})),
 		...[...adventure.sentries].map(([tokenId, s]) => ({
 			tokenId,
-			name: ENEMIES[s.kind].name,
+			name: A.enemies[s.kind]?.name ?? s.kind,
 			hp: null,
 			maxHp: null
 		}))
 	].filter((f) => room.tokens.has(f.tokenId));
-	const people = NPC_IDS.flatMap((id) => {
-		const npc = NPCS[id];
+	const people = Object.values(A.npcs).flatMap((npc) => {
 		const token = npc.location === adventure.location ? room.tokens.get(npc.token) : undefined;
 		return token ? [{ tokenId: token.id, name: npc.name }] : [];
 	});
 	return {
 		foes,
 		people,
-		events: EVENT_IDS.filter((e) => !adventure.events.includes(e)).map((id) => ({
-			id,
-			label: EVENT_LABELS[id]
-		})),
-		encounters: ENCOUNTER_IDS.filter((id) => {
-			const where = ENCOUNTER_INFO[id].location;
-			return where === null || where === adventure.location;
-		}).map((id) => ({
-			id,
-			name: ENCOUNTER_INFO[id].name,
-			state: adventure.encounters.get(id) ?? null
-		})),
-		enemies: ENEMY_KINDS.map((kind) => ({ kind, name: ENEMIES[kind].name })),
+		events: Object.entries(A.events)
+			.filter(([id]) => !adventure.events.includes(id))
+			.map(([id, e]) => ({ id, label: e.label })),
+		encounters: encounterIds(A).flatMap((id) => {
+			const def = encounterDef(A, id)!;
+			if (def.location !== null && def.location !== adventure.location) return [];
+			return [{ id, name: def.name, state: adventure.encounters.get(id) ?? null }];
+		}),
+		enemies: Object.entries(A.enemies).map(([kind, e]) => ({ kind, name: e.name })),
 		skip: skipTo(adventure)
 	};
+}
+
+/** The event a fight's phase raises when its foes are down, if it raises one. */
+function clearedEvent(A: AdventureDef, encounter: Encounter): string | null {
+	const cleared = phaseOf(A, encounter)?.cleared;
+	return cleared && cleared !== 'continue' ? cleared.event : null;
 }
 
 /** Where skipping leads from here, or null when it can't. */
 function skipTo(adventure: AdventureState): string | null {
 	if (adventure.stage !== 'playing') return null;
-	if (adventure.encounter) {
-		return adventure.encounter.finale === 'waking'
-			? CHAPTERS.the_ringing.title
-			: `Win the fight (${ENCOUNTER_INFO[adventure.encounter.id].name})`;
+	const A = content(adventure);
+	const encounter = adventure.encounter;
+	if (encounter) {
+		const event = clearedEvent(A, encounter);
+		const to = event ? transition(A, adventure.chapter, event) : undefined;
+		if (to) return A.chapters[to].title;
+		return `Win the fight (${encounterDef(A, encounter.id)?.name ?? encounter.id})`;
 	}
 	if (adventure.pending) return null;
-	const next = CHAPTERS[adventure.chapter].next.to;
-	return next ? CHAPTERS[next].title : 'The ending';
+	const next = A.chapters[adventure.chapter].next.to;
+	return next ? A.chapters[next].title : 'The ending';
 }
 
 /** The GM makes something in the story happen, as if the party had done it. */
@@ -3039,32 +2846,35 @@ function raise(
 	room: Room,
 	adventure: AdventureState,
 	actor: Player,
-	raw: string,
+	event: string,
 	now: number
 ): Outcomes {
-	const event = EVENT_IDS.find((e) => e === raw);
-	if (!event) return fail('invalid_message', 'There is no such event in this story.');
+	const def = Object.hasOwn(content(adventure).events, event)
+		? content(adventure).events[event]
+		: undefined;
+	if (!def) return fail('invalid_message', 'There is no such event in this story.');
 	if (adventure.events.includes(event)) return fail('forbidden', 'That has already happened.');
-	const log = [postSystem(room, `${actor.name} made it happen: ${EVENT_LABELS[event]}.`, 'gm')];
+	const log = [postSystem(room, `${actor.name} made it happen: ${def.label}.`, 'gm')];
 	return { ok: true, ...merge({ log }, settleAndHappen(room, adventure, event, now)) };
 }
 
 /**
- * An event raised by the GM that a fight would have raised (the Hound
- * beaten, say): that fight counts as won, and its enemies leave the table.
+ * An event raised by the GM that a fight would have raised (a beast beaten,
+ * say): that fight counts as won, and its enemies leave the table.
  */
 function settleAndHappen(
 	room: Room,
 	adventure: AdventureState,
-	event: EventId,
+	event: string,
 	now: number
 ): Outcome {
-	for (const id of ENCOUNTER_IDS) {
-		if (WON[id].event !== event || adventure.encounters.get(id) === 'won') continue;
+	const A = content(adventure);
+	for (const id of Object.keys(A.encounters)) {
+		if (A.encounters[id].won?.event !== event || adventure.encounters.get(id) === 'won') continue;
 		const encounter = adventure.encounter;
 		if (encounter?.id === id) {
 			for (const tokenId of encounter.enemies.keys()) room.tokens.delete(tokenId);
-			clearCracks(room, encounter);
+			clearHazard(room, adventure, encounter);
 			adventure.encounter = null;
 		}
 		for (const [tokenId, sentry] of [...adventure.sentries]) {
@@ -3078,9 +2888,10 @@ function settleAndHappen(
 }
 
 /**
- * On to the next scene. In a fight, the fight is won (in the Hollow's
- * waking, the Bell starts ringing itself); otherwise the event the chapter
- * waits for happens. A choice put to the party must be answered first.
+ * On to the next scene. In a fight, the fight is won (or, in a phase whose
+ * foes down would raise an event, that event happens); otherwise the event
+ * the chapter waits for happens. A choice put to the party must be answered
+ * first.
  */
 function skip(room: Room, adventure: AdventureState, actor: Player, now: number): Outcomes {
 	const encounter = adventure.encounter;
@@ -3088,11 +2899,10 @@ function skip(room: Room, adventure: AdventureState, actor: Player, now: number)
 		return fail('forbidden', 'The party has a choice to make first: answer it, or let them.');
 	}
 	const log = [postSystem(room, `${actor.name} skipped ahead.`)];
-	if (encounter?.finale === 'waking') {
-		return { ok: true, ...merge({ log }, happen(room, adventure, 'bell_rings_itself', now)) };
-	}
+	const event = encounter && clearedEvent(content(adventure), encounter);
+	if (event) return { ok: true, ...merge({ log }, happen(room, adventure, event, now)) };
 	if (encounter) return { ok: true, ...merge({ log }, winFight(room, adventure, encounter, now)) };
-	const next = CHAPTERS[adventure.chapter].next.on;
+	const next = content(adventure).chapters[adventure.chapter].next.on;
 	return { ok: true, ...merge({ log }, settleAndHappen(room, adventure, next, now)) };
 }
 
@@ -3103,39 +2913,36 @@ function winFight(
 	encounter: Encounter,
 	now: number
 ): Outcome {
-	// The Hollow's waking is won by holding the Bell, once it has started ringing.
-	let outcome: Outcome =
-		encounter.finale === 'waking' ? happen(room, adventure, 'bell_rings_itself', now) : { log: [] };
+	// A phase whose foes down would raise an event raises it first (the Bell starts ringing).
+	const event = clearedEvent(content(adventure), encounter);
+	let outcome: Outcome = event ? happen(room, adventure, event, now) : { log: [] };
 	for (const tokenId of [...encounter.enemies.keys()]) {
 		const token = room.tokens.get(tokenId);
 		if (token) enemyDies(room, encounter, token);
 		else encounter.enemies.delete(tokenId);
 	}
-	if (encounter.finale) {
-		clearCracks(room, encounter);
-		const rope = objectDef('bell-rope');
-		if (rope) setObjectState(room, adventure, rope, 'used');
-	}
+	clearHazard(room, adventure, encounter);
 	outcome = merge(outcome, victory(room, adventure));
 	return outcome;
 }
 
 /** Whether a fight has anyone to fight: foes of its own, or sentries of it on the table. */
-function hasFoes(room: Room, adventure: AdventureState, id: EncounterId): boolean {
+function hasFoes(room: Room, adventure: AdventureState, id: string): boolean {
 	return (
-		ENCOUNTERS[id].foes.length > 0 ||
+		(encounterDef(content(adventure), id)?.foes.length ?? 0) > 0 ||
 		[...adventure.sentries].some(([tokenId, s]) => s.encounter === id && room.tokens.has(tokenId))
 	);
 }
 
 /** The GM starts one of the story's fights (or the GM's own, with the enemies on the table). */
-function beginFight(room: Room, adventure: AdventureState, actor: Player, raw: string): Outcomes {
-	const id = ENCOUNTER_IDS.find((e) => e === raw);
-	if (!id) return fail('invalid_message', 'There is no such fight in this story.');
+function beginFight(room: Room, adventure: AdventureState, actor: Player, id: string): Outcomes {
+	const A = content(adventure);
+	const def = encounterIds(A).includes(id) ? encounterDef(A, id) : undefined;
+	if (!def) return fail('invalid_message', 'There is no such fight in this story.');
 	if (adventure.encounter) return fail('forbidden', 'A fight is already on.');
-	const where = ENCOUNTER_INFO[id].location;
+	const where = def.location;
 	if (where && where !== adventure.location) {
-		return fail('forbidden', `That fight is fought at ${LOCATIONS[where].name}.`);
+		return fail('forbidden', `That fight is fought at ${A.locations[where].name}.`);
 	}
 	if (standing(room, adventure).length === 0) {
 		return fail('forbidden', 'Nobody in the party is standing to fight.');
@@ -3167,9 +2974,8 @@ function endFight(
 	}
 	const log = [postSystem(room, `${actor.name} called off the fight.`)];
 	for (const tokenId of encounter.enemies.keys()) room.tokens.delete(tokenId);
-	clearCracks(room, encounter);
-	const rope = objectDef('bell-rope');
-	if (encounter.finale && rope) setObjectState(room, adventure, rope, rope.initial);
+	clearHazard(room, adventure, encounter);
+	const undo = encounterDef(content(adventure), encounter.id)?.calledOff ?? [];
 	adventure.encounter = null;
 	adventure.encounters.delete(encounter.id);
 	for (const c of played(room, adventure)) {
@@ -3180,7 +2986,7 @@ function endFight(
 		c.state.statuses.clear();
 		c.state.uses.clear();
 	}
-	return { ok: true, log };
+	return { ok: true, ...merge({ log }, run(room, adventure, undo, { now })) };
 }
 
 /**
@@ -3193,22 +2999,22 @@ function spawn(
 	room: Room,
 	adventure: AdventureState,
 	actor: Player,
-	raw: string,
+	kind: string,
 	pos: GridPos
 ): Outcomes {
-	const kind = ENEMY_KINDS.find((k) => k === raw);
-	if (!kind) return fail('invalid_message', 'There is no such enemy in this story.');
+	const A = content(adventure);
+	const def = Object.hasOwn(A.enemies, kind) ? A.enemies[kind] : undefined;
+	if (!def) return fail('invalid_message', 'There is no such enemy in this story.');
 	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the table.');
 	if (!isFree(room, pos)) return fail('cell_occupied', 'Something is already there.');
-	const def = ENEMIES[kind];
 	const log = [postSystem(room, `${actor.name} brought on ${def.name}.`, 'gm')];
-	const token = enemyToken(kind, pos);
+	const token = enemyToken(A, kind, pos);
 	room.tokens.set(token.id, token);
 	const encounter = adventure.encounter;
 	if (!encounter) {
-		adventure.sentries.set(token.id, { kind, encounter: 'ambush', route: [{ ...pos }], leg: 0 });
+		adventure.sentries.set(token.id, { kind, encounter: AMBUSH, route: [{ ...pos }], leg: 0 });
 		// Placed ones may be looked for again: the GM's fight is fought as often as the GM likes.
-		if (adventure.encounters.get('ambush') !== 'active') adventure.encounters.delete('ambush');
+		if (adventure.encounters.get(AMBUSH) !== 'active') adventure.encounters.delete(AMBUSH);
 		const spotted = room.paused ? null : detect(room, adventure);
 		return { ok: true, ...(spotted ? merge({ log }, spotted) : { log }) };
 	}

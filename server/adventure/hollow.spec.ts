@@ -34,9 +34,10 @@ import {
 	TERRACE,
 	TOBIN_AT,
 	WATCH
-} from './hollow';
-import { MONASTERY_GRID } from './monastery';
-import { recordOrigins } from './objects';
+} from '../adventures/hollow-bell/hollow';
+import { MONASTERY_GRID } from '../adventures/hollow-bell/monastery';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import { recordOrigins } from './world';
 import { adventureView } from './view';
 
 function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
@@ -79,7 +80,7 @@ function arrive() {
 	});
 	story().location = 'hollow';
 	story().chapter = 'descend';
-	story().origins = recordOrigins(room);
+	story().origins = recordOrigins(HOLLOW_BELL, room);
 }
 
 describe('the Hollow', () => {

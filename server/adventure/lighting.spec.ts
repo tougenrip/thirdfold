@@ -24,7 +24,7 @@ import {
 	HOLLOW_SPAWN,
 	hollowScene,
 	TORCH_AT as HOLLOW_TORCH
-} from './hollow';
+} from '../adventures/hollow-bell/hollow';
 import {
 	CARVINGS_AT,
 	CHAMBER,
@@ -32,8 +32,9 @@ import {
 	MONASTERY_SPAWN,
 	monasteryScene,
 	TORCH_AT
-} from './monastery';
-import { recordOrigins } from './objects';
+} from '../adventures/hollow-bell/monastery';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import { recordOrigins } from './world';
 
 const max: DieRoller = (sides) => sides;
 
@@ -87,7 +88,7 @@ function at(
 	});
 	story().location = where;
 	story().chapter = where === 'monastery' ? 'enter_monastery' : 'the_hollow';
-	story().origins = recordOrigins(room);
+	story().origins = recordOrigins(HOLLOW_BELL, room);
 }
 
 /** A GM-only figure standing somewhere, like a lurking enemy. */

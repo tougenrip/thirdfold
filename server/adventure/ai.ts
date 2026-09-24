@@ -1,4 +1,4 @@
-// How The Hollow Bell's enemies decide what to do. Pure and deterministic:
+// How an adventure's enemies decide what to do. Pure and deterministic:
 // given what an enemy knows (where it is, what it can see, how hurt it is,
 // who it was after), each function returns a plan (where to walk, and what
 // to do at the end of it). engine.ts builds the situation from the table and
@@ -9,20 +9,22 @@
 // beside it). What an enemy can't see it can't target; it goes where it last
 // saw someone instead.
 
-import type { CharacterId, Attack } from '../../src/lib/adventure/characters';
+import type { Attack } from '../../src/lib/adventure/characters';
 import { gridDistance, type GridPos, type SquareGrid } from '../../src/lib/game/grid';
 import { findPath, type Obstacles } from '../../src/lib/game/objects';
 import { sees, type CellMask } from '../../src/lib/game/visibility';
 import { inAttackRange } from '../../src/lib/adventure/adventure';
-import { ENEMIES, type EnemyKind } from './enemies';
+import type { EnemyDef } from './define';
 
-/** How far the Bell Keeper will stray from its post by the Bell. */
+type CharacterId = string;
+
+/** How far a guardian will stray from its post. */
 export const LEASH = 4;
-/** The Keeper goes first for anyone this close to the Bell. */
-export const BELL_GUARD = 2;
-/** A cultist this hurt (a third of its hit points or less) falls back when cornered. */
+/** A guardian goes first for anyone this close to what it guards. */
+export const WARD_GUARD = 2;
+/** A skirmisher this hurt (a third of its hit points or less) falls back when cornered. */
 export const RETREAT_AT = 1 / 3;
-/** A hound leaves its prey for another this many steps closer. */
+/** A rusher leaves its prey for another this many steps closer. */
 export const SWITCH_BY = 3;
 
 /** A standing character as an enemy sees the table. */
@@ -41,13 +43,15 @@ export interface Situation {
 	foes: readonly Foe[];
 	/** Whether this enemy may walk into a cell (no one else standing there). */
 	free: (c: GridPos) => boolean;
-	/** The Bell, where there is one: its cells, and whether someone has laid hands on it. */
-	bell: { cells: readonly GridPos[]; touched: boolean } | null;
+	/** What guardians guard, where there is one: its cells, and whether someone has laid hands on it. */
+	ward: { cells: readonly GridPos[]; touched: boolean } | null;
+	/** The adventure's enemies, by kind. */
+	enemies: Readonly<Record<string, EnemyDef>>;
 }
 
 /** What an enemy knows about itself. */
 export interface Self {
-	kind: EnemyKind;
+	kind: string;
 	pos: GridPos;
 	hp: number;
 	maxHp: number;
@@ -61,7 +65,7 @@ export interface Self {
 	lastHitBy?: CharacterId;
 	/** Where it last saw a character. */
 	lastSeen?: GridPos;
-	/** Where it stands guard (the Keeper). */
+	/** Where it stands guard (a guardian). */
 	post?: GridPos;
 }
 
@@ -78,13 +82,13 @@ export interface Plan {
 	target?: CharacterId;
 	/** Where it last saw someone, after this turn. */
 	lastSeen?: GridPos;
-	/** Said to the table, e.g. a hound turning on someone new. */
+	/** Said to the table, e.g. turning on someone new. */
 	note?: string;
 }
 
 /** The characters this enemy can see (and anyone right beside it: it hears and feels them). */
 export function seenBy(situation: Situation, self: Pick<Self, 'kind' | 'pos'>): Foe[] {
-	const vision = ENEMIES[self.kind].vision;
+	const vision = situation.enemies[self.kind].vision;
 	return situation.foes.filter(
 		(f) =>
 			gridDistance(self.pos, f.pos) <= 1 ||
@@ -114,24 +118,25 @@ function pathTo(situation: Situation, from: GridPos, to: GridPos): GridPos[] {
 
 /** What an enemy does on its turn in a fight. */
 export function plan(situation: Situation, self: Self): Plan {
-	switch (ENEMIES[self.kind].behavior) {
+	switch (situation.enemies[self.kind].behavior) {
 		case 'rush':
-			return hound(situation, self);
+			return rush(situation, self);
 		case 'skirmish':
-			return cultist(situation, self);
+			return skirmish(situation, self);
 		case 'guardian':
-			return keeper(situation, self);
+			return guardian(situation, self);
 		case 'grasp':
 			return grasp(situation, self);
 	}
 }
 
 /**
- * A tendril or the Hollow's Hand: rooted where it rose, it seizes whoever is
- * in reach, the weakest first. It needs no light: it feels them through the stone.
+ * Grasping (The Hollow Bell's tendrils and the Hand): rooted where it rose,
+ * it seizes whoever is in reach, the weakest first. It needs no light: it
+ * feels them through the stone.
  */
 function grasp(situation: Situation, self: Self): Plan {
-	const [attack] = ENEMIES[self.kind].attacks;
+	const [attack] = situation.enemies[self.kind].attacks;
 	const inReach = situation.foes.filter((f) =>
 		inAttackRange(situation.blocked, self.pos, f.pos, attack.range)
 	);
@@ -161,13 +166,13 @@ function search(situation: Situation, self: Self, home?: GridPos): Plan {
 }
 
 /**
- * The Hollow Hound: chases what it can see and bites. It keeps after its
- * prey, but turns on whoever hurt it last, or on someone much closer.
+ * Rushing (the Hollow Hound): chases what it can see and bites. It keeps
+ * after its prey, but turns on whoever hurt it last, or on someone much closer.
  */
-function hound(situation: Situation, self: Self): Plan {
+function rush(situation: Situation, self: Self): Plan {
 	const seen = seenBy(situation, self);
 	if (seen.length === 0) return search(situation, self);
-	const melee = ENEMIES.hound.attacks[0];
+	const melee = situation.enemies[self.kind].attacks[0];
 	const routes = new Map(
 		seen.flatMap((f) => {
 			const path = pathToward(situation, self.pos, f.pos);
@@ -206,11 +211,12 @@ function hound(situation: Situation, self: Self): Plan {
 }
 
 /**
- * The Bell Cultist: slings from range and knifes whoever gets beside it.
- * Badly hurt and cornered, it falls back first and slings from there.
+ * Skirmishing (the Bell Cultist): slings from range (its second attack) and
+ * knifes whoever gets beside it (its first). Badly hurt and cornered, it
+ * falls back first and slings from there.
  */
-function cultist(situation: Situation, self: Self): Plan {
-	const [knife, sling] = ENEMIES.cultist.attacks;
+function skirmish(situation: Situation, self: Self): Plan {
+	const [knife, sling] = situation.enemies[self.kind].attacks;
 	const seen = seenBy(situation, self);
 	if (seen.length === 0) return search(situation, self);
 	const { blocked } = situation;
@@ -301,19 +307,19 @@ function fallBack(
 }
 
 /**
- * The Bell Keeper: guards its post by the Bell and never strays more than
- * LEASH cells from it. It goes first for anyone near the Bell, tolls when
- * the party crowds it (every other turn; every turn once someone has laid
- * hands on the Bell), and otherwise hammers. With nobody to fight, it goes
- * back to its post.
+ * Guarding (the Bell Keeper): keeps to its post by what it guards (the
+ * adventure's ward) and never strays more than LEASH cells from it. It goes
+ * first for anyone near the ward, tolls when the party crowds it (when
+ * rested; every turn once someone has laid hands on the ward), and otherwise
+ * strikes. With nobody to fight, it goes back to its post.
  */
-function keeper(situation: Situation, self: Self): Plan {
-	const def = ENEMIES.keeper;
+function guardian(situation: Situation, self: Self): Plan {
+	const def = situation.enemies[self.kind];
 	const toll = def.toll!;
 	const post = self.post ?? self.pos;
 	const seen = seenBy(situation, self);
-	const enraged = !!situation.bell?.touched;
-	// Crowded: toll, when it is ready (or the Bell has been touched).
+	const enraged = !!situation.ward?.touched;
+	// Crowded: toll, when it is ready (or the ward has been touched).
 	const near = seen.filter(
 		(f) =>
 			gridDistance(self.pos, f.pos) <= toll.range &&
@@ -324,13 +330,13 @@ function keeper(situation: Situation, self: Self): Plan {
 	}
 	const inGround = seen.filter((f) => gridDistance(post, f.pos) <= LEASH + 1);
 	if (inGround.length === 0) return search(situation, { ...self, lastSeen: undefined }, post);
-	// Anyone near the Bell first, then the nearest.
-	const bellDistance = (f: Foe) =>
-		situation.bell
-			? Math.min(...situation.bell.cells.map((c) => gridDistance(c, f.pos)))
+	// Anyone near the ward first, then the nearest.
+	const wardDistance = (f: Foe) =>
+		situation.ward
+			? Math.min(...situation.ward.cells.map((c) => gridDistance(c, f.pos)))
 			: Infinity;
-	const byBell = inGround.filter((f) => bellDistance(f) <= BELL_GUARD);
-	const pool = byBell.length ? byBell : inGround;
+	const byWard = inGround.filter((f) => wardDistance(f) <= WARD_GUARD);
+	const pool = byWard.length ? byWard : inGround;
 	const target = pool.reduce((a, b) =>
 		gridDistance(self.pos, b.pos) < gridDistance(self.pos, a.pos) ? b : a
 	);

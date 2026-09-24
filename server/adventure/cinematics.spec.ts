@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { ChatMessage, Shot } from '../../src/lib/game/chat';
 import type { DieRoller } from '../../src/lib/game/dice';
 import { RoomManager, type Player, type Room } from '../rooms';
-import { MOUNTAIN_PATH } from './bellweather';
+import { MOUNTAIN_PATH } from '../adventures/hollow-bell/bellweather';
 import {
 	beginAdventure,
 	characterOf,
@@ -10,14 +10,20 @@ import {
 	decide,
 	direct,
 	interact,
-	SHOTS,
 	startAdventure
 } from './engine';
-import { PIT_AT } from './hollow';
-import { BELL_AT as TOWER_BELL, MONASTERY_SPAWN, monasteryScene, SECRET_EDGE } from './monastery';
+import { PIT_AT } from '../adventures/hollow-bell/hollow';
+import {
+	BELL_AT as TOWER_BELL,
+	MONASTERY_SPAWN,
+	monasteryScene,
+	SECRET_EDGE
+} from '../adventures/hollow-bell/monastery';
 import { applyScene } from '../scene-io';
-import { recordOrigins } from './objects';
-import { DECISIONS } from './story';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import { recordOrigins } from './world';
+import { DECISIONS } from '../adventures/hollow-bell/story';
+import { SHOTS } from '../adventures/hollow-bell/shots';
 
 const max: DieRoller = (sides) => sides;
 
@@ -65,7 +71,7 @@ describe('cinematic moments', () => {
 			room.tokens.set(t.id, t);
 		});
 		Object.assign(room.adventure!, { location: 'monastery', chapter: 'enter_monastery' });
-		room.adventure!.origins = recordOrigins(room);
+		room.adventure!.origins = recordOrigins(HOLLOW_BELL, room);
 		const agna = [...room.props.values()].find((p) => p.assetId === 'statue')!;
 		characterOf(room, ana.id)!.token.pos = { x: agna.pos.x + 1, y: agna.pos.y };
 		const turned = ok(interact(room, ana, 'agna', 'turn'));
@@ -80,7 +86,14 @@ describe('cinematic moments', () => {
 			const pending = room.adventure!.pending;
 			const out = pending
 				? ok(
-						decide(room, gm, pending, pending === 'bell' ? 'use' : DECISIONS[pending].options[0].id)
+						decide(
+							room,
+							gm,
+							pending,
+							pending === 'bell'
+								? 'use'
+								: DECISIONS[pending as keyof typeof DECISIONS].options[0].id
+						)
 					)
 				: ok(direct(room, gm, { op: 'skip' }));
 			seen.push(...shots(out.log));

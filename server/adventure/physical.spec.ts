@@ -15,8 +15,13 @@ import {
 	setObject,
 	startAdventure
 } from './engine';
-import { MONASTERY_IDS, MONASTERY_SPAWN, monasteryScene } from './monastery';
-import { recordOrigins } from './objects';
+import {
+	MONASTERY_IDS,
+	MONASTERY_SPAWN,
+	monasteryScene
+} from '../adventures/hollow-bell/monastery';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import { recordOrigins } from './world';
 import { readAdventure, saveAdventure } from './persist';
 import { adventureView } from './view';
 
@@ -42,7 +47,7 @@ function atMonastery(): void {
 	});
 	story().location = 'monastery';
 	story().chapter = 'enter_monastery';
-	story().origins = recordOrigins(room);
+	story().origins = recordOrigins(HOLLOW_BELL, room);
 }
 
 beforeEach(() => {

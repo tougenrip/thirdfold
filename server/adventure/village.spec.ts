@@ -7,7 +7,7 @@ import { parseSceneFile } from '../../src/lib/game/scene-file';
 import { RoomManager, type Player, type Room } from '../rooms';
 import { obstacles } from '../scene';
 import { exportScene } from '../scene-io';
-import { bellweatherScene, SPAWN, WELL_RING } from './bellweather';
+import { bellweatherScene, SPAWN, WELL_RING } from '../adventures/hollow-bell/bellweather';
 import {
 	afterTokenDeleted,
 	beginAdventure,
@@ -17,8 +17,8 @@ import {
 	objectCells,
 	startAdventure
 } from './engine';
-import { NPC_IDS, NPCS, REACTIONS, type NpcId } from './npcs';
-import { OBJECTS } from './objects';
+import { NPC_IDS, NPCS, REACTIONS, type NpcId } from '../adventures/hollow-bell/npcs';
+import { OBJECTS } from '../adventures/hollow-bell/objects';
 import { readAdventure } from './persist';
 
 function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {

@@ -8,7 +8,8 @@
 // if the party breaks the Bell, its Hand comes up after them. Stat blocks
 // here; the rules that use them run in engine.ts.
 
-import type { Attack } from '../../src/lib/adventure/characters';
+import type { EnemyDef } from '../../adventure/define';
+import { TEXT } from './content';
 
 export type EnemyKind = 'hound' | 'cultist' | 'keeper' | 'tendril' | 'hand' | 'heart';
 
@@ -20,40 +21,6 @@ export const ENEMY_KINDS: readonly EnemyKind[] = [
 	'hand',
 	'heart'
 ];
-
-/** How an enemy chooses what to do on its turn. */
-export type Behavior =
-	/** Close on the nearest standing character and attack. */
-	| 'rush'
-	/** Stay at range and use the ranged attack; melee only when someone is beside it. */
-	| 'skirmish'
-	/** Close in slowly; toll the bell when characters crowd it. */
-	| 'guardian'
-	/** Rooted where it rose: seize whoever is in reach, the weakest first. */
-	| 'grasp';
-
-export interface EnemyDef {
-	/** The figure it is drawn as (a model in assets/models/enemy). */
-	model: string;
-	kind: EnemyKind;
-	name: string;
-	/** Token colour, `#rrggbb`. */
-	color: string;
-	armor: number;
-	speed: number;
-	vision: number;
-	/** Light it carries, in cells (a cultist's lantern); 0 for none. */
-	light: number;
-	/** Added to its d20 for initiative. */
-	initiative: number;
-	/** Hit points for a party of this many characters. */
-	hp: (characters: number) => number;
-	/** The first is its melee attack; a second, longer one is ranged. */
-	attacks: readonly Attack[];
-	behavior: Behavior;
-	/** The Keeper's toll: damage and a status to everyone standing within `range`, then a rest. */
-	toll?: { range: number; damage: string; rounds: number; every: number };
-}
 
 const party = (n: number) => Math.max(1, n);
 
@@ -102,7 +69,14 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 		hp: (n) => 20 + 10 * party(n),
 		attacks: [{ name: 'Bell hammer', range: 1, toHit: 5, damage: '1d10+2' }],
 		behavior: 'guardian',
-		toll: { range: 2, damage: '1d4', rounds: 1, every: 2 }
+		toll: {
+			range: 2,
+			damage: '1d4',
+			rounds: 1,
+			every: 2,
+			text: TEXT.keeperToll,
+			flash: TEXT.tollFlash
+		}
 	},
 	tendril: {
 		kind: 'tendril',

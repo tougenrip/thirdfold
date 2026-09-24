@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CHAPTER_IDS } from '../../src/lib/adventure/adventure';
+import type { AdventureStage } from '../../src/lib/adventure/adventure';
 import { CHARACTERS } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import { isReachable } from '../../src/lib/game/objects';
@@ -8,7 +8,7 @@ import { parseSceneFile, type SavedStory } from '../../src/lib/game/scene-file';
 import { RoomManager, type Player, type Room } from '../rooms';
 import { obstacles } from '../scene';
 import { applyScene, exportScene } from '../scene-io';
-import { EXIT } from './bellweather';
+import { EXIT } from '../adventures/hollow-bell/bellweather';
 import {
 	act,
 	afterMove,
@@ -21,10 +21,11 @@ import {
 	interact,
 	pendingMechanisms,
 	runMechanism,
-	startAdventure
+	startAdventure,
+	transition
 } from './engine';
-import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './hollow';
-import { LOCATIONS } from './locations';
+import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from '../adventures/hollow-bell/hollow';
+import { LOCATIONS } from '../adventures/hollow-bell/locations';
 import {
 	CHAMBER,
 	LEVER_AT,
@@ -34,10 +35,16 @@ import {
 	NAVE,
 	SECRET_EDGE,
 	STAIR
-} from './monastery';
+} from '../adventures/hollow-bell/monastery';
 import { readAdventure, saveAdventure } from './persist';
-import { CHAPTERS, EVENT_IDS, objectivesFor, transition } from './story';
-import { adventureView } from './view';
+import { CHAPTERS, EVENT_IDS } from '../adventures/hollow-bell/story';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import type { AdventureState } from './state';
+import { adventureView, objectivesFor } from './view';
+
+/** The objectives shown at a point in the story. */
+const objectivesAt = (stage: AdventureStage, chapter: string, events: string[]) =>
+	objectivesFor(HOLLOW_BELL, { stage, chapter, events } as unknown as AdventureState);
 
 function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 	if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result)}`);
@@ -148,33 +155,34 @@ function atMonastery(promise: 'boy' | 'silence' = 'boy'): void {
 describe('the chapters', () => {
 	it('run in the roadmap’s order, each waiting for one event that leads to the next', () => {
 		// The Descent is a branch off the final decision (taken by choosing it), not the next in line.
-		const order = CHAPTER_IDS.filter((id) => id !== 'the_descent');
+		const order = (Object.keys(CHAPTERS) as (keyof typeof CHAPTERS)[]).filter(
+			(id) => id !== 'the_descent'
+		);
 		for (const [i, id] of order.entries()) {
 			const next = CHAPTERS[id].next;
-			expect(transition(id, next.on)).toBe(order[i + 1] ?? null);
+			expect(transition(HOLLOW_BELL, id, next.on)).toBe(order[i + 1] ?? null);
 		}
-		expect(transition('the_descent', 'decided_bell')).toBeNull();
+		expect(transition(HOLLOW_BELL, 'the_descent', 'decided_bell')).toBeNull();
 		// Every chapter's event is a known one, and the story ends only at the final decision.
-		expect(order.every((id) => EVENT_IDS.includes(CHAPTERS[id].next.on))).toBe(true);
-		expect(transition('village', 'decided_bell')).toBeUndefined();
+		expect(
+			order.every((id) => (EVENT_IDS as readonly string[]).includes(CHAPTERS[id].next.on))
+		).toBe(true);
+		expect(transition(HOLLOW_BELL, 'village', 'decided_bell')).toBeUndefined();
 	});
 
 	it('show the objectives of the chapters at this location, new ones once heard of', () => {
-		expect(objectivesFor('choosing', 'village', [])).toEqual([
+		expect(objectivesAt('choosing', 'village', [])).toEqual([
 			{ id: 'choose', text: 'Choose your characters', done: false }
 		]);
-		expect(objectivesFor('playing', 'village', []).map((o) => o.id)).toEqual([
-			'innkeeper',
-			'tobin'
-		]);
-		expect(objectivesFor('playing', 'village', ['talked_maren'])).toMatchObject([
+		expect(objectivesAt('playing', 'village', []).map((o) => o.id)).toEqual(['innkeeper', 'tobin']);
+		expect(objectivesAt('playing', 'village', ['talked_maren'])).toMatchObject([
 			{ id: 'innkeeper', done: true },
 			{ id: 'well', done: false },
 			{ id: 'tobin', done: false, optional: true }
 		]);
 		// A new location starts a fresh list.
 		expect(
-			objectivesFor('playing', 'enter_monastery', ['talked_oswin', 'entered_nave']).map((o) => [
+			objectivesAt('playing', 'enter_monastery', ['talked_oswin', 'entered_nave']).map((o) => [
 				o.id,
 				o.done
 			])

@@ -123,7 +123,7 @@
 		</div>
 		<p class="hint">
 			{#if isGm}
-				Replay starts the story over in Bellweather with the same party.
+				Replay starts the story over from the beginning with the same party.
 				<button
 					class="link"
 					type="button"

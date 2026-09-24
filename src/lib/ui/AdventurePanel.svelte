@@ -55,7 +55,7 @@
 	function control(op: 'restart' | 'end') {
 		const warning =
 			op === 'restart'
-				? 'Start the story over from Bellweather? The table and the story reset; everyone keeps their character.'
+				? 'Start the story over from the beginning? The table and the story reset; everyone keeps their character.'
 				: 'End the adventure? The table stays as it is, but the story stops.';
 		if (confirm(warning)) send({ type: 'adventure_control', op });
 	}

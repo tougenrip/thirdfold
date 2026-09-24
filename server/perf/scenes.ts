@@ -11,7 +11,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SceneFile } from '../../src/lib/game/scene-file';
-import { EXIT } from '../adventure/bellweather';
+import { EXIT } from '../adventures/hollow-bell/bellweather';
 import * as engine from '../adventure/engine';
 import { RoomManager, type Player, type Room } from '../rooms';
 import { exportScene } from '../scene-io';
