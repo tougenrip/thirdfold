@@ -359,6 +359,12 @@ export const TEXT = {
 		'You set your weapons to the Bell. The eye below widens, and the whole Hollow rises to stop you.',
 	wrath:
 		'A hand the size of a cart comes up out of the pit, grey and many-jointed, and closes on the island’s edge.',
+	chooseDescent:
+		'You leave Tobin holding the rope and climb down into the pit, down a stair of roots, toward a light like a heart beating.',
+	heart:
+		'The Heart of the Hollow beats on its dais, and the walls breathe with it. Things uncurl from the stone around it.',
+	heartWon:
+		'The Heart shudders, slows, and stops. Around you the walls fall still, and the only sound is your own breath.',
 	wrathWon:
 		'The Hand falls back into the pit, and you bring the Bell down. It cracks with a sound like the end of the world.',
 	bell: 'The Bell is black iron, older than the monastery, and cold as the bottom of a well. Every surface is cut with tiny, careful eyes.',
@@ -368,18 +374,71 @@ export const TEXT = {
 };
 
 /** How the story ends, by the choice made at the Bell. */
-export const ENDINGS: Record<EndingId, { title: string; text: string }> = {
-	broken: {
-		title: 'The Bell Broken',
-		text: 'The Bell lies in pieces on the island, and the humming has stopped. So has whatever held the thing below: it sinks back into the pit, wounded, and the dark closes over it. You carry Tobin up the stair into the dawn. Nothing binds the Hollow now but its wounds. Bellweather will need more than lamps.'
+/** The three endings, by name. */
+export const ENDINGS: Record<EndingId, { title: string }> = {
+	silence: { title: 'Silence' },
+	descent: { title: 'Descent' },
+	communion: { title: 'Communion' }
+};
+
+/** The party's answers to the final choice. */
+export type BellAnswer = 'destroy' | 'silence' | 'use' | 'descend';
+
+/**
+ * How the story ends, by the answer that ended it: what happened, what the
+ * final scene on the table shows, and what came of it all.
+ */
+export const OUTCOMES: Record<
+	BellAnswer,
+	{ subtitle: string; text: string; scene: string; result: { label: string; value: string }[] }
+> = {
+	destroy: {
+		subtitle: 'The Bell Broken',
+		text: 'The Bell lies in pieces on the island, and the humming has stopped. So has whatever held the thing below: it sinks back into the pit, wounded, and the dark closes over it. You carry Tobin up the stair into the dawn. Nothing binds the Hollow now but its wounds. Bellweather will need more than lamps.',
+		scene:
+			'The Bell lies split on the island floor among its fallen gears. The pit is dark, the lake is dark: every light in the Hollow has gone out but your own.',
+		result: [
+			{ label: 'The Bell', value: 'Broken' },
+			{ label: 'The Hollow', value: 'Wounded, sinking back into sleep' },
+			{ label: 'Tobin', value: 'Home' },
+			{ label: 'Bellweather', value: 'Safe, for now' }
+		]
 	},
-	waking: {
-		title: 'The Waking',
-		text: 'You cut the rope and bind the Bell’s lip in cloth and leather until it can make no sound. Silenced, it cannot call anything up; it cannot hold anything down, either. As you carry Tobin up the stair, the hum below changes, deepens, like something turning over in its sleep. It will wake. Not tonight, not this year. But it will.'
+	silence: {
+		subtitle: 'The Bell Silenced',
+		text: 'You cut the rope and bind the Bell’s lip in cloth and leather until it can make no sound. Silenced, it cannot call anything up; it cannot hold anything down, either. As you carry Tobin up the stair, the hum below changes, deepens, like something turning over in its sleep. It will wake. Not tonight, not this year. But it will.',
+		scene:
+			'The Bell hangs dark and muffled in its frame. Below it the pit glows red, and the eye in it does not close.',
+		result: [
+			{ label: 'The Bell', value: 'Silenced for good' },
+			{ label: 'The Hollow', value: 'Beginning to wake' },
+			{ label: 'Tobin', value: 'Home' },
+			{ label: 'Bellweather', value: 'Living on borrowed time' }
+		]
 	},
-	spoken: {
-		title: 'The Bell Spoken',
-		text: 'You ring the Bell once, and listen. The Hollow answers, not in words, but you understand it: it has been alone under the mountain for longer than there have been mountains, and the Bell was the only voice that ever reached it. You carry Tobin up into the dawn. Someone will come down again, not to bind it, but to talk.'
+	use: {
+		subtitle: 'The Bell Spoken',
+		text: 'You ring the Bell once, and listen. The Hollow answers, not in words, but you understand it: it has been alone under the mountain for longer than there have been mountains, and the Bell was the only voice that ever reached it. You carry Tobin up into the dawn. Someone will come down again, not to bind it, but to talk.',
+		scene:
+			'The Bell rings softly in its frame, and the whole Hollow is lit a calm blue: the lake, the ruins, the terraces, the Watch. The eye in the pit is closed.',
+		result: [
+			{ label: 'The Bell', value: 'Rung, and answered' },
+			{ label: 'The Hollow', value: 'At peace, and listening' },
+			{ label: 'Tobin', value: 'Home, and changed' },
+			{ label: 'Bellweather', value: 'Keeps a new kind of vigil' }
+		]
+	},
+	descend: {
+		subtitle: 'Into the Heart',
+		text: 'In the heart of the Hollow you still what beat there for longer than there have been mountains. It does not die the way people die. It dies the way a mountain would: slowly, and all at once, and with a sound you feel rather than hear. You climb back up the roots to Tobin, and above you the Bell rings once more, by itself, for the last time.',
+		scene:
+			'The Heart lies still and grey on its dais, its glow gone out. Far above, faint as a star, is the light of the pit’s mouth.',
+		result: [
+			{ label: 'The Bell', value: 'Rang once more, for its master' },
+			{ label: 'The Hollow', value: 'Dead' },
+			{ label: 'Tobin', value: 'Home' },
+			{ label: 'Bellweather', value: 'Free of it, forever' }
+		]
 	}
 };
 
@@ -391,21 +450,22 @@ export const SPOKEN_KNOWING = {
 	neither: 'It does not understand you, not all of it. But it lets you go.'
 };
 
-/** What becomes of Oswin's promise, told after the ending. */
-export const PROMISE_KEPT: Record<string, Record<EndingId, string>> = {
+/** What becomes of Oswin's promise, told after the ending, by the answer that ended the story. */
+export const PROMISE_KEPT: Record<string, Record<BellAnswer, string>> = {
 	silence: {
-		broken: 'You promised Oswin silence, and you made it the loudest silence there has ever been.',
-		waking:
+		destroy: 'You promised Oswin silence, and you made it the loudest silence there has ever been.',
+		silence:
 			'You kept your promise to Oswin: the Bell is silent. He will spend what is left of his life listening for what it held down.',
-		spoken:
-			'You promised Oswin silence, and rang it instead. He hears it from the gate, and understands, or tries to.'
+		use: 'You promised Oswin silence, and rang it instead. He hears it from the gate, and understands, or tries to.',
+		descend: 'You promised Oswin silence. What you found below is quieter than any bell.'
 	},
 	boy: {
-		broken:
+		destroy:
 			'Oswin weeps at the gate when he sees the boy alive, and then he looks past you, down the mountain.',
-		waking: 'Oswin weeps at the gate when he sees the boy alive.',
-		spoken:
-			'Oswin weeps at the gate when he sees the boy alive, and asks what the Bell said. Tobin answers before you can.'
+		silence: 'Oswin weeps at the gate when he sees the boy alive.',
+		use: 'Oswin weeps at the gate when he sees the boy alive, and asks what the Bell said. Tobin answers before you can.',
+		descend:
+			'Oswin weeps at the gate when he sees the boy alive, and does not ask where you have been.'
 	}
 };
 

@@ -30,19 +30,32 @@
 	<section class="end" aria-labelledby="end-title">
 		<p class="kicker">{adventure.title} · {adventure.location.name}</p>
 		<h2 id="end-title">{won ? (adventure.ending?.title ?? 'The end') : 'The lamps go out'}</h2>
+		{#if won && adventure.ending?.subtitle}
+			<p class="subtitle">{adventure.ending.subtitle}</p>
+		{/if}
 		<p class="lead">
 			{won
 				? (adventure.ending?.text ?? '')
 				: 'The dark has won this night. The story can begin again.'}
 		</p>
 
+		{#if won && adventure.ending?.scene}
+			<p class="scene"><span>The final scene</span>{adventure.ending.scene}</p>
+		{/if}
+
 		<dl>
 			<dt>{won ? 'Ending' : 'Fell in'}</dt>
 			<dd>
 				{won
-					? adventure.ending?.title
+					? `${adventure.ending?.title}: ${adventure.ending?.subtitle}`
 					: `Chapter ${adventure.chapter.number}: ${adventure.chapter.title}`}
 			</dd>
+			{#if won}
+				{#each adventure.ending?.result ?? [] as r (r.label)}
+					<dt>{r.label}</dt>
+					<dd>{r.value}</dd>
+				{/each}
+			{/if}
 			{#if party.length}
 				<dt>Party</dt>
 				<dd>
@@ -99,7 +112,9 @@
 	}
 
 	.end {
-		width: min(30rem, 100%);
+		width: min(32rem, 100%);
+		max-height: calc(100% - 2rem);
+		overflow-y: auto;
 		display: grid;
 		gap: 0.75rem;
 		padding: 1.5rem;
@@ -114,6 +129,30 @@
 	.lead,
 	.wait {
 		margin: 0;
+		color: var(--muted);
+	}
+
+	.subtitle {
+		margin: -0.5rem 0 0;
+		font-style: italic;
+		color: var(--text);
+	}
+
+	.scene {
+		margin: 0;
+		padding: 0.6rem 0.8rem;
+		display: grid;
+		gap: 0.2rem;
+		border-left: 3px solid var(--accent);
+		background: rgba(255, 255, 255, 0.03);
+		text-align: left;
+		font-size: 0.92rem;
+	}
+
+	.scene span {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
 		color: var(--muted);
 	}
 

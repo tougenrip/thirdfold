@@ -7,13 +7,14 @@ import { CHAPTER_IDS, type AdventureView } from '../../src/lib/adventure/adventu
 import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
-import { CLUES, CUES, ENDINGS, TITLE, type ClueDef, type ClueId } from './content';
+import { CLUES, CUES, ENDINGS, OUTCOMES, TITLE, type ClueDef, type ClueId } from './content';
 import { ENEMIES } from './enemies';
 import {
 	chapterNumber,
 	characterOf,
 	objectCells,
 	objectState,
+	bellAnswer,
 	optionLabel,
 	PULLS_TO_HOLD,
 	shownState,
@@ -194,7 +195,14 @@ export function adventureView(
 			choice: DECISIONS[id].options.find((o) => o.id === d.option)?.label ?? d.option,
 			by: d.by
 		})),
-		ending: adventure.ending && { id: adventure.ending, ...ENDINGS[adventure.ending] },
+		ending: adventure.ending && {
+			id: adventure.ending,
+			title: ENDINGS[adventure.ending].title,
+			subtitle: OUTCOMES[bellAnswer(adventure)].subtitle,
+			text: OUTCOMES[bellAnswer(adventure)].text,
+			scene: OUTCOMES[bellAnswer(adventure)].scene,
+			result: OUTCOMES[bellAnswer(adventure)].result.map((r) => ({ ...r }))
+		},
 		ledger:
 			viewer.role === 'gm'
 				? {

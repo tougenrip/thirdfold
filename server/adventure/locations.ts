@@ -5,6 +5,7 @@ import type { LocationId } from '../../src/lib/adventure/adventure';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { SceneFile } from '../../src/lib/game/scene-file';
 import { bellweatherScene, EXIT, SPAWN } from './bellweather';
+import { HEART_SPAWN, heartScene } from './heart';
 import { HOLLOW_SPAWN, hollowScene } from './hollow';
 import { CHAMBER, MONASTERY_SPAWN, monasteryScene, NAVE, STAIR } from './monastery';
 import type { Area } from './story';
@@ -19,7 +20,8 @@ export interface LocationDef {
 export const LOCATIONS: Record<LocationId, LocationDef> = {
 	bellweather: { name: 'Bellweather', scene: bellweatherScene, spawn: SPAWN },
 	monastery: { name: 'The Monastery', scene: monasteryScene, spawn: MONASTERY_SPAWN },
-	hollow: { name: 'The Hollow', scene: hollowScene, spawn: HOLLOW_SPAWN }
+	hollow: { name: 'The Hollow', scene: hollowScene, spawn: HOLLOW_SPAWN },
+	heart: { name: 'The Heart of the Hollow', scene: heartScene, spawn: HEART_SPAWN }
 };
 
 const exitFrom = EXIT.reduce((a, c) => ({ x: Math.min(a.x, c.x), y: Math.min(a.y, c.y) }));

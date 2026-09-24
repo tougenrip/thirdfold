@@ -1127,7 +1127,7 @@ describe('The Hollow Bell over the wire', () => {
 		expect(reset.room.adventure).toMatchObject({
 			title: 'The Hollow Bell',
 			stage: 'choosing',
-			chapter: { id: 'village', number: 1, of: 12 },
+			chapter: { id: 'village', number: 1, of: 13 },
 			location: { name: 'Bellweather' },
 			ledger: null
 		});
@@ -1326,7 +1326,11 @@ describe('The Hollow Bell over the wire', () => {
 		await new Promise((resolve) => setTimeout(resolve, 1500));
 		pip.send({ type: 'adventure_decide', decisionId: 'bell', optionId: 'silence' });
 		const done = await untilAdventure(gm, (a) => a.stage === 'complete');
-		expect(done.ending).toMatchObject({ id: 'waking', title: 'The Waking' });
+		expect(done.ending).toMatchObject({
+			id: 'silence',
+			title: 'Silence',
+			subtitle: 'The Bell Silenced'
+		});
 		expect(done.objectives.every((o) => o.done)).toBe(true);
 		expect(done.ledger?.events).toHaveLength(18);
 		expect((await untilAdventure(pip, (a) => a.stage === 'complete')).completedAt).toBeGreaterThan(
