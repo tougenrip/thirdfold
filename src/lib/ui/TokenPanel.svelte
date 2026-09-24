@@ -150,6 +150,19 @@
 					onchange={(e) => setLight(selected, e.currentTarget.valueAsNumber)}
 				/>
 			</label>
+			<label class="row check">
+				<input
+					type="checkbox"
+					checked={selected.hidden === true}
+					onchange={(e) =>
+						send({
+							type: 'token_update',
+							tokenId: selected.id,
+							patch: { hidden: e.currentTarget.checked }
+						})}
+				/>
+				<span class="muted small">Hidden from players (its owner still sees it)</span>
+			</label>
 			<div class="swatches" role="group" aria-label="Token colour">
 				{#each TOKEN_COLORS as color (color)}
 					<button
@@ -293,6 +306,12 @@
 	.row {
 		display: grid;
 		gap: 0.2rem;
+	}
+
+	.row.check {
+		grid-template-columns: auto 1fr;
+		align-items: center;
+		gap: 0.4rem;
 	}
 
 	.swatches {

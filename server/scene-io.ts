@@ -20,6 +20,10 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 			ambient: room.ambient,
 			fog: room.fog,
 			playerName: (id) => room.players.get(id)?.name,
+			// What each player has discovered, by name, so it comes back with the table.
+			discovery: [...room.players.values()]
+				.filter((p) => p.role === 'player')
+				.map((p): [string, Uint8Array] => [p.name, p.explored]),
 			adventure: room.adventure && saveAdventure(room.adventure),
 			terrain: room.terrain
 		},
@@ -31,7 +35,9 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
  * Replaces the room's table with a (validated) scene. Players and the log are
  * untouched. A saved owner is matched to a player in this room by id (same
  * session) or else by name (a new session with the same group); otherwise the
- * token becomes GM-only. Everyone's explored map resets: it is a new table.
+ * token becomes GM-only. Each player's explored map comes from what a player
+ * of the same name had discovered when it was saved; everyone else starts
+ * with nothing explored.
  */
 export function applyScene(room: Room, scene: SceneFile): void {
 	const players = [...room.players.values()].filter((p) => p.role === 'player');
@@ -59,6 +65,16 @@ export function applyScene(room: Room, scene: SceneFile): void {
 		? decodeLevels(scene.terrain, scene.grid.width * scene.grid.height)
 		: null;
 	const size = room.grid.width * room.grid.height;
-	room.fog = { enabled: scene.fog.enabled, revealed: decodeMask(scene.fog.revealed, size) };
-	for (const p of room.players.values()) p.explored = emptyMask(room.grid);
+	room.fog = {
+		enabled: scene.fog.enabled,
+		revealed: decodeMask(scene.fog.revealed, size),
+		shared: scene.fog.shared
+	};
+	const discovered = new Map(
+		Object.entries(scene.discovery).map(([name, mask]) => [name.toLowerCase(), mask])
+	);
+	for (const p of room.players.values()) {
+		const mask = discovered.get(p.name.toLowerCase());
+		p.explored = mask ? decodeMask(mask, size) : emptyMask(room.grid);
+	}
 }

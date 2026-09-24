@@ -38,8 +38,10 @@ import {
 	deleteLight,
 	deleteProp,
 	fogArea,
+	fogRoom,
 	setAmbient,
 	setFog,
+	setFogShared,
 	setTerrain,
 	updateLight,
 	updateProp,
@@ -558,6 +560,27 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				const result = fogArea(room, player, msg.from, msg.to, msg.reveal);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
+			}
+			case 'fog_room': {
+				const result = fogRoom(room, player, msg.cell, msg.reveal);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'fog_share': {
+				const result = setFogShared(room, player, msg.shared);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				if (!result.changed) return;
+				syncRoom(room);
+				announce(
+					room,
+					postSystem(
+						room,
+						msg.shared
+							? `${player.name} let the party share what it sees.`
+							: `${player.name} made each player see only through their own tokens.`
+					)
+				);
+				return;
 			}
 			case 'prop_create': {
 				const result = createProp(room, player, msg);

@@ -61,11 +61,13 @@ class TestClient {
 
 	/** Skips state messages until one of `type` arrives (for when earlier traffic doesn't matter). */
 	async until<T extends ServerMessage['type']>(
-		type: T
+		type: T,
+		match: (msg: Extract<ServerMessage, { type: T }>) => boolean = () => true
 	): Promise<Extract<ServerMessage, { type: T }>> {
 		for (;;) {
 			const msg = await this.queues[type === 'chat' ? 'chat' : 'state'].next();
-			if (msg.type === type) return msg as Extract<ServerMessage, { type: T }>;
+			if (msg.type === type && match(msg as Extract<ServerMessage, { type: T }>))
+				return msg as Extract<ServerMessage, { type: T }>;
 		}
 	}
 
@@ -653,6 +655,74 @@ describe('fog of war over the wire', () => {
 		sam.send({ type: 'fog_area', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, reveal: true });
 		expect(await sam.expect('error')).toMatchObject({ code: 'forbidden' });
 	});
+
+	it('shares the party’s sight, reveals whole rooms and keeps hidden tokens out of players’ frames', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		const pipFrames: string[] = [];
+		pip.ws.on('message', (data) => pipFrames.push(data.toString()));
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId: pipId } = await pip.expect('welcome');
+		const ivy = await connect();
+		ivy.send({ type: 'join', roomId: room.id, name: 'Ivy', role: 'player' });
+		const { playerId: ivyId } = await ivy.expect('welcome');
+		gm.send({ type: 'fog_set', enabled: true });
+		await pip.until('fog_update');
+
+		const place = async (name: string, x: number, y: number, ownerId: string | null) => {
+			gm.send({ type: 'token_create', name, color: '#2e86c1', pos: { x, y }, ownerId });
+			return (await gm.until('token_upserted', (m) => m.token.name === name)).token;
+		};
+		await place('Hero', 1, 1, pipId);
+		await place('Scout', 18, 18, ivyId);
+		// A walled 3×3 room around (9..11, 9..11), and a hidden spy in it.
+		for (const [a, b] of [
+			[
+				{ x: 9, y: 9 },
+				{ x: 12, y: 9 }
+			],
+			[
+				{ x: 9, y: 12 },
+				{ x: 12, y: 12 }
+			],
+			[
+				{ x: 9, y: 9 },
+				{ x: 9, y: 12 }
+			],
+			[
+				{ x: 12, y: 9 },
+				{ x: 12, y: 12 }
+			]
+		]) {
+			gm.send({ type: 'object_create', kind: 'wall', a, b });
+			await gm.until('objects_changed');
+		}
+		const spy = await place('Secret Spy', 10, 10, null);
+		gm.send({ type: 'token_update', tokenId: spy.id, patch: { hidden: true } });
+		await gm.until('token_upserted', (m) => m.token.id === spy.id && m.token.hidden === true);
+		const guard = await place('Guard', 11, 11, null);
+
+		// Sharing the party's sight: Pip now has Ivy's Scout.
+		gm.send({ type: 'fog_share', shared: true });
+		await gm.untilNotice('Gemma let the party share what it sees.');
+		await pip.until('token_upserted', (m) => m.token.name === 'Scout');
+
+		// Revealing the room shows the guard, never the hidden spy.
+		gm.send({ type: 'fog_room', cell: { x: 10, y: 10 }, reveal: true });
+		await pip.until('token_upserted', (m) => m.token.id === guard.id);
+		gm.send({ type: 'fog_room', cell: { x: 3, y: 3 }, reveal: true });
+		expect(await gm.until('error')).toMatchObject({ code: 'invalid_position' });
+		pip.send({ type: 'fog_share', shared: false });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		expect(pipFrames.join('\n')).not.toContain('Secret Spy');
+		expect(pipFrames.join('\n')).not.toContain(spy.id);
+
+		// Unhidden, it appears.
+		gm.send({ type: 'token_update', tokenId: spy.id, patch: { hidden: false } });
+		await pip.until('token_upserted', (m) => m.token.id === spy.id);
+	});
 });
 
 describe('saving and loading scenes over the wire', () => {
@@ -761,7 +831,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 5, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 6, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',

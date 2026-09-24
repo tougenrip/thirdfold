@@ -31,6 +31,8 @@ export interface FogView {
 	visible: string;
 	/** Cells seen at some point (includes visible). */
 	explored: string;
+	/** The party shares what it sees: each player sees what any of them sees. */
+	shared: boolean;
 }
 
 export const DEFAULT_VISION = 6;

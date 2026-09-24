@@ -37,6 +37,8 @@ const still = (): Pose => ({ dx: 0, dy: 0, dz: 0, turn: 0, swing: 0 });
 
 const SELECTED = new THREE.Color(0xe0a458);
 const HOVERED = new THREE.Color(0xe27a6b);
+/** What the GM sees a prop hidden from the players as: pale, like a ghost of itself. */
+const GHOST = new THREE.Color(0xb8c6e0);
 
 interface AssetMeshes {
 	parts: THREE.InstancedMesh[];
@@ -272,12 +274,14 @@ export class PropLayer {
 
 	private paint(): void {
 		const color = new THREE.Color();
+		const hidden = new Set(this.props.filter((p) => p.hidden).map((p) => p.id));
 		for (const [assetId, meshes] of this.meshes) {
 			const model = PROP_MODELS[assetId];
 			meshes.owners.forEach((id, i) => {
 				const tint = id === this.selectedId ? SELECTED : id === this.hoveredId ? HOVERED : null;
 				model.forEach((m, j) => {
 					color.setHex(m.color);
+					if (hidden.has(id)) color.lerp(GHOST, 0.7);
 					if (tint) color.lerp(tint, 0.55);
 					meshes.parts[j].setColorAt(i, color);
 				});

@@ -15,7 +15,7 @@ function room(): RoomSnapshot {
 		props: [],
 		lights: [],
 		ambient: 'day',
-		fog: { enabled: false, visible: '', explored: '' },
+		fog: { enabled: false, shared: false, visible: '', explored: '' },
 		log: [],
 		adventure: null,
 		terrain: null
@@ -120,7 +120,7 @@ describe('applyRoomUpdate', () => {
 
 	it('replaces the fog view', () => {
 		const r = room();
-		const fog = { enabled: true, visible: 'AQ==', explored: 'Aw==' };
+		const fog = { enabled: true, shared: true, visible: 'AQ==', explored: 'Aw==' };
 		applyRoomUpdate(r, { type: 'fog_update', fog });
 		expect(r.fog).toEqual(fog);
 	});

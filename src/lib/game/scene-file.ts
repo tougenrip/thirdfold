@@ -41,9 +41,10 @@ import { decodeMask, encodeMask, MAX_VISION } from './visibility';
 /**
  * v2 added lights, the ambient level and token-carried light; v3 added props;
  * v4 added the state of a story being played at the table; v5 added
- * elevation (each cell's level) and windows.
+ * elevation (each cell's level) and windows; v6 added shared party vision,
+ * hidden tokens and props, and what each player has discovered.
  */
-export const SCENE_FILE_VERSION = 5;
+export const SCENE_FILE_VERSION = 6;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -94,8 +95,15 @@ export interface SceneFileV5 extends Omit<SceneFileV4, 'version'> {
 	terrain: string | null;
 }
 
+export interface SceneFileV6 extends Omit<SceneFileV5, 'version' | 'fog'> {
+	version: 6;
+	fog: { enabled: boolean; revealed: string; shared: boolean };
+	/** The cells each player has discovered, by player name (base64 masks), so it survives a reload. */
+	discovery: Record<string, string>;
+}
+
 /** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV5;
+export type SceneFile = SceneFileV6;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -106,7 +114,9 @@ export interface SceneSource {
 	props: Iterable<Prop>;
 	lights: Iterable<Light>;
 	ambient: Ambient;
-	fog: { enabled: boolean; revealed: Uint8Array };
+	fog: { enabled: boolean; revealed: Uint8Array; shared: boolean };
+	/** What each player has discovered, by player name. */
+	discovery?: Iterable<[string, Uint8Array]>;
 	/** Resolves an owner id to a display name, so ownership survives into other sessions. */
 	playerName(id: string): string | undefined;
 	/** The story played at the table, if any. */
@@ -137,9 +147,18 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		props: [...source.props].map((p) => structuredClone(p)),
 		lights: [...source.lights].map((l) => structuredClone(l)),
 		ambient: source.ambient,
-		fog: { enabled: source.fog.enabled, revealed: encodeMask(source.fog.revealed) },
+		fog: {
+			enabled: source.fog.enabled,
+			revealed: encodeMask(source.fog.revealed),
+			shared: source.fog.shared
+		},
 		adventure: source.adventure ? structuredClone(source.adventure) : null,
-		terrain: source.terrain ? encodeLevels(source.terrain) : null
+		terrain: source.terrain ? encodeLevels(source.terrain) : null,
+		discovery: Object.fromEntries(
+			[...(source.discovery ?? [])]
+				.filter(([, mask]) => mask.some((v) => v))
+				.map(([name, mask]) => [name, encodeMask(mask)])
+		)
 	};
 }
 
@@ -148,6 +167,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** At most this many players' discoveries in one scene. */
+const MAX_DISCOVERERS = 64;
 
 function int(value: unknown, min: number, max: number): number | null {
 	return Number.isInteger(value) && (value as number) >= min && (value as number) <= max
@@ -190,6 +211,11 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 	if (upgraded.version === 4) {
 		// v4 → v5: a flat table, and no windows yet.
 		upgraded = { ...upgraded, version: 5, terrain: null };
+	}
+	if (upgraded.version === 5) {
+		// v6: the party's sight was always each player's own; nobody's discoveries were kept.
+		const fog = isRecord(upgraded.fog) ? { ...upgraded.fog, shared: false } : upgraded.fog;
+		upgraded = { ...upgraded, version: 6, fog, discovery: {} };
 	}
 	return upgraded;
 }
@@ -252,6 +278,9 @@ export function parseSceneFile(input: unknown): SceneParse {
 		if (vision === null) return bad(`${tokenName} has an invalid vision range.`);
 		const light = int(raw.light, 0, MAX_LIGHT_RADIUS);
 		if (light === null) return bad(`${tokenName} has an invalid light radius.`);
+		if (raw.hidden !== undefined && typeof raw.hidden !== 'boolean') {
+			return bad(`${tokenName} is neither hidden nor shown.`);
+		}
 		let owner: SavedToken['owner'] = null;
 		if (raw.owner !== null && raw.owner !== undefined) {
 			if (!isRecord(raw.owner) || typeof raw.owner.id !== 'string' || !ID.test(raw.owner.id)) {
@@ -268,6 +297,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			pos: pos as { x: number; y: number },
 			vision,
 			light,
+			...(raw.hidden === true ? { hidden: true as const } : {}),
 			owner
 		});
 	}
@@ -339,7 +369,17 @@ export function parseSceneFile(input: unknown): SceneParse {
 		if (!pos || !Number.isInteger(pos.x) || !Number.isInteger(pos.y)) {
 			return bad('A prop is off the table.');
 		}
-		const prop: Prop = { id: raw.id, assetId: raw.assetId, pos, rotation, scale };
+		if (raw.hidden !== undefined && typeof raw.hidden !== 'boolean') {
+			return bad('A prop is neither hidden nor shown.');
+		}
+		const prop: Prop = {
+			id: raw.id,
+			assetId: raw.assetId,
+			pos,
+			rotation,
+			scale,
+			...(raw.hidden === true ? { hidden: true as const } : {})
+		};
 		if (!footprintInBounds(grid, prop)) return bad('A prop is off the table.');
 		if (propBlocks(prop) !== 'none') {
 			for (const c of footprintCells(prop)) {
@@ -379,6 +419,19 @@ export function parseSceneFile(input: unknown): SceneParse {
 		return bad('Invalid fog settings.');
 	const revealed = typeof data.fog.revealed === 'string' ? data.fog.revealed : '';
 	const mask = decodeMask(revealed, grid.width * grid.height);
+	if (typeof data.fog.shared !== 'boolean') return bad('Invalid fog settings.');
+	const shared = data.fog.shared;
+
+	// Discovery: what each player (by name) had seen.
+	if (!isRecord(data.discovery) || Object.keys(data.discovery).length > MAX_DISCOVERERS) {
+		return bad('Invalid discovery.');
+	}
+	const discovery: Record<string, string> = {};
+	for (const [who, raw] of Object.entries(data.discovery)) {
+		const player = normalizeName(who);
+		if (!player || player !== who || typeof raw !== 'string') return bad('Invalid discovery.');
+		discovery[player] = encodeMask(decodeMask(raw, grid.width * grid.height));
+	}
 
 	// Elevation
 	let terrain: string | null = null;
@@ -423,9 +476,10 @@ export function parseSceneFile(input: unknown): SceneParse {
 			props,
 			lights,
 			ambient: data.ambient as Ambient,
-			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask) },
+			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask), shared },
 			adventure,
-			terrain
+			terrain,
+			discovery
 		}
 	};
 }

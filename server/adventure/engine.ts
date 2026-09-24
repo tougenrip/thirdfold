@@ -1210,7 +1210,10 @@ function travel(room: Room, adventure: AdventureState, to: LocationId): void {
 		const origin = adventure.origins.get(id);
 		return origin ? [[id, origin] as const] : [];
 	});
+	// Whether the party shares its sight is the GM's choice for the whole story.
+	const shared = room.fog.shared;
 	applyScene(room, LOCATIONS[to].scene());
+	room.fog.shared = shared;
 	adventure.location = to;
 	adventure.sentries.clear();
 	adventure.origins = recordOrigins(room);

@@ -68,6 +68,8 @@ export interface TokenPatch {
 	ownerId?: string | null;
 	vision?: number;
 	light?: number;
+	/** Keep it out of players' views (true), or show it again (false). */
+	hidden?: boolean;
 }
 
 /** Fields the GM may change on a placed prop: move, rotate, scale. */
@@ -75,6 +77,8 @@ export interface PropPatch {
 	pos?: GridPos;
 	rotation?: Rotation;
 	scale?: number;
+	/** Keep it out of players' views (true), or show it again (false). */
+	hidden?: boolean;
 }
 
 /** Fields the GM may change on an existing light. */
@@ -107,6 +111,10 @@ export type ClientMessage =
 	| { type: 'fog_set'; enabled: boolean }
 	/** GM: reveal (or hide again) the rectangle of cells between two corner cells. */
 	| { type: 'fog_area'; from: GridPos; to: GridPos; reveal: boolean }
+	/** GM: reveal (or hide again) the whole room (walled-in space) around a cell. */
+	| { type: 'fog_room'; cell: GridPos; reveal: boolean }
+	/** GM: whether the party shares what it sees, or each player sees only through their own tokens. */
+	| { type: 'fog_share'; shared: boolean }
 	/** GM: place a prop from the catalog, its footprint starting at `pos`. */
 	| { type: 'prop_create'; assetId: AssetId; pos: GridPos; rotation: Rotation }
 	| { type: 'prop_update'; propId: string; patch: PropPatch }
@@ -305,6 +313,10 @@ function parseTokenPatch(value: unknown): TokenPatch | null {
 		if (owner === undefined) return null;
 		patch.ownerId = owner;
 	}
+	if ('hidden' in value) {
+		if (typeof value.hidden !== 'boolean') return null;
+		patch.hidden = value.hidden;
+	}
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -328,6 +340,10 @@ function parsePropPatch(value: unknown): PropPatch | null {
 		const s = value.scale;
 		if (typeof s !== 'number' || !(s >= PROP_SCALE.min && s <= PROP_SCALE.max)) return null;
 		patch.scale = s;
+	}
+	if ('hidden' in value) {
+		if (typeof value.hidden !== 'boolean') return null;
+		patch.hidden = value.hidden;
 	}
 	return Object.keys(patch).length > 0 ? patch : null;
 }
@@ -429,6 +445,13 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			if (!from || !to || typeof data.reveal !== 'boolean') return null;
 			return { type: 'fog_area', from, to, reveal: data.reveal };
 		}
+		case 'fog_room': {
+			const cell = parseGridPos(data.cell);
+			if (!cell || typeof data.reveal !== 'boolean') return null;
+			return { type: 'fog_room', cell, reveal: data.reveal };
+		}
+		case 'fog_share':
+			return typeof data.shared === 'boolean' ? { type: 'fog_share', shared: data.shared } : null;
 		case 'prop_create': {
 			const pos = parseGridPos(data.pos);
 			if (!isAssetId(data.assetId) || !pos || !isRotation(data.rotation)) return null;

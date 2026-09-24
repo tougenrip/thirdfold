@@ -39,7 +39,7 @@ function source(): SceneSource {
 		props: [{ id: 'crate-1', assetId: 'crate', pos: { x: 6, y: 6 }, rotation: 0, scale: 1 }],
 		lights: [{ id: 'l1', pos: { x: 4, y: 4 }, radius: 5, color: '#ffa04d', on: true }],
 		ambient: 'dark',
-		fog: { enabled: true, revealed },
+		fog: { enabled: true, revealed, shared: false },
 		playerName: (id) => (id === 'p1' ? 'Pip' : undefined)
 	};
 }
@@ -117,7 +117,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(5);
+		expect(file.version).toBe(6);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -132,7 +132,7 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(5);
+		expect(parsed.scene.version).toBe(6);
 		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
@@ -190,7 +190,7 @@ describe('scene file v4: the story played at the table', () => {
 		v3.version = 3;
 		delete v3.adventure;
 		const parsed = parseSceneFile(v3);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 5, adventure: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 6, adventure: null });
 	});
 
 	it('keeps a story through a round trip, as a copy', () => {
@@ -225,7 +225,7 @@ describe('scene file v5: elevation and windows', () => {
 		v4.version = 4;
 		delete v4.terrain;
 		const parsed = parseSceneFile(v4);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 5, terrain: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 6, terrain: null });
 	});
 
 	it('keeps levels and windows through a round trip', () => {
