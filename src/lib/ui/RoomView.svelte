@@ -18,7 +18,8 @@
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
 	import Tabletop from '$lib/tabletop/Tabletop.svelte';
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
-	import BuildPanel, { type BuildTool } from './BuildPanel.svelte';
+	import { DEFAULT_LIGHT_RADIUS, LIGHT_COLORS, type Light } from '$lib/game/lights';
+	import BuildPanel, { type BuildTool, type LightDraft } from './BuildPanel.svelte';
 	import ChatPanel from './ChatPanel.svelte';
 	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
@@ -38,6 +39,10 @@
 	let wallStart = $state<GridPos | null>(null);
 	/** First cell of the area being revealed or hidden. */
 	let areaStart = $state<GridPos | null>(null);
+	let lightDraft = $state<LightDraft>({
+		radius: DEFAULT_LIGHT_RADIUS,
+		color: LIGHT_COLORS[0].color
+	});
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
 	let rollCard = $state<Extract<ChatMessage, { kind: 'roll' }> | null>(null);
@@ -68,6 +73,14 @@
 		if (pick.edge && pick.edgeDistance <= EDGE_REACH) return objectOnEdge(room.objects, pick.edge);
 		return undefined;
 	}
+	/** A light fixture under the pointer, or standing on the pointed-at cell. */
+	function lightUnder(pick: Pick | null): Light | undefined {
+		if (!pick || !room) return undefined;
+		if (pick.lightId) return room.lights.find((l) => l.id === pick.lightId);
+		const cell = pick.cell;
+		return cell ? room.lights.find((l) => l.pos.x === cell.x && l.pos.y === cell.y) : undefined;
+	}
+
 	const doorUnder = (pick: Pick | null): Door | undefined => {
 		const o = objectUnder(pick);
 		return o?.kind === 'door' ? o : undefined;
@@ -143,7 +156,13 @@
 			);
 		}
 		if (tool === 'door') return 'Door: click a grid line. Placing a door in a wall cuts a doorway.';
-		if (tool === 'erase') return 'Erase: click a wall or door to remove it.';
+		if (tool === 'erase') return 'Erase: click a wall, door or light to remove it.';
+		if (tool === 'light') {
+			const existing = lightUnder(hover);
+			return existing
+				? `Click to switch this light ${existing.on ? 'off' : 'on'}.`
+				: 'Light: click a cell to place a light there. Click a light to switch it on or off.';
+		}
 		if (tool === 'reveal' || tool === 'hide') {
 			const verb = tool === 'reveal' ? 'reveal to' : 'hide from';
 			return areaStart
@@ -241,7 +260,18 @@
 			}
 			case 'erase': {
 				const target = objectUnder(pick);
-				if (target) conn.send({ type: 'object_delete', objectId: target.id });
+				if (target) return void conn.send({ type: 'object_delete', objectId: target.id });
+				const light = lightUnder(pick);
+				if (light) conn.send({ type: 'light_delete', lightId: light.id });
+				return;
+			}
+			case 'light': {
+				const existing = lightUnder(pick);
+				if (existing) {
+					conn.send({ type: 'light_update', lightId: existing.id, patch: { on: !existing.on } });
+				} else if (pick.cell) {
+					conn.send({ type: 'light_create', pos: pick.cell, ...lightDraft });
+				}
 				return;
 			}
 			case 'select':
@@ -313,6 +343,7 @@
 			w: 'wall',
 			d: 'door',
 			e: 'erase',
+			l: 'light',
 			...(room?.fog.enabled ? { r: 'reveal', h: 'hide' } : {})
 		};
 		const next = shortcut[event.key.toLowerCase()];
@@ -349,6 +380,8 @@
 				tokens={room.tokens}
 				objects={room.objects}
 				fog={room.fog}
+				ambient={room.ambient}
+				lights={room.lights}
 				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
 				{preview}
@@ -397,7 +430,11 @@
 					<BuildPanel
 						{tool}
 						fogEnabled={room.fog.enabled}
+						ambient={room.ambient}
+						{lightDraft}
 						onTool={setTool}
+						onAmbient={(ambient) => conn.send({ type: 'ambient_set', ambient })}
+						onLightDraft={(draft) => (lightDraft = draft)}
 						onFog={(enabled) => {
 							if (!enabled && (tool === 'reveal' || tool === 'hide')) setTool('select');
 							conn.send({ type: 'fog_set', enabled });

@@ -4,6 +4,7 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
 import type { ChatMessage } from '../src/lib/game/chat';
+import type { Ambient, Light } from '../src/lib/game/lights';
 import type { SceneObject } from '../src/lib/game/objects';
 import type { Token } from '../src/lib/game/token';
 import { emptyMask, type CellMask } from '../src/lib/game/visibility';
@@ -32,6 +33,8 @@ export interface Room {
 	players: Map<string, Player>;
 	tokens: Map<string, Token>;
 	objects: Map<string, SceneObject>;
+	lights: Map<string, Light>;
+	ambient: Ambient;
 	/** Name of the scene on the table: set when it is saved, loaded or imported. */
 	sceneName: string;
 	fog: {
@@ -82,6 +85,8 @@ export class RoomManager {
 			players: new Map(),
 			tokens: new Map(),
 			objects: new Map(),
+			lights: new Map(),
+			ambient: 'day',
 			sceneName: 'Untitled scene',
 			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID) },
 			log: [],

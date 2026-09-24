@@ -12,6 +12,7 @@
 	import { TOKEN_COLORS, type Token } from '$lib/game/token';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import { MAX_VISION } from '$lib/game/visibility';
+	import { MAX_LIGHT_RADIUS } from '$lib/game/lights';
 
 	interface Props {
 		isGm: boolean;
@@ -44,6 +45,18 @@
 			(TOKEN_COLORS.indexOf(draft.color as (typeof TOKEN_COLORS)[number]) + 1) %
 			TOKEN_COLORS.length;
 		draft = { name: '', color: TOKEN_COLORS[next], ownerId: draft.ownerId };
+	}
+
+	function setLight(token: Token, value: number) {
+		const light = Math.round(value);
+		if (
+			Number.isFinite(light) &&
+			light >= 0 &&
+			light <= MAX_LIGHT_RADIUS &&
+			light !== token.light
+		) {
+			send({ type: 'token_update', tokenId: token.id, patch: { light } });
+		}
 	}
 
 	function setVision(token: Token, value: number) {
@@ -123,6 +136,18 @@
 					value={selected.vision}
 					aria-label="Token vision"
 					onchange={(e) => setVision(selected, e.currentTarget.valueAsNumber)}
+				/>
+			</label>
+			<label class="row">
+				<span class="muted small">Carried light (cells, 0 = none)</span>
+				<input
+					type="number"
+					min="0"
+					max={MAX_LIGHT_RADIUS}
+					step="1"
+					value={selected.light}
+					aria-label="Token light"
+					onchange={(e) => setLight(selected, e.currentTarget.valueAsNumber)}
 				/>
 			</label>
 			<div class="swatches" role="group" aria-label="Token colour">

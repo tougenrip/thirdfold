@@ -12,6 +12,8 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 			grid: room.grid,
 			tokens: room.tokens.values(),
 			objects: room.objects.values(),
+			lights: room.lights.values(),
+			ambient: room.ambient,
 			fog: room.fog,
 			playerName: (id) => room.players.get(id)?.name
 		},
@@ -44,6 +46,8 @@ export function applyScene(room: Room, scene: SceneFile): void {
 		])
 	);
 	room.objects = new Map(scene.objects.map((o) => [o.id, structuredClone(o)]));
+	room.lights = new Map(scene.lights.map((l) => [l.id, structuredClone(l)]));
+	room.ambient = scene.ambient;
 	const size = room.grid.width * room.grid.height;
 	room.fog = { enabled: scene.fog.enabled, revealed: decodeMask(scene.fog.revealed, size) };
 	for (const p of room.players.values()) p.explored = emptyMask(room.grid);

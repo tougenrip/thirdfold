@@ -9,8 +9,24 @@ function source(): SceneSource {
 	const revealed = emptyMask(DEFAULT_GRID);
 	revealed[0] = revealed[21] = 1;
 	const tokens: Token[] = [
-		{ id: 'hero-1', name: 'Hero', color: '#2e86c1', pos: { x: 2, y: 3 }, ownerId: 'p1', vision: 8 },
-		{ id: 'orc-1', name: 'Orc', color: '#c0392b', pos: { x: 9, y: 9 }, ownerId: null, vision: 6 }
+		{
+			id: 'hero-1',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 2, y: 3 },
+			ownerId: 'p1',
+			vision: 8,
+			light: 3
+		},
+		{
+			id: 'orc-1',
+			name: 'Orc',
+			color: '#c0392b',
+			pos: { x: 9, y: 9 },
+			ownerId: null,
+			vision: 6,
+			light: 0
+		}
 	];
 	const objects: SceneObject[] = [
 		{ id: 'w1', kind: 'wall', a: { x: 5, y: 0 }, b: { x: 5, y: 4 } },
@@ -20,6 +36,8 @@ function source(): SceneSource {
 		grid: DEFAULT_GRID,
 		tokens,
 		objects,
+		lights: [{ id: 'l1', pos: { x: 4, y: 4 }, radius: 5, color: '#ffa04d', on: true }],
+		ambient: 'dark',
 		fog: { enabled: true, revealed },
 		playerName: (id) => (id === 'p1' ? 'Pip' : undefined)
 	};
@@ -92,5 +110,46 @@ describe('serializeScene / parseSceneFile', () => {
 	it('rejects non-objects outright', () => {
 		for (const input of [null, 'scene', 42, [saved()]])
 			expect(parseSceneFile(input).ok).toBe(false);
+	});
+});
+
+describe('scene file v2: lights', () => {
+	it('saves lights, ambient and token light', () => {
+		const file = serializeScene('Crypt', source());
+		expect(file.version).toBe(2);
+		expect(file.ambient).toBe('dark');
+		expect(file.lights).toHaveLength(1);
+		expect(file.tokens[0].light).toBe(3);
+	});
+
+	it('upgrades a v1 file: no lights, daylight, tokens carry no light', () => {
+		const v1 = saved();
+		v1.version = 1;
+		delete v1.lights;
+		delete v1.ambient;
+		for (const t of v1.tokens) delete t.light;
+		const parsed = parseSceneFile(v1);
+		expect(parsed.ok).toBe(true);
+		if (!parsed.ok) return;
+		expect(parsed.scene.version).toBe(2);
+		expect(parsed.scene.lights).toEqual([]);
+		expect(parsed.scene.ambient).toBe('day');
+		expect(parsed.scene.tokens.map((t) => t.light)).toEqual([0, 0]);
+	});
+
+	type Mutation = (d: ReturnType<typeof saved>) => void;
+	it.each<[string, Mutation, RegExp]>([
+		['a light off the table', (d) => (d.lights[0].pos = { x: 50, y: 0 }), /off the table/],
+		['a huge light', (d) => (d.lights[0].radius = 500), /radius/],
+		['a zero light', (d) => (d.lights[0].radius = 0), /radius/],
+		['a bad light colour', (d) => (d.lights[0].color = 'orange'), /colour/],
+		['a light id clashing with a token', (d) => (d.lights[0].id = d.tokens[0].id), /duplicate id/],
+		['an unknown ambient', (d) => (d.ambient = 'eclipse'), /ambient/],
+		['a bad token light', (d) => (d.tokens[0].light = -2), /light radius/]
+	])('rejects %s', (_label, mutate, error) => {
+		const data = saved();
+		mutate(data);
+		const parsed = parseSceneFile(data);
+		expect(!parsed.ok && parsed.error).toMatch(error);
 	});
 });

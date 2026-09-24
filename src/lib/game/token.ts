@@ -13,6 +13,8 @@ export interface Token {
 	ownerId: string | null;
 	/** How far the token sees, in cells, when fog of war is on. Only owned tokens reveal anything. */
 	vision: number;
+	/** Light the token carries (a torch), in cells; 0 for none. */
+	light: number;
 }
 
 export const TOKEN_COLOR_PATTERN = /^#[0-9a-f]{6}$/;

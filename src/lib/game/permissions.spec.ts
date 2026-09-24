@@ -8,7 +8,8 @@ const token = (ownerId: string | null): Token => ({
 	color: '#c0392b',
 	pos: { x: 0, y: 0 },
 	ownerId,
-	vision: 6
+	vision: 6,
+	light: 0
 });
 
 describe('canMoveToken', () => {

@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { parseSceneFile } from '../src/lib/game/scene-file';
 import { RoomManager, type Player } from './rooms';
 import { applyScene, exportScene } from './scene-io';
-import { createObject, createToken, fogArea, setFog } from './scene';
+import {
+	createLight,
+	createObject,
+	createToken,
+	fogArea,
+	setAmbient,
+	setFog,
+	updateToken
+} from './scene';
 
 function room() {
 	const rooms = new RoomManager();
@@ -85,5 +93,32 @@ describe('scene name', () => {
 		expect(fresh.room.sceneName).toBe('Untitled scene');
 		applyScene(fresh.room, file);
 		expect(fresh.room.sceneName).toBe('Crypt');
+	});
+});
+
+describe('lights in saved scenes', () => {
+	it('saves and restores lights, the ambient level and carried light', () => {
+		const t = room();
+		const pip = t.seat('Pip');
+		createLight(t.room, t.gm, { pos: { x: 3, y: 3 }, radius: 5, color: '#8f7bff' });
+		const made = createToken(t.room, t.gm, {
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 1, y: 1 },
+			ownerId: pip.id
+		});
+		if (!made.ok) throw new Error(made.message);
+		updateToken(t.room, t.gm, made.token.id, { light: 2 });
+		setAmbient(t.room, t.gm, 'dark');
+		const file = exportScene(t.room, 'Lit');
+
+		const fresh = room();
+		fresh.seat('Pip');
+		applyScene(fresh.room, file);
+		expect(fresh.room.ambient).toBe('dark');
+		expect([...fresh.room.lights.values()]).toMatchObject([
+			{ pos: { x: 3, y: 3 }, radius: 5, color: '#8f7bff', on: true }
+		]);
+		expect([...fresh.room.tokens.values()][0].light).toBe(2);
 	});
 });

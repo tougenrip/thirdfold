@@ -3,6 +3,7 @@
 	import type { SceneObject } from '$lib/game/objects';
 	import type { Token } from '$lib/game/token';
 	import type { FogView } from '$lib/game/visibility';
+	import type { Ambient, Light } from '$lib/game/lights';
 	import type { FogMode } from './fog';
 	import {
 		createTabletop,
@@ -18,6 +19,8 @@
 		tokens: readonly Token[];
 		objects: readonly SceneObject[];
 		fog?: FogView | null;
+		ambient?: Ambient;
+		lights?: readonly Light[];
 		fogMode?: FogMode;
 		hoveredObjectId?: string | null;
 		preview?: readonly PreviewItem[];
@@ -31,6 +34,8 @@
 		tokens,
 		objects,
 		fog = null,
+		ambient = 'day',
+		lights = [],
 		fogMode = 'player',
 		hoveredObjectId = null,
 		preview = [],
@@ -78,6 +83,10 @@
 
 	$effect(() => {
 		tabletop?.setFog(fog ? { ...fog } : null, fogMode);
+	});
+
+	$effect(() => {
+		tabletop?.setLighting(ambient, $state.snapshot(lights) as Light[]);
 	});
 
 	$effect(() => {

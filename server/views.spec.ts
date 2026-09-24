@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { decodeMask } from '../src/lib/game/visibility';
 import { RoomManager, type Player, type Room } from './rooms';
 import { postSystem } from './chat';
-import { createObject, createToken, fogArea, moveToken, setFog, toggleDoor } from './scene';
+import {
+	createLight,
+	createObject,
+	createToken,
+	fogArea,
+	moveToken,
+	setAmbient,
+	setFog,
+	toggleDoor,
+	updateLight,
+	updateToken
+} from './scene';
 import { diffView, sentFrom, snapshotFor, viewFor } from './views';
 
 function setup() {
@@ -172,5 +183,78 @@ describe('diffView', () => {
 		const { room, pip } = setup();
 		const sent = sentFrom(viewFor(room, pip));
 		expect(diffView(sent, viewFor(room, pip))).toEqual([]);
+	});
+});
+
+describe('lighting and visibility', () => {
+	function darkRoom() {
+		const t = setup();
+		setFog(t.room, t.gm, true);
+		setAmbient(t.room, t.gm, 'dark');
+		const hero = token(t.room, t.gm, 'Hero', 3, 3, t.pip.id);
+		const goblin = token(t.room, t.gm, 'Goblin', 6, 3);
+		return { ...t, hero, goblin };
+	}
+
+	it('in the dark, a player sees only their own cell without light', () => {
+		const { room, pip } = darkRoom();
+		expect(names(room, pip)).toEqual(['Hero']);
+		expect(seesCell(room, pip, 3, 3)).toBe(true);
+		expect(seesCell(room, pip, 4, 3)).toBe(false);
+	});
+
+	it('a carried torch lights the way', () => {
+		const { room, gm, pip, hero } = darkRoom();
+		updateToken(room, gm, hero.id, { light: 4 });
+		expect(names(room, pip)).toEqual(['Goblin', 'Hero']);
+	});
+
+	it('a GM light shows what it lights, within vision, but not beyond walls', () => {
+		const { room, gm, pip } = darkRoom();
+		const lit = createLight(room, gm, { pos: { x: 6, y: 5 }, radius: 3, color: '#ffa04d' });
+		expect(lit.ok).toBe(true);
+		expect(names(room, pip)).toEqual(['Goblin', 'Hero']);
+		// A wall between the hero and the lit area hides it again.
+		createObject(room, gm, 'wall', { x: 5, y: 0 }, { x: 5, y: 12 });
+		expect(names(room, pip)).toEqual(['Hero']);
+	});
+
+	it('switching a light off plunges its area into darkness', () => {
+		const { room, gm, pip } = darkRoom();
+		const r = createLight(room, gm, { pos: { x: 6, y: 5 }, radius: 3, color: '#ffa04d' });
+		if (!r.ok) throw new Error(r.message);
+		updateLight(room, gm, r.light.id, { on: false });
+		expect(names(room, pip)).toEqual(['Hero']);
+	});
+
+	it('an NPC carrying a light is visible from afar', () => {
+		const { room, gm, pip, goblin } = darkRoom();
+		updateToken(room, gm, goblin.id, { light: 1 });
+		expect(names(room, pip)).toEqual(['Goblin', 'Hero']);
+	});
+
+	it('only sends players light fixtures on cells they have seen', () => {
+		const { room, gm, pip } = darkRoom();
+		createLight(room, gm, { pos: { x: 18, y: 18 }, radius: 2, color: '#ffa04d' });
+		createLight(room, gm, { pos: { x: 3, y: 3 }, radius: 2, color: '#ffa04d' });
+		expect(viewFor(room, pip).lights.map((l) => l.pos)).toEqual([{ x: 3, y: 3 }]);
+		expect(viewFor(room, gm).lights).toHaveLength(2);
+	});
+
+	it('ignores light entirely in daylight', () => {
+		const { room, gm, pip } = darkRoom();
+		setAmbient(room, gm, 'day');
+		expect(names(room, pip)).toEqual(['Goblin', 'Hero']);
+	});
+
+	it('keeps lighting GM-only', () => {
+		const { room, pip } = darkRoom();
+		expect(setAmbient(room, pip, 'day')).toMatchObject({ ok: false, code: 'forbidden' });
+		expect(
+			createLight(room, pip, { pos: { x: 1, y: 1 }, radius: 2, color: '#ffa04d' })
+		).toMatchObject({
+			code: 'forbidden'
+		});
+		expect(room.ambient).toBe('dark');
 	});
 });

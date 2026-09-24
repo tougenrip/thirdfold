@@ -1,17 +1,41 @@
 <script lang="ts" module>
-	export type BuildTool = 'select' | 'wall' | 'door' | 'erase' | 'reveal' | 'hide';
+	export type BuildTool = 'select' | 'wall' | 'door' | 'erase' | 'reveal' | 'hide' | 'light';
+
+	/** Settings for the next light the GM places. */
+	export interface LightDraft {
+		radius: number;
+		color: string;
+	}
 </script>
 
 <script lang="ts">
+	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
+
 	interface Props {
 		tool: BuildTool;
 		fogEnabled: boolean;
+		ambient: Ambient;
+		lightDraft: LightDraft;
 		onTool(tool: BuildTool): void;
 		onFog(enabled: boolean): void;
 		onFogAll(reveal: boolean): void;
+		onAmbient(ambient: Ambient): void;
+		onLightDraft(draft: LightDraft): void;
 	}
 
-	let { tool, fogEnabled, onTool, onFog, onFogAll }: Props = $props();
+	let {
+		tool,
+		fogEnabled,
+		ambient,
+		lightDraft,
+		onTool,
+		onFog,
+		onFogAll,
+		onAmbient,
+		onLightDraft
+	}: Props = $props();
+
+	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
 
 	const BUILD: { id: BuildTool; label: string; key: string }[] = [
 		{ id: 'select', label: 'Select', key: 'V' },
@@ -41,6 +65,46 @@
 	<h2>Build</h2>
 	<div class="tools four" role="toolbar" aria-label="Build tools">
 		{#each BUILD as t (t.id)}{@render toolButton(t)}{/each}
+	</div>
+
+	<div class="section">
+		<div class="ambient" role="radiogroup" aria-label="Lighting">
+			{#each AMBIENTS as a (a)}
+				<button type="button" role="radio" aria-checked={ambient === a} onclick={() => onAmbient(a)}
+					>{AMBIENT_LABEL[a]}</button
+				>
+			{/each}
+		</div>
+		{@render toolButton({ id: 'light', label: 'Place light', key: 'L' })}
+		{#if tool === 'light'}
+			<label class="row">
+				<span class="muted">Radius (cells)</span>
+				<input
+					type="number"
+					min="1"
+					max={MAX_LIGHT_RADIUS}
+					value={lightDraft.radius}
+					aria-label="Light radius"
+					onchange={(e) => {
+						const radius = Math.round(e.currentTarget.valueAsNumber);
+						if (radius >= 1 && radius <= MAX_LIGHT_RADIUS) onLightDraft({ ...lightDraft, radius });
+					}}
+				/>
+			</label>
+			<div class="swatches" role="group" aria-label="Light colour">
+				{#each LIGHT_COLORS as c (c.color)}
+					<button
+						type="button"
+						class="swatch"
+						style:background={c.color}
+						title={c.name}
+						aria-label={c.name}
+						aria-pressed={lightDraft.color === c.color}
+						onclick={() => onLightDraft({ ...lightDraft, color: c.color })}
+					></button>
+				{/each}
+			</div>
+		{/if}
 	</div>
 
 	<div class="fog">
@@ -103,6 +167,58 @@
 		font-family: ui-monospace, monospace;
 		font-size: 0.65rem;
 		color: var(--muted);
+	}
+
+	.section {
+		display: grid;
+		gap: 0.4rem;
+		margin-top: 0.6rem;
+		padding-top: 0.6rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.ambient {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.3rem;
+	}
+
+	.ambient button {
+		font-size: 0.8rem;
+	}
+
+	.ambient [aria-checked='true'] {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.row {
+		display: grid;
+		grid-template-columns: 1fr 4.5rem;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.8rem;
+	}
+
+	.muted {
+		color: var(--muted);
+	}
+
+	.swatches {
+		display: flex;
+		gap: 0.3rem;
+	}
+
+	.swatch {
+		width: 1.4rem;
+		height: 1.4rem;
+		padding: 0;
+		border-radius: 50%;
+		border: 2px solid transparent;
+	}
+
+	.swatch[aria-pressed='true'] {
+		border-color: var(--text);
 	}
 
 	.fog {

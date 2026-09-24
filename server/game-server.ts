@@ -29,8 +29,12 @@ import {
 	deleteToken,
 	moveToken,
 	toggleDoor,
+	createLight,
+	deleteLight,
 	fogArea,
+	setAmbient,
 	setFog,
+	updateLight,
 	updateToken
 } from './scene';
 import {
@@ -388,6 +392,32 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				const result = fogArea(room, player, msg.from, msg.to, msg.reveal);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
+			}
+			case 'light_create': {
+				const result = createLight(room, player, msg);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'light_update': {
+				const result = updateLight(room, player, msg.lightId, msg.patch);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'light_delete': {
+				const result = deleteLight(room, player, msg.lightId);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'ambient_set': {
+				const result = setAmbient(room, player, msg.ambient);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				if (!result.changed) return;
+				syncRoom(room);
+				const described = { day: 'daylight', dusk: 'dusk', dark: 'darkness' }[msg.ambient];
+				return announce(
+					room,
+					postSystem(room, `${player.name} changed the lighting to ${described}.`)
+				);
 			}
 			case 'scene_save':
 			case 'scene_load':

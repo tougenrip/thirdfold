@@ -9,6 +9,13 @@
 
 import { cornerInBounds, inBounds, type SquareGrid } from './grid';
 import {
+	AMBIENTS,
+	MAX_LIGHT_RADIUS,
+	MAX_LIGHTS_PER_ROOM,
+	type Ambient,
+	type Light
+} from './lights';
+import {
 	edgeKey,
 	isUnitEdge,
 	MAX_OBJECTS_PER_ROOM,
@@ -21,7 +28,8 @@ import { normalizeName } from './protocol';
 import { MAX_TOKENS_PER_ROOM, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { decodeMask, encodeMask, MAX_VISION } from './visibility';
 
-export const SCENE_FILE_VERSION = 1;
+/** v2 added lights, the ambient level and token-carried light. */
+export const SCENE_FILE_VERSION = 2;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -32,19 +40,22 @@ export interface SavedToken extends Omit<Token, 'ownerId'> {
 	owner: { id: string; name: string } | null;
 }
 
-export interface SceneFileV1 {
+export interface SceneFileV2 {
 	format: 'thirdfold-scene';
-	version: 1;
+	version: 2;
 	name: string;
 	/** ISO timestamp. */
 	savedAt: string;
 	grid: SquareGrid;
 	tokens: SavedToken[];
 	objects: SceneObject[];
+	lights: Light[];
+	ambient: Ambient;
 	fog: { enabled: boolean; revealed: string };
 }
 
-export type SceneFile = SceneFileV1;
+/** The current format. Older versions only exist as input to `migrate`. */
+export type SceneFile = SceneFileV2;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -52,6 +63,8 @@ export interface SceneSource {
 	grid: SquareGrid;
 	tokens: Iterable<Token>;
 	objects: Iterable<SceneObject>;
+	lights: Iterable<Light>;
+	ambient: Ambient;
 	fog: { enabled: boolean; revealed: Uint8Array };
 	/** Resolves an owner id to a display name, so ownership survives into other sessions. */
 	playerName(id: string): string | undefined;
@@ -76,6 +89,8 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 			owner: ownerId ? { id: ownerId, name: source.playerName(ownerId) ?? '' } : null
 		})),
 		objects: [...source.objects].map((o) => structuredClone(o)),
+		lights: [...source.lights].map((l) => structuredClone(l)),
+		ambient: source.ambient,
 		fog: { enabled: source.fog.enabled, revealed: encodeMask(source.fog.revealed) }
 	};
 }
@@ -103,7 +118,20 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 	if ((version as number) > SCENE_FILE_VERSION) {
 		return 'This scene was saved by a newer version of thirdfold.';
 	}
-	return data;
+	let upgraded = data;
+	if (upgraded.version === 1) {
+		// v1 → v2: no lights yet, full daylight, and tokens carried no light.
+		upgraded = {
+			...upgraded,
+			version: 2,
+			lights: [],
+			ambient: 'day',
+			tokens: Array.isArray(upgraded.tokens)
+				? upgraded.tokens.map((t) => (isRecord(t) ? { ...t, light: 0 } : t))
+				: upgraded.tokens
+		};
+	}
+	return upgraded;
 }
 
 /** Validates and normalises anything claiming to be a scene file. */
@@ -162,6 +190,8 @@ export function parseSceneFile(input: unknown): SceneParse {
 		if (cells.has(cell)) return bad(`Two tokens share the cell ${cell}.`);
 		const vision = int(raw.vision, 0, MAX_VISION);
 		if (vision === null) return bad(`${tokenName} has an invalid vision range.`);
+		const light = int(raw.light, 0, MAX_LIGHT_RADIUS);
+		if (light === null) return bad(`${tokenName} has an invalid light radius.`);
 		let owner: SavedToken['owner'] = null;
 		if (raw.owner !== null && raw.owner !== undefined) {
 			if (!isRecord(raw.owner) || typeof raw.owner.id !== 'string' || !ID.test(raw.owner.id)) {
@@ -177,6 +207,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			color: raw.color,
 			pos: pos as { x: number; y: number },
 			vision,
+			light,
 			owner
 		});
 	}
@@ -223,6 +254,28 @@ export function parseSceneFile(input: unknown): SceneParse {
 		}
 	}
 
+	// Lights
+	if (!Array.isArray(data.lights) || data.lights.length > MAX_LIGHTS_PER_ROOM) {
+		return bad(`A scene holds at most ${MAX_LIGHTS_PER_ROOM} lights.`);
+	}
+	const lights: Light[] = [];
+	for (const raw of data.lights as unknown[]) {
+		if (!isRecord(raw) || typeof raw.id !== 'string' || !ID.test(raw.id) || ids.has(raw.id)) {
+			return bad('A light has a missing or duplicate id.');
+		}
+		const pos = isRecord(raw.pos) ? { x: raw.pos.x as number, y: raw.pos.y as number } : null;
+		if (!pos || !inBounds(grid, pos)) return bad('A light is off the table.');
+		const radius = int(raw.radius, 1, MAX_LIGHT_RADIUS);
+		if (radius === null) return bad('A light has an invalid radius.');
+		if (typeof raw.color !== 'string' || !TOKEN_COLOR_PATTERN.test(raw.color)) {
+			return bad('A light has an invalid colour.');
+		}
+		if (typeof raw.on !== 'boolean') return bad('A light is neither on nor off.');
+		ids.add(raw.id);
+		lights.push({ id: raw.id, pos, radius, color: raw.color, on: raw.on });
+	}
+	if (!AMBIENTS.includes(data.ambient as Ambient)) return bad('Unknown ambient light level.');
+
 	// Fog
 	if (!isRecord(data.fog) || typeof data.fog.enabled !== 'boolean')
 		return bad('Invalid fog settings.');
@@ -239,6 +292,8 @@ export function parseSceneFile(input: unknown): SceneParse {
 			grid,
 			tokens,
 			objects,
+			lights,
+			ambient: data.ambient as Ambient,
 			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask) }
 		}
 	};

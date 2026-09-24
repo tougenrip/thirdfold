@@ -12,6 +12,8 @@ function room(): RoomSnapshot {
 		players: [{ id: 'gm', name: 'Gemma', role: 'gm', connected: true }],
 		tokens: [],
 		objects: [],
+		lights: [],
+		ambient: 'day',
 		fog: { enabled: false, visible: '', explored: '' },
 		log: []
 	};
@@ -46,7 +48,8 @@ describe('applyRoomUpdate', () => {
 			color: '#c0392b',
 			pos: { x: 0, y: 0 },
 			ownerId: null,
-			vision: 6
+			vision: 6,
+			light: 0
 		};
 		applyRoomUpdate(r, { type: 'token_upserted', token });
 		applyRoomUpdate(r, { type: 'token_upserted', token: { ...token, name: 'Orc chief' } });
@@ -117,5 +120,17 @@ describe('applyRoomUpdate', () => {
 		const fog = { enabled: true, visible: 'AQ==', explored: 'Aw==' };
 		applyRoomUpdate(r, { type: 'fog_update', fog });
 		expect(r.fog).toEqual(fog);
+	});
+
+	it('applies light changes and the ambient level', () => {
+		const r = room();
+		const lamp = { id: 'l1', pos: { x: 1, y: 1 }, radius: 3, color: '#ffa04d', on: true };
+		applyRoomUpdate(r, { type: 'lights_changed', upserted: [lamp], removed: [] });
+		applyRoomUpdate(r, { type: 'lights_changed', upserted: [{ ...lamp, on: false }], removed: [] });
+		expect(r.lights).toEqual([{ ...lamp, on: false }]);
+		applyRoomUpdate(r, { type: 'lights_changed', upserted: [], removed: ['l1'] });
+		expect(r.lights).toEqual([]);
+		applyRoomUpdate(r, { type: 'ambient_update', ambient: 'dark' });
+		expect(r.ambient).toBe('dark');
 	});
 });

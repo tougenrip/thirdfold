@@ -41,6 +41,16 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 			room.objects = [...next, ...msg.upserted];
 			return true;
 		}
+		case 'lights_changed': {
+			const removed = new Set(msg.removed);
+			const upserted = new Set(msg.upserted.map((l) => l.id));
+			const kept = room.lights.filter((l) => !removed.has(l.id) && !upserted.has(l.id));
+			room.lights = [...kept, ...msg.upserted];
+			return true;
+		}
+		case 'ambient_update':
+			room.ambient = msg.ambient;
+			return true;
 		case 'fog_update':
 			room.fog = msg.fog;
 			return true;

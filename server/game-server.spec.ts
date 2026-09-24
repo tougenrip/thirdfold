@@ -52,6 +52,16 @@ class TestClient {
 		this.ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
 	}
 
+	/** Skips state messages until one of `type` arrives (for when earlier traffic doesn't matter). */
+	async until<T extends ServerMessage['type']>(
+		type: T
+	): Promise<Extract<ServerMessage, { type: T }>> {
+		for (;;) {
+			const msg = await this.queues[type === 'chat' ? 'chat' : 'state'].next();
+			if (msg.type === type) return msg as Extract<ServerMessage, { type: T }>;
+		}
+	}
+
 	/** Reads the log stream forward until a system notice with this text, skipping earlier entries. */
 	async untilNotice(text: string): Promise<void> {
 		for (;;) {
@@ -744,7 +754,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 1, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 2, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',
@@ -781,5 +791,59 @@ describe('saving and loading scenes over the wire', () => {
 			console.error = errorLog;
 			await failing.close();
 		}
+	});
+});
+
+describe('lighting over the wire', () => {
+	it('syncs the ambient level and reveals a dark area only when the GM lights it', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		const pipFrames: string[] = [];
+		pip.ws.on('message', (data) => pipFrames.push(data.toString()));
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+
+		gm.send({ type: 'fog_set', enabled: true });
+		await pip.expect('fog_update');
+		gm.send({ type: 'ambient_set', ambient: 'dark' });
+		expect(await pip.expect('ambient_update')).toEqual({ type: 'ambient_update', ambient: 'dark' });
+		await pip.untilNotice('Gemma changed the lighting to darkness.');
+
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 3, y: 3 },
+			ownerId: playerId
+		});
+		await pip.expect('fog_update');
+		await pip.expect('token_upserted');
+		gm.send({
+			type: 'token_create',
+			name: 'Shade',
+			color: '#8e44ad',
+			pos: { x: 6, y: 3 },
+			ownerId: null
+		});
+		// A far-away fixture Pip has never seen: must not be sent.
+		gm.send({ type: 'light_create', pos: { x: 18, y: 18 }, radius: 2, color: '#8f7bff' });
+		// Wait until the GM has seen both land, i.e. the server has processed them.
+		for (;;) if ((await gm.until('token_upserted')).token.name === 'Shade') break;
+		await gm.until('lights_changed');
+		expect(pipFrames.join('\n')).not.toContain('Shade');
+		expect(pipFrames.join('\n')).not.toContain('#8f7bff');
+
+		gm.send({ type: 'light_create', pos: { x: 5, y: 4 }, radius: 3, color: '#ffa04d' });
+		expect((await pip.expect('lights_changed')).upserted[0]).toMatchObject({ pos: { x: 5, y: 4 } });
+		await pip.expect('fog_update');
+		expect((await pip.expect('token_upserted')).token.name).toBe('Shade');
+
+		pip.send({ type: 'light_create', pos: { x: 1, y: 1 }, radius: 3, color: '#ffa04d' });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+		pip.send({ type: 'ambient_set', ambient: 'day' });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
 	});
 });

@@ -8,6 +8,7 @@
 // only the difference from what that viewer was last sent (diffView).
 
 import type { ChatMessage } from '../src/lib/game/chat';
+import { lightSources, litMask, type Ambient, type Light } from '../src/lib/game/lights';
 import { blockingEdges, cellsBeside, unitEdges, type SceneObject } from '../src/lib/game/objects';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
@@ -24,17 +25,45 @@ import { toPublicPlayer, type Player, type Room } from './rooms';
 export interface View {
 	tokens: Token[];
 	objects: SceneObject[];
+	lights: Light[];
+	ambient: Ambient;
 	fog: FogView;
 }
 
 const NO_FOG: FogView = { enabled: false, visible: '', explored: '' };
 
-/** Cells a set of players can see right now: their tokens' vision plus the GM's reveals. */
-function visionOf(room: Room, playerIds: ReadonlySet<string>): CellMask {
-	const mask = room.fog.revealed.slice();
+/** Per-change facts shared by every viewer's view; computed once per sync. */
+export interface SceneContext {
+	blocked: ReadonlySet<string>;
+	/** Cells light reaches, when it matters (dark ambient); null means "everything is lit". */
+	lit: CellMask | null;
+}
+
+export function sceneContext(room: Room): SceneContext {
 	const blocked = blockingEdges(room.objects.values());
+	const lit =
+		room.ambient === 'dark'
+			? litMask(room.grid, blocked, lightSources(room.lights.values(), room.tokens.values()))
+			: null;
+	return { blocked, lit };
+}
+
+/**
+ * Cells a set of players can see right now: their tokens' vision plus the
+ * GM's reveals. In the dark a token sees only lit cells (and its own).
+ */
+function visionOf(room: Room, playerIds: ReadonlySet<string>, ctx: SceneContext): CellMask {
+	const mask = room.fog.revealed.slice();
 	for (const t of room.tokens.values()) {
-		if (t.ownerId && playerIds.has(t.ownerId)) addVision(room.grid, blocked, t.pos, t.vision, mask);
+		if (!t.ownerId || !playerIds.has(t.ownerId)) continue;
+		if (!ctx.lit) {
+			addVision(room.grid, ctx.blocked, t.pos, t.vision, mask);
+			continue;
+		}
+		const sight = emptyMask(room.grid);
+		addVision(room.grid, ctx.blocked, t.pos, t.vision, sight);
+		const own = cellIndex(room.grid, t.pos);
+		for (let i = 0; i < sight.length; i++) if (sight[i] && (ctx.lit[i] || i === own)) mask[i] = 1;
 	}
 	return mask;
 }
@@ -58,31 +87,44 @@ function touches(room: Room, o: SceneObject, mask: CellMask): boolean {
  * Computes what `viewer` may see now. For players and spectators this also
  * records newly seen cells as explored, so call it once per viewer per change.
  */
-export function viewFor(room: Room, viewer: Player): View {
+export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneContext(room)): View {
 	const allTokens = [...room.tokens.values()];
 	const allObjects = [...room.objects.values()];
-	if (!room.fog.enabled) return { tokens: allTokens, objects: allObjects, fog: NO_FOG };
+	const allLights = [...room.lights.values()];
+	const ambient = room.ambient;
+	if (!room.fog.enabled) {
+		return { tokens: allTokens, objects: allObjects, lights: allLights, ambient, fog: NO_FOG };
+	}
 
 	if (viewer.role === 'gm') {
 		// The GM sees everything; the fog view shows what the party sees, for shading.
 		const party = partyIds(room);
 		const explored = emptyMask(room.grid);
 		for (const p of room.players.values()) if (party.has(p.id)) mergeInto(explored, p.explored);
-		const visible = visionOf(room, party);
+		const visible = visionOf(room, party, ctx);
 		mergeInto(explored, visible);
 		return {
 			tokens: allTokens,
 			objects: allObjects,
+			lights: allLights,
+			ambient,
 			fog: { enabled: true, visible: encodeMask(visible), explored: encodeMask(explored) }
 		};
 	}
 
-	const visible = visionOf(room, viewer.role === 'player' ? new Set([viewer.id]) : partyIds(room));
+	const visible = visionOf(
+		room,
+		viewer.role === 'player' ? new Set([viewer.id]) : partyIds(room),
+		ctx
+	);
 	mergeInto(viewer.explored, visible);
 	const at = (t: Token) => visible[cellIndex(room.grid, t.pos)] === 1;
 	return {
 		tokens: allTokens.filter((t) => t.ownerId === viewer.id || at(t)),
 		objects: allObjects.filter((o) => touches(room, o, viewer.explored)),
+		// Light fixtures are like walls: known once their cell has been seen.
+		lights: allLights.filter((l) => viewer.explored[cellIndex(room.grid, l.pos)] === 1),
+		ambient,
 		fog: {
 			enabled: true,
 			visible: encodeMask(visible),
@@ -103,6 +145,8 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		players: [...room.players.values()].map(toPublicPlayer),
 		tokens: view.tokens.map((t) => structuredClone(t)),
 		objects: view.objects.map((o) => structuredClone(o)),
+		lights: view.lights.map((l) => structuredClone(l)),
+		ambient: view.ambient,
 		fog: view.fog,
 		log: room.log.filter((m) => canSeeLogEntry(viewer, m))
 	};
@@ -112,6 +156,8 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 export interface SentView {
 	tokens: Map<string, string>;
 	objects: Map<string, string>;
+	lights: Map<string, string>;
+	ambient: Ambient;
 	fog: string;
 }
 
@@ -119,6 +165,8 @@ export function sentFrom(view: View): SentView {
 	return {
 		tokens: new Map(view.tokens.map((t) => [t.id, JSON.stringify(t)])),
 		objects: new Map(view.objects.map((o) => [o.id, JSON.stringify(o)])),
+		lights: new Map(view.lights.map((l) => [l.id, JSON.stringify(l)])),
+		ambient: view.ambient,
 		fog: JSON.stringify(view.fog)
 	};
 }
@@ -137,6 +185,19 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 	if (upserted.length || removed.length) {
 		messages.push({ type: 'objects_changed', upserted: structuredClone(upserted), removed });
 	}
+
+	const lightsUp = view.lights.filter((l) => prev.lights.get(l.id) !== JSON.stringify(l));
+	const lightIds = new Set(view.lights.map((l) => l.id));
+	const lightsGone = [...prev.lights.keys()].filter((id) => !lightIds.has(id));
+	if (lightsUp.length || lightsGone.length) {
+		messages.push({
+			type: 'lights_changed',
+			upserted: structuredClone(lightsUp),
+			removed: lightsGone
+		});
+	}
+	if (prev.ambient !== view.ambient)
+		messages.push({ type: 'ambient_update', ambient: view.ambient });
 
 	if (prev.fog !== JSON.stringify(view.fog)) messages.push({ type: 'fog_update', fog: view.fog });
 
@@ -161,5 +222,6 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 /** Views for every viewer, computing players and spectators before the GM (whose shading merges their explored cells). */
 export function viewsFor(room: Room, viewers: Iterable<Player>): Map<Player, View> {
 	const list = [...viewers].sort((a, b) => Number(a.role === 'gm') - Number(b.role === 'gm'));
-	return new Map(list.map((p) => [p, viewFor(room, p)]));
+	const ctx = sceneContext(room);
+	return new Map(list.map((p) => [p, viewFor(room, p, ctx)]));
 }

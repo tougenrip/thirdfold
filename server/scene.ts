@@ -17,7 +17,8 @@ import {
 	type SceneObject
 } from '../src/lib/game/objects';
 import { canEditScene, canMoveToken, canUseDoor } from '../src/lib/game/permissions';
-import { normalizeName, type TokenPatch } from '../src/lib/game/protocol';
+import { MAX_LIGHTS_PER_ROOM, type Ambient, type Light } from '../src/lib/game/lights';
+import { normalizeName, type LightPatch, type TokenPatch } from '../src/lib/game/protocol';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
 import { DEFAULT_VISION, rectCells } from '../src/lib/game/visibility';
 import { fail, type Player, type Result, type Room } from './rooms';
@@ -65,7 +66,8 @@ export function createToken(room: Room, actor: Player, input: NewToken): Result<
 		color: input.color,
 		pos: { x: input.pos.x, y: input.pos.y },
 		ownerId: input.ownerId,
-		vision: DEFAULT_VISION
+		vision: DEFAULT_VISION,
+		light: 0
 	};
 	room.tokens.set(token.id, token);
 	return { ok: true, token };
@@ -118,6 +120,7 @@ export function updateToken(
 	if (patch.color !== undefined) token.color = patch.color;
 	if (patch.ownerId !== undefined) token.ownerId = patch.ownerId;
 	if (patch.vision !== undefined) token.vision = patch.vision;
+	if (patch.light !== undefined) token.light = patch.light;
 	return { ok: true, token, previousOwnerId };
 }
 
@@ -241,4 +244,63 @@ export function fogArea(
 		if (!reveal) for (const p of room.players.values()) p.explored[i] = 0;
 	}
 	return { ok: true, cells: cells.length };
+}
+
+const FORBIDDEN_LIGHTS = fail('forbidden', 'Only the GM controls lights.');
+
+export function createLight(
+	room: Room,
+	actor: Player,
+	input: { pos: GridPos; radius: number; color: string }
+): Result<{ light: Light }> {
+	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
+	if (room.lights.size >= MAX_LIGHTS_PER_ROOM) {
+		return fail('limit_reached', `A room can hold at most ${MAX_LIGHTS_PER_ROOM} lights.`);
+	}
+	if (!inBounds(room.grid, input.pos))
+		return fail('invalid_position', 'That cell is off the table.');
+	if ([...room.lights.values()].some((l) => l.pos.x === input.pos.x && l.pos.y === input.pos.y)) {
+		return fail('cell_occupied', 'There is already a light on that cell.');
+	}
+	const light: Light = {
+		id: randomUUID(),
+		pos: { x: input.pos.x, y: input.pos.y },
+		radius: input.radius,
+		color: input.color,
+		on: true
+	};
+	room.lights.set(light.id, light);
+	return { ok: true, light };
+}
+
+export function updateLight(
+	room: Room,
+	actor: Player,
+	lightId: string,
+	patch: LightPatch
+): Result<{ light: Light }> {
+	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
+	const light = room.lights.get(lightId);
+	if (!light) return fail('light_not_found', 'That light no longer exists.');
+	if (patch.radius !== undefined) light.radius = patch.radius;
+	if (patch.color !== undefined) light.color = patch.color;
+	if (patch.on !== undefined) light.on = patch.on;
+	return { ok: true, light };
+}
+
+export function deleteLight(room: Room, actor: Player, lightId: string): Result<object> {
+	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
+	if (!room.lights.delete(lightId)) return fail('light_not_found', 'That light no longer exists.');
+	return { ok: true };
+}
+
+export function setAmbient(
+	room: Room,
+	actor: Player,
+	ambient: Ambient
+): Result<{ changed: boolean }> {
+	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
+	const changed = room.ambient !== ambient;
+	room.ambient = ambient;
+	return { ok: true, changed };
 }

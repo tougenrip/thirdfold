@@ -4,6 +4,7 @@
 
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
+import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
 import type { SceneObject } from './objects';
 import type { SceneFile } from './scene-file';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
@@ -29,6 +30,9 @@ export interface RoomSnapshot {
 	tokens: Token[];
 	/** Walls and doors. */
 	objects: SceneObject[];
+	/** Light sources this client knows of (with fog on: ones it has seen). */
+	lights: Light[];
+	ambient: Ambient;
 	/** What this client may see. With fog on, tokens and objects above are already filtered to it. */
 	fog: FogView;
 	/** Most recent room log entries, oldest first. */
@@ -41,6 +45,14 @@ export interface TokenPatch {
 	color?: string;
 	ownerId?: string | null;
 	vision?: number;
+	light?: number;
+}
+
+/** Fields the GM may change on an existing light. */
+export interface LightPatch {
+	radius?: number;
+	color?: string;
+	on?: boolean;
 }
 
 export type ClientMessage =
@@ -66,6 +78,12 @@ export type ClientMessage =
 	| { type: 'fog_set'; enabled: boolean }
 	/** GM: reveal (or hide again) the rectangle of cells between two corner cells. */
 	| { type: 'fog_area'; from: GridPos; to: GridPos; reveal: boolean }
+	/** GM: place a light source on a cell. */
+	| { type: 'light_create'; pos: GridPos; radius: number; color: string }
+	| { type: 'light_update'; lightId: string; patch: LightPatch }
+	| { type: 'light_delete'; lightId: string }
+	/** GM: the room's ambient light level. */
+	| { type: 'ambient_set'; ambient: Ambient }
 	/** GM: save the current table under a name. Replies with scene_saved. */
 	| { type: 'scene_save'; name: string }
 	/** GM: replace the table with a saved scene. */
@@ -94,6 +112,7 @@ export type ErrorCode =
 	| 'object_not_found'
 	| 'edge_occupied'
 	| 'no_path'
+	| 'light_not_found'
 	| 'scene_not_found'
 	| 'invalid_scene'
 	| 'persistence_failed'
@@ -113,6 +132,9 @@ export type ServerMessage =
 	| { type: 'token_deleted'; tokenId: string }
 	/** Scene objects added/changed and removed, applied together (e.g. a wall split by a door). */
 	| { type: 'objects_changed'; upserted: SceneObject[]; removed: string[] }
+	/** Light sources added/changed and removed. */
+	| { type: 'lights_changed'; upserted: Light[]; removed: string[] }
+	| { type: 'ambient_update'; ambient: Ambient }
 	/** This client's visibility changed (vision moved, doors, GM reveal, fog toggled). */
 	| { type: 'fog_update'; fog: FogView }
 	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
@@ -184,10 +206,37 @@ function parseTokenPatch(value: unknown): TokenPatch | null {
 		if (!Number.isInteger(v) || (v as number) < 0 || (v as number) > MAX_VISION) return null;
 		patch.vision = v as number;
 	}
+	if ('light' in value) {
+		const v = value.light;
+		if (!Number.isInteger(v) || (v as number) < 0 || (v as number) > MAX_LIGHT_RADIUS) return null;
+		patch.light = v as number;
+	}
 	if ('ownerId' in value) {
 		const owner = parseOwner(value.ownerId);
 		if (owner === undefined) return null;
 		patch.ownerId = owner;
+	}
+	return Object.keys(patch).length > 0 ? patch : null;
+}
+
+function isLightRadius(value: unknown): value is number {
+	return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= MAX_LIGHT_RADIUS;
+}
+
+function parseLightPatch(value: unknown): LightPatch | null {
+	if (!isRecord(value)) return null;
+	const patch: LightPatch = {};
+	if ('radius' in value) {
+		if (!isLightRadius(value.radius)) return null;
+		patch.radius = value.radius;
+	}
+	if ('color' in value) {
+		if (!isColor(value.color)) return null;
+		patch.color = value.color;
+	}
+	if ('on' in value) {
+		if (typeof value.on !== 'boolean') return null;
+		patch.on = value.on;
 	}
 	return Object.keys(patch).length > 0 ? patch : null;
 }
@@ -247,6 +296,23 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			if (!from || !to || typeof data.reveal !== 'boolean') return null;
 			return { type: 'fog_area', from, to, reveal: data.reveal };
 		}
+		case 'light_create': {
+			const pos = parseGridPos(data.pos);
+			if (!pos || !isLightRadius(data.radius) || !isColor(data.color)) return null;
+			return { type: 'light_create', pos, radius: data.radius, color: data.color };
+		}
+		case 'light_update': {
+			const patch = parseLightPatch(data.patch);
+			return isId(data.lightId) && patch
+				? { type: 'light_update', lightId: data.lightId, patch }
+				: null;
+		}
+		case 'light_delete':
+			return isId(data.lightId) ? { type: 'light_delete', lightId: data.lightId } : null;
+		case 'ambient_set':
+			return AMBIENTS.includes(data.ambient as Ambient)
+				? { type: 'ambient_set', ambient: data.ambient as Ambient }
+				: null;
 		case 'scene_save':
 			return typeof data.name === 'string' ? { type: 'scene_save', name: data.name } : null;
 		case 'scene_export':
@@ -280,6 +346,8 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		scene_saved: (d) => typeof d.sceneId === 'string' && typeof d.name === 'string',
 		scene_exported: (d) => isRecord(d.file),
 		room_reset: (d) => isRecord(d.room),
+		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
+		ambient_update: (d) => typeof d.ambient === 'string',
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
