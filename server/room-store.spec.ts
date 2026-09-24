@@ -67,6 +67,15 @@ describe('a live room kept across a restart', () => {
 		expect(back.emptySince).toBe(5000);
 	});
 
+	it('stays listed for anyone to join, as its GM listed it', () => {
+		expect(ok(restoreRoom(copy(serializeRoom(room)), 5000)).room.listed).toBe(false);
+		room.listed = true;
+		expect(ok(restoreRoom(copy(serializeRoom(room)), 5000)).room.listed).toBe(true);
+		const older = copy(serializeRoom(room));
+		delete older.listed;
+		expect(ok(restoreRoom(older, 5000)).room.listed).toBe(false);
+	});
+
 	it('never trusts what it reads back: a damaged room is rejected whole', () => {
 		const good = serializeRoom(room);
 		const broken = (patch: (r: LiveRoom) => void) => {

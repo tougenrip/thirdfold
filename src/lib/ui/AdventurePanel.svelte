@@ -11,6 +11,9 @@
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
 	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/adventure/file';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
+	import type { LibraryListing } from '$lib/game/library';
+	import { listLibrary } from '$lib/net/library';
+	import { describeRating } from '$lib/ui/rating';
 
 	interface Props {
 		adventure: AdventureView | null;
@@ -51,6 +54,21 @@
 	};
 	/** Story events as the GM reads them: well_clue → well clue. */
 	const eventLabel = (id: string) => id.replace(/_/g, ' ');
+
+	/** GM, before a story: the library's best rated, to start one from here. */
+	let picks = $state<LibraryListing[] | null>(null);
+	$effect(() => {
+		if (!isGm || adventure) return;
+		listLibrary({ sort: 'top' }).then(
+			(found) => (picks = found.adventures.slice(0, 5)),
+			() => (picks = [])
+		);
+	});
+
+	function startFromLibrary(listing: LibraryListing) {
+		const warning = `Start ${listing.title}? This replaces everything on the table.`;
+		if (confirm(warning)) send({ type: 'adventure_start', libraryId: listing.id });
+	}
 
 	function start(listing: AdventureListing) {
 		const warning = `Start ${listing.title}? This replaces everything on the table.`;
@@ -94,6 +112,14 @@
 	<section class="adventure" aria-label="Adventure">
 		<header>
 			<h2>{adventure.title}</h2>
+			{#if adventure.library}
+				<p class="section">
+					by <a href={resolve(`/library?creator=${adventure.library.creator.id}`)}
+						>{adventure.library.creator.name}</a
+					>
+					· version {adventure.library.version}
+				</p>
+			{/if}
 			<p class="section">
 				Chapter {adventure.chapter.number} of {adventure.chapter.of} ·
 				<span class="stage">{STAGE_LABEL[adventure.stage] ?? adventure.chapter.title}</span>
@@ -376,6 +402,19 @@
 				</button>
 			</div>
 		{/each}
+		{#if picks?.length}
+			<h2>From the library</h2>
+			{#each picks as listing (listing.id)}
+				<div class="offer">
+					<strong>{listing.title}</strong>
+					<p>by {listing.creator.name} · {describeRating(listing.rating)}</p>
+					<button type="button" onclick={() => startFromLibrary(listing)}>
+						Start {listing.title}
+					</button>
+				</div>
+			{/each}
+		{/if}
+		<a class="build-link" href={resolve('/library')}>Browse the library</a>
 		<label class="file-offer">
 			Play an adventure file…
 			<input type="file" accept=".json,application/json" hidden onchange={playFile} />

@@ -158,6 +158,63 @@ describe('parseServerMessage', () => {
 	});
 });
 
+describe('library messages', () => {
+	const key = 'c'.repeat(64);
+	const lib = 'd'.repeat(32);
+	it('accepts well-formed library asks and drops the rest', () => {
+		expect(parseClientMessage({ type: 'library_list', query: 'salt', sort: 'new', x: 1 })).toEqual({
+			type: 'library_list',
+			query: 'salt',
+			sort: 'new'
+		});
+		expect(parseClientMessage({ type: 'library_list', creator: 'e'.repeat(16) })).toEqual({
+			type: 'library_list',
+			creator: 'e'.repeat(16)
+		});
+		expect(parseClientMessage({ type: 'library_list', sort: 'cheapest' })).toBeNull();
+		expect(parseClientMessage({ type: 'library_list', query: 'x'.repeat(61) })).toBeNull();
+		expect(parseClientMessage({ type: 'library_list', creator: '../x' })).toBeNull();
+		expect(parseClientMessage({ type: 'library_mine', gmKey: key })).toEqual({
+			type: 'library_mine',
+			gmKey: key
+		});
+		expect(parseClientMessage({ type: 'library_mine', gmKey: 'nope' })).toBeNull();
+		expect(
+			parseClientMessage({ type: 'library_publish', creator: 'M', file: {}, adventureId: lib })
+		).toEqual({ type: 'library_publish', creator: 'M', file: {}, adventureId: lib });
+		expect(parseClientMessage({ type: 'library_publish', creator: 'M', file: [] })).toBeNull();
+		expect(
+			parseClientMessage({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'remove' })
+		).toEqual({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'remove' });
+		expect(
+			parseClientMessage({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'sell' })
+		).toBeNull();
+		expect(parseClientMessage({ type: 'games_list' })).toEqual({ type: 'games_list' });
+		expect(parseClientMessage({ type: 'room_listing', listed: true })).toEqual({
+			type: 'room_listing',
+			listed: true
+		});
+		expect(parseClientMessage({ type: 'room_listing', listed: 'yes' })).toBeNull();
+	});
+
+	it('starts from the library by id and version, and rates with 1-5 whole stars', () => {
+		expect(parseClientMessage({ type: 'adventure_start', libraryId: lib, version: 2 })).toEqual({
+			type: 'adventure_start',
+			libraryId: lib,
+			version: 2
+		});
+		expect(parseClientMessage({ type: 'adventure_start', libraryId: lib, version: 0 })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_start', libraryId: 'x' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_rate', stars: 5 })).toEqual({
+			type: 'adventure_rate',
+			stars: 5
+		});
+		for (const stars of [0, 6, 2.5, '4']) {
+			expect(parseClientMessage({ type: 'adventure_rate', stars })).toBeNull();
+		}
+	});
+});
+
 describe('adventure messages', () => {
 	it('accepts well-formed adventure actions and drops extra fields', () => {
 		expect(parseClientMessage({ type: 'adventure_start', extra: 'x' })).toEqual({

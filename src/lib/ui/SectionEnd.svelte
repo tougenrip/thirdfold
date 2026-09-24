@@ -102,6 +102,28 @@
 			</ul>
 		{/if}
 
+		{#if adventure.library?.canRate}
+			<div class="rate" role="group" aria-label="Rate this adventure">
+				<span
+					>{adventure.library.rated
+						? `You gave it ${adventure.library.rated} of 5. Change it?`
+						: `How was it? Rate ${adventure.library.creator.name}’s adventure:`}</span
+				>
+				<span class="stars">
+					{#each [1, 2, 3, 4, 5] as stars (stars)}
+						<button
+							type="button"
+							class="star"
+							class:lit={(adventure.library.rated ?? 0) >= stars}
+							aria-label={`${stars} of 5`}
+							aria-pressed={adventure.library.rated === stars}
+							onclick={() => send({ type: 'adventure_rate', stars })}>★</button
+						>
+					{/each}
+				</span>
+			</div>
+		{/if}
+
 		{#if askers.length}
 			<p class="again">{namesList(askers)} would like to play again.</p>
 		{/if}
@@ -201,6 +223,37 @@
 
 	li.dead {
 		opacity: 0.6;
+	}
+
+	.rate {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.2rem;
+		margin: 0.6rem 0;
+		color: var(--muted);
+	}
+
+	.rate > span:first-child {
+		margin-right: 0.4rem;
+	}
+
+	.stars {
+		display: inline-flex;
+		white-space: nowrap;
+	}
+
+	.star {
+		padding: 0.1rem 0.35rem;
+		font-size: 1.3rem;
+		line-height: 1;
+		border: none;
+		background: none;
+		color: var(--muted);
+	}
+
+	.star.lit {
+		color: var(--accent);
 	}
 
 	.tally {

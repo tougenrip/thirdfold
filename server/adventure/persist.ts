@@ -12,6 +12,12 @@ import {
 } from '../../src/lib/adventure/adventure';
 import { BLEED_OUT_ROUNDS, STATUS_IDS, type StatusId } from '../../src/lib/adventure/characters';
 import { inBounds, type GridPos } from '../../src/lib/game/grid';
+import {
+	CREATOR_ID_PATTERN,
+	LIBRARY_ID_PATTERN,
+	LIBRARY_LIMITS,
+	normalizeCreatorName
+} from '../../src/lib/game/library';
 import { isAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
@@ -23,6 +29,7 @@ import type {
 	Decision,
 	Finding,
 	Encounter,
+	LibrarySource,
 	EnemyState,
 	Sentry,
 	Statuses,
@@ -75,6 +82,15 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			npcs: entriesOf(adventure.npcs),
 			said: [...adventure.said],
 			rewards: [...adventure.rewards],
+			...(adventure.library
+				? {
+						library: {
+							id: adventure.library.id,
+							version: adventure.library.version,
+							creator: { ...adventure.library.creator }
+						}
+					}
+				: {}),
 			decisions: Object.fromEntries(
 				[...adventure.decisions].map(([id, d]) => [id, { option: d.option, by: d.by }])
 			),
@@ -293,6 +309,8 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 	// Saves from before rewards have none; each is one the adventure can give.
 	const rewards =
 		data.rewards === undefined ? [] : uniqueList(data.rewards, rewardsOf(A), 'rewards');
+	// Where a creator's adventure came from, when it came from the library.
+	const library = data.library === undefined ? undefined : librarySource(data.library);
 
 	const decisions = new Map<string, Decision>();
 	const decisionIds = Object.keys(A.decisions);
@@ -509,6 +527,7 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 		npcs,
 		said,
 		rewards,
+		...(library ? { library } : {}),
 		decisions,
 		pending,
 		encounters,
@@ -547,6 +566,28 @@ function remembered(A: AdventureDef): string[] {
 		return value;
 	});
 	return found;
+}
+
+function librarySource(value: unknown): LibrarySource {
+	const raw = record(value, 'library');
+	const creator = record(raw.creator, 'library');
+	const name = normalizeCreatorName(creator.name);
+	check(
+		typeof raw.id === 'string' &&
+			LIBRARY_ID_PATTERN.test(raw.id) &&
+			Number.isInteger(raw.version) &&
+			(raw.version as number) >= 1 &&
+			(raw.version as number) <= LIBRARY_LIMITS.versions &&
+			typeof creator.id === 'string' &&
+			CREATOR_ID_PATTERN.test(creator.id) &&
+			name !== null,
+		'library'
+	);
+	return {
+		id: raw.id as string,
+		version: raw.version as number,
+		creator: { id: creator.id as string, name: name! }
+	};
 }
 
 /** The rewards an adventure can give (its `reward` effects). */

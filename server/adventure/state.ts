@@ -13,6 +13,7 @@ import type {
 } from '../../src/lib/adventure/adventure';
 import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
+import type { Creator } from '../../src/lib/game/library';
 import type { Origins } from './world';
 
 // Ids are the adventure's own (see define.ts): plain strings here.
@@ -102,6 +103,13 @@ export interface Encounter {
 	pulled?: boolean;
 }
 
+/** A published adventure a table plays: its library id, the version, and whose it is. */
+export interface LibrarySource {
+	id: string;
+	version: number;
+	creator: Creator;
+}
+
 export interface Finding {
 	/** Characters who found it themselves (they know it even before it is shared). */
 	by: CharacterId[];
@@ -164,4 +172,8 @@ export interface AdventureState {
 	completedAt: number | null;
 	/** Players who asked to play again once the story ended (not saved: it is only for this ending). */
 	again?: Set<string>;
+	/** The library adventure being played (a creator's, published), if it is one. */
+	library?: LibrarySource;
+	/** The stars each player gave it at this table, by player id (not saved: the library keeps them). */
+	rated?: Map<string, number>;
 }

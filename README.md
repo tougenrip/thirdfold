@@ -24,8 +24,10 @@ npm run dev               # web on http://localhost:1420
 The game server keeps rooms in memory. The GM saves scenes from the Scene panel;
 the browser remembers which scenes it saved, and scenes can also be exported to
 and imported from a file. Saved scenes go to JSON files in `./data/scenes`
-(override with `SCENES_DIR`), or to Supabase when the server is started with
-`SUPABASE_URL` and `SUPABASE_SERVICE_KEY`:
+(override with `SCENES_DIR`), live rooms to `./data/rooms` (`ROOMS_DIR`) and
+the adventure library (adventures creators publish, their versions and
+ratings) to `./data/library` (`LIBRARY_DIR`), or all of them to Supabase when
+the server is started with `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`:
 
 ```bash
 npm run db:start                      # local Supabase

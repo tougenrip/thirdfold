@@ -242,6 +242,7 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 			about: a.about ?? ''
 		})),
 		id: room.id,
+		listed: room.listed,
 		sceneName: room.sceneName,
 		grid: { ...room.grid },
 		players: [...room.players.values()].map(toPublicPlayer),

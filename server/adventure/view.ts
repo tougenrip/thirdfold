@@ -10,6 +10,7 @@ import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
 import { AMBUSH, type AdventureDef } from './define';
 import {
+	cannotRate,
 	chapterNumber,
 	characterOf,
 	content,
@@ -280,6 +281,15 @@ export function adventureView(
 		completedAt: adventure.completedAt,
 		summary: summaryOf(adventure),
 		rewards: [...adventure.rewards],
+		library: adventure.library
+			? {
+					id: adventure.library.id,
+					version: adventure.library.version,
+					creator: { ...adventure.library.creator },
+					rated: adventure.rated?.get(viewer.id) ?? null,
+					canRate: cannotRate(room, viewer) === null
+				}
+			: null,
 		cues:
 			viewer.role === 'gm'
 				? A.cues.map((c) => ({ ...c, read: adventure.cuesRead.has(c.id) }))

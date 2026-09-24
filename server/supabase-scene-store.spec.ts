@@ -7,6 +7,8 @@ import { SCENE_ID_PATTERN } from './scene-store';
 import { SupabaseSceneStore } from './supabase-scene-store';
 import { restoreRoom, serializeRoom, SupabaseRoomStore } from './room-store';
 import { RoomManager } from './rooms';
+import { SupabaseLibraryStore } from './supabase-library-store';
+import { libraryStoreSuite } from './library-store.suite';
 
 const scene = serializeScene('Crypt', {
 	grid: DEFAULT_GRID,
@@ -201,5 +203,63 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseRoomStore (live Supaba
 		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
 		const bad = await admin.from('live_rooms').insert({ id: '../x', data: {} });
 		expect(bad.error).not.toBeNull();
+	});
+});
+
+describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLibraryStore (live Supabase)', () => {
+	libraryStoreSuite(() => SupabaseLibraryStore.connect(url!, serviceKey!));
+
+	it('keeps the library away from the browser key: no reading, writing or rating', async () => {
+		const store = SupabaseLibraryStore.connect(url!, serviceKey!);
+		const owner = 'e'.repeat(64);
+		const { id } = await store.publish({
+			owner,
+			creatorName: 'Mira',
+			title: 'Private',
+			about: '',
+			file: {}
+		});
+		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
+		for (const table of ['library_adventures', 'library_versions', 'library_ratings']) {
+			const read = await browser.from(table).select('*');
+			expect(read.data ?? []).toEqual([]);
+		}
+		const write = await browser.from('library_adventures').update({ plays: 999 }).eq('id', id);
+		expect(write.error).not.toBeNull();
+		const play = await browser.rpc('library_play', { target: id });
+		expect(play.error).not.toBeNull();
+		const rate = await browser.rpc('library_rate', { target: id, who: owner, score: 5 });
+		expect(rate.error).not.toBeNull();
+		const publish = await browser.rpc('library_publish', {
+			target: id,
+			who: owner,
+			creator: '0'.repeat(16),
+			creator_label: 'x',
+			label: 'x',
+			blurb: '',
+			body: {}
+		});
+		expect(publish.error).not.toBeNull();
+		expect((await store.get(id))?.listing).toMatchObject({ plays: 0, version: 1, rating: null });
+		await store.remove(id, owner);
+	});
+
+	it('rejects rows that are not library rows at the database too', async () => {
+		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+		const bad = await admin.from('library_adventures').insert({
+			id: '../x',
+			owner: 'f'.repeat(64),
+			creator_id: '0'.repeat(16),
+			creator_name: 'x',
+			title: 'x',
+			version: 1
+		});
+		expect(bad.error).not.toBeNull();
+		const stars = await admin.rpc('library_rate', {
+			target: 'f'.repeat(32),
+			who: 'f'.repeat(64),
+			score: 9
+		});
+		expect(stars.error).not.toBeNull();
 	});
 });

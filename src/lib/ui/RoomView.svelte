@@ -1076,6 +1076,18 @@
 		<span class="code" title="Room code">{room?.id}</span>
 		<button type="button" onclick={copyInvite}>{copied ? 'Link copied' : 'Copy invite link'}</button
 		>
+		{#if isGm && room}
+			<button
+				type="button"
+				aria-pressed={room.listed}
+				title={room.listed
+					? 'Anyone can find this game on the front page and join. Click to make it invite-only.'
+					: 'Only people with the invite link can join. Click to list it for anyone to find.'}
+				onclick={() => act({ type: 'room_listing', listed: !room!.listed })}
+			>
+				{room.listed ? 'Open to all' : 'Invite only'}
+			</button>
+		{/if}
 		<div class="views" role="group" aria-label="Camera">
 			<button type="button" aria-pressed={view === 'tactical'} onclick={() => (view = 'tactical')}>
 				Tactical

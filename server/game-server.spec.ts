@@ -2291,3 +2291,193 @@ function makeOldTable() {
 	if (!created.ok) throw new Error(created.message);
 	return created.room;
 }
+
+describe('the library and open games over the wire', () => {
+	async function gmAt(name: string, gmKey?: string) {
+		const gm = await connect();
+		gm.send({ type: 'create', name, ...(gmKey ? { gmKey } : {}) });
+		const welcome = await gm.expect('welcome');
+		return { gm, room: welcome.room, gmKey: welcome.gmKey! };
+	}
+	const file = () => JSON.parse(JSON.stringify(exampleAdventure()));
+
+	it('publishes from anywhere, versions for its creator only, and refuses what cannot be played', async () => {
+		const creator = await connect();
+		creator.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const first = await creator.expect('library_published');
+		expect(first).toMatchObject({ version: 1, gmKey: expect.stringMatching(/^[0-9a-f]{64}$/) });
+		const mine = await creator.expect('library_mine');
+		expect(mine.adventures).toMatchObject([
+			{ id: first.adventureId, title: 'The Miller’s Key', listed: true, creator: { name: 'Mira' } }
+		]);
+
+		const revised = { ...file(), about: 'Now with more rats.' };
+		creator.send({
+			type: 'library_publish',
+			gmKey: first.gmKey,
+			creator: 'Mira',
+			file: revised,
+			adventureId: first.adventureId
+		});
+		const second = await creator.expect('library_published');
+		expect(second).toEqual({
+			type: 'library_published',
+			adventureId: first.adventureId,
+			version: 2
+		});
+		expect((await creator.expect('library_mine')).adventures[0]).toMatchObject({
+			version: 2,
+			about: 'Now with more rats.'
+		});
+
+		const stranger = await connect();
+		stranger.send({
+			type: 'library_publish',
+			creator: 'Otto',
+			file: file(),
+			adventureId: first.adventureId
+		});
+		expect(await stranger.until('error')).toMatchObject({ code: 'forbidden' });
+		const broken = { ...file(), start: { ...file().start, chapter: 'nowhere' } };
+		stranger.send({ type: 'library_publish', creator: 'Otto', file: broken });
+		expect(await stranger.until('error')).toMatchObject({
+			code: 'invalid_message',
+			message: expect.stringContaining('nowhere')
+		});
+		stranger.send({ type: 'library_publish', creator: '', file: file() });
+		expect(await stranger.until('error')).toMatchObject({ code: 'invalid_name' });
+
+		stranger.send({ type: 'library_list', query: 'miller' });
+		const found = await stranger.until('library_list');
+		expect(found.adventures).toMatchObject([
+			{ id: first.adventureId, version: 2, plays: 0, rating: null }
+		]);
+		// A creator's page: their adventures, by the id the listing gives.
+		stranger.send({ type: 'library_list', creator: found.adventures[0].creator.id });
+		expect(await stranger.until('library_list')).toMatchObject({
+			creator: { name: 'Mira' },
+			adventures: [{ id: first.adventureId }]
+		});
+		// The listing never names the creator's key or its hash.
+		expect(JSON.stringify(found)).not.toContain(first.gmKey!);
+	});
+
+	it('plays an adventure from the library, counts the play, and lets those who played it rate it', async () => {
+		const creator = await connect();
+		creator.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const { adventureId, gmKey: creatorKey } = await creator.expect('library_published');
+
+		const { gm, room } = await gmAt('Gemma');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		const sam = await connect();
+		sam.send({ type: 'join', roomId: room.id, name: 'Sam', role: 'spectator' });
+		await sam.expect('welcome');
+
+		pip.send({ type: 'adventure_start', libraryId: adventureId });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_start', libraryId: 'f'.repeat(32) });
+		expect(await gm.until('error')).toMatchObject({ code: 'adventure_not_found' });
+		gm.send({ type: 'adventure_start', libraryId: adventureId });
+		const reset = await pip.until('room_reset');
+		expect(reset.room.adventure).toMatchObject({
+			title: 'The Miller’s Key',
+			library: {
+				id: adventureId,
+				version: 1,
+				creator: { name: 'Mira' },
+				rated: null,
+				canRate: false
+			}
+		});
+
+		pip.send({ type: 'adventure_claim', characterId: 'saint' });
+		await pip.until('adventure_update');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		pip.send({ type: 'adventure_rate', stars: 5 });
+		expect(await pip.until('error')).toMatchObject({ message: 'Rate it once the story is over.' });
+		for (let i = 0; i < 3; i++) gm.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		await gm.until('adventure_update', (m) => m.adventure?.decision?.id === 'flour');
+		pip.send({ type: 'adventure_decide', decisionId: 'flour', optionId: 'share' });
+		const over = await pip.until('adventure_update', (m) => m.adventure?.stage === 'complete');
+		expect(over.adventure!.library).toMatchObject({ rated: null, canRate: true });
+
+		sam.send({ type: 'adventure_rate', stars: 1 });
+		expect(await sam.until('error')).toMatchObject({ code: 'forbidden' });
+		pip.send({ type: 'adventure_rate', stars: 4 });
+		await pip.until('adventure_update', (m) => m.adventure?.library?.rated === 4);
+		pip.send({ type: 'adventure_rate', stars: 5 });
+		await pip.until('adventure_update', (m) => m.adventure?.library?.rated === 5);
+		gm.send({ type: 'adventure_rate', stars: 3 });
+		await gm.until('adventure_update', (m) => m.adventure?.library?.rated === 3);
+
+		creator.send({ type: 'library_list', query: 'miller' });
+		expect((await creator.until('library_list')).adventures[0]).toMatchObject({
+			plays: 1,
+			rating: { average: 4, count: 2 }
+		});
+
+		// Its creator, running it themselves, doesn't rate their own adventure.
+		const own = await gmAt('Mira', creatorKey);
+		own.gm.send({ type: 'adventure_start', libraryId: adventureId });
+		const theirs = await own.gm.until('room_reset');
+		expect(theirs.room.adventure?.library?.canRate).toBe(false);
+	});
+
+	it('keeps an unlisted adventure to its creator, and lets them remove it', async () => {
+		const creator = await connect();
+		creator.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const { adventureId, gmKey } = await creator.expect('library_published');
+		await creator.expect('library_mine');
+		const other = await connect();
+		other.send({ type: 'library_manage', gmKey: 'a'.repeat(64), adventureId, op: 'unlist' });
+		expect(await other.until('error')).toMatchObject({ code: 'forbidden' });
+		creator.send({ type: 'library_manage', gmKey, adventureId, op: 'unlist' });
+		expect((await creator.until('library_mine')).adventures[0].listed).toBe(false);
+
+		const { gm } = await gmAt('Gemma');
+		gm.send({ type: 'adventure_start', libraryId: adventureId });
+		expect(await gm.until('error')).toMatchObject({ code: 'adventure_not_found' });
+		const own = await gmAt('Mira', gmKey);
+		own.gm.send({ type: 'adventure_start', libraryId: adventureId });
+		expect((await own.gm.until('room_reset')).room.adventure?.library?.id).toBe(adventureId);
+
+		creator.send({ type: 'library_manage', gmKey, adventureId, op: 'remove' });
+		expect((await creator.until('library_mine')).adventures).toEqual([]);
+	});
+
+	it('lists a game only while its GM lists it, for anyone to find and join', async () => {
+		const { gm, room } = await gmAt('Gemma');
+		expect(room.listed).toBe(false);
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		const passerby = await connect();
+		passerby.send({ type: 'games_list' });
+		expect((await passerby.until('games_list')).games).toEqual([]);
+
+		pip.send({ type: 'room_listing', listed: true });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'room_listing', listed: true });
+		expect(await pip.until('listing_update')).toEqual({ type: 'listing_update', listed: true });
+		gm.send({ type: 'adventure_start', adventureId: 'blackwater' });
+		await pip.until('room_reset', (m) => m.room.listed);
+		passerby.send({ type: 'games_list' });
+		expect((await passerby.until('games_list')).games).toEqual([
+			{
+				roomId: room.id,
+				title: 'The Last Train to Blackwater',
+				gm: 'Gemma',
+				players: 1,
+				status: 'Choosing characters'
+			}
+		]);
+
+		gm.send({ type: 'room_listing', listed: false });
+		await gm.until('listing_update');
+		passerby.send({ type: 'games_list' });
+		expect((await passerby.until('games_list')).games).toEqual([]);
+	});
+});
