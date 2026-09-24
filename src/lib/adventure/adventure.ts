@@ -419,6 +419,8 @@ export interface AdventureView {
 	ledger: StoryLedger | null;
 	/** GM only: what the GM can direct. */
 	director: DirectorView | null;
+	/** How the place the party is in greets someone arriving (a new player's welcome card). */
+	welcome: { title: string; text: string };
 	/** When the GM began play (ms since epoch), for the time played. */
 	begunAt: number | null;
 	completedAt: number | null;

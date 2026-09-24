@@ -1663,4 +1663,23 @@ describe('The Hollow Bell over the wire', () => {
 		pip.send({ type: 'adventure_direct', direction: { op: 'skip' } });
 		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
 	});
+	it('brings a new player from the join link to play: a character, then a welcome to Bellweather', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		gm.send({ type: 'adventure_start' });
+		await gm.until('room_reset');
+
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const joined = await pip.expect('welcome');
+		expect(joined.room.adventure).toMatchObject({ stage: 'choosing' });
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		await tokenNamed(pip, 'The Veil');
+		gm.send({ type: 'adventure_begin' });
+		const playing = await untilAdventure(pip, (a) => a.stage === 'playing');
+		expect(playing.welcome.title).toBe('Welcome to Bellweather');
+		expect(playing.welcome.text).toMatch(/^Dusk settles over Bellweather/);
+		expect(playing.objectives.find((o) => !o.done && !o.optional)?.id).toBe('innkeeper');
+	});
 });

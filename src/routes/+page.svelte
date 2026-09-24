@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN, type JoinRole } from '$lib/game/protocol';
+	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN } from '$lib/game/protocol';
 	import {
 		RoomConnection,
 		handOff,
@@ -12,7 +12,6 @@
 
 	let name = $state(loadName());
 	let code = $state('');
-	let role = $state<JoinRole>('player');
 	let pending = $state<RoomConnection | null>(null);
 	let error = $state<string | null>(null);
 
@@ -47,7 +46,7 @@
 
 	function join(event: SubmitEvent) {
 		event.preventDefault();
-		if (canJoin) enter({ type: 'join', roomId, name: name.trim(), role });
+		if (canJoin) enter({ type: 'join', roomId, name: name.trim(), role: 'player' });
 	}
 </script>
 
@@ -83,12 +82,16 @@
 					autocapitalize="characters"
 					spellcheck="false"
 				/>
-				<select bind:value={role} aria-label="Join as">
-					<option value="player">Player</option>
-					<option value="spectator">Spectator</option>
-				</select>
 			</div>
 			<button type="submit" disabled={!canJoin}>Join room</button>
+			<button
+				type="button"
+				class="watch"
+				disabled={!canJoin}
+				onclick={() => enter({ type: 'join', roomId, name: name.trim(), role: 'spectator' })}
+			>
+				Just watch instead
+			</button>
 		</form>
 	</div>
 
@@ -137,6 +140,16 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 		gap: 1rem;
+	}
+
+	.watch {
+		justify-self: start;
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--muted);
+		text-decoration: underline;
+		font-size: 0.85rem;
 	}
 
 	.card {

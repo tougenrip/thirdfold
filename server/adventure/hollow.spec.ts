@@ -37,6 +37,7 @@ import {
 } from './hollow';
 import { MONASTERY_GRID } from './monastery';
 import { recordOrigins } from './objects';
+import { adventureView } from './view';
 
 function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 	if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result)}`);
@@ -194,5 +195,10 @@ describe('arriving in the Hollow', () => {
 		expect(characterOf(room, ana.id)!.token.pos).toEqual(HOLLOW_SPAWN[0]);
 		expect(story().sentries.size).toBe(3);
 		expect(patrol(room)).toMatchObject({ log: [] });
+		// A player joining now is welcomed to where the party is.
+		expect(adventureView(room, ana, new Set(), null)!.welcome).toMatchObject({
+			title: 'Welcome to The Hollow',
+			text: expect.stringContaining('The stair ends on a landing of wet stone')
+		});
 	});
 });
