@@ -61,6 +61,8 @@ export interface RoomSnapshot {
 	terrain: string | null;
 	/** The table's dark areas (a base64 CellMask), as far as this client knows them; null for none. */
 	darkness: string | null;
+	/** The GM has paused the game. */
+	paused: boolean;
 }
 
 /** Fields the GM may change on an existing token. Omitted fields stay as they are. */
@@ -139,7 +141,10 @@ export type ClientMessage =
 	/** GM: replace the table with an uploaded scene file. The server validates it fully. */
 	| { type: 'scene_import'; file: unknown }
 	| { type: 'chat_send'; text: string }
-	| { type: 'dice_roll'; expression: string }
+	/** Roll dice; `secret` shows the result only to the roller and the GM. */
+	| { type: 'dice_roll'; expression: string; secret?: true }
+	/** GM: pause the game (players can't move or act; enemies wait) or carry on. */
+	| { type: 'pause_set'; paused: boolean }
 	/** GM: set up The Hollow Bell on this table (replaces the table). */
 	| { type: 'adventure_start' }
 	/** Player: play this character (one each). */
@@ -168,6 +173,8 @@ export type ClientMessage =
 	| { type: 'adventure_share'; clueId: string }
 	/** GM: end whoever's turn it is now, start the story over, or stop the adventure (the table stays). */
 	| { type: 'adventure_control'; op: AdventureControl }
+	/** GM: direct the story (raise an event, skip a scene, start or end a fight, bring on an enemy). */
+	| { type: 'adventure_direct'; direction: Direction }
 	/** GM: set a character's hit points and statuses, or bring them back from the dead. */
 	| { type: 'adventure_override'; characterId: CharacterId; patch: CharacterPatch };
 
@@ -181,6 +188,23 @@ export interface CharacterPatch {
 }
 
 export type AdventureControl = 'end_turn' | 'restart' | 'end';
+
+/**
+ * What the GM directs. Ids are the story's own (events, fights, enemy kinds),
+ * offered to the GM in its view of the adventure; the server checks them.
+ */
+export type Direction =
+	/** Something in the story happens, as if the party had done it. */
+	| { op: 'event'; event: string }
+	/** On to the next scene: the fight at hand is won, and the chapter's event happens. */
+	| { op: 'skip' }
+	| { op: 'encounter_start'; encounter: string }
+	/** The fight ends: won (the story goes on as if the party won) or called off (the enemies leave). */
+	| { op: 'encounter_end'; result: 'won' | 'called_off' }
+	/** An enemy appears on a cell: it joins the fight, or stands guard until it spots someone. */
+	| { op: 'spawn'; kind: string; pos: GridPos };
+
+export const ENCOUNTER_RESULTS = ['won', 'called_off'] as const;
 
 export type ErrorCode =
 	| 'invalid_message'
@@ -211,6 +235,7 @@ export type ErrorCode =
 	| 'character_taken'
 	| 'not_your_turn'
 	| 'out_of_reach'
+	| 'paused'
 	| 'server_error';
 
 export type ServerMessage =
@@ -234,6 +259,7 @@ export type ServerMessage =
 	/** The ground this client knows changed (the GM reshaped it, or more of it was explored). */
 	| { type: 'terrain_update'; terrain: string | null }
 	| { type: 'darkness_update'; darkness: string | null }
+	| { type: 'pause_update'; paused: boolean }
 	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
 	| { type: 'scene_saved'; sceneId: string; name: string; savedAt: string }
 	/** To the GM who asked: the current table as a scene file. */
@@ -284,6 +310,28 @@ function parseGridPos(value: unknown): GridPos | null {
 	return Number.isSafeInteger(x) && Number.isSafeInteger(y)
 		? { x: x as number, y: y as number }
 		: null;
+}
+
+function parseDirection(value: unknown): Direction | null {
+	if (!isRecord(value)) return null;
+	switch (value.op) {
+		case 'event':
+			return isId(value.event) ? { op: 'event', event: value.event } : null;
+		case 'skip':
+			return { op: 'skip' };
+		case 'encounter_start':
+			return isId(value.encounter) ? { op: 'encounter_start', encounter: value.encounter } : null;
+		case 'encounter_end':
+			return ENCOUNTER_RESULTS.includes(value.result as 'won')
+				? { op: 'encounter_end', result: value.result as 'won' | 'called_off' }
+				: null;
+		case 'spawn': {
+			const pos = parseGridPos(value.pos);
+			return isId(value.kind) && pos ? { op: 'spawn', kind: value.kind, pos } : null;
+		}
+		default:
+			return null;
+	}
 }
 
 function parseOwner(value: unknown): string | null | undefined {
@@ -518,9 +566,16 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		case 'chat_send':
 			return typeof data.text === 'string' ? { type: 'chat_send', text: data.text } : null;
 		case 'dice_roll':
-			return typeof data.expression === 'string'
-				? { type: 'dice_roll', expression: data.expression }
-				: null;
+			if (typeof data.expression !== 'string') return null;
+			return data.secret === true
+				? { type: 'dice_roll', expression: data.expression, secret: true }
+				: { type: 'dice_roll', expression: data.expression };
+		case 'pause_set':
+			return typeof data.paused === 'boolean' ? { type: 'pause_set', paused: data.paused } : null;
+		case 'adventure_direct': {
+			const direction = parseDirection(data.direction);
+			return direction ? { type: 'adventure_direct', direction } : null;
+		}
 		case 'adventure_start':
 		case 'adventure_release':
 		case 'adventure_begin':
@@ -590,6 +645,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
 		darkness_update: (d) => d.darkness === null || typeof d.darkness === 'string',
+		pause_update: (d) => typeof d.paused === 'boolean',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
 		adventure_update: (d) => d.adventure === null || isRecord(d.adventure),

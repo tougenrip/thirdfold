@@ -12,6 +12,7 @@ import { ENEMIES } from './enemies';
 import {
 	chapterNumber,
 	characterOf,
+	directorOptions,
 	objectCells,
 	objectState,
 	bellAnswer,
@@ -220,6 +221,7 @@ export function adventureView(
 						})
 					}
 				: null,
+		director: viewer.role === 'gm' ? directorOptions(room, adventure) : null,
 		begunAt: adventure.begunAt,
 		completedAt: adventure.completedAt,
 		cues:

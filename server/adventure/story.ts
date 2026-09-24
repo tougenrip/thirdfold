@@ -345,7 +345,8 @@ export const DECISIONS: Record<DecisionId, DecisionDef> = {
 	}
 };
 
-export type EncounterId = 'well' | 'chamber' | 'hollow' | 'waking' | 'wrath' | 'heart';
+/** The story's fights, and `ambush`: the GM's own, with the enemies the GM put on the table. */
+export type EncounterId = 'well' | 'chamber' | 'hollow' | 'waking' | 'wrath' | 'heart' | 'ambush';
 
 export const ENCOUNTER_IDS: readonly EncounterId[] = [
 	'well',
@@ -353,8 +354,47 @@ export const ENCOUNTER_IDS: readonly EncounterId[] = [
 	'hollow',
 	'waking',
 	'wrath',
-	'heart'
+	'heart',
+	'ambush'
 ];
+
+/** Each fight as the GM sees it listed, and where it is fought (null: anywhere). */
+export const ENCOUNTER_INFO: Record<EncounterId, { name: string; location: LocationId | null }> = {
+	well: { name: 'The Hound at the well', location: 'bellweather' },
+	chamber: { name: 'The ringing chamber', location: 'monastery' },
+	hollow: { name: 'The Keeper and the watch', location: 'hollow' },
+	waking: { name: 'The Hollow wakes', location: 'hollow' },
+	wrath: { name: 'The Hollow’s Hand', location: 'hollow' },
+	heart: { name: 'The Heart', location: 'heart' },
+	ambush: { name: 'The enemies you placed', location: null }
+};
+
+/** How each event reads in the GM's list of what can be made to happen. */
+export const EVENT_LABELS: Record<EventId, string> = {
+	talked_maren: 'Maren told the party about Tobin',
+	well_clue: 'The well gave up its clue (the Hound climbs out)',
+	won_well: 'The Hound at the well was beaten',
+	left_village: 'The party took the mountain path',
+	talked_oswin: 'The party met Brother Oswin',
+	promised: 'The party answered Oswin (the ringers’ door unlocks)',
+	entered_nave: 'The party entered the nave',
+	found_hidden_door: 'Saint Agna turned, showing the hidden door',
+	entered_chamber: 'The party entered the ringing chamber',
+	won_chamber: 'The fight in the ringing chamber was won',
+	opened_grate: 'The grate over the stair opened',
+	reached_stair: 'The party went down the stair',
+	won_hollow: 'The Keeper and the watch were beaten',
+	found_tobin: 'The party found Tobin',
+	saw_hollow: 'The party saw what sleeps in the pit',
+	bell_rings_itself: 'The Bell began to ring itself',
+	bell_held: 'The Bell was held still',
+	chose_destroy: 'The party chose to destroy the Bell',
+	chose_descent: 'The party chose to go down into the pit',
+	decided_bell: 'The party decided the Bell’s fate',
+	learned_rule: 'The party learned the ringers’ rule',
+	learned_tobin: 'The party learned where Tobin went',
+	learned_agna: 'The party learned what Saint Agna holds'
+};
 
 /**
  * The three endings: Silence (the Bell destroyed or silenced for good),

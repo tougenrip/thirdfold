@@ -21,7 +21,16 @@ export const CUES: readonly Cue[] = ['toll', 'flash'];
 
 export type ChatMessage =
 	| { seq: number; at: number; kind: 'chat'; authorId: string; authorName: string; text: string }
-	| { seq: number; at: number; kind: 'roll'; authorId: string; authorName: string; roll: DiceRoll }
+	| {
+			seq: number;
+			at: number;
+			kind: 'roll';
+			authorId: string;
+			authorName: string;
+			roll: DiceRoll;
+			/** A secret roll: only the roller and the GM see it. */
+			audience?: LogAudience;
+	  }
 	| {
 			seq: number;
 			at: number;
@@ -112,11 +121,21 @@ export function normalizeChatText(raw: unknown, max = CHAT_MAX_LENGTH): string |
 	return text.length > 0 && text.length <= max ? text : null;
 }
 
-export type ChatInput = { type: 'chat'; text: string } | { type: 'roll'; expression: string };
+export type ChatInput =
+	{ type: 'chat'; text: string } | { type: 'roll'; expression: string; secret: boolean };
 
-/** Interprets what a user typed into the chat box: `/roll 2d6+3` (or `/r`) rolls; anything else is chat. */
+/**
+ * Interprets what a user typed into the chat box: `/roll 2d6+3` (or `/r`)
+ * rolls, `/gmroll` (or `/gr`) rolls in secret (for the roller and the GM);
+ * anything else is chat.
+ */
 export function parseChatInput(input: string): ChatInput {
-	const m = /^\/r(?:oll)?(?:\s+(.*))?$/i.exec(input.trim());
-	if (m) return { type: 'roll', expression: (m[1] ?? '1d20').trim() };
+	const m = /^\/(r(?:oll)?|g(?:m)?r(?:oll)?)(?:\s+(.*))?$/i.exec(input.trim());
+	if (m)
+		return {
+			type: 'roll',
+			expression: (m[2] ?? '1d20').trim(),
+			secret: m[1].toLowerCase().startsWith('g')
+		};
 	return { type: 'chat', text: input };
 }

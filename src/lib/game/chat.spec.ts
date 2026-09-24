@@ -19,9 +19,23 @@ describe('normalizeChatText', () => {
 
 describe('parseChatInput', () => {
 	it('turns /roll and /r into rolls', () => {
-		expect(parseChatInput('/roll 2d6+3')).toEqual({ type: 'roll', expression: '2d6+3' });
-		expect(parseChatInput('/r d20')).toEqual({ type: 'roll', expression: 'd20' });
-		expect(parseChatInput('/ROLL')).toEqual({ type: 'roll', expression: '1d20' });
+		expect(parseChatInput('/roll 2d6+3')).toEqual({
+			type: 'roll',
+			expression: '2d6+3',
+			secret: false
+		});
+		expect(parseChatInput('/r d20')).toEqual({ type: 'roll', expression: 'd20', secret: false });
+		expect(parseChatInput('/ROLL')).toEqual({ type: 'roll', expression: '1d20', secret: false });
+	});
+
+	it('rolls in secret with /gmroll or /gr', () => {
+		expect(parseChatInput('/gmroll 1d20+2')).toEqual({
+			type: 'roll',
+			expression: '1d20+2',
+			secret: true
+		});
+		expect(parseChatInput('/gr')).toEqual({ type: 'roll', expression: '1d20', secret: true });
+		expect(parseChatInput('/grr')).toEqual({ type: 'chat', text: '/grr' });
 	});
 
 	it('leaves everything else as chat', () => {

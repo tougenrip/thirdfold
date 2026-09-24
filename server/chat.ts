@@ -44,15 +44,20 @@ export function postRoll(
 	room: Room,
 	actor: Player,
 	expression: unknown,
-	roller: DieRoller = secureRoller
+	roller: DieRoller = secureRoller,
+	secret = false
 ): Result<{ message: ChatMessage }> {
 	const parsed = parseDice(expression);
 	if (!parsed.ok) return fail('invalid_dice', parsed.error);
 	const roll = rollDice(parsed.terms, roller);
-	return {
-		ok: true,
-		message: appendLog(room, { kind: 'roll', authorId: actor.id, authorName: actor.name, roll })
-	};
+	const entry = { kind: 'roll' as const, authorId: actor.id, authorName: actor.name, roll };
+	// A secret roll is the roller's and the GM's alone.
+	const audience: LogAudience | null = !secret
+		? null
+		: actor.role === 'gm'
+			? 'gm'
+			: { players: [actor.id] };
+	return { ok: true, message: appendLog(room, audience ? { ...entry, audience } : entry) };
 }
 
 /**

@@ -20,6 +20,7 @@ import {
 	INVESTIGATION_ACTIONS,
 	type ChapterId,
 	type Check,
+	type DirectorView,
 	type LocationId,
 	type ObjectState,
 	type Physical,
@@ -63,7 +64,7 @@ import {
 	type Prop,
 	type Rotation
 } from '../../src/lib/game/props';
-import type { AdventureControl, CharacterPatch } from '../../src/lib/game/protocol';
+import type { AdventureControl, CharacterPatch, Direction } from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
 import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
 import { appendLog, postSystem } from '../chat';
@@ -85,7 +86,7 @@ import {
 	type ClueId
 } from './content';
 import { areaAt, LOCATIONS } from './locations';
-import { ENEMIES, PUP_HP, type EnemyDef, type EnemyKind } from './enemies';
+import { ENEMIES, ENEMY_KINDS, PUP_HP, type EnemyDef, type EnemyKind } from './enemies';
 import { HEART_GRID, HEART_IDS, HEART_RING } from './heart';
 import { CAVERN, CULTIST_ROUNDS, HOLLOW_IDS, KEEPER_POST, PIT_RING } from './hollow';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
@@ -116,7 +117,11 @@ import type {
 import {
 	CHAPTERS,
 	DECISIONS,
+	ENCOUNTER_IDS,
+	ENCOUNTER_INFO,
 	ENDING_FOR,
+	EVENT_IDS,
+	EVENT_LABELS,
 	transition,
 	type DecisionId,
 	type EncounterId,
@@ -1527,7 +1532,8 @@ const ENCOUNTERS: Record<
 		foes: readonly Foe[];
 		/** Enemies already on the table, walking their rounds or standing guard (see `postSentries`). */
 		sentries?: readonly { kind: EnemyKind; route: readonly GridPos[] }[];
-		reveal: { from: GridPos; to: GridPos };
+		/** Shown to everyone as the fight begins. */
+		reveal?: { from: GridPos; to: GridPos };
 		/** Said as the fight begins. */
 		opening?: string;
 		/** More foes, depending on what the party did before. */
@@ -1578,7 +1584,9 @@ const ENCOUNTERS: Record<
 		foes: [{ kind: 'heart' }, { kind: 'tendril' }, { kind: 'tendril' }],
 		reveal: { from: { x: 0, y: 0 }, to: { x: HEART_GRID.width - 1, y: HEART_GRID.height - 1 } },
 		opening: TEXT.heart
-	}
+	},
+	// The GM's own: whoever the GM brought on (see `spawn`), wherever the party is.
+	ambush: { ring: [], foes: [] }
 };
 
 /** The enemy's token, as it stands on the table. */
@@ -1640,7 +1648,8 @@ function situationFor(room: Room, adventure: AdventureState, selfId: string): Si
  */
 export function patrol(room: Room): Outcome | null {
 	const adventure = room.adventure;
-	if (!adventure || adventure.encounter || adventure.stage !== 'playing') return null;
+	if (!adventure || adventure.encounter || adventure.stage !== 'playing' || room.paused)
+		return null;
 	let moved = false;
 	for (const [id, sentry] of adventure.sentries) {
 		const token = room.tokens.get(id);
@@ -1773,7 +1782,9 @@ export function startEncounter(
 		...(id === 'waking' ? { finale: 'waking' as const, cracks: [], pulls: 0, pulled: false } : {})
 	};
 	adventure.encounter = encounter;
-	for (const i of rectCells(room.grid, def.reveal.from, def.reveal.to)) room.fog.revealed[i] = 1;
+	if (def.reveal) {
+		for (const i of rectCells(room.grid, def.reveal.from, def.reveal.to)) room.fog.revealed[i] = 1;
+	}
 	const log = [
 		...(spotted
 			? [say(room, `The ${spotted.by.name} spots ${CHARACTERS[spotted.who.id].name}!`)]
@@ -2144,13 +2155,14 @@ function enemyDies(room: Room, encounter: Encounter, token: Token): void {
 	setObjectState(room, adventure, remains, 'interactable');
 }
 
-const WON: Record<EncounterId, { event: EventId; text?: string }> = {
+const WON: Record<EncounterId, { event?: EventId; text?: string }> = {
 	well: { event: 'won_well', text: TEXT.houndFalls },
 	chamber: { event: 'won_chamber' },
 	hollow: { event: 'won_hollow', text: TEXT.keeperFalls },
 	waking: { event: 'bell_held' },
 	wrath: { event: 'decided_bell', text: TEXT.wrathWon },
-	heart: { event: 'decided_bell', text: TEXT.heartWon }
+	heart: { event: 'decided_bell', text: TEXT.heartWon },
+	ambush: {}
 };
 
 /** The fight is won: the fallen get back up, and the story hears of it. */
@@ -2174,7 +2186,8 @@ function victory(room: Room, adventure: AdventureState): Outcome {
 		c.state.statuses.clear();
 		c.state.uses.clear();
 	}
-	return merge({ log }, happen(room, adventure, WON[id].event));
+	const event = WON[id].event;
+	return event ? merge({ log }, happen(room, adventure, event)) : { log };
 }
 
 /** Every character is down or dead: the fight, and the story, are lost. */
@@ -2478,12 +2491,12 @@ export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): O
 		adventure.sentries.delete(tokenId);
 		// The last of them gone before any fight: the way is clear.
 		const left = [...adventure.sentries.values()].some((s) => s.encounter === sentry.encounter);
-		if (!left && !adventure.encounters.has(sentry.encounter)) {
+		// (Not the GM's own: taking back an enemy the GM brought on clears nothing.)
+		if (!left && !adventure.encounters.has(sentry.encounter) && sentry.encounter !== 'ambush') {
 			adventure.encounters.set(sentry.encounter, 'won');
-			return merge(
-				{ log: [postSystem(room, 'The way is clear.')] },
-				happen(room, adventure, WON[sentry.encounter].event)
-			);
+			const event = WON[sentry.encounter].event;
+			const clear = { log: [postSystem(room, 'The way is clear.')] };
+			return event ? merge(clear, happen(room, adventure, event)) : clear;
 		}
 		return { log: [] };
 	}
@@ -2797,4 +2810,290 @@ export function override(
 		ok: true,
 		log: [postSystem(room, `${actor.name} adjusted ${def.name}: ${changes.join('; ')}.`)]
 	};
+}
+
+// ---------------------------------------------------------------------------
+// Directing: the GM runs the story without building anything
+
+/** GM: directs the story (see `Direction` in protocol.ts). */
+export function direct(
+	room: Room,
+	actor: Player,
+	direction: Direction,
+	now = Date.now()
+): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	if (adventure.stage === 'choosing') return fail('forbidden', 'Begin the story first.');
+	if (adventure.stage !== 'playing') return fail('forbidden', 'This story is over.');
+	switch (direction.op) {
+		case 'event':
+			return raise(room, adventure, actor, direction.event, now);
+		case 'skip':
+			return skip(room, adventure, actor, now);
+		case 'encounter_start':
+			return beginFight(room, adventure, actor, direction.encounter);
+		case 'encounter_end':
+			return endFight(room, adventure, actor, direction.result, now);
+		case 'spawn':
+			return spawn(room, adventure, actor, direction.kind, direction.pos);
+	}
+}
+
+/** The events the GM may still make happen, and the fights that can start where the party is. */
+export function directorOptions(room: Room, adventure: AdventureState): DirectorView {
+	const encounter = adventure.encounter;
+	const foes = [
+		...[...(encounter?.enemies ?? [])].map(([tokenId, e]) => ({
+			tokenId,
+			name: ENEMIES[e.kind].name,
+			hp: e.hp,
+			maxHp: e.maxHp
+		})),
+		...[...adventure.sentries].map(([tokenId, s]) => ({
+			tokenId,
+			name: ENEMIES[s.kind].name,
+			hp: null,
+			maxHp: null
+		}))
+	].filter((f) => room.tokens.has(f.tokenId));
+	const people = NPC_IDS.flatMap((id) => {
+		const npc = NPCS[id];
+		const token = npc.location === adventure.location ? room.tokens.get(npc.token) : undefined;
+		return token ? [{ tokenId: token.id, name: npc.name }] : [];
+	});
+	return {
+		foes,
+		people,
+		events: EVENT_IDS.filter((e) => !adventure.events.includes(e)).map((id) => ({
+			id,
+			label: EVENT_LABELS[id]
+		})),
+		encounters: ENCOUNTER_IDS.filter((id) => {
+			const where = ENCOUNTER_INFO[id].location;
+			return where === null || where === adventure.location;
+		}).map((id) => ({
+			id,
+			name: ENCOUNTER_INFO[id].name,
+			state: adventure.encounters.get(id) ?? null
+		})),
+		enemies: ENEMY_KINDS.map((kind) => ({ kind, name: ENEMIES[kind].name })),
+		skip: skipTo(adventure)
+	};
+}
+
+/** Where skipping leads from here, or null when it can't. */
+function skipTo(adventure: AdventureState): string | null {
+	if (adventure.stage !== 'playing') return null;
+	if (adventure.encounter) {
+		return adventure.encounter.finale === 'waking'
+			? CHAPTERS.the_ringing.title
+			: `Win the fight (${ENCOUNTER_INFO[adventure.encounter.id].name})`;
+	}
+	if (adventure.pending) return null;
+	const next = CHAPTERS[adventure.chapter].next.to;
+	return next ? CHAPTERS[next].title : 'The ending';
+}
+
+/** The GM makes something in the story happen, as if the party had done it. */
+function raise(
+	room: Room,
+	adventure: AdventureState,
+	actor: Player,
+	raw: string,
+	now: number
+): Outcomes {
+	const event = EVENT_IDS.find((e) => e === raw);
+	if (!event) return fail('invalid_message', 'There is no such event in this story.');
+	if (adventure.events.includes(event)) return fail('forbidden', 'That has already happened.');
+	const log = [postSystem(room, `${actor.name} made it happen: ${EVENT_LABELS[event]}.`, 'gm')];
+	return { ok: true, ...merge({ log }, settleAndHappen(room, adventure, event, now)) };
+}
+
+/**
+ * An event raised by the GM that a fight would have raised (the Hound
+ * beaten, say): that fight counts as won, and its enemies leave the table.
+ */
+function settleAndHappen(
+	room: Room,
+	adventure: AdventureState,
+	event: EventId,
+	now: number
+): Outcome {
+	for (const id of ENCOUNTER_IDS) {
+		if (WON[id].event !== event || adventure.encounters.get(id) === 'won') continue;
+		const encounter = adventure.encounter;
+		if (encounter?.id === id) {
+			for (const tokenId of encounter.enemies.keys()) room.tokens.delete(tokenId);
+			clearCracks(room, encounter);
+			adventure.encounter = null;
+		}
+		for (const [tokenId, sentry] of [...adventure.sentries]) {
+			if (sentry.encounter !== id) continue;
+			adventure.sentries.delete(tokenId);
+			room.tokens.delete(tokenId);
+		}
+		if (adventure.encounters.has(id) || encounter?.id === id) adventure.encounters.set(id, 'won');
+	}
+	return happen(room, adventure, event, now);
+}
+
+/**
+ * On to the next scene. In a fight, the fight is won (in the Hollow's
+ * waking, the Bell starts ringing itself); otherwise the event the chapter
+ * waits for happens. A choice put to the party must be answered first.
+ */
+function skip(room: Room, adventure: AdventureState, actor: Player, now: number): Outcomes {
+	const encounter = adventure.encounter;
+	if (!encounter && adventure.pending) {
+		return fail('forbidden', 'The party has a choice to make first: answer it, or let them.');
+	}
+	const log = [postSystem(room, `${actor.name} skipped ahead.`)];
+	if (encounter?.finale === 'waking') {
+		return { ok: true, ...merge({ log }, happen(room, adventure, 'bell_rings_itself', now)) };
+	}
+	if (encounter) return { ok: true, ...merge({ log }, winFight(room, adventure, encounter, now)) };
+	const next = CHAPTERS[adventure.chapter].next.on;
+	return { ok: true, ...merge({ log }, settleAndHappen(room, adventure, next, now)) };
+}
+
+/** The fight is over and the party has won it: its enemies fall, and the story goes on. */
+function winFight(
+	room: Room,
+	adventure: AdventureState,
+	encounter: Encounter,
+	now: number
+): Outcome {
+	// The Hollow's waking is won by holding the Bell, once it has started ringing.
+	let outcome: Outcome =
+		encounter.finale === 'waking' ? happen(room, adventure, 'bell_rings_itself', now) : { log: [] };
+	for (const tokenId of [...encounter.enemies.keys()]) {
+		const token = room.tokens.get(tokenId);
+		if (token) enemyDies(room, encounter, token);
+		else encounter.enemies.delete(tokenId);
+	}
+	if (encounter.finale) {
+		clearCracks(room, encounter);
+		const rope = objectDef('bell-rope');
+		if (rope) setObjectState(room, adventure, rope, 'used');
+	}
+	outcome = merge(outcome, victory(room, adventure));
+	return outcome;
+}
+
+/** Whether a fight has anyone to fight: foes of its own, or sentries of it on the table. */
+function hasFoes(room: Room, adventure: AdventureState, id: EncounterId): boolean {
+	return (
+		ENCOUNTERS[id].foes.length > 0 ||
+		[...adventure.sentries].some(([tokenId, s]) => s.encounter === id && room.tokens.has(tokenId))
+	);
+}
+
+/** The GM starts one of the story's fights (or the GM's own, with the enemies on the table). */
+function beginFight(room: Room, adventure: AdventureState, actor: Player, raw: string): Outcomes {
+	const id = ENCOUNTER_IDS.find((e) => e === raw);
+	if (!id) return fail('invalid_message', 'There is no such fight in this story.');
+	if (adventure.encounter) return fail('forbidden', 'A fight is already on.');
+	const where = ENCOUNTER_INFO[id].location;
+	if (where && where !== adventure.location) {
+		return fail('forbidden', `That fight is fought at ${LOCATIONS[where].name}.`);
+	}
+	if (standing(room, adventure).length === 0) {
+		return fail('forbidden', 'Nobody in the party is standing to fight.');
+	}
+	if (!hasFoes(room, adventure, id)) {
+		return fail('forbidden', 'There is nobody to fight: bring on some enemies first.');
+	}
+	const log = [postSystem(room, `${actor.name} started a fight.`)];
+	return { ok: true, ...merge({ log }, startEncounter(room, adventure, id)) };
+}
+
+/**
+ * The GM ends the fight: won (as if the party had beaten every enemy) or
+ * called off (the enemies leave the table, and the fight can be started
+ * again). Either way the fallen get back up.
+ */
+function endFight(
+	room: Room,
+	adventure: AdventureState,
+	actor: Player,
+	result: 'won' | 'called_off',
+	now: number
+): Outcomes {
+	const encounter = adventure.encounter;
+	if (!encounter) return fail('forbidden', 'There is no fight to end.');
+	if (result === 'won') {
+		const log = [postSystem(room, `${actor.name} ended the fight: the party wins.`)];
+		return { ok: true, ...merge({ log }, winFight(room, adventure, encounter, now)) };
+	}
+	const log = [postSystem(room, `${actor.name} called off the fight.`)];
+	for (const tokenId of encounter.enemies.keys()) room.tokens.delete(tokenId);
+	clearCracks(room, encounter);
+	const rope = objectDef('bell-rope');
+	if (encounter.finale && rope) setObjectState(room, adventure, rope, rope.initial);
+	adventure.encounter = null;
+	adventure.encounters.delete(encounter.id);
+	for (const c of played(room, adventure)) {
+		if (c.state.hp <= 0 && !c.state.dead) {
+			c.state.hp = 1;
+			c.state.downedFor = 0;
+		}
+		c.state.statuses.clear();
+		c.state.uses.clear();
+	}
+	return { ok: true, log };
+}
+
+/**
+ * The GM brings on an enemy. In a fight it joins at once, rolling its
+ * initiative, and acts this round if it beat whoever is still to go. Outside
+ * one it stands guard where it was put, and the fight (the GM's own) begins
+ * when it spots someone, unless the game is paused.
+ */
+function spawn(
+	room: Room,
+	adventure: AdventureState,
+	actor: Player,
+	raw: string,
+	pos: GridPos
+): Outcomes {
+	const kind = ENEMY_KINDS.find((k) => k === raw);
+	if (!kind) return fail('invalid_message', 'There is no such enemy in this story.');
+	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the table.');
+	if (!isFree(room, pos)) return fail('cell_occupied', 'Something is already there.');
+	const def = ENEMIES[kind];
+	const log = [postSystem(room, `${actor.name} brought on ${def.name}.`, 'gm')];
+	const token = enemyToken(kind, pos);
+	room.tokens.set(token.id, token);
+	const encounter = adventure.encounter;
+	if (!encounter) {
+		adventure.sentries.set(token.id, { kind, encounter: 'ambush', route: [{ ...pos }], leg: 0 });
+		// Placed ones may be looked for again: the GM's fight is fought as often as the GM likes.
+		if (adventure.encounters.get('ambush') !== 'active') adventure.encounters.delete('ambush');
+		const spotted = room.paused ? null : detect(room, adventure);
+		return { ok: true, ...(spotted ? merge({ log }, spotted) : { log }) };
+	}
+	const party = standing(room, adventure);
+	const hp = def.hp(party.length);
+	const nearest = party.reduce<Played | null>(
+		(a, b) => (!a || gridDistance(pos, b.token.pos) < gridDistance(pos, a.token.pos) ? b : a),
+		null
+	);
+	encounter.enemies.set(token.id, {
+		kind,
+		hp,
+		maxHp: hp,
+		statuses: new Map(),
+		rest: 0,
+		post: { ...pos },
+		...(nearest ? { lastSeen: { ...nearest.token.pos } } : {})
+	});
+	const initiative = roll(def.initiative ? `1d20+${def.initiative}` : '1d20', diceOf(room)).total;
+	// Among those still to go this round, by initiative.
+	let at = encounter.order.findIndex((t, i) => i > encounter.current && t.initiative < initiative);
+	if (at < 0) at = encounter.order.length;
+	encounter.order.splice(at, 0, { kind: 'enemy', tokenId: token.id, initiative });
+	log.push(postSystem(room, `${def.name} joins the fight (initiative ${initiative}).`, 'gm'));
+	return { ok: true, log };
 }

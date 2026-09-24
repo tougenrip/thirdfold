@@ -19,7 +19,8 @@ function room(): RoomSnapshot {
 		log: [],
 		adventure: null,
 		terrain: null,
-		darkness: null
+		darkness: null,
+		paused: false
 	};
 }
 
@@ -30,6 +31,14 @@ describe('applyRoomUpdate', () => {
 		applyRoomUpdate(r, { type: 'player_joined', player: pip });
 		applyRoomUpdate(r, { type: 'player_joined', player: pip });
 		expect(r.players.map((p) => p.id)).toEqual(['gm', 'p1']);
+	});
+
+	it('follows the GM pausing the game and carrying on', () => {
+		const r = room();
+		expect(applyRoomUpdate(r, { type: 'pause_update', paused: true })).toBe(true);
+		expect(r.paused).toBe(true);
+		applyRoomUpdate(r, { type: 'pause_update', paused: false });
+		expect(r.paused).toBe(false);
 	});
 
 	it('tracks presence', () => {
@@ -176,6 +185,7 @@ describe('applyRoomUpdate', () => {
 			decisions: [],
 			ending: null,
 			ledger: null,
+			director: null,
 			begunAt: 1,
 			completedAt: null,
 			cues: null
