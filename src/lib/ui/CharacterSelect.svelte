@@ -25,7 +25,7 @@
 <div class="backdrop">
 	<section class="select" aria-labelledby="choose-title">
 		<header>
-			<p class="kicker">{adventure.title} · {adventure.section}</p>
+			<p class="kicker">{adventure.title} · {adventure.location.name}</p>
 			<h2 id="choose-title">Choose your character</h2>
 		</header>
 		<ul>

@@ -19,6 +19,7 @@ import {
 	SCENE_FILE_MAX_BYTES
 } from '../src/lib/game/scene-file';
 import * as adventure from './adventure/engine';
+import { readAdventure } from './adventure/persist';
 import { RateLimiter } from './rate-limit';
 import { applyScene, exportScene } from './scene-io';
 import { MemorySceneStore, type SceneStore } from './scene-store';
@@ -245,13 +246,22 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	function loadIntoRoom(room: Room, player: Player, data: unknown, verb: string): void {
 		const parsed = parseSceneFile(data);
 		if (!parsed.ok) throw new SceneError('invalid_scene', parsed.error);
+		// A story saved with the table comes back with it, checked before anything changes.
+		const saved = parsed.scene.adventure;
+		const story = saved ? readAdventure(saved, parsed.scene) : null;
+		if (story && !story.ok) throw new SceneError('invalid_scene', story.error);
 		applyScene(room, parsed.scene);
-		// A different table ends the story that was being played on this one.
-		const ended = room.adventure !== null;
-		room.adventure = null;
+		const ended = room.adventure !== null && !story;
+		room.adventure = story ? story.adventure : null;
 		resetRoom(room);
 		announce(room, postSystem(room, `${player.name} ${verb} the scene “${parsed.scene.name}”.`));
+		// A different table without a story ends the one that was being played on this one.
 		if (ended) announce(room, postSystem(room, 'The adventure ended with the old table.'));
+		const resumed = room.adventure;
+		if (!resumed) return;
+		announce(room, postSystem(room, adventure.resumeNotice(resumed)));
+		// A save made while the enemies were acting picks up with their turn.
+		if (resumed.encounter?.phase === 'enemies') scheduleEnemyTurn(room, resumed.encounter.turn);
 	}
 
 	/** Relays what an adventure action did: new views (or a fresh table), its log, and the enemies' turn. */
@@ -285,6 +295,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 		// Talking, narration and picking characters add to the log, so they share the chat rate limit.
 		const chatty =
 			msg.type === 'adventure_interact' ||
+			msg.type === 'adventure_decide' ||
 			msg.type === 'adventure_narrate' ||
 			msg.type === 'adventure_cue' ||
 			msg.type === 'adventure_claim' ||
@@ -314,6 +325,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					return adventure.narrate(room, player, msg.text);
 				case 'adventure_cue':
 					return adventure.readCue(room, player, msg.cueId);
+				case 'adventure_decide':
+					return adventure.decide(room, player, msg.decisionId, msg.optionId);
 				case 'adventure_control':
 					return adventure.control(room, player, msg.op);
 				case 'adventure_override':
@@ -411,15 +424,15 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				const result = moveToken(room, player, msg.tokenId, msg.to);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const { token, from } = result;
-				const outcome = adventure.afterMove(room, token, allowed.cost);
-				syncRoom(room, player.id);
 				const cells = gridDistance(from, token.pos);
-				tokenNotice(
-					room,
-					`${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`,
-					token.ownerId
-				);
+				const notice = `${player.name} moved ${token.name} ${cells} ${cells === 1 ? 'cell' : 'cells'}.`;
+				const outcome = adventure.afterMove(room, token, allowed.cost);
+				// Walking somewhere can move the story on, even to another table.
+				if (outcome.reset) resetRoom(room);
+				else syncRoom(room, player.id);
+				tokenNotice(room, notice, token.ownerId);
 				for (const message of outcome.log) announce(room, message);
+				if (outcome.enemyTurn !== undefined) scheduleEnemyTurn(room, outcome.enemyTurn);
 				return;
 			}
 			case 'token_update': {
@@ -445,7 +458,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				const result = deleteToken(room, player, msg.tokenId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				const outcome = adventure.afterTokenDeleted(room, msg.tokenId);
-				syncRoom(room);
+				if (outcome.reset) resetRoom(room);
+				else syncRoom(room);
 				tokenNotice(room, `${player.name} removed ${result.token.name}.`, result.token.ownerId);
 				for (const message of outcome.log) announce(room, message);
 				return;
@@ -558,6 +572,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'adventure_end_turn':
 			case 'adventure_narrate':
 			case 'adventure_cue':
+			case 'adventure_decide':
 			case 'adventure_control':
 				return handleAdventure(ws, room, player, msg);
 		}

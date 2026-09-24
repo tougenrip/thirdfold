@@ -9,9 +9,9 @@
 import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
 import type { Light } from '../../src/lib/game/lights';
 import type { SceneObject } from '../../src/lib/game/objects';
-import type { AssetId, Prop, Rotation } from '../../src/lib/game/props';
-import { SCENE_FILE_VERSION, type SceneFile, type SavedToken } from '../../src/lib/game/scene-file';
-import { emptyMask, encodeMask, rectCells } from '../../src/lib/game/visibility';
+import type { Prop } from '../../src/lib/game/props';
+import type { SceneFile, SavedToken } from '../../src/lib/game/scene-file';
+import { door, light, npc, prop, table, wall } from './tables';
 
 export const GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 24, height: 20 };
 
@@ -68,35 +68,6 @@ export const WELL_RING: readonly GridPos[] = [
 	{ x: 11, y: 15 },
 	{ x: 12, y: 15 }
 ];
-
-const wall = (id: string, a: GridPos, b: GridPos): SceneObject => ({ id, kind: 'wall', a, b });
-const door = (id: string, a: GridPos, b: GridPos): SceneObject => ({
-	id,
-	kind: 'door',
-	a,
-	b,
-	open: false
-});
-const prop = (
-	id: string,
-	assetId: AssetId,
-	x: number,
-	y: number,
-	rotation: Rotation = 0
-): Prop => ({
-	id,
-	assetId,
-	pos: { x, y },
-	rotation,
-	scale: 1
-});
-const light = (id: string, x: number, y: number, radius: number, color: string): Light => ({
-	id,
-	pos: { x, y },
-	radius,
-	color,
-	on: true
-});
 
 const TREES: readonly [number, number][] = [
 	// Mountainside north of the fence, leaving the path (x 10-13) clear.
@@ -180,33 +151,20 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		{ ...light(IDS.brazierLight, 14, 6, 3, '#ffa04d'), on: false }
 	];
 
-	const tokens: SavedToken[] = [
+	const tokens: SavedToken[] = [npc(IDS.maren, 'Maren', '#a04a2c', 6, 9)];
+
+	return table(
 		{
-			id: IDS.maren,
-			name: 'Maren',
-			color: '#a04a2c',
-			pos: { x: 6, y: 9 },
-			vision: 6,
-			light: 0,
-			owner: null
-		}
-	];
-
-	// The road the party arrives on is already in view.
-	const revealed = emptyMask(GRID);
-	for (const i of rectCells(GRID, { x: 9, y: 16 }, { x: 16, y: 19 })) revealed[i] = 1;
-
-	return {
-		format: 'thirdfold-scene',
-		version: SCENE_FILE_VERSION,
-		name: 'Bellweather',
-		savedAt: now.toISOString(),
-		grid: { ...GRID },
-		tokens,
-		objects,
-		props,
-		lights,
-		ambient: 'dusk',
-		fog: { enabled: true, revealed: encodeMask(revealed) }
-	};
+			name: 'Bellweather',
+			grid: GRID,
+			tokens,
+			objects,
+			props,
+			lights,
+			ambient: 'dusk',
+			// The road the party arrives on is already in view.
+			arrival: { from: { x: 9, y: 16 }, to: { x: 16, y: 19 } }
+		},
+		now
+	);
 }

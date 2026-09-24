@@ -137,6 +137,8 @@ export type ClientMessage =
 	| { type: 'adventure_narrate'; text: string }
 	/** GM: read one of the adventure's prepared passages aloud. */
 	| { type: 'adventure_cue'; cueId: string }
+	/** Answer the choice put to the party (a player for their character, or the GM). */
+	| { type: 'adventure_decide'; decisionId: string; optionId: string }
 	/** GM: end the players' phase now, start the section over, or stop the adventure (the table stays). */
 	| { type: 'adventure_control'; op: AdventureControl }
 	/** GM: set a character's hit points and statuses, or bring them back from the dead. */
@@ -487,6 +489,10 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return typeof data.text === 'string' ? { type: 'adventure_narrate', text: data.text } : null;
 		case 'adventure_cue':
 			return isId(data.cueId) ? { type: 'adventure_cue', cueId: data.cueId } : null;
+		case 'adventure_decide':
+			return isId(data.decisionId) && isId(data.optionId)
+				? { type: 'adventure_decide', decisionId: data.decisionId, optionId: data.optionId }
+				: null;
 		case 'adventure_control':
 			return data.op === 'end_round' || data.op === 'restart' || data.op === 'end'
 				? { type: 'adventure_control', op: data.op }

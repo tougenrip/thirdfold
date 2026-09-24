@@ -1,6 +1,8 @@
-// Turning a live room into a scene file and back.
+// Turning a live room into a scene file and back. The story being played at
+// the table (if any) is saved with it; see adventure/persist.ts.
 
 import { serializeScene, type SceneFile } from '../src/lib/game/scene-file';
+import { saveAdventure } from './adventure/persist';
 import type { Token } from '../src/lib/game/token';
 import { decodeMask, emptyMask } from '../src/lib/game/visibility';
 import type { Room } from './rooms';
@@ -16,7 +18,8 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 			lights: room.lights.values(),
 			ambient: room.ambient,
 			fog: room.fog,
-			playerName: (id) => room.players.get(id)?.name
+			playerName: (id) => room.players.get(id)?.name,
+			adventure: room.adventure && saveAdventure(room.adventure)
 		},
 		now
 	);

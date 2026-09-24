@@ -28,17 +28,21 @@
 
 <div class="backdrop">
 	<section class="end" aria-labelledby="end-title">
-		<p class="kicker">{adventure.title} · {adventure.section}</p>
-		<h2 id="end-title">{won ? 'The bell is silent' : 'The lamps go out'}</h2>
+		<p class="kicker">{adventure.title} · {adventure.location.name}</p>
+		<h2 id="end-title">{won ? (adventure.ending?.title ?? 'The end') : 'The lamps go out'}</h2>
 		<p class="lead">
 			{won
-				? 'The party leaves Bellweather behind and climbs toward the monastery.'
-				: 'The Hound has won this night. The story can begin again.'}
+				? (adventure.ending?.text ?? '')
+				: 'The dark has won this night. The story can begin again.'}
 		</p>
 
 		<dl>
-			<dt>{won ? 'Section complete' : 'Section'}</dt>
-			<dd>{adventure.section}</dd>
+			<dt>{won ? 'Ending' : 'Fell in'}</dt>
+			<dd>
+				{won
+					? adventure.ending?.title
+					: `Chapter ${adventure.chapter.number}: ${adventure.chapter.title}`}
+			</dd>
 			{#if party.length}
 				<dt>Party</dt>
 				<dd>
@@ -58,11 +62,11 @@
 			{/if}
 			<dt>Clues found</dt>
 			<dd>{adventure.clues.length}</dd>
+			{#each adventure.decisions as d (d.id)}
+				<dt>{d.id === 'bell' ? 'The Bell' : 'Promised'}</dt>
+				<dd>{d.choice} <small>{d.by}</small></dd>
+			{/each}
 		</dl>
-
-		{#if won}
-			<p class="next">Part Two, The Monastery, is still being written.</p>
-		{/if}
 
 		<div class="row">
 			{#if isGm}
@@ -71,7 +75,7 @@
 					type="button"
 					onclick={() => send({ type: 'adventure_control', op: 'restart' })}
 				>
-					{won ? 'Play the section again' : 'Try again'}
+					{won ? 'Play it again' : 'Try again'}
 				</button>
 				<button type="button" onclick={() => send({ type: 'adventure_control', op: 'end' })}>
 					Back to a free table
@@ -108,7 +112,6 @@
 
 	.kicker,
 	.lead,
-	.next,
 	.wait {
 		margin: 0;
 		color: var(--muted);

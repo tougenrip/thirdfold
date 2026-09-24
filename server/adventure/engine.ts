@@ -1,6 +1,11 @@
-// The Hollow Bell's rules, part one. Every action takes the acting player and
-// checks role, ownership, reach and turn order before changing anything, like
-// the scene actions in server/scene.ts. Dice are rolled here, on the server.
+// The Hollow Bell's rules. Every action takes the acting player and checks
+// role, ownership, reach and turn order before changing anything, like the
+// scene actions in server/scene.ts. Dice are rolled here, on the server.
+//
+// The story moves by events (see story.ts): an action that matters to the
+// story calls `happen`, which records the event, does what it does to the
+// table, and moves to the next chapter when the current one was waiting for
+// it, travelling to another table when the chapter is played elsewhere.
 //
 // Actions return an Outcome: the log entries they added (the game server
 // announces them after syncing views) and whether the table was replaced or
@@ -12,6 +17,8 @@ import {
 	canReach,
 	inActionRange,
 	inAttackRange,
+	type ChapterId,
+	type LocationId,
 	type ObjectState
 } from '../../src/lib/adventure/adventure';
 import {
@@ -38,20 +45,34 @@ import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
 import { obstacles } from '../scene';
 import { applyScene } from '../scene-io';
-import { bellweatherScene, EXIT, IDS, PATH_AREA, SPAWN, WELL_RING } from './bellweather';
-import { CLUES, CUES, HOUND, TEXT, TITLE, type ClueId } from './content';
+import { IDS, PATH_AREA, WELL_RING } from './bellweather';
+import { CLUES, CUES, ENDINGS, HOUND, PROMISE_KEPT, TEXT, TITLE, type ClueId } from './content';
+import { areaAt, LOCATIONS } from './locations';
+import { CHAMBER, STAIR_RING } from './monastery';
 import {
 	applyLook,
 	initialStates,
 	objectDef,
 	objectForDoor,
 	OBJECTS,
+	objectsAt,
 	propIdOf,
 	recordOrigins,
 	type ObjectDef,
 	type Verb
 } from './objects';
 import type { AdventureState, CharacterState, Encounter, EnemyState, Statuses } from './state';
+import {
+	CHAPTERS,
+	DECISIONS,
+	ENDING_FOR,
+	NPC_IDS,
+	NPCS,
+	transition,
+	type DecisionId,
+	type EncounterId,
+	type EventId
+} from './story';
 
 export interface Outcome {
 	/** Log entries added, oldest first; announce them after syncing. */
@@ -69,12 +90,13 @@ const GM_ONLY = fail('forbidden', 'Only the GM can do that.');
 
 /** The cells a world object covers now, or null if it is not on the table. */
 export function objectCells(room: Room, def: ObjectDef): GridPos[] | null {
+	if (room.adventure && def.location !== room.adventure.location) return null;
 	if ('token' in def.thing) {
 		const token = room.tokens.get(def.thing.token);
 		return token ? [token.pos] : null;
 	}
 	if ('door' in def.thing) {
-		const door = room.objects.get(def.thing.door);
+		const door = room.objects.get(def.thing.door) ?? def.secret;
 		return door ? cellsBeside(room.grid, door) : null;
 	}
 	const prop = room.props.get(def.thing.prop);
@@ -181,12 +203,18 @@ function isFree(
 	return (!occupant || occupant.id === ignoreId) && !isSolidCell(blocked, cell);
 }
 
-function placeCharacter(room: Room, id: CharacterId, ownerId: string | null): Token | null {
-	const cell = SPAWN.find((c) => isFree(room, c));
+function placeCharacter(
+	room: Room,
+	location: LocationId,
+	id: CharacterId,
+	ownerId: string | null,
+	tokenId: string = randomUUID()
+): Token | null {
+	const cell = LOCATIONS[location].spawn.find((c) => isFree(room, c));
 	if (!cell) return null;
 	const def = CHARACTERS[id];
 	const token: Token = {
-		id: randomUUID(),
+		id: tokenId,
 		name: def.name,
 		color: def.color,
 		pos: { ...cell },
@@ -206,8 +234,17 @@ function newState(room: Room): AdventureState {
 	return {
 		id: 'hollow-bell',
 		stage: 'choosing',
+		chapter: 'village',
+		location: 'bellweather',
 		characters: new Map(),
 		clues: [],
+		events: [],
+		defeated: [],
+		npcs: new Map(NPC_IDS.map((id) => [id, NPCS[id].states[0]])),
+		decisions: new Map(),
+		pending: null,
+		encounters: new Map(),
+		ending: null,
 		objects: initialStates(),
 		origins: recordOrigins(room),
 		cuesRead: new Set(),
@@ -220,7 +257,7 @@ function newState(room: Room): AdventureState {
 /** GM: sets up The Hollow Bell. Replaces the table with Bellweather. */
 export function startAdventure(room: Room, actor: Player): Outcomes {
 	if (actor.role !== 'gm') return GM_ONLY;
-	applyScene(room, bellweatherScene());
+	applyScene(room, LOCATIONS.bellweather.scene());
 	room.adventure = newState(room);
 	return {
 		ok: true,
@@ -237,7 +274,7 @@ export function claimCharacter(room: Room, actor: Player, id: CharacterId): Outc
 	if (!adventure) return NO_ADVENTURE;
 	if (actor.role !== 'player') return fail('forbidden', 'Only players can take a character.');
 	if (adventure.stage === 'complete' || adventure.stage === 'defeat') {
-		return fail('forbidden', 'This section is over.');
+		return fail('forbidden', 'This story is over.');
 	}
 	const mine = characterOf(room, actor.id);
 	if (mine) return fail('forbidden', `You are already playing ${CHARACTERS[mine.id].name}.`);
@@ -245,7 +282,7 @@ export function claimCharacter(room: Room, actor: Player, id: CharacterId): Outc
 	if (existing && room.tokens.has(existing.tokenId)) {
 		return fail('character_taken', `${CHARACTERS[id].name} is already taken.`);
 	}
-	const token = placeCharacter(room, id, actor.id);
+	const token = placeCharacter(room, adventure.location, id, actor.id);
 	if (!token) return fail('cell_occupied', 'There is no room on the road. Ask the GM to clear it.');
 	adventure.characters.set(id, newCharacter(token.id, id));
 	return {
@@ -281,7 +318,7 @@ export function beginAdventure(room: Room, actor: Player, now = Date.now()): Out
 	if (played(room, adventure).length === 0) {
 		return fail('forbidden', 'Wait until at least one player has chosen a character.');
 	}
-	adventure.stage = 'arrival';
+	adventure.stage = 'playing';
 	adventure.begunAt = now;
 	return { ok: true, log: [appendLog(room, { kind: 'narration', text: TEXT.arrival })] };
 }
@@ -339,79 +376,300 @@ export function interact(
 	}
 	const before = state!;
 	if (verb.to) setObjectState(room, adventure, def, verb.to);
-	return { ok: true, log: respond(room, adventure, def, verb, before) };
+	return { ok: true, ...respond(room, adventure, def, verb, before) };
 }
 
-/** What happens in the story when a verb is done: narration, clues, the next stage. */
+/** What happens in the story when a verb is done: narration, clues, events. */
 function respond(
 	room: Room,
 	adventure: AdventureState,
 	def: ObjectDef,
 	verb: Verb,
 	before: ObjectState
-): ChatMessage[] {
-	const stage = adventure.stage;
+): Outcome {
+	const has = (event: EventId) => adventure.events.includes(event);
+	const told = (...log: ChatMessage[]): Outcome => ({ log });
+	const then = (log: ChatMessage[], event: EventId): Outcome => {
+		const next = happen(room, adventure, event);
+		return { ...next, log: [...log, ...next.log] };
+	};
+	const clue = (id: ClueId) => [say(room, CLUES[id].text), ...addClue(room, adventure, id)];
 	switch (`${def.id}:${verb.id}`) {
 		case 'maren:talk': {
-			if (stage === 'arrival') {
-				adventure.stage = 'investigate';
-				return [say(room, TEXT.marenArrival, 'Maren')];
-			}
-			const line =
-				stage === 'aftermath'
-					? TEXT.marenAftermath
-					: stage === 'complete'
-						? TEXT.marenComplete
-						: TEXT.marenInvestigate;
-			return [say(room, line, 'Maren')];
+			if (!has('talked_maren'))
+				return then([say(room, TEXT.marenArrival, 'Maren')], 'talked_maren');
+			if (has('left_village')) return told(say(room, TEXT.marenComplete, 'Maren'));
+			return told(
+				say(room, has('won_well') ? TEXT.marenAftermath : TEXT.marenInvestigate, 'Maren')
+			);
 		}
 		case 'well:examine': {
-			if (stage !== 'investigate') {
-				return [say(room, stage === 'arrival' ? TEXT.wellEarly : CLUES.scratches.text)];
-			}
-			const log = [say(room, TEXT.wellClue), ...addClue(room, adventure, 'scratches')];
-			return [...log, ...startEncounter(room, adventure)];
+			if (has('well_clue')) return told(say(room, CLUES.scratches.text));
+			if (!has('talked_maren')) return told(say(room, TEXT.wellEarly));
+			return then(
+				[say(room, TEXT.wellClue), ...addClue(room, adventure, 'scratches')],
+				'well_clue'
+			);
 		}
 		case 'noticeboard:read':
-			return [say(room, CLUES.notice.text), ...addClue(room, adventure, 'notice')];
+			return told(...clue('notice'));
 		case 'register:read':
-			return [say(room, CLUES.register.text), ...addClue(room, adventure, 'register')];
+			return told(...clue('register'));
 		case 'table:examine':
-			return [say(room, before === 'used' ? TEXT.tableAgain : TEXT.table)];
+			return told(say(room, before === 'used' ? TEXT.tableAgain : TEXT.table));
 		case 'shrine:pray':
-			return [say(room, TEXT.shrine)];
+			return told(say(room, TEXT.shrine));
 		case 'chest:open':
-			return [say(room, TEXT.chestOpen)];
+			return told(say(room, TEXT.chestOpen));
 		case 'chest:search':
-			return before === 'used'
-				? [say(room, TEXT.chestEmpty)]
-				: [say(room, CLUES.rope.text), ...addClue(room, adventure, 'rope')];
+			return before === 'used' ? told(say(room, TEXT.chestEmpty)) : told(...clue('rope'));
 		case 'rug:lift': {
 			const hatch = objectDef('hatch');
 			if (hatch && objectState(adventure, hatch) === 'hidden') {
 				setObjectState(room, adventure, hatch, 'closed');
 			}
-			return [say(room, TEXT.rug)];
+			return told(say(room, TEXT.rug));
 		}
-		case 'hatch:open':
-			return [];
 		case 'hatch:search':
-			return before === 'used'
-				? [say(room, TEXT.hatchEmpty)]
-				: [say(room, CLUES.drawing.text), ...addClue(room, adventure, 'drawing')];
+			return before === 'used' ? told(say(room, TEXT.hatchEmpty)) : told(...clue('drawing'));
 		case 'crate:break':
-			return [say(room, TEXT.crate)];
+			return told(say(room, TEXT.crate));
 		case 'brazier:light':
-			return [say(room, TEXT.brazierLit)];
+			return told(say(room, TEXT.brazierLit));
 		case 'brazier:extinguish':
-			return [say(room, TEXT.brazierOut)];
+			return told(say(room, TEXT.brazierOut));
 		case 'remains:search':
-			return before === 'used'
-				? [say(room, TEXT.remainsEmpty)]
-				: [say(room, CLUES.clapper.text), ...addClue(room, adventure, 'clapper')];
+			return before === 'used' ? told(say(room, TEXT.remainsEmpty)) : told(...clue('clapper'));
+		case 'oswin:talk': {
+			if (!has('talked_oswin')) return then([say(room, TEXT.oswinFirst, 'Oswin')], 'talked_oswin');
+			if (adventure.pending === 'promise') return told(say(room, TEXT.oswinWaiting, 'Oswin'));
+			return told(say(room, adventure.ending ? TEXT.oswinEnd : TEXT.oswinAfter, 'Oswin'));
+		}
+		case 'graves:read':
+			return told(say(room, TEXT.graves));
+		case 'altar:read':
+			return told(...clue('chronicle'));
+		case 'agna:turn': {
+			const door = objectDef('secret-door');
+			if (door && objectState(adventure, door) === 'hidden') {
+				setObjectState(room, adventure, door, 'closed');
+			}
+			return then([say(room, TEXT.agna)], 'found_hidden_door');
+		}
+		case 'rope:examine':
+			return told(...clue('splice'));
+		case 'tobin:talk':
+			return has('found_tobin')
+				? told(say(room, TEXT.tobinAfter))
+				: then([say(room, TEXT.tobinFound, 'Tobin')], 'found_tobin');
+		case 'bell:examine':
+			return told(say(room, TEXT.bell));
+		case 'pit:examine':
+			return told(say(room, TEXT.pit));
+		case 'bones:search':
+			return before === 'used' ? told(say(room, TEXT.bonesEmpty)) : told(...clue('badges'));
 		default:
-			return [];
+			return told();
 	}
+}
+
+// ---------------------------------------------------------------------------
+// The story: events, chapters, places, decisions
+
+const merge = (a: Outcome, b: Outcome): Outcome => ({
+	log: [...a.log, ...b.log],
+	...(a.reset || b.reset ? { reset: true } : {}),
+	...((b.enemyTurn ?? a.enemyTurn) !== undefined ? { enemyTurn: b.enemyTurn ?? a.enemyTurn } : {})
+});
+
+/**
+ * Something happened in the story. Records it (once), does what it does to
+ * the table, and moves on to the next chapter if the current one was waiting
+ * for it.
+ */
+export function happen(
+	room: Room,
+	adventure: AdventureState,
+	event: EventId,
+	now = Date.now()
+): Outcome {
+	if (adventure.events.includes(event)) return { log: [] };
+	adventure.events.push(event);
+	let outcome: Outcome = { log: [] };
+	switch (event) {
+		case 'won_well': {
+			adventure.npcs.set('maren', 'hopeful');
+			const gate = objectDef('gate');
+			if (gate) setObjectState(room, adventure, gate, 'opened');
+			for (const i of rectCells(room.grid, PATH_AREA.from, PATH_AREA.to)) room.fog.revealed[i] = 1;
+			outcome = { log: [say(room, TEXT.gateOpens)] };
+			break;
+		}
+		case 'promised': {
+			adventure.npcs.set('oswin', 'trusting');
+			const door = objectDef('side-door');
+			if (door && objectState(adventure, door) === 'disabled') {
+				setObjectState(room, adventure, door, 'closed');
+			}
+			break;
+		}
+		case 'talked_oswin':
+			outcome = offer(room, adventure, 'promise');
+			break;
+	}
+	const next = transition(adventure.chapter, event);
+	if (next === undefined) return outcome;
+	return merge(
+		outcome,
+		next === null ? end(room, adventure, now) : enter(room, adventure, next, now)
+	);
+}
+
+/** The party moves into a chapter: to its table, if it is played elsewhere, and what opens it. */
+function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: number): Outcome {
+	adventure.chapter = chapter;
+	const def = CHAPTERS[chapter];
+	let outcome: Outcome = {
+		log: [postSystem(room, `Chapter ${chapterNumber(chapter)}: ${def.title}.`)]
+	};
+	if (def.location !== adventure.location) {
+		travel(room, adventure, def.location);
+		outcome.reset = true;
+	}
+	const tell = (...log: ChatMessage[]) => (outcome = merge(outcome, { log }));
+	switch (chapter) {
+		case 'discover_bell':
+			tell(...startEncounter(room, adventure, 'well'));
+			break;
+		case 'investigate_monastery':
+			tell(say(room, TEXT.leaveVillage));
+			break;
+		case 'enter_monastery':
+			tell(say(room, TEXT.nave));
+			break;
+		case 'bell_rings': {
+			tell(say(room, TEXT.chamber));
+			const grate = objectDef('grate');
+			if (grate) setObjectState(room, adventure, grate, 'opened');
+			tell(say(room, TEXT.bellRings), ...startEncounter(room, adventure, 'chamber'));
+			break;
+		}
+		case 'descend':
+			tell(say(room, TEXT.chamberWon));
+			break;
+		case 'the_hollow':
+			adventure.npcs.set('tobin', 'entranced');
+			tell(say(room, TEXT.downStair), say(room, TEXT.hollow));
+			break;
+		case 'final_decision':
+			outcome = merge(outcome, offer(room, adventure, 'bell'));
+			break;
+	}
+	// The event this chapter waits for may already have happened (a GM
+	// move, a save from an older build): move straight on.
+	const waitingFor = def.next.on;
+	if (adventure.events.includes(waitingFor)) {
+		const next = transition(chapter, waitingFor);
+		if (next) outcome = merge(outcome, enter(room, adventure, next, now));
+		else if (next === null) outcome = merge(outcome, end(room, adventure, now));
+	}
+	return outcome;
+}
+
+/** Told to the table when a saved story is loaded back. */
+export function resumeNotice(adventure: AdventureState): string {
+	if (adventure.stage === 'complete')
+		return `${TITLE} is over here: ${CHAPTERS[adventure.chapter].title}.`;
+	return `${TITLE} continues. Chapter ${chapterNumber(adventure.chapter)}: ${CHAPTERS[adventure.chapter].title}.`;
+}
+
+export function chapterNumber(chapter: ChapterId): number {
+	return Object.keys(CHAPTERS).indexOf(chapter) + 1;
+}
+
+/**
+ * Takes the party to another table: the new scene replaces the old one, and
+ * every character in play arrives at its spawn with the same token, owner
+ * and condition.
+ */
+function travel(room: Room, adventure: AdventureState, to: LocationId): void {
+	const party = played(room, adventure).map((c) => ({
+		id: c.id,
+		ownerId: c.token.ownerId,
+		tokenId: c.token.id
+	}));
+	applyScene(room, LOCATIONS[to].scene());
+	adventure.location = to;
+	adventure.origins = recordOrigins(room);
+	for (const def of objectsAt(to))
+		applyLook(room, def, objectState(adventure, def), adventure.origins);
+	for (const c of party) {
+		if (!placeCharacter(room, to, c.id, c.ownerId, c.tokenId)) adventure.characters.delete(c.id);
+	}
+}
+
+/** Puts a choice to the party. */
+function offer(room: Room, adventure: AdventureState, id: DecisionId): Outcome {
+	if (adventure.decisions.has(id)) return { log: [] };
+	adventure.pending = id;
+	return { log: [postSystem(room, `A choice: ${DECISIONS[id].prompt}`)] };
+}
+
+/** The story has reached its ending. */
+function end(room: Room, adventure: AdventureState, now: number): Outcome {
+	const choice = adventure.decisions.get('bell')?.option;
+	const ending = (choice && ENDING_FOR[choice]) || 'silent';
+	adventure.ending = ending;
+	adventure.stage = 'complete';
+	adventure.completedAt = now;
+	adventure.npcs.set('tobin', 'safe');
+	const log = [say(room, ENDINGS[ending].text)];
+	const promise = adventure.decisions.get('promise')?.option;
+	const coda = promise && PROMISE_KEPT[promise]?.[ending];
+	if (coda) log.push(say(room, coda));
+	log.push(postSystem(room, `${TITLE}: ${ENDINGS[ending].title}.`));
+	return { log };
+}
+
+/**
+ * A player (for their character) or the GM answers the choice put to the
+ * party. The first answer stands.
+ */
+export function decide(
+	room: Room,
+	actor: Player,
+	decisionId: string,
+	optionId: string,
+	now = Date.now()
+): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (adventure.pending !== decisionId) {
+		return fail('forbidden', 'There is no such choice to make right now.');
+	}
+	const def = DECISIONS[adventure.pending];
+	const option = def.options.find((o) => o.id === optionId);
+	if (!option) return fail('invalid_message', 'That is not one of the choices.');
+	let by = actor.name;
+	if (actor.role !== 'gm') {
+		const me = characterOf(room, actor.id);
+		if (!me) return fail('forbidden', 'Only a character in the story can choose.');
+		const unable = unableReason(me);
+		if (unable) return fail('forbidden', unable);
+		by = CHARACTERS[me.id].name;
+	}
+	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
+	adventure.decisions.set(def.id, { option: option.id, by });
+	adventure.pending = null;
+	let outcome: Outcome = { log: [postSystem(room, `${by} chose: ${option.label}.`)] };
+	if (def.id === 'promise') {
+		const line = option.id === 'boy' ? TEXT.oswinBoy : TEXT.oswinSilence;
+		outcome = merge(outcome, { log: [say(room, line, 'Oswin')] });
+		outcome = merge(outcome, happen(room, adventure, 'promised', now));
+	} else {
+		outcome = merge(outcome, happen(room, adventure, 'decided_bell', now));
+	}
+	return { ok: true, ...outcome };
 }
 
 /** GM: puts any world object in one of its states: reveal a secret, unlock a door, break a crate. */
@@ -441,37 +699,64 @@ export function setObject(
 // ---------------------------------------------------------------------------
 // The encounter
 
-function startEncounter(room: Room, adventure: AdventureState): ChatMessage[] {
-	const cell = WELL_RING.find((c) => isFree(room, c)) ?? SPAWN.find((c) => isFree(room, c));
-	if (!cell) return [];
-	const hp = HOUND.hpFor(standing(room, adventure).length);
-	const hound: Token = {
-		id: randomUUID(),
-		name: HOUND.name,
-		color: HOUND.color,
-		pos: { ...cell },
-		ownerId: null,
-		vision: HOUND.vision,
-		light: 0
-	};
-	room.tokens.set(hound.id, hound);
-	adventure.stage = 'encounter';
+/** The fights in the story: where the enemies come from, how many, how tough, what lights up. */
+const ENCOUNTERS: Record<
+	EncounterId,
+	{
+		ring: readonly GridPos[];
+		count: number;
+		hp: (characters: number) => number;
+		reveal: { from: GridPos; to: GridPos };
+	}
+> = {
+	well: {
+		ring: WELL_RING,
+		count: 1,
+		hp: HOUND.hpFor,
+		// The square, so the whole party can see the fight.
+		reveal: { from: { x: 8, y: 10 }, to: { x: 16, y: 17 } }
+	},
+	chamber: { ring: STAIR_RING, count: 2, hp: HOUND.pupHpFor, reveal: CHAMBER }
+};
+
+function startEncounter(room: Room, adventure: AdventureState, id: EncounterId): ChatMessage[] {
+	const def = ENCOUNTERS[id];
+	const hp = def.hp(standing(room, adventure).length);
+	const spawn = LOCATIONS[adventure.location].spawn;
+	const enemies = new Map<string, EnemyState>();
+	for (let n = 0; n < def.count; n++) {
+		const cell = def.ring.find((c) => isFree(room, c)) ?? spawn.find((c) => isFree(room, c));
+		if (!cell) break;
+		const hound: Token = {
+			id: randomUUID(),
+			name: HOUND.name,
+			color: HOUND.color,
+			pos: { ...cell },
+			ownerId: null,
+			vision: HOUND.vision,
+			light: 0
+		};
+		room.tokens.set(hound.id, hound);
+		enemies.set(hound.id, { kind: 'hound', hp, maxHp: hp, statuses: new Map() });
+	}
+	if (enemies.size === 0) return [];
+	adventure.encounters.set(id, 'active');
 	adventure.encounter = {
+		id,
 		round: 1,
 		phase: 'players',
 		acted: new Set(),
 		moved: new Map(),
-		enemies: new Map([[hound.id, { kind: 'hound', hp, maxHp: hp, statuses: new Map() }]]),
+		enemies,
 		turn: 1
 	};
 	for (const c of played(room, adventure)) {
 		c.state.uses.clear();
 		c.state.statuses.clear();
 	}
-	// Light up the square so the whole party can see the fight.
-	for (const i of rectCells(room.grid, { x: 8, y: 10 }, { x: 16, y: 17 })) room.fog.revealed[i] = 1;
+	for (const i of rectCells(room.grid, def.reveal.from, def.reveal.to)) room.fog.revealed[i] = 1;
 	return [
-		say(room, TEXT.houndEmerges),
+		...(id === 'well' ? [say(room, TEXT.houndEmerges)] : []),
 		postSystem(room, 'Round 1. Each character can move up to their speed and act once.')
 	];
 }
@@ -689,19 +974,20 @@ function afterAction(
 	encounter: Encounter,
 	log: ChatMessage[]
 ): Outcome {
-	if (encounter.enemies.size === 0) return { log: [...log, ...victory(room, adventure)] };
+	if (encounter.enemies.size === 0) return merge({ log }, victory(room, adventure));
 	const waiting = standing(room, adventure).filter((c) => !encounter.acted.has(c.id));
 	if (waiting.length > 0) return { log };
 	return { log, enemyTurn: enemiesAct(encounter) };
 }
 
-/** An enemy is gone from the fight and the table; the Hound leaves its ashes where it fell. */
+/** An enemy is gone from the fight and the table; the well's Hound leaves its ashes where it fell. */
 function enemyDies(room: Room, encounter: Encounter, token: Token): void {
 	encounter.enemies.delete(token.id);
 	room.tokens.delete(token.id);
 	const adventure = room.adventure;
+	adventure?.defeated.push(token.name);
 	const remains = objectDef('remains');
-	if (!adventure || !remains || room.props.has(IDS.remains)) return;
+	if (!adventure || encounter.id !== 'well' || !remains || room.props.has(IDS.remains)) return;
 	room.props.set(IDS.remains, {
 		id: IDS.remains,
 		assetId: 'ashes',
@@ -718,10 +1004,12 @@ function enemiesAct(encounter: Encounter): number {
 	return ++encounter.turn;
 }
 
-function victory(room: Room, adventure: AdventureState): ChatMessage[] {
+/** The fight is won: the fallen get back up, and the story hears of it. */
+function victory(room: Room, adventure: AdventureState): Outcome {
+	const id = adventure.encounter?.id ?? 'well';
 	adventure.encounter = null;
-	adventure.stage = 'aftermath';
-	const log = [say(room, TEXT.houndFalls)];
+	adventure.encounters.set(id, 'won');
+	const log = id === 'well' ? [say(room, TEXT.houndFalls)] : [];
 	const fallen = played(room, adventure).filter((c) => c.state.hp <= 0 && !c.state.dead);
 	for (const c of fallen) {
 		c.state.hp = 1;
@@ -732,11 +1020,7 @@ function victory(room: Room, adventure: AdventureState): ChatMessage[] {
 		c.state.statuses.clear();
 		c.state.uses.clear();
 	}
-	const gate = objectDef('gate');
-	if (gate) setObjectState(room, adventure, gate, 'opened');
-	for (const i of rectCells(room.grid, PATH_AREA.from, PATH_AREA.to)) room.fog.revealed[i] = 1;
-	log.push(say(room, TEXT.gateOpens));
-	return log;
+	return merge({ log }, happen(room, adventure, id === 'well' ? 'won_well' : 'won_chamber'));
 }
 
 /**
@@ -814,8 +1098,9 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 		);
 	}
 
-	if (encounter.enemies.size === 0) return { log: [...log, ...victory(room, adventure)] };
+	if (encounter.enemies.size === 0) return merge({ log }, victory(room, adventure));
 	if (standing(room, adventure).length === 0) {
+		adventure.encounters.set(encounter.id, 'lost');
 		adventure.encounter = null;
 		adventure.stage = 'defeat';
 		log.push(say(room, TEXT.defeat));
@@ -927,7 +1212,7 @@ function walkCost(room: Room, from: GridPos, to: GridPos): number | null {
 	);
 }
 
-/** After a token moved: charge its movement, and see whether the party has left the village. */
+/** After a token moved: charge its movement, and see whether a character walked into a place that matters. */
 export function afterMove(
 	room: Room,
 	token: Token,
@@ -940,15 +1225,9 @@ export function afterMove(
 	if (cost !== null && adventure.encounter) {
 		adventure.encounter.moved.set(me.id, (adventure.encounter.moved.get(me.id) ?? 0) + cost);
 	}
-	if (
-		adventure.stage === 'aftermath' &&
-		EXIT.some((c) => c.x === token.pos.x && c.y === token.pos.y)
-	) {
-		adventure.stage = 'complete';
-		adventure.completedAt = now;
-		return { log: [say(room, TEXT.complete)] };
-	}
-	return { log: [] };
+	if (adventure.stage !== 'playing') return { log: [] };
+	const area = areaAt(adventure.location, adventure.chapter, token.pos);
+	return area ? happen(room, adventure, area.event, now) : { log: [] };
 }
 
 /** Why a door won't open for this actor, or null if it will. The GM can always force it. */
@@ -977,7 +1256,8 @@ export function afterTokenDeleted(room: Room, tokenId: string): Outcome {
 	}
 	const encounter = adventure.encounter;
 	if (!encounter || !encounter.enemies.delete(tokenId)) return { log: [] };
-	if (encounter.enemies.size === 0) return { log: victory(room, adventure) };
+	adventure.defeated.push(HOUND.name);
+	if (encounter.enemies.size === 0) return victory(room, adventure);
 	return { log: [] };
 }
 
@@ -1033,21 +1313,26 @@ export function control(
 	}
 }
 
-/** Resets Bellweather and the story; everyone keeps their character, back on the road at full health. */
+/** Starts the story over in Bellweather; everyone keeps their character, back on the road at full health. */
 function restart(room: Room, adventure: AdventureState, actor: Player, now: number): Outcome {
 	const keep = played(room, adventure).map((c) => ({ id: c.id, ownerId: c.token.ownerId }));
 	const begun = adventure.stage !== 'choosing';
-	applyScene(room, bellweatherScene());
+	applyScene(room, LOCATIONS.bellweather.scene());
 	const next = newState(room);
 	for (const { id, ownerId } of keep) {
 		const owner = ownerId && room.players.get(ownerId);
-		const token = placeCharacter(room, id, owner && owner.role === 'player' ? owner.id : null);
+		const token = placeCharacter(
+			room,
+			next.location,
+			id,
+			owner && owner.role === 'player' ? owner.id : null
+		);
 		if (token) next.characters.set(id, newCharacter(token.id, id));
 	}
 	room.adventure = next;
-	const log = [postSystem(room, `${actor.name} started the section over.`)];
+	const log = [postSystem(room, `${actor.name} started the story over.`)];
 	if (begun) {
-		next.stage = 'arrival';
+		next.stage = 'playing';
 		next.begunAt = now;
 		log.push(say(room, TEXT.arrival));
 	}

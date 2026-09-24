@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
+import type { AdventureView } from '../src/lib/adventure/adventure';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { FileSceneStore, type SceneStore } from './scene-store';
@@ -754,7 +755,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 3, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 4, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',
@@ -918,21 +919,29 @@ describe('The Hollow Bell over the wire', () => {
 		return { gm, pip, pipId };
 	}
 
-	async function untilStage(client: TestClient, stage: string) {
+	async function untilAdventure(client: TestClient, pass: (a: AdventureView) => boolean) {
 		for (;;) {
 			const msg = await client.until('adventure_update');
-			if (msg.adventure?.stage === stage) return msg.adventure;
+			if (msg.adventure && pass(msg.adventure)) return msg.adventure;
 		}
 	}
+	const untilChapter = (client: TestClient, chapter: string) =>
+		untilAdventure(client, (a) => a.chapter.id === chapter);
 
-	it('plays the opening section from start to finish, with both sides seeing the same story', async () => {
+	it('plays the whole story from the village to an ending, with both sides seeing the same story', async () => {
 		const { gm, pip, pipId } = await table();
 
 		pip.send({ type: 'adventure_start' });
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
 		gm.send({ type: 'adventure_start' });
 		const reset = await pip.until('room_reset');
-		expect(reset.room.adventure).toMatchObject({ title: 'The Hollow Bell', stage: 'choosing' });
+		expect(reset.room.adventure).toMatchObject({
+			title: 'The Hollow Bell',
+			stage: 'choosing',
+			chapter: { id: 'village', number: 1, of: 9 },
+			location: { name: 'Bellweather' },
+			ledger: null
+		});
 		expect(reset.room.adventure?.cues).toBeNull();
 		expect((await gm.until('room_reset')).room.adventure?.cues?.length).toBeGreaterThan(0);
 
@@ -946,26 +955,28 @@ describe('The Hollow Bell over the wire', () => {
 		expect(warden).toMatchObject({ name: 'The Warden', ownerId: pipId });
 
 		gm.send({ type: 'adventure_begin' });
-		await untilStage(pip, 'arrival');
+		await untilAdventure(pip, (a) => a.stage === 'playing');
 
 		// Into the inn to talk to Maren: open the door, walk in, talk.
 		const move = (to: { x: number; y: number }) =>
 			pip.send({ type: 'token_move', tokenId: warden.id, to });
+		const door = (objectId: string) => pip.send({ type: 'door_toggle', objectId });
+		const use = (targetId: string) => pip.send({ type: 'adventure_interact', targetId });
 		move({ x: 9, y: 10 });
-		pip.send({ type: 'door_toggle', objectId: 'hb-inn-door' });
+		door('hb-inn-door');
 		move({ x: 7, y: 10 });
-		pip.send({ type: 'adventure_interact', targetId: 'maren' });
-		const told = await untilStage(gm, 'investigate');
+		use('maren');
+		const told = await untilAdventure(gm, (a) => a.objectives.length === 2);
 		expect(told.objectives.find((o) => o.id === 'innkeeper')?.done).toBe(true);
 
 		// The gate is chained until the Hound is dealt with.
-		pip.send({ type: 'door_toggle', objectId: 'hb-gate' });
+		door('hb-gate');
 		expect(await pip.until('error')).toMatchObject({ message: 'The gate is chained shut.' });
 
 		// The well: a clue, and the Hound climbs out beside the Warden.
 		move({ x: 11, y: 12 });
-		pip.send({ type: 'adventure_interact', targetId: 'well' });
-		const fight = await untilStage(pip, 'encounter');
+		use('well');
+		const fight = await untilChapter(pip, 'discover_bell');
 		expect(fight.clues.map((c) => c.id)).toEqual(['scratches']);
 		const [hound] = fight.encounter!.enemies;
 		expect(hound).toMatchObject({ name: 'Hollow Hound', hp: 16, maxHp: 16 });
@@ -977,15 +988,117 @@ describe('The Hollow Bell over the wire', () => {
 			if (message.kind === 'system' && message.text === 'Round 2. Your move.') break;
 		}
 		pip.send({ type: 'adventure_act', actionId: 'blade', targetId: hound.tokenId });
-		const after = await untilStage(gm, 'aftermath');
+		const after = await untilAdventure(gm, (a) => !a.encounter);
 		expect(after.characters.find((c) => c.id === 'warden')?.hp).toBe(22);
-		expect(after.encounter).toBeNull();
+		expect(after.ledger?.encounters).toEqual([{ id: 'well', state: 'won' }]);
 
-		// Up through the open gate to the mountain path: the section ends.
+		// Up through the open gate to the mountain path, and on to a new table.
 		move({ x: 11, y: 1 });
-		const done = await untilStage(gm, 'complete');
+		const arrived = (await pip.until('room_reset')).room;
+		expect(arrived).toMatchObject({ sceneName: 'The Monastery' });
+		expect(arrived.adventure).toMatchObject({
+			chapter: { id: 'investigate_monastery', number: 3 },
+			location: { id: 'monastery' }
+		});
+		expect(arrived.tokens.find((t) => t.id === warden.id)).toMatchObject({ ownerId: pipId });
+		await gm.until('room_reset');
+
+		// Brother Oswin, in the gatehouse, asks what the party is here for.
+		move({ x: 6, y: 15 });
+		door('mn-gatehouse-door');
+		move({ x: 4, y: 15 });
+		use('oswin');
+		const asked = await untilAdventure(pip, (a) => a.decision !== null);
+		expect(asked.decision).toMatchObject({ id: 'promise' });
+		expect((await untilAdventure(gm, (a) => a.decision !== null)).decision?.id).toBe('promise');
+		pip.send({ type: 'adventure_decide', decisionId: 'promise', optionId: 'boy' });
+		const promised = await untilAdventure(gm, (a) => a.decisions.length === 1);
+		expect(promised.decisions[0]).toMatchObject({ choice: 'Bring Tobin home', by: 'The Warden' });
+		expect(promised.ledger?.npcs).toContainEqual({
+			id: 'oswin',
+			name: 'Brother Oswin',
+			state: 'trusting'
+		});
+
+		// Round to the ringers' door, now unlocked, and into the nave.
+		move({ x: 22, y: 6 });
+		door('mn-side-door');
+		move({ x: 21, y: 6 });
+		await untilChapter(gm, 'enter_monastery');
+
+		// Saint Agna shows the hidden door; through it, the bell rings.
+		move({ x: 9, y: 4 });
+		use('agna');
+		await untilChapter(pip, 'discover_hidden_chamber');
+		move({ x: 8, y: 5 });
+		door('mn-secret-door');
+		move({ x: 7, y: 5 });
+		const rung = await untilChapter(gm, 'bell_rings');
+		expect(rung.encounter?.enemies).toHaveLength(2);
+		for (const e of rung.encounter!.enemies) {
+			gm.send({ type: 'token_delete', tokenId: e.tokenId });
+		}
+		await untilChapter(pip, 'descend');
+
+		// Down the stair to the Hollow.
+		move({ x: 3, y: 8 });
+		const hollow = (await pip.until('room_reset')).room;
+		expect(hollow.adventure).toMatchObject({ chapter: { id: 'the_hollow' } });
+
+		// Tobin, and the final choice.
+		move({ x: 9, y: 5 });
+		use('tobin');
+		await untilAdventure(pip, (a) => a.decision?.id === 'bell');
+		pip.send({ type: 'adventure_decide', decisionId: 'bell', optionId: 'leave' });
+		const done = await untilAdventure(gm, (a) => a.stage === 'complete');
+		expect(done.ending).toMatchObject({ id: 'silent', title: 'The Long Silence' });
 		expect(done.objectives.every((o) => o.done)).toBe(true);
-		expect((await untilStage(pip, 'complete')).completedAt).toBeGreaterThan(0);
+		expect(done.ledger?.events).toHaveLength(13);
+		expect((await untilAdventure(pip, (a) => a.stage === 'complete')).completedAt).toBeGreaterThan(
+			0
+		);
+	});
+
+	it('saves the story with the table and picks it up again on load', async () => {
+		const { gm, pip } = await table();
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		const veil = (await pip.until('token_upserted')).token;
+		gm.send({ type: 'adventure_begin' });
+		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: 9, y: 10 } });
+		pip.send({ type: 'door_toggle', objectId: 'hb-inn-door' });
+		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: 7, y: 10 } });
+		pip.send({ type: 'adventure_interact', targetId: 'maren' });
+		await untilAdventure(gm, (a) => a.objectives.length === 2);
+
+		gm.send({ type: 'scene_export', name: 'Mid-story' });
+		const { file } = await gm.until('scene_exported');
+		expect(file.adventure).toMatchObject({
+			id: 'hollow-bell',
+			state: { chapter: 'village', events: ['talked_maren'] }
+		});
+		gm.send({ type: 'scene_save', name: 'Mid-story' });
+		const { sceneId } = await gm.until('scene_saved');
+
+		// The story moves on, then the GM loads the save: back to where it was.
+		gm.send({ type: 'adventure_control', op: 'restart' });
+		await pip.until('room_reset');
+		gm.send({ type: 'scene_load', sceneId });
+		const loaded = (await pip.until('room_reset')).room;
+		expect(loaded.adventure).toMatchObject({ stage: 'playing', chapter: { id: 'village' } });
+		expect(loaded.adventure?.objectives.map((o) => o.done)).toEqual([true, false]);
+		expect(loaded.adventure?.characters.find((c) => c.id === 'veil')?.inPlay).toBe(true);
+		for (;;) {
+			const { message } = await pip.expect('chat');
+			if (message.kind === 'system' && message.text.startsWith('The Hollow Bell continues')) break;
+		}
+
+		// A tampered story is refused and the table stays as it was.
+		const bad = structuredClone(file);
+		(bad.adventure!.state as Record<string, unknown>).chapter = 'epilogue';
+		gm.send({ type: 'scene_import', file: bad });
+		expect(await gm.until('error')).toMatchObject({ code: 'invalid_scene' });
 	});
 
 	it('lets only the GM adjust a character, and everyone sees the change', async () => {

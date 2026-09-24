@@ -33,6 +33,7 @@
 	} from '$lib/game/props';
 	import ActionBar from './ActionBar.svelte';
 	import AdventurePanel from './AdventurePanel.svelte';
+	import Decision from './Decision.svelte';
 	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
 	import CharacterSelect from './CharacterSelect.svelte';
 	import CharacterSheet from './CharacterSheet.svelte';
@@ -925,6 +926,14 @@
 					{/if}
 				</div>
 			{/key}
+		{/if}
+
+		{#if adventure?.decision && !adventure.encounter}
+			<Decision
+				decision={adventure.decision}
+				canAnswer={isGm || (!!myCharacter && !myCharacter.downed && !myCharacter.dead)}
+				send={(action) => conn.send(action)}
+			/>
 		{/if}
 
 		{#if adventure && me.role === 'player' && !myCharacter && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}

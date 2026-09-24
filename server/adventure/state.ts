@@ -1,13 +1,21 @@
 // Authoritative adventure state kept on a room. Plain data: tokens, walls and
-// props stay in the room's scene; this records the story around them (stage,
-// clues, hit points, the encounter) and refers to scene things by id.
+// props stay in the room's scene; this records the story around them (the
+// chapter, clues, events, decisions, hit points, the encounter) and refers to
+// scene things by id. persist.ts turns it into a save and back.
 //
 // Who plays a character is not stored here: it is whoever owns the
 // character's token, so the GM reassigning or removing the token just works.
 
-import type { AdventureStage, ObjectState } from '../../src/lib/adventure/adventure';
-import type { Origins } from './objects';
+import type {
+	AdventureStage,
+	ChapterId,
+	EncounterState,
+	LocationId,
+	ObjectState
+} from '../../src/lib/adventure/adventure';
 import type { CharacterId, StatusId } from '../../src/lib/adventure/characters';
+import type { Origins } from './objects';
+import type { DecisionId, EncounterId, EndingId, EventId, NpcId } from './story';
 
 /** Active statuses and the rounds each has left (counting the current one). */
 export type Statuses = Map<StatusId, number>;
@@ -31,6 +39,7 @@ export interface EnemyState {
 }
 
 export interface Encounter {
+	id: EncounterId;
 	round: number;
 	phase: 'players' | 'enemies';
 	acted: Set<CharacterId>;
@@ -42,15 +51,37 @@ export interface Encounter {
 	turn: number;
 }
 
+export interface Decision {
+	option: string;
+	/** Who answered: a character's name, or the GM's. */
+	by: string;
+}
+
 export interface AdventureState {
 	id: 'hollow-bell';
 	stage: AdventureStage;
+	chapter: ChapterId;
+	/** The table the party is on. */
+	location: LocationId;
 	characters: Map<CharacterId, CharacterState>;
 	/** Clue ids in the order they were found. */
 	clues: string[];
-	/** Each world object's state, by object id (see objects.ts). */
+	/** Story events that have happened, in order (see story.ts). */
+	events: EventId[];
+	/** Enemies the party has beaten, by name, in order. */
+	defeated: string[];
+	/** Each NPC's state, e.g. Oswin wary or trusting. */
+	npcs: Map<NpcId, string>;
+	/** Choices made, by decision id. */
+	decisions: Map<DecisionId, Decision>;
+	/** The choice put to the party and not yet answered. */
+	pending: DecisionId | null;
+	/** How each fight went; fights not listed have not started. */
+	encounters: Map<EncounterId, EncounterState>;
+	ending: EndingId | null;
+	/** Each world object's state, by object id (see objects.ts). Kept after the party moves on. */
 	objects: Map<string, ObjectState>;
-	/** Where object props started in the scene, for their looks. */
+	/** Where object props at this location started, for their looks. */
 	origins: Origins;
 	/** Read-aloud cues the GM has used. */
 	cuesRead: Set<string>;

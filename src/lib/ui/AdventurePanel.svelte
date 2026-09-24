@@ -33,15 +33,14 @@
 	const playerName = (id: string | null) =>
 		(id && players.find((p) => p.id === id)?.name) ?? 'the GM';
 	const party = $derived(adventure?.characters.filter((c) => c.inPlay) ?? []);
-	const STAGE_LABEL: Record<AdventureView['stage'], string> = {
+	const STAGE_LABEL: Record<AdventureView['stage'], string | null> = {
 		choosing: 'Choosing characters',
-		arrival: 'Arrival',
-		investigate: 'Investigating',
-		encounter: 'Encounter',
-		aftermath: 'Aftermath',
-		complete: 'Section complete',
+		playing: null,
+		complete: 'The end',
 		defeat: 'The party has fallen'
 	};
+	/** Story events as the GM reads them: well_clue → well clue. */
+	const eventLabel = (id: string) => id.replace(/_/g, ' ');
 
 	function start() {
 		const warning = 'Start The Hollow Bell? This replaces everything on the table.';
@@ -51,7 +50,7 @@
 	function control(op: 'restart' | 'end') {
 		const warning =
 			op === 'restart'
-				? 'Start this section over? The table and the story reset; everyone keeps their character.'
+				? 'Start the story over from Bellweather? The table and the story reset; everyone keeps their character.'
 				: 'End the adventure? The table stays as it is, but the story stops.';
 		if (confirm(warning)) send({ type: 'adventure_control', op });
 	}
@@ -68,8 +67,10 @@
 		<header>
 			<h2>{adventure.title}</h2>
 			<p class="section">
-				{adventure.section} · <span class="stage">{STAGE_LABEL[adventure.stage]}</span>
+				Chapter {adventure.chapter.number} of {adventure.chapter.of} ·
+				<span class="stage">{STAGE_LABEL[adventure.stage] ?? adventure.chapter.title}</span>
 			</p>
+			<p class="section">{adventure.location.name}</p>
 		</header>
 
 		<ul class="objectives" aria-label="Objectives">
@@ -166,6 +167,20 @@
 			</details>
 		{/if}
 
+		{#if adventure.decisions.length}
+			<details class="clues">
+				<summary>Choices made ({adventure.decisions.length})</summary>
+				<ul>
+					{#each adventure.decisions as d (d.id)}
+						<li>
+							<strong>{d.choice}</strong>
+							<p>{d.prompt} ({d.by})</p>
+						</li>
+					{/each}
+				</ul>
+			</details>
+		{/if}
+
 		{#if isGm}
 			<div class="gm">
 				{#if adventure.stage === 'choosing'}
@@ -234,6 +249,32 @@
 					</details>
 				{/if}
 
+				{#if adventure.ledger}
+					<details class="ledger">
+						<summary>Story state</summary>
+						<dl>
+							<dt>Events</dt>
+							<dd>
+								{adventure.ledger.events.length
+									? adventure.ledger.events.map(eventLabel).join(', ')
+									: 'none yet'}
+							</dd>
+							<dt>People</dt>
+							<dd>{adventure.ledger.npcs.map((n) => `${n.name}: ${n.state}`).join(', ')}</dd>
+							<dt>Fights</dt>
+							<dd>
+								{adventure.ledger.encounters.length
+									? adventure.ledger.encounters.map((e) => `${e.id}: ${e.state}`).join(', ')
+									: 'none yet'}
+							</dd>
+							<dt>Defeated</dt>
+							<dd>
+								{adventure.ledger.defeated.length ? adventure.ledger.defeated.join(', ') : 'none'}
+							</dd>
+						</dl>
+					</details>
+				{/if}
+
 				{#if adventure.cues?.length}
 					<details class="cues">
 						<summary>Read aloud</summary>
@@ -255,7 +296,7 @@
 				{/if}
 
 				<div class="row">
-					<button type="button" onclick={() => control('restart')}>Start section over</button>
+					<button type="button" onclick={() => control('restart')}>Start story over</button>
 					<button type="button" onclick={() => control('end')}>End adventure</button>
 				</div>
 			</div>
@@ -267,8 +308,8 @@
 		<div class="offer">
 			<strong>The Hollow Bell</strong>
 			<p>
-				A bell that hasn't rung in forty years rings at dusk. A fantasy adventure for 1–4 players.
-				Part one: Bellweather.
+				A bell that hasn't rung in forty years rings at dusk. A fantasy adventure for 1–4 players,
+				from the village of Bellweather to the monastery above it, and what lies beneath.
 			</p>
 			<button class="primary" type="button" onclick={start}>Start The Hollow Bell</button>
 		</div>
@@ -394,6 +435,22 @@
 	.clues ul {
 		margin-top: 0.4rem;
 		gap: 0.5rem;
+	}
+
+	.ledger dl {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 0.25rem 0.6rem;
+		margin: 0.4rem 0 0;
+		font-size: 0.8rem;
+	}
+
+	.ledger dt {
+		color: var(--muted);
+	}
+
+	.ledger dd {
+		margin: 0;
 	}
 
 	.clues p {
