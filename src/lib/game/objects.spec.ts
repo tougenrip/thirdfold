@@ -7,11 +7,13 @@ import {
 	cutWall,
 	edgeBetween,
 	edgeKey,
+	findPath,
 	isReachable,
 	objectOnEdge,
 	alignToAxis,
 	segmentProblem,
 	unitEdges,
+	walkDistance,
 	type SceneObject,
 	type Wall
 } from './objects';
@@ -163,5 +165,39 @@ describe('objectOnEdge / alignToAxis', () => {
 	it('snaps to the dominant axis', () => {
 		expect(alignToAxis({ x: 2, y: 2 }, { x: 7, y: 3 })).toEqual({ x: 7, y: 2 });
 		expect(alignToAxis({ x: 2, y: 2 }, { x: 3, y: 8 })).toEqual({ x: 2, y: 8 });
+	});
+});
+
+describe('findPath / walkDistance', () => {
+	it('counts diagonal steps as one cell, like gridDistance', () => {
+		expect(walkDistance(grid, new Set(), { x: 0, y: 0 }, { x: 3, y: 3 })).toBe(3);
+		expect(walkDistance(grid, new Set(), { x: 2, y: 2 }, { x: 2, y: 2 })).toBe(0);
+		expect(walkDistance(grid, new Set(), { x: 0, y: 0 }, { x: 10, y: 0 })).toBeNull();
+	});
+
+	it('walks around walls, and finds nothing through a closed room', () => {
+		// A wall from (3,0) down to (3,9) leaves only the bottom row open.
+		const blocked = blockingEdges([wall(3, 0, 3, 9)]);
+		// Down column 2 (8), round the end of the wall (1), back up column 3 (9).
+		expect(walkDistance(grid, blocked, { x: 2, y: 0 }, { x: 3, y: 0 })).toBe(18);
+		const box = blockingEdges([wall(0, 3, 10, 3)]);
+		expect(walkDistance(grid, box, { x: 0, y: 0 }, { x: 0, y: 5 })).toBeNull();
+	});
+
+	it('returns the cells stepped onto, stopping at the first goal and avoiding impassable cells', () => {
+		const path = findPath(grid, new Set(), { x: 0, y: 0 }, (c) => c.x === 2 && c.y === 0);
+		expect(path).toEqual([
+			{ x: 1, y: 0 },
+			{ x: 2, y: 0 }
+		]);
+		const detour = findPath(
+			grid,
+			new Set(),
+			{ x: 0, y: 0 },
+			(c) => c.x === 2 && c.y === 0,
+			(c) => !(c.x === 1 && c.y <= 1)
+		);
+		expect(detour?.length).toBe(4);
+		expect(detour?.some((c) => c.x === 1 && c.y <= 1)).toBe(false);
 	});
 });

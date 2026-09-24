@@ -2,6 +2,8 @@
 // arriving from the network is untrusted: parse it with parseClientMessage /
 // parseServerMessage rather than casting.
 
+import type { AdventureView } from '../adventure/adventure';
+import { isCharacterId, type CharacterId } from '../adventure/characters';
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
@@ -40,6 +42,8 @@ export interface RoomSnapshot {
 	fog: FogView;
 	/** Most recent room log entries, oldest first. */
 	log: ChatMessage[];
+	/** The adventure being played at this table (as this client may know it), or null for a free table. */
+	adventure: AdventureView | null;
 }
 
 /** Fields the GM may change on an existing token. Omitted fields stay as they are. */
@@ -107,7 +111,29 @@ export type ClientMessage =
 	/** GM: replace the table with an uploaded scene file. The server validates it fully. */
 	| { type: 'scene_import'; file: unknown }
 	| { type: 'chat_send'; text: string }
-	| { type: 'dice_roll'; expression: string };
+	| { type: 'dice_roll'; expression: string }
+	/** GM: set up The Hollow Bell on this table (replaces the table). */
+	| { type: 'adventure_start' }
+	/** Player: play this character (one each). */
+	| { type: 'adventure_claim'; characterId: CharacterId }
+	/** Player: give back your character, before play begins. */
+	| { type: 'adventure_release' }
+	/** GM: characters are chosen, start playing. */
+	| { type: 'adventure_begin' }
+	/** Player: your character talks to, examines or uses something beside it. */
+	| { type: 'adventure_interact'; targetId: string }
+	/** Player, in an encounter: your character attacks an enemy token. */
+	| { type: 'adventure_attack'; targetId: string }
+	/** Player, in an encounter: your character is done for this round. */
+	| { type: 'adventure_end_turn' }
+	/** GM: narrate to the table. */
+	| { type: 'adventure_narrate'; text: string }
+	/** GM: read one of the adventure's prepared passages aloud. */
+	| { type: 'adventure_cue'; cueId: string }
+	/** GM: end the players' phase now, start the section over, or stop the adventure (the table stays). */
+	| { type: 'adventure_control'; op: AdventureControl };
+
+export type AdventureControl = 'end_round' | 'restart' | 'end';
 
 export type ErrorCode =
 	| 'invalid_message'
@@ -134,6 +160,10 @@ export type ErrorCode =
 	| 'invalid_chat'
 	| 'invalid_dice'
 	| 'rate_limited'
+	| 'no_adventure'
+	| 'character_taken'
+	| 'not_your_turn'
+	| 'out_of_reach'
 	| 'server_error';
 
 export type ServerMessage =
@@ -162,6 +192,8 @@ export type ServerMessage =
 	| { type: 'room_reset'; room: RoomSnapshot }
 	/** A new room log entry: chat, a dice result, or a system notice. */
 	| { type: 'chat'; message: ChatMessage }
+	/** The adventure changed (as this client may know it); null when it ended. */
+	| { type: 'adventure_update'; adventure: AdventureView | null }
 	| { type: 'error'; code: ErrorCode; message: string };
 
 export const NAME_MAX_LENGTH = 32;
@@ -383,6 +415,26 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return typeof data.expression === 'string'
 				? { type: 'dice_roll', expression: data.expression }
 				: null;
+		case 'adventure_start':
+		case 'adventure_release':
+		case 'adventure_begin':
+		case 'adventure_end_turn':
+			return { type: data.type };
+		case 'adventure_claim':
+			return isCharacterId(data.characterId)
+				? { type: 'adventure_claim', characterId: data.characterId }
+				: null;
+		case 'adventure_interact':
+		case 'adventure_attack':
+			return isId(data.targetId) ? { type: data.type, targetId: data.targetId } : null;
+		case 'adventure_narrate':
+			return typeof data.text === 'string' ? { type: 'adventure_narrate', text: data.text } : null;
+		case 'adventure_cue':
+			return isId(data.cueId) ? { type: 'adventure_cue', cueId: data.cueId } : null;
+		case 'adventure_control':
+			return data.op === 'end_round' || data.op === 'restart' || data.op === 'end'
+				? { type: 'adventure_control', op: data.op }
+				: null;
 		default:
 			return null;
 	}
@@ -406,6 +458,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
+		adventure_update: (d) => d.adventure === null || isRecord(d.adventure),
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};
 

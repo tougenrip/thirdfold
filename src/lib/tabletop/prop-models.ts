@@ -80,5 +80,20 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'cone', size: [1.1, 1.5, 1.1], at: [0, 1.6, 0], color: 0x2f6b34 },
 		{ shape: 'cone', size: [0.8, 1.0, 0.8], at: [0, 2.2, 0], color: 0x3a8040 }
 	],
-	rug: [{ shape: 'box', size: [1.9, 0.02, 1.9], at: [0, 0.012, 0], color: 0x7a2a2e }]
+	rug: [{ shape: 'box', size: [1.9, 0.02, 1.9], at: [0, 0.012, 0], color: 0x7a2a2e }],
+	well: [
+		{ shape: 'cylinder', size: [1.5, 0.7, 1.5], at: [0, 0.35, 0], color: STONE },
+		{ shape: 'cylinder', size: [1.1, 0.72, 1.1], at: [0, 0.36, 0], color: 0x141210 },
+		{ shape: 'box', size: [0.1, 1.3, 0.1], at: [-0.62, 1.0, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [0.1, 1.3, 0.1], at: [0.62, 1.0, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [1.5, 0.14, 0.9], at: [0, 1.72, 0], color: WOOD },
+		{ shape: 'cylinder', size: [0.12, 1.2, 0.12], at: [0, 1.35, 0], color: IRON }
+	],
+	noticeboard: [
+		{ shape: 'box', size: [0.08, 1.5, 0.08], at: [-0.34, 0.75, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [0.08, 1.5, 0.08], at: [0.34, 0.75, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [0.84, 0.6, 0.06], at: [0, 1.15, 0], color: WOOD },
+		{ shape: 'box', size: [0.26, 0.32, 0.02], at: [-0.18, 1.18, 0.04], color: 0xe8e0c8 },
+		{ shape: 'box', size: [0.22, 0.26, 0.02], at: [0.2, 1.12, 0.04], color: 0xd9cfae }
+	]
 };

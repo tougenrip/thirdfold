@@ -52,9 +52,28 @@
 <section class="chat" aria-label="Chat and dice">
 	<ol class="log" bind:this={list} onscroll={onScroll} aria-live="polite">
 		{#each log as m (m.seq)}
-			<li class={m.kind} class:mine={m.kind !== 'system' && m.authorId === myId}>
+			<li class={m.kind} class:mine={'authorId' in m && m.authorId === myId}>
 				{#if m.kind === 'system'}
 					<span class="text">{m.text}</span>
+				{:else if m.kind === 'narration'}
+					{#if m.speaker}<span class="speaker">{m.speaker}</span>{/if}
+					<p class="text">{m.text}</p>
+				{:else if m.kind === 'attack'}
+					<header>
+						<span class="author">{m.authorName}</span>
+						<span class="versus">{m.attack} → {m.targetName}</span>
+					</header>
+					<p class="roll-result">
+						<span class="expr">{m.toHit.expression}</span>
+						<span class="total">{m.toHit.total}</span>
+						<span class="expr">vs {m.defense}</span>
+						<span class="verdict" class:hit={m.hit}>{m.hit ? 'Hit' : 'Miss'}</span>
+						{#if m.damage}
+							<span class="expr">{m.damage.expression}</span>
+							<span class="total damage">{m.damage.total} damage</span>
+						{/if}
+					</p>
+					{#if m.outcome}<p class="outcome">{m.outcome}</p>{/if}
 				{:else}
 					<header>
 						<span class="author">{m.authorName}</span>
@@ -140,6 +159,52 @@
 		color: var(--muted);
 		font-size: 0.82rem;
 		font-style: italic;
+	}
+
+	li.narration {
+		padding: 0.45rem 0.6rem;
+		border-left: 3px solid var(--accent);
+		background: rgba(224, 164, 88, 0.08);
+		border-radius: 0 8px 8px 0;
+		font-family: Georgia, 'Times New Roman', serif;
+		line-height: 1.4;
+	}
+
+	.speaker {
+		display: block;
+		font-family: system-ui, sans-serif;
+		font-size: 0.78rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--accent);
+	}
+
+	.versus {
+		color: var(--muted);
+		font-size: 0.82rem;
+	}
+
+	.verdict {
+		font-weight: 700;
+		color: var(--danger);
+	}
+
+	.verdict.hit {
+		color: var(--ok);
+	}
+
+	li.attack .total {
+		margin-left: 0;
+	}
+
+	.damage {
+		font-size: 1rem;
+	}
+
+	.outcome {
+		margin: 0.2rem 0 0;
+		font-weight: 600;
 	}
 
 	header {

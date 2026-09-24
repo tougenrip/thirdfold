@@ -9,6 +9,32 @@ export type ChatMessage =
 	| {
 			seq: number;
 			at: number;
+			/** Story text: the GM narrating, or a character speaking (`speaker`). */
+			kind: 'narration';
+			text: string;
+			speaker?: string;
+	  }
+	| {
+			seq: number;
+			at: number;
+			/** An attack resolved by the server: the to-hit roll, and damage when it hit. */
+			kind: 'attack';
+			/** The attacking player, or the attacking token's id for enemies. */
+			authorId: string;
+			/** Who attacked, e.g. "The Warden". */
+			authorName: string;
+			attack: string;
+			targetName: string;
+			toHit: DiceRoll;
+			defense: number;
+			hit: boolean;
+			damage: DiceRoll | null;
+			/** What came of it, e.g. "The Hollow Hound falls." */
+			outcome?: string;
+	  }
+	| {
+			seq: number;
+			at: number;
 			kind: 'system';
 			text: string;
 			/** 'gm' for notices that would reveal hidden things (e.g. an NPC placed in the dark). */
@@ -16,6 +42,8 @@ export type ChatMessage =
 	  };
 
 export const CHAT_MAX_LENGTH = 500;
+/** GM narration can run longer than chat. */
+export const NARRATION_MAX_LENGTH = 1000;
 /** Messages kept per room and sent to (re)joining clients. */
 export const LOG_LIMIT = 200;
 
@@ -23,10 +51,10 @@ export const LOG_LIMIT = 200;
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]+/g;
 
 /** Collapses whitespace runs, strips control characters; null when empty or too long. */
-export function normalizeChatText(raw: unknown): string | null {
+export function normalizeChatText(raw: unknown, max = CHAT_MAX_LENGTH): string | null {
 	if (typeof raw !== 'string') return null;
 	const text = raw.replace(CONTROL_CHARS, ' ').replace(/\s+/g, ' ').trim();
-	return text.length > 0 && text.length <= CHAT_MAX_LENGTH ? text : null;
+	return text.length > 0 && text.length <= max ? text : null;
 }
 
 export type ChatInput = { type: 'chat'; text: string } | { type: 'roll'; expression: string };

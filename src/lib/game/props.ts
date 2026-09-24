@@ -29,7 +29,9 @@ export const ASSETS = {
 	pillar: { name: 'Pillar', w: 1, h: 1, blocks: 'sight' },
 	statue: { name: 'Statue', w: 1, h: 1, blocks: 'movement' },
 	tree: { name: 'Tree', w: 1, h: 1, blocks: 'sight' },
-	rug: { name: 'Rug', w: 2, h: 2, blocks: 'none' }
+	rug: { name: 'Rug', w: 2, h: 2, blocks: 'none' },
+	well: { name: 'Well', w: 2, h: 2, blocks: 'movement' },
+	noticeboard: { name: 'Notice board', w: 1, h: 1, blocks: 'movement' }
 } as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;
