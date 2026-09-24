@@ -12,6 +12,7 @@ import type { ChatMessage } from '../src/lib/game/chat';
 import { lightSources, litMask, type Ambient, type Light } from '../src/lib/game/lights';
 import { cellsBeside, unitEdges, type Obstacles, type SceneObject } from '../src/lib/game/objects';
 import { footprintCells, obstaclesFor, type Prop } from '../src/lib/game/props';
+import { roomAround, roomBoundary } from '../src/lib/game/rooms';
 import { encodeLevels, knownLevels } from '../src/lib/game/terrain';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
@@ -41,13 +42,20 @@ export interface View {
 
 type SceneView = Omit<View, 'adventure' | 'terrain'>;
 
-const NO_FOG: FogView = { enabled: false, visible: '', explored: '' };
+const noFog = (room: Room): FogView => ({
+	enabled: false,
+	visible: '',
+	explored: '',
+	shared: room.fog.shared
+});
 
 /** Per-change facts shared by every viewer's view; computed once per sync. */
 export interface SceneContext {
 	blocked: Obstacles;
 	/** Cells light reaches, when it matters (dark ambient); null means "everything is lit". */
 	lit: CellMask | null;
+	/** The room (walled-in space, see rooms.ts) each player-owned token stands in; none on open ground. */
+	rooms: Map<string, number[]>;
 }
 
 export function sceneContext(room: Room): SceneContext {
@@ -56,7 +64,16 @@ export function sceneContext(room: Room): SceneContext {
 		room.ambient === 'dark'
 			? litMask(room.grid, blocked, lightSources(room.lights.values(), room.tokens.values()))
 			: null;
-	return { blocked, lit };
+	const boundary = roomBoundary(room.objects.values());
+	const rooms = new Map<string, number[]>();
+	if (room.fog.enabled) {
+		for (const t of room.tokens.values()) {
+			if (!t.ownerId) continue;
+			const cells = roomAround(room.grid, boundary, t.pos);
+			if (cells) rooms.set(t.id, cells);
+		}
+	}
+	return { blocked, lit, rooms };
 }
 
 /**
@@ -100,10 +117,12 @@ function touches(room: Room, o: SceneObject, mask: CellMask): boolean {
  */
 export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneContext(room)): View {
 	const scene = sceneViewFor(room, viewer, ctx);
-	// Secret things the story hasn't revealed stay off players' tables, fog or not.
+	// Secret things (the GM's hidden tokens and props, the story's unfound objects) stay off
+	// players' and spectators' tables, fog or not. A player still sees their own tokens.
 	if (viewer.role !== 'gm') {
 		const hidden = hiddenPropIds(room);
-		if (hidden.size) scene.props = scene.props.filter((p) => !hidden.has(p.id));
+		scene.props = scene.props.filter((p) => !p.hidden && !hidden.has(p.id));
+		scene.tokens = scene.tokens.filter((t) => !t.hidden || t.ownerId === viewer.id);
 	}
 	const known = room.fog.enabled && viewer.role !== 'gm' ? viewer.explored : null;
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
@@ -125,7 +144,7 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 			props: allProps,
 			lights: allLights,
 			ambient,
-			fog: NO_FOG
+			fog: noFog(room)
 		};
 	}
 
@@ -142,16 +161,25 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 			props: allProps,
 			lights: allLights,
 			ambient,
-			fog: { enabled: true, visible: encodeMask(visible), explored: encodeMask(explored) }
+			fog: {
+				enabled: true,
+				visible: encodeMask(visible),
+				explored: encodeMask(explored),
+				shared: room.fog.shared
+			}
 		};
 	}
 
-	const visible = visionOf(
-		room,
-		viewer.role === 'player' ? new Set([viewer.id]) : partyIds(room),
-		ctx
-	);
+	// A player sees through their own tokens, or the whole party's when sight is shared;
+	// a spectator always through the party's.
+	const eyes = viewer.role === 'player' && !room.fog.shared ? new Set([viewer.id]) : partyIds(room);
+	const visible = visionOf(room, eyes, ctx);
 	mergeInto(viewer.explored, visible);
+	// Standing in a room, you learn its layout: walls, doors and furniture, not who is in it.
+	for (const t of room.tokens.values()) {
+		const cells = t.ownerId && eyes.has(t.ownerId) ? ctx.rooms.get(t.id) : undefined;
+		if (cells) for (const i of cells) viewer.explored[i] = 1;
+	}
 	const at = (t: Token) => visible[cellIndex(room.grid, t.pos)] === 1;
 	return {
 		tokens: allTokens.filter((t) => t.ownerId === viewer.id || at(t)),
@@ -165,7 +193,8 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 		fog: {
 			enabled: true,
 			visible: encodeMask(visible),
-			explored: encodeMask(viewer.explored)
+			explored: encodeMask(viewer.explored),
+			shared: room.fog.shared
 		}
 	};
 }

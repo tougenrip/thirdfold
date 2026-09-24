@@ -13,6 +13,8 @@ interface Entry {
 	/** Torso and head: tipped over when the character has fallen. */
 	figure: THREE.Group;
 	fallen: boolean;
+	/** Hidden from the players: the GM sees it see-through. */
+	hidden: boolean;
 	body: THREE.MeshStandardMaterial;
 	label: THREE.Sprite;
 	name: string;
@@ -125,6 +127,13 @@ export class TokenLayer {
 			if (entry.color !== token.color) {
 				entry.body.color.set(token.color);
 				entry.color = token.color;
+				changed = true;
+			}
+			if (entry.hidden !== (token.hidden === true)) {
+				entry.hidden = token.hidden === true;
+				entry.body.transparent = entry.hidden;
+				entry.body.opacity = entry.hidden ? 0.35 : 1;
+				entry.body.needsUpdate = true;
 				changed = true;
 			}
 			if (entry.name !== token.name) {
@@ -275,6 +284,7 @@ export class TokenLayer {
 			root,
 			figure,
 			fallen: false,
+			hidden: false,
 			body,
 			label,
 			name: token.name,

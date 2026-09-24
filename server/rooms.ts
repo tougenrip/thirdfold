@@ -48,6 +48,8 @@ export interface Room {
 		enabled: boolean;
 		/** Cells the GM has revealed to everyone. */
 		revealed: CellMask;
+		/** The party shares what it sees; otherwise each player sees through their own tokens. */
+		shared: boolean;
 	};
 	/** Recent room log, oldest first, capped at LOG_LIMIT. */
 	log: ChatMessage[];
@@ -106,7 +108,7 @@ export class RoomManager {
 			ambient: 'day',
 			terrain: null,
 			sceneName: 'Untitled scene',
-			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID) },
+			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID), shared: false },
 			log: [],
 			nextSeq: 1,
 			emptySince: null,

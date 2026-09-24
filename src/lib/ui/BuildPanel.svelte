@@ -2,7 +2,17 @@
 	import type { AssetId, Rotation } from '$lib/game/props';
 
 	export type BuildTool =
-		'select' | 'wall' | 'door' | 'erase' | 'reveal' | 'hide' | 'light' | 'prop' | 'height';
+		| 'select'
+		| 'wall'
+		| 'door'
+		| 'erase'
+		| 'reveal'
+		| 'hide'
+		| 'reveal-room'
+		| 'hide-room'
+		| 'light'
+		| 'prop'
+		| 'height';
 
 	/** The prop the GM is about to place. */
 	export interface PropDraft {
@@ -26,12 +36,15 @@
 	interface Props {
 		tool: BuildTool;
 		fogEnabled: boolean;
+		/** Whether players see through the whole party's eyes. */
+		fogShared: boolean;
 		ambient: Ambient;
 		lightDraft: LightDraft;
 		propDraft: PropDraft;
 		onTool(tool: BuildTool): void;
 		onFog(enabled: boolean): void;
 		onFogAll(reveal: boolean): void;
+		onFogShared(shared: boolean): void;
 		onAmbient(ambient: Ambient): void;
 		onLightDraft(draft: LightDraft): void;
 		onPropDraft(draft: PropDraft): void;
@@ -43,12 +56,14 @@
 	let {
 		tool,
 		fogEnabled,
+		fogShared,
 		ambient,
 		lightDraft,
 		propDraft,
 		onTool,
 		onFog,
 		onFogAll,
+		onFogShared,
 		onAmbient,
 		onLightDraft,
 		onPropDraft,
@@ -68,7 +83,9 @@
 	];
 	const FOG: { id: BuildTool; label: string; key: string }[] = [
 		{ id: 'reveal', label: 'Reveal', key: 'R' },
-		{ id: 'hide', label: 'Hide', key: 'H' }
+		{ id: 'hide', label: 'Hide', key: 'H' },
+		{ id: 'reveal-room', label: 'Reveal room', key: 'O' },
+		{ id: 'hide-room', label: 'Hide room', key: 'K' }
 	];
 </script>
 
@@ -189,6 +206,14 @@
 				<button type="button" onclick={() => onFogAll(true)}>Reveal all</button>
 				<button type="button" onclick={() => onFogAll(false)}>Hide all</button>
 			</div>
+			<label class="switch" title="Off: each player sees only through their own tokens.">
+				<input
+					type="checkbox"
+					checked={fogShared}
+					onchange={(e) => onFogShared(e.currentTarget.checked)}
+				/>
+				<span>Shared party sight</span>
+			</label>
 		{/if}
 	</div>
 </section>

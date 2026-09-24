@@ -13,7 +13,7 @@ const scene = serializeScene('Crypt', {
 	props: [{ id: 'p1', assetId: 'crate', pos: { x: 5, y: 5 }, rotation: 0, scale: 1 }],
 	lights: [],
 	ambient: 'dusk',
-	fog: { enabled: true, revealed: emptyMask(DEFAULT_GRID) },
+	fog: { enabled: true, revealed: emptyMask(DEFAULT_GRID), shared: false },
 	playerName: () => undefined
 });
 

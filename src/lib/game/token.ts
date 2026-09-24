@@ -15,6 +15,8 @@ export interface Token {
 	vision: number;
 	/** Light the token carries (a torch), in cells; 0 for none. */
 	light: number;
+	/** GM: kept out of every player's and spectator's view (a lurking enemy); its owner still sees it. */
+	hidden?: true;
 }
 
 export const TOKEN_COLOR_PATTERN = /^#[0-9a-f]{6}$/;

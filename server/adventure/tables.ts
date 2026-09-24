@@ -102,7 +102,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		props: parts.props,
 		lights: parts.lights,
 		ambient: parts.ambient,
-		fog: { enabled: true, revealed: encodeMask(revealed) },
+		fog: { enabled: true, revealed: encodeMask(revealed), shared: false },
+		discovery: {},
 		adventure: null,
 		terrain: levels ? encodeLevels(levels) : null
 	};

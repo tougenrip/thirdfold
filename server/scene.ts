@@ -32,6 +32,7 @@ import {
 	type PropPatch,
 	type TokenPatch
 } from '../src/lib/game/protocol';
+import { roomAround, roomBoundary } from '../src/lib/game/rooms';
 import { MAX_LEVEL, withLevel } from '../src/lib/game/terrain';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
 import { DEFAULT_VISION, rectCells } from '../src/lib/game/visibility';
@@ -139,6 +140,8 @@ export function updateToken(
 	if (patch.ownerId !== undefined) token.ownerId = patch.ownerId;
 	if (patch.vision !== undefined) token.vision = patch.vision;
 	if (patch.light !== undefined) token.light = patch.light;
+	if (patch.hidden === true) token.hidden = true;
+	else if (patch.hidden === false) delete token.hidden;
 	return { ok: true, token, previousOwnerId };
 }
 
@@ -262,6 +265,42 @@ export function fogArea(
 		if (!reveal) for (const p of room.players.values()) p.explored[i] = 0;
 	}
 	return { ok: true, cells: cells.length };
+}
+
+/**
+ * Reveals the whole room around a cell (the walled-in space it is part of,
+ * see rooms.ts) to everyone, or hides it again, as `fogArea` does for a
+ * rectangle. Open ground is not a room.
+ */
+export function fogRoom(
+	room: Room,
+	actor: Player,
+	cell: GridPos,
+	reveal: boolean
+): Result<{ cells: number }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can reveal or hide the map.');
+	if (!inBounds(room.grid, cell)) return fail('invalid_position', 'That cell is off the table.');
+	const cells = roomAround(room.grid, roomBoundary(room.objects.values()), cell);
+	if (!cells) {
+		return fail('invalid_position', 'That is open ground, not a room with walls around it.');
+	}
+	for (const i of cells) {
+		room.fog.revealed[i] = reveal ? 1 : 0;
+		if (!reveal) for (const p of room.players.values()) p.explored[i] = 0;
+	}
+	return { ok: true, cells: cells.length };
+}
+
+/** GM: whether the party shares what it sees. */
+export function setFogShared(
+	room: Room,
+	actor: Player,
+	shared: boolean
+): Result<{ changed: boolean }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM controls fog of war.');
+	const changed = room.fog.shared !== shared;
+	room.fog.shared = shared;
+	return { ok: true, changed };
 }
 
 /** GM: sets the level of every cell in a rectangle (0 is the floor). */
@@ -391,15 +430,18 @@ export function updateProp(
 	if (!canEditScene(actor)) return FORBIDDEN_PROPS;
 	const prop = room.props.get(propId);
 	if (!prop) return fail('prop_not_found', 'That prop no longer exists.');
+	const { hidden: wasHidden, ...rest } = prop;
 	const next: Prop = {
-		...prop,
+		...rest,
 		pos: patch.pos ? { x: patch.pos.x, y: patch.pos.y } : prop.pos,
 		rotation: patch.rotation ?? prop.rotation,
-		scale: patch.scale ?? prop.scale
+		scale: patch.scale ?? prop.scale,
+		...((patch.hidden ?? wasHidden) ? { hidden: true as const } : {})
 	};
 	const ok = checkPlacement(room, next, prop.id);
 	if (!ok.ok) return ok;
 	Object.assign(prop, next);
+	if (!next.hidden) delete prop.hidden;
 	return { ok: true, prop };
 }
 

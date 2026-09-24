@@ -16,6 +16,7 @@
 	import { canMoveToken, canUseDoor } from '$lib/game/permissions';
 	import type { Role } from '$lib/game/protocol';
 	import { tokenAt } from '$lib/game/token';
+	import { roomAround, roomBoundary } from '$lib/game/rooms';
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
 	import Tabletop, { type CuePlay, type FloatText } from '$lib/tabletop/Tabletop.svelte';
 	import { decodeLevels } from '$lib/game/terrain';
@@ -61,6 +62,7 @@
 	let areaStart = $state<GridPos | null>(null);
 	/** The level the GM's height tool sets. */
 	let heightLevel = $state(5);
+
 	let lightDraft = $state<LightDraft>({
 		radius: DEFAULT_LIGHT_RADIUS,
 		color: LIGHT_COLORS[0].color
@@ -91,6 +93,28 @@
 	type RollEntry = Extract<ChatMessage, { kind: 'roll' | 'attack' | 'ability' | 'check' }>;
 
 	const room = $derived(conn.room);
+	const FOG_TOOLS: BuildTool[] = ['reveal', 'hide', 'reveal-room', 'hide-room'];
+	/** Every edge that closes off a room, for the room tools' preview. */
+	const boundary = $derived(room ? roomBoundary(room.objects) : new Set<string>());
+	/** The walled room under the cursor while a room tool is out, or null over open ground. */
+	const hoveredRoom = $derived(
+		room && hover?.cell && (tool === 'reveal-room' || tool === 'hide-room')
+			? roomAround(room.grid, boundary, hover.cell)
+			: null
+	);
+
+	/** Cell indices as horizontal runs, one rectangle per run, for drawing. */
+	function rowRuns(cells: readonly number[], width: number): [GridPos, GridPos][] {
+		const sorted = [...cells].sort((a, b) => a - b);
+		const runs: [GridPos, GridPos][] = [];
+		for (const i of sorted) {
+			const at = { x: i % width, y: Math.floor(i / width) };
+			const last = runs.at(-1);
+			if (last && last[1].y === at.y && last[1].x === at.x - 1) last[1] = at;
+			else runs.push([at, at]);
+		}
+		return runs;
+	}
 	const me = $derived(conn.me);
 	const isGm = $derived(me?.role === 'gm');
 	const adventure = $derived(room?.adventure ?? null);
@@ -221,6 +245,16 @@
 		}
 		if ((tool === 'reveal' || tool === 'hide') && hover.cell) {
 			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: tool }];
+		}
+		if ((tool === 'reveal-room' || tool === 'hide-room') && hover.cell) {
+			const cells = hoveredRoom;
+			if (!cells) return [{ kind: 'area', from: hover.cell, to: hover.cell, tone: 'invalid' }];
+			return rowRuns(cells, room!.grid.width).map(([from, to]) => ({
+				kind: 'area',
+				from,
+				to,
+				tone: tool === 'reveal-room' ? 'reveal' : 'hide'
+			}));
 		}
 		if (tool === 'height' && hover.cell) {
 			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: 'valid' }];
@@ -375,6 +409,10 @@
 			return areaStart
 				? `Click the opposite corner cell to set the area to level ${heightLevel}. Esc to cancel.`
 				: `Shape ground: click a cell to start an area at level ${heightLevel}.`;
+		}
+		if (tool === 'reveal-room' || tool === 'hide-room') {
+			if (hover?.cell && !hoveredRoom) return 'Open ground: pick a cell inside walls.';
+			return `${tool === 'reveal-room' ? 'Reveal' : 'Hide'} room: click a cell inside a walled room to ${tool === 'reveal-room' ? 'reveal it to' : 'hide it from'} the players.`;
 		}
 		if (tool === 'reveal' || tool === 'hide') {
 			const verb = tool === 'reveal' ? 'reveal to' : 'hide from';
@@ -540,6 +578,12 @@
 				areaStart = null;
 				return;
 			}
+			case 'reveal-room':
+			case 'hide-room': {
+				if (!pick.cell) return;
+				conn.send({ type: 'fog_room', cell: pick.cell, reveal: tool === 'reveal-room' });
+				return;
+			}
 			case 'erase': {
 				const target = objectUnder(pick);
 				if (target) return void conn.send({ type: 'object_delete', objectId: target.id });
@@ -693,7 +737,7 @@
 			l: 'light',
 			p: 'prop',
 			g: 'height',
-			...(room?.fog.enabled ? { r: 'reveal', h: 'hide' } : {})
+			...(room?.fog.enabled ? { r: 'reveal', h: 'hide', o: 'reveal-room', k: 'hide-room' } : {})
 		};
 		const next = shortcut[event.key.toLowerCase()];
 		if (next) setTool(next);
@@ -834,6 +878,8 @@
 					<BuildPanel
 						{tool}
 						fogEnabled={room.fog.enabled}
+						fogShared={room.fog.shared}
+						onFogShared={(shared) => conn.send({ type: 'fog_share', shared })}
 						ambient={room.ambient}
 						{lightDraft}
 						{propDraft}
@@ -844,7 +890,7 @@
 						{heightLevel}
 						onHeightLevel={(level) => (heightLevel = level)}
 						onFog={(enabled) => {
-							if (!enabled && (tool === 'reveal' || tool === 'hide')) setTool('select');
+							if (!enabled && FOG_TOOLS.includes(tool)) setTool('select');
 							conn.send({ type: 'fog_set', enabled });
 						}}
 						onFogAll={(reveal) =>

@@ -49,6 +49,19 @@
 				})}
 		/>
 	</label>
+	<label class="hidden">
+		<input
+			type="checkbox"
+			checked={prop.hidden === true}
+			onchange={(e) =>
+				send({
+					type: 'prop_update',
+					propId: prop.id,
+					patch: { hidden: e.currentTarget.checked }
+				})}
+		/>
+		<span>Hidden from players</span>
+	</label>
 	<div class="row">
 		<button type="button" onclick={onDone}>Done</button>
 		<button
@@ -63,6 +76,14 @@
 </section>
 
 <style>
+	.hidden {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin: 0.4rem 0;
+		font-size: 0.85rem;
+	}
+
 	h2 {
 		margin: 0 0 0.3rem;
 		font-size: 0.8rem;

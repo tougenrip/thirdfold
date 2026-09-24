@@ -71,6 +71,8 @@ export interface Prop {
 	rotation: Rotation;
 	/** Visual only; the footprint on the grid does not change. */
 	scale: number;
+	/** GM: kept out of players' and spectators' views (a secret); it still blocks as usual. */
+	hidden?: true;
 }
 
 export const MAX_PROPS_PER_ROOM = 500;

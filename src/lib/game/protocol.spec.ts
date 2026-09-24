@@ -78,6 +78,21 @@ describe('token messages', () => {
 		expect(
 			parseClientMessage({ type: 'token_update', tokenId: 't', patch: { ownerId: null, hp: 3 } })
 		).toEqual({ type: 'token_update', tokenId: 't', patch: { ownerId: null } });
+		expect(
+			parseClientMessage({ type: 'token_update', tokenId: 't', patch: { hidden: true } })
+		).toEqual({ type: 'token_update', tokenId: 't', patch: { hidden: true } });
+		expect(
+			parseClientMessage({ type: 'prop_update', propId: 'p', patch: { hidden: false } })
+		).toEqual({ type: 'prop_update', propId: 'p', patch: { hidden: false } });
+		expect(parseClientMessage({ type: 'fog_room', cell: { x: 3, y: 4 }, reveal: true })).toEqual({
+			type: 'fog_room',
+			cell: { x: 3, y: 4 },
+			reveal: true
+		});
+		expect(parseClientMessage({ type: 'fog_share', shared: false })).toEqual({
+			type: 'fog_share',
+			shared: false
+		});
 	});
 
 	it.each([
@@ -90,7 +105,11 @@ describe('token messages', () => {
 		['huge cell', { type: 'token_move', tokenId: 't', to: { x: 2 ** 60, y: 0 } }],
 		['empty token id', { type: 'token_delete', tokenId: '' }],
 		['oversized token id', { type: 'token_delete', tokenId: 'x'.repeat(65) }],
-		['bad patch colour', { type: 'token_update', tokenId: 't', patch: { color: 'red' } }]
+		['bad patch colour', { type: 'token_update', tokenId: 't', patch: { color: 'red' } }],
+		['non-boolean hidden', { type: 'token_update', tokenId: 't', patch: { hidden: 'yes' } }],
+		['fog_room without reveal', { type: 'fog_room', cell: { x: 0, y: 0 } }],
+		['fog_room fractional cell', { type: 'fog_room', cell: { x: 0.5, y: 0 }, reveal: true }],
+		['fog_share non-boolean', { type: 'fog_share', shared: 1 }]
 	])('rejects %s', (_label, input) => {
 		expect(parseClientMessage(input)).toBeNull();
 	});
