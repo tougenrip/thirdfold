@@ -1,0 +1,13 @@
+{
+	"village-grass": { "color": "#ffffff", "roughness": 0.95, "map": "grass", "cells": 3 },
+	"village-earth": { "color": "#ffffff", "roughness": 0.9, "map": "earth", "cells": 2 },
+	"plaster": { "color": "#a39a88", "roughness": 0.85 },
+	"oak": { "color": "#ffffff", "roughness": 0.7, "map": "planks", "cells": 2 },
+	"flagstones": { "color": "#ffffff", "roughness": 0.85, "map": "flagstones", "cells": 2 },
+	"monastery-stone": { "color": "#8d8578", "roughness": 0.9, "map": "rock", "cells": 2 },
+	"cave-floor": { "color": "#ffffff", "roughness": 0.95, "map": "cave", "cells": 4 },
+	"cave-rock": { "color": "#6e675c", "roughness": 0.95, "map": "rock", "cells": 2 },
+	"ancient-stone": { "color": "#7d7667", "roughness": 0.9, "map": "flagstones", "cells": 2 },
+	"flesh": { "color": "#ffffff", "roughness": 0.6, "map": "flesh", "cells": 3 },
+	"sinew": { "color": "#6b2a2e", "roughness": 0.55 }
+}

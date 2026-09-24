@@ -44,6 +44,7 @@ import {
 	fogArea,
 	fogRoom,
 	setAmbient,
+	setEnvironment,
 	setFog,
 	setFogShared,
 	setDarkness,
@@ -913,6 +914,12 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				const result = deleteLight(room, player, msg.lightId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
+			}
+			case 'environment_set': {
+				const result = setEnvironment(room, player, msg.environment);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				if (result.changed) syncRoom(room);
+				return;
 			}
 			case 'ambient_set': {
 				const result = setAmbient(room, player, msg.ambient);

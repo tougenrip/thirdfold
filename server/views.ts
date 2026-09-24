@@ -42,9 +42,11 @@ export interface View {
 	/** The dark areas this viewer knows (explored cells), or null for none. */
 	darkness: string | null;
 	paused: boolean;
+	/** How the table looks (an environment asset's id): the same for everyone. */
+	environment: string | null;
 }
 
-type SceneView = Omit<View, 'adventure' | 'terrain' | 'darkness' | 'paused'>;
+type SceneView = Omit<View, 'adventure' | 'terrain' | 'darkness' | 'paused' | 'environment'>;
 
 const noFog = (room: Room): FogView => ({
 	enabled: false,
@@ -137,7 +139,8 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 		adventure: adventureView(room, viewer, tokenIds, known),
 		terrain,
 		darkness,
-		paused: room.paused
+		paused: room.paused,
+		environment: room.environment
 	};
 }
 
@@ -238,7 +241,8 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		adventure: view.adventure && structuredClone(view.adventure),
 		terrain: view.terrain,
 		darkness: view.darkness,
-		paused: view.paused
+		paused: view.paused,
+		environment: view.environment
 	};
 }
 
@@ -254,6 +258,7 @@ export interface SentView {
 	terrain: string | null;
 	darkness: string | null;
 	paused: boolean;
+	environment: string | null;
 }
 
 export function sentFrom(view: View): SentView {
@@ -267,7 +272,8 @@ export function sentFrom(view: View): SentView {
 		adventure: JSON.stringify(view.adventure),
 		terrain: view.terrain,
 		darkness: view.darkness,
-		paused: view.paused
+		paused: view.paused,
+		environment: view.environment
 	};
 }
 
@@ -318,6 +324,9 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 		messages.push({ type: 'darkness_update', darkness: view.darkness });
 	}
 	if (prev.paused !== view.paused) messages.push({ type: 'pause_update', paused: view.paused });
+	if (prev.environment !== view.environment) {
+		messages.push({ type: 'environment_update', environment: view.environment });
+	}
 
 	const tokenIds = new Set(view.tokens.map((t) => t.id));
 	for (const id of prev.tokens.keys()) {

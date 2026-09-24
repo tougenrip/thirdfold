@@ -82,6 +82,26 @@ describe('token messages', () => {
 			parseClientMessage({ type: 'token_update', tokenId: 't', patch: { hidden: true } })
 		).toEqual({ type: 'token_update', tokenId: 't', patch: { hidden: true } });
 		expect(
+			parseClientMessage({ type: 'token_update', tokenId: 't', patch: { model: 'warden' } })
+		).toEqual({ type: 'token_update', tokenId: 't', patch: { model: 'warden' } });
+		expect(
+			parseClientMessage({ type: 'token_update', tokenId: 't', patch: { model: null } })
+		).toEqual({ type: 'token_update', tokenId: 't', patch: { model: null } });
+		expect(
+			parseClientMessage({ type: 'token_update', tokenId: 't', patch: { model: '/x.glb' } })
+		).toBeNull();
+		expect(parseClientMessage({ type: 'environment_set', environment: 'village' })).toEqual({
+			type: 'environment_set',
+			environment: 'village'
+		});
+		expect(parseClientMessage({ type: 'environment_set', environment: null })).toEqual({
+			type: 'environment_set',
+			environment: null
+		});
+		expect(
+			parseClientMessage({ type: 'environment_set', environment: 'javascript:alert(1)' })
+		).toBeNull();
+		expect(
 			parseClientMessage({ type: 'prop_update', propId: 'p', patch: { hidden: false } })
 		).toEqual({ type: 'prop_update', propId: 'p', patch: { hidden: false } });
 		expect(parseClientMessage({ type: 'fog_room', cell: { x: 3, y: 4 }, reveal: true })).toEqual({

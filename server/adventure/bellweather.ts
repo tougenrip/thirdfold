@@ -274,6 +274,7 @@ export function bellweatherScene(now = new Date()): SceneFile {
 			props,
 			lights,
 			ambient: 'dusk',
+			environment: 'village',
 			// The road the party arrives on is already in view.
 			arrival: { from: { x: 9, y: 23 }, to: { x: 16, y: 27 } }
 		},

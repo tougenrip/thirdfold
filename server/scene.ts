@@ -156,6 +156,8 @@ export function updateToken(
 	if (patch.light !== undefined) token.light = patch.light;
 	if (patch.hidden === true) token.hidden = true;
 	else if (patch.hidden === false) delete token.hidden;
+	if (typeof patch.model === 'string') token.model = patch.model;
+	else if (patch.model === null) delete token.model;
 	return { ok: true, token, previousOwnerId };
 }
 
@@ -425,6 +427,18 @@ export function setAmbient(
 	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
 	const changed = room.ambient !== ambient;
 	room.ambient = ambient;
+	return { ok: true, changed };
+}
+
+/** GM: how the table looks (an environment asset's id; the client ignores ids it doesn't know). */
+export function setEnvironment(
+	room: Room,
+	actor: Player,
+	environment: string | null
+): Result<{ changed: boolean }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM sets how the table looks.');
+	const changed = room.environment !== environment;
+	room.environment = environment;
 	return { ok: true, changed };
 }
 

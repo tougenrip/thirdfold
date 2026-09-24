@@ -45,6 +45,8 @@ export interface Room {
 	terrain: LevelMap | null;
 	/** Dark areas: cells where only light lets anyone see, whatever the ambient; null for none. */
 	darkness: CellMask | null;
+	/** How the table looks: an environment asset's id, or null for the plain table. */
+	environment: string | null;
 	/** Until when (ms since epoch) a flash lights the whole table, if one is going. */
 	flashUntil?: number;
 	/** Sights worked out for this table, kept while its walls, props and ground stay the same (not saved). */
@@ -112,6 +114,7 @@ export function newRoom(id: string): Room {
 		ambient: 'day',
 		terrain: null,
 		darkness: null,
+		environment: null,
 		paused: false,
 		sceneName: 'Untitled scene',
 		fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID), shared: false },

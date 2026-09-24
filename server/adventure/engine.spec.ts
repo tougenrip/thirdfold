@@ -132,6 +132,15 @@ describe('starting and choosing characters', () => {
 		expect(room.fog.enabled).toBe(true);
 	});
 
+	it('dresses the village and draws its people and the characters as their figures', () => {
+		ok(startAdventure(room, gm));
+		expect(room.environment).toBe('village');
+		const maren = [...room.tokens.values()].find((t) => t.name === 'Maren');
+		expect(maren?.model).toBe('villager');
+		ok(claimCharacter(room, ana, 'warden'));
+		expect(characterOf(room, ana.id)!.token.model).toBe('warden');
+	});
+
 	it('gives each player one character, placed on the road and owned by them', () => {
 		ok(startAdventure(room, gm));
 		ok(claimCharacter(room, ana, 'warden'));
@@ -216,7 +225,7 @@ describe('investigating', () => {
 		});
 		expect(room.adventure?.encounters.get('well')).toBe('active');
 		const houndToken = token(hound());
-		expect(houndToken).toMatchObject({ name: 'Hollow Hound', ownerId: null });
+		expect(houndToken).toMatchObject({ name: 'Hollow Hound', ownerId: null, model: 'hound' });
 		// It climbs out beside the well.
 		expect(Math.abs(houndToken.pos.y - 13.5)).toBeLessThanOrEqual(2);
 	});

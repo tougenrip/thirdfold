@@ -74,6 +74,8 @@
 		terrain?: Uint8Array | null;
 		/** The table's dark areas, one byte per cell, or null for none. */
 		darkness?: Uint8Array | null;
+		/** How the table looks: an environment asset's id, or null for the plain table. */
+		environment?: string | null;
 		cue?: CuePlay | null;
 		motion?: MotionPlay | null;
 		/** Whose turn it is in a fight, marked over the token. */
@@ -102,6 +104,7 @@
 		floats = [],
 		terrain = null,
 		darkness = null,
+		environment = null,
 		cue = null,
 		motion = null,
 		active = null,
@@ -169,6 +172,10 @@
 
 	$effect(() => {
 		tabletop?.setDarkness(darkness);
+	});
+
+	$effect(() => {
+		tabletop?.setEnvironment(environment);
 	});
 
 	let lastCue = -1;

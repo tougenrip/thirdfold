@@ -1,0 +1,7 @@
+{
+	"recipe": "flagstones",
+	"size": 128,
+	"colors": ["#5d584f", "#78726a", "#2e2a25"],
+	"seed": 5,
+	"scale": 8
+}

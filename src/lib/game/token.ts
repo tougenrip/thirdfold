@@ -17,6 +17,11 @@ export interface Token {
 	light: number;
 	/** GM: kept out of every player's and spectator's view (a lurking enemy); its owner still sees it. */
 	hidden?: true;
+	/**
+	 * The figure it is drawn as: a model asset's id (see src/lib/assets/manifest.ts), or none for
+	 * the plain miniature. Only the id is kept; the look comes from the asset.
+	 */
+	model?: string;
 }
 
 export const TOKEN_COLOR_PATTERN = /^#[0-9a-f]{6}$/;

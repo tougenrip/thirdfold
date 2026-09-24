@@ -121,6 +121,7 @@ export function monasteryScene(now = new Date()): SceneFile {
 			name: 'The Monastery',
 			grid: MONASTERY_GRID,
 			ambient: 'dusk',
+			environment: 'stone-halls',
 			arrival: { from: { x: 8, y: 14 }, to: { x: 16, y: 19 } },
 			tokens: npcTokens('monastery'),
 			terrain: TERRAIN,

@@ -1,0 +1,7 @@
+{
+	"name": "Cavern",
+	"surface": "cave-floor",
+	"ground": "cave-rock",
+	"walls": "ancient-stone",
+	"table": "oak"
+}

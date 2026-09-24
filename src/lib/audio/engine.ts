@@ -8,6 +8,7 @@
 
 import type { Sound } from '../game/motion';
 import { BELLS, bellPartials, type BellSize } from './bell';
+import { assetUrl, loadManifest } from '../assets/load';
 import type { Ambience, AudioEvent, MusicState, Surface } from './cues';
 import { busGain, DEFAULT_MIX, type Mix } from './mix';
 
@@ -53,6 +54,7 @@ export function unlock(): void {
 	reverb.gain.value = 0.5;
 	reverb.connect(convolver).connect(buses.effects);
 	graph = { ctx, master, buses, reverb, noise: noiseBuffer(ctx) };
+	loadSamples(ctx);
 	applyMix();
 	setAmbience(wantedAmbience);
 	startConductor();
@@ -154,10 +156,60 @@ function hiss(
 	source.stop(at + length + 0.05);
 }
 
+// ---------------------------------------------------------------------------
+// Samples: bells rendered ahead of time by the asset pipeline (assets/audio),
+// the same bells synthesized here (they share bell.ts's partials). A bell
+// plays its sample once it has loaded, and is synthesized until then.
+
+/** Which sample rings which bell, and at what speed (the flash is the great bell an octave up). */
+const SAMPLED: Partial<Record<BellSize, { id: string; rate: number }>> = {
+	great: { id: 'bell-great', rate: 1 },
+	flash: { id: 'bell-great', rate: BELLS.flash.note / BELLS.great.note },
+	hand: { id: 'bell-hand', rate: 1 }
+};
+const samples = new Map<string, AudioBuffer>();
+
+function loadSamples(ctx: AudioContext): void {
+	const ids = new Set(Object.values(SAMPLED).map((s) => s.id));
+	void loadManifest().then((manifest) => {
+		for (const id of ids) {
+			const entry = manifest.audio[id];
+			if (!entry) continue;
+			fetch(assetUrl(entry.file))
+				.then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+				.then((data) => ctx.decodeAudioData(data))
+				.then((buffer) => samples.set(id, buffer))
+				.catch((err: Error) => console.warn(`[audio] sound "${id}" failed to load:`, err.message));
+		}
+	});
+}
+
+/** Rendered samples peak at 0.9 of the bell's loudness; this brings them level with the synthesized bell. */
+const SAMPLE_LEVEL = 0.7;
+
 /** A bell of the family (see bell.ts), struck at `at`; `note` overrides its strike note. */
 function bell(g: Graph, size: BellSize, at: number, to: AudioNode, note?: number, scale = 1): void {
 	const def = BELLS[size];
 	const strike = note ?? def.note;
+	const sampled = SAMPLED[size];
+	const sample = sampled && note === undefined ? samples.get(sampled.id) : undefined;
+	if (sampled && sample) {
+		const source = g.ctx.createBufferSource();
+		source.buffer = sample;
+		source.playbackRate.value = sampled.rate;
+		const level = g.ctx.createGain();
+		// The sample is its own bell's loudness; the flash is quieter than the great bell.
+		level.gain.value =
+			(def.gain / BELLS[size === 'flash' ? 'great' : size].gain) * scale * SAMPLE_LEVEL;
+		source.connect(level);
+		level.connect(to);
+		const send = g.ctx.createGain();
+		send.gain.value = 0.35;
+		level.connect(send).connect(g.reverb);
+		source.start(at);
+		hiss(g, at, 0.05, 0.25 * def.gain * scale, 'bandpass', Math.min(strike * 6, 9000), to);
+		return;
+	}
 	for (const p of bellPartials(strike, def.ring)) {
 		if (p.freq > 12000) continue;
 		const peak = p.gain * def.gain * scale * 0.18;

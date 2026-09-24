@@ -1,17 +1,25 @@
 // Token miniatures for the three.js view: builds one mini per token, diffs
 // incoming token state against what is on screen, and animates moves. The
 // logical position always comes from the Token; the tween is cosmetic. Minis
-// can also lie down (a fallen character) and show floating combat text.
+// can also lie down (a fallen character) and show floating combat text. A
+// token with a model (a character, a villager, a hound) is drawn as that
+// figure once it has loaded (see models.ts); until then, and without one,
+// it is the plain miniature: a torso and a head in its colour.
 
 import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
+import { loadModel, modelNow } from './models';
 
 interface Entry {
 	root: THREE.Group;
-	/** Torso and head: tipped over when the character has fallen. */
+	/** Torso and head, or the model: tipped over when the character has fallen. */
 	figure: THREE.Group;
+	/** The model it is drawn as, or null for the plain miniature. */
+	model: string | null;
+	/** The model's own colours (vertex colours), see-through when hidden like `body`. */
+	paint: THREE.MeshStandardMaterial;
 	fallen: boolean;
 	/** Hidden from the players: the GM sees it see-through. */
 	hidden: boolean;
@@ -93,7 +101,8 @@ export class TokenLayer {
 		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
 	);
 
-	constructor() {
+	/** `onModel` is told when a figure's model has arrived and it has been drawn. */
+	constructor(private readonly onModel: () => void = () => {}) {
 		this.ring.rotation.x = -Math.PI / 2;
 		this.ring.visible = false;
 		this.ring.raycast = () => {};
@@ -139,9 +148,15 @@ export class TokenLayer {
 			}
 			if (entry.hidden !== (token.hidden === true)) {
 				entry.hidden = token.hidden === true;
-				entry.body.transparent = entry.hidden;
-				entry.body.opacity = entry.hidden ? 0.35 : 1;
-				entry.body.needsUpdate = true;
+				for (const m of [entry.body, entry.paint]) {
+					m.transparent = entry.hidden;
+					m.opacity = entry.hidden ? 0.35 : 1;
+					m.needsUpdate = true;
+				}
+				changed = true;
+			}
+			if (entry.model !== (token.model ?? null)) {
+				this.dress(token.id, entry, token.model ?? null);
 				changed = true;
 			}
 			if (entry.name !== token.name) {
@@ -174,6 +189,7 @@ export class TokenLayer {
 			this.group.remove(entry.root);
 			disposeLabel(entry.label);
 			entry.body.dispose();
+			entry.paint.dispose();
 			this.entries.delete(id);
 			changed = true;
 		}
@@ -259,6 +275,7 @@ export class TokenLayer {
 		for (const entry of this.entries.values()) {
 			disposeLabel(entry.label);
 			entry.body.dispose();
+			entry.paint.dispose();
 		}
 		this.entries.clear();
 		(this.ring.material as THREE.Material).dispose();
@@ -273,16 +290,14 @@ export class TokenLayer {
 
 		const base = new THREE.Mesh(baseGeometry, baseMaterial);
 		base.position.y = 0.04;
-		const torso = new THREE.Mesh(bodyGeometry, body);
-		torso.position.y = 0.08 + 0.31;
-		const head = new THREE.Mesh(headGeometry, body);
-		head.position.y = 0.08 + 0.62 + 0.14;
-		for (const m of [base, torso, head]) {
-			m.castShadow = true;
-			m.receiveShadow = true;
-		}
+		base.castShadow = true;
+		base.receiveShadow = true;
 		const figure = new THREE.Group();
-		figure.add(torso, head);
+		const paint = new THREE.MeshStandardMaterial({
+			color: 0xffffff,
+			roughness: 0.6,
+			vertexColors: true
+		});
 		const label = makeLabel(token.name);
 		root.add(base, figure, label);
 		root.position.copy(at);
@@ -291,6 +306,8 @@ export class TokenLayer {
 		const entry: Entry = {
 			root,
 			figure,
+			model: null,
+			paint,
 			fallen: false,
 			hidden: false,
 			body,
@@ -303,7 +320,40 @@ export class TokenLayer {
 			duration: 0
 		};
 		this.entries.set(token.id, entry);
+		this.dress(token.id, entry, token.model ?? null);
 		return entry;
+	}
+
+	/**
+	 * Draws the mini as `model` if it has loaded, else as the plain miniature (asking for
+	 * the model, and drawing it when it arrives if the token still wants it).
+	 */
+	private dress(tokenId: string, entry: Entry, model: string | null): void {
+		entry.model = model;
+		entry.figure.clear();
+		const loaded = model ? modelNow(model) : null;
+		const add = (geometry: THREE.BufferGeometry, material: THREE.Material, y: number) => {
+			const mesh = new THREE.Mesh(geometry, material);
+			mesh.position.y = y;
+			mesh.castShadow = true;
+			mesh.receiveShadow = true;
+			entry.figure.add(mesh);
+		};
+		if (loaded) {
+			// Figures stand on the base.
+			if (loaded.body) add(loaded.body, entry.paint, 0.08);
+			if (loaded.accent) add(loaded.accent, entry.body, 0.08);
+			return;
+		}
+		add(bodyGeometry, entry.body, 0.08 + 0.31);
+		add(headGeometry, entry.body, 0.08 + 0.62 + 0.14);
+		if (model && loaded === undefined) {
+			void loadModel(model).then((m) => {
+				if (!m || this.entries.get(tokenId) !== entry || entry.model !== model) return;
+				this.dress(tokenId, entry, model);
+				this.onModel();
+			});
+		}
 	}
 
 	private tickFloats(dt: number): boolean {

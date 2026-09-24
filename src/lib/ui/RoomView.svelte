@@ -1032,6 +1032,7 @@
 				{floats}
 				{terrain}
 				{darkness}
+				environment={room.environment}
 				cue={cuePlay}
 				motion={conn.motion}
 				{active}
@@ -1133,6 +1134,8 @@
 						onTool={setTool}
 						onPropDraft={(draft) => (propDraft = draft)}
 						onAmbient={(ambient) => act({ type: 'ambient_set', ambient })}
+						environment={room.environment}
+						onEnvironment={(environment) => act({ type: 'environment_set', environment })}
 						onLightDraft={(draft) => (lightDraft = draft)}
 						{heightLevel}
 						onHeightLevel={(level) => (heightLevel = level)}

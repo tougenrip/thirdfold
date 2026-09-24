@@ -25,6 +25,7 @@ import type { Token } from '$lib/game/token';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 import { AmbienceLayer } from './ambience';
 import { EffectsLayer } from './effects';
+import { dress, loadEnvironment, type EnvironmentLook } from './environment';
 import { groundFor, type Ground } from './ground';
 import { TerrainLayer } from './terrain';
 import { LightingLayer } from './lighting';
@@ -92,6 +93,8 @@ export interface Tabletop {
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	/** Each cell's level (elevation), or null for a flat table. */
 	setTerrain(levels: Uint8Array | null): void;
+	/** How the table looks (an environment asset's id), or null for the plain table. */
+	setEnvironment(id: string | null): void;
 	/** The table's dark areas (one byte per cell), or null for none. */
 	setDarkness(mask: Uint8Array | null): void;
 	/** Plays a cinematic moment; `swingPropId` is the bell to swing, if it is on the table. */
@@ -184,7 +187,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 
 	const table = new THREE.Group();
 	scene.add(table);
-	const tokenLayer = new TokenLayer();
+	// A figure's model arriving draws it again, shadows too.
+	const tokenLayer = new TokenLayer(() => {
+		shadowsDirty = true;
+		requestRender();
+	});
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer();
 	scene.add(wallLayer.group);
@@ -195,7 +202,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(diceLayer.group);
 	const reducedMotion =
 		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-	const propLayer = new PropLayer();
+	// A model arriving draws its props again, shadows too.
+	const propLayer = new PropLayer(() => {
+		shadowsDirty = true;
+		requestRender();
+	});
 	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
@@ -408,12 +419,35 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		camera.position.sub(shakeOffset);
 	}
 
+	/** The table's own surfaces, kept across tables; the environment dresses them. */
+	const slabMaterial = new THREE.MeshStandardMaterial({ roughness: 0.7 });
+	const surfaceMaterial = new THREE.MeshStandardMaterial({ roughness: 0.95 });
+	/** The environment asked for, and its looks once loaded. */
+	let environment: string | null = null;
+	let look: EnvironmentLook | null = null;
+
+	/** Dresses the table, raised ground and walls in the environment's looks (or the plain ones). */
+	function applyLook(): void {
+		const across = grid ? grid.width : 1;
+		const down = grid ? grid.height : 1;
+		dress(surfaceMaterial, look?.surface ?? null, COLORS.surface, across, down);
+		dress(slabMaterial, look?.table ?? null, COLORS.table, extent / 2, 1);
+		terrainLayer.setLook(look?.ground ?? null);
+		wallLayer.setLook(look?.walls ?? null);
+		refreshLighting();
+		shadowsDirty = true;
+		requestRender();
+	}
+
 	function disposeGroup(group: THREE.Group): void {
+		const kept = new Set<THREE.Material>([slabMaterial, surfaceMaterial]);
 		for (const child of [...group.children]) {
 			child.traverse((o) => {
 				if (o instanceof THREE.Mesh || o instanceof THREE.LineSegments) {
 					o.geometry.dispose();
-					(Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
+					(Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+						if (!kept.has(m)) m.dispose();
+					});
 				}
 			});
 			group.remove(child);
@@ -427,15 +461,12 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 
 		const slab = new THREE.Mesh(
 			new THREE.BoxGeometry(w + TABLE_MARGIN * 2, TABLE_THICKNESS, d + TABLE_MARGIN * 2),
-			new THREE.MeshStandardMaterial({ color: COLORS.table, roughness: 0.7 })
+			slabMaterial
 		);
 		slab.position.y = -TABLE_THICKNESS / 2 - 0.01;
 		slab.receiveShadow = true;
 
-		const surface = new THREE.Mesh(
-			new THREE.PlaneGeometry(w, d),
-			new THREE.MeshStandardMaterial({ color: COLORS.surface, roughness: 0.95 })
-		);
+		const surface = new THREE.Mesh(new THREE.PlaneGeometry(w, d), surfaceMaterial);
 		surface.rotation.x = -Math.PI / 2;
 		surface.receiveShadow = true;
 
@@ -458,6 +489,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		lines.position.y = 0.005;
 
 		table.add(slab, surface, lines);
+		applyLook();
 
 		extent = Math.max(w, d) + TABLE_MARGIN * 2;
 		effects.setBounds(w, d, Math.max(4, extent * 0.2));
@@ -771,6 +803,21 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			refreshLighting();
 			requestRender();
 		},
+		setEnvironment(next) {
+			if (next === environment) return;
+			environment = next;
+			if (!next) {
+				look = null;
+				applyLook();
+				return;
+			}
+			void loadEnvironment(next).then((loaded) => {
+				// Only if it is still the one wanted (tables can change quickly).
+				if (environment !== next) return;
+				look = loaded;
+				applyLook();
+			});
+		},
 		setTerrain(next) {
 			levels = next;
 			if (!grid) return;
@@ -831,6 +878,10 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			canvas.removeEventListener('pointerleave', onPointerLeave);
 			controls.dispose();
 			disposeGroup(table);
+			slabMaterial.map?.dispose();
+			surfaceMaterial.map?.dispose();
+			slabMaterial.dispose();
+			surfaceMaterial.dispose();
 			tokenLayer.dispose();
 			wallLayer.dispose();
 			fogLayer.dispose();
@@ -913,5 +964,6 @@ const TIMED = [
 	'setFog',
 	'setLighting',
 	'setDarkness',
-	'setTerrain'
+	'setTerrain',
+	'setEnvironment'
 ] as const satisfies readonly (keyof Tabletop)[];

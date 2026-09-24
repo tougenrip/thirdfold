@@ -67,6 +67,9 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 		case 'pause_update':
 			room.paused = msg.paused;
 			return true;
+		case 'environment_update':
+			room.environment = msg.environment;
+			return true;
 		case 'terrain_update':
 			room.terrain = msg.terrain;
 			return true;

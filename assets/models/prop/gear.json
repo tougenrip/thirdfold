@@ -1,0 +1,34 @@
+{
+	"parts": [
+		{
+			"shape": "cylinder",
+			"size": [0.5, 0.9, 0.5],
+			"at": [0, 0.45, 0],
+			"color": "#3d3a38"
+		},
+		{
+			"shape": "cylinder",
+			"size": [1.7, 0.22, 1.7],
+			"at": [0, 1, 0],
+			"color": "#6b5a3e"
+		},
+		{
+			"shape": "box",
+			"size": [2, 0.2, 0.22],
+			"at": [0, 1, 0],
+			"color": "#6b5a3e"
+		},
+		{
+			"shape": "box",
+			"size": [0.22, 0.2, 2],
+			"at": [0, 1, 0],
+			"color": "#6b5a3e"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.4, 0.3, 0.4],
+			"at": [0, 1.15, 0],
+			"color": "#3d3a38"
+		}
+	]
+}
