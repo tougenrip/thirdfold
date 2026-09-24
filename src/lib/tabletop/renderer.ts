@@ -63,7 +63,9 @@ export type PreviewItem =
 	| { kind: 'segment'; a: GridPos; b: GridPos; tone: 'valid' | 'invalid' | 'door' }
 	| { kind: 'corner'; at: GridPos }
 	/** A rectangle of cells, e.g. the area the GM is about to reveal or hide. */
-	| { kind: 'area'; from: GridPos; to: GridPos; tone: 'reveal' | 'hide' | 'valid' | 'invalid' };
+	| { kind: 'area'; from: GridPos; to: GridPos; tone: 'reveal' | 'hide' | 'valid' | 'invalid' }
+	/** A soft column of light over a cell: something a new player is shown to walk up to. */
+	| { kind: 'beacon'; at: GridPos };
 
 export interface Tabletop {
 	setGrid(grid: SquareGrid): void;
@@ -253,12 +255,28 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(previewGroup);
 	const previewBox = new THREE.BoxGeometry(1, 1, 1);
 	const previewCorner = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16);
+	const beaconColumn = new THREE.CylinderGeometry(0.32, 0.42, 1, 24, 1, true);
+	const beaconRing = new THREE.RingGeometry(0.36, 0.48, 32);
 	const previewMaterials = {
 		valid: new THREE.MeshBasicMaterial({ color: 0x7fc47a, transparent: true, opacity: 0.55 }),
 		invalid: new THREE.MeshBasicMaterial({ color: 0xe27a6b, transparent: true, opacity: 0.55 }),
 		door: new THREE.MeshBasicMaterial({ color: 0xe0a458, transparent: true, opacity: 0.7 }),
 		reveal: new THREE.MeshBasicMaterial({ color: 0xf2e6d0, transparent: true, opacity: 0.25 }),
-		hide: new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 })
+		hide: new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 }),
+		beacon: new THREE.MeshBasicMaterial({
+			color: 0x9fd7ff,
+			transparent: true,
+			opacity: 0.22,
+			side: THREE.DoubleSide,
+			depthWrite: false
+		}),
+		beaconRing: new THREE.MeshBasicMaterial({
+			color: 0xbfe6ff,
+			transparent: true,
+			opacity: 0.8,
+			side: THREE.DoubleSide,
+			depthWrite: false
+		})
 	};
 
 	const highlight = new THREE.Mesh(
@@ -578,6 +596,19 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 						previewGroup.add(area);
 						continue;
 					}
+					if (item.kind === 'beacon') {
+						const w = gridToWorld(grid, item.at);
+						const floor = ground?.floorY(item.at) ?? 0;
+						const column = new THREE.Mesh(beaconColumn, previewMaterials.beacon);
+						column.position.set(w.x, floor + 1.1 * size, w.z);
+						column.scale.set(size, 2.2 * size, size);
+						const ring = new THREE.Mesh(beaconRing, previewMaterials.beaconRing);
+						ring.rotation.x = -Math.PI / 2;
+						ring.position.set(w.x, floor + 0.03 * size, w.z);
+						ring.scale.setScalar(size);
+						previewGroup.add(column, ring);
+						continue;
+					}
 					if (item.kind === 'corner') {
 						const w = cornerToWorld(grid, item.at);
 						const marker = new THREE.Mesh(previewCorner, previewMaterials.valid);
@@ -728,6 +759,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			previewGroup.clear();
 			previewBox.dispose();
 			previewCorner.dispose();
+			beaconColumn.dispose();
+			beaconRing.dispose();
 			Object.values(previewMaterials).forEach((m) => m.dispose());
 			highlight.geometry.dispose();
 			highlight.material.dispose();

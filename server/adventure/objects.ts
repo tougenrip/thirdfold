@@ -22,6 +22,7 @@ import type { Sound } from '../../src/lib/game/motion';
 import type { AssetId, Rotation } from '../../src/lib/game/props';
 import type { Room } from '../rooms';
 import { IDS } from './bellweather';
+import { TEXT } from './content';
 import { CLEFT_EDGE, HOLLOW_IDS } from './hollow';
 import { MONASTERY_IDS, SECRET_EDGE } from './monastery';
 import { NPC_IDS, NPCS } from './npcs';
@@ -87,6 +88,10 @@ export interface ObjectDef {
 	secret?: { a: GridPos; b: GridPos };
 	/** An item: it can be picked up, carried from table to table, and put down anywhere. */
 	carry?: true;
+	/** A newcomer's first find: onboarding points new players at it, and it yields this clue. */
+	firstFind?: string;
+	/** Told privately to someone who looks around (Observe) within sight of it, until they find it. */
+	noticed?: string;
 	/**
 	 * Only there while this light (a world object) is lit: carvings that show in
 	 * torchlight, a cleft the flame picks out of the rock. While the light is out
@@ -253,6 +258,19 @@ export const OBJECTS: readonly ObjectDef[] = [
 			{ id: 'extinguish', label: 'Put out the brazier', from: ['lit'], to: 'unlit', inFight: true }
 		],
 		looks: { lit: { lit: true }, unlit: { lit: false }, disabled: { lit: false } }
+	},
+	{
+		// The first thing a new player finds: it glows in the road, so they walk up and look.
+		id: 'charm',
+		name: 'Something glinting in the road',
+		kind: 'item',
+		location: 'bellweather',
+		thing: { prop: IDS.charm },
+		initial: 'interactable',
+		states: ['interactable', 'hidden'],
+		firstFind: 'tinbell',
+		noticed: TEXT.glint,
+		verbs: [{ id: 'examine', label: 'Look closer at the glint', from: ['interactable'] }]
 	},
 	{
 		id: 'remains',

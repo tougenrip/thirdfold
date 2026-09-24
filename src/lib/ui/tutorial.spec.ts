@@ -30,20 +30,39 @@ describe('the first session', () => {
 		expect(sessionStep(learning)).toBe(4);
 	});
 
+	it('teaches the core of play in order: move, look around, the glow nearby, inspect, discover', () => {
+		expect(TUTORIAL.slice(0, 5).map((s) => s.title)).toEqual([
+			'Move your miniature',
+			'Look around',
+			'Something is glowing nearby',
+			'Inspect it',
+			'You’ve discovered something'
+		]);
+	});
+
 	it('counts what the player does at the table, in any order', () => {
 		let p: TutorialProgress = { stage: 'tutorial', done: [] };
 		p = record(p, 'look');
 		expect(currentStep(p)?.id).toBe('move');
 		p = record(p, 'move');
-		expect(currentStep(p)?.id).toBe('interact');
+		expect(currentStep(p)?.id).toBe('approach');
 		expect(record(p, 'move')).toBe(p);
 		for (const s of TUTORIAL) p = record(p, s.id);
 		expect(currentStep(p)).toBeNull();
 		expect(sessionStep(p)).toBe(5);
 	});
 
+	it('skips the first find where there is none to find', () => {
+		const p: TutorialProgress = { stage: 'tutorial', done: ['move', 'look'] };
+		expect(currentStep(p, false)?.id).toBe('talk');
+		expect(currentStep(p, true)?.id).toBe('approach');
+	});
+
 	it('knows which actions teach what', () => {
-		expect(signalOf({ type: 'adventure_interact' })).toBe('interact');
+		const kindOf = (id: string) => (id === 'maren' ? 'npc' : 'item');
+		expect(signalOf({ type: 'adventure_interact', targetId: 'maren' }, kindOf)).toBe('talk');
+		// Inspecting is counted when the server says something was found, not when it is asked.
+		expect(signalOf({ type: 'adventure_interact', targetId: 'charm' }, kindOf)).toBeNull();
 		expect(signalOf({ type: 'adventure_sense' })).toBe('look');
 		expect(signalOf({ type: 'chat_send' })).toBe('chat');
 		expect(signalOf({ type: 'dice_roll' })).toBe('chat');

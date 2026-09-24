@@ -1,30 +1,46 @@
 <script lang="ts">
 	import Steps from './Steps.svelte';
-	import { currentStep, TUTORIAL, type TutorialProgress } from './tutorial';
+	import { currentStep, TUTORIAL, type TutorialProgress, type TutorialStepId } from './tutorial';
 
-	/** The interactive tutorial: one thing to try at a time, done when the player does it. */
+	/** Onboarding: one thing to try at a time, done when the player does it. */
 	interface Props {
 		progress: TutorialProgress;
+		/** Whether there is a first find here to walk up to and inspect. */
+		hasFind: boolean;
+		/** What the player found, for the "you've discovered something" step. */
+		found: { title: string; text: string } | null;
 		/** The first goal, to point the player at when they are ready. */
 		goal: string | null;
+		/** A step done by pressing its button. */
+		onDone(step: TutorialStepId): void;
 		onStart(): void;
 		onSkip(): void;
 	}
 
-	let { progress, goal, onStart, onSkip }: Props = $props();
+	let { progress, hasFind, found, goal, onDone, onStart, onSkip }: Props = $props();
 
-	const step = $derived(currentStep(progress));
-	const number = $derived(step ? TUTORIAL.indexOf(step) + 1 : TUTORIAL.length);
+	const steps = $derived(TUTORIAL.filter((s) => hasFind || !s.needsFind));
+	const step = $derived(currentStep(progress, hasFind));
+	const number = $derived(step ? steps.indexOf(step) + 1 : steps.length);
 </script>
 
 <section class="coach" aria-live="polite" aria-label="How to play">
 	<Steps current={step ? 4 : 5} />
 	{#if step}
-		<p class="count">Try this · {number} of {TUTORIAL.length}</p>
+		<p class="count">Try this · {number} of {steps.length}</p>
 		<h3>{step.title}</h3>
+		{#if step.id === 'discovered' && found}
+			<div class="found">
+				<strong>{found.title}</strong>
+				<span>{found.text}</span>
+			</div>
+		{/if}
 		<p class="text">{step.text}</p>
+		{#if step.button}
+			<button type="button" class="primary" onclick={() => onDone(step.id)}>{step.button}</button>
+		{/if}
 		<ul class="dots" aria-hidden="true">
-			{#each TUTORIAL as s (s.id)}
+			{#each steps as s (s.id)}
 				<li class:done={progress.done.includes(s.id)} class:now={s.id === step.id}></li>
 			{/each}
 		</ul>
@@ -73,6 +89,22 @@
 		margin: 0;
 		line-height: 1.45;
 		font-size: 0.92rem;
+	}
+
+	.found {
+		display: grid;
+		gap: 0.25rem;
+		padding: 0.55rem 0.7rem;
+		border-left: 3px solid #9fd7ff;
+		background: rgba(159, 215, 255, 0.08);
+		font-family: Georgia, 'Times New Roman', serif;
+		font-size: 0.9rem;
+		line-height: 1.4;
+	}
+
+	.found strong {
+		font-family: inherit;
+		color: #bfe6ff;
 	}
 
 	.dots {

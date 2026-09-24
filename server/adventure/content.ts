@@ -42,6 +42,12 @@ export const CLUES = {
 		title: "Tobin's drawing",
 		text: 'Hidden under the floorboard: a child’s drawing of the monastery tower, a bell inside it, and beneath the tower a huge dark shape with far too many eyes.'
 	},
+	tinbell: {
+		id: 'tinbell',
+		kind: 'object',
+		title: 'A child’s tin bell',
+		text: 'Pressed into the mud of the road, a little tin bell on a cord, the kind children wear at festivals. It is cold, and it glows faintly, and when you lift it, it hums the same low note over and over. Scratched on the side: T. H.'
+	},
 	clapper: {
 		id: 'clapper',
 		kind: 'object',
@@ -226,6 +232,8 @@ export const TEXT = {
 		'Maren hurries out of the inn with a pair of shears. The chain on the north gate falls away, and the path up the mountain lies open.',
 	gateLocked: 'The gate is chained shut.',
 	notNow: "There's no time for that. The Hound is here.",
+	glint:
+		'Something catches your eye a few steps up the road: a faint, cold glint of blue in the mud, where no lamp is.',
 	leaveVillage:
 		'The lamps of Bellweather fall away behind you as the path climbs into the dark. At the top, the monastery gate stands open on a courtyard of graves, and one lamp still burns in the gatehouse.',
 	defeat:

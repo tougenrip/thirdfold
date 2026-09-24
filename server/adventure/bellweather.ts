@@ -46,8 +46,13 @@ export const IDS = {
 	craneDoor: 'hb-crane-door',
 	loom: 'hb-loom',
 	stall: 'hb-stall',
-	waystone: 'hb-waystone'
+	waystone: 'hb-waystone',
+	charm: 'hb-charm',
+	charmGlow: 'hb-charm-glow'
 } as const;
+
+/** Where a newcomer's first find lies: in the road, a few steps from where the party arrives. */
+export const CHARM_AT: GridPos = { x: 12, y: 20 };
 
 /** Where characters appear, in order: the valley road at the south edge. */
 export const SPAWN: readonly GridPos[] = [
@@ -230,7 +235,8 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		prop('hb-arch-w', 'pillar', 9, 1),
 		prop('hb-arch-e', 'pillar', 14, 1),
 		prop(IDS.waystone, 'gravestone', 9, 3),
-		...TREES.map(([x, y], i) => prop(`hb-tree${i + 1}`, 'tree', x, y))
+		...TREES.map(([x, y], i) => prop(`hb-tree${i + 1}`, 'tree', x, y)),
+		prop(IDS.charm, 'handbell', CHARM_AT.x, CHARM_AT.y)
 	];
 
 	const lights: Light[] = [
@@ -244,6 +250,8 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		light('hb-yard-lantern', 30, 16, 3, '#cfd8ff'),
 		light('hb-forge-glow', 19, 22, 3, '#ff7a3d'),
 		light('hb-crane-candle', 7, 20, 2, '#ffd27a'),
+		// The charm's own faint glow: what catches a newcomer's eye.
+		light(IDS.charmGlow, CHARM_AT.x, CHARM_AT.y, 1, '#9fd7ff'),
 		{ ...light(IDS.brazierLight, 14, 6, 3, '#ffa04d'), on: false }
 	];
 

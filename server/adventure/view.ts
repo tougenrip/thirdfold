@@ -28,7 +28,7 @@ import {
 } from './engine';
 import { LOCATIONS } from './locations';
 import { actionOfVerb, objectDef, OBJECTS } from './objects';
-import type { Statuses } from './state';
+import type { AdventureState, Statuses } from './state';
 import { NPC_IDS, NPCS } from './npcs';
 import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, objectivesFor } from './story';
 
@@ -39,6 +39,17 @@ const WELCOME: Record<LocationId, string> = {
 	hollow: TEXT.hollow,
 	heart: TEXT.chooseDescent
 };
+
+/** The newcomer's first find where the party is, while it can be found. */
+function firstFind(room: Room, adventure: AdventureState): AdventureView['firstFind'] {
+	for (const def of OBJECTS) {
+		if (!def.firstFind || def.location !== adventure.location) continue;
+		const cells = objectCells(room, def);
+		if (!cells?.length || shownState(adventure, def) !== 'interactable') continue;
+		return { objectId: def.id, cells, clueId: def.firstFind };
+	}
+	return null;
+}
 
 const listStatuses = (statuses: Statuses) => [...statuses].map(([id, rounds]) => ({ id, rounds }));
 
@@ -234,6 +245,7 @@ export function adventureView(
 					}
 				: null,
 		director: viewer.role === 'gm' ? directorOptions(room, adventure) : null,
+		firstFind: firstFind(room, adventure),
 		welcome: {
 			title: `Welcome to ${LOCATIONS[adventure.location].name}`,
 			text: WELCOME[adventure.location]

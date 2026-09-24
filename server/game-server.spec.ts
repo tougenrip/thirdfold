@@ -1675,11 +1675,21 @@ describe('The Hollow Bell over the wire', () => {
 		const joined = await pip.expect('welcome');
 		expect(joined.room.adventure).toMatchObject({ stage: 'choosing' });
 		pip.send({ type: 'adventure_claim', characterId: 'veil' });
-		await tokenNamed(pip, 'The Veil');
+		const veil = await tokenNamed(pip, 'The Veil');
 		gm.send({ type: 'adventure_begin' });
 		const playing = await untilAdventure(pip, (a) => a.stage === 'playing');
 		expect(playing.welcome.title).toBe('Welcome to Bellweather');
 		expect(playing.welcome.text).toMatch(/^Dusk settles over Bellweather/);
 		expect(playing.objectives.find((o) => !o.done && !o.optional)?.id).toBe('innkeeper');
+
+		// Onboarding: something glows in the road; walk up to it and inspect it.
+		const find = playing.firstFind!;
+		expect(find).toMatchObject({ objectId: 'charm', clueId: 'tinbell' });
+		const [at] = find.cells;
+		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: at.x, y: at.y + 1 } });
+		await pip.until('token_moved');
+		pip.send({ type: 'adventure_interact', targetId: find.objectId, verb: null });
+		const found = await untilAdventure(pip, (a) => a.clues.length > 0);
+		expect(found.clues[0]).toMatchObject({ id: 'tinbell', mine: true, shared: false });
 	});
 });
