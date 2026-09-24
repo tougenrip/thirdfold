@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
+import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
 
 interface Entry {
@@ -91,7 +92,7 @@ export class TokenLayer {
 	}
 
 	/** Brings the minis in line with `tokens`. Returns true if anything changed on screen. */
-	sync(tokens: readonly Token[], grid: SquareGrid): boolean {
+	sync(tokens: readonly Token[], grid: SquareGrid, ground: Ground | null = null): boolean {
 		const gridChanged =
 			!this.grid ||
 			this.grid.width !== grid.width ||
@@ -104,7 +105,8 @@ export class TokenLayer {
 		for (const token of tokens) {
 			seen.add(token.id);
 			const w = gridToWorld(grid, token.pos);
-			const target = new THREE.Vector3(w.x, w.y, w.z);
+			// Standing on its cell's floor: up on a balcony, halfway up a stair.
+			const target = new THREE.Vector3(w.x, ground?.floorY(token.pos) ?? w.y, w.z);
 			let entry = this.entries.get(token.id);
 			if (!entry) {
 				entry = this.create(token, target);
@@ -196,7 +198,8 @@ export class TokenLayer {
 			entry.t = Math.min(entry.t + dt / entry.duration, 1);
 			const k = entry.t < 0.5 ? 2 * entry.t * entry.t : 1 - (-2 * entry.t + 2) ** 2 / 2;
 			entry.root.position.lerpVectors(entry.from, entry.to, k);
-			entry.root.position.y = Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
+			entry.root.position.y +=
+				Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
 			if (entry.t < 1) moving = true;
 		}
 		this.updateRing();
@@ -290,7 +293,11 @@ export class TokenLayer {
 		this.ring.visible = !!entry;
 		if (entry) {
 			if (!this.ring.parent) this.group.add(this.ring);
-			this.ring.position.set(entry.root.position.x, 0.012, entry.root.position.z);
+			this.ring.position.set(
+				entry.root.position.x,
+				entry.root.position.y + 0.012,
+				entry.root.position.z
+			);
 			this.ring.scale.setScalar(this.grid?.cellSize ?? 1);
 		}
 		return wasVisible !== this.ring.visible;

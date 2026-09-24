@@ -2,9 +2,24 @@
 // server sends each client. Deliberately simple and deterministic: cell-to-
 // cell line of sight through the same walls and closed doors that block
 // movement, within a round vision radius.
+//
+// With elevation the sight line also has a height: it runs from the viewer's
+// eye (its cell's level + EYE_LEVELS) to just above the target cell (its
+// level + TARGET_LEVELS). Ground rising above the line blocks it; a line high
+// enough passes over walls and tall props. On a flat table this reduces
+// exactly to the flat rules.
 
 import { inBounds, type GridPos, type SquareGrid } from './grid';
-import { canStep, type Blockers } from './objects';
+import { asObstacles, canStep, type Blockers } from './objects';
+
+/** Eye height of a viewer (or a light) above its cell, in levels. */
+export const EYE_LEVELS = 3;
+/** How far above a cell's floor it must be seen to count as seen (a figure standing there). */
+export const TARGET_LEVELS = 1;
+/** Height of a wall (or door, or window frame) above the higher of the cells beside it. */
+export const WALL_LEVELS = 5;
+/** Height of a prop that blocks sight (a pillar, a tree, a bookshelf). */
+export const PROP_LEVELS = 5;
 
 /** One byte per cell, row-major (`y * width + x`); non-zero means "in the set". */
 export type CellMask = Uint8Array;
@@ -40,6 +55,14 @@ export function hasLineOfSight(blocked: Blockers, from: GridPos, to: GridPos): b
 	const ny = Math.abs(to.y - from.y);
 	const sx = Math.sign(to.x - from.x);
 	const sy = Math.sign(to.y - from.y);
+	const o = asObstacles(blocked);
+	const levels = o.levels ?? null;
+	const level = (c: GridPos) => (levels ? levels[c.y * o.width + c.x] : 0);
+	const eye = level(from) + EYE_LEVELS;
+	const top = level(to) + TARGET_LEVELS;
+	const length = Math.hypot(nx, ny) || 1;
+	/** Height of the sight line where it is `d` cells (horizontally) from the viewer. */
+	const heightAt = (d: number) => eye + ((top - eye) * d) / length;
 	let x = from.x;
 	let y = from.y;
 	let ix = 0;
@@ -56,7 +79,19 @@ export function hasLineOfSight(blocked: Blockers, from: GridPos, to: GridPos): b
 					: { x, y: y + sy };
 		if (decision <= 0) ix++;
 		if (decision >= 0) iy++;
-		if (!canStep(blocked, { x, y }, next, 'sight', to)) return false;
+		const near = Math.hypot(x - from.x, y - from.y);
+		const far = Math.hypot(next.x - from.x, next.y - from.y);
+		const crossing = heightAt((near + far) / 2);
+		const clear = levels
+			? {
+					walls: crossing >= Math.max(level({ x, y }), level(next)) + WALL_LEVELS,
+					props: crossing >= level(next) + PROP_LEVELS
+				}
+			: undefined;
+		if (!canStep(blocked, { x, y }, next, 'sight', to, clear)) return false;
+		// Ground in between that rises above the line hides what is beyond it.
+		const isTarget = next.x === to.x && next.y === to.y;
+		if (levels && !isTarget && level(next) > heightAt(far)) return false;
 		x = next.x;
 		y = next.y;
 	}

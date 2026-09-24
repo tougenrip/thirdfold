@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { AdventureView } from '../src/lib/adventure/adventure';
+import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { FileSceneStore, type SceneStore } from './scene-store';
@@ -755,7 +756,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 4, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 5, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',
@@ -846,6 +847,54 @@ describe('lighting over the wire', () => {
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
 		pip.send({ type: 'ambient_set', ambient: 'day' });
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+	});
+});
+
+describe('elevation over the wire', () => {
+	it('lets only the GM shape the ground; everyone gets the heights, and stairs are climbed', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		expect(room.terrain).toBeNull();
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+		gm.send({
+			type: 'token_create',
+			name: 'Pip',
+			color: '#2e86c1',
+			pos: { x: 2, y: 5 },
+			ownerId: playerId
+		});
+		const { token } = await pip.until('token_upserted');
+
+		const raise = {
+			type: 'terrain_set' as const,
+			from: { x: 6, y: 0 },
+			to: { x: 9, y: 9 },
+			level: 3
+		};
+		pip.send(raise);
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+		gm.send(raise);
+		const { terrain } = await pip.until('terrain_update');
+		const levels = decodeLevels(terrain!, room.grid.width * room.grid.height)!;
+		expect(levels[5 * room.grid.width + 7]).toBe(3);
+
+		// Three levels is too high a step; a stair of 1, 2 makes it climbable.
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 7, y: 5 } });
+		expect(await pip.expect('error')).toMatchObject({ code: 'no_path' });
+		gm.send({ type: 'terrain_set', from: { x: 4, y: 5 }, to: { x: 4, y: 5 }, level: 1 });
+		gm.send({ type: 'terrain_set', from: { x: 5, y: 5 }, to: { x: 5, y: 5 }, level: 2 });
+		await pip.until('terrain_update');
+		await pip.until('terrain_update');
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 7, y: 5 } });
+		expect(await gm.until('token_moved')).toMatchObject({ pos: { x: 7, y: 5 } });
+
+		// Flat again: no map at all.
+		gm.send({ type: 'terrain_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, level: 0 });
+		expect((await pip.until('terrain_update')).terrain).toBeNull();
 	});
 });
 
@@ -1033,6 +1082,15 @@ describe('The Hollow Bell over the wire', () => {
 		door('mn-side-door');
 		move({ x: 21, y: 6 });
 		await untilChapter(gm, 'enter_monastery');
+		// The bell tolls as the party comes in: the cue reaches the player who walked in,
+		// with the log in order (clients drop an entry older than one they already have).
+		const seqs: number[] = [];
+		for (;;) {
+			const { message } = await pip.expect('chat');
+			seqs.push(message.seq);
+			if (message.kind === 'narration' && message.cue === 'toll') break;
+		}
+		expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
 
 		// Saint Agna shows the hidden door; through it, the bell rings.
 		move({ x: 9, y: 4 });

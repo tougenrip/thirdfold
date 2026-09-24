@@ -35,13 +35,15 @@ import {
 	type Prop
 } from './props';
 import { MAX_TOKENS_PER_ROOM, TOKEN_COLOR_PATTERN, type Token } from './token';
+import { decodeLevels, encodeLevels, type LevelMap } from './terrain';
 import { decodeMask, encodeMask, MAX_VISION } from './visibility';
 
 /**
  * v2 added lights, the ambient level and token-carried light; v3 added props;
- * v4 added the state of a story being played at the table.
+ * v4 added the state of a story being played at the table; v5 added
+ * elevation (each cell's level) and windows.
  */
-export const SCENE_FILE_VERSION = 4;
+export const SCENE_FILE_VERSION = 5;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -86,8 +88,14 @@ export interface SceneFileV4 extends Omit<SceneFileV3, 'version'> {
 	adventure: SavedStory | null;
 }
 
+export interface SceneFileV5 extends Omit<SceneFileV4, 'version'> {
+	version: 5;
+	/** Each cell's level, base64, one byte per cell (see terrain.ts); null for a flat table. */
+	terrain: string | null;
+}
+
 /** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV4;
+export type SceneFile = SceneFileV5;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -103,6 +111,8 @@ export interface SceneSource {
 	playerName(id: string): string | undefined;
 	/** The story played at the table, if any. */
 	adventure?: SavedStory | null;
+	/** Each cell's level, or null for a flat table. */
+	terrain?: LevelMap | null;
 }
 
 export function normalizeSceneName(raw: unknown): string | null {
@@ -128,7 +138,8 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		lights: [...source.lights].map((l) => structuredClone(l)),
 		ambient: source.ambient,
 		fog: { enabled: source.fog.enabled, revealed: encodeMask(source.fog.revealed) },
-		adventure: source.adventure ? structuredClone(source.adventure) : null
+		adventure: source.adventure ? structuredClone(source.adventure) : null,
+		terrain: source.terrain ? encodeLevels(source.terrain) : null
 	};
 }
 
@@ -175,6 +186,10 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 	if (upgraded.version === 3) {
 		// v3 → v4: no story saved with the table.
 		upgraded = { ...upgraded, version: 4, adventure: null };
+	}
+	if (upgraded.version === 4) {
+		// v4 → v5: a flat table, and no windows yet.
+		upgraded = { ...upgraded, version: 5, terrain: null };
 	}
 	return upgraded;
 }
@@ -283,6 +298,9 @@ export function parseSceneFile(input: unknown): SceneParse {
 		if (raw.kind === 'door') {
 			if (!isUnitEdge(a, b) || typeof raw.open !== 'boolean') return bad('A door is invalid.');
 			objects.push({ id: raw.id, kind: 'door', ...ends, open: raw.open });
+		} else if (raw.window !== undefined && raw.window !== false) {
+			if (raw.window !== true) return bad('A window is invalid.');
+			objects.push({ id: raw.id, kind: 'wall', ...ends, window: true });
 		} else {
 			objects.push({ id: raw.id, kind: 'wall', ...ends });
 		}
@@ -362,6 +380,15 @@ export function parseSceneFile(input: unknown): SceneParse {
 	const revealed = typeof data.fog.revealed === 'string' ? data.fog.revealed : '';
 	const mask = decodeMask(revealed, grid.width * grid.height);
 
+	// Elevation
+	let terrain: string | null = null;
+	if (data.terrain !== null && data.terrain !== undefined) {
+		const levels =
+			typeof data.terrain === 'string' ? decodeLevels(data.terrain, width * height) : null;
+		if (!levels) return bad('The elevation map is not valid.');
+		terrain = levels.some((l) => l !== 0) ? encodeLevels(levels) : null;
+	}
+
 	// The story: plain JSON here; its module checks the rest when it loads it.
 	let adventure: SavedStory | null = null;
 	if (data.adventure !== null && data.adventure !== undefined) {
@@ -397,7 +424,8 @@ export function parseSceneFile(input: unknown): SceneParse {
 			lights,
 			ambient: data.ambient as Ambient,
 			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask) },
-			adventure
+			adventure,
+			terrain
 		}
 	};
 }

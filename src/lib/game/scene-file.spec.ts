@@ -117,7 +117,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(4);
+		expect(file.version).toBe(5);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -132,7 +132,7 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(4);
+		expect(parsed.scene.version).toBe(5);
 		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
@@ -190,7 +190,7 @@ describe('scene file v4: the story played at the table', () => {
 		v3.version = 3;
 		delete v3.adventure;
 		const parsed = parseSceneFile(v3);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 4, adventure: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 5, adventure: null });
 	});
 
 	it('keeps a story through a round trip, as a copy', () => {
@@ -215,5 +215,50 @@ describe('scene file v4: the story played at the table', () => {
 		mutate(data);
 		const parsed = parseSceneFile(data);
 		expect(!parsed.ok && parsed.error).toMatch(/saved story/);
+	});
+});
+
+describe('scene file v5: elevation and windows', () => {
+	it('saves a flat table with no level map, and upgrades a v4 file to flat', () => {
+		expect(serializeScene('Crypt', source()).terrain).toBeNull();
+		const v4 = saved();
+		v4.version = 4;
+		delete v4.terrain;
+		const parsed = parseSceneFile(v4);
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 5, terrain: null });
+	});
+
+	it('keeps levels and windows through a round trip', () => {
+		const levels = new Uint8Array(DEFAULT_GRID.width * DEFAULT_GRID.height);
+		levels[5] = 3;
+		const src = source();
+		const objects: SceneObject[] = [
+			...src.objects,
+			{ id: 'win', kind: 'wall', a: { x: 0, y: 7 }, b: { x: 3, y: 7 }, window: true }
+		];
+		const file = serializeScene('Tower', { ...src, objects, terrain: levels });
+		const parsed = parseSceneFile(JSON.parse(JSON.stringify(file)));
+		if (!parsed.ok) throw new Error(parsed.error);
+		expect(parsed.scene.terrain).toBe(file.terrain);
+		expect(parsed.scene.objects.find((o) => o.id === 'win')).toMatchObject({ window: true });
+	});
+
+	type Mutation = (d: ReturnType<typeof saved>) => void;
+	it.each<[string, Mutation, RegExp]>([
+		['a level map of the wrong size', (d) => (d.terrain = btoa('abc')), /elevation/],
+		['a level map that is not a string', (d) => (d.terrain = [1, 2, 3]), /elevation/],
+		['a window that is not a flag', (d) => (d.objects[0].window = 'yes'), /window/]
+	])('rejects %s', (_label, mutate, error) => {
+		const data = saved();
+		mutate(data);
+		const parsed = parseSceneFile(data);
+		expect(!parsed.ok && parsed.error).toMatch(error);
+	});
+
+	it('drops a level map that is all floor', () => {
+		const data = saved();
+		data.terrain = btoa('\0'.repeat(DEFAULT_GRID.width * DEFAULT_GRID.height));
+		const parsed = parseSceneFile(data);
+		expect(parsed.ok && parsed.scene.terrain).toBeNull();
 	});
 });

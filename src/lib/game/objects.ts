@@ -1,5 +1,7 @@
-// Scene objects that live on grid lines: walls and doors. They block
-// movement between cells (and will block sight once visibility exists).
+// Scene objects that live on grid lines: walls, windows and doors. They block
+// movement between cells, and walls and closed doors block sight (windows
+// don't). With elevation, cells also have a level: a step can climb or drop
+// at most MAX_STEP levels, so stairs are runs of cells one level apart.
 // Everything here is plain grid math, shared by the server's rules and the
 // client's previews.
 
@@ -11,6 +13,8 @@ export interface Wall {
 	kind: 'wall';
 	a: GridPos;
 	b: GridPos;
+	/** A window: blocks movement but not sight. */
+	window?: boolean;
 }
 
 /** A door spanning exactly one unit edge. Closed doors block like walls. */
@@ -74,6 +78,18 @@ export function blockingEdges(objects: Iterable<SceneObject>): Set<string> {
 	return blocked;
 }
 
+/** Keys of the unit edges that are windows: they block movement but not sight. */
+export function windowEdges(objects: Iterable<SceneObject>): Set<string> {
+	const windows = new Set<string>();
+	for (const o of objects) {
+		if (o.kind === 'wall' && o.window) for (const e of unitEdges(o.a, o.b)) windows.add(edgeKey(e));
+	}
+	return windows;
+}
+
+/** The most a single step can climb or drop, in levels: stairs rise one level per cell. */
+export const MAX_STEP = 1;
+
 /** The edge shared by two orthogonally adjacent cells. */
 export function edgeBetween(c1: GridPos, c2: GridPos): GridEdge {
 	if (c1.x === c2.x) {
@@ -110,37 +126,58 @@ export interface Obstacles {
 	width: number;
 	solid: Uint8Array | null;
 	opaque: Uint8Array | null;
+	/** Edges in `edges` that don't block sight (windows). */
+	windows?: ReadonlySet<string> | null;
+	/** Each cell's level (elevation), or null for a flat table. */
+	levels?: Uint8Array | null;
+}
+
+/** What a sight line passes above at one step, so it isn't blocked by it. */
+export interface Clearance {
+	walls: boolean;
+	props: boolean;
 }
 
 /** Obstacles, or just blocking edges (walls and doors only). */
 export type Blockers = Obstacles | ReadonlySet<string>;
 
 export function asObstacles(blockers: Blockers): Obstacles {
-	return 'edges' in blockers ? blockers : { edges: blockers, width: 0, solid: null, opaque: null };
+	return 'edges' in blockers
+		? blockers
+		: { edges: blockers, width: 0, solid: null, opaque: null, windows: null, levels: null };
 }
 
 /**
  * Whether a token can step from `from` to an adjacent cell (including
  * diagonals). A diagonal step needs at least one open L-shaped route around
- * the corner, so a wall corner can't be squeezed through.
+ * the corner, so a wall corner can't be squeezed through. Moving, each leg
+ * may change level by at most MAX_STEP. For sight, windows don't block, and
+ * `clear` says what the sight line passes above at this step.
  */
 export function canStep(
 	blockers: Blockers,
 	from: GridPos,
 	to: GridPos,
 	mode: 'move' | 'sight' = 'move',
-	target: GridPos = to
+	target: GridPos = to,
+	clear: Clearance = { walls: false, props: false }
 ): boolean {
 	const o = asObstacles(blockers);
-	const cells = mode === 'move' ? o.solid : o.opaque;
+	const cells = mode === 'move' ? o.solid : clear.props ? null : o.opaque;
+	const levels = mode === 'move' ? (o.levels ?? null) : null;
 	// Entering a solid cell is never allowed; an opaque one only as the thing being looked at.
 	const enter = (c: GridPos) =>
 		!cells ||
 		!cells[c.y * o.width + c.x] ||
 		(mode === 'sight' && c.x === target.x && c.y === target.y);
+	const climb = (p: GridPos, q: GridPos) =>
+		!levels || Math.abs(levels[p.y * o.width + p.x] - levels[q.y * o.width + q.x]) <= MAX_STEP;
+	const edgeBlocks = (key: string) =>
+		o.edges.has(key) && !(mode === 'sight' && (clear.walls || o.windows?.has(key)));
 	const dx = to.x - from.x;
 	const dy = to.y - from.y;
-	const open = (p: GridPos, q: GridPos) => !o.edges.has(edgeKey(edgeBetween(p, q))) && enter(q);
+	const open = (p: GridPos, q: GridPos) =>
+		!edgeBlocks(edgeKey(edgeBetween(p, q))) && enter(q) && climb(p, q);
 	if (Math.abs(dx) + Math.abs(dy) === 1) return open(from, to);
 	const viaX = { x: to.x, y: from.y };
 	const viaY = { x: from.x, y: to.y };

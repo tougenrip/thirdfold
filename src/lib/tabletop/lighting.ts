@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { lightLevels, type Ambient, type Light, type LightSource } from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';
+import type { Ground } from './ground';
 
 /** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
 const POOL_SIZE = 8;
@@ -48,6 +49,8 @@ export class LightingLayer {
 	/** Each pool light's steady intensity, which flicker varies around. */
 	private steady: number[] = [];
 	private ambient: Ambient = 'day';
+	/** Per-cell brightness from the last update (0 dark - 1 lit), or null by day. */
+	private brightness: Float32Array | null = null;
 
 	constructor(private readonly base: SceneLights) {
 		this.overlay = new THREE.Mesh(
@@ -79,7 +82,8 @@ export class LightingLayer {
 		lights: readonly Light[],
 		sources: readonly LightSource[],
 		blocked: Blockers,
-		visible: Uint8Array | null
+		visible: Uint8Array | null,
+		ground: Ground | null = null
 	): void {
 		const preset = PRESETS[ambient];
 		this.ambient = ambient;
@@ -92,8 +96,8 @@ export class LightingLayer {
 		this.base.lamp.intensity = preset.lamp;
 
 		this.updateOverlay(grid, preset.dark, sources, blocked, visible);
-		this.updatePool(grid, sources, ambient);
-		this.updateFixtures(grid, lights);
+		this.updatePool(grid, sources, ambient, ground);
+		this.updateFixtures(grid, lights, ground);
 	}
 
 	/** Id of the light fixture under the ray, if any. */
@@ -124,6 +128,7 @@ export class LightingLayer {
 	): void {
 		if (darkness === 0) {
 			this.overlay.visible = false;
+			this.brightness = null;
 			return;
 		}
 		const size = grid.width * grid.height;
@@ -143,6 +148,7 @@ export class LightingLayer {
 		}
 		const levels = lightLevels(grid, blocked, sources);
 		const data = this.texture.image.data as Uint8Array;
+		this.brightness = new Float32Array(size);
 		for (let i = 0; i < size; i++) {
 			const x = i % grid.width;
 			const y = Math.floor(i / grid.width);
@@ -153,6 +159,7 @@ export class LightingLayer {
 			data[o + 1] = 3;
 			data[o + 2] = 8;
 			data[o + 3] = Math.round(255 * darkness * (1 - level));
+			this.brightness[i] = 1 - darkness * (1 - level);
 		}
 		this.texture.needsUpdate = true;
 		this.overlay.scale.set(grid.width * grid.cellSize, grid.height * grid.cellSize, 1);
@@ -160,7 +167,17 @@ export class LightingLayer {
 	}
 
 	/** Gives the pool's point lights to the strongest sources; the rest stay dark (the overlay still shows them). */
-	private updatePool(grid: SquareGrid, sources: readonly LightSource[], ambient: Ambient): void {
+	/** How lit each cell looks after the last update (null: all of it, by day). For raised ground. */
+	get cellBrightness(): Float32Array | null {
+		return this.brightness;
+	}
+
+	private updatePool(
+		grid: SquareGrid,
+		sources: readonly LightSource[],
+		ambient: Ambient,
+		ground: Ground | null
+	): void {
 		const chosen = [...sources].sort((a, b) => b.radius - a.radius).slice(0, POOL_SIZE);
 		const strength = ambient === 'day' ? 0.5 : 1;
 		this.pool.forEach((light, i) => {
@@ -170,7 +187,8 @@ export class LightingLayer {
 				return;
 			}
 			const w = gridToWorld(grid, s.pos);
-			light.position.set(w.x, FIXTURE_HEIGHT * grid.cellSize + 0.1, w.z);
+			const floor = ground?.floorY(s.pos) ?? 0;
+			light.position.set(w.x, floor + FIXTURE_HEIGHT * grid.cellSize + 0.1, w.z);
 			light.color.set(s.color);
 			light.distance = (s.radius + 1.5) * grid.cellSize;
 			light.intensity = strength * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
@@ -203,7 +221,7 @@ export class LightingLayer {
 		return true;
 	}
 
-	private updateFixtures(grid: SquareGrid, lights: readonly Light[]): void {
+	private updateFixtures(grid: SquareGrid, lights: readonly Light[], ground: Ground | null): void {
 		const seen = new Set<string>();
 		for (const l of lights) {
 			seen.add(l.id);
@@ -214,7 +232,7 @@ export class LightingLayer {
 				this.group.add(fixture);
 			}
 			const w = gridToWorld(grid, l.pos);
-			fixture.position.set(w.x, 0, w.z);
+			fixture.position.set(w.x, ground?.floorY(l.pos) ?? 0, w.z);
 			fixture.scale.setScalar(grid.cellSize);
 			const flame = fixture.children[1] as THREE.Mesh<
 				THREE.SphereGeometry,

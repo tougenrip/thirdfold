@@ -12,6 +12,7 @@ import type { ChatMessage } from '../src/lib/game/chat';
 import { lightSources, litMask, type Ambient, type Light } from '../src/lib/game/lights';
 import { cellsBeside, unitEdges, type Obstacles, type SceneObject } from '../src/lib/game/objects';
 import { footprintCells, obstaclesFor, type Prop } from '../src/lib/game/props';
+import { encodeLevels, knownLevels } from '../src/lib/game/terrain';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
 import {
@@ -34,9 +35,11 @@ export interface View {
 	ambient: Ambient;
 	fog: FogView;
 	adventure: AdventureView | null;
+	/** Levels of the ground this viewer knows (explored cells), or null for a flat table. */
+	terrain: string | null;
 }
 
-type SceneView = Omit<View, 'adventure'>;
+type SceneView = Omit<View, 'adventure' | 'terrain'>;
 
 const NO_FOG: FogView = { enabled: false, visible: '', explored: '' };
 
@@ -48,7 +51,7 @@ export interface SceneContext {
 }
 
 export function sceneContext(room: Room): SceneContext {
-	const blocked = obstaclesFor(room.grid, room.objects.values(), room.props.values());
+	const blocked = obstaclesFor(room.grid, room.objects.values(), room.props.values(), room.terrain);
 	const lit =
 		room.ambient === 'dark'
 			? litMask(room.grid, blocked, lightSources(room.lights.values(), room.tokens.values()))
@@ -104,7 +107,9 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 	}
 	const known = room.fog.enabled && viewer.role !== 'gm' ? viewer.explored : null;
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
-	return { ...scene, adventure: adventureView(room, viewer, tokenIds, known) };
+	// The ground's shape is scenery like walls: known where explored.
+	const terrain = room.terrain && encodeLevels(knownLevels(room.terrain, known));
+	return { ...scene, adventure: adventureView(room, viewer, tokenIds, known), terrain };
 }
 
 function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView {
@@ -184,7 +189,8 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		ambient: view.ambient,
 		fog: view.fog,
 		log: room.log.filter((m) => canSeeLogEntry(viewer, m)),
-		adventure: view.adventure && structuredClone(view.adventure)
+		adventure: view.adventure && structuredClone(view.adventure),
+		terrain: view.terrain
 	};
 }
 
@@ -197,6 +203,7 @@ export interface SentView {
 	ambient: Ambient;
 	fog: string;
 	adventure: string;
+	terrain: string | null;
 }
 
 export function sentFrom(view: View): SentView {
@@ -207,7 +214,8 @@ export function sentFrom(view: View): SentView {
 		lights: new Map(view.lights.map((l) => [l.id, JSON.stringify(l)])),
 		ambient: view.ambient,
 		fog: JSON.stringify(view.fog),
-		adventure: JSON.stringify(view.adventure)
+		adventure: JSON.stringify(view.adventure),
+		terrain: view.terrain
 	};
 }
 
@@ -251,6 +259,9 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 		messages.push({ type: 'ambient_update', ambient: view.ambient });
 
 	if (prev.fog !== JSON.stringify(view.fog)) messages.push({ type: 'fog_update', fog: view.fog });
+	if (prev.terrain !== view.terrain) {
+		messages.push({ type: 'terrain_update', terrain: view.terrain });
+	}
 
 	const tokenIds = new Set(view.tokens.map((t) => t.id));
 	for (const id of prev.tokens.keys()) {

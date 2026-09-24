@@ -17,7 +17,8 @@
 	import type { Role } from '$lib/game/protocol';
 	import { tokenAt } from '$lib/game/token';
 	import type { RoomConnection } from '$lib/net/room-connection.svelte';
-	import Tabletop, { type FloatText } from '$lib/tabletop/Tabletop.svelte';
+	import Tabletop, { type CuePlay, type FloatText } from '$lib/tabletop/Tabletop.svelte';
+	import { decodeLevels } from '$lib/game/terrain';
 	import type { DiceThrow } from '$lib/tabletop/dice3d';
 	import { diceToThrow } from '$lib/tabletop/dice-throw';
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
@@ -56,8 +57,10 @@
 	let hover = $state<Pick | null>(null);
 	/** First corner of the wall being drawn. */
 	let wallStart = $state<GridPos | null>(null);
-	/** First cell of the area being revealed or hidden. */
+	/** First cell of the area being revealed, hidden or shaped. */
 	let areaStart = $state<GridPos | null>(null);
+	/** The level the GM's height tool sets. */
+	let heightLevel = $state(5);
 	let lightDraft = $state<LightDraft>({
 		radius: DEFAULT_LIGHT_RADIUS,
 		color: LIGHT_COLORS[0].color
@@ -115,9 +118,15 @@
 			: null
 	);
 	const hoverCell = $derived(hover?.cell ?? null);
-	const blocked = $derived(
-		room ? obstaclesFor(room.grid, room.objects, room.props) : new Set<string>()
+	/** The ground's levels as far as this client knows them; null for a flat table. */
+	const terrain = $derived(
+		room?.terrain ? decodeLevels(room.terrain, room.grid.width * room.grid.height) : null
 	);
+	const blocked = $derived(
+		room ? obstaclesFor(room.grid, room.objects, room.props, terrain) : new Set<string>()
+	);
+	/** The last cinematic cue in the log, to play once. */
+	let cuePlay = $state<CuePlay | null>(null);
 	const selectedProp = $derived(
 		(isGm && selectedPropId && room?.props.find((p) => p.id === selectedPropId)) || null
 	);
@@ -204,6 +213,9 @@
 		}
 		if ((tool === 'reveal' || tool === 'hide') && hover.cell) {
 			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: tool }];
+		}
+		if (tool === 'height' && hover.cell) {
+			return [{ kind: 'area', from: areaStart ?? hover.cell, to: hover.cell, tone: 'valid' }];
 		}
 		if (tool === 'door' && hover.edge) {
 			const existing = room && objectOnEdge(room.objects, hover.edge);
@@ -351,6 +363,11 @@
 				? `Click to switch this light ${existing.on ? 'off' : 'on'}.`
 				: 'Light: click a cell to place a light there. Click a light to switch it on or off.';
 		}
+		if (tool === 'height') {
+			return areaStart
+				? `Click the opposite corner cell to set the area to level ${heightLevel}. Esc to cancel.`
+				: `Shape ground: click a cell to start an area at level ${heightLevel}.`;
+		}
 		if (tool === 'reveal' || tool === 'hide') {
 			const verb = tool === 'reveal' ? 'reveal to' : 'hide from';
 			return areaStart
@@ -408,7 +425,14 @@
 			return;
 		}
 		if (!latest || latest.seq <= lastAnnouncedSeq) return;
+		const since = lastAnnouncedSeq;
 		lastAnnouncedSeq = latest.seq;
+		// A cue can arrive among other entries (a move notice after it): look at all new ones.
+		const cued = room.log.findLast((m) => m.seq > since && m.kind === 'narration' && m.cue);
+		if (cued?.kind === 'narration' && cued.cue) {
+			const bell = room.props.find((p) => p.assetId === 'belfry-bell');
+			cuePlay = { seq: cued.seq, cue: cued.cue, swingPropId: bell?.id ?? null };
+		}
 		if (
 			latest.kind !== 'roll' &&
 			latest.kind !== 'attack' &&
@@ -487,6 +511,16 @@
 			case 'door':
 				if (pick.edge) conn.send({ type: 'object_create', kind: 'door', ...pick.edge });
 				return;
+			case 'height': {
+				if (!pick.cell) return;
+				if (!areaStart) {
+					areaStart = pick.cell;
+					return;
+				}
+				conn.send({ type: 'terrain_set', from: areaStart, to: pick.cell, level: heightLevel });
+				areaStart = null;
+				return;
+			}
 			case 'reveal':
 			case 'hide': {
 				if (!pick.cell) return;
@@ -650,6 +684,7 @@
 			e: 'erase',
 			l: 'light',
 			p: 'prop',
+			g: 'height',
 			...(room?.fog.enabled ? { r: 'reveal', h: 'hide' } : {})
 		};
 		const next = shortcut[event.key.toLowerCase()];
@@ -720,6 +755,8 @@
 				selectedId={selected?.id ?? null}
 				{fallen}
 				{floats}
+				{terrain}
+				cue={cuePlay}
 				{highlight}
 				{view}
 				{onClick}
@@ -792,6 +829,8 @@
 						onPropDraft={(draft) => (propDraft = draft)}
 						onAmbient={(ambient) => conn.send({ type: 'ambient_set', ambient })}
 						onLightDraft={(draft) => (lightDraft = draft)}
+						{heightLevel}
+						onHeightLevel={(level) => (heightLevel = level)}
 						onFog={(enabled) => {
 							if (!enabled && (tool === 'reveal' || tool === 'hide')) setTool('select');
 							conn.send({ type: 'fog_set', enabled });

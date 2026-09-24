@@ -4,6 +4,7 @@
 import { serializeScene, type SceneFile } from '../src/lib/game/scene-file';
 import { saveAdventure } from './adventure/persist';
 import type { Token } from '../src/lib/game/token';
+import { decodeLevels } from '../src/lib/game/terrain';
 import { decodeMask, emptyMask } from '../src/lib/game/visibility';
 import type { Room } from './rooms';
 
@@ -19,7 +20,8 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 			ambient: room.ambient,
 			fog: room.fog,
 			playerName: (id) => room.players.get(id)?.name,
-			adventure: room.adventure && saveAdventure(room.adventure)
+			adventure: room.adventure && saveAdventure(room.adventure),
+			terrain: room.terrain
 		},
 		now
 	);
@@ -53,6 +55,9 @@ export function applyScene(room: Room, scene: SceneFile): void {
 	room.props = new Map(scene.props.map((p) => [p.id, structuredClone(p)]));
 	room.lights = new Map(scene.lights.map((l) => [l.id, structuredClone(l)]));
 	room.ambient = scene.ambient;
+	room.terrain = scene.terrain
+		? decodeLevels(scene.terrain, scene.grid.width * scene.grid.height)
+		: null;
 	const size = room.grid.width * room.grid.height;
 	room.fog = { enabled: scene.fog.enabled, revealed: decodeMask(scene.fog.revealed, size) };
 	for (const p of room.players.values()) p.explored = emptyMask(room.grid);

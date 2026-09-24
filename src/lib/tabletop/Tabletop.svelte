@@ -1,4 +1,14 @@
 <script lang="ts" module>
+	import type { Cue } from '$lib/game/chat';
+
+	/** A cinematic moment to play once; `seq` (the log entry's) increases so each plays once. */
+	export interface CuePlay {
+		seq: number;
+		cue: Cue;
+		/** The prop to swing (the bell), if this viewer has it on the table. */
+		swingPropId: string | null;
+	}
+
 	/** Combat text to float up from a token once; `id` increases so each shows once. */
 	export interface FloatText {
 		id: number;
@@ -49,6 +59,9 @@
 		/** Tokens drawn lying down (fallen characters). */
 		fallen?: readonly string[];
 		floats?: readonly FloatText[];
+		/** Each cell's level, or null for a flat table. */
+		terrain?: Uint8Array | null;
+		cue?: CuePlay | null;
 	}
 
 	let {
@@ -71,6 +84,8 @@
 		view = 'tactical',
 		fallen = [],
 		floats = [],
+		terrain = null,
+		cue = null,
 		onClick,
 		onHover
 	}: Props = $props();
@@ -99,6 +114,17 @@
 
 	$effect(() => {
 		tabletop?.setGrid($state.snapshot(grid));
+	});
+
+	$effect(() => {
+		tabletop?.setTerrain(terrain);
+	});
+
+	let lastCue = -1;
+	$effect(() => {
+		if (!tabletop || !cue || cue.seq <= lastCue) return;
+		lastCue = cue.seq;
+		tabletop.playCue(cue.cue, cue.swingPropId);
 	});
 
 	$effect(() => {

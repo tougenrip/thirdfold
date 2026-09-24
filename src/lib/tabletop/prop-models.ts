@@ -12,7 +12,12 @@ export interface Part {
 	size: [number, number, number];
 	at: [number, number, number];
 	color: number;
+	/** Swings with the prop (a hanging bell and its chains), about SWING_PIVOT. */
+	swings?: boolean;
 }
+
+/** Height (model units) of the beam a swinging prop hangs from. */
+export const SWING_PIVOT = 2.55;
 
 const WOOD = 0x8a5a33;
 const DARK_WOOD = 0x5a3a22;
@@ -170,5 +175,22 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'box', size: [0.35, 0.4, 0.35], at: [0, 0.2, 0], color: DARK_WOOD },
 		{ shape: 'box', size: [0.7, 0.2, 0.3], at: [0, 0.5, 0], color: IRON },
 		{ shape: 'cone', size: [0.2, 0.3, 0.2], at: [0.45, 0.52, 0], color: IRON }
+	],
+	chains: [
+		{ shape: 'cylinder', size: [0.05, 1.8, 0.05], at: [-0.2, 1.4, 0], color: IRON },
+		{ shape: 'cylinder', size: [0.05, 1.4, 0.05], at: [0.05, 1.6, 0.1], color: IRON },
+		{ shape: 'cylinder', size: [0.05, 2.0, 0.05], at: [0.25, 1.3, -0.1], color: IRON },
+		{ shape: 'sphere', size: [0.12, 0.12, 0.12], at: [-0.2, 0.5, 0], color: IRON },
+		{ shape: 'sphere', size: [0.12, 0.12, 0.12], at: [0.25, 0.3, -0.1], color: IRON }
+	],
+	// Hung from a beam well above the belfry floor, so it can swing (see the toll effect).
+	'belfry-bell': [
+		{ shape: 'box', size: [0.14, 2.6, 0.14], at: [-0.5, 1.3, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [0.14, 2.6, 0.14], at: [0.5, 1.3, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [1.3, 0.16, 0.22], at: [0, 2.6, 0], color: DARK_WOOD },
+		{ shape: 'cylinder', size: [0.04, 0.5, 0.04], at: [-0.15, 2.3, 0], color: IRON, swings: true },
+		{ shape: 'cylinder', size: [0.04, 0.5, 0.04], at: [0.15, 2.3, 0], color: IRON, swings: true },
+		{ shape: 'cone', size: [0.9, 0.9, 0.9], at: [0, 1.65, 0], color: 0x7a6a3a, swings: true },
+		{ shape: 'sphere', size: [0.16, 0.16, 0.16], at: [0, 1.15, 0], color: IRON, swings: true }
 	]
 };
