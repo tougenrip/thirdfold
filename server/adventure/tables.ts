@@ -41,17 +41,6 @@ export const light = (
 	on = true
 ): Light => ({ id, pos: { x, y }, radius, color, on });
 
-/** A person the party can talk to: a GM-controlled token. */
-export const npc = (id: string, name: string, color: string, x: number, y: number): SavedToken => ({
-	id,
-	name,
-	color,
-	pos: { x, y },
-	vision: 6,
-	light: 0,
-	owner: null
-});
-
 export interface TableParts {
 	name: string;
 	grid: SquareGrid;

@@ -206,17 +206,6 @@ export interface Area {
 	to: GridPos;
 }
 
-export type NpcId = 'maren' | 'oswin' | 'tobin';
-
-/** The people of the story and the states each moves through. */
-export const NPCS: Record<NpcId, { name: string; states: readonly string[] }> = {
-	maren: { name: 'Maren', states: ['worried', 'hopeful'] },
-	oswin: { name: 'Brother Oswin', states: ['wary', 'trusting'] },
-	tobin: { name: 'Tobin Hale', states: ['missing', 'entranced', 'safe'] }
-};
-
-export const NPC_IDS = Object.keys(NPCS) as NpcId[];
-
 export type DecisionId = 'promise' | 'bell';
 
 export interface DecisionDef {

@@ -289,7 +289,9 @@ describe('what each viewer is told', () => {
 			defeated: ['Hollow Hound'],
 			encounters: [{ id: 'well', state: 'won' }]
 		});
-		expect(gms.ledger?.npcs).toContainEqual({ id: 'maren', name: 'Maren', state: 'hopeful' });
+		expect(gms.ledger?.npcs).toContainEqual(
+			expect.objectContaining({ id: 'maren', home: 'The Tolling Rest', state: 'hopeful' })
+		);
 		expect(gms.objects?.every((o) => o.id !== 'well')).toBe(true);
 	});
 });

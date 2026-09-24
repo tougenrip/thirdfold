@@ -9,12 +9,12 @@
 
 import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
 import type { SceneFile } from '../../src/lib/game/scene-file';
-import { door, light, npc, prop, table, wall } from './tables';
+import { npcTokens } from './npcs';
+import { door, light, prop, table, wall } from './tables';
 
 export const MONASTERY_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 24, height: 20 };
 
 export const MONASTERY_IDS = {
-	oswin: 'mn-oswin',
 	gatehouseDoor: 'mn-gatehouse-door',
 	greatDoor: 'mn-great-door',
 	sideDoor: 'mn-side-door',
@@ -67,7 +67,7 @@ export function monasteryScene(now = new Date()): SceneFile {
 			grid: MONASTERY_GRID,
 			ambient: 'dusk',
 			arrival: { from: { x: 8, y: 14 }, to: { x: 16, y: 19 } },
-			tokens: [npc(I.oswin, 'Brother Oswin', '#6b5b3e', 3, 15)],
+			tokens: npcTokens('monastery'),
 			objects: [
 				// The monastery: x 2-21, y 2-9, the great doors in the south wall.
 				wall('mn-north', { x: 2, y: 2 }, { x: 22, y: 2 }),

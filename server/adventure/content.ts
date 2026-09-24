@@ -49,6 +49,46 @@ export const CLUES = {
 		title: 'A mended rope',
 		text: 'The old bell rope was cut long ago. Someone has spliced it back together with new rope, the same rope as the length in the Hale chest. Tobin mended it, and Tobin rang it.'
 	},
+	bread: {
+		id: 'bread',
+		title: 'Bread for the mountain',
+		text: 'Every Sunday Tobin carried a loaf up the mountain path. He told his mother he was feeding an old monk who lives at the monastery all alone.'
+	},
+	legend: {
+		id: 'legend',
+		title: 'Forty years',
+		text: 'Old Bertram remembers the last time the Bell rang, forty years ago. The brothers sent three ringers down under the mountain to quiet it, and they were never seen again.'
+	},
+	'empty-graves': {
+		id: 'empty-graves',
+		title: 'The ringers’ graves',
+		text: 'Three gravestones in the churchyard are carved with bells, for the last ringers. Nell the gravedigger swears there is nobody buried under them.'
+	},
+	lights: {
+		id: 'lights',
+		title: 'Lights on the mountain',
+		text: 'Widow Crane saw a small light climb the mountain path last night. Later, a great many lights came on at the monastery, blinking like eyes.'
+	},
+	shears: {
+		id: 'shears',
+		title: 'Borrowed shears',
+		text: 'A week ago Tobin borrowed Gregor’s rope shears and a coil of new hemp rope. He said it was for a swing.'
+	},
+	saint: {
+		id: 'saint',
+		title: 'Saint Agna’s key',
+		text: 'Father Wynn says the brothers carved Saint Agna all over the monastery, and the old books say she “holds the key to the ringers’ way in her hands”.'
+	},
+	promise: {
+		id: 'promise',
+		title: 'Tobin’s secret',
+		text: 'Tobin told Pell the Bell was lonely under the mountain, and that he was going to make it sing one more time. He went up the path with a coil of rope.'
+	},
+	tracks: {
+		id: 'tracks',
+		title: 'Tracks round the well',
+		text: 'At dawn Aldric found long-toed tracks circling the well. They went round and round and led nowhere, as if whatever made them went back down.'
+	},
 	badges: {
 		id: 'badges',
 		title: 'The last ringers',
@@ -113,6 +153,19 @@ export const TEXT = {
 		'The brazier catches, and warm light spills across the gate and the first stretch of path.',
 	brazierOut: 'The brazier gutters out.',
 	remainsEmpty: 'Only ash now.',
+	chapelRope:
+		'A bell rope hangs in the chapel tower, cut off short. There is no bell above it, only an empty frame thick with pigeon feathers.',
+	chapelAgna:
+		'Saint Agna in coloured glass, a small bronze bell held to her heart. Her eyes are painted shut.',
+	ringers:
+		'Three stones side by side, each carved with a bell and a name worn almost smooth. The earth in front of them has never settled.',
+	anvil:
+		'A half-made lantern hook on the anvil, and beside it a length of heavy chain, the twin of the one on the north gate.',
+	loom: 'A shroud, half woven, stretched on the loom. The pattern along its edge is a row of small bells.',
+	stall:
+		'Bundles of herbs, jars of salve, and a basket of bread rolls going stale. Nobody has bought anything since the bell rang.',
+	waystone:
+		'A worn waystone at the foot of the mountain path. Under the moss: THE MONASTERY OF THE HOLLOW BELL. PILGRIMS WELCOME. And below, cut much later and much deeper: RING NOT.',
 
 	// The monastery
 	oswinFirst:

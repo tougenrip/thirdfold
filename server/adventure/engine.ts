@@ -66,13 +66,12 @@ import {
 	CHAPTERS,
 	DECISIONS,
 	ENDING_FOR,
-	NPC_IDS,
-	NPCS,
 	transition,
 	type DecisionId,
 	type EncounterId,
 	type EventId
 } from './story';
+import { isNpcId, NPC_IDS, NPCS, placeFor, REACTIONS, type NpcId, type When } from './npcs';
 
 export interface Outcome {
 	/** Log entries added, oldest first; announce them after syncing. */
@@ -241,6 +240,7 @@ function newState(room: Room): AdventureState {
 		events: [],
 		defeated: [],
 		npcs: new Map(NPC_IDS.map((id) => [id, NPCS[id].states[0]])),
+		said: new Set(),
 		decisions: new Map(),
 		pending: null,
 		encounters: new Map(),
@@ -376,7 +376,9 @@ export function interact(
 	}
 	const before = state!;
 	if (verb.to) setObjectState(room, adventure, def, verb.to);
-	return { ok: true, ...respond(room, adventure, def, verb, before) };
+	const outcome = respond(room, adventure, def, verb, before);
+	const reactions = react(room, adventure, `${def.id}:${verb.id}`, me.token.pos);
+	return { ok: true, ...merge(outcome, { log: reactions }) };
 }
 
 /** What happens in the story when a verb is done: narration, clues, events. */
@@ -394,15 +396,8 @@ function respond(
 		return { ...next, log: [...log, ...next.log] };
 	};
 	const clue = (id: ClueId) => [say(room, CLUES[id].text), ...addClue(room, adventure, id)];
+	if (verb.id === 'talk' && isNpcId(def.id)) return talk(room, adventure, def.id);
 	switch (`${def.id}:${verb.id}`) {
-		case 'maren:talk': {
-			if (!has('talked_maren'))
-				return then([say(room, TEXT.marenArrival, 'Maren')], 'talked_maren');
-			if (has('left_village')) return told(say(room, TEXT.marenComplete, 'Maren'));
-			return told(
-				say(room, has('won_well') ? TEXT.marenAftermath : TEXT.marenInvestigate, 'Maren')
-			);
-		}
 		case 'well:examine': {
 			if (has('well_clue')) return told(say(room, CLUES.scratches.text));
 			if (!has('talked_maren')) return told(say(room, TEXT.wellEarly));
@@ -440,11 +435,6 @@ function respond(
 			return told(say(room, TEXT.brazierOut));
 		case 'remains:search':
 			return before === 'used' ? told(say(room, TEXT.remainsEmpty)) : told(...clue('clapper'));
-		case 'oswin:talk': {
-			if (!has('talked_oswin')) return then([say(room, TEXT.oswinFirst, 'Oswin')], 'talked_oswin');
-			if (adventure.pending === 'promise') return told(say(room, TEXT.oswinWaiting, 'Oswin'));
-			return told(say(room, adventure.ending ? TEXT.oswinEnd : TEXT.oswinAfter, 'Oswin'));
-		}
 		case 'graves:read':
 			return told(say(room, TEXT.graves));
 		case 'altar:read':
@@ -458,18 +448,115 @@ function respond(
 		}
 		case 'rope:examine':
 			return told(...clue('splice'));
-		case 'tobin:talk':
-			return has('found_tobin')
-				? told(say(room, TEXT.tobinAfter))
-				: then([say(room, TEXT.tobinFound, 'Tobin')], 'found_tobin');
 		case 'bell:examine':
 			return told(say(room, TEXT.bell));
 		case 'pit:examine':
 			return told(say(room, TEXT.pit));
+		case 'chapel-rope:examine':
+			return told(say(room, TEXT.chapelRope));
+		case 'chapel-agna:examine':
+			return told(say(room, TEXT.chapelAgna));
+		case 'ringers:examine':
+			return before === 'used'
+				? told(say(room, TEXT.ringers))
+				: told(say(room, TEXT.ringers), ...addClue(room, adventure, 'empty-graves'));
+		case 'anvil:examine':
+			return told(say(room, TEXT.anvil));
+		case 'loom:examine':
+			return told(say(room, TEXT.loom));
+		case 'stall:examine':
+			return told(say(room, TEXT.stall));
+		case 'waystone:read':
+			return told(say(room, TEXT.waystone));
 		case 'bones:search':
 			return before === 'used' ? told(say(room, TEXT.bonesEmpty)) : told(...clue('badges'));
 		default:
 			return told();
+	}
+}
+
+// ---------------------------------------------------------------------------
+// People: talking, reacting, and where they stand
+
+/** Whether a line's conditions hold now, for a speaker in `state`. */
+function holds(adventure: AdventureState, state: string, when: When | undefined): boolean {
+	if (!when) return true;
+	const has = (e: EventId) => adventure.events.includes(e);
+	if (when.state && !when.state.includes(state)) return false;
+	if (when.clues && !when.clues.every((c) => adventure.clues.includes(c))) return false;
+	if (when.events && !when.events.every(has)) return false;
+	if (when.not && when.not.some(has)) return false;
+	if (when.pending && adventure.pending !== when.pending) return false;
+	for (const [id, states] of Object.entries(when.objects ?? {})) {
+		const def = objectDef(id);
+		if (!def || !states.includes(objectState(adventure, def))) return false;
+	}
+	return true;
+}
+
+/**
+ * Talking to someone: they say the first of their lines that applies, which
+ * may give a clue, change how they feel, move the story on or tend wounds.
+ */
+function talk(room: Room, adventure: AdventureState, id: NpcId): Outcome {
+	const npc = NPCS[id];
+	const state = adventure.npcs.get(id) ?? npc.states[0];
+	const line = npc.lines.find(
+		(l) => !(l.once && adventure.said.has(`${id}:${l.id}`)) && holds(adventure, state, l.if)
+	);
+	if (!line) return { log: [] };
+	adventure.said.add(`${id}:${line.id}`);
+	const log = [line.narrated ? say(room, line.text) : say(room, line.text, npc.speaker)];
+	if (line.clue) log.push(...addClue(room, adventure, line.clue));
+	if (line.becomes) adventure.npcs.set(id, line.becomes);
+	if (line.heals) log.push(...tend(room, adventure, line.heals));
+	return line.event ? merge({ log }, happen(room, adventure, line.event)) : { log };
+}
+
+/** Every standing character recovers up to `hp`. */
+function tend(room: Room, adventure: AdventureState, hp: number): ChatMessage[] {
+	const healed = standing(room, adventure).filter((c) => c.state.hp < CHARACTERS[c.id].hp);
+	for (const c of healed) c.state.hp = Math.min(CHARACTERS[c.id].hp, c.state.hp + hp);
+	if (healed.length === 0) return [];
+	return [
+		postSystem(room, `${healed.map((c) => CHARACTERS[c.id].name).join(', ')} recovered some HP.`)
+	];
+}
+
+/**
+ * People nearby call out when the party does something (`object:verb`, only
+ * within earshot of `near`) or when something happens (`event:<id>`). Each
+ * reaction is heard once.
+ */
+function react(room: Room, adventure: AdventureState, on: string, near?: GridPos): ChatMessage[] {
+	const log: ChatMessage[] = [];
+	for (const r of REACTIONS) {
+		if (r.on !== on || adventure.said.has(`reaction:${r.id}`)) continue;
+		const npc = NPCS[r.npc];
+		const token = npc.location === adventure.location ? room.tokens.get(npc.token) : undefined;
+		if (!token) continue;
+		if (r.within !== undefined && near && gridDistance(token.pos, near) > r.within) continue;
+		adventure.said.add(`reaction:${r.id}`);
+		log.push(say(room, r.text, npc.speaker));
+	}
+	return log;
+}
+
+/** The village while the Hound is loose, after it is dead, or neither. */
+function villagePhase(adventure: AdventureState): 'calm' | 'hiding' | 'after' {
+	if (adventure.encounters.get('well') === 'active') return 'hiding';
+	return adventure.events.includes('won_well') ? 'after' : 'calm';
+}
+
+/** People go where they belong now: indoors while the Hound is loose, back out after. */
+function settlePeople(room: Room, adventure: AdventureState): void {
+	const phase = villagePhase(adventure);
+	for (const id of NPC_IDS) {
+		const npc = NPCS[id];
+		const token = npc.location === adventure.location ? room.tokens.get(npc.token) : undefined;
+		if (!token) continue;
+		const to = placeFor(npc, phase);
+		if ((token.pos.x !== to.x || token.pos.y !== to.y) && isFree(room, to)) token.pos = { ...to };
 	}
 }
 
@@ -499,6 +586,7 @@ export function happen(
 	switch (event) {
 		case 'won_well': {
 			adventure.npcs.set('maren', 'hopeful');
+			settlePeople(room, adventure);
 			const gate = objectDef('gate');
 			if (gate) setObjectState(room, adventure, gate, 'opened');
 			for (const i of rectCells(room.grid, PATH_AREA.from, PATH_AREA.to)) room.fog.revealed[i] = 1;
@@ -517,6 +605,7 @@ export function happen(
 			outcome = offer(room, adventure, 'promise');
 			break;
 	}
+	outcome = merge(outcome, { log: react(room, adventure, `event:${event}`) });
 	const next = transition(adventure.chapter, event);
 	if (next === undefined) return outcome;
 	return merge(
@@ -540,6 +629,7 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 	switch (chapter) {
 		case 'discover_bell':
 			tell(...startEncounter(room, adventure, 'well'));
+			settlePeople(room, adventure);
 			break;
 		case 'investigate_monastery':
 			tell(say(room, TEXT.leaveVillage));

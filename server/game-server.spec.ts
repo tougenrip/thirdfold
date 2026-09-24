@@ -925,6 +925,13 @@ describe('The Hollow Bell over the wire', () => {
 			if (msg.adventure && pass(msg.adventure)) return msg.adventure;
 		}
 	}
+	/** A character's token as it arrives; villagers it can see may arrive first. */
+	async function tokenNamed(client: TestClient, name: string) {
+		for (;;) {
+			const { token } = await client.until('token_upserted');
+			if (token.name === name) return token;
+		}
+	}
 	const untilChapter = (client: TestClient, chapter: string) =>
 		untilAdventure(client, (a) => a.chapter.id === chapter);
 
@@ -951,7 +958,7 @@ describe('The Hollow Bell over the wire', () => {
 			inPlay: true,
 			playerId: pipId
 		});
-		const warden = (await pip.until('token_upserted')).token;
+		const warden = await tokenNamed(pip, 'The Warden');
 		expect(warden).toMatchObject({ name: 'The Warden', ownerId: pipId });
 
 		gm.send({ type: 'adventure_begin' });
@@ -1014,11 +1021,9 @@ describe('The Hollow Bell over the wire', () => {
 		pip.send({ type: 'adventure_decide', decisionId: 'promise', optionId: 'boy' });
 		const promised = await untilAdventure(gm, (a) => a.decisions.length === 1);
 		expect(promised.decisions[0]).toMatchObject({ choice: 'Bring Tobin home', by: 'The Warden' });
-		expect(promised.ledger?.npcs).toContainEqual({
-			id: 'oswin',
-			name: 'Brother Oswin',
-			state: 'trusting'
-		});
+		expect(promised.ledger?.npcs).toContainEqual(
+			expect.objectContaining({ id: 'oswin', name: 'Brother Oswin', state: 'trusting' })
+		);
 
 		// Round to the ringers' door, now unlocked, and into the nave.
 		move({ x: 22, y: 6 });
@@ -1064,7 +1069,7 @@ describe('The Hollow Bell over the wire', () => {
 		gm.send({ type: 'adventure_start' });
 		await pip.until('room_reset');
 		pip.send({ type: 'adventure_claim', characterId: 'veil' });
-		const veil = (await pip.until('token_upserted')).token;
+		const veil = await tokenNamed(pip, 'The Veil');
 		gm.send({ type: 'adventure_begin' });
 		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: 9, y: 10 } });
 		pip.send({ type: 'door_toggle', objectId: 'hb-inn-door' });
@@ -1099,6 +1104,34 @@ describe('The Hollow Bell over the wire', () => {
 		(bad.adventure!.state as Record<string, unknown>).chapter = 'epilogue';
 		gm.send({ type: 'scene_import', file: bad });
 		expect(await gm.until('error')).toMatchObject({ code: 'invalid_scene' });
+	});
+
+	it('lets the party question villagers, with every clue reaching both sides', async () => {
+		const { gm, pip } = await table();
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		const veil = await tokenNamed(pip, 'The Veil');
+		gm.send({ type: 'adventure_begin' });
+		await untilAdventure(pip, (a) => a.stage === 'playing');
+
+		// Widow Crane is in her cottage by the south road: open her door and ask.
+		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: 8, y: 21 } });
+		pip.send({ type: 'door_toggle', objectId: 'hb-crane-door' });
+		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: 7, y: 21 } });
+		pip.send({ type: 'adventure_interact', targetId: 'crane' });
+		for (;;) {
+			const { message } = await gm.expect('chat');
+			if (message.kind === 'narration' && message.speaker === 'Widow Crane') break;
+		}
+		const seen = await untilAdventure(pip, (a) => a.clues.length === 1);
+		expect(seen.clues[0]).toMatchObject({ id: 'lights', title: 'Lights on the mountain' });
+		const gms = await untilAdventure(gm, (a) => a.clues.length === 1);
+		expect(gms.ledger?.npcs).toContainEqual(
+			expect.objectContaining({ id: 'crane', state: 'frightened' })
+		);
+		// Players are never sent the GM's list of who's who.
+		expect(seen.ledger).toBeNull();
 	});
 
 	it('lets only the GM adjust a character, and everyone sees the change', async () => {
