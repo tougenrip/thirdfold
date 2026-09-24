@@ -8,12 +8,22 @@
 // transport; nothing here touches a socket or a timer.
 
 import { randomUUID } from 'node:crypto';
-import { canReach, inAttackRange, type AdventureStage } from '../../src/lib/adventure/adventure';
 import {
+	canReach,
+	inActionRange,
+	inAttackRange,
+	type AdventureStage
+} from '../../src/lib/adventure/adventure';
+import {
+	actionOf,
+	BLEED_OUT_ROUNDS,
 	CHARACTER_IDS,
 	CHARACTERS,
 	defenseFor,
-	type Attack,
+	STATUSES,
+	toHitFor,
+	type Action,
+	type CharacterDef,
 	type CharacterId
 } from '../../src/lib/adventure/characters';
 import { NARRATION_MAX_LENGTH, normalizeChatText, type ChatMessage } from '../../src/lib/game/chat';
@@ -21,7 +31,7 @@ import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/li
 import { gridDistance, type GridPos } from '../../src/lib/game/grid';
 import { findPath, type Door, type Obstacles } from '../../src/lib/game/objects';
 import { footprintCells, isSolidCell } from '../../src/lib/game/props';
-import type { AdventureControl } from '../../src/lib/game/protocol';
+import type { AdventureControl, CharacterPatch } from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
 import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
 import { appendLog, postSystem } from '../chat';
@@ -30,7 +40,7 @@ import { obstacles } from '../scene';
 import { applyScene } from '../scene-io';
 import { bellweatherScene, EXIT, IDS, PATH_AREA, SPAWN, WELL_RING } from './bellweather';
 import { CLUES, CUES, HOUND, TEXT, TITLE, type ClueId } from './content';
-import type { AdventureState, CharacterState, Encounter } from './state';
+import type { AdventureState, CharacterState, Encounter, EnemyState, Statuses } from './state';
 
 export interface Outcome {
 	/** Log entries added, oldest first; announce them after syncing. */
@@ -89,9 +99,33 @@ function played(room: Room, adventure: AdventureState): Played[] {
 	return list;
 }
 
-/** Characters still standing. */
+/** Characters still standing: not down, not dead. */
 function standing(room: Room, adventure: AdventureState): Played[] {
-	return played(room, adventure).filter((c) => c.state.hp > 0);
+	return played(room, adventure).filter((c) => c.state.hp > 0 && !c.state.dead);
+}
+
+function newCharacter(tokenId: string, id: CharacterId): CharacterState {
+	return {
+		tokenId,
+		hp: CHARACTERS[id].hp,
+		statuses: new Map(),
+		uses: new Map(),
+		downedFor: 0,
+		dead: false
+	};
+}
+
+/** Uses left this encounter for a limited action; null for unlimited. */
+export function usesLeft(state: CharacterState, action: Action): number | null {
+	return action.uses === null ? null : Math.max(0, action.uses - (state.uses.get(action.id) ?? 0));
+}
+
+/** Why a character can't act or move right now, or null if it can. */
+function unableReason(me: Played): string | null {
+	const name = CHARACTERS[me.id].name;
+	if (me.state.dead) return `${name} is dead.`;
+	if (me.state.hp <= 0) return `${name} is down.`;
+	return null;
 }
 
 export function characterOf(room: Room, playerId: string): Played | null {
@@ -179,10 +213,13 @@ export function claimCharacter(room: Room, actor: Player, id: CharacterId): Outc
 	}
 	const token = placeCharacter(room, id, actor.id);
 	if (!token) return fail('cell_occupied', 'There is no room on the road. Ask the GM to clear it.');
-	adventure.characters.set(id, { tokenId: token.id, hp: CHARACTERS[id].hp });
+	adventure.characters.set(id, newCharacter(token.id, id));
 	return {
 		ok: true,
-		log: [postSystem(room, `${actor.name} is playing ${CHARACTERS[id].name}.`)]
+		log: [
+			postSystem(room, `${actor.name} is playing ${CHARACTERS[id].name}.`),
+			say(room, CHARACTERS[id].intro)
+		]
 	};
 }
 
@@ -240,7 +277,8 @@ export function interact(room: Room, actor: Player, targetId: string): Outcomes 
 	if (!def || !cells) return fail('object_not_found', "That isn't here any more.");
 	const me = characterOf(room, actor.id);
 	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
-	if (me.state.hp <= 0) return fail('forbidden', `${CHARACTERS[me.id].name} is down.`);
+	const unable = unableReason(me);
+	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
 	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
 	if (!canReach(obstacles(room), me.token.pos, cells)) {
@@ -303,9 +341,13 @@ function startEncounter(room: Room, adventure: AdventureState): ChatMessage[] {
 		phase: 'players',
 		acted: new Set(),
 		moved: new Map(),
-		enemies: new Map([[hound.id, { kind: 'hound', hp, maxHp: hp }]]),
+		enemies: new Map([[hound.id, { kind: 'hound', hp, maxHp: hp, statuses: new Map() }]]),
 		turn: 1
 	};
+	for (const c of played(room, adventure)) {
+		c.state.uses.clear();
+		c.state.statuses.clear();
+	}
 	// Light up the square so the whole party can see the fight.
 	for (const i of rectCells(room.grid, { x: 8, y: 10 }, { x: 16, y: 17 })) room.fog.revealed[i] = 1;
 	return [
@@ -326,66 +368,182 @@ interface Strike {
 	damage: DiceRoll | null;
 }
 
-/** A d20 plus the attack's bonus against the target's defense; a natural 20 always hits. */
-function strike(attack: Attack, defense: number, roller: DieRoller): Strike {
-	const toHit = roll(`1d20+${attack.toHit}`, roller);
+/** A d20 plus a bonus against the target's defense; a natural 20 always hits, a natural 1 never does. */
+function strike(bonus: number, damage: string, defense: number, roller: DieRoller): Strike {
+	const toHit = roll(`1d20+${bonus}`, roller);
 	const natural = toHit.terms[0].kind === 'dice' ? toHit.terms[0].rolls[0] : 0;
 	const hit = natural === 20 || (natural !== 1 && toHit.total >= defense);
-	return { hit, toHit, damage: hit ? roll(attack.damage, roller) : null };
+	return { hit, toHit, damage: hit ? roll(damage, roller) : null };
 }
 
-/** Player: their character attacks an enemy. */
-export function attack(room: Room, actor: Player, targetId: string, roller: DieRoller): Outcomes {
+/** Defense against attacks, counting a guard. */
+function characterDefense(c: Played): number {
+	return defenseFor(CHARACTERS[c.id].armor + (c.state.statuses.has('guarded') ? 2 : 0));
+}
+
+/**
+ * Player: their character uses one of its actions: an attack on an enemy, a
+ * heal on an ally (or itself), or a guard. In a fight this is the
+ * character's action for the round; outside one only healing makes sense.
+ */
+export function act(
+	room: Room,
+	actor: Player,
+	actionId: string,
+	targetId: string | null,
+	roller: DieRoller
+): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
-	const encounter = adventure.encounter;
-	if (!encounter) return fail('forbidden', 'There is nothing to fight.');
-	if (encounter.phase !== 'players') return fail('not_your_turn', "It's the enemies' turn.");
 	const me = characterOf(room, actor.id);
-	if (!me) return fail('forbidden', 'Only a character in the story can attack.');
+	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
 	const def = CHARACTERS[me.id];
-	if (me.state.hp <= 0) return fail('forbidden', `${def.name} is down.`);
-	if (encounter.acted.has(me.id)) {
+	const action = actionOf(def, actionId);
+	if (!action) return fail('invalid_message', `${def.name} can't do that.`);
+	const unable = unableReason(me);
+	if (unable) return fail('forbidden', unable);
+	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
+	const encounter = adventure.encounter;
+	if (!encounter && action.kind !== 'heal') return fail('forbidden', 'There is nothing to fight.');
+	if (encounter?.phase === 'enemies') return fail('not_your_turn', "It's the enemies' turn.");
+	if (encounter?.acted.has(me.id)) {
 		return fail('not_your_turn', `${def.name} has already acted this round.`);
 	}
-	const enemy = encounter.enemies.get(targetId);
-	const target = room.tokens.get(targetId);
-	if (!enemy || !target) return fail('token_not_found', "That enemy isn't here.");
-	if (!inAttackRange(obstacles(room), me.token.pos, target.pos, def.attack.range)) {
-		return fail(
-			'out_of_reach',
-			def.attack.range === 1
-				? `Move ${def.name} next to the ${target.name} first.`
-				: `The ${target.name} is out of range or out of sight.`
-		);
+	if (usesLeft(me.state, action) === 0) {
+		return fail('forbidden', `${action.name} is spent until the next fight.`);
 	}
 
-	const result = strike(def.attack, defenseFor(HOUND.armor), roller);
+	const blocked = obstacles(room);
+	let log: ChatMessage[];
+	if (action.target === 'enemy') {
+		const enemy = targetId ? encounter?.enemies.get(targetId) : undefined;
+		const target = targetId ? room.tokens.get(targetId) : undefined;
+		if (!encounter || !enemy || !target) return fail('token_not_found', "That enemy isn't here.");
+		if (!inActionRange(blocked, me.token.pos, target.pos, action)) {
+			return fail(
+				'out_of_reach',
+				action.range <= 1
+					? `Move ${def.name} next to the ${target.name} first.`
+					: `The ${target.name} is out of range or out of sight.`
+			);
+		}
+		log = [attackEnemy(room, actor, def, action, encounter, enemy, target, roller)];
+	} else if (action.target === 'ally') {
+		const ally = targetId ? characterByToken(room, targetId) : null;
+		if (!ally) return fail('token_not_found', 'Choose one of the party.');
+		if (ally.state.dead) return fail('forbidden', `${CHARACTERS[ally.id].name} is beyond help.`);
+		if (!inActionRange(blocked, me.token.pos, ally.token.pos, action)) {
+			return fail('out_of_reach', `${CHARACTERS[ally.id].name} is out of reach.`);
+		}
+		log = [heal(room, actor, def, action, ally, roller)];
+	} else {
+		log = [guard(room, adventure, actor, me, action)];
+	}
+
+	if (action.uses !== null) me.state.uses.set(action.id, (me.state.uses.get(action.id) ?? 0) + 1);
+	if (!encounter) return { ok: true, log };
+	encounter.acted.add(me.id);
+	return { ok: true, ...afterAction(room, adventure, encounter, log) };
+}
+
+function attackEnemy(
+	room: Room,
+	actor: Player,
+	def: CharacterDef,
+	action: Action,
+	encounter: Encounter,
+	enemy: EnemyState,
+	target: Token,
+	roller: DieRoller
+): ChatMessage {
+	const defense = defenseFor(HOUND.armor);
+	const result = strike(toHitFor(def, action), action.dice ?? '1d4', defense, roller);
 	let outcome: string | undefined;
+	let effect: string | undefined;
 	if (result.damage) {
 		enemy.hp = Math.max(0, enemy.hp - result.damage.total);
 		if (enemy.hp === 0) {
 			encounter.enemies.delete(target.id);
 			room.tokens.delete(target.id);
 			outcome = `The ${target.name} falls.`;
+		} else if (action.applies) {
+			enemy.statuses.set(action.applies.status, action.applies.rounds);
+			effect = STATUSES[action.applies.status].name;
 		}
 	}
-	encounter.acted.add(me.id);
-	const log = [
-		appendLog(room, {
-			kind: 'attack',
-			authorId: actor.id,
-			authorName: def.name,
-			attack: def.attack.name,
-			targetName: target.name,
-			toHit: result.toHit,
-			defense: defenseFor(HOUND.armor),
-			hit: result.hit,
-			damage: result.damage,
-			...(outcome ? { outcome } : {})
-		})
-	];
-	return { ok: true, ...afterAction(room, adventure, encounter, log) };
+	return appendLog(room, {
+		kind: 'attack',
+		authorId: actor.id,
+		authorName: def.name,
+		attack: action.name,
+		targetId: target.id,
+		targetName: target.name,
+		toHit: result.toHit,
+		defense,
+		hit: result.hit,
+		damage: result.damage,
+		...(outcome ? { outcome } : {}),
+		...(effect ? { effect } : {})
+	});
+}
+
+function heal(
+	room: Room,
+	actor: Player,
+	def: CharacterDef,
+	action: Action,
+	ally: Played,
+	roller: DieRoller
+): ChatMessage {
+	const rolled = roll(action.dice ?? '1d4', roller);
+	const maxHp = CHARACTERS[ally.id].hp;
+	const before = ally.state.hp;
+	ally.state.hp = Math.min(maxHp, before + rolled.total);
+	ally.state.downedFor = 0;
+	const name = CHARACTERS[ally.id].name;
+	const gained = ally.state.hp - before;
+	return appendLog(room, {
+		kind: 'ability',
+		authorId: actor.id,
+		authorName: def.name,
+		ability: action.name,
+		targetId: ally.token.id,
+		targetName: name,
+		roll: rolled,
+		amount: gained,
+		text: before <= 0 ? `${name} is back on their feet.` : `${name} recovers ${gained} HP.`
+	});
+}
+
+/** Guards the character and every standing ally beside it. */
+function guard(
+	room: Room,
+	adventure: AdventureState,
+	actor: Player,
+	me: Played,
+	action: Action
+): ChatMessage {
+	const blocked = obstacles(room);
+	const guarded = standing(room, adventure).filter(
+		(c) =>
+			c.id === me.id ||
+			(gridDistance(c.token.pos, me.token.pos) <= 1 &&
+				hasLineOfSight(blocked, me.token.pos, c.token.pos))
+	);
+	const status = action.applies ?? { status: 'guarded', rounds: 1 };
+	for (const c of guarded) c.state.statuses.set(status.status, status.rounds);
+	const names = guarded.map((c) => CHARACTERS[c.id].name);
+	return appendLog(room, {
+		kind: 'ability',
+		authorId: actor.id,
+		authorName: CHARACTERS[me.id].name,
+		ability: action.name,
+		targetId: null,
+		targetName: null,
+		roll: null,
+		amount: null,
+		text: `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} ${STATUSES[status.status].name.toLowerCase()}.`
+	});
 }
 
 /** Player: their character is done for this round. */
@@ -397,6 +555,8 @@ export function endTurn(room: Room, actor: Player): Outcomes {
 	if (encounter.phase !== 'players') return fail('not_your_turn', "It's the enemies' turn.");
 	const me = characterOf(room, actor.id);
 	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
+	const unable = unableReason(me);
+	if (unable) return fail('forbidden', unable);
 	if (encounter.acted.has(me.id)) return fail('not_your_turn', 'You already ended your turn.');
 	encounter.acted.add(me.id);
 	const log = [postSystem(room, `${CHARACTERS[me.id].name} is ready.`)];
@@ -425,9 +585,16 @@ function victory(room: Room, adventure: AdventureState): ChatMessage[] {
 	adventure.encounter = null;
 	adventure.stage = 'aftermath';
 	const log = [say(room, TEXT.houndFalls)];
-	const fallen = played(room, adventure).filter((c) => c.state.hp <= 0);
-	for (const c of fallen) c.state.hp = 1;
+	const fallen = played(room, adventure).filter((c) => c.state.hp <= 0 && !c.state.dead);
+	for (const c of fallen) {
+		c.state.hp = 1;
+		c.state.downedFor = 0;
+	}
 	if (fallen.length) log.push(say(room, TEXT.revive));
+	for (const c of played(room, adventure)) {
+		c.state.statuses.clear();
+		c.state.uses.clear();
+	}
 	const gate = room.objects.get(IDS.gate);
 	if (gate?.kind === 'door') gate.open = true;
 	for (const i of rectCells(room.grid, PATH_AREA.from, PATH_AREA.to)) room.fog.revealed[i] = 1;
@@ -448,9 +615,13 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 	}
 	const log: ChatMessage[] = [];
 	const blocked = obstacles(room);
-	for (const [id] of encounter.enemies) {
+	for (const [id, enemy] of [...encounter.enemies]) {
 		const hound = room.tokens.get(id);
 		if (!hound) continue;
+		if (enemy.statuses.has('burning')) {
+			log.push(burn(room, encounter, enemy, hound, roller));
+			if (!encounter.enemies.has(id)) continue;
+		}
 		const targets = standing(room, adventure);
 		if (targets.length === 0) break;
 		// The nearest character it can get beside, by walking distance.
@@ -473,16 +644,21 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 			}
 		}
 		if (!best) continue;
-		const steps = best.path.slice(0, HOUND.speed);
+		const speed = enemy.statuses.has('slowed') ? Math.floor(HOUND.speed / 2) : HOUND.speed;
+		const steps = best.path.slice(0, speed);
 		if (steps.length) hound.pos = { ...steps[steps.length - 1] };
 		const { target } = best;
 		if (!inAttackRange(blocked, hound.pos, target.token.pos, HOUND.attack.range)) continue;
 		const def = CHARACTERS[target.id];
-		const result = strike(HOUND.attack, defenseFor(def.armor), roller);
+		const defense = characterDefense(target);
+		const result = strike(HOUND.attack.toHit, HOUND.attack.damage, defense, roller);
 		let outcome: string | undefined;
 		if (result.damage) {
 			target.state.hp = Math.max(0, target.state.hp - result.damage.total);
-			if (target.state.hp === 0) outcome = `${def.name} falls!`;
+			if (target.state.hp === 0) {
+				target.state.downedFor = 0;
+				outcome = `${def.name} falls!`;
+			}
 		}
 		log.push(
 			appendLog(room, {
@@ -490,9 +666,10 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 				authorId: hound.id,
 				authorName: hound.name,
 				attack: HOUND.attack.name,
+				targetId: target.token.id,
 				targetName: def.name,
 				toHit: result.toHit,
-				defense: defenseFor(def.armor),
+				defense,
 				hit: result.hit,
 				damage: result.damage,
 				...(outcome ? { outcome } : {})
@@ -500,19 +677,76 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 		);
 	}
 
+	if (encounter.enemies.size === 0) return { log: [...log, ...victory(room, adventure)] };
 	if (standing(room, adventure).length === 0) {
 		adventure.encounter = null;
 		adventure.stage = 'defeat';
 		log.push(say(room, TEXT.defeat));
 		return { log };
 	}
+	log.push(...endRound(room, adventure, encounter));
+	return { log };
+}
+
+/** Fire eats at a burning enemy at the start of its turn. */
+function burn(
+	room: Room,
+	encounter: Encounter,
+	enemy: EnemyState,
+	token: Token,
+	roller: DieRoller
+): ChatMessage {
+	const rolled = roll('1d4', roller);
+	enemy.hp = Math.max(0, enemy.hp - rolled.total);
+	const dies = enemy.hp === 0;
+	if (dies) {
+		encounter.enemies.delete(token.id);
+		room.tokens.delete(token.id);
+	}
+	return appendLog(room, {
+		kind: 'ability',
+		authorId: token.id,
+		authorName: token.name,
+		ability: STATUSES.burning.name,
+		targetId: token.id,
+		targetName: token.name,
+		roll: rolled,
+		amount: -rolled.total,
+		text: dies
+			? `The ${token.name} burns away to ash.`
+			: `The ${token.name} burns for ${rolled.total}.`
+	});
+}
+
+/** Statuses wear off, the fallen slip closer to death, and the next round begins. */
+function endRound(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+	const log: ChatMessage[] = [];
+	const tick = (statuses: Statuses) => {
+		for (const [id, rounds] of statuses) {
+			if (rounds <= 1) statuses.delete(id);
+			else statuses.set(id, rounds - 1);
+		}
+	};
+	for (const c of played(room, adventure)) {
+		tick(c.state.statuses);
+		if (c.state.dead || c.state.hp > 0) continue;
+		c.state.downedFor++;
+		if (c.state.downedFor >= BLEED_OUT_ROUNDS) {
+			c.state.dead = true;
+			c.state.statuses.clear();
+			log.push(
+				say(room, `${CHARACTERS[c.id].name} is gone. The lamplight doesn't reach them any more.`)
+			);
+		}
+	}
+	for (const e of encounter.enemies.values()) tick(e.statuses);
 	encounter.round++;
 	encounter.phase = 'players';
 	encounter.acted.clear();
 	encounter.moved.clear();
 	encounter.turn++;
 	log.push(postSystem(room, `Round ${encounter.round}. Your move.`));
-	return { log };
+	return log;
 }
 
 // ---------------------------------------------------------------------------
@@ -533,7 +767,8 @@ export function checkMove(
 	const me = characterByToken(room, tokenId);
 	if (!adventure || !me || actor.role === 'gm') return { ok: true, cost: null };
 	const def = CHARACTERS[me.id];
-	if (me.state.hp <= 0) return fail('forbidden', `${def.name} is down and can't move.`);
+	const unable = unableReason(me);
+	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
 	const encounter = adventure.encounter;
 	if (!encounter) return { ok: true, cost: null };
@@ -664,7 +899,7 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	for (const { id, ownerId } of keep) {
 		const owner = ownerId && room.players.get(ownerId);
 		const token = placeCharacter(room, id, owner && owner.role === 'player' ? owner.id : null);
-		if (token) next.characters.set(id, { tokenId: token.id, hp: CHARACTERS[id].hp });
+		if (token) next.characters.set(id, newCharacter(token.id, id));
 	}
 	room.adventure = next;
 	const log = [postSystem(room, `${actor.name} started the section over.`)];
@@ -674,4 +909,43 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 		log.push(say(room, TEXT.arrival));
 	}
 	return { reset: true, log };
+}
+
+/** GM: sets a character's hit points and statuses, or brings them back from the dead. */
+export function override(
+	room: Room,
+	actor: Player,
+	id: CharacterId,
+	patch: CharacterPatch
+): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	const c = played(room, adventure).find((p) => p.id === id);
+	if (!c) return fail('token_not_found', `${CHARACTERS[id].name} is not in play.`);
+	const def = CHARACTERS[id];
+	const changes: string[] = [];
+	if (patch.revive && c.state.dead) {
+		c.state.dead = false;
+		c.state.hp = Math.max(1, c.state.hp);
+		changes.push('brought back');
+	}
+	if (patch.hp !== undefined) {
+		c.state.hp = Math.min(def.hp, patch.hp);
+		changes.push(`set to ${c.state.hp} HP`);
+	}
+	if (c.state.hp > 0) c.state.downedFor = 0;
+	if (patch.statuses) {
+		c.state.statuses = new Map(patch.statuses.map((s) => [s, 1]));
+		changes.push(
+			patch.statuses.length
+				? patch.statuses.map((s) => STATUSES[s].name.toLowerCase()).join(', ')
+				: 'no statuses'
+		);
+	}
+	if (changes.length === 0) return { ok: true, log: [] };
+	return {
+		ok: true,
+		log: [postSystem(room, `${actor.name} adjusted ${def.name}: ${changes.join('; ')}.`)]
+	};
 }

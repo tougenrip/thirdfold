@@ -971,12 +971,12 @@ describe('The Hollow Bell over the wire', () => {
 		expect(hound).toMatchObject({ name: 'Hollow Hound', hp: 16, maxHp: 16 });
 
 		// 1d20+5 hits for 1d8+3 = 11; the Hound bites back for 8; the second blow kills it.
-		pip.send({ type: 'adventure_attack', targetId: hound.tokenId });
+		pip.send({ type: 'adventure_act', actionId: 'blade', targetId: hound.tokenId });
 		for (;;) {
 			const { message } = await gm.expect('chat');
 			if (message.kind === 'system' && message.text === 'Round 2. Your move.') break;
 		}
-		pip.send({ type: 'adventure_attack', targetId: hound.tokenId });
+		pip.send({ type: 'adventure_act', actionId: 'blade', targetId: hound.tokenId });
 		const after = await untilStage(gm, 'aftermath');
 		expect(after.characters.find((c) => c.id === 'warden')?.hp).toBe(22);
 		expect(after.encounter).toBeNull();
@@ -986,6 +986,26 @@ describe('The Hollow Bell over the wire', () => {
 		const done = await untilStage(gm, 'complete');
 		expect(done.objectives.every((o) => o.done)).toBe(true);
 		expect((await untilStage(pip, 'complete')).completedAt).toBeGreaterThan(0);
+	});
+
+	it('lets only the GM adjust a character, and everyone sees the change', async () => {
+		const { gm, pip } = await table();
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'saint' });
+		await gm.until('adventure_update');
+
+		const patch = { hp: 7, statuses: ['guarded'] };
+		pip.send({ type: 'adventure_override', characterId: 'saint', patch });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_override', characterId: 'saint', patch });
+		for (;;) {
+			const { adventure } = await pip.until('adventure_update');
+			const saint = adventure?.characters.find((c) => c.id === 'saint');
+			if (saint?.hp !== 7) continue;
+			expect(saint.statuses).toEqual([{ id: 'guarded', rounds: 1 }]);
+			break;
+		}
 	});
 
 	it('keeps each character to one player and rejects actions that make no sense yet', async () => {
@@ -1000,7 +1020,7 @@ describe('The Hollow Bell over the wire', () => {
 		await pip.until('token_upserted');
 		bo.send({ type: 'adventure_claim', characterId: 'veil' });
 		expect(await bo.until('error')).toMatchObject({ code: 'character_taken' });
-		pip.send({ type: 'adventure_attack', targetId: 'nobody' });
+		pip.send({ type: 'adventure_act', actionId: 'daggers', targetId: 'nobody' });
 		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
 		pip.send({ type: 'adventure_claim', characterId: 'wizard' });
 		expect(await pip.until('error')).toMatchObject({ code: 'invalid_message' });

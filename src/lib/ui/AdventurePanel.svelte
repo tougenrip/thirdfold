@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { AdventureView } from '$lib/adventure/adventure';
-	import { CHARACTERS } from '$lib/adventure/characters';
+	import type { AdventureView, CharacterStatus } from '$lib/adventure/adventure';
+	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { PublicPlayer } from '$lib/game/protocol';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
@@ -15,6 +15,20 @@
 	let { adventure, isGm, players, send }: Props = $props();
 
 	let narration = $state('');
+	/** The character the GM is adjusting. */
+	let editing = $state<string | null>(null);
+
+	function adjust(
+		c: CharacterStatus,
+		patch: { hp?: number; revive?: true; statuses?: StatusId[] }
+	) {
+		send({ type: 'adventure_override', characterId: c.id, patch });
+	}
+
+	function toggleStatus(c: CharacterStatus, id: StatusId) {
+		const now = c.statuses.map((s) => s.id);
+		adjust(c, { statuses: now.includes(id) ? now.filter((s) => s !== id) : [...now, id] });
+	}
 
 	const playerName = (id: string | null) =>
 		(id && players.find((p) => p.id === id)?.name) ?? 'the GM';
@@ -70,13 +84,69 @@
 		{#if party.length}
 			<ul class="party" aria-label="Party">
 				{#each party as c (c.id)}
-					<li class:downed={c.downed}>
-						<span class="swatch" style:background={CHARACTERS[c.id].color}></span>
-						<span class="who">
-							{CHARACTERS[c.id].name}
-							<small>{playerName(c.playerId)}</small>
-						</span>
-						<span class="hp" title="Hit points">{c.downed ? 'Down' : `${c.hp}/${c.maxHp}`}</span>
+					<li class:downed={c.downed || c.dead}>
+						<div class="member">
+							<span class="swatch" style:background={CHARACTERS[c.id].color}></span>
+							<span class="who">
+								{CHARACTERS[c.id].name}
+								<small>
+									{playerName(c.playerId)}{c.statuses.length
+										? ` · ${c.statuses.map((s) => STATUSES[s.id].name).join(', ')}`
+										: ''}
+								</small>
+							</span>
+							<span class="hp" title="Hit points">
+								{c.dead ? 'Dead' : c.downed ? 'Down' : `${c.hp}/${c.maxHp}`}
+							</span>
+							{#if isGm}
+								<button
+									type="button"
+									class="edit"
+									aria-expanded={editing === c.id}
+									title="Adjust this character"
+									onclick={() => (editing = editing === c.id ? null : c.id)}>±</button
+								>
+							{/if}
+						</div>
+						{#if isGm && editing === c.id}
+							<div class="override" aria-label={`Adjust ${CHARACTERS[c.id].name}`}>
+								<div class="row">
+									{#each [-5, -1, 1, 5] as delta (delta)}
+										<button
+											type="button"
+											disabled={c.dead}
+											onclick={() =>
+												adjust(c, { hp: Math.max(0, Math.min(c.maxHp, c.hp + delta)) })}
+										>
+											{delta > 0 ? `+${delta}` : delta}
+										</button>
+									{/each}
+									<button
+										type="button"
+										disabled={c.dead}
+										onclick={() => adjust(c, { hp: c.maxHp })}
+									>
+										Full
+									</button>
+								</div>
+								<div class="row">
+									{#each STATUS_IDS as id (id)}
+										<button
+											type="button"
+											aria-pressed={c.statuses.some((s) => s.id === id)}
+											title={STATUSES[id].about}
+											onclick={() => toggleStatus(c, id)}
+										>
+											{STATUSES[id].name}
+										</button>
+									{/each}
+									{#if c.dead}
+										<button type="button" onclick={() => adjust(c, { revive: true })}>Revive</button
+										>
+									{/if}
+								</div>
+							</div>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -233,11 +303,28 @@
 		color: var(--ok);
 	}
 
-	.party li {
+	.party .member {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 		font-size: 0.9rem;
+	}
+
+	.override {
+		display: grid;
+		gap: 0.3rem;
+		margin: 0.35rem 0 0.2rem 1.2rem;
+	}
+
+	.override button,
+	.edit {
+		padding: 0.15rem 0.45rem;
+		font-size: 0.8rem;
+	}
+
+	.override [aria-pressed='true'] {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 
 	.party .downed {

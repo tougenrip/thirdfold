@@ -3,7 +3,12 @@
 // parseServerMessage rather than casting.
 
 import type { AdventureView } from '../adventure/adventure';
-import { isCharacterId, type CharacterId } from '../adventure/characters';
+import {
+	isCharacterId,
+	isStatusId,
+	type CharacterId,
+	type StatusId
+} from '../adventure/characters';
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
 import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
@@ -122,8 +127,8 @@ export type ClientMessage =
 	| { type: 'adventure_begin' }
 	/** Player: your character talks to, examines or uses something beside it. */
 	| { type: 'adventure_interact'; targetId: string }
-	/** Player, in an encounter: your character attacks an enemy token. */
-	| { type: 'adventure_attack'; targetId: string }
+	/** Player: your character uses an action (an attack, a heal, a guard) on a token, or on no one. */
+	| { type: 'adventure_act'; actionId: string; targetId: string | null }
 	/** Player, in an encounter: your character is done for this round. */
 	| { type: 'adventure_end_turn' }
 	/** GM: narrate to the table. */
@@ -131,7 +136,18 @@ export type ClientMessage =
 	/** GM: read one of the adventure's prepared passages aloud. */
 	| { type: 'adventure_cue'; cueId: string }
 	/** GM: end the players' phase now, start the section over, or stop the adventure (the table stays). */
-	| { type: 'adventure_control'; op: AdventureControl };
+	| { type: 'adventure_control'; op: AdventureControl }
+	/** GM: set a character's hit points and statuses, or bring them back from the dead. */
+	| { type: 'adventure_override'; characterId: CharacterId; patch: CharacterPatch };
+
+/** What the GM may set on a character. Omitted fields stay as they are. */
+export interface CharacterPatch {
+	hp?: number;
+	/** The full set of statuses, each for one round. */
+	statuses?: StatusId[];
+	/** Bring a dead character back (at 1 HP if they had none). */
+	revive?: true;
+}
 
 export type AdventureControl = 'end_round' | 'restart' | 'end';
 
@@ -314,6 +330,26 @@ function parseLightPatch(value: unknown): LightPatch | null {
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
+function parseCharacterPatch(value: unknown): CharacterPatch | null {
+	if (!isRecord(value)) return null;
+	const patch: CharacterPatch = {};
+	if ('hp' in value) {
+		if (!Number.isInteger(value.hp) || (value.hp as number) < 0 || (value.hp as number) > 999)
+			return null;
+		patch.hp = value.hp as number;
+	}
+	if ('statuses' in value) {
+		const list = value.statuses;
+		if (!Array.isArray(list) || list.length > 10 || !list.every(isStatusId)) return null;
+		patch.statuses = [...new Set(list)];
+	}
+	if ('revive' in value) {
+		if (value.revive !== true) return null;
+		patch.revive = true;
+	}
+	return Object.keys(patch).length > 0 ? patch : null;
+}
+
 /**
  * Validates the shape of a client message and drops unknown fields. Semantic
  * checks (name rules, permissions, room existence, bounds) belong to the server.
@@ -425,8 +461,18 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'adventure_claim', characterId: data.characterId }
 				: null;
 		case 'adventure_interact':
-		case 'adventure_attack':
 			return isId(data.targetId) ? { type: data.type, targetId: data.targetId } : null;
+		case 'adventure_act': {
+			if (!isId(data.actionId)) return null;
+			if (data.targetId !== null && !isId(data.targetId)) return null;
+			return { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId };
+		}
+		case 'adventure_override': {
+			const patch = parseCharacterPatch(data.patch);
+			return isCharacterId(data.characterId) && patch
+				? { type: 'adventure_override', characterId: data.characterId, patch }
+				: null;
+		}
 		case 'adventure_narrate':
 			return typeof data.text === 'string' ? { type: 'adventure_narrate', text: data.text } : null;
 		case 'adventure_cue':

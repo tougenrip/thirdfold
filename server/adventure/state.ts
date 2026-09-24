@@ -6,17 +6,27 @@
 // character's token, so the GM reassigning or removing the token just works.
 
 import type { AdventureStage } from '../../src/lib/adventure/adventure';
-import type { CharacterId } from '../../src/lib/adventure/characters';
+import type { CharacterId, StatusId } from '../../src/lib/adventure/characters';
+
+/** Active statuses and the rounds each has left (counting the current one). */
+export type Statuses = Map<StatusId, number>;
 
 export interface CharacterState {
 	tokenId: string;
 	hp: number;
+	statuses: Statuses;
+	/** Times each limited action has been used this encounter, by action id. */
+	uses: Map<string, number>;
+	/** Rounds spent at 0 HP; at BLEED_OUT_ROUNDS the character dies. */
+	downedFor: number;
+	dead: boolean;
 }
 
 export interface EnemyState {
 	kind: 'hound';
 	hp: number;
 	maxHp: number;
+	statuses: Statuses;
 }
 
 export interface Encounter {

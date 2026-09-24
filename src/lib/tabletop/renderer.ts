@@ -72,6 +72,10 @@ export interface Tabletop {
 	setSelectedProp(propId: string | null): void;
 	setHoveredProp(propId: string | null): void;
 	setSelected(tokenId: string | null): void;
+	/** Lays these tokens down (fallen characters); stands the others up. */
+	setFallen(tokenIds: readonly string[]): void;
+	/** Floats combat text (damage, healing, a status) up from a token. */
+	showFloat(tokenId: string, text: string, color: string): void;
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	setView(view: CameraView): void;
 	dispose(): void;
@@ -199,6 +203,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(highlight);
 
 	let tokens: readonly Token[] = [];
+	/** Tokens drawn lying down; kept here so newly synced minis pick it up. */
+	let fallen: ReadonlySet<string> = new Set();
 	let objects: readonly SceneObject[] = [];
 
 	let grid: SquareGrid | null = null;
@@ -423,6 +429,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			grid = { ...next };
 			buildTable(grid);
 			tokenLayer.sync(tokens, grid);
+			tokenLayer.setFallen(fallen);
 			wallLayer.sync(objects, grid);
 			propLayer.sync(props, grid);
 			fogLayer.update(grid, fogState.fog, fogState.mode);
@@ -439,6 +446,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			tokens = next;
 			if (!grid) return;
 			tokenLayer.sync(tokens, grid);
+			tokenLayer.setFallen(fallen);
 			refreshLighting();
 			requestRender();
 		},
@@ -533,6 +541,13 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		},
 		setSelected(tokenId) {
 			if (tokenLayer.setSelected(tokenId)) requestRender();
+		},
+		setFallen(tokenIds) {
+			fallen = new Set(tokenIds);
+			if (tokenLayer.setFallen(fallen)) requestRender();
+		},
+		showFloat(tokenId, text, color) {
+			if (tokenLayer.float(tokenId, text, color)) requestRender();
 		},
 		setHighlight(cell, kind) {
 			const visible = !!(cell && grid);

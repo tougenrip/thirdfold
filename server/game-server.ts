@@ -304,8 +304,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					return adventure.beginAdventure(room, player);
 				case 'adventure_interact':
 					return adventure.interact(room, player, msg.targetId);
-				case 'adventure_attack':
-					return adventure.attack(room, player, msg.targetId, rollDie);
+				case 'adventure_act':
+					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie);
 				case 'adventure_end_turn':
 					return adventure.endTurn(room, player);
 				case 'adventure_narrate':
@@ -314,6 +314,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					return adventure.readCue(room, player, msg.cueId);
 				case 'adventure_control':
 					return adventure.control(room, player, msg.op);
+				case 'adventure_override':
+					return adventure.override(room, player, msg.characterId, msg.patch);
 			}
 		})();
 		if (!result.ok) return sendError(ws, result.code, result.message);
@@ -547,7 +549,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'adventure_release':
 			case 'adventure_begin':
 			case 'adventure_interact':
-			case 'adventure_attack':
+			case 'adventure_act':
+			case 'adventure_override':
 			case 'adventure_end_turn':
 			case 'adventure_narrate':
 			case 'adventure_cue':
