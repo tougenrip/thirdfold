@@ -2,99 +2,177 @@
 // discovered yet never reaches a client: dialogue, clues and narration go out
 // as log entries and adventure state once they happen.
 
-import type { Clue } from '../../src/lib/adventure/adventure';
+import type { EvidenceKind } from '../../src/lib/adventure/adventure';
 import type { Attack } from '../../src/lib/adventure/characters';
-import type { EndingId } from './story';
+import type { EndingId, EventId } from './story';
+
+/** A piece of evidence the party can come by. */
+export interface ClueDef {
+	id: string;
+	title: string;
+	text: string;
+	kind: EvidenceKind;
+	/** The story event it raises once the whole party knows it (it unlocks objectives). */
+	unlocks?: EventId;
+}
 
 export const TITLE = 'The Hollow Bell';
 
 export const CLUES = {
 	notice: {
 		id: 'notice',
+		kind: 'document',
 		title: 'A missing boy',
 		text: 'MISSING: Tobin Hale, twelve, apprentice to the old bell-ringer. Last seen by the well in the square at dusk.'
 	},
 	rope: {
 		id: 'rope',
+		kind: 'object',
 		title: 'A cut bell rope',
 		text: "In the Hale house chest: a length of bell rope, cut clean through, and a boy's glove stitched with the name TOBIN."
 	},
 	register: {
 		id: 'register',
+		kind: 'document',
 		title: 'The last bell-ringer',
 		text: 'The parish register lists every bell-ringer of the monastery. The last entry, forty years old, is not a name but a line: “We have stopped the Bell. May no one ring it again.”'
 	},
 	drawing: {
 		id: 'drawing',
+		kind: 'document',
 		title: "Tobin's drawing",
 		text: 'Hidden under the floorboard: a child’s drawing of the monastery tower, a bell inside it, and beneath the tower a huge dark shape with far too many eyes.'
 	},
 	clapper: {
 		id: 'clapper',
+		kind: 'object',
 		title: 'A bell clapper in the ashes',
 		text: 'In the Hound’s ashes lies a small iron clapper, like one from a hand bell, still warm. It hums when you hold it.'
 	},
 	scratches: {
 		id: 'scratches',
+		kind: 'environment',
 		title: 'Scratches in the well',
 		text: 'Deep claw marks run up the inside of the well, as if something climbed out. Pressed into the stone lip: the shape of a bell.'
 	},
 	chronicle: {
 		id: 'chronicle',
+		kind: 'document',
+		unlocks: 'learned_agna',
 		title: 'The brothers’ chronicle',
 		text: 'The last page of the chronicle: “The Bell does not hang in the tower. It hangs in the Hollow, over the thing that sleeps there, and its ringing keeps it sleeping. The ringers go down by Saint Agna’s door. Turn the bell in her hands.”'
 	},
 	splice: {
 		id: 'splice',
+		kind: 'object',
 		title: 'A mended rope',
 		text: 'The old bell rope was cut long ago. Someone has spliced it back together with new rope, the same rope as the length in the Hale chest. Tobin mended it, and Tobin rang it.'
 	},
 	bread: {
 		id: 'bread',
+		kind: 'testimony',
+		unlocks: 'learned_tobin',
 		title: 'Bread for the mountain',
 		text: 'Every Sunday Tobin carried a loaf up the mountain path. He told his mother he was feeding an old monk who lives at the monastery all alone.'
 	},
 	legend: {
 		id: 'legend',
+		kind: 'testimony',
 		title: 'Forty years',
 		text: 'Old Bertram remembers the last time the Bell rang, forty years ago. The brothers sent three ringers down under the mountain to quiet it, and they were never seen again.'
 	},
 	'empty-graves': {
 		id: 'empty-graves',
+		kind: 'environment',
 		title: 'The ringers’ graves',
 		text: 'Three gravestones in the churchyard are carved with bells, for the last ringers. Nell the gravedigger swears there is nobody buried under them.'
 	},
 	lights: {
 		id: 'lights',
+		kind: 'testimony',
+		unlocks: 'learned_tobin',
 		title: 'Lights on the mountain',
 		text: 'Widow Crane saw a small light climb the mountain path last night. Later, a great many lights came on at the monastery, blinking like eyes.'
 	},
 	shears: {
 		id: 'shears',
+		kind: 'testimony',
+		unlocks: 'learned_tobin',
 		title: 'Borrowed shears',
 		text: 'A week ago Tobin borrowed Gregor’s rope shears and a coil of new hemp rope. He said it was for a swing.'
 	},
 	saint: {
 		id: 'saint',
+		kind: 'testimony',
+		unlocks: 'learned_agna',
 		title: 'Saint Agna’s key',
 		text: 'Father Wynn says the brothers carved Saint Agna all over the monastery, and the old books say she “holds the key to the ringers’ way in her hands”.'
 	},
 	promise: {
 		id: 'promise',
+		kind: 'testimony',
+		unlocks: 'learned_tobin',
 		title: 'Tobin’s secret',
 		text: 'Tobin told Pell the Bell was lonely under the mountain, and that he was going to make it sing one more time. He went up the path with a coil of rope.'
 	},
 	tracks: {
 		id: 'tracks',
+		kind: 'testimony',
 		title: 'Tracks round the well',
 		text: 'At dawn Aldric found long-toed tracks circling the well. They went round and round and led nowhere, as if whatever made them went back down.'
 	},
 	badges: {
 		id: 'badges',
+		kind: 'object',
 		title: 'The last ringers',
 		text: 'Among the bones: three tin badges stamped with a bell. The last ringers never climbed back up. They stayed to keep the Bell quiet.'
+	},
+	hum: {
+		id: 'hum',
+		kind: 'environment',
+		title: 'The well hums',
+		text: 'With an ear to the well’s stone lip you hear it: a low hum, the same note as the bell, rising and falling like something breathing.'
+	},
+	footprints: {
+		id: 'footprints',
+		kind: 'environment',
+		unlocks: 'learned_tobin',
+		title: 'Small footprints at the gate',
+		text: 'Where the ground dips under the north gate: a child’s boot prints, two days old, and the scrape of someone small wriggling through. Tobin went up the mountain path.'
+	},
+	vigil: {
+		id: 'vigil',
+		kind: 'environment',
+		title: 'A vigil for the ringers',
+		text: 'The wax at the shrine is fresh, and scratched into it are three names, the same names as on the bell-marked graves. Someone prays for the lost ringers every night.'
+	},
+	prints: {
+		id: 'prints',
+		kind: 'environment',
+		unlocks: 'learned_agna',
+		title: 'A trail in the dust',
+		text: 'A line of small footprints crosses the nave, straight to the statue of Saint Agna, and stops there. They don’t come back.'
+	},
+	'hollow-wall': {
+		id: 'hollow-wall',
+		kind: 'environment',
+		unlocks: 'learned_agna',
+		title: 'A hollow wall',
+		text: 'Knock on the west wall of the nave beside Saint Agna and it rings hollow. There is a room behind it.'
+	},
+	breath: {
+		id: 'breath',
+		kind: 'environment',
+		title: 'Warm air from below',
+		text: 'Warm air breathes up through the iron grate, and with it, very faintly, the Bell’s note.'
+	},
+	sleeper: {
+		id: 'sleeper',
+		kind: 'environment',
+		title: 'Not all asleep',
+		text: 'Look long enough into the pit and you can make out the eyes. Nearly all of them are closed. One is not, and it follows the boy.'
 	}
-} satisfies Record<string, Clue>;
+} satisfies Record<string, ClueDef>;
 
 export type ClueId = keyof typeof CLUES;
 
@@ -153,6 +231,10 @@ export const TEXT = {
 		'The brazier catches, and warm light spills across the gate and the first stretch of path.',
 	brazierOut: 'The brazier gutters out.',
 	remainsEmpty: 'Only ash now.',
+	nothingFound: 'You look, but whatever is here, you don’t find it.',
+	cantMakeOut: 'There is something here, but you can’t make it out.',
+	hearNothing: 'You stop and listen. Nothing but the wind and your own breathing.',
+	seeNothing: 'You take a long look around. Nothing new catches your eye.',
 	chapelRope:
 		'A bell rope hangs in the chapel tower, cut off short. There is no bell above it, only an empty frame thick with pigeon feathers.',
 	chapelAgna:

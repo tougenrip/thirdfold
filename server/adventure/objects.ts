@@ -9,7 +9,13 @@
 // normal view sync, and hidden objects are filtered out of players' views
 // like anything else they can't see.
 
-import type { LocationId, ObjectKind, ObjectState } from '../../src/lib/adventure/adventure';
+import type {
+	Check,
+	InvestigationAction,
+	LocationId,
+	ObjectKind,
+	ObjectState
+} from '../../src/lib/adventure/adventure';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { AssetId } from '../../src/lib/game/props';
 import type { Room } from '../rooms';
@@ -25,6 +31,21 @@ export interface Verb {
 	from: readonly ObjectState[];
 	/** The state it leaves the object in; unchanged if omitted. */
 	to?: ObjectState;
+	/** What kind of investigating it is; see `actionOfVerb` for the default. */
+	action?: InvestigationAction;
+	/** A check the character must pass first; one try per character. */
+	check?: Check;
+}
+
+const ACTION_BY_VERB: Record<string, InvestigationAction> = {
+	examine: 'examine',
+	read: 'inspect',
+	search: 'search'
+};
+
+/** How a verb counts as investigating: examining, reading (inspecting), searching, or anything else. */
+export function actionOfVerb(verb: Verb): InvestigationAction {
+	return verb.action ?? ACTION_BY_VERB[verb.id] ?? 'interact';
 }
 
 /** How a state shows on the table. Unlisted states keep the object's scene look. */
@@ -125,7 +146,13 @@ export const OBJECTS: readonly ObjectDef[] = [
 		states: ['closed', 'opened', 'used', 'disabled', 'destroyed'],
 		verbs: [
 			{ id: 'open', label: 'Open the chest', from: ['closed'], to: 'opened' },
-			{ id: 'search', label: 'Search the chest', from: ['opened', 'used'], to: 'used' }
+			{
+				id: 'search',
+				label: 'Search the chest',
+				from: ['opened', 'used'],
+				to: 'used',
+				check: { stat: 'wits', dc: 8 }
+			}
 		],
 		looks: {
 			opened: { assetId: 'chest-open' },
@@ -196,7 +223,13 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'hidden',
 		states: ['hidden', 'interactable', 'used'],
 		verbs: [
-			{ id: 'search', label: 'Sift through the ashes', from: ['interactable', 'used'], to: 'used' }
+			{
+				id: 'search',
+				label: 'Sift through the ashes',
+				from: ['interactable', 'used'],
+				to: 'used',
+				check: { stat: 'wits', dc: 10 }
+			}
 		]
 	},
 	{
@@ -482,7 +515,15 @@ export const OBJECTS: readonly ObjectDef[] = [
 		thing: { prop: HOLLOW_IDS.bones },
 		initial: 'interactable',
 		states: any,
-		verbs: [{ id: 'search', label: 'Search the bones', from: ['interactable', 'used'], to: 'used' }]
+		verbs: [
+			{
+				id: 'search',
+				label: 'Search the bones',
+				from: ['interactable', 'used'],
+				to: 'used',
+				check: { stat: 'wits', dc: 12 }
+			}
+		]
 	},
 	// Everyone the party can talk to (see npcs.ts).
 	...NPC_IDS.map((id): ObjectDef => ({

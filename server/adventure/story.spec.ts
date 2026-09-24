@@ -114,10 +114,14 @@ describe('the chapters', () => {
 		expect(objectivesFor('choosing', 'village', [])).toEqual([
 			{ id: 'choose', text: 'Choose your characters', done: false }
 		]);
-		expect(objectivesFor('playing', 'village', []).map((o) => o.id)).toEqual(['innkeeper']);
+		expect(objectivesFor('playing', 'village', []).map((o) => o.id)).toEqual([
+			'innkeeper',
+			'tobin'
+		]);
 		expect(objectivesFor('playing', 'village', ['talked_maren'])).toMatchObject([
 			{ id: 'innkeeper', done: true },
-			{ id: 'well', done: false }
+			{ id: 'well', done: false },
+			{ id: 'tobin', done: false, optional: true }
 		]);
 		// A new location starts a fresh list.
 		expect(
@@ -237,7 +241,8 @@ describe('playing the story through', () => {
 		expect(end.log.map((m) => ('text' in m ? m.text : ''))).toContain(
 			'Oswin weeps at the gate when he sees the boy alive.'
 		);
-		expect(story().events).toEqual(EVENT_IDS);
+		// Every event that moves a chapter on happened, in order (evidence events are optional).
+		expect(story().events).toEqual(EVENT_IDS.filter((e) => !e.startsWith('learned_')));
 	});
 
 	it('never skips ahead: walking into a place does nothing before its chapter', () => {
@@ -328,7 +333,12 @@ describe('saving the story with the table', () => {
 		['too many hit points', (s) => (warden(s).hp = 99)],
 		['a character without a token', (s) => (warden(s).tokenId = 'x')],
 		['an unknown event', (s) => (s.events = ['talked_maren', 'dragon_slain'])],
-		['a repeated clue', (s) => (s.clues = ['scratches', 'scratches'])],
+		[
+			'a repeated finder',
+			(s) => (s.evidence = { notice: { by: ['warden', 'warden'], shared: false } })
+		],
+		['evidence nobody knows', (s) => (s.evidence = { notice: { by: [], shared: false } })],
+		['a made-up check', (s) => (s.tried = ['warden:../x:search'])],
 		['an unknown choice', (s) => (s.decisions = { promise: { option: 'gold', by: 'Ana' } })],
 		['a state an object cannot be in', (s) => (s.objects = { well: 'lit' })],
 		['a person in a made-up mood', (s) => (s.npcs = { oswin: 'furious' })],

@@ -973,7 +973,10 @@ describe('The Hollow Bell over the wire', () => {
 		door('hb-inn-door');
 		move({ x: 7, y: 10 });
 		use('maren');
-		const told = await untilAdventure(gm, (a) => a.objectives.length === 2);
+		const told = await untilAdventure(
+			gm,
+			(a) => !!a.objectives.find((o) => o.id === 'innkeeper')?.done
+		);
 		expect(told.objectives.find((o) => o.id === 'innkeeper')?.done).toBe(true);
 
 		// The gate is chained until the Hound is dealt with.
@@ -1075,7 +1078,7 @@ describe('The Hollow Bell over the wire', () => {
 		pip.send({ type: 'door_toggle', objectId: 'hb-inn-door' });
 		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: 7, y: 10 } });
 		pip.send({ type: 'adventure_interact', targetId: 'maren' });
-		await untilAdventure(gm, (a) => a.objectives.length === 2);
+		await untilAdventure(gm, (a) => !!a.objectives.find((o) => o.id === 'innkeeper')?.done);
 
 		gm.send({ type: 'scene_export', name: 'Mid-story' });
 		const { file } = await gm.until('scene_exported');
@@ -1092,7 +1095,7 @@ describe('The Hollow Bell over the wire', () => {
 		gm.send({ type: 'scene_load', sceneId });
 		const loaded = (await pip.until('room_reset')).room;
 		expect(loaded.adventure).toMatchObject({ stage: 'playing', chapter: { id: 'village' } });
-		expect(loaded.adventure?.objectives.map((o) => o.done)).toEqual([true, false]);
+		expect(loaded.adventure?.objectives.map((o) => o.done)).toEqual([true, false, false]);
 		expect(loaded.adventure?.characters.find((c) => c.id === 'veil')?.inPlay).toBe(true);
 		for (;;) {
 			const { message } = await pip.expect('chat');
@@ -1132,6 +1135,45 @@ describe('The Hollow Bell over the wire', () => {
 		);
 		// Players are never sent the GM's list of who's who.
 		expect(seen.ledger).toBeNull();
+	});
+
+	it('keeps evidence to the character who found it until they share it', async () => {
+		const { gm, pip } = await table();
+		const bo = await connect();
+		gm.send({ type: 'adventure_start' });
+		const { room: snapshot } = await pip.until('room_reset');
+		bo.send({ type: 'join', roomId: snapshot.id, name: 'Bo', role: 'player' });
+		await bo.expect('welcome');
+		const boFrames: string[] = [];
+		bo.ws.on('message', (data) => boFrames.push(data.toString()));
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		const veil = await tokenNamed(pip, 'The Veil');
+		bo.send({ type: 'adventure_claim', characterId: 'warden' });
+		await tokenNamed(bo, 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await untilAdventure(pip, (a) => a.stage === 'playing');
+
+		// The Veil looks around by the north gate: small footprints (every die rolls high).
+		pip.send({ type: 'token_move', tokenId: veil.id, to: { x: 11, y: 7 } });
+		pip.send({ type: 'adventure_sense', sense: 'observe' });
+		const mine = await untilAdventure(pip, (a) => a.clues.length === 1);
+		expect(mine.clues[0]).toMatchObject({ id: 'footprints', mine: true, shared: false });
+		const gms = await untilAdventure(gm, (a) => a.clues.length === 1);
+		expect(gms.clues[0]).toMatchObject({ foundBy: ['The Veil'], shared: false });
+		for (;;) {
+			const { message } = await bo.expect('chat');
+			if (message.kind === 'system' && message.text.startsWith('The Veil found something')) break;
+		}
+		expect(boFrames.some((f) => f.includes('boot prints'))).toBe(false);
+
+		// Bo can't share what the Veil found; Pip can, and then everyone knows.
+		bo.send({ type: 'adventure_share', clueId: 'footprints' });
+		expect(await bo.until('error')).toMatchObject({ code: 'forbidden' });
+		pip.send({ type: 'adventure_share', clueId: 'footprints' });
+		const shared = await untilAdventure(bo, (a) => a.clues.length === 1);
+		expect(shared.clues[0]).toMatchObject({ id: 'footprints', shared: true, mine: false });
+		expect(shared.objectives.find((o) => o.id === 'tobin')?.done).toBe(true);
+		expect(boFrames.some((f) => f.includes('boot prints'))).toBe(true);
 	});
 
 	it('lets only the GM adjust a character, and everyone sees the change', async () => {

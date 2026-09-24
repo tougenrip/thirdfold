@@ -15,6 +15,7 @@ import {
 import {
 	BLEED_OUT_ROUNDS,
 	CHARACTERS,
+	CHARACTER_IDS,
 	isCharacterId,
 	STATUS_IDS,
 	type CharacterId,
@@ -29,6 +30,7 @@ import type {
 	AdventureState,
 	CharacterState,
 	Decision,
+	Finding,
 	Encounter,
 	EnemyState,
 	Statuses
@@ -52,6 +54,8 @@ const STAGES: readonly AdventureStage[] = ['choosing', 'playing', 'complete', 'd
 const ENDING_IDS: readonly EndingId[] = ['kept', 'broken', 'silent'];
 const ENCOUNTER_STATES: readonly EncounterState[] = ['active', 'won', 'lost'];
 const NAME_MAX = 48;
+/** A failed check: `<character>:<object>:<verb>` or `<character>:sign:<id>`. */
+const TRIED = /^(warden|veil|ember|saint):[a-z0-9-]{1,40}:[a-z0-9-]{1,40}$/;
 const LIST_MAX = 100;
 const COUNT_MAX = 999;
 
@@ -80,7 +84,10 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 					}
 				])
 			),
-			clues: [...adventure.clues],
+			evidence: Object.fromEntries(
+				[...adventure.evidence].map(([id, f]) => [id, { by: [...f.by], shared: f.shared }])
+			),
+			tried: [...adventure.tried],
 			events: [...adventure.events],
 			defeated: [...adventure.defeated],
 			npcs: entriesOf(adventure.npcs),
@@ -326,13 +333,37 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	check((ending !== null) === (stage === 'complete'), 'ending');
 
 	const clueIds = Object.keys(CLUES);
+	// Evidence, in the order found. Saves from before evidence had finders list clues, all shared.
+	const evidence = new Map<string, Finding>();
+	if (data.evidence === undefined) {
+		for (const id of uniqueList(data.clues, clueIds, 'clues')) {
+			evidence.set(id, { by: [], shared: true });
+		}
+	} else {
+		for (const [id, raw] of Object.entries(record(data.evidence, 'evidence'))) {
+			oneOf(id, clueIds, 'evidence');
+			const f = record(raw, 'evidence');
+			check(typeof f.shared === 'boolean', 'evidence');
+			const by = uniqueList(f.by, CHARACTER_IDS, 'evidence');
+			check(f.shared || by.length > 0, 'evidence');
+			evidence.set(id, { by, shared: f.shared });
+		}
+	}
+	const attempts = data.tried === undefined ? [] : list(data.tried, 'checks');
+	const tried = new Set(
+		attempts.map((t) => {
+			check(typeof t === 'string' && TRIED.test(t), 'checks');
+			return t;
+		})
+	);
 	return {
 		id: 'hollow-bell',
 		stage,
 		chapter,
 		location,
 		characters,
-		clues: uniqueList(data.clues, clueIds, 'clues'),
+		evidence,
+		tried,
 		events: uniqueList<EventId>(data.events, EVENT_IDS, 'events'),
 		defeated: list(data.defeated, 'defeated enemies').map((n) => name(n, 'defeated enemies')),
 		npcs,

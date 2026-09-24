@@ -2,13 +2,17 @@
 	import {
 		canReach,
 		inActionRange,
+		INVESTIGATION_ACTIONS,
 		type AdventureView,
-		type CharacterStatus
+		type CharacterStatus,
+		type Check,
+		type Sense
 	} from '$lib/adventure/adventure';
 	import {
 		BLEED_OUT_ROUNDS,
 		CHARACTERS,
 		describeAction,
+		STATS,
 		STATUSES,
 		type Action
 	} from '$lib/adventure/characters';
@@ -62,6 +66,16 @@
 			: def.actions.filter((a) => (encounter ? true : a.kind === 'heal'))
 	);
 	const chosen = $derived(actions.find((a) => a.id === targeting) ?? null);
+	/** Listening and looking around work anywhere, outside a fight. */
+	const canSense = $derived(able && !encounter && adventure.stage === 'playing');
+	const SENSES: Sense[] = ['listen', 'observe'];
+
+	/** "Wits 8": the stat and difficulty, with the character's bonus. */
+	function checkText(check: Check): string {
+		const stat = STATS.find((s) => s.id === check.stat)?.name ?? check.stat;
+		const bonus = def.stats[check.stat];
+		return `${stat} check (d20${bonus ? `+${bonus}` : ''} vs ${check.dc})`;
+	}
 
 	interface Target {
 		tokenId: string;
@@ -172,12 +186,33 @@
 					<button
 						type="button"
 						class="primary"
+						disabled={v.tried}
+						title={v.tried
+							? `${def.name} has tried this. Someone else might see more.`
+							: v.check
+								? checkText(v.check)
+								: INVESTIGATION_ACTIONS[v.action]}
 						onclick={() => send({ type: 'adventure_interact', targetId: i.id, verb: v.id })}
 					>
+						<small class="kind">{INVESTIGATION_ACTIONS[v.action]}</small>
 						{v.label}
+						{#if v.check && !v.tried}<small>{v.check.dc}</small>{/if}
 					</button>
 				{/each}
 			{/each}
+			{#if canSense}
+				{#each SENSES as sense (sense)}
+					<button
+						type="button"
+						title={sense === 'listen'
+							? 'Listen closely where you stand'
+							: 'Take a careful look around you'}
+						onclick={() => send({ type: 'adventure_sense', sense })}
+					>
+						{INVESTIGATION_ACTIONS[sense]}
+					</button>
+				{/each}
+			{/if}
 			{#each actions as action (action.id)}
 				{@const left = character.usesLeft[action.id]}
 				<button
@@ -205,6 +240,14 @@
 </section>
 
 <style>
+	.kind {
+		display: block;
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		opacity: 0.75;
+	}
+
 	.bar {
 		display: grid;
 		gap: 0.4rem;

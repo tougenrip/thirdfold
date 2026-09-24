@@ -2,7 +2,13 @@
 // arriving from the network is untrusted: parse it with parseClientMessage /
 // parseServerMessage rather than casting.
 
-import { isObjectState, type AdventureView, type ObjectState } from '../adventure/adventure';
+import {
+	isObjectState,
+	isSense,
+	type AdventureView,
+	type ObjectState,
+	type Sense
+} from '../adventure/adventure';
 import {
 	isCharacterId,
 	isStatusId,
@@ -139,6 +145,10 @@ export type ClientMessage =
 	| { type: 'adventure_cue'; cueId: string }
 	/** Answer the choice put to the party (a player for their character, or the GM). */
 	| { type: 'adventure_decide'; decisionId: string; optionId: string }
+	/** Player: their character listens or looks around where it stands. */
+	| { type: 'adventure_sense'; sense: Sense }
+	/** Player: tell the party about evidence their character found. */
+	| { type: 'adventure_share'; clueId: string }
 	/** GM: end the players' phase now, start the section over, or stop the adventure (the table stays). */
 	| { type: 'adventure_control'; op: AdventureControl }
 	/** GM: set a character's hit points and statuses, or bring them back from the dead. */
@@ -489,6 +499,10 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return typeof data.text === 'string' ? { type: 'adventure_narrate', text: data.text } : null;
 		case 'adventure_cue':
 			return isId(data.cueId) ? { type: 'adventure_cue', cueId: data.cueId } : null;
+		case 'adventure_sense':
+			return isSense(data.sense) ? { type: 'adventure_sense', sense: data.sense } : null;
+		case 'adventure_share':
+			return isId(data.clueId) ? { type: 'adventure_share', clueId: data.clueId } : null;
 		case 'adventure_decide':
 			return isId(data.decisionId) && isId(data.optionId)
 				? { type: 'adventure_decide', decisionId: data.decisionId, optionId: data.optionId }

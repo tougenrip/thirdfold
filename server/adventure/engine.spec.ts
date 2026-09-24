@@ -63,6 +63,8 @@ function setup(): void {
 const token = (id: string) => room.tokens.get(id)!;
 const put = (tokenId: string, pos: GridPos) => (token(tokenId).pos = { ...pos });
 const hound = () => [...room.adventure!.encounter!.enemies.keys()][0];
+/** Evidence found by anyone, in the order found. */
+const found = () => [...room.adventure!.evidence.keys()];
 
 /** Starts the adventure with Ana as the Warden, begun and standing at `at`. */
 function playing(at?: GridPos): string {
@@ -189,7 +191,7 @@ describe('investigating', () => {
 		// The well means nothing yet.
 		const early = ok(interact(room, ana, 'well'));
 		expect(early.log).toHaveLength(1);
-		expect(room.adventure?.clues).toEqual([]);
+		expect(found()).toEqual([]);
 
 		put(id, { x: 7, y: 10 });
 		const talk = ok(interact(room, ana, 'maren'));
@@ -198,7 +200,7 @@ describe('investigating', () => {
 
 		put(id, { x: 11, y: 12 });
 		ok(interact(room, ana, 'well'));
-		expect(room.adventure?.clues).toEqual(['scratches']);
+		expect(found()).toEqual(['scratches']);
 		expect(room.adventure).toMatchObject({
 			chapter: 'discover_bell',
 			events: ['talked_maren', 'well_clue']
@@ -217,8 +219,8 @@ describe('investigating', () => {
 		put(id, { x: 17, y: 9 });
 		// Open it, then search it.
 		ok(interact(room, ana, 'chest'));
-		ok(interact(room, ana, 'chest'));
-		expect(room.adventure?.clues).toEqual(['notice', 'rope']);
+		ok(interact(room, ana, 'chest', null, max));
+		expect(found()).toEqual(['notice', 'rope']);
 
 		fighting();
 		expect(interact(room, ana, 'well')).toMatchObject({ ok: false, code: 'not_your_turn' });
@@ -365,7 +367,7 @@ describe('the GM', () => {
 		expect(room.adventure).toMatchObject({
 			stage: 'playing',
 			chapter: 'village',
-			clues: [],
+			evidence: new Map(),
 			events: [],
 			begunAt: 7000
 		});
@@ -588,9 +590,9 @@ describe('world objects', () => {
 		ok(interact(room, ana, 'chest', 'open'));
 		expect(state('chest')).toBe('opened');
 		expect(prop(IDS.chest).assetId).toBe('chest-open');
-		ok(interact(room, ana, 'chest', 'search'));
+		ok(interact(room, ana, 'chest', 'search', max));
 		expect(state('chest')).toBe('used');
-		expect(room.adventure?.clues).toContain('rope');
+		expect(found()).toContain('rope');
 		const again = ok(interact(room, ana, 'chest'));
 		expect(again.log[0]).toMatchObject({ kind: 'narration' });
 		void id;
@@ -616,7 +618,7 @@ describe('world objects', () => {
 		ok(interact(room, ana, 'hatch', 'open'));
 		expect(prop(IDS.hatch).assetId).toBe('hatch-open');
 		ok(interact(room, ana, 'hatch', 'search'));
-		expect(room.adventure?.clues).toContain('drawing');
+		expect(found()).toContain('drawing');
 	});
 
 	it('breaks the crate into rubble that no longer blocks the way', () => {
@@ -649,8 +651,8 @@ describe('world objects', () => {
 		ok(act(room, ana, 'blade', houndId, max));
 		expect(prop(IDS.remains)).toMatchObject({ assetId: 'ashes', pos: { x: 12, y: 12 } });
 		expect(state('remains')).toBe('interactable');
-		ok(interact(room, ana, 'remains', 'search'));
-		expect(room.adventure?.clues).toContain('clapper');
+		ok(interact(room, ana, 'remains', 'search', max));
+		expect(found()).toContain('clapper');
 		void id;
 	});
 

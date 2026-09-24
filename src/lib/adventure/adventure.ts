@@ -9,7 +9,7 @@
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
 import { hasLineOfSight } from '../game/visibility';
-import type { Action, CharacterId, StatusId } from './characters';
+import type { Action, CharacterId, StatId, StatusId } from './characters';
 
 export type AdventureId = 'hollow-bell';
 
@@ -100,12 +100,66 @@ export interface Objective {
 	id: string;
 	text: string;
 	done: boolean;
+	/** Worth doing, but the story goes on without it. */
+	optional?: boolean;
 }
 
+/**
+ * How a character investigates. Examining, inspecting (reading), searching
+ * and interacting are done to a thing; listening and observing take in the
+ * surroundings wherever the character stands.
+ */
+export type InvestigationAction =
+	'examine' | 'inspect' | 'search' | 'listen' | 'observe' | 'interact';
+
+export const INVESTIGATION_ACTIONS: Record<InvestigationAction, string> = {
+	examine: 'Examine',
+	inspect: 'Inspect',
+	search: 'Search',
+	listen: 'Listen',
+	observe: 'Observe',
+	interact: 'Interact'
+};
+
+/** The senses a character can use anywhere. */
+export type Sense = Extract<InvestigationAction, 'listen' | 'observe'>;
+
+export function isSense(value: unknown): value is Sense {
+	return value === 'listen' || value === 'observe';
+}
+
+/** What a piece of evidence is. */
+export type EvidenceKind = 'document' | 'object' | 'environment' | 'testimony';
+
+export const EVIDENCE_KINDS: Record<EvidenceKind, string> = {
+	document: 'Document',
+	object: 'Object',
+	environment: 'Trace',
+	testimony: 'Testimony'
+};
+
+/** A check a character must pass: a d20 plus one of its stats, against a difficulty. */
+export interface Check {
+	stat: StatId;
+	dc: number;
+}
+
+/**
+ * A piece of evidence as this viewer knows it. Evidence found by
+ * investigating is known only to the character who found it (and the GM)
+ * until that player shares it with the party; what people say is heard by all.
+ */
 export interface Clue {
 	id: string;
 	title: string;
 	text: string;
+	kind: EvidenceKind;
+	/** The characters who found it themselves, by name; empty when it was heard by all. */
+	foundBy: string[];
+	/** Known to the whole party. */
+	shared: boolean;
+	/** This viewer's character found it (and so can share it). */
+	mine: boolean;
 }
 
 export interface CharacterStatus {
@@ -194,7 +248,15 @@ export interface Interactable {
 	/** The cells it occupies; a character must stand beside one of them. */
 	cells: GridPos[];
 	/** What can be done with it now, e.g. { id: 'open', label: 'Open the chest' }. */
-	verbs: { id: string; label: string }[];
+	verbs: {
+		id: string;
+		label: string;
+		action: InvestigationAction;
+		/** A check to pass first, if any. */
+		check: Check | null;
+		/** This viewer's character already tried the check and failed. */
+		tried: boolean;
+	}[];
 }
 
 /** For the GM: every world object and the states it can be put in. */

@@ -7,10 +7,10 @@ import { CHAPTER_IDS, type AdventureView } from '../../src/lib/adventure/adventu
 import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
-import { CLUES, CUES, ENDINGS, HOUND, TITLE } from './content';
-import { chapterNumber, objectCells, objectState, usesLeft, verbsFor } from './engine';
+import { CLUES, CUES, ENDINGS, HOUND, TITLE, type ClueDef, type ClueId } from './content';
+import { chapterNumber, characterOf, objectCells, objectState, usesLeft, verbsFor } from './engine';
 import { LOCATIONS } from './locations';
-import { OBJECTS } from './objects';
+import { actionOfVerb, OBJECTS } from './objects';
 import type { Statuses } from './state';
 import { NPC_IDS, NPCS } from './npcs';
 import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, objectivesFor } from './story';
@@ -30,6 +30,24 @@ export function adventureView(
 	const adventure = room.adventure;
 	if (!adventure) return null;
 	const encounter = adventure.encounter;
+	// Evidence someone found alone stays theirs (and the GM's) until they share it.
+	const mine = viewer.role === 'player' ? (characterOf(room, viewer.id)?.id ?? null) : null;
+	const clues = [...adventure.evidence].flatMap(([id, found]) => {
+		const own = mine !== null && found.by.includes(mine);
+		if (!found.shared && !own && viewer.role !== 'gm') return [];
+		const def: ClueDef = CLUES[id as ClueId];
+		return [
+			{
+				id,
+				title: def.title,
+				text: def.text,
+				kind: def.kind,
+				foundBy: found.by.map((c) => CHARACTERS[c].name),
+				shared: found.shared,
+				mine: own
+			}
+		];
+	});
 	return {
 		id: adventure.id,
 		title: TITLE,
@@ -42,7 +60,7 @@ export function adventureView(
 		},
 		location: { id: adventure.location, name: LOCATIONS[adventure.location].name },
 		objectives: objectivesFor(adventure.stage, adventure.chapter, adventure.events),
-		clues: adventure.clues.map((id) => ({ ...CLUES[id as keyof typeof CLUES] })),
+		clues,
 		characters: CHARACTER_IDS.map((id) => {
 			const state = adventure.characters.get(id);
 			const token = state && room.tokens.get(state.tokenId);
@@ -76,7 +94,13 @@ export function adventureView(
 					kind: def.kind,
 					state,
 					cells,
-					verbs: verbs.map((v) => ({ id: v.id, label: v.label }))
+					verbs: verbs.map((v) => ({
+						id: v.id,
+						label: v.label,
+						action: actionOfVerb(v),
+						check: v.check && state !== 'used' ? { ...v.check } : null,
+						tried: mine !== null && adventure.tried.has(`${mine}:${def.id}:${v.id}`)
+					}))
 				}
 			];
 		}),

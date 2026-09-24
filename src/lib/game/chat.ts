@@ -3,6 +3,12 @@
 
 import type { DiceRoll } from './dice';
 
+/**
+ * Who may read a log entry, when not everyone: the GM only, or the GM and
+ * these players (someone who found something by themselves).
+ */
+export type LogAudience = 'gm' | { players: string[] };
+
 export type ChatMessage =
 	| { seq: number; at: number; kind: 'chat'; authorId: string; authorName: string; text: string }
 	| { seq: number; at: number; kind: 'roll'; authorId: string; authorName: string; roll: DiceRoll }
@@ -13,6 +19,24 @@ export type ChatMessage =
 			kind: 'narration';
 			text: string;
 			speaker?: string;
+			audience?: LogAudience;
+	  }
+	| {
+			seq: number;
+			at: number;
+			/** An investigation check: a d20 plus a stat, against a difficulty. */
+			kind: 'check';
+			/** The player whose character made it. */
+			authorId: string;
+			/** The character, e.g. "The Veil". */
+			authorName: string;
+			/** What they did, e.g. "Search the chest" or "Listen". */
+			action: string;
+			/** The stat added, e.g. "Wits". */
+			stat: string;
+			roll: DiceRoll;
+			dc: number;
+			success: boolean;
 	  }
 	| {
 			seq: number;
@@ -58,7 +82,7 @@ export type ChatMessage =
 			kind: 'system';
 			text: string;
 			/** 'gm' for notices that would reveal hidden things (e.g. an NPC placed in the dark). */
-			audience?: 'gm';
+			audience?: LogAudience;
 	  };
 
 export const CHAT_MAX_LENGTH = 500;
