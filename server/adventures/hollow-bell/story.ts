@@ -1,22 +1,15 @@
 // The Hollow Bell as a state machine: its chapters in order, the story event
 // that moves the party from each chapter to the next, what the party is
 // trying to do in each (objectives), and the places, people, choices, fights
-// and endings the story keeps track of. Plain data; engine.ts carries out
-// what each event does to the table.
+// and endings the story keeps track of. Plain data; rules.ts says what each
+// event and chapter does to the table.
 //
 // Events happen through play: talking to someone, finding something, winning
 // a fight, walking into a place, answering a choice. Each is recorded once in
 // `AdventureState.events`. The chapter only moves when the current chapter
 // is waiting for that event, so the story can't skip ahead.
 
-import type {
-	AdventureStage,
-	ChapterId,
-	LocationId,
-	Objective
-} from '../../src/lib/adventure/adventure';
-import { CHAPTER_IDS } from '../../src/lib/adventure/adventure';
-import type { GridPos } from '../../src/lib/game/grid';
+import type { ChapterDef } from '../../adventure/define';
 
 export type EventId =
 	/** Maren told the party about Tobin and the well. */
@@ -86,26 +79,31 @@ export const EVENT_IDS: readonly EventId[] = [
 	'learned_rule'
 ];
 
-interface ObjectiveDef {
-	id: string;
-	text: string;
-	/** Worth doing, but the story goes on without it. */
-	optional?: boolean;
-	/** Shown once this has happened (always shown if omitted). */
-	after?: EventId;
-	/** Done once this has happened. */
-	done: EventId;
-}
+/** The chapters of The Hollow Bell in story order. Play moves the party from one to the next. */
+export const CHAPTER_IDS = [
+	'village',
+	'discover_bell',
+	'investigate_monastery',
+	'enter_monastery',
+	'discover_hidden_chamber',
+	'bell_rings',
+	'descend',
+	'the_hollow',
+	'the_pit',
+	'the_waking',
+	'the_ringing',
+	'final_decision',
+	'the_descent'
+] as const;
 
-export interface ChapterDef {
-	id: ChapterId;
-	title: string;
-	location: LocationId;
-	objectives: readonly ObjectiveDef[];
-	/** The event that ends this chapter, and the chapter it leads to (null: the story ends). */
-	next: { on: EventId; to: ChapterId | null };
-}
+export type ChapterId = (typeof CHAPTER_IDS)[number];
 
+/** The tables the story is played on. */
+export const LOCATION_IDS = ['bellweather', 'monastery', 'hollow', 'heart'] as const;
+
+export type LocationId = (typeof LOCATION_IDS)[number];
+
+/** The chapters, in order (the first is where the story starts). */
 export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 	village: {
 		id: 'village',
@@ -273,57 +271,12 @@ export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 	}
 };
 
-/** The chapter an event leads to from `chapter`, undefined if the chapter isn't waiting for it. */
-export function transition(chapter: ChapterId, event: EventId): ChapterId | null | undefined {
-	const next = CHAPTERS[chapter].next;
-	return next.on === event ? next.to : undefined;
-}
-
-/**
- * What the party is trying to do: the objectives of every chapter so far at
- * this location, done or not, leaving out those not yet heard of.
- */
-export function objectivesFor(
-	stage: AdventureStage,
-	chapter: ChapterId,
-	events: readonly EventId[]
-): Objective[] {
-	if (stage === 'choosing') return [{ id: 'choose', text: 'Choose your characters', done: false }];
-	const here = CHAPTERS[chapter].location;
-	const upTo = CHAPTER_IDS.indexOf(chapter);
-	return CHAPTER_IDS.slice(0, upTo + 1)
-		.filter((id) => CHAPTERS[id].location === here)
-		.flatMap((id) => CHAPTERS[id].objectives)
-		.filter((o) => !o.after || events.includes(o.after))
-		.map((o) => ({
-			id: o.id,
-			text: o.text,
-			done: events.includes(o.done),
-			...(o.optional ? { optional: true } : {})
-		}));
-}
-
-/** Places that start an event when a character walks into them, while their chapter waits for it. */
-export interface Area {
-	event: EventId;
-	during: ChapterId;
-	location: LocationId;
-	/** Only once this has happened. */
-	after?: EventId;
-	/** Inclusive rectangle of cells. */
-	from: GridPos;
-	to: GridPos;
-}
-
 export type DecisionId = 'promise' | 'bell';
 
-export interface DecisionDef {
-	id: DecisionId;
-	prompt: string;
-	options: readonly { id: string; label: string }[];
-}
-
-export const DECISIONS: Record<DecisionId, DecisionDef> = {
+export const DECISIONS: Record<
+	DecisionId,
+	{ id: DecisionId; prompt: string; options: readonly { id: string; label: string }[] }
+> = {
 	promise: {
 		id: 'promise',
 		prompt: 'Brother Oswin asks what you have come up the mountain to do.',
@@ -357,17 +310,6 @@ export const ENCOUNTER_IDS: readonly EncounterId[] = [
 	'heart',
 	'ambush'
 ];
-
-/** Each fight as the GM sees it listed, and where it is fought (null: anywhere). */
-export const ENCOUNTER_INFO: Record<EncounterId, { name: string; location: LocationId | null }> = {
-	well: { name: 'The Hound at the well', location: 'bellweather' },
-	chamber: { name: 'The ringing chamber', location: 'monastery' },
-	hollow: { name: 'The Keeper and the watch', location: 'hollow' },
-	waking: { name: 'The Hollow wakes', location: 'hollow' },
-	wrath: { name: 'The Hollow’s Hand', location: 'hollow' },
-	heart: { name: 'The Heart', location: 'heart' },
-	ambush: { name: 'The enemies you placed', location: null }
-};
 
 /** How each event reads in the GM's list of what can be made to happen. */
 export const EVENT_LABELS: Record<EventId, string> = {

@@ -18,8 +18,15 @@ import {
 	startAdventure
 } from './engine';
 import { readAdventure } from './persist';
-import { objectivesFor } from './story';
+import type { AdventureStage } from '../../src/lib/adventure/adventure';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import type { AdventureState } from './state';
+import { objectivesFor } from './view';
 import { adventureView } from './view';
+
+/** The objectives shown at a point in the story. */
+const objectivesAt = (stage: AdventureStage, chapter: string, events: string[]) =>
+	objectivesFor(HOLLOW_BELL, { stage, chapter, events } as unknown as AdventureState);
 
 const max: DieRoller = (sides) => sides;
 const min: DieRoller = () => 1;
@@ -209,7 +216,7 @@ describe('evidence moves the story', () => {
 	});
 
 	it('opens a monastery objective from what Father Wynn says in the village', () => {
-		expect(objectivesFor('playing', 'investigate_monastery', []).map((o) => o.id)).toEqual([
+		expect(objectivesAt('playing', 'investigate_monastery', []).map((o) => o.id)).toEqual([
 			'gatehouse',
 			'way-in'
 		]);
@@ -217,7 +224,7 @@ describe('evidence moves the story', () => {
 		ok(interact(room, ana, 'wynn'));
 		expect(story().events).toContain('learned_agna');
 		expect(
-			objectivesFor('playing', 'investigate_monastery', story().events).map((o) => o.id)
+			objectivesAt('playing', 'investigate_monastery', story().events).map((o) => o.id)
 		).toEqual(['gatehouse', 'way-in', 'agna']);
 	});
 

@@ -12,7 +12,7 @@ try {
 	const built = buildAssets(SOURCES);
 	const problems = checkScenes(built.manifest);
 	if (problems.length) {
-		console.error(`The Hollow Bell's tables refer to missing assets:\n  ${problems.join('\n  ')}`);
+		console.error(`The adventures' tables refer to missing assets:\n  ${problems.join('\n  ')}`);
 		process.exit(1);
 	}
 	const bytes = [...built.files.values()].reduce((sum, d) => sum + d.length, 0);

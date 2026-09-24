@@ -8,8 +8,14 @@ import { parseSceneFile } from '../../src/lib/game/scene-file';
 import { cellIndex } from '../../src/lib/game/visibility';
 import { RoomManager, type Player, type Room } from '../rooms';
 import { obstacles } from '../scene';
-import { bellweatherScene, EXIT, IDS, PATH_AREA, SPAWN } from './bellweather';
-import { MONASTERY_SPAWN } from './monastery';
+import {
+	bellweatherScene,
+	EXIT,
+	IDS,
+	PATH_AREA,
+	SPAWN
+} from '../adventures/hollow-bell/bellweather';
+import { MONASTERY_SPAWN } from '../adventures/hollow-bell/monastery';
 import {
 	afterMove,
 	afterTokenDeleted,
@@ -150,6 +156,10 @@ describe('starting and choosing characters', () => {
 		expect(mine.state.hp).toBe(CHARACTERS.warden.hp);
 
 		expect(claimCharacter(room, ana, 'veil')).toMatchObject({ ok: false, code: 'forbidden' });
+		// Only the adventure's own characters, and nothing an object inherits.
+		for (const id of ['wizard', 'toString', 'constructor', '__proto__']) {
+			expect(claimCharacter(room, ben, id)).toMatchObject({ ok: false, code: 'invalid_message' });
+		}
 		expect(claimCharacter(room, ben, 'warden')).toMatchObject({
 			ok: false,
 			code: 'character_taken'

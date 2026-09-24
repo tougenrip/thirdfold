@@ -9,11 +9,9 @@
 // other interaction. Reactions are short lines people call out when the
 // party does something near them, or when something happens in the story.
 
-import type { LocationId, ObjectState } from '../../src/lib/adventure/adventure';
-import type { GridPos } from '../../src/lib/game/grid';
-import type { SavedToken } from '../../src/lib/game/scene-file';
-import { TEXT, type ClueId } from './content';
-import type { DecisionId, EventId } from './story';
+import type { SavedToken } from '../../../src/lib/game/scene-file';
+import type { NpcDef, Reaction } from '../../adventure/define';
+import { TEXT } from './content';
 
 export type NpcId =
 	| 'maren'
@@ -28,66 +26,6 @@ export type NpcId =
 	| 'crane'
 	| 'oswin'
 	| 'tobin';
-
-/** When a line may be said. Every listed condition must hold. */
-export interface When {
-	/** The speaker is in one of these states. */
-	state?: readonly string[];
-	/** The party has found all of these clues. */
-	clues?: readonly ClueId[];
-	/** All of these have happened. */
-	events?: readonly EventId[];
-	/** None of these has happened. */
-	not?: readonly EventId[];
-	/** This choice is waiting on the party. */
-	pending?: DecisionId;
-	/** World objects are in one of these states. */
-	objects?: Readonly<Record<string, readonly ObjectState[]>>;
-}
-
-export interface Line {
-	id: string;
-	text: string;
-	if?: When;
-	/** Said only once. */
-	once?: boolean;
-	/** Told by the narrator rather than spoken. */
-	narrated?: boolean;
-	clue?: ClueId;
-	/** The speaker's new state. */
-	becomes?: string;
-	event?: EventId;
-	/** Hit points restored to every standing character. */
-	heals?: number;
-}
-
-/** Where someone stands: normally, while the Hound is loose in the village, and after it is dead. */
-export interface Places {
-	calm: GridPos;
-	hiding?: GridPos;
-	after?: GridPos;
-}
-
-export interface NpcDef {
-	id: NpcId;
-	name: string;
-	/** Who they are, for the GM. */
-	role: string;
-	/** Speaker label in the log. */
-	speaker: string;
-	token: string;
-	color: string;
-	/** The figure they are drawn as (a model in assets/models/npc), tinted with `color`. */
-	model: string;
-	location: LocationId;
-	/** Where they are found, for the GM. */
-	home: string;
-	places: Places;
-	/** The first is where they start. */
-	states: readonly string[];
-	/** In order of priority: the first that applies is said. The last should always apply. */
-	lines: readonly Line[];
-}
 
 export const NPCS: Record<NpcId, NpcDef> = {
 	maren: {
@@ -459,12 +397,8 @@ export const NPCS: Record<NpcId, NpcDef> = {
 
 export const NPC_IDS = Object.keys(NPCS) as NpcId[];
 
-export function isNpcId(id: string): id is NpcId {
-	return (NPC_IDS as string[]).includes(id);
-}
-
 /** The people who start at a location, as scene tokens. */
-export function npcTokens(location: LocationId): SavedToken[] {
+export function npcTokens(location: string): SavedToken[] {
 	return NPC_IDS.filter((id) => NPCS[id].location === location).map((id) => {
 		const npc = NPCS[id];
 		return {
@@ -481,16 +415,6 @@ export function npcTokens(location: LocationId): SavedToken[] {
 }
 
 /** A short line someone calls out when something happens near them, once. */
-export interface Reaction {
-	id: string;
-	npc: NpcId;
-	/** `object:verb` for an interaction, or `event:<id>` for a story event. */
-	on: string;
-	text: string;
-	/** For interactions: only if the speaker stands within this many cells of the character. */
-	within?: number;
-}
-
 export const REACTIONS: readonly Reaction[] = [
 	{
 		id: 'rosa-crate',
@@ -550,8 +474,3 @@ export const REACTIONS: readonly Reaction[] = [
 ];
 
 /** Which of an NPC's places applies now, given where the village's fight stands. */
-export function placeFor(npc: NpcDef, phase: 'calm' | 'hiding' | 'after'): GridPos {
-	if (phase === 'hiding') return npc.places.hiding ?? npc.places.calm;
-	if (phase === 'after') return npc.places.after ?? npc.places.calm;
-	return npc.places.calm;
-}

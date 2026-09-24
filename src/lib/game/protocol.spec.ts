@@ -201,9 +201,17 @@ describe('adventure messages', () => {
 		});
 	});
 
-	it('rejects unknown characters, controls and malformed targets', () => {
-		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'wizard' })).toBeNull();
-		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'toString' })).toBeNull();
+	it('rejects malformed characters, unknown controls and malformed targets', () => {
+		// Which characters exist is the adventure's to say (the engine refuses others).
+		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'wizard' })).toEqual({
+			type: 'adventure_claim',
+			characterId: 'wizard'
+		});
+		expect(parseClientMessage({ type: 'adventure_claim', characterId: '' })).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_claim', characterId: 7 })).toBeNull();
+		expect(
+			parseClientMessage({ type: 'adventure_claim', characterId: 'x'.repeat(200) })
+		).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_control', op: 'win' })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_control', op: 'end_turn' })).toEqual({
 			type: 'adventure_control',

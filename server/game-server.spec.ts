@@ -9,8 +9,9 @@ import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { FileSceneStore, MemorySceneStore, type SceneStore } from './scene-store';
 import { beginAdventure, claimCharacter, postSentries, startAdventure } from './adventure/engine';
-import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
-import { recordOrigins } from './adventure/objects';
+import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventures/hollow-bell/hollow';
+import { HOLLOW_BELL } from './adventures/hollow-bell/index';
+import { recordOrigins } from './adventure/world';
 import { RoomManager } from './rooms';
 import { MemoryRoomStore } from './room-store';
 import { applyScene, exportScene } from './scene-io';
@@ -1379,7 +1380,7 @@ describe('The Hollow Bell over the wire', () => {
 		for (let pulls = 1; pulls <= 3; pulls++) {
 			pip.send({ type: 'adventure_interact', targetId: 'bell-rope', verb: 'pull' });
 			if (pulls === 3) break;
-			await untilAdventure(pip, (a) => a.encounter?.bell?.pulls === pulls);
+			await untilAdventure(pip, (a) => a.encounter?.counter?.count === pulls);
 			gm.send({ type: 'adventure_control', op: 'end_turn' });
 		}
 		// Phase 4: the choice.
@@ -1433,7 +1434,7 @@ describe('The Hollow Bell over the wire', () => {
 		made.room.tokens.set(warden.id, warden);
 		story.location = 'hollow';
 		story.chapter = 'the_hollow';
-		story.origins = recordOrigins(made.room);
+		story.origins = recordOrigins(HOLLOW_BELL, made.room);
 		postSentries(made.room, story, 'hollow');
 		const file = exportScene(made.room, 'The Hollow');
 

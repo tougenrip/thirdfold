@@ -9,12 +9,7 @@ import {
 	type ObjectState,
 	type Sense
 } from '../adventure/adventure';
-import {
-	isCharacterId,
-	isStatusId,
-	type CharacterId,
-	type StatusId
-} from '../adventure/characters';
+import { isStatusId, type CharacterId, type StatusId } from '../adventure/characters';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
@@ -660,7 +655,7 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		case 'adventure_end_turn':
 			return { type: data.type };
 		case 'adventure_claim':
-			return isCharacterId(data.characterId)
+			return isId(data.characterId)
 				? { type: 'adventure_claim', characterId: data.characterId }
 				: null;
 		case 'adventure_interact': {
@@ -680,7 +675,7 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		}
 		case 'adventure_override': {
 			const patch = parseCharacterPatch(data.patch);
-			return isCharacterId(data.characterId) && patch
+			return isId(data.characterId) && patch
 				? { type: 'adventure_override', characterId: data.characterId, patch }
 				: null;
 		}

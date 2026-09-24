@@ -13,10 +13,20 @@
 // steps of a fifth of a wall's height: the gallery and ledge are at 5, the
 // belfry at 10.
 
-import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
-import type { SceneFile } from '../../src/lib/game/scene-file';
+import type { GridPos, SquareGrid } from '../../../src/lib/game/grid';
+import type { SceneFile } from '../../../src/lib/game/scene-file';
 import { npcTokens } from './npcs';
-import { at, door, light, prop, stair, table, wall, window, type Rise } from './tables';
+import {
+	at,
+	door,
+	light,
+	prop,
+	stair,
+	table,
+	wall,
+	window,
+	type Rise
+} from '../../adventure/tables';
 
 export const MONASTERY_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 30, height: 20 };
 

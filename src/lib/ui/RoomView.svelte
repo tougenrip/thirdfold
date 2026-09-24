@@ -1211,9 +1211,10 @@
 			{@const encounter = adventure.encounter}
 			<ol class="encounter" aria-label={`Round ${encounter.round}, turn order`}>
 				<li class="round">Round {encounter.round}</li>
-				{#if encounter.bell}
-					<li class="bell" title="Pull the Bell's rope to stop it ringing itself">
-						Bell held {encounter.bell.pulls}/{encounter.bell.of}
+				{#if encounter.counter}
+					<li class="counter">
+						{encounter.counter.label}
+						{encounter.counter.count}/{encounter.counter.of}
 					</li>
 				{/if}
 				{#each encounter.order as t, i (i)}
@@ -1667,7 +1668,7 @@
 		border-radius: 8px;
 	}
 
-	.encounter .bell {
+	.encounter .counter {
 		color: var(--accent);
 		font-weight: 600;
 	}

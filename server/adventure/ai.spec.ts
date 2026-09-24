@@ -5,7 +5,7 @@ import type { SceneObject } from '../../src/lib/game/objects';
 import { obstaclesFor } from '../../src/lib/game/props';
 import { emptyMask, type CellMask } from '../../src/lib/game/visibility';
 import { LEASH, patrolStep, plan, seenBy, type Foe, type Self, type Situation } from './ai';
-import { ENEMIES } from './enemies';
+import { ENEMIES } from '../adventures/hollow-bell/enemies';
 
 const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 20, height: 12 };
 const at = (x: number, y: number): GridPos => ({ x, y });
@@ -13,7 +13,7 @@ const foe = (id: CharacterId, pos: GridPos, hp = 20): Foe => ({ id, pos, hp });
 
 function situation(
 	foes: Foe[],
-	options: { walls?: SceneObject[]; lit?: CellMask | null; bell?: Situation['bell'] } = {}
+	options: { walls?: SceneObject[]; lit?: CellMask | null; ward?: Situation['ward'] } = {}
 ): Situation {
 	const occupied = new Set(foes.map((f) => `${f.pos.x},${f.pos.y}`));
 	return {
@@ -22,12 +22,13 @@ function situation(
 		lit: options.lit ?? null,
 		foes,
 		free: (c) => !occupied.has(`${c.x},${c.y}`),
-		bell: options.bell ?? null
+		ward: options.ward ?? null,
+		enemies: ENEMIES
 	};
 }
 
 function self(kind: Self['kind'], pos: GridPos, more: Partial<Self> = {}): Self {
-	const def = ENEMIES[kind];
+	const def = ENEMIES[kind as keyof typeof ENEMIES];
 	return { kind, pos, hp: 20, maxHp: 20, speed: def.speed, rest: 0, ...more };
 }
 
@@ -127,18 +128,18 @@ describe('the Bell Keeper', () => {
 
 	it('tolls when crowded and ready; otherwise hammers', () => {
 		const crowd = [foe('warden', at(10, 4)), foe('saint', at(11, 5))];
-		expect(plan(situation(crowd, { bell }), self('keeper', post, { post })).deed).toEqual({
+		expect(plan(situation(crowd, { ward: bell }), self('keeper', post, { post })).deed).toEqual({
 			kind: 'toll',
 			targets: ['warden', 'saint']
 		});
 		expect(
-			plan(situation(crowd, { bell }), self('keeper', post, { post, rest: 1 })).deed
+			plan(situation(crowd, { ward: bell }), self('keeper', post, { post, rest: 1 })).deed
 		).toMatchObject({ kind: 'attack', attack: { name: 'Bell hammer' } });
 	});
 
 	it('tolls every turn once someone has laid hands on the Bell', () => {
 		const crowd = [foe('warden', at(10, 4))];
-		const angry = situation(crowd, { bell: { ...bell, touched: true } });
+		const angry = situation(crowd, { ward: { ...bell, touched: true } });
 		expect(plan(angry, self('keeper', post, { post, rest: 2 })).deed).toMatchObject({
 			kind: 'toll'
 		});
@@ -147,13 +148,13 @@ describe('the Bell Keeper', () => {
 	it('goes first for whoever is near the Bell, even if someone else is closer to it', () => {
 		const foes = [foe('warden', at(7, 4)), foe('veil', at(12, 1))];
 		expect(
-			plan(situation(foes, { bell }), self('keeper', at(10, 4), { post, rest: 1 })).target
+			plan(situation(foes, { ward: bell }), self('keeper', at(10, 4), { post, rest: 1 })).target
 		).toBe('veil');
 	});
 
 	it('never strays beyond its leash, and goes back to its post with nobody to guard against', () => {
 		const lure = plan(
-			situation([foe('warden', at(10, 9))], { bell }),
+			situation([foe('warden', at(10, 9))], { ward: bell }),
 			self('keeper', post, { post, rest: 1 })
 		);
 		for (const c of lure.path) {
@@ -161,7 +162,7 @@ describe('the Bell Keeper', () => {
 		}
 		// Far beyond its ground: it walks home.
 		const home = plan(
-			situation([foe('warden', at(19, 11))], { bell }),
+			situation([foe('warden', at(19, 11))], { ward: bell }),
 			self('keeper', at(10, 6), { post })
 		);
 		expect(end(home, at(10, 6))).toEqual(post);

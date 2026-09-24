@@ -4,7 +4,8 @@
 // Adventure-specific, so it lives apart from the system-agnostic core in
 // src/lib/game. Relative imports only: the game server imports this too.
 
-export type CharacterId = 'warden' | 'veil' | 'ember' | 'saint';
+/** A playable character's id, within its adventure. */
+export type CharacterId = string;
 export const CHARACTER_IDS: readonly CharacterId[] = ['warden', 'veil', 'ember', 'saint'];
 
 export type StatId = 'might' | 'agility' | 'wits' | 'spirit';

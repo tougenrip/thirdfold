@@ -8,18 +8,24 @@
 
 import type {
 	AdventureStage,
-	ChapterId,
 	EncounterState,
-	LocationId,
 	ObjectState
 } from '../../src/lib/adventure/adventure';
-import type { CharacterId, StatusId } from '../../src/lib/adventure/characters';
+import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
-import type { EnemyKind } from './enemies';
-import type { MechanismId } from './mechanisms';
-import type { Origins } from './objects';
-import type { NpcId } from './npcs';
-import type { DecisionId, EncounterId, EndingId, EventId } from './story';
+import type { Origins } from './world';
+
+// Ids are the adventure's own (see define.ts): plain strings here.
+type CharacterId = string;
+type ChapterId = string;
+type LocationId = string;
+type EnemyKind = string;
+type MechanismId = string;
+type NpcId = string;
+type DecisionId = string;
+type EncounterId = string;
+type EndingId = string;
+type EventId = string;
 
 /** Active statuses and the rounds each has left (counting the current one). */
 export type Statuses = Map<StatusId, number>;
@@ -40,9 +46,9 @@ export interface EnemyState {
 	hp: number;
 	maxHp: number;
 	statuses: Statuses;
-	/** Turns before it can use its special again (the Keeper's toll); 0 when ready. */
+	/** Turns before it can use its special again (a toll); 0 when ready. */
 	rest: number;
-	/** Where it stands guard (the Keeper's post by the Bell). */
+	/** Where it stands guard (a guardian's post). */
 	post?: GridPos;
 	/** Who it is after. */
 	target?: CharacterId;
@@ -86,13 +92,13 @@ export interface Encounter {
 	enemies: Map<string, EnemyState>;
 	/** Bumped on every turn, so a stale scheduled enemy turn does nothing. */
 	turn: number;
-	/** The Hollow's waking: which phase it is in (the waking itself, then the Bell ringing itself). */
-	finale?: 'waking' | 'ringing';
-	/** Cells cracking under the party: whoever still stands on one when the floor heaves is hurt. */
+	/** The phase it is in, for a fight with phases (see `PhaseDef`). */
+	finale?: string;
+	/** Cells of its hazard open under the party: whoever still stands on one when it strikes is hurt. */
 	cracks?: GridPos[];
-	/** Pulls on the Bell's rope so far; three hold it. */
+	/** Its phase's counter so far (pulls on a rope). */
 	pulls?: number;
-	/** Someone pulled the rope since the round began, so the Bell can't ring itself. */
+	/** Something counted since the round began (so the unanswered rule doesn't strike). */
 	pulled?: boolean;
 }
 
@@ -110,7 +116,8 @@ export interface Decision {
 }
 
 export interface AdventureState {
-	id: 'hollow-bell';
+	/** Which adventure (see server/adventures). */
+	id: string;
 	stage: AdventureStage;
 	chapter: ChapterId;
 	/** The table the party is on. */
@@ -127,7 +134,7 @@ export interface AdventureState {
 	events: EventId[];
 	/** Enemies the party has beaten, by name, in order. */
 	defeated: string[];
-	/** Each NPC's state, e.g. Oswin wary or trusting. */
+	/** Each NPC's state, e.g. wary or trusting. */
 	npcs: Map<NpcId, string>;
 	/** Lines already said (`<npc>:<line>`) and reactions heard (`reaction:<id>`). */
 	said: Set<string>;

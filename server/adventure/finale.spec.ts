@@ -14,11 +14,11 @@ import {
 	control,
 	decide,
 	interact,
-	PULLS_TO_HOLD,
 	startAdventure
 } from './engine';
-import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './hollow';
-import { recordOrigins } from './objects';
+import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from '../adventures/hollow-bell/hollow';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import { recordOrigins } from './world';
 import { readAdventure, saveAdventure } from './persist';
 import { adventureView } from './view';
 
@@ -57,7 +57,7 @@ beforeEach(() => {
 	story().chapter = 'the_hollow';
 	story().events.push('won_hollow');
 	story().encounters.set('hollow', 'won');
-	story().origins = recordOrigins(room);
+	story().origins = recordOrigins(HOLLOW_BELL, room);
 	put(ana, BY_TOBIN);
 	put(ben, { x: BY_TOBIN.x - 1, y: BY_TOBIN.y });
 });
@@ -230,12 +230,15 @@ describe('phase 3: the Bell becomes part of the fight', () => {
 		turnOf(ana);
 		expect(interact(room, ben, 'bell-rope', 'pull')).toMatchObject({ code: 'not_your_turn' });
 		const first = ok(interact(room, ana, 'bell-rope', 'pull'));
-		expect(texts(first.log)).toContain(`The Bell’s swing shortens. (1 of ${PULLS_TO_HOLD})`);
+		expect(texts(first.log)).toContain(`The Bell’s swing shortens. (1 of 3)`);
 		expect(interact(room, ana, 'bell-rope', 'pull')).toMatchObject({ code: 'not_your_turn' });
-		expect(adventureView(room, ana, new Set(room.tokens.keys()), null)!.encounter?.bell).toEqual({
-			pulls: 1,
-			of: 3
-		});
+		expect(adventureView(room, ana, new Set(room.tokens.keys()), null)!.encounter?.counter).toEqual(
+			{
+				label: 'Bell held',
+				count: 1,
+				of: 3
+			}
+		);
 		pull(ben);
 		const held = pull(ana);
 		expect(texts(held.log)).toContain(
@@ -266,7 +269,7 @@ describe('phase 3: the Bell becomes part of the fight', () => {
 		turnOf(ben);
 		const rung = ok(interact(room, ben, 'handbell', 'ring'));
 		expect(texts(rung.log)).toContain(
-			`You ring the little hand bell, and the great Bell answers it, and checks, as if listening. (1 of ${PULLS_TO_HOLD})`
+			`You ring the little hand bell, and the great Bell answers it, and checks, as if listening. (1 of 3)`
 		);
 	});
 

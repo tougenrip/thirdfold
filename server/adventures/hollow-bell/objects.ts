@@ -1,7 +1,6 @@
 // World objects in The Hollow Bell: the things a character can walk up to
 // and use at each location, what state each is in, and how each state looks
-// on the table. The data lives here; the story each verb advances lives in
-// engine.ts. Object states are kept after the party moves on, so the story
+// on the table. What each verb does in the story is in verbs.ts. Object states are kept after the party moves on, so the story
 // remembers every door opened and everything used.
 //
 // A state's look is ordinary scene data (a prop's asset or position, a door
@@ -9,96 +8,13 @@
 // normal view sync, and hidden objects are filtered out of players' views
 // like anything else they can't see.
 
-import type {
-	Check,
-	InvestigationAction,
-	LocationId,
-	ObjectKind,
-	ObjectState,
-	Physical
-} from '../../src/lib/adventure/adventure';
-import type { GridPos } from '../../src/lib/game/grid';
-import type { Sound } from '../../src/lib/game/motion';
-import type { AssetId, Rotation } from '../../src/lib/game/props';
-import type { Room } from '../rooms';
+import type { ObjectState } from '../../../src/lib/adventure/adventure';
+import type { ObjectDef } from '../../adventure/define';
 import { IDS } from './bellweather';
 import { TEXT } from './content';
 import { CLEFT_EDGE, HOLLOW_IDS } from './hollow';
 import { MONASTERY_IDS, SECRET_EDGE } from './monastery';
 import { NPC_IDS, NPCS } from './npcs';
-
-export interface Verb {
-	id: string;
-	label: string;
-	/** States it can be done in. */
-	from: readonly ObjectState[];
-	/** The state it leaves the object in; unchanged if omitted. */
-	to?: ObjectState;
-	/** What kind of investigating it is; see `actionOfVerb` for the default. */
-	action?: InvestigationAction;
-	/** A check the character must pass first; one try per character. */
-	check?: Check;
-	/** What it physically does (see `Physical`); a change of state if omitted. */
-	physical?: Physical;
-	/** A carried item (world object id) the character must be holding. */
-	needs?: string;
-	/** The sound it makes, if not the usual one for what it does. */
-	sound?: Sound;
-	/** It can be done in a fight too, on the character's turn, as its action. */
-	inFight?: true;
-}
-
-const ACTION_BY_VERB: Record<string, InvestigationAction> = {
-	examine: 'examine',
-	read: 'inspect',
-	search: 'search'
-};
-
-/** How a verb counts as investigating: examining, reading (inspecting), searching, or anything else. */
-export function actionOfVerb(verb: Verb): InvestigationAction {
-	return verb.action ?? ACTION_BY_VERB[verb.id] ?? 'interact';
-}
-
-/** How a state shows on the table. Unlisted states keep the object's scene look. */
-export interface Look {
-	assetId?: AssetId;
-	/** Shift from the object's place in the scene, in cells. */
-	offset?: GridPos;
-	/** The object's light (torches) switched on or off. */
-	lit?: boolean;
-}
-
-export interface ObjectDef {
-	id: string;
-	name: string;
-	kind: ObjectKind;
-	location: LocationId;
-	/** What it is in the scene: a token (people), a prop, or a door. */
-	thing: { token: string } | { prop: string } | { door: string };
-	/** A light that belongs to it (a torch's flame). */
-	light?: string;
-	initial: ObjectState;
-	/** States the GM can put it in. */
-	states: readonly ObjectState[];
-	verbs: readonly Verb[];
-	looks?: Partial<Record<ObjectState, Look>>;
-	/** What the refusal says when it is disabled (doors). */
-	disabledText?: string;
-	/** A secret door's edge: while hidden it is a plain wall (`<door id>-sealed`) there. */
-	secret?: { a: GridPos; b: GridPos };
-	/** An item: it can be picked up, carried from table to table, and put down anywhere. */
-	carry?: true;
-	/** A newcomer's first find: onboarding points new players at it, and it yields this clue. */
-	firstFind?: string;
-	/** Told privately to someone who looks around (Observe) within sight of it, until they find it. */
-	noticed?: string;
-	/**
-	 * Only there while this light (a world object) is lit: carvings that show in
-	 * torchlight, a cleft the flame picks out of the rock. While the light is out
-	 * the object counts as hidden, whatever state it is in (see `shownState`).
-	 */
-	litBy?: string;
-}
 
 const any: readonly ObjectState[] = ['visible', 'interactable', 'used'];
 
@@ -819,106 +735,3 @@ export const OBJECTS: readonly ObjectDef[] = [
 		verbs: [{ id: 'talk', label: `Talk to ${NPCS[id].name}`, from: ['interactable'] }]
 	}))
 ];
-
-export function objectDef(id: string): ObjectDef | undefined {
-	return OBJECTS.find((o) => o.id === id);
-}
-
-export function objectForDoor(doorId: string): ObjectDef | undefined {
-	return OBJECTS.find((o) => 'door' in o.thing && o.thing.door === doorId);
-}
-
-/** The prop a world object is, if it is a prop. */
-export function propIdOf(def: ObjectDef): string | null {
-	return 'prop' in def.thing ? def.thing.prop : null;
-}
-
-export function initialStates(): Map<string, ObjectState> {
-	return new Map(OBJECTS.map((o) => [o.id, o.initial]));
-}
-
-/** Where each moved prop started, so a look's offset is always from the scene position. */
-export type Origins = Map<string, Origin>;
-
-/** Where an object's prop stands and how it looks before its state's look; moved by pushing, pulling, turning and dropping. */
-export interface Origin {
-	pos: GridPos;
-	assetId: AssetId;
-	rotation: Rotation;
-}
-
-/** The world objects at a location. */
-export function objectsAt(location: LocationId): ObjectDef[] {
-	return OBJECTS.filter((o) => o.location === location);
-}
-
-/** Remembers each object prop's scene position and asset, before any look changes them. */
-export function recordOrigins(room: Room): Origins {
-	const origins: Origins = new Map();
-	for (const def of OBJECTS) {
-		const id = propIdOf(def);
-		const prop = id ? room.props.get(id) : undefined;
-		if (prop)
-			origins.set(def.id, { pos: { ...prop.pos }, assetId: prop.assetId, rotation: prop.rotation });
-	}
-	return origins;
-}
-
-/** Makes the table show an object's state: its prop's asset and place, its door, its light. */
-export function applyLook(room: Room, def: ObjectDef, state: ObjectState, origins: Origins): void {
-	const look = def.looks?.[state] ?? {};
-	const propId = propIdOf(def);
-	const origin = origins.get(def.id);
-	// An item in someone's hands is off the table; put down, it is back where it was left.
-	if (propId && def.carry) {
-		if (state === 'carried') room.props.delete(propId);
-		else if (origin && !room.props.has(propId)) {
-			room.props.set(propId, {
-				id: propId,
-				assetId: origin.assetId,
-				pos: { ...origin.pos },
-				rotation: origin.rotation,
-				scale: 1
-			});
-		}
-	}
-	const prop = propId ? room.props.get(propId) : undefined;
-	if (prop && origin) {
-		prop.assetId = look.assetId ?? origin.assetId;
-		const offset = look.offset ?? { x: 0, y: 0 };
-		prop.pos = { x: origin.pos.x + offset.x, y: origin.pos.y + offset.y };
-		prop.rotation = origin.rotation;
-	}
-	if ('door' in def.thing) {
-		if (def.secret) revealDoor(room, def.thing.door, def.secret, state !== 'hidden');
-		const door = room.objects.get(def.thing.door);
-		if (door?.kind === 'door') door.open = state === 'opened';
-	}
-	if (def.light) {
-		const light = room.lights.get(def.light);
-		if (light && look.lit !== undefined) light.on = look.lit;
-	}
-}
-
-/** A secret door is a wall until it is found, then a (closed) door on the same edge. */
-function revealDoor(
-	room: Room,
-	doorId: string,
-	edge: { a: GridPos; b: GridPos },
-	found: boolean
-): void {
-	const sealed = `${doorId}-sealed`;
-	if (found && !room.objects.has(doorId)) {
-		room.objects.delete(sealed);
-		room.objects.set(doorId, {
-			id: doorId,
-			kind: 'door',
-			a: { ...edge.a },
-			b: { ...edge.b },
-			open: false
-		});
-	} else if (!found && !room.objects.has(sealed)) {
-		room.objects.delete(doorId);
-		room.objects.set(sealed, { id: sealed, kind: 'wall', a: { ...edge.a }, b: { ...edge.b } });
-	}
-}

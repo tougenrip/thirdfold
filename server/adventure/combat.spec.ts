@@ -21,9 +21,16 @@ import {
 	startAdventure,
 	startEncounter
 } from './engine';
-import type { EnemyKind } from './enemies';
-import { BY_TOBIN, CULTIST_ROUNDS, HOLLOW_SPAWN, hollowScene, KEEPER_POST } from './hollow';
-import { recordOrigins } from './objects';
+import type { EnemyKind } from '../adventures/hollow-bell/enemies';
+import {
+	BY_TOBIN,
+	CULTIST_ROUNDS,
+	HOLLOW_SPAWN,
+	hollowScene,
+	KEEPER_POST
+} from '../adventures/hollow-bell/hollow';
+import { HOLLOW_BELL } from '../adventures/hollow-bell/index';
+import { recordOrigins } from './world';
 import { applyScene } from '../scene-io';
 import { readAdventure, saveAdventure } from './persist';
 import { adventureView } from './view';
@@ -321,7 +328,7 @@ describe('the Hollow’s watch, outside a fight', () => {
 		});
 		story().location = 'hollow';
 		story().chapter = 'the_hollow';
-		story().origins = recordOrigins(room);
+		story().origins = recordOrigins(HOLLOW_BELL, room);
 		postSentries(room, story(), 'hollow');
 		const watch = [...story().sentries].map(([id, s]) => ({ id, kind: s.kind }));
 		return {

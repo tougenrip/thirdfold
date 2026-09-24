@@ -6,9 +6,9 @@
 //
 // The grid runs x to the east and y to the south.
 
-import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
-import type { SceneFile } from '../../src/lib/game/scene-file';
-import { light, prop, table, wall } from './tables';
+import type { GridPos, SquareGrid } from '../../../src/lib/game/grid';
+import type { SceneFile } from '../../../src/lib/game/scene-file';
+import { light, prop, table, wall } from '../../adventure/tables';
 
 export const HEART_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 16, height: 14 };
 

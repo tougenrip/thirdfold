@@ -2,21 +2,12 @@
 // discovered yet never reaches a client: dialogue, clues and narration go out
 // as log entries and adventure state once they happen.
 
-import type { EvidenceKind } from '../../src/lib/adventure/adventure';
-import type { EndingId, EventId } from './story';
-
-/** A piece of evidence the party can come by. */
-export interface ClueDef {
-	id: string;
-	title: string;
-	text: string;
-	kind: EvidenceKind;
-	/** The story event it raises once the whole party knows it (it unlocks objectives). */
-	unlocks?: EventId;
-}
+import type { ClueDef } from '../../adventure/define';
+import type { EndingId } from './story';
 
 export const TITLE = 'The Hollow Bell';
 
+/** The evidence the party can come by. */
 export const CLUES = {
 	notice: {
 		id: 'notice',

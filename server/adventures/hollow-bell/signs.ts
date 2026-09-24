@@ -2,23 +2,10 @@
 // listening or looking around nearby (Listen and Observe), each behind a
 // check. A character may try each sign once; someone else can try again.
 
-import type { Check, LocationId, Sense } from '../../src/lib/adventure/adventure';
-import type { GridPos } from '../../src/lib/game/grid';
-import type { ClueId } from './content';
+import type { SignDef } from '../../adventure/define';
 import { PIT_AT } from './hollow';
 
-export interface Sign {
-	id: string;
-	location: LocationId;
-	sense: Sense;
-	/** Where it is; a character within `range` cells with a clear line can pick it up. */
-	at: GridPos;
-	range: number;
-	check: Check;
-	clue: ClueId;
-}
-
-export const SIGNS: readonly Sign[] = [
+export const SIGNS: readonly SignDef[] = [
 	// Bellweather
 	{
 		id: 'well-hum',

@@ -11,7 +11,8 @@ import type { Blockers } from '../game/objects';
 import { hasLineOfSight } from '../game/visibility';
 import type { Action, CharacterId, StatId, StatusId } from './characters';
 
-export type AdventureId = 'hollow-bell';
+/** Which adventure is being played (its own id; see server/adventures). */
+export type AdventureId = string;
 
 /** Whether the story is being played: before it begins, during, and how it ended. */
 export type AdventureStage =
@@ -23,40 +24,11 @@ export type AdventureStage =
 	/** Every character went down; the GM can start again. */
 	| 'defeat';
 
-/**
- * The chapters of The Hollow Bell in story order. Play moves the party from
- * one to the next; the server decides when (see server/adventure/story.ts).
- */
-export const CHAPTER_IDS = [
-	'village',
-	'discover_bell',
-	'investigate_monastery',
-	'enter_monastery',
-	'discover_hidden_chamber',
-	'bell_rings',
-	'descend',
-	'the_hollow',
-	'the_pit',
-	'the_waking',
-	'the_ringing',
-	'final_decision',
-	'the_descent'
-] as const;
+/** A chapter of the adventure being played (its own id; see server/adventure/define.ts). */
+export type ChapterId = string;
 
-export type ChapterId = (typeof CHAPTER_IDS)[number];
-
-export function isChapterId(value: unknown): value is ChapterId {
-	return typeof value === 'string' && (CHAPTER_IDS as readonly string[]).includes(value);
-}
-
-/** The tables the story is played on. */
-export const LOCATION_IDS = ['bellweather', 'monastery', 'hollow', 'heart'] as const;
-
-export type LocationId = (typeof LOCATION_IDS)[number];
-
-export function isLocationId(value: unknown): value is LocationId {
-	return typeof value === 'string' && (LOCATION_IDS as readonly string[]).includes(value);
-}
+/** A table the adventure is played on (its own id). */
+export type LocationId = string;
 
 export interface ChapterView {
 	id: ChapterId;
@@ -400,8 +372,8 @@ export interface EncounterView {
 	speed: number;
 	/** Enemies this viewer can see. */
 	enemies: EnemyStatus[];
-	/** While the Bell rings itself: pulls on its rope so far, of those needed to hold it; else null. */
-	bell: { pulls: number; of: number } | null;
+	/** Something the party works toward in this phase of the fight (pulls holding a bell): so far, of how many; else null. */
+	counter: { label: string; count: number; of: number } | null;
 }
 
 export interface ReadAloud {

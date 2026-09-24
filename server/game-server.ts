@@ -20,7 +20,6 @@ import {
 	SCENE_FILE_MAX_BYTES
 } from '../src/lib/game/scene-file';
 import * as adventure from './adventure/engine';
-import type { MechanismId } from './adventure/mechanisms';
 import { readAdventure } from './adventure/persist';
 import { RateLimiter } from './rate-limit';
 import { applyScene, exportScene, reclaim } from './scene-io';
@@ -551,10 +550,10 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 	}
 
-	/** Runs a mechanism's next step after its pause (see server/adventure/mechanisms.ts). */
+	/** Runs a mechanism's next step after its pause (see `MechanismDef` in server/adventure/define.ts). */
 	function scheduleMechanism(
 		room: Room,
-		next: { id: MechanismId; step: number; delay: number },
+		next: { id: string; step: number; delay: number },
 		wait = next.delay * mechanismDelayScale
 	): void {
 		const timer = setTimeout(() => {

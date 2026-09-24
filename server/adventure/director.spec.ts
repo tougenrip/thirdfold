@@ -14,7 +14,7 @@ import {
 	patrol,
 	startAdventure
 } from './engine';
-import { DECISIONS } from './story';
+import { DECISIONS } from '../adventures/hollow-bell/story';
 import { adventureView } from './view';
 
 const max: DieRoller = (sides) => sides;
@@ -115,7 +115,8 @@ describe('skipping a scene', () => {
 		for (let i = 0; i < 40 && story().stage === 'playing'; i++) {
 			const pending = story().pending;
 			if (pending) {
-				const option = pending === 'bell' ? 'use' : DECISIONS[pending].options[0].id;
+				const option =
+					pending === 'bell' ? 'use' : DECISIONS[pending as keyof typeof DECISIONS].options[0].id;
 				ok(decide(room, gm, pending, option));
 			} else ok(gmDo({ op: 'skip' }));
 			if (chapters.at(-1) !== story().chapter) chapters.push(story().chapter);

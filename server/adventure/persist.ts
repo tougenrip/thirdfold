@@ -1,33 +1,21 @@
-// Saving The Hollow Bell with the table, and reading it back. A save is plain
+// Saving a story with the table, and reading it back. A save is plain
 // JSON inside the scene file's `adventure` field (scene file v4). The core
 // scene parser only checks it is JSON; everything in it is validated here, as
 // strictly as live actions, against the scene it was saved with, before the
 // room is touched. A tampered save can at worst be rejected.
 
 import {
-	isChapterId,
-	isLocationId,
 	isObjectState,
 	type AdventureStage,
 	type EncounterState,
 	type ObjectState
 } from '../../src/lib/adventure/adventure';
-import {
-	BLEED_OUT_ROUNDS,
-	CHARACTERS,
-	CHARACTER_IDS,
-	isCharacterId,
-	STATUS_IDS,
-	type CharacterId,
-	type StatusId
-} from '../../src/lib/adventure/characters';
+import { BLEED_OUT_ROUNDS, STATUS_IDS, type StatusId } from '../../src/lib/adventure/characters';
 import { inBounds, type GridPos } from '../../src/lib/game/grid';
 import { isAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
-import { CLUES, CUES } from './content';
-import { ENEMY_KINDS } from './enemies';
-import { MECHANISM_IDS, MECHANISMS, type MechanismId } from './mechanisms';
-import { objectDef, type Origins } from './objects';
+import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
+import { contentOf, findAdventure } from './registry';
 import type {
 	AdventureState,
 	CharacterState,
@@ -39,29 +27,13 @@ import type {
 	Statuses,
 	TurnEntry
 } from './state';
-import {
-	CHAPTERS,
-	DECISIONS,
-	ENCOUNTER_IDS,
-	ENDING_IDS,
-	EVENT_IDS,
-	OLD_BELL_OPTIONS,
-	OLD_ENDINGS,
-	type DecisionId,
-	type EncounterId,
-	type EndingId,
-	type EventId
-} from './story';
-import { NPC_IDS, NPCS, REACTIONS, type NpcId } from './npcs';
-
-export const SAVE_ID = 'hollow-bell';
-export const SAVE_VERSION = 1;
+import { objectDef, type Origins } from './world';
 
 const STAGES: readonly AdventureStage[] = ['choosing', 'playing', 'complete', 'defeat'];
 const ENCOUNTER_STATES: readonly EncounterState[] = ['active', 'won', 'lost'];
 const NAME_MAX = 48;
-/** A failed check: `<character>:<object>:<verb>` or `<character>:sign:<id>`. */
-const TRIED = /^(warden|veil|ember|saint):[a-z0-9-]{1,40}:[a-z0-9-]{1,40}$/;
+/** A failed check, after the character: `<object>:<verb>` or `sign:<id>`. */
+const TRIED = /^[a-z0-9-]{1,40}:[a-z0-9-]{1,40}$/;
 const LIST_MAX = 100;
 const COUNT_MAX = 999;
 
@@ -70,9 +42,10 @@ const entriesOf = <K extends string, V>(map: Map<K, V>) => Object.fromEntries(ma
 /** The story as saved: Maps and Sets become plain objects and arrays. */
 export function saveAdventure(adventure: AdventureState): SavedStory {
 	const statuses = (s: Statuses) => entriesOf(s);
+	const A = contentOf(adventure.id);
 	return {
-		id: SAVE_ID,
-		version: SAVE_VERSION,
+		id: A.id,
+		version: A.version,
 		state: {
 			stage: adventure.stage,
 			chapter: adventure.chapter,
@@ -238,14 +211,15 @@ function statuses(value: unknown, what: string): Statuses {
  * on that table). Does not touch any room.
  */
 export function readAdventure(saved: SavedStory, scene: SceneFile): AdventureRead {
-	if (saved.id !== SAVE_ID) {
+	const A = findAdventure(saved.id);
+	if (!A) {
 		return { ok: false, error: 'This table was saved with a story this server does not know.' };
 	}
-	if (saved.version > SAVE_VERSION) {
+	if (saved.version > A.version) {
 		return { ok: false, error: 'This story was saved by a newer version of thirdfold.' };
 	}
 	try {
-		return { ok: true, adventure: read(saved.state, scene) };
+		return { ok: true, adventure: read(A, saved.state, scene) };
 	} catch (err) {
 		if (err instanceof Invalid)
 			return { ok: false, error: `The saved story is invalid: ${err.message}.` };
@@ -253,21 +227,26 @@ export function readAdventure(saved: SavedStory, scene: SceneFile): AdventureRea
 	}
 }
 
-function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
+function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
 	const stage = oneOf(data.stage, STAGES, 'stage');
-	check(isChapterId(data.chapter), 'chapter');
-	check(isLocationId(data.location), 'location');
-	const chapter = data.chapter;
-	const location = data.location;
-	check(CHAPTERS[chapter].location === location, 'chapter and location disagree');
+	const chapter = oneOf(data.chapter, Object.keys(A.chapters), 'chapter');
+	const location = oneOf(data.location, Object.keys(A.locations), 'location');
+	check(A.chapters[chapter].location === location, 'chapter and location disagree');
+	const characterIds = Object.keys(A.characters);
+	const isCharacterId = (value: unknown): value is string =>
+		typeof value === 'string' && characterIds.includes(value);
+	const character = (value: unknown, what: string): string => {
+		check(isCharacterId(value), what);
+		return value;
+	};
 
-	const characters = new Map<CharacterId, CharacterState>();
+	const characters = new Map<string, CharacterState>();
 	const characterTokens = new Set<string>();
 	for (const [id, raw] of Object.entries(record(data.characters, 'characters'))) {
 		check(isCharacterId(id), 'character');
 		const c = record(raw, 'character');
-		const def = CHARACTERS[id];
+		const def = A.characters[id];
 		check(typeof c.tokenId === 'string' && tokenIds.has(c.tokenId), `${def.name}'s token`);
 		check(!characterTokens.has(c.tokenId), `${def.name}'s token`);
 		characterTokens.add(c.tokenId);
@@ -288,30 +267,34 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		});
 	}
 
-	const npcs = new Map<NpcId, string>();
+	const npcs = new Map<string, string>();
 	for (const [id, state] of Object.entries(record(data.npcs, 'people'))) {
-		const npc = oneOf(id, NPC_IDS, 'person');
-		npcs.set(npc, oneOf(state, NPCS[npc].states, `${NPCS[npc].name}'s state`));
+		const npc = A.npcs[oneOf(id, Object.keys(A.npcs), 'person')];
+		npcs.set(npc.id, oneOf(state, npc.states, `${npc.name}'s state`));
 	}
-	for (const id of NPC_IDS) if (!npcs.has(id)) npcs.set(id, NPCS[id].states[0]);
+	for (const npc of Object.values(A.npcs)) if (!npcs.has(npc.id)) npcs.set(npc.id, npc.states[0]);
 
 	// Saves from before people had lines to remember have none.
 	const sayable = [
-		...NPC_IDS.flatMap((id) => NPCS[id].lines.map((l) => `${id}:${l.id}`)),
-		...REACTIONS.map((r) => `reaction:${r.id}`)
+		...Object.values(A.npcs).flatMap((npc) => npc.lines.map((l) => `${npc.id}:${l.id}`)),
+		...A.reactions.map((r) => `reaction:${r.id}`),
+		...remembered(A)
 	];
 	const said = new Set(data.said === undefined ? [] : uniqueList(data.said, sayable, 'lines'));
 
-	const decisions = new Map<DecisionId, Decision>();
-	const decisionIds = Object.keys(DECISIONS) as DecisionId[];
+	const decisions = new Map<string, Decision>();
+	const decisionIds = Object.keys(A.decisions);
+	const renamedOptions = A.renamed?.options ?? {};
 	for (const [id, raw] of Object.entries(record(data.decisions, 'decisions'))) {
 		const decision = oneOf(id, decisionIds, 'decision');
 		const d = record(raw, 'decision');
-		const options = DECISIONS[decision].options.map((o) => o.id);
-		// Saves from before the finale had phases answered the Bell with other words.
+		const options = A.decisions[decision].options.map((o) => o.id);
+		// Older saves may answer the deciding choice with words since renamed.
 		const answer =
-			decision === 'bell' && typeof d.option === 'string' && OLD_BELL_OPTIONS[d.option]
-				? OLD_BELL_OPTIONS[d.option]
+			decision === A.endings.decision &&
+			typeof d.option === 'string' &&
+			Object.hasOwn(renamedOptions, d.option)
+				? renamedOptions[d.option]
 				: d.option;
 		decisions.set(decision, {
 			option: oneOf(answer, options, 'choice'),
@@ -321,14 +304,16 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	const pending = data.pending === null ? null : oneOf(data.pending, decisionIds, 'choice');
 	check(!pending || !decisions.has(pending), 'choice');
 
-	const encounters = new Map<EncounterId, EncounterState>();
+	const encounterIds = [...Object.keys(A.encounters), AMBUSH];
+	const enemyKinds = Object.keys(A.enemies);
+	const encounters = new Map<string, EncounterState>();
 	for (const [id, state] of Object.entries(record(data.encounters, 'fights'))) {
-		encounters.set(oneOf(id, ENCOUNTER_IDS, 'fight'), oneOf(state, ENCOUNTER_STATES, 'fight'));
+		encounters.set(oneOf(id, encounterIds, 'fight'), oneOf(state, ENCOUNTER_STATES, 'fight'));
 	}
 
 	const objects = new Map<string, ObjectState>();
 	for (const [id, state] of Object.entries(record(data.objects, 'objects'))) {
-		const def = objectDef(id);
+		const def = objectDef(A, id);
 		check(def && isObjectState(state), 'object');
 		check(
 			def.states.includes(state) ||
@@ -342,7 +327,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 
 	const origins: Origins = new Map();
 	for (const [id, raw] of Object.entries(record(data.origins, 'objects'))) {
-		const def = objectDef(id);
+		const def = objectDef(A, id);
 		const o = record(raw, 'object');
 		const pos = record(o.pos, 'object');
 		// Items go from table to table with the party; everything else stays where it was.
@@ -355,24 +340,24 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	}
 
 	// Saves from before things could be carried have nothing in anyone's hands.
-	const carried = new Map<string, CharacterId>();
+	const carried = new Map<string, string>();
 	for (const [id, who] of Object.entries(
 		data.carried === undefined ? {} : record(data.carried, 'items')
 	)) {
-		const def = objectDef(id);
+		const def = objectDef(A, id);
 		check(def?.carry && isCharacterId(who) && characters.has(who), 'items');
 		check(objects.get(id) === 'carried' && origins.has(id), 'items');
 		carried.set(id, who);
 	}
 	for (const [id, state] of objects) check(state !== 'carried' || carried.has(id), 'items');
 
-	const running = new Map<MechanismId, number>();
+	const running = new Map<string, number>();
 	for (const [id, step] of Object.entries(
 		data.running === undefined ? {} : record(data.running, 'mechanisms')
 	)) {
-		const mechanism = oneOf(id, MECHANISM_IDS, 'mechanisms');
-		check(MECHANISMS[mechanism].location === location, 'mechanisms');
-		running.set(mechanism, int(step, 1, MECHANISMS[mechanism].steps.length - 1, 'mechanisms'));
+		const mechanism = A.mechanisms[oneOf(id, Object.keys(A.mechanisms), 'mechanisms')];
+		check(mechanism.location === location, 'mechanisms');
+		running.set(mechanism.id, int(step, 1, mechanism.steps.length - 1, 'mechanisms'));
 	}
 
 	// Saves from before sentries have none on the table.
@@ -385,8 +370,8 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		const route = list(sentry.route, 'sentries').map((c) => cell(c, scene, 'sentries'));
 		check(route.length > 0 && route.length <= 16, 'sentries');
 		sentries.set(tokenId, {
-			kind: oneOf(sentry.kind, ENEMY_KINDS, 'sentries'),
-			encounter: oneOf(sentry.encounter, ENCOUNTER_IDS, 'sentries'),
+			kind: oneOf(sentry.kind, enemyKinds, 'sentries'),
+			encounter: oneOf(sentry.encounter, encounterIds, 'sentries'),
 			route,
 			leg: int(sentry.leg, 0, route.length - 1, 'sentries')
 		});
@@ -395,13 +380,13 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	let encounter: Encounter | null = null;
 	if (data.encounter !== null) {
 		const e = record(data.encounter, 'fight');
-		const id = oneOf(e.id, ENCOUNTER_IDS, 'fight');
+		const id = oneOf(e.id, encounterIds, 'fight');
 		check(encounters.get(id) === 'active', 'fight');
 		const enemies = new Map<string, EnemyState>();
 		for (const [tokenId, raw] of Object.entries(record(e.enemies, 'enemies'))) {
 			check(tokenIds.has(tokenId) && !characterTokens.has(tokenId), 'enemy');
 			const enemy = record(raw, 'enemy');
-			const kind = oneOf(enemy.kind, ENEMY_KINDS, 'enemy');
+			const kind = oneOf(enemy.kind, enemyKinds, 'enemy');
 			const maxHp = int(enemy.maxHp, 1, COUNT_MAX, 'enemy');
 			enemies.set(tokenId, {
 				kind,
@@ -416,7 +401,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 				...(enemy.lastHitBy === undefined ? {} : { lastHitBy: character(enemy.lastHitBy, 'enemy') })
 			});
 		}
-		const order = turnOrder(e, characters, enemies);
+		const order = turnOrder(e, characters, enemies, isCharacterId);
 		// Saves from before initiative: whoever the old phase was waiting on goes first.
 		const firstEnemy = order.findIndex((t) => t.kind === 'enemy');
 		const current =
@@ -427,7 +412,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 				: int(e.current, 0, order.length - 1, 'turn order');
 		const up = order[current];
 		check(up, 'turn order');
-		const moved = new Map<CharacterId, number>();
+		const moved = new Map<string, number>();
 		for (const [who, n] of Object.entries(record(e.moved, 'movement'))) {
 			check(isCharacterId(who), 'movement');
 			moved.set(who, int(n, 0, COUNT_MAX, 'movement'));
@@ -440,7 +425,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 			speed:
 				e.speed === undefined
 					? up.kind === 'character'
-						? CHARACTERS[up.id].speed
+						? A.characters[up.id].speed
 						: 0
 					: int(e.speed, 0, COUNT_MAX, 'movement'),
 			acted: new Set(
@@ -455,24 +440,25 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 			...(e.finale === undefined
 				? {}
 				: {
-						finale: oneOf(e.finale, ['waking', 'ringing'] as const, 'fight'),
+						finale: oneOf(e.finale, Object.keys(A.encounters[id]?.phases?.all ?? {}), 'fight'),
 						cracks: list(e.cracks, 'fight').map((c) => cell(c, scene, 'fight')),
-						pulls: int(e.pulls, 0, 3, 'fight'),
+						pulls: int(e.pulls, 0, counterMax(A, id), 'fight'),
 						pulled: bool(e.pulled, 'fight')
 					})
 		};
 	}
 	check(!encounter || stage === 'playing', 'fight');
 
-	const ending: EndingId | null =
+	const renamedEndings = A.renamed?.endings ?? {};
+	const ending: string | null =
 		data.ending === null
 			? null
-			: typeof data.ending === 'string' && OLD_ENDINGS[data.ending]
-				? OLD_ENDINGS[data.ending]
-				: oneOf(data.ending, ENDING_IDS, 'ending');
+			: typeof data.ending === 'string' && Object.hasOwn(renamedEndings, data.ending)
+				? renamedEndings[data.ending]
+				: oneOf(data.ending, Object.keys(A.endings.names), 'ending');
 	check((ending !== null) === (stage === 'complete'), 'ending');
 
-	const clueIds = Object.keys(CLUES);
+	const clueIds = Object.keys(A.clues);
 	// Evidence, in the order found. Saves from before evidence had finders list clues, all shared.
 	const evidence = new Map<string, Finding>();
 	if (data.evidence === undefined) {
@@ -484,7 +470,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 			oneOf(id, clueIds, 'evidence');
 			const f = record(raw, 'evidence');
 			check(typeof f.shared === 'boolean', 'evidence');
-			const by = uniqueList(f.by, CHARACTER_IDS, 'evidence');
+			const by = uniqueList(f.by, characterIds, 'evidence');
 			check(f.shared || by.length > 0, 'evidence');
 			evidence.set(id, { by, shared: f.shared });
 		}
@@ -492,19 +478,21 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	const attempts = data.tried === undefined ? [] : list(data.tried, 'checks');
 	const tried = new Set(
 		attempts.map((t) => {
-			check(typeof t === 'string' && TRIED.test(t), 'checks');
+			check(typeof t === 'string', 'checks');
+			const at = t.indexOf(':');
+			check(isCharacterId(t.slice(0, at)) && TRIED.test(t.slice(at + 1)), 'checks');
 			return t;
 		})
 	);
 	return {
-		id: 'hollow-bell',
+		id: A.id,
 		stage,
 		chapter,
 		location,
 		characters,
 		evidence,
 		tried,
-		events: uniqueList<EventId>(data.events, EVENT_IDS, 'events'),
+		events: uniqueList(data.events, Object.keys(A.events), 'events'),
 		defeated: list(data.defeated, 'defeated enemies').map((n) => name(n, 'defeated enemies')),
 		npcs,
 		said,
@@ -520,7 +508,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		cuesRead: new Set(
 			uniqueList(
 				data.cuesRead,
-				CUES.map((c) => c.id),
+				A.cues.map((c) => c.id),
 				'passages'
 			)
 		),
@@ -538,9 +526,20 @@ function cell(value: unknown, scene: SceneFile, what: string): GridPos {
 	return at;
 }
 
-function character(value: unknown, what: string): CharacterId {
-	check(isCharacterId(value), what);
-	return value;
+/** Moments a story remembers (`remember` effects), which `said` may hold. */
+function remembered(A: AdventureDef): string[] {
+	const found: string[] = [];
+	JSON.stringify(A, (key, value) => {
+		if (key === 'remember' && typeof value === 'string') found.push(value);
+		return value;
+	});
+	return found;
+}
+
+/** The most a fight's counter can reach. */
+function counterMax(A: AdventureDef, id: string): number {
+	const phases = Object.values(A.encounters[id]?.phases?.all ?? {});
+	return Math.max(0, ...phases.map((p) => p.counter?.target ?? 0));
 }
 
 /**
@@ -550,8 +549,9 @@ function character(value: unknown, what: string): CharacterId {
  */
 function turnOrder(
 	e: Record<string, unknown>,
-	characters: Map<CharacterId, CharacterState>,
-	enemies: Map<string, EnemyState>
+	characters: Map<string, CharacterState>,
+	enemies: Map<string, EnemyState>,
+	isCharacterId: (value: unknown) => value is string
 ): TurnEntry[] {
 	if (e.order === undefined) {
 		return [
@@ -586,6 +586,6 @@ function turnOrder(
 }
 
 /** Doors follow their scene door, so any door may be saved opened or closed. */
-function isDoorState(def: NonNullable<ReturnType<typeof objectDef>>, state: ObjectState): boolean {
+function isDoorState(def: ObjectDef, state: ObjectState): boolean {
 	return 'door' in def.thing && (state === 'opened' || state === 'closed');
 }

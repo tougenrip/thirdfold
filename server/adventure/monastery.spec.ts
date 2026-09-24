@@ -17,7 +17,7 @@ import {
 	MONASTERY_IDS,
 	MONASTERY_SPAWN,
 	monasteryScene
-} from './monastery';
+} from '../adventures/hollow-bell/monastery';
 
 function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 	if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result)}`);

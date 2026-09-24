@@ -18,12 +18,12 @@
 // shore at 3 (a drop nobody climbs out of), the island at 4, the Steps at 5
 // and the Watch at 7.
 
-import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
-import type { Prop } from '../../src/lib/game/props';
-import type { SceneFile } from '../../src/lib/game/scene-file';
-import { flatLevels, withLevel } from '../../src/lib/game/terrain';
+import type { GridPos, SquareGrid } from '../../../src/lib/game/grid';
+import type { Prop } from '../../../src/lib/game/props';
+import type { SceneFile } from '../../../src/lib/game/scene-file';
+import { flatLevels, withLevel } from '../../../src/lib/game/terrain';
 import { npcTokens } from './npcs';
-import { at, light, prop, table, wall, window, type Rise } from './tables';
+import { at, light, prop, table, wall, window, type Rise } from '../../adventure/tables';
 
 export const HOLLOW_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 48, height: 36 };
 

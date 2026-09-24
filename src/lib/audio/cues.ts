@@ -210,7 +210,7 @@ export function musicFor(adventure: AdventureView | null, ambient: Ambient): Mus
 	if (encounter)
 		return {
 			mood,
-			intensity: encounter.bell || FINALE.has(adventure.chapter.id) ? 3 : 2,
+			intensity: encounter.counter || FINALE.has(adventure.chapter.id) ? 3 : 2,
 			ending: null
 		};
 	const tense = !!adventure.decision || ambient === 'dark' || FINALE.has(adventure.chapter.id);
