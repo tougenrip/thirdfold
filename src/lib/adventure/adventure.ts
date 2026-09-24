@@ -88,7 +88,8 @@ export interface EndingView {
 export interface StoryLedger {
 	events: string[];
 	defeated: string[];
-	npcs: { id: string; name: string; state: string }[];
+	/** Everyone in the story, where they are found and how they are. */
+	npcs: { id: string; name: string; home: string; state: string }[];
 	encounters: { id: string; state: EncounterState }[];
 }
 

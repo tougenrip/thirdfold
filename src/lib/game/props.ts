@@ -44,7 +44,8 @@ export const ASSETS = {
 	grate: { name: 'Iron grate', w: 1, h: 1, blocks: 'none' },
 	stairs: { name: 'Stair down', w: 1, h: 1, blocks: 'none' },
 	rope: { name: 'Bell rope', w: 1, h: 1, blocks: 'none' },
-	bell: { name: 'Great bell', w: 2, h: 2, blocks: 'movement' }
+	bell: { name: 'Great bell', w: 2, h: 2, blocks: 'movement' },
+	anvil: { name: 'Anvil', w: 1, h: 1, blocks: 'movement' }
 } as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;

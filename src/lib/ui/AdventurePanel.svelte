@@ -260,7 +260,16 @@
 									: 'none yet'}
 							</dd>
 							<dt>People</dt>
-							<dd>{adventure.ledger.npcs.map((n) => `${n.name}: ${n.state}`).join(', ')}</dd>
+							<dd>
+								<ul class="people">
+									{#each adventure.ledger.npcs as n (n.id)}
+										<li>
+											{n.name} <em>{n.state}</em>
+											<small>{n.home}</small>
+										</li>
+									{/each}
+								</ul>
+							</dd>
 							<dt>Fights</dt>
 							<dd>
 								{adventure.ledger.encounters.length
@@ -451,6 +460,20 @@
 
 	.ledger dd {
 		margin: 0;
+	}
+
+	.people {
+		gap: 0.15rem;
+	}
+
+	.people em {
+		color: var(--accent);
+		font-style: normal;
+	}
+
+	.people small {
+		display: block;
+		color: var(--muted);
 	}
 
 	.clues p {

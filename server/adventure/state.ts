@@ -15,7 +15,8 @@ import type {
 } from '../../src/lib/adventure/adventure';
 import type { CharacterId, StatusId } from '../../src/lib/adventure/characters';
 import type { Origins } from './objects';
-import type { DecisionId, EncounterId, EndingId, EventId, NpcId } from './story';
+import type { NpcId } from './npcs';
+import type { DecisionId, EncounterId, EndingId, EventId } from './story';
 
 /** Active statuses and the rounds each has left (counting the current one). */
 export type Statuses = Map<StatusId, number>;
@@ -72,6 +73,8 @@ export interface AdventureState {
 	defeated: string[];
 	/** Each NPC's state, e.g. Oswin wary or trusting. */
 	npcs: Map<NpcId, string>;
+	/** Lines already said (`<npc>:<line>`) and reactions heard (`reaction:<id>`). */
+	said: Set<string>;
 	/** Choices made, by decision id. */
 	decisions: Map<DecisionId, Decision>;
 	/** The choice put to the party and not yet answered. */

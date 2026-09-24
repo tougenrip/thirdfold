@@ -2,7 +2,8 @@
 // the floor shaped by light levels, a fixed pool of real point lights for the
 // nearest sources (so minis and walls glow), and lantern fixtures. Everything
 // is derived from state the client was sent; the server already applied the
-// rules about what darkness hides.
+// rules about what darkness hides. After dark, flames flicker (`flicker`),
+// which is cosmetic and costs no state.
 
 import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
@@ -44,6 +45,9 @@ export class LightingLayer {
 	private postGeometry = new THREE.CylinderGeometry(0.05, 0.08, FIXTURE_HEIGHT, 8);
 	private flameGeometry = new THREE.SphereGeometry(0.13, 16, 12);
 	private postMaterial = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.8 });
+	/** Each pool light's steady intensity, which flicker varies around. */
+	private steady: number[] = [];
+	private ambient: Ambient = 'day';
 
 	constructor(private readonly base: SceneLights) {
 		this.overlay = new THREE.Mesh(
@@ -78,6 +82,7 @@ export class LightingLayer {
 		visible: Uint8Array | null
 	): void {
 		const preset = PRESETS[ambient];
+		this.ambient = ambient;
 		this.base.scene.background = new THREE.Color(preset.background);
 		if (this.base.scene.fog instanceof THREE.Fog)
 			this.base.scene.fog.color.setHex(preset.background);
@@ -161,7 +166,7 @@ export class LightingLayer {
 		this.pool.forEach((light, i) => {
 			const s = chosen[i];
 			if (!s) {
-				light.intensity = 0;
+				light.intensity = this.steady[i] = 0;
 				return;
 			}
 			const w = gridToWorld(grid, s.pos);
@@ -169,7 +174,33 @@ export class LightingLayer {
 			light.color.set(s.color);
 			light.distance = (s.radius + 1.5) * grid.cellSize;
 			light.intensity = strength * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
+			this.steady[i] = light.intensity;
 		});
+	}
+
+	/** Whether anything flickers: lit flames after dark. */
+	get flickers(): boolean {
+		return this.ambient !== 'day' && this.steady.some((v) => v > 0);
+	}
+
+	/**
+	 * Makes flames waver for time `now` (ms): each light on its own slow,
+	 * irregular beat. Returns whether there is anything to animate.
+	 */
+	flicker(now: number): boolean {
+		if (!this.flickers) return false;
+		const t = now / 1000;
+		this.pool.forEach((light, i) => {
+			const wave = Math.sin(t * 7.3 + i * 1.7) * 0.5 + Math.sin(t * 13.1 + i * 2.9) * 0.3;
+			light.intensity = this.steady[i] * (1 + 0.08 * wave);
+		});
+		let i = 0;
+		for (const fixture of this.fixtures.values()) {
+			const flame = fixture.children[1];
+			const wave = Math.sin(t * 9.7 + i++ * 2.3);
+			flame.scale.set(1 - 0.05 * wave, 1 + 0.1 * wave, 1 - 0.05 * wave);
+		}
+		return true;
 	}
 
 	private updateFixtures(grid: SquareGrid, lights: readonly Light[]): void {

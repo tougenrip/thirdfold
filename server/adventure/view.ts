@@ -12,7 +12,8 @@ import { chapterNumber, objectCells, objectState, usesLeft, verbsFor } from './e
 import { LOCATIONS } from './locations';
 import { OBJECTS } from './objects';
 import type { Statuses } from './state';
-import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, NPC_IDS, NPCS, objectivesFor } from './story';
+import { NPC_IDS, NPCS } from './npcs';
+import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, objectivesFor } from './story';
 
 const listStatuses = (statuses: Statuses) => [...statuses].map(([id, rounds]) => ({ id, rounds }));
 
@@ -125,6 +126,7 @@ export function adventureView(
 						npcs: NPC_IDS.map((id) => ({
 							id,
 							name: NPCS[id].name,
+							home: NPCS[id].home,
 							state: adventure.npcs.get(id) ?? NPCS[id].states[0]
 						})),
 						encounters: ENCOUNTER_IDS.flatMap((id) => {

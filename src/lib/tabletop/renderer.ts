@@ -20,6 +20,7 @@ import type { SceneObject } from '$lib/game/objects';
 import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
 import { decodeMask, type FogView } from '$lib/game/visibility';
+import { AmbienceLayer } from './ambience';
 import { LightingLayer } from './lighting';
 import { PropLayer } from './props';
 import { DiceLayer, type DiceThrow } from './dice3d';
@@ -116,6 +117,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 	renderer.shadowMap.enabled = true;
+	// Only the ambient mist clips (to the table).
+	renderer.localClippingEnabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
@@ -160,6 +163,18 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const lighting = new LightingLayer({ hemisphere, sun, lamp, scene });
 	scene.add(lighting.group);
 	let lightState: { ambient: Ambient; lights: readonly Light[] } = { ambient: 'day', lights: [] };
+	const ambience = new AmbienceLayer();
+	scene.add(ambience.group);
+	/** Flickering flames and drifting mist redraw at a slow, fixed rate, never per frame. */
+	const AMBIENT_FRAME_MS = 80;
+	let ambientTimer: ReturnType<typeof setTimeout> | 0 = 0;
+	function scheduleAmbient(): void {
+		if (ambientTimer) return;
+		ambientTimer = setTimeout(() => {
+			ambientTimer = 0;
+			requestRender();
+		}, AMBIENT_FRAME_MS);
+	}
 
 	/** Light depends on tokens (carried light), walls (blocking), fog (player visibility) and lights. */
 	function refreshLighting(): void {
@@ -169,6 +184,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			fog?.enabled && fogState.mode === 'player'
 				? decodeMask(fog.visible, grid.width * grid.height)
 				: null;
+		ambience.update(grid, lightState.ambient);
 		lighting.update(
 			grid,
 			lightState.ambient,
@@ -230,6 +246,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		const doorsMoving = wallLayer.tick(dt);
 		const diceRolling = diceLayer.tick(now);
 		if (tokensMoving || doorsMoving || diceRolling) requestRender();
+		if (!reducedMotion) {
+			const flickering = lighting.flicker(now);
+			const drifting = ambience.tick(now);
+			if (flickering || drifting) scheduleAmbient();
+		}
 		if (transition) {
 			const t = Math.min((now - transition.start) / VIEW_TRANSITION_MS, 1);
 			const k = 1 - (1 - t) ** 3;
@@ -582,6 +603,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			wallLayer.dispose();
 			fogLayer.dispose();
 			lighting.dispose();
+			if (ambientTimer) clearTimeout(ambientTimer);
+			ambience.dispose();
 			propLayer.dispose();
 			diceLayer.dispose();
 			previewGroup.clear();

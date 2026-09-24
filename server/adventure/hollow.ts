@@ -7,12 +7,12 @@
 
 import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
 import type { SceneFile } from '../../src/lib/game/scene-file';
-import { light, npc, prop, table, wall } from './tables';
+import { npcTokens } from './npcs';
+import { light, prop, table, wall } from './tables';
 
 export const HOLLOW_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 20, height: 16 };
 
 export const HOLLOW_IDS = {
-	tobin: 'ho-tobin',
 	bell: 'ho-bell',
 	pit: 'ho-pit',
 	bones: 'ho-bones'
@@ -38,7 +38,7 @@ export function hollowScene(now = new Date()): SceneFile {
 			grid: HOLLOW_GRID,
 			ambient: 'dusk',
 			arrival: { from: { x: 6, y: 11 }, to: { x: 13, y: 15 } },
-			tokens: [npc(I.tobin, 'Tobin', '#d9a441', 9, 4)],
+			tokens: npcTokens('hollow'),
 			objects: [
 				// Ribs of rock narrowing the cave.
 				wall('ho-rock1', { x: 0, y: 4 }, { x: 4, y: 4 }),

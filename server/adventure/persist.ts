@@ -38,14 +38,12 @@ import {
 	DECISIONS,
 	ENCOUNTER_IDS,
 	EVENT_IDS,
-	NPC_IDS,
-	NPCS,
 	type DecisionId,
 	type EncounterId,
 	type EndingId,
-	type EventId,
-	type NpcId
+	type EventId
 } from './story';
+import { NPC_IDS, NPCS, REACTIONS, type NpcId } from './npcs';
 
 export const SAVE_ID = 'hollow-bell';
 export const SAVE_VERSION = 1;
@@ -86,6 +84,7 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			events: [...adventure.events],
 			defeated: [...adventure.defeated],
 			npcs: entriesOf(adventure.npcs),
+			said: [...adventure.said],
 			decisions: Object.fromEntries(
 				[...adventure.decisions].map(([id, d]) => [id, { option: d.option, by: d.by }])
 			),
@@ -238,6 +237,13 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	}
 	for (const id of NPC_IDS) if (!npcs.has(id)) npcs.set(id, NPCS[id].states[0]);
 
+	// Saves from before people had lines to remember have none.
+	const sayable = [
+		...NPC_IDS.flatMap((id) => NPCS[id].lines.map((l) => `${id}:${l.id}`)),
+		...REACTIONS.map((r) => `reaction:${r.id}`)
+	];
+	const said = new Set(data.said === undefined ? [] : uniqueList(data.said, sayable, 'lines'));
+
 	const decisions = new Map<DecisionId, Decision>();
 	const decisionIds = Object.keys(DECISIONS) as DecisionId[];
 	for (const [id, raw] of Object.entries(record(data.decisions, 'decisions'))) {
@@ -330,6 +336,7 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		events: uniqueList<EventId>(data.events, EVENT_IDS, 'events'),
 		defeated: list(data.defeated, 'defeated enemies').map((n) => name(n, 'defeated enemies')),
 		npcs,
+		said,
 		decisions,
 		pending,
 		encounters,

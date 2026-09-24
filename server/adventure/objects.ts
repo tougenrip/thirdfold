@@ -16,6 +16,7 @@ import type { Room } from '../rooms';
 import { IDS } from './bellweather';
 import { HOLLOW_IDS } from './hollow';
 import { MONASTERY_IDS, SECRET_EDGE } from './monastery';
+import { NPC_IDS, NPCS } from './npcs';
 
 export interface Verb {
 	id: string;
@@ -58,16 +59,6 @@ export interface ObjectDef {
 const any: readonly ObjectState[] = ['visible', 'interactable', 'used'];
 
 export const OBJECTS: readonly ObjectDef[] = [
-	{
-		id: 'maren',
-		name: 'Maren',
-		kind: 'npc',
-		location: 'bellweather',
-		thing: { token: IDS.maren },
-		initial: 'interactable',
-		states: ['interactable', 'visible'],
-		verbs: [{ id: 'talk', label: 'Talk to Maren', from: ['interactable'] }]
-	},
 	{
 		id: 'well',
 		name: 'The old well',
@@ -241,17 +232,116 @@ export const OBJECTS: readonly ObjectDef[] = [
 		verbs: [],
 		disabledText: 'The gate is chained shut.'
 	},
-	// The monastery
 	{
-		id: 'oswin',
-		name: 'Brother Oswin',
-		kind: 'npc',
-		location: 'monastery',
-		thing: { token: MONASTERY_IDS.oswin },
+		id: 'chapel-rope',
+		name: 'Chapel bell rope',
+		kind: 'landmark',
+		location: 'bellweather',
+		thing: { prop: IDS.chapelRope },
 		initial: 'interactable',
-		states: ['interactable', 'visible'],
-		verbs: [{ id: 'talk', label: 'Talk to Brother Oswin', from: ['interactable'] }]
+		states: any,
+		verbs: [
+			{ id: 'examine', label: 'Look up the bell tower', from: ['interactable', 'used'], to: 'used' }
+		]
 	},
+	{
+		id: 'chapel-agna',
+		name: 'Saint Agna window',
+		kind: 'ritual',
+		location: 'bellweather',
+		thing: { prop: IDS.chapelAgna },
+		initial: 'interactable',
+		states: any,
+		verbs: [
+			{ id: 'examine', label: 'Look at Saint Agna', from: ['interactable', 'used'], to: 'used' }
+		]
+	},
+	{
+		id: 'ringers',
+		name: 'The ringers’ graves',
+		kind: 'landmark',
+		location: 'bellweather',
+		thing: { prop: IDS.ringers },
+		initial: 'interactable',
+		states: any,
+		verbs: [
+			{
+				id: 'examine',
+				label: 'Read the ringers’ graves',
+				from: ['interactable', 'used'],
+				to: 'used'
+			}
+		]
+	},
+	{
+		id: 'anvil',
+		name: 'Gregor’s anvil',
+		kind: 'landmark',
+		location: 'bellweather',
+		thing: { prop: IDS.anvil },
+		initial: 'interactable',
+		states: any,
+		verbs: [
+			{ id: 'examine', label: 'Look over the anvil', from: ['interactable', 'used'], to: 'used' }
+		]
+	},
+	{
+		id: 'loom',
+		name: 'Widow Crane’s loom',
+		kind: 'table',
+		location: 'bellweather',
+		thing: { prop: IDS.loom },
+		initial: 'interactable',
+		states: any,
+		verbs: [
+			{ id: 'examine', label: 'Look at the loom', from: ['interactable', 'used'], to: 'used' }
+		]
+	},
+	{
+		id: 'stall',
+		name: 'Rosa’s stall',
+		kind: 'table',
+		location: 'bellweather',
+		thing: { prop: IDS.stall },
+		initial: 'interactable',
+		states: any,
+		verbs: [
+			{ id: 'examine', label: 'Look over the stall', from: ['interactable', 'used'], to: 'used' }
+		]
+	},
+	{
+		id: 'waystone',
+		name: 'Waystone',
+		kind: 'book',
+		location: 'bellweather',
+		thing: { prop: IDS.waystone },
+		initial: 'interactable',
+		states: any,
+		verbs: [{ id: 'read', label: 'Read the waystone', from: ['interactable', 'used'], to: 'used' }]
+	},
+	{
+		id: 'chapel-door',
+		name: 'Chapel door',
+		kind: 'door',
+		location: 'bellweather',
+		thing: { door: IDS.chapelDoor },
+		initial: 'closed',
+		states: ['closed', 'opened', 'disabled'],
+		verbs: [],
+		disabledText: 'The chapel door is barred.'
+	},
+	{
+		id: 'crane-door',
+		name: 'Widow Crane’s door',
+		kind: 'door',
+		location: 'bellweather',
+		thing: { door: IDS.craneDoor },
+		initial: 'closed',
+		states: ['closed', 'opened', 'disabled'],
+		verbs: [],
+		disabledText: 'The door is locked.'
+	},
+	// The monastery
 	{
 		id: 'graves',
 		name: 'The brothers’ graves',
@@ -361,16 +451,6 @@ export const OBJECTS: readonly ObjectDef[] = [
 	},
 	// The Hollow
 	{
-		id: 'tobin',
-		name: 'Tobin',
-		kind: 'npc',
-		location: 'hollow',
-		thing: { token: HOLLOW_IDS.tobin },
-		initial: 'interactable',
-		states: ['interactable', 'visible'],
-		verbs: [{ id: 'talk', label: 'Speak to Tobin', from: ['interactable'] }]
-	},
-	{
 		id: 'bell',
 		name: 'The Hollow Bell',
 		kind: 'landmark',
@@ -403,7 +483,18 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'interactable',
 		states: any,
 		verbs: [{ id: 'search', label: 'Search the bones', from: ['interactable', 'used'], to: 'used' }]
-	}
+	},
+	// Everyone the party can talk to (see npcs.ts).
+	...NPC_IDS.map((id): ObjectDef => ({
+		id,
+		name: NPCS[id].name,
+		kind: 'npc',
+		location: NPCS[id].location,
+		thing: { token: NPCS[id].token },
+		initial: 'interactable',
+		states: ['interactable', 'visible'],
+		verbs: [{ id: 'talk', label: `Talk to ${NPCS[id].name}`, from: ['interactable'] }]
+	}))
 ];
 
 export function objectDef(id: string): ObjectDef | undefined {
