@@ -58,7 +58,9 @@ export const ASSETS = {
 	water: { name: 'Dark water', w: 2, h: 2, blocks: 'none' },
 	'water-sm': { name: 'Dark water (small)', w: 1, h: 1, blocks: 'none' },
 	'water-lg': { name: 'Dark water (large)', w: 4, h: 4, blocks: 'none' },
-	crack: { name: 'Cracked floor', w: 1, h: 1, blocks: 'none' }
+	crack: { name: 'Cracked floor', w: 1, h: 1, blocks: 'none' },
+	heart: { name: 'Great heart', w: 3, h: 3, blocks: 'sight' },
+	'broken-bell': { name: 'Broken bell', w: 3, h: 3, blocks: 'movement' }
 } as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;

@@ -47,6 +47,7 @@ import {
 } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
 import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
+import type { Light } from '../../src/lib/game/lights';
 import type { Motion, Sound } from '../../src/lib/game/motion';
 import {
 	canStep,
@@ -74,16 +75,19 @@ import {
 	CLUES,
 	CUES,
 	ENDINGS,
+	OUTCOMES,
 	PROMISE_KEPT,
 	SPOKEN_KNOWING,
 	TEXT,
 	TITLE,
+	type BellAnswer,
 	type ClueDef,
 	type ClueId
 } from './content';
 import { areaAt, LOCATIONS } from './locations';
 import { ENEMIES, PUP_HP, type EnemyDef, type EnemyKind } from './enemies';
-import { CAVERN, CULTIST_ROUNDS, KEEPER_POST, PIT_RING } from './hollow';
+import { HEART_GRID, HEART_IDS, HEART_RING } from './heart';
+import { CAVERN, CULTIST_ROUNDS, HOLLOW_IDS, KEEPER_POST, PIT_RING } from './hollow';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
 import { MECHANISMS, TRIGGERS, type MechanismId } from './mechanisms';
 import { CHAMBER, MONASTERY_IDS, STAIR, STAIR_RING } from './monastery';
@@ -533,6 +537,7 @@ export function interact(
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
+	if (adventure.stage !== 'playing') return fail('forbidden', 'This story is over.');
 	// In a fight there's time only for what can be done in one (a torch, the Bell's rope), as the turn's action.
 	const encounter = adventure.encounter;
 	const verb = verbsFor(adventure, def).find(
@@ -1008,6 +1013,7 @@ export function sense(
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
+	if (adventure.stage !== 'playing') return fail('forbidden', 'This story is over.');
 	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
 	const blocked = obstacles(room);
 	const signs = SIGNS.filter(
@@ -1277,6 +1283,10 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			// Phase 4: what becomes of the Bell.
 			outcome = merge(outcome, offer(room, adventure, 'bell'));
 			break;
+		case 'the_descent':
+			// The Descent: the Hollow's heart, and what guards it.
+			outcome = merge(outcome, startEncounter(room, adventure, 'heart'));
+			break;
 	}
 	// The event this chapter waits for may already have happened (a GM
 	// move, a save from an older build): move straight on.
@@ -1341,16 +1351,27 @@ function offer(room: Room, adventure: AdventureState, id: DecisionId): Outcome {
 	return { log: [postSystem(room, `A choice: ${DECISIONS[id].prompt}`)] };
 }
 
-/** The story has reached its ending. */
+/** The answer that ends the story (silence if somehow there is none). */
+export function bellAnswer(adventure: AdventureState): BellAnswer {
+	const option = adventure.decisions.get('bell')?.option;
+	return option && option in OUTCOMES ? (option as BellAnswer) : 'silence';
+}
+
+/**
+ * The story has reached its ending: one of three (Silence, Descent,
+ * Communion), each with its own final scene on the table, narration and
+ * result, and the session is complete.
+ */
 function end(room: Room, adventure: AdventureState, now: number): Outcome {
-	const choice = adventure.decisions.get('bell')?.option;
-	const ending = (choice && ENDING_FOR[choice]) || 'waking';
+	const answer = bellAnswer(adventure);
+	const outcome = OUTCOMES[answer];
+	const ending = ENDING_FOR[answer] ?? 'silence';
 	adventure.ending = ending;
 	adventure.stage = 'complete';
 	adventure.completedAt = now;
 	adventure.npcs.set('tobin', 'safe');
-	const log = [say(room, ENDINGS[ending].text)];
-	if (ending === 'spoken') {
+	const log = [say(room, outcome.text)];
+	if (answer === 'use') {
 		// What the Hollow makes of them depends on what they know.
 		const knowsRule = adventure.events.includes('learned_rule');
 		const knowsSleeper = adventure.evidence.has('sleeper');
@@ -1359,10 +1380,56 @@ function end(room: Room, adventure: AdventureState, now: number): Outcome {
 		if (!knowsRule && !knowsSleeper) log.push(say(room, SPOKEN_KNOWING.neither));
 	}
 	const promise = adventure.decisions.get('promise')?.option;
-	const coda = promise && PROMISE_KEPT[promise]?.[ending];
+	const coda = promise && PROMISE_KEPT[promise]?.[answer];
 	if (coda) log.push(say(room, coda));
-	log.push(postSystem(room, `${TITLE}: ${ENDINGS[ending].title}.`));
+	log.push(finalScene(room, adventure, answer));
+	log.push(postSystem(room, `${TITLE}: ${ENDINGS[ending].title}. ${outcome.subtitle}.`));
 	return { log };
+}
+
+/**
+ * The table as the story leaves it: every ending changes the place it ends in
+ * (lights, the Bell, the Heart) and then shows all of it to everyone, with
+ * nothing left moving. Returns the last narration, which plays the ending's cue.
+ */
+function finalScene(room: Room, adventure: AdventureState, answer: BellAnswer): ChatMessage {
+	const light = (id: string, change: Partial<Light>) => {
+		const l = room.lights.get(id);
+		if (l) Object.assign(l, change);
+	};
+	const glows = ['ho-lake-glow-1', 'ho-lake-glow-2', 'ho-lake-glow-3', 'ho-watch-glow'];
+	switch (answer) {
+		case 'destroy': {
+			// The Bell split on the floor, and every light the Hollow gave gone out.
+			const bell = room.props.get(HOLLOW_IDS.bell);
+			if (bell) bell.assetId = 'broken-bell';
+			for (const id of ['ho-bell-glow', 'ho-pit-glow', ...glows]) light(id, { on: false });
+			break;
+		}
+		case 'silence':
+			// The Bell dark in its frame; the eye below red, and open.
+			light('ho-bell-glow', { on: false });
+			light('ho-pit-glow', { color: '#c0392b', radius: 5, on: true });
+			break;
+		case 'use':
+			// The whole Hollow lit a calm blue: nothing in it hides from anyone now.
+			room.ambient = 'dusk';
+			light('ho-bell-glow', { color: '#9fd0ff', radius: 12, on: true });
+			light('ho-pit-glow', { color: '#7fb6ff', radius: 4, on: true });
+			for (const id of glows) light(id, { radius: 4, on: true });
+			break;
+		case 'descend':
+			// The Heart still and grey, its glow gone out.
+			light(HEART_IDS.heartLight, { on: false });
+			break;
+	}
+	// Nothing is left moving: the watch and whatever cracked or rose are gone.
+	for (const id of adventure.sentries.keys()) room.tokens.delete(id);
+	adventure.sentries.clear();
+	for (const id of [...room.props.keys()]) if (id.startsWith('ho-crack-')) room.props.delete(id);
+	room.fog.revealed.fill(1);
+	const scene = OUTCOMES[answer].scene;
+	return answer === 'use' ? flare(room, scene) : toll(room, scene);
 }
 
 /**
@@ -1400,6 +1467,11 @@ export function decide(
 		const line = option.id === 'boy' ? TEXT.oswinBoy : TEXT.oswinSilence;
 		outcome = merge(outcome, { log: [say(room, line, 'Oswin')] });
 		outcome = merge(outcome, happen(room, adventure, 'promised', now));
+	} else if (option.id === 'descend') {
+		// Down into the pit: the story ends in the Hollow's heart, if the party comes back up.
+		outcome = merge(outcome, { log: [say(room, TEXT.chooseDescent)] });
+		outcome = merge(outcome, happen(room, adventure, 'chose_descent', now));
+		outcome = merge(outcome, enter(room, adventure, 'the_descent', now));
 	} else if (option.id === 'destroy') {
 		// Destroy the Bell, and the Hollow attacks: the story ends only if the party survives it.
 		outcome = merge(outcome, { log: [say(room, TEXT.chooseDestroy)] });
@@ -1499,6 +1571,13 @@ const ENCOUNTERS: Record<
 		foes: [{ kind: 'hand' }, { kind: 'tendril' }, { kind: 'tendril' }],
 		reveal: CAVERN,
 		opening: TEXT.wrath
+	},
+	// The Descent: the Hollow's Heart on its dais, and what uncurls from the stone around it.
+	heart: {
+		ring: HEART_RING,
+		foes: [{ kind: 'heart' }, { kind: 'tendril' }, { kind: 'tendril' }],
+		reveal: { from: { x: 0, y: 0 }, to: { x: HEART_GRID.width - 1, y: HEART_GRID.height - 1 } },
+		opening: TEXT.heart
 	}
 };
 
@@ -1844,6 +1923,7 @@ export function act(
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
+	if (adventure.stage !== 'playing') return fail('forbidden', 'This story is over.');
 	const encounter = adventure.encounter;
 	if (!encounter && action.kind !== 'heal') return fail('forbidden', 'There is nothing to fight.');
 	if (encounter && !isTurnOf(encounter, me.id))
@@ -2069,7 +2149,8 @@ const WON: Record<EncounterId, { event: EventId; text?: string }> = {
 	chamber: { event: 'won_chamber' },
 	hollow: { event: 'won_hollow', text: TEXT.keeperFalls },
 	waking: { event: 'bell_held' },
-	wrath: { event: 'decided_bell', text: TEXT.wrathWon }
+	wrath: { event: 'decided_bell', text: TEXT.wrathWon },
+	heart: { event: 'decided_bell', text: TEXT.heartWon }
 };
 
 /** The fight is won: the fallen get back up, and the story hears of it. */

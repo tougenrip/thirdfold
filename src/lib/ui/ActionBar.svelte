@@ -65,7 +65,7 @@
 	const myTurn = $derived(isMine && !acted && able);
 	/** What is in reach to use; in a fight only what can be done in one (a torch, the Bell's rope), on this character's turn, as its action. */
 	const nearby = $derived(
-		!able || adventure.stage === 'choosing' || (encounter && !myTurn)
+		!able || adventure.stage !== 'playing' || (encounter && !myTurn)
 			? []
 			: adventure.interactables.filter(
 					(i) =>
@@ -75,7 +75,7 @@
 	);
 	/** Actions that make sense now: everything in a fight, only healing outside one. */
 	const actions = $derived(
-		!able || adventure.stage === 'choosing'
+		!able || adventure.stage !== 'playing'
 			? []
 			: def.actions.filter((a) => (encounter ? true : a.kind === 'heal'))
 	);
@@ -140,6 +140,7 @@
 			return `${def.name} is down: heal them within ${left} ${left === 1 ? 'round' : 'rounds'}.`;
 		}
 		if (adventure.stage === 'choosing') return 'Waiting for the GM to begin.';
+		if (adventure.stage !== 'playing') return 'The story is over.';
 		if (chosen) return `${chosen.name}: choose a target, here or on the table.`;
 		if (!encounter) {
 			return nearby.length

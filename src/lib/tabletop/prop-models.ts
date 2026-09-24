@@ -268,6 +268,24 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'cylinder', size: [0.4, 0.3, 0.4], at: [0, 1.15, 0], color: IRON }
 	],
 	water: [{ shape: 'box', size: [2, 0.04, 2], at: [0, 0.02, 0], color: WATER }],
+	heart: [
+		// A dark knot of flesh and iron, veined with a dull red glow, bound in its own roots.
+		{ shape: 'sphere', size: [2.6, 2.2, 2.4], at: [0, 1.2, 0], color: 0x4a1a22 },
+		{ shape: 'sphere', size: [1.6, 1.4, 1.5], at: [0.5, 1.9, 0.3], color: 0x6b2330 },
+		{ shape: 'box', size: [2.8, 0.14, 0.2], at: [0, 1.4, 0.9], color: 0xb2333f },
+		{ shape: 'box', size: [0.2, 0.14, 2.6], at: [-0.8, 1.1, 0], color: 0xb2333f },
+		{ shape: 'cylinder', size: [0.3, 1.2, 0.3], at: [-1.2, 0.6, -1.1], color: IRON },
+		{ shape: 'cylinder', size: [0.3, 1.2, 0.3], at: [1.2, 0.6, -1.1], color: IRON },
+		{ shape: 'cylinder', size: [0.3, 1.2, 0.3], at: [0, 0.6, 1.2], color: IRON }
+	],
+	'broken-bell': [
+		// The Bell, fallen out of its frame and split, lying on its side.
+		{ shape: 'cone', size: [2.2, 2.4, 2.2], at: [0.2, 1.1, 0], color: 0x1d1d24 },
+		{ shape: 'box', size: [0.12, 2.2, 1.8], at: [0.3, 1.1, 0.1], color: 0x0d0d12 },
+		{ shape: 'box', size: [0.9, 0.3, 0.7], at: [-1.1, 0.15, 0.9], color: 0x1d1d24 },
+		{ shape: 'box', size: [0.6, 0.25, 0.5], at: [1.2, 0.12, -1], color: 0x1d1d24 },
+		{ shape: 'box', size: [2.9, 0.3, 0.3], at: [0, 0.15, -1.3], color: IRON }
+	],
 	crack: [
 		// Glowing seams in the stone: a warning that the floor is about to give.
 		{ shape: 'box', size: [0.9, 0.03, 0.08], at: [0, 0.02, -0.1], color: 0xc9713a },

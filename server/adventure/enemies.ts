@@ -10,9 +10,16 @@
 
 import type { Attack } from '../../src/lib/adventure/characters';
 
-export type EnemyKind = 'hound' | 'cultist' | 'keeper' | 'tendril' | 'hand';
+export type EnemyKind = 'hound' | 'cultist' | 'keeper' | 'tendril' | 'hand' | 'heart';
 
-export const ENEMY_KINDS: readonly EnemyKind[] = ['hound', 'cultist', 'keeper', 'tendril', 'hand'];
+export const ENEMY_KINDS: readonly EnemyKind[] = [
+	'hound',
+	'cultist',
+	'keeper',
+	'tendril',
+	'hand',
+	'heart'
+];
 
 /** How an enemy chooses what to do on its turn. */
 export type Behavior =
@@ -116,6 +123,19 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 		initiative: 4,
 		hp: (n) => 24 + 12 * party(n),
 		attacks: [{ name: 'Crushing grip', range: 3, toHit: 5, damage: '2d6+2' }],
+		behavior: 'grasp'
+	},
+	heart: {
+		kind: 'heart',
+		name: 'The Hollow’s Heart',
+		color: '#7a1f2b',
+		armor: 3,
+		speed: 0,
+		vision: 12,
+		light: 0,
+		initiative: 0,
+		hp: (n) => 30 + 14 * party(n),
+		attacks: [{ name: 'Pulse', range: 5, toHit: 5, damage: '1d10+2' }],
 		behavior: 'grasp'
 	}
 };

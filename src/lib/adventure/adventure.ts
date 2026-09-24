@@ -39,7 +39,8 @@ export const CHAPTER_IDS = [
 	'the_pit',
 	'the_waking',
 	'the_ringing',
-	'final_decision'
+	'final_decision',
+	'the_descent'
 ] as const;
 
 export type ChapterId = (typeof CHAPTER_IDS)[number];
@@ -49,7 +50,7 @@ export function isChapterId(value: unknown): value is ChapterId {
 }
 
 /** The tables the story is played on. */
-export const LOCATION_IDS = ['bellweather', 'monastery', 'hollow'] as const;
+export const LOCATION_IDS = ['bellweather', 'monastery', 'hollow', 'heart'] as const;
 
 export type LocationId = (typeof LOCATION_IDS)[number];
 
@@ -82,9 +83,18 @@ export interface DecisionMade {
 }
 
 export interface EndingView {
+	/** Which ending: silence, descent or communion. */
 	id: string;
+	/** The ending's name, e.g. "Silence". */
 	title: string;
+	/** How the party came to it, e.g. "The Bell Broken". */
+	subtitle: string;
+	/** What happened, told at the end. */
 	text: string;
+	/** The last look at the table: what the final scene shows. */
+	scene: string;
+	/** What came of it all, e.g. { label: 'The Bell', value: 'Broken' }. */
+	result: { label: string; value: string }[];
 }
 
 /** GM only: the story's bookkeeping, for following along and checking a save. */

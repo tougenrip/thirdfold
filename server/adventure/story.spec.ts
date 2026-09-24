@@ -147,11 +147,13 @@ function atMonastery(promise: 'boy' | 'silence' = 'boy'): void {
 
 describe('the chapters', () => {
 	it('run in the roadmap’s order, each waiting for one event that leads to the next', () => {
-		const order = [...CHAPTER_IDS];
+		// The Descent is a branch off the final decision (taken by choosing it), not the next in line.
+		const order = CHAPTER_IDS.filter((id) => id !== 'the_descent');
 		for (const [i, id] of order.entries()) {
 			const next = CHAPTERS[id].next;
 			expect(transition(id, next.on)).toBe(order[i + 1] ?? null);
 		}
+		expect(transition('the_descent', 'decided_bell')).toBeNull();
 		// Every chapter's event is a known one, and the story ends only at the final decision.
 		expect(order.every((id) => EVENT_IDS.includes(CHAPTERS[id].next.on))).toBe(true);
 		expect(transition('village', 'decided_bell')).toBeUndefined();
@@ -327,7 +329,7 @@ describe('playing the story through', () => {
 		const end = ok(decide(room, ana, 'bell', 'use', 5000));
 		expect(story()).toMatchObject({
 			stage: 'complete',
-			ending: 'spoken',
+			ending: 'communion',
 			completedAt: 5000,
 			pending: null
 		});
@@ -337,7 +339,9 @@ describe('playing the story through', () => {
 		// Every event that moves a chapter on happened, in order (evidence events and the path
 		// not taken are optional).
 		expect(story().events).toEqual(
-			EVENT_IDS.filter((e) => !e.startsWith('learned_') && e !== 'chose_destroy')
+			EVENT_IDS.filter(
+				(e) => !e.startsWith('learned_') && e !== 'chose_destroy' && e !== 'chose_descent'
+			)
 		);
 	});
 
@@ -368,7 +372,7 @@ describe('playing the story through', () => {
 		expect(story().encounter?.id).toBe('wrath');
 		expect([...story().encounter!.enemies.values()].map((e) => e.kind)).toContain('hand');
 		clearEnemies();
-		expect(story()).toMatchObject({ ending: 'broken', stage: 'complete' });
+		expect(story()).toMatchObject({ ending: 'silence', stage: 'complete' });
 		expect(story().decisions.get('bell')).toEqual({ option: 'destroy', by: 'Gia' });
 	});
 });
@@ -383,7 +387,7 @@ describe('what each viewer is told', () => {
 		const mine = adventureView(room, ana, all, null)!;
 		expect(mine).toMatchObject({
 			stage: 'playing',
-			chapter: { id: 'investigate_monastery', number: 3, of: 12 },
+			chapter: { id: 'investigate_monastery', number: 3, of: 13 },
 			location: { id: 'monastery', name: 'The Monastery' },
 			decision: { id: 'promise' },
 			ending: null,

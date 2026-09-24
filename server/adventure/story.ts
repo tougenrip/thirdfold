@@ -49,6 +49,8 @@ export type EventId =
 	| 'bell_held'
 	/** The party chose to destroy the Bell, and the Hollow rose against them. */
 	| 'chose_destroy'
+	/** The party chose to go down into the pit and face the Hollow in its heart. */
+	| 'chose_descent'
 	/** The party decided what to do with the Bell (and, if they broke it, lived). */
 	| 'decided_bell'
 	/** The party knows the ringers' rule: three pulls bind it. */
@@ -77,6 +79,7 @@ export const EVENT_IDS: readonly EventId[] = [
 	'bell_rings_itself',
 	'bell_held',
 	'chose_destroy',
+	'chose_descent',
 	'decided_bell',
 	'learned_tobin',
 	'learned_agna',
@@ -259,6 +262,14 @@ export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 			}
 		],
 		next: { on: 'decided_bell', to: null }
+	},
+	// Only by choosing to go down into the pit: the Hollow's heart, where the story ends in the Descent.
+	the_descent: {
+		id: 'the_descent',
+		title: 'The heart of the Hollow',
+		location: 'heart',
+		objectives: [{ id: 'heart', text: 'Face the Hollow in its heart', done: 'decided_bell' }],
+		next: { on: 'decided_bell', to: null }
 	}
 };
 
@@ -328,30 +339,38 @@ export const DECISIONS: Record<DecisionId, DecisionDef> = {
 		options: [
 			{ id: 'destroy', label: 'Destroy the Bell' },
 			{ id: 'silence', label: 'Silence the Bell' },
-			{ id: 'use', label: 'Use the Bell: ring it, and speak to what is below' }
+			{ id: 'use', label: 'Use the Bell: ring it, and speak to what is below' },
+			{ id: 'descend', label: 'Go down into the pit, and face the Hollow in its heart' }
 		]
 	}
 };
 
-export type EncounterId = 'well' | 'chamber' | 'hollow' | 'waking' | 'wrath';
+export type EncounterId = 'well' | 'chamber' | 'hollow' | 'waking' | 'wrath' | 'heart';
 
 export const ENCOUNTER_IDS: readonly EncounterId[] = [
 	'well',
 	'chamber',
 	'hollow',
 	'waking',
-	'wrath'
+	'wrath',
+	'heart'
 ];
 
-export type EndingId = 'broken' | 'waking' | 'spoken';
+/**
+ * The three endings: Silence (the Bell destroyed or silenced for good),
+ * Descent (the party goes down and faces the Hollow) and Communion (the
+ * party uses the Bell to speak with it).
+ */
+export type EndingId = 'silence' | 'descent' | 'communion';
 
-export const ENDING_IDS: readonly EndingId[] = ['broken', 'waking', 'spoken'];
+export const ENDING_IDS: readonly EndingId[] = ['silence', 'descent', 'communion'];
 
 /** The ending each answer to the final decision leads to. */
 export const ENDING_FOR: Record<string, EndingId> = {
-	destroy: 'broken',
-	silence: 'waking',
-	use: 'spoken'
+	destroy: 'silence',
+	silence: 'silence',
+	use: 'communion',
+	descend: 'descent'
 };
 
 /** Saves from before the finale had phases answered the Bell differently. */
@@ -362,4 +381,10 @@ export const OLD_BELL_OPTIONS: Record<string, string> = {
 };
 
 /** And ended differently. */
-export const OLD_ENDINGS: Record<string, EndingId> = { kept: 'spoken', silent: 'waking' };
+export const OLD_ENDINGS: Record<string, EndingId> = {
+	kept: 'communion',
+	silent: 'silence',
+	broken: 'silence',
+	waking: 'silence',
+	spoken: 'communion'
+};

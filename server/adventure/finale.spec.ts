@@ -293,7 +293,7 @@ describe('phase 4: the party decides what becomes of the Bell', () => {
 		const labels = adventureView(room, ana, new Set(), null)!.decision!.options.map((o) => o.label);
 		expect(labels).toContain('Silence the Bell, as you promised Oswin');
 		const end = ok(decide(room, ana, 'bell', 'silence', 9000));
-		expect(story()).toMatchObject({ stage: 'complete', ending: 'waking' });
+		expect(story()).toMatchObject({ stage: 'complete', ending: 'silence' });
 		expect(texts(end.log).join(' ')).toContain('It will wake.');
 		expect(texts(end.log)).toContain(
 			'You kept your promise to Oswin: the Bell is silent. He will spend what is left of his life listening for what it held down.'
@@ -302,7 +302,7 @@ describe('phase 4: the party decides what becomes of the Bell', () => {
 
 	it('use: the party speaks with the Hollow, and what it makes of them depends on what they know', () => {
 		const end = choose('use');
-		expect(story()).toMatchObject({ stage: 'complete', ending: 'spoken' });
+		expect(story()).toMatchObject({ stage: 'complete', ending: 'communion' });
 		expect(texts(end.log)).toContain(
 			'It does not understand you, not all of it. But it lets you go.'
 		);
@@ -338,7 +338,7 @@ describe('phase 4: the party decides what becomes of the Bell', () => {
 		expect(texts(won.log)).toContain(
 			'The Hand falls back into the pit, and you bring the Bell down. It cracks with a sound like the end of the world.'
 		);
-		expect(story()).toMatchObject({ stage: 'complete', ending: 'broken' });
+		expect(story()).toMatchObject({ stage: 'complete', ending: 'silence' });
 	});
 });
 
@@ -367,6 +367,6 @@ describe('saving the finale', () => {
 		const read = readAdventure(file.scene.adventure!, file.scene);
 		if (!read.ok) throw new Error(read.error);
 		expect(read.adventure.decisions.get('bell')?.option).toBe('use');
-		expect(read.adventure.ending).toBe('spoken');
+		expect(read.adventure.ending).toBe('communion');
 	});
 });
