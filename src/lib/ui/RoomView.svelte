@@ -34,7 +34,10 @@
 		type Prop,
 		type Rotation
 	} from '$lib/game/props';
+	import { play, setAmbience, setMusic } from '$lib/audio/engine';
+	import { ambienceFor, musicFor, SILENCE, soundsFor, type AudioState } from '$lib/audio/cues';
 	import ActionBar from './ActionBar.svelte';
+	import AudioControls from './AudioControls.svelte';
 	import AdventurePanel from './AdventurePanel.svelte';
 	import DirectorPanel from './DirectorPanel.svelte';
 	import Decision from './Decision.svelte';
@@ -527,7 +530,40 @@
 
 	$effect(() => {
 		const err = conn.actionError;
-		if (err) showToast(err.message);
+		if (err) {
+			showToast(err.message);
+			play([{ kind: 'ui', sound: 'error' }]);
+		}
+	});
+
+	// The table's sound, worked out from each change to the synced state (see audio/cues.ts).
+	let heard: AudioState | null = null;
+	let heardRoom: string | null = null;
+	let heardSeq = -1;
+	$effect(() => {
+		if (!room || !me) return;
+		const state = $state.snapshot({
+			me: me.id,
+			tokens: room.tokens,
+			objects: room.objects,
+			ambient: room.ambient,
+			adventure
+		}) as AudioState;
+		if (heardRoom !== room.id) {
+			heardRoom = room.id;
+			heard = null;
+			heardSeq = room.log.at(-1)?.seq ?? -1;
+		}
+		const fresh = room.log.filter((m) => m.seq > heardSeq);
+		heardSeq = room.log.at(-1)?.seq ?? heardSeq;
+		play(soundsFor(heard, state, fresh));
+		heard = state;
+		setMusic(musicFor(state.adventure, state.ambient));
+		setAmbience(ambienceFor(state.adventure, state.ambient));
+	});
+	$effect(() => () => {
+		setMusic(SILENCE);
+		setAmbience(null);
 	});
 
 	$effect(() => {
@@ -980,6 +1016,7 @@
 				Tabletop
 			</button>
 		</div>
+		<AudioControls />
 		<span class="status" data-status={conn.status}>{STATUS_LABEL[conn.status]}</span>
 	</header>
 
