@@ -65,6 +65,13 @@
 
 	let { conn }: { conn: RoomConnection } = $props();
 
+	// `?perf`: a measuring script drives the room from the page (it sends only what a player could).
+	$effect(() => {
+		if (!new URLSearchParams(location.search).has('perf')) return;
+		(window as { thirdfoldRoom?: RoomConnection }).thirdfoldRoom = conn;
+		return () => delete (window as { thirdfoldRoom?: RoomConnection }).thirdfoldRoom;
+	});
+
 	/** How close (in cells) the pointer must be to a grid line to target the wall or door on it. */
 	const EDGE_REACH = 0.22;
 

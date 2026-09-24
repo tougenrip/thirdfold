@@ -37,14 +37,15 @@
 	import type { Prop } from '$lib/game/props';
 	import type { DiceThrow } from './dice3d';
 	import type { FogMode } from './fog';
-	import {
-		createTabletop,
-		type CameraView,
-		type HighlightKind,
-		type PreviewItem,
-		type Tabletop,
-		type TabletopEvents
+	import type { PerfStats } from './perf';
+	import type {
+		CameraView,
+		HighlightKind,
+		PreviewItem,
+		Tabletop,
+		TabletopEvents
 	} from './renderer';
+	import { loadRenderer } from './load';
 
 	interface Props extends Partial<TabletopEvents> {
 		grid: SquareGrid;
@@ -110,24 +111,52 @@
 
 	let canvas: HTMLCanvasElement;
 	let tabletop = $state<Tabletop | null>(null);
+	/** `?perf` in the URL: show what rendering costs, and let a measuring script read it. */
+	const showPerf =
+		typeof location !== 'undefined' && new URLSearchParams(location.search).has('perf');
+	let perf = $state<PerfStats | null>(null);
+
+	$effect(() => {
+		const t = tabletop;
+		if (!showPerf || !t) return;
+		(window as { thirdfoldPerf?: Tabletop }).thirdfoldPerf = t;
+		const timer = setInterval(() => (perf = t.stats()), 500);
+		return () => {
+			clearInterval(timer);
+			delete (window as { thirdfoldPerf?: Tabletop }).thirdfoldPerf;
+		};
+	});
+
+	const avg = (label: string) => {
+		const t = perf?.timings[label];
+		return t && t.count ? (t.total / t.count).toFixed(2) : '–';
+	};
 	let webglError = $state<string | null>(null);
 
 	$effect(() => {
-		try {
-			// Handlers read the current props at call time, so the renderer never needs rebuilding.
-			const t = createTabletop(canvas, {
-				onClick: (pick) => onClick?.(pick),
-				onHover: (pick) => onHover?.(pick)
+		// three.js and the renderer come in their own chunk, so the page around the table
+		// (and the join form before it) doesn't wait for them.
+		let t: Tabletop | null = null;
+		let gone = false;
+		loadRenderer()
+			.then(({ createTabletop }) => {
+				if (gone) return;
+				// Handlers read the current props at call time, so the renderer never needs rebuilding.
+				t = createTabletop(canvas, {
+					onClick: (pick) => onClick?.(pick),
+					onHover: (pick) => onHover?.(pick)
+				});
+				tabletop = t;
+			})
+			.catch((err) => {
+				console.error('[tabletop] failed to start renderer', err);
+				webglError = 'This browser could not start 3D rendering (WebGL unavailable).';
 			});
-			tabletop = t;
-			return () => {
-				t.dispose();
-				tabletop = null;
-			};
-		} catch (err) {
-			console.error('[tabletop] failed to start renderer', err);
-			webglError = 'This browser could not start 3D rendering (WebGL unavailable).';
-		}
+		return () => {
+			gone = true;
+			t?.dispose();
+			tabletop = null;
+		};
 	});
 
 	$effect(() => {
@@ -235,6 +264,22 @@
 </script>
 
 <canvas bind:this={canvas} aria-label="3D tabletop"></canvas>
+{#if perf}
+	<dl class="perf" aria-label="Rendering performance">
+		<dt>fps</dt>
+		<dd>{perf.fps}</dd>
+		<dt>frame ms</dt>
+		<dd>{avg('frame')} (max {perf.timings.frame?.max.toFixed(1) ?? '–'})</dd>
+		<dt>draws</dt>
+		<dd>{perf.drawCalls}</dd>
+		<dt>triangles</dt>
+		<dd>{perf.triangles.toLocaleString()}</dd>
+		<dt>geo / tex / prog</dt>
+		<dd>{perf.geometries} / {perf.textures} / {perf.programs}</dd>
+		<dt>lighting ms</dt>
+		<dd>{avg('lighting')} ×{perf.timings.lighting?.count ?? 0}</dd>
+	</dl>
+{/if}
 {#if webglError}
 	<p class="webgl-error" role="alert">{webglError}</p>
 {/if}
@@ -245,6 +290,28 @@
 		width: 100%;
 		height: 100%;
 		touch-action: none;
+	}
+
+	.perf {
+		position: absolute;
+		left: 0.5rem;
+		bottom: 0.5rem;
+		display: grid;
+		grid-template-columns: auto auto;
+		gap: 0 0.6rem;
+		margin: 0;
+		padding: 0.4rem 0.6rem;
+		font:
+			11px/1.4 ui-monospace,
+			monospace;
+		color: #cfe;
+		background: rgba(0, 0, 0, 0.7);
+		pointer-events: none;
+		z-index: 5;
+	}
+
+	.perf dd {
+		margin: 0;
 	}
 
 	.webgl-error {

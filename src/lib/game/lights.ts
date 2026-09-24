@@ -10,7 +10,14 @@
 
 import { inBounds, type GridPos, type SquareGrid } from './grid';
 import type { Blockers } from './objects';
-import { addVision, cellIndex, emptyMask, hasLineOfSight, type CellMask } from './visibility';
+import {
+	addVision,
+	cellIndex,
+	emptyMask,
+	hasLineOfSight,
+	type CellMask,
+	type VisionAdder
+} from './visibility';
 
 export type Ambient = 'day' | 'dusk' | 'dark';
 export const AMBIENTS: readonly Ambient[] = ['day', 'dusk', 'dark'];
@@ -63,10 +70,11 @@ export function lightSources(
 export function litMask(
 	grid: SquareGrid,
 	blocked: Blockers,
-	sources: Iterable<LightSource>
+	sources: Iterable<LightSource>,
+	add: VisionAdder = addVision
 ): CellMask {
 	const mask = emptyMask(grid);
-	for (const s of sources) addVision(grid, blocked, s.pos, s.radius, mask);
+	for (const s of sources) add(grid, blocked, s.pos, s.radius, mask);
 	return mask;
 }
 
@@ -80,10 +88,11 @@ export function seenByLight(
 	blocked: Blockers,
 	ambient: Ambient,
 	darkness: CellMask | null,
-	sources: Iterable<LightSource>
+	sources: Iterable<LightSource>,
+	add: VisionAdder = addVision
 ): CellMask | null {
 	if (ambient !== 'dark' && !darkness) return null;
-	const lit = litMask(grid, blocked, sources);
+	const lit = litMask(grid, blocked, sources, add);
 	if (ambient !== 'dark' && darkness) {
 		for (let i = 0; i < lit.length; i++) if (!darkness[i]) lit[i] = 1;
 	}

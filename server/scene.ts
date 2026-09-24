@@ -43,7 +43,13 @@ import {
 import { roomAround, roomBoundary } from '../src/lib/game/rooms';
 import { MAX_LEVEL, withLevel } from '../src/lib/game/terrain';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
-import { DEFAULT_VISION, rectCells, type CellMask } from '../src/lib/game/visibility';
+import {
+	DEFAULT_VISION,
+	rectCells,
+	SightCache,
+	type CellMask,
+	type VisionAdder
+} from '../src/lib/game/visibility';
 import { fail, type Player, type Result, type Room } from './rooms';
 
 /** Walls, closed doors and blocking props, as movement and sight see them. */
@@ -346,11 +352,21 @@ export function setDarkness(
 	return { ok: true, cells: rectCells(room.grid, from, to).length };
 }
 
+/** The table's sight cache, set to these obstacles (see SightCache). */
+export function sightsFor(room: Room, blocked: Obstacles): SightCache {
+	return (room.sights ??= new SightCache()).use(room.grid, blocked);
+}
+
 /** What light lets anyone see on the table now (see seenByLight); null while a flash lights it all. */
-export function lightFor(room: Room, blocked: Obstacles, now = Date.now()): CellMask | null {
+export function lightFor(
+	room: Room,
+	blocked: Obstacles,
+	now = Date.now(),
+	add: VisionAdder = sightsFor(room, blocked).add
+): CellMask | null {
 	if ((room.flashUntil ?? 0) > now) return null;
 	const sources = lightSources(room.lights.values(), room.tokens.values());
-	return seenByLight(room.grid, blocked, room.ambient, room.darkness, sources);
+	return seenByLight(room.grid, blocked, room.ambient, room.darkness, sources, add);
 }
 
 const FORBIDDEN_LIGHTS = fail('forbidden', 'Only the GM controls lights.');

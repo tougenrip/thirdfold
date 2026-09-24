@@ -260,6 +260,33 @@ describe('lighting and visibility', () => {
 	});
 });
 
+describe('sights kept between syncs', () => {
+	it('works out a sight once while nothing changes, and again when a door opens', () => {
+		const { room, gm, pip } = setup();
+		setFog(room, gm, true);
+		const hero = token(room, gm, 'Hero', 3, 3, pip.id);
+		token(room, gm, 'Goblin', 8, 3);
+		// A wall on x=5 with a door at y 3..4.
+		createObject(room, gm, 'wall', { x: 5, y: 0 }, { x: 5, y: 12 });
+		const cut = createObject(room, gm, 'door', { x: 5, y: 3 }, { x: 5, y: 4 });
+		if (!cut.ok) throw new Error(cut.message);
+		const door = cut.upserted.at(-1)!;
+		expect(names(room, pip)).toEqual(['Hero']);
+		const computed = room.sights!.computed;
+		// Nothing changed: the same view, from the kept sight.
+		expect(names(room, pip)).toEqual(['Hero']);
+		expect(room.sights!.computed).toBe(computed);
+		// The door opens: sight is worked out again, and goes through.
+		toggleDoor(room, gm, door.id);
+		expect(names(room, pip)).toEqual(['Goblin', 'Hero']);
+		expect(room.sights!.computed).toBe(computed + 1);
+		// Moving works out the new place only.
+		moveToken(room, gm, hero.id, { x: 2, y: 3 });
+		expect(names(room, pip)).toEqual(['Goblin', 'Hero']);
+		expect(room.sights!.computed).toBe(computed + 2);
+	});
+});
+
 describe('props and visibility', () => {
 	it('hides what stands behind a pillar and only sends props that have been seen', () => {
 		const { room, gm, pip } = setup();

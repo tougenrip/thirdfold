@@ -100,7 +100,6 @@ export class LightingLayer {
 		this.base.hemisphere.intensity = preset.hemisphere + this.flash * 1.5;
 		this.hasDark = !!dark?.some((v) => v);
 		this.base.sun.intensity = preset.sun;
-		this.base.sun.castShadow = preset.sun > 0;
 		this.base.lamp.intensity = preset.lamp;
 
 		this.updateOverlay(grid, preset.dark, sources, blocked, visible, dark);
