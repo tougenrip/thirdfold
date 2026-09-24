@@ -5,7 +5,8 @@
 	/** A cinematic moment to play once; `seq` (the log entry's) increases so each plays once. */
 	export interface CuePlay {
 		seq: number;
-		cue: Cue;
+		/** Every cue among the new log entries, each once (a toll and a flash can come together). */
+		cues: Cue[];
 		/** The prop to swing (the bell), if this viewer has it on the table. */
 		swingPropId: string | null;
 	}
@@ -68,6 +69,8 @@
 		floats?: readonly FloatText[];
 		/** Each cell's level, or null for a flat table. */
 		terrain?: Uint8Array | null;
+		/** The table's dark areas, one byte per cell, or null for none. */
+		darkness?: Uint8Array | null;
 		cue?: CuePlay | null;
 		motion?: MotionPlay | null;
 		/** Whose turn it is in a fight, marked over the token. */
@@ -95,6 +98,7 @@
 		fallen = [],
 		floats = [],
 		terrain = null,
+		darkness = null,
 		cue = null,
 		motion = null,
 		active = null,
@@ -132,11 +136,15 @@
 		tabletop?.setTerrain(terrain);
 	});
 
+	$effect(() => {
+		tabletop?.setDarkness(darkness);
+	});
+
 	let lastCue = -1;
 	$effect(() => {
 		if (!tabletop || !cue || cue.seq <= lastCue) return;
 		lastCue = cue.seq;
-		tabletop.playCue(cue.cue, cue.swingPropId);
+		for (const c of cue.cues) tabletop.playCue(c, cue.swingPropId);
 	});
 
 	$effect(() => {

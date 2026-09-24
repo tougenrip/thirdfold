@@ -42,6 +42,7 @@ import {
 	setAmbient,
 	setFog,
 	setFogShared,
+	setDarkness,
 	setTerrain,
 	updateLight,
 	updateProp,
@@ -116,6 +117,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 	const sentViews = new WeakMap<WebSocket, SentView>();
 	/** Scheduled enemy turns, cleared on shutdown. */
 	const timers = new Set<ReturnType<typeof setTimeout>>();
+	/** Rooms with a flash going, and when the sync that ends it is scheduled for. */
+	const flashEnds = new Map<Room, number>();
 
 	const wss = new WebSocketServer({
 		port: options.port,
@@ -174,6 +177,20 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			if (!ws || !prev) continue;
 			for (const msg of diffView(prev, view, movedBy)) send(ws, msg);
 			sentViews.set(ws, sentFrom(view));
+		}
+		// A flash lights the table for a moment: look again once it has faded.
+		const until = room.flashUntil ?? 0;
+		if (until > Date.now() && flashEnds.get(room) !== until) {
+			flashEnds.set(room, until);
+			const timer = setTimeout(
+				() => {
+					timers.delete(timer);
+					if (flashEnds.get(room) === until) flashEnds.delete(room);
+					syncRoom(room);
+				},
+				until - Date.now() + 20
+			);
+			timers.add(timer);
 		}
 	}
 
@@ -550,6 +567,11 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 					room,
 					postSystem(room, `${player.name} turned fog of war ${msg.enabled ? 'on' : 'off'}.`)
 				);
+			}
+			case 'darkness_set': {
+				const result = setDarkness(room, player, msg.from, msg.to, msg.dark);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
 			}
 			case 'terrain_set': {
 				const result = setTerrain(room, player, msg.from, msg.to, msg.level);

@@ -25,7 +25,8 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 				.filter((p) => p.role === 'player')
 				.map((p): [string, Uint8Array] => [p.name, p.explored]),
 			adventure: room.adventure && saveAdventure(room.adventure),
-			terrain: room.terrain
+			terrain: room.terrain,
+			darkness: room.darkness
 		},
 		now
 	);
@@ -65,6 +66,8 @@ export function applyScene(room: Room, scene: SceneFile): void {
 		? decodeLevels(scene.terrain, scene.grid.width * scene.grid.height)
 		: null;
 	const size = room.grid.width * room.grid.height;
+	room.darkness = scene.darkness ? decodeMask(scene.darkness, size) : null;
+	room.flashUntil = undefined;
 	room.fog = {
 		enabled: scene.fog.enabled,
 		revealed: decodeMask(scene.fog.revealed, size),

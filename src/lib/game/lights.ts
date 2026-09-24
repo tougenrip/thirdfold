@@ -2,8 +2,11 @@
 // sources and from tokens carrying a light (a torch, a lantern). Light spreads
 // like sight: a round radius, blocked by walls and closed doors.
 //
-// Rules: only in the dark does light matter for visibility (a token then sees
-// lit cells within its vision, plus its own cell). Day and dusk are look only.
+// Rules: light matters for visibility only where it is dark: everywhere when
+// the ambient is dark, else in the table's dark areas (a sealed chamber, a
+// cellar). There a token sees only lit cells within its vision, plus its own
+// cell. Elsewhere, by day and at dusk, light is look only. A flash (a bell's
+// toll lighting up a cavern) makes everything lit for a moment.
 
 import { inBounds, type GridPos, type SquareGrid } from './grid';
 import type { Blockers } from './objects';
@@ -65,6 +68,43 @@ export function litMask(
 	const mask = emptyMask(grid);
 	for (const s of sources) addVision(grid, blocked, s.pos, s.radius, mask);
 	return mask;
+}
+
+/**
+ * Cells a viewer can see by the light: every lit cell, and every cell that
+ * isn't dark in the first place. Null when nothing is dark (everything counts
+ * as lit). `darkness` marks the dark areas, for any ambient but dark.
+ */
+export function seenByLight(
+	grid: SquareGrid,
+	blocked: Blockers,
+	ambient: Ambient,
+	darkness: CellMask | null,
+	sources: Iterable<LightSource>
+): CellMask | null {
+	if (ambient !== 'dark' && !darkness) return null;
+	const lit = litMask(grid, blocked, sources);
+	if (ambient !== 'dark' && darkness) {
+		for (let i = 0; i < lit.length; i++) if (!darkness[i]) lit[i] = 1;
+	}
+	return lit;
+}
+
+/** `mask` with the area from `from` to `to` set dark or not; null once nothing is dark. */
+export function withDarkness(
+	mask: CellMask | null,
+	grid: SquareGrid,
+	from: GridPos,
+	to: GridPos,
+	dark: boolean
+): CellMask | null {
+	const next = mask ? mask.slice() : emptyMask(grid);
+	for (let y = Math.min(from.y, to.y); y <= Math.max(from.y, to.y); y++) {
+		for (let x = Math.min(from.x, to.x); x <= Math.max(from.x, to.x); x++) {
+			if (inBounds(grid, { x, y })) next[cellIndex(grid, { x, y })] = dark ? 1 : 0;
+		}
+	}
+	return next.some((v) => v) ? next : null;
 }
 
 /**

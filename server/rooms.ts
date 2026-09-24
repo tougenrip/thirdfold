@@ -42,6 +42,10 @@ export interface Room {
 	ambient: Ambient;
 	/** Each cell's level (elevation), or null for a flat table. */
 	terrain: LevelMap | null;
+	/** Dark areas: cells where only light lets anyone see, whatever the ambient; null for none. */
+	darkness: CellMask | null;
+	/** Until when (ms since epoch) a flash lights the whole table, if one is going. */
+	flashUntil?: number;
 	/** Name of the scene on the table: set when it is saved, loaded or imported. */
 	sceneName: string;
 	fog: {
@@ -107,6 +111,7 @@ export class RoomManager {
 			lights: new Map(),
 			ambient: 'day',
 			terrain: null,
+			darkness: null,
 			sceneName: 'Untitled scene',
 			fog: { enabled: false, revealed: emptyMask(DEFAULT_GRID), shared: false },
 			log: [],

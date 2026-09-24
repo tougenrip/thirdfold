@@ -831,7 +831,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 6, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 7, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',
@@ -922,6 +922,52 @@ describe('lighting over the wire', () => {
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
 		pip.send({ type: 'ambient_set', ambient: 'day' });
 		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+	});
+
+	it('hides what stands in a dark area by day, and a flash shows it for a moment', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		gm.send({ type: 'fog_set', enabled: true });
+		await pip.until('fog_update');
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 3, y: 3 },
+			ownerId: playerId
+		});
+		await pip.until('token_upserted', (m) => m.token.name === 'Hero');
+		gm.send({
+			type: 'token_create',
+			name: 'Shade',
+			color: '#8e44ad',
+			pos: { x: 6, y: 3 },
+			ownerId: null
+		});
+		const { token: shade } = await pip.until('token_upserted', (m) => m.token.name === 'Shade');
+
+		// A cellar in broad daylight: Pip no longer sees into it, and learns where the dark is.
+		gm.send({ type: 'darkness_set', from: { x: 5, y: 0 }, to: { x: 9, y: 9 }, dark: true });
+		const dark = await pip.until('darkness_update');
+		expect(dark.darkness).not.toBeNull();
+		expect(await pip.until('token_deleted')).toEqual({ type: 'token_deleted', tokenId: shade.id });
+		pip.send({ type: 'darkness_set', from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, dark: true });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// A flash lights everything; when it fades, the next sync hides the Shade again by itself.
+		server.rooms.get(room.id)!.flashUntil = Date.now() + 150;
+		gm.send({ type: 'darkness_set', from: { x: 5, y: 0 }, to: { x: 5, y: 0 }, dark: true });
+		await pip.until('token_upserted', (m) => m.token.id === shade.id);
+		expect(await pip.until('token_deleted')).toEqual({ type: 'token_deleted', tokenId: shade.id });
+
+		// Lifted, the cellar is plain to see again.
+		gm.send({ type: 'darkness_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, dark: false });
+		expect(await pip.until('darkness_update')).toEqual({ type: 'darkness_update', darkness: null });
+		await pip.until('token_upserted', (m) => m.token.id === shade.id);
 	});
 });
 

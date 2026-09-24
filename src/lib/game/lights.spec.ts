@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from './grid';
-import { lightLevels, lightSources, litMask, type Light } from './lights';
+import {
+	lightLevels,
+	lightSources,
+	litMask,
+	seenByLight,
+	withDarkness,
+	type Light
+} from './lights';
 import { blockingEdges } from './objects';
 import { cellIndex } from './visibility';
 
@@ -47,5 +54,30 @@ describe('litMask / lightLevels', () => {
 		expect(levels[at(4, 4)]).toBe(1);
 		expect(levels[at(4, 7)]).toBeLessThan(levels[at(4, 5)]);
 		for (let i = 0; i < mask.length; i++) expect(levels[i] > 0).toBe(mask[i] === 1);
+	});
+});
+
+describe('dark areas', () => {
+	const sources = lightSources([light(2, 2, 2)], []);
+
+	it('marks and clears a dark area, and is null once nothing is dark', () => {
+		const dark = withDarkness(null, grid, { x: 0, y: 0 }, { x: 5, y: 5 }, true);
+		expect(dark?.[at(3, 3)]).toBe(1);
+		expect(dark?.[at(8, 8)]).toBe(0);
+		expect(withDarkness(dark, grid, { x: 5, y: 5 }, { x: 0, y: 0 }, false)).toBeNull();
+	});
+
+	it('lets anyone see only lit cells where it is dark, and everything elsewhere by day', () => {
+		expect(seenByLight(grid, new Set(), 'day', null, sources)).toBeNull();
+		const dark = withDarkness(null, grid, { x: 0, y: 0 }, { x: 5, y: 5 }, true);
+		const seen = seenByLight(grid, new Set(), 'day', dark, sources)!;
+		// Inside the dark area only the light's reach counts; outside it, everything is seen.
+		expect(seen[at(2, 3)]).toBe(1);
+		expect(seen[at(5, 5)]).toBe(0);
+		expect(seen[at(9, 9)]).toBe(1);
+		// After dark the whole table needs light, dark areas or not.
+		const night = seenByLight(grid, new Set(), 'dark', null, sources)!;
+		expect(night[at(9, 9)]).toBe(0);
+		expect(night[at(2, 3)]).toBe(1);
 	});
 });

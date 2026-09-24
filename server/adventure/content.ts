@@ -184,6 +184,12 @@ export const CLUES = {
 		title: 'Warm air from below',
 		text: 'Warm air breathes up through the iron grate, and with it, very faintly, the Bell’s note.'
 	},
+	rule: {
+		id: 'rule',
+		kind: 'document',
+		title: 'The ringers’ rule',
+		text: 'Cut into the wall above the rope, too shallow to read by candlelight: a bell with an eye inside it, and the ringers’ rule beneath. ONE PULL CALLS IT. THREE PULLS BIND IT. NEVER LET IT RING ITSELF. The last line has been scratched out, and under it, in a child’s hand: I’M SORRY.'
+	},
 	sleeper: {
 		id: 'sleeper',
 		kind: 'environment',
@@ -235,6 +241,19 @@ export const TEXT = {
 	brazierLit:
 		'The brazier catches, and warm light spills across the gate and the first stretch of path.',
 	brazierOut: 'The brazier gutters out.',
+	chamberTorchLit:
+		'The torch catches. The dark draws back to the walls, and on the north wall, above the rope, carvings you could not see by the candle stand out in the flame.',
+	carvingsAgain: 'The bell with the eye, the ringers’ rule, and the child’s apology under it.',
+	chamberTorchOut: 'The torch goes out, and the chamber is black again but for the candle stub.',
+	hollowTorchOut:
+		'You smother the cultists’ torch. The alcove drops into darkness, and the cleft in the rock to the north goes with it: without a flame on it, it is only more stone.',
+	hollowTorchLit:
+		'The torch flares, and the cleft in the rock north of the alcove shows again: a way through, round toward the pit.',
+	bellFlash:
+		'At your touch the Bell sounds, once, very low. Cold blue light floods the cavern from wall to wall, every shadow thrown flat, and then it is gone.',
+	tollFlash: 'The note breaks over the cavern as a blaze of cold blue light, and dies.',
+	chamberFlash:
+		'For one heartbeat the chamber is as bright as noon: every corner, every chain, the grate thrown open, and what is climbing out of it. Then the dark comes back.',
 	remainsEmpty: 'Only ash now.',
 	nothingFound: 'You look, but whatever is here, you don’t find it.',
 	cantMakeOut: 'There is something here, but you can’t make it out.',

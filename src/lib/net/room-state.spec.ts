@@ -18,7 +18,8 @@ function room(): RoomSnapshot {
 		fog: { enabled: false, shared: false, visible: '', explored: '' },
 		log: [],
 		adventure: null,
-		terrain: null
+		terrain: null,
+		darkness: null
 	};
 }
 

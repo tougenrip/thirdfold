@@ -88,6 +88,8 @@ export interface Tabletop {
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	/** Each cell's level (elevation), or null for a flat table. */
 	setTerrain(levels: Uint8Array | null): void;
+	/** The table's dark areas (one byte per cell), or null for none. */
+	setDarkness(mask: Uint8Array | null): void;
 	/** Plays a cinematic moment; `swingPropId` is the bell to swing, if it is on the table. */
 	playCue(cue: Cue, swingPropId: string | null): void;
 	/** Plays motions on props (a lever swinging, a chain shaking) and their sounds. */
@@ -178,6 +180,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const lighting = new LightingLayer({ hemisphere, sun, lamp, scene });
 	scene.add(lighting.group);
 	let lightState: { ambient: Ambient; lights: readonly Light[] } = { ambient: 'day', lights: [] };
+	let darkness: Uint8Array | null = null;
 	const ambience = new AmbienceLayer();
 	scene.add(ambience.group);
 	const terrainLayer = new TerrainLayer();
@@ -216,7 +219,8 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			lightSources(lightState.lights, tokens),
 			obstaclesFor(grid, objects, props, levels),
 			visible,
-			ground
+			ground,
+			darkness
 		);
 		shadeTerrain();
 	}
@@ -292,6 +296,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		const doorsMoving = wallLayer.tick(dt);
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
+		lighting.setFlash(fx.flash);
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
 		if (!fx.active) swinging = null;
 		const propsMoving = propLayer.tick(now);
@@ -654,6 +659,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 				highlight.material.color.setHex(COLORS.highlight[kind]);
 			}
 			highlight.visible = visible;
+			requestRender();
+		},
+		setDarkness(next) {
+			darkness = next;
+			refreshLighting();
 			requestRender();
 		},
 		setTerrain(next) {

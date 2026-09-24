@@ -89,6 +89,14 @@ describe('token messages', () => {
 			cell: { x: 3, y: 4 },
 			reveal: true
 		});
+		expect(
+			parseClientMessage({
+				type: 'darkness_set',
+				from: { x: 1, y: 2 },
+				to: { x: 3, y: 4 },
+				dark: true
+			})
+		).toEqual({ type: 'darkness_set', from: { x: 1, y: 2 }, to: { x: 3, y: 4 }, dark: true });
 		expect(parseClientMessage({ type: 'fog_share', shared: false })).toEqual({
 			type: 'fog_share',
 			shared: false
@@ -109,7 +117,11 @@ describe('token messages', () => {
 		['non-boolean hidden', { type: 'token_update', tokenId: 't', patch: { hidden: 'yes' } }],
 		['fog_room without reveal', { type: 'fog_room', cell: { x: 0, y: 0 } }],
 		['fog_room fractional cell', { type: 'fog_room', cell: { x: 0.5, y: 0 }, reveal: true }],
-		['fog_share non-boolean', { type: 'fog_share', shared: 1 }]
+		['fog_share non-boolean', { type: 'fog_share', shared: 1 }],
+		[
+			'darkness_set without dark',
+			{ type: 'darkness_set', from: { x: 0, y: 0 }, to: { x: 1, y: 1 } }
+		]
 	])('rejects %s', (_label, input) => {
 		expect(parseClientMessage(input)).toBeNull();
 	});

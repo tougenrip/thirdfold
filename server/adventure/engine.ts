@@ -46,7 +46,6 @@ import {
 	type LogAudience
 } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
-import { lightSources, litMask } from '../../src/lib/game/lights';
 import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
 import type { Motion, Sound } from '../../src/lib/game/motion';
 import {
@@ -68,7 +67,7 @@ import { tokenAt, type Token } from '../../src/lib/game/token';
 import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
 import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
-import { obstacles } from '../scene';
+import { lightFor, obstacles } from '../scene';
 import { applyScene } from '../scene-io';
 import { IDS, PATH_AREA, WELL_RING } from './bellweather';
 import {
@@ -164,6 +163,16 @@ export function objectState(adventure: AdventureState, def: ObjectDef): ObjectSt
 	return adventure.objects.get(def.id) ?? def.initial;
 }
 
+/**
+ * The state an object shows as: its own, except that something only light
+ * reveals (`litBy`) is hidden while that light is out.
+ */
+export function shownState(adventure: AdventureState, def: ObjectDef): ObjectState {
+	const state = objectState(adventure, def);
+	const light = def.litBy ? objectDef(def.litBy) : undefined;
+	return light && objectState(adventure, light) !== 'lit' ? 'hidden' : state;
+}
+
 /** What can be done with an object in the state it is in. */
 export function verbsFor(adventure: AdventureState, def: ObjectDef): readonly Verb[] {
 	const state = objectState(adventure, def);
@@ -173,7 +182,13 @@ export function verbsFor(adventure: AdventureState, def: ObjectDef): readonly Ve
 /** Puts an object in a state and makes the table show it. */
 function setObjectState(room: Room, adventure: AdventureState, def: ObjectDef, state: ObjectState) {
 	adventure.objects.set(def.id, state);
-	applyLook(room, def, state, adventure.origins);
+	applyLook(room, def, shownState(adventure, def), adventure.origins);
+	// Lighting or putting out a light shows or hides what only it reveals.
+	for (const other of OBJECTS) {
+		if (other.litBy === def.id && objectCells(room, other)) {
+			applyLook(room, other, shownState(adventure, other), adventure.origins);
+		}
+	}
 }
 
 /** Props players must not see: hidden world objects. The GM still sees them. */
@@ -183,7 +198,7 @@ export function hiddenPropIds(room: Room): Set<string> {
 	if (!adventure) return hidden;
 	for (const def of OBJECTS) {
 		const id = propIdOf(def);
-		if (id && objectState(adventure, def) === 'hidden') hidden.add(id);
+		if (id && shownState(adventure, def) === 'hidden') hidden.add(id);
 	}
 	return hidden;
 }
@@ -449,6 +464,19 @@ function say(room: Room, text: string, speaker?: string, audience?: LogAudience)
 	});
 }
 
+/** How long a flash (the Bell's note as light) lights the whole table. */
+export const FLASH_MS = 2500;
+
+/**
+ * Narration that every client plays as a flash, and the flash itself: for
+ * FLASH_MS everything on the table is lit, for the party and the enemies
+ * alike (the game server syncs again when it fades).
+ */
+function flare(room: Room, text: string): ChatMessage {
+	room.flashUntil = Date.now() + FLASH_MS;
+	return appendLog(room, { kind: 'narration', text, cue: 'flash' });
+}
+
 /** Narration that every client plays as the bell tolling. */
 function toll(room: Room, text: string): ChatMessage {
 	return appendLog(room, { kind: 'narration', text, cue: 'toll' });
@@ -496,13 +524,23 @@ export function interact(
 	const def = objectDef(targetId);
 	const cells = def && objectCells(room, def);
 	const state = def && objectState(adventure, def);
-	if (!def || !cells || state === 'hidden') return fail('object_not_found', "That isn't here.");
+	if (!def || !cells || shownState(adventure, def) === 'hidden') {
+		return fail('object_not_found', "That isn't here.");
+	}
 	const me = characterOf(room, actor.id);
 	if (!me) return fail('forbidden', 'Only a character in the story can do that.');
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
-	if (adventure.encounter) return fail('not_your_turn', TEXT.notNow);
+	// In a fight there's no time for anything but a torch: lighting or dousing one is the turn's action.
+	const encounter = adventure.encounter;
+	if (encounter) {
+		if (def.kind !== 'torch') return fail('not_your_turn', TEXT.notNow);
+		if (!isTurnOf(encounter, me.id)) return fail('not_your_turn', notYourTurn(room, encounter));
+		if (encounter.acted.has(me.id)) {
+			return fail('not_your_turn', `${CHARACTERS[me.id].name} has already acted this turn.`);
+		}
+	}
 	const verb = verbsFor(adventure, def).find((v) => verbId === null || v.id === verbId);
 	if (!verb) {
 		return fail(
@@ -560,7 +598,10 @@ export function interact(
 		me.token.pos,
 		investigating ? only(actor.id) : undefined
 	);
-	return { ok: true, ...merge({ log: checked }, merge(outcome, { log: reactions })) };
+	const done = merge({ log: checked }, merge(outcome, { log: reactions }));
+	if (!encounter) return { ok: true, ...done };
+	encounter.acted.add(me.id);
+	return { ok: true, ...merge(done, afterAction(room, adventure, encounter, me, [])) };
 }
 
 type Plan = { ok: true; apply: () => void } | { ok: false; message: string };
@@ -581,7 +622,7 @@ function plan(
 ): Plan | null {
 	const propId = propIdOf(def);
 	const origin = adventure.origins.get(def.id);
-	const relook = () => applyLook(room, def, objectState(adventure, def), adventure.origins);
+	const relook = () => applyLook(room, def, shownState(adventure, def), adventure.origins);
 	if (physical === 'pick_up') {
 		return { ok: true, apply: () => adventure.carried.set(def.id, me.id) };
 	}
@@ -829,8 +870,24 @@ function respond(
 		}
 		case 'rope:examine':
 			return told(...clue('splice'));
-		case 'bell:examine':
-			return told(say(room, TEXT.bell));
+		case 'bell:examine': {
+			if (before !== 'interactable') return told(say(room, TEXT.bell));
+			// The first touch: the Bell's note lights the cavern, and whoever watches sees who is there.
+			const lit = told(say(room, TEXT.bell), flare(room, TEXT.bellFlash));
+			return merge(lit, detect(room, adventure) ?? { log: [] });
+		}
+		case 'chamber-torch:light':
+			return told(say(room, TEXT.chamberTorchLit));
+		case 'chamber-torch:extinguish':
+			return told(say(room, TEXT.chamberTorchOut));
+		case 'carvings:read':
+			return adventure.evidence.has('rule')
+				? told(say(room, TEXT.carvingsAgain))
+				: told(...clue('rule'));
+		case 'hollow-torch:extinguish':
+			return told(say(room, TEXT.hollowTorchOut));
+		case 'hollow-torch:light':
+			return told(say(room, TEXT.hollowTorchLit));
 		case 'pit:examine':
 			return told(say(room, TEXT.pit));
 		case 'chapel-rope:examine':
@@ -1149,6 +1206,8 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			if (grate) setObjectState(room, adventure, grate, 'opened');
 			tell(toll(room, TEXT.bellRings));
 			outcome = merge(outcome, startEncounter(room, adventure, 'chamber'));
+			// The note lights the dark chamber for a moment: long enough to see what came up.
+			outcome = merge(outcome, { log: [flare(room, TEXT.chamberFlash)] });
 			break;
 		}
 		case 'descend': {
@@ -1222,7 +1281,7 @@ function travel(room: Room, adventure: AdventureState, to: LocationId): void {
 		if (MECHANISMS[id].location !== to) adventure.running.delete(id);
 	}
 	for (const def of objectsAt(to))
-		applyLook(room, def, objectState(adventure, def), adventure.origins);
+		applyLook(room, def, shownState(adventure, def), adventure.origins);
 	for (const c of party) {
 		if (!placeCharacter(room, to, c.id, c.ownerId, c.tokenId)) adventure.characters.delete(c.id);
 	}
@@ -1402,10 +1461,7 @@ export function postSentries(room: Room, adventure: AdventureState, id: Encounte
 /** What the enemies see: the table's obstacles and light, the standing party, the Bell. */
 function situationFor(room: Room, adventure: AdventureState, selfId: string): Situation {
 	const blocked = obstacles(room);
-	const lit =
-		room.ambient === 'dark'
-			? litMask(room.grid, blocked, lightSources(room.lights.values(), room.tokens.values()))
-			: null;
+	const lit = lightFor(room, blocked);
 	const bellDef = objectDef('bell');
 	const bellCells = bellDef && objectCells(room, bellDef);
 	return {
@@ -2040,7 +2096,7 @@ function enemyActs(
 		const targets = deed.targets.flatMap((id) => who(id) ?? []);
 		if (toll && targets.length) {
 			enemy.rest = toll.every;
-			log.push(toll_(room, token, targets, toll, roller));
+			log.push(toll_(room, token, targets, toll, roller), flare(room, TEXT.tollFlash));
 		}
 	}
 	return log;

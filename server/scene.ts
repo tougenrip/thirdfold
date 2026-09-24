@@ -13,10 +13,18 @@ import {
 	segmentProblem,
 	unitEdges,
 	type Door,
+	type Obstacles,
 	type SceneObject
 } from '../src/lib/game/objects';
 import { canEditScene, canMoveToken, canUseDoor } from '../src/lib/game/permissions';
-import { MAX_LIGHTS_PER_ROOM, type Ambient, type Light } from '../src/lib/game/lights';
+import {
+	MAX_LIGHTS_PER_ROOM,
+	lightSources,
+	seenByLight,
+	withDarkness,
+	type Ambient,
+	type Light
+} from '../src/lib/game/lights';
 import {
 	isSolidCell,
 	MAX_PROPS_PER_ROOM,
@@ -35,7 +43,7 @@ import {
 import { roomAround, roomBoundary } from '../src/lib/game/rooms';
 import { MAX_LEVEL, withLevel } from '../src/lib/game/terrain';
 import { MAX_TOKENS_PER_ROOM, tokenAt, type Token } from '../src/lib/game/token';
-import { DEFAULT_VISION, rectCells } from '../src/lib/game/visibility';
+import { DEFAULT_VISION, rectCells, type CellMask } from '../src/lib/game/visibility';
 import { fail, type Player, type Result, type Room } from './rooms';
 
 /** Walls, closed doors and blocking props, as movement and sight see them. */
@@ -320,6 +328,29 @@ export function setTerrain(
 	}
 	room.terrain = withLevel(room.terrain, room.grid, from, to, level);
 	return { ok: true, cells: rectCells(room.grid, from, to).length };
+}
+
+/** GM: makes an area dark (only light lets anyone see there) or not. */
+export function setDarkness(
+	room: Room,
+	actor: Player,
+	from: GridPos,
+	to: GridPos,
+	dark: boolean
+): Result<{ cells: number }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM controls lights.');
+	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
+		return fail('invalid_position', 'That area is off the table.');
+	}
+	room.darkness = withDarkness(room.darkness, room.grid, from, to, dark);
+	return { ok: true, cells: rectCells(room.grid, from, to).length };
+}
+
+/** What light lets anyone see on the table now (see seenByLight); null while a flash lights it all. */
+export function lightFor(room: Room, blocked: Obstacles, now = Date.now()): CellMask | null {
+	if ((room.flashUntil ?? 0) > now) return null;
+	const sources = lightSources(room.lights.values(), room.tokens.values());
+	return seenByLight(room.grid, blocked, room.ambient, room.darkness, sources);
 }
 
 const FORBIDDEN_LIGHTS = fail('forbidden', 'Only the GM controls lights.');

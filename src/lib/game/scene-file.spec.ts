@@ -3,7 +3,7 @@ import { DEFAULT_GRID } from './grid';
 import type { SceneObject } from './objects';
 import { parseSceneFile, serializeScene, type SceneSource } from './scene-file';
 import type { Token } from './token';
-import { emptyMask } from './visibility';
+import { decodeMask, emptyMask } from './visibility';
 
 function source(): SceneSource {
 	const revealed = emptyMask(DEFAULT_GRID);
@@ -117,7 +117,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(6);
+		expect(file.version).toBe(7);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -132,7 +132,7 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(6);
+		expect(parsed.scene.version).toBe(7);
 		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
@@ -190,7 +190,7 @@ describe('scene file v4: the story played at the table', () => {
 		v3.version = 3;
 		delete v3.adventure;
 		const parsed = parseSceneFile(v3);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 6, adventure: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 7, adventure: null });
 	});
 
 	it('keeps a story through a round trip, as a copy', () => {
@@ -225,7 +225,24 @@ describe('scene file v5: elevation and windows', () => {
 		v4.version = 4;
 		delete v4.terrain;
 		const parsed = parseSceneFile(v4);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 6, terrain: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 7, terrain: null });
+	});
+
+	it('keeps dark areas through a round trip, and upgrades a v6 file to none', () => {
+		expect(serializeScene('Crypt', source()).darkness).toBeNull();
+		const dark = new Uint8Array(DEFAULT_GRID.width * DEFAULT_GRID.height);
+		dark[7] = 1;
+		const file = JSON.parse(
+			JSON.stringify(serializeScene('Crypt', { ...source(), darkness: dark }))
+		);
+		const parsed = parseSceneFile(file);
+		if (!parsed.ok) throw new Error(parsed.error);
+		expect(decodeMask(parsed.scene.darkness!, dark.length)[7]).toBe(1);
+		expect(parseSceneFile({ ...file, darkness: 42 })).toMatchObject({ ok: false });
+		const v6 = saved();
+		v6.version = 6;
+		delete v6.darkness;
+		expect(parseSceneFile(v6)).toMatchObject({ ok: true, scene: { version: 7, darkness: null } });
 	});
 
 	it('keeps levels and windows through a round trip', () => {

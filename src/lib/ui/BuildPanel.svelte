@@ -12,7 +12,8 @@
 		| 'hide-room'
 		| 'light'
 		| 'prop'
-		| 'height';
+		| 'height'
+		| 'dark';
 
 	/** The prop the GM is about to place. */
 	export interface PropDraft {
@@ -139,6 +140,13 @@
 				>
 			{/each}
 		</div>
+		{@render toolButton({ id: 'dark', label: 'Dark area', key: 'N' })}
+		{#if tool === 'dark'}
+			<p class="muted">
+				Click two corners. Only light lets anyone see in a dark area, even by day. Start on a dark
+				cell to lift the dark instead.
+			</p>
+		{/if}
 		{@render toolButton({ id: 'height', label: 'Shape ground', key: 'G' })}
 		{#if tool === 'height'}
 			<label class="row">

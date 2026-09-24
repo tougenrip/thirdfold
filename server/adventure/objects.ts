@@ -22,7 +22,7 @@ import type { Sound } from '../../src/lib/game/motion';
 import type { AssetId, Rotation } from '../../src/lib/game/props';
 import type { Room } from '../rooms';
 import { IDS } from './bellweather';
-import { HOLLOW_IDS } from './hollow';
+import { CLEFT_EDGE, HOLLOW_IDS } from './hollow';
 import { MONASTERY_IDS, SECRET_EDGE } from './monastery';
 import { NPC_IDS, NPCS } from './npcs';
 
@@ -85,6 +85,12 @@ export interface ObjectDef {
 	secret?: { a: GridPos; b: GridPos };
 	/** An item: it can be picked up, carried from table to table, and put down anywhere. */
 	carry?: true;
+	/**
+	 * Only there while this light (a world object) is lit: carvings that show in
+	 * torchlight, a cleft the flame picks out of the rock. While the light is out
+	 * the object counts as hidden, whatever state it is in (see `shownState`).
+	 */
+	litBy?: string;
 }
 
 const any: readonly ObjectState[] = ['visible', 'interactable', 'used'];
@@ -516,6 +522,33 @@ export const OBJECTS: readonly ObjectDef[] = [
 		secret: SECRET_EDGE
 	},
 	{
+		id: 'chamber-torch',
+		name: 'Torch stand',
+		kind: 'torch',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.torch },
+		light: MONASTERY_IDS.torchLight,
+		initial: 'unlit',
+		states: ['unlit', 'lit'],
+		verbs: [
+			{ id: 'light', label: 'Light the torch', from: ['unlit'], to: 'lit', physical: 'activate' },
+			{ id: 'extinguish', label: 'Put out the torch', from: ['lit'], to: 'unlit' }
+		],
+		looks: { lit: { lit: true }, unlit: { lit: false } }
+	},
+	{
+		// Cut too shallow to see by the candle: only a flame held close picks them out.
+		id: 'carvings',
+		name: 'The ringers’ carvings',
+		kind: 'book',
+		location: 'monastery',
+		thing: { prop: MONASTERY_IDS.carvings },
+		initial: 'interactable',
+		states: any,
+		litBy: 'chamber-torch',
+		verbs: [{ id: 'read', label: 'Read the carvings', from: ['interactable', 'used'], to: 'used' }]
+	},
+	{
 		id: 'ledgers',
 		name: 'The brothers’ ledgers',
 		kind: 'book',
@@ -653,6 +686,34 @@ export const OBJECTS: readonly ObjectDef[] = [
 		verbs: [
 			{ id: 'examine', label: 'Look at the Bell', from: ['interactable', 'used'], to: 'used' }
 		]
+	},
+	{
+		id: 'hollow-torch',
+		name: 'The cultists’ torch',
+		kind: 'torch',
+		location: 'hollow',
+		thing: { prop: HOLLOW_IDS.torch },
+		light: HOLLOW_IDS.torchLight,
+		initial: 'lit',
+		states: ['lit', 'unlit'],
+		verbs: [
+			{ id: 'extinguish', label: 'Put out the torch', from: ['lit'], to: 'unlit' },
+			{ id: 'light', label: 'Light the torch', from: ['unlit'], to: 'lit', physical: 'activate' }
+		],
+		looks: { lit: { lit: true }, unlit: { lit: false } }
+	},
+	{
+		// A way round to the pit, only there while the torch picks it out of the rock.
+		id: 'cleft',
+		name: 'A cleft in the rock',
+		kind: 'secret',
+		location: 'hollow',
+		thing: { door: HOLLOW_IDS.cleft },
+		initial: 'opened',
+		states: ['opened', 'closed', 'hidden'],
+		verbs: [],
+		secret: CLEFT_EDGE,
+		litBy: 'hollow-torch'
 	},
 	{
 		id: 'pit',
