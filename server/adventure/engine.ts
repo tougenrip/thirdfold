@@ -718,7 +718,8 @@ function fits(room: Room, prop: Prop, to: Prop, ignoreToken: string | null): boo
 		room.grid,
 		room.objects.values(),
 		[...room.props.values()].filter((p) => p.id !== prop.id),
-		room.terrain
+		room.terrain,
+		room.floor
 	);
 	const from = footprintCells(prop);
 	const dx = to.pos.x - prop.pos.x;

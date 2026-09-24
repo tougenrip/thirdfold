@@ -15,8 +15,10 @@ import { heardOnly, type Motion } from '../src/lib/game/motion';
 import { postChat, postRoll, postSystem, secureRoller } from './chat';
 import { canEditScene } from '../src/lib/game/permissions';
 import {
+	blankScene,
 	normalizeSceneName,
 	parseSceneFile,
+	sharedScene,
 	SCENE_FILE_MAX_BYTES
 } from '../src/lib/game/scene-file';
 import * as adventure from './adventure/engine';
@@ -47,6 +49,7 @@ import {
 	setFog,
 	setFogShared,
 	setDarkness,
+	setFloor,
 	setTerrain,
 	updateLight,
 	updateProp,
@@ -395,11 +398,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		const owner = keyOwner(key);
 		let saved: unknown = null;
 		let auto = false;
+		let shared = false;
 		if (msg.continueFrom) {
 			try {
-				if ((await sceneStore.ownerOf(msg.continueFrom)) !== owner) {
+				// A GM continues their own saves, and opens shared tables (which belong to nobody).
+				const savedBy = await sceneStore.ownerOf(msg.continueFrom);
+				if (savedBy === undefined || (savedBy !== null && savedBy !== owner)) {
 					return sendError(ws, 'scene_not_found', 'That save is not one of yours.');
 				}
+				shared = savedBy === null;
 				saved = await sceneStore.load(msg.continueFrom);
 				auto = (await sceneStore.list(owner)).some((x) => x.id === msg.continueFrom && x.auto);
 			} catch (err) {
@@ -419,7 +426,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		postSystem(room, `${player.name} opened the table as GM.`);
 		if (saved !== null) {
 			try {
-				loadIntoRoom(room, player, saved, 'continued');
+				loadIntoRoom(room, player, saved, shared ? 'opened' : 'continued');
 			} catch (err) {
 				rooms.remove(room.id);
 				if (err instanceof SceneError) return sendError(ws, err.code, err.message);
@@ -697,6 +704,31 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				case 'scene_list':
 					if (!room.gmOwner) return send(ws, { type: 'scene_list', scenes: [] });
 					return send(ws, { type: 'scene_list', scenes: await sceneStore.list(room.gmOwner) });
+				case 'scene_new': {
+					const name = normalizeSceneName(msg.name);
+					if (!name) return sendError(ws, 'invalid_name', 'Scene names are 1-48 characters.');
+					return loadIntoRoom(
+						room,
+						player,
+						blankScene(name, msg.width, msg.height, msg.environment),
+						'created'
+					);
+				}
+				case 'scene_share': {
+					const name = normalizeSceneName(msg.name);
+					if (!name) return sendError(ws, 'invalid_name', 'Scene names are 1-48 characters.');
+					const file = sharedScene(exportScene(room, name));
+					if (JSON.stringify(file).length > SCENE_FILE_MAX_BYTES) {
+						return sendError(ws, 'invalid_scene', 'This scene is too large to share.');
+					}
+					// Shared tables belong to nobody: anyone with the code opens a copy of their own.
+					const code = await sceneStore.save(file, { owner: null });
+					send(ws, { type: 'scene_shared', code, name });
+					return announce(
+						room,
+						postSystem(room, `${player.name} shared the table “${name}”.`, 'gm')
+					);
+				}
 				case 'scene_delete':
 					if (!room.gmOwner || !(await sceneStore.remove(msg.sceneId, room.gmOwner))) {
 						return sendError(ws, 'scene_not_found', 'That save is not one of yours.');
@@ -858,6 +890,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
 			}
+			case 'floor_set': {
+				const result = setFloor(room, player, msg.from, msg.to, msg.floor);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
 			case 'fog_area': {
 				const result = fogArea(room, player, msg.from, msg.to, msg.reveal);
 				if (!result.ok) return sendError(ws, result.code, result.message);
@@ -937,6 +974,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'scene_import':
 			case 'scene_list':
 			case 'scene_delete':
+			case 'scene_new':
+			case 'scene_share':
 				void handleScene(ws, room, player, msg);
 				return;
 			case 'chat_send':

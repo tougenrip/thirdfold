@@ -7,6 +7,7 @@
 // field as strictly as live actions are validated. A scene file is data, so
 // a tampered one can at worst be rejected, never smuggle in bad state.
 
+import { decodeFloor, encodeFloor, type FloorMap } from './floor';
 import { cornerInBounds, inBounds, type SquareGrid } from './grid';
 import {
 	AMBIENTS,
@@ -36,7 +37,7 @@ import {
 } from './props';
 import { MAX_TOKENS_PER_ROOM, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { decodeLevels, encodeLevels, type LevelMap } from './terrain';
-import { decodeMask, encodeMask, MAX_VISION } from './visibility';
+import { decodeMask, emptyMask, encodeMask, MAX_VISION } from './visibility';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
 
 /**
@@ -45,9 +46,10 @@ import { ASSET_ID_PATTERN } from '../assets/manifest';
  * elevation (each cell's level) and windows; v6 added shared party vision,
  * hidden tokens and props, and what each player has discovered; v7 added
  * dark areas; v8 added the table's environment (how it looks: an asset id)
- * and each token's model (an asset id, optional).
+ * and each token's model (an asset id, optional); v9 added floors (what each
+ * cell is made of, or off the map).
  */
-export const SCENE_FILE_VERSION = 8;
+export const SCENE_FILE_VERSION = 9;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -117,8 +119,14 @@ export interface SceneFileV8 extends Omit<SceneFileV7, 'version'> {
 	environment: string | null;
 }
 
+export interface SceneFileV9 extends Omit<SceneFileV8, 'version'> {
+	version: 9;
+	/** What each cell is made of (a base64 FloorMap, see floor.ts); null when nothing is painted. */
+	floor: string | null;
+}
+
 /** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV8;
+export type SceneFile = SceneFileV9;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -142,6 +150,8 @@ export interface SceneSource {
 	darkness?: Uint8Array | null;
 	/** How the table looks (an environment asset's id), or null. */
 	environment?: string | null;
+	/** What each cell is made of, or null when nothing is painted. */
+	floor?: FloorMap | null;
 }
 
 export function normalizeSceneName(raw: unknown): string | null {
@@ -175,6 +185,7 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		terrain: source.terrain ? encodeLevels(source.terrain) : null,
 		darkness: source.darkness?.some((v) => v) ? encodeMask(source.darkness) : null,
 		environment: source.environment ?? null,
+		floor: source.floor?.some((v) => v !== 0) ? encodeFloor(source.floor) : null,
 		discovery: Object.fromEntries(
 			[...(source.discovery ?? [])]
 				.filter(([, mask]) => mask.some((v) => v))
@@ -245,6 +256,10 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 	if (upgraded.version === 7) {
 		// v7 → v8: the plain table, and plain miniatures.
 		upgraded = { ...upgraded, version: 8, environment: null };
+	}
+	if (upgraded.version === 8) {
+		// v8 → v9: nothing painted.
+		upgraded = { ...upgraded, version: 9, floor: null };
 	}
 	return upgraded;
 }
@@ -486,6 +501,14 @@ export function parseSceneFile(input: unknown): SceneParse {
 		darkness = dark.some((v) => v) ? encodeMask(dark) : null;
 	}
 
+	// Floors
+	let floor: string | null = null;
+	if (data.floor !== null && data.floor !== undefined) {
+		const map = typeof data.floor === 'string' ? decodeFloor(data.floor, width * height) : null;
+		if (!map) return bad('The floors are not valid.');
+		floor = map.some((v) => v !== 0) ? encodeFloor(map) : null;
+	}
+
 	// How it looks: only an asset's id.
 	const environment = data.environment ?? null;
 	if (
@@ -534,6 +557,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			terrain,
 			darkness,
 			environment,
+			floor,
 			discovery
 		}
 	};
@@ -549,4 +573,43 @@ function isPlainJson(value: unknown, depth: number, count: { nodes: number }): b
 	if (Array.isArray(value)) return value.every((v) => isPlainJson(v, depth + 1, count));
 	if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) return false;
 	return Object.values(value).every((v) => isPlainJson(v, depth + 1, count));
+}
+
+/** A new, empty table: `width` × `height` cells, in the plain look or an environment's, in daylight. */
+export function blankScene(
+	name: string,
+	width: number,
+	height: number,
+	environment: string | null,
+	now = new Date()
+): SceneFile {
+	const grid: SquareGrid = { kind: 'square', cellSize: 1, width, height };
+	return serializeScene(
+		name,
+		{
+			grid,
+			tokens: [],
+			objects: [],
+			props: [],
+			lights: [],
+			ambient: 'day',
+			fog: { enabled: false, revealed: emptyMask(grid), shared: false },
+			playerName: () => undefined,
+			environment
+		},
+		now
+	);
+}
+
+/**
+ * A table as it is shared with other GMs: the world only. The story played
+ * on it, what each player discovered and who played which token stay behind.
+ */
+export function sharedScene(scene: SceneFile): SceneFile {
+	return {
+		...structuredClone(scene),
+		tokens: scene.tokens.map((t) => ({ ...structuredClone(t), owner: null })),
+		adventure: null,
+		discovery: {}
+	};
 }

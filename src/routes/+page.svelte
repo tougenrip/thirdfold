@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN } from '$lib/game/protocol';
 	import {
@@ -12,6 +13,7 @@
 	import { listSaves } from '$lib/net/saves';
 	import { loadGmKey, loadName, saveGmKey, saveName } from '$lib/prefs';
 	import { lastPlayed } from '$lib/ui/when';
+	import { sharedCode } from '$lib/ui/share';
 	import { prefetchRenderer } from '$lib/tabletop/load';
 
 	let name = $state(loadName());
@@ -71,6 +73,21 @@
 		enter({ type: 'create', name: name.trim(), gmKey, continueFrom: scene.id });
 	}
 
+	/** A shared table this link opens (`?table=<code>`), if any. */
+	const sharedTable = $derived(sharedCode(page.url.href));
+
+	/** Opens a new table, as its GM, on a table someone shared. */
+	function openShared(event: SubmitEvent) {
+		event.preventDefault();
+		if (!canCreate || !sharedTable) return;
+		enter({
+			type: 'create',
+			name: name.trim(),
+			...(gmKey ? { gmKey } : {}),
+			continueFrom: sharedTable
+		});
+	}
+
 	const roomId = $derived(code.trim().toUpperCase());
 	const canCreate = $derived(name.trim().length > 0 && !busy);
 	const canJoin = $derived(canCreate && ROOM_ID_PATTERN.test(roomId));
@@ -120,6 +137,18 @@
 			placeholder="e.g. Morgan"
 		/>
 	</label>
+
+	{#if sharedTable}
+		<form class="continue" aria-labelledby="shared-title" onsubmit={openShared}>
+			<p class="kicker">Shared with you</p>
+			<h2 id="shared-title">A table to run</h2>
+			<p class="where">
+				Someone shared a table they built. Open your own copy of it as its Game Master.
+			</p>
+			<button class="primary" type="submit" disabled={!canCreate}>Open the table</button>
+			{#if !name.trim()}<p class="hint">Enter your name above to open it.</p>{/if}
+		</form>
+	{/if}
 
 	{#if latest}
 		<section class="continue" aria-labelledby="continue-title">

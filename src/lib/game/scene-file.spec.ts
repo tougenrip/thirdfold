@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_GRID } from './grid';
 import type { SceneObject } from './objects';
-import { parseSceneFile, serializeScene, type SceneSource } from './scene-file';
+import { decodeFloor, FLOORS, withFloor } from './floor';
+import {
+	blankScene,
+	parseSceneFile,
+	serializeScene,
+	sharedScene,
+	type SceneSource
+} from './scene-file';
 import type { Token } from './token';
 import { decodeMask, emptyMask } from './visibility';
 
@@ -117,7 +124,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(8);
+		expect(file.version).toBe(9);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -132,7 +139,7 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(8);
+		expect(parsed.scene.version).toBe(9);
 		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
@@ -190,7 +197,7 @@ describe('scene file v4: the story played at the table', () => {
 		v3.version = 3;
 		delete v3.adventure;
 		const parsed = parseSceneFile(v3);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 8, adventure: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 9, adventure: null });
 	});
 
 	it('keeps a story through a round trip, as a copy', () => {
@@ -225,7 +232,7 @@ describe('scene file v5: elevation and windows', () => {
 		v4.version = 4;
 		delete v4.terrain;
 		const parsed = parseSceneFile(v4);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 8, terrain: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 9, terrain: null });
 	});
 
 	it('keeps dark areas through a round trip, and upgrades a v6 file to none', () => {
@@ -242,7 +249,7 @@ describe('scene file v5: elevation and windows', () => {
 		const v6 = saved();
 		v6.version = 6;
 		delete v6.darkness;
-		expect(parseSceneFile(v6)).toMatchObject({ ok: true, scene: { version: 8, darkness: null } });
+		expect(parseSceneFile(v6)).toMatchObject({ ok: true, scene: { version: 9, darkness: null } });
 	});
 
 	it('keeps the environment and token models (v8), only as asset ids', () => {
@@ -264,8 +271,51 @@ describe('scene file v5: elevation and windows', () => {
 		delete (v7 as { environment?: unknown }).environment;
 		expect(parseSceneFile(v7)).toMatchObject({
 			ok: true,
-			scene: { version: 8, environment: null }
+			scene: { version: 9, environment: null }
 		});
+	});
+
+	it('keeps floors (v9), upgrades older files to none, and refuses floors that name nothing', () => {
+		expect(serializeScene('Crypt', source()).floor).toBeNull();
+		const floor = withFloor(null, DEFAULT_GRID, { x: 1, y: 1 }, { x: 2, y: 1 }, 'water')!;
+		const file = JSON.parse(JSON.stringify(serializeScene('Crypt', { ...source(), floor })));
+		const parsed = parseSceneFile(file);
+		if (!parsed.ok) throw new Error(parsed.error);
+		expect(decodeFloor(parsed.scene.floor!, floor.length)).toEqual(floor);
+		expect(parseSceneFile({ ...file, floor: 42 })).toMatchObject({ ok: false });
+		const past = String.fromCharCode(FLOORS.length).repeat(floor.length);
+		expect(parseSceneFile({ ...file, floor: btoa(past) })).toMatchObject({ ok: false });
+		expect(parseSceneFile({ ...file, floor: btoa('\u0001') })).toMatchObject({ ok: false });
+		const v8 = saved();
+		v8.version = 8;
+		delete v8.floor;
+		expect(parseSceneFile(v8)).toMatchObject({ ok: true, scene: { version: 9, floor: null } });
+	});
+
+	it('makes an empty table of a size, and shares a table without its story or players', () => {
+		const blank = blankScene('Field', 12, 8, 'village', new Date(0));
+		expect(blank).toMatchObject({
+			version: 9,
+			name: 'Field',
+			grid: { width: 12, height: 8 },
+			tokens: [],
+			environment: 'village',
+			floor: null,
+			adventure: null
+		});
+		expect(parseSceneFile(JSON.parse(JSON.stringify(blank)))).toMatchObject({ ok: true });
+		const file = serializeScene('Crypt', {
+			...source(),
+			adventure: { id: 'hollow-bell', version: 1, state: { stage: 'playing' } },
+			discovery: [['Pip', emptyMask(DEFAULT_GRID).fill(1)]]
+		});
+		expect(file.tokens.some((t) => t.owner)).toBe(true);
+		const shared = sharedScene(file);
+		expect(shared.adventure).toBeNull();
+		expect(shared.discovery).toEqual({});
+		expect(shared.tokens.every((t) => t.owner === null)).toBe(true);
+		expect(shared.tokens.map((t) => t.id)).toEqual(file.tokens.map((t) => t.id));
+		expect(file.adventure).not.toBeNull();
 	});
 
 	it('keeps levels and windows through a round trip', () => {

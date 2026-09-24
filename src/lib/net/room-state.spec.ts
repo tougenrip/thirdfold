@@ -19,6 +19,7 @@ function room(): RoomSnapshot {
 		log: [],
 		adventure: null,
 		terrain: null,
+		floor: null,
 		darkness: null,
 		paused: false,
 		environment: null

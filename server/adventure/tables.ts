@@ -2,6 +2,7 @@
 // rather than as JSON. Every table is an ordinary scene file and goes through
 // the same validation and loading as any saved scene.
 
+import { encodeFloor, withFloor, type FloorId, type FloorMap } from '../../src/lib/game/floor';
 import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
 import type { Ambient, Light } from '../../src/lib/game/lights';
 import type { SceneObject } from '../../src/lib/game/objects';
@@ -67,6 +68,8 @@ export interface TableParts {
 	dark?: readonly { from: GridPos; to: GridPos }[];
 	/** How it looks: an environment asset (assets/environments). */
 	environment: string;
+	/** Painted floors (inclusive rectangles, later ones win); the rest is the table's own surface. */
+	floors?: readonly { from: GridPos; to: GridPos; floor: FloorId }[];
 }
 
 /** A rectangle of cells at one level. */
@@ -95,6 +98,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 	for (const r of parts.terrain ?? []) {
 		levels = withLevel(levels ?? flatLevels(parts.grid), parts.grid, r.from, r.to, r.level);
 	}
+	let floor: FloorMap | null = null;
+	for (const f of parts.floors ?? []) floor = withFloor(floor, parts.grid, f.from, f.to, f.floor);
 	const darkness = emptyMask(parts.grid);
 	for (const d of parts.dark ?? [])
 		for (const i of rectCells(parts.grid, d.from, d.to)) darkness[i] = 1;
@@ -114,7 +119,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		adventure: null,
 		terrain: levels ? encodeLevels(levels) : null,
 		darkness: darkness.some((v) => v) ? encodeMask(darkness) : null,
-		environment: parts.environment
+		environment: parts.environment,
+		floor: floor ? encodeFloor(floor) : null
 	};
 }
 

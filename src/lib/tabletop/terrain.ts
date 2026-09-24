@@ -8,6 +8,8 @@
 import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { dress, type Look } from './environment';
+import { FLOOR_IDS, type FloorMap } from '$lib/game/floor';
+import { FLOOR_LOOKS } from './floor';
 import type { Ground } from './ground';
 
 const STONE = 0x77705f;
@@ -23,6 +25,8 @@ export class TerrainLayer {
 	private cells: number[] = [];
 	private grid: SquareGrid | null = null;
 	private maxLevel = 1;
+	/** Painted floors: a raised cell's top takes its floor's colour. */
+	private floor: FloorMap | null = null;
 	private low = new THREE.Color(STONE);
 	private high = new THREE.Color(STONE).lerp(new THREE.Color(0xffffff), HIGHER);
 
@@ -35,6 +39,11 @@ export class TerrainLayer {
 		dress(this.material, look && { ...look, color: new THREE.Color(0xffffff) }, 0xffffff);
 		this.low.set(look ? look.color : STONE);
 		this.high.copy(this.low).lerp(new THREE.Color(0xffffff), HIGHER);
+	}
+
+	/** What each cell is made of; shade again afterwards. */
+	setFloor(floor: FloorMap | null): void {
+		this.floor = floor;
 	}
 
 	/** Rebuilds the raised cells. The ground changes rarely, so a full rebuild is fine. */
@@ -85,7 +94,10 @@ export class TerrainLayer {
 		if (!this.mesh || !levels) return;
 		const color = new THREE.Color();
 		this.cells.forEach((i, n) => {
-			color.copy(this.low).lerp(this.high, levels[i] / this.maxLevel);
+			const painted = this.floor?.[i] ? FLOOR_LOOKS[FLOOR_IDS[this.floor[i]]] : null;
+			if (painted && painted.alpha) color.set(painted.color);
+			else color.copy(this.low);
+			color.lerp(this.high, (levels[i] / this.maxLevel) * (painted ? 0.4 : 1));
 			if (brightness) color.multiplyScalar(brightness[i]);
 			this.mesh!.setColorAt(n, color);
 		});

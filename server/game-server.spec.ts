@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { AdventureView } from '../src/lib/adventure/adventure';
+import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
@@ -849,7 +850,7 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 8, name: 'Backup' });
+		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 9, name: 'Backup' });
 
 		gm.send({
 			type: 'scene_import',
@@ -980,7 +981,7 @@ describe('lighting over the wire', () => {
 		// Both come back with the table.
 		gm.send({ type: 'scene_export', name: 'Dressed' });
 		const { file } = await gm.until('scene_exported');
-		expect(file).toMatchObject({ version: 8, environment: 'village' });
+		expect(file).toMatchObject({ version: 9, environment: 'village' });
 		expect(file.tokens[0]).toMatchObject({ model: 'warden' });
 		gm.send({ type: 'token_update', tokenId: token.id, patch: { model: null } });
 		expect((await pip.until('token_upserted')).token.model).toBeUndefined();
@@ -1078,6 +1079,161 @@ describe('elevation over the wire', () => {
 		// Flat again: no map at all.
 		gm.send({ type: 'terrain_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, level: 0 });
 		expect((await pip.until('terrain_update')).terrain).toBeNull();
+	});
+});
+
+describe('custom tables over the wire', () => {
+	async function tableWithPip() {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const welcome = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: welcome.room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		await gm.expect('player_joined');
+		return { gm, pip, playerId, welcome };
+	}
+
+	it('lets only the GM paint floors; everyone gets them, and off the map nobody walks', async () => {
+		const { gm, pip, playerId, welcome } = await tableWithPip();
+		expect(welcome.room.floor).toBeNull();
+		gm.send({
+			type: 'token_create',
+			name: 'Pip',
+			color: '#2e86c1',
+			pos: { x: 2, y: 5 },
+			ownerId: playerId
+		});
+		const { token } = await pip.until('token_upserted');
+		const size = welcome.room.grid.width * welcome.room.grid.height;
+		const at = (x: number, y: number) => y * welcome.room.grid.width + x;
+
+		const stone = {
+			type: 'floor_set' as const,
+			from: { x: 0, y: 0 },
+			to: { x: 3, y: 3 },
+			floor: 'stone' as const
+		};
+		pip.send(stone);
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send(stone);
+		const painted = decodeFloor((await pip.until('floor_update')).floor!, size)!;
+		expect(painted[at(1, 1)]).toBe(FLOOR_IDS.indexOf('stone'));
+		expect(painted[at(5, 5)]).toBe(0);
+
+		// A wall of cells off the map: not under a token, and nobody walks across it.
+		gm.send({ type: 'floor_set', from: { x: 2, y: 0 }, to: { x: 2, y: 19 }, floor: 'void' });
+		expect(await gm.until('error')).toMatchObject({ code: 'cell_occupied' });
+		gm.send({ type: 'floor_set', from: { x: 4, y: 0 }, to: { x: 4, y: 19 }, floor: 'void' });
+		await pip.until('floor_update');
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 6, y: 5 } });
+		expect(await pip.until('error')).toMatchObject({ code: 'no_path' });
+
+		// All plain again: no map at all.
+		gm.send({ type: 'floor_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, floor: 'plain' });
+		expect((await pip.until('floor_update')).floor).toBeNull();
+		pip.send({ type: 'token_move', tokenId: token.id, to: { x: 6, y: 5 } });
+		expect(await gm.until('token_moved')).toMatchObject({ pos: { x: 6, y: 5 } });
+	});
+
+	it('shows players only the floors they have explored under fog', async () => {
+		const { gm, pip, playerId, welcome } = await tableWithPip();
+		gm.send({ type: 'fog_set', enabled: true });
+		gm.send({
+			type: 'token_create',
+			name: 'Pip',
+			color: '#2e86c1',
+			pos: { x: 1, y: 1 },
+			ownerId: playerId
+		});
+		await pip.until('token_upserted');
+		gm.send({ type: 'floor_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, floor: 'wood' });
+		const size = welcome.room.grid.width * welcome.room.grid.height;
+		const seen = decodeFloor((await pip.until('floor_update')).floor!, size)!;
+		const wood = FLOOR_IDS.indexOf('wood');
+		expect(seen[1 * welcome.room.grid.width + 1]).toBe(wood);
+		expect(seen[19 * welcome.room.grid.width + 19]).toBe(0);
+	});
+
+	it('starts a new, empty table of the size the GM chose', async () => {
+		const { gm, pip } = await tableWithPip();
+		const table = {
+			type: 'scene_new' as const,
+			name: 'The crossroads',
+			width: 12,
+			height: 8,
+			environment: 'village'
+		};
+		pip.send(table);
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({
+			type: 'token_create',
+			name: 'Old',
+			color: '#2e86c1',
+			pos: { x: 1, y: 1 },
+			ownerId: null
+		});
+		await pip.until('token_upserted');
+		gm.send(table);
+		const { room } = await pip.until('room_reset');
+		expect(room).toMatchObject({
+			sceneName: 'The crossroads',
+			grid: { width: 12, height: 8 },
+			environment: 'village',
+			tokens: [],
+			floor: null
+		});
+		await gm.untilNotice('Gemma created the scene “The crossroads”.');
+	});
+
+	it('shares a table as a code another GM opens: the world, not the story or the players', async () => {
+		const store = new MemorySceneStore();
+		await server.close();
+		server = await startGameServer({ port: 0, host: '127.0.0.1', patrolMs: 0, sceneStore: store });
+		const { gm, pip, playerId } = await tableWithPip();
+		gm.send({ type: 'scene_new', name: 'Mill', width: 10, height: 10, environment: null });
+		await gm.until('room_reset');
+		gm.send({ type: 'floor_set', from: { x: 0, y: 0 }, to: { x: 9, y: 0 }, floor: 'water' });
+		gm.send({
+			type: 'token_create',
+			name: 'Pip',
+			color: '#2e86c1',
+			pos: { x: 5, y: 5 },
+			ownerId: playerId
+		});
+		await pip.until('token_upserted');
+		gm.send({ type: 'scene_share', name: 'The mill' });
+		const { code, name } = await gm.until('scene_shared');
+		expect(code).toMatch(/^[0-9a-f]{32}$/);
+		expect(name).toBe('The mill');
+		expect(await store.ownerOf(code)).toBeNull();
+
+		// Another GM, with their own key, opens it straight from the link.
+		const other = await connect();
+		other.send({ type: 'create', name: 'Otto', continueFrom: code });
+		const { room } = await other.expect('welcome');
+		expect(room).toMatchObject({ sceneName: 'The mill', grid: { width: 10, height: 10 } });
+		expect(decodeFloor(room.floor!, 100)![3]).toBe(FLOOR_IDS.indexOf('water'));
+		expect(room.tokens).toEqual([expect.objectContaining({ name: 'Pip', ownerId: null })]);
+		expect(room.adventure).toBeNull();
+
+		// Nobody's own saves list it, and a GM can't delete what isn't theirs.
+		other.send({ type: 'scene_delete', sceneId: code });
+		expect(await other.until('error')).toMatchObject({ code: 'scene_not_found' });
+		expect(await store.ownerOf(code)).toBeNull();
+	});
+
+	it('keeps the floors through a save and load', async () => {
+		const { gm } = await tableWithPip();
+		gm.send({ type: 'floor_set', from: { x: 2, y: 2 }, to: { x: 4, y: 4 }, floor: 'grass' });
+		await gm.until('floor_update');
+		gm.send({ type: 'scene_save', name: 'Meadow' });
+		const { sceneId } = await gm.until('scene_saved');
+		gm.send({ type: 'floor_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, floor: 'plain' });
+		expect((await gm.until('floor_update')).floor).toBeNull();
+		gm.send({ type: 'scene_load', sceneId });
+		const { room } = await gm.until('room_reset');
+		expect(decodeFloor(room.floor!, 400)![3 * 20 + 3]).toBe(FLOOR_IDS.indexOf('grass'));
 	});
 });
 
