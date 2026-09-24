@@ -992,6 +992,11 @@
 			{@const encounter = adventure.encounter}
 			<ol class="encounter" aria-label={`Round ${encounter.round}, turn order`}>
 				<li class="round">Round {encounter.round}</li>
+				{#if encounter.bell}
+					<li class="bell" title="Pull the Bell's rope to stop it ringing itself">
+						Bell held {encounter.bell.pulls}/{encounter.bell.of}
+					</li>
+				{/if}
 				{#each encounter.order as t, i (i)}
 					{@const foe = t.tokenId
 						? encounter.enemies.find((e) => e.tokenId === t.tokenId)
@@ -1358,6 +1363,11 @@
 		background: var(--panel-solid);
 		border: 1px solid var(--danger);
 		border-radius: 8px;
+	}
+
+	.encounter .bell {
+		color: var(--accent);
+		font-weight: 600;
 	}
 
 	.encounter {

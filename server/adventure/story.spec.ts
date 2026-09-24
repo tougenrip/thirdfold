@@ -23,7 +23,7 @@ import {
 	runMechanism,
 	startAdventure
 } from './engine';
-import { BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './hollow';
+import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './hollow';
 import { LOCATIONS } from './locations';
 import {
 	CHAMBER,
@@ -93,6 +93,27 @@ const pullLever = () => {
 	const pulled = ok(interact(room, ana, 'lever'));
 	settle();
 	return pulled;
+};
+
+/**
+ * The finale's first three phases, played straight: the Warden looks into the
+ * pit, the tendrils that come up are cleared away, and the Warden pulls the
+ * Bell's rope until it is held. Leaves the party at the final choice.
+ */
+const finale = () => {
+	walk(BESIDE_PIT);
+	ok(interact(room, ana, 'pit'));
+	expect(story()).toMatchObject({ chapter: 'the_waking' });
+	expect(story().encounter?.id).toBe('waking');
+	clearEnemies();
+	expect(story()).toMatchObject({ chapter: 'the_ringing' });
+	me().token.pos = { ...BY_TOBIN };
+	while (story().encounter) {
+		const battle = story().encounter!;
+		battle.current = battle.order.findIndex((t) => t.kind === 'character' && t.id === me().id);
+		battle.acted.clear();
+		ok(interact(room, ana, 'bell-rope', 'pull'));
+	}
 };
 
 function begun(): void {
@@ -297,22 +318,27 @@ describe('playing the story through', () => {
 		expect(story().encounters.get('hollow')).toBe('won');
 		expect(story().events).toContain('won_hollow');
 
-		// Tobin, and the final decision.
+		// Tobin, and the finale's four phases.
 		walk(BY_TOBIN);
 		ok(interact(room, ana, 'tobin'));
+		expect(story()).toMatchObject({ chapter: 'the_pit' });
+		finale();
 		expect(story()).toMatchObject({ chapter: 'final_decision', pending: 'bell' });
-		const end = ok(decide(room, ana, 'bell', 'ring', 5000));
+		const end = ok(decide(room, ana, 'bell', 'use', 5000));
 		expect(story()).toMatchObject({
 			stage: 'complete',
-			ending: 'kept',
+			ending: 'spoken',
 			completedAt: 5000,
 			pending: null
 		});
 		expect(end.log.map((m) => ('text' in m ? m.text : ''))).toContain(
-			'Oswin weeps at the gate when he sees the boy alive.'
+			'Oswin weeps at the gate when he sees the boy alive, and asks what the Bell said. Tobin answers before you can.'
 		);
-		// Every event that moves a chapter on happened, in order (evidence events are optional).
-		expect(story().events).toEqual(EVENT_IDS.filter((e) => !e.startsWith('learned_')));
+		// Every event that moves a chapter on happened, in order (evidence events and the path
+		// not taken are optional).
+		expect(story().events).toEqual(
+			EVENT_IDS.filter((e) => !e.startsWith('learned_') && e !== 'chose_destroy')
+		);
 	});
 
 	it('never skips ahead: walking into a place does nothing before its chapter', () => {
@@ -335,9 +361,15 @@ describe('playing the story through', () => {
 		clearEnemies();
 		walk(BY_TOBIN);
 		ok(interact(room, ana, 'tobin'));
-		ok(decide(room, gm, 'bell', 'break'));
+		finale();
+		// Destroying the Bell brings the Hollow up after the party: the story ends only when that is survived.
+		ok(decide(room, gm, 'bell', 'destroy'));
+		expect(story()).toMatchObject({ stage: 'playing', chapter: 'final_decision' });
+		expect(story().encounter?.id).toBe('wrath');
+		expect([...story().encounter!.enemies.values()].map((e) => e.kind)).toContain('hand');
+		clearEnemies();
 		expect(story()).toMatchObject({ ending: 'broken', stage: 'complete' });
-		expect(story().decisions.get('bell')).toEqual({ option: 'break', by: 'Gia' });
+		expect(story().decisions.get('bell')).toEqual({ option: 'destroy', by: 'Gia' });
 	});
 });
 
@@ -351,7 +383,7 @@ describe('what each viewer is told', () => {
 		const mine = adventureView(room, ana, all, null)!;
 		expect(mine).toMatchObject({
 			stage: 'playing',
-			chapter: { id: 'investigate_monastery', number: 3, of: 9 },
+			chapter: { id: 'investigate_monastery', number: 3, of: 12 },
 			location: { id: 'monastery', name: 'The Monastery' },
 			decision: { id: 'promise' },
 			ending: null,

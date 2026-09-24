@@ -43,7 +43,10 @@ import {
 	CHAPTERS,
 	DECISIONS,
 	ENCOUNTER_IDS,
+	ENDING_IDS,
 	EVENT_IDS,
+	OLD_BELL_OPTIONS,
+	OLD_ENDINGS,
 	type DecisionId,
 	type EncounterId,
 	type EndingId,
@@ -55,7 +58,6 @@ export const SAVE_ID = 'hollow-bell';
 export const SAVE_VERSION = 1;
 
 const STAGES: readonly AdventureStage[] = ['choosing', 'playing', 'complete', 'defeat'];
-const ENDING_IDS: readonly EndingId[] = ['kept', 'broken', 'silent'];
 const ENCOUNTER_STATES: readonly EncounterState[] = ['active', 'won', 'lost'];
 const NAME_MAX = 48;
 /** A failed check: `<character>:<object>:<verb>` or `<character>:sign:<id>`. */
@@ -151,7 +153,15 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						}
 					])
 				),
-				turn: adventure.encounter.turn
+				turn: adventure.encounter.turn,
+				...(adventure.encounter.finale
+					? {
+							finale: adventure.encounter.finale,
+							cracks: (adventure.encounter.cracks ?? []).map((c) => ({ ...c })),
+							pulls: adventure.encounter.pulls ?? 0,
+							pulled: adventure.encounter.pulled ?? false
+						}
+					: {})
 			},
 			begunAt: adventure.begunAt,
 			completedAt: adventure.completedAt
@@ -180,6 +190,11 @@ function record(value: unknown, what: string): Record<string, unknown> {
 function list(value: unknown, what: string): unknown[] {
 	check(Array.isArray(value) && value.length <= LIST_MAX, what);
 	return value;
+}
+
+function bool(value: unknown, what: string): boolean {
+	check(typeof value === 'boolean', what);
+	return value as boolean;
 }
 
 function int(value: unknown, min: number, max: number, what: string): number {
@@ -293,8 +308,13 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 		const decision = oneOf(id, decisionIds, 'decision');
 		const d = record(raw, 'decision');
 		const options = DECISIONS[decision].options.map((o) => o.id);
+		// Saves from before the finale had phases answered the Bell with other words.
+		const answer =
+			decision === 'bell' && typeof d.option === 'string' && OLD_BELL_OPTIONS[d.option]
+				? OLD_BELL_OPTIONS[d.option]
+				: d.option;
 		decisions.set(decision, {
-			option: oneOf(d.option, options, 'choice'),
+			option: oneOf(answer, options, 'choice'),
 			by: name(d.by, 'choice')
 		});
 	}
@@ -431,12 +451,25 @@ function read(data: Record<string, unknown>, scene: SceneFile): AdventureState {
 			),
 			moved,
 			enemies,
-			turn: int(e.turn, 1, 1_000_000, 'turn')
+			turn: int(e.turn, 1, 1_000_000, 'turn'),
+			...(e.finale === undefined
+				? {}
+				: {
+						finale: oneOf(e.finale, ['waking', 'ringing'] as const, 'fight'),
+						cracks: list(e.cracks, 'fight').map((c) => cell(c, scene, 'fight')),
+						pulls: int(e.pulls, 0, 3, 'fight'),
+						pulled: bool(e.pulled, 'fight')
+					})
 		};
 	}
 	check(!encounter || stage === 'playing', 'fight');
 
-	const ending = data.ending === null ? null : oneOf(data.ending, ENDING_IDS, 'ending');
+	const ending: EndingId | null =
+		data.ending === null
+			? null
+			: typeof data.ending === 'string' && OLD_ENDINGS[data.ending]
+				? OLD_ENDINGS[data.ending]
+				: oneOf(data.ending, ENDING_IDS, 'ending');
 	check((ending !== null) === (stage === 'complete'), 'ending');
 
 	const clueIds = Object.keys(CLUES);

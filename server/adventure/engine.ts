@@ -75,6 +75,7 @@ import {
 	CUES,
 	ENDINGS,
 	PROMISE_KEPT,
+	SPOKEN_KNOWING,
 	TEXT,
 	TITLE,
 	type ClueDef,
@@ -82,7 +83,7 @@ import {
 } from './content';
 import { areaAt, LOCATIONS } from './locations';
 import { ENEMIES, PUP_HP, type EnemyDef, type EnemyKind } from './enemies';
-import { CAVERN, CULTIST_ROUNDS, KEEPER_POST } from './hollow';
+import { CAVERN, CULTIST_ROUNDS, KEEPER_POST, PIT_RING } from './hollow';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
 import { MECHANISMS, TRIGGERS, type MechanismId } from './mechanisms';
 import { CHAMBER, MONASTERY_IDS, STAIR, STAIR_RING } from './monastery';
@@ -420,7 +421,7 @@ export function knows(adventure: AdventureState, who: CharacterId | null, id: st
  * aloud, or everyone saw it) the whole party knows it at once. Evidence the
  * whole party comes to know can move the story on (`unlocks`).
  */
-function addClue(
+export function addClue(
 	room: Room,
 	adventure: AdventureState,
 	id: ClueId,
@@ -532,16 +533,18 @@ export function interact(
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
-	// In a fight there's no time for anything but a torch: lighting or dousing one is the turn's action.
+	// In a fight there's time only for what can be done in one (a torch, the Bell's rope), as the turn's action.
 	const encounter = adventure.encounter;
+	const verb = verbsFor(adventure, def).find(
+		(v) => (verbId === null || v.id === verbId) && (!encounter || v.inFight)
+	);
 	if (encounter) {
-		if (def.kind !== 'torch') return fail('not_your_turn', TEXT.notNow);
+		if (!verb) return fail('not_your_turn', TEXT.notNow);
 		if (!isTurnOf(encounter, me.id)) return fail('not_your_turn', notYourTurn(room, encounter));
 		if (encounter.acted.has(me.id)) {
 			return fail('not_your_turn', `${CHARACTERS[me.id].name} has already acted this turn.`);
 		}
 	}
-	const verb = verbsFor(adventure, def).find((v) => verbId === null || v.id === verbId);
 	if (!verb) {
 		return fail(
 			'forbidden',
@@ -889,7 +892,10 @@ function respond(
 		case 'hollow-torch:light':
 			return told(say(room, TEXT.hollowTorchLit));
 		case 'pit:examine':
+			if (adventure.chapter === 'the_pit') return then([say(room, TEXT.pitHollow)], 'saw_hollow');
 			return told(say(room, TEXT.pit));
+		case 'bell-rope:pull':
+			return pull(room, adventure, TEXT.pulled);
 		case 'chapel-rope:examine':
 			return told(say(room, TEXT.chapelRope));
 		case 'chapel-agna:examine':
@@ -919,6 +925,9 @@ function respond(
 		case 'handbell:take':
 			return told(say(room, TEXT.handbellTaken, undefined, only(actor.id)));
 		case 'handbell:ring': {
+			// While the Bell rings itself, the hand bell answers it from anywhere: as good as a pull.
+			if (adventure.encounter?.finale === 'ringing')
+				return pull(room, adventure, TEXT.handbellAnswers);
 			if (adventure.said.has('handbell:rung')) return told(say(room, TEXT.handbellAgain));
 			adventure.said.add('handbell:rung');
 			return told(say(room, TEXT.handbellRung), ...tend(room, adventure, 2));
@@ -1232,7 +1241,40 @@ function enter(room: Room, adventure: AdventureState, chapter: ChapterId, now: n
 			for (const p of room.players.values()) if (p.role !== 'gm') p.explored.fill(1);
 			tell(say(room, TEXT.hollowWatch));
 			break;
+		case 'the_pit':
+			// Phase 1: they see what sleeps below, unless they already have.
+			tell(say(room, adventure.events.includes('saw_hollow') ? TEXT.pitKnown : TEXT.pitStirs));
+			break;
+		case 'the_waking': {
+			// Phase 2: the Hollow stirs, the island cracks, and its tendrils come up.
+			const remembers = adventure.objects.get('bell') === 'used';
+			outcome = merge(outcome, startEncounter(room, adventure, 'waking'));
+			if (remembers) tell(say(room, TEXT.remembersTouch));
+			const waking = adventure.encounter;
+			if (waking?.finale) tell(...crack(room, adventure, waking));
+			break;
+		}
+		case 'the_ringing': {
+			// Phase 3: the Bell rings itself each round until someone takes the rope.
+			const waking = adventure.encounter;
+			if (waking?.id !== 'waking') break;
+			waking.finale = 'ringing';
+			waking.pulls = 0;
+			waking.pulled = false;
+			const rope = objectDef('bell-rope');
+			if (rope) setObjectState(room, adventure, rope, 'interactable');
+			tell(say(room, TEXT.ringing));
+			if (adventure.events.includes('learned_rule')) tell(say(room, TEXT.ringingRule));
+			// Freed by Pell's name, Tobin takes hold of the rope himself.
+			if (adventure.said.has('tobin:pell')) {
+				waking.pulls = 1;
+				waking.pulled = true;
+				tell(say(room, `${TEXT.tobinPulls} (1 of ${PULLS_TO_HOLD})`));
+			}
+			break;
+		}
 		case 'final_decision':
+			// Phase 4: what becomes of the Bell.
 			outcome = merge(outcome, offer(room, adventure, 'bell'));
 			break;
 	}
@@ -1302,12 +1344,20 @@ function offer(room: Room, adventure: AdventureState, id: DecisionId): Outcome {
 /** The story has reached its ending. */
 function end(room: Room, adventure: AdventureState, now: number): Outcome {
 	const choice = adventure.decisions.get('bell')?.option;
-	const ending = (choice && ENDING_FOR[choice]) || 'silent';
+	const ending = (choice && ENDING_FOR[choice]) || 'waking';
 	adventure.ending = ending;
 	adventure.stage = 'complete';
 	adventure.completedAt = now;
 	adventure.npcs.set('tobin', 'safe');
 	const log = [say(room, ENDINGS[ending].text)];
+	if (ending === 'spoken') {
+		// What the Hollow makes of them depends on what they know.
+		const knowsRule = adventure.events.includes('learned_rule');
+		const knowsSleeper = adventure.evidence.has('sleeper');
+		if (knowsRule) log.push(say(room, SPOKEN_KNOWING.rule));
+		if (knowsSleeper) log.push(say(room, SPOKEN_KNOWING.sleeper));
+		if (!knowsRule && !knowsSleeper) log.push(say(room, SPOKEN_KNOWING.neither));
+	}
 	const promise = adventure.decisions.get('promise')?.option;
 	const coda = promise && PROMISE_KEPT[promise]?.[ending];
 	if (coda) log.push(say(room, coda));
@@ -1350,6 +1400,11 @@ export function decide(
 		const line = option.id === 'boy' ? TEXT.oswinBoy : TEXT.oswinSilence;
 		outcome = merge(outcome, { log: [say(room, line, 'Oswin')] });
 		outcome = merge(outcome, happen(room, adventure, 'promised', now));
+	} else if (option.id === 'destroy') {
+		// Destroy the Bell, and the Hollow attacks: the story ends only if the party survives it.
+		outcome = merge(outcome, { log: [say(room, TEXT.chooseDestroy)] });
+		outcome = merge(outcome, happen(room, adventure, 'chose_destroy', now));
+		outcome = merge(outcome, startEncounter(room, adventure, 'wrath'));
 	} else {
 		outcome = merge(outcome, happen(room, adventure, 'decided_bell', now));
 	}
@@ -1403,6 +1458,8 @@ const ENCOUNTERS: Record<
 		reveal: { from: GridPos; to: GridPos };
 		/** Said as the fight begins. */
 		opening?: string;
+		/** More foes, depending on what the party did before. */
+		more?: (adventure: AdventureState) => readonly Foe[];
 	}
 > = {
 	well: {
@@ -1426,6 +1483,22 @@ const ENCOUNTERS: Record<
 		],
 		reveal: CAVERN,
 		opening: TEXT.keeper
+	},
+	// The finale's second and third phases: the Hollow wakes, then the Bell rings itself.
+	waking: {
+		ring: PIT_RING,
+		foes: [{ kind: 'tendril' }, { kind: 'tendril' }, { kind: 'tendril' }],
+		// It remembers a hand that touched the Bell before.
+		more: (adventure) => (adventure.objects.get('bell') === 'used' ? [{ kind: 'tendril' }] : []),
+		reveal: CAVERN,
+		opening: TEXT.waking
+	},
+	// The Bell destroyed: the Hollow rises against the party.
+	wrath: {
+		ring: PIT_RING,
+		foes: [{ kind: 'hand' }, { kind: 'tendril' }, { kind: 'tendril' }],
+		reveal: CAVERN,
+		opening: TEXT.wrath
 	}
 };
 
@@ -1538,7 +1611,7 @@ export function startEncounter(
 	const party = standing(room, adventure);
 	const spawn = LOCATIONS[adventure.location].spawn;
 	const enemies = new Map<string, EnemyState>();
-	for (const foe of def.foes) {
+	for (const foe of [...def.foes, ...(def.more?.(adventure) ?? [])]) {
 		const cell = def.ring.find((c) => isFree(room, c)) ?? spawn.find((c) => isFree(room, c));
 		if (!cell) break;
 		const token = enemyToken(foe.kind, cell);
@@ -1617,7 +1690,8 @@ export function startEncounter(
 		moved: new Map(),
 		speed: 0,
 		enemies,
-		turn: 1
+		turn: 1,
+		...(id === 'waking' ? { finale: 'waking' as const, cracks: [], pulls: 0, pulled: false } : {})
 	};
 	adventure.encounter = encounter;
 	for (const i of rectCells(room.grid, def.reveal.from, def.reveal.to)) room.fog.revealed[i] = 1;
@@ -1681,6 +1755,12 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			encounter.acted.clear();
 			encounter.moved.clear();
 			log.push(postSystem(room, `Round ${encounter.round}.`));
+			if (encounter.finale) {
+				log.push(...roundOfWaking(room, adventure, encounter));
+				if (standing(room, adventure).length === 0) {
+					return { log: [...log, ...defeat(room, adventure, encounter)] };
+				}
+			}
 		}
 		encounter.turn++;
 		const entry = encounter.order[encounter.current];
@@ -1955,7 +2035,9 @@ function afterAction(
 	me: Played,
 	log: ChatMessage[]
 ): Outcome {
-	if (encounter.enemies.size === 0) return merge({ log }, victory(room, adventure));
+	const done = cleared(room, adventure, encounter);
+	if (done?.over) return merge({ log }, done.outcome);
+	if (done) log = [...log, ...done.outcome.log];
 	const spent = (encounter.moved.get(me.id) ?? 0) >= encounter.speed;
 	if (encounter.acted.has(me.id) && spent)
 		return merge({ log }, advance(room, adventure, encounter));
@@ -1985,7 +2067,9 @@ function enemyDies(room: Room, encounter: Encounter, token: Token): void {
 const WON: Record<EncounterId, { event: EventId; text?: string }> = {
 	well: { event: 'won_well', text: TEXT.houndFalls },
 	chamber: { event: 'won_chamber' },
-	hollow: { event: 'won_hollow', text: TEXT.keeperFalls }
+	hollow: { event: 'won_hollow', text: TEXT.keeperFalls },
+	waking: { event: 'bell_held' },
+	wrath: { event: 'decided_bell', text: TEXT.wrathWon }
 };
 
 /** The fight is won: the fallen get back up, and the story hears of it. */
@@ -2044,8 +2128,12 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 	if (enemy.statuses.has('burning')) {
 		log.push(burn(room, encounter, enemy, token, roller));
 		if (!encounter.enemies.has(token.id)) {
-			if (encounter.enemies.size === 0) return merge({ log }, victory(room, adventure));
-			return merge({ log }, advance(room, adventure, encounter));
+			const done = cleared(room, adventure, encounter);
+			if (done?.over) return merge({ log }, done.outcome);
+			return merge(
+				{ log },
+				merge(done?.outcome ?? { log: [] }, advance(room, adventure, encounter))
+			);
 		}
 	}
 	const kind = ENEMIES[enemy.kind];
@@ -2329,11 +2417,190 @@ export function afterTokenDeleted(room: Room, tokenId: string, pos?: GridPos): O
 		encounter.enemies.delete(tokenId);
 		leaveOrder(encounter, tokenId);
 		adventure.defeated.push(ENEMIES[enemy.kind].name);
-		if (encounter.enemies.size === 0) return victory(room, adventure);
+		const done = cleared(room, adventure, encounter);
+		if (done?.over) return done.outcome;
+		if (done) {
+			return merge(done.outcome, theirs ? advance(room, adventure, encounter) : { log: [] });
+		}
 	}
 	if (standing(room, adventure).length === 0) return { log: defeat(room, adventure, encounter) };
 	// Whoever was taking their turn is gone: the turn passes on.
 	return theirs ? advance(room, adventure, encounter) : { log: [] };
+}
+
+// ---------------------------------------------------------------------------
+// The finale: the Hollow's waking
+
+/** Pulls on the rope that hold the Bell still (the ringers' rule). */
+export const PULLS_TO_HOLD = 3;
+
+/**
+ * No enemies left. Most fights are won; in the Hollow's waking, the first
+ * wave down means the Bell starts ringing itself (and the fight goes on until
+ * it is held). `over` says whether the caller should stop there.
+ */
+function cleared(
+	room: Room,
+	adventure: AdventureState,
+	encounter: Encounter
+): { over: boolean; outcome: Outcome } | null {
+	if (encounter.enemies.size > 0) return null;
+	if (!encounter.finale) return { over: true, outcome: victory(room, adventure) };
+	if (encounter.finale === 'ringing') return null;
+	return { over: false, outcome: happen(room, adventure, 'bell_rings_itself') };
+}
+
+/**
+ * A new round of the Hollow's waking: the floor heaves under whoever stayed on
+ * the cracks, new cracks open under the party, and then either the waking
+ * turns to the Bell ringing itself (from the third round), or the Bell,
+ * unless someone pulled its rope, rings itself: everyone near it is hurt,
+ * its note lights the cavern, and another tendril comes up.
+ */
+function roundOfWaking(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+	const log = heave(room, adventure, encounter);
+	if (encounter.finale === 'waking' && encounter.round >= 3) {
+		log.push(...happen(room, adventure, 'bell_rings_itself').log);
+	} else if (encounter.finale === 'ringing') {
+		if (encounter.pulled) log.push(say(room, TEXT.strains));
+		else log.push(...selfRing(room, adventure, encounter));
+		encounter.pulled = false;
+	}
+	log.push(...crack(room, adventure, encounter));
+	return log;
+}
+
+/** Whoever still stands on a crack when the floor heaves is hurt, and the cracks close. */
+function heave(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+	const cracks = encounter.cracks ?? [];
+	if (!cracks.length) return [];
+	const log = [say(room, TEXT.heave)];
+	const on = (p: GridPos) => cracks.some((c) => c.x === p.x && c.y === p.y);
+	for (const c of standing(room, adventure)) {
+		if (!on(c.token.pos)) continue;
+		const rolled = roll('1d6', diceOf(room));
+		log.push(
+			hurt(room, c, rolled.total, `${CHARACTERS[c.id].name} is caught as the stone gives way`)
+		);
+	}
+	clearCracks(room, encounter);
+	return log;
+}
+
+/** New cracks open under each standing character and the cells beside them. */
+function crack(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+	const blocked = obstacles(room);
+	const bell = objectDef('bell');
+	const bellCells = (bell && objectCells(room, bell)) ?? [];
+	const cells: GridPos[] = [];
+	const add = (c: GridPos) => {
+		if (!inBounds(room.grid, c) || isSolidCell(blocked, c)) return;
+		if (room.terrain && room.terrain[c.y * room.grid.width + c.x] === 0) return;
+		if (bellCells.some((b) => b.x === c.x && b.y === c.y)) return;
+		if (!cells.some((o) => o.x === c.x && o.y === c.y)) cells.push(c);
+	};
+	for (const c of standing(room, adventure)) {
+		const p = c.token.pos;
+		for (const [dx, dy] of [
+			[0, 0],
+			[1, 0],
+			[-1, 0],
+			[0, 1],
+			[0, -1]
+		]) {
+			add({ x: p.x + dx, y: p.y + dy });
+		}
+	}
+	encounter.cracks = cells;
+	for (const c of cells) {
+		const id = crackId(c);
+		room.props.set(id, { id, assetId: 'crack', pos: { ...c }, rotation: 0, scale: 1 });
+	}
+	return cells.length ? [say(room, TEXT.cracks)] : [];
+}
+
+const crackId = (c: GridPos) => `ho-crack-${c.x}-${c.y}`;
+
+function clearCracks(room: Room, encounter: Encounter): void {
+	for (const c of encounter.cracks ?? []) room.props.delete(crackId(c));
+	encounter.cracks = [];
+}
+
+/** The Bell rings itself: everyone near it is hurt, its light floods the cavern, and more of the Hollow rises. */
+function selfRing(room: Room, adventure: AdventureState, encounter: Encounter): ChatMessage[] {
+	const log = [flare(room, TEXT.selfRings)];
+	const bell = objectDef('bell');
+	const bellCells = (bell && objectCells(room, bell)) ?? [];
+	const dice = diceOf(room);
+	for (const c of standing(room, adventure)) {
+		if (!bellCells.some((b) => gridDistance(b, c.token.pos) <= 5)) continue;
+		log.push(
+			hurt(room, c, roll('1d6', dice).total, `The note goes through ${CHARACTERS[c.id].name}`)
+		);
+	}
+	const cell = PIT_RING.find((c) => isFree(room, c));
+	if (cell) {
+		const token = enemyToken('tendril', cell);
+		room.tokens.set(token.id, token);
+		const hp = ENEMIES.tendril.hp(standing(room, adventure).length);
+		encounter.enemies.set(token.id, {
+			kind: 'tendril',
+			hp,
+			maxHp: hp,
+			statuses: new Map(),
+			rest: 0
+		});
+		encounter.order.push({ kind: 'enemy', tokenId: token.id, initiative: 0 });
+		log.push(say(room, 'Another tendril comes up out of the pit.'));
+	}
+	return log;
+}
+
+/** Damage from the Hollow itself (the floor, the Bell's note); at 0 the character is down. */
+function hurt(room: Room, c: Played, amount: number, what: string): ChatMessage {
+	c.state.hp = Math.max(0, c.state.hp - amount);
+	const down = c.state.hp === 0;
+	if (down) c.state.downedFor = 0;
+	return say(room, `${what}: ${amount} damage.${down ? ` ${CHARACTERS[c.id].name} falls!` : ''}`);
+}
+
+/**
+ * A pull on the Bell's rope (or the hand bell answering it): the Bell can't
+ * ring itself this round, and the third pull holds it: the tendrils sink,
+ * the cracks close, and the choice of what becomes of the Bell follows.
+ */
+function pull(room: Room, adventure: AdventureState, text: string): Outcome {
+	const encounter = adventure.encounter;
+	if (encounter?.finale !== 'ringing') return { log: [say(room, TEXT.strains)] };
+	encounter.pulls = (encounter.pulls ?? 0) + 1;
+	encounter.pulled = true;
+	const log = [say(room, `${text} (${encounter.pulls} of ${PULLS_TO_HOLD})`)];
+	if (encounter.pulls < PULLS_TO_HOLD) return { log };
+	log.push(say(room, TEXT.held));
+	for (const tokenId of [...encounter.enemies.keys()]) {
+		encounter.enemies.delete(tokenId);
+		room.tokens.delete(tokenId);
+	}
+	clearCracks(room, encounter);
+	const rope = objectDef('bell-rope');
+	if (rope) setObjectState(room, adventure, rope, 'used');
+	return merge({ log }, victory(room, adventure));
+}
+
+/** How a choice reads now, given what the party did and knows. */
+export function optionLabel(
+	adventure: AdventureState,
+	decision: DecisionId,
+	option: { id: string; label: string }
+): string {
+	if (decision !== 'bell') return option.label;
+	if (option.id === 'silence' && adventure.decisions.get('promise')?.option === 'silence') {
+		return 'Silence the Bell, as you promised Oswin';
+	}
+	if (option.id === 'use' && adventure.events.includes('learned_rule')) {
+		return 'Use the Bell: ring it as the ringers did, and speak to what is below';
+	}
+	return option.label;
 }
 
 // ---------------------------------------------------------------------------

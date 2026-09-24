@@ -35,7 +35,9 @@ export const HOLLOW_IDS = {
 	torch: 'ho-torch',
 	torchLight: 'ho-torch-light',
 	/** A cleft in the island's west wall: a way in past the Keeper's gate, seen only by the torch. */
-	cleft: 'ho-cleft'
+	cleft: 'ho-cleft',
+	/** The Bell's rope, in Tobin's hands. */
+	rope: 'ho-rope'
 } as const;
 
 /** Levels of the Hollow's ground. */
@@ -73,6 +75,21 @@ export const TOBIN_AT: GridPos = { x: 24, y: 11 };
 export const BY_TOBIN: GridPos = { x: 23, y: 12 };
 /** The pit where the sleeper lies. */
 export const PIT_AT: GridPos = { x: 28, y: 6 };
+/** At the pit's edge, where a character stands to look in. */
+export const BESIDE_PIT: GridPos = { x: 28, y: 5 };
+/** Where the Hollow's tendrils (and its Hand) come up: around the pit, nearest first. */
+export const PIT_RING: readonly GridPos[] = [
+	{ x: 27, y: 7 },
+	{ x: 30, y: 7 },
+	{ x: 28, y: 8 },
+	{ x: 29, y: 8 },
+	{ x: 27, y: 6 },
+	{ x: 30, y: 6 },
+	{ x: 27, y: 8 },
+	{ x: 30, y: 8 },
+	{ x: 26, y: 6 },
+	{ x: 31, y: 7 }
+];
 /** The cultists' torch on the west ledge. */
 export const TORCH_AT: GridPos = { x: 14, y: 11 };
 /** The cleft's edge, in the island's west wall beside the ledge. */
@@ -211,6 +228,7 @@ export function hollowScene(now = new Date()): SceneFile {
 				prop('ho-chains-w', 'chains', 22, 7),
 				prop('ho-chains-e', 'chains', 26, 7),
 				prop(I.pit, 'well', PIT_AT.x, PIT_AT.y),
+				prop(I.rope, 'rope', TOBIN_AT.x, TOBIN_AT.y),
 				prop('ho-pillar-1', 'pillar', 19, 11),
 				prop('ho-pillar-2', 'pillar', 29, 13),
 				prop('ho-pillar-3', 'pillar', 19, 16),

@@ -43,6 +43,8 @@ export interface Verb {
 	needs?: string;
 	/** The sound it makes, if not the usual one for what it does. */
 	sound?: Sound;
+	/** It can be done in a fight too, on the character's turn, as its action. */
+	inFight?: true;
 }
 
 const ACTION_BY_VERB: Record<string, InvestigationAction> = {
@@ -240,8 +242,15 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'unlit',
 		states: ['unlit', 'lit', 'disabled'],
 		verbs: [
-			{ id: 'light', label: 'Light the brazier', from: ['unlit'], to: 'lit', physical: 'activate' },
-			{ id: 'extinguish', label: 'Put out the brazier', from: ['lit'], to: 'unlit' }
+			{
+				id: 'light',
+				label: 'Light the brazier',
+				from: ['unlit'],
+				to: 'lit',
+				physical: 'activate',
+				inFight: true
+			},
+			{ id: 'extinguish', label: 'Put out the brazier', from: ['lit'], to: 'unlit', inFight: true }
 		],
 		looks: { lit: { lit: true }, unlit: { lit: false }, disabled: { lit: false } }
 	},
@@ -531,8 +540,15 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'unlit',
 		states: ['unlit', 'lit'],
 		verbs: [
-			{ id: 'light', label: 'Light the torch', from: ['unlit'], to: 'lit', physical: 'activate' },
-			{ id: 'extinguish', label: 'Put out the torch', from: ['lit'], to: 'unlit' }
+			{
+				id: 'light',
+				label: 'Light the torch',
+				from: ['unlit'],
+				to: 'lit',
+				physical: 'activate',
+				inFight: true
+			},
+			{ id: 'extinguish', label: 'Put out the torch', from: ['lit'], to: 'unlit', inFight: true }
 		],
 		looks: { lit: { lit: true }, unlit: { lit: false } }
 	},
@@ -643,7 +659,8 @@ export const OBJECTS: readonly ObjectDef[] = [
 				label: 'Ring the hand bell',
 				from: ['carried'],
 				physical: 'activate',
-				sound: 'chime'
+				sound: 'chime',
+				inFight: true
 			},
 			{
 				id: 'drop',
@@ -688,6 +705,26 @@ export const OBJECTS: readonly ObjectDef[] = [
 		]
 	},
 	{
+		// Tobin's rope: it only matters once the Bell starts ringing itself (the finale's third phase).
+		id: 'bell-rope',
+		name: 'The Bell’s rope',
+		kind: 'mechanism',
+		location: 'hollow',
+		thing: { prop: HOLLOW_IDS.rope },
+		initial: 'disabled',
+		states: ['disabled', 'interactable', 'used'],
+		verbs: [
+			{
+				id: 'pull',
+				label: 'Pull the Bell’s rope',
+				from: ['interactable'],
+				sound: 'clank',
+				inFight: true
+			}
+		],
+		disabledText: 'Tobin won’t let go of the rope, and the Bell hangs still.'
+	},
+	{
 		id: 'hollow-torch',
 		name: 'The cultists’ torch',
 		kind: 'torch',
@@ -697,8 +734,15 @@ export const OBJECTS: readonly ObjectDef[] = [
 		initial: 'lit',
 		states: ['lit', 'unlit'],
 		verbs: [
-			{ id: 'extinguish', label: 'Put out the torch', from: ['lit'], to: 'unlit' },
-			{ id: 'light', label: 'Light the torch', from: ['unlit'], to: 'lit', physical: 'activate' }
+			{ id: 'extinguish', label: 'Put out the torch', from: ['lit'], to: 'unlit', inFight: true },
+			{
+				id: 'light',
+				label: 'Light the torch',
+				from: ['unlit'],
+				to: 'lit',
+				physical: 'activate',
+				inFight: true
+			}
 		],
 		looks: { lit: { lit: true }, unlit: { lit: false } }
 	},

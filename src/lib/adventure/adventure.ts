@@ -36,6 +36,9 @@ export const CHAPTER_IDS = [
 	'bell_rings',
 	'descend',
 	'the_hollow',
+	'the_pit',
+	'the_waking',
+	'the_ringing',
 	'final_decision'
 ] as const;
 
@@ -303,6 +306,8 @@ export interface Interactable {
 		check: Check | null;
 		/** This viewer's character already tried the check and failed. */
 		tried: boolean;
+		/** It can be done in a fight, on the character's turn, as its action. */
+		inFight: boolean;
 	}[];
 }
 
@@ -353,6 +358,8 @@ export interface EncounterView {
 	speed: number;
 	/** Enemies this viewer can see. */
 	enemies: EnemyStatus[];
+	/** While the Bell rings itself: pulls on its rope so far, of those needed to hold it; else null. */
+	bell: { pulls: number; of: number } | null;
 }
 
 export interface ReadAloud {

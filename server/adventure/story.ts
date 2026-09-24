@@ -41,8 +41,18 @@ export type EventId =
 	/** The Bell Keeper and its cultists were beaten in the Hollow. */
 	| 'won_hollow'
 	| 'found_tobin'
-	/** The party decided what to do with the Bell. */
+	/** The party looked into the pit and saw what sleeps there (or already had). */
+	| 'saw_hollow'
+	/** The Hollow's first stirring was survived, and the Bell began to ring itself. */
+	| 'bell_rings_itself'
+	/** Three pulls on the rope held the Bell still. */
+	| 'bell_held'
+	/** The party chose to destroy the Bell, and the Hollow rose against them. */
+	| 'chose_destroy'
+	/** The party decided what to do with the Bell (and, if they broke it, lived). */
 	| 'decided_bell'
+	/** The party knows the ringers' rule: three pulls bind it. */
+	| 'learned_rule'
 	/** The party knows where Tobin went (shared evidence or testimony). */
 	| 'learned_tobin'
 	/** The party knows Saint Agna holds the way to the ringers. */
@@ -63,9 +73,14 @@ export const EVENT_IDS: readonly EventId[] = [
 	'reached_stair',
 	'won_hollow',
 	'found_tobin',
+	'saw_hollow',
+	'bell_rings_itself',
+	'bell_held',
+	'chose_destroy',
 	'decided_bell',
 	'learned_tobin',
-	'learned_agna'
+	'learned_agna',
+	'learned_rule'
 ];
 
 interface ObjectiveDef {
@@ -191,13 +206,58 @@ export const CHAPTERS: Record<ChapterId, ChapterDef> = {
 			{ id: 'keeper', text: 'Get past the Bell Keeper', done: 'won_hollow' },
 			{ id: 'tobin', text: 'Find Tobin', after: 'won_hollow', done: 'found_tobin' }
 		],
-		next: { on: 'found_tobin', to: 'final_decision' }
+		next: { on: 'found_tobin', to: 'the_pit' }
+	},
+	// The finale, in four phases: the party sees what sleeps below, survives its
+	// waking, takes hold of the Bell, and decides what becomes of it.
+	the_pit: {
+		id: 'the_pit',
+		title: 'What sleeps below',
+		location: 'hollow',
+		objectives: [{ id: 'pit', text: 'Look into the pit', done: 'saw_hollow' }],
+		next: { on: 'saw_hollow', to: 'the_waking' }
+	},
+	the_waking: {
+		id: 'the_waking',
+		title: 'The Hollow wakes',
+		location: 'hollow',
+		objectives: [
+			{
+				id: 'waking',
+				text: 'Survive the waking, and keep off the cracking floor',
+				done: 'bell_rings_itself'
+			}
+		],
+		next: { on: 'bell_rings_itself', to: 'the_ringing' }
+	},
+	the_ringing: {
+		id: 'the_ringing',
+		title: 'The Bell rings itself',
+		location: 'hollow',
+		objectives: [
+			{ id: 'hold', text: 'Stop the Bell ringing itself', done: 'bell_held' },
+			{
+				id: 'rule',
+				text: 'Three pulls bind it: pull the Bell’s rope three times',
+				after: 'learned_rule',
+				done: 'bell_held'
+			}
+		],
+		next: { on: 'bell_held', to: 'final_decision' }
 	},
 	final_decision: {
 		id: 'final_decision',
 		title: 'The final decision',
 		location: 'hollow',
-		objectives: [{ id: 'bell', text: 'Decide what becomes of the Bell', done: 'decided_bell' }],
+		objectives: [
+			{ id: 'bell', text: 'Decide what becomes of the Bell', done: 'decided_bell' },
+			{
+				id: 'wrath',
+				text: 'Survive the Hollow’s wrath',
+				after: 'chose_destroy',
+				done: 'decided_bell'
+			}
+		],
 		next: { on: 'decided_bell', to: null }
 	}
 };
@@ -264,24 +324,42 @@ export const DECISIONS: Record<DecisionId, DecisionDef> = {
 	bell: {
 		id: 'bell',
 		prompt:
-			'The Hollow Bell hangs over the pit, its rope in Tobin’s hands. Below, the eyes are opening. What do you do?',
+			'The Bell hangs still on its rope, and the Hollow waits beneath it, half awake, watching you. What becomes of the Bell?',
 		options: [
-			{ id: 'ring', label: 'Ring the Bell and bind the Hollow' },
-			{ id: 'break', label: 'Break the Bell' },
-			{ id: 'leave', label: 'Take Tobin and leave the Bell be' }
+			{ id: 'destroy', label: 'Destroy the Bell' },
+			{ id: 'silence', label: 'Silence the Bell' },
+			{ id: 'use', label: 'Use the Bell: ring it, and speak to what is below' }
 		]
 	}
 };
 
-export type EncounterId = 'well' | 'chamber' | 'hollow';
+export type EncounterId = 'well' | 'chamber' | 'hollow' | 'waking' | 'wrath';
 
-export const ENCOUNTER_IDS: readonly EncounterId[] = ['well', 'chamber', 'hollow'];
+export const ENCOUNTER_IDS: readonly EncounterId[] = [
+	'well',
+	'chamber',
+	'hollow',
+	'waking',
+	'wrath'
+];
 
-export type EndingId = 'kept' | 'broken' | 'silent';
+export type EndingId = 'broken' | 'waking' | 'spoken';
+
+export const ENDING_IDS: readonly EndingId[] = ['broken', 'waking', 'spoken'];
 
 /** The ending each answer to the final decision leads to. */
 export const ENDING_FOR: Record<string, EndingId> = {
-	ring: 'kept',
-	break: 'broken',
-	leave: 'silent'
+	destroy: 'broken',
+	silence: 'waking',
+	use: 'spoken'
 };
+
+/** Saves from before the finale had phases answered the Bell differently. */
+export const OLD_BELL_OPTIONS: Record<string, string> = {
+	ring: 'use',
+	break: 'destroy',
+	leave: 'silence'
+};
+
+/** And ended differently. */
+export const OLD_ENDINGS: Record<string, EndingId> = { kept: 'spoken', silent: 'waking' };
