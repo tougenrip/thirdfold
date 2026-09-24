@@ -37,8 +37,11 @@ import {
 import { MAX_TOKENS_PER_ROOM, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { decodeMask, encodeMask, MAX_VISION } from './visibility';
 
-/** v2 added lights, the ambient level and token-carried light; v3 added props. */
-export const SCENE_FILE_VERSION = 3;
+/**
+ * v2 added lights, the ambient level and token-carried light; v3 added props;
+ * v4 added the state of a story being played at the table.
+ */
+export const SCENE_FILE_VERSION = 4;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
 export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
@@ -64,8 +67,27 @@ export interface SceneFileV3 {
 	fog: { enabled: boolean; revealed: string };
 }
 
+/**
+ * The state of a story (an adventure module) played at the table, saved with
+ * it. The core only checks that it is plain JSON within limits; the module
+ * that wrote it validates the contents when it is loaded back.
+ */
+export interface SavedStory {
+	/** The module, e.g. 'hollow-bell'. */
+	id: string;
+	/** The module's own save format version. */
+	version: number;
+	state: Record<string, unknown>;
+}
+
+export interface SceneFileV4 extends Omit<SceneFileV3, 'version'> {
+	version: 4;
+	/** The story being played here, or null for a free table. */
+	adventure: SavedStory | null;
+}
+
 /** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV3;
+export type SceneFile = SceneFileV4;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -79,6 +101,8 @@ export interface SceneSource {
 	fog: { enabled: boolean; revealed: Uint8Array };
 	/** Resolves an owner id to a display name, so ownership survives into other sessions. */
 	playerName(id: string): string | undefined;
+	/** The story played at the table, if any. */
+	adventure?: SavedStory | null;
 }
 
 export function normalizeSceneName(raw: unknown): string | null {
@@ -103,7 +127,8 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		props: [...source.props].map((p) => structuredClone(p)),
 		lights: [...source.lights].map((l) => structuredClone(l)),
 		ambient: source.ambient,
-		fog: { enabled: source.fog.enabled, revealed: encodeMask(source.fog.revealed) }
+		fog: { enabled: source.fog.enabled, revealed: encodeMask(source.fog.revealed) },
+		adventure: source.adventure ? structuredClone(source.adventure) : null
 	};
 }
 
@@ -146,6 +171,10 @@ function migrate(data: Record<string, unknown>): Record<string, unknown> | strin
 	if (upgraded.version === 2) {
 		// v2 → v3: no props yet.
 		upgraded = { ...upgraded, version: 3, props: [] };
+	}
+	if (upgraded.version === 3) {
+		// v3 → v4: no story saved with the table.
+		upgraded = { ...upgraded, version: 4, adventure: null };
 	}
 	return upgraded;
 }
@@ -333,6 +362,27 @@ export function parseSceneFile(input: unknown): SceneParse {
 	const revealed = typeof data.fog.revealed === 'string' ? data.fog.revealed : '';
 	const mask = decodeMask(revealed, grid.width * grid.height);
 
+	// The story: plain JSON here; its module checks the rest when it loads it.
+	let adventure: SavedStory | null = null;
+	if (data.adventure !== null && data.adventure !== undefined) {
+		const raw = data.adventure;
+		if (
+			!isRecord(raw) ||
+			typeof raw.id !== 'string' ||
+			!ID.test(raw.id) ||
+			int(raw.version, 1, 1000) === null ||
+			!isRecord(raw.state) ||
+			!isPlainJson(raw.state, 0, { nodes: 0 })
+		) {
+			return bad('The saved story is not valid.');
+		}
+		adventure = {
+			id: raw.id,
+			version: raw.version as number,
+			state: JSON.parse(JSON.stringify(raw.state))
+		};
+	}
+
 	return {
 		ok: true,
 		scene: {
@@ -346,7 +396,20 @@ export function parseSceneFile(input: unknown): SceneParse {
 			props,
 			lights,
 			ambient: data.ambient as Ambient,
-			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask) }
+			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask) },
+			adventure
 		}
 	};
+}
+
+const JSON_LIMITS = { depth: 12, nodes: 20000 };
+
+/** Whether a value is plain JSON data (no functions, no cycles), within depth and size limits. */
+function isPlainJson(value: unknown, depth: number, count: { nodes: number }): boolean {
+	if (++count.nodes > JSON_LIMITS.nodes || depth > JSON_LIMITS.depth) return false;
+	if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+	if (typeof value === 'number') return Number.isFinite(value);
+	if (Array.isArray(value)) return value.every((v) => isPlainJson(v, depth + 1, count));
+	if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) return false;
+	return Object.values(value).every((v) => isPlainJson(v, depth + 1, count));
 }

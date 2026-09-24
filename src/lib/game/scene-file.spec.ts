@@ -117,7 +117,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(3);
+		expect(file.version).toBe(4);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -132,7 +132,7 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(3);
+		expect(parsed.scene.version).toBe(4);
 		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
@@ -178,5 +178,42 @@ describe('scene file v3: props', () => {
 		mutate(data);
 		const parsed = parseSceneFile(data);
 		expect(!parsed.ok && parsed.error).toMatch(error);
+	});
+});
+
+describe('scene file v4: the story played at the table', () => {
+	const story = { id: 'hollow-bell', version: 1, state: { chapter: 'village', events: ['a'] } };
+
+	it('saves no story for a free table, and upgrades a v3 file to none', () => {
+		expect(serializeScene('Crypt', source()).adventure).toBeNull();
+		const v3 = saved();
+		v3.version = 3;
+		delete v3.adventure;
+		const parsed = parseSceneFile(v3);
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: 4, adventure: null });
+	});
+
+	it('keeps a story through a round trip, as a copy', () => {
+		const file = serializeScene('Crypt', { ...source(), adventure: story });
+		expect(file.adventure).toEqual(story);
+		expect(file.adventure).not.toBe(story);
+		const parsed = parseSceneFile(JSON.parse(JSON.stringify(file)));
+		expect(parsed.ok && parsed.scene.adventure).toEqual(story);
+	});
+
+	const deep = (n: number): unknown => (n === 0 ? 1 : { next: deep(n - 1) });
+	type Mutation = (d: ReturnType<typeof saved>) => void;
+	it.each<[string, Mutation]>([
+		['a story that is not an object', (d) => (d.adventure = 'hollow-bell')],
+		['a story with a bad id', (d) => (d.adventure = { ...story, id: '../etc' })],
+		['a story with no version', (d) => (d.adventure = { ...story, version: 'one' })],
+		['a story with no state', (d) => (d.adventure = { ...story, state: [] })],
+		['a story nested too deep', (d) => (d.adventure = { ...story, state: deep(40) })],
+		['a story with a non-finite number', (d) => (d.adventure = { ...story, state: { n: NaN } })]
+	])('rejects %s', (_label, mutate) => {
+		const data = saved();
+		mutate(data);
+		const parsed = parseSceneFile(data);
+		expect(!parsed.ok && parsed.error).toMatch(/saved story/);
 	});
 });

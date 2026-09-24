@@ -126,5 +126,44 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'cylinder', size: [0.8, 0.05, 0.6], at: [0, 0.025, 0], color: 0x8f8a84 },
 		{ shape: 'sphere', size: [0.25, 0.12, 0.2], at: [0.15, 0.05, 0.05], color: 0xb9b3aa },
 		{ shape: 'cone', size: [0.14, 0.18, 0.14], at: [-0.2, 0.09, -0.1], color: 0xb08d57 }
+	],
+	altar: [
+		{ shape: 'box', size: [1.8, 0.9, 0.8], at: [0, 0.45, 0], color: LIGHT_STONE },
+		{ shape: 'box', size: [1.9, 0.06, 0.9], at: [0, 0.93, 0], color: 0xe8e0d0 },
+		{ shape: 'cylinder', size: [0.08, 0.3, 0.08], at: [-0.6, 1.11, 0], color: 0xf2e6c8 },
+		{ shape: 'cylinder', size: [0.08, 0.3, 0.08], at: [0.6, 1.11, 0], color: 0xf2e6c8 }
+	],
+	pew: [
+		{ shape: 'box', size: [1.8, 0.08, 0.45], at: [0, 0.45, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [1.8, 0.5, 0.06], at: [0, 0.72, -0.2], color: DARK_WOOD },
+		{ shape: 'box', size: [0.08, 0.45, 0.45], at: [-0.86, 0.22, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [0.08, 0.45, 0.45], at: [0.86, 0.22, 0], color: DARK_WOOD }
+	],
+	gravestone: [
+		{ shape: 'box', size: [0.6, 0.8, 0.14], at: [0, 0.4, -0.2], color: STONE },
+		{ shape: 'box', size: [0.5, 0.04, 0.7], at: [0, 0.02, 0.1], color: 0x4a4038 }
+	],
+	grate: [
+		{ shape: 'box', size: [0.8, 0.03, 0.8], at: [0, 0.015, 0], color: 0x141210 },
+		{ shape: 'box', size: [0.06, 0.04, 0.8], at: [-0.25, 0.03, 0], color: IRON },
+		{ shape: 'box', size: [0.06, 0.04, 0.8], at: [0, 0.03, 0], color: IRON },
+		{ shape: 'box', size: [0.06, 0.04, 0.8], at: [0.25, 0.03, 0], color: IRON }
+	],
+	stairs: [
+		{ shape: 'box', size: [0.9, 0.02, 0.9], at: [0, 0.01, 0], color: 0x0c0907 },
+		{ shape: 'box', size: [0.8, 0.03, 0.2], at: [0, 0.02, -0.3], color: STONE },
+		{ shape: 'box', size: [0.8, 0.03, 0.2], at: [0, 0.02, -0.05], color: 0x6a655d },
+		{ shape: 'box', size: [0.8, 0.03, 0.2], at: [0, 0.02, 0.2], color: 0x4a4640 }
+	],
+	rope: [
+		{ shape: 'cylinder', size: [0.06, 2.6, 0.06], at: [0, 1.3, 0], color: 0xc8a86a },
+		{ shape: 'sphere', size: [0.16, 0.2, 0.16], at: [0, 0.35, 0], color: 0xa8864a }
+	],
+	bell: [
+		{ shape: 'box', size: [0.12, 2.6, 0.12], at: [-0.85, 1.3, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [0.12, 2.6, 0.12], at: [0.85, 1.3, 0], color: DARK_WOOD },
+		{ shape: 'box', size: [1.9, 0.16, 0.2], at: [0, 2.6, 0], color: DARK_WOOD },
+		{ shape: 'cone', size: [1.3, 1.3, 1.3], at: [0, 1.75, 0], color: 0x7a6a3a },
+		{ shape: 'sphere', size: [0.2, 0.2, 0.2], at: [0, 1.0, 0], color: IRON }
 	]
 };

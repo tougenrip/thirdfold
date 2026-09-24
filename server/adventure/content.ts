@@ -1,12 +1,12 @@
-// The words of The Hollow Bell, part one. Server-side only, so what the party
-// hasn't discovered yet never reaches a client: dialogue, clues and narration
-// go out as log entries and adventure state once they happen.
+// The words of The Hollow Bell. Server-side only, so what the party hasn't
+// discovered yet never reaches a client: dialogue, clues and narration go out
+// as log entries and adventure state once they happen.
 
-import type { AdventureStage, Clue, Objective } from '../../src/lib/adventure/adventure';
+import type { Clue } from '../../src/lib/adventure/adventure';
 import type { Attack } from '../../src/lib/adventure/characters';
+import type { EndingId } from './story';
 
 export const TITLE = 'The Hollow Bell';
-export const SECTION = 'Part One: Bellweather';
 
 export const CLUES = {
 	notice: {
@@ -38,33 +38,25 @@ export const CLUES = {
 		id: 'scratches',
 		title: 'Scratches in the well',
 		text: 'Deep claw marks run up the inside of the well, as if something climbed out. Pressed into the stone lip: the shape of a bell.'
+	},
+	chronicle: {
+		id: 'chronicle',
+		title: 'The brothers’ chronicle',
+		text: 'The last page of the chronicle: “The Bell does not hang in the tower. It hangs in the Hollow, over the thing that sleeps there, and its ringing keeps it sleeping. The ringers go down by Saint Agna’s door. Turn the bell in her hands.”'
+	},
+	splice: {
+		id: 'splice',
+		title: 'A mended rope',
+		text: 'The old bell rope was cut long ago. Someone has spliced it back together with new rope, the same rope as the length in the Hale chest. Tobin mended it, and Tobin rang it.'
+	},
+	badges: {
+		id: 'badges',
+		title: 'The last ringers',
+		text: 'Among the bones: three tin badges stamped with a bell. The last ringers never climbed back up. They stayed to keep the Bell quiet.'
 	}
 } satisfies Record<string, Clue>;
 
 export type ClueId = keyof typeof CLUES;
-
-/** Stages in story order, for deciding which objectives are done. */
-const ORDER: AdventureStage[] = ['choosing', 'arrival', 'investigate', 'encounter', 'aftermath'];
-
-const OBJECTIVES: { id: string; text: string; from: AdventureStage }[] = [
-	{ id: 'innkeeper', text: 'Find the innkeeper at the Tolling Rest', from: 'arrival' },
-	{ id: 'well', text: 'Examine the old well in the square', from: 'investigate' },
-	{ id: 'hound', text: 'Drive off what climbed out of the well', from: 'encounter' },
-	{ id: 'path', text: 'Take the mountain path north toward the monastery', from: 'aftermath' }
-];
-
-/** The objectives the party knows of at a stage: earlier ones done, the current one open. */
-export function objectivesFor(stage: AdventureStage): Objective[] {
-	if (stage === 'choosing') return [{ id: 'choose', text: 'Choose your characters', done: false }];
-	if (stage === 'complete') return OBJECTIVES.map((o) => ({ id: o.id, text: o.text, done: true }));
-	// A defeat happens in the encounter; show where the party fell.
-	const at = ORDER.indexOf(stage === 'defeat' ? 'encounter' : stage);
-	return OBJECTIVES.filter((o) => ORDER.indexOf(o.from) <= at).map((o) => ({
-		id: o.id,
-		text: o.text,
-		done: ORDER.indexOf(o.from) < at
-	}));
-}
 
 export const HOUND = {
 	name: 'Hollow Hound',
@@ -74,12 +66,14 @@ export const HOUND = {
 	vision: 8,
 	attack: { name: 'Bite', range: 1, toHit: 4, damage: '1d6+2' } satisfies Attack,
 	/** Tougher with a bigger party. */
-	hpFor: (characters: number) => 10 + 6 * Math.max(1, characters)
+	hpFor: (characters: number) => 10 + 6 * Math.max(1, characters),
+	/** The two that come up the stair when the bell rings are younger and weaker. */
+	pupHpFor: (characters: number) => 6 + 3 * Math.max(1, characters)
 };
 
 /** Narration, spoken lines and prepared read-aloud text. */
 export const TEXT = {
-	started: `${TITLE} · ${SECTION}. Choose your characters.`,
+	started: `${TITLE}. Choose your characters.`,
 	arrival:
 		'Dusk settles over Bellweather. The valley road brings you into the village square, where the lamps are already lit and every shutter is closed. High on the mountain, the old monastery is a black shape against the last of the light. An hour ago its bell rang, for the first time in forty years.',
 	marenArrival:
@@ -100,10 +94,10 @@ export const TEXT = {
 		'Maren hurries out of the inn with a pair of shears. The chain on the north gate falls away, and the path up the mountain lies open.',
 	gateLocked: 'The gate is chained shut.',
 	notNow: "There's no time for that. The Hound is here.",
-	complete:
-		'The lamps of Bellweather fall away behind you as the path climbs into the dark. Above, the monastery waits, and the bell is silent. For now. — End of Part One.',
+	leaveVillage:
+		'The lamps of Bellweather fall away behind you as the path climbs into the dark. At the top, the monastery gate stands open on a courtyard of graves, and one lamp still burns in the gatehouse.',
 	defeat:
-		'The last of you falls. The Hound drags the lamplight down with it, and Bellweather is quiet again. The GM can start the section over.',
+		'The last of you falls. The dark closes over the lamplight, and the mountain is quiet again. The GM can start the story over.',
 	revive: 'Those who fell struggle back to their feet, bruised but alive.',
 	chestOpen: 'The lid creaks up. Folded blankets, a boy’s spare boots, and something underneath.',
 	chestEmpty: 'Nothing else in the chest but blankets.',
@@ -118,7 +112,72 @@ export const TEXT = {
 	brazierLit:
 		'The brazier catches, and warm light spills across the gate and the first stretch of path.',
 	brazierOut: 'The brazier gutters out.',
-	remainsEmpty: 'Only ash now.'
+	remainsEmpty: 'Only ash now.',
+
+	// The monastery
+	oswinFirst:
+		'A stooped old man in a patched habit lifts his lamp to your faces. “Visitors. Forty years, and tonight of all nights. I am Oswin, the last of the brothers, the one who would not leave. You heard the Bell. So did I. Tell me, then: what have you come up here to do?”',
+	oswinWaiting: '“Well?” Oswin waits, the lamp trembling in his hand.',
+	oswinSilence:
+		'“Silence it.” Oswin closes his eyes. “Yes. That is what we swore, too.” He presses a heavy iron key into your hand. “The ringers’ door, on the east side. I have unlocked nothing in forty years. Go on.”',
+	oswinBoy:
+		'“The boy.” Oswin’s face crumples. “Tobin brought me bread every week. He asked about the Bell, and I told him. God forgive me, I told him.” He presses a heavy iron key into your hand. “The ringers’ door, on the east side. Bring him back.”',
+	oswinAfter: '“The ringers’ door, on the east side. Saint Agna keeps the way down.”',
+	oswinEnd: '“Whatever you did down there, I heard it. Go carefully.”',
+	graves:
+		'Forty-one graves, forty-one brothers. The newest stone is blank. Oswin must have cut it for himself.',
+	nave: 'The nave is cold and very still. Dust lies thick on the pews, except for one line of small footprints running to the statue by the west wall.',
+	agna: 'You turn the little bronze bell in Saint Agna’s hands. Something clanks behind the west wall, and a section of stone swings inward on old hinges.',
+	agnaAgain: 'The bronze bell in her hands will not turn back.',
+	chamber:
+		'Behind the wall, a narrow ringing chamber. A bell rope hangs through a hole in the ceiling, and a single candle burns on a crate.',
+	bellRings:
+		'The rope jerks in the still air, and far below your feet the Bell speaks. Not in the tower: under the floor. The iron grate bursts upward, and two pale shapes spill out of the stair.',
+	chamberWon:
+		'The last hound falls apart into chiming ash. The broken grate hangs open, and a stair winds down into the rock, toward the sound of the Bell.',
+	downStair: 'The stair turns and turns. The air grows warm, then damp, then hums.',
+
+	// The Hollow
+	hollow:
+		'The stair opens into a cavern. At its far end, the Hollow Bell hangs from the rock over a black pit, its rope running up into the dark. A boy stands under it, holding the rope, perfectly still.',
+	tobinFound:
+		'Tobin turns his head slowly. His eyes are wide and blank. “It told me to ring,” he whispers. “It said it was lonely.” In the pit, something shifts, and many eyes begin to open.',
+	tobinAfter: 'Tobin clings to your sleeve and will not let go.',
+	bell: 'The Bell is black iron, older than the monastery, and cold as the bottom of a well. Every surface is cut with tiny, careful eyes.',
+	pit: 'You look down. The dark looks back, with far too many eyes, and hums the Bell’s note.',
+	bonesEmpty: 'Only bones now.'
+};
+
+/** How the story ends, by the choice made at the Bell. */
+export const ENDINGS: Record<EndingId, { title: string; text: string }> = {
+	kept: {
+		title: 'The Bell Kept',
+		text: 'You take the rope from Tobin and ring, as the brothers rang. Once, twice, three times. The eyes in the pit close one by one, and the humming stops. You carry Tobin up into the dawn. Forty years from now, someone will have to ring it again.'
+	},
+	broken: {
+		title: 'The Bell Broken',
+		text: 'You bring the Bell down. It cracks with a sound like the end of the world, and the humming stops. So does whatever held the thing below. You run with Tobin up the stair as the Hollow wakes behind you. Bellweather will need more than lamps now.'
+	},
+	silent: {
+		title: 'The Long Silence',
+		text: 'You cut Tobin free of the rope and carry him up and out, and leave the Bell hanging over the pit, silent. Nobody rings it. Nobody should. In the dark below, the eyes stay open, waiting.'
+	}
+};
+
+/** What becomes of Oswin's promise, told after the ending. */
+export const PROMISE_KEPT: Record<string, Record<EndingId, string>> = {
+	silence: {
+		kept: 'The Bell is quiet again, as you promised Oswin.',
+		broken: 'You promised Oswin silence, and you made it the loudest silence there has ever been.',
+		silent:
+			'You promised Oswin silence. He will spend what is left of his life listening for it to break.'
+	},
+	boy: {
+		kept: 'Oswin weeps at the gate when he sees the boy alive.',
+		broken:
+			'Oswin weeps at the gate when he sees the boy alive, and then he looks past you, down the mountain.',
+		silent: 'Oswin weeps at the gate when he sees the boy alive.'
+	}
 };
 
 export const CUES = [
@@ -136,5 +195,15 @@ export const CUES = [
 		id: 'hale-house',
 		title: 'The Hale house',
 		text: "The Hale house is unlocked. Inside, supper sits cold on the table, and a boy's coat still hangs by the door."
+	},
+	{
+		id: 'monastery',
+		title: 'The monastery at night',
+		text: 'Wind moans through the broken tower. Up close, the monastery is bigger than it looked from the village, and every window is dark but one.'
+	},
+	{
+		id: 'hollow',
+		title: 'The eyes in the dark',
+		text: 'At the edge of your lamplight, the pit breathes. Every time the Bell hums, something down there hums back.'
 	}
 ] as const;

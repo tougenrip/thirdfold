@@ -1,0 +1,72 @@
+// The last table of The Hollow Bell: the Hollow, a cavern under the
+// monastery. The stair from the ringing chamber comes down at the south edge.
+// To the north, the Hollow Bell hangs from the rock over a pit, and Tobin
+// stands beneath it with the rope in his hands.
+//
+// The grid runs x to the east and y to the south.
+
+import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
+import type { SceneFile } from '../../src/lib/game/scene-file';
+import { light, npc, prop, table, wall } from './tables';
+
+export const HOLLOW_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 20, height: 16 };
+
+export const HOLLOW_IDS = {
+	tobin: 'ho-tobin',
+	bell: 'ho-bell',
+	pit: 'ho-pit',
+	bones: 'ho-bones'
+} as const;
+
+/** Where characters arrive: the foot of the stair. */
+export const HOLLOW_SPAWN: readonly GridPos[] = [
+	{ x: 9, y: 14 },
+	{ x: 10, y: 14 },
+	{ x: 8, y: 14 },
+	{ x: 11, y: 14 },
+	{ x: 9, y: 15 },
+	{ x: 10, y: 15 },
+	{ x: 8, y: 15 },
+	{ x: 11, y: 15 }
+];
+
+export function hollowScene(now = new Date()): SceneFile {
+	const I = HOLLOW_IDS;
+	return table(
+		{
+			name: 'The Hollow',
+			grid: HOLLOW_GRID,
+			ambient: 'dusk',
+			arrival: { from: { x: 6, y: 11 }, to: { x: 13, y: 15 } },
+			tokens: [npc(I.tobin, 'Tobin', '#d9a441', 9, 4)],
+			objects: [
+				// Ribs of rock narrowing the cave.
+				wall('ho-rock1', { x: 0, y: 4 }, { x: 4, y: 4 }),
+				wall('ho-rock2', { x: 16, y: 5 }, { x: 20, y: 5 }),
+				wall('ho-rock3', { x: 0, y: 11 }, { x: 4, y: 11 }),
+				wall('ho-rock4', { x: 16, y: 11 }, { x: 20, y: 11 }),
+				wall('ho-rock5', { x: 5, y: 8 }, { x: 5, y: 11 }),
+				wall('ho-rock6', { x: 15, y: 8 }, { x: 15, y: 11 })
+			],
+			props: [
+				prop(I.bell, 'bell', 9, 2),
+				prop(I.pit, 'well', 13, 2),
+				prop(I.bones, 'rubble', 4, 7),
+				prop('ho-bones2', 'ashes', 16, 8),
+				prop('ho-stair', 'stairs', 12, 15),
+				prop('ho-rock-a', 'pillar', 3, 13),
+				prop('ho-rock-b', 'pillar', 16, 13),
+				prop('ho-rock-c', 'pillar', 7, 6),
+				prop('ho-rock-d', 'pillar', 12, 7),
+				prop('ho-rock-e', 'pillar', 1, 1),
+				prop('ho-rock-f', 'pillar', 18, 2)
+			],
+			lights: [
+				light('ho-bell-glow', 10, 3, 5, '#7fb6ff'),
+				light('ho-pit-glow', 14, 3, 3, '#9c6cff'),
+				light('ho-stair-light', 12, 14, 3, '#ffd27a')
+			]
+		},
+		now
+	);
+}

@@ -3,14 +3,16 @@
 // is in that viewer's view, things to interact with only once their cells
 // have been seen, and the read-aloud passages only for the GM.
 
-import type { AdventureView } from '../../src/lib/adventure/adventure';
+import { CHAPTER_IDS, type AdventureView } from '../../src/lib/adventure/adventure';
 import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
-import { CLUES, CUES, HOUND, objectivesFor, SECTION, TITLE } from './content';
-import { objectCells, objectState, usesLeft, verbsFor } from './engine';
+import { CLUES, CUES, ENDINGS, HOUND, TITLE } from './content';
+import { chapterNumber, objectCells, objectState, usesLeft, verbsFor } from './engine';
+import { LOCATIONS } from './locations';
 import { OBJECTS } from './objects';
 import type { Statuses } from './state';
+import { CHAPTERS, DECISIONS, ENCOUNTER_IDS, NPC_IDS, NPCS, objectivesFor } from './story';
 
 const listStatuses = (statuses: Statuses) => [...statuses].map(([id, rounds]) => ({ id, rounds }));
 
@@ -30,9 +32,15 @@ export function adventureView(
 	return {
 		id: adventure.id,
 		title: TITLE,
-		section: SECTION,
 		stage: adventure.stage,
-		objectives: objectivesFor(adventure.stage),
+		chapter: {
+			id: adventure.chapter,
+			title: CHAPTERS[adventure.chapter].title,
+			number: chapterNumber(adventure.chapter),
+			of: CHAPTER_IDS.length
+		},
+		location: { id: adventure.location, name: LOCATIONS[adventure.location].name },
+		objectives: objectivesFor(adventure.stage, adventure.chapter, adventure.events),
 		clues: adventure.clues.map((id) => ({ ...CLUES[id as keyof typeof CLUES] })),
 		characters: CHARACTER_IDS.map((id) => {
 			const state = adventure.characters.get(id);
@@ -73,7 +81,7 @@ export function adventureView(
 		}),
 		objects:
 			viewer.role === 'gm'
-				? OBJECTS.map((def) => ({
+				? OBJECTS.filter((def) => def.location === adventure.location).map((def) => ({
 						id: def.id,
 						name: def.name,
 						kind: def.kind,
@@ -97,6 +105,34 @@ export function adventureView(
 					statuses: listStatuses(e.statuses)
 				}))
 		},
+		decision: adventure.pending && {
+			id: adventure.pending,
+			prompt: DECISIONS[adventure.pending].prompt,
+			options: DECISIONS[adventure.pending].options.map((o) => ({ ...o }))
+		},
+		decisions: [...adventure.decisions].map(([id, d]) => ({
+			id,
+			prompt: DECISIONS[id].prompt,
+			choice: DECISIONS[id].options.find((o) => o.id === d.option)?.label ?? d.option,
+			by: d.by
+		})),
+		ending: adventure.ending && { id: adventure.ending, ...ENDINGS[adventure.ending] },
+		ledger:
+			viewer.role === 'gm'
+				? {
+						events: [...adventure.events],
+						defeated: [...adventure.defeated],
+						npcs: NPC_IDS.map((id) => ({
+							id,
+							name: NPCS[id].name,
+							state: adventure.npcs.get(id) ?? NPCS[id].states[0]
+						})),
+						encounters: ENCOUNTER_IDS.flatMap((id) => {
+							const state = adventure.encounters.get(id);
+							return state ? [{ id, state }] : [];
+						})
+					}
+				: null,
 		begunAt: adventure.begunAt,
 		completedAt: adventure.completedAt,
 		cues:

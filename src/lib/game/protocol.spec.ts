@@ -185,6 +185,20 @@ describe('adventure messages', () => {
 		expect(parseClientMessage({ type: 'adventure_narrate' })).toBeNull();
 	});
 
+	it('parses answers to a choice, and only well-formed ones', () => {
+		expect(
+			parseClientMessage({ type: 'adventure_decide', decisionId: 'bell', optionId: 'ring' })
+		).toEqual({ type: 'adventure_decide', decisionId: 'bell', optionId: 'ring' });
+		for (const bad of [
+			{ decisionId: 'bell' },
+			{ decisionId: 'bell', optionId: 3 },
+			{ decisionId: '', optionId: 'ring' },
+			{ decisionId: 'bell', optionId: 'x'.repeat(500) }
+		]) {
+			expect(parseClientMessage({ type: 'adventure_decide', ...bad })).toBeNull();
+		}
+	});
+
 	it('accepts adventure updates, including the adventure ending', () => {
 		expect(parseServerMessage({ type: 'adventure_update', adventure: null })).not.toBeNull();
 		expect(parseServerMessage({ type: 'adventure_update', adventure: 'x' })).toBeNull();

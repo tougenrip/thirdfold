@@ -13,18 +13,87 @@ import type { Action, CharacterId, StatusId } from './characters';
 
 export type AdventureId = 'hollow-bell';
 
-/** Where the party is in the section. */
+/** Whether the story is being played: before it begins, during, and how it ended. */
 export type AdventureStage =
 	/** Players are picking characters; the GM begins when ready. */
 	| 'choosing'
-	| 'arrival'
-	| 'investigate'
-	| 'encounter'
-	| 'aftermath'
-	/** The section is over: the party reached the mountain path. */
+	| 'playing'
+	/** The story reached an ending. */
 	| 'complete'
-	/** Every character went down; the GM can start the section again. */
+	/** Every character went down; the GM can start again. */
 	| 'defeat';
+
+/**
+ * The chapters of The Hollow Bell in story order. Play moves the party from
+ * one to the next; the server decides when (see server/adventure/story.ts).
+ */
+export const CHAPTER_IDS = [
+	'village',
+	'discover_bell',
+	'investigate_monastery',
+	'enter_monastery',
+	'discover_hidden_chamber',
+	'bell_rings',
+	'descend',
+	'the_hollow',
+	'final_decision'
+] as const;
+
+export type ChapterId = (typeof CHAPTER_IDS)[number];
+
+export function isChapterId(value: unknown): value is ChapterId {
+	return typeof value === 'string' && (CHAPTER_IDS as readonly string[]).includes(value);
+}
+
+/** The tables the story is played on. */
+export const LOCATION_IDS = ['bellweather', 'monastery', 'hollow'] as const;
+
+export type LocationId = (typeof LOCATION_IDS)[number];
+
+export function isLocationId(value: unknown): value is LocationId {
+	return typeof value === 'string' && (LOCATION_IDS as readonly string[]).includes(value);
+}
+
+export interface ChapterView {
+	id: ChapterId;
+	title: string;
+	/** 1-based position in the story. */
+	number: number;
+	of: number;
+}
+
+/** A choice put to the party. Anyone playing a character (or the GM) can answer it, once. */
+export interface DecisionView {
+	id: string;
+	prompt: string;
+	options: { id: string; label: string }[];
+}
+
+/** A choice the party has made, as the story remembers it. */
+export interface DecisionMade {
+	id: string;
+	prompt: string;
+	choice: string;
+	/** Who answered: a character's name, or the GM's. */
+	by: string;
+}
+
+export interface EndingView {
+	id: string;
+	title: string;
+	text: string;
+}
+
+/** GM only: the story's bookkeeping, for following along and checking a save. */
+export interface StoryLedger {
+	events: string[];
+	defeated: string[];
+	npcs: { id: string; name: string; state: string }[];
+	encounters: { id: string; state: EncounterState }[];
+}
+
+/** Where a fight is in its life. Encounters not listed have not started. */
+export type EncounterState = 'active' | 'won' | 'lost';
 
 export interface Objective {
 	id: string;
@@ -50,7 +119,7 @@ export interface CharacterStatus {
 	maxHp: number;
 	/** At 0 HP: can't move or act, and dies if not healed in time. */
 	downed: boolean;
-	/** Gone for the rest of the section. */
+	/** Gone for the rest of the story. */
 	dead: boolean;
 	/** Rounds a downed character has been down. */
 	downedFor: number;
@@ -168,8 +237,9 @@ export interface ReadAloud {
 export interface AdventureView {
 	id: AdventureId;
 	title: string;
-	section: string;
 	stage: AdventureStage;
+	chapter: ChapterView;
+	location: { id: LocationId; name: string };
 	objectives: Objective[];
 	clues: Clue[];
 	characters: CharacterStatus[];
@@ -178,6 +248,14 @@ export interface AdventureView {
 	/** GM only: every world object, hidden ones included, with its state. */
 	objects: WorldObject[] | null;
 	encounter: EncounterView | null;
+	/** The choice waiting on the party, if any. */
+	decision: DecisionView | null;
+	/** Choices made so far, oldest first. */
+	decisions: DecisionMade[];
+	/** How the story ended, once it has. */
+	ending: EndingView | null;
+	/** GM only: triggered events, defeated enemies, NPC states and encounters. */
+	ledger: StoryLedger | null;
 	/** When the GM began play (ms since epoch), for the time played. */
 	begunAt: number | null;
 	completedAt: number | null;

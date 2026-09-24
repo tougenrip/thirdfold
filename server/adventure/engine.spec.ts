@@ -9,6 +9,7 @@ import { cellIndex } from '../../src/lib/game/visibility';
 import { RoomManager, type Player, type Room } from '../rooms';
 import { obstacles } from '../scene';
 import { bellweatherScene, EXIT, IDS, PATH_AREA, SPAWN } from './bellweather';
+import { MONASTERY_SPAWN } from './monastery';
 import {
 	afterMove,
 	afterTokenDeleted,
@@ -158,7 +159,7 @@ describe('starting and choosing characters', () => {
 		expect(beginAdventure(room, ana)).toMatchObject({ ok: false, code: 'forbidden' });
 		const begun = ok(beginAdventure(room, gm, 5000));
 		expect(begun.log[0]).toMatchObject({ kind: 'narration' });
-		expect(room.adventure).toMatchObject({ stage: 'arrival', begunAt: 5000 });
+		expect(room.adventure).toMatchObject({ stage: 'playing', chapter: 'village', begunAt: 5000 });
 	});
 
 	it('keeps characters in place until play begins', () => {
@@ -193,12 +194,16 @@ describe('investigating', () => {
 		put(id, { x: 7, y: 10 });
 		const talk = ok(interact(room, ana, 'maren'));
 		expect(talk.log[0]).toMatchObject({ kind: 'narration', speaker: 'Maren' });
-		expect(room.adventure?.stage).toBe('investigate');
+		expect(room.adventure).toMatchObject({ chapter: 'village', events: ['talked_maren'] });
 
 		put(id, { x: 11, y: 12 });
 		ok(interact(room, ana, 'well'));
 		expect(room.adventure?.clues).toEqual(['scratches']);
-		expect(room.adventure?.stage).toBe('encounter');
+		expect(room.adventure).toMatchObject({
+			chapter: 'discover_bell',
+			events: ['talked_maren', 'well_clue']
+		});
+		expect(room.adventure?.encounters.get('well')).toBe('active');
 		const houndToken = token(hound());
 		expect(houndToken).toMatchObject({ name: 'Hollow Hound', ownerId: null });
 		// It climbs out beside the well.
@@ -291,16 +296,25 @@ describe('the fight at the well', () => {
 		const result = ok(act(room, ana, 'blade', houndId, max));
 		expect(result.log[0]).toMatchObject({ kind: 'attack', outcome: 'The Hollow Hound falls.' });
 		expect(room.tokens.has(houndId)).toBe(false);
-		expect(room.adventure).toMatchObject({ stage: 'aftermath', encounter: null });
+		expect(room.adventure).toMatchObject({ chapter: 'discover_bell', encounter: null });
+		expect(room.adventure?.encounters.get('well')).toBe('won');
+		expect(room.adventure?.defeated).toEqual(['Hollow Hound']);
+		expect(room.adventure?.npcs.get('maren')).toBe('hopeful');
 		expect(gate).toMatchObject({ open: true });
 		expect(doorLock(room, ana, gate as never)).toBeNull();
 		expect(room.fog.revealed[cellIndex(room.grid, PATH_AREA.from)]).toBe(1);
 
-		// Walking up the path ends the section.
+		// Walking up the path leaves the village for the monastery, with the same token.
 		put(id, EXIT[0]);
-		const end = afterMove(room, token(id), null, 9000);
-		expect(end.log[0]).toMatchObject({ kind: 'narration' });
-		expect(room.adventure).toMatchObject({ stage: 'complete', completedAt: 9000 });
+		const next = afterMove(room, token(id), null, 9000);
+		expect(next.reset).toBe(true);
+		expect(room.adventure).toMatchObject({
+			stage: 'playing',
+			chapter: 'investigate_monastery',
+			location: 'monastery'
+		});
+		expect(room.sceneName).toBe('The Monastery');
+		expect(characterOf(room, ana.id)?.token).toMatchObject({ id, pos: MONASTERY_SPAWN[0] });
 	});
 
 	it('loses the fight when every character is down', () => {
@@ -324,7 +338,7 @@ describe('the fight at the well', () => {
 		room.tokens.delete(houndId);
 		const out = afterTokenDeleted(room, houndId);
 		expect(out.log.length).toBeGreaterThan(0);
-		expect(room.adventure?.stage).toBe('aftermath');
+		expect(room.adventure?.events).toContain('won_well');
 	});
 });
 
@@ -343,12 +357,18 @@ describe('the GM', () => {
 		expect(room.adventure?.cuesRead.has('bell')).toBe(true);
 	});
 
-	it('restarts the section with everyone keeping their character, or ends the adventure', () => {
+	it('restarts the story with everyone keeping their character, or ends the adventure', () => {
 		fighting();
 		ok(claimCharacter(room, ben, 'ember'));
 		const out = ok(control(room, gm, 'restart', 7000));
 		expect(out.reset).toBe(true);
-		expect(room.adventure).toMatchObject({ stage: 'arrival', clues: [], begunAt: 7000 });
+		expect(room.adventure).toMatchObject({
+			stage: 'playing',
+			chapter: 'village',
+			clues: [],
+			events: [],
+			begunAt: 7000
+		});
 		expect(characterOf(room, ana.id)).toMatchObject({ id: 'warden', state: { hp: 30 } });
 		expect(characterOf(room, ben.id)?.id).toBe('ember');
 		expect([...room.tokens.values()].some((t) => t.name === 'Hollow Hound')).toBe(false);
