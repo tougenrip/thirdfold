@@ -202,10 +202,8 @@ export function musicFor(adventure: AdventureView | null, ambient: Ambient): Mus
 	if (adventure.stage === 'complete') {
 		return { mood: 'ending', intensity: 0, ending: adventure.ending?.id ?? null };
 	}
-	const mood =
-		adventure.location.id === 'bellweather'
-			? 'village'
-			: (adventure.location.id as MusicState['mood']);
+	// The built-in story's places have music of their own; any other place gets the village's.
+	const mood = PLACE_MOODS[adventure.location.id] ?? 'village';
 	const encounter = adventure.encounter;
 	if (encounter)
 		return {
@@ -216,6 +214,13 @@ export function musicFor(adventure: AdventureView | null, ambient: Ambient): Mus
 	const tense = !!adventure.decision || ambient === 'dark' || FINALE.has(adventure.chapter.id);
 	return { mood, intensity: tense ? 1 : 0, ending: null };
 }
+
+const PLACE_MOODS: Readonly<Record<string, MusicState['mood']>> = {
+	bellweather: 'village',
+	monastery: 'monastery',
+	hollow: 'hollow',
+	heart: 'heart'
+};
 
 const FINALE = new Set(['the_waking', 'the_ringing', 'final_decision', 'the_descent']);
 

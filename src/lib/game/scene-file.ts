@@ -52,7 +52,8 @@ import { ASSET_ID_PATTERN } from '../assets/manifest';
 export const SCENE_FILE_VERSION = 9;
 export const SCENE_NAME_MAX_LENGTH = 48;
 /** Serialized size cap, applied before parsing uploads and when saving. */
-export const SCENE_FILE_MAX_BYTES = 1024 * 1024;
+/** A table, and the adventure file a save of a creator's adventure carries with it. */
+export const SCENE_FILE_MAX_BYTES = 3 * 1024 * 1024;
 export const GRID_LIMITS = { minCells: 1, maxCells: 100, minCellSize: 0.25, maxCellSize: 5 };
 
 /** A token as saved. The owner is kept by id and name so it can be re-matched in another session. */
@@ -86,6 +87,8 @@ export interface SavedStory {
 	/** The module's own save format version. */
 	version: number;
 	state: Record<string, unknown>;
+	/** A creator's adventure: the adventure file it was played from (checked again when loaded). */
+	content?: Record<string, unknown>;
 }
 
 export interface SceneFileV4 extends Omit<SceneFileV3, 'version'> {
@@ -528,14 +531,17 @@ export function parseSceneFile(input: unknown): SceneParse {
 			!ID.test(raw.id) ||
 			int(raw.version, 1, 1000) === null ||
 			!isRecord(raw.state) ||
-			!isPlainJson(raw.state, 0, { nodes: 0 })
+			!isPlainJson(raw.state, 0, { nodes: 0 }) ||
+			(raw.content !== undefined &&
+				(!isRecord(raw.content) || !isPlainJson(raw.content, 0, { nodes: 0 }, CONTENT_LIMITS)))
 		) {
 			return bad('The saved story is not valid.');
 		}
 		adventure = {
 			id: raw.id,
 			version: raw.version as number,
-			state: JSON.parse(JSON.stringify(raw.state))
+			state: JSON.parse(JSON.stringify(raw.state)),
+			...(raw.content === undefined ? {} : { content: JSON.parse(JSON.stringify(raw.content)) })
 		};
 	}
 
@@ -564,15 +570,22 @@ export function parseSceneFile(input: unknown): SceneParse {
 }
 
 const JSON_LIMITS = { depth: 12, nodes: 20000 };
+/** An adventure file carried by a save: bigger (it holds its tables), still bounded. */
+const CONTENT_LIMITS = { depth: 24, nodes: 400000 };
 
 /** Whether a value is plain JSON data (no functions, no cycles), within depth and size limits. */
-function isPlainJson(value: unknown, depth: number, count: { nodes: number }): boolean {
-	if (++count.nodes > JSON_LIMITS.nodes || depth > JSON_LIMITS.depth) return false;
+function isPlainJson(
+	value: unknown,
+	depth: number,
+	count: { nodes: number },
+	limits = JSON_LIMITS
+): boolean {
+	if (++count.nodes > limits.nodes || depth > limits.depth) return false;
 	if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
 	if (typeof value === 'number') return Number.isFinite(value);
-	if (Array.isArray(value)) return value.every((v) => isPlainJson(v, depth + 1, count));
+	if (Array.isArray(value)) return value.every((v) => isPlainJson(v, depth + 1, count, limits));
 	if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) return false;
-	return Object.values(value).every((v) => isPlainJson(v, depth + 1, count));
+	return Object.values(value).every((v) => isPlainJson(v, depth + 1, count, limits));
 }
 
 /** A new, empty table: `width` × `height` cells, in the plain look or an environment's, in daylight. */

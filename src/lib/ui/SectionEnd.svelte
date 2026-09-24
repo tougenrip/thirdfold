@@ -84,9 +84,13 @@
 				{/each}
 			{/if}
 			{#each adventure.decisions as d (d.id)}
-				<dt>{d.id === 'bell' ? 'The Bell' : 'Promised'}</dt>
+				<dt>{d.prompt}</dt>
 				<dd>{d.choice} <small>{d.by}</small></dd>
 			{/each}
+			{#if adventure.rewards.length}
+				<dt>Earned</dt>
+				<dd>{adventure.rewards.join(', ')}</dd>
+			{/if}
 		</dl>
 
 		{#if summary}

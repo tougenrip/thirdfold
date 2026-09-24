@@ -178,7 +178,8 @@ export type ClientMessage =
 	/** GM: pause the game (players can't move or act; enemies wait) or carry on. */
 	| { type: 'pause_set'; paused: boolean }
 	/** GM: set up The Hollow Bell on this table (replaces the table). */
-	| { type: 'adventure_start' }
+	/** GM: set up the server's adventure, or a creator's from an adventure file (checked in full). */
+	| { type: 'adventure_start'; file?: unknown }
 	/** Player: play this character (one each). */
 	| { type: 'adventure_claim'; characterId: CharacterId }
 	/** Player: give back your character, before play begins. */
@@ -702,6 +703,8 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return direction ? { type: 'adventure_direct', direction } : null;
 		}
 		case 'adventure_start':
+			if (data.file === undefined) return { type: 'adventure_start' };
+			return isRecord(data.file) ? { type: 'adventure_start', file: data.file } : null;
 		case 'adventure_release':
 		case 'adventure_begin':
 		case 'adventure_end_turn':

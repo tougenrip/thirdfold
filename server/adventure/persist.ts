@@ -15,6 +15,7 @@ import { inBounds, type GridPos } from '../../src/lib/game/grid';
 import { isAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
+import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
 import { contentOf, findAdventure } from './registry';
 import type {
 	AdventureState,
@@ -43,9 +44,11 @@ const entriesOf = <K extends string, V>(map: Map<K, V>) => Object.fromEntries(ma
 export function saveAdventure(adventure: AdventureState): SavedStory {
 	const statuses = (s: Statuses) => entriesOf(s);
 	const A = contentOf(adventure.id);
+	const content = fileOf(A.id);
 	return {
 		id: A.id,
 		version: A.version,
+		...(content ? { content: JSON.parse(JSON.stringify(content)) } : {}),
 		state: {
 			stage: adventure.stage,
 			chapter: adventure.chapter,
@@ -71,6 +74,7 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			defeated: [...adventure.defeated],
 			npcs: entriesOf(adventure.npcs),
 			said: [...adventure.said],
+			rewards: [...adventure.rewards],
 			decisions: Object.fromEntries(
 				[...adventure.decisions].map(([id, d]) => [id, { option: d.option, by: d.by }])
 			),
@@ -211,6 +215,11 @@ function statuses(value: unknown, what: string): Statuses {
  * on that table). Does not touch any room.
  */
 export function readAdventure(saved: SavedStory, scene: SceneFile): AdventureRead {
+	// A creator's adventure comes back with its save, checked again.
+	if (!findAdventure(saved.id) && saved.content !== undefined && CUSTOM_ID.test(saved.id)) {
+		const loaded = loadCustomAdventure(saved.content, saved.id);
+		if (!loaded.ok) return { ok: false, error: loaded.error };
+	}
 	const A = findAdventure(saved.id);
 	if (!A) {
 		return { ok: false, error: 'This table was saved with a story this server does not know.' };
@@ -281,6 +290,9 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 		...remembered(A)
 	];
 	const said = new Set(data.said === undefined ? [] : uniqueList(data.said, sayable, 'lines'));
+	// Saves from before rewards have none; each is one the adventure can give.
+	const rewards =
+		data.rewards === undefined ? [] : uniqueList(data.rewards, rewardsOf(A), 'rewards');
 
 	const decisions = new Map<string, Decision>();
 	const decisionIds = Object.keys(A.decisions);
@@ -496,6 +508,7 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 		defeated: list(data.defeated, 'defeated enemies').map((n) => name(n, 'defeated enemies')),
 		npcs,
 		said,
+		rewards,
 		decisions,
 		pending,
 		encounters,
@@ -531,6 +544,16 @@ function remembered(A: AdventureDef): string[] {
 	const found: string[] = [];
 	JSON.stringify(A, (key, value) => {
 		if (key === 'remember' && typeof value === 'string') found.push(value);
+		return value;
+	});
+	return found;
+}
+
+/** The rewards an adventure can give (its `reward` effects). */
+function rewardsOf(A: AdventureDef): string[] {
+	const found: string[] = [];
+	JSON.stringify(A, (key, value) => {
+		if (key === 'reward' && typeof value === 'string') found.push(value);
 		return value;
 	});
 	return found;

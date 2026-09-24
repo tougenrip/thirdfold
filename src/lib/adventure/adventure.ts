@@ -420,6 +420,8 @@ export interface AdventureView {
 	completedAt: number | null;
 	/** What the party did, once the story is over; null while it goes on. */
 	summary: SessionSummary | null;
+	/** What the party has earned so far, in order. */
+	rewards: string[];
 	/** GM only: prepared text to read aloud. */
 	cues: ReadAloud[] | null;
 }

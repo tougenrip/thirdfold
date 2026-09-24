@@ -309,6 +309,7 @@ function newState(A: AdventureDef, room: Room): AdventureState {
 		defeated: [],
 		npcs: new Map(Object.values(A.npcs).map((npc) => [npc.id, npc.states[0]])),
 		said: new Set(),
+		rewards: [],
 		decisions: new Map(),
 		pending: null,
 		encounters: new Map(),
@@ -959,6 +960,10 @@ export function run(
 			if (spotted) add(spotted);
 		} else if ('remember' in effect) {
 			adventure.said.add(effect.remember);
+		} else if ('reward' in effect) {
+			if (adventure.rewards.includes(effect.reward)) continue;
+			adventure.rewards.push(effect.reward);
+			tell(postSystem(room, `The party earned: ${effect.reward}.`));
 		} else if ('count' in effect) {
 			add(count(room, adventure, effect.count, effect.else));
 		} else if ('phase' in effect) {
