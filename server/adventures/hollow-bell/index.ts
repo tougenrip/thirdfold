@@ -32,6 +32,8 @@ const map = <T, U>(record: Readonly<Record<string, T>>, f: (value: T, id: string
 export const HOLLOW_BELL: AdventureDef = {
 	id: 'hollow-bell',
 	title: TITLE,
+	about:
+		'A bell that hasn’t rung in forty years rings at dusk. A fantasy adventure for 1–4 players, from the village of Bellweather to the monastery above it, and what lies beneath.',
 	version: 1,
 	characters: CHARACTERS,
 	start: { location: 'bellweather', chapter: 'village', arrival: ARRIVAL },

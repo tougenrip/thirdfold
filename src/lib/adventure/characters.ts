@@ -80,7 +80,7 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
 	warden: {
 		id: 'warden',
 		name: 'The Warden',
-		tagline: 'A shield-bearer sworn to stand between the village and the dark.',
+		tagline: 'A shield-bearer sworn to stand between the helpless and the dark.',
 		intro:
 			'The Warden steps into the lamplight, shield scarred by a hundred nights on the valley road. Where the Warden stands, nothing gets past.',
 		color: '#2e86c1',
@@ -93,7 +93,7 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
 		actions: [
 			{
 				id: 'blade',
-				name: 'Bellguard blade',
+				name: 'Warden’s blade',
 				about: 'A heavy, steady cut.',
 				kind: 'attack',
 				target: 'enemy',
@@ -199,7 +199,7 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
 	saint: {
 		id: 'saint',
 		name: 'The Saint',
-		tagline: 'A pilgrim healer whose faith is older than the bell.',
+		tagline: 'A pilgrim healer whose faith is older than the road.',
 		intro:
 			'The Saint touches the wayside shrine at the edge of the square and murmurs a name nobody else remembers.',
 		color: '#d4ac0d',

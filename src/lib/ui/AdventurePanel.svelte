@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import {
 		EVIDENCE_KINDS,
 		type AdventureView,
@@ -7,17 +8,21 @@
 	} from '$lib/adventure/adventure';
 	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
-	import type { PublicPlayer } from '$lib/game/protocol';
+	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
+	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/adventure/file';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 
 	interface Props {
 		adventure: AdventureView | null;
 		isGm: boolean;
 		players: readonly PublicPlayer[];
+		/** The adventures the server can run, for the GM to pick. */
+		adventures?: readonly AdventureListing[];
 		send(action: RoomAction): boolean;
+		onError?(message: string): void;
 	}
 
-	let { adventure, isGm, players, send }: Props = $props();
+	let { adventure, isGm, players, adventures = [], send, onError }: Props = $props();
 
 	let narration = $state('');
 	/** The character the GM is adjusting. */
@@ -47,9 +52,27 @@
 	/** Story events as the GM reads them: well_clue → well clue. */
 	const eventLabel = (id: string) => id.replace(/_/g, ' ');
 
-	function start() {
-		const warning = 'Start The Hollow Bell? This replaces everything on the table.';
-		if (confirm(warning)) send({ type: 'adventure_start' });
+	function start(listing: AdventureListing) {
+		const warning = `Start ${listing.title}? This replaces everything on the table.`;
+		if (confirm(warning)) send({ type: 'adventure_start', adventureId: listing.id });
+	}
+
+	/** Plays an adventure file (made in the builder, or shared by its creator); the server checks it. */
+	async function playFile(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (file.size > ADVENTURE_FILE_MAX_BYTES) return onError?.('That file is too large.');
+		let data: unknown;
+		try {
+			data = JSON.parse(await file.text());
+		} catch {
+			return onError?.('That file is not an adventure (not JSON).');
+		}
+		if (confirm('Start this adventure? This replaces everything on the table.')) {
+			send({ type: 'adventure_start', file: data });
+		}
 	}
 
 	function control(op: 'restart' | 'end') {
@@ -344,14 +367,20 @@
 {:else if isGm}
 	<section class="adventure" aria-label="Adventure">
 		<h2>Adventure</h2>
-		<div class="offer">
-			<strong>The Hollow Bell</strong>
-			<p>
-				A bell that hasn't rung in forty years rings at dusk. A fantasy adventure for 1–4 players,
-				from the village of Bellweather to the monastery above it, and what lies beneath.
-			</p>
-			<button class="primary" type="button" onclick={start}>Start The Hollow Bell</button>
-		</div>
+		{#each adventures as listing (listing.id)}
+			<div class="offer">
+				<strong>{listing.title}</strong>
+				{#if listing.about}<p>{listing.about}</p>{/if}
+				<button class="primary" type="button" onclick={() => start(listing)}>
+					Start {listing.title}
+				</button>
+			</div>
+		{/each}
+		<label class="file-offer">
+			Play an adventure file…
+			<input type="file" accept=".json,application/json" hidden onchange={playFile} />
+		</label>
+		<a class="build-link" href={resolve('/builder')}>Build your own adventure</a>
 	</section>
 {/if}
 
@@ -642,6 +671,18 @@
 
 	.offer p {
 		margin: 0;
+		font-size: 0.85rem;
+		color: var(--muted);
+	}
+
+	.file-offer {
+		cursor: pointer;
+		font-size: 0.85rem;
+		text-decoration: underline;
+		color: var(--muted);
+	}
+
+	.build-link {
 		font-size: 0.85rem;
 		color: var(--muted);
 	}

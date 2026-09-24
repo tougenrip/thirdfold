@@ -17,7 +17,7 @@ beforeAll(() => {
 	built = buildAssets('assets');
 });
 
-describe('The Hollow Bell’s assets', () => {
+describe('The adventures’ assets', () => {
 	it('are built and committed: static/assets is exactly what assets/ builds', () => {
 		// Run `npm run assets` after changing anything in assets/.
 		expect(staleAssets(path.join('static', 'assets'), built)).toEqual([]);
@@ -31,7 +31,9 @@ describe('The Hollow Bell’s assets', () => {
 		}
 		expect(Object.keys(built.manifest.environments).sort()).toEqual([
 			'cavern',
+			'ghost-town',
 			'living-cave',
+			'railcar',
 			'stone-halls',
 			'village'
 		]);

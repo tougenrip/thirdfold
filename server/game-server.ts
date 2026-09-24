@@ -24,7 +24,7 @@ import {
 import * as adventure from './adventure/engine';
 import { loadCustomAdventure } from './adventure/custom';
 import { readAdventure } from './adventure/persist';
-import { trackInUse } from './adventure/registry';
+import { builtInAdventures, trackInUse } from './adventure/registry';
 import { RateLimiter } from './rate-limit';
 import { applyScene, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
@@ -620,7 +620,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		const result = (() => {
 			switch (msg.type) {
 				case 'adventure_start': {
-					if (msg.file === undefined) return adventure.startAdventure(room, player);
+					if (msg.file === undefined) {
+						// Only the server's own adventures start by id; a creator's comes as its file.
+						const id = msg.adventureId;
+						if (id !== undefined && !builtInAdventures().some((a) => a.id === id)) {
+							return fail('invalid_message', 'There is no such adventure on this server.');
+						}
+						return adventure.startAdventure(room, player, id);
+					}
 					if (player.role !== 'gm') return fail('forbidden', 'Only the GM can do that.');
 					if (!sceneLimiter.take(player.id)) {
 						return fail('rate_limited', 'Give it a moment before trying again.');

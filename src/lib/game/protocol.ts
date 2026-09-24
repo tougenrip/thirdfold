@@ -34,8 +34,17 @@ export interface PublicPlayer {
 	connected: boolean;
 }
 
+/** An adventure the server can run, as the GM picks one. */
+export interface AdventureListing {
+	id: string;
+	title: string;
+	about: string;
+}
+
 export interface RoomSnapshot {
 	id: string;
+	/** The adventures this server can run (the same for every table). */
+	adventures: AdventureListing[];
 	/** Name of the scene on the table (last saved, loaded or imported). */
 	sceneName: string;
 	grid: SquareGrid;
@@ -179,7 +188,7 @@ export type ClientMessage =
 	| { type: 'pause_set'; paused: boolean }
 	/** GM: set up The Hollow Bell on this table (replaces the table). */
 	/** GM: set up the server's adventure, or a creator's from an adventure file (checked in full). */
-	| { type: 'adventure_start'; file?: unknown }
+	| { type: 'adventure_start'; adventureId?: string; file?: unknown }
 	/** Player: play this character (one each). */
 	| { type: 'adventure_claim'; characterId: CharacterId }
 	/** Player: give back your character, before play begins. */
@@ -703,8 +712,15 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return direction ? { type: 'adventure_direct', direction } : null;
 		}
 		case 'adventure_start':
-			if (data.file === undefined) return { type: 'adventure_start' };
-			return isRecord(data.file) ? { type: 'adventure_start', file: data.file } : null;
+			if (data.file !== undefined) {
+				return isRecord(data.file) ? { type: 'adventure_start', file: data.file } : null;
+			}
+			if (data.adventureId !== undefined) {
+				return isId(data.adventureId)
+					? { type: 'adventure_start', adventureId: data.adventureId }
+					: null;
+			}
+			return { type: 'adventure_start' };
 		case 'adventure_release':
 		case 'adventure_begin':
 		case 'adventure_end_turn':

@@ -2388,7 +2388,8 @@ export function afterMove(
 		}
 	}
 	if (adventure.stage !== 'playing') return { log: [] };
-	const area = areaAt(adventure, token.pos);
+	// A place is walked into between fights, never mid-fight (it could take the party elsewhere).
+	const area = adventure.encounter ? undefined : areaAt(adventure, token.pos);
 	const story = area ? happen(room, adventure, area.event, now) : { log: [] };
 	// Walking into a sentry's sight starts its fight.
 	const spotted = story.reset ? null : detect(room, adventure);

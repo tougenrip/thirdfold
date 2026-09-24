@@ -119,6 +119,10 @@ export interface Tabletop {
 }
 
 const TABLE_MARGIN = 3;
+/** The distance haze, as tuned for tables up to `extent` across (the Hollow's). */
+const FOG = { near: 40, far: 90, extent: 54 };
+/** The camera's far plane for such a table. */
+const FAR = 200;
 const TABLE_THICKNESS = 0.6;
 const VIEW_TRANSITION_MS = 450;
 /** Pointer travel (px) below which a press-release counts as a click rather than a camera drag. */
@@ -168,9 +172,10 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const perf = new PerfRecorder();
 	const scene = new THREE.Scene();
 	scene.background = new THREE.Color(COLORS.background);
-	scene.fog = new THREE.Fog(COLORS.background, 40, 90);
+	const fog = new THREE.Fog(COLORS.background, FOG.near, FOG.far);
+	scene.fog = fog;
 
-	const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+	const camera = new THREE.PerspectiveCamera(45, 1, 0.1, FAR);
 	const controls = new OrbitControls(camera, canvas);
 	controls.enableDamping = true;
 	controls.screenSpacePanning = false;
@@ -498,6 +503,13 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		applyLook();
 
 		extent = Math.max(w, d) + TABLE_MARGIN * 2;
+		// Distance haze and the far plane grow with a table wider than the Hollow, so a long
+		// table (a train) is not lost in the haze from where the camera frames it.
+		const reach = Math.max(1, extent / FOG.extent);
+		fog.near = FOG.near * reach;
+		fog.far = FOG.far * reach;
+		camera.far = FAR * reach;
+		camera.updateProjectionMatrix();
 		effects.setBounds(w, d, Math.max(4, extent * 0.2));
 		const half = extent / 2;
 		Object.assign(sun.shadow.camera, {

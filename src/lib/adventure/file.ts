@@ -108,6 +108,8 @@ export interface AdventureFile {
 	about: string;
 	/** The characters players choose from (the character library's ids). */
 	characters: string[];
+	/** How each character is introduced in this story, when not in the library's words. */
+	intros?: Record<string, string>;
 	start: { location: string; chapter: string; arrival: Effect[] };
 	locations: Record<string, { name: string; welcome: string; spawn: GridPos[]; scene: SceneFile }>;
 	areas: AdventureDef['areas'][number][];
@@ -907,6 +909,14 @@ function parse(raw: unknown): AdventureFile {
 		characters: list(f.characters, 'characters', (c, p) =>
 			oneOf(c, CHARACTER_IDS as readonly string[], p)
 		),
+		...(f.intros === undefined
+			? {}
+			: {
+					intros: dict(f.intros, 'intros', (t, p, k) => {
+						oneOf(k, CHARACTER_IDS as readonly string[], `${p} key`);
+						return text(t, p, 600);
+					})
+				}),
 		start: {
 			location: id(start.location, 'start.location'),
 			chapter: id(start.chapter, 'start.chapter'),
@@ -1186,8 +1196,14 @@ export function compileAdventure(file: AdventureFile, id: string): AdventureDef 
 	return {
 		id,
 		title: file.title,
+		about: file.about,
 		version: 1,
-		characters: Object.fromEntries(file.characters.map((c) => [c, CHARACTERS[c]])),
+		characters: Object.fromEntries(
+			file.characters.map((c) => [
+				c,
+				file.intros?.[c] ? { ...CHARACTERS[c], intro: file.intros[c] } : CHARACTERS[c]
+			])
+		),
 		start: file.start,
 		locations: Object.fromEntries(
 			Object.entries(file.locations).map(([k, l]) => {

@@ -160,9 +160,14 @@ describe('parseServerMessage', () => {
 
 describe('adventure messages', () => {
 	it('accepts well-formed adventure actions and drops extra fields', () => {
-		expect(parseClientMessage({ type: 'adventure_start', adventureId: 'x' })).toEqual({
+		expect(parseClientMessage({ type: 'adventure_start', extra: 'x' })).toEqual({
 			type: 'adventure_start'
 		});
+		expect(parseClientMessage({ type: 'adventure_start', adventureId: 'blackwater' })).toEqual({
+			type: 'adventure_start',
+			adventureId: 'blackwater'
+		});
+		expect(parseClientMessage({ type: 'adventure_start', adventureId: 7 })).toBeNull();
 		expect(parseClientMessage({ type: 'adventure_claim', characterId: 'veil' })).toEqual({
 			type: 'adventure_claim',
 			characterId: 'veil'

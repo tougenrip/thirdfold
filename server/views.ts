@@ -27,6 +27,7 @@ import {
 } from '../src/lib/game/visibility';
 import { hiddenPropIds } from './adventure/engine';
 import { lightFor, obstacles, sightsFor } from './scene';
+import { builtInAdventures } from './adventure/registry';
 import { adventureView } from './adventure/view';
 import { toPublicPlayer, type Player, type Room } from './rooms';
 
@@ -235,6 +236,11 @@ export function canSeeLogEntry(viewer: Player, message: ChatMessage): boolean {
 
 export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapshot {
 	return {
+		adventures: builtInAdventures().map((a) => ({
+			id: a.id,
+			title: a.title,
+			about: a.about ?? ''
+		})),
 		id: room.id,
 		sceneName: room.sceneName,
 		grid: { ...room.grid },

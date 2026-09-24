@@ -1278,6 +1278,30 @@ describe("creators' adventures over the wire", () => {
 			['find', false]
 		]);
 	});
+
+	it('lists the adventures on this server, and starts one by id', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		expect(room.adventures.map((a) => a.id)).toEqual(['hollow-bell', 'blackwater']);
+		expect(room.adventures[1]).toMatchObject({
+			title: 'The Last Train to Blackwater',
+			about: expect.stringContaining('1889')
+		});
+
+		gm.send({ type: 'adventure_start', adventureId: 'custom-0123' });
+		expect(await gm.until('error')).toMatchObject({
+			message: 'There is no such adventure on this server.'
+		});
+		gm.send({ type: 'adventure_start', adventureId: 'blackwater' });
+		const reset = await gm.until('room_reset');
+		expect(reset.room).toMatchObject({ sceneName: 'The last train', environment: 'railcar' });
+		expect(reset.room.adventure).toMatchObject({
+			id: 'blackwater',
+			title: 'The Last Train to Blackwater',
+			chapter: { id: 'all_aboard', number: 1, of: 7 }
+		});
+	});
 });
 
 describe('props over the wire', () => {
