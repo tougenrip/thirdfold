@@ -69,7 +69,35 @@
 	const EDGE_REACH = 0.22;
 
 	// Local UI state only. Shared state lives in conn.room and changes only via server broadcasts.
-	let view = $state<CameraView>('tactical');
+	/** The camera view, remembered in this browser so a refresh keeps it. */
+	let view = $state<CameraView>(savedView());
+
+	function savedView(): CameraView {
+		try {
+			return localStorage.getItem('thirdfold:view') === 'tabletop' ? 'tabletop' : 'tactical';
+		} catch {
+			return 'tactical';
+		}
+	}
+
+	$effect(() => {
+		try {
+			localStorage.setItem('thirdfold:view', view);
+		} catch {
+			// Storage unavailable: the view just isn't remembered.
+		}
+	});
+
+	/** Seconds until the next reconnect try, ticking while we wait. */
+	let now = $state(Date.now());
+	$effect(() => {
+		if (conn.status !== 'reconnecting') return;
+		const timer = setInterval(() => (now = Date.now()), 500);
+		return () => clearInterval(timer);
+	});
+	const retryIn = $derived(
+		conn.retryAt === null ? null : Math.max(0, Math.ceil((conn.retryAt - now) / 1000))
+	);
 	let tool = $state<BuildTool>('select');
 	let selectedId = $state<string | null>(null);
 	let placing = $state<TokenDraft | null>(null);
@@ -167,6 +195,8 @@
 		return sent;
 	}
 	const isGm = $derived(me?.role === 'gm');
+	/** The GM's seat has no connection right now. */
+	const gmAway = $derived(!!room?.players.some((p) => p.role === 'gm' && !p.connected));
 	const adventure = $derived(room?.adventure ?? null);
 	const myCharacter = $derived(
 		(me && adventure?.characters.find((c) => c.inPlay && c.playerId === me.id)) || null
@@ -1157,10 +1187,14 @@
 
 		<p class="hint" aria-live="polite">{hint}</p>
 
-		{#if room.paused}
+		{#if room.paused && gmAway && !isGm}
+			<p class="paused" role="status">The GM lost their connection. The game waits for them.</p>
+		{:else if room.paused}
 			<p class="paused" role="status">
 				Paused{isGm ? ': players can’t move or act until you carry on' : ' by the GM'}
 			</p>
+		{:else if gmAway && !isGm}
+			<p class="paused" role="status">The GM is away.</p>
 		{/if}
 
 		{#if adventure?.encounter}
@@ -1322,6 +1356,20 @@
 
 	{#if toast}
 		<div class="toast" role="status">{toast}</div>
+	{/if}
+
+	{#if conn.status === 'reconnecting'}
+		<div class="banner reconnecting" role="alert">
+			<span>
+				Connection lost. {retryIn === null || retryIn === 0
+					? 'Reconnecting…'
+					: `Trying again in ${retryIn}s`}{conn.attempt > 1 ? ` (attempt ${conn.attempt})` : ''}.
+				The table below is as you last saw it.
+			</span>
+			<button type="button" onclick={() => conn.retryNow()} disabled={conn.retryAt === null}>
+				Try now
+			</button>
+		</div>
 	{/if}
 
 	{#if conn.status === 'closed' && conn.error}
@@ -1707,6 +1755,13 @@
 		place-items: center;
 		margin: 0;
 		color: var(--muted);
+	}
+
+	.banner.reconnecting {
+		top: 4.5rem;
+		bottom: auto;
+		border-color: var(--accent);
+		z-index: 6;
 	}
 
 	.banner {

@@ -89,10 +89,12 @@ export class RoomConnection {
 	/** The latest motions to show; `seq` increases so each batch plays once. */
 	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
+	/** While reconnecting: which try this is, and when (ms since epoch) the next one starts. */
+	attempt = $state(0);
+	retryAt = $state<number | null>(null);
 
 	private ws: WebSocket | null = null;
 	private intent: EnterIntent;
-	private attempt = 0;
 	private retryTimer: ReturnType<typeof setTimeout> | undefined;
 	private disposed = false;
 	private errorSeq = 0;
@@ -104,7 +106,25 @@ export class RoomConnection {
 	) {
 		this.intent = intent;
 		this.open();
+		// Back online, or back to this tab: don't wait out the backoff.
+		if (typeof window !== 'undefined') {
+			window.addEventListener('online', this.retrySoon);
+			document.addEventListener('visibilitychange', this.retrySoon);
+		}
 	}
+
+	/** Tries to reconnect right away (while waiting to retry after a drop). */
+	retryNow(): void {
+		if (this.disposed || this.ws || this.retryAt === null) return;
+		clearTimeout(this.retryTimer);
+		this.retryAt = null;
+		this.open();
+	}
+
+	private retrySoon = () => {
+		if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+		this.retryNow();
+	};
 
 	/** Resolves once the server has seated this client in a room. */
 	ready(): Promise<void> {
@@ -128,6 +148,11 @@ export class RoomConnection {
 	close(reason: ConnectionError = { code: 'closed', message: 'Connection closed.' }): void {
 		this.disposed = true;
 		clearTimeout(this.retryTimer);
+		this.retryAt = null;
+		if (typeof window !== 'undefined') {
+			window.removeEventListener('online', this.retrySoon);
+			document.removeEventListener('visibilitychange', this.retrySoon);
+		}
 		this.ws?.close(1000);
 		this.ws = null;
 		this.status = 'closed';
@@ -164,6 +189,7 @@ export class RoomConnection {
 				this.status = 'connected';
 				this.error = null;
 				this.attempt = 0;
+				this.retryAt = null;
 				saveSession(msg.room.id, msg.sessionToken);
 				// Any later reconnect must resume this seat rather than create or join again.
 				this.intent = { type: 'resume', roomId: msg.room.id, sessionToken: msg.sessionToken };
@@ -212,7 +238,11 @@ export class RoomConnection {
 		}
 		const delay = Math.min(500 * 2 ** this.attempt, MAX_BACKOFF_MS);
 		this.attempt++;
-		this.retryTimer = setTimeout(() => this.open(), delay);
+		this.retryAt = Date.now() + delay;
+		this.retryTimer = setTimeout(() => {
+			this.retryAt = null;
+			this.open();
+		}, delay);
 	}
 
 	private reportActionError(code: ActionError['code'], message: string): void {

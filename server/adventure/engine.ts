@@ -2271,6 +2271,36 @@ function defeat(room: Room, adventure: AdventureState, encounter: Encounter): Ch
 	return [say(room, TEXT.defeat)];
 }
 
+/**
+ * In a fight, the turn of a character whose player isn't at the table (their
+ * connection dropped, or nobody plays it): the game server gives them a
+ * while to come back, then `passAwayTurn`. Null when it isn't such a turn.
+ */
+export function awayTurn(room: Room, isHere: (playerId: string) => boolean): number | null {
+	const adventure = room.adventure;
+	const encounter = adventure?.encounter;
+	const entry = turnOf(encounter ?? null);
+	if (!adventure || !encounter || entry?.kind !== 'character' || adventure.stage !== 'playing') {
+		return null;
+	}
+	const state = adventure.characters.get(entry.id);
+	const owner = state && room.tokens.get(state.tokenId)?.ownerId;
+	return owner && isHere(owner) ? null : encounter.turn;
+}
+
+/** The turn of a character whose player is away passes on (a stale `turn` does nothing). */
+export function passAwayTurn(room: Room, turn: number): Outcome | null {
+	const adventure = room.adventure;
+	const encounter = adventure?.encounter;
+	const entry = turnOf(encounter ?? null);
+	if (!adventure || !encounter || encounter.turn !== turn || entry?.kind !== 'character')
+		return null;
+	const log = [
+		postSystem(room, `${CHARACTERS[entry.id].name}'s player is away; their turn passes.`)
+	];
+	return merge({ log }, advance(room, adventure, encounter));
+}
+
 /** The enemy whose turn the game server should run, if it is an enemy's turn (after loading a save). */
 export function pendingEnemyTurn(adventure: AdventureState): number | null {
 	const encounter = adventure.encounter;
