@@ -8,7 +8,8 @@ import { CHARACTER_IDS, CHARACTERS, defenseFor } from '../../src/lib/adventure/c
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { Player, Room } from '../rooms';
 import { CLUES, CUES, HOUND, objectivesFor, SECTION, TITLE } from './content';
-import { INTERACTABLES, interactableCells, usesLeft } from './engine';
+import { objectCells, objectState, usesLeft, verbsFor } from './engine';
+import { OBJECTS } from './objects';
 import type { Statuses } from './state';
 
 const listStatuses = (statuses: Statuses) => [...statuses].map(([id, rounds]) => ({ id, rounds }));
@@ -53,12 +54,33 @@ export function adventureView(
 				)
 			};
 		}),
-		interactables: INTERACTABLES.flatMap((def) => {
-			const cells = interactableCells(room, def);
-			if (!cells) return [];
+		interactables: OBJECTS.flatMap((def) => {
+			const state = objectState(adventure, def);
+			const verbs = verbsFor(adventure, def);
+			const cells = objectCells(room, def);
+			if (state === 'hidden' || verbs.length === 0 || !cells) return [];
 			if (known && !cells.some((c) => known[cellIndex(room.grid, c)])) return [];
-			return [{ id: def.id, label: def.label, cells }];
+			return [
+				{
+					id: def.id,
+					name: def.name,
+					kind: def.kind,
+					state,
+					cells,
+					verbs: verbs.map((v) => ({ id: v.id, label: v.label }))
+				}
+			];
 		}),
+		objects:
+			viewer.role === 'gm'
+				? OBJECTS.map((def) => ({
+						id: def.id,
+						name: def.name,
+						kind: def.kind,
+						state: objectState(adventure, def),
+						states: [...def.states]
+					}))
+				: null,
 		encounter: encounter && {
 			round: encounter.round,
 			phase: encounter.phase,

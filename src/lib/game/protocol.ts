@@ -2,7 +2,7 @@
 // arriving from the network is untrusted: parse it with parseClientMessage /
 // parseServerMessage rather than casting.
 
-import type { AdventureView } from '../adventure/adventure';
+import { isObjectState, type AdventureView, type ObjectState } from '../adventure/adventure';
 import {
 	isCharacterId,
 	isStatusId,
@@ -125,8 +125,10 @@ export type ClientMessage =
 	| { type: 'adventure_release' }
 	/** GM: characters are chosen, start playing. */
 	| { type: 'adventure_begin' }
-	/** Player: your character talks to, examines or uses something beside it. */
-	| { type: 'adventure_interact'; targetId: string }
+	/** Player: your character does `verb` (or the first thing it can) to something beside it. */
+	| { type: 'adventure_interact'; targetId: string; verb: string | null }
+	/** GM: put a world object in a state (reveal, hide, open, break, …). */
+	| { type: 'adventure_object'; objectId: string; state: ObjectState }
 	/** Player: your character uses an action (an attack, a heal, a guard) on a token, or on no one. */
 	| { type: 'adventure_act'; actionId: string; targetId: string | null }
 	/** Player, in an encounter: your character is done for this round. */
@@ -460,8 +462,16 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return isCharacterId(data.characterId)
 				? { type: 'adventure_claim', characterId: data.characterId }
 				: null;
-		case 'adventure_interact':
-			return isId(data.targetId) ? { type: data.type, targetId: data.targetId } : null;
+		case 'adventure_interact': {
+			if (!isId(data.targetId)) return null;
+			const verb = data.verb ?? null;
+			if (verb !== null && !isId(verb)) return null;
+			return { type: 'adventure_interact', targetId: data.targetId, verb };
+		}
+		case 'adventure_object':
+			return isId(data.objectId) && isObjectState(data.state)
+				? { type: 'adventure_object', objectId: data.objectId, state: data.state }
+				: null;
 		case 'adventure_act': {
 			if (!isId(data.actionId)) return null;
 			if (data.targetId !== null && !isId(data.targetId)) return null;

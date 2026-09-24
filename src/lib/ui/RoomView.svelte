@@ -221,7 +221,7 @@
 	});
 
 	type AdventureTarget =
-		| { kind: 'interact'; id: string; name: string; inReach: boolean }
+		| { kind: 'interact'; id: string; verb: string; name: string; inReach: boolean }
 		| { kind: 'act'; actionId: string; id: string; name: string; inReach: boolean };
 
 	/**
@@ -257,7 +257,9 @@
 		);
 		if (!thing) return null;
 		const inReach = canReach(blocked, myCharacterToken.pos, thing.cells);
-		return { kind: 'interact', id: thing.id, name: thing.label, inReach };
+		const [verb] = thing.verbs;
+		if (!verb) return null;
+		return { kind: 'interact', id: thing.id, verb: verb.id, name: verb.label, inReach };
 	}
 
 	/** Floats what an attack or ability did over the tokens involved. */
@@ -557,7 +559,7 @@
 			conn.send(
 				target.kind === 'act'
 					? { type: 'adventure_act', actionId: target.actionId, targetId: target.id }
-					: { type: 'adventure_interact', targetId: target.id }
+					: { type: 'adventure_interact', targetId: target.id, verb: target.verb }
 			);
 			targeting = null;
 			return;

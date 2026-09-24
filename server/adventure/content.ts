@@ -19,6 +19,21 @@ export const CLUES = {
 		title: 'A cut bell rope',
 		text: "In the Hale house chest: a length of bell rope, cut clean through, and a boy's glove stitched with the name TOBIN."
 	},
+	register: {
+		id: 'register',
+		title: 'The last bell-ringer',
+		text: 'The parish register lists every bell-ringer of the monastery. The last entry, forty years old, is not a name but a line: “We have stopped the Bell. May no one ring it again.”'
+	},
+	drawing: {
+		id: 'drawing',
+		title: "Tobin's drawing",
+		text: 'Hidden under the floorboard: a child’s drawing of the monastery tower, a bell inside it, and beneath the tower a huge dark shape with far too many eyes.'
+	},
+	clapper: {
+		id: 'clapper',
+		title: 'A bell clapper in the ashes',
+		text: 'In the Hound’s ashes lies a small iron clapper, like one from a hand bell, still warm. It hums when you hold it.'
+	},
 	scratches: {
 		id: 'scratches',
 		title: 'Scratches in the well',
@@ -89,7 +104,21 @@ export const TEXT = {
 		'The lamps of Bellweather fall away behind you as the path climbs into the dark. Above, the monastery waits, and the bell is silent. For now. — End of Part One.',
 	defeat:
 		'The last of you falls. The Hound drags the lamplight down with it, and Bellweather is quiet again. The GM can start the section over.',
-	revive: 'Those who fell struggle back to their feet, bruised but alive.'
+	revive: 'Those who fell struggle back to their feet, bruised but alive.',
+	chestOpen: 'The lid creaks up. Folded blankets, a boy’s spare boots, and something underneath.',
+	chestEmpty: 'Nothing else in the chest but blankets.',
+	table:
+		'Half-drunk mugs, a dropped pipe, a game of dice abandoned mid-throw. Everyone left in a hurry when the bell rang.',
+	tableAgain: 'The dice still show two ones.',
+	shrine:
+		'A weathered saint holds a bell to her chest. Fresh wax pools at her feet; someone has been praying here every night.',
+	rug: 'The rug slides aside. One floorboard beneath it sits a little proud of the others.',
+	hatchEmpty: 'The gap under the floorboard is empty now.',
+	crate: 'The old crate splinters apart. Inside: straw and a dozen candles, all unlit.',
+	brazierLit:
+		'The brazier catches, and warm light spills across the gate and the first stretch of path.',
+	brazierOut: 'The brazier gutters out.',
+	remainsEmpty: 'Only ash now.'
 };
 
 export const CUES = [

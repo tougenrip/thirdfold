@@ -168,13 +168,15 @@
 				</button>
 			{/if}
 			{#each nearby as i (i.id)}
-				<button
-					type="button"
-					class="primary"
-					onclick={() => send({ type: 'adventure_interact', targetId: i.id })}
-				>
-					{i.label}
-				</button>
+				{#each i.verbs as v (v.id)}
+					<button
+						type="button"
+						class="primary"
+						onclick={() => send({ type: 'adventure_interact', targetId: i.id, verb: v.id })}
+					>
+						{v.label}
+					</button>
+				{/each}
 			{/each}
 			{#each actions as action (action.id)}
 				{@const left = character.usesLeft[action.id]}

@@ -303,7 +303,9 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				case 'adventure_begin':
 					return adventure.beginAdventure(room, player);
 				case 'adventure_interact':
-					return adventure.interact(room, player, msg.targetId);
+					return adventure.interact(room, player, msg.targetId, msg.verb);
+				case 'adventure_object':
+					return adventure.setObject(room, player, msg.objectId, msg.state);
 				case 'adventure_act':
 					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie);
 				case 'adventure_end_turn':
@@ -464,6 +466,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 				if (locked) return sendError(ws, 'forbidden', locked);
 				const result = toggleDoor(room, player, msg.objectId);
 				if (!result.ok) return sendError(ws, result.code, result.message);
+				adventure.afterDoorToggle(room, result.door);
 				syncRoom(room);
 				return announce(
 					room,
@@ -551,6 +554,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 			case 'adventure_interact':
 			case 'adventure_act':
 			case 'adventure_override':
+			case 'adventure_object':
 			case 'adventure_end_turn':
 			case 'adventure_narrate':
 			case 'adventure_cue':
