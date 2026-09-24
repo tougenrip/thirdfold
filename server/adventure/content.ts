@@ -187,12 +187,15 @@ export const CLUES = {
 	rule: {
 		id: 'rule',
 		kind: 'document',
+		unlocks: 'learned_rule',
 		title: 'The ringers’ rule',
 		text: 'Cut into the wall above the rope, too shallow to read by candlelight: a bell with an eye inside it, and the ringers’ rule beneath. ONE PULL CALLS IT. THREE PULLS BIND IT. NEVER LET IT RING ITSELF. The last line has been scratched out, and under it, in a child’s hand: I’M SORRY.'
 	},
 	sleeper: {
 		id: 'sleeper',
 		kind: 'environment',
+		// Knowing what sleeps below, the party needn't look into the pit again when it wakes.
+		unlocks: 'saw_hollow',
 		title: 'Not all asleep',
 		text: 'Look long enough into the pit and you can make out the eyes. Nearly all of them are closed. One is not, and it follows the boy.'
 	}
@@ -327,6 +330,37 @@ export const TEXT = {
 	tobinFound:
 		'Tobin turns his head slowly. His eyes are wide and blank. “It told me to ring,” he whispers. “It said it was lonely.” In the pit, something shifts, and many eyes begin to open.',
 	tobinAfter: 'Tobin clings to your sleeve and will not let go.',
+	// The finale
+	pitStirs:
+		'Tobin’s eyes clear for a moment, and he looks past you, down into the pit. Something down there heard you say his name.',
+	pitKnown:
+		'You have seen that eye before, from the pit’s edge. Now it opens wide, and it knows you.',
+	pitHollow:
+		'You look down into the pit, and the pit is not a pit. It is an eye, as wide as the island, set in something vaster than the cavern, and it is opening. The Hollow is awake enough to see you.',
+	waking:
+		'The Hollow stirs. The island shudders, cracks run across the stone, and pale tendrils come up out of the pit, feeling for the warm things standing on it.',
+	keeperJoins:
+		'Across the island the Bell Keeper turns from its watch, lifts its little black bell high, and rings it for its master.',
+	remembersTouch: 'It remembers the hand that touched the Bell. More of it comes up to find you.',
+	cracks: 'Cracks spread through the stone underfoot. Get clear before the floor heaves again.',
+	heave: 'The floor heaves.',
+	ringing:
+		'The Bell begins to swing on its own, slow as breathing, and rings itself. Each note brings more of the Hollow up to meet it. Someone has to take the rope.',
+	ringingRule: 'Three pulls bind it. Never let it ring itself.',
+	selfRings: 'The Bell rings itself.',
+	strains: 'The Bell strains against the rope, and is still.',
+	tobinPulls:
+		'“Pell,” Tobin says, in his own voice, and throws his whole weight on the rope. The Bell checks in its swing.',
+	pulled: 'The Bell’s swing shortens.',
+	handbellAnswers:
+		'You ring the little hand bell, and the great Bell answers it, and checks, as if listening.',
+	held: 'The Bell hangs still, humming, held, and every tendril in the cavern goes slack and sinks back into the pit. Below, the great eye watches you, and waits.',
+	chooseDestroy:
+		'You set your weapons to the Bell. The eye below widens, and the whole Hollow rises to stop you.',
+	wrath:
+		'A hand the size of a cart comes up out of the pit, grey and many-jointed, and closes on the island’s edge.',
+	wrathWon:
+		'The Hand falls back into the pit, and you bring the Bell down. It cracks with a sound like the end of the world.',
 	bell: 'The Bell is black iron, older than the monastery, and cold as the bottom of a well. Every surface is cut with tiny, careful eyes.',
 	pit: 'You look down. The dark looks back, with far too many eyes, and hums the Bell’s note.',
 	bonesEmpty: 'Only bones now.',
@@ -335,33 +369,43 @@ export const TEXT = {
 
 /** How the story ends, by the choice made at the Bell. */
 export const ENDINGS: Record<EndingId, { title: string; text: string }> = {
-	kept: {
-		title: 'The Bell Kept',
-		text: 'You take the rope from Tobin and ring, as the brothers rang. Once, twice, three times. The eyes in the pit close one by one, and the humming stops. You carry Tobin up into the dawn. Forty years from now, someone will have to ring it again.'
-	},
 	broken: {
 		title: 'The Bell Broken',
-		text: 'You bring the Bell down. It cracks with a sound like the end of the world, and the humming stops. So does whatever held the thing below. You run with Tobin up the stair as the Hollow wakes behind you. Bellweather will need more than lamps now.'
+		text: 'The Bell lies in pieces on the island, and the humming has stopped. So has whatever held the thing below: it sinks back into the pit, wounded, and the dark closes over it. You carry Tobin up the stair into the dawn. Nothing binds the Hollow now but its wounds. Bellweather will need more than lamps.'
 	},
-	silent: {
-		title: 'The Long Silence',
-		text: 'You cut Tobin free of the rope and carry him up and out, and leave the Bell hanging over the pit, silent. Nobody rings it. Nobody should. In the dark below, the eyes stay open, waiting.'
+	waking: {
+		title: 'The Waking',
+		text: 'You cut the rope and bind the Bell’s lip in cloth and leather until it can make no sound. Silenced, it cannot call anything up; it cannot hold anything down, either. As you carry Tobin up the stair, the hum below changes, deepens, like something turning over in its sleep. It will wake. Not tonight, not this year. But it will.'
+	},
+	spoken: {
+		title: 'The Bell Spoken',
+		text: 'You ring the Bell once, and listen. The Hollow answers, not in words, but you understand it: it has been alone under the mountain for longer than there have been mountains, and the Bell was the only voice that ever reached it. You carry Tobin up into the dawn. Someone will come down again, not to bind it, but to talk.'
 	}
+};
+
+/** What the Hollow makes of the party when they speak to it, by what they know. */
+export const SPOKEN_KNOWING = {
+	rule: 'You ring as the ringers rang, three pulls and no more, and the Hollow knows the voice of its old keepers. It is quieter for it.',
+	sleeper:
+		'You look into the one eye that never closed, and it looks back at you, and at the boy, and for the first time in forty years it closes.',
+	neither: 'It does not understand you, not all of it. But it lets you go.'
 };
 
 /** What becomes of Oswin's promise, told after the ending. */
 export const PROMISE_KEPT: Record<string, Record<EndingId, string>> = {
 	silence: {
-		kept: 'The Bell is quiet again, as you promised Oswin.',
 		broken: 'You promised Oswin silence, and you made it the loudest silence there has ever been.',
-		silent:
-			'You promised Oswin silence. He will spend what is left of his life listening for it to break.'
+		waking:
+			'You kept your promise to Oswin: the Bell is silent. He will spend what is left of his life listening for what it held down.',
+		spoken:
+			'You promised Oswin silence, and rang it instead. He hears it from the gate, and understands, or tries to.'
 	},
 	boy: {
-		kept: 'Oswin weeps at the gate when he sees the boy alive.',
 		broken:
 			'Oswin weeps at the gate when he sees the boy alive, and then he looks past you, down the mountain.',
-		silent: 'Oswin weeps at the gate when he sees the boy alive.'
+		waking: 'Oswin weeps at the gate when he sees the boy alive.',
+		spoken:
+			'Oswin weeps at the gate when he sees the boy alive, and asks what the Bell said. Tobin answers before you can.'
 	}
 };
 

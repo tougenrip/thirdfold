@@ -268,6 +268,12 @@ export const PROP_MODELS: Record<AssetId, Part[]> = {
 		{ shape: 'cylinder', size: [0.4, 0.3, 0.4], at: [0, 1.15, 0], color: IRON }
 	],
 	water: [{ shape: 'box', size: [2, 0.04, 2], at: [0, 0.02, 0], color: WATER }],
+	crack: [
+		// Glowing seams in the stone: a warning that the floor is about to give.
+		{ shape: 'box', size: [0.9, 0.03, 0.08], at: [0, 0.02, -0.1], color: 0xc9713a },
+		{ shape: 'box', size: [0.08, 0.03, 0.7], at: [0.15, 0.02, 0.1], color: 0xc9713a },
+		{ shape: 'box', size: [0.5, 0.03, 0.06], at: [-0.2, 0.02, 0.25], color: 0xc9713a }
+	],
 	'water-sm': [{ shape: 'box', size: [1, 0.04, 1], at: [0, 0.02, 0], color: WATER }],
 	'water-lg': [{ shape: 'box', size: [4, 0.04, 4], at: [0, 0.02, 0], color: WATER }]
 };

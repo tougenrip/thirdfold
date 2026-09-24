@@ -121,7 +121,27 @@ export function plan(situation: Situation, self: Self): Plan {
 			return cultist(situation, self);
 		case 'guardian':
 			return keeper(situation, self);
+		case 'grasp':
+			return grasp(situation, self);
 	}
+}
+
+/**
+ * A tendril or the Hollow's Hand: rooted where it rose, it seizes whoever is
+ * in reach, the weakest first. It needs no light: it feels them through the stone.
+ */
+function grasp(situation: Situation, self: Self): Plan {
+	const [attack] = ENEMIES[self.kind].attacks;
+	const inReach = situation.foes.filter((f) =>
+		inAttackRange(situation.blocked, self.pos, f.pos, attack.range)
+	);
+	if (!inReach.length) return { path: [], deed: null };
+	const target = inReach.reduce((a, b) =>
+		b.hp < a.hp || (b.hp === a.hp && gridDistance(self.pos, b.pos) < gridDistance(self.pos, a.pos))
+			? b
+			: a
+	);
+	return { path: [], deed: { kind: 'attack', attack, target: target.id }, target: target.id };
 }
 
 /**

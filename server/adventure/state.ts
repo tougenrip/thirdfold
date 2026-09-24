@@ -86,6 +86,14 @@ export interface Encounter {
 	enemies: Map<string, EnemyState>;
 	/** Bumped on every turn, so a stale scheduled enemy turn does nothing. */
 	turn: number;
+	/** The Hollow's waking: which phase it is in (the waking itself, then the Bell ringing itself). */
+	finale?: 'waking' | 'ringing';
+	/** Cells cracking under the party: whoever still stands on one when the floor heaves is hurt. */
+	cracks?: GridPos[];
+	/** Pulls on the Bell's rope so far; three hold it. */
+	pulls?: number;
+	/** Someone pulled the rope since the round began, so the Bell can't ring itself. */
+	pulled?: boolean;
 }
 
 export interface Finding {

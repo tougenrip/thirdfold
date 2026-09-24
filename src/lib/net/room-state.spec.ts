@@ -164,7 +164,7 @@ describe('applyRoomUpdate', () => {
 			id: 'hollow-bell' as const,
 			title: 'The Hollow Bell',
 			stage: 'playing' as const,
-			chapter: { id: 'village' as const, title: 'The quiet village', number: 1, of: 9 },
+			chapter: { id: 'village' as const, title: 'The quiet village', number: 1, of: 12 },
 			location: { id: 'bellweather' as const, name: 'Bellweather' },
 			objectives: [],
 			clues: [],

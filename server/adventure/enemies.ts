@@ -3,14 +3,16 @@
 // Bell Cultist keeps its distance and slings stones, drawing a knife only when
 // cornered. The Bell Keeper, the Bell's warden in the Hollow, is slow and
 // hard to hurt, swings a great hammer, and every other turn tolls the bell it
-// carries: everyone near it is shaken and slowed. Stat blocks here; the rules
-// that use them run in engine.ts.
+// carries: everyone near it is shaken and slowed. When the Hollow itself
+// wakes, its tendrils rise from the pit and grasp at whoever is in reach, and
+// if the party breaks the Bell, its Hand comes up after them. Stat blocks
+// here; the rules that use them run in engine.ts.
 
 import type { Attack } from '../../src/lib/adventure/characters';
 
-export type EnemyKind = 'hound' | 'cultist' | 'keeper';
+export type EnemyKind = 'hound' | 'cultist' | 'keeper' | 'tendril' | 'hand';
 
-export const ENEMY_KINDS: readonly EnemyKind[] = ['hound', 'cultist', 'keeper'];
+export const ENEMY_KINDS: readonly EnemyKind[] = ['hound', 'cultist', 'keeper', 'tendril', 'hand'];
 
 /** How an enemy chooses what to do on its turn. */
 export type Behavior =
@@ -19,7 +21,9 @@ export type Behavior =
 	/** Stay at range and use the ranged attack; melee only when someone is beside it. */
 	| 'skirmish'
 	/** Close in slowly; toll the bell when characters crowd it. */
-	| 'guardian';
+	| 'guardian'
+	/** Rooted where it rose: seize whoever is in reach, the weakest first. */
+	| 'grasp';
 
 export interface EnemyDef {
 	kind: EnemyKind;
@@ -87,6 +91,32 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 		attacks: [{ name: 'Bell hammer', range: 1, toHit: 5, damage: '1d10+2' }],
 		behavior: 'guardian',
 		toll: { range: 2, damage: '1d4', rounds: 1, every: 2 }
+	},
+	tendril: {
+		kind: 'tendril',
+		name: 'Hollow Tendril',
+		color: '#b7a9c9',
+		armor: 0,
+		speed: 0,
+		vision: 6,
+		light: 0,
+		initiative: 2,
+		hp: (n) => 4 + 3 * party(n),
+		attacks: [{ name: 'Grasp', range: 2, toHit: 3, damage: '1d6' }],
+		behavior: 'grasp'
+	},
+	hand: {
+		kind: 'hand',
+		name: 'The Hollow’s Hand',
+		color: '#6d6478',
+		armor: 2,
+		speed: 0,
+		vision: 12,
+		light: 0,
+		initiative: 4,
+		hp: (n) => 24 + 12 * party(n),
+		attacks: [{ name: 'Crushing grip', range: 3, toHit: 5, damage: '2d6+2' }],
+		behavior: 'grasp'
 	}
 };
 

@@ -14,6 +14,8 @@ import {
 	characterOf,
 	objectCells,
 	objectState,
+	optionLabel,
+	PULLS_TO_HOLD,
 	shownState,
 	usesLeft,
 	verbsFor
@@ -118,7 +120,8 @@ export function adventureView(
 						action: actionOfVerb(v),
 						physical: v.physical ?? null,
 						check: v.check && state !== 'used' ? { ...v.check } : null,
-						tried: mine !== null && adventure.tried.has(`${mine}:${def.id}:${v.id}`)
+						tried: mine !== null && adventure.tried.has(`${mine}:${def.id}:${v.id}`),
+						inFight: v.inFight === true
 					}))
 				}
 			];
@@ -161,6 +164,8 @@ export function adventureView(
 				};
 			}),
 			current: encounter.current,
+			bell:
+				encounter.finale === 'ringing' ? { pulls: encounter.pulls ?? 0, of: PULLS_TO_HOLD } : null,
 			acted: [...encounter.acted],
 			moved: Object.fromEntries(encounter.moved),
 			speed: encounter.speed,
@@ -178,7 +183,10 @@ export function adventureView(
 		decision: adventure.pending && {
 			id: adventure.pending,
 			prompt: DECISIONS[adventure.pending].prompt,
-			options: DECISIONS[adventure.pending].options.map((o) => ({ ...o }))
+			options: DECISIONS[adventure.pending].options.map((o) => ({
+				id: o.id,
+				label: optionLabel(adventure, adventure.pending!, o)
+			}))
 		},
 		decisions: [...adventure.decisions].map(([id, d]) => ({
 			id,

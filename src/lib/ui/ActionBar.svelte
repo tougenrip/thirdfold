@@ -63,13 +63,13 @@
 	);
 	/** The character can use an action now: its turn, and it hasn't yet. */
 	const myTurn = $derived(isMine && !acted && able);
-	/** What is in reach to use; in a fight only a torch, on this character's turn, as its action. */
+	/** What is in reach to use; in a fight only what can be done in one (a torch, the Bell's rope), on this character's turn, as its action. */
 	const nearby = $derived(
 		!able || adventure.stage === 'choosing' || (encounter && !myTurn)
 			? []
 			: adventure.interactables.filter(
 					(i) =>
-						(!encounter || i.kind === 'torch') &&
+						(!encounter || i.verbs.some((v) => v.inFight)) &&
 						(i.carried || canReach(blocked, token.pos, i.cells))
 				)
 	);
@@ -204,7 +204,7 @@
 				</button>
 			{/if}
 			{#each nearby as i (i.id)}
-				{#each i.verbs as v (v.id)}
+				{#each i.verbs.filter((v) => !encounter || v.inFight) as v (v.id)}
 					<button
 						type="button"
 						class="primary"

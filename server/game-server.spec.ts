@@ -9,7 +9,7 @@ import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { FileSceneStore, type SceneStore } from './scene-store';
 import { beginAdventure, claimCharacter, postSentries, startAdventure } from './adventure/engine';
-import { BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
+import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventure/hollow';
 import { recordOrigins } from './adventure/objects';
 import { RoomManager } from './rooms';
 import { applyScene, exportScene } from './scene-io';
@@ -1127,7 +1127,7 @@ describe('The Hollow Bell over the wire', () => {
 		expect(reset.room.adventure).toMatchObject({
 			title: 'The Hollow Bell',
 			stage: 'choosing',
-			chapter: { id: 'village', number: 1, of: 9 },
+			chapter: { id: 'village', number: 1, of: 12 },
 			location: { name: 'Bellweather' },
 			ledger: null
 		});
@@ -1294,20 +1294,45 @@ describe('The Hollow Bell over the wire', () => {
 		for (const t of watch) gm.send({ type: 'token_delete', tokenId: t.id });
 		await untilAdventure(pip, (a) => !!a.objectives.find((o) => o.id === 'keeper')?.done);
 
-		// Tobin, and the final choice (after a breath: talking shares the chat rate limit).
+		// Tobin (after a breath: talking shares the chat rate limit), and the finale's four phases.
 		await new Promise((resolve) => setTimeout(resolve, 800));
 		move(BY_TOBIN);
 		use('tobin');
+		await untilAdventure(pip, (a) => a.chapter.id === 'the_pit');
+		// Phase 1: look into the pit. Phase 2: the Hollow wakes, and its tendrils come up.
+		move(BESIDE_PIT);
+		use('pit');
+		const waking = await untilAdventure(gm, (a) => a.chapter.id === 'the_waking' && !!a.encounter);
+		expect(waking.encounter!.enemies.map((e) => e.name)).toEqual([
+			'Hollow Tendril',
+			'Hollow Tendril',
+			'Hollow Tendril'
+		]);
+		// The GM clears them away, and brings the Warden to the rope: phase 3, the Bell rings itself.
+		for (const e of waking.encounter!.enemies)
+			gm.send({ type: 'token_delete', tokenId: e.tokenId });
+		await untilAdventure(pip, (a) => a.chapter.id === 'the_ringing');
+		gm.send({ type: 'token_move', tokenId: warden.id, to: BY_TOBIN });
+		// Three pulls on the rope, one a turn, hold it (after a breath: they share the rate limit too).
+		await new Promise((resolve) => setTimeout(resolve, 2000));
+		for (let pulls = 1; pulls <= 3; pulls++) {
+			pip.send({ type: 'adventure_interact', targetId: 'bell-rope', verb: 'pull' });
+			if (pulls === 3) break;
+			await untilAdventure(pip, (a) => a.encounter?.bell?.pulls === pulls);
+			gm.send({ type: 'adventure_control', op: 'end_turn' });
+		}
+		// Phase 4: the choice.
 		await untilAdventure(pip, (a) => a.decision?.id === 'bell');
-		pip.send({ type: 'adventure_decide', decisionId: 'bell', optionId: 'leave' });
+		await new Promise((resolve) => setTimeout(resolve, 1500));
+		pip.send({ type: 'adventure_decide', decisionId: 'bell', optionId: 'silence' });
 		const done = await untilAdventure(gm, (a) => a.stage === 'complete');
-		expect(done.ending).toMatchObject({ id: 'silent', title: 'The Long Silence' });
+		expect(done.ending).toMatchObject({ id: 'waking', title: 'The Waking' });
 		expect(done.objectives.every((o) => o.done)).toBe(true);
-		expect(done.ledger?.events).toHaveLength(15);
+		expect(done.ledger?.events).toHaveLength(18);
 		expect((await untilAdventure(pip, (a) => a.stage === 'complete')).completedAt).toBeGreaterThan(
 			0
 		);
-	});
+	}, 15_000);
 
 	it('walks the Hollow’s sentries on the server, and starts the fight when one spots a character', async () => {
 		// A table in the Hollow, dark, with Pip's Warden at the foot of the stair and the watch posted.
