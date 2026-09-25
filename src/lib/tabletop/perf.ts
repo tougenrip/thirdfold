@@ -137,3 +137,39 @@ export function instrument(tabletop: Tabletop, perf: PerfRecorder, onChange: () 
 		};
 	}
 }
+
+/**
+ * GPU time of drawing the current view, measured with WebGL2 timer queries:
+ * the median ms of `frames` frames, or null where the driver has no timer
+ * query (software GL). Results arrive frames later, so this is async.
+ */
+export async function timeGpuFrames(
+	renderer: THREE.WebGLRenderer,
+	scene: THREE.Scene,
+	camera: THREE.Camera,
+	frames: number
+): Promise<number | null> {
+	const gl = renderer.getContext() as WebGL2RenderingContext;
+	const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+	if (!ext) return null;
+	const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+	const times: number[] = [];
+	for (let i = 0; i < frames; i++) {
+		const query = gl.createQuery();
+		if (!query) return null;
+		gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+		renderer.render(scene, camera);
+		gl.endQuery(ext.TIME_ELAPSED_EXT);
+		for (let wait = 0; wait < 120; wait++) {
+			await nextFrame();
+			if (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) break;
+		}
+		const ready = gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE);
+		if (ready && !gl.getParameter(ext.GPU_DISJOINT_EXT)) {
+			times.push(gl.getQueryParameter(query, gl.QUERY_RESULT) / 1e6);
+		}
+		gl.deleteQuery(query);
+	}
+	times.sort((a, b) => a - b);
+	return times.length ? times[Math.floor(times.length / 2)] : null;
+}

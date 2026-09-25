@@ -13,6 +13,7 @@ import type { FogView } from '$lib/game/visibility';
 import type { DiceThrow } from './dice3d';
 import type { FogMode } from './fog';
 import type { PerfStats } from './perf';
+import type { GridPose } from './poses';
 import type { Pose } from './shots';
 
 export type CameraView = 'tactical' | 'tabletop';
@@ -98,6 +99,8 @@ export interface Tabletop {
 	setView(view: CameraView): void;
 	/** Puts the camera at a pose at once, ending any shot or view change (tests, photo mode). */
 	setPose(pose: Pose): void;
+	/** The same, for a pose in grid terms (a fixture's named pose). */
+	setGridPose(pose: GridPose): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
 	/**
@@ -105,6 +108,8 @@ export interface Tabletop {
 	 * main thread's ms per frame (`cpu`) and the whole frame's until drawn (`gpu`).
 	 */
 	benchmark(frames: number): { cpu: number; gpu: number; drawCalls: number };
+	/** GPU ms of the current view by timer queries (median of `frames`), or null without them. */
+	timeFrames(frames: number): Promise<number | null>;
 	resetStats(): void;
 	dispose(): void;
 }

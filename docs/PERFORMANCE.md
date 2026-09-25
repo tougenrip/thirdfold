@@ -223,6 +223,103 @@ timer (`AMBIENT_FRAME_MS`, 80 ms), by design since M15.
 - The heap grows by about 0.4 MB over six loads. That is the room log, which is capped at
   `LOG_LIMIT`.
 
+## Before the rendering overhaul (milestone 61)
+
+Real-GPU baselines of today's `WebGLRenderer`, before milestone 62 changes the backend. Measured
+with `scripts/perf-gpu.mjs` on a laptop with both proxy GPUs (Linux 7.0, NVIDIA driver 595.91,
+Mesa for Intel; Chromium 153.0.8010.12 from Playwright 1.63.0; three.js 0.186.0; September 2026).
+Each number is the median GPU time of 16 frames of that view from WebGL2 timer queries, in ms.
+The GM sees everything; the player is fogged. A few 1400×900 numbers run high where the GPU had
+not yet clocked up (the first views of a run); the 1920×1080 column is the steadier one.
+
+**RTX 4060 Laptop (discrete, high-tier proxy).** `ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0)), NVIDIA)`.
+
+| Table      | Pose     | GM 1400×900 | GM 1920×1080 | Player 1920×1080 | Draws (GM) | Programs |
+| ---------- | -------- | ----------- | ------------ | ---------------- | ---------- | -------- |
+| village    | overview | 0.52        | 3.21         | 1.72             | 110        | 16       |
+| village    | close    | 0.64        | 2.99         | 2.18             | 39         | 16       |
+| village    | low      | 0.47        | 2.05         | 1.35             | 19         | 16       |
+| monastery  | overview | 0.47        | 0.67         | 0.60             | 66         | 16       |
+| monastery  | close    | 0.78        | 1.23         | 1.20             | 33         | 16       |
+| monastery  | low      | 0.62        | 1.00         | 1.58             | 21         | 16       |
+| hollow     | overview | 0.61        | 3.51         | 2.32             | 72         | 16       |
+| hollow     | close    | 1.11        | 3.31         | 2.12             | 35         | 16       |
+| hollow     | low      | 1.10        | 3.05         | 2.11             | 61         | 16       |
+| ref-1      | overview | 0.67        | 1.00         | 1.00             | 30         | 17       |
+| ref-1      | close    | 0.61        | 0.90         | 0.90             | 29         | 17       |
+| ref-1      | low      | 0.57        | 0.89         | 1.53             | 22         | 17       |
+| ref-6      | overview | 0.63        | 0.94         | 0.94             | 28         | 17       |
+| ref-6      | close    | 0.82        | 1.29         | 1.29             | 28         | 17       |
+| ref-6      | low      | 0.62        | 1.00         | 1.56             | 18         | 17       |
+| ref-7      | overview | 0.52        | 0.77         | 0.77             | 85         | 17       |
+| ref-7      | close    | 0.70        | 1.09         | 1.09             | 82         | 17       |
+| ref-7      | low      | 0.58        | 0.92         | 0.92             | 52         | 17       |
+| ref-8      | overview | 4.28        | 0.99         | 0.99             | 44         | 17       |
+| ref-8      | close    | 3.52        | 1.54         | 1.53             | 19         | 17       |
+| ref-8      | low      | 1.91        | 1.21         | 1.20             | 17         | 17       |
+| dungeon-40 | overview | 3.15        | 3.53         | 1.76             | 138        | 17       |
+| dungeon-40 | close    | 2.75        | 2.58         | 2.37             | 20         | 17       |
+| dungeon-40 | low      | 1.79        | 2.05         | 1.75             | 20         | 17       |
+| outdoor-64 | overview | 0.62        | 0.89         | 0.89             | 10         | 17       |
+| outdoor-64 | close    | 0.88        | 1.45         | 1.45             | 10         | 17       |
+| outdoor-64 | low      | 0.75        | 1.19         | 1.20             | 10         | 17       |
+| crowd-60   | overview | 0.68        | 0.98         | 0.98             | 245        | 17       |
+| crowd-60   | close    | 0.80        | 1.25         | 1.25             | 196        | 17       |
+| crowd-60   | low      | 0.69        | 1.07         | 1.84             | 91         | 17       |
+
+Slowest at 1920×1080: dungeon-40 overview (GM), 3.53 ms.
+
+**Intel Raptor Lake-S UHD (integrated, low and medium proxy).** `ANGLE (Intel, Vulkan 1.4.335 (Intel(R) Graphics (RPL-S) (0x0000A788)), Intel open-source Mesa driver)`.
+
+| Table      | Pose     | GM 1400×900 | GM 1920×1080 | Player 1920×1080 | Draws (GM) | Programs |
+| ---------- | -------- | ----------- | ------------ | ---------------- | ---------- | -------- |
+| village    | overview | 11.95       | 15.10        | 12.49            | 110        | 16       |
+| village    | close    | 14.34       | 18.14        | 18.38            | 39         | 16       |
+| village    | low      | 11.37       | 15.20        | 11.09            | 75         | 16       |
+| monastery  | overview | 8.73        | 13.61        | 12.02            | 66         | 16       |
+| monastery  | close    | 17.28       | 23.60        | 22.45            | 42         | 16       |
+| monastery  | low      | 12.45       | 21.52        | 20.06            | 45         | 16       |
+| hollow     | overview | 12.15       | 16.15        | 16.51            | 72         | 16       |
+| hollow     | close    | 24.94       | 37.53        | 37.69            | 34         | 16       |
+| hollow     | low      | 22.61       | 38.65        | 39.66            | 60         | 16       |
+| ref-1      | overview | 11.71       | 22.18        | 22.89            | 30         | 17       |
+| ref-1      | close    | 12.35       | 16.94        | 16.92            | 30         | 17       |
+| ref-1      | low      | 13.64       | 17.54        | 20.23            | 30         | 17       |
+| ref-6      | overview | 12.76       | 16.52        | 18.14            | 28         | 17       |
+| ref-6      | close    | 14.43       | 26.23        | 24.01            | 28         | 17       |
+| ref-6      | low      | 12.47       | 18.52        | 21.21            | 28         | 17       |
+| ref-7      | overview | 7.92        | 12.24        | 16.42            | 85         | 17       |
+| ref-7      | close    | 13.63       | 16.52        | 17.74            | 85         | 17       |
+| ref-7      | low      | 10.16       | 18.26        | 24.04            | 85         | 17       |
+| ref-8      | overview | 14.72       | 19.50        | 20.47            | 44         | 17       |
+| ref-8      | close    | 18.33       | 32.45        | 32.26            | 29         | 17       |
+| ref-8      | low      | 15.64       | 23.46        | 24.34            | 36         | 17       |
+| dungeon-40 | overview | 10.85       | 15.77        | 15.93            | 138        | 17       |
+| dungeon-40 | close    | 14.49       | 22.79        | 25.02            | 20         | 17       |
+| dungeon-40 | low      | 12.57       | 21.38        | 19.59            | 20         | 17       |
+| outdoor-64 | overview | 10.36       | 14.57        | 18.99            | 10         | 17       |
+| outdoor-64 | close    | 17.00       | 29.20        | 28.24            | 10         | 17       |
+| outdoor-64 | low      | 13.23       | 21.76        | 21.08            | 10         | 17       |
+| crowd-60   | overview | 11.44       | 13.91        | 20.38            | 245        | 17       |
+| crowd-60   | close    | 12.98       | 24.87        | 24.92            | 218        | 17       |
+| crowd-60   | low      | 14.98       | 20.24        | 23.13            | 208        | 17       |
+
+Slowest at 1920×1080: hollow low (Ana), 39.66 ms.
+
+**What this says.**
+
+- **The discrete GPU has headroom.** Every view draws in 0.5–3.5 ms at 1080p, well inside the high
+  tier's budget.
+- **The integrated GPU is already over the medium budget.** Today's plain look costs 12–40 ms per
+  frame at 1080p on the iGPU, against the medium tier's target of about 11 ms at 2 MP. Close,
+  low-angle views of large lit tables are the worst: the Hollow at 38–40 ms, ref-8 close 32 ms,
+  the 64×64 outdoor table close 29 ms. The cost is per pixel (draw counts are small, from 10 to
+  245), which points at fill and lighting: 8 point lights on every lit fragment, full-screen
+  transparent overlays (fog, darkness, floor), and MSAA. Milestone 62's tiers must start the iGPU
+  below 2 MP, or with fewer lights, before any new effect is added.
+- **Draw calls are modest** (the most is 245, crowd-60) and shader programs 16–17 on every
+  table, so batching is not today's bottleneck.
+
 ## Not changed, and why
 
 - **three.js's size.** It is already split out and prefetched. Replacing namespace imports with

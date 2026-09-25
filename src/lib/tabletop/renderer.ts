@@ -33,7 +33,8 @@ import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { LightingLayer } from './lighting';
 import { FrameLoop, watchReducedMotion } from './loop';
-import { benchmark, instrument, PerfRecorder, rendererStats } from './perf';
+import { benchmark, instrument, PerfRecorder, rendererStats, timeGpuFrames } from './perf';
+import { poseFor } from './poses';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
 import { PropLayer } from './props';
@@ -462,6 +463,10 @@ export function createTabletop(
 			rig.setPose(pose);
 			requestRender();
 		},
+		setGridPose(pose) {
+			if (grid) rig.setPose(poseFor(grid, ground, pose));
+			requestRender();
+		},
 		dispose() {
 			disposed = true;
 			loop.dispose();
@@ -485,7 +490,8 @@ export function createTabletop(
 		},
 		stats: () => rendererStats(renderer, perf),
 		resetStats: () => perf.reset(),
-		benchmark: (frames) => benchmark(renderer, scene, camera, frames)
+		benchmark: (frames) => benchmark(renderer, scene, camera, frames),
+		timeFrames: (frames) => timeGpuFrames(renderer, scene, camera, frames)
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
 	instrument(tabletop, perf, () => (shadowsDirty = true));
