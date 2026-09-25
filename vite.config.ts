@@ -34,11 +34,27 @@ export default defineConfig({
 				extends: './vite.config.ts',
 				test: {
 					name: 'client',
+					// Renderer tests and golden images draw with SwiftShader at DPR 1 on
+					// an 800x500 viewport, so pixels never depend on the machine's GPU.
 					browser: {
 						enabled: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium', headless: true }]
+						provider: playwright({
+							launchOptions: {
+								args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']
+							}
+						}),
+						viewport: { width: 800, height: 500 },
+						// No tester UI around the test frame: it would scale the frame, and every screenshot, down.
+						ui: false,
+						instances: [{ browser: 'chromium', headless: true }],
+						expect: {
+							toMatchScreenshot: {
+								comparatorName: 'pixelmatch',
+								comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 }
+							}
+						}
 					},
+					attachmentsDir: '.vitest-attachments',
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 					exclude: ['src/lib/server/**']
 				}

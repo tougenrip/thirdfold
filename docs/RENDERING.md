@@ -149,6 +149,34 @@ Filled in by milestone 63.
 
 Filled in by milestone 64.
 
+## Testing the renderer
+
+The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500 viewport, with no
+tester UI around the frame. `src/lib/tabletop/testing.ts` mounts any fixture table
+(`tests/fixtures`, see `docs/PERFORMANCE.md`) as the GM, a fogged player or a spectator sees it, at
+DPR 1, with a clock the test holds still, reduced motion on and the camera at a named pose.
+
+- **Smoke tests** (`renderer.svelte.spec.ts`): every fixture draws for every viewer with no
+  `console.error`; the same inputs draw the same pixels; an idle daylight table draws no frames;
+  torch flicker stays at the slow ambient rate, and stops at once when the system asks for reduced
+  motion; reloading tables leaks no geometry, texture or shader program; cycling the times of day
+  compiles nothing new the second time; a disposed tabletop answers no pointer events.
+- **Golden images** (`golden.svelte.spec.ts`): the `MATRIX` table lists every image, named
+  `<fixture>-<pose>-<band>-<viewer>`. Pixelmatch with threshold 0.1 and at most 0.5% mismatched
+  pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`), and the
+  spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
+
+**Changing goldens.** Update them only on purpose, on Linux:
+
+```bash
+npx vitest run --project client src/lib/tabletop/golden.svelte.spec.ts --update
+```
+
+A PR that changes goldens says why, shows the before and after of every changed image in its
+description, and names the milestone gate it serves. Keep the set under about 20 MB: if it grows
+past that, drop the `low` pose and the extra overview bands of the frozen story tables before
+dropping any player view.
+
 ## Upgrading three.js, Playwright and Vitest
 
 `three`, `@types/three`, `playwright`, `vitest` and `@vitest/browser-playwright` are pinned to exact

@@ -31,3 +31,6 @@ android/
 # Saved scenes (server/index.ts, SCENES_DIR)
 /data/
 .claude/
+
+# Vitest screenshot diffs
+.vitest-attachments/
