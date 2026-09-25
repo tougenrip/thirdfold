@@ -13,6 +13,10 @@ Every record has an id stable across imports (`srd-5.2.1:<kind>:<name>`) and its
 
 Only the SRD is imported: nothing from the D&D Beyond Basic Rules or any other book.
 
+## Using it
+
+The server reads the catalog at run time with `srdCatalog()` (`server/rules/dnd55e/catalog.ts`), which checks each file against the manifest's hash before using it. Fifth edition characters (`server/rules/dnd55e/character/`) name its records by id and are pinned to its source and version.
+
 ## Importing
 
 The catalog is generated, never edited by hand:

@@ -1,13 +1,17 @@
 // A character's fifth edition sheet, read from the rules-neutral data on its
-// definition (`CharacterDef.sheet`) and checked field by field. Milestone 44
-// replaces these pregenerated sheets with characters players build; the
-// shape here is what the rules need to resolve checks, saves and attacks.
+// definition (`CharacterDef.sheet`) and checked field by field: what the
+// rules need to resolve checks, saves and attacks. A character built from
+// the catalog (character/) writes its sheet with `characterDefOf`; the
+// optional fields are what such a character knows beyond the basics.
 //
 //   sheet: {
+//     title: 'Orc Fighter 1 (Soldier)',  // optional
 //     level: 1,
 //     abilities: { str: 17, dex: 12, con: 15, int: 8, wis: 13, cha: 10 },
 //     saves: ['str', 'con'],             // saving throw proficiencies
 //     skills: ['athletics', 'perception'],
+//     expertise: ['perception'],         // optional: skills whose proficiency counts twice
+//     initiative: 3,                     // optional: the initiative bonus (Dexterity by default)
 //     attacks: { longsword: 'str' },     // the ability each attack action uses
 //     bonusActions: ['second-wind']      // actions that take a bonus action
 //   }
@@ -26,10 +30,13 @@ import {
 } from './core';
 
 export interface Sheet {
+	title: string | null;
 	level: number;
 	abilities: Record<Ability, number>;
 	saves: Ability[];
 	skills: string[];
+	expertise: string[];
+	initiative: number | null;
 	attacks: Record<string, Ability>;
 	bonusActions: string[];
 }
@@ -39,7 +46,17 @@ type Read = { ok: true; sheet: Sheet } | { ok: false; problems: string[] };
 const isRecord = (v: RulesValue | undefined): v is RulesData =>
 	typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const KEYS = ['level', 'abilities', 'saves', 'skills', 'attacks', 'bonusActions'];
+const KEYS = [
+	'title',
+	'level',
+	'abilities',
+	'saves',
+	'skills',
+	'expertise',
+	'initiative',
+	'attacks',
+	'bonusActions'
+];
 
 /** The sheet of a character, or everything wrong with it. */
 export function readSheet(character: CharacterDef): Read {
@@ -83,6 +100,18 @@ export function readSheet(character: CharacterDef): Read {
 	for (const s of saves) if (!isAbility(s)) bad(`no ability "${s}" to be proficient in saving`);
 	const skills = strings(raw.skills, 'skills');
 	for (const s of skills) if (!skillOf(s)) bad(`no skill "${s}"`);
+	const expertise = strings(raw.expertise, 'expertise');
+	for (const s of expertise)
+		if (!skills.includes(s)) bad(`expertise in "${s}", not a skill it has`);
+	const initiative = raw.initiative;
+	if (
+		initiative !== undefined &&
+		(typeof initiative !== 'number' || !Number.isInteger(initiative) || Math.abs(initiative) > 30)
+	)
+		bad('initiative must be a whole number');
+	const title = raw.title;
+	if (title !== undefined && (typeof title !== 'string' || !title.trim() || title.length > 80))
+		bad('title must be 1 to 80 characters');
 
 	const actionIds = new Set(character.actions.map((a) => a.id));
 	const attacks: Record<string, Ability> = {};
@@ -104,10 +133,13 @@ export function readSheet(character: CharacterDef): Read {
 	return {
 		ok: true,
 		sheet: {
+			title: typeof title === 'string' ? title : null,
 			level: level as number,
 			abilities,
 			saves: saves as Ability[],
 			skills,
+			expertise,
+			initiative: typeof initiative === 'number' ? initiative : null,
 			attacks,
 			bonusActions
 		}

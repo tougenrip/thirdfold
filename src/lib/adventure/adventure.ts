@@ -236,6 +236,8 @@ export interface SheetValue {
  * server so no client has to know the rules.
  */
 export interface CharacterCard {
+	/** Who the character is by the rules, e.g. "Orc Fighter 1 (Soldier)", where the rules say. */
+	title?: string;
 	/** e.g. "Defense" or "Armor Class", and its value now (statuses counted). */
 	defense: { name: string; value: number };
 	level: number | null;

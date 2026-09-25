@@ -53,6 +53,7 @@
 						onclick={() => send({ type: 'adventure_claim', characterId: id })}
 					>
 						<span class="name"><span class="seal" aria-hidden="true"></span>{c.name}</span>
+						{#if character.card.title}<span class="title">{character.card.title}</span>{/if}
 						<span class="tagline">{c.tagline}</span>
 						<span class="stats num">
 							<span><b>{c.hp}</b> HP</span>
@@ -183,6 +184,11 @@
 	.attack {
 		font-size: var(--fs-sm);
 		color: var(--muted);
+	}
+
+	.title {
+		font-size: var(--fs-sm);
+		font-weight: 600;
 	}
 
 	.stats {

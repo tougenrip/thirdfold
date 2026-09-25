@@ -124,8 +124,11 @@ The fifth edition rules of the SRD 5.2.1 are `dnd-5.5e` v1. Under them:
 
 - a character's `armor` is its Armor Class, and its `sheet` holds the rest:
   `level`, `abilities` (`str`, `dex`, `con`, `int`, `wis`, `cha`, scores 1–30),
-  `saves` and `skills` it is proficient in, `attacks` (the ability each attack
-  action uses) and `bonusActions` (actions that take a bonus action);
+  `saves` and `skills` it is proficient in, optionally `expertise` (skills
+  whose proficiency counts twice), `initiative` (its initiative bonus, else
+  Dexterity) and `title` ("Orc Fighter 1 (Soldier)"), `attacks` (the ability
+  each attack action uses) and `bonusActions` (actions that take a bonus
+  action);
 - a check's `stat` is an ability (`"str"`) or a skill (`"perception"`), and
   `save: true` makes it a saving throw (abilities only);
 - an enemy's `armor` is its Armor Class and an attack's `toHit` its full
@@ -139,6 +142,17 @@ cover); a natural 20 is a critical hit. Every roll's log entry explains how it
 was resolved. The Barrow on Cold Hill (`server/adventures/barrow/`) is written
 for these rules. Adventure files and the builder still use the classic rules
 and character library.
+
+A fifth edition character can be built from the SRD catalog instead of
+written by hand (`server/rules/dnd55e/character/`): a `DndCharacter` stores
+only choices (species and its options, background and its +2/+1, class,
+skills, Expertise, Fighting Style, Weapon Mastery, subclass, ability scores by
+standard array, point buy or roll, feats at the levels that grant them, hit
+points by average or roll, worn armor) and its state of play, bound to the
+rules and the catalog it was made from; `readCharacter` checks every choice,
+`deriveCharacter` works out every number, and `characterDefOf` makes the
+`CharacterDef` a table plays. The Barrow's four characters are made this way
+(`server/adventures/barrow/party.ts`).
 
 ## Checking and testing
 

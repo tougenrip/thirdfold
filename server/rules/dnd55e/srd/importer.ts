@@ -24,8 +24,7 @@ export const IMPORTER_VERSION = 1;
 /** The PDF reader the output depends on (pinned exactly in package.json). */
 export const PDFJS_VERSION = '6.3.289';
 
-/** Where the catalog is kept. */
-export const CATALOG_DIR = path.join('content', 'srd', '5.2.1', 'catalog');
+export { CATALOG_DIR } from '../catalog';
 
 /** The chapters of the SRD this importer does not turn into records (their text is only in the source). */
 export const NOT_IMPORTED = [

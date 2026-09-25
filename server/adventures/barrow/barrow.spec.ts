@@ -116,8 +116,10 @@ describe('The Barrow on Cold Hill (fifth edition rules)', () => {
 		});
 		expect(view.rules.attribution).toContain('SRD 5.2.1');
 		const card = view.characters.find((c) => c.id === 'warden')!.card;
+		// Chain mail (16) and a Shield (+2), and the Defense fighting style (+1) in armor.
 		expect(card).toMatchObject({
-			defense: { name: 'Armor Class', value: 18 },
+			title: 'Orc Fighter 1 (Soldier)',
+			defense: { name: 'Armor Class', value: 19 },
 			level: 1,
 			proficiency: 2
 		});

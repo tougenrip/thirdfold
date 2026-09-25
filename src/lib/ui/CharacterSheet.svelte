@@ -41,6 +41,7 @@
 				{#if intro}<span class="lead">You are playing</span>{/if}
 				{character.name}
 			</h2>
+			{#if card.title}<p class="title">{card.title}</p>{/if}
 			<p class="tagline">{intro ? character.intro : character.tagline}</p>
 		</header>
 
@@ -166,6 +167,12 @@
 		box-shadow: var(--shadow-lg);
 	}
 
+	.title {
+		margin: 0;
+		font-size: var(--fs-sm);
+		font-weight: 600;
+		letter-spacing: 0.02em;
+	}
 	.tagline {
 		margin: 0;
 		max-width: 65ch;

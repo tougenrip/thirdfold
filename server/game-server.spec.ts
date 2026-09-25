@@ -2608,11 +2608,11 @@ describe('fifth edition rules over the wire', () => {
 			text: 'Darts from the lintel strike The Veil: 6 damage.'
 		});
 
-		// Deeper in, the guardians wake. Initiative: the Veil (20 + 3) goes first.
+		// Deeper in, the guardians wake. Initiative: the Veil (20 + 3 Dexterity + 2 from Alert) goes first.
 		move({ x: 9, y: 4 });
 		const fight = await pip.until('adventure_update', (m) => !!m.adventure?.encounter);
 		const order = fight.adventure!.encounter!.order;
-		expect(order[0]).toMatchObject({ characterId: 'veil', initiative: 23 });
+		expect(order[0]).toMatchObject({ characterId: 'veil', initiative: 25 });
 		const guard = fight.adventure!.encounter!.enemies.find((e) => e.name === 'Barrow Guard')!;
 		pip.send({ type: 'adventure_act', actionId: 'shortsword', targetId: guard.tokenId });
 		const attack = await untilLog(gm, 'attack');

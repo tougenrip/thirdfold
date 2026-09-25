@@ -46,7 +46,8 @@ function bonusOf(sheet: Sheet, stat: string, kind: 'check' | 'save'): number {
 	if (isAbility(stat)) return mod(sheet, stat);
 	const skill = skillOf(stat);
 	if (!skill) return 0;
-	return mod(sheet, skill.ability) + (sheet.skills.includes(skill.id) ? prof(sheet) : 0);
+	const times = sheet.expertise.includes(skill.id) ? 2 : sheet.skills.includes(skill.id) ? 1 : 0;
+	return mod(sheet, skill.ability) + times * prof(sheet);
 }
 
 function labelOf(stat: string, kind: 'check' | 'save'): string {
@@ -77,7 +78,10 @@ export const dnd55e: Ruleset = {
 			explain: `${describeD20(d20, bonus)} vs DC ${dc}: ${success ? 'success' : 'failure'}${why}`
 		};
 	},
-	initiativeBonus: (character) => mod(sheetOf(character), 'dex'),
+	initiativeBonus: (character) => {
+		const sheet = sheetOf(character);
+		return sheet.initiative ?? mod(sheet, 'dex');
+	},
 	attackBonus(character, action) {
 		const sheet = sheetOf(character);
 		const ability = sheet.attacks[action.id];
@@ -131,6 +135,7 @@ export const dnd55e: Ruleset = {
 		const sheet = sheetOf(character);
 		const p = prof(sheet);
 		return {
+			...(sheet.title ? { title: sheet.title } : {}),
 			defense: { name: 'Armor Class', value: this.defense(character.armor, statuses) },
 			level: sheet.level,
 			proficiency: p,

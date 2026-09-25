@@ -8,12 +8,12 @@
 // foes are thirdfold's own; the rules are the SRD's.
 //
 // The four characters are the same four people as ever, built as level 1
-// fifth edition characters (their sheets are read by server/rules/dnd55e).
+// fifth edition characters from the SRD catalog (party.ts).
 
-import { CHARACTERS, type CharacterDef } from '../../../src/lib/adventure/characters';
 import type { AdventureDef } from '../../adventure/define';
 import { cellsOf, door, light, prop, table, wall } from '../../adventure/tables';
 import { DND_55E } from '../../rules/dnd55e';
+import { ember, saint, veil, warden } from './party';
 
 /** The table's fixed ids. */
 export const BARROW_IDS = {
@@ -29,171 +29,6 @@ export const BARROW_SPAWN = cellsOf({ x: 6, y: 10 }, { x: 9, y: 11 });
 export const CARVINGS_AT = { x: 5, y: 9 };
 /** The threshold, just inside the door. */
 export const THRESHOLD = { x: 7, y: 7 };
-
-const warden: CharacterDef = {
-	...CHARACTERS.warden,
-	intro:
-		'The Warden sets a shield against the hill wind. Fighter, first of the watch: longsword, chain mail, and a second wind when it counts.',
-	hp: 12,
-	armor: 18,
-	speed: 6,
-	actions: [
-		{
-			id: 'longsword',
-			name: 'Longsword',
-			about: 'A steady cut with a longsword.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'might',
-			dice: '1d8+3',
-			uses: null
-		},
-		{
-			id: 'second-wind',
-			name: 'Second Wind',
-			about: 'Draw on your stamina to heal yourself. A bonus action.',
-			kind: 'heal',
-			target: 'self',
-			range: 0,
-			stat: 'might',
-			dice: '1d10+1',
-			uses: 2
-		}
-	],
-	sheet: {
-		level: 1,
-		abilities: { str: 17, dex: 12, con: 15, int: 8, wis: 13, cha: 10 },
-		saves: ['str', 'con'],
-		skills: ['athletics', 'perception'],
-		attacks: { longsword: 'str' },
-		bonusActions: ['second-wind']
-	}
-};
-
-const veil: CharacterDef = {
-	...CHARACTERS.veil,
-	intro:
-		'The Veil is already at the barrow door, reading the dark. Rogue: a shortsword, a shortbow, and eyes for what others miss.',
-	hp: 10,
-	armor: 14,
-	speed: 6,
-	actions: [
-		{
-			id: 'shortsword',
-			name: 'Shortsword',
-			about: 'A quick thrust.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'agility',
-			dice: '1d6+3',
-			uses: null
-		},
-		{
-			id: 'shortbow',
-			name: 'Shortbow',
-			about: 'An arrow from afar. Hard to aim with a foe beside you.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 16,
-			stat: 'agility',
-			dice: '1d6+3',
-			uses: null
-		}
-	],
-	sheet: {
-		level: 1,
-		abilities: { str: 10, dex: 17, con: 14, int: 12, wis: 13, cha: 8 },
-		saves: ['dex', 'int'],
-		skills: ['acrobatics', 'investigation', 'perception', 'stealth'],
-		attacks: { shortsword: 'dex', shortbow: 'dex' },
-		bonusActions: []
-	}
-};
-
-const ember: CharacterDef = {
-	...CHARACTERS.ember,
-	intro:
-		'The Ember raises a hooded lantern, and the hill door throws back its light. Wizard: a scholar of old wards, with a dagger and a light crossbow.',
-	hp: 7,
-	armor: 12,
-	speed: 6,
-	light: 3,
-	actions: [
-		{
-			id: 'dagger',
-			name: 'Dagger',
-			about: 'A quick, light blade.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'agility',
-			dice: '1d4+2',
-			uses: null
-		},
-		{
-			id: 'crossbow',
-			name: 'Light crossbow',
-			about: 'A bolt from afar. Hard to aim with a foe beside you.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 16,
-			stat: 'agility',
-			dice: '1d8+2',
-			uses: null
-		}
-	],
-	sheet: {
-		level: 1,
-		abilities: { str: 8, dex: 14, con: 13, int: 17, wis: 12, cha: 10 },
-		saves: ['int', 'wis'],
-		skills: ['arcana', 'history', 'investigation'],
-		attacks: { dagger: 'dex', crossbow: 'dex' },
-		bonusActions: []
-	}
-};
-
-const saint: CharacterDef = {
-	...CHARACTERS.saint,
-	intro:
-		'The Saint touches the old stones and murmurs a name for the dead. Paladin: a mace, a shield, and hands that heal.',
-	hp: 12,
-	armor: 18,
-	speed: 6,
-	actions: [
-		{
-			id: 'mace',
-			name: 'Mace',
-			about: 'A plain iron mace.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'might',
-			dice: '1d6+3',
-			uses: null
-		},
-		{
-			id: 'lay-on-hands',
-			name: 'Lay On Hands',
-			about: 'Touch an ally (or yourself) to restore 5 hit points. A bonus action.',
-			kind: 'heal',
-			target: 'ally',
-			range: 1,
-			stat: 'spirit',
-			dice: '5',
-			uses: 1
-		}
-	],
-	sheet: {
-		level: 1,
-		abilities: { str: 16, dex: 10, con: 14, int: 8, wis: 12, cha: 15 },
-		saves: ['wis', 'cha'],
-		skills: ['insight', 'religion'],
-		attacks: { mace: 'str' },
-		bonusActions: ['lay-on-hands']
-	}
-};
 
 const say = (text: string) => ({ say: text });
 
