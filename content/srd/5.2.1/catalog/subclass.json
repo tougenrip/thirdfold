@@ -1,0 +1,558 @@
+[
+	{
+		"id": "srd-5.2.1:subclass:champion",
+		"kind": "subclass",
+		"name": "Champion",
+		"data": {
+			"class": "Fighter",
+			"features": [
+				{
+					"level": 3,
+					"name": "Improved Critical",
+					"text": "Your attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20."
+				},
+				{
+					"level": 3,
+					"name": "Remarkable Athlete",
+					"text": "Thanks to your athleticism, you have Advantage on Initiative rolls and Strength (Athletics) checks. In addition, immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks."
+				},
+				{
+					"level": 7,
+					"name": "Additional Fighting Style",
+					"text": "You gain another Fighting Style feat of your choice."
+				},
+				{
+					"level": 10,
+					"name": "Heroic Warrior",
+					"text": "The thrill of battle drives you toward victory.\n\nDuring combat, you can give yourself Heroic Inspiration whenever you start your turn without it."
+				},
+				{
+					"level": 15,
+					"name": "Superior Critical",
+					"text": "Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18–20 on the d20."
+				},
+				{
+					"level": 18,
+					"name": "Survivor",
+					"text": "You attain the pinnacle of resilience in battle, giving you these benefits.\n\nDefy Death. You have Advantage on Death Saving Throws. Moreover, when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it.\n\nHeroic Rally. At the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point."
+				}
+			]
+		},
+		"text": "Level 3: Improved Critical\n\nYour attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20.\n\nLevel 3: Remarkable Athlete\n\nThanks to your athleticism, you have Advantage on Initiative rolls and Strength (Athletics) checks. In addition, immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks.\n\nLevel 7: Additional Fighting Style\n\nYou gain another Fighting Style feat of your choice.\n\nLevel 10: Heroic Warrior\n\nThe thrill of battle drives you toward victory.\n\nDuring combat, you can give yourself Heroic Inspiration whenever you start your turn without it.\n\nLevel 15: Superior Critical\n\nYour attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18–20 on the d20.\n\nLevel 18: Survivor\n\nYou attain the pinnacle of resilience in battle, giving you these benefits.\n\nDefy Death. You have Advantage on Death Saving Throws. Moreover, when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it.\n\nHeroic Rally. At the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Fighter",
+				"Fighter Subclass: Champion"
+			],
+			"pages": [
+				49
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:circle-of-the-land",
+		"kind": "subclass",
+		"name": "Circle of the Land",
+		"data": {
+			"class": "Druid",
+			"features": [
+				{
+					"level": 3,
+					"name": "Circle of the Land Spells",
+					"text": "Whenever you finish a Long Rest, choose one type of land: arid, polar, temperate, or tropical. Consult the table below that corresponds to the chosen type; you have the spells listed for your Druid level and lower prepared.\n\nArid Land Polar Land Temperate Land Tropical Land"
+				},
+				{
+					"level": 3,
+					"name": "Land’s Aid",
+					"text": "As a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that area regains 2d6 Hit Points.\n\nThe damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6)."
+				},
+				{
+					"level": 6,
+					"name": "Natural Recovery",
+					"text": "You can cast one of the level 1+ spells that you have prepared from your Circle Spells feature without expending a spell slot, and you must finish a Long Rest before you do so again.\n\nIn addition, when you finish a Short Rest, you can choose expended spell slots to recover. The spell slots can have a combined level that is equal to or less than half your Druid level (round up), and none of them can be level 6+. For example, if you’re a level 6 Druid, you can recover up to three levels’ worth of spell slots. You can recover a level 3 spell slot, a level 2 and a level 1 spell slot, or three level 1 spell slots. Once you recover spell slots with this feature, you can’t do so again until you finish a Long Rest."
+				},
+				{
+					"level": 10,
+					"name": "Nature’s Ward",
+					"text": "You are immune to the Poisoned condition, and you have Resistance to a damage type associated with your current land choice in the Circle Spells feature, as shown in the Nature’s Ward table.\n\nNature’s Ward"
+				},
+				{
+					"level": 14,
+					"name": "Nature’s Sanctuary",
+					"text": "As a Magic action, you can expend a use of your Wild Shape and cause spectral trees and vines to appear in a 15-foot Cube on the ground within 120 feet of yourself. They last there for 1 minute or until you have the Incapacitated condition or die. You and your allies have Half Cover while in that area, and your allies gain the current Resistance of your Nature’s Ward while there.\n\nAs a Bonus Action, you can move the Cube up to 60 feet to ground within 120 feet of yourself."
+				}
+			]
+		},
+		"text": "Level 3: Circle of the Land Spells\n\nWhenever you finish a Long Rest, choose one type of land: arid, polar, temperate, or tropical. Consult the table below that corresponds to the chosen type; you have the spells listed for your Druid level and lower prepared.\n\nArid Land Polar Land Temperate Land Tropical Land\n\nLevel 3: Land’s Aid\n\nAs a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that area regains 2d6 Hit Points.\n\nThe damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6).\n\nLevel 6: Natural Recovery\n\nYou can cast one of the level 1+ spells that you have prepared from your Circle Spells feature without expending a spell slot, and you must finish a Long Rest before you do so again.\n\nIn addition, when you finish a Short Rest, you can choose expended spell slots to recover. The spell slots can have a combined level that is equal to or less than half your Druid level (round up), and none of them can be level 6+. For example, if you’re a level 6 Druid, you can recover up to three levels’ worth of spell slots. You can recover a level 3 spell slot, a level 2 and a level 1 spell slot, or three level 1 spell slots. Once you recover spell slots with this feature, you can’t do so again until you finish a Long Rest.\n\nLevel 10: Nature’s Ward\n\nYou are immune to the Poisoned condition, and you have Resistance to a damage type associated with your current land choice in the Circle Spells feature, as shown in the Nature’s Ward table.\n\nNature’s Ward\n\nLevel 14: Nature’s Sanctuary\n\nAs a Magic action, you can expend a use of your Wild Shape and cause spectral trees and vines to appear in a 15-foot Cube on the ground within 120 feet of yourself. They last there for 1 minute or until you have the Incapacitated condition or die. You and your allies have Half Cover while in that area, and your allies gain the current Resistance of your Nature’s Ward while there.\n\nAs a Bonus Action, you can move the Cube up to 60 feet to ground within 120 feet of yourself.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Druid",
+				"Druid Subclass: Circle of the Land"
+			],
+			"pages": [
+				46
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:college-of-lore",
+		"kind": "subclass",
+		"name": "College of Lore",
+		"data": {
+			"class": "Bard",
+			"features": [
+				{
+					"level": 3,
+					"name": "Bonus Proficiencies",
+					"text": "You gain proficiency with three skills of your choice."
+				},
+				{
+					"level": 3,
+					"name": "Cutting Words",
+					"text": "You learn to use your wit to supernaturally distract, confuse, and otherwise sap the confidence and competence of others. When a creature that you can see within 60 feet of yourself makes a damage roll or succeeds on an ability check or attack roll, you can take a Reaction to expend one use of your Bardic Inspiration; roll your Bardic Inspiration die, and subtract the number rolled from the creature’s roll, reducing the damage or potentially turning the success into a failure."
+				},
+				{
+					"level": 6,
+					"name": "Magical Discoveries",
+					"text": "You learn two spells of your choice. These spells can come from the Cleric, Druid, or Wizard spell list or any combination thereof (see a class’s section for its spell list). A spell you choose must be a cantrip or a spell for which you have spell slots, as shown in the Bard Features table.\n\nYou always have the chosen spells prepared, and whenever you gain a Bard level, you can replace one of the spells with another spell that meets these requirements."
+				},
+				{
+					"level": 14,
+					"name": "Peerless Skill",
+					"text": "When you make an ability check or attack roll and fail, you can expend one use of Bardic Inspiration; roll the Bardic Inspiration die, and add the number rolled to the d20, potentially turning a failure into a success. On a failure, the Bardic Inspiration isn’t expended."
+				}
+			]
+		},
+		"text": "Level 3: Bonus Proficiencies\n\nYou gain proficiency with three skills of your choice.\n\nLevel 3: Cutting Words\n\nYou learn to use your wit to supernaturally distract, confuse, and otherwise sap the confidence and competence of others. When a creature that you can see within 60 feet of yourself makes a damage roll or succeeds on an ability check or attack roll, you can take a Reaction to expend one use of your Bardic Inspiration; roll your Bardic Inspiration die, and subtract the number rolled from the creature’s roll, reducing the damage or potentially turning the success into a failure.\n\nLevel 6: Magical Discoveries\n\nYou learn two spells of your choice. These spells can come from the Cleric, Druid, or Wizard spell list or any combination thereof (see a class’s section for its spell list). A spell you choose must be a cantrip or a spell for which you have spell slots, as shown in the Bard Features table.\n\nYou always have the chosen spells prepared, and whenever you gain a Bard level, you can replace one of the spells with another spell that meets these requirements.\n\nLevel 14: Peerless Skill\n\nWhen you make an ability check or attack roll and fail, you can expend one use of Bardic Inspiration; roll the Bardic Inspiration die, and add the number rolled to the d20, potentially turning a failure into a success. On a failure, the Bardic Inspiration isn’t expended.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Bard",
+				"Bard Subclass: College of Lore"
+			],
+			"pages": [
+				35
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:draconic-sorcery",
+		"kind": "subclass",
+		"name": "Draconic Sorcery",
+		"data": {
+			"class": "Sorcerer",
+			"features": [
+				{
+					"level": 3,
+					"name": "Draconic Resilience",
+					"text": "The magic in your body manifests physical traits of your draconic gift. Your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level.\n\nParts of you are also covered by dragon-like scales. While you aren’t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers."
+				},
+				{
+					"level": 3,
+					"name": "Draconic Spells",
+					"text": "When you reach a Sorcerer level specified in the Draconic Spells table, you thereafter always have the listed spells prepared.\n\nDraconic Spells"
+				},
+				{
+					"level": 6,
+					"name": "Elemental Affinity",
+					"text": "Your draconic magic has an affinity with a damage type associated with dragons. Choose one of those types: Acid, Cold, Fire, Lightning, or Poison.\n\nYou have Resistance to that damage type, and when you cast a spell that deals damage of that type, you can add your Charisma modifier to one damage roll of that spell."
+				},
+				{
+					"level": 14,
+					"name": "Dragon Wings",
+					"text": "As a Bonus Action, you can cause draconic wings to appear on your back. The wings last for 1 hour or until you dismiss them (no action required). For the duration, you have a Fly Speed of 60 feet.\n\nOnce you use this feature, you can’t use it again until you finish a Long Rest unless you spend 3 Sorcery Points (no action required) to restore your use of it."
+				},
+				{
+					"level": 18,
+					"name": "Dragon Companion",
+					"text": "You can cast Summon Dragon without a Material component. You can also cast it once without a spell slot, and you regain the ability to cast it in this way when you finish a Long Rest.\n\nWhenever you start casting the spell, you can modify it so that it doesn’t require Concentration. If you do so, the spell’s duration becomes 1 minute for that casting."
+				}
+			]
+		},
+		"text": "Level 3: Draconic Resilience\n\nThe magic in your body manifests physical traits of your draconic gift. Your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level.\n\nParts of you are also covered by dragon-like scales. While you aren’t wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers.\n\nLevel 3: Draconic Spells\n\nWhen you reach a Sorcerer level specified in the Draconic Spells table, you thereafter always have the listed spells prepared.\n\nDraconic Spells\n\nLevel 6: Elemental Affinity\n\nYour draconic magic has an affinity with a damage type associated with dragons. Choose one of those types: Acid, Cold, Fire, Lightning, or Poison.\n\nYou have Resistance to that damage type, and when you cast a spell that deals damage of that type, you can add your Charisma modifier to one damage roll of that spell.\n\nLevel 14: Dragon Wings\n\nAs a Bonus Action, you can cause draconic wings to appear on your back. The wings last for 1 hour or until you dismiss them (no action required). For the duration, you have a Fly Speed of 60 feet.\n\nOnce you use this feature, you can’t use it again until you finish a Long Rest unless you spend 3 Sorcery Points (no action required) to restore your use of it.\n\nLevel 18: Dragon Companion\n\nYou can cast Summon Dragon without a Material component. You can also cast it once without a spell slot, and you regain the ability to cast it in this way when you finish a Long Rest.\n\nWhenever you start casting the spell, you can modify it so that it doesn’t require Concentration. If you do so, the spell’s duration becomes 1 minute for that casting.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Sorcerer",
+				"Sorcerer Subclass: Draconic Sorcery"
+			],
+			"pages": [
+				69,
+				70
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:evoker",
+		"kind": "subclass",
+		"name": "Evoker",
+		"data": {
+			"class": "Wizard",
+			"features": [
+				{
+					"level": 3,
+					"name": "Evocation Savant",
+					"text": "Choose two Wizard spells from the Evocation school, each of which must be no higher than level 2, and add them to your spellbook for free.\n\nIn addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Evocation school to your spellbook for free. The chosen spell must be of a level for which you have spell slots."
+				},
+				{
+					"level": 3,
+					"name": "Potent Cantrip",
+					"text": "Your damaging cantrips affect even creatures that avoid the brunt of the effect. When you cast a cantrip at a creature and you miss with the attack roll or the target succeeds on a saving throw against the cantrip, the target takes half the cantrip’s damage (if any) but suffers no additional effect from the cantrip."
+				},
+				{
+					"level": 6,
+					"name": "Sculpt Spells",
+					"text": "You can create pockets of relative safety within the effects of your evocations. When you cast an Evocation spell that affects other creatures that you can see, you can choose a number of them equal to 1 plus the spell’s level. The chosen creatures automatically succeed on their saving throws against the spell, and they take no damage if they would normally take half damage on a successful save."
+				},
+				{
+					"level": 10,
+					"name": "Empowered Evocation",
+					"text": "Whenever you cast a Wizard spell from the Evocation school, you can add your Intelligence modifier to one damage roll of that spell."
+				},
+				{
+					"level": 14,
+					"name": "Overchannel",
+					"text": "You can increase the power of your spells. When you cast a Wizard spell with a spell slot of levels 1–5 that deals damage, you can deal maximum damage with that spell on the turn you cast it.\n\nThe first time you do so, you suffer no adverse effect. If you use this feature again before you finish a Long Rest, you take 2d12 Necrotic damage for each level of the spell slot immediately after you cast it. This damage ignores Resistance and Immunity. Each time you use this feature again before finishing a Long Rest, the Necrotic damage per spell level increases by 1d12."
+				}
+			]
+		},
+		"text": "Level 3: Evocation Savant\n\nChoose two Wizard spells from the Evocation school, each of which must be no higher than level 2, and add them to your spellbook for free.\n\nIn addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Evocation school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.\n\nLevel 3: Potent Cantrip\n\nYour damaging cantrips affect even creatures that avoid the brunt of the effect. When you cast a cantrip at a creature and you miss with the attack roll or the target succeeds on a saving throw against the cantrip, the target takes half the cantrip’s damage (if any) but suffers no additional effect from the cantrip.\n\nLevel 6: Sculpt Spells\n\nYou can create pockets of relative safety within the effects of your evocations. When you cast an Evocation spell that affects other creatures that you can see, you can choose a number of them equal to 1 plus the spell’s level. The chosen creatures automatically succeed on their saving throws against the spell, and they take no damage if they would normally take half damage on a successful save.\n\nLevel 10: Empowered Evocation\n\nWhenever you cast a Wizard spell from the Evocation school, you can add your Intelligence modifier to one damage roll of that spell.\n\nLevel 14: Overchannel\n\nYou can increase the power of your spells. When you cast a Wizard spell with a spell slot of levels 1–5 that deals damage, you can deal maximum damage with that spell on the turn you cast it.\n\nThe first time you do so, you suffer no adverse effect. If you use this feature again before you finish a Long Rest, you take 2d12 Necrotic damage for each level of the spell slot immediately after you cast it. This damage ignores Resistance and Immunity. Each time you use this feature again before finishing a Long Rest, the Necrotic damage per spell level increases by 1d12.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Wizard",
+				"Wizard Subclass: Evoker"
+			],
+			"pages": [
+				82
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:fiend-patron",
+		"kind": "subclass",
+		"name": "Fiend Patron",
+		"data": {
+			"class": "Warlock",
+			"features": [
+				{
+					"level": 3,
+					"name": "Dark One’s Blessing",
+					"text": "When you reduce an enemy to 0 Hit Points, you gain Temporary Hit Points equal to your Charisma modifier plus your Warlock level (minimum of 1 Temporary Hit Point). You also gain this benefit if someone else reduces an enemy within 10 feet of you to 0 Hit Points."
+				},
+				{
+					"level": 3,
+					"name": "Fiend Spells",
+					"text": "The magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Fiend Spells table, you thereafter always have the listed spells prepared.\n\nFiend Spells"
+				},
+				{
+					"level": 6,
+					"name": "Dark One’s Own Luck",
+					"text": "You can call on your fiendish patron to alter fate in your favor. When you make an ability check or a saving throw, you can use this feature to add 1d10 to your roll. You can do so after seeing the roll but before any of the roll’s effects occur.\n\nYou can use this feature a number of times equal to your Charisma modifier (minimum of once), but you can use it no more than once per roll. You regain all expended uses when you finish a Long Rest."
+				},
+				{
+					"level": 10,
+					"name": "Fiendish Resilience",
+					"text": "Choose one damage type, other than Force, whenever you finish a Short or Long Rest. You have Resistance to that damage type until you choose a different one with this feature."
+				},
+				{
+					"level": 14,
+					"name": "Hurl Through Hell",
+					"text": "Once per turn when you hit a creature with an attack roll, you can try to instantly transport the target through the Lower Planes. The target must succeed on a Charisma saving throw against your spell save DC, or the target disappears and hurtles through a nightmare landscape. The target takes 8d10 Psychic damage if it isn’t a Fiend, and it has the Incapacitated condition until the end of your next turn, when it returns to the space it previously occupied or the nearest unoccupied space.\n\nOnce you use this feature, you can’t use it again until you finish a Long Rest unless you expend a Pact Magic spell slot (no action required) to restore your use of it."
+				}
+			]
+		},
+		"text": "Level 3: Dark One’s Blessing\n\nWhen you reduce an enemy to 0 Hit Points, you gain Temporary Hit Points equal to your Charisma modifier plus your Warlock level (minimum of 1 Temporary Hit Point). You also gain this benefit if someone else reduces an enemy within 10 feet of you to 0 Hit Points.\n\nLevel 3: Fiend Spells\n\nThe magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Fiend Spells table, you thereafter always have the listed spells prepared.\n\nFiend Spells\n\nLevel 6: Dark One’s Own Luck\n\nYou can call on your fiendish patron to alter fate in your favor. When you make an ability check or a saving throw, you can use this feature to add 1d10 to your roll. You can do so after seeing the roll but before any of the roll’s effects occur.\n\nYou can use this feature a number of times equal to your Charisma modifier (minimum of once), but you can use it no more than once per roll. You regain all expended uses when you finish a Long Rest.\n\nLevel 10: Fiendish Resilience\n\nChoose one damage type, other than Force, whenever you finish a Short or Long Rest. You have Resistance to that damage type until you choose a different one with this feature.\n\nLevel 14: Hurl Through Hell\n\nOnce per turn when you hit a creature with an attack roll, you can try to instantly transport the target through the Lower Planes. The target must succeed on a Charisma saving throw against your spell save DC, or the target disappears and hurtles through a nightmare landscape. The target takes 8d10 Psychic damage if it isn’t a Fiend, and it has the Incapacitated condition until the end of your next turn, when it returns to the space it previously occupied or the nearest unoccupied space.\n\nOnce you use this feature, you can’t use it again until you finish a Long Rest unless you expend a Pact Magic spell slot (no action required) to restore your use of it.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Warlock",
+				"Warlock Subclass: Fiend Patron"
+			],
+			"pages": [
+				76
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:hunter",
+		"kind": "subclass",
+		"name": "Hunter",
+		"data": {
+			"class": "Ranger",
+			"features": [
+				{
+					"level": 3,
+					"name": "Hunter’s Lore",
+					"text": "You can call on the forces of nature to reveal certain strengths and weaknesses of your prey. While a creature is marked by your Hunter’s Mark, you know whether that creature has any Immunities, Resistances, or Vulnerabilities, and if the creature has any, you know what they are."
+				},
+				{
+					"level": 3,
+					"name": "Hunter’s Prey",
+					"text": "You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.\n\nColossus Slayer. Your tenacity can wear down even the most resilient foes. When you hit a creature with a weapon, the weapon deals an extra 1d8 damage to the target if it’s missing any of its Hit Points. You can deal this extra damage only once per turn.\n\nHorde Breaker. Once on each of your turns when you make an attack with a weapon, you can make another attack with the same weapon against a different creature that is within 5 feet of the original target, that is within the weapon’s range, and that you haven’t attacked this turn."
+				},
+				{
+					"level": 7,
+					"name": "Defensive Tactics",
+					"text": "You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.\n\nEscape the Horde. Opportunity Attacks have Disadvantage against you.\n\nMultiattack Defense. When a creature hits you with an attack roll, that creature has Disadvantage on all other attack rolls against you this turn."
+				},
+				{
+					"level": 11,
+					"name": "Superior Hunter’s Prey",
+					"text": "Once per turn when you deal damage to a creature marked by your Hunter’s Mark, you can also deal that spell’s extra damage to a different creature that you can see within 30 feet of the first creature."
+				},
+				{
+					"level": 15,
+					"name": "Superior Hunter’s Defense",
+					"text": "When you take damage, you can take a Reaction to give yourself Resistance to that damage and any other damage of the same type until the end of the current turn."
+				}
+			]
+		},
+		"text": "Level 3: Hunter’s Lore\n\nYou can call on the forces of nature to reveal certain strengths and weaknesses of your prey. While a creature is marked by your Hunter’s Mark, you know whether that creature has any Immunities, Resistances, or Vulnerabilities, and if the creature has any, you know what they are.\n\nLevel 3: Hunter’s Prey\n\nYou gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.\n\nColossus Slayer. Your tenacity can wear down even the most resilient foes. When you hit a creature with a weapon, the weapon deals an extra 1d8 damage to the target if it’s missing any of its Hit Points. You can deal this extra damage only once per turn.\n\nHorde Breaker. Once on each of your turns when you make an attack with a weapon, you can make another attack with the same weapon against a different creature that is within 5 feet of the original target, that is within the weapon’s range, and that you haven’t attacked this turn.\n\nLevel 7: Defensive Tactics\n\nYou gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.\n\nEscape the Horde. Opportunity Attacks have Disadvantage against you.\n\nMultiattack Defense. When a creature hits you with an attack roll, that creature has Disadvantage on all other attack rolls against you this turn.\n\nLevel 11: Superior Hunter’s Prey\n\nOnce per turn when you deal damage to a creature marked by your Hunter’s Mark, you can also deal that spell’s extra damage to a different creature that you can see within 30 feet of the first creature.\n\nLevel 15: Superior Hunter’s Defense\n\nWhen you take damage, you can take a Reaction to give yourself Resistance to that damage and any other damage of the same type until the end of the current turn.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Ranger",
+				"Ranger Subclass: Hunter"
+			],
+			"pages": [
+				61
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:life-domain",
+		"kind": "subclass",
+		"name": "Life Domain",
+		"data": {
+			"class": "Cleric",
+			"features": [
+				{
+					"level": 3,
+					"name": "Disciple of Life",
+					"text": "When a spell you cast with a spell slot restores Hit Points to a creature, that creature regains additional Hit Points on the turn you cast the spell. The additional Hit Points equal 2 plus the spell slot’s level."
+				},
+				{
+					"level": 3,
+					"name": "Life Domain Spells",
+					"text": "Your connection to this divine domain ensures you always have certain spells ready. When you reach a Cleric level specified in the Life Domain Spells table, you thereafter always have the listed spells prepared.\n\nLife Domain Spells"
+				},
+				{
+					"level": 3,
+					"name": "Preserve Life",
+					"text": "As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to evoke healing energy that can restore a number of Hit Points equal to five times your Cleric level. Choose Bloodied creatures within 30 feet of yourself (which can include you), and divide those Hit Points among them. This feature can restore a creature to no more than half its Hit Point maximum."
+				},
+				{
+					"level": 6,
+					"name": "Blessed Healer",
+					"text": "The healing spells you cast on others heal you as well. Immediately after you cast a spell with a spell slot that restores Hit Points to one or more creatures other than yourself, you regain Hit Points equal to 2 plus the spell slot’s level."
+				},
+				{
+					"level": 17,
+					"name": "Supreme Healing",
+					"text": "When you would normally roll one or more dice to restore Hit Points to a creature with a spell or Channel Divinity, don’t roll those dice for the healing; instead use the highest number possible for each die. For example, instead of restoring 2d6 Hit Points to a creature with a spell, you restore 12."
+				}
+			]
+		},
+		"text": "Level 3: Disciple of Life\n\nWhen a spell you cast with a spell slot restores Hit Points to a creature, that creature regains additional Hit Points on the turn you cast the spell. The additional Hit Points equal 2 plus the spell slot’s level.\n\nLevel 3: Life Domain Spells\n\nYour connection to this divine domain ensures you always have certain spells ready. When you reach a Cleric level specified in the Life Domain Spells table, you thereafter always have the listed spells prepared.\n\nLife Domain Spells\n\nLevel 3: Preserve Life\n\nAs a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to evoke healing energy that can restore a number of Hit Points equal to five times your Cleric level. Choose Bloodied creatures within 30 feet of yourself (which can include you), and divide those Hit Points among them. This feature can restore a creature to no more than half its Hit Point maximum.\n\nLevel 6: Blessed Healer\n\nThe healing spells you cast on others heal you as well. Immediately after you cast a spell with a spell slot that restores Hit Points to one or more creatures other than yourself, you regain Hit Points equal to 2 plus the spell slot’s level.\n\nLevel 17: Supreme Healing\n\nWhen you would normally roll one or more dice to restore Hit Points to a creature with a spell or Channel Divinity, don’t roll those dice for the healing; instead use the highest number possible for each die. For example, instead of restoring 2d6 Hit Points to a creature with a spell, you restore 12.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Cleric",
+				"Cleric Subclass: Life Domain"
+			],
+			"pages": [
+				40
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:oath-of-devotion",
+		"kind": "subclass",
+		"name": "Oath of Devotion",
+		"data": {
+			"class": "Paladin",
+			"features": [
+				{
+					"level": 3,
+					"name": "Oath of Devotion Spells",
+					"text": "The magic of your oath ensures you always have certain spells ready; when you reach a Paladin level specified in the Oath of Devotion Spells table, you thereafter always have the listed spells prepared.\n\nOath of Devotion Spells"
+				},
+				{
+					"level": 3,
+					"name": "Sacred Weapon",
+					"text": "When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1), and each time you hit with it, you cause it to deal its normal damage type or Radiant damage. The weapon also emits Bright Light in a 20-foot radius and Dim Light 20 feet beyond that.\n\nYou can end this effect early (no action required). This effect also ends if you aren’t carrying the weapon."
+				},
+				{
+					"level": 7,
+					"name": "Aura of Devotion",
+					"text": "You and your allies have Immunity to the Charmed condition while in your Aura of Protection. If a Charmed ally enters the aura, that condition has no effect on that ally while there."
+				},
+				{
+					"level": 15,
+					"name": "Smite of Protection",
+					"text": "Your magical smite now radiates protective energy. Whenever you cast Divine Smite, you and your allies have Half Cover while in your Aura of Protection. The aura has this benefit until the start of your next turn."
+				},
+				{
+					"level": 20,
+					"name": "Holy Nimbus",
+					"text": "As a Bonus Action, you can imbue your Aura of Protection with holy power, granting the benefits below for 10 minutes or until you end them (no action required). Once you use this feature, you can’t use it again until you finish a Long Rest. You can also restore your use of it by expending a level 5 spell slot (no action required).\n\nHoly Ward. You have Advantage on any saving throw you are forced to make by a Fiend or an Undead.\n\nRadiant Damage. Whenever an enemy starts its turn in the aura, that creature takes Radiant damage equal to your Charisma modifier plus your Proficiency Bonus.\n\nSunlight. The aura is filled with Bright Light that is sunlight."
+				}
+			]
+		},
+		"text": "Level 3: Oath of Devotion Spells\n\nThe magic of your oath ensures you always have certain spells ready; when you reach a Paladin level specified in the Oath of Devotion Spells table, you thereafter always have the listed spells prepared.\n\nOath of Devotion Spells\n\nLevel 3: Sacred Weapon\n\nWhen you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1), and each time you hit with it, you cause it to deal its normal damage type or Radiant damage. The weapon also emits Bright Light in a 20-foot radius and Dim Light 20 feet beyond that.\n\nYou can end this effect early (no action required). This effect also ends if you aren’t carrying the weapon.\n\nLevel 7: Aura of Devotion\n\nYou and your allies have Immunity to the Charmed condition while in your Aura of Protection. If a Charmed ally enters the aura, that condition has no effect on that ally while there.\n\nLevel 15: Smite of Protection\n\nYour magical smite now radiates protective energy. Whenever you cast Divine Smite, you and your allies have Half Cover while in your Aura of Protection. The aura has this benefit until the start of your next turn.\n\nLevel 20: Holy Nimbus\n\nAs a Bonus Action, you can imbue your Aura of Protection with holy power, granting the benefits below for 10 minutes or until you end them (no action required). Once you use this feature, you can’t use it again until you finish a Long Rest. You can also restore your use of it by expending a level 5 spell slot (no action required).\n\nHoly Ward. You have Advantage on any saving throw you are forced to make by a Fiend or an Undead.\n\nRadiant Damage. Whenever an enemy starts its turn in the aura, that creature takes Radiant damage equal to your Charisma modifier plus your Proficiency Bonus.\n\nSunlight. The aura is filled with Bright Light that is sunlight.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Paladin",
+				"Paladin Subclass: Oath of Devotion"
+			],
+			"pages": [
+				56,
+				57
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:path-of-the-berserker",
+		"kind": "subclass",
+		"name": "Path of the Berserker",
+		"data": {
+			"class": "Barbarian",
+			"features": [
+				{
+					"level": 3,
+					"name": "Frenzy",
+					"text": "If you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack. To determine the extra damage, roll a number of d6s equal to your Rage Damage bonus, and add them together. The damage has the same type as the weapon or Unarmed Strike used for the attack."
+				},
+				{
+					"level": 6,
+					"name": "Mindless Rage",
+					"text": "You have Immunity to the Charmed and Frightened conditions while your Rage is active. If you’re Charmed or Frightened when you enter your Rage, the condition ends on you."
+				},
+				{
+					"level": 10,
+					"name": "Retaliation",
+					"text": "When you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike."
+				},
+				{
+					"level": 14,
+					"name": "Intimidating Presence",
+					"text": "As a Bonus Action, you can strike terror into others with your menacing presence and primal power. When you do so, each creature of your choice in a 30-foot Emanation originating from you must make a Wisdom saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, a creature has the Frightened condition for 1 minute. At the end of each of the Frightened creature’s turns, the creature repeats the save, ending the effect on itself on a success.\n\nOnce you use this feature, you can’t use it again until you finish a Long Rest unless you expend a use of your Rage (no action required) to restore your use of it."
+				}
+			]
+		},
+		"text": "Level 3: Frenzy\n\nIf you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack. To determine the extra damage, roll a number of d6s equal to your Rage Damage bonus, and add them together. The damage has the same type as the weapon or Unarmed Strike used for the attack.\n\nLevel 6: Mindless Rage\n\nYou have Immunity to the Charmed and Frightened conditions while your Rage is active. If you’re Charmed or Frightened when you enter your Rage, the condition ends on you.\n\nLevel 10: Retaliation\n\nWhen you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike.\n\nLevel 14: Intimidating Presence\n\nAs a Bonus Action, you can strike terror into others with your menacing presence and primal power. When you do so, each creature of your choice in a 30-foot Emanation originating from you must make a Wisdom saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, a creature has the Frightened condition for 1 minute. At the end of each of the Frightened creature’s turns, the creature repeats the save, ending the effect on itself on a success.\n\nOnce you use this feature, you can’t use it again until you finish a Long Rest unless you expend a use of your Rage (no action required) to restore your use of it.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Barbarian",
+				"Barbarian Subclass: Path of the Berserker"
+			],
+			"pages": [
+				30
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:thief",
+		"kind": "subclass",
+		"name": "Thief",
+		"data": {
+			"class": "Rogue",
+			"features": [
+				{
+					"level": 3,
+					"name": "Fast Hands",
+					"text": "As a Bonus Action, you can do one of the following.\n\nSleight of Hand. Make a Dexterity (Sleight of Hand) check to pick a lock or disarm a trap with Thieves’ Tools or to pick a pocket.\n\nUse an Object. Take the Utilize action, or take the Magic action to use a magic item that requires that action."
+				},
+				{
+					"level": 3,
+					"name": "Second-Story Work",
+					"text": "You’ve trained to get into especially hard-to-reach places, granting you these benefits.\n\nClimber. You gain a Climb Speed equal to your Speed.\n\nJumper. You can determine your jump distance using your Dexterity rather than your Strength."
+				},
+				{
+					"level": 9,
+					"name": "Supreme Sneak",
+					"text": "You gain the following Cunning Strike option.\n\nStealth Attack (Cost: 1d6). If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover."
+				},
+				{
+					"level": 13,
+					"name": "Use Magic Device",
+					"text": "You’ve learned how to maximize use of magic items, granting you the following benefits.\n\nAttunement. You can attune to up to four magic items at once.\n\nCharges. Whenever you use a magic item property that expends charges, roll 1d6. On a roll of 6, you use the property without expending the charges.\n\nScrolls. You can use any Spell Scroll, using Intelligence as your spellcasting ability for the spell. If the spell is a cantrip or a level 1 spell, you can cast it reliably. If the scroll contains a higher-level spell, you must first succeed on an Intelligence (Arcana) check (DC 10 plus the spell’s level). On a successful check, you cast the spell from the scroll. On a failed check, the scroll disintegrates."
+				},
+				{
+					"level": 17,
+					"name": "Thief’s Reflexes",
+					"text": "You are adept at laying ambushes and quickly escaping danger. You can take two turns during the first round of any combat. You take your first turn at your normal Initiative and your second turn at your Initiative minus 10."
+				}
+			]
+		},
+		"text": "Level 3: Fast Hands\n\nAs a Bonus Action, you can do one of the following.\n\nSleight of Hand. Make a Dexterity (Sleight of Hand) check to pick a lock or disarm a trap with Thieves’ Tools or to pick a pocket.\n\nUse an Object. Take the Utilize action, or take the Magic action to use a magic item that requires that action.\n\nLevel 3: Second-Story Work\n\nYou’ve trained to get into especially hard-to-reach places, granting you these benefits.\n\nClimber. You gain a Climb Speed equal to your Speed.\n\nJumper. You can determine your jump distance using your Dexterity rather than your Strength.\n\nLevel 9: Supreme Sneak\n\nYou gain the following Cunning Strike option.\n\nStealth Attack (Cost: 1d6). If you have the Hide action’s Invisible condition, this attack doesn’t end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover.\n\nLevel 13: Use Magic Device\n\nYou’ve learned how to maximize use of magic items, granting you the following benefits.\n\nAttunement. You can attune to up to four magic items at once.\n\nCharges. Whenever you use a magic item property that expends charges, roll 1d6. On a roll of 6, you use the property without expending the charges.\n\nScrolls. You can use any Spell Scroll, using Intelligence as your spellcasting ability for the spell. If the spell is a cantrip or a level 1 spell, you can cast it reliably. If the scroll contains a higher-level spell, you must first succeed on an Intelligence (Arcana) check (DC 10 plus the spell’s level). On a successful check, you cast the spell from the scroll. On a failed check, the scroll disintegrates.\n\nLevel 17: Thief’s Reflexes\n\nYou are adept at laying ambushes and quickly escaping danger. You can take two turns during the first round of any combat. You take your first turn at your normal Initiative and your second turn at your Initiative minus 10.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Rogue",
+				"Rogue Subclass: Thief"
+			],
+			"pages": [
+				64
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:subclass:warrior-of-the-open-hand",
+		"kind": "subclass",
+		"name": "Warrior of the Open Hand",
+		"data": {
+			"class": "Monk",
+			"features": [
+				{
+					"level": 3,
+					"name": "Open Hand Technique",
+					"text": "Whenever you hit a creature with an attack granted by your Flurry of Blows, you can impose one of the following effects on that target.\n\nAddle. The target can’t make Opportunity Attacks until the start of its next turn.\n\nPush. The target must succeed on a Strength saving throw or be pushed up to 15 feet away from you.\n\nTopple. The target must succeed on a Dexterity saving throw or have the Prone condition."
+				},
+				{
+					"level": 6,
+					"name": "Wholeness of Body",
+					"text": "You gain the ability to heal yourself. As a Bonus Action, you can roll your Martial Arts die. You regain a number of Hit Points equal to the number rolled plus your Wisdom modifier (minimum of 1 Hit Point regained).\n\nYou can use this feature a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest."
+				},
+				{
+					"level": 11,
+					"name": "Fleet Step",
+					"text": "When you take a Bonus Action other than Step of the Wind, you can also use Step of the Wind immediately after that Bonus Action."
+				},
+				{
+					"level": 17,
+					"name": "Quivering Palm",
+					"text": "You gain the ability to set up lethal vibrations in someone’s body. When you hit a creature with an Unarmed Strike, you can expend 4 Focus Points to start these imperceptible vibrations, which last for a number of days equal to your Monk level. The vibrations are harmless unless you take an action to end them. Alternatively, when you take the Attack action on your turn, you can forgo one of the attacks to end the vibrations. To end them, you and the target must be on the same plane of existence. When you end them, the target must make a Constitution saving throw, taking 10d12 Force damage on a failed save or half as much damage on a successful one.\n\nYou can have only one creature under the effect of this feature at a time. You can end the vibrations harmlessly (no action required)."
+				}
+			]
+		},
+		"text": "Level 3: Open Hand Technique\n\nWhenever you hit a creature with an attack granted by your Flurry of Blows, you can impose one of the following effects on that target.\n\nAddle. The target can’t make Opportunity Attacks until the start of its next turn.\n\nPush. The target must succeed on a Strength saving throw or be pushed up to 15 feet away from you.\n\nTopple. The target must succeed on a Dexterity saving throw or have the Prone condition.\n\nLevel 6: Wholeness of Body\n\nYou gain the ability to heal yourself. As a Bonus Action, you can roll your Martial Arts die. You regain a number of Hit Points equal to the number rolled plus your Wisdom modifier (minimum of 1 Hit Point regained).\n\nYou can use this feature a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.\n\nLevel 11: Fleet Step\n\nWhen you take a Bonus Action other than Step of the Wind, you can also use Step of the Wind immediately after that Bonus Action.\n\nLevel 17: Quivering Palm\n\nYou gain the ability to set up lethal vibrations in someone’s body. When you hit a creature with an Unarmed Strike, you can expend 4 Focus Points to start these imperceptible vibrations, which last for a number of days equal to your Monk level. The vibrations are harmless unless you take an action to end them. Alternatively, when you take the Attack action on your turn, you can forgo one of the attacks to end the vibrations. To end them, you and the target must be on the same plane of existence. When you end them, the target must make a Constitution saving throw, taking 10d12 Force damage on a failed save or half as much damage on a successful one.\n\nYou can have only one creature under the effect of this feature at a time. You can end the vibrations harmlessly (no action required).",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Classes",
+				"Monk",
+				"Monk Subclass: Warrior of the Open Hand"
+			],
+			"pages": [
+				52
+			]
+		}
+	}
+]

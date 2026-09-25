@@ -121,9 +121,10 @@
 				</p>
 			{/if}
 			{#if adventure.rules.id !== 'thirdfold-classic'}
-				<p class="section" title={adventure.rules.attribution ?? ''}>
-					Rules: {adventure.rules.name}
-				</p>
+				<p class="section">Rules: {adventure.rules.name}</p>
+				{#if adventure.rules.attribution}
+					<p class="credit">{adventure.rules.attribution}</p>
+				{/if}
 			{/if}
 			<p class="section">
 				Chapter {adventure.chapter.number} of {adventure.chapter.of} ·
@@ -494,6 +495,12 @@
 	header h2 {
 		font-size: var(--fs-md);
 		color: var(--accent);
+	}
+
+	.credit {
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-2xs);
+		color: var(--muted);
 	}
 
 	.section {

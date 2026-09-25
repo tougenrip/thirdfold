@@ -54,12 +54,15 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 	const statuses = (s: Statuses) => entriesOf(s);
 	const A = contentOf(adventure.id);
 	const content = fileOf(A.id);
+	// Rules from a licensed source travel with the credit it requires (read back from the rules, not the file).
+	const attribution = findRuleset(adventure.rules)?.attribution;
 	return {
 		id: A.id,
 		version: A.version,
 		...(content ? { content: JSON.parse(JSON.stringify(content)) } : {}),
 		state: {
 			rules: { ...adventure.rules },
+			...(attribution ? { credits: [attribution] } : {}),
 			stage: adventure.stage,
 			chapter: adventure.chapter,
 			location: adventure.location,

@@ -20,7 +20,7 @@ import { validateAdventure } from '../../adventure/validate';
 import { adventureView } from '../../adventure/view';
 import { RoomManager, type Player, type Room } from '../../rooms';
 import { rulesProblems } from '../../rules';
-import { DND_55E } from '../../rules/dnd55e';
+import { DND_55E, dnd55e } from '../../rules/dnd55e';
 import { exportScene } from '../../scene-io';
 import { toggleDoor } from '../../scene';
 import { BARROW, BARROW_IDS, CARVINGS_AT, THRESHOLD } from '.';
@@ -308,5 +308,15 @@ describe('The Barrow on Cold Hill (fifth edition rules)', () => {
 		expect(read.adventure.rules).toEqual(DND_55E);
 		expect([...read.adventure.encounter!.acted]).toEqual(['warden:bonus']);
 		expect(saveAdventure(read.adventure)).toEqual(saveAdventure(room.adventure!));
+	});
+
+	it('carries the SRD’s credit in every save and exported table, as the licence requires', () => {
+		const exported = exportScene(room, 'Barrow');
+		expect(exported.adventure!.state.credits).toEqual([dnd55e.attribution]);
+		// A story under rules that need no credit carries none.
+		const rooms = new RoomManager();
+		const created = ok(rooms.create('Gia'));
+		ok(startAdventure(created.room, created.player));
+		expect(exportScene(created.room, 'Bellweather').adventure!.state).not.toHaveProperty('credits');
 	});
 });

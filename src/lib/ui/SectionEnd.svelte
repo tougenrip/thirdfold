@@ -164,10 +164,19 @@
 				Return to the table to keep watching.
 			{/if}
 		</p>
+		{#if adventure.rules.attribution}
+			<p class="credit">{adventure.rules.attribution}</p>
+		{/if}
 	</section>
 </div>
 
 <style>
+	.credit {
+		margin: 0;
+		font-size: var(--fs-2xs);
+		color: var(--muted);
+	}
+
 	.backdrop {
 		position: absolute;
 		inset: 0;

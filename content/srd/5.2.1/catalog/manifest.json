@@ -1,0 +1,89 @@
+{
+	"format": "thirdfold-catalog",
+	"version": 1,
+	"source": {
+		"id": "srd-5.2.1",
+		"title": "System Reference Document 5.2.1",
+		"version": "5.2.1",
+		"publisher": "Wizards of the Coast LLC",
+		"url": "https://www.dndbeyond.com/srd",
+		"file": "content/srd/5.2.1/SRD_CC_v5.2.1.pdf",
+		"sha256": "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87",
+		"license": {
+			"id": "CC-BY-4.0",
+			"name": "Creative Commons Attribution 4.0 International",
+			"url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+		},
+		"attribution": "This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode."
+	},
+	"importer": {
+		"version": 1,
+		"pdfjs": "6.3.289"
+	},
+	"files": {
+		"rule": {
+			"file": "rule.json",
+			"count": 173,
+			"sha256": "0f0b2df9066508f8ef1af1843465ec3e8e01eb2d77a2f2de9878832b81d5a8fb"
+		},
+		"species": {
+			"file": "species.json",
+			"count": 9,
+			"sha256": "b2778fbc0b69065c66012b1e645ee754b50ae1e5d4325deb97ea19883378ae6b"
+		},
+		"background": {
+			"file": "background.json",
+			"count": 4,
+			"sha256": "523f6f79ad867d0aa6d157f8c758520fc36c07bb26f1a25d7a01d677986dce67"
+		},
+		"feat": {
+			"file": "feat.json",
+			"count": 17,
+			"sha256": "15accc20481d9a0dda54c283da538a5afb1be76c3db03bebec7b83e5e017463d"
+		},
+		"class": {
+			"file": "class.json",
+			"count": 12,
+			"sha256": "f6d8177afa9232afbb7fe5ca830e6f3d5dad3d66bac0479c79ee198773c5a035"
+		},
+		"subclass": {
+			"file": "subclass.json",
+			"count": 12,
+			"sha256": "5d6778592164c799e1be84e7da439dc90303e223a39e1d53c26cdefaa48c7311"
+		},
+		"weapon": {
+			"file": "weapon.json",
+			"count": 38,
+			"sha256": "34b315d98b0ad22a8abcfdad523df54fd27bdcc43c03d4b0313fd1394a358260"
+		},
+		"armor": {
+			"file": "armor.json",
+			"count": 13,
+			"sha256": "b1ca1967299bd355df9ed1f8ce7b4749dc910f028dbcef46478ec03a0b922bb7"
+		},
+		"spell": {
+			"file": "spell.json",
+			"count": 339,
+			"sha256": "57b8ae6ec9e37b45a40082c0d34b1d337a7aa77dc0ffdaea55e795bce5a82c7b"
+		},
+		"monster": {
+			"file": "monster.json",
+			"count": 330,
+			"sha256": "1255c020b61765ac38f22680a958d3ceb3d00bcdef5406925ee411b43145eeac"
+		}
+	},
+	"notImported": [
+		"Playing the Game",
+		"Character Creation",
+		"Equipment: Coins, Tools, Adventuring Gear, Mounts and Vehicles, Lifestyle Expenses, Food, Drink, and Lodging, Hirelings, Spellcasting services, Magic Items for sale, Crafting",
+		"Spells: Gaining Spells, Casting Spells (the rules; every spell is imported)",
+		"Classes: the class spell lists (each spell records its classes)",
+		"Gameplay Toolbox",
+		"Magic Items",
+		"Monsters: Stat Block Overview, Parts of a Stat Block, Running a Monster; the lore between stat blocks; stat blocks printed inside spells and magic items"
+	],
+	"diagnostics": {
+		"file": "diagnostics.json",
+		"count": 14
+	}
+}
