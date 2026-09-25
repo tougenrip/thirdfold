@@ -10,6 +10,11 @@ import { decodeMask, type FogView } from '$lib/game/visibility';
 /** Players see darkness; the GM sees a light tint marking what the party cannot see. */
 export type FogMode = 'player' | 'gm';
 
+/** The cells a fogged player sees right now, or null when everything counts (no fog, or the GM). */
+export function playerVisible(fog: FogView | null, mode: FogMode, size: number): Uint8Array | null {
+	return fog?.enabled && mode === 'player' ? decodeMask(fog.visible, size) : null;
+}
+
 const ALPHA = {
 	player: { hidden: 255, explored: 150 },
 	gm: { hidden: 110, explored: 55 }

@@ -133,6 +133,23 @@ The rules track shares the version sequence ([#100](https://github.com/tougenrip
 Published wire values are accepted forever: the `{ambient}` effect, `ambient_set`, Shot frame
 `table` and the stored `tabletop` camera view.
 
+## Modules
+
+`src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
+delegations; every module in the folder stays under 500 lines (`modules.spec.ts` checks it).
+
+| Module            | What it holds                                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
+| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`; canvas sizing                                           |
+| `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
+| `loop.ts`         | `FrameLoop` (frames on demand, the slow ambient timer), live reduced motion                                                      |
+| `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
+| `table.ts`        | The slab, surface and grid lines, dressed by the environment                                                                     |
+| `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
+| `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
+| layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
+
 ## Quality tiers
 
 Filled in by milestone 62.

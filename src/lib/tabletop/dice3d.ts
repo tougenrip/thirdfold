@@ -330,3 +330,20 @@ function brightness(hex: string): number {
 	const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
+
+/** Where dice land (around what the camera looks at) and where they are thrown from (the viewer's side). */
+export function throwFromView(
+	target: THREE.Vector3,
+	cameraPosition: THREE.Vector3,
+	cellSize: number
+): { center: THREE.Vector3; from: THREE.Vector3 } {
+	const center = new THREE.Vector3(target.x, 0, target.z);
+	const toward = new THREE.Vector3(cameraPosition.x - center.x, 0, cameraPosition.z - center.z);
+	if (toward.lengthSq() < 1e-6) toward.set(0, 0, 1);
+	toward.normalize().multiplyScalar(cellSize * 5);
+	const from = center
+		.clone()
+		.add(toward)
+		.setY(cellSize * 2.5);
+	return { center, from };
+}

@@ -4,6 +4,9 @@
 // performance.now() calls per frame or update. Read by the perf overlay
 // (`?perf` in the URL) and by the measurements in docs/PERFORMANCE.md.
 
+import type * as THREE from 'three';
+import { RESHADOWS, TIMED, type Tabletop } from './types';
+
 /** Running totals for one kind of work. */
 export interface Timing {
 	count: number;
@@ -78,5 +81,59 @@ export class PerfRecorder {
 		this.frames = 0;
 		this.timings.clear();
 		this.recent.length = 0;
+	}
+}
+
+/** What the renderer has cost so far, with what three.js reports it drew and holds. */
+export function rendererStats(renderer: THREE.WebGLRenderer, perf: PerfRecorder): PerfStats {
+	const { render, memory, programs } = renderer.info;
+	return {
+		...perf.snapshot(performance.now()),
+		drawCalls: render.calls,
+		triangles: render.triangles,
+		geometries: memory.geometries,
+		textures: memory.textures,
+		programs: programs?.length ?? 0
+	};
+}
+
+/**
+ * Draws the current view `frames` times, waiting for the GPU each time: the
+ * main thread's ms per frame (`cpu`) and the whole frame's until drawn (`gpu`).
+ */
+export function benchmark(
+	renderer: THREE.WebGLRenderer,
+	scene: THREE.Scene,
+	camera: THREE.Camera,
+	frames: number
+): { cpu: number; gpu: number; drawCalls: number } {
+	const gl = renderer.getContext();
+	const pixel = new Uint8Array(4);
+	let cpu = 0;
+	let gpu = 0;
+	for (let i = 0; i < frames; i++) {
+		const start = performance.now();
+		renderer.render(scene, camera);
+		cpu += performance.now() - start;
+		// Reading a pixel back waits until the frame has been drawn.
+		gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+		gpu += performance.now() - start;
+	}
+	return { cpu: cpu / frames, gpu: gpu / frames, drawCalls: renderer.info.render.calls };
+}
+
+/**
+ * Wraps the tabletop's updates: each marks the table changed (`onChange`, so
+ * the sun's shadows are drawn again), and those from the room are timed under
+ * their own names (what each costs on the main thread).
+ */
+export function instrument(tabletop: Tabletop, perf: PerfRecorder, onChange: () => void): void {
+	for (const key of [...TIMED, ...RESHADOWS]) {
+		const update = tabletop[key] as (...args: unknown[]) => unknown;
+		const timed = (TIMED as readonly string[]).includes(key);
+		(tabletop[key] as (...args: unknown[]) => unknown) = (...args) => {
+			onChange();
+			return timed ? perf.time(key, () => update(...args)) : update(...args);
+		};
 	}
 }
