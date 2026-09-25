@@ -18,9 +18,9 @@
 				"x": 2,
 				"y": 2
 			},
-			"distance": 7,
-			"azimuth": 35,
-			"elevation": 38
+			"distance": 4.5,
+			"azimuth": 10,
+			"elevation": 26
 		},
 		"low": {
 			"target": {
@@ -36,9 +36,9 @@
 				"x": 2,
 				"y": 2
 			},
-			"distance": 7,
-			"azimuth": 35,
-			"elevation": 38,
+			"distance": 4.5,
+			"azimuth": 10,
+			"elevation": 26,
 			"ambient": "dark"
 		}
 	}

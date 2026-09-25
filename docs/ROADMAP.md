@@ -1377,7 +1377,7 @@ Turn edge walls, floors, level runs and rooms into built architecture:
 
 - a kit schema with gothic and fortified roles, and wall thickness that clears bases
 - pure edge autotiling and BatchedMesh walls with posts, caps and plinths
-- man-made floors drawn as real tiles whose seams are the grid
+- man-made floors drawn as real tiles at their own scale (the grid is an overlay, never the seams)
 - framed windows and doors
 - stairs, bridges and railings
 - gable, hip and cross-gable roofs from the interior mask that hide for occupants and for visible cells
@@ -1406,7 +1406,7 @@ Turn edge walls, floors, level runs and rooms into built architecture:
 **Done when:**
 
 - Walls show corner posts, T and X joints, caps and plinths on drops. Windows show frames with an open gap. No wall piece enters a walkable cell's base disk (invariant test)
-- Stone, flagstone, cobble, plank and tile floors are chunky kit tiles with bevelled edges, grout gaps and broken pieces near drops, and their seams read as the grid
+- Stone, flagstone, cobble, plank and tile floors are chunky kit tiles with bevelled edges, grout gaps and broken pieces near drops at their own scale; the grid is drawn by the overlay, never by their seams
 - A sealed secret door looks exactly like plain wall until found (test)
 - Monastery and Hollow stairs read as stairs. The causeway and high bridge read as bridges with railings, with arches only over void
 - Village houses have gable or hip roofs with ridge caps and chimneys. A roof fades when a viewer's token or the camera pivot is inside, or while any of its cells are visible to the viewer. Roofs over unexplored interiors stay

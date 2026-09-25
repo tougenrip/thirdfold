@@ -31,7 +31,7 @@ The eight screenshots are private (see the last section). They are described her
 1. **A torch-lit goblin camp at night.** A warm key light of about 2000 K from a caged torch
    against an indigo sky fill. AO in the mortar and under the crates, a blooming flame, depth of
    field and chromatic aberration at the edges, a filmic curve. Painted minis on dark bases, one
-   with a green ownership ring. The cobble seams are the grid.
+   with a green ownership ring. No grid is drawn: the cobbles are just cobbles.
 2. **A top-down, multi-level undercity at golden hour.** Long soft shadows, neon signs that bloom,
    a heavy warm grade with lifted blacks, tilt-shift and strong chromatic aberration. Stairs,
    balconies and rooftops: height is everywhere.
@@ -44,7 +44,7 @@ The eight screenshots are private (see the last section). They are described her
 6. **A night palisade gate.** A navy sky, braziers throwing pools of light with glints on cracked
    flagstones, bushes and logs, a giant's silhouette in the open gate.
 7. **Twenty painted minis on grass at noon.** Ringed bases with AO halos, crisp sun shadows, grass
-   tiles whose grooves are the grid.
+   tiles; no grid lines on screen.
 8. **A walled city in the late afternoon.** Long shadows, lanterns glowing by day, red tile roofs,
    timber houses, a ground plane that dissolves into haze.
 
@@ -53,25 +53,25 @@ The eight screenshots are private (see the last section). They are described her
 Each gap is tagged RENDERING (engine), ART (models and textures) or WORLD (content density and
 level-building), with the milestones that close it.
 
-| Rank | Gap                                                            | Tag               | Closed by                                                                                                                                                                                                                                                                                                       |
-| ---- | -------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Surface detail (normal, AO and roughness maps, painted albedo) | ART + RENDERING   | [#112](https://github.com/tougenrip/thirdfold/issues/112), [#111](https://github.com/tougenrip/thirdfold/issues/111), [#117](https://github.com/tougenrip/thirdfold/issues/117), art in [#123](https://github.com/tougenrip/thirdfold/issues/123) and [#124](https://github.com/tougenrip/thirdfold/issues/124) |
-| 2    | Many coloured lights, warm over cool                           | RENDERING         | [#115](https://github.com/tougenrip/thirdfold/issues/115)                                                                                                                                                                                                                                                       |
-| 3    | A sky and a world instead of a table in a void                 | RENDERING + WORLD | [#114](https://github.com/tougenrip/thirdfold/issues/114), [#116](https://github.com/tougenrip/thirdfold/issues/116)                                                                                                                                                                                            |
-| 4    | AO and contact shadows                                         | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110), [#112](https://github.com/tougenrip/thirdfold/issues/112), [#118](https://github.com/tougenrip/thirdfold/issues/118)                                                                                                                                 |
-| 5    | Kit geometry and floors as tiles                               | ART + WORLD       | [#117](https://github.com/tougenrip/thirdfold/issues/117)                                                                                                                                                                                                                                                       |
-| 6    | Painted miniatures on ringed bases                             | ART + RENDERING   | [#118](https://github.com/tougenrip/thirdfold/issues/118), [#123](https://github.com/tougenrip/thirdfold/issues/123), [#124](https://github.com/tougenrip/thirdfold/issues/124)                                                                                                                                 |
-| 7    | HDR post stack: bloom, tone map, grade, vignette, AA           | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110)                                                                                                                                                                                                                                                       |
-| 8    | Sky-driven ambient (IBL)                                       | RENDERING         | [#114](https://github.com/tougenrip/thirdfold/issues/114)                                                                                                                                                                                                                                                       |
-| 9    | Density, set dressing and decals                               | WORLD             | [#121](https://github.com/tougenrip/thirdfold/issues/121), [#123](https://github.com/tougenrip/thirdfold/issues/123), [#124](https://github.com/tougenrip/thirdfold/issues/124)                                                                                                                                 |
-| 10   | Darkness and fog as shading, not floor overlays                | RENDERING         | [#111](https://github.com/tougenrip/thirdfold/issues/111)                                                                                                                                                                                                                                                       |
-| 11   | Continuous day and night                                       | RENDERING + WORLD | [#113](https://github.com/tougenrip/thirdfold/issues/113), [#114](https://github.com/tougenrip/thirdfold/issues/114)                                                                                                                                                                                            |
-| 12   | Grid shown by tile seams, not lines                            | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110), [#116](https://github.com/tougenrip/thirdfold/issues/116), [#117](https://github.com/tougenrip/thirdfold/issues/117)                                                                                                                                 |
-| 13   | Lens: depth of field, chromatic aberration, grain              | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110)                                                                                                                                                                                                                                                       |
-| 14   | Shadow quality                                                 | RENDERING         | [#115](https://github.com/tougenrip/thirdfold/issues/115)                                                                                                                                                                                                                                                       |
-| 15   | Emissive VFX                                                   | RENDERING + ART   | [#122](https://github.com/tougenrip/thirdfold/issues/122), [#115](https://github.com/tougenrip/thirdfold/issues/115)                                                                                                                                                                                            |
-| 16   | Vegetation                                                     | ART + RENDERING   | [#121](https://github.com/tougenrip/thirdfold/issues/121)                                                                                                                                                                                                                                                       |
-| 17   | Water                                                          | RENDERING         | [#120](https://github.com/tougenrip/thirdfold/issues/120)                                                                                                                                                                                                                                                       |
+| Rank | Gap                                                                      | Tag               | Closed by                                                                                                                                                                                                                                                                                                       |
+| ---- | ------------------------------------------------------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Surface detail (normal, AO and roughness maps, painted albedo)           | ART + RENDERING   | [#112](https://github.com/tougenrip/thirdfold/issues/112), [#111](https://github.com/tougenrip/thirdfold/issues/111), [#117](https://github.com/tougenrip/thirdfold/issues/117), art in [#123](https://github.com/tougenrip/thirdfold/issues/123) and [#124](https://github.com/tougenrip/thirdfold/issues/124) |
+| 2    | Many coloured lights, warm over cool                                     | RENDERING         | [#115](https://github.com/tougenrip/thirdfold/issues/115)                                                                                                                                                                                                                                                       |
+| 3    | A sky and a world instead of a table in a void                           | RENDERING + WORLD | [#114](https://github.com/tougenrip/thirdfold/issues/114), [#116](https://github.com/tougenrip/thirdfold/issues/116)                                                                                                                                                                                            |
+| 4    | AO and contact shadows                                                   | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110), [#112](https://github.com/tougenrip/thirdfold/issues/112), [#118](https://github.com/tougenrip/thirdfold/issues/118)                                                                                                                                 |
+| 5    | Kit geometry and floors as tiles                                         | ART + WORLD       | [#117](https://github.com/tougenrip/thirdfold/issues/117)                                                                                                                                                                                                                                                       |
+| 6    | Painted miniatures on ringed bases                                       | ART + RENDERING   | [#118](https://github.com/tougenrip/thirdfold/issues/118), [#123](https://github.com/tougenrip/thirdfold/issues/123), [#124](https://github.com/tougenrip/thirdfold/issues/124)                                                                                                                                 |
+| 7    | HDR post stack: bloom, tone map, grade, vignette, AA                     | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110)                                                                                                                                                                                                                                                       |
+| 8    | Sky-driven ambient (IBL)                                                 | RENDERING         | [#114](https://github.com/tougenrip/thirdfold/issues/114)                                                                                                                                                                                                                                                       |
+| 9    | Density, set dressing and decals                                         | WORLD             | [#121](https://github.com/tougenrip/thirdfold/issues/121), [#123](https://github.com/tougenrip/thirdfold/issues/123), [#124](https://github.com/tougenrip/thirdfold/issues/124)                                                                                                                                 |
+| 10   | Darkness and fog as shading, not floor overlays                          | RENDERING         | [#111](https://github.com/tougenrip/thirdfold/issues/111)                                                                                                                                                                                                                                                       |
+| 11   | Continuous day and night                                                 | RENDERING + WORLD | [#113](https://github.com/tougenrip/thirdfold/issues/113), [#114](https://github.com/tougenrip/thirdfold/issues/114)                                                                                                                                                                                            |
+| 12   | Grid as an overlay only when needed, independent of the world's geometry | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110), [#116](https://github.com/tougenrip/thirdfold/issues/116)                                                                                                                                                                                            |
+| 13   | Lens: depth of field, chromatic aberration, grain                        | RENDERING         | [#110](https://github.com/tougenrip/thirdfold/issues/110)                                                                                                                                                                                                                                                       |
+| 14   | Shadow quality                                                           | RENDERING         | [#115](https://github.com/tougenrip/thirdfold/issues/115)                                                                                                                                                                                                                                                       |
+| 15   | Emissive VFX                                                             | RENDERING + ART   | [#122](https://github.com/tougenrip/thirdfold/issues/122), [#115](https://github.com/tougenrip/thirdfold/issues/115)                                                                                                                                                                                            |
+| 16   | Vegetation                                                               | ART + RENDERING   | [#121](https://github.com/tougenrip/thirdfold/issues/121)                                                                                                                                                                                                                                                       |
+| 17   | Water                                                                    | RENDERING         | [#120](https://github.com/tougenrip/thirdfold/issues/120)                                                                                                                                                                                                                                                       |
 
 ## Pairings
 
@@ -128,15 +128,15 @@ Results go to `docs/look-metrics.json`: per pairing, the reference's numbers and
 
 ### Milestone 61 baseline
 
-| Reference | Distance |
-| --------- | -------- |
-| 1         | 0.249    |
-| 2         | 0.293    |
-| 3         | 0.130    |
-| 4         | 0.148    |
-| 6         | 0.214    |
-| 7         | 0.136    |
-| 8         | 0.199    |
+| Reference | Distance                                                     |
+| --------- | ------------------------------------------------------------ |
+| 1         | 0.171 (0.249 before the owner's review reframed the pairing) |
+| 2         | 0.293                                                        |
+| 3         | 0.130                                                        |
+| 4         | 0.148                                                        |
+| 6         | 0.214                                                        |
+| 7         | 0.136                                                        |
+| 8         | 0.199                                                        |
 
 What the numbers say about today's renders, against every reference:
 
@@ -150,6 +150,35 @@ What the numbers say about today's renders, against every reference:
   theirs.
 - **No sky.** Our zenith and horizon are the flat void colour (chroma 0.01); theirs carry the sky's
   hue and are much brighter at the horizon (L 0.5 on refs 2, 7 and 8).
+
+## Milestone 61 review
+
+The owner's review of the baseline (gate G2), in their words where it matters, is the starting point
+every later milestone is judged from. The owner is not a lighting artist: this is how the renders
+read to them, which is what players will see too.
+
+- **Reference 1, torch room:** majorly underlit, and the camera angle and zoom were wrong. The
+  pairing's pose is now low and close, facing the torch wall (distance 4.5, azimuth 10°,
+  elevation 26°), and the room keeps only its back walls, open toward the camera, as in the reference. The numbers differ across the whole spectrum.
+- **Reference 2, undercity:** not lit enough, no sky, and the table is still the play area: the
+  play area must be the world itself.
+- **Reference 3, red ruined floor:** the lighting is not close; only vignette and highlight hue and
+  chroma come near.
+- **Reference 4, gothic battlefield:** not close at all.
+- **Reference 7, minis on grass:** mostly right, but without the warm sunlight and a slight bloom
+  it looks too sharp and unfinished.
+- **The 17 gaps:** all agreed, with one change to gap 12 (below). Nothing is missing.
+- **Gap 12, the grid:** the grid is a gameplay overlay independent of the world's geometry. Floors
+  and tiles never encode it: thirdfold will support several grid systems and rules systems, which
+  need different cell sizes. The grid is drawn by a shader overlay only when needed; the rules that
+  live on the grid (walls on edges, movement, sight, levels) are unchanged.
+- **Target palettes:** the owner deferred judgement on colour. The palettes below stand as derived
+  from the metrics, to be checked by eye when the tone mapper is chosen (#158).
+- **Flagged golden images:** twelve, in two groups, both today's design rather than bugs:
+  - hard, cell-shaped dark patches (`ref-7`, `ref-8`, `outdoor-64`, `dungeon-40`): the GM's shading
+    of what the party cannot see, one cell at a time. Soft fog edges replace it in #174.
+  - near-black nights with no light on the table (`ref-7` at night, `ghost-town`): the night is a
+    brown near-black with no moon or sky. A moonlit night and a sky replace it in #114.
 
 ## Target palettes
 

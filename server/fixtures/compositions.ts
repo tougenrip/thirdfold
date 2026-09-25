@@ -124,10 +124,11 @@ function sidecar(
 	ambient: Ambient,
 	tokenId: string,
 	focus: GridPos,
-	explore?: GridPos[]
+	explore?: GridPos[],
+	closeOverride?: Partial<GridPose>
 ): FixtureSidecar {
 	const centre = { x: Math.floor(grid.width / 2), y: Math.floor(grid.height / 2) };
-	const close = { target: focus, distance: 7, azimuth: 35, elevation: 38 };
+	const close = { target: focus, distance: 7, azimuth: 35, elevation: 38, ...closeOverride };
 	return {
 		ambient,
 		player: { tokenId },
@@ -173,7 +174,11 @@ function ref1(): Fixture {
 			grid: g,
 			environment: 'stone-halls',
 			ambient: 'dark',
-			objects: room('ref1', { x: 1, y: 1 }, { x: 4, y: 4 }),
+			// Back walls only, open toward the camera, as in the reference: no wall between the
+			// camera and the minis (cutaways for real rooms are milestone 72).
+			objects: room('ref1', { x: 1, y: 1 }, { x: 4, y: 4 }).filter(
+				(o) => o.id === 'ref1-wall-n' || o.id === 'ref1-wall-w'
+			),
 			props: [
 				prop('ref1-sconce', 'sconce', 1, 1),
 				prop('ref1-crate-a', 'crate', 4, 1),
@@ -188,7 +193,12 @@ function ref1(): Fixture {
 			],
 			floors: [{ from: { x: 1, y: 1 }, to: { x: 4, y: 4 }, floor: 'stone' }]
 		},
-		sidecar(g, 'dark', 'ref1-mini-hero', { x: 2, y: 2 })
+		// Reference 1 is low and close, facing the torch wall (owner's review, milestone 61).
+		sidecar(g, 'dark', 'ref1-mini-hero', { x: 2, y: 2 }, undefined, {
+			distance: 4.5,
+			azimuth: 10,
+			elevation: 26
+		})
 	);
 }
 

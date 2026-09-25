@@ -13,8 +13,8 @@
 		"ambient": "dusk",
 		"fog": {
 			"enabled": true,
-			"visible": "gOd5HgA=",
-			"explored": "gOd5HgA=",
+			"visible": "oO/7/g8=",
+			"explored": "/////w8=",
 			"shared": false
 		},
 		"terrain": null,
@@ -63,18 +63,6 @@
 		],
 		"objects": [
 			{
-				"id": "ref1-wall-e",
-				"kind": "wall",
-				"a": {
-					"x": 5,
-					"y": 1
-				},
-				"b": {
-					"x": 5,
-					"y": 5
-				}
-			},
-			{
 				"id": "ref1-wall-n",
 				"kind": "wall",
 				"a": {
@@ -84,18 +72,6 @@
 				"b": {
 					"x": 5,
 					"y": 1
-				}
-			},
-			{
-				"id": "ref1-wall-s",
-				"kind": "wall",
-				"a": {
-					"x": 1,
-					"y": 5
-				},
-				"b": {
-					"x": 5,
-					"y": 5
 				}
 			},
 			{
@@ -180,8 +156,8 @@
 		"ambient": "dusk",
 		"fog": {
 			"enabled": true,
-			"visible": "gOd5HgA=",
-			"explored": "gOd5HgA=",
+			"visible": "oO/7/g8=",
+			"explored": "/////w8=",
 			"shared": false
 		},
 		"terrain": null,
@@ -230,18 +206,6 @@
 		],
 		"objects": [
 			{
-				"id": "ref1-wall-e",
-				"kind": "wall",
-				"a": {
-					"x": 5,
-					"y": 1
-				},
-				"b": {
-					"x": 5,
-					"y": 5
-				}
-			},
-			{
 				"id": "ref1-wall-n",
 				"kind": "wall",
 				"a": {
@@ -251,18 +215,6 @@
 				"b": {
 					"x": 5,
 					"y": 1
-				}
-			},
-			{
-				"id": "ref1-wall-s",
-				"kind": "wall",
-				"a": {
-					"x": 1,
-					"y": 5
-				},
-				"b": {
-					"x": 5,
-					"y": 5
 				}
 			},
 			{
@@ -347,8 +299,8 @@
 		"ambient": "dusk",
 		"fog": {
 			"enabled": true,
-			"visible": "gOd5HgA=",
-			"explored": "gOd5HgA=",
+			"visible": "oO/7/g8=",
+			"explored": "/////w8=",
 			"shared": false
 		},
 		"terrain": null,
@@ -397,18 +349,6 @@
 		],
 		"objects": [
 			{
-				"id": "ref1-wall-e",
-				"kind": "wall",
-				"a": {
-					"x": 5,
-					"y": 1
-				},
-				"b": {
-					"x": 5,
-					"y": 5
-				}
-			},
-			{
 				"id": "ref1-wall-n",
 				"kind": "wall",
 				"a": {
@@ -418,18 +358,6 @@
 				"b": {
 					"x": 5,
 					"y": 1
-				}
-			},
-			{
-				"id": "ref1-wall-s",
-				"kind": "wall",
-				"a": {
-					"x": 1,
-					"y": 5
-				},
-				"b": {
-					"x": 5,
-					"y": 5
 				}
 			},
 			{
