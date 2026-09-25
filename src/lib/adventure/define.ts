@@ -508,6 +508,8 @@ export interface AdventureDef {
 	about?: string;
 	/** The version of its saved state (see persist.ts). */
 	version: number;
+	/** The rules it plays by, by exact id and version; thirdfold's classic rules when absent. */
+	rules?: { id: string; version: number };
 	characters: Readonly<Record<string, CharacterDef>>;
 	/** Where it starts, and what the arrival does when the GM begins. */
 	start: { location: string; chapter: string; arrival: readonly Effect[] };

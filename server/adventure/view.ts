@@ -4,7 +4,6 @@
 // have been seen, and the read-aloud passages only for the GM.
 
 import type { AdventureView, Objective, SessionSummary } from '../../src/lib/adventure/adventure';
-import { defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
@@ -20,6 +19,7 @@ import {
 	objectCells,
 	objectState,
 	optionLabel,
+	rulesOf,
 	shownState,
 	usesLeft,
 	verbsFor
@@ -233,7 +233,7 @@ export function adventureView(
 					name: room.tokens.get(tokenId)?.name ?? A.enemies[e.kind]?.name ?? 'Enemy',
 					hp: e.hp,
 					maxHp: e.maxHp,
-					defense: defenseFor(A.enemies[e.kind]?.armor ?? 0),
+					defense: rulesOf(adventure).defense(A.enemies[e.kind]?.armor ?? 0, e.statuses),
 					statuses: listStatuses(e.statuses)
 				}))
 		},

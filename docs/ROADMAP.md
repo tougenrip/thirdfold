@@ -910,3 +910,34 @@ Status lives in the issues. The tracking issue is [#24](https://github.com/touge
 | 38. Adventure builder              | [#52](https://github.com/tougenrip/thirdfold/issues/52) |
 | 39. Second adventure               | [#53](https://github.com/tougenrip/thirdfold/issues/53) |
 | 40. Productization                 | [#54](https://github.com/tougenrip/thirdfold/issues/54) |
+
+## Rules-system roadmap: D&D and campaigns (milestones 41–60)
+
+The focused Claude implementation guide is [ROADMAP-RP-SYSTEM.md](ROADMAP-RP-SYSTEM.md).
+
+The next roadmap extends the product after milestone 40. Its tracker is [#85](https://github.com/tougenrip/thirdfold/issues/85), under the overall roadmap [#4](https://github.com/tougenrip/thirdfold/issues/4). The milestone issues contain the problem statements, implementation plans, and completion criteria. Preserve the server-authoritative model and keep The Hollow Bell, The Last Train to Blackwater, and their existing saves working under their original rules.
+
+| Milestone | Problem addressed and planned outcome | Issue |
+| --- | --- | --- |
+| 41. Rules Engine Abstraction | Existing fixed character/action/status logic couples rules to adventures; put it behind a versioned server-side ruleset contract. | [#86](https://github.com/tougenrip/thirdfold/issues/86) |
+| 42. D&D 5.5e Ruleset | The custom rules cannot resolve D&D checks, proficiency, advantage, and turns; implement the initial versioned ruleset. | [#87](https://github.com/tougenrip/thirdfold/issues/87) |
+| 43. D&D SRD 5.2.1 Content Import | There is no traceable D&D catalog; deterministically import versioned SRD records with required attribution and provenance. | [#88](https://github.com/tougenrip/thirdfold/issues/88) |
+| 44. D&D Character Model | Fixed adventure characters cannot store D&D choices and derived values; add versioned server-validated character instances. | [#89](https://github.com/tougenrip/thirdfold/issues/89) |
+| 45. D&D Character Creator | Players can only choose four pregenerated characters; guide them through legal SRD character choices. | [#90](https://github.com/tougenrip/thirdfold/issues/90) |
+| 46. D&D Character Sheet | The current sheet only presents custom stats/actions; show D&D choices, calculated values, features, and live state. | [#91](https://github.com/tougenrip/thirdfold/issues/91) |
+| 47. D&D Inventory & Equipment | Scene props are not character inventory and do not affect rules; add owned items and server-derived equipment effects. | [#92](https://github.com/tougenrip/thirdfold/issues/92) |
+| 48. D&D Spell System | Custom actions lack spell catalogs, slots, casting, saves, and concentration; implement SRD spell resolution. | [#93](https://github.com/tougenrip/thirdfold/issues/93) |
+| 49. D&D Conditions & Effects | Three custom statuses cannot represent timed, sourced D&D effects; add a reusable server-side lifecycle. | [#94](https://github.com/tougenrip/thirdfold/issues/94) |
+| 50. D&D Combat Integration | The current one-action turn loop is not D&D combat; integrate its action economy and resolution with the 3D table. | [#95](https://github.com/tougenrip/thirdfold/issues/95) |
+| 51. D&D Monsters & Encounter System | Existing enemies are adventure-specific; import SRD monsters and enable GM encounter assembly. | [#96](https://github.com/tougenrip/thirdfold/issues/96) |
+| 52. D&D Homebrew Engine | Creators cannot define D&D-compatible options; support versioned, typed, non-executable extensions to SRD content. | [#97](https://github.com/tougenrip/thirdfold/issues/97) |
+| 53. Campaign Content Collections | The library publishes one adventure at a time; bundle compatible, version-referenced campaign content. | [#98](https://github.com/tougenrip/thirdfold/issues/98) |
+| 54. Content Permissions & Entitlements | Public/unlisted library controls do not cover private, shared, or licensed content; enforce grants on the server. | [#99](https://github.com/tougenrip/thirdfold/issues/99) |
+| 55. Content Versioning | Adventure snapshots exist but rules/content dependencies are not all pinned; version packs and keep active saves immutable. | [#100](https://github.com/tougenrip/thirdfold/issues/100) |
+| 56. Rules/Data Validation | Existing validation misses cross-pack, license, and ruleset compatibility; unify creator and server diagnostics. | [#101](https://github.com/tougenrip/thirdfold/issues/101) |
+| 57. D&D Adventure Authoring | The builder lacks rule-aware checks, rests, rewards, and encounters; add a validated D&D authoring path. | [#102](https://github.com/tougenrip/thirdfold/issues/102) |
+| 58. D&D Campaign System | Recoverable rooms do not preserve a party across adventures; add campaign roster, history, and progression. | [#103](https://github.com/tougenrip/thirdfold/issues/103) |
+| 59. External Content / Licensed Content Architecture | Different publishers have different access and attribution terms; add source adapters and enforce terms at use/export boundaries. | [#104](https://github.com/tougenrip/thirdfold/issues/104) |
+| 60. Second Rules System | D&D alone does not prove multi-system support; implement a meaningfully different ruleset through shared play paths. | [#105](https://github.com/tougenrip/thirdfold/issues/105) |
+
+SRD scope note: use the official [SRD 5.2.1](https://www.dndbeyond.com/srd) source for D&D rules content, preserve its attribution, and exclude D&D Beyond Basic Rules and non-SRD book material.

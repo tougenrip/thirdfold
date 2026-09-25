@@ -30,11 +30,7 @@ import {
 } from '../../src/lib/adventure/adventure';
 import {
 	actionOf,
-	BLEED_OUT_ROUNDS,
-	defenseFor,
-	STATS,
 	STATUSES,
-	toHitFor,
 	type Action,
 	type Attack,
 	type CharacterDef
@@ -46,7 +42,7 @@ import {
 	type LogAudience,
 	type Shot
 } from '../../src/lib/game/chat';
-import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
+import type { DieRoller } from '../../src/lib/game/dice';
 import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
 import type { Motion, Sound } from '../../src/lib/game/motion';
 import {
@@ -71,6 +67,8 @@ import { fail, type Player, type Result, type Room } from '../rooms';
 import { lightFor, obstacles } from '../scene';
 import { applyScene } from '../scene-io';
 import { creatorIdOf } from '../library-store';
+import { CLASSIC } from '../rules/classic';
+import { findRuleset, roll, type Ruleset } from '../rules/ruleset';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
 import {
 	AMBUSH,
@@ -88,14 +86,7 @@ import {
 	type When
 } from './define';
 import { contentOf, defaultAdventure, findAdventure } from './registry';
-import type {
-	AdventureState,
-	CharacterState,
-	Encounter,
-	EnemyState,
-	Statuses,
-	TurnEntry
-} from './state';
+import type { AdventureState, CharacterState, Encounter, EnemyState, TurnEntry } from './state';
 import {
 	actionOfVerb,
 	applyLook,
@@ -110,6 +101,13 @@ import {
 /** The content of the adventure a story is of. */
 export function content(adventure: AdventureState): AdventureDef {
 	return contentOf(adventure.id);
+}
+
+/** The rules a story plays by. A story only ever names a ruleset this server has (see persist.ts). */
+export function rulesOf(adventure: AdventureState): Ruleset {
+	const rules = findRuleset(adventure.rules);
+	if (!rules) throw new Error(`Unknown ruleset ${adventure.rules.id}@${adventure.rules.version}`);
+	return rules;
 }
 
 export interface Outcome {
@@ -300,6 +298,7 @@ function placeCharacter(
 function newState(A: AdventureDef, room: Room): AdventureState {
 	return {
 		id: A.id,
+		rules: { ...(A.rules ?? CLASSIC) },
 		stage: 'choosing',
 		chapter: A.start.chapter,
 		location: A.start.location,
@@ -332,6 +331,8 @@ export function startAdventure(room: Room, actor: Player, id?: string): Outcomes
 	if (actor.role !== 'gm') return GM_ONLY;
 	const A = id === undefined ? defaultAdventure() : findAdventure(id);
 	if (!A) return fail('invalid_message', 'There is no such adventure on this server.');
+	if (A.rules && !findRuleset(A.rules))
+		return fail('invalid_message', 'This adventure needs rules this server does not have.');
 	applyScene(room, A.locations[A.start.location].scene());
 	room.adventure = newState(A, room);
 	return {
@@ -503,7 +504,7 @@ function toll(room: Room, text: string): ChatMessage {
 	return appendLog(room, { kind: 'narration', text, cue: 'toll' });
 }
 
-/** A d20 plus the character's stat against a difficulty, rolled here and logged for all. */
+/** A d20 plus the character's bonus (by the rules) against a difficulty, rolled here and logged for all. */
 function rollCheck(
 	room: Room,
 	actor: Player,
@@ -512,7 +513,8 @@ function rollCheck(
 	check: Check,
 	roller: DieRoller
 ): { entry: ChatMessage; success: boolean } {
-	const bonus = me.def.stats[check.stat];
+	const rules = rulesOf(room.adventure!);
+	const bonus = rules.checkBonus(me.def, check.stat);
 	const rolled = roll(bonus ? `1d20+${bonus}` : '1d20', roller);
 	const success = rolled.total >= check.dc;
 	const entry = appendLog(room, {
@@ -520,7 +522,7 @@ function rollCheck(
 		authorId: actor.id,
 		authorName: me.def.name,
 		action,
-		stat: STATS.find((s) => s.id === check.stat)?.name ?? check.stat,
+		stat: rules.statName(check.stat),
 		roll: rolled,
 		dc: check.dc,
 		success
@@ -1583,7 +1585,7 @@ const diceOf = (room: Room): DieRoller => room.dice ?? RANDOM;
 
 /**
  * A fight begins: the enemies appear, everyone rolls initiative (a d20 plus
- * Agility for characters, plus its own bonus for each enemy), and the first
+ * the rules' bonus for characters, plus its own bonus for each enemy), and the first
  * in the order takes their turn.
  */
 export function startEncounter(
@@ -1644,7 +1646,7 @@ export function startEncounter(
 	const dice = diceOf(room);
 	const rolled: { entry: TurnEntry; name: string; bonus: number; order: number }[] = [];
 	for (const c of played(room, adventure)) {
-		const bonus = c.def.stats.agility;
+		const bonus = rulesOf(adventure).initiativeBonus(c.def);
 		rolled.push({
 			entry: { kind: 'character', id: c.id, initiative: roll(`1d20+${bonus}`, dice).total },
 			name: c.def.name,
@@ -1728,14 +1730,6 @@ function isTurnOf(encounter: Encounter, id: string): boolean {
 	return entry?.kind === 'character' && entry.id === id;
 }
 
-/** Statuses count down one turn: at the start of their bearer's turn. */
-function tick(statuses: Statuses): void {
-	for (const [id, rounds] of statuses) {
-		if (rounds <= 1) statuses.delete(id);
-		else statuses.set(id, rounds - 1);
-	}
-}
-
 /**
  * The turn passes to the next in the order who can take it (a new round
  * after the last). A character's turn starts here: its statuses count down
@@ -1745,6 +1739,7 @@ function tick(statuses: Statuses): void {
  */
 function advance(room: Room, adventure: AdventureState, encounter: Encounter): Outcome {
 	const A = content(adventure);
+	const rules = rulesOf(adventure);
 	const log: ChatMessage[] = [];
 	for (let tries = 0; tries <= encounter.order.length * 2; tries++) {
 		encounter.current++;
@@ -1770,16 +1765,16 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 		const c = played(room, adventure).find((p) => p.id === entry.id);
 		if (!c || c.state.dead) continue;
 		const def = c.def;
-		const slowed = c.state.statuses.has('slowed');
-		tick(c.state.statuses);
+		const speed = rules.speed(def.speed, c.state.statuses);
+		rules.tick(c.state.statuses);
 		if (c.state.hp <= 0) {
-			c.state.downedFor++;
-			if (c.state.downedFor >= BLEED_OUT_ROUNDS) {
+			const downed = rules.downedTurn(c.state);
+			if (downed.dead) {
 				c.state.dead = true;
 				c.state.statuses.clear();
 				log.push(say(room, A.voice.gone.replace('{name}', def.name)));
 			} else {
-				const left = BLEED_OUT_ROUNDS - c.state.downedFor;
+				const left = downed.turnsLeft;
 				log.push(
 					postSystem(
 						room,
@@ -1789,36 +1784,16 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			}
 			continue;
 		}
-		encounter.speed = slowed ? Math.floor(def.speed / 2) : def.speed;
+		encounter.speed = speed;
 		log.push(postSystem(room, `${def.name}'s turn.`));
 		return { log };
 	}
 	return { log };
 }
 
-function roll(expression: string, roller: DieRoller): DiceRoll {
-	const parsed = parseDice(expression);
-	if (!parsed.ok) throw new Error(`Bad dice in adventure data: ${expression}`);
-	return rollDice(parsed.terms, roller);
-}
-
-interface Strike {
-	hit: boolean;
-	toHit: DiceRoll;
-	damage: DiceRoll | null;
-}
-
-/** A d20 plus a bonus against the target's defense; a natural 20 always hits, a natural 1 never does. */
-function strike(bonus: number, damage: string, defense: number, roller: DieRoller): Strike {
-	const toHit = roll(`1d20+${bonus}`, roller);
-	const natural = toHit.terms[0].kind === 'dice' ? toHit.terms[0].rolls[0] : 0;
-	const hit = natural === 20 || (natural !== 1 && toHit.total >= defense);
-	return { hit, toHit, damage: hit ? roll(damage, roller) : null };
-}
-
 /** Defense against attacks, counting a guard. */
-function characterDefense(c: Played): number {
-	return defenseFor(c.def.armor + (c.state.statuses.has('guarded') ? 2 : 0));
+function characterDefense(rules: Ruleset, c: Played): number {
+	return rules.defense(c.def.armor, c.state.statuses);
 }
 
 /**
@@ -1915,8 +1890,14 @@ function attackEnemy(
 	roller: DieRoller
 ): ChatMessage {
 	const A = content(room.adventure!);
-	const defense = defenseFor(A.enemies[enemy.kind].armor);
-	const result = strike(toHitFor(me.def, action), action.dice ?? '1d4', defense, roller);
+	const rules = rulesOf(room.adventure!);
+	const defense = rules.defense(A.enemies[enemy.kind].armor, enemy.statuses);
+	const result = rules.strike(
+		rules.attackBonus(me.def, action),
+		action.dice ?? '1d4',
+		defense,
+		roller
+	);
 	let outcome: string | undefined;
 	let effect: string | undefined;
 	if (result.hit) enemy.lastHitBy = me.id;
@@ -2162,8 +2143,10 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 	const token = room.tokens.get(entry.tokenId);
 	if (!enemy || !token) return advance(room, adventure, encounter);
 	const log: ChatMessage[] = [];
-	if (enemy.statuses.has('burning')) {
-		log.push(burn(room, encounter, enemy, token, roller));
+	const rules = rulesOf(adventure);
+	const hurt = rules.turnDamage(enemy.statuses);
+	if (hurt) {
+		log.push(burn(room, encounter, enemy, token, hurt, roller));
 		if (!encounter.enemies.has(token.id)) {
 			const done = cleared(room, adventure, encounter);
 			if (done?.over) return merge({ log }, done.outcome);
@@ -2174,8 +2157,8 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 		}
 	}
 	const kind = content(adventure).enemies[enemy.kind];
-	const speed = enemy.statuses.has('slowed') ? Math.floor(kind.speed / 2) : kind.speed;
-	tick(enemy.statuses);
+	const speed = rules.speed(kind.speed, enemy.statuses);
+	rules.tick(enemy.statuses);
 	if (enemy.rest > 0) enemy.rest--;
 	log.push(...enemyActs(room, adventure, enemy, token, speed, roller));
 	enemy.lastHitBy = undefined;
@@ -2242,8 +2225,9 @@ function enemyAttack(
 	target: Played,
 	roller: DieRoller
 ): ChatMessage {
-	const defense = characterDefense(target);
-	const result = strike(attack.toHit, attack.damage, defense, roller);
+	const rules = rulesOf(room.adventure!);
+	const defense = characterDefense(rules, target);
+	const result = rules.strike(attack.toHit, attack.damage, defense, roller);
 	let outcome: string | undefined;
 	if (result.damage) {
 		target.state.hp = Math.max(0, target.state.hp - result.damage.total);
@@ -2304,9 +2288,10 @@ function burn(
 	encounter: Encounter,
 	enemy: EnemyState,
 	token: Token,
+	hurt: { dice: string; cause: string },
 	roller: DieRoller
 ): ChatMessage {
-	const rolled = roll('1d4', roller);
+	const rolled = roll(hurt.dice, roller);
 	enemy.hp = Math.max(0, enemy.hp - rolled.total);
 	const dies = enemy.hp === 0;
 	if (dies) enemyDies(room, encounter, token);
@@ -2314,7 +2299,7 @@ function burn(
 		kind: 'ability',
 		authorId: token.id,
 		authorName: token.name,
-		ability: STATUSES.burning.name,
+		ability: hurt.cause,
 		targetId: token.id,
 		targetName: token.name,
 		roll: rolled,
