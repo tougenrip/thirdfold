@@ -195,6 +195,8 @@ export function createTabletop(
 	// whole scene a second time.
 	renderer.shadowMap.autoUpdate = false;
 	let shadowsDirty = true;
+	/** A shadow map never drawn reads as garbage (lit surfaces go black), so the first frame always draws it. */
+	let shadowMapDrawn = false;
 	/** Things moved in the last frame: their final step changes shadows too. */
 	let wasMoving = false;
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -471,7 +473,8 @@ export function createTabletop(
 		camera.position.add(shakeOffset);
 		// With the sun out (after dark) its shadows show nowhere: leave them until it is back.
 		const sunShines = sun.intensity > 0;
-		renderer.shadowMap.needsUpdate = shadowsDirty && sunShines;
+		renderer.shadowMap.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn;
+		shadowMapDrawn = true;
 		if (renderer.shadowMap.needsUpdate) perf.add('shadows', 0);
 		if (sunShines) shadowsDirty = false;
 		const draw = performance.now();
