@@ -161,7 +161,10 @@
 
 <section class="bar" class:down={!able} aria-label="Your character" style:--char={def.color}>
 	<div class="who">
-		<button type="button" class="name" onclick={onSheet} title="Character sheet">{def.name}</button>
+		<span class="seal" aria-hidden="true"></span>
+		<button type="button" class="ghost name" onclick={onSheet} title="Character sheet"
+			>{def.name}</button
+		>
 		<span
 			class="hp"
 			role="meter"
@@ -170,7 +173,7 @@
 			aria-valuemin="0"
 			aria-valuemax={character.maxHp}
 		>
-			<span class="fill" style:width={`${hpPercent}%`}></span>
+			<span class="fill" style:transform={`scaleX(${hpPercent / 100})`}></span>
 			<span class="label">{character.hp}/{character.maxHp} HP</span>
 		</span>
 		{#each character.statuses as s (s.id)}
@@ -192,7 +195,7 @@
 					title={t.inReach ? '' : 'Out of reach'}
 					onclick={() => use(chosen, t)}
 				>
-					{t.name} <small>{t.detail}</small>
+					{t.name} <small class="num">{t.detail}</small>
 				</button>
 			{/each}
 			<button type="button" onclick={() => onTargeting(null)}>Cancel</button>
@@ -219,7 +222,7 @@
 					>
 						<small class="kind">{kindOf(v)}</small>
 						{v.label}
-						{#if v.check && !v.tried}<small>{v.check.dc}</small>{/if}
+						{#if v.check && !v.tried}<small class="num">{v.check.dc}</small>{/if}
 					</button>
 				{/each}
 			{/each}
@@ -246,7 +249,7 @@
 					onclick={() => pick(action)}
 				>
 					{action.name}
-					{#if left !== null && left !== undefined}<small>{left} left</small>{/if}
+					{#if left !== null && left !== undefined}<small class="num">{left} left</small>{/if}
 				</button>
 			{/each}
 			{#if encounter && able}
@@ -266,20 +269,17 @@
 <style>
 	.kind {
 		display: block;
-		font-size: 0.65rem;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		font-size: var(--fs-2xs);
 		opacity: 0.75;
 	}
 
 	.bar {
 		display: grid;
-		gap: 0.4rem;
-		padding: 0.6rem 0.75rem;
+		gap: var(--sp-3);
+		padding: var(--sp-4) var(--sp-5);
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-left: 4px solid var(--char);
-		border-radius: 10px;
+		border-radius: var(--radius-md);
 		backdrop-filter: blur(6px);
 		min-width: min(26rem, 100%);
 	}
@@ -291,14 +291,21 @@
 	.who {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		gap: var(--sp-4);
+	}
+
+	.seal {
+		flex: none;
+		width: 0.7rem;
+		height: 0.7rem;
+		border-radius: 50%;
+		background: var(--char);
 	}
 
 	.name {
 		padding: 0;
-		border: none;
-		background: none;
 		font-weight: 700;
+		color: var(--text);
 		text-decoration: underline dotted var(--muted);
 		text-underline-offset: 3px;
 	}
@@ -308,50 +315,51 @@
 		flex: 1;
 		min-width: 6rem;
 		height: 1.1rem;
-		border-radius: 999px;
-		background: #120e0b;
+		border-radius: var(--radius-pill);
+		background: var(--panel-sunk);
 		border: 1px solid var(--border);
 		overflow: hidden;
 	}
 
 	.fill {
 		position: absolute;
-		inset: 0 auto 0 0;
-		background: linear-gradient(90deg, #8e2f25, #c0392b);
-		transition: width 300ms ease;
+		inset: 0;
+		background: var(--blood);
+		transform-origin: left;
+		transition: transform var(--dur) var(--ease-out);
 	}
 
 	.label {
 		position: relative;
 		display: block;
 		text-align: center;
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		line-height: 1.05rem;
 		font-variant-numeric: tabular-nums;
 	}
 
 	.chip {
-		font-size: 0.75rem;
-		padding: 0.05rem 0.45rem;
-		border-radius: 999px;
+		font-size: var(--fs-xs);
+		padding: var(--sp-1) var(--sp-4);
+		border-radius: var(--radius-pill);
 		border: 1px solid var(--accent);
 		color: var(--accent);
 	}
 	.chip.carrying {
-		border-color: var(--muted, #b8ad96);
+		border-color: var(--muted);
 		color: inherit;
 	}
 
 	.status {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 
 	.actions:empty {
@@ -359,7 +367,7 @@
 	}
 
 	.actions button {
-		padding: 0.4rem 0.75rem;
+		padding: var(--sp-3) var(--sp-5);
 	}
 
 	.actions .action {
@@ -367,8 +375,8 @@
 	}
 
 	small {
-		margin-left: 0.3rem;
+		margin-left: var(--sp-3);
 		opacity: 0.75;
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 	}
 </style>

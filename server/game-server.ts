@@ -40,6 +40,7 @@ import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { keyOwner, newGmKey } from './gm-keys';
 import { newSceneId } from './scene-store';
 import { storySummary } from './adventure/view';
+import { builtInStory, openingOf, storyFacts } from './adventure/facts';
 import { MemorySceneStore, type SceneStore } from './scene-store';
 import { fail, RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
 import {
@@ -277,6 +278,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				if (s) return sendError(ws, 'already_joined', 'This connection is already in a room.');
 				return handleEntry(ws, msg);
 			case 'library_list':
+			case 'library_story':
 			case 'library_mine':
 			case 'library_publish':
 			case 'library_manage':
@@ -1124,11 +1126,18 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		msg: Extract<
 			ClientMessage,
 			{
-				type: 'library_list' | 'library_mine' | 'library_publish' | 'library_manage' | 'games_list';
+				type:
+					| 'library_list'
+					| 'library_story'
+					| 'library_mine'
+					| 'library_publish'
+					| 'library_manage'
+					| 'games_list';
 			}
 		>
 	): Promise<void> {
-		const browsing = msg.type === 'library_list' || msg.type === 'games_list';
+		const browsing =
+			msg.type === 'library_list' || msg.type === 'library_story' || msg.type === 'games_list';
 		const limited = browsing
 			? browseLimiter.take(connectionKey(ws))
 			: publishLimiter.take(msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws));
@@ -1143,7 +1152,23 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						creator: msg.creator ?? null,
 						sort: msg.sort ?? 'top'
 					});
-					return send(ws, { type: 'library_list', ...found });
+					// The whole library also shows the adventures that come with thirdfold.
+					const builtIn = msg.creator ? [] : builtInAdventures().map(builtInStory);
+					return send(ws, { type: 'library_list', ...found, builtIn });
+				}
+				case 'library_story': {
+					const copy = await libraryStore.get(msg.id);
+					if (!copy || !copy.listed) return send(ws, { type: 'library_story', story: null });
+					const loaded = loadAdventureFile(copy.file, `library-${msg.id}`);
+					if (!loaded.ok) return send(ws, { type: 'library_story', story: null });
+					return send(ws, {
+						type: 'library_story',
+						story: {
+							listing: copy.listing,
+							opening: openingOf(loaded.adventure),
+							facts: storyFacts(loaded.adventure)
+						}
+					});
 				}
 				case 'library_mine':
 					return send(ws, {

@@ -2362,6 +2362,39 @@ describe('the library and open games over the wire', () => {
 		expect(JSON.stringify(found)).not.toContain(first.gmKey!);
 	});
 
+	it('shows the built-in adventures with the whole library, and opens a listed adventure', async () => {
+		const creator = await connect();
+		creator.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const { adventureId, gmKey } = await creator.expect('library_published');
+
+		const reader = await connect();
+		reader.send({ type: 'library_list' });
+		const whole = await reader.until('library_list');
+		expect(whole.builtIn.map((s) => s.title)).toContain('The Hollow Bell');
+		expect(whole.builtIn[0].facts.chapters).toBeGreaterThan(1);
+		expect(whole.builtIn[0].opening.length).toBeGreaterThan(0);
+		// A creator's page is theirs alone.
+		reader.send({ type: 'library_list', creator: whole.adventures[0].creator.id });
+		expect((await reader.until('library_list')).builtIn).toEqual([]);
+
+		reader.send({ type: 'library_story', id: adventureId });
+		const opened = (await reader.until('library_story')).story!;
+		expect(opened.listing).toMatchObject({ id: adventureId, title: 'The Miller’s Key' });
+		expect(opened.facts).toMatchObject({
+			chapters: expect.any(Number),
+			places: expect.any(Number),
+			characters: expect.any(Number),
+			endings: expect.any(Number)
+		});
+		expect(opened.opening.length).toBeGreaterThan(0);
+
+		// Taken out of the library, it can't be opened there.
+		creator.send({ type: 'library_manage', gmKey, adventureId, op: 'unlist' });
+		await creator.until('library_mine');
+		reader.send({ type: 'library_story', id: adventureId });
+		expect((await reader.until('library_story')).story).toBeNull();
+	});
+
 	it('plays an adventure from the library, counts the play, and lets those who played it rate it', async () => {
 		const creator = await connect();
 		creator.send({ type: 'library_publish', creator: 'Mira', file: file() });

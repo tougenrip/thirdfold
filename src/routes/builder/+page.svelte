@@ -1594,25 +1594,25 @@
 	.builder {
 		max-width: 64rem;
 		margin: 0 auto;
-		padding: 1rem 1rem 4rem;
+		padding: var(--sp-6) var(--sp-6) calc(var(--sp-8) * 2);
 	}
 
 	header {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 		flex-wrap: wrap;
 	}
 
 	header h1 {
-		font-size: 1.3rem;
-		margin: 0 0 0 0.5rem;
+		font-size: var(--fs-xl);
+		margin: 0 0 0 var(--sp-4);
 	}
 
 	.home {
 		color: var(--muted);
 		text-decoration: none;
-		font-weight: 600;
+		font-weight: 700;
 	}
 
 	.spacer {
@@ -1626,26 +1626,28 @@
 	nav {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.3rem;
-		margin: 1rem 0;
+		gap: var(--sp-3);
+		margin: var(--sp-6) 0;
 		border-bottom: 1px solid var(--border);
-		padding-bottom: 0.5rem;
+		padding-bottom: var(--sp-4);
 	}
 
 	nav button[aria-current='page'] {
 		border-color: var(--accent);
+		background: var(--accent-wash);
 		color: var(--accent);
 	}
 
 	.badge {
 		display: inline-block;
 		min-width: 1.1rem;
-		margin-left: 0.3rem;
-		padding: 0 0.3rem;
-		border-radius: 999px;
+		margin-left: var(--sp-3);
+		padding: 0 var(--sp-3);
+		border-radius: var(--radius-pill);
 		background: var(--danger);
 		color: var(--bg);
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.badge.ok {
@@ -1654,31 +1656,31 @@
 
 	section {
 		display: grid;
-		gap: 0.6rem;
+		gap: var(--sp-4);
 	}
 
 	h2 {
-		margin: 0.8rem 0 0;
-		font-size: 1.1rem;
+		margin: var(--sp-5) 0 0;
+		font-size: var(--fs-lg);
 	}
 
 	h3 {
-		margin: 0.6rem 0 0;
-		font-size: 0.95rem;
+		margin: var(--sp-4) 0 0;
+		font-size: var(--fs-md);
 	}
 
 	h4 {
-		margin: 0.4rem 0 0;
-		font-size: 0.85rem;
+		margin: var(--sp-3) 0 0;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.card {
 		display: grid;
-		gap: 0.45rem;
-		padding: 0.6rem 0.75rem;
+		gap: var(--sp-4);
+		padding: var(--sp-4) var(--sp-5);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--panel);
 	}
 
@@ -1688,8 +1690,8 @@
 
 	.field {
 		display: grid;
-		gap: 0.15rem;
-		font-size: 0.8rem;
+		gap: var(--sp-1);
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
@@ -1702,7 +1704,7 @@
 	.grid2,
 	.grid3 {
 		display: grid;
-		gap: 0.4rem 0.6rem;
+		gap: var(--sp-3) var(--sp-4);
 		grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
 	}
 
@@ -1712,7 +1714,7 @@
 
 	.row {
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 		flex-wrap: wrap;
 		align-items: center;
 	}
@@ -1720,69 +1722,72 @@
 	.objective {
 		display: grid;
 		grid-template-columns: 2fr 1fr 1fr auto auto;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 		align-items: end;
 	}
 
 	.line {
 		display: grid;
-		gap: 0.3rem;
-		padding: 0.4rem;
-		border-left: 2px solid var(--border);
+		gap: var(--sp-3);
+		padding: var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--panel-sunk);
 	}
 
 	.check {
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
-		font-size: 0.85rem;
+		gap: var(--sp-3);
+		font-size: var(--fs-sm);
 	}
 
 	fieldset {
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		display: grid;
-		gap: 0.25rem;
+		gap: var(--sp-2);
 	}
 
 	textarea {
-		font: inherit;
 		width: 100%;
-		box-sizing: border-box;
 	}
 
 	.json {
-		font-family: ui-monospace, monospace;
-		font-size: 0.8rem;
+		font-family: var(--font-mono);
+		font-size: var(--fs-xs);
 	}
 
 	.file-button {
 		display: inline-block;
-		padding: 0.35rem 0.7rem;
-		border: 1px solid var(--border);
-		border-radius: 6px;
+		padding: var(--sp-3) var(--sp-5);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		background: linear-gradient(var(--panel-raised), var(--panel-solid));
+		box-shadow: var(--bevel);
 		cursor: pointer;
+		transition: border-color var(--dur-fast) var(--ease-out);
 	}
 
-	.danger {
-		color: var(--danger);
+	.file-button:hover {
+		border-color: var(--accent);
 	}
 
 	.muted {
 		color: var(--muted);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 	}
 
 	.table-info {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 	}
 
 	.flow {
 		margin: 0;
-		padding-left: 1.2rem;
+		padding-left: var(--sp-6);
 		display: grid;
-		gap: 0.2rem;
+		gap: var(--sp-2);
 	}
 
 	.flow .branch {
@@ -1795,10 +1800,6 @@
 
 	.ok {
 		color: var(--ok);
-	}
-
-	.error {
-		color: var(--danger);
 	}
 
 	.notice {

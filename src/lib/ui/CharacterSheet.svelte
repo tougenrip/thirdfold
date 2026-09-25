@@ -8,6 +8,7 @@
 		STATUSES,
 		type CharacterDef
 	} from '$lib/adventure/characters';
+	import { trapFocus } from './trap-focus';
 
 	interface Props {
 		character: CharacterDef;
@@ -35,14 +36,18 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="sheet-title"
+		use:trapFocus
 	>
 		<header>
-			<p class="kicker">{intro ? 'You are playing' : 'Character'}</p>
-			<h2 id="sheet-title">{character.name}</h2>
+			<h2 id="sheet-title">
+				<span class="seal" aria-hidden="true"></span>
+				{#if intro}<span class="lead">You are playing</span>{/if}
+				{character.name}
+			</h2>
 			<p class="tagline">{intro ? character.intro : character.tagline}</p>
 		</header>
 
-		<dl class="vitals">
+		<dl class="vitals num">
 			<div>
 				<dt>HP</dt>
 				<dd>{status ? `${status.hp}/${status.maxHp}` : character.hp}</dd>
@@ -61,7 +66,7 @@
 			</div>
 		</dl>
 
-		<ul class="stats" aria-label="Stats">
+		<ul class="stats num" aria-label="Stats">
 			{#each STATS as stat (stat.id)}
 				<li title={stat.about}>
 					<span>{stat.name}</span>
@@ -70,7 +75,7 @@
 			{/each}
 		</ul>
 
-		<h3>Actions</h3>
+		<h3 class="section-title">Actions</h3>
 		<ul class="actions">
 			{#each character.actions as action (action.id)}
 				{@const left = status?.usesLeft[action.id]}
@@ -78,7 +83,7 @@
 					<div class="line">
 						<strong>{action.name}</strong>
 						{#if action.uses !== null}
-							<span class="uses">{left ?? action.uses}/{action.uses} left</span>
+							<span class="uses num">{left ?? action.uses}/{action.uses} left</span>
 						{/if}
 					</div>
 					<p class="summary">{describeAction(character, action)}</p>
@@ -88,7 +93,7 @@
 		</ul>
 
 		{#if status && (status.statuses.length || status.downed || status.dead)}
-			<h3>Condition</h3>
+			<h3 class="section-title">Condition</h3>
 			<ul class="conditions">
 				{#if status.dead}
 					<li><strong>Dead.</strong> Gone for the rest of this section.</li>
@@ -116,71 +121,77 @@
 		inset: 0;
 		display: grid;
 		place-items: center;
-		padding: 5rem 1rem 1rem;
-		background: rgba(10, 8, 6, 0.55);
+		padding: 5rem var(--sp-6) var(--sp-6);
+		background: var(--scrim);
 		overflow-y: auto;
-		z-index: 3;
+		z-index: var(--z-panel);
 	}
 
 	.sheet {
 		width: min(30rem, 100%);
 		display: grid;
-		gap: 0.75rem;
-		padding: 1.25rem;
+		gap: var(--sp-5);
+		padding: var(--sp-7);
 		background: var(--panel-solid);
 		border: 1px solid var(--border);
-		border-top: 4px solid var(--char);
-		border-radius: 14px;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
 	}
 
-	.kicker,
 	.tagline {
 		margin: 0;
+		max-width: 65ch;
 		color: var(--muted);
-	}
-
-	.tagline {
-		font-family: Georgia, 'Times New Roman', serif;
+		font-family: var(--font-display);
 		line-height: 1.4;
 	}
 
 	h2 {
-		margin: 0.15rem 0 0.35rem;
-		font-size: 1.6rem;
-		color: var(--char);
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--sp-4);
+		margin: 0 0 var(--sp-3);
+		font-size: var(--fs-xl);
 	}
 
-	h3 {
-		margin: 0;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
+	.seal {
+		flex: none;
+		width: 0.7rem;
+		height: 0.7rem;
+		border-radius: 50%;
+		background: var(--char);
+		border: 1px solid var(--border-strong);
+	}
+
+	.lead {
+		font-size: var(--fs-md);
+		font-weight: 400;
 		color: var(--muted);
 	}
 
 	.vitals {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
-		gap: 0.5rem;
+		gap: var(--sp-4);
 		margin: 0;
 	}
 
 	.vitals div {
-		padding: 0.4rem;
+		padding: var(--sp-3);
 		text-align: center;
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 	}
 
 	dt {
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	dd {
 		margin: 0;
-		font-size: 1.15rem;
+		font-size: var(--fs-lg);
 		font-weight: 700;
 	}
 
@@ -189,7 +200,7 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 	}
 
 	.stats {
@@ -199,36 +210,36 @@
 	.stats li {
 		display: grid;
 		justify-items: center;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.stats b {
 		color: var(--accent);
-		font-size: 1.05rem;
+		font-size: var(--fs-md);
 	}
 
 	.actions li,
 	.conditions li {
-		padding: 0.5rem 0.6rem;
+		padding: var(--sp-4) var(--sp-4);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 	}
 
 	.line {
 		display: flex;
 		justify-content: space-between;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 	}
 
 	.uses {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 		color: var(--accent);
 	}
 
 	.actions p {
-		margin: 0.2rem 0 0;
-		font-size: 0.85rem;
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
@@ -237,6 +248,6 @@
 	}
 
 	.conditions li {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 </style>

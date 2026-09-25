@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { AdventureView } from '$lib/adventure/adventure';
 	import Steps from './Steps.svelte';
+	import { trapFocus } from './trap-focus';
 
 	/**
 	 * A new player's arrival: where they are (the server's words), what to do
@@ -19,15 +20,23 @@
 </script>
 
 <div class="backdrop">
-	<div class="welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+	<div
+		class="welcome vellum"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="welcome-title"
+		tabindex="-1"
+		use:trapFocus
+		onkeydown={(e) => e.key === 'Escape' && onSkip()}
+	>
 		<Steps current={3} />
 		<header>
-			<p class="kicker">{adventure.title} · {characterName}</p>
 			<h2 id="welcome-title">{adventure.welcome.title}</h2>
+			<p class="subtitle">{adventure.title} · {characterName}</p>
 		</header>
 		<p class="text">{adventure.welcome.text}</p>
 		{#if goal}
-			<p class="goal"><span>Your first goal</span>{goal.text}</p>
+			<p class="goal"><span class="section-title">Your first goal</span>{goal.text}</p>
 		{/if}
 		<div class="actions">
 			<!-- svelte-ignore a11y_autofocus -->
@@ -45,61 +54,52 @@
 		inset: 0;
 		display: grid;
 		place-items: center;
-		padding: 5rem 1rem 1rem;
-		background: rgba(10, 8, 6, 0.55);
+		padding: 5rem var(--sp-6) var(--sp-6);
+		background: var(--scrim);
 		overflow-y: auto;
-		z-index: 3;
+		z-index: var(--z-panel);
 	}
 
 	.welcome {
 		width: min(32rem, 100%);
 		display: grid;
-		gap: 0.9rem;
-		padding: 1.4rem;
-		background: var(--panel-solid);
-		border: 1px solid var(--border);
-		border-top: 4px solid var(--accent);
-		border-radius: 14px;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-	}
-
-	.kicker {
-		margin: 0;
-		color: var(--muted);
-		font-size: 0.85rem;
+		gap: var(--sp-6);
+		padding: var(--sp-7);
+		border-radius: var(--radius-lg);
 	}
 
 	h2 {
-		margin: 0.15rem 0 0;
-		font-size: 1.7rem;
-		color: var(--accent);
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: var(--fs-xl);
+	}
+
+	.subtitle {
+		margin: var(--sp-1) 0 0;
+		color: var(--muted);
+		font-size: var(--fs-sm);
 	}
 
 	.text {
 		margin: 0;
-		font-family: Georgia, 'Times New Roman', serif;
+		max-width: 65ch;
+		font-family: var(--font-display);
 		line-height: 1.5;
 	}
 
 	.goal {
 		display: grid;
-		gap: 0.2rem;
+		gap: var(--sp-2);
 		margin: 0;
-		padding: 0.6rem 0.8rem;
-		border-left: 3px solid var(--accent);
-		background: rgba(224, 164, 88, 0.08);
-	}
-
-	.goal span {
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
+		padding: var(--sp-4) var(--sp-5);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background: var(--accent-wash);
 	}
 
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 	}
 </style>

@@ -1,0 +1,369 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-25T00:00:00Z",
+  "title": "Design System: thirdfold",
+  "extensions": {
+    "colorMeta": {
+      "brass": {
+        "role": "primary",
+        "displayName": "Lamp Brass",
+        "tonalRamp": [
+          "#3a2410",
+          "#5a3a18",
+          "#7d5222",
+          "#a36c2e",
+          "#c98b3f",
+          "#e0a458",
+          "#ecc48e",
+          "#f7e6cc"
+        ]
+      },
+      "brass-hover": {
+        "role": "primary",
+        "displayName": "Polished Brass",
+        "tonalRamp": []
+      },
+      "brass-deep": {
+        "role": "primary",
+        "displayName": "Worn Brass",
+        "tonalRamp": []
+      },
+      "vellum": {
+        "role": "secondary",
+        "displayName": "Vellum",
+        "tonalRamp": [
+          "#3a2f1d",
+          "#5c4c33",
+          "#7f6b4c",
+          "#a38d69",
+          "#c9b48e",
+          "#eadcbf",
+          "#f3eadb",
+          "#fbf6ee"
+        ]
+      },
+      "ink": {
+        "role": "secondary",
+        "displayName": "Iron-Gall Ink",
+        "tonalRamp": []
+      },
+      "ink-red": {
+        "role": "secondary",
+        "displayName": "Rubric Red",
+        "tonalRamp": []
+      },
+      "walnut-bg": {
+        "role": "neutral",
+        "displayName": "Walnut Ground",
+        "tonalRamp": [
+          "#0a0806",
+          "#14100d",
+          "#1c1612",
+          "#251d17",
+          "#2a2019",
+          "#4a3a2c",
+          "#86704f",
+          "#b3a38a"
+        ]
+      },
+      "walnut-panel": {
+        "role": "neutral",
+        "displayName": "Walnut Panel",
+        "tonalRamp": [],
+        "classic": "rgba(30, 23, 18, 0.92)"
+      },
+      "walnut-panel-solid": {
+        "role": "neutral",
+        "displayName": "Walnut Solid",
+        "tonalRamp": [],
+        "classic": "#1f1813"
+      },
+      "walnut-panel-raised": {
+        "role": "neutral",
+        "displayName": "Walnut Raised",
+        "tonalRamp": [],
+        "classic": "#2a2019"
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Light Edge",
+        "tonalRamp": [],
+        "classic": "#4a3a2c"
+      },
+      "edge-strong": {
+        "role": "neutral",
+        "displayName": "Strong Edge",
+        "tonalRamp": [],
+        "classic": "#86704f"
+      },
+      "brass-wash": {
+        "role": "primary",
+        "displayName": "Brass Wash",
+        "tonalRamp": [],
+        "classic": "rgba(224, 164, 88, 0.1)"
+      },
+      "candle-text": {
+        "role": "neutral",
+        "displayName": "Candle Cream",
+        "tonalRamp": []
+      },
+      "ash-muted": {
+        "role": "neutral",
+        "displayName": "Ash",
+        "tonalRamp": []
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Hearth Green",
+        "tonalRamp": []
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Ember Red",
+        "tonalRamp": []
+      },
+      "glow": {
+        "role": "tertiary",
+        "displayName": "Bell Glow",
+        "tonalRamp": []
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Front page wordmark; roll result."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Vellum card titles."
+      },
+      "story": {
+        "displayName": "Story",
+        "purpose": "Narration and card prose, max 65ch."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All operational UI."
+      },
+      "section-title": {
+        "displayName": "Section Title",
+        "purpose": "Panel section headings, small caps."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shadow-sm",
+        "value": "0 1px 2px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.2)",
+        "purpose": "Contact shadow. Classic: 0 2px 6px rgba(0,0,0,0.35)."
+      },
+      {
+        "name": "shadow-md",
+        "value": "0 1px 2px rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.38)",
+        "purpose": "Roll card, floating HUD cards. Classic: 0 10px 30px rgba(0,0,0,0.45)."
+      },
+      {
+        "name": "shadow-lg",
+        "value": "0 2px 4px rgba(0,0,0,0.3), 0 24px 64px rgba(0,0,0,0.5)",
+        "purpose": "Vellum story cards. Classic: 0 20px 60px rgba(0,0,0,0.55)."
+      },
+      {
+        "name": "ring",
+        "value": "0 0 0 3px rgba(224,164,88,0.35)",
+        "purpose": "Brass focus halo (modern only)."
+      },
+      {
+        "name": "bevel",
+        "value": "inset 0 1px 0 rgba(255,236,200,0.07)",
+        "purpose": "Classic wooden key bevel; none in modern."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Default easing for state transitions."
+      },
+      {
+        "name": "dur-fast",
+        "value": "120ms",
+        "purpose": "Hover, press, border and colour changes."
+      },
+      {
+        "name": "dur",
+        "value": "220ms",
+        "purpose": "Panel folds, bottom sheets, HP bars."
+      },
+      {
+        "name": "unroll",
+        "value": "560ms var(--ease-out)",
+        "purpose": "Vellum card unrolls from its top edge."
+      },
+      {
+        "name": "fold",
+        "value": "620-760ms cubic-bezier(0.7, 0, 0.3, 1)",
+        "purpose": "View-transition fold from the front page into the room."
+      },
+      {
+        "name": "unfold",
+        "value": "1000ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Front page board unfolds on load."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-sheet",
+        "value": "max-width: 48rem"
+      },
+      {
+        "name": "front-two-column",
+        "value": "min-width: 60rem"
+      },
+      {
+        "name": "narrow-chat",
+        "value": "max-width: 64rem"
+      },
+      {
+        "name": "wide-side",
+        "value": "min-width: 80rem"
+      }
+    ],
+    "zIndex": {
+      "hud": 2,
+      "panel": 3,
+      "overlay": 5,
+      "modal": 6,
+      "toast": 7
+    },
+    "skins": {
+      "active": "modern (src/skin-modern.css over src/app.css)",
+      "classic": "set data-skin=\"classic\" on <html>, or delete the skin-modern.css import in src/routes/+layout.svelte"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one next action: a brass pill.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Start the story</button>",
+      "css": ".ds-btn{font:500 1rem/1.2 'Alegreya Sans',system-ui,sans-serif;min-height:2.25rem;padding:.45rem 1.1rem;border:1px solid transparent;border-radius:999px;cursor:pointer;transition:background 120ms cubic-bezier(.22,1,.36,1),transform 120ms cubic-bezier(.22,1,.36,1)} .ds-btn-primary{background:#e0a458;color:#1a120a;font-weight:700;box-shadow:0 1px 0 rgba(255,244,214,.35) inset} .ds-btn-primary:hover{background:#ebb46e} .ds-btn-primary:active{background:#c98b3f;transform:scale(.98)} .ds-btn:focus-visible{outline:2px solid #e0a458;outline-offset:1px;box-shadow:0 0 0 3px rgba(224,164,88,.35)}"
+    },
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default flat filled pill.",
+      "html": "<button class=\"ds-btn-default\">Share table</button>",
+      "css": ".ds-btn-default{font:500 1rem/1.2 'Alegreya Sans',system-ui,sans-serif;min-height:2.25rem;padding:.45rem 1.1rem;border:1px solid transparent;border-radius:999px;background:rgba(255,238,214,.07);color:#f2e6d0;cursor:pointer;transition:background 120ms} .ds-btn-default:hover{background:rgba(255,238,214,.12)} .ds-btn-default:active{background:rgba(255,238,214,.16);transform:scale(.98)} .ds-btn-default[aria-pressed=true]{background:rgba(224,164,88,.14);border-color:rgba(224,164,88,.45);color:#e0a458} .ds-btn-default:focus-visible{outline:2px solid #e0a458;outline-offset:1px;box-shadow:0 0 0 3px rgba(224,164,88,.35)}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Quiet secondary action.",
+      "html": "<button class=\"ds-btn-ghost\">Just watch instead</button>",
+      "css": ".ds-btn-ghost{font:500 1rem/1.2 'Alegreya Sans',system-ui,sans-serif;min-height:2.25rem;padding:.45rem 1.1rem;border:0;border-radius:999px;background:transparent;color:#b3a38a;cursor:pointer} .ds-btn-ghost:hover{background:rgba(255,238,214,.07);color:#f2e6d0} .ds-btn-ghost:focus-visible{outline:2px solid #e0a458;outline-offset:1px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive action, ember wash.",
+      "html": "<button class=\"ds-btn-danger\">Remove</button>",
+      "css": ".ds-btn-danger{font:500 1rem/1.2 'Alegreya Sans',system-ui,sans-serif;min-height:2.25rem;padding:.45rem 1.1rem;border:0;border-radius:999px;background:rgba(226,122,107,.12);color:#e27a6b;cursor:pointer} .ds-btn-danger:hover{background:rgba(226,122,107,.2)} .ds-btn-danger:focus-visible{outline:2px solid #e0a458;outline-offset:1px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Sunk field, borderless until reached.",
+      "html": "<input class=\"ds-input\" placeholder=\"Your name\">",
+      "css": ".ds-input{font:400 1rem 'Alegreya Sans',system-ui,sans-serif;min-height:2.5rem;padding:.55rem .7rem;background:rgba(0,0,0,.28);color:#f2e6d0;border:1px solid rgba(255,236,210,.09);border-radius:14px;transition:border-color 120ms,box-shadow 120ms} .ds-input::placeholder{color:#b3a38a} .ds-input:hover{border-color:rgba(255,236,210,.2)} .ds-input:focus-visible{outline:none;border-color:#e0a458;background:rgba(0,0,0,.36);box-shadow:0 0 0 3px rgba(224,164,88,.35)}"
+    },
+    {
+      "name": "Room Bar",
+      "kind": "nav",
+      "refersTo": "room-bar",
+      "description": "The room's top bar: a frosted walnut pill.",
+      "html": "<nav class=\"ds-bar\"><strong>thirdfold</strong><span class=\"ds-code\">K7QX</span><span class=\"ds-status\">Connected</span></nav>",
+      "css": ".ds-bar{display:flex;gap:1rem;align-items:center;padding:.5rem .75rem;background:rgba(30,24,19,.8);border:1px solid rgba(255,236,210,.09);border-radius:999px;backdrop-filter:blur(6px);color:#f2e6d0;font-family:'Alegreya Sans',system-ui,sans-serif} .ds-code{font-family:ui-monospace,monospace;letter-spacing:.15em;color:#b3a38a} .ds-status{margin-left:auto;color:#7fc47a;font-size:.9rem} .ds-status::before{content:'';display:inline-block;width:.5rem;height:.5rem;margin-right:.375rem;border-radius:50%;background:currentColor}"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Frosted walnut side panel with a small-caps section title.",
+      "html": "<section class=\"ds-panel\"><h2 class=\"ds-title\">Players</h2><p>Ana, the Warden</p></section>",
+      "css": ".ds-panel{padding:.75rem;background:rgba(30,24,19,.8);border:1px solid rgba(255,236,210,.09);border-radius:16px;backdrop-filter:blur(6px);color:#f2e6d0;font-family:'Alegreya Sans',system-ui,sans-serif} .ds-title{margin:0 0 .5rem;font:700 .9rem Alegreya,Georgia,serif;font-variant:small-caps;letter-spacing:.04em;color:#b3a38a}"
+    },
+    {
+      "name": "HUD Chip",
+      "kind": "chip",
+      "refersTo": "hud-chip",
+      "description": "Encounter strip turn chip; the current turn in brass.",
+      "html": "<span class=\"ds-chip\">Round 2</span><span class=\"ds-chip ds-chip-current\">The Warden 17</span>",
+      "css": ".ds-chip{display:inline-flex;padding:.125rem .5rem;border:1px solid transparent;border-radius:999px;font:400 .9rem 'Alegreya Sans',system-ui,sans-serif;color:#f2e6d0;background:#1c1612;font-variant-numeric:tabular-nums} .ds-chip-current{border-color:#e0a458;background:color-mix(in srgb,#e0a458 22%,transparent);font-weight:700}"
+    },
+    {
+      "name": "Vellum Story Card",
+      "kind": "custom",
+      "refersTo": "vellum-card",
+      "description": "The story's own card: parchment and ink, unrolling from its top edge.",
+      "html": "<div class=\"ds-vellum\"><h2>The Bell</h2><p>What becomes of it? The first answer stands.</p><button class=\"ds-v-opt\">Silence it</button><button class=\"ds-v-primary\">Confirm</button></div>",
+      "css": ".ds-vellum{display:grid;gap:1rem;max-width:30rem;padding:1.5rem;color:#2a1d12;background:radial-gradient(120% 90% at 50% 0%,rgba(255,250,235,.55),transparent 60%),#eadcbf;border:1px solid rgba(120,90,50,.25);border-radius:24px;box-shadow:inset 0 0 0 1px rgba(255,250,235,.35),inset 0 0 40px rgba(120,90,50,.18),0 2px 4px rgba(0,0,0,.3),0 24px 64px rgba(0,0,0,.5);font:500 1rem/1.5 Alegreya,Georgia,serif;animation:ds-unroll 560ms cubic-bezier(.22,1,.36,1) both} .ds-vellum h2{margin:0;font-size:1.6rem;font-weight:700} .ds-vellum p{margin:0} .ds-v-opt,.ds-v-primary{font:500 1rem/1.2 'Alegreya Sans',sans-serif;min-height:2.25rem;padding:.45rem 1.1rem;border:0;border-radius:999px;cursor:pointer;text-align:left} .ds-v-opt{background:rgba(60,40,20,.08);color:#2a1d12} .ds-v-opt:hover{background:rgba(60,40,20,.14)} .ds-v-primary{background:#2a1d12;color:#eadcbf;font-weight:700;justify-self:start} .ds-v-primary:hover{background:#3d2c1d} .ds-vellum :focus-visible{outline:2px solid #8a3b3b;outline-offset:1px} @keyframes ds-unroll{from{clip-path:inset(0 0 100% 0 round 24px);filter:brightness(1.25)}to{clip-path:inset(0 0 0 0 round 24px)}} @media (prefers-reduced-motion:reduce){.ds-vellum{animation:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Walnut Table and Its Vellum",
+    "overview": "thirdfold's chrome is the furniture around a lamp-lit tabletop: dark walnut panels frosted over the 3D table, brass for the one thing to do next, and sheets of vellum let down over the table when the story itself speaks (a choice, a welcome, an ending). Everything a group operates is set in Alegreya Sans; everything the story says is set in Alegreya. The table is the product, so chrome is translucent, docked to the edges, and never covers the free middle of the table except for story cards and transient HUD chips.\n\nTwo skins share one world. **Modern** (active) is `src/skin-modern.css`, layered over `src/app.css`: flat filled pill controls, softly rounded fields, light-on-dark edges instead of brown rules, and a brass focus halo. **Classic** is `src/app.css` alone: bevelled wooden keys with brass-gradient primaries, hairline brown borders, 4/8/12px corners and dashed-outline disabled states. The skin's tokens are set on `:root:not([data-skin=\"classic\"])` so they outweigh app.css's `:root`; its element rules wrap only the skin switch in `:where()` so they weigh exactly what they replace. To compare in place set `data-skin=\"classic\"` on `<html>`; to revert for good delete the `skin-modern.css` import in `src/routes/+layout.svelte`. All tokens below are the modern values; where classic differs, the sidecar notes it.\n\nMotion is physical and folded, after the logo (a book whose page folds out into a map): the front page's board unfolds on load and folds shut into the room via view transitions, story cards unroll from their top edge, the current turn chip catches a glint of light. All of it drops out under `prefers-reduced-motion`.",
+    "keyCharacteristics": [
+      "Dark, warm, candle-lit; one brass accent; vellum reserved for the story's voice.",
+      "Translucent walnut panels with 6px backdrop blur, docked to the table's edges.",
+      "Pill controls, 14px fields, 8/16/24px surfaces.",
+      "Serif for story and headings, humanist sans for operation, mono only for codes and dice expressions.",
+      "Folding and unrolling motion, all presentation, all removable."
+    ],
+    "rules": [
+      {
+        "name": "The One Brass Rule",
+        "body": "Brass marks the single next action, the selected state and focus. A screen has at most one brass-filled button in view per decision.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Worlds Rule",
+        "body": "Walnut is for what the group operates; vellum is for what the story says. Operational controls never go on vellum except the card's own answers, and story text never sits on a plain walnut panel as a card.",
+        "section": "colors"
+      },
+      {
+        "name": "The Small Caps Rule",
+        "body": "A panel section is named in the story's face in small caps, never with an uppercase tracked sans label.",
+        "section": "typography"
+      },
+      {
+        "name": "The 1.25 Step Rule",
+        "body": "Sizes come from the scale (0.72, 0.8, 0.9, 1, 1.25, 1.6, 2.4, 3.4rem); dense for panels, generous for the story.",
+        "section": "typography"
+      },
+      {
+        "name": "The Frosted Chrome Rule",
+        "body": "Chrome over the table is translucent walnut with blur, so the table reads through it; only transient cards are opaque.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use one brass primary per decision, and ghost or default pills for everything else.",
+      "**Do** put the story's words (choices, welcomes, endings) on vellum in Alegreya, and the tools on walnut in Alegreya Sans.",
+      "**Do** keep chrome at the table's edges (0.75rem inset) and leave the free table clear; new floating status goes in `.hud-top` or `.hud-bottom`.",
+      "**Do** name panel sections with the small-caps section title.",
+      "**Do** take every value from the tokens (`--sp-*`, `--fs-*`, `--radius-*`, `--shadow-*`, `--z-*`, `--dur`, `--ease-out`) so both skins keep working.",
+      "**Do** give every animation a reduced-motion fallback that keeps the information (the undo clock fades instead of draining)."
+    ],
+    "donts": [
+      "**Don't** add a second accent hue to chrome; ember and green are states, fire, blood and glow belong to the table.",
+      "**Don't** use hard offset shadows, bevels or gradients in the modern skin; depth is blur, translucency and soft two-part shadows.",
+      "**Don't** mark a panel or card with a thick coloured side stripe; a kind is shown by a 1px edge all round.",
+      "**Don't** write skin overrides outside `:where(:root:not([data-skin='classic']))`, or the classic fallback breaks.",
+      "**Don't** capitalise \"thirdfold\" or set the wordmark in anything but Alegreya Bold."
+    ]
+  }
+}

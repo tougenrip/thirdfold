@@ -24,11 +24,13 @@ import {
 	LIBRARY_ID_PATTERN,
 	LIBRARY_LIMITS,
 	LIBRARY_SORTS,
+	type BuiltInStory,
 	type Creator,
 	type LibraryListing,
 	type LibrarySort,
 	type MyAdventure,
-	type PublicGame
+	type PublicGame,
+	type StoryDetail
 } from './library';
 import { MAX_LEVEL } from './terrain';
 import { TOKEN_COLOR_PATTERN, type Token } from './token';
@@ -218,6 +220,8 @@ export type ClientMessage =
 	| { type: 'room_listing'; listed: boolean }
 	/** Anyone, at a table or not: the library's listed adventures (a creator's, with `creator`). */
 	| { type: 'library_list'; query?: string; creator?: string; sort?: LibrarySort }
+	/** Anyone: one listed adventure, opened (its opening and facts). Replies with library_story. */
+	| { type: 'library_story'; id: string }
 	/** A creator's own published adventures, listed or not, by their GM key. */
 	| { type: 'library_mine'; gmKey: string }
 	/**
@@ -397,7 +401,15 @@ export type ServerMessage =
 	/** The GM listed the game, or made it invite-only. */
 	| { type: 'listing_update'; listed: boolean }
 	/** To whoever asked: adventures in the library (and whose, when a creator's were asked for). */
-	| { type: 'library_list'; adventures: LibraryListing[]; creator: Creator | null }
+	| {
+			type: 'library_list';
+			adventures: LibraryListing[];
+			creator: Creator | null;
+			/** The adventures that come with thirdfold (on the whole library, not a creator's page). */
+			builtIn: BuiltInStory[];
+	  }
+	/** One adventure opened, or null when there is no such listed adventure. */
+	| { type: 'library_story'; story: StoryDetail | null }
 	/** To a creator: their own adventures. */
 	| { type: 'library_mine'; adventures: MyAdventure[] }
 	/** To the creator who published: where it is. `gmKey` only when the server just issued it. */
@@ -817,6 +829,8 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return typeof data.listed === 'boolean'
 				? { type: 'room_listing', listed: data.listed }
 				: null;
+		case 'library_story':
+			return isLibraryId(data.id) ? { type: 'library_story', id: data.id } : null;
 		case 'library_list': {
 			const out: Extract<ClientMessage, { type: 'library_list' }> = { type: 'library_list' };
 			if (data.query !== undefined) {
@@ -941,6 +955,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		motion: (d) => Array.isArray(d.motions),
 		listing_update: (d) => typeof d.listed === 'boolean',
 		library_list: (d) => Array.isArray(d.adventures),
+		library_story: (d) => d.story === null || isRecord(d.story),
 		library_mine: (d) => Array.isArray(d.adventures),
 		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
 		games_list: (d) => Array.isArray(d.games),

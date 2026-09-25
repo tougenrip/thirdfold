@@ -103,13 +103,13 @@
 	.when {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-		gap: 0.3rem 0.5rem;
+		gap: var(--sp-3) var(--sp-4);
 	}
 
 	label {
 		display: grid;
-		gap: 0.1rem;
-		font-size: 0.75rem;
+		gap: var(--sp-1);
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 </style>

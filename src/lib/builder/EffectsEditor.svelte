@@ -61,16 +61,23 @@
 			<div class="head">
 				<strong>{KINDS.find((k) => k.kind === kind)?.label ?? kind}</strong>
 				<span class="tools">
-					<button type="button" aria-label="Move up" disabled={i === 0} onclick={() => move(i, -1)}
-						>↑</button
+					<button
+						type="button"
+						class="ghost"
+						aria-label="Move up"
+						disabled={i === 0}
+						onclick={() => move(i, -1)}>↑</button
 					>
 					<button
 						type="button"
+						class="ghost"
 						aria-label="Move down"
 						disabled={i === effects.length - 1}
 						onclick={() => move(i, 1)}>↓</button
 					>
-					<button type="button" aria-label="Remove" onclick={() => remove(i)}>×</button>
+					<button type="button" class="ghost" aria-label="Remove" onclick={() => remove(i)}
+						>×</button
+					>
 				</span>
 			</div>
 			{#if kind === 'say'}
@@ -216,33 +223,34 @@
 <style>
 	.effects {
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--sp-3);
 	}
 
 	.effect {
 		display: grid;
-		gap: 0.25rem;
-		padding: 0.35rem 0.45rem;
-		border-left: 2px solid var(--accent);
-		background: rgba(255, 255, 255, 0.03);
+		gap: var(--sp-2);
+		padding: var(--sp-3) var(--sp-4);
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+		border-radius: var(--radius-sm);
+		background: var(--accent-wash);
 	}
 
 	.head {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.tools button {
-		padding: 0 0.35rem;
-		font-size: 0.8rem;
+		padding: 0 var(--sp-3);
+		font-size: var(--fs-xs);
 	}
 
 	.row,
 	.add {
 		display: flex;
-		gap: 0.35rem;
+		gap: var(--sp-3);
 		align-items: center;
 		flex-wrap: wrap;
 	}
@@ -253,14 +261,12 @@
 	}
 
 	.check {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	textarea {
 		width: 100%;
-		box-sizing: border-box;
-		font: inherit;
 	}
 
 	.invalid {

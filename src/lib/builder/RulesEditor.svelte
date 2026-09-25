@@ -29,7 +29,7 @@
 			/>
 			<button
 				type="button"
-				class="remove"
+				class="danger remove"
 				onclick={() => (rules = rules.filter((_, j) => j !== i))}
 			>
 				Remove this rule
@@ -42,20 +42,20 @@
 <style>
 	.rules {
 		margin: 0;
-		padding-left: 1.2rem;
+		padding-left: var(--sp-6);
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 	}
 
 	summary {
 		cursor: pointer;
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	.remove {
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		justify-self: start;
-		margin-top: 0.2rem;
+		margin-top: var(--sp-2);
 	}
 </style>
