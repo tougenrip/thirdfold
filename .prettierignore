@@ -13,3 +13,4 @@ bun.lockb
 
 # Generated fixtures (npx tsx server/fixtures/build.ts)
 /tests/fixtures/
+/docs/look-metrics.json
