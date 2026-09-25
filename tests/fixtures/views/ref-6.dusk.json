@@ -1,0 +1,414 @@
+{
+	"player": {
+		"viewer": "player",
+		"band": "dusk",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 12,
+			"height": 10
+		},
+		"environment": "village",
+		"ambient": "dusk",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAA////////////",
+			"explored": "AAAAAAAA////////////",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
+		"tokens": [
+			{
+				"id": "ref6-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 5,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref6-gate-e",
+				"kind": "door",
+				"a": {
+					"x": 6,
+					"y": 4
+				},
+				"b": {
+					"x": 7,
+					"y": 4
+				},
+				"open": false
+			},
+			{
+				"id": "ref6-gate-w",
+				"kind": "door",
+				"a": {
+					"x": 5,
+					"y": 4
+				},
+				"b": {
+					"x": 6,
+					"y": 4
+				},
+				"open": false
+			},
+			{
+				"id": "ref6-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 7,
+					"y": 4
+				},
+				"b": {
+					"x": 12,
+					"y": 4
+				}
+			},
+			{
+				"id": "ref6-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 0,
+					"y": 4
+				},
+				"b": {
+					"x": 5,
+					"y": 4
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref6-brazier-e",
+				"assetId": "brazier",
+				"pos": {
+					"x": 7,
+					"y": 5
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref6-brazier-w",
+				"assetId": "brazier",
+				"pos": {
+					"x": 4,
+					"y": 5
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref6-brazier-e-light",
+				"pos": {
+					"x": 7,
+					"y": 5
+				},
+				"radius": 4,
+				"color": "#ff8a30",
+				"on": true
+			},
+			{
+				"id": "ref6-brazier-w-light",
+				"pos": {
+					"x": 4,
+					"y": 5
+				},
+				"radius": 4,
+				"color": "#ff8a30",
+				"on": true
+			}
+		]
+	},
+	"spectator": {
+		"viewer": "spectator",
+		"band": "dusk",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 12,
+			"height": 10
+		},
+		"environment": "village",
+		"ambient": "dusk",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAA////////////",
+			"explored": "AAAAAAAA////////////",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
+		"tokens": [
+			{
+				"id": "ref6-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 5,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref6-gate-e",
+				"kind": "door",
+				"a": {
+					"x": 6,
+					"y": 4
+				},
+				"b": {
+					"x": 7,
+					"y": 4
+				},
+				"open": false
+			},
+			{
+				"id": "ref6-gate-w",
+				"kind": "door",
+				"a": {
+					"x": 5,
+					"y": 4
+				},
+				"b": {
+					"x": 6,
+					"y": 4
+				},
+				"open": false
+			},
+			{
+				"id": "ref6-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 7,
+					"y": 4
+				},
+				"b": {
+					"x": 12,
+					"y": 4
+				}
+			},
+			{
+				"id": "ref6-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 0,
+					"y": 4
+				},
+				"b": {
+					"x": 5,
+					"y": 4
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref6-brazier-e",
+				"assetId": "brazier",
+				"pos": {
+					"x": 7,
+					"y": 5
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref6-brazier-w",
+				"assetId": "brazier",
+				"pos": {
+					"x": 4,
+					"y": 5
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref6-brazier-e-light",
+				"pos": {
+					"x": 7,
+					"y": 5
+				},
+				"radius": 4,
+				"color": "#ff8a30",
+				"on": true
+			},
+			{
+				"id": "ref6-brazier-w-light",
+				"pos": {
+					"x": 4,
+					"y": 5
+				},
+				"radius": 4,
+				"color": "#ff8a30",
+				"on": true
+			}
+		]
+	},
+	"gm": {
+		"viewer": "gm",
+		"band": "dusk",
+		"fogMode": "gm",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 12,
+			"height": 10
+		},
+		"environment": "village",
+		"ambient": "dusk",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAA////////////",
+			"explored": "AAAAAAAA////////////",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
+		"tokens": [
+			{
+				"id": "ref6-brute",
+				"name": "Brute",
+				"color": "#c0392b",
+				"pos": {
+					"x": 6,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "armored-brute",
+				"ownerId": null
+			},
+			{
+				"id": "ref6-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 5,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref6-gate-e",
+				"kind": "door",
+				"a": {
+					"x": 6,
+					"y": 4
+				},
+				"b": {
+					"x": 7,
+					"y": 4
+				},
+				"open": false
+			},
+			{
+				"id": "ref6-gate-w",
+				"kind": "door",
+				"a": {
+					"x": 5,
+					"y": 4
+				},
+				"b": {
+					"x": 6,
+					"y": 4
+				},
+				"open": false
+			},
+			{
+				"id": "ref6-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 7,
+					"y": 4
+				},
+				"b": {
+					"x": 12,
+					"y": 4
+				}
+			},
+			{
+				"id": "ref6-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 0,
+					"y": 4
+				},
+				"b": {
+					"x": 5,
+					"y": 4
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref6-brazier-e",
+				"assetId": "brazier",
+				"pos": {
+					"x": 7,
+					"y": 5
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref6-brazier-w",
+				"assetId": "brazier",
+				"pos": {
+					"x": 4,
+					"y": 5
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref6-brazier-e-light",
+				"pos": {
+					"x": 7,
+					"y": 5
+				},
+				"radius": 4,
+				"color": "#ff8a30",
+				"on": true
+			},
+			{
+				"id": "ref6-brazier-w-light",
+				"pos": {
+					"x": 4,
+					"y": 5
+				},
+				"radius": 4,
+				"color": "#ff8a30",
+				"on": true
+			}
+		]
+	}
+}

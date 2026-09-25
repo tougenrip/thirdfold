@@ -1,0 +1,45 @@
+{
+	"ambient": "dark",
+	"player": {
+		"tokenId": "ghost-town-mini-hero"
+	},
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 13,
+				"y": 8
+			},
+			"distance": 28.6,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 3,
+				"y": 3
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38
+		},
+		"low": {
+			"target": {
+				"x": 3,
+				"y": 3
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 3,
+				"y": 3
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38,
+			"ambient": "dark"
+		}
+	}
+}

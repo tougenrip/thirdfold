@@ -10,3 +10,6 @@ bun.lockb
 
 # Impeccable design-tool output
 /.impeccable/
+
+# Generated fixtures (npx tsx server/fixtures/build.ts)
+/tests/fixtures/

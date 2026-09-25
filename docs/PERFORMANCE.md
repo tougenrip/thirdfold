@@ -17,6 +17,18 @@ measured and left alone.
   clock the test holds still, the same table, pose and options always draw the same pixels.
   Labels and die faces are drawn in the bundled Alegreya (`tabletop/label-font.ts`), never in a
   system font.
+- **Fixture tables:** `tests/fixtures/scenes` holds fixed tables for rendering tests, perf gates and
+  look metrics: five compositions that recreate reference shots (`ref-1` torch room, `ref-3` red
+  ruined floor, `ref-6` night gate, `ref-7` minis on grass, `ref-8` walled town block), three stress
+  tables (`dungeon-40`, `outdoor-64`, `crowd-60`) and the adventures' tables frozen (`village`,
+  `monastery`, `hollow`, `heart`, `railcar`, `ghost-town`). Each has a `<name>.poses.json` of named
+  camera poses (`overview`, `close`, `low`, `dark`) in grid terms, which `poseFor` in
+  `src/lib/tabletop/poses.ts` turns into a camera pose. `tests/fixtures/views` holds what the GM, a
+  fogged player and a spectator are sent for each table in each ambient band, made by the real
+  server rules, so client tests render them without importing server code. Rebuild with
+  `npx tsx server/fixtures/build.ts`; the frozen adventure tables are rewritten only with
+  `--refreeze`. `server/fixtures/*.spec.ts` fail when a committed file is stale, and check that no
+  player or spectator view holds a hidden id or ground outside their explored cells.
 - **Tables to measure on:** `npx tsx server/perf/scenes.ts data/perf` plays the story with the
   engine and writes a save at each big table (`village.json` 36×28, `monastery.json` 30×20,
   `hollow.json` 48×36, each with its story, two characters and, in the Hollow, the watch).

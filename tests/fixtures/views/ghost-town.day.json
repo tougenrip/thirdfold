@@ -1,0 +1,515 @@
+{
+	"player": {
+		"viewer": "player",
+		"band": "day",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 26,
+			"height": 16
+		},
+		"environment": "ghost-town",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "/wcA/D8A8P8AwP8DAP8PAPw/APB/AMD/AQD/AwAMDAAwAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+			"explored": "/wcA/D8A8P8AwP8DAP8PAPw/APB/AMD/AQD/AwAMDAAwAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgICAgICAgICAgAAAAAAAAAAAAAAAAAAAAICAgICAgICAgICAAAAAAAAAAAAAAAAAAAAAgICAgICAgICAgIAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAEBAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"tokens": [
+			{
+				"id": "ghost-town-mini-b",
+				"name": "Saint",
+				"color": "#27ae60",
+				"pos": {
+					"x": 4,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "ghost-town-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "bw-saloon-e-a",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 9
+				},
+				"b": {
+					"x": 8,
+					"y": 11
+				}
+			},
+			{
+				"id": "bw-saloon-n",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 9
+				},
+				"b": {
+					"x": 8,
+					"y": 9
+				}
+			},
+			{
+				"id": "bw-saloon-w",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 9
+				},
+				"b": {
+					"x": 2,
+					"y": 14
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "bw-bench",
+				"assetId": "pew",
+				"pos": {
+					"x": 5,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-town-sign",
+				"assetId": "noticeboard",
+				"pos": {
+					"x": 8,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "bw-ghost-lamp-1",
+				"pos": {
+					"x": 4,
+					"y": 3
+				},
+				"radius": 4,
+				"color": "#9fd0ff",
+				"on": true
+			}
+		]
+	},
+	"spectator": {
+		"viewer": "spectator",
+		"band": "day",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 26,
+			"height": 16
+		},
+		"environment": "ghost-town",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "/wcA/D8A8P8AwP8DAP8PAPw/APB/AMD/AQD/AwAMDAAwAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+			"explored": "/wcA/D8A8P8AwP8DAP8PAPw/APB/AMD/AQD/AwAMDAAwAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgICAgICAgICAgAAAAAAAAAAAAAAAAAAAAICAgICAgICAgICAAAAAAAAAAAAAAAAAAAAAgICAgICAgICAgIAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAEBAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"tokens": [
+			{
+				"id": "ghost-town-mini-b",
+				"name": "Saint",
+				"color": "#27ae60",
+				"pos": {
+					"x": 4,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "ghost-town-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "bw-saloon-e-a",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 9
+				},
+				"b": {
+					"x": 8,
+					"y": 11
+				}
+			},
+			{
+				"id": "bw-saloon-n",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 9
+				},
+				"b": {
+					"x": 8,
+					"y": 9
+				}
+			},
+			{
+				"id": "bw-saloon-w",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 9
+				},
+				"b": {
+					"x": 2,
+					"y": 14
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "bw-bench",
+				"assetId": "pew",
+				"pos": {
+					"x": 5,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-town-sign",
+				"assetId": "noticeboard",
+				"pos": {
+					"x": 8,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "bw-ghost-lamp-1",
+				"pos": {
+					"x": 4,
+					"y": 3
+				},
+				"radius": 4,
+				"color": "#9fd0ff",
+				"on": true
+			}
+		]
+	},
+	"gm": {
+		"viewer": "gm",
+		"band": "day",
+		"fogMode": "gm",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 26,
+			"height": 16
+		},
+		"environment": "ghost-town",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "/wcA/D8A8P8AwP8DAP8PAPw/APB/AMD/AQD/AwAMDAAwAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+			"explored": "/wcA/D8A8P8AwP8DAP8PAPw/APB/AMD/AQD/AwAMDAAwAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwACAgICAgICAgICAgICAgAAAAYGBgcHBwcHAAICAgICAgICAgICAgICAAAABgYGBwcHBwcAAgICAgICAgICAgICAgIAAAAGBgYHBwcHBwEBAQEBAQEBAQEBAQEBAQEBAQEBAQcHBwcHAQEBAQEBAQEBAQEBAQEBAQEBAQEBBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwc=",
+		"tokens": [
+			{
+				"id": "ghost-town-mini-b",
+				"name": "Saint",
+				"color": "#27ae60",
+				"pos": {
+					"x": 4,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "ghost-town-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "bw-saloon-door",
+				"kind": "door",
+				"a": {
+					"x": 8,
+					"y": 11
+				},
+				"b": {
+					"x": 8,
+					"y": 12
+				},
+				"open": false
+			},
+			{
+				"id": "bw-saloon-e-a",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 9
+				},
+				"b": {
+					"x": 8,
+					"y": 11
+				}
+			},
+			{
+				"id": "bw-saloon-e-b",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 12
+				},
+				"b": {
+					"x": 8,
+					"y": 14
+				}
+			},
+			{
+				"id": "bw-saloon-n",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 9
+				},
+				"b": {
+					"x": 8,
+					"y": 9
+				}
+			},
+			{
+				"id": "bw-saloon-s",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 14
+				},
+				"b": {
+					"x": 8,
+					"y": 14
+				}
+			},
+			{
+				"id": "bw-saloon-w",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 9
+				},
+				"b": {
+					"x": 2,
+					"y": 14
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "bw-bench",
+				"assetId": "pew",
+				"pos": {
+					"x": 5,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-grave-10-10",
+				"assetId": "gravestone",
+				"pos": {
+					"x": 10,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-grave-10-12",
+				"assetId": "gravestone",
+				"pos": {
+					"x": 10,
+					"y": 12
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-grave-12-10",
+				"assetId": "gravestone",
+				"pos": {
+					"x": 12,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-grave-14-10",
+				"assetId": "gravestone",
+				"pos": {
+					"x": 14,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-grave-14-12",
+				"assetId": "gravestone",
+				"pos": {
+					"x": 14,
+					"y": 12
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-grave-1861",
+				"assetId": "gravestone",
+				"pos": {
+					"x": 12,
+					"y": 12
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-saloon-barrel",
+				"assetId": "barrel",
+				"pos": {
+					"x": 3,
+					"y": 13
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-saloon-table",
+				"assetId": "table",
+				"pos": {
+					"x": 4,
+					"y": 11
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-town-sign",
+				"assetId": "noticeboard",
+				"pos": {
+					"x": 8,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "bw-water-tower",
+				"assetId": "pillar",
+				"pos": {
+					"x": 15,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "bw-ghost-lamp-1",
+				"pos": {
+					"x": 4,
+					"y": 3
+				},
+				"radius": 4,
+				"color": "#9fd0ff",
+				"on": true
+			},
+			{
+				"id": "bw-ghost-lamp-2",
+				"pos": {
+					"x": 12,
+					"y": 3
+				},
+				"radius": 4,
+				"color": "#9fd0ff",
+				"on": true
+			},
+			{
+				"id": "bw-ghost-lamp-3",
+				"pos": {
+					"x": 11,
+					"y": 9
+				},
+				"radius": 4,
+				"color": "#9fd0ff",
+				"on": true
+			}
+		]
+	}
+}

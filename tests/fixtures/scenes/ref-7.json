@@ -1,0 +1,289 @@
+{
+	"format": "thirdfold-scene",
+	"version": 9,
+	"name": "Fixture: minis on grass",
+	"savedAt": "2026-01-01T00:00:00.000Z",
+	"grid": {
+		"kind": "square",
+		"cellSize": 1,
+		"width": 12,
+		"height": 8
+	},
+	"tokens": [
+		{
+			"id": "ref7-mini-01",
+			"name": "Mini 1",
+			"color": "#c0392b",
+			"pos": {
+				"x": 3,
+				"y": 2
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
+		},
+		{
+			"id": "ref7-mini-02",
+			"name": "Mini 2",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 4,
+				"y": 2
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "saint"
+		},
+		{
+			"id": "ref7-mini-03",
+			"name": "Mini 3",
+			"color": "#27ae60",
+			"pos": {
+				"x": 5,
+				"y": 2
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "ember"
+		},
+		{
+			"id": "ref7-mini-04",
+			"name": "Mini 4",
+			"color": "#d4ac0d",
+			"pos": {
+				"x": 6,
+				"y": 2
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "veil"
+		},
+		{
+			"id": "ref7-mini-05",
+			"name": "Mini 5",
+			"color": "#8e44ad",
+			"pos": {
+				"x": 7,
+				"y": 2
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "villager"
+		},
+		{
+			"id": "ref7-mini-06",
+			"name": "Mini 6",
+			"color": "#e67e22",
+			"pos": {
+				"x": 4,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "smith"
+		},
+		{
+			"id": "ref7-mini-07",
+			"name": "Mini 7",
+			"color": "#c0392b",
+			"pos": {
+				"x": 5,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "elder"
+		},
+		{
+			"id": "ref7-mini-08",
+			"name": "Mini 8",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 6,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "monk"
+		},
+		{
+			"id": "ref7-mini-09",
+			"name": "Mini 9",
+			"color": "#27ae60",
+			"pos": {
+				"x": 7,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "priest"
+		},
+		{
+			"id": "ref7-mini-10",
+			"name": "Mini 10",
+			"color": "#d4ac0d",
+			"pos": {
+				"x": 8,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "watchman"
+		},
+		{
+			"id": "ref7-mini-11",
+			"name": "Mini 11",
+			"color": "#8e44ad",
+			"pos": {
+				"x": 3,
+				"y": 4
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "child"
+		},
+		{
+			"id": "ref7-mini-12",
+			"name": "Mini 12",
+			"color": "#e67e22",
+			"pos": {
+				"x": 4,
+				"y": 4
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "gravedigger"
+		},
+		{
+			"id": "ref7-mini-13",
+			"name": "Mini 13",
+			"color": "#c0392b",
+			"pos": {
+				"x": 5,
+				"y": 4
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "hound"
+		},
+		{
+			"id": "ref7-mini-14",
+			"name": "Mini 14",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 6,
+				"y": 4
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "robed-figure"
+		},
+		{
+			"id": "ref7-mini-15",
+			"name": "Mini 15",
+			"color": "#27ae60",
+			"pos": {
+				"x": 7,
+				"y": 4
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "hatted-shade"
+		},
+		{
+			"id": "ref7-mini-16",
+			"name": "Mini 16",
+			"color": "#d4ac0d",
+			"pos": {
+				"x": 4,
+				"y": 5
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "armored-brute"
+		},
+		{
+			"id": "ref7-mini-17",
+			"name": "Mini 17",
+			"color": "#8e44ad",
+			"pos": {
+				"x": 5,
+				"y": 5
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
+		},
+		{
+			"id": "ref7-mini-18",
+			"name": "Mini 18",
+			"color": "#e67e22",
+			"pos": {
+				"x": 6,
+				"y": 5
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "saint"
+		},
+		{
+			"id": "ref7-mini-19",
+			"name": "Mini 19",
+			"color": "#c0392b",
+			"pos": {
+				"x": 7,
+				"y": 5
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "ember"
+		},
+		{
+			"id": "ref7-mini-20",
+			"name": "Mini 20",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 8,
+				"y": 5
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "veil"
+		}
+	],
+	"objects": [],
+	"props": [],
+	"lights": [],
+	"ambient": "day",
+	"fog": {
+		"enabled": true,
+		"revealed": "////////////////",
+		"shared": false
+	},
+	"discovery": {},
+	"adventure": null,
+	"terrain": null,
+	"darkness": null,
+	"environment": "village",
+	"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD"
+}
