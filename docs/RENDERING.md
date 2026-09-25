@@ -218,7 +218,7 @@ Pinned today: three.js 0.186.0, Playwright 1.63.0 (Chromium 153.0.8010.12, headl
    because three.js can change the bytes of built GLBs, and `npm run bundle:check`.
 4. Re-baseline the golden images deliberately (`--update`, on Linux or in the pinned Playwright
    image), with before and after images of every changed golden in the PR.
-5. Re-run the perf gate and `scripts/perf-gpu.mjs` on the dGPU and iGPU. Update
+5. Re-run the perf gate locally and `scripts/perf-gpu.mjs` on the reference GPUs (RTX 4060 and the iGPU). Update
    `docs/perf-baseline.json` and `docs/PERFORMANCE.md` with the reason for every change.
 6. For Playwright, record the new Chromium revision in `docs/PERFORMANCE.md`, and check that the
    SwiftShader and WebGPU lavapipe flags still behave.

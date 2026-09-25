@@ -8,8 +8,9 @@
 // PERF_GPU picks the GL backend: swiftshader (default; CI), vulkan (a real
 // GPU) or egl (ANGLE over the system's GL). The report starts with the GPU the
 // browser used, so a run on the wrong adapter is obvious. On a laptop with two
-// GPUs, Vulkan picks the discrete one (the high-tier proxy); to measure the
-// integrated one (the low and medium proxy), limit Vulkan to its driver:
+// GPUs, Vulkan picks the discrete one (an RTX 4060 is the medium tier's
+// reference, the middle of the scale); to measure the integrated one (the low
+// tier's reference), limit Vulkan to its driver:
 //   VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json PERF_GPU=vulkan node scripts/perf-gpu.mjs
 // (egl may fall back to llvmpipe, software rendering, where no GPU GL is set up.)
 

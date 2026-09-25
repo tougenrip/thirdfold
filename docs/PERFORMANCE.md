@@ -46,10 +46,10 @@ measured and left alone.
   loading every table three more times and after leaving and rejoining the room three times, and
   the bundle sizes (`check-bundle.mjs --json`). `--json <file>` writes the whole report.
 - **Perf gate:** `--baseline docs/perf-baseline.json` compares the counters that do not depend on
-  the machine's speed with the committed baseline and exits 1 on a regression. The `Perf` workflow
-  (`.github/workflows/perf.yml`) runs it on every push to `main` and on pull requests that touch
-  the renderer, assets, fixtures or the perf scripts; its table goes to the run's summary and the
-  whole report is uploaded as the `perf-report` artifact. The gate fails when:
+  the machine's speed with the committed baseline and exits 1 on a regression. It runs locally, not
+  in CI (a run takes about 13 minutes, too much of the free build minutes to spend on every PR):
+  before merging a PR that touches the renderer, assets, fixtures or the perf scripts, run it and
+  paste its table into the PR. The gate fails when:
 
   | Counter                                                 | Fails when                     |
   | ------------------------------------------------------- | ------------------------------ |
@@ -232,7 +232,7 @@ Each number is the median GPU time of 16 frames of that view from WebGL2 timer q
 The GM sees everything; the player is fogged. A few 1400×900 numbers run high where the GPU had
 not yet clocked up (the first views of a run); the 1920×1080 column is the steadier one.
 
-**RTX 4060 Laptop (discrete, high-tier proxy).** `ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0)), NVIDIA)`.
+**RTX 4060 Laptop (discrete; the middle of the scale, the reference card for the medium tier).** `ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0)), NVIDIA)`.
 
 | Table      | Pose     | GM 1400×900 | GM 1920×1080 | Player 1920×1080 | Draws (GM) | Programs |
 | ---------- | -------- | ----------- | ------------ | ---------------- | ---------- | -------- |
@@ -269,7 +269,7 @@ not yet clocked up (the first views of a run); the 1920×1080 column is the stea
 
 Slowest at 1920×1080: dungeon-40 overview (GM), 3.53 ms.
 
-**Intel Raptor Lake-S UHD (integrated, low and medium proxy).** `ANGLE (Intel, Vulkan 1.4.335 (Intel(R) Graphics (RPL-S) (0x0000A788)), Intel open-source Mesa driver)`.
+**Intel Raptor Lake-S UHD (integrated; the low tier's reference).** `ANGLE (Intel, Vulkan 1.4.335 (Intel(R) Graphics (RPL-S) (0x0000A788)), Intel open-source Mesa driver)`.
 
 | Table      | Pose     | GM 1400×900 | GM 1920×1080 | Player 1920×1080 | Draws (GM) | Programs |
 | ---------- | -------- | ----------- | ------------ | ---------------- | ---------- | -------- |
@@ -308,15 +308,16 @@ Slowest at 1920×1080: hollow low (Ana), 39.66 ms.
 
 **What this says.**
 
-- **The discrete GPU has headroom.** Every view draws in 0.5–3.5 ms at 1080p, well inside the high
-  tier's budget.
-- **The integrated GPU is already over the medium budget.** Today's plain look costs 12–40 ms per
-  frame at 1080p on the iGPU, against the medium tier's target of about 11 ms at 2 MP. Close,
+- **The middle of the scale has headroom.** The RTX 4060 Laptop is the reference card for the
+  medium tier: everything the default look adds must fit its budget there. Every view draws in
+  0.5–3.5 ms at 1080p today.
+- **The integrated GPU is the low tier, and already over budget.** Today's plain look costs 12–40 ms
+  per frame at 1080p on the iGPU. Close,
   low-angle views of large lit tables are the worst: the Hollow at 38–40 ms, ref-8 close 32 ms,
   the 64×64 outdoor table close 29 ms. The cost is per pixel (draw counts are small, from 10 to
   245), which points at fill and lighting: 8 point lights on every lit fragment, full-screen
-  transparent overlays (fog, darkness, floor), and MSAA. Milestone 62's tiers must start the iGPU
-  below 2 MP, or with fewer lights, before any new effect is added.
+  transparent overlays (fog, darkness, floor), and MSAA. Milestone 62's low tier must start integrated
+  GPUs below 2 MP, or with fewer lights, before any new effect is added.
 - **Draw calls are modest** (the most is 245, crowd-60) and shader programs 16–17 on every
   table, so batching is not today's bottleneck.
 
