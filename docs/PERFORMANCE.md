@@ -11,6 +11,12 @@ measured and left alone.
   long lighting was worked out. The page also exposes `window.thirdfoldPerf` (the renderer's
   `stats()`, `resetStats()` and `benchmark(frames)`) and `window.thirdfoldRoom` (the connection),
   for the scripts below. Timings come from `src/lib/tabletop/perf.ts`.
+- **Deterministic frames:** `createTabletop(canvas, events, options)` takes `TabletopOptions`: an
+  animation clock (`now`), a fixed `pixelRatio`, `preserveDrawingBuffer` so a test can read the
+  canvas, and a `reducedMotion` override. `setPose(pose)` puts the camera at a named pose. With a
+  clock the test holds still, the same table, pose and options always draw the same pixels.
+  Labels and die faces are drawn in the bundled Alegreya (`tabletop/label-font.ts`), never in a
+  system font.
 - **Tables to measure on:** `npx tsx server/perf/scenes.ts data/perf` plays the story with the
   engine and writes a save at each big table (`village.json` 36×28, `monastery.json` 30×20,
   `hollow.json` 48×36, each with its story, two characters and, in the Hollow, the watch).

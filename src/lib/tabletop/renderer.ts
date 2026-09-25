@@ -2,6 +2,12 @@
 // (grid, tokens, walls and doors, selection, editor previews) and reports what
 // the user pointed at in grid terms: cell, corner, edge, token and object ids. It never owns or mutates game state. Renders on
 // demand rather than every frame, so an idle table costs nothing.
+//
+// Every animation runs on one clock (`TabletopOptions.now`, performance.now()
+// by default). Tests and golden images pass a clock they hold still, a fixed
+// pixel ratio and reduced motion, and pose the camera with `setPose`, so the
+// same table always draws the same pixels. Only perf.ts timings keep
+// performance.now(): they measure cost, not animation.
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -17,6 +23,7 @@ import {
 } from '$lib/game/grid';
 import type { Cue, Shot } from '$lib/game/chat';
 import { shotAt, shotPose, type Pose } from './shots';
+import { labelFontReady } from './label-font';
 import type { Motion } from '$lib/game/motion';
 import { lightSources, type Ambient, type Light } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
@@ -71,6 +78,18 @@ export type PreviewItem =
 	/** A soft column of light over a cell: something a new player is shown to walk up to. */
 	| { kind: 'beacon'; at: GridPos };
 
+/** How a tabletop is set up. Every field is optional; the defaults are what the app uses. */
+export interface TabletopOptions {
+	/** The animation clock in ms. Default `performance.now()`; tests pass one they hold still. */
+	now?: () => number;
+	/** Default `min(devicePixelRatio, 2)`. */
+	pixelRatio?: number;
+	/** Keeps the drawn frame readable after it is shown (tests only: it costs memory). */
+	preserveDrawingBuffer?: boolean;
+	/** Overrides the `prefers-reduced-motion` media query when set. */
+	reducedMotion?: boolean;
+}
+
 export interface Tabletop {
 	setGrid(grid: SquareGrid): void;
 	setTokens(tokens: readonly Token[]): void;
@@ -107,6 +126,8 @@ export interface Tabletop {
 	/** Plays motions on props (a lever swinging, a chain shaking) and their sounds. */
 	playMotions(motions: readonly Motion[]): void;
 	setView(view: CameraView): void;
+	/** Puts the camera at a pose at once, ending any shot or view change (tests, photo mode). */
+	setPose(pose: Pose): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
 	/**
@@ -153,9 +174,18 @@ function viewPose(
 	return { position: new THREE.Vector3(extent * 0.42, extent * 0.34, extent * 0.78), target };
 }
 
-export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents): Tabletop {
-	const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+export function createTabletop(
+	canvas: HTMLCanvasElement,
+	events: TabletopEvents,
+	options: TabletopOptions = {}
+): Tabletop {
+	const clock = options.now ?? (() => performance.now());
+	const renderer = new THREE.WebGLRenderer({
+		canvas,
+		antialias: true,
+		preserveDrawingBuffer: options.preserveDrawingBuffer ?? false
+	});
+	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
 	renderer.shadowMap.enabled = true;
 	// Only the ambient mist clips (to the table).
 	renderer.localClippingEnabled = true;
@@ -214,12 +244,12 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	// Read live: turning reduced motion on or off applies at once, without a reload.
 	const motionQuery =
 		typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-	let reducedMotion = motionQuery?.matches ?? false;
+	let reducedMotion = options.reducedMotion ?? motionQuery?.matches ?? false;
 	// A model arriving draws its props again, shadows too.
 	const propLayer = new PropLayer(() => {
 		shadowsDirty = true;
 		requestRender();
-	});
+	}, clock);
 	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
@@ -236,6 +266,14 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	scene.add(terrainLayer.group);
 	const effects = new EffectsLayer();
 	scene.add(effects.group);
+	let disposed = false;
+	// Labels drawn before the label font arrived are drawn again in it.
+	void labelFontReady.then(() => {
+		if (disposed) return;
+		tokenLayer.relabel();
+		diceLayer.clearLabels();
+		requestRender();
+	});
 	let levels: Uint8Array | null = null;
 	let ground: Ground | null = null;
 	/** The prop the current cue swings (the bell). */
@@ -359,6 +397,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		shot = null;
 	};
 	const onMotionChange = (e: MediaQueryListEvent) => {
+		if (options.reducedMotion !== undefined) return;
 		reducedMotion = e.matches;
 		propLayer.setReducedMotion(reducedMotion);
 		ambience.setReducedMotion(reducedMotion);
@@ -376,11 +415,11 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		if (!frame) frame = requestAnimationFrame(render);
 	}
 
-	function render(now: number): void {
+	function render(): void {
 		frame = 0;
-		perf.frame(now);
 		const start = performance.now();
-		drawFrame(now);
+		perf.frame(start);
+		drawFrame(clock());
 		perf.add('frame', performance.now() - start);
 	}
 
@@ -783,7 +822,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 				.clone()
 				.add(toward)
 				.setY(grid.cellSize * 2.5);
-			const ms = diceLayer.throw(t, center, from, grid.cellSize, reducedMotion);
+			const ms = diceLayer.throw(t, center, from, grid.cellSize, reducedMotion, clock());
 			requestRender();
 			return ms;
 		},
@@ -871,7 +910,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			requestRender();
 		},
 		playMotions(motions) {
-			const now = performance.now();
+			const now = clock();
 			for (const m of motions) {
 				if (m.propId && m.kind) propLayer.animate(m.propId, m.kind, now);
 				if (m.sound) playSound(m.sound);
@@ -880,7 +919,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		},
 		playCue(cue, swingPropId) {
 			swinging = swingPropId;
-			effects.play(cue, performance.now(), reducedMotion);
+			effects.play(cue, clock(), reducedMotion);
 			requestRender();
 		},
 		playShot(next) {
@@ -895,7 +934,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 				y: ground?.floorY(next.focus) ?? 0
 			};
 			const to = shotPose(home, focus, next.frame, extent, grid.cellSize);
-			shot = { home, to, start: performance.now() };
+			shot = { home, to, start: clock() };
 			requestRender();
 		},
 		setView(next) {
@@ -904,11 +943,19 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 			transition = {
 				from: { position: camera.position.clone(), target: controls.target.clone() },
 				to: viewPose(next, extent),
-				start: performance.now()
+				start: clock()
 			};
 			requestRender();
 		},
+		setPose(pose) {
+			shot = null;
+			transition = null;
+			camera.position.set(pose.position.x, pose.position.y, pose.position.z);
+			controls.target.set(pose.target.x, pose.target.y, pose.target.z);
+			requestRender();
+		},
 		dispose() {
+			disposed = true;
 			cancelAnimationFrame(frame);
 			motionQuery?.removeEventListener('change', onMotionChange);
 			observer.disconnect();

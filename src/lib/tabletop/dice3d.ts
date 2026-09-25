@@ -5,6 +5,7 @@
 // client sees the same throw.
 
 import * as THREE from 'three';
+import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
 import { DIE_LABELS, seededRandom } from './dice-faces';
 import type { DieKind, ThrownDie } from './dice-throw';
@@ -76,7 +77,7 @@ export class DiceLayer {
 		from: THREE.Vector3,
 		cellSize: number,
 		instant: boolean,
-		now = performance.now()
+		now: number
 	): number {
 		// A new throw sweeps the previous dice off the table.
 		for (const d of this.active) this.remove(d);
@@ -125,7 +126,7 @@ export class DiceLayer {
 	 * steps, so the dice land when the result card says they have even when
 	 * frames are slow. Returns true while any die is on the table.
 	 */
-	tick(now = performance.now()): boolean {
+	tick(now: number): boolean {
 		for (const d of this.active) {
 			d.age = (now - d.startedAt) / 1000;
 			this.pose(d);
@@ -134,6 +135,13 @@ export class DiceLayer {
 		for (const d of gone) this.remove(d);
 		this.active = this.active.filter((d) => !gone.includes(d));
 		return this.active.length > 0;
+	}
+
+	/** Forgets the drawn face labels, so the next throw draws them in the label font. */
+	clearLabels(): void {
+		if (this.active.length) return;
+		for (const tex of this.labels.values()) tex.dispose();
+		this.labels.clear();
 	}
 
 	dispose(): void {
@@ -272,7 +280,7 @@ export class DiceLayer {
 			this.labels.set(key, tex);
 			return tex;
 		}
-		ctx.font = `700 ${shown.length > 2 ? 56 : shown.length > 1 ? 66 : 80}px system-ui, sans-serif`;
+		ctx.font = labelFont(700, shown.length > 2 ? 56 : shown.length > 1 ? 66 : 80);
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
 		ctx.fillText(shown, 64, 68);
