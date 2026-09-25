@@ -19,3 +19,8 @@ export function lastPlayed(iso: string, now = new Date(), locale?: string): stri
 	});
 	return `${date} ${time(d, locale)}`;
 }
+
+/** The same, set mid-sentence: "updated today 09:05", "updated 12 Sept 21:43". */
+export function inSentence(when: string): string {
+	return when.replace(/^(Today|Yesterday)/, (w) => w.toLowerCase());
+}

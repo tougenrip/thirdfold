@@ -20,6 +20,11 @@ export async function listLibrary(q: { query?: string; creator?: string; sort?: 
 	);
 }
 
+/** One listed adventure, opened: its listing, opening and facts; null when there is none. */
+export async function openStory(id: string) {
+	return (await ask({ type: 'library_story', id }, 'library_story')).story;
+}
+
 export async function listMine(gmKey: string): Promise<MyAdventure[]> {
 	return (await ask({ type: 'library_mine', gmKey }, 'library_mine')).adventures;
 }

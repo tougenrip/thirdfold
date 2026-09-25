@@ -50,6 +50,32 @@ export interface LibraryListing {
 	rating: Rating | null;
 }
 
+/** What an adventure file holds, counted: what a GM weighs when choosing one. */
+export interface StoryFacts {
+	chapters: number;
+	places: number;
+	/** The characters players choose from (one each, so this is the most who can play). */
+	characters: number;
+	endings: number;
+}
+
+/** One of the adventures that comes with thirdfold, as the library shows it. */
+export interface BuiltInStory {
+	id: string;
+	title: string;
+	about: string;
+	/** How the story greets the party where it starts. */
+	opening: string;
+	facts: StoryFacts;
+}
+
+/** A published adventure opened in the library: its listing, its opening and its facts. */
+export interface StoryDetail {
+	listing: LibraryListing;
+	opening: string;
+	facts: StoryFacts;
+}
+
 /** One of a creator's own adventures, listed in the library or not. */
 export interface MyAdventure extends LibraryListing {
 	listed: boolean;

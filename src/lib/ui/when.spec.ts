@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lastPlayed } from './when';
+import { inSentence, lastPlayed } from './when';
 
 describe('when a game was last played', () => {
 	const now = new Date(2026, 8, 24, 20, 0);
@@ -15,5 +15,11 @@ describe('when a game was last played', () => {
 			'2 Jan 2025 08:00'
 		);
 		expect(lastPlayed('not a date', now)).toBe('');
+	});
+
+	it('lowers today and yesterday mid-sentence, and leaves dates alone', () => {
+		expect(inSentence('Today 09:05')).toBe('today 09:05');
+		expect(inSentence('Yesterday 21:43')).toBe('yesterday 21:43');
+		expect(inSentence('12 Sept 21:43')).toBe('12 Sept 21:43');
 	});
 });
