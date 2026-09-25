@@ -211,8 +211,10 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
 	const diceLayer = new DiceLayer();
 	scene.add(diceLayer.group);
-	const reducedMotion =
-		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+	// Read live: turning reduced motion on or off applies at once, without a reload.
+	const motionQuery =
+		typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+	let reducedMotion = motionQuery?.matches ?? false;
 	// A model arriving draws its props again, shadows too.
 	const propLayer = new PropLayer(() => {
 		shadowsDirty = true;
@@ -228,6 +230,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
 	const ambience = new AmbienceLayer();
+	ambience.setReducedMotion(reducedMotion);
 	scene.add(ambience.group);
 	const terrainLayer = new TerrainLayer();
 	scene.add(terrainLayer.group);
@@ -355,6 +358,14 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 	const endShot = () => {
 		shot = null;
 	};
+	const onMotionChange = (e: MediaQueryListEvent) => {
+		reducedMotion = e.matches;
+		propLayer.setReducedMotion(reducedMotion);
+		ambience.setReducedMotion(reducedMotion);
+		if (reducedMotion) endShot();
+		refreshLighting();
+	};
+	motionQuery?.addEventListener('change', onMotionChange);
 	let transition: {
 		from: { position: THREE.Vector3; target: THREE.Vector3 };
 		to: { position: THREE.Vector3; target: THREE.Vector3 };
@@ -899,6 +910,7 @@ export function createTabletop(canvas: HTMLCanvasElement, events: TabletopEvents
 		},
 		dispose() {
 			cancelAnimationFrame(frame);
+			motionQuery?.removeEventListener('change', onMotionChange);
 			observer.disconnect();
 			canvas.removeEventListener('pointerdown', onPointerDown);
 			canvas.removeEventListener('pointerup', onPointerUp);

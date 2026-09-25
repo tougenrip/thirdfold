@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseDice, rollDice } from '$lib/game/dice';
 import { buildDieModel, landingQuaternion } from './dice-geometry';
-import { DIE_LABELS, diceToThrow, MAX_THROWN_DICE, seededRandom, type DieKind } from './dice-throw';
+import { DIE_LABELS, seededRandom } from './dice-faces';
+import { diceToThrow, MAX_THROWN_DICE, type DieKind } from './dice-throw';
 
 function roll(expression: string, faces: number[]) {
 	const parsed = parseDice(expression);

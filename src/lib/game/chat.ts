@@ -20,6 +20,9 @@ export type Cue = 'toll' | 'flash';
 
 export const CUES: readonly Cue[] = ['toll', 'flash'];
 
+/** How long a flash (a great light, like the Bell's note) lights the whole table, in ms. */
+export const FLASH_MS = 2500;
+
 /**
  * A camera move a moment calls for: look at `focus` (a cell; null for the
  * whole table), framed close or wide, or pulled right back to show the

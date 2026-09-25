@@ -4,16 +4,15 @@
 // huge dark shape passes slowly underneath. Presentation only: driven by the
 // wall clock like the dice, and never sent over the network. With reduced
 // motion the bell still swings, gently, and nothing else moves. The flash:
-// the whole table lights up at once and fades back into the dark over a
-// couple of seconds (it plays alongside a toll; reduced motion keeps it, as
-// it is the one sign of what the server's fog is showing for that moment).
+// the whole table lights up at once and fades back into the dark over
+// FLASH_MS, exactly as long as the server lights the table for (it plays
+// alongside a toll; reduced motion keeps it, as it is the one sign of what
+// the server's fog is showing for that moment).
 
 import * as THREE from 'three';
-import type { Cue } from '$lib/game/chat';
+import { FLASH_MS, type Cue } from '$lib/game/chat';
 
 const TOLL_MS = 7000;
-/** As long as the server's flash (FLASH_MS in the adventure engine). */
-const FLASH_MS = 2500;
 const DUST = 420;
 
 export interface EffectFrame {

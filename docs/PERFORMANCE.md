@@ -29,6 +29,16 @@ measured and left alone.
   repeatedly and waits for the GPU each time.
 - **Asset sizes:** `npm run build` prints each chunk. `npx vite build --sourcemap true` with a
   source-map walk shows what a chunk is made of.
+- **Bundle gate:** `npm run bundle:check`, after `npm run build` (CI runs it too). It walks the Vite
+  manifest and sums each page's static import closure, gzipped with `node:zlib` at its default
+  level. It fails if three.js reaches any page's static imports, or if a page or the renderer goes
+  over its budget in `scripts/check-bundle.mjs`. A page's "own" size is what it adds beyond the
+  app shell (the entries and the root layout); "renderer (added)" is what loading a table adds on
+  top of the room page.
+
+Baselines from milestone 61 on are taken with the pinned Playwright 1.63.0 (Chromium
+153.0.8010.12, headless shell revision 1243) and three.js 0.186.0; `docs/RENDERING.md` has the
+upgrade procedure.
 
 All numbers below come from a cloud container. The browser is headless Chromium with SwiftShader,
 so WebGL is software-rendered on the CPU. Main-thread times and counts (draw calls, bytes,
@@ -58,6 +68,24 @@ Opening an invite link (cold cache, median of 3):
 | ---------------------------------- | --------------------------- | -------------------------- |
 | Local                              | join form after 244 ms      | 207 ms                     |
 | Slow 4G (1.6 Mbps, 150 ms latency) | 1798 ms, 248 kB transferred | 1299 ms, 95 kB transferred |
+
+**Milestone 61 re-measure.** Between milestones 34 and 60, three.js crept back into the room page:
+rolldown put modules that both the page and the lazy renderer import (`dice-throw.ts`, and the
+Build panel's floor swatches from `tabletop/floor.ts`) into one chunk with three.js. The fix moved
+the renderer-only parts into `dice-faces.ts` and the swatch colours into `floor-looks.ts`, gave
+three.js its own chunk (`vite.config.ts`), and added the bundle gate. Measured with
+`npm run bundle:check` (Vite 8.3.0, rolldown 1.2.10):
+
+| Closure (gzipped)       | Before the fix          | After    | What the page adds beyond the shell |
+| ----------------------- | ----------------------- | -------- | ----------------------------------- |
+| Room page `/room/[id]`  | 167.5 kB, with three.js | 109.7 kB | 68.8 kB                             |
+| Landing `/`             | 57.6 kB                 | 57.6 kB  | 16.7 kB                             |
+| Library `/library`      | 59.8 kB                 | 59.8 kB  | 18.9 kB                             |
+| Builder `/builder`      | 88.2 kB                 | 88.2 kB  | 47.3 kB                             |
+| Renderer, added on load | 118.8 kB                | 178.2 kB | (lazy, budget 360 kB)               |
+
+(The "before" totals here count the app shell too, so they are larger than milestone 34's
+per-chunk figures.) The room page's own code is now 68.8 kB gzipped against 36 kB in milestone 34. three.js is no longer in it; the UI itself grew in milestones 35–40.
 
 ### Multiplayer synchronization
 

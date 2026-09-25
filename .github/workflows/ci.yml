@@ -35,6 +35,8 @@ jobs:
       # Live Supabase tests skip themselves without SUPABASE_* env.
       - run: npm test
       - run: npm run build
+      # three.js stays out of every page's static imports; pages and the renderer stay in budget.
+      - run: npm run bundle:check
 
   supabase:
     # Runs the live SupabaseSceneStore tests against a local Supabase with the

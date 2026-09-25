@@ -14,6 +14,18 @@ export default defineConfig({
 			adapter: adapter({ fallback: 'index.html' }) // SPA mode for native shells
 		})
 	],
+	build: {
+		rolldownOptions: {
+			output: {
+				// three.js always gets its own chunk, so a module shared by the eager
+				// pages and the lazy renderer never drags it into a page's static
+				// imports (see scripts/check-bundle.mjs).
+				codeSplitting: {
+					groups: [{ name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/ }]
+				}
+			}
+		}
+	},
 	server: { port: 1420, strictPort: true, host: '0.0.0.0' },
 	test: {
 		expect: { requireAssertions: true },

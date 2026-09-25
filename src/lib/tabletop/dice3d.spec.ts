@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { DiceLayer } from './dice3d';
-import { DIE_LABELS, type DieKind } from './dice-throw';
+import { DIE_LABELS } from './dice-faces';
+import type { DieKind } from './dice-throw';
 
 /** A DiceLayer whose number textures carry their text instead of drawing it (no DOM in Node). */
 function layer() {

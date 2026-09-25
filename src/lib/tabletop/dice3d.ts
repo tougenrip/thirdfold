@@ -6,7 +6,8 @@
 
 import * as THREE from 'three';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
-import { DIE_LABELS, seededRandom, type DieKind, type ThrownDie } from './dice-throw';
+import { DIE_LABELS, seededRandom } from './dice-faces';
+import type { DieKind, ThrownDie } from './dice-throw';
 
 export interface DiceThrow {
 	/** Room log sequence number of the roll; seeds the throw. */
