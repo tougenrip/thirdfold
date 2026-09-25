@@ -82,8 +82,12 @@
 						<span class="expr">{m.roll.expression}</span>
 						<span class="total num">{m.roll.total}</span>
 						<span class="expr">vs {m.dc}</span>
-						<span class="verdict" class:hit={m.success}>{m.success ? 'Found' : 'Nothing'}</span>
+						{#if m.mode}<span class="mode">{m.mode}</span>{/if}
+						<span class="verdict" class:hit={m.success}
+							>{m.save ? (m.success ? 'Saved' : 'Failed') : m.success ? 'Found' : 'Nothing'}</span
+						>
 					</p>
+					{#if m.explain}<p class="explain">{m.explain}</p>{/if}
 				{:else if m.kind === 'ability'}
 					<header>
 						<span class="author">{m.authorName}</span>
@@ -102,12 +106,16 @@
 						<span class="expr">{m.toHit.expression}</span>
 						<span class="total num">{m.toHit.total}</span>
 						<span class="expr">vs {m.defense}</span>
-						<span class="verdict" class:hit={m.hit}>{m.hit ? 'Hit' : 'Miss'}</span>
+						{#if m.mode}<span class="mode">{m.mode}</span>{/if}
+						<span class="verdict" class:hit={m.hit}
+							>{m.critical ? 'Critical hit' : m.hit ? 'Hit' : 'Miss'}</span
+						>
 						{#if m.damage}
 							<span class="expr">{m.damage.expression}</span>
 							<span class="total num damage">{m.damage.total} damage</span>
 						{/if}
 					</p>
+					{#if m.explain}<p class="explain">{m.explain}</p>{/if}
 					{#if m.effect}<p class="outcome">{m.targetName} is {m.effect.toLowerCase()}.</p>{/if}
 					{#if m.outcome}<p class="outcome">{m.outcome}</p>{/if}
 				{:else}
@@ -229,6 +237,19 @@
 
 	.verdict.hit {
 		color: var(--ok);
+	}
+
+	.mode {
+		font-size: var(--fs-2xs);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--muted);
+	}
+
+	.explain {
+		margin: 0;
+		font-size: var(--fs-2xs);
+		color: var(--muted);
 	}
 
 	li.attack .total {

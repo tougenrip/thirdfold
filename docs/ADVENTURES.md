@@ -111,6 +111,35 @@ Enemy behaviours are code (`server/adventure/ai.ts`), chosen by name:
 - `guardian`: keeps to its post by the adventure's `ward`, first for anyone near it; tolls (`toll`) when crowded.
 - `grasp`: rooted, seizes whoever is in reach, weakest first.
 
+## Rules
+
+An adventure plays by one ruleset, named by exact id and version in
+`AdventureDef.rules`; without it, thirdfold's classic rules
+(`thirdfold-classic` v1: four stats, d20 + stat, 10 + armor). A story is
+pinned to its rules when it starts and its saves carry them. The server has
+the rules in code (`server/rules/`); an adventure only names them, and they
+check it before it can start (`rulesProblems`).
+
+The fifth edition rules of the SRD 5.2.1 are `dnd-5.5e` v1. Under them:
+
+- a character's `armor` is its Armor Class, and its `sheet` holds the rest:
+  `level`, `abilities` (`str`, `dex`, `con`, `int`, `wis`, `cha`, scores 1–30),
+  `saves` and `skills` it is proficient in, `attacks` (the ability each attack
+  action uses) and `bonusActions` (actions that take a bonus action);
+- a check's `stat` is an ability (`"str"`) or a skill (`"perception"`), and
+  `save: true` makes it a saving throw (abilities only);
+- an enemy's `armor` is its Armor Class and an attack's `toHit` its full
+  bonus; an attack with `save: { stat, dc, half }` makes its target save
+  instead of being rolled against;
+- the `hurt` effect can carry the same `save`, for a trap or a hazard.
+
+Checks in the dark that need sight fail; attacks get advantage or
+disadvantage from the table (unseen, a foe beside an archer, a target taking
+cover); a natural 20 is a critical hit. Every roll's log entry explains how it
+was resolved. The Barrow on Cold Hill (`server/adventures/barrow/`) is written
+for these rules. Adventure files and the builder still use the classic rules
+and character library.
+
 ## Checking and testing
 
 `validateAdventure` (`server/adventure/validate.ts`) names every reference

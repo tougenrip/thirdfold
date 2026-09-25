@@ -2,7 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { AdventureView } from '$lib/adventure/adventure';
-	import { CHARACTERS } from '$lib/adventure/characters';
 	import type { PublicPlayer } from '$lib/game/protocol';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import { namesList, survivalLine, timePlayed } from './session-end';
@@ -59,7 +58,7 @@
 					<ul>
 						{#each party as c (c.id)}
 							<li class:dead={c.dead}>
-								{CHARACTERS[c.id].name}
+								{c.def.name}
 								<small>{nameOf(c.playerId)}{c.dead ? ' · fell' : ''}</small>
 							</li>
 						{/each}

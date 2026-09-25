@@ -61,14 +61,21 @@ import {
 } from '../../src/lib/game/props';
 import type { AdventureControl, CharacterPatch, Direction } from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
-import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
+import { cellIndex, hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
 import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
 import { lightFor, obstacles } from '../scene';
 import { applyScene } from '../scene-io';
 import { creatorIdOf } from '../library-store';
-import { CLASSIC } from '../rules/classic';
-import { findRuleset, roll, type Ruleset } from '../rules/ruleset';
+import { CLASSIC, rulesProblems } from '../rules';
+import {
+	findRuleset,
+	roll,
+	type AttackSituation,
+	type Strike,
+	type Ruleset,
+	type TestKind
+} from '../rules/ruleset';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
 import {
 	AMBUSH,
@@ -333,6 +340,8 @@ export function startAdventure(room: Room, actor: Player, id?: string): Outcomes
 	if (!A) return fail('invalid_message', 'There is no such adventure on this server.');
 	if (A.rules && !findRuleset(A.rules))
 		return fail('invalid_message', 'This adventure needs rules this server does not have.');
+	if (rulesProblems(A).length > 0)
+		return fail('invalid_message', 'This adventure does not fit the rules it names.');
 	applyScene(room, A.locations[A.start.location].scene());
 	room.adventure = newState(A, room);
 	return {
@@ -504,31 +513,48 @@ function toll(room: Room, text: string): ChatMessage {
 	return appendLog(room, { kind: 'narration', text, cue: 'toll' });
 }
 
-/** A d20 plus the character's bonus (by the rules) against a difficulty, rolled here and logged for all. */
+/** Whether a cell is in the dark: no light reaches it where the table is dark. */
+function inDark(room: Room, cell: GridPos): boolean {
+	const lit = lightFor(room, obstacles(room));
+	return !!lit && !lit[cellIndex(room.grid, cell)];
+}
+
+/**
+ * A d20 test (a check, or a saving throw) by a character against a
+ * difficulty, resolved by the story's rules here and logged for all. `sight`:
+ * the check is a matter of seeing, which the dark may spoil.
+ */
 function rollCheck(
 	room: Room,
-	actor: Player,
+	actor: Player | null,
 	me: Played,
 	action: string,
 	check: Check,
-	roller: DieRoller
+	roller: DieRoller,
+	sight = false
 ): { entry: ChatMessage; success: boolean } {
 	const rules = rulesOf(room.adventure!);
-	const bonus = rules.checkBonus(me.def, check.stat);
-	const rolled = roll(bonus ? `1d20+${bonus}` : '1d20', roller);
-	const success = rolled.total >= check.dc;
+	const kind: TestKind = check.save ? 'save' : 'check';
+	const situation = { dark: inDark(room, me.token.pos), sight };
+	const result = rules.test(me.def, check.stat, kind, check.dc, situation, roller);
 	const entry = appendLog(room, {
 		kind: 'check',
-		authorId: actor.id,
+		authorId: actor?.id ?? me.token.id,
 		authorName: me.def.name,
 		action,
-		stat: rules.statName(check.stat),
-		roll: rolled,
+		stat: result.label,
+		roll: result.roll,
 		dc: check.dc,
-		success
+		success: result.success,
+		...(kind === 'save' ? { save: true } : {}),
+		...(result.mode ? { mode: result.mode } : {}),
+		explain: result.explain
 	});
-	return { entry, success };
+	return { entry, success: result.success };
 }
+
+/** Investigation that is a matter of looking. */
+const SIGHTED = new Set(['examine', 'inspect', 'search', 'observe']);
 
 /**
  * Player: their character does something to a world object beside it: talks,
@@ -599,7 +625,15 @@ export function interact(
 		if (adventure.tried.has(key)) {
 			return fail('forbidden', `${name} has tried that already. Someone else might see more.`);
 		}
-		const check = rollCheck(room, actor, me, verb.label, verb.check, roller);
+		const check = rollCheck(
+			room,
+			actor,
+			me,
+			verb.label,
+			verb.check,
+			roller,
+			SIGHTED.has(actionOfVerb(verb))
+		);
 		if (!check.success) {
 			adventure.tried.add(key);
 			return {
@@ -997,7 +1031,15 @@ export function run(
 			for (const c of standing(room, adventure)) {
 				if (!cells.some((b) => gridDistance(b, c.token.pos) <= effect.hurt.within)) continue;
 				const text = effect.hurt.text.replace('{name}', c.def.name);
-				tell(hurt(room, c, roll(effect.hurt.dice, dice).total, text));
+				const save = effect.hurt.save;
+				let amount = roll(effect.hurt.dice, dice).total;
+				if (save) {
+					const player = c.token.ownerId ? room.players.get(c.token.ownerId) : undefined;
+					const check = rollCheck(room, player ?? null, c, text, { ...save, save: true }, dice);
+					tell(check.entry);
+					if (check.success) amount = save.half ? Math.floor(amount / 2) : 0;
+				}
+				if (amount > 0) tell(hurt(room, c, amount, text));
 			}
 		} else if ('spawn' in effect) {
 			const encounter = adventure.encounter;
@@ -1101,7 +1143,7 @@ export function sense(
 	}
 	const log: ChatMessage[] = [...noticed];
 	for (const s of signs) {
-		const check = rollCheck(room, actor, me, verb, s.check, roller);
+		const check = rollCheck(room, actor, me, verb, s.check, roller, SIGHTED.has(what));
 		log.push(check.entry);
 		if (!check.success) {
 			adventure.tried.add(`${me.id}:sign:${s.id}`);
@@ -1823,8 +1865,15 @@ export function act(
 	if (!encounter && action.kind !== 'heal') return fail('forbidden', 'There is nothing to fight.');
 	if (encounter && !isTurnOf(encounter, me.id))
 		return fail('not_your_turn', notYourTurn(room, encounter));
-	if (encounter?.acted.has(me.id)) {
-		return fail('not_your_turn', `${def.name} has already acted this turn.`);
+	const rules = rulesOf(adventure);
+	const spent = spentKey(me.id, rules.actionType(def, action));
+	if (encounter?.acted.has(spent)) {
+		return fail(
+			'not_your_turn',
+			spent === me.id
+				? `${def.name} has already acted this turn.`
+				: `${def.name} has already used this turn's ${rules.actionTypeName(rules.actionType(def, action)).toLowerCase()}.`
+		);
 	}
 	if (usesLeft(me.state, action) === 0) {
 		return fail('forbidden', `${action.name} is spent until the next fight.`);
@@ -1845,6 +1894,8 @@ export function act(
 			);
 		}
 		log = [attackEnemy(room, actor, me, action, encounter, enemy, target, roller)];
+	} else if (action.kind === 'heal' && action.target === 'self') {
+		log = [heal(room, actor, def, action, me, roller)];
 	} else if (action.target === 'ally') {
 		const ally = targetId ? characterByToken(room, targetId) : null;
 		if (!ally) return fail('token_not_found', 'Choose one of the party.');
@@ -1859,7 +1910,7 @@ export function act(
 
 	if (action.uses !== null) me.state.uses.set(action.id, (me.state.uses.get(action.id) ?? 0) + 1);
 	if (!encounter) return { ok: true, log };
-	encounter.acted.add(me.id);
+	encounter.acted.add(spent);
 	return { ok: true, ...afterAction(room, adventure, encounter, me, log) };
 }
 
@@ -1892,10 +1943,21 @@ function attackEnemy(
 	const A = content(room.adventure!);
 	const rules = rulesOf(room.adventure!);
 	const defense = rules.defense(A.enemies[enemy.kind].armor, enemy.statuses);
+	const blocked = obstacles(room);
 	const result = rules.strike(
 		rules.attackBonus(me.def, action),
 		action.dice ?? '1d4',
 		defense,
+		{
+			ranged: action.range > 1,
+			hostileBeside: [...encounter.enemies.keys()].some((id) => {
+				const foe = room.tokens.get(id);
+				return !!foe && beside(blocked, me.token.pos, foe.pos);
+			}),
+			targetUnseen: inDark(room, target.pos),
+			attackerUnseen: inDark(room, me.token.pos),
+			targetStatuses: enemy.statuses
+		},
 		roller
 	);
 	let outcome: string | undefined;
@@ -1923,8 +1985,25 @@ function attackEnemy(
 		hit: result.hit,
 		damage: result.damage,
 		...(outcome ? { outcome } : {}),
-		...(effect ? { effect } : {})
+		...(effect ? { effect } : {}),
+		...strikeNotes(result)
 	});
+}
+
+/** What an attack's log entry says of how the rules resolved it, when they say. */
+function strikeNotes(
+	result: Strike
+): Pick<Extract<ChatMessage, { kind: 'attack' }>, 'mode' | 'critical' | 'explain'> {
+	return {
+		...(result.mode ? { mode: result.mode } : {}),
+		...(result.critical ? { critical: true } : {}),
+		...(result.explain ? { explain: result.explain } : {})
+	};
+}
+
+/** Two cells side by side (diagonals too), not through a wall. */
+function beside(blocked: Obstacles, a: GridPos, b: GridPos): boolean {
+	return gridDistance(a, b) === 1 && hasLineOfSight(blocked, a, b);
 }
 
 function heal(
@@ -2023,9 +2102,28 @@ function afterAction(
 	if (done?.over) return merge({ log }, done.outcome);
 	if (done) log = [...log, ...done.outcome.log];
 	const spent = (encounter.moved.get(me.id) ?? 0) >= encounter.speed;
-	if (encounter.acted.has(me.id) && spent)
+	if (spent && !canStillAct(adventure, encounter, me))
 		return merge({ log }, advance(room, adventure, encounter));
 	return { log };
+}
+
+/**
+ * The key for a part of a character's turn spent this turn: its id for its
+ * action (as saves before rulesets had it), `<id>:<type>` for another part
+ * (a bonus action).
+ */
+export function spentKey(id: string, type: string): string {
+	return type === 'action' ? id : `${id}:${type}`;
+}
+
+/** Whether a character has an action left to take this turn (one with uses, of a part of its turn not spent). */
+function canStillAct(adventure: AdventureState, encounter: Encounter, me: Played): boolean {
+	const rules = rulesOf(adventure);
+	return me.def.actions.some(
+		(a) =>
+			usesLeft(me.state, a) !== 0 &&
+			!encounter.acted.has(spentKey(me.id, rules.actionType(me.def, a)))
+	);
 }
 
 /** An enemy is gone from the fight and the table; a fight's first fallen may leave remains. */
@@ -2205,7 +2303,7 @@ function enemyActs(
 	}
 	if (deed?.kind === 'attack') {
 		const target = who(deed.target);
-		if (target) log.push(enemyAttack(room, token, deed.attack, target, roller));
+		if (target) log.push(...enemyAttack(room, token, deed.attack, target, roller));
 	} else if (deed?.kind === 'toll') {
 		const toll = content(adventure).enemies[enemy.kind].toll;
 		const targets = deed.targets.flatMap((id) => who(id) ?? []);
@@ -2217,38 +2315,98 @@ function enemyActs(
 	return log;
 }
 
-/** An enemy attacks a character: to-hit against its defense, damage on a hit. */
+/**
+ * An enemy attacks a character: to-hit against its defense, damage on a hit.
+ * An attack with a save instead has the target roll a saving throw.
+ */
 function enemyAttack(
 	room: Room,
 	token: Token,
 	attack: Attack,
 	target: Played,
 	roller: DieRoller
-): ChatMessage {
+): ChatMessage[] {
 	const rules = rulesOf(room.adventure!);
+	if (attack.save) return saveAttack(room, token, attack, attack.save, target, roller);
 	const defense = characterDefense(rules, target);
-	const result = rules.strike(attack.toHit, attack.damage, defense, roller);
+	const blocked = obstacles(room);
+	const situation: AttackSituation = {
+		ranged: attack.range > 1,
+		hostileBeside: standing(room, room.adventure!).some((c) =>
+			beside(blocked, token.pos, c.token.pos)
+		),
+		targetUnseen: inDark(room, target.token.pos),
+		attackerUnseen: inDark(room, token.pos),
+		targetStatuses: target.state.statuses
+	};
+	const result = rules.strike(attack.toHit, attack.damage, defense, situation, roller);
 	let outcome: string | undefined;
-	if (result.damage) {
-		target.state.hp = Math.max(0, target.state.hp - result.damage.total);
-		if (target.state.hp === 0) {
-			target.state.downedFor = 0;
-			outcome = `${target.def.name} falls!`;
-		}
-	}
-	return appendLog(room, {
-		kind: 'attack',
-		authorId: token.id,
-		authorName: token.name,
-		attack: attack.name,
-		targetId: target.token.id,
-		targetName: target.def.name,
-		toHit: result.toHit,
-		defense,
-		hit: result.hit,
-		damage: result.damage,
-		...(outcome ? { outcome } : {})
-	});
+	if (result.damage) outcome = wound(target, result.damage.total);
+	return [
+		appendLog(room, {
+			kind: 'attack',
+			authorId: token.id,
+			authorName: token.name,
+			attack: attack.name,
+			targetId: target.token.id,
+			targetName: target.def.name,
+			toHit: result.toHit,
+			defense,
+			hit: result.hit,
+			damage: result.damage,
+			...(outcome ? { outcome } : {}),
+			...strikeNotes(result)
+		})
+	];
+}
+
+/** Damage to a character; what came of it when it fell. */
+function wound(target: Played, amount: number): string | undefined {
+	target.state.hp = Math.max(0, target.state.hp - amount);
+	if (target.state.hp > 0) return undefined;
+	target.state.downedFor = 0;
+	return `${target.def.name} falls!`;
+}
+
+/** The target of a save attack rolls its saving throw, and takes the damage on a failure (half on a success, if so). */
+function saveAttack(
+	room: Room,
+	token: Token,
+	attack: Attack,
+	save: NonNullable<Attack['save']>,
+	target: Played,
+	roller: DieRoller
+): ChatMessage[] {
+	const player = target.token.ownerId ? room.players.get(target.token.ownerId) : undefined;
+	const check = rollCheck(
+		room,
+		player ?? null,
+		target,
+		`${token.name}: ${attack.name}`,
+		{ stat: save.stat, dc: save.dc, save: true },
+		roller
+	);
+	const rolled = roll(attack.damage, roller);
+	const amount = check.success ? (save.half ? Math.floor(rolled.total / 2) : 0) : rolled.total;
+	const outcome = amount > 0 ? wound(target, amount) : undefined;
+	const text =
+		amount === 0
+			? `${target.def.name} shrugs it off.`
+			: `${target.def.name} takes ${amount} damage${check.success ? ' (half, on a save)' : ''}.${outcome ? ` ${outcome}` : ''}`;
+	return [
+		check.entry,
+		appendLog(room, {
+			kind: 'ability',
+			authorId: token.id,
+			authorName: token.name,
+			ability: attack.name,
+			targetId: target.token.id,
+			targetName: target.def.name,
+			roll: rolled,
+			amount: -amount,
+			text
+		})
+	];
 }
 
 /** A toll: everyone close by takes the damage and is slowed on their next turn. */
@@ -2369,7 +2527,7 @@ export function afterMove(
 		encounter.moved.set(me.id, (encounter.moved.get(me.id) ?? 0) + cost);
 		// Acted and walked as far as it can: the turn is over.
 		const spent = (encounter.moved.get(me.id) ?? 0) >= encounter.speed;
-		if (isTurnOf(encounter, me.id) && encounter.acted.has(me.id) && spent) {
+		if (isTurnOf(encounter, me.id) && spent && !canStillAct(adventure, encounter, me)) {
 			return advance(room, adventure, encounter);
 		}
 	}

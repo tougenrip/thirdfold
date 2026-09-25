@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { asset, resolve } from '$app/paths';
 	import { canReach, inActionRange } from '$lib/adventure/adventure';
-	import { actionOf, CHARACTERS, type CharacterId } from '$lib/adventure/characters';
+	import { actionOf, type CharacterId } from '$lib/adventure/characters';
 	import type { ChatMessage } from '$lib/game/chat';
 	import { formatBreakdown } from '$lib/game/dice';
 	import { gridDistance, type GridPos } from '$lib/game/grid';
@@ -424,7 +424,7 @@
 	function adventureTarget(pick: Pick | null): AdventureTarget | null {
 		if (!pick || !room || !adventure || !myCharacter || !myCharacterToken || isGm) return null;
 		if (myCharacter.downed || myCharacter.dead) return null;
-		const def = CHARACTERS[myCharacter.id];
+		const def = myCharacter.def;
 		const token = pick.tokenId ? room.tokens.find((t) => t.id === pick.tokenId) : undefined;
 		const enemy = token && adventure.encounter?.enemies.find((e) => e.tokenId === token.id);
 		const ally = token && adventure.characters.find((c) => c.tokenId === token.id && !c.dead);
@@ -1376,7 +1376,8 @@
 
 		{#if myCharacter && (introFor === myCharacter.id || sheetOpen)}
 			<CharacterSheet
-				character={CHARACTERS[myCharacter.id]}
+				character={myCharacter.def}
+				card={myCharacter.card}
 				status={myCharacter}
 				intro={introFor === myCharacter.id}
 				onClose={() => {
@@ -1439,7 +1440,7 @@
 		{#if learning && adventure && myCharacter && tutorial.stage === 'welcome' && introFor === null && !sheetOpen}
 			<Welcome
 				{adventure}
-				characterName={CHARACTERS[myCharacter.id].name}
+				characterName={myCharacter.def.name}
 				onLearn={() => setTutorial({ ...tutorial, stage: 'tutorial' })}
 				onSkip={() => setTutorial({ ...tutorial, stage: 'done' })}
 			/>

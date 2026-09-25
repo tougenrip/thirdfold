@@ -24,7 +24,12 @@ export const STATUSES: Record<StatusId, { name: string; about: string }> = {
 };
 export const STATUS_IDS = Object.keys(STATUSES) as StatusId[];
 
-/** An enemy's attack: a d20 plus `toHit` against the target's defense, then `damage` on a hit. */
+/**
+ * An enemy's attack: a d20 plus `toHit` against the target's defense, then
+ * `damage` on a hit. With `save`, there is no attack roll: the target makes
+ * a saving throw (the stat by the story's rules) against `dc`, and takes the
+ * damage on a failure (half on a success, when `half`).
+ */
 export interface Attack {
 	name: string;
 	/** Reach in cells: 1 is melee (adjacent), more is ranged and needs line of sight. */
@@ -32,6 +37,17 @@ export interface Attack {
 	toHit: number;
 	/** Damage dice expression, e.g. `1d8+3`. */
 	damage: string;
+	save?: { stat: string; dc: number; half: boolean };
+}
+
+/**
+ * Plain data a ruleset reads about a character (ability scores, level,
+ * proficiencies, …): whatever that ruleset defines, checked by it on the
+ * server. The shared model knows nothing of its contents.
+ */
+export type RulesValue = number | string | boolean | readonly RulesValue[] | RulesData;
+export interface RulesData {
+	readonly [key: string]: RulesValue;
 }
 
 /** Something a character can do with their action. */
@@ -63,7 +79,7 @@ export interface CharacterDef {
 	/** Token colour, `#rrggbb`. */
 	color: string;
 	hp: number;
-	/** Makes the character harder to hit: attacks must reach 10 + armor. */
+	/** Makes the character harder to hit (classic rules: attacks must reach 10 + armor; others read it as they define). */
 	armor: number;
 	/** Cells the character may move per round in an encounter. */
 	speed: number;
@@ -74,6 +90,8 @@ export interface CharacterDef {
 	stats: Record<StatId, number>;
 	/** The first is the character's basic attack. */
 	actions: readonly Action[];
+	/** What a story's ruleset needs beyond the above (e.g. ability scores); absent under the classic rules. */
+	sheet?: RulesData;
 }
 
 export const CHARACTERS: Record<CharacterId, CharacterDef> = {
@@ -264,15 +282,22 @@ export const BLEED_OUT_ROUNDS = 3;
 
 /** A one-line summary of an action for buttons and sheets, e.g. "Melee · +5 to hit · 1d8+3". */
 export function describeAction(character: CharacterDef, action: Action): string {
+	return summarizeAction(action, toHitFor(character, action));
+}
+
+/** The same summary, with the attack bonus as the story's rules work it out. */
+export function summarizeAction(action: Action, toHit: number): string {
 	const reach =
 		action.target === 'self'
-			? 'You and allies beside you'
+			? action.kind === 'heal'
+				? 'Yourself'
+				: 'You and allies beside you'
 			: action.range <= 1
 				? 'Melee'
 				: `Range ${action.range}`;
 	const parts = [reach];
 	if (action.kind === 'attack')
-		parts.push(`+${toHitFor(character, action)} to hit`, `${action.dice} damage`);
+		parts.push(`${toHit >= 0 ? '+' : ''}${toHit} to hit`, `${action.dice} damage`);
 	if (action.kind === 'heal') parts.push(`heals ${action.dice}`);
 	if (action.applies) parts.push(STATUSES[action.applies.status].name.toLowerCase());
 	if (action.uses !== null) parts.push(`${action.uses}× per fight`);

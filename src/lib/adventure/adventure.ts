@@ -10,7 +10,7 @@ import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
 import type { Creator } from '../game/library';
 import { hasLineOfSight } from '../game/visibility';
-import type { Action, CharacterId, StatId, StatusId } from './characters';
+import type { Action, CharacterDef, CharacterId, StatusId } from './characters';
 
 /** Which adventure is being played (its own id; see server/adventures). */
 export type AdventureId = string;
@@ -190,10 +190,67 @@ export const PHYSICAL_ACTIONS: Record<Physical, string> = {
 	trigger: 'Trigger'
 };
 
-/** A check a character must pass: a d20 plus one of its stats, against a difficulty. */
+/**
+ * A check a character must pass: a d20 plus its bonus for `stat`, against a
+ * difficulty. What `stat` may name is the story's ruleset's (the classic
+ * rules: might, agility, wits, spirit); `save` makes it a saving throw, for
+ * rules that tell the two apart.
+ */
 export interface Check {
-	stat: StatId;
+	stat: string;
 	dc: number;
+	save?: boolean;
+}
+
+/** A check as a character would make it, worked out by the story's rules on the server. */
+export interface CheckView extends Check {
+	/** What is rolled, e.g. "Wits" or "Wisdom (Perception)". */
+	label: string;
+	/** This viewer's character's bonus to it; null for a viewer without a character. */
+	bonus: number | null;
+}
+
+/** The rules a story plays by, as the table shows them. */
+export interface RulesInfo {
+	id: string;
+	version: number;
+	name: string;
+	/** Required credit for rules material from an outside source (a licence's attribution), if any. */
+	attribution: string | null;
+}
+
+/** A number on a character's sheet, e.g. an ability or a skill. */
+export interface SheetValue {
+	id: string;
+	name: string;
+	/** What a d20 roll of it adds. */
+	bonus: number;
+	/** The score the bonus comes from, where the rules have one (an ability score). */
+	score: number | null;
+	/** Whether the character's proficiency counts, where the rules have proficiency. */
+	proficient: boolean;
+}
+
+/**
+ * A character's numbers as the story's rules work them out, sent by the
+ * server so no client has to know the rules.
+ */
+export interface CharacterCard {
+	/** e.g. "Defense" or "Armor Class", and its value now (statuses counted). */
+	defense: { name: string; value: number };
+	level: number | null;
+	proficiency: number | null;
+	/** What checks add, e.g. the four classic stats or six abilities. */
+	stats: SheetValue[];
+	/** Saving throws, for rules that have them. */
+	saves: SheetValue[];
+	/** Skills, for rules that have them. */
+	skills: SheetValue[];
+	/**
+	 * Each action's one-line summary and the part of a turn it takes: `part` as
+	 * `CharacterStatus.spent` lists it ("action", "bonus"), `partName` as players read it.
+	 */
+	actions: { id: string; summary: string; part: string; partName: string }[];
 }
 
 /**
@@ -235,6 +292,12 @@ export interface CharacterStatus {
 	usesLeft: Record<string, number | null>;
 	/** What it carries, by world object. */
 	carrying: { id: string; name: string }[];
+	/** Who the character is (name, colour, actions), as this story defines them. */
+	def: CharacterDef;
+	/** Its numbers by the story's rules. */
+	card: CharacterCard;
+	/** Parts of its turn already spent in the fight at hand ("action", "bonus"). */
+	spent: string[];
 }
 
 export interface ActiveStatus {
@@ -318,7 +381,7 @@ export interface Interactable {
 		/** What it physically does, if it does something to the thing. */
 		physical: Physical | null;
 		/** A check to pass first, if any. */
-		check: Check | null;
+		check: CheckView | null;
 		/** This viewer's character already tried the check and failed. */
 		tried: boolean;
 		/** It can be done in a fight, on the character's turn, as its action. */
@@ -423,6 +486,8 @@ export interface AdventureView {
 	summary: SessionSummary | null;
 	/** What the party has earned so far, in order. */
 	rewards: string[];
+	/** The rules the story plays by. */
+	rules: RulesInfo;
 	/** Where the adventure came from, when it is from the library; null otherwise. */
 	library: LibrarySourceView | null;
 	/** GM only: prepared text to read aloud. */

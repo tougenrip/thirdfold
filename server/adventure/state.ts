@@ -84,8 +84,8 @@ export interface Encounter {
 	order: TurnEntry[];
 	/** Whose turn it is: an index into `order`. */
 	current: number;
-	/** Characters who have used their action this round. */
-	acted: Set<CharacterId>;
+	/** Parts of their turn characters have spent: a character's id for its action, `<id>:<type>` for another (a bonus action). */
+	acted: Set<string>;
 	/** Cells moved this round, per character. */
 	moved: Map<CharacterId, number>;
 	/** Cells the character whose turn it is may move this turn (half its speed when slowed). */

@@ -6,17 +6,10 @@
 		PHYSICAL_ACTIONS,
 		type AdventureView,
 		type CharacterStatus,
-		type Check,
+		type CheckView,
 		type Sense
 	} from '$lib/adventure/adventure';
-	import {
-		BLEED_OUT_ROUNDS,
-		CHARACTERS,
-		describeAction,
-		STATS,
-		STATUSES,
-		type Action
-	} from '$lib/adventure/characters';
+	import { BLEED_OUT_ROUNDS, STATUSES, type Action } from '$lib/adventure/characters';
 	import type { Blockers } from '$lib/game/objects';
 	import type { Token } from '$lib/game/token';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
@@ -47,9 +40,18 @@
 		send
 	}: Props = $props();
 
-	const def = $derived(CHARACTERS[character.id]);
+	const def = $derived(character.def);
 	const encounter = $derived(adventure.encounter);
-	const acted = $derived(!!encounter?.acted.includes(character.id));
+	/** The turn's action is spent (other parts of a turn, a bonus action, may be left). */
+	const acted = $derived(character.spent.includes('action'));
+	/** An action as the rules show it: its summary and the part of a turn it takes. */
+	const cardOf = (action: Action) =>
+		character.card.actions.find((a) => a.id === action.id) ?? {
+			id: action.id,
+			summary: action.about,
+			part: 'action',
+			partName: 'Action'
+		};
 	const able = $derived(!character.downed && !character.dead);
 	/** Whose turn it is, in a fight. */
 	const up = $derived(encounter ? encounter.order[encounter.current] : undefined);
@@ -84,11 +86,10 @@
 	const canSense = $derived(able && !encounter && adventure.stage === 'playing');
 	const SENSES: Sense[] = ['listen', 'observe'];
 
-	/** "Wits 8": the stat and difficulty, with the character's bonus. */
-	function checkText(check: Check): string {
-		const stat = STATS.find((s) => s.id === check.stat)?.name ?? check.stat;
-		const bonus = def.stats[check.stat];
-		return `${stat} check (d20${bonus ? `+${bonus}` : ''} vs ${check.dc})`;
+	/** "Wits check (d20+2 vs 8)": the test and difficulty, with the character's bonus (by the rules, from the server). */
+	function checkText(check: CheckView): string {
+		const bonus = check.bonus ? `${check.bonus > 0 ? '+' : ''}${check.bonus}` : '';
+		return `${check.label}${check.save ? '' : ' check'} (d20${bonus} vs ${check.dc})`;
 	}
 
 	interface Target {
@@ -113,12 +114,20 @@
 			if (!t || c.dead) return [];
 			const inReach = inActionRange(blocked, token.pos, t.pos, action);
 			const detail = c.downed ? 'down' : `${c.hp}/${c.maxHp}`;
-			return [{ tokenId: t.id, name: CHARACTERS[c.id].name, detail, inReach }];
+			return [{ tokenId: t.id, name: c.def.name, detail, inReach }];
 		});
 	}
 
 	const canUse = (action: Action) =>
-		(encounter ? myTurn : true) && character.usesLeft[action.id] !== 0;
+		(encounter ? isMine && able && !character.spent.includes(cardOf(action).part) : true) &&
+		character.usesLeft[action.id] !== 0;
+	/** The parts of this turn still to take ("action", "bonus action"), for the status line. */
+	const partsLeft = $derived([
+		...new Set([
+			...(acted ? [] : ['action']),
+			...actions.filter(canUse).map((a) => cardOf(a).partName.toLowerCase())
+		])
+	]);
 
 	function pick(action: Action) {
 		if (action.target === 'self') {
@@ -149,8 +158,9 @@
 		}
 		if (!isMine) return `${up?.name ?? 'Someone else'}'s turn…`;
 		const cells = `${movesLeft} ${movesLeft === 1 ? 'cell' : 'cells'} of movement`;
-		if (acted) return `Your turn: ${cells} left, then end your turn.`;
-		return `Your turn: ${cells}, one action.`;
+		if (partsLeft.length === 0) return `Your turn: ${cells} left, then end your turn.`;
+		const parts = partsLeft.map((p, i) => (i === 0 && p === 'action' ? 'one action' : `a ${p}`));
+		return `Your turn: ${cells}${acted ? ' left' : ''}, ${parts.join(' and ')}.`;
 	});
 	/** What a verb is: how it investigates, or what it physically does. */
 	function kindOf(v: AdventureView['interactables'][number]['verbs'][number]): string {
@@ -245,9 +255,11 @@
 					type="button"
 					class="action"
 					disabled={!canUse(action)}
-					title={`${describeAction(def, action)}. ${action.about}`}
+					title={`${cardOf(action).summary}. ${action.about}`}
 					onclick={() => pick(action)}
 				>
+					{#if cardOf(action).part !== 'action'}<small class="kind">{cardOf(action).partName}</small
+						>{/if}
 					{action.name}
 					{#if left !== null && left !== undefined}<small class="num">{left} left</small>{/if}
 				</button>
@@ -255,7 +267,7 @@
 			{#if encounter && able}
 				<button
 					type="button"
-					class:primary={isMine && acted}
+					class:primary={isMine && partsLeft.length === 0}
 					disabled={!isMine}
 					onclick={() => send({ type: 'adventure_end_turn' })}
 				>

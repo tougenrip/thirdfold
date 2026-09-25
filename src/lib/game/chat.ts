@@ -31,6 +31,9 @@ export interface Shot {
 	frame: 'close' | 'wide' | 'table';
 }
 
+/** A d20 rolled twice, keeping the higher or the lower (rules that have advantage). */
+export type RollMode = 'advantage' | 'disadvantage';
+
 export type ChatMessage =
 	| { seq: number; at: number; kind: 'chat'; authorId: string; authorName: string; text: string }
 	| {
@@ -70,6 +73,12 @@ export type ChatMessage =
 			roll: DiceRoll;
 			dc: number;
 			success: boolean;
+			/** A saving throw, for rules that tell saves from checks. */
+			save?: boolean;
+			/** Rolled twice, keeping the higher (advantage) or lower (disadvantage). */
+			mode?: RollMode;
+			/** How the rules resolved it, in a line, e.g. "d20 17 (advantage over 4) + 5 = 22 vs DC 13". */
+			explain?: string;
 	  }
 	| {
 			seq: number;
@@ -92,6 +101,11 @@ export type ChatMessage =
 			outcome?: string;
 			/** A status it put on the target, e.g. "Slowed". */
 			effect?: string;
+			mode?: RollMode;
+			/** A critical hit (its damage dice rolled twice, by rules that have them). */
+			critical?: boolean;
+			/** How the rules resolved it, in a line. */
+			explain?: string;
 	  }
 	| {
 			seq: number;

@@ -465,9 +465,13 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 						: 0
 					: int(e.speed, 0, COUNT_MAX, 'movement'),
 			acted: new Set(
-				list(e.acted, 'turns').map((who) => {
-					check(isCharacterId(who), 'turns');
-					return who;
+				// A character's id for its action; `<id>:<type>` for another part of its turn.
+				list(e.acted, 'turns').map((key) => {
+					check(typeof key === 'string', 'turns');
+					const [who, type, ...rest] = (key as string).split(':');
+					check(isCharacterId(who) && rest.length === 0, 'turns');
+					check(type === undefined || /^[a-z]{1,16}$/.test(type), 'turns');
+					return key as string;
 				})
 			),
 			moved,

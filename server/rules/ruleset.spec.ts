@@ -24,13 +24,20 @@ const flat: Ruleset = {
 	...classic,
 	...FLAT,
 	name: 'Flat',
-	checkBonus: () => 0,
-	statName: () => 'Luck'
+	bonus: () => 0,
+	label: () => 'Luck'
 };
 registerRuleset(flat);
 addAdventure({ ...HOLLOW_BELL, id: 'hollow-bell-flat', rules: FLAT });
 
 const min: DieRoller = () => 1;
+const open = {
+	ranged: false,
+	hostileBeside: false,
+	targetUnseen: false,
+	attackerUnseen: false,
+	targetStatuses: new Map()
+};
 
 function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 	if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result)}`);
@@ -80,8 +87,9 @@ describe('the classic rules', () => {
 
 	it('answers as the adventures always played', () => {
 		const veil = CHARACTERS.veil;
-		expect(classic.checkBonus(veil, 'agility')).toBe(4);
-		expect(classic.statName('wits')).toBe('Wits');
+		expect(classic.bonus(veil, 'agility', 'check')).toBe(4);
+		expect(classic.label('wits', 'check')).toBe('Wits');
+		expect(classic.actionType(veil, veil.actions[1])).toBe('action');
 		expect(classic.initiativeBonus(veil)).toBe(4);
 		expect(classic.attackBonus(veil, veil.actions[0])).toBe(6);
 		expect(classic.defense(1, new Map())).toBe(11);
@@ -102,8 +110,34 @@ describe('the classic rules', () => {
 	});
 
 	it('hits on a natural 20 and misses on a natural 1, whatever the numbers', () => {
-		expect(classic.strike(0, '1d4', 99, () => 20).hit).toBe(true);
-		expect(classic.strike(99, '1d4', 2, () => 1)).toMatchObject({ hit: false, damage: null });
+		expect(classic.strike(0, '1d4', 99, open, () => 20).hit).toBe(true);
+		expect(classic.strike(99, '1d4', 2, open, () => 1)).toMatchObject({
+			hit: false,
+			damage: null
+		});
+	});
+
+	it('pay no mind to the table: the dark, or a foe beside an archer', () => {
+		const dark = { ...open, ranged: true, hostileBeside: true, targetUnseen: true };
+		const ten: DieRoller = () => 10;
+		expect(classic.strike(2, '1d4', 12, dark, ten)).toEqual(
+			classic.strike(2, '1d4', 12, open, ten)
+		);
+		const veil = CHARACTERS.veil;
+		const lit = classic.test(veil, 'wits', 'check', 12, { dark: false, sight: true }, ten);
+		const unlit = classic.test(veil, 'wits', 'check', 12, { dark: true, sight: true }, ten);
+		expect(unlit).toEqual(lit);
+		expect(lit).toMatchObject({ success: true, label: 'Wits', roll: { expression: '1d20+2' } });
+	});
+
+	it('find nothing wrong with the built-in adventures', () => {
+		expect(classic.validate(HOLLOW_BELL)).toEqual([]);
+		expect(
+			classic.validate({
+				...HOLLOW_BELL,
+				signs: [{ ...HOLLOW_BELL.signs[0], check: { stat: 'luck', dc: 10 } }]
+			})
+		).toEqual([expect.stringContaining('no stat "luck"')]);
 	});
 });
 
