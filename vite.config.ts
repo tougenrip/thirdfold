@@ -50,6 +50,8 @@ export default defineConfig({
 						expect: {
 							toMatchScreenshot: {
 								comparatorName: 'pixelmatch',
+								// CI's small runners take several seconds per software-rendered capture.
+								timeout: 30_000,
 								comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 }
 							}
 						}

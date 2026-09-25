@@ -164,15 +164,22 @@ export async function mountFixture(
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-/** Waits until the tabletop has drawn and then stopped drawing for a few frames. */
-export async function settle(tabletop: Tabletop, quiet = 6, limit = 600): Promise<void> {
+/**
+ * Waits until the tabletop has drawn and then stopped drawing for `quietMs`,
+ * or `limitMs` has passed (a table with flickering flames never goes quiet).
+ * Time-based, so slow machines (CI's software rendering) wait as long as fast ones.
+ */
+export async function settle(tabletop: Tabletop, quietMs = 250, limitMs = 8000): Promise<void> {
+	const start = performance.now();
 	let last = -1;
-	let still = 0;
-	for (let i = 0; i < limit && still < quiet; i++) {
+	let quietSince = start;
+	while (performance.now() - start < limitMs) {
 		await nextFrame();
 		const frames = tabletop.stats().frames;
-		still = frames === last && frames > 0 ? still + 1 : 0;
-		last = frames;
+		if (frames !== last || frames === 0) {
+			last = frames;
+			quietSince = performance.now();
+		} else if (performance.now() - quietSince >= quietMs) return;
 	}
 }
 
