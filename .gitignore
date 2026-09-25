@@ -34,3 +34,6 @@ android/
 
 # Vitest screenshot diffs
 .vitest-attachments/
+
+# Private reference shots for look metrics (scripts/look-metrics.mjs); never commit them
+.look-refs/
