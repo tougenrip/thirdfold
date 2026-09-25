@@ -38,13 +38,40 @@ measured and left alone.
   It also times the server's per-action view work directly (every viewer's view, then the diffs),
   with a character on a random walk to new cells, and the watch's patrol step.
 - **Client (load, scene loading, frames, memory, network):** build, serve and start a server, then
-  run `node scripts/perf-client.mjs http://localhost:4173 data/perf`. See the comment at the top of
-  the script. The script uses a GM and two players in Chromium. It measures the landing page, the
-  join form from an invite link, and each table's load (snapshot size, long tasks, what each
-  renderer update cost). It then measures idle frames, frames while orbiting the camera, a move's
-  network and main-thread cost, heap after GC, and GPU resources after loading the tables again.
-- **GPU cost of a frame:** `node scripts/perf-gpu.mjs`. It draws each table's current view
-  repeatedly and waits for the GPU each time.
+  run `node scripts/perf-client.mjs http://localhost:4173 tests/fixtures/scenes`. See the comment at
+  the top of the script. The script uses a GM and two players in Chromium, on the committed fixture
+  tables. It measures the landing page, the join form from an invite link, and each table's load
+  (snapshot size, long tasks, what each renderer update cost). It then measures idle frames, a fixed
+  orbit of the camera, a move's network and main-thread cost, heap after GC, GPU resources after
+  loading every table three more times and after leaving and rejoining the room three times, and
+  the bundle sizes (`check-bundle.mjs --json`). `--json <file>` writes the whole report.
+- **Perf gate:** `--baseline docs/perf-baseline.json` compares the counters that do not depend on
+  the machine's speed with the committed baseline and exits 1 on a regression. The `Perf` workflow
+  (`.github/workflows/perf.yml`) runs it on every push to `main` and on pull requests that touch
+  the renderer, assets, fixtures or the perf scripts; its table goes to the run's summary and the
+  whole report is uploaded as the `perf-report` artifact. The gate fails when:
+
+  | Counter                                                 | Fails when                     |
+  | ------------------------------------------------------- | ------------------------------ |
+  | Draw calls in the settled frame after the orbit         | more than baseline × 1.10      |
+  | Shader programs after a table loads                     | more than baseline             |
+  | Geometries, textures, heap after GC (per table, viewer) | more than baseline × 1.10      |
+  | Frames in 3 s of idle on a daylight table               | more than 0                    |
+  | Geometries, textures, programs after three more reloads | above the first load           |
+  | The same after three more remounts of the Tabletop      | above the first remount        |
+  | Heap after each remount                                 | above the first × 1.10         |
+  | "Too many active WebGL contexts" warnings               | any                            |
+  | Bundle sizes (`check-bundle.mjs` budgets)               | over budget, or three.js eager |
+
+  Milliseconds are printed, never gated: SwiftShader's timings say little about real GPUs. To change
+  the baseline on purpose, run with `--update-baseline docs/perf-baseline.json` on the pinned
+  Chromium and say why in the PR.
+
+- **GPU cost of a frame:** `PERF_GPU=vulkan node scripts/perf-gpu.mjs [url] [scenes] [out.json]`.
+  It draws the fixture tables at their named poses for the GM and a player, at 1400×900 and
+  1920×1080, timed by WebGL2 timer queries where the driver has them and by a readPixels round trip.
+  `PERF_GPU` is `swiftshader` (default), `vulkan` (a discrete GPU) or `egl` (an integrated GPU); the
+  report names the GPU the browser actually used.
 - **Asset sizes:** `npm run build` prints each chunk. `npx vite build --sourcemap true` with a
   source-map walk shows what a chunk is made of.
 - **Bundle gate:** `npm run bundle:check`, after `npm run build` (CI runs it too). It walks the Vite

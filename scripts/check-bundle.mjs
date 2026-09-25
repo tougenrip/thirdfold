@@ -4,7 +4,7 @@
 // its own budget. 'own' is what a page adds beyond the app shell (the entries
 // and the root layout), which every page shares. Reads the Vite manifest; see
 // docs/PERFORMANCE.md.
-//   node scripts/check-bundle.mjs
+//   node scripts/check-bundle.mjs [--json]   (--json prints the sizes as JSON instead of a table)
 
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -89,11 +89,13 @@ rows.push({ name: 'renderer (added)', ...total(added), budget: BUDGETS.renderer,
 
 const kb = (n) => `${(n / 1000).toFixed(1)} kB`;
 const failures = [];
+const asJson = process.argv.includes('--json');
+const log = asJson ? () => {} : console.log;
 const cols = ['closure', 'raw', 'gz', 'budget', 'own gz', 'budget', 'three.js'];
-console.log(cols[0].padEnd(18), ...cols.slice(1).map((c) => c.padStart(10)));
+log(cols[0].padEnd(18), ...cols.slice(1).map((c) => c.padStart(10)));
 for (const r of rows) {
 	const { total: max, own: maxOwn } = r.budget;
-	console.log(
+	log(
 		r.name.padEnd(18),
 		kb(r.raw).padStart(10),
 		kb(r.gz).padStart(10),
@@ -108,8 +110,14 @@ for (const r of rows) {
 		failures.push(`${r.name} adds ${kb(r.own)} gz to the shell, over ${kb(maxOwn)}`);
 	}
 }
+if (asJson) {
+	const sizes = Object.fromEntries(
+		rows.map((r) => [r.name, { gz: r.gz, own: r.own ?? null, three: r.three }])
+	);
+	console.log(JSON.stringify({ sizes, failures }));
+}
 if (failures.length) {
 	console.error(`\nBundle check failed:\n- ${failures.join('\n- ')}`);
 	process.exit(1);
 }
-console.log('\nBundle check passed.');
+log('\nBundle check passed.');

@@ -183,6 +183,11 @@ DPR 1, with a clock the test holds still, reduced motion on and the camera at a 
   pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`), and the
   spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
 
+**When a golden fails in CI**, the `verify` job uploads the `golden-diffs` artifact
+(`.vitest-attachments/`: the reference, the actual image and a diff for each failure; kept 14
+days). Download it from the run's page; its reference and actual PNGs are the before and after a
+golden PR shows.
+
 **Changing goldens.** Update them only on purpose, on Linux:
 
 ```bash
