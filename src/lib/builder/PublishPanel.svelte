@@ -165,7 +165,7 @@
 								>Put back in the library</button
 							>
 						{/if}
-						<button type="button" onclick={() => manage(a, 'remove')}>Remove</button>
+						<button type="button" class="danger" onclick={() => manage(a, 'remove')}>Remove</button>
 					</span>
 				</li>
 			{/each}
@@ -187,20 +187,20 @@
 	.row {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.6rem;
+		gap: var(--sp-4);
 		align-items: end;
 	}
 
 	label {
 		display: grid;
-		gap: 0.25rem;
-		font-size: 0.85rem;
+		gap: var(--sp-2);
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.mine {
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 		padding: 0;
 		list-style: none;
 	}
@@ -209,7 +209,7 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		gap: 0.6rem;
+		gap: var(--sp-4);
 		flex-wrap: wrap;
 	}
 
@@ -219,7 +219,7 @@
 
 	.actions {
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 
 	.muted {
@@ -227,6 +227,6 @@
 	}
 
 	.ok {
-		color: var(--ok, #7cc47c);
+		color: var(--ok);
 	}
 </style>

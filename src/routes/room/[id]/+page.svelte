@@ -69,8 +69,8 @@
 {:else if needsJoin}
 	<main class="notice">
 		<Steps current={1} />
-		<p class="kicker">Room {roomId}</p>
 		<h1>You’re invited to play</h1>
+		<p class="room-id">Room <span class="num">{roomId}</span></p>
 		{#if errorCode === 'session_not_found'}
 			<p>Your previous seat in this room has expired. Join again to carry on.</p>
 		{:else}
@@ -92,7 +92,7 @@
 		</form>
 		<button
 			type="button"
-			class="watch"
+			class="watch ghost"
 			disabled={!name.trim()}
 			onclick={() => join(null, 'spectator')}
 		>
@@ -110,50 +110,40 @@
 	.notice {
 		max-width: 30rem;
 		margin: 0 auto;
-		padding: 5rem 1rem;
+		padding: 5rem var(--sp-6);
 	}
 
 	.notice form {
 		display: grid;
 		grid-template-columns: 1fr auto;
 		align-items: end;
-		gap: 0.5rem;
-		margin-top: 1.25rem;
-	}
-
-	.kicker {
-		margin: 1.5rem 0 0;
-		color: var(--muted);
-		font-size: 0.85rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
+		gap: var(--sp-4);
+		margin-top: var(--sp-7);
 	}
 
 	.notice h1 {
-		margin: 0.2rem 0 0.4rem;
+		margin: var(--sp-7) 0 var(--sp-2);
+	}
+
+	.room-id {
+		margin: 0 0 var(--sp-3);
+		color: var(--muted);
+		font-size: var(--fs-sm);
 	}
 
 	.field {
 		display: grid;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.field span {
 		color: var(--muted);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 	}
 
 	.watch {
-		margin-top: 0.75rem;
-		padding: 0;
-		border: none;
-		background: none;
-		color: var(--muted);
+		margin-top: var(--sp-5);
 		text-decoration: underline;
-		font-size: 0.85rem;
-	}
-
-	.notice a {
-		color: var(--accent);
+		font-size: var(--fs-sm);
 	}
 </style>

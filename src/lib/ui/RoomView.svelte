@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { asset, resolve } from '$app/paths';
 	import { canReach, inActionRange } from '$lib/adventure/adventure';
 	import { actionOf, CHARACTERS, type CharacterId } from '$lib/adventure/characters';
 	import type { ChatMessage } from '$lib/game/chat';
@@ -27,6 +27,7 @@
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
 	import { DEFAULT_LIGHT_RADIUS, LIGHT_COLORS, type Light } from '$lib/game/lights';
 	import {
+		ASSETS,
 		footprintCells,
 		footprintSize,
 		obstaclesFor,
@@ -36,6 +37,7 @@
 		type Rotation
 	} from '$lib/game/props';
 	import { play, setAmbience, setMusic } from '$lib/audio/engine';
+	import { fade, fly } from 'svelte/transition';
 	import { ambienceFor, musicFor, SILENCE, soundsFor, type AudioState } from '$lib/audio/cues';
 	import ActionBar from './ActionBar.svelte';
 	import AudioControls from './AudioControls.svelte';
@@ -96,6 +98,26 @@
 		}
 	});
 
+	/** Which of the GM's workshop panels are open (folded until asked for), remembered here. */
+	let folds = $state(savedFolds());
+
+	function savedFolds(): { build: boolean; scene: boolean } {
+		try {
+			const saved = JSON.parse(localStorage.getItem('thirdfold:folds') ?? '{}');
+			return { build: saved.build === true, scene: saved.scene === true };
+		} catch {
+			return { build: false, scene: false };
+		}
+	}
+
+	$effect(() => {
+		try {
+			localStorage.setItem('thirdfold:folds', JSON.stringify(folds));
+		} catch {
+			// Storage unavailable: the panels just start folded again.
+		}
+	});
+
 	/** Seconds until the next reconnect try, ticking while we wait. */
 	let now = $state(Date.now());
 	$effect(() => {
@@ -129,6 +151,15 @@
 	let selectedPropId = $state<string | null>(null);
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
+	/** A one-step undo offered with the toast (a deleted prop, put back). */
+	let undo = $state<{ label: string; run: () => void } | null>(null);
+	/** A prop put back by undo: its scale and hidden flag follow once it reappears. */
+	let restoring: (Prop & { known: Set<string> }) | null = null;
+	/** Small screens show one panel at a time over the table. */
+	let sheet = $state<'table' | 'side' | 'chat'>('table');
+	let barHeight = $state(0);
+	/** Where tokens are announced to screen readers after a keyboard move. */
+	let moved = $state('');
 	let rollCard = $state<RollEntry | null>(null);
 	/** The roll being thrown as 3D dice; its card shows once they land. */
 	let diceThrow = $state<DiceThrow | null>(null);
@@ -572,7 +603,7 @@
 			return 'Waiting for the GM to give you a token.';
 		}
 		return isGm
-			? 'Click any token to move it, or build with the tools in the side panel.'
+			? 'Click any token to move it, or open Build the table to add walls, props and light.'
 			: 'Click one of your tokens to move it, or a door next to it to open it.';
 	});
 
@@ -689,9 +720,61 @@
 
 	$effect(() => {
 		if (!toast) return;
-		const timer = setTimeout(() => (toast = null), 3500);
+		const timer = setTimeout(
+			() => {
+				toast = null;
+				undo = null;
+			},
+			undo ? 8000 : 3500
+		);
 		return () => clearTimeout(timer);
 	});
+
+	function showUndo(message: string, label: string, run: () => void) {
+		toast = message;
+		undo = { label, run };
+	}
+
+	function deleteProp(prop: Prop) {
+		act({ type: 'prop_delete', propId: prop.id });
+		selectedPropId = null;
+		showUndo(`${propName(prop)} removed.`, 'Undo', () => {
+			restoring = { ...prop, known: new Set(room?.props.map((p) => p.id)) };
+			act({ type: 'prop_create', assetId: prop.assetId, pos: prop.pos, rotation: prop.rotation });
+		});
+	}
+
+	// The server gives a restored prop a new id: find it, then give back what create can't carry.
+	$effect(() => {
+		const props = room?.props;
+		const was = restoring;
+		if (!props || !was) return;
+		const back = props.find(
+			(p) =>
+				!was.known.has(p.id) &&
+				p.assetId === was.assetId &&
+				p.pos.x === was.pos.x &&
+				p.pos.y === was.pos.y
+		);
+		if (!back) return;
+		restoring = null;
+		if (was.scale !== back.scale || !!was.hidden !== !!back.hidden) {
+			act({
+				type: 'prop_update',
+				propId: back.id,
+				patch: { scale: was.scale, hidden: !!was.hidden }
+			});
+		}
+	});
+
+	/** Keys typed on the table itself (it takes focus) drive the selected token. */
+	function onTable(target: EventTarget | null) {
+		return target instanceof HTMLCanvasElement;
+	}
+
+	function propName(prop: Prop) {
+		return ASSETS[prop.assetId]?.name ?? 'Prop';
+	}
 
 	function setTool(next: BuildTool) {
 		tool = next;
@@ -902,8 +985,25 @@
 			return;
 		}
 		if (isGm && !typing && selectedProp && (event.key === 'Delete' || event.key === 'Backspace')) {
-			act({ type: 'prop_delete', propId: selectedProp.id });
-			selectedPropId = null;
+			deleteProp(selectedProp);
+			return;
+		}
+		if (!typing && event.key.startsWith('Arrow') && onTable(event.target) && selected) {
+			const step: Record<string, [number, number]> = {
+				ArrowUp: [0, -1],
+				ArrowDown: [0, 1],
+				ArrowLeft: [-1, 0],
+				ArrowRight: [1, 0]
+			};
+			const [dx, dy] = step[event.key] ?? [0, 0];
+			const to = { x: selected.pos.x + dx, y: selected.pos.y + dy };
+			event.preventDefault();
+			if (!room || to.x < 0 || to.y < 0 || to.x >= room.grid.width || to.y >= room.grid.height) {
+				moved = `${selected.name} is at the edge of the table.`;
+				return;
+			}
+			act({ type: 'token_move', tokenId: selected.id, to });
+			moved = `${selected.name}: moving to column ${to.x + 1}, row ${to.y + 1}.`;
 			return;
 		}
 		if (event.key === 'Escape') {
@@ -1035,7 +1135,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="room">
+<div class="room" style:--below-bar={barHeight ? `calc(${barHeight}px + 1.25rem)` : null}>
 	{#if room}
 		<div class="stage">
 			<Tabletop
@@ -1071,23 +1171,28 @@
 		</div>
 	{/if}
 
-	<header class="bar">
-		<a class="brand" href={resolve('/')}>thirdfold</a>
-		<span class="code" title="Room code">{room?.id}</span>
-		<button type="button" onclick={copyInvite}>{copied ? 'Link copied' : 'Copy invite link'}</button
-		>
-		{#if isGm && room}
-			<button
-				type="button"
-				aria-pressed={room.listed}
-				title={room.listed
-					? 'Anyone can find this game on the front page and join. Click to make it invite-only.'
-					: 'Only people with the invite link can join. Click to list it for anyone to find.'}
-				onclick={() => act({ type: 'room_listing', listed: !room!.listed })}
+	<header class="bar" bind:clientHeight={barHeight}>
+		<span class="group">
+			<a class="brand" href={resolve('/')}>thirdfold</a>
+			<span class="code" title="Room code">{room?.id}</span>
+		</span>
+		<span class="group">
+			<button type="button" onclick={copyInvite}
+				>{copied ? 'Link copied' : 'Copy invite link'}</button
 			>
-				{room.listed ? 'Open to all' : 'Invite only'}
-			</button>
-		{/if}
+			{#if isGm && room}
+				<button
+					type="button"
+					aria-pressed={room.listed}
+					title={room.listed
+						? 'Anyone can find this game on the front page and join. Click to make it invite-only.'
+						: 'Only people with the invite link can join. Click to list it for anyone to find.'}
+					onclick={() => act({ type: 'room_listing', listed: !room!.listed })}
+				>
+					{room.listed ? 'Open to all' : 'Invite only'}
+				</button>
+			{/if}
+		</span>
 		<div class="views" role="group" aria-label="Camera">
 			<button type="button" aria-pressed={view === 'tactical'} onclick={() => (view = 'tactical')}>
 				Tactical
@@ -1101,20 +1206,7 @@
 	</header>
 
 	{#if room && me}
-		<aside class="side">
-			<section class="panel" aria-label="Players">
-				<h2>At the table</h2>
-				<ul class="players">
-					{#each room.players as player (player.id)}
-						<li class:offline={!player.connected}>
-							<span class="dot" title={player.connected ? 'Online' : 'Offline'}></span>
-							<span class="name">{player.name}{player.id === me.id ? ' (you)' : ''}</span>
-							<span class="role" data-role={player.role}>{ROLE_LABEL[player.role]}</span>
-						</li>
-					{/each}
-				</ul>
-			</section>
-
+		<aside class="side" data-open={sheet === 'side'}>
 			{#if isGm && adventure && adventure.stage !== 'choosing'}
 				<div class="panel">
 					<DirectorPanel
@@ -1160,14 +1252,36 @@
 				</div>
 			{/if}
 
+			<section class="panel" aria-label="Players">
+				<h2 class="section-title">At the table</h2>
+				<ul class="players">
+					{#each room.players as player (player.id)}
+						<li class:offline={!player.connected} in:fly={{ x: 12, duration: 260 }}>
+							<span class="dot" title={player.connected ? 'Online' : 'Offline'}></span>
+							<span class="name">{player.name}{player.id === me.id ? ' (you)' : ''}</span>
+							<span class="role" data-role={player.role}>{ROLE_LABEL[player.role]}</span>
+						</li>
+					{/each}
+				</ul>
+			</section>
+
 			{#if selectedProp}
 				<div class="panel">
-					<PropInspector prop={selectedProp} send={act} onDone={() => (selectedPropId = null)} />
+					<PropInspector
+						prop={selectedProp}
+						send={act}
+						onDone={() => (selectedPropId = null)}
+						onRemove={() => selectedProp && deleteProp(selectedProp)}
+					/>
 				</div>
 			{/if}
 
 			{#if isGm}
-				<div class="panel">
+				<details class="panel fold" bind:open={folds.build}>
+					<summary>
+						<span class="section-title">Build the table</span>
+						{#if tool !== 'select'}<span class="current">{tool.replace('-', ' ')}</span>{/if}
+					</summary>
 					<BuildPanel
 						{tool}
 						fogEnabled={room.fog.enabled}
@@ -1198,18 +1312,22 @@
 								reveal
 							})}
 					/>
-				</div>
+				</details>
 			{/if}
 
 			{#if isGm}
-				<div class="panel">
+				<details class="panel fold" bind:open={folds.scene}>
+					<summary>
+						<span class="section-title">Scenes and saves</span>
+						<span class="current">{room.sceneName}</span>
+					</summary>
 					<ScenePanel
 						sceneName={room.sceneName}
 						reply={conn.sceneReply}
 						send={act}
 						onError={showToast}
 					/>
-				</div>
+				</details>
 			{/if}
 
 			<!-- In an adventure a player's character is handled by the action bar. -->
@@ -1238,72 +1356,23 @@
 			{/if}
 		</aside>
 
-		<section class="chat-dock panel">
+		<section class="chat-dock panel" data-open={sheet === 'chat'}>
 			<ChatPanel log={room.log} myId={me.id} send={act} onError={showToast} />
 		</section>
 
-		<p class="hint" aria-live="polite">{hint}</p>
+		<nav class="dock-tabs" aria-label="Panels">
+			<button type="button" aria-pressed={sheet === 'table'} onclick={() => (sheet = 'table')}>
+				Table
+			</button>
+			<button type="button" aria-pressed={sheet === 'side'} onclick={() => (sheet = 'side')}>
+				{isGm ? 'GM tools' : 'Party'}
+			</button>
+			<button type="button" aria-pressed={sheet === 'chat'} onclick={() => (sheet = 'chat')}>
+				Chat
+			</button>
+		</nav>
 
-		{#if room.paused && gmAway && !isGm}
-			<p class="paused" role="status">The GM lost their connection. The game waits for them.</p>
-		{:else if room.paused}
-			<p class="paused" role="status">
-				Paused{isGm ? ': players can’t move or act until you carry on' : ' by the GM'}
-			</p>
-		{:else if gmAway && !isGm}
-			<p class="paused" role="status">The GM is away.</p>
-		{/if}
-
-		{#if adventure?.encounter}
-			{@const encounter = adventure.encounter}
-			<ol class="encounter" aria-label={`Round ${encounter.round}, turn order`}>
-				<li class="round">Round {encounter.round}</li>
-				{#if encounter.counter}
-					<li class="counter">
-						{encounter.counter.label}
-						{encounter.counter.count}/{encounter.counter.of}
-					</li>
-				{/if}
-				{#each encounter.order as t, i (i)}
-					{@const foe = t.tokenId
-						? encounter.enemies.find((e) => e.tokenId === t.tokenId)
-						: undefined}
-					<li
-						class="turn"
-						class:enemy={t.kind === 'enemy'}
-						class:current={i === encounter.current}
-						class:out={t.out}
-						aria-current={i === encounter.current ? 'true' : undefined}
-						title={`Initiative ${t.initiative}`}
-					>
-						<span class="init">{t.initiative}</span>
-						{t.name}
-						{#if foe}
-							<span class="foe-hp"
-								><span style:width={`${(100 * foe.hp) / foe.maxHp}%`}></span></span
-							>
-							<span class="foe-num">{foe.hp}/{foe.maxHp}</span>
-						{/if}
-					</li>
-				{/each}
-			</ol>
-		{/if}
-
-		{#if adventure && myCharacter && myCharacterToken}
-			<div class="action-dock">
-				<ActionBar
-					{adventure}
-					character={myCharacter}
-					token={myCharacterToken}
-					tokens={room.tokens}
-					{blocked}
-					{targeting}
-					onTargeting={(id) => (targeting = id)}
-					onSheet={() => (sheetOpen = true)}
-					send={act}
-				/>
-			</div>
-		{/if}
+		<p class="visually-hidden" aria-live="polite">{moved}</p>
 
 		{#if myCharacter && (introFor === myCharacter.id || sheetOpen)}
 			<CharacterSheet
@@ -1322,11 +1391,11 @@
 				<div class="roll-card" role="status">
 					{#if rollCard.kind === 'roll'}
 						<span class="who">{rollCard.authorName} rolled {rollCard.roll.expression}</span>
-						<span class="big">{rollCard.roll.total}</span>
+						<span class="big num">{rollCard.roll.total}</span>
 						<span class="how">{formatBreakdown(rollCard.roll)}</span>
 					{:else if rollCard.kind === 'check'}
 						<span class="who">{rollCard.authorName} · {rollCard.action}</span>
-						<span class="big" class:miss={!rollCard.success}>{rollCard.roll.total}</span>
+						<span class="big num" class:miss={!rollCard.success}>{rollCard.roll.total}</span>
 						<span class="how">
 							{rollCard.stat} check vs {rollCard.dc} · {rollCard.success ? 'found' : 'nothing'}
 						</span>
@@ -1337,7 +1406,7 @@
 								: ''}
 						</span>
 						{#if rollCard.amount !== null}
-							<span class="big" class:heal={rollCard.amount > 0}>
+							<span class="big num" class:heal={rollCard.amount > 0}>
 								{rollCard.amount > 0 ? '+' : ''}{rollCard.amount}
 							</span>
 						{/if}
@@ -1346,7 +1415,7 @@
 						<span class="who"
 							>{rollCard.authorName} · {rollCard.attack} → {rollCard.targetName}</span
 						>
-						<span class="big" class:miss={!rollCard.hit}>
+						<span class="big num" class:miss={!rollCard.hit}>
 							{rollCard.hit ? `${rollCard.damage?.total ?? 0}` : 'Miss'}
 						</span>
 						<span class="how">
@@ -1388,13 +1457,6 @@
 			/>
 		{/if}
 
-		{#if me.role === 'player' && !adventure}
-			<p class="waiting" role="status">
-				You’re at the table. The GM is setting up; the story starts soon. Say hello in the chat
-				meanwhile.
-			</p>
-		{/if}
-
 		{#if adventure && me.role === 'player' && !myCharacter && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
 			<CharacterSelect {adventure} players={room.players} send={act} />
 		{/if}
@@ -1408,43 +1470,166 @@
 				send={act}
 				onClose={() => (dismissedEnd = endKey)}
 			/>
-		{:else if adventure && endKey}
-			<button class="summary-pill" type="button" onclick={() => (dismissedEnd = null)}>
-				{adventure.stage === 'complete' ? 'Adventure complete' : 'Adventure failed'} · Summary
-			</button>
 		{/if}
 	{:else}
-		<p class="loading">{conn.error?.message ?? 'Connecting to the table…'}</p>
-	{/if}
-
-	{#if toast}
-		<div class="toast" role="status">{toast}</div>
-	{/if}
-
-	{#if conn.status === 'reconnecting'}
-		<div class="banner reconnecting" role="alert">
-			<span>
-				Connection lost. {retryIn === null || retryIn === 0
-					? 'Reconnecting…'
-					: `Trying again in ${retryIn}s`}{conn.attempt > 1 ? ` (attempt ${conn.attempt})` : ''}.
-				The table below is as you last saw it.
-			</span>
-			<button type="button" onclick={() => conn.retryNow()} disabled={conn.retryAt === null}>
-				Try now
-			</button>
+		<div class="loading" role="status">
+			<picture>
+				<source
+					srcset={asset('/brand/thirdfold-mark.svg')}
+					media="(prefers-reduced-motion: reduce)"
+				/>
+				<img src={asset('/brand/thirdfold-mark-animated.svg')} alt="" />
+			</picture>
+			<p>{conn.error?.message ?? 'Connecting to the table…'}</p>
 		</div>
 	{/if}
 
-	{#if conn.status === 'closed' && conn.error}
-		<div class="banner error" role="alert">
-			{conn.error.message}
-			<button type="button" onclick={() => location.reload()}>Reconnect</button>
-		</div>
-	{/if}
+	<!-- Notices over the table stack in its free space, between the chat and the side panels. -->
+	<div class="hud hud-top">
+		{#if conn.status === 'reconnecting'}
+			<div class="banner reconnecting" role="alert" transition:fly={{ y: -10, duration: 240 }}>
+				<span>
+					Connection lost. {retryIn === null || retryIn === 0
+						? 'Reconnecting…'
+						: `Trying again in ${retryIn}s`}{conn.attempt > 1 ? ` (attempt ${conn.attempt})` : ''}.
+					The table below is as you last saw it.
+				</span>
+				<button type="button" onclick={() => conn.retryNow()} disabled={conn.retryAt === null}>
+					Try now
+				</button>
+			</div>
+		{/if}
+		{#if room && me}
+			{#if room.paused && gmAway && !isGm}
+				<p class="paused" role="status" transition:fly={{ y: -8, duration: 220 }}>
+					The GM lost their connection. The game waits for them.
+				</p>
+			{:else if room.paused}
+				<p class="paused" role="status" transition:fly={{ y: -8, duration: 220 }}>
+					Paused{isGm ? ': players can’t move or act until you carry on' : ' by the GM'}
+				</p>
+			{:else if gmAway && !isGm}
+				<p class="paused" role="status" transition:fly={{ y: -8, duration: 220 }}>
+					The GM is away.
+				</p>
+			{/if}
+			{#if adventure?.encounter}
+				{@const encounter = adventure.encounter}
+				<ol class="encounter" aria-label={`Round ${encounter.round}, turn order`}>
+					<li class="round num">Round {encounter.round}</li>
+					{#if encounter.counter}
+						<li class="counter">
+							{encounter.counter.label}
+							{encounter.counter.count}/{encounter.counter.of}
+						</li>
+					{/if}
+					{#each encounter.order as t, i (i)}
+						{@const foe = t.tokenId
+							? encounter.enemies.find((e) => e.tokenId === t.tokenId)
+							: undefined}
+						<li
+							class="turn"
+							class:enemy={t.kind === 'enemy'}
+							class:current={i === encounter.current}
+							class:out={t.out}
+							aria-current={i === encounter.current ? 'true' : undefined}
+							title={`Initiative ${t.initiative}`}
+						>
+							<span class="init">{t.initiative}</span>
+							{t.name}
+							{#if foe}
+								<span class="foe-hp"
+									><span style:transform={`scaleX(${foe.hp / foe.maxHp})`}></span></span
+								>
+								<span class="foe-num num">{foe.hp}/{foe.maxHp}</span>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+			{/if}
+			{#if adventure && endKey && dismissedEnd === endKey}
+				<button
+					class="summary-pill"
+					type="button"
+					in:fly={{ y: -8, duration: 220 }}
+					onclick={() => (dismissedEnd = null)}
+				>
+					{adventure.stage === 'complete' ? 'Adventure complete' : 'Adventure failed'} · Summary
+				</button>
+			{/if}
+			{#if me.role === 'player' && !adventure}
+				<p class="waiting" role="status">
+					You’re at the table. The GM is setting up; the story starts soon. Say hello in the chat
+					meanwhile.
+				</p>
+			{/if}
+		{/if}
+		{#if toast}
+			<div
+				class="toast"
+				role="status"
+				in:fly={{ y: -10, duration: 220 }}
+				out:fade={{ duration: 140 }}
+			>
+				{toast}
+				{#if undo}
+					<span class="undo-clock" aria-hidden="true"></span>
+					<button
+						type="button"
+						onclick={() => {
+							undo?.run();
+							undo = null;
+							toast = null;
+						}}
+					>
+						{undo.label}
+					</button>
+				{/if}
+			</div>
+		{/if}
+	</div>
+
+	<div class="hud hud-bottom">
+		{#if room && me}
+			{#if adventure && myCharacter && myCharacterToken}
+				<div class="action-dock" data-hidden={sheet !== 'table'}>
+					<ActionBar
+						{adventure}
+						character={myCharacter}
+						token={myCharacterToken}
+						tokens={room.tokens}
+						{blocked}
+						{targeting}
+						onTargeting={(id) => (targeting = id)}
+						onSheet={() => (sheetOpen = true)}
+						send={act}
+					/>
+				</div>
+			{/if}
+			<p class="hint" aria-live="polite" data-hidden={sheet !== 'table'}>{hint}</p>
+		{/if}
+		{#if conn.status === 'closed' && conn.error}
+			<div class="banner error" role="alert" in:fly={{ y: 10, duration: 240 }}>
+				{conn.error.message}
+				<button type="button" onclick={() => location.reload()}>Reconnect</button>
+			</div>
+		{/if}
+	</div>
 </div>
 
 <style>
+	/*
+	 * The room's frame: the header across the top, the side panels down the right, the chat in the
+	 * bottom left, and everything else over the table in the free space between them.
+	 */
 	.room {
+		--below-bar: 5rem;
+		--tabs-h: 0rem;
+		--edge: 0.75rem;
+		--side-w: 17rem;
+		--chat-w: 21rem;
+		--free-left: calc(var(--chat-w) + var(--edge) * 2);
+		--free-right: calc(var(--side-w) + var(--edge) * 2);
 		position: fixed;
 		inset: 0;
 		overflow: hidden;
@@ -1463,43 +1648,61 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 0.75rem;
+		gap: var(--sp-4) var(--sp-6);
+		padding: var(--sp-4) var(--sp-5);
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-bar, var(--radius-md));
 		backdrop-filter: blur(6px);
+	}
+
+	.bar .group {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.bar .group + .group {
+		padding-left: var(--sp-4);
+		border-left: 1px solid var(--border);
 	}
 
 	.brand {
 		font-weight: 700;
 		color: var(--text);
 		text-decoration: none;
-		margin-right: 0.25rem;
+		margin-right: var(--sp-2);
 	}
 
 	.code {
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 		letter-spacing: 0.15em;
-		padding: 0.2rem 0.5rem;
-		border: 1px dashed var(--border);
-		border-radius: 6px;
+		color: var(--muted);
 	}
 
 	.views {
 		display: flex;
-		gap: 0.25rem;
+		gap: var(--sp-2);
 		margin-left: auto;
 	}
 
-	.views [aria-pressed='true'] {
-		border-color: var(--accent);
-		color: var(--accent);
+	.status {
+		font-size: var(--fs-sm);
+		color: var(--muted);
 	}
 
-	.status {
-		font-size: 0.85rem;
-		color: var(--muted);
+	.status::before {
+		content: '';
+		display: inline-block;
+		width: 0.5rem;
+		height: 0.5rem;
+		margin-right: var(--sp-3);
+		border-radius: 50%;
+		border: 1px solid currentColor;
+	}
+
+	.status[data-status='connected']::before {
+		background: currentColor;
 	}
 
 	.status[data-status='connected'] {
@@ -1513,32 +1716,69 @@
 
 	.side {
 		position: absolute;
-		top: 5rem;
-		right: 0.75rem;
-		bottom: 4rem;
-		width: min(17rem, calc(100% - 1.5rem));
+		top: var(--below-bar);
+		right: var(--edge);
+		bottom: var(--edge);
+		width: min(var(--side-w), calc(100% - var(--edge) * 2));
 		display: flex;
 		flex-direction: column;
-		gap: 0.6rem;
+		gap: var(--sp-4);
 		overflow-y: auto;
 		pointer-events: none;
 	}
 
 	.panel {
 		pointer-events: auto;
-		padding: 0.75rem;
+		padding: var(--sp-5);
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-md);
 		backdrop-filter: blur(6px);
 	}
 
-	.panel h2 {
-		margin: 0 0 0.5rem;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
+	.fold summary {
+		display: flex;
+		align-items: baseline;
+		gap: var(--sp-4);
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.fold summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.fold summary::before {
+		content: '▸';
+		display: inline-block;
 		color: var(--muted);
+		transition: transform var(--dur-fast) var(--ease-out);
+	}
+
+	.fold[open] summary::before {
+		transform: rotate(90deg);
+	}
+
+	.fold summary .current {
+		margin-left: auto;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--fs-xs);
+		color: var(--accent);
+	}
+
+	.fold[open] summary {
+		margin-bottom: var(--sp-4);
+	}
+
+	/* The summary names the panel; its own heading would say it twice. */
+	.fold :global(> section > h2:first-child) {
+		display: none;
+	}
+
+	.panel .section-title {
+		margin-bottom: var(--sp-4);
 	}
 
 	.players {
@@ -1546,13 +1786,13 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--sp-3);
 	}
 
 	.players li {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 	}
 
 	.players li.offline {
@@ -1580,9 +1820,9 @@
 	}
 
 	.role {
-		font-size: 0.75rem;
-		padding: 0.1rem 0.4rem;
-		border-radius: 4px;
+		font-size: var(--fs-xs);
+		padding: var(--sp-1) var(--sp-3);
+		border-radius: var(--radius-sm);
 		border: 1px solid var(--border);
 		color: var(--muted);
 	}
@@ -1594,9 +1834,9 @@
 
 	.chat-dock {
 		position: absolute;
-		left: 0.75rem;
-		bottom: 0.75rem;
-		width: min(21rem, calc(100% - 1.5rem));
+		left: var(--edge);
+		bottom: var(--edge);
+		width: min(var(--chat-w), calc(100% - var(--edge) * 2));
 		height: min(24rem, 42vh);
 		display: flex;
 		flex-direction: column;
@@ -1609,31 +1849,31 @@
 		transform: translate(-50%, -50%);
 		display: grid;
 		justify-items: center;
-		gap: 0.2rem;
-		padding: 0.9rem 1.6rem;
+		gap: var(--sp-2);
+		padding: var(--sp-6) var(--sp-7);
 		background: var(--panel-solid);
 		border: 1px solid var(--accent);
-		border-radius: 14px;
-		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-md);
 		pointer-events: none;
-		animation: pop 260ms cubic-bezier(0.2, 1.4, 0.4, 1);
+		animation: pop 260ms var(--ease-out);
 	}
 
 	.roll-card .who {
 		color: var(--muted);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 
 	.roll-card .big {
-		font-size: 3rem;
-		font-weight: 800;
+		font-size: var(--fs-display);
+		font-weight: 700;
 		line-height: 1;
 		color: var(--accent);
 	}
 
 	.roll-card .how {
-		font-family: ui-monospace, monospace;
-		font-size: 0.85rem;
+		font-family: var(--font-mono);
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
@@ -1651,92 +1891,75 @@
 	}
 
 	.waiting {
-		position: absolute;
-		top: 4.5rem;
-		left: 50%;
-		transform: translateX(-50%);
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		justify-content: center;
-		gap: 0.6rem;
+		gap: var(--sp-4);
 		width: max-content;
-		max-width: calc(100% - 2rem);
+		max-width: 100%;
 		margin: 0;
-		padding: 0.6rem 1rem;
+		padding: var(--sp-4) var(--sp-6);
 		background: var(--panel-solid);
 		border: 1px solid var(--border);
-		border-radius: 12px;
+		border-radius: var(--radius-lg);
 		text-align: center;
 	}
 
 	.paused {
-		position: absolute;
-		top: 4rem;
-		left: 50%;
-		transform: translateX(-50%);
 		margin: 0;
-		padding: 0.4rem 1rem;
+		padding: var(--sp-3) var(--sp-6);
 		background: var(--panel);
 		border: 1px solid var(--accent);
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 		color: var(--accent);
-		font-weight: 600;
+		font-weight: 700;
 		letter-spacing: 0.04em;
 		pointer-events: none;
 	}
 
 	.hint {
-		position: absolute;
-		left: 50%;
-		bottom: 1rem;
-		transform: translateX(-50%);
 		margin: 0;
-		padding: 0.45rem 0.8rem;
-		max-width: calc(100% - 2rem);
+		padding: var(--sp-4) var(--sp-5);
+		max-width: 100%;
 		background: var(--panel);
 		border: 1px solid var(--border);
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 		color: var(--muted);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		pointer-events: none;
 	}
 
 	.toast {
-		position: absolute;
-		left: 50%;
-		top: 5.25rem;
-		z-index: 2;
-		transform: translateX(-50%);
-		padding: 0.5rem 0.9rem;
-		max-width: calc(100% - 2rem);
+		overflow: hidden;
+		display: flex;
+		align-items: center;
+		gap: var(--sp-5);
+		padding: var(--sp-4) var(--sp-6);
+		max-width: 100%;
 		background: var(--panel-solid);
 		border: 1px solid var(--danger);
-		border-radius: 8px;
+		border-radius: var(--radius-md);
 	}
 
 	.encounter .counter {
 		color: var(--accent);
-		font-weight: 600;
+		font-weight: 700;
 	}
 
 	.encounter {
 		list-style: none;
 		margin: 0;
-		position: absolute;
-		top: 5rem;
-		left: 50%;
-		transform: translateX(-50%);
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem;
-		padding: 0.4rem 0.9rem;
-		max-width: calc(100% - 2rem);
+		gap: var(--sp-5);
+		padding: var(--sp-3) var(--sp-6);
+		max-width: 100%;
 		background: var(--panel-solid);
 		border: 1px solid var(--danger);
-		border-radius: 999px;
-		font-size: 0.9rem;
+		border-radius: var(--radius-pill);
+		font-size: var(--fs-sm);
 		pointer-events: none;
 	}
 
@@ -1748,37 +1971,111 @@
 	.encounter .turn {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.35rem;
-		padding: 0.1rem 0.55rem;
-		border-radius: 999px;
+		gap: var(--sp-3);
+		padding: var(--sp-1) var(--sp-4);
+		border-radius: var(--radius-pill);
 		border: 1px solid transparent;
 		font-variant-numeric: tabular-nums;
 	}
 	.encounter .turn.enemy {
-		color: #e8b4a8;
+		color: var(--danger);
 	}
 	.encounter .turn.current {
 		border-color: var(--accent);
 		background: color-mix(in srgb, var(--accent) 22%, transparent);
 		font-weight: 700;
+		animation: take-turn 640ms var(--ease-out);
+	}
+
+	/* The turn passes: the chip whose turn it is catches the light, like brass turned to a flame. */
+	.encounter .turn {
+		position: relative;
+		overflow: hidden;
+	}
+
+	.encounter .turn.current::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			100deg,
+			transparent 30%,
+			rgba(255, 236, 190, 0.55) 50%,
+			transparent 70%
+		);
+		transform: translateX(-110%);
+		animation: glint 900ms 120ms var(--ease-out) both;
+		pointer-events: none;
+	}
+
+	@keyframes take-turn {
+		from {
+			transform: scale(0.92);
+			box-shadow: 0 0 0 0 rgba(224, 164, 88, 0.7);
+		}
+		60% {
+			transform: scale(1.06);
+			box-shadow: 0 0 0 6px rgba(224, 164, 88, 0);
+		}
+	}
+
+	@keyframes glint {
+		to {
+			transform: translateX(110%);
+		}
+	}
+
+	.undo-clock {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 2px;
+		background: var(--accent);
+		transform-origin: left;
+		animation: drain 8s linear both;
+	}
+
+	@keyframes drain {
+		to {
+			transform: scaleX(0);
+		}
+	}
+
+	@keyframes drain-fade {
+		to {
+			opacity: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.encounter .turn.current,
+		.encounter .turn.current::after {
+			animation: none;
+		}
+
+		/* The time left still shows: as a fading bar instead of a moving one. */
+		.undo-clock {
+			animation: drain-fade 8s linear both !important;
+		}
 	}
 	.encounter .turn.out {
 		opacity: 0.4;
 		text-decoration: line-through;
 	}
 	.encounter .init {
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 	.foe-num {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.foe-hp {
 		width: 4.5rem;
 		height: 0.5rem;
-		border-radius: 999px;
-		background: #120e0b;
+		border-radius: var(--radius-pill);
+		background: var(--panel-sunk);
 		border: 1px solid var(--border);
 		overflow: hidden;
 	}
@@ -1787,20 +2084,17 @@
 		display: block;
 		height: 100%;
 		background: var(--danger);
-		transition: width 300ms ease;
+		transform-origin: left;
+		transition: transform var(--dur) var(--ease-out);
 	}
 
 	.action-dock {
-		position: absolute;
-		left: 50%;
-		bottom: 3.4rem;
-		transform: translateX(-50%);
-		max-width: calc(100% - 2rem);
+		max-width: 100%;
 	}
 
 	.roll-card .big.miss {
 		color: var(--muted);
-		font-size: 2.2rem;
+		font-size: var(--fs-2xl);
 	}
 
 	.roll-card .big.heal {
@@ -1815,44 +2109,212 @@
 		position: absolute;
 		inset: 0;
 		display: grid;
-		place-items: center;
-		margin: 0;
+		place-content: center;
+		justify-items: center;
+		gap: var(--sp-5);
 		color: var(--muted);
 	}
 
+	.loading img {
+		display: block;
+		width: min(16rem, 60vw);
+		height: auto;
+	}
+
+	.loading p {
+		margin: 0;
+	}
+
 	.banner.reconnecting {
-		top: 4.5rem;
-		bottom: auto;
 		border-color: var(--accent);
-		z-index: 6;
 	}
 
 	.summary-pill {
-		position: absolute;
-		top: 5.25rem;
-		left: 50%;
-		transform: translateX(-50%);
-		padding: 0.35rem 0.9rem;
+		padding: var(--sp-3) var(--sp-6);
 		border: 1px solid var(--accent);
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 		background: var(--panel-solid);
 		color: var(--accent);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
 	}
 
 	.banner {
-		position: absolute;
-		bottom: 1rem;
-		left: 50%;
-		transform: translateX(-50%);
 		display: flex;
-		gap: 0.75rem;
+		gap: var(--sp-5);
 		align-items: center;
-		padding: 0.6rem 0.9rem;
+		padding: var(--sp-4) var(--sp-6);
 		background: var(--panel-solid);
 		border: 1px solid var(--danger);
-		border-radius: 8px;
-		max-width: calc(100% - 2rem);
+		border-radius: var(--radius-md);
+		max-width: 100%;
+	}
+	.dock-tabs {
+		display: none;
+	}
+
+	.hud {
+		position: absolute;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--sp-3);
+		pointer-events: none;
+		z-index: var(--z-hud);
+	}
+
+	.hud > :global(*) {
+		max-width: 100%;
+	}
+
+	.hud :global(button) {
+		pointer-events: auto;
+	}
+
+	.hud-top {
+		top: var(--below-bar);
+		left: var(--edge);
+		right: var(--free-right);
+	}
+
+	.hud-bottom {
+		bottom: var(--edge);
+		left: var(--free-left);
+		right: var(--free-right);
+	}
+
+	.hud-bottom .action-dock {
+		pointer-events: auto;
+	}
+
+	/* A wide screen gives the side panels more room; a narrow one takes it from the chat. */
+	@media (min-width: 80rem) {
+		.room {
+			--side-w: 19rem;
+		}
+	}
+
+	@media (max-width: 64rem) {
+		.room {
+			--chat-w: 17rem;
+		}
+	}
+
+	/* Small screens: the table fills the screen and one panel at a time slides up over it. */
+	@media (max-width: 48rem) {
+		.room {
+			--tabs-h: 3.5rem;
+			--free-left: var(--sp-4);
+			--free-right: var(--sp-4);
+		}
+
+		.bar {
+			top: var(--sp-4);
+			left: var(--sp-4);
+			right: var(--sp-4);
+			padding: var(--sp-3) var(--sp-4);
+			border-radius: var(--radius-bar-wrapped, var(--radius-md));
+		}
+
+		.views {
+			margin-left: 0;
+		}
+
+		/* Who and where on the first line, with the connection beside it; the controls below. */
+		.bar > :global(*) {
+			order: 2;
+		}
+
+		.bar > .group:first-child {
+			order: 0;
+		}
+
+		.bar > .status {
+			order: 1;
+			margin-left: auto;
+		}
+
+		.bar .group + .group {
+			padding-left: 0;
+			border-left: 0;
+		}
+
+		.bar :global(button) {
+			padding: var(--sp-2) var(--sp-4);
+			font-size: var(--fs-sm);
+		}
+
+		.dock-tabs {
+			position: absolute;
+			left: var(--sp-4);
+			right: var(--sp-4);
+			bottom: var(--sp-4);
+			z-index: var(--z-panel);
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: var(--sp-2);
+			padding: var(--sp-2);
+			background: var(--panel);
+			border: 1px solid var(--border);
+			border-radius: var(--radius-lg);
+			backdrop-filter: blur(6px);
+		}
+
+		.dock-tabs button {
+			min-height: 2.75rem;
+		}
+
+		.side,
+		.chat-dock {
+			display: none;
+		}
+
+		.side[data-open='true'],
+		.chat-dock[data-open='true'] {
+			display: flex;
+			top: auto;
+			left: var(--sp-4);
+			right: var(--sp-4);
+			bottom: calc(var(--tabs-h) + var(--sp-5));
+			width: auto;
+			max-height: min(70vh, calc(100% - var(--below-bar) - var(--tabs-h) - 1rem));
+			z-index: var(--z-panel);
+		}
+
+		.chat-dock[data-open='true'] {
+			height: min(28rem, 60vh);
+		}
+
+		/* A sheet slides up from the tabs as it opens. */
+		.side[data-open='true'],
+		.chat-dock[data-open='true'] {
+			transition:
+				transform var(--dur) var(--ease-out),
+				opacity var(--dur) var(--ease-out);
+		}
+
+		@starting-style {
+			.side[data-open='true'],
+			.chat-dock[data-open='true'] {
+				transform: translateY(1.5rem);
+				opacity: 0;
+			}
+		}
+
+		.hint[data-hidden='true'],
+		.action-dock[data-hidden='true'] {
+			display: none;
+		}
+
+		.hud-top {
+			left: var(--sp-4);
+			right: var(--sp-4);
+		}
+
+		.hud-bottom {
+			left: var(--sp-4);
+			right: var(--sp-4);
+			bottom: calc(var(--tabs-h) + var(--sp-5));
+		}
 	}
 </style>

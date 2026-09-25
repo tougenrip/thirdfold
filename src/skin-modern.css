@@ -1,0 +1,220 @@
+/*
+ * The modern skin: an overhaul of app.css's look, layered on top of it so it can be undone.
+ *
+ * Same world (walnut, brass, vellum, Alegreya); less woodwork. Controls are flat, filled and
+ * softly rounded instead of bevelled and hairline-boxed; panels are frosted and edged with light
+ * rather than brown rules; focus is a brass halo.
+ *
+ * To go back to the classic look: delete the import of this file in src/routes/+layout.svelte,
+ * or set data-skin="classic" on <html> to compare the two in place.
+ *
+ * The skin switch is wrapped in :where(), so each rule here weighs exactly what the app.css rule
+ * it replaces weighs: it wins only by coming later, and never overrides a component's own styles.
+ */
+
+/* Tokens: this rule must outweigh app.css's :root, so no :where() here (only custom
+   properties are set, and no component redefines them). */
+:root:not([data-skin='classic']) {
+	--panel: rgba(30, 24, 19, 0.8);
+	--panel-solid: #1c1612;
+	--panel-raised: #251d17;
+	/* Edges are light on dark, not brown lines. */
+	--border: rgba(255, 236, 210, 0.09);
+	/* Control and field edges: ≥3:1 on every walnut surface (3.25:1). */
+	--border-strong: rgba(255, 236, 210, 0.38);
+	--border-hover: rgba(255, 236, 210, 0.55);
+	--accent-wash: rgba(224, 164, 88, 0.14);
+
+	--radius-sm: 8px;
+	--radius-md: 16px;
+	--radius-lg: 24px;
+	/* Buttons are pills; fields are softly rounded (a pill textarea would be absurd). */
+	--radius-control: 999px;
+	--radius-field: 14px;
+	/* The room's top bar: a pill on one line, a rounded card when it wraps (RoomView). */
+	--radius-bar: 999px;
+	--radius-bar-wrapped: var(--radius-lg);
+
+	--fill: rgba(255, 238, 214, 0.07);
+	--fill-hover: rgba(255, 238, 214, 0.12);
+	--fill-active: rgba(255, 238, 214, 0.16);
+	--ring: 0 0 0 3px rgba(224, 164, 88, 0.35);
+
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+	--shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.38);
+	--shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 24px 64px rgba(0, 0, 0, 0.5);
+	--bevel: none;
+}
+
+/* Focus: a soft brass halo that follows the control's own shape. */
+:where(:root:not([data-skin='classic'])) input:focus-visible,
+:where(:root:not([data-skin='classic'])) select:focus-visible,
+:where(:root:not([data-skin='classic'])) textarea:focus-visible,
+:where(:root:not([data-skin='classic'])) button:focus-visible,
+:where(:root:not([data-skin='classic'])) summary:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+	box-shadow: var(--ring);
+}
+
+/* Controls: flat and filled, one height, one radius. */
+:where(:root:not([data-skin='classic'])) button {
+	min-height: 2.25rem;
+	padding: 0.45rem 1.1rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius-control);
+	background: var(--fill);
+	box-shadow: none;
+	font-weight: 500;
+	line-height: 1.2;
+	transition:
+		background var(--dur-fast) var(--ease-out),
+		color var(--dur-fast) var(--ease-out),
+		box-shadow var(--dur-fast) var(--ease-out),
+		transform var(--dur-fast) var(--ease-out);
+}
+
+:where(:root:not([data-skin='classic'])) button:not(:disabled):hover {
+	border-color: transparent;
+	background: var(--fill-hover);
+}
+
+:where(:root:not([data-skin='classic'])) button:not(:disabled):active {
+	background: var(--fill-active);
+	box-shadow: none;
+	transform: scale(0.98);
+}
+
+:where(:root:not([data-skin='classic'])) button.primary {
+	border-color: transparent;
+	background: var(--accent);
+	color: var(--accent-text);
+	font-weight: 700;
+	box-shadow: 0 1px 0 rgba(255, 244, 214, 0.35) inset;
+}
+
+:where(:root:not([data-skin='classic'])) button.primary:not(:disabled):hover {
+	border-color: transparent;
+	background: #ebb46e;
+}
+
+:where(:root:not([data-skin='classic'])) button.primary:not(:disabled):active {
+	background: var(--accent-deep);
+}
+
+:where(:root:not([data-skin='classic'])) button.ghost {
+	background: transparent;
+}
+
+:where(:root:not([data-skin='classic'])) button.ghost:not(:disabled):hover {
+	background: var(--fill);
+	color: var(--text);
+}
+
+:where(:root:not([data-skin='classic'])) button.danger {
+	border-color: transparent;
+	background: rgba(226, 122, 107, 0.12);
+	color: var(--danger);
+}
+
+:where(:root:not([data-skin='classic'])) button.danger:not(:disabled):hover {
+	border-color: transparent;
+	background: rgba(226, 122, 107, 0.2);
+}
+
+/* Selected: brass-tinted fill with a fine brass edge. */
+:where(:root:not([data-skin='classic'])) button[aria-pressed='true'],
+:where(:root:not([data-skin='classic'])) button[aria-checked='true'] {
+	border-color: rgba(224, 164, 88, 0.45);
+	background: var(--accent-wash);
+	color: var(--accent);
+}
+
+/* Unavailable: the same shape, quieter. */
+:where(:root:not([data-skin='classic'])) button:disabled,
+:where(:root:not([data-skin='classic'])) button.primary:disabled {
+	border: 1px solid transparent;
+	background: var(--fill);
+	box-shadow: none;
+	color: var(--muted);
+	opacity: 0.45;
+}
+
+/* Fields: sunk, with an edge that reads at 3:1 (a field has no label inside to show its bounds). */
+:where(:root:not([data-skin='classic'])) input,
+:where(:root:not([data-skin='classic'])) select,
+:where(:root:not([data-skin='classic'])) textarea {
+	min-height: 2.5rem;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-field);
+	background: rgba(0, 0, 0, 0.28);
+	box-shadow: none;
+	transition:
+		border-color var(--dur-fast) var(--ease-out),
+		box-shadow var(--dur-fast) var(--ease-out),
+		background var(--dur-fast) var(--ease-out);
+}
+
+:where(:root:not([data-skin='classic'])) textarea {
+	min-height: 0;
+}
+
+:where(:root:not([data-skin='classic'])) input:hover:not(:disabled),
+:where(:root:not([data-skin='classic'])) select:hover:not(:disabled),
+:where(:root:not([data-skin='classic'])) textarea:hover:not(:disabled) {
+	border-color: var(--border-hover);
+}
+
+:where(:root:not([data-skin='classic'])) input:focus-visible,
+:where(:root:not([data-skin='classic'])) select:focus-visible,
+:where(:root:not([data-skin='classic'])) textarea:focus-visible {
+	border-color: var(--accent);
+	background: rgba(0, 0, 0, 0.36);
+	outline: none;
+}
+
+:where(:root:not([data-skin='classic'])) input:disabled,
+:where(:root:not([data-skin='classic'])) select:disabled,
+:where(:root:not([data-skin='classic'])) textarea:disabled {
+	border-style: solid;
+	opacity: 0.5;
+}
+
+:where(:root:not([data-skin='classic'])) input[type='checkbox'],
+:where(:root:not([data-skin='classic'])) input[type='radio'] {
+	min-height: 0;
+	accent-color: var(--accent);
+}
+
+:where(:root:not([data-skin='classic'])) kbd {
+	border: 0;
+	border-radius: var(--radius-sm);
+	background: var(--fill-hover);
+}
+
+/* Story cards keep their paper, with softer corners and a lighter hand on the edges. */
+:where(:root:not([data-skin='classic'])) .vellum {
+	border-radius: var(--radius-lg);
+	border-color: rgba(120, 90, 50, 0.25);
+}
+
+:where(:root:not([data-skin='classic'])) .vellum button:not(.primary):not(:disabled) {
+	border-color: transparent;
+	background: rgba(60, 40, 20, 0.08);
+	color: var(--ink);
+}
+
+:where(:root:not([data-skin='classic'])) .vellum button:not(.primary):not(:disabled):hover {
+	border-color: transparent;
+	background: rgba(60, 40, 20, 0.14);
+}
+
+:where(:root:not([data-skin='classic'])) .vellum button.primary {
+	background: var(--ink);
+	color: var(--vellum);
+	box-shadow: none;
+}
+
+:where(:root:not([data-skin='classic'])) .vellum button.primary:not(:disabled):hover {
+	background: #3d2c1d;
+}

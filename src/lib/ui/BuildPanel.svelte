@@ -127,7 +127,7 @@
 {/snippet}
 
 <section aria-label="Build tools">
-	<h2>Build</h2>
+	<h2 class="section-title">Build</h2>
 	<div class="tools four" role="toolbar" aria-label="Build tools">
 		{#each BUILD as t (t.id)}{@render toolButton(t)}{/each}
 	</div>
@@ -285,16 +285,12 @@
 
 <style>
 	h2 {
-		margin: 0 0 0.5rem;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
+		margin: 0 0 var(--sp-4);
 	}
 
 	.tools {
 		display: grid;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.four {
@@ -308,51 +304,41 @@
 	button {
 		display: grid;
 		justify-items: center;
-		gap: 0.1rem;
-		padding: 0.35rem 0.2rem;
-		font-size: 0.82rem;
-	}
-
-	button[aria-pressed='true'] {
-		border-color: var(--accent);
-		color: var(--accent);
-	}
-
-	kbd {
-		font-family: ui-monospace, monospace;
-		font-size: 0.65rem;
-		color: var(--muted);
+		gap: var(--sp-1);
+		padding: var(--sp-3) var(--sp-2);
+		font-size: var(--fs-sm);
 	}
 
 	.palette {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 0.25rem;
+		gap: var(--sp-2);
 	}
 
 	.palette button {
-		font-size: 0.75rem;
-		padding: 0.3rem 0.2rem;
+		font-size: var(--fs-xs);
+		padding: var(--sp-3) var(--sp-2);
 	}
 
 	.palette [aria-checked='true'] {
 		border-color: var(--accent);
+		background: var(--accent-wash);
 		color: var(--accent);
 	}
 
 	.section {
 		display: grid;
-		gap: 0.4rem;
-		margin-top: 0.6rem;
-		padding-top: 0.6rem;
+		gap: var(--sp-3);
+		margin-top: var(--sp-4);
+		padding-top: var(--sp-4);
 		border-top: 1px solid var(--border);
 	}
 
 	.environment {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		margin-bottom: 0.5rem;
+		gap: var(--sp-4);
+		margin-bottom: var(--sp-4);
 	}
 
 	.environment select {
@@ -362,15 +348,16 @@
 	.ambient {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.ambient button {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.ambient [aria-checked='true'] {
 		border-color: var(--accent);
+		background: var(--accent-wash);
 		color: var(--accent);
 	}
 
@@ -378,8 +365,8 @@
 		display: grid;
 		grid-template-columns: 1fr 4.5rem;
 		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.8rem;
+		gap: var(--sp-3);
+		font-size: var(--fs-xs);
 	}
 
 	.muted {
@@ -389,36 +376,32 @@
 	.floors {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.25rem;
+		gap: var(--sp-2);
 	}
 
 	.floor-choice {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.25rem 0.4rem;
-		font-size: 0.85rem;
+		gap: var(--sp-3);
+		padding: var(--sp-2) var(--sp-3);
+		font-size: var(--fs-sm);
 		text-align: left;
-	}
-
-	.floor-choice[aria-pressed='true'] {
-		border-color: var(--accent);
 	}
 
 	.chip {
 		width: 0.9rem;
 		height: 0.9rem;
-		border-radius: 3px;
+		border-radius: var(--radius-sm);
 		flex: none;
 	}
 
 	.chip.plain {
-		border: 1px dashed var(--muted, #888);
+		border: 1px dashed var(--muted);
 	}
 
 	.swatches {
 		display: flex;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.swatch {
@@ -435,16 +418,16 @@
 
 	.fog {
 		display: grid;
-		gap: 0.4rem;
-		margin-top: 0.6rem;
-		padding-top: 0.6rem;
+		gap: var(--sp-3);
+		margin-top: var(--sp-4);
+		padding-top: var(--sp-4);
 		border-top: 1px solid var(--border);
 	}
 
 	.switch {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 		cursor: pointer;
 	}
 
@@ -457,10 +440,10 @@
 	.all {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.all button {
-		font-size: 0.78rem;
+		font-size: var(--fs-xs);
 	}
 </style>

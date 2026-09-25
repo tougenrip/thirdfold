@@ -94,7 +94,7 @@
 </script>
 
 <section class="panel" aria-label="Tokens">
-	<h2>{isGm ? 'Tokens' : 'Your tokens'}</h2>
+	<h2 class="section-title">{isGm ? 'Tokens' : 'Your tokens'}</h2>
 
 	{#if listed.length === 0}
 		<p class="muted">
@@ -106,7 +106,7 @@
 				<li>
 					<button
 						type="button"
-						class="token-row"
+						class="ghost token-row"
 						aria-pressed={selected?.id === token.id}
 						onclick={() => onSelect(selected?.id === token.id ? null : token.id)}
 					>
@@ -121,7 +121,7 @@
 
 	{#if isGm && selected}
 		<div class="inspector" aria-label="Selected token">
-			<h3>Selected</h3>
+			<h3 class="section-title">Selected</h3>
 			<input
 				value={selected.name}
 				maxlength={NAME_MAX_LENGTH}
@@ -230,7 +230,7 @@
 
 	{#if isGm}
 		<form class="new" onsubmit={startPlacing}>
-			<h3>New token</h3>
+			<h3 class="section-title">New token</h3>
 			<input
 				bind:value={draft.name}
 				maxlength={NAME_MAX_LENGTH}
@@ -272,20 +272,11 @@
 <style>
 	.panel {
 		display: grid;
-		gap: 0.6rem;
-	}
-
-	h2,
-	h3 {
-		margin: 0;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
+		gap: var(--sp-4);
 	}
 
 	h3 {
-		font-size: 0.72rem;
+		font-size: var(--fs-2xs);
 	}
 
 	.muted {
@@ -294,7 +285,7 @@
 	}
 
 	.small {
-		font-size: 0.78rem;
+		font-size: var(--fs-xs);
 	}
 
 	.list {
@@ -302,7 +293,7 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.2rem;
+		gap: var(--sp-2);
 		max-height: 11rem;
 		overflow-y: auto;
 	}
@@ -310,16 +301,16 @@
 	.token-row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 		width: 100%;
-		padding: 0.3rem 0.45rem;
-		background: transparent;
-		border-color: transparent;
+		padding: var(--sp-3) var(--sp-4);
+		color: var(--text);
 		text-align: left;
 	}
 
 	.token-row[aria-pressed='true'] {
 		border-color: var(--accent);
+		background: var(--accent-wash);
 	}
 
 	.name {
@@ -341,26 +332,26 @@
 	.inspector,
 	.new {
 		display: grid;
-		gap: 0.45rem;
-		padding-top: 0.6rem;
+		gap: var(--sp-4);
+		padding-top: var(--sp-4);
 		border-top: 1px solid var(--border);
 	}
 
 	.row {
 		display: grid;
-		gap: 0.2rem;
+		gap: var(--sp-2);
 	}
 
 	.row.check {
 		grid-template-columns: auto 1fr;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 
 	.swatches {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.swatch-btn {
@@ -373,10 +364,5 @@
 
 	.swatch-btn[aria-pressed='true'] {
 		border-color: var(--text);
-	}
-
-	.danger {
-		border-color: var(--danger);
-		color: var(--danger);
 	}
 </style>

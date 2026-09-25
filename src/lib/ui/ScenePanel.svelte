@@ -187,13 +187,21 @@
 		if (typeof data !== 'object' || data === null) {
 			return onError('That file is not a thirdfold scene.');
 		}
-		// The server validates every field; this only ships the data.
-		send({ type: 'scene_import', file: data });
+		// The server validates every field; this only ships the data, once the GM confirms.
+		pendingImport = { name: file.name, data };
+	}
+
+	/** An imported file waiting for the GM to confirm it replaces the table. */
+	let pendingImport = $state<{ name: string; data: object } | null>(null);
+	function confirmImport() {
+		if (!pendingImport) return;
+		send({ type: 'scene_import', file: pendingImport.data });
+		pendingImport = null;
 	}
 </script>
 
 <section aria-label="Scene">
-	<h2>Scene</h2>
+	<h2 class="section-title">Scene</h2>
 	<form class="save" onsubmit={save}>
 		<input bind:value={name} maxlength={SCENE_NAME_MAX_LENGTH} aria-label="Scene name" />
 		<button class="primary" type="submit">Save</button>
@@ -224,7 +232,7 @@
 					</span>
 					<button
 						type="button"
-						class:warn={confirming === scene.id}
+						class:danger={confirming === scene.id}
 						onclick={() => load(scene.id)}
 						onblur={() => confirming === scene.id && (confirming = null)}
 					>
@@ -232,8 +240,8 @@
 					</button>
 					<button
 						type="button"
-						class="forget"
-						class:warn={deleting === scene.id}
+						class="ghost forget"
+						class:danger={deleting === scene.id}
 						aria-label={`Delete ${scene.name}`}
 						title={deleting === scene.id ? 'Click again to delete for good' : 'Delete this save'}
 						onclick={() => remove(scene)}
@@ -254,7 +262,7 @@
 					</span>
 					<button
 						type="button"
-						class:warn={confirming === scene.sceneId}
+						class:danger={confirming === scene.sceneId}
 						onclick={() => load(scene.sceneId)}
 						onblur={() => confirming === scene.sceneId && (confirming = null)}
 					>
@@ -262,7 +270,7 @@
 					</button>
 					<button
 						type="button"
-						class="forget"
+						class="ghost forget"
 						aria-label={`Forget ${scene.name}`}
 						title="Forget (the save stays on the server)"
 						onclick={() => forget(scene)}>×</button
@@ -287,6 +295,16 @@
 			onchange={importFile}
 		/>
 	</div>
+
+	{#if pendingImport}
+		<div class="confirm" role="alert">
+			<p>Replace this table with “{pendingImport.name}”? Save first to keep what’s here.</p>
+			<div class="row">
+				<button type="button" class="danger" onclick={confirmImport}>Replace table</button>
+				<button type="button" class="ghost" onclick={() => (pendingImport = null)}>Cancel</button>
+			</div>
+		</div>
+	{/if}
 
 	{#if shared}
 		<div class="shared" role="status">
@@ -352,31 +370,43 @@
 			placeholder="Shared table link or code"
 			aria-label="Shared table link or code"
 		/>
-		<button type="submit">Open</button>
+		<button type="submit" title="Opens a copy of the shared table in place of this one">
+			Open
+		</button>
 	</form>
 </section>
 
 <style>
+	.confirm {
+		display: grid;
+		gap: var(--sp-3);
+		margin-top: var(--sp-4);
+		padding: var(--sp-4);
+		border: 1px solid rgba(226, 122, 107, 0.5);
+		border-radius: var(--radius-md);
+	}
+
+	.confirm p {
+		margin: 0;
+		font-size: var(--fs-sm);
+	}
+
 	h2 {
-		margin: 0 0 0.5rem;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
+		margin: 0 0 var(--sp-4);
 	}
 
 	.save {
 		display: grid;
 		grid-template-columns: 1fr auto;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 
 	.saved {
 		list-style: none;
-		margin: 0.5rem 0 0;
+		margin: var(--sp-4) 0 0;
 		padding: 0;
 		display: grid;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 		max-height: 9rem;
 		overflow-y: auto;
 	}
@@ -384,7 +414,7 @@
 	li {
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
+		gap: var(--sp-3);
 	}
 
 	.info {
@@ -402,75 +432,67 @@
 
 	.auto {
 		color: var(--muted);
-		font-size: 0.72rem;
+		font-size: var(--fs-2xs);
 	}
 
 	.when {
-		font-size: 0.72rem;
+		font-size: var(--fs-2xs);
 		color: var(--muted);
 	}
 
 	li button {
-		padding: 0.25rem 0.5rem;
-		font-size: 0.8rem;
-	}
-
-	.warn {
-		border-color: var(--danger);
-		color: var(--danger);
-	}
-
-	.forget {
-		color: var(--muted);
+		padding: var(--sp-2) var(--sp-4);
+		font-size: var(--fs-xs);
 	}
 
 	.muted {
-		margin: 0.5rem 0 0;
+		margin: var(--sp-4) 0 0;
 		color: var(--muted);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 	}
 
 	.files {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.3rem;
-		margin-top: 0.6rem;
+		gap: var(--sp-3);
+		margin-top: var(--sp-4);
 	}
 
 	.files button {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.shared .row,
+	.confirm .row,
 	.open {
 		display: grid;
 		grid-template-columns: 1fr auto;
-		gap: 0.3rem;
-		margin-top: 0.4rem;
+		gap: var(--sp-3);
+		margin-top: var(--sp-3);
 	}
 
 	.open {
-		margin-top: 0.6rem;
+		margin-top: var(--sp-4);
 	}
 
 	.shared input,
 	.open input {
 		min-width: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.new {
 		display: grid;
-		gap: 0.4rem;
-		margin-top: 0.6rem;
-		padding: 0.5rem;
+		gap: var(--sp-3);
+		margin-top: var(--sp-4);
+		padding: var(--sp-4);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 	}
 
 	.new label {
 		display: grid;
-		gap: 0.15rem;
+		gap: var(--sp-1);
 	}
 
 	.new .muted {
@@ -480,7 +502,7 @@
 	.size {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 
 	.size input {

@@ -277,7 +277,12 @@
 	});
 </script>
 
-<canvas bind:this={canvas} aria-label="3D tabletop"></canvas>
+<!-- Focusable so the arrow keys can move the selected token (RoomView listens). -->
+<canvas
+	bind:this={canvas}
+	tabindex="0"
+	aria-label="3D tabletop. Select a token, then use the arrow keys to move it one cell."
+></canvas>
 {#if perf}
 	<dl class="perf" aria-label="Rendering performance">
 		<dt>fps</dt>
@@ -295,7 +300,14 @@
 	</dl>
 {/if}
 {#if webglError}
-	<p class="webgl-error" role="alert">{webglError}</p>
+	<div class="webgl-error" role="alert">
+		<p class="title">The table can’t be shown here</p>
+		<p>{webglError}</p>
+		<p>
+			You’re still at the table: chat, dice and the panels work. To see it, turn on hardware
+			acceleration in your browser’s settings, or open this link in another browser.
+		</p>
+	</div>
 {/if}
 
 <style>
@@ -312,28 +324,51 @@
 		bottom: 0.5rem;
 		display: grid;
 		grid-template-columns: auto auto;
-		gap: 0 0.6rem;
+		gap: 0 var(--sp-4);
 		margin: 0;
-		padding: 0.4rem 0.6rem;
-		font:
-			11px/1.4 ui-monospace,
-			monospace;
-		color: #cfe;
-		background: rgba(0, 0, 0, 0.7);
+		padding: var(--sp-3) var(--sp-4);
+		font-family: var(--font-mono);
+		font-size: var(--fs-2xs);
+		line-height: 1.4;
+		font-variant-numeric: tabular-nums;
+		color: var(--glow);
+		background: var(--scrim);
 		pointer-events: none;
-		z-index: 5;
+		z-index: var(--z-overlay);
 	}
 
 	.perf dd {
 		margin: 0;
 	}
 
+	/* Centred in the free space between the room's chat and side panels. */
 	.webgl-error {
 		position: absolute;
-		inset: 0;
+		top: 50%;
+		left: var(--free-left, 1rem);
+		right: var(--free-right, 1rem);
+		transform: translateY(-50%);
+		margin-inline: auto;
+		width: min(28rem, calc(100% - var(--free-left, 1rem) - var(--free-right, 1rem)));
 		display: grid;
-		place-items: center;
+		gap: var(--sp-3);
+		padding: var(--sp-6) var(--sp-7);
+		background: var(--panel-solid);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-md);
+		color: var(--muted);
+	}
+
+	.webgl-error p {
 		margin: 0;
-		color: #f2e6d0;
+		max-width: 65ch;
+	}
+
+	.webgl-error .title {
+		font-family: var(--font-display);
+		font-size: var(--fs-lg);
+		font-weight: 700;
+		color: var(--text);
 	}
 </style>

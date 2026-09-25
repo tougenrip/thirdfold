@@ -27,8 +27,8 @@
 <section class="coach" aria-live="polite" aria-label="How to play">
 	<Steps current={step ? 4 : 5} />
 	{#if step}
-		<p class="count">Try this · {number} of {steps.length}</p>
 		<h3>{step.title}</h3>
+		<p class="count num">Try this · {number} of {steps.length}</p>
 		{#if step.id === 'discovered' && found}
 			<div class="found">
 				<strong>{found.title}</strong>
@@ -44,10 +44,10 @@
 				<li class:done={progress.done.includes(s.id)} class:now={s.id === step.id}></li>
 			{/each}
 		</ul>
-		<button type="button" class="skip" onclick={onSkip}>Skip the tutorial</button>
+		<button type="button" class="skip ghost" onclick={onSkip}>Skip the tutorial</button>
 	{:else}
-		<p class="count">All done</p>
 		<h3>You’re ready</h3>
+		<p class="count">All done</p>
 		<p class="text">
 			Your goals are in the story panel on the right, and they change as the story moves on.
 			{#if goal}Start here: <strong>{goal}</strong>{/if}
@@ -63,53 +63,52 @@
 		left: 0.75rem;
 		width: min(20rem, calc(100% - 1.5rem));
 		display: grid;
-		gap: 0.5rem;
-		padding: 0.9rem 1rem;
-		background: var(--panel-solid);
-		border: 1px solid var(--accent);
-		border-radius: 12px;
-		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-		z-index: 2;
+		gap: var(--sp-4);
+		padding: var(--sp-6) var(--sp-6);
+		background: linear-gradient(var(--glow-wash), var(--glow-wash)), var(--panel-solid);
+		border: 1px solid var(--glow);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-md);
+		z-index: var(--z-hud);
 	}
 
 	.count {
-		margin: 0.2rem 0 0;
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		margin: calc(-1 * var(--sp-3)) 0 0;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	h3 {
-		margin: 0;
-		color: var(--accent);
+		margin: var(--sp-2) 0 0;
+		color: var(--glow);
 	}
 
 	.text {
 		margin: 0;
 		line-height: 1.45;
-		font-size: 0.92rem;
+		font-size: var(--fs-sm);
 	}
 
 	.found {
 		display: grid;
-		gap: 0.25rem;
-		padding: 0.55rem 0.7rem;
-		border-left: 3px solid #9fd7ff;
-		background: rgba(159, 215, 255, 0.08);
-		font-family: Georgia, 'Times New Roman', serif;
-		font-size: 0.9rem;
+		gap: var(--sp-2);
+		padding: var(--sp-4) var(--sp-5);
+		border: 1px solid var(--glow);
+		border-radius: var(--radius-md);
+		background: var(--glow-wash);
+		font-family: var(--font-display);
+		font-size: var(--fs-sm);
 		line-height: 1.4;
 	}
 
 	.found strong {
 		font-family: inherit;
-		color: #bfe6ff;
+		color: var(--glow);
 	}
 
 	.dots {
 		display: flex;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -123,22 +122,19 @@
 	}
 
 	.dots .done {
-		background: var(--accent);
-		border-color: var(--accent);
+		background: var(--glow);
+		border-color: var(--glow);
 	}
 
 	.dots .now {
-		border-color: var(--accent);
+		border-color: var(--glow);
 	}
 
 	.skip {
 		justify-self: start;
-		padding: 0;
-		border: none;
-		background: none;
-		color: var(--muted);
+		padding: var(--sp-2) var(--sp-3);
 		text-decoration: underline;
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.primary {

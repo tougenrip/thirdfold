@@ -6,15 +6,17 @@
 		prop: Prop;
 		send(action: RoomAction): boolean;
 		onDone(): void;
+		/** Removes the prop (the room view offers an undo). */
+		onRemove(): void;
 	}
 
-	let { prop, send, onDone }: Props = $props();
+	let { prop, send, onDone, onRemove }: Props = $props();
 
 	const turn = (by: 1 | -1) => ((prop.rotation + by + 4) % 4) as Rotation;
 </script>
 
 <section aria-label="Selected prop">
-	<h2>{ASSETS[prop.assetId].name}</h2>
+	<h2 class="section-title">{ASSETS[prop.assetId].name}</h2>
 	<p class="muted">
 		Click a cell to move it. <kbd>[</kbd> <kbd>]</kbd> rotate, <kbd>Del</kbd> removes.
 	</p>
@@ -33,7 +35,7 @@
 		>
 	</div>
 	<label class="scale">
-		<span class="muted">Size ×{prop.scale.toFixed(2)}</span>
+		<span class="muted num">Size ×{prop.scale.toFixed(2)}</span>
 		<input
 			type="range"
 			min={PROP_SCALE.min}
@@ -64,14 +66,7 @@
 	</label>
 	<div class="row">
 		<button type="button" onclick={onDone}>Done</button>
-		<button
-			type="button"
-			class="danger"
-			onclick={() => {
-				send({ type: 'prop_delete', propId: prop.id });
-				onDone();
-			}}>Remove</button
-		>
+		<button type="button" class="danger" onclick={onRemove}>Remove</button>
 	</div>
 </section>
 
@@ -79,55 +74,41 @@
 	.hidden {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		margin: 0.4rem 0;
-		font-size: 0.85rem;
+		gap: var(--sp-3);
+		margin: var(--sp-3) 0;
+		font-size: var(--fs-sm);
 	}
 
 	h2 {
-		margin: 0 0 0.3rem;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--accent);
+		margin: 0 0 var(--sp-3);
 	}
 
 	.muted {
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--sp-4);
 		color: var(--muted);
-		font-size: 0.78rem;
-	}
-
-	kbd {
-		font-family: ui-monospace, monospace;
-		font-size: 0.72rem;
+		font-size: var(--fs-xs);
 	}
 
 	.row {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 0.3rem;
-		margin-bottom: 0.4rem;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-3);
 	}
 
 	.row button {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.scale {
 		display: grid;
-		gap: 0.2rem;
-		margin-bottom: 0.5rem;
-		font-size: 0.8rem;
+		gap: var(--sp-2);
+		margin-bottom: var(--sp-4);
+		font-size: var(--fs-xs);
 	}
 
 	.scale input {
 		accent-color: var(--accent);
 		padding: 0;
-	}
-
-	.danger {
-		border-color: var(--danger);
-		color: var(--danger);
 	}
 </style>

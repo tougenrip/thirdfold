@@ -152,13 +152,13 @@
 										: ''}
 								</small>
 							</span>
-							<span class="hp" title="Hit points">
+							<span class="hp num" title="Hit points">
 								{c.dead ? 'Dead' : c.downed ? 'Down' : `${c.hp}/${c.maxHp}`}
 							</span>
 							{#if isGm}
 								<button
 									type="button"
-									class="edit"
+									class="ghost edit"
 									aria-expanded={editing === c.id}
 									title="Adjust this character"
 									onclick={() => (editing = editing === c.id ? null : c.id)}>±</button
@@ -215,8 +215,8 @@
 				<ul>
 					{#each adventure.clues as clue (clue.id)}
 						<li class:secret={!clue.shared}>
-							<span class="evidence-kind">{EVIDENCE_KINDS[clue.kind]}</span>
 							<strong>{clue.title}</strong>
+							<span class="evidence-kind">{EVIDENCE_KINDS[clue.kind]}</span>
 							<p>{clue.text}</p>
 							{#if !clue.shared}
 								<p class="who-knows">
@@ -385,68 +385,115 @@
 
 				<div class="row">
 					<button type="button" onclick={() => control('restart')}>Start story over</button>
-					<button type="button" onclick={() => control('end')}>End adventure</button>
+					<button type="button" class="danger" onclick={() => control('end')}>End adventure</button>
 				</div>
 			</div>
 		{/if}
 	</section>
 {:else if isGm}
 	<section class="adventure" aria-label="Adventure">
-		<h2>Adventure</h2>
-		{#each adventures as listing (listing.id)}
-			<div class="offer">
-				<strong>{listing.title}</strong>
-				{#if listing.about}<p>{listing.about}</p>{/if}
-				<button class="primary" type="button" onclick={() => start(listing)}>
-					Start {listing.title}
+		<h2 class="section-title">Adventure</h2>
+		<ol class="gm-steps" aria-label="How a game goes">
+			<li>Start a story. The table fills in for everyone.</li>
+			<li>Send the invite link from the top bar. Each player picks a character.</li>
+			<li>Run it from the Direct panel: pause, skip ahead, start fights, bring on foes.</li>
+		</ol>
+		{#if adventures[0]}
+			{@const featured = adventures[0]}
+			<div class="offer featured">
+				<strong>{featured.title}</strong>
+				{#if featured.about}<p>{featured.about}</p>{/if}
+				<button class="primary" type="button" onclick={() => start(featured)}>
+					Start {featured.title}
 				</button>
 			</div>
-		{/each}
-		{#if picks?.length}
-			<h2>From the library</h2>
-			{#each picks as listing (listing.id)}
-				<div class="offer">
-					<strong>{listing.title}</strong>
-					<p>by {listing.creator.name} · {describeRating(listing.rating)}</p>
-					<button type="button" onclick={() => startFromLibrary(listing)}>
-						Start {listing.title}
-					</button>
-				</div>
-			{/each}
 		{/if}
-		<a class="build-link" href={resolve('/library')}>Browse the library</a>
-		<label class="file-offer">
-			Play an adventure file…
-			<input type="file" accept=".json,application/json" hidden onchange={playFile} />
-		</label>
-		<a class="build-link" href={resolve('/builder')}>Build your own adventure</a>
+		<details class="more">
+			<summary>More adventures</summary>
+			<div class="more-list">
+				{#each adventures.slice(1) as listing (listing.id)}
+					<div class="offer">
+						<strong>{listing.title}</strong>
+						{#if listing.about}<p>{listing.about}</p>{/if}
+						<button type="button" onclick={() => start(listing)}>Start {listing.title}</button>
+					</div>
+				{/each}
+				{#if picks?.length}
+					<h3 class="section-title">From the library</h3>
+					{#each picks as listing (listing.id)}
+						<div class="offer">
+							<strong>{listing.title}</strong>
+							<p>by {listing.creator.name} · {describeRating(listing.rating)}</p>
+							<button type="button" onclick={() => startFromLibrary(listing)}>
+								Start {listing.title}
+							</button>
+						</div>
+					{/each}
+				{/if}
+				<a class="build-link" href={resolve('/library')}>Browse the library</a>
+				<label class="file-offer">
+					Play an adventure file…
+					<input type="file" accept=".json,application/json" hidden onchange={playFile} />
+				</label>
+				<a class="build-link" href={resolve('/builder')}>Build your own adventure</a>
+			</div>
+		</details>
 	</section>
 {/if}
 
 <style>
 	.adventure {
 		display: grid;
-		gap: 0.6rem;
+		gap: var(--sp-4);
+	}
+
+	.gm-steps {
+		margin: 0;
+		padding-left: var(--sp-6);
+		display: grid;
+		gap: var(--sp-2);
+		font-size: var(--fs-sm);
+		color: var(--muted);
+	}
+
+	.gm-steps li::marker {
+		font-family: var(--font-display);
+		color: var(--accent);
+	}
+
+	.more summary {
+		cursor: pointer;
+		color: var(--muted);
+		font-size: var(--fs-sm);
+	}
+
+	.more summary:hover {
+		color: var(--text);
+	}
+
+	.more-list {
+		display: grid;
+		gap: var(--sp-4);
+		margin-top: var(--sp-4);
+	}
+
+	.featured strong {
+		font-family: var(--font-display);
+		font-size: var(--fs-lg);
 	}
 
 	h2 {
 		margin: 0;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
 	}
 
 	header h2 {
-		font-size: 1rem;
-		text-transform: none;
-		letter-spacing: 0;
+		font-size: var(--fs-md);
 		color: var(--accent);
 	}
 
 	.section {
-		margin: 0.15rem 0 0;
-		font-size: 0.8rem;
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
@@ -459,13 +506,13 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.objectives li {
 		display: flex;
-		gap: 0.45rem;
-		font-size: 0.9rem;
+		gap: var(--sp-4);
+		font-size: var(--fs-sm);
 	}
 
 	.objectives .mark {
@@ -485,25 +532,20 @@
 	.party .member {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.9rem;
+		gap: var(--sp-4);
+		font-size: var(--fs-sm);
 	}
 
 	.override {
 		display: grid;
-		gap: 0.3rem;
-		margin: 0.35rem 0 0.2rem 1.2rem;
+		gap: var(--sp-3);
+		margin: var(--sp-3) 0 var(--sp-2) var(--sp-6);
 	}
 
 	.override button,
 	.edit {
-		padding: 0.15rem 0.45rem;
-		font-size: 0.8rem;
-	}
-
-	.override [aria-pressed='true'] {
-		border-color: var(--accent);
-		color: var(--accent);
+		padding: var(--sp-1) var(--sp-4);
+		font-size: var(--fs-xs);
 	}
 
 	.party .downed {
@@ -525,31 +567,31 @@
 
 	.who small {
 		color: var(--muted);
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 	}
 
 	.hp {
 		font-variant-numeric: tabular-nums;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 	}
 
 	details summary {
 		cursor: pointer;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.clues ul {
-		margin-top: 0.4rem;
-		gap: 0.5rem;
+		margin-top: var(--sp-3);
+		gap: var(--sp-4);
 	}
 
 	.ledger dl {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		gap: 0.25rem 0.6rem;
-		margin: 0.4rem 0 0;
-		font-size: 0.8rem;
+		gap: var(--sp-2) var(--sp-4);
+		margin: var(--sp-3) 0 0;
+		font-size: var(--fs-xs);
 	}
 
 	.ledger dt {
@@ -561,7 +603,7 @@
 	}
 
 	.people {
-		gap: 0.15rem;
+		gap: var(--sp-1);
 	}
 
 	.people em {
@@ -583,78 +625,72 @@
 	}
 
 	.evidence-kind {
-		display: block;
-		font-size: 0.65rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		margin-left: var(--sp-2);
+		font-size: var(--fs-2xs);
 		color: var(--muted);
 	}
 
 	.clues .secret {
-		padding-left: 0.5rem;
-		border-left: 2px solid var(--accent);
+		padding: var(--sp-3) var(--sp-4);
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+		border-radius: var(--radius-sm);
+		background: var(--accent-wash);
 	}
 
 	.clues .who-knows {
 		color: var(--accent);
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.clues button {
-		margin-top: 0.3rem;
-		padding: 0.15rem 0.5rem;
-		font-size: 0.8rem;
+		margin-top: var(--sp-3);
+		padding: var(--sp-1) var(--sp-4);
+		font-size: var(--fs-xs);
 	}
 
 	.clues p {
-		margin: 0.15rem 0 0;
-		font-size: 0.85rem;
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.gm {
 		display: grid;
-		gap: 0.5rem;
-		padding-top: 0.5rem;
+		gap: var(--sp-4);
+		padding-top: var(--sp-4);
 		border-top: 1px solid var(--border);
 	}
 
 	.note {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	.narrate {
 		display: grid;
-		gap: 0.35rem;
+		gap: var(--sp-3);
 	}
 
 	.narrate label {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	textarea {
-		font: inherit;
-		color: inherit;
-		background: #120e0b;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 0.45rem 0.6rem;
 		resize: vertical;
 	}
 
 	.world ul {
-		margin-top: 0.4rem;
+		margin-top: var(--sp-3);
 	}
 
 	.world li {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.5rem;
-		font-size: 0.85rem;
+		gap: var(--sp-4);
+		font-size: var(--fs-sm);
 	}
 
 	.world label {
@@ -664,12 +700,12 @@
 
 	.world small {
 		color: var(--muted);
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 	}
 
 	.world select {
-		padding: 0.2rem 0.35rem;
-		font-size: 0.8rem;
+		padding: var(--sp-2) var(--sp-3);
+		font-size: var(--fs-xs);
 	}
 
 	.world .hidden-state {
@@ -678,13 +714,13 @@
 	}
 
 	.cues ul {
-		margin-top: 0.4rem;
+		margin-top: var(--sp-3);
 	}
 
 	.cues button {
 		width: 100%;
 		text-align: left;
-		padding: 0.35rem 0.6rem;
+		padding: var(--sp-3) var(--sp-4);
 	}
 
 	.cues button.read {
@@ -693,36 +729,36 @@
 
 	.row {
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 		flex-wrap: wrap;
 	}
 
 	.row button {
 		flex: 1;
-		padding: 0.4rem 0.5rem;
-		font-size: 0.85rem;
+		padding: var(--sp-3) var(--sp-4);
+		font-size: var(--fs-sm);
 	}
 
 	.offer {
 		display: grid;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 
 	.offer p {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.file-offer {
 		cursor: pointer;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		text-decoration: underline;
 		color: var(--muted);
 	}
 
 	.build-link {
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 </style>

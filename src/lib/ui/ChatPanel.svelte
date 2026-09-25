@@ -80,7 +80,7 @@
 					</header>
 					<p class="roll-result">
 						<span class="expr">{m.roll.expression}</span>
-						<span class="total">{m.roll.total}</span>
+						<span class="total num">{m.roll.total}</span>
 						<span class="expr">vs {m.dc}</span>
 						<span class="verdict" class:hit={m.success}>{m.success ? 'Found' : 'Nothing'}</span>
 					</p>
@@ -100,12 +100,12 @@
 					</header>
 					<p class="roll-result">
 						<span class="expr">{m.toHit.expression}</span>
-						<span class="total">{m.toHit.total}</span>
+						<span class="total num">{m.toHit.total}</span>
 						<span class="expr">vs {m.defense}</span>
 						<span class="verdict" class:hit={m.hit}>{m.hit ? 'Hit' : 'Miss'}</span>
 						{#if m.damage}
 							<span class="expr">{m.damage.expression}</span>
-							<span class="total damage">{m.damage.total} damage</span>
+							<span class="total num damage">{m.damage.total} damage</span>
 						{/if}
 					</p>
 					{#if m.effect}<p class="outcome">{m.targetName} is {m.effect.toLowerCase()}.</p>{/if}
@@ -133,7 +133,7 @@
 									{#if t.kind === 'dice'}
 										{#each t.rolls as r, j (j)}
 											<span
-												class="die"
+												class="die num"
 												class:max={r === t.sides}
 												class:min={r === 1}
 												title={`d${t.sides}`}>{r}</span
@@ -144,7 +144,7 @@
 									{/if}
 								{/each}
 							</span>
-							<span class="total">{m.roll.total}</span>
+							<span class="total num">{m.roll.total}</span>
 						</p>
 					{/if}
 				{/if}
@@ -177,7 +177,7 @@
 	.chat {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 		height: 100%;
 		min-height: 0;
 	}
@@ -188,41 +188,38 @@
 		overflow-y: auto;
 		list-style: none;
 		margin: 0;
-		padding: 0 0.2rem 0 0;
+		padding: 0 var(--sp-2) 0 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0.45rem;
+		gap: var(--sp-4);
 		overflow-wrap: anywhere;
 	}
 
 	li.system {
 		color: var(--muted);
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 		font-style: italic;
 	}
 
 	li.narration {
-		padding: 0.45rem 0.6rem;
-		border-left: 3px solid var(--accent);
-		background: rgba(224, 164, 88, 0.08);
-		border-radius: 0 8px 8px 0;
-		font-family: Georgia, 'Times New Roman', serif;
+		font-family: var(--font-display);
+		font-style: italic;
 		line-height: 1.4;
 	}
 
 	.speaker {
 		display: block;
-		font-family: system-ui, sans-serif;
-		font-size: 0.78rem;
+		font-style: normal;
+		font-size: var(--fs-sm);
 		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		font-variant: small-caps;
+		letter-spacing: 0.04em;
 		color: var(--accent);
 	}
 
 	.versus {
 		color: var(--muted);
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 	}
 
 	.verdict {
@@ -239,23 +236,23 @@
 	}
 
 	.damage {
-		font-size: 1rem;
+		font-size: var(--fs-md);
 	}
 
 	.outcome {
-		margin: 0.2rem 0 0;
-		font-weight: 600;
+		margin: var(--sp-2) 0 0;
+		font-weight: 700;
 	}
 
 	header {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 		align-items: baseline;
 	}
 
 	.author {
-		font-weight: 600;
-		font-size: 0.88rem;
+		font-weight: 700;
+		font-size: var(--fs-sm);
 	}
 
 	.mine .author {
@@ -264,7 +261,8 @@
 
 	time {
 		color: var(--muted);
-		font-size: 0.72rem;
+		font-size: var(--fs-2xs);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.text {
@@ -272,38 +270,39 @@
 	}
 
 	.roll-result {
-		margin: 0.15rem 0 0;
+		margin: var(--sp-1) 0 0;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.35rem 0.5rem;
+		gap: var(--sp-3);
+		padding: var(--sp-3) var(--sp-4);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		background: rgba(0, 0, 0, 0.25);
+		border-radius: var(--radius-md);
+		background: var(--panel-sunk);
 	}
 
 	.private {
 		display: block;
-		margin-top: 0.2rem;
-		font-size: 0.7rem;
+		margin-top: var(--sp-2);
+		font-style: normal;
+		font-size: var(--fs-2xs);
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: var(--accent);
 	}
 
 	.expr {
-		font-family: ui-monospace, monospace;
+		font-family: var(--font-mono);
 		color: var(--muted);
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 	}
 
 	.breakdown {
 		display: inline-flex;
 		flex-wrap: wrap;
-		gap: 0.25rem;
-		font-family: ui-monospace, monospace;
-		font-size: 0.85rem;
+		gap: var(--sp-2);
+		font-family: var(--font-mono);
+		font-size: var(--fs-sm);
 	}
 
 	.op {
@@ -312,11 +311,11 @@
 
 	.die {
 		min-width: 1.5rem;
-		padding: 0 0.25rem;
+		padding: 0 var(--sp-2);
 		text-align: center;
 		border: 1px solid var(--border);
-		border-radius: 4px;
-		background: rgba(255, 255, 255, 0.04);
+		border-radius: var(--radius-sm);
+		background: var(--panel-raised);
 	}
 
 	.max {
@@ -331,7 +330,7 @@
 
 	.total {
 		margin-left: auto;
-		font-size: 1.25rem;
+		font-size: var(--fs-lg);
 		font-weight: 700;
 		color: var(--accent);
 	}
@@ -339,18 +338,18 @@
 	.dice-bar {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.25rem;
+		gap: var(--sp-2);
 	}
 
 	.dice-bar button {
-		padding: 0.25rem 0.45rem;
-		font-size: 0.8rem;
-		font-family: ui-monospace, monospace;
+		padding: var(--sp-2) var(--sp-4);
+		font-size: var(--fs-xs);
+		font-family: var(--font-mono);
 	}
 
 	form {
 		display: grid;
 		grid-template-columns: 1fr auto;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 </style>

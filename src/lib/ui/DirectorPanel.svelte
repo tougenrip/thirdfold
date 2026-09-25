@@ -90,13 +90,12 @@
 		state === 'won' ? ' (won)' : state === 'lost' ? ' (lost)' : state === 'active' ? ' (on)' : '';
 </script>
 
-<h2>Direct</h2>
+<h2 class="section-title">Direct</h2>
 
 <div class="section">
 	<div class="row">
 		<button
 			type="button"
-			class:attention={paused}
 			aria-pressed={paused}
 			onclick={() => send({ type: 'pause_set', paused: !paused })}
 		>
@@ -120,9 +119,9 @@
 
 {#if director && playing}
 	<div class="section">
-		<h3>Fight</h3>
+		<h3 class="section-title">Fight</h3>
 		{#if encounter}
-			<p class="note">Round {encounter.round} is on.</p>
+			<p class="note num">Round {encounter.round} is on.</p>
 			<div class="row">
 				<button type="button" onclick={() => direct({ op: 'encounter_end', result: 'won' })}>
 					End: party wins
@@ -133,7 +132,7 @@
 			</div>
 		{:else}
 			<label>
-				<span class="sr-only">Fight to start</span>
+				<span class="visually-hidden">Fight to start</span>
 				<select bind:value={encounterId}>
 					{#each director.encounters as e (e.id)}
 						<option value={e.id}>{e.name}{fightState(e.state)}</option>
@@ -151,10 +150,10 @@
 	</div>
 
 	<div class="section">
-		<h3>Enemies</h3>
+		<h3 class="section-title">Enemies</h3>
 		<div class="row pick">
 			<label>
-				<span class="sr-only">Enemy to bring on</span>
+				<span class="visually-hidden">Enemy to bring on</span>
 				<select bind:value={enemyKind}>
 					{#each director.enemies as e (e.kind)}
 						<option value={e.kind}>{e.name}</option>
@@ -173,13 +172,13 @@
 			<ul class="list">
 				{#each director.foes as f (f.tokenId)}
 					<li>
-						<button type="button" class="link" onclick={() => onSelectToken(f.tokenId)}>
+						<button type="button" class="ghost link" onclick={() => onSelectToken(f.tokenId)}>
 							{f.name}
 						</button>
-						<span class="muted">{f.hp === null ? 'on watch' : `${f.hp}/${f.maxHp} HP`}</span>
+						<span class="muted num">{f.hp === null ? 'on watch' : `${f.hp}/${f.maxHp} HP`}</span>
 						<button
 							type="button"
-							class="small"
+							class="small danger"
 							onclick={() => send({ type: 'token_delete', tokenId: f.tokenId })}
 						>
 							Remove
@@ -194,7 +193,7 @@
 
 	{#if director.people.length}
 		<div class="section">
-			<h3>People here</h3>
+			<h3 class="section-title">People here</h3>
 			<p class="note">Pick someone, then click a cell to move them.</p>
 			<ul class="chips">
 				{#each director.people as p (p.tokenId)}
@@ -209,9 +208,9 @@
 	{/if}
 
 	<div class="section">
-		<h3>Story</h3>
+		<h3 class="section-title">Story</h3>
 		<label>
-			<span class="sr-only">Event to trigger</span>
+			<span class="visually-hidden">Event to trigger</span>
 			<select bind:value={eventId} disabled={director.events.length === 0}>
 				{#each director.events as e (e.id)}
 					<option value={e.id}>{e.label}</option>
@@ -229,7 +228,7 @@
 {/if}
 
 <div class="section">
-	<h3>Environment</h3>
+	<h3 class="section-title">Environment</h3>
 	<div class="row three" role="radiogroup" aria-label="Time of day">
 		{#each AMBIENTS as a (a)}
 			<button
@@ -266,7 +265,7 @@
 </div>
 
 <div class="section">
-	<h3>What players see</h3>
+	<h3 class="section-title">What players see</h3>
 	{#if fogEnabled}
 		<div class="row">
 			{#each VIEW_TOOLS as t (t.tool)}
@@ -295,10 +294,10 @@
 </div>
 
 <div class="section">
-	<h3>Dice</h3>
+	<h3 class="section-title">Dice</h3>
 	<div class="row dice">
 		<label>
-			<span class="sr-only">Dice to roll</span>
+			<span class="visually-hidden">Dice to roll</span>
 			<input bind:value={dice} maxlength="40" spellcheck="false" />
 		</label>
 		<button type="button" onclick={() => roll(false)}>Roll</button>
@@ -310,23 +309,13 @@
 
 <style>
 	h2 {
-		margin: 0 0 0.5rem;
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
-	}
-
-	h3 {
-		margin: 0;
-		font-size: 0.78rem;
-		color: var(--muted);
+		margin: 0 0 var(--sp-4);
 	}
 
 	.section {
 		display: grid;
-		gap: 0.35rem;
-		margin-top: 0.6rem;
+		gap: var(--sp-3);
+		margin-top: var(--sp-4);
 	}
 
 	.section:first-of-type {
@@ -336,7 +325,7 @@
 	.row {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.row.three {
@@ -352,69 +341,61 @@
 	}
 
 	button {
-		padding: 0.35rem 0.4rem;
-		font-size: 0.82rem;
+		padding: var(--sp-3) var(--sp-3);
+		font-size: var(--fs-sm);
 	}
 
-	button[aria-pressed='true'],
 	button[aria-checked='true'] {
 		border-color: var(--accent);
+		background: var(--accent-wash);
 		color: var(--accent);
-	}
-
-	.attention {
-		border-color: var(--accent);
-		color: var(--accent);
-		font-weight: 600;
 	}
 
 	select,
 	input:not([type='checkbox']) {
 		width: 100%;
 		min-width: 0;
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 	}
 
 	.note {
 		margin: 0;
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	.list {
 		display: grid;
-		gap: 0.2rem;
+		gap: var(--sp-2);
 		margin: 0;
 		padding: 0;
 		list-style: none;
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
 	.list li {
 		display: grid;
 		grid-template-columns: auto 1fr auto;
 		align-items: center;
-		gap: 0.4rem;
+		gap: var(--sp-3);
 	}
 
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.25rem;
+		gap: var(--sp-2);
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 
 	.small {
-		padding: 0.15rem 0.4rem;
-		font-size: 0.75rem;
+		padding: var(--sp-1) var(--sp-3);
+		font-size: var(--fs-xs);
 	}
 
 	.link {
 		padding: 0;
-		border: none;
-		background: none;
 		text-align: left;
 		text-decoration: underline;
 		color: inherit;
@@ -422,7 +403,7 @@
 
 	.muted {
 		color: var(--muted);
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 	}
 
 	.swatch {
@@ -434,21 +415,12 @@
 	.check {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.8rem;
+		gap: var(--sp-3);
+		font-size: var(--fs-xs);
 	}
 
 	summary {
 		cursor: pointer;
-		font-size: 0.8rem;
-	}
-
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		white-space: nowrap;
+		font-size: var(--fs-xs);
 	}
 </style>

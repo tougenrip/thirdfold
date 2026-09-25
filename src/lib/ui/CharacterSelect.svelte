@@ -32,8 +32,8 @@
 	<section class="select" aria-labelledby="choose-title">
 		<header>
 			<Steps current={2} />
-			<p class="kicker">{adventure.title} · {adventure.location.name}</p>
 			<h2 id="choose-title">Choose your character</h2>
+			<p class="subtitle">{adventure.title} · {adventure.location.name}</p>
 			<p class="help">
 				Pick whoever sounds like you. Each has two actions; you can change your mind until the story
 				begins.
@@ -51,9 +51,9 @@
 						disabled={!!taken}
 						onclick={() => send({ type: 'adventure_claim', characterId: id })}
 					>
-						<span class="name">{c.name}</span>
+						<span class="name"><span class="seal" aria-hidden="true"></span>{c.name}</span>
 						<span class="tagline">{c.tagline}</span>
-						<span class="stats">
+						<span class="stats num">
 							<span><b>{c.hp}</b> HP</span>
 							<span><b>{c.armor}</b> Armor</span>
 							<span><b>{c.speed}</b> Speed</span>
@@ -85,37 +85,38 @@
 		inset: 0;
 		display: grid;
 		place-items: center;
-		padding: 5rem 1rem 1rem;
-		background: rgba(10, 8, 6, 0.55);
+		padding: 5rem var(--sp-6) var(--sp-6);
+		background: var(--scrim);
 		overflow-y: auto;
 	}
 
 	.select {
 		width: min(52rem, 100%);
 		display: grid;
-		gap: 1rem;
-		padding: 1.25rem;
+		gap: var(--sp-6);
+		padding: var(--sp-7);
 		background: var(--panel-solid);
 		border: 1px solid var(--border);
-		border-radius: 14px;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
 	}
 
-	.kicker {
-		margin: 0.8rem 0 0;
+	.subtitle {
+		margin: var(--sp-1) 0 var(--sp-3);
 		color: var(--muted);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 	}
 
 	.help {
 		margin: 0;
+		max-width: 65ch;
 		color: var(--muted);
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 	}
 
 	h2 {
-		margin: 0.2rem 0 0;
-		font-size: 1.5rem;
+		margin: var(--sp-5) 0 0;
+		font-size: var(--fs-xl);
 	}
 
 	ul {
@@ -124,7 +125,7 @@
 		padding: 0;
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-		gap: 0.75rem;
+		gap: var(--sp-5);
 	}
 
 	.card {
@@ -132,12 +133,9 @@
 		height: 100%;
 		display: grid;
 		align-content: start;
-		gap: 0.5rem;
-		padding: 0.9rem;
+		gap: var(--sp-4);
+		padding: var(--sp-6);
 		text-align: left;
-		border: 1px solid var(--border);
-		border-top: 4px solid var(--char);
-		border-radius: 10px;
 	}
 
 	.card:not(:disabled):hover {
@@ -145,20 +143,37 @@
 	}
 
 	.name {
-		font-size: 1.1rem;
+		display: flex;
+		align-items: center;
+		gap: var(--sp-4);
+		font-family: var(--font-display);
+		font-size: var(--fs-lg);
 		font-weight: 700;
+	}
+
+	.seal {
+		flex: none;
+		width: 0.7rem;
+		height: 0.7rem;
+		border-radius: 50%;
+		background: var(--char);
+		border: 1px solid var(--border-strong);
+	}
+
+	.card:disabled .seal {
+		opacity: 0.5;
 	}
 
 	.tagline,
 	.attack {
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
 	.stats {
 		display: flex;
-		gap: 0.75rem;
-		font-size: 0.85rem;
+		gap: var(--sp-5);
+		font-size: var(--fs-sm);
 	}
 
 	.stats b {
@@ -166,8 +181,8 @@
 	}
 
 	.pick {
-		margin-top: 0.25rem;
-		font-weight: 600;
+		margin-top: var(--sp-2);
+		font-weight: 700;
 		color: var(--char);
 	}
 
@@ -177,7 +192,7 @@
 
 	.note {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 </style>

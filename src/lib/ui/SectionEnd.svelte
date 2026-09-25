@@ -33,18 +33,20 @@
 </script>
 
 <div class="backdrop">
-	<section class="end" aria-labelledby="end-title">
+	<section class="end vellum" aria-labelledby="end-title">
 		<h2 id="end-title">{won ? (adventure.ending?.headline ?? 'The end') : 'The lamps go out'}</h2>
 		<p class="survival">{survivalLine(adventure.characters, won)}</p>
 		<hr />
-		<p class="kicker">
+		<p class="subtitle">
 			{adventure.title} · {won ? 'Adventure complete' : 'Adventure failed'}
 		</p>
 
 		{#if won && adventure.ending}
 			<p class="lead">{adventure.ending.text}</p>
 			{#if adventure.ending.scene}
-				<p class="scene"><span>The final scene</span>{adventure.ending.scene}</p>
+				<p class="scene">
+					<span class="section-title">The final scene</span>{adventure.ending.scene}
+				</p>
 			{/if}
 		{:else if !won}
 			<p class="lead">The dark has won this night. The story can begin again.</p>
@@ -94,7 +96,7 @@
 		</dl>
 
 		{#if summary}
-			<ul class="tally" aria-label="What the party did">
+			<ul class="tally num" aria-label="What the party did">
 				<li><strong>{summary.chapters}</strong> chapters</li>
 				<li><strong>{summary.fightsWon}</strong> fights won</li>
 				<li><strong>{summary.foesDefeated}</strong> foes defeated</li>
@@ -113,7 +115,7 @@
 					{#each [1, 2, 3, 4, 5] as stars (stars)}
 						<button
 							type="button"
-							class="star"
+							class="star ghost"
 							class:lit={(adventure.library.rated ?? 0) >= stars}
 							aria-label={`${stars} of 5`}
 							aria-pressed={adventure.library.rated === stars}
@@ -151,7 +153,7 @@
 			{#if isGm}
 				Replay starts the story over from the beginning with the same party.
 				<button
-					class="link"
+					class="link ghost"
 					type="button"
 					onclick={() => send({ type: 'adventure_control', op: 'end' })}
 				>
@@ -172,8 +174,8 @@
 		inset: 0;
 		display: grid;
 		place-items: center;
-		padding: 1rem;
-		background: rgba(8, 6, 4, 0.6);
+		padding: var(--sp-6);
+		background: var(--scrim);
 	}
 
 	.end {
@@ -181,16 +183,13 @@
 		max-height: calc(100% - 2rem);
 		overflow-y: auto;
 		display: grid;
-		gap: 0.75rem;
-		padding: 1.5rem;
+		gap: var(--sp-5);
+		padding: var(--sp-7);
 		text-align: center;
-		background: var(--panel-solid);
-		border: 1px solid var(--accent);
-		border-radius: 14px;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+		border-radius: var(--radius-lg);
 	}
 
-	.kicker,
+	.subtitle,
 	.lead,
 	.hint,
 	.again {
@@ -198,21 +197,29 @@
 		color: var(--muted);
 	}
 
-	.kicker {
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
+	.lead {
+		max-width: 65ch;
+		margin-inline: auto;
+		font-family: var(--font-display);
+		line-height: 1.5;
+	}
+
+	.subtitle {
+		font-family: var(--font-display);
+		font-variant: small-caps;
+		letter-spacing: 0.04em;
 	}
 
 	.survival {
-		margin: -0.25rem 0 0;
-		font-size: 1.1rem;
+		margin: calc(-1 * var(--sp-2)) 0 0;
+		font-family: var(--font-display);
+		font-size: var(--fs-lg);
 		font-style: italic;
 	}
 
 	hr {
 		width: 40%;
-		margin: 0.25rem auto;
+		margin: var(--sp-2) auto;
 		border: 0;
 		border-top: 1px solid var(--border);
 	}
@@ -229,13 +236,13 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.2rem;
-		margin: 0.6rem 0;
+		gap: var(--sp-2);
+		margin: var(--sp-4) 0;
 		color: var(--muted);
 	}
 
 	.rate > span:first-child {
-		margin-right: 0.4rem;
+		margin-right: var(--sp-3);
 	}
 
 	.stars {
@@ -243,16 +250,18 @@
 		white-space: nowrap;
 	}
 
-	.star {
-		padding: 0.1rem 0.35rem;
-		font-size: 1.3rem;
+	/* Bare glyphs, not keys: beat the vellum's button look. */
+	.end .star,
+	.end .star:hover {
+		padding: var(--sp-1) var(--sp-3);
+		font-size: var(--fs-lg);
 		line-height: 1;
 		border: none;
 		background: none;
 		color: var(--muted);
 	}
 
-	.star.lit {
+	.end .star.lit {
 		color: var(--accent);
 	}
 
@@ -260,8 +269,8 @@
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: 0.4rem 1rem;
-		font-size: 0.85rem;
+		gap: var(--sp-3) var(--sp-6);
+		font-size: var(--fs-sm);
 		color: var(--muted);
 	}
 
@@ -274,51 +283,45 @@
 	}
 
 	.hint {
-		font-size: 0.8rem;
+		font-size: var(--fs-xs);
 	}
 
-	.link {
+	.end .link,
+	.end .link:hover {
 		padding: 0;
 		border: 0;
 		background: none;
 		color: var(--muted);
 		text-decoration: underline;
 		font-size: inherit;
-		cursor: pointer;
 	}
 
 	.scene {
 		margin: 0;
-		padding: 0.6rem 0.8rem;
+		padding: var(--sp-4) var(--sp-5);
 		display: grid;
-		gap: 0.2rem;
-		border-left: 3px solid var(--accent);
-		background: rgba(255, 255, 255, 0.03);
+		gap: var(--sp-2);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background: var(--accent-wash);
 		text-align: left;
-		font-size: 0.92rem;
-	}
-
-	.scene span {
-		font-size: 0.7rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--muted);
+		font-family: var(--font-display);
+		font-size: var(--fs-sm);
 	}
 
 	h2 {
 		margin: 0;
-		font-size: 1.8rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--accent);
+		font-family: var(--font-display);
+		font-size: var(--fs-2xl);
+		line-height: 1.1;
 	}
 
 	dl {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		gap: 0.35rem 1rem;
-		margin: 0.25rem 0;
-		padding: 0.75rem 0;
+		gap: var(--sp-3) var(--sp-6);
+		margin: var(--sp-2) 0;
+		padding: var(--sp-5) 0;
 		border-block: 1px solid var(--border);
 		text-align: left;
 	}
@@ -339,12 +342,12 @@
 
 	small {
 		color: var(--muted);
-		margin-left: 0.3rem;
+		margin-left: var(--sp-3);
 	}
 
 	.row {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--sp-4);
 		justify-content: center;
 		flex-wrap: wrap;
 		align-items: center;

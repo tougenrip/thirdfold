@@ -12,7 +12,7 @@
 			class:now={i === current}
 			aria-current={i === current ? 'step' : undefined}
 		>
-			<span class="dot">{i < current ? '✓' : i + 1}</span>
+			<span class="dot num">{i < current ? '✓' : i + 1}</span>
 			<span class="label">{label}</span>
 		</li>
 	{/each}
@@ -22,18 +22,18 @@
 	.steps {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.3rem 0.8rem;
+		gap: var(--sp-3) var(--sp-5);
 		margin: 0;
 		padding: 0;
 		list-style: none;
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
 
 	li {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
+		gap: var(--sp-3);
 	}
 
 	.dot {
@@ -43,7 +43,7 @@
 		height: 1.2rem;
 		border: 1px solid var(--border);
 		border-radius: 50%;
-		font-size: 0.65rem;
+		font-size: var(--fs-2xs);
 	}
 
 	.done .dot {
@@ -53,7 +53,7 @@
 
 	.now {
 		color: var(--text);
-		font-weight: 600;
+		font-weight: 700;
 	}
 
 	.now .dot {
