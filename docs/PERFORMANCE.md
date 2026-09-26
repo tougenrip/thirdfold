@@ -100,6 +100,11 @@ measured and left alone.
   frame by timestamp queries (`timestamp`, real GPUs on both backends), else the ms until each
   frame is drawn (`sync`: a pixel read back on WebGL2, `onSubmittedWorkDone` on WebGPU; SwiftShader
   always). The report names the backend and the GPU the browser actually used.
+- **Playthrough:** `node scripts/playthrough.mjs [url]`, about 1.5 minutes on the RTX 4060. A GM
+  and a player (who takes a character) play every built-in adventure to its end, the GM skipping
+  scene by scene and taking each choice's first option. After every step the player's table must
+  come to rest (the render scheduler idle or ambient, no warm-up holding it) within 20 s, a token
+  move at each new place must animate, and no page may log an error.
 - **Asset sizes:** `npm run build` prints each chunk. `npx vite build --sourcemap true` with a
   source-map walk shows what a chunk is made of.
 - **Bundle gate:** `npm run bundle:check`, after `npm run build` (CI runs it too). It walks the Vite
