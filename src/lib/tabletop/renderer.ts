@@ -487,7 +487,7 @@ export async function createTabletop(
 			// Not while a warm-up is still compiling for it.
 			void warming.then(() => renderer.dispose());
 		},
-		stats: () => rendererStats(renderer, perf),
+		stats: () => rendererStats(renderer, perf, loop.holding),
 		resetStats: () => perf.reset(),
 		benchmark: (frames) => benchmark(renderer, drawScene, frames),
 		timeFrames: (frames) => timeGpuFrames(renderer, drawScene, frames)

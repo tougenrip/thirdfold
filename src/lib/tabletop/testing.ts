@@ -175,8 +175,9 @@ export async function settle(tabletop: Tabletop, quietMs = 250, limitMs = 8000):
 	let quietSince = start;
 	while (performance.now() - start < limitMs) {
 		await nextFrame();
-		const frames = tabletop.stats().frames;
-		if (frames !== last || frames === 0) {
+		const { frames, holding } = tabletop.stats();
+		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet.
+		if (frames !== last || frames === 0 || holding) {
 			last = frames;
 			quietSince = performance.now();
 		} else if (performance.now() - quietSince >= quietMs) return;

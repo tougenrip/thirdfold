@@ -31,6 +31,8 @@ export interface PerfStats {
 	geometries: number;
 	textures: number;
 	programs: number;
+	/** Frames are held while shaders warm up (warmup.ts): the picture is about to change. */
+	holding: boolean;
 }
 
 export class PerfRecorder {
@@ -85,7 +87,11 @@ export class PerfRecorder {
 }
 
 /** What the renderer has cost so far, with what three.js reports the last frame drew and what it holds. */
-export function rendererStats(renderer: THREE.WebGPURenderer, perf: PerfRecorder): PerfStats {
+export function rendererStats(
+	renderer: THREE.WebGPURenderer,
+	perf: PerfRecorder,
+	holding: boolean
+): PerfStats {
 	const { render, memory } = renderer.info;
 	return {
 		...perf.snapshot(performance.now()),
@@ -93,7 +99,8 @@ export function rendererStats(renderer: THREE.WebGPURenderer, perf: PerfRecorder
 		triangles: render.triangles,
 		geometries: memory.geometries,
 		textures: memory.textures,
-		programs: (memory as { programs?: number }).programs ?? 0
+		programs: (memory as { programs?: number }).programs ?? 0,
+		holding
 	};
 }
 
