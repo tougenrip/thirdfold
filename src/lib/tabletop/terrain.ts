@@ -5,7 +5,7 @@
 // table, under raised cells, so this layer shades its own tops by the same
 // rules: instance colours darken unexplored and unlit cells.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { dress, type Look } from './environment';
 import { FLOOR_IDS, type FloorMap } from '$lib/game/floor';

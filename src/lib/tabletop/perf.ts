@@ -4,7 +4,7 @@
 // performance.now() calls per frame or update. Read by the perf overlay
 // (`?perf` in the URL) and by the measurements in docs/PERFORMANCE.md.
 
-import type * as THREE from 'three';
+import type * as THREE from 'three/webgpu';
 import { RESHADOWS, TIMED, type Tabletop } from './types';
 
 /** Running totals for one kind of work. */
@@ -84,42 +84,52 @@ export class PerfRecorder {
 	}
 }
 
-/** What the renderer has cost so far, with what three.js reports it drew and holds. */
-export function rendererStats(renderer: THREE.WebGLRenderer, perf: PerfRecorder): PerfStats {
-	const { render, memory, programs } = renderer.info;
+/** What the renderer has cost so far, with what three.js reports the last frame drew and what it holds. */
+export function rendererStats(renderer: THREE.WebGPURenderer, perf: PerfRecorder): PerfStats {
+	const { render, memory } = renderer.info;
 	return {
 		...perf.snapshot(performance.now()),
-		drawCalls: render.calls,
+		drawCalls: render.drawCalls,
 		triangles: render.triangles,
 		geometries: memory.geometries,
 		textures: memory.textures,
-		programs: programs?.length ?? 0
+		programs: (memory as { programs?: number }).programs ?? 0
 	};
 }
 
+/** The WebGL2 context behind the renderer, or null on the WebGPU backend. */
+function glOf(renderer: THREE.WebGPURenderer): WebGL2RenderingContext | null {
+	const backend = renderer.backend as { gl?: WebGL2RenderingContext };
+	return backend.gl ?? null;
+}
+
 /**
- * Draws the current view `frames` times, waiting for the GPU each time: the
- * main thread's ms per frame (`cpu`) and the whole frame's until drawn (`gpu`).
+ * Draws the current view `frames` times: the main thread's ms per frame
+ * (`cpu`) and, on the WebGL2 backend, the whole frame's until drawn (`gpu`,
+ * by reading a pixel back). `draw` draws one frame as the tabletop does.
  */
 export function benchmark(
-	renderer: THREE.WebGLRenderer,
-	scene: THREE.Scene,
-	camera: THREE.Camera,
+	renderer: THREE.WebGPURenderer,
+	draw: () => void,
 	frames: number
 ): { cpu: number; gpu: number; drawCalls: number } {
-	const gl = renderer.getContext();
+	const gl = glOf(renderer);
 	const pixel = new Uint8Array(4);
 	let cpu = 0;
 	let gpu = 0;
 	for (let i = 0; i < frames; i++) {
 		const start = performance.now();
-		renderer.render(scene, camera);
+		draw();
 		cpu += performance.now() - start;
 		// Reading a pixel back waits until the frame has been drawn.
-		gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+		if (gl) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
 		gpu += performance.now() - start;
 	}
-	return { cpu: cpu / frames, gpu: gpu / frames, drawCalls: renderer.info.render.calls };
+	return {
+		cpu: cpu / frames,
+		gpu: gl ? gpu / frames : NaN,
+		drawCalls: renderer.info.render.drawCalls
+	};
 }
 
 /**
@@ -139,36 +149,22 @@ export function instrument(tabletop: Tabletop, perf: PerfRecorder, onChange: () 
 }
 
 /**
- * GPU time of drawing the current view, measured with WebGL2 timer queries:
- * the median ms of `frames` frames, or null where the driver has no timer
- * query (software GL). Results arrive frames later, so this is async.
+ * GPU time of drawing the current view by the backend's timestamp queries
+ * (WebGPU timestamps, or WebGL2's timer queries): the median ms of `frames`
+ * frames, or null where the renderer was made without timestamps or the
+ * driver has none (software GL). Results arrive later, so this is async.
  */
 export async function timeGpuFrames(
-	renderer: THREE.WebGLRenderer,
-	scene: THREE.Scene,
-	camera: THREE.Camera,
+	renderer: THREE.WebGPURenderer,
+	draw: () => void,
 	frames: number
 ): Promise<number | null> {
-	const gl = renderer.getContext() as WebGL2RenderingContext;
-	const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
-	if (!ext) return null;
-	const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+	if (!(renderer.backend as { trackTimestamp?: boolean }).trackTimestamp) return null;
 	const times: number[] = [];
 	for (let i = 0; i < frames; i++) {
-		const query = gl.createQuery();
-		if (!query) return null;
-		gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
-		renderer.render(scene, camera);
-		gl.endQuery(ext.TIME_ELAPSED_EXT);
-		for (let wait = 0; wait < 120; wait++) {
-			await nextFrame();
-			if (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) break;
-		}
-		const ready = gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE);
-		if (ready && !gl.getParameter(ext.GPU_DISJOINT_EXT)) {
-			times.push(gl.getQueryParameter(query, gl.QUERY_RESULT) / 1e6);
-		}
-		gl.deleteQuery(query);
+		draw();
+		const ms = await renderer.resolveTimestampsAsync('render');
+		if (typeof ms === 'number' && ms > 0) times.push(ms);
 	}
 	times.sort((a, b) => a - b);
 	return times.length ? times[Math.floor(times.length / 2)] : null;

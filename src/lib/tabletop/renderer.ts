@@ -10,12 +10,11 @@
 // same table always draws the same pixels. Only perf.ts timings keep
 // performance.now(): they measure cost, not animation.
 //
-// The pieces live beside it: types.ts (the Tabletop interface), camera.ts
-// (views, shots), picking.ts (pointer to grid), table.ts (slab, surface, grid
-// lines), scene-lights.ts (sun, sky, lamp), previews.ts (editor feedback), and
-// one layer module per kind of thing on the table.
+// The pieces live beside it (see docs/RENDERING.md, Modules): types, camera,
+// picking, loop (frames, the renderer's setup), table, scene-lights, previews,
+// and one layer module per kind of thing on the table.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import { lightSources, type Ambient, type Light } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
@@ -32,7 +31,7 @@ import { FogLayer, playerVisible, type FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { LightingLayer } from './lighting';
-import { FrameLoop, watchReducedMotion } from './loop';
+import { advanceNodeFrame, createNodeRenderer, FrameLoop, watchReducedMotion } from './loop';
 import { benchmark, instrument, PerfRecorder, rendererStats, timeGpuFrames } from './perf';
 import { poseFor } from './poses';
 import { listenForPicks, Picker } from './picking';
@@ -58,26 +57,16 @@ export type {
 
 const BACKGROUND = 0x16120f;
 
-export function createTabletop(
+export async function createTabletop(
 	canvas: HTMLCanvasElement,
 	events: TabletopEvents,
 	options: TabletopOptions = {}
-): Tabletop {
+): Promise<Tabletop> {
 	const clock = options.now ?? (() => performance.now());
-	const renderer = new THREE.WebGLRenderer({
-		canvas,
-		antialias: true,
-		preserveDrawingBuffer: options.preserveDrawingBuffer ?? false
-	});
+	const renderer = await createNodeRenderer(canvas, options);
 	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
 	renderer.shadowMap.enabled = true;
-	// Only the ambient mist clips (to the table).
-	renderer.localClippingEnabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap;
-	// The sun's shadows are drawn again only when something on the table changed (see
-	// shadowsDirty), not when just the camera moves or flames flicker: that pass draws the
-	// whole scene a second time.
-	renderer.shadowMap.autoUpdate = false;
+	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer
 	let shadowsDirty = true;
 	/** A shadow map never drawn reads as garbage (lit surfaces go black), so the first frame always draws it. */
 	let shadowMapDrawn = false;
@@ -97,6 +86,10 @@ export function createTabletop(
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
 	const { sun } = lights;
+	// The sun's shadows are drawn again only when something on the table changed (see
+	// shadowsDirty), not when just the camera moves or flames flicker: that pass draws the
+	// whole scene a second time.
+	sun.shadow.autoUpdate = false;
 
 	const table = new TableLayer();
 	scene.add(table.group);
@@ -197,6 +190,13 @@ export function createTabletop(
 	let extent = 20;
 	let lastFrameTime = 0;
 
+	/** Draws one frame: counters and the node frame are advanced here, since the internal loop is off. */
+	function drawScene(): void {
+		renderer.info.reset();
+		advanceNodeFrame(renderer);
+		renderer.render(scene, camera);
+	}
+
 	function render(): void {
 		const start = performance.now();
 		perf.frame(start);
@@ -238,12 +238,12 @@ export function createTabletop(
 		camera.position.add(shakeOffset);
 		// With the sun out (after dark) its shadows show nowhere: leave them until it is back.
 		const sunShines = sun.intensity > 0;
-		renderer.shadowMap.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn;
+		sun.shadow.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn;
 		shadowMapDrawn = true;
-		if (renderer.shadowMap.needsUpdate) perf.add('shadows', 0);
+		if (sun.shadow.needsUpdate) perf.add('shadows', 0);
 		if (sunShines) shadowsDirty = false;
 		const draw = performance.now();
-		renderer.render(scene, camera);
+		drawScene();
 		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
 	}
@@ -486,12 +486,12 @@ export function createTabletop(
 			propLayer.dispose();
 			diceLayer.dispose();
 			previews.dispose();
-			renderer.dispose();
+			void renderer.dispose();
 		},
 		stats: () => rendererStats(renderer, perf),
 		resetStats: () => perf.reset(),
-		benchmark: (frames) => benchmark(renderer, scene, camera, frames),
-		timeFrames: (frames) => timeGpuFrames(renderer, scene, camera, frames)
+		benchmark: (frames) => benchmark(renderer, drawScene, frames),
+		timeFrames: (frames) => timeGpuFrames(renderer, drawScene, frames)
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
 	instrument(tabletop, perf, () => (shadowsDirty = true));

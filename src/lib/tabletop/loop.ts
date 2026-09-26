@@ -1,3 +1,6 @@
+import * as THREE from 'three/webgpu';
+import type { TabletopOptions } from './types';
+
 // Frames on demand: nothing is drawn until something asks for a frame, and
 // at most one is ever waiting. Flickering flames and drifting mist ask on a
 // slow timer instead (AMBIENT_FRAME_MS), never every frame.
@@ -55,4 +58,73 @@ export function watchReducedMotion(
 		reduced: override ?? query?.matches ?? false,
 		stop: () => query?.removeEventListener('change', listener)
 	};
+}
+
+/** The parts of r186's renderer that its own animation loop drives (not in the public types). */
+interface NodeRendererInternals {
+	_animation: { stop(): void };
+	_nodes: { nodeFrame: { update(): void } };
+	info: { autoReset: boolean };
+}
+
+/**
+ * r186's `init()` starts a loop that requests a frame on every vsync, forever,
+ * which would end render on demand. Stop it: each frame we draw resets the
+ * counters and advances the node frame itself (`advanceNodeFrame`), so time
+ * nodes and each shadow's once-per-frame guard still work.
+ */
+export function stopInternalLoop(renderer: object): void {
+	const r = renderer as NodeRendererInternals;
+	r._animation.stop();
+	r.info.autoReset = false;
+}
+
+/** What r186's internal loop did on each frame: move the node frame on. */
+export function advanceNodeFrame(renderer: object): void {
+	(renderer as NodeRendererInternals)._nodes.nodeFrame.update();
+}
+
+/**
+ * The backend the viewer asked for: `?backend=webgl` in the URL, or the
+ * compatibility setting in `thirdfold:graphics`, forces WebGL2; else WebGPU
+ * where the browser has it. Changing it takes a reload: a canvas keeps its
+ * kind of context.
+ */
+export function wantedBackend(): 'webgpu' | 'webgl' {
+	try {
+		if (new URLSearchParams(location.search).get('backend') === 'webgl') return 'webgl';
+		const saved = JSON.parse(localStorage.getItem('thirdfold:graphics') ?? 'null');
+		if (saved && typeof saved === 'object' && saved.compatibility === true) return 'webgl';
+	} catch {
+		// no URL or storage (tests, private windows): the default
+	}
+	return 'webgpu';
+}
+
+/**
+ * The renderer: WebGPU where the browser has it, else WebGPURenderer's WebGL2
+ * backend by itself. The kill switch forces WebGL2 (`wantedBackend`); so do
+ * tests that read pixels back, which need preserveDrawingBuffer, a WebGL
+ * context attribute the backend only takes from a context made here.
+ */
+export async function createNodeRenderer(
+	canvas: HTMLCanvasElement,
+	options: TabletopOptions
+): Promise<THREE.WebGPURenderer> {
+	const forceWebGL =
+		options.preserveDrawingBuffer || (options.backend ?? wantedBackend()) === 'webgl';
+	const context = options.preserveDrawingBuffer
+		? (canvas.getContext('webgl2', { antialias: true, alpha: true, preserveDrawingBuffer: true }) ??
+			undefined)
+		: undefined;
+	const renderer = new THREE.WebGPURenderer({
+		canvas,
+		antialias: true,
+		forceWebGL,
+		context,
+		trackTimestamp: options.perf ?? false
+	});
+	await renderer.init();
+	stopInternalLoop(renderer);
+	return renderer;
 }

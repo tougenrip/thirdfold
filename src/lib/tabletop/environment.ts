@@ -3,7 +3,7 @@
 // textures, loaded when the table first needs them. Textures are PNGs
 // loaded as images, once each, shared by every material that uses them.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { MaterialDef } from '$lib/assets/manifest';
 import { assetUrl, loadManifest } from '$lib/assets/load';
 

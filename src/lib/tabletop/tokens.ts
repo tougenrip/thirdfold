@@ -6,7 +6,7 @@
 // figure once it has loaded (see models.ts); until then, and without one,
 // it is the plain miniature: a torso and a head in its colour.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';

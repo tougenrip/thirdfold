@@ -2,7 +2,7 @@
 // and the grid lines (one draw call however large the grid). The environment
 // dresses the slab and surface; their materials are kept across tables.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import { dress, type EnvironmentLook } from './environment';
 

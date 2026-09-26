@@ -5,7 +5,7 @@
 // rules about what darkness hides. After dark, flames flicker (`flicker`),
 // which is cosmetic and costs no state.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { lightLevels, type Ambient, type Light, type LightSource } from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';

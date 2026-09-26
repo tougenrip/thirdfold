@@ -4,7 +4,7 @@
 // `accent` takes the token's colour. Until one has loaded, props and tokens
 // show their placeholders.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { ModelEntry } from '$lib/assets/manifest';
 import { assetUrl, loadManifest } from '$lib/assets/load';

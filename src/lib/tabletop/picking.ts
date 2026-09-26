@@ -3,7 +3,7 @@
 // pointer input into clicks and hover changes. A press that moves more than
 // CLICK_SLOP_PX is a camera drag, not a click.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import {
 	cornerToWorld,
 	worldToCorner,

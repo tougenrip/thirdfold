@@ -10,7 +10,7 @@
 // a swing, a landing) play on top. All of it runs on the wall clock
 // (`tick(now)`), only while something is moving.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { MOTION_MS, type MotionKind } from '$lib/game/motion';
 import {

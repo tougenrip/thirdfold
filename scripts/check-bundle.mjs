@@ -21,6 +21,8 @@ const BUDGETS = {
 	'/room/[id]': { total: 121_000, own: 76_000 },
 	renderer: { total: 360_000 }
 };
+/** Only classic WebGLRenderer (build/three.module.js) has this: the renderer is WebGPURenderer now. */
+const CLASSIC_MARKER = 'THREE.WebGLRenderer: Error creating WebGL context';
 /** Property names three.js keeps through minification. */
 const THREE_MARKERS = ['isVector3', 'isObject3D', 'isBufferGeometry'];
 
@@ -39,7 +41,8 @@ function measure(file) {
 		sizes.set(file, {
 			raw: code.length,
 			gz: gzipSync(code).length,
-			three: THREE_MARKERS.some((m) => text.includes(m))
+			three: THREE_MARKERS.some((m) => text.includes(m)),
+			classic: text.includes(CLASSIC_MARKER)
 		});
 	}
 	return sizes.get(file);
@@ -58,13 +61,15 @@ function total(files) {
 	let raw = 0;
 	let gz = 0;
 	let three = false;
+	let classic = false;
 	for (const f of files) {
 		const s = measure(f);
 		raw += s.raw;
 		gz += s.gz;
 		three ||= s.three;
+		classic ||= s.classic;
 	}
-	return { raw, gz, three };
+	return { raw, gz, three, classic };
 }
 
 const nodeKey = (n) => `.svelte-kit/generated/client-optimized/nodes/${n}.js`;
@@ -105,6 +110,7 @@ for (const r of rows) {
 		(r.three ? 'yes' : 'no').padStart(10)
 	);
 	if (r.three && !r.lazy) failures.push(`${r.name} statically imports three.js`);
+	if (r.classic) failures.push(`${r.name} bundles the classic WebGLRenderer`);
 	if (r.gz > max) failures.push(`${r.name} is ${kb(r.gz)} gz, over ${kb(max)}`);
 	if (maxOwn !== undefined && r.own > maxOwn) {
 		failures.push(`${r.name} adds ${kb(r.own)} gz to the shell, over ${kb(maxOwn)}`);

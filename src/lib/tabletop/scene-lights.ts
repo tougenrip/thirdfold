@@ -2,7 +2,7 @@
 // one side) and fitting them, the distance haze and the camera's reach to the
 // size of the table. LightingLayer sets their strengths for the time of day.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 /** The distance haze, as tuned for tables up to `extent` across (the Hollow's). */

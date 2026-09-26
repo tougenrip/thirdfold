@@ -4,7 +4,7 @@
 // spin that settles into the orientation showing the rolled face, so every
 // client sees the same throw.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
 import { DIE_LABELS, seededRandom } from './dice-faces';

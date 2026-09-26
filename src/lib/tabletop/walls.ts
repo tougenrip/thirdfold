@@ -6,7 +6,7 @@
 // is one face); a window is a low sill and, between equal floors, a lintel,
 // with the gap between them to see through.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { edgeKey, unitEdges, type Door, type SceneObject } from '$lib/game/objects';
 import { dress, type Look } from './environment';

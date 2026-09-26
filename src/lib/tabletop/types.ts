@@ -55,10 +55,14 @@ export interface TabletopOptions {
 	now?: () => number;
 	/** Default `min(devicePixelRatio, 2)`. */
 	pixelRatio?: number;
-	/** Keeps the drawn frame readable after it is shown (tests only: it costs memory). */
+	/** Keeps the drawn frame readable after it is shown (tests only: it costs memory; forces WebGL2). */
 	preserveDrawingBuffer?: boolean;
 	/** Overrides the `prefers-reduced-motion` media query when set. */
 	reducedMotion?: boolean;
+	/** `webgl` forces WebGPURenderer's WebGL2 backend; default: `?backend=` and the Graphics setting. */
+	backend?: 'webgpu' | 'webgl';
+	/** Tracks GPU timestamps, for `timeFrames` (the perf overlay and scripts). */
+	perf?: boolean;
 }
 
 export interface Tabletop {

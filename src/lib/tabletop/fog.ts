@@ -3,7 +3,7 @@
 // nothing is rebuilt. Presentation only: the server already withholds hidden
 // tokens and walls from players, this just darkens the floor to match.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 

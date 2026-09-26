@@ -145,18 +145,24 @@
 		let t: Tabletop | null = null;
 		let gone = false;
 		loadRenderer()
-			.then(({ createTabletop }) => {
+			.then(async ({ createTabletop }) => {
 				if (gone) return;
 				// Handlers read the current props at call time, so the renderer never needs rebuilding.
-				t = createTabletop(canvas, {
-					onClick: (pick) => onClick?.(pick),
-					onHover: (pick) => onHover?.(pick)
-				});
+				const made = await createTabletop(
+					canvas,
+					{ onClick: (pick) => onClick?.(pick), onHover: (pick) => onHover?.(pick) },
+					{ perf: showPerf }
+				);
+				// Unmounted while the renderer was starting: throw it away.
+				if (gone) return made.dispose();
+				t = made;
 				tabletop = t;
 			})
 			.catch((err) => {
 				console.error('[tabletop] failed to start renderer', err);
-				webglError = 'This browser could not start 3D rendering (WebGL unavailable).';
+				webglError = /webgl|webgpu|context|adapter/i.test(String(err))
+					? "This device can't show 3D (WebGL2 unavailable)."
+					: "The table couldn't start.";
 			});
 		return () => {
 			gone = true;

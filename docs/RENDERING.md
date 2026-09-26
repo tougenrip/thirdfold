@@ -83,6 +83,23 @@ and storage-texture or indirect-draw effects; `BundleGroup` brings no gain on We
 and TAAU are ultra-tier by choice, not by API. Compatibility-mode WebGPU turns MSAA off and caps
 textures at 4096 px.
 
+### The port (milestone 62, #144)
+
+Every tabletop module imports `three/webgpu`; the addons (`OrbitControls`, `GLTFLoader`) keep
+`three`, whose classes are the same objects. `createTabletop` is async: `createNodeRenderer`
+(`loop.ts`) builds `WebGPURenderer` (WebGPU where the browser has it, else its WebGL2 backend),
+awaits `init()`, and stops r186's internal per-vsync loop; each frame the tabletop draws resets
+`renderer.info` and advances the node frame itself. `?backend=webgl`, or `compatibility: true` in
+`thirdfold:graphics`, forces WebGL2 (a reload switches). Tests that read pixels back force WebGL2 too
+and hand the renderer a context made with `preserveDrawingBuffer`. The sun's shadow is cached on the
+light (`sun.shadow.autoUpdate = false`, `needsUpdate` when the table changed, #143). The bundle gate
+fails if the classic `WebGLRenderer` is bundled again; the renderer adds 257 kB gz.
+
+The port moved 37 of the 113 goldens past tolerance, all in the same two ways: the background
+clears to black instead of the dark brown (the node renderer tone-maps the clear colour, and ACES
+crushes that brown), and the line grid draws brighter. #153 retunes them and #157 takes overlays out
+of tone mapping; the sky (#114) replaces the background altogether.
+
 ### What the port breaks (r186)
 
 The port is [#144](https://github.com/tougenrip/thirdfold/issues/144).
@@ -163,7 +180,7 @@ frame of a loaded table under 1.5× of today's (about 85 ms). If it can't, the o
 on macOS 15 and 26), WebKitGTK (Tauri on Linux, with and without `WEBKIT_DISABLE_DMABUF_RENDERER=1`),
 Capacitor Android, iOS 26, and an M-series Mac.
 
-**Owner sign-off:** pending on #142.
+**Owner sign-off:** approved by the owner on #142, 26 September 2026.
 
 ## Invariants
 

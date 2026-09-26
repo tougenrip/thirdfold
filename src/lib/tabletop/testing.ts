@@ -113,7 +113,7 @@ export async function mountFixture(
 	const canvas = document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
 	document.body.appendChild(canvas);
-	const tabletop = createTabletop(
+	const tabletop = await createTabletop(
 		canvas,
 		options.events ?? { onClick: () => {}, onHover: () => {} },
 		{

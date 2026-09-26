@@ -5,7 +5,7 @@
 // slow frame timer running while something is drifting. With reduced motion
 // there is no mist at all: it is only ever seen drifting.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient } from '$lib/game/lights';
 

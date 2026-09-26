@@ -2,7 +2,7 @@
 // moves that take the camera for a moment (a view change, a cinematic shot)
 // on the renderer's clock. Any drag or scroll ends a shot where it is.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Shot } from '$lib/game/chat';
@@ -118,7 +118,7 @@ export class CameraRig {
 /** Keeps the drawing size and the camera's aspect in step with the canvas. Returns a stop function. */
 export function watchCanvasSize(
 	canvas: HTMLCanvasElement,
-	renderer: THREE.WebGLRenderer,
+	renderer: THREE.WebGPURenderer,
 	camera: THREE.PerspectiveCamera,
 	onResize: () => void
 ): () => void {

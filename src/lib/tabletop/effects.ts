@@ -9,7 +9,7 @@
 // alongside a toll; reduced motion keeps it, as it is the one sign of what
 // the server's fog is showing for that moment).
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { FLASH_MS, type Cue } from '$lib/game/chat';
 
 const TOLL_MS = 7000;
