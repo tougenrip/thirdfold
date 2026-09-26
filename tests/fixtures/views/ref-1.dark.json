@@ -1,0 +1,431 @@
+{
+	"player": {
+		"viewer": "player",
+		"band": "dark",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 6,
+			"height": 6
+		},
+		"environment": "stone-halls",
+		"ambient": "dark",
+		"fog": {
+			"enabled": true,
+			"visible": "gO/7ngM=",
+			"explored": "/////w8=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAEBAQEAAAEBAQEAAAEBAQEAAAEBAQEAAAAAAAAA",
+		"tokens": [
+			{
+				"id": "ref1-mini-a",
+				"name": "Goblin",
+				"color": "#c0392b",
+				"pos": {
+					"x": 3,
+					"y": 2
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hatted-shade",
+				"ownerId": null
+			},
+			{
+				"id": "ref1-mini-b",
+				"name": "Goblin",
+				"color": "#c0392b",
+				"pos": {
+					"x": 2,
+					"y": 2
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hound",
+				"ownerId": null
+			},
+			{
+				"id": "ref1-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 2,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref1-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 5,
+					"y": 1
+				}
+			},
+			{
+				"id": "ref1-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 1,
+					"y": 5
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref1-barrel",
+				"assetId": "barrel",
+				"pos": {
+					"x": 1,
+					"y": 4
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-crate-a",
+				"assetId": "crate",
+				"pos": {
+					"x": 4,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-crate-b",
+				"assetId": "crate",
+				"pos": {
+					"x": 4,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-sconce",
+				"assetId": "sconce",
+				"pos": {
+					"x": 1,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref1-torch",
+				"pos": {
+					"x": 1,
+					"y": 1
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			}
+		]
+	},
+	"spectator": {
+		"viewer": "spectator",
+		"band": "dark",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 6,
+			"height": 6
+		},
+		"environment": "stone-halls",
+		"ambient": "dark",
+		"fog": {
+			"enabled": true,
+			"visible": "gO/7ngM=",
+			"explored": "/////w8=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAEBAQEAAAEBAQEAAAEBAQEAAAEBAQEAAAAAAAAA",
+		"tokens": [
+			{
+				"id": "ref1-mini-a",
+				"name": "Goblin",
+				"color": "#c0392b",
+				"pos": {
+					"x": 3,
+					"y": 2
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hatted-shade",
+				"ownerId": null
+			},
+			{
+				"id": "ref1-mini-b",
+				"name": "Goblin",
+				"color": "#c0392b",
+				"pos": {
+					"x": 2,
+					"y": 2
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hound",
+				"ownerId": null
+			},
+			{
+				"id": "ref1-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 2,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref1-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 5,
+					"y": 1
+				}
+			},
+			{
+				"id": "ref1-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 1,
+					"y": 5
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref1-barrel",
+				"assetId": "barrel",
+				"pos": {
+					"x": 1,
+					"y": 4
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-crate-a",
+				"assetId": "crate",
+				"pos": {
+					"x": 4,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-crate-b",
+				"assetId": "crate",
+				"pos": {
+					"x": 4,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-sconce",
+				"assetId": "sconce",
+				"pos": {
+					"x": 1,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref1-torch",
+				"pos": {
+					"x": 1,
+					"y": 1
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			}
+		]
+	},
+	"gm": {
+		"viewer": "gm",
+		"band": "dark",
+		"fogMode": "gm",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 6,
+			"height": 6
+		},
+		"environment": "stone-halls",
+		"ambient": "dark",
+		"fog": {
+			"enabled": true,
+			"visible": "gO/7ngM=",
+			"explored": "/////w8=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAEBAQEAAAEBAQEAAAEBAQEAAAEBAQEAAAAAAAAA",
+		"tokens": [
+			{
+				"id": "ref1-mini-a",
+				"name": "Goblin",
+				"color": "#c0392b",
+				"pos": {
+					"x": 3,
+					"y": 2
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hatted-shade",
+				"ownerId": null
+			},
+			{
+				"id": "ref1-mini-b",
+				"name": "Goblin",
+				"color": "#c0392b",
+				"pos": {
+					"x": 2,
+					"y": 2
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hound",
+				"ownerId": null
+			},
+			{
+				"id": "ref1-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 2,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref1-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 5,
+					"y": 1
+				}
+			},
+			{
+				"id": "ref1-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 1,
+					"y": 5
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref1-barrel",
+				"assetId": "barrel",
+				"pos": {
+					"x": 1,
+					"y": 4
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-crate-a",
+				"assetId": "crate",
+				"pos": {
+					"x": 4,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-crate-b",
+				"assetId": "crate",
+				"pos": {
+					"x": 4,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-sconce",
+				"assetId": "sconce",
+				"pos": {
+					"x": 1,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref1-torch",
+				"pos": {
+					"x": 1,
+					"y": 1
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			}
+		]
+	}
+}

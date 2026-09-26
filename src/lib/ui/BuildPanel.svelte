@@ -35,7 +35,7 @@
 	import { ASSET_IDS, ASSETS } from '$lib/game/props';
 	import { FLOORS, type FloorId } from '$lib/game/floor';
 	import { MAX_LEVEL } from '$lib/game/terrain';
-	import { FLOOR_LOOKS } from '$lib/tabletop/floor';
+	import { FLOOR_LOOKS } from '$lib/tabletop/floor-looks';
 	import { WALL_LEVELS } from '$lib/game/visibility';
 
 	interface Props {

@@ -1,0 +1,45 @@
+{
+	"ambient": "dark",
+	"player": {
+		"tokenId": "heart-mini-hero"
+	},
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 8,
+				"y": 7
+			},
+			"distance": 17.6,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 7,
+				"y": 11
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38
+		},
+		"low": {
+			"target": {
+				"x": 7,
+				"y": 11
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 7,
+				"y": 11
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38,
+			"ambient": "dark"
+		}
+	}
+}

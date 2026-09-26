@@ -1,0 +1,608 @@
+{
+	"player": {
+		"viewer": "player",
+		"band": "day",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 16,
+			"height": 14
+		},
+		"environment": "living-cave",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAAIAL4D/4//D/8P/5/+D/4H/5//n///w==",
+			"explored": "AAAAAAAAIAL4D/4//D/8P/5/+D/4H/5//n///w==",
+			"shared": false
+		},
+		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAQAAAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"darkness": null,
+		"floor": null,
+		"tokens": [
+			{
+				"id": "heart-mini-b",
+				"name": "Saint",
+				"color": "#27ae60",
+				"pos": {
+					"x": 8,
+					"y": 11
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "heart-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 7,
+					"y": 11
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "hh-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 15,
+					"y": 1
+				},
+				"b": {
+					"x": 15,
+					"y": 13
+				}
+			},
+			{
+				"id": "hh-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 1,
+					"y": 13
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "hh-bell-shard",
+				"assetId": "rubble",
+				"pos": {
+					"x": 10,
+					"y": 11
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-bones-1",
+				"assetId": "rubble",
+				"pos": {
+					"x": 4,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-bones-2",
+				"assetId": "ashes",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-heart",
+				"assetId": "heart",
+				"pos": {
+					"x": 6,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-3",
+				"assetId": "pillar",
+				"pos": {
+					"x": 2,
+					"y": 7
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-4",
+				"assetId": "pillar",
+				"pos": {
+					"x": 13,
+					"y": 7
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-5",
+				"assetId": "pillar",
+				"pos": {
+					"x": 3,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-6",
+				"assetId": "pillar",
+				"pos": {
+					"x": 12,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-stair",
+				"assetId": "stairs",
+				"pos": {
+					"x": 7,
+					"y": 13
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "hh-stair-light",
+				"pos": {
+					"x": 7,
+					"y": 13
+				},
+				"radius": 1,
+				"color": "#7fb6ff",
+				"on": true
+			}
+		]
+	},
+	"spectator": {
+		"viewer": "spectator",
+		"band": "day",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 16,
+			"height": 14
+		},
+		"environment": "living-cave",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAAIAL4D/4//D/8P/5/+D/4H/5//n///w==",
+			"explored": "AAAAAAAAIAL4D/4//D/8P/5/+D/4H/5//n///w==",
+			"shared": false
+		},
+		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAQAAAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"darkness": null,
+		"floor": null,
+		"tokens": [
+			{
+				"id": "heart-mini-b",
+				"name": "Saint",
+				"color": "#27ae60",
+				"pos": {
+					"x": 8,
+					"y": 11
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "heart-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 7,
+					"y": 11
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "hh-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 15,
+					"y": 1
+				},
+				"b": {
+					"x": 15,
+					"y": 13
+				}
+			},
+			{
+				"id": "hh-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 1,
+					"y": 13
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "hh-bell-shard",
+				"assetId": "rubble",
+				"pos": {
+					"x": 10,
+					"y": 11
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-bones-1",
+				"assetId": "rubble",
+				"pos": {
+					"x": 4,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-bones-2",
+				"assetId": "ashes",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-heart",
+				"assetId": "heart",
+				"pos": {
+					"x": 6,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-3",
+				"assetId": "pillar",
+				"pos": {
+					"x": 2,
+					"y": 7
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-4",
+				"assetId": "pillar",
+				"pos": {
+					"x": 13,
+					"y": 7
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-5",
+				"assetId": "pillar",
+				"pos": {
+					"x": 3,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-6",
+				"assetId": "pillar",
+				"pos": {
+					"x": 12,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-stair",
+				"assetId": "stairs",
+				"pos": {
+					"x": 7,
+					"y": 13
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "hh-stair-light",
+				"pos": {
+					"x": 7,
+					"y": 13
+				},
+				"radius": 1,
+				"color": "#7fb6ff",
+				"on": true
+			}
+		]
+	},
+	"gm": {
+		"viewer": "gm",
+		"band": "day",
+		"fogMode": "gm",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 16,
+			"height": 14
+		},
+		"environment": "living-cave",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAAIAL4D/4//D/8P/5/+D/4H/5//n///w==",
+			"explored": "AAAAAAAAIAL4D/4//D/8P/5/+D/4H/5//n///w==",
+			"shared": false
+		},
+		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"darkness": null,
+		"floor": null,
+		"tokens": [
+			{
+				"id": "heart-mini-b",
+				"name": "Saint",
+				"color": "#27ae60",
+				"pos": {
+					"x": 8,
+					"y": 11
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "heart-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 7,
+					"y": 11
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "hh-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 15,
+					"y": 1
+				},
+				"b": {
+					"x": 15,
+					"y": 13
+				}
+			},
+			{
+				"id": "hh-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 0
+				},
+				"b": {
+					"x": 14,
+					"y": 0
+				}
+			},
+			{
+				"id": "hh-wall-ne",
+				"kind": "wall",
+				"a": {
+					"x": 14,
+					"y": 1
+				},
+				"b": {
+					"x": 15,
+					"y": 1
+				}
+			},
+			{
+				"id": "hh-wall-nw",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 2,
+					"y": 1
+				}
+			},
+			{
+				"id": "hh-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 1,
+					"y": 13
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "hh-bell-shard",
+				"assetId": "rubble",
+				"pos": {
+					"x": 10,
+					"y": 11
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-bones-1",
+				"assetId": "rubble",
+				"pos": {
+					"x": 4,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-bones-2",
+				"assetId": "ashes",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-heart",
+				"assetId": "heart",
+				"pos": {
+					"x": 6,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-1",
+				"assetId": "pillar",
+				"pos": {
+					"x": 2,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-2",
+				"assetId": "pillar",
+				"pos": {
+					"x": 13,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-3",
+				"assetId": "pillar",
+				"pos": {
+					"x": 2,
+					"y": 7
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-4",
+				"assetId": "pillar",
+				"pos": {
+					"x": 13,
+					"y": 7
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-5",
+				"assetId": "pillar",
+				"pos": {
+					"x": 3,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-rib-6",
+				"assetId": "pillar",
+				"pos": {
+					"x": 12,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "hh-stair",
+				"assetId": "stairs",
+				"pos": {
+					"x": 7,
+					"y": 13
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "hh-heart-light",
+				"pos": {
+					"x": 7,
+					"y": 3
+				},
+				"radius": 5,
+				"color": "#c0392b",
+				"on": true
+			},
+			{
+				"id": "hh-stair-light",
+				"pos": {
+					"x": 7,
+					"y": 13
+				},
+				"radius": 1,
+				"color": "#7fb6ff",
+				"on": true
+			}
+		]
+	}
+}

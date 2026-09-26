@@ -1,0 +1,45 @@
+{
+	"ambient": "day",
+	"player": {
+		"tokenId": "outdoor-mini-hero"
+	},
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 32,
+				"y": 32
+			},
+			"distance": 70.4,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 32,
+				"y": 40
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38
+		},
+		"low": {
+			"target": {
+				"x": 32,
+				"y": 40
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 32,
+				"y": 40
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38,
+			"ambient": "dark"
+		}
+	}
+}

@@ -1,0 +1,45 @@
+{
+	"ambient": "day",
+	"player": {
+		"tokenId": "ref7-mini-01"
+	},
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 6,
+				"y": 4
+			},
+			"distance": 13.200000000000001,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 5,
+				"y": 3
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38
+		},
+		"low": {
+			"target": {
+				"x": 5,
+				"y": 3
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 5,
+				"y": 3
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38,
+			"ambient": "dark"
+		}
+	}
+}

@@ -7,21 +7,9 @@ import type { DiceRoll } from '$lib/game/dice';
 
 export type DieKind = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20' | 'd100tens' | 'd100units';
 
-/** Faces per model and the label on each face, in face order. */
-export const DIE_LABELS: Record<DieKind, readonly string[]> = {
-	d4: ['1', '2', '3', '4'],
-	d6: ['1', '2', '3', '4', '5', '6'],
-	d8: ['1', '2', '3', '4', '5', '6', '7', '8'],
-	d10: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
-	d12: Array.from({ length: 12 }, (_, i) => String(i + 1)),
-	d20: Array.from({ length: 20 }, (_, i) => String(i + 1)),
-	d100tens: ['00', '10', '20', '30', '40', '50', '60', '70', '80', '90'],
-	d100units: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-};
-
 export interface ThrownDie {
 	kind: DieKind;
-	/** Index into DIE_LABELS[kind] of the face that shows the result. */
+	/** Index into DIE_LABELS[kind] (dice-faces.ts) of the face that shows the result. */
 	face: number;
 }
 
@@ -58,16 +46,4 @@ export function diceToThrow(roll: DiceRoll): ThrownDie[] {
 		}
 	}
 	return dice.slice(0, MAX_THROWN_DICE);
-}
-
-/** Small seeded PRNG (mulberry32), so every client throws a given roll identically. */
-export function seededRandom(seed: number): () => number {
-	let a = seed >>> 0;
-	return () => {
-		a = (a + 0x6d2b79f5) >>> 0;
-		let t = a;
-		t = Math.imul(t ^ (t >>> 15), t | 1);
-		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-	};
 }

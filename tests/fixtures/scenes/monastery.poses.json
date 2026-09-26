@@ -1,0 +1,45 @@
+{
+	"ambient": "dusk",
+	"player": {
+		"tokenId": "5be8d4e2-51c7-483b-99f8-e185504c3745"
+	},
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 15,
+				"y": 10
+			},
+			"distance": 33,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 4,
+				"y": 15
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38
+		},
+		"low": {
+			"target": {
+				"x": 4,
+				"y": 15
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 4,
+				"y": 15
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38,
+			"ambient": "dark"
+		}
+	}
+}

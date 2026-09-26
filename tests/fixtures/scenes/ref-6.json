@@ -1,0 +1,148 @@
+{
+	"format": "thirdfold-scene",
+	"version": 9,
+	"name": "Fixture: night gate",
+	"savedAt": "2026-01-01T00:00:00.000Z",
+	"grid": {
+		"kind": "square",
+		"cellSize": 1,
+		"width": 12,
+		"height": 10
+	},
+	"tokens": [
+		{
+			"id": "ref6-mini-hero",
+			"name": "Warden",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 5,
+				"y": 7
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
+		},
+		{
+			"id": "ref6-brute",
+			"name": "Brute",
+			"color": "#c0392b",
+			"pos": {
+				"x": 6,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "armored-brute"
+		}
+	],
+	"objects": [
+		{
+			"id": "ref6-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 0,
+				"y": 4
+			},
+			"b": {
+				"x": 5,
+				"y": 4
+			}
+		},
+		{
+			"id": "ref6-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 4
+			},
+			"b": {
+				"x": 12,
+				"y": 4
+			}
+		},
+		{
+			"id": "ref6-gate-w",
+			"kind": "door",
+			"a": {
+				"x": 5,
+				"y": 4
+			},
+			"b": {
+				"x": 6,
+				"y": 4
+			},
+			"open": false
+		},
+		{
+			"id": "ref6-gate-e",
+			"kind": "door",
+			"a": {
+				"x": 6,
+				"y": 4
+			},
+			"b": {
+				"x": 7,
+				"y": 4
+			},
+			"open": false
+		}
+	],
+	"props": [
+		{
+			"id": "ref6-brazier-w",
+			"assetId": "brazier",
+			"pos": {
+				"x": 4,
+				"y": 5
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref6-brazier-e",
+			"assetId": "brazier",
+			"pos": {
+				"x": 7,
+				"y": 5
+			},
+			"rotation": 0,
+			"scale": 1
+		}
+	],
+	"lights": [
+		{
+			"id": "ref6-brazier-w-light",
+			"pos": {
+				"x": 4,
+				"y": 5
+			},
+			"radius": 4,
+			"color": "#ff8a30",
+			"on": true
+		},
+		{
+			"id": "ref6-brazier-e-light",
+			"pos": {
+				"x": 7,
+				"y": 5
+			},
+			"radius": 4,
+			"color": "#ff8a30",
+			"on": true
+		}
+	],
+	"ambient": "dark",
+	"fog": {
+		"enabled": true,
+		"revealed": "////////////////////",
+		"shared": false
+	},
+	"discovery": {},
+	"adventure": null,
+	"terrain": null,
+	"darkness": null,
+	"environment": "village",
+	"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB"
+}

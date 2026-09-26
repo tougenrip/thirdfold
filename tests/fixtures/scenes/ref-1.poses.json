@@ -1,0 +1,45 @@
+{
+	"ambient": "dark",
+	"player": {
+		"tokenId": "ref1-mini-hero"
+	},
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 3,
+				"y": 3
+			},
+			"distance": 6.6000000000000005,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 2,
+				"y": 2
+			},
+			"distance": 4.5,
+			"azimuth": 10,
+			"elevation": 26
+		},
+		"low": {
+			"target": {
+				"x": 2,
+				"y": 2
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 2,
+				"y": 2
+			},
+			"distance": 4.5,
+			"azimuth": 10,
+			"elevation": 26,
+			"ambient": "dark"
+		}
+	}
+}

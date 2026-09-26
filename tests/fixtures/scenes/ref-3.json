@@ -1,0 +1,176 @@
+{
+	"format": "thirdfold-scene",
+	"version": 9,
+	"name": "Fixture: red ruined floor",
+	"savedAt": "2026-01-01T00:00:00.000Z",
+	"grid": {
+		"kind": "square",
+		"cellSize": 1,
+		"width": 12,
+		"height": 10
+	},
+	"tokens": [
+		{
+			"id": "ref3-mini-hero",
+			"name": "Warden",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 2,
+				"y": 7
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
+		},
+		{
+			"id": "ref3-foe-a",
+			"name": "Brute",
+			"color": "#c0392b",
+			"pos": {
+				"x": 5,
+				"y": 4
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "armored-brute"
+		},
+		{
+			"id": "ref3-foe-b",
+			"name": "Cultist",
+			"color": "#c0392b",
+			"pos": {
+				"x": 3,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "robed-figure"
+		},
+		{
+			"id": "ref3-foe-c",
+			"name": "Shade",
+			"color": "#c0392b",
+			"pos": {
+				"x": 10,
+				"y": 7
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "hatted-shade"
+		},
+		{
+			"id": "ref3-foe-d",
+			"name": "Hound",
+			"color": "#c0392b",
+			"pos": {
+				"x": 8,
+				"y": 5
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "hound"
+		}
+	],
+	"objects": [],
+	"props": [
+		{
+			"id": "ref3-crack-a",
+			"assetId": "crack",
+			"pos": {
+				"x": 3,
+				"y": 6
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref3-crack-b",
+			"assetId": "crack",
+			"pos": {
+				"x": 5,
+				"y": 7
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref3-rubble-a",
+			"assetId": "rubble",
+			"pos": {
+				"x": 2,
+				"y": 2
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref3-rubble-b",
+			"assetId": "rubble",
+			"pos": {
+				"x": 8,
+				"y": 8
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref3-fire-a",
+			"assetId": "ashes",
+			"pos": {
+				"x": 4,
+				"y": 4
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref3-fire-b",
+			"assetId": "ashes",
+			"pos": {
+				"x": 9,
+				"y": 6
+			},
+			"rotation": 0,
+			"scale": 1
+		}
+	],
+	"lights": [
+		{
+			"id": "ref3-fire-a-light",
+			"pos": {
+				"x": 4,
+				"y": 4
+			},
+			"radius": 3,
+			"color": "#ff3b1f",
+			"on": true
+		},
+		{
+			"id": "ref3-fire-b-light",
+			"pos": {
+				"x": 9,
+				"y": 6
+			},
+			"radius": 3,
+			"color": "#ff3b1f",
+			"on": true
+		}
+	],
+	"ambient": "dark",
+	"fog": {
+		"enabled": true,
+		"revealed": "////////////////////",
+		"shared": false
+	},
+	"discovery": {},
+	"adventure": null,
+	"terrain": null,
+	"darkness": null,
+	"environment": "stone-halls",
+	"floor": "AQEBAQEBAQEBAQcHAQEBAQEBAQEBBwcBAQEBAQEBAQEHBwEBAQEBAQEBAQcHAQEBAQEBAQEBBwcBAQEBAQEBAQEHBwEBAQEBAQEBAQcHAQEBAQEBAQEBBwcBAQEBAQEBAQEBBwEBAQEBAQEBAQEBAQEBAQEBAQEB"
+}

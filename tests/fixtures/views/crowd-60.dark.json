@@ -1,0 +1,889 @@
+{
+	"player": {
+		"viewer": "player",
+		"band": "dark",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 16,
+			"height": 16
+		},
+		"environment": "village",
+		"ambient": "dark",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"explored": "AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+		"tokens": [
+			{
+				"id": "crowd-mini-01",
+				"name": "Mini 1",
+				"color": "#c0392b",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [],
+		"props": [],
+		"lights": []
+	},
+	"spectator": {
+		"viewer": "spectator",
+		"band": "dark",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 16,
+			"height": 16
+		},
+		"environment": "village",
+		"ambient": "dark",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"explored": "AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+		"tokens": [
+			{
+				"id": "crowd-mini-01",
+				"name": "Mini 1",
+				"color": "#c0392b",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [],
+		"props": [],
+		"lights": []
+	},
+	"gm": {
+		"viewer": "gm",
+		"band": "dark",
+		"fogMode": "gm",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 16,
+			"height": 16
+		},
+		"environment": "village",
+		"ambient": "dark",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"explored": "AAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw==",
+		"tokens": [
+			{
+				"id": "crowd-mini-01",
+				"name": "Mini 1",
+				"color": "#c0392b",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			},
+			{
+				"id": "crowd-mini-02",
+				"name": "Mini 2",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 4,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-03",
+				"name": "Mini 3",
+				"color": "#27ae60",
+				"pos": {
+					"x": 5,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "ember",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-04",
+				"name": "Mini 4",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 6,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "veil",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-05",
+				"name": "Mini 5",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 7,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "villager",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-06",
+				"name": "Mini 6",
+				"color": "#e67e22",
+				"pos": {
+					"x": 8,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-07",
+				"name": "Mini 7",
+				"color": "#c0392b",
+				"pos": {
+					"x": 9,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "elder",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-08",
+				"name": "Mini 8",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 10,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "monk",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-09",
+				"name": "Mini 9",
+				"color": "#27ae60",
+				"pos": {
+					"x": 11,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "priest",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-10",
+				"name": "Mini 10",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 12,
+					"y": 3
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "watchman",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-11",
+				"name": "Mini 11",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 3,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "child",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-12",
+				"name": "Mini 12",
+				"color": "#e67e22",
+				"pos": {
+					"x": 4,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "gravedigger",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-13",
+				"name": "Mini 13",
+				"color": "#c0392b",
+				"pos": {
+					"x": 5,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hound",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-14",
+				"name": "Mini 14",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 6,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "robed-figure",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-15",
+				"name": "Mini 15",
+				"color": "#27ae60",
+				"pos": {
+					"x": 7,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hatted-shade",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-16",
+				"name": "Mini 16",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 8,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "armored-brute",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-17",
+				"name": "Mini 17",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 9,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-18",
+				"name": "Mini 18",
+				"color": "#e67e22",
+				"pos": {
+					"x": 10,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-19",
+				"name": "Mini 19",
+				"color": "#c0392b",
+				"pos": {
+					"x": 11,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "ember",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-20",
+				"name": "Mini 20",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 12,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "veil",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-21",
+				"name": "Mini 21",
+				"color": "#27ae60",
+				"pos": {
+					"x": 3,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "villager",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-22",
+				"name": "Mini 22",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 4,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-23",
+				"name": "Mini 23",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 5,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "elder",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-24",
+				"name": "Mini 24",
+				"color": "#e67e22",
+				"pos": {
+					"x": 6,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "monk",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-25",
+				"name": "Mini 25",
+				"color": "#c0392b",
+				"pos": {
+					"x": 7,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "priest",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-26",
+				"name": "Mini 26",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 8,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "watchman",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-27",
+				"name": "Mini 27",
+				"color": "#27ae60",
+				"pos": {
+					"x": 9,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "child",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-28",
+				"name": "Mini 28",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 10,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "gravedigger",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-29",
+				"name": "Mini 29",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 11,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hound",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-30",
+				"name": "Mini 30",
+				"color": "#e67e22",
+				"pos": {
+					"x": 12,
+					"y": 5
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "robed-figure",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-31",
+				"name": "Mini 31",
+				"color": "#c0392b",
+				"pos": {
+					"x": 3,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hatted-shade",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-32",
+				"name": "Mini 32",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 4,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "armored-brute",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-33",
+				"name": "Mini 33",
+				"color": "#27ae60",
+				"pos": {
+					"x": 5,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-34",
+				"name": "Mini 34",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 6,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-35",
+				"name": "Mini 35",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 7,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "ember",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-36",
+				"name": "Mini 36",
+				"color": "#e67e22",
+				"pos": {
+					"x": 8,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "veil",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-37",
+				"name": "Mini 37",
+				"color": "#c0392b",
+				"pos": {
+					"x": 9,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "villager",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-38",
+				"name": "Mini 38",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 10,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-39",
+				"name": "Mini 39",
+				"color": "#27ae60",
+				"pos": {
+					"x": 11,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "elder",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-40",
+				"name": "Mini 40",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 12,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "monk",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-41",
+				"name": "Mini 41",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 3,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "priest",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-42",
+				"name": "Mini 42",
+				"color": "#e67e22",
+				"pos": {
+					"x": 4,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "watchman",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-43",
+				"name": "Mini 43",
+				"color": "#c0392b",
+				"pos": {
+					"x": 5,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "child",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-44",
+				"name": "Mini 44",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 6,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "gravedigger",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-45",
+				"name": "Mini 45",
+				"color": "#27ae60",
+				"pos": {
+					"x": 7,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hound",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-46",
+				"name": "Mini 46",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 8,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "robed-figure",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-47",
+				"name": "Mini 47",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 9,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hatted-shade",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-48",
+				"name": "Mini 48",
+				"color": "#e67e22",
+				"pos": {
+					"x": 10,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "armored-brute",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-49",
+				"name": "Mini 49",
+				"color": "#c0392b",
+				"pos": {
+					"x": 11,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-50",
+				"name": "Mini 50",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 12,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-51",
+				"name": "Mini 51",
+				"color": "#27ae60",
+				"pos": {
+					"x": 3,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "ember",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-52",
+				"name": "Mini 52",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 4,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "veil",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-53",
+				"name": "Mini 53",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 5,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "villager",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-54",
+				"name": "Mini 54",
+				"color": "#e67e22",
+				"pos": {
+					"x": 6,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-55",
+				"name": "Mini 55",
+				"color": "#c0392b",
+				"pos": {
+					"x": 7,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "elder",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-56",
+				"name": "Mini 56",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 8,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "monk",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-57",
+				"name": "Mini 57",
+				"color": "#27ae60",
+				"pos": {
+					"x": 9,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "priest",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-58",
+				"name": "Mini 58",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 10,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "watchman",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-59",
+				"name": "Mini 59",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "child",
+				"ownerId": null
+			},
+			{
+				"id": "crowd-mini-60",
+				"name": "Mini 60",
+				"color": "#e67e22",
+				"pos": {
+					"x": 12,
+					"y": 8
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "gravedigger",
+				"ownerId": null
+			}
+		],
+		"objects": [],
+		"props": [],
+		"lights": []
+	}
+}

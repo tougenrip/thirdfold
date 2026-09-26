@@ -11,6 +11,24 @@ measured and left alone.
   long lighting was worked out. The page also exposes `window.thirdfoldPerf` (the renderer's
   `stats()`, `resetStats()` and `benchmark(frames)`) and `window.thirdfoldRoom` (the connection),
   for the scripts below. Timings come from `src/lib/tabletop/perf.ts`.
+- **Deterministic frames:** `createTabletop(canvas, events, options)` takes `TabletopOptions`: an
+  animation clock (`now`), a fixed `pixelRatio`, `preserveDrawingBuffer` so a test can read the
+  canvas, and a `reducedMotion` override. `setPose(pose)` puts the camera at a named pose. With a
+  clock the test holds still, the same table, pose and options always draw the same pixels.
+  Labels and die faces are drawn in the bundled Alegreya (`tabletop/label-font.ts`), never in a
+  system font.
+- **Fixture tables:** `tests/fixtures/scenes` holds fixed tables for rendering tests, perf gates and
+  look metrics: five compositions that recreate reference shots (`ref-1` torch room, `ref-3` red
+  ruined floor, `ref-6` night gate, `ref-7` minis on grass, `ref-8` walled town block), three stress
+  tables (`dungeon-40`, `outdoor-64`, `crowd-60`) and the adventures' tables frozen (`village`,
+  `monastery`, `hollow`, `heart`, `railcar`, `ghost-town`). Each has a `<name>.poses.json` of named
+  camera poses (`overview`, `close`, `low`, `dark`) in grid terms, which `poseFor` in
+  `src/lib/tabletop/poses.ts` turns into a camera pose. `tests/fixtures/views` holds what the GM, a
+  fogged player and a spectator are sent for each table in each ambient band, made by the real
+  server rules, so client tests render them without importing server code. Rebuild with
+  `npx tsx server/fixtures/build.ts`; the frozen adventure tables are rewritten only with
+  `--refreeze`. `server/fixtures/*.spec.ts` fail when a committed file is stale, and check that no
+  player or spectator view holds a hidden id or ground outside their explored cells.
 - **Tables to measure on:** `npx tsx server/perf/scenes.ts data/perf` plays the story with the
   engine and writes a save at each big table (`village.json` 36×28, `monastery.json` 30×20,
   `hollow.json` 48×36, each with its story, two characters and, in the Hollow, the watch).
@@ -20,15 +38,52 @@ measured and left alone.
   It also times the server's per-action view work directly (every viewer's view, then the diffs),
   with a character on a random walk to new cells, and the watch's patrol step.
 - **Client (load, scene loading, frames, memory, network):** build, serve and start a server, then
-  run `node scripts/perf-client.mjs http://localhost:4173 data/perf`. See the comment at the top of
-  the script. The script uses a GM and two players in Chromium. It measures the landing page, the
-  join form from an invite link, and each table's load (snapshot size, long tasks, what each
-  renderer update cost). It then measures idle frames, frames while orbiting the camera, a move's
-  network and main-thread cost, heap after GC, and GPU resources after loading the tables again.
-- **GPU cost of a frame:** `node scripts/perf-gpu.mjs`. It draws each table's current view
-  repeatedly and waits for the GPU each time.
+  run `node scripts/perf-client.mjs http://localhost:4173 tests/fixtures/scenes`. See the comment at
+  the top of the script. The script uses a GM and two players in Chromium, on the committed fixture
+  tables. It measures the landing page, the join form from an invite link, and each table's load
+  (snapshot size, long tasks, what each renderer update cost). It then measures idle frames, a fixed
+  orbit of the camera, a move's network and main-thread cost, heap after GC, GPU resources after
+  loading every table three more times and after leaving and rejoining the room three times, and
+  the bundle sizes (`check-bundle.mjs --json`). `--json <file>` writes the whole report.
+- **Perf gate:** `--baseline docs/perf-baseline.json` compares the counters that do not depend on
+  the machine's speed with the committed baseline and exits 1 on a regression. It runs locally, not
+  in CI (a run takes about 13 minutes, too much of the free build minutes to spend on every PR):
+  before merging a PR that touches the renderer, assets, fixtures or the perf scripts, run it and
+  paste its table into the PR. The gate fails when:
+
+  | Counter                                                 | Fails when                     |
+  | ------------------------------------------------------- | ------------------------------ |
+  | Draw calls in the settled frame after the orbit         | more than baseline × 1.10      |
+  | Shader programs after a table loads                     | more than baseline             |
+  | Geometries, textures, heap after GC (per table, viewer) | more than baseline × 1.10      |
+  | Frames in 3 s of idle on a daylight table               | more than 0                    |
+  | Geometries, textures, programs after three more reloads | above the first load           |
+  | The same after three more remounts of the Tabletop      | above the first remount        |
+  | Heap after each remount                                 | above the first × 1.10         |
+  | "Too many active WebGL contexts" warnings               | any                            |
+  | Bundle sizes (`check-bundle.mjs` budgets)               | over budget, or three.js eager |
+
+  Milliseconds are printed, never gated: SwiftShader's timings say little about real GPUs. To change
+  the baseline on purpose, run with `--update-baseline docs/perf-baseline.json` on the pinned
+  Chromium and say why in the PR.
+
+- **GPU cost of a frame:** `PERF_GPU=vulkan node scripts/perf-gpu.mjs [url] [scenes] [out.json]`.
+  It draws the fixture tables at their named poses for the GM and a player, at 1400×900 and
+  1920×1080, timed by WebGL2 timer queries where the driver has them and by a readPixels round trip.
+  `PERF_GPU` is `swiftshader` (default), `vulkan` (a discrete GPU) or `egl` (an integrated GPU); the
+  report names the GPU the browser actually used.
 - **Asset sizes:** `npm run build` prints each chunk. `npx vite build --sourcemap true` with a
   source-map walk shows what a chunk is made of.
+- **Bundle gate:** `npm run bundle:check`, after `npm run build` (CI runs it too). It walks the Vite
+  manifest and sums each page's static import closure, gzipped with `node:zlib` at its default
+  level. It fails if three.js reaches any page's static imports, or if a page or the renderer goes
+  over its budget in `scripts/check-bundle.mjs`. A page's "own" size is what it adds beyond the
+  app shell (the entries and the root layout); "renderer (added)" is what loading a table adds on
+  top of the room page.
+
+Baselines from milestone 61 on are taken with the pinned Playwright 1.63.0 (Chromium
+153.0.8010.12, headless shell revision 1243) and three.js 0.186.0; `docs/RENDERING.md` has the
+upgrade procedure.
 
 All numbers below come from a cloud container. The browser is headless Chromium with SwiftShader,
 so WebGL is software-rendered on the CPU. Main-thread times and counts (draw calls, bytes,
@@ -58,6 +113,24 @@ Opening an invite link (cold cache, median of 3):
 | ---------------------------------- | --------------------------- | -------------------------- |
 | Local                              | join form after 244 ms      | 207 ms                     |
 | Slow 4G (1.6 Mbps, 150 ms latency) | 1798 ms, 248 kB transferred | 1299 ms, 95 kB transferred |
+
+**Milestone 61 re-measure.** Between milestones 34 and 60, three.js crept back into the room page:
+rolldown put modules that both the page and the lazy renderer import (`dice-throw.ts`, and the
+Build panel's floor swatches from `tabletop/floor.ts`) into one chunk with three.js. The fix moved
+the renderer-only parts into `dice-faces.ts` and the swatch colours into `floor-looks.ts`, gave
+three.js its own chunk (`vite.config.ts`), and added the bundle gate. Measured with
+`npm run bundle:check` (Vite 8.3.0, rolldown 1.2.10):
+
+| Closure (gzipped)       | Before the fix          | After    | What the page adds beyond the shell |
+| ----------------------- | ----------------------- | -------- | ----------------------------------- |
+| Room page `/room/[id]`  | 167.5 kB, with three.js | 109.7 kB | 68.8 kB                             |
+| Landing `/`             | 57.6 kB                 | 57.6 kB  | 16.7 kB                             |
+| Library `/library`      | 59.8 kB                 | 59.8 kB  | 18.9 kB                             |
+| Builder `/builder`      | 88.2 kB                 | 88.2 kB  | 47.3 kB                             |
+| Renderer, added on load | 118.8 kB                | 178.2 kB | (lazy, budget 360 kB)               |
+
+(The "before" totals here count the app shell too, so they are larger than milestone 34's
+per-chunk figures.) The room page's own code is now 68.8 kB gzipped against 36 kB in milestone 34. three.js is no longer in it; the UI itself grew in milestones 35–40.
 
 ### Multiplayer synchronization
 
@@ -149,6 +222,104 @@ timer (`AMBIENT_FRAME_MS`, 80 ms), by design since M15.
   now shader programs too (12). Before, programs grew from 15 to 17.
 - The heap grows by about 0.4 MB over six loads. That is the room log, which is capped at
   `LOG_LIMIT`.
+
+## Before the rendering overhaul (milestone 61)
+
+Real-GPU baselines of today's `WebGLRenderer`, before milestone 62 changes the backend. Measured
+with `scripts/perf-gpu.mjs` on a laptop with both proxy GPUs (Linux 7.0, NVIDIA driver 595.91,
+Mesa for Intel; Chromium 153.0.8010.12 from Playwright 1.63.0; three.js 0.186.0; September 2026).
+Each number is the median GPU time of 16 frames of that view from WebGL2 timer queries, in ms.
+The GM sees everything; the player is fogged. A few 1400×900 numbers run high where the GPU had
+not yet clocked up (the first views of a run); the 1920×1080 column is the steadier one.
+
+**RTX 4060 Laptop (discrete; the middle of the scale, the reference card for the medium tier).** `ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0)), NVIDIA)`.
+
+| Table      | Pose     | GM 1400×900 | GM 1920×1080 | Player 1920×1080 | Draws (GM) | Programs |
+| ---------- | -------- | ----------- | ------------ | ---------------- | ---------- | -------- |
+| village    | overview | 0.52        | 3.21         | 1.72             | 110        | 16       |
+| village    | close    | 0.64        | 2.99         | 2.18             | 39         | 16       |
+| village    | low      | 0.47        | 2.05         | 1.35             | 19         | 16       |
+| monastery  | overview | 0.47        | 0.67         | 0.60             | 66         | 16       |
+| monastery  | close    | 0.78        | 1.23         | 1.20             | 33         | 16       |
+| monastery  | low      | 0.62        | 1.00         | 1.58             | 21         | 16       |
+| hollow     | overview | 0.61        | 3.51         | 2.32             | 72         | 16       |
+| hollow     | close    | 1.11        | 3.31         | 2.12             | 35         | 16       |
+| hollow     | low      | 1.10        | 3.05         | 2.11             | 61         | 16       |
+| ref-1      | overview | 0.67        | 1.00         | 1.00             | 30         | 17       |
+| ref-1      | close    | 0.61        | 0.90         | 0.90             | 29         | 17       |
+| ref-1      | low      | 0.57        | 0.89         | 1.53             | 22         | 17       |
+| ref-6      | overview | 0.63        | 0.94         | 0.94             | 28         | 17       |
+| ref-6      | close    | 0.82        | 1.29         | 1.29             | 28         | 17       |
+| ref-6      | low      | 0.62        | 1.00         | 1.56             | 18         | 17       |
+| ref-7      | overview | 0.52        | 0.77         | 0.77             | 85         | 17       |
+| ref-7      | close    | 0.70        | 1.09         | 1.09             | 82         | 17       |
+| ref-7      | low      | 0.58        | 0.92         | 0.92             | 52         | 17       |
+| ref-8      | overview | 4.28        | 0.99         | 0.99             | 44         | 17       |
+| ref-8      | close    | 3.52        | 1.54         | 1.53             | 19         | 17       |
+| ref-8      | low      | 1.91        | 1.21         | 1.20             | 17         | 17       |
+| dungeon-40 | overview | 3.15        | 3.53         | 1.76             | 138        | 17       |
+| dungeon-40 | close    | 2.75        | 2.58         | 2.37             | 20         | 17       |
+| dungeon-40 | low      | 1.79        | 2.05         | 1.75             | 20         | 17       |
+| outdoor-64 | overview | 0.62        | 0.89         | 0.89             | 10         | 17       |
+| outdoor-64 | close    | 0.88        | 1.45         | 1.45             | 10         | 17       |
+| outdoor-64 | low      | 0.75        | 1.19         | 1.20             | 10         | 17       |
+| crowd-60   | overview | 0.68        | 0.98         | 0.98             | 245        | 17       |
+| crowd-60   | close    | 0.80        | 1.25         | 1.25             | 196        | 17       |
+| crowd-60   | low      | 0.69        | 1.07         | 1.84             | 91         | 17       |
+
+Slowest at 1920×1080: dungeon-40 overview (GM), 3.53 ms.
+
+**Intel Raptor Lake-S UHD (integrated; the low tier's reference).** `ANGLE (Intel, Vulkan 1.4.335 (Intel(R) Graphics (RPL-S) (0x0000A788)), Intel open-source Mesa driver)`.
+
+| Table      | Pose     | GM 1400×900 | GM 1920×1080 | Player 1920×1080 | Draws (GM) | Programs |
+| ---------- | -------- | ----------- | ------------ | ---------------- | ---------- | -------- |
+| village    | overview | 11.95       | 15.10        | 12.49            | 110        | 16       |
+| village    | close    | 14.34       | 18.14        | 18.38            | 39         | 16       |
+| village    | low      | 11.37       | 15.20        | 11.09            | 75         | 16       |
+| monastery  | overview | 8.73        | 13.61        | 12.02            | 66         | 16       |
+| monastery  | close    | 17.28       | 23.60        | 22.45            | 42         | 16       |
+| monastery  | low      | 12.45       | 21.52        | 20.06            | 45         | 16       |
+| hollow     | overview | 12.15       | 16.15        | 16.51            | 72         | 16       |
+| hollow     | close    | 24.94       | 37.53        | 37.69            | 34         | 16       |
+| hollow     | low      | 22.61       | 38.65        | 39.66            | 60         | 16       |
+| ref-1      | overview | 11.71       | 22.18        | 22.89            | 30         | 17       |
+| ref-1      | close    | 12.35       | 16.94        | 16.92            | 30         | 17       |
+| ref-1      | low      | 13.64       | 17.54        | 20.23            | 30         | 17       |
+| ref-6      | overview | 12.76       | 16.52        | 18.14            | 28         | 17       |
+| ref-6      | close    | 14.43       | 26.23        | 24.01            | 28         | 17       |
+| ref-6      | low      | 12.47       | 18.52        | 21.21            | 28         | 17       |
+| ref-7      | overview | 7.92        | 12.24        | 16.42            | 85         | 17       |
+| ref-7      | close    | 13.63       | 16.52        | 17.74            | 85         | 17       |
+| ref-7      | low      | 10.16       | 18.26        | 24.04            | 85         | 17       |
+| ref-8      | overview | 14.72       | 19.50        | 20.47            | 44         | 17       |
+| ref-8      | close    | 18.33       | 32.45        | 32.26            | 29         | 17       |
+| ref-8      | low      | 15.64       | 23.46        | 24.34            | 36         | 17       |
+| dungeon-40 | overview | 10.85       | 15.77        | 15.93            | 138        | 17       |
+| dungeon-40 | close    | 14.49       | 22.79        | 25.02            | 20         | 17       |
+| dungeon-40 | low      | 12.57       | 21.38        | 19.59            | 20         | 17       |
+| outdoor-64 | overview | 10.36       | 14.57        | 18.99            | 10         | 17       |
+| outdoor-64 | close    | 17.00       | 29.20        | 28.24            | 10         | 17       |
+| outdoor-64 | low      | 13.23       | 21.76        | 21.08            | 10         | 17       |
+| crowd-60   | overview | 11.44       | 13.91        | 20.38            | 245        | 17       |
+| crowd-60   | close    | 12.98       | 24.87        | 24.92            | 218        | 17       |
+| crowd-60   | low      | 14.98       | 20.24        | 23.13            | 208        | 17       |
+
+Slowest at 1920×1080: hollow low (Ana), 39.66 ms.
+
+**What this says.**
+
+- **The middle of the scale has headroom.** The RTX 4060 Laptop is the reference card for the
+  medium tier: everything the default look adds must fit its budget there. Every view draws in
+  0.5–3.5 ms at 1080p today.
+- **The integrated GPU is the low tier, and already over budget.** Today's plain look costs 12–40 ms
+  per frame at 1080p on the iGPU. Close,
+  low-angle views of large lit tables are the worst: the Hollow at 38–40 ms, ref-8 close 32 ms,
+  the 64×64 outdoor table close 29 ms. The cost is per pixel (draw counts are small, from 10 to
+  245), which points at fill and lighting: 8 point lights on every lit fragment, full-screen
+  transparent overlays (fog, darkness, floor), and MSAA. Milestone 62's low tier must start integrated
+  GPUs below 2 MP, or with fewer lights, before any new effect is added.
+- **Draw calls are modest** (the most is 245, crowd-60) and shader programs 16–17 on every
+  table, so batching is not today's bottleneck.
 
 ## Not changed, and why
 

@@ -79,7 +79,11 @@ export class PropLayer {
 	private requested = new Set<AssetId>();
 
 	/** `onModel` is told when a model has arrived and the props have been drawn again. */
-	constructor(private readonly onModel: () => void = () => {}) {}
+	constructor(
+		private readonly onModel: () => void = () => {},
+		/** The renderer's clock (ms); glides start from it. */
+		private readonly clock: () => number = () => performance.now()
+	) {}
 	private meshes = new Map<AssetId, AssetMeshes>();
 	private props: readonly Prop[] = [];
 	private selectedId: string | null = null;
@@ -103,7 +107,7 @@ export class PropLayer {
 		// Whatever moved or turned since last time glides there from where it was.
 		if (sameTable && !this.reducedMotion) {
 			const was = new Map(this.props.map((p) => [p.id, p]));
-			const now = performance.now();
+			const now = this.clock();
 			for (const p of props) {
 				const old = was.get(p.id);
 				if (!old || (old.pos.x === p.pos.x && old.pos.y === p.pos.y && old.rotation === p.rotation))
