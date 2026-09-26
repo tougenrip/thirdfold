@@ -85,7 +85,8 @@ export async function createNodeRenderer(
 		: undefined;
 	const renderer = new THREE.WebGPURenderer({
 		canvas,
-		antialias: true,
+		// MSAA is fixed for a renderer's life: a tier that changes it rebuilds the tabletop (#150).
+		antialias: options.antialias ?? true,
 		forceWebGL,
 		context,
 		trackTimestamp: options.perf ?? false
@@ -98,6 +99,12 @@ export async function createNodeRenderer(
 		throw webgl2 ? err : new Error('WebGL2 unavailable', { cause: err });
 	}
 	stopInternalLoop(renderer);
+	// A lost WebGL context or WebGPU device: stop drawing (as three's default does, which also
+	// logs an error) and say so, so the tabletop can be rebuilt on a fresh canvas (#150).
+	renderer.onDeviceLost = (info) => {
+		(renderer as unknown as { _isDeviceLost: boolean })._isDeviceLost = true;
+		options.onLost?.({ api: info.api, message: info.message });
+	};
 	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer

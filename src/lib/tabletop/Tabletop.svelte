@@ -52,9 +52,12 @@
 		saveGraphics,
 		settingsFor,
 		startingTier,
+		tierAfterLoss,
 		tierFrom,
 		type Tier
 	} from './quality';
+	import type { Pose } from './shots';
+	import { tick } from 'svelte';
 
 	interface Props extends Partial<TabletopEvents> {
 		grid: SquareGrid;
@@ -124,7 +127,7 @@
 		onHover
 	}: Props = $props();
 
-	let canvas: HTMLCanvasElement;
+	let canvas = $state<HTMLCanvasElement>();
 	let tabletop = $state<Tabletop | null>(null);
 	/** `?perf` in the URL: show what rendering costs, and let a measuring script read it. */
 	const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
@@ -159,19 +162,88 @@
 	let softwareNotice = $state(false);
 
 	/**
+	 * Bumped to make the tabletop again on a fresh canvas: after the WebGL context or WebGPU
+	 * device was lost, or for a tier that turns MSAA on or off (fixed for a renderer's life).
+	 * Every effect below replays its prop into the new tabletop; one-shot cues don't replay.
+	 */
+	let generation = $state(0);
+	/** A new tabletop is being made after a loss: "Restoring the table…" until it draws. */
+	let restoring = $state(false);
+	/** Lost twice within five minutes: drawn at low for the rest of the session. */
+	let lossNotice = $state(false);
+	/** A tier for this session only, after a loss (never saved: a loss is not a measurement). */
+	let sessionTier: Tier | null = null;
+	const losses: number[] = [];
+	/** Where the camera was on the tabletop being replaced. */
+	let carriedPose: Pose | null = null;
+	/** MSAA for the next tabletop: from the tier where it is known before the device is. */
+	let antialias = initialAntialias();
+
+	function initialAntialias(): boolean {
+		if (typeof location === 'undefined') return true;
+		const prefs = loadGraphics(localStorage);
+		const known =
+			tierFrom(location.search) ?? (prefs.tier !== 'auto' ? prefs.tier : prefs.measured);
+		return known ? settingsFor(known, 'webgpu').msaa > 0 : true;
+	}
+
+	/** Makes the tabletop again on a fresh canvas, the camera where it was. */
+	function rebuild(t: Tabletop): void {
+		carriedPose = t.cameraPose();
+		generation++;
+	}
+
+	/** The graphics device was lost: rebuild (a tier lower), once the page can be seen. */
+	function lost(t: Tabletop): void {
+		const now = Date.now();
+		losses.push(now);
+		const next = tierAfterLoss((t.stats().tier as Tier | null) ?? 'medium', losses, now);
+		if (next === 'stop') {
+			tabletop = null;
+			t.dispose();
+			webglError = "The table's graphics keep failing. Reload the page to try again.";
+			return;
+		}
+		sessionTier = next;
+		lossNotice = losses.filter((at) => now - at <= 5 * 60_000).length >= 2;
+		restoring = true;
+		// A backgrounded app can't draw: wait until it is back.
+		if (document.visibilityState !== 'hidden') return rebuild(t);
+		document.addEventListener('visibilitychange', () => rebuild(t), { once: true });
+	}
+
+	/**
 	 * The quality tier to draw at (quality.ts): `?tier=`, else the viewer's choice, else what an
 	 * earlier session measured, else what the device suggests; `?off=` turns layers off. Neither
 	 * URL switch is saved. An automatic tier may step down once after the first active frames.
 	 */
-	function applyQuality(t: Tabletop, tier: Tier | null = null): void {
+	function applyQuality(t: Tabletop, tier: Tier | null = null): boolean {
 		const search = location.search;
 		const prefs = loadGraphics(localStorage);
 		const caps = t.capabilities();
-		const auto = !tierFrom(search) && prefs.tier === 'auto';
-		const settings = settingsFor(tier ?? startingTier(search, prefs, caps), caps.backend);
+		const auto = !tierFrom(search) && prefs.tier === 'auto' && !sessionTier;
+		const chosen = tier ?? sessionTier ?? startingTier(search, prefs, caps);
+		const settings = settingsFor(chosen, caps.backend);
+		// MSAA can't change on a renderer: make a new one with the tier's.
+		if (settings.msaa > 0 !== antialias) {
+			antialias = settings.msaa > 0;
+			rebuild(t);
+			return false;
+		}
 		t.setQuality({ ...settings, layers: layersFrom(search, settings.layers) }, auto && !tier);
 		t.setPowerSaver(prefs.powerSaver);
 		softwareNotice = caps.software;
+		return true;
+	}
+
+	/** Calls `done` once `t` has drawn a frame (unless `gone` first). */
+	function whenDrawn(t: Tabletop, gone: () => boolean, done: () => void): void {
+		const check = () => {
+			if (gone()) return;
+			if (t.stats().frames > 0) done();
+			else requestAnimationFrame(check);
+		};
+		check();
 	}
 
 	/** Refinement stepped the automatic tier down: remember it for this device, and use it. */
@@ -181,6 +253,9 @@
 	}
 
 	$effect(() => {
+		// Each generation has its own canvas ({#key} below), and gets its own tabletop.
+		const el = canvas;
+		if (!el) return;
 		// three.js and the renderer come in their own chunk, so the page around the table
 		// (and the join form before it) doesn't wait for them.
 		let t: Tabletop | null = null;
@@ -190,19 +265,30 @@
 				if (gone) return;
 				// Handlers read the current props at call time, so the renderer never needs rebuilding.
 				const made = await createTabletop(
-					canvas,
+					el,
 					{ onClick: (pick) => onClick?.(pick), onHover: (pick) => onHover?.(pick) },
 					{
 						perf: showPerf,
 						inspector: showInspector,
-						onTierRefined: (tier) => t && tierRefined(t, tier)
+						antialias,
+						onTierRefined: (tier) => t && tierRefined(t, tier),
+						onLost: () => t && lost(t)
 					}
 				);
-				// Unmounted while the renderer was starting: throw it away.
-				if (gone) return made.dispose();
-				applyQuality(made);
+				// Unmounted (or replaced) while the renderer was starting: throw it away.
+				if (gone || !applyQuality(made)) return made.dispose();
 				t = made;
 				tabletop = t;
+				// The effects below replay the table into it; then the camera goes back where it was.
+				const pose = carriedPose;
+				carriedPose = null;
+				if (pose) void tick().then(() => made.setPose(pose));
+				if (restoring)
+					whenDrawn(
+						made,
+						() => gone,
+						() => (restoring = false)
+					);
 			})
 			.catch((err) => {
 				console.error('[tabletop] failed to start renderer', err);
@@ -329,12 +415,24 @@
 	});
 </script>
 
-<!-- Focusable so the arrow keys can move the selected token (RoomView listens). -->
-<canvas
-	bind:this={canvas}
-	tabindex="0"
-	aria-label="3D tabletop. Select a token, then use the arrow keys to move it one cell."
-></canvas>
+<!-- Focusable so the arrow keys can move the selected token (RoomView listens). A fresh canvas
+     for each tabletop: a lost context stays lost on its canvas, and a canvas keeps its kind. -->
+{#key generation}
+	<canvas
+		bind:this={canvas}
+		tabindex="0"
+		aria-label="3D tabletop. Select a token, then use the arrow keys to move it one cell."
+	></canvas>
+{/key}
+{#if restoring}
+	<p class="restoring" role="status">Restoring the table…</p>
+{/if}
+{#if lossNotice}
+	<p class="software-notice" role="status">
+		The graphics device was lost twice: the table is drawn at low quality for now.
+		<button type="button" onclick={() => (lossNotice = false)} aria-label="Dismiss">×</button>
+	</p>
+{/if}
 {#if perf}
 	<dl class="perf" aria-label="Rendering performance">
 		<dt>backend</dt>
@@ -414,6 +512,18 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.restoring {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		margin: 0;
+		font-size: var(--fs-sm);
+		color: var(--glow);
+		background: var(--scrim);
+		z-index: var(--z-overlay);
 	}
 
 	.software-notice {

@@ -32,8 +32,11 @@ android/
 /data/
 .claude/
 
-# Vitest screenshot diffs
+# Vitest screenshot diffs, and the screenshots it takes of failed tests; only the golden images'
+# references are kept
 .vitest-attachments/
+src/**/__screenshots__/*
+!src/**/__screenshots__/golden.svelte.spec.ts/
 
 # Private reference shots for look metrics (scripts/look-metrics.mjs); never commit them
 .look-refs/

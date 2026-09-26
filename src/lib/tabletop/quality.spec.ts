@@ -10,6 +10,7 @@ import {
 	saveGraphics,
 	settingsFor,
 	startingTier,
+	tierAfterLoss,
 	tierFrom,
 	type Caps
 } from './quality';
@@ -130,5 +131,19 @@ describe('the saved graphics settings', () => {
 		});
 		const broken = { getItem: () => ({}) as string };
 		expect(loadGraphics(broken)).toEqual(DEFAULT_GRAPHICS);
+	});
+});
+
+describe('after the graphics device is lost', () => {
+	it('drops a tier for the session, then to low, then stops', () => {
+		expect(tierAfterLoss('high', [0], 0)).toBe('medium');
+		expect(tierAfterLoss('low', [0], 0)).toBe('low');
+		expect(tierAfterLoss('high', [0, 120_000], 120_000)).toBe('low');
+		expect(tierAfterLoss('medium', [0, 400_000], 400_000)).toBe('low');
+		expect(tierAfterLoss('high', [0, 20_000, 40_000], 40_000)).toBe('stop');
+	});
+
+	it('forgets losses older than five minutes', () => {
+		expect(tierAfterLoss('high', [0, 400_000], 400_000 + 301_000)).toBe('medium');
 	});
 });

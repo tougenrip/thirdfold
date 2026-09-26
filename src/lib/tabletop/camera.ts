@@ -67,6 +67,12 @@ export class CameraRig {
 		};
 	}
 
+	pose(): Pose {
+		const { position: p } = this.camera;
+		const { target: t } = this.controls;
+		return { position: { x: p.x, y: p.y, z: p.z }, target: { x: t.x, y: t.y, z: t.z } };
+	}
+
 	setPose(pose: Pose): void {
 		this.shot = null;
 		this.transition = null;

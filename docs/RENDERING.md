@@ -330,6 +330,31 @@ uniform to the node renderer, which a client test checks by the program count.
 Without a GPU at all (no WebGL2, no WebGPU adapter), the table shows "This device can't show 3D
 (WebGL2 unavailable)"; under a software rasteriser it draws, at low, with a dismissable notice.
 
+### Recovering a lost device (#150)
+
+A lost WebGL context or WebGPU device (memory pressure, a backgrounded app, a driver reset) used to
+freeze the canvas. Now `createNodeRenderer` replaces three's `onDeviceLost` (which only logs an
+error and stops drawing) with one that stops drawing and calls `TabletopOptions.onLost`.
+`Tabletop.svelte` then makes the tabletop again: a new `generation` keys a fresh `<canvas>` (a lost
+context stays lost on its canvas, and a canvas keeps its kind), `createTabletop` runs again, and
+every prop effect replays the table into it from what the component already holds; one-shot cues,
+dice and floats are de-duplicated by their sequence numbers and don't replay. The camera goes back
+to where it was (`cameraPose()`, then `setPose` after the replay). While the page is hidden it
+waits for `visibilitychange`; "Restoring the table…" covers the canvas until the new tabletop has
+drawn.
+
+A loss drops one tier for the session (`tierAfterLoss` in `quality.ts`, never saved: a loss is not a
+measurement); a second loss within five minutes drops to low with a notice; three within a minute
+stop, with the error panel instead of a loop. The same rebuild applies a tier whose MSAA differs
+from the renderer's (MSAA is fixed at construction): `applyQuality` rebuilds with the tier's
+`antialias`, which the component also picks before the first renderer when the tier is already known
+(`?tier=`, a chosen or measured tier).
+
+`recovery.svelte.spec.ts` forces a WebGL context loss (`WEBGL_lose_context`) on a mounted table and
+checks the same table comes back on a new canvas, a tier lower, the camera where it was, with the
+same draw calls and programs, no more geometries or textures, and no console error. The WebGPU
+device-loss test runs with the WebGPU goldens (#151).
+
 ## Render scheduler
 
 `src/lib/tabletop/scheduler.ts` decides when a frame is drawn (#148). The policy (`modeFor`,

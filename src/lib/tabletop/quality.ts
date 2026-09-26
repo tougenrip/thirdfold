@@ -264,3 +264,24 @@ export function startingTier(search: string, prefs: GraphicsPrefs, caps: Caps): 
 		tierFrom(search) ?? (prefs.tier !== 'auto' ? prefs.tier : (prefs.measured ?? qualityFor(caps)))
 	);
 }
+
+/** Losses of the graphics device within this long count together (#150). */
+export const LOSS_WINDOW_MS = 5 * 60_000;
+/** This many losses within a minute: stop rebuilding and say so. */
+export const LOSS_LIMIT = 3;
+
+/**
+ * The tier to rebuild at after the graphics device was lost (`losses`, this
+ * one included): one lower than `current` for the session, low after a second
+ * loss within five minutes, or `stop` after three within a minute. Never
+ * saved: a lost device is not a measurement.
+ */
+export function tierAfterLoss(
+	current: Tier,
+	losses: readonly number[],
+	now: number
+): Tier | 'stop' {
+	if (losses.filter((t) => now - t <= 60_000).length >= LOSS_LIMIT) return 'stop';
+	if (losses.filter((t) => now - t <= LOSS_WINDOW_MS).length >= 2) return 'low';
+	return TIERS[Math.max(0, rank(current) - 1)];
+}

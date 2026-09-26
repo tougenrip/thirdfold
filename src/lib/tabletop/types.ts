@@ -66,6 +66,10 @@ export interface TabletopOptions {
 	perf?: boolean;
 	/** Opens three.js's Inspector over the table (`?perf&inspector`), loaded only then. */
 	inspector?: boolean;
+	/** MSAA (default on). Fixed for the renderer's life: changing it takes a new tabletop. */
+	antialias?: boolean;
+	/** The WebGL context or WebGPU device was lost: the tabletop draws no more (rebuild it). */
+	onLost?: (info: { api: string; message: string }) => void;
 	/** Refinement stepped an automatic tier down (see `setQuality`): remember it for this device. */
 	onTierRefined?: (tier: Tier) => void;
 }
@@ -108,6 +112,8 @@ export interface Tabletop {
 	setView(view: CameraView): void;
 	/** Puts the camera at a pose at once, ending any shot or view change (tests, photo mode). */
 	setPose(pose: Pose): void;
+	/** Where the camera is now, to carry over to a rebuilt tabletop (`setPose`). */
+	cameraPose(): Pose;
 	/** The same, for a pose in grid terms (a fixture's named pose). */
 	setGridPose(pose: GridPose): void;
 	/**

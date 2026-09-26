@@ -302,7 +302,6 @@ export async function createTabletop(
 		},
 		() => grid
 	);
-	// Taking hold of the camera ends a cinematic shot where it is.
 	const stopPicking = listenForPicks(canvas, picker, events, perf, () => rig.endShot());
 
 	let view: CameraView = 'tactical';
@@ -472,6 +471,7 @@ export async function createTabletop(
 			rig.setPose(pose);
 			requestRender();
 		},
+		cameraPose: () => rig.pose(),
 		setGridPose(pose) {
 			if (grid) rig.setPose(poseFor(grid, ground, pose));
 			requestRender();
@@ -486,7 +486,7 @@ export async function createTabletop(
 			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
 				l.dispose();
 			// Not while a warm-up is still compiling for it.
-			void warming.then(() => renderer.dispose());
+			void warming.then(() => renderer.dispose()).catch(() => {}); // a lost context may throw
 		},
 		setQuality: (settings, refine) => quality.set(settings, refine),
 		capabilities: () => quality.caps,
