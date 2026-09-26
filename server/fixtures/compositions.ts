@@ -193,9 +193,10 @@ function ref1(): Fixture {
 			],
 			floors: [{ from: { x: 1, y: 1 }, to: { x: 4, y: 4 }, floor: 'stone' }]
 		},
-		// Reference 1 is low and close, facing the torch wall (owner's review, milestone 61).
+		// Reference 1 is low and close, facing the torch wall (owner's review, milestone 61),
+		// pulled back from 4.5 to 6 for minis at human height (owner, milestone 62).
 		sidecar(g, 'dark', 'ref1-mini-hero', { x: 2, y: 2 }, undefined, {
-			distance: 4.5,
+			distance: 6,
 			azimuth: 10,
 			elevation: 26
 		})

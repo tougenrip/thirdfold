@@ -189,7 +189,7 @@ within 0.009 of v0 (see `docs/RENDERING.md`), so what moved below is the scale.
 
 | Reference | m61   | m62   |
 | --------- | ----- | ----- |
-| 1         | 0.171 | 0.189 |
+| 1         | 0.171 | 0.179 |
 | 2         | 0.293 | 0.284 |
 | 3         | 0.130 | 0.137 |
 | 4         | 0.148 | 0.157 |
@@ -197,16 +197,18 @@ within 0.009 of v0 (see `docs/RENDERING.md`), so what moved below is the scale.
 | 7         | 0.136 | 0.115 |
 | 8         | 0.199 | 0.193 |
 
+- **Ref 1's pose pulled back** from distance 4.5 to 6 (owner, milestone 62): at human height the
+  minis and their labels overflowed the frame.
 - **Closer on refs 2, 7 and 8.** Walls and minis at human height fill more of the frame the way
   the references do.
-- **Further on the night pairings (refs 1, 3, 4 and 6), by 0.007–0.018.** Lamps now hang 1.6 u
+- **Further on the night pairings (refs 1, 3, 4 and 6), by 0.007–0.014.** Lamps now hang 1.6 u
   up instead of 1 u, so the floor right under them is dimmer and the torch-lit centres of these
   close shots darker, against references that are brighter there. The lighting milestone (#115)
   moves these, not the scale.
 - **Seen in the strip, left for later:** a light's fixture (a post with a flame at 1.5 u) stands
   on top of props that already are the light (the braziers of ref 6, the sconce of ref 1), and
-  their bowls are no longer lit from inside; lights that belong to a prop should take its shape
-  instead. The monastery's low golden looks at the wall of Oswin's cell, since a low camera
+  their bowls are no longer lit from inside; #367 seats those flames on their props until #232
+  gives every light a fixture of its kind. The monastery's low golden looks at the wall of Oswin's cell, since a low camera
   can't see over 2 u walls; dithering occluders between the camera and the minis (#283) fixes it.
 
 ## Target palettes
