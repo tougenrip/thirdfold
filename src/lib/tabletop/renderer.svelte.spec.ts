@@ -84,8 +84,24 @@ describe('the renderer', () => {
 		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: false });
 		const before = tabletop.stats().frames;
 		await wait(3000);
-		// AMBIENT_FRAME_MS is 80: at most about 38 frames in 3 s.
+		// AMBIENT_MS is 80 (scheduler.ts): at most about 38 frames in 3 s.
 		expect(tabletop.stats().frames - before).toBeLessThanOrEqual(40);
+	});
+
+	it('draws no ambient frames while the tab is hidden, and reports its mode', async () => {
+		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: false });
+		expect(tabletop.stats().mode).toBe('ambient');
+		const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+		document.dispatchEvent(new Event('visibilitychange'));
+		await wait(300);
+		const before = tabletop.stats().frames;
+		await wait(1000);
+		expect(tabletop.stats().frames - before).toBe(0);
+		expect(tabletop.stats().mode).toBe('idle');
+		hidden.mockRestore();
+		document.dispatchEvent(new Event('visibilitychange'));
+		await wait(500);
+		expect(tabletop.stats().frames).toBeGreaterThan(before);
 	});
 
 	it('draws nothing in the dark while motion is reduced', async () => {

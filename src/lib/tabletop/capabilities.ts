@@ -8,7 +8,7 @@
 
 import * as THREE from 'three/webgpu';
 import { Capacitor } from '@capacitor/core';
-import type { FrameLoop } from './loop';
+import type { RenderScheduler } from './scheduler';
 import { backendOf, gpuInfo, type PerfRecorder } from './perf';
 import {
 	frameBudgetMs,
@@ -84,7 +84,7 @@ export class QualityControl {
 			camera: THREE.PerspectiveCamera;
 			sun: THREE.DirectionalLight;
 			perf: PerfRecorder;
-			loop: FrameLoop;
+			loop: RenderScheduler;
 		},
 		private readonly options: Pick<TabletopOptions, 'pixelRatio' | 'onTierRefined'>
 	) {
@@ -103,6 +103,7 @@ export class QualityControl {
 	/** Applies a tier's settings; with `refine`, the first active frames may step it down once. */
 	set(settings: QualitySettings, refine = false): void {
 		this.settings = settings;
+		this.parts.loop.setPacing(settings);
 		this.refining = refine;
 		this.samples = [];
 		const size = settings.sunShadowSize;

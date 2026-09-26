@@ -117,6 +117,8 @@ export interface Tabletop {
 	setQuality(settings: QualitySettings, refine?: boolean): void;
 	/** What this device offers, as probed when the renderer started. */
 	capabilities(): Caps;
+	/** Power saver (the viewer's setting): no ambient animation (scheduler.ts). */
+	setPowerSaver(on: boolean): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
 	/** Draws the current view `frames` times, timing the main thread and the GPU (see perf.ts). */

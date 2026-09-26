@@ -217,7 +217,7 @@ Each table reaches every client within 18–41 ms of the import. On the client:
 
 Main-thread time per frame is 1–6 ms on every table, so frame rate is limited by the GPU. The
 renderer draws only when something changes. After dusk, flames flicker and mist drifts on a slow
-timer (`AMBIENT_FRAME_MS`, 80 ms), by design since M15.
+timer (80 ms, the render scheduler's AMBIENT mode since M62), by design since M15.
 
 - **The sun's shadow pass redrew the whole scene on every frame,** including frames where only the
   camera moved or flames flickered. That nearly doubled the draw calls. It is now redrawn only when

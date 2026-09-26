@@ -32,6 +32,8 @@ interface Entry {
 	to: THREE.Vector3;
 	/** 0..1 progress of the current move; 1 when at rest. */
 	t: number;
+	/** When the current move began (the layer's clock) and how long it takes, ms. */
+	start: number;
 	duration: number;
 }
 
@@ -44,7 +46,8 @@ const FLOAT_MS = 1500;
 interface Float {
 	sprite: THREE.Sprite;
 	tokenId: string;
-	age: number;
+	born: number;
+	baseY: number;
 }
 
 // Shared by every mini; sized for a 1-unit cell and scaled per grid.
@@ -104,8 +107,14 @@ export class TokenLayer {
 		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
 	);
 
-	/** `onModel` is told when a figure's model has arrived and it has been drawn. */
-	constructor(private readonly onModel: () => void = () => {}) {
+	/**
+	 * `onModel` is told when a figure's model has arrived and it has been drawn. Moves and
+	 * floats run on `clock`, the tabletop's (ms), not on frame steps.
+	 */
+	constructor(
+		private readonly onModel: () => void = () => {},
+		private readonly clock: () => number = () => performance.now()
+	) {
 		this.ring.rotation.x = -Math.PI / 2;
 		this.ring.visible = false;
 		this.ring.raycast = () => {};
@@ -181,6 +190,7 @@ export class TokenLayer {
 				entry.from.copy(entry.root.position);
 				entry.to.copy(target);
 				entry.t = 0;
+				entry.start = this.clock();
 				entry.duration = Math.min(180 + cells * 70, 700);
 				changed = true;
 			}
@@ -247,16 +257,16 @@ export class TokenLayer {
 		sprite.position.y = LABEL_HEIGHT + 0.35 + stacked * 0.35;
 		sprite.renderOrder = 2;
 		entry.root.add(sprite);
-		this.floats.push({ sprite, tokenId, age: 0 });
+		this.floats.push({ sprite, tokenId, born: this.clock(), baseY: sprite.position.y });
 		return true;
 	}
 
-	/** Advances move animations by `dt` ms. Returns true while any mini is still moving. */
-	tick(dt: number): boolean {
-		let moving = this.tickFloats(dt);
+	/** Moves minis to where they are at time `now`. Returns true while any is still moving. */
+	tick(now: number): boolean {
+		let moving = this.tickFloats(now);
 		for (const entry of this.entries.values()) {
 			if (entry.t >= 1) continue;
-			entry.t = Math.min(entry.t + dt / entry.duration, 1);
+			entry.t = Math.min((now - entry.start) / entry.duration, 1);
 			const k = entry.t < 0.5 ? 2 * entry.t * entry.t : 1 - (-2 * entry.t + 2) ** 2 / 2;
 			entry.root.position.lerpVectors(entry.from, entry.to, k);
 			entry.root.position.y +=
@@ -335,6 +345,7 @@ export class TokenLayer {
 			from: at.clone(),
 			to: at.clone(),
 			t: 1,
+			start: 0,
 			duration: 0
 		};
 		this.entries.set(token.id, entry);
@@ -374,19 +385,18 @@ export class TokenLayer {
 		}
 	}
 
-	private tickFloats(dt: number): boolean {
+	private tickFloats(now: number): boolean {
 		for (const f of this.floats) {
-			f.age += dt;
-			const t = Math.min(f.age / FLOAT_MS, 1);
-			f.sprite.position.y += (dt / FLOAT_MS) * 0.7;
+			const t = Math.min((now - f.born) / FLOAT_MS, 1);
+			f.sprite.position.y = f.baseY + t * 0.7;
 			f.sprite.material.opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
 		}
-		const done = this.floats.filter((f) => f.age >= FLOAT_MS);
+		const done = this.floats.filter((f) => now - f.born >= FLOAT_MS);
 		for (const f of done) {
 			f.sprite.removeFromParent();
 			disposeLabel(f.sprite);
 		}
-		this.floats = this.floats.filter((f) => f.age < FLOAT_MS);
+		this.floats = this.floats.filter((f) => now - f.born < FLOAT_MS);
 		return this.floats.length > 0;
 	}
 

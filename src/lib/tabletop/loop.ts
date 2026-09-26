@@ -2,66 +2,9 @@ import * as THREE from 'three/webgpu';
 import { loadGraphics } from './quality';
 import type { TabletopOptions } from './types';
 
-// Frames on demand: nothing is drawn until something asks for a frame, and
-// at most one is ever waiting. Flickering flames and drifting mist ask on a
-// slow timer instead (AMBIENT_FRAME_MS), never every frame.
-
-/** How often ambient animation redraws, in ms. */
-export const AMBIENT_FRAME_MS = 80;
-
-export class FrameLoop {
-	private frame = 0;
-	private ambientTimer: ReturnType<typeof setTimeout> | 0 = 0;
-	/** A warm-up is compiling: frames wait (the canvas keeps its last one). */
-	private held = false;
-	private wanted = false;
-
-	constructor(private readonly draw: () => void) {}
-
-	/** Holds frames until `work` settles, then draws once if anything asked meanwhile. */
-	hold(work: Promise<unknown>): void {
-		this.held = true;
-		void work.finally(() => {
-			this.held = false;
-			if (this.wanted) {
-				this.wanted = false;
-				this.request();
-			}
-		});
-	}
-
-	get holding(): boolean {
-		return this.held;
-	}
-
-	/** Draws on the next animation frame (once, however often it is asked). */
-	request = (): void => {
-		if (this.held) {
-			this.wanted = true;
-			return;
-		}
-		if (!this.frame) {
-			this.frame = requestAnimationFrame(() => {
-				this.frame = 0;
-				this.draw();
-			});
-		}
-	};
-
-	/** Draws again after AMBIENT_FRAME_MS, for slow ambient animation. */
-	ambient(): void {
-		if (this.ambientTimer) return;
-		this.ambientTimer = setTimeout(() => {
-			this.ambientTimer = 0;
-			this.request();
-		}, AMBIENT_FRAME_MS);
-	}
-
-	dispose(): void {
-		cancelAnimationFrame(this.frame);
-		if (this.ambientTimer) clearTimeout(this.ambientTimer);
-	}
-}
+// The renderer's setup (`createNodeRenderer`), the frame hooks r186's own
+// loop used to run (`stopInternalLoop`, `advanceNodeFrame`) and live reduced
+// motion. When frames are drawn is the render scheduler's (scheduler.ts).
 
 /**
  * Follows `prefers-reduced-motion` live, so turning it on or off applies at

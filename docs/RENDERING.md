@@ -273,7 +273,8 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
 | `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
 | `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
-| `loop.ts`         | `FrameLoop` (frames on demand, the slow ambient timer), live reduced motion                                                      |
+| `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
+| `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
 | `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
 | `table.ts`        | The slab, surface and grid lines, dressed by the environment                                                                     |
 | `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
@@ -331,7 +332,33 @@ Without a GPU at all (no WebGL2, no WebGPU adapter), the table shows "This devic
 
 ## Render scheduler
 
-Filled in by milestone 62.
+`src/lib/tabletop/scheduler.ts` decides when a frame is drawn (#148). The policy (`modeFor`,
+`frameInterval`, `frameDue`) is pure and tested in `scheduler.spec.ts`; `RenderScheduler` drives it
+with `requestAnimationFrame` (r186's internal loop stays stopped, per the spike: each drawn frame
+resets `renderer.info` and advances the node frame itself).
+
+| Mode     | When                                                            | Frames                                                       |
+| -------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| IDLE     | nothing moves or animates, or the table can't be seen           | none until something changes                                 |
+| ACTIVE   | tokens, doors, dice, props, cue effects, shots, the camera move | every screen frame, at most the tier's `fpsCap` (60, low 30) |
+| AMBIENT  | flames flicker or mist drifts, nothing else                     | every 80 ms (12.5 fps), 100 ms after a minute without input  |
+| CONVERGE | movement just ended                                             | the tier's `convergeFrames` (0 until TRAA, #163), then IDLE  |
+
+AMBIENT is off under reduced motion (followed live, no reload), power saver (the viewer's setting),
+a hidden tab (`visibilitychange`) or a canvas scrolled out of view (`IntersectionObserver`);
+pointer, key and wheel input reset the minute. A screen faster than the cap (144 Hz) has its early
+callbacks skipped, so a camera drag draws at most 60 frames a second. A warm-up (#149) holds frames
+while shaders compile. `stats().mode` shows the mode in the `?perf` overlay.
+
+**The layer contract:** each frame the renderer asks the layers what they did (their `tick`
+returns) and reports it to the scheduler as a `FrameReport`: anything still moving (`active`), or
+animating slowly (`ambient`: `LightingLayer.flicker`, `AmbienceLayer.tick`). One-off changes call
+`request()`. Every animation runs on the injected clock (#128), from a start time and a duration,
+never on frame counts, so a throttled browser (Energy Saver, Low Power Mode) draws fewer frames of
+the same motion: token moves and floats, door swings, dice, props, cues and shots. Only layers that
+move shadow casters (tokens, doors, dice, props, the bell's swing) redraw the sun's shadows; dust, a
+flash, a shudder and ambient animation never do, and the perf gate fails if orbiting the camera
+draws a shadow pass.
 
 ## RenderPipeline
 

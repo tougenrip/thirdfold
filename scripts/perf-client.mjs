@@ -302,6 +302,7 @@ for (const name of TABLES) {
 		drawMs: round(moving.timings.draw.total / moving.timings.draw.count, 2)
 	};
 	gate.orbitDrawCalls = settled.drawCalls;
+	gate.orbitShadowPasses = scene.orbit.shadowPasses;
 	console.log(
 		`  orbit (Ana): ${scene.orbit.fps} fps, frame ${scene.orbit.frameMs} ms (max ${scene.orbit.maxMs}), of which draw ${scene.orbit.drawMs} ms; ${scene.orbit.drawCalls} draws in the settled frame, ${scene.orbit.shadowPasses} shadow passes while moving`
 	);
@@ -453,6 +454,13 @@ if (BASELINE) {
 			t.orbitDrawCalls,
 			up10(b.orbitDrawCalls),
 			t.orbitDrawCalls <= up10(b.orbitDrawCalls)
+		);
+		// Moving the camera changes no shadow: the sun's map is only redrawn when the table changes.
+		check(
+			`${name}: shadow passes while orbiting`,
+			t.orbitShadowPasses,
+			0,
+			t.orbitShadowPasses === 0
 		);
 		check(`${name}: frames in 2 s idle`, t.idleFrames, 0, t.idleFrames === 0);
 		for (const [viewer, v] of Object.entries(t.viewers)) {

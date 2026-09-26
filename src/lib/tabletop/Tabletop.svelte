@@ -170,6 +170,7 @@
 		const auto = !tierFrom(search) && prefs.tier === 'auto';
 		const settings = settingsFor(tier ?? startingTier(search, prefs, caps), caps.backend);
 		t.setQuality({ ...settings, layers: layersFrom(search, settings.layers) }, auto && !tier);
+		t.setPowerSaver(prefs.powerSaver);
 		softwareNotice = caps.software;
 	}
 

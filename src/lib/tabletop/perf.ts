@@ -8,6 +8,7 @@
 
 import type * as THREE from 'three/webgpu';
 import { isSoftware, type Tier } from './quality';
+import type { Mode } from './scheduler';
 import { RESHADOWS, TIMED, type Tabletop } from './types';
 
 /** Running totals for one kind of work. */
@@ -48,7 +49,7 @@ export interface PerfStats {
 	compat: boolean;
 	/** The GPU, as the browser names it; null where it won't say. */
 	adapter: string | null;
-	/** The quality tier (#147) and the render scheduler's mode (#148); null until they exist. */
+	/** The quality tier (#147) and the render scheduler's mode (#148). */
 	tier: string | null;
 	mode: string | null;
 	/** GPU ms per frame by timestamp queries, at the last sample; null without them. */
@@ -166,11 +167,18 @@ export function gpuInfo(
 	};
 }
 
+/** What the renderer is doing, for `stats()`. */
+export interface RendererState {
+	holding: boolean;
+	tier: Tier | null;
+	mode: Mode | null;
+}
+
 /** What the renderer has cost so far, with what three.js reports the last frame drew and what it holds. */
 export function rendererStats(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
-	{ holding, tier }: { holding: boolean; tier: Tier | null }
+	{ holding, tier, mode }: RendererState
 ): PerfStats {
 	const { render, memory } = renderer.info;
 	return {
@@ -185,7 +193,7 @@ export function rendererStats(
 		renderTargets: memory.renderTargets,
 		...gpuInfo(renderer),
 		tier,
-		mode: null,
+		mode,
 		gpuMs: perf.gpuMs,
 		holding
 	};
@@ -283,15 +291,16 @@ export function instrument(tabletop: Tabletop, perf: PerfRecorder, onChange: () 
 	}
 }
 
-/** The tabletop's measuring methods (see `Tabletop`); `state` is read at each call. */
+/** The tabletop's measuring methods (see `Tabletop`); the scheduler and tier are read at each call. */
 export function perfMethods(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
 	draw: () => void,
-	state: () => { holding: boolean; tier: Tier | null }
+	{ loop, quality }: { loop: { holding: boolean; mode: Mode }; quality: { tier: Tier } }
 ): Pick<Tabletop, 'stats' | 'resetStats' | 'benchmark' | 'sampleGpu'> {
 	return {
-		stats: () => rendererStats(renderer, perf, state()),
+		stats: () =>
+			rendererStats(renderer, perf, { holding: loop.holding, tier: quality.tier, mode: loop.mode }),
 		resetStats: () => perf.reset(),
 		benchmark: (frames) => benchmark(renderer, perf, draw, frames),
 		sampleGpu: () => sampleGpu(renderer, perf)

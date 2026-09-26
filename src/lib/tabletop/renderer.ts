@@ -33,7 +33,8 @@ import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { LightingLayer, lightSeats } from './lighting';
 import { frameOverview, warmUp } from './warmup';
-import { advanceNodeFrame, createNodeRenderer, FrameLoop, watchReducedMotion } from './loop';
+import { advanceNodeFrame, createNodeRenderer, watchReducedMotion } from './loop';
+import { RenderScheduler, type FrameReport } from './scheduler';
 import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
 import { listenForPicks, Picker } from './picking';
@@ -71,7 +72,7 @@ export async function createTabletop(
 	let wasMoving = false;
 
 	const perf = new PerfRecorder();
-	const loop = new FrameLoop(render);
+	const loop = new RenderScheduler(render, canvas);
 	const requestRender = loop.request;
 	const { scene, fog } = createScene();
 	const rig = new CameraRig(canvas, FAR);
@@ -90,9 +91,9 @@ export async function createTabletop(
 	let warmPending = true;
 	let warming: Promise<void> = Promise.resolve();
 	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
-	const tokenLayer = new TokenLayer(onModel);
+	const tokenLayer = new TokenLayer(onModel, clock);
 	scene.add(tokenLayer.group);
-	const wallLayer = new WallLayer();
+	const wallLayer = new WallLayer(clock);
 	scene.add(wallLayer.group);
 	const fogLayer = new FogLayer();
 	scene.add(fogLayer.mesh);
@@ -105,12 +106,14 @@ export async function createTabletop(
 	// Read live: turning reduced motion on or off applies at once, without a reload.
 	const motion = watchReducedMotion(options.reducedMotion, (reduced) => {
 		reducedMotion = reduced;
+		loop.setReducedMotion(reduced);
 		propLayer.setReducedMotion(reduced);
 		ambience.setReducedMotion(reduced);
 		if (reduced) rig.endShot();
 		refreshLighting();
 	});
 	let reducedMotion = motion.reduced;
+	loop.setReducedMotion(reducedMotion);
 	const propLayer = new PropLayer(onModel, clock);
 	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
@@ -178,7 +181,6 @@ export async function createTabletop(
 
 	let grid: SquareGrid | null = null;
 	let extent = 20;
-	let lastFrameTime = 0;
 
 	/** Draws one frame: counters and the node frame are advanced here, since the internal loop is off. */
 	function drawScene(): void {
@@ -187,16 +189,17 @@ export async function createTabletop(
 		renderer.render(scene, camera);
 	}
 
-	function render(): void {
+	function render(): FrameReport {
 		if (warmPending && grid) return startWarmUp();
 		const start = performance.now();
 		perf.frame(start);
-		drawFrame(clock());
+		const report = drawFrame(clock());
 		perf.add('frame', performance.now() - start);
+		return report;
 	}
 
 	/** Compiles the table's shaders while frames are held, then draws (the sun's shadow too). */
-	function startWarmUp(): void {
+	function startWarmUp(): FrameReport {
 		warmPending = false;
 		if (lightingStale) {
 			lightingStale = false;
@@ -210,34 +213,31 @@ export async function createTabletop(
 		});
 		loop.hold(warming);
 		loop.request();
+		return { active: false, ambient: false };
 	}
 
-	function drawFrame(now: number): void {
+	/** Draws a frame for time `now` and reports what still moves or animates (scheduler.ts). */
+	function drawFrame(now: number): FrameReport {
 		if (lightingStale) {
 			lightingStale = false;
 			perf.time('lighting', relight);
 		}
-		// Clamp so the first frame after an idle period does not jump animations to the end.
-		const dt = Math.min(now - lastFrameTime, 50);
-		lastFrameTime = now;
-		const tokensMoving = tokenLayer.tick(dt);
-		const doorsMoving = wallLayer.tick(dt);
+		const tokensMoving = tokenLayer.tick(now);
+		const doorsMoving = wallLayer.tick(now);
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
 		lighting.setFlash(fx.flash);
+		const bellSwinging = !!swinging;
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
 		if (!fx.active) swinging = null;
 		const propsMoving = propLayer.tick(now);
-		const moving = tokensMoving || doorsMoving || diceRolling || fx.active || propsMoving;
-		if (moving) requestRender();
-		if (moving || wasMoving) shadowsDirty = true;
-		wasMoving = moving;
-		if (!reducedMotion) {
-			const flickering = lighting.flicker(now);
-			const drifting = ambience.tick(now);
-			if (flickering || drifting) loop.ambient();
-		}
-		if (rig.tick(now)) requestRender();
+		// Only what casts shadows redraws them: dust, a flash or a shudder move none.
+		const casters = tokensMoving || doorsMoving || diceRolling || propsMoving || bellSwinging;
+		if (casters || wasMoving) shadowsDirty = true;
+		wasMoving = casters;
+		const flickering = !reducedMotion && lighting.flicker(now);
+		const drifting = !reducedMotion && ambience.tick(now);
+		const moving = casters || fx.active || rig.tick(now);
 		// With damping enabled, update() emits 'change' while the camera is still settling,
 		// which schedules the next frame; once still, rendering stops.
 		controls.update();
@@ -254,6 +254,7 @@ export async function createTabletop(
 		drawScene();
 		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
+		return { active: moving, ambient: flickering || drifting };
 	}
 
 	/** The environment asked for, and its looks once loaded. */
@@ -489,7 +490,8 @@ export async function createTabletop(
 		},
 		setQuality: (settings, refine) => quality.set(settings, refine),
 		capabilities: () => quality.caps,
-		...perfMethods(renderer, perf, drawScene, () => ({ holding: loop.holding, tier: quality.tier }))
+		setPowerSaver: (on) => loop.setPowerSaver(on),
+		...perfMethods(renderer, perf, drawScene, { loop, quality })
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
 	instrument(tabletop, perf, () => (shadowsDirty = true));
