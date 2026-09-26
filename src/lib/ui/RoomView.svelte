@@ -65,6 +65,14 @@
 	import ChatPanel from './ChatPanel.svelte';
 	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
+	import GraphicsControls from './GraphicsControls.svelte';
+	import {
+		loadGraphics,
+		saveGraphics,
+		type Backend,
+		type GraphicsPrefs,
+		type Tier
+	} from '$lib/tabletop/quality';
 
 	let { conn }: { conn: RoomConnection } = $props();
 
@@ -79,6 +87,17 @@
 	const EDGE_REACH = 0.22;
 
 	// Local UI state only. Shared state lives in conn.room and changes only via server broadcasts.
+	/** Graphics settings (quality.ts), this browser's only: never sent to the room. */
+	let graphics = $state<GraphicsPrefs>(loadGraphics(localStorage));
+	/** The tier and backend the table draws with, for the Graphics menu to show. */
+	let effectiveQuality = $state<{ tier: Tier; backend: Backend } | null>(null);
+
+	function changeGraphics(next: GraphicsPrefs): void {
+		graphics = next;
+		// Keep what the table measured for this device (quality refinement) alongside.
+		saveGraphics(localStorage, { ...loadGraphics(localStorage), ...next });
+	}
+
 	/** The camera view, remembered in this browser so a refresh keeps it. */
 	let view = $state<CameraView>(savedView());
 
@@ -1165,6 +1184,8 @@
 				{active}
 				{highlight}
 				{view}
+				{graphics}
+				onQuality={(q) => (effectiveQuality = q)}
 				{onClick}
 				onHover={(pick) => (hover = pick)}
 			/>
@@ -1201,12 +1222,24 @@
 				Tabletop
 			</button>
 		</div>
+		<span class="graphics-bar">
+			<GraphicsControls {graphics} effective={effectiveQuality} onchange={changeGraphics} />
+		</span>
 		<AudioControls />
 		<span class="status" data-status={conn.status}>{STATUS_LABEL[conn.status]}</span>
 	</header>
 
 	{#if room && me}
 		<aside class="side" data-open={sheet === 'side'}>
+			<!-- Phones: no room in the header, so the Graphics menu opens here. -->
+			<div class="panel graphics-sheet">
+				<GraphicsControls
+					{graphics}
+					effective={effectiveQuality}
+					inline
+					onchange={changeGraphics}
+				/>
+			</div>
 			{#if isGm && adventure && adventure.stage !== 'choosing'}
 				<div class="panel">
 					<DirectorPanel
@@ -1654,6 +1687,9 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-bar, var(--radius-md));
 		backdrop-filter: blur(6px);
+		/* Above the side column: the blur makes the bar a stacking context, so the Sound and
+		   Graphics menus that open from it over the column are only as high as the bar is. */
+		z-index: var(--z-overlay);
 	}
 
 	.bar .group {
@@ -2201,7 +2237,19 @@
 	}
 
 	/* Small screens: the table fills the screen and one panel at a time slides up over it. */
+	.graphics-sheet {
+		display: none;
+	}
+
 	@media (max-width: 48rem) {
+		.graphics-bar {
+			display: none;
+		}
+
+		.graphics-sheet {
+			display: block;
+		}
+
 		.room {
 			--tabs-h: 3.5rem;
 			--free-left: var(--sp-4);

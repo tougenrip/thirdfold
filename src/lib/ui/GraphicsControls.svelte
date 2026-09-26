@@ -1,0 +1,191 @@
+<script lang="ts">
+	import { untrack } from 'svelte';
+	import { TIERS, type Backend, type GraphicsPrefs, type Tier } from '$lib/tabletop/quality';
+
+	/**
+	 * The Graphics menu (#154): the quality tier, the compatibility backend and the power saver, as
+	 * this viewer sets them for this browser. Local only: nothing here reaches the room. `inline`
+	 * opens it in place (the side sheet on phones) rather than under the header.
+	 */
+	let {
+		graphics,
+		effective = null,
+		inline = false,
+		onchange
+	}: {
+		graphics: GraphicsPrefs;
+		/** What the table draws with now, once it has started. */
+		effective?: { tier: Tier; backend: Backend } | null;
+		inline?: boolean;
+		onchange: (next: GraphicsPrefs) => void;
+	} = $props();
+
+	let open = $state(false);
+	let toggle = $state<HTMLButtonElement>();
+	/** Compatibility as it was when the page loaded: changing it takes a reload. */
+	const loadedCompatibility = untrack(() => graphics.compatibility);
+
+	const NAMES: Record<Tier, string> = {
+		low: 'Low',
+		medium: 'Medium',
+		high: 'High',
+		ultra: 'Ultra'
+	};
+	const HELP: Record<Tier, string> = {
+		low: 'Lightest: fewer pixels and shadows, 30 frames a second.',
+		medium: 'Balanced, for laptops and integrated graphics.',
+		high: 'Sharper and fuller, for a dedicated graphics card.',
+		ultra: 'Everything, for a strong graphics card on WebGPU.'
+	};
+	/** Ultra needs WebGPU with its core features. */
+	const ultraOff = $derived(!!effective && effective.backend !== 'webgpu');
+
+	function close(): void {
+		open = false;
+		toggle?.focus();
+	}
+</script>
+
+<svelte:window onkeydown={(e) => open && e.key === 'Escape' && close()} />
+
+<div class="graphics" class:inline>
+	<button
+		type="button"
+		bind:this={toggle}
+		aria-expanded={open}
+		aria-label="Graphics settings"
+		title="Graphics"
+		onclick={() => (open = !open)}
+	>
+		Graphics
+	</button>
+	{#if open}
+		<div class="menu" role="group" aria-label="Graphics">
+			<fieldset>
+				<legend>Quality</legend>
+				<label>
+					<input
+						type="radio"
+						name="tier"
+						checked={graphics.tier === 'auto'}
+						onchange={() => onchange({ ...graphics, tier: 'auto' })}
+					/>
+					Auto{effective && graphics.tier === 'auto' ? ` (${NAMES[effective.tier]})` : ''}
+				</label>
+				{#each TIERS as tier (tier)}
+					<label>
+						<input
+							type="radio"
+							name="tier"
+							checked={graphics.tier === tier}
+							disabled={tier === 'ultra' && ultraOff}
+							onchange={() => onchange({ ...graphics, tier })}
+						/>
+						{NAMES[tier]}
+					</label>
+				{/each}
+				<p class="help">
+					{graphics.tier === 'auto'
+						? 'Picked for this device, and lowered if frames run slow.'
+						: HELP[graphics.tier]}
+					{#if ultraOff}Ultra needs WebGPU, which this table isn't using.{/if}
+				</p>
+			</fieldset>
+			<label class="switch">
+				<input
+					type="checkbox"
+					checked={graphics.compatibility}
+					onchange={(e) => onchange({ ...graphics, compatibility: e.currentTarget.checked })}
+				/>
+				Compatibility mode (WebGL2), for when the table draws wrongly or not at all
+			</label>
+			{#if graphics.compatibility !== loadedCompatibility}
+				<p class="help">
+					Applies when you reload.
+					<button type="button" onclick={() => location.reload()}>Reload</button>
+				</p>
+			{/if}
+			<label class="switch">
+				<input
+					type="checkbox"
+					checked={graphics.powerSaver}
+					onchange={(e) => onchange({ ...graphics, powerSaver: e.currentTarget.checked })}
+				/>
+				Power saver: no flickering flames or drifting mist
+			</label>
+		</div>
+	{/if}
+</div>
+
+<style>
+	.graphics {
+		position: relative;
+	}
+
+	/* Like the Sound menu: just below the header bar, over the top of the side column. */
+	.menu {
+		position: fixed;
+		top: calc(100% + var(--sp-4));
+		right: 0;
+		width: min(var(--side-w, 17rem), 100%);
+		display: grid;
+		gap: var(--sp-4);
+		padding: var(--sp-5);
+		/* Solid: a blur inside the bar's own blur doesn't reach the panels behind it. */
+		background: var(--panel-solid);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-md);
+		z-index: var(--z-overlay);
+	}
+
+	/* In the side sheet (phones): open in place, full width. */
+	.inline .menu {
+		position: static;
+		width: auto;
+		margin-top: var(--sp-3);
+		box-shadow: none;
+	}
+
+	fieldset {
+		display: grid;
+		gap: var(--sp-2);
+		margin: 0;
+		padding: 0;
+		border: 0;
+	}
+
+	legend {
+		margin-bottom: var(--sp-2);
+		font-size: var(--fs-sm);
+		color: var(--muted);
+	}
+
+	label {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		font-size: var(--fs-sm);
+	}
+
+	/* A long label never squeezes its box. */
+	label input {
+		flex: none;
+	}
+
+	label:has(input:disabled) {
+		color: var(--muted);
+	}
+
+	.switch {
+		align-items: flex-start;
+		padding-top: var(--sp-3);
+		border-top: 1px solid var(--border);
+	}
+
+	.help {
+		margin: 0;
+		font-size: var(--fs-xs);
+		color: var(--muted);
+	}
+</style>

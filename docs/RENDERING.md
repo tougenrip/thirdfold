@@ -317,6 +317,14 @@ Layers (`sky`, `post`, `grass`, `water`, `vfx`, `weather`, `xray`, `dof`) are al
 passes its milestone's gates; `?off=sky,grass` turns layers off, for A/B tests and emergencies.
 Neither `?tier=` nor `?off=` is saved.
 
+**The Graphics menu** (`src/lib/ui/GraphicsControls.svelte`, #154), beside Sound in the room's
+header, and at the top of the side sheet on phones: Auto (showing what it picked), Low, Medium, High,
+Ultra (disabled, saying why, off core WebGPU); Compatibility (WebGL2), which applies on reload; and a
+power saver that stops ambient animation. It keeps its choice in `thirdfold:graphics` and never
+reaches the room. `RoomView` passes the choice to `Tabletop.svelte`, which applies it at once (a
+tier that turns MSAA on or off rebuilds the tabletop, a second or two) and reports the tier in
+effect back for the menu.
+
 **The pixel cap:** the drawing buffer's pixel ratio is `min(dpr, sqrt(megapixels × 10⁶ / css
 pixels))` (`pixelRatioFor`), worked out on every resize and when the window moves to a screen with
 another pixel ratio: 4K at DPR 2 on medium draws about 2.1 MP, not 33. Tests fix the ratio at 1.

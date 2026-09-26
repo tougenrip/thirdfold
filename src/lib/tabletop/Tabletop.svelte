@@ -54,10 +54,12 @@
 		startingTier,
 		tierAfterLoss,
 		tierFrom,
+		type Backend,
+		type GraphicsPrefs,
 		type Tier
 	} from './quality';
 	import type { Pose } from './shots';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 
 	interface Props extends Partial<TabletopEvents> {
 		grid: SquareGrid;
@@ -94,6 +96,10 @@
 		motion?: MotionPlay | null;
 		/** Whose turn it is in a fight, marked over the token. */
 		active?: { tokenId: string; enemy: boolean } | null;
+		/** The viewer's graphics settings (the Graphics menu); read from storage when not given. */
+		graphics?: GraphicsPrefs | null;
+		/** Told the tier and backend the table draws with, whenever they change. */
+		onQuality?: (effective: { tier: Tier; backend: Backend }) => void;
 	}
 
 	let {
@@ -123,6 +129,8 @@
 		cue = null,
 		motion = null,
 		active = null,
+		graphics = null,
+		onQuality,
 		onClick,
 		onHover
 	}: Props = $props();
@@ -221,7 +229,8 @@
 	 */
 	function applyQuality(t: Tabletop, tier: Tier | null = null): boolean {
 		const search = location.search;
-		const prefs = loadGraphics(localStorage);
+		const prefs = graphics ?? loadGraphics(localStorage);
+		appliedGraphics = graphics;
 		const caps = t.capabilities();
 		const auto = !tierFrom(search) && prefs.tier === 'auto' && !sessionTier;
 		const chosen = tier ?? sessionTier ?? startingTier(search, prefs, caps);
@@ -235,8 +244,20 @@
 		t.setQuality({ ...settings, layers: layersFrom(search, settings.layers) }, auto && !tier);
 		t.setPowerSaver(prefs.powerSaver);
 		softwareNotice = caps.software;
+		onQuality?.({ tier: settings.tier, backend: caps.backend });
 		return true;
 	}
+
+	/** The graphics settings last applied: a new choice from the menu applies at once. */
+	let appliedGraphics: GraphicsPrefs | null = null;
+	$effect(() => {
+		const g = graphics;
+		const t = tabletop;
+		if (!t || g === appliedGraphics) return;
+		// The viewer's own choice replaces a tier dropped after a lost device.
+		sessionTier = null;
+		untrack(() => applyQuality(t));
+	});
 
 	/** Calls `done` once `t` has drawn a frame (unless `gone` first). */
 	function whenDrawn(t: Tabletop, gone: () => boolean, done: () => void): void {
