@@ -22,7 +22,8 @@ import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
 import type { FogView } from '$lib/game/visibility';
 import { AmbienceLayer } from './ambience';
-import { CameraRig, watchCanvasSize } from './camera';
+import { CameraRig } from './camera';
+import { QualityControl } from './capabilities';
 import { DiceLayer, throwFromView } from './dice3d';
 import { EffectsLayer } from './effects';
 import { loadEnvironment, type EnvironmentLook } from './environment';
@@ -33,7 +34,7 @@ import { labelFontReady } from './label-font';
 import { LightingLayer, lightSeats } from './lighting';
 import { frameOverview, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, FrameLoop, watchReducedMotion } from './loop';
-import { benchmark, instrument, PerfRecorder, rendererStats, sampleGpu } from './perf';
+import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
@@ -56,8 +57,6 @@ export type {
 	TabletopOptions
 } from './types';
 
-const BACKGROUND = 0x292421; // the day preset's (lighting.ts)
-
 export async function createTabletop(
 	canvas: HTMLCanvasElement,
 	events: TabletopEvents,
@@ -74,7 +73,7 @@ export async function createTabletop(
 	const perf = new PerfRecorder();
 	const loop = new FrameLoop(render);
 	const requestRender = loop.request;
-	const { scene, fog } = createScene(BACKGROUND);
+	const { scene, fog } = createScene();
 	const rig = new CameraRig(canvas, FAR);
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
@@ -287,7 +286,7 @@ export async function createTabletop(
 		effects.setBounds(g.width * g.cellSize, g.height * g.cellSize, Math.max(4, extent * 0.2));
 	}
 
-	const stopSizing = watchCanvasSize(canvas, renderer, camera, requestRender);
+	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
 	controls.addEventListener('change', requestRender);
 
 	const picker = new Picker(
@@ -480,7 +479,7 @@ export async function createTabletop(
 			disposed = true;
 			loop.dispose();
 			motion.stop();
-			stopSizing();
+			quality.dispose();
 			stopPicking();
 			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting];
 			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
@@ -488,10 +487,9 @@ export async function createTabletop(
 			// Not while a warm-up is still compiling for it.
 			void warming.then(() => renderer.dispose());
 		},
-		stats: () => rendererStats(renderer, perf, loop.holding),
-		resetStats: () => perf.reset(),
-		benchmark: (frames) => benchmark(renderer, perf, drawScene, frames),
-		sampleGpu: () => sampleGpu(renderer, perf)
+		setQuality: (settings, refine) => quality.set(settings, refine),
+		capabilities: () => quality.caps,
+		...perfMethods(renderer, perf, drawScene, () => ({ holding: loop.holding, tier: quality.tier }))
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
 	instrument(tabletop, perf, () => (shadowsDirty = true));

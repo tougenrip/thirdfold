@@ -271,18 +271,63 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | Module            | What it holds                                                                                                                    |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
-| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`; canvas sizing                                           |
+| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
 | `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
 | `loop.ts`         | `FrameLoop` (frames on demand, the slow ambient timer), live reduced motion                                                      |
 | `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
 | `table.ts`        | The slab, surface and grid lines, dressed by the environment                                                                     |
 | `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
 | `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
+| `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
+| `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
 
 ## Quality tiers
 
-Filled in by milestone 62.
+`src/lib/tabletop/quality.ts` (pure, tested in `quality.spec.ts`) turns what a device offers into a
+starting tier, and each tier into one row of settings every effect reads (#147).
+`probeCapabilities` in `capabilities.ts` fills `Caps` after the renderer starts: the backend
+(WebGPU, compat WebGPU or WebGL2), whether it is a software rasteriser, the GPU's vendor and
+architecture, the largest texture, timestamp queries, phone or not, the shell (browser, Tauri,
+Capacitor), pixel ratio, screen size, and where browsers give them, memory and CPU class.
+
+**The starting tier,** with no input (`qualityFor`): software rasterisers and compat WebGPU low;
+phones low with 4 GB or less, else medium; under 4 GB or the lowest CPU class low; integrated
+(Intel) GPUs medium; everything else high. Ultra is only ever chosen by hand. Ceilings: WebGL2 at
+high, compat WebGPU at low, Capacitor and Tauri on Linux at medium (#155 fixes them with
+measurements). In CI (SwiftShader) the tier is low. `?tier=` overrides everything, then the
+viewer's choice in `thirdfold:graphics`, then the tier refinement measured on this device.
+
+| Setting          | Low  | Medium | High | Ultra     | Applied                     |
+| ---------------- | ---- | ------ | ---- | --------- | --------------------------- |
+| Megapixels       | 1.0  | 2.1    | 3.7  | 3.7       | now: the pixel cap          |
+| Sun shadow map   | 1024 | 2048   | 2048 | 4096      | now                         |
+| MSAA             | off  | 4×     | 4×   | 4×        | with the rebuild (#150)     |
+| AO               | off  | on     | on   | on        | #159                        |
+| Point lights     | 8    | 16     | 32   | clustered | #228, #357                  |
+| Shadowed torches | 0    | 2      | 4    | 4         | #230                        |
+| Particles        | 250  | 1000   | 4000 | 8000      | #122                        |
+| Vegetation       | 25%  | 50%    | 100% | 100%      | #121                        |
+| Frame rate cap   | 30   | 60     | 60   | 60        | the render scheduler (#148) |
+| Flicker and mist | 20   | 30     | 30   | 30        | the render scheduler (#148) |
+| Converge frames  | 0    | 4      | 8    | 16        | TRAA (#110)                 |
+
+Layers (`sky`, `post`, `grass`, `water`, `vfx`, `weather`, `xray`, `dof`) are all off until each
+passes its milestone's gates; `?off=sky,grass` turns layers off, for A/B tests and emergencies.
+Neither `?tier=` nor `?off=` is saved.
+
+**The pixel cap:** the drawing buffer's pixel ratio is `min(dpr, sqrt(megapixels × 10⁶ / css
+pixels))` (`pixelRatioFor`), worked out on every resize and when the window moves to a screen with
+another pixel ratio: 4K at DPR 2 on medium draws about 2.1 MP, not 33. Tests fix the ratio at 1.
+
+**Refinement:** on an automatic tier, the first 120 frames drawn after it is set are timed
+(main-thread ms; GPU ms only exist under `?perf`); if their median is over the tier's frame budget
+(`1000 / fps cap`), the tier steps down once and `thirdfold:graphics` remembers it (`measured`) for
+this device. It never steps up. Changing the tier recompiles nothing: the shadow map's size is a
+uniform to the node renderer, which a client test checks by the program count.
+
+Without a GPU at all (no WebGL2, no WebGPU adapter), the table shows "This device can't show 3D
+(WebGL2 unavailable)"; under a software rasteriser it draws, at low, with a dismissable notice.
 
 ## Render scheduler
 

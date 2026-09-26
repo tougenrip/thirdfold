@@ -46,6 +46,15 @@
 		TabletopEvents
 	} from './renderer';
 	import { loadRenderer } from './load';
+	import {
+		layersFrom,
+		loadGraphics,
+		saveGraphics,
+		settingsFor,
+		startingTier,
+		tierFrom,
+		type Tier
+	} from './quality';
 
 	interface Props extends Partial<TabletopEvents> {
 		grid: SquareGrid;
@@ -146,6 +155,29 @@
 		return t && t.count ? (t.total / t.count).toFixed(2) : '–';
 	};
 	let webglError = $state<string | null>(null);
+	/** Drawn by a software rasteriser (no GPU): the table shows at the low tier. */
+	let softwareNotice = $state(false);
+
+	/**
+	 * The quality tier to draw at (quality.ts): `?tier=`, else the viewer's choice, else what an
+	 * earlier session measured, else what the device suggests; `?off=` turns layers off. Neither
+	 * URL switch is saved. An automatic tier may step down once after the first active frames.
+	 */
+	function applyQuality(t: Tabletop, tier: Tier | null = null): void {
+		const search = location.search;
+		const prefs = loadGraphics(localStorage);
+		const caps = t.capabilities();
+		const auto = !tierFrom(search) && prefs.tier === 'auto';
+		const settings = settingsFor(tier ?? startingTier(search, prefs, caps), caps.backend);
+		t.setQuality({ ...settings, layers: layersFrom(search, settings.layers) }, auto && !tier);
+		softwareNotice = caps.software;
+	}
+
+	/** Refinement stepped the automatic tier down: remember it for this device, and use it. */
+	function tierRefined(t: Tabletop, tier: Tier): void {
+		saveGraphics(localStorage, { ...loadGraphics(localStorage), measured: tier });
+		applyQuality(t, tier);
+	}
 
 	$effect(() => {
 		// three.js and the renderer come in their own chunk, so the page around the table
@@ -159,10 +191,15 @@
 				const made = await createTabletop(
 					canvas,
 					{ onClick: (pick) => onClick?.(pick), onHover: (pick) => onHover?.(pick) },
-					{ perf: showPerf, inspector: showInspector }
+					{
+						perf: showPerf,
+						inspector: showInspector,
+						onTierRefined: (tier) => t && tierRefined(t, tier)
+					}
 				);
 				// Unmounted while the renderer was starting: throw it away.
 				if (gone) return made.dispose();
+				applyQuality(made);
 				t = made;
 				tabletop = t;
 			})
@@ -323,6 +360,12 @@
 		<dd>{avg('lighting')} ×{perf.timings.lighting?.count ?? 0}</dd>
 	</dl>
 {/if}
+{#if softwareNotice}
+	<p class="software-notice" role="status">
+		No graphics card in use: the table is drawn in software, at low quality.
+		<button type="button" onclick={() => (softwareNotice = false)} aria-label="Dismiss">×</button>
+	</p>
+{/if}
 {#if webglError}
 	<div class="webgl-error" role="alert">
 		<p class="title">The table can’t be shown here</p>
@@ -370,6 +413,29 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.software-notice {
+		position: absolute;
+		left: 50%;
+		bottom: var(--sp-4);
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		margin: 0;
+		padding: var(--sp-2) var(--sp-4);
+		font-size: var(--fs-xs);
+		color: var(--glow);
+		background: var(--scrim);
+		border-radius: var(--radius-pill);
+		z-index: var(--z-overlay);
+	}
+
+	.software-notice button {
+		all: unset;
+		cursor: pointer;
+		padding-inline: var(--sp-1);
 	}
 
 	/* Centred in the free space between the room's chat and side panels. */

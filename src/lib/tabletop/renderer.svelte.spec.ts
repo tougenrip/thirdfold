@@ -5,6 +5,8 @@
 
 import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createTabletop } from './renderer';
+import { qualityFor, settingsFor } from './quality';
 import {
 	FIXTURES,
 	loadSidecar,
@@ -100,7 +102,13 @@ describe('the renderer', () => {
 			addEventListener: (_: string, fn: typeof listener) => (listener = fn),
 			removeEventListener: () => {}
 		};
-		const stub = vi.spyOn(window, 'matchMedia').mockReturnValue(query as unknown as MediaQueryList);
+		// Only the reduced-motion query: the canvas also watches the screen's resolution.
+		const real = window.matchMedia.bind(window);
+		const stub = vi
+			.spyOn(window, 'matchMedia')
+			.mockImplementation((q) =>
+				q.includes('reduced-motion') ? (query as unknown as MediaQueryList) : real(q)
+			);
 		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: undefined });
 		stub.mockRestore();
 		const flickering = tabletop.stats().frames;
@@ -211,5 +219,45 @@ describe('measuring', () => {
 		expect(resolve).not.toHaveBeenCalled();
 		expect(tabletop.stats().gpuMs).toBeNull();
 		resolve.mockRestore();
+	});
+});
+
+describe('quality tiers', () => {
+	it('find a software rasteriser here, and start it on low', async () => {
+		const { tabletop } = await mount('ref-7', 'gm');
+		const caps = tabletop.capabilities();
+		expect(caps.software).toBe(true);
+		expect(qualityFor(caps)).toBe('low');
+	});
+
+	it('keep 4K at DPR 2 on medium within 2.1 MP', async () => {
+		const dpr = vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
+		const canvas = document.createElement('canvas');
+		canvas.style.cssText = 'display:block;width:3840px;height:2160px';
+		document.body.appendChild(canvas);
+		const t = await createTabletop(
+			canvas,
+			{ onClick: () => {}, onHover: () => {} },
+			{
+				preserveDrawingBuffer: true
+			}
+		);
+		t.setQuality(settingsFor('medium', t.capabilities().backend));
+		expect(canvas.width * canvas.height).toBeLessThanOrEqual(2.1e6 + 3840);
+		expect(canvas.width * canvas.height).toBeGreaterThan(1.9e6);
+		t.dispose();
+		canvas.remove();
+		dpr.mockRestore();
+	});
+
+	it('change no program when the tier changes', async () => {
+		const { tabletop } = await mount('ref-7', 'gm');
+		const backend = tabletop.capabilities().backend;
+		const programs = tabletop.stats().programs;
+		for (const tier of ['low', 'high', 'medium'] as const) {
+			tabletop.setQuality(settingsFor(tier, backend));
+			await settle(tabletop);
+		}
+		expect(tabletop.stats().programs).toBe(programs);
 	});
 });

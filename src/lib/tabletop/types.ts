@@ -14,6 +14,7 @@ import type { DiceThrow } from './dice3d';
 import type { FogMode } from './fog';
 import type { Benchmark, PerfStats } from './perf';
 import type { GridPose } from './poses';
+import type { Caps, QualitySettings, Tier } from './quality';
 import type { Pose } from './shots';
 
 export type CameraView = 'tactical' | 'tabletop';
@@ -65,6 +66,8 @@ export interface TabletopOptions {
 	perf?: boolean;
 	/** Opens three.js's Inspector over the table (`?perf&inspector`), loaded only then. */
 	inspector?: boolean;
+	/** Refinement stepped an automatic tier down (see `setQuality`): remember it for this device. */
+	onTierRefined?: (tier: Tier) => void;
 }
 
 export interface Tabletop {
@@ -107,6 +110,13 @@ export interface Tabletop {
 	setPose(pose: Pose): void;
 	/** The same, for a pose in grid terms (a fixture's named pose). */
 	setGridPose(pose: GridPose): void;
+	/**
+	 * Applies a quality tier's settings (quality.ts): the pixel cap and the sun's shadow size
+	 * for now. With `refine`, the first active frames after a table loads may step it down once.
+	 */
+	setQuality(settings: QualitySettings, refine?: boolean): void;
+	/** What this device offers, as probed when the renderer started. */
+	capabilities(): Caps;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
 	/** Draws the current view `frames` times, timing the main thread and the GPU (see perf.ts). */
@@ -124,7 +134,8 @@ export const RESHADOWS = [
 	'showFloat',
 	'throwDice',
 	'playMotions',
-	'playCue'
+	'playCue',
+	'setQuality'
 ] as const satisfies readonly (keyof Tabletop)[];
 
 /** The updates whose cost is measured. */

@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { loadGraphics } from './quality';
 import type { TabletopOptions } from './types';
 
 // Frames on demand: nothing is drawn until something asks for a frame, and
@@ -116,8 +117,7 @@ export function advanceNodeFrame(renderer: object): void {
 export function wantedBackend(): 'webgpu' | 'webgl' {
 	try {
 		if (new URLSearchParams(location.search).get('backend') === 'webgl') return 'webgl';
-		const saved = JSON.parse(localStorage.getItem('thirdfold:graphics') ?? 'null');
-		if (saved && typeof saved === 'object' && saved.compatibility === true) return 'webgl';
+		if (loadGraphics(localStorage).compatibility) return 'webgl';
 	} catch {
 		// no URL or storage (tests, private windows): the default
 	}
@@ -147,7 +147,13 @@ export async function createNodeRenderer(
 		context,
 		trackTimestamp: options.perf ?? false
 	});
-	await renderer.init();
+	try {
+		await renderer.init();
+	} catch (err) {
+		// With neither backend the failure is deep in three.js (a null context); say what it is.
+		const webgl2 = !!document.createElement('canvas').getContext('webgl2');
+		throw webgl2 ? err : new Error('WebGL2 unavailable', { cause: err });
+	}
 	stopInternalLoop(renderer);
 	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
 	renderer.shadowMap.enabled = true;

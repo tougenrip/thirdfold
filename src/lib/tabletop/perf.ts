@@ -7,6 +7,7 @@
 // `?perf` (`trackTimestamp`), sampled every 500 ms by the overlay.
 
 import type * as THREE from 'three/webgpu';
+import { isSoftware, type Tier } from './quality';
 import { RESHADOWS, TIMED, type Tabletop } from './types';
 
 /** Running totals for one kind of work. */
@@ -61,6 +62,8 @@ export class PerfRecorder {
 	/** GPU ms per frame at the last `sampleGpu`, and the frame count it was taken at. */
 	gpuMs: number | null = null;
 	sampledAt = 0;
+	/** Told each drawn frame's main-thread ms (quality refinement, capabilities.ts). */
+	onFrame: ((ms: number) => void) | null = null;
 	/** A benchmark, or a sample, is reading the timestamps: sampling waits. */
 	benchmarking = false;
 	sampling = false;
@@ -79,6 +82,7 @@ export class PerfRecorder {
 	}
 
 	add(label: string, ms: number): void {
+		if (label === 'frame') this.onFrame?.(ms);
 		const t = this.timings.get(label) ?? { count: 0, total: 0, max: 0, last: 0 };
 		t.count++;
 		t.total += ms;
@@ -115,7 +119,7 @@ export class PerfRecorder {
 }
 
 /** What three.js's backend object carries, as far as measuring goes. */
-interface Backend {
+export interface Backend {
 	isWebGPUBackend?: boolean;
 	compatibilityMode?: boolean | null;
 	trackTimestamp?: boolean;
@@ -125,10 +129,7 @@ interface Backend {
 	device?: GPUDevice & { adapterInfo?: GPUAdapterInfo };
 }
 
-const backendOf = (renderer: THREE.WebGPURenderer) => renderer.backend as Backend;
-
-/** Software GPUs, whose timestamps mean nothing (SwiftShader reports 0, or its latency). */
-const SOFTWARE = /swiftshader|llvmpipe|software/i;
+export const backendOf = (renderer: THREE.WebGPURenderer) => renderer.backend as Backend;
 
 /**
  * Whether frames are timed by timestamp queries: asked for (`?perf`), the GPU
@@ -137,11 +138,12 @@ const SOFTWARE = /swiftshader|llvmpipe|software/i;
 function timestamps(renderer: THREE.WebGPURenderer): boolean {
 	const b = backendOf(renderer);
 	if (b.trackTimestamp !== true || (b.isWebGPUBackend !== true && b.disjoint == null)) return false;
-	return !SOFTWARE.test(gpuInfo(renderer).adapter ?? '');
+	// A software GPU's timestamps mean nothing (SwiftShader reports 0, or its latency).
+	return !isSoftware(gpuInfo(renderer).adapter);
 }
 
 /** The backend and the GPU it runs on. */
-function gpuInfo(
+export function gpuInfo(
 	renderer: THREE.WebGPURenderer
 ): Pick<PerfStats, 'backend' | 'compat' | 'adapter'> {
 	const b = backendOf(renderer);
@@ -168,7 +170,7 @@ function gpuInfo(
 export function rendererStats(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
-	holding: boolean
+	{ holding, tier }: { holding: boolean; tier: Tier | null }
 ): PerfStats {
 	const { render, memory } = renderer.info;
 	return {
@@ -182,7 +184,7 @@ export function rendererStats(
 		memoryBytes: memory.total,
 		renderTargets: memory.renderTargets,
 		...gpuInfo(renderer),
-		tier: null,
+		tier,
 		mode: null,
 		gpuMs: perf.gpuMs,
 		holding
@@ -279,4 +281,19 @@ export function instrument(tabletop: Tabletop, perf: PerfRecorder, onChange: () 
 			return timed ? perf.time(key, () => update(...args)) : update(...args);
 		};
 	}
+}
+
+/** The tabletop's measuring methods (see `Tabletop`); `state` is read at each call. */
+export function perfMethods(
+	renderer: THREE.WebGPURenderer,
+	perf: PerfRecorder,
+	draw: () => void,
+	state: () => { holding: boolean; tier: Tier | null }
+): Pick<Tabletop, 'stats' | 'resetStats' | 'benchmark' | 'sampleGpu'> {
+	return {
+		stats: () => rendererStats(renderer, perf, state()),
+		resetStats: () => perf.reset(),
+		benchmark: (frames) => benchmark(renderer, perf, draw, frames),
+		sampleGpu: () => sampleGpu(renderer, perf)
+	};
 }

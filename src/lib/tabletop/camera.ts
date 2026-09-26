@@ -114,22 +114,3 @@ export class CameraRig {
 		this.controls.dispose();
 	}
 }
-
-/** Keeps the drawing size and the camera's aspect in step with the canvas. Returns a stop function. */
-export function watchCanvasSize(
-	canvas: HTMLCanvasElement,
-	renderer: THREE.WebGPURenderer,
-	camera: THREE.PerspectiveCamera,
-	onResize: () => void
-): () => void {
-	const observer = new ResizeObserver(() => {
-		const { clientWidth, clientHeight } = canvas;
-		if (!clientWidth || !clientHeight) return;
-		renderer.setSize(clientWidth, clientHeight, false);
-		camera.aspect = clientWidth / clientHeight;
-		camera.updateProjectionMatrix();
-		onResize();
-	});
-	observer.observe(canvas);
-	return () => observer.disconnect();
-}

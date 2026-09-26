@@ -17,7 +17,8 @@ export interface BaseLights {
 }
 
 /** The scene, with a plain background and the distance haze in its colour. */
-export function createScene(background: number): { scene: THREE.Scene; fog: THREE.Fog } {
+/** The day preset's background (lighting.ts), until the lighting layer sets the hour's. */
+export function createScene(background = 0x292421): { scene: THREE.Scene; fog: THREE.Fog } {
 	const scene = new THREE.Scene();
 	scene.background = new THREE.Color(background);
 	const fog = new THREE.Fog(background, FOG.near, FOG.far);
