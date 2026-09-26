@@ -10,6 +10,7 @@
 // the server's fog is showing for that moment).
 
 import * as THREE from 'three/webgpu';
+import { instancedDynamicBufferAttribute } from 'three/tsl';
 import { FLASH_MS, type Cue } from '$lib/game/chat';
 
 const TOLL_MS = 7000;
@@ -28,7 +29,9 @@ export interface EffectFrame {
 
 export class EffectsLayer {
 	readonly group = new THREE.Group();
-	private dust: THREE.Points;
+	/** One sprite drawn DUST times (sized points on WebGPU too), placed by `positions`. */
+	private dust: THREE.Sprite;
+	private positions: THREE.InstancedBufferAttribute;
 	private dustStart: Float32Array;
 	private shadow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 	private shadowTexture: THREE.CanvasTexture | null;
@@ -40,19 +43,18 @@ export class EffectsLayer {
 	private reduced = false;
 
 	constructor() {
-		const geometry = new THREE.BufferGeometry();
 		this.dustStart = new Float32Array(DUST * 3);
-		geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST * 3), 3));
-		this.dust = new THREE.Points(
-			geometry,
-			new THREE.PointsMaterial({
-				color: 0xd8cbb0,
-				size: 0.06,
-				transparent: true,
-				opacity: 0.8,
-				depthWrite: false
-			})
-		);
+		this.positions = new THREE.InstancedBufferAttribute(new Float32Array(DUST * 3), 3);
+		const material = new THREE.PointsNodeMaterial({
+			color: 0xd8cbb0,
+			size: 0.06,
+			transparent: true,
+			opacity: 0.8,
+			depthWrite: false
+		});
+		material.positionNode = instancedDynamicBufferAttribute(this.positions);
+		this.dust = new THREE.Sprite(material);
+		this.dust.count = DUST;
 		this.dust.visible = false;
 		this.dust.frustumCulled = false;
 		this.dust.raycast = () => {};
@@ -92,7 +94,7 @@ export class EffectsLayer {
 		this.start = now;
 		this.reduced = reducedMotion;
 		if (reducedMotion) return;
-		const pos = this.dust.geometry.getAttribute('position') as THREE.BufferAttribute;
+		const pos = this.positions;
 		for (let i = 0; i < DUST; i++) {
 			// A fixed scatter per particle (no Math.random), so every run looks alike.
 			const u = fract(Math.sin(i * 12.9898) * 43758.5453);
@@ -146,7 +148,7 @@ export class EffectsLayer {
 		);
 
 		// Dust sifts down and drifts, fading out.
-		const pos = this.dust.geometry.getAttribute('position') as THREE.BufferAttribute;
+		const pos = this.positions;
 		for (let i = 0; i < DUST; i++) {
 			const x0 = this.dustStart[i * 3];
 			const y0 = this.dustStart[i * 3 + 1];
@@ -155,7 +157,7 @@ export class EffectsLayer {
 			pos.setXYZ(i, x0 + Math.sin(t * 1.3 + i) * 0.15, Math.max(0.02, y0 - fall), z0);
 		}
 		pos.needsUpdate = true;
-		(this.dust.material as THREE.PointsMaterial).opacity = 0.8 * Math.max(0, 1 - t / 6.5);
+		this.dust.material.opacity = 0.8 * Math.max(0, 1 - t / 6.5);
 
 		// Something vast moving far below: a shadow crossing the floor, in and out.
 		const k = t / (TOLL_MS / 1000);
@@ -166,8 +168,7 @@ export class EffectsLayer {
 	}
 
 	dispose(): void {
-		this.dust.geometry.dispose();
-		(this.dust.material as THREE.Material).dispose();
+		this.dust.material.dispose();
 		this.shadow.geometry.dispose();
 		this.shadow.material.dispose();
 		this.shadowTexture?.dispose();

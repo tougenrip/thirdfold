@@ -17,7 +17,14 @@ const BANKS = 6;
 const HEIGHT = 0.012;
 
 export class AmbienceLayer {
-	readonly group = new THREE.Group();
+	/** Clips every bank to the table (the node renderer ignores a material's clipping planes). */
+	readonly group = new THREE.ClippingGroup();
+	private planes = [
+		new THREE.Plane(new THREE.Vector3(1, 0, 0)),
+		new THREE.Plane(new THREE.Vector3(-1, 0, 0)),
+		new THREE.Plane(new THREE.Vector3(0, 0, 1)),
+		new THREE.Plane(new THREE.Vector3(0, 0, -1))
+	];
 	private texture: THREE.CanvasTexture | null = null;
 	private material: THREE.MeshBasicMaterial;
 	private geometry = new THREE.PlaneGeometry(1, 1);
@@ -60,12 +67,11 @@ export class AmbienceLayer {
 		this.size = { w: grid.width * grid.cellSize, d: grid.height * grid.cellSize };
 		// Kept to the table: no mist over the dark around it.
 		const [hw, hd] = [this.size.w / 2, this.size.d / 2];
-		this.material.clippingPlanes = [
-			new THREE.Plane(new THREE.Vector3(1, 0, 0), hw),
-			new THREE.Plane(new THREE.Vector3(-1, 0, 0), hw),
-			new THREE.Plane(new THREE.Vector3(0, 0, 1), hd),
-			new THREE.Plane(new THREE.Vector3(0, 0, -1), hd)
-		];
+		this.planes[0].constant = hw;
+		this.planes[1].constant = hw;
+		this.planes[2].constant = hd;
+		this.planes[3].constant = hd;
+		this.group.clippingPlanes = this.planes;
 		const scale = Math.max(this.size.w, this.size.d) * 0.45;
 		this.banks.forEach((b, i) => {
 			b.mesh.scale.set(scale, scale * 0.6, 1);
