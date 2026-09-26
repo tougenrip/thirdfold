@@ -30,7 +30,7 @@ import { FloorLayer } from './floor';
 import { FogLayer, playerVisible, type FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
-import { LightingLayer } from './lighting';
+import { LightingLayer, lightSeats } from './lighting';
 import { frameOverview, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, FrameLoop, watchReducedMotion } from './loop';
 import { benchmark, instrument, PerfRecorder, rendererStats, timeGpuFrames } from './perf';
@@ -85,7 +85,7 @@ export async function createTabletop(
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
 	const onModel = () => {
 		shadowsDirty = warmPending = true;
-		requestRender();
+		refreshLighting(); // a sconce's or brazier's size seats its light's flame
 	};
 	/** Something new needs its shaders compiled before the next frame (see warmup.ts). */
 	let warmPending = true;
@@ -166,7 +166,8 @@ export async function createTabletop(
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
 		const visible = playerVisible(fog, mode, size);
 		const { ambient, lights } = lightState;
-		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness);
+		const seats = lightSeats(grid, props);
+		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
 		// Raised ground under fog and darkness, by the same rules as the flat overlays.
 		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
 	}

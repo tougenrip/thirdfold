@@ -189,27 +189,31 @@ within 0.009 of v0 (see `docs/RENDERING.md`), so what moved below is the scale.
 
 | Reference | m61   | m62   |
 | --------- | ----- | ----- |
-| 1         | 0.171 | 0.179 |
+| 1         | 0.171 | 0.169 |
 | 2         | 0.293 | 0.284 |
 | 3         | 0.130 | 0.137 |
-| 4         | 0.148 | 0.157 |
-| 6         | 0.214 | 0.228 |
+| 4         | 0.148 | 0.160 |
+| 6         | 0.214 | 0.245 |
 | 7         | 0.136 | 0.115 |
 | 8         | 0.199 | 0.193 |
 
 - **Ref 1's pose pulled back** from distance 4.5 to 6 (owner, milestone 62): at human height the
   minis and their labels overflowed the frame.
-- **Closer on refs 2, 7 and 8.** Walls and minis at human height fill more of the frame the way
-  the references do.
-- **Further on the night pairings (refs 1, 3, 4 and 6), by 0.007–0.014.** Lamps now hang 1.6 u
-  up instead of 1 u, so the floor right under them is dimmer and the torch-lit centres of these
-  close shots darker, against references that are brighter there. The lighting milestone (#115)
-  moves these, not the scale.
-- **Seen in the strip, left for later:** a light's fixture (a post with a flame at 1.5 u) stands
-  on top of props that already are the light (the braziers of ref 6, the sconce of ref 1), and
-  their bowls are no longer lit from inside; #367 seats those flames on their props until #232
-  gives every light a fixture of its kind. The monastery's low golden looks at the wall of Oswin's cell, since a low camera
-  can't see over 2 u walls; dithering occluders between the camera and the minis (#283) fixes it.
+- **Lights seated on their props (#367).** A light on a sconce or brazier draws only its flame, on
+  the prop's top, and hangs its pool light there, so ref 6's braziers are lit from inside again and
+  ref 1's torch stand carries its flame. Until #232 gives every light a fixture of its kind.
+- **Closer on refs 1, 2, 7 and 8.** Walls and minis at human height fill more of the frame the
+  way the references do.
+- **Further on refs 3 and 4, by 0.007–0.012.** Lamps elsewhere hang 1.6 u up instead of 1 u, so
+  the floor right under them is dimmer, against references that are brighter there. The lighting
+  milestone (#115) moves these, not the scale.
+- **Further on ref 6, by 0.031, though its braziers read as in m61.** The taller walls, lit orange
+  by the braziers, now fill more of the frame: median L 0.258 and chroma 0.075 against the
+  reference's 0.200 and 0.035 (m61: 0.192 and 0.057). Cooler, dimmer night light (#115, #238)
+  moves it.
+- **Seen in the strip, left for later:** the monastery's low golden looks at the wall of Oswin's
+  cell, since a low camera can't see over 2 u walls; dithering occluders between the camera and
+  the minis (#283) fixes it.
 
 ## Target palettes
 
