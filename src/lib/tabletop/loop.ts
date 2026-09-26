@@ -153,5 +153,10 @@ export async function createNodeRenderer(
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
+	// A separate chunk, fetched only when asked for: never in normal play.
+	if (options.inspector)
+		void import('three/examples/jsm/inspector/Inspector.js').then(
+			({ Inspector }) => (renderer.inspector = new Inspector())
+		);
 	return renderer;
 }

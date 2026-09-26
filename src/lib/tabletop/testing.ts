@@ -100,6 +100,8 @@ export async function mountFixture(
 		clock?: { now: () => number };
 		reducedMotion?: boolean;
 		events?: TabletopEvents;
+		/** As under `?perf`: GPU timestamps recorded. */
+		perf?: boolean;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -120,6 +122,7 @@ export async function mountFixture(
 			now: (options.clock ?? manualClock()).now,
 			pixelRatio: 1,
 			preserveDrawingBuffer: true,
+			perf: options.perf,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
 			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : true
 		}

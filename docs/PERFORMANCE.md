@@ -6,11 +6,29 @@ measured and left alone.
 
 ## How to measure
 
-- **In the browser:** add `?perf` to a room's URL. An overlay shows frames per second, main-thread
-  ms per frame, draw calls, triangles, geometries/textures/shader programs, and how often and how
-  long lighting was worked out. The page also exposes `window.thirdfoldPerf` (the renderer's
-  `stats()`, `resetStats()` and `benchmark(frames)`) and `window.thirdfoldRoom` (the connection),
-  for the scripts below. Timings come from `src/lib/tabletop/perf.ts`.
+- **In the browser:** add `?perf` to a room's URL. An overlay shows the backend (WebGPU, with
+  "(compat)" in compatibility mode, or WebGL2), the GPU as the browser names it, the quality tier
+  and scheduler mode (from #147 and #148), frames per second, main-thread ms per frame, GPU ms per
+  frame, draw calls, triangles, geometries/textures/shader programs, GPU memory (all of it, and
+  textures), and how often and how long lighting was worked out. GPU ms come from timestamp
+  queries, which the renderer records only under `?perf` (so normal play never pays for them) and
+  the overlay reads every 500 ms; "n/a" where there are none: WebGL2 without
+  `EXT_disjoint_timer_query_webgl2`, or a software GPU (SwiftShader, llvmpipe), whose timestamps
+  mean nothing. `?perf&inspector` also opens three.js's Inspector, a chunk of its own fetched only
+  then. The page exposes `window.thirdfoldPerf` (the renderer's `stats()`, `resetStats()`, async
+  `benchmark(frames)` and `sampleGpu()`) and `window.thirdfoldRoom` (the connection), for the
+  scripts below. Timings come from `src/lib/tabletop/perf.ts`.
+- **What the counters count:** `drawCalls` and `triangles` are the last drawn frame's, shadow
+  passes included (they are drawn inside the frame's render). `programs` counts the node
+  renderer's shader stages and pipelines, not linked GL programs as under the classic renderer, so
+  it only compares with itself and differs between backends. `memoryBytes` is everything three.js
+  tracks on the GPU; `texturesBytes` its textures.
+- **Choosing the GPU and the backend:** both scripts below read `PERF_GPU` (`swiftshader`, the
+  default, software and the same everywhere; `vulkan`, a real GPU; or `egl`, ANGLE over the
+  system's GL) and `PERF_BACKEND` (`webgl`, the default: WebGPURenderer's WebGL2 backend, forced
+  with `?backend=webgl`; or `webgpu`), set up in `scripts/perf-browser.mjs`. WebGPU is measured on
+  real GPUs only: Chromium's SwiftShader WebGPU drops its instance once a table draws. A run fails
+  if the page draws with another backend than asked (WebGPU missing falls back to WebGL2).
 - **Deterministic frames:** `createTabletop(canvas, events, options)` takes `TabletopOptions`: an
   animation clock (`now`), a fixed `pixelRatio`, `preserveDrawingBuffer` so a test can read the
   canvas, and a `reducedMotion` override. `setPose(pose)` puts the camera at a named pose. With a
@@ -63,15 +81,21 @@ measured and left alone.
   | "Too many active WebGL contexts" warnings               | any                            |
   | Bundle sizes (`check-bundle.mjs` budgets)               | over budget, or three.js eager |
 
-  Milliseconds are printed, never gated: SwiftShader's timings say little about real GPUs. To change
-  the baseline on purpose, run with `--update-baseline docs/perf-baseline.json` on the pinned
-  Chromium and say why in the PR.
+  Milliseconds are printed, never gated: SwiftShader's timings say little about real GPUs. A
+  baseline records the backend it was taken on, and the gate fails against a baseline of another
+  backend: `docs/perf-baseline.json` is WebGL2 on the RTX 4060 Laptop, the medium tier's reference
+  machine, so run the gate there with `PERF_GPU=vulkan`. Under SwiftShader the node renderer's
+  shaders compile on the CPU, three pages at once, which stretches a run past 40 minutes; on the
+  4060 it takes about 25, most of it waiting for flickering tables to go quiet. To change the
+  baseline on purpose, run with `--update-baseline docs/perf-baseline.json` on the pinned Chromium
+  and say why in the PR.
 
-- **GPU cost of a frame:** `PERF_GPU=vulkan node scripts/perf-gpu.mjs [url] [scenes] [out.json]`.
-  It draws the fixture tables at their named poses for the GM and a player, at 1400×900 and
-  1920×1080, timed by WebGL2 timer queries where the driver has them and by a readPixels round trip.
-  `PERF_GPU` is `swiftshader` (default), `vulkan` (a discrete GPU) or `egl` (an integrated GPU); the
-  report names the GPU the browser actually used.
+- **GPU cost of a frame:** `PERF_GPU=vulkan PERF_BACKEND=webgpu node scripts/perf-gpu.mjs [url]
+[scenes] [out.json]`. It draws the fixture tables at their named poses for the GM and a player,
+  at 1400×900 and 1920×1080, with `benchmark`: the GPU's ms per frame by timestamp queries
+  (`timestamp`, real GPUs on both backends), else the ms until each frame is drawn (`sync`: a pixel
+  read back on WebGL2, `onSubmittedWorkDone` on WebGPU; SwiftShader always). The report names the
+  backend and the GPU the browser actually used.
 - **Asset sizes:** `npm run build` prints each chunk. `npx vite build --sourcemap true` with a
   source-map walk shows what a chunk is made of.
 - **Bundle gate:** `npm run bundle:check`, after `npm run build` (CI runs it too). It walks the Vite

@@ -116,6 +116,11 @@ for (const r of rows) {
 		failures.push(`${r.name} adds ${kb(r.own)} gz to the shell, over ${kb(maxOwn)}`);
 	}
 }
+// The Inspector (?perf&inspector) is its own chunk, fetched only when asked for.
+const inspectorKey = Object.keys(manifest).find((k) => k.endsWith('jsm/inspector/Inspector.js'));
+if (!inspectorKey) failures.push('three.js Inspector is not a chunk of its own');
+else if (closure(rendererKey).has(manifest[inspectorKey].file))
+	failures.push('the renderer statically imports the three.js Inspector');
 if (asJson) {
 	const sizes = Object.fromEntries(
 		rows.map((r) => [r.name, { gz: r.gz, own: r.own ?? null, three: r.three }])

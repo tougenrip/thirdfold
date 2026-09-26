@@ -12,7 +12,7 @@ import type { Token } from '$lib/game/token';
 import type { FogView } from '$lib/game/visibility';
 import type { DiceThrow } from './dice3d';
 import type { FogMode } from './fog';
-import type { PerfStats } from './perf';
+import type { Benchmark, PerfStats } from './perf';
 import type { GridPose } from './poses';
 import type { Pose } from './shots';
 
@@ -61,8 +61,10 @@ export interface TabletopOptions {
 	reducedMotion?: boolean;
 	/** `webgl` forces WebGPURenderer's WebGL2 backend; default: `?backend=` and the Graphics setting. */
 	backend?: 'webgpu' | 'webgl';
-	/** Tracks GPU timestamps, for `timeFrames` (the perf overlay and scripts). */
+	/** Records GPU timestamps, for `sampleGpu` and `benchmark` (`?perf`: normal play never pays). */
 	perf?: boolean;
+	/** Opens three.js's Inspector over the table (`?perf&inspector`), loaded only then. */
+	inspector?: boolean;
 }
 
 export interface Tabletop {
@@ -107,13 +109,10 @@ export interface Tabletop {
 	setGridPose(pose: GridPose): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
-	/**
-	 * Draws the current view `frames` times, waiting for the GPU each time: the
-	 * main thread's ms per frame (`cpu`) and the whole frame's until drawn (`gpu`).
-	 */
-	benchmark(frames: number): { cpu: number; gpu: number; drawCalls: number };
-	/** GPU ms of the current view by timer queries (median of `frames`), or null without them. */
-	timeFrames(frames: number): Promise<number | null>;
+	/** Draws the current view `frames` times, timing the main thread and the GPU (see perf.ts). */
+	benchmark(frames: number): Promise<Benchmark>;
+	/** Reads the GPU timestamps of the frames since the last call into `stats().gpuMs`. */
+	sampleGpu(): Promise<void>;
 	resetStats(): void;
 	dispose(): void;
 }

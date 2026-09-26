@@ -118,21 +118,29 @@
 	let canvas: HTMLCanvasElement;
 	let tabletop = $state<Tabletop | null>(null);
 	/** `?perf` in the URL: show what rendering costs, and let a measuring script read it. */
-	const showPerf =
-		typeof location !== 'undefined' && new URLSearchParams(location.search).has('perf');
+	const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+	const showPerf = !!query?.has('perf');
+	/** `?perf&inspector`: three.js's Inspector too. */
+	const showInspector = showPerf && !!query?.has('inspector');
 	let perf = $state<PerfStats | null>(null);
 
 	$effect(() => {
 		const t = tabletop;
 		if (!showPerf || !t) return;
 		(window as { thirdfoldPerf?: Tabletop }).thirdfoldPerf = t;
-		const timer = setInterval(() => (perf = t.stats()), 500);
+		// Sampling the GPU's timestamps every 500 ms also keeps their query pool from filling up;
+		// the overlay shows the last sample rather than waiting for this one.
+		const timer = setInterval(() => {
+			perf = t.stats();
+			void t.sampleGpu();
+		}, 500);
 		return () => {
 			clearInterval(timer);
 			delete (window as { thirdfoldPerf?: Tabletop }).thirdfoldPerf;
 		};
 	});
 
+	const mb = (bytes: number) => (bytes / 2 ** 20).toFixed(1);
 	const avg = (label: string) => {
 		const t = perf?.timings[label];
 		return t && t.count ? (t.total / t.count).toFixed(2) : '–';
@@ -151,7 +159,7 @@
 				const made = await createTabletop(
 					canvas,
 					{ onClick: (pick) => onClick?.(pick), onHover: (pick) => onHover?.(pick) },
-					{ perf: showPerf }
+					{ perf: showPerf, inspector: showInspector }
 				);
 				// Unmounted while the renderer was starting: throw it away.
 				if (gone) return made.dispose();
@@ -291,16 +299,26 @@
 ></canvas>
 {#if perf}
 	<dl class="perf" aria-label="Rendering performance">
+		<dt>backend</dt>
+		<dd>{perf.backend}{perf.compat ? ' (compat)' : ''}</dd>
+		<dt>adapter</dt>
+		<dd class="adapter" title={perf.adapter ?? ''}>{perf.adapter ?? '–'}</dd>
+		<dt>tier / mode</dt>
+		<dd>{perf.tier ?? '–'} / {perf.mode ?? '–'}</dd>
 		<dt>fps</dt>
 		<dd>{perf.fps}</dd>
 		<dt>frame ms</dt>
 		<dd>{avg('frame')} (max {perf.timings.frame?.max.toFixed(1) ?? '–'})</dd>
+		<dt>GPU ms</dt>
+		<dd>{perf.gpuMs === null ? 'n/a' : perf.gpuMs.toFixed(2)}</dd>
 		<dt>draws</dt>
 		<dd>{perf.drawCalls}</dd>
 		<dt>triangles</dt>
 		<dd>{perf.triangles.toLocaleString()}</dd>
 		<dt>geo / tex / prog</dt>
 		<dd>{perf.geometries} / {perf.textures} / {perf.programs}</dd>
+		<dt>memory MB</dt>
+		<dd>{mb(perf.memoryBytes)} (tex {mb(perf.texturesBytes)})</dd>
 		<dt>lighting ms</dt>
 		<dd>{avg('lighting')} ×{perf.timings.lighting?.count ?? 0}</dd>
 	</dl>
@@ -345,6 +363,13 @@
 
 	.perf dd {
 		margin: 0;
+	}
+
+	.perf .adapter {
+		max-width: 24ch;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	/* Centred in the free space between the room's chat and side panels. */

@@ -3,6 +3,7 @@
 // nothing, ambient animation stays at its slow rate, and reloading tables or
 // cycling the time of day leaks nothing and compiles nothing new.
 
+import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	FIXTURES,
@@ -176,5 +177,39 @@ describe('the renderer', () => {
 		expect(events.onHover).not.toHaveBeenCalled();
 		expect(events.onClick).not.toHaveBeenCalled();
 		m.canvas.remove();
+	});
+});
+
+describe('measuring', () => {
+	it('reports what it draws, still after a second idle, and benchmarks', async () => {
+		const sidecar = await loadSidecar('ref-7');
+		const view = await loadView('ref-7', sidecar.ambient, 'gm');
+		const m = await mountFixture(view, sidecar.poses.overview, { perf: true });
+		mounted.push(m);
+		await settle(m.tabletop);
+		await wait(1000);
+		const stats = m.tabletop.stats();
+		expect(stats.drawCalls).toBeGreaterThan(0);
+		expect(stats.programs).toBeGreaterThan(0);
+		expect(stats.memoryBytes).toBeGreaterThan(0);
+		// The tests draw on WebGL2 (they read pixels back); SwiftShader names itself.
+		expect(stats.backend).toBe('webgl2');
+		expect(stats.adapter).toMatch(/swiftshader/i);
+		const b = await m.tabletop.benchmark(2);
+		expect(Number.isFinite(b.cpu)).toBe(true);
+		expect(b.drawCalls).toBeGreaterThan(0);
+		// SwiftShader is software: its timestamps mean nothing, so the benchmark waits for frames.
+		expect(b.gpuTimer).toBe('sync');
+		expect(Number.isFinite(b.gpu)).toBe(true);
+	});
+
+	it('resolves no timestamps outside ?perf', async () => {
+		const resolve = vi.spyOn(THREE.WebGPURenderer.prototype, 'resolveTimestampsAsync');
+		const { tabletop } = await mount('ref-7', 'gm');
+		await tabletop.sampleGpu();
+		await tabletop.benchmark(2);
+		expect(resolve).not.toHaveBeenCalled();
+		expect(tabletop.stats().gpuMs).toBeNull();
+		resolve.mockRestore();
 	});
 });

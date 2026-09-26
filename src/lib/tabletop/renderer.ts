@@ -33,7 +33,7 @@ import { labelFontReady } from './label-font';
 import { LightingLayer, lightSeats } from './lighting';
 import { frameOverview, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, FrameLoop, watchReducedMotion } from './loop';
-import { benchmark, instrument, PerfRecorder, rendererStats, timeGpuFrames } from './perf';
+import { benchmark, instrument, PerfRecorder, rendererStats, sampleGpu } from './perf';
 import { poseFor } from './poses';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
@@ -201,7 +201,7 @@ export async function createTabletop(
 		warmPending = false;
 		if (lightingStale) {
 			lightingStale = false;
-			relight();
+			perf.time('lighting', relight);
 		}
 		const t0 = performance.now();
 		frameOverview(warmCamera, extent, camera.aspect);
@@ -490,8 +490,8 @@ export async function createTabletop(
 		},
 		stats: () => rendererStats(renderer, perf, loop.holding),
 		resetStats: () => perf.reset(),
-		benchmark: (frames) => benchmark(renderer, drawScene, frames),
-		timeFrames: (frames) => timeGpuFrames(renderer, drawScene, frames)
+		benchmark: (frames) => benchmark(renderer, perf, drawScene, frames),
+		sampleGpu: () => sampleGpu(renderer, perf)
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
 	instrument(tabletop, perf, () => (shadowsDirty = true));
