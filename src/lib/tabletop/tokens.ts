@@ -7,6 +7,7 @@
 // it is the plain miniature: a torso and a head in its colour.
 
 import * as THREE from 'three';
+import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
@@ -56,7 +57,7 @@ function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite 
 	canvas.width = 256;
 	canvas.height = 64;
 	const ctx = canvas.getContext('2d')!;
-	ctx.font = bold ? '800 40px system-ui, sans-serif' : '600 30px system-ui, sans-serif';
+	ctx.font = bold ? labelFont(800, 40) : labelFont(600, 30);
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 	const width = Math.min(ctx.measureText(name).width + 28, 256);
@@ -267,6 +268,16 @@ export class TokenLayer {
 			if (typeof o.userData.tokenId === 'string') return o.userData.tokenId;
 		}
 		return null;
+	}
+
+	/** Draws every name label again (once the label font has loaded). */
+	relabel(): void {
+		for (const entry of this.entries.values()) {
+			entry.root.remove(entry.label);
+			disposeLabel(entry.label);
+			entry.label = makeLabel(entry.name);
+			entry.root.add(entry.label);
+		}
 	}
 
 	dispose(): void {

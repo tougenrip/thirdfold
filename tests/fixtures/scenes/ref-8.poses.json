@@ -1,0 +1,59 @@
+{
+	"ambient": "dusk",
+	"player": {
+		"tokenId": "ref8-mini-hero"
+	},
+	"explore": [
+		{
+			"x": 15,
+			"y": 24
+		},
+		{
+			"x": 15,
+			"y": 18
+		},
+		{
+			"x": 15,
+			"y": 16
+		}
+	],
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 16,
+				"y": 16
+			},
+			"distance": 35.2,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 15,
+				"y": 24
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38
+		},
+		"low": {
+			"target": {
+				"x": 15,
+				"y": 24
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 15,
+				"y": 24
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38,
+			"ambient": "dark"
+		}
+	}
+}

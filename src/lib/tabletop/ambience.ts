@@ -2,7 +2,8 @@
 // dusk and after dark. Purely cosmetic and local: nothing here is state, and
 // it never touches the network. A handful of soft, transparent planes share
 // one generated texture; `tick` moves them, and the renderer only keeps a
-// slow frame timer running while something is drifting.
+// slow frame timer running while something is drifting. With reduced motion
+// there is no mist at all: it is only ever seen drifting.
 
 import * as THREE from 'three';
 import type { SquareGrid } from '$lib/game/grid';
@@ -23,6 +24,7 @@ export class AmbienceLayer {
 	private banks: { mesh: THREE.Mesh; speed: number; phase: number }[] = [];
 	private size = { w: 0, d: 0 };
 	private active = false;
+	private reducedMotion = false;
 
 	constructor() {
 		this.material = new THREE.MeshBasicMaterial({
@@ -45,9 +47,14 @@ export class AmbienceLayer {
 		this.group.visible = false;
 	}
 
+	/** No mist while motion is reduced; takes effect on the next `update`. */
+	setReducedMotion(reduced: boolean): void {
+		this.reducedMotion = reduced;
+	}
+
 	/** Sets the mist for a table and its ambient light: none by day. */
 	update(grid: SquareGrid, ambient: Ambient): void {
-		this.active = ambient !== 'day' && this.texture !== null;
+		this.active = ambient !== 'day' && this.texture !== null && !this.reducedMotion;
 		this.group.visible = this.active;
 		this.material.opacity = ambient === 'dark' ? 0.2 : 0.14;
 		this.size = { w: grid.width * grid.cellSize, d: grid.height * grid.cellSize };

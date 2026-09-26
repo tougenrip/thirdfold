@@ -36,6 +36,7 @@ import {
 	type CharacterDef
 } from '../../src/lib/adventure/characters';
 import {
+	FLASH_MS,
 	NARRATION_MAX_LENGTH,
 	normalizeChatText,
 	type ChatMessage,
@@ -495,8 +496,7 @@ function say(room: Room, text: string, speaker?: string, audience?: LogAudience)
 	});
 }
 
-/** How long a flash (a great light, like the Bell's note) lights the whole table. */
-export const FLASH_MS = 2500;
+export { FLASH_MS };
 
 /**
  * Narration that every client plays as a flash, and the flash itself: for

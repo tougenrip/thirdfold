@@ -1,0 +1,45 @@
+{
+	"ambient": "dusk",
+	"player": {
+		"tokenId": "railcar-mini-hero"
+	},
+	"poses": {
+		"overview": {
+			"target": {
+				"x": 34,
+				"y": 3
+			},
+			"distance": 74.80000000000001,
+			"azimuth": 20,
+			"elevation": 55
+		},
+		"close": {
+			"target": {
+				"x": 63,
+				"y": 3
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38
+		},
+		"low": {
+			"target": {
+				"x": 63,
+				"y": 3
+			},
+			"distance": 6,
+			"azimuth": 30,
+			"elevation": 14
+		},
+		"dark": {
+			"target": {
+				"x": 63,
+				"y": 3
+			},
+			"distance": 7,
+			"azimuth": 35,
+			"elevation": 38,
+			"ambient": "dark"
+		}
+	}
+}

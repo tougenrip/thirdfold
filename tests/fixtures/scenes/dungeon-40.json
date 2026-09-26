@@ -1,0 +1,2805 @@
+{
+	"format": "thirdfold-scene",
+	"version": 9,
+	"name": "Fixture: dungeon of 40 torches",
+	"savedAt": "2026-01-01T00:00:00.000Z",
+	"grid": {
+		"kind": "square",
+		"cellSize": 1,
+		"width": 40,
+		"height": 30
+	},
+	"tokens": [
+		{
+			"id": "dungeon-mini-hero",
+			"name": "Warden",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 3,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
+		}
+	],
+	"objects": [
+		{
+			"id": "dungeon-room-0-0-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 1
+			},
+			"b": {
+				"x": 7,
+				"y": 1
+			}
+		},
+		{
+			"id": "dungeon-room-0-0-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 6
+			},
+			"b": {
+				"x": 3,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-0-0-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 4,
+				"y": 6
+			},
+			"b": {
+				"x": 7,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-0-0-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 1
+			},
+			"b": {
+				"x": 1,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-0-0-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 1
+			},
+			"b": {
+				"x": 7,
+				"y": 3
+			}
+		},
+		{
+			"id": "dungeon-room-0-0-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 4
+			},
+			"b": {
+				"x": 7,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-0-0-door",
+			"kind": "door",
+			"a": {
+				"x": 7,
+				"y": 3
+			},
+			"b": {
+				"x": 7,
+				"y": 4
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-0-0-door1",
+			"kind": "door",
+			"a": {
+				"x": 3,
+				"y": 6
+			},
+			"b": {
+				"x": 4,
+				"y": 6
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-0-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 1
+			},
+			"b": {
+				"x": 15,
+				"y": 1
+			}
+		},
+		{
+			"id": "dungeon-room-1-0-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 6
+			},
+			"b": {
+				"x": 11,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-1-0-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 12,
+				"y": 6
+			},
+			"b": {
+				"x": 15,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-1-0-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 1
+			},
+			"b": {
+				"x": 9,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-1-0-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 1
+			},
+			"b": {
+				"x": 15,
+				"y": 3
+			}
+		},
+		{
+			"id": "dungeon-room-1-0-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 4
+			},
+			"b": {
+				"x": 15,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-1-0-door",
+			"kind": "door",
+			"a": {
+				"x": 15,
+				"y": 3
+			},
+			"b": {
+				"x": 15,
+				"y": 4
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-0-door1",
+			"kind": "door",
+			"a": {
+				"x": 11,
+				"y": 6
+			},
+			"b": {
+				"x": 12,
+				"y": 6
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-0-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 1
+			},
+			"b": {
+				"x": 23,
+				"y": 1
+			}
+		},
+		{
+			"id": "dungeon-room-2-0-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 6
+			},
+			"b": {
+				"x": 19,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-2-0-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 20,
+				"y": 6
+			},
+			"b": {
+				"x": 23,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-2-0-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 1
+			},
+			"b": {
+				"x": 17,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-2-0-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 1
+			},
+			"b": {
+				"x": 23,
+				"y": 3
+			}
+		},
+		{
+			"id": "dungeon-room-2-0-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 4
+			},
+			"b": {
+				"x": 23,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-2-0-door",
+			"kind": "door",
+			"a": {
+				"x": 23,
+				"y": 3
+			},
+			"b": {
+				"x": 23,
+				"y": 4
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-0-door1",
+			"kind": "door",
+			"a": {
+				"x": 19,
+				"y": 6
+			},
+			"b": {
+				"x": 20,
+				"y": 6
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-0-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 1
+			},
+			"b": {
+				"x": 31,
+				"y": 1
+			}
+		},
+		{
+			"id": "dungeon-room-3-0-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 6
+			},
+			"b": {
+				"x": 27,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-3-0-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 28,
+				"y": 6
+			},
+			"b": {
+				"x": 31,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-3-0-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 1
+			},
+			"b": {
+				"x": 25,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-3-0-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 1
+			},
+			"b": {
+				"x": 31,
+				"y": 3
+			}
+		},
+		{
+			"id": "dungeon-room-3-0-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 4
+			},
+			"b": {
+				"x": 31,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-3-0-door",
+			"kind": "door",
+			"a": {
+				"x": 31,
+				"y": 3
+			},
+			"b": {
+				"x": 31,
+				"y": 4
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-0-door1",
+			"kind": "door",
+			"a": {
+				"x": 27,
+				"y": 6
+			},
+			"b": {
+				"x": 28,
+				"y": 6
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-0-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 1
+			},
+			"b": {
+				"x": 39,
+				"y": 1
+			}
+		},
+		{
+			"id": "dungeon-room-4-0-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 6
+			},
+			"b": {
+				"x": 35,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-4-0-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 36,
+				"y": 6
+			},
+			"b": {
+				"x": 39,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-4-0-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 1
+			},
+			"b": {
+				"x": 33,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-4-0-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 1
+			},
+			"b": {
+				"x": 39,
+				"y": 3
+			}
+		},
+		{
+			"id": "dungeon-room-4-0-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 4
+			},
+			"b": {
+				"x": 39,
+				"y": 6
+			}
+		},
+		{
+			"id": "dungeon-room-4-0-door",
+			"kind": "door",
+			"a": {
+				"x": 39,
+				"y": 3
+			},
+			"b": {
+				"x": 39,
+				"y": 4
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-0-door1",
+			"kind": "door",
+			"a": {
+				"x": 35,
+				"y": 6
+			},
+			"b": {
+				"x": 36,
+				"y": 6
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-0-1-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 8
+			},
+			"b": {
+				"x": 7,
+				"y": 8
+			}
+		},
+		{
+			"id": "dungeon-room-0-1-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 13
+			},
+			"b": {
+				"x": 3,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-0-1-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 4,
+				"y": 13
+			},
+			"b": {
+				"x": 7,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-0-1-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 8
+			},
+			"b": {
+				"x": 1,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-0-1-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 8
+			},
+			"b": {
+				"x": 7,
+				"y": 10
+			}
+		},
+		{
+			"id": "dungeon-room-0-1-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 11
+			},
+			"b": {
+				"x": 7,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-0-1-door",
+			"kind": "door",
+			"a": {
+				"x": 7,
+				"y": 10
+			},
+			"b": {
+				"x": 7,
+				"y": 11
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-0-1-door1",
+			"kind": "door",
+			"a": {
+				"x": 3,
+				"y": 13
+			},
+			"b": {
+				"x": 4,
+				"y": 13
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-1-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 8
+			},
+			"b": {
+				"x": 15,
+				"y": 8
+			}
+		},
+		{
+			"id": "dungeon-room-1-1-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 13
+			},
+			"b": {
+				"x": 11,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-1-1-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 12,
+				"y": 13
+			},
+			"b": {
+				"x": 15,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-1-1-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 8
+			},
+			"b": {
+				"x": 9,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-1-1-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 8
+			},
+			"b": {
+				"x": 15,
+				"y": 10
+			}
+		},
+		{
+			"id": "dungeon-room-1-1-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 11
+			},
+			"b": {
+				"x": 15,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-1-1-door",
+			"kind": "door",
+			"a": {
+				"x": 15,
+				"y": 10
+			},
+			"b": {
+				"x": 15,
+				"y": 11
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-1-door1",
+			"kind": "door",
+			"a": {
+				"x": 11,
+				"y": 13
+			},
+			"b": {
+				"x": 12,
+				"y": 13
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-1-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 8
+			},
+			"b": {
+				"x": 23,
+				"y": 8
+			}
+		},
+		{
+			"id": "dungeon-room-2-1-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 13
+			},
+			"b": {
+				"x": 19,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-2-1-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 20,
+				"y": 13
+			},
+			"b": {
+				"x": 23,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-2-1-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 8
+			},
+			"b": {
+				"x": 17,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-2-1-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 8
+			},
+			"b": {
+				"x": 23,
+				"y": 10
+			}
+		},
+		{
+			"id": "dungeon-room-2-1-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 11
+			},
+			"b": {
+				"x": 23,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-2-1-door",
+			"kind": "door",
+			"a": {
+				"x": 23,
+				"y": 10
+			},
+			"b": {
+				"x": 23,
+				"y": 11
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-1-door1",
+			"kind": "door",
+			"a": {
+				"x": 19,
+				"y": 13
+			},
+			"b": {
+				"x": 20,
+				"y": 13
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-1-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 8
+			},
+			"b": {
+				"x": 31,
+				"y": 8
+			}
+		},
+		{
+			"id": "dungeon-room-3-1-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 13
+			},
+			"b": {
+				"x": 27,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-3-1-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 28,
+				"y": 13
+			},
+			"b": {
+				"x": 31,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-3-1-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 8
+			},
+			"b": {
+				"x": 25,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-3-1-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 8
+			},
+			"b": {
+				"x": 31,
+				"y": 10
+			}
+		},
+		{
+			"id": "dungeon-room-3-1-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 11
+			},
+			"b": {
+				"x": 31,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-3-1-door",
+			"kind": "door",
+			"a": {
+				"x": 31,
+				"y": 10
+			},
+			"b": {
+				"x": 31,
+				"y": 11
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-1-door1",
+			"kind": "door",
+			"a": {
+				"x": 27,
+				"y": 13
+			},
+			"b": {
+				"x": 28,
+				"y": 13
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-1-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 8
+			},
+			"b": {
+				"x": 39,
+				"y": 8
+			}
+		},
+		{
+			"id": "dungeon-room-4-1-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 13
+			},
+			"b": {
+				"x": 35,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-4-1-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 36,
+				"y": 13
+			},
+			"b": {
+				"x": 39,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-4-1-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 8
+			},
+			"b": {
+				"x": 33,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-4-1-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 8
+			},
+			"b": {
+				"x": 39,
+				"y": 10
+			}
+		},
+		{
+			"id": "dungeon-room-4-1-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 11
+			},
+			"b": {
+				"x": 39,
+				"y": 13
+			}
+		},
+		{
+			"id": "dungeon-room-4-1-door",
+			"kind": "door",
+			"a": {
+				"x": 39,
+				"y": 10
+			},
+			"b": {
+				"x": 39,
+				"y": 11
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-1-door1",
+			"kind": "door",
+			"a": {
+				"x": 35,
+				"y": 13
+			},
+			"b": {
+				"x": 36,
+				"y": 13
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-0-2-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 15
+			},
+			"b": {
+				"x": 7,
+				"y": 15
+			}
+		},
+		{
+			"id": "dungeon-room-0-2-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 20
+			},
+			"b": {
+				"x": 3,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-0-2-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 4,
+				"y": 20
+			},
+			"b": {
+				"x": 7,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-0-2-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 15
+			},
+			"b": {
+				"x": 1,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-0-2-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 15
+			},
+			"b": {
+				"x": 7,
+				"y": 17
+			}
+		},
+		{
+			"id": "dungeon-room-0-2-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 18
+			},
+			"b": {
+				"x": 7,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-0-2-door",
+			"kind": "door",
+			"a": {
+				"x": 7,
+				"y": 17
+			},
+			"b": {
+				"x": 7,
+				"y": 18
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-0-2-door1",
+			"kind": "door",
+			"a": {
+				"x": 3,
+				"y": 20
+			},
+			"b": {
+				"x": 4,
+				"y": 20
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-2-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 15
+			},
+			"b": {
+				"x": 15,
+				"y": 15
+			}
+		},
+		{
+			"id": "dungeon-room-1-2-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 20
+			},
+			"b": {
+				"x": 11,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-1-2-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 12,
+				"y": 20
+			},
+			"b": {
+				"x": 15,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-1-2-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 15
+			},
+			"b": {
+				"x": 9,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-1-2-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 15
+			},
+			"b": {
+				"x": 15,
+				"y": 17
+			}
+		},
+		{
+			"id": "dungeon-room-1-2-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 18
+			},
+			"b": {
+				"x": 15,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-1-2-door",
+			"kind": "door",
+			"a": {
+				"x": 15,
+				"y": 17
+			},
+			"b": {
+				"x": 15,
+				"y": 18
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-2-door1",
+			"kind": "door",
+			"a": {
+				"x": 11,
+				"y": 20
+			},
+			"b": {
+				"x": 12,
+				"y": 20
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-2-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 15
+			},
+			"b": {
+				"x": 23,
+				"y": 15
+			}
+		},
+		{
+			"id": "dungeon-room-2-2-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 20
+			},
+			"b": {
+				"x": 19,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-2-2-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 20,
+				"y": 20
+			},
+			"b": {
+				"x": 23,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-2-2-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 15
+			},
+			"b": {
+				"x": 17,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-2-2-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 15
+			},
+			"b": {
+				"x": 23,
+				"y": 17
+			}
+		},
+		{
+			"id": "dungeon-room-2-2-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 18
+			},
+			"b": {
+				"x": 23,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-2-2-door",
+			"kind": "door",
+			"a": {
+				"x": 23,
+				"y": 17
+			},
+			"b": {
+				"x": 23,
+				"y": 18
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-2-door1",
+			"kind": "door",
+			"a": {
+				"x": 19,
+				"y": 20
+			},
+			"b": {
+				"x": 20,
+				"y": 20
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-2-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 15
+			},
+			"b": {
+				"x": 31,
+				"y": 15
+			}
+		},
+		{
+			"id": "dungeon-room-3-2-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 20
+			},
+			"b": {
+				"x": 27,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-3-2-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 28,
+				"y": 20
+			},
+			"b": {
+				"x": 31,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-3-2-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 15
+			},
+			"b": {
+				"x": 25,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-3-2-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 15
+			},
+			"b": {
+				"x": 31,
+				"y": 17
+			}
+		},
+		{
+			"id": "dungeon-room-3-2-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 18
+			},
+			"b": {
+				"x": 31,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-3-2-door",
+			"kind": "door",
+			"a": {
+				"x": 31,
+				"y": 17
+			},
+			"b": {
+				"x": 31,
+				"y": 18
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-2-door1",
+			"kind": "door",
+			"a": {
+				"x": 27,
+				"y": 20
+			},
+			"b": {
+				"x": 28,
+				"y": 20
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-2-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 15
+			},
+			"b": {
+				"x": 39,
+				"y": 15
+			}
+		},
+		{
+			"id": "dungeon-room-4-2-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 20
+			},
+			"b": {
+				"x": 35,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-4-2-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 36,
+				"y": 20
+			},
+			"b": {
+				"x": 39,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-4-2-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 15
+			},
+			"b": {
+				"x": 33,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-4-2-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 15
+			},
+			"b": {
+				"x": 39,
+				"y": 17
+			}
+		},
+		{
+			"id": "dungeon-room-4-2-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 18
+			},
+			"b": {
+				"x": 39,
+				"y": 20
+			}
+		},
+		{
+			"id": "dungeon-room-4-2-door",
+			"kind": "door",
+			"a": {
+				"x": 39,
+				"y": 17
+			},
+			"b": {
+				"x": 39,
+				"y": 18
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-2-door1",
+			"kind": "door",
+			"a": {
+				"x": 35,
+				"y": 20
+			},
+			"b": {
+				"x": 36,
+				"y": 20
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-0-3-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 22
+			},
+			"b": {
+				"x": 7,
+				"y": 22
+			}
+		},
+		{
+			"id": "dungeon-room-0-3-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 27
+			},
+			"b": {
+				"x": 3,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-0-3-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 4,
+				"y": 27
+			},
+			"b": {
+				"x": 7,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-0-3-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 22
+			},
+			"b": {
+				"x": 1,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-0-3-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 22
+			},
+			"b": {
+				"x": 7,
+				"y": 24
+			}
+		},
+		{
+			"id": "dungeon-room-0-3-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 7,
+				"y": 25
+			},
+			"b": {
+				"x": 7,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-0-3-door",
+			"kind": "door",
+			"a": {
+				"x": 7,
+				"y": 24
+			},
+			"b": {
+				"x": 7,
+				"y": 25
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-0-3-door1",
+			"kind": "door",
+			"a": {
+				"x": 3,
+				"y": 27
+			},
+			"b": {
+				"x": 4,
+				"y": 27
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-3-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 22
+			},
+			"b": {
+				"x": 15,
+				"y": 22
+			}
+		},
+		{
+			"id": "dungeon-room-1-3-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 27
+			},
+			"b": {
+				"x": 11,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-1-3-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 12,
+				"y": 27
+			},
+			"b": {
+				"x": 15,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-1-3-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 9,
+				"y": 22
+			},
+			"b": {
+				"x": 9,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-1-3-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 22
+			},
+			"b": {
+				"x": 15,
+				"y": 24
+			}
+		},
+		{
+			"id": "dungeon-room-1-3-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 15,
+				"y": 25
+			},
+			"b": {
+				"x": 15,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-1-3-door",
+			"kind": "door",
+			"a": {
+				"x": 15,
+				"y": 24
+			},
+			"b": {
+				"x": 15,
+				"y": 25
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-1-3-door1",
+			"kind": "door",
+			"a": {
+				"x": 11,
+				"y": 27
+			},
+			"b": {
+				"x": 12,
+				"y": 27
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-3-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 22
+			},
+			"b": {
+				"x": 23,
+				"y": 22
+			}
+		},
+		{
+			"id": "dungeon-room-2-3-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 27
+			},
+			"b": {
+				"x": 19,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-2-3-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 20,
+				"y": 27
+			},
+			"b": {
+				"x": 23,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-2-3-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 17,
+				"y": 22
+			},
+			"b": {
+				"x": 17,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-2-3-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 22
+			},
+			"b": {
+				"x": 23,
+				"y": 24
+			}
+		},
+		{
+			"id": "dungeon-room-2-3-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 23,
+				"y": 25
+			},
+			"b": {
+				"x": 23,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-2-3-door",
+			"kind": "door",
+			"a": {
+				"x": 23,
+				"y": 24
+			},
+			"b": {
+				"x": 23,
+				"y": 25
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-2-3-door1",
+			"kind": "door",
+			"a": {
+				"x": 19,
+				"y": 27
+			},
+			"b": {
+				"x": 20,
+				"y": 27
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-3-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 22
+			},
+			"b": {
+				"x": 31,
+				"y": 22
+			}
+		},
+		{
+			"id": "dungeon-room-3-3-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 27
+			},
+			"b": {
+				"x": 27,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-3-3-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 28,
+				"y": 27
+			},
+			"b": {
+				"x": 31,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-3-3-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 25,
+				"y": 22
+			},
+			"b": {
+				"x": 25,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-3-3-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 22
+			},
+			"b": {
+				"x": 31,
+				"y": 24
+			}
+		},
+		{
+			"id": "dungeon-room-3-3-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 31,
+				"y": 25
+			},
+			"b": {
+				"x": 31,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-3-3-door",
+			"kind": "door",
+			"a": {
+				"x": 31,
+				"y": 24
+			},
+			"b": {
+				"x": 31,
+				"y": 25
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-3-3-door1",
+			"kind": "door",
+			"a": {
+				"x": 27,
+				"y": 27
+			},
+			"b": {
+				"x": 28,
+				"y": 27
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-3-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 22
+			},
+			"b": {
+				"x": 39,
+				"y": 22
+			}
+		},
+		{
+			"id": "dungeon-room-4-3-wall-s",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 27
+			},
+			"b": {
+				"x": 35,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-4-3-wall-s1",
+			"kind": "wall",
+			"a": {
+				"x": 36,
+				"y": 27
+			},
+			"b": {
+				"x": 39,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-4-3-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 33,
+				"y": 22
+			},
+			"b": {
+				"x": 33,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-4-3-wall-e",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 22
+			},
+			"b": {
+				"x": 39,
+				"y": 24
+			}
+		},
+		{
+			"id": "dungeon-room-4-3-wall-e1",
+			"kind": "wall",
+			"a": {
+				"x": 39,
+				"y": 25
+			},
+			"b": {
+				"x": 39,
+				"y": 27
+			}
+		},
+		{
+			"id": "dungeon-room-4-3-door",
+			"kind": "door",
+			"a": {
+				"x": 39,
+				"y": 24
+			},
+			"b": {
+				"x": 39,
+				"y": 25
+			},
+			"open": false
+		},
+		{
+			"id": "dungeon-room-4-3-door1",
+			"kind": "door",
+			"a": {
+				"x": 35,
+				"y": 27
+			},
+			"b": {
+				"x": 36,
+				"y": 27
+			},
+			"open": false
+		}
+	],
+	"props": [
+		{
+			"id": "dungeon-torch-01",
+			"assetId": "sconce",
+			"pos": {
+				"x": 1,
+				"y": 1
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-02",
+			"assetId": "sconce",
+			"pos": {
+				"x": 6,
+				"y": 5
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-03",
+			"assetId": "sconce",
+			"pos": {
+				"x": 9,
+				"y": 1
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-04",
+			"assetId": "sconce",
+			"pos": {
+				"x": 14,
+				"y": 5
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-05",
+			"assetId": "sconce",
+			"pos": {
+				"x": 17,
+				"y": 1
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-06",
+			"assetId": "sconce",
+			"pos": {
+				"x": 22,
+				"y": 5
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-07",
+			"assetId": "sconce",
+			"pos": {
+				"x": 25,
+				"y": 1
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-08",
+			"assetId": "sconce",
+			"pos": {
+				"x": 30,
+				"y": 5
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-09",
+			"assetId": "sconce",
+			"pos": {
+				"x": 33,
+				"y": 1
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-10",
+			"assetId": "sconce",
+			"pos": {
+				"x": 38,
+				"y": 5
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-11",
+			"assetId": "sconce",
+			"pos": {
+				"x": 1,
+				"y": 8
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-12",
+			"assetId": "sconce",
+			"pos": {
+				"x": 6,
+				"y": 12
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-13",
+			"assetId": "sconce",
+			"pos": {
+				"x": 9,
+				"y": 8
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-14",
+			"assetId": "sconce",
+			"pos": {
+				"x": 14,
+				"y": 12
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-15",
+			"assetId": "sconce",
+			"pos": {
+				"x": 17,
+				"y": 8
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-16",
+			"assetId": "sconce",
+			"pos": {
+				"x": 22,
+				"y": 12
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-17",
+			"assetId": "sconce",
+			"pos": {
+				"x": 25,
+				"y": 8
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-18",
+			"assetId": "sconce",
+			"pos": {
+				"x": 30,
+				"y": 12
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-19",
+			"assetId": "sconce",
+			"pos": {
+				"x": 33,
+				"y": 8
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-20",
+			"assetId": "sconce",
+			"pos": {
+				"x": 38,
+				"y": 12
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-21",
+			"assetId": "sconce",
+			"pos": {
+				"x": 1,
+				"y": 15
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-22",
+			"assetId": "sconce",
+			"pos": {
+				"x": 6,
+				"y": 19
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-23",
+			"assetId": "sconce",
+			"pos": {
+				"x": 9,
+				"y": 15
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-24",
+			"assetId": "sconce",
+			"pos": {
+				"x": 14,
+				"y": 19
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-25",
+			"assetId": "sconce",
+			"pos": {
+				"x": 17,
+				"y": 15
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-26",
+			"assetId": "sconce",
+			"pos": {
+				"x": 22,
+				"y": 19
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-27",
+			"assetId": "sconce",
+			"pos": {
+				"x": 25,
+				"y": 15
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-28",
+			"assetId": "sconce",
+			"pos": {
+				"x": 30,
+				"y": 19
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-29",
+			"assetId": "sconce",
+			"pos": {
+				"x": 33,
+				"y": 15
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-30",
+			"assetId": "sconce",
+			"pos": {
+				"x": 38,
+				"y": 19
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-31",
+			"assetId": "sconce",
+			"pos": {
+				"x": 1,
+				"y": 22
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-32",
+			"assetId": "sconce",
+			"pos": {
+				"x": 6,
+				"y": 26
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-33",
+			"assetId": "sconce",
+			"pos": {
+				"x": 9,
+				"y": 22
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-34",
+			"assetId": "sconce",
+			"pos": {
+				"x": 14,
+				"y": 26
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-35",
+			"assetId": "sconce",
+			"pos": {
+				"x": 17,
+				"y": 22
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-36",
+			"assetId": "sconce",
+			"pos": {
+				"x": 22,
+				"y": 26
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-37",
+			"assetId": "sconce",
+			"pos": {
+				"x": 25,
+				"y": 22
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-38",
+			"assetId": "sconce",
+			"pos": {
+				"x": 30,
+				"y": 26
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-39",
+			"assetId": "sconce",
+			"pos": {
+				"x": 33,
+				"y": 22
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "dungeon-torch-40",
+			"assetId": "sconce",
+			"pos": {
+				"x": 38,
+				"y": 26
+			},
+			"rotation": 0,
+			"scale": 1
+		}
+	],
+	"lights": [
+		{
+			"id": "dungeon-torch-01-light",
+			"pos": {
+				"x": 1,
+				"y": 1
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-02-light",
+			"pos": {
+				"x": 6,
+				"y": 5
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-03-light",
+			"pos": {
+				"x": 9,
+				"y": 1
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-04-light",
+			"pos": {
+				"x": 14,
+				"y": 5
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-05-light",
+			"pos": {
+				"x": 17,
+				"y": 1
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-06-light",
+			"pos": {
+				"x": 22,
+				"y": 5
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-07-light",
+			"pos": {
+				"x": 25,
+				"y": 1
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-08-light",
+			"pos": {
+				"x": 30,
+				"y": 5
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-09-light",
+			"pos": {
+				"x": 33,
+				"y": 1
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-10-light",
+			"pos": {
+				"x": 38,
+				"y": 5
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-11-light",
+			"pos": {
+				"x": 1,
+				"y": 8
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-12-light",
+			"pos": {
+				"x": 6,
+				"y": 12
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-13-light",
+			"pos": {
+				"x": 9,
+				"y": 8
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-14-light",
+			"pos": {
+				"x": 14,
+				"y": 12
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-15-light",
+			"pos": {
+				"x": 17,
+				"y": 8
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-16-light",
+			"pos": {
+				"x": 22,
+				"y": 12
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-17-light",
+			"pos": {
+				"x": 25,
+				"y": 8
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-18-light",
+			"pos": {
+				"x": 30,
+				"y": 12
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-19-light",
+			"pos": {
+				"x": 33,
+				"y": 8
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-20-light",
+			"pos": {
+				"x": 38,
+				"y": 12
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-21-light",
+			"pos": {
+				"x": 1,
+				"y": 15
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-22-light",
+			"pos": {
+				"x": 6,
+				"y": 19
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-23-light",
+			"pos": {
+				"x": 9,
+				"y": 15
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-24-light",
+			"pos": {
+				"x": 14,
+				"y": 19
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-25-light",
+			"pos": {
+				"x": 17,
+				"y": 15
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-26-light",
+			"pos": {
+				"x": 22,
+				"y": 19
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-27-light",
+			"pos": {
+				"x": 25,
+				"y": 15
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-28-light",
+			"pos": {
+				"x": 30,
+				"y": 19
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-29-light",
+			"pos": {
+				"x": 33,
+				"y": 15
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-30-light",
+			"pos": {
+				"x": 38,
+				"y": 19
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-31-light",
+			"pos": {
+				"x": 1,
+				"y": 22
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-32-light",
+			"pos": {
+				"x": 6,
+				"y": 26
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-33-light",
+			"pos": {
+				"x": 9,
+				"y": 22
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-34-light",
+			"pos": {
+				"x": 14,
+				"y": 26
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-35-light",
+			"pos": {
+				"x": 17,
+				"y": 22
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-36-light",
+			"pos": {
+				"x": 22,
+				"y": 26
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-37-light",
+			"pos": {
+				"x": 25,
+				"y": 22
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-38-light",
+			"pos": {
+				"x": 30,
+				"y": 26
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-39-light",
+			"pos": {
+				"x": 33,
+				"y": 22
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		},
+		{
+			"id": "dungeon-torch-40-light",
+			"pos": {
+				"x": 38,
+				"y": 26
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		}
+	],
+	"ambient": "dark",
+	"fog": {
+		"enabled": true,
+		"revealed": "////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////",
+		"shared": false
+	},
+	"discovery": {},
+	"adventure": null,
+	"terrain": null,
+	"darkness": null,
+	"environment": "stone-halls",
+	"floor": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB"
+}

@@ -1,0 +1,145 @@
+{
+	"format": "thirdfold-scene",
+	"version": 9,
+	"name": "Fixture: torch room",
+	"savedAt": "2026-01-01T00:00:00.000Z",
+	"grid": {
+		"kind": "square",
+		"cellSize": 1,
+		"width": 6,
+		"height": 6
+	},
+	"tokens": [
+		{
+			"id": "ref1-mini-hero",
+			"name": "Warden",
+			"color": "#2e86c1",
+			"pos": {
+				"x": 2,
+				"y": 3
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
+		},
+		{
+			"id": "ref1-mini-a",
+			"name": "Goblin",
+			"color": "#c0392b",
+			"pos": {
+				"x": 3,
+				"y": 2
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "hatted-shade"
+		},
+		{
+			"id": "ref1-mini-b",
+			"name": "Goblin",
+			"color": "#c0392b",
+			"pos": {
+				"x": 2,
+				"y": 2
+			},
+			"owner": null,
+			"vision": 8,
+			"light": 0,
+			"model": "hound"
+		}
+	],
+	"objects": [
+		{
+			"id": "ref1-wall-n",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 1
+			},
+			"b": {
+				"x": 5,
+				"y": 1
+			}
+		},
+		{
+			"id": "ref1-wall-w",
+			"kind": "wall",
+			"a": {
+				"x": 1,
+				"y": 1
+			},
+			"b": {
+				"x": 1,
+				"y": 5
+			}
+		}
+	],
+	"props": [
+		{
+			"id": "ref1-sconce",
+			"assetId": "sconce",
+			"pos": {
+				"x": 1,
+				"y": 1
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref1-crate-a",
+			"assetId": "crate",
+			"pos": {
+				"x": 4,
+				"y": 1
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref1-crate-b",
+			"assetId": "crate",
+			"pos": {
+				"x": 4,
+				"y": 2
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref1-barrel",
+			"assetId": "barrel",
+			"pos": {
+				"x": 1,
+				"y": 4
+			},
+			"rotation": 0,
+			"scale": 1
+		}
+	],
+	"lights": [
+		{
+			"id": "ref1-torch",
+			"pos": {
+				"x": 1,
+				"y": 1
+			},
+			"radius": 4,
+			"color": "#ff9a3c",
+			"on": true
+		}
+	],
+	"ambient": "dark",
+	"fog": {
+		"enabled": true,
+		"revealed": "/////w8=",
+		"shared": false
+	},
+	"discovery": {},
+	"adventure": null,
+	"terrain": null,
+	"darkness": null,
+	"environment": "stone-halls",
+	"floor": "AAAAAAAAAAEBAQEAAAEBAQEAAAEBAQEAAAEBAQEAAAAAAAAA"
+}

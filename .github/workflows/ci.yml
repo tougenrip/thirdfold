@@ -34,7 +34,18 @@ jobs:
       - run: npm run lint
       # Live Supabase tests skip themselves without SUPABASE_* env.
       - run: npm test
+      # Golden-image diffs (reference, actual, diff) when a renderer test fails.
+      - name: Upload golden diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-diffs
+          path: .vitest-attachments/
+          if-no-files-found: ignore
+          retention-days: 14
       - run: npm run build
+      # three.js stays out of every page's static imports; pages and the renderer stay in budget.
+      - run: npm run bundle:check
 
   supabase:
     # Runs the live SupabaseSceneStore tests against a local Supabase with the

@@ -1,0 +1,1390 @@
+{
+	"player": {
+		"viewer": "player",
+		"band": "day",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 32,
+			"height": 32
+		},
+		"environment": "village",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AMAAPgPAAD+PwAA/j8AAP5/AAD/fwCA//8AgP//AID//wCA/z8AgP9/AADABwAAwAcAAMAHAADABwAAwAcAAMADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"explored": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AMAAPgPAAD+PwAA/j8AAP5/AAD/fwCA//8AgP//AID//wCA/z8AgP//AADABwAAwAcAAMAHAADABwCA//8AgP//AID//wCA//8AgP//AAD+/wCA//8AgP//AAAAAAA=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwEBAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEAQEDBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEBAQBAQMEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAEBAwQEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAwMDAwMDAQEDAwMDAwMAAAAAAAAAAAAAAAAAAAAAAAMDAwMDAwMBAQMDAwMDAwAAAAAAAAAAAAAAAAAAAAADAwMDAwMDAwEBAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQBAQEEBAQEBAQAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAEBAwQEBAQAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEAQEDBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMBAQMDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwEBAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAQEDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMBAQMDAAAAAAAAAAAAAAAAAAAAAAAAAAADAwMDAwMDAwEBAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAMDAwMDAwMDAQEDAwMDAwMDAAAAAAAAAAAAAAAAAAAAAwMDAwMDAwMBAQMDAwMDAwMAAAAAAAAAAAAAAAAAAAADAwMDAwMDAwEBAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAMDAwMDAwMDAQEDAwMDAwMDAAAAAAAAAAAAAAAAAAAAAAADAwMDAwMBAQMDAwMDAwMAAAAAAAAAAAAAAAAAAAADAwMDAwMDAwEBAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAMDAwMDAwMDAQEDAwMDAwMDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+		"tokens": [
+			{
+				"id": "ref8-mini-b",
+				"name": "Smith",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 16,
+					"y": 22
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "ref8-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 15,
+					"y": 16
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref8-house-2-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 8
+				},
+				"b": {
+					"x": 14,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-5-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 6,
+					"y": 19
+				},
+				"b": {
+					"x": 8,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-5-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 3,
+					"y": 23
+				},
+				"b": {
+					"x": 8,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-6-door",
+				"kind": "door",
+				"a": {
+					"x": 11,
+					"y": 19
+				},
+				"b": {
+					"x": 12,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-6-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 14,
+					"y": 19
+				},
+				"b": {
+					"x": 14,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 19
+				},
+				"b": {
+					"x": 11,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 19
+				},
+				"b": {
+					"x": 14,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 23
+				},
+				"b": {
+					"x": 14,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-7-door",
+				"kind": "door",
+				"a": {
+					"x": 21,
+					"y": 19
+				},
+				"b": {
+					"x": 22,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-7-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 19
+				},
+				"b": {
+					"x": 21,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 22,
+					"y": 19
+				},
+				"b": {
+					"x": 24,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 23
+				},
+				"b": {
+					"x": 24,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 19
+				},
+				"b": {
+					"x": 19,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-town-door",
+				"kind": "door",
+				"a": {
+					"x": 15,
+					"y": 31
+				},
+				"b": {
+					"x": 16,
+					"y": 31
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-town-door1",
+				"kind": "door",
+				"a": {
+					"x": 16,
+					"y": 31
+				},
+				"b": {
+					"x": 17,
+					"y": 31
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-town-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 31
+				},
+				"b": {
+					"x": 15,
+					"y": 31
+				}
+			},
+			{
+				"id": "ref8-town-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 17,
+					"y": 31
+				},
+				"b": {
+					"x": 31,
+					"y": 31
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref8-tree-12",
+				"assetId": "tree",
+				"pos": {
+					"x": 21,
+					"y": 17
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-4",
+				"assetId": "tree",
+				"pos": {
+					"x": 9,
+					"y": 28
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-8",
+				"assetId": "tree",
+				"pos": {
+					"x": 9,
+					"y": 12
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref8-lantern-2",
+				"pos": {
+					"x": 17,
+					"y": 12
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-3",
+				"pos": {
+					"x": 14,
+					"y": 20
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-4",
+				"pos": {
+					"x": 17,
+					"y": 26
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			}
+		]
+	},
+	"spectator": {
+		"viewer": "spectator",
+		"band": "day",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 32,
+			"height": 32
+		},
+		"environment": "village",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AMAAPgPAAD+PwAA/j8AAP5/AAD/fwCA//8AgP//AID//wCA/z8AgP9/AADABwAAwAcAAMAHAADABwAAwAcAAMADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"explored": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AMAAPgPAAD+PwAA/j8AAP5/AAD/fwCA//8AgP//AID//wCA/z8AgP9/AADABwAAwAcAAMAHAADABwAAwAcAAMADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwEBAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEAQEDBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEBAQBAQMEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAEBAwQEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAwMDAwMDAQEDAwMDAwMAAAAAAAAAAAAAAAAAAAAAAAMDAwMDAwMBAQMDAwMDAwAAAAAAAAAAAAAAAAAAAAADAwMDAwMDAwEBAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQBAQEEBAQEBAQAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAEBAwQEBAQAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEAQEDBAQEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMBAQMDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwEBAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAQEDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMBAQMDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwEBAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAQEDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+		"tokens": [
+			{
+				"id": "ref8-mini-b",
+				"name": "Smith",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 16,
+					"y": 22
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "ref8-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 15,
+					"y": 16
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref8-house-2-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 8
+				},
+				"b": {
+					"x": 14,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-5-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 6,
+					"y": 19
+				},
+				"b": {
+					"x": 8,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-6-door",
+				"kind": "door",
+				"a": {
+					"x": 11,
+					"y": 19
+				},
+				"b": {
+					"x": 12,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-6-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 14,
+					"y": 19
+				},
+				"b": {
+					"x": 14,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 19
+				},
+				"b": {
+					"x": 11,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 19
+				},
+				"b": {
+					"x": 14,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-7-door",
+				"kind": "door",
+				"a": {
+					"x": 21,
+					"y": 19
+				},
+				"b": {
+					"x": 22,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-7-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 19
+				},
+				"b": {
+					"x": 21,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 22,
+					"y": 19
+				},
+				"b": {
+					"x": 24,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 19
+				},
+				"b": {
+					"x": 19,
+					"y": 23
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref8-tree-12",
+				"assetId": "tree",
+				"pos": {
+					"x": 21,
+					"y": 17
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-8",
+				"assetId": "tree",
+				"pos": {
+					"x": 9,
+					"y": 12
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref8-lantern-2",
+				"pos": {
+					"x": 17,
+					"y": 12
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-3",
+				"pos": {
+					"x": 14,
+					"y": 20
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			}
+		]
+	},
+	"gm": {
+		"viewer": "gm",
+		"band": "day",
+		"fogMode": "gm",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 32,
+			"height": 32
+		},
+		"environment": "village",
+		"ambient": "day",
+		"fog": {
+			"enabled": true,
+			"visible": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AMAAPgPAAD+PwAA/j8AAP5/AAD/fwCA//8AgP//AID//wCA/z8AgP9/AADABwAAwAcAAMAHAADABwAAwAcAAMADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			"explored": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4AMAAPgPAAD+PwAA/j8AAP5/AAD/fwCA//8AgP//AID//wCA/z8AgP//AADABwAAwAcAAMAHAADABwCA//8AgP//AID//wCA//8AgP//AAD+/wCA//8AgP//AAAAAAA=",
+			"shared": false
+		},
+		"terrain": null,
+		"darkness": null,
+		"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMBAQMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwEBAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAQEDAwMDAwMDAwMDAwMDAwMDAwMCAgICAgMCAgICAgMBAQMDAgICAgIDAgICAgIDAwMDAwICAgICAwICAgICAwEBAwMCAgICAgMCAgICAgMDAwMDAgICAgIDAgICAgIDAQEDAwICAgICAwICAgICAwMDAwMCAgICAgMCAgICAgMBAQMDAgICAgIDAgICAgIDAwMDAwMDAwMDAwMDAwMDAwEBAwMDAwMDAwMDAwMDAwMDAwMEBAQEBAQEBAQEBAQEAQEDBAQEBAQEBAQEBAQEBAMDAwQEBAQEBAQEBAQEBAQBAQMEBAQEBAQEBAQEBAQEAwMDBAQEBAQEBAQEBAQEBAEBAwQEBAQEBAQEBAQEBAQDAwMDAwMDAwMDAwMDAwMDAQEDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMBAQMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwEBAwMDAwMDAwMDAwMDAwMDAwEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQMDAQQEBAQEBAQEBAQEBAQBAQEEBAQEBAQEBAQEBAQEAwMDBAQEBAQEBAQEBAQEBAEBAwQEBAQEBAQEBAQEBAQDAwMEBAQEBAQEBAQEBAQEAQEDBAQEBAQEBAQEBAQEBAMDAwMCAgICAgMCAgICAgMBAQMDAgICAgIDAgICAgIDAwMDAwICAgICAwICAgICAwEBAwMCAgICAgMCAgICAgMDAwMDAgICAgIDAgICAgIDAQEDAwICAgICAwICAgICAwMDAwMCAgICAgMCAgICAgMBAQMDAgICAgIDAgICAgIDAwMDAwMDAwMDAwMDAwMDAwEBAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAQEDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMBAQMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwEBAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAQEDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMBAQMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwEBAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAQEDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw==",
+		"tokens": [
+			{
+				"id": "ref8-mini-b",
+				"name": "Smith",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 16,
+					"y": 22
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "ref8-mini-hero",
+				"name": "Warden",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 15,
+					"y": 16
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			}
+		],
+		"objects": [
+			{
+				"id": "ref8-house-1-door",
+				"kind": "door",
+				"a": {
+					"x": 5,
+					"y": 8
+				},
+				"b": {
+					"x": 6,
+					"y": 8
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-1-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 4
+				},
+				"b": {
+					"x": 8,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-1-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 3,
+					"y": 4
+				},
+				"b": {
+					"x": 8,
+					"y": 4
+				}
+			},
+			{
+				"id": "ref8-house-1-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 3,
+					"y": 8
+				},
+				"b": {
+					"x": 5,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-1-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 6,
+					"y": 8
+				},
+				"b": {
+					"x": 8,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-1-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 3,
+					"y": 4
+				},
+				"b": {
+					"x": 3,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-2-door",
+				"kind": "door",
+				"a": {
+					"x": 11,
+					"y": 8
+				},
+				"b": {
+					"x": 12,
+					"y": 8
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-2-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 14,
+					"y": 4
+				},
+				"b": {
+					"x": 14,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-2-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 4
+				},
+				"b": {
+					"x": 14,
+					"y": 4
+				}
+			},
+			{
+				"id": "ref8-house-2-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 8
+				},
+				"b": {
+					"x": 11,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-2-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 8
+				},
+				"b": {
+					"x": 14,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-2-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 4
+				},
+				"b": {
+					"x": 9,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-3-door",
+				"kind": "door",
+				"a": {
+					"x": 21,
+					"y": 8
+				},
+				"b": {
+					"x": 22,
+					"y": 8
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-3-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 24,
+					"y": 4
+				},
+				"b": {
+					"x": 24,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-3-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 4
+				},
+				"b": {
+					"x": 24,
+					"y": 4
+				}
+			},
+			{
+				"id": "ref8-house-3-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 8
+				},
+				"b": {
+					"x": 21,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-3-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 22,
+					"y": 8
+				},
+				"b": {
+					"x": 24,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-3-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 4
+				},
+				"b": {
+					"x": 19,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-4-door",
+				"kind": "door",
+				"a": {
+					"x": 27,
+					"y": 8
+				},
+				"b": {
+					"x": 28,
+					"y": 8
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-4-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 30,
+					"y": 4
+				},
+				"b": {
+					"x": 30,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-4-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 25,
+					"y": 4
+				},
+				"b": {
+					"x": 30,
+					"y": 4
+				}
+			},
+			{
+				"id": "ref8-house-4-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 25,
+					"y": 8
+				},
+				"b": {
+					"x": 27,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-4-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 28,
+					"y": 8
+				},
+				"b": {
+					"x": 30,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-4-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 25,
+					"y": 4
+				},
+				"b": {
+					"x": 25,
+					"y": 8
+				}
+			},
+			{
+				"id": "ref8-house-5-door",
+				"kind": "door",
+				"a": {
+					"x": 5,
+					"y": 19
+				},
+				"b": {
+					"x": 6,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-5-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 19
+				},
+				"b": {
+					"x": 8,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-5-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 3,
+					"y": 19
+				},
+				"b": {
+					"x": 5,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-5-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 6,
+					"y": 19
+				},
+				"b": {
+					"x": 8,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-5-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 3,
+					"y": 23
+				},
+				"b": {
+					"x": 8,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-5-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 3,
+					"y": 19
+				},
+				"b": {
+					"x": 3,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-6-door",
+				"kind": "door",
+				"a": {
+					"x": 11,
+					"y": 19
+				},
+				"b": {
+					"x": 12,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-6-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 14,
+					"y": 19
+				},
+				"b": {
+					"x": 14,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 19
+				},
+				"b": {
+					"x": 11,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 19
+				},
+				"b": {
+					"x": 14,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 23
+				},
+				"b": {
+					"x": 14,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-6-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 9,
+					"y": 19
+				},
+				"b": {
+					"x": 9,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-7-door",
+				"kind": "door",
+				"a": {
+					"x": 21,
+					"y": 19
+				},
+				"b": {
+					"x": 22,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-7-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 24,
+					"y": 19
+				},
+				"b": {
+					"x": 24,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 19
+				},
+				"b": {
+					"x": 21,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 22,
+					"y": 19
+				},
+				"b": {
+					"x": 24,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 23
+				},
+				"b": {
+					"x": 24,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-7-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 19,
+					"y": 19
+				},
+				"b": {
+					"x": 19,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-8-door",
+				"kind": "door",
+				"a": {
+					"x": 27,
+					"y": 19
+				},
+				"b": {
+					"x": 28,
+					"y": 19
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-house-8-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 30,
+					"y": 19
+				},
+				"b": {
+					"x": 30,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-8-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 25,
+					"y": 19
+				},
+				"b": {
+					"x": 27,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-8-wall-n1",
+				"kind": "wall",
+				"a": {
+					"x": 28,
+					"y": 19
+				},
+				"b": {
+					"x": 30,
+					"y": 19
+				}
+			},
+			{
+				"id": "ref8-house-8-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 25,
+					"y": 23
+				},
+				"b": {
+					"x": 30,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-house-8-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 25,
+					"y": 19
+				},
+				"b": {
+					"x": 25,
+					"y": 23
+				}
+			},
+			{
+				"id": "ref8-town-door",
+				"kind": "door",
+				"a": {
+					"x": 15,
+					"y": 31
+				},
+				"b": {
+					"x": 16,
+					"y": 31
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-town-door1",
+				"kind": "door",
+				"a": {
+					"x": 16,
+					"y": 31
+				},
+				"b": {
+					"x": 17,
+					"y": 31
+				},
+				"open": false
+			},
+			{
+				"id": "ref8-town-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 31,
+					"y": 1
+				},
+				"b": {
+					"x": 31,
+					"y": 31
+				}
+			},
+			{
+				"id": "ref8-town-wall-n",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 31,
+					"y": 1
+				}
+			},
+			{
+				"id": "ref8-town-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 31
+				},
+				"b": {
+					"x": 15,
+					"y": 31
+				}
+			},
+			{
+				"id": "ref8-town-wall-s1",
+				"kind": "wall",
+				"a": {
+					"x": 17,
+					"y": 31
+				},
+				"b": {
+					"x": 31,
+					"y": 31
+				}
+			},
+			{
+				"id": "ref8-town-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 1,
+					"y": 1
+				},
+				"b": {
+					"x": 1,
+					"y": 31
+				}
+			}
+		],
+		"props": [
+			{
+				"id": "ref8-tree-11",
+				"assetId": "tree",
+				"pos": {
+					"x": 2,
+					"y": 10
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-12",
+				"assetId": "tree",
+				"pos": {
+					"x": 21,
+					"y": 17
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-4",
+				"assetId": "tree",
+				"pos": {
+					"x": 9,
+					"y": 28
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-5",
+				"assetId": "tree",
+				"pos": {
+					"x": 22,
+					"y": 2
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-7",
+				"assetId": "tree",
+				"pos": {
+					"x": 5,
+					"y": 25
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref8-tree-8",
+				"assetId": "tree",
+				"pos": {
+					"x": 9,
+					"y": 12
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "ref8-lantern-1",
+				"pos": {
+					"x": 14,
+					"y": 6
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-2",
+				"pos": {
+					"x": 17,
+					"y": 12
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-3",
+				"pos": {
+					"x": 14,
+					"y": 20
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-4",
+				"pos": {
+					"x": 17,
+					"y": 26
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-5",
+				"pos": {
+					"x": 6,
+					"y": 14
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			},
+			{
+				"id": "ref8-lantern-6",
+				"pos": {
+					"x": 24,
+					"y": 17
+				},
+				"radius": 4,
+				"color": "#ffa04d",
+				"on": true
+			}
+		]
+	}
+}

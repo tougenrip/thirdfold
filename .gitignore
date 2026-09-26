@@ -31,3 +31,9 @@ android/
 # Saved scenes (server/index.ts, SCENES_DIR)
 /data/
 .claude/
+
+# Vitest screenshot diffs
+.vitest-attachments/
+
+# Private reference shots for look metrics (scripts/look-metrics.mjs); never commit them
+.look-refs/

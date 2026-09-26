@@ -9,8 +9,34 @@ import * as THREE from 'three';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { dress, type Look } from './environment';
 import { FLOOR_IDS, type FloorMap } from '$lib/game/floor';
-import { FLOOR_LOOKS } from './floor';
+import { FLOOR_LOOKS } from './floor-looks';
 import type { Ground } from './ground';
+import { decodeMask, type FogView } from '$lib/game/visibility';
+import type { FogMode } from './fog';
+
+/**
+ * How lit each raised cell's top looks, by the same rules as the flat fog and
+ * darkness overlays: `light` is each cell's brightness (null: all lit).
+ */
+export function terrainShade(
+	size: number,
+	light: Float32Array | null,
+	fog: FogView | null,
+	mode: FogMode
+): Float32Array {
+	const visible = fog?.enabled ? decodeMask(fog.visible, size) : null;
+	const explored = fog?.enabled ? decodeMask(fog.explored, size) : null;
+	const shade = new Float32Array(size);
+	for (let i = 0; i < size; i++) {
+		let b = light ? light[i] : 1;
+		if (visible && explored) {
+			if (mode === 'gm') b *= visible[i] ? 1 : 0.8;
+			else b *= visible[i] ? 1 : explored[i] ? 0.45 : 0.04;
+		}
+		shade[i] = b;
+	}
+	return shade;
+}
 
 const STONE = 0x77705f;
 /** Higher ground is drawn this much paler. */
