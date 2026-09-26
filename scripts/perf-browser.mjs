@@ -2,8 +2,9 @@
 // which of WebGPURenderer's backends (PERF_BACKEND). Shared by perf-client.mjs
 // and perf-gpu.mjs.
 //
-// PERF_GPU: swiftshader (default; software, the same everywhere), vulkan (a
-// real GPU) or egl (ANGLE over the system's GL).
+// PERF_GPU: vulkan (default: the real GPU; the reference is an RTX 4060
+// Laptop), swiftshader (software, the same everywhere, but its shader
+// compiles are slow) or egl (ANGLE over the system's GL).
 // PERF_BACKEND: webgl (default; WebGPURenderer's WebGL2 backend, forced with
 // ?backend=webgl) or webgpu (a real GPU only: Chromium's SwiftShader WebGPU
 // drops its instance once the table draws, so software runs are WebGL2).
@@ -20,7 +21,7 @@ const GL = {
 };
 const WEBGPU = ['--enable-unsafe-webgpu'];
 
-export const GPU = process.env.PERF_GPU ?? 'swiftshader';
+export const GPU = process.env.PERF_GPU ?? 'vulkan';
 export const BACKEND = process.env.PERF_BACKEND ?? 'webgl';
 if (!GL[GPU]) throw new Error(`PERF_GPU must be one of ${Object.keys(GL).join(', ')}`);
 if (BACKEND !== 'webgl' && BACKEND !== 'webgpu')

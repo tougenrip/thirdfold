@@ -34,19 +34,13 @@ const BASELINE = flag('--baseline');
 const UPDATE_BASELINE = flag('--update-baseline');
 const BASE = args[0] ?? 'http://localhost:4173';
 const SCENES = args[1] ?? 'tests/fixtures/scenes';
-/** The tables measured: the adventures' big three, then compositions and stress tables. */
-const TABLES = [
-	'village',
-	'monastery',
-	'hollow',
-	'ref-1',
-	'ref-7',
-	'ref-8',
-	'dungeon-40',
-	'crowd-60'
-];
-const RELOADS = 3;
-const REMOUNTS = 3;
+/**
+ * The tables measured: the test world (server/fixtures/test-world.ts), a bit of everything in one
+ * small table, so a run takes minutes. SCENES=a,b measures other fixture tables instead.
+ */
+const TABLES = (process.env.SCENES ?? 'test-world').split(',');
+const RELOADS = 2;
+const REMOUNTS = 2;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const kb = (n) => `${(n / 1024).toFixed(1)} kB`;
@@ -57,7 +51,12 @@ const browser = await launchBrowser();
 
 /** A page that records long tasks, WebSocket traffic and WebGL context warnings from the start. */
 async function open(name) {
-	const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+	// Reduced motion: no flicker or mist, so a table goes quiet as soon as it is drawn and the
+	// waits below are short. What is counted (draws, programs, memory) is the same.
+	const context = await browser.newContext({
+		viewport: { width: 1400, height: 900 },
+		reducedMotion: 'reduce'
+	});
 	await context.addInitScript(() => {
 		window.__longTasks = [];
 		new PerformanceObserver((list) => {
@@ -260,18 +259,18 @@ for (const name of TABLES) {
 		);
 	}
 
-	// Idle: once nothing has been drawn for 2 s (models arrived, the camera at rest), nothing
-	// happens for 3 s; frames drawn anyway are the idle cost (none by day).
-	await settle(ana, 2000, 30_000);
+	// Idle: once nothing has been drawn for 1 s (models arrived, the camera at rest), nothing
+	// happens for 2 s; frames drawn anyway are the idle cost (none: motion is reduced).
+	await settle(ana, 1000, 30_000);
 	await resetStats(ana);
-	await sleep(3000);
+	await sleep(2000);
 	const idle = await stats(ana);
 	scene.idle = {
 		frames: idle.frames,
 		frameMs: round((idle.timings.frame?.total ?? 0) / Math.max(1, idle.frames), 2)
 	};
 	gate.idleFrames = idle.frames;
-	console.log(`  idle (Ana, 3 s): ${idle.frames} frames, ${scene.idle.frameMs} ms each`);
+	console.log(`  idle (Ana, 2 s): ${idle.frames} frames, ${scene.idle.frameMs} ms each`);
 
 	// The camera moving: Ana drags a fixed path to orbit, then lets it settle. The last
 	// frame's draw calls (shadow passes included) are deterministic for the path.
@@ -455,8 +454,7 @@ if (BASELINE) {
 			up10(b.orbitDrawCalls),
 			t.orbitDrawCalls <= up10(b.orbitDrawCalls)
 		);
-		if (t.ambient === 'day')
-			check(`${name}: frames in 3 s idle`, t.idleFrames, 0, t.idleFrames === 0);
+		check(`${name}: frames in 2 s idle`, t.idleFrames, 0, t.idleFrames === 0);
 		for (const [viewer, v] of Object.entries(t.viewers)) {
 			const bv = b.viewers[viewer];
 			if (!bv) continue;

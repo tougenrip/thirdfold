@@ -57,12 +57,17 @@ measured and left alone.
   with a character on a random walk to new cells, and the watch's patrol step.
 - **Client (load, scene loading, frames, memory, network):** build, serve and start a server, then
   run `node scripts/perf-client.mjs http://localhost:4173 tests/fixtures/scenes`. See the comment at
-  the top of the script. The script uses a GM and two players in Chromium, on the committed fixture
-  tables. It measures the landing page, the join form from an invite link, and each table's load
-  (snapshot size, long tasks, what each renderer update cost). It then measures idle frames, a fixed
-  orbit of the camera, a move's network and main-thread cost, heap after GC, GPU resources after
-  loading every table three more times and after leaving and rejoining the room three times, and
-  the bundle sizes (`check-bundle.mjs --json`). `--json <file>` writes the whole report.
+  the top of the script. The script uses a GM and two players in Chromium, with reduced motion (no
+  flicker or mist, so a table is quiet as soon as it is drawn; the counts are the same), on the
+  test world (`server/fixtures/test-world.ts`): one 24×24 table at dusk with a bit of everything
+  the renderer draws (a walled hall with a door, a window and furniture, sconces, a brazier, a
+  platform three levels up a stair behind a railing, a dark area with a torch, a pond, trees and
+  eight figures). `SCENES=a,b` measures other fixture tables instead. It measures the landing
+  page, the join form from an invite link, and the table's load (snapshot size, long tasks, what
+  each renderer update cost). It then measures idle frames, a fixed orbit of the camera, a move's
+  network and main-thread cost, heap after GC, GPU resources after loading the table twice more
+  and after leaving and rejoining the room twice, and the bundle sizes (`check-bundle.mjs
+--json`). `--json <file>` writes the whole report. A run takes about 30 seconds on the RTX 4060.
 - **Perf gate:** `--baseline docs/perf-baseline.json` compares the counters that do not depend on
   the machine's speed with the committed baseline and exits 1 on a regression. It runs locally, not
   in CI (a run takes about 13 minutes, too much of the free build minutes to spend on every PR):
@@ -74,7 +79,7 @@ measured and left alone.
   | Draw calls in the settled frame after the orbit         | more than baseline × 1.10      |
   | Shader programs after a table loads                     | more than baseline             |
   | Geometries, textures, heap after GC (per table, viewer) | more than baseline × 1.10      |
-  | Frames in 3 s of idle on a daylight table               | more than 0                    |
+  | Frames in 2 s of idle (motion reduced)                  | more than 0                    |
   | Geometries, textures, programs after three more reloads | above the first load           |
   | The same after three more remounts of the Tabletop      | above the first remount        |
   | Heap after each remount                                 | above the first × 1.10         |
@@ -84,18 +89,17 @@ measured and left alone.
   Milliseconds are printed, never gated: SwiftShader's timings say little about real GPUs. A
   baseline records the backend it was taken on, and the gate fails against a baseline of another
   backend: `docs/perf-baseline.json` is WebGL2 on the RTX 4060 Laptop, the medium tier's reference
-  machine, so run the gate there with `PERF_GPU=vulkan`. Under SwiftShader the node renderer's
-  shaders compile on the CPU, three pages at once, which stretches a run past 40 minutes; on the
-  4060 it takes about 25, most of it waiting for flickering tables to go quiet. To change the
+  machine, the scripts' default GPU (`PERF_GPU=vulkan`). Under SwiftShader the node renderer's
+  shaders compile on the CPU, three pages at once, which makes runs slow. To change the
   baseline on purpose, run with `--update-baseline docs/perf-baseline.json` on the pinned Chromium
   and say why in the PR.
 
-- **GPU cost of a frame:** `PERF_GPU=vulkan PERF_BACKEND=webgpu node scripts/perf-gpu.mjs [url]
-[scenes] [out.json]`. It draws the fixture tables at their named poses for the GM and a player,
-  at 1400×900 and 1920×1080, with `benchmark`: the GPU's ms per frame by timestamp queries
-  (`timestamp`, real GPUs on both backends), else the ms until each frame is drawn (`sync`: a pixel
-  read back on WebGL2, `onSubmittedWorkDone` on WebGPU; SwiftShader always). The report names the
-  backend and the GPU the browser actually used.
+- **GPU cost of a frame:** `PERF_BACKEND=webgpu node scripts/perf-gpu.mjs [url] [scenes]
+[out.json]`, a few seconds. It draws the test world at its overview and close poses for the GM
+  and a player at 1920×1080 (`SCENES`, `POSES` for others), with `benchmark`: the GPU's ms per
+  frame by timestamp queries (`timestamp`, real GPUs on both backends), else the ms until each
+  frame is drawn (`sync`: a pixel read back on WebGL2, `onSubmittedWorkDone` on WebGPU; SwiftShader
+  always). The report names the backend and the GPU the browser actually used.
 - **Asset sizes:** `npm run build` prints each chunk. `npx vite build --sourcemap true` with a
   source-map walk shows what a chunk is made of.
 - **Bundle gate:** `npm run bundle:check`, after `npm run build` (CI runs it too). It walks the Vite

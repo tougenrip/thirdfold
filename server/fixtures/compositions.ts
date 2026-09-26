@@ -12,6 +12,7 @@ import type { SceneObject } from '../../src/lib/game/objects';
 import type { Prop } from '../../src/lib/game/props';
 import type { SavedToken, SceneFile } from '../../src/lib/game/scene-file';
 import { door, light, prop, table, wall, type TableParts } from '../adventure/tables';
+import { testWorld } from './test-world';
 
 /** Every fixture is saved at this moment, so its bytes never change. */
 export const FIXTURE_DATE = new Date('2026-01-01T00:00:00.000Z');
@@ -49,9 +50,18 @@ export interface Fixture {
 	sidecar: FixtureSidecar;
 }
 
-const CHARACTERS = ['warden', 'saint', 'ember', 'veil'];
-const NPCS = ['villager', 'smith', 'elder', 'monk', 'priest', 'watchman', 'child', 'gravedigger'];
-const ENEMIES = ['hound', 'robed-figure', 'hatted-shade', 'armored-brute'];
+export const CHARACTERS = ['warden', 'saint', 'ember', 'veil'];
+export const NPCS = [
+	'villager',
+	'smith',
+	'elder',
+	'monk',
+	'priest',
+	'watchman',
+	'child',
+	'gravedigger'
+];
+export const ENEMIES = ['hound', 'robed-figure', 'hatted-shade', 'armored-brute'];
 const COLORS = ['#c0392b', '#2e86c1', '#27ae60', '#d4ac0d', '#8e44ad', '#e67e22'];
 
 export function mini(
@@ -82,7 +92,7 @@ function hash(x: number, y: number, salt: number): number {
 }
 
 /** The four walls of a room over cells from..to (inclusive), with optional door edges cut in. */
-function room(
+export function room(
 	id: string,
 	from: GridPos,
 	to: GridPos,
@@ -119,7 +129,7 @@ function room(
 	return out;
 }
 
-function sidecar(
+export function sidecar(
 	grid: SquareGrid,
 	ambient: Ambient,
 	tokenId: string,
@@ -147,7 +157,7 @@ function sidecar(
 	};
 }
 
-function build(parts: Omit<TableParts, 'arrival'>, side: FixtureSidecar): Fixture {
+export function build(parts: Omit<TableParts, 'arrival'>, side: FixtureSidecar): Fixture {
 	const g = parts.grid;
 	return {
 		scene: table(
@@ -158,7 +168,7 @@ function build(parts: Omit<TableParts, 'arrival'>, side: FixtureSidecar): Fixtur
 	};
 }
 
-const grid = (width: number, height: number): SquareGrid => ({
+export const grid = (width: number, height: number): SquareGrid => ({
 	kind: 'square',
 	cellSize: 1,
 	width,
@@ -526,7 +536,8 @@ export function compositions(): Record<string, Fixture> {
 		'ref-8': ref8(),
 		'dungeon-40': dungeon40(),
 		'outdoor-64': outdoor64(),
-		'crowd-60': crowd60()
+		'crowd-60': crowd60(),
+		'test-world': testWorld()
 	};
 }
 

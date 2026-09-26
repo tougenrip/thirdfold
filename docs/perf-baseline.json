@@ -3,227 +3,52 @@
 	"backend": "webgl2",
 	"adapter": "ANGLE (NVIDIA, Vulkan 1.4.329 (NVIDIA NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0)), NVIDIA)",
 	"tables": {
-		"village": {
+		"test-world": {
 			"ambient": "dusk",
 			"viewers": {
 				"Gia": {
-					"geometries": 56,
-					"textures": 24,
-					"programs": 72,
-					"heap": 12933156
-				},
-				"Ana": {
-					"geometries": 24,
-					"textures": 14,
-					"programs": 34,
-					"heap": 10106368
-				},
-				"Ben": {
-					"geometries": 26,
-					"textures": 15,
-					"programs": 34,
-					"heap": 10217752
-				}
-			},
-			"idleFrames": 38,
-			"orbitDrawCalls": 29
-		},
-		"monastery": {
-			"ambient": "dusk",
-			"viewers": {
-				"Gia": {
-					"geometries": 66,
-					"textures": 17,
-					"programs": 86,
-					"heap": 13418084
-				},
-				"Ana": {
-					"geometries": 29,
-					"textures": 16,
-					"programs": 40,
-					"heap": 11184192
-				},
-				"Ben": {
-					"geometries": 31,
-					"textures": 17,
-					"programs": 40,
-					"heap": 11213104
-				}
-			},
-			"idleFrames": 37,
-			"orbitDrawCalls": 34
-		},
-		"hollow": {
-			"ambient": "dark",
-			"viewers": {
-				"Gia": {
-					"geometries": 78,
-					"textures": 20,
-					"programs": 93,
-					"heap": 14354492
+					"geometries": 44,
+					"textures": 21,
+					"programs": 52,
+					"heap": 10330816
 				},
 				"Ana": {
 					"geometries": 44,
-					"textures": 15,
+					"textures": 21,
 					"programs": 52,
-					"heap": 12880140
+					"heap": 10471648
 				},
 				"Ben": {
-					"geometries": 46,
-					"textures": 16,
+					"geometries": 44,
+					"textures": 21,
 					"programs": 52,
-					"heap": 12843956
-				}
-			},
-			"idleFrames": 37,
-			"orbitDrawCalls": 57
-		},
-		"ref-1": {
-			"ambient": "dark",
-			"viewers": {
-				"Gia": {
-					"geometries": 83,
-					"textures": 18,
-					"programs": 95,
-					"heap": 13511684
-				},
-				"Ana": {
-					"geometries": 51,
-					"textures": 17,
-					"programs": 56,
-					"heap": 12824060
-				},
-				"Ben": {
-					"geometries": 53,
-					"textures": 18,
-					"programs": 56,
-					"heap": 12706432
-				}
-			},
-			"idleFrames": 36,
-			"orbitDrawCalls": 30
-		},
-		"ref-7": {
-			"ambient": "day",
-			"viewers": {
-				"Gia": {
-					"geometries": 87,
-					"textures": 34,
-					"programs": 104,
-					"heap": 14275132
-				},
-				"Ana": {
-					"geometries": 73,
-					"textures": 33,
-					"programs": 76,
-					"heap": 13767772
-				},
-				"Ben": {
-					"geometries": 73,
-					"textures": 34,
-					"programs": 76,
-					"heap": 13604216
+					"heap": 10440760
 				}
 			},
 			"idleFrames": 0,
-			"orbitDrawCalls": 86
-		},
-		"ref-8": {
-			"ambient": "dusk",
-			"viewers": {
-				"Gia": {
-					"geometries": 87,
-					"textures": 16,
-					"programs": 104,
-					"heap": 14551084
-				},
-				"Ana": {
-					"geometries": 73,
-					"textures": 15,
-					"programs": 76,
-					"heap": 14066884
-				},
-				"Ben": {
-					"geometries": 73,
-					"textures": 16,
-					"programs": 76,
-					"heap": 13844576
-				}
-			},
-			"idleFrames": 37,
-			"orbitDrawCalls": 45
-		},
-		"dungeon-40": {
-			"ambient": "dark",
-			"viewers": {
-				"Gia": {
-					"geometries": 87,
-					"textures": 16,
-					"programs": 102,
-					"heap": 15737340
-				},
-				"Ana": {
-					"geometries": 73,
-					"textures": 15,
-					"programs": 74,
-					"heap": 15410720
-				},
-				"Ben": {
-					"geometries": 73,
-					"textures": 16,
-					"programs": 74,
-					"heap": 15203076
-				}
-			},
-			"idleFrames": 37,
-			"orbitDrawCalls": 99
-		},
-		"crowd-60": {
-			"ambient": "day",
-			"viewers": {
-				"Gia": {
-					"geometries": 87,
-					"textures": 74,
-					"programs": 104,
-					"heap": 16568424
-				},
-				"Ana": {
-					"geometries": 73,
-					"textures": 73,
-					"programs": 76,
-					"heap": 16111156
-				},
-				"Ben": {
-					"geometries": 73,
-					"textures": 74,
-					"programs": 76,
-					"heap": 15881676
-				}
-			},
-			"idleFrames": 0,
-			"orbitDrawCalls": 246
+			"orbitDrawCalls": 59
 		}
 	},
 	"reload": {
 		"first": {
-			"geometries": 73,
-			"textures": 73,
-			"programs": 76,
-			"heap": 16147388
+			"geometries": 44,
+			"textures": 21,
+			"programs": 52,
+			"heap": 11133280
 		},
 		"after": {
-			"geometries": 73,
-			"textures": 73,
-			"programs": 76,
-			"heap": 22825680
+			"geometries": 44,
+			"textures": 21,
+			"programs": 52,
+			"heap": 11369800
 		}
 	},
 	"remount": {
 		"first": {
 			"geometries": 44,
-			"textures": 71,
-			"programs": 24,
-			"heap": 11778308
+			"textures": 21,
+			"programs": 50,
+			"heap": 9620460
 		}
 	},
 	"bundle": {

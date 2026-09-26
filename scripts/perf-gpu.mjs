@@ -22,15 +22,10 @@ const BASE = process.argv[2] ?? 'http://localhost:4173';
 const SCENES = process.argv[3] ?? 'tests/fixtures/scenes';
 const OUT = process.argv[4] ?? null;
 const FRAMES = Number(process.env.FRAMES ?? 16);
-const TABLES = (
-	process.env.SCENES ??
-	'village,monastery,hollow,ref-1,ref-6,ref-7,ref-8,dungeon-40,outdoor-64,crowd-60'
-).split(',');
-const POSES = (process.env.POSES ?? 'overview,close,low').split(',');
-const VIEWPORTS = [
-	{ width: 1400, height: 900 },
-	{ width: 1920, height: 1080 }
-];
+/** The test world by default (see perf-client.mjs); SCENES=a,b for other fixture tables. */
+const TABLES = (process.env.SCENES ?? 'test-world').split(',');
+const POSES = (process.env.POSES ?? 'overview,close').split(',');
+const VIEWPORTS = [{ width: 1920, height: 1080 }];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const round = (n, d = 2) => (n == null ? null : Number(n.toFixed(d)));
 
@@ -45,7 +40,10 @@ const report = {
 };
 
 for (const viewport of VIEWPORTS) {
-	const open = async () => (await browser.newContext({ viewport, deviceScaleFactor: 1 })).newPage();
+	const open = async () =>
+		(
+			await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' })
+		).newPage();
 	const ready = (page) =>
 		page.waitForFunction(() => (window.thirdfoldPerf?.stats().frames ?? 0) > 0, null, {
 			timeout: 60_000
@@ -77,7 +75,7 @@ for (const viewport of VIEWPORTS) {
 		const file = JSON.parse(readFileSync(path.join(SCENES, `${name}.json`), 'utf8'));
 		const sidecar = JSON.parse(readFileSync(path.join(SCENES, `${name}.poses.json`), 'utf8'));
 		await gm.evaluate((f) => window.thirdfoldRoom.send({ type: 'scene_import', file: f }), file);
-		await sleep(6000);
+		await sleep(2000);
 		for (const [who, page] of [
 			['GM', gm],
 			['Ana', ana]
