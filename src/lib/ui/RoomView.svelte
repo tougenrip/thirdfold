@@ -169,6 +169,8 @@
 	/** An action of my character waiting for a target. */
 	let targeting = $state<string | null>(null);
 	let sheetOpen = $state(false);
+	/** Another party member's sheet, opened from the party list (the GM's, or a player's look). */
+	let sheetFor = $state<string | null>(null);
 	/** The character just taken, to introduce. */
 	let introFor = $state<CharacterId | null>(null);
 	/** My character as last seen; undefined until the room has loaded. */
@@ -239,6 +241,9 @@
 	/** The GM's seat has no connection right now. */
 	const gmAway = $derived(!!room?.players.some((p) => p.role === 'gm' && !p.connected));
 	const adventure = $derived(room?.adventure ?? null);
+	const sheetShown = $derived(
+		(sheetFor && adventure?.characters.find((c) => c.id === sheetFor && c.inPlay)) || null
+	);
 	const myCharacter = $derived(
 		(me && adventure?.characters.find((c) => c.inPlay && c.playerId === me.id)) || null
 	);
@@ -1248,6 +1253,10 @@
 						players={room.players}
 						adventures={room.adventures}
 						send={act}
+						onSheet={(id) => {
+							if (id === myCharacter?.id) sheetOpen = true;
+							else sheetFor = id;
+						}}
 					/>
 				</div>
 			{/if}
@@ -1380,11 +1389,24 @@
 				card={myCharacter.card}
 				status={myCharacter}
 				intro={introFor === myCharacter.id}
+				send={act}
+				sheetReply={conn.sheetReply}
 				onClose={() => {
 					introFor = null;
 					sheetOpen = false;
 				}}
 			/>
+		{:else if sheetShown}
+			{#key sheetShown.id}
+				<CharacterSheet
+					character={sheetShown.def}
+					card={sheetShown.card}
+					status={sheetShown}
+					send={act}
+					sheetReply={conn.sheetReply}
+					onClose={() => (sheetFor = null)}
+				/>
+			{/key}
 		{/if}
 
 		{#if rollCard}

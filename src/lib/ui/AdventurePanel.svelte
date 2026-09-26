@@ -23,9 +23,11 @@
 		adventures?: readonly AdventureListing[];
 		send(action: RoomAction): boolean;
 		onError?(message: string): void;
+		/** Opens a party member's character sheet. */
+		onSheet?(characterId: string): void;
 	}
 
-	let { adventure, isGm, players, adventures = [], send, onError }: Props = $props();
+	let { adventure, isGm, players, adventures = [], send, onError, onSheet }: Props = $props();
 
 	let narration = $state('');
 	/** The character the GM is adjusting. */
@@ -151,7 +153,12 @@
 						<div class="member">
 							<span class="swatch" style:background={c.def.color}></span>
 							<span class="who">
-								{c.def.name}
+								{#if onSheet}<button
+										type="button"
+										class="link"
+										title="Open {c.def.name}'s character sheet"
+										onclick={() => onSheet(c.id)}>{c.def.name}</button
+									>{:else}{c.def.name}{/if}
 								<small>
 									{playerName(c.playerId)}{c.statuses.length
 										? ` · ${c.statuses.map((s) => STATUSES[s.id].name).join(', ')}`
@@ -558,6 +565,19 @@
 	.edit {
 		padding: var(--sp-1) var(--sp-4);
 		font-size: var(--fs-xs);
+	}
+
+	.party .link {
+		justify-self: start;
+		text-align: left;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
+		cursor: pointer;
 	}
 
 	.party .downed {

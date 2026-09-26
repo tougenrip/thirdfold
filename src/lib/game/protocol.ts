@@ -5,9 +5,11 @@
 import {
 	isObjectState,
 	isSense,
+	SHEET_NOTES_MAX,
 	type AdventureView,
 	type ObjectState,
-	type Sense
+	type Sense,
+	type SheetEdit
 } from '../adventure/adventure';
 import { isStatusId, type CharacterId, type StatusId } from '../adventure/characters';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
@@ -250,6 +252,10 @@ export type ClientMessage =
 	 * shape, checked in full on the server.
 	 */
 	| { type: 'adventure_build'; choices: CharacterChoicesData }
+	/** A character's player, or the GM: change its sheet (notes, a resource marked, a built character's name). */
+	| { type: 'adventure_sheet'; characterId: CharacterId; edit: SheetEdit }
+	/** Anyone at the table: a character's full sheet, in its rules' shape. */
+	| { type: 'character_sheet'; characterId: CharacterId }
 	/** Anyone at the table: what a character may be built from, under the story's rules. */
 	| { type: 'character_options' }
 	/** Anyone at the table: what these choices would come to, or what is wrong with them. Changes nothing. */
@@ -334,6 +340,30 @@ export const ENCOUNTER_RESULTS = ['won', 'called_off'] as const;
 
 /** A player's character choices: plain, bounded JSON; the rules check what it says. */
 export type CharacterChoicesData = Record<string, unknown>;
+
+function parseSheetEdit(value: unknown): SheetEdit | null {
+	if (!isRecord(value)) return null;
+	switch (value.kind) {
+		case 'name':
+			return typeof value.name === 'string' && value.name.length <= 80
+				? { kind: 'name', name: value.name }
+				: null;
+		case 'notes':
+			return typeof value.text === 'string' && value.text.length <= SHEET_NOTES_MAX
+				? { kind: 'notes', text: value.text }
+				: null;
+		case 'resource':
+			return isId(value.resource) &&
+				typeof value.spent === 'number' &&
+				Number.isInteger(value.spent) &&
+				value.spent >= 0 &&
+				value.spent <= 999
+				? { kind: 'resource', resource: value.resource, spent: value.spent }
+				: null;
+		default:
+			return null;
+	}
+}
 
 const CHOICES_LIMITS = { depth: 6, nodes: 400 };
 
@@ -445,6 +475,13 @@ export type ServerMessage =
 	| { type: 'library_published'; adventureId: string; version: number; gmKey?: string }
 	/** To whoever asked: the games open to join. */
 	| { type: 'games_list'; games: PublicGame[] }
+	/** To whoever asked: a character's full sheet (the rules' own shape). */
+	| {
+			type: 'character_sheet';
+			characterId: string;
+			rules: string;
+			details: Record<string, unknown>;
+	  }
 	/** To whoever asked: what a character may be built from (the rules' own shape). */
 	| { type: 'character_options'; rules: string; options: Record<string, unknown> }
 	/** To whoever asked: what the choices come to (the rules' own shape), or what is wrong. */
@@ -953,8 +990,18 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				: null;
 		case 'adventure_again':
 			return { type: 'adventure_again' };
+		case 'adventure_sheet': {
+			const edit = parseSheetEdit(data.edit);
+			return isId(data.characterId) && edit
+				? { type: 'adventure_sheet', characterId: data.characterId, edit }
+				: null;
+		}
 		case 'character_options':
 			return { type: 'character_options' };
+		case 'character_sheet':
+			return isId(data.characterId)
+				? { type: 'character_sheet', characterId: data.characterId }
+				: null;
 		case 'adventure_build':
 		case 'character_preview':
 			return isChoices(data.choices) ? { type: data.type, choices: data.choices } : null;
@@ -1000,6 +1047,8 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		library_mine: (d) => Array.isArray(d.adventures),
 		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
 		games_list: (d) => Array.isArray(d.games),
+		character_sheet: (d) =>
+			typeof d.characterId === 'string' && typeof d.rules === 'string' && isRecord(d.details),
 		character_options: (d) => typeof d.rules === 'string' && isRecord(d.options),
 		character_preview: (d) => isRecord(d.preview) && typeof d.preview.ok === 'boolean',
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'

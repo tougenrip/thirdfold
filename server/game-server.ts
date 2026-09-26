@@ -654,6 +654,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'adventure_cue' ||
 			msg.type === 'adventure_claim' ||
 			msg.type === 'adventure_build' ||
+			msg.type === 'adventure_sheet' ||
 			msg.type === 'adventure_release';
 		if (chatty && !chatLimiter.take(player.id)) {
 			return sendError(ws, 'rate_limited', 'Slow down a little.');
@@ -682,6 +683,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return adventure.claimCharacter(room, player, msg.characterId);
 				case 'adventure_build':
 					return adventure.buildCharacter(room, player, msg.choices);
+				case 'adventure_sheet':
+					return adventure.editSheet(room, player, msg.characterId, msg.edit);
 				case 'adventure_release':
 					return adventure.releaseCharacter(room, player);
 				case 'adventure_begin':
@@ -1065,6 +1068,18 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					options: result.options
 				});
 			}
+			case 'character_sheet': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.sheetDetails(room, msg.characterId);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, {
+					type: 'character_sheet',
+					characterId: msg.characterId,
+					rules: result.rules,
+					details: result.details
+				});
+			}
 			case 'character_preview': {
 				if (!creatorLimiter.take(player.id))
 					return sendError(ws, 'rate_limited', 'Slow down a little.');
@@ -1075,6 +1090,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_start':
 			case 'adventure_claim':
 			case 'adventure_build':
+			case 'adventure_sheet':
 			case 'adventure_release':
 			case 'adventure_begin':
 			case 'adventure_interact':

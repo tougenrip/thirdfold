@@ -6,7 +6,9 @@
 
 import {
 	isObjectState,
+	SHEET_NOTES_MAX,
 	type AdventureStage,
+	type CardResource,
 	type EncounterState,
 	type ObjectState
 } from '../../src/lib/adventure/adventure';
@@ -43,6 +45,8 @@ import { objectDef, type Origins } from './world';
 const STAGES: readonly AdventureStage[] = ['choosing', 'playing', 'complete', 'defeat'];
 const ENCOUNTER_STATES: readonly EncounterState[] = ['active', 'won', 'lost'];
 const NAME_MAX = 48;
+/** The most a character's notes may hold. */
+const NOTES_MAX = SHEET_NOTES_MAX;
 /** A failed check, after the character: `<object>:<verb>` or `sign:<id>`. */
 const TRIED = /^[a-z0-9-]{1,40}:[a-z0-9-]{1,40}$/;
 const LIST_MAX = 100;
@@ -83,7 +87,8 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						statuses: statuses(c.statuses),
 						uses: entriesOf(c.uses),
 						downedFor: c.downedFor,
-						dead: c.dead
+						dead: c.dead,
+						...(c.resources?.size ? { resources: entriesOf(c.resources) } : {})
 					}
 				])
 			),
@@ -96,6 +101,7 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			npcs: entriesOf(adventure.npcs),
 			said: [...adventure.said],
 			rewards: [...adventure.rewards],
+			...(adventure.notes?.size ? { notes: entriesOf(adventure.notes) } : {}),
 			...(adventure.library
 				? {
 						library: {
@@ -318,7 +324,16 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			statuses: statuses(c.statuses, `${def.name}'s statuses`),
 			uses,
 			downedFor: int(c.downedFor, 0, ruleset.downedLimit, `${def.name}'s condition`),
-			dead: c.dead
+			dead: c.dead,
+			...(c.resources === undefined
+				? {}
+				: {
+						resources: markedResources(
+							c.resources,
+							ruleset.card(def, new Map()).resources,
+							def.name
+						)
+					})
 		});
 	}
 
@@ -336,6 +351,15 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		...remembered(A)
 	];
 	const said = new Set(data.said === undefined ? [] : uniqueList(data.said, sayable, 'lines'));
+	const notes = new Map<string, string>();
+	for (const [id, text] of Object.entries(
+		data.notes === undefined ? {} : record(data.notes, 'notes')
+	)) {
+		check(isCharacterId(id), 'notes');
+		check(typeof text === 'string' && text.length <= NOTES_MAX, 'notes');
+		if (text) notes.set(id, text);
+	}
+
 	// Saves from before rewards have none; each is one the adventure can give.
 	const rewards =
 		data.rewards === undefined ? [] : uniqueList(data.rewards, rewardsOf(A), 'rewards');
@@ -563,6 +587,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		npcs,
 		said,
 		rewards,
+		...(notes.size ? { notes } : {}),
 		...(library ? { library } : {}),
 		decisions,
 		pending,
@@ -636,6 +661,21 @@ function librarySource(value: unknown): LibrarySource {
 		version: raw.version as number,
 		creator: { id: creator.id as string, name: name! }
 	};
+}
+
+/** Resources a player marked spent: only the card's hand-marked ones, each within its maximum. */
+function markedResources(
+	value: unknown,
+	resources: CardResource[] | undefined,
+	name: string
+): Map<string, number> {
+	const out = new Map<string, number>();
+	for (const [id, n] of Object.entries(record(value, `${name}'s resources`))) {
+		const r = resources?.find((x) => x.id === id && x.trackedBy === null);
+		check(r, `${name}'s resources`);
+		out.set(id, int(n, 0, r.max, `${name}'s resources`));
+	}
+	return out;
 }
 
 /** The rewards an adventure can give (its `reward` effects). */

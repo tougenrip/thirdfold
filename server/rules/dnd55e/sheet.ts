@@ -18,6 +18,7 @@
 //
 // Armor Class is the definition's `armor`.
 
+import type { CardResource } from '../../../src/lib/adventure/adventure';
 import type { CharacterDef, RulesData, RulesValue } from '../../../src/lib/adventure/characters';
 import {
 	ABILITIES,
@@ -30,6 +31,9 @@ import {
 } from './core';
 
 export interface Sheet {
+	/** The full sheet (character/details.ts), for a character built from its choices. */
+	details: Record<string, unknown> | null;
+	resources: CardResource[];
 	title: string | null;
 	level: number;
 	abilities: Record<Ability, number>;
@@ -55,7 +59,9 @@ const KEYS = [
 	'expertise',
 	'initiative',
 	'attacks',
-	'bonusActions'
+	'bonusActions',
+	'details',
+	'resources'
 ];
 
 /** The sheet of a character, or everything wrong with it. */
@@ -129,10 +135,41 @@ export function readSheet(character: CharacterDef): Read {
 	const bonusActions = strings(raw.bonusActions, 'bonusActions');
 	for (const b of bonusActions) if (!actionIds.has(b)) bad(`bonusActions: no action "${b}"`);
 
+	// The full sheet, written by the character rules (character/details.ts), travels as it is.
+	if (raw.details !== undefined && !isRecord(raw.details)) bad('details must be an object');
+	const resources: CardResource[] = [];
+	if (raw.resources !== undefined) {
+		if (!Array.isArray(raw.resources)) bad('resources must be a list');
+		else
+			for (const r of raw.resources as readonly RulesValue[]) {
+				if (
+					!isRecord(r) ||
+					typeof r.id !== 'string' ||
+					typeof r.name !== 'string' ||
+					typeof r.max !== 'number' ||
+					!Number.isInteger(r.max) ||
+					r.max < 0 ||
+					(r.trackedBy !== null && (typeof r.trackedBy !== 'string' || !actionIds.has(r.trackedBy)))
+				)
+					bad(
+						'resources: each needs an id, a name, a maximum and the action that tracks it, if any'
+					);
+				else
+					resources.push({
+						id: r.id,
+						name: r.name,
+						max: r.max,
+						trackedBy: r.trackedBy as string | null
+					});
+			}
+	}
+
 	if (problems.length) return { ok: false, problems };
 	return {
 		ok: true,
 		sheet: {
+			details: isRecord(raw.details) ? (raw.details as Record<string, unknown>) : null,
+			resources,
 			title: typeof title === 'string' ? title : null,
 			level: level as number,
 			abilities,

@@ -2722,4 +2722,68 @@ describe('fifth edition rules over the wire', () => {
 		pip.send({ type: 'adventure_build', choices: { ...fighter, name: 'Kestra Again' } });
 		expect((await pip.until('error')).message).toBe('You are already playing Kestra.');
 	});
+
+	it('shows every seat the same sheet, and keeps a player’s edits through a reconnect', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { sessionToken } = await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'ember' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Ember');
+
+		// The full sheet on request, the same for the player and the GM.
+		pip.send({ type: 'character_sheet', characterId: 'ember' });
+		const mine = await pip.until('character_sheet');
+		gm.send({ type: 'character_sheet', characterId: 'ember' });
+		const theirs = await gm.until('character_sheet');
+		expect(mine).toEqual(theirs);
+		expect(mine.details).toMatchObject({ choices: { class: 'Wizard', species: 'Elf' } });
+
+		// A spell slot marked and notes written by the player: the GM sees both.
+		pip.send({
+			type: 'adventure_sheet',
+			characterId: 'ember',
+			edit: { kind: 'resource', resource: 'spell-slots-1', spent: 1 }
+		});
+		const marked = await gm.until(
+			'adventure_update',
+			(m) =>
+				!!m.adventure?.characters.some(
+					(c) => c.id === 'ember' && c.resourcesSpent['spell-slots-1'] === 1
+				)
+		);
+		expect(marked.adventure!.characters.find((c) => c.id === 'ember')!.notes).toBe('');
+		pip.send({
+			type: 'adventure_sheet',
+			characterId: 'ember',
+			edit: { kind: 'notes', text: 'Wards first.' }
+		});
+		await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.some((c) => c.id === 'ember' && c.notes === 'Wards first.')
+		);
+		// The GM may not rename a story's own character; nobody else may touch the sheet.
+		gm.send({
+			type: 'adventure_sheet',
+			characterId: 'ember',
+			edit: { kind: 'name', name: 'Blaze' }
+		});
+		expect(await gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// Pip drops and comes back: the edits are still there.
+		pip.ws.close();
+		const again = await connect();
+		again.send({ type: 'resume', roomId: room.id, sessionToken });
+		const back = await again.expect('welcome');
+		const ember = back.room.adventure!.characters.find((c) => c.id === 'ember')!;
+		expect(ember).toMatchObject({
+			resourcesSpent: { 'spell-slots-1': 1 },
+			notes: 'Wards first.',
+			editable: true
+		});
+	});
 });

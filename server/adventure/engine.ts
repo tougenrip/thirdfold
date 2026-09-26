@@ -22,11 +22,13 @@ import {
 	inActionRange,
 	EVIDENCE_KINDS,
 	INVESTIGATION_ACTIONS,
+	SHEET_NOTES_MAX,
 	type Check,
 	type DirectorView,
 	type ObjectState,
 	type Physical,
-	type Sense
+	type Sense,
+	type SheetEdit
 } from '../../src/lib/adventure/adventure';
 import {
 	actionOf,
@@ -412,6 +414,92 @@ export function releaseCharacter(room: Room, actor: Player): Outcomes {
 		ok: true,
 		log: [postSystem(room, `${actor.name} put ${mine.def.name} back.`)]
 	};
+}
+
+/** A character's full sheet in its rules' shape, for anyone at the table (it is what the table shows). */
+export function sheetDetails(
+	room: Room,
+	id: string
+): { ok: true; rules: string; details: Record<string, unknown> } | ReturnType<typeof fail> {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	const A = content(adventure);
+	const def = Object.hasOwn(A.characters, id) ? A.characters[id] : undefined;
+	const rules = rulesOf(adventure);
+	const details = def && rules.details?.(def);
+	if (!details) return fail('invalid_message', 'That character has no full sheet.');
+	return { ok: true, rules: rules.id, details };
+}
+
+/**
+ * A change to a character's sheet, by its player or the GM: notes (kept for
+ * them alone), a resource marked spent or restored where the table doesn't
+ * count it itself, or a new name for a character its player built (checked
+ * by the rules again).
+ */
+export function editSheet(room: Room, actor: Player, id: string, edit: SheetEdit): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	const A = content(adventure);
+	const def = Object.hasOwn(A.characters, id) ? A.characters[id] : undefined;
+	const state = adventure.characters.get(id);
+	const token = state && room.tokens.get(state.tokenId);
+	if (!def || !state || !token) return fail('invalid_message', 'That character is not in play.');
+	if (actor.role !== 'gm' && token.ownerId !== actor.id) {
+		return fail('forbidden', `Only ${def.name}'s player or the GM can change that sheet.`);
+	}
+	switch (edit.kind) {
+		case 'notes': {
+			if (edit.text.length > SHEET_NOTES_MAX) {
+				return fail('invalid_message', `Notes are at most ${SHEET_NOTES_MAX} characters.`);
+			}
+			const notes = new Map(adventure.notes ?? []);
+			if (edit.text.trim()) notes.set(id, edit.text);
+			else notes.delete(id);
+			adventure.notes = notes;
+			return { ok: true, log: [] };
+		}
+		case 'resource': {
+			const resource = rulesOf(adventure)
+				.card(def, state.statuses)
+				.resources?.find((r) => r.id === edit.resource);
+			if (!resource) return fail('invalid_message', `${def.name} has no such resource.`);
+			if (resource.trackedBy) {
+				return fail('forbidden', `The table counts ${resource.name} as it is used.`);
+			}
+			if (!Number.isInteger(edit.spent) || edit.spent < 0 || edit.spent > resource.max) {
+				return fail('invalid_message', `${resource.name} has ${resource.max} uses.`);
+			}
+			const resources = new Map(state.resources ?? []);
+			if (edit.spent) resources.set(resource.id, edit.spent);
+			else resources.delete(resource.id);
+			state.resources = resources;
+			const left = resource.max - edit.spent;
+			return {
+				ok: true,
+				log: [postSystem(room, `${def.name}: ${resource.name}, ${left} of ${resource.max} left.`)]
+			};
+		}
+		case 'name': {
+			const built = adventure.built?.get(id);
+			const rename = rulesOf(adventure).builder?.rename;
+			if (!built || !rename) return fail('forbidden', `${def.name}'s name is the story's.`);
+			const renamed = rename(built.saved, id, edit.name);
+			if (!renamed.ok) {
+				return fail('invalid_message', `That name won't do: ${renamed.problems.join('; ')}.`);
+			}
+			if (renamed.def.name === def.name) return { ok: true, log: [] };
+			adventure.built = new Map([
+				...adventure.built!,
+				[id, { def: renamed.def, saved: renamed.saved }]
+			]);
+			token.name = renamed.def.name;
+			return {
+				ok: true,
+				log: [postSystem(room, `${def.name} is now called ${renamed.def.name}.`)]
+			};
+		}
+	}
 }
 
 /** Whether players may build their own characters for this story, under its rules. */

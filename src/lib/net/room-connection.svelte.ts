@@ -38,6 +38,9 @@ export type CreatorReply = Extract<
 	{ type: 'character_options' | 'character_preview' }
 > & { seq: number };
 
+/** A character's full sheet, as the server sent it. */
+export type SheetReply = Extract<ServerMessage, { type: 'character_sheet' }> & { seq: number };
+
 /** A rejected action (e.g. an illegal move). The connection itself is fine. */
 export interface ActionError {
 	code: ErrorCode | 'offline';
@@ -97,6 +100,7 @@ export class RoomConnection {
 	actionError = $state<ActionError | null>(null);
 	sceneReply = $state<SceneReply | null>(null);
 	creatorReply = $state<CreatorReply | null>(null);
+	sheetReply = $state<SheetReply | null>(null);
 	/** The latest motions to show; `seq` increases so each batch plays once. */
 	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
@@ -233,6 +237,9 @@ export class RoomConnection {
 			case 'scene_list':
 			case 'scene_shared':
 				this.sceneReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'character_sheet':
+				this.sheetReply = { ...msg, seq: ++this.errorSeq };
 				return;
 			case 'character_options':
 			case 'character_preview':

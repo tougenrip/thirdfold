@@ -42,6 +42,12 @@ export interface CharacterState {
 	/** Rounds spent at 0 HP; at BLEED_OUT_ROUNDS the character dies. */
 	downedFor: number;
 	dead: boolean;
+	/**
+	 * Uses spent of the rules' resources its player marks by hand (spell
+	 * slots, …), by resource id; those an action tracks count in `uses`.
+	 * Absent when none were marked.
+	 */
+	resources?: Map<string, number>;
 }
 
 export interface EnemyState {
@@ -158,6 +164,8 @@ export interface AdventureState {
 	said: Set<string>;
 	/** What the party has earned (`reward` effects), in order. */
 	rewards: string[];
+	/** Each character's own notes, by character id, written by its player or the GM. Absent when none. */
+	notes?: Map<CharacterId, string>;
 	/** Choices made, by decision id. */
 	decisions: Map<DecisionId, Decision>;
 	/** The choice put to the party and not yet answered. */

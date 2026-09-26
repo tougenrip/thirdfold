@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { CharacterCard, CharacterStatus, SheetValue } from '$lib/adventure/adventure';
 	import { BLEED_OUT_ROUNDS, STATUSES, type CharacterDef } from '$lib/adventure/characters';
+	import type { RoomAction, SheetReply } from '$lib/net/room-connection.svelte';
+	import type { DndSheetDetails } from '$lib/rules/dnd55e/sheet';
+	import { onMount } from 'svelte';
 	import { trapFocus } from './trap-focus';
 
 	interface Props {
@@ -10,10 +13,40 @@
 		status: CharacterStatus | null;
 		/** Shown as an introduction (just picked) rather than as a sheet looked up mid-game. */
 		intro?: boolean;
+		/** For rules with a full sheet: asking for it, and changing it. */
+		send?(action: RoomAction): boolean;
+		sheetReply?: SheetReply | null;
 		onClose(): void;
 	}
 
-	let { character, card, status, intro = false, onClose }: Props = $props();
+	let {
+		character,
+		card,
+		status,
+		intro = false,
+		send,
+		sheetReply = null,
+		onClose
+	}: Props = $props();
+
+	// The rules' full sheet: asked for once the sheet opens (it only changes with the character).
+	const full = $derived(!intro && card.details === 'dnd-5.5e' && !!send && !!status);
+	onMount(() => {
+		if (full && status) send?.({ type: 'character_sheet', characterId: status.id });
+	});
+	// A rename changes the sheet: ask again.
+	let askedFor = '';
+	$effect(() => {
+		if (!full || !status) return;
+		const key = `${status.id}:${character.name}`;
+		if (askedFor && askedFor !== key) send?.({ type: 'character_sheet', characterId: status.id });
+		askedFor = key;
+	});
+	const details = $derived(
+		full && sheetReply && sheetReply.characterId === status?.id && sheetReply.rules === 'dnd-5.5e'
+			? (sheetReply.details as unknown as DndSheetDetails)
+			: null
+	);
 
 	const roundsLeft = $derived(BLEED_OUT_ROUNDS - (status?.downedFor ?? 0));
 	const signed = (n: number) => `${n >= 0 ? '+' : ''}${n}`;
@@ -29,6 +62,7 @@
 >
 	<div
 		class="sheet"
+		class:wide={full}
 		style:--char={character.color}
 		role="dialog"
 		aria-modal="true"
@@ -56,7 +90,7 @@
 			</div>
 			<div>
 				<dt>Speed</dt>
-				<dd>{character.speed}</dd>
+				<dd>{details ? `${details.derived.speed} ft.` : character.speed}</dd>
 			</div>
 			{#if card.level !== null}
 				<div>
@@ -72,33 +106,39 @@
 			{/if}
 		</dl>
 
-		<ul class="stats num" aria-label="Stats">
-			{#each card.stats as stat (stat.id)}
-				<li>
-					<span>{stat.name}</span>
-					<b>{signed(stat.bonus)}</b>
-					{#if stat.score !== null}<small>{stat.score}</small>{/if}
-				</li>
-			{/each}
-		</ul>
+		{#if details && status && send}
+			{#await import('./dnd/DndSheet.svelte') then { default: DndSheet }}
+				<DndSheet {status} {details} {send} />
+			{/await}
+		{:else}
+			<ul class="stats num" aria-label="Stats">
+				{#each card.stats as stat (stat.id)}
+					<li>
+						<span>{stat.name}</span>
+						<b>{signed(stat.bonus)}</b>
+						{#if stat.score !== null}<small>{stat.score}</small>{/if}
+					</li>
+				{/each}
+			</ul>
 
-		{#if card.saves.length}
-			<p class="proficiencies">
-				<span class="section-title">Saving throws</span>
-				{#each card.saves as save, i (save.id)}{i ? ' · ' : ''}<span
-						class:proficient={save.proficient}
-						>{save.name}
-						<b class="num">{signed(save.bonus)}</b></span
-					>{/each}
-			</p>
-		{/if}
-		{#if card.skills.length}
-			<p class="proficiencies">
-				<span class="section-title">Skills</span>
-				{#each proficient(card.skills) as skill, i (skill.id)}{i ? ' · ' : ''}<span
-						class="proficient">{skill.name} <b class="num">{signed(skill.bonus)}</b></span
-					>{:else}None{/each}
-			</p>
+			{#if card.saves.length}
+				<p class="proficiencies">
+					<span class="section-title">Saving throws</span>
+					{#each card.saves as save, i (save.id)}{i ? ' · ' : ''}<span
+							class:proficient={save.proficient}
+							>{save.name}
+							<b class="num">{signed(save.bonus)}</b></span
+						>{/each}
+				</p>
+			{/if}
+			{#if card.skills.length}
+				<p class="proficiencies">
+					<span class="section-title">Skills</span>
+					{#each proficient(card.skills) as skill, i (skill.id)}{i ? ' · ' : ''}<span
+							class="proficient">{skill.name} <b class="num">{signed(skill.bonus)}</b></span
+						>{:else}None{/each}
+				</p>
+			{/if}
 		{/if}
 
 		<h3 class="section-title">Actions</h3>
@@ -165,6 +205,20 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-lg);
+	}
+
+	.sheet.wide {
+		width: min(48rem, 100%);
+	}
+
+	@media (max-width: 640px) {
+		.backdrop {
+			padding: 4rem var(--sp-3) var(--sp-3);
+		}
+
+		.sheet {
+			padding: var(--sp-5);
+		}
 	}
 
 	.title {

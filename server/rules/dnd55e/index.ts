@@ -138,6 +138,8 @@ export const dnd55e: Ruleset = {
 		const p = prof(sheet);
 		return {
 			...(sheet.title ? { title: sheet.title } : {}),
+			...(sheet.resources.length ? { resources: sheet.resources.map((r) => ({ ...r })) } : {}),
+			...(sheet.details ? { details: DND_55E.id } : {}),
 			defense: { name: 'Armor Class', value: this.defense(character.armor, statuses) },
 			level: sheet.level,
 			proficiency: p,
@@ -185,6 +187,7 @@ export const dnd55e: Ruleset = {
 				);
 		return problems;
 	},
+	details: (character) => sheetOf(character).details,
 	builder: dndBuilder(srdCatalog, DND_55E, ATTRIBUTION)
 };
 

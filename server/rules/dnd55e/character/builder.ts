@@ -22,6 +22,7 @@ import { ABILITIES, abilityName, SKILLS, type Ability } from '../core';
 import type { WeaponData } from '../srd/records';
 import { characterDefOf } from './adventure';
 import { deriveCharacter, type DerivedCharacter } from './derive';
+import { sheetDetails } from './details';
 import type { CharacterChoices, DndCharacter } from './model';
 import {
 	abilitiesNamed,
@@ -347,20 +348,25 @@ export function tableCharacter(
 	const derived = deriveCharacter(character, catalog);
 	const { actions, attacks, bonusActions } = actionsOf(character, derived, catalog);
 	const klass = slug(character.class.id);
-	return characterDefOf(derived, {
-		id: character.id,
-		name: character.name,
-		tagline: derived.title,
-		intro: `${character.name} joins the party: ${article(derived.species)} ${derived.species} ${derived.class}, once ${article(derived.background)} ${derived.background.toLowerCase()}. A torch in hand, and ${actions[0].name.toLowerCase()} ready.`,
-		color,
-		vision: VISION,
-		light: TORCH,
-		stats: { might: 0, agility: 0, wits: 0, spirit: 0 },
-		model: FIGURES[klass] ?? 'warden',
-		actions,
-		attacks,
-		bonusActions
-	});
+	const full = sheetDetails(character, derived, catalog, actions);
+	return characterDefOf(
+		derived,
+		{
+			id: character.id,
+			name: character.name,
+			tagline: derived.title,
+			intro: `${character.name} joins the party: ${article(derived.species)} ${derived.species} ${derived.class}, once ${article(derived.background)} ${derived.background.toLowerCase()}. A torch in hand, and ${actions[0].name.toLowerCase()} ready.`,
+			color,
+			vision: VISION,
+			light: TORCH,
+			stats: { might: 0, agility: 0, wits: 0, spirit: 0 },
+			model: FIGURES[klass] ?? 'warden',
+			actions,
+			attacks,
+			bonusActions
+		},
+		full
+	);
 }
 
 export function summaryOf(character: DndCharacter, catalog: Catalog): CreatorSummary {
@@ -436,16 +442,26 @@ export function dndBuilder(
 			const made = make(raw, id);
 			return made.ok ? table(made.character, made.color) : made;
 		},
-		restore(saved, id) {
-			if (!isObject(saved) || typeof saved.color !== 'string' || !COLOR.test(saved.color))
-				return { ok: false, problems: ['a built character must have its colour'] };
-			const migrated = migrateCharacter(saved.character);
-			if (!migrated.ok) return migrated;
-			const read = readCharacter(migrated.raw, catalog(), rules);
-			if (!read.ok) return read;
-			if (read.character.id !== id)
-				return { ok: false, problems: ['a built character under another id'] };
-			return table(read.character, saved.color);
+		restore: (saved, id) => restore(saved, id),
+		rename(saved, id, name) {
+			const trimmed = name.trim();
+			if (!trimmed || trimmed.length > NAME_MAX)
+				return { ok: false, problems: [`a name of 1 to ${NAME_MAX} characters`] };
+			return restore(saved, id, trimmed);
 		}
 	};
+
+	/** A saved character back, checked in full; under a new name when one is given. */
+	function restore(saved: unknown, id: string, name?: string): Built {
+		if (!isObject(saved) || typeof saved.color !== 'string' || !COLOR.test(saved.color))
+			return { ok: false, problems: ['a built character must have its colour'] };
+		const migrated = migrateCharacter(saved.character);
+		if (!migrated.ok) return migrated;
+		const raw = name === undefined ? migrated.raw : { ...(migrated.raw as object), name };
+		const read = readCharacter(raw, catalog(), rules);
+		if (!read.ok) return read;
+		if (read.character.id !== id)
+			return { ok: false, problems: ['a built character under another id'] };
+		return table(read.character, saved.color);
+	}
 }

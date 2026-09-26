@@ -6,7 +6,9 @@
 // the ability each attack uses) is the adventure's until equipment and
 // spells are modelled (milestones 47 and 48).
 
-import type { CharacterDef } from '../../../../src/lib/adventure/characters';
+import type { CardResource } from '../../../../src/lib/adventure/adventure';
+import type { CharacterDef, RulesData } from '../../../../src/lib/adventure/characters';
+import type { DndSheetDetails } from '../../../../src/lib/rules/dnd55e/sheet';
 import { ABILITIES, type Ability } from '../core';
 import type { DerivedCharacter } from './derive';
 
@@ -22,7 +24,9 @@ export type Presentation = Omit<CharacterDef, 'hp' | 'armor' | 'speed' | 'sheet'
 
 export function characterDefOf(
 	derived: DerivedCharacter,
-	presentation: Presentation
+	presentation: Presentation,
+	/** The full sheet and its resources (sheetDetails), for a character built from its choices. */
+	full?: { details: DndSheetDetails; resources: CardResource[] }
 ): CharacterDef {
 	const { attacks, bonusActions, ...def } = presentation;
 	const skills = Object.entries(derived.skills);
@@ -40,7 +44,13 @@ export function characterDefOf(
 			expertise: skills.filter(([, s]) => s.expertise).map(([id]) => id),
 			initiative: derived.initiative,
 			attacks: { ...attacks },
-			bonusActions: [...bonusActions]
+			bonusActions: [...bonusActions],
+			...(full
+				? {
+						details: full.details as unknown as RulesData,
+						resources: full.resources as unknown as RulesData[]
+					}
+				: {})
 		}
 	};
 }

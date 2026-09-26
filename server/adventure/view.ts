@@ -136,6 +136,8 @@ export function adventureView(
 			const state = adventure.characters.get(id);
 			const token = state && room.tokens.get(state.tokenId);
 			const maxHp = def.hp;
+			const card = rules.card(def, token && state ? state.statuses : new Map());
+			const editable = viewer.role === 'gm' || (!!token && token.ownerId === viewer.id);
 			return {
 				id,
 				inPlay: !!token,
@@ -155,7 +157,19 @@ export function adventureView(
 					return thing ? [{ id: thing.id, name: thing.name }] : [];
 				}),
 				def,
-				card: rules.card(def, token && state ? state.statuses : new Map()),
+				card,
+				resourcesSpent: Object.fromEntries(
+					(card.resources ?? []).map((r) => {
+						const action = r.trackedBy ? def.actions.find((a) => a.id === r.trackedBy) : undefined;
+						const used = action
+							? (action.uses ?? 0) - ((state && usesLeft(state, action)) ?? action.uses ?? 0)
+							: (state?.resources?.get(r.id) ?? 0);
+						return [r.id, Math.min(r.max, Math.max(0, used))];
+					})
+				),
+				notes: editable ? (adventure.notes?.get(id) ?? '') : null,
+				editable,
+				renamable: editable && !!adventure.built?.has(id) && !!rules.builder?.rename,
 				spent: encounter
 					? [...encounter.acted].flatMap((key) => {
 							if (key === id) return ['action'];

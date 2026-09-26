@@ -129,6 +129,8 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	/** What is wrong with an adventure under these rules: its characters' sheets, its checks' stats. */
 	validate(adventure: AdventureDef): string[];
 	// Advancement: none of the rulesets so far advance characters; the contract grows when one does.
+	/** A character's full sheet in the rules' own shape, for rules with one (and characters that have one). */
+	details?(character: CharacterDef): Record<string, unknown> | null;
 	/** How players build their own characters under these rules, where the rules let them. */
 	builder?: CharacterBuilder;
 }
@@ -155,6 +157,8 @@ export interface CharacterBuilder {
 	build(choices: unknown, id: string): Built;
 	/** A built character back from what `build` saved. */
 	restore(saved: unknown, id: string): Built;
+	/** A built character under a new name, where the rules let a name change. */
+	rename?(saved: unknown, id: string, name: string): Built;
 }
 
 const rulesets = new Map<string, Ruleset>();

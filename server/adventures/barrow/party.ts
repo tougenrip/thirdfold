@@ -10,6 +10,7 @@ import { CHARACTERS, type CharacterDef } from '../../../src/lib/adventure/charac
 import { srdCatalog } from '../../rules/dnd55e/catalog';
 import { characterDefOf, type Presentation } from '../../rules/dnd55e/character/adventure';
 import { deriveCharacter, type DerivedCharacter } from '../../rules/dnd55e/character/derive';
+import { sheetDetails } from '../../rules/dnd55e/character/details';
 import type { CharacterChoices, DndCharacter } from '../../rules/dnd55e/character/model';
 import { createCharacter } from '../../rules/dnd55e/character/validate';
 import { DND_55E } from '../../rules/dnd55e';
@@ -140,8 +141,13 @@ function build(
 	id: keyof typeof PARTY_CHOICES,
 	presentation: (d: DerivedCharacter) => Presentation
 ): CharacterDef {
-	const { derived } = partyMember(id);
-	return characterDefOf(derived, presentation(derived));
+	const { character, derived } = partyMember(id);
+	const shown = presentation(derived);
+	return characterDefOf(
+		derived,
+		shown,
+		sheetDetails(character, derived, srdCatalog(), shown.actions)
+	);
 }
 
 export const warden = build('warden', (d) => ({

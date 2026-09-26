@@ -253,6 +253,37 @@ export interface CharacterCard {
 	 * `CharacterStatus.spent` lists it ("action", "bonus"), `partName` as players read it.
 	 */
 	actions: { id: string; summary: string; part: string; partName: string }[];
+	/**
+	 * Limited resources the rules give the character (spell slots, Second
+	 * Wind, …), where the rules have them. `trackedBy` names the action whose
+	 * uses count it (the table keeps that count); the rest a player marks by hand.
+	 */
+	resources?: CardResource[];
+	/**
+	 * Whether the rules have a full sheet for this character, which a page
+	 * asks for when it opens it (`character_sheet`): it only changes with the
+	 * character, so it stays out of the live view.
+	 */
+	details?: string;
+}
+
+/** A change to a character's sheet its player (or the GM) may make. */
+export type SheetEdit =
+	/** Rename a character its player built. */
+	| { kind: 'name'; name: string }
+	/** The player's own notes about the character. */
+	| { kind: 'notes'; text: string }
+	/** Mark uses of a resource spent (or restored), where the table doesn't track it itself. */
+	| { kind: 'resource'; resource: string; spent: number };
+
+/** The most a character's notes may hold, in characters. */
+export const SHEET_NOTES_MAX = 2000;
+
+export interface CardResource {
+	id: string;
+	name: string;
+	max: number;
+	trackedBy: string | null;
 }
 
 /**
@@ -300,6 +331,14 @@ export interface CharacterStatus {
 	card: CharacterCard;
 	/** Parts of its turn already spent in the fight at hand ("action", "bonus"). */
 	spent: string[];
+	/** Uses spent of each of its card's resources, by id (those tracked by an action count its uses). */
+	resourcesSpent: Record<string, number>;
+	/** Its player's own notes: sent to its player and the GM only, else null. */
+	notes: string | null;
+	/** Whether this viewer may change the sheet (its player, or the GM). */
+	editable: boolean;
+	/** Whether this viewer may rename it (a character its player built). */
+	renamable: boolean;
 }
 
 export interface ActiveStatus {
