@@ -485,8 +485,8 @@ export async function createTabletop(
 			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting];
 			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
 				l.dispose();
-			// Not while a warm-up is still compiling for it.
-			void warming.then(() => renderer.dispose()).catch(() => {}); // a lost context may throw
+			// Not while a warm-up is still compiling for it; a lost context may throw.
+			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
 		setQuality: (settings, refine) => quality.set(settings, refine),
 		capabilities: () => quality.caps,

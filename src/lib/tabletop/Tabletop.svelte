@@ -174,6 +174,8 @@
 	/** A tier for this session only, after a loss (never saved: a loss is not a measurement). */
 	let sessionTier: Tier | null = null;
 	const losses: number[] = [];
+	/** The last tabletop's disposal: the next one waits for it. */
+	let lastDisposal: Promise<void> = Promise.resolve();
 	/** Where the camera was on the tabletop being replaced. */
 	let carriedPose: Pose | null = null;
 	/** MSAA for the next tabletop: from the tier where it is known before the device is. */
@@ -200,7 +202,7 @@
 		const next = tierAfterLoss((t.stats().tier as Tier | null) ?? 'medium', losses, now);
 		if (next === 'stop') {
 			tabletop = null;
-			t.dispose();
+			lastDisposal = t.dispose();
 			webglError = "The table's graphics keep failing. Reload the page to try again.";
 			return;
 		}
@@ -260,8 +262,10 @@
 		// (and the join form before it) doesn't wait for them.
 		let t: Tabletop | null = null;
 		let gone = false;
-		loadRenderer()
-			.then(async ({ createTabletop }) => {
+		// The last tabletop must be gone first: two renderers tearing down and starting up at once
+		// break each other's drawing (a rebuild after a loss, a new MSAA, #151).
+		Promise.all([loadRenderer(), lastDisposal])
+			.then(async ([{ createTabletop }]) => {
 				if (gone) return;
 				// Handlers read the current props at call time, so the renderer never needs rebuilding.
 				const made = await createTabletop(
@@ -276,7 +280,10 @@
 					}
 				);
 				// Unmounted (or replaced) while the renderer was starting: throw it away.
-				if (gone || !applyQuality(made)) return made.dispose();
+				if (gone || !applyQuality(made)) {
+					lastDisposal = made.dispose();
+					return;
+				}
 				t = made;
 				tabletop = t;
 				// The effects below replay the table into it; then the camera goes back where it was.
@@ -298,7 +305,7 @@
 			});
 		return () => {
 			gone = true;
-			t?.dispose();
+			if (t) lastDisposal = t.dispose();
 			tabletop = null;
 		};
 	});

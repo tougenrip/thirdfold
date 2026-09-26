@@ -94,7 +94,7 @@ async function renderOurs(p: Pairing) {
 	const m = await mountFixture(view, sidecar.poses[p.pose], { clock: manualClock(5000) });
 	await settle(m.tabletop);
 	const pixels = m.pixels();
-	m.unmount();
+	await m.unmount();
 	return { data: pixels, width: WIDTH, height: HEIGHT };
 }
 

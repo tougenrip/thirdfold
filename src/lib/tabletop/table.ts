@@ -4,7 +4,7 @@
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
-import { dress, type EnvironmentLook } from './environment';
+import { dress, undress, type EnvironmentLook } from './environment';
 
 export const TABLE_MARGIN = 3;
 const TABLE_THICKNESS = 0.6;
@@ -83,9 +83,7 @@ export class TableLayer {
 
 	dispose(): void {
 		this.clear();
-		this.slabMaterial.map?.dispose();
-		this.surfaceMaterial.map?.dispose();
-		this.slabMaterial.dispose();
-		this.surfaceMaterial.dispose();
+		undress(this.slabMaterial);
+		undress(this.surfaceMaterial);
 	}
 }

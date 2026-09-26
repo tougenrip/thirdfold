@@ -132,7 +132,11 @@ export interface Tabletop {
 	/** Reads the GPU timestamps of the frames since the last call into `stats().gpuMs`. */
 	sampleGpu(): Promise<void>;
 	resetStats(): void;
-	dispose(): void;
+	/**
+	 * Stops and frees everything. Resolves once the renderer itself is gone: make the next tabletop
+	 * only after that, since two renderers tearing down and starting up at once break each other.
+	 */
+	dispose(): Promise<void>;
 }
 
 /** Other changes that can move what casts a shadow (the camera, hover and highlights don't). */

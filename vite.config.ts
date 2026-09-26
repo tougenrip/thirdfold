@@ -3,6 +3,26 @@ import { playwright } from '@vitest/browser-playwright';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
+/** The browser a client test project draws in: Chromium at DPR 1, 800x500, no tester UI. */
+function browser(args: string[], headless: boolean) {
+	return {
+		enabled: true,
+		provider: playwright({ launchOptions: { args } }),
+		viewport: { width: 800, height: 500 },
+		// No tester UI around the test frame: it would scale the frame, and every screenshot, down.
+		ui: false,
+		instances: [{ browser: 'chromium' as const, headless }],
+		expect: {
+			toMatchScreenshot: {
+				comparatorName: 'pixelmatch' as const,
+				// CI's small runners take several seconds per software-rendered capture.
+				timeout: 30_000,
+				comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 }
+			}
+		}
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		sveltekit({
@@ -42,31 +62,42 @@ export default defineConfig({
 					name: 'client',
 					// Renderer tests and golden images draw with SwiftShader at DPR 1 on
 					// an 800x500 viewport, so pixels never depend on the machine's GPU.
-					browser: {
-						enabled: true,
-						provider: playwright({
-							launchOptions: {
-								args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-							}
-						}),
-						viewport: { width: 800, height: 500 },
-						// No tester UI around the test frame: it would scale the frame, and every screenshot, down.
-						ui: false,
-						instances: [{ browser: 'chromium', headless: true }],
-						expect: {
-							toMatchScreenshot: {
-								comparatorName: 'pixelmatch',
-								// CI's small runners take several seconds per software-rendered capture.
-								timeout: 30_000,
-								comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 }
-							}
-						}
-					},
+					browser: browser(['--use-angle=swiftshader', '--enable-unsafe-swiftshader'], true),
+					provide: { backend: 'webgl' as const },
 					attachmentsDir: '.vitest-attachments',
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 					exclude: ['src/lib/server/**']
 				}
 			},
+			// The same golden images and renderer smoke tests through the WebGPU backend, on the real
+			// GPU (the RTX 4060 Laptop, the reference machine): `npm run test:webgpu`, locally only
+			// (#151). Chrome's WebGPU picks its own SwiftShader over Mesa's lavapipe, and SwiftShader's
+			// WebGPU is too slow and unreliable to test on; the references belong to that GPU and driver.
+			...(process.env.THIRDFOLD_WEBGPU === '1'
+				? [
+						{
+							extends: './vite.config.ts',
+							test: {
+								name: 'client-webgpu',
+								browser: browser(
+									[
+										'--use-angle=vulkan',
+										'--enable-features=Vulkan',
+										'--ignore-gpu-blocklist',
+										'--enable-unsafe-webgpu'
+									],
+									true
+								),
+								provide: { backend: 'webgpu' as const },
+								attachmentsDir: '.vitest-attachments',
+								include: [
+									'src/lib/tabletop/golden.svelte.spec.ts',
+									'src/lib/tabletop/renderer.svelte.spec.ts'
+								]
+							}
+						}
+					]
+				: []),
 
 			{
 				extends: './vite.config.ts',

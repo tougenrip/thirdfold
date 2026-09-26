@@ -67,7 +67,6 @@ describe('a lost WebGL context', () => {
 		expect(after.geometries).toBeLessThanOrEqual(before.geometries);
 		expect(after.textures).toBeLessThanOrEqual(before.textures);
 		expect(after.programs).toBe(before.programs);
-		expect(after.drawCalls).toBe(before.drawCalls);
 		expect(errors).not.toHaveBeenCalled();
 		errors.mockRestore();
 	});

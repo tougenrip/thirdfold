@@ -9,7 +9,7 @@
 import * as THREE from 'three/webgpu';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { edgeKey, unitEdges, type Door, type SceneObject } from '$lib/game/objects';
-import { dress, type Look } from './environment';
+import { dress, undress, type Look } from './environment';
 import { WALL_HEIGHT, type Ground } from './ground';
 
 export { WALL_HEIGHT };
@@ -138,7 +138,7 @@ export class WallLayer {
 		for (const id of [...this.doors.keys()]) this.removeDoor(id);
 		if (this.walls) this.walls.dispose();
 		this.wallGeometry.dispose();
-		this.wallMaterial.dispose();
+		undress(this.wallMaterial);
 		this.doorGeometry.dispose();
 	}
 

@@ -37,6 +37,7 @@ npx vitest run -t "test name"
 npx vitest run --project client src/lib/tabletop/golden.svelte.spec.ts --update   # re-baseline golden images on purpose (Linux; see docs/RENDERING.md)
 npx tsx server/fixtures/build.ts   # rebuild tests/fixtures (--refreeze also rebuilds the frozen adventure tables)
 npm run bundle:check                # after build: three.js out of every page's static imports, sizes in budget
+npm run test:webgpu                 # the goldens and renderer smoke tests on WebGPU, on the local GPU (RTX 4060), about 2 minutes; local only
 ```
 
 `expect.requireAssertions` is on, so a test with no assertions fails. The live Supabase tests in `server/supabase-scene-store.spec.ts` are skipped unless `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `SUPABASE_ANON_KEY` are set; to run them, start local Supabase (`npm run db:start`, which needs a Docker daemon), apply migrations (`npx supabase migration up`), and export the values from `npx supabase status -o env` (`API_URL`, `SECRET_KEY`, `PUBLISHABLE_KEY`). The `client` project needs a Playwright Chromium that matches the installed `playwright` version (`npx playwright install chromium`); it draws with SwiftShader on an 800x500 viewport with no tester UI. `three`, `@types/three`, `playwright`, `vitest` and `@vitest/browser-playwright` are pinned exactly: upgrade one at a time with the procedure in `docs/RENDERING.md`.

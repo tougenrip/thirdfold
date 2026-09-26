@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTabletop } from './renderer';
 import { qualityFor, settingsFor } from './quality';
 import {
+	BACKEND,
 	FIXTURES,
 	loadSidecar,
 	loadView,
@@ -26,8 +27,8 @@ const mounted: Mounted[] = [];
 beforeEach(() => {
 	errors = vi.spyOn(console, 'error');
 });
-afterEach(() => {
-	for (const m of mounted.splice(0)) m.unmount();
+afterEach(async () => {
+	for (const m of mounted.splice(0)) await m.unmount();
 	expect(errors, 'console.error was called').not.toHaveBeenCalled();
 	errors.mockRestore();
 });
@@ -55,23 +56,27 @@ describe('every fixture', () => {
 });
 
 describe('the renderer', () => {
-	it('draws the same pixels for the same table, pose and frozen clock', async () => {
-		const sidecar = await loadSidecar('ref-1');
-		const view = await loadView('ref-1', sidecar.ambient, 'gm');
-		const draw = async () => {
-			const m = await mountFixture(view, sidecar.poses.close, { clock: manualClock(5000) });
-			await settle(m.tabletop);
-			const pixels = m.pixels();
-			m.unmount();
-			return pixels;
-		};
-		const [a, b] = [await draw(), await draw()];
-		expect(a.length).toBeGreaterThan(0);
-		expect(a.some((v) => v !== 0)).toBe(true);
-		let same = true;
-		for (let i = 0; i < a.length && same; i++) same = a[i] === b[i];
-		expect(same).toBe(true);
-	});
+	// Reads pixels back, which only WebGL2 does here; on WebGPU the golden images compare frames.
+	it.skipIf(BACKEND === 'webgpu')(
+		'draws the same pixels for the same table, pose and frozen clock',
+		async () => {
+			const sidecar = await loadSidecar('ref-1');
+			const view = await loadView('ref-1', sidecar.ambient, 'gm');
+			const draw = async () => {
+				const m = await mountFixture(view, sidecar.poses.close, { clock: manualClock(5000) });
+				await settle(m.tabletop);
+				const pixels = m.pixels();
+				await m.unmount();
+				return pixels;
+			};
+			const [a, b] = [await draw(), await draw()];
+			expect(a.length).toBeGreaterThan(0);
+			expect(a.some((v) => v !== 0)).toBe(true);
+			let same = true;
+			for (let i = 0; i < a.length && same; i++) same = a[i] === b[i];
+			expect(same).toBe(true);
+		}
+	);
 
 	it('draws nothing while a daylight table is idle', async () => {
 		const { tabletop } = await mount('ref-7', 'gm', { reducedMotion: false });
@@ -216,14 +221,20 @@ describe('measuring', () => {
 		expect(stats.drawCalls).toBeGreaterThan(0);
 		expect(stats.programs).toBeGreaterThan(0);
 		expect(stats.memoryBytes).toBeGreaterThan(0);
-		// The tests draw on WebGL2 (they read pixels back); SwiftShader names itself.
-		expect(stats.backend).toBe('webgl2');
-		expect(stats.adapter).toMatch(/swiftshader/i);
 		const b = await m.tabletop.benchmark(2);
 		expect(Number.isFinite(b.cpu)).toBe(true);
 		expect(b.drawCalls).toBeGreaterThan(0);
-		// SwiftShader is software: its timestamps mean nothing, so the benchmark waits for frames.
-		expect(b.gpuTimer).toBe('sync');
+		if (BACKEND === 'webgl') {
+			// SwiftShader, WebGL2: software, whose timestamps mean nothing, so frames are waited for.
+			expect(stats.backend).toBe('webgl2');
+			expect(stats.adapter).toMatch(/swiftshader/i);
+			expect(b.gpuTimer).toBe('sync');
+		} else {
+			// The real GPU on WebGPU (vite.config.ts), timed by its own clock.
+			expect(stats.backend).toBe('webgpu');
+			expect(stats.adapter).not.toMatch(/swiftshader/i);
+			expect(b.gpuTimer).toBe('timestamp');
+		}
 		expect(Number.isFinite(b.gpu)).toBe(true);
 	});
 
@@ -239,11 +250,12 @@ describe('measuring', () => {
 });
 
 describe('quality tiers', () => {
-	it('find a software rasteriser here, and start it on low', async () => {
+	it('find a software rasteriser under SwiftShader (low), and a GPU on WebGPU', async () => {
 		const { tabletop } = await mount('ref-7', 'gm');
 		const caps = tabletop.capabilities();
-		expect(caps.software).toBe(true);
-		expect(qualityFor(caps)).toBe('low');
+		expect(caps.software).toBe(BACKEND === 'webgl');
+		if (BACKEND === 'webgl') expect(qualityFor(caps)).toBe('low');
+		else expect(qualityFor(caps)).not.toBe('low');
 	});
 
 	it('keep 4K at DPR 2 on medium within 2.1 MP', async () => {
@@ -255,13 +267,14 @@ describe('quality tiers', () => {
 			canvas,
 			{ onClick: () => {}, onHover: () => {} },
 			{
-				preserveDrawingBuffer: true
+				backend: BACKEND === 'webgpu' ? 'webgpu' : 'webgl',
+				preserveDrawingBuffer: BACKEND === 'webgl'
 			}
 		);
 		t.setQuality(settingsFor('medium', t.capabilities().backend));
 		expect(canvas.width * canvas.height).toBeLessThanOrEqual(2.1e6 + 3840);
 		expect(canvas.width * canvas.height).toBeGreaterThan(1.9e6);
-		t.dispose();
+		await t.dispose();
 		canvas.remove();
 		dpr.mockRestore();
 	});

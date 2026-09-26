@@ -352,8 +352,34 @@ from the renderer's (MSAA is fixed at construction): `applyQuality` rebuilds wit
 
 `recovery.svelte.spec.ts` forces a WebGL context loss (`WEBGL_lose_context`) on a mounted table and
 checks the same table comes back on a new canvas, a tier lower, the camera where it was, with the
-same draw calls and programs, no more geometries or textures, and no console error. The WebGPU
-device-loss test runs with the WebGPU goldens (#151).
+same programs, no more geometries or textures, and no console error. Forcing a WebGPU device loss
+has no test yet: `device.destroy()` never reaches three's handler (its reason is `destroyed`).
+
+### WebGPU golden images (#151)
+
+The goldens and the renderer's smoke tests also run through the WebGPU backend, locally, in the
+`client-webgpu` Vitest project, which exists only with `THIRDFOLD_WEBGPU=1`, so `npm test` and CI
+never see it:
+
+```bash
+npm run test:webgpu                                      # all of it, about 2 minutes
+npm run test:webgpu -- src/lib/tabletop/golden.svelte.spec.ts --update   # re-record on purpose
+```
+
+It draws on the real GPU (the RTX 4060 Laptop, the reference machine, through Vulkan), headless.
+Chrome's WebGPU picks its own SwiftShader over Mesa's lavapipe even with lavapipe the only Vulkan
+driver, and SwiftShader's WebGPU is too slow and unreliable to test on, so the references
+(`*-webgpu-chromium-linux.png`, beside the WebGL2 ones) belong to that GPU and driver. The specs read
+the project's backend with `inject('backend')` (`BACKEND` in `testing.ts`); `mountFixture` pins the
+tier to medium and fails if WebGPU silently fell back to WebGL2. Tests that read pixels back are
+WebGL2-only and skip on WebGPU, naming why.
+
+Its first runs caught a bug the WebGL2 goldens never showed: a tabletop torn down while the next
+started (every test, and #150's rebuild) could leave the new one's raised ground missing or black.
+`TableLayer.dispose` disposed the shared blank texture every dressed material falls back to, which
+destroys it in every renderer; `undress` (environment.ts) never does. And two renderers disposing
+and starting at once still broke each other, so `dispose()` resolves once the renderer is gone,
+and the component and the test helper make the next tabletop only after that.
 
 ## Render scheduler
 

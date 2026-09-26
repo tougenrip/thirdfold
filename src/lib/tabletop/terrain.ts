@@ -7,7 +7,7 @@
 
 import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { dress, type Look } from './environment';
+import { dress, undress, type Look } from './environment';
 import { FLOOR_IDS, type FloorMap } from '$lib/game/floor';
 import { FLOOR_LOOKS } from './floor-looks';
 import type { Ground } from './ground';
@@ -141,6 +141,6 @@ export class TerrainLayer {
 	dispose(): void {
 		this.mesh?.dispose();
 		this.geometry.dispose();
-		this.material.dispose();
+		undress(this.material);
 	}
 }

@@ -78,6 +78,16 @@ export async function loadEnvironment(id: string): Promise<EnvironmentLook | nul
 }
 
 /**
+ * Disposes a dressed material and its own map. Never the shared BLANK: every
+ * tabletop's materials use it, and disposing it destroys it in every renderer
+ * (another tabletop's draws that bind it drop out, #151).
+ */
+export function undress(material: THREE.MeshStandardMaterial): void {
+	if (material.map && material.map !== BLANK) material.map.dispose();
+	material.dispose();
+}
+
+/**
  * Puts a look on a material: colour and finish, and its texture repeated so
  * one repeat covers `look.cells` cells of a surface `across` × `down` cells.
  * The material gets its own copy of the texture (the image is shared).
