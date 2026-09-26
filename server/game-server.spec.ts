@@ -7,6 +7,7 @@ import type { AdventureView } from '../src/lib/adventure/adventure';
 import { exampleAdventure } from '../src/lib/adventure/example';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
+import type { ChatMessage } from '../src/lib/game/chat';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { FileSceneStore, MemorySceneStore, type SceneStore } from './scene-store';
@@ -1283,7 +1284,7 @@ describe("creators' adventures over the wire", () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });
 		const { room } = await gm.expect('welcome');
-		expect(room.adventures.map((a) => a.id)).toEqual(['hollow-bell', 'blackwater']);
+		expect(room.adventures.map((a) => a.id)).toEqual(['hollow-bell', 'blackwater', 'barrow']);
 		expect(room.adventures[1]).toMatchObject({
 			title: 'The Last Train to Blackwater',
 			about: expect.stringContaining('1889')
@@ -2512,5 +2513,118 @@ describe('the library and open games over the wire', () => {
 		await gm.until('listing_update');
 		passerby.send({ type: 'games_list' });
 		expect((await passerby.until('games_list')).games).toEqual([]);
+	});
+});
+
+describe('fifth edition rules over the wire', () => {
+	beforeEach(async () => {
+		// Every die rolls its highest face: every d20 is a natural 20.
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 0,
+			mechanismDelayScale: 0,
+			patrolMs: 0
+		});
+	});
+
+	const untilLog = <K extends ChatMessage['kind']>(client: TestClient, kind: K) =>
+		client
+			.until('chat', (m) => m.message.kind === kind)
+			.then((m) => m.message as Extract<ChatMessage, { kind: K }>);
+
+	it('resolves checks, saves and attacks by the rules on the server, the same for GM and player', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const reset = await pip.until('room_reset');
+		const story = reset.room.adventure!;
+		expect(story).toMatchObject({
+			title: 'The Barrow on Cold Hill',
+			rules: { id: 'dnd-5.5e', version: 1, name: 'Fifth Edition (SRD 5.2.1)' }
+		});
+		expect(story.rules.attribution).toContain('Creative Commons Attribution 4.0');
+		expect(story.characters.find((c) => c.id === 'veil')?.card).toMatchObject({
+			defense: { name: 'Armor Class', value: 14 },
+			proficiency: 2
+		});
+
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		const veil = await pip.until('token_upserted', (m) => m.token.name === 'The Veil');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		const move = (to: { x: number; y: number }) =>
+			pip.send({ type: 'token_move', tokenId: veil.token.id, to });
+
+		// An Investigation check: d20 (20) + Intelligence (+1) + proficiency (+2).
+		move({ x: 5, y: 10 });
+		pip.send({ type: 'adventure_interact', targetId: 'carvings', verb: 'examine' });
+		for (const client of [pip, gm]) {
+			expect(await untilLog(client, 'check')).toMatchObject({
+				authorName: 'The Veil',
+				stat: 'Intelligence (Investigation)',
+				roll: { expression: '1d20+3', total: 23 },
+				dc: 12,
+				success: true,
+				explain: 'd20 20 +3 = 23 vs DC 12: success'
+			});
+		}
+
+		// A Strength (Athletics) check (not proficient) to force the door, then in over the
+		// threshold unwarned (the ward was never shared): a Dexterity save against the darts.
+		move({ x: 7, y: 8 });
+		pip.send({ type: 'adventure_interact', targetId: 'barrow-door', verb: 'force' });
+		expect(await untilLog(pip, 'check')).toMatchObject({
+			stat: 'Strength (Athletics)',
+			roll: { expression: '1d20', total: 20 }
+		});
+		expect((await untilLog(gm, 'check')).stat).toBe('Strength (Athletics)');
+		await pip.until('adventure_update', (m) => m.adventure?.chapter.id === 'inside');
+		pip.send({ type: 'door_toggle', objectId: 'barrow-door' });
+		await pip.until('objects_changed');
+		move({ x: 7, y: 7 });
+		const save = await untilLog(gm, 'check');
+		expect(save).toMatchObject({
+			authorName: 'The Veil',
+			stat: 'Dexterity saving throw',
+			save: true,
+			roll: { total: 25 },
+			success: true
+		});
+		expect(await untilLog(pip, 'check')).toEqual(save);
+		// Half of 2d6 (12) on a made save.
+		const hurt = await pip.until(
+			'chat',
+			(m) => m.message.kind === 'narration' && m.message.text.startsWith('Darts')
+		);
+		expect(hurt.message).toMatchObject({
+			text: 'Darts from the lintel strike The Veil: 6 damage.'
+		});
+
+		// Deeper in, the guardians wake. Initiative: the Veil (20 + 3 Dexterity + 2 from Alert) goes first.
+		move({ x: 9, y: 4 });
+		const fight = await pip.until('adventure_update', (m) => !!m.adventure?.encounter);
+		const order = fight.adventure!.encounter!.order;
+		expect(order[0]).toMatchObject({ characterId: 'veil', initiative: 25 });
+		const guard = fight.adventure!.encounter!.enemies.find((e) => e.name === 'Barrow Guard')!;
+		pip.send({ type: 'adventure_act', actionId: 'shortsword', targetId: guard.tokenId });
+		const attack = await untilLog(gm, 'attack');
+		expect(attack).toMatchObject({
+			authorName: 'The Veil',
+			attack: 'Shortsword',
+			defense: 15,
+			hit: true,
+			critical: true,
+			damage: { expression: '2d6+3', total: 15 }
+		});
+		expect(attack.explain).toContain('vs AC 15: critical hit');
+		expect(await untilLog(pip, 'attack')).toEqual(attack);
 	});
 });

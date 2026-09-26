@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CharacterStatus } from '../adventure/adventure';
+import { CHARACTERS } from '../adventure/characters';
 import { namesList, survivalLine, timePlayed } from './session-end';
 
 const character = (patch: Partial<CharacterStatus>): CharacterStatus => ({
@@ -15,6 +16,17 @@ const character = (patch: Partial<CharacterStatus>): CharacterStatus => ({
 	statuses: [],
 	usesLeft: {},
 	carrying: [],
+	def: CHARACTERS.warden,
+	card: {
+		defense: { name: 'Defense', value: 13 },
+		level: null,
+		proficiency: null,
+		stats: [],
+		saves: [],
+		skills: [],
+		actions: []
+	},
+	spent: [],
 	...patch
 });
 

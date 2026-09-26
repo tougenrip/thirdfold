@@ -6,7 +6,7 @@
 		type CharacterStatus,
 		type ObjectState
 	} from '$lib/adventure/adventure';
-	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
+	import { STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
 	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/adventure/file';
@@ -120,6 +120,12 @@
 					· version {adventure.library.version}
 				</p>
 			{/if}
+			{#if adventure.rules.id !== 'thirdfold-classic'}
+				<p class="section">Rules: {adventure.rules.name}</p>
+				{#if adventure.rules.attribution}
+					<p class="credit">{adventure.rules.attribution}</p>
+				{/if}
+			{/if}
 			<p class="section">
 				Chapter {adventure.chapter.number} of {adventure.chapter.of} ·
 				<span class="stage">{STAGE_LABEL[adventure.stage] ?? adventure.chapter.title}</span>
@@ -143,9 +149,9 @@
 				{#each party as c (c.id)}
 					<li class:downed={c.downed || c.dead}>
 						<div class="member">
-							<span class="swatch" style:background={CHARACTERS[c.id].color}></span>
+							<span class="swatch" style:background={c.def.color}></span>
 							<span class="who">
-								{CHARACTERS[c.id].name}
+								{c.def.name}
 								<small>
 									{playerName(c.playerId)}{c.statuses.length
 										? ` · ${c.statuses.map((s) => STATUSES[s.id].name).join(', ')}`
@@ -166,7 +172,7 @@
 							{/if}
 						</div>
 						{#if isGm && editing === c.id}
-							<div class="override" aria-label={`Adjust ${CHARACTERS[c.id].name}`}>
+							<div class="override" aria-label={`Adjust ${c.def.name}`}>
 								<div class="row">
 									{#each [-5, -1, 1, 5] as delta (delta)}
 										<button
@@ -489,6 +495,12 @@
 	header h2 {
 		font-size: var(--fs-md);
 		color: var(--accent);
+	}
+
+	.credit {
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-2xs);
+		color: var(--muted);
 	}
 
 	.section {

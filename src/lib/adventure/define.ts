@@ -139,8 +139,20 @@ export type Effect =
 	| { prop: string; asset: AssetId }
 	/** The time of day. */
 	| { ambient: Ambient }
-	/** Standing characters near an object are hurt. */
-	| { hurt: { near: string; within: number; dice: string; text: string } }
+	/**
+	 * Standing characters near an object are hurt. With `save`, each makes a
+	 * saving throw first (by the story's rules): a success takes none of it,
+	 * or half when `half`.
+	 */
+	| {
+			hurt: {
+				near: string;
+				within: number;
+				dice: string;
+				text: string;
+				save?: { stat: string; dc: number; half: boolean };
+			};
+	  }
 	/** An enemy comes up and joins the fight (the first free cell of `at`). */
 	| { spawn: { kind: string; at: readonly GridPos[]; text: string } }
 	/** The first of these rules whose conditions hold. */
@@ -508,6 +520,8 @@ export interface AdventureDef {
 	about?: string;
 	/** The version of its saved state (see persist.ts). */
 	version: number;
+	/** The rules it plays by, by exact id and version; thirdfold's classic rules when absent. */
+	rules?: { id: string; version: number };
 	characters: Readonly<Record<string, CharacterDef>>;
 	/** Where it starts, and what the arrival does when the GM begins. */
 	start: { location: string; chapter: string; arrival: readonly Effect[] };

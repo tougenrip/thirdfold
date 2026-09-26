@@ -4,7 +4,6 @@
 // have been seen, and the read-aloud passages only for the GM.
 
 import type { AdventureView, Objective, SessionSummary } from '../../src/lib/adventure/adventure';
-import { defenseFor } from '../../src/lib/adventure/characters';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
@@ -20,12 +19,14 @@ import {
 	objectCells,
 	objectState,
 	optionLabel,
+	rulesOf,
 	shownState,
 	usesLeft,
 	verbsFor
 } from './engine';
 import type { AdventureState, Statuses } from './state';
 import { actionOfVerb, objectDef } from './world';
+import { rulesInfo } from '../rules/ruleset';
 
 /** Where a story saved now had got to, for the GM's list of saves (null for a table without one). */
 export function storySummary(room: Room): SavedScene['story'] {
@@ -97,7 +98,9 @@ export function adventureView(
 	const A = content(adventure);
 	const encounter = adventure.encounter;
 	// Evidence someone found alone stays theirs (and the GM's) until they share it.
-	const mine = viewer.role === 'player' ? (characterOf(room, viewer.id)?.id ?? null) : null;
+	const me = viewer.role === 'player' ? characterOf(room, viewer.id) : null;
+	const mine = me?.id ?? null;
+	const rules = rulesOf(adventure);
 	const clues = [...adventure.evidence].flatMap(([id, found]) => {
 		const own = mine !== null && found.by.includes(mine);
 		if (!found.shared && !own && viewer.role !== 'gm') return [];
@@ -149,7 +152,15 @@ export function adventureView(
 				carrying: [...adventure.carried].flatMap(([item, by]) => {
 					const thing = by === id && token ? objectDef(A, item) : undefined;
 					return thing ? [{ id: thing.id, name: thing.name }] : [];
-				})
+				}),
+				def,
+				card: rules.card(def, token && state ? state.statuses : new Map()),
+				spent: encounter
+					? [...encounter.acted].flatMap((key) => {
+							if (key === id) return ['action'];
+							return key.startsWith(`${id}:`) ? [key.slice(id.length + 1)] : [];
+						})
+					: []
 			};
 		}),
 		interactables: A.objects.flatMap((def) => {
@@ -175,7 +186,16 @@ export function adventureView(
 						label: v.label,
 						action: actionOfVerb(v),
 						physical: v.physical ?? null,
-						check: v.check && state !== 'used' ? { ...v.check } : null,
+						check:
+							v.check && state !== 'used'
+								? {
+										...v.check,
+										label: rules.label(v.check.stat, v.check.save ? 'save' : 'check'),
+										bonus: me
+											? rules.bonus(me.def, v.check.stat, v.check.save ? 'save' : 'check')
+											: null
+									}
+								: null,
 						tried: mine !== null && adventure.tried.has(`${mine}:${def.id}:${v.id}`),
 						inFight: v.inFight === true
 					}))
@@ -223,7 +243,7 @@ export function adventureView(
 			}),
 			current: encounter.current,
 			counter: counterOf(adventure),
-			acted: [...encounter.acted],
+			acted: [...encounter.acted].filter((key) => !key.includes(':')),
 			moved: Object.fromEntries(encounter.moved),
 			speed: encounter.speed,
 			enemies: [...encounter.enemies]
@@ -233,7 +253,7 @@ export function adventureView(
 					name: room.tokens.get(tokenId)?.name ?? A.enemies[e.kind]?.name ?? 'Enemy',
 					hp: e.hp,
 					maxHp: e.maxHp,
-					defense: defenseFor(A.enemies[e.kind]?.armor ?? 0),
+					defense: rulesOf(adventure).defense(A.enemies[e.kind]?.armor ?? 0, e.statuses),
 					statuses: listStatuses(e.statuses)
 				}))
 		},
@@ -281,6 +301,7 @@ export function adventureView(
 		completedAt: adventure.completedAt,
 		summary: summaryOf(adventure),
 		rewards: [...adventure.rewards],
+		rules: rulesInfo(rules),
 		library: adventure.library
 			? {
 					id: adventure.library.id,

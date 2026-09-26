@@ -10,7 +10,7 @@ import {
 	type EncounterState,
 	type ObjectState
 } from '../../src/lib/adventure/adventure';
-import { BLEED_OUT_ROUNDS, STATUS_IDS, type StatusId } from '../../src/lib/adventure/characters';
+import { STATUS_IDS, type StatusId } from '../../src/lib/adventure/characters';
 import { inBounds, type GridPos } from '../../src/lib/game/grid';
 import {
 	CREATOR_ID_PATTERN,
@@ -20,6 +20,8 @@ import {
 } from '../../src/lib/game/library';
 import { isAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
+import { CLASSIC } from '../rules/classic';
+import { findRuleset, type RulesetRef } from '../rules/ruleset';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
 import { contentOf, findAdventure } from './registry';
@@ -52,11 +54,15 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 	const statuses = (s: Statuses) => entriesOf(s);
 	const A = contentOf(adventure.id);
 	const content = fileOf(A.id);
+	// Rules from a licensed source travel with the credit it requires (read back from the rules, not the file).
+	const attribution = findRuleset(adventure.rules)?.attribution;
 	return {
 		id: A.id,
 		version: A.version,
 		...(content ? { content: JSON.parse(JSON.stringify(content)) } : {}),
 		state: {
+			rules: { ...adventure.rules },
+			...(attribution ? { credits: [attribution] } : {}),
 			stage: adventure.stage,
 			chapter: adventure.chapter,
 			location: adventure.location,
@@ -254,6 +260,9 @@ export function readAdventure(saved: SavedStory, scene: SceneFile): AdventureRea
 
 function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
+	// Stories saved before rulesets played by the classic rules; a story keeps the rules it was pinned to.
+	const rules = data.rules === undefined ? { ...CLASSIC } : rulesRef(data.rules);
+	const ruleset = findRuleset(rules)!;
 	const stage = oneOf(data.stage, STAGES, 'stage');
 	const chapter = oneOf(data.chapter, Object.keys(A.chapters), 'chapter');
 	const location = oneOf(data.location, Object.keys(A.locations), 'location');
@@ -287,7 +296,7 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 			hp: int(c.hp, 0, def.hp, `${def.name}'s hit points`),
 			statuses: statuses(c.statuses, `${def.name}'s statuses`),
 			uses,
-			downedFor: int(c.downedFor, 0, BLEED_OUT_ROUNDS, `${def.name}'s condition`),
+			downedFor: int(c.downedFor, 0, ruleset.downedLimit, `${def.name}'s condition`),
 			dead: c.dead
 		});
 	}
@@ -459,9 +468,13 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 						: 0
 					: int(e.speed, 0, COUNT_MAX, 'movement'),
 			acted: new Set(
-				list(e.acted, 'turns').map((who) => {
-					check(isCharacterId(who), 'turns');
-					return who;
+				// A character's id for its action; `<id>:<type>` for another part of its turn.
+				list(e.acted, 'turns').map((key) => {
+					check(typeof key === 'string', 'turns');
+					const [who, type, ...rest] = (key as string).split(':');
+					check(isCharacterId(who) && rest.length === 0, 'turns');
+					check(type === undefined || /^[a-z]{1,16}$/.test(type), 'turns');
+					return key as string;
 				})
 			),
 			moved,
@@ -516,6 +529,7 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 	);
 	return {
 		id: A.id,
+		rules,
 		stage,
 		chapter,
 		location,
@@ -566,6 +580,18 @@ function remembered(A: AdventureDef): string[] {
 		return value;
 	});
 	return found;
+}
+
+/** A ruleset this server has, by exact id and version. */
+function rulesRef(value: unknown): RulesetRef {
+	const raw = record(value, 'rules');
+	check(
+		typeof raw.id === 'string' &&
+			typeof raw.version === 'number' &&
+			findRuleset({ id: raw.id, version: raw.version }) !== undefined,
+		'rules this server does not have'
+	);
+	return { id: raw.id as string, version: raw.version as number };
 }
 
 function librarySource(value: unknown): LibrarySource {

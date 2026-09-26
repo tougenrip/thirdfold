@@ -14,6 +14,7 @@ import type {
 import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { Creator } from '../../src/lib/game/library';
+import type { RulesetRef } from '../rules/ruleset';
 import type { Origins } from './world';
 
 // Ids are the adventure's own (see define.ts): plain strings here.
@@ -83,8 +84,8 @@ export interface Encounter {
 	order: TurnEntry[];
 	/** Whose turn it is: an index into `order`. */
 	current: number;
-	/** Characters who have used their action this round. */
-	acted: Set<CharacterId>;
+	/** Parts of their turn characters have spent: a character's id for its action, `<id>:<type>` for another (a bonus action). */
+	acted: Set<string>;
 	/** Cells moved this round, per character. */
 	moved: Map<CharacterId, number>;
 	/** Cells the character whose turn it is may move this turn (half its speed when slowed). */
@@ -126,6 +127,8 @@ export interface Decision {
 export interface AdventureState {
 	/** Which adventure (see server/adventures). */
 	id: string;
+	/** The rules the story plays by, pinned when it starts (see server/rules). */
+	rules: RulesetRef;
 	stage: AdventureStage;
 	chapter: ChapterId;
 	/** The table the party is on. */
