@@ -165,7 +165,7 @@ describe('players building their own characters', () => {
 		ok(buildCharacter(room, cai, cleric()));
 		ok(beginAdventure(room, gm, 1000));
 		room.adventure!.characters.get('pc-1')!.hp = 4;
-		const scene = exportScene(room);
+		const scene = exportScene(room, 'The Barrow');
 		const saved = scene.adventure!;
 		expect(Object.keys(saved.state.built as object)).toEqual(['pc-1']);
 		const back = ok(readAdventure(saved, scene)).adventure;
