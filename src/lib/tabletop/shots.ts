@@ -5,7 +5,7 @@
 // A shot never takes the camera away for long, and any drag or scroll by the
 // viewer ends it where it is: the player keeps control.
 
-import type { Shot } from '$lib/game/chat';
+import type { Shot } from '../game/chat';
 
 export interface Vec3 {
 	x: number;
@@ -16,6 +16,16 @@ export interface Vec3 {
 export interface Pose {
 	position: Vec3;
 	target: Vec3;
+}
+
+/** Where the camera stands for a view of a table `extent` across, looking at its middle. */
+export function viewPose(view: 'tactical' | 'tabletop', extent: number): Pose {
+	const target = { x: 0, y: 0, z: 0 };
+	// Tactical: high and nearly overhead, easy to read positions and distances.
+	if (view === 'tactical')
+		return { position: { x: 0, y: extent * 1.15, z: extent * 0.35 }, target };
+	// Tabletop: low and close, like leaning over miniatures.
+	return { position: { x: extent * 0.42, y: extent * 0.34, z: extent * 0.78 }, target };
 }
 
 /** How long a shot takes to get there, stays, and comes back (ms). */

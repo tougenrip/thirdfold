@@ -106,7 +106,10 @@ The world's scale is 1 cell = 1 unit = 5 ft: a level is 0.4 u (2 ft, `STEP_HEIGH
 (10 ft), the sight rule's eye 1.2 u (6 ft). The rules count in levels, so only the picture moved.
 Placeholder figures are drawn at 1.3× (`FIGURE_SCALE`) so they stand at human height under the walls
 until #118 authors real heights; lamp fixtures stand 1.5 u tall; dice are thrown from above the
-walls.
+walls standing on the floor under the camera's target, and land on that floor (raised ground too).
+`server/adventures/camera-clearance.spec.ts` checks that no cinematic shot of either adventure, and
+no change between the tactical and tabletop views, puts the camera inside a wall or under the
+ground, on any of their tables.
 
 The node renderer tone-maps the whole frame at the end (`needsFrameBufferTarget`), background and
 overlays included, and blends before it, in linear light; the classic renderer tone-mapped each lit

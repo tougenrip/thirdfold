@@ -8,7 +8,8 @@ import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
 import { DIE_LABELS, seededRandom } from './dice-faces';
-import { WALL_HEIGHT } from './ground';
+import { worldToGrid, type SquareGrid } from '$lib/game/grid';
+import { WALL_HEIGHT, type Ground } from './ground';
 import type { DieKind, ThrownDie } from './dice-throw';
 
 export interface DiceThrow {
@@ -103,7 +104,7 @@ export class DiceLayer {
 				materials,
 				from: from.clone().add(spread),
 				to,
-				restY: model.inradius * size,
+				restY: center.y + model.inradius * size,
 				startQ: new THREE.Quaternion().setFromEuler(
 					new THREE.Euler(rand() * 6.3, rand() * 6.3, rand() * 6.3)
 				),
@@ -332,19 +333,26 @@ function brightness(hex: string): number {
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** Where dice land (around what the camera looks at) and where they are thrown from (the viewer's side). */
+/**
+ * Where dice land (around what the camera looks at, on the floor there, raised ground included) and
+ * where they are thrown from (the viewer's side, above the walls standing on that floor).
+ */
 export function throwFromView(
 	target: THREE.Vector3,
 	cameraPosition: THREE.Vector3,
-	cellSize: number
+	grid: SquareGrid,
+	ground: Ground | null
 ): { center: THREE.Vector3; from: THREE.Vector3 } {
-	const center = new THREE.Vector3(target.x, 0, target.z);
+	const cellSize = grid.cellSize;
+	const cell = worldToGrid(grid, target);
+	const floor = cell && ground ? ground.floorY(cell) : 0;
+	const center = new THREE.Vector3(target.x, floor, target.z);
 	const toward = new THREE.Vector3(cameraPosition.x - center.x, 0, cameraPosition.z - center.z);
 	if (toward.lengthSq() < 1e-6) toward.set(0, 0, 1);
 	toward.normalize().multiplyScalar(cellSize * 5);
 	const from = center
 		.clone()
 		.add(toward)
-		.setY(cellSize * (WALL_HEIGHT + 1)); // above the walls
+		.setY(floor + cellSize * (WALL_HEIGHT + 1)); // above the walls
 	return { center, from };
 }

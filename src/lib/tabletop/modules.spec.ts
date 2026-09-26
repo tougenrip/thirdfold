@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { viewPose } from './camera';
+import { viewPose } from './shots';
 import { pickKey } from './picking';
 import type { Pick } from './types';
 
@@ -22,10 +22,11 @@ describe('views', () => {
 		for (const extent of [10, 26, 54]) {
 			const tactical = viewPose('tactical', extent);
 			const tabletop = viewPose('tabletop', extent);
-			expect(tactical.target.toArray()).toEqual([0, 0, 0]);
+			const length = ({ x, y, z }: { x: number; y: number; z: number }) => Math.hypot(x, y, z);
+			expect(tactical.target).toEqual({ x: 0, y: 0, z: 0 });
 			expect(tactical.position.y).toBeCloseTo(extent * 1.15);
 			expect(tabletop.position.y).toBeLessThan(tactical.position.y);
-			expect(tabletop.position.length()).toBeLessThan(tactical.position.length());
+			expect(length(tabletop.position)).toBeLessThan(length(tactical.position));
 		}
 	});
 });

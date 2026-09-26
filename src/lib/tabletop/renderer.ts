@@ -366,7 +366,7 @@ export async function createTabletop(
 		},
 		throwDice(t) {
 			if (!grid || t.dice.length === 0) return 0;
-			const { center, from } = throwFromView(controls.target, camera.position, grid.cellSize);
+			const { center, from } = throwFromView(controls.target, camera.position, grid, ground);
 			const ms = diceLayer.throw(t, center, from, grid.cellSize, reducedMotion, clock());
 			requestRender();
 			return ms;
