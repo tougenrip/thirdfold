@@ -11,6 +11,9 @@ function browser(args: string[], headless: boolean) {
 		viewport: { width: 800, height: 500 },
 		// No tester UI around the test frame: it would scale the frame, and every screenshot, down.
 		ui: false,
+		// A failed test's screenshot can time out on a slow runner, and its console.error then fails
+		// the tests after it; the golden images compare their own screenshots.
+		screenshotFailures: false,
 		instances: [{ browser: 'chromium' as const, headless }],
 		expect: {
 			toMatchScreenshot: {

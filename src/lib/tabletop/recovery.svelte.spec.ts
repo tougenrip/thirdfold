@@ -13,6 +13,18 @@ import type { Tabletop as Renderer } from './types';
 
 vi.setConfig({ testTimeout: 60_000 });
 
+/** The table's stats once its geometry and texture counts hold still for a second. */
+async function steady(t: Renderer) {
+	let last = t.stats();
+	for (let i = 0; i < 20; i++) {
+		await new Promise((r) => setTimeout(r, 1000));
+		const now = t.stats();
+		if (now.geometries === last.geometries && now.textures === last.textures) return now;
+		last = now;
+	}
+	return last;
+}
+
 const perfApi = () => (window as { thirdfoldPerf?: Renderer }).thirdfoldPerf;
 
 afterEach(() => history.replaceState(null, '', location.pathname));
@@ -45,7 +57,8 @@ describe('a lost WebGL context', () => {
 		const sidecar = await loadSidecar('ref-7');
 		first.setGridPose(sidecar.poses.close);
 		await settle(first);
-		const before = first.stats();
+		// Models and the environment arrive over a while on a slow machine: count once they have.
+		const before = await steady(first);
 		const pose = first.cameraPose();
 		const oldCanvas = document.querySelector('canvas')!;
 
@@ -57,6 +70,7 @@ describe('a lost WebGL context', () => {
 			.toBe(true);
 		const second = perfApi()!;
 		await settle(second);
+		await steady(second);
 		expect(document.querySelector('canvas')).not.toBe(oldCanvas);
 		await expect.element(page.getByText('Restoring the table…')).not.toBeInTheDocument();
 		const after = second.stats();

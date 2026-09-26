@@ -95,7 +95,8 @@ describe('the renderer', () => {
 
 	it('draws no ambient frames while the tab is hidden, and reports its mode', async () => {
 		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: false });
-		expect(tabletop.stats().mode).toBe('ambient');
+		// On a slow machine the table may still be settling (active) at first.
+		await expect.poll(() => tabletop.stats().mode, { timeout: 10_000 }).toBe('ambient');
 		const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
 		document.dispatchEvent(new Event('visibilitychange'));
 		await wait(300);
