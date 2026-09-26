@@ -1,0 +1,56 @@
+// Shader warm-up (milestone 62, #149). The node renderer compiles 60-70
+// pipelines for a table where the classic one compiled a dozen, so compiling
+// them on the first frame a player sees stalls it for hundreds of ms. Instead,
+// when a table, an environment's look or a model is new, the frame loop is
+// held (the canvas keeps its last frame) while every layer is compiled from a
+// camera that sees the whole table, one layer at a time (compiling several at
+// once while frames are drawn trips three.js issue 34632). A warm-up never
+// holds for longer than WARM_UP_LIMIT_MS: what is left compiles on draw.
+
+import * as THREE from 'three/webgpu';
+
+/** Longest a warm-up may hold the frame loop, in ms (slow software GL). */
+export const WARM_UP_LIMIT_MS = 1500;
+
+/**
+ * Compiles the layers of `scene` for `camera`'s view, one after another,
+ * resolving when done or when WARM_UP_LIMIT_MS has passed (then the layers
+ * not reached compile on draw). Hidden one-shot effects (toll dust, previews)
+ * are left to compile when they first play: showing them here could let a
+ * frame drawn after a timed-out warm-up catch them visible.
+ */
+export async function warmUp(
+	renderer: THREE.WebGPURenderer,
+	scene: THREE.Scene,
+	camera: THREE.Camera,
+	layers: readonly THREE.Object3D[]
+): Promise<void> {
+	const limit = new Promise<void>((resolve) => setTimeout(resolve, WARM_UP_LIMIT_MS));
+	let timedOut = false;
+	const compile = (async () => {
+		for (const layer of layers) {
+			if (timedOut) return;
+			await renderer.compileAsync(layer, camera, scene);
+		}
+	})();
+	await Promise.race([compile, limit.then(() => void (timedOut = true))]);
+}
+
+/**
+ * Points `camera` so it sees the whole table, `extent` across, from high
+ * above. One camera is kept for every warm-up: the renderer caches what it
+ * compiles per camera, so a new camera each time would leave that behind.
+ */
+export function frameOverview(
+	camera: THREE.PerspectiveCamera,
+	extent: number,
+	aspect: number
+): void {
+	camera.fov = 60;
+	camera.aspect = aspect;
+	camera.far = Math.max(camera.far, extent * 4);
+	camera.position.set(0, extent * 1.4, extent * 0.4);
+	camera.lookAt(0, 0, 0);
+	camera.updateProjectionMatrix();
+	camera.updateMatrixWorld();
+}

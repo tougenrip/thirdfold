@@ -11,11 +11,34 @@ export const AMBIENT_FRAME_MS = 80;
 export class FrameLoop {
 	private frame = 0;
 	private ambientTimer: ReturnType<typeof setTimeout> | 0 = 0;
+	/** A warm-up is compiling: frames wait (the canvas keeps its last one). */
+	private held = false;
+	private wanted = false;
 
 	constructor(private readonly draw: () => void) {}
 
+	/** Holds frames until `work` settles, then draws once if anything asked meanwhile. */
+	hold(work: Promise<unknown>): void {
+		this.held = true;
+		void work.finally(() => {
+			this.held = false;
+			if (this.wanted) {
+				this.wanted = false;
+				this.request();
+			}
+		});
+	}
+
+	get holding(): boolean {
+		return this.held;
+	}
+
 	/** Draws on the next animation frame (once, however often it is asked). */
 	request = (): void => {
+		if (this.held) {
+			this.wanted = true;
+			return;
+		}
 		if (!this.frame) {
 			this.frame = requestAnimationFrame(() => {
 				this.frame = 0;
@@ -126,5 +149,9 @@ export async function createNodeRenderer(
 	});
 	await renderer.init();
 	stopInternalLoop(renderer);
+	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer
+	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 	return renderer;
 }

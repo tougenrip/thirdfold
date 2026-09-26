@@ -31,13 +31,14 @@ import { FogLayer, playerVisible, type FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { LightingLayer } from './lighting';
+import { frameOverview, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, FrameLoop, watchReducedMotion } from './loop';
 import { benchmark, instrument, PerfRecorder, rendererStats, timeGpuFrames } from './perf';
 import { poseFor } from './poses';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
 import { PropLayer } from './props';
-import { createSceneLights, FAR, FOG, fitToTable } from './scene-lights';
+import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
 import { TableLayer } from './table';
 import { TerrainLayer, terrainShade } from './terrain';
@@ -64,40 +65,33 @@ export async function createTabletop(
 ): Promise<Tabletop> {
 	const clock = options.now ?? (() => performance.now());
 	const renderer = await createNodeRenderer(canvas, options);
-	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
-	renderer.shadowMap.enabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer
 	let shadowsDirty = true;
 	/** A shadow map never drawn reads as garbage (lit surfaces go black), so the first frame always draws it. */
 	let shadowMapDrawn = false;
 	/** Things moved in the last frame: their final step changes shadows too. */
 	let wasMoving = false;
-	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 	const perf = new PerfRecorder();
 	const loop = new FrameLoop(render);
 	const requestRender = loop.request;
-	const scene = new THREE.Scene();
-	scene.background = new THREE.Color(BACKGROUND);
-	const fog = new THREE.Fog(BACKGROUND, FOG.near, FOG.far);
-	scene.fog = fog;
-
+	const { scene, fog } = createScene(BACKGROUND);
 	const rig = new CameraRig(canvas, FAR);
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
 	const { sun } = lights;
-	// The sun's shadows are drawn again only when something on the table changed (see
-	// shadowsDirty), not when just the camera moves or flames flicker: that pass draws the
-	// whole scene a second time.
-	sun.shadow.autoUpdate = false;
 
 	const table = new TableLayer();
 	scene.add(table.group);
-	// A figure's model arriving draws it again, shadows too.
-	const tokenLayer = new TokenLayer(() => {
-		shadowsDirty = true;
+	/** A model arrived: warm up its shaders, then draw it (shadows too). */
+	const onModel = () => {
+		shadowsDirty = warmPending = true;
 		requestRender();
-	});
+	};
+	/** Something new needs its shaders compiled before the next frame (see warmup.ts). */
+	let warmPending = true;
+	let warming: Promise<void> = Promise.resolve();
+	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
+	const tokenLayer = new TokenLayer(onModel);
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer();
 	scene.add(wallLayer.group);
@@ -118,11 +112,7 @@ export async function createTabletop(
 		refreshLighting();
 	});
 	let reducedMotion = motion.reduced;
-	// A model arriving draws its props again, shadows too.
-	const propLayer = new PropLayer(() => {
-		shadowsDirty = true;
-		requestRender();
-	}, clock);
+	const propLayer = new PropLayer(onModel, clock);
 	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
@@ -198,10 +188,28 @@ export async function createTabletop(
 	}
 
 	function render(): void {
+		if (warmPending && grid) return startWarmUp();
 		const start = performance.now();
 		perf.frame(start);
 		drawFrame(clock());
 		perf.add('frame', performance.now() - start);
+	}
+
+	/** Compiles the table's shaders while frames are held, then draws (the sun's shadow too). */
+	function startWarmUp(): void {
+		warmPending = false;
+		if (lightingStale) {
+			lightingStale = false;
+			relight();
+		}
+		const t0 = performance.now();
+		frameOverview(warmCamera, extent, camera.aspect);
+		warming = warmUp(renderer, scene, warmCamera, [...scene.children]).then(() => {
+			perf.add('warmup', performance.now() - t0);
+			shadowsDirty = true;
+		});
+		loop.hold(warming);
+		loop.request();
 	}
 
 	function drawFrame(now: number): void {
@@ -258,7 +266,7 @@ export async function createTabletop(
 		terrainLayer.setLook(look?.ground ?? null);
 		wallLayer.setLook(look?.walls ?? null);
 		refreshLighting();
-		shadowsDirty = true;
+		shadowsDirty = warmPending = true;
 		requestRender();
 	}
 
@@ -473,20 +481,11 @@ export async function createTabletop(
 			motion.stop();
 			stopSizing();
 			stopPicking();
-			rig.dispose();
-			table.dispose();
-			tokenLayer.dispose();
-			wallLayer.dispose();
-			fogLayer.dispose();
-			floorLayer.dispose();
-			lighting.dispose();
-			ambience.dispose();
-			terrainLayer.dispose();
-			effects.dispose();
-			propLayer.dispose();
-			diceLayer.dispose();
-			previews.dispose();
-			void renderer.dispose();
+			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting];
+			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
+				l.dispose();
+			// Not while a warm-up is still compiling for it.
+			void warming.then(() => renderer.dispose());
 		},
 		stats: () => rendererStats(renderer, perf),
 		resetStats: () => perf.reset(),

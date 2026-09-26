@@ -100,6 +100,21 @@ clears to black instead of the dark brown (the node renderer tone-maps the clear
 crushes that brown), and the line grid draws brighter. #153 retunes them and #157 takes overlays out
 of tone mapping; the sky (#114) replaces the background altogether.
 
+### Shader warm-up (#149)
+
+The node renderer compiles 60–75 pipelines for a table where the classic renderer compiled a dozen,
+and compiling them on the first visible frame stalled it for 300–680 ms. When a table, an
+environment's look or a model is new, the next frame is spent on a warm-up instead (`warmup.ts`):
+the frame loop is held (the canvas keeps its last frame) while each layer is compiled with
+`compileAsync`, one at a time, from one reused camera over the whole table; then the frame is drawn,
+with the sun's shadow. A warm-up never holds longer than 1.5 s; what it didn't reach compiles on
+draw. Hidden one-shot effects compile when they first play.
+
+Measured on the RTX 4060 (Chromium 153), loading the village, monastery and Hollow into a running
+table: the worst visible frame afterwards is 5–46 ms on the WebGL2 backend and 6–28 ms on WebGPU
+(the classic renderer's first frame was 26–57 ms), after a held warm-up of 0.5–0.9 s. That meets the
+go/no-go's condition.
+
 ### What the port breaks (r186)
 
 The port is [#144](https://github.com/tougenrip/thirdfold/issues/144).
