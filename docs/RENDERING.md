@@ -100,6 +100,43 @@ clears to black instead of the dark brown (the node renderer tone-maps the clear
 crushes that brown), and the line grid draws brighter. #153 retunes them and #157 takes overlays out
 of tone mapping; the sky (#114) replaces the background altogether.
 
+### World scale (#152) and the retune for the node renderer (#153)
+
+The world's scale is 1 cell = 1 unit = 5 ft: a level is 0.4 u (2 ft, `STEP_HEIGHT`), a wall 2.0 u
+(10 ft), the sight rule's eye 1.2 u (6 ft). The rules count in levels, so only the picture moved.
+Placeholder figures are drawn at 1.3× (`FIGURE_SCALE`) so they stand at human height under the walls
+until #118 authors real heights; lamp fixtures stand 1.5 u tall; dice are thrown from above the
+walls.
+
+The node renderer tone-maps the whole frame at the end (`needsFrameBufferTarget`), background and
+overlays included, and blends before it, in linear light; the classic renderer tone-mapped each lit
+material and blended the unlit overlays after, in sRGB. The retune undoes that difference with
+numbers rather than by eye:
+
+- **Colours that must come out exact** are the ones ACES turns into the old sRGB: the backgrounds
+  (day `292421`, dusk `252022`, dark `18171c` for the old `16120f`, `120e10`, `07060a`), the fog's
+  hidden shade (`1d1b19` for `0b0908`: unexplored cells are still the same near-black) and the
+  darkness colour (`13111a` for `040308`), found by inverting three's ACES curve per channel.
+- **Alphas** that match the old ones over floors of middling brightness: the fog's explored dim 150
+  → 173 and the GM's tints 110 → 128 and 55 → 69 (a black overlay blended in linear light lets more
+  of a lit floor through), grid lines 0.35 → 0.17 and mist 0.2/0.14 → 0.11/0.1 (a light colour
+  blended in linear light lifts a dark floor), and label plates 0.78 → 0.9. #157 takes grid lines
+  and labels out of tone mapping, where the old values are right again.
+- **Roughness** of the table surface and floors 0.95 → 1: r181's energy-conserving specular made
+  them read brighter.
+- **Unchanged:** light intensities, `PRESETS` strengths and the sun's shadow bias. With the retune the
+  metrics already match, and the close poses show no acne and no minis or posts detached from their
+  shadows at `bias -0.0005`, so no `normalBias` was added. Raised lamps keep their intensity: the
+  floor a cell or two away gets about the same light (it lands less slanted), only the spot right
+  under a lamp is dimmer, and compensating by the height's square blew out the walls beside it.
+
+Measured on the WebGL2 backend at the old scale against the baseline v0 goldens (pixelmatch 0.1,
+0.5%): the port alone failed 37 of 113; after the retune 109 of 113 pass, and the look-metric
+distance to v0 averages 0.009 (from 0.054). The four left are one image, `ref-1`'s close shot, where
+the sconce's flame (emissive 2, well above 1 before tone mapping) glows through the label in front of
+it, 1.1% of pixels; #157 fixes it. The goldens were then re-baselined once at the new scale, and
+`docs/look/m62/` is the strip.
+
 ### Shader warm-up (#149)
 
 The node renderer compiles 60–75 pipelines for a table where the classic renderer compiled a dozen,

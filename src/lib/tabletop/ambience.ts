@@ -38,8 +38,7 @@ export class AmbienceLayer {
 			color: 0xb8c2d0,
 			transparent: true,
 			opacity: 0,
-			depthWrite: false,
-			toneMapped: false
+			depthWrite: false
 		});
 		this.texture = mistTexture();
 		if (this.texture) this.material.map = this.texture;
@@ -63,7 +62,9 @@ export class AmbienceLayer {
 	update(grid: SquareGrid, ambient: Ambient): void {
 		this.active = ambient !== 'day' && this.texture !== null && !this.reducedMotion;
 		this.group.visible = this.active;
-		this.material.opacity = ambient === 'dark' ? 0.2 : 0.14;
+		// Blended before tone mapping, which lifts a light colour: these look like the 0.2 and
+		// 0.14 it had after it over the floors mist lies on (#153).
+		this.material.opacity = ambient === 'dark' ? 0.11 : 0.1;
 		this.size = { w: grid.width * grid.cellSize, d: grid.height * grid.cellSize };
 		// Kept to the table: no mist over the dark around it.
 		const [hw, hd] = [this.size.w / 2, this.size.d / 2];

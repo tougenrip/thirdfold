@@ -63,7 +63,7 @@ function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite 
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 	const width = Math.min(ctx.measureText(name).width + 28, 256);
-	ctx.fillStyle = 'rgba(20, 15, 11, 0.78)';
+	ctx.fillStyle = 'rgba(20, 15, 11, 0.9)';
 	ctx.beginPath();
 	ctx.roundRect((256 - width) / 2, 8, width, 48, 12);
 	ctx.fill();

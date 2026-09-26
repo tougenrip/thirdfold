@@ -180,6 +180,35 @@ read to them, which is what players will see too.
   - near-black nights with no light on the table (`ref-7` at night, `ghost-town`): the night is a
     brown near-black with no moon or sky. A moonlit night and a sky replace it in #114.
 
+## Milestone 62
+
+The port to the node renderer, the world scale (#152) and the retune (#153) in one strip,
+`docs/look/m62/` (written by the look-metrics run itself from the render it measures). The retune
+aimed at baseline v0's look, not at the references: at the old scale it brings the port back to
+within 0.009 of v0 (see `docs/RENDERING.md`), so what moved below is the scale.
+
+| Reference | m61   | m62   |
+| --------- | ----- | ----- |
+| 1         | 0.171 | 0.189 |
+| 2         | 0.293 | 0.284 |
+| 3         | 0.130 | 0.137 |
+| 4         | 0.148 | 0.157 |
+| 6         | 0.214 | 0.228 |
+| 7         | 0.136 | 0.115 |
+| 8         | 0.199 | 0.193 |
+
+- **Closer on refs 2, 7 and 8.** Walls and minis at human height fill more of the frame the way
+  the references do.
+- **Further on the night pairings (refs 1, 3, 4 and 6), by 0.007–0.018.** Lamps now hang 1.6 u
+  up instead of 1 u, so the floor right under them is dimmer and the torch-lit centres of these
+  close shots darker, against references that are brighter there. The lighting milestone (#115)
+  moves these, not the scale.
+- **Seen in the strip, left for later:** a light's fixture (a post with a flame at 1.5 u) stands
+  on top of props that already are the light (the braziers of ref 6, the sconce of ref 1), and
+  their bowls are no longer lit from inside; lights that belong to a prop should take its shape
+  instead. The monastery's low golden looks at the wall of Oswin's cell, since a low camera
+  can't see over 2 u walls; dithering occluders between the camera and the minis (#283) fixes it.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

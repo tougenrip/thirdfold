@@ -3,7 +3,8 @@
 // images are private: they are read from .look-refs/ (gitignored, filled by
 // scripts/look-metrics.mjs from $LOOK_REFS) and only their numbers are
 // committed. Without them the committed reference numbers are used, so anyone
-// can measure a render; with neither, this skips.
+// can measure a render; with neither, this skips. Each render is also written
+// to docs/look/<milestone>/ref-<n>.png, the milestone's strip.
 //   node scripts/look-metrics.mjs [--ours-only]
 
 import { commands } from 'vitest/browser';
@@ -97,6 +98,24 @@ async function renderOurs(p: Pairing) {
 	return { data: pixels, width: WIDTH, height: HEIGHT };
 }
 
+/** Writes a render (rows bottom-up, as read back) as a PNG in the milestone's strip. */
+async function writeStrip(p: Pairing, pixels: Uint8Array) {
+	const canvas = new OffscreenCanvas(WIDTH, HEIGHT);
+	const ctx = canvas.getContext('2d')!;
+	const image = ctx.createImageData(WIDTH, HEIGHT);
+	const row = WIDTH * 4;
+	for (let y = 0; y < HEIGHT; y++)
+		image.data.set(pixels.subarray((HEIGHT - 1 - y) * row, (HEIGHT - y) * row), y * row);
+	ctx.putImageData(image, 0, 0);
+	const blob = await canvas.convertToBlob({ type: 'image/png' });
+	const bytes = new Uint8Array(await blob.arrayBuffer());
+	let binary = '';
+	for (const b of bytes) binary += String.fromCharCode(b);
+	await commands.writeFile(`docs/look/${MILESTONE}/ref-${p.reference}.png`, btoa(binary), {
+		encoding: 'base64'
+	});
+}
+
 describe('look metrics against the references', async () => {
 	const committed = await readJson<Report>(OUT);
 	const anyRefs = (await readReference(1)) !== null;
@@ -115,7 +134,9 @@ describe('look metrics against the references', async () => {
 				? lookMetrics(image, p.horizon)
 				: report.pairings[key]?.referenceMetrics;
 			if (!referenceMetrics) continue;
-			const metrics = lookMetrics(await renderOurs(p), p.horizon, true);
+			const ours = await renderOurs(p);
+			await writeStrip(p, ours.data);
+			const metrics = lookMetrics(ours, p.horizon, true);
 			report.pairings[key] = {
 				...p,
 				referenceMetrics,

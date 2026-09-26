@@ -56,7 +56,7 @@ export type {
 	TabletopOptions
 } from './types';
 
-const BACKGROUND = 0x16120f;
+const BACKGROUND = 0x292421; // the day preset's (lighting.ts)
 
 export async function createTabletop(
 	canvas: HTMLCanvasElement,

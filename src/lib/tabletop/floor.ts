@@ -25,7 +25,7 @@ export class FloorLayer {
 			new THREE.MeshStandardMaterial({
 				transparent: true,
 				depthWrite: false,
-				roughness: 0.95,
+				roughness: 1,
 				polygonOffset: true,
 				polygonOffsetFactor: -1,
 				polygonOffsetUnits: -1
