@@ -206,6 +206,7 @@ describe('applyRoomUpdate', () => {
 			summary: null,
 			rewards: [],
 			rules: { id: 'thirdfold-classic', version: 1, name: 'Thirdfold Classic', attribution: null },
+			build: null,
 			library: null,
 			cues: null
 		};

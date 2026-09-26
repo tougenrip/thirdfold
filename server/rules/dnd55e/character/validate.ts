@@ -28,6 +28,7 @@ import {
 	featSkills,
 	SPECIES_FEAT,
 	SPECIES_OPTIONS,
+	trainedWith,
 	weaponMastery
 } from './options';
 
@@ -50,6 +51,8 @@ export const POINTS = 27;
 
 const ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const NOTES_MAX = 20;
+/** Weapons a character may carry into play. */
+export const WEAPONS_MAX = 4;
 
 type Json = unknown;
 const isObject = (v: Json): v is Record<string, Json> =>
@@ -203,6 +206,7 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 		'feats',
 		'hitPoints',
 		'armor',
+		'weapons',
 		'notes',
 		'state'
 	]);
@@ -288,6 +292,7 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 			fail('armor.worn must be a catalog id or null');
 		if (typeof armor.shield !== 'boolean') fail('armor.shield must be true or false');
 	}
+	const weapons = ids(c.weapons, 'weapons', WEAPONS_MAX);
 	const notes: Record<string, string> = {};
 	if (!isObject(c.notes) || Object.keys(c.notes).length > NOTES_MAX)
 		fail(`notes must map up to ${NOTES_MAX} names to text`);
@@ -313,7 +318,7 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 	if (before.n) return null;
 
 	return {
-		version: c.version as 1,
+		version: c.version as typeof CHARACTER_VERSION,
 		id: c.id as string,
 		name: (c.name as string).trim(),
 		rules: { id: rules!.id as string, version: rules!.version as number },
@@ -343,6 +348,7 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 				? { method: 'average' }
 				: { method: 'rolled', rolls: [...(hp!.rolls as number[])] },
 		armor: { worn: armor!.worn as string | null, shield: armor!.shield as boolean },
+		weapons,
 		notes,
 		state: {
 			hp: state!.hp as number,
@@ -546,19 +552,19 @@ function checkChoices(c: DndCharacter, catalog: Catalog, bad: (msg: string) => v
 		bad(
 			`${klass.name} ${c.level} masters ${mastery.count} kinds of weapon, not ${c.class.weaponMasteries.length}`
 		);
-	const martial = klass.data.weapons;
 	for (const id of c.class.weaponMasteries) {
 		const w = catalog.get('weapon', id);
 		if (!w) bad(`no weapon "${id}"`);
 		else if (mastery.melee && w.data.type !== 'melee')
 			bad(`${klass.name} masters melee weapons only`);
-		else if (w.data.category === 'martial') {
-			const only = /Martial weapons that have the (.+) propert/.exec(martial);
-			const ok = only
-				? only[1].split(' or ').some((p) => w.data.properties.some((x) => x.startsWith(p)))
-				: /Martial weapons/.test(martial);
-			if (!ok) bad(`${klass.name} isn't trained with ${w.name}`);
-		}
+		else if (!trainedWith(klass.data, w.data)) bad(`${klass.name} isn't trained with ${w.name}`);
+	}
+
+	// Weapons carried: ones the class is trained with.
+	for (const id of c.weapons) {
+		const w = catalog.get('weapon', id);
+		if (!w) bad(`no weapon "${id}"`);
+		else if (!trainedWith(klass.data, w.data)) bad(`${klass.name} isn't trained with ${w.name}`);
 	}
 
 	// Hit points past level 1.

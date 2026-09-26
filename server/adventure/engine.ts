@@ -73,6 +73,8 @@ import {
 	findRuleset,
 	roll,
 	type AttackSituation,
+	type CharacterBuilder,
+	type JsonData,
 	type Strike,
 	type Ruleset,
 	type TestKind
@@ -93,6 +95,7 @@ import {
 	type Verb,
 	type When
 } from './define';
+import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
 import { contentOf, defaultAdventure, findAdventure } from './registry';
 import type { AdventureState, CharacterState, Encounter, EnemyState, TurnEntry } from './state';
 import {
@@ -108,7 +111,7 @@ import {
 
 /** The content of the adventure a story is of. */
 export function content(adventure: AdventureState): AdventureDef {
-	return contentOf(adventure.id);
+	return withBuilt(contentOf(adventure.id), adventure.built);
 }
 
 /** The rules a story plays by. A story only ever names a ruleset this server has (see persist.ts). */
@@ -293,7 +296,7 @@ function placeCharacter(
 		ownerId,
 		vision: def.vision,
 		light: def.light,
-		model: id
+		model: def.model ?? id
 	};
 	room.tokens.set(token.id, token);
 	return token;
@@ -399,9 +402,89 @@ export function releaseCharacter(room: Room, actor: Player): Outcomes {
 	if (!mine) return fail('forbidden', "You haven't chosen a character.");
 	room.tokens.delete(mine.token.id);
 	adventure.characters.delete(mine.id);
+	// A character the player built goes with them.
+	if (adventure.built?.has(mine.id)) {
+		const built = new Map(adventure.built);
+		built.delete(mine.id);
+		adventure.built = built;
+	}
 	return {
 		ok: true,
 		log: [postSystem(room, `${actor.name} put ${mine.def.name} back.`)]
+	};
+}
+
+/** Whether players may build their own characters for this story, under its rules. */
+export function canBuild(adventure: AdventureState): boolean {
+	return (
+		!!contentOf(adventure.id).openParty &&
+		!!rulesOf(adventure).builder &&
+		adventure.stage !== 'complete' &&
+		adventure.stage !== 'defeat'
+	);
+}
+
+const CANT_BUILD = fail('forbidden', 'This story has its own characters to choose from.');
+
+/** What a player may build a character from, under the story's rules. */
+export function creatorOptions(
+	room: Room
+): { ok: true; rules: string; options: JsonData } | ReturnType<typeof fail> {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (!canBuild(adventure)) return CANT_BUILD;
+	const rules = rulesOf(adventure);
+	return { ok: true, rules: rules.id, options: rules.builder!.options() };
+}
+
+/** What a player's choices would come to, or what is wrong with them. Changes nothing. */
+export function previewCharacter(
+	room: Room,
+	choices: unknown
+): { ok: true; preview: ReturnType<CharacterBuilder['preview']> } | ReturnType<typeof fail> {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (!canBuild(adventure)) return CANT_BUILD;
+	return { ok: true, preview: rulesOf(adventure).builder!.preview(choices) };
+}
+
+/** A player builds a character under the story's rules and takes it to the table. */
+export function buildCharacter(room: Room, actor: Player, choices: unknown): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (!canBuild(adventure)) {
+		if (adventure.stage === 'complete' || adventure.stage === 'defeat')
+			return fail('forbidden', 'This story is over.');
+		return CANT_BUILD;
+	}
+	if (actor.role !== 'player') return fail('forbidden', 'Only players can build a character.');
+	const mine = characterOf(room, actor.id);
+	if (mine) return fail('forbidden', `You are already playing ${mine.def.name}.`);
+	const id = nextBuiltId(content(adventure));
+	if ((adventure.built?.size ?? 0) >= BUILT_MAX || !id) {
+		return fail('limit_reached', 'This story has as many built characters as it can hold.');
+	}
+	const built = rulesOf(adventure).builder!.build(choices, id);
+	if (!built.ok) {
+		return fail(
+			'invalid_message',
+			`That character can't be made: ${built.problems.slice(0, 4).join('; ')}.`
+		);
+	}
+	const before = adventure.built;
+	adventure.built = new Map([...(before ?? []), [id, { def: built.def, saved: built.saved }]]);
+	const token = placeCharacter(room, content(adventure), adventure.location, id, actor.id);
+	if (!token) {
+		adventure.built = before;
+		return fail('cell_occupied', 'There is no room on the road. Ask the GM to clear it.');
+	}
+	adventure.characters.set(id, newCharacter(token.id, built.def));
+	return {
+		ok: true,
+		log: [
+			postSystem(room, `${actor.name} is playing ${built.def.name}, ${built.def.tagline}.`),
+			say(room, built.def.intro)
+		]
 	};
 }
 
@@ -2871,6 +2954,8 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	const begun = adventure.stage !== 'choosing';
 	applyScene(room, A.locations[A.start.location].scene());
 	const next = newState(A, room);
+	// Characters players built stay theirs.
+	if (adventure.built?.size) next.built = adventure.built;
 	for (const { id, ownerId } of keep) {
 		const owner = ownerId && room.players.get(ownerId);
 		const token = placeCharacter(

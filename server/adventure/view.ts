@@ -9,6 +9,7 @@ import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
 import { AMBUSH, type AdventureDef } from './define';
 import {
+	canBuild,
 	cannotRate,
 	chapterNumber,
 	characterOf,
@@ -302,6 +303,7 @@ export function adventureView(
 		summary: summaryOf(adventure),
 		rewards: [...adventure.rewards],
 		rules: rulesInfo(rules),
+		build: canBuild(adventure) ? { rules: rules.id } : null,
 		library: adventure.library
 			? {
 					id: adventure.library.id,

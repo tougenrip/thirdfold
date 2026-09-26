@@ -490,6 +490,11 @@ export interface AdventureView {
 	rewards: string[];
 	/** The rules the story plays by. */
 	rules: RulesInfo;
+	/**
+	 * Whether players may build their own character for this story under its
+	 * rules (the rules' id, for the creation page), else null.
+	 */
+	build: { rules: string } | null;
 	/** Where the adventure came from, when it is from the library; null otherwise. */
 	library: LibrarySourceView | null;
 	/** GM only: prepared text to read aloud. */

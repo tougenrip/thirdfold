@@ -2627,4 +2627,99 @@ describe('fifth edition rules over the wire', () => {
 		expect(attack.explain).toContain('vs AC 15: critical hit');
 		expect(await untilLog(pip, 'attack')).toEqual(attack);
 	});
+
+	it('lets a player build a legal character and play it, and refuses what the rules or seats do not allow', async () => {
+		const srd = (kind: string, slug: string) => `srd-5.2.1:${kind}:${slug}`;
+		const fighter = {
+			name: 'Kestra',
+			color: '#c0392b',
+			species: { id: srd('species', 'goliath'), options: { ancestry: 'stone' }, feat: null },
+			background: { id: srd('background', 'soldier'), increases: { str: 2, con: 1 } },
+			class: {
+				id: srd('class', 'fighter'),
+				skills: ['perception', 'survival'],
+				expertise: [],
+				fightingStyle: srd('feat', 'great-weapon-fighting'),
+				weaponMasteries: [
+					srd('weapon', 'greatsword'),
+					srd('weapon', 'javelin'),
+					srd('weapon', 'longbow')
+				]
+			},
+			abilities: {
+				method: 'standard-array',
+				base: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 }
+			},
+			armor: { worn: srd('armor', 'chain-mail'), shield: false },
+			weapons: [srd('weapon', 'greatsword')]
+		};
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId: pipId } = await pip.expect('welcome');
+		const sid = await connect();
+		sid.send({ type: 'join', roomId: room.id, name: 'Sid', role: 'spectator' });
+		await sid.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const reset = await pip.until('room_reset');
+		expect(reset.room.adventure!.build).toEqual({ rules: 'dnd-5.5e' });
+
+		// The creation page asks what it may offer, and what its choices come to.
+		pip.send({ type: 'character_options' });
+		const offered = await pip.until('character_options');
+		expect(offered.rules).toBe('dnd-5.5e');
+		expect((offered.options.classes as { name: string }[]).map((c) => c.name)).toContain('Fighter');
+		pip.send({ type: 'character_preview', choices: fighter });
+		expect((await pip.until('character_preview')).preview).toMatchObject({
+			ok: true,
+			// d10 + Constitution 2; chain mail 16.
+			summary: { title: 'Goliath Fighter 1 (Soldier)', hp: 12, armorClass: 16, speed: 35 }
+		});
+
+		// What the rules don't allow, and seats that may not build, are refused, and nothing changes.
+		pip.send({
+			type: 'adventure_build',
+			choices: { ...fighter, weapons: [srd('weapon', 'vorpal-sword')] }
+		});
+		expect(await pip.until('error')).toMatchObject({
+			code: 'invalid_message',
+			message: `That character can't be made: no weapon "srd-5.2.1:weapon:vorpal-sword".`
+		});
+		pip.send({
+			type: 'adventure_build',
+			choices: { ...fighter, abilities: { method: 'rolled', base: fighter.abilities.base } }
+		});
+		expect((await pip.until('error')).message).toContain('standard array or point buy');
+		sid.send({ type: 'adventure_build', choices: fighter });
+		expect(await sid.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_build', choices: fighter });
+		expect(await gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// A legal character comes to the table as the player's, for everyone to see.
+		pip.send({ type: 'adventure_build', choices: fighter });
+		const token = await gm.until('token_upserted', (m) => m.token.name === 'Kestra');
+		expect(token.token).toMatchObject({ ownerId: pipId, model: 'warden', color: '#c0392b' });
+		const update = await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.some((c) => c.id === 'pc-1' && c.inPlay)
+		);
+		expect(update.adventure!.characters.find((c) => c.id === 'pc-1')!.card).toMatchObject({
+			title: 'Goliath Fighter 1 (Soldier)',
+			defense: { name: 'Armor Class', value: 16 }
+		});
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		// It moves as the player's token.
+		pip.send({
+			type: 'token_move',
+			tokenId: token.token.id,
+			to: { x: token.token.pos.x, y: token.token.pos.y - 1 }
+		});
+		expect(await gm.until('token_moved', (m) => m.tokenId === token.token.id)).toBeTruthy();
+		// One character each.
+		pip.send({ type: 'adventure_build', choices: { ...fighter, name: 'Kestra Again' } });
+		expect((await pip.until('error')).message).toBe('You are already playing Kestra.');
+	});
 });

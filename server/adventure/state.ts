@@ -15,6 +15,7 @@ import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { Creator } from '../../src/lib/game/library';
 import type { RulesetRef } from '../rules/ruleset';
+import type { BuiltCharacter } from './built';
 import type { Origins } from './world';
 
 // Ids are the adventure's own (see define.ts): plain strings here.
@@ -134,6 +135,12 @@ export interface AdventureState {
 	/** The table the party is on. */
 	location: LocationId;
 	characters: Map<CharacterId, CharacterState>;
+	/**
+	 * Characters players built for this story under its rules, by id (see
+	 * built.ts). Replaced, never changed in place, whenever one is added or
+	 * removed. Absent or empty when nobody built one.
+	 */
+	built?: ReadonlyMap<CharacterId, BuiltCharacter>;
 	/**
 	 * Evidence found, in the order it was found, by clue id: who found it
 	 * themselves, and whether the whole party knows it.

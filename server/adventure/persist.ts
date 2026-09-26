@@ -24,6 +24,7 @@ import { CLASSIC } from '../rules/classic';
 import { findRuleset, type RulesetRef } from '../rules/ruleset';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
+import { BUILT_ID, BUILT_MAX, withBuilt, type BuiltCharacter } from './built';
 import { contentOf, findAdventure } from './registry';
 import type {
 	AdventureState,
@@ -66,6 +67,13 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			stage: adventure.stage,
 			chapter: adventure.chapter,
 			location: adventure.location,
+			...(adventure.built?.size
+				? {
+						built: Object.fromEntries(
+							[...adventure.built].map(([id, b]) => [id, JSON.parse(JSON.stringify(b.saved))])
+						)
+					}
+				: {}),
 			characters: Object.fromEntries(
 				[...adventure.characters].map(([id, c]) => [
 					id,
@@ -258,11 +266,24 @@ export function readAdventure(saved: SavedStory, scene: SceneFile): AdventureRea
 	}
 }
 
-function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile): AdventureState {
+function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
 	// Stories saved before rulesets played by the classic rules; a story keeps the rules it was pinned to.
 	const rules = data.rules === undefined ? { ...CLASSIC } : rulesRef(data.rules);
 	const ruleset = findRuleset(rules)!;
+	// Characters players built come back through their rules' builder, checked in full.
+	const built = new Map<string, BuiltCharacter>();
+	if (data.built !== undefined) {
+		const saved = Object.entries(record(data.built, 'built characters'));
+		check(!!ruleset.builder && saved.length <= BUILT_MAX, 'built characters');
+		for (const [id, raw] of saved) {
+			check(BUILT_ID.test(id) && !Object.hasOwn(base.characters, id), 'built characters');
+			const restored = ruleset.builder!.restore(raw, id);
+			check(restored.ok, `built character ${id}`);
+			built.set(id, { def: restored.def, saved: restored.saved });
+		}
+	}
+	const A = withBuilt(base, built);
 	const stage = oneOf(data.stage, STAGES, 'stage');
 	const chapter = oneOf(data.chapter, Object.keys(A.chapters), 'chapter');
 	const location = oneOf(data.location, Object.keys(A.locations), 'location');
@@ -530,6 +551,7 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 	return {
 		id: A.id,
 		rules,
+		...(built.size ? { built } : {}),
 		stage,
 		chapter,
 		location,

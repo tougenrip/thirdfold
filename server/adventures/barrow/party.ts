@@ -42,6 +42,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		feats: [],
 		hitPoints: { method: 'average' },
 		armor: { worn: srd('armor', 'chain-mail'), shield: true },
+		weapons: [srd('weapon', 'longsword')],
 		notes: { 'Gaming Set': 'Dice' }
 	},
 	veil: {
@@ -65,6 +66,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		feats: [],
 		hitPoints: { method: 'average' },
 		armor: { worn: srd('armor', 'leather-armor'), shield: false },
+		weapons: [srd('weapon', 'shortsword'), srd('weapon', 'shortbow')],
 		notes: {}
 	},
 	ember: {
@@ -92,6 +94,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		feats: [],
 		hitPoints: { method: 'average' },
 		armor: { worn: null, shield: false },
+		weapons: [srd('weapon', 'dagger'), srd('weapon', 'light-crossbow')],
 		notes: { 'Magic Initiate (Wizard)': 'Light, Mage Hand; Sleep' }
 	},
 	saint: {
@@ -115,6 +118,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		feats: [],
 		hitPoints: { method: 'average' },
 		armor: { worn: srd('armor', 'chain-mail'), shield: true },
+		weapons: [srd('weapon', 'mace')],
 		notes: { 'Magic Initiate (Cleric)': 'Guidance, Sacred Flame; Bless' }
 	}
 };

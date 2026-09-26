@@ -30,6 +30,8 @@ import {
 	SKILLS,
 	type Ability
 } from './core';
+import { srdCatalog } from './catalog';
+import { dndBuilder } from './character/builder';
 import { readSheet, sheetOf, type Sheet } from './sheet';
 
 export const DND_55E: RulesetRef = { id: 'dnd-5.5e', version: 1 };
@@ -182,7 +184,8 @@ export const dnd55e: Ruleset = {
 					`${t.at}: no ${t.kind === 'save' ? 'saving throw' : 'ability or skill'} "${t.stat}" in the fifth edition rules`
 				);
 		return problems;
-	}
+	},
+	builder: dndBuilder(srdCatalog, DND_55E, ATTRIBUTION)
 };
 
 registerRuleset(dnd55e);

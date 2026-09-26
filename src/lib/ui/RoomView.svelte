@@ -1459,7 +1459,13 @@
 		{/if}
 
 		{#if adventure && me.role === 'player' && !myCharacter && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
-			<CharacterSelect {adventure} players={room.players} send={act} />
+			<CharacterSelect
+				{adventure}
+				players={room.players}
+				send={act}
+				roomId={room.id}
+				creatorReply={conn.creatorReply}
+			/>
 		{/if}
 
 		{#if adventure && endKey && dismissedEnd !== endKey}

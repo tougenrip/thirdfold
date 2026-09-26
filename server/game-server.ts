@@ -168,6 +168,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const chatLimiter = new RateLimiter(8, 4 / 3);
 	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
 	const sceneLimiter = new RateLimiter(4, 0.25);
+	/** A character creator asks for its options and previews as the player chooses. */
+	const creatorLimiter = new RateLimiter(20, 4);
 	// Creators' adventures a table is playing are kept while it plays them.
 	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
@@ -651,6 +653,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'adventure_narrate' ||
 			msg.type === 'adventure_cue' ||
 			msg.type === 'adventure_claim' ||
+			msg.type === 'adventure_build' ||
 			msg.type === 'adventure_release';
 		if (chatty && !chatLimiter.take(player.id)) {
 			return sendError(ws, 'rate_limited', 'Slow down a little.');
@@ -677,6 +680,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				}
 				case 'adventure_claim':
 					return adventure.claimCharacter(room, player, msg.characterId);
+				case 'adventure_build':
+					return adventure.buildCharacter(room, player, msg.choices);
 				case 'adventure_release':
 					return adventure.releaseCharacter(room, player);
 				case 'adventure_begin':
@@ -1049,8 +1054,27 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return announce(room, result.message);
 			}
+			case 'character_options': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.creatorOptions(room);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, {
+					type: 'character_options',
+					rules: result.rules,
+					options: result.options
+				});
+			}
+			case 'character_preview': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.previewCharacter(room, msg.choices);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, { type: 'character_preview', preview: result.preview });
+			}
 			case 'adventure_start':
 			case 'adventure_claim':
+			case 'adventure_build':
 			case 'adventure_release':
 			case 'adventure_begin':
 			case 'adventure_interact':

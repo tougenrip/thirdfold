@@ -92,6 +92,8 @@ export interface CharacterDef {
 	actions: readonly Action[];
 	/** What a story's ruleset needs beyond the above (e.g. ability scores); absent under the classic rules. */
 	sheet?: RulesData;
+	/** The figure (a model asset's id) it stands on the table as; its id when absent. */
+	model?: string;
 }
 
 export const CHARACTERS: Record<CharacterId, CharacterDef> = {

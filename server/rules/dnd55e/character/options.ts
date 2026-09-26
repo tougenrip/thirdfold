@@ -6,7 +6,7 @@
 // spellcasting ability).
 
 import { ABILITIES, SKILLS, type Ability } from '../core';
-import type { ClassData, FeatData } from '../srd/records';
+import type { ClassData, FeatData, WeaponData } from '../srd/records';
 
 export type OptionSpec =
 	| { kind: 'one-of'; values: readonly string[] }
@@ -161,4 +161,13 @@ export function weaponMastery(data: ClassData, level: number): { count: number; 
 	if (column) return { count: columnNumber(column), melee };
 	const m = /mastery properties of (\w+) kinds/.exec(feature.text);
 	return { count: m ? (COUNT_WORDS[m[1]] ?? 0) : 0, melee };
+}
+
+/** Whether a class is trained with a weapon: all Simple ones, and the Martial ones its training names. */
+export function trainedWith(data: ClassData, weapon: WeaponData): boolean {
+	if (weapon.category === 'simple') return true;
+	const only = /Martial weapons that have the (.+) propert/.exec(data.weapons);
+	if (only)
+		return only[1].split(' or ').some((p) => weapon.properties.some((x) => x.startsWith(p)));
+	return /Martial weapons/.test(data.weapons);
 }

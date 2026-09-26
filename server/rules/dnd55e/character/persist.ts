@@ -17,10 +17,12 @@ type Raw = Record<string, unknown>;
 
 /**
  * Migrations, by the version they upgrade from: MIGRATIONS[n] turns a
- * version n character into version n + 1. Version 1 is the first shape, so
- * there are none yet; the next change to the shape adds MIGRATIONS[1].
+ * version n character into version n + 1.
  */
-export const MIGRATIONS: Readonly<Record<number, (raw: Raw) => Raw>> = {};
+export const MIGRATIONS: Readonly<Record<number, (raw: Raw) => Raw>> = {
+	// Version 2 carries weapons; a version 1 character carried none.
+	1: (raw) => ({ ...raw, weapons: [] })
+};
 
 /** A character as JSON, the same character always the same text. */
 export function serializeCharacter(character: DndCharacter): string {

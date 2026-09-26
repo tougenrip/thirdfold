@@ -14,7 +14,7 @@ import type { CatalogPin } from '../catalog';
 import type { Ability } from '../core';
 
 /** The version of the stored shape. Bump it and add a migration in persist.ts when it changes. */
-export const CHARACTER_VERSION = 1;
+export const CHARACTER_VERSION = 2;
 
 /** How the six base scores were generated (SRD: "Generate Your Scores"). */
 export type ScoreMethod = 'standard-array' | 'point-buy' | 'rolled';
@@ -82,6 +82,8 @@ export interface DndCharacter {
 	hitPoints: { method: 'average' } | { method: 'rolled'; rolls: number[] };
 	/** What the character wears, for Armor Class. Milestone 47 brings the rest of the gear. */
 	armor: { worn: string | null; shield: boolean };
+	/** Weapon record ids the character carries into play (version 2). Milestone 47 brings the rest of the gear. */
+	weapons: string[];
 	/**
 	 * Choices the rules keep but don't check yet, by name (spells from Magic
 	 * Initiate, tools, instruments): later milestones check them.

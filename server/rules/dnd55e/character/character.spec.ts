@@ -32,7 +32,7 @@ describe('fifth edition characters', () => {
 	it('derives every number from the choices, by the SRD', () => {
 		const { character, derived } = partyMember('warden');
 		expect(character).toMatchObject({
-			version: 1,
+			version: 2,
 			rules: DND_55E,
 			catalog: {
 				source: 'srd-5.2.1',
@@ -181,6 +181,7 @@ describe('fifth edition characters', () => {
 				feats: [],
 				hitPoints: { method: 'average' },
 				armor: { worn: null, shield: false },
+				weapons: [srd('weapon', 'quarterstaff')],
 				notes: {}
 			}),
 			catalog
@@ -216,6 +217,7 @@ describe('fifth edition characters', () => {
 				feats: [],
 				hitPoints: { method: 'average' },
 				armor: { worn: null, shield: true },
+				weapons: [srd('weapon', 'greataxe')],
 				notes: {}
 			}),
 			catalog
@@ -380,25 +382,31 @@ describe('fifth edition characters', () => {
 
 	it('migrates older versions forward and refuses newer ones', () => {
 		const current = JSON.parse(serializeCharacter(partyMember('veil').character));
+		expect(current.version).toBe(2);
 		expect(migrateCharacter(current)).toEqual({ ok: true, raw: current });
-		expect(migrateCharacter({ ...current, version: 2 })).toEqual({
+		expect(migrateCharacter({ ...current, version: 3 })).toEqual({
 			ok: false,
-			problems: ["saved as version 2, newer than this server's 1"]
+			problems: ["saved as version 3, newer than this server's 2"]
 		});
 		expect(migrateCharacter({ ...current, version: undefined })).toEqual({
 			ok: false,
 			problems: ['a character must say its version']
 		});
-		// A later shape (version 2, say, renaming `notes`) upgrades version 1 step by step.
-		const v2 = migrateCharacter(
+		// A version 1 character (from before weapons) comes back carrying none, and reads.
+		const { weapons, ...v1 } = { ...current, version: 1 };
+		expect(weapons.length).toBe(2);
+		const back = restoreCharacter(JSON.stringify(v1), catalog, DND_55E);
+		expect(back).toMatchObject({ ok: true, character: { version: 2, weapons: [] } });
+		// A later shape upgrades step by step, and one with no way forward is refused.
+		const v3 = migrateCharacter(
 			current,
-			{ 1: ({ notes, ...rest }) => ({ ...rest, extras: notes }) },
-			2
+			{ 2: ({ notes, ...rest }) => ({ ...rest, extras: notes }) },
+			3
 		);
-		expect(v2).toMatchObject({ ok: true, raw: { version: 2, extras: {} } });
-		expect(migrateCharacter(current, {}, 3)).toEqual({
+		expect(v3).toMatchObject({ ok: true, raw: { version: 3, extras: {} } });
+		expect(migrateCharacter(current, {}, 4)).toEqual({
 			ok: false,
-			problems: ['no way to bring version 1 forward']
+			problems: ['no way to bring version 2 forward']
 		});
 	});
 

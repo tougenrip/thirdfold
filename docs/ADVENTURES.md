@@ -154,6 +154,13 @@ rules and the catalog it was made from; `readCharacter` checks every choice,
 `CharacterDef` a table plays. The Barrow's four characters are made this way
 (`server/adventures/barrow/party.ts`).
 
+A story played by rules that can build characters may let players bring
+their own: set `openParty: true` on the adventure (The Barrow does). Players
+then see "Create your own character" beside the story's characters; the
+server builds only a legal level 1 character, and it plays like the others
+(its weapons are its attacks). A story that names its own characters in its
+events or lines (as The Hollow Bell does) should leave it off.
+
 ## Checking and testing
 
 `validateAdventure` (`server/adventure/validate.ts`) names every reference

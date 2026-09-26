@@ -32,6 +32,12 @@ export type SceneReply = Extract<
 	seq: number;
 };
 
+/** A character creator's answer (what may be chosen, what choices come to), tagged so each is handled once. */
+export type CreatorReply = Extract<
+	ServerMessage,
+	{ type: 'character_options' | 'character_preview' }
+> & { seq: number };
+
 /** A rejected action (e.g. an illegal move). The connection itself is fine. */
 export interface ActionError {
 	code: ErrorCode | 'offline';
@@ -90,6 +96,7 @@ export class RoomConnection {
 	error = $state<ConnectionError | null>(null);
 	actionError = $state<ActionError | null>(null);
 	sceneReply = $state<SceneReply | null>(null);
+	creatorReply = $state<CreatorReply | null>(null);
 	/** The latest motions to show; `seq` increases so each batch plays once. */
 	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
@@ -226,6 +233,10 @@ export class RoomConnection {
 			case 'scene_list':
 			case 'scene_shared':
 				this.sceneReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'character_options':
+			case 'character_preview':
+				this.creatorReply = { ...msg, seq: ++this.errorSeq };
 				return;
 			default:
 				if (this.room) applyRoomUpdate(this.room, msg);

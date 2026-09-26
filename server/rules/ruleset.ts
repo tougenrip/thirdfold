@@ -129,6 +129,32 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	/** What is wrong with an adventure under these rules: its characters' sheets, its checks' stats. */
 	validate(adventure: AdventureDef): string[];
 	// Advancement: none of the rulesets so far advance characters; the contract grows when one does.
+	/** How players build their own characters under these rules, where the rules let them. */
+	builder?: CharacterBuilder;
+}
+
+/** A built character: the table's definition of it, and the plain data it is saved as. */
+export type Built =
+	{ ok: true; def: CharacterDef; saved: JsonData } | { ok: false; problems: string[] };
+
+/** Plain JSON: what a builder sends to a creator and saves with a story. */
+export type JsonValue = null | boolean | number | string | JsonValue[] | JsonData;
+export type JsonData = { [key: string]: JsonValue };
+
+/**
+ * Character creation under a ruleset. Every choice is checked here, on the
+ * server: a creation page may guide a player, but only what `build` accepts
+ * reaches the table, and every number comes from the rules.
+ */
+export interface CharacterBuilder {
+	/** What a player may choose from, as plain data for a creation page. */
+	options(): JsonData;
+	/** What the choices come to (the numbers the rules give them), or what is wrong with them. */
+	preview(choices: unknown): { ok: true; summary: JsonData } | { ok: false; problems: string[] };
+	/** A new character from a player's choices, with the id it will have at the table. */
+	build(choices: unknown, id: string): Built;
+	/** A built character back from what `build` saved. */
+	restore(saved: unknown, id: string): Built;
 }
 
 const rulesets = new Map<string, Ruleset>();

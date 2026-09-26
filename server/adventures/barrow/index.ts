@@ -40,6 +40,8 @@ export const BARROW: AdventureDef = {
 	version: 1,
 	rules: { ...DND_55E },
 	characters: { warden, veil, ember, saint },
+	// Players may also bring characters they build by the fifth edition rules.
+	openParty: true,
 	start: {
 		location: 'hill',
 		chapter: 'door',

@@ -543,6 +543,11 @@ export interface AdventureDef {
 	encounters: Readonly<Record<string, EncounterDef>>;
 	/** What an enemy guards (the guardian behaviour), and the state that counts as touched. */
 	ward?: { object: string; touched: ObjectState };
+	/**
+	 * Whether players may also build their own characters for this story,
+	 * under its rules (where the rules have a character builder).
+	 */
+	openParty?: boolean;
 	/** Prepared text for the GM to read aloud. */
 	cues: readonly { id: string; title: string; text: string }[];
 	voice: Voice;

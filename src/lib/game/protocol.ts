@@ -244,6 +244,16 @@ export type ClientMessage =
 	| { type: 'adventure_claim'; characterId: CharacterId }
 	/** Player: give back your character, before play begins. */
 	| { type: 'adventure_release' }
+	/**
+	 * Player: build your own character under the story's rules (where the
+	 * story allows it) and take it to the table. `choices` is the rules' own
+	 * shape, checked in full on the server.
+	 */
+	| { type: 'adventure_build'; choices: CharacterChoicesData }
+	/** Anyone at the table: what a character may be built from, under the story's rules. */
+	| { type: 'character_options' }
+	/** Anyone at the table: what these choices would come to, or what is wrong with them. Changes nothing. */
+	| { type: 'character_preview'; choices: CharacterChoicesData }
 	/** GM: characters are chosen, start playing. */
 	| { type: 'adventure_begin' }
 	/** Player: your character does `verb` (or the first thing it can) to something beside it. */
@@ -321,6 +331,25 @@ export type Direction =
 	| { op: 'spawn'; kind: string; pos: GridPos };
 
 export const ENCOUNTER_RESULTS = ['won', 'called_off'] as const;
+
+/** A player's character choices: plain, bounded JSON; the rules check what it says. */
+export type CharacterChoicesData = Record<string, unknown>;
+
+const CHOICES_LIMITS = { depth: 6, nodes: 400 };
+
+/** Choices are an object of plain JSON, small enough for any character. */
+function isChoices(value: unknown): value is CharacterChoicesData {
+	const count = { nodes: 0 };
+	const plain = (v: unknown, depth: number): boolean => {
+		if (++count.nodes > CHOICES_LIMITS.nodes || depth > CHOICES_LIMITS.depth) return false;
+		if (v === null || typeof v === 'string' || typeof v === 'boolean') return true;
+		if (typeof v === 'number') return Number.isFinite(v);
+		if (Array.isArray(v)) return v.every((x) => plain(x, depth + 1));
+		if (!isRecord(v) || Object.getPrototypeOf(v) !== Object.prototype) return false;
+		return Object.values(v).every((x) => plain(x, depth + 1));
+	};
+	return isRecord(value) && plain(value, 0);
+}
 
 export type ErrorCode =
 	| 'invalid_message'
@@ -416,6 +445,13 @@ export type ServerMessage =
 	| { type: 'library_published'; adventureId: string; version: number; gmKey?: string }
 	/** To whoever asked: the games open to join. */
 	| { type: 'games_list'; games: PublicGame[] }
+	/** To whoever asked: what a character may be built from (the rules' own shape). */
+	| { type: 'character_options'; rules: string; options: Record<string, unknown> }
+	/** To whoever asked: what the choices come to (the rules' own shape), or what is wrong. */
+	| {
+			type: 'character_preview';
+			preview: { ok: true; summary: Record<string, unknown> } | { ok: false; problems: string[] };
+	  }
 	| { type: 'error'; code: ErrorCode; message: string };
 
 export const NAME_MAX_LENGTH = 32;
@@ -917,6 +953,11 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				: null;
 		case 'adventure_again':
 			return { type: 'adventure_again' };
+		case 'character_options':
+			return { type: 'character_options' };
+		case 'adventure_build':
+		case 'character_preview':
+			return isChoices(data.choices) ? { type: data.type, choices: data.choices } : null;
 		case 'adventure_control':
 			return data.op === 'end_turn' || data.op === 'restart' || data.op === 'end'
 				? { type: 'adventure_control', op: data.op }
@@ -959,6 +1000,8 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		library_mine: (d) => Array.isArray(d.adventures),
 		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
 		games_list: (d) => Array.isArray(d.games),
+		character_options: (d) => typeof d.rules === 'string' && isRecord(d.options),
+		character_preview: (d) => isRecord(d.preview) && typeof d.preview.ok === 'boolean',
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};
 
