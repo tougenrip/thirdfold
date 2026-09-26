@@ -35,8 +35,10 @@ interface Entry {
 	duration: number;
 }
 
-const HOP_HEIGHT = 0.35;
-const LABEL_HEIGHT = 1.3;
+/** Placeholder figures (0.7-1.24 u) drawn at human height under 2 u walls; #118 replaces it. */
+const FIGURE_SCALE = 1.3;
+const HOP_HEIGHT = 0.45;
+const LABEL_HEIGHT = 1.9;
 const FLOAT_MS = 1500;
 
 interface Float {
@@ -224,7 +226,11 @@ export class TokenLayer {
 			entry.fallen = fallen;
 			// Tip the figure over sideways so it lies on its base.
 			entry.figure.rotation.z = fallen ? Math.PI / 2 : 0;
-			entry.figure.position.set(fallen ? 0.38 : 0, fallen ? 0.28 : 0, 0);
+			entry.figure.position.set(
+				fallen ? 0.38 * FIGURE_SCALE : 0,
+				fallen ? 0.28 * FIGURE_SCALE : 0,
+				0
+			);
 			changed = true;
 		}
 		return changed;
@@ -304,6 +310,7 @@ export class TokenLayer {
 		base.castShadow = true;
 		base.receiveShadow = true;
 		const figure = new THREE.Group();
+		figure.scale.setScalar(FIGURE_SCALE);
 		const paint = new THREE.MeshStandardMaterial({
 			color: 0xffffff,
 			roughness: 0.6,

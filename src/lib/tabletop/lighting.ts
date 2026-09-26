@@ -13,7 +13,7 @@ import type { Ground } from './ground';
 
 /** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
 const POOL_SIZE = 8;
-const FIXTURE_HEIGHT = 0.9;
+const FIXTURE_HEIGHT = 1.5;
 
 interface Preset {
 	background: number;

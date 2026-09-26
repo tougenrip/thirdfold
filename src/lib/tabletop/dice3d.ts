@@ -8,6 +8,7 @@ import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
 import { DIE_LABELS, seededRandom } from './dice-faces';
+import { WALL_HEIGHT } from './ground';
 import type { DieKind, ThrownDie } from './dice-throw';
 
 export interface DiceThrow {
@@ -344,6 +345,6 @@ export function throwFromView(
 	const from = center
 		.clone()
 		.add(toward)
-		.setY(cellSize * 2.5);
+		.setY(cellSize * (WALL_HEIGHT + 1)); // above the walls
 	return { center, from };
 }
