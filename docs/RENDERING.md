@@ -6,9 +6,8 @@ milestones 61–78.
 
 ## Decision: WebGPURenderer with TSL, WebGL2 through its fallback
 
-**Status:** accepted in milestone 61. The go/no-go spike in
-[#142](https://github.com/tougenrip/thirdfold/issues/142) confirms it or amends this record with
-numbers before any port lands.
+**Status:** accepted in milestone 61; confirmed by the go/no-go spike (#142, below) on 26 September
+2026, with one condition on first-frame compile.
 
 **Decision.** The renderer moves from `THREE.WebGLRenderer` to `three/webgpu`'s `WebGPURenderer`
 with TSL node materials and one `RenderPipeline` for post-processing. WebGL2 comes through
@@ -103,6 +102,68 @@ The port is [#144](https://github.com/tougenrip/thirdfold/issues/144).
   batches while frames are held.
 - three.js [#30560](https://github.com/mrdoob/three.js/issues/30560): per-object uniform buffer cost on
   WebGPU. Keep instancing and batching.
+
+### Go/no-go spike (#142), 26 September 2026
+
+A throwaway branch ported only the renderer's construction to `three/webgpu` (imports, async
+`init()`, `forceWebGL`, minimal stats; no visual fixes) and switched between three renderers by URL:
+A, `WebGPURenderer` on WebGPU; B, `WebGPURenderer` on its WebGL2 backend; C, today's `WebGLRenderer`.
+Measured with `scripts/perf-gpu.mjs` on the frozen village, monastery and Hollow fixtures, GM and a
+fogged player, three poses, 1920×1080, Chromium 153 (Playwright 1.63), Linux, ANGLE Vulkan. GPU ms
+are the median of 16 frames by timer queries (B, C) or WebGPU timestamp queries (A); each cell is the
+median over the three poses.
+
+| GPU                         | Table     | Viewer | C: WebGLRenderer | B: WebGL2 backend | A: WebGPU backend |
+| --------------------------- | --------- | ------ | ---------------- | ----------------- | ----------------- |
+| Intel Raptor Lake UHD (low) | village   | GM     | 12.90            | 12.67 (98%)       | 10.92 (85%)       |
+|                             | village   | player | 11.16            | 10.14 (91%)       | 8.31 (74%)        |
+|                             | monastery | GM     | 18.26            | 13.83 (76%)       | 11.40 (62%)       |
+|                             | monastery | player | 16.87            | 11.87 (70%)       | 10.13 (60%)       |
+|                             | hollow    | GM     | 33.85            | 25.98 (77%)       | 24.28 (72%)       |
+|                             | hollow    | player | 33.93            | 27.79 (82%)       | 24.24 (71%)       |
+| RTX 4060 Laptop (medium)    | village   | GM     | 2.39             | 0.79 (33%)        | 1.01 (42%)        |
+|                             | village   | player | 1.27             | 0.66 (52%)        | 0.85 (67%)        |
+|                             | monastery | GM     | 1.00             | 0.93 (93%)        | 1.08 (108%)       |
+|                             | monastery | player | 0.94             | 0.82 (87%)        | 0.83 (88%)        |
+|                             | hollow    | GM     | 1.75             | 2.06 (118%)       | 1.51 (86%)        |
+|                             | hollow    | player | 2.04             | 1.57 (77%)        | 1.42 (70%)        |
+
+| Setup (RTX 4060)  | First frame of a loaded table | Shader programs | `init()`  |
+| ----------------- | ----------------------------- | --------------- | --------- |
+| C: WebGLRenderer  | 26–57 ms                      | 12–16           | –         |
+| B: WebGL2 backend | 302–380 ms                    | 58–70           | 16–32 ms  |
+| A: WebGPU backend | 545–678 ms                    | 60–72           | 32–137 ms |
+
+- **Bundle:** the lazy renderer closure with both renderers in it was 342.5 kB gz, inside the 360 kB
+  budget; the port removes `WebGLRenderer`'s own code from it.
+- **Draw calls** roughly double (median 33 → 74 on the RTX): the node renderer counts the sun's
+  shadow pass, which the spike drew every frame. The port restores caching (#143).
+- **Browsers:** Chromium on the RTX and on the iGPU gets the WebGPU backend. Chromium with no WebGPU
+  adapter (SwiftShader) and Firefox on Linux (no `navigator.gpu`) fell back to the WebGL2 backend on
+  their own and drew the table. WebKit (the stand-in for Tauri's WebKitGTK) did not launch here for
+  missing system libraries.
+- **Visual deltas seen, for #153:** the line grid is much brighter and whiter; `scene.background`
+  shows as pure black instead of the dark brown; floors read slightly lighter and cooler. Objects,
+  lights, minis and labels are all there.
+- **The internal animation loop:** r186 `Renderer.init()` starts an `Animation` loop that requests a
+  frame on every vsync forever (it resets `info` and advances `nodeFrame`), which breaks render on
+  demand. The scheduler (#148) stops it right after `init()` (`renderer._animation.stop()`), sets
+  `info.autoReset = false`, and on each frame it draws resets `info` and calls
+  `nodeFrame.update()` itself, so time-based nodes and `ShadowNode`'s once-per-frame guard still work.
+  The spike ran this way.
+- **Node:** `three/webgpu` loads under Node, and `Mesh`, `Texture` and `MeshStandardMaterial` are the
+  same objects as in `three`, so the asset pipeline and the server-project tests are unaffected.
+
+**Decision: go.** The WebGL2 backend is not 20% slower than `WebGLRenderer` on any table on the iGPU:
+it is 2–30% faster, and the WebGPU backend 15–40% faster. One condition: first-frame compile is 6–12×
+today's (the rule allows 1.5×), so the port does not merge until #149's precompile brings the first
+frame of a loaded table under 1.5× of today's (about 85 ms). If it can't, the owner decides again.
+
+**Not yet verified, on the owner's machines to come:** WebView2 (Tauri on Windows), WKWebView (Tauri
+on macOS 15 and 26), WebKitGTK (Tauri on Linux, with and without `WEBKIT_DISABLE_DMABUF_RENDERER=1`),
+Capacitor Android, iOS 26, and an M-series Mac.
+
+**Owner sign-off:** pending on #142.
 
 ## Invariants
 
