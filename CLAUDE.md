@@ -37,7 +37,7 @@ npx vitest run -t "test name"
 npx vitest run --project client src/lib/tabletop/golden.svelte.spec.ts --update   # re-baseline golden images on purpose (Linux; see docs/RENDERING.md)
 npx tsx server/fixtures/build.ts   # rebuild tests/fixtures (--refreeze also rebuilds the frozen adventure tables)
 npm run bundle:check                # after build: three.js out of every page's static imports, sizes in budget
-npm run test:webgpu                 # the goldens and renderer smoke tests on WebGPU, on the local GPU (RTX 4060), about 2 minutes; local only
+npm run test:webgpu                 # the goldens, renderer smoke and recovery tests on WebGPU, on the local GPU (RTX 4060), about 3.5 minutes; local only
 node scripts/playthrough.mjs <url>  # plays every built-in adventure to its end in a real browser (GM skipping, a player): the table must come to rest after each step, moves must animate, no console errors; about 1.5 minutes, local only
 ```
 

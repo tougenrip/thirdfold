@@ -361,10 +361,18 @@ from the renderer's (MSAA is fixed at construction): `applyQuality` rebuilds wit
 `antialias`, which the component also picks before the first renderer when the tier is already known
 (`?tier=`, a chosen or measured tier).
 
-`recovery.svelte.spec.ts` forces a WebGL context loss (`WEBGL_lose_context`) on a mounted table and
-checks the same table comes back on a new canvas, a tier lower, the camera where it was, with the
-same programs, no more geometries or textures, and no console error. Forcing a WebGPU device loss
-has no test yet: `device.destroy()` never reaches three's handler (its reason is `destroyed`).
+`recovery.svelte.spec.ts` checks the same table comes back on a new canvas, a tier lower, the camera
+where it was, with no more geometries, textures or programs than before and no console error. On
+WebGL2 it loses the context (`WEBGL_lose_context`). On WebGPU (`npm run test:webgpu`) it crashes the
+GPU process through the DevTools protocol (the `crashGpu` browser command in `vite.config.ts`), a real
+device loss like a driver reset: `device.destroy()` never reaches three's handler, whose reason is
+then `destroyed`. The crash takes WebGPU away from the whole browser for a moment, so that project runs
+its files one at a time and the test waits for WebGPU to come back before it ends.
+
+**On devices (the device matrix, #361):** with a table open, send the app to the background for a
+minute and bring it back, on the Capacitor Android app and a WKWebView shell (iOS or macOS): the table
+draws again (restored if it was lost, "Restoring the table…" at most a few seconds), never a frozen
+canvas; chat, dice and panels keep working meanwhile.
 
 ### WebGPU golden images (#151)
 
@@ -373,7 +381,7 @@ The goldens and the renderer's smoke tests also run through the WebGPU backend, 
 never see it:
 
 ```bash
-npm run test:webgpu                                      # all of it, about 2 minutes
+npm run test:webgpu                                      # all of it, about 3.5 minutes
 npm run test:webgpu -- src/lib/tabletop/golden.svelte.spec.ts --update   # re-record on purpose
 ```
 

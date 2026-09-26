@@ -1,7 +1,19 @@
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
+import type { BrowserCommand } from 'vitest/node';
+import type { BrowserContext } from 'playwright';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
+
+/**
+ * Crashes the browser's GPU process: every page loses its WebGL context or WebGPU device, as after a
+ * driver reset. For the recovery tests (#150).
+ */
+const crashGpu: BrowserCommand<[]> = async (ctx) => {
+	const { context } = ctx as unknown as { context: BrowserContext };
+	const cdp = await context.browser()!.newBrowserCDPSession();
+	await cdp.send('Browser.crashGpuProcess');
+};
 
 /** The browser a client test project draws in: Chromium at DPR 1, 800x500, no tester UI. */
 function browser(args: string[], headless: boolean) {
@@ -15,6 +27,7 @@ function browser(args: string[], headless: boolean) {
 		// the tests after it; the golden images compare their own screenshots.
 		screenshotFailures: false,
 		instances: [{ browser: 'chromium' as const, headless }],
+		commands: { crashGpu },
 		expect: {
 			toMatchScreenshot: {
 				comparatorName: 'pixelmatch' as const,
@@ -92,10 +105,14 @@ export default defineConfig({
 									true
 								),
 								provide: { backend: 'webgpu' as const },
+								// One file at a time: the recovery test crashes the GPU process, which would
+								// take WebGPU away from files running beside it.
+								fileParallelism: false,
 								attachmentsDir: '.vitest-attachments',
 								include: [
 									'src/lib/tabletop/golden.svelte.spec.ts',
-									'src/lib/tabletop/renderer.svelte.spec.ts'
+									'src/lib/tabletop/renderer.svelte.spec.ts',
+									'src/lib/tabletop/recovery.svelte.spec.ts'
 								]
 							}
 						}
