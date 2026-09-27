@@ -188,3 +188,30 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		expect(Math.max(...across(0.6))).toBeGreaterThan(0);
 	});
 });
+
+describe.skipIf(BACKEND === 'webgpu')('the tone mapper', () => {
+	for (const tonemap of ['aces', 'agx', 'neutral']) {
+		it(`keeps black exactly black under ${tonemap}`, async () => {
+			const before = location.href;
+			history.replaceState(null, '', `?tonemap=${tonemap}`);
+			try {
+				const canvas = document.createElement('canvas');
+				renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
+				renderer.setSize(64, 64, false);
+				const scene = new THREE.Scene();
+				scene.background = new THREE.Color(0x000000);
+				const camera = new THREE.PerspectiveCamera();
+				const post = new Post(renderer, scene, camera, new THREE.Scene());
+				post.set(settingsFor('medium', 'webgl2'));
+				advanceNodeFrame(renderer);
+				post.render();
+				const gl = (renderer.backend as unknown as { gl: WebGL2RenderingContext }).gl;
+				const px = new Uint8Array(64 * 64 * 4);
+				gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
+				expect(Math.max(...px.filter((_, i) => i % 4 !== 3))).toBe(0);
+			} finally {
+				history.replaceState(null, '', before);
+			}
+		});
+	}
+});

@@ -25,10 +25,27 @@ import {
 	uniform,
 	vec4
 } from 'three/tsl';
+import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
 import type { QualitySettings } from './quality';
 
-/** The one tone mapper, applied once at the end (ACES until #158 decides). */
-export const TONE_MAPPING = THREE.ACESFilmicToneMapping;
+const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
+	agx: THREE.AgXToneMapping,
+	aces: THREE.ACESFilmicToneMapping,
+	neutral: THREE.NeutralToneMapping
+};
+
+/**
+ * The one tone mapper, applied once at the end: `GRADE_TONE_MAPPER`, or `?tonemap=agx|aces|neutral`
+ * to compare them (#158). It is compiled into the output stage, so the flag applies when the page
+ * loads; it is never saved.
+ */
+export function toneMappingFrom(search: string): THREE.ToneMapping {
+	const asked = new URLSearchParams(search).get('tonemap');
+	const name = TONE_MAPPERS.includes(asked as ToneMapper)
+		? (asked as ToneMapper)
+		: GRADE_TONE_MAPPER;
+	return TONE_MAPPINGS[name];
+}
 
 /** What a tier builds: the prepass, and the scene pass's MSAA samples. */
 export interface Stages {
@@ -193,7 +210,8 @@ export class Post {
 		const pipeline = new THREE.RenderPipeline(renderer);
 		pipeline.outputColorTransform = false;
 		const exposed = vec4(color.rgb.mul(this.uniforms.exposure), color.a);
-		const world = renderOutput(exposed, TONE_MAPPING, THREE.SRGBColorSpace);
+		const toneMapping = toneMappingFrom(globalThis.location?.search ?? '');
+		const world = renderOutput(exposed, toneMapping, THREE.SRGBColorSpace);
 		// The overlay is premultiplied and linear: straighten it, encode it to sRGB (no tone
 		// mapping) and lay it over the finished image, as the classic renderer blended it.
 		const over = overlayPass.getTextureNode('output');

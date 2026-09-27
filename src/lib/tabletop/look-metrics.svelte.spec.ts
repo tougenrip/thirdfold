@@ -28,6 +28,8 @@ const OUT = 'docs/look-metrics.json';
 /** Set by scripts/look-metrics.mjs; without it (a plain `npm test`) nothing is measured. */
 const MILESTONE = import.meta.env.VITE_LOOK_MILESTONE as string | undefined;
 const OURS_ONLY = import.meta.env.VITE_LOOK_OURS_ONLY === '1';
+/** A tone mapper to render through instead of the chosen one (`?tonemap=`, #158). */
+const TONEMAP = import.meta.env.VITE_LOOK_TONEMAP as string | undefined;
 
 interface Pairing {
 	reference: number;
@@ -122,6 +124,7 @@ describe('look metrics against the references', async () => {
 	const usable = !!MILESTONE && (anyRefs || !!committed);
 
 	it.skipIf(!usable)(`measures ${MILESTONE} and records it in ${OUT}`, async () => {
+		if (TONEMAP) history.replaceState(null, '', `?tonemap=${TONEMAP}`);
 		const report: Report = {
 			weightsVersion: WEIGHTS_VERSION,
 			weights: WEIGHTS,

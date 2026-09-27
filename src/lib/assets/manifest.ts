@@ -26,6 +26,17 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 export const MODEL_KINDS = ['prop', 'character', 'npc', 'enemy'] as const;
 export type ModelKind = (typeof MODEL_KINDS)[number];
 
+/** The tone mappers a colour grade can be authored after (#158). */
+export const TONE_MAPPERS = ['agx', 'aces', 'neutral'] as const;
+export type ToneMapper = (typeof TONE_MAPPERS)[number];
+
+/**
+ * The tone mapper the whole picture goes through, and every grade (#162) is authored after: the
+ * pipeline refuses a grade made for another. Frozen by #158; changing it regrades every LUT and
+ * re-baselines every golden image.
+ */
+export const GRADE_TONE_MAPPER: ToneMapper = 'aces';
+
 /** An asset id: lowercase letters, digits and dashes. Scene files and tokens refer to these. */
 export const ASSET_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}$/;
 
