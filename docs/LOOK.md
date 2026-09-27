@@ -267,6 +267,24 @@ darken between their walls at dusk (its golden re-baselined). SSAO's false occlu
 is small: a plain floor under a sky light loses 0.2% of its luminance at 3 units, 0.7% at 10 and 2.9%
 at 30.
 
+## Milestone 63: bloom (#160)
+
+`docs/look/m63-bloom/` against `m63-ao`: the braziers of refs 3 and 6, the ringing lamp of ref 1
+and the Cultist's lamp glow in a tight halo; the noon minis of ref 7 do not change.
+
+| Reference | distance before | after | bloom proxy (reference) | before | after  |
+| --------- | --------------- | ----- | ----------------------- | ------ | ------ |
+| 1         | 0.173           | 0.170 | 0.0190                  | 0.0131 | 0.0159 |
+| 3         | 0.140           | 0.139 | 0.0060                  | 0.0013 | 0.0016 |
+| 4         | 0.164           | 0.148 | 0.0000                  | 0.0013 | 0.0015 |
+| 6         | 0.247           | 0.261 | 0.0004                  | 0.0058 | 0.0071 |
+| 7         | 0.128           | 0.128 | 0.0094                  | 0.0007 | 0.0007 |
+
+Ref 1 moves toward its reference and ref 7 holds. Ref 6 moves away: its reference fire is orange
+and never reaches 95% in any channel, while our brazier cores already clip toward white under
+ACES, and the glow adds to them. The fire's own colour (#115, #312) and the grade (#162) are what
+bring it back, not a weaker bloom.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

@@ -48,6 +48,7 @@ export const LAYERS = [
 	'sky',
 	'post',
 	'ao',
+	'bloom',
 	'grass',
 	'water',
 	'vfx',
@@ -64,6 +65,8 @@ export interface QualitySettings {
 	/** Antialiasing: MSAA samples (applied through a renderer rebuild, #150). */
 	msaa: 0 | 4;
 	ao: boolean;
+	/** A glow around flames and what they light hot (#160). */
+	bloom: boolean;
 	/** Real point lights: a fixed pool, or clustered (ultra, #357). */
 	lights: 8 | 16 | 32 | 'clustered';
 	/** Torches near the camera that cast shadows (#230). */
@@ -88,6 +91,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		megapixels: 1.0,
 		msaa: 0,
 		ao: false,
+		bloom: true,
 		lights: 8,
 		shadowedTorches: 0,
 		sunShadowSize: 1024,
@@ -101,6 +105,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		megapixels: 2.1,
 		msaa: 4,
 		ao: true,
+		bloom: true,
 		lights: 16,
 		shadowedTorches: 2,
 		sunShadowSize: 2048,
@@ -114,6 +119,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		megapixels: 3.7,
 		msaa: 4,
 		ao: true,
+		bloom: true,
 		lights: 32,
 		shadowedTorches: 4,
 		sunShadowSize: 2048,
@@ -127,6 +133,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		megapixels: 3.7,
 		msaa: 4,
 		ao: true,
+		bloom: true,
 		lights: 'clustered',
 		shadowedTorches: 4,
 		sunShadowSize: 4096,
@@ -138,8 +145,8 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 	}
 };
 
-/** Each layer turns on in the milestone that passes its gates: post-processing and AO in M63. */
-const ON = new Set<Layer>(['post', 'ao']);
+/** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
+const ON = new Set<Layer>(['post', 'ao', 'bloom']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
@@ -190,6 +197,7 @@ export const OPTIONS = {
 	megapixels: [1, 2.1, 3.7, 8.3],
 	msaa: [0, 4],
 	ao: [false, true],
+	bloom: [false, true],
 	sunShadowSize: [1024, 2048, 4096],
 	fpsCap: [30, 60]
 } as const;

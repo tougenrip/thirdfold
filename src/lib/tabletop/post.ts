@@ -16,10 +16,15 @@
 // the scene pass's materials through `builtinAOContext`: it darkens indirect
 // light only (the hemisphere), so creases and the ground under things darken
 // while faces lit by torches, lamps and the sun keep their light.
+//
+// Bloom (#160) glows from the emissive attachment plus the part of the exposed
+// HDR image above 1 (a soft knee), so flames and what they light hot bloom
+// while sunlit grass and plaster, below 1, do not.
 
 import * as THREE from 'three/webgpu';
 import {
 	builtinAOContext,
+	clamp,
 	emissive,
 	float,
 	max,
@@ -37,6 +42,8 @@ import {
 } from 'three/tsl';
 import type SSAONode from 'three/examples/jsm/tsl/display/SSAONode.js';
 import { ssao } from 'three/examples/jsm/tsl/display/SSAONode.js';
+import type BloomNode from 'three/examples/jsm/tsl/display/BloomNode.js';
+import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
 import { needsPrepass, type QualitySettings } from './quality';
 
@@ -136,14 +143,23 @@ const AO_LOOKS: Record<string, { radius: number; intensity: number }> = {
 };
 /** How much of the occlusion shows, when on. */
 const AO_STRENGTH = 1;
+/** Bloom, when on: a tight, restrained glow (TaleWeaver blooms at 1 with a soft knee of 0.5). */
+const BLOOM = { strength: 0.3, radius: 0.2, knee: 0.5 };
 
 export class Post {
 	/** Linear exposure before tone mapping (the renderer's own stays 1). */
-	readonly uniforms = { exposure: uniform(1), aoStrength: uniform(0) };
+	/** The knobs: exposure and bloom are the cues' too (the toll and the flash, #222). */
+	readonly uniforms = {
+		exposure: uniform(1),
+		aoStrength: uniform(0),
+		bloomStrength: uniform(0)
+	};
 	private pipeline: THREE.RenderPipeline | null = null;
 	private stages: Stages | null = null;
 	/** The AO's resolution: half on medium, full above. */
 	private aoScale = 1;
+	/** The bloom's resolution: a quarter on low, half above. */
+	private bloomScale = 0.5;
 	private gates: { effect: THREE.Node; on: THREE.NodeUpdateType; strength: { value: number } }[] =
 		[];
 	prepass: THREE.PassNode | null = null;
@@ -151,6 +167,7 @@ export class Post {
 
 	overlayPass: THREE.PassNode | null = null;
 	ao: SSAONode | null = null;
+	bloom: BloomNode | null = null;
 	/** The environment and cell size the AO is sized for. */
 	private look = { environment: null as string | null, cellSize: 1 };
 
@@ -168,6 +185,9 @@ export class Post {
 		// Off on low (no prepass), by the tier's `ao` or `?off=ao`: a uniform, so no recompile.
 		this.uniforms.aoStrength.value = settings.ao && settings.layers.ao ? AO_STRENGTH : 0;
 		this.aoScale = settings.tier === 'medium' ? 0.5 : 1;
+		this.uniforms.bloomStrength.value =
+			settings.bloom && settings.layers.bloom ? BLOOM.strength : 0;
+		this.bloomScale = settings.tier === 'low' ? 0.25 : 0.5;
 		const same =
 			this.stages && this.stages.prepass === next.prepass && this.stages.samples === next.samples;
 		// Drawing straight to the canvas (`?off=post`) tone maps with the renderer's own.
@@ -177,6 +197,7 @@ export class Post {
 		// Only the output stage holds the tone mapper: recompose it and keep the passes, whose
 		// materials would otherwise all compile again.
 		if (this.ao) this.ao.resolutionScale = this.aoScale;
+		this.bloom?.setResolutionScale(this.bloomScale);
 		if (this.stages!.toneMapper === next.toneMapper) return;
 		this.stages = next;
 		this.compose(this.pipeline);
@@ -279,6 +300,13 @@ export class Post {
 			this.gate(ao, this.uniforms.aoStrength);
 		}
 
+		const glow = bloom(this.bloomInput(scenePass), this.uniforms.bloomStrength, BLOOM.radius, 0);
+		// The input is already only what should glow: no threshold of its own.
+		glow.highPassFn = (({ input }: { input: THREE.Node }) => input) as typeof glow.highPassFn;
+		glow.setResolutionScale(this.bloomScale);
+		this.bloom = glow;
+		this.gate(glow, this.uniforms.bloomStrength);
+
 		const overlayPass = new OverlayPassNode(this.overlay, camera, this.prepass ?? scenePass);
 		overlayPass.renderTarget.texture.type = halfFloat;
 		this.overlayPass = overlayPass;
@@ -289,10 +317,27 @@ export class Post {
 		this.pipeline = pipeline;
 	}
 
-	/** The output stage: exposure, the tone mapper and sRGB, then the overlay laid over it. */
+	/**
+	 * What glows: the emissive attachment, plus the exposed HDR colour above 1 with a soft knee
+	 * (quadratic from 1 - knee to 1 + knee, as Unity's bloom), by the brightest channel.
+	 */
+	private bloomInput(scenePass: THREE.PassNode) {
+		const hdr = scenePass.getTextureNode('output').rgb.mul(this.uniforms.exposure);
+		const bright = max(hdr.r, max(hdr.g, hdr.b));
+		const { knee } = BLOOM;
+		const soft = clamp(bright.sub(1 - knee), 0, 2 * knee);
+		const curve = soft.mul(soft).div(4 * knee);
+		const excess = max(curve, bright.sub(1)).div(max(bright, 1e-4));
+		return vec4(scenePass.getTextureNode('emissive').rgb.add(hdr.mul(excess)), 1);
+	}
+
+	/** The output stage: exposure and bloom, the tone mapper and sRGB, then the overlay over it. */
 	private compose(pipeline: THREE.RenderPipeline): void {
 		const color = this.scenePass!.getTextureNode('output');
-		const exposed = vec4(color.rgb.mul(this.uniforms.exposure), color.a);
+		// Off, the bloom's texture keeps its last frame: mix it out by the same strength.
+		const on = this.uniforms.bloomStrength.greaterThan(0).select(float(1), float(0));
+		const glow = this.bloom!.rgb.mul(on);
+		const exposed = vec4(color.rgb.mul(this.uniforms.exposure).add(glow), color.a);
 		const toneMapping = TONE_MAPPINGS[this.stages!.toneMapper];
 		const world = renderOutput(exposed, toneMapping, THREE.SRGBColorSpace);
 		// The overlay is premultiplied and linear: straighten it, encode it to sRGB (no tone
@@ -310,7 +355,8 @@ export class Post {
 		this.scenePass?.dispose();
 		this.overlayPass?.dispose();
 		this.ao?.dispose();
-		this.pipeline = this.prepass = this.scenePass = this.overlayPass = this.ao = null;
+		this.bloom?.dispose();
+		this.pipeline = this.prepass = this.scenePass = this.overlayPass = this.ao = this.bloom = null;
 		this.stages = null;
 		this.gates = [];
 	}

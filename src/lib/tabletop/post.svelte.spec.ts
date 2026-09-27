@@ -5,13 +5,16 @@
 // it draws straight to the canvas.
 
 import * as THREE from 'three/webgpu';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { TONE_MAPPERS } from '../assets/manifest';
 import { settingsFor, type Tier } from './quality';
 import { BACKEND } from './testing';
+
+// Software rendering under a full run's load takes a while: as the other renderer specs.
+vi.setConfig({ testTimeout: 60_000 });
 
 let renderer: THREE.WebGPURenderer | null = null;
 afterEach(() => {
@@ -337,6 +340,73 @@ describe.skipIf(BACKEND === 'webgpu')('ambient occlusion', () => {
 		for (const strength of [1, 1, 1]) at(strength);
 		const programs = renderer.info.memory.programs;
 		for (const strength of [0, 1, 0, 1]) at(strength);
+		expect(renderer.info.memory.programs).toBe(programs);
+	});
+});
+
+describe.skipIf(BACKEND === 'webgpu')('bloom', () => {
+	/** A flame (emissive 4) beside a sunlit wall, bloom at `strength`: luminance near each. */
+	async function measure(strength: number) {
+		const canvas = document.createElement('canvas');
+		renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
+		renderer.setSize(400, 300, false);
+		const scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x000000);
+		const flame = new THREE.Mesh(
+			new THREE.SphereGeometry(0.15),
+			new THREE.MeshStandardMaterial({ color: 0xffa040, emissive: 0xffa040, emissiveIntensity: 4 })
+		);
+		flame.position.set(-1, 0, 0);
+		const wall = new THREE.Mesh(
+			new THREE.PlaneGeometry(1.5, 2),
+			new THREE.MeshStandardMaterial({ color: 0xc8c0a8, roughness: 1 })
+		);
+		wall.position.set(1.2, 0, 0);
+		const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+		sun.position.set(0, 0, 5);
+		scene.add(flame, wall, sun, new THREE.AmbientLight(0xffffff, 0.3));
+		const camera = new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 50);
+		camera.position.set(0, 0, 5);
+		camera.updateMatrixWorld();
+		const post = new Post(renderer, scene, camera, new THREE.Scene());
+		post.set(settingsFor('medium', 'webgl2'));
+		post.uniforms.bloomStrength.value = strength;
+		for (let i = 0; i < 3; i++) {
+			advanceNodeFrame(renderer);
+			post.render();
+		}
+		const gl = (renderer.backend as unknown as { gl: WebGL2RenderingContext }).gl;
+		const lum = (x: number, y: number) => {
+			const p = new THREE.Vector3(x, y, 0).project(camera);
+			const px = new Uint8Array(4);
+			const [sx, sy] = [Math.round((p.x + 1) * 200), Math.round((p.y + 1) * 150)];
+			gl.readPixels(sx, sy, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+			return 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2];
+		};
+		const result = { halo: lum(-1.3, 0), wall: lum(1.2, 0) };
+		renderer.dispose();
+		renderer = null;
+		return result;
+	}
+
+	it('glows around a flame, not over a sunlit wall', async () => {
+		const off = await measure(0);
+		const on = await measure(0.3);
+		expect(on.halo).toBeGreaterThan(off.halo + 10);
+		expect(Math.abs(on.wall - off.wall)).toBeLessThanOrEqual(2);
+	});
+
+	it('turns off and on again without compiling anything', async () => {
+		const { renderer, post, draw } = await setup();
+		const at = (strength: number) => {
+			post.uniforms.bloomStrength.value = strength;
+			advanceNodeFrame(renderer);
+			post.render();
+		};
+		draw('high');
+		for (const strength of [0.3, 0.3, 0.3]) at(strength);
+		const programs = renderer.info.memory.programs;
+		for (const strength of [0, 0.3, 0, 0.3]) at(strength);
 		expect(renderer.info.memory.programs).toBe(programs);
 	});
 });

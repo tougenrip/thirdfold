@@ -511,6 +511,15 @@ passes, in order:
   high and ultra share a pipeline; low (no prepass, no MSAA) has its own and compiles its own
   shaders. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
   0 (`updateBeforeType` NONE), so toggling one never recompiles.
+- **Bloom** (#160) glows from the scene pass's emissive attachment plus the exposed HDR colour
+  above 1 with a soft knee of 0.5 (`Post.bloomInput`, Unity's curve on the brightest channel), so
+  flames and what they light hot bloom and sunlit grass and plaster, below 1, do not. Three's
+  `BloomNode` blurs it (its own threshold replaced by the identity, `highPassFn`) over 5 mips from
+  half resolution (a quarter on low), at strength 0.3 and radius 0.2, and the glow is added to the
+  exposed image before tone mapping; about 0.2 ms at 1080p on the RTX 4060, within the noise. Lit flames are at `emissiveIntensity` 4 so their cores exceed
+  1. `uniforms.bloomStrength` (0 with the Bloom option or `?off=bloom` off) gates its passes and
+     mixes its texture out, so toggling compiles nothing; it and `uniforms.exposure` are the cues'
+     knobs for the toll and the flash (#222).
 - **A timed-out warm-up still finishes the compile in flight** before frames resume: compiling
   for a pass sets the renderer's target and outputs until the compile ends (three reads them while
   it waits), and a frame drawn meanwhile drew into them, which on WebGPU built pipelines for the

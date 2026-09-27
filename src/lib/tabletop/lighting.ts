@@ -306,7 +306,8 @@ export class LightingLayer {
 			>;
 			flame.material.color.set(l.on ? l.color : '#3a3530');
 			flame.material.emissive.set(l.on ? l.color : '#000000');
-			flame.material.emissiveIntensity = l.on ? 2 : 0;
+			// Above 1 in HDR, so the flame core blooms (#160).
+			flame.material.emissiveIntensity = l.on ? 4 : 0;
 		}
 		for (const [id, fixture] of this.fixtures) {
 			if (seen.has(id)) continue;
