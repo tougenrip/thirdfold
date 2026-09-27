@@ -11,6 +11,7 @@
 // fifth edition characters from the SRD catalog (party.ts).
 
 import type { AdventureDef } from '../../adventure/define';
+import type { Shot } from '../../../src/lib/game/chat';
 import { cellsOf, door, light, prop, table, wall } from '../../adventure/tables';
 import { DND_55E } from '../../rules/dnd55e';
 import { ember, saint, veil, warden } from './party';
@@ -32,6 +33,9 @@ export const THRESHOLD = { x: 7, y: 7 };
 
 const say = (text: string) => ({ say: text });
 
+/** The arrival's shot: the eye goes to the barrow door in the hillside. */
+export const DOOR_SHOT: Shot = { focus: { x: 7, y: 9 }, frame: 'wide' };
+
 export const BARROW: AdventureDef = {
 	id: 'barrow',
 	title: 'The Barrow on Cold Hill',
@@ -46,9 +50,12 @@ export const BARROW: AdventureDef = {
 		location: 'hill',
 		chapter: 'door',
 		arrival: [
-			say(
-				'Dusk on Cold Hill. The barrow door is a slab of grey stone in the turf, carved all over, and the air that seeps around it is colder than the wind.'
-			)
+			{
+				...say(
+					'Dusk on Cold Hill. The barrow door is a slab of grey stone in the turf, carved all over, and the air that seeps around it is colder than the wind.'
+				),
+				shot: DOOR_SHOT
+			}
 		]
 	},
 	locations: {

@@ -60,7 +60,6 @@
 		type TutorialProgress
 	} from './tutorial';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
-	import SectionEnd from './SectionEnd.svelte';
 	import PropInspector from './PropInspector.svelte';
 	import ChatPanel from './ChatPanel.svelte';
 	import ScenePanel from './ScenePanel.svelte';
@@ -1524,14 +1523,17 @@
 		{/if}
 
 		{#if adventure && endKey && dismissedEnd !== endKey}
-			<SectionEnd
-				{adventure}
-				players={room.players}
-				me={me.id}
-				{isGm}
-				send={act}
-				onClose={() => (dismissedEnd = endKey)}
-			/>
+			<!-- The end screen is shown once a story is over, so it loads then. -->
+			{#await import('./SectionEnd.svelte') then { default: SectionEnd }}
+				<SectionEnd
+					{adventure}
+					players={room.players}
+					me={me.id}
+					{isGm}
+					send={act}
+					onClose={() => (dismissedEnd = endKey)}
+				/>
+			{/await}
 		{/if}
 	{:else}
 		<div class="loading" role="status">
