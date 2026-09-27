@@ -725,6 +725,24 @@
 				]
 			}
 		},
+		"gear-pile": {
+			"file": "models/gear-pile.9b449f7f.glb",
+			"bytes": 8388,
+			"kind": "prop",
+			"triangles": 192,
+			"bounds": {
+				"min": [
+					-0.25,
+					0,
+					-0.23
+				],
+				"max": [
+					0.31,
+					0.26,
+					0.23
+				]
+			}
+		},
 		"gear": {
 			"file": "models/gear.f2600d66.glb",
 			"bytes": 9900,

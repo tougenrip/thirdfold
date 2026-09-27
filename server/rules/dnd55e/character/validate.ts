@@ -5,14 +5,25 @@
 // class's skill list and how many, Expertise, a Fighting Style, Weapon
 // Mastery, a subclass from level 3, feats only at the levels that grant
 // them and only when their prerequisites are met, no score above its
-// maximum, armor the class is trained in, hit point rolls on the die), then
+// maximum, hit point rolls on the die, gear: armor the class is trained in,
+// what hands can hold and Carrying Capacity), then
 // the state of play against the derived maximums. Returns the character,
 // or every problem found.
 
 import type { RulesetRef } from '../../ruleset';
 import type { Catalog } from '../catalog';
 import { ABILITIES, isAbility, skillOf, SKILLS, type Ability } from '../core';
-import { deriveCharacter } from './derive';
+import { deriveCharacter, scoresOf } from './derive';
+import {
+	gearOf,
+	gearProblems,
+	INVENTORY_MAX,
+	ITEM_ID,
+	QUANTITY_MAX,
+	slotFor,
+	type InventoryItem,
+	type ItemSource
+} from './inventory';
 import {
 	CHARACTER_VERSION,
 	type CharacterChoices,
@@ -51,7 +62,7 @@ export const POINTS = 27;
 
 const ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const NOTES_MAX = 20;
-/** Weapons a character may carry into play. */
+/** Weapons a new character may choose to carry into play. */
 export const WEAPONS_MAX = 4;
 
 type Json = unknown;
@@ -112,7 +123,7 @@ export function createCharacter(
 		version: CHARACTER_VERSION,
 		rules: { id: rules.id, version: rules.version },
 		catalog: { ...catalog.pin },
-		state: { hp: 1, tempHp: 0, hitDiceSpent: 0, spent: {} }
+		state: { hp: 1, tempHp: 0, hitDiceSpent: 0, spent: {}, expended: {} }
 	};
 	const read = readCharacter(draft, catalog, rules);
 	if (!read.ok) return read;
@@ -205,8 +216,7 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 		'abilities',
 		'feats',
 		'hitPoints',
-		'armor',
-		'weapons',
+		'inventory',
 		'notes',
 		'state'
 	]);
@@ -286,13 +296,42 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 				fail('hitPoints.rolls must be the die rolled at each level');
 		} else if (hp.method !== 'average') fail('hitPoints.method must be average or rolled');
 	}
-	const armor = fields(c.armor, 'armor', ['worn', 'shield']);
-	if (armor) {
-		if (armor.worn !== null && typeof armor.worn !== 'string')
-			fail('armor.worn must be a catalog id or null');
-		if (typeof armor.shield !== 'boolean') fail('armor.shield must be true or false');
-	}
-	const weapons = ids(c.weapons, 'weapons', WEAPONS_MAX);
+	const inventory: InventoryItem[] = [];
+	if (!Array.isArray(c.inventory) || c.inventory.length > INVENTORY_MAX)
+		fail(`inventory must be a list of up to ${INVENTORY_MAX} things`);
+	else
+		c.inventory.forEach((raw, i) => {
+			const at = `inventory[${i}]`;
+			const e = fields(raw, at, ['id', 'item', 'quantity', 'equipped', 'source']);
+			if (!e) return;
+			if (typeof e.id !== 'string' || !ITEM_ID.test(e.id)) fail(`${at}.id must be item-N`);
+			else if (inventory.some((x) => x.id === e.id)) fail(`${at}.id is used twice`);
+			if (typeof e.item !== 'string' || e.item.length > 120)
+				fail(`${at}.item must be a catalog id`);
+			if (!isInt(e.quantity, 0, QUANTITY_MAX)) fail(`${at}.quantity must be 0 to ${QUANTITY_MAX}`);
+			if (e.equipped !== null && !['armor', 'shield', 'hand'].includes(e.equipped as string))
+				fail(`${at}.equipped must be armor, shield, hand or null`);
+			const src = isObject(e.source) ? e.source : null;
+			const source =
+				src?.how === 'starting' || src?.how === 'granted' || src?.how === 'recovered'
+					? Object.keys(src).length === 1
+						? ({ how: src.how } as ItemSource)
+						: null
+					: src?.how === 'found' && isText(src.where, 80) && Object.keys(src).length === 2
+						? ({ how: 'found', where: src.where } as ItemSource)
+						: src?.how === 'given' && isText(src.by, 60) && Object.keys(src).length === 2
+							? ({ how: 'given', by: src.by } as ItemSource)
+							: null;
+			if (!source) fail(`${at}.source must say where it came from`);
+			if (before.n) return;
+			inventory.push({
+				id: e.id as string,
+				item: e.item as string,
+				quantity: e.quantity as number,
+				equipped: e.equipped as InventoryItem['equipped'],
+				source: source!
+			});
+		});
 	const notes: Record<string, string> = {};
 	if (!isObject(c.notes) || Object.keys(c.notes).length > NOTES_MAX)
 		fail(`notes must map up to ${NOTES_MAX} names to text`);
@@ -301,8 +340,9 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 			if (!isText(k, 40) || !isText(v, 200)) fail(`notes.${k.slice(0, 40)} must be short text`);
 			else notes[k] = v;
 		}
-	const state = fields(c.state, 'state', ['hp', 'tempHp', 'hitDiceSpent', 'spent']);
+	const state = fields(c.state, 'state', ['hp', 'tempHp', 'hitDiceSpent', 'spent', 'expended']);
 	const spent: Record<string, number> = {};
+	const expended: Record<string, number> = {};
 	if (state) {
 		if (!isInt(state.hp, 0, 10_000)) fail('state.hp must be a whole number');
 		if (!isInt(state.tempHp, 0, 10_000)) fail('state.tempHp must be a whole number');
@@ -313,6 +353,14 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 			for (const [k, n] of Object.entries(state.spent)) {
 				if (!isInt(n, 0, 1000)) fail(`state.spent.${k.slice(0, 40)} must be a whole number`);
 				else spent[k] = n;
+			}
+		if (!isObject(state.expended) || Object.keys(state.expended).length > 10)
+			fail('state.expended must map ammunition to pieces expended');
+		else
+			for (const [k, n] of Object.entries(state.expended)) {
+				if (!isInt(n, 0, QUANTITY_MAX))
+					fail(`state.expended.${k.slice(0, 60)} must be a whole number`);
+				else expended[k] = n;
 			}
 	}
 	if (before.n) return null;
@@ -347,14 +395,14 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 			hp!.method === 'average'
 				? { method: 'average' }
 				: { method: 'rolled', rolls: [...(hp!.rolls as number[])] },
-		armor: { worn: armor!.worn as string | null, shield: armor!.shield as boolean },
-		weapons,
+		inventory,
 		notes,
 		state: {
 			hp: state!.hp as number,
 			tempHp: state!.tempHp as number,
 			hitDiceSpent: state!.hitDiceSpent as number,
-			spent
+			spent,
+			expended
 		}
 	};
 }
@@ -560,13 +608,22 @@ function checkChoices(c: DndCharacter, catalog: Catalog, bad: (msg: string) => v
 		else if (!trainedWith(klass.data, w.data)) bad(`${klass.name} isn't trained with ${w.name}`);
 	}
 
-	// Weapons carried: ones the class is trained with.
-	for (const id of c.weapons) {
-		const w = catalog.get('weapon', id);
-		if (!w) bad(`no weapon "${id}"`);
-		else if (!trainedWith(klass.data, w.data)) bad(`${klass.name} isn't trained with ${w.name}`);
+	// Gear: every entry a weapon, armor or ammunition of the catalog, equipped
+	// only where it goes (one piece at a time), within training, hands and
+	// Carrying Capacity.
+	for (const e of c.inventory) {
+		const g = gearOf(catalog, e.item);
+		if (!g) {
+			bad(`no weapon, armor or ammunition "${e.item}"`);
+			continue;
+		}
+		if (e.equipped && e.equipped !== slotFor(g))
+			bad(`${g.name} can't be equipped as ${e.equipped}`);
+		if (e.equipped && e.quantity !== 1) bad(`${e.quantity} ${g.name} equipped at once`);
+		if (e.quantity === 0 && g.kind !== 'ammunition') bad(`none of ${g.name}`);
 	}
-
+	for (const k of Object.keys(c.state.expended))
+		if (!catalog.get('ammunition', k)) bad(`expended "${k}", which isn't ammunition`);
 	// Hit points past level 1.
 	const die = Number(klass.data.hitDie.slice(1));
 	if (c.hitPoints.method === 'rolled') {
@@ -575,12 +632,7 @@ function checkChoices(c: DndCharacter, catalog: Catalog, bad: (msg: string) => v
 		if (c.hitPoints.rolls.some((r) => r > die)) bad(`a hit point roll above the d${die}`);
 	}
 
-	// Armor the class is trained in.
+	// Armor the class is trained in, hands, and what it can carry.
 	const training = armorTraining(klass.data);
-	if (c.armor.worn) {
-		const a = catalog.get('armor', c.armor.worn);
-		if (!a || a.data.category === 'shield') bad(`no armor "${c.armor.worn}"`);
-		else if (!training.has(a.data.category)) bad(`${klass.name} isn't trained in ${a.name}`);
-	}
-	if (c.armor.shield && !training.has('shield')) bad(`${klass.name} isn't trained with Shields`);
+	for (const p of gearProblems(c, catalog, scoresOf(c, catalog).str, klass.name, training)) bad(p);
 }

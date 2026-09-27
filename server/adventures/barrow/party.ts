@@ -1,21 +1,24 @@
 // The Barrow's four characters, built by the fifth edition character rules
 // from the SRD 5.2.1 catalog: each is a species, a background and a class
-// with the choices those ask for, and every number the table uses (hit
-// points, Armor Class, speed, scores, proficiencies, initiative) is derived
-// from them. What they look like and do at this table (colour, words, the
-// actions and their dice) is the adventure's, until equipment and spells are
-// modelled; the dice add the derived modifiers.
+// with the choices those ask for, and the gear its class starts with; every
+// number the table uses (hit points, Armor Class, speed, scores,
+// proficiencies, initiative, its attacks from the weapons in its hands) is
+// derived from them. What they look like at this table (colour, figure,
+// words, light) is the adventure's.
 
 import { CHARACTERS, type CharacterDef } from '../../../src/lib/adventure/characters';
 import { srdCatalog } from '../../rules/dnd55e/catalog';
-import { characterDefOf, type Presentation } from '../../rules/dnd55e/character/adventure';
+import { tableCharacter } from '../../rules/dnd55e/character/builder';
 import { deriveCharacter, type DerivedCharacter } from '../../rules/dnd55e/character/derive';
-import { sheetDetails } from '../../rules/dnd55e/character/details';
+import { startingInventory } from '../../rules/dnd55e/character/inventory';
 import type { CharacterChoices, DndCharacter } from '../../rules/dnd55e/character/model';
 import { createCharacter } from '../../rules/dnd55e/character/validate';
 import { DND_55E } from '../../rules/dnd55e';
 
 const srd = (kind: string, slug: string) => `srd-5.2.1:${kind}:${slug}`;
+/** What a character starts with: its armor worn, its Shield, its weapons and their ammunition. */
+const gear = (armor: string | null, shield: boolean, weapons: string[]) =>
+	startingInventory({ armor, shield, weapons }, srdCatalog());
 
 export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', CharacterChoices> = {
 	warden: {
@@ -42,8 +45,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		},
 		feats: [],
 		hitPoints: { method: 'average' },
-		armor: { worn: srd('armor', 'chain-mail'), shield: true },
-		weapons: [srd('weapon', 'longsword')],
+		inventory: gear(srd('armor', 'chain-mail'), true, [srd('weapon', 'longsword')]),
 		notes: { 'Gaming Set': 'Dice' }
 	},
 	veil: {
@@ -66,8 +68,10 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		},
 		feats: [],
 		hitPoints: { method: 'average' },
-		armor: { worn: srd('armor', 'leather-armor'), shield: false },
-		weapons: [srd('weapon', 'shortsword'), srd('weapon', 'shortbow')],
+		inventory: gear(srd('armor', 'leather-armor'), false, [
+			srd('weapon', 'shortsword'),
+			srd('weapon', 'shortbow')
+		]),
 		notes: {}
 	},
 	ember: {
@@ -94,8 +98,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		},
 		feats: [],
 		hitPoints: { method: 'average' },
-		armor: { worn: null, shield: false },
-		weapons: [srd('weapon', 'dagger'), srd('weapon', 'light-crossbow')],
+		inventory: gear(null, false, [srd('weapon', 'light-crossbow'), srd('weapon', 'dagger')]),
 		notes: { 'Magic Initiate (Wizard)': 'Light, Mage Hand; Sleep' }
 	},
 	saint: {
@@ -118,8 +121,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		},
 		feats: [],
 		hitPoints: { method: 'average' },
-		armor: { worn: srd('armor', 'chain-mail'), shield: true },
-		weapons: [srd('weapon', 'mace')],
+		inventory: gear(srd('armor', 'chain-mail'), true, [srd('weapon', 'mace')]),
 		notes: { 'Magic Initiate (Cleric)': 'Guidance, Sacred Flame; Bless' }
 	}
 };
@@ -135,146 +137,35 @@ export function partyMember(id: keyof typeof PARTY_CHOICES): {
 	return { character: made.character, derived: deriveCharacter(made.character, catalog) };
 }
 
-const signed = (n: number) => (n < 0 ? `${n}` : `+${n}`);
-
-function build(
-	id: keyof typeof PARTY_CHOICES,
-	presentation: (d: DerivedCharacter) => Presentation
-): CharacterDef {
-	const { character, derived } = partyMember(id);
-	const shown = presentation(derived);
-	return characterDefOf(
-		derived,
-		shown,
-		sheetDetails(character, derived, srdCatalog(), shown.actions)
-	);
+/** One of the party as the table plays it: its attacks from what it holds, its look the adventure's. */
+function build(id: keyof typeof PARTY_CHOICES, intro: string): CharacterDef {
+	const { character } = partyMember(id);
+	const classic = CHARACTERS[id];
+	return tableCharacter(character, classic.color, srdCatalog(), {
+		intro,
+		tagline: classic.tagline,
+		model: id,
+		vision: classic.vision,
+		light: classic.light
+	});
 }
 
-export const warden = build('warden', (d) => ({
-	...CHARACTERS.warden,
-	intro:
-		'The Warden sets a shield against the hill wind. Fighter, first of the watch: longsword, chain mail, and a second wind when it counts.',
-	actions: [
-		{
-			id: 'longsword',
-			name: 'Longsword',
-			about: 'A steady cut with a longsword.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'might',
-			dice: `1d8${signed(d.modifiers.str)}`,
-			uses: null
-		},
-		{
-			id: 'second-wind',
-			name: 'Second Wind',
-			about: 'Draw on your stamina to heal yourself. A bonus action.',
-			kind: 'heal',
-			target: 'self',
-			range: 0,
-			stat: 'might',
-			dice: `1d10+${d.level}`,
-			uses: d.resources.find((r) => r.id === 'second-wind')!.max
-		}
-	],
-	attacks: { longsword: 'str' },
-	bonusActions: ['second-wind']
-}));
+export const warden = build(
+	'warden',
+	'The Warden sets a shield against the hill wind. Fighter, first of the watch: longsword, chain mail, and a second wind when it counts.'
+);
 
-export const veil = build('veil', (d) => ({
-	...CHARACTERS.veil,
-	intro:
-		'The Veil is already at the barrow door, reading the dark. Rogue: a shortsword, a shortbow, and eyes for what others miss.',
-	actions: [
-		{
-			id: 'shortsword',
-			name: 'Shortsword',
-			about: 'A quick thrust.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'agility',
-			dice: `1d6${signed(d.modifiers.dex)}`,
-			uses: null
-		},
-		{
-			id: 'shortbow',
-			name: 'Shortbow',
-			about: 'An arrow from afar. Hard to aim with a foe beside you.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 16,
-			stat: 'agility',
-			dice: `1d6${signed(d.modifiers.dex)}`,
-			uses: null
-		}
-	],
-	attacks: { shortsword: 'dex', shortbow: 'dex' },
-	bonusActions: []
-}));
+export const veil = build(
+	'veil',
+	'The Veil is already at the barrow door, reading the dark. Rogue: a shortsword, a shortbow, and eyes for what others miss.'
+);
 
-export const ember = build('ember', (d) => ({
-	...CHARACTERS.ember,
-	intro:
-		'The Ember raises a hooded lantern, and the hill door throws back its light. Wizard: a scholar of old wards, with a dagger and a light crossbow.',
-	light: 3,
-	actions: [
-		{
-			id: 'dagger',
-			name: 'Dagger',
-			about: 'A quick, light blade.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'agility',
-			dice: `1d4${signed(d.modifiers.dex)}`,
-			uses: null
-		},
-		{
-			id: 'crossbow',
-			name: 'Light crossbow',
-			about: 'A bolt from afar. Hard to aim with a foe beside you.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 16,
-			stat: 'agility',
-			dice: `1d8${signed(d.modifiers.dex)}`,
-			uses: null
-		}
-	],
-	attacks: { dagger: 'dex', crossbow: 'dex' },
-	bonusActions: []
-}));
+export const ember = build(
+	'ember',
+	'The Ember raises a hooded lantern, and the hill door throws back its light. Wizard: a scholar of old wards, with a dagger and a light crossbow.'
+);
 
-export const saint = build('saint', (d) => ({
-	...CHARACTERS.saint,
-	intro:
-		'The Saint touches the old stones and murmurs a name for the dead. Paladin: a mace, a shield, and hands that heal.',
-	actions: [
-		{
-			id: 'mace',
-			name: 'Mace',
-			about: 'A plain iron mace.',
-			kind: 'attack',
-			target: 'enemy',
-			range: 1,
-			stat: 'might',
-			dice: `1d6${signed(d.modifiers.str)}`,
-			uses: null
-		},
-		{
-			id: 'lay-on-hands',
-			name: 'Lay On Hands',
-			about: 'Touch an ally (or yourself) to restore 5 hit points. A bonus action.',
-			kind: 'heal',
-			target: 'ally',
-			range: 1,
-			stat: 'spirit',
-			dice: '5',
-			uses: 1
-		}
-	],
-	attacks: { mace: 'str' },
-	bonusActions: ['lay-on-hands']
-}));
+export const saint = build(
+	'saint',
+	'The Saint touches the old stones and murmurs a name for the dead. Paladin: a mace, a shield, and hands that heal.'
+);

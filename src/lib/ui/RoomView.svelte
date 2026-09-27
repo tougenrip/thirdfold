@@ -259,6 +259,12 @@
 	/** The GM's seat has no connection right now. */
 	const gmAway = $derived(!!room?.players.some((p) => p.role === 'gm' && !p.connected));
 	const adventure = $derived(room?.adventure ?? null);
+	/** The others in play, whom a character may hand things to. */
+	function partyFor(id: string): { id: string; name: string }[] {
+		return (adventure?.characters ?? [])
+			.filter((c) => c.inPlay && c.id !== id && !c.dead)
+			.map((c) => ({ id: c.id, name: c.def.name }));
+	}
 	const sheetShown = $derived(
 		(sheetFor && adventure?.characters.find((c) => c.id === sheetFor && c.inPlay)) || null
 	);
@@ -1423,6 +1429,8 @@
 				intro={introFor === myCharacter.id}
 				send={act}
 				sheetReply={conn.sheetReply}
+				party={partyFor(myCharacter.id)}
+				gm={isGm}
 				onClose={() => {
 					introFor = null;
 					sheetOpen = false;
@@ -1436,6 +1444,8 @@
 					status={sheetShown}
 					send={act}
 					sheetReply={conn.sheetReply}
+					party={partyFor(sheetShown.id)}
+					gm={isGm}
 					onClose={() => (sheetFor = null)}
 				/>
 			{/key}

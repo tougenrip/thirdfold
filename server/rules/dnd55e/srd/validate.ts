@@ -9,7 +9,7 @@ import { slugOf } from '../../../../src/lib/content/catalog';
 import { parseDice } from '../../../../src/lib/game/dice';
 import { ABILITIES, proficiencyBonus, SKILLS } from '../core';
 import type { CatalogManifest } from './importer';
-import { SRD_KINDS, type SrdKind, type SrdRecord } from './records';
+import { SRD_KINDS, type AmmunitionData, type SrdKind, type SrdRecord } from './records';
 import { SRD_521 } from './source';
 
 const SCHOOLS = [
@@ -41,6 +41,7 @@ export function validateCatalog(
 	const feats = names('feat');
 	const skills = new Set(SKILLS.map((s) => s.name));
 	const abilities = new Set(ABILITIES.map((a) => a.name));
+	const ammunition = new Set(records.ammunition.map((r) => (r.data as AmmunitionData).type));
 
 	for (const kind of SRD_KINDS) {
 		if (manifest.files[kind]?.count !== records[kind].length)
@@ -63,7 +64,7 @@ export function validateCatalog(
 				p.pages.some((n, i) => n < 1 || n > PAGES || (i > 0 && n <= p.pages[i - 1]))
 			)
 				bad(at, 'pages out of order or out of the source');
-			checkData(r, at, bad, { classes, feats, skills, abilities });
+			checkData(r, at, bad, { classes, feats, skills, abilities, ammunition });
 		}
 	}
 	return problems;
@@ -73,7 +74,13 @@ function checkData(
 	r: SrdRecord,
 	at: string,
 	bad: (at: string, message: string) => void,
-	known: { classes: Set<string>; feats: Set<string>; skills: Set<string>; abilities: Set<string> }
+	known: {
+		classes: Set<string>;
+		feats: Set<string>;
+		skills: Set<string>;
+		abilities: Set<string>;
+		ammunition: Set<string>;
+	}
 ): void {
 	const dice = (d: string) => /^\d+$/.test(d) || parseDice(d).ok;
 	switch (r.kind) {
@@ -92,12 +99,19 @@ function checkData(
 			if (d.versatile && !dice(d.versatile)) bad(at, `bad versatile damage "${d.versatile}"`);
 			if (d.range && !(d.range.normal > 0 && d.range.long >= d.range.normal)) bad(at, 'bad range');
 			if (!d.mastery || !d.cost) bad(at, 'no mastery or cost');
+			if (d.ammunition && !known.ammunition.has(d.ammunition))
+				bad(at, `no ammunition "${d.ammunition}"`);
 			break;
 		}
 		case 'armor': {
 			const d = r.data;
 			if (!(d.base > 0)) bad(at, 'no Armor Class');
 			if (d.category !== 'shield' && d.base < 10) bad(at, 'Armor Class below 10');
+			break;
+		}
+		case 'ammunition': {
+			const d = r.data;
+			if (!(d.amount > 0) || !d.storage || !d.cost) bad(at, 'no amount, storage or cost');
 			break;
 		}
 		case 'species':

@@ -128,7 +128,8 @@ const PAUSED_ACTIONS = new Set<ClientMessage['type']>([
 	'adventure_end_turn',
 	'adventure_decide',
 	'adventure_sense',
-	'adventure_share'
+	'adventure_share',
+	'adventure_gear'
 ]);
 /** How often a paused mechanism looks again whether the game has carried on. */
 const PAUSED_RETRY_MS = 250;
@@ -655,6 +656,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'adventure_claim' ||
 			msg.type === 'adventure_build' ||
 			msg.type === 'adventure_sheet' ||
+			msg.type === 'adventure_gear' ||
 			msg.type === 'adventure_release';
 		if (chatty && !chatLimiter.take(player.id)) {
 			return sendError(ws, 'rate_limited', 'Slow down a little.');
@@ -685,6 +687,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return adventure.buildCharacter(room, player, msg.choices);
 				case 'adventure_sheet':
 					return adventure.editSheet(room, player, msg.characterId, msg.edit);
+				case 'adventure_gear':
+					return adventure.changeGear(room, player, msg.characterId, msg.change);
 				case 'adventure_release':
 					return adventure.releaseCharacter(room, player);
 				case 'adventure_begin':
@@ -1091,6 +1095,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_claim':
 			case 'adventure_build':
 			case 'adventure_sheet':
+			case 'adventure_gear':
 			case 'adventure_release':
 			case 'adventure_begin':
 			case 'adventure_interact':

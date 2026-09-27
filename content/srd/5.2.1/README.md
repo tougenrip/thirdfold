@@ -5,7 +5,7 @@ This work includes material from the System Reference Document 5.2.1 (“SRD 5.2
 ## What is here
 
 - `SRD_CC_v5.2.1.pdf`: the official SRD 5.2.1, exactly as Wizards of the Coast publishes it (SHA-256 `8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87`). The importer refuses any other file.
-- `catalog/`: the records thirdfold imports from it, one JSON file per kind (rules terms, species, backgrounds, feats, classes, subclasses, weapons, armor, spells, monsters), plus:
+- `catalog/`: the records thirdfold imports from it, one JSON file per kind (rules terms, species, backgrounds, feats, classes, subclasses, weapons, armor, ammunition, spells, monsters), plus:
   - `manifest.json`: the source (title, version, publisher, file, hash, licence, attribution), the importer's version, each file's record count and hash, and the SRD chapters not imported as records;
   - `diagnostics.json`: every place the importer corrected the source's text (a heading's scrambled letter case, a "Component:" label, a save printed without its sign), each with its page.
 

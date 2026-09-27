@@ -133,6 +133,61 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	details?(character: CharacterDef): Record<string, unknown> | null;
 	/** How players build their own characters under these rules, where the rules let them. */
 	builder?: CharacterBuilder;
+	/** What characters own and wield, under rules that keep an inventory (and the builder to restore them). */
+	equipment?: Equipment;
+}
+
+type Refused = { ok: false; problems: string[] };
+
+/** Where something a character takes came from, in the table's words. */
+export type ItemOrigin =
+	{ how: 'found'; where: string } | { how: 'given'; by: string } | { how: 'granted' };
+
+/**
+ * Inventory and equipment, for rules that keep them. Every change works on
+ * a character's definition and returns the character's next saved form
+ * (`Built.saved`); the engine restores that through the rules' builder, so
+ * every rule is checked again and every number (Armor Class, attacks) comes
+ * back from the rules. An item taken out of an inventory (put down on the
+ * table, handed to another) is plain data only these rules read; the engine
+ * keeps it and shows it as a prop, never as a prop's state.
+ */
+export interface Equipment {
+	/** Whether this character keeps an inventory under these rules. */
+	has(character: CharacterDef): boolean;
+	/** Equips an entry (on) or takes it off; `weapon` says whether it was a weapon in hand. */
+	wield(
+		character: CharacterDef,
+		entry: string,
+		on: boolean
+	): { ok: true; saved: JsonData; text: string; weapon: boolean } | Refused;
+	/** Takes `quantity` of an entry out of the inventory. */
+	remove(
+		character: CharacterDef,
+		entry: string,
+		quantity: number
+	): { ok: true; saved: JsonData; item: JsonData; name: string } | Refused;
+	/** Puts an item in the inventory, if the character can carry it. */
+	add(
+		character: CharacterDef,
+		item: JsonData,
+		origin: ItemOrigin
+	): { ok: true; saved: JsonData; name: string } | Refused;
+	/** An item of the rules' own catalog, as `remove` would give it. */
+	grant(id: string, quantity: number): { ok: true; item: JsonData; name: string } | Refused;
+	/** An item's name, or null if it isn't one of these rules' items. */
+	nameOf(item: unknown): string | null;
+	/**
+	 * What an attack with this action spends as it is made (a piece of
+	 * ammunition): null when nothing, else the next saved form, or why the
+	 * attack can't be made.
+	 */
+	use(
+		character: CharacterDef,
+		action: Action
+	): null | { ok: true; saved: JsonData; text: string | null } | Refused;
+	/** After a fight is won, what comes back (half the ammunition expended): null when nothing. */
+	recover(character: CharacterDef): { saved: JsonData; text: string } | null;
 }
 
 /** A built character: the table's definition of it, and the plain data it is saved as. */
@@ -155,8 +210,12 @@ export interface CharacterBuilder {
 	preview(choices: unknown): { ok: true; summary: JsonData } | { ok: false; problems: string[] };
 	/** A new character from a player's choices, with the id it will have at the table. */
 	build(choices: unknown, id: string): Built;
-	/** A built character back from what `build` saved. */
-	restore(saved: unknown, id: string): Built;
+	/**
+	 * A built character back from what `build` saved. With `base` (an
+	 * adventure's own character, whose inventory changed in play), it keeps
+	 * the adventure's presentation of it.
+	 */
+	restore(saved: unknown, id: string, base?: CharacterDef): Built;
 	/** A built character under a new name, where the rules let a name change. */
 	rename?(saved: unknown, id: string, name: string): Built;
 }

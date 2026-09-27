@@ -265,6 +265,58 @@ export interface CharacterCard {
 	 * character, so it stays out of the live view.
 	 */
 	details?: string;
+	/**
+	 * What the character owns, where the rules keep an inventory: each thing
+	 * with its quantity, where it is equipped and where it came from. It
+	 * changes in play (`adventure_gear`), so it travels with the card.
+	 */
+	inventory?: CardItem[];
+	/** What it carries and can carry, in pounds, where the rules count weight. */
+	carrying?: { weight: number; capacity: number };
+}
+
+/** Something a character owns, as the rules word it. */
+export interface CardItem {
+	/** The entry, to name it in a `GearChange`. */
+	id: string;
+	name: string;
+	quantity: number;
+	/** Where it is equipped, in words ("Worn", "Shield", "In hand"), or null when only carried. */
+	equipped: string | null;
+	/** What it is, in words: "Martial melee weapon", "Heavy armor", "Ammunition". */
+	kind: string;
+	/** What all of it weighs, in pounds. */
+	weight: number;
+	/** Where it came from, in words: "Starting equipment", "Given by The Veil". */
+	source: string;
+	/** Whether it is something to equip (armor, a Shield, a weapon). */
+	equippable: boolean;
+}
+
+/**
+ * A change to what a character carries (message `adventure_gear`), by its
+ * player or the GM; the rules check it and work out what follows from it.
+ */
+export type GearChange =
+	/** Wear armor, carry a Shield, take a weapon in hand. */
+	| { kind: 'equip'; item: string }
+	/** Take it off, or put it away. */
+	| { kind: 'unequip'; item: string }
+	/** Put some of it down where the character stands. */
+	| { kind: 'drop'; item: string; quantity: number }
+	/** Hand some of it to a character beside this one. */
+	| { kind: 'give'; item: string; quantity: number; to: string }
+	/** Pick up something lying beside the character (`AdventureView.piles`). */
+	| { kind: 'take'; pile: string; index: number }
+	/** The GM gives the character something from the rules' catalog. */
+	| { kind: 'grant'; item: string; quantity: number };
+
+/** Things put down on the table, which characters beside them may pick up. */
+export interface PileView {
+	/** The prop that shows it on the table. */
+	id: string;
+	cell: GridPos;
+	items: { index: number; name: string }[];
 }
 
 /** A change to a character's sheet its player (or the GM) may make. */
@@ -499,6 +551,8 @@ export interface AdventureView {
 	characters: CharacterStatus[];
 	/** Things this viewer knows are there and can do something with now. */
 	interactables: Interactable[];
+	/** Things put down on this table that this viewer has seen, to pick up (rules with equipment). */
+	piles: PileView[];
 	/** GM only: every world object, hidden ones included, with its state. */
 	objects: WorldObject[] | null;
 	encounter: EncounterView | null;

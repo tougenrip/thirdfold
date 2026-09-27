@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { CharacterStatus } from '$lib/adventure/adventure';
+	import type { CharacterStatus, GearChange } from '$lib/adventure/adventure';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { DndSheetDetails } from '$lib/rules/dnd55e/sheet';
 
@@ -7,9 +7,13 @@
 		status: CharacterStatus;
 		details: DndSheetDetails;
 		send(action: RoomAction): boolean;
+		/** The others in play, to hand things to. */
+		party?: { id: string; name: string }[];
+		/** The GM may hand out gear from the catalog. */
+		gm?: boolean;
 	}
 
-	let { status, details, send }: Props = $props();
+	let { status, details, send, party = [], gm = false }: Props = $props();
 
 	const card = $derived(status.card);
 	const signed = (n: number) => `${n >= 0 ? '+' : ''}${n}`;
@@ -38,6 +42,16 @@
 		send({ type: 'adventure_sheet', characterId: status.id, edit: { kind: 'notes', text: draft } });
 		draft = null;
 	}
+
+	// Gear: what the character owns, live from the card; each change goes to the server, which checks it.
+	const inventory = $derived(card.inventory ?? []);
+	const gear = (change: GearChange) =>
+		send({ type: 'adventure_gear', characterId: status.id, change });
+	let amounts = $state<Record<string, number>>({});
+	const amountOf = (id: string, max: number) => Math.min(max, Math.max(1, amounts[id] ?? max));
+	let giveTo = $state<Record<string, string>>({});
+	let granting = $state('');
+	let grantCount = $state(1);
 
 	let renaming = $state<string | null>(null);
 	function rename() {
@@ -116,6 +130,126 @@
 			<p class="muted">No limited resources at this level.</p>
 		{/if}
 		<p class="muted">Hit Point Dice: {details.derived.hitDice}d{details.derived.hitDie}.</p>
+	</section>
+
+	<section aria-labelledby="dnd-gear-now">
+		<h3 id="dnd-gear-now" class="section-title"><span class="tag now">Now</span> Gear</h3>
+		{#if card.carrying}
+			<p class="muted num">
+				Carrying {card.carrying.weight} of {card.carrying.capacity} lb.
+			</p>
+		{/if}
+		{#if inventory.length}
+			<ul class="gear">
+				{#each inventory as i (i.id)}
+					<li>
+						<div class="what">
+							<b>{i.quantity > 1 || i.kind === 'Ammunition' ? `${i.quantity} ` : ''}{i.name}</b>
+							{#if i.equipped}<span class="tag worn">{i.equipped}</span>{/if}
+							<small>{i.kind} · {i.weight} lb. · {i.source}</small>
+						</div>
+						{#if status.editable}
+							<div class="do">
+								{#if i.equippable}
+									<button
+										type="button"
+										class="ghost"
+										onclick={() => gear({ kind: i.equipped ? 'unequip' : 'equip', item: i.id })}
+										>{i.equipped
+											? i.kind.includes('weapon')
+												? 'Put away'
+												: 'Take off'
+											: i.kind.includes('weapon')
+												? 'Take up'
+												: 'Put on'}</button
+									>
+								{/if}
+								{#if i.quantity > 1}
+									<input
+										class="count num"
+										type="number"
+										min="1"
+										max={i.quantity}
+										aria-label="How many"
+										value={amountOf(i.id, i.quantity)}
+										oninput={(e) => (amounts[i.id] = Number(e.currentTarget.value))}
+									/>
+								{/if}
+								<button
+									type="button"
+									class="ghost"
+									disabled={i.quantity < 1}
+									onclick={() =>
+										gear({ kind: 'drop', item: i.id, quantity: amountOf(i.id, i.quantity) })}
+									>Put down</button
+								>
+								{#if party.length && i.quantity > 0}
+									<select
+										aria-label="Give {i.name} to"
+										value={giveTo[i.id] ?? ''}
+										onchange={(e) => {
+											const to = e.currentTarget.value;
+											if (to)
+												gear({
+													kind: 'give',
+													item: i.id,
+													quantity: amountOf(i.id, i.quantity),
+													to
+												});
+											giveTo[i.id] = '';
+										}}
+									>
+										<option value="">Give to…</option>
+										{#each party as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
+									</select>
+								{/if}
+							</div>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="muted">Carrying nothing.</p>
+		{/if}
+		{#if status.editable}
+			<p class="muted">
+				In a fight, on your turn, you may take up or put away a weapon, put something down or hand
+				it over, twice; armor stays as it is. Handing over and picking up need the other beside you.
+			</p>
+		{/if}
+		{#if gm}
+			<div class="grant">
+				<label class="field">
+					<span>Give from the SRD</span>
+					<select bind:value={granting}>
+						<option value="">Choose…</option>
+						{#each ['weapon', 'armor', 'Shield', 'Ammunition'] as group (group)}
+							<optgroup
+								label={group === 'weapon' ? 'Weapons' : group === 'armor' ? 'Armor' : group}
+							>
+								{#each details.gear.filter( (g) => (group === 'weapon' ? g.kind.endsWith('weapon') : group === 'armor' ? g.kind.endsWith('armor') : g.kind === group) ) as g (g.id)}
+									<option value={g.id}>{g.name}</option>
+								{/each}
+							</optgroup>
+						{/each}
+					</select>
+				</label>
+				<label class="field small">
+					<span>How many</span>
+					<input type="number" min="1" max="999" bind:value={grantCount} />
+				</label>
+				<button
+					type="button"
+					class="primary"
+					disabled={!granting}
+					onclick={() => {
+						gear({ kind: 'grant', item: granting, quantity: Math.max(1, grantCount || 1) });
+						granting = '';
+						grantCount = 1;
+					}}>Give</button
+				>
+			</div>
+		{/if}
 	</section>
 
 	<section aria-labelledby="dnd-rules">
@@ -234,7 +368,7 @@
 
 	<section aria-labelledby="dnd-gear">
 		<h3 id="dnd-gear" class="section-title">
-			<span class="tag chosen">Chosen</span> Equipment and training
+			<span class="tag rules">Rules</span> Weapons and training
 		</h3>
 		<p>
 			Wearing {details.equipment.armor ?? 'no armor'}{details.equipment.shield
@@ -242,10 +376,13 @@
 				: ''}.
 		</p>
 		<ul class="plain">
-			{#each details.equipment.weapons as w (w.name)}
+			{#each details.equipment.weapons as w (`${w.name}:${w.held}`)}
 				<li>
-					<b>{w.name}</b>: {w.damage}{w.properties.length ? ` (${w.properties.join(', ')})` : ''}.
+					<b>{w.name}</b>{w.held ? ' (in hand)' : ''}: {w.damage}{w.properties.length
+						? ` (${w.properties.join(', ')})`
+						: ''}.
 					{#if w.mastered}Mastery: {w.mastery}.{/if}
+					{#if !w.trained}<em>Not trained with it: no Proficiency Bonus.</em>{/if}
 				</li>
 			{/each}
 		</ul>
@@ -543,5 +680,63 @@
 
 	section > button {
 		justify-self: start;
+	}
+
+	.gear {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: var(--sp-2);
+	}
+
+	.gear li {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-2) var(--sp-3);
+		padding-bottom: var(--sp-2);
+		border-bottom: 1px solid var(--border);
+		font-size: var(--fs-sm);
+	}
+
+	.gear .what {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--sp-1) var(--sp-2);
+		min-width: 0;
+	}
+
+	.gear .what small {
+		flex-basis: 100%;
+	}
+
+	.tag.worn {
+		color: var(--accent);
+	}
+
+	.gear .do,
+	.grant {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: end;
+		gap: var(--sp-2);
+	}
+
+	.gear button,
+	.gear select {
+		padding: var(--sp-1) var(--sp-3);
+		font-size: var(--fs-xs);
+	}
+
+	.count {
+		width: 4.5rem;
+		font-size: var(--fs-xs);
+	}
+
+	.field.small input {
+		width: 5rem;
 	}
 </style>

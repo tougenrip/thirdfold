@@ -117,7 +117,10 @@ describe('the fifth edition character sheet', () => {
 			from: 'Class',
 			level: 1
 		});
-		expect(d.equipment.weapons.map((w) => w.name)).toEqual(['Dagger', 'Light Crossbow']);
+		expect(d.equipment.weapons.map((w) => [w.name, w.held])).toEqual([
+			['Light Crossbow', true],
+			['Dagger', false]
+		]);
 		expect(ember.card.resources).toEqual([
 			{ id: 'spell-slots-1', name: 'Level 1 spell slots', max: 2, trackedBy: null }
 		]);

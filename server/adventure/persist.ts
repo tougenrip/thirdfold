@@ -23,10 +23,11 @@ import {
 import { isAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { CLASSIC } from '../rules/classic';
-import { findRuleset, type RulesetRef } from '../rules/ruleset';
+import { findRuleset, type JsonData, type RulesetRef } from '../rules/ruleset';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
 import { BUILT_ID, BUILT_MAX, withBuilt, type BuiltCharacter } from './built';
+import { PILE_ID, PILE_ITEMS_MAX, PILES_MAX, withKept } from './gear';
 import { contentOf, findAdventure } from './registry';
 import type {
 	AdventureState,
@@ -36,6 +37,7 @@ import type {
 	Encounter,
 	LibrarySource,
 	EnemyState,
+	Pile,
 	Sentry,
 	Statuses,
 	TurnEntry
@@ -75,6 +77,27 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 				? {
 						built: Object.fromEntries(
 							[...adventure.built].map(([id, b]) => [id, JSON.parse(JSON.stringify(b.saved))])
+						)
+					}
+				: {}),
+			...(adventure.kept?.size
+				? {
+						kept: Object.fromEntries(
+							[...adventure.kept].map(([id, b]) => [id, JSON.parse(JSON.stringify(b.saved))])
+						)
+					}
+				: {}),
+			...(adventure.piles?.size
+				? {
+						piles: Object.fromEntries(
+							[...adventure.piles].map(([id, p]) => [
+								id,
+								{
+									location: p.location,
+									pos: { ...p.pos },
+									items: p.items.map((i) => JSON.parse(JSON.stringify(i.item)))
+								}
+							])
 						)
 					}
 				: {}),
@@ -289,7 +312,19 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			built.set(id, { def: restored.def, saved: restored.saved });
 		}
 	}
-	const A = withBuilt(base, built);
+	// The adventure's own characters whose gear changed come back through the builder too, keeping their look.
+	const kept = new Map<string, BuiltCharacter>();
+	if (data.kept !== undefined) {
+		const saved = Object.entries(record(data.kept, 'kept characters'));
+		check(!!ruleset.builder && !!ruleset.equipment, 'kept characters');
+		for (const [id, raw] of saved) {
+			check(Object.hasOwn(base.characters, id), 'kept characters');
+			const restored = ruleset.builder!.restore(raw, id, base.characters[id]);
+			check(restored.ok, `kept character ${id}`);
+			kept.set(id, { def: restored.def, saved: restored.saved });
+		}
+	}
+	const A = withBuilt(withKept(base, kept), built);
 	const stage = oneOf(data.stage, STAGES, 'stage');
 	const chapter = oneOf(data.chapter, Object.keys(A.chapters), 'chapter');
 	const location = oneOf(data.location, Object.keys(A.locations), 'location');
@@ -572,10 +607,39 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			return t;
 		})
 	);
+	// Things put down: where they lie (a table of the story, a cell on it) and what they are, by the rules.
+	const piles = new Map<string, Pile>();
+	if (data.piles !== undefined) {
+		const saved = Object.entries(record(data.piles, 'piles'));
+		check(!!ruleset.equipment && saved.length <= PILES_MAX, 'piles');
+		for (const [id, raw] of saved) {
+			check(PILE_ID.test(id), 'piles');
+			const p = record(raw, 'piles');
+			const where = oneOf(p.location, Object.keys(A.locations), 'piles');
+			const at = record(p.pos, 'piles');
+			const pos = { x: at.x as number, y: at.y as number };
+			const grid = where === location ? scene.grid : A.locations[where].scene().grid;
+			check(Number.isInteger(pos.x) && Number.isInteger(pos.y) && inBounds(grid, pos), 'piles');
+			const items = list(p.items, 'piles').map((item) => {
+				const name = ruleset.equipment!.nameOf(item);
+				check(name !== null && typeof item === 'object', 'piles');
+				return { item: item as JsonData, name: name! };
+			});
+			check(items.length > 0 && items.length <= PILE_ITEMS_MAX, 'piles');
+			// A pile on this table lies under its prop.
+			if (where === location) {
+				const prop = scene.props.find((x) => x.id === id);
+				check(!!prop && prop.pos.x === pos.x && prop.pos.y === pos.y, 'piles');
+			}
+			piles.set(id, { location: where, pos, items });
+		}
+	}
 	return {
 		id: A.id,
 		rules,
 		...(built.size ? { built } : {}),
+		...(kept.size ? { kept } : {}),
+		...(piles.size ? { piles } : {}),
 		stage,
 		chapter,
 		location,

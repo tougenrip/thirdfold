@@ -3,11 +3,13 @@
 // properties on the left; mastery, weight and cost (or Strength, Stealth,
 // weight and cost) on the right. Category rows ("Martial Ranged Weapons",
 // "Medium Armor (5 Minutes to Don and 1 Minute to Doff)") set what follows.
+// Ammunition comes from the Ammunition table of "Adventuring Gear", the one
+// part of that chapter imported (a weapon with the Ammunition property needs it).
 
 import type { CatalogRecord } from '../../../../src/lib/content/catalog';
 import type { SrdDocument } from './document';
 import { record } from './entries';
-import type { ArmorData, WeaponData } from './records';
+import type { AmmunitionData, ArmorData, WeaponData } from './records';
 import { tableRows, tableTitle, type TableRow } from './tables';
 
 const DAMAGE_TYPES =
@@ -132,6 +134,39 @@ export function parseArmor(doc: SrdDocument): CatalogRecord<'armor', ArmorData>[
 			category === 'shield' ? 'Shield' : `${category[0].toUpperCase()}${category.slice(1)} Armor`;
 		const text = `${a[1]}: ${kind} (${don}). Armor Class: ${a[2]}. Strength: ${r[1]}. Stealth: ${r[3]}. Weight: ${r[4]}. Cost: ${r[5]}.`;
 		out.push(record(doc, 'armor', a[1], data, [text], [row.left, row.right!], row.index));
+	}
+	return out;
+}
+
+/** "Bullets, Sling 20 Pouch 1½ lb. 4 CP": type (and kind), amount, storage, weight, cost. */
+const AMMUNITION = /^(\w+?)s(?:, (\w+))? (\d+) (\w+) (.+? lb\.) (\d[\d,]* [CSEGP]P)$/;
+
+export function parseAmmunition(doc: SrdDocument): CatalogRecord<'ammunition', AmmunitionData>[] {
+	const title = tableTitle(doc, doc.range(['Equipment', 'Adventuring Gear']), 'Ammunition');
+	const rows = tableRows(doc, title).slice(1);
+	const out: CatalogRecord<'ammunition', AmmunitionData>[] = [];
+	for (const row of rows) {
+		const a = AMMUNITION.exec(row.left.text);
+		if (!a) {
+			doc.note({
+				kind: 'skipped',
+				at: 'Ammunition table',
+				message: `Row not read: "${row.left.text}".`,
+				pages: [row.left.page]
+			});
+			continue;
+		}
+		const name = a[2] ? `${a[1]}s, ${a[2]}` : `${a[1]}s`;
+		const data: AmmunitionData = {
+			type: a[1],
+			kind: a[2] ? a[2].toLowerCase() : null,
+			amount: Number(a[3]),
+			storage: a[4],
+			weight: a[5],
+			cost: a[6]
+		};
+		const text = `${name}: Ammunition (${a[1]}). ${a[3]} for ${a[6]}, stored in a ${a[4]}. Weight: ${a[5]}`;
+		out.push(record(doc, 'ammunition', name, data, [text], [row.left], row.index));
 	}
 	return out;
 }

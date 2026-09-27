@@ -2,11 +2,10 @@
 // `CharacterDef` (what the engine and the rules read) made from a derived
 // character. The numbers (hit points, Armor Class, speed, scores,
 // proficiencies, initiative) all come from the character; what it looks
-// like and does at this table (name, colour, introduction, its actions and
-// the ability each attack uses) is the adventure's until equipment and
-// spells are modelled (milestones 47 and 48).
+// like at this table (name, colour, introduction) is the adventure's; its
+// actions come from what it holds (builder.ts `actionsOf`).
 
-import type { CardResource } from '../../../../src/lib/adventure/adventure';
+import type { CardItem, CardResource } from '../../../../src/lib/adventure/adventure';
 import type { CharacterDef, RulesData } from '../../../../src/lib/adventure/characters';
 import type { DndSheetDetails } from '../../../../src/lib/rules/dnd55e/sheet';
 import { ABILITIES, type Ability } from '../core';
@@ -25,8 +24,19 @@ export type Presentation = Omit<CharacterDef, 'hp' | 'armor' | 'speed' | 'sheet'
 export function characterDefOf(
 	derived: DerivedCharacter,
 	presentation: Presentation,
-	/** The full sheet and its resources (sheetDetails), for a character built from its choices. */
-	full?: { details: DndSheetDetails; resources: CardResource[] }
+	/**
+	 * What a character built from its choices adds: the full sheet and its
+	 * resources (sheetDetails), its inventory as the card shows it, attacks
+	 * without proficiency, and the character itself as saved (for the rules
+	 * to change what it carries).
+	 */
+	full?: {
+		details: DndSheetDetails;
+		resources: CardResource[];
+		inventory?: CardItem[];
+		unproficient?: string[];
+		saved?: RulesData;
+	}
 ): CharacterDef {
 	const { attacks, bonusActions, ...def } = presentation;
 	const skills = Object.entries(derived.skills);
@@ -48,7 +58,15 @@ export function characterDefOf(
 			...(full
 				? {
 						details: full.details as unknown as RulesData,
-						resources: full.resources as unknown as RulesData[]
+						resources: full.resources as unknown as RulesData[],
+						...(full.inventory
+							? {
+									inventory: full.inventory as unknown as RulesData[],
+									carrying: { ...derived.carrying }
+								}
+							: {}),
+						...(full.unproficient?.length ? { unproficient: [...full.unproficient] } : {}),
+						...(full.saved ? { saved: full.saved } : {})
 					}
 				: {})
 		}

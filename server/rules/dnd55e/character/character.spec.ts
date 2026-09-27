@@ -8,6 +8,7 @@ import { CATALOG_DIR, CatalogDamaged, openCatalog, srdCatalog } from '../catalog
 import { DND_55E } from '../index';
 import { readSheet } from '../sheet';
 import { characterDefOf } from './adventure';
+import { startingInventory } from './inventory';
 import { deriveCharacter } from './derive';
 import type { CharacterChoices, DndCharacter } from './model';
 import { migrateCharacter, restoreCharacter, serializeCharacter } from './persist';
@@ -27,19 +28,21 @@ const problemsOf = (choices: CharacterChoices): string[] => {
 	return made.ok ? [] : made.problems;
 };
 const warden = () => structuredClone(PARTY_CHOICES.warden);
+const gear = (armor: string | null, shield: boolean, weapons: string[]) =>
+	startingInventory({ armor, shield, weapons }, catalog);
 
 describe('fifth edition characters', () => {
 	it('derives every number from the choices, by the SRD', () => {
 		const { character, derived } = partyMember('warden');
 		expect(character).toMatchObject({
-			version: 2,
+			version: 3,
 			rules: DND_55E,
 			catalog: {
 				source: 'srd-5.2.1',
 				version: '5.2.1',
 				sha256: '8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87'
 			},
-			state: { hp: 12, tempHp: 0, hitDiceSpent: 0, spent: {} }
+			state: { hp: 12, tempHp: 0, hitDiceSpent: 0, spent: {}, expended: {} }
 		});
 		expect(derived).toMatchObject({
 			title: 'Orc Fighter 1 (Soldier)',
@@ -180,8 +183,7 @@ describe('fifth edition characters', () => {
 				},
 				feats: [],
 				hitPoints: { method: 'average' },
-				armor: { worn: null, shield: false },
-				weapons: [srd('weapon', 'quarterstaff')],
+				inventory: gear(null, false, [srd('weapon', 'quarterstaff')]),
 				notes: {}
 			}),
 			catalog
@@ -216,8 +218,7 @@ describe('fifth edition characters', () => {
 				},
 				feats: [],
 				hitPoints: { method: 'average' },
-				armor: { worn: null, shield: true },
-				weapons: [srd('weapon', 'greataxe')],
+				inventory: gear(null, true, [srd('weapon', 'handaxe')]),
 				notes: {}
 			}),
 			catalog
@@ -232,7 +233,7 @@ describe('fifth edition characters', () => {
 		const plate = warden();
 		plate.abilities.base = { str: 13, dex: 12, con: 14, int: 8, wis: 15, cha: 10 };
 		plate.background.increases = { dex: 2, con: 1 };
-		plate.armor.worn = srd('armor', 'plate-armor');
+		plate.inventory[0].item = srd('armor', 'plate-armor');
 		const slow = deriveCharacter(make(plate), catalog);
 		expect(slow.speed).toBe(20);
 		expect(slow.armorClass).toBe(18 + 2 + 1);
@@ -326,9 +327,15 @@ describe('fifth edition characters', () => {
 			};
 		}, /a skill is chosen twice|Wizard isn't trained in Chain Mail/);
 		const ember = structuredClone(PARTY_CHOICES.ember);
-		ember.armor.worn = srd('armor', 'chain-mail');
+		ember.inventory.push({
+			id: 'item-9',
+			item: srd('armor', 'chain-mail'),
+			quantity: 1,
+			equipped: 'armor',
+			source: { how: 'starting' }
+		});
 		expect(problemsOf(ember)).toContain("Wizard isn't trained in Chain Mail");
-		ember.armor.worn = null;
+		ember.inventory.pop();
 		ember.species.options = { lineage: 'high-elf', spellcasting: 'int' };
 		expect(problemsOf(ember)).toContain('Elf: choose keen-senses');
 	});
@@ -366,7 +373,13 @@ describe('fifth edition characters', () => {
 
 	it('saves and restores a character exactly, keeping its state of play', () => {
 		const saint = partyMember('saint').character;
-		saint.state = { hp: 7, tempHp: 3, hitDiceSpent: 1, spent: { 'lay-on-hands': 5 } };
+		saint.state = {
+			hp: 7,
+			tempHp: 3,
+			hitDiceSpent: 1,
+			spent: { 'lay-on-hands': 5 },
+			expended: {}
+		};
 		const text = serializeCharacter(saint);
 		expect(text).not.toMatch(/owner/);
 		const back = restoreCharacter(text, catalog, DND_55E);
@@ -382,31 +395,53 @@ describe('fifth edition characters', () => {
 
 	it('migrates older versions forward and refuses newer ones', () => {
 		const current = JSON.parse(serializeCharacter(partyMember('veil').character));
-		expect(current.version).toBe(2);
-		expect(migrateCharacter(current)).toEqual({ ok: true, raw: current });
-		expect(migrateCharacter({ ...current, version: 3 })).toEqual({
+		expect(current.version).toBe(3);
+		expect(migrateCharacter(current, catalog)).toEqual({ ok: true, raw: current });
+		expect(migrateCharacter({ ...current, version: 4 }, catalog)).toEqual({
 			ok: false,
-			problems: ["saved as version 3, newer than this server's 2"]
+			problems: ["saved as version 4, newer than this server's 3"]
 		});
-		expect(migrateCharacter({ ...current, version: undefined })).toEqual({
+		expect(migrateCharacter({ ...current, version: undefined }, catalog)).toEqual({
 			ok: false,
 			problems: ['a character must say its version']
 		});
-		// A version 1 character (from before weapons) comes back carrying none, and reads.
-		const { weapons, ...v1 } = { ...current, version: 1 };
+		// A version 2 character (armor, a Shield and weapons) owns them as its inventory,
+		// equipped as a new character's are, with the arrows its shortbow fires.
+		const { inventory, state, ...rest } = current;
+		expect(inventory.length).toBe(4);
+		const { expended, ...v2state } = state;
+		expect(expended).toEqual({});
+		const v2 = {
+			...rest,
+			version: 2,
+			armor: { worn: srd('armor', 'leather-armor'), shield: false },
+			weapons: [srd('weapon', 'shortsword'), srd('weapon', 'shortbow')],
+			state: v2state
+		};
+		const back = restoreCharacter(JSON.stringify(v2), catalog, DND_55E);
+		expect(back).toEqual({ ok: true, character: current });
+		// A version 1 character (from before weapons) comes back with only its armor, and reads.
+		const { weapons, ...v1 } = { ...v2, version: 1 };
 		expect(weapons.length).toBe(2);
-		const back = restoreCharacter(JSON.stringify(v1), catalog, DND_55E);
-		expect(back).toMatchObject({ ok: true, character: { version: 2, weapons: [] } });
+		const one = restoreCharacter(JSON.stringify(v1), catalog, DND_55E);
+		expect(one).toMatchObject({
+			ok: true,
+			character: {
+				version: 3,
+				inventory: [{ item: srd('armor', 'leather-armor'), equipped: 'armor' }]
+			}
+		});
 		// A later shape upgrades step by step, and one with no way forward is refused.
-		const v3 = migrateCharacter(
+		const v4 = migrateCharacter(
 			current,
-			{ 2: ({ notes, ...rest }) => ({ ...rest, extras: notes }) },
-			3
+			catalog,
+			{ 3: ({ notes, ...rest }) => ({ ...rest, extras: notes }) },
+			4
 		);
-		expect(v3).toMatchObject({ ok: true, raw: { version: 3, extras: {} } });
-		expect(migrateCharacter(current, {}, 4)).toEqual({
+		expect(v4).toMatchObject({ ok: true, raw: { version: 4, extras: {} } });
+		expect(migrateCharacter(current, catalog, {}, 5)).toEqual({
 			ok: false,
-			problems: ['no way to bring version 2 forward']
+			problems: ['no way to bring version 3 forward']
 		});
 	});
 

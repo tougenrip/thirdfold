@@ -45,6 +45,22 @@ export interface WeaponData {
 	cost: string;
 }
 
+/** A kind of ammunition, as the Ammunition table sells it. */
+export interface AmmunitionData {
+	/** The ammunition a weapon names ("Ammunition (Range 80/320; Arrow)"): Arrow, Bolt, Bullet, Needle. */
+	type: string;
+	/** Bullets come in two kinds, "firearm" and "sling"; null for the rest. */
+	kind: string | null;
+	/** How many come in a bundle. */
+	amount: number;
+	/** What they are kept in: Quiver, Case, Pouch. */
+	storage: string;
+	/** A bundle's weight. */
+	weight: string;
+	/** A bundle's cost. */
+	cost: string;
+}
+
 export interface ArmorData {
 	category: 'light' | 'medium' | 'heavy' | 'shield';
 	/** As the SRD writes it, e.g. "11 + Dex modifier (max 2)". */
@@ -149,6 +165,7 @@ export type SrdRecord =
 	| CatalogRecord<'spell', SpellData>
 	| CatalogRecord<'weapon', WeaponData>
 	| CatalogRecord<'armor', ArmorData>
+	| CatalogRecord<'ammunition', AmmunitionData>
 	| CatalogRecord<'species', SpeciesData>
 	| CatalogRecord<'background', BackgroundData>
 	| CatalogRecord<'feat', FeatData>
@@ -168,6 +185,7 @@ export const SRD_KINDS: readonly SrdKind[] = [
 	'subclass',
 	'weapon',
 	'armor',
+	'ammunition',
 	'spell',
 	'monster'
 ];

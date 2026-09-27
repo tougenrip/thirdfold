@@ -9,7 +9,7 @@
 // its class has them at level 1, Second Wind or Lay On Hands; spells come
 // with milestone 48.
 
-import type { Action, CharacterDef } from '../../../../src/lib/adventure/characters';
+import type { Action, CharacterDef, RulesData } from '../../../../src/lib/adventure/characters';
 import type {
 	AbilityId,
 	CreatorOptions,
@@ -23,6 +23,7 @@ import type { WeaponData } from '../srd/records';
 import { characterDefOf } from './adventure';
 import { deriveCharacter, type DerivedCharacter } from './derive';
 import { sheetDetails } from './details';
+import { ammunitionFor, gearOf, inventoryCard, startingInventory } from './inventory';
 import type { CharacterChoices, DndCharacter } from './model';
 import {
 	abilitiesNamed,
@@ -219,7 +220,8 @@ const isObject = (v: unknown): v is Raw => typeof v === 'object' && v !== null &
  */
 export function choicesOf(
 	raw: unknown,
-	id: string
+	id: string,
+	catalog: Catalog
 ): { choices: CharacterChoices; color: string } | { problems: string[] } {
 	if (!isObject(raw)) return { problems: ['choices must be an object'] };
 	const problems: string[] = [];
@@ -232,7 +234,24 @@ export function choicesOf(
 	const abilities = isObject(raw.abilities) ? raw.abilities : {};
 	if (abilities.method !== 'standard-array' && abilities.method !== 'point-buy')
 		problems.push('ability scores by the standard array or point buy');
-	if (!Array.isArray(raw.weapons) || raw.weapons.length === 0) problems.push('choose a weapon');
+	const weapons = Array.isArray(raw.weapons) ? raw.weapons : [];
+	if (weapons.length === 0) problems.push('choose a weapon');
+	if (weapons.length > WEAPONS_MAX) problems.push(`at most ${WEAPONS_MAX} weapons`);
+	// A new character starts with weapons its class is trained with (a found one may be anything).
+	const klassRecord = typeof klass.id === 'string' ? catalog.get('class', klass.id) : undefined;
+	for (const w of weapons) {
+		const weapon = typeof w === 'string' ? catalog.get('weapon', w) : undefined;
+		if (!weapon) problems.push(`no weapon "${String(w).slice(0, 80)}"`);
+		else if (klassRecord && !trainedWith(klassRecord.data, weapon.data))
+			problems.push(`${klassRecord.name} isn't trained with ${weapon.name}`);
+	}
+	const armor = isObject(raw.armor) ? raw.armor : {};
+	if (
+		(armor.worn !== null && typeof armor.worn !== 'string') ||
+		typeof armor.shield !== 'boolean' ||
+		(typeof armor.worn === 'string' && catalog.get('armor', armor.worn)?.data.category === 'shield')
+	)
+		problems.push('armor: a suit of armor or none, and a Shield or not');
 	if (problems.length) return { problems };
 	return {
 		color: color!,
@@ -253,8 +272,14 @@ export function choicesOf(
 			abilities: abilities as CharacterChoices['abilities'],
 			feats: [],
 			hitPoints: { method: 'average' },
-			armor: raw.armor as CharacterChoices['armor'],
-			weapons: raw.weapons as string[],
+			inventory: startingInventory(
+				{
+					armor: armor.worn as string | null,
+					shield: armor.shield as boolean,
+					weapons: weapons as string[]
+				},
+				catalog
+			),
 			notes: {}
 		}
 	};
@@ -268,17 +293,35 @@ function weaponAbility(weapon: WeaponData, derived: DerivedCharacter): Ability {
 	return 'str';
 }
 
-/** The character's actions at the table: its weapons, then its class's level 1 healing. */
+/**
+ * The character's actions at the table: an attack with each weapon in hand
+ * (a Versatile weapon alone in the hands deals its two-handed damage; a
+ * weapon that fires ammunition says how much is left), or an Unarmed Strike
+ * with empty hands; then its class's level 1 healing. `unproficient` lists
+ * the attacks with weapons its class isn't trained with: no Proficiency
+ * Bonus to hit (SRD: Weapon Proficiency).
+ */
 export function actionsOf(
 	character: DndCharacter,
 	derived: DerivedCharacter,
 	catalog: Catalog
-): { actions: Action[]; attacks: Record<string, Ability>; bonusActions: string[] } {
+): {
+	actions: Action[];
+	attacks: Record<string, Ability>;
+	bonusActions: string[];
+	unproficient: string[];
+	weapons: Record<string, string>;
+} {
 	const actions: Action[] = [];
 	const attacks: Record<string, Ability> = {};
 	const bonusActions: string[] = [];
-	for (const id of character.weapons) {
-		const w = catalog.get('weapon', id)!;
+	const unproficient: string[] = [];
+	const weaponOf: Record<string, string> = {};
+	const klass = catalog.get('class', character.class.id)!;
+	const held = character.inventory.filter((e) => e.equipped === 'hand');
+	const shield = character.inventory.some((e) => e.equipped === 'shield');
+	for (const e of held) {
+		const w = catalog.get('weapon', e.item)!;
 		const ability = weaponAbility(w.data, derived);
 		const reach = w.data.properties.some((p) => p === 'Reach');
 		const range =
@@ -287,23 +330,51 @@ export function actionsOf(
 				: reach
 					? 2
 					: 1;
+		const twoHanded = !!w.data.versatile && held.length === 1 && !shield;
+		const die = twoHanded ? w.data.versatile! : w.data.damage;
 		const mod = derived.modifiers[ability];
-		const damage = /^\d+$/.test(w.data.damage)
-			? w.data.damage
-			: `${w.data.damage}${mod ? signed(mod) : ''}`;
-		const action = slug(id);
+		const damage = /^\d+$/.test(die) ? die : `${die}${mod ? signed(mod) : ''}`;
+		let action = slug(e.item);
+		for (let n = 2; actions.some((a) => a.id === action); n++) action = `${slug(e.item)}-${n}`;
 		attacks[action] = ability;
+		weaponOf[action] = e.item;
+		if (!trainedWith(klass.data, w.data)) unproficient.push(action);
+		const g = gearOf(catalog, e.item);
+		const ammo = g?.kind === 'weapon' ? ammunitionFor(g, catalog) : null;
+		const left = ammo
+			? character.inventory.filter((x) => x.item === ammo).reduce((n, x) => n + x.quantity, 0)
+			: 0;
+		const ammoName = ammo ? catalog.get('ammunition', ammo)!.name : '';
 		actions.push({
 			id: action,
 			name: w.name,
-			about: `${w.name}: ${w.data.damage} ${w.data.damageType.toLowerCase()} damage${
-				w.data.properties.length ? ` (${w.data.properties.join(', ')})` : ''
-			}.${w.data.type === 'ranged' ? ' Hard to aim with a foe beside you.' : ''}`,
+			about: `${w.name}: ${die} ${w.data.damageType.toLowerCase()} damage${
+				twoHanded ? ', held in both hands' : ''
+			}${w.data.properties.length ? ` (${w.data.properties.join(', ')})` : ''}.${
+				ammo ? (left ? ` ${ammoName}: ${left} left.` : ` No ${ammoName} left.`) : ''
+			}${w.data.type === 'ranged' ? ' Hard to aim with a foe beside you.' : ''}${
+				unproficient.includes(action) ? ' Not trained with it: no Proficiency Bonus.' : ''
+			}`,
 			kind: 'attack',
 			target: 'enemy',
 			range,
 			stat: ability === 'dex' ? 'agility' : 'might',
 			dice: damage,
+			uses: null
+		});
+	}
+	if (!held.length) {
+		// SRD Unarmed Strike: Strength modifier plus Proficiency Bonus to hit, 1 + Strength modifier Bludgeoning.
+		attacks['unarmed-strike'] = 'str';
+		actions.push({
+			id: 'unarmed-strike',
+			name: 'Unarmed Strike',
+			about: `A punch, kick or headbutt: ${Math.max(0, 1 + derived.modifiers.str)} bludgeoning damage. Nothing in hand.`,
+			kind: 'attack',
+			target: 'enemy',
+			range: 1,
+			stat: 'might',
+			dice: `${Math.max(0, 1 + derived.modifiers.str)}`,
 			uses: null
 		});
 	}
@@ -336,17 +407,21 @@ export function actionsOf(
 		});
 		bonusActions.push('lay-on-hands');
 	}
-	return { actions, attacks, bonusActions };
+	return { actions, attacks, bonusActions, unproficient, weapons: weaponOf };
 }
 
-/** A character as the table plays it. */
+/** How a character looks at the table where the adventure says (its own characters). */
+export type Look = Partial<Pick<CharacterDef, 'intro' | 'tagline' | 'model' | 'light' | 'vision'>>;
+
+/** A character as the table plays it; `look` keeps an adventure's own presentation of it. */
 export function tableCharacter(
 	character: DndCharacter,
 	color: string,
-	catalog: Catalog
+	catalog: Catalog,
+	look: Look = {}
 ): CharacterDef {
 	const derived = deriveCharacter(character, catalog);
-	const { actions, attacks, bonusActions } = actionsOf(character, derived, catalog);
+	const { actions, attacks, bonusActions, unproficient } = actionsOf(character, derived, catalog);
 	const klass = slug(character.class.id);
 	const full = sheetDetails(character, derived, catalog, actions);
 	return characterDefOf(
@@ -354,24 +429,35 @@ export function tableCharacter(
 		{
 			id: character.id,
 			name: character.name,
-			tagline: derived.title,
-			intro: `${character.name} joins the party: ${article(derived.species)} ${derived.species} ${derived.class}, once ${article(derived.background)} ${derived.background.toLowerCase()}. A torch in hand, and ${actions[0].name.toLowerCase()} ready.`,
+			tagline: look.tagline ?? derived.title,
+			intro:
+				look.intro ??
+				`${character.name} joins the party: ${article(derived.species)} ${derived.species} ${derived.class}, once ${article(derived.background)} ${derived.background.toLowerCase()}. A torch in hand, and ${actions[0].name.toLowerCase()} ready.`,
 			color,
-			vision: VISION,
-			light: TORCH,
+			vision: look.vision ?? VISION,
+			light: look.light ?? TORCH,
 			stats: { might: 0, agility: 0, wits: 0, spirit: 0 },
-			model: FIGURES[klass] ?? 'warden',
+			model: look.model ?? FIGURES[klass] ?? 'warden',
 			actions,
 			attacks,
 			bonusActions
 		},
-		full
+		{
+			...full,
+			inventory: inventoryCard(character, catalog),
+			unproficient,
+			saved: savedOf(character, color)
+		}
 	);
 }
 
+/** What a built character is saved as: its colour and the character itself. */
+export const savedOf = (character: DndCharacter, color: string) =>
+	({ color, character: JSON.parse(JSON.stringify(character)) }) as JsonData & RulesData;
+
 export function summaryOf(character: DndCharacter, catalog: Catalog): CreatorSummary {
 	const d = deriveCharacter(character, catalog);
-	const { actions, attacks } = actionsOf(character, d, catalog);
+	const { actions, attacks, unproficient } = actionsOf(character, d, catalog);
 	return {
 		title: d.title,
 		level: d.level,
@@ -407,7 +493,7 @@ export function summaryOf(character: DndCharacter, catalog: Catalog): CreatorSum
 			name: a.name,
 			summary:
 				a.kind === 'attack'
-					? `${signed(d.modifiers[attacks[a.id]] + d.proficiency)} to hit, ${a.dice} damage${a.range > 1 ? `, range ${a.range}` : ''}`
+					? `${signed(d.modifiers[attacks[a.id]] + (unproficient.includes(a.id) ? 0 : d.proficiency))} to hit, ${a.dice} damage${a.range > 1 ? `, range ${a.range}` : ''}`
 					: `heals ${a.dice}${a.uses ? `, ${a.uses} use${a.uses === 1 ? '' : 's'}` : ''}`
 		}))
 	};
@@ -420,15 +506,15 @@ export function dndBuilder(
 	attribution: string
 ): CharacterBuilder {
 	const make = (raw: unknown, id: string) => {
-		const read = choicesOf(raw, id);
+		const read = choicesOf(raw, id, catalog());
 		if ('problems' in read) return { ok: false as const, problems: read.problems };
 		const made = createCharacter(read.choices, catalog(), rules);
 		return made.ok ? { ok: true as const, character: made.character, color: read.color } : made;
 	};
-	const table = (character: DndCharacter, color: string): Built => ({
+	const table = (character: DndCharacter, color: string, look?: Look): Built => ({
 		ok: true,
-		def: tableCharacter(character, color, catalog()),
-		saved: { color, character: JSON.parse(JSON.stringify(character)) } as JsonData
+		def: tableCharacter(character, color, catalog(), look),
+		saved: savedOf(character, color)
 	});
 	return {
 		options: () => creatorOptions(catalog(), attribution) as unknown as JsonData,
@@ -442,7 +528,7 @@ export function dndBuilder(
 			const made = make(raw, id);
 			return made.ok ? table(made.character, made.color) : made;
 		},
-		restore: (saved, id) => restore(saved, id),
+		restore: (saved, id, base) => restore(saved, id, undefined, base && lookOf(base)),
 		rename(saved, id, name) {
 			const trimmed = name.trim();
 			if (!trimmed || trimmed.length > NAME_MAX)
@@ -452,16 +538,25 @@ export function dndBuilder(
 	};
 
 	/** A saved character back, checked in full; under a new name when one is given. */
-	function restore(saved: unknown, id: string, name?: string): Built {
+	function restore(saved: unknown, id: string, name?: string, look?: Look): Built {
 		if (!isObject(saved) || typeof saved.color !== 'string' || !COLOR.test(saved.color))
 			return { ok: false, problems: ['a built character must have its colour'] };
-		const migrated = migrateCharacter(saved.character);
+		const migrated = migrateCharacter(saved.character, catalog());
 		if (!migrated.ok) return migrated;
 		const raw = name === undefined ? migrated.raw : { ...(migrated.raw as object), name };
 		const read = readCharacter(raw, catalog(), rules);
 		if (!read.ok) return read;
 		if (read.character.id !== id)
 			return { ok: false, problems: ['a built character under another id'] };
-		return table(read.character, saved.color);
+		return table(read.character, saved.color, look);
 	}
 }
+
+/** An adventure's own presentation of one of its characters. */
+export const lookOf = (def: CharacterDef): Look => ({
+	intro: def.intro,
+	tagline: def.tagline,
+	model: def.model,
+	light: def.light,
+	vision: def.vision
+});

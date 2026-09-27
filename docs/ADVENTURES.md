@@ -148,11 +148,29 @@ written by hand (`server/rules/dnd55e/character/`): a `DndCharacter` stores
 only choices (species and its options, background and its +2/+1, class,
 skills, Expertise, Fighting Style, Weapon Mastery, subclass, ability scores by
 standard array, point buy or roll, feats at the levels that grant them, hit
-points by average or roll, worn armor) and its state of play, bound to the
+points by average or roll), what it owns and its state of play, bound to the
 rules and the catalog it was made from; `readCharacter` checks every choice,
-`deriveCharacter` works out every number, and `characterDefOf` makes the
+`deriveCharacter` works out every number, and `tableCharacter` makes the
 `CharacterDef` a table plays. The Barrow's four characters are made this way
-(`server/adventures/barrow/party.ts`).
+(`server/adventures/barrow/party.ts`), with the adventure's own words,
+colours and figures for them (a `Look`).
+
+Such a character owns its gear (`character/inventory.ts`): catalog weapons,
+armor and ammunition, each entry with a quantity, where it came from
+(starting equipment, found, given by someone, from the GM, recovered) and
+where it is equipped (worn armor, a Shield, weapons in hand). Its Armor Class
+comes from what it wears, its attacks from the weapons in its hands (a
+Versatile weapon alone in them deals its two-handed damage, a weapon it isn't
+trained with adds no Proficiency Bonus, empty hands make an Unarmed Strike),
+and a weapon that fires ammunition spends a piece a shot and gets half back
+when a fight is won. Its player (or the GM) equips, puts away, puts down,
+hands over and picks up things from its sheet and the action bar
+(`adventure_gear`); the server refuses armor the class isn't trained in, more
+than two hands can hold and more than its Carrying Capacity (Strength × 15
+lb.), and in a fight allows only weapons, on the character's own turn, twice.
+What is put down lies in a pile on the table, shown by a `gear-pile` prop; the
+pile is the rules' data, not a world object, and a story's objects can't be
+picked up this way. The GM may give any character something from the SRD.
 
 A story played by rules that can build characters may let players bring
 their own: set `openParty: true` on the adventure (The Barrow does). Players

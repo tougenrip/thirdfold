@@ -10,7 +10,7 @@ import path from 'node:path';
 import type { ContentSource } from '../../../../src/lib/content/catalog';
 import { parseClasses } from './classes';
 import { SrdDocument, type Diagnostic } from './document';
-import { parseArmor, parseWeapons } from './equipment';
+import { parseAmmunition, parseArmor, parseWeapons } from './equipment';
 import { parseRules } from './glossary';
 import { parseMonsters } from './monsters';
 import { parseBackgrounds, parseFeats, parseSpecies } from './origins';
@@ -20,7 +20,7 @@ import { SRD_521 } from './source';
 import { parseSpells } from './spells';
 
 /** Bumped whenever the importer's output changes for the same source. */
-export const IMPORTER_VERSION = 1;
+export const IMPORTER_VERSION = 2;
 /** The PDF reader the output depends on (pinned exactly in package.json). */
 export const PDFJS_VERSION = '6.3.289';
 
@@ -30,7 +30,7 @@ export { CATALOG_DIR } from '../catalog';
 export const NOT_IMPORTED = [
 	'Playing the Game',
 	'Character Creation',
-	'Equipment: Coins, Tools, Adventuring Gear, Mounts and Vehicles, Lifestyle Expenses, Food, Drink, and Lodging, Hirelings, Spellcasting services, Magic Items for sale, Crafting',
+	'Equipment: Coins, Tools, Adventuring Gear (but its Ammunition table), Mounts and Vehicles, Lifestyle Expenses, Food, Drink, and Lodging, Hirelings, Spellcasting services, Magic Items for sale, Crafting',
 	'Spells: Gaining Spells, Casting Spells (the rules; every spell is imported)',
 	'Classes: the class spell lists (each spell records its classes)',
 	'Gameplay Toolbox',
@@ -80,6 +80,7 @@ export async function importSrd(bytes: Uint8Array): Promise<ImportedCatalog> {
 		...parseClasses(doc),
 		...parseWeapons(doc),
 		...parseArmor(doc),
+		...parseAmmunition(doc),
 		...parseSpells(doc),
 		...parseMonsters(doc)
 	];

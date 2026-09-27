@@ -7,6 +7,7 @@ import {
 	act,
 	afterMove,
 	beginAdventure,
+	changeGear,
 	characterOf,
 	claimCharacter,
 	interact,
@@ -258,6 +259,9 @@ describe('The Barrow on Cold Hill (fifth edition rules)', () => {
 			color: '#fff',
 			on: true
 		});
+		// The Veil puts the shortsword away and takes up the bow (both hands), on its turn.
+		ok(changeGear(room, ana, 'veil', { kind: 'unequip', item: 'item-2' }));
+		ok(changeGear(room, ana, 'veil', { kind: 'equip', item: 'item-3' }));
 		const { log } = ok(act(room, ana, 'shortbow', shade.id, dice(18, 5)));
 		const [attack] = only(log, 'attack');
 		expect(attack).toMatchObject({

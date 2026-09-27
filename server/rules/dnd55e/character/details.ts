@@ -12,7 +12,8 @@ import { ABILITIES, abilityName, skillOf, type Ability } from '../core';
 import type { DerivedCharacter } from './derive';
 import { featsOf } from './derive';
 import type { DndCharacter } from './model';
-import { SPECIES_OPTIONS } from './options';
+import { gearOf, kindText } from './inventory';
+import { SPECIES_OPTIONS, trainedWith } from './options';
 
 const METHODS: Record<DndCharacter['abilities']['method'], string> = {
 	'standard-array': 'Standard array',
@@ -38,6 +39,7 @@ export function sheetDetails(
 	actions: readonly Action[]
 ): { details: DndSheetDetails; resources: CardResource[] } {
 	const klass = catalog.get('class', character.class.id)!;
+	const worn = character.inventory.find((e) => e.equipped === 'armor');
 	const species = catalog.get('species', character.species.id)!;
 	const subclass = character.class.subclass
 		? catalog.get('subclass', character.class.subclass)
@@ -126,19 +128,31 @@ export function sheetDetails(
 			weapons: derived.proficiencies.weapons,
 			tools: derived.proficiencies.tools
 		},
+		gear: (['weapon', 'armor', 'ammunition'] as const).flatMap((kind) =>
+			catalog.all(kind).map((r) => {
+				const g = gearOf(catalog, r.id)!;
+				return { id: r.id, name: r.name, kind: kindText(g) };
+			})
+		),
 		equipment: {
-			armor: character.armor.worn
-				? (catalog.get('armor', character.armor.worn)?.name ?? null)
-				: null,
-			shield: character.armor.shield,
-			weapons: character.weapons.map((id) => {
-				const w = catalog.get('weapon', id)!;
+			armor: worn ? (catalog.get('armor', worn.item)?.name ?? null) : null,
+			shield: character.inventory.some((e) => e.equipped === 'shield'),
+			weapons: [
+				...new Map(
+					character.inventory
+						.filter((e) => e.item.includes(':weapon:'))
+						.map((e) => [e.item + (e.equipped ? ':held' : ''), e])
+				).values()
+			].map((e) => {
+				const w = catalog.get('weapon', e.item)!;
 				return {
 					name: w.name,
 					damage: `${w.data.damage} ${w.data.damageType.toLowerCase()}`,
 					properties: w.data.properties,
 					mastery: w.data.mastery,
-					mastered: character.class.weaponMasteries.includes(id)
+					mastered: character.class.weaponMasteries.includes(e.item),
+					held: e.equipped === 'hand',
+					trained: trainedWith(klass.data, w.data)
 				};
 			})
 		},

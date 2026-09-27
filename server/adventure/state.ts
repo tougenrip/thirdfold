@@ -14,7 +14,7 @@ import type {
 import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { Creator } from '../../src/lib/game/library';
-import type { RulesetRef } from '../rules/ruleset';
+import type { JsonData, RulesetRef } from '../rules/ruleset';
 import type { BuiltCharacter } from './built';
 import type { Origins } from './world';
 
@@ -131,6 +131,14 @@ export interface Decision {
 	by: string;
 }
 
+/** Things put down together on one cell of one table. */
+export interface Pile {
+	location: LocationId;
+	pos: GridPos;
+	/** Each item as its rules keep it, and its name. */
+	items: { item: JsonData; name: string }[];
+}
+
 export interface AdventureState {
 	/** Which adventure (see server/adventures). */
 	id: string;
@@ -147,6 +155,19 @@ export interface AdventureState {
 	 * removed. Absent or empty when nobody built one.
 	 */
 	built?: ReadonlyMap<CharacterId, BuiltCharacter>;
+	/**
+	 * The adventure's own characters whose rules data changed in play (what
+	 * they carry and wield, under rules with equipment), by id: played in
+	 * place of the adventure's definition. Replaced, never changed in place.
+	 * Absent until one changes.
+	 */
+	kept?: ReadonlyMap<CharacterId, BuiltCharacter>;
+	/**
+	 * Things characters put down, by the id of the prop that shows each pile
+	 * on its table: where it lies and what is in it, as the rules' own data
+	 * (`Equipment`). The prop is only a marker; the items are not props.
+	 */
+	piles?: ReadonlyMap<string, Pile>;
 	/**
 	 * Evidence found, in the order it was found, by clue id: who found it
 	 * themselves, and whether the whole party knows it.

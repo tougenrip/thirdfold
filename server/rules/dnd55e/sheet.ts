@@ -13,12 +13,17 @@
 //     expertise: ['perception'],         // optional: skills whose proficiency counts twice
 //     initiative: 3,                     // optional: the initiative bonus (Dexterity by default)
 //     attacks: { longsword: 'str' },     // the ability each attack action uses
-//     bonusActions: ['second-wind']      // actions that take a bonus action
+//     bonusActions: ['second-wind'],     // actions that take a bonus action
+//     unproficient: ['greataxe'],        // optional: attacks without the Proficiency Bonus
 //   }
+//
+// A character built from its choices (character/) also carries its full
+// sheet (`details`), `resources`, its `inventory` and `carrying` as the card
+// shows them, and itself as `saved`, which the equipment rules change.
 //
 // Armor Class is the definition's `armor`.
 
-import type { CardResource } from '../../../src/lib/adventure/adventure';
+import type { CardItem, CardResource } from '../../../src/lib/adventure/adventure';
 import type { CharacterDef, RulesData, RulesValue } from '../../../src/lib/adventure/characters';
 import {
 	ABILITIES,
@@ -43,6 +48,11 @@ export interface Sheet {
 	initiative: number | null;
 	attacks: Record<string, Ability>;
 	bonusActions: string[];
+	unproficient: string[];
+	inventory: CardItem[] | null;
+	carrying: { weight: number; capacity: number } | null;
+	/** The character as its rules save it (character/builder.ts `savedOf`). */
+	saved: RulesData | null;
 }
 
 type Read = { ok: true; sheet: Sheet } | { ok: false; problems: string[] };
@@ -61,7 +71,11 @@ const KEYS = [
 	'attacks',
 	'bonusActions',
 	'details',
-	'resources'
+	'resources',
+	'unproficient',
+	'inventory',
+	'carrying',
+	'saved'
 ];
 
 /** The sheet of a character, or everything wrong with it. */
@@ -134,6 +148,18 @@ export function readSheet(character: CharacterDef): Read {
 		if (a.kind === 'attack' && !listed[a.id]) bad(`attacks: which ability does "${a.id}" use?`);
 	const bonusActions = strings(raw.bonusActions, 'bonusActions');
 	for (const b of bonusActions) if (!actionIds.has(b)) bad(`bonusActions: no action "${b}"`);
+	const unproficient = strings(raw.unproficient, 'unproficient');
+	for (const u of unproficient) if (!listed[u]) bad(`unproficient: no attack "${u}"`);
+
+	// What the character rules write about gear travels as it is.
+	if (raw.inventory !== undefined && !Array.isArray(raw.inventory)) bad('inventory must be a list');
+	const carrying = isRecord(raw.carrying) ? raw.carrying : null;
+	if (
+		raw.carrying !== undefined &&
+		(!carrying || typeof carrying.weight !== 'number' || typeof carrying.capacity !== 'number')
+	)
+		bad('carrying must give a weight and a capacity');
+	if (raw.saved !== undefined && !isRecord(raw.saved)) bad('saved must be an object');
 
 	// The full sheet, written by the character rules (character/details.ts), travels as it is.
 	if (raw.details !== undefined && !isRecord(raw.details)) bad('details must be an object');
@@ -178,7 +204,13 @@ export function readSheet(character: CharacterDef): Read {
 			expertise,
 			initiative: typeof initiative === 'number' ? initiative : null,
 			attacks,
-			bonusActions
+			bonusActions,
+			unproficient,
+			inventory: Array.isArray(raw.inventory) ? (raw.inventory as unknown as CardItem[]) : null,
+			carrying: carrying
+				? { weight: carrying.weight as number, capacity: carrying.capacity as number }
+				: null,
+			saved: isRecord(raw.saved) ? raw.saved : null
 		}
 	};
 }

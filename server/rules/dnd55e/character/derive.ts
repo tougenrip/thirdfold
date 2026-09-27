@@ -2,12 +2,13 @@
 // worked out on the server from the catalog each time it is asked (a
 // character stores choices, never these numbers): ability scores and
 // modifiers, proficiency, saves, skills, Armor Class, initiative, speed,
-// hit points and Hit Point Dice, features, proficiencies, limited-use
+// what it carries, hit points and Hit Point Dice, features, proficiencies, limited-use
 // resources from the class table, and spellcasting. The character must be
 // valid (validate.ts); this doesn't check it again.
 
 import { ABILITIES, abilityModifier, proficiencyBonus, SKILLS, type Ability } from '../core';
 import type { Catalog } from '../catalog';
+import { capacityOf, carriedWeight } from './inventory';
 import type { DndCharacter, FeatChoice } from './model';
 import {
 	abilitiesNamed,
@@ -59,6 +60,8 @@ export interface DerivedCharacter {
 	/** In feet. */
 	speed: number;
 	passivePerception: number;
+	/** What it carries and can carry, in pounds (Carrying Capacity: Strength × 15). */
+	carrying: { weight: number; capacity: number };
 	hitPoints: { max: number; current: number; temp: number };
 	hitDice: { die: number; total: number; spent: number };
 	features: Feature[];
@@ -163,17 +166,20 @@ export function deriveCharacter(c: DndCharacter, catalog: Catalog): DerivedChara
 	const feats = featsOf(c, catalog).map((f) => catalog.get('feat', f.feat)!);
 	const hasFeat = (name: string) => feats.some((f) => f.name === name);
 
-	// Armor Class: worn armor's base plus Dexterity up to its cap, else an
-	// Unarmored Defense, else 10 + Dexterity; a Shield adds its bonus.
-	const armor = c.armor.worn ? catalog.get('armor', c.armor.worn)!.data : null;
-	const shield = c.armor.shield ? catalog.named('armor', 'Shield')!.data.base : 0;
+	// Armor Class: the equipped armor's base plus Dexterity up to its cap,
+	// else an Unarmored Defense, else 10 + Dexterity; a Shield carried adds
+	// its bonus.
+	const wornEntry = c.inventory.find((e) => e.equipped === 'armor');
+	const shieldEntry = c.inventory.find((e) => e.equipped === 'shield');
+	const armor = wornEntry ? catalog.get('armor', wornEntry.item)!.data : null;
+	const shield = shieldEntry ? catalog.get('armor', shieldEntry.item)!.data.base : 0;
 	let armorClass: number;
 	if (armor)
 		armorClass =
 			armor.base + (armor.dexCap === null ? modifiers.dex : Math.min(modifiers.dex, armor.dexCap));
 	else if (has('Unarmored Defense') && klass.name === 'Barbarian')
 		armorClass = 10 + modifiers.dex + modifiers.con;
-	else if (has('Unarmored Defense') && klass.name === 'Monk' && !c.armor.shield)
+	else if (has('Unarmored Defense') && klass.name === 'Monk' && !shieldEntry)
 		armorClass = 10 + modifiers.dex + modifiers.wis;
 	else armorClass = 10 + modifiers.dex;
 	armorClass += shield;
@@ -184,7 +190,7 @@ export function deriveCharacter(c: DndCharacter, catalog: Catalog): DerivedChara
 	let speed = species.data.speed;
 	for (const [key, value] of Object.entries(c.species.options))
 		speed = OPTION_SPEED[`${key}:${value}`] ?? speed;
-	if (klass.name === 'Monk' && !armor && !c.armor.shield)
+	if (klass.name === 'Monk' && !armor && !shieldEntry)
 		speed += columnNumber(row.columns['Unarmored Movement']);
 	if (has('Fast Movement') && armor?.category !== 'heavy') speed += 10;
 	if (armor?.strength && scores.str < armor.strength) speed -= 10;
@@ -271,6 +277,7 @@ export function deriveCharacter(c: DndCharacter, catalog: Catalog): DerivedChara
 		initiative,
 		speed,
 		passivePerception: 10 + perception,
+		carrying: { weight: carriedWeight(c, catalog), capacity: capacityOf(scores.str) },
 		hitPoints: { max, current: Math.min(c.state.hp, max), temp: c.state.tempHp },
 		hitDice: { die, total: c.level, spent: c.state.hitDiceSpent },
 		features,

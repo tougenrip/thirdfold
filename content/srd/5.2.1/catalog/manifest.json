@@ -17,7 +17,7 @@
 		"attribution": "This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”) by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode."
 	},
 	"importer": {
-		"version": 1,
+		"version": 2,
 		"pdfjs": "6.3.289"
 	},
 	"files": {
@@ -61,6 +61,11 @@
 			"count": 13,
 			"sha256": "b1ca1967299bd355df9ed1f8ce7b4749dc910f028dbcef46478ec03a0b922bb7"
 		},
+		"ammunition": {
+			"file": "ammunition.json",
+			"count": 5,
+			"sha256": "fa5b4ec7c0a068108905b7f3cfb6a2ab1fb487e98ce78a68598be2bd49a912f6"
+		},
 		"spell": {
 			"file": "spell.json",
 			"count": 339,
@@ -75,7 +80,7 @@
 	"notImported": [
 		"Playing the Game",
 		"Character Creation",
-		"Equipment: Coins, Tools, Adventuring Gear, Mounts and Vehicles, Lifestyle Expenses, Food, Drink, and Lodging, Hirelings, Spellcasting services, Magic Items for sale, Crafting",
+		"Equipment: Coins, Tools, Adventuring Gear (but its Ammunition table), Mounts and Vehicles, Lifestyle Expenses, Food, Drink, and Lodging, Hirelings, Spellcasting services, Magic Items for sale, Crafting",
 		"Spells: Gaining Spells, Casting Spells (the rules; every spell is imported)",
 		"Classes: the class spell lists (each spell records its classes)",
 		"Gameplay Toolbox",

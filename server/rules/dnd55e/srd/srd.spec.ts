@@ -10,7 +10,7 @@ import {
 	type ImportedCatalog
 } from './importer';
 import { readPdf } from './pdf';
-import { SRD_KINDS, type SrdRecord } from './records';
+import { SRD_KINDS, type AmmunitionData, type SrdRecord, type WeaponData } from './records';
 import { SRD_521 } from './source';
 import { validateCatalog } from './validate';
 
@@ -46,7 +46,7 @@ describe('the SRD 5.2.1 import', () => {
 		expect(validateCatalog(catalog.manifest, catalog.records)).toEqual([]);
 	});
 
-	it('imports every spell, monster, weapon, armor, class, species, background and feat', () => {
+	it('imports every spell, monster, weapon, armor, ammunition, class, species, background and feat', () => {
 		const counts = Object.fromEntries(SRD_KINDS.map((k) => [k, catalog.records[k].length]));
 		expect(counts).toEqual({
 			rule: 173,
@@ -57,6 +57,7 @@ describe('the SRD 5.2.1 import', () => {
 			subclass: 12,
 			weapon: 38,
 			armor: 13,
+			ammunition: 5,
 			spell: 339,
 			monster: 330
 		});
@@ -135,6 +136,26 @@ describe('the SRD 5.2.1 import', () => {
 			stealthDisadvantage: true
 		});
 		expect(find('armor', 'Half Plate Armor').data).toMatchObject({ base: 15, dexCap: 2 });
+	});
+
+	it('reads the Ammunition table, and every ammunition a weapon names is there', () => {
+		expect(catalog.records.ammunition.map((r) => r.name)).toEqual([
+			'Arrows',
+			'Bolts',
+			'Bullets, Firearm',
+			'Bullets, Sling',
+			'Needles'
+		]);
+		expect(find('ammunition', 'Bullets, Sling')).toMatchObject({
+			id: 'srd-5.2.1:ammunition:bullets-sling',
+			data: { type: 'Bullet', kind: 'sling', amount: 20, storage: 'Pouch', cost: '4 CP' },
+			provenance: { section: ['Equipment', 'Adventuring Gear'], pages: [96] }
+		});
+		const types = new Set(catalog.records.ammunition.map((r) => (r.data as AmmunitionData).type));
+		for (const w of catalog.records.weapon) {
+			const fires = (w.data as WeaponData).ammunition;
+			if (fires) expect(types.has(fires)).toBe(true);
+		}
 	});
 
 	it('reads a stat block: its numbers, and its blocks by section', () => {

@@ -156,7 +156,8 @@ export function adventureView(
 					const thing = by === id && token ? objectDef(A, item) : undefined;
 					return thing ? [{ id: thing.id, name: thing.name }] : [];
 				}),
-				def,
+				// The rules' own data about a character (its sheet) stays on the server: the card is what the rules show.
+				def: { ...def, sheet: undefined },
 				card,
 				resourcesSpent: Object.fromEntries(
 					(card.resources ?? []).map((r) => {
@@ -178,6 +179,19 @@ export function adventureView(
 					: []
 			};
 		}),
+		piles: [...(adventure.piles ?? [])].flatMap(([id, pile]) =>
+			pile.location === adventure.location &&
+			room.props.has(id) &&
+			(!known || known[cellIndex(room.grid, pile.pos)])
+				? [
+						{
+							id,
+							cell: { ...pile.pos },
+							items: pile.items.map((item, index) => ({ index, name: item.name }))
+						}
+					]
+				: []
+		),
 		interactables: A.objects.flatMap((def) => {
 			const state = objectState(adventure, def);
 			const verbs = verbsFor(adventure, def);

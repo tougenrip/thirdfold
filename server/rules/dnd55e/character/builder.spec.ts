@@ -103,10 +103,8 @@ describe('building a fifth edition character', () => {
 			expertise: true
 		});
 		expect(summary.skills.find((s) => s.id === 'medicine')!.proficient).toBe(true);
-		expect(summary.actions).toEqual([
-			{ name: 'Rapier', summary: '+5 to hit, 1d8+3 damage' },
-			{ name: 'Shortbow', summary: '+5 to hit, 1d6+3 damage, range 16' }
-		]);
+		// The Rapier is in hand; the Shortbow takes both hands, so it is carried until taken up.
+		expect(summary.actions).toEqual([{ name: 'Rapier', summary: '+5 to hit, 1d8+3 damage' }]);
 	});
 
 	it('builds the table character, its attacks from its weapons', () => {
@@ -123,13 +121,21 @@ describe('building a fifth edition character', () => {
 			model: 'veil'
 		});
 		expect(built.def.actions.map((a) => [a.id, a.kind, a.range, a.dice])).toEqual([
-			['rapier', 'attack', 1, '1d8+3'],
-			['shortbow', 'attack', 16, '1d6+3']
+			['rapier', 'attack', 1, '1d8+3']
 		]);
 		expect(built.def.sheet).toMatchObject({
 			level: 1,
-			attacks: { rapier: 'dex', shortbow: 'dex' },
-			expertise: ['investigation', 'stealth']
+			attacks: { rapier: 'dex' },
+			expertise: ['investigation', 'stealth'],
+			// It owns its weapons and the arrows the Shortbow fires, where it can see them.
+			inventory: [
+				{ name: 'Leather Armor', equipped: 'Worn', kind: 'Light armor', weight: 10 },
+				{ name: 'Rapier', equipped: 'In hand', source: 'Starting equipment' },
+				{ name: 'Shortbow', equipped: null, kind: 'Simple ranged weapon' },
+				{ name: 'Arrows', quantity: 20, kind: 'Ammunition', weight: 1 }
+			],
+			// Strength 8 carries 8 × 15 lb.; Leather Armor 10, Rapier 2, Shortbow 2, Arrows 1.
+			carrying: { weight: 15, capacity: 120 }
 		});
 		// A class's level 1 healing comes as an action: a Fighter's Second Wind.
 		const fighter = builder.build(
@@ -157,6 +163,8 @@ describe('building a fifth edition character', () => {
 		);
 		if (!fighter.ok) throw new Error(fighter.problems.join('; '));
 		expect(fighter.def.actions.map((a) => a.id)).toEqual(['longsword', 'second-wind']);
+		// A Versatile Longsword alone in the hands deals its two-handed damage.
+		expect(fighter.def.actions[0].dice).toBe('1d10+2');
 		expect(fighter.def.sheet).toMatchObject({ bonusActions: ['second-wind'] });
 	});
 

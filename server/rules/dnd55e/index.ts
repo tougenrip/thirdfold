@@ -32,6 +32,7 @@ import {
 } from './core';
 import { srdCatalog } from './catalog';
 import { dndBuilder } from './character/builder';
+import { dndEquipment } from './character/equipment';
 import { readSheet, sheetOf, type Sheet } from './sheet';
 
 export const DND_55E: RulesetRef = { id: 'dnd-5.5e', version: 1 };
@@ -87,7 +88,9 @@ export const dnd55e: Ruleset = {
 	attackBonus(character, action) {
 		const sheet = sheetOf(character);
 		const ability = sheet.attacks[action.id];
-		return ability ? mod(sheet, ability) + prof(sheet) : 0;
+		if (!ability) return 0;
+		// Weapon Proficiency: only a weapon the character is trained with adds the Proficiency Bonus.
+		return mod(sheet, ability) + (sheet.unproficient.includes(action.id) ? 0 : prof(sheet));
 	},
 	// Armor is the Armor Class itself.
 	defense: (armor) => armor,
@@ -140,6 +143,8 @@ export const dnd55e: Ruleset = {
 			...(sheet.title ? { title: sheet.title } : {}),
 			...(sheet.resources.length ? { resources: sheet.resources.map((r) => ({ ...r })) } : {}),
 			...(sheet.details ? { details: DND_55E.id } : {}),
+			...(sheet.inventory ? { inventory: sheet.inventory.map((i) => ({ ...i })) } : {}),
+			...(sheet.carrying ? { carrying: { ...sheet.carrying } } : {}),
 			defense: { name: 'Armor Class', value: this.defense(character.armor, statuses) },
 			level: sheet.level,
 			proficiency: p,
@@ -188,7 +193,8 @@ export const dnd55e: Ruleset = {
 		return problems;
 	},
 	details: (character) => sheetOf(character).details,
-	builder: dndBuilder(srdCatalog, DND_55E, ATTRIBUTION)
+	builder: dndBuilder(srdCatalog, DND_55E, ATTRIBUTION),
+	equipment: dndEquipment(srdCatalog, DND_55E)
 };
 
 registerRuleset(dnd55e);

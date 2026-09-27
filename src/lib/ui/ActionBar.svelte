@@ -10,6 +10,7 @@
 		type Sense
 	} from '$lib/adventure/adventure';
 	import { BLEED_OUT_ROUNDS, STATUSES, type Action } from '$lib/adventure/characters';
+	import { gridDistance } from '$lib/game/grid';
 	import type { Blockers } from '$lib/game/objects';
 	import type { Token } from '$lib/game/token';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
@@ -74,6 +75,12 @@
 						(!encounter || i.verbs.some((v) => v.inFight)) &&
 						(i.carried || canReach(blocked, token.pos, i.cells))
 				)
+	);
+	/** Things put down beside the character, to pick up (on its turn, in a fight). */
+	const piles = $derived(
+		!able || adventure.stage === 'choosing' || (encounter && !isMine)
+			? []
+			: adventure.piles.filter((p) => gridDistance(token.pos, p.cell) <= 1)
 	);
 	/** Actions that make sense now: everything in a fight, only healing outside one. */
 	const actions = $derived(
@@ -233,6 +240,23 @@
 						<small class="kind">{kindOf(v)}</small>
 						{v.label}
 						{#if v.check && !v.tried}<small class="num">{v.check.dc}</small>{/if}
+					</button>
+				{/each}
+			{/each}
+			{#each piles as p (p.id)}
+				{#each p.items as it (it.index)}
+					<button
+						type="button"
+						title="Pick up what lies here"
+						onclick={() =>
+							send({
+								type: 'adventure_gear',
+								characterId: character.id,
+								change: { kind: 'take', pile: p.id, index: it.index }
+							})}
+					>
+						<small class="kind">Pick up</small>
+						{it.name}
 					</button>
 				{/each}
 			{/each}

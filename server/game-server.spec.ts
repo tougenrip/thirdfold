@@ -2786,4 +2786,62 @@ describe('fifth edition rules over the wire', () => {
 			editable: true
 		});
 	});
+
+	it('changes Armor Class with what a character wears, shows what it puts down, and keeps it all through a reconnect', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { sessionToken } = await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		const warden = (m: { adventure?: AdventureView | null }) =>
+			m.adventure?.characters.find((c) => c.id === 'warden');
+
+		// The Shield comes off: the GM sees the Armor Class the rules work out.
+		pip.send({
+			type: 'adventure_gear',
+			characterId: 'warden',
+			change: { kind: 'unequip', item: 'item-2' }
+		});
+		const off = await gm.until('adventure_update', (m) => warden(m)?.card.defense.value === 17);
+		expect(warden(off)!.card.inventory!.find((i) => i.name === 'Shield')!.equipped).toBeNull();
+		// The rules' own data never goes out.
+		expect(warden(off)!.def.sheet).toBeUndefined();
+
+		// The Longsword put down: a pile prop on the Warden's cell, and a pile to pick up.
+		pip.send({
+			type: 'adventure_gear',
+			characterId: 'warden',
+			change: { kind: 'drop', item: 'item-3', quantity: 1 }
+		});
+		const dropped = await gm.until('adventure_update', (m) => !!m.adventure?.piles.length);
+		expect(dropped.adventure!.piles[0].items).toEqual([{ index: 0, name: 'Longsword' }]);
+		expect(warden(dropped)!.def.actions.map((a) => a.id)).toEqual([
+			'unarmed-strike',
+			'second-wind'
+		]);
+
+		// A player can't conjure gear, nor change another's.
+		pip.send({
+			type: 'adventure_gear',
+			characterId: 'warden',
+			change: { kind: 'grant', item: 'srd-5.2.1:weapon:greataxe', quantity: 1 }
+		});
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// Pip drops and comes back: the Warden is as it was left, the Longsword still on the ground.
+		pip.ws.close();
+		const again = await connect();
+		again.send({ type: 'resume', roomId: room.id, sessionToken });
+		const back = await again.expect('welcome');
+		const mine = back.room.adventure!.characters.find((c) => c.id === 'warden')!;
+		expect(mine.card.defense.value).toBe(17);
+		expect(mine.card.inventory!.map((i) => i.name)).toEqual(['Chain Mail', 'Shield']);
+		expect(back.room.adventure!.piles).toHaveLength(1);
+		expect(back.room.props.some((p) => p.assetId === 'gear-pile')).toBe(true);
+	});
 });

@@ -9,6 +9,7 @@ import {
 	type AdventureView,
 	type ObjectState,
 	type Sense,
+	type GearChange,
 	type SheetEdit
 } from '../adventure/adventure';
 import { isStatusId, type CharacterId, type StatusId } from '../adventure/characters';
@@ -254,6 +255,8 @@ export type ClientMessage =
 	| { type: 'adventure_build'; choices: CharacterChoicesData }
 	/** A character's player, or the GM: change its sheet (notes, a resource marked, a built character's name). */
 	| { type: 'adventure_sheet'; characterId: CharacterId; edit: SheetEdit }
+	/** A character's player (or the GM): equip, put away, drop, hand over or pick up something; the GM may grant. */
+	| { type: 'adventure_gear'; characterId: CharacterId; change: GearChange }
 	/** Anyone at the table: a character's full sheet, in its rules' shape. */
 	| { type: 'character_sheet'; characterId: CharacterId }
 	/** Anyone at the table: what a character may be built from, under the story's rules. */
@@ -359,6 +362,43 @@ function parseSheetEdit(value: unknown): SheetEdit | null {
 				value.spent >= 0 &&
 				value.spent <= 999
 				? { kind: 'resource', resource: value.resource, spent: value.spent }
+				: null;
+		default:
+			return null;
+	}
+}
+
+/** A rules catalog id, e.g. srd-5.2.1:weapon:longsword. */
+const isCatalogId = (v: unknown): v is string =>
+	typeof v === 'string' && v.length <= 120 && /^[a-z0-9][a-z0-9.:-]*$/.test(v);
+const isCount = (v: unknown): v is number =>
+	typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 999;
+
+function parseGearChange(value: unknown): GearChange | null {
+	if (!isRecord(value)) return null;
+	switch (value.kind) {
+		case 'equip':
+		case 'unequip':
+			return isId(value.item) ? { kind: value.kind, item: value.item } : null;
+		case 'drop':
+			return isId(value.item) && isCount(value.quantity)
+				? { kind: 'drop', item: value.item, quantity: value.quantity }
+				: null;
+		case 'give':
+			return isId(value.item) && isCount(value.quantity) && isId(value.to)
+				? { kind: 'give', item: value.item, quantity: value.quantity, to: value.to }
+				: null;
+		case 'take':
+			return isId(value.pile) &&
+				typeof value.index === 'number' &&
+				Number.isInteger(value.index) &&
+				value.index >= 0 &&
+				value.index < 100
+				? { kind: 'take', pile: value.pile, index: value.index }
+				: null;
+		case 'grant':
+			return isCatalogId(value.item) && isCount(value.quantity)
+				? { kind: 'grant', item: value.item, quantity: value.quantity }
 				: null;
 		default:
 			return null;
@@ -994,6 +1034,12 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			const edit = parseSheetEdit(data.edit);
 			return isId(data.characterId) && edit
 				? { type: 'adventure_sheet', characterId: data.characterId, edit }
+				: null;
+		}
+		case 'adventure_gear': {
+			const change = parseGearChange(data.change);
+			return isId(data.characterId) && change
+				? { type: 'adventure_gear', characterId: data.characterId, change }
 				: null;
 		}
 		case 'character_options':

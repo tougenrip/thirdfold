@@ -25,6 +25,10 @@ export interface SheetWeapon {
 	mastery: string;
 	/** Whether the character uses its mastery property. */
 	mastered: boolean;
+	/** Whether it is in hand now. */
+	held: boolean;
+	/** Whether the class is trained with it (else no Proficiency Bonus). */
+	trained: boolean;
 }
 
 export interface DndSheetDetails {
@@ -60,6 +64,9 @@ export interface DndSheetDetails {
 	features: SheetFeature[];
 	feats: SheetText[];
 	proficiencies: { armor: string[]; weapons: string; tools: string[] };
+	/** The catalog's weapons, armor and ammunition, for the GM to hand out (plain SRD data). */
+	gear: { id: string; name: string; kind: string }[];
+	/** What is equipped (worn armor, a Shield) and every weapon owned; the rest is the card's inventory. */
 	equipment: { armor: string | null; shield: boolean; weapons: SheetWeapon[] };
 	spellcasting: {
 		ability: string;

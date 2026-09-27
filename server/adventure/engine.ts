@@ -28,6 +28,7 @@ import {
 	type ObjectState,
 	type Physical,
 	type Sense,
+	type GearChange,
 	type SheetEdit
 } from '../../src/lib/adventure/adventure';
 import {
@@ -98,6 +99,7 @@ import {
 	type When
 } from './define';
 import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
+import { keepCharacter, layPiles, pickUp, putDown, withKept } from './gear';
 import { contentOf, defaultAdventure, findAdventure } from './registry';
 import type { AdventureState, CharacterState, Encounter, EnemyState, TurnEntry } from './state';
 import {
@@ -113,7 +115,7 @@ import {
 
 /** The content of the adventure a story is of. */
 export function content(adventure: AdventureState): AdventureDef {
-	return withBuilt(contentOf(adventure.id), adventure.built);
+	return withBuilt(withKept(contentOf(adventure.id), adventure.kept), adventure.built);
 }
 
 /** The rules a story plays by. A story only ever names a ruleset this server has (see persist.ts). */
@@ -498,6 +500,136 @@ export function editSheet(room: Room, actor: Player, id: string, edit: SheetEdit
 				ok: true,
 				log: [postSystem(room, `${def.name} is now called ${renamed.def.name}.`)]
 			};
+		}
+	}
+}
+
+/** Gear changes a character may make on its turn in a fight: one with its attack, one its free object interaction. */
+export const GEAR_PER_TURN = 2;
+
+/**
+ * A change to what a character owns or wields (message `adventure_gear`),
+ * under rules with equipment: by its player or the GM, and in a fight only
+ * on the character's own turn, where it may draw or stow a weapon, drop,
+ * hand over or pick up something up to twice (SRD: a weapon equipped or
+ * unequipped with an attack, and one free object interaction), and armor
+ * and Shields, which take minutes to don or doff, don't change. The rules
+ * check each change and work out what follows (Armor Class, attacks); the
+ * GM may also grant a character something from the rules' catalog.
+ */
+export function changeGear(room: Room, actor: Player, id: string, change: GearChange): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	const A = content(adventure);
+	const def = Object.hasOwn(A.characters, id) ? A.characters[id] : undefined;
+	const state = adventure.characters.get(id);
+	const token = state && room.tokens.get(state.tokenId);
+	if (!def || !state || !token) return fail('invalid_message', 'That character is not in play.');
+	const rules = rulesOf(adventure);
+	const equipment = rules.equipment;
+	if (!equipment || !equipment.has(def))
+		return fail('invalid_message', `${def.name} carries nothing the rules keep.`);
+	const gm = actor.role === 'gm';
+	if (!gm && token.ownerId !== actor.id)
+		return fail('forbidden', `Only ${def.name}'s player or the GM can do that.`);
+	if (state.dead) return fail('forbidden', `${def.name} is beyond help.`);
+	if (!gm && state.hp <= 0) return fail('forbidden', `${def.name} is down.`);
+	const base = contentOf(adventure.id);
+	const keep = (who: string, saved: JsonData) => keepCharacter(adventure, rules, base, who, saved);
+	const refused = (r: { problems: string[] }) =>
+		fail('invalid_message', r.problems[0] ?? "That can't be done.");
+
+	if (change.kind === 'grant') {
+		if (!gm) return fail('forbidden', 'Only the GM can give things out of nowhere.');
+		const item = equipment.grant(change.item, change.quantity);
+		if (!item.ok) return refused(item);
+		const added = equipment.add(def, item.item, { how: 'granted' });
+		if (!added.ok) return refused(added);
+		const kept = keep(id, added.saved);
+		if (!kept.ok) return refused(kept);
+		return { ok: true, log: [postSystem(room, `The GM gives ${def.name} ${added.name}.`)] };
+	}
+
+	// In a fight, on the character's own turn, and at most twice.
+	const encounter = adventure.encounter;
+	let turnKey: string | null = null;
+	if (encounter && !gm) {
+		if (!isTurnOf(encounter, id)) return fail('not_your_turn', notYourTurn(room, encounter));
+		turnKey =
+			[0, 1]
+				.slice(0, GEAR_PER_TURN)
+				.map((n) => spentKey(id, n ? `gear-${n + 1}` : 'gear'))
+				.find((k) => !encounter.acted.has(k)) ?? null;
+		if (!turnKey)
+			return fail('not_your_turn', `${def.name} has no time for more of that this turn.`);
+	}
+	const done = (log: ChatMessage[]): Outcomes => {
+		if (turnKey) encounter!.acted.add(turnKey);
+		return { ok: true, log };
+	};
+
+	switch (change.kind) {
+		case 'equip':
+		case 'unequip': {
+			const r = equipment.wield(def, change.item, change.kind === 'equip');
+			if (!r.ok) return refused(r);
+			if (turnKey && !r.weapon)
+				return fail('forbidden', 'There is no time to change armor in the middle of a fight.');
+			const kept = keep(id, r.saved);
+			if (!kept.ok) return refused(kept);
+			return done([postSystem(room, r.text)]);
+		}
+		case 'drop': {
+			const r = equipment.remove(def, change.item, change.quantity);
+			if (!r.ok) return refused(r);
+			const before = adventure.piles;
+			const pile = putDown(room, adventure, token.pos, { item: r.item, name: r.name });
+			if (!pile) return fail('invalid_message', 'There is no room to put anything more down here.');
+			const kept = keep(id, r.saved);
+			if (!kept.ok) {
+				adventure.piles = before;
+				return refused(kept);
+			}
+			return done([postSystem(room, `${def.name} puts down ${r.name}.`)]);
+		}
+		case 'give': {
+			const to = Object.hasOwn(A.characters, change.to) ? A.characters[change.to] : undefined;
+			const toState = adventure.characters.get(change.to);
+			const toToken = toState && room.tokens.get(toState.tokenId);
+			if (!to || !toState || !toToken || change.to === id)
+				return fail('invalid_message', 'Give it to someone else in the party.');
+			if (toState.dead || toState.hp <= 0)
+				return fail('forbidden', `${to.name} can't take anything now.`);
+			if (gridDistance(token.pos, toToken.pos) > 1)
+				return fail('out_of_reach', `${to.name} is too far away to hand anything to.`);
+			if (!equipment.has(to)) return fail('invalid_message', `${to.name} can't carry that.`);
+			const r = equipment.remove(def, change.item, change.quantity);
+			if (!r.ok) return refused(r);
+			const added = equipment.add(to, r.item, { how: 'given', by: def.name });
+			if (!added.ok) return refused(added);
+			const given = keep(id, r.saved);
+			if (!given.ok) return refused(given);
+			const taken = keep(change.to, added.saved);
+			if (!taken.ok) return refused(taken);
+			return done([postSystem(room, `${def.name} gives ${r.name} to ${to.name}.`)]);
+		}
+		case 'take': {
+			const pile = adventure.piles?.get(change.pile);
+			if (!pile || pile.location !== adventure.location)
+				return fail('invalid_message', 'There is nothing there to pick up.');
+			if (gridDistance(token.pos, pile.pos) > 1)
+				return fail('out_of_reach', `Move ${def.name} beside it first.`);
+			const item = pile.items[change.index];
+			if (!item) return fail('invalid_message', 'That is no longer there.');
+			const added = equipment.add(def, item.item, {
+				how: 'found',
+				where: A.locations[adventure.location].name
+			});
+			if (!added.ok) return refused(added);
+			const kept = keep(id, added.saved);
+			if (!kept.ok) return refused(kept);
+			pickUp(room, adventure, change.pile, change.index);
+			return done([postSystem(room, `${def.name} picks up ${added.name}.`)]);
 		}
 	}
 }
@@ -1534,6 +1666,8 @@ function travel(room: Room, adventure: AdventureState, to: string): void {
 	}
 	for (const def of objectsAt(A, to))
 		applyLook(room, def, shownState(adventure, def), adventure.origins);
+	// What was put down here before is still here.
+	layPiles(room, adventure);
 	for (const c of party) {
 		if (!placeCharacter(room, A, to, c.id, c.ownerId, c.tokenId)) adventure.characters.delete(c.id);
 	}
@@ -2064,7 +2198,14 @@ export function act(
 					: `The ${target.name} is out of range or out of sight.`
 			);
 		}
+		// What the attack spends as it is made (a piece of ammunition), by the rules.
+		const use = rules.equipment?.use(def, action) ?? null;
+		if (use && !use.ok) return fail('forbidden', use.problems[0] ?? `${def.name} can't fire that.`);
 		log = [attackEnemy(room, actor, me, action, encounter, enemy, target, roller)];
+		if (use?.ok) {
+			const kept = keepCharacter(adventure, rules, contentOf(adventure.id), me.id, use.saved);
+			if (kept.ok && use.text) log.push(postSystem(room, use.text));
+		}
 	} else if (action.kind === 'heal' && action.target === 'self') {
 		log = [heal(room, actor, def, action, me, roller)];
 	} else if (action.target === 'ally') {
@@ -2343,6 +2484,15 @@ function victory(room: Room, adventure: AdventureState): Outcome {
 		c.state.statuses.clear();
 		c.state.uses.clear();
 	}
+	// What can be recovered after a fight (half the ammunition shot), under rules that say so.
+	const rules = rulesOf(adventure);
+	if (rules.equipment)
+		for (const c of played(room, adventure)) {
+			const back = rules.equipment.recover(c.def);
+			if (!back) continue;
+			const kept = keepCharacter(adventure, rules, contentOf(adventure.id), c.id, back.saved);
+			if (kept.ok && back.text) log.push(postSystem(room, back.text));
+		}
 	let outcome = merge({ log }, run(room, adventure, won.does ?? []));
 	if (won.event) outcome = merge(outcome, happen(room, adventure, won.event));
 	return outcome;

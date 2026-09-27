@@ -16,6 +16,10 @@
 		/** For rules with a full sheet: asking for it, and changing it. */
 		send?(action: RoomAction): boolean;
 		sheetReply?: SheetReply | null;
+		/** The others in play, to hand things to. */
+		party?: { id: string; name: string }[];
+		/** Whether the viewer is the GM (who may hand out gear). */
+		gm?: boolean;
 		onClose(): void;
 	}
 
@@ -26,6 +30,8 @@
 		intro = false,
 		send,
 		sheetReply = null,
+		party = [],
+		gm = false,
 		onClose
 	}: Props = $props();
 
@@ -34,11 +40,12 @@
 	onMount(() => {
 		if (full && status) send?.({ type: 'character_sheet', characterId: status.id });
 	});
-	// A rename changes the sheet: ask again.
+	// A rename, or a change of gear, changes the sheet: ask again.
 	let askedFor = '';
 	$effect(() => {
 		if (!full || !status) return;
-		const key = `${status.id}:${character.name}`;
+		const gear = (card.inventory ?? []).map((i) => `${i.id}:${i.quantity}:${i.equipped}`);
+		const key = `${status.id}:${character.name}:${gear.join(',')}`;
 		if (askedFor && askedFor !== key) send?.({ type: 'character_sheet', characterId: status.id });
 		askedFor = key;
 	});
@@ -108,7 +115,7 @@
 
 		{#if details && status && send}
 			{#await import('./dnd/DndSheet.svelte') then { default: DndSheet }}
-				<DndSheet {status} {details} {send} />
+				<DndSheet {status} {details} {send} {party} {gm} />
 			{/await}
 		{:else}
 			<ul class="stats num" aria-label="Stats">

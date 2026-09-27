@@ -12,9 +12,10 @@
 import type { RulesetRef } from '../../ruleset';
 import type { CatalogPin } from '../catalog';
 import type { Ability } from '../core';
+import type { InventoryItem } from './inventory';
 
 /** The version of the stored shape. Bump it and add a migration in persist.ts when it changes. */
-export const CHARACTER_VERSION = 2;
+export const CHARACTER_VERSION = 3;
 
 /** How the six base scores were generated (SRD: "Generate Your Scores"). */
 export type ScoreMethod = 'standard-array' | 'point-buy' | 'rolled';
@@ -80,10 +81,12 @@ export interface DndCharacter {
 	feats: LevelFeat[];
 	/** Hit points past level 1: the fixed average each level, or the die rolled at each level (2 up). */
 	hitPoints: { method: 'average' } | { method: 'rolled'; rolls: number[] };
-	/** What the character wears, for Armor Class. Milestone 47 brings the rest of the gear. */
-	armor: { worn: string | null; shield: boolean };
-	/** Weapon record ids the character carries into play (version 2). Milestone 47 brings the rest of the gear. */
-	weapons: string[];
+	/**
+	 * What the character owns (version 3; inventory.ts): weapons, armor and
+	 * ammunition from the catalog, each with a quantity, where it came from,
+	 * and where it is equipped (worn armor, a Shield, weapons in hand).
+	 */
+	inventory: InventoryItem[];
 	/**
 	 * Choices the rules keep but don't check yet, by name (spells from Magic
 	 * Initiate, tools, instruments): later milestones check them.
@@ -97,6 +100,8 @@ export interface DndCharacter {
 		hitDiceSpent: number;
 		/** Uses spent of each resource, by the resource id derive.ts gives it. */
 		spent: Record<string, number>;
+		/** Pieces of ammunition expended since the last fight's end, by ammunition id (half come back). */
+		expended: Record<string, number>;
 	};
 }
 

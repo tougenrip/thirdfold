@@ -35,6 +35,7 @@ export const ASSETS = {
 	noticeboard: { name: 'Notice board', w: 1, h: 1, blocks: 'movement' },
 	'chest-open': { name: 'Open chest', w: 1, h: 1, blocks: 'movement' },
 	rubble: { name: 'Rubble', w: 1, h: 1, blocks: 'none' },
+	'gear-pile': { name: 'Things put down', w: 1, h: 1, blocks: 'none' },
 	hatch: { name: 'Floor hatch', w: 1, h: 1, blocks: 'none' },
 	'hatch-open': { name: 'Open hatch', w: 1, h: 1, blocks: 'none' },
 	brazier: { name: 'Brazier', w: 1, h: 1, blocks: 'movement' },
