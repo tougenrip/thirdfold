@@ -1,0 +1,975 @@
+{
+	"player": {
+		"viewer": "player",
+		"band": "dusk",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 24,
+			"height": 24
+		},
+		"environment": "stone-halls",
+		"ambient": "dusk",
+		"fog": {
+			"enabled": true,
+			"visible": "4AAA4AAA8AMA/AcA/A8A/A8A/A8A/A8A/A8A/A8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"explored": "4AAA4AAA/A8A/A8A/A8A/A8A/A8A/A8A/A8A/A8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"shared": false
+		},
+		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"darkness": null,
+		"floor": "AAAAAAADAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwMAAAAAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"tokens": [
+			{
+				"id": "tw-mini-1",
+				"name": "warden",
+				"color": "#c0392b",
+				"pos": {
+					"x": 6,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			},
+			{
+				"id": "tw-mini-2",
+				"name": "saint",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 7,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			}
+		],
+		"objects": [
+			{
+				"id": "tw-hall-door",
+				"kind": "door",
+				"a": {
+					"x": 12,
+					"y": 5
+				},
+				"b": {
+					"x": 12,
+					"y": 6
+				},
+				"open": false
+			},
+			{
+				"id": "tw-hall-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 2
+				},
+				"b": {
+					"x": 12,
+					"y": 5
+				}
+			},
+			{
+				"id": "tw-hall-wall-e1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 6
+				},
+				"b": {
+					"x": 12,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-wall-ne",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 2
+				},
+				"b": {
+					"x": 12,
+					"y": 2
+				}
+			},
+			{
+				"id": "tw-hall-wall-nw",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 2
+				},
+				"b": {
+					"x": 5,
+					"y": 2
+				}
+			},
+			{
+				"id": "tw-hall-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 10
+				},
+				"b": {
+					"x": 12,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 2
+				},
+				"b": {
+					"x": 2,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-window",
+				"kind": "wall",
+				"a": {
+					"x": 5,
+					"y": 2
+				},
+				"b": {
+					"x": 8,
+					"y": 2
+				},
+				"window": true
+			}
+		],
+		"props": [
+			{
+				"id": "tw-altar",
+				"assetId": "altar",
+				"pos": {
+					"x": 6,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-bookshelf",
+				"assetId": "bookshelf",
+				"pos": {
+					"x": 10,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pew-a",
+				"assetId": "pew",
+				"pos": {
+					"x": 4,
+					"y": 6
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pew-b",
+				"assetId": "pew",
+				"pos": {
+					"x": 8,
+					"y": 6
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pillar",
+				"assetId": "pillar",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-sconce-e",
+				"assetId": "sconce",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-sconce-w",
+				"assetId": "sconce",
+				"pos": {
+					"x": 2,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "tw-sconce-e-light",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			},
+			{
+				"id": "tw-sconce-w-light",
+				"pos": {
+					"x": 2,
+					"y": 8
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			}
+		]
+	},
+	"spectator": {
+		"viewer": "spectator",
+		"band": "dusk",
+		"fogMode": "player",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 24,
+			"height": 24
+		},
+		"environment": "stone-halls",
+		"ambient": "dusk",
+		"fog": {
+			"enabled": true,
+			"visible": "4AAA4AAA8AMA/AcA/A8A/A8A/A8A/A8A/A8A/A8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"explored": "4AAA4AAA/A8A/A8A/A8A/A8A/A8A/A8A/A8A/A8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"shared": false
+		},
+		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"darkness": null,
+		"floor": "AAAAAAADAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwMAAAAAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"tokens": [
+			{
+				"id": "tw-mini-1",
+				"name": "warden",
+				"color": "#c0392b",
+				"pos": {
+					"x": 6,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			},
+			{
+				"id": "tw-mini-2",
+				"name": "saint",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 7,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			}
+		],
+		"objects": [
+			{
+				"id": "tw-hall-door",
+				"kind": "door",
+				"a": {
+					"x": 12,
+					"y": 5
+				},
+				"b": {
+					"x": 12,
+					"y": 6
+				},
+				"open": false
+			},
+			{
+				"id": "tw-hall-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 2
+				},
+				"b": {
+					"x": 12,
+					"y": 5
+				}
+			},
+			{
+				"id": "tw-hall-wall-e1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 6
+				},
+				"b": {
+					"x": 12,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-wall-ne",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 2
+				},
+				"b": {
+					"x": 12,
+					"y": 2
+				}
+			},
+			{
+				"id": "tw-hall-wall-nw",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 2
+				},
+				"b": {
+					"x": 5,
+					"y": 2
+				}
+			},
+			{
+				"id": "tw-hall-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 10
+				},
+				"b": {
+					"x": 12,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 2
+				},
+				"b": {
+					"x": 2,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-window",
+				"kind": "wall",
+				"a": {
+					"x": 5,
+					"y": 2
+				},
+				"b": {
+					"x": 8,
+					"y": 2
+				},
+				"window": true
+			}
+		],
+		"props": [
+			{
+				"id": "tw-altar",
+				"assetId": "altar",
+				"pos": {
+					"x": 6,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-bookshelf",
+				"assetId": "bookshelf",
+				"pos": {
+					"x": 10,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pew-a",
+				"assetId": "pew",
+				"pos": {
+					"x": 4,
+					"y": 6
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pew-b",
+				"assetId": "pew",
+				"pos": {
+					"x": 8,
+					"y": 6
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pillar",
+				"assetId": "pillar",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-sconce-e",
+				"assetId": "sconce",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-sconce-w",
+				"assetId": "sconce",
+				"pos": {
+					"x": 2,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "tw-sconce-e-light",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			},
+			{
+				"id": "tw-sconce-w-light",
+				"pos": {
+					"x": 2,
+					"y": 8
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			}
+		]
+	},
+	"gm": {
+		"viewer": "gm",
+		"band": "dusk",
+		"fogMode": "gm",
+		"grid": {
+			"kind": "square",
+			"cellSize": 1,
+			"width": 24,
+			"height": 24
+		},
+		"environment": "stone-halls",
+		"ambient": "dusk",
+		"fog": {
+			"enabled": true,
+			"visible": "4AAA4AAA8AMA/AcA/A8A/A8A/A8A/A8A/A8A/A8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"explored": "4AAA4AAA/A8A/A8A/A8A/A8A/A8A/A8A/A8A/A8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"shared": false
+		},
+		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAECAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAECAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAwMDAwMDAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"darkness": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/gEA/gEA/gEA/gEA/gEA/gEA/gEA/gEAAAAAAAAAAAAA",
+		"floor": "AwMDAwMDAwMDAwMDBAQDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBAQDAwMDAwMDAwMDAwMBAQEBAQEBAQEBBAQDAwMDAwMDAwMDAwMBAQEBAQEBAQEBBAQDAgICAgICAgMDAwMBAQEBAQEBAQEBBAQDAgICAgICAgMDAwMBAQEBAQEBAQEBBAQDAgICAgICAgMDAwMBAQEBAQEBAQEBBAQDAgICAgICAgMDAwMBAQEBAQEBAQEBBAQDAgICAgICAgMDAwMBAQEBAQEBAQEBBAQDAgICAgICAgMDAwMBAQEBAQEBAQEBBAQDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBAQDAwMDAwMDAwMDBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEAwMDAwMDAwMDAwMDBAQDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBAQDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBAQDAwYGBgYGBgMDAwMDAwMDAwMDAwMDBAQDAwYGBgYGBgMDAwMDAwMDAwMDAwMDBAQDAwYGBgYGBgMDAwMDAwMDAwMDAwMDBAQDAwYGBgYGBgMDAwMDAwMDAwMDAwMDBAQDAwYGBgYGBgMDAwMDAwMDAwMDAwMDBAQDAwYGBgYGBgMDAwMDAwMDAwMDAwMDBAQDAwYGBgYGBgMDAwMDAwMDAwMDAwMDBAQDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBAQDAwMDAwMDAwMD",
+		"tokens": [
+			{
+				"id": "tw-mini-1",
+				"name": "warden",
+				"color": "#c0392b",
+				"pos": {
+					"x": 6,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "warden",
+				"ownerId": "p1"
+			},
+			{
+				"id": "tw-mini-2",
+				"name": "saint",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 7,
+					"y": 7
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "saint",
+				"ownerId": null
+			},
+			{
+				"id": "tw-mini-3",
+				"name": "ember",
+				"color": "#27ae60",
+				"pos": {
+					"x": 17,
+					"y": 6
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "ember",
+				"ownerId": null
+			},
+			{
+				"id": "tw-mini-4",
+				"name": "veil",
+				"color": "#d4ac0d",
+				"pos": {
+					"x": 5,
+					"y": 16
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "veil",
+				"ownerId": null
+			},
+			{
+				"id": "tw-mini-5",
+				"name": "villager",
+				"color": "#8e44ad",
+				"pos": {
+					"x": 13,
+					"y": 11
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "villager",
+				"ownerId": null
+			},
+			{
+				"id": "tw-mini-6",
+				"name": "smith",
+				"color": "#e67e22",
+				"pos": {
+					"x": 15,
+					"y": 17
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "smith",
+				"ownerId": null
+			},
+			{
+				"id": "tw-mini-7",
+				"name": "hound",
+				"color": "#c0392b",
+				"pos": {
+					"x": 19,
+					"y": 4
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "hound",
+				"ownerId": null
+			},
+			{
+				"id": "tw-mini-8",
+				"name": "robed-figure",
+				"color": "#2e86c1",
+				"pos": {
+					"x": 9,
+					"y": 12
+				},
+				"vision": 8,
+				"light": 0,
+				"model": "robed-figure",
+				"ownerId": null
+			}
+		],
+		"objects": [
+			{
+				"id": "tw-hall-door",
+				"kind": "door",
+				"a": {
+					"x": 12,
+					"y": 5
+				},
+				"b": {
+					"x": 12,
+					"y": 6
+				},
+				"open": false
+			},
+			{
+				"id": "tw-hall-wall-e",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 2
+				},
+				"b": {
+					"x": 12,
+					"y": 5
+				}
+			},
+			{
+				"id": "tw-hall-wall-e1",
+				"kind": "wall",
+				"a": {
+					"x": 12,
+					"y": 6
+				},
+				"b": {
+					"x": 12,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-wall-ne",
+				"kind": "wall",
+				"a": {
+					"x": 8,
+					"y": 2
+				},
+				"b": {
+					"x": 12,
+					"y": 2
+				}
+			},
+			{
+				"id": "tw-hall-wall-nw",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 2
+				},
+				"b": {
+					"x": 5,
+					"y": 2
+				}
+			},
+			{
+				"id": "tw-hall-wall-s",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 10
+				},
+				"b": {
+					"x": 12,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-wall-w",
+				"kind": "wall",
+				"a": {
+					"x": 2,
+					"y": 2
+				},
+				"b": {
+					"x": 2,
+					"y": 10
+				}
+			},
+			{
+				"id": "tw-hall-window",
+				"kind": "wall",
+				"a": {
+					"x": 5,
+					"y": 2
+				},
+				"b": {
+					"x": 8,
+					"y": 2
+				},
+				"window": true
+			},
+			{
+				"id": "tw-railing",
+				"kind": "wall",
+				"a": {
+					"x": 15,
+					"y": 9
+				},
+				"b": {
+					"x": 22,
+					"y": 9
+				},
+				"window": true
+			}
+		],
+		"props": [
+			{
+				"id": "tw-altar",
+				"assetId": "altar",
+				"pos": {
+					"x": 6,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-barrel",
+				"assetId": "barrel",
+				"pos": {
+					"x": 20,
+					"y": 7
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-bookshelf",
+				"assetId": "bookshelf",
+				"pos": {
+					"x": 10,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-brazier",
+				"assetId": "brazier",
+				"pos": {
+					"x": 18,
+					"y": 5
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-crate",
+				"assetId": "crate",
+				"pos": {
+					"x": 16,
+					"y": 4
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-dark-chest",
+				"assetId": "chest",
+				"pos": {
+					"x": 7,
+					"y": 18
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-dark-sconce",
+				"assetId": "sconce",
+				"pos": {
+					"x": 3,
+					"y": 14
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pew-a",
+				"assetId": "pew",
+				"pos": {
+					"x": 4,
+					"y": 6
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pew-b",
+				"assetId": "pew",
+				"pos": {
+					"x": 8,
+					"y": 6
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-pillar",
+				"assetId": "pillar",
+				"pos": {
+					"x": 3,
+					"y": 3
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-sconce-e",
+				"assetId": "sconce",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-sconce-w",
+				"assetId": "sconce",
+				"pos": {
+					"x": 2,
+					"y": 8
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-tree-1",
+				"assetId": "tree",
+				"pos": {
+					"x": 1,
+					"y": 11
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-tree-2",
+				"assetId": "tree",
+				"pos": {
+					"x": 10,
+					"y": 21
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-tree-3",
+				"assetId": "tree",
+				"pos": {
+					"x": 14,
+					"y": 20
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-tree-4",
+				"assetId": "tree",
+				"pos": {
+					"x": 22,
+					"y": 12
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-tree-5",
+				"assetId": "tree",
+				"pos": {
+					"x": 21,
+					"y": 22
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-tree-6",
+				"assetId": "tree",
+				"pos": {
+					"x": 22,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "tw-well",
+				"assetId": "well",
+				"pos": {
+					"x": 12,
+					"y": 13
+				},
+				"rotation": 0,
+				"scale": 1
+			}
+		],
+		"lights": [
+			{
+				"id": "tw-brazier-light",
+				"pos": {
+					"x": 18,
+					"y": 5
+				},
+				"radius": 5,
+				"color": "#ff8a30",
+				"on": true
+			},
+			{
+				"id": "tw-dark-light",
+				"pos": {
+					"x": 3,
+					"y": 14
+				},
+				"radius": 3,
+				"color": "#ffb060",
+				"on": true
+			},
+			{
+				"id": "tw-lamp",
+				"pos": {
+					"x": 13,
+					"y": 16
+				},
+				"radius": 4,
+				"color": "#ffd9a0",
+				"on": true
+			},
+			{
+				"id": "tw-sconce-e-light",
+				"pos": {
+					"x": 11,
+					"y": 8
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			},
+			{
+				"id": "tw-sconce-w-light",
+				"pos": {
+					"x": 2,
+					"y": 8
+				},
+				"radius": 4,
+				"color": "#ff9a3c",
+				"on": true
+			}
+		]
+	}
+}

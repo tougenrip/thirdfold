@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Prop } from '$lib/game/props';

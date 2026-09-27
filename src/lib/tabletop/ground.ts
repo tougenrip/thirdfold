@@ -3,12 +3,16 @@
 // $lib/game/visibility.ts (WALL_LEVELS), so what the table shows and what
 // characters can see over agree. Presentation only.
 
-import { inBounds, type GridEdge, type GridPos, type SquareGrid } from '$lib/game/grid';
-import { cellsBeside } from '$lib/game/objects';
-import { WALL_LEVELS } from '$lib/game/visibility';
+import { inBounds, type GridEdge, type GridPos, type SquareGrid } from '../game/grid';
+import { cellsBeside } from '../game/objects';
+import { WALL_LEVELS } from '../game/visibility';
 
-/** World height of one level, at a cell size of 1. */
-export const STEP_HEIGHT = 0.22;
+/**
+ * World height of one level, at a cell size of 1. The world's scale (#152):
+ * 1 cell = 1 unit = 5 ft, so a level is 2 ft, a wall 10 ft and the sight
+ * rule's eye (EYE_LEVELS) 6 ft.
+ */
+export const STEP_HEIGHT = 0.4;
 /** A wall's height above the floor it stands on: WALL_LEVELS levels. */
 export const WALL_HEIGHT = STEP_HEIGHT * WALL_LEVELS;
 

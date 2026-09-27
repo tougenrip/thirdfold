@@ -3,7 +3,7 @@
 // same way. Only three.js maths is used here, no DOM, so it can be tested
 // in Node.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { DieKind } from './dice-throw';
 
 export interface DieFace {

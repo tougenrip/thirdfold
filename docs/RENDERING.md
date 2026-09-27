@@ -6,9 +6,8 @@ milestones 61–78.
 
 ## Decision: WebGPURenderer with TSL, WebGL2 through its fallback
 
-**Status:** accepted in milestone 61. The go/no-go spike in
-[#142](https://github.com/tougenrip/thirdfold/issues/142) confirms it or amends this record with
-numbers before any port lands.
+**Status:** accepted in milestone 61; confirmed by the go/no-go spike (#142, below) on 26 September
+2026, with one condition on first-frame compile.
 
 **Decision.** The renderer moves from `THREE.WebGLRenderer` to `three/webgpu`'s `WebGPURenderer`
 with TSL node materials and one `RenderPipeline` for post-processing. WebGL2 comes through
@@ -84,6 +83,78 @@ and storage-texture or indirect-draw effects; `BundleGroup` brings no gain on We
 and TAAU are ultra-tier by choice, not by API. Compatibility-mode WebGPU turns MSAA off and caps
 textures at 4096 px.
 
+### The port (milestone 62, #144)
+
+Every tabletop module imports `three/webgpu`; the addons (`OrbitControls`, `GLTFLoader`) keep
+`three`, whose classes are the same objects. `createTabletop` is async: `createNodeRenderer`
+(`loop.ts`) builds `WebGPURenderer` (WebGPU where the browser has it, else its WebGL2 backend),
+awaits `init()`, and stops r186's internal per-vsync loop; each frame the tabletop draws resets
+`renderer.info` and advances the node frame itself. `?backend=webgl`, or `compatibility: true` in
+`thirdfold:graphics`, forces WebGL2 (a reload switches). Tests that read pixels back force WebGL2 too
+and hand the renderer a context made with `preserveDrawingBuffer`. The sun's shadow is cached on the
+light (`sun.shadow.autoUpdate = false`, `needsUpdate` when the table changed, #143). The bundle gate
+fails if the classic `WebGLRenderer` is bundled again; the renderer adds 257 kB gz.
+
+The port moved 37 of the 113 goldens past tolerance, all in the same two ways: the background
+clears to black instead of the dark brown (the node renderer tone-maps the clear colour, and ACES
+crushes that brown), and the line grid draws brighter. #153 retunes them and #157 takes overlays out
+of tone mapping; the sky (#114) replaces the background altogether.
+
+### World scale (#152) and the retune for the node renderer (#153)
+
+The world's scale is 1 cell = 1 unit = 5 ft: a level is 0.4 u (2 ft, `STEP_HEIGHT`), a wall 2.0 u
+(10 ft), the sight rule's eye 1.2 u (6 ft). The rules count in levels, so only the picture moved.
+Placeholder figures are drawn at 1.3× (`FIGURE_SCALE`) so they stand at human height under the walls
+until #118 authors real heights; lamp fixtures stand 1.5 u tall; dice are thrown from above the
+walls standing on the floor under the camera's target, and land on that floor (raised ground too).
+`server/adventures/camera-clearance.spec.ts` checks that no cinematic shot of either adventure, and
+no change between the tactical and tabletop views, puts the camera inside a wall or under the
+ground, on any of their tables.
+
+The node renderer tone-maps the whole frame at the end (`needsFrameBufferTarget`), background and
+overlays included, and blends before it, in linear light; the classic renderer tone-mapped each lit
+material and blended the unlit overlays after, in sRGB. The retune undoes that difference with
+numbers rather than by eye:
+
+- **Colours that must come out exact** are the ones ACES turns into the old sRGB: the backgrounds
+  (day `292421`, dusk `252022`, dark `18171c` for the old `16120f`, `120e10`, `07060a`), the fog's
+  hidden shade (`1d1b19` for `0b0908`: unexplored cells are still the same near-black) and the
+  darkness colour (`13111a` for `040308`), found by inverting three's ACES curve per channel.
+- **Alphas** that match the old ones over floors of middling brightness: the fog's explored dim 150
+  → 173 and the GM's tints 110 → 128 and 55 → 69 (a black overlay blended in linear light lets more
+  of a lit floor through), grid lines 0.35 → 0.17 and mist 0.2/0.14 → 0.11/0.1 (a light colour
+  blended in linear light lifts a dark floor), and label plates 0.78 → 0.9. #157 takes grid lines
+  and labels out of tone mapping, where the old values are right again.
+- **Roughness** of the table surface and floors 0.95 → 1: r181's energy-conserving specular made
+  them read brighter.
+- **Unchanged:** light intensities, `PRESETS` strengths and the sun's shadow bias. With the retune the
+  metrics already match, and the close poses show no acne and no minis or posts detached from their
+  shadows at `bias -0.0005`, so no `normalBias` was added. Raised lamps keep their intensity: the
+  floor a cell or two away gets about the same light (it lands less slanted), only the spot right
+  under a lamp is dimmer, and compensating by the height's square blew out the walls beside it.
+
+Measured on the WebGL2 backend at the old scale against the baseline v0 goldens (pixelmatch 0.1,
+0.5%): the port alone failed 37 of 113; after the retune 109 of 113 pass, and the look-metric
+distance to v0 averages 0.009 (from 0.054). The four left are one image, `ref-1`'s close shot, where
+the sconce's flame (emissive 2, well above 1 before tone mapping) glows through the label in front of
+it, 1.1% of pixels; #157 fixes it. The goldens were then re-baselined once at the new scale, and
+`docs/look/m62/` is the strip.
+
+### Shader warm-up (#149)
+
+The node renderer compiles 60–75 pipelines for a table where the classic renderer compiled a dozen,
+and compiling them on the first visible frame stalled it for 300–680 ms. When a table, an
+environment's look or a model is new, the next frame is spent on a warm-up instead (`warmup.ts`):
+the frame loop is held (the canvas keeps its last frame) while each layer is compiled with
+`compileAsync`, one at a time, from one reused camera over the whole table; then the frame is drawn,
+with the sun's shadow. A warm-up never holds longer than 1.5 s; what it didn't reach compiles on
+draw. Hidden one-shot effects compile when they first play.
+
+Measured on the RTX 4060 (Chromium 153), loading the village, monastery and Hollow into a running
+table: the worst visible frame afterwards is 5–46 ms on the WebGL2 backend and 6–28 ms on WebGPU
+(the classic renderer's first frame was 26–57 ms), after a held warm-up of 0.5–0.9 s. That meets the
+go/no-go's condition.
+
 ### What the port breaks (r186)
 
 The port is [#144](https://github.com/tougenrip/thirdfold/issues/144).
@@ -103,6 +174,95 @@ The port is [#144](https://github.com/tougenrip/thirdfold/issues/144).
   batches while frames are held.
 - three.js [#30560](https://github.com/mrdoob/three.js/issues/30560): per-object uniform buffer cost on
   WebGPU. Keep instancing and batching.
+
+### Go/no-go spike (#142), 26 September 2026
+
+A throwaway branch ported only the renderer's construction to `three/webgpu` (imports, async
+`init()`, `forceWebGL`, minimal stats; no visual fixes) and switched between three renderers by URL:
+A, `WebGPURenderer` on WebGPU; B, `WebGPURenderer` on its WebGL2 backend; C, today's `WebGLRenderer`.
+Measured with `scripts/perf-gpu.mjs` on the frozen village, monastery and Hollow fixtures, GM and a
+fogged player, three poses, 1920×1080, Chromium 153 (Playwright 1.63), Linux, ANGLE Vulkan. GPU ms
+are the median of 16 frames by timer queries (B, C) or WebGPU timestamp queries (A); each cell is the
+median over the three poses.
+
+| GPU                         | Table     | Viewer | C: WebGLRenderer | B: WebGL2 backend | A: WebGPU backend |
+| --------------------------- | --------- | ------ | ---------------- | ----------------- | ----------------- |
+| Intel Raptor Lake UHD (low) | village   | GM     | 12.90            | 12.67 (98%)       | 10.92 (85%)       |
+|                             | village   | player | 11.16            | 10.14 (91%)       | 8.31 (74%)        |
+|                             | monastery | GM     | 18.26            | 13.83 (76%)       | 11.40 (62%)       |
+|                             | monastery | player | 16.87            | 11.87 (70%)       | 10.13 (60%)       |
+|                             | hollow    | GM     | 33.85            | 25.98 (77%)       | 24.28 (72%)       |
+|                             | hollow    | player | 33.93            | 27.79 (82%)       | 24.24 (71%)       |
+| RTX 4060 Laptop (medium)    | village   | GM     | 2.39             | 0.79 (33%)        | 1.01 (42%)        |
+|                             | village   | player | 1.27             | 0.66 (52%)        | 0.85 (67%)        |
+|                             | monastery | GM     | 1.00             | 0.93 (93%)        | 1.08 (108%)       |
+|                             | monastery | player | 0.94             | 0.82 (87%)        | 0.83 (88%)        |
+|                             | hollow    | GM     | 1.75             | 2.06 (118%)       | 1.51 (86%)        |
+|                             | hollow    | player | 2.04             | 1.57 (77%)        | 1.42 (70%)        |
+
+| Setup (RTX 4060)  | First frame of a loaded table | Shader programs | `init()`  |
+| ----------------- | ----------------------------- | --------------- | --------- |
+| C: WebGLRenderer  | 26–57 ms                      | 12–16           | –         |
+| B: WebGL2 backend | 302–380 ms                    | 58–70           | 16–32 ms  |
+| A: WebGPU backend | 545–678 ms                    | 60–72           | 32–137 ms |
+
+- **Bundle:** the lazy renderer closure with both renderers in it was 342.5 kB gz, inside the 360 kB
+  budget; the port removes `WebGLRenderer`'s own code from it.
+- **Draw calls** roughly double (median 33 → 74 on the RTX): the node renderer counts the sun's
+  shadow pass, which the spike drew every frame. The port restores caching (#143).
+- **Browsers:** Chromium on the RTX and on the iGPU gets the WebGPU backend. Chromium with no WebGPU
+  adapter (SwiftShader) and Firefox on Linux (no `navigator.gpu`) fell back to the WebGL2 backend on
+  their own and drew the table. WebKit (the stand-in for Tauri's WebKitGTK) did not launch here for
+  missing system libraries.
+- **Visual deltas seen, for #153:** the line grid is much brighter and whiter; `scene.background`
+  shows as pure black instead of the dark brown; floors read slightly lighter and cooler. Objects,
+  lights, minis and labels are all there.
+- **The internal animation loop:** r186 `Renderer.init()` starts an `Animation` loop that requests a
+  frame on every vsync forever (it resets `info` and advances `nodeFrame`), which breaks render on
+  demand. The scheduler (#148) stops it right after `init()` (`renderer._animation.stop()`), sets
+  `info.autoReset = false`, and on each frame it draws resets `info` and calls
+  `nodeFrame.update()` itself, so time-based nodes and `ShadowNode`'s once-per-frame guard still work.
+  The spike ran this way.
+- **Node:** `three/webgpu` loads under Node, and `Mesh`, `Texture` and `MeshStandardMaterial` are the
+  same objects as in `three`, so the asset pipeline and the server-project tests are unaffected.
+
+**Decision: go.** The WebGL2 backend is not 20% slower than `WebGLRenderer` on any table on the iGPU:
+it is 2–30% faster, and the WebGPU backend 15–40% faster. One condition: first-frame compile is 6–12×
+today's (the rule allows 1.5×), so the port does not merge until #149's precompile brings the first
+frame of a loaded table under 1.5× of today's (about 85 ms). If it can't, the owner decides again.
+
+**Shells, 27 September 2026** (the ported renderer, the test world, on the Dell G15: RTX 4060 Laptop
+on NVIDIA 595.91 and an Intel UHD iGPU on Mesa, Ubuntu with GNOME 50 on Wayland). A probe page opened
+the app in the shell, created a room, imported the test world and read `thirdfoldPerf`:
+
+| Shell                                       | `navigator.gpu` | Secure | Backend | Draws                           | GPU ms (sync)   |
+| ------------------------------------------- | --------------- | ------ | ------- | ------------------------------- | --------------- |
+| Chromium 153, RTX 4060 (reference)          | yes, adapter    | yes    | WebGPU  | yes                             | 1.8 (timestamp) |
+| Tauri on Linux, WebKitGTK 2.52, Intel/Mesa  | no              | yes    | WebGL2  | yes                             | 12.5            |
+| Tauri on Linux, WebKitGTK 2.52, NVIDIA 595  | no              | yes    | –       | **no: the web process crashes** | –               |
+| Capacitor, Android 13 emulator, WebView 109 | no              | yes    | WebGL2  | yes                             | 7.6             |
+| Capacitor, Android 16 emulator, WebView 134 | yes, no adapter | yes    | WebGL2  | yes                             | 12.2            |
+
+- **WebKitGTK on the NVIDIA driver** segfaults in `libnvidia-eglcore.so` (called from WebKit's own
+  compositing, not from JavaScript) as soon as a room page's table starts; the landing page and a
+  bare WebGPURenderer cube draw. `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `GDK_BACKEND=x11`,
+  `WEBKIT_DISABLE_COMPOSITING_MODE=1` and `__NV_DISABLE_EXPLICIT_SYNC=1` don't help. It is not the
+  port: main, still on `WebGLRenderer`, crashes the same way. On a hybrid laptop Tauri draws on the
+  iGPU with `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json` (with
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` WebKit ignores that and crashes on NVIDIA again). Setting the Mesa vendor in the Linux desktop build when an Intel or AMD GPU is present
+  is a follow-up; a WebKitGTK or driver update should be checked again.
+- WebKitGTK names every GPU "Apple GPU" (and "WebKit WebGL" as the renderer), so the shell, not the
+  adapter, sets Tauri on Linux's starting tier (`tauri-linux`: medium).
+- `http://localhost` is a secure context in both Capacitor WebViews. Android 16's WebView has
+  `navigator.gpu`, but the emulator gives it no adapter, and the renderer fell back to WebGL2 by
+  itself. A phone's own GPU (Vulkan) is what decides WebGPU there.
+- The emulators draw through the host's RTX 4060 (gfxstream), so their GPU times say nothing about a
+  phone.
+
+**Not yet verified, on the owner's machines to come:** WebView2 (Tauri on Windows), WKWebView (Tauri
+on macOS 15 and 26, iOS 26), an M-series Mac, and a real Android phone.
+
+**Owner sign-off:** approved by the owner on #142, 26 September 2026.
 
 ## Invariants
 
@@ -141,22 +301,161 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | Module            | What it holds                                                                                                                    |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
-| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`; canvas sizing                                           |
+| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
 | `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
-| `loop.ts`         | `FrameLoop` (frames on demand, the slow ambient timer), live reduced motion                                                      |
+| `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
+| `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
 | `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
 | `table.ts`        | The slab, surface and grid lines, dressed by the environment                                                                     |
 | `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
 | `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
+| `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
+| `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
 
 ## Quality tiers
 
-Filled in by milestone 62.
+`src/lib/tabletop/quality.ts` (pure, tested in `quality.spec.ts`) turns what a device offers into a
+starting tier, and each tier into one row of settings every effect reads (#147).
+`probeCapabilities` in `capabilities.ts` fills `Caps` after the renderer starts: the backend
+(WebGPU, compat WebGPU or WebGL2), whether it is a software rasteriser, the GPU's vendor and
+architecture, the largest texture, timestamp queries, phone or not, the shell (browser, Tauri,
+Capacitor), pixel ratio, screen size, and where browsers give them, memory and CPU class.
+
+**The starting tier,** with no input (`qualityFor`): software rasterisers and compat WebGPU low;
+phones low with 4 GB or less, else medium; under 4 GB or the lowest CPU class low; integrated
+(Intel) GPUs medium; everything else high. Ultra is only ever chosen by hand. Ceilings: WebGL2 at
+high, compat WebGPU at low, Capacitor and Tauri on Linux at medium (#155 fixes them with
+measurements). In CI (SwiftShader) the tier is low. `?tier=` overrides everything, then the
+viewer's choice in `thirdfold:graphics`, then the tier refinement measured on this device.
+
+| Setting          | Low  | Medium | High | Ultra     | Applied                     |
+| ---------------- | ---- | ------ | ---- | --------- | --------------------------- |
+| Megapixels       | 1.0  | 2.1    | 3.7  | 3.7       | now: the pixel cap          |
+| Sun shadow map   | 1024 | 2048   | 2048 | 4096      | now                         |
+| MSAA             | off  | 4×     | 4×   | 4×        | with the rebuild (#150)     |
+| AO               | off  | on     | on   | on        | #159                        |
+| Point lights     | 8    | 16     | 32   | clustered | #228, #357                  |
+| Shadowed torches | 0    | 2      | 4    | 4         | #230                        |
+| Particles        | 250  | 1000   | 4000 | 8000      | #122                        |
+| Vegetation       | 25%  | 50%    | 100% | 100%      | #121                        |
+| Frame rate cap   | 30   | 60     | 60   | 60        | the render scheduler (#148) |
+| Flicker and mist | 20   | 30     | 30   | 30        | the render scheduler (#148) |
+| Converge frames  | 0    | 4      | 8    | 16        | TRAA (#110)                 |
+
+Layers (`sky`, `post`, `grass`, `water`, `vfx`, `weather`, `xray`, `dof`) are all off until each
+passes its milestone's gates; `?off=sky,grass` turns layers off, for A/B tests and emergencies.
+Neither `?tier=` nor `?off=` is saved.
+
+**The Graphics menu** (`src/lib/ui/GraphicsControls.svelte`, #154), beside Sound in the room's
+header, and at the top of the side sheet on phones: Auto (showing what it picked), Low, Medium, High,
+Ultra (disabled, saying why, off core WebGPU); Compatibility (WebGL2), which applies on reload; and a
+power saver that stops ambient animation. It keeps its choice in `thirdfold:graphics` and never
+reaches the room. `RoomView` passes the choice to `Tabletop.svelte`, which applies it at once (a
+tier that turns MSAA on or off rebuilds the tabletop, a second or two) and reports the tier in
+effect back for the menu.
+
+**The pixel cap:** the drawing buffer's pixel ratio is `min(dpr, sqrt(megapixels × 10⁶ / css
+pixels))` (`pixelRatioFor`), worked out on every resize and when the window moves to a screen with
+another pixel ratio: 4K at DPR 2 on medium draws about 2.1 MP, not 33. Tests fix the ratio at 1.
+
+**Refinement:** on an automatic tier, the first 120 frames drawn after it is set are timed
+(main-thread ms; GPU ms only exist under `?perf`); if their median is over the tier's frame budget
+(`1000 / fps cap`), the tier steps down once and `thirdfold:graphics` remembers it (`measured`) for
+this device. It never steps up. Changing the tier recompiles nothing: the shadow map's size is a
+uniform to the node renderer, which a client test checks by the program count.
+
+Without a GPU at all (no WebGL2, no WebGPU adapter), the table shows "This device can't show 3D
+(WebGL2 unavailable)"; under a software rasteriser it draws, at low, with a dismissable notice.
+
+### Recovering a lost device (#150)
+
+A lost WebGL context or WebGPU device (memory pressure, a backgrounded app, a driver reset) used to
+freeze the canvas. Now `createNodeRenderer` replaces three's `onDeviceLost` (which only logs an
+error and stops drawing) with one that stops drawing and calls `TabletopOptions.onLost`.
+`Tabletop.svelte` then makes the tabletop again: a new `generation` keys a fresh `<canvas>` (a lost
+context stays lost on its canvas, and a canvas keeps its kind), `createTabletop` runs again, and
+every prop effect replays the table into it from what the component already holds; one-shot cues,
+dice and floats are de-duplicated by their sequence numbers and don't replay. The camera goes back
+to where it was (`cameraPose()`, then `setPose` after the replay). While the page is hidden it
+waits for `visibilitychange`; "Restoring the table…" covers the canvas until the new tabletop has
+drawn.
+
+A loss drops one tier for the session (`tierAfterLoss` in `quality.ts`, never saved: a loss is not a
+measurement); a second loss within five minutes drops to low with a notice; three within a minute
+stop, with the error panel instead of a loop. The same rebuild applies a tier whose MSAA differs
+from the renderer's (MSAA is fixed at construction): `applyQuality` rebuilds with the tier's
+`antialias`, which the component also picks before the first renderer when the tier is already known
+(`?tier=`, a chosen or measured tier).
+
+`recovery.svelte.spec.ts` checks the same table comes back on a new canvas, a tier lower, the camera
+where it was, with no more geometries, textures or programs than before and no console error. On
+WebGL2 it loses the context (`WEBGL_lose_context`). On WebGPU (`npm run test:webgpu`) it crashes the
+GPU process through the DevTools protocol (the `crashGpu` browser command in `vite.config.ts`), a real
+device loss like a driver reset: `device.destroy()` never reaches three's handler, whose reason is
+then `destroyed`. The crash takes WebGPU away from the whole browser for a moment, so that project runs
+its files one at a time and the test waits for WebGPU to come back before it ends.
+
+**On devices (the device matrix, #361):** with a table open, send the app to the background for a
+minute and bring it back, on the Capacitor Android app and a WKWebView shell (iOS or macOS): the table
+draws again (restored if it was lost, "Restoring the table…" at most a few seconds), never a frozen
+canvas; chat, dice and panels keep working meanwhile.
+
+### WebGPU golden images (#151)
+
+The goldens and the renderer's smoke tests also run through the WebGPU backend, locally, in the
+`client-webgpu` Vitest project, which exists only with `THIRDFOLD_WEBGPU=1`, so `npm test` and CI
+never see it:
+
+```bash
+npm run test:webgpu                                      # all of it, about 3.5 minutes
+npm run test:webgpu -- src/lib/tabletop/golden.svelte.spec.ts --update   # re-record on purpose
+```
+
+It draws on the real GPU (the RTX 4060 Laptop, the reference machine, through Vulkan), headless.
+Chrome's WebGPU picks its own SwiftShader over Mesa's lavapipe even with lavapipe the only Vulkan
+driver, and SwiftShader's WebGPU is too slow and unreliable to test on, so the references
+(`*-webgpu-chromium-linux.png`, beside the WebGL2 ones) belong to that GPU and driver. The specs read
+the project's backend with `inject('backend')` (`BACKEND` in `testing.ts`); `mountFixture` pins the
+tier to medium and fails if WebGPU silently fell back to WebGL2. Tests that read pixels back are
+WebGL2-only and skip on WebGPU, naming why.
+
+Its first runs caught a bug the WebGL2 goldens never showed: a tabletop torn down while the next
+started (every test, and #150's rebuild) could leave the new one's raised ground missing or black.
+`TableLayer.dispose` disposed the shared blank texture every dressed material falls back to, which
+destroys it in every renderer; `undress` (environment.ts) never does. And two renderers disposing
+and starting at once still broke each other, so `dispose()` resolves once the renderer is gone,
+and the component and the test helper make the next tabletop only after that.
 
 ## Render scheduler
 
-Filled in by milestone 62.
+`src/lib/tabletop/scheduler.ts` decides when a frame is drawn (#148). The policy (`modeFor`,
+`frameInterval`, `frameDue`) is pure and tested in `scheduler.spec.ts`; `RenderScheduler` drives it
+with `requestAnimationFrame` (r186's internal loop stays stopped, per the spike: each drawn frame
+resets `renderer.info` and advances the node frame itself).
+
+| Mode     | When                                                            | Frames                                                       |
+| -------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| IDLE     | nothing moves or animates, or the table can't be seen           | none until something changes                                 |
+| ACTIVE   | tokens, doors, dice, props, cue effects, shots, the camera move | every screen frame, at most the tier's `fpsCap` (60, low 30) |
+| AMBIENT  | flames flicker or mist drifts, nothing else                     | every 80 ms (12.5 fps), 100 ms after a minute without input  |
+| CONVERGE | movement just ended                                             | the tier's `convergeFrames` (0 until TRAA, #163), then IDLE  |
+
+AMBIENT is off under reduced motion (followed live, no reload), power saver (the viewer's setting),
+a hidden tab (`visibilitychange`) or a canvas scrolled out of view (`IntersectionObserver`);
+pointer, key and wheel input reset the minute. A screen faster than the cap (144 Hz) has its early
+callbacks skipped, so a camera drag draws at most 60 frames a second. A warm-up (#149) holds frames
+while shaders compile. `stats().mode` shows the mode in the `?perf` overlay.
+
+**The layer contract:** each frame the renderer asks the layers what they did (their `tick`
+returns) and reports it to the scheduler as a `FrameReport`: anything still moving (`active`), or
+animating slowly (`ambient`: `LightingLayer.flicker`, `AmbienceLayer.tick`). One-off changes call
+`request()`. Every animation runs on the injected clock (#128), from a start time and a duration,
+never on frame counts, so a throttled browser (Energy Saver, Low Power Mode) draws fewer frames of
+the same motion: token moves and floats, door swings, dice, props, cues and shots. Only layers that
+move shadow casters (tokens, doors, dice, props, the bell's swing) redraw the sun's shadows; dust, a
+flash, a shudder and ambient animation never do, and the perf gate fails if orbiting the camera
+draws a shadow pass.
 
 ## RenderPipeline
 

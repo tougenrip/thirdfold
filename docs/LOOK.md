@@ -180,6 +180,41 @@ read to them, which is what players will see too.
   - near-black nights with no light on the table (`ref-7` at night, `ghost-town`): the night is a
     brown near-black with no moon or sky. A moonlit night and a sky replace it in #114.
 
+## Milestone 62
+
+The port to the node renderer, the world scale (#152) and the retune (#153) in one strip,
+`docs/look/m62/` (written by the look-metrics run itself from the render it measures). The retune
+aimed at baseline v0's look, not at the references: at the old scale it brings the port back to
+within 0.009 of v0 (see `docs/RENDERING.md`), so what moved below is the scale.
+
+| Reference | m61   | m62   |
+| --------- | ----- | ----- |
+| 1         | 0.171 | 0.169 |
+| 2         | 0.293 | 0.284 |
+| 3         | 0.130 | 0.137 |
+| 4         | 0.148 | 0.160 |
+| 6         | 0.214 | 0.245 |
+| 7         | 0.136 | 0.115 |
+| 8         | 0.199 | 0.193 |
+
+- **Ref 1's pose pulled back** from distance 4.5 to 6 (owner, milestone 62): at human height the
+  minis and their labels overflowed the frame.
+- **Lights seated on their props (#367).** A light on a sconce or brazier draws only its flame, on
+  the prop's top, and hangs its pool light there, so ref 6's braziers are lit from inside again and
+  ref 1's torch stand carries its flame. Until #232 gives every light a fixture of its kind.
+- **Closer on refs 1, 2, 7 and 8.** Walls and minis at human height fill more of the frame the
+  way the references do.
+- **Further on refs 3 and 4, by 0.007–0.012.** Lamps elsewhere hang 1.6 u up instead of 1 u, so
+  the floor right under them is dimmer, against references that are brighter there. The lighting
+  milestone (#115) moves these, not the scale.
+- **Further on ref 6, by 0.031, though its braziers read as in m61.** The taller walls, lit orange
+  by the braziers, now fill more of the frame: median L 0.258 and chroma 0.075 against the
+  reference's 0.200 and 0.035 (m61: 0.192 and 0.057). Cooler, dimmer night light (#115, #238)
+  moves it.
+- **Seen in the strip, left for later:** the monastery's low golden looks at the wall of Oswin's
+  cell, since a low camera can't see over 2 u walls; dithering occluders between the camera and
+  the minis (#283) fixes it.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

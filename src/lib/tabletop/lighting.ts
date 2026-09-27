@@ -5,15 +5,37 @@
 // rules about what darkness hides. After dark, flames flicker (`flicker`),
 // which is cosmetic and costs no state.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { lightLevels, type Ambient, type Light, type LightSource } from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';
+import type { Prop } from '$lib/game/props';
 import type { Ground } from './ground';
+import { modelNow } from './models';
 
 /** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
 const POOL_SIZE = 8;
-const FIXTURE_HEIGHT = 0.9;
+const FIXTURE_HEIGHT = 1.5;
+/** A pool light's height above its flame. */
+const ABOVE_FLAME = 0.1;
+/**
+ * Props that are a light's fixture themselves: a light on one draws only its flame, on the
+ * prop's top, and hangs its pool light there (#367, until #232 gives lights fixtures by kind).
+ */
+const HOLDS_LIGHT = new Set(['sconce', 'brazier']);
+/** A seat's height until its model, and so its size, has loaded. */
+const SEAT_FALLBACK = 1;
+
+/** Where a light's flame sits on the light-holding props, by cell index: the prop's top. */
+export function lightSeats(grid: SquareGrid, props: readonly Prop[]): Map<number, number> {
+	const seats = new Map<number, number>();
+	for (const p of props) {
+		if (!HOLDS_LIGHT.has(p.assetId)) continue;
+		const top = modelNow(p.assetId)?.entry.bounds.max[1] ?? SEAT_FALLBACK;
+		seats.set(p.pos.y * grid.width + p.pos.x, top * p.scale);
+	}
+	return seats;
+}
 
 interface Preset {
 	background: number;
@@ -24,10 +46,13 @@ interface Preset {
 	dark: number;
 }
 
+// The whole frame is tone mapped, background and overlays too, so these colours are the ones
+// ACES turns into the sRGB 16120f, 120e10 and 07060a (and the darkness 04, 03, 08) of before
+// (#153).
 const PRESETS: Record<Ambient, Preset> = {
-	day: { background: 0x16120f, hemisphere: 0.9, sun: 1.6, lamp: 30, dark: 0 },
-	dusk: { background: 0x120e10, hemisphere: 0.45, sun: 0.55, lamp: 18, dark: 0.35 },
-	dark: { background: 0x07060a, hemisphere: 0.1, sun: 0, lamp: 0, dark: 0.82 }
+	day: { background: 0x292421, hemisphere: 0.9, sun: 1.6, lamp: 30, dark: 0 },
+	dusk: { background: 0x252022, hemisphere: 0.45, sun: 0.55, lamp: 18, dark: 0.35 },
+	dark: { background: 0x18171c, hemisphere: 0.1, sun: 0, lamp: 0, dark: 0.82 }
 };
 
 export interface SceneLights {
@@ -59,7 +84,7 @@ export class LightingLayer {
 	constructor(private readonly base: SceneLights) {
 		this.overlay = new THREE.Mesh(
 			new THREE.PlaneGeometry(1, 1),
-			new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false })
+			new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })
 		);
 		this.overlay.rotation.x = -Math.PI / 2;
 		// Just below the fog overlay, above the grid lines.
@@ -89,7 +114,8 @@ export class LightingLayer {
 		blocked: Blockers,
 		visible: Uint8Array | null,
 		ground: Ground | null = null,
-		dark: Uint8Array | null = null
+		dark: Uint8Array | null = null,
+		seats: ReadonlyMap<number, number> = new Map()
 	): void {
 		const preset = PRESETS[ambient];
 		this.ambient = ambient;
@@ -103,8 +129,8 @@ export class LightingLayer {
 		this.base.lamp.intensity = preset.lamp;
 
 		this.updateOverlay(grid, preset.dark, sources, blocked, visible, dark);
-		this.updatePool(grid, sources, ambient, ground);
-		this.updateFixtures(grid, lights, ground);
+		this.updatePool(grid, sources, ambient, ground, seats);
+		this.updateFixtures(grid, lights, ground, seats);
 	}
 
 	/** Id of the light fixture under the ray, if any. */
@@ -165,9 +191,9 @@ export class LightingLayer {
 			const level = Math.max(levels[i], visible?.[i] ? 0.55 : 0);
 			// A dark area is as dark as night, whatever the hour.
 			const shade = dark?.[i] ? Math.max(darkness, PRESETS.dark.dark) : darkness;
-			data[o] = 4;
-			data[o + 1] = 3;
-			data[o + 2] = 8;
+			data[o] = 19;
+			data[o + 1] = 17;
+			data[o + 2] = 26;
 			data[o + 3] = Math.round(255 * shade * (1 - level));
 			this.brightness[i] = 1 - shade * (1 - level);
 		}
@@ -186,7 +212,8 @@ export class LightingLayer {
 		grid: SquareGrid,
 		sources: readonly LightSource[],
 		ambient: Ambient,
-		ground: Ground | null
+		ground: Ground | null,
+		seats: ReadonlyMap<number, number>
 	): void {
 		const chosen = [...sources].sort((a, b) => b.radius - a.radius).slice(0, POOL_SIZE);
 		const strength = ambient === 'day' ? 0.5 : 1;
@@ -198,9 +225,12 @@ export class LightingLayer {
 			}
 			const w = gridToWorld(grid, s.pos);
 			const floor = ground?.floorY(s.pos) ?? 0;
-			light.position.set(w.x, floor + FIXTURE_HEIGHT * grid.cellSize + 0.1, w.z);
+			const flame = seats.get(s.pos.y * grid.width + s.pos.x) ?? FIXTURE_HEIGHT;
+			light.position.set(w.x, floor + (flame + ABOVE_FLAME) * grid.cellSize, w.z);
 			light.color.set(s.color);
 			light.distance = (s.radius + 1.5) * grid.cellSize;
+			// Raised to human height (#152), a lamp lights the floor a cell or two away about as
+			// before (the light lands less slanted); only the spot right under it is dimmer.
 			light.intensity = strength * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
 			this.steady[i] = light.intensity;
 		});
@@ -243,7 +273,12 @@ export class LightingLayer {
 		return true;
 	}
 
-	private updateFixtures(grid: SquareGrid, lights: readonly Light[], ground: Ground | null): void {
+	private updateFixtures(
+		grid: SquareGrid,
+		lights: readonly Light[],
+		ground: Ground | null,
+		seats: ReadonlyMap<number, number>
+	): void {
 		const seen = new Set<string>();
 		for (const l of lights) {
 			seen.add(l.id);
@@ -256,6 +291,10 @@ export class LightingLayer {
 			const w = gridToWorld(grid, l.pos);
 			fixture.position.set(w.x, ground?.floorY(l.pos) ?? 0, w.z);
 			fixture.scale.setScalar(grid.cellSize);
+			// On a sconce or brazier the prop is the post: only the flame, on its top.
+			const seat = seats.get(l.pos.y * grid.width + l.pos.x);
+			fixture.children[0].visible = seat === undefined;
+			fixture.children[1].position.y = seat ?? FIXTURE_HEIGHT;
 			const flame = fixture.children[1] as THREE.Mesh<
 				THREE.SphereGeometry,
 				THREE.MeshStandardMaterial

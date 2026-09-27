@@ -81,8 +81,8 @@
 		display: grid;
 		gap: var(--sp-5);
 		padding: var(--sp-5) var(--sp-5) var(--sp-4);
-		background: var(--panel);
-		backdrop-filter: blur(6px);
+		/* Solid: a blur inside the bar's own blur doesn't reach the panels behind it. */
+		background: var(--panel-solid);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-md);

@@ -4,7 +4,7 @@
 // transparent (the table's own surface shows); cells off the map are a dark
 // void. Lit like the table, so light and darkness fall on floors too.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { FLOOR_IDS, type FloorMap } from '$lib/game/floor';
 import type { SquareGrid } from '$lib/game/grid';
 import { FLOOR_LOOKS } from './floor-looks';
@@ -25,7 +25,7 @@ export class FloorLayer {
 			new THREE.MeshStandardMaterial({
 				transparent: true,
 				depthWrite: false,
-				roughness: 0.95,
+				roughness: 1,
 				polygonOffset: true,
 				polygonOffsetFactor: -1,
 				polygonOffsetUnits: -1

@@ -12,8 +12,9 @@ import type { Token } from '$lib/game/token';
 import type { FogView } from '$lib/game/visibility';
 import type { DiceThrow } from './dice3d';
 import type { FogMode } from './fog';
-import type { PerfStats } from './perf';
+import type { Benchmark, PerfStats } from './perf';
 import type { GridPose } from './poses';
+import type { Caps, QualitySettings, Tier } from './quality';
 import type { Pose } from './shots';
 
 export type CameraView = 'tactical' | 'tabletop';
@@ -55,10 +56,22 @@ export interface TabletopOptions {
 	now?: () => number;
 	/** Default `min(devicePixelRatio, 2)`. */
 	pixelRatio?: number;
-	/** Keeps the drawn frame readable after it is shown (tests only: it costs memory). */
+	/** Keeps the drawn frame readable after it is shown (tests only: it costs memory; forces WebGL2). */
 	preserveDrawingBuffer?: boolean;
 	/** Overrides the `prefers-reduced-motion` media query when set. */
 	reducedMotion?: boolean;
+	/** `webgl` forces WebGPURenderer's WebGL2 backend; default: `?backend=` and the Graphics setting. */
+	backend?: 'webgpu' | 'webgl';
+	/** Records GPU timestamps, for `sampleGpu` and `benchmark` (`?perf`: normal play never pays). */
+	perf?: boolean;
+	/** Opens three.js's Inspector over the table (`?perf&inspector`), loaded only then. */
+	inspector?: boolean;
+	/** MSAA (default on). Fixed for the renderer's life: changing it takes a new tabletop. */
+	antialias?: boolean;
+	/** The WebGL context or WebGPU device was lost: the tabletop draws no more (rebuild it). */
+	onLost?: (info: { api: string; message: string }) => void;
+	/** Refinement stepped an automatic tier down (see `setQuality`): remember it for this device. */
+	onTierRefined?: (tier: Tier) => void;
 }
 
 export interface Tabletop {
@@ -99,19 +112,31 @@ export interface Tabletop {
 	setView(view: CameraView): void;
 	/** Puts the camera at a pose at once, ending any shot or view change (tests, photo mode). */
 	setPose(pose: Pose): void;
+	/** Where the camera is now, to carry over to a rebuilt tabletop (`setPose`). */
+	cameraPose(): Pose;
 	/** The same, for a pose in grid terms (a fixture's named pose). */
 	setGridPose(pose: GridPose): void;
+	/**
+	 * Applies a quality tier's settings (quality.ts): the pixel cap and the sun's shadow size
+	 * for now. With `refine`, the first active frames after a table loads may step it down once.
+	 */
+	setQuality(settings: QualitySettings, refine?: boolean): void;
+	/** What this device offers, as probed when the renderer started. */
+	capabilities(): Caps;
+	/** Power saver (the viewer's setting): no ambient animation (scheduler.ts). */
+	setPowerSaver(on: boolean): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
-	/**
-	 * Draws the current view `frames` times, waiting for the GPU each time: the
-	 * main thread's ms per frame (`cpu`) and the whole frame's until drawn (`gpu`).
-	 */
-	benchmark(frames: number): { cpu: number; gpu: number; drawCalls: number };
-	/** GPU ms of the current view by timer queries (median of `frames`), or null without them. */
-	timeFrames(frames: number): Promise<number | null>;
+	/** Draws the current view `frames` times, timing the main thread and the GPU (see perf.ts). */
+	benchmark(frames: number): Promise<Benchmark>;
+	/** Reads the GPU timestamps of the frames since the last call into `stats().gpuMs`. */
+	sampleGpu(): Promise<void>;
 	resetStats(): void;
-	dispose(): void;
+	/**
+	 * Stops and frees everything. Resolves once the renderer itself is gone: make the next tabletop
+	 * only after that, since two renderers tearing down and starting up at once break each other.
+	 */
+	dispose(): Promise<void>;
 }
 
 /** Other changes that can move what casts a shadow (the camera, hover and highlights don't). */
@@ -121,7 +146,8 @@ export const RESHADOWS = [
 	'showFloat',
 	'throwDice',
 	'playMotions',
-	'playCue'
+	'playCue',
+	'setQuality'
 ] as const satisfies readonly (keyof Tabletop)[];
 
 /** The updates whose cost is measured. */

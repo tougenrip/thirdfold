@@ -46,6 +46,21 @@
 		TabletopEvents
 	} from './renderer';
 	import { loadRenderer } from './load';
+	import TableOverlays from './TableOverlays.svelte';
+	import {
+		layersFrom,
+		loadGraphics,
+		saveGraphics,
+		settingsFor,
+		startingTier,
+		tierAfterLoss,
+		tierFrom,
+		type Backend,
+		type GraphicsPrefs,
+		type Tier
+	} from './quality';
+	import type { Pose } from './shots';
+	import { tick, untrack } from 'svelte';
 
 	interface Props extends Partial<TabletopEvents> {
 		grid: SquareGrid;
@@ -82,6 +97,10 @@
 		motion?: MotionPlay | null;
 		/** Whose turn it is in a fight, marked over the token. */
 		active?: { tokenId: string; enemy: boolean } | null;
+		/** The viewer's graphics settings (the Graphics menu); read from storage when not given. */
+		graphics?: GraphicsPrefs | null;
+		/** Told the tier and backend the table draws with, whenever they change. */
+		onQuality?: (effective: { tier: Tier; backend: Backend }) => void;
 	}
 
 	let {
@@ -111,56 +130,199 @@
 		cue = null,
 		motion = null,
 		active = null,
+		graphics = null,
+		onQuality,
 		onClick,
 		onHover
 	}: Props = $props();
 
-	let canvas: HTMLCanvasElement;
+	let canvas = $state<HTMLCanvasElement>();
 	let tabletop = $state<Tabletop | null>(null);
 	/** `?perf` in the URL: show what rendering costs, and let a measuring script read it. */
-	const showPerf =
-		typeof location !== 'undefined' && new URLSearchParams(location.search).has('perf');
+	const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+	const showPerf = !!query?.has('perf');
+	/** `?perf&inspector`: three.js's Inspector too. */
+	const showInspector = showPerf && !!query?.has('inspector');
 	let perf = $state<PerfStats | null>(null);
 
 	$effect(() => {
 		const t = tabletop;
 		if (!showPerf || !t) return;
 		(window as { thirdfoldPerf?: Tabletop }).thirdfoldPerf = t;
-		const timer = setInterval(() => (perf = t.stats()), 500);
+		// Sampling the GPU's timestamps every 500 ms also keeps their query pool from filling up;
+		// the overlay shows the last sample rather than waiting for this one.
+		const timer = setInterval(() => {
+			perf = t.stats();
+			void t.sampleGpu();
+		}, 500);
 		return () => {
 			clearInterval(timer);
 			delete (window as { thirdfoldPerf?: Tabletop }).thirdfoldPerf;
 		};
 	});
 
-	const avg = (label: string) => {
-		const t = perf?.timings[label];
-		return t && t.count ? (t.total / t.count).toFixed(2) : '–';
-	};
 	let webglError = $state<string | null>(null);
+	/** Drawn by a software rasteriser (no GPU): the table shows at the low tier. */
+	let softwareNotice = $state(false);
+
+	/**
+	 * Bumped to make the tabletop again on a fresh canvas: after the WebGL context or WebGPU
+	 * device was lost, or for a tier that turns MSAA on or off (fixed for a renderer's life).
+	 * Every effect below replays its prop into the new tabletop; one-shot cues don't replay.
+	 */
+	let generation = $state(0);
+	/** A new tabletop is being made after a loss: "Restoring the table…" until it draws. */
+	let restoring = $state(false);
+	/** Lost twice within five minutes: drawn at low for the rest of the session. */
+	let lossNotice = $state(false);
+	/** A tier for this session only, after a loss (never saved: a loss is not a measurement). */
+	let sessionTier: Tier | null = null;
+	const losses: number[] = [];
+	/** The last tabletop's disposal: the next one waits for it. */
+	let lastDisposal: Promise<void> = Promise.resolve();
+	/** Where the camera was on the tabletop being replaced. */
+	let carriedPose: Pose | null = null;
+	/** MSAA for the next tabletop: from the tier where it is known before the device is. */
+	let antialias = initialAntialias();
+
+	function initialAntialias(): boolean {
+		if (typeof location === 'undefined') return true;
+		const prefs = loadGraphics(localStorage);
+		const known =
+			tierFrom(location.search) ?? (prefs.tier !== 'auto' ? prefs.tier : prefs.measured);
+		return known ? settingsFor(known, 'webgpu').msaa > 0 : true;
+	}
+
+	/** Makes the tabletop again on a fresh canvas, the camera where it was. */
+	function rebuild(t: Tabletop): void {
+		carriedPose = t.cameraPose();
+		generation++;
+	}
+
+	/** The graphics device was lost: rebuild (a tier lower), once the page can be seen. */
+	function lost(t: Tabletop): void {
+		const now = Date.now();
+		losses.push(now);
+		const next = tierAfterLoss((t.stats().tier as Tier | null) ?? 'medium', losses, now);
+		if (next === 'stop') {
+			tabletop = null;
+			lastDisposal = t.dispose();
+			webglError = "The table's graphics keep failing. Reload the page to try again.";
+			return;
+		}
+		sessionTier = next;
+		lossNotice = losses.filter((at) => now - at <= 5 * 60_000).length >= 2;
+		restoring = true;
+		// A backgrounded app can't draw: wait until it is back.
+		if (document.visibilityState !== 'hidden') return rebuild(t);
+		document.addEventListener('visibilitychange', () => rebuild(t), { once: true });
+	}
+
+	/**
+	 * The quality tier to draw at (quality.ts): `?tier=`, else the viewer's choice, else what an
+	 * earlier session measured, else what the device suggests; `?off=` turns layers off. Neither
+	 * URL switch is saved. An automatic tier may step down once after the first active frames.
+	 */
+	function applyQuality(t: Tabletop, tier: Tier | null = null): boolean {
+		const search = location.search;
+		const prefs = graphics ?? loadGraphics(localStorage);
+		appliedGraphics = graphics;
+		const caps = t.capabilities();
+		const auto = !tierFrom(search) && prefs.tier === 'auto' && !sessionTier;
+		const chosen = tier ?? sessionTier ?? startingTier(search, prefs, caps);
+		const settings = settingsFor(chosen, caps.backend);
+		// MSAA can't change on a renderer: make a new one with the tier's.
+		if (settings.msaa > 0 !== antialias) {
+			antialias = settings.msaa > 0;
+			rebuild(t);
+			return false;
+		}
+		t.setQuality({ ...settings, layers: layersFrom(search, settings.layers) }, auto && !tier);
+		t.setPowerSaver(prefs.powerSaver);
+		softwareNotice = caps.software;
+		onQuality?.({ tier: settings.tier, backend: caps.backend });
+		return true;
+	}
+
+	/** The graphics settings last applied: a new choice from the menu applies at once. */
+	let appliedGraphics: GraphicsPrefs | null = null;
+	$effect(() => {
+		const g = graphics;
+		const t = tabletop;
+		if (!t || g === appliedGraphics) return;
+		// The viewer's own choice replaces a tier dropped after a lost device.
+		sessionTier = null;
+		untrack(() => applyQuality(t));
+	});
+
+	/** Calls `done` once `t` has drawn a frame (unless `gone` first). */
+	function whenDrawn(t: Tabletop, gone: () => boolean, done: () => void): void {
+		const check = () => {
+			if (gone()) return;
+			if (t.stats().frames > 0) done();
+			else requestAnimationFrame(check);
+		};
+		check();
+	}
+
+	/** Refinement stepped the automatic tier down: remember it for this device, and use it. */
+	function tierRefined(t: Tabletop, tier: Tier): void {
+		saveGraphics(localStorage, { ...loadGraphics(localStorage), measured: tier });
+		applyQuality(t, tier);
+	}
 
 	$effect(() => {
+		// Each generation has its own canvas ({#key} below), and gets its own tabletop.
+		const el = canvas;
+		if (!el) return;
 		// three.js and the renderer come in their own chunk, so the page around the table
 		// (and the join form before it) doesn't wait for them.
 		let t: Tabletop | null = null;
 		let gone = false;
-		loadRenderer()
-			.then(({ createTabletop }) => {
+		// The last tabletop must be gone first: two renderers tearing down and starting up at once
+		// break each other's drawing (a rebuild after a loss, a new MSAA, #151).
+		Promise.all([loadRenderer(), lastDisposal])
+			.then(async ([{ createTabletop }]) => {
 				if (gone) return;
 				// Handlers read the current props at call time, so the renderer never needs rebuilding.
-				t = createTabletop(canvas, {
-					onClick: (pick) => onClick?.(pick),
-					onHover: (pick) => onHover?.(pick)
-				});
+				const made = await createTabletop(
+					el,
+					{ onClick: (pick) => onClick?.(pick), onHover: (pick) => onHover?.(pick) },
+					{
+						perf: showPerf,
+						inspector: showInspector,
+						antialias,
+						onTierRefined: (tier) => t && tierRefined(t, tier),
+						onLost: () => t && lost(t)
+					}
+				);
+				// Unmounted (or replaced) while the renderer was starting: throw it away.
+				if (gone || !applyQuality(made)) {
+					lastDisposal = made.dispose();
+					return;
+				}
+				t = made;
 				tabletop = t;
+				// The effects below replay the table into it; then the camera goes back where it was.
+				const pose = carriedPose;
+				carriedPose = null;
+				if (pose) void tick().then(() => made.setPose(pose));
+				if (restoring)
+					whenDrawn(
+						made,
+						() => gone,
+						() => (restoring = false)
+					);
 			})
 			.catch((err) => {
 				console.error('[tabletop] failed to start renderer', err);
-				webglError = 'This browser could not start 3D rendering (WebGL unavailable).';
+				webglError = /webgl|webgpu|context|adapter/i.test(String(err))
+					? "This device can't show 3D (WebGL2 unavailable)."
+					: "The table couldn't start.";
 			});
 		return () => {
 			gone = true;
-			t?.dispose();
+			if (t) lastDisposal = t.dispose();
 			tabletop = null;
 		};
 	});
@@ -277,38 +439,16 @@
 	});
 </script>
 
-<!-- Focusable so the arrow keys can move the selected token (RoomView listens). -->
-<canvas
-	bind:this={canvas}
-	tabindex="0"
-	aria-label="3D tabletop. Select a token, then use the arrow keys to move it one cell."
-></canvas>
-{#if perf}
-	<dl class="perf" aria-label="Rendering performance">
-		<dt>fps</dt>
-		<dd>{perf.fps}</dd>
-		<dt>frame ms</dt>
-		<dd>{avg('frame')} (max {perf.timings.frame?.max.toFixed(1) ?? '–'})</dd>
-		<dt>draws</dt>
-		<dd>{perf.drawCalls}</dd>
-		<dt>triangles</dt>
-		<dd>{perf.triangles.toLocaleString()}</dd>
-		<dt>geo / tex / prog</dt>
-		<dd>{perf.geometries} / {perf.textures} / {perf.programs}</dd>
-		<dt>lighting ms</dt>
-		<dd>{avg('lighting')} ×{perf.timings.lighting?.count ?? 0}</dd>
-	</dl>
-{/if}
-{#if webglError}
-	<div class="webgl-error" role="alert">
-		<p class="title">The table can’t be shown here</p>
-		<p>{webglError}</p>
-		<p>
-			You’re still at the table: chat, dice and the panels work. To see it, turn on hardware
-			acceleration in your browser’s settings, or open this link in another browser.
-		</p>
-	</div>
-{/if}
+<!-- Focusable so the arrow keys can move the selected token (RoomView listens). A fresh canvas
+     for each tabletop: a lost context stays lost on its canvas, and a canvas keeps its kind. -->
+{#key generation}
+	<canvas
+		bind:this={canvas}
+		tabindex="0"
+		aria-label="3D tabletop. Select a token, then use the arrow keys to move it one cell."
+	></canvas>
+{/key}
+<TableOverlays {perf} {restoring} bind:lossNotice bind:softwareNotice {webglError} />
 
 <style>
 	canvas {
@@ -316,59 +456,5 @@
 		width: 100%;
 		height: 100%;
 		touch-action: none;
-	}
-
-	.perf {
-		position: absolute;
-		left: 0.5rem;
-		bottom: 0.5rem;
-		display: grid;
-		grid-template-columns: auto auto;
-		gap: 0 var(--sp-4);
-		margin: 0;
-		padding: var(--sp-3) var(--sp-4);
-		font-family: var(--font-mono);
-		font-size: var(--fs-2xs);
-		line-height: 1.4;
-		font-variant-numeric: tabular-nums;
-		color: var(--glow);
-		background: var(--scrim);
-		pointer-events: none;
-		z-index: var(--z-overlay);
-	}
-
-	.perf dd {
-		margin: 0;
-	}
-
-	/* Centred in the free space between the room's chat and side panels. */
-	.webgl-error {
-		position: absolute;
-		top: 50%;
-		left: var(--free-left, 1rem);
-		right: var(--free-right, 1rem);
-		transform: translateY(-50%);
-		margin-inline: auto;
-		width: min(28rem, calc(100% - var(--free-left, 1rem) - var(--free-right, 1rem)));
-		display: grid;
-		gap: var(--sp-3);
-		padding: var(--sp-6) var(--sp-7);
-		background: var(--panel-solid);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-md);
-		color: var(--muted);
-	}
-
-	.webgl-error p {
-		margin: 0;
-		max-width: 65ch;
-	}
-
-	.webgl-error .title {
-		font-family: var(--font-display);
-		font-size: var(--fs-lg);
-		font-weight: 700;
-		color: var(--text);
 	}
 </style>

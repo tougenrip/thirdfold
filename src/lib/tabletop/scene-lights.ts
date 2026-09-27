@@ -2,7 +2,7 @@
 // one side) and fitting them, the distance haze and the camera's reach to the
 // size of the table. LightingLayer sets their strengths for the time of day.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 /** The distance haze, as tuned for tables up to `extent` across (the Hollow's). */
@@ -16,6 +16,16 @@ export interface BaseLights {
 	lamp: THREE.PointLight;
 }
 
+/** The scene, with a plain background and the distance haze in its colour. */
+/** The day preset's background (lighting.ts), until the lighting layer sets the hour's. */
+export function createScene(background = 0x292421): { scene: THREE.Scene; fog: THREE.Fog } {
+	const scene = new THREE.Scene();
+	scene.background = new THREE.Color(background);
+	const fog = new THREE.Fog(background, FOG.near, FOG.far);
+	scene.fog = fog;
+	return { scene, fog };
+}
+
 export function createSceneLights(scene: THREE.Scene): BaseLights {
 	const hemisphere = new THREE.HemisphereLight(0xfff1dc, 0x1c140e, 0.9);
 	scene.add(hemisphere);
@@ -23,6 +33,10 @@ export function createSceneLights(scene: THREE.Scene): BaseLights {
 	sun.castShadow = true;
 	sun.shadow.mapSize.set(2048, 2048);
 	sun.shadow.bias = -0.0005;
+	// The sun's shadows are drawn again only when something on the table changed (the
+	// renderer's shadowsDirty), not when just the camera moves or flames flicker: that pass
+	// draws the whole scene a second time.
+	sun.shadow.autoUpdate = false;
 	scene.add(sun, sun.target);
 	// A warm low light off to one side so the table reads as lit by a lamp, not a studio.
 	const lamp = new THREE.PointLight(0xffa04d, 30, 0, 2);

@@ -2,9 +2,9 @@
 // and the grid lines (one draw call however large the grid). The environment
 // dresses the slab and surface; their materials are kept across tables.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
-import { dress, type EnvironmentLook } from './environment';
+import { dress, undress, type EnvironmentLook } from './environment';
 
 export const TABLE_MARGIN = 3;
 const TABLE_THICKNESS = 0.6;
@@ -14,7 +14,7 @@ const COLORS = { table: 0x5a3b24, surface: 0x2f4a3a, gridLine: 0xd8cfb4 };
 export class TableLayer {
 	readonly group = new THREE.Group();
 	private slabMaterial = new THREE.MeshStandardMaterial({ roughness: 0.7 });
-	private surfaceMaterial = new THREE.MeshStandardMaterial({ roughness: 0.95 });
+	private surfaceMaterial = new THREE.MeshStandardMaterial({ roughness: 1 });
 
 	/** Builds the table for a grid. Returns its extent: the size across, margin included. */
 	build(g: SquareGrid): number {
@@ -45,9 +45,11 @@ export class TableLayer {
 		}
 		const lineGeometry = new THREE.BufferGeometry();
 		lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+		// Blended before tone mapping, so fainter than the 0.35 they had after it (#153); back to
+		// 0.35 once grid lines leave tone mapping for the overlay pass (#157).
 		const lines = new THREE.LineSegments(
 			lineGeometry,
-			new THREE.LineBasicMaterial({ color: COLORS.gridLine, transparent: true, opacity: 0.35 })
+			new THREE.LineBasicMaterial({ color: COLORS.gridLine, transparent: true, opacity: 0.17 })
 		);
 		lines.position.y = 0.005;
 
@@ -81,9 +83,7 @@ export class TableLayer {
 
 	dispose(): void {
 		this.clear();
-		this.slabMaterial.map?.dispose();
-		this.surfaceMaterial.map?.dispose();
-		this.slabMaterial.dispose();
-		this.surfaceMaterial.dispose();
+		undress(this.slabMaterial);
+		undress(this.surfaceMaterial);
 	}
 }
