@@ -231,9 +231,36 @@ it is 2–30% faster, and the WebGPU backend 15–40% faster. One condition: fir
 today's (the rule allows 1.5×), so the port does not merge until #149's precompile brings the first
 frame of a loaded table under 1.5× of today's (about 85 ms). If it can't, the owner decides again.
 
+**Shells, 27 September 2026** (the ported renderer, the test world, on the Dell G15: RTX 4060 Laptop
+on NVIDIA 595.91 and an Intel UHD iGPU on Mesa, Ubuntu with GNOME 50 on Wayland). A probe page opened
+the app in the shell, created a room, imported the test world and read `thirdfoldPerf`:
+
+| Shell                                       | `navigator.gpu` | Secure | Backend | Draws                           | GPU ms (sync)   |
+| ------------------------------------------- | --------------- | ------ | ------- | ------------------------------- | --------------- |
+| Chromium 153, RTX 4060 (reference)          | yes, adapter    | yes    | WebGPU  | yes                             | 1.8 (timestamp) |
+| Tauri on Linux, WebKitGTK 2.52, Intel/Mesa  | no              | yes    | WebGL2  | yes                             | 12.5            |
+| Tauri on Linux, WebKitGTK 2.52, NVIDIA 595  | no              | yes    | –       | **no: the web process crashes** | –               |
+| Capacitor, Android 13 emulator, WebView 109 | no              | yes    | WebGL2  | yes                             | 7.6             |
+| Capacitor, Android 16 emulator, WebView 134 | yes, no adapter | yes    | WebGL2  | yes                             | 12.2            |
+
+- **WebKitGTK on the NVIDIA driver** segfaults in `libnvidia-eglcore.so` (called from WebKit's own
+  compositing, not from JavaScript) as soon as a room page's table starts; the landing page and a
+  bare WebGPURenderer cube draw. `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `GDK_BACKEND=x11`,
+  `WEBKIT_DISABLE_COMPOSITING_MODE=1` and `__NV_DISABLE_EXPLICIT_SYNC=1` don't help. It is not the
+  port: main, still on `WebGLRenderer`, crashes the same way. On a hybrid laptop Tauri draws on the
+  iGPU with `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json` (with
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` WebKit ignores that and crashes on NVIDIA again). Setting the Mesa vendor in the Linux desktop build when an Intel or AMD GPU is present
+  is a follow-up; a WebKitGTK or driver update should be checked again.
+- WebKitGTK names every GPU "Apple GPU" (and "WebKit WebGL" as the renderer), so the shell, not the
+  adapter, sets Tauri on Linux's starting tier (`tauri-linux`: medium).
+- `http://localhost` is a secure context in both Capacitor WebViews. Android 16's WebView has
+  `navigator.gpu`, but the emulator gives it no adapter, and the renderer fell back to WebGL2 by
+  itself. A phone's own GPU (Vulkan) is what decides WebGPU there.
+- The emulators draw through the host's RTX 4060 (gfxstream), so their GPU times say nothing about a
+  phone.
+
 **Not yet verified, on the owner's machines to come:** WebView2 (Tauri on Windows), WKWebView (Tauri
-on macOS 15 and 26), WebKitGTK (Tauri on Linux, with and without `WEBKIT_DISABLE_DMABUF_RENDERER=1`),
-Capacitor Android, iOS 26, and an M-series Mac.
+on macOS 15 and 26, iOS 26), an M-series Mac, and a real Android phone.
 
 **Owner sign-off:** approved by the owner on #142, 26 September 2026.
 
