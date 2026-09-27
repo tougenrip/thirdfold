@@ -25,6 +25,13 @@
 		const t = perf?.timings[label];
 		return t && t.count ? (t.total / t.count).toFixed(2) : '–';
 	};
+	/** GPU ms by pass (#166), in the order the pipeline draws them. */
+	const ORDER = ['prepass', 'ao', 'scene', 'traa', 'dof', 'blur', 'bloom', 'output', 'overlay'];
+	const passes = $derived(
+		Object.entries(perf?.gpu ?? {}).sort(
+			([a], [b]) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99)
+		)
+	);
 </script>
 
 {#if restoring}
@@ -50,6 +57,10 @@
 		<dd>{avg('frame')} (max {perf.timings.frame?.max.toFixed(1) ?? '–'})</dd>
 		<dt>GPU ms</dt>
 		<dd>{perf.gpuMs === null ? 'n/a' : perf.gpuMs.toFixed(2)}</dd>
+		{#each passes as [pass, ms] (pass)}
+			<dt class="pass">{pass}</dt>
+			<dd>{ms.toFixed(2)}</dd>
+		{/each}
 		<dt>draws</dt>
 		<dd>{perf.drawCalls}</dd>
 		<dt>triangles</dt>
@@ -101,6 +112,11 @@
 
 	.perf dd {
 		margin: 0;
+	}
+
+	.perf .pass {
+		padding-left: 1ch;
+		opacity: 0.75;
 	}
 
 	.perf .adapter {

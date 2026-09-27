@@ -104,22 +104,33 @@ for (const viewport of VIEWPORTS) {
 				// A first frame compiles whatever is new; measure after it.
 				await page.evaluate(() => window.thirdfoldPerf.benchmark(2));
 				const b = await page.evaluate((n) => window.thirdfoldPerf.benchmark(n), FRAMES);
-				const programs = await page.evaluate(() => window.thirdfoldPerf.stats().programs);
+				const { programs, tier } = await page.evaluate(() => window.thirdfoldPerf.stats());
 				const run = {
 					viewport: `${viewport.width}x${viewport.height}`,
 					table: name,
 					viewer: who,
 					pose: poseName,
+					tier,
 					gpuMs: round(b.gpu),
 					gpuTimer: b.gpuTimer,
 					mainThreadMs: round(b.cpu),
 					drawCalls: b.drawCalls,
-					programs
+					programs,
+					// GPU ms by pass (#166), where the GPU has timestamps.
+					passes: b.passes
+						? Object.fromEntries(Object.entries(b.passes).map(([k, v]) => [k, round(v)]))
+						: null
 				};
 				report.runs.push(run);
 				console.log(
-					`${run.viewport} ${name} ${who} ${poseName}: GPU ${run.gpuMs ?? '–'} ms (${run.gpuTimer}), main thread ${run.mainThreadMs} ms, ${run.drawCalls} draws, ${programs} programs`
+					`${run.viewport} ${name} ${who} ${poseName} (${tier}): GPU ${run.gpuMs ?? '–'} ms (${run.gpuTimer}), main thread ${run.mainThreadMs} ms, ${run.drawCalls} draws, ${programs} programs`
 				);
+				if (run.passes)
+					console.log(
+						`  by pass: ${Object.entries(run.passes)
+							.map(([k, v]) => `${k} ${v}`)
+							.join(', ')}`
+					);
 			}
 		}
 	}

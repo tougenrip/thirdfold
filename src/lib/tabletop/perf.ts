@@ -4,7 +4,10 @@
 // performance.now() calls per frame or update. Read by the perf overlay
 // (`?perf` in the URL) and by the measurements in docs/PERFORMANCE.md. GPU
 // time comes from timestamp queries, which the renderer records only under
-// `?perf` (`trackTimestamp`), sampled every 500 ms by the overlay.
+// `?perf` (`trackTimestamp`), sampled every 500 ms by the overlay, whole and
+// by pass (#166): each render three draws (a pass's scene or an effect's quad)
+// has a timestamp id, which `PassNames` (loop.ts) ties to the name three gives
+// what it draws; `passOf` groups the names into the pipeline's passes.
 
 import type * as THREE from 'three/webgpu';
 import { isSoftware, type Tier } from './quality';
@@ -54,6 +57,8 @@ export interface PerfStats {
 	mode: string | null;
 	/** GPU ms per frame by timestamp queries, at the last sample; null without them. */
 	gpuMs: number | null;
+	/** The same by pass (`passOf`), at the last sample; null without timestamps, and on WebGL2. */
+	gpu: Record<string, number> | null;
 	/** Frames are held while shaders warm up (warmup.ts): the picture is about to change. */
 	holding: boolean;
 }
@@ -62,6 +67,7 @@ export class PerfRecorder {
 	frames = 0;
 	/** GPU ms per frame at the last `sampleGpu`, and the frame count it was taken at. */
 	gpuMs: number | null = null;
+	gpu: Record<string, number> | null = null;
 	sampledAt = 0;
 	/** Told each drawn frame's main-thread ms (quality refinement, capabilities.ts). */
 	onFrame: ((ms: number) => void) | null = null;
@@ -113,7 +119,7 @@ export class PerfRecorder {
 
 	reset(): void {
 		this.frames = this.sampledAt = 0;
-		this.gpuMs = null;
+		this.gpuMs = this.gpu = null;
 		this.timings.clear();
 		this.recent.length = 0;
 	}
@@ -195,8 +201,85 @@ export function rendererStats(
 		tier,
 		mode,
 		gpuMs: perf.gpuMs,
+		gpu: perf.gpu,
 		holding
 	};
+}
+
+/**
+ * The passes a frame's GPU time is reported by, from the name three gives each render: our
+ * passes' names (post.ts), and the quads of three's effects. `output` is the pipeline's last pass
+ * (with FXAA, the render to its input too); `blur` is tilt-shift's, and depth of field's own CoC
+ * blur when both run. Shadow maps draw inside the pass that draws the scene.
+ */
+const PASSES: readonly (readonly [RegExp, string])[] = [
+	[/^prepass$/, 'prepass'],
+	[/^scene$/, 'scene'],
+	[/^overlay$/, 'overlay'],
+	[/^SSAO\b|^AO$/, 'ao'],
+	[/^TRAA$|^Sharpen\b/, 'traa'],
+	[/^DoF\b/, 'dof'],
+	[/^Gaussian Blur\b/, 'blur'],
+	[/^Bloom\b/, 'bloom'],
+	[/^Render Pipeline$|\bRTT\b/, 'output']
+];
+
+/** The pass a render named `name` belongs to; `other` for anything else. */
+export function passOf(name: string): string {
+	return PASSES.find(([re]) => re.test(name))?.[1] ?? 'other';
+}
+
+/**
+ * GPU ms per frame, whole and by pass, from resolved durations by timestamp id (`…:f<frame>`)
+ * and the names seen for those ids. Null when no frame was timed.
+ */
+export function byPass(
+	durations: Iterable<[string, number]>,
+	names: ReadonlyMap<string, string>
+): { total: number; passes: Record<string, number> } | null {
+	const frames = new Set<string>();
+	const passes: Record<string, number> = {};
+	let total = 0;
+	for (const [uid, ms] of durations) {
+		frames.add(uid.slice(uid.lastIndexOf(':f')));
+		const pass = passOf(names.get(uid) ?? '');
+		passes[pass] = (passes[pass] ?? 0) + ms;
+		total += ms;
+	}
+	if (!frames.size) return null;
+	for (const pass in passes) passes[pass] /= frames.size;
+	return { total: total / frames.size, passes };
+}
+
+/** The durations the last resolve read, by timestamp id; empty where there are none. */
+function resolved(renderer: THREE.WebGPURenderer): Map<string, number> {
+	const pools = (
+		renderer.backend as unknown as {
+			timestampQueryPool?: { render?: { timestamps: Map<string, number> } };
+		}
+	).timestampQueryPool;
+	return pools?.render?.timestamps ?? new Map();
+}
+
+/** The names `PassNames` saw by timestamp id, when it is the renderer's inspector. */
+function namesOf(renderer: THREE.WebGPURenderer): Map<string, string> | null {
+	return (renderer.inspector as unknown as { passNames?: Map<string, string> }).passNames ?? null;
+}
+
+/**
+ * Reads the last resolve by pass, then forgets it and those ids' names. On WebGL2 only the
+ * frame's total is real: every pass draws inside the pipeline's last render, and WebGL's timer
+ * queries do not nest, so that one render is all it times. Its passes are then null.
+ */
+function readPasses(renderer: THREE.WebGPURenderer) {
+	const durations = resolved(renderer);
+	const names = namesOf(renderer) ?? new Map<string, string>();
+	const read = byPass(durations, names);
+	const result = read && (backendOf(renderer).isWebGPUBackend ? read : { ...read, passes: null });
+	// A resolve with nothing new leaves the last one's durations: read each only once.
+	for (const uid of durations.keys()) names.delete(uid);
+	durations.clear();
+	return result;
 }
 
 /**
@@ -211,8 +294,13 @@ export async function sampleGpu(renderer: THREE.WebGPURenderer, perf: PerfRecord
 	perf.sampling = true;
 	try {
 		// WebGL2's results arrive as frames are presented: on an idle table this can take a while.
-		const ms = await renderer.resolveTimestampsAsync('render');
-		if (frames > 0 && typeof ms === 'number') perf.gpuMs = ms / frames;
+		// (The resolve returns only the last frame's total: the durations give every frame's.)
+		await renderer.resolveTimestampsAsync('render');
+		const read = readPasses(renderer);
+		if (frames > 0 && read) {
+			perf.gpuMs = read.total;
+			perf.gpu = read.passes;
+		}
 	} finally {
 		perf.sampling = false;
 	}
@@ -226,6 +314,8 @@ export interface Benchmark {
 	cpu: number;
 	/** GPU ms per frame (`timestamp`), or ms until the frame was drawn (`sync`); NaN with `none`. */
 	gpu: number;
+	/** GPU ms per frame by pass (`passOf`), with WebGPU's timestamps only. */
+	passes: Record<string, number> | null;
 	gpuTimer: GpuTimer;
 	drawCalls: number;
 }
@@ -247,16 +337,22 @@ export async function benchmark(
 	const pixel = new Uint8Array(4);
 	let cpu = 0;
 	let gpu = 0;
+	const passes: Record<string, number> = {};
 	perf.benchmarking = true;
 	try {
 		// Earlier frames' timestamps would count toward the first frame.
-		if (timer === 'timestamp') await renderer.resolveTimestampsAsync('render');
+		if (timer === 'timestamp') {
+			await renderer.resolveTimestampsAsync('render');
+			readPasses(renderer);
+		}
 		for (let i = 0; i < frames; i++) {
 			const start = performance.now();
 			draw();
 			cpu += performance.now() - start;
 			if (timer === 'timestamp') {
 				gpu += (await renderer.resolveTimestampsAsync('render')) ?? 0;
+				for (const [pass, ms] of Object.entries(readPasses(renderer)?.passes ?? {}))
+					passes[pass] = (passes[pass] ?? 0) + ms / frames;
 				continue;
 			}
 			if (gl) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
@@ -270,6 +366,7 @@ export async function benchmark(
 	return {
 		cpu: cpu / frames,
 		gpu: timer === 'none' ? NaN : gpu / frames,
+		passes: timer === 'timestamp' && backendOf(renderer).isWebGPUBackend ? passes : null,
 		gpuTimer: timer,
 		drawCalls: renderer.info.render.drawCalls
 	};

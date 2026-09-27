@@ -12,7 +12,12 @@ measured and left alone.
   frame, draw calls, triangles, geometries/textures/shader programs, GPU memory (all of it, and
   textures), and how often and how long lighting was worked out. GPU ms come from timestamp
   queries, which the renderer records only under `?perf` (so normal play never pays for them) and
-  the overlay reads every 500 ms; "n/a" where there are none: WebGL2 without
+  the overlay reads every 500 ms, and on WebGPU by pass too (#166: prepass, ao, scene, traa, dof,
+  blur, bloom, output, overlay; `stats().gpu`). A small inspector (`PassNames` in `loop.ts`,
+  installed only under `?perf`) remembers the name of what each render draws by its timestamp id,
+  and `passOf` in `perf.ts` groups those names (our passes', three's effect quads') into passes.
+  WebGL2 times only the whole frame: every pass draws inside the pipeline's last render, and its
+  timer queries do not nest, so `gpu` is null there. "n/a" where there are none: WebGL2 without
   `EXT_disjoint_timer_query_webgl2`, or a software GPU (SwiftShader, llvmpipe), whose timestamps
   mean nothing. `?perf&inspector` also opens three.js's Inspector, a chunk of its own fetched only
   then. The page exposes `window.thirdfoldPerf` (the renderer's `stats()`, `resetStats()`, async
@@ -247,6 +252,69 @@ timer (80 ms, the render scheduler's AMBIENT mode since M62), by design since M1
 
   The cost is per-pixel shading, which a real GPU does in hardware. Lowering quality for software
   rendering was not worth it, so antialiasing, the light pool and resolution are unchanged.
+
+### Post-processing per pass and per tier (milestone 63, #166)
+
+GPU ms per frame by pass, with WebGPU's timestamps (`PERF_BACKEND=webgpu TIER=<tier>
+SCENES=ref-3,village,monastery,hollow POSES=overview node scripts/perf-gpu.mjs`, 48 frames, the
+GM's overview at 1920×1080, reduced motion: depth of field and tilt-shift, which only shots and the
+Miniature option turn on, are off). The ranges run over the four tables; "post" is AO, TRAA, bloom
+and the output stage, the passes this milestone added (the overlay is the old overlays' cost,
+moved).
+
+RTX 4060 Laptop (the medium tier's reference):
+
+| Tier   | prepass   | ao        | scene     | traa      | bloom     | output    | overlay   | post      | frame   |
+| ------ | --------- | --------- | --------- | --------- | --------- | --------- | --------- | --------- | ------- |
+| low    | –         | –         | 0.33–0.91 | –         | 0.06–0.22 | 0.15–0.47 | 0.01–0.04 | 0.21–0.65 | 0.5–1.6 |
+| medium | 0.07–0.12 | 0.26–0.51 | 1.4–3.2   | –         | 0.21–0.41 | 0.29–0.57 | 0.02–0.05 | 0.76–1.5  | 2.3–4.8 |
+| high   | 0.12–0.19 | 0.50–0.93 | 0.52–0.82 | 0.37–0.92 | 0.17–0.38 | 0.05–0.20 | 0.02–0.05 | 1.2–2.1   | 1.9–3.0 |
+| ultra  | 0.10–0.19 | 0.75–1.1  | 0.65–0.79 | 0.41–0.72 | 0.20–0.33 | 0.04–0.26 | 0.02–0.03 | 1.6–2.2   | 2.4–3.2 |
+
+Intel Graphics (Raptor Lake-S, Gen12, the low tier's reference):
+
+| Tier   | prepass   | ao        | scene     | traa    | bloom     | output  | overlay   | post      | frame     |
+| ------ | --------- | --------- | --------- | ------- | --------- | ------- | --------- | --------- | --------- |
+| low    | –         | –         | 5.5–7.9   | –       | 0.59–0.69 | 2.3–3.5 | 0.07–0.09 | 2.9–4.2   | 8.8–10.9  |
+| medium | 0.53–0.96 | 3.3–5.3   | 15.4–21.8 | –       | 2.7–3.1   | 3.1–4.5 | 0.09–0.11 | 9.1–12.9  | 25.5–35.7 |
+| high   | 1.8–2.5   | 12.3–17.3 | 10.8–17.4 | 6.6–7.0 | 2.6–3.0   | 3.3–4.2 | 0.10–0.13 | 25.2–31.5 | 38.2–51.2 |
+| ultra  | 1.8–2.4   | 11.9–17.8 | 10.9–18.2 | 6.5–7.1 | 2.7–2.9   | 3.1–4.3 | 0.10–0.13 | 24.8–32.0 | 37.7–52.6 |
+
+Against the starting budgets for post at 1080p on the iGPU (low about 1–1.5 ms, medium 3–4.5 ms,
+high 5–8 ms), the RTX is far inside every one, and the iGPU is over all three, by two to four
+times:
+
+- **Low:** 2.9–4.2 ms, almost all the output stage (2.3–3.5 ms: the three chromatic aberration
+  taps of scene and bloom, the tone mapper, the 3D grade, then FXAA through a target of its own).
+- **Medium:** 9.1–12.9 ms: AO at half resolution 3.3–5.3, bloom 2.7–3.1 (half resolution), the
+  output stage 3.1–4.5. The scene pass itself, MSAA 4× on half-float colour with an 8-bit emissive
+  attachment, is the frame's biggest cost at 15–22 ms.
+- **High and ultra:** 25–32 ms, AO at full resolution 12–18 ms and TRAA 6.5–7 ms; the scene pass
+  drops (no MSAA) to 11–18 ms.
+
+The starting tier already keeps an integrated GPU off high, but medium, its tier, draws at 26–36 ms
+a frame at 1080p (about 30 fps), and the refinement lowers it to low (9–11 ms) on a slow frame.
+Where the time goes is now measured; which defaults to change for integrated GPUs (AO at a
+quarter, bloom at a quarter, MSAA off, a cheaper output stage) is the G1 review's call.
+
+On WebGL2 (the same runs with `PERF_BACKEND=webgl`) only the frame total is timed, and it is
+higher: on the RTX low 2.0–4.6 ms, medium 3.9–9.9, high 2.8–4.7 (one village run at 26); on the
+iGPU low 9.1–12.1, medium 32–67, high 60–92. WebGPU is the faster backend on both machines.
+
+**Render-target memory per tier** (the perf gate, Ana's view of the test world at 1400×900, WebGL2
+on the RTX): each tier loads once as drawn and once with `?off=post`, and the difference is the post
+chain's targets. `scripts/perf-client.mjs` records `renderTargets` and texture bytes per tier in
+`docs/perf-baseline.json`, and fails when either rises.
+
+| Tier   | Render targets | Texture bytes | Of which the post chain |
+| ------ | -------------- | ------------- | ----------------------- |
+| low    | 17             | 46.0 MB       | 25.7 MB                 |
+| medium | 27             | 127.1 MB      | 79.8 MB                 |
+| high   | 30             | 162.6 MB      | 115.3 MB                |
+
+Before #166 the overlay's GPU ms under-reported: three's resolve returns only the last frame's
+total, which `sampleGpu` divided by every frame since the last sample. It now sums every timed
+render.
 
 ### Memory
 
