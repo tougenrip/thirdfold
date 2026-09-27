@@ -31,6 +31,8 @@ export async function warmUp(
 ): Promise<void> {
 	const limit = new Promise<void>((resolve) => setTimeout(resolve, WARM_UP_LIMIT_MS));
 	let timedOut = false;
+	/** The compile under way for a pass's target, which a frame must not interrupt. */
+	let inFlight: Promise<unknown> = Promise.resolve();
 	const compile = (async () => {
 		for (const layer of layers) {
 			if (timedOut) return;
@@ -44,7 +46,10 @@ export async function warmUp(
 				renderer.outputColorSpace = THREE.ColorManagement.workingColorSpace;
 				renderer.setRenderTarget(renderTarget);
 				renderer.setMRT(mrt);
-				await renderer.compileAsync(layer, camera, scene);
+				// The target and outputs stay set until the compile is done (it reads them while it
+				// waits), so a timed-out warm-up still waits for this one before frames resume.
+				inFlight = renderer.compileAsync(layer, camera, scene);
+				await inFlight;
 				renderer.setRenderTarget(target);
 				renderer.setMRT(outputs);
 				renderer.toneMapping = toneMapping;
@@ -53,6 +58,10 @@ export async function warmUp(
 		}
 	})();
 	await Promise.race([compile, limit.then(() => void (timedOut = true))]);
+	// Frames drawn while a pass's target is set would draw into it (and on WebGPU build pipelines
+	// for the wrong targets, aborting the frame): finish that compile first. The compile puts the
+	// renderer's state back as it ends, before this resumes (it awaited the same promise first).
+	await inFlight.catch(() => {});
 }
 
 /**

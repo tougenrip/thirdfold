@@ -145,8 +145,7 @@ export async function createTabletop(
 		diceLayer.clearLabels();
 		requestRender();
 	});
-	let levels: Uint8Array | null = null;
-	let ground: Ground | null = null;
+	let [levels, ground]: [Uint8Array | null, Ground | null] = [null, null];
 	/** The prop the current cue swings (the bell). */
 	let swinging: string | null = null;
 	const shakeOffset = new THREE.Vector3();
@@ -271,6 +270,7 @@ export async function createTabletop(
 		table.dress(look, grid, extent);
 		terrainLayer.setLook(look?.ground ?? null);
 		wallLayer.setLook(look?.walls ?? null);
+		post.setLook(environment, grid?.cellSize ?? 1); // the AO's reach
 		refreshLighting();
 		shadowsDirty = warmPending = true;
 		requestRender();

@@ -246,6 +246,27 @@ AgX, Neutral from left to right):
 menu (Colour: Filmic, Soft, True colour). The default is ACES, `GRADE_TONE_MAPPER`, the one the
 grades of #162 are authored after.
 
+## Milestone 63: ambient occlusion (#159)
+
+SSAO on the indirect light only (`docs/look/m63-ao/`, against `m63-tonemap-aces` without it): the
+foot of a crate under a sky light loses about 11% of its luminance and a lamp-lit face nothing
+(`post.svelte.spec.ts`), but on the paired fixtures the metrics barely move (distances within
+0.002, local contrast within 0.001), even at a radius of a cell and 2.5× the intensity. Two
+reasons, both for later milestones to lift:
+
+- **Painted floors cover it.** Every paired fixture but the monastery paints its floors, and the
+  painted floor is a translucent plane (alpha 220–235) over the table surface: it is not in the
+  prepass and takes no AO, and hides most of the AO on the surface below. The ground becomes opaque
+  in #240 and #242.
+- **Little indirect light.** Today's light is nearly all direct: the sun and its shadows by day,
+  torches and lamps at night, where the hemisphere, the only indirect light, is 0.1. The sky light
+  (#114) and the lighting of #115 raise the indirect share.
+
+Its reach and depth stay three's defaults (half a cell, 1) until then. Where there is hemisphere light to take, it shows: the railcar's narrow cars
+darken between their walls at dusk (its golden re-baselined). SSAO's false occlusion of flat ground
+is small: a plain floor under a sky light loses 0.2% of its luminance at 3 units, 0.7% at 10 and 2.9%
+at 30.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

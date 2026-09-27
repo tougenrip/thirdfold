@@ -44,7 +44,17 @@ export const isSoftware = (name: string | null) =>
 	/swiftshader|llvmpipe|lavapipe|softpipe|software/i.test(name ?? '');
 
 /** The layers later milestones add, each off until it passes its gates; `?off=` turns them off. */
-export const LAYERS = ['sky', 'post', 'grass', 'water', 'vfx', 'weather', 'xray', 'dof'] as const;
+export const LAYERS = [
+	'sky',
+	'post',
+	'ao',
+	'grass',
+	'water',
+	'vfx',
+	'weather',
+	'xray',
+	'dof'
+] as const;
 export type Layer = (typeof LAYERS)[number];
 
 export interface QualitySettings {
@@ -128,10 +138,9 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 	}
 };
 
-/** Each layer turns on in the milestone that passes its gates: post-processing in M63. */
-const LAYERS_ON: Record<Layer, boolean> = Object.fromEntries(
-	LAYERS.map((l) => [l, l === 'post'])
-) as Record<Layer, boolean>;
+/** Each layer turns on in the milestone that passes its gates: post-processing and AO in M63. */
+const ON = new Set<Layer>(['post', 'ao']);
+const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
 const BACKEND_CEILING: Record<Backend, Tier> = {

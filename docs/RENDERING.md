@@ -501,6 +501,10 @@ passes, in order:
   high and ultra share a pipeline; low (no prepass, no MSAA) has its own and compiles its own
   shaders. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
   0 (`updateBeforeType` NONE), so toggling one never recompiles.
+- **A timed-out warm-up still finishes the compile in flight** before frames resume: compiling
+  for a pass sets the renderer's target and outputs until the compile ends (three reads them while
+  it waits), and a frame drawn meanwhile drew into them, which on WebGPU built pipelines for the
+  wrong targets and aborted the frame.
 - **The warm-up compiles for the scene pass** (`Post.targets`: its target and outputs, drawn
   linear without tone mapping, as the pipeline draws them). Not for the prepass: compiled outside
   its pass on WebGPU, some of its pipelines come out invalid, so it compiles when first drawn. The pass draws nested in the
@@ -512,6 +516,23 @@ passes, in order:
   backends: the kill switch until #168 removes it.
 - Emissive is 8-bit on purpose: a flame's excess above 1.0 reaches bloom through the HDR term
   (#160).
+- **Ambient occlusion** (#159) is SSAO (`SSAONode`, self-denoised) from the prepass's depth and
+  normals, on medium (half resolution) and up (full); none on low. It costs about 0.7 ms a frame
+  at 1080p on the RTX 4060 (WebGPU, medium; #166 measures every pass per tier). It reaches the scene pass's
+  materials through `builtinAOContext` (`scenePass.contextNode`), so it scales indirect light only:
+  the hemisphere darkens in creases and under things, while torches, lamps and the sun light faces
+  as before; transparent materials (fog, darkness, mist, painted floors) and the overlay get none.
+  Its reach and depth are per environment, in cells (`AO_LOOKS`, `Post.setLook` on a new table or
+  look), all uniforms. `uniforms.aoStrength` (0 with the tier's `ao` off or `?off=ao`) mixes it to
+  exactly 1 and `Post.gate` stops its passes, so toggling compiles nothing. The scene pass draws
+  what it reads first (`ScenePassNode.drawsFirst`: the prepass, then the AO), each once a frame.
+  Three keys a render context by how deeply the pass is nested: a prepass drawn from inside the
+  AO's pass one frame and from the overlay's the next compiled everything twice, and an AO drawn
+  from inside the scene's own draw, when a material first asked for it, made WebGPU pipelines for
+  the wrong targets and aborted the frame. GTAO with temporal filtering waits for TRAA (#163). The
+  warm-up compiles without the AO's context: compiled with it (merged into the renderer's), three
+  released and rebuilt those programs as tables were loaded again, so the scene's materials take
+  the AO context when first drawn.
 - **The tone mapper is the viewer's** (#158, owner's decision 27 September 2026): Filmic (ACES),
   Soft (AgX) or True colour (Neutral) in the Graphics menu (`GraphicsPrefs.toneMapper`, into
   `QualitySettings.toneMapper`), `?tonemap=` for A/B runs. The default is `GRADE_TONE_MAPPER` in

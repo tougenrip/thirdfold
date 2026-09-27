@@ -116,7 +116,7 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		renderer.setSize(size, size, false);
 		const scene = new THREE.Scene();
 		scene.background = new THREE.Color(0x000000);
-		scene.add(...world);
+		if (world.length) scene.add(...world);
 		const camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 20);
 		camera.position.set(0, 10, 0);
 		camera.lookAt(0, 0, 0);
@@ -256,5 +256,87 @@ describe.skipIf(BACKEND === 'webgpu')('the tone mapper', () => {
 		expect(renderer.info.memory.programs).toBe(programs);
 		pick('agx');
 		expect(renderer.toneMapping).toBe(THREE.AgXToneMapping);
+	});
+});
+
+describe.skipIf(BACKEND === 'webgpu')('ambient occlusion', () => {
+	/**
+	 * A crate on a floor under a sky light, and a wall face lit head-on by a lamp, drawn with the
+	 * AO at `strength`: the luminance at the foot of the crate, and on the lamp-lit face.
+	 */
+	async function measure(strength: number) {
+		const canvas = document.createElement('canvas');
+		renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
+		renderer.setSize(400, 300, false);
+		const scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x000000);
+		const grey = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 1 });
+		const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), grey);
+		floor.rotation.x = -Math.PI / 2;
+		const crate = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), grey);
+		crate.position.set(-1, 0.5, 0);
+		const wall = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 0.2), grey);
+		wall.position.set(1.5, 1, 0);
+		const lamp = new THREE.PointLight(0xffffff, 6, 4, 2);
+		lamp.position.set(1.5, 1, 1.2);
+		scene.add(floor, crate, wall, lamp, new THREE.HemisphereLight(0xffffff, 0x404040, 1.5));
+		const camera = new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 50);
+		camera.position.set(0, 2.2, 4.5);
+		camera.lookAt(0, 0.4, 0);
+		camera.updateMatrixWorld();
+		const post = new Post(renderer, scene, camera, new THREE.Scene());
+		const settings = settingsFor('high', 'webgl2');
+		post.set(settings);
+		post.uniforms.aoStrength.value = strength;
+		for (let i = 0; i < 3; i++) {
+			advanceNodeFrame(renderer);
+			post.render();
+		}
+		const gl = (renderer.backend as unknown as { gl: WebGL2RenderingContext }).gl;
+		const lum = (x: number, y: number, z: number) => {
+			const p = new THREE.Vector3(x, y, z).project(camera);
+			const px = new Uint8Array(4);
+			gl.readPixels(
+				Math.round((p.x + 1) * 200),
+				Math.round((p.y + 1) * 150),
+				1,
+				1,
+				gl.RGBA,
+				gl.UNSIGNED_BYTE,
+				px
+			);
+			return 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2];
+		};
+		const result = {
+			crease: lum(-1, 0.02, 0.55),
+			face: lum(1.5, 1, 0.11),
+			open: lum(-3, 0, 2),
+			programs: renderer.info.memory.programs
+		};
+		renderer.dispose();
+		renderer = null;
+		return result;
+	}
+
+	it('darkens the foot of a crate, not a face a lamp lights', async () => {
+		const off = await measure(0);
+		const on = await measure(1);
+		// Measured 104 → 92 at the foot; the lamp-lit face does not move.
+		expect(on.crease).toBeLessThan(off.crease * 0.95);
+		expect(Math.abs(on.face - off.face)).toBeLessThan(off.face * 0.02);
+	});
+
+	it('turns off and on again without compiling anything', async () => {
+		const { renderer, post, draw } = await setup();
+		const at = (strength: number) => {
+			post.uniforms.aoStrength.value = strength;
+			advanceNodeFrame(renderer);
+			post.render();
+		};
+		draw('high');
+		for (const strength of [1, 1, 1]) at(strength);
+		const programs = renderer.info.memory.programs;
+		for (const strength of [0, 1, 0, 1]) at(strength);
+		expect(renderer.info.memory.programs).toBe(programs);
 	});
 });
