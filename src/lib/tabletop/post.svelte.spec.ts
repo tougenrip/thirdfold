@@ -30,7 +30,16 @@ async function setup() {
 	camera.position.set(2, 2, 3);
 	camera.lookAt(0, 0, 0);
 	const glow = new THREE.MeshStandardMaterial({ color: 'orange', emissive: 'orange' });
-	scene.add(new THREE.Mesh(new THREE.BoxGeometry(), glow), new THREE.AmbientLight('white', 1));
+	const box = new THREE.Mesh(new THREE.BoxGeometry(), glow);
+	const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial());
+	floor.rotation.x = -Math.PI / 2;
+	floor.position.y = -0.5;
+	box.castShadow = floor.receiveShadow = true;
+	// A sun casting shadows, as on the table: shadowed materials are the ones that recompile.
+	const sun = new THREE.DirectionalLight('white', 2);
+	sun.position.set(2, 4, 1);
+	sun.castShadow = true;
+	scene.add(box, floor, sun, new THREE.AmbientLight('white', 1));
 	const post = new Post(renderer, scene, camera, new THREE.Scene());
 	const backend = BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
 	const draw = (tier: Tier, on = true) => {
@@ -69,6 +78,24 @@ describe('the post-processing pipeline', () => {
 		draw('medium', false);
 		expect(memory.renderTargets).toBe(targets);
 		expect(memory.texturesSize).toBe(bytes);
+	});
+
+	it('compiles nothing new going round the tiers again', async () => {
+		const { renderer, draw } = await setup();
+		const round = () => {
+			for (const tier of ['low', 'medium', 'high', 'low', 'medium'] as const) {
+				draw(tier);
+				advanceNodeFrame(renderer);
+				draw(tier);
+			}
+		};
+		round();
+		const programs = renderer.info.memory.programs;
+		const targets = renderer.info.memory.renderTargets;
+		round();
+		round();
+		expect(renderer.info.memory.programs).toBe(programs);
+		expect(renderer.info.memory.renderTargets).toBe(targets);
 	});
 
 	it('draws straight to the canvas with the post layer off', async () => {
