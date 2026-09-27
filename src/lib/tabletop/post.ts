@@ -55,18 +55,23 @@ import {
 	screenUV,
 	uniform,
 	unpackRGBToNormal,
+	velocity,
 	vec4
 } from 'three/tsl';
 import type SSAONode from 'three/examples/jsm/tsl/display/SSAONode.js';
 import { ssao } from 'three/examples/jsm/tsl/display/SSAONode.js';
+import { traa } from 'three/examples/jsm/tsl/display/TRAANode.js';
+import { sharpen } from 'three/examples/jsm/tsl/display/SharpenNode.js';
+import { fxaa } from 'three/examples/jsm/tsl/display/FXAANode.js';
 import { lut3D } from 'three/examples/jsm/tsl/display/Lut3DNode.js';
 import { LUT_SIZE, type Grades } from './environment';
 import { GradeBlend } from './grade';
+import { OverlayPassNode, PrePassNode, ScenePassNode } from './passes';
 import type { Ambient } from '../game/lights';
 import type BloomNode from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
-import { needsPrepass, type QualitySettings } from './quality';
+import { needsPrepass, type AaMode, type QualitySettings } from './quality';
 
 const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
 	agx: THREE.AgXToneMapping,
@@ -78,6 +83,8 @@ const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
 export interface Stages {
 	prepass: boolean;
 	samples: number;
+	/** Antialiasing (#163): TRAA adds velocity and a resolve, FXAA a pass after the grade. */
+	aa: AaMode;
 	/** Compiled into the output stage, so a change rebuilds (#158). */
 	toneMapper: ToneMapper;
 }
@@ -90,61 +97,9 @@ export function stagesFor(settings: QualitySettings): Stages {
 	return {
 		prepass: needsPrepass(settings),
 		samples: settings.msaa,
+		aa: settings.aa,
 		toneMapper: settings.toneMapper ?? GRADE_TONE_MAPPER
 	};
-}
-
-/**
- * The opaque prepass: its colour attachment holds view normals, which fit in 8 bits.
- * `PassNode.setup` resets that attachment to the renderer's output type on every build,
- * so the 8-bit type is put back after it.
- */
-class PrePassNode extends THREE.PassNode {
-	setup(builder: THREE.NodeBuilder) {
-		const node = super.setup(builder);
-		this.renderTarget.texture.type = THREE.UnsignedByteType;
-		return node;
-	}
-}
-
-/**
- * The overlay's pass: it keeps the world's depth (the depth source's texture, not cleared) and
- * has that pass drawn first; NodeFrame draws a pass once a frame, however often it is asked.
- */
-class OverlayPassNode extends THREE.PassNode {
-	constructor(
-		scene: THREE.Scene,
-		camera: THREE.Camera,
-		private readonly depthFrom: THREE.PassNode
-	) {
-		super(THREE.PassNode.COLOR, scene, camera, {
-			samples: 0,
-			depthTexture: depthFrom.renderTarget.depthTexture!
-		});
-		this.name = 'overlay';
-		this.autoClearDepth = false;
-	}
-
-	updateBefore(frame: THREE.NodeFrame) {
-		frame.updateBeforeNode(this.depthFrom);
-		return super.updateBefore(frame);
-	}
-}
-
-/**
- * The scene pass: it has what it reads drawn first, the prepass and then the AO, each once a frame.
- * Three keys a pass's render context by how deeply it is nested, so a prepass drawn sometimes from
- * here and sometimes from inside another pass (the AO's, or the overlay's) would compile all its
- * materials twice; and an AO drawn from inside the scene's own draw, when a material first asks for
- * it, made WebGPU pipelines for the wrong targets, which aborted the frame.
- */
-class ScenePassNode extends THREE.PassNode {
-	drawsFirst: THREE.Node[] = [];
-
-	updateBefore(frame: THREE.NodeFrame) {
-		for (const node of this.drawsFirst) frame.updateBeforeNode(node);
-		return super.updateBefore(frame);
-	}
 }
 
 /** Something to compile the table's materials for: a pass's target and outputs. */
@@ -162,6 +117,8 @@ const AO_LOOKS: Record<string, { radius: number; intensity: number }> = {
 	cavern: { radius: 0.35, intensity: 1.2 },
 	'living-cave': { radius: 0.35, intensity: 1.2 }
 };
+/** RCAS on TRAA's resolve: 0 is the most, 2 none. */
+const TRAA_SHARPNESS = 0.3;
 /** How much of the occlusion shows, when on. */
 const AO_STRENGTH = 1;
 /** Bloom, when on: a tight, restrained glow (TaleWeaver blooms at 1 with a soft knee of 0.5). */
@@ -212,6 +169,13 @@ export class Post {
 
 	overlayPass: THREE.PassNode | null = null;
 	ao: SSAONode | null = null;
+	/** TRAA's sharpened resolve, which the output stage reads in place of the scene pass. */
+	private resolved: THREE.TextureNode | null = null;
+	/** The overlay's camera: the main one without TRAA's jitter. */
+	private overlayCamera: THREE.Camera | null = null;
+	/** Nodes with render targets of their own (TRAA, its sharpening), disposed with the pipeline. */
+	private owned: { dispose(): void }[] = [];
+	private fxaaInput: THREE.Node | null = null;
 	bloom: BloomNode | null = null;
 	/** The environment and cell size the AO is sized for. */
 	private look = {
@@ -246,7 +210,10 @@ export class Post {
 		this.grain = lens && settings.grain ? LENS.grain : 0;
 		this.uniforms.grade.value = settings.grade && settings.layers.grade ? 1 : 0;
 		const same =
-			this.stages && this.stages.prepass === next.prepass && this.stages.samples === next.samples;
+			this.stages &&
+			this.stages.prepass === next.prepass &&
+			this.stages.samples === next.samples &&
+			this.stages.aa === next.aa;
 		// Drawing straight to the canvas (`?off=post`) tone maps with the renderer's own.
 		this.renderer.toneMapping = TONE_MAPPINGS[next.toneMapper];
 		if (!settings.layers.post) return this.teardown();
@@ -307,7 +274,12 @@ export class Post {
 		this.uniforms.grain.value = this.reducedMotion() ? 0 : this.grain;
 		for (const { effect, on, strength } of this.gates)
 			effect.updateBeforeType = strength.value > 0 ? on : THREE.NodeUpdateType.NONE;
-		if (this.pipeline) return this.pipeline.render();
+		if (this.pipeline) {
+			(this.overlayCamera as THREE.PerspectiveCamera | null)?.copy(
+				this.camera as THREE.PerspectiveCamera
+			);
+			return this.pipeline.render();
+		}
 		const { renderer } = this;
 		renderer.render(this.scene, this.camera);
 		// Over it, on the same depth, not tone mapped.
@@ -344,9 +316,13 @@ export class Post {
 			const prepass = new PrePassNode(THREE.PassNode.COLOR, scene, camera, { samples: 0 });
 			prepass.name = 'prepass';
 			prepass.transparent = false;
-			// View normals only for now. A velocity attachment (for TRAA, #163) made WebGPU
-			// pipelines that write fewer outputs than the target has, which aborts the frame.
-			prepass.setMRT(mrt({ output: packNormalToRGB(normalView) }));
+			// View normals, and for TRAA each pixel's motion (half-float, cloned from the colour
+			// texture before that turns 8-bit).
+			const normals = packNormalToRGB(normalView);
+			prepass.setMRT(
+				mrt(stages.aa === 'traa' ? { output: normals, velocity } : { output: normals })
+			);
+			if (stages.aa === 'traa') prepass.getTexture('velocity').type = halfFloat;
 			prepass.renderTarget.texture.type = THREE.UnsignedByteType;
 			this.prepass = prepass;
 		}
@@ -390,7 +366,34 @@ export class Post {
 		this.bloom = glow;
 		this.gate(glow, this.uniforms.bloomStrength);
 
-		const overlayPass = new OverlayPassNode(this.overlay, camera, this.prepass ?? scenePass);
+		if (stages.aa === 'traa') {
+			// Temporal AA on the HDR image, from the prepass's depth and motion, sharpened (RCAS).
+			const p = this.prepass!;
+			const resolvedNode = traa(
+				scenePass.getTextureNode('output'),
+				p.getTextureNode('depth'),
+				p.getTextureNode('velocity'),
+				camera
+			);
+			// Its texture, not the node: a node would be drawn again into a target of its own.
+			const internals = resolvedNode as unknown as {
+				getTextureNode(): THREE.TextureNode;
+				_previousDepthNode: THREE.TextureNode;
+			};
+			const sharpened = sharpen(internals.getTextureNode(), TRAA_SHARPNESS);
+			this.resolved = sharpened.getTextureNode();
+			// r186's TRAANode leaves its 1×1 previous-depth texture behind: dispose it too.
+			const previousDepth = { dispose: () => internals._previousDepthNode.value.dispose() };
+			this.owned.push(resolvedNode, sharpened, previousDepth);
+		}
+
+		// TRAA jitters the camera for every pass: the overlay draws with a copy taken before.
+		this.overlayCamera = camera.clone();
+		const overlayPass = new OverlayPassNode(
+			this.overlay,
+			this.overlayCamera,
+			this.prepass ?? scenePass
+		);
 		overlayPass.renderTarget.texture.type = halfFloat;
 		this.overlayPass = overlayPass;
 
@@ -417,7 +420,7 @@ export class Post {
 	/** The output stage, one pass: see the top of this file for its order and the black rule. */
 	private compose(pipeline: THREE.RenderPipeline): void {
 		const u = this.uniforms;
-		const color = this.scenePass!.getTextureNode('output');
+		const color = this.resolved ?? this.scenePass!.getTextureNode('output');
 		const bloomed = (this.bloom as unknown as { getTextureNode(): typeof color }).getTextureNode();
 		// Off, the bloom's texture keeps its last frame: mix it out by the same strength.
 		const bloomOn = u.bloomStrength.greaterThan(0).select(float(1), float(0));
@@ -435,7 +438,16 @@ export class Post {
 		const mapped = renderOutput(vec4(vignetted, 1), toneMapping, THREE.SRGBColorSpace);
 		// The grade: on the display colour, after the curve it was made for.
 		const graded = lut3D(mapped, texture3D(this.grade.texture), LUT_SIZE, u.grade);
-		const world = (graded as unknown as THREE.Node<'vec4'>).rgb;
+		// FXAA wants the finished display colour; grain, the overlay and dither come after it.
+		const finished = graded as unknown as THREE.Node<'vec4'>;
+		// FXAA reads its input from a render target of its own: the last one goes when recomposed.
+		this.fxaaInput?.dispose();
+		const smoothed = this.stages!.aa === 'fxaa' ? fxaa(finished) : finished;
+		this.fxaaInput =
+			smoothed === finished
+				? null
+				: (smoothed as unknown as { textureNode: THREE.Node }).textureNode;
+		const world = (smoothed as THREE.Node<'vec4'>).rgb;
 		// Nothing is added where the picture is black.
 		const lit = smoothstep(0, 2 / 255, luminance(world));
 		const cell = screenCoordinate.xy;
@@ -466,6 +478,10 @@ export class Post {
 		this.ao?.dispose();
 		this.bloom?.dispose();
 		this.pipeline = this.prepass = this.scenePass = this.overlayPass = this.ao = this.bloom = null;
+		this.resolved = this.overlayCamera = null;
+		for (const node of this.owned.splice(0)) node.dispose();
+		this.fxaaInput?.dispose();
+		this.fxaaInput = null;
 		this.stages = null;
 		this.gates = [];
 	}

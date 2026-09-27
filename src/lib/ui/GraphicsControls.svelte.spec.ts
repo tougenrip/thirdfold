@@ -62,7 +62,7 @@ describe('the Graphics menu', () => {
 	});
 
 	it('forgets an option set back to the value of its preset', async () => {
-		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { msaa: 0 } });
+		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { aa: 'off' } });
 		mount();
 		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
 		await expect.element(page.getByText('Preset (customised)')).toBeInTheDocument();

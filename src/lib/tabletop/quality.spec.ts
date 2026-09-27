@@ -118,7 +118,7 @@ describe('the saved graphics settings', () => {
 		const s = storage(null);
 		const prefs = {
 			tier: 'medium',
-			overrides: { ao: false, msaa: 0, megapixels: 8.3 },
+			overrides: { ao: false, aa: 'off', megapixels: 8.3 },
 			compatibility: true,
 			powerSaver: false,
 			toneMapper: 'agx',
@@ -159,16 +159,34 @@ describe('after the graphics device is lost', () => {
 describe('options apart from the preset', () => {
 	it("lay the viewer's own values over the preset, never MSAA on compatibility WebGPU", () => {
 		const low = settingsFor('low', 'webgpu');
-		const mine = withOverrides(low, { ao: true, msaa: 4, sunShadowSize: 4096 }, 'webgpu');
-		expect(mine).toMatchObject({ tier: 'low', ao: true, msaa: 4, sunShadowSize: 4096 });
+		const mine = withOverrides(low, { ao: true, aa: 'msaa', sunShadowSize: 4096 }, 'webgpu');
+		expect(mine).toMatchObject({ tier: 'low', ao: true, aa: 'msaa', msaa: 4, sunShadowSize: 4096 });
 		expect(mine.megapixels).toBe(low.megapixels);
-		expect(withOverrides(low, { msaa: 4 }, 'webgpu-compat').msaa).toBe(0);
+		expect(withOverrides(low, { aa: 'msaa' }, 'webgpu-compat')).toMatchObject({
+			aa: 'fxaa',
+			msaa: 0
+		});
 	});
 
-	it('draw a prepass for MSAA or AO, and none without either', () => {
+	it('take MSAA and converge frames from the antialiasing', () => {
+		expect(settingsFor('low', 'webgpu')).toMatchObject({ aa: 'fxaa', msaa: 0, convergeFrames: 0 });
+		expect(settingsFor('medium', 'webgpu')).toMatchObject({
+			aa: 'msaa',
+			msaa: 4,
+			convergeFrames: 0
+		});
+		expect(settingsFor('high', 'webgpu')).toMatchObject({
+			aa: 'traa',
+			msaa: 0,
+			convergeFrames: 24
+		});
+	});
+
+	it('draw a prepass for MSAA, AO or TRAA, and none without them', () => {
 		expect(needsPrepass(settingsFor('low', 'webgpu'))).toBe(false);
 		expect(needsPrepass(settingsFor('medium', 'webgpu'))).toBe(true);
-		expect(needsPrepass({ msaa: 0, ao: true })).toBe(true);
-		expect(needsPrepass({ msaa: 4, ao: false })).toBe(true);
+		expect(needsPrepass({ msaa: 0, ao: true, aa: 'off' })).toBe(true);
+		expect(needsPrepass({ msaa: 4, ao: false, aa: 'msaa' })).toBe(true);
+		expect(needsPrepass({ msaa: 0, ao: false, aa: 'traa' })).toBe(true);
 	});
 });

@@ -6,7 +6,7 @@
 import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTabletop } from './renderer';
-import { qualityFor, settingsFor } from './quality';
+import { qualityFor, settingsFor, withOverrides } from './quality';
 import {
 	BACKEND,
 	FIXTURES,
@@ -77,6 +77,36 @@ describe('the renderer', () => {
 			expect(same).toBe(true);
 		}
 	);
+
+	it('converges TRAA within 32 frames of a move, then draws nothing', async () => {
+		const sidecar = await loadSidecar('ref-7');
+		const view = await loadView('ref-7', 'day', 'gm');
+		// A real clock, so the move's tween ends.
+		const m = await mountFixture(view, sidecar.poses.overview, {
+			reducedMotion: false,
+			clock: { now: () => performance.now() }
+		});
+		mounted.push(m);
+		const t = m.tabletop;
+		const backend = t.capabilities().backend;
+		// Low with TRAA on: High's full AO makes software rendering too slow to wait out.
+		t.setQuality(withOverrides(settingsFor('low', backend), { aa: 'traa' }, backend));
+		await settle(t);
+		const token = view.tokens[0];
+		t.setTokens(
+			view.tokens.map((k) => (k === token ? { ...k, pos: { ...k.pos, x: k.pos.x + 1 } } : k))
+		);
+		// The frames from the end of the move until the table is idle.
+		await expect.poll(() => t.stats().mode, { timeout: 30_000, interval: 20 }).toBe('converge');
+		const moved = t.stats().frames;
+		await expect.poll(() => t.stats().mode, { timeout: 60_000, interval: 50 }).toBe('idle');
+		const converge = t.stats().frames - moved;
+		expect(converge).toBeGreaterThan(0);
+		expect(converge).toBeLessThanOrEqual(32);
+		const settled = t.stats().frames;
+		await wait(3000);
+		expect(t.stats().frames - settled).toBe(0);
+	});
 
 	it('draws nothing while a daylight table is idle', async () => {
 		const { tabletop } = await mount('ref-7', 'gm', { reducedMotion: false });
@@ -280,12 +310,14 @@ describe('quality tiers', () => {
 		dpr.mockRestore();
 	});
 
-	// Low draws without MSAA or the prepass, so its pipeline compiles its own (post.ts).
+	// Tiers with other antialiasing or no prepass get a new renderer (Tabletop.svelte).
 	it('change no program between tiers with the same post-processing stages', async () => {
 		const { tabletop } = await mount('ref-7', 'gm');
 		const backend = tabletop.capabilities().backend;
+		tabletop.setQuality(settingsFor('high', backend));
+		await settle(tabletop);
 		const programs = tabletop.stats().programs;
-		for (const tier of ['high', 'ultra', 'medium'] as const) {
+		for (const tier of ['ultra', 'high', 'ultra'] as const) {
 			tabletop.setQuality(settingsFor(tier, backend));
 			await settle(tabletop);
 		}

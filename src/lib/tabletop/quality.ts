@@ -60,11 +60,20 @@ export const LAYERS = [
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
+/** Antialiasing (#163): none, FXAA after the tone mapper, MSAA 4×, or temporal (TRAA). */
+export const AA_MODES = ['off', 'fxaa', 'msaa', 'traa'] as const;
+export type AaMode = (typeof AA_MODES)[number];
+
+/** TRAA's frames to converge after the last change (under one 32-frame Halton cycle). */
+export const TRAA_CONVERGE = 24;
+
 export interface QualitySettings {
 	tier: Tier;
 	/** Internal resolution cap, in megapixels (the drawing buffer, not CSS pixels). */
 	megapixels: number;
-	/** Antialiasing: MSAA samples (applied through a renderer rebuild, #150). */
+	/** Antialiasing; a change of it builds a new renderer. */
+	aa: AaMode;
+	/** MSAA samples, from `aa`. */
 	msaa: 0 | 4;
 	ao: boolean;
 	/** A glow around flames and what they light hot (#160). */
@@ -87,17 +96,17 @@ export interface QualitySettings {
 	/** Frames per second while something moves, and for flicker and mist. */
 	fpsCap: 30 | 60;
 	ambientFps: 20 | 30;
-	/** Frames a still picture takes to converge (TRAA, later). */
+	/** Frames a still picture takes to converge, from `aa` (TRAA's history). */
 	convergeFrames: number;
 	layers: Record<Layer, boolean>;
 	/** The viewer's tone mapper (the Graphics menu, `?tonemap=`); else `GRADE_TONE_MAPPER`. */
 	toneMapper?: ToneMapper;
 }
 
-const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
+const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'convergeFrames'>> = {
 	low: {
 		megapixels: 1.0,
-		msaa: 0,
+		aa: 'fxaa',
 		ao: false,
 		bloom: true,
 		vignette: true,
@@ -110,12 +119,11 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		particles: 250,
 		vegetation: 0.25,
 		fpsCap: 30,
-		ambientFps: 20,
-		convergeFrames: 0
+		ambientFps: 20
 	},
 	medium: {
 		megapixels: 2.1,
-		msaa: 4,
+		aa: 'msaa',
 		ao: true,
 		bloom: true,
 		vignette: true,
@@ -128,12 +136,11 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		particles: 1000,
 		vegetation: 0.5,
 		fpsCap: 60,
-		ambientFps: 30,
-		convergeFrames: 4
+		ambientFps: 30
 	},
 	high: {
 		megapixels: 3.7,
-		msaa: 4,
+		aa: 'traa',
 		ao: true,
 		bloom: true,
 		vignette: true,
@@ -146,12 +153,11 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		particles: 4000,
 		vegetation: 1,
 		fpsCap: 60,
-		ambientFps: 30,
-		convergeFrames: 8
+		ambientFps: 30
 	},
 	ultra: {
 		megapixels: 3.7,
-		msaa: 4,
+		aa: 'traa',
 		ao: true,
 		bloom: true,
 		vignette: true,
@@ -164,8 +170,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		particles: 8000,
 		vegetation: 1,
 		fpsCap: 60,
-		ambientFps: 30,
-		convergeFrames: 16
+		ambientFps: 30
 	}
 };
 
@@ -210,7 +215,24 @@ export function qualityFor(caps: Caps): Tier {
 /** A tier's settings on a backend (which may hold the tier down). */
 export function settingsFor(tier: Tier, backend: Backend): QualitySettings {
 	const t = lower(tier, BACKEND_CEILING[backend]);
-	return { tier: t, ...ROWS[t], layers: { ...LAYERS_ON } };
+	return derive(
+		{ tier: t, ...ROWS[t], msaa: 0, convergeFrames: 0, layers: { ...LAYERS_ON } },
+		backend
+	);
+}
+
+/**
+ * What follows from the antialiasing: MSAA's samples and TRAA's converge frames. Compatibility
+ * WebGPU has no MSAA, so FXAA stands in for it.
+ */
+function derive(s: QualitySettings, backend: Backend): QualitySettings {
+	const aa = backend === 'webgpu-compat' && s.aa === 'msaa' ? 'fxaa' : s.aa;
+	return {
+		...s,
+		aa,
+		msaa: aa === 'msaa' ? 4 : 0,
+		convergeFrames: aa === 'traa' ? TRAA_CONVERGE : 0
+	};
 }
 
 /**
@@ -219,7 +241,7 @@ export function settingsFor(tier: Tier, backend: Backend): QualitySettings {
  */
 export const OPTIONS = {
 	megapixels: [1, 2.1, 3.7, 8.3],
-	msaa: [0, 4],
+	aa: AA_MODES,
 	ao: [false, true],
 	bloom: [false, true],
 	vignette: [false, true],
@@ -239,17 +261,16 @@ export function withOverrides(
 	overrides: Overrides,
 	backend: Backend
 ): QualitySettings {
-	const out = { ...settings, ...overrides } as QualitySettings;
-	// Compatibility-mode WebGPU has no MSAA.
-	if (backend === 'webgpu-compat') out.msaa = 0;
-	return out;
+	return derive({ ...settings, ...overrides } as QualitySettings, backend);
 }
 
 /**
  * Whether the pipeline draws the prepass (post.ts): the overlay's depth when the scene pass has
- * MSAA, and the AO's depth and normals. A change of it, or of MSAA, builds a new renderer.
+ * MSAA, the AO's depth and normals, TRAA's depth and velocity. A change of it, or of the
+ * antialiasing, builds a new renderer.
  */
-export const needsPrepass = (s: Pick<QualitySettings, 'msaa' | 'ao'>) => s.msaa > 0 || s.ao;
+export const needsPrepass = (s: Pick<QualitySettings, 'msaa' | 'ao' | 'aa'>) =>
+	s.msaa > 0 || s.ao || s.aa === 'traa';
 
 /** `?off=sky,grass` turns those layers off; unknown names are ignored. Never saved. */
 export function layersFrom(search: string, layers: Record<Layer, boolean>): Record<Layer, boolean> {

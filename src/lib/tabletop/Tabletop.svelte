@@ -55,6 +55,7 @@
 		startingTier,
 		tierAfterLoss,
 		tierFrom,
+		type AaMode,
 		needsPrepass,
 		withOverrides,
 		toneMapperFrom,
@@ -189,20 +190,22 @@
 	 * MSAA, and whether the pipeline has a prepass, for the next tabletop: from the settings where
 	 * they are known before the device is. A change of either builds a new renderer.
 	 */
-	let { antialias, prepass } = initialShape();
+	let { antialias, prepass, aa } = initialShape();
 
-	function initialShape(): { antialias: boolean; prepass: boolean } {
-		if (typeof location === 'undefined') return { antialias: true, prepass: true };
+	function initialShape(): { antialias: boolean; prepass: boolean; aa: AaMode } {
+		if (typeof location === 'undefined') return { antialias: true, prepass: true, aa: 'msaa' };
 		const prefs = loadGraphics(localStorage);
 		const known =
 			tierFrom(location.search) ?? (prefs.tier !== 'auto' ? prefs.tier : prefs.measured);
 		const s = withOverrides(settingsFor(known ?? 'medium', 'webgpu'), prefs.overrides, 'webgpu');
-		return { antialias: s.msaa > 0, prepass: needsPrepass(s) };
+		return { antialias: s.msaa > 0, prepass: needsPrepass(s), aa: s.aa };
 	}
 
 	/** Makes the tabletop again on a fresh canvas, the camera where it was. */
 	function rebuild(t: Tabletop): void {
-		carriedPose = t.cameraPose();
+		// A tabletop replaced before it was shown (its shape did not fit) passes on the pose still
+		// waiting for it, not its own.
+		carriedPose ??= t.cameraPose();
 		generation++;
 	}
 
@@ -244,9 +247,14 @@
 		);
 		// MSAA and the prepass make the pipeline's shape: a new one gets a new renderer, since
 		// rebuilding passes on the same one left their old shaders behind.
-		if (settings.msaa > 0 !== antialias || needsPrepass(settings) !== prepass) {
+		if (
+			settings.msaa > 0 !== antialias ||
+			needsPrepass(settings) !== prepass ||
+			settings.aa !== aa
+		) {
 			antialias = settings.msaa > 0;
 			prepass = needsPrepass(settings);
+			aa = settings.aa;
 			rebuild(t);
 			return false;
 		}

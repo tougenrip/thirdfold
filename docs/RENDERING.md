@@ -503,13 +503,12 @@ passes, in order:
   mask slot keeps one filter (nearest for floor and fog, linear for darkness), because WebGPU fixes
   a sampler's filtering when the material compiles. With `?off=post` the overlay scene is drawn
   over the world on the canvas, without tone mapping.
-- **The prepass** draws opaque objects with no MSAA: the overlay's depth, and normals for AO (#159)
-  and depth of field (#165). It has no velocity attachment yet: with one, WebGPU made pipelines
-  that write fewer outputs than the target holds ("Color target has no corresponding fragment
-  stage output"), which aborts the frame; TRAA (#163) adds it back and has to fix that.
-- **Only a change of stages rebuilds.** `Post.set` compares the prepass and the samples: medium,
-  high and ultra share a pipeline; low (no prepass, no MSAA) has its own and compiles its own
-  shaders. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
+- **The prepass** draws opaque objects with no MSAA: the overlay's depth, normals for AO (#159)
+  and depth of field (#165), and with TRAA each pixel's velocity (half-float).
+- **Only a change of stages rebuilds.** `Post.set` compares the prepass, the samples, the
+  antialiasing and the tone mapper; in play a change of the first three builds a new renderer
+  (`Tabletop.svelte`), since rebuilding passes on the same one left their old shaders behind, and
+  a tone mapper only recomposes the output stage. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
   0 (`updateBeforeType` NONE), so toggling one never recompiles.
 - **Bloom** (#160) glows from the scene pass's emissive attachment plus the exposed HDR colour
   above 1 with a soft knee of 0.5 (`Post.bloomInput`, Unity's curve on the brightest channel), so
@@ -542,6 +541,24 @@ passes, in order:
     mapper blends its bytes over 1.5 s on the CPU (the tabletop draws while it does), so the
     shader never changes. Every strip keeps black at 0, checked by the pipeline, and the loader
     forces texel 0 to black against canvas-read noise.
+- **Antialiasing** (#163) is one Graphics option with four modes (`AaMode`): off; FXAA on the
+  finished colour after the grade (grain, the overlay and dither come after it); MSAA 4× on the
+  scene pass; TRAA on the HDR image from the prepass's depth and velocity (r186's `TRAANode`, 32
+  Halton offsets), sharpened by RCAS at 0.3. The presets use FXAA on low, MSAA on medium and TRAA
+  on high and ultra; compat WebGPU, which has no MSAA, gets FXAA for it. MSAA and converge frames
+  follow from the mode (`derive` in `quality.ts`), and a change of mode builds a new renderer.
+  TRAA jitters the camera for every pass, so the overlay draws with a copy taken before (labels
+  never jitter); bloom reads the unresolved scene.
+  - **Converging:** every real change (`RenderScheduler.request`: a setter, the camera, the last
+    frame of a tween) restarts CONVERGE at 24 frames with TRAA (12 under power saver, 0 for the
+    other modes); the scheduler's own frames (converge and ambient) do not, so a still table
+    stops drawing after them and a flickering one keeps its capped ambient rate, accumulating.
+    `stats().mode` reports `converge` for them. A test moves a token on TRAA and counts at most 32
+    frames from the end of the move to idle, then none.
+  - r186's `TRAANode` keeps its 1×1 previous-depth texture past `dispose`: `post.ts` disposes it;
+    another 8 bytes stay until the renderer goes, which a change of mode always replaces.
+  - Velocity in the prepass is back: the WebGPU errors blamed on it in #157 were the warm-up's
+    timed-out compiles and the AO's nesting, both fixed since.
 - **A timed-out warm-up still finishes the compile in flight** before frames resume: compiling
   for a pass sets the renderer's target and outputs until the compile ends (three reads them while
   it waits), and a frame drawn meanwhile drew into them, which on WebGPU built pipelines for the
