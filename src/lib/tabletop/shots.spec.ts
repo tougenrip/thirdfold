@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SHOT_MS, SHOT_TOTAL, shotAt, shotPose, type Pose } from './shots';
+import { SHOT_MS, SHOT_TOTAL, shotAt, shotFocus, shotPose, type Pose } from './shots';
 
 const home: Pose = { position: { x: 0, y: 20, z: 10 }, target: { x: 0, y: 0, z: 0 } };
 const focus = { x: 5, y: 0, z: -4 };
@@ -42,5 +42,21 @@ describe('a cinematic shot', () => {
 		expect(shotAt(home, to, SHOT_TOTAL)).toEqual({ pose: home, done: true });
 		// A few seconds at most: a moment, not a cutscene.
 		expect(SHOT_TOTAL).toBeLessThanOrEqual(6000);
+	});
+});
+
+describe("a shot's depth of field", () => {
+	it('eases in as the camera goes, holds, eases out as it comes back, and is 0 outside', () => {
+		expect(shotFocus(-1)).toBe(0);
+		expect(shotFocus(0)).toBe(0);
+		expect(shotFocus(SHOT_MS.go / 2)).toBeCloseTo(0.5);
+		expect(shotFocus(SHOT_MS.go)).toBe(1);
+		expect(shotFocus(SHOT_MS.go + SHOT_MS.hold - 1)).toBe(1);
+		expect(shotFocus(SHOT_MS.go + SHOT_MS.hold + SHOT_MS.back / 2)).toBeCloseTo(0.5);
+		expect(shotFocus(SHOT_TOTAL)).toBe(0);
+		for (let t = 0; t < SHOT_TOTAL; t += 50) {
+			expect(shotFocus(t)).toBeGreaterThanOrEqual(0);
+			expect(shotFocus(t)).toBeLessThanOrEqual(1);
+		}
 	});
 });

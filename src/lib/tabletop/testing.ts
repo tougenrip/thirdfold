@@ -121,6 +121,8 @@ export async function mountFixture(
 		events?: TabletopEvents;
 		/** As under `?perf`: GPU timestamps recorded. */
 		perf?: boolean;
+		/** Miniature on in the tabletop view: depth of field at the pose (#165; motion not reduced). */
+		miniature?: boolean;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -146,7 +148,7 @@ export async function mountFixture(
 			backend: webgpu ? 'webgpu' : 'webgl',
 			perf: options.perf,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
-			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : true
+			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : !options.miniature
 		}
 	);
 	const backend = tabletop.capabilities().backend;
@@ -155,7 +157,8 @@ export async function mountFixture(
 	// One tier for every test, whatever the device suggests (a software rasteriser picks low).
 	// And the page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
 	const toneMapper = toneMapperFrom(location.search) ?? undefined;
-	tabletop.setQuality({ ...settingsFor('medium', backend), toneMapper });
+	const miniature = !!options.miniature;
+	tabletop.setQuality({ ...settingsFor('medium', backend), toneMapper, miniature });
 	const size = view.grid.width * view.grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
 	// In the order the Tabletop component sets them.
@@ -169,7 +172,10 @@ export async function mountFixture(
 	tabletop.setFog(view.fog, view.fogMode);
 	tabletop.setLighting(view.ambient, view.lights);
 	tabletop.setProps(view.props);
-	tabletop.setPose(poseFor(view.grid, groundFor(view.grid, levels), pose));
+	const at = poseFor(view.grid, groundFor(view.grid, levels), pose);
+	// The tabletop view focuses by depth; the pose then ends the move to it.
+	if (miniature) tabletop.setView('tabletop');
+	tabletop.setPose(at);
 	return {
 		tabletop,
 		canvas,

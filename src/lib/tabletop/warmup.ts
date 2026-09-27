@@ -8,7 +8,7 @@
 // holds for longer than WARM_UP_LIMIT_MS: what is left compiles on draw.
 
 import * as THREE from 'three/webgpu';
-import type { PassTarget } from './post';
+import type { PassTarget } from './passes';
 
 /** Longest a warm-up may hold the frame loop, in ms (slow software GL). */
 export const WARM_UP_LIMIT_MS = 1500;

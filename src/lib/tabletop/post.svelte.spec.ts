@@ -12,6 +12,7 @@ import villageGrades from '../../../assets/grades/village.json';
 import { loadEnvironment } from './environment';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
+import { STILL } from './focus';
 import { TONE_MAPPERS } from '../assets/manifest';
 import { settingsFor, TIERS, type Tier } from './quality';
 import { BACKEND } from './testing';
@@ -46,7 +47,9 @@ async function setup() {
 	sun.position.set(2, 4, 1);
 	sun.castShadow = true;
 	scene.add(box, floor, sun, new THREE.AmbientLight('white', 1));
-	const post = new Post(renderer, scene, camera, new THREE.Scene());
+	/** How the frames are seen: the tests move the view and the shot. */
+	const view = { ...STILL, target: new THREE.Vector3() };
+	const post = new Post(renderer, scene, camera, new THREE.Scene(), () => view);
 	const backend = BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
 	const draw = (tier: Tier, on = true) => {
 		const settings = settingsFor(tier, backend);
@@ -54,7 +57,7 @@ async function setup() {
 		renderer!.info.reset();
 		post.render();
 	};
-	return { renderer, post, draw };
+	return { renderer, post, draw, view };
 }
 
 describe('the post-processing pipeline', () => {
@@ -110,11 +113,19 @@ describe('the post-processing pipeline', () => {
 
 	// #164: the Graphics menu's effect switches are uniforms. Stored off, an effect still draws
 	// its passes on the first frames, so turning it on later compiles nothing either.
-	const SWITCHES = ['ao', 'bloom', 'vignette', 'aberration', 'grain', 'grade'] as const;
+	const SWITCHES = [
+		'ao',
+		'bloom',
+		'vignette',
+		'aberration',
+		'grain',
+		'grade',
+		'miniature'
+	] as const;
 	const tiers = BACKEND === 'webgpu' ? TIERS : TIERS.filter((t) => t !== 'ultra');
 	for (const tier of tiers) {
 		it(`switches every effect on the ${tier} tier without compiling anything`, async () => {
-			const { renderer, post } = await setup();
+			const { renderer, post, view } = await setup();
 			const backend = BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
 			const preset = settingsFor(tier, backend);
 			// On low the AO needs a prepass the tier doesn't draw: that is a new renderer's shape.
@@ -134,6 +145,13 @@ describe('the post-processing pipeline', () => {
 				draw({ ...off, [s]: true });
 				draw(off);
 			}
+			// Miniature in the tactical view (tilt-shift), and a shot's depth of field (#165).
+			view.tactical = true;
+			draw({ ...off, miniature: true });
+			view.tactical = false;
+			view.shot = 0.5;
+			draw(off);
+			view.shot = 0;
 			draw({});
 			expect([renderer.info.memory.programs, pipelines.size]).toEqual(before);
 		});
@@ -147,7 +165,7 @@ describe('the post-processing pipeline', () => {
 			new THREE.Scene(),
 			new THREE.PerspectiveCamera(),
 			new THREE.Scene(),
-			() => reduced
+			() => ({ ...STILL, reduced })
 		);
 		post.set(settingsFor('high', 'webgl2'));
 		post.render();

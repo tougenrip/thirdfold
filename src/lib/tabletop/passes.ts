@@ -3,6 +3,43 @@
 // what it reads drawn first.
 
 import * as THREE from 'three/webgpu';
+import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
+import { needsPrepass, type AaMode, type QualitySettings } from './quality';
+
+export const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
+	agx: THREE.AgXToneMapping,
+	aces: THREE.ACESFilmicToneMapping,
+	neutral: THREE.NeutralToneMapping
+};
+
+/** What a pipeline is built with: the prepass, the scene pass's MSAA samples, the tone mapper. */
+export interface Stages {
+	prepass: boolean;
+	samples: number;
+	/** Antialiasing (#163): TRAA adds velocity and a resolve, FXAA a pass after the grade. */
+	aa: AaMode;
+	/** Compiled into the output stage, so a change rebuilds (#158). */
+	toneMapper: ToneMapper;
+}
+
+/**
+ * The stages settings call for. The overlay tests depth against a pass without MSAA: the prepass
+ * (drawn with MSAA or AO on, `needsPrepass`), else the scene pass itself.
+ */
+export function stagesFor(settings: QualitySettings): Stages {
+	return {
+		prepass: needsPrepass(settings),
+		samples: settings.msaa,
+		aa: settings.aa,
+		toneMapper: settings.toneMapper ?? GRADE_TONE_MAPPER
+	};
+}
+
+/** Something to compile the table's materials for: a pass's target and outputs. */
+export interface PassTarget {
+	renderTarget: THREE.RenderTarget;
+	mrt: THREE.MRTNode;
+}
 
 /**
  * The opaque prepass: its colour attachment holds view normals, which fit in 8 bits.

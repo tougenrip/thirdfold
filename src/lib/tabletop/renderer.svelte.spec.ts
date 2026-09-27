@@ -223,6 +223,23 @@ describe('the renderer', () => {
 		expect(tabletop.stats().programs).toBe(programs);
 	});
 
+	// A tabletop rebuilt before it framed a table (a first visit's shape change) carried the
+	// camera from the origin, which then undid the view: nothing to carry until a table is framed.
+	it('has no camera pose to carry before it frames a table', async () => {
+		const canvas = document.createElement('canvas');
+		document.body.appendChild(canvas);
+		const t = await createTabletop(
+			canvas,
+			{ onClick: () => {}, onHover: () => {} },
+			{ backend: BACKEND === 'webgpu' ? 'webgpu' : 'webgl' }
+		);
+		expect(t.cameraPose()).toBeNull();
+		await t.dispose();
+		canvas.remove();
+		const { tabletop } = await mount('ref-7', 'gm');
+		expect(tabletop.cameraPose()).not.toBeNull();
+	});
+
 	it('disposes cleanly and stops answering the pointer', async () => {
 		const sidecar = await loadSidecar('ref-1');
 		const view = await loadView('ref-1', sidecar.ambient, 'gm');

@@ -4,6 +4,8 @@
 // own clock; real GPUs on both backends) and else by waiting for each frame
 // ("sync"; SwiftShader). Same setup as perf-client.mjs:
 //   PERF_GPU=vulkan PERF_BACKEND=webgpu node scripts/perf-gpu.mjs [http://localhost:4173] [tests/fixtures/scenes] [out.json]
+// TIER=medium picks a tier; MINIATURE=tilt or dof turns tilt-shift or depth of field
+// on (#165): the difference from a run without is what it costs.
 //
 // PERF_GPU and PERF_BACKEND pick the GPU and the renderer's backend (see
 // perf-browser.mjs). The report starts with the backend and the GPU the
@@ -26,6 +28,13 @@ const FRAMES = Number(process.env.FRAMES ?? 16);
 const TABLES = (process.env.SCENES ?? 'test-world').split(',');
 const POSES = (process.env.POSES ?? 'overview,close').split(',');
 const VIEWPORTS = [{ width: 1920, height: 1080 }];
+/**
+ * MINIATURE=tilt|dof: the Miniature option on (#165), with motion not reduced: tilt-shift in the
+ * tactical view, or depth of field in the tabletop view.
+ */
+const MINIATURE = process.env.MINIATURE ?? null;
+/** TIER=low|medium|high|ultra: that tier (`?tier=`), else the device's own. */
+const QUERY = PERF_QUERY + (process.env.TIER ? `&tier=${process.env.TIER}` : '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const round = (n, d = 2) => (n == null ? null : Number(n.toFixed(d)));
 
@@ -40,10 +49,20 @@ const report = {
 };
 
 for (const viewport of VIEWPORTS) {
-	const open = async () =>
-		(
-			await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' })
-		).newPage();
+	const open = async () => {
+		const reducedMotion = MINIATURE ? 'no-preference' : 'reduce';
+		const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion });
+		if (MINIATURE)
+			await context.addInitScript(
+				(view) => {
+					const graphics = { tier: 'auto', overrides: { miniature: true } };
+					localStorage.setItem('thirdfold:graphics', JSON.stringify(graphics));
+					localStorage.setItem('thirdfold:view', view);
+				},
+				MINIATURE === 'dof' ? 'tabletop' : 'tactical'
+			);
+		return context.newPage();
+	};
 	const ready = (page) =>
 		page.waitForFunction(() => (window.thirdfoldPerf?.stats().frames ?? 0) > 0, null, {
 			timeout: 60_000
@@ -55,7 +74,7 @@ for (const viewport of VIEWPORTS) {
 	await gm.click('text=Create room');
 	await gm.waitForURL(/room\//);
 	const roomUrl = gm.url().split('?')[0];
-	await gm.goto(`${roomUrl}${PERF_QUERY}`);
+	await gm.goto(`${roomUrl}${QUERY}`);
 	await ready(gm);
 	const first = await gm.evaluate(() => window.thirdfoldPerf.stats());
 	checkBackend(first);
@@ -66,7 +85,7 @@ for (const viewport of VIEWPORTS) {
 			`${first.backend}${first.compat ? ' (compat)' : ''} on ${first.adapter} (PERF_GPU=${GPU}, PERF_BACKEND=${BACKEND}), Chromium ${report.chromium}`
 		);
 	const ana = await open();
-	await ana.goto(`${roomUrl}${PERF_QUERY}`);
+	await ana.goto(`${roomUrl}${QUERY}`);
 	await ana.fill('input[placeholder="e.g. Morgan"]', 'Ana');
 	await ana.click('button:has-text("Join the game")');
 	await ready(ana);

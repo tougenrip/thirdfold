@@ -329,6 +329,30 @@ warmed by lamp spill, so a grade pulls them only part of the way (refs 3 and 8 m
 little). The night's blue fill (#167) and the sky light (#114) supply the cool darks a grade then
 shapes. The grades are restrained on purpose: each is a few numbers in `assets/grades/`.
 
+## Milestone 63: depth of field (#165)
+
+`docs/look/m63-dof/` against `m63-grade`: every pose drawn with depth of field on, focused on the
+pose's pivot, as the Miniature option draws play and every cinematic shot draws its hold
+(`node scripts/look-metrics.mjs --milestone m63-dof --ours-only --dof`). Shots blur whatever the
+option says; in play it is off unless the viewer turns it on.
+
+| Reference | distance before | after |
+| --------- | --------------- | ----- |
+| 1         | 0.176           | 0.178 |
+| 2         | 0.297           | 0.303 |
+| 3         | 0.144           | 0.145 |
+| 4         | 0.138           | 0.119 |
+| 6         | 0.238           | 0.237 |
+| 7         | 0.112           | 0.113 |
+| 8         | 0.210           | 0.217 |
+
+The metrics barely see blur (they measure colour, light and contrast over the whole frame): ref
+4's long dungeon moves toward its reference, whose far end is soft, and the rest hold within
+noise. In the strip the foreground minis of ref 7 and the far rim of the overviews soften while
+the pivot stays sharp, and the labels and markers, drawn over the finished image, stay sharp
+(#157). How much blur reads as a miniature, not a smear, is the owner's call in review:
+`FOCAL_SHARE` and the per-tier bokeh in `focus.ts` are the knobs.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

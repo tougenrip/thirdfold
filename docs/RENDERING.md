@@ -312,6 +312,8 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
 | `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
 | `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
+| `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                            |
+| `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                        |
 | `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
 
@@ -324,19 +326,19 @@ starting tier, and each tier into one row of settings every effect reads (#147).
 architecture, the largest texture, timestamp queries, phone or not, the shell (browser, Tauri,
 Capacitor), pixel ratio, screen size, and where browsers give them, memory and CPU class.
 
-**Presets and options** (owner, 27 September 2026): a tier is a preset. The Graphics menu picks
-one (Auto, Low, Medium, High, Ultra), and under Advanced the viewer sets options apart from it:
+**Presets and options** (owner, 27 September 2026): a tier is a preset. The Graphics menu picks one
+(Auto, Low, Medium, High, Ultra), and under Advanced the viewer sets options apart from it:
 resolution, antialiasing, ambient occlusion, bloom, vignette, chromatic aberration, film grain,
-colour grading, shadows and frame rate (`OPTIONS`, only what the renderer applies today).
-**Clarity** (#164) turns the lens effects (vignette, aberration, grain) off and leaves AO, bloom
-and the grade, which are light, not lens: the documented way to an unprocessed, legible image.
-Reduced motion keeps grain off whatever is stored (the menu shows it disabled, the stored choice
-kept), and a `?off=` layer wins over the menu. Changing an option keeps it in `GraphicsPrefs.overrides`, which
-`withOverrides` lays over the preset's row (never MSAA on compat WebGPU); setting it back to the
-preset's value forgets it, and choosing a preset clears them all. MSAA and the prepass
-(`needsPrepass`: drawn for MSAA or AO) make the pipeline's shape, and a change of shape builds a
-new renderer, as a change of MSAA always did: rebuilding passes on the same renderer left their
-old shaders behind.
+colour grading, Miniature (depth of field, #165), shadows and frame rate (`OPTIONS`, only what the
+renderer applies today). **Clarity** (#164) turns the lens effects (vignette, aberration, grain) and
+Miniature off and leaves AO, bloom and the grade, which are light, not lens: the documented way to
+an unprocessed, legible image. Reduced motion keeps grain and Miniature off whatever is stored (the
+menu shows it disabled, the stored choice kept), and a `?off=` layer wins over the menu. Changing an
+option keeps it in `GraphicsPrefs.overrides`, which `withOverrides` lays over the preset's row
+(never MSAA on compat WebGPU); setting it back to the preset's value forgets it, and choosing a
+preset clears them all. MSAA and the prepass (`needsPrepass`: drawn for MSAA or AO) make the
+pipeline's shape, and a change of shape builds a new renderer, as a change of MSAA always did:
+rebuilding passes on the same renderer left their old shaders behind.
 
 **The starting tier,** with no input (`qualityFor`): software rasterisers and compat WebGPU low;
 phones low with 4 GB or less, else medium; under 4 GB or the lowest CPU class low; integrated
@@ -567,6 +569,28 @@ passes, in order:
     another 8 bytes stay until the renderer goes, which a change of mode always replaces.
   - Velocity in the prepass is back: the WebGPU errors blamed on it in #157 were the warm-up's
     timed-out compiles and the AO's nesting, both fixed since.
+- **Depth of field and tilt-shift** (#165, `focus.ts`) sit after TRAA on the HDR image, before
+  the output stage: depth of field is r186's `DepthOfFieldNode` on the prepass's view depth (never
+  multisampled), focused on the camera's pivot (`controls.target`, the shot's focus during a
+  shot) along the look direction, with full blur `FOCAL_SHARE` (0.4) of the camera's distance
+  from the focal plane, so it stays gentle zoomed in, and a bokeh per tier; tilt-shift is a
+  half-resolution Gaussian blur (a quarter on low) mixed in outside a band round the pivot's row.
+  How strong each is comes from `lensStrengths` in `quality.ts`, every frame, through the
+  renderer's `FrameView` (reduced motion, the shot, the view, the pivot): a shot's focus
+  (`shotFocus`: eases in over `SHOT_MS.go`, holds, eases out over `SHOT_MS.back`; 0 once a
+  shot ends or the viewer takes the camera) blurs by depth; the **Miniature** option (off in every
+  preset, since zooming in on a blurred board gets in the way of play) keeps depth of field on in
+  the tabletop view and tilt-shift in the tactical one, which looks nearly straight down; without
+  a prepass (low) tilt-shift stands in. Reduced motion and `?off=dof` keep both off.
+  - Both are strengths gated like the other effects, and both are **mixed** in, never selected: a
+    TSL `select` is a branch, and a texture sampled in a branch has no reliable derivatives
+    (SwiftShader filtered the sharp image differently, which moved the AO and lens tests).
+  - `DepthOfFieldNode.getTextureNode()` is a plain texture, which never draws the node: the output
+    samples it as a `passTexture` of the node, as `GaussianBlurNode`'s own is.
+  - Cost on the RTX 4060 at 1080p (the test world, `MINIATURE=tilt|dof` with `perf-gpu.mjs`):
+    tilt-shift about 0–0.6 ms (5–8 draws), depth of field about 1–1.7 ms on high (13–15 draws),
+    nothing when off. Their passes compile with the pipeline, so the perf baseline's programs went
+    120 → 135 and textures 53 → 59.
 - **A timed-out warm-up still finishes the compile in flight** before frames resume: compiling
   for a pass sets the renderer's target and outputs until the compile ends (three reads them while
   it waits), and a frame drawn meanwhile drew into them, which on WebGPU built pipelines for the

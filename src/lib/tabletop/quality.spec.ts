@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	DEFAULT_GRAPHICS,
 	layersFrom,
+	lensStrengths,
 	needsPrepass,
 	withOverrides,
 	loadGraphics,
@@ -188,5 +189,28 @@ describe('options apart from the preset', () => {
 		expect(needsPrepass({ msaa: 0, ao: true, aa: 'off' })).toBe(true);
 		expect(needsPrepass({ msaa: 4, ao: false, aa: 'msaa' })).toBe(true);
 		expect(needsPrepass({ msaa: 0, ao: false, aa: 'traa' })).toBe(true);
+	});
+});
+
+describe('depth of field and tilt-shift (#165)', () => {
+	const on = settingsFor('high', 'webgpu');
+	const play = { shot: 0, tactical: false, hasDof: true, reduced: false };
+	it('stay off in play unless Miniature is on, and follow a shot', () => {
+		expect(on.miniature).toBe(false);
+		expect(lensStrengths(on, play)).toEqual({ dof: 0, tilt: 0 });
+		expect(lensStrengths(on, { ...play, shot: 0.5 })).toEqual({ dof: 0.5, tilt: 0 });
+		expect(lensStrengths({ ...on, miniature: true }, play)).toEqual({ dof: 1, tilt: 0 });
+	});
+	it('tilt-shift the tactical view, and stand in without depth of field', () => {
+		const mini = { ...on, miniature: true };
+		expect(lensStrengths(mini, { ...play, tactical: true })).toEqual({ dof: 0, tilt: 1 });
+		expect(lensStrengths(mini, { ...play, tactical: true, shot: 1 })).toEqual({ dof: 1, tilt: 0 });
+		expect(lensStrengths(on, { ...play, hasDof: false, shot: 0.4 })).toEqual({ dof: 0, tilt: 0.4 });
+	});
+	it('are off under reduced motion and ?off=dof, whatever is chosen', () => {
+		const mini = { ...on, miniature: true };
+		expect(lensStrengths(mini, { ...play, shot: 1, reduced: true })).toEqual({ dof: 0, tilt: 0 });
+		const off = { ...mini, layers: layersFrom('?off=dof', mini.layers) };
+		expect(lensStrengths(off, { ...play, shot: 1 })).toEqual({ dof: 0, tilt: 0 });
 	});
 });

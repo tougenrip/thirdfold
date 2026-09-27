@@ -75,6 +75,7 @@
 		{ key: 'aberration', name: 'Chromatic aberration', labels: ['Off', 'On'] },
 		{ key: 'grain', name: 'Film grain', labels: ['Off', 'On'] },
 		{ key: 'grade', name: 'Colour grading', labels: ['Off', 'On'] },
+		{ key: 'miniature', name: 'Miniature (depth of field)', labels: ['Off', 'On'] },
 		{ key: 'sunShadowSize', name: 'Shadows', labels: ['Low', 'Medium', 'High'] },
 		{ key: 'fpsCap', name: 'Frame rate', labels: ['30', '60'] }
 	];
@@ -95,13 +96,14 @@
 	}
 	const setOption = (key: OptionKey, index: number) => setOptions({ [key]: OPTIONS[key][index] });
 
-	/** Clarity (#164): every lens effect off; AO, bloom and the grade stay, being light. */
-	const CLARITY: Overrides = { vignette: false, aberration: false, grain: false };
+	/** Clarity (#164): every lens effect and Miniature off; AO, bloom and the grade stay (light). */
+	const CLARITY: Overrides = { vignette: false, aberration: false, grain: false, miniature: false };
 	const clear = $derived(
 		(Object.keys(CLARITY) as OptionKey[]).every((k) => current[k] === CLARITY[k])
 	);
-	/** Grain moves, so reduced motion keeps it off (post.ts) whatever is chosen here. */
-	const still = (key: OptionKey) => key === 'grain' && prefersReducedMotion.current;
+	/** Grain and focus pulls move, so reduced motion keeps them off whatever is chosen here. */
+	const still = (key: OptionKey) =>
+		(key === 'grain' || key === 'miniature') && prefersReducedMotion.current;
 
 	function close(): void {
 		open = false;

@@ -66,47 +66,21 @@ import { fxaa } from 'three/examples/jsm/tsl/display/FXAANode.js';
 import { lut3D } from 'three/examples/jsm/tsl/display/Lut3DNode.js';
 import { LUT_SIZE, type Grades } from './environment';
 import { GradeBlend } from './grade';
-import { OverlayPassNode, PrePassNode, ScenePassNode } from './passes';
+import { Focus, STILL, type FrameView } from './focus';
+import {
+	OverlayPassNode,
+	PrePassNode,
+	ScenePassNode,
+	stagesFor,
+	TONE_MAPPINGS,
+	type PassTarget,
+	type Stages
+} from './passes';
 import type { Ambient } from '../game/lights';
 import type BloomNode from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
-import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
-import { needsPrepass, type AaMode, type QualitySettings } from './quality';
-
-const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
-	agx: THREE.AgXToneMapping,
-	aces: THREE.ACESFilmicToneMapping,
-	neutral: THREE.NeutralToneMapping
-};
-
-/** What a pipeline is built with: the prepass, the scene pass's MSAA samples, the tone mapper. */
-export interface Stages {
-	prepass: boolean;
-	samples: number;
-	/** Antialiasing (#163): TRAA adds velocity and a resolve, FXAA a pass after the grade. */
-	aa: AaMode;
-	/** Compiled into the output stage, so a change rebuilds (#158). */
-	toneMapper: ToneMapper;
-}
-
-/**
- * The stages settings call for. The overlay tests depth against a pass without MSAA: the prepass
- * (drawn with MSAA or AO on, `needsPrepass`), else the scene pass itself.
- */
-export function stagesFor(settings: QualitySettings): Stages {
-	return {
-		prepass: needsPrepass(settings),
-		samples: settings.msaa,
-		aa: settings.aa,
-		toneMapper: settings.toneMapper ?? GRADE_TONE_MAPPER
-	};
-}
-
-/** Something to compile the table's materials for: a pass's target and outputs. */
-export interface PassTarget {
-	renderTarget: THREE.RenderTarget;
-	mrt: THREE.MRTNode;
-}
+import { GRADE_TONE_MAPPER } from '../assets/manifest';
+import { lensStrengths, type QualitySettings } from './quality';
 
 /** Ambient occlusion's reach and depth per environment, in cells (#159); unlisted ones get `default`. */
 const AO_LOOKS: Record<string, { radius: number; intensity: number }> = {
@@ -154,6 +128,10 @@ export class Post {
 	};
 	/** The grade drawn, blending toward the one in force (grade.ts). */
 	private readonly grade = new GradeBlend();
+	/** Depth of field and tilt-shift (focus.ts), and how the output stage samples through them. */
+	readonly focus = new Focus();
+	private settings: QualitySettings | null = null;
+	private sample: ((uv: THREE.Node<'vec2'>) => THREE.Node<'vec4'>) | null = null;
 	private pipeline: THREE.RenderPipeline | null = null;
 	private stages: Stages | null = null;
 	/** The AO's resolution: half on medium, full above. */
@@ -195,13 +173,15 @@ export class Post {
 		private readonly camera: THREE.Camera,
 		/** The overlay's scene: no background, so its pass clears to transparent. */
 		private readonly overlay: THREE.Scene,
-		/** Whether motion is reduced (grain is off then). */
-		private readonly reducedMotion: () => boolean = () => false
+		/** What the frame at `now` is seen as: reduced motion, the shot, the view, the pivot. */
+		private readonly view: (now: number) => FrameView = () => STILL
 	) {}
 
 	/** Applies a tier: rebuilds the pipeline only when its stages change. */
 	set(settings: QualitySettings): void {
 		const next = stagesFor(settings);
+		this.settings = settings;
+		this.focus.setTier(settings.tier);
 		// Off on low (no prepass), by the tier's `ao` or `?off=ao`: a uniform, so no recompile.
 		this.uniforms.aoStrength.value = settings.ao && settings.layers.ao ? AO_STRENGTH : 0;
 		this.aoScale = settings.tier === 'medium' ? 0.5 : 1;
@@ -276,7 +256,12 @@ export class Post {
 	render(now = 0): void {
 		this.uniforms.frameIndex.value = Math.floor(now / GRAIN_MS) % 4096;
 		this.grade.step(now);
-		this.uniforms.grain.value = this.reducedMotion() ? 0 : this.grain;
+		const view = this.view(now);
+		this.uniforms.grain.value = view.reduced ? 0 : this.grain;
+		if (this.settings) {
+			const now = { ...view, hasDof: this.focus.hasDof };
+			this.focus.aim(this.camera, view.target, lensStrengths(this.settings, now));
+		}
 		// Each effect draws its first two frames whatever its strength, so its passes compile with
 		// the pipeline and turning it on later compiles nothing (#164): two, since the AO's
 		// materials are set up while the scene pass builds, after the AO drew on the first.
@@ -398,6 +383,14 @@ export class Post {
 			this.owned.push(resolvedNode, sharpened, previousDepth);
 		}
 
+		// Depth of field and tilt-shift, on the finished HDR image; the prepass's depth is never
+		// multisampled.
+		this.sample = this.focus.build(
+			this.resolved ?? scenePass.getTextureNode('output'),
+			this.prepass?.getViewZNode() ?? null,
+			(effect, strength) => this.gate(effect, strength)
+		);
+
 		// TRAA jitters the camera for every pass: the overlay draws with a copy taken before.
 		this.overlayCamera = camera.clone();
 		const overlayPass = new OverlayPassNode(
@@ -431,8 +424,10 @@ export class Post {
 	/** The output stage, one pass: see the top of this file for its order and the black rule. */
 	private compose(pipeline: THREE.RenderPipeline): void {
 		const u = this.uniforms;
-		const color = this.resolved ?? this.scenePass!.getTextureNode('output');
-		const bloomed = (this.bloom as unknown as { getTextureNode(): typeof color }).getTextureNode();
+		const sample = this.sample!;
+		const bloomed = (
+			this.bloom as unknown as { getTextureNode(): THREE.TextureNode }
+		).getTextureNode();
 		// Off, the bloom's texture keeps its last frame: mix it out by the same strength.
 		const bloomOn = u.bloomStrength.greaterThan(0).select(float(1), float(0));
 		// Chromatic aberration: red and blue pulled apart radially, by the square of the distance
@@ -440,7 +435,7 @@ export class Post {
 		const centred = screenUV.sub(0.5);
 		const shift = centred.mul(dot(centred, centred)).mul(u.aberration);
 		const hdr = (uv: THREE.Node<'vec2'>) =>
-			color.sample(uv).rgb.add(bloomed.sample(uv).rgb.mul(bloomOn)).mul(u.exposure);
+			sample(uv).rgb.add(bloomed.sample(uv).rgb.mul(bloomOn)).mul(u.exposure);
 		const split = vec3(hdr(screenUV.add(shift)).r, hdr(screenUV).g, hdr(screenUV.sub(shift)).b);
 		// Vignette: multiplied, toward the tint at the corners, so black stays black.
 		const reach = smoothstep(0.2, 0.75, centred.length());
@@ -493,6 +488,8 @@ export class Post {
 		for (const node of this.owned.splice(0)) node.dispose();
 		this.fxaaInput?.dispose();
 		this.fxaaInput = null;
+		this.focus.dispose();
+		this.sample = null;
 		this.stages = null;
 		this.gates = [];
 	}

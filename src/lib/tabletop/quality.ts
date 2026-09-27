@@ -84,6 +84,11 @@ export interface QualitySettings {
 	grain: boolean;
 	/** The environment's colour grade (#162). */
 	grade: boolean;
+	/**
+	 * Depth of field in play, or tilt-shift in the tactical view (#165). Off in every preset:
+	 * zooming in on a blurred board gets in the way of play; shots blur whatever this says.
+	 */
+	miniature: boolean;
 	/** Real point lights: a fixed pool, or clustered (ultra, #357). */
 	lights: 8 | 16 | 32 | 'clustered';
 	/** Torches near the camera that cast shadows (#230). */
@@ -113,6 +118,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		aberration: true,
 		grain: true,
 		grade: true,
+		miniature: false,
 		lights: 8,
 		shadowedTorches: 0,
 		sunShadowSize: 1024,
@@ -130,6 +136,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		aberration: true,
 		grain: true,
 		grade: true,
+		miniature: false,
 		lights: 16,
 		shadowedTorches: 2,
 		sunShadowSize: 2048,
@@ -147,6 +154,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		aberration: true,
 		grain: true,
 		grade: true,
+		miniature: false,
 		lights: 32,
 		shadowedTorches: 4,
 		sunShadowSize: 2048,
@@ -164,6 +172,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		aberration: true,
 		grain: true,
 		grade: true,
+		miniature: false,
 		lights: 'clustered',
 		shadowedTorches: 4,
 		sunShadowSize: 4096,
@@ -175,7 +184,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['post', 'ao', 'bloom', 'lens', 'grade']);
+const ON = new Set<Layer>(['post', 'ao', 'bloom', 'lens', 'grade', 'dof']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
@@ -248,6 +257,7 @@ export const OPTIONS = {
 	aberration: [false, true],
 	grain: [false, true],
 	grade: [false, true],
+	miniature: [false, true],
 	sunShadowSize: [1024, 2048, 4096],
 	fpsCap: [30, 60]
 } as const;
@@ -262,6 +272,26 @@ export function withOverrides(
 	backend: Backend
 ): QualitySettings {
 	return derive({ ...settings, ...overrides } as QualitySettings, backend);
+}
+
+/** How strongly the Miniature option blurs in play: shots go to 1. */
+export const MINIATURE_STRENGTH = 1;
+
+/**
+ * How strong depth of field and tilt-shift are this frame (#165): a shot's focus (0 to 1, from
+ * `shotFocus`) blurs by depth; the Miniature option does in play, as tilt-shift in the tactical
+ * view, which looks nearly straight down. Without depth of field (no prepass) tilt-shift stands
+ * in. Reduced motion, or `?off=dof`, keeps both off.
+ */
+export function lensStrengths(
+	s: Pick<QualitySettings, 'miniature' | 'layers'>,
+	now: { shot: number; tactical: boolean; hasDof: boolean; reduced: boolean }
+): { dof: number; tilt: number } {
+	if (now.reduced || !s.layers.dof || !s.layers.post) return { dof: 0, tilt: 0 };
+	const play = s.miniature ? MINIATURE_STRENGTH : 0;
+	if (!now.hasDof) return { dof: 0, tilt: Math.max(now.shot, play) };
+	if (now.tactical) return { dof: now.shot, tilt: play * (1 - now.shot) };
+	return { dof: Math.max(now.shot, play), tilt: 0 };
 }
 
 /**

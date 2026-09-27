@@ -4,15 +4,10 @@
 // It never owns or mutates game state. Renders on demand rather than every
 // frame, so an idle table costs nothing.
 //
-// Every animation runs on one clock (`TabletopOptions.now`, performance.now()
-// by default). Tests and golden images pass a clock they hold still, a fixed
-// pixel ratio and reduced motion, and pose the camera with `setPose`, so the
-// same table always draws the same pixels. Only perf.ts timings keep
-// performance.now(): they measure cost, not animation.
-//
-// The pieces live beside it (see docs/RENDERING.md, Modules): types, camera,
-// picking, loop (frames, the renderer's setup), table, scene-lights, previews,
-// and one layer module per kind of thing on the table.
+// Every animation runs on one clock (`TabletopOptions.now`); tests hold it
+// still, with a fixed pixel ratio, reduced motion and a posed camera, so the
+// same table always draws the same pixels. Only perf.ts timings measure cost.
+// Its pieces live beside it, one per concern (docs/RENDERING.md, Modules).
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -68,7 +63,7 @@ export async function createTabletop(
 	const clock = options.now ?? (() => performance.now());
 	const renderer = await createNodeRenderer(canvas, options);
 	let shadowsDirty = true;
-	/** A shadow map never drawn reads as garbage (lit surfaces go black), so the first frame always draws it. */
+	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
 	let shadowMapDrawn = false;
 	/** Things moved in the last frame: their final step changes shadows too. */
 	let wasMoving = false;
@@ -81,7 +76,12 @@ export async function createTabletop(
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
 	const overlay = new OverlayLayer();
-	const post = new Post(renderer, scene, camera, overlay.scene, () => reducedMotion);
+	const post = new Post(renderer, scene, camera, overlay.scene, (now) => ({
+		reduced: reducedMotion,
+		shot: rig.focusAt(now),
+		tactical: view === 'tactical',
+		target: controls.target
+	}));
 	const { sun } = lights;
 
 	const table = new TableLayer();
@@ -468,7 +468,7 @@ export async function createTabletop(
 			rig.setPose(pose);
 			requestRender();
 		},
-		cameraPose: () => rig.pose(),
+		cameraPose: () => (grid ? rig.pose() : null),
 		setGridPose(pose) {
 			if (grid) rig.setPose(poseFor(grid, ground, pose));
 			requestRender();

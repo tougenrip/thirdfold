@@ -112,8 +112,8 @@ export interface Tabletop {
 	setView(view: CameraView): void;
 	/** Puts the camera at a pose at once, ending any shot or view change (tests, photo mode). */
 	setPose(pose: Pose): void;
-	/** Where the camera is now, to carry over to a rebuilt tabletop (`setPose`). */
-	cameraPose(): Pose;
+	/** Where the camera is now, to carry over to a rebuilt tabletop (`setPose`); null before a table framed it. */
+	cameraPose(): Pose | null;
 	/** The same, for a pose in grid terms (a fixture's named pose). */
 	setGridPose(pose: GridPose): void;
 	/**

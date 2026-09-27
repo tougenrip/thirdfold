@@ -74,6 +74,7 @@ describe('the Graphics menu', () => {
 			aberration: false,
 			grain: false
 		});
+		// Miniature is off in every preset already: nothing to keep.
 	});
 
 	it('forgets an option set back to the value of its preset', async () => {
