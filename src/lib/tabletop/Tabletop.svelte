@@ -55,6 +55,8 @@
 		startingTier,
 		tierAfterLoss,
 		tierFrom,
+		needsPrepass,
+		withOverrides,
 		toneMapperFrom,
 		type Backend,
 		type GraphicsPrefs,
@@ -183,15 +185,19 @@
 	let lastDisposal: Promise<void> = Promise.resolve();
 	/** Where the camera was on the tabletop being replaced. */
 	let carriedPose: Pose | null = null;
-	/** MSAA for the next tabletop: from the tier where it is known before the device is. */
-	let antialias = initialAntialias();
+	/**
+	 * MSAA, and whether the pipeline has a prepass, for the next tabletop: from the settings where
+	 * they are known before the device is. A change of either builds a new renderer.
+	 */
+	let { antialias, prepass } = initialShape();
 
-	function initialAntialias(): boolean {
-		if (typeof location === 'undefined') return true;
+	function initialShape(): { antialias: boolean; prepass: boolean } {
+		if (typeof location === 'undefined') return { antialias: true, prepass: true };
 		const prefs = loadGraphics(localStorage);
 		const known =
 			tierFrom(location.search) ?? (prefs.tier !== 'auto' ? prefs.tier : prefs.measured);
-		return known ? settingsFor(known, 'webgpu').msaa > 0 : true;
+		const s = withOverrides(settingsFor(known ?? 'medium', 'webgpu'), prefs.overrides, 'webgpu');
+		return { antialias: s.msaa > 0, prepass: needsPrepass(s) };
 	}
 
 	/** Makes the tabletop again on a fresh canvas, the camera where it was. */
@@ -231,10 +237,16 @@
 		const caps = t.capabilities();
 		const auto = !tierFrom(search) && prefs.tier === 'auto' && !sessionTier;
 		const chosen = tier ?? sessionTier ?? startingTier(search, prefs, caps);
-		const settings = settingsFor(chosen, caps.backend);
-		// MSAA can't change on a renderer: make a new one with the tier's.
-		if (settings.msaa > 0 !== antialias) {
+		const settings = withOverrides(
+			settingsFor(chosen, caps.backend),
+			prefs.overrides,
+			caps.backend
+		);
+		// MSAA and the prepass make the pipeline's shape: a new one gets a new renderer, since
+		// rebuilding passes on the same one left their old shaders behind.
+		if (settings.msaa > 0 !== antialias || needsPrepass(settings) !== prepass) {
 			antialias = settings.msaa > 0;
+			prepass = needsPrepass(settings);
 			rebuild(t);
 			return false;
 		}

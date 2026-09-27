@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	DEFAULT_GRAPHICS,
 	layersFrom,
+	needsPrepass,
+	withOverrides,
 	loadGraphics,
 	pixelRatioFor,
 	qualityFor,
@@ -116,6 +118,7 @@ describe('the saved graphics settings', () => {
 		const s = storage(null);
 		const prefs = {
 			tier: 'medium',
+			overrides: { ao: false, msaa: 0, megapixels: 8.3 },
 			compatibility: true,
 			powerSaver: false,
 			toneMapper: 'agx',
@@ -127,8 +130,11 @@ describe('the saved graphics settings', () => {
 
 	it('fall back to auto on junk, field by field, without throwing', () => {
 		expect(loadGraphics(storage('not json'))).toEqual(DEFAULT_GRAPHICS);
-		expect(loadGraphics(storage('{"tier":"epic","compatibility":true,"toneMapper":"x"}'))).toEqual({
+		const junk =
+			'{"tier":"epic","compatibility":true,"toneMapper":"x","overrides":{"msaa":2,"ao":true}}';
+		expect(loadGraphics(storage(junk))).toEqual({
 			...DEFAULT_GRAPHICS,
+			overrides: { ao: true },
 			compatibility: true
 		});
 		const broken = { getItem: () => ({}) as string };
@@ -147,5 +153,22 @@ describe('after the graphics device is lost', () => {
 
 	it('forgets losses older than five minutes', () => {
 		expect(tierAfterLoss('high', [0, 400_000], 400_000 + 301_000)).toBe('medium');
+	});
+});
+
+describe('options apart from the preset', () => {
+	it("lay the viewer's own values over the preset, never MSAA on compatibility WebGPU", () => {
+		const low = settingsFor('low', 'webgpu');
+		const mine = withOverrides(low, { ao: true, msaa: 4, sunShadowSize: 4096 }, 'webgpu');
+		expect(mine).toMatchObject({ tier: 'low', ao: true, msaa: 4, sunShadowSize: 4096 });
+		expect(mine.megapixels).toBe(low.megapixels);
+		expect(withOverrides(low, { msaa: 4 }, 'webgpu-compat').msaa).toBe(0);
+	});
+
+	it('draw a prepass for MSAA or AO, and none without either', () => {
+		expect(needsPrepass(settingsFor('low', 'webgpu'))).toBe(false);
+		expect(needsPrepass(settingsFor('medium', 'webgpu'))).toBe(true);
+		expect(needsPrepass({ msaa: 0, ao: true })).toBe(true);
+		expect(needsPrepass({ msaa: 4, ao: false })).toBe(true);
 	});
 });

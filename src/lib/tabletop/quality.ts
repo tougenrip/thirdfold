@@ -182,6 +182,39 @@ export function settingsFor(tier: Tier, backend: Backend): QualitySettings {
 	return { tier: t, ...ROWS[t], layers: { ...LAYERS_ON } };
 }
 
+/**
+ * The options a viewer may set apart from the preset (the Graphics menu's Advanced), each with the
+ * values it offers. Only what the renderer applies today is here.
+ */
+export const OPTIONS = {
+	megapixels: [1, 2.1, 3.7, 8.3],
+	msaa: [0, 4],
+	ao: [false, true],
+	sunShadowSize: [1024, 2048, 4096],
+	fpsCap: [30, 60]
+} as const;
+export type OptionKey = keyof typeof OPTIONS;
+/** The options the viewer changed from their preset. */
+export type Overrides = { [K in OptionKey]?: QualitySettings[K] };
+
+/** A preset's settings with the viewer's own options over them (none a backend cannot do). */
+export function withOverrides(
+	settings: QualitySettings,
+	overrides: Overrides,
+	backend: Backend
+): QualitySettings {
+	const out = { ...settings, ...overrides } as QualitySettings;
+	// Compatibility-mode WebGPU has no MSAA.
+	if (backend === 'webgpu-compat') out.msaa = 0;
+	return out;
+}
+
+/**
+ * Whether the pipeline draws the prepass (post.ts): the overlay's depth when the scene pass has
+ * MSAA, and the AO's depth and normals. A change of it, or of MSAA, builds a new renderer.
+ */
+export const needsPrepass = (s: Pick<QualitySettings, 'msaa' | 'ao'>) => s.msaa > 0 || s.ao;
+
 /** `?off=sky,grass` turns those layers off; unknown names are ignored. Never saved. */
 export function layersFrom(search: string, layers: Record<Layer, boolean>): Record<Layer, boolean> {
 	const off = new URLSearchParams(search).get('off');
@@ -233,8 +266,10 @@ export const frameBudgetMs = (s: Pick<QualitySettings, 'fpsCap'>) => 1000 / s.fp
 
 /** The viewer's graphics settings, kept in this browser. */
 export interface GraphicsPrefs {
-	/** `auto`: what the device suggests (or `measured`), else the viewer's choice. */
+	/** The preset. `auto`: what the device suggests (or `measured`), else the viewer's choice. */
 	tier: 'auto' | Tier;
+	/** Options set apart from the preset; choosing a preset clears them. */
+	overrides: Overrides;
 	/** Forces WebGPURenderer's WebGL2 backend (a reload applies it). */
 	compatibility: boolean;
 	powerSaver: boolean;
@@ -246,6 +281,7 @@ export interface GraphicsPrefs {
 
 export const DEFAULT_GRAPHICS: GraphicsPrefs = {
 	tier: 'auto',
+	overrides: {},
 	compatibility: false,
 	powerSaver: false,
 	toneMapper: GRADE_TONE_MAPPER
@@ -262,6 +298,7 @@ export function loadGraphics(storage: Pick<Storage, 'getItem'>): GraphicsPrefs {
 		const r = raw as Record<string, unknown>;
 		const prefs: GraphicsPrefs = {
 			tier: isTier(r.tier) ? r.tier : 'auto',
+			overrides: readOverrides(r.overrides),
 			compatibility: r.compatibility === true,
 			powerSaver: r.powerSaver === true,
 			toneMapper: TONE_MAPPERS.includes(r.toneMapper as ToneMapper)
@@ -273,6 +310,17 @@ export function loadGraphics(storage: Pick<Storage, 'getItem'>): GraphicsPrefs {
 	} catch {
 		return { ...DEFAULT_GRAPHICS };
 	}
+}
+
+/** Saved options, keeping only known ones with values they offer. */
+function readOverrides(raw: unknown): Overrides {
+	if (typeof raw !== 'object' || raw === null) return {};
+	const out: Record<string, unknown> = {};
+	for (const [key, values] of Object.entries(OPTIONS)) {
+		const v = (raw as Record<string, unknown>)[key];
+		if ((values as readonly unknown[]).includes(v)) out[key] = v;
+	}
+	return out as Overrides;
 }
 
 export function saveGraphics(storage: Pick<Storage, 'setItem'>, prefs: GraphicsPrefs): void {

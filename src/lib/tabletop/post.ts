@@ -38,7 +38,7 @@ import {
 import type SSAONode from 'three/examples/jsm/tsl/display/SSAONode.js';
 import { ssao } from 'three/examples/jsm/tsl/display/SSAONode.js';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
-import type { QualitySettings } from './quality';
+import { needsPrepass, type QualitySettings } from './quality';
 
 const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
 	agx: THREE.AgXToneMapping,
@@ -55,12 +55,12 @@ export interface Stages {
 }
 
 /**
- * The stages a tier's settings call for. The overlay tests depth against a pass without MSAA:
- * the prepass, or on low (no prepass, no MSAA) the scene pass itself.
+ * The stages settings call for. The overlay tests depth against a pass without MSAA: the prepass
+ * (drawn with MSAA or AO on, `needsPrepass`), else the scene pass itself.
  */
 export function stagesFor(settings: QualitySettings): Stages {
 	return {
-		prepass: settings.tier !== 'low' || settings.msaa > 0,
+		prepass: needsPrepass(settings),
 		samples: settings.msaa,
 		toneMapper: settings.toneMapper ?? GRADE_TONE_MAPPER
 	};

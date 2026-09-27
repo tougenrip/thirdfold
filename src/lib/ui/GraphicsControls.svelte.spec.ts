@@ -51,6 +51,25 @@ describe('the Graphics menu', () => {
 		await expect.element(page.getByText(/Ultra needs WebGPU/)).toBeInTheDocument();
 	});
 
+	it('keeps an option changed apart from the preset, until a preset is chosen', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await userEvent.click(page.getByText('Advanced'));
+		await userEvent.selectOptions(page.getByRole('combobox', { name: 'Ambient occlusion' }), 'Off');
+		expect(loadGraphics(localStorage).overrides).toEqual({ ao: false });
+		await userEvent.click(page.getByRole('radio', { name: 'High' }));
+		expect(loadGraphics(localStorage)).toMatchObject({ tier: 'high', overrides: {} });
+	});
+
+	it('forgets an option set back to the value of its preset', async () => {
+		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { msaa: 0 } });
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await expect.element(page.getByText('Preset (customised)')).toBeInTheDocument();
+		await userEvent.selectOptions(page.getByRole('combobox', { name: 'Antialiasing' }), 'MSAA 4×');
+		expect(loadGraphics(localStorage).overrides).toEqual({});
+	});
+
 	it('picks the tone mapper, saved, Filmic by default', async () => {
 		mount();
 		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));

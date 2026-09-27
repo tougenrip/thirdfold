@@ -324,6 +324,16 @@ starting tier, and each tier into one row of settings every effect reads (#147).
 architecture, the largest texture, timestamp queries, phone or not, the shell (browser, Tauri,
 Capacitor), pixel ratio, screen size, and where browsers give them, memory and CPU class.
 
+**Presets and options** (owner, 27 September 2026): a tier is a preset. The Graphics menu picks
+one (Auto, Low, Medium, High, Ultra), and under Advanced the viewer sets options apart from it:
+resolution, antialiasing, ambient occlusion, shadows and frame rate (`OPTIONS`, only what the
+renderer applies today). Changing an option keeps it in `GraphicsPrefs.overrides`, which
+`withOverrides` lays over the preset's row (never MSAA on compat WebGPU); setting it back to the
+preset's value forgets it, and choosing a preset clears them all. MSAA and the prepass
+(`needsPrepass`: drawn for MSAA or AO) make the pipeline's shape, and a change of shape builds a
+new renderer, as a change of MSAA always did: rebuilding passes on the same renderer left their
+old shaders behind.
+
 **The starting tier,** with no input (`qualityFor`): software rasterisers and compat WebGPU low;
 phones low with 4 GB or less, else medium; under 4 GB or the lowest CPU class low; integrated
 (Intel) GPUs medium; everything else high. Ultra is only ever chosen by hand. Ceilings: WebGL2 at
