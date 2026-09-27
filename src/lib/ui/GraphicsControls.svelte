@@ -73,6 +73,7 @@
 		{ key: 'vignette', name: 'Vignette', labels: ['Off', 'On'] },
 		{ key: 'aberration', name: 'Chromatic aberration', labels: ['Off', 'On'] },
 		{ key: 'grain', name: 'Film grain', labels: ['Off', 'On'] },
+		{ key: 'grade', name: 'Colour grading', labels: ['Off', 'On'] },
 		{ key: 'sunShadowSize', name: 'Shadows', labels: ['Low', 'Medium', 'High'] },
 		{ key: 'fpsCap', name: 'Frame rate', labels: ['30', '60'] }
 	];

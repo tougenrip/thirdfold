@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { parseManifest } from '../../src/lib/assets/manifest';
 import { audioInfo, encodeWav, renderBell } from './audio';
 import { checkGlb, writeGlb } from './glb';
@@ -11,6 +11,10 @@ import { bakeModel, readModelSource } from './models';
 import { buildAssets, staleAssets, type BuiltAssets } from './pipeline';
 import { encodePng, pngSize } from './png';
 import { checkScenes } from './scenes';
+import { NEUTRAL, readGrades, renderGrade, stripProblem } from './grades';
+
+// Several tests build every asset, the 54 colour-grade strips among them: a few seconds each.
+vi.setConfig({ testTimeout: 30_000 });
 
 let built: BuiltAssets;
 beforeAll(() => {
@@ -240,5 +244,57 @@ describe('the pipeline on other sources', () => {
 		src = sources();
 		writeFileSync(path.join(src, 'audio', 'noise.ogg'), Buffer.from('<script>alert(1)</script>'));
 		expect(() => buildAssets(src)).toThrow(/noise\.ogg: not a WAV or Ogg file/);
+	});
+});
+
+describe('colour grades', () => {
+	it('render a neutral grade as the identity table, black kept black', () => {
+		const strip = renderGrade(NEUTRAL);
+		expect(stripProblem(strip)).toBeNull();
+		// Red across a slice, green down, blue choosing the slice: every texel is its own place.
+		for (const [r, g, b] of [
+			[0, 0, 0],
+			[31, 0, 0],
+			[5, 17, 30],
+			[31, 31, 31]
+		]) {
+			const o = (g * 1024 + b * 32 + r) * 4;
+			expect([...strip.slice(o, o + 3)]).toEqual([r, g, b].map((v) => Math.round((v * 255) / 31)));
+		}
+	});
+
+	it('refuse unknown bands, missing bands and values out of range, and a lifted black', () => {
+		const day = { saturation: 1.1 };
+		expect(() => readGrades({ day, dusk: day, dark: day, noon: day })).toThrow(/unknown band/);
+		expect(() => readGrades({ day, dusk: day })).toThrow(/dark: missing/);
+		expect(() => readGrades({ day, dusk: day, dark: { gain: [3, 1, 1] } })).toThrow(/gain/);
+		const lifted = renderGrade(NEUTRAL);
+		lifted[0] = 4;
+		expect(stripProblem(lifted)).toMatch(/black/);
+	});
+
+	it('give every environment a strip per tone mapper and band, each keeping black', () => {
+		const { manifest, files } = built;
+		for (const [id, env] of Object.entries(manifest.environments)) {
+			expect(env.lut, id).toBeDefined();
+			for (const bands of Object.values(env.lut!))
+				for (const texture of Object.values(bands)) {
+					const t = manifest.textures[texture];
+					expect([t.width, t.height]).toEqual([1024, 32]);
+					expect(files.has(t.file)).toBe(true);
+				}
+		}
+	});
+
+	it('are refused by the manifest when a strip is unknown or the wrong size', () => {
+		const manifest = structuredClone(built.manifest);
+		const env = manifest.environments.village;
+		env.lut!.agx.dusk = 'nothing';
+		expect(parseManifest(manifest)).toMatchObject({ ok: false });
+		env.lut!.agx.dusk = Object.keys(manifest.textures).find((t) => !t.startsWith('grade-'))!;
+		expect(parseManifest(manifest)).toMatchObject({
+			ok: false,
+			error: expect.stringMatching(/1024×32/)
+		});
 	});
 });

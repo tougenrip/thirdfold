@@ -10,6 +10,7 @@
 //   assets/models/<kind>/<id>.json      a model from primitive parts (kind: prop, character, npc, enemy)
 //   assets/models/<kind>/<id>.glb       or a model made elsewhere (meshes only), with <id>.meta.json for its swing
 //   assets/environments/<id>.json       how a place looks: materials for floor, ground, walls, table
+//   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
 //
 // Nothing built is executable: models are checked to be meshes only, images
@@ -37,6 +38,8 @@ import { checkGlb, writeGlb } from './glb';
 import { bakeModel, isModelKind, readModelSource } from './models';
 import { encodePng, pngSize } from './png';
 import { readTextureSource, renderTexture } from './textures';
+import { BANDS, LUT_SIZE, readGrades, renderGrade, stripProblem } from './grades';
+import { TONE_MAPPERS } from '../../src/lib/assets/manifest';
 
 export interface BuiltAssets {
 	manifest: Manifest;
@@ -238,6 +241,42 @@ export function buildAssets(dir: string): BuiltAssets {
 			walls: material('walls'),
 			table: material('table')
 		};
+	}
+
+	// Grades: each band of an environment for each tone mapper, as a lookup-table strip.
+	const gradeDir = path.join(dir, 'grades');
+	for (const name of list(gradeDir)) {
+		const source = path.join(gradeDir, name);
+		const { id, ext } = idOf(name, gradeDir);
+		if (ext !== 'json') throw new AssetError(source, 'grades are .json');
+		if (!(id in environments)) throw new AssetError(source, `no environment "${id}"`);
+		let grades;
+		try {
+			grades = readGrades(readJson(source));
+		} catch (err) {
+			throw new AssetError(source, (err as Error).message);
+		}
+		const lut = {} as NonNullable<EnvironmentDef['lut']>;
+		for (const tm of TONE_MAPPERS) {
+			lut[tm] = {} as NonNullable<EnvironmentDef['lut']>[typeof tm];
+			for (const band of BANDS) {
+				const strip = renderGrade(grades[band][tm]);
+				const problem = stripProblem(strip);
+				if (problem) throw new AssetError(source, `${band} after ${tm}: ${problem}`);
+				const texture = `grade-${id}-${band}-${tm}`;
+				if (texture in textures) throw new AssetError(source, `texture "${texture}" exists`);
+				const png = encodePng(LUT_SIZE * LUT_SIZE, LUT_SIZE, strip, 'sub');
+				if (png.length > LIMITS.textureBytes) throw new AssetError(source, 'strip too large');
+				textures[texture] = {
+					file: emit('textures', texture, 'png', png),
+					bytes: png.length,
+					width: LUT_SIZE * LUT_SIZE,
+					height: LUT_SIZE
+				};
+				lut[tm][band] = texture;
+			}
+		}
+		environments[id].lut = lut;
 	}
 
 	const audio: Record<string, AudioEntry> = {};

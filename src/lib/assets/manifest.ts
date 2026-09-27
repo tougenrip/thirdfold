@@ -88,12 +88,21 @@ export interface MaterialDef {
 }
 
 /** How a place looks: the materials of its floor, its raised ground, its walls and the table's rim. */
+/** The ambient bands a grade is made for. */
+export const GRADE_BANDS = ['day', 'dusk', 'dark'] as const;
+export type GradeBand = (typeof GRADE_BANDS)[number];
+
 export interface EnvironmentDef {
 	name: string;
 	surface: string;
 	ground: string;
 	walls: string;
 	table: string;
+	/**
+	 * Its colour grade (#162): a 1024×32 lookup-table strip (a texture id) per tone mapper and
+	 * band. Optional: without one the picture is not graded.
+	 */
+	lut?: Record<ToneMapper, Record<GradeBand, string>>;
 }
 
 export interface AudioEntry extends FileInfo {
@@ -121,6 +130,30 @@ export const EMPTY_MANIFEST: Manifest = {
 };
 
 type Parsed = { ok: true; manifest: Manifest } | { ok: false; error: string };
+
+/** An environment's grade strips: every tone mapper and band, each a 1024×32 texture. */
+function readLut(
+	raw: unknown,
+	textures: Record<string, TextureEntry>,
+	where: string
+): Record<ToneMapper, Record<GradeBand, string>> {
+	if (!isRecord(raw)) throw new Invalid(`${where}: bad grade`);
+	const out = {} as Record<ToneMapper, Record<GradeBand, string>>;
+	for (const tm of TONE_MAPPERS) {
+		const bands = raw[tm];
+		if (!isRecord(bands)) throw new Invalid(`${where}: no ${tm} grade`);
+		out[tm] = {} as Record<GradeBand, string>;
+		for (const band of GRADE_BANDS) {
+			const id = bands[band];
+			const t = typeof id === 'string' ? textures[id] : undefined;
+			if (!t || t.width !== 1024 || t.height !== 32) {
+				throw new Invalid(`${where}: the ${tm} ${band} grade is not a 1024×32 texture`);
+			}
+			out[tm][band] = id as string;
+		}
+	}
+	return out;
+}
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
 	typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -239,13 +272,15 @@ export function parseManifest(raw: unknown): Parsed {
 				}
 				return m;
 			};
-			return {
+			const env: EnvironmentDef = {
 				name: v.name,
 				surface: material('surface'),
 				ground: material('ground'),
 				walls: material('walls'),
 				table: material('table')
 			};
+			if (v.lut !== undefined) env.lut = readLut(v.lut, textures, `environment ${id}`);
+			return env;
 		});
 		const audio = section(raw.audio, 'audio', (v, id) => {
 			if (!isRecord(v)) throw new Invalid(`audio ${id}`);

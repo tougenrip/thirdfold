@@ -174,6 +174,7 @@ export async function createTabletop(
 		const seats = lightSeats(grid, props);
 		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
 		overlay.setMasks(floorLayer.mask, fogLayer.mask, lighting.darkMask);
+		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade
 		// Raised ground under fog and darkness, by the same rules as the flat overlays.
 		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
 	}
@@ -241,7 +242,7 @@ export async function createTabletop(
 		wasMoving = casters;
 		const flickering = !reducedMotion && lighting.flicker(now);
 		const drifting = !reducedMotion && ambience.tick(now);
-		const moving = casters || fx.active || rig.tick(now);
+		const moving = casters || fx.active || rig.tick(now) || post.blending;
 		// With damping enabled, update() emits 'change' while the camera is still settling,
 		// which schedules the next frame; once still, rendering stops.
 		controls.update();
@@ -270,7 +271,6 @@ export async function createTabletop(
 		table.dress(look, grid, extent);
 		terrainLayer.setLook(look?.ground ?? null);
 		wallLayer.setLook(look?.walls ?? null);
-		post.setLook(environment, grid?.cellSize ?? 1); // the AO's reach
 		refreshLighting();
 		shadowsDirty = warmPending = true;
 		requestRender();

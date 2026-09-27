@@ -50,6 +50,7 @@ export const LAYERS = [
 	'ao',
 	'bloom',
 	'lens',
+	'grade',
 	'grass',
 	'water',
 	'vfx',
@@ -72,6 +73,8 @@ export interface QualitySettings {
 	vignette: boolean;
 	aberration: boolean;
 	grain: boolean;
+	/** The environment's colour grade (#162). */
+	grade: boolean;
 	/** Real point lights: a fixed pool, or clustered (ultra, #357). */
 	lights: 8 | 16 | 32 | 'clustered';
 	/** Torches near the camera that cast shadows (#230). */
@@ -100,6 +103,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		vignette: true,
 		aberration: true,
 		grain: true,
+		grade: true,
 		lights: 8,
 		shadowedTorches: 0,
 		sunShadowSize: 1024,
@@ -117,6 +121,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		vignette: true,
 		aberration: true,
 		grain: true,
+		grade: true,
 		lights: 16,
 		shadowedTorches: 2,
 		sunShadowSize: 2048,
@@ -134,6 +139,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		vignette: true,
 		aberration: true,
 		grain: true,
+		grade: true,
 		lights: 32,
 		shadowedTorches: 4,
 		sunShadowSize: 2048,
@@ -151,6 +157,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 		vignette: true,
 		aberration: true,
 		grain: true,
+		grade: true,
 		lights: 'clustered',
 		shadowedTorches: 4,
 		sunShadowSize: 4096,
@@ -163,7 +170,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['post', 'ao', 'bloom', 'lens']);
+const ON = new Set<Layer>(['post', 'ao', 'bloom', 'lens', 'grade']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
@@ -218,6 +225,7 @@ export const OPTIONS = {
 	vignette: [false, true],
 	aberration: [false, true],
 	grain: [false, true],
+	grade: [false, true],
 	sunShadowSize: [1024, 2048, 4096],
 	fpsCap: [30, 60]
 } as const;

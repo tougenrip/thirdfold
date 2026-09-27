@@ -307,6 +307,28 @@ vignette; theirs are lit by ambient and sky light we do not have yet (#114, #115
 strength is the owner's call in review; each of the three lens effects is its own Graphics
 option.
 
+## Milestone 63: the colour grades (#162)
+
+`docs/look/m63-grade/` against `m63-lens`, under ACES. The paired fixtures are stone-halls (refs 1,
+3 and 4 at night, 2 at dusk) and village (7 by day, 8 at dusk, 6 at night).
+
+| Reference | distance before | after |
+| --------- | --------------- | ----- |
+| 1         | 0.175           | 0.176 |
+| 2         | 0.298           | 0.297 |
+| 3         | 0.138           | 0.144 |
+| 4         | 0.144           | 0.138 |
+| 6         | 0.259           | 0.238 |
+| 7         | 0.131           | 0.112 |
+| 8         | 0.203           | 0.210 |
+| mean      | 0.193           | 0.188 |
+
+Ref 7's warm yellow-green day, ref 6's cooler, less orange night and ref 4 move toward their
+references. The references' shadows are blue-violet (hue 275–290 at night); ours are the darks
+warmed by lamp spill, so a grade pulls them only part of the way (refs 3 and 8 move away a
+little). The night's blue fill (#167) and the sky light (#114) supply the cool darks a grade then
+shapes. The grades are restrained on purpose: each is a few numbers in `assets/grades/`.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

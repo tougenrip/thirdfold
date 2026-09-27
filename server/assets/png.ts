@@ -30,22 +30,32 @@ function chunk(type: string, data: Buffer): Buffer {
 	return Buffer.concat([length, body, crc]);
 }
 
-/** An RGBA image (`width * height * 4` bytes, row by row) as a PNG. */
-export function encodePng(width: number, height: number, rgba: Uint8Array): Buffer {
+/**
+ * An RGBA image (`width * height * 4` bytes, row by row) as a PNG. `sub` stores each byte as its
+ * difference from the pixel to its left (PNG filter 1): smooth gradients (colour grades) then
+ * compress to a fraction.
+ */
+export function encodePng(
+	width: number,
+	height: number,
+	rgba: Uint8Array,
+	filter: 'none' | 'sub' = 'none'
+): Buffer {
 	if (rgba.length !== width * height * 4) throw new Error('encodePng: wrong pixel count');
 	const header = Buffer.alloc(13);
 	header.writeUInt32BE(width, 0);
 	header.writeUInt32BE(height, 4);
 	header[8] = 8; // bits per channel
 	header[9] = 6; // RGBA
-	// Each row starts with its filter type: 0, none.
+	// Each row starts with its filter type: 0, none, or 1, sub.
 	const raw = Buffer.alloc((width * 4 + 1) * height);
 	for (let y = 0; y < height; y++) {
-		raw[y * (width * 4 + 1)] = 0;
-		Buffer.from(rgba.buffer, rgba.byteOffset + y * width * 4, width * 4).copy(
-			raw,
-			y * (width * 4 + 1) + 1
-		);
+		const row = y * (width * 4 + 1);
+		raw[row] = filter === 'sub' ? 1 : 0;
+		for (let i = 0; i < width * 4; i++) {
+			const v = rgba[y * width * 4 + i];
+			raw[row + 1 + i] = filter === 'sub' && i >= 4 ? (v - rgba[y * width * 4 + i - 4]) & 255 : v;
+		}
 	}
 	return Buffer.concat([
 		SIGNATURE,

@@ -535,7 +535,13 @@ passes, in order:
   - **Grain and dither are seeded by the tabletop's clock** (`uniforms.frameIndex`, 24 steps a
     second), so a held clock holds them still (goldens, the idle table) and they only move on
     frames the scheduler draws. Grain is 0 under reduced motion.
-  - The 3D colour grade (`lut3D`) goes between the tone mapper and the grain with #162.
+  - **The colour grade** (#162) sits between the tone mapper and the grain: `lut3D` on one 32³
+    3D texture (`grade.ts` `GradeBlend`) holding the environment's grade for the viewer's tone
+    mapper and the ambient band (`docs/ASSETS.md`), a Graphics option (Colour grading,
+    `?off=grade`). A new environment's grade is put in place at once; a change of band or tone
+    mapper blends its bytes over 1.5 s on the CPU (the tabletop draws while it does), so the
+    shader never changes. Every strip keeps black at 0, checked by the pipeline, and the loader
+    forces texel 0 to black against canvas-read noise.
 - **A timed-out warm-up still finishes the compile in flight** before frames resume: compiling
   for a pass sets the renderer's target and outputs until the compile ends (three reads them while
   it waits), and a frame drawn meanwhile drew into them, which on WebGPU built pipelines for the

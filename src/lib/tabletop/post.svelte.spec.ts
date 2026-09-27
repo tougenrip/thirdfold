@@ -7,6 +7,9 @@
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
+import { readGrades, renderGrade } from '../../../server/assets/grades';
+import villageGrades from '../../../assets/grades/village.json';
+import { loadEnvironment } from './environment';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { TONE_MAPPERS } from '../assets/manifest';
@@ -487,5 +490,78 @@ describe.skipIf(BACKEND === 'webgpu')('the output stage', () => {
 		const c = await frame('checker', 1, 6000);
 		expect(a.every((v, i) => v === b[i])).toBe(true);
 		expect(a.some((v, i) => v !== c[i])).toBe(true);
+	});
+});
+
+describe('the colour grade', () => {
+	it('loads a strip in the layout the pipeline rendered it', async () => {
+		const look = await loadEnvironment('village');
+		const loaded = look!.grades!.aces.day;
+		const expected = renderGrade(readGrades(villageGrades).day.aces);
+		for (const [r, g, b] of [
+			[0, 0, 0],
+			[31, 0, 0],
+			[3, 20, 11],
+			[31, 31, 31]
+		]) {
+			const strip = (g * 1024 + b * 32 + r) * 4;
+			const cube = ((b * 32 + g) * 32 + r) * 4;
+			expect([...loaded.slice(cube, cube + 3)]).toEqual([...expected.slice(strip, strip + 3)]);
+		}
+	});
+
+	it.skipIf(BACKEND === 'webgpu')(
+		'draws within one step of no grade through the identity table',
+		async () => {
+			const canvas = document.createElement('canvas');
+			renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
+			renderer.setSize(64, 64, false);
+			const scene = new THREE.Scene();
+			const data = new Uint8Array(64 * 64 * 4).map((_, i) => (i % 4 === 3 ? 255 : (i * 37) % 256));
+			const colours = new THREE.DataTexture(data, 64, 64);
+			colours.needsUpdate = true;
+			scene.background = colours;
+			const post = new Post(renderer, scene, new THREE.PerspectiveCamera(), new THREE.Scene());
+			post.set(settingsFor('low', 'webgl2'));
+			const gl = (renderer.backend as unknown as { gl: WebGL2RenderingContext }).gl;
+			const draw = (grade: number) => {
+				post.uniforms.grade.value = grade;
+				advanceNodeFrame(renderer!);
+				post.render();
+				const px = new Uint8Array(64 * 64 * 4);
+				gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
+				return px;
+			};
+			const [none, identity] = [draw(0), draw(1)];
+			expect(none.every((v, i) => Math.abs(v - identity[i]) <= 1)).toBe(true);
+		}
+	);
+
+	it('blends to a new grade over 1.5 s, compiling nothing', async () => {
+		const { renderer, post, draw } = await setup();
+		draw('medium');
+		const look = await loadEnvironment('village');
+		const at = (now: number) => {
+			advanceNodeFrame(renderer);
+			post.render(now);
+		};
+		at(0);
+		const programs = renderer.info.memory.programs;
+		// A new environment's grade is in place at once; a new band blends in.
+		post.setLook('village', 1, look!.grades, 'day');
+		expect(post.blending).toBe(false);
+		post.setLook('village', 1, look!.grades, 'dusk');
+		expect(post.blending).toBe(true);
+		at(1000);
+		at(1700);
+		expect(post.blending).toBe(true);
+		at(3300);
+		expect(post.blending).toBe(false);
+		post.setLook('village', 1, look!.grades, 'dark');
+		expect(post.blending).toBe(true);
+		at(4000);
+		at(6000);
+		expect(post.blending).toBe(false);
+		expect(renderer.info.memory.programs).toBe(programs);
 	});
 });

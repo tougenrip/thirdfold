@@ -1,0 +1,11 @@
+{
+	"day": { "contrast": 1.15, "pivot": 0.4, "gain": [1.05, 0.97, 0.95], "saturation": 1.1 },
+	"dusk": { "contrast": 1.18, "pivot": 0.4, "gain": [1.06, 0.96, 0.94], "saturation": 1.12 },
+	"dark": {
+		"contrast": 1.2,
+		"pivot": 0.4,
+		"gain": [1.06, 0.95, 0.94],
+		"saturation": 1.15,
+		"shadows": [1.05, 0.95, 1.0]
+	}
+}

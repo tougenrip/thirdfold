@@ -10,6 +10,10 @@ npm run assets          # build assets/ into static/assets/ (commit both)
 npm run assets:check    # fail if static/assets/ isn't what assets/ builds (a test checks this too)
 ```
 
+Build with Node 22, as CI does (`npx -y node@22 node_modules/tsx/dist/cli.mjs server/assets/build.ts`
+when your Node is newer): Node 26 bundles zlib-ng, whose deflate writes different PNG bytes, so
+the built files would not match CI's.
+
 ## Sources
 
 | Kind                             | Source                                                       | Built into                   |
@@ -22,6 +26,7 @@ npm run assets:check    # fail if static/assets/ isn't what assets/ builds (a te
 | Materials                        | `assets/materials.json`                                      | the manifest                 |
 | Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`         | `textures/<id>.<hash>.png`   |
 | Environments (how a place looks) | `assets/environments/<id>.json`                              | the manifest                 |
+| Colour grades                    | `assets/grades/<environment>.json`                           | `textures/grade-….png` (54)  |
 | Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg` | `audio/<id>.<hash>.wav\|ogg` |
 
 Ids are lowercase letters, digits and dashes, and they are the file names. Name an asset by how
@@ -98,6 +103,21 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   material, used for the floor, raised ground, walls and the table's rim.
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
+
+- **A colour grade** (#162) is `assets/grades/<environment>.json`: `{ "day", "dusk", "dark" }`,
+  each a grade on the tone-mapped (display) colour, any field left out being neutral:
+  - `contrast` (a curve round `pivot` that keeps 0 and 1), `lift` (a toe per channel that lifts
+    the darks without moving black), `gamma`, `gain` (per channel), `saturation`, and `shadows` /
+    `highlights` (multipliers the darks and the lights are tinted by);
+  - optionally `"agx": {…}` and `"neutral": {…}` to change it for those tone mappers. Without them
+    the pipeline gives AgX 0.15 more saturation and 0.08 more contrast (AgX desaturates and
+    flattens) and Neutral 0.05 less saturation (it runs warm and saturated).
+  - Each band is rendered for each tone mapper (a grade is tied to the curve it follows) into a
+    1024×32 lookup-table strip, `grade-<environment>-<band>-<tone mapper>`: 32 slices of 32×32
+    side by side, blue choosing the slice, red across and green down, saved with PNG's sub filter
+    (8–17 kB each). The pipeline refuses a strip that moves black, and the environment's `lut`
+    in the manifest names its nine strips. The client loads an environment's strips with it and
+    blends the one for the viewer's tone mapper and the band into the picture (`grade.ts`).
 
 ### Audio
 

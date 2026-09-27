@@ -1,0 +1,9 @@
+{
+	"day": { "shadows": [0.96, 1.02, 1.08], "saturation": 0.95 },
+	"dusk": { "shadows": [0.95, 1.0, 1.12], "highlights": [1.04, 1.0, 0.95] },
+	"dark": {
+		"contrast": 1.1,
+		"shadows": [0.97, 0.98, 1.15],
+		"highlights": [1.06, 1.0, 0.92]
+	}
+}

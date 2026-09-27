@@ -26,6 +26,9 @@
 // mapper and sRGB, film grain, the overlay, and a triangular dither. Every step
 // maps 0 to 0 (the vignette multiplies; grain and dither are masked off at
 // black), so unexplored cells, black under the fog, stay exactly black.
+// The colour grade (#162) follows the tone mapper: the environment's lookup
+// table for the tone mapper and band, blended on the CPU into one 3D texture
+// over GRADE_BLEND_MS when any of them changes, so the shader never does.
 
 import * as THREE from 'three/webgpu';
 import {
@@ -40,6 +43,7 @@ import {
 	screenCoordinate,
 	smoothstep,
 	vec2,
+	texture3D,
 	vec3,
 	mix,
 	mrt,
@@ -55,6 +59,10 @@ import {
 } from 'three/tsl';
 import type SSAONode from 'three/examples/jsm/tsl/display/SSAONode.js';
 import { ssao } from 'three/examples/jsm/tsl/display/SSAONode.js';
+import { lut3D } from 'three/examples/jsm/tsl/display/Lut3DNode.js';
+import { LUT_SIZE, type Grades } from './environment';
+import { GradeBlend } from './grade';
+import type { Ambient } from '../game/lights';
 import type BloomNode from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
@@ -183,8 +191,12 @@ export class Post {
 		aberration: uniform(0),
 		grain: uniform(0),
 		/** Seeds grain and dither: from the tabletop's clock, so a held clock holds them still. */
-		frameIndex: uniform(0)
+		frameIndex: uniform(0),
+		/** How much of the grade shows: 1 on, 0 with the Colour grading option off. */
+		grade: uniform(1)
 	};
+	/** The grade drawn, blending toward the one in force (grade.ts). */
+	private readonly grade = new GradeBlend();
 	private pipeline: THREE.RenderPipeline | null = null;
 	private stages: Stages | null = null;
 	/** The AO's resolution: half on medium, full above. */
@@ -202,7 +214,12 @@ export class Post {
 	ao: SSAONode | null = null;
 	bloom: BloomNode | null = null;
 	/** The environment and cell size the AO is sized for. */
-	private look = { environment: null as string | null, cellSize: 1 };
+	private look = {
+		environment: null as string | null,
+		cellSize: 1,
+		grades: null as Grades | null,
+		band: 'day' as Ambient
+	};
 
 	constructor(
 		private readonly renderer: THREE.WebGPURenderer,
@@ -227,6 +244,7 @@ export class Post {
 		this.uniforms.vignette.value = lens && settings.vignette ? LENS.vignette : 0;
 		this.uniforms.aberration.value = lens && settings.aberration ? LENS.aberration : 0;
 		this.grain = lens && settings.grain ? LENS.grain : 0;
+		this.uniforms.grade.value = settings.grade && settings.layers.grade ? 1 : 0;
 		const same =
 			this.stages && this.stages.prepass === next.prepass && this.stages.samples === next.samples;
 		// Drawing straight to the canvas (`?off=post`) tone maps with the renderer's own.
@@ -240,15 +258,37 @@ export class Post {
 		if (this.stages!.toneMapper === next.toneMapper) return;
 		this.stages = next;
 		this.compose(this.pipeline);
+		this.retarget();
 	}
 
 	/** Sizes the AO for a table: its environment's reach, in cells of `cellSize` world units. */
-	setLook(environment: string | null, cellSize: number): void {
-		this.look = { environment, cellSize };
+	setLook(
+		environment: string | null,
+		cellSize: number,
+		grades: Grades | null = null,
+		band: Ambient = 'day'
+	): void {
+		// A new environment's grade is put in place at once; a new band blends in.
+		const snap = grades !== this.look.grades;
+		const changed = snap || band !== this.look.band;
+		this.look = { environment, cellSize, grades, band };
+		if (changed) this.retarget(snap);
 		if (!this.ao) return;
 		const look = AO_LOOKS[environment ?? ''] ?? AO_LOOKS.default;
 		this.ao.radius.value = look.radius * cellSize;
 		this.ao.intensity.value = look.intensity;
+	}
+
+	/** Whether a grade is still blending in (the tabletop keeps drawing while it is). */
+	get blending(): boolean {
+		return this.grade.blending;
+	}
+
+	/** Blends toward the grade for the environment, band and tone mapper now in force. */
+	private retarget(snap = false): void {
+		const { grades, band } = this.look;
+		const tm = this.stages?.toneMapper ?? GRADE_TONE_MAPPER;
+		this.grade.target(grades?.[tm][band] ?? null, snap);
 	}
 
 	/**
@@ -263,6 +303,7 @@ export class Post {
 	/** Draws a frame at `now` (the tabletop's clock): through the pipeline, or straight to the canvas. */
 	render(now = 0): void {
 		this.uniforms.frameIndex.value = Math.floor(now / GRAIN_MS) % 4096;
+		this.grade.step(now);
 		this.uniforms.grain.value = this.reducedMotion() ? 0 : this.grain;
 		for (const { effect, on, strength } of this.gates)
 			effect.updateBeforeType = strength.value > 0 ? on : THREE.NodeUpdateType.NONE;
@@ -291,6 +332,7 @@ export class Post {
 
 	dispose(): void {
 		this.teardown();
+		this.grade.dispose();
 	}
 
 	private build(stages: Stages): void {
@@ -390,7 +432,10 @@ export class Post {
 		const reach = smoothstep(0.2, 0.75, centred.length());
 		const vignetted = split.mul(mix(vec3(1), u.vignetteTint, reach.mul(u.vignette)));
 		const toneMapping = TONE_MAPPINGS[this.stages!.toneMapper];
-		const world = renderOutput(vec4(vignetted, 1), toneMapping, THREE.SRGBColorSpace).rgb;
+		const mapped = renderOutput(vec4(vignetted, 1), toneMapping, THREE.SRGBColorSpace);
+		// The grade: on the display colour, after the curve it was made for.
+		const graded = lut3D(mapped, texture3D(this.grade.texture), LUT_SIZE, u.grade);
+		const world = (graded as unknown as THREE.Node<'vec4'>).rgb;
 		// Nothing is added where the picture is black.
 		const lit = smoothstep(0, 2 / 255, luminance(world));
 		const cell = screenCoordinate.xy;
