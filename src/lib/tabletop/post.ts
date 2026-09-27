@@ -25,7 +25,7 @@ import {
 	uniform,
 	vec4
 } from 'three/tsl';
-import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
+import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
 import type { QualitySettings } from './quality';
 
 const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
@@ -34,23 +34,12 @@ const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
 	neutral: THREE.NeutralToneMapping
 };
 
-/**
- * The one tone mapper, applied once at the end: `GRADE_TONE_MAPPER`, or `?tonemap=agx|aces|neutral`
- * to compare them (#158). It is compiled into the output stage, so the flag applies when the page
- * loads; it is never saved.
- */
-export function toneMappingFrom(search: string): THREE.ToneMapping {
-	const asked = new URLSearchParams(search).get('tonemap');
-	const name = TONE_MAPPERS.includes(asked as ToneMapper)
-		? (asked as ToneMapper)
-		: GRADE_TONE_MAPPER;
-	return TONE_MAPPINGS[name];
-}
-
-/** What a tier builds: the prepass, and the scene pass's MSAA samples. */
+/** What a pipeline is built with: the prepass, the scene pass's MSAA samples, the tone mapper. */
 export interface Stages {
 	prepass: boolean;
 	samples: number;
+	/** Compiled into the output stage, so a change rebuilds (#158). */
+	toneMapper: ToneMapper;
 }
 
 /**
@@ -58,7 +47,11 @@ export interface Stages {
  * the prepass, or on low (no prepass, no MSAA) the scene pass itself.
  */
 export function stagesFor(settings: QualitySettings): Stages {
-	return { prepass: settings.tier !== 'low' || settings.msaa > 0, samples: settings.msaa };
+	return {
+		prepass: settings.tier !== 'low' || settings.msaa > 0,
+		samples: settings.msaa,
+		toneMapper: settings.toneMapper ?? GRADE_TONE_MAPPER
+	};
 }
 
 /**
@@ -129,8 +122,15 @@ export class Post {
 		const next = stagesFor(settings);
 		const same =
 			this.stages && this.stages.prepass === next.prepass && this.stages.samples === next.samples;
+		// Drawing straight to the canvas (`?off=post`) tone maps with the renderer's own.
+		this.renderer.toneMapping = TONE_MAPPINGS[next.toneMapper];
 		if (!settings.layers.post) return this.teardown();
-		if (!same || !this.pipeline) this.build(next);
+		if (!same || !this.pipeline) return this.build(next);
+		// Only the output stage holds the tone mapper: recompose it and keep the passes, whose
+		// materials would otherwise all compile again.
+		if (this.stages!.toneMapper === next.toneMapper) return;
+		this.stages = next;
+		this.compose(this.pipeline);
 	}
 
 	/**
@@ -206,19 +206,25 @@ export class Post {
 		overlayPass.renderTarget.texture.type = halfFloat;
 		this.overlayPass = overlayPass;
 
-		const color = scenePass.getTextureNode('output');
 		const pipeline = new THREE.RenderPipeline(renderer);
 		pipeline.outputColorTransform = false;
+		this.compose(pipeline);
+		this.pipeline = pipeline;
+	}
+
+	/** The output stage: exposure, the tone mapper and sRGB, then the overlay laid over it. */
+	private compose(pipeline: THREE.RenderPipeline): void {
+		const color = this.scenePass!.getTextureNode('output');
 		const exposed = vec4(color.rgb.mul(this.uniforms.exposure), color.a);
-		const toneMapping = toneMappingFrom(globalThis.location?.search ?? '');
+		const toneMapping = TONE_MAPPINGS[this.stages!.toneMapper];
 		const world = renderOutput(exposed, toneMapping, THREE.SRGBColorSpace);
 		// The overlay is premultiplied and linear: straighten it, encode it to sRGB (no tone
 		// mapping) and lay it over the finished image, as the classic renderer blended it.
-		const over = overlayPass.getTextureNode('output');
+		const over = this.overlayPass!.getTextureNode('output');
 		const straight = vec4(over.rgb.div(max(over.a, 1e-4)), 1);
 		const shown = renderOutput(straight, THREE.NoToneMapping, THREE.SRGBColorSpace);
 		pipeline.outputNode = vec4(mix(world.rgb, shown.rgb, over.a), 1);
-		this.pipeline = pipeline;
+		pipeline.needsUpdate = true;
 	}
 
 	private teardown(): void {

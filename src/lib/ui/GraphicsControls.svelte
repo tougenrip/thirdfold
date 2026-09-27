@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import type { ToneMapper } from '$lib/assets/manifest';
 	import { TIERS, type Backend, type GraphicsPrefs, type Tier } from '$lib/tabletop/quality';
 
 	/**
-	 * The Graphics menu (#154): the quality tier, the compatibility backend and the power saver, as
+	 * The Graphics menu (#154): the quality tier, the tone mapper (#158), the compatibility backend
+	 * and the power saver, as
 	 * this viewer sets them for this browser. Local only: nothing here reaches the room. `inline`
 	 * opens it in place (the side sheet on phones) rather than under the header.
 	 */
@@ -37,6 +39,16 @@
 		high: 'Sharper and fuller, for a dedicated graphics card.',
 		ultra: 'Everything, for a strong graphics card on WebGPU.'
 	};
+	/** How light maps to the screen: a matter of taste, not cost; it applies at once. */
+	const TONES: Record<ToneMapper, { name: string; help: string }> = {
+		aces: { name: 'Filmic (ACES)', help: 'Punchy and warm: fire glows yellow-white.' },
+		agx: {
+			name: 'Soft (AgX)',
+			help: 'Gentle highlights that keep their hue; a softer, cooler night.'
+		},
+		neutral: { name: 'True colour (Neutral)', help: 'Paint and materials as they are, warmer.' }
+	};
+
 	/** Ultra needs WebGPU with its core features. */
 	const ultraOff = $derived(!!effective && effective.backend !== 'webgpu');
 
@@ -90,6 +102,21 @@
 						: HELP[graphics.tier]}
 					{#if ultraOff}Ultra needs WebGPU, which this table isn't using.{/if}
 				</p>
+			</fieldset>
+			<fieldset class="switch">
+				<legend>Colour</legend>
+				{#each Object.keys(TONES) as ToneMapper[] as tone (tone)}
+					<label>
+						<input
+							type="radio"
+							name="tone"
+							checked={graphics.toneMapper === tone}
+							onchange={() => onchange({ ...graphics, toneMapper: tone })}
+						/>
+						{TONES[tone].name}
+					</label>
+				{/each}
+				<p class="help">{TONES[graphics.toneMapper].help}</p>
 			</fieldset>
 			<label class="switch">
 				<input

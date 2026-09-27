@@ -55,6 +55,7 @@
 		startingTier,
 		tierAfterLoss,
 		tierFrom,
+		toneMapperFrom,
 		type Backend,
 		type GraphicsPrefs,
 		type Tier
@@ -237,7 +238,11 @@
 			rebuild(t);
 			return false;
 		}
-		t.setQuality({ ...settings, layers: layersFrom(search, settings.layers) }, auto && !tier);
+		const toneMapper = toneMapperFrom(search) ?? prefs.toneMapper;
+		t.setQuality(
+			{ ...settings, layers: layersFrom(search, settings.layers), toneMapper },
+			auto && !tier
+		);
 		t.setPowerSaver(prefs.powerSaver);
 		softwareNotice = caps.software;
 		onQuality?.({ tier: settings.tier, backend: caps.backend });

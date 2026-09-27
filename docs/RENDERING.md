@@ -512,6 +512,14 @@ passes, in order:
   backends: the kill switch until #168 removes it.
 - Emissive is 8-bit on purpose: a flame's excess above 1.0 reaches bloom through the HDR term
   (#160).
+- **The tone mapper is the viewer's** (#158, owner's decision 27 September 2026): Filmic (ACES),
+  Soft (AgX) or True colour (Neutral) in the Graphics menu (`GraphicsPrefs.toneMapper`, into
+  `QualitySettings.toneMapper`), `?tonemap=` for A/B runs. The default is `GRADE_TONE_MAPPER` in
+  `src/lib/assets/manifest.ts`, ACES: the one every grade (#162) is authored after, which the asset
+  pipeline checks. Only the output stage holds the tone mapper, so a switch recomposes that stage
+  (`Post.compose`) and keeps the passes; rebuilding them compiled every material again and never
+  released the old shaders (about 11 programs a switch). The measurements are in `docs/LOOK.md`.
+  #162 decides how a grade made after ACES treats the other two.
 
 ## Shader kinds
 

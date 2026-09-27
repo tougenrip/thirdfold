@@ -114,18 +114,20 @@ describe('refining the tier', () => {
 describe('the saved graphics settings', () => {
 	it('come back after a save', () => {
 		const s = storage(null);
-		saveGraphics(s, { tier: 'medium', compatibility: true, powerSaver: false, measured: 'low' });
-		expect(loadGraphics(s)).toEqual({
+		const prefs = {
 			tier: 'medium',
 			compatibility: true,
 			powerSaver: false,
+			toneMapper: 'agx',
 			measured: 'low'
-		});
+		} as const;
+		saveGraphics(s, prefs);
+		expect(loadGraphics(s)).toEqual(prefs);
 	});
 
 	it('fall back to auto on junk, field by field, without throwing', () => {
 		expect(loadGraphics(storage('not json'))).toEqual(DEFAULT_GRAPHICS);
-		expect(loadGraphics(storage('{"tier":"epic","compatibility":true}'))).toEqual({
+		expect(loadGraphics(storage('{"tier":"epic","compatibility":true,"toneMapper":"x"}'))).toEqual({
 			...DEFAULT_GRAPHICS,
 			compatibility: true
 		});

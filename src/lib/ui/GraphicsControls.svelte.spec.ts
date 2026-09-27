@@ -51,6 +51,14 @@ describe('the Graphics menu', () => {
 		await expect.element(page.getByText(/Ultra needs WebGPU/)).toBeInTheDocument();
 	});
 
+	it('picks the tone mapper, saved, Filmic by default', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await expect.element(page.getByRole('radio', { name: 'Filmic (ACES)' })).toBeChecked();
+		await userEvent.click(page.getByRole('radio', { name: 'Soft (AgX)' }));
+		expect(loadGraphics(localStorage).toneMapper).toBe('agx');
+	});
+
 	it('asks for a reload to switch the backend, and saves it', async () => {
 		mount();
 		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));

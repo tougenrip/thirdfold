@@ -19,7 +19,7 @@ import { groundFor } from './ground';
 import { labelFontReady } from './label-font';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
-import { settingsFor } from './quality';
+import { settingsFor, toneMapperFrom } from './quality';
 import { createTabletop, type Tabletop, type TabletopEvents } from './renderer';
 
 export type Band = 'day' | 'dusk' | 'dark';
@@ -153,7 +153,9 @@ export async function mountFixture(
 	// A WebGPU project that silently fell back to WebGL2 would test the wrong thing.
 	if (webgpu && backend === 'webgl2') throw new Error('Asked for WebGPU, drawing with WebGL2');
 	// One tier for every test, whatever the device suggests (a software rasteriser picks low).
-	tabletop.setQuality(settingsFor('medium', backend));
+	// And the page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
+	const toneMapper = toneMapperFrom(location.search) ?? undefined;
+	tabletop.setQuality({ ...settingsFor('medium', backend), toneMapper });
 	const size = view.grid.width * view.grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
 	// In the order the Tabletop component sets them.

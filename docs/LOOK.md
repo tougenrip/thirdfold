@@ -215,6 +215,37 @@ within 0.009 of v0 (see `docs/RENDERING.md`), so what moved below is the scale.
   cell, since a low camera can't see over 2 u walls; dithering occluders between the camera and
   the minis (#283) fixes it.
 
+## Milestone 63: the tone mapper (#158)
+
+The three tone mappers of r186 on the paired fixtures, with no grade, AO or bloom yet
+(`node scripts/look-metrics.mjs --ours-only --milestone m63-tonemap-<name> --tonemap <name>`;
+strips in `docs/look/m63-tonemap-<name>/`, side by side in `docs/look/m63-tonemap.png`: ACES,
+AgX, Neutral from left to right):
+
+| Reference | ACES  | AgX   | Neutral |
+| --------- | ----- | ----- | ------- |
+| 1         | 0.172 | 0.168 | 0.158   |
+| 2         | 0.287 | 0.250 | 0.283   |
+| 3         | 0.140 | 0.128 | 0.140   |
+| 4         | 0.162 | 0.150 | 0.123   |
+| 6         | 0.247 | 0.218 | 0.262   |
+| 7         | 0.127 | 0.143 | 0.125   |
+| 8         | 0.194 | 0.187 | 0.235   |
+| mean      | 0.190 | 0.178 | 0.189   |
+
+- **ACES** pushes fire toward yellow-white and measures farthest on average; it is what #153's
+  retune solved its colours for (backgrounds, the fog's hidden shade, the darkness colour).
+- **AgX** is closest on five of seven: hues hold in the highlights, but shadows and backgrounds
+  lift toward a cool grey and paint desaturates (ref 7 moves away, 0.127 → 0.143).
+- **Neutral** keeps base colours truest and warmest (best on 1, 4 and 7) but clips bright fire
+  (worst on 6 and 8).
+- All three cost the same, about 1 ms a frame on the RTX 4060 at 1080p (`scripts/perf-gpu.mjs`
+  with `PERF_EXTRA=tonemap=<name>`), and all map black to exactly 0.
+
+**Decision (owner, 27 September 2026):** all three stay, as the viewer's choice in the Graphics
+menu (Colour: Filmic, Soft, True colour). The default is ACES, `GRADE_TONE_MAPPER`, the one the
+grades of #162 are authored after.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

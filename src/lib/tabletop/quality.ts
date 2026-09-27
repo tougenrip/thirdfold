@@ -5,6 +5,8 @@
 // emergencies and are never saved; the viewer's own choice is kept in
 // `thirdfold:graphics`, in this browser only.
 
+import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
+
 export const TIERS = ['low', 'medium', 'high', 'ultra'] as const;
 export type Tier = (typeof TIERS)[number];
 
@@ -67,6 +69,8 @@ export interface QualitySettings {
 	/** Frames a still picture takes to converge (TRAA, later). */
 	convergeFrames: number;
 	layers: Record<Layer, boolean>;
+	/** The viewer's tone mapper (the Graphics menu, `?tonemap=`); else `GRADE_TONE_MAPPER`. */
+	toneMapper?: ToneMapper;
 }
 
 const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
@@ -178,6 +182,12 @@ export function layersFrom(search: string, layers: Record<Layer, boolean>): Reco
 	return out;
 }
 
+/** `?tonemap=agx|aces|neutral` (A/B comparisons, #158), or null. Never saved. */
+export function toneMapperFrom(search: string): ToneMapper | null {
+	const t = new URLSearchParams(search).get('tonemap');
+	return TONE_MAPPERS.includes(t as ToneMapper) ? (t as ToneMapper) : null;
+}
+
 /** `?tier=low|medium|high|ultra`, or null. Never saved. */
 export function tierFrom(search: string): Tier | null {
 	const t = new URLSearchParams(search).get('tier');
@@ -219,6 +229,8 @@ export interface GraphicsPrefs {
 	/** Forces WebGPURenderer's WebGL2 backend (a reload applies it). */
 	compatibility: boolean;
 	powerSaver: boolean;
+	/** How the picture's light is mapped to the screen: taste, not cost (#158). */
+	toneMapper: ToneMapper;
 	/** The tier refinement settled on for this device, when `auto`. */
 	measured?: Tier;
 }
@@ -226,7 +238,8 @@ export interface GraphicsPrefs {
 export const DEFAULT_GRAPHICS: GraphicsPrefs = {
 	tier: 'auto',
 	compatibility: false,
-	powerSaver: false
+	powerSaver: false,
+	toneMapper: GRADE_TONE_MAPPER
 };
 
 const GRAPHICS_KEY = 'thirdfold:graphics';
@@ -241,7 +254,10 @@ export function loadGraphics(storage: Pick<Storage, 'getItem'>): GraphicsPrefs {
 		const prefs: GraphicsPrefs = {
 			tier: isTier(r.tier) ? r.tier : 'auto',
 			compatibility: r.compatibility === true,
-			powerSaver: r.powerSaver === true
+			powerSaver: r.powerSaver === true,
+			toneMapper: TONE_MAPPERS.includes(r.toneMapper as ToneMapper)
+				? (r.toneMapper as ToneMapper)
+				: GRADE_TONE_MAPPER
 		};
 		if (isTier(r.measured)) prefs.measured = r.measured;
 		return prefs;
