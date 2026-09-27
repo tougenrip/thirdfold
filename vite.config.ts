@@ -31,8 +31,11 @@ function browser(args: string[], headless: boolean) {
 		expect: {
 			toMatchScreenshot: {
 				comparatorName: 'pixelmatch' as const,
-				// CI's small runners take several seconds per software-rendered capture.
-				timeout: 30_000,
+				// No limit of its own: @vitest/browser 4.1.11 races the capture against a timer it never
+				// clears, which kept the process alive for up to this long after every golden run
+				// ("something prevents the main process from exiting"). With 0 there is no timer, and
+				// the golden tests' own 60 s timeout bounds a capture (CI's small runners take seconds).
+				timeout: 0,
 				comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 }
 			}
 		}
