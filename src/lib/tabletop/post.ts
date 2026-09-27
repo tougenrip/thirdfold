@@ -162,8 +162,12 @@ export class Post {
 	private grain = 0;
 	/** The bloom's resolution: a quarter on low, half above. */
 	private bloomScale = 0.5;
-	private gates: { effect: THREE.Node; on: THREE.NodeUpdateType; strength: { value: number } }[] =
-		[];
+	private gates: {
+		effect: THREE.Node;
+		on: THREE.NodeUpdateType;
+		strength: { value: number };
+		frames: number;
+	}[] = [];
 	prepass: THREE.PassNode | null = null;
 	scenePass: THREE.PassNode | null = null;
 
@@ -261,10 +265,11 @@ export class Post {
 	/**
 	 * Switches an effect by its strength uniform: at 0 its passes stop (`updateBeforeType`
 	 * NONE, which NodeFrame reads every frame), and the effect mixes its output by the same
-	 * uniform, so off costs nothing and never recompiles. Effects register when built.
+	 * uniform, so off costs nothing and never recompiles. Effects register when built, and draw
+	 * their first frames even when off.
 	 */
 	gate(effect: THREE.Node, strength: { value: number }): void {
-		this.gates.push({ effect, on: effect.updateBeforeType, strength });
+		this.gates.push({ effect, on: effect.updateBeforeType, strength, frames: 0 });
 	}
 
 	/** Draws a frame at `now` (the tabletop's clock): through the pipeline, or straight to the canvas. */
@@ -272,8 +277,14 @@ export class Post {
 		this.uniforms.frameIndex.value = Math.floor(now / GRAIN_MS) % 4096;
 		this.grade.step(now);
 		this.uniforms.grain.value = this.reducedMotion() ? 0 : this.grain;
-		for (const { effect, on, strength } of this.gates)
-			effect.updateBeforeType = strength.value > 0 ? on : THREE.NodeUpdateType.NONE;
+		// Each effect draws its first two frames whatever its strength, so its passes compile with
+		// the pipeline and turning it on later compiles nothing (#164): two, since the AO's
+		// materials are set up while the scene pass builds, after the AO drew on the first.
+		for (const gate of this.gates) {
+			const on = gate.strength.value > 0 || gate.frames < 2;
+			gate.effect.updateBeforeType = on ? gate.on : THREE.NodeUpdateType.NONE;
+			gate.frames++;
+		}
 		if (this.pipeline) {
 			(this.overlayCamera as THREE.PerspectiveCamera | null)?.copy(
 				this.camera as THREE.PerspectiveCamera

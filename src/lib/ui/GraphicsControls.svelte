@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import type { ToneMapper } from '$lib/assets/manifest';
 	import {
 		OPTIONS,
@@ -85,13 +86,22 @@
 	const current = $derived(withOverrides(preset, graphics.overrides, backend));
 	const customised = $derived(Object.keys(graphics.overrides).length > 0);
 
-	/** Sets an option; back at the preset's value, it is no longer an override. */
-	function setOption(key: OptionKey, index: number): void {
-		const value = OPTIONS[key][index];
-		const overrides: Overrides = { ...graphics.overrides, [key]: value };
-		if (preset[key] === value) delete overrides[key];
+	/** Sets options; one back at the preset's value is no longer an override. */
+	function setOptions(values: Overrides): void {
+		const overrides: Overrides = { ...graphics.overrides, ...values };
+		for (const key of Object.keys(values) as OptionKey[])
+			if (preset[key] === overrides[key]) delete overrides[key];
 		onchange({ ...graphics, overrides });
 	}
+	const setOption = (key: OptionKey, index: number) => setOptions({ [key]: OPTIONS[key][index] });
+
+	/** Clarity (#164): every lens effect off; AO, bloom and the grade stay, being light. */
+	const CLARITY: Overrides = { vignette: false, aberration: false, grain: false };
+	const clear = $derived(
+		(Object.keys(CLARITY) as OptionKey[]).every((k) => current[k] === CLARITY[k])
+	);
+	/** Grain moves, so reduced motion keeps it off (post.ts) whatever is chosen here. */
+	const still = (key: OptionKey) => key === 'grain' && prefersReducedMotion.current;
 
 	function close(): void {
 		open = false;
@@ -146,11 +156,15 @@
 			</fieldset>
 			<details class="switch advanced" open={customised}>
 				<summary>Advanced</summary>
+				<button type="button" class="reset" aria-pressed={clear} onclick={() => setOptions(CLARITY)}
+					>Clarity: no lens effects</button
+				>
 				{#each ADVANCED as option (option.key)}
 					<label class="option">
 						{option.name}
 						<select
 							value={(OPTIONS[option.key] as readonly unknown[]).indexOf(current[option.key])}
+							disabled={still(option.key)}
 							onchange={(e) => setOption(option.key, Number(e.currentTarget.value))}
 						>
 							{#each option.labels as label, i (label)}
@@ -162,6 +176,9 @@
 							{/each}
 						</select>
 					</label>
+					{#if still(option.key)}
+						<p class="help">Off while your device asks for reduced motion.</p>
+					{/if}
 				{/each}
 				{#if customised}
 					<button

@@ -61,6 +61,21 @@ describe('the Graphics menu', () => {
 		expect(loadGraphics(localStorage)).toMatchObject({ tier: 'high', overrides: {} });
 	});
 
+	it('turns every lens effect off with Clarity, and only those', async () => {
+		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { bloom: false } });
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		const clarity = page.getByRole('button', { name: 'Clarity: no lens effects' });
+		await expect.element(clarity).toHaveAttribute('aria-pressed', 'false');
+		await userEvent.click(clarity);
+		expect(loadGraphics(localStorage).overrides).toEqual({
+			bloom: false,
+			vignette: false,
+			aberration: false,
+			grain: false
+		});
+	});
+
 	it('forgets an option set back to the value of its preset', async () => {
 		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { aa: 'off' } });
 		mount();

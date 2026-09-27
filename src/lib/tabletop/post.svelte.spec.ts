@@ -13,7 +13,7 @@ import { loadEnvironment } from './environment';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { TONE_MAPPERS } from '../assets/manifest';
-import { settingsFor, type Tier } from './quality';
+import { settingsFor, TIERS, type Tier } from './quality';
 import { BACKEND } from './testing';
 
 // Software rendering under a full run's load takes a while: as the other renderer specs.
@@ -106,6 +106,56 @@ describe('the post-processing pipeline', () => {
 		round();
 		expect(renderer.info.memory.programs).toBe(programs);
 		expect(renderer.info.memory.renderTargets).toBe(targets);
+	});
+
+	// #164: the Graphics menu's effect switches are uniforms. Stored off, an effect still draws
+	// its passes on the first frames, so turning it on later compiles nothing either.
+	const SWITCHES = ['ao', 'bloom', 'vignette', 'aberration', 'grain', 'grade'] as const;
+	const tiers = BACKEND === 'webgpu' ? TIERS : TIERS.filter((t) => t !== 'ultra');
+	for (const tier of tiers) {
+		it(`switches every effect on the ${tier} tier without compiling anything`, async () => {
+			const { renderer, post } = await setup();
+			const backend = BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
+			const preset = settingsFor(tier, backend);
+			// On low the AO needs a prepass the tier doesn't draw: that is a new renderer's shape.
+			const switches = SWITCHES.filter((s) => s !== 'ao' || tier !== 'low');
+			const off = Object.fromEntries(switches.map((s) => [s, false]));
+			const draw = (settings: object) => {
+				post.set({ ...preset, ...settings });
+				advanceNodeFrame(renderer);
+				post.render();
+			};
+			draw(off);
+			draw(off);
+			const pipelines = (renderer as unknown as { _pipelines: { caches: Map<unknown, unknown> } })
+				._pipelines.caches;
+			const before = [renderer.info.memory.programs, pipelines.size];
+			for (const s of switches) {
+				draw({ ...off, [s]: true });
+				draw(off);
+			}
+			draw({});
+			expect([renderer.info.memory.programs, pipelines.size]).toEqual(before);
+		});
+	}
+
+	it('keeps grain off under reduced motion, whatever is chosen', async () => {
+		const { renderer } = await setup();
+		let reduced = true;
+		const post = new Post(
+			renderer,
+			new THREE.Scene(),
+			new THREE.PerspectiveCamera(),
+			new THREE.Scene(),
+			() => reduced
+		);
+		post.set(settingsFor('high', 'webgl2'));
+		post.render();
+		expect(post.uniforms.grain.value).toBe(0);
+		reduced = false;
+		post.render();
+		expect(post.uniforms.grain.value).toBeGreaterThan(0);
+		post.dispose();
 	});
 
 	it('draws straight to the canvas with the post layer off', async () => {

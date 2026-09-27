@@ -326,8 +326,12 @@ Capacitor), pixel ratio, screen size, and where browsers give them, memory and C
 
 **Presets and options** (owner, 27 September 2026): a tier is a preset. The Graphics menu picks
 one (Auto, Low, Medium, High, Ultra), and under Advanced the viewer sets options apart from it:
-resolution, antialiasing, ambient occlusion, shadows and frame rate (`OPTIONS`, only what the
-renderer applies today). Changing an option keeps it in `GraphicsPrefs.overrides`, which
+resolution, antialiasing, ambient occlusion, bloom, vignette, chromatic aberration, film grain,
+colour grading, shadows and frame rate (`OPTIONS`, only what the renderer applies today).
+**Clarity** (#164) turns the lens effects (vignette, aberration, grain) off and leaves AO, bloom
+and the grade, which are light, not lens: the documented way to an unprocessed, legible image.
+Reduced motion keeps grain off whatever is stored (the menu shows it disabled, the stored choice
+kept), and a `?off=` layer wins over the menu. Changing an option keeps it in `GraphicsPrefs.overrides`, which
 `withOverrides` lays over the preset's row (never MSAA on compat WebGPU); setting it back to the
 preset's value forgets it, and choosing a preset clears them all. MSAA and the prepass
 (`needsPrepass`: drawn for MSAA or AO) make the pipeline's shape, and a change of shape builds a
@@ -509,7 +513,11 @@ passes, in order:
   antialiasing and the tone mapper; in play a change of the first three builds a new renderer
   (`Tabletop.svelte`), since rebuilding passes on the same one left their old shaders behind, and
   a tone mapper only recomposes the output stage. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
-  0 (`updateBeforeType` NONE), so toggling one never recompiles.
+  0 (`updateBeforeType` NONE), so toggling one never recompiles. Each gated pass still draws its
+  first two frames (the AO's materials are set up while the scene pass builds, after the AO drew on
+  the first), so an effect stored off compiles with the pipeline, not when first turned on; a
+  post spec sweeps every switch on every tier against `info.memory.programs` and the pipeline
+  cache.
 - **Bloom** (#160) glows from the scene pass's emissive attachment plus the exposed HDR colour
   above 1 with a soft knee of 0.5 (`Post.bloomInput`, Unity's curve on the brightest channel), so
   flames and what they light hot bloom and sunlit grass and plaster, below 1, do not. Three's
