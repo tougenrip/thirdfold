@@ -17,12 +17,13 @@ export function playerVisible(fog: FogView | null, mode: FogMode, size: number):
 
 // Blended in linear light before tone mapping, so a partial alpha lets more of a lit floor
 // through than it did after it: these match the old 150, 110 and 55 on floors of middling
-// brightness (#153). SHADE is the colour tone mapping turns into sRGB 11, 9, 8.
+// brightness (#153). SHADE is black: the output stage keeps 0 at 0 (#161), so hidden cells are
+// exactly black on screen.
 const ALPHA = {
 	player: { hidden: 255, explored: 173 },
 	gm: { hidden: 128, explored: 69 }
 } as const;
-const SHADE = [29, 27, 25];
+const SHADE = [0, 0, 0];
 
 export class FogLayer {
 	readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -32,7 +33,8 @@ export class FogLayer {
 	constructor() {
 		this.mesh = new THREE.Mesh(
 			new THREE.PlaneGeometry(1, 1),
-			new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })
+			// No distance haze: it would lift the hidden cells' black.
+			new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false })
 		);
 		// Drawn after the other transparent floor layers (grid lines), so nothing shows through
 		// hidden cells; editor feedback is drawn later still (see renderer).

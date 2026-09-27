@@ -20,14 +20,27 @@
 // Bloom (#160) glows from the emissive attachment plus the part of the exposed
 // HDR image above 1 (a soft knee), so flames and what they light hot bloom
 // while sunlit grass and plaster, below 1, do not.
+//
+// The output stage (#161) is one pass, in this order: exposure (scene plus
+// bloom), radial chromatic aberration, a vignette tinted dark purple, the tone
+// mapper and sRGB, film grain, the overlay, and a triangular dither. Every step
+// maps 0 to 0 (the vignette multiplies; grain and dither are masked off at
+// black), so unexplored cells, black under the fog, stay exactly black.
 
 import * as THREE from 'three/webgpu';
 import {
 	builtinAOContext,
 	clamp,
+	dot,
 	emissive,
 	float,
+	interleavedGradientNoise,
+	luminance,
 	max,
+	screenCoordinate,
+	smoothstep,
+	vec2,
+	vec3,
 	mix,
 	mrt,
 	normalView,
@@ -145,6 +158,18 @@ const AO_LOOKS: Record<string, { radius: number; intensity: number }> = {
 const AO_STRENGTH = 1;
 /** Bloom, when on: a tight, restrained glow (TaleWeaver blooms at 1 with a soft knee of 0.5). */
 const BLOOM = { strength: 0.3, radius: 0.2, knee: 0.5 };
+/**
+ * The lens, when on: a vignette toward TaleWeaver's dark purple at about its intensity, chromatic
+ * aberration a few pixels wide at the corners, and a faint grain (in display values).
+ */
+const LENS = {
+	vignette: 0.33,
+	tint: new THREE.Color(0.09, 0.038, 0.208),
+	aberration: 0.008,
+	grain: 0.035
+};
+/** The grain's pattern moves on at most this often, by the tabletop's clock (ms). */
+const GRAIN_MS = 1000 / 24;
 
 export class Post {
 	/** Linear exposure before tone mapping (the renderer's own stays 1). */
@@ -152,12 +177,20 @@ export class Post {
 	readonly uniforms = {
 		exposure: uniform(1),
 		aoStrength: uniform(0),
-		bloomStrength: uniform(0)
+		bloomStrength: uniform(0),
+		vignette: uniform(0),
+		vignetteTint: uniform(LENS.tint),
+		aberration: uniform(0),
+		grain: uniform(0),
+		/** Seeds grain and dither: from the tabletop's clock, so a held clock holds them still. */
+		frameIndex: uniform(0)
 	};
 	private pipeline: THREE.RenderPipeline | null = null;
 	private stages: Stages | null = null;
 	/** The AO's resolution: half on medium, full above. */
 	private aoScale = 1;
+	/** The grain's strength when on (0 under reduced motion). */
+	private grain = 0;
 	/** The bloom's resolution: a quarter on low, half above. */
 	private bloomScale = 0.5;
 	private gates: { effect: THREE.Node; on: THREE.NodeUpdateType; strength: { value: number } }[] =
@@ -176,7 +209,9 @@ export class Post {
 		private readonly scene: THREE.Scene,
 		private readonly camera: THREE.Camera,
 		/** The overlay's scene: no background, so its pass clears to transparent. */
-		private readonly overlay: THREE.Scene
+		private readonly overlay: THREE.Scene,
+		/** Whether motion is reduced (grain is off then). */
+		private readonly reducedMotion: () => boolean = () => false
 	) {}
 
 	/** Applies a tier: rebuilds the pipeline only when its stages change. */
@@ -188,6 +223,10 @@ export class Post {
 		this.uniforms.bloomStrength.value =
 			settings.bloom && settings.layers.bloom ? BLOOM.strength : 0;
 		this.bloomScale = settings.tier === 'low' ? 0.25 : 0.5;
+		const lens = settings.layers.lens;
+		this.uniforms.vignette.value = lens && settings.vignette ? LENS.vignette : 0;
+		this.uniforms.aberration.value = lens && settings.aberration ? LENS.aberration : 0;
+		this.grain = lens && settings.grain ? LENS.grain : 0;
 		const same =
 			this.stages && this.stages.prepass === next.prepass && this.stages.samples === next.samples;
 		// Drawing straight to the canvas (`?off=post`) tone maps with the renderer's own.
@@ -221,8 +260,10 @@ export class Post {
 		this.gates.push({ effect, on: effect.updateBeforeType, strength });
 	}
 
-	/** Draws a frame: through the pipeline, or straight to the canvas with post off. */
-	render(): void {
+	/** Draws a frame at `now` (the tabletop's clock): through the pipeline, or straight to the canvas. */
+	render(now = 0): void {
+		this.uniforms.frameIndex.value = Math.floor(now / GRAIN_MS) % 4096;
+		this.uniforms.grain.value = this.reducedMotion() ? 0 : this.grain;
 		for (const { effect, on, strength } of this.gates)
 			effect.updateBeforeType = strength.value > 0 ? on : THREE.NodeUpdateType.NONE;
 		if (this.pipeline) return this.pipeline.render();
@@ -331,21 +372,44 @@ export class Post {
 		return vec4(scenePass.getTextureNode('emissive').rgb.add(hdr.mul(excess)), 1);
 	}
 
-	/** The output stage: exposure and bloom, the tone mapper and sRGB, then the overlay over it. */
+	/** The output stage, one pass: see the top of this file for its order and the black rule. */
 	private compose(pipeline: THREE.RenderPipeline): void {
+		const u = this.uniforms;
 		const color = this.scenePass!.getTextureNode('output');
+		const bloomed = (this.bloom as unknown as { getTextureNode(): typeof color }).getTextureNode();
 		// Off, the bloom's texture keeps its last frame: mix it out by the same strength.
-		const on = this.uniforms.bloomStrength.greaterThan(0).select(float(1), float(0));
-		const glow = this.bloom!.rgb.mul(on);
-		const exposed = vec4(color.rgb.mul(this.uniforms.exposure).add(glow), color.a);
+		const bloomOn = u.bloomStrength.greaterThan(0).select(float(1), float(0));
+		// Chromatic aberration: red and blue pulled apart radially, by the square of the distance
+		// from the centre, so the centre is untouched.
+		const centred = screenUV.sub(0.5);
+		const shift = centred.mul(dot(centred, centred)).mul(u.aberration);
+		const hdr = (uv: THREE.Node<'vec2'>) =>
+			color.sample(uv).rgb.add(bloomed.sample(uv).rgb.mul(bloomOn)).mul(u.exposure);
+		const split = vec3(hdr(screenUV.add(shift)).r, hdr(screenUV).g, hdr(screenUV.sub(shift)).b);
+		// Vignette: multiplied, toward the tint at the corners, so black stays black.
+		const reach = smoothstep(0.2, 0.75, centred.length());
+		const vignetted = split.mul(mix(vec3(1), u.vignetteTint, reach.mul(u.vignette)));
 		const toneMapping = TONE_MAPPINGS[this.stages!.toneMapper];
-		const world = renderOutput(exposed, toneMapping, THREE.SRGBColorSpace);
+		const world = renderOutput(vec4(vignetted, 1), toneMapping, THREE.SRGBColorSpace).rgb;
+		// Nothing is added where the picture is black.
+		const lit = smoothstep(0, 2 / 255, luminance(world));
+		const cell = screenCoordinate.xy;
+		const seed = vec2(u.frameIndex.mul(5.588), u.frameIndex.mul(3.1));
+		const grain = interleavedGradientNoise(cell.add(seed)).sub(0.5).mul(u.grain).mul(lit);
+		const grained = world.add(grain);
 		// The overlay is premultiplied and linear: straighten it, encode it to sRGB (no tone
 		// mapping) and lay it over the finished image, as the classic renderer blended it.
 		const over = this.overlayPass!.getTextureNode('output');
 		const straight = vec4(over.rgb.div(max(over.a, 1e-4)), 1);
-		const shown = renderOutput(straight, THREE.NoToneMapping, THREE.SRGBColorSpace);
-		pipeline.outputNode = vec4(mix(world.rgb, shown.rgb, over.a), 1);
+		const shown = renderOutput(straight, THREE.NoToneMapping, THREE.SRGBColorSpace).rgb;
+		const composed = mix(grained, shown, over.a);
+		// A triangular dither of ±1 step against banding, never on the overlay or on black.
+		const tpdf = interleavedGradientNoise(cell.add(seed))
+			.add(interleavedGradientNoise(cell.add(seed).add(vec2(47.3, 19.1))))
+			.sub(1)
+			.div(255);
+		const dithered = composed.add(tpdf.mul(float(1).sub(over.a)).mul(lit));
+		pipeline.outputNode = vec4(dithered, 1);
 		pipeline.needsUpdate = true;
 	}
 

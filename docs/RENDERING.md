@@ -520,6 +520,22 @@ passes, in order:
   1. `uniforms.bloomStrength` (0 with the Bloom option or `?off=bloom` off) gates its passes and
      mixes its texture out, so toggling compiles nothing; it and `uniforms.exposure` are the cues'
      knobs for the toll and the flash (#222).
+- **The output stage** (#161) is one pass (`Post.compose`), in this order: exposure over the scene
+  and the bloom; chromatic aberration (red and blue sampled apart radially by the square of the
+  distance from the centre, so the centre is untouched); a vignette that multiplies toward
+  TaleWeaver's dark purple (0.09, 0.038, 0.208) at 0.33 from a radius of 0.2 to 0.75; the tone
+  mapper and sRGB; film grain (interleaved gradient noise, 0.035); the overlay; and a triangular
+  dither of ±1 step against banding, never on the overlay. Each is a uniform and a Graphics
+  option (Vignette, Chromatic aberration, Film grain; `?off=lens` all three).
+  - **The black rule:** every step maps 0 to 0. The vignette multiplies, grain and dither are
+    masked by `smoothstep(0, 2/255, luminance)`, and the fog's hidden shade is exactly black
+    (`SHADE` 0, 0, 0, `fog: false` so the distance haze never lifts it), so unexplored cells are
+    exactly (0, 0, 0) on screen. A test draws black with every effect at full strength and reads
+    only zeros; #176 checks it over the fixtures' fogged views.
+  - **Grain and dither are seeded by the tabletop's clock** (`uniforms.frameIndex`, 24 steps a
+    second), so a held clock holds them still (goldens, the idle table) and they only move on
+    frames the scheduler draws. Grain is 0 under reduced motion.
+  - The 3D colour grade (`lut3D`) goes between the tone mapper and the grain with #162.
 - **A timed-out warm-up still finishes the compile in flight** before frames resume: compiling
   for a pass sets the renderer's target and outputs until the compile ends (three reads them while
   it waits), and a frame drawn meanwhile drew into them, which on WebGPU built pipelines for the

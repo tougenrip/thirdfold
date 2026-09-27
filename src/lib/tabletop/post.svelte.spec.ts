@@ -410,3 +410,82 @@ describe.skipIf(BACKEND === 'webgpu')('bloom', () => {
 		expect(renderer.info.memory.programs).toBe(programs);
 	});
 });
+
+describe.skipIf(BACKEND === 'webgpu')('the output stage', () => {
+	/**
+	 * A 200×200 frame of `world` (a checker plane and a flame, or black), every lens effect and
+	 * the bloom at `lens` strength, drawn at clock `now`: its pixels.
+	 */
+	async function frame(world: 'checker' | 'black', lens: 0 | 1, now = 0) {
+		const canvas = document.createElement('canvas');
+		renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
+		renderer.setSize(200, 200, false);
+		const scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x000000);
+		if (world === 'checker') {
+			const data = new Uint8Array(16 * 16 * 4);
+			for (let i = 0; i < 256; i++)
+				data.fill(((i % 16) + (i >> 4)) % 2 ? 230 : 40, i * 4, i * 4 + 4);
+			const checker = new THREE.DataTexture(data, 16, 16);
+			checker.needsUpdate = true;
+			const plane = new THREE.Mesh(
+				new THREE.PlaneGeometry(2, 2),
+				new THREE.MeshBasicMaterial({ map: checker })
+			);
+			const flame = new THREE.Mesh(
+				new THREE.SphereGeometry(0.1),
+				new THREE.MeshStandardMaterial({ emissive: 0xffa040, emissiveIntensity: 4 })
+			);
+			flame.position.z = 0.1;
+			scene.add(plane, flame);
+		}
+		const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+		camera.position.z = 5;
+		const post = new Post(renderer, scene, camera, new THREE.Scene());
+		post.set(settingsFor('high', 'webgl2'));
+		const u = post.uniforms;
+		if (lens === 0) u.vignette.value = u.aberration.value = u.bloomStrength.value = 0;
+		else {
+			u.vignette.value = 1;
+			u.aberration.value = 0.05;
+			u.bloomStrength.value = 1;
+		}
+		(post as unknown as { grain: number }).grain = lens ? 0.2 : 0;
+		for (let i = 0; i < 3; i++) {
+			advanceNodeFrame(renderer);
+			post.render(now);
+		}
+		const gl = (renderer.backend as unknown as { gl: WebGL2RenderingContext }).gl;
+		const px = new Uint8Array(200 * 200 * 4);
+		gl.readPixels(0, 0, 200, 200, gl.RGBA, gl.UNSIGNED_BYTE, px);
+		renderer.dispose();
+		renderer = null;
+		return px;
+	}
+	const at = (px: Uint8Array, x: number, y: number) => [
+		...px.slice((y * 200 + x) * 4, (y * 200 + x) * 4 + 3)
+	];
+
+	it('keeps black exactly black with every effect at full strength', async () => {
+		const px = await frame('black', 1, 1234);
+		expect(Math.max(...px.filter((_, i) => i % 4 !== 3))).toBe(0);
+	});
+
+	it('leaves the centre alone and fringes the edges', async () => {
+		const plain = await frame('checker', 0);
+		const lens = await frame('checker', 1);
+		// Off the flame's glow, at the centre row: the middle barely moves, the edge does.
+		const diff = (x: number, y: number) =>
+			at(plain, x, y).reduce((d, c, i) => d + Math.abs(c - at(lens, x, y)[i]), 0);
+		expect(diff(62, 100)).toBeLessThan(diff(3, 100));
+		expect(diff(3, 100)).toBeGreaterThan(20);
+	});
+
+	it('draws the same grain and dither for the same clock, and moves them with it', async () => {
+		const a = await frame('checker', 1, 5000);
+		const b = await frame('checker', 1, 5000);
+		const c = await frame('checker', 1, 6000);
+		expect(a.every((v, i) => v === b[i])).toBe(true);
+		expect(a.some((v, i) => v !== c[i])).toBe(true);
+	});
+});

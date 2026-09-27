@@ -81,7 +81,7 @@ export async function createTabletop(
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
 	const overlay = new OverlayLayer();
-	const post = new Post(renderer, scene, camera, overlay.scene);
+	const post = new Post(renderer, scene, camera, overlay.scene, () => reducedMotion);
 	const { sun } = lights;
 
 	const table = new TableLayer();
@@ -190,7 +190,7 @@ export async function createTabletop(
 	function drawScene(): void {
 		renderer.info.reset();
 		advanceNodeFrame(renderer);
-		post.render();
+		post.render(clock());
 	}
 
 	function render(): FrameReport {

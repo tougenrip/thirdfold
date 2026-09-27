@@ -15,7 +15,7 @@
 
 	/**
 	 * The Graphics menu (#154): a quality preset, and apart from it the advanced options (resolution,
-	 * antialiasing, ambient occlusion, bloom, shadows, frame rate), the tone mapper (#158), the
+	 * antialiasing, ambient occlusion, bloom, the lens effects, shadows, frame rate), the tone mapper (#158), the
 	 * compatibility backend and the power saver, as this viewer sets them for this browser. Choosing
 	 * a preset sets every option to its values; changing an option afterwards keeps that change on
 	 * top. Local only: nothing here reaches the room. `inline` opens it in place (the side sheet on
@@ -70,6 +70,9 @@
 		{ key: 'msaa', name: 'Antialiasing', labels: ['Off', 'MSAA 4×'] },
 		{ key: 'ao', name: 'Ambient occlusion', labels: ['Off', 'On'] },
 		{ key: 'bloom', name: 'Bloom', labels: ['Off', 'On'] },
+		{ key: 'vignette', name: 'Vignette', labels: ['Off', 'On'] },
+		{ key: 'aberration', name: 'Chromatic aberration', labels: ['Off', 'On'] },
+		{ key: 'grain', name: 'Film grain', labels: ['Off', 'On'] },
 		{ key: 'sunShadowSize', name: 'Shadows', labels: ['Low', 'Medium', 'High'] },
 		{ key: 'fpsCap', name: 'Frame rate', labels: ['30', '60'] }
 	];

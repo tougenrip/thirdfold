@@ -285,6 +285,28 @@ and never reaches 95% in any channel, while our brazier cores already clip towar
 ACES, and the glow adds to them. The fire's own colour (#115, #312) and the grade (#162) are what
 bring it back, not a weaker bloom.
 
+## Milestone 63: the lens (#161)
+
+`docs/look/m63-lens/` against `m63-bloom`: a dark-purple vignette at the corners, colour fringes
+toward the edges, grain (off in the strips, which draw with reduced motion) and dither.
+
+| Reference | distance before | after | vignette (reference) | before | after |
+| --------- | --------------- | ----- | -------------------- | ------ | ----- |
+| 1         | 0.170           | 0.175 | 0.611                | 0.581  | 0.522 |
+| 2         | 0.286           | 0.298 | 0.926                | 0.740  | 0.666 |
+| 3         | 0.139           | 0.138 | 0.497                | 0.752  | 0.672 |
+| 4         | 0.148           | 0.144 | 0.575                | 0.978  | 0.874 |
+| 6         | 0.261           | 0.259 | 0.906                | 0.454  | 0.409 |
+| 7         | 0.128           | 0.131 | 0.840                | 1.024  | 0.924 |
+| 8         | 0.195           | 0.203 | 0.952                | 0.678  | 0.610 |
+
+The vignette metric (the outer ring's luminance over the centre's) moves toward refs 3, 4 and 7
+and away from 1, 2, 6 and 8. In those four our light already sits in the middle of the frame (a
+lamp at the centre, dark walls round it), so our edges are darker than the references' before any
+vignette; theirs are lit by ambient and sky light we do not have yet (#114, #115). The vignette's
+strength is the owner's call in review; each of the three lens effects is its own Graphics
+option.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:
