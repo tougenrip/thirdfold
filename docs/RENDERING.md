@@ -509,6 +509,16 @@ passes, in order:
   mask slot keeps one filter (nearest for floor and fog, linear for darkness), because WebGPU fixes
   a sampler's filtering when the material compiles. With `?off=post` the overlay scene is drawn
   over the world on the canvas, without tone mapping.
+  - **The grid shows only when wanted** (#167): hidden at rest (the tiles' seams are the grid),
+    shown while the GM's Build panel is open, while placing a token or an enemy, and while a hover
+    highlight aims a move, or always with the Graphics menu's Always show grid (`alwaysGrid` in
+    `thirdfold:graphics`). `Tabletop.setGridShown` only sets the lines' `visible`: one draw call
+    fewer at rest, nothing compiled.
+- **Each ambient band has its own hues** (#167, interim until the sky of #114): `PRESETS` in
+  `lighting.ts` gives the hemisphere a sky and a ground colour and the darkness overlay a tint per
+  band (moon-blue over deep blue at night with a navy dark, peach over slate at dusk, day's warm
+  pair). Only colours change, so a change of band compiles nothing; the overlay's alpha still comes
+  from `lightLevels`, and a dark area takes night's hue at any hour.
 - **The prepass** draws opaque objects with no MSAA: the overlay's depth, normals for AO (#159)
   and depth of field (#165), and with TRAA each pixel's velocity (half-float).
 - **Only a change of stages rebuilds.** `Post.set` compares the prepass, the samples, the

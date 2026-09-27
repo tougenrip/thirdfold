@@ -45,16 +45,6 @@ import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
 import { WallLayer } from './walls';
 
-export type {
-	CameraView,
-	HighlightKind,
-	Pick,
-	PreviewItem,
-	Tabletop,
-	TabletopEvents,
-	TabletopOptions
-} from './types';
-
 export async function createTabletop(
 	canvas: HTMLCanvasElement,
 	events: TabletopEvents,
@@ -388,6 +378,9 @@ export async function createTabletop(
 		},
 		setSelected(tokenId) {
 			if (tokenLayer.setSelected(tokenId)) requestRender();
+		},
+		setGridShown(shown) {
+			if (overlay.setGridShown(shown)) requestRender();
 		},
 		setFallen(tokenIds) {
 			fallen = new Set(tokenIds);

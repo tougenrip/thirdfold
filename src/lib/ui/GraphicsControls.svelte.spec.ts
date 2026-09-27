@@ -77,6 +77,15 @@ describe('the Graphics menu', () => {
 		// Miniature is off in every preset already: nothing to keep.
 	});
 
+	it('saves Always show grid, off by default', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		const always = page.getByRole('checkbox', { name: /Always show grid/ });
+		await expect.element(always).not.toBeChecked();
+		await userEvent.click(always);
+		expect(loadGraphics(localStorage).alwaysGrid).toBe(true);
+	});
+
 	it('forgets an option set back to the value of its preset', async () => {
 		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { aa: 'off' } });
 		mount();

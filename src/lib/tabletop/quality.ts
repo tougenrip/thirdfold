@@ -362,6 +362,8 @@ export interface GraphicsPrefs {
 	powerSaver: boolean;
 	/** How the picture's light is mapped to the screen: taste, not cost (#158). */
 	toneMapper: ToneMapper;
+	/** Grid lines at all times, not only while building, placing or aiming a move (#167). */
+	alwaysGrid: boolean;
 	/** The tier refinement settled on for this device, when `auto`. */
 	measured?: Tier;
 }
@@ -371,7 +373,8 @@ export const DEFAULT_GRAPHICS: GraphicsPrefs = {
 	overrides: {},
 	compatibility: false,
 	powerSaver: false,
-	toneMapper: GRADE_TONE_MAPPER
+	toneMapper: GRADE_TONE_MAPPER,
+	alwaysGrid: false
 };
 
 const GRAPHICS_KEY = 'thirdfold:graphics';
@@ -390,7 +393,8 @@ export function loadGraphics(storage: Pick<Storage, 'getItem'>): GraphicsPrefs {
 			powerSaver: r.powerSaver === true,
 			toneMapper: TONE_MAPPERS.includes(r.toneMapper as ToneMapper)
 				? (r.toneMapper as ToneMapper)
-				: GRADE_TONE_MAPPER
+				: GRADE_TONE_MAPPER,
+			alwaysGrid: r.alwaysGrid === true
 		};
 		if (isTier(r.measured)) prefs.measured = r.measured;
 		return prefs;

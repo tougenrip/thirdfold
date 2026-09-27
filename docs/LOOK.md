@@ -353,6 +353,33 @@ the pivot stays sharp, and the labels and markers, drawn over the finished image
 (#157). How much blur reads as a miniature, not a smear, is the owner's call in review:
 `FOCAL_SHARE` and the per-tier bokeh in `focus.ts` are the knobs.
 
+## Milestone 63: the grid at rest, night and dusk (#167)
+
+`docs/look/m63-night/` against `m63-grade` (both without depth of field, as the metrics draw):
+the grid lines are gone at rest (the tiles' seams are the grid; they show while the GM builds,
+while placing and while aiming a move, or always with the Graphics menu's Always show grid), and
+each ambient band has its own hemisphere and darkness hue in `PRESETS` (`lighting.ts`): day keeps
+its warm pair, dusk a peach sky over a slate-blue ground, night a moon-blue sky over a deep blue
+ground with a navy darkness and background.
+
+| Reference | band | distance before | after |
+| --------- | ---- | --------------- | ----- |
+| 1         | dark | 0.176           | 0.161 |
+| 2         | dusk | 0.297           | 0.307 |
+| 3         | dark | 0.144           | 0.123 |
+| 4         | dark | 0.138           | 0.121 |
+| 6         | dark | 0.238           | 0.221 |
+| 7         | day  | 0.112           | 0.112 |
+| 8         | dusk | 0.210           | 0.207 |
+
+Every night pairing moves toward its reference: the dark around the pools of light is blue, as in
+refs 1, 4 and 6, not brown. Dusk is mixed: ref 8's town block moves a little closer, ref 2's
+monastery a little away (its reference dusk is warmer and brighter than ours, which the sky of
+#114 supplies). The darkness overlay's alpha still comes from `lightLevels` and the fog still
+draws over it, so unexplored cells stay black and dark cells as dark as the rules say: only their
+hue changed. These colours are interim: #208 blends them by the hour and #218 and the art bible
+(#183) own the final palette.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

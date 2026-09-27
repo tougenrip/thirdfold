@@ -41,6 +41,8 @@ export class OverlayLayer {
 	readonly scene = new THREE.Scene();
 	private follows = new Map<THREE.Object3D, THREE.Group>();
 	private grid: THREE.LineSegments | null = null;
+	/** Hidden at rest (#167): `setGridShown`. */
+	private gridShown = false;
 	/** What lies over the grid lines: painted floors, the fog and the darkness. */
 	private readonly masks = CLEAR.map((c) => texture(c));
 	private readonly size = uniform(new THREE.Vector2(1, 1));
@@ -97,7 +99,16 @@ export class OverlayLayer {
 		geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
 		this.size.value.set(w, d);
 		this.grid = new THREE.LineSegments(geometry, this.gridMaterial);
+		this.grid.visible = this.gridShown;
 		this.scene.add(this.grid);
+	}
+
+	/** Shows or hides the grid lines, now and for tables to come; true when that changed anything. */
+	setGridShown(shown: boolean): boolean {
+		if (shown === this.gridShown) return false;
+		this.gridShown = shown;
+		if (this.grid) this.grid.visible = shown;
+		return true;
 	}
 
 	/** The floor's, the fog's and the darkness's textures (null where there is none). */

@@ -38,13 +38,7 @@
 	import type { DiceThrow } from './dice3d';
 	import type { FogMode } from './fog';
 	import type { PerfStats } from './perf';
-	import type {
-		CameraView,
-		HighlightKind,
-		PreviewItem,
-		Tabletop,
-		TabletopEvents
-	} from './renderer';
+	import type { CameraView, HighlightKind, PreviewItem, Tabletop, TabletopEvents } from './types';
 	import { loadRenderer } from './load';
 	import TableOverlays from './TableOverlays.svelte';
 	import {
@@ -85,6 +79,8 @@
 		preview?: readonly PreviewItem[];
 		selectedId?: string | null;
 		highlight?: { cell: GridPos; kind: HighlightKind } | null;
+		/** Grid lines wanted now: building, placing or aiming a move (#167). */
+		gridShown?: boolean;
 		view?: CameraView;
 		/** Tokens drawn lying down (fallen characters). */
 		fallen?: readonly string[];
@@ -124,6 +120,7 @@
 		preview = [],
 		selectedId = null,
 		highlight = null,
+		gridShown = false,
 		view = 'tactical',
 		fallen = [],
 		floats = [],
@@ -431,6 +428,10 @@
 
 	$effect(() => {
 		tabletop?.setHighlight(highlight?.cell ?? null, highlight?.kind ?? 'move');
+	});
+
+	$effect(() => {
+		tabletop?.setGridShown(gridShown || !!graphics?.alwaysGrid);
 	});
 
 	$effect(() => {

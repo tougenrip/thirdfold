@@ -208,6 +208,24 @@ describe('the renderer', () => {
 		expect(again.programs).toBe(back.programs);
 	});
 
+	// #167: the tiles' seams are the grid; lines show only while building, placing or aiming.
+	it('draws no grid lines at rest, one draw call when shown, compiling nothing', async () => {
+		const { tabletop } = await mount('village', 'gm');
+		await settle(tabletop);
+		const draw = async (shown: boolean) => {
+			tabletop.setGridShown(shown);
+			await settle(tabletop);
+			await tabletop.benchmark(1);
+			return tabletop.stats();
+		};
+		const rest = await draw(false);
+		const shown = await draw(true);
+		expect(shown.drawCalls).toBe(rest.drawCalls + 1);
+		const again = await draw(false);
+		expect(again.drawCalls).toBe(rest.drawCalls);
+		expect(again.programs).toBe(shown.programs);
+	});
+
 	it('compiles nothing new the second time round the times of day', async () => {
 		const { tabletop } = await mount('village', 'gm');
 		const view = await loadView('village', 'day', 'gm');

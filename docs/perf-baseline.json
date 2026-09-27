@@ -7,49 +7,49 @@
 			"ambient": "dusk",
 			"viewers": {
 				"Gia": {
-					"geometries": 44,
-					"textures": 59,
-					"programs": 135,
-					"heap": 15695744
+					"geometries": 43,
+					"textures": 56,
+					"programs": 133,
+					"heap": 15660888
 				},
 				"Ana": {
-					"geometries": 44,
-					"textures": 59,
-					"programs": 135,
-					"heap": 15939912
+					"geometries": 43,
+					"textures": 56,
+					"programs": 133,
+					"heap": 15913872
 				},
 				"Ben": {
-					"geometries": 44,
-					"textures": 59,
-					"programs": 135,
-					"heap": 15944564
+					"geometries": 43,
+					"textures": 56,
+					"programs": 133,
+					"heap": 15878452
 				}
 			},
 			"idleFrames": 0,
-			"orbitDrawCalls": 122,
+			"orbitDrawCalls": 121,
 			"orbitShadowPasses": 0
 		}
 	},
 	"reload": {
 		"first": {
-			"geometries": 44,
-			"textures": 59,
-			"programs": 135,
-			"heap": 16484212
+			"geometries": 43,
+			"textures": 56,
+			"programs": 133,
+			"heap": 16455720
 		},
 		"after": {
-			"geometries": 44,
-			"textures": 59,
-			"programs": 135,
-			"heap": 16765264
+			"geometries": 43,
+			"textures": 56,
+			"programs": 133,
+			"heap": 16742524
 		}
 	},
 	"remount": {
 		"first": {
-			"geometries": 44,
+			"geometries": 43,
 			"textures": 56,
-			"programs": 131,
-			"heap": 15176748
+			"programs": 129,
+			"heap": 15160800
 		}
 	},
 	"tiers": {
@@ -71,27 +71,27 @@
 	},
 	"bundle": {
 		"/": {
-			"gz": 57802,
+			"gz": 57795,
 			"own": 16669,
 			"three": false
 		},
 		"/builder": {
-			"gz": 88304,
-			"own": 47171,
+			"gz": 88294,
+			"own": 47168,
 			"three": false
 		},
 		"/library": {
-			"gz": 60044,
-			"own": 18911,
+			"gz": 60032,
+			"own": 18906,
 			"three": false
 		},
 		"/room/[id]": {
-			"gz": 115765,
-			"own": 74632,
+			"gz": 115922,
+			"own": 74796,
 			"three": false
 		},
 		"renderer (added)": {
-			"gz": 303853,
+			"gz": 304030,
 			"own": null,
 			"three": true
 		}

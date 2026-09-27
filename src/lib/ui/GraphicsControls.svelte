@@ -222,6 +222,14 @@
 			<label class="switch">
 				<input
 					type="checkbox"
+					checked={graphics.alwaysGrid}
+					onchange={(e) => onchange({ ...graphics, alwaysGrid: e.currentTarget.checked })}
+				/>
+				Always show grid, not only while building, placing or moving
+			</label>
+			<label class="switch">
+				<input
+					type="checkbox"
 					checked={graphics.powerSaver}
 					onchange={(e) => onchange({ ...graphics, powerSaver: e.currentTarget.checked })}
 				/>

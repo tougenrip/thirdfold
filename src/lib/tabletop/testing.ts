@@ -20,7 +20,8 @@ import { labelFontReady } from './label-font';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
 import { settingsFor, toneMapperFrom } from './quality';
-import { createTabletop, type Tabletop, type TabletopEvents } from './renderer';
+import { createTabletop } from './renderer';
+import type { Tabletop, TabletopEvents } from './types';
 
 export type Band = 'day' | 'dusk' | 'dark';
 export type Viewer = 'gm' | 'player' | 'spectator';
