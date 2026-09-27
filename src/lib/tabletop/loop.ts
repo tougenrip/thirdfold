@@ -106,6 +106,8 @@ export async function createNodeRenderer(
 		options.onLost?.({ api: info.api, message: info.message });
 	};
 	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
+	// Clear to transparent: every scene has a background, and the overlay's pass (post.ts) has none.
+	renderer.setClearColor(0x000000, 0);
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;

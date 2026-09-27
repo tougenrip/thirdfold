@@ -12,6 +12,7 @@ import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
 import { loadModel, modelNow } from './models';
+import type { OverlayLayer } from './overlay';
 
 interface Entry {
 	root: THREE.Group;
@@ -25,6 +26,8 @@ interface Entry {
 	/** Hidden from the players: the GM sees it see-through. */
 	hidden: boolean;
 	body: THREE.MeshStandardMaterial;
+	/** In the overlay, following `root`: the label and floats. */
+	tag: THREE.Group;
 	label: THREE.Sprite;
 	name: string;
 	color: string;
@@ -66,7 +69,7 @@ function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite 
 	ctx.textAlign = 'center';
 	ctx.textBaseline = 'middle';
 	const width = Math.min(ctx.measureText(name).width + 28, 256);
-	ctx.fillStyle = 'rgba(20, 15, 11, 0.9)';
+	ctx.fillStyle = 'rgba(20, 15, 11, 0.78)';
 	ctx.beginPath();
 	ctx.roundRect((256 - width) / 2, 8, width, 48, 12);
 	ctx.fill();
@@ -112,6 +115,8 @@ export class TokenLayer {
 	 * floats run on `clock`, the tabletop's (ms), not on frame steps.
 	 */
 	constructor(
+		/** Where labels, floats, the ring and the marker draw, untouched by post-processing. */
+		private readonly overlay: OverlayLayer,
 		private readonly onModel: () => void = () => {},
 		private readonly clock: () => number = () => performance.now()
 	) {
@@ -172,10 +177,10 @@ export class TokenLayer {
 				changed = true;
 			}
 			if (entry.name !== token.name) {
-				entry.root.remove(entry.label);
+				entry.tag.remove(entry.label);
 				disposeLabel(entry.label);
 				entry.label = makeLabel(token.name);
-				entry.root.add(entry.label);
+				entry.tag.add(entry.label);
 				entry.name = token.name;
 				changed = true;
 			}
@@ -200,6 +205,7 @@ export class TokenLayer {
 			if (seen.has(id)) continue;
 			this.dropFloats(id);
 			this.group.remove(entry.root);
+			this.overlay.unfollow(entry.root);
 			disposeLabel(entry.label);
 			entry.body.dispose();
 			entry.paint.dispose();
@@ -256,7 +262,7 @@ export class TokenLayer {
 		const stacked = this.floats.filter((f) => f.tokenId === tokenId).length;
 		sprite.position.y = LABEL_HEIGHT + 0.35 + stacked * 0.35;
 		sprite.renderOrder = 2;
-		entry.root.add(sprite);
+		entry.tag.add(sprite);
 		this.floats.push({ sprite, tokenId, born: this.clock(), baseY: sprite.position.y });
 		return true;
 	}
@@ -289,10 +295,10 @@ export class TokenLayer {
 	/** Draws every name label again (once the label font has loaded). */
 	relabel(): void {
 		for (const entry of this.entries.values()) {
-			entry.root.remove(entry.label);
+			entry.tag.remove(entry.label);
 			disposeLabel(entry.label);
 			entry.label = makeLabel(entry.name);
-			entry.root.add(entry.label);
+			entry.tag.add(entry.label);
 		}
 	}
 
@@ -300,11 +306,14 @@ export class TokenLayer {
 		for (const f of this.floats) disposeLabel(f.sprite);
 		this.floats = [];
 		for (const entry of this.entries.values()) {
+			this.overlay.unfollow(entry.root);
 			disposeLabel(entry.label);
 			entry.body.dispose();
 			entry.paint.dispose();
 		}
 		this.entries.clear();
+		this.ring.removeFromParent();
+		this.marker.removeFromParent();
 		(this.ring.material as THREE.Material).dispose();
 		this.marker.geometry.dispose();
 		(this.marker.material as THREE.Material).dispose();
@@ -327,9 +336,11 @@ export class TokenLayer {
 			vertexColors: true
 		});
 		const label = makeLabel(token.name);
-		root.add(base, figure, label);
+		root.add(base, figure);
 		root.position.copy(at);
 		this.group.add(root);
+		const tag = this.overlay.follow(root);
+		tag.add(label);
 
 		const entry: Entry = {
 			root,
@@ -339,6 +350,7 @@ export class TokenLayer {
 			fallen: false,
 			hidden: false,
 			body,
+			tag,
 			label,
 			name: token.name,
 			color: token.color,
@@ -401,7 +413,11 @@ export class TokenLayer {
 	}
 
 	private dropFloats(tokenId: string): void {
-		for (const f of this.floats) if (f.tokenId === tokenId) disposeLabel(f.sprite);
+		for (const f of this.floats) {
+			if (f.tokenId !== tokenId) continue;
+			f.sprite.removeFromParent();
+			disposeLabel(f.sprite);
+		}
 		this.floats = this.floats.filter((f) => f.tokenId !== tokenId);
 	}
 
@@ -411,7 +427,7 @@ export class TokenLayer {
 		const markerWas = this.marker.visible;
 		this.marker.visible = !!active;
 		if (active) {
-			if (!this.marker.parent) this.group.add(this.marker);
+			if (!this.marker.parent) this.overlay.scene.add(this.marker);
 			const size = this.grid?.cellSize ?? 1;
 			this.marker.position.set(
 				active.root.position.x,
@@ -424,7 +440,7 @@ export class TokenLayer {
 		const wasVisible = this.ring.visible;
 		this.ring.visible = !!entry;
 		if (entry) {
-			if (!this.ring.parent) this.group.add(this.ring);
+			if (!this.ring.parent) this.overlay.scene.add(this.ring);
 			this.ring.position.set(
 				entry.root.position.x,
 				entry.root.position.y + 0.012,

@@ -1,8 +1,10 @@
 // Post-processing (milestone 63, #156): one RenderPipeline per quality tier
 // that every M63 effect plugs into. An opaque prepass (medium and up) writes
-// depth, 8-bit view normals and velocity for AO, TRAA and depth of field; the
+// depth and 8-bit view normals for the overlay, AO and depth of field; the
 // scene pass draws half-float colour with an 8-bit emissive attachment for
-// bloom; the output stage tone maps and converts to sRGB once. Inside the
+// bloom; the output stage tone maps and converts to sRGB once; then the overlay
+// (overlay.ts: labels, markers, highlights, previews, grid lines) is laid over
+// it, depth-tested against the world and untouched by any of it. Inside the
 // pipeline every pass renders linear with no tone mapping, so a material's
 // `toneMapped: false` no longer means anything: the whole frame is tone mapped
 // at the end. Every knob is a uniform, so changing one never recompiles; only a
@@ -13,14 +15,15 @@
 import * as THREE from 'three/webgpu';
 import {
 	emissive,
+	max,
+	mix,
 	mrt,
 	normalView,
 	output,
 	packNormalToRGB,
 	renderOutput,
 	uniform,
-	vec4,
-	velocity
+	vec4
 } from 'three/tsl';
 import type { QualitySettings } from './quality';
 
@@ -33,9 +36,12 @@ export interface Stages {
 	samples: number;
 }
 
-/** The stages a tier's settings call for (low: none but the scene pass). */
+/**
+ * The stages a tier's settings call for. The overlay tests depth against a pass without MSAA:
+ * the prepass, or on low (no prepass, no MSAA) the scene pass itself.
+ */
 export function stagesFor(settings: QualitySettings): Stages {
-	return { prepass: settings.tier !== 'low', samples: settings.msaa };
+	return { prepass: settings.tier !== 'low' || settings.msaa > 0, samples: settings.msaa };
 }
 
 /**
@@ -48,6 +54,30 @@ class PrePassNode extends THREE.PassNode {
 		const node = super.setup(builder);
 		this.renderTarget.texture.type = THREE.UnsignedByteType;
 		return node;
+	}
+}
+
+/**
+ * The overlay's pass: it keeps the world's depth (the depth source's texture, not cleared) and
+ * has that pass drawn first; NodeFrame draws a pass once a frame, however often it is asked.
+ */
+class OverlayPassNode extends THREE.PassNode {
+	constructor(
+		scene: THREE.Scene,
+		camera: THREE.Camera,
+		private readonly depthFrom: THREE.PassNode
+	) {
+		super(THREE.PassNode.COLOR, scene, camera, {
+			samples: 0,
+			depthTexture: depthFrom.renderTarget.depthTexture!
+		});
+		this.name = 'overlay';
+		this.autoClearDepth = false;
+	}
+
+	updateBefore(frame: THREE.NodeFrame) {
+		frame.updateBeforeNode(this.depthFrom);
+		return super.updateBefore(frame);
 	}
 }
 
@@ -67,10 +97,14 @@ export class Post {
 	prepass: THREE.PassNode | null = null;
 	scenePass: THREE.PassNode | null = null;
 
+	overlayPass: THREE.PassNode | null = null;
+
 	constructor(
 		private readonly renderer: THREE.WebGPURenderer,
 		private readonly scene: THREE.Scene,
-		private readonly camera: THREE.Camera
+		private readonly camera: THREE.Camera,
+		/** The overlay's scene: no background, so its pass clears to transparent. */
+		private readonly overlay: THREE.Scene
 	) {}
 
 	/** Applies a tier: rebuilds the pipeline only when its stages change. */
@@ -95,13 +129,22 @@ export class Post {
 	render(): void {
 		for (const { effect, on, strength } of this.gates)
 			effect.updateBeforeType = strength.value > 0 ? on : THREE.NodeUpdateType.NONE;
-		if (this.pipeline) this.pipeline.render();
-		else this.renderer.render(this.scene, this.camera);
+		if (this.pipeline) return this.pipeline.render();
+		const { renderer } = this;
+		renderer.render(this.scene, this.camera);
+		// Over it, on the same depth, not tone mapped.
+		const { autoClear, toneMapping } = renderer;
+		renderer.autoClear = false;
+		renderer.toneMapping = THREE.NoToneMapping;
+		renderer.render(this.overlay, this.camera);
+		renderer.autoClear = autoClear;
+		renderer.toneMapping = toneMapping;
 	}
 
 	/**
-	 * The targets the table's materials draw into, for the warm-up to compile against. The
-	 * prepass draws only once an effect samples it (AO, TRAA, depth of field), so it joins then.
+	 * The targets the table's materials draw into, for the warm-up to compile against: the scene
+	 * pass. Not the prepass: compiled outside its pass on WebGPU, some of its pipelines come out
+	 * invalid (a colour target the fragment stage never writes), so it compiles when first drawn.
 	 */
 	targets(): PassTarget[] {
 		return [this.scenePass].flatMap((p) =>
@@ -122,9 +165,9 @@ export class Post {
 			const prepass = new PrePassNode(THREE.PassNode.COLOR, scene, camera, { samples: 0 });
 			prepass.name = 'prepass';
 			prepass.transparent = false;
-			prepass.setMRT(mrt({ output: packNormalToRGB(normalView), velocity }));
-			// Velocity is cloned from the colour texture while it is still half-float.
-			prepass.getTexture('velocity').type = halfFloat;
+			// View normals only for now. A velocity attachment (for TRAA, #163) made WebGPU
+			// pipelines that write fewer outputs than the target has, which aborts the frame.
+			prepass.setMRT(mrt({ output: packNormalToRGB(normalView) }));
 			prepass.renderTarget.texture.type = THREE.UnsignedByteType;
 			this.prepass = prepass;
 		}
@@ -142,11 +185,21 @@ export class Post {
 		scenePass.renderTarget.texture.type = halfFloat;
 		this.scenePass = scenePass;
 
+		const overlayPass = new OverlayPassNode(this.overlay, camera, this.prepass ?? scenePass);
+		overlayPass.renderTarget.texture.type = halfFloat;
+		this.overlayPass = overlayPass;
+
 		const color = scenePass.getTextureNode('output');
 		const pipeline = new THREE.RenderPipeline(renderer);
 		pipeline.outputColorTransform = false;
 		const exposed = vec4(color.rgb.mul(this.uniforms.exposure), color.a);
-		pipeline.outputNode = renderOutput(exposed, TONE_MAPPING, THREE.SRGBColorSpace);
+		const world = renderOutput(exposed, TONE_MAPPING, THREE.SRGBColorSpace);
+		// The overlay is premultiplied and linear: straighten it, encode it to sRGB (no tone
+		// mapping) and lay it over the finished image, as the classic renderer blended it.
+		const over = overlayPass.getTextureNode('output');
+		const straight = vec4(over.rgb.div(max(over.a, 1e-4)), 1);
+		const shown = renderOutput(straight, THREE.NoToneMapping, THREE.SRGBColorSpace);
+		pipeline.outputNode = vec4(mix(world.rgb, shown.rgb, over.a), 1);
 		this.pipeline = pipeline;
 	}
 
@@ -154,7 +207,8 @@ export class Post {
 		this.pipeline?.dispose();
 		this.prepass?.dispose();
 		this.scenePass?.dispose();
-		this.pipeline = this.prepass = this.scenePass = null;
+		this.overlayPass?.dispose();
+		this.pipeline = this.prepass = this.scenePass = this.overlayPass = null;
 		this.stages = null;
 		this.gates = [];
 	}

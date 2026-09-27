@@ -203,6 +203,11 @@ export class LightingLayer {
 	}
 
 	/** Gives the pool's point lights to the strongest sources; the rest stay dark (the overlay still shows them). */
+	/** The darkness overlay's per-cell texture while it shows (for the grid lines, overlay.ts). */
+	get darkMask(): THREE.DataTexture | null {
+		return this.overlay.visible ? this.texture : null;
+	}
+
 	/** How lit each cell looks after the last update (null: all of it, by day). For raised ground. */
 	get cellBrightness(): Float32Array | null {
 		return this.brightness;

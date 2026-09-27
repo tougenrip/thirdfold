@@ -306,12 +306,13 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
 | `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
 | `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
-| `table.ts`        | The slab, surface and grid lines, dressed by the environment                                                                     |
+| `table.ts`        | The slab and surface, dressed by the environment                                                                                 |
 | `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
 | `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
 | `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
 | `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
 | `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
+| `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
 
 ## Quality tiers
@@ -465,23 +466,44 @@ passes, in order:
 
 | Pass      | Tiers      | Draws                                    | Attachments                                                                      |
 | --------- | ---------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
-| `prepass` | medium, up | Opaque only, no MSAA                     | `output`: view normals, 8-bit (`packNormalToRGB`); `velocity`, half-float; depth |
 | `scene`   | all        | Everything, with the tier's MSAA samples | `output`: colour, half-float; `emissive`, 8-bit, blended like colour; depth      |
-| output    | all        | A full-screen quad                       | `renderOutput`: exposure, then the tone mapper (`TONE_MAPPING`), then sRGB       |
+| `prepass` | medium, up | Opaque only, no MSAA                     | `output`: view normals, 8-bit (`packNormalToRGB`); depth                         |
+| `overlay` | all        | The overlay's scene (`overlay.ts`)       | `output`: premultiplied, half-float; the prepass's depth (low: the scene pass's) |
+| output    | all        | A full-screen quad                       | `renderOutput`: exposure, the tone mapper (`TONE_MAPPING`), sRGB; the overlay    |
 
 - **Tone mapping happens once, at the end.** Inside the pipeline every pass draws linear with no
   tone mapping, so a material's `toneMapped: false` no longer means anything; the fog plane, the
   darkness overlay and the mist are tone mapped with the rest (black stays black). Exposure is
   `uniforms.exposure`; `renderer.toneMappingExposure` stays 1 and `renderer.toneMapping` never
   changes while drawing, since `RenderPipeline` rebuilds when it does.
-- **The prepass draws only once an effect samples it** (AO #159, TRAA #163, depth of field #165):
-  a pass runs when its node is in the output graph. Until then it costs nothing.
+- **The overlay** (#157) is everything that shows game state rather than scenery: token labels
+  and floats, the selection ring, the turn marker, highlights, editor previews, the beacon and the
+  grid lines. It is its own scene (no background, so its pass clears to transparent), drawn by its
+  own pass, and laid over the finished image: straightened, encoded to sRGB without tone mapping
+  and mixed by its alpha, as the classic renderer blended it. So nothing the pipeline does to the
+  world (AO, bloom, grading, depth of field, TRAA) touches it, and its colours are the ones on
+  screen: the grid lines are back at 0.35 and label plates at 0.78 (#153 had halved them for
+  blending before tone mapping). It is depth-tested against the world, so walls and raised ground
+  still hide labels and rings: the overlay pass keeps the depth texture of a pass without MSAA
+  (the prepass, or on low the scene pass) and does not clear it, and has that pass drawn first
+  (`NodeFrame.updateBeforeNode`, once a frame however often asked). Labels and floats ride in
+  `follow` groups that copy their mini's world transform and visibility just before the overlay
+  draws. Grid lines, no longer under the floor, fog and darkness planes, fade by those planes'
+  textures (`setMasks`, one texel per cell): never over an unexplored cell, dimmer at night. Each
+  mask slot keeps one filter (nearest for floor and fog, linear for darkness), because WebGPU fixes
+  a sampler's filtering when the material compiles. With `?off=post` the overlay scene is drawn
+  over the world on the canvas, without tone mapping.
+- **The prepass** draws opaque objects with no MSAA: the overlay's depth, and normals for AO (#159)
+  and depth of field (#165). It has no velocity attachment yet: with one, WebGPU made pipelines
+  that write fewer outputs than the target holds ("Color target has no corresponding fragment
+  stage output"), which aborts the frame; TRAA (#163) adds it back and has to fix that.
 - **Only a change of stages rebuilds.** `Post.set` compares the prepass and the samples: medium,
   high and ultra share a pipeline; low (no prepass, no MSAA) has its own and compiles its own
   shaders. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
   0 (`updateBeforeType` NONE), so toggling one never recompiles.
-- **The warm-up compiles for the passes** (`Post.targets`: the scene pass's target and outputs,
-  drawn linear without tone mapping, as the pipeline draws them). The pass draws nested in the
+- **The warm-up compiles for the scene pass** (`Post.targets`: its target and outputs, drawn
+  linear without tone mapping, as the pipeline draws them). Not for the prepass: compiled outside
+  its pass on WebGPU, some of its pipelines come out invalid, so it compiles when first drawn. The pass draws nested in the
   pipeline's quad, a different render context from the warm-up's, so three builds those materials
   again at draw time; the shaders mostly come out identical and are shared, but some shadowed ones
   differ in the order of their uniform declarations, which is why the test world counts 66

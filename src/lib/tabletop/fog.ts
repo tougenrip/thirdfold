@@ -93,6 +93,11 @@ export class FogLayer {
 		this.mesh.visible = true;
 	}
 
+	/** The fog's per-cell texture while it shows (for the grid lines, overlay.ts). */
+	get mask(): THREE.DataTexture | null {
+		return this.mesh.visible ? this.texture : null;
+	}
+
 	dispose(): void {
 		this.texture?.dispose();
 		this.mesh.geometry.dispose();

@@ -37,6 +37,7 @@ import { advanceNodeFrame, createNodeRenderer, watchReducedMotion } from './loop
 import { RenderScheduler, type FrameReport } from './scheduler';
 import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
+import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
@@ -79,7 +80,8 @@ export async function createTabletop(
 	const rig = new CameraRig(canvas, FAR);
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
-	const post = new Post(renderer, scene, camera);
+	const overlay = new OverlayLayer();
+	const post = new Post(renderer, scene, camera, overlay.scene);
 	const { sun } = lights;
 
 	const table = new TableLayer();
@@ -93,7 +95,7 @@ export async function createTabletop(
 	let warmPending = true;
 	let warming: Promise<void> = Promise.resolve();
 	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
-	const tokenLayer = new TokenLayer(onModel, clock);
+	const tokenLayer = new TokenLayer(overlay, onModel, clock);
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer(clock);
 	scene.add(wallLayer.group);
@@ -134,7 +136,7 @@ export async function createTabletop(
 	const effects = new EffectsLayer();
 	scene.add(effects.group);
 	const previews = new PreviewLayer();
-	scene.add(previews.group, previews.highlight);
+	overlay.scene.add(previews.group, previews.highlight);
 	let disposed = false;
 	// Labels drawn before the label font arrived are drawn again in it.
 	void labelFontReady.then(() => {
@@ -172,6 +174,7 @@ export async function createTabletop(
 		const { ambient, lights } = lightState;
 		const seats = lightSeats(grid, props);
 		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
+		overlay.setMasks(floorLayer.mask, fogLayer.mask, lighting.darkMask);
 		// Raised ground under fog and darkness, by the same rules as the flat overlays.
 		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
 	}
@@ -283,6 +286,7 @@ export async function createTabletop(
 
 	function buildTable(g: SquareGrid): void {
 		const across = table.build(g);
+		overlay.setGrid(g);
 		applyLook();
 		extent = across;
 		fitToTable(lights, fog, camera, controls, extent);
@@ -476,8 +480,8 @@ export async function createTabletop(
 			quality.dispose();
 			stopPicking();
 			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting, post];
-			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
-				l.dispose();
+			const more = [overlay, ambience, terrainLayer, effects, propLayer, diceLayer, previews];
+			for (const l of [...layers, ...more]) l.dispose();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
 			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
