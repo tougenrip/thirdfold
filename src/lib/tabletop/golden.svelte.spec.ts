@@ -9,6 +9,7 @@
 import { page, server } from 'vitest/browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	BACKEND,
 	loadSidecar,
 	loadView,
 	manualClock,
@@ -54,8 +55,8 @@ const linux = server.platform === 'linux';
 if (import.meta.env.CI && !linux) throw new Error('Golden images are checked on Linux in CI.');
 
 let mounted: Mounted | null = null;
-afterEach(() => {
-	mounted?.unmount();
+afterEach(async () => {
+	await mounted?.unmount();
 	mounted = null;
 });
 
@@ -65,7 +66,9 @@ describe.skipIf(!linux)('golden images', () => {
 		it(`${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}`, async () => {
 			const sidecar = await loadSidecar(shot.fixture);
 			const band = shot.band === 'own' ? sidecar.ambient : shot.band;
-			const name = `${shot.fixture}-${shot.pose}-${band}-${shot.viewer}`;
+			// Each backend keeps its own references: the rasterisers differ at edges.
+			const suffix = BACKEND === 'webgpu' ? '-webgpu' : '';
+			const name = `${shot.fixture}-${shot.pose}-${band}-${shot.viewer}${suffix}`;
 			// "own" can repeat an explicit band: take each image once.
 			if (seen.has(name)) return expect(true).toBe(true);
 			seen.add(name);

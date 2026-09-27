@@ -4,6 +4,7 @@
 // fixture's named poses, so the same inputs always draw the same pixels.
 // Fixtures and views are JSON made by server/fixtures (see docs/PERFORMANCE.md).
 
+import { inject } from 'vitest';
 import { decodeFloor } from '$lib/game/floor';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient, Light } from '$lib/game/lights';
@@ -18,6 +19,7 @@ import { groundFor } from './ground';
 import { labelFontReady } from './label-font';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
+import { settingsFor } from './quality';
 import { createTabletop, type Tabletop, type TabletopEvents } from './renderer';
 
 export type Band = 'day' | 'dusk' | 'dark';
@@ -86,13 +88,30 @@ export interface Mounted {
 	canvas: HTMLCanvasElement;
 	/** The drawn frame's pixels (RGBA, bottom row first). */
 	pixels(): Uint8Array;
-	unmount(): void;
+	/** Resolves once the renderer is gone, so the next test's starts clean. */
+	unmount(): Promise<void>;
 }
 
 export const WIDTH = 800;
 export const HEIGHT = 500;
 
 /** Mounts a fixture view at a pose. Models and the environment are loaded first, so the first frame is final. */
+/** Which of WebGPURenderer's backends a client test project draws with (vite.config.ts). */
+declare module 'vitest' {
+	export interface ProvidedContext {
+		backend: 'webgl' | 'webgpu';
+	}
+}
+
+/** The backend this project draws with ('webgl' outside a Vitest browser project). */
+export const BACKEND = (() => {
+	try {
+		return inject('backend');
+	} catch {
+		return 'webgl' as const;
+	}
+})();
+
 export async function mountFixture(
 	view: FixtureView,
 	pose: GridPose,
@@ -100,6 +119,8 @@ export async function mountFixture(
 		clock?: { now: () => number };
 		reducedMotion?: boolean;
 		events?: TabletopEvents;
+		/** As under `?perf`: GPU timestamps recorded. */
+		perf?: boolean;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -113,17 +134,26 @@ export async function mountFixture(
 	const canvas = document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
 	document.body.appendChild(canvas);
-	const tabletop = createTabletop(
+	const webgpu = BACKEND === 'webgpu';
+	const tabletop = await createTabletop(
 		canvas,
 		options.events ?? { onClick: () => {}, onHover: () => {} },
 		{
 			now: (options.clock ?? manualClock()).now,
 			pixelRatio: 1,
-			preserveDrawingBuffer: true,
+			// Reading pixels back needs it, and it forces WebGL2; WebGPU tests read screenshots.
+			preserveDrawingBuffer: !webgpu,
+			backend: webgpu ? 'webgpu' : 'webgl',
+			perf: options.perf,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
 			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : true
 		}
 	);
+	const backend = tabletop.capabilities().backend;
+	// A WebGPU project that silently fell back to WebGL2 would test the wrong thing.
+	if (webgpu && backend === 'webgl2') throw new Error('Asked for WebGPU, drawing with WebGL2');
+	// One tier for every test, whatever the device suggests (a software rasteriser picks low).
+	tabletop.setQuality(settingsFor('medium', backend));
 	const size = view.grid.width * view.grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
 	// In the order the Tabletop component sets them.
@@ -142,6 +172,7 @@ export async function mountFixture(
 		tabletop,
 		canvas,
 		pixels() {
+			if (webgpu) throw new Error('pixels() reads WebGL2 only: compare screenshots on WebGPU');
 			const gl = canvas.getContext('webgl2')!;
 			const out = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
 			gl.readPixels(
@@ -155,8 +186,8 @@ export async function mountFixture(
 			);
 			return out;
 		},
-		unmount() {
-			tabletop.dispose();
+		async unmount() {
+			await tabletop.dispose();
 			canvas.remove();
 		}
 	};
@@ -175,8 +206,9 @@ export async function settle(tabletop: Tabletop, quietMs = 250, limitMs = 8000):
 	let quietSince = start;
 	while (performance.now() - start < limitMs) {
 		await nextFrame();
-		const frames = tabletop.stats().frames;
-		if (frames !== last || frames === 0) {
+		const { frames, holding } = tabletop.stats();
+		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet.
+		if (frames !== last || frames === 0 || holding) {
 			last = frames;
 			quietSince = performance.now();
 		} else if (performance.now() - quietSince >= quietMs) return;

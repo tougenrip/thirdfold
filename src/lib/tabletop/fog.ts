@@ -3,7 +3,7 @@
 // nothing is rebuilt. Presentation only: the server already withholds hidden
 // tokens and walls from players, this just darkens the floor to match.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 
@@ -15,11 +15,14 @@ export function playerVisible(fog: FogView | null, mode: FogMode, size: number):
 	return fog?.enabled && mode === 'player' ? decodeMask(fog.visible, size) : null;
 }
 
+// Blended in linear light before tone mapping, so a partial alpha lets more of a lit floor
+// through than it did after it: these match the old 150, 110 and 55 on floors of middling
+// brightness (#153). SHADE is the colour tone mapping turns into sRGB 11, 9, 8.
 const ALPHA = {
-	player: { hidden: 255, explored: 150 },
-	gm: { hidden: 110, explored: 55 }
+	player: { hidden: 255, explored: 173 },
+	gm: { hidden: 128, explored: 69 }
 } as const;
-const SHADE = [11, 9, 8];
+const SHADE = [29, 27, 25];
 
 export class FogLayer {
 	readonly mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -29,8 +32,7 @@ export class FogLayer {
 	constructor() {
 		this.mesh = new THREE.Mesh(
 			new THREE.PlaneGeometry(1, 1),
-			// Not tone-mapped, so "hidden" stays true black instead of lifting to grey.
-			new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false })
+			new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })
 		);
 		// Drawn after the other transparent floor layers (grid lines), so nothing shows through
 		// hidden cells; editor feedback is drawn later still (see renderer).

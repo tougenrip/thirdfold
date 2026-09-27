@@ -3,7 +3,7 @@
 // textures, loaded when the table first needs them. Textures are PNGs
 // loaded as images, once each, shared by every material that uses them.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { MaterialDef } from '$lib/assets/manifest';
 import { assetUrl, loadManifest } from '$lib/assets/load';
 
@@ -75,6 +75,16 @@ export async function loadEnvironment(id: string): Promise<EnvironmentLook | nul
 		)
 	);
 	return { surface, ground, walls, table };
+}
+
+/**
+ * Disposes a dressed material and its own map. Never the shared BLANK: every
+ * tabletop's materials use it, and disposing it destroys it in every renderer
+ * (another tabletop's draws that bind it drop out, #151).
+ */
+export function undress(material: THREE.MeshStandardMaterial): void {
+	if (material.map && material.map !== BLANK) material.map.dispose();
+	material.dispose();
 }
 
 /**

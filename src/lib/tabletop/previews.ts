@@ -3,7 +3,7 @@
 // and the highlighted cell. They reuse a few geometries and materials; only
 // transforms change.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { cornerToWorld, gridToWorld, type GridPos, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { HighlightKind, PreviewItem } from './types';

@@ -10,12 +10,11 @@
 // same table always draws the same pixels. Only perf.ts timings keep
 // performance.now(): they measure cost, not animation.
 //
-// The pieces live beside it: types.ts (the Tabletop interface), camera.ts
-// (views, shots), picking.ts (pointer to grid), table.ts (slab, surface, grid
-// lines), scene-lights.ts (sun, sky, lamp), previews.ts (editor feedback), and
-// one layer module per kind of thing on the table.
+// The pieces live beside it (see docs/RENDERING.md, Modules): types, camera,
+// picking, loop (frames, the renderer's setup), table, scene-lights, previews,
+// and one layer module per kind of thing on the table.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import { lightSources, type Ambient, type Light } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
@@ -23,7 +22,8 @@ import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
 import type { FogView } from '$lib/game/visibility';
 import { AmbienceLayer } from './ambience';
-import { CameraRig, watchCanvasSize } from './camera';
+import { CameraRig } from './camera';
+import { QualityControl } from './capabilities';
 import { DiceLayer, throwFromView } from './dice3d';
 import { EffectsLayer } from './effects';
 import { loadEnvironment, type EnvironmentLook } from './environment';
@@ -31,14 +31,16 @@ import { FloorLayer } from './floor';
 import { FogLayer, playerVisible, type FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
-import { LightingLayer } from './lighting';
-import { FrameLoop, watchReducedMotion } from './loop';
-import { benchmark, instrument, PerfRecorder, rendererStats, timeGpuFrames } from './perf';
+import { LightingLayer, lightSeats } from './lighting';
+import { frameOverview, warmUp } from './warmup';
+import { advanceNodeFrame, createNodeRenderer, watchReducedMotion } from './loop';
+import { RenderScheduler, type FrameReport } from './scheduler';
+import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
 import { PropLayer } from './props';
-import { createSceneLights, FAR, FOG, fitToTable } from './scene-lights';
+import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
 import { TableLayer } from './table';
 import { TerrainLayer, terrainShade } from './terrain';
@@ -56,43 +58,23 @@ export type {
 	TabletopOptions
 } from './types';
 
-const BACKGROUND = 0x16120f;
-
-export function createTabletop(
+export async function createTabletop(
 	canvas: HTMLCanvasElement,
 	events: TabletopEvents,
 	options: TabletopOptions = {}
-): Tabletop {
+): Promise<Tabletop> {
 	const clock = options.now ?? (() => performance.now());
-	const renderer = new THREE.WebGLRenderer({
-		canvas,
-		antialias: true,
-		preserveDrawingBuffer: options.preserveDrawingBuffer ?? false
-	});
-	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
-	renderer.shadowMap.enabled = true;
-	// Only the ambient mist clips (to the table).
-	renderer.localClippingEnabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap;
-	// The sun's shadows are drawn again only when something on the table changed (see
-	// shadowsDirty), not when just the camera moves or flames flicker: that pass draws the
-	// whole scene a second time.
-	renderer.shadowMap.autoUpdate = false;
+	const renderer = await createNodeRenderer(canvas, options);
 	let shadowsDirty = true;
 	/** A shadow map never drawn reads as garbage (lit surfaces go black), so the first frame always draws it. */
 	let shadowMapDrawn = false;
 	/** Things moved in the last frame: their final step changes shadows too. */
 	let wasMoving = false;
-	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 	const perf = new PerfRecorder();
-	const loop = new FrameLoop(render);
+	const loop = new RenderScheduler(render, canvas);
 	const requestRender = loop.request;
-	const scene = new THREE.Scene();
-	scene.background = new THREE.Color(BACKGROUND);
-	const fog = new THREE.Fog(BACKGROUND, FOG.near, FOG.far);
-	scene.fog = fog;
-
+	const { scene, fog } = createScene();
 	const rig = new CameraRig(canvas, FAR);
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
@@ -100,13 +82,18 @@ export function createTabletop(
 
 	const table = new TableLayer();
 	scene.add(table.group);
-	// A figure's model arriving draws it again, shadows too.
-	const tokenLayer = new TokenLayer(() => {
-		shadowsDirty = true;
-		requestRender();
-	});
+	/** A model arrived: warm up its shaders, then draw it (shadows too). */
+	const onModel = () => {
+		shadowsDirty = warmPending = true;
+		refreshLighting(); // a sconce's or brazier's size seats its light's flame
+	};
+	/** Something new needs its shaders compiled before the next frame (see warmup.ts). */
+	let warmPending = true;
+	let warming: Promise<void> = Promise.resolve();
+	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
+	const tokenLayer = new TokenLayer(onModel, clock);
 	scene.add(tokenLayer.group);
-	const wallLayer = new WallLayer();
+	const wallLayer = new WallLayer(clock);
 	scene.add(wallLayer.group);
 	const fogLayer = new FogLayer();
 	scene.add(fogLayer.mesh);
@@ -119,17 +106,15 @@ export function createTabletop(
 	// Read live: turning reduced motion on or off applies at once, without a reload.
 	const motion = watchReducedMotion(options.reducedMotion, (reduced) => {
 		reducedMotion = reduced;
+		loop.setReducedMotion(reduced);
 		propLayer.setReducedMotion(reduced);
 		ambience.setReducedMotion(reduced);
 		if (reduced) rig.endShot();
 		refreshLighting();
 	});
 	let reducedMotion = motion.reduced;
-	// A model arriving draws its props again, shadows too.
-	const propLayer = new PropLayer(() => {
-		shadowsDirty = true;
-		requestRender();
-	}, clock);
+	loop.setReducedMotion(reducedMotion);
+	const propLayer = new PropLayer(onModel, clock);
 	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
@@ -183,7 +168,8 @@ export function createTabletop(
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
 		const visible = playerVisible(fog, mode, size);
 		const { ambient, lights } = lightState;
-		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness);
+		const seats = lightSeats(grid, props);
+		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
 		// Raised ground under fog and darkness, by the same rules as the flat overlays.
 		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
 	}
@@ -195,41 +181,63 @@ export function createTabletop(
 
 	let grid: SquareGrid | null = null;
 	let extent = 20;
-	let lastFrameTime = 0;
 
-	function render(): void {
-		const start = performance.now();
-		perf.frame(start);
-		drawFrame(clock());
-		perf.add('frame', performance.now() - start);
+	/** Draws one frame: counters and the node frame are advanced here, since the internal loop is off. */
+	function drawScene(): void {
+		renderer.info.reset();
+		advanceNodeFrame(renderer);
+		renderer.render(scene, camera);
 	}
 
-	function drawFrame(now: number): void {
+	function render(): FrameReport {
+		if (warmPending && grid) return startWarmUp();
+		const start = performance.now();
+		perf.frame(start);
+		const report = drawFrame(clock());
+		perf.add('frame', performance.now() - start);
+		return report;
+	}
+
+	/** Compiles the table's shaders while frames are held, then draws (the sun's shadow too). */
+	function startWarmUp(): FrameReport {
+		warmPending = false;
 		if (lightingStale) {
 			lightingStale = false;
 			perf.time('lighting', relight);
 		}
-		// Clamp so the first frame after an idle period does not jump animations to the end.
-		const dt = Math.min(now - lastFrameTime, 50);
-		lastFrameTime = now;
-		const tokensMoving = tokenLayer.tick(dt);
-		const doorsMoving = wallLayer.tick(dt);
+		const t0 = performance.now();
+		frameOverview(warmCamera, extent, camera.aspect);
+		warming = warmUp(renderer, scene, warmCamera, [...scene.children]).then(() => {
+			perf.add('warmup', performance.now() - t0);
+			shadowsDirty = true;
+		});
+		loop.hold(warming);
+		loop.request();
+		return { active: false, ambient: false };
+	}
+
+	/** Draws a frame for time `now` and reports what still moves or animates (scheduler.ts). */
+	function drawFrame(now: number): FrameReport {
+		if (lightingStale) {
+			lightingStale = false;
+			perf.time('lighting', relight);
+		}
+		const tokensMoving = tokenLayer.tick(now);
+		const doorsMoving = wallLayer.tick(now);
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
 		lighting.setFlash(fx.flash);
+		const bellSwinging = !!swinging;
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
 		if (!fx.active) swinging = null;
 		const propsMoving = propLayer.tick(now);
-		const moving = tokensMoving || doorsMoving || diceRolling || fx.active || propsMoving;
-		if (moving) requestRender();
-		if (moving || wasMoving) shadowsDirty = true;
-		wasMoving = moving;
-		if (!reducedMotion) {
-			const flickering = lighting.flicker(now);
-			const drifting = ambience.tick(now);
-			if (flickering || drifting) loop.ambient();
-		}
-		if (rig.tick(now)) requestRender();
+		// Only what casts shadows redraws them: dust, a flash or a shudder move none.
+		const casters = tokensMoving || doorsMoving || diceRolling || propsMoving || bellSwinging;
+		if (casters || wasMoving) shadowsDirty = true;
+		wasMoving = casters;
+		const flickering = !reducedMotion && lighting.flicker(now);
+		const drifting = !reducedMotion && ambience.tick(now);
+		const moving = casters || fx.active || rig.tick(now);
 		// With damping enabled, update() emits 'change' while the camera is still settling,
 		// which schedules the next frame; once still, rendering stops.
 		controls.update();
@@ -238,14 +246,15 @@ export function createTabletop(
 		camera.position.add(shakeOffset);
 		// With the sun out (after dark) its shadows show nowhere: leave them until it is back.
 		const sunShines = sun.intensity > 0;
-		renderer.shadowMap.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn;
+		sun.shadow.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn;
 		shadowMapDrawn = true;
-		if (renderer.shadowMap.needsUpdate) perf.add('shadows', 0);
+		if (sun.shadow.needsUpdate) perf.add('shadows', 0);
 		if (sunShines) shadowsDirty = false;
 		const draw = performance.now();
-		renderer.render(scene, camera);
+		drawScene();
 		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
+		return { active: moving, ambient: flickering || drifting };
 	}
 
 	/** The environment asked for, and its looks once loaded. */
@@ -258,7 +267,7 @@ export function createTabletop(
 		terrainLayer.setLook(look?.ground ?? null);
 		wallLayer.setLook(look?.walls ?? null);
 		refreshLighting();
-		shadowsDirty = true;
+		shadowsDirty = warmPending = true;
 		requestRender();
 	}
 
@@ -278,7 +287,7 @@ export function createTabletop(
 		effects.setBounds(g.width * g.cellSize, g.height * g.cellSize, Math.max(4, extent * 0.2));
 	}
 
-	const stopSizing = watchCanvasSize(canvas, renderer, camera, requestRender);
+	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
 	controls.addEventListener('change', requestRender);
 
 	const picker = new Picker(
@@ -293,7 +302,6 @@ export function createTabletop(
 		},
 		() => grid
 	);
-	// Taking hold of the camera ends a cinematic shot where it is.
 	const stopPicking = listenForPicks(canvas, picker, events, perf, () => rig.endShot());
 
 	let view: CameraView = 'tactical';
@@ -358,7 +366,7 @@ export function createTabletop(
 		},
 		throwDice(t) {
 			if (!grid || t.dice.length === 0) return 0;
-			const { center, from } = throwFromView(controls.target, camera.position, grid.cellSize);
+			const { center, from } = throwFromView(controls.target, camera.position, grid, ground);
 			const ms = diceLayer.throw(t, center, from, grid.cellSize, reducedMotion, clock());
 			requestRender();
 			return ms;
@@ -463,6 +471,7 @@ export function createTabletop(
 			rig.setPose(pose);
 			requestRender();
 		},
+		cameraPose: () => rig.pose(),
 		setGridPose(pose) {
 			if (grid) rig.setPose(poseFor(grid, ground, pose));
 			requestRender();
@@ -471,27 +480,18 @@ export function createTabletop(
 			disposed = true;
 			loop.dispose();
 			motion.stop();
-			stopSizing();
+			quality.dispose();
 			stopPicking();
-			rig.dispose();
-			table.dispose();
-			tokenLayer.dispose();
-			wallLayer.dispose();
-			fogLayer.dispose();
-			floorLayer.dispose();
-			lighting.dispose();
-			ambience.dispose();
-			terrainLayer.dispose();
-			effects.dispose();
-			propLayer.dispose();
-			diceLayer.dispose();
-			previews.dispose();
-			renderer.dispose();
+			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting];
+			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
+				l.dispose();
+			// Not while a warm-up is still compiling for it; a lost context may throw.
+			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
-		stats: () => rendererStats(renderer, perf),
-		resetStats: () => perf.reset(),
-		benchmark: (frames) => benchmark(renderer, scene, camera, frames),
-		timeFrames: (frames) => timeGpuFrames(renderer, scene, camera, frames)
+		setQuality: (settings, refine) => quality.set(settings, refine),
+		capabilities: () => quality.caps,
+		setPowerSaver: (on) => loop.setPowerSaver(on),
+		...perfMethods(renderer, perf, drawScene, { loop, quality })
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
 	instrument(tabletop, perf, () => (shadowsDirty = true));

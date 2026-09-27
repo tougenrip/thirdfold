@@ -30,7 +30,8 @@
 		"db:start": "supabase start",
 		"db:stop": "supabase stop",
 		"cache:up": "docker compose up -d",
-		"cache:down": "docker compose down"
+		"cache:down": "docker compose down",
+		"test:webgpu": "THIRDFOLD_WEBGPU=1 vitest run --project client-webgpu"
 	},
 	"devDependencies": {
 		"@capacitor/cli": "^8.5.2",

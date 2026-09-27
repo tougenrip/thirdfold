@@ -18,7 +18,7 @@
 				"x": 2,
 				"y": 2
 			},
-			"distance": 4.5,
+			"distance": 6,
 			"azimuth": 10,
 			"elevation": 26
 		},
@@ -36,7 +36,7 @@
 				"x": 2,
 				"y": 2
 			},
-			"distance": 4.5,
+			"distance": 6,
 			"azimuth": 10,
 			"elevation": 26,
 			"ambient": "dark"

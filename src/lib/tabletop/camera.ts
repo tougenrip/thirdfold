@@ -2,28 +2,20 @@
 // moves that take the camera for a moment (a view change, a cinematic shot)
 // on the renderer's clock. Any drag or scroll ends a shot where it is.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Shot } from '$lib/game/chat';
 import type { Ground } from './ground';
-import { shotAt, shotPose, type Pose } from './shots';
+import { shotAt, shotPose, viewPose, type Pose } from './shots';
 import type { CameraView } from './types';
 
 export const VIEW_TRANSITION_MS = 450;
 
-/** Camera offset from the table centre for each view, scaled by the grid's size. */
-export function viewPose(
-	view: CameraView,
-	extent: number
-): { position: THREE.Vector3; target: THREE.Vector3 } {
-	const target = new THREE.Vector3(0, 0, 0);
-	if (view === 'tactical') {
-		// High and nearly overhead: easy to read positions and distances.
-		return { position: new THREE.Vector3(0, extent * 1.15, extent * 0.35), target };
-	}
-	// Low and close, like leaning over miniatures.
-	return { position: new THREE.Vector3(extent * 0.42, extent * 0.34, extent * 0.78), target };
+/** The camera for a view, as three vectors (the numbers are shots.ts's `viewPose`). */
+export function viewEnds(view: CameraView, extent: number): Ends {
+	const { position: p, target: t } = viewPose(view, extent);
+	return { position: new THREE.Vector3(p.x, p.y, p.z), target: new THREE.Vector3(t.x, t.y, t.z) };
 }
 
 type Ends = { position: THREE.Vector3; target: THREE.Vector3 };
@@ -51,7 +43,7 @@ export class CameraRig {
 
 	/** Frames a new table at once for the view, replacing any move still aimed at the old one. */
 	frame(view: CameraView, extent: number): void {
-		const pose = viewPose(view, extent);
+		const pose = viewEnds(view, extent);
 		this.transition = null;
 		this.shot = null;
 		this.camera.position.copy(pose.position);
@@ -62,9 +54,15 @@ export class CameraRig {
 		this.shot = null;
 		this.transition = {
 			from: { position: this.camera.position.clone(), target: this.controls.target.clone() },
-			to: viewPose(view, extent),
+			to: viewEnds(view, extent),
 			start: now
 		};
+	}
+
+	pose(): Pose {
+		const { position: p } = this.camera;
+		const { target: t } = this.controls;
+		return { position: { x: p.x, y: p.y, z: p.z }, target: { x: t.x, y: t.y, z: t.z } };
 	}
 
 	setPose(pose: Pose): void {
@@ -113,23 +111,4 @@ export class CameraRig {
 	dispose(): void {
 		this.controls.dispose();
 	}
-}
-
-/** Keeps the drawing size and the camera's aspect in step with the canvas. Returns a stop function. */
-export function watchCanvasSize(
-	canvas: HTMLCanvasElement,
-	renderer: THREE.WebGLRenderer,
-	camera: THREE.PerspectiveCamera,
-	onResize: () => void
-): () => void {
-	const observer = new ResizeObserver(() => {
-		const { clientWidth, clientHeight } = canvas;
-		if (!clientWidth || !clientHeight) return;
-		renderer.setSize(clientWidth, clientHeight, false);
-		camera.aspect = clientWidth / clientHeight;
-		camera.updateProjectionMatrix();
-		onResize();
-	});
-	observer.observe(canvas);
-	return () => observer.disconnect();
 }

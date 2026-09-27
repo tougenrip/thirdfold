@@ -14,14 +14,13 @@
 // on a regression; --update-baseline writes them as the new baseline (say why
 // in the PR). Chromium's software WebGL (SwiftShader) makes frame times far
 // slower than a real GPU: times are printed for comparison, never gated.
+// PERF_BACKEND (webgl by default, or webgpu) and PERF_GPU pick what draws (see
+// perf-browser.mjs); a baseline is for one backend, and says which.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
+import { checkBackend, launchBrowser, PERF_QUERY } from './perf-browser.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -35,33 +34,29 @@ const BASELINE = flag('--baseline');
 const UPDATE_BASELINE = flag('--update-baseline');
 const BASE = args[0] ?? 'http://localhost:4173';
 const SCENES = args[1] ?? 'tests/fixtures/scenes';
-/** The tables measured: the adventures' big three, then compositions and stress tables. */
-const TABLES = [
-	'village',
-	'monastery',
-	'hollow',
-	'ref-1',
-	'ref-7',
-	'ref-8',
-	'dungeon-40',
-	'crowd-60'
-];
-const RELOADS = 3;
-const REMOUNTS = 3;
+/**
+ * The tables measured: the test world (server/fixtures/test-world.ts), a bit of everything in one
+ * small table, so a run takes minutes. SCENES=a,b measures other fixture tables instead.
+ */
+const TABLES = (process.env.SCENES ?? 'test-world').split(',');
+const RELOADS = 2;
+const REMOUNTS = 2;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const kb = (n) => `${(n / 1024).toFixed(1)} kB`;
 const round = (n, d = 1) => (n == null ? null : Number(n.toFixed(d)));
 const readTable = (name) => JSON.parse(readFileSync(path.join(SCENES, `${name}.json`), 'utf8'));
 
-const browser = await chromium.launch({
-	executablePath: process.env.CHROMIUM_PATH || undefined,
-	args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-});
+const browser = await launchBrowser();
 
 /** A page that records long tasks, WebSocket traffic and WebGL context warnings from the start. */
 async function open(name) {
-	const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+	// Reduced motion: no flicker or mist, so a table goes quiet as soon as it is drawn and the
+	// waits below are short. What is counted (draws, programs, memory) is the same.
+	const context = await browser.newContext({
+		viewport: { width: 1400, height: 900 },
+		reducedMotion: 'reduce'
+	});
 	await context.addInitScript(() => {
 		window.__longTasks = [];
 		new PerformanceObserver((list) => {
@@ -158,9 +153,14 @@ await gm.page.waitForURL(/room\//);
 const roomUrl = gm.page.url().split('?')[0];
 {
 	const start = Date.now();
-	await gm.page.goto(`${roomUrl}?perf`, { waitUntil: 'load' });
+	await gm.page.goto(`${roomUrl}${PERF_QUERY}`, { waitUntil: 'load' });
 	await waitFor(gm, () => (window.thirdfoldPerf?.stats().frames ?? 0) > 0);
 	const firstFrame = Date.now() - start;
+	const drawing = await stats(gm);
+	checkBackend(drawing);
+	report.gate.backend = drawing.backend;
+	report.gate.adapter = drawing.adapter;
+	console.log(`drawing with ${drawing.backend} on ${drawing.adapter}`);
 	const nav = await gm.page.evaluate(() => {
 		const res = performance.getEntriesByType('resource');
 		return { bytes: res.reduce((s, r) => s + r.transferSize, 0), requests: res.length };
@@ -176,7 +176,7 @@ const players = [];
 for (const name of ['Ana', 'Ben']) {
 	const p = await open(name);
 	const opened = Date.now();
-	await p.page.goto(`${roomUrl}?perf`, { waitUntil: 'load' });
+	await p.page.goto(`${roomUrl}${PERF_QUERY}`, { waitUntil: 'load' });
 	await p.page.waitForSelector('button:has-text("Join the game")');
 	const joinForm = Date.now() - opened;
 	const joinBytes = await p.page.evaluate(() =>
@@ -202,9 +202,19 @@ async function importTable(name) {
 	const file = readTable(name);
 	await send(gm, { type: 'scene_import', file });
 	for (const p of everyone) {
-		await waitFor(p, () => {
-			const s = window.thirdfoldPerf?.stats();
-			return !!s?.timings.setGrid && !!document.querySelector('canvas');
+		// SwiftShader compiles the node renderer's shaders on the CPU, three pages at once: a
+		// page's main thread can be busy for tens of seconds on a new table.
+		await waitFor(
+			p,
+			() => {
+				const s = window.thirdfoldPerf?.stats();
+				return !!s?.timings.setGrid && !!document.querySelector('canvas');
+			},
+			undefined,
+			120_000
+		).catch(async (e) => {
+			const why = await p.page.evaluate(() => window.thirdfoldRoom?.actionError ?? null);
+			throw new Error(`${p.name} never showed ${name} (last refusal: ${why}): ${e.message}`);
 		});
 	}
 	for (const p of everyone) await settle(p);
@@ -249,18 +259,18 @@ for (const name of TABLES) {
 		);
 	}
 
-	// Idle: once nothing has been drawn for 2 s (models arrived, the camera at rest), nothing
-	// happens for 3 s; frames drawn anyway are the idle cost (none by day).
-	await settle(ana, 2000, 30_000);
+	// Idle: once nothing has been drawn for 1 s (models arrived, the camera at rest), nothing
+	// happens for 2 s; frames drawn anyway are the idle cost (none: motion is reduced).
+	await settle(ana, 1000, 30_000);
 	await resetStats(ana);
-	await sleep(3000);
+	await sleep(2000);
 	const idle = await stats(ana);
 	scene.idle = {
 		frames: idle.frames,
 		frameMs: round((idle.timings.frame?.total ?? 0) / Math.max(1, idle.frames), 2)
 	};
 	gate.idleFrames = idle.frames;
-	console.log(`  idle (Ana, 3 s): ${idle.frames} frames, ${scene.idle.frameMs} ms each`);
+	console.log(`  idle (Ana, 2 s): ${idle.frames} frames, ${scene.idle.frameMs} ms each`);
 
 	// The camera moving: Ana drags a fixed path to orbit, then lets it settle. The last
 	// frame's draw calls (shadow passes included) are deterministic for the path.
@@ -292,6 +302,7 @@ for (const name of TABLES) {
 		drawMs: round(moving.timings.draw.total / moving.timings.draw.count, 2)
 	};
 	gate.orbitDrawCalls = settled.drawCalls;
+	gate.orbitShadowPasses = scene.orbit.shadowPasses;
 	console.log(
 		`  orbit (Ana): ${scene.orbit.fps} fps, frame ${scene.orbit.frameMs} ms (max ${scene.orbit.maxMs}), of which draw ${scene.orbit.drawMs} ms; ${scene.orbit.drawCalls} draws in the settled frame, ${scene.orbit.shadowPasses} shadow passes while moving`
 	);
@@ -383,7 +394,7 @@ for (const name of TABLES) {
 	const runs = [];
 	for (let r = 0; r <= REMOUNTS; r++) {
 		await ana.page.goto(`${BASE}/`, { waitUntil: 'load' });
-		await ana.page.goto(`${roomUrl}?perf`, { waitUntil: 'load' });
+		await ana.page.goto(`${roomUrl}${PERF_QUERY}`, { waitUntil: 'load' });
 		await waitFor(ana, () => !!window.thirdfoldPerf?.stats().timings.setGrid);
 		await settle(ana);
 		runs.push({ ...counts(await stats(ana)), heap: await heap(ana) });
@@ -411,6 +422,8 @@ if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify(report, null, 2));
 function baselineOf(gate) {
 	return {
 		chromium: gate.chromium,
+		backend: gate.backend,
+		adapter: gate.adapter,
 		tables: gate.tables,
 		reload: gate.reload,
 		remount: { first: gate.remount.first },
@@ -428,6 +441,8 @@ if (BASELINE) {
 	const rows = [];
 	const check = (what, value, limit, ok) => rows.push({ what, value, limit, ok });
 	const up10 = (n) => Math.ceil(n * 1.1);
+	// Counters differ between backends (programs most of all): compare like with like.
+	check('backend', report.gate.backend, base.backend ?? '-', base.backend === report.gate.backend);
 	for (const [name, t] of Object.entries(report.gate.tables)) {
 		const b = base.tables[name];
 		if (!b) {
@@ -440,8 +455,14 @@ if (BASELINE) {
 			up10(b.orbitDrawCalls),
 			t.orbitDrawCalls <= up10(b.orbitDrawCalls)
 		);
-		if (t.ambient === 'day')
-			check(`${name}: frames in 3 s idle`, t.idleFrames, 0, t.idleFrames === 0);
+		// Moving the camera changes no shadow: the sun's map is only redrawn when the table changes.
+		check(
+			`${name}: shadow passes while orbiting`,
+			t.orbitShadowPasses,
+			0,
+			t.orbitShadowPasses === 0
+		);
+		check(`${name}: frames in 2 s idle`, t.idleFrames, 0, t.idleFrames === 0);
 		for (const [viewer, v] of Object.entries(t.viewers)) {
 			const bv = b.viewers[viewer];
 			if (!bv) continue;

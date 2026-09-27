@@ -3,8 +3,12 @@
 // nothing, ambient animation stays at its slow rate, and reloading tables or
 // cycling the time of day leaks nothing and compiles nothing new.
 
+import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createTabletop } from './renderer';
+import { qualityFor, settingsFor } from './quality';
 import {
+	BACKEND,
 	FIXTURES,
 	loadSidecar,
 	loadView,
@@ -23,8 +27,8 @@ const mounted: Mounted[] = [];
 beforeEach(() => {
 	errors = vi.spyOn(console, 'error');
 });
-afterEach(() => {
-	for (const m of mounted.splice(0)) m.unmount();
+afterEach(async () => {
+	for (const m of mounted.splice(0)) await m.unmount();
 	expect(errors, 'console.error was called').not.toHaveBeenCalled();
 	errors.mockRestore();
 });
@@ -52,23 +56,27 @@ describe('every fixture', () => {
 });
 
 describe('the renderer', () => {
-	it('draws the same pixels for the same table, pose and frozen clock', async () => {
-		const sidecar = await loadSidecar('ref-1');
-		const view = await loadView('ref-1', sidecar.ambient, 'gm');
-		const draw = async () => {
-			const m = await mountFixture(view, sidecar.poses.close, { clock: manualClock(5000) });
-			await settle(m.tabletop);
-			const pixels = m.pixels();
-			m.unmount();
-			return pixels;
-		};
-		const [a, b] = [await draw(), await draw()];
-		expect(a.length).toBeGreaterThan(0);
-		expect(a.some((v) => v !== 0)).toBe(true);
-		let same = true;
-		for (let i = 0; i < a.length && same; i++) same = a[i] === b[i];
-		expect(same).toBe(true);
-	});
+	// Reads pixels back, which only WebGL2 does here; on WebGPU the golden images compare frames.
+	it.skipIf(BACKEND === 'webgpu')(
+		'draws the same pixels for the same table, pose and frozen clock',
+		async () => {
+			const sidecar = await loadSidecar('ref-1');
+			const view = await loadView('ref-1', sidecar.ambient, 'gm');
+			const draw = async () => {
+				const m = await mountFixture(view, sidecar.poses.close, { clock: manualClock(5000) });
+				await settle(m.tabletop);
+				const pixels = m.pixels();
+				await m.unmount();
+				return pixels;
+			};
+			const [a, b] = [await draw(), await draw()];
+			expect(a.length).toBeGreaterThan(0);
+			expect(a.some((v) => v !== 0)).toBe(true);
+			let same = true;
+			for (let i = 0; i < a.length && same; i++) same = a[i] === b[i];
+			expect(same).toBe(true);
+		}
+	);
 
 	it('draws nothing while a daylight table is idle', async () => {
 		const { tabletop } = await mount('ref-7', 'gm', { reducedMotion: false });
@@ -81,8 +89,25 @@ describe('the renderer', () => {
 		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: false });
 		const before = tabletop.stats().frames;
 		await wait(3000);
-		// AMBIENT_FRAME_MS is 80: at most about 38 frames in 3 s.
+		// AMBIENT_MS is 80 (scheduler.ts): at most about 38 frames in 3 s.
 		expect(tabletop.stats().frames - before).toBeLessThanOrEqual(40);
+	});
+
+	it('draws no ambient frames while the tab is hidden, and reports its mode', async () => {
+		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: false });
+		// On a slow machine the table may still be settling (active) at first.
+		await expect.poll(() => tabletop.stats().mode, { timeout: 10_000 }).toBe('ambient');
+		const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+		document.dispatchEvent(new Event('visibilitychange'));
+		await wait(300);
+		const before = tabletop.stats().frames;
+		await wait(1000);
+		expect(tabletop.stats().frames - before).toBe(0);
+		expect(tabletop.stats().mode).toBe('idle');
+		hidden.mockRestore();
+		document.dispatchEvent(new Event('visibilitychange'));
+		await wait(500);
+		expect(tabletop.stats().frames).toBeGreaterThan(before);
 	});
 
 	it('draws nothing in the dark while motion is reduced', async () => {
@@ -99,7 +124,13 @@ describe('the renderer', () => {
 			addEventListener: (_: string, fn: typeof listener) => (listener = fn),
 			removeEventListener: () => {}
 		};
-		const stub = vi.spyOn(window, 'matchMedia').mockReturnValue(query as unknown as MediaQueryList);
+		// Only the reduced-motion query: the canvas also watches the screen's resolution.
+		const real = window.matchMedia.bind(window);
+		const stub = vi
+			.spyOn(window, 'matchMedia')
+			.mockImplementation((q) =>
+				q.includes('reduced-motion') ? (query as unknown as MediaQueryList) : real(q)
+			);
 		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: undefined });
 		stub.mockRestore();
 		const flickering = tabletop.stats().frames;
@@ -176,5 +207,87 @@ describe('the renderer', () => {
 		expect(events.onHover).not.toHaveBeenCalled();
 		expect(events.onClick).not.toHaveBeenCalled();
 		m.canvas.remove();
+	});
+});
+
+describe('measuring', () => {
+	it('reports what it draws, still after a second idle, and benchmarks', async () => {
+		const sidecar = await loadSidecar('ref-7');
+		const view = await loadView('ref-7', sidecar.ambient, 'gm');
+		const m = await mountFixture(view, sidecar.poses.overview, { perf: true });
+		mounted.push(m);
+		await settle(m.tabletop);
+		await wait(1000);
+		const stats = m.tabletop.stats();
+		expect(stats.drawCalls).toBeGreaterThan(0);
+		expect(stats.programs).toBeGreaterThan(0);
+		expect(stats.memoryBytes).toBeGreaterThan(0);
+		const b = await m.tabletop.benchmark(2);
+		expect(Number.isFinite(b.cpu)).toBe(true);
+		expect(b.drawCalls).toBeGreaterThan(0);
+		if (BACKEND === 'webgl') {
+			// SwiftShader, WebGL2: software, whose timestamps mean nothing, so frames are waited for.
+			expect(stats.backend).toBe('webgl2');
+			expect(stats.adapter).toMatch(/swiftshader/i);
+			expect(b.gpuTimer).toBe('sync');
+		} else {
+			// The real GPU on WebGPU (vite.config.ts), timed by its own clock.
+			expect(stats.backend).toBe('webgpu');
+			expect(stats.adapter).not.toMatch(/swiftshader/i);
+			expect(b.gpuTimer).toBe('timestamp');
+		}
+		expect(Number.isFinite(b.gpu)).toBe(true);
+	});
+
+	it('resolves no timestamps outside ?perf', async () => {
+		const resolve = vi.spyOn(THREE.WebGPURenderer.prototype, 'resolveTimestampsAsync');
+		const { tabletop } = await mount('ref-7', 'gm');
+		await tabletop.sampleGpu();
+		await tabletop.benchmark(2);
+		expect(resolve).not.toHaveBeenCalled();
+		expect(tabletop.stats().gpuMs).toBeNull();
+		resolve.mockRestore();
+	});
+});
+
+describe('quality tiers', () => {
+	it('find a software rasteriser under SwiftShader (low), and a GPU on WebGPU', async () => {
+		const { tabletop } = await mount('ref-7', 'gm');
+		const caps = tabletop.capabilities();
+		expect(caps.software).toBe(BACKEND === 'webgl');
+		if (BACKEND === 'webgl') expect(qualityFor(caps)).toBe('low');
+		else expect(qualityFor(caps)).not.toBe('low');
+	});
+
+	it('keep 4K at DPR 2 on medium within 2.1 MP', async () => {
+		const dpr = vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
+		const canvas = document.createElement('canvas');
+		canvas.style.cssText = 'display:block;width:3840px;height:2160px';
+		document.body.appendChild(canvas);
+		const t = await createTabletop(
+			canvas,
+			{ onClick: () => {}, onHover: () => {} },
+			{
+				backend: BACKEND === 'webgpu' ? 'webgpu' : 'webgl',
+				preserveDrawingBuffer: BACKEND === 'webgl'
+			}
+		);
+		t.setQuality(settingsFor('medium', t.capabilities().backend));
+		expect(canvas.width * canvas.height).toBeLessThanOrEqual(2.1e6 + 3840);
+		expect(canvas.width * canvas.height).toBeGreaterThan(1.9e6);
+		await t.dispose();
+		canvas.remove();
+		dpr.mockRestore();
+	});
+
+	it('change no program when the tier changes', async () => {
+		const { tabletop } = await mount('ref-7', 'gm');
+		const backend = tabletop.capabilities().backend;
+		const programs = tabletop.stats().programs;
+		for (const tier of ['low', 'high', 'medium'] as const) {
+			tabletop.setQuality(settingsFor(tier, backend));
+			await settle(tabletop);
+		}
+		expect(tabletop.stats().programs).toBe(programs);
 	});
 });

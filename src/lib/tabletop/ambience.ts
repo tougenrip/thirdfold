@@ -5,7 +5,7 @@
 // slow frame timer running while something is drifting. With reduced motion
 // there is no mist at all: it is only ever seen drifting.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient } from '$lib/game/lights';
 
@@ -17,7 +17,14 @@ const BANKS = 6;
 const HEIGHT = 0.012;
 
 export class AmbienceLayer {
-	readonly group = new THREE.Group();
+	/** Clips every bank to the table (the node renderer ignores a material's clipping planes). */
+	readonly group = new THREE.ClippingGroup();
+	private planes = [
+		new THREE.Plane(new THREE.Vector3(1, 0, 0)),
+		new THREE.Plane(new THREE.Vector3(-1, 0, 0)),
+		new THREE.Plane(new THREE.Vector3(0, 0, 1)),
+		new THREE.Plane(new THREE.Vector3(0, 0, -1))
+	];
 	private texture: THREE.CanvasTexture | null = null;
 	private material: THREE.MeshBasicMaterial;
 	private geometry = new THREE.PlaneGeometry(1, 1);
@@ -31,8 +38,7 @@ export class AmbienceLayer {
 			color: 0xb8c2d0,
 			transparent: true,
 			opacity: 0,
-			depthWrite: false,
-			toneMapped: false
+			depthWrite: false
 		});
 		this.texture = mistTexture();
 		if (this.texture) this.material.map = this.texture;
@@ -56,16 +62,17 @@ export class AmbienceLayer {
 	update(grid: SquareGrid, ambient: Ambient): void {
 		this.active = ambient !== 'day' && this.texture !== null && !this.reducedMotion;
 		this.group.visible = this.active;
-		this.material.opacity = ambient === 'dark' ? 0.2 : 0.14;
+		// Blended before tone mapping, which lifts a light colour: these look like the 0.2 and
+		// 0.14 it had after it over the floors mist lies on (#153).
+		this.material.opacity = ambient === 'dark' ? 0.11 : 0.1;
 		this.size = { w: grid.width * grid.cellSize, d: grid.height * grid.cellSize };
 		// Kept to the table: no mist over the dark around it.
 		const [hw, hd] = [this.size.w / 2, this.size.d / 2];
-		this.material.clippingPlanes = [
-			new THREE.Plane(new THREE.Vector3(1, 0, 0), hw),
-			new THREE.Plane(new THREE.Vector3(-1, 0, 0), hw),
-			new THREE.Plane(new THREE.Vector3(0, 0, 1), hd),
-			new THREE.Plane(new THREE.Vector3(0, 0, -1), hd)
-		];
+		this.planes[0].constant = hw;
+		this.planes[1].constant = hw;
+		this.planes[2].constant = hd;
+		this.planes[3].constant = hd;
+		this.group.clippingPlanes = this.planes;
 		const scale = Math.max(this.size.w, this.size.d) * 0.45;
 		this.banks.forEach((b, i) => {
 			b.mesh.scale.set(scale, scale * 0.6, 1);

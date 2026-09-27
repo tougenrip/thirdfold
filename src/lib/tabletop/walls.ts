@@ -6,10 +6,10 @@
 // is one face); a window is a low sill and, between equal floors, a lintel,
 // with the gap between them to see through.
 
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { edgeKey, unitEdges, type Door, type SceneObject } from '$lib/game/objects';
-import { dress, type Look } from './environment';
+import { dress, undress, type Look } from './environment';
 import { WALL_HEIGHT, type Ground } from './ground';
 
 export { WALL_HEIGHT };
@@ -29,6 +29,9 @@ interface DoorEntry {
 	material: THREE.MeshStandardMaterial;
 	angle: number;
 	target: number;
+	/** The swing under way: the angle it left and when (the layer's clock). */
+	from: number;
+	start: number;
 	key: string;
 }
 
@@ -40,7 +43,8 @@ export class WallLayer {
 	/** The walls' colour (the environment's, or plain stone), carried as instance colour. */
 	private wallColor = new THREE.Color(WALL_COLOR);
 
-	constructor() {
+	/** Door swings run on `clock`, the tabletop's (ms), not on frame steps. */
+	constructor(private readonly clock: () => number = () => performance.now()) {
 		dress(this.wallMaterial, null, 0xffffff);
 	}
 
@@ -80,20 +84,29 @@ export class WallLayer {
 				entry = undefined;
 			}
 			if (!entry) entry = this.createDoor(o, grid, key, ground.edgeFloors(o).high);
-			entry.target = o.open ? Math.PI / 2 : 0;
+			const target = o.open ? Math.PI / 2 : 0;
+			if (target !== entry.target) {
+				entry.from = entry.angle;
+				entry.start = this.clock();
+				entry.target = target;
+			}
 		}
 		for (const id of [...this.doors.keys()]) if (!seen.has(id)) this.removeDoor(id);
 		this.applyHover();
 	}
 
-	/** Advances door swings by `dt` ms. Returns true while any door is still moving. */
-	tick(dt: number): boolean {
+	/** Swings doors to where they are at time `now`. Returns true while any is still moving. */
+	tick(now: number): boolean {
 		let moving = false;
-		const step = (Math.PI / 2) * (dt / DOOR_SWING_MS);
 		for (const entry of this.doors.values()) {
 			if (entry.angle === entry.target) continue;
-			const delta = entry.target - entry.angle;
-			entry.angle = Math.abs(delta) <= step ? entry.target : entry.angle + Math.sign(delta) * step;
+			// A quarter turn takes DOOR_SWING_MS; a swing reversed halfway takes what is left.
+			const span = entry.target - entry.from;
+			const k = Math.min(
+				(now - entry.start) / ((DOOR_SWING_MS * Math.abs(span)) / (Math.PI / 2)),
+				1
+			);
+			entry.angle = k >= 1 ? entry.target : entry.from + span * k;
 			entry.pivot.rotation.y = -entry.angle;
 			if (entry.angle !== entry.target) moving = true;
 		}
@@ -125,7 +138,7 @@ export class WallLayer {
 		for (const id of [...this.doors.keys()]) this.removeDoor(id);
 		if (this.walls) this.walls.dispose();
 		this.wallGeometry.dispose();
-		this.wallMaterial.dispose();
+		undress(this.wallMaterial);
 		this.doorGeometry.dispose();
 	}
 
@@ -220,7 +233,7 @@ export class WallLayer {
 		this.group.add(frame);
 		const angle = door.open ? Math.PI / 2 : 0;
 		pivot.rotation.y = -angle;
-		const entry: DoorEntry = { pivot, material, angle, target: angle, key };
+		const entry: DoorEntry = { pivot, material, angle, target: angle, from: angle, start: 0, key };
 		this.doors.set(door.id, entry);
 		return entry;
 	}

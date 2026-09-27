@@ -28,6 +28,28 @@ Ids are lowercase letters, digits and dashes, and they are the file names. Name 
 it looks (`robed-figure`, `giant-hand`, `cavern`), not by its part in a story. The manifest is
 public, so a story's name for something would give it away.
 
+### Scale
+
+thirdfold's world scale is fixed (milestone 62, #152): **1 cell = 1 unit = 5 ft**. A level of
+raised ground is 0.4 units (2 ft, `STEP_HEIGHT` in `src/lib/tabletop/ground.ts`), a wall stands
+2.0 units (10 ft) above the higher floor beside it, and the sight rule's eye is 1.2 units (6 ft)
+up. The rules count in levels, never in units, so the picture and the rules always agree.
+
+Model everything at that scale:
+
+| What                         | Height, units | Feet     |
+| ---------------------------- | ------------- | -------- |
+| A person (a figure as drawn) | 1.15-1.3      | 5.75-6.5 |
+| A door, a wall               | 2.0           | 10       |
+| A table, a crate             | 0.6-0.8       | 3-4      |
+| A bookshelf                  | 1.8           | 9        |
+| A lamp on a post             | 1.5           | 7.5      |
+| One level of raised ground   | 0.4           | 2        |
+
+Figures made before this (0.7-1.24 tall) are drawn 1.3 times larger (`FIGURE_SCALE` in
+`tokens.ts`) until they are remade at their real heights (#118). A Large creature covers 2×2 cells
+and stands about 10 ft tall.
+
 ### Models from parts
 
 A model is primitive parts, the same boxes, cylinders, spheres and cones the table has always
@@ -46,7 +68,8 @@ been made of:
 
 - **Units are cells.**
   - For a prop, the origin is the centre of its unrotated footprint on the floor.
-  - For a figure, the origin is the top of its base. A figure is about 0.9 tall.
+  - For a figure, the origin is the top of its base. Today's figures are about 0.9 tall and are
+    drawn 1.3 times larger; new ones are made at their real height (see Scale).
 - **`turn`** (radians about x, y, z) tilts a part.
 - **Colour:** each part has a `color` or a `material`, except an **accent**. An accent takes the
   token's colour, so one villager model dresses the whole village.

@@ -10,7 +10,7 @@ import { compositions } from './compositions';
 const fixtures = committedFixtures();
 
 describe('the fixture tables', () => {
-	it('are all committed: five reference compositions, three stress tables, six adventure tables', () => {
+	it('are all committed: five reference compositions, three stress tables, six adventure tables and the test world', () => {
 		expect(Object.keys(fixtures).sort()).toEqual(
 			[
 				'crowd-60',
@@ -26,6 +26,7 @@ describe('the fixture tables', () => {
 				'ref-6',
 				'ref-7',
 				'ref-8',
+				'test-world',
 				'village'
 			].sort()
 		);
