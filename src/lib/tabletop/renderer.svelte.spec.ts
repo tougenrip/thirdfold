@@ -280,11 +280,12 @@ describe('quality tiers', () => {
 		dpr.mockRestore();
 	});
 
-	it('change no program when the tier changes', async () => {
+	// Low draws without MSAA or the prepass, so its pipeline compiles its own (post.ts).
+	it('change no program between tiers with the same post-processing stages', async () => {
 		const { tabletop } = await mount('ref-7', 'gm');
 		const backend = tabletop.capabilities().backend;
 		const programs = tabletop.stats().programs;
-		for (const tier of ['low', 'high', 'medium'] as const) {
+		for (const tier of ['high', 'ultra', 'medium'] as const) {
 			tabletop.setQuality(settingsFor(tier, backend));
 			await settle(tabletop);
 		}

@@ -37,6 +37,7 @@ import { advanceNodeFrame, createNodeRenderer, watchReducedMotion } from './loop
 import { RenderScheduler, type FrameReport } from './scheduler';
 import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
+import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
 import { PropLayer } from './props';
@@ -78,6 +79,7 @@ export async function createTabletop(
 	const rig = new CameraRig(canvas, FAR);
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
+	const post = new Post(renderer, scene, camera);
 	const { sun } = lights;
 
 	const table = new TableLayer();
@@ -186,7 +188,7 @@ export async function createTabletop(
 	function drawScene(): void {
 		renderer.info.reset();
 		advanceNodeFrame(renderer);
-		renderer.render(scene, camera);
+		post.render();
 	}
 
 	function render(): FrameReport {
@@ -207,7 +209,7 @@ export async function createTabletop(
 		}
 		const t0 = performance.now();
 		frameOverview(warmCamera, extent, camera.aspect);
-		warming = warmUp(renderer, scene, warmCamera, [...scene.children]).then(() => {
+		warming = warmUp(renderer, scene, warmCamera, [...scene.children], post.targets()).then(() => {
 			perf.add('warmup', performance.now() - t0);
 			shadowsDirty = true;
 		});
@@ -288,20 +290,11 @@ export async function createTabletop(
 	}
 
 	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
+	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	controls.addEventListener('change', requestRender);
 
-	const picker = new Picker(
-		canvas,
-		camera,
-		{
-			tokens: tokenLayer,
-			walls: wallLayer,
-			lighting,
-			props: propLayer,
-			terrain: terrainLayer
-		},
-		() => grid
-	);
+	const pickable = { tokens: tokenLayer, walls: wallLayer, lighting, props: propLayer };
+	const picker = new Picker(canvas, camera, { ...pickable, terrain: terrainLayer }, () => grid);
 	const stopPicking = listenForPicks(canvas, picker, events, perf, () => rig.endShot());
 
 	let view: CameraView = 'tactical';
@@ -482,13 +475,16 @@ export async function createTabletop(
 			motion.stop();
 			quality.dispose();
 			stopPicking();
-			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting];
+			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting, post];
 			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
 				l.dispose();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
 			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
-		setQuality: (settings, refine) => quality.set(settings, refine),
+		setQuality(settings, refine) {
+			quality.set(settings, refine);
+			post.set(settings);
+		},
 		capabilities: () => quality.caps,
 		setPowerSaver: (on) => loop.setPowerSaver(on),
 		...perfMethods(renderer, perf, drawScene, { loop, quality })

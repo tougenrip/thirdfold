@@ -311,6 +311,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
 | `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
 | `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
+| `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
 
 ## Quality tiers
@@ -459,7 +460,36 @@ draws a shadow pass.
 
 ## RenderPipeline
 
-Filled in by milestone 63.
+Milestone 63 draws every frame through one `THREE.RenderPipeline`, built in `post.ts` (#156). Its
+passes, in order:
+
+| Pass      | Tiers      | Draws                                    | Attachments                                                                      |
+| --------- | ---------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `prepass` | medium, up | Opaque only, no MSAA                     | `output`: view normals, 8-bit (`packNormalToRGB`); `velocity`, half-float; depth |
+| `scene`   | all        | Everything, with the tier's MSAA samples | `output`: colour, half-float; `emissive`, 8-bit, blended like colour; depth      |
+| output    | all        | A full-screen quad                       | `renderOutput`: exposure, then the tone mapper (`TONE_MAPPING`), then sRGB       |
+
+- **Tone mapping happens once, at the end.** Inside the pipeline every pass draws linear with no
+  tone mapping, so a material's `toneMapped: false` no longer means anything; the fog plane, the
+  darkness overlay and the mist are tone mapped with the rest (black stays black). Exposure is
+  `uniforms.exposure`; `renderer.toneMappingExposure` stays 1 and `renderer.toneMapping` never
+  changes while drawing, since `RenderPipeline` rebuilds when it does.
+- **The prepass draws only once an effect samples it** (AO #159, TRAA #163, depth of field #165):
+  a pass runs when its node is in the output graph. Until then it costs nothing.
+- **Only a change of stages rebuilds.** `Post.set` compares the prepass and the samples: medium,
+  high and ultra share a pipeline; low (no prepass, no MSAA) has its own and compiles its own
+  shaders. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
+  0 (`updateBeforeType` NONE), so toggling one never recompiles.
+- **The warm-up compiles for the passes** (`Post.targets`: the scene pass's target and outputs,
+  drawn linear without tone mapping, as the pipeline draws them). The pass draws nested in the
+  pipeline's quad, a different render context from the warm-up's, so three builds those materials
+  again at draw time; the shaders mostly come out identical and are shared, but some shadowed ones
+  differ in the order of their uniform declarations, which is why the test world counts 66
+  programs through the pipeline against 52 straight to the canvas.
+- **`?off=post`** turns the `post` layer off and draws straight to the canvas as before, on both
+  backends: the kill switch until #168 removes it.
+- Emissive is 8-bit on purpose: a flame's excess above 1.0 reaches bloom through the HDR term
+  (#160).
 
 ## Shader kinds
 

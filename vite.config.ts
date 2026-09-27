@@ -112,7 +112,8 @@ export default defineConfig({
 								include: [
 									'src/lib/tabletop/golden.svelte.spec.ts',
 									'src/lib/tabletop/renderer.svelte.spec.ts',
-									'src/lib/tabletop/recovery.svelte.spec.ts'
+									'src/lib/tabletop/recovery.svelte.spec.ts',
+									'src/lib/tabletop/post.svelte.spec.ts'
 								]
 							}
 						}

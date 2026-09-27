@@ -100,6 +100,11 @@ export class QualityControl {
 		return this.settings.tier;
 	}
 
+	/** The tier's settings now in force. */
+	get current(): QualitySettings {
+		return this.settings;
+	}
+
 	/** Applies a tier's settings; with `refine`, the first active frames may step it down once. */
 	set(settings: QualitySettings, refine = false): void {
 		this.settings = settings;

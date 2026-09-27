@@ -124,9 +124,9 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers'>> = {
 	}
 };
 
-/** No layer exists yet: each turns on in the milestone that passes its gates. */
+/** Each layer turns on in the milestone that passes its gates: post-processing in M63. */
 const LAYERS_ON: Record<Layer, boolean> = Object.fromEntries(
-	LAYERS.map((l) => [l, false])
+	LAYERS.map((l) => [l, l === 'post'])
 ) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
