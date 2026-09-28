@@ -1,5 +1,5 @@
 // The closed set of shader kinds (#169) and their graphs. Each kind's graph is built once per
-// variant fixed at creation (instanced or not, lines for the overlay), the first time a material
+// variant fixed at creation (instanced or not, lines for the overlay, local mapping), the first time a material
 // of it is made, and then shared by every material of that kind: their values reach it through
 // `materialReference` (`params.*` and the `<slot>Slot` textures of the drawn material, hooks.ts),
 // so no literal in a graph ever differs between materials and a new material, value or texture
@@ -8,7 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
-import { paintNormal, paintRoughness, slotSample, surfaceUV } from './hooks';
+import { paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
 import { worldEmissive, worldModify } from './world-modify';
 
@@ -172,30 +172,11 @@ export interface Variant {
 	instanced: boolean;
 	/** Overlay only: for LineSegments, which have no uv to sample. */
 	lines: boolean;
+	/** Surface, terrain and rock: box mapping in the geometry's own space (door panels, #177). */
+	local: boolean;
 }
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
-
-/**
- * Tangent-space normal mapping by screen-space derivatives of the coordinates the slots are
- * sampled at (Schüler, "Normal mapping without precomputed tangents"), as three's own frame does
- * with the mesh's uv: here any mapping (#177) works, and meshes without uv warn about nothing.
- */
-function perturbNormal(sampled: N, at: N): N {
-	const n = sampled.mul(2).sub(1);
-	const q0 = tsl.positionView.dFdx();
-	const q1 = tsl.positionView.dFdy();
-	const st0 = at.dFdx();
-	const st1 = at.dFdy();
-	const normal = tsl.normalView;
-	const q1perp = q1.cross(normal);
-	const q0perp = normal.cross(q0);
-	const T = q1perp.mul(st0.x).add(q0perp.mul(st1.x));
-	const B = q1perp.mul(st0.y).add(q0perp.mul(st1.y));
-	const det = tsl.max(T.dot(T), B.dot(B));
-	const scale = det.equal(0).select(0, det.inverseSqrt());
-	return T.mul(scale).mul(n.x).add(B.mul(scale).mul(n.y)).add(normal.mul(n.z)).normalize();
-}
 
 /** The emissive tint input: the material's, plus the instance's when instanced. */
 function tintOf(variant: Variant): N {
@@ -212,8 +193,9 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	if (def.base === 'basic') {
 		const colour = tsl.vec4(param('color', 'color'), 1);
 		const opacity = param('opacity', 'float');
-		const at = surfaceUV(kind, param('repeat', 'vec2'));
-		const albedo = variant.lines ? null : slotSample('albedo', at);
+		const albedo = variant.lines
+			? null
+			: surfaceMapping(kind, variant, param('repeat', 'vec2')).sample('albedo');
 		return {
 			colorNode: (albedo ? albedo.mul(colour) : colour).add(tsl.vec4(tint, 0)),
 			opacityNode: albedo ? albedo.w.mul(opacity) : opacity,
@@ -223,11 +205,12 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			lit: null
 		};
 	}
-	let at = surfaceUV(kind, param('repeat', 'vec2'));
-	if (kind === 'water') at = at.add(param('flow', 'vec2').mul(time));
-	const albedo = slotSample('albedo', at);
-	const orm = slotSample('orm', at);
-	const glow = slotSample('emissive', at)
+	const flow = kind === 'water' ? param('flow', 'vec2').mul(time) : null;
+	const mapping = surfaceMapping(kind, variant, param('repeat', 'vec2'), flow);
+	const albedo = mapping.sample('albedo');
+	const orm = mapping.sample('orm');
+	const glow = mapping
+		.sample('emissive')
 		.xyz.mul(param('emissive', 'color'))
 		.mul(param('emissiveIntensity', 'float'))
 		.add(tint);
@@ -256,7 +239,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			roughnessNode: paintRoughness(kind, param('roughness', 'float').mul(orm.y)),
 			metalnessNode: tsl.max(param('metalness', 'float'), orm.z),
 			aoNode: orm.x,
-			normalNode: paintNormal(kind, perturbNormal(slotSample('normal', at).xyz, at)),
+			normalNode: paintNormal(kind, mapping.normal()),
 			emissiveNode: emissive,
 			clearcoatNode: def.base === 'physical' ? param('clearcoat', 'float') : null,
 			clearcoatRoughnessNode: def.base === 'physical' ? param('clearcoatRoughness', 'float') : null
@@ -268,7 +251,7 @@ const graphs = new Map<string, Graph>();
 
 /** A kind's graph for a variant, built the first time it is asked for and shared from then on. */
 export function graphFor(kind: ShaderKind, variant: Variant): Graph {
-	const key = `${kind}:${variant.instanced ? 'i' : ''}${variant.lines ? 'l' : ''}`;
+	const key = `${kind}:${variant.instanced ? 'i' : ''}${variant.lines ? 'l' : ''}${variant.local ? 'o' : ''}`;
 	let graph = graphs.get(key);
 	if (!graph) graphs.set(key, (graph = build(kind, variant)));
 	return graph;

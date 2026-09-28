@@ -5,16 +5,23 @@
 
 import {
 	attribute,
+	cameraViewMatrix,
 	materialReference,
 	max,
+	normalGeometry,
 	normalView,
+	normalWorldGeometry,
 	output,
 	positionGeometry,
 	positionLocal,
 	positionView,
+	positionWorld,
 	sin,
 	texture,
+	transformNormalToView,
+	uniform,
 	uv,
+	vec2,
 	vec3,
 	vec4
 } from 'three/tsl';
@@ -27,16 +34,23 @@ const loose = (f: unknown) => f as Loose;
 
 export const tsl = {
 	attribute: loose(attribute),
+	cameraViewMatrix: loose(cameraViewMatrix),
 	materialReference: loose(materialReference),
 	max: loose(max),
+	normalGeometry: loose(normalGeometry),
 	normalView: loose(normalView),
+	normalWorldGeometry: loose(normalWorldGeometry),
 	output: loose(output),
 	positionGeometry: loose(positionGeometry),
 	positionLocal: loose(positionLocal),
 	positionView: loose(positionView),
+	positionWorld: loose(positionWorld),
 	sin: loose(sin),
 	texture: loose(texture),
+	transformNormalToView: loose(transformNormalToView),
+	uniform: loose(uniform),
 	uv: loose(uv),
+	vec2: loose(vec2),
 	vec3: loose(vec3),
 	vec4: loose(vec4)
 };

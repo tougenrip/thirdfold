@@ -694,9 +694,9 @@ layers uses them yet (#172 ports the layers).
 
 | Kind     | Base                               | Fixed at creation                 | Slots                         |
 | -------- | ---------------------------------- | --------------------------------- | ----------------------------- |
-| surface  | Standard                           | instanced, vertex colours         | albedo, normal, ORM, emissive |
+| surface  | Standard                           | instanced, vertex colours, local  | albedo, normal, ORM, emissive |
 | terrain  | Standard                           | as surface                        | as surface                    |
-| rock     | Standard                           | as surface (triplanar in #177)    | as surface                    |
+| rock     | Standard                           | as surface                        | as surface                    |
 | prop     | Standard                           | as surface; object-space sampling | as surface                    |
 | mini     | Physical (clearcoat a uniform)     | as prop                           | as surface                    |
 | emissive | Standard                           | as surface                        | as surface                    |
@@ -727,9 +727,34 @@ layers uses them yet (#172 ports the layers).
   overlay drew it, the flash, and a discard above `cutY`. Fog, mode, ambient, flash, cut and a new
   grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends); the pure mirrors are
   tested against the old overlays in `cell-maps.spec.ts`. Off (the identity) until #173.
-- **Hooks**, each the identity until its issue: `surfaceUV` (#177), `paintNormal`/`paintRoughness` (#178) and
+- **Hooks**, each the identity until its issue: `surfaceMapping` (#177), `paintNormal`/`paintRoughness`
+  (#178) and
   `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
   `aTint` attribute is the emissive tint input #172's hover and selection use.
+- **Mapping per kind** (#177, `materials/mapping.ts`, chosen by `surfaceMapping` in `hooks.ts`;
+  `params.repeat` is always the tile, so changing it compiles nothing):
+  - surface and terrain: a box projection of the world (`positionWorld`, the face by the largest
+    axis of `normalWorldGeometry`, ties to x then y). Textures run on across instances, walls of
+    any length and raised cells of any height, and neighbouring cells share their phase. Sides
+    repeat `repeat.x` per world unit across and `repeat.y` up; tops `repeat.x` both ways. u is
+    flipped by the face's sign so opposite faces don't mirror. `repeatFor` (`materials/tiling.ts`,
+    from `look.cells`, the cell size and `STEP_HEIGHT`) gives it: across, one repeat per
+    `look.cells` cells; up, the whole number of level steps or the course (a step divided evenly, so a wall is a multiple of
+    `WALL_LEVELS` courses) nearest the width, from `STEP_HEIGHT`, never a fixed height. One fetch
+    per slot, as with uv; each face's tangent frame is constant, so normal maps need no tangents.
+  - `local: true` (surface, terrain, rock): the same box projection in the geometry's own space,
+    for door panels, whose texture would slide across them as they swing in world space. On an
+    `InstancedMesh` it starts over on each instance.
+  - rock: triplanar in world space (projections on zy, xz and xy, `repeat.x` per unit, weights
+    `pow(|n|, triplanarSharpness)` normalised, normals blended by Whiteout). A slot's three fetches
+    are its reference plus two `.sample()` clones of its texture node, which keep a
+    `referenceNode`, so a new texture reaches all three and binds once. Three fetches per slot, on
+    rock only.
+  - prop and mini: object space (`positionGeometry.xz`); every other kind the mesh's uv, water's
+    moved by `params.flow` on `worldTime`.
+  - `mapping.svelte.spec.ts` checks it drawn on both backends: no seam between two wall instances
+    or two raised cells of different heights (the geometry's own space shows one), a door panel's
+    texture moving with it, and rock's new texture on every face with no new program.
 - **Animated kinds** read `worldTime`, a uniform the renderer owns and holds still under reduced
   motion, never three's `time`.
 - **No GLSL, no `onBeforeCompile`**: ESLint refuses `onBeforeCompile`, `glslFn` and `wgslFn` under

@@ -5,7 +5,7 @@
 // docs/RENDERING.md, "Shader kinds"; what later looks plug into, in hooks.ts and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `vertexColors`, and the kind's `transparent`, `side` and
+// the kind, `instanced`, `lines`, `local`, `vertexColors`, and the kind's `transparent`, `side` and
 // alpha test.
 
 import * as THREE from 'three/webgpu';
@@ -36,6 +36,11 @@ export interface MaterialOptions {
 	instanced?: boolean;
 	/** Overlay only: a LineBasicNodeMaterial for LineSegments. */
 	lines?: boolean;
+	/**
+	 * Surface, terrain and rock: box mapping in the geometry's own space, not the world's, for a
+	 * mesh that moves (door panels swing, so a world mapping would slide across them; #177).
+	 */
+	local?: boolean;
 	/** Multiplies the geometry's vertex colours in (figure bodies, part-list props). */
 	vertexColors?: boolean;
 	params?: ParamsInput;
@@ -104,7 +109,7 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	for (const slot of lines ? [] : SLOT_NAMES)
 		if (def.slots.includes(slot)) setSlot(material, slot, options.slots?.[slot] ?? null);
 
-	const graph = graphFor(kind, { instanced: !!options.instanced, lines });
+	const graph = graphFor(kind, { instanced: !!options.instanced, lines, local: !!options.local });
 	const nodes = material as unknown as Record<string, unknown>;
 	nodes.colorNode = graph.colorNode;
 	nodes.opacityNode = graph.opacityNode;

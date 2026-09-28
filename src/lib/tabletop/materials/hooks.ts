@@ -3,22 +3,37 @@
 // whatever they return is part of that graph for good: no runtime value may choose between
 // branches here, only uniforms and slots may vary.
 //
-// - `surfaceUV`: #177's mapping (box projection for walls and ground, object space for door
-//   panels, triplanar for rock). Today every kind reads the mesh's uv, repeated per material.
+// - `surfaceMapping`: where a kind's slots lie (#177, mapping.ts): box projection from world
+//   position on the surface and terrain kinds, the geometry's own space for a `local` material
+//   (door panels), triplanar on rock, object space on props and minis, the mesh's uv elsewhere.
 // - `slotSample`: #179's sampler settings (the `uMipBias` with TRAA on high). A plain sample.
 // - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis. Unpainted.
 
 import type { SlotName } from './defaults';
 import { slotDefault, slotProperty } from './defaults';
-import type { ShaderKind } from './kinds';
+import type { ShaderKind, Variant } from './kinds';
+import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
 import { tsl, type N } from './tsl';
 
 /**
- * Where a kind samples its slots, times the material's `repeat`: the mesh's uv, except on props
- * and minis, whose models carry no uv and whose paint (#178) sits in object space.
+ * Where a kind lays its slots, `repeat` (`params.repeat`) being the tile: a box projection of
+ * the world on walls and raised ground, so textures run on across instances and heights, or of
+ * the geometry's own space for a `local` material (door panels, whose texture must not slide as
+ * they swing); triplanar on rock; object space on props and minis, whose models carry no uv and
+ * whose paint (#178) sits there; the mesh's uv, moved by `offset` (water's flow), elsewhere.
  */
-export const surfaceUV = (kind: ShaderKind, repeat: N): N =>
-	(kind === 'prop' || kind === 'mini' ? tsl.positionGeometry.xz : tsl.uv()).mul(repeat);
+export function surfaceMapping(
+	kind: ShaderKind,
+	variant: Variant,
+	repeat: N,
+	offset: N | null = null
+): Mapping {
+	if (kind === 'surface' || kind === 'terrain')
+		return (variant.local ? localBox : worldBox)(repeat);
+	if (kind === 'rock') return variant.local ? localBox(repeat) : triplanar(repeat);
+	const at = (kind === 'prop' || kind === 'mini' ? tsl.positionGeometry.xz : tsl.uv()).mul(repeat);
+	return uvMapping(offset ? at.add(offset) : at);
+}
 
 /**
  * A slot's texture sampled at `at`: one node per slot and graph, a `materialReference` to the
