@@ -1,14 +1,18 @@
 // World-aligned mapping (#177) drawn: a wall's texture runs on across the seam between two wall
 // instances and raised cells of different heights share its phase (the geometry's own space, as
 // a door panel is mapped, would jump there), a door panel's texture moves with the panel, and
-// rock's triplanar mapping shows a new texture on every face with no new program.
+// rock's triplanar mapping shows a new texture on every face with no new program. And against
+// z-fighting and tiling (#181): a lifted instance wins over a coplanar one whatever the draw
+// order, and macro variation and anti-tiling change the picture without a new program.
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { BACKEND } from './testing';
 import {
+	LIFT_ATTRIBUTE,
 	SLOTS,
+	TINT_ATTRIBUTE,
 	addInstanceTints,
 	createMaterial,
 	prepareSlotTexture,
@@ -184,5 +188,66 @@ describe('triplanar rock', () => {
 		px = drawn(await draw());
 		expect(px.every(([r, g, b]) => g > r + 40 && g > b + 40)).toBe(true);
 		expect(programs()).toBe(p0);
+	});
+});
+
+describe('micro-offsets and macro variation (#181)', () => {
+	it('lift an instance off a coplanar one, whatever the draw order', async () => {
+		const { scene, draw, programs } = await setup();
+		const geometry = new THREE.PlaneGeometry(2, 2);
+		addInstanceTints(geometry, 2);
+		// Two sheets in the same plane: the first red and lifted most, the second green.
+		const tints = geometry.getAttribute(TINT_ATTRIBUTE) as THREE.InstancedBufferAttribute;
+		tints.setXYZW(0, 1, 0, 0, 1);
+		tints.setXYZW(1, 0, 1, 0, 1);
+		const lifts = geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.InstancedBufferAttribute;
+		lifts.setX(0, 0.9);
+		lifts.setX(1, 0.1);
+		// Black, so only the tints show.
+		const material = createMaterial('prop', { instanced: true, params: { color: 0x000000 } });
+		const sheets = new THREE.InstancedMesh(geometry, material, 2);
+		scene.add(sheets);
+		const [r, g] = at(await draw(), SIZE / 2);
+		expect(r).toBeGreaterThan(g + 60);
+		const p0 = programs();
+
+		// Without the lift the sheets are coplanar and the one drawn last shows.
+		setParams(material, { lift: 0 });
+		const [r0, g0] = at(await draw(), SIZE / 2);
+		expect(g0).toBeGreaterThan(r0 + 60);
+		expect(programs()).toBe(p0);
+	});
+
+	it('vary tint by strength, and anti-tile, without a new program for the strength', async () => {
+		const { scene, camera, draw, programs } = await setup();
+		camera.position.set(0, 8, 0.01);
+		camera.lookAt(0, 0, 0);
+		const plain = createMaterial('terrain', { slots: { albedo: gradient() } });
+		setParams(plain, { macroTint: 0, macroRoughness: 0, macroScale: 0.7 });
+		const ground = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 4), plain);
+		scene.add(ground);
+		const before = await draw();
+		const p0 = programs();
+		setParams(plain, { macroTint: 0.6, macroRoughness: 0.3 });
+		const varied = await draw();
+		expect(programs()).toBe(p0);
+		let most = 0;
+		for (let i = 0; i < before.length; i++) most = Math.max(most, Math.abs(before[i] - varied[i]));
+		expect(most).toBeGreaterThan(10);
+		setParams(plain, { macroTint: 0, macroRoughness: 0 });
+		expect([...(await draw())]).toEqual([...before]);
+
+		// The anti-tiled graph (medium tier and up) draws the same ground differently.
+		const errors = vi.spyOn(console, 'error');
+		const antiTiled = createMaterial('terrain', { antiTiled: true, slots: { albedo: gradient() } });
+		setParams(antiTiled, { macroTint: 0, macroRoughness: 0, repeat: { x: 1.3, y: 1.3 } });
+		setParams(plain, { repeat: { x: 1.3, y: 1.3 } });
+		const tiled = await draw();
+		ground.material = antiTiled;
+		const broken = await draw();
+		expect(errors).not.toHaveBeenCalled();
+		let changed = 0;
+		for (let i = 0; i < tiled.length; i += 4) if (tiled[i] !== broken[i]) changed++;
+		expect(changed).toBeGreaterThan(SIZE * 4);
 	});
 });

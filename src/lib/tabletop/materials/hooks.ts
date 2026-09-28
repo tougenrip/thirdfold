@@ -17,7 +17,8 @@ import { tsl, type N } from './tsl';
 
 /**
  * Where a kind lays its slots, `repeat` (`params.repeat`) being the tile: a box projection of
- * the world on walls and raised ground, so textures run on across instances and heights, or of
+ * the world on walls and raised ground, so textures run on across instances and heights (two
+ * offset fetches blended against visible tiling in the `antiTiled` variant, #181), or of
  * the geometry's own space for a `local` material (door panels, whose texture must not slide as
  * they swing); triplanar on rock; object space on props and minis, whose models carry no uv and
  * whose paint (#178) sits there; the mesh's uv, moved by `offset` (water's flow), elsewhere.
@@ -29,7 +30,7 @@ export function surfaceMapping(
 	offset: N | null = null
 ): Mapping {
 	if (kind === 'surface' || kind === 'terrain')
-		return (variant.local ? localBox : worldBox)(repeat);
+		return variant.local ? localBox(repeat) : worldBox(repeat, variant.antiTiled);
 	if (kind === 'rock') return variant.local ? localBox(repeat) : triplanar(repeat);
 	const at = (kind === 'prop' || kind === 'mini' ? tsl.positionGeometry.xz : tsl.uv()).mul(repeat);
 	return uvMapping(offset ? at.add(offset) : at);

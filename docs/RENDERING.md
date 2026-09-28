@@ -755,6 +755,28 @@ layers uses them yet (#172 ports the layers).
   - `mapping.svelte.spec.ts` checks it drawn on both backends: no seam between two wall instances
     or two raised cells of different heights (the geometry's own space shows one), a door panel's
     texture moving with it, and rock's new texture on every face with no new program.
+- **Against z-fighting and tiling** (#181, `materials/variation.ts`, `materials/lift.ts`):
+  - Instanced prop and decal meshes carry a per-instance `aLift` in [0, 1) (`LIFT_ATTRIBUTE`,
+    added by `addInstanceTints` with the tint), and their vertex stage moves each instance
+    `aLift × params.lift` along its normal (`params.lift`: a thousandth of a cell in world units,
+    so the layer sets it from the cell size). The layer writes `liftOf(assetId, anchorCell)`: the
+    PCG hash (the arithmetic of three's TSL `hash`) of FNV-1a of the id xor the cell times
+    Teschner's primes, worked out in JS, so it is the same on every client, load and backend and a
+    server-project test pins it. Never negative, so the table and raised ground (not lifted) stay
+    below; exact duplicates get the same lift and are identical anyway.
+  - Surface, terrain and rock vary by MaterialX fractal noise of world xz times
+    `params.macroScale`: albedo times `1 ± params.macroTint` and roughness moved by up to
+    `± params.macroRoughness` (defaults 0.1 and 0.08 on those kinds, 0 elsewhere; 0 is off in the
+    same graph). ALU only, on every tier.
+  - `antiTiled: true` (surface and terrain in world space) samples each slot twice at offsets a
+    low-frequency noise index picks (iq, "Texture repetition", technique 3), with the coordinates'
+    own gradients, and blends them: a graph of its own for the medium tier and up; low keeps one
+    fetch.
+  - Depth precision (worked out, not measured): with the near plane at 0.1 and a 24-bit depth
+    buffer, a depth step is about z² / (0.1 × 2²⁴): 6e-5 at 10 units, 1e-3 at 41 and 2e-3 at 58.
+    Two coplanar lifted sheets are on average a third of `params.lift` (3e-4 of a cell) apart, so
+    they resolve to about 23 units away, and the whole lift to about 41; farther, coplanar
+    surfaces need the reversed float depth buffer, decided with the horizon work in 67.
 - **Animated kinds** read `worldTime`, a uniform the renderer owns and holds still under reduced
   motion, never three's `time`.
 - **No GLSL, no `onBeforeCompile`**: ESLint refuses `onBeforeCompile`, `glslFn` and `wgslFn` under

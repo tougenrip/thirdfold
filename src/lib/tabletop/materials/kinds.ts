@@ -10,6 +10,7 @@ import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
 import { paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
+import { LIFTED, VARIED, lifted, macroOf, macroRoughness, macroTint } from './variation';
 import { worldEmissive, worldModify } from './world-modify';
 
 export type ShaderKind =
@@ -68,6 +69,18 @@ export interface Params {
 	/** Minis: clearcoat (0 until #267) and its roughness, uniforms so leaving 0 compiles nothing. */
 	clearcoat: number;
 	clearcoatRoughness: number;
+	/**
+	 * Props and decals (instanced): world units an instance is lifted along its normal at an
+	 * `aLift` of 1, against z-fighting (#181): a thousandth of a cell, so the layer sets it from
+	 * the grid's cell size.
+	 */
+	lift: number;
+	/** Surface, terrain and rock: the macro variation's frequency, per world unit (#181). */
+	macroScale: number;
+	/** How far macro variation moves albedo, as a fraction (0 off, 0.1 is ±10%). */
+	macroTint: number;
+	/** How far macro variation moves roughness, either way (0 off). */
+	macroRoughness: number;
 }
 
 /** What a caller may set: colours and vectors in any form three takes. */
@@ -92,8 +105,15 @@ export const PARAM_DEFAULTS: Required<ParamsInput> = {
 	sway: 0,
 	flow: { x: 0, y: 0 },
 	clearcoat: 0,
-	clearcoatRoughness: 0.3
+	clearcoatRoughness: 0.3,
+	lift: 1e-3,
+	macroScale: 0.08,
+	macroTint: 0,
+	macroRoughness: 0
 };
+
+/** The tiled kinds' macro variation (#181): gentle, over about a dozen cells. */
+const VARY: ParamsInput = { macroTint: 0.1, macroRoughness: 0.08 };
 
 export interface KindDef {
 	base: 'standard' | 'physical' | 'basic';
@@ -120,9 +140,9 @@ const lit = (defaults: ParamsInput, more: Partial<KindDef> = {}): KindDef => ({
 });
 
 export const KINDS: Record<ShaderKind, KindDef> = {
-	surface: lit({ roughness: 0.85 }),
-	terrain: lit({ roughness: 0.9 }),
-	rock: lit({ roughness: 0.95 }),
+	surface: lit({ roughness: 0.85, ...VARY }),
+	terrain: lit({ roughness: 0.9, ...VARY }),
+	rock: lit({ roughness: 0.95, ...VARY }),
 	prop: lit({ roughness: 0.75 }),
 	mini: lit({ roughness: 0.45 }, { base: 'physical' }),
 	emissive: lit({ roughness: 0.3 }),
@@ -174,6 +194,8 @@ export interface Variant {
 	lines: boolean;
 	/** Surface, terrain and rock: box mapping in the geometry's own space (door panels, #177). */
 	local: boolean;
+	/** Surface and terrain in world space: two-fetch anti-tiling, medium tier and up (#181). */
+	antiTiled: boolean;
 }
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
@@ -216,7 +238,15 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		.add(tint);
 	const emissive = worldEmissive(glow);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
-	const sway =
+	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
+	const colour = tsl.vec4(
+		macro
+			? param('color', 'color').mul(macroTint(macro, param('macroTint', 'float')))
+			: param('color', 'color'),
+		1
+	);
+	const roughness = param('roughness', 'float').mul(orm.y);
+	const position =
 		kind === 'foliage'
 			? tsl.positionLocal.add(
 					tsl.vec3(
@@ -228,15 +258,20 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 						0
 					)
 				)
-			: null;
+			: variant.instanced && LIFTED.includes(kind)
+				? lifted(param('lift', 'float'))
+				: null;
 	return {
-		colorNode: albedo.mul(tsl.vec4(param('color', 'color'), 1)),
+		colorNode: albedo.mul(colour),
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
-		positionNode: sway,
+		positionNode: position,
 		outputNode: worldModify(tsl.output, emissive),
 		lit: {
-			roughnessNode: paintRoughness(kind, param('roughness', 'float').mul(orm.y)),
+			roughnessNode: paintRoughness(
+				kind,
+				macro ? macroRoughness(roughness, macro, param('macroRoughness', 'float')) : roughness
+			),
 			metalnessNode: tsl.max(param('metalness', 'float'), orm.z),
 			aoNode: orm.x,
 			normalNode: paintNormal(kind, mapping.normal()),
@@ -251,7 +286,13 @@ const graphs = new Map<string, Graph>();
 
 /** A kind's graph for a variant, built the first time it is asked for and shared from then on. */
 export function graphFor(kind: ShaderKind, variant: Variant): Graph {
-	const key = `${kind}:${variant.instanced ? 'i' : ''}${variant.lines ? 'l' : ''}${variant.local ? 'o' : ''}`;
+	const flags: [keyof Variant, string][] = [
+		['instanced', 'i'],
+		['lines', 'l'],
+		['local', 'o'],
+		['antiTiled', 'a']
+	];
+	const key = `${kind}:${flags.map(([f, c]) => (variant[f] ? c : '')).join('')}`;
 	let graph = graphs.get(key);
 	if (!graph) graphs.set(key, (graph = build(kind, variant)));
 	return graph;

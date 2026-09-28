@@ -5,11 +5,12 @@
 // docs/RENDERING.md, "Shader kinds"; what later looks plug into, in hooks.ts and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `local`, `vertexColors`, and the kind's `transparent`, `side` and
+// the kind, `instanced`, `lines`, `local`, `antiTiled`, `vertexColors`, and the kind's `transparent`, `side` and
 // alpha test.
 
 import * as THREE from 'three/webgpu';
 import { SLOT_NAMES, slotDefault, slotProperty, type SlotName } from './defaults';
+import { LIFT_ATTRIBUTE } from './variation';
 import {
 	graphFor,
 	KINDS,
@@ -21,6 +22,9 @@ import {
 } from './kinds';
 
 export { SHADER_KINDS, KINDS, TINT_ATTRIBUTE, worldTime } from './kinds';
+export { LIFT_ATTRIBUTE } from './variation';
+export { liftOf } from './lift';
+export { repeatFor } from './tiling';
 export type { Params, ParamsInput, ShaderKind } from './kinds';
 export { SLOTS, SLOT_NAMES, blankTexture, prepareSlotTexture, slotDefault } from './defaults';
 export type { SlotName, SlotSpec, SlotType } from './defaults';
@@ -41,6 +45,11 @@ export interface MaterialOptions {
 	 * mesh that moves (door panels swing, so a world mapping would slide across them; #177).
 	 */
 	local?: boolean;
+	/**
+	 * Surface and terrain: two-fetch anti-tiling (#181), for the medium tier and up; low keeps
+	 * one fetch. A graph of its own, so the tier's pipeline chooses it (#169), never at runtime.
+	 */
+	antiTiled?: boolean;
 	/** Multiplies the geometry's vertex colours in (figure bodies, part-list props). */
 	vertexColors?: boolean;
 	params?: ParamsInput;
@@ -103,13 +112,22 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		sway: 0,
 		flow: new THREE.Vector2(),
 		clearcoat: 0,
-		clearcoatRoughness: 0
+		clearcoatRoughness: 0,
+		lift: 0,
+		macroScale: 0,
+		macroTint: 0,
+		macroRoughness: 0
 	};
 	setParams(material, { ...PARAM_DEFAULTS, ...def.defaults, ...options.params });
 	for (const slot of lines ? [] : SLOT_NAMES)
 		if (def.slots.includes(slot)) setSlot(material, slot, options.slots?.[slot] ?? null);
 
-	const graph = graphFor(kind, { instanced: !!options.instanced, lines, local: !!options.local });
+	const graph = graphFor(kind, {
+		instanced: !!options.instanced,
+		lines,
+		local: !!options.local,
+		antiTiled: !!options.antiTiled
+	});
 	const nodes = material as unknown as Record<string, unknown>;
 	nodes.colorNode = graph.colorNode;
 	nodes.opacityNode = graph.opacityNode;
@@ -120,10 +138,17 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	return material;
 }
 
-/** Gives a geometry the per-instance tint an instanced kind reads: rgb and strength, all 0. */
+/**
+ * Gives a geometry what an instanced kind reads per instance: the tint (rgb and strength, all 0)
+ * and the lift (`LIFT_ATTRIBUTE`, 0; the layer writes `liftOf` each instance's asset and cell).
+ */
 export function addInstanceTints(geometry: THREE.BufferGeometry, count: number): void {
 	geometry.setAttribute(
 		TINT_ATTRIBUTE,
 		new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4)
+	);
+	geometry.setAttribute(
+		LIFT_ATTRIBUTE,
+		new THREE.InstancedBufferAttribute(new Float32Array(count), 1)
 	);
 }

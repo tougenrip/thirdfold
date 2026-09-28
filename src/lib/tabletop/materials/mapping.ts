@@ -7,6 +7,7 @@
 import type { SlotName } from './defaults';
 import { slotSample } from './hooks';
 import { tsl, type N } from './tsl';
+import { antiTile } from './variation';
 
 /** A kind's slots as laid on its surface. */
 export interface Mapping {
@@ -54,8 +55,17 @@ const signOf = (v: N) => v.greaterThanEqual(0).select(1, -1);
  * faces don't mirror and v up the world on sides. Sides repeat `repeat.x` across and `repeat.y`
  * up (tiling.ts `repeatFor`), tops `repeat.x` both ways. Each face has a constant tangent frame,
  * so normal maps need no tangents; `toView` takes the perturbed normal from the input's space.
+ * With `antiTiled` (#181, terrain on medium and up) each slot is fetched twice, at the pattern's
+ * two offsets `antiTile` picks, with the coordinates' own gradients, and blended: the offsets
+ * are translations, so the tangent frame holds.
  */
-export function boxMapping(position: N, geometric: N, repeat: N, toView: (n: N) => N): Mapping {
+export function boxMapping(
+	position: N,
+	geometric: N,
+	repeat: N,
+	toView: (n: N) => N,
+	antiTiled = false
+): Mapping {
 	const p = tsl.vec3(position);
 	const n = tsl.vec3(geometric).normalize();
 	const a = n.abs();
@@ -69,19 +79,31 @@ export function boxMapping(position: N, geometric: N, repeat: N, toView: (n: N) 
 	);
 	const tangent = onX.select(tsl.vec3(0, 0, sx.negate()), tsl.vec3(onY.select(1, sz), 0, 0));
 	const bitangent = onY.select(tsl.vec3(0, 0, sy.negate()), tsl.vec3(0, 1, 0));
+	const tiles = antiTiled ? antiTile(at) : null;
+	const fetch = (slot: SlotName): N => {
+		if (!tiles) return slotSample(slot, at);
+		const a = slotSample(slot, at.add(tiles.a)) as N & { node: N & { gradNode: N[] } };
+		a.node.gradNode = [at.dFdx(), at.dFdy()];
+		// A clone of the same texture node, so both fetches bind the slot once (TextureNode.sample).
+		return tsl.mix(a, a.node.sample(at.add(tiles.b)), tiles.blend);
+	};
 	return {
-		sample: (slot) => slotSample(slot, at),
+		sample: fetch,
 		normal() {
-			const t = slotSample('normal', at).xyz.mul(2).sub(1);
+			const t = fetch('normal').xyz.mul(2).sub(1);
 			return toView(tangent.mul(t.x).add(bitangent.mul(t.y)).add(n.mul(t.z))).normalize();
 		}
 	};
 }
 
 /** Box projection in world space: walls and raised ground, continuous across instances. */
-export const worldBox = (repeat: N): Mapping =>
-	boxMapping(tsl.positionWorld, tsl.normalWorldGeometry, repeat, (n) =>
-		n.transformDirection(tsl.cameraViewMatrix)
+export const worldBox = (repeat: N, antiTiled = false): Mapping =>
+	boxMapping(
+		tsl.positionWorld,
+		tsl.normalWorldGeometry,
+		repeat,
+		(n) => n.transformDirection(tsl.cameraViewMatrix),
+		antiTiled
 	);
 
 /** Box projection in the geometry's own space: a door panel's texture swings with it. */
