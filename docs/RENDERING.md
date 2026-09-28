@@ -364,6 +364,8 @@ viewer's choice in `thirdfold:graphics`, then the tier refinement measured on th
 
 Layers (`sky`, `post`, `grass`, `water`, `vfx`, `weather`, `xray`, `dof`) are all off until each
 passes its milestone's gates; `?off=sky,grass` turns layers off, for A/B tests and emergencies.
+`fogshade` (#171) is the temporary switch that keeps `worldModify` the identity while the fog and
+darkness overlays still draw; #173 turns it on for good and removes it.
 Neither `?tier=` nor `?off=` is saved.
 
 **The Graphics menu** (`src/lib/ui/GraphicsControls.svelte`, #154), beside Sound in the room's
@@ -716,8 +718,16 @@ layers uses them yet (#172 ports the layers).
 - **Never toggle** `transparent`, `side`, `alphaTest`, `vertexColors` or `fog` after creation;
   foliage cuts by `params.cutoff` through `alphaTestNode`, the mini's clearcoat is
   `clearcoatNode` on `params.clearcoat` (0 until #267).
-- **Hooks**, each the identity until its issue: `worldModify` and `worldEmissive` last on every kind
-  (`world-modify.ts`, #171), `surfaceUV` (#177), `paintNormal`/`paintRoughness` (#178) and
+- **World modify** (#171): `worldModify` last on every kind and `worldEmissive` on its emissive
+  (`world-modify.ts`) read the cell maps (`cell-maps.ts`: `visibility` RGBA8, R visible, G explored,
+  B the rules' light level, A sky visibility; `ground` RG8, floor index and level; grid row order,
+  one texel per cell, fed by `CellMaps.update` from the renderer's `relight`) and uniforms only:
+  a player's hidden cells exactly 0 (haze and emissive included), explored dim, desaturated and
+  cool, the GM's unseen cells tinted, darkness `1 - shade x (1 - max(level, fill))` as the old
+  overlay drew it, the flash, and a discard above `cutY`. Fog, mode, ambient, flash, cut and a new
+  grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends); the pure mirrors are
+  tested against the old overlays in `cell-maps.spec.ts`. Off (the identity) until #173.
+- **Hooks**, each the identity until its issue: `surfaceUV` (#177), `paintNormal`/`paintRoughness` (#178) and
   `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
   `aTint` attribute is the emissive tint input #172's hover and selection use.
 - **Animated kinds** read `worldTime`, a uniform the renderer owns and holds still under reduced

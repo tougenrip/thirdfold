@@ -110,6 +110,8 @@ export class LightingLayer {
 	private ambient: Ambient = 'day';
 	/** Per-cell brightness from the last update (0 dark - 1 lit), or null by day. */
 	private brightness: Float32Array | null = null;
+	/** The rules' light level per cell from the last update, or null by day (the cell maps', #171). */
+	levels: Float32Array | null = null;
 	/** Whether the table has dark areas (they darken even by day, and their flames flicker). */
 	private hasDark = false;
 	private hemisphere = PRESETS.day.hemisphere;
@@ -198,7 +200,7 @@ export class LightingLayer {
 	): void {
 		if (darkness === 0 && !this.hasDark) {
 			this.overlay.visible = false;
-			this.brightness = null;
+			this.brightness = this.levels = null;
 			return;
 		}
 		const size = grid.width * grid.height;
@@ -216,7 +218,7 @@ export class LightingLayer {
 			this.overlay.material.map = this.texture;
 			this.overlay.material.needsUpdate = true;
 		}
-		const levels = lightLevels(grid, blocked, sources);
+		const levels = (this.levels = lightLevels(grid, blocked, sources));
 		const data = this.texture.image.data as Uint8Array;
 		this.brightness = new Float32Array(size);
 		for (let i = 0; i < size; i++) {

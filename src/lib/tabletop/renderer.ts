@@ -19,6 +19,7 @@ import type { FogView } from '$lib/game/visibility';
 import { AmbienceLayer } from './ambience';
 import { CameraRig } from './camera';
 import { QualityControl } from './capabilities';
+import { CellMaps } from './cell-maps';
 import { DiceLayer, throwFromView } from './dice3d';
 import { EffectsLayer } from './effects';
 import { loadEnvironment, type EnvironmentLook } from './environment';
@@ -96,6 +97,7 @@ export async function createTabletop(
 	scene.add(floorLayer.mesh);
 	let floor: Uint8Array | null = null;
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
+	const cellMaps = new CellMaps(); // what every material's worldModify reads (#171)
 	const diceLayer = new DiceLayer();
 	scene.add(diceLayer.group);
 	// Read live: turning reduced motion on or off applies at once, without a reload.
@@ -165,6 +167,7 @@ export async function createTabletop(
 		const seats = lightSeats(grid, props);
 		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
 		overlay.setMasks(floorLayer.mask, fogLayer.mask, lighting.darkMask);
+		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade
 		// Raised ground under fog and darkness, by the same rules as the flat overlays.
 		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
@@ -223,6 +226,7 @@ export async function createTabletop(
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
 		lighting.setFlash(fx.flash);
+		cellMaps.setFlash(fx.flash);
 		const bellSwinging = !!swinging;
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
 		if (!fx.active) swinging = null;
@@ -476,13 +480,14 @@ export async function createTabletop(
 			stopPicking();
 			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting, post];
 			const more = [overlay, ambience, terrainLayer, effects, propLayer, diceLayer, previews];
-			for (const l of [...layers, ...more]) l.dispose();
+			for (const l of [...layers, ...more, cellMaps]) l.dispose();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
 			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
 		setQuality(settings, refine) {
 			quality.set(settings, refine);
 			post.set(settings);
+			cellMaps.setOn(settings.layers.fogshade);
 		},
 		capabilities: () => quality.caps,
 		setPowerSaver: (on) => loop.setPowerSaver(on),
