@@ -819,7 +819,7 @@ describe('fog of war over the wire', () => {
 		gm.send({ type: 'scene_import', file });
 		await gm.until('room_reset');
 		gm.send({ type: 'chat_send', text: 'done' });
-		for (const c of [pip.c, sam.c]) {
+		for (const c of [gm, pip.c, sam.c]) {
 			await c.until('chat', (m) => m.message.kind === 'chat' && m.message.text === 'done');
 		}
 
