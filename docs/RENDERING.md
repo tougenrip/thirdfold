@@ -739,12 +739,14 @@ layers uses them yet (#172 ports the layers).
     repeat `repeat.x` per world unit across and `repeat.y` up; tops `repeat.x` both ways. u is
     flipped by the face's sign so opposite faces don't mirror. `repeatFor` (`materials/tiling.ts`,
     from `look.cells`, the cell size and `STEP_HEIGHT`) gives it: across, one repeat per
-    `look.cells` cells; up, the whole number of level steps or the course (a step divided evenly, so a wall is a multiple of
-    `WALL_LEVELS` courses) nearest the width, from `STEP_HEIGHT`, never a fixed height. One fetch
-    per slot, as with uv; each face's tangent frame is constant, so normal maps need no tangents.
+    `look.cells` cells; up, the whole number of level steps or the course (a step divided evenly,
+    so a wall is a multiple of `WALL_LEVELS` courses) nearest the width, from `STEP_HEIGHT`, never
+    a fixed height. One fetch per slot, as with uv; each face's tangent frame is constant, so
+    normal maps need no tangents.
   - `local: true` (surface, terrain, rock): the same box projection in the geometry's own space,
-    for door panels, whose texture would slide across them as they swing in world space. On an
-    `InstancedMesh` it starts over on each instance.
+    for door panels, whose texture would slide across them as they swing in world space. It is
+    for single meshes: its normal goes to view space by the mesh's normal matrix alone, so on an
+    `InstancedMesh` the texture starts over on each instance but a rotated instance is lit wrong.
   - rock: triplanar in world space (projections on zy, xz and xy, `repeat.x` per unit, weights
     `pow(|n|, triplanarSharpness)` normalised, normals blended by Whiteout). A slot's three fetches
     are its reference plus two `.sample()` clones of its texture node, which keep a
@@ -756,7 +758,7 @@ layers uses them yet (#172 ports the layers).
     or two raised cells of different heights (the geometry's own space shows one), a door panel's
     texture moving with it, and rock's new texture on every face with no new program.
 - **Against z-fighting and tiling** (#181, `materials/variation.ts`, `materials/lift.ts`):
-  - Instanced prop and decal meshes carry a per-instance `aLift` in [0, 1) (`LIFT_ATTRIBUTE`,
+  - Instanced prop, decal and water meshes carry a per-instance `aLift` in [0, 1) (`LIFT_ATTRIBUTE`,
     added by `addInstanceTints` with the tint), and their vertex stage moves each instance
     `aLift × params.lift` along its normal (`params.lift`: a thousandth of a cell in world units,
     so the layer sets it from the cell size). The layer writes `liftOf(assetId, anchorCell)`: the

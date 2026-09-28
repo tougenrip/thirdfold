@@ -7,11 +7,14 @@
 import type { ShaderKind } from './kinds';
 import { tsl, type N } from './tsl';
 
-/** The per-instance lift an instanced prop or decal reads: in [0, 1) of `params.lift`. */
+/** The per-instance lift an instanced prop, decal or water reads: in [0, 1) of `params.lift`. */
 export const LIFT_ATTRIBUTE = 'aLift';
 
-/** The kinds that lie on other surfaces and are lifted off them. */
-export const LIFTED: readonly ShaderKind[] = ['prop', 'decal'];
+/**
+ * The kinds that lie on other surfaces and are lifted off them: props and decals, and water, whose
+ * sheets (the Hollow's lake) lie on floors as props do.
+ */
+export const LIFTED: readonly ShaderKind[] = ['prop', 'decal', 'water'];
 
 /** The tiled kinds that get macro variation. */
 export const VARIED: readonly ShaderKind[] = ['surface', 'terrain', 'rock'];

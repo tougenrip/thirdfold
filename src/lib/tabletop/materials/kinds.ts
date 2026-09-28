@@ -1,6 +1,6 @@
 // The closed set of shader kinds (#169) and their graphs. Each kind's graph is built once per
-// variant fixed at creation (instanced or not, lines for the overlay, local mapping), the first time a material
-// of it is made, and then shared by every material of that kind: their values reach it through
+// variant fixed at creation (instanced or not, lines for the overlay, local mapping, anti-tiling),
+// the first time a material of it is made, and then shared by every material of that kind: their values reach it through
 // `materialReference` (`params.*` and the `<slot>Slot` textures of the drawn material, hooks.ts),
 // so no literal in a graph ever differs between materials and a new material, value or texture
 // adds no program.
@@ -70,7 +70,7 @@ export interface Params {
 	clearcoat: number;
 	clearcoatRoughness: number;
 	/**
-	 * Props and decals (instanced): world units an instance is lifted along its normal at an
+	 * Props, decals and water (instanced): world units an instance is lifted along its normal at an
 	 * `aLift` of 1, against z-fighting (#181): a thousandth of a cell, so the layer sets it from
 	 * the grid's cell size.
 	 */

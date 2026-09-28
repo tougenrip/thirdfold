@@ -5,8 +5,8 @@
 // docs/RENDERING.md, "Shader kinds"; what later looks plug into, in hooks.ts and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `local`, `antiTiled`, `vertexColors`, and the kind's `transparent`, `side` and
-// alpha test.
+// the kind, `instanced`, `lines`, `local`, `antiTiled`, `vertexColors`, and the kind's
+// `transparent`, `side` and alpha test.
 
 import * as THREE from 'three/webgpu';
 import { SLOT_NAMES, slotDefault, slotProperty, type SlotName } from './defaults';
