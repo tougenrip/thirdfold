@@ -5,6 +5,7 @@
 
 import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadEnvironment } from './environment';
 import { createTabletop } from './renderer';
 import { qualityFor, settingsFor } from './quality';
 import {
@@ -72,6 +73,11 @@ describe('the renderer, over time', () => {
 		};
 		const village = await load('village');
 		const hollow = await load('hollow');
+		// Environments' textures are kept once drawn, like models (#172): loaded first, so the
+		// first round trip draws both looks and fills that cache, whatever the loading takes.
+		await Promise.all(
+			[village, hollow].map((v) => v.environment && loadEnvironment(v.environment))
+		);
 		const sidecar = await loadSidecar('village');
 		const m = await mountFixture(village, sidecar.poses.overview);
 		mounted.push(m);

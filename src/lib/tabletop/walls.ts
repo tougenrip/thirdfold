@@ -81,13 +81,17 @@ export class WallLayer {
 		this.tile();
 	}
 
-	/** The tier's anti-tiling (#181): the walls' material made again in that variant, once. */
-	setAntiTiled(on: boolean): void {
-		if (!!this.wallMaterial.options.antiTiled === on) return;
+	/**
+	 * The tier's anti-tiling (#181): the walls' material made again in that variant, once.
+	 * True if remade: the renderer warms the new variant up, not compiling it mid-frame.
+	 */
+	setAntiTiled(on: boolean): boolean {
+		if (!!this.wallMaterial.options.antiTiled === on) return false;
 		const old = this.wallMaterial;
 		this.wallMaterial = remake(old, { antiTiled: on });
 		if (this.walls) this.walls.material = this.wallMaterial;
 		old.dispose();
+		return true;
 	}
 
 	/** One repeat of the look across `look.cells` cells, and up in whole steps (#177). */

@@ -182,6 +182,9 @@ function homeSteps(m: Mounted, home: FixtureView): Step[] {
 	const withToken = (over: object) => home.tokens.map((k) => (k === token ? { ...k, ...over } : k));
 	const [prop] = home.props;
 	const withProp = (over: object) => home.props.map((p) => (p === prop ? { ...p, ...over } : p));
+	const [wall, door] = (['wall', 'door'] as const).map((k) =>
+		home.objects.find((o) => o.kind === k)!
+	);
 	const cue = (c: 'flash' | 'toll') => () => t.playCue(c, c === 'toll' ? prop.id : null);
 	return [
 		...ENVIRONMENTS.map((e): Step => [`environment ${e ?? 'none'}`, () => t.setEnvironment(e)]),
@@ -226,6 +229,10 @@ function homeSteps(m: Mounted, home: FixtureView): Step[] {
 		['prop selected', () => t.setSelectedProp(prop.id)],
 		['prop hovered', () => t.setHoveredProp(prop.id)],
 		['prop states cleared', () => (t.setSelectedProp(null), t.setHoveredProp(null))],
+		// Walls take the hover as a tint per instance, a door by swapping to its tinted twin (#172).
+		['wall hovered', () => t.setHoveredObject(wall.id)],
+		['door hovered', () => t.setHoveredObject(door.id)],
+		['hover cleared', () => t.setHoveredObject(null)],
 		['prop hidden', () => t.setProps(withProp({ hidden: true }))],
 		['prop moved', () => t.setProps(withProp({ pos: { x: prop.pos.x + 1, y: prop.pos.y } }))],
 		['props back', () => t.setProps(home.props)],

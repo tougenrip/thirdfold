@@ -486,7 +486,8 @@ export async function createTabletop(
 			quality.set(settings, refine);
 			post.set(settings);
 			cellMaps.setOn(settings.layers.fogshade);
-			for (const l of [table, terrainLayer, wallLayer]) l.setAntiTiled(settings.antiTile);
+			const remade = [table, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
+			if (remade.includes(true)) warmPending = true;
 		},
 		capabilities: () => quality.caps,
 		setPowerSaver: (on) => loop.setPowerSaver(on),

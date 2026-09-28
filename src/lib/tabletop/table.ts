@@ -59,9 +59,12 @@ export class TableLayer {
 		setParams(this.slabMaterial, tile((look?.table.cells ?? 1) * (2 / cellSize)));
 	}
 
-	/** The tier's anti-tiling (#181): the materials made again in that variant, once. */
-	setAntiTiled(on: boolean): void {
-		if (!!this.surfaceMaterial.options.antiTiled === on) return;
+	/**
+	 * The tier's anti-tiling (#181): the materials made again in that variant, once.
+	 * True if remade: the renderer warms the new variant up, not compiling it mid-frame.
+	 */
+	setAntiTiled(on: boolean): boolean {
+		if (!!this.surfaceMaterial.options.antiTiled === on) return false;
 		const [slab, surface] = [this.slabMaterial, this.surfaceMaterial];
 		this.slabMaterial = remake(slab, { antiTiled: on });
 		this.surfaceMaterial = remake(surface, { antiTiled: on });
@@ -69,6 +72,7 @@ export class TableLayer {
 		if (this.surface) this.surface.material = this.surfaceMaterial;
 		slab.dispose();
 		surface.dispose();
+		return true;
 	}
 
 	/** Disposes what the last table built, keeping the shared materials. */

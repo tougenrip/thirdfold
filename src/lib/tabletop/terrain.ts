@@ -64,13 +64,17 @@ export class TerrainLayer {
 		this.tile();
 	}
 
-	/** The tier's anti-tiling (#181): the material made again in that variant, once. */
-	setAntiTiled(on: boolean): void {
-		if (!!this.material.options.antiTiled === on) return;
+	/**
+	 * The tier's anti-tiling (#181): the material made again in that variant, once.
+	 * True if remade: the renderer warms the new variant up, not compiling it mid-frame.
+	 */
+	setAntiTiled(on: boolean): boolean {
+		if (!!this.material.options.antiTiled === on) return false;
 		const old = this.material;
 		this.material = remake(old, { antiTiled: on });
 		if (this.mesh) this.mesh.material = this.material;
 		old.dispose();
+		return true;
 	}
 
 	/** One repeat of the look across `look.cells` cells, and up in whole steps (#177). */
