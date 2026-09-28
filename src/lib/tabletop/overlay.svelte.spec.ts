@@ -11,8 +11,8 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { STILL } from './focus';
 import { HIGHLIGHT } from './previews';
-import { LUT_SIZE, type Grades } from './environment';
-import { GRADE_BANDS, TONE_MAPPERS } from '../assets/manifest';
+import { Grades, LUT_SIZE } from './environment';
+import { GRADE_BANDS, TONE_MAPPERS, type GradeBand } from '../assets/manifest';
 import { settingsFor, TRAA_CONVERGE } from './quality';
 import { BACKEND } from './testing';
 
@@ -41,8 +41,14 @@ function inverted(): Grades {
 		);
 		lut[i * 4 + 3] = 255;
 	}
-	const bands = Object.fromEntries(GRADE_BANDS.map((b) => [b, lut]));
-	return Object.fromEntries(TONE_MAPPERS.map((t) => [t, bands])) as Grades;
+	const bands = Object.fromEntries(GRADE_BANDS.map((b) => [b, lut])) as Record<
+		GradeBand,
+		Uint8Array
+	>;
+	// Every tone mapper already loaded, so nothing is fetched.
+	const grades = new Grades({} as never, {});
+	for (const t of TONE_MAPPERS) grades.ready[t] = bands;
+	return grades;
 }
 
 /** Opaque markers in the three highlight colours, west to east along z = 0, above the table. */
