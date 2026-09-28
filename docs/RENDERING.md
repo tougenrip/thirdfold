@@ -662,6 +662,24 @@ passes, in order:
   released the old shaders (about 11 programs a switch). The measurements are in `docs/LOOK.md`.
   #162 decides how a grade made after ACES treats the other two.
 
+### Milestone 63 smoke run, 28 September 2026
+
+On the RTX 4060 Laptop (WebGL2 through ANGLE Vulkan, the default tier, high), from the built app
+at the M63 tip, after the loose ends of #157, #159, #160, #162, #163, #165 and #167 landed:
+
+- `node scripts/playthrough.mjs`: The Hollow Bell to its end (Silence) in 14 steps and 65 s, every
+  cinematic shot playing with its depth of field, and The Last Train to Blackwater to its end
+  (Stopped Short) in 6 steps and 33 s; the table came to rest after every step, moves animated,
+  no console errors.
+- The perf gate passed on the new baseline: 0 idle frames, 60 fps orbiting, render targets per
+  tier 17 / 27 / 29 (post 25.7 / 79.8 / 112.9 MB; high lost a target to GTAO at half resolution).
+  Low and medium each gained 4 bytes, the lens dirt's 1×1 stand-in.
+- The client suite on SwiftShader (264 tests) and the WebGPU suite on the RTX (222) passed; three
+  SwiftShader tests failed once under a full run's load (a screenshot timeout, crowd-60, the shot
+  test) and passed alone, and the shot test was made independent of what loads before it.
+- `npm run bundle:check`: the renderer chunk is 343.1 kB gz of its 360 kB (from 303.4 kB: SMAA's
+  lookup textures and GTAO); the room page's own code 74.9 kB gz of its 76 kB (74.4 before M63).
+
 ## Shader kinds
 
 Filled in by milestone 64.
