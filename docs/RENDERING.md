@@ -728,8 +728,7 @@ layers uses them yet (#172 ports the layers).
   grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends); the pure mirrors are
   tested against the old overlays in `cell-maps.spec.ts`. Off (the identity) until #173.
 - **Hooks**, each the identity until its issue: `surfaceMapping` (#177), `paintNormal`/`paintRoughness`
-  (#178) and
-  `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
+  (#178) and `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
   `aTint` attribute is the emissive tint input #172's hover and selection use.
 - **Mapping per kind** (#177, `materials/mapping.ts`, chosen by `surfaceMapping` in `hooks.ts`;
   `params.repeat` is always the tile, so changing it compiles nothing):
