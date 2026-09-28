@@ -10,14 +10,14 @@ measured and left alone.
   "(compat)" in compatibility mode, or WebGL2), the GPU as the browser names it, the quality tier
   and scheduler mode (from #147 and #148), frames per second, main-thread ms per frame, GPU ms per
   frame, draw calls, triangles, geometries/textures/shader programs, GPU memory (all of it, and
-  textures), and how often and how long lighting was worked out. GPU ms come from timestamp
-  queries, which the renderer records only under `?perf` (so normal play never pays for them) and
-  the overlay reads every 500 ms, and on WebGPU by pass too (#166: prepass, ao, scene, traa, dof,
-  blur, bloom, output, overlay; `stats().gpu`). A small inspector (`PassNames` in `loop.ts`,
-  installed only under `?perf`) remembers the name of what each render draws by its timestamp id,
-  and `passOf` in `perf.ts` groups those names (our passes', three's effect quads') into passes.
-  WebGL2 times only the whole frame: every pass draws inside the pipeline's last render, and its
-  timer queries do not nest, so `gpu` is null there. "n/a" where there are none: WebGL2 without
+  textures), and how often and how long lighting was worked out. GPU ms come from timestamp queries,
+  which the renderer records only under `?perf` (so normal play never pays for them) and the overlay
+  reads every 500 ms, and on WebGPU by pass too (#166: prepass, ao, scene, smaa, traa, dof, blur,
+  bloom, output, overlay; `stats().gpu`). A small inspector (`PassNames` in `loop.ts`, installed
+  only under `?perf`) remembers the name of what each render draws by its timestamp id, and `passOf`
+  in `perf.ts` groups those names (our passes', three's effect quads') into passes. WebGL2 times
+  only the whole frame: every pass draws inside the pipeline's last render, and its timer queries do
+  not nest, so `gpu` is null there. "n/a" where there are none: WebGL2 without
   `EXT_disjoint_timer_query_webgl2`, or a software GPU (SwiftShader, llvmpipe), whose timestamps
   mean nothing. `?perf&inspector` also opens three.js's Inspector, a chunk of its own fetched only
   then. The page exposes `window.thirdfoldPerf` (the renderer's `stats()`, `resetStats()`, async

@@ -26,7 +26,18 @@
 		return t && t.count ? (t.total / t.count).toFixed(2) : '–';
 	};
 	/** GPU ms by pass (#166), in the order the pipeline draws them. */
-	const ORDER = ['prepass', 'ao', 'scene', 'traa', 'dof', 'blur', 'bloom', 'output', 'overlay'];
+	const ORDER = [
+		'prepass',
+		'ao',
+		'scene',
+		'smaa',
+		'traa',
+		'dof',
+		'blur',
+		'bloom',
+		'output',
+		'overlay'
+	];
 	const passes = $derived(
 		Object.entries(perf?.gpu ?? {}).sort(
 			([a], [b]) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99)

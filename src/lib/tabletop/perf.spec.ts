@@ -12,6 +12,8 @@ describe('GPU time by pass (#166)', () => {
 			AO: 'ao',
 			TRAA: 'traa',
 			'Sharpen [ RCAS ]': 'traa',
+			'SMAANode.edges': 'smaa',
+			'SMAANode.blend': 'smaa',
 			'DoF [ CoC ]': 'dof',
 			'DoF [ Composite ]': 'dof',
 			'Gaussian Blur [ Horizontal Pass ]': 'blur',

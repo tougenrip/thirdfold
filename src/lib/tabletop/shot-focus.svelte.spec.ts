@@ -75,15 +75,31 @@ describe.skipIf(BACKEND === 'webgpu')('a cinematic shot on a table', () => {
 		const plain = { ...settingsFor('medium', t.capabilities().backend), grain: false };
 		t.setQuality(plain);
 		await settle(t);
-		const before = mounted.pixels();
 
+		/**
+		 * Moves the clock and waits for the frame it brings: a quiet spell alone can come before
+		 * the scheduler's next frame on a loaded machine, and read the last one.
+		 */
+		const advance = async (to: number) => {
+			const drawn = t.stats().frames;
+			clock.set(to);
+			await expect.poll(() => t.stats().frames, { timeout: 30_000 }).toBeGreaterThan(drawn);
+			await settle(t, 250, 3000);
+		};
+		// A whole cycle of the dither on, so whatever blends in on the clock (the grade) has, and
+		// the frame before the shot is the table at rest.
+		const cycle = 4096 * GRAIN_MS;
+		// At rest nothing asks for a frame when the clock moves: draw one.
+		clock.set(clock.now() + cycle);
+		await t.benchmark(1);
+		await settle(t);
+		const before = mounted.pixels();
 		const start = clock.now();
 		t.playShot({ focus: { x: 18, y: 20 }, frame: 'close' });
 		// The shot's clock stands still in its hold, where depth of field is at full strength.
 		const hold = SHOT_MS.go + 500;
 		expect(shotFocus(hold)).toBe(1);
-		clock.set(start + hold);
-		await settle(t, 250, 3000);
+		await advance(start + hold);
 		const focused = mounted.pixels();
 		if (WRITE) await writePng('docs/look/m63-dof/shot-hold.png', focused);
 		// The same pose with depth of field switched off, to compare like for like.
@@ -100,8 +116,8 @@ describe.skipIf(BACKEND === 'webgpu')('a cinematic shot on a table', () => {
 		expect(contrast(focused, ...focusRows)).toBeGreaterThan(contrast(sharp, ...focusRows) * 0.9);
 
 		// Long after the shot, on the same frame of the dither: home again, nothing of the blur left.
-		clock.set(start + 3 * 4096 * GRAIN_MS);
-		expect(start + SHOT_TOTAL).toBeLessThan(clock.now());
+		expect(SHOT_TOTAL).toBeLessThan(3 * cycle);
+		await advance(start + 3 * cycle);
 		await settle(t);
 		const after = mounted.pixels();
 		expect(after.every((v, i) => v === before[i])).toBe(true);

@@ -218,6 +218,7 @@ const PASSES: readonly (readonly [RegExp, string])[] = [
 	[/^overlay$/, 'overlay'],
 	[/^SSAO\b|^AO$/, 'ao'],
 	[/^TRAA$|^Sharpen\b/, 'traa'],
+	[/^SMAANode\b/, 'smaa'],
 	[/^DoF\b/, 'dof'],
 	[/^Gaussian Blur\b/, 'blur'],
 	[/^Bloom\b/, 'bloom'],

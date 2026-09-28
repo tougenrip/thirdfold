@@ -67,7 +67,9 @@ class PassNames extends THREE.InspectorBase {
 	beginRender(uid: string | undefined, scene: THREE.Object3D): void {
 		// A bound: sampling forgets what it read, so this only fills when nothing samples.
 		if (this.passNames.size > 50_000) this.passNames.clear();
-		if (uid) this.passNames.set(uid, scene.name);
+		// A quad named by its material only (SMAA's) goes by that.
+		const material = (scene as THREE.Mesh).material as THREE.Material | undefined;
+		if (uid) this.passNames.set(uid, scene.name || material?.name || '');
 	}
 }
 
