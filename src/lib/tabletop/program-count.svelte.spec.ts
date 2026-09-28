@@ -79,15 +79,16 @@ type Clock = ReturnType<typeof manualClock>;
  * frames on high). The held clock is first moved past any transition the step starts (a grade
  * blending into a new environment's, a cue), so the frames after it draw its end.
  */
-async function drawn(t: Tabletop, clock: Clock): Promise<void> {
+async function drawn(t: Tabletop, clock: Clock): Promise<boolean> {
 	const from = t.stats().frames;
 	clock.set(clock.now() + 30_000);
 	const until = performance.now() + 10_000;
 	while (performance.now() < until) {
 		await new Promise(requestAnimationFrame);
 		const { frames, holding } = t.stats();
-		if (!holding && frames > from) return;
+		if (!holding && frames > from) return true;
 	}
+	return false;
 }
 
 /**
@@ -139,7 +140,8 @@ function sweeper(m: Mounted, renderer: THREE.WebGPURenderer, clock: Clock): Swee
 			for (const [name, run] of steps) {
 				const [was, stages] = [counts(), shaderStages(renderer)];
 				run();
-				await drawn(m.tabletop, clock);
+				// A step that draws nothing could compile nothing: it would pass without testing.
+				if (!(await drawn(m.tabletop, clock))) changes.push(`${name}: no frame drawn`);
 				const now = counts();
 				if (now.programs !== was.programs || now.pipelines !== was.pipelines) {
 					const after = shaderStages(renderer);
