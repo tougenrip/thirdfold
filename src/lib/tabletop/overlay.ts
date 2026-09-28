@@ -16,6 +16,8 @@ import type { SquareGrid } from '$lib/game/grid';
 
 const GRID_COLOR = 0xd8cfb4;
 const GRID_OPACITY = 0.35;
+/** How long the grid lines take to fade in or out (#167): aiming shows and hides them often. */
+export const GRID_FADE_MS = 150;
 
 /**
  * A 1×1 transparent texture, for no floor, fog or darkness over the grid lines. It is sampled
@@ -43,6 +45,10 @@ export class OverlayLayer {
 	private grid: THREE.LineSegments | null = null;
 	/** Hidden at rest (#167): `setGridShown`. */
 	private gridShown = false;
+	/** The lines' opacity on the way to shown (1) or hidden (0): a uniform, so fading compiles nothing. */
+	private readonly fade = uniform(0);
+	private fadeFrom = 0;
+	private fadeAt = -Infinity;
 	/** What lies over the grid lines: painted floors, the fog and the darkness. */
 	private readonly masks = CLEAR.map((c) => texture(c));
 	private readonly size = uniform(new THREE.Vector2(1, 1));
@@ -60,7 +66,11 @@ export class OverlayLayer {
 			float(0.5).sub(positionWorld.z.div(this.size.y))
 		);
 		const [floor, fog, dark] = this.masks.map((m) => float(1).sub(m.sample(uv).a));
-		this.gridMaterial.opacityNode = float(GRID_OPACITY).mul(floor).mul(fog).mul(dark);
+		this.gridMaterial.opacityNode = float(GRID_OPACITY)
+			.mul(this.fade)
+			.mul(floor)
+			.mul(fog)
+			.mul(dark);
 	}
 
 	/** A group that follows `anchor` (moves, turns and hides with it) until `unfollow`. */
@@ -99,16 +109,32 @@ export class OverlayLayer {
 		geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
 		this.size.value.set(w, d);
 		this.grid = new THREE.LineSegments(geometry, this.gridMaterial);
-		this.grid.visible = this.gridShown;
+		this.grid.visible = this.fade.value > 0;
 		this.scene.add(this.grid);
 	}
 
-	/** Shows or hides the grid lines, now and for tables to come; true when that changed anything. */
-	setGridShown(shown: boolean): boolean {
+	/**
+	 * Shows or hides the grid lines, now and for tables to come, fading from where they are over
+	 * `GRID_FADE_MS` from `now` (at once when `snap`: reduced motion). True when that changed
+	 * anything, and `tick` then has frames to draw.
+	 */
+	setGridShown(shown: boolean, now: number, snap: boolean): boolean {
 		if (shown === this.gridShown) return false;
 		this.gridShown = shown;
-		if (this.grid) this.grid.visible = shown;
+		this.fadeFrom = this.fade.value;
+		this.fadeAt = snap ? -Infinity : now;
 		return true;
+	}
+
+	/** Sets the lines' opacity for time `now`; true while they are still fading. */
+	tick(now: number): boolean {
+		const to = this.gridShown ? 1 : 0;
+		const t = Math.max(0, (now - this.fadeAt) / GRID_FADE_MS);
+		const v = t >= 1 ? to : this.fadeFrom + (to - this.fadeFrom) * t;
+		this.fade.value = v;
+		// Faded out, they are not drawn at all.
+		if (this.grid) this.grid.visible = v > 0;
+		return v !== to;
 	}
 
 	/** The floor's, the fog's and the darkness's textures (null where there is none). */

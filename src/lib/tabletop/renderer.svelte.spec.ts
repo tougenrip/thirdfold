@@ -5,6 +5,7 @@
 
 import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GRID_FADE_MS } from './overlay';
 import { createTabletop } from './renderer';
 import { qualityFor, settingsFor, withOverrides } from './quality';
 import {
@@ -224,6 +225,42 @@ describe('the renderer', () => {
 		const again = await draw(false);
 		expect(again.drawCalls).toBe(rest.drawCalls);
 		expect(again.programs).toBe(shown.programs);
+	});
+
+	it('fades the grid lines in and out on the clock, drawing until they are gone', async () => {
+		const clock = manualClock();
+		const sidecar = await loadSidecar('ref-7');
+		const view = await loadView('ref-7', 'day', 'gm');
+		const m = await mountFixture(view, sidecar.poses.overview, { clock, reducedMotion: false });
+		mounted.push(m);
+		const t = m.tabletop;
+		await settle(t);
+		const drawAt = async (ms: number) => {
+			clock.set(clock.now() + ms);
+			await settle(t);
+			await t.benchmark(1);
+			return t.stats();
+		};
+		const rest = await drawAt(0);
+		t.setGridShown(true);
+		const shown = await drawAt(GRID_FADE_MS);
+		expect(shown.drawCalls).toBe(rest.drawCalls + 1);
+		// Halfway out the clock stands still: the lines are still drawn, and frames keep coming.
+		t.setGridShown(false);
+		clock.set(clock.now() + GRID_FADE_MS / 2);
+		const frames = t.stats().frames;
+		await wait(300);
+		expect(t.stats().frames).toBeGreaterThan(frames);
+		expect(t.stats().mode).toBe('active');
+		await t.benchmark(1);
+		expect(t.stats().drawCalls).toBe(rest.drawCalls + 1);
+		// Faded out, they cost no draw call, the table goes quiet, and nothing was compiled.
+		const gone = await drawAt(GRID_FADE_MS);
+		expect(gone.drawCalls).toBe(rest.drawCalls);
+		expect(gone.programs).toBe(shown.programs);
+		const quiet = t.stats().frames;
+		await wait(1000);
+		expect(t.stats().frames).toBe(quiet);
 	});
 
 	it('compiles nothing new the second time round the times of day', async () => {

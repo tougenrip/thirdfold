@@ -233,7 +233,8 @@ export async function createTabletop(
 		wasMoving = casters;
 		const flickering = !reducedMotion && lighting.flicker(now);
 		const drifting = !reducedMotion && ambience.tick(now);
-		const moving = casters || fx.active || rig.tick(now) || post.blending;
+		const gridFading = overlay.tick(now);
+		const moving = casters || gridFading || fx.active || rig.tick(now) || post.blending;
 		// With damping enabled, update() emits 'change' while the camera is still settling,
 		// which schedules the next frame; once still, rendering stops.
 		controls.update();
@@ -381,7 +382,7 @@ export async function createTabletop(
 			if (tokenLayer.setSelected(tokenId)) requestRender();
 		},
 		setGridShown(shown) {
-			if (overlay.setGridShown(shown)) requestRender();
+			if (overlay.setGridShown(shown, clock(), reducedMotion)) requestRender();
 		},
 		setFallen(tokenIds) {
 			fallen = new Set(tokenIds);

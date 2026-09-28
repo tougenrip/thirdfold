@@ -66,6 +66,7 @@
 	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 	import GraphicsControls from './GraphicsControls.svelte';
+	import { gridShown } from './grid';
 	import {
 		loadGraphics,
 		saveGraphics,
@@ -1183,7 +1184,13 @@
 				motion={conn.motion}
 				{active}
 				{highlight}
-				gridShown={(isGm && folds.build) || !!placing || !!spawning || highlight !== null}
+				gridShown={gridShown({
+					isGm,
+					building: folds.build,
+					placing: !!placing,
+					spawning: !!spawning,
+					aiming: highlight !== null
+				})}
 				{view}
 				{graphics}
 				onQuality={(q) => (effectiveQuality = q)}

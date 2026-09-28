@@ -93,7 +93,7 @@ const LENS = {
 	grain: 0.035
 };
 /** The grain's pattern moves on at most this often, by the tabletop's clock (ms). */
-const GRAIN_MS = 1000 / 24;
+export const GRAIN_MS = 1000 / 24;
 
 export class Post {
 	/** Linear exposure before tone mapping (the renderer's own stays 1). */
