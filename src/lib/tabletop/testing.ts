@@ -159,7 +159,8 @@ export async function mountFixture(
 	const backend = tabletop.capabilities().backend;
 	// A WebGPU project that silently fell back to WebGL2 would test the wrong thing.
 	if (webgpu && backend === 'webgl2') throw new Error('Asked for WebGPU, drawing with WebGL2');
-	// One tier for every test, whatever the device suggests (a software rasteriser picks low).
+	// One tier for every test unless it asks, whatever the device suggests (a software rasteriser
+	// picks low).
 	const miniature = !!options.miniature;
 	tabletop.setQuality({ ...settingsFor(options.tier ?? 'medium', backend), toneMapper, miniature });
 	const size = view.grid.width * view.grid.height;
