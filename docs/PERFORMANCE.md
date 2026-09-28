@@ -357,6 +357,16 @@ Node states (generated code) go up and down by 2-3 on every table travel with no
 reported, not failed. `?perf` shows programs and pipelines, and the perf gate records both per
 tier, exactly (`scripts/perf-client.mjs`; shown, not failed, until the baseline is next written).
 
+### Fog and darkness in the materials (milestone 64, #173)
+
+The fog plane and the darkness overlay are gone (every material's `worldModify` draws both), and
+with them two transparent planes over the whole grid and their overdraw: 129 → 127 draw calls for
+the GM and 65 → 63 for a player on the test world, dusk and dark (medium, SwiftShader WebGL2 in the
+`client` project; the floor plane, also deleted, had drawn nothing since #172). Programs don't
+rise (`program-count.svelte.spec.ts` passes unchanged on every tier and both backends). The scene
+pass gains an 8-bit `hidden` attachment, and the output stage one more fetch. Real-GPU numbers
+come with the perf gate before the PR.
+
 ### Memory
 
 - Heap after GC is 6.6–8.6 MB per client on every table.

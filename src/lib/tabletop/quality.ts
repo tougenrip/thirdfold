@@ -50,8 +50,6 @@ export const LAYERS = [
 	'bloom',
 	'lens',
 	'grade',
-	// Fog and darkness as shading in every material (#171); off until #173 removes the overlays.
-	'fogshade',
 	'grass',
 	'water',
 	'vfx',

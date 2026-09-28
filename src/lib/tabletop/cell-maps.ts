@@ -9,6 +9,10 @@
 // - `ground`, RG8, nearest: R the floor (`FLOOR_IDS` index), G the level. The terrain kind reads
 //   it for floor colours and height (#172, materials/hooks.ts `groundColour`).
 //
+// Since #173 these are the only fog and darkness the picture has: every material composes
+// `worldModify`, the grid lines read the same terms, and the output stage re-masks hidden cells
+// from the scene pass's `hidden` attachment (post.ts), which `worldHidden` writes.
+//
 // Each channel is written only by its own update, and only when its input changed. The textures
 // are replaced when the grid's size changes, the nodes that read them keep their graph: the
 // values and the uniforms below are all that vary, so nothing here ever compiles a program.
@@ -43,8 +47,8 @@ export const FLASH_THINS = 0.85;
 export const NO_CUT = 1e6;
 
 /**
- * How much of a surface each fog state lets through: today's overlay alphas (fog.ts) as
- * `1 - alpha / 255`, so floors keep their look. A player's hidden cells are exactly 0.
+ * How much of a surface each fog state lets through: the old fog plane's alphas (deleted in
+ * #173) as `1 - alpha / 255`, so floors keep their look. A player's hidden cells are exactly 0.
  */
 export const FOG_LEVELS: Record<FogMode, { visible: 1; explored: number; hidden: number }> = {
 	player: { visible: 1, explored: 1 - 173 / 255, hidden: 0 },
@@ -99,7 +103,7 @@ export function packGround(
 }
 
 /** What `worldModify` darkens a cell to, the mirror of its graph (1 lit, 0 black). */
-export function cellBrightness(c: {
+export function cellLight(c: {
 	ambientDark: number;
 	/** 0-1, as packed. */
 	level: number;
@@ -148,13 +152,11 @@ const groundTexture = (w: number, h: number) =>
 
 /**
  * The uniforms `worldModify` reads. Module-wide, like `worldTime`: one tabletop draws at a time,
- * and its `CellMaps` sets them. Their starting values are neutral (`on` 0: the identity).
+ * and its `CellMaps` sets them. Their starting values are neutral (fog off, lit, no flash).
  */
 export const cellUniforms = {
 	gridSize: uniform(new THREE.Vector2(1, 1)),
 	cellSize: uniform(1),
-	/** The #171 switch until #173: 0 keeps `worldModify` the identity (the tier's `fogshade`). */
-	on: uniform(0),
 	fogOn: uniform(0),
 	/** 0 player (and spectator), 1 GM. */
 	fogMode: uniform(0),
@@ -216,6 +218,9 @@ export const groundTexel = textureLoad(
 	cellAt(uvOf(positionWorld.sub(normalWorldGeometry.mul(u.cellSize.mul(0.01)))))
 );
 
+/** The `ground` texel of the fragment's cell, for what has no normals (the grid lines). */
+export const groundFlat = textureLoad(BLANK_GROUND, cell);
+
 type Channel = 'fog' | 'light' | 'sky' | 'ground';
 
 /** The renderer's side: feeds the maps and the uniforms from the layers' state. */
@@ -237,7 +242,7 @@ export class CellMaps {
 		this.visibility = visibilityTexture(grid.width, grid.height);
 		this.ground = groundTexture(grid.width, grid.height);
 		visibilityTexel.value = visibilitySmooth.value = this.visibility;
-		groundTexel.value = this.ground;
+		groundTexel.value = groundFlat.value = this.ground;
 		this.last.clear();
 	}
 
@@ -258,11 +263,6 @@ export class CellMaps {
 		this.setFog(fog, mode);
 		this.setLight(ambient, light, dark);
 		this.setGround(floorIds, levels);
-	}
-
-	/** The switch (#171 until #173): off keeps `worldModify` the identity. */
-	setOn(on: boolean): void {
-		u.on.value = on ? 1 : 0;
 	}
 
 	/** R and G from the viewer's fog, and the fog's uniforms. */
@@ -320,13 +320,13 @@ export class CellMaps {
 		this.release();
 		this.grid = null;
 		u.gridSize.value.set(1, 1); // the blanks' size, so a lone material reads them in bounds
-		u.on.value = u.fogOn.value = u.flash.value = 0;
+		u.fogOn.value = u.flash.value = 0;
 		u.cutY.value = NO_CUT;
 	}
 
 	private release(): void {
 		visibilityTexel.value = visibilitySmooth.value = BLANK_VISIBILITY;
-		groundTexel.value = BLANK_GROUND;
+		groundTexel.value = groundFlat.value = BLANK_GROUND;
 		this.visibility?.dispose();
 		this.ground?.dispose();
 		this.visibility = this.ground = null;

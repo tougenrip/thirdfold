@@ -1,13 +1,13 @@
 // The cell maps read back on the GPU (#171), on both backends: each cell's fog lands on that cell
 // (visible only at (1, 0), explored only at (0, 1), the rest exactly black), darkness and the flash
-// match `cellBrightness`, a hidden emissive surface adds nothing, the cut discards, the switch
-// keeps `worldModify` the identity, and none of it (nor a new grid size) adds a program.
+// match `cellLight`, a hidden emissive surface adds nothing, the cut discards, and none of it
+// (nor a new grid size) adds a program.
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { gridToWorld, type GridPos, type SquareGrid } from '$lib/game/grid';
 import { encodeMask, type FogView } from '$lib/game/visibility';
-import { AMBIENT_DARK, CellMaps, cellBrightness } from './cell-maps';
+import { AMBIENT_DARK, CellMaps, cellLight } from './cell-maps';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { createMaterial } from './materials';
 import { BACKEND } from './testing';
@@ -58,7 +58,6 @@ async function setup() {
 	camera.up.set(0, 0, -1);
 	const target = new THREE.RenderTarget(SIZE, SIZE);
 	maps = new CellMaps();
-	maps.setOn(true);
 	const m = maps;
 	return {
 		maps: m,
@@ -108,7 +107,7 @@ describe('the cell maps on the GPU', () => {
 		for (const cell of ALL) expect((await t.at(cell))[2]).toBeGreaterThan(100);
 	});
 
-	it('darken by the light level and thin with the flash, as cellBrightness says', async () => {
+	it('darken by the light level and thin with the flash, as cellLight says', async () => {
 		const t = await setup();
 		const levels = new Float32Array(GRID.width * GRID.height);
 		levels[2] = 1; // (2, 0) lit
@@ -117,7 +116,7 @@ describe('the cell maps on the GPU', () => {
 		t.maps.update(GRID, { fog: null, mode: 'player' }, 'dusk', levels, dark, null, null);
 		const expected = (cell: GridPos, flash: number) =>
 			255 *
-			cellBrightness({
+			cellLight({
 				ambientDark: AMBIENT_DARK.dusk,
 				level: levels[cell.y * GRID.width + cell.x],
 				sky: dark[cell.y * GRID.width + cell.x] ? 0 : 1,
@@ -159,7 +158,7 @@ describe('the cell maps on the GPU', () => {
 		expect((await t.at({ x: 1, y: 0 }))[0]).toBeGreaterThan(200);
 	});
 
-	it('cut above the cut height, keep the identity when off, and compile nothing', async () => {
+	it('cut above the cut height, and compile nothing', async () => {
 		const t = await setup();
 		t.quad.material = t.plain;
 		t.maps.update(GRID, { fog: FOG, mode: 'player' }, 'day', null, null, null, null);
@@ -174,9 +173,6 @@ describe('the cell maps on the GPU', () => {
 		expect(await t.at(visible)).toEqual([255, 255, 255]);
 		t.maps.setCut(null);
 
-		t.maps.setOn(false);
-		expect(await t.at(hidden)).toEqual([255, 255, 255]);
-		t.maps.setOn(true);
 		expect(await t.at(hidden)).toEqual([0, 0, 0]);
 
 		// Fog off and on, GM and player, every ambient, the flash, a new grid size.

@@ -1,16 +1,20 @@
-// Lighting for the three.js view: the ambient preset, a darkness overlay on
-// the floor shaped by light levels, a fixed pool of real point lights for the
-// nearest sources (so minis and walls glow), and lantern fixtures. Everything
-// is derived from state the client was sent; the server already applied the
-// rules about what darkness hides. After dark, flames flicker (`flicker`),
-// which is cosmetic and costs no state.
+// Lighting for the three.js view: the ambient preset, the rules' light level
+// per cell (`levels`, which the cell maps carry to every material's
+// `worldModify`, cell-maps.ts; the darkness overlay plane that drew it went in
+// #173), a fixed pool of real point lights for the nearest sources (so minis
+// and walls glow), and lantern fixtures, which take the world's fog and dark
+// like everything else (`inWorld`). Everything is derived from state the client
+// was sent; the server already applied the rules about what darkness hides.
+// After dark, flames flicker (`flicker`), which is cosmetic and costs no state.
 
 import * as THREE from 'three/webgpu';
+import { uniform } from 'three/tsl';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { lightLevels, type Ambient, type Light, type LightSource } from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
 import type { Ground } from './ground';
+import { inWorld } from './materials/world-modify';
 import { modelNow } from './models';
 
 /** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
@@ -25,6 +29,25 @@ const ABOVE_FLAME = 0.1;
 const HOLDS_LIGHT = new Set(['sconce', 'brazier']);
 /** A seat's height until its model, and so its size, has loaded. */
 const SEAT_FALLBACK = 1;
+/** A flame's glow over its colour: above 1 in HDR, so the core blooms (#160). */
+const FLAME_GLOW = 4;
+
+interface Flame {
+	color: THREE.Color;
+	glow: THREE.Color;
+}
+const BLACK = new THREE.Color(0);
+/**
+ * A flame's colour and glow, per flame mesh (`userData.flame`): one material draws every flame,
+ * so lights coming and going never compile or drop a program.
+ */
+const flameOf = (object: THREE.Object3D | null) => object?.userData.flame as Flame | undefined;
+const flameColour = uniform(new THREE.Color()).onObjectUpdate(
+	({ object }: { object: THREE.Object3D | null }) => flameOf(object)?.color ?? BLACK
+);
+const flameGlow = uniform(new THREE.Color()).onObjectUpdate(
+	({ object }: { object: THREE.Object3D | null }) => flameOf(object)?.glow ?? BLACK
+);
 
 /** Where a light's flame sits on the light-holding props, by cell index: the prop's top. */
 export function lightSeats(grid: SquareGrid, props: readonly Prop[]): Map<number, number> {
@@ -43,17 +66,15 @@ interface Preset {
 	/** The hemisphere's sky and ground colours (#167): warm by day, warm over cool at dusk, moon-blue at night. */
 	sky: number;
 	ground: number;
-	/** The darkness overlay's colour, sRGB bytes: the hue the dark takes, never its depth. */
-	tint: readonly [number, number, number];
 	sun: number;
 	lamp: number;
-	/** Darkness overlay opacity on unlit cells. */
+	/** How dark unlit cells are (cell-maps.ts `AMBIENT_DARK` shades them). */
 	dark: number;
 }
 
 // The whole frame is tone mapped, background and overlays too, so these colours are the ones
-// ACES turns into the sRGB 16120f, 120e10 and 07060a (and the darkness 04, 03, 08) of before
-// (#153).
+// ACES turns into the sRGB 16120f, 120e10 and 07060a of before (#153). Each background's linear
+// red stays under post.ts's `HIDDEN_FLOOR`, which tells the clear colour from a hidden cell.
 // Interim (#167) until the sky (#114) and the art bible (#183): #208 blends these by the hour
 // and #218 replaces them with atmosphere curves.
 const PRESETS: Record<Ambient, Preset> = {
@@ -62,7 +83,6 @@ const PRESETS: Record<Ambient, Preset> = {
 		hemisphere: 0.9,
 		sky: 0xfff1dc,
 		ground: 0x1c140e,
-		tint: [19, 17, 26],
 		sun: 1.6,
 		lamp: 30,
 		dark: 0
@@ -72,7 +92,6 @@ const PRESETS: Record<Ambient, Preset> = {
 		hemisphere: 0.45,
 		sky: 0xffd0a0,
 		ground: 0x1a2438,
-		tint: [22, 18, 38],
 		sun: 0.55,
 		lamp: 18,
 		dark: 0.35
@@ -82,7 +101,6 @@ const PRESETS: Record<Ambient, Preset> = {
 		hemisphere: 0.1,
 		sky: 0x9ab4ff,
 		ground: 0x0a1230,
-		tint: [8, 14, 42],
 		sun: 0,
 		lamp: 0,
 		dark: 0.82
@@ -98,18 +116,17 @@ export interface SceneLights {
 
 export class LightingLayer {
 	readonly group = new THREE.Group();
-	private overlay: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
-	private texture: THREE.DataTexture | null = null;
 	private pool: THREE.PointLight[] = [];
 	private fixtures = new Map<string, THREE.Group>();
 	private postGeometry = new THREE.CylinderGeometry(0.05, 0.08, FIXTURE_HEIGHT, 8);
 	private flameGeometry = new THREE.SphereGeometry(0.13, 16, 12);
-	private postMaterial = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.8 });
+	private postMaterial = inWorld(
+		new THREE.MeshStandardNodeMaterial({ color: 0x2b2420, roughness: 0.8 })
+	);
+	private flameMaterial = flameMaterial();
 	/** Each pool light's steady intensity, which flicker varies around. */
 	private steady: number[] = [];
 	private ambient: Ambient = 'day';
-	/** Per-cell brightness from the last update (0 dark - 1 lit), or null by day. */
-	private brightness: Float32Array | null = null;
 	/** The rules' light level per cell from the last update, or null by day (the cell maps', #171). */
 	levels: Float32Array | null = null;
 	/** Whether the table has dark areas (they darken even by day, and their flames flicker). */
@@ -118,17 +135,6 @@ export class LightingLayer {
 	private flash = 0;
 
 	constructor(private readonly base: SceneLights) {
-		this.overlay = new THREE.Mesh(
-			new THREE.PlaneGeometry(1, 1),
-			new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false })
-		);
-		this.overlay.rotation.x = -Math.PI / 2;
-		// Just below the fog overlay, above the grid lines.
-		this.overlay.position.y = 0.025;
-		this.overlay.renderOrder = 0.9;
-		this.overlay.visible = false;
-		this.overlay.raycast = () => {};
-		this.group.add(this.overlay);
 		for (let i = 0; i < POOL_SIZE; i++) {
 			const light = new THREE.PointLight(0xffffff, 0, 1, 2);
 			this.pool.push(light);
@@ -137,10 +143,9 @@ export class LightingLayer {
 	}
 
 	/**
-	 * Recomputes lighting. `visible` (players under fog) marks cells the server
-	 * says the viewer can see; in the dark those are lit by definition, even if
-	 * the light itself is out of the viewer's knowledge. `dark` marks the
-	 * table's dark areas, which are as dark as night whatever the ambient.
+	 * Recomputes lighting. `dark` marks the table's dark areas, which are as
+	 * dark as night whatever the ambient. What a fogged player sees is lit by
+	 * definition; `worldModify` adds that fill in the shader.
 	 */
 	update(
 		grid: SquareGrid,
@@ -148,7 +153,6 @@ export class LightingLayer {
 		lights: readonly Light[],
 		sources: readonly LightSource[],
 		blocked: Blockers,
-		visible: Uint8Array | null,
 		ground: Ground | null = null,
 		dark: Uint8Array | null = null,
 		seats: ReadonlyMap<number, number> = new Map()
@@ -166,7 +170,8 @@ export class LightingLayer {
 		this.base.sun.intensity = preset.sun;
 		this.base.lamp.intensity = preset.lamp;
 
-		this.updateOverlay(grid, preset, sources, blocked, visible, dark);
+		// Light levels matter only where it can be dark: never by day outside dark areas.
+		this.levels = preset.dark || this.hasDark ? lightLevels(grid, blocked, sources) : null;
 		this.updatePool(grid, sources, ambient, ground, seats);
 		this.updateFixtures(grid, lights, ground, seats);
 	}
@@ -181,75 +186,13 @@ export class LightingLayer {
 	}
 
 	dispose(): void {
-		this.texture?.dispose();
-		this.overlay.geometry.dispose();
-		this.overlay.material.dispose();
-		for (const f of this.fixtures.values()) this.disposeFixture(f);
 		this.postGeometry.dispose();
 		this.flameGeometry.dispose();
 		this.postMaterial.dispose();
+		this.flameMaterial.dispose();
 	}
 
-	private updateOverlay(
-		grid: SquareGrid,
-		{ dark: darkness, tint }: Preset,
-		sources: readonly LightSource[],
-		blocked: Blockers,
-		visible: Uint8Array | null,
-		dark: Uint8Array | null
-	): void {
-		if (darkness === 0 && !this.hasDark) {
-			this.overlay.visible = false;
-			this.brightness = this.levels = null;
-			return;
-		}
-		const size = grid.width * grid.height;
-		if (
-			!this.texture ||
-			this.texture.image.width !== grid.width ||
-			this.texture.image.height !== grid.height
-		) {
-			this.texture?.dispose();
-			this.texture = new THREE.DataTexture(new Uint8Array(size * 4), grid.width, grid.height);
-			// Linear filtering turns per-cell levels into a soft falloff.
-			this.texture.magFilter = THREE.LinearFilter;
-			this.texture.minFilter = THREE.LinearFilter;
-			this.texture.colorSpace = THREE.SRGBColorSpace;
-			this.overlay.material.map = this.texture;
-			this.overlay.material.needsUpdate = true;
-		}
-		const levels = (this.levels = lightLevels(grid, blocked, sources));
-		const data = this.texture.image.data as Uint8Array;
-		this.brightness = new Float32Array(size);
-		for (let i = 0; i < size; i++) {
-			const x = i % grid.width;
-			const y = Math.floor(i / grid.width);
-			// Rows flipped: texture row 0 is the plane's +z edge, grid row 0 is at −z.
-			const o = ((grid.height - 1 - y) * grid.width + x) * 4;
-			const level = Math.max(levels[i], visible?.[i] ? 0.55 : 0);
-			// A dark area is as dark as night, whatever the hour.
-			const shade = dark?.[i] ? Math.max(darkness, PRESETS.dark.dark) : darkness;
-			// A dark area takes night's hue too.
-			data.set(dark?.[i] ? PRESETS.dark.tint : tint, o);
-			data[o + 3] = Math.round(255 * shade * (1 - level));
-			this.brightness[i] = 1 - shade * (1 - level);
-		}
-		this.texture.needsUpdate = true;
-		this.overlay.scale.set(grid.width * grid.cellSize, grid.height * grid.cellSize, 1);
-		this.overlay.visible = true;
-	}
-
-	/** Gives the pool's point lights to the strongest sources; the rest stay dark (the overlay still shows them). */
-	/** The darkness overlay's per-cell texture while it shows (for the grid lines, overlay.ts). */
-	get darkMask(): THREE.DataTexture | null {
-		return this.overlay.visible ? this.texture : null;
-	}
-
-	/** How lit each cell looks after the last update (null: all of it, by day). For raised ground. */
-	get cellBrightness(): Float32Array | null {
-		return this.brightness;
-	}
-
+	/** Gives the pool's point lights to the strongest sources; the rest stay dark. */
 	private updatePool(
 		grid: SquareGrid,
 		sources: readonly LightSource[],
@@ -284,14 +227,14 @@ export class LightingLayer {
 	}
 
 	/**
-	 * A flash of light over the table (0 none, 1 full): the darkness overlay
-	 * thins and the sky light rises, for the moment a flash lasts. Cosmetic;
-	 * what the flash lets players see comes from the server as fog.
+	 * A flash of light over the table (0 none, 1 full): the sky light rises for
+	 * the moment a flash lasts, until the sky work (#222); the dark thins in
+	 * `worldModify` (`CellMaps.setFlash`). Cosmetic; what the flash lets players
+	 * see comes from the server as fog.
 	 */
 	setFlash(k: number): void {
 		if (k === this.flash) return;
 		this.flash = k;
-		this.overlay.material.opacity = 1 - 0.85 * k;
 		this.base.hemisphere.intensity = this.hemisphere + k * 1.5;
 	}
 
@@ -337,19 +280,13 @@ export class LightingLayer {
 			const seat = seats.get(l.pos.y * grid.width + l.pos.x);
 			fixture.children[0].visible = seat === undefined;
 			fixture.children[1].position.y = seat ?? FIXTURE_HEIGHT;
-			const flame = fixture.children[1] as THREE.Mesh<
-				THREE.SphereGeometry,
-				THREE.MeshStandardMaterial
-			>;
-			flame.material.color.set(l.on ? l.color : '#3a3530');
-			flame.material.emissive.set(l.on ? l.color : '#000000');
-			// Above 1 in HDR, so the flame core blooms (#160).
-			flame.material.emissiveIntensity = l.on ? 4 : 0;
+			const flame = fixture.children[1].userData.flame as Flame;
+			flame.color.set(l.on ? l.color : '#3a3530');
+			flame.glow.set(l.on ? l.color : '#000000').multiplyScalar(FLAME_GLOW);
 		}
 		for (const [id, fixture] of this.fixtures) {
 			if (seen.has(id)) continue;
 			this.group.remove(fixture);
-			this.disposeFixture(fixture);
 			this.fixtures.delete(id);
 		}
 	}
@@ -358,18 +295,19 @@ export class LightingLayer {
 		const post = new THREE.Mesh(this.postGeometry, this.postMaterial);
 		post.position.y = FIXTURE_HEIGHT / 2;
 		post.castShadow = true;
-		const flame = new THREE.Mesh(
-			this.flameGeometry,
-			new THREE.MeshStandardMaterial({ roughness: 0.3 })
-		);
+		const flame = new THREE.Mesh(this.flameGeometry, this.flameMaterial);
+		flame.userData.flame = { color: new THREE.Color(), glow: new THREE.Color() } satisfies Flame;
 		flame.position.y = FIXTURE_HEIGHT;
 		const fixture = new THREE.Group();
 		fixture.add(post, flame);
 		fixture.userData.lightId = lightId;
 		return fixture;
 	}
+}
 
-	private disposeFixture(fixture: THREE.Group): void {
-		((fixture.children[1] as THREE.Mesh).material as THREE.Material).dispose();
-	}
+/** The one material every flame is drawn with: its colour and glow are the flame's own. */
+function flameMaterial(): THREE.MeshStandardNodeMaterial {
+	const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.3 });
+	material.colorNode = flameColour;
+	return inWorld(material, flameGlow);
 }

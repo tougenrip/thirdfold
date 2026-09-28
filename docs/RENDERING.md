@@ -298,25 +298,25 @@ Published wire values are accepted forever: the `{ambient}` effect, `ambient_set
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
 delegations; every module in the folder stays under 500 lines (`modules.spec.ts` checks it).
 
-| Module            | What it holds                                                                                                                    |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
-| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
-| `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
-| `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
-| `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
-| `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
-| `table.ts`        | The slab and surface (surface and terrain kinds), worn in the environment's looks                                                |
-| `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
-| `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
-| `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
-| `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
-| `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
-| `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                            |
-| `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                        |
-| `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
-| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169)                                     |
-| layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
+| Module            | What it holds                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                     |
+| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                         |
+| `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                           |
+| `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                  |
+| `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                               |
+| `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                    |
+| `table.ts`        | The slab and surface (surface and terrain kinds), worn in the environment's looks                                               |
+| `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                            |
+| `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                   |
+| `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics` |
+| `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement        |
+| `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                  |
+| `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                           |
+| `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                       |
+| `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness        |
+| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169)                                    |
+| layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts`            |
 
 ## Quality tiers
 
@@ -364,8 +364,6 @@ viewer's choice in `thirdfold:graphics`, then the tier refinement measured on th
 
 Layers (`sky`, `post`, `grass`, `water`, `vfx`, `weather`, `xray`, `dof`) are all off until each
 passes its milestone's gates; `?off=sky,grass` turns layers off, for A/B tests and emergencies.
-`fogshade` (#171) is the temporary switch that keeps `worldModify` the identity while the fog and
-darkness overlays still draw; #173 turns it on for good and removes it.
 Neither `?tier=` nor `?off=` is saved.
 
 **The Graphics menu** (`src/lib/ui/GraphicsControls.svelte`, #154), beside Sound in the room's
@@ -486,14 +484,14 @@ passes, in order:
 
 | Pass      | Tiers      | Draws                                    | Attachments                                                                      |
 | --------- | ---------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
-| `scene`   | all        | Everything, with the tier's MSAA samples | `output`: colour, half-float; `emissive`, 8-bit, blended like colour; depth      |
+| `scene`   | all        | Everything, with the tier's MSAA samples | `output`: colour, half-float; `emissive` and `hidden`, 8-bit, blended; depth     |
 | `prepass` | medium, up | Opaque only, no MSAA                     | `output`: view normals, 8-bit (`packNormalToRGB`); depth                         |
 | `overlay` | all        | The overlay's scene (`overlay.ts`)       | `output`: premultiplied, half-float; the prepass's depth (low: the scene pass's) |
 | output    | all        | A full-screen quad                       | `renderOutput`: exposure, the tone mapper (`TONE_MAPPING`), sRGB; the overlay    |
 
 - **Tone mapping happens once, at the end.** Inside the pipeline every pass draws linear with no
-  tone mapping, so a material's `toneMapped: false` no longer means anything; the fog plane, the
-  darkness overlay and the mist are tone mapped with the rest (black stays black). Exposure is
+  tone mapping, so a material's `toneMapped: false` no longer means anything; the mist is tone
+  mapped with the rest (black stays black). Exposure is
   `uniforms.exposure`; `renderer.toneMappingExposure` stays 1 and `renderer.toneMapping` never
   changes while drawing, since `RenderPipeline` rebuilds when it does.
 - **The overlay** (#157) is everything that shows game state rather than scenery: token labels
@@ -508,20 +506,19 @@ passes, in order:
   (the prepass, or on low the scene pass) and does not clear it, and has that pass drawn first
   (`NodeFrame.updateBeforeNode`, once a frame however often asked). Labels and floats ride in
   `follow` groups that copy their mini's world transform and visibility just before the overlay
-  draws. Grid lines, no longer under the floor, fog and darkness planes, fade by those planes'
-  textures (`setMasks`, one texel per cell): never over an unexplored cell, dimmer at night. Each
-  mask slot keeps one filter (nearest for floor and fog, linear for darkness), because WebGPU fixes
-  a sampler's filtering when the material compiles.
+  draws. Grid lines fade by the cell maps (#173): `worldShade` (the fog and the dark as every
+  material has them) times one minus the cell's floor cover (`floorPalette`, from `groundFlat`, the
+  ground texel without a normal): never over an unexplored cell, dimmer at night, none over the void.
   - **The grid shows only when wanted** (#167): hidden at rest (the tiles' seams are the grid),
     shown while the GM's Build panel is open, while placing a token or an enemy, and while a hover
     highlight aims a move, or always with the Graphics menu's Always show grid (`alwaysGrid` in
     `thirdfold:graphics`). `Tabletop.setGridShown` only sets the lines' `visible`: one draw call
     fewer at rest, nothing compiled.
 - **Each ambient band has its own hues** (#167, interim until the sky of #114): `PRESETS` in
-  `lighting.ts` gives the hemisphere a sky and a ground colour and the darkness overlay a tint per
-  band (moon-blue over deep blue at night with a navy dark, peach over slate at dusk, day's warm
-  pair). Only colours change, so a change of band compiles nothing; the overlay's alpha still comes
-  from `lightLevels`, and a dark area takes night's hue at any hour.
+  `lighting.ts` gives the hemisphere a sky and a ground colour per band (moon-blue over deep blue at
+  night, peach over slate at dusk, day's warm pair). Only colours change, so a change of band
+  compiles nothing. The dark itself is `worldModify`'s, from `lightLevels` (#173 deleted the
+  darkness overlay and its tint).
 - **The prepass** draws opaque objects with no MSAA: the overlay's depth, normals for AO (#159)
   and depth of field (#165), and with TRAA each pixel's velocity (half-float).
 - **Only a change of stages rebuilds.** `Post.set` compares the prepass, the samples, the
@@ -725,9 +722,9 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
   - The terrain kind reads the `ground` map (`ownAlbedo` in hooks.ts): on the table, each floor's
     colour (`floorPalette`, from `FLOOR_LOOKS`, a uniform array) over the textured surface at its
     cover (plain none, the void all); on a raised cell, its texture in its floor's colour or the
-    look's, paler with height toward `cellUniforms.maxLevel`. The floor plane (floor.ts) no longer
-    draws; its texture only masks the grid lines until #173. Raised cells keep a grey instance
-    colour for fog and darkness until #173 moves those into every material.
+    look's, paler with height toward `cellUniforms.maxLevel`. #173 deleted the floor plane
+    (floor.ts) and raised ground's grey instance colours (`shadeTerrain`, `TerrainLayer.shade`):
+    fog and darkness are `worldModify`'s on every surface.
   - Minis read their colour and how much of them shows per object (`miniColour`, `miniOpacity`:
     `uniform().onObjectUpdate` over the mesh's `userData.miniColor` and `userData.mini`), so a new
     token makes no material, and the GM's see-through hidden token is a screen-door dither
@@ -741,7 +738,10 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
     frame 2.0 → 3.5 s and a mount 5 → 10 s against the classic materials, anti-tiling about a third
     of the difference; 164 → 178 programs. The real-GPU numbers are the perf gate's.
   - Not yet on the kinds: fixtures and flames, grid lines, mist, the toll's dust and shadow, and
-    dice (#172's remainder).
+    dice (#172's remainder). Fixtures, flames and the mist take the world with `inWorld`
+    (`world-modify.ts`: `worldModify` last, a flame's glow through `worldEmissive`; one shared
+    flame material whose colour and glow are per-object uniforms, so lights coming and going
+    compile nothing); the toll's shadow is black and the dust is re-masked by the output stage.
 - **One graph per kind and variant** (`kinds.ts` `graphFor`), shared by all its materials: their
   values are `material.params.*` read through `materialReference`, kept in one object because r186
   keys node state by whether each number on a material is zero. Textures sit in slots
@@ -763,7 +763,21 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
   cool, the GM's unseen cells tinted, darkness `1 - shade x (1 - max(level, fill))` as the old
   overlay drew it, the flash, and a discard above `cutY`. Fog, mode, ambient, flash, cut and a new
   grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends); the pure mirrors are
-  tested against the old overlays in `cell-maps.spec.ts`. Off (the identity) until #173.
+  tested against the old overlays in `cell-maps.spec.ts`. On for good since #173, which deleted the
+  overlays it replaces:
+  - the fog plane (`FogLayer`, fog.ts keeps only `FogMode`), the darkness overlay and its
+    `cellBrightness` (lighting.ts keeps `levels` for the map's B channel; the flash is `uFlash`
+    through `CellMaps.setFlash`, and the hemisphere boost stays until #222), the floor plane
+    (floor.ts) and raised ground's instance shading, and the tier's `fogshade` switch. Two
+    transparent grid-sized planes fewer: 129 → 127 draw calls for the GM and 65 → 63 for a player
+    on the test world (medium, SwiftShader; the floor plane had drawn nothing since #172).
+  - Bloom, chromatic aberration, depth of field and FXAA spread light over hidden cells, so the
+    scene pass writes `hidden` (`worldHidden`: 1 where a player's fog hides the fragment's cell)
+    and the output stage multiplies the world by what it leaves shown, after FXAA and before the
+    overlay, so unexplored cells stay exactly black after post. The attachment clears to the
+    background's colour, whose linear red stays under `HIDDEN_FLOOR` (0.1), so the sky around the
+    table counts as shown (`post.svelte.spec.ts`, and `unexplored-black.svelte.spec.ts` on every
+    tier it covers, both backends).
 - **Hooks**, each the identity until its issue: `surfaceMapping` (#177), `paintNormal`/`paintRoughness`
   (#178) and `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
   `aTint` attribute is the emissive tint input #172's hover and selection use.

@@ -4,8 +4,9 @@
 // huge dark shape passes slowly underneath. Presentation only: driven by the
 // wall clock like the dice, and never sent over the network. With reduced
 // motion the bell still swings, gently, and nothing else moves. The flash:
-// the whole table lights up at once and fades back into the dark over
-// FLASH_MS, exactly as long as the server lights the table for (it plays
+// the whole table lights up at once (the renderer hands it to
+// `CellMaps.setFlash`, which thins the dark in every material's
+// `worldModify`) and fades back into the dark over FLASH_MS, exactly as long as the server lights the table for (it plays
 // alongside a toll; reduced motion keeps it, as it is the one sign of what
 // the server's fog is showing for that moment).
 
@@ -71,7 +72,9 @@ export class EffectsLayer {
 			})
 		);
 		this.shadow.rotation.x = -Math.PI / 2;
-		// On the floor, under the darkness and fog overlays: seen only where the viewer can see.
+		// On the floor. Black over the world, so it adds nothing where the fog and the dark have
+		// darkened it already, and the output stage re-masks hidden cells (#173); dust falling
+		// over them is masked there too.
 		this.shadow.position.y = 0.014;
 		this.shadow.renderOrder = 0.85;
 		this.shadow.visible = false;

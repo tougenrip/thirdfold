@@ -23,8 +23,7 @@ import { CellMaps } from './cell-maps';
 import { DiceLayer, throwFromView } from './dice3d';
 import { EffectsLayer } from './effects';
 import { loadEnvironment, type EnvironmentLook } from './environment';
-import { FloorLayer } from './floor';
-import { FogLayer, playerVisible, type FogMode } from './fog';
+import type { FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { LightingLayer, lightSeats } from './lighting';
@@ -41,7 +40,7 @@ import { PropLayer } from './props';
 import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
 import { TableLayer } from './table';
-import { TerrainLayer, terrainShade } from './terrain';
+import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
 import { WallLayer } from './walls';
@@ -91,13 +90,9 @@ export async function createTabletop(
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer(clock);
 	scene.add(wallLayer.group);
-	const fogLayer = new FogLayer();
-	scene.add(fogLayer.mesh);
-	const floorLayer = new FloorLayer();
-	scene.add(floorLayer.mesh);
 	let floor: Uint8Array | null = null;
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
-	const cellMaps = new CellMaps(); // what every material's worldModify reads (#171)
+	const cellMaps = new CellMaps(); // every material's fog and dark (worldModify, #171, #173)
 	const diceLayer = new DiceLayer();
 	scene.add(diceLayer.group);
 	// Read live: turning reduced motion on or off applies at once, without a reload.
@@ -157,20 +152,14 @@ export async function createTabletop(
 
 	function relight(): void {
 		if (!grid) return;
-		const size = grid.width * grid.height;
-		const { fog, mode } = fogState;
 		ambience.update(grid, lightState.ambient);
 		const sources = lightSources(lightState.lights, tokens);
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
-		const visible = playerVisible(fog, mode, size);
 		const { ambient, lights } = lightState;
 		const seats = lightSeats(grid, props);
-		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
-		overlay.setMasks(floorLayer.mask, fogLayer.mask, lighting.darkMask);
+		lighting.update(grid, ambient, lights, sources, blocked, ground, darkness, seats);
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade
-		// Raised ground under fog and darkness, by the same rules as the flat overlays.
-		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode));
 	}
 
 	let tokens: readonly Token[] = [];
@@ -316,8 +305,6 @@ export async function createTabletop(
 			buildTable(grid);
 			placeOnGround(grid, ground);
 			tokenLayer.setFallen(fallen);
-			fogLayer.update(grid, fogState.fog, fogState.mode);
-			floorLayer.update(grid, floor);
 			refreshLighting();
 			// A new table size (first load, a loaded scene, an adventure): frame it. This
 			// replaces any view change still in flight, which would aim at the old table.
@@ -352,7 +339,6 @@ export async function createTabletop(
 		setFog(fog, mode) {
 			fogState = { fog, mode };
 			if (!grid) return;
-			fogLayer.update(grid, fog, mode);
 			refreshLighting();
 			requestRender();
 		},
@@ -434,7 +420,6 @@ export async function createTabletop(
 			floor = next;
 			if (!grid) return;
 			if (floor && floor.length !== grid.width * grid.height) floor = null;
-			floorLayer.update(grid, floor);
 			refreshLighting();
 			requestRender();
 		},
@@ -476,7 +461,7 @@ export async function createTabletop(
 			motion.stop();
 			quality.dispose();
 			stopPicking();
-			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting, post];
+			const layers = [rig, table, tokenLayer, wallLayer, lighting, post];
 			const more = [overlay, ambience, terrainLayer, effects, propLayer, diceLayer, previews];
 			for (const l of [...layers, ...more, cellMaps]) l.dispose();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
@@ -485,7 +470,6 @@ export async function createTabletop(
 		setQuality(settings, refine) {
 			quality.set(settings, refine);
 			post.set(settings);
-			cellMaps.setOn(settings.layers.fogshade);
 			const remade = [table, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
 			if (remade.includes(true)) warmPending = true;
 		},

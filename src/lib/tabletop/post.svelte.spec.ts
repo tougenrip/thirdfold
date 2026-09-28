@@ -6,6 +6,8 @@
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { encodeMask, type FogView } from '$lib/game/visibility';
+import { CellMaps } from './cell-maps';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
@@ -19,10 +21,27 @@ import { BACKEND } from './testing';
 vi.setConfig({ testTimeout: 60_000 });
 
 let renderer: THREE.WebGPURenderer | null = null;
+let maps: CellMaps | null = null;
 afterEach(() => {
 	renderer?.dispose();
-	renderer = null;
+	maps?.dispose();
+	renderer = maps = null;
 });
+
+const TABLE = { kind: 'square', width: 4, height: 4, cellSize: 1 } as const;
+/** A player's fog over the 4×4 table: the west half (x < 0) unexplored, the east half seen. */
+function westHidden(): CellMaps {
+	const seen = new Uint8Array(16).map((_, i) => (i % 4 < 2 ? 0 : 1));
+	const fog: FogView = {
+		enabled: true,
+		shared: false,
+		visible: encodeMask(seen),
+		explored: encodeMask(seen)
+	};
+	maps = new CellMaps();
+	maps.update(TABLE, { fog, mode: 'player' }, 'day', null, null, null, null);
+	return maps;
+}
 
 /** The shared scene, its renderer disposed after each test. */
 async function setup() {
@@ -188,7 +207,12 @@ describe('the post-processing pipeline', () => {
 // Pixels are read back on WebGL2 (preserveDrawingBuffer); WebGPU compares golden images.
 describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 	/** A top-down view of a 4×4 table, the overlay drawn over `world`. */
-	async function view(world: THREE.Object3D[], overlay: OverlayLayer, size = 200) {
+	async function view(
+		world: THREE.Object3D[],
+		overlay: OverlayLayer,
+		size = 200,
+		tune: (post: Post) => void = () => {}
+	) {
 		const canvas = document.createElement('canvas');
 		renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
 		renderer.setSize(size, size, false);
@@ -200,6 +224,7 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		camera.lookAt(0, 0, 0);
 		const post = new Post(renderer, scene, camera, overlay.scene);
 		post.set(settingsFor('medium', 'webgl2'));
+		tune(post);
 		// The first frame compiles the passes; the overlay tests depth from the second on.
 		const draw = () => {
 			for (let i = 0; i < 2; i++) {
@@ -280,21 +305,45 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 
 	it('draws no grid line over a cell the fog hides', async () => {
 		const overlay = new OverlayLayer();
-		overlay.setGrid({ kind: 'square', width: 4, height: 4, cellSize: 1 });
+		overlay.setGrid(TABLE);
 		// Hidden at rest since #167: shown as while building.
 		overlay.setGridShown(true, 0, true);
 		overlay.tick(0);
-		// The west half hidden (alpha 255), the east half seen.
-		const fog = new THREE.DataTexture(new Uint8Array(16 * 4), 4, 4);
-		for (let i = 0; i < 16; i++) if (i % 4 < 2) fog.image.data![i * 4 + 3] = 255;
-		fog.needsUpdate = true;
-		overlay.setMasks(null, fog, null);
+		// The lines read the cell maps (#173): the west half hidden, the east half seen.
+		westHidden();
 		const at = await view([], overlay);
 		// Across a row, pixel by pixel, over the line x = -1 (hidden) and x = 1 (seen).
 		const across = (from: number) =>
 			Array.from({ length: 40 }, (_, i) => at(from + i * 0.02, -0.5)).flat();
 		expect(Math.max(...across(-1.4))).toBe(0);
 		expect(Math.max(...across(0.6))).toBeGreaterThan(0);
+	});
+
+	it('keeps hidden cells black under the bloom and the lens spread from seen ones', async () => {
+		// A flame-hot patch just east of the fog's edge, on a black table, every effect at full.
+		const flame = new THREE.MeshStandardMaterial({ emissive: 0xffc080, emissiveIntensity: 8 });
+		const hot = plane(0, 0.01, flame);
+		hot.scale.set(0.1, 0.25, 1);
+		hot.position.x = 0.3;
+		const loud = (post: Post) => {
+			post.uniforms.bloomStrength.value = 1;
+			post.uniforms.aberration.value = 0.05;
+			post.uniforms.vignette.value = 1;
+		};
+		/** The row through the patch, just west of the edge (hidden) and on it (seen). */
+		const read = async () => {
+			const at = await view([plane(0, 0), hot], new OverlayLayer(), 200, loud);
+			const west = Array.from({ length: 20 }, (_, i) => at(-0.05 - i * 0.02, 0)).flat();
+			return { west, east: at(0.3, 0) };
+		};
+		// Without fog the glow reaches west of the edge: the check can fail.
+		const open = await read();
+		expect(Math.max(...open.west)).toBeGreaterThan(0);
+		renderer!.dispose();
+		westHidden();
+		const fogged = await read();
+		expect(Math.max(...fogged.west)).toBe(0);
+		expect(Math.max(...fogged.east)).toBeGreaterThan(200);
 	});
 });
 

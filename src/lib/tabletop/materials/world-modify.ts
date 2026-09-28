@@ -6,9 +6,13 @@
 // the emissive the MRT reads is too, #160), and the cut height's discard. Nothing here is a
 // literal that runtime state picks: fog on or off, player or GM, the ambient, the flash and the
 // cut are uniforms, and the maps' textures are swapped under their nodes, so no change compiles
-// a program. Until #173 deletes the overlays, `cellUniforms.on` (the tier's `fogshade` layer)
-// keeps both the identity. Soft edges and reveal fades are #174's.
+// a program. Since #173 this is all the fog and darkness there is (the overlay planes are gone):
+// `inWorld` puts it on the few materials that are not kinds (fixtures, flames, mist),
+// `worldShade` fades the grid lines by it, and `worldHidden` is what the scene pass writes for
+// the output stage to re-mask hidden cells after bloom, the lens and depth of field spread light
+// over them (post.ts). Soft edges and reveal fades are #174's.
 
+import type * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import { FLASH_THINS, cellUniforms, onGrid, visibilitySmooth, visibilityTexel } from '../cell-maps';
 import { tsl, type N } from './tsl';
@@ -16,8 +20,8 @@ import { tsl, type N } from './tsl';
 const loose = (node: unknown) => node as N;
 type Loose = (...args: unknown[]) => N;
 // Loosely typed, as tsl.ts does for the kinds (its reasons hold here).
-const { Discard, If, float, luminance, mix, positionWorld } = T as unknown as Record<
-	'Discard' | 'If' | 'float' | 'luminance' | 'mix' | 'positionWorld',
+const { Discard, If, float, luminance, mix, output, positionWorld } = T as unknown as Record<
+	'Discard' | 'If' | 'float' | 'luminance' | 'mix' | 'output' | 'positionWorld',
 	Loose
 >;
 const Fn = T.Fn as unknown as (body: () => N) => () => N;
@@ -41,7 +45,7 @@ function terms(): World {
 	const texel = loose(visibilityTexel);
 	const smooth = loose(visibilitySmooth);
 	const [visible, explored] = [texel.x, texel.y];
-	const shown = loose(onGrid).mul(u.on);
+	const shown = loose(onGrid);
 	const fogged = shown.mul(u.fogOn);
 	const player = mix(float(0), u.exploredLevel, explored);
 	const gm = mix(u.gmHiddenLevel, u.gmExploredLevel, explored);
@@ -80,11 +84,32 @@ export function worldModify(output: N, emissive: N): N {
 	const { fog, unseen, light } = terms();
 	const kept = light.mul(fog);
 	const rgb = tinted(output.xyz, unseen).mul(kept).add(emissive.mul(kept.oneMinus()));
-	const above = loose(positionWorld).y.greaterThan(u.cutY).and(u.on.greaterThan(0.5));
+	const above = loose(positionWorld).y.greaterThan(u.cutY);
 	return Fn(() => {
 		If(above, () => {
 			Discard();
 		});
 		return vec4(rgb, output.w);
 	})();
+}
+
+/** How much of a surface shows in its cell, light times fog: the grid lines fade by it. */
+export const worldShade = (): N => terms().light.mul(terms().fog);
+
+/**
+ * 1 where a player's fog hides the fragment's cell, else 0: the scene pass's `hidden` attachment
+ * (post.ts), which the output stage turns back to black after everything that spreads light.
+ */
+export const worldHidden = (): N => float(terms().fog.lessThan(1 / 1024));
+
+/**
+ * Puts the world on a material that is not a kind (a fixture's post, a flame, the mist):
+ * `worldModify` last, and `glow` (if any) as its emissive through `worldEmissive`. Once, when made.
+ */
+export function inWorld<M extends THREE.NodeMaterial>(material: M, glow: unknown = null): M {
+	const emissive = glow ? worldEmissive(loose(glow)) : vec3(0);
+	const nodes = material as unknown as Record<string, unknown>;
+	if (glow) nodes.emissiveNode = emissive;
+	nodes.outputNode = worldModify(loose(output), emissive);
+	return material;
 }

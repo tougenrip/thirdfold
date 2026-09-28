@@ -25,7 +25,12 @@
 // bloom), radial chromatic aberration, a vignette tinted dark purple, the tone
 // mapper and sRGB, film grain, the overlay, and a triangular dither. Every step
 // maps 0 to 0 (the vignette multiplies; grain and dither are masked off at
-// black), so unexplored cells, black under the fog, stay exactly black.
+// black), so unexplored cells, black under the fog, stay exactly black. Bloom,
+// chromatic aberration, depth of field and FXAA carry light a little way over
+// them, though, so the scene pass also writes `hidden` (1 where a player's fog
+// hides the fragment's cell, `worldHidden` in materials/world-modify.ts) and the
+// output stage multiplies the world by what it leaves shown, before the overlay
+// goes on (#173).
 // The colour grade (#162): the environment's table for the tone mapper and band,
 // blended on the CPU into one 3D texture (grade.ts), so no shader changes.
 
@@ -76,6 +81,7 @@ import type BloomNode from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
 import { lensStrengths, type QualitySettings } from './quality';
+import { worldHidden } from './materials/world-modify';
 
 /** How much of the occlusion shows, when on. */
 const AO_STRENGTH = 1;
@@ -91,6 +97,8 @@ const LENS = {
 	aberration: 0.008,
 	grain: 0.035
 };
+/** Below this, the `hidden` attachment is the clear colour (the background), not a hidden cell. */
+export const HIDDEN_FLOOR = 0.1;
 /** The grain's pattern moves on at most this often, by the tabletop's clock (ms). */
 export const GRAIN_MS = 1000 / 24;
 
@@ -304,11 +312,18 @@ export class Post {
 		});
 		if (this.prepass) scenePass.drawsFirst.push(this.prepass);
 		scenePass.name = 'scene';
-		const outputs = mrt({ output, emissive: vec4(emissive, output.a) });
+		const hidden = worldHidden() as unknown as THREE.Node<'float'>;
+		const outputs = mrt({
+			output,
+			emissive: vec4(emissive, output.a),
+			hidden: vec4(hidden, hidden, hidden, output.a)
+		});
 		// A transparent surface in front of a glow covers its emissive, as it covers its colour.
 		outputs.setBlendMode('emissive', new THREE.BlendMode(THREE.NormalBlending));
+		outputs.setBlendMode('hidden', new THREE.BlendMode(THREE.NormalBlending));
 		scenePass.setMRT(outputs);
 		scenePass.getTexture('emissive').type = THREE.UnsignedByteType;
+		scenePass.getTexture('hidden').type = THREE.UnsignedByteType;
 		// Set now (setup sets the same later) so a warm-up before the first frame compiles for them.
 		scenePass.renderTarget.samples = stages.samples;
 		scenePass.renderTarget.texture.type = halfFloat;
@@ -413,7 +428,17 @@ export class Post {
 			smoothed === finished
 				? null
 				: (smoothed as unknown as { textureNode: THREE.Node }).textureNode;
-		const world = (smoothed as THREE.Node<'vec4'>).rgb;
+		// Hidden cells back to exactly black, whatever spread over them. The attachment clears to
+		// the background's colour, whose red stays under HIDDEN_FLOOR (lighting.ts), so the sky
+		// around the table counts as shown; MSAA's resolve leaves edges in between.
+		const covered = this.scenePass!.getTextureNode('hidden').sample(screenUV).r;
+		const shownPart = float(1).sub(
+			covered
+				.sub(HIDDEN_FLOOR)
+				.div(1 - HIDDEN_FLOOR)
+				.saturate()
+		);
+		const world = (smoothed as THREE.Node<'vec4'>).rgb.mul(shownPart);
 		// Nothing is added where the picture is black.
 		const lit = smoothstep(0, 2 / 255, luminance(world));
 		const cell = screenCoordinate.xy;

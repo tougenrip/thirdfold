@@ -8,7 +8,7 @@ import {
 	AMBIENT_DARK,
 	FOG_LEVELS,
 	PERCEPTION_FILL,
-	cellBrightness,
+	cellLight,
 	fogFactor,
 	packFog,
 	packGround,
@@ -104,7 +104,7 @@ describe('brightness', () => {
 									// The fill is a fogged player's visible cells' (renderer.ts passed `visible` only then).
 									const shown = fogOn && mode === 'player' && visible;
 									const packed = Math.round(255 * level) / 255;
-									const now = cellBrightness({
+									const now = cellLight({
 										ambientDark: AMBIENT_DARK[ambient],
 										level: packed,
 										sky: darkArea ? 0 : 1,
@@ -121,7 +121,7 @@ describe('brightness', () => {
 		for (const ambient of ['day', 'dusk', 'dark'] as const)
 			for (const sky of [0, 1]) {
 				const at = (level: number, fill: number) =>
-					cellBrightness({ ambientDark: AMBIENT_DARK[ambient], level, sky, fill, flash: 0 });
+					cellLight({ ambientDark: AMBIENT_DARK[ambient], level, sky, fill, flash: 0 });
 				// A fogged player's visible cell has the fill; a lit cell a level of 0.2 or more.
 				expect(at(0, PERCEPTION_FILL)).toBeGreaterThan(0.5);
 				expect(at(0.2, 0)).toBeGreaterThan(0.3);
