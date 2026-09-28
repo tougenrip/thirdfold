@@ -6,13 +6,18 @@
 // poses draw with depth of field, focused on the pose's pivot. Captures with
 // TRAA, GTAO or depth of field compare by SSIM (tests/visual/ssim.ts), the rest
 // by pixelmatch. Unexplored cells are checked black per tier by
-// unexplored-black.svelte.spec.ts. Only Linux references are committed; CI is
-// the authority. To update them on purpose (and show before and after in the
-// PR, see docs/RENDERING.md):
-//   npx vitest run --project client src/lib/tabletop/golden.svelte.spec.ts --update
+// unexplored-black.svelte.spec.ts. Only Linux references are committed.
+//
+// They never run with the other tests. CI takes the slim set (`SLIM`, a few
+// minutes) on pull requests that touch rendering, and only there; the full set
+// runs by hand before a rendering PR is opened. To run or update them on
+// purpose (and show before and after in the PR, see docs/RENDERING.md):
+//   npm run test:golden              # the slim set, as CI
+//   npm run test:golden:full         # every image; add -- --update to re-record
+//   npm run test:golden:webgpu       # every image on the local GPU
 
 import { page, server } from 'vitest/browser';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import {
 	BACKEND,
 	loadSidecar,
@@ -70,6 +75,31 @@ export const MATRIX: Shot[] = [
 	])
 ];
 
+/**
+ * The images CI takes (#168's follow-up: a verify run stays within minutes): every table's
+ * overview for the GM, the fog's secrecy for players and a spectator, night and dusk, depth of
+ * field close and low, a stress table, and a few on low and high. Names as the tests are.
+ */
+const SLIM = new Set([
+	...[...STORY, ...COMPOSED].map((f) => `${f} overview own gm`),
+	'village overview own player',
+	'hollow overview own player',
+	'ref-8 overview own player',
+	'ref-8 overview own spectator',
+	'village dark dark player',
+	'village overview dark gm',
+	'ref-1 close own gm',
+	'ref-7 close own gm',
+	'village low own gm',
+	'crowd-60 overview own gm',
+	'ref-1 overview own gm low',
+	'ref-8 overview own player low',
+	'ref-1 close own gm high',
+	'village overview own spectator high',
+	'hollow overview own player high'
+]);
+const FULL = inject('goldens') === 'full';
+
 /** Depth of field at the close and low poses, as a shot or Miniature draws them there. */
 const FOCUSED: readonly PoseName[] = ['close', 'low'];
 
@@ -86,8 +116,10 @@ describe.skipIf(!linux)('golden images', () => {
 	const seen = new Set<string>();
 	for (const shot of MATRIX) {
 		const tier = shot.tier ?? 'medium';
-		const label = `${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}`;
-		it(tier === 'medium' ? label : `${label} ${tier}`, async () => {
+		const base = `${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}`;
+		const label = tier === 'medium' ? base : `${base} ${tier}`;
+		if (!FULL && !SLIM.has(label)) continue;
+		it(label, async () => {
 			const sidecar = await loadSidecar(shot.fixture);
 			const band = shot.band === 'own' ? sidecar.ambient : shot.band;
 			// Each backend keeps its own references: the rasterisers differ at edges.
@@ -119,7 +151,7 @@ describe.skipIf(!linux)('golden images', () => {
 
 // #163: a still on the high tier, drawn after TRAA's converge frames under the held clock (the
 // Halton jitter and GTAO's rotations follow the frame count, so the still is the same each run).
-describe.skipIf(!linux)('golden images, TRAA converged', () => {
+describe.skipIf(!linux || !FULL)('golden images, TRAA converged', () => {
 	it('ref-1 close high converged gm', async () => {
 		const sidecar = await loadSidecar('ref-1');
 		const view = await loadView('ref-1', sidecar.ambient, 'gm');

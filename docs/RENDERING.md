@@ -421,13 +421,14 @@ canvas; chat, dice and panels keep working meanwhile.
 
 ### WebGPU golden images (#151)
 
-The goldens and the renderer's smoke tests also run through the WebGPU backend, locally, in the
-`client-webgpu` Vitest project, which exists only with `THIRDFOLD_WEBGPU=1`, so `npm test` and CI
-never see it:
+The renderer's smoke tests (and, by hand, the goldens) also run through the WebGPU backend,
+locally, in the `client-webgpu` Vitest project, which exists only with `THIRDFOLD_WEBGPU=1`, so
+`npm test` and CI never see it:
 
 ```bash
-npm run test:webgpu                                      # all of it, about 3.5 minutes
-npm run test:webgpu -- src/lib/tabletop/golden.svelte.spec.ts --update   # re-record on purpose
+npm run test:webgpu                            # the smoke, recovery and post tests
+npm run test:golden:webgpu                     # every golden image, before a rendering PR only
+npm run test:golden:webgpu -- --update         # re-record on purpose
 ```
 
 It draws on the real GPU (the RTX 4060 Laptop, the reference machine, through Vulkan), headless.
@@ -709,8 +710,13 @@ DPR 1, with a clock the test holds still, reduced motion on and the camera at a 
   mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
   and the spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
   Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts`.
+  **When they run:** never with `npm test`. CI takes the slim set (`SLIM` in the spec, 26 images)
+  in `.github/workflows/goldens.yml`, only on pull requests that touch rendering, never on pushes.
+  The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
+  hand, once a rendering PR is ready and agreed, not during development, where the test world and
+  the targeted specs are the check.
 
-**When a golden fails in CI**, the `verify` job uploads the `golden-diffs` artifact
+**When a golden fails in CI**, the `goldens` job uploads the `golden-diffs` artifact
 (`.vitest-attachments/`: the reference, the actual image and a diff for each failure; kept 14
 days). Download it from the run's page; its reference and actual PNGs are the before and after a
 golden PR shows.
@@ -718,8 +724,10 @@ golden PR shows.
 **Changing goldens.** Update them only on purpose, on Linux:
 
 ```bash
-npx vitest run --project client src/lib/tabletop/golden.svelte.spec.ts --update
+npm run test:golden:full -- --update
 ```
+
+and on WebGPU `npm run test:golden:webgpu -- --update`.
 
 A PR that changes goldens says why, shows the before and after of every changed image in its
 description, and names the milestone gate it serves. Keep the set under about 20 MB: if it grows

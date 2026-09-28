@@ -101,6 +101,8 @@ export const HEIGHT = 500;
 declare module 'vitest' {
 	export interface ProvidedContext {
 		backend: 'webgl' | 'webgpu';
+		/** Which golden images to take: the slim set CI takes, or every one (by hand). */
+		goldens: 'slim' | 'full';
 	}
 }
 

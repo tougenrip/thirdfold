@@ -45,6 +45,10 @@ function browser(args: string[], headless: boolean) {
 	};
 }
 
+/** `THIRDFOLD_GOLDENS=slim|full` runs the golden images (package.json's test:golden scripts). */
+const GOLDENS = (['slim', 'full'] as const).find((g) => g === process.env.THIRDFOLD_GOLDENS);
+const GOLDEN_SPEC = 'src/lib/tabletop/golden.svelte.spec.ts';
+
 export default defineConfig({
 	plugins: [
 		sveltekit({
@@ -85,10 +89,12 @@ export default defineConfig({
 					// Renderer tests and golden images draw with SwiftShader at DPR 1 on
 					// an 800x500 viewport, so pixels never depend on the machine's GPU.
 					browser: browser(['--use-angle=swiftshader', '--enable-unsafe-swiftshader'], true),
-					provide: { backend: 'webgl' as const },
+					provide: { backend: 'webgl' as const, goldens: GOLDENS ?? 'slim' },
 					attachmentsDir: '.vitest-attachments',
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-					exclude: ['src/lib/server/**']
+					// Golden images run only on their own (`npm run test:golden`, CI's slim set on PRs that
+					// touch rendering; `test:golden:full` by hand), never with the rest of the tests.
+					exclude: ['src/lib/server/**', ...(GOLDENS ? [] : [GOLDEN_SPEC])]
 				}
 			},
 			// The same golden images and renderer smoke tests through the WebGPU backend, on the real
@@ -110,13 +116,13 @@ export default defineConfig({
 									],
 									true
 								),
-								provide: { backend: 'webgpu' as const },
+								provide: { backend: 'webgpu' as const, goldens: GOLDENS ?? 'full' },
 								// One file at a time: the recovery test crashes the GPU process, which would
 								// take WebGPU away from files running beside it.
 								fileParallelism: false,
 								attachmentsDir: '.vitest-attachments',
 								include: [
-									'src/lib/tabletop/golden.svelte.spec.ts',
+									...(GOLDENS ? [GOLDEN_SPEC] : []),
 									'src/lib/tabletop/renderer.svelte.spec.ts',
 									'src/lib/tabletop/recovery.svelte.spec.ts',
 									'src/lib/tabletop/post.svelte.spec.ts',

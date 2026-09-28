@@ -29,7 +29,10 @@
 		"db:stop": "supabase stop",
 		"cache:up": "docker compose up -d",
 		"cache:down": "docker compose down",
-		"test:webgpu": "THIRDFOLD_WEBGPU=1 vitest run --project client-webgpu"
+		"test:webgpu": "THIRDFOLD_WEBGPU=1 vitest run --project client-webgpu",
+		"test:golden": "THIRDFOLD_GOLDENS=slim vitest run --project client src/lib/tabletop/golden.svelte.spec.ts",
+		"test:golden:full": "THIRDFOLD_GOLDENS=full vitest run --project client src/lib/tabletop/golden.svelte.spec.ts",
+		"test:golden:webgpu": "THIRDFOLD_WEBGPU=1 THIRDFOLD_GOLDENS=full vitest run --project client-webgpu src/lib/tabletop/golden.svelte.spec.ts"
 	},
 	"devDependencies": {
 		"@capacitor/cli": "^8.5.2",
