@@ -70,7 +70,7 @@ const loaded = () => (paintMaps.normal.value.image as { width: number }).width =
 
 describe('paint detail', () => {
 	it('arrives, and is tuned, without a new program', async () => {
-		const { scene, draw, programs, states } = await setup();
+		const { scene, draw, read, programs, states } = await setup();
 		const mini = new THREE.Mesh(
 			new THREE.SphereGeometry(0.5),
 			createMaterial('mini', { vertexColors: false })
@@ -79,11 +79,15 @@ describe('paint detail', () => {
 		scene.add(props(2), mini);
 		draw();
 		const [p0, s0] = [programs(), states()];
+		const blank = await read();
 		await loadPaint();
 		expect(loaded()).toBe(true);
 		expect((paintMaps.gloss.value.image as { width: number }).width).toBe(256);
 		expect(paintMaps.normal.value.colorSpace).toBe(THREE.NoColorSpace);
 		draw();
+		// The maps reached the already built graphs: the picture changed with the binding.
+		const painted = await read();
+		expect(painted.some((v, i) => Math.abs(v - blank[i]) > 2)).toBe(true);
 		paint.strength.value = 0;
 		paint.gloss.value = 0.9;
 		draw();

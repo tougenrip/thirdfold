@@ -15,7 +15,7 @@ import { NEUTRAL, readGrades, renderGrade, stripProblem } from './grades';
 import { readTextureSource, renderTexture } from './textures';
 
 // Several tests build every asset, the 54 colour-grade strips among them: a few seconds each.
-vi.setConfig({ testTimeout: 30_000 });
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 
 let built: BuiltAssets;
 beforeAll(() => {
