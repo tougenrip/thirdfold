@@ -7,7 +7,7 @@ import GraphicsControls from './GraphicsControls.svelte';
 afterEach(() => localStorage.removeItem('thirdfold:graphics'));
 
 /** The menu as the room shows it: its choice saved in this browser. */
-function mount(backend: 'webgpu' | 'webgl2' = 'webgpu') {
+function mount(backend: 'webgpu' | 'webgpu-compat' | 'webgl2' = 'webgpu') {
 	return render(GraphicsControls, {
 		graphics: loadGraphics(localStorage),
 		effective: { tier: 'medium', backend },
@@ -49,6 +49,75 @@ describe('the Graphics menu', () => {
 		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
 		await expect.element(page.getByRole('radio', { name: 'Ultra' })).toBeDisabled();
 		await expect.element(page.getByText(/Ultra needs WebGPU/)).toBeInTheDocument();
+	});
+
+	it('keeps an option changed apart from the preset, until a preset is chosen', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await userEvent.click(page.getByText('Advanced'));
+		await userEvent.selectOptions(page.getByRole('combobox', { name: 'Ambient occlusion' }), 'Off');
+		expect(loadGraphics(localStorage).overrides).toEqual({ ao: false });
+		await userEvent.click(page.getByRole('radio', { name: 'High' }));
+		expect(loadGraphics(localStorage)).toMatchObject({ tier: 'high', overrides: {} });
+	});
+
+	it('turns every lens effect off with Clarity, and only those', async () => {
+		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { bloom: false } });
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		const clarity = page.getByRole('button', { name: 'Clarity: no lens effects' });
+		await expect.element(clarity).toHaveAttribute('aria-pressed', 'false');
+		await userEvent.click(clarity);
+		expect(loadGraphics(localStorage).overrides).toEqual({
+			bloom: false,
+			vignette: false,
+			aberration: false,
+			grain: false
+		});
+		// Miniature is off in every preset already: nothing to keep.
+	});
+
+	it('saves Always show grid, off by default', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		const always = page.getByRole('checkbox', { name: /Always show grid/ });
+		await expect.element(always).not.toBeChecked();
+		await userEvent.click(always);
+		expect(loadGraphics(localStorage).alwaysGrid).toBe(true);
+	});
+
+	it('forgets an option set back to the value of its preset', async () => {
+		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { aa: 'off' } });
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await expect.element(page.getByText('Preset (customised)')).toBeInTheDocument();
+		await userEvent.selectOptions(page.getByRole('combobox', { name: 'Antialiasing' }), 'MSAA 4×');
+		expect(loadGraphics(localStorage).overrides).toEqual({});
+	});
+
+	it('offers every antialiasing, SMAA among them, and no MSAA on compatibility WebGPU', async () => {
+		mount('webgpu-compat');
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await userEvent.click(page.getByText('Advanced'));
+		const select = page.getByRole('combobox', { name: 'Antialiasing' });
+		const options = [...(select.element() as HTMLSelectElement).options];
+		expect(options.map((o) => [o.text, o.disabled])).toEqual([
+			['Off', false],
+			['FXAA', false],
+			['SMAA', false],
+			['MSAA 4×', true],
+			['TRAA', false]
+		]);
+		await userEvent.selectOptions(select, 'SMAA');
+		expect(loadGraphics(localStorage).overrides).toEqual({ aa: 'smaa' });
+	});
+
+	it('picks the tone mapper, saved, Filmic by default', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await expect.element(page.getByRole('radio', { name: 'Filmic (ACES)' })).toBeChecked();
+		await userEvent.click(page.getByRole('radio', { name: 'Soft (AgX)' }));
+		expect(loadGraphics(localStorage).toneMapper).toBe('agx');
 	});
 
 	it('asks for a reload to switch the backend, and saves it', async () => {

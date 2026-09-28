@@ -38,13 +38,7 @@
 	import type { DiceThrow } from './dice3d';
 	import type { FogMode } from './fog';
 	import type { PerfStats } from './perf';
-	import type {
-		CameraView,
-		HighlightKind,
-		PreviewItem,
-		Tabletop,
-		TabletopEvents
-	} from './renderer';
+	import type { CameraView, HighlightKind, PreviewItem, Tabletop, TabletopEvents } from './types';
 	import { loadRenderer } from './load';
 	import TableOverlays from './TableOverlays.svelte';
 	import {
@@ -55,6 +49,12 @@
 		startingTier,
 		tierAfterLoss,
 		tierFrom,
+		type AaMode,
+		type AoKind,
+		aoKind,
+		needsPrepass,
+		withOverrides,
+		toneMapperFrom,
 		type Backend,
 		type GraphicsPrefs,
 		type Tier
@@ -81,6 +81,8 @@
 		preview?: readonly PreviewItem[];
 		selectedId?: string | null;
 		highlight?: { cell: GridPos; kind: HighlightKind } | null;
+		/** Grid lines wanted now: building, placing or aiming a move (#167). */
+		gridShown?: boolean;
 		view?: CameraView;
 		/** Tokens drawn lying down (fallen characters). */
 		fallen?: readonly string[];
@@ -120,6 +122,7 @@
 		preview = [],
 		selectedId = null,
 		highlight = null,
+		gridShown = false,
 		view = 'tactical',
 		fallen = [],
 		floats = [],
@@ -182,20 +185,28 @@
 	let lastDisposal: Promise<void> = Promise.resolve();
 	/** Where the camera was on the tabletop being replaced. */
 	let carriedPose: Pose | null = null;
-	/** MSAA for the next tabletop: from the tier where it is known before the device is. */
-	let antialias = initialAntialias();
+	/**
+	 * MSAA, whether the pipeline has a prepass, the antialiasing and the AO, for the next tabletop:
+	 * from the settings where they are known before the device is. A change of any builds a new
+	 * renderer.
+	 */
+	let { antialias, prepass, aa, ao } = initialShape();
 
-	function initialAntialias(): boolean {
-		if (typeof location === 'undefined') return true;
+	function initialShape(): { antialias: boolean; prepass: boolean; aa: AaMode; ao: AoKind } {
+		if (typeof location === 'undefined')
+			return { antialias: true, prepass: true, aa: 'msaa', ao: 'ssao' };
 		const prefs = loadGraphics(localStorage);
 		const known =
 			tierFrom(location.search) ?? (prefs.tier !== 'auto' ? prefs.tier : prefs.measured);
-		return known ? settingsFor(known, 'webgpu').msaa > 0 : true;
+		const s = withOverrides(settingsFor(known ?? 'medium', 'webgpu'), prefs.overrides, 'webgpu');
+		return { antialias: s.msaa > 0, prepass: needsPrepass(s), aa: s.aa, ao: aoKind(s) };
 	}
 
 	/** Makes the tabletop again on a fresh canvas, the camera where it was. */
 	function rebuild(t: Tabletop): void {
-		carriedPose = t.cameraPose();
+		// A tabletop replaced before it was shown (its shape did not fit) passes on the pose still
+		// waiting for it, not its own.
+		carriedPose ??= t.cameraPose();
 		generation++;
 	}
 
@@ -230,14 +241,31 @@
 		const caps = t.capabilities();
 		const auto = !tierFrom(search) && prefs.tier === 'auto' && !sessionTier;
 		const chosen = tier ?? sessionTier ?? startingTier(search, prefs, caps);
-		const settings = settingsFor(chosen, caps.backend);
-		// MSAA can't change on a renderer: make a new one with the tier's.
-		if (settings.msaa > 0 !== antialias) {
+		const settings = withOverrides(
+			settingsFor(chosen, caps.backend),
+			prefs.overrides,
+			caps.backend
+		);
+		// MSAA and the prepass make the pipeline's shape: a new one gets a new renderer, since
+		// rebuilding passes on the same one left their old shaders behind.
+		if (
+			settings.msaa > 0 !== antialias ||
+			needsPrepass(settings) !== prepass ||
+			settings.aa !== aa ||
+			aoKind(settings) !== ao
+		) {
 			antialias = settings.msaa > 0;
+			prepass = needsPrepass(settings);
+			aa = settings.aa;
+			ao = aoKind(settings);
 			rebuild(t);
 			return false;
 		}
-		t.setQuality({ ...settings, layers: layersFrom(search, settings.layers) }, auto && !tier);
+		const toneMapper = toneMapperFrom(search) ?? prefs.toneMapper;
+		t.setQuality(
+			{ ...settings, layers: layersFrom(search, settings.layers), toneMapper },
+			auto && !tier
+		);
 		t.setPowerSaver(prefs.powerSaver);
 		softwareNotice = caps.software;
 		onQuality?.({ tier: settings.tier, backend: caps.backend });
@@ -406,6 +434,10 @@
 
 	$effect(() => {
 		tabletop?.setHighlight(highlight?.cell ?? null, highlight?.kind ?? 'move');
+	});
+
+	$effect(() => {
+		tabletop?.setGridShown(gridShown || !!graphics?.alwaysGrid);
 	});
 
 	$effect(() => {

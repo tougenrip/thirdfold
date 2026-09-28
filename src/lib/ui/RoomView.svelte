@@ -24,7 +24,7 @@
 	import { decodeLevels } from '$lib/game/terrain';
 	import type { DiceThrow } from '$lib/tabletop/dice3d';
 	import { diceToThrow } from '$lib/tabletop/dice-throw';
-	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/renderer';
+	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/types';
 	import { DEFAULT_LIGHT_RADIUS, LIGHT_COLORS, type Light } from '$lib/game/lights';
 	import {
 		ASSETS,
@@ -66,6 +66,7 @@
 	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 	import GraphicsControls from './GraphicsControls.svelte';
+	import { gridShown } from './grid';
 	import {
 		loadGraphics,
 		saveGraphics,
@@ -1183,6 +1184,13 @@
 				motion={conn.motion}
 				{active}
 				{highlight}
+				gridShown={gridShown({
+					isGm,
+					building: folds.build,
+					placing: !!placing,
+					spawning: !!spawning,
+					aiming: highlight !== null
+				})}
 				{view}
 				{graphics}
 				onQuality={(q) => (effectiveQuality = q)}

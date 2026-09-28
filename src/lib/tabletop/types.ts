@@ -88,6 +88,11 @@ export interface Tabletop {
 	setSelectedProp(propId: string | null): void;
 	setHoveredProp(propId: string | null): void;
 	setSelected(tokenId: string | null): void;
+	/**
+	 * Shows or hides the grid lines (#167): off at rest, since the tiles' seams are the grid; on
+	 * while building, placing or aiming a move, or always by the viewer's choice.
+	 */
+	setGridShown(shown: boolean): void;
 	/** Lays these tokens down (fallen characters); stands the others up. */
 	setFallen(tokenIds: readonly string[]): void;
 	/** Marks the token whose turn it is in a fight (an enemy's in red), or none. */
@@ -112,8 +117,8 @@ export interface Tabletop {
 	setView(view: CameraView): void;
 	/** Puts the camera at a pose at once, ending any shot or view change (tests, photo mode). */
 	setPose(pose: Pose): void;
-	/** Where the camera is now, to carry over to a rebuilt tabletop (`setPose`). */
-	cameraPose(): Pose;
+	/** Where the camera is now, to carry over to a rebuilt tabletop (`setPose`); null before a table framed it. */
+	cameraPose(): Pose | null;
 	/** The same, for a pose in grid terms (a fixture's named pose). */
 	setGridPose(pose: GridPose): void;
 	/**

@@ -1,0 +1,79 @@
+name: Rendering
+
+# The renderer's pixel tests and golden images, only on pull requests that touch rendering: never
+# on pushes, and never in ci.yml's verify job, which stays within minutes. Each group is its own
+# job, side by side, within about 5 minutes. The full golden set runs by hand before a rendering
+# PR is opened (`npm run test:golden:full`).
+on:
+  pull_request:
+    paths:
+      - 'src/lib/tabletop/**'
+      - 'src/lib/assets/**'
+      - 'assets/**'
+      - 'server/assets/**'
+      - 'static/assets/**'
+      - 'server/fixtures/**'
+      - 'tests/fixtures/**'
+      - 'tests/visual/**'
+      - 'vite.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/rendering.yml'
+
+concurrency:
+  group: rendering-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    name: ${{ matrix.group.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - name: goldens
+            run: npm run test:golden
+          - name: smoke
+            run: npm run test:render -- src/lib/tabletop/renderer.svelte.spec.ts src/lib/tabletop/recovery.svelte.spec.ts
+          - name: stability
+            run: npm run test:render -- src/lib/tabletop/stability.svelte.spec.ts
+          - name: fixtures 1
+            run: THIRDFOLD_SHARD=1/2 npm run test:render -- src/lib/tabletop/fixtures.svelte.spec.ts
+          - name: fixtures 2
+            run: THIRDFOLD_SHARD=2/2 npm run test:render -- src/lib/tabletop/fixtures.svelte.spec.ts
+          - name: post
+            run: npm run test:render -- src/lib/tabletop/post.svelte.spec.ts
+          - name: effects
+            run: npm run test:render -- src/lib/tabletop/effects.svelte.spec.ts
+          - name: lens
+            run: npm run test:render -- src/lib/tabletop/grade.svelte.spec.ts src/lib/tabletop/overlay.svelte.spec.ts src/lib/tabletop/focus.svelte.spec.ts src/lib/tabletop/shot-focus.svelte.spec.ts
+          - name: unexplored-black
+            run: npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - run: ${{ matrix.group.run }}
+      # Reference, actual and diff of each failing image.
+      - name: Upload diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.group.name }}-diffs
+          path: .vitest-attachments/
+          if-no-files-found: ignore
+          retention-days: 14

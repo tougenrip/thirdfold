@@ -93,3 +93,14 @@ export function shotAt(home: Pose, shot: Pose, elapsed: number): { pose: Pose; d
 	if (back >= 1) return { pose: home, done: true };
 	return { pose: mix(shot, home, ease(back)), done: false };
 }
+
+/**
+ * How much of a shot's depth of field shows `elapsed` ms in (#165): it eases in as the camera
+ * goes, holds, and eases out as it comes back; 0 outside the shot.
+ */
+export function shotFocus(elapsed: number): number {
+	if (elapsed <= 0 || elapsed >= SHOT_TOTAL) return 0;
+	if (elapsed < SHOT_MS.go) return ease(elapsed / SHOT_MS.go);
+	if (elapsed < SHOT_MS.go + SHOT_MS.hold) return 1;
+	return 1 - ease((elapsed - SHOT_MS.go - SHOT_MS.hold) / SHOT_MS.back);
+}

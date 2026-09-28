@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+	AA_MODES,
+	aoKind,
 	DEFAULT_GRAPHICS,
 	layersFrom,
+	lensStrengths,
+	needsPrepass,
+	withOverrides,
 	loadGraphics,
 	pixelRatioFor,
 	qualityFor,
@@ -114,19 +119,26 @@ describe('refining the tier', () => {
 describe('the saved graphics settings', () => {
 	it('come back after a save', () => {
 		const s = storage(null);
-		saveGraphics(s, { tier: 'medium', compatibility: true, powerSaver: false, measured: 'low' });
-		expect(loadGraphics(s)).toEqual({
+		const prefs = {
 			tier: 'medium',
+			overrides: { ao: false, aa: 'off', megapixels: 8.3 },
 			compatibility: true,
 			powerSaver: false,
+			toneMapper: 'agx',
+			alwaysGrid: true,
 			measured: 'low'
-		});
+		} as const;
+		saveGraphics(s, prefs);
+		expect(loadGraphics(s)).toEqual(prefs);
 	});
 
 	it('fall back to auto on junk, field by field, without throwing', () => {
 		expect(loadGraphics(storage('not json'))).toEqual(DEFAULT_GRAPHICS);
-		expect(loadGraphics(storage('{"tier":"epic","compatibility":true}'))).toEqual({
+		const junk =
+			'{"tier":"epic","compatibility":true,"toneMapper":"x","overrides":{"msaa":2,"ao":true}}';
+		expect(loadGraphics(storage(junk))).toEqual({
 			...DEFAULT_GRAPHICS,
+			overrides: { ao: true },
 			compatibility: true
 		});
 		const broken = { getItem: () => ({}) as string };
@@ -145,5 +157,102 @@ describe('after the graphics device is lost', () => {
 
 	it('forgets losses older than five minutes', () => {
 		expect(tierAfterLoss('high', [0, 400_000], 400_000 + 301_000)).toBe('medium');
+	});
+});
+
+describe('options apart from the preset', () => {
+	it("lay the viewer's own values over the preset, never MSAA on compatibility WebGPU", () => {
+		const low = settingsFor('low', 'webgpu');
+		const mine = withOverrides(low, { ao: true, aa: 'msaa', sunShadowSize: 4096 }, 'webgpu');
+		expect(mine).toMatchObject({ tier: 'low', ao: true, aa: 'msaa', msaa: 4, sunShadowSize: 4096 });
+		expect(mine.megapixels).toBe(low.megapixels);
+		// Compatibility WebGPU has no MSAA: SMAA stands in (#163); FXAA stays FXAA.
+		expect(withOverrides(low, { aa: 'msaa' }, 'webgpu-compat')).toMatchObject({
+			aa: 'smaa',
+			msaa: 0
+		});
+		expect(withOverrides(low, { aa: 'fxaa' }, 'webgpu-compat')).toMatchObject({ aa: 'fxaa' });
+	});
+
+	it('offer every antialiasing, each with its samples and converge frames', () => {
+		const medium = settingsFor('medium', 'webgpu');
+		const derived = AA_MODES.map((aa) => {
+			const s = withOverrides(medium, { aa }, 'webgpu');
+			return [s.aa, s.msaa, s.convergeFrames];
+		});
+		expect(derived).toEqual([
+			['off', 0, 0],
+			['fxaa', 0, 0],
+			['smaa', 0, 0],
+			['msaa', 4, 0],
+			['traa', 0, 24]
+		]);
+		// A saved SMAA is read back.
+		const store = new Map<string, string>();
+		const storage = {
+			getItem: (k: string) => store.get(k) ?? null,
+			setItem: store.set.bind(store)
+		};
+		saveGraphics(storage, { ...DEFAULT_GRAPHICS, overrides: { aa: 'smaa' } });
+		expect(loadGraphics(storage).overrides).toEqual({ aa: 'smaa' });
+	});
+
+	it('draw SSAO on medium, GTAO on high and ultra with TRAA, and no AO without a prepass', () => {
+		const at = (tier: 'low' | 'medium' | 'high' | 'ultra', aa?: 'msaa' | 'smaa') =>
+			aoKind(withOverrides(settingsFor(tier, 'webgpu'), aa ? { aa } : {}, 'webgpu'));
+		expect([at('low'), at('medium'), at('high'), at('ultra')]).toEqual([
+			'none',
+			'ssao',
+			'gtao',
+			'gtao'
+		]);
+		// Without TRAA to resolve GTAO's noise, high takes SSAO.
+		expect(at('high', 'msaa')).toBe('ssao');
+		expect(at('high', 'smaa')).toBe('ssao');
+	});
+
+	it('take MSAA and converge frames from the antialiasing', () => {
+		expect(settingsFor('low', 'webgpu')).toMatchObject({ aa: 'fxaa', msaa: 0, convergeFrames: 0 });
+		expect(settingsFor('medium', 'webgpu')).toMatchObject({
+			aa: 'msaa',
+			msaa: 4,
+			convergeFrames: 0
+		});
+		expect(settingsFor('high', 'webgpu')).toMatchObject({
+			aa: 'traa',
+			msaa: 0,
+			convergeFrames: 24
+		});
+	});
+
+	it('draw a prepass for MSAA, AO or TRAA, and none without them', () => {
+		expect(needsPrepass(settingsFor('low', 'webgpu'))).toBe(false);
+		expect(needsPrepass(settingsFor('medium', 'webgpu'))).toBe(true);
+		expect(needsPrepass({ msaa: 0, ao: true, aa: 'off' })).toBe(true);
+		expect(needsPrepass({ msaa: 4, ao: false, aa: 'msaa' })).toBe(true);
+		expect(needsPrepass({ msaa: 0, ao: false, aa: 'traa' })).toBe(true);
+	});
+});
+
+describe('depth of field and tilt-shift (#165)', () => {
+	const on = settingsFor('high', 'webgpu');
+	const play = { shot: 0, tactical: false, hasDof: true, reduced: false };
+	it('stay off in play unless Miniature is on, and follow a shot', () => {
+		expect(on.miniature).toBe(false);
+		expect(lensStrengths(on, play)).toEqual({ dof: 0, tilt: 0 });
+		expect(lensStrengths(on, { ...play, shot: 0.5 })).toEqual({ dof: 0.5, tilt: 0 });
+		expect(lensStrengths({ ...on, miniature: true }, play)).toEqual({ dof: 1, tilt: 0 });
+	});
+	it('tilt-shift the tactical view, and stand in without depth of field', () => {
+		const mini = { ...on, miniature: true };
+		expect(lensStrengths(mini, { ...play, tactical: true })).toEqual({ dof: 0, tilt: 1 });
+		expect(lensStrengths(mini, { ...play, tactical: true, shot: 1 })).toEqual({ dof: 1, tilt: 0 });
+		expect(lensStrengths(on, { ...play, hasDof: false, shot: 0.4 })).toEqual({ dof: 0, tilt: 0.4 });
+	});
+	it('are off under reduced motion and ?off=dof, whatever is chosen', () => {
+		const mini = { ...on, miniature: true };
+		expect(lensStrengths(mini, { ...play, shot: 1, reduced: true })).toEqual({ dof: 0, tilt: 0 });
+		const off = { ...mini, layers: layersFrom('?off=dof', mini.layers) };
+		expect(lensStrengths(off, { ...play, shot: 1 })).toEqual({ dof: 0, tilt: 0 });
 	});
 });

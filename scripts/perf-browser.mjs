@@ -29,8 +29,13 @@ if (BACKEND !== 'webgl' && BACKEND !== 'webgpu')
 if (BACKEND === 'webgpu' && GPU === 'swiftshader')
 	throw new Error('Measure WebGPU on a real GPU (PERF_GPU=vulkan): SwiftShader runs are WebGL2.');
 
-/** The query a measured table page opens with: the perf overlay, on the chosen backend. */
-export const PERF_QUERY = BACKEND === 'webgl' ? '?perf&backend=webgl' : '?perf';
+/**
+ * The query a measured table page opens with: the perf overlay, on the chosen backend, plus
+ * PERF_EXTRA (e.g. `tonemap=agx`) for A/B runs.
+ */
+export const PERF_QUERY =
+	(BACKEND === 'webgl' ? '?perf&backend=webgl' : '?perf') +
+	(process.env.PERF_EXTRA ? `&${process.env.PERF_EXTRA}` : '');
 
 export function launchBrowser() {
 	return chromium.launch({

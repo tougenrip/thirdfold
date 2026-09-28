@@ -40,6 +40,11 @@ export function lightSeats(grid: SquareGrid, props: readonly Prop[]): Map<number
 interface Preset {
 	background: number;
 	hemisphere: number;
+	/** The hemisphere's sky and ground colours (#167): warm by day, warm over cool at dusk, moon-blue at night. */
+	sky: number;
+	ground: number;
+	/** The darkness overlay's colour, sRGB bytes: the hue the dark takes, never its depth. */
+	tint: readonly [number, number, number];
 	sun: number;
 	lamp: number;
 	/** Darkness overlay opacity on unlit cells. */
@@ -49,10 +54,39 @@ interface Preset {
 // The whole frame is tone mapped, background and overlays too, so these colours are the ones
 // ACES turns into the sRGB 16120f, 120e10 and 07060a (and the darkness 04, 03, 08) of before
 // (#153).
+// Interim (#167) until the sky (#114) and the art bible (#183): #208 blends these by the hour
+// and #218 replaces them with atmosphere curves.
 const PRESETS: Record<Ambient, Preset> = {
-	day: { background: 0x292421, hemisphere: 0.9, sun: 1.6, lamp: 30, dark: 0 },
-	dusk: { background: 0x252022, hemisphere: 0.45, sun: 0.55, lamp: 18, dark: 0.35 },
-	dark: { background: 0x18171c, hemisphere: 0.1, sun: 0, lamp: 0, dark: 0.82 }
+	day: {
+		background: 0x292421,
+		hemisphere: 0.9,
+		sky: 0xfff1dc,
+		ground: 0x1c140e,
+		tint: [19, 17, 26],
+		sun: 1.6,
+		lamp: 30,
+		dark: 0
+	},
+	dusk: {
+		background: 0x221f28,
+		hemisphere: 0.45,
+		sky: 0xffd0a0,
+		ground: 0x1a2438,
+		tint: [22, 18, 38],
+		sun: 0.55,
+		lamp: 18,
+		dark: 0.35
+	},
+	dark: {
+		background: 0x121828,
+		hemisphere: 0.1,
+		sky: 0x9ab4ff,
+		ground: 0x0a1230,
+		tint: [8, 14, 42],
+		sun: 0,
+		lamp: 0,
+		dark: 0.82
+	}
 };
 
 export interface SceneLights {
@@ -124,11 +158,13 @@ export class LightingLayer {
 			this.base.scene.fog.color.setHex(preset.background);
 		this.hemisphere = preset.hemisphere;
 		this.base.hemisphere.intensity = preset.hemisphere + this.flash * 1.5;
+		this.base.hemisphere.color.setHex(preset.sky);
+		this.base.hemisphere.groundColor.setHex(preset.ground);
 		this.hasDark = !!dark?.some((v) => v);
 		this.base.sun.intensity = preset.sun;
 		this.base.lamp.intensity = preset.lamp;
 
-		this.updateOverlay(grid, preset.dark, sources, blocked, visible, dark);
+		this.updateOverlay(grid, preset, sources, blocked, visible, dark);
 		this.updatePool(grid, sources, ambient, ground, seats);
 		this.updateFixtures(grid, lights, ground, seats);
 	}
@@ -154,7 +190,7 @@ export class LightingLayer {
 
 	private updateOverlay(
 		grid: SquareGrid,
-		darkness: number,
+		{ dark: darkness, tint }: Preset,
 		sources: readonly LightSource[],
 		blocked: Blockers,
 		visible: Uint8Array | null,
@@ -191,9 +227,8 @@ export class LightingLayer {
 			const level = Math.max(levels[i], visible?.[i] ? 0.55 : 0);
 			// A dark area is as dark as night, whatever the hour.
 			const shade = dark?.[i] ? Math.max(darkness, PRESETS.dark.dark) : darkness;
-			data[o] = 19;
-			data[o + 1] = 17;
-			data[o + 2] = 26;
+			// A dark area takes night's hue too.
+			data.set(dark?.[i] ? PRESETS.dark.tint : tint, o);
 			data[o + 3] = Math.round(255 * shade * (1 - level));
 			this.brightness[i] = 1 - shade * (1 - level);
 		}
@@ -203,6 +238,11 @@ export class LightingLayer {
 	}
 
 	/** Gives the pool's point lights to the strongest sources; the rest stay dark (the overlay still shows them). */
+	/** The darkness overlay's per-cell texture while it shows (for the grid lines, overlay.ts). */
+	get darkMask(): THREE.DataTexture | null {
+		return this.overlay.visible ? this.texture : null;
+	}
+
 	/** How lit each cell looks after the last update (null: all of it, by day). For raised ground. */
 	get cellBrightness(): Float32Array | null {
 		return this.brightness;
@@ -301,7 +341,8 @@ export class LightingLayer {
 			>;
 			flame.material.color.set(l.on ? l.color : '#3a3530');
 			flame.material.emissive.set(l.on ? l.color : '#000000');
-			flame.material.emissiveIntensity = l.on ? 2 : 0;
+			// Above 1 in HDR, so the flame core blooms (#160).
+			flame.material.emissiveIntensity = l.on ? 4 : 0;
 		}
 		for (const [id, fixture] of this.fixtures) {
 			if (seen.has(id)) continue;

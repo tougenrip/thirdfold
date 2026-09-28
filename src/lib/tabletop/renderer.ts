@@ -4,15 +4,10 @@
 // It never owns or mutates game state. Renders on demand rather than every
 // frame, so an idle table costs nothing.
 //
-// Every animation runs on one clock (`TabletopOptions.now`, performance.now()
-// by default). Tests and golden images pass a clock they hold still, a fixed
-// pixel ratio and reduced motion, and pose the camera with `setPose`, so the
-// same table always draws the same pixels. Only perf.ts timings keep
-// performance.now(): they measure cost, not animation.
-//
-// The pieces live beside it (see docs/RENDERING.md, Modules): types, camera,
-// picking, loop (frames, the renderer's setup), table, scene-lights, previews,
-// and one layer module per kind of thing on the table.
+// Every animation runs on one clock (`TabletopOptions.now`); tests hold it
+// still, with a fixed pixel ratio, reduced motion and a posed camera, so the
+// same table always draws the same pixels. Only perf.ts timings measure cost.
+// Its pieces live beside it, one per concern (docs/RENDERING.md, Modules).
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -37,6 +32,8 @@ import { advanceNodeFrame, createNodeRenderer, watchReducedMotion } from './loop
 import { RenderScheduler, type FrameReport } from './scheduler';
 import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
+import { OverlayLayer } from './overlay';
+import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
 import { PropLayer } from './props';
@@ -48,16 +45,6 @@ import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
 import { WallLayer } from './walls';
 
-export type {
-	CameraView,
-	HighlightKind,
-	Pick,
-	PreviewItem,
-	Tabletop,
-	TabletopEvents,
-	TabletopOptions
-} from './types';
-
 export async function createTabletop(
 	canvas: HTMLCanvasElement,
 	events: TabletopEvents,
@@ -66,7 +53,7 @@ export async function createTabletop(
 	const clock = options.now ?? (() => performance.now());
 	const renderer = await createNodeRenderer(canvas, options);
 	let shadowsDirty = true;
-	/** A shadow map never drawn reads as garbage (lit surfaces go black), so the first frame always draws it. */
+	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
 	let shadowMapDrawn = false;
 	/** Things moved in the last frame: their final step changes shadows too. */
 	let wasMoving = false;
@@ -78,6 +65,14 @@ export async function createTabletop(
 	const rig = new CameraRig(canvas, FAR);
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
+	const overlay = new OverlayLayer();
+	const post = new Post(renderer, scene, camera, overlay.scene, (now) => ({
+		reduced: reducedMotion,
+		shot: rig.focusAt(now),
+		tactical: view === 'tactical',
+		target: controls.target
+	}));
+	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;
 
 	const table = new TableLayer();
@@ -91,7 +86,7 @@ export async function createTabletop(
 	let warmPending = true;
 	let warming: Promise<void> = Promise.resolve();
 	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
-	const tokenLayer = new TokenLayer(onModel, clock);
+	const tokenLayer = new TokenLayer(overlay, onModel, clock);
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer(clock);
 	scene.add(wallLayer.group);
@@ -132,7 +127,7 @@ export async function createTabletop(
 	const effects = new EffectsLayer();
 	scene.add(effects.group);
 	const previews = new PreviewLayer();
-	scene.add(previews.group, previews.highlight);
+	overlay.scene.add(previews.group, previews.highlight);
 	let disposed = false;
 	// Labels drawn before the label font arrived are drawn again in it.
 	void labelFontReady.then(() => {
@@ -141,8 +136,7 @@ export async function createTabletop(
 		diceLayer.clearLabels();
 		requestRender();
 	});
-	let levels: Uint8Array | null = null;
-	let ground: Ground | null = null;
+	let [levels, ground]: [Uint8Array | null, Ground | null] = [null, null];
 	/** The prop the current cue swings (the bell). */
 	let swinging: string | null = null;
 	const shakeOffset = new THREE.Vector3();
@@ -170,6 +164,8 @@ export async function createTabletop(
 		const { ambient, lights } = lightState;
 		const seats = lightSeats(grid, props);
 		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
+		overlay.setMasks(floorLayer.mask, fogLayer.mask, lighting.darkMask);
+		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade
 		// Raised ground under fog and darkness, by the same rules as the flat overlays.
 		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
 	}
@@ -186,7 +182,7 @@ export async function createTabletop(
 	function drawScene(): void {
 		renderer.info.reset();
 		advanceNodeFrame(renderer);
-		renderer.render(scene, camera);
+		post.render(clock());
 	}
 
 	function render(): FrameReport {
@@ -207,7 +203,7 @@ export async function createTabletop(
 		}
 		const t0 = performance.now();
 		frameOverview(warmCamera, extent, camera.aspect);
-		warming = warmUp(renderer, scene, warmCamera, [...scene.children]).then(() => {
+		warming = warmUp(renderer, scene, warmCamera, [...scene.children], post.targets()).then(() => {
 			perf.add('warmup', performance.now() - t0);
 			shadowsDirty = true;
 		});
@@ -237,7 +233,8 @@ export async function createTabletop(
 		wasMoving = casters;
 		const flickering = !reducedMotion && lighting.flicker(now);
 		const drifting = !reducedMotion && ambience.tick(now);
-		const moving = casters || fx.active || rig.tick(now);
+		const gridFading = overlay.tick(now);
+		const moving = casters || gridFading || fx.active || rig.tick(now) || post.blending;
 		// With damping enabled, update() emits 'change' while the camera is still settling,
 		// which schedules the next frame; once still, rendering stops.
 		controls.update();
@@ -281,6 +278,7 @@ export async function createTabletop(
 
 	function buildTable(g: SquareGrid): void {
 		const across = table.build(g);
+		overlay.setGrid(g);
 		applyLook();
 		extent = across;
 		fitToTable(lights, fog, camera, controls, extent);
@@ -288,20 +286,11 @@ export async function createTabletop(
 	}
 
 	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
+	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	controls.addEventListener('change', requestRender);
 
-	const picker = new Picker(
-		canvas,
-		camera,
-		{
-			tokens: tokenLayer,
-			walls: wallLayer,
-			lighting,
-			props: propLayer,
-			terrain: terrainLayer
-		},
-		() => grid
-	);
+	const pickable = { tokens: tokenLayer, walls: wallLayer, lighting, props: propLayer };
+	const picker = new Picker(canvas, camera, { ...pickable, terrain: terrainLayer }, () => grid);
 	const stopPicking = listenForPicks(canvas, picker, events, perf, () => rig.endShot());
 
 	let view: CameraView = 'tactical';
@@ -392,6 +381,9 @@ export async function createTabletop(
 		setSelected(tokenId) {
 			if (tokenLayer.setSelected(tokenId)) requestRender();
 		},
+		setGridShown(shown) {
+			if (overlay.setGridShown(shown, clock(), reducedMotion)) requestRender();
+		},
 		setFallen(tokenIds) {
 			fallen = new Set(tokenIds);
 			if (tokenLayer.setFallen(fallen)) requestRender();
@@ -419,7 +411,7 @@ export async function createTabletop(
 				applyLook();
 				return;
 			}
-			void loadEnvironment(next).then((loaded) => {
+			void loadEnvironment(next, post.toneMapper).then((loaded) => {
 				// Only if it is still the one wanted (tables can change quickly).
 				if (environment !== next) return;
 				look = loaded;
@@ -471,7 +463,7 @@ export async function createTabletop(
 			rig.setPose(pose);
 			requestRender();
 		},
-		cameraPose: () => rig.pose(),
+		cameraPose: () => (grid ? rig.pose() : null),
 		setGridPose(pose) {
 			if (grid) rig.setPose(poseFor(grid, ground, pose));
 			requestRender();
@@ -482,13 +474,16 @@ export async function createTabletop(
 			motion.stop();
 			quality.dispose();
 			stopPicking();
-			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting];
-			for (const l of [...layers, ambience, terrainLayer, effects, propLayer, diceLayer, previews])
-				l.dispose();
+			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting, post];
+			const more = [overlay, ambience, terrainLayer, effects, propLayer, diceLayer, previews];
+			for (const l of [...layers, ...more]) l.dispose();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
 			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
-		setQuality: (settings, refine) => quality.set(settings, refine),
+		setQuality(settings, refine) {
+			quality.set(settings, refine);
+			post.set(settings);
+		},
 		capabilities: () => quality.caps,
 		setPowerSaver: (on) => loop.setPowerSaver(on),
 		...perfMethods(renderer, perf, drawScene, { loop, quality })

@@ -306,11 +306,15 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
 | `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
 | `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
-| `table.ts`        | The slab, surface and grid lines, dressed by the environment                                                                     |
+| `table.ts`        | The slab and surface, dressed by the environment                                                                                 |
 | `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
 | `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
 | `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
 | `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
+| `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
+| `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                            |
+| `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                        |
+| `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
 
 ## Quality tiers
@@ -321,6 +325,20 @@ starting tier, and each tier into one row of settings every effect reads (#147).
 (WebGPU, compat WebGPU or WebGL2), whether it is a software rasteriser, the GPU's vendor and
 architecture, the largest texture, timestamp queries, phone or not, the shell (browser, Tauri,
 Capacitor), pixel ratio, screen size, and where browsers give them, memory and CPU class.
+
+**Presets and options** (owner, 27 September 2026): a tier is a preset. The Graphics menu picks one
+(Auto, Low, Medium, High, Ultra), and under Advanced the viewer sets options apart from it:
+resolution, antialiasing, ambient occlusion, bloom, vignette, chromatic aberration, film grain,
+colour grading, Miniature (depth of field, #165), shadows and frame rate (`OPTIONS`, only what the
+renderer applies today). **Clarity** (#164) turns the lens effects (vignette, aberration, grain) and
+Miniature off and leaves AO, bloom and the grade, which are light, not lens: the documented way to
+an unprocessed, legible image. Reduced motion keeps grain and Miniature off whatever is stored (the
+menu shows it disabled, the stored choice kept), and a `?off=` layer wins over the menu. Changing an
+option keeps it in `GraphicsPrefs.overrides`, which `withOverrides` lays over the preset's row
+(never MSAA on compat WebGPU); setting it back to the preset's value forgets it, and choosing a
+preset clears them all. MSAA and the prepass (`needsPrepass`: drawn for MSAA or AO) make the
+pipeline's shape, and a change of shape builds a new renderer, as a change of MSAA always did:
+rebuilding passes on the same renderer left their old shaders behind.
 
 **The starting tier,** with no input (`qualityFor`): software rasterisers and compat WebGPU low;
 phones low with 4 GB or less, else medium; under 4 GB or the lowest CPU class low; integrated
@@ -403,13 +421,14 @@ canvas; chat, dice and panels keep working meanwhile.
 
 ### WebGPU golden images (#151)
 
-The goldens and the renderer's smoke tests also run through the WebGPU backend, locally, in the
-`client-webgpu` Vitest project, which exists only with `THIRDFOLD_WEBGPU=1`, so `npm test` and CI
-never see it:
+The renderer's smoke tests (and, by hand, the goldens) also run through the WebGPU backend,
+locally, in the `client-webgpu` Vitest project, which exists only with `THIRDFOLD_WEBGPU=1`, so
+`npm test` and CI never see it:
 
 ```bash
-npm run test:webgpu                                      # all of it, about 3.5 minutes
-npm run test:webgpu -- src/lib/tabletop/golden.svelte.spec.ts --update   # re-record on purpose
+npm run test:webgpu                            # the smoke, recovery and post tests
+npm run test:golden:webgpu                     # every golden image, before a rendering PR only
+npm run test:golden:webgpu -- --update         # re-record on purpose
 ```
 
 It draws on the real GPU (the RTX 4060 Laptop, the reference machine, through Vulkan), headless.
@@ -459,7 +478,210 @@ draws a shadow pass.
 
 ## RenderPipeline
 
-Filled in by milestone 63.
+Milestone 63 draws every frame through one `THREE.RenderPipeline`, built in `post.ts` (#156). Its
+passes, in order:
+
+| Pass      | Tiers      | Draws                                    | Attachments                                                                      |
+| --------- | ---------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `scene`   | all        | Everything, with the tier's MSAA samples | `output`: colour, half-float; `emissive`, 8-bit, blended like colour; depth      |
+| `prepass` | medium, up | Opaque only, no MSAA                     | `output`: view normals, 8-bit (`packNormalToRGB`); depth                         |
+| `overlay` | all        | The overlay's scene (`overlay.ts`)       | `output`: premultiplied, half-float; the prepass's depth (low: the scene pass's) |
+| output    | all        | A full-screen quad                       | `renderOutput`: exposure, the tone mapper (`TONE_MAPPING`), sRGB; the overlay    |
+
+- **Tone mapping happens once, at the end.** Inside the pipeline every pass draws linear with no
+  tone mapping, so a material's `toneMapped: false` no longer means anything; the fog plane, the
+  darkness overlay and the mist are tone mapped with the rest (black stays black). Exposure is
+  `uniforms.exposure`; `renderer.toneMappingExposure` stays 1 and `renderer.toneMapping` never
+  changes while drawing, since `RenderPipeline` rebuilds when it does.
+- **The overlay** (#157) is everything that shows game state rather than scenery: token labels
+  and floats, the selection ring, the turn marker, highlights, editor previews, the beacon and the
+  grid lines. It is its own scene (no background, so its pass clears to transparent), drawn by its
+  own pass, and laid over the finished image: straightened, encoded to sRGB without tone mapping
+  and mixed by its alpha, as the classic renderer blended it. So nothing the pipeline does to the
+  world (AO, bloom, grading, depth of field, TRAA) touches it, and its colours are the ones on
+  screen: the grid lines are back at 0.35 and label plates at 0.78 (#153 had halved them for
+  blending before tone mapping). It is depth-tested against the world, so walls and raised ground
+  still hide labels and rings: the overlay pass keeps the depth texture of a pass without MSAA
+  (the prepass, or on low the scene pass) and does not clear it, and has that pass drawn first
+  (`NodeFrame.updateBeforeNode`, once a frame however often asked). Labels and floats ride in
+  `follow` groups that copy their mini's world transform and visibility just before the overlay
+  draws. Grid lines, no longer under the floor, fog and darkness planes, fade by those planes'
+  textures (`setMasks`, one texel per cell): never over an unexplored cell, dimmer at night. Each
+  mask slot keeps one filter (nearest for floor and fog, linear for darkness), because WebGPU fixes
+  a sampler's filtering when the material compiles.
+  - **The grid shows only when wanted** (#167): hidden at rest (the tiles' seams are the grid),
+    shown while the GM's Build panel is open, while placing a token or an enemy, and while a hover
+    highlight aims a move, or always with the Graphics menu's Always show grid (`alwaysGrid` in
+    `thirdfold:graphics`). `Tabletop.setGridShown` only sets the lines' `visible`: one draw call
+    fewer at rest, nothing compiled.
+- **Each ambient band has its own hues** (#167, interim until the sky of #114): `PRESETS` in
+  `lighting.ts` gives the hemisphere a sky and a ground colour and the darkness overlay a tint per
+  band (moon-blue over deep blue at night with a navy dark, peach over slate at dusk, day's warm
+  pair). Only colours change, so a change of band compiles nothing; the overlay's alpha still comes
+  from `lightLevels`, and a dark area takes night's hue at any hour.
+- **The prepass** draws opaque objects with no MSAA: the overlay's depth, normals for AO (#159)
+  and depth of field (#165), and with TRAA each pixel's velocity (half-float).
+- **Only a change of stages rebuilds.** `Post.set` compares the prepass, the samples, the
+  antialiasing, the AO's kind and the tone mapper; in play a change of the first four builds a new renderer
+  (`Tabletop.svelte`), since rebuilding passes on the same one left their old shaders behind, and
+  a tone mapper only recomposes the output stage. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
+  0 (`updateBeforeType` NONE), so toggling one never recompiles. Each gated pass still draws its
+  first two frames (the AO's materials are set up while the scene pass builds, after the AO drew on
+  the first), so an effect stored off compiles with the pipeline, not when first turned on; a
+  post spec sweeps every switch on every tier against `info.memory.programs` and the pipeline
+  cache.
+- **Bloom** (#160) glows from the scene pass's emissive attachment plus the exposed HDR colour
+  above 1 with a soft knee of 0.5 (`Post.bloomInput`, Unity's curve on the brightest channel), so
+  flames and what they light hot bloom and sunlit grass and plaster, below 1, do not. Three's
+  `BloomNode` blurs it (its own threshold replaced by the identity, `highPassFn`) over 5 mips from
+  half resolution (a quarter on low), at strength 0.3 and radius 0.2, and the glow is added to the
+  exposed image before tone mapping; about 0.2 ms at 1080p on the RTX 4060, within the noise. Lit flames are at `emissiveIntensity` 4 so their cores exceed
+  1. `uniforms.bloomStrength` (0 with the Bloom option or `?off=bloom` off) gates its passes and
+     mixes its texture out, so toggling compiles nothing; it and `uniforms.exposure` are the cues'
+     knobs for the toll and the flash (#222).
+  - **Lens dirt** (optional, `dirt.ts`): the bloom is added again multiplied by `lens-dirt`, a
+    256² noise recipe from the asset pipeline (42 kB), at `Post.dirt.set(strength)`, 0 by default,
+    so the look is unchanged until the art review asks for it. At 0 it adds exactly nothing and has
+    no pass of its own; the texture loads the first time the strength goes above 0, and until it
+    arrives a 1×1 black stand-in is sampled, so its arrival swaps a binding, never a shader (a
+    post spec loads it and counts programs and pipelines).
+- **The output stage** (#161) is one pass (`Post.compose`), in this order: exposure over the scene
+  and the bloom; chromatic aberration (red and blue sampled apart radially by the square of the
+  distance from the centre, so the centre is untouched); a vignette that multiplies toward
+  TaleWeaver's dark purple (0.09, 0.038, 0.208) at 0.33 from a radius of 0.2 to 0.75; the tone
+  mapper and sRGB; film grain (interleaved gradient noise, 0.035); the overlay; and a triangular
+  dither of ±1 step against banding, never on the overlay. Each is a uniform and a Graphics
+  option (Vignette, Chromatic aberration, Film grain; `?off=lens` all three).
+  - **The black rule:** every step maps 0 to 0. The vignette multiplies, grain and dither are
+    masked by `smoothstep(0, 2/255, luminance)`, and the fog's hidden shade is exactly black
+    (`SHADE` 0, 0, 0, `fog: false` so the distance haze never lifts it), so unexplored cells are
+    exactly (0, 0, 0) on screen. A test draws black with every effect at full strength and reads
+    only zeros; #176 checks it over the fixtures' fogged views.
+  - **Grain and dither are seeded by the tabletop's clock** (`uniforms.frameIndex`, 24 steps a
+    second), so a held clock holds them still (goldens, the idle table) and they only move on
+    frames the scheduler draws. Grain is 0 under reduced motion.
+  - **The colour grade** (#162) sits between the tone mapper and the grain: `lut3D` on one 32³
+    3D texture (`grade.ts` `GradeBlend`) holding the environment's grade for the viewer's tone
+    mapper and the ambient band (`docs/ASSETS.md`), a Graphics option (Colour grading,
+    `?off=grade`). A new environment's grade is put in place at once; a change of band or tone
+    mapper blends its bytes over 1.5 s on the CPU (the tabletop draws while it does), so the
+    shader never changes. A table loads only its tone mapper's three strips; picking another
+    loads that one's three, keeping the grade drawn until they arrive. Every strip keeps black
+    at 0, checked by the pipeline, and the loader forces texel 0 to black against canvas-read
+    noise.
+- **Antialiasing** (#163, `antialias.ts`) is one Graphics option with five modes (`AaMode`): off;
+  FXAA on the finished colour after the grade (grain, the overlay and dither come after it); SMAA
+  (r186's `SMAANode`, 1x medium, colour edges) on the linear HDR image before depth of field and
+  the output stage, since it wants its input before the sRGB encode; MSAA 4× on the scene pass;
+  TRAA on the HDR image from the prepass's depth and velocity (r186's `TRAANode`, 32 Halton
+  offsets), sharpened by RCAS at 0.3. The presets use FXAA on low, MSAA on medium and TRAA on high
+  and ultra; compat WebGPU, which has no MSAA, gets SMAA for it (FXAA stays FXAA). SMAA's three
+  targets are disposed with the pipeline. MSAA and converge frames
+  follow from the mode (`derive` in `quality.ts`), and a change of mode builds a new renderer.
+  TRAA jitters the camera for every pass, so the overlay draws with a copy taken before (labels
+  never jitter); bloom reads the unresolved scene.
+  - **Converging:** every real change (`RenderScheduler.request`: a setter, the camera, the last
+    frame of a tween) restarts CONVERGE at 24 frames with TRAA (12 under power saver, 0 for the
+    other modes); the scheduler's own frames (converge and ambient) do not, so a still table
+    stops drawing after them and a flickering one keeps its capped ambient rate, accumulating.
+    `stats().mode` reports `converge` for them. A test moves a token on TRAA and counts at most 32
+    frames from the end of the move to idle, then none, and a golden (`ref-1-close-high-converged`,
+    on both backends) is taken on the high tier once the converge frames are drawn and the table
+    is idle, under the held clock: the jitter and GTAO's rotations follow the frame count.
+  - r186's `TRAANode` keeps its 1×1 previous-depth texture past `dispose`: `post.ts` disposes it;
+    another 8 bytes stay until the renderer goes, which a change of mode always replaces.
+  - Velocity in the prepass is back: the WebGPU errors blamed on it in #157 were the warm-up's
+    timed-out compiles and the AO's nesting, both fixed since.
+- **Depth of field and tilt-shift** (#165, `focus.ts`) sit after TRAA or SMAA on the HDR image, before
+  the output stage: depth of field is r186's `DepthOfFieldNode` on the prepass's view depth (never
+  multisampled), focused on the camera's pivot (`controls.target`, the shot's focus during a
+  shot) along the look direction, with full blur `FOCAL_SHARE` (0.4) of the camera's distance
+  from the focal plane, so it stays gentle zoomed in, and a bokeh per tier; tilt-shift is a
+  half-resolution Gaussian blur (a quarter on low) mixed in outside a band round the pivot's row.
+  How strong each is comes from `lensStrengths` in `quality.ts`, every frame, through the
+  renderer's `FrameView` (reduced motion, the shot, the view, the pivot): a shot's focus
+  (`shotFocus`: eases in over `SHOT_MS.go`, holds, eases out over `SHOT_MS.back`; 0 once a
+  shot ends or the viewer takes the camera) blurs by depth; the **Miniature** option (off in every
+  preset, since zooming in on a blurred board gets in the way of play) keeps depth of field on in
+  the tabletop view and tilt-shift in the tactical one, which looks nearly straight down; without
+  a prepass (low) tilt-shift stands in. Reduced motion and `?off=dof` keep both off.
+  - Both are strengths gated like the other effects, and both are **mixed** in, never selected: a
+    TSL `select` is a branch, and a texture sampled in a branch has no reliable derivatives
+    (SwiftShader filtered the sharp image differently, which moved the AO and lens tests).
+  - `DepthOfFieldNode.getTextureNode()` is a plain texture, which never draws the node: the output
+    samples it as a `passTexture` of the node, as `GaussianBlurNode`'s own is.
+  - Cost on the RTX 4060 at 1080p (the test world, `MINIATURE=tilt|dof` with `perf-gpu.mjs`):
+    tilt-shift about 0–0.6 ms (5–8 draws), depth of field about 1–1.7 ms on high (13–15 draws),
+    nothing when off. Their passes compile with the pipeline, so the perf baseline's programs went
+    120 → 135 and textures 53 → 59.
+- **A timed-out warm-up still finishes the compile in flight** before frames resume: compiling
+  for a pass sets the renderer's target and outputs until the compile ends (three reads them while
+  it waits), and a frame drawn meanwhile drew into them, which on WebGPU built pipelines for the
+  wrong targets and aborted the frame.
+- **The warm-up compiles for the scene pass** (`Post.targets`: its target and outputs, drawn
+  linear without tone mapping, as the pipeline draws them). Not for the prepass: compiled outside
+  its pass on WebGPU, some of its pipelines come out invalid, so it compiles when first drawn. The pass draws nested in the
+  pipeline's quad, a different render context from the warm-up's, so three builds those materials
+  again at draw time; the shaders mostly come out identical and are shared, but some shadowed ones
+  differ in the order of their uniform declarations, which is why the test world counts 66
+  programs through the pipeline against 52 straight to the canvas.
+- **There is one render path** (#168): the pipeline. The direct `renderer.render(scene, camera)`
+  of before M63, the `?off=post` kill switch, went with the goldens re-captured per tier.
+- Emissive is 8-bit on purpose: a flame's excess above 1.0 reaches bloom through the HDR term
+  (#160).
+- **Ambient occlusion** (#159, `ao.ts`) comes from the prepass's depth and normals: SSAO
+  (`SSAONode`, self-denoised) at half resolution on medium; GTAO (`GTAONode`) with temporal
+  filtering, which TRAA resolves, at half resolution on high and full on ultra; none on low
+  (`aoKind` in `quality.ts`: without TRAA to resolve its noise, as on high with MSAA or SMAA chosen,
+  SSAO stands in). The kind is a pipeline stage, so a change of it builds a new renderer; high and
+  ultra share one, whose change of resolution is a number, not a shader. GTAO's first frame is
+  left out (the scene pass draws it before its materials, which set it up, are built) and TRAA's
+  converge frames draw over it. SSAO costs about 0.7 ms a frame
+  at 1080p on the RTX 4060 (WebGPU, medium; #166 measures every pass per tier). It reaches the scene pass's
+  materials through `builtinAOContext` (`scenePass.contextNode`), so it scales indirect light only:
+  the hemisphere darkens in creases and under things, while torches, lamps and the sun light faces
+  as before; transparent materials (fog, darkness, mist, painted floors) and the overlay get none.
+  Its reach and depth are per environment, in cells (`AO_LOOKS`, `Post.setLook` on a new table or
+  look), all uniforms: SSAO's `radius` and `intensity`; GTAO's `radius`, `scale` (the intensity,
+  a power) and `thickness` (twice the radius). GTAO's `samples` is compiled in and stays at 16. `uniforms.aoStrength` (0 with the tier's `ao` off or `?off=ao`) mixes it to
+  exactly 1 and `Post.gate` stops its passes, so toggling compiles nothing. The scene pass draws
+  what it reads first (`ScenePassNode.drawsFirst`: the prepass, then the AO), each once a frame.
+  Three keys a render context by how deeply the pass is nested: a prepass drawn from inside the
+  AO's pass one frame and from the overlay's the next compiled everything twice, and an AO drawn
+  from inside the scene's own draw, when a material first asked for it, made WebGPU pipelines for
+  the wrong targets and aborted the frame. The
+  warm-up compiles without the AO's context: compiled with it (merged into the renderer's), three
+  released and rebuilt those programs as tables were loaded again, so the scene's materials take
+  the AO context when first drawn.
+- **The tone mapper is the viewer's** (#158, owner's decision 27 September 2026): Filmic (ACES),
+  Soft (AgX) or True colour (Neutral) in the Graphics menu (`GraphicsPrefs.toneMapper`, into
+  `QualitySettings.toneMapper`), `?tonemap=` for A/B runs. The default is `GRADE_TONE_MAPPER` in
+  `src/lib/assets/manifest.ts`, ACES: the one every grade (#162) is authored after, which the asset
+  pipeline checks. Only the output stage holds the tone mapper, so a switch recomposes that stage
+  (`Post.compose`) and keeps the passes; rebuilding them compiled every material again and never
+  released the old shaders (about 11 programs a switch). The measurements are in `docs/LOOK.md`.
+  #162 decides how a grade made after ACES treats the other two.
+
+### Milestone 63 smoke run, 28 September 2026
+
+On the RTX 4060 Laptop (WebGL2 through ANGLE Vulkan, the default tier, high), from the built app
+at the M63 tip, after the loose ends of #157, #159, #160, #162, #163, #165 and #167 landed:
+
+- `node scripts/playthrough.mjs`: The Hollow Bell to its end (Silence) in 14 steps and 65 s, every
+  cinematic shot playing with its depth of field, and The Last Train to Blackwater to its end
+  (Stopped Short) in 6 steps and 33 s; the table came to rest after every step, moves animated,
+  no console errors.
+- The perf gate passed on the new baseline: 0 idle frames, 60 fps orbiting, render targets per
+  tier 17 / 27 / 29 (post 25.7 / 79.8 / 112.9 MB; high lost a target to GTAO at half resolution).
+  Low and medium each gained 4 bytes, the lens dirt's 1×1 stand-in.
+- The client suite on SwiftShader (264 tests) and the WebGPU suite on the RTX (222) passed; three
+  SwiftShader tests failed once under a full run's load (a screenshot timeout, crowd-60, the shot
+  test) and passed alone, and the shot test was made independent of what loads before it.
+- After #168 (goldens per tier, the direct render path removed), again from the built app: both
+  adventures to their ends (64 s and 33 s), the perf gate passed on the same baseline, and the
+  golden sets passed on both backends (159 each; WebGPU three runs in a row, WebGL2 twice).
+- `npm run bundle:check`: the renderer chunk is 343.1 kB gz of its 360 kB (from 303.4 kB: SMAA's
+  lookup textures and GTAO); the room page's own code 74.9 kB gz of its 76 kB (74.4 before M63).
 
 ## Shader kinds
 
@@ -472,26 +694,43 @@ tester UI around the frame. `src/lib/tabletop/testing.ts` mounts any fixture tab
 (`tests/fixtures`, see `docs/PERFORMANCE.md`) as the GM, a fogged player or a spectator sees it, at
 DPR 1, with a clock the test holds still, reduced motion on and the camera at a named pose.
 
-- **Smoke tests** (`renderer.svelte.spec.ts`): every fixture draws for every viewer with no
-  `console.error`; the same inputs draw the same pixels; an idle daylight table draws no frames;
+- **Smoke tests** (`fixtures.svelte.spec.ts`, `renderer.svelte.spec.ts` and
+  `stability.svelte.spec.ts`, apart so CI runs them side by side): every fixture draws for every
+  viewer with no `console.error`; the same inputs draw the same pixels; an idle daylight table draws no frames;
   torch flicker stays at the slow ambient rate, and stops at once when the system asks for reduced
   motion; reloading tables leaks no geometry, texture or shader program; cycling the times of day
   compiles nothing new the second time; a disposed tabletop answers no pointer events.
 - **Golden images** (`golden.svelte.spec.ts`): the `MATRIX` table lists every image, named
-  `<fixture>-<pose>-<band>-<viewer>`. Pixelmatch with threshold 0.1 and at most 0.5% mismatched
-  pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`), and the
-  spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
+  `<fixture>-<pose>-<band>-<viewer>`, with `-low` or `-high` for the per-tier sets (#168: medium
+  draws every shot; low and high the reference compositions for the GM and a player, close up,
+  a spectator and the dark Hollow, high with TRAA converged and GTAO). The close and low poses
+  draw with depth of field focused on the pose's pivot (`mountFixture`'s `miniature`, with the
+  power saver so no flame keeps TRAA's jitter going). Captures with TRAA, GTAO or depth of field
+  compare by SSIM (`tests/visual/ssim.ts`: mean SSIM over luminance in 8×8 windows, at least
+  0.98, a diff of each window's loss), the rest by pixelmatch with threshold 0.1 and at most 0.5%
+  mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
+  and the spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
+  Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts`.
+  **When they run:** never with `npm test`. CI takes the slim set (`SLIM` in the spec, 26 images)
+  in `.github/workflows/rendering.yml`, only on pull requests that touch rendering, never on
+  pushes, beside the renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run
+test:render`), which leave `npm test` too, so the verify job stays within minutes.
+  The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
+  hand, once a rendering PR is ready and agreed, not during development, where the test world and
+  the targeted specs are the check.
 
-**When a golden fails in CI**, the `verify` job uploads the `golden-diffs` artifact
-(`.vitest-attachments/`: the reference, the actual image and a diff for each failure; kept 14
-days). Download it from the run's page; its reference and actual PNGs are the before and after a
+**When a golden fails in CI**, the `goldens` job of `rendering.yml` uploads the `goldens-diffs`
+artifact (`.vitest-attachments/`: the reference, the actual image and a diff for each failure;
+kept 14 days). Download it from the run's page; its reference and actual PNGs are the before and after a
 golden PR shows.
 
 **Changing goldens.** Update them only on purpose, on Linux:
 
 ```bash
-npx vitest run --project client src/lib/tabletop/golden.svelte.spec.ts --update
+npm run test:golden:full -- --update
 ```
+
+and on WebGPU `npm run test:golden:webgpu -- --update`.
 
 A PR that changes goldens says why, shows the before and after of every changed image in its
 description, and names the milestone gate it serves. Keep the set under about 20 MB: if it grows

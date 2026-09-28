@@ -1,11 +1,26 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { TIERS, type Backend, type GraphicsPrefs, type Tier } from '$lib/tabletop/quality';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import type { ToneMapper } from '$lib/assets/manifest';
+	import {
+		OPTIONS,
+		settingsFor,
+		TIERS,
+		withOverrides,
+		type Backend,
+		type GraphicsPrefs,
+		type OptionKey,
+		type Overrides,
+		type Tier
+	} from '$lib/tabletop/quality';
 
 	/**
-	 * The Graphics menu (#154): the quality tier, the compatibility backend and the power saver, as
-	 * this viewer sets them for this browser. Local only: nothing here reaches the room. `inline`
-	 * opens it in place (the side sheet on phones) rather than under the header.
+	 * The Graphics menu (#154): a quality preset, and apart from it the advanced options (resolution,
+	 * antialiasing, ambient occlusion, bloom, the lens effects, shadows, frame rate), the tone mapper (#158), the
+	 * compatibility backend and the power saver, as this viewer sets them for this browser. Choosing
+	 * a preset sets every option to its values; changing an option afterwards keeps that change on
+	 * top. Local only: nothing here reaches the room. `inline` opens it in place (the side sheet on
+	 * phones) rather than under the header.
 	 */
 	let {
 		graphics,
@@ -37,8 +52,58 @@
 		high: 'Sharper and fuller, for a dedicated graphics card.',
 		ultra: 'Everything, for a strong graphics card on WebGPU.'
 	};
+	/** How light maps to the screen: a matter of taste, not cost; it applies at once. */
+	const TONES: Record<ToneMapper, { name: string; help: string }> = {
+		aces: { name: 'Filmic (ACES)', help: 'Punchy and warm: fire glows yellow-white.' },
+		agx: {
+			name: 'Soft (AgX)',
+			help: 'Gentle highlights that keep their hue; a softer, cooler night.'
+		},
+		neutral: { name: 'True colour (Neutral)', help: 'Paint and materials as they are, warmer.' }
+	};
+
 	/** Ultra needs WebGPU with its core features. */
 	const ultraOff = $derived(!!effective && effective.backend !== 'webgpu');
+
+	/** The advanced options, as the menu names them and their values. */
+	const ADVANCED: { key: OptionKey; name: string; labels: string[] }[] = [
+		{ key: 'megapixels', name: 'Resolution', labels: ['1 MP', '2 MP', '3.7 MP', '8.3 MP (4K)'] },
+		{ key: 'aa', name: 'Antialiasing', labels: ['Off', 'FXAA', 'SMAA', 'MSAA 4×', 'TRAA'] },
+		{ key: 'ao', name: 'Ambient occlusion', labels: ['Off', 'On'] },
+		{ key: 'bloom', name: 'Bloom', labels: ['Off', 'On'] },
+		{ key: 'vignette', name: 'Vignette', labels: ['Off', 'On'] },
+		{ key: 'aberration', name: 'Chromatic aberration', labels: ['Off', 'On'] },
+		{ key: 'grain', name: 'Film grain', labels: ['Off', 'On'] },
+		{ key: 'grade', name: 'Colour grading', labels: ['Off', 'On'] },
+		{ key: 'miniature', name: 'Miniature (depth of field)', labels: ['Off', 'On'] },
+		{ key: 'sunShadowSize', name: 'Shadows', labels: ['Low', 'Medium', 'High'] },
+		{ key: 'fpsCap', name: 'Frame rate', labels: ['30', '60'] }
+	];
+	const backend = $derived(effective?.backend ?? 'webgpu');
+	/** The preset's own values: the tier drawn now, else the one chosen, else medium. */
+	const preset = $derived(
+		settingsFor(effective?.tier ?? (graphics.tier === 'auto' ? 'medium' : graphics.tier), backend)
+	);
+	const current = $derived(withOverrides(preset, graphics.overrides, backend));
+	const customised = $derived(Object.keys(graphics.overrides).length > 0);
+
+	/** Sets options; one back at the preset's value is no longer an override. */
+	function setOptions(values: Overrides): void {
+		const overrides: Overrides = { ...graphics.overrides, ...values };
+		for (const key of Object.keys(values) as OptionKey[])
+			if (preset[key] === overrides[key]) delete overrides[key];
+		onchange({ ...graphics, overrides });
+	}
+	const setOption = (key: OptionKey, index: number) => setOptions({ [key]: OPTIONS[key][index] });
+
+	/** Clarity (#164): every lens effect and Miniature off; AO, bloom and the grade stay (light). */
+	const CLARITY: Overrides = { vignette: false, aberration: false, grain: false, miniature: false };
+	const clear = $derived(
+		(Object.keys(CLARITY) as OptionKey[]).every((k) => current[k] === CLARITY[k])
+	);
+	/** Grain and focus pulls move, so reduced motion keeps them off whatever is chosen here. */
+	const still = (key: OptionKey) =>
+		(key === 'grain' || key === 'miniature') && prefersReducedMotion.current;
 
 	function close(): void {
 		open = false;
@@ -62,13 +127,13 @@
 	{#if open}
 		<div class="menu" role="group" aria-label="Graphics">
 			<fieldset>
-				<legend>Quality</legend>
+				<legend>Preset{customised ? ' (customised)' : ''}</legend>
 				<label>
 					<input
 						type="radio"
 						name="tier"
 						checked={graphics.tier === 'auto'}
-						onchange={() => onchange({ ...graphics, tier: 'auto' })}
+						onchange={() => onchange({ ...graphics, tier: 'auto', overrides: {} })}
 					/>
 					Auto{effective && graphics.tier === 'auto' ? ` (${NAMES[effective.tier]})` : ''}
 				</label>
@@ -79,7 +144,7 @@
 							name="tier"
 							checked={graphics.tier === tier}
 							disabled={tier === 'ultra' && ultraOff}
-							onchange={() => onchange({ ...graphics, tier })}
+							onchange={() => onchange({ ...graphics, tier, overrides: {} })}
 						/>
 						{NAMES[tier]}
 					</label>
@@ -90,6 +155,56 @@
 						: HELP[graphics.tier]}
 					{#if ultraOff}Ultra needs WebGPU, which this table isn't using.{/if}
 				</p>
+			</fieldset>
+			<details class="switch advanced" open={customised}>
+				<summary>Advanced</summary>
+				<button type="button" class="reset" aria-pressed={clear} onclick={() => setOptions(CLARITY)}
+					>Clarity: no lens effects</button
+				>
+				{#each ADVANCED as option (option.key)}
+					<label class="option">
+						{option.name}
+						<select
+							value={(OPTIONS[option.key] as readonly unknown[]).indexOf(current[option.key])}
+							disabled={still(option.key)}
+							onchange={(e) => setOption(option.key, Number(e.currentTarget.value))}
+						>
+							{#each option.labels as label, i (label)}
+								<option
+									value={i}
+									disabled={option.key === 'aa' &&
+										OPTIONS.aa[i] === 'msaa' &&
+										backend === 'webgpu-compat'}>{label}</option
+								>
+							{/each}
+						</select>
+					</label>
+					{#if still(option.key)}
+						<p class="help">Off while your device asks for reduced motion.</p>
+					{/if}
+				{/each}
+				{#if customised}
+					<button
+						type="button"
+						class="reset"
+						onclick={() => onchange({ ...graphics, overrides: {} })}>Back to the preset</button
+					>
+				{/if}
+			</details>
+			<fieldset class="switch">
+				<legend>Colour</legend>
+				{#each Object.keys(TONES) as ToneMapper[] as tone (tone)}
+					<label>
+						<input
+							type="radio"
+							name="tone"
+							checked={graphics.toneMapper === tone}
+							onchange={() => onchange({ ...graphics, toneMapper: tone })}
+						/>
+						{TONES[tone].name}
+					</label>
+				{/each}
+				<p class="help">{TONES[graphics.toneMapper].help}</p>
 			</fieldset>
 			<label class="switch">
 				<input
@@ -105,6 +220,14 @@
 					<button type="button" onclick={() => location.reload()}>Reload</button>
 				</p>
 			{/if}
+			<label class="switch">
+				<input
+					type="checkbox"
+					checked={graphics.alwaysGrid}
+					onchange={(e) => onchange({ ...graphics, alwaysGrid: e.currentTarget.checked })}
+				/>
+				Always show grid, not only while building, placing or moving
+			</label>
 			<label class="switch">
 				<input
 					type="checkbox"
@@ -181,6 +304,31 @@
 		align-items: flex-start;
 		padding-top: var(--sp-3);
 		border-top: 1px solid var(--border);
+	}
+
+	.advanced {
+		display: grid;
+		gap: var(--sp-2);
+	}
+
+	.advanced summary {
+		font-size: var(--fs-sm);
+		color: var(--muted);
+		cursor: pointer;
+	}
+
+	.option {
+		justify-content: space-between;
+	}
+
+	/* One column of equal boxes. */
+	.option select {
+		width: 8.5rem;
+	}
+
+	.reset {
+		justify-self: start;
+		font-size: var(--fs-xs);
 	}
 
 	.help {

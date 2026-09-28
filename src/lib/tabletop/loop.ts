@@ -57,6 +57,22 @@ export function advanceNodeFrame(renderer: object): void {
  * where the browser has it. Changing it takes a reload: a canvas keeps its
  * kind of context.
  */
+/**
+ * Remembers the name of what each render draws (a pass's scene, an effect's quad) by its
+ * timestamp id, which perf.ts reads once the timestamps resolve; it forgets them as it does.
+ */
+class PassNames extends THREE.InspectorBase {
+	readonly passNames = new Map<string, string>();
+
+	beginRender(uid: string | undefined, scene: THREE.Object3D): void {
+		// A bound: sampling forgets what it read, so this only fills when nothing samples.
+		if (this.passNames.size > 50_000) this.passNames.clear();
+		// A quad named by its material only (SMAA's) goes by that.
+		const material = (scene as THREE.Mesh).material as THREE.Material | undefined;
+		if (uid) this.passNames.set(uid, scene.name || material?.name || '');
+	}
+}
+
 export function wantedBackend(): 'webgpu' | 'webgl' {
 	try {
 		if (new URLSearchParams(location.search).get('backend') === 'webgl') return 'webgl';
@@ -106,9 +122,15 @@ export async function createNodeRenderer(
 		options.onLost?.({ api: info.api, message: info.message });
 	};
 	renderer.setPixelRatio(options.pixelRatio ?? Math.min(window.devicePixelRatio, 2));
+	// Clear to transparent: every scene has a background, and the overlay's pass (post.ts) has none.
+	renderer.setClearColor(0x000000, 0);
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer
+	// Unused inside the pipeline, whose passes draw linear: post.ts tone maps once, at the end.
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
+	// Under `?perf`, each render's name by its timestamp id, for GPU time by pass (perf.ts);
+	// three's Inspector (`?perf&inspector`) takes the same hook instead.
+	if (options.perf && !options.inspector) renderer.inspector = new PassNames();
 	// A separate chunk, fetched only when asked for: never in normal play.
 	if (options.inspector)
 		void import('three/examples/jsm/inspector/Inspector.js').then(

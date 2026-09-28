@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Shot } from '$lib/game/chat';
 import type { Ground } from './ground';
-import { shotAt, shotPose, viewPose, type Pose } from './shots';
+import { shotAt, shotFocus, shotPose, viewPose, type Pose } from './shots';
 import type { CameraView } from './types';
 
 export const VIEW_TRANSITION_MS = 450;
@@ -84,6 +84,11 @@ export class CameraRig {
 			y: ground?.floorY(next.focus) ?? 0
 		};
 		this.shot = { home, to: shotPose(home, focus, next.frame, extent, grid.cellSize), start: now };
+	}
+
+	/** How much of the shot's depth of field shows at `now` (0 with no shot, or one cut short). */
+	focusAt(now: number): number {
+		return this.shot ? shotFocus(now - this.shot.start) : 0;
 	}
 
 	/** Advances a shot or view change to `now`. Returns true while one is still playing. */
