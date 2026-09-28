@@ -737,6 +737,19 @@ describe('the colour grade', () => {
 			await loadEnvironment('village', 'neutral');
 			expect(count('neutral')).toBe(3);
 			expect(count('agx')).toBe(0);
+			// A rebuild (another tier and back) keeps the grade drawn, and one that changes the
+			// tone mapper too loads its strips.
+			at(3000);
+			at(5000);
+			const backend = BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
+			post.set({ ...settingsFor('low', backend), toneMapper: 'neutral' });
+			post.set({ ...settings, toneMapper: 'neutral' });
+			expect(post.blending).toBe(false);
+			expect([...data]).toEqual([...grades.ready.neutral!.day]);
+			post.set({ ...settingsFor('low', backend), toneMapper: 'agx' });
+			await grades.load('agx');
+			expect(count('agx')).toBe(3);
+			expect(post.blending).toBe(true);
 		} finally {
 			spy.mockRestore();
 		}

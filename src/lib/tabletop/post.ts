@@ -27,9 +27,8 @@
 // mapper and sRGB, film grain, the overlay, and a triangular dither. Every step
 // maps 0 to 0 (the vignette multiplies; grain and dither are masked off at
 // black), so unexplored cells, black under the fog, stay exactly black.
-// The colour grade (#162) follows the tone mapper: the environment's lookup
-// table for the tone mapper and band (a tone mapper's loaded when first picked),
-// blended on the CPU into one 3D texture over GRADE_BLEND_MS, so no shader changes.
+// The colour grade (#162): the environment's table for the tone mapper and band,
+// blended on the CPU into one 3D texture (grade.ts), so no shader changes.
 
 import * as THREE from 'three/webgpu';
 import {
@@ -205,8 +204,8 @@ export class Post {
 	setLook(
 		environment: string | null,
 		cellSize: number,
-		grades: Grades | null = null,
-		band: Ambient = 'day'
+		grades: Grades | null = this.look.grades,
+		band: Ambient = this.look.band
 	): void {
 		// A new environment's grade is put in place at once; a new band blends in.
 		const snap = grades !== this.look.grades;
@@ -296,6 +295,7 @@ export class Post {
 	private build(stages: Stages): void {
 		this.teardown();
 		this.stages = stages;
+		this.retarget(); // the tone mapper may have changed with the passes
 		const { renderer, scene, camera } = this;
 		const halfFloat = renderer.getOutputBufferType();
 		if (stages.prepass) {
