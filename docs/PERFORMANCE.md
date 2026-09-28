@@ -268,8 +268,8 @@ RTX 4060 Laptop (the medium tier's reference):
 | ------ | --------- | --------- | --------- | --------- | --------- | --------- | --------- | --------- | ------- |
 | low    | –         | –         | 0.33–0.91 | –         | 0.06–0.22 | 0.15–0.47 | 0.01–0.04 | 0.21–0.65 | 0.5–1.6 |
 | medium | 0.07–0.12 | 0.26–0.51 | 1.4–3.2   | –         | 0.21–0.41 | 0.29–0.57 | 0.02–0.05 | 0.76–1.5  | 2.3–4.8 |
-| high   | 0.12–0.19 | 0.50–0.93 | 0.52–0.82 | 0.37–0.92 | 0.17–0.38 | 0.05–0.20 | 0.02–0.05 | 1.2–2.1   | 1.9–3.0 |
-| ultra  | 0.10–0.19 | 0.75–1.1  | 0.65–0.79 | 0.41–0.72 | 0.20–0.33 | 0.04–0.26 | 0.02–0.03 | 1.6–2.2   | 2.4–3.2 |
+| high   | 0.09–0.19 | 0.23–0.47 | 0.60–0.96 | 0.31–0.55 | 0.16–0.32 | 0.19–0.39 | 0.01–0.02 | 1.0–1.7   | 1.8–2.9 |
+| ultra  | 0.10–0.14 | 0.75–1.5  | 0.50–0.66 | 0.36–0.49 | 0.18–0.23 | 0.21–0.29 | 0.01–0.02 | 1.5–2.3   | 2.3–3.0 |
 
 Intel Graphics (Raptor Lake-S, Gen12, the low tier's reference):
 
@@ -277,25 +277,30 @@ Intel Graphics (Raptor Lake-S, Gen12, the low tier's reference):
 | ------ | --------- | --------- | --------- | ------- | --------- | ------- | --------- | --------- | --------- |
 | low    | –         | –         | 5.5–7.9   | –       | 0.59–0.69 | 2.3–3.5 | 0.07–0.09 | 2.9–4.2   | 8.8–10.9  |
 | medium | 0.53–0.96 | 3.3–5.3   | 15.4–21.8 | –       | 2.7–3.1   | 3.1–4.5 | 0.09–0.11 | 9.1–12.9  | 25.5–35.7 |
-| high   | 1.8–2.5   | 12.3–17.3 | 10.8–17.4 | 6.6–7.0 | 2.6–3.0   | 3.3–4.2 | 0.10–0.13 | 25.2–31.5 | 38.2–51.2 |
-| ultra  | 1.8–2.4   | 11.9–17.8 | 10.9–18.2 | 6.5–7.1 | 2.7–2.9   | 3.1–4.3 | 0.10–0.13 | 24.8–32.0 | 37.7–52.6 |
+| high   | 1.1–1.5   | 3.0–4.9   | 6.4–10.9  | 4.0–4.2 | 1.4–1.5   | 2.4–2.5 | 0.02–0.03 | 11.0–13.1 | 18.5–25.4 |
+| ultra  | 1.1–1.5   | 12.0–19.8 | 6.5–11.3  | 4.0–4.3 | 1.4–1.6   | 2.4–2.5 | 0.02–0.03 | 19.9–28.1 | 28.1–40.8 |
 
 Against the starting budgets for post at 1080p on the iGPU (low about 1–1.5 ms, medium 3–4.5 ms,
-high 5–8 ms), the RTX is far inside every one, and the iGPU is over all three, by two to four
-times:
+high 5–8 ms), the RTX is far inside every one, and the iGPU is over all three, by about two to
+three times:
 
 - **Low:** 2.9–4.2 ms, almost all the output stage (2.3–3.5 ms: the three chromatic aberration
   taps of scene and bloom, the tone mapper, the 3D grade, then FXAA through a target of its own).
 - **Medium:** 9.1–12.9 ms: AO at half resolution 3.3–5.3, bloom 2.7–3.1 (half resolution), the
   output stage 3.1–4.5. The scene pass itself, MSAA 4× on half-float colour with an 8-bit emissive
   attachment, is the frame's biggest cost at 15–22 ms.
-- **High and ultra:** 25–32 ms, AO at full resolution 12–18 ms and TRAA 6.5–7 ms; the scene pass
-  drops (no MSAA) to 11–18 ms.
+- **High and ultra:** high 11–13 ms, ultra 20–28 ms. Since the loose ends of #159 both run GTAO
+  resolved by TRAA (high at half resolution: 3–5 ms, where full-resolution SSAO took 12–17;
+  ultra at full resolution, 12–20 ms) and TRAA takes about 4 ms; the scene pass (no MSAA) is
+  6–11 ms. The high and ultra rows were measured again on 28 September, a day after the others,
+  and the passes GTAO did not touch came in lower too, so part of the difference is the machine.
 
 The starting tier already keeps an integrated GPU off high, but medium, its tier, draws at 26–36 ms
 a frame at 1080p (about 30 fps), and the refinement lowers it to low (9–11 ms) on a slow frame.
-Where the time goes is now measured; which defaults to change for integrated GPUs (AO at a
-quarter, bloom at a quarter, MSAA off, a cheaper output stage) is the G1 review's call.
+With GTAO at half resolution, high (19–25 ms) now costs the iGPU less than medium (26–36 ms):
+medium's MSAA 4× scene pass outweighs TRAA and GTAO. Where the time goes is now measured; which
+defaults to change for integrated GPUs (MSAA off on medium, AO and bloom at a quarter, a cheaper
+output stage) is the G1 review's call.
 
 On WebGL2 (the same runs with `PERF_BACKEND=webgl`) only the frame total is timed, and it is
 higher: on the RTX low 2.0–4.6 ms, medium 3.9–9.9, high 2.8–4.7 (one village run at 26); on the
