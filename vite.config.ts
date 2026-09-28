@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import type { BrowserCommand } from 'vitest/node';
 import type { BrowserContext } from 'playwright';
-import { ssimComparator } from './tests/visual/ssim';
+import { ssimComparator } from './tests/visual/ssim.ts';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 

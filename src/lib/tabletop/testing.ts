@@ -162,6 +162,9 @@ export async function mountFixture(
 	// One tier for every test unless it asks, whatever the device suggests (a software rasteriser
 	// picks low).
 	const miniature = !!options.miniature;
+	// Depth of field needs motion not reduced; the power saver still keeps flames and mist still,
+	// so the picture comes to rest (TRAA's jitter never would on an ambient table).
+	if (miniature) tabletop.setPowerSaver(true);
 	tabletop.setQuality({ ...settingsFor(options.tier ?? 'medium', backend), toneMapper, miniature });
 	const size = view.grid.width * view.grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
