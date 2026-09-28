@@ -1,13 +1,13 @@
-// Renderer smoke tests (milestone 61): frames are deterministic (every fixture
-// drawing for every viewer is fixtures.svelte.spec.ts), an idle table draws
-// nothing, ambient animation stays at its slow rate, and reloading tables or
-// cycling the time of day leaks nothing and compiles nothing new.
+// Renderer smoke tests (milestone 61): an idle table draws nothing, ambient
+// animation stays at its slow rate, TRAA converges, grid lines show and fade,
+// and a disposed tabletop answers nothing. Every fixture drawing for every
+// viewer is fixtures.svelte.spec.ts; determinism, leaks and recompiles are
+// stability.svelte.spec.ts.
 
-import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GRID_FADE_MS } from './overlay';
 import { createTabletop } from './renderer';
-import { qualityFor, settingsFor, withOverrides } from './quality';
+import { settingsFor, withOverrides } from './quality';
 import {
 	BACKEND,
 	loadSidecar,
@@ -43,28 +43,6 @@ async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?:
 }
 
 describe('the renderer', () => {
-	// Reads pixels back, which only WebGL2 does here; on WebGPU the golden images compare frames.
-	it.skipIf(BACKEND === 'webgpu')(
-		'draws the same pixels for the same table, pose and frozen clock',
-		async () => {
-			const sidecar = await loadSidecar('ref-1');
-			const view = await loadView('ref-1', sidecar.ambient, 'gm');
-			const draw = async () => {
-				const m = await mountFixture(view, sidecar.poses.close, { clock: manualClock(5000) });
-				await settle(m.tabletop);
-				const pixels = m.pixels();
-				await m.unmount();
-				return pixels;
-			};
-			const [a, b] = [await draw(), await draw()];
-			expect(a.length).toBeGreaterThan(0);
-			expect(a.some((v) => v !== 0)).toBe(true);
-			let same = true;
-			for (let i = 0; i < a.length && same; i++) same = a[i] === b[i];
-			expect(same).toBe(true);
-		}
-	);
-
 	it('converges TRAA within 32 frames of a move, then draws nothing', async () => {
 		const sidecar = await loadSidecar('ref-7');
 		const view = await loadView('ref-7', 'day', 'gm');
@@ -161,41 +139,6 @@ describe('the renderer', () => {
 		expect(tabletop.stats().frames - before).toBe(0);
 	});
 
-	it('leaks nothing when tables are loaded again', async () => {
-		const load = async (fixture: string) => {
-			const sidecar = await loadSidecar(fixture);
-			return loadView(fixture, sidecar.ambient, 'gm');
-		};
-		const village = await load('village');
-		const hollow = await load('hollow');
-		const sidecar = await loadSidecar('village');
-		const m = await mountFixture(village, sidecar.poses.overview);
-		mounted.push(m);
-		const t = m.tabletop;
-		await settle(t);
-		const show = async (view: typeof village) => {
-			t.setGrid(view.grid);
-			t.setTokens(view.tokens);
-			t.setObjects(view.objects);
-			t.setFog(view.fog, view.fogMode);
-			t.setLighting(view.ambient, view.lights);
-			t.setProps(view.props);
-			t.setEnvironment(view.environment);
-			await settle(t);
-			return t.stats();
-		};
-		// The first round trip fills the caches (the Hollow's models and shaders stay loaded,
-		// by design); after that, going round again must leave everything where it was.
-		await show(hollow);
-		const back = await show(village);
-		await show(hollow);
-		const again = await show(village);
-		expect(again.geometries).toBeLessThanOrEqual(back.geometries);
-		expect(again.textures).toBeLessThanOrEqual(back.textures);
-		expect(again.programs).toBe(back.programs);
-	});
-
-	// #167: the tiles' seams are the grid; lines show only while building, placing or aiming.
 	it('draws no grid lines at rest, one draw call when shown, compiling nothing', async () => {
 		const { tabletop } = await mount('village', 'gm');
 		await settle(tabletop);
@@ -249,23 +192,6 @@ describe('the renderer', () => {
 		expect(t.stats().frames).toBe(quiet);
 	});
 
-	it('compiles nothing new the second time round the times of day', async () => {
-		const { tabletop } = await mount('village', 'gm');
-		const view = await loadView('village', 'day', 'gm');
-		const cycle = async () => {
-			for (const band of ['day', 'dusk', 'dark'] as const) {
-				tabletop.setLighting(band, view.lights);
-				await settle(tabletop);
-			}
-		};
-		await cycle();
-		const programs = tabletop.stats().programs;
-		await cycle();
-		expect(tabletop.stats().programs).toBe(programs);
-	});
-
-	// A tabletop rebuilt before it framed a table (a first visit's shape change) carried the
-	// camera from the origin, which then undid the view: nothing to carry until a table is framed.
 	it('has no camera pose to carry before it frames a table', async () => {
 		const canvas = document.createElement('canvas');
 		document.body.appendChild(canvas);
@@ -295,90 +221,5 @@ describe('the renderer', () => {
 		expect(events.onHover).not.toHaveBeenCalled();
 		expect(events.onClick).not.toHaveBeenCalled();
 		m.canvas.remove();
-	});
-});
-
-describe('measuring', () => {
-	it('reports what it draws, still after a second idle, and benchmarks', async () => {
-		const sidecar = await loadSidecar('ref-7');
-		const view = await loadView('ref-7', sidecar.ambient, 'gm');
-		const m = await mountFixture(view, sidecar.poses.overview, { perf: true });
-		mounted.push(m);
-		await settle(m.tabletop);
-		await wait(1000);
-		const stats = m.tabletop.stats();
-		expect(stats.drawCalls).toBeGreaterThan(0);
-		expect(stats.programs).toBeGreaterThan(0);
-		expect(stats.memoryBytes).toBeGreaterThan(0);
-		const b = await m.tabletop.benchmark(2);
-		expect(Number.isFinite(b.cpu)).toBe(true);
-		expect(b.drawCalls).toBeGreaterThan(0);
-		if (BACKEND === 'webgl') {
-			// SwiftShader, WebGL2: software, whose timestamps mean nothing, so frames are waited for.
-			expect(stats.backend).toBe('webgl2');
-			expect(stats.adapter).toMatch(/swiftshader/i);
-			expect(b.gpuTimer).toBe('sync');
-		} else {
-			// The real GPU on WebGPU (vite.config.ts), timed by its own clock.
-			expect(stats.backend).toBe('webgpu');
-			expect(stats.adapter).not.toMatch(/swiftshader/i);
-			expect(b.gpuTimer).toBe('timestamp');
-		}
-		expect(Number.isFinite(b.gpu)).toBe(true);
-	});
-
-	it('resolves no timestamps outside ?perf', async () => {
-		const resolve = vi.spyOn(THREE.WebGPURenderer.prototype, 'resolveTimestampsAsync');
-		const { tabletop } = await mount('ref-7', 'gm');
-		await tabletop.sampleGpu();
-		await tabletop.benchmark(2);
-		expect(resolve).not.toHaveBeenCalled();
-		expect(tabletop.stats().gpuMs).toBeNull();
-		resolve.mockRestore();
-	});
-});
-
-describe('quality tiers', () => {
-	it('find a software rasteriser under SwiftShader (low), and a GPU on WebGPU', async () => {
-		const { tabletop } = await mount('ref-7', 'gm');
-		const caps = tabletop.capabilities();
-		expect(caps.software).toBe(BACKEND === 'webgl');
-		if (BACKEND === 'webgl') expect(qualityFor(caps)).toBe('low');
-		else expect(qualityFor(caps)).not.toBe('low');
-	});
-
-	it('keep 4K at DPR 2 on medium within 2.1 MP', async () => {
-		const dpr = vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
-		const canvas = document.createElement('canvas');
-		canvas.style.cssText = 'display:block;width:3840px;height:2160px';
-		document.body.appendChild(canvas);
-		const t = await createTabletop(
-			canvas,
-			{ onClick: () => {}, onHover: () => {} },
-			{
-				backend: BACKEND === 'webgpu' ? 'webgpu' : 'webgl',
-				preserveDrawingBuffer: BACKEND === 'webgl'
-			}
-		);
-		t.setQuality(settingsFor('medium', t.capabilities().backend));
-		expect(canvas.width * canvas.height).toBeLessThanOrEqual(2.1e6 + 3840);
-		expect(canvas.width * canvas.height).toBeGreaterThan(1.9e6);
-		await t.dispose();
-		canvas.remove();
-		dpr.mockRestore();
-	});
-
-	// Tiers with other antialiasing or no prepass get a new renderer (Tabletop.svelte).
-	it('change no program between tiers with the same post-processing stages', async () => {
-		const { tabletop } = await mount('ref-7', 'gm');
-		const backend = tabletop.capabilities().backend;
-		tabletop.setQuality(settingsFor('high', backend));
-		await settle(tabletop);
-		const programs = tabletop.stats().programs;
-		for (const tier of ['ultra', 'high', 'ultra'] as const) {
-			tabletop.setQuality(settingsFor(tier, backend));
-			await settle(tabletop);
-		}
-		expect(tabletop.stats().programs).toBe(programs);
 	});
 });

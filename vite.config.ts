@@ -56,6 +56,7 @@ const GOLDEN_SPEC = 'src/lib/tabletop/golden.svelte.spec.ts';
 const RENDER = process.env.THIRDFOLD_RENDER === '1';
 const RENDER_SPECS = [
 	'renderer',
+	'stability',
 	'fixtures',
 	'recovery',
 	'post',
@@ -151,6 +152,7 @@ export default defineConfig({
 									...(GOLDENS ? [GOLDEN_SPEC] : []),
 									'src/lib/tabletop/renderer.svelte.spec.ts',
 									'src/lib/tabletop/fixtures.svelte.spec.ts',
+									'src/lib/tabletop/stability.svelte.spec.ts',
 									'src/lib/tabletop/recovery.svelte.spec.ts',
 									'src/lib/tabletop/post.svelte.spec.ts',
 									'src/lib/tabletop/grade.svelte.spec.ts',

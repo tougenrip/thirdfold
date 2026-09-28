@@ -694,8 +694,9 @@ tester UI around the frame. `src/lib/tabletop/testing.ts` mounts any fixture tab
 (`tests/fixtures`, see `docs/PERFORMANCE.md`) as the GM, a fogged player or a spectator sees it, at
 DPR 1, with a clock the test holds still, reduced motion on and the camera at a named pose.
 
-- **Smoke tests** (`renderer.svelte.spec.ts`): every fixture draws for every viewer with no
-  `console.error`; the same inputs draw the same pixels; an idle daylight table draws no frames;
+- **Smoke tests** (`fixtures.svelte.spec.ts`, `renderer.svelte.spec.ts` and
+  `stability.svelte.spec.ts`, apart so CI runs them side by side): every fixture draws for every
+  viewer with no `console.error`; the same inputs draw the same pixels; an idle daylight table draws no frames;
   torch flicker stays at the slow ambient rate, and stops at once when the system asks for reduced
   motion; reloading tables leaks no geometry, texture or shader program; cycling the times of day
   compiles nothing new the second time; a disposed tabletop answers no pointer events.
