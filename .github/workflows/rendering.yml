@@ -55,7 +55,7 @@ jobs:
           - name: unexplored-black
             run: npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
           - name: materials
-            run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts src/lib/tabletop/mapping.svelte.spec.ts
+            run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts src/lib/tabletop/mapping.svelte.spec.ts src/lib/tabletop/kind-layers.svelte.spec.ts
     steps:
       - uses: actions/checkout@v4
 

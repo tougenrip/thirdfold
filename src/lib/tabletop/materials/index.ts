@@ -34,6 +34,8 @@ export { mipBias, setTextureQuality, worldTexture } from './texture-quality';
 /** A material of a shader kind: its values and its slots' textures. */
 export type KindMaterial = THREE.NodeMaterial & {
 	readonly kind: ShaderKind;
+	/** What it was made with (its variant), for `remake`. */
+	readonly options: MaterialOptions;
 	params: Params;
 } & { [S in SlotName as `${S}Slot`]: THREE.Texture };
 
@@ -96,6 +98,7 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	const lines = def.base === 'basic' && !!options.lines;
 	const material = baseMaterial(kind, lines) as KindMaterial;
 	Object.defineProperty(material, 'kind', { value: kind, enumerable: true });
+	Object.defineProperty(material, 'options', { value: options });
 	material.transparent = def.transparent;
 	material.depthWrite = !def.transparent;
 	material.side = def.side;
@@ -138,6 +141,24 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	nodes.outputNode = graph.outputNode;
 	for (const [name, node] of Object.entries(graph.lit ?? {})) if (node) nodes[name] = node;
 	return material;
+}
+
+/**
+ * A new material of `material`'s kind with its values and textures, made with `change` to its
+ * variant (the tier's `antiTiled`). Never `clone()` a kind material: Material.copy drops
+ * `params` and the slots (#169). A new variant is a new program, so only a tier switch does this.
+ */
+export function remake(material: KindMaterial, change: Partial<MaterialOptions>): KindMaterial {
+	const slots = Object.fromEntries(
+		SLOT_NAMES.map((s) => [
+			s,
+			(material as unknown as Record<string, THREE.Texture>)[slotProperty(s)]
+		])
+	);
+	const params = Object.fromEntries(
+		Object.entries(material.params).map(([k, v]) => [k, v instanceof THREE.Color ? v.clone() : v])
+	) as ParamsInput;
+	return createMaterial(material.kind, { ...material.options, ...change, params, slots });
 }
 
 /**

@@ -9,10 +9,11 @@
 // material: tuning it (the low tier may set the strength to 0) compiles nothing.
 
 import * as THREE from 'three/webgpu';
-import { normalGeometry, positionGeometry, positionView, texture, uniform } from 'three/tsl';
+import { normalGeometry, positionGeometry, texture, uniform } from 'three/tsl';
 import { assetUrl, loadManifest } from '../../assets/load';
 import { blankTexture, prepareSlotTexture, SLOTS, type SlotSpec } from './defaults';
-import { tsl, type N } from './tsl';
+import { derivativeFrame } from './mapping';
+import type { N } from './tsl';
 
 /** Sampled as the normal slot is: linear data, repeating, trilinear. */
 const PAINT_SLOT: SlotSpec = SLOTS.normal;
@@ -73,23 +74,11 @@ function planes(): [N, N, N] {
 	return [p.zy, p.xz, p.xy];
 }
 
-/**
- * The view-space tilt a tangent-space sample gives at `at`, in the frame screen-space
- * derivatives of `at` make (Schüler, as `perturbNormal` in kinds.ts): it holds under any
- * instance transform, since both the derivatives and `positionView` include it.
- */
+/** The view-space tilt a tangent-space sample gives at `at` (mapping.ts's derivative frame). */
 function tilt(sampled: N, at: N, normal: N): N {
 	const t = sampled.xy.mul(2).sub(1);
-	const view = n(positionView);
-	const q1perp = view.dFdy().cross(normal);
-	const q0perp = normal.cross(view.dFdx());
-	const st0 = at.dFdx();
-	const st1 = at.dFdy();
-	const T = q1perp.mul(st0.x).add(q0perp.mul(st1.x));
-	const B = q1perp.mul(st0.y).add(q0perp.mul(st1.y));
-	const det = tsl.max(T.dot(T), B.dot(B));
-	const scale = det.equal(0).select(0, det.inverseSqrt());
-	return T.mul(t.x).add(B.mul(t.y)).mul(scale);
+	const { T, B } = derivativeFrame(at, normal);
+	return T.mul(t.x).add(B.mul(t.y));
 }
 
 /** The view-space normal with the paint's bumps added over it (UDN-style), then renormalized. */

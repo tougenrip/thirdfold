@@ -17,6 +17,7 @@ import { loadEnvironment } from './environment';
 import type { FogMode } from './fog';
 import { groundFor } from './ground';
 import { labelFontReady } from './label-font';
+import { loadPaint } from './materials';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
 import { settingsFor, toneMapperFrom, type Tier } from './quality';
@@ -137,7 +138,8 @@ export async function mountFixture(
 		...view.tokens.flatMap((t) => (t.model ? [t.model] : [])),
 		...view.props.map((p) => p.assetId)
 	]);
-	await Promise.all([...models].map((id) => loadModel(id)));
+	// The paint maps too (#178), so no fixture's first frame races them.
+	await Promise.all([...[...models].map((id) => loadModel(id)), loadPaint()]);
 	// The page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
 	const toneMapper = toneMapperFrom(location.search) ?? undefined;
 	if (view.environment) await loadEnvironment(view.environment, toneMapper);

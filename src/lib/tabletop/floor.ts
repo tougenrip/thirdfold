@@ -1,8 +1,8 @@
-// Painted floors: one plane over the table, coloured by a texture with one
-// texel per cell (like the fog overlay), so painting a floor rewrites a few
-// hundred bytes and a large map is still one draw call. Plain cells are
-// transparent (the table's own surface shows); cells off the map are a dark
-// void. Lit like the table, so light and darkness fall on floors too.
+// Painted floors' per-cell texture: one texel per cell (like the fog overlay),
+// which the grid lines read (overlay.ts) to leave the void unlined. Since #172
+// the table's surface draws the floors itself from the ground map (the terrain
+// kind, materials/hooks.ts `groundColour`), so the plane that drew them here is
+// never shown; #173 deletes it with the fog and darkness overlays.
 
 import * as THREE from 'three/webgpu';
 import { FLOOR_IDS, type FloorMap } from '$lib/game/floor';
@@ -43,7 +43,7 @@ export class FloorLayer {
 	update(grid: SquareGrid, floor: FloorMap | null): void {
 		const cells = grid.width * grid.height;
 		if (!floor || floor.length !== cells) {
-			this.mesh.visible = false;
+			this.painted = false;
 			return;
 		}
 		if (!this.texture || this.size.width !== grid.width || this.size.height !== grid.height) {
@@ -71,12 +71,15 @@ export class FloorLayer {
 			data.set(BYTES[floor[i]] ?? BYTES[0], o);
 		}
 		this.texture.needsUpdate = true;
-		this.mesh.visible = true;
+		this.painted = true;
 	}
 
-	/** The floor's per-cell texture while it shows (for the grid lines, overlay.ts). */
+	/** Whether a floor is painted: the mask is only handed out then. */
+	private painted = false;
+
+	/** The floor's per-cell texture while one is painted (for the grid lines, overlay.ts). */
 	get mask(): THREE.DataTexture | null {
-		return this.mesh.visible ? this.texture : null;
+		return this.painted ? this.texture : null;
 	}
 
 	dispose(): void {

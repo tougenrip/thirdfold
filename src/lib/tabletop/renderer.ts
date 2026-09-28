@@ -170,7 +170,7 @@ export async function createTabletop(
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade
 		// Raised ground under fog and darkness, by the same rules as the flat overlays.
-		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
+		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode));
 	}
 
 	let tokens: readonly Token[] = [];
@@ -264,7 +264,7 @@ export async function createTabletop(
 
 	/** Dresses the table, raised ground and walls in the environment's looks (or the plain ones). */
 	function applyLook(): void {
-		table.dress(look, grid, extent);
+		table.dress(look, grid);
 		terrainLayer.setLook(look?.ground ?? null);
 		wallLayer.setLook(look?.walls ?? null);
 		refreshLighting();
@@ -318,7 +318,6 @@ export async function createTabletop(
 			tokenLayer.setFallen(fallen);
 			fogLayer.update(grid, fogState.fog, fogState.mode);
 			floorLayer.update(grid, floor);
-			terrainLayer.setFloor(floor);
 			refreshLighting();
 			// A new table size (first load, a loaded scene, an adventure): frame it. This
 			// replaces any view change still in flight, which would aim at the old table.
@@ -436,7 +435,6 @@ export async function createTabletop(
 			if (!grid) return;
 			if (floor && floor.length !== grid.width * grid.height) floor = null;
 			floorLayer.update(grid, floor);
-			terrainLayer.setFloor(floor);
 			refreshLighting();
 			requestRender();
 		},
@@ -488,6 +486,7 @@ export async function createTabletop(
 			quality.set(settings, refine);
 			post.set(settings);
 			cellMaps.setOn(settings.layers.fogshade);
+			for (const l of [table, terrainLayer, wallLayer]) l.setAntiTiled(settings.antiTile);
 		},
 		capabilities: () => quality.caps,
 		setPowerSaver: (on) => loop.setPowerSaver(on),

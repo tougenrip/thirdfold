@@ -23,7 +23,14 @@ import {
 	type Tier
 } from './quality';
 import type { TabletopOptions } from './types';
+import { paint } from './materials/paint';
 import { setTextureQuality } from './materials/texture-quality';
+
+/** The tier's texture filtering (#179) and paint strength (#178): uniforms, no program. */
+function applyMaterials(settings: QualitySettings, maxAnisotropy: number): void {
+	setTextureQuality(settings, maxAnisotropy);
+	paint.strength.value = settings.paint;
+}
 
 function shellOf(): Shell {
 	const platform = Capacitor.getPlatform();
@@ -91,7 +98,7 @@ export class QualityControl {
 	) {
 		this.caps = probeCapabilities(parts.renderer);
 		this.settings = settingsFor('medium', this.caps.backend);
-		setTextureQuality(this.settings, parts.renderer.getMaxAnisotropy());
+		applyMaterials(this.settings, parts.renderer.getMaxAnisotropy());
 		this.observer = new ResizeObserver(() => this.resize());
 		this.observer.observe(parts.canvas);
 		parts.perf.onFrame = (ms) => this.frame(ms);
@@ -111,7 +118,7 @@ export class QualityControl {
 	set(settings: QualitySettings, refine = false): void {
 		this.settings = settings;
 		this.parts.loop.setPacing(settings);
-		setTextureQuality(settings, this.parts.renderer.getMaxAnisotropy());
+		applyMaterials(settings, this.parts.renderer.getMaxAnisotropy());
 		this.refining = refine;
 		this.samples = [];
 		const size = settings.sunShadowSize;

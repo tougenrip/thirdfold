@@ -69,7 +69,8 @@ const RENDER_SPECS = [
 	'materials',
 	'cell-maps',
 	'program-count',
-	'mapping'
+	'mapping',
+	'kind-layers'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
@@ -165,7 +166,8 @@ export default defineConfig({
 									'src/lib/tabletop/cell-maps.svelte.spec.ts',
 									'src/lib/tabletop/program-count.svelte.spec.ts',
 									'src/lib/tabletop/mapping.svelte.spec.ts',
-									'src/lib/tabletop/paint.svelte.spec.ts'
+									'src/lib/tabletop/paint.svelte.spec.ts',
+									'src/lib/tabletop/kind-layers.svelte.spec.ts'
 								]
 							}
 						}

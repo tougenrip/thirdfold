@@ -345,14 +345,13 @@ switching them, a token carrying light, a token without a model, fallen and enem
 selected, hovered, hidden and moved, both cues and travel between four tables of three sizes change
 none. What still compiles (`KNOWN` in the spec, each with the issue that ends it):
 
-- **Hiding a token** (+2 fragment stages, +2 pipelines, +4 on WebGPU low): `TokenLayer.sync`
-  toggles `transparent` on the mini's materials, a variant of its own. Showing it again can release
-  them, and the next hide compiles them again (#172 puts the mini on a kind that never toggles).
 - **The first selection** (+1 vertex, +1 fragment) **and the first turn marker** (+1 fragment):
   the ring and the marker live in the overlay scene, which the warm-up does not compile (#180).
-- **WebGPU only, table travel:** leaving the test world for the Hollow or the Heart releases two
-  pipelines (their stages stay), and coming back builds them again. A pipeline is a driver compile
-  on WebGPU.
+
+#172 ended two more by putting the layers on the shader kinds: hiding a token (which toggled
+`transparent` on the mini's own materials; the mini kind's hidden token is a screen-door dither on
+a per-object uniform) and, on WebGPU, table travel releasing and rebuilding two pipelines. The
+counts above are from before #172.
 
 Node states (generated code) go up and down by 2-3 on every table travel with no program change:
 reported, not failed. `?perf` shows programs and pipelines, and the perf gate records both per

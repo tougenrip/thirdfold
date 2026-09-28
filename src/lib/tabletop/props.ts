@@ -1,9 +1,12 @@
 // Props for the three.js view. Each asset's model (see models.ts: loaded on
 // first use) is one InstancedMesh, two if it has swinging parts, so a room
 // full of crates costs one draw call. Until the model has loaded, the prop
-// shows as a plain box on its footprint. Colours are in the model; instance
-// colours carry the selection, hover and hidden tints. Placement comes from
-// the Prop data; this only draws it.
+// shows as a plain box on its footprint. Colours are in the model (vertex
+// colours). Props are the prop kind (#172): selection, hover and the GM's
+// hidden ghost are an emissive tint per instance (`aTint`), so a textured
+// albedo is never multiplied by them, and each instance is lifted a hash of
+// its asset and cell off whatever it lies on (`aLift`, #181). Placement comes
+// from the Prop data; this only draws it.
 //
 // A prop that moves or turns glides to its new place, so a push, a pull or
 // a turn reads the same on every client; motions from the server (a shake,
@@ -22,14 +25,21 @@ import {
 	type Prop
 } from '$lib/game/props';
 import type { Ground } from './ground';
+import {
+	addInstanceTints,
+	createMaterial,
+	LIFT_ATTRIBUTE,
+	liftOf,
+	setParams,
+	TINT_ATTRIBUTE
+} from './materials';
 import { loadModel, modelNow, type LoadedModel } from './models';
 
 /** A placeholder's height and colour, until the model has loaded. */
 const PLACEHOLDER_HEIGHT = 0.5;
-const PLACEHOLDER = new THREE.Color(0x8a7f70);
+const PLACEHOLDER = 0x8a7f70;
 /** How far a swing throws swinging parts when the model doesn't say. */
 const DEFAULT_THROW = 0.4;
-const WHITE = new THREE.Color(0xffffff);
 
 /** How long a prop takes to glide to a new place or turn. */
 const GLIDE_MS = 450;
@@ -51,10 +61,11 @@ type Anim =
 
 const still = (): Pose => ({ dx: 0, dy: 0, dz: 0, turn: 0, swing: 0 });
 
-const SELECTED = new THREE.Color(0xe0a458);
-const HOVERED = new THREE.Color(0xe27a6b);
+/** The emissive tints (colour and strength): selected, hovered, and hidden from the players. */
+const SELECTED = { color: new THREE.Color(0xe0a458), strength: 0.4 };
+const HOVERED = { color: new THREE.Color(0xe27a6b), strength: 0.4 };
 /** What the GM sees a prop hidden from the players as: pale, like a ghost of itself. */
-const GHOST = new THREE.Color(0xb8c6e0);
+const GHOST = { color: new THREE.Color(0xb8c6e0), strength: 0.3 };
 
 interface AssetMeshes {
 	parts: { mesh: THREE.InstancedMesh; swings: boolean }[];
@@ -68,13 +79,12 @@ interface AssetMeshes {
 export class PropLayer {
 	readonly group = new THREE.Group();
 	private placeholder = new THREE.BoxGeometry(1, 1, 1);
-	/** Models: their colours are vertex colours; the instance colour tints them. */
-	private material = new THREE.MeshStandardMaterial({
-		color: 0xffffff,
-		roughness: 0.75,
-		vertexColors: true
+	/** Models: their colours are vertex colours. One material for every asset (#172). */
+	private material = createMaterial('prop', { instanced: true, vertexColors: true });
+	private placeholderMaterial = createMaterial('prop', {
+		instanced: true,
+		params: { color: PLACEHOLDER, roughness: 0.9 }
 	});
-	private placeholderMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
 	/** Assets whose model has been asked for. */
 	private requested = new Set<AssetId>();
 
@@ -177,6 +187,9 @@ export class PropLayer {
 	private layout(props: readonly Prop[], grid: SquareGrid, ground: Ground | null): void {
 		this.props = props;
 		this.last = { grid, ground };
+		// A thousandth of a cell at an `aLift` of 1 (#181).
+		for (const m of [this.material, this.placeholderMaterial])
+			setParams(m, { lift: 1e-3 * grid.cellSize });
 		const byAsset = new Map<AssetId, Prop[]>(ASSET_IDS.map((id) => [id, []]));
 		for (const p of props) byAsset.get(p.assetId)?.push(p);
 
@@ -224,15 +237,18 @@ export class PropLayer {
 						.multiply(tilt.makeRotationX(angle))
 						.multiply(new THREE.Matrix4().makeTranslation(0, -pivot, 0));
 				}
+				const lift = liftOf(assetId, p.pos);
 				for (const { mesh, swings } of meshes.parts) {
 					part.copy(local);
 					if (angle && swings) part.premultiply(swing);
 					mesh.setMatrixAt(i, out.multiplyMatrices(base, part));
+					(mesh.geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.BufferAttribute).setX(i, lift);
 				}
 			});
 			for (const { mesh } of meshes.parts) {
 				mesh.count = list.length;
 				mesh.instanceMatrix.needsUpdate = true;
+				mesh.geometry.getAttribute(LIFT_ATTRIBUTE).needsUpdate = true;
 				mesh.computeBoundingSphere();
 			}
 		}
@@ -271,7 +287,7 @@ export class PropLayer {
 	}
 
 	dispose(): void {
-		for (const m of this.meshes.values()) for (const { mesh } of m.parts) mesh.dispose();
+		for (const id of [...this.meshes.keys()]) this.drop(id);
 		this.placeholder.dispose();
 		this.material.dispose();
 		this.placeholderMaterial.dispose();
@@ -297,7 +313,10 @@ export class PropLayer {
 		if (meshes && meshes.capacity >= count && meshes.model === model) return meshes;
 		this.drop(assetId);
 		const capacity = Math.max(8, Math.ceil(count * 1.5));
-		const make = (geometry: THREE.BufferGeometry, material: THREE.Material) => {
+		const make = (shared: THREE.BufferGeometry, material: THREE.Material) => {
+			// A copy of its own, to carry this mesh's tints and lifts (#172, #181).
+			const geometry = shared.clone();
+			addInstanceTints(geometry, capacity);
 			const mesh = new THREE.InstancedMesh(geometry, material, capacity);
 			mesh.userData.assetId = assetId;
 			mesh.castShadow = true;
@@ -316,30 +335,38 @@ export class PropLayer {
 		return meshes;
 	}
 
-	/** Takes an asset's meshes off the table (its geometry is the model's, kept for next time). */
+	/** Takes an asset's meshes off the table (the model's own geometry is kept for next time). */
 	private drop(assetId: AssetId): void {
 		const meshes = this.meshes.get(assetId);
 		if (!meshes) return;
 		for (const { mesh } of meshes.parts) {
 			this.group.remove(mesh);
+			mesh.geometry.dispose(); // its own copy
 			mesh.dispose();
 		}
 		this.meshes.delete(assetId);
 	}
 
+	/** Writes each instance's tint: selected or hovered over hidden, else none. */
 	private paint(): void {
-		const color = new THREE.Color();
 		const hidden = new Set(this.props.filter((p) => p.hidden).map((p) => p.id));
 		for (const meshes of this.meshes.values()) {
-			meshes.owners.forEach((id, i) => {
-				const tint = id === this.selectedId ? SELECTED : id === this.hoveredId ? HOVERED : null;
-				color.copy(meshes.model ? WHITE : PLACEHOLDER);
-				if (hidden.has(id)) color.lerp(GHOST, 0.7);
-				if (tint) color.lerp(tint, 0.55);
-				for (const { mesh } of meshes.parts) mesh.setColorAt(i, color);
-			});
-			for (const { mesh } of meshes.parts)
-				if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+			for (const { mesh } of meshes.parts) {
+				const tints = mesh.geometry.getAttribute(TINT_ATTRIBUTE) as THREE.BufferAttribute;
+				meshes.owners.forEach((id, i) => {
+					const tint =
+						id === this.selectedId
+							? SELECTED
+							: id === this.hoveredId
+								? HOVERED
+								: hidden.has(id)
+									? GHOST
+									: null;
+					const c = tint?.color;
+					tints.setXYZW(i, c?.r ?? 0, c?.g ?? 0, c?.b ?? 0, tint?.strength ?? 0);
+				});
+				tints.needsUpdate = true;
+			}
 		}
 	}
 }

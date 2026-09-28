@@ -1,20 +1,30 @@
 // The table the play area sits on: a slab with a margin and the playing
 // surface (the grid lines are in the overlay, overlay.ts). The environment
-// dresses the slab and surface; their materials are kept across tables.
+// dresses the slab and surface; their materials are kept across tables. The
+// surface is the terrain kind (#172), so it draws the painted floors from the
+// ground map itself; the slab is the surface kind. Both are world-mapped, their
+// tile from `repeatFor`, anti-tiled on medium and up (#181).
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
-import { dress, undress, type EnvironmentLook } from './environment';
+import { wear, type EnvironmentLook } from './environment';
+import { STEP_HEIGHT } from './ground';
+import { createMaterial, remake, repeatFor, setParams, type KindMaterial } from './materials';
 
 export const TABLE_MARGIN = 3;
 const TABLE_THICKNESS = 0.6;
 
-const COLORS = { table: 0x5a3b24, surface: 0x2f4a3a };
+const PLAIN = {
+	table: { color: 0x5a3b24, roughness: 0.7 },
+	surface: { color: 0x2f4a3a, roughness: 1 }
+};
 
 export class TableLayer {
 	readonly group = new THREE.Group();
-	private slabMaterial = new THREE.MeshStandardMaterial({ roughness: 0.7 });
-	private surfaceMaterial = new THREE.MeshStandardMaterial({ roughness: 1 });
+	private slabMaterial: KindMaterial = createMaterial('surface', { antiTiled: true });
+	private surfaceMaterial: KindMaterial = createMaterial('terrain', { antiTiled: true });
+	private slab: THREE.Mesh | null = null;
+	private surface: THREE.Mesh | null = null;
 
 	/** Builds the table for a grid. Returns its extent: the size across, margin included. */
 	build(g: SquareGrid): number {
@@ -34,36 +44,45 @@ export class TableLayer {
 		surface.receiveShadow = true;
 
 		this.group.add(slab, surface);
+		[this.slab, this.surface] = [slab, surface];
 		return Math.max(w, d) + TABLE_MARGIN * 2;
 	}
 
 	/** Dresses the slab and surface in the environment's looks, or the plain ones. */
-	dress(look: EnvironmentLook | null, grid: SquareGrid | null, extent: number): void {
-		const across = grid ? grid.width : 1;
-		const down = grid ? grid.height : 1;
-		dress(this.surfaceMaterial, look?.surface ?? null, COLORS.surface, across, down);
-		dress(this.slabMaterial, look?.table ?? null, COLORS.table, extent / 2, 1);
+	dress(look: EnvironmentLook | null, grid: SquareGrid | null): void {
+		const cellSize = grid?.cellSize ?? 1;
+		wear(this.surfaceMaterial, look?.surface ?? null, PLAIN.surface);
+		wear(this.slabMaterial, look?.table ?? null, PLAIN.table);
+		const tile = (cells: number) => ({ repeat: repeatFor(cells, cellSize, STEP_HEIGHT) });
+		setParams(this.surfaceMaterial, tile(look?.surface.cells ?? 1));
+		// The rim's look was drawn a repeat per two world units.
+		setParams(this.slabMaterial, tile((look?.table.cells ?? 1) * (2 / cellSize)));
+	}
+
+	/** The tier's anti-tiling (#181): the materials made again in that variant, once. */
+	setAntiTiled(on: boolean): void {
+		if (!!this.surfaceMaterial.options.antiTiled === on) return;
+		const [slab, surface] = [this.slabMaterial, this.surfaceMaterial];
+		this.slabMaterial = remake(slab, { antiTiled: on });
+		this.surfaceMaterial = remake(surface, { antiTiled: on });
+		if (this.slab) this.slab.material = this.slabMaterial;
+		if (this.surface) this.surface.material = this.surfaceMaterial;
+		slab.dispose();
+		surface.dispose();
 	}
 
 	/** Disposes what the last table built, keeping the shared materials. */
 	private clear(): void {
-		const kept = new Set<THREE.Material>([this.slabMaterial, this.surfaceMaterial]);
 		for (const child of [...this.group.children]) {
-			child.traverse((o) => {
-				if (o instanceof THREE.Mesh) {
-					o.geometry.dispose();
-					(Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
-						if (!kept.has(m)) m.dispose();
-					});
-				}
-			});
+			if (child instanceof THREE.Mesh) child.geometry.dispose();
 			this.group.remove(child);
 		}
+		this.slab = this.surface = null;
 	}
 
 	dispose(): void {
 		this.clear();
-		undress(this.slabMaterial);
-		undress(this.surfaceMaterial);
+		this.slabMaterial.dispose();
+		this.surfaceMaterial.dispose();
 	}
 }

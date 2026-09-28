@@ -306,7 +306,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
 | `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
 | `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                     |
-| `table.ts`        | The slab and surface, dressed by the environment                                                                                 |
+| `table.ts`        | The slab and surface (surface and terrain kinds), worn in the environment's looks                                                |
 | `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                             |
 | `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
 | `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
@@ -445,7 +445,7 @@ WebGL2-only and skip on WebGPU, naming why.
 Its first runs caught a bug the WebGL2 goldens never showed: a tabletop torn down while the next
 started (every test, and #150's rebuild) could leave the new one's raised ground missing or black.
 `TableLayer.dispose` disposed the shared blank texture every dressed material falls back to, which
-destroys it in every renderer; `undress` (environment.ts) never does. And two renderers disposing
+destroys it in every renderer; the kinds' slot blanks (`slotDefault`) are never disposed either. And two renderers disposing
 and starting at once still broke each other, so `dispose()` resolves once the renderer is gone,
 and the component and the test helper make the next tabletop only after that.
 
@@ -689,8 +689,7 @@ at the M63 tip, after the loose ends of #157, #159, #160, #162, #163, #165 and #
 ## Shader kinds
 
 Every surface is one of a closed set of kinds from `src/lib/tabletop/materials/` (#169;
-the full rules and costs are #182). `createMaterial(kind, options)` makes one; nothing in the
-layers uses them yet (#172 ports the layers).
+the full rules and costs are #182). `createMaterial(kind, options)` makes one.
 
 | Kind     | Base                               | Fixed at creation                 | Slots                         |
 | -------- | ---------------------------------- | --------------------------------- | ----------------------------- |
@@ -705,6 +704,44 @@ layers uses them yet (#172 ports the layers).
 | water    | Standard, transparent              | as surface; slides on `worldTime` | as surface                    |
 | overlay  | Basic, or LineBasic (`lines`)      | as surface; lines                 | albedo (lines: none)          |
 
+- **The layers on the kinds** (#172; `kind-layers.svelte.spec.ts` walks them and checks every
+  material came from the factory):
+  - The table's surface is the terrain kind and its rim the surface kind, walls the surface kind
+    (instanced), door panels the surface kind's `local` variant (one material, and a second, the
+    same but tinted, for the hovered door), raised ground the terrain kind, props the prop kind
+    (one material for models, vertex colours; one for placeholder boxes, their colour a param),
+    minis the mini kind (three materials for every token: bases, figure bodies with vertex colours,
+    and the parts in the token's colour).
+  - Environments `wear` their looks (environment.ts): colour, roughness and metalness as params,
+    the loaded map itself in the albedo slot (registered with `worldTexture` once, as it loads, so
+    #179's anisotropy reaches what is drawn; no copies), the tile `repeatFor(look.cells, cellSize,
+STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two world units.
+  - Walls, raised ground and the table are `antiTiled` on medium and up (`QualitySettings.antiTile`):
+    a tier switch that changes it `remake`s their materials (one compile, as a new pipeline shape
+    would be); runtime state never does.
+  - Hover, selection and the GM's hidden ghost are emissive tints: per instance on props and walls
+    (`aTint`), a textured albedo is never multiplied by them. Props write `liftOf(assetId, pos)`
+    into `aLift` and set `params.lift` to a thousandth of a cell (#181).
+  - The terrain kind reads the `ground` map (`ownAlbedo` in hooks.ts): on the table, each floor's
+    colour (`floorPalette`, from `FLOOR_LOOKS`, a uniform array) over the textured surface at its
+    cover (plain none, the void all); on a raised cell, its texture in its floor's colour or the
+    look's, paler with height toward `cellUniforms.maxLevel`. The floor plane (floor.ts) no longer
+    draws; its texture only masks the grid lines until #173. Raised cells keep a grey instance
+    colour for fog and darkness until #173 moves those into every material.
+  - Minis read their colour and how much of them shows per object (`miniColour`, `miniOpacity`:
+    `uniform().onObjectUpdate` over the mesh's `userData.miniColor` and `userData.mini`), so a new
+    token makes no material, and the GM's see-through hidden token is a screen-door dither
+    (`interleavedGradientNoise(screenCoordinate)` against the opacity, discarding) that never
+    flips `transparent`.
+  - Params and slots are read from the drawn object's own kind material (`OwnReferenceNode` in
+    tsl.ts), not three's `materialReference` of the material drawing it: the shadow pass draws
+    with three's own material while still running the kind's colour and position nodes.
+  - The low tier sets `paint.strength` 0 (`QualitySettings.paint`, a uniform).
+  - Cost on SwiftShader (medium, the village, a loaded machine; not the perf gate): a benchmarked
+    frame 2.0 → 3.5 s and a mount 5 → 10 s against the classic materials, anti-tiling about a third
+    of the difference; 164 → 178 programs. The real-GPU numbers are the perf gate's.
+  - Not yet on the kinds: fixtures and flames, grid lines, mist, the toll's dust and shadow, and
+    dice (#172's remainder).
 - **One graph per kind and variant** (`kinds.ts` `graphFor`), shared by all its materials: their
   values are `material.params.*` read through `materialReference`, kept in one object because r186
   keys node state by whether each number on a material is zero. Textures sit in slots

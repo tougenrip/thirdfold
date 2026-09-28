@@ -18,24 +18,29 @@ export interface Mapping {
 }
 
 /**
- * Tangent-space normal mapping by screen-space derivatives of the coordinates the slots are
- * sampled at (Schüler, "Normal mapping without precomputed tangents"), as three's own frame does
- * with the mesh's uv, so meshes without tangents warn about nothing.
+ * The tangent frame screen-space derivatives of `at` make over `normal` (Schüler, "Normal mapping
+ * without precomputed tangents"), as three's own frame does with the mesh's uv, so meshes without
+ * tangents warn about nothing. It holds under any instance transform, since both the derivatives
+ * and `positionView` include it. Shared with the paint's object-space triplanar (paint.ts).
  */
-function perturbNormal(sampled: N, at: N): N {
-	const n = sampled.mul(2).sub(1);
-	const q0 = tsl.positionView.dFdx();
-	const q1 = tsl.positionView.dFdy();
+export function derivativeFrame(at: N, normal: N): { T: N; B: N } {
+	const q1perp = tsl.positionView.dFdy().cross(normal);
+	const q0perp = normal.cross(tsl.positionView.dFdx());
 	const st0 = at.dFdx();
 	const st1 = at.dFdy();
-	const normal = tsl.normalView;
-	const q1perp = q1.cross(normal);
-	const q0perp = normal.cross(q0);
 	const T = q1perp.mul(st0.x).add(q0perp.mul(st1.x));
 	const B = q1perp.mul(st0.y).add(q0perp.mul(st1.y));
 	const det = tsl.max(T.dot(T), B.dot(B));
 	const scale = det.equal(0).select(0, det.inverseSqrt());
-	return T.mul(scale).mul(n.x).add(B.mul(scale).mul(n.y)).add(normal.mul(n.z)).normalize();
+	return { T: T.mul(scale), B: B.mul(scale) };
+}
+
+/** Tangent-space normal mapping in the derivative frame of the coordinates sampled at. */
+function perturbNormal(sampled: N, at: N): N {
+	const n = sampled.mul(2).sub(1);
+	const normal = tsl.normalView;
+	const { T, B } = derivativeFrame(at, normal);
+	return T.mul(n.x).add(B.mul(n.y)).add(normal.mul(n.z)).normalize();
 }
 
 /** Slots sampled at `at` (the mesh's uv, or object-space coordinates for props and minis). */

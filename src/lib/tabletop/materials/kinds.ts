@@ -8,7 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
-import { paintNormal, paintRoughness, surfaceMapping } from './hooks';
+import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
 import { LIFTED, VARIED, lifted, macroOf, macroRoughness, macroTint } from './variation';
 import { worldEmissive, worldModify } from './world-modify';
@@ -239,12 +239,9 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	const emissive = worldEmissive(glow);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
-	const colour = tsl.vec4(
-		macro
-			? param('color', 'color').mul(macroTint(macro, param('macroTint', 'float')))
-			: param('color', 'color'),
-		1
-	);
+	const colour = macro
+		? param('color', 'color').mul(macroTint(macro, param('macroTint', 'float')))
+		: param('color', 'color');
 	const roughness = param('roughness', 'float').mul(orm.y);
 	const position =
 		kind === 'foliage'
@@ -262,11 +259,11 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				? lifted(param('lift', 'float'))
 				: null;
 	return {
-		colorNode: albedo.mul(colour),
+		colorNode: ownAlbedo(kind, albedo, colour),
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
-		outputNode: worldModify(tsl.output, emissive),
+		outputNode: ownOutput(kind, worldModify(tsl.output, emissive)),
 		lit: {
 			roughnessNode: paintRoughness(
 				kind,

@@ -110,6 +110,13 @@ export interface QualitySettings {
 	 * (`setTextureQuality`); data textures keep 1.
 	 */
 	anisotropy: 4 | 8 | 16;
+	/**
+	 * Two-fetch anti-tiling on walls, raised ground and the table (#181): a variant of their
+	 * graphs, so a tier switch that changes it compiles them once.
+	 */
+	antiTile: boolean;
+	/** How strongly props and minis show their paint (#178, `paint.strength`; 0 unpainted). */
+	paint: number;
 	/** Frames a still picture takes to converge, from `aa` (TRAA's history). */
 	convergeFrames: number;
 	layers: Record<Layer, boolean>;
@@ -135,7 +142,9 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		vegetation: 0.25,
 		fpsCap: 30,
 		ambientFps: 20,
-		anisotropy: 4
+		anisotropy: 4,
+		antiTile: false,
+		paint: 0
 	},
 	medium: {
 		megapixels: 2.1,
@@ -154,7 +163,9 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		vegetation: 0.5,
 		fpsCap: 60,
 		ambientFps: 30,
-		anisotropy: 8
+		anisotropy: 8,
+		antiTile: true,
+		paint: 0.5
 	},
 	high: {
 		megapixels: 3.7,
@@ -173,7 +184,9 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		vegetation: 1,
 		fpsCap: 60,
 		ambientFps: 30,
-		anisotropy: 16
+		anisotropy: 16,
+		antiTile: true,
+		paint: 0.5
 	},
 	ultra: {
 		megapixels: 3.7,
@@ -192,7 +205,9 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		vegetation: 1,
 		fpsCap: 60,
 		ambientFps: 30,
-		anisotropy: 16
+		anisotropy: 16,
+		antiTile: true,
+		paint: 0.5
 	}
 };
 

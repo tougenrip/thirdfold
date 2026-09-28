@@ -4,11 +4,11 @@
 // #170 sweeps a whole table; this proves the kinds on a small scene, on both backends.
 
 import * as THREE from 'three/webgpu';
+import { wear } from './environment';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { BACKEND } from './testing';
 import { settingsFor, TIERS } from './quality';
-import { dress, undress } from './environment';
 import {
 	KINDS,
 	SHADER_KINDS,
@@ -266,13 +266,17 @@ describe('world texture filtering (#179)', () => {
 		const plane = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), material);
 		plane.rotation.x = -1.3; // grazing, as the ground is from a low camera
 		scene.add(plane);
-		// An environment's surface draws its own copy of the loaded map.
-		const dressed = new THREE.MeshStandardMaterial();
-		dress(
+		// An environment's look puts the loaded map itself in the slot: no copy to miss (#172).
+		const dressed = createMaterial('surface');
+		wear(
 			dressed,
 			{ color: new THREE.Color(), roughness: 1, metalness: 0, map: loaded, cells: 1 },
-			0
+			{
+				color: 0,
+				roughness: 1
+			}
 		);
+		expect(dressed.albedoSlot).toBe(loaded);
 		setTextureQuality(settingsFor('low', 'webgpu'), max);
 		draw();
 		const [p0, s0] = [programs(), states()];
@@ -283,7 +287,6 @@ describe('world texture filtering (#179)', () => {
 			draw();
 			const expected = Math.max(1, Math.min(settings.anisotropy, max));
 			expect(loaded.anisotropy).toBe(expected);
-			expect(dressed.map!.anisotropy).toBe(expected);
 			expect(backendAnisotropy(r, loaded)).toBe(expected);
 			expect(mipBias.value).toBe(tier === 'high' || tier === 'ultra' ? -0.5 : 0);
 			// The blank in the other slots is a data texture: never registered.
@@ -291,6 +294,6 @@ describe('world texture filtering (#179)', () => {
 		}
 		expect(programs()).toBe(p0);
 		expect(states()).toBe(s0);
-		undress(dressed);
+		dressed.dispose();
 	});
 });

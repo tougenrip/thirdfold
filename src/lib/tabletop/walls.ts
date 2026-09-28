@@ -5,12 +5,28 @@
 // higher floor beside it and reaches down to the lower one (a balcony's edge
 // is one face); a window is a low sill and, between equal floors, a lintel,
 // with the gap between them to see through.
+//
+// Walls are the surface kind (#172), world-mapped so the texture runs on across
+// units and heights (#177), anti-tiled on medium and up (#181); their colour is
+// the material's and the hover an emissive tint per instance (`aTint`), so a
+// textured wall is never multiplied by it. Door panels share one material of
+// the `local` variant (their texture swings with them), and a second, the same
+// but tinted, for the hovered door: swapping between them compiles nothing.
 
 import * as THREE from 'three/webgpu';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { edgeKey, unitEdges, type Door, type SceneObject } from '$lib/game/objects';
-import { dress, undress, type Look } from './environment';
-import { WALL_HEIGHT, type Ground } from './ground';
+import { wear, type Look } from './environment';
+import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
+import {
+	addInstanceTints,
+	createMaterial,
+	remake,
+	repeatFor,
+	setParams,
+	TINT_ATTRIBUTE,
+	type KindMaterial
+} from './materials';
 
 export { WALL_HEIGHT };
 /** A window's sill and lintel, as fractions of a wall above the floor. */
@@ -20,13 +36,15 @@ const WALL_THICKNESS = 0.14;
 const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_MS = 260;
 
-const WALL_COLOR = 0x8d8578;
-const WALL_HOVER_COLOR = new THREE.Color(0xe27a6b);
-const DOOR_COLOR = 0x7a4a26;
+const PLAIN_WALL = { color: 0x8d8578, roughness: 0.85 };
+/** The erase tool's target: an emissive tint (rgb and strength) on the wall's instances. */
+const WALL_HOVER = { color: new THREE.Color(0xe27a6b), strength: 0.45 };
+const DOOR = { color: 0x7a4a26, roughness: 0.6 };
+const DOOR_HOVER = 0x5a2a10;
 
 interface DoorEntry {
 	pivot: THREE.Group;
-	material: THREE.MeshStandardMaterial;
+	panel: THREE.Mesh;
 	angle: number;
 	target: number;
 	/** The swing under way: the angle it left and when (the layer's clock). */
@@ -38,21 +56,44 @@ interface DoorEntry {
 export class WallLayer {
 	readonly group = new THREE.Group();
 	private grid: SquareGrid | null = null;
-	private wallGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
-	private wallMaterial = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-	/** The walls' colour (the environment's, or plain stone), carried as instance colour. */
-	private wallColor = new THREE.Color(WALL_COLOR);
+	/** The walls' geometry, made again with the mesh as it grows (it carries the tints). */
+	private wallGeometry: THREE.BoxGeometry | null = null;
+	private wallMaterial: KindMaterial = createMaterial('surface', {
+		instanced: true,
+		antiTiled: true
+	});
+	private doorMaterial = createMaterial('surface', { local: true, params: DOOR });
+	private doorHoverMaterial = createMaterial('surface', {
+		local: true,
+		params: { ...DOOR, tint: DOOR_HOVER }
+	});
+	private look: Look | null = null;
 
 	/** Door swings run on `clock`, the tabletop's (ms), not on frame steps. */
 	constructor(private readonly clock: () => number = () => performance.now()) {
-		dress(this.wallMaterial, null, 0xffffff);
+		wear(this.wallMaterial, null, PLAIN_WALL);
 	}
 
 	/** The environment's walls (null: plain stone). */
 	setLook(look: Look | null): void {
-		dress(this.wallMaterial, look && { ...look, color: new THREE.Color(0xffffff) }, 0xffffff);
-		this.wallColor.set(look ? look.color : WALL_COLOR);
-		this.applyHover();
+		this.look = look;
+		wear(this.wallMaterial, look, PLAIN_WALL);
+		this.tile();
+	}
+
+	/** The tier's anti-tiling (#181): the walls' material made again in that variant, once. */
+	setAntiTiled(on: boolean): void {
+		if (!!this.wallMaterial.options.antiTiled === on) return;
+		const old = this.wallMaterial;
+		this.wallMaterial = remake(old, { antiTiled: on });
+		if (this.walls) this.walls.material = this.wallMaterial;
+		old.dispose();
+	}
+
+	/** One repeat of the look across `look.cells` cells, and up in whole steps (#177). */
+	private tile(): void {
+		const repeat = repeatFor(this.look?.cells ?? 1, this.grid?.cellSize ?? 1, STEP_HEIGHT);
+		setParams(this.wallMaterial, { repeat });
 	}
 	private walls: THREE.InstancedMesh | null = null;
 	/** Object id for each wall instance, so picking can map back to the wall. */
@@ -70,6 +111,7 @@ export class WallLayer {
 			this.grid.height !== grid.height ||
 			this.grid.cellSize !== grid.cellSize;
 		this.grid = { ...grid };
+		this.tile();
 		this.objects = objects;
 		this.rebuildWalls(objects, grid, ground);
 
@@ -137,8 +179,8 @@ export class WallLayer {
 	dispose(): void {
 		for (const id of [...this.doors.keys()]) this.removeDoor(id);
 		if (this.walls) this.walls.dispose();
-		this.wallGeometry.dispose();
-		undress(this.wallMaterial);
+		this.wallGeometry?.dispose();
+		for (const m of [this.wallMaterial, this.doorMaterial, this.doorHoverMaterial]) m.dispose();
 		this.doorGeometry.dispose();
 	}
 
@@ -184,9 +226,12 @@ export class WallLayer {
 			if (this.walls) {
 				this.group.remove(this.walls);
 				this.walls.dispose();
+				this.wallGeometry?.dispose();
 			}
 			// Grow in chunks so building a wall edge by edge does not reallocate every time.
 			const capacity = Math.max(64, Math.ceil(count * 1.5));
+			this.wallGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
+			addInstanceTints(this.wallGeometry, capacity);
 			this.walls = new THREE.InstancedMesh(this.wallGeometry, this.wallMaterial, capacity);
 			this.walls.castShadow = true;
 			this.walls.receiveShadow = true;
@@ -197,22 +242,19 @@ export class WallLayer {
 		for (const pieces of units.values()) {
 			for (const { owner, matrix } of pieces) {
 				this.walls.setMatrixAt(i, matrix);
-				this.walls.setColorAt(i, this.wallColor);
 				this.instanceOwner.push(owner);
 				i++;
 			}
 		}
 		this.walls.count = count;
 		this.walls.instanceMatrix.needsUpdate = true;
-		if (this.walls.instanceColor) this.walls.instanceColor.needsUpdate = true;
 		this.walls.computeBoundingSphere();
 	}
 
 	private createDoor(door: Door, grid: SquareGrid, key: string, floor: number): DoorEntry {
 		const hinge = cornerToWorld(grid, door.a);
 		const vertical = door.a.x === door.b.x;
-		const material = new THREE.MeshStandardMaterial({ color: DOOR_COLOR, roughness: 0.6 });
-		const panel = new THREE.Mesh(this.doorGeometry, material);
+		const panel = new THREE.Mesh(this.doorGeometry, this.doorMaterial);
 		panel.castShadow = true;
 		panel.receiveShadow = true;
 		// The panel extends from the hinge along the edge; rotating the pivot swings it open.
@@ -233,7 +275,7 @@ export class WallLayer {
 		this.group.add(frame);
 		const angle = door.open ? Math.PI / 2 : 0;
 		pivot.rotation.y = -angle;
-		const entry: DoorEntry = { pivot, material, angle, target: angle, from: angle, start: 0, key };
+		const entry: DoorEntry = { pivot, panel, angle, target: angle, from: angle, start: 0, key };
 		this.doors.set(door.id, entry);
 		return entry;
 	}
@@ -243,20 +285,22 @@ export class WallLayer {
 		if (!entry) return;
 		const frame = entry.pivot.parent!;
 		this.group.remove(frame);
-		entry.material.dispose();
 		this.doors.delete(id);
 	}
 
 	private applyHover(): void {
-		for (const [id, entry] of this.doors) {
-			entry.material.emissive.setHex(id === this.hoveredId ? 0x5a2a10 : 0x000000);
-		}
+		for (const [id, entry] of this.doors)
+			entry.panel.material = id === this.hoveredId ? this.doorHoverMaterial : this.doorMaterial;
 		if (!this.walls) return;
 		const hoveredWall = this.objects.some((o) => o.id === this.hoveredId && o.kind === 'wall');
+		const tints = this.walls.geometry.getAttribute(
+			TINT_ATTRIBUTE
+		) as THREE.InstancedBufferAttribute;
+		const { color, strength } = WALL_HOVER;
 		for (let i = 0; i < this.walls.count; i++) {
 			const hot = hoveredWall && this.instanceOwner[i] === this.hoveredId;
-			this.walls.setColorAt(i, hot ? WALL_HOVER_COLOR : this.wallColor);
+			tints.setXYZW(i, color.r, color.g, color.b, hot ? strength : 0);
 		}
-		if (this.walls.instanceColor) this.walls.instanceColor.needsUpdate = true;
+		tints.needsUpdate = true;
 	}
 }

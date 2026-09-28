@@ -5,8 +5,7 @@
 // its modes, dark areas, light counts past the pool, tokens and props in every state, both cues
 // and table travel. No step may change the programs or pipelines; a change names the step and
 // the stages it made or dropped (a stage is named after its material, and the material module
-// names its materials by kind, so layers ported onto the kinds in #172 are named as they are;
-// today's are mostly unnamed). Compiles today's renderer still makes are listed in KNOWN, with the
+// names its materials by kind: the layers #172 ported show as surface, terrain, prop and mini). Compiles today's renderer still makes are listed in KNOWN, with the
 // issue that ends them. New node states with no new program are reported, not failed:
 // they cost code generation, not a driver compile. r186 gives every InstancedMesh a vertex stage
 // of its own (materials.svelte.spec.ts), so the warm-up visits every table the sweep travels to:
@@ -29,7 +28,6 @@ import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
 import type { Tier } from './quality';
 import type { Tabletop } from './types';
 import {
-	BACKEND,
 	loadSidecar,
 	loadView,
 	manualClock,
@@ -97,28 +95,13 @@ async function drawn(t: Tabletop, clock: Clock): Promise<boolean> {
  * shrinks as they are fixed.
  */
 const KNOWN: Record<string, string> = {
-	// TokenLayer.sync toggles `transparent` on the mini's materials: a variant of its own (#172).
-	// Showing the token again can release it (when three next drops unused stages), and the next
-	// hide compiles it again.
-	'token hidden': '#172',
-	'tokens back': '#172',
 	// The selection ring and the turn marker live in the overlay scene, which the warm-up does not
 	// compile, so each compiles on the first click or turn (#180, the warm-up gallery).
 	'token selected': '#180',
-	'token active': '#180',
-	// WebGPU only: leaving the test world for the Hollow or the Heart releases two render pipelines
-	// (their stages stay), and coming back builds them again; the village keeps them. A pipeline is
-	// a driver compile on WebGPU. Unowned yet: #172 ports the layers whose meshes come and go.
-	...(BACKEND === 'webgpu'
-		? {
-				'travel to 48×36 cavern': '#172',
-				'travel to 16×14 living-cave': '#172',
-				'travel home': '#172'
-			}
-		: {})
+	'token active': '#180'
 };
 /** The KNOWN steps that always compile (on their first use). */
-const FIRST_USE = ['token hidden', 'token selected', 'token active'];
+const FIRST_USE = ['token selected', 'token active'];
 
 interface Sweep {
 	/** Runs `steps`, drawing after each; returns the steps that changed the counts, and how. */

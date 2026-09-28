@@ -6,7 +6,8 @@
 //
 // - `visibility`, RGBA8, linear, no mipmaps: R visible and G explored (the viewer's fog), B the
 //   rules' light level, A sky visibility (255 open, 0 in a dark area; #219 adds roofs).
-// - `ground`, RG8, nearest: R the floor (`FLOOR_IDS` index), G the level. #172 reads it.
+// - `ground`, RG8, nearest: R the floor (`FLOOR_IDS` index), G the level. The terrain kind reads
+//   it for floor colours and height (#172, materials/hooks.ts `groundColour`).
 //
 // Each channel is written only by its own update, and only when its input changed. The textures
 // are replaced when the grid's size changes, the nodes that read them keep their graph: the
@@ -19,6 +20,7 @@ import {
 	float,
 	floor,
 	ivec2,
+	normalWorldGeometry,
 	positionWorld,
 	texture,
 	textureLoad,
@@ -169,19 +171,27 @@ export const cellUniforms = {
 	gmTint: uniform(new THREE.Color(0.9, 0.94, 1)),
 	flash: uniform(0),
 	/** Fragments above this world height are cut (#72's cutaway). */
-	cutY: uniform(NO_CUT)
+	cutY: uniform(NO_CUT),
+	/** The highest level on the table (at least 1), which the terrain kind pales toward (#172). */
+	maxLevel: uniform(1)
 };
 
 const u = cellUniforms;
+/** Where a world point lies on the grid, 0-1 across it (rows in grid order). */
+const uvOf = (p: typeof positionWorld) =>
+	p.xz.div(u.cellSize).add(u.gridSize.mul(0.5)).div(u.gridSize);
 /** Where a fragment lies on the grid, 0-1 across it (rows in grid order). */
-export const cellUV = positionWorld.xz.div(u.cellSize).add(u.gridSize.mul(0.5)).div(u.gridSize);
+export const cellUV = uvOf(positionWorld);
 const size = ivec2(u.gridSize);
+/** The texel of the cell a grid position (0-1) falls in, clamped to the grid. */
 // Loosely typed: @types/three has clamp for floats only.
-const cell = (clamp as unknown as (...args: unknown[]) => typeof size)(
-	ivec2(floor(cellUV.mul(u.gridSize))),
-	ivec2(0, 0),
-	size.sub(1)
-);
+const cellAt = (at: typeof cellUV) =>
+	(clamp as unknown as (...args: unknown[]) => typeof size)(
+		ivec2(floor(at.mul(u.gridSize))),
+		ivec2(0, 0),
+		size.sub(1)
+	);
+const cell = cellAt(cellUV);
 /** Whether the fragment is over the grid: 1 or 0. Outside, `worldModify` is neutral. */
 export const onGrid = float(cellUV.x.greaterThanEqual(0))
 	.mul(float(cellUV.y.greaterThanEqual(0)))
@@ -196,8 +206,15 @@ const BLANK_GROUND = groundTexture(1, 1);
 export const visibilityTexel = textureLoad(BLANK_VISIBILITY, cell);
 /** The `visibility` map sampled linearly: B and A fall off smoothly between cells. */
 export const visibilitySmooth = texture(BLANK_VISIBILITY, cellUV);
-/** The fragment's cell's `ground` texel: R the floor's index / 255, G the level / 255. */
-export const groundTexel = textureLoad(BLANK_GROUND, cell);
+/**
+ * The `ground` texel of the cell a fragment belongs to: R the floor's index / 255, G the level /
+ * 255. Looked up a hundredth of a cell inside the surface, so a raised cell's sides (which lie on
+ * the line between two cells) read their own cell, not the neighbour's.
+ */
+export const groundTexel = textureLoad(
+	BLANK_GROUND,
+	cellAt(uvOf(positionWorld.sub(normalWorldGeometry.mul(u.cellSize.mul(0.01)))))
+);
 
 type Channel = 'fog' | 'light' | 'sky' | 'ground';
 
@@ -276,11 +293,12 @@ export class CellMaps {
 		}
 	}
 
-	/** The ground map from the floor and the levels. */
+	/** The ground map from the floor and the levels, and the highest level. */
 	setGround(floorIds: Uint8Array | null, levels: Uint8Array | null): void {
 		const t = this.ground;
 		if (!t || !this.changed('ground', floorIds, levels)) return;
 		packGround(t.image.data as Uint8Array, floorIds, levels);
+		u.maxLevel.value = Math.max(1, ...(levels ?? []));
 		t.needsUpdate = true;
 	}
 
@@ -298,6 +316,7 @@ export class CellMaps {
 	dispose(): void {
 		this.release();
 		this.grid = null;
+		u.gridSize.value.set(1, 1); // the blanks' size, so a lone material reads them in bounds
 		u.on.value = u.fogOn.value = u.flash.value = 0;
 		u.cutY.value = NO_CUT;
 	}
