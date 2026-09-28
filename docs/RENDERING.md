@@ -701,7 +701,7 @@ layers uses them yet (#172 ports the layers).
 | decal    | Standard, transparent              | as surface                        | as surface                    |
 | foliage  | Standard, alpha-tested, both sides | as surface; sways on `worldTime`  | as surface                    |
 | water    | Standard, transparent              | as surface; slides on `worldTime` | as surface                    |
-| overlay  | Basic, or LineBasic (`lines`)      | instanced, lines                  | albedo (lines: none)          |
+| overlay  | Basic, or LineBasic (`lines`)      | as surface; lines                 | albedo (lines: none)          |
 
 - **One graph per kind and variant** (`kinds.ts` `graphFor`), shared by all its materials: their
   values are `material.params.*` read through `materialReference`, kept in one object because r186
