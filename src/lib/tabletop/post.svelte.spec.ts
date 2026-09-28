@@ -13,7 +13,8 @@ import { loadEnvironment } from './environment';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { STILL } from './focus';
-import { TONE_MAPPERS } from '../assets/manifest';
+import { TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
+import { loadManifest } from '../assets/load';
 import { settingsFor, TIERS, type QualitySettings, type Tier } from './quality';
 import { BACKEND } from './testing';
 
@@ -616,7 +617,7 @@ describe.skipIf(BACKEND === 'webgpu')('the output stage', () => {
 describe('the colour grade', () => {
 	it('loads a strip in the layout the pipeline rendered it', async () => {
 		const look = await loadEnvironment('village');
-		const loaded = look!.grades!.aces.day;
+		const loaded = look!.grades!.ready.aces!.day;
 		const expected = renderGrade(readGrades(villageGrades).day.aces);
 		for (const [r, g, b] of [
 			[0, 0, 0],
@@ -683,5 +684,61 @@ describe('the colour grade', () => {
 		at(6000);
 		expect(post.blending).toBe(false);
 		expect(renderer.info.memory.programs).toBe(programs);
+	});
+
+	it("loads only the tone mapper in force, and another's strips once when it is picked", async () => {
+		const { renderer, post } = await setup();
+		const settings = { ...settingsFor('medium', BACKEND === 'webgpu' ? 'webgpu' : 'webgl2') };
+		post.set({ ...settings, toneMapper: 'aces' });
+		const manifest = await loadManifest();
+		const strips = (tm: ToneMapper) =>
+			Object.values(manifest.environments.village.lut![tm]).map((id) => manifest.textures[id].file);
+		const fetched: string[] = [];
+		const fetch = globalThis.fetch;
+		const spy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+			fetched.push(String(input));
+			return fetch(input, init);
+		});
+		const count = (tm: ToneMapper) =>
+			fetched.filter((url) => strips(tm).some((file) => url.endsWith(file))).length;
+		try {
+			const look = await loadEnvironment('village', 'aces');
+			const grades = look!.grades!;
+			expect(Object.keys(grades.ready)).toEqual(['aces']);
+			expect(count('neutral') + count('agx')).toBe(0);
+			const data = post.grade.texture.image.data as Uint8Array;
+			const at = (now: number) => {
+				advanceNodeFrame(renderer);
+				post.render(now);
+			};
+			post.setLook('village', 1, grades, 'day');
+			expect([...data]).toEqual([...grades.ready.aces!.day]);
+			const onLoad = vi.fn();
+			post.grade.onLoad = onLoad;
+			// Picked in the Graphics menu: the output recomposes and the strips start loading.
+			post.set({ ...settings, toneMapper: 'neutral' });
+			// A few frames first: some passes compile on their first frames, not the pipeline's.
+			for (const now of [0, 16, 32]) at(now);
+			const programs = renderer.info.memory.programs;
+			// Until they arrive the grade drawn stays.
+			expect(post.blending).toBe(false);
+			expect([...data]).toEqual([...grades.ready.aces!.day]);
+			await grades.load('neutral');
+			expect(onLoad).toHaveBeenCalled();
+			expect(post.blending).toBe(true);
+			at(100);
+			at(2000);
+			expect(post.blending).toBe(false);
+			expect([...data]).toEqual([...grades.ready.neutral!.day]);
+			expect(renderer.info.memory.programs).toBe(programs);
+			// Back and forth, and the next table: nothing loads again; agx was never picked.
+			post.set({ ...settings, toneMapper: 'aces' });
+			post.set({ ...settings, toneMapper: 'neutral' });
+			await loadEnvironment('village', 'neutral');
+			expect(count('neutral')).toBe(3);
+			expect(count('agx')).toBe(0);
+		} finally {
+			spy.mockRestore();
+		}
 	});
 });

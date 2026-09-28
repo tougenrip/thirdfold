@@ -28,8 +28,8 @@
 // maps 0 to 0 (the vignette multiplies; grain and dither are masked off at
 // black), so unexplored cells, black under the fog, stay exactly black.
 // The colour grade (#162) follows the tone mapper: the environment's lookup
-// table for the tone mapper and band, blended on the CPU into one 3D texture
-// over GRADE_BLEND_MS when any of them changes, so the shader never does.
+// table for the tone mapper and band (a tone mapper's loaded when first picked),
+// blended on the CPU into one 3D texture over GRADE_BLEND_MS, so no shader changes.
 
 import * as THREE from 'three/webgpu';
 import {
@@ -76,7 +76,7 @@ import {
 import type { Ambient } from '../game/lights';
 import type BloomNode from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
-import { GRADE_TONE_MAPPER } from '../assets/manifest';
+import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
 import { lensStrengths, type QualitySettings } from './quality';
 
 /** How much of the occlusion shows, when on. */
@@ -113,7 +113,7 @@ export class Post {
 		grade: uniform(1)
 	};
 	/** The grade drawn, blending toward the one in force (grade.ts). */
-	private readonly grade = new GradeBlend();
+	readonly grade = new GradeBlend();
 	/** Depth of field and tilt-shift (focus.ts), and how the output stage samples through them. */
 	readonly focus = new Focus();
 	/** Lens dirt (dirt.ts): `dirt.set(strength)`, 0 by default. */
@@ -221,11 +221,14 @@ export class Post {
 		return this.grade.blending;
 	}
 
+	/** The tone mapper in force: the one whose grades the table loads first. */
+	get toneMapper(): ToneMapper {
+		return this.stages?.toneMapper ?? GRADE_TONE_MAPPER;
+	}
+
 	/** Blends toward the grade for the environment, band and tone mapper now in force. */
 	private retarget(snap = false): void {
-		const { grades, band } = this.look;
-		const tm = this.stages?.toneMapper ?? GRADE_TONE_MAPPER;
-		this.grade.target(grades?.[tm][band] ?? null, snap);
+		this.grade.aim(this.look.grades, this.toneMapper, this.look.band, snap);
 	}
 
 	/**

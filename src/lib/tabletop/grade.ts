@@ -1,10 +1,12 @@
 // The colour grade drawn (#162): one 32³ lookup table in a 3D texture, its
 // bytes blended toward the target grade over GRADE_BLEND_MS whenever the
 // environment, band or tone mapper changes. The texture stays the same object,
-// so the shader that samples it never changes.
+// so the shader that samples it never changes. A tone mapper's grades load when
+// it is first aimed at: until they arrive the grade drawn stays, then they blend in.
 
 import * as THREE from 'three/webgpu';
-import { LUT_SIZE } from './environment';
+import { GRADE_TONE_MAPPER, type GradeBand, type ToneMapper } from '$lib/assets/manifest';
+import { LUT_SIZE, type Grades } from './environment';
 
 /** How long a change of grade takes to blend in (ms). */
 export const GRADE_BLEND_MS = 1500;
@@ -43,6 +45,26 @@ export class GradeBlend {
 		return this.blend !== null;
 	}
 
+	/** Called when a tone mapper's grades arrive and begin to blend in: the tabletop draws. */
+	onLoad = (): void => {};
+
+	/**
+	 * Blends toward `grades`' grade for `tm` and `band` (null: no grade), loading that tone
+	 * mapper's grades first if they have not been: meanwhile whatever is drawn stays.
+	 */
+	aim(grades: Grades | null, tm: ToneMapper, band: GradeBand, snap = false): void {
+		this.wanted = { grades, tm, band };
+		const set = grades?.ready[tm];
+		if (set !== undefined || !grades) return this.target(set?.[band] ?? null, snap);
+		void grades.load(tm).then(() => {
+			// Still the one wanted (the viewer may have picked again): blend it in.
+			const now = this.wanted;
+			if (now.grades !== grades || now.tm !== tm || this.disposed) return;
+			this.aim(grades, tm, now.band);
+			this.onLoad();
+		});
+	}
+
 	/**
 	 * Blends toward `to` (null: no grade) from whatever is drawn now, or with `snap` puts it in
 	 * place at once (a new table: no fade in from its last one).
@@ -75,9 +97,17 @@ export class GradeBlend {
 	}
 
 	dispose(): void {
+		this.disposed = true;
 		this.texture.dispose();
 	}
 
 	/** The grade last aimed at. */
 	private current: Uint8Array = IDENTITY;
+	/** What `aim` was last asked for. */
+	private wanted: { grades: Grades | null; tm: ToneMapper; band: GradeBand } = {
+		grades: null,
+		tm: GRADE_TONE_MAPPER,
+		band: 'day'
+	};
+	private disposed = false;
 }

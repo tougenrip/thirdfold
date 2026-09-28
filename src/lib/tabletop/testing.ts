@@ -134,7 +134,9 @@ export async function mountFixture(
 		...view.props.map((p) => p.assetId)
 	]);
 	await Promise.all([...models].map((id) => loadModel(id)));
-	if (view.environment) await loadEnvironment(view.environment);
+	// The page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
+	const toneMapper = toneMapperFrom(location.search) ?? undefined;
+	if (view.environment) await loadEnvironment(view.environment, toneMapper);
 
 	const canvas = document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
@@ -158,8 +160,6 @@ export async function mountFixture(
 	// A WebGPU project that silently fell back to WebGL2 would test the wrong thing.
 	if (webgpu && backend === 'webgl2') throw new Error('Asked for WebGPU, drawing with WebGL2');
 	// One tier for every test, whatever the device suggests (a software rasteriser picks low).
-	// And the page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
-	const toneMapper = toneMapperFrom(location.search) ?? undefined;
 	const miniature = !!options.miniature;
 	tabletop.setQuality({ ...settingsFor(options.tier ?? 'medium', backend), toneMapper, miniature });
 	const size = view.grid.width * view.grid.height;

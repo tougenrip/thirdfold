@@ -72,6 +72,7 @@ export async function createTabletop(
 		tactical: view === 'tactical',
 		target: controls.target
 	}));
+	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;
 
 	const table = new TableLayer();
@@ -409,7 +410,7 @@ export async function createTabletop(
 				applyLook();
 				return;
 			}
-			void loadEnvironment(next).then((loaded) => {
+			void loadEnvironment(next, post.toneMapper).then((loaded) => {
 				// Only if it is still the one wanted (tables can change quickly).
 				if (environment !== next) return;
 				look = loaded;

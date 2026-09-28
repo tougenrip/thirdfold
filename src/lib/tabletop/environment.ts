@@ -2,10 +2,17 @@
 // the materials of its floor, raised ground, walls and rim, with their
 // textures, loaded when the table first needs them. Textures are PNGs
 // loaded as images, once each, shared by every material that uses them. And
-// its colour grades (#162): a lookup table per tone mapper and ambient band.
+// its colour grades (#162): a lookup table per tone mapper and ambient band,
+// loaded a tone mapper at a time.
 
 import * as THREE from 'three/webgpu';
-import type { EnvironmentDef, GradeBand, MaterialDef, ToneMapper } from '$lib/assets/manifest';
+import {
+	GRADE_TONE_MAPPER,
+	type EnvironmentDef,
+	type GradeBand,
+	type MaterialDef,
+	type ToneMapper
+} from '$lib/assets/manifest';
 import { assetUrl, loadManifest } from '$lib/assets/load';
 
 /** One surface: its colour and finish, and its texture with how many cells one repeat covers. */
@@ -17,15 +24,12 @@ export interface Look {
 	cells: number;
 }
 
-/** 32³ RGBA lookup tables (x red, y green, z blue) by tone mapper and band. */
-export type Grades = Record<ToneMapper, Record<GradeBand, Uint8Array>>;
-
 export interface EnvironmentLook {
 	surface: Look;
 	ground: Look;
 	walls: Look;
 	table: Look;
-	/** Null when the environment has no grade. */
+	/** 32³ RGBA lookup tables (x red, y green, z blue); null when the environment has no grade. */
 	grades: Grades | null;
 }
 
@@ -56,35 +60,51 @@ async function loadGrade(file: string): Promise<Uint8Array> {
 	return out;
 }
 
-const gradeCache = new Map<string, Promise<Grades | null>>();
+/**
+ * An environment's grades, loaded a tone mapper at a time (its three bands) the first time
+ * that tone mapper is wanted: the rest wait for the viewer to pick them, so a table's first
+ * frame fetches 3 strips, not all 9.
+ */
+export class Grades {
+	/** The tone mappers loaded so far: their grades by band, or null if they failed to load. */
+	readonly ready: Partial<Record<ToneMapper, Record<GradeBand, Uint8Array> | null>> = {};
+	private readonly loading = new Map<ToneMapper, Promise<void>>();
 
-/** An environment's grades, loaded once. */
-function loadGrades(
-	lut: NonNullable<EnvironmentDef['lut']>,
-	key: string,
-	files: Record<string, { file: string }>
-): Promise<Grades | null> {
-	let loading = gradeCache.get(key);
-	if (!loading) {
-		loading = (async () => {
-			const entries = await Promise.all(
-				Object.entries(lut).map(async ([tm, bands]) => [
-					tm,
-					Object.fromEntries(
-						await Promise.all(
-							Object.entries(bands).map(async ([band, id]) => [
-								band,
-								await loadGrade(files[id].file)
-							])
-						)
-					)
-				])
-			);
-			return Object.fromEntries(entries) as Grades;
-		})().catch(() => null);
-		gradeCache.set(key, loading);
+	constructor(
+		private readonly lut: NonNullable<EnvironmentDef['lut']>,
+		private readonly files: Record<string, { file: string }>
+	) {}
+
+	/** Loads a tone mapper's grades, once; resolves when they are in `ready`. */
+	load(tm: ToneMapper): Promise<void> {
+		let loading = this.loading.get(tm);
+		if (!loading) {
+			const bands = Object.entries(this.lut[tm]);
+			loading = Promise.all(
+				bands.map(async ([band, id]) => [band, await loadGrade(this.files[id].file)] as const)
+			)
+				.then((loaded) => Object.fromEntries(loaded) as Record<GradeBand, Uint8Array>)
+				.catch(() => null)
+				.then((set) => void (this.ready[tm] = set));
+			this.loading.set(tm, loading);
+		}
+		return loading;
 	}
-	return loading;
+}
+
+const gradeCache = new Map<string, Grades>();
+
+/** An environment's grades (one Grades per environment), with `toneMapper`'s loaded. */
+async function gradesOf(
+	id: string,
+	lut: NonNullable<EnvironmentDef['lut']>,
+	files: Record<string, { file: string }>,
+	toneMapper: ToneMapper
+): Promise<Grades> {
+	let grades = gradeCache.get(id);
+	if (!grades) gradeCache.set(id, (grades = new Grades(lut, files)));
+	await grades.load(toneMapper);
+	return grades;
 }
 
 const textures = new Map<string, Promise<THREE.Texture | null>>();
@@ -128,8 +148,14 @@ async function look(def: MaterialDef, files: Record<string, { file: string }>): 
 	};
 }
 
-/** An environment's looks, or null if the manifest has no such environment. */
-export async function loadEnvironment(id: string): Promise<EnvironmentLook | null> {
+/**
+ * An environment's looks, or null if the manifest has no such environment. Its grades for
+ * `toneMapper` are loaded with it; another tone mapper's load when asked for (Grades.load).
+ */
+export async function loadEnvironment(
+	id: string,
+	toneMapper: ToneMapper = GRADE_TONE_MAPPER
+): Promise<EnvironmentLook | null> {
 	const manifest = await loadManifest();
 	const env = manifest.environments[id];
 	if (!env) return null;
@@ -139,7 +165,7 @@ export async function loadEnvironment(id: string): Promise<EnvironmentLook | nul
 				look(manifest.materials[m], manifest.textures)
 			)
 		),
-		env.lut ? loadGrades(env.lut, id, manifest.textures) : null
+		env.lut ? gradesOf(id, env.lut, manifest.textures, toneMapper) : null
 	]);
 	return { surface, ground, walls, table, grades };
 }

@@ -116,8 +116,10 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
     1024×32 lookup-table strip, `grade-<environment>-<band>-<tone mapper>`: 32 slices of 32×32
     side by side, blue choosing the slice, red across and green down, saved with PNG's sub filter
     (8–17 kB each). The pipeline refuses a strip that moves black, and the environment's `lut`
-    in the manifest names its nine strips. The client loads an environment's strips with it and
-    blends the one for the viewer's tone mapper and the band into the picture (`grade.ts`).
+    in the manifest names its nine strips. The client loads the three for the viewer's tone
+    mapper with the environment, another tone mapper's three when the viewer picks it (once
+    each, `Grades` in `environment.ts`), and blends the one for the band into the picture
+    (`grade.ts`).
 
 ### Audio
 

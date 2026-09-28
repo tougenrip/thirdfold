@@ -565,7 +565,8 @@ passes, in order:
     mapper and the ambient band (`docs/ASSETS.md`), a Graphics option (Colour grading,
     `?off=grade`). A new environment's grade is put in place at once; a change of band or tone
     mapper blends its bytes over 1.5 s on the CPU (the tabletop draws while it does), so the
-    shader never changes. Every strip keeps black at 0, checked by the pipeline, and the loader
+    shader never changes. A table loads only its tone mapper's three strips; picking another
+    loads that one's three, keeping the grade drawn until they arrive. Every strip keeps black at 0, checked by the pipeline, and the loader
     forces texel 0 to black against canvas-read noise.
 - **Antialiasing** (#163, `antialias.ts`) is one Graphics option with five modes (`AaMode`): off;
   FXAA on the finished colour after the grade (grain, the overlay and dither come after it); SMAA
