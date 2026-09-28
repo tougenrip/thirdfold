@@ -777,7 +777,8 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
     overlay, so unexplored cells stay exactly black after post. The attachment clears to the
     background's colour, whose linear red stays under `HIDDEN_FLOOR` (0.1), so the sky around the
     table counts as shown (`post.svelte.spec.ts`, and `unexplored-black.svelte.spec.ts` on every
-    tier it covers, both backends).
+    tier it covers, both backends). Dice are not the world: their materials write 0 there
+    (`dieMaterial`, dice3d.ts), so a throw over a hidden cell still shows, as it did over the plane.
 - **Hooks**, each the identity until its issue: `surfaceMapping` (#177), `paintNormal`/`paintRoughness`
   (#178) and `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
   `aTint` attribute is the emissive tint input #172's hover and selection use.

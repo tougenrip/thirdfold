@@ -5,6 +5,7 @@
 // client sees the same throw.
 
 import * as THREE from 'three/webgpu';
+import { mrt, output, vec4 } from 'three/tsl';
 import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
 import { DIE_LABELS, seededRandom } from './dice-faces';
@@ -29,7 +30,7 @@ const FADE_S = 0.5;
 
 interface ActiveDie {
 	root: THREE.Group;
-	materials: THREE.MeshStandardMaterial[];
+	materials: THREE.MeshStandardNodeMaterial[];
 	from: THREE.Vector3;
 	to: THREE.Vector3;
 	restY: number;
@@ -58,6 +59,18 @@ function bounce(t: number): number {
 }
 
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
+
+/**
+ * Dice are not the world: they write "shown" into the scene pass's `hidden` attachment (post.ts),
+ * so the output stage never blacks them out where they fly over a cell the fog hides (#173).
+ * One node for every die, so they share their programs.
+ */
+const SHOWN = mrt({ output, hidden: vec4(0, 0, 0, output.a) });
+export function dieMaterial(parameters: THREE.MeshStandardMaterialParameters) {
+	const material = new THREE.MeshStandardNodeMaterial(parameters);
+	material.mrtNode = SHOWN;
+	return material;
+}
 const smoothstep = (a: number, b: number, t: number) => {
 	const u = Math.min(Math.max((t - a) / (b - a), 0), 1);
 	return u * u * (3 - 2 * u);
@@ -188,8 +201,8 @@ export class DiceLayer {
 		kind: DieKind,
 		model: DieModel,
 		color: string
-	): { root: THREE.Group; materials: THREE.MeshStandardMaterial[] } {
-		const body = new THREE.MeshStandardMaterial({
+	): { root: THREE.Group; materials: THREE.MeshStandardNodeMaterial[] } {
+		const body = dieMaterial({
 			color,
 			roughness: 0.35,
 			metalness: 0.05,
@@ -210,7 +223,7 @@ export class DiceLayer {
 			up: THREE.Vector3,
 			size: number
 		) => {
-			const material = new THREE.MeshStandardMaterial({
+			const material = dieMaterial({
 				map: this.label(text, kind, ink),
 				transparent: true,
 				depthWrite: false,

@@ -6,7 +6,8 @@
 // motion the bell still swings, gently, and nothing else moves. The flash:
 // the whole table lights up at once (the renderer hands it to
 // `CellMaps.setFlash`, which thins the dark in every material's
-// `worldModify`) and fades back into the dark over FLASH_MS, exactly as long as the server lights the table for (it plays
+// `worldModify`) and fades back into the dark over FLASH_MS, exactly as long
+// as the server lights the table for (it plays
 // alongside a toll; reduced motion keeps it, as it is the one sign of what
 // the server's fog is showing for that moment).
 

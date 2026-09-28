@@ -8,6 +8,7 @@ import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeMask, type FogView } from '$lib/game/visibility';
 import { CellMaps } from './cell-maps';
+import { dieMaterial } from './dice3d';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
@@ -211,13 +212,14 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		world: THREE.Object3D[],
 		overlay: OverlayLayer,
 		size = 200,
-		tune: (post: Post) => void = () => {}
+		tune: (post: Post) => void = () => {},
+		background = 0x000000
 	) {
 		const canvas = document.createElement('canvas');
 		renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
 		renderer.setSize(size, size, false);
 		const scene = new THREE.Scene();
-		scene.background = new THREE.Color(0x000000);
+		scene.background = new THREE.Color(background);
 		if (world.length) scene.add(...world);
 		const camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 20);
 		camera.position.set(0, 10, 0);
@@ -344,6 +346,42 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		const fogged = await read();
 		expect(Math.max(...fogged.west)).toBe(0);
 		expect(Math.max(...fogged.east)).toBeGreaterThan(200);
+	});
+
+	it('shows dice thrown over a cell the fog hides', async () => {
+		// The west half hidden; a die's material there, glowing white, and the plain world's.
+		westHidden();
+		const die = plane(0, 0.1, dieMaterial({ emissive: 0xffffff }));
+		die.scale.setScalar(0.1);
+		die.position.x = -1.5;
+		const world = plane(0, 0.1, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+		world.scale.setScalar(0.1);
+		world.position.x = -0.5;
+		const at = await view([die, world], new OverlayLayer());
+		expect(Math.min(...at(-1.5, 0))).toBeGreaterThan(200);
+		expect(Math.max(...at(-0.5, 0))).toBe(0);
+	});
+
+	it('leaves the background around the table shown under the fog', async () => {
+		// The day's background (lighting.ts), the brightest red: the clear colour of the `hidden`
+		// attachment too, which must read as shown. A 2×2 grid in the middle, all of it hidden.
+		maps = new CellMaps();
+		const none = encodeMask(new Uint8Array(4));
+		const fog: FogView = { enabled: true, shared: false, visible: none, explored: none };
+		maps.update(
+			{ ...TABLE, width: 2, height: 2 },
+			{ fog, mode: 'player' },
+			'day',
+			null,
+			null,
+			null,
+			null
+		);
+		const white = plane(0xffffff, 0);
+		white.scale.setScalar(0.5); // the grid's 2×2 cells
+		const at = await view([white], new OverlayLayer(), 200, () => {}, 0x292421);
+		expect(Math.max(...at(0, 0))).toBe(0);
+		expect(Math.min(...at(1.6, 1.6))).toBeGreaterThan(0);
 	});
 });
 
