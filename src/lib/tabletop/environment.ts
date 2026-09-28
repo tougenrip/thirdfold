@@ -202,7 +202,8 @@ export function dress(
 	material.roughness = look.roughness;
 	material.metalness = look.metalness;
 	if (look.map) {
-		const map = look.map.clone();
+		// The copy is what is drawn, so it is the one a tier switch must reach (#179).
+		const map = worldTexture(look.map.clone());
 		map.repeat.set(across / look.cells, down / look.cells);
 		map.needsUpdate = true;
 		material.map = map;
