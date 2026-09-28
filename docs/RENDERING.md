@@ -757,8 +757,9 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
   `clearcoatNode` on `params.clearcoat` (0 until #267).
 - **World modify** (#171): `worldModify` last on every kind and `worldEmissive` on its emissive
   (`world-modify.ts`) read the cell maps (`cell-maps.ts`: `visibility` RGBA8, R visible, G explored,
-  B the rules' light level, A sky visibility; `ground` RG8, floor index and level; grid row order,
-  one texel per cell, fed by `CellMaps.update` from the renderer's `relight`) and uniforms only:
+  B the rules' light level, A sky visibility; `ground` RGBA8, floor index and level, then the
+  reveal fades of #174; grid row order, one texel per cell, fed by `CellMaps.update` from the
+  renderer's `relight`) and uniforms only:
   a player's hidden cells exactly 0 (haze and emissive included), explored dim, desaturated and
   cool, the GM's unseen cells tinted, darkness `1 - shade x (1 - max(level, fill))` as the old
   overlay drew it, the flash, and a discard above `cutY`. Fog, mode, ambient, flash, cut and a new
@@ -779,6 +780,28 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
     table counts as shown (`post.svelte.spec.ts`, and `unexplored-black.svelte.spec.ts` on every
     tier it covers, both backends). Dice are not the world: their materials write 0 there
     (`dieMaterial`, dice3d.ts), so a throw over a hidden cell still shows, as it did over the plane.
+  - Fog as atmosphere (#174, `fog-soft.ts` holds the pure mirrors, tested in `fog-soft.spec.ts`):
+    soft edges take the `visibility` map's linear samples of R and G through a `smoothstep` band
+    (`edgeBand`, 0.3 of the sample) that low world noise (`mx_noise_float`, no time term, so edges
+    don't crawl; `edgeNoise`, `edgeScale`) pushes inward only, and keep `min(hard, soft)`: 0 on the
+    line between cells whatever the noise, the cell's own value at a known cell's centre, a hidden
+    cell exactly 0, and `worldHidden` reads the same soft factor, so the output stage's re-mask
+    follows the edge. Reveals fade: `CellMaps.setFog` diffs the viewer's visible mask on the client
+    (`RevealFades`) and writes each newly visible cell's remaining fade and the state it came from
+    (hidden or explored) into the `ground` map's B and A (RGBA8 since #174, so no texture is added
+    to any stage), rewritten on the renderer's clock by `CellMaps.tick` only while a fade runs
+    (`FADE_MS`, 450), which counts as movement for the scheduler: frames stop when the last fade
+    ends. Losing sight is immediate, a new mode or table fades nothing, and under reduced motion
+    reveals are instant. The fog cloud (`fog-cloud.ts`) is one overlay-kind mesh over the grid,
+    `cloudDivisions` vertices a cell under a 64k cap, raised in the vertex stage by an `aHidden`
+    attribute (`cloudMask`: 1 - explored, bilinear between cell centres) times fractal noise on
+    `cloudTime`, capped at a quarter cell and sunk into the slab where nothing is hidden; raycast
+    off, players and spectators only, black over hidden cells through `worldModify`. It drifts only
+    while the scheduler draws ambient frames and is held still on low, under reduced motion and in
+    power saver; its layer (`fogcloud`, `?off=fogcloud`) is off until the owner approves it on
+    ref-1 and the Hollow. The warm-up compiles it through `FogCloudLayer.warm`, the same geometry
+    and material never hidden, so turning it on compiles nothing (the program-count sweep's fog
+    cloud and reveal steps).
 - **Hooks**, each the identity until its issue: `surfaceMapping` (#177), `paintNormal`/`paintRoughness`
   (#178) and `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
   `aTint` attribute is the emissive tint input #172's hover and selection use.

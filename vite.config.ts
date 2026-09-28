@@ -70,7 +70,8 @@ const RENDER_SPECS = [
 	'cell-maps',
 	'program-count',
 	'mapping',
-	'kind-layers'
+	'kind-layers',
+	'fog-soft'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

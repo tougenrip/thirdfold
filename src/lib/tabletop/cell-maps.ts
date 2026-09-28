@@ -6,8 +6,11 @@
 //
 // - `visibility`, RGBA8, linear, no mipmaps: R visible and G explored (the viewer's fog), B the
 //   rules' light level, A sky visibility (255 open, 0 in a dark area; #219 adds roofs).
-// - `ground`, RG8, nearest: R the floor (`FLOOR_IDS` index), G the level. The terrain kind reads
-//   it for floor colours and height (#172, materials/hooks.ts `groundColour`).
+// - `ground`, RGBA8, nearest: R the floor (`FLOOR_IDS` index), G the level. The terrain kind reads
+//   them for floor colours and height (#172, materials/hooks.ts `groundColour`). B and A are the
+//   reveal fades (#174, fog-soft.ts `RevealFades`): B how much of a cell's fade is left, A whether
+//   it came from explored ground. They sit here, not in a map of their own, to keep the textures a
+//   stage samples few, and they are rewritten only while a fade runs.
 //
 // Since #173 these are the only fog and darkness the picture has: every material composes
 // `worldModify`, the grid lines read the same terms, and the output stage re-masks hidden cells
@@ -34,6 +37,7 @@ import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient } from '$lib/game/lights';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 import type { FogMode } from './fog';
+import { EDGE_BAND, EDGE_NOISE, EDGE_SCALE, RevealFades } from './fog-soft';
 
 /** Night's darkness, which a dark area has at any hour (lighting.ts, `PRESETS.dark.dark`). */
 export const NIGHT_DARK = 0.82;
@@ -90,13 +94,13 @@ export function packSky(data: Uint8Array, dark: ArrayLike<number> | null) {
 	for (let i = 0, o = 3; o < data.length; i++, o += 4) data[o] = dark?.[i] ? 0 : 255;
 }
 
-/** Writes the ground: R the floor's index, G the level. */
+/** Writes the ground: R the floor's index, G the level (B and A are the fades'). */
 export function packGround(
 	data: Uint8Array,
 	floorIds: ArrayLike<number> | null,
 	levels: ArrayLike<number> | null
 ) {
-	for (let i = 0, o = 0; o < data.length; i++, o += 2) {
+	for (let i = 0, o = 0; o < data.length; i++, o += 4) {
 		data[o] = floorIds?.[i] ?? 0;
 		data[o + 1] = levels?.[i] ?? 0;
 	}
@@ -135,8 +139,7 @@ function dataTexture(
 	filter: typeof THREE.LinearFilter | typeof THREE.NearestFilter,
 	fill: number
 ): THREE.DataTexture {
-	const channels = format === THREE.RGFormat ? 2 : 4;
-	const data = new Uint8Array(width * height * channels).fill(fill);
+	const data = new Uint8Array(width * height * 4).fill(fill);
 	const t = new THREE.DataTexture(data, width, height, format, THREE.UnsignedByteType);
 	t.magFilter = filter;
 	t.minFilter = filter;
@@ -148,7 +151,7 @@ function dataTexture(
 const visibilityTexture = (w: number, h: number) =>
 	dataTexture(w, h, THREE.RGBAFormat, THREE.LinearFilter, 255);
 const groundTexture = (w: number, h: number) =>
-	dataTexture(w, h, THREE.RGFormat, THREE.NearestFilter, 0);
+	dataTexture(w, h, THREE.RGBAFormat, THREE.NearestFilter, 0);
 
 /**
  * The uniforms `worldModify` reads. Module-wide, like `worldTime`: one tabletop draws at a time,
@@ -175,7 +178,11 @@ export const cellUniforms = {
 	/** Fragments above this world height are cut (#72's cutaway). */
 	cutY: uniform(NO_CUT),
 	/** The highest level on the table (at least 1), which the terrain kind pales toward (#172). */
-	maxLevel: uniform(1)
+	maxLevel: uniform(1),
+	/** Soft fog edges (#174, fog-soft.ts): the band's width, the noise's reach and frequency. */
+	edgeBand: uniform(EDGE_BAND),
+	edgeNoise: uniform(EDGE_NOISE),
+	edgeScale: uniform(EDGE_SCALE)
 };
 
 const u = cellUniforms;
@@ -218,7 +225,7 @@ export const groundTexel = textureLoad(
 	cellAt(uvOf(positionWorld.sub(normalWorldGeometry.mul(u.cellSize.mul(0.01)))))
 );
 
-/** The `ground` texel of the fragment's cell, for what has no normals (the grid lines). */
+/** The `ground` texel of the fragment's cell, for what has no normals (the grid lines) and the fades. */
 export const groundFlat = textureLoad(BLANK_GROUND, cell);
 
 type Channel = 'fog' | 'light' | 'sky' | 'ground';
@@ -230,6 +237,11 @@ export class CellMaps {
 	private grid: SquareGrid | null = null;
 	/** Each channel's inputs when it was last written, compared by identity. */
 	private last = new Map<Channel, unknown[]>();
+	private fades = new RevealFades();
+	private mode: FogMode | null = null;
+
+	/** `clock` is the renderer's (ms): reveals fade on it. */
+	constructor(private readonly clock: () => number = () => performance.now()) {}
 
 	/** Sizes the maps for a grid; a new size replaces the textures, and every channel follows. */
 	setGrid(grid: SquareGrid): void {
@@ -244,6 +256,7 @@ export class CellMaps {
 		visibilityTexel.value = visibilitySmooth.value = this.visibility;
 		groundTexel.value = groundFlat.value = this.ground;
 		this.last.clear();
+		this.fades.reset();
 	}
 
 	/**
@@ -271,11 +284,35 @@ export class CellMaps {
 		u.fogMode.value = mode === 'gm' ? 1 : 0;
 		const on = fog?.enabled ? fog : null;
 		const t = this.visibility;
+		// A new mode is a new picture, not a reveal: nothing fades across it.
+		if (mode !== this.mode) {
+			this.fades.reset();
+			this.last.delete('fog'); // repacked, so the fades know the masks again
+		}
+		this.mode = mode;
 		if (!this.grid || !t || !this.changed('fog', on?.visible, on?.explored)) return;
 		const size = this.grid.width * this.grid.height;
 		const mask = (encoded: string | undefined) => (encoded ? decodeMask(encoded, size) : null);
-		packFog(t.image.data as Uint8Array, mask(on?.visible), mask(on?.explored));
+		const [visible, explored] = [mask(on?.visible), mask(on?.explored)];
+		packFog(t.image.data as Uint8Array, visible, explored);
 		t.needsUpdate = true;
+		this.fades.update(visible, explored, this.clock());
+	}
+
+	/** Under reduced motion reveals are instant (#174). */
+	setReducedMotion(reduced: boolean): void {
+		this.fades.setReducedMotion(reduced);
+	}
+
+	/**
+	 * Writes the reveal fades for time `now` (ms, the renderer's clock) before a frame; returns
+	 * whether one is still under way, so the renderer draws another frame (and only then).
+	 */
+	tick(now: number): boolean {
+		if (!this.ground || !this.fades.pending) return false;
+		const fading = this.fades.pack(this.ground.image.data as Uint8Array, now);
+		this.ground.needsUpdate = true;
+		return fading;
 	}
 
 	/** B from the rules' light levels (null: all lit), A from the dark areas, and the ambient. */
@@ -300,7 +337,7 @@ export class CellMaps {
 		// A map of another size (the last table's, until its own arrives) paints nothing.
 		const n = this.grid.width * this.grid.height;
 		const fit = (a: Uint8Array | null) => (a?.length === n ? a : null);
-		packGround(t.image.data as Uint8Array, fit(floorIds), fit(levels));
+		packGround(t.image.data as Uint8Array, fit(floorIds), fit(levels)); // B and A kept
 		u.maxLevel.value = Math.max(1, ...(fit(levels) ?? []));
 		t.needsUpdate = true;
 	}
@@ -319,6 +356,7 @@ export class CellMaps {
 	dispose(): void {
 		this.release();
 		this.grid = null;
+		this.mode = null;
 		u.gridSize.value.set(1, 1); // the blanks' size, so a lone material reads them in bounds
 		u.fogOn.value = u.flash.value = 0;
 		u.cutY.value = NO_CUT;
