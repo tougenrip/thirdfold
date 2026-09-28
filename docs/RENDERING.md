@@ -778,6 +778,17 @@ layers uses them yet (#172 ports the layers).
     Two coplanar lifted sheets are on average a third of `params.lift` (3e-4 of a cell) apart, so
     they resolve to about 23 units away, and the whole lift to about 41; farther, coplanar
     surfaces need the reversed float depth buffer, decided with the horizon work in 67.
+- **Paint** (#178, `paint.ts`): props and minis take TaleSpire's painted-miniature recipe through
+  `paintNormal`/`paintRoughness`, sampled triplanar in object space (`positionGeometry`,
+  `normalGeometry`: r186 gives instanced meshes the instance-transformed `positionLocal`, so noise
+  there would swim as a prop glides). The noise tilt comes in a frame of screen-space derivatives
+  of each projection's coordinates and is added over the vertex normal; gloss sets
+  `roughness = clamp(r - (gloss - 0.5) × amount, 0.1, 1)`, smoothness capped at 0.9. The maps
+  (`paint-normal`, `paint-gloss`, 256 px, linear data) load when the first painted graph is built,
+  behind neutral blanks sampled the same way; `paint.strength` (0.5; 0 is unpainted), `paint.gloss`
+  (0.4) and `paint.scale` (repeats per cell, 1.5) are uniforms shared by every painted material.
+  Six fetches per prop or mini fragment. `paint.svelte.spec.ts`: the maps' arrival and tuning add
+  no program or node state, 1 and 200 props share one, and the paint moves with a gliding prop.
 - **Animated kinds** read `worldTime`, a uniform the renderer owns and holds still under reduced
   motion, never three's `time`.
 - **No GLSL, no `onBeforeCompile`**: ESLint refuses `onBeforeCompile`, `glslFn` and `wgslFn` under

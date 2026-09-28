@@ -7,12 +7,13 @@
 //   position on the surface and terrain kinds, the geometry's own space for a `local` material
 //   (door panels), triplanar on rock, object space on props and minis, the mesh's uv elsewhere.
 // - `slotSample`: #179's sampler settings (the `uMipBias` with TRAA on high). A plain sample.
-// - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis. Unpainted.
+// - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis (paint.ts).
 
 import type { SlotName } from './defaults';
 import { slotDefault, slotProperty } from './defaults';
 import type { ShaderKind, Variant } from './kinds';
 import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
+import { paintedNormal, paintedRoughness } from './paint';
 import { tsl, type N } from './tsl';
 
 /**
@@ -51,8 +52,12 @@ export function slotSample(slot: SlotName, at: N): N {
 	return ref;
 }
 
-/** The view-space normal after paint noise. Unpainted until #178. */
-export const paintNormal = (kind: ShaderKind, normal: N): N => normal;
+const painted = (kind: ShaderKind) => kind === 'prop' || kind === 'mini';
 
-/** Roughness after paint gloss. Unpainted until #178. */
-export const paintRoughness = (kind: ShaderKind, roughness: N): N => roughness;
+/** The view-space normal after paint noise: props and minis only. */
+export const paintNormal = (kind: ShaderKind, normal: N): N =>
+	painted(kind) ? paintedNormal(normal) : normal;
+
+/** Roughness after paint gloss: props and minis only. */
+export const paintRoughness = (kind: ShaderKind, roughness: N): N =>
+	painted(kind) ? paintedRoughness(roughness) : roughness;

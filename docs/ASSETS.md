@@ -97,6 +97,11 @@ says what a prop is (footprint, what it blocks); the model only says how it look
 - **A texture recipe** is `{ "recipe": "noise" | "flagstones" | "planks", "size": 16..512 (a power
 of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PNG every time. A
   PNG can be provided instead.
+- **A paint recipe** (#178) is `{ "recipe": "paint", "output": "normal" | "gloss", "size", "seed",
+"scale" }`, no colours: two octaves of tiling value noise as a height field, turned into a
+  tangent-space normal map by a Sobel filter whose neighbours wrap (`normal`), or kept as grey
+  (`gloss`, 0.5 neutral). Both are data, loaded linear: `paint-normal` and `paint-gloss` are the
+  paint detail props and minis sample in object space (`docs/RENDERING.md`, "Shader kinds").
 - **A material** is `{ "color", "roughness", "metalness", "map": <texture>, "cells": n }`. `cells`
   is how many cells one repeat of the texture covers.
 - **An environment** is `{ "name", "surface", "ground", "walls", "table" }`. Each field names a

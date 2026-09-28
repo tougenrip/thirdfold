@@ -164,7 +164,8 @@ export default defineConfig({
 									'src/lib/tabletop/materials.svelte.spec.ts',
 									'src/lib/tabletop/cell-maps.svelte.spec.ts',
 									'src/lib/tabletop/program-count.svelte.spec.ts',
-									'src/lib/tabletop/mapping.svelte.spec.ts'
+									'src/lib/tabletop/mapping.svelte.spec.ts',
+									'src/lib/tabletop/paint.svelte.spec.ts'
 								]
 							}
 						}
