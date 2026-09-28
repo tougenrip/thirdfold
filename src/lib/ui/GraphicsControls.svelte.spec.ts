@@ -7,7 +7,7 @@ import GraphicsControls from './GraphicsControls.svelte';
 afterEach(() => localStorage.removeItem('thirdfold:graphics'));
 
 /** The menu as the room shows it: its choice saved in this browser. */
-function mount(backend: 'webgpu' | 'webgl2' = 'webgpu') {
+function mount(backend: 'webgpu' | 'webgpu-compat' | 'webgl2' = 'webgpu') {
 	return render(GraphicsControls, {
 		graphics: loadGraphics(localStorage),
 		effective: { tier: 'medium', backend },
@@ -93,6 +93,23 @@ describe('the Graphics menu', () => {
 		await expect.element(page.getByText('Preset (customised)')).toBeInTheDocument();
 		await userEvent.selectOptions(page.getByRole('combobox', { name: 'Antialiasing' }), 'MSAA 4×');
 		expect(loadGraphics(localStorage).overrides).toEqual({});
+	});
+
+	it('offers every antialiasing, SMAA among them, and no MSAA on compatibility WebGPU', async () => {
+		mount('webgpu-compat');
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		await userEvent.click(page.getByText('Advanced'));
+		const select = page.getByRole('combobox', { name: 'Antialiasing' });
+		const options = [...(select.element() as HTMLSelectElement).options];
+		expect(options.map((o) => [o.text, o.disabled])).toEqual([
+			['Off', false],
+			['FXAA', false],
+			['SMAA', false],
+			['MSAA 4×', true],
+			['TRAA', false]
+		]);
+		await userEvent.selectOptions(select, 'SMAA');
+		expect(loadGraphics(localStorage).overrides).toEqual({ aa: 'smaa' });
 	});
 
 	it('picks the tone mapper, saved, Filmic by default', async () => {

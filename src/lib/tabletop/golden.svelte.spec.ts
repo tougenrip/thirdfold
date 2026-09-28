@@ -79,3 +79,25 @@ describe.skipIf(!linux)('golden images', () => {
 		});
 	}
 });
+
+// #163: a still on the high tier, drawn after TRAA's converge frames under the held clock (the
+// Halton jitter and GTAO's rotations follow the frame count, so the still is the same each run).
+describe.skipIf(!linux)('golden images, TRAA converged', () => {
+	it('ref-1 close high converged gm', async () => {
+		const sidecar = await loadSidecar('ref-1');
+		const view = await loadView('ref-1', sidecar.ambient, 'gm');
+		mounted = await mountFixture(view, sidecar.poses.close, {
+			clock: manualClock(5000),
+			tier: 'high'
+		});
+		await settle(mounted.tabletop);
+		const stats = mounted.tabletop.stats();
+		// Converged and stopped: nothing more is drawn.
+		expect([stats.tier, stats.mode]).toEqual(['high', 'idle']);
+		expect(stats.frames).toBeGreaterThanOrEqual(24);
+		const suffix = BACKEND === 'webgpu' ? '-webgpu' : '';
+		await expect
+			.element(page.elementLocator(mounted.canvas))
+			.toMatchScreenshot(`ref-1-close-high-converged-gm${suffix}`);
+	});
+});

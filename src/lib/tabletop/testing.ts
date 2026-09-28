@@ -19,7 +19,7 @@ import { groundFor } from './ground';
 import { labelFontReady } from './label-font';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
-import { settingsFor, toneMapperFrom } from './quality';
+import { settingsFor, toneMapperFrom, type Tier } from './quality';
 import { createTabletop } from './renderer';
 import type { Tabletop, TabletopEvents } from './types';
 
@@ -124,6 +124,8 @@ export async function mountFixture(
 		perf?: boolean;
 		/** Miniature on in the tabletop view: depth of field at the pose (#165; motion not reduced). */
 		miniature?: boolean;
+		/** The quality tier, medium unless said (the high tier's TRAA golden, #163). */
+		tier?: Tier;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -159,7 +161,7 @@ export async function mountFixture(
 	// And the page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
 	const toneMapper = toneMapperFrom(location.search) ?? undefined;
 	const miniature = !!options.miniature;
-	tabletop.setQuality({ ...settingsFor('medium', backend), toneMapper, miniature });
+	tabletop.setQuality({ ...settingsFor(options.tier ?? 'medium', backend), toneMapper, miniature });
 	const size = view.grid.width * view.grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
 	// In the order the Tabletop component sets them.

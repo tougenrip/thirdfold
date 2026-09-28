@@ -60,8 +60,11 @@ export const LAYERS = [
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
-/** Antialiasing (#163): none, FXAA after the tone mapper, MSAA 4×, or temporal (TRAA). */
-export const AA_MODES = ['off', 'fxaa', 'msaa', 'traa'] as const;
+/**
+ * Antialiasing (#163): none, FXAA after the tone mapper, SMAA on the HDR image, MSAA 4×, or
+ * temporal (TRAA). In order of cost, as the Graphics menu lists them.
+ */
+export const AA_MODES = ['off', 'fxaa', 'smaa', 'msaa', 'traa'] as const;
 export type AaMode = (typeof AA_MODES)[number];
 
 /** TRAA's frames to converge after the last change (under one 32-frame Halton cycle). */
@@ -232,10 +235,10 @@ export function settingsFor(tier: Tier, backend: Backend): QualitySettings {
 
 /**
  * What follows from the antialiasing: MSAA's samples and TRAA's converge frames. Compatibility
- * WebGPU has no MSAA, so FXAA stands in for it.
+ * WebGPU has no MSAA, so SMAA stands in for it.
  */
 function derive(s: QualitySettings, backend: Backend): QualitySettings {
-	const aa = backend === 'webgpu-compat' && s.aa === 'msaa' ? 'fxaa' : s.aa;
+	const aa = backend === 'webgpu-compat' && s.aa === 'msaa' ? 'smaa' : s.aa;
 	return {
 		...s,
 		aa,
@@ -301,6 +304,17 @@ export function lensStrengths(
  */
 export const needsPrepass = (s: Pick<QualitySettings, 'msaa' | 'ao' | 'aa'>) =>
 	s.msaa > 0 || s.ao || s.aa === 'traa';
+
+/**
+ * Which ambient occlusion the pipeline builds (#159): GTAO on high and ultra, where TRAA resolves
+ * its temporal noise; SSAO, self-denoised, wherever else there is a prepass; none without one. A
+ * change of it builds a new renderer, as the antialiasing's does.
+ */
+export function aoKind(s: Pick<QualitySettings, 'tier' | 'msaa' | 'ao' | 'aa'>): AoKind {
+	if (!needsPrepass(s)) return 'none';
+	return s.aa === 'traa' && (s.tier === 'high' || s.tier === 'ultra') ? 'gtao' : 'ssao';
+}
+export type AoKind = 'none' | 'ssao' | 'gtao';
 
 /** `?off=sky,grass` turns those layers off; unknown names are ignored. Never saved. */
 export function layersFrom(search: string, layers: Record<Layer, boolean>): Record<Layer, boolean> {

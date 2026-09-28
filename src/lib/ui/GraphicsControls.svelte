@@ -68,7 +68,7 @@
 	/** The advanced options, as the menu names them and their values. */
 	const ADVANCED: { key: OptionKey; name: string; labels: string[] }[] = [
 		{ key: 'megapixels', name: 'Resolution', labels: ['1 MP', '2 MP', '3.7 MP', '8.3 MP (4K)'] },
-		{ key: 'aa', name: 'Antialiasing', labels: ['Off', 'FXAA', 'MSAA 4×', 'TRAA'] },
+		{ key: 'aa', name: 'Antialiasing', labels: ['Off', 'FXAA', 'SMAA', 'MSAA 4×', 'TRAA'] },
 		{ key: 'ao', name: 'Ambient occlusion', labels: ['Off', 'On'] },
 		{ key: 'bloom', name: 'Bloom', labels: ['Off', 'On'] },
 		{ key: 'vignette', name: 'Vignette', labels: ['Off', 'On'] },
@@ -172,8 +172,9 @@
 							{#each option.labels as label, i (label)}
 								<option
 									value={i}
-									disabled={option.key === 'aa' && i === 2 && backend === 'webgpu-compat'}
-									>{label}</option
+									disabled={option.key === 'aa' &&
+										OPTIONS.aa[i] === 'msaa' &&
+										backend === 'webgpu-compat'}>{label}</option
 								>
 							{/each}
 						</select>

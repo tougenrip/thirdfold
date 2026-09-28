@@ -50,6 +50,8 @@
 		tierAfterLoss,
 		tierFrom,
 		type AaMode,
+		type AoKind,
+		aoKind,
 		needsPrepass,
 		withOverrides,
 		toneMapperFrom,
@@ -184,18 +186,20 @@
 	/** Where the camera was on the tabletop being replaced. */
 	let carriedPose: Pose | null = null;
 	/**
-	 * MSAA, and whether the pipeline has a prepass, for the next tabletop: from the settings where
-	 * they are known before the device is. A change of either builds a new renderer.
+	 * MSAA, whether the pipeline has a prepass, the antialiasing and the AO, for the next tabletop:
+	 * from the settings where they are known before the device is. A change of any builds a new
+	 * renderer.
 	 */
-	let { antialias, prepass, aa } = initialShape();
+	let { antialias, prepass, aa, ao } = initialShape();
 
-	function initialShape(): { antialias: boolean; prepass: boolean; aa: AaMode } {
-		if (typeof location === 'undefined') return { antialias: true, prepass: true, aa: 'msaa' };
+	function initialShape(): { antialias: boolean; prepass: boolean; aa: AaMode; ao: AoKind } {
+		if (typeof location === 'undefined')
+			return { antialias: true, prepass: true, aa: 'msaa', ao: 'ssao' };
 		const prefs = loadGraphics(localStorage);
 		const known =
 			tierFrom(location.search) ?? (prefs.tier !== 'auto' ? prefs.tier : prefs.measured);
 		const s = withOverrides(settingsFor(known ?? 'medium', 'webgpu'), prefs.overrides, 'webgpu');
-		return { antialias: s.msaa > 0, prepass: needsPrepass(s), aa: s.aa };
+		return { antialias: s.msaa > 0, prepass: needsPrepass(s), aa: s.aa, ao: aoKind(s) };
 	}
 
 	/** Makes the tabletop again on a fresh canvas, the camera where it was. */
@@ -247,11 +251,13 @@
 		if (
 			settings.msaa > 0 !== antialias ||
 			needsPrepass(settings) !== prepass ||
-			settings.aa !== aa
+			settings.aa !== aa ||
+			aoKind(settings) !== ao
 		) {
 			antialias = settings.msaa > 0;
 			prepass = needsPrepass(settings);
 			aa = settings.aa;
+			ao = aoKind(settings);
 			rebuild(t);
 			return false;
 		}

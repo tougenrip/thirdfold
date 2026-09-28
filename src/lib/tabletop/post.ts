@@ -12,14 +12,15 @@
 // layer off) draws straight to the canvas as before, the kill switch until
 // #168 removes it.
 //
-// Ambient occlusion (#159) is SSAO from the prepass's depth and normals, fed to
-// the scene pass's materials through `builtinAOContext`: it darkens indirect
-// light only (the hemisphere), so creases and the ground under things darken
-// while faces lit by torches, lamps and the sun keep their light.
+// Ambient occlusion (#159, ao.ts) is SSAO or GTAO from the prepass's depth and
+// normals, in the scene pass's materials, on indirect light only. TRAA or SMAA
+// (#163, antialias.ts) resolve the HDR image before depth of field; FXAA runs
+// on display colour in the output stage.
 //
 // Bloom (#160) glows from the emissive attachment plus the part of the exposed
 // HDR image above 1 (a soft knee), so flames and what they light hot bloom
-// while sunlit grass and plaster, below 1, do not.
+// while sunlit grass and plaster, below 1, do not. Lens dirt (dirt.ts) adds the
+// bloom again through smudges, at a strength 0 by default.
 //
 // The output stage (#161) is one pass, in this order: exposure (scene plus
 // bloom), radial chromatic aberration, a vignette tinted dark purple, the tone
@@ -32,7 +33,6 @@
 
 import * as THREE from 'three/webgpu';
 import {
-	builtinAOContext,
 	clamp,
 	dot,
 	emissive,
@@ -51,21 +51,18 @@ import {
 	output,
 	packNormalToRGB,
 	renderOutput,
-	sample,
 	screenUV,
 	uniform,
-	unpackRGBToNormal,
 	velocity,
 	vec4
 } from 'three/tsl';
-import type SSAONode from 'three/examples/jsm/tsl/display/SSAONode.js';
-import { ssao } from 'three/examples/jsm/tsl/display/SSAONode.js';
-import { traa } from 'three/examples/jsm/tsl/display/TRAANode.js';
-import { sharpen } from 'three/examples/jsm/tsl/display/SharpenNode.js';
 import { fxaa } from 'three/examples/jsm/tsl/display/FXAANode.js';
 import { lut3D } from 'three/examples/jsm/tsl/display/Lut3DNode.js';
 import { LUT_SIZE, type Grades } from './environment';
 import { GradeBlend } from './grade';
+import { aoScale, buildAo, sizeAo, type AoNode } from './ao';
+import { morphological, temporal } from './antialias';
+import { LensDirt } from './dirt';
 import { Focus, STILL, type FrameView } from './focus';
 import {
 	OverlayPassNode,
@@ -82,17 +79,6 @@ import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { GRADE_TONE_MAPPER } from '../assets/manifest';
 import { lensStrengths, type QualitySettings } from './quality';
 
-/** Ambient occlusion's reach and depth per environment, in cells (#159); unlisted ones get `default`. */
-const AO_LOOKS: Record<string, { radius: number; intensity: number }> = {
-	default: { radius: 0.5, intensity: 1 },
-	// Open streets: a wider, softer darkening along walls and under eaves.
-	village: { radius: 0.8, intensity: 0.9 },
-	// Tight rock: crevices and the ground under things.
-	cavern: { radius: 0.35, intensity: 1.2 },
-	'living-cave': { radius: 0.35, intensity: 1.2 }
-};
-/** RCAS on TRAA's resolve: 0 is the most, 2 none. */
-const TRAA_SHARPNESS = 0.3;
 /** How much of the occlusion shows, when on. */
 const AO_STRENGTH = 1;
 /** Bloom, when on: a tight, restrained glow (TaleWeaver blooms at 1 with a soft knee of 0.5). */
@@ -130,11 +116,13 @@ export class Post {
 	private readonly grade = new GradeBlend();
 	/** Depth of field and tilt-shift (focus.ts), and how the output stage samples through them. */
 	readonly focus = new Focus();
+	/** Lens dirt (dirt.ts): `dirt.set(strength)`, 0 by default. */
+	readonly dirt = new LensDirt();
 	private settings: QualitySettings | null = null;
 	private sample: ((uv: THREE.Node<'vec2'>) => THREE.Node<'vec4'>) | null = null;
 	private pipeline: THREE.RenderPipeline | null = null;
 	private stages: Stages | null = null;
-	/** The AO's resolution: half on medium, full above. */
+	/** The AO's resolution: half, full on ultra. */
 	private aoScale = 1;
 	/** The grain's strength when on (0 under reduced motion). */
 	private grain = 0;
@@ -150,12 +138,12 @@ export class Post {
 	scenePass: THREE.PassNode | null = null;
 
 	overlayPass: THREE.PassNode | null = null;
-	ao: SSAONode | null = null;
-	/** TRAA's sharpened resolve, which the output stage reads in place of the scene pass. */
+	ao: AoNode | null = null;
+	/** TRAA's sharpened resolve, or SMAA's, which the output stage reads in place of the scene pass. */
 	private resolved: THREE.TextureNode | null = null;
 	/** The overlay's camera: the main one without TRAA's jitter. */
 	private overlayCamera: THREE.Camera | null = null;
-	/** Nodes with render targets of their own (TRAA, its sharpening), disposed with the pipeline. */
+	/** Nodes with render targets of their own (TRAA, its sharpening, SMAA), disposed with the pipeline. */
 	private owned: { dispose(): void }[] = [];
 	private fxaaInput: THREE.Node | null = null;
 	bloom: BloomNode | null = null;
@@ -184,7 +172,7 @@ export class Post {
 		this.focus.setTier(settings.tier);
 		// Off on low (no prepass), by the tier's `ao` or `?off=ao`: a uniform, so no recompile.
 		this.uniforms.aoStrength.value = settings.ao && settings.layers.ao ? AO_STRENGTH : 0;
-		this.aoScale = settings.tier === 'medium' ? 0.5 : 1;
+		this.aoScale = aoScale(settings.tier);
 		this.uniforms.bloomStrength.value =
 			settings.bloom && settings.layers.bloom ? BLOOM.strength : 0;
 		this.bloomScale = settings.tier === 'low' ? 0.25 : 0.5;
@@ -197,7 +185,8 @@ export class Post {
 			this.stages &&
 			this.stages.prepass === next.prepass &&
 			this.stages.samples === next.samples &&
-			this.stages.aa === next.aa;
+			this.stages.aa === next.aa &&
+			this.stages.ao === next.ao;
 		// Drawing straight to the canvas (`?off=post`) tone maps with the renderer's own.
 		this.renderer.toneMapping = TONE_MAPPINGS[next.toneMapper];
 		if (!settings.layers.post) return this.teardown();
@@ -224,10 +213,7 @@ export class Post {
 		const changed = snap || band !== this.look.band;
 		this.look = { environment, cellSize, grades, band };
 		if (changed) this.retarget(snap);
-		if (!this.ao) return;
-		const look = AO_LOOKS[environment ?? ''] ?? AO_LOOKS.default;
-		this.ao.radius.value = look.radius * cellSize;
-		this.ao.intensity.value = look.intensity;
+		if (this.ao) sizeAo(this.ao, environment, cellSize);
 	}
 
 	/** Whether a grade is still blending in (the tabletop keeps drawing while it is). */
@@ -301,6 +287,7 @@ export class Post {
 	dispose(): void {
 		this.teardown();
 		this.grade.dispose();
+		this.dirt.dispose();
 	}
 
 	private build(stages: Stages): void {
@@ -337,20 +324,11 @@ export class Post {
 		scenePass.renderTarget.texture.type = halfFloat;
 		this.scenePass = scenePass;
 
-		if (this.prepass) {
-			const normals = this.prepass.getTextureNode('output');
-			const normal = sample((uv) => unpackRGBToNormal(normals.sample(uv).rgb));
-			const ao = ssao(this.prepass.getTextureNode('depth'), normal, camera);
+		if (this.prepass && stages.ao !== 'none') {
+			const ao = buildAo(stages.ao, this.prepass, scenePass, camera, this.uniforms.aoStrength);
 			ao.resolutionScale = this.aoScale;
 			this.ao = ao;
 			this.setLook(this.look.environment, this.look.cellSize);
-			// At strength 0 this is exactly 1, and the gate stops the AO's passes.
-			const occlusion = mix(
-				float(1),
-				ao.getTextureNode().sample(screenUV).r,
-				this.uniforms.aoStrength
-			);
-			scenePass.contextNode = builtinAOContext(occlusion);
 			scenePass.drawsFirst.push(ao);
 			this.gate(ao, this.uniforms.aoStrength);
 		}
@@ -362,25 +340,15 @@ export class Post {
 		this.bloom = glow;
 		this.gate(glow, this.uniforms.bloomStrength);
 
-		if (stages.aa === 'traa') {
-			// Temporal AA on the HDR image, from the prepass's depth and motion, sharpened (RCAS).
-			const p = this.prepass!;
-			const resolvedNode = traa(
-				scenePass.getTextureNode('output'),
-				p.getTextureNode('depth'),
-				p.getTextureNode('velocity'),
-				camera
-			);
-			// Its texture, not the node: a node would be drawn again into a target of its own.
-			const internals = resolvedNode as unknown as {
-				getTextureNode(): THREE.TextureNode;
-				_previousDepthNode: THREE.TextureNode;
-			};
-			const sharpened = sharpen(internals.getTextureNode(), TRAA_SHARPNESS);
-			this.resolved = sharpened.getTextureNode();
-			// r186's TRAANode leaves its 1×1 previous-depth texture behind: dispose it too.
-			const previousDepth = { dispose: () => internals._previousDepthNode.value.dispose() };
-			this.owned.push(resolvedNode, sharpened, previousDepth);
+		const aa =
+			stages.aa === 'traa'
+				? temporal(scenePass, this.prepass!, camera)
+				: stages.aa === 'smaa'
+					? morphological(scenePass)
+					: null;
+		if (aa) {
+			this.resolved = aa.resolved;
+			this.owned.push(...aa.owned);
 		}
 
 		// Depth of field and tilt-shift, on the finished HDR image; the prepass's depth is never
@@ -434,8 +402,10 @@ export class Post {
 		// from the centre, so the centre is untouched.
 		const centred = screenUV.sub(0.5);
 		const shift = centred.mul(dot(centred, centred)).mul(u.aberration);
+		// Lens dirt: the bloom again, through the smudges; exactly nothing at strength 0.
+		const dirt = float(1).add(this.dirt.map.sample(screenUV).r.mul(this.dirt.strength));
 		const hdr = (uv: THREE.Node<'vec2'>) =>
-			sample(uv).rgb.add(bloomed.sample(uv).rgb.mul(bloomOn)).mul(u.exposure);
+			sample(uv).rgb.add(bloomed.sample(uv).rgb.mul(bloomOn).mul(dirt)).mul(u.exposure);
 		const split = vec3(hdr(screenUV.add(shift)).r, hdr(screenUV).g, hdr(screenUV.sub(shift)).b);
 		// Vignette: multiplied, toward the tint at the corners, so black stays black.
 		const reach = smoothstep(0.2, 0.75, centred.length());

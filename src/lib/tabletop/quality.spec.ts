@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	AA_MODES,
+	aoKind,
 	DEFAULT_GRAPHICS,
 	layersFrom,
 	lensStrengths,
@@ -164,10 +166,49 @@ describe('options apart from the preset', () => {
 		const mine = withOverrides(low, { ao: true, aa: 'msaa', sunShadowSize: 4096 }, 'webgpu');
 		expect(mine).toMatchObject({ tier: 'low', ao: true, aa: 'msaa', msaa: 4, sunShadowSize: 4096 });
 		expect(mine.megapixels).toBe(low.megapixels);
+		// Compatibility WebGPU has no MSAA: SMAA stands in (#163); FXAA stays FXAA.
 		expect(withOverrides(low, { aa: 'msaa' }, 'webgpu-compat')).toMatchObject({
-			aa: 'fxaa',
+			aa: 'smaa',
 			msaa: 0
 		});
+		expect(withOverrides(low, { aa: 'fxaa' }, 'webgpu-compat')).toMatchObject({ aa: 'fxaa' });
+	});
+
+	it('offer every antialiasing, each with its samples and converge frames', () => {
+		const medium = settingsFor('medium', 'webgpu');
+		const derived = AA_MODES.map((aa) => {
+			const s = withOverrides(medium, { aa }, 'webgpu');
+			return [s.aa, s.msaa, s.convergeFrames];
+		});
+		expect(derived).toEqual([
+			['off', 0, 0],
+			['fxaa', 0, 0],
+			['smaa', 0, 0],
+			['msaa', 4, 0],
+			['traa', 0, 24]
+		]);
+		// A saved SMAA is read back.
+		const store = new Map<string, string>();
+		const storage = {
+			getItem: (k: string) => store.get(k) ?? null,
+			setItem: store.set.bind(store)
+		};
+		saveGraphics(storage, { ...DEFAULT_GRAPHICS, overrides: { aa: 'smaa' } });
+		expect(loadGraphics(storage).overrides).toEqual({ aa: 'smaa' });
+	});
+
+	it('draw SSAO on medium, GTAO on high and ultra with TRAA, and no AO without a prepass', () => {
+		const at = (tier: 'low' | 'medium' | 'high' | 'ultra', aa?: 'msaa' | 'smaa') =>
+			aoKind(withOverrides(settingsFor(tier, 'webgpu'), aa ? { aa } : {}, 'webgpu'));
+		expect([at('low'), at('medium'), at('high'), at('ultra')]).toEqual([
+			'none',
+			'ssao',
+			'gtao',
+			'gtao'
+		]);
+		// Without TRAA to resolve GTAO's noise, high takes SSAO.
+		expect(at('high', 'msaa')).toBe('ssao');
+		expect(at('high', 'smaa')).toBe('ssao');
 	});
 
 	it('take MSAA and converge frames from the antialiasing', () => {

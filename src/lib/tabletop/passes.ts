@@ -4,7 +4,7 @@
 
 import * as THREE from 'three/webgpu';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
-import { needsPrepass, type AaMode, type QualitySettings } from './quality';
+import { aoKind, needsPrepass, type AaMode, type AoKind, type QualitySettings } from './quality';
 
 export const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
 	agx: THREE.AgXToneMapping,
@@ -16,8 +16,10 @@ export const TONE_MAPPINGS: Record<ToneMapper, THREE.ToneMapping> = {
 export interface Stages {
 	prepass: boolean;
 	samples: number;
-	/** Antialiasing (#163): TRAA adds velocity and a resolve, FXAA a pass after the grade. */
+	/** Antialiasing (#163): TRAA adds velocity and a resolve, SMAA passes before the output stage, FXAA a pass after the grade. */
 	aa: AaMode;
+	/** Ambient occlusion (#159): SSAO or GTAO, whose passes differ. */
+	ao: AoKind;
 	/** Compiled into the output stage, so a change rebuilds (#158). */
 	toneMapper: ToneMapper;
 }
@@ -31,6 +33,7 @@ export function stagesFor(settings: QualitySettings): Stages {
 		prepass: needsPrepass(settings),
 		samples: settings.msaa,
 		aa: settings.aa,
+		ao: aoKind(settings),
 		toneMapper: settings.toneMapper ?? GRADE_TONE_MAPPER
 	};
 }

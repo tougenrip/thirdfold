@@ -14,7 +14,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { STILL } from './focus';
 import { TONE_MAPPERS } from '../assets/manifest';
-import { settingsFor, TIERS, type Tier } from './quality';
+import { settingsFor, TIERS, type QualitySettings, type Tier } from './quality';
 import { BACKEND } from './testing';
 
 // Software rendering under a full run's load takes a while: as the other renderer specs.
@@ -51,8 +51,8 @@ async function setup() {
 	const view = { ...STILL, target: new THREE.Vector3() };
 	const post = new Post(renderer, scene, camera, new THREE.Scene(), () => view);
 	const backend = BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
-	const draw = (tier: Tier, on = true) => {
-		const settings = settingsFor(tier, backend);
+	const draw = (tier: Tier, on = true, overrides: Partial<QualitySettings> = {}) => {
+		const settings = { ...settingsFor(tier, backend), ...overrides };
 		post.set({ ...settings, layers: { ...settings.layers, post: on } });
 		renderer!.info.reset();
 		post.render();
@@ -77,12 +77,26 @@ describe('the post-processing pipeline', () => {
 		});
 	}
 
+	it('draws SMAA on the HDR image, with no MSAA', async () => {
+		const { renderer, post, draw } = await setup();
+		draw('medium', true, { aa: 'smaa', msaa: 0 });
+		expect(post.scenePass!.renderTarget.samples).toBe(0);
+		// Its edges, weights and blend targets, on top of the passes'.
+		const smaa = renderer.info.memory.renderTargets;
+		draw('medium');
+		expect(smaa - renderer.info.memory.renderTargets).toBeGreaterThanOrEqual(3);
+		expect(renderer.info.render.drawCalls).toBeGreaterThan(0);
+	});
+
 	it('gives every target back across tier changes and when disposed', async () => {
 		const { renderer, post, draw } = await setup();
 		const { memory } = renderer.info;
 		draw('medium', false);
 		const [targets, bytes] = [memory.renderTargets, memory.texturesSize];
 		for (const tier of ['low', 'high', 'medium', 'low'] as const) draw(tier);
+		// SMAA (#163), and GTAO at full resolution where ultra runs (#159).
+		draw('medium', true, { aa: 'smaa', msaa: 0 });
+		if (BACKEND === 'webgpu') draw('ultra');
 		post.dispose();
 		draw('medium', false);
 		expect(memory.renderTargets).toBe(targets);
@@ -156,6 +170,28 @@ describe('the post-processing pipeline', () => {
 			expect([renderer.info.memory.programs, pipelines.size]).toEqual(before);
 		});
 	}
+
+	// #160: the lens dirt's texture arrives after the pipeline is built, and swaps a binding only.
+	it('loads the lens dirt when it is turned up, compiling nothing', async () => {
+		const { renderer, post, draw } = await setup();
+		const pipelines = (renderer as unknown as { _pipelines: { caches: Map<unknown, unknown> } })
+			._pipelines.caches;
+		const frame = () => {
+			advanceNodeFrame(renderer);
+			post.render();
+		};
+		draw('medium');
+		frame();
+		const before = [renderer.info.memory.programs, pipelines.size];
+		const blank = post.dirt.map.value;
+		post.dirt.set(1);
+		await vi.waitUntil(() => post.dirt.map.value !== blank, { timeout: 10_000 });
+		expect((post.dirt.map.value.image as { width: number }).width).toBeLessThanOrEqual(256);
+		frame();
+		post.dirt.set(0);
+		frame();
+		expect([renderer.info.memory.programs, pipelines.size]).toEqual(before);
+	});
 
 	it('keeps grain off under reduced motion, whatever is chosen', async () => {
 		const { renderer } = await setup();
@@ -281,6 +317,8 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 	it('draws no grid line over a cell the fog hides', async () => {
 		const overlay = new OverlayLayer();
 		overlay.setGrid({ kind: 'square', width: 4, height: 4, cellSize: 1 });
+		// Hidden at rest since #167: shown as while building.
+		overlay.setGridShown(true);
 		// The west half hidden (alpha 255), the east half seen.
 		const fog = new THREE.DataTexture(new Uint8Array(16 * 4), 4, 4);
 		for (let i = 0; i < 16; i++) if (i % 4 < 2) fog.image.data![i * 4 + 3] = 255;
@@ -342,7 +380,7 @@ describe.skipIf(BACKEND === 'webgpu')('ambient occlusion', () => {
 	 * A crate on a floor under a sky light, and a wall face lit head-on by a lamp, drawn with the
 	 * AO at `strength`: the luminance at the foot of the crate, and on the lamp-lit face.
 	 */
-	async function measure(strength: number) {
+	async function measure(strength: number, tier: 'medium' | 'high') {
 		const canvas = document.createElement('canvas');
 		renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
 		renderer.setSize(400, 300, false);
@@ -363,10 +401,10 @@ describe.skipIf(BACKEND === 'webgpu')('ambient occlusion', () => {
 		camera.lookAt(0, 0.4, 0);
 		camera.updateMatrixWorld();
 		const post = new Post(renderer, scene, camera, new THREE.Scene());
-		const settings = settingsFor('high', 'webgl2');
-		post.set(settings);
+		post.set(settingsFor(tier, 'webgl2'));
 		post.uniforms.aoStrength.value = strength;
-		for (let i = 0; i < 3; i++) {
+		// High's GTAO turns each frame and TRAA averages it: give the history its frames.
+		for (let i = 0; i < (tier === 'high' ? 24 : 3); i++) {
 			advanceNodeFrame(renderer);
 			post.render();
 		}
@@ -389,34 +427,44 @@ describe.skipIf(BACKEND === 'webgpu')('ambient occlusion', () => {
 			crease: lum(-1, 0.02, 0.55),
 			face: lum(1.5, 1, 0.11),
 			open: lum(-3, 0, 2),
-			programs: renderer.info.memory.programs
+			programs: renderer.info.memory.programs,
+			ao: 'useTemporalFiltering' in post.ao! ? 'gtao' : 'ssao'
 		};
 		renderer.dispose();
 		renderer = null;
 		return result;
 	}
 
-	it('darkens the foot of a crate, not a face a lamp lights', async () => {
-		const off = await measure(0);
-		const on = await measure(1);
-		// Measured 104 → 92 at the foot; the lamp-lit face does not move.
-		expect(on.crease).toBeLessThan(off.crease * 0.95);
-		expect(Math.abs(on.face - off.face)).toBeLessThan(off.face * 0.02);
-	});
+	for (const [tier, kind] of [
+		['medium', 'ssao'],
+		['high', 'gtao']
+	] as const) {
+		it(`darkens the foot of a crate, not a face a lamp lights, on ${tier} (${kind})`, async () => {
+			const off = await measure(0, tier);
+			const on = await measure(1, tier);
+			expect(on.ao).toBe(kind);
+			// Medium measured 104 → 92 at the foot; the lamp-lit face does not move.
+			expect(on.crease).toBeLessThan(off.crease * 0.95);
+			expect(Math.abs(on.face - off.face)).toBeLessThan(off.face * 0.02);
+		});
 
-	it('turns off and on again without compiling anything', async () => {
-		const { renderer, post, draw } = await setup();
-		const at = (strength: number) => {
-			post.uniforms.aoStrength.value = strength;
-			advanceNodeFrame(renderer);
-			post.render();
-		};
-		draw('high');
-		for (const strength of [1, 1, 1]) at(strength);
-		const programs = renderer.info.memory.programs;
-		for (const strength of [0, 1, 0, 1]) at(strength);
-		expect(renderer.info.memory.programs).toBe(programs);
-	});
+		it(`turns off and on again without compiling anything, on ${tier}`, async () => {
+			const { renderer, post, draw } = await setup();
+			const at = (strength: number) => {
+				post.uniforms.aoStrength.value = strength;
+				advanceNodeFrame(renderer);
+				post.render();
+			};
+			draw(tier);
+			for (const strength of [1, 1, 1]) at(strength);
+			const programs = renderer.info.memory.programs;
+			for (const strength of [0, 1, 0, 1]) at(strength);
+			// A table's environment writes the AO's uniforms only.
+			post.setLook('cavern', 1);
+			at(1);
+			expect(renderer.info.memory.programs).toBe(programs);
+		});
+	}
 });
 
 describe.skipIf(BACKEND === 'webgpu')('bloom', () => {

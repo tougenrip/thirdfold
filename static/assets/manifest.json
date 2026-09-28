@@ -1287,6 +1287,12 @@
 			"width": 128,
 			"height": 128
 		},
+		"lens-dirt": {
+			"file": "textures/lens-dirt.e6438b1c.png",
+			"bytes": 42007,
+			"width": 256,
+			"height": 256
+		},
 		"planks": {
 			"file": "textures/planks.0b8541ad.png",
 			"bytes": 11740,

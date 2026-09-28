@@ -522,7 +522,7 @@ passes, in order:
 - **The prepass** draws opaque objects with no MSAA: the overlay's depth, normals for AO (#159)
   and depth of field (#165), and with TRAA each pixel's velocity (half-float).
 - **Only a change of stages rebuilds.** `Post.set` compares the prepass, the samples, the
-  antialiasing and the tone mapper; in play a change of the first three builds a new renderer
+  antialiasing, the AO's kind and the tone mapper; in play a change of the first four builds a new renderer
   (`Tabletop.svelte`), since rebuilding passes on the same one left their old shaders behind, and
   a tone mapper only recomposes the output stage. Every effect's knob is a uniform, and `Post.gate` stops an effect's passes at strength
   0 (`updateBeforeType` NONE), so toggling one never recompiles. Each gated pass still draws its
@@ -539,6 +539,12 @@ passes, in order:
   1. `uniforms.bloomStrength` (0 with the Bloom option or `?off=bloom` off) gates its passes and
      mixes its texture out, so toggling compiles nothing; it and `uniforms.exposure` are the cues'
      knobs for the toll and the flash (#222).
+  - **Lens dirt** (optional, `dirt.ts`): the bloom is added again multiplied by `lens-dirt`, a
+    256² noise recipe from the asset pipeline (42 kB), at `Post.dirt.set(strength)`, 0 by default,
+    so the look is unchanged until the art review asks for it. At 0 it adds exactly nothing and has
+    no pass of its own; the texture loads the first time the strength goes above 0, and until it
+    arrives a 1×1 black stand-in is sampled, so its arrival swaps a binding, never a shader (a
+    post spec loads it and counts programs and pipelines).
 - **The output stage** (#161) is one pass (`Post.compose`), in this order: exposure over the scene
   and the bloom; chromatic aberration (red and blue sampled apart radially by the square of the
   distance from the centre, so the centre is untouched); a vignette that multiplies toward
@@ -561,11 +567,14 @@ passes, in order:
     mapper blends its bytes over 1.5 s on the CPU (the tabletop draws while it does), so the
     shader never changes. Every strip keeps black at 0, checked by the pipeline, and the loader
     forces texel 0 to black against canvas-read noise.
-- **Antialiasing** (#163) is one Graphics option with four modes (`AaMode`): off; FXAA on the
-  finished colour after the grade (grain, the overlay and dither come after it); MSAA 4× on the
-  scene pass; TRAA on the HDR image from the prepass's depth and velocity (r186's `TRAANode`, 32
-  Halton offsets), sharpened by RCAS at 0.3. The presets use FXAA on low, MSAA on medium and TRAA
-  on high and ultra; compat WebGPU, which has no MSAA, gets FXAA for it. MSAA and converge frames
+- **Antialiasing** (#163, `antialias.ts`) is one Graphics option with five modes (`AaMode`): off;
+  FXAA on the finished colour after the grade (grain, the overlay and dither come after it); SMAA
+  (r186's `SMAANode`, 1x medium, colour edges) on the linear HDR image before depth of field and
+  the output stage, since it wants its input before the sRGB encode; MSAA 4× on the scene pass;
+  TRAA on the HDR image from the prepass's depth and velocity (r186's `TRAANode`, 32 Halton
+  offsets), sharpened by RCAS at 0.3. The presets use FXAA on low, MSAA on medium and TRAA on high
+  and ultra; compat WebGPU, which has no MSAA, gets SMAA for it (FXAA stays FXAA). SMAA's three
+  targets are disposed with the pipeline. MSAA and converge frames
   follow from the mode (`derive` in `quality.ts`), and a change of mode builds a new renderer.
   TRAA jitters the camera for every pass, so the overlay draws with a copy taken before (labels
   never jitter); bloom reads the unresolved scene.
@@ -574,12 +583,14 @@ passes, in order:
     other modes); the scheduler's own frames (converge and ambient) do not, so a still table
     stops drawing after them and a flickering one keeps its capped ambient rate, accumulating.
     `stats().mode` reports `converge` for them. A test moves a token on TRAA and counts at most 32
-    frames from the end of the move to idle, then none.
+    frames from the end of the move to idle, then none, and a golden (`ref-1-close-high-converged`,
+    on both backends) is taken on the high tier once the converge frames are drawn and the table
+    is idle, under the held clock: the jitter and GTAO's rotations follow the frame count.
   - r186's `TRAANode` keeps its 1×1 previous-depth texture past `dispose`: `post.ts` disposes it;
     another 8 bytes stay until the renderer goes, which a change of mode always replaces.
   - Velocity in the prepass is back: the WebGPU errors blamed on it in #157 were the warm-up's
     timed-out compiles and the AO's nesting, both fixed since.
-- **Depth of field and tilt-shift** (#165, `focus.ts`) sit after TRAA on the HDR image, before
+- **Depth of field and tilt-shift** (#165, `focus.ts`) sit after TRAA or SMAA on the HDR image, before
   the output stage: depth of field is r186's `DepthOfFieldNode` on the prepass's view depth (never
   multisampled), focused on the camera's pivot (`controls.target`, the shot's focus during a
   shot) along the look direction, with full blur `FOCAL_SHARE` (0.4) of the camera's distance
@@ -616,20 +627,27 @@ passes, in order:
   backends: the kill switch until #168 removes it.
 - Emissive is 8-bit on purpose: a flame's excess above 1.0 reaches bloom through the HDR term
   (#160).
-- **Ambient occlusion** (#159) is SSAO (`SSAONode`, self-denoised) from the prepass's depth and
-  normals, on medium (half resolution) and up (full); none on low. It costs about 0.7 ms a frame
+- **Ambient occlusion** (#159, `ao.ts`) comes from the prepass's depth and normals: SSAO
+  (`SSAONode`, self-denoised) at half resolution on medium; GTAO (`GTAONode`) with temporal
+  filtering, which TRAA resolves, at half resolution on high and full on ultra; none on low
+  (`aoKind` in `quality.ts`: without TRAA to resolve its noise, as on high with MSAA or SMAA chosen,
+  SSAO stands in). The kind is a pipeline stage, so a change of it builds a new renderer; high and
+  ultra share one, whose change of resolution is a number, not a shader. GTAO's first frame is
+  left out (the scene pass draws it before its materials, which set it up, are built) and TRAA's
+  converge frames draw over it. SSAO costs about 0.7 ms a frame
   at 1080p on the RTX 4060 (WebGPU, medium; #166 measures every pass per tier). It reaches the scene pass's
   materials through `builtinAOContext` (`scenePass.contextNode`), so it scales indirect light only:
   the hemisphere darkens in creases and under things, while torches, lamps and the sun light faces
   as before; transparent materials (fog, darkness, mist, painted floors) and the overlay get none.
   Its reach and depth are per environment, in cells (`AO_LOOKS`, `Post.setLook` on a new table or
-  look), all uniforms. `uniforms.aoStrength` (0 with the tier's `ao` off or `?off=ao`) mixes it to
+  look), all uniforms: SSAO's `radius` and `intensity`; GTAO's `radius`, `scale` (the intensity,
+  a power) and `thickness` (twice the radius). GTAO's `samples` is compiled in and stays at 16. `uniforms.aoStrength` (0 with the tier's `ao` off or `?off=ao`) mixes it to
   exactly 1 and `Post.gate` stops its passes, so toggling compiles nothing. The scene pass draws
   what it reads first (`ScenePassNode.drawsFirst`: the prepass, then the AO), each once a frame.
   Three keys a render context by how deeply the pass is nested: a prepass drawn from inside the
   AO's pass one frame and from the overlay's the next compiled everything twice, and an AO drawn
   from inside the scene's own draw, when a material first asked for it, made WebGPU pipelines for
-  the wrong targets and aborted the frame. GTAO with temporal filtering waits for TRAA (#163). The
+  the wrong targets and aborted the frame. The
   warm-up compiles without the AO's context: compiled with it (merged into the renderer's), three
   released and rebuilt those programs as tables were loaded again, so the scene's materials take
   the AO context when first drawn.
