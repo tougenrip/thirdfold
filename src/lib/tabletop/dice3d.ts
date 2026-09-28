@@ -11,6 +11,7 @@ import { DIE_LABELS, seededRandom } from './dice-faces';
 import { worldToGrid, type SquareGrid } from '$lib/game/grid';
 import { WALL_HEIGHT, type Ground } from './ground';
 import type { DieKind, ThrownDie } from './dice-throw';
+import { worldTexture } from './materials/texture-quality';
 
 export interface DiceThrow {
 	/** Room log sequence number of the roll; seeds the throw. */
@@ -277,7 +278,7 @@ export class DiceLayer {
 		if (kind === 'd6') {
 			// Pips, like a real d6: readable from any side of the table.
 			drawPips(ctx, Number(text));
-			tex = new THREE.CanvasTexture(canvas);
+			tex = worldTexture(new THREE.CanvasTexture(canvas));
 			tex.colorSpace = THREE.SRGBColorSpace;
 			this.labels.set(key, tex);
 			return tex;
@@ -286,9 +287,8 @@ export class DiceLayer {
 		ctx.textAlign = 'center';
 		ctx.textBaseline = 'middle';
 		ctx.fillText(shown, 64, 68);
-		tex = new THREE.CanvasTexture(canvas);
+		tex = worldTexture(new THREE.CanvasTexture(canvas)); // the tier's anisotropy (#179)
 		tex.colorSpace = THREE.SRGBColorSpace;
-		tex.anisotropy = 4;
 		this.labels.set(key, tex);
 		return tex;
 	}

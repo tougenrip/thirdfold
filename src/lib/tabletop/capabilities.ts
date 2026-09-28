@@ -23,6 +23,7 @@ import {
 	type Tier
 } from './quality';
 import type { TabletopOptions } from './types';
+import { setTextureQuality } from './materials/texture-quality';
 
 function shellOf(): Shell {
 	const platform = Capacitor.getPlatform();
@@ -90,6 +91,7 @@ export class QualityControl {
 	) {
 		this.caps = probeCapabilities(parts.renderer);
 		this.settings = settingsFor('medium', this.caps.backend);
+		setTextureQuality(this.settings, parts.renderer.getMaxAnisotropy());
 		this.observer = new ResizeObserver(() => this.resize());
 		this.observer.observe(parts.canvas);
 		parts.perf.onFrame = (ms) => this.frame(ms);
@@ -109,6 +111,7 @@ export class QualityControl {
 	set(settings: QualitySettings, refine = false): void {
 		this.settings = settings;
 		this.parts.loop.setPacing(settings);
+		setTextureQuality(settings, this.parts.renderer.getMaxAnisotropy());
 		this.refining = refine;
 		this.samples = [];
 		const size = settings.sunShadowSize;

@@ -14,6 +14,7 @@ import {
 	type ToneMapper
 } from '$lib/assets/manifest';
 import { assetUrl, loadManifest } from '$lib/assets/load';
+import { worldTexture } from './materials/texture-quality';
 
 /** One surface: its colour and finish, and its texture with how many cells one repeat covers. */
 export interface Look {
@@ -125,8 +126,7 @@ function loadTexture(id: string, file: string): Promise<THREE.Texture | null> {
 			.then((t) => {
 				t.colorSpace = THREE.SRGBColorSpace;
 				t.wrapS = t.wrapT = THREE.RepeatWrapping;
-				t.anisotropy = 4;
-				return t;
+				return worldTexture(t); // the tier's anisotropy (#179)
 			})
 			.catch((err: Error) => {
 				console.warn(`[assets] texture "${id}" failed to load:`, err.message);

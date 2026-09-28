@@ -29,6 +29,7 @@ export type { Params, ParamsInput, ShaderKind } from './kinds';
 export { SLOTS, SLOT_NAMES, blankTexture, prepareSlotTexture, slotDefault } from './defaults';
 export type { SlotName, SlotSpec, SlotType } from './defaults';
 export { loadPaint, paint } from './paint';
+export { mipBias, setTextureQuality, worldTexture } from './texture-quality';
 
 /** A material of a shader kind: its values and its slots' textures. */
 export type KindMaterial = THREE.NodeMaterial & {

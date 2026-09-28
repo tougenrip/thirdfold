@@ -7,6 +7,7 @@ import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { BACKEND } from './testing';
+import { settingsFor, TIERS } from './quality';
 import {
 	KINDS,
 	SHADER_KINDS,
@@ -21,7 +22,10 @@ import {
 	slotDefault,
 	type KindMaterial,
 	type ShaderKind,
-	type SlotName
+	type SlotName,
+	mipBias,
+	setTextureQuality,
+	worldTexture
 } from './materials';
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -37,6 +41,12 @@ afterEach(() => {
 interface Internals {
 	_nodes: { nodeBuilderCache: Map<number, unknown> };
 	_pipelines: { programs: { fragment: Map<string, unknown> } };
+	backend: {
+		get(texture: THREE.Texture): { textureGPU: WebGLTexture; glTextureType: number };
+		gl: WebGL2RenderingContext;
+		extensions: { get(name: string): { TEXTURE_MAX_ANISOTROPY_EXT: number } | null };
+		textureUtils: { _samplerCache: Map<string, unknown> };
+	};
 }
 
 /** A lit scene drawn into a small target, with the program and node-state counts. */
@@ -67,6 +77,7 @@ async function setup() {
 		},
 		read: async () => (await r.readRenderTargetPixelsAsync(target, 0, 0, SIZE, SIZE)) as Uint8Array,
 		programs: () => r.info.memory.programs,
+		renderer: r,
 		states: () => (r as unknown as Internals)._nodes.nodeBuilderCache.size,
 		fragments: () => (r as unknown as Internals)._pipelines.programs.fragment.size
 	};
@@ -222,5 +233,54 @@ describe('shader kinds', () => {
 		expect(still[2]).toBeGreaterThan(still[0] + 40);
 		expect(reddened[0]).toBeGreaterThan(reddened[1] + 40);
 		expect(programs()).toBe(programsBefore);
+	});
+});
+
+describe('world texture filtering (#179)', () => {
+	/** The anisotropy the backend samples `texture` with, as it was last uploaded or bound. */
+	function backendAnisotropy(r: THREE.WebGPURenderer, texture: THREE.Texture): number {
+		const { backend } = r as unknown as Internals;
+		if (BACKEND === 'webgpu') {
+			// The sampler key (WebGPUTextureUtils): filters, wraps, anisotropy, depth, compare.
+			const { minFilter, magFilter, wrapS, wrapT } = texture;
+			const prefix = [minFilter, magFilter, wrapS, wrapT, wrapS].join('-') + '-';
+			const found = [...backend.textureUtils._samplerCache.keys()]
+				.filter((k) => k.startsWith(prefix))
+				.map((k) => Number(k.slice(prefix.length).split('-')[0]));
+			return Math.max(...found);
+		}
+		const { gl } = backend;
+		const ext = backend.extensions.get('EXT_texture_filter_anisotropic');
+		if (!ext) return 1;
+		const { textureGPU, glTextureType } = backend.get(texture);
+		gl.bindTexture(glTextureType, textureGPU);
+		return gl.getTexParameter(glTextureType, ext.TEXTURE_MAX_ANISOTROPY_EXT) as number;
+	}
+
+	it('gives world textures the tier’s anisotropy, clamped, and data textures 1, compiling nothing', async () => {
+		const { scene, draw, programs, states, renderer: r } = await setup();
+		const max = r.getMaxAnisotropy();
+		const loaded = worldTexture(real('albedo'));
+		const material = createMaterial('surface', { slots: { albedo: loaded } });
+		const plane = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), material);
+		plane.rotation.x = -1.3; // grazing, as the ground is from a low camera
+		scene.add(plane);
+		setTextureQuality(settingsFor('low', 'webgpu'), max);
+		draw();
+		const [p0, s0] = [programs(), states()];
+
+		for (const tier of TIERS) {
+			const settings = settingsFor(tier, 'webgpu');
+			setTextureQuality(settings, max);
+			draw();
+			const expected = Math.max(1, Math.min(settings.anisotropy, max));
+			expect(loaded.anisotropy).toBe(expected);
+			expect(backendAnisotropy(r, loaded)).toBe(expected);
+			expect(mipBias.value).toBe(tier === 'high' || tier === 'ultra' ? -0.5 : 0);
+			// The blank in the other slots is a data texture: never registered.
+			expect(slotDefault('normal').anisotropy).toBe(1);
+		}
+		expect(programs()).toBe(p0);
+		expect(states()).toBe(s0);
 	});
 });

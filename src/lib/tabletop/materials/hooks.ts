@@ -6,7 +6,7 @@
 // - `surfaceMapping`: where a kind's slots lie (#177, mapping.ts): box projection from world
 //   position on the surface and terrain kinds, the geometry's own space for a `local` material
 //   (door panels), triplanar on rock, object space on props and minis, the mesh's uv elsewhere.
-// - `slotSample`: #179's sampler settings (the `uMipBias` with TRAA on high). A plain sample.
+// - `slotSample`: samples with #179's mip bias (`mipBias`, a uniform: 0 but on high with TRAA).
 // - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis (paint.ts).
 
 import type { SlotName } from './defaults';
@@ -14,6 +14,7 @@ import { slotDefault, slotProperty } from './defaults';
 import type { ShaderKind, Variant } from './kinds';
 import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
 import { paintedNormal, paintedRoughness } from './paint';
+import { mipBias } from './texture-quality';
 import { tsl, type N } from './tsl';
 
 /**
@@ -41,14 +42,16 @@ export function surfaceMapping(
  * A slot's texture sampled at `at`: one node per slot and graph, a `materialReference` to the
  * drawn material's `<slot>Slot`, so every material of a kind shares the node and its program.
  * Its texture node samples at `at`, never through the texture's own matrix, which r186 snapshots
- * from the first texture it sees (hence `repeat`). Not `texture().onObjectUpdate`: TextureNode's
- * setup resets its update type, so on WebGPU (no flip-Y uniform) the update would never run.
+ * from the first texture it sees (hence `repeat`), biased by the tier's `mipBias` (#179). Not
+ * `texture().onObjectUpdate`: TextureNode's setup resets its update type, so on WebGPU (no
+ * flip-Y uniform) the update would never run.
  */
 export function slotSample(slot: SlotName, at: N): N {
 	const ref = tsl.materialReference(slotProperty(slot), 'texture') as N & { node: unknown };
 	// The reference's own texture node, made here (it would make one without `at`): sampled at
-	// `at`, and without the texture matrix a node given no uv applies.
-	ref.node = tsl.texture(slotDefault(slot), at).setUpdateMatrix(false);
+	// `at` with the bias (fragment code only: the kinds sample no slot in the vertex stage), and
+	// without the texture matrix a node given no uv applies.
+	ref.node = tsl.texture(slotDefault(slot), at, null, mipBias).setUpdateMatrix(false);
 	return ref;
 }
 
