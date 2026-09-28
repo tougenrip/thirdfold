@@ -8,9 +8,8 @@
 // pipeline every pass renders linear with no tone mapping, so a material's
 // `toneMapped: false` no longer means anything: the whole frame is tone mapped
 // at the end. Every knob is a uniform, so changing one never recompiles; only a
-// tier whose stages differ rebuilds the pipeline. `?off=post` (the `post`
-// layer off) draws straight to the canvas as before, the kill switch until
-// #168 removes it.
+// tier whose stages differ rebuilds the pipeline. There is no other way to
+// draw: the direct render of before M63 went in #168.
 //
 // Ambient occlusion (#159, ao.ts) is SSAO or GTAO from the prepass's depth and
 // normals, in the scene pass's materials, on indirect light only. TRAA or SMAA
@@ -186,9 +185,6 @@ export class Post {
 			this.stages.samples === next.samples &&
 			this.stages.aa === next.aa &&
 			this.stages.ao === next.ao;
-		// Drawing straight to the canvas (`?off=post`) tone maps with the renderer's own.
-		this.renderer.toneMapping = TONE_MAPPINGS[next.toneMapper];
-		if (!settings.layers.post) return this.teardown();
 		if (!same || !this.pipeline) return this.build(next);
 		// Only the output stage holds the tone mapper: recompose it and keep the passes, whose
 		// materials would otherwise all compile again.
@@ -258,21 +254,12 @@ export class Post {
 			gate.effect.updateBeforeType = on ? gate.on : THREE.NodeUpdateType.NONE;
 			gate.frames++;
 		}
-		if (this.pipeline) {
-			(this.overlayCamera as THREE.PerspectiveCamera | null)?.copy(
-				this.camera as THREE.PerspectiveCamera
-			);
-			return this.pipeline.render();
-		}
-		const { renderer } = this;
-		renderer.render(this.scene, this.camera);
-		// Over it, on the same depth, not tone mapped.
-		const { autoClear, toneMapping } = renderer;
-		renderer.autoClear = false;
-		renderer.toneMapping = THREE.NoToneMapping;
-		renderer.render(this.overlay, this.camera);
-		renderer.autoClear = autoClear;
-		renderer.toneMapping = toneMapping;
+		// Nothing to draw with until the first `set`.
+		if (!this.pipeline) return;
+		(this.overlayCamera as THREE.PerspectiveCamera | null)?.copy(
+			this.camera as THREE.PerspectiveCamera
+		);
+		this.pipeline.render();
 	}
 
 	/**

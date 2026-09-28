@@ -1,7 +1,12 @@
-// Golden images of the renderer (milestone 61, baseline v0): every fixture
-// table at its named poses, in each ambient band, for the GM, a fogged player
-// and a spectator, drawn with SwiftShader at DPR 1 on an 800x500 canvas with a
-// frozen clock and reduced motion. Only Linux references are committed; CI is
+// Golden images of the renderer (milestone 61, baseline v0; per tier since
+// #168): every fixture table at its named poses, in each ambient band, for the
+// GM, a fogged player and a spectator, on the medium tier, and a smaller set on
+// low and high (TRAA converged, GTAO), drawn with SwiftShader at DPR 1 on an
+// 800x500 canvas with a frozen clock and reduced motion; the close and low
+// poses draw with depth of field, focused on the pose's pivot. Captures with
+// TRAA, GTAO or depth of field compare by SSIM (tests/visual/ssim.ts), the rest
+// by pixelmatch. Unexplored cells are checked black per tier by
+// unexplored-black.svelte.spec.ts. Only Linux references are committed; CI is
 // the authority. To update them on purpose (and show before and after in the
 // PR, see docs/RENDERING.md):
 //   npx vitest run --project client src/lib/tabletop/golden.svelte.spec.ts --update
@@ -20,6 +25,7 @@ import {
 	type PoseName,
 	type Viewer
 } from './testing';
+import type { Tier } from './quality';
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -33,6 +39,8 @@ interface Shot {
 	pose: PoseName;
 	band: Band | 'own';
 	viewer: Viewer;
+	/** Medium unless said. */
+	tier?: Tier;
 }
 
 /** Which images are taken: see the table in #132. */
@@ -48,8 +56,22 @@ export const MATRIX: Shot[] = [
 		{ fixture, pose: 'dark', band: 'dark', viewer: 'gm' },
 		{ fixture, pose: 'dark', band: 'dark', viewer: 'player' }
 	]),
-	...STRESS.map((fixture): Shot => ({ fixture, pose: 'overview', band: 'own', viewer: 'gm' }))
+	...STRESS.map((fixture): Shot => ({ fixture, pose: 'overview', band: 'own', viewer: 'gm' })),
+	// Low and high (#168): the compositions for the GM and a player, close up, and a spectator
+	// and the dark Hollow, where the tiers differ most. High on SwiftShader takes seconds a shot.
+	...(['low', 'high'] as const).flatMap((tier): Shot[] => [
+		...COMPOSED.flatMap((fixture): Shot[] => [
+			{ fixture, pose: 'overview', band: 'own', viewer: 'gm', tier },
+			{ fixture, pose: 'overview', band: 'own', viewer: 'player', tier },
+			{ fixture, pose: 'close', band: 'own', viewer: 'gm', tier }
+		]),
+		{ fixture: 'village', pose: 'overview', band: 'own', viewer: 'spectator', tier },
+		{ fixture: 'hollow', pose: 'overview', band: 'own', viewer: 'player', tier }
+	])
 ];
+
+/** Depth of field at the close and low poses, as a shot or Miniature draws them there. */
+const FOCUSED: readonly PoseName[] = ['close', 'low'];
 
 const linux = server.platform === 'linux';
 if (import.meta.env.CI && !linux) throw new Error('Golden images are checked on Linux in CI.');
@@ -63,19 +85,34 @@ afterEach(async () => {
 describe.skipIf(!linux)('golden images', () => {
 	const seen = new Set<string>();
 	for (const shot of MATRIX) {
-		it(`${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}`, async () => {
+		const tier = shot.tier ?? 'medium';
+		const label = `${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}`;
+		it(tier === 'medium' ? label : `${label} ${tier}`, async () => {
 			const sidecar = await loadSidecar(shot.fixture);
 			const band = shot.band === 'own' ? sidecar.ambient : shot.band;
 			// Each backend keeps its own references: the rasterisers differ at edges.
-			const suffix = BACKEND === 'webgpu' ? '-webgpu' : '';
+			const suffix =
+				(tier === 'medium' ? '' : `-${tier}`) + (BACKEND === 'webgpu' ? '-webgpu' : '');
 			const name = `${shot.fixture}-${shot.pose}-${band}-${shot.viewer}${suffix}`;
 			// "own" can repeat an explicit band: take each image once.
 			if (seen.has(name)) return expect(true).toBe(true);
 			seen.add(name);
 			const view = await loadView(shot.fixture, band, shot.viewer);
-			mounted = await mountFixture(view, sidecar.poses[shot.pose], { clock: manualClock(5000) });
+			const focused = FOCUSED.includes(shot.pose);
+			mounted = await mountFixture(view, sidecar.poses[shot.pose], {
+				clock: manualClock(5000),
+				tier,
+				miniature: focused
+			});
 			await settle(mounted.tabletop);
-			await expect.element(page.elementLocator(mounted.canvas)).toMatchScreenshot(name);
+			// TRAA's jitter, GTAO's rotations and the bokeh vary a little between runs and drivers.
+			const structural = tier === 'high' || focused;
+			await expect
+				.element(page.elementLocator(mounted.canvas))
+				.toMatchScreenshot(
+					name,
+					structural ? { comparatorName: 'ssim', comparatorOptions: { minScore: 0.98 } } : {}
+				);
 		});
 	}
 });

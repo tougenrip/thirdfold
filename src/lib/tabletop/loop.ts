@@ -126,7 +126,8 @@ export async function createNodeRenderer(
 	renderer.setClearColor(0x000000, 0);
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap; // soft on the node renderer
-	renderer.toneMapping = THREE.ACESFilmicToneMapping; // post.ts sets the viewer's
+	// Unused inside the pipeline, whose passes draw linear: post.ts tone maps once, at the end.
+	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 	// Under `?perf`, each render's name by its timestamp id, for GPU time by pass (perf.ts);
 	// three's Inspector (`?perf&inspector`) takes the same hook instead.
 	if (options.perf && !options.inspector) renderer.inspector = new PassNames();

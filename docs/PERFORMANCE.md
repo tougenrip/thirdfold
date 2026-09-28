@@ -307,9 +307,9 @@ higher: on the RTX low 2.0–4.6 ms, medium 3.9–9.9, high 2.8–4.7 (one villa
 iGPU low 9.1–12.1, medium 32–67, high 60–92. WebGPU is the faster backend on both machines.
 
 **Render-target memory per tier** (the perf gate, Ana's view of the test world at 1400×900, WebGL2
-on the RTX): each tier loads once as drawn and once with `?off=post`, and the difference is the post
-chain's targets. `scripts/perf-client.mjs` records `renderTargets` and texture bytes per tier in
-`docs/perf-baseline.json`, and fails when either rises.
+on the RTX): `scripts/perf-client.mjs` records `renderTargets` and texture bytes per tier in
+`docs/perf-baseline.json`, and fails when either rises. The post chain's share was measured
+against `?off=post` (each tier drawn straight to the canvas) until #168 removed that path.
 
 | Tier   | Render targets | Texture bytes | Of which the post chain |
 | ------ | -------------- | ------------- | ----------------------- |

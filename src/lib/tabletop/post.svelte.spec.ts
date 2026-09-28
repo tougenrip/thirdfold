@@ -50,7 +50,7 @@ describe('the post-processing pipeline', () => {
 
 	it('draws SMAA on the HDR image, with no MSAA', async () => {
 		const { renderer, post, draw } = await setup();
-		draw('medium', true, { aa: 'smaa', msaa: 0 });
+		draw('medium', { aa: 'smaa', msaa: 0 });
 		expect(post.scenePass!.renderTarget.samples).toBe(0);
 		// Its edges, weights and blend targets, on top of the passes'.
 		const smaa = renderer.info.memory.renderTargets;
@@ -62,14 +62,15 @@ describe('the post-processing pipeline', () => {
 	it('gives every target back across tier changes and when disposed', async () => {
 		const { renderer, post, draw } = await setup();
 		const { memory } = renderer.info;
-		draw('medium', false);
+		// What is left once a first pipeline is gone: the sun's shadow map, and nothing of post's.
+		draw('medium');
+		post.dispose();
 		const [targets, bytes] = [memory.renderTargets, memory.texturesSize];
 		for (const tier of ['low', 'high', 'medium', 'low'] as const) draw(tier);
 		// SMAA (#163), and GTAO at full resolution where ultra runs (#159).
-		draw('medium', true, { aa: 'smaa', msaa: 0 });
+		draw('medium', { aa: 'smaa', msaa: 0 });
 		if (BACKEND === 'webgpu') draw('ultra');
 		post.dispose();
-		draw('medium', false);
 		expect(memory.renderTargets).toBe(targets);
 		// r186's TRAANode keeps one 1×1 half-float texture (8 bytes) past its dispose; in play a
 		// change of antialiasing builds a new renderer, which frees it.
@@ -181,14 +182,6 @@ describe('the post-processing pipeline', () => {
 		post.render();
 		expect(post.uniforms.grain.value).toBeGreaterThan(0);
 		post.dispose();
-	});
-
-	it('draws straight to the canvas with the post layer off', async () => {
-		const { renderer, post, draw } = await setup();
-		draw('high', false);
-		expect(post.scenePass).toBeNull();
-		expect(post.targets()).toEqual([]);
-		expect(renderer.info.render.drawCalls).toBeGreaterThan(0);
 	});
 });
 
@@ -343,6 +336,6 @@ describe.skipIf(BACKEND === 'webgpu')('the tone mapper', () => {
 		expect(post.scenePass).toBe(scene);
 		expect(renderer.info.memory.programs).toBe(programs);
 		pick('agx');
-		expect(renderer.toneMapping).toBe(THREE.AgXToneMapping);
+		expect(post.toneMapper).toBe('agx');
 	});
 });

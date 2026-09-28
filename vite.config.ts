@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import type { BrowserCommand } from 'vitest/node';
 import type { BrowserContext } from 'playwright';
+import { ssimComparator } from './tests/visual/ssim';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
@@ -36,7 +37,9 @@ function browser(args: string[], headless: boolean) {
 				// ("something prevents the main process from exiting"). With 0 there is no timer, and
 				// the golden tests' own 60 s timeout bounds a capture (CI's small runners take seconds).
 				timeout: 0,
-				comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 }
+				comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 },
+				// SSIM for captures with TRAA, GTAO or depth of field (#168): tests/visual/ssim.ts.
+				comparators: { ssim: ssimComparator }
 			}
 		}
 	};
@@ -130,7 +133,11 @@ export default defineConfig({
 				test: {
 					name: 'server',
 					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}', 'server/**/*.{test,spec}.ts'],
+					include: [
+						'src/**/*.{test,spec}.{js,ts}',
+						'server/**/*.{test,spec}.ts',
+						'tests/**/*.spec.ts'
+					],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
 				}
 			}

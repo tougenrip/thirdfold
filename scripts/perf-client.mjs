@@ -423,19 +423,13 @@ for (const name of TABLES) {
 	};
 	for (const tier of tiers) {
 		const s = await measure(`&tier=${tier}`);
-		// The same tier drawn straight to the canvas: the difference is the post chain's targets.
-		const plain = await measure(`&tier=${tier}&off=post`);
-		report.gate.tiers[tier] = {
-			renderTargets: s.renderTargets,
-			texturesBytes: s.texturesBytes,
-			postBytes: s.texturesBytes - plain.texturesBytes
-		};
+		report.gate.tiers[tier] = { renderTargets: s.renderTargets, texturesBytes: s.texturesBytes };
 	}
 	console.log(
 		`memory per tier (Ana): ${Object.entries(report.gate.tiers)
 			.map(
 				([t, m]) =>
-					`${t} ${m.renderTargets} targets, ${(m.texturesBytes / 2 ** 20).toFixed(1)} MB textures (post ${(m.postBytes / 2 ** 20).toFixed(1)} MB)`
+					`${t} ${m.renderTargets} targets, ${(m.texturesBytes / 2 ** 20).toFixed(1)} MB textures`
 			)
 			.join('; ')}`
 	);

@@ -46,7 +46,6 @@ export const isSoftware = (name: string | null) =>
 /** The layers later milestones add, each off until it passes its gates; `?off=` turns them off. */
 export const LAYERS = [
 	'sky',
-	'post',
 	'ao',
 	'bloom',
 	'lens',
@@ -187,7 +186,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['post', 'ao', 'bloom', 'lens', 'grade', 'dof']);
+const ON = new Set<Layer>(['ao', 'bloom', 'lens', 'grade', 'dof']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
@@ -290,7 +289,7 @@ export function lensStrengths(
 	s: Pick<QualitySettings, 'miniature' | 'layers'>,
 	now: { shot: number; tactical: boolean; hasDof: boolean; reduced: boolean }
 ): { dof: number; tilt: number } {
-	if (now.reduced || !s.layers.dof || !s.layers.post) return { dof: 0, tilt: 0 };
+	if (now.reduced || !s.layers.dof) return { dof: 0, tilt: 0 };
 	const play = s.miniature ? MINIATURE_STRENGTH : 0;
 	if (!now.hasDof) return { dof: 0, tilt: Math.max(now.shot, play) };
 	if (now.tactical) return { dof: now.shot, tilt: play * (1 - now.shot) };

@@ -33,9 +33,9 @@ export async function postScene() {
 	const view = { ...STILL, target: new THREE.Vector3() };
 	const post = new Post(renderer, scene, camera, new THREE.Scene(), () => view);
 	const backend = BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
-	const draw = (tier: Tier, on = true, overrides: Partial<QualitySettings> = {}) => {
+	const draw = (tier: Tier, overrides: Partial<QualitySettings> = {}) => {
 		const settings = { ...settingsFor(tier, backend), ...overrides };
-		post.set({ ...settings, layers: { ...settings.layers, post: on } });
+		post.set(settings);
 		renderer.info.reset();
 		post.render();
 	};

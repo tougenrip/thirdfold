@@ -507,8 +507,7 @@ passes, in order:
   draws. Grid lines, no longer under the floor, fog and darkness planes, fade by those planes'
   textures (`setMasks`, one texel per cell): never over an unexplored cell, dimmer at night. Each
   mask slot keeps one filter (nearest for floor and fog, linear for darkness), because WebGPU fixes
-  a sampler's filtering when the material compiles. With `?off=post` the overlay scene is drawn
-  over the world on the canvas, without tone mapping.
+  a sampler's filtering when the material compiles.
   - **The grid shows only when wanted** (#167): hidden at rest (the tiles' seams are the grid),
     shown while the GM's Build panel is open, while placing a token or an enemy, and while a hover
     highlight aims a move, or always with the Graphics menu's Always show grid (`alwaysGrid` in
@@ -625,8 +624,8 @@ passes, in order:
   again at draw time; the shaders mostly come out identical and are shared, but some shadowed ones
   differ in the order of their uniform declarations, which is why the test world counts 66
   programs through the pipeline against 52 straight to the canvas.
-- **`?off=post`** turns the `post` layer off and draws straight to the canvas as before, on both
-  backends: the kill switch until #168 removes it.
+- **There is one render path** (#168): the pipeline. The direct `renderer.render(scene, camera)`
+  of before M63, the `?off=post` kill switch, went with the goldens re-captured per tier.
 - Emissive is 8-bit on purpose: a flame's excess above 1.0 reaches bloom through the HDR term
   (#160).
 - **Ambient occlusion** (#159, `ao.ts`) comes from the prepass's depth and normals: SSAO
