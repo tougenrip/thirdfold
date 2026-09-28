@@ -347,23 +347,25 @@ export class PropLayer {
 		this.meshes.delete(assetId);
 	}
 
-	/** Writes each instance's tint: selected or hovered over hidden, else none. */
+	/**
+	 * Writes each instance's tint: the ghost if hidden, plus selected or hovered, added (as the
+	 * old instance colours lerped both in), so a selected hidden prop still reads as hidden.
+	 */
 	private paint(): void {
 		const hidden = new Set(this.props.filter((p) => p.hidden).map((p) => p.id));
 		for (const meshes of this.meshes.values()) {
 			for (const { mesh } of meshes.parts) {
 				const tints = mesh.geometry.getAttribute(TINT_ATTRIBUTE) as THREE.BufferAttribute;
 				meshes.owners.forEach((id, i) => {
-					const tint =
-						id === this.selectedId
-							? SELECTED
-							: id === this.hoveredId
-								? HOVERED
-								: hidden.has(id)
-									? GHOST
-									: null;
-					const c = tint?.color;
-					tints.setXYZW(i, c?.r ?? 0, c?.g ?? 0, c?.b ?? 0, tint?.strength ?? 0);
+					const hot = id === this.selectedId ? SELECTED : id === this.hoveredId ? HOVERED : null;
+					const sum = [0, 0, 0];
+					for (const t of [hidden.has(id) ? GHOST : null, hot]) {
+						if (!t) continue;
+						sum[0] += t.color.r * t.strength;
+						sum[1] += t.color.g * t.strength;
+						sum[2] += t.color.b * t.strength;
+					}
+					tints.setXYZW(i, sum[0], sum[1], sum[2], 1);
 				});
 				tints.needsUpdate = true;
 			}

@@ -296,9 +296,12 @@ export class CellMaps {
 	/** The ground map from the floor and the levels, and the highest level. */
 	setGround(floorIds: Uint8Array | null, levels: Uint8Array | null): void {
 		const t = this.ground;
-		if (!t || !this.changed('ground', floorIds, levels)) return;
-		packGround(t.image.data as Uint8Array, floorIds, levels);
-		u.maxLevel.value = Math.max(1, ...(levels ?? []));
+		if (!t || !this.grid || !this.changed('ground', floorIds, levels)) return;
+		// A map of another size (the last table's, until its own arrives) paints nothing.
+		const n = this.grid.width * this.grid.height;
+		const fit = (a: Uint8Array | null) => (a?.length === n ? a : null);
+		packGround(t.image.data as Uint8Array, fit(floorIds), fit(levels));
+		u.maxLevel.value = Math.max(1, ...(fit(levels) ?? []));
 		t.needsUpdate = true;
 	}
 
