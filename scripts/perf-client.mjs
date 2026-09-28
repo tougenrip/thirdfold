@@ -423,7 +423,9 @@ for (const name of TABLES) {
 	};
 	for (const tier of tiers) {
 		const s = await measure(`&tier=${tier}`);
-		report.gate.tiers[tier] = { renderTargets: s.renderTargets, texturesBytes: s.texturesBytes };
+		// Shader programs and pipelines per tier and backend (#170): exact, a change needs a reason.
+		const { renderTargets, texturesBytes, programs, pipelines } = s;
+		report.gate.tiers[tier] = { renderTargets, texturesBytes, programs, pipelines };
 	}
 	console.log(
 		`memory per tier (Ana): ${Object.entries(report.gate.tiers)
@@ -542,6 +544,11 @@ if (BASELINE) {
 			b.texturesBytes,
 			m.texturesBytes <= b.texturesBytes
 		);
+		for (const k of ['programs', 'pipelines']) {
+			// Until the baseline is next written with them (--update-baseline), shown, not failed.
+			if (b[k] == null) check(`tier ${tier}: ${k}`, m[k], 'not in the baseline', true);
+			else check(`tier ${tier}: ${k}`, m[k], b[k], m[k] === b[k]);
+		}
 	}
 	for (const failure of report.gate.bundle.failures)
 		check(`bundle: ${failure}`, 'fail', '-', false);

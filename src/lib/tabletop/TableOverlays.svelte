@@ -76,8 +76,10 @@
 		<dd>{perf.drawCalls}</dd>
 		<dt>triangles</dt>
 		<dd>{perf.triangles.toLocaleString()}</dd>
-		<dt>geo / tex / prog</dt>
-		<dd>{perf.geometries} / {perf.textures} / {perf.programs}</dd>
+		<dt>geo / tex</dt>
+		<dd>{perf.geometries} / {perf.textures}</dd>
+		<dt>prog / pipelines</dt>
+		<dd>{perf.programs} / {perf.pipelines}</dd>
 		<dt>memory MB</dt>
 		<dd>{mb(perf.memoryBytes)} (tex {mb(perf.texturesBytes)})</dd>
 		<dt>lighting ms</dt>

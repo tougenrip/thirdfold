@@ -67,7 +67,8 @@ const RENDER_SPECS = [
 	'shot-focus',
 	'unexplored-black',
 	'materials',
-	'cell-maps'
+	'cell-maps',
+	'program-count'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
@@ -160,7 +161,8 @@ export default defineConfig({
 									'src/lib/tabletop/grade.svelte.spec.ts',
 									'src/lib/tabletop/unexplored-black.svelte.spec.ts',
 									'src/lib/tabletop/materials.svelte.spec.ts',
-									'src/lib/tabletop/cell-maps.svelte.spec.ts'
+									'src/lib/tabletop/cell-maps.svelte.spec.ts',
+									'src/lib/tabletop/program-count.svelte.spec.ts'
 								]
 							}
 						}

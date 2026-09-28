@@ -25,8 +25,11 @@ measured and left alone.
   scripts below. Timings come from `src/lib/tabletop/perf.ts`.
 - **What the counters count:** `drawCalls` and `triangles` are the last drawn frame's, shadow
   passes included (they are drawn inside the frame's render). `programs` counts the node
-  renderer's shader stages and pipelines, not linked GL programs as under the classic renderer, so
-  it only compares with itself and differs between backends. `memoryBytes` is everything three.js
+  renderer's shader stages (vertex and fragment, deduplicated by code), not linked GL programs as
+  under the classic renderer, so it only compares with itself and differs between backends;
+  `pipelines` counts render pipelines (a pair of stages and the state they draw with), and
+  `nodeStates` the node builder's generated code (`shaderCounts` in `perf.ts`, #170, the one place
+  that reads three's private caches). The overlay shows programs and pipelines. `memoryBytes` is everything three.js
   tracks on the GPU; `texturesBytes` its textures.
 - **Choosing the GPU and the backend:** both scripts below read `PERF_GPU` (`swiftshader`, the
   default, software and the same everywhere; `vulkan`, a real GPU; or `egl`, ANGLE over the
@@ -83,6 +86,7 @@ measured and left alone.
   | ------------------------------------------------------- | ------------------------------ |
   | Draw calls in the settled frame after the orbit         | more than baseline × 1.10      |
   | Shader programs after a table loads                     | more than baseline             |
+  | Shader programs and pipelines per tier (#170)           | not exactly the baseline's     |
   | Geometries, textures, heap after GC (per table, viewer) | more than baseline × 1.10      |
   | Frames in 2 s of idle (motion reduced)                  | more than 0                    |
   | Geometries, textures, programs after three more reloads | above the first load           |
@@ -320,6 +324,39 @@ against `?off=post` (each tier drawn straight to the canvas) until #168 removed 
 Before #166 the overlay's GPU ms under-reported: three's resolve returns only the last frame's
 total, which `sampleGpu` divided by every frame since the last sample. It now sums every timed
 render.
+
+### Shader programs under runtime state (milestone 64, #170)
+
+`src/lib/tabletop/program-count.svelte.spec.ts` warms the test world up (every environment drawn
+once, the village, Hollow and Heart visited once), then changes everything that changes at
+runtime one named step at a time and fails when a step changes the programs or pipelines. Counts
+after the warm-up, GM view, reduced motion (28 September 2026; SwiftShader WebGL2 in the `client`
+project, the RTX 4060 Laptop's WebGPU in `client-webgpu`):
+
+| Tier   | WebGL2 programs | WebGL2 pipelines | WebGPU programs | WebGPU pipelines |
+| ------ | --------------- | ---------------- | --------------- | ---------------- |
+| low    | 142             | 123              | 143             | 126              |
+| medium | 205             | 172              | 207             | 177              |
+| high   | 211             | 173              | 212             | 178              |
+
+Environments, the times of day, every floor, fog off and on in both modes, fully visible,
+explored and unseen fog, dark areas, 0, 1 and 12 lights (past the pool of 8), recolouring and
+switching them, a token carrying light, a token without a model, fallen and enemy turns, props
+selected, hovered, hidden and moved, both cues and travel between four tables of three sizes change
+none. What still compiles (`KNOWN` in the spec, each with the issue that ends it):
+
+- **Hiding a token** (+2 fragment stages, +2 pipelines, +4 on WebGPU low): `TokenLayer.sync`
+  toggles `transparent` on the mini's materials, a variant of its own. Showing it again can release
+  them, and the next hide compiles them again (#172 puts the mini on a kind that never toggles).
+- **The first selection** (+1 vertex, +1 fragment) **and the first turn marker** (+1 fragment):
+  the ring and the marker live in the overlay scene, which the warm-up does not compile (#180).
+- **WebGPU only, table travel:** leaving the test world for the Hollow or the Heart releases two
+  pipelines (their stages stay), and coming back builds them again. A pipeline is a driver compile
+  on WebGPU.
+
+Node states (generated code) go up and down by 2-3 on every table travel with no program change:
+reported, not failed. `?perf` shows programs and pipelines, and the perf gate records both per
+tier, exactly (`scripts/perf-client.mjs`; shown, not failed, until the baseline is next written).
 
 ### Memory
 

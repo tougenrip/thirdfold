@@ -740,6 +740,12 @@ layers uses them yet (#172 ports the layers).
   mini's clearcoat leaving 0 add no program, and a slot swap no node state
   (`materials.svelte.spec.ts`, both backends). r186 gives every `InstancedMesh` a vertex stage of
   its own (its instance-matrix buffer is named by id), a built-in material's too; #170 counts it.
+- **Runtime state never compiles** (`program-count.svelte.spec.ts`, #170, per tier on both
+  backends): after a warm-up of every environment and table, no named step (environments, times
+  of day, floors, fog, dark areas, light counts, tokens and props in every state, cues, table
+  travel) may change `shaderCounts` (`perf.ts`: programs, pipelines; node states are reported).
+  Every new kind or runtime state is added to the sweep. Compiles still left are in its `KNOWN`
+  list with the issue that ends each (`docs/PERFORMANCE.md`).
 
 ## Testing the renderer
 
