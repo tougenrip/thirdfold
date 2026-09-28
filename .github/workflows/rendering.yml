@@ -54,6 +54,8 @@ jobs:
             run: npm run test:render -- src/lib/tabletop/grade.svelte.spec.ts src/lib/tabletop/overlay.svelte.spec.ts src/lib/tabletop/focus.svelte.spec.ts src/lib/tabletop/shot-focus.svelte.spec.ts
           - name: unexplored-black
             run: npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+          - name: materials
+            run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts
     steps:
       - uses: actions/checkout@v4
 

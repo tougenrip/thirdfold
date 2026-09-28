@@ -65,7 +65,8 @@ const RENDER_SPECS = [
 	'overlay',
 	'focus',
 	'shot-focus',
-	'unexplored-black'
+	'unexplored-black',
+	'materials'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
@@ -156,7 +157,8 @@ export default defineConfig({
 									'src/lib/tabletop/recovery.svelte.spec.ts',
 									'src/lib/tabletop/post.svelte.spec.ts',
 									'src/lib/tabletop/grade.svelte.spec.ts',
-									'src/lib/tabletop/unexplored-black.svelte.spec.ts'
+									'src/lib/tabletop/unexplored-black.svelte.spec.ts',
+									'src/lib/tabletop/materials.svelte.spec.ts'
 								]
 							}
 						}

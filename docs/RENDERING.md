@@ -315,6 +315,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                            |
 | `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                        |
 | `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
+| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169)                                     |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `floor.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts` |
 
 ## Quality tiers
@@ -685,7 +686,50 @@ at the M63 tip, after the loose ends of #157, #159, #160, #162, #163, #165 and #
 
 ## Shader kinds
 
-Filled in by milestone 64.
+Every surface is one of a closed set of kinds from `src/lib/tabletop/materials/` (#169;
+the full rules and costs are #182). `createMaterial(kind, options)` makes one; nothing in the
+layers uses them yet (#172 ports the layers).
+
+| Kind     | Base                               | Fixed at creation                 | Slots                         |
+| -------- | ---------------------------------- | --------------------------------- | ----------------------------- |
+| surface  | Standard                           | instanced, vertex colours         | albedo, normal, ORM, emissive |
+| terrain  | Standard                           | as surface                        | as surface                    |
+| rock     | Standard                           | as surface (triplanar in #177)    | as surface                    |
+| prop     | Standard                           | as surface; object-space sampling | as surface                    |
+| mini     | Physical (clearcoat a uniform)     | as prop                           | as surface                    |
+| emissive | Standard                           | as surface                        | as surface                    |
+| decal    | Standard, transparent              | as surface                        | as surface                    |
+| foliage  | Standard, alpha-tested, both sides | as surface; sways on `worldTime`  | as surface                    |
+| water    | Standard, transparent              | as surface; slides on `worldTime` | as surface                    |
+| overlay  | Basic, or LineBasic (`lines`)      | instanced, lines                  | albedo (lines: none)          |
+
+- **One graph per kind and variant** (`kinds.ts` `graphFor`), shared by all its materials: their
+  values are `material.params.*` read through `materialReference`, kept in one object because r186
+  keys node state by whether each number on a material is zero. Textures sit in slots
+  (`<slot>Slot`, `setSlot`), each a `materialReference` whose texture node samples at the kind's
+  coordinates times `params.repeat` (a texture's own matrix is snapshotted by r186).
+- **Slots are never empty** (`defaults.ts`): blanks of the slot's type, colour space, wrap,
+  filters and mapping (albedo white sRGB; normal (128, 128, 255) and ORM (255, 255, 0) linear;
+  emissive black; array and 3D slots get 1×1 `DataArrayTexture` and `Data3DTexture`), and loaders
+  put the same sampling on real textures with `prepareSlotTexture`. ORM's blue can only add metal
+  (`max(params.metalness, b)`), so the blank keeps a material's own metalness.
+- **Never toggle** `transparent`, `side`, `alphaTest`, `vertexColors` or `fog` after creation;
+  foliage cuts by `params.cutoff` through `alphaTestNode`, the mini's clearcoat is
+  `clearcoatNode` on `params.clearcoat` (0 until #267).
+- **Hooks**, each the identity until its issue: `worldModify` and `worldEmissive` last on every kind
+  (`world-modify.ts`, #171), `surfaceUV` (#177), `paintNormal`/`paintRoughness` (#178) and
+  `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
+  `aTint` attribute is the emissive tint input #172's hover and selection use.
+- **Animated kinds** read `worldTime`, a uniform the renderer owns and holds still under reduced
+  motion, never three's `time`.
+- **No GLSL, no `onBeforeCompile`**: ESLint refuses `onBeforeCompile`, `glslFn` and `wgslFn` under
+  `src/lib/tabletop/`.
+- **Sampled textures per kind:** 4 slots on the lit kinds, 1 on overlay meshes, none on lines,
+  before shadow maps and #171's two cell maps (16 per stage are guaranteed).
+- **Programs:** a second material, other values, a slot swapped between blank and real, or the
+  mini's clearcoat leaving 0 add no program, and a slot swap no node state
+  (`materials.svelte.spec.ts`, both backends). r186 gives every `InstancedMesh` a vertex stage of
+  its own (its instance-matrix buffer is named by id), a built-in material's too; #170 counts it.
 
 ## Testing the renderer
 
