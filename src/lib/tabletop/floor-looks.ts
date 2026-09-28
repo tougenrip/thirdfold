@@ -1,6 +1,6 @@
-// How each floor looks, as plain data with no three.js: the renderer paints
-// floors with it and the Build panel shows it as swatches. Kept apart from
-// floor.ts so the panel never pulls three.js into the room page's imports.
+// How each floor looks, as plain data with no three.js: the terrain kind paints
+// floors with it (materials/hooks.ts) and the Build panel shows it as swatches,
+// so the panel never pulls three.js into the room page's imports.
 
 import type { FloorId } from '$lib/game/floor';
 

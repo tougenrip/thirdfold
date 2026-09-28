@@ -5,8 +5,8 @@
 // its modes, dark areas, light counts past the pool, tokens and props in every state, both cues
 // and table travel. No step may change the programs or pipelines; a change names the step and
 // the stages it made or dropped (a stage is named after its material, and the material module
-// names its materials by kind: the layers #172 ported show as surface, terrain, prop and mini). Compiles today's renderer still makes are listed in KNOWN, with the
-// issue that ends them. New node states with no new program are reported, not failed:
+// names its materials by kind: the layers #172 ported show as surface, terrain, prop and mini).
+// Compiles today's renderer still makes are listed in KNOWN, with the issue that ends them. New node states with no new program are reported, not failed:
 // they cost code generation, not a driver compile. r186 gives every InstancedMesh a vertex stage
 // of its own (materials.svelte.spec.ts), so the warm-up visits every table the sweep travels to:
 // their props' meshes are compiled then, and a table left behind keeps its programs. A
