@@ -676,6 +676,9 @@ at the M63 tip, after the loose ends of #157, #159, #160, #162, #163, #165 and #
 - The client suite on SwiftShader (264 tests) and the WebGPU suite on the RTX (222) passed; three
   SwiftShader tests failed once under a full run's load (a screenshot timeout, crowd-60, the shot
   test) and passed alone, and the shot test was made independent of what loads before it.
+- After #168 (goldens per tier, the direct render path removed), again from the built app: both
+  adventures to their ends (64 s and 33 s), the perf gate passed on the same baseline, and the
+  golden sets passed on both backends (159 each; WebGPU three runs in a row, WebGL2 twice).
 - `npm run bundle:check`: the renderer chunk is 343.1 kB gz of its 360 kB (from 303.4 kB: SMAA's
   lookup textures and GTAO); the room page's own code 74.9 kB gz of its 76 kB (74.4 before M63).
 
@@ -696,9 +699,16 @@ DPR 1, with a clock the test holds still, reduced motion on and the camera at a 
   motion; reloading tables leaks no geometry, texture or shader program; cycling the times of day
   compiles nothing new the second time; a disposed tabletop answers no pointer events.
 - **Golden images** (`golden.svelte.spec.ts`): the `MATRIX` table lists every image, named
-  `<fixture>-<pose>-<band>-<viewer>`. Pixelmatch with threshold 0.1 and at most 0.5% mismatched
-  pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`), and the
-  spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
+  `<fixture>-<pose>-<band>-<viewer>`, with `-low` or `-high` for the per-tier sets (#168: medium
+  draws every shot; low and high the reference compositions for the GM and a player, close up,
+  a spectator and the dark Hollow, high with TRAA converged and GTAO). The close and low poses
+  draw with depth of field focused on the pose's pivot (`mountFixture`'s `miniature`, with the
+  power saver so no flame keeps TRAA's jitter going). Captures with TRAA, GTAO or depth of field
+  compare by SSIM (`tests/visual/ssim.ts`: mean SSIM over luminance in 8×8 windows, at least
+  0.98, a diff of each window's loss), the rest by pixelmatch with threshold 0.1 and at most 0.5%
+  mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
+  and the spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
+  Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts`.
 
 **When a golden fails in CI**, the `verify` job uploads the `golden-diffs` artifact
 (`.vitest-attachments/`: the reference, the actual image and a diff for each failure; kept 14

@@ -380,6 +380,35 @@ draws over it, so unexplored cells stay black and dark cells as dark as the rule
 hue changed. These colours are interim: #208 blends them by the hour and #218 and the art bible
 (#183) own the final palette.
 
+## Milestone 63 closed (#168)
+
+`docs/look/m63/`: the whole M63 chain as the metrics draw it (the medium tier, GM view without
+fog, reduced motion, so no grain and no depth of field), against the close of M62.
+
+| Reference | band | m62   | m63   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.169 | 0.161 |
+| 2         | dusk | 0.284 | 0.307 |
+| 3         | dark | 0.137 | 0.123 |
+| 4         | dark | 0.160 | 0.121 |
+| 6         | dark | 0.245 | 0.221 |
+| 7         | day  | 0.115 | 0.112 |
+| 8         | dusk | 0.193 | 0.207 |
+| mean      |      | 0.186 | 0.179 |
+
+Of the paired fixtures named for this milestone (refs 1, 3, 6, 7 and 8) four move toward their
+references: the nights most (blue darks and warm pools, the grade, AO under things), day a
+little. Ref 8 moves away, as ref 2 does: both are dusk, and both references' dusk is warmer and
+brighter than ours, lit by a sky we do not have; the grade and the dusk hemisphere shape a light
+that #114's sky and #208's hours supply. The per-effect strips above record each step.
+
+Still missing, for the milestones that own them: the material system (M64, #111) and the surface
+library and art bible (M65, #112), the sky and atmosphere (M67, #114, #218), lighting by the hour
+(#208), shadowed torches near the camera (#230), baked vertex AO (#190), and fog and darkness
+inside every material instead of planes on the floor (#171). The owner's sign-off of the look (G2) is pending, and so is a decision
+on the highlight colours under colour-vision simulation (#157: blocked and place nearly match for
+deuteranopes).
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:
