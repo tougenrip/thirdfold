@@ -1,5 +1,5 @@
-// Renderer smoke tests (milestone 61): every fixture table draws for every
-// viewer without errors, frames are deterministic, an idle table draws
+// Renderer smoke tests (milestone 61): frames are deterministic (every fixture
+// drawing for every viewer is fixtures.svelte.spec.ts), an idle table draws
 // nothing, ambient animation stays at its slow rate, and reloading tables or
 // cycling the time of day leaks nothing and compiles nothing new.
 
@@ -10,7 +10,6 @@ import { createTabletop } from './renderer';
 import { qualityFor, settingsFor, withOverrides } from './quality';
 import {
 	BACKEND,
-	FIXTURES,
 	loadSidecar,
 	loadView,
 	manualClock,
@@ -42,19 +41,6 @@ async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?:
 	await settle(m.tabletop);
 	return m;
 }
-
-describe('every fixture', () => {
-	for (const fixture of FIXTURES) {
-		for (const viewer of ['gm', 'player', 'spectator'] as const) {
-			it(`${fixture} draws for the ${viewer}`, async () => {
-				const { tabletop } = await mount(fixture, viewer);
-				const stats = tabletop.stats();
-				expect(stats.frames).toBeGreaterThanOrEqual(1);
-				expect(stats.drawCalls).toBeGreaterThan(0);
-			});
-		}
-	}
-});
 
 describe('the renderer', () => {
 	// Reads pixels back, which only WebGL2 does here; on WebGPU the golden images compare frames.

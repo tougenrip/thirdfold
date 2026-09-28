@@ -51,13 +51,15 @@ const TIERS: Tier[] = ['low', 'medium', 'high'];
  * the party, whose explored ground leaves fewer than MIN_SAMPLES cells in view; the other story
  * and stress tables repeat these (and SwiftShader's readback costs seconds a frame, #176's budget).
  */
-const CASES: { fixture: string; viewer: Viewer }[] = [
-	{ fixture: 'dungeon-40', viewer: 'player' },
-	{ fixture: 'hollow', viewer: 'player' },
-	{ fixture: 'village', viewer: 'player' },
-	{ fixture: 'outdoor-64', viewer: 'player' },
-	{ fixture: 'ref-8', viewer: 'player' },
-	{ fixture: 'ref-8', viewer: 'spectator' }
+/**
+ * Every tier on the two darkest player views (the most unexplored ground in view), and the dusk
+ * village and ref-8's spectator on medium: kept to a few minutes on CI's software GPU.
+ */
+const CASES: { fixture: string; viewer: Viewer; tiers: readonly Tier[] }[] = [
+	{ fixture: 'dungeon-40', viewer: 'player', tiers: TIERS },
+	{ fixture: 'hollow', viewer: 'player', tiers: TIERS },
+	{ fixture: 'village', viewer: 'player', tiers: ['medium'] },
+	{ fixture: 'ref-8', viewer: 'spectator', tiers: ['medium'] }
 ];
 const POSE: PoseName = 'overview';
 
@@ -213,8 +215,8 @@ function knownGround(view: FixtureView): Uint8Array {
 }
 
 describe(`unexplored cells on ${BACKEND}`, () => {
-	for (const { fixture, viewer } of CASES)
-		for (const tier of TIERS)
+	for (const { fixture, viewer, tiers } of CASES)
+		for (const tier of tiers)
 			it(`${fixture} ${viewer} ${tier}: black at ${POSE}`, async () => {
 				const sidecar = await loadSidecar(fixture);
 				const view = await loadView(fixture, sidecar.ambient, viewer);

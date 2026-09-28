@@ -32,8 +32,9 @@ jobs:
 
       - run: npm run check
       - run: npm run lint
-      # Live Supabase tests skip themselves without SUPABASE_* env. Golden images are not part of
-      # this: they run in goldens.yml, on pull requests that touch rendering.
+      # Live Supabase tests skip themselves without SUPABASE_* env. The renderer's pixel tests and
+      # golden images are not part of this: they run in rendering.yml, on pull requests that touch
+      # rendering.
       - run: npm test
       - run: npm run build
       # three.js stays out of every page's static imports; pages and the renderer stay in budget.

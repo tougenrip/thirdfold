@@ -103,6 +103,8 @@ declare module 'vitest' {
 		backend: 'webgl' | 'webgpu';
 		/** Which golden images to take: the slim set CI takes, or every one (by hand). */
 		goldens: 'slim' | 'full';
+		/** `k/n`: take every nth fixture from the kth in fixtures.svelte.spec.ts (CI's parallel jobs). */
+		shard: string;
 	}
 }
 

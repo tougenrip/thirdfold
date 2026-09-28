@@ -711,14 +711,16 @@ DPR 1, with a clock the test holds still, reduced motion on and the camera at a 
   and the spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
   Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts`.
   **When they run:** never with `npm test`. CI takes the slim set (`SLIM` in the spec, 26 images)
-  in `.github/workflows/goldens.yml`, only on pull requests that touch rendering, never on pushes.
+  in `.github/workflows/rendering.yml`, only on pull requests that touch rendering, never on
+  pushes, beside the renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run
+test:render`), which leave `npm test` too, so the verify job stays within minutes.
   The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
   hand, once a rendering PR is ready and agreed, not during development, where the test world and
   the targeted specs are the check.
 
-**When a golden fails in CI**, the `goldens` job uploads the `golden-diffs` artifact
-(`.vitest-attachments/`: the reference, the actual image and a diff for each failure; kept 14
-days). Download it from the run's page; its reference and actual PNGs are the before and after a
+**When a golden fails in CI**, the `goldens` job of `rendering.yml` uploads the `goldens-diffs`
+artifact (`.vitest-attachments/`: the reference, the actual image and a diff for each failure;
+kept 14 days). Download it from the run's page; its reference and actual PNGs are the before and after a
 golden PR shows.
 
 **Changing goldens.** Update them only on purpose, on Linux:
