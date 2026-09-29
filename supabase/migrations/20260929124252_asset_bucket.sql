@@ -4,8 +4,8 @@
 -- there is no insert, update or delete policy. The browser checks every file against the
 -- manifest's SHA-256, so a changed object is refused, never drawn.
 --
--- Storage's tables belong to the storage service, which the CI `supabase` job does not start;
--- without them there is no bucket to make, and this migration only says so.
+-- Storage's tables belong to the storage service; where it hasn't run (a Supabase started
+-- without storage) there is no bucket to make, and this migration only says so.
 do $$
 begin
 	if to_regclass('storage.buckets') is null then
@@ -26,6 +26,7 @@ begin
 		file_size_limit = excluded.file_size_limit,
 		allowed_mime_types = excluded.allowed_mime_types;
 
+	drop policy if exists "assets are public to read" on storage.objects;
 	create policy "assets are public to read"
 	on storage.objects for select
 	to anon, authenticated
