@@ -1,0 +1,12 @@
+{
+	"usage": "albedo",
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/mud_cracked_dry_03/mud_cracked_dry_03_diff_2k.png",
+			"sha256": "419252b13ddb77e75823356850292ebbc11e62fe87dea02f2a6b459e15df372c"
+		},
+		"modified": true
+	}
+}

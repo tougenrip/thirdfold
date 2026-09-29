@@ -287,14 +287,16 @@ cooked at the 512 px base and its 1K and 2K variants (see Texture detail).
 
 Every floor a GM can paint with a look of its own (stone, wood, grass, dirt, sand: `SURFACE_FLOORS`
 in `scenes.ts`, a surface's id being its floor's; plain is the table's own, water is drawn as water,
-the void is nothing) and every wall surface the environments wear (plaster, ashlar, planks) is a
+the void is nothing), every wall surface the environments wear (plaster, ashlar, planks, cave-rock) and the rest of #187's library (the floors #248 will add, the walls and roofs kits will wear) is a
 painted surface, repainted from a CC0 scan (docs/ART.md section 11):
 
 1. `art/surfaces/<id>/meta.json` holds the set's `provenance` (`CC0-1.0`, the download's URL and
    SHA-256 as its `source`, `modified: true`), its `ramp` (docs/ART.md "Surface ramps", which
-   `stylise.spec.ts` checks it against), `detail`, `normalBoost` and `textureSize` (512). Git keeps
+   `stylise.spec.ts` checks it against), `detail` and `normalBoost` (the cook makes the 512 base and the 1K and 2K variants). Git keeps
    only it (and an optional hand-painted `touchup.png`).
-2. `node scripts/fetch-surfaces.mjs` fetches each set from ambientCG or Poly Haven (no other host),
+2. `node scripts/fetch-surfaces.mjs [id...]` fetches each set from ambientCG (one zip) or Poly
+   Haven (a PNG per map: the colour map is the `source`, the others are listed in `maps`, each
+   with its URL and SHA-256) and no other host,
    refuses one whose SHA-256 differs, and unzips its maps beside the meta (`--record` writes the
    hash of a new set whose meta has all zeros). By hand only: CI never downloads.
 3. `npm run assets:cook` stylises it (`server/assets/stylise.ts`, deterministic: integer maths and

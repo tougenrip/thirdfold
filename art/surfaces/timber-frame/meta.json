@@ -1,0 +1,32 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_inlaid_stone_wall/wood_inlaid_stone_wall_diff_2k.png",
+			"sha256": "bab8de4687a26e80e3c34c7ae0f0e91adf52fe312f457d08e1f450f96e39063e"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_inlaid_stone_wall/wood_inlaid_stone_wall_nor_gl_2k.png",
+			"sha256": "e18b86528eb372dab61bceca2c4ee9f8d37fa01929b9c80becdaaabe8fca583f"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_inlaid_stone_wall/wood_inlaid_stone_wall_rough_2k.png",
+			"sha256": "d636fc0764de4f9810fdd4c32f28630bd7f69a1517da56cf19fb90110ef6ba1e"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_inlaid_stone_wall/wood_inlaid_stone_wall_ao_2k.png",
+			"sha256": "ac696ab97efe84d667b60a87dfde01ca54a7d31705a7785f4d02a46de9be95f3"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_inlaid_stone_wall/wood_inlaid_stone_wall_disp_2k.png",
+			"sha256": "90d17323c774628007cf4644cc8c6cf595af6a29d4dca8c9e8ce58c43f1339fd"
+		}
+	],
+	"ramp": ["#2f2629", "#4f3b30", "#6f5540", "#c9bca4"],
+	"detail": 0.25,
+	"normalBoost": 1.5
+}

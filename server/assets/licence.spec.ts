@@ -95,7 +95,7 @@ describe('the build', () => {
 			)
 		);
 
-	it('credits every file with an allowlisted licence: the surfaces (#187) as ambientCG, the rest as ours', () => {
+	it('credits every file with an allowlisted licence: the surfaces (#187) as ambientCG or Poly Haven, the rest as ours', () => {
 		const { manifest } = built;
 		const files = [
 			...Object.values(manifest.models),
@@ -109,8 +109,10 @@ describe('the build', () => {
 				f.file.startsWith('textures/surface-')
 					? {
 							license: 'CC0-1.0',
-							author: 'ambientCG',
-							source: expect.stringMatching(/^https:\/\/ambientcg\.com\/get\?file=/),
+							author: expect.stringMatching(/^(ambientCG|Poly Haven)$/),
+							source: expect.stringMatching(
+								/^https:\/\/(ambientcg\.com\/get\?file=|dl\.polyhaven\.org\/file\/)/
+							),
 							modified: true
 						}
 					: { license: 'LicenseRef-thirdfold-original', author: 'thirdfold contributors' }
