@@ -2,7 +2,7 @@
 // draw: softening and fading never lift a cell above its hard factor, a hidden cell stays 0, a
 // known cell's centre keeps its value, and fades end on the clock.
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { FOG_LEVELS, fogFactor } from './cell-maps';
 import {
 	CLOUD_VERTEX_CAP,
@@ -141,6 +141,11 @@ describe('the cloud’s shape', () => {
 });
 
 describe('the cloud’s drift', () => {
+	// Transformed once off the test's clock: a busy full run can take seconds over the first import.
+	beforeAll(async () => {
+		await import('./fog-cloud');
+	}, 60_000);
+
 	const grid = { kind: 'square' as const, cellSize: 1, width: 4, height: 4 };
 	const fog = { enabled: true, shared: false, visible: '', explored: '' };
 
