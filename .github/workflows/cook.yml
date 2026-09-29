@@ -1,0 +1,40 @@
+name: Cook
+
+# By hand only: cooks every art source again (docs/ASSETS.md "Cooking art") on Linux and macOS
+# and fails if either gives other bytes than the committed cook, which is how the encoders'
+# determinism across machines is checked. Uploading the cooked files to storage comes with #191;
+# until then they are kept as a workflow artifact.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cook:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run assets:cook -- --force
+      - name: The same bytes as the committed cook
+        run: git diff --exit-code -- assets/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cooked-${{ matrix.os }}
+          path: |
+            assets/cook.lock.json
+            assets/models/**/*.glb
+            assets/textures/*.ktx2

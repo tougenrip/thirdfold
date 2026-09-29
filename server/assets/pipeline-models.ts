@@ -49,6 +49,7 @@ export async function buildModels(
 			let glb: Buffer;
 			let swing: ModelEntry['swing'];
 			let setPiece = false;
+			let screenSizes: unknown;
 			try {
 				if (ext === 'json') {
 					const model = readModelSource(readJson(source), new Set(Object.keys(materials)));
@@ -62,6 +63,7 @@ export async function buildModels(
 						const m = readJson(meta);
 						if (isRecord(m) && isRecord(m.swing)) swing = m.swing as ModelEntry['swing'];
 						setPiece = isRecord(m) && m.setPiece === true;
+						if (isRecord(m)) screenSizes = m.screenSizes;
 					}
 				} else throw new Error('models are .json part lists or .glb files');
 			} catch (err) {
@@ -73,7 +75,15 @@ export async function buildModels(
 			const checked = await checkGlb(glb, limit);
 			if (!checked.ok) throw new AssetError(source, checked.error);
 			const { triangles, bounds, gpuBytes } = checked.info;
-			// Part lists have no LODs: a few hundred triangles need none.
+			// Part lists have no LODs: a few hundred triangles need none. A cooked model's meta.json
+			// says below what share of the screen each level is drawn (cook.ts).
+			const lods = checked.info.lods.map((t, i) => ({
+				triangles: t,
+				screenSize: Array.isArray(screenSizes) ? screenSizes[i] : undefined
+			}));
+			if (lods.some((l) => typeof l.screenSize !== 'number')) {
+				throw new AssetError(source, 'a model with LODs needs their screenSizes in its meta.json');
+			}
 			models[id] = {
 				...emit('models', id, 'glb', glb),
 				bytes: glb.length,
@@ -83,6 +93,7 @@ export async function buildModels(
 				gpuBytes,
 				credit,
 				...(swing ? { swing } : {}),
+				...(lods.length ? { lods: lods as ModelEntry['lods'] } : {}),
 				...(checked.info.cooked ? { cooked: true as const } : {}),
 				...(setPiece ? { setPiece: true as const } : {})
 			};

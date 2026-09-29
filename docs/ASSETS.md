@@ -8,6 +8,7 @@ Hollow Bell is the reference: every prop, figure, place and bell it uses comes t
 ```bash
 npm run assets          # build assets/ into static/assets/ (commit both)
 npm run assets:check    # fail if static/assets/ isn't what assets/ builds (a test checks this too)
+npm run assets:cook     # cook art/ into assets/ (see Cooking art); -- --check only compares hashes
 ```
 
 Build with Node 22, as CI does (`npx -y node@22 node_modules/tsx/dist/cli.mjs server/assets/build.ts`
@@ -179,6 +180,58 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
 - **Sound files** can be WAV (PCM) or Ogg (Vorbis or Opus).
 - The engine plays The Hollow Bell's great bell (and its flash, an octave up) and the hand bell
   from these samples once they have loaded, and synthesizes them until then.
+
+### Cooking art
+
+Textured art needs encoders too slow for every build, so it goes through an offline step first.
+`npm run assets:cook` (`server/assets/cook.ts`, textures in `cook-textures.ts`) turns an artist's
+export into cooked files in `assets/`, and `npm run assets` then only checks and hashes them like
+any other GLB or KTX2 source. Nothing cooks per pull request.
+
+| Art source                                                  | Cooked into                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------ |
+| `art/<kind>/<id>/<id>.glb` + `meta.json` (a Blender export) | `assets/models/<kind>/<id>.glb` + `<id>.meta.json`     |
+| `art/texture/<id>/<id>.png` + `meta.json`                   | `assets/textures/<id>.ktx2` + `<id>.meta.json` (usage) |
+
+`meta.json` holds the `provenance` (required, docs/ART.md section 13, copied into the cooked
+meta), and optionally `swing`, `setPiece`, `textureSize` (the largest side; bigger maps are halved
+until they fit), `lods` (per level `{ ratio, error, screenSize }` over the defaults), `lockBorder`
+(kit pieces, so simplified seams stay closed) and, for a texture, `usage`. The export follows
+docs/ART.md section 17. A model is cooked in this order:
+
+1. Checked: only the allowed extensions, no skins, animations, cameras or shape keys, objects
+   named `body`, `swing`, `accent` (or `<role>_lod1`/`_lod2` made by hand), triangles, the allowed
+   attributes, indices inside the vertices. The mesh takes its object's name; extras, copyright
+   and the exporter's name are dropped (provenance lives in the manifest).
+2. `dedup`, `prune`; MikkTSpace tangents (three's vendored `mikktspace`) where a material has a
+   normal map; `weld`.
+3. LODs (meshoptimizer's simplifier): `<role>_lod1` at half the triangles and `<role>_lod2` at
+   15%, for roles of 300 triangles or more without levels of their own, each only if coarser than
+   the last. Their screen sizes (0.25 and 0.1 by default) go in the cooked meta as `screenSizes`,
+   which the build puts in the manifest's `lods`.
+4. `meshopt` at level `medium` (quantised, `EXT_meshopt_compression`).
+5. Textures to KTX2 by the slots they fill, always with every mip level and power-of-two sides
+   (the Khronos artist guide): albedo and emissive ETC1S (BasisLZ) with the sRGB transfer; normal
+   and ORM UASTC with RDO (λ 0.5) and Zstd, linear. PNGs are 8-bit grey, grey and alpha, RGB or
+   RGBA, or 16-bit grey (`decodePng`, `png.ts`).
+6. The result must pass `checkGlb` at its class's limits.
+
+The encoder is `ktx2-encoder` (Basis Universal as WASM, single-threaded, no native binary): the
+same input gives the same bytes on Node 22 and 26 on Linux, which `cook.spec.ts` checks on a
+fixture (`tests/fixtures/art`, written by `scripts/make-art-fixture.ts`) and the `Cook` workflow checks on macOS.
+KTX-Software's `ktx create` is not needed. `meshoptimizer` is pinned to 1.1.1, the version whose
+decoder three r186 vendors.
+
+`assets/cook.lock.json` records the tools' versions, the cook's settings, and per entry its source
+files' and outputs' SHA-256. An entry whose sources, tools and settings are unchanged and whose
+outputs are intact is skipped (`-- --force` cooks all again); entries whose art isn't in this
+checkout stay in the lock as they were. `npm run assets:cook -- --check` (run by CI's `verify`,
+seconds) encodes nothing: it fails when a source here changed since its cook, when a tool or
+setting changed, or when an output is not what the cook wrote. `.github/workflows/cook.yml`, run
+by hand, cooks everything again on Linux and macOS and fails on any byte of difference.
+
+Where `art/` and the cooked binaries are kept, and the upload, is #191; 1K variants for the mobile
+tier are #358.
 
 ## Rules the pipeline enforces
 

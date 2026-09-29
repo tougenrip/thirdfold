@@ -32,6 +32,9 @@ jobs:
 
       - run: npm run check
       - run: npm run lint
+      # The cooked assets are what assets/cook.lock.json says: hashes only, nothing is encoded
+      # (cooking is by hand or in cook.yml, docs/ASSETS.md "Cooking art").
+      - run: npm run assets:cook -- --check
       # Live Supabase tests skip themselves without SUPABASE_* env. The renderer's pixel tests and
       # golden images are not part of this: they run in rendering.yml, on pull requests that touch
       # rendering.
