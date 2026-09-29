@@ -754,6 +754,10 @@ function enemy(v: unknown, path: string): EnemyFile {
 		bad(`${path}.model`, 'expected a model asset id');
 	}
 	if (typeof e.color !== 'string' || !COLOR.test(e.color)) bad(`${path}.color`, 'expected #rrggbb');
+	const lightColor = e.lightColor;
+	if (lightColor !== undefined && (typeof lightColor !== 'string' || !COLOR.test(lightColor))) {
+		bad(`${path}.lightColor`, 'expected #rrggbb');
+	}
 	const toll = opt(e.toll, (x) => {
 		const t = obj(x, `${path}.toll`);
 		return {
@@ -773,6 +777,7 @@ function enemy(v: unknown, path: string): EnemyFile {
 		speed: int(e.speed, `${path}.speed`, 0, 20),
 		vision: int(e.vision, `${path}.vision`, 1, 30),
 		light: int(e.light, `${path}.light`, 0, 20),
+		...(lightColor === undefined ? {} : { lightColor: (lightColor as string).toLowerCase() }),
 		initiative: int(e.initiative, `${path}.initiative`, -10, 20),
 		hp: hitPoints(e.hp, `${path}.hp`),
 		attacks: list(

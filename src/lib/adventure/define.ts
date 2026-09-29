@@ -407,6 +407,8 @@ export interface EnemyDef {
 	vision: number;
 	/** Light it carries, in cells; 0 for none. */
 	light: number;
+	/** The colour of that light, `#rrggbb`; the carried-light default when absent. */
+	lightColor?: string;
 	/** Added to its d20 for initiative. */
 	initiative: number;
 	/** Hit points for a party of this many characters. */

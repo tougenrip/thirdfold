@@ -11,7 +11,7 @@
 // props, walls and doors, environment (a public id only), and the markers (a
 // secret's name, id or colour) in any frame at all, the log included. Later
 // milestones add theirs here: world look (#199), interior (#203), last-seen
-// lights (#204), token looks (#202), VFX sources and attacker ids (#314) and
+// lights (#204), token looks (#202: tokens and props carry only their known fields), VFX sources and attacker ids (#314) and
 // camera shots (#355).
 
 import { decodeFloor } from '../src/lib/game/floor';
@@ -39,6 +39,15 @@ export interface Leak {
 	field: string;
 	detail: string;
 }
+
+const TOKEN_KEYS: ReadonlySet<string> = new Set<keyof Token>([
+	...(['id', 'name', 'color', 'pos', 'ownerId', 'vision', 'light', 'hidden', 'model'] as const),
+	...(['scale', 'lift', 'lightColor'] as const)
+]);
+const PROP_KEYS: ReadonlySet<string> = new Set<keyof Prop>([
+	...(['id', 'assetId', 'pos', 'rotation', 'scale', 'hidden'] as const),
+	...(['tint', 'variant'] as const)
+]);
 
 export function framesLeaks(
 	frames: readonly string[],
@@ -76,10 +85,22 @@ export function framesLeaks(
 	const floor = (f: string | null) => f !== null && map('floor', decodeFloor(f, size));
 	const darkness = (d: string | null) => d !== null && map('darkness', decodeMask(d, size));
 	const lights = (ls: Light[]) => ls.forEach((l) => at('lights', l.pos, l.id));
-	const tokens = (ts: Token[]) => ts.forEach((t) => at('tokens', t.pos, t.id));
+	// Token and prop looks (#202) ride on the piece itself, so they are exactly as secret as it
+	// is; a key outside the known fields is something new reaching the client unchecked.
+	const looks = (field: string, pieces: object[], known: ReadonlySet<string>) => {
+		for (const p of pieces) {
+			const extra = Object.keys(p).filter((k) => !known.has(k));
+			if (extra.length) leak(field, `carries ${extra.join(', ')}`);
+		}
+	};
+	const tokens = (ts: Token[]) => {
+		looks('tokens.look', ts, TOKEN_KEYS);
+		ts.forEach((t) => at('tokens', t.pos, t.id));
+	};
 	// Props and walls are sent whole once any cell of theirs is known, so only one wholly
 	// inside the region is a leak.
 	const props = (ps: Prop[]) => {
+		looks('props.look', ps, PROP_KEYS);
 		for (const p of ps) if (footprintCells(p).every(inside)) leak('props', p.id);
 	};
 	const objects = (os: SceneObject[]) => {

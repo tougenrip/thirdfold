@@ -104,6 +104,33 @@ describe('token messages', () => {
 		expect(
 			parseClientMessage({ type: 'prop_update', propId: 'p', patch: { hidden: false } })
 		).toEqual({ type: 'prop_update', propId: 'p', patch: { hidden: false } });
+		// Looks (#202): in bounds, and null clears a colour.
+		const token = (patch: object) =>
+			parseClientMessage({ type: 'token_update', tokenId: 't', patch });
+		const prop = (patch: object) => parseClientMessage({ type: 'prop_update', propId: 'p', patch });
+		expect(token({ scale: 3, lift: 10, lightColor: '#b8c8ff' })).toMatchObject({
+			patch: { scale: 3, lift: 10, lightColor: '#b8c8ff' }
+		});
+		expect(token({ lightColor: null })).toMatchObject({ patch: { lightColor: null } });
+		expect(token({ scale: 0.5, lift: 0 })).toMatchObject({ patch: { scale: 0.5, lift: 0 } });
+		for (const bad of [
+			{ scale: 0.4 },
+			{ scale: 3.1 },
+			{ scale: '2' },
+			{ lift: -1 },
+			{ lift: 11 },
+			{ lightColor: 'red' },
+			{ lightColor: '#FFA04D' }
+		]) {
+			expect(token(bad)).toBeNull();
+		}
+		expect(prop({ tint: '#8a3b3b', variant: 255 })).toMatchObject({
+			patch: { tint: '#8a3b3b', variant: 255 }
+		});
+		expect(prop({ tint: null })).toMatchObject({ patch: { tint: null } });
+		for (const bad of [{ tint: 'blue' }, { variant: 256 }, { variant: -1 }, { variant: 1.5 }]) {
+			expect(prop(bad)).toBeNull();
+		}
 		expect(parseClientMessage({ type: 'fog_room', cell: { x: 3, y: 4 }, reveal: true })).toEqual({
 			type: 'fog_room',
 			cell: { x: 3, y: 4 },

@@ -14,7 +14,7 @@
 import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import type { Ground } from './ground';
+import { STEP_HEIGHT, type Ground } from './ground';
 import type { Token } from '$lib/game/token';
 import { createMaterial, withBake, type KindMaterial } from './materials';
 import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
@@ -166,12 +166,12 @@ export class TokenLayer {
 		this.grid = { ...grid };
 		let changed = gridChanged;
 		const seen = new Set<string>();
-
 		for (const token of tokens) {
 			seen.add(token.id);
 			const w = gridToWorld(grid, token.pos);
-			// Standing on its cell's floor: up on a balcony, halfway up a stair.
-			const target = new THREE.Vector3(w.x, ground?.floorY(token.pos) ?? w.y, w.z);
+			// Standing on its cell's floor: up on a balcony, halfway up a stair; a flier above it.
+			const lift = (token.lift ?? 0) * STEP_HEIGHT * grid.cellSize;
+			const target = new THREE.Vector3(w.x, (ground?.floorY(token.pos) ?? w.y) + lift, w.z);
 			let entry = this.entries.get(token.id);
 			if (!entry) {
 				entry = this.create(token, target);
@@ -199,7 +199,11 @@ export class TokenLayer {
 				entry.name = token.name;
 				changed = true;
 			}
-			entry.root.scale.setScalar(grid.cellSize);
+			const size = grid.cellSize * (token.scale ?? 1);
+			if (entry.root.scale.x !== size) {
+				entry.root.scale.setScalar(size);
+				changed = true;
+			}
 			if (gridChanged || snap) {
 				entry.root.position.copy(target);
 				entry.from.copy(target);

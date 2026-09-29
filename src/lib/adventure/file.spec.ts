@@ -93,6 +93,19 @@ describe('adventure files', () => {
 		expect(parseAdventureFile(badDice)).toMatchObject({ ok: false });
 	});
 
+	it("parses an enemy's carried light colour, lowercased, and refuses a bad one (#202)", () => {
+		const lit = json(exampleAdventure());
+		(lit.enemies.rat as { lightColor?: string }).lightColor = '#B8C8FF';
+		const loaded = loadAdventureFile(lit, 'custom-lit');
+		if (!loaded.ok) throw new Error(loaded.error);
+		expect(loaded.adventure.enemies.rat.lightColor).toBe('#b8c8ff');
+		(lit.enemies.rat as { lightColor?: string }).lightColor = 'blue';
+		expect(parseAdventureFile(lit)).toMatchObject({
+			ok: false,
+			error: expect.stringContaining('enemies.rat.lightColor')
+		});
+	});
+
 	it('drops what it does not know', () => {
 		const file = json(exampleAdventure()) as unknown as Record<string, unknown>;
 		const parsed = parseAdventureFile({ ...file, script: 'alert(1)' });

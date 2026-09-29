@@ -72,6 +72,14 @@ describe('props as obstacles', () => {
 		expect(isReachable(grid, obstaclesFor(grid, [], row), c(4, 4), c(4, 6))).toBe(false);
 	});
 
+	it('places and blocks a tinted prop exactly as a plain one (#202)', () => {
+		const plain = [prop('table', 4, 5), prop('bookshelf', 1, 1, 1)];
+		const tinted = plain.map((p, i) => ({ ...p, tint: '#8a3b3b', variant: i * 100 }));
+		const [a, b] = [plain, tinted].map((ps) => obstaclesFor(grid, [], ps));
+		expect(b).toEqual(a);
+		expect(tinted.map(footprintCells)).toEqual(plain.map(footprintCells));
+	});
+
 	it('does not let a diagonal squeeze between two solid cells', () => {
 		const obs = obstaclesFor(grid, [], [prop('crate', 5, 4), prop('crate', 4, 5)]);
 		expect(canStep(obs, c(4, 4), c(5, 5))).toBe(false);
