@@ -14,7 +14,7 @@
 	import { MAX_VISION } from '$lib/game/visibility';
 	import { MAX_LIGHT_RADIUS } from '$lib/game/lights';
 	import { loadManifest } from '$lib/assets/load';
-	import type { ModelKind } from '$lib/assets/manifest';
+	import { FIGURE_KINDS, isFigureKind, type FigureKind } from '$lib/assets/manifest';
 
 	interface Props {
 		isGm: boolean;
@@ -34,19 +34,19 @@
 
 	const owners = $derived(players.filter((p) => p.role === 'player'));
 
-	/** Figures a token can be drawn as, by kind (props aren't figures). */
-	const FIGURE_KINDS: [ModelKind, string][] = [
-		['character', 'Characters'],
-		['npc', 'People'],
-		['enemy', 'Creatures']
-	];
-	let figures = $state<{ id: string; kind: ModelKind }[]>([]);
+	/** Figures a token can be drawn as, by kind (props, kit and the rest aren't figures). */
+	const FIGURE_LABELS: Record<FigureKind, string> = {
+		character: 'Characters',
+		npc: 'People',
+		enemy: 'Creatures'
+	};
+	let figures = $state<{ id: string; kind: FigureKind }[]>([]);
 	$effect(() => {
 		if (!isGm) return;
 		void loadManifest().then((m) => {
-			figures = Object.entries(m.models)
-				.filter(([, e]) => e.kind !== 'prop')
-				.map(([id, e]) => ({ id, kind: e.kind }));
+			figures = Object.entries(m.models).flatMap(([id, e]) =>
+				isFigureKind(e.kind) ? [{ id, kind: e.kind }] : []
+			);
 		});
 	});
 	const figureName = (id: string) => id.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
@@ -182,9 +182,9 @@
 						})}
 				>
 					<option value="">Plain miniature</option>
-					{#each FIGURE_KINDS as [kind, label] (kind)}
+					{#each FIGURE_KINDS as kind (kind)}
 						{#if figures.some((f) => f.kind === kind)}
-							<optgroup {label}>
+							<optgroup label={FIGURE_LABELS[kind]}>
 								{#each figures.filter((f) => f.kind === kind) as f (f.id)}
 									<option value={f.id}>{figureName(f.id)}</option>
 								{/each}

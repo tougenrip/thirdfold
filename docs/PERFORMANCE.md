@@ -557,3 +557,17 @@ Slowest at 1920×1080: hollow low (Ana), 39.66 ms.
 - **The GM's larger view.** The GM sees everything by design.
 - **Ambient flicker and mist at dusk.** These are an intended look. They run on a slow timer, only
   when visible, and are off with reduced motion.
+
+## Manifest v2 (#184)
+
+`static/assets/manifest.json`, the one fetch before any asset loads, before and after manifest
+v2 (the same 69 models, 64 textures and 2 sounds; gzip -9):
+
+| Manifest | Bytes  | Gzipped |
+| -------- | ------ | ------- |
+| v1       | 32,061 | 4,781   |
+| v2       | 52,140 | 10,605  |
+
+Most of the growth is the whole SHA-256 of each of the 135 files, which does not compress
+(135 × 64 hex digits is 8.6 kB), and each texture's usage, colour space, layers, levels and GPU
+bytes. It stays one fetch, cached by the browser like the rest of the page.

@@ -3,7 +3,8 @@
 // then keeps its placeholders), and says so in the console.
 
 import { base } from '$app/paths';
-import { EMPTY_MANIFEST, parseManifest, type Manifest } from './manifest';
+import { EMPTY_MANIFEST, type Manifest } from './manifest';
+import { parseManifest } from './manifest-parse';
 
 let manifest: Promise<Manifest> | null = null;
 

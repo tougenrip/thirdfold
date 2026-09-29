@@ -30,6 +30,8 @@ export interface PartSource {
 export interface ModelSource {
 	parts: PartSource[];
 	swing?: { pivot: number; throw: number };
+	/** A prop held to the set-piece limits (see LIMITS). */
+	setPiece?: true;
 }
 
 const MAX_PARTS = 200;
@@ -101,6 +103,10 @@ export function readModelSource(raw: unknown, materials: ReadonlySet<string>): M
 			throw new Error('bad "swing"');
 		}
 		source.swing = { pivot: s.pivot, throw: s.throw };
+	}
+	if (raw.setPiece !== undefined) {
+		if (raw.setPiece !== true) throw new Error('"setPiece" is true or absent');
+		source.setPiece = true;
 	}
 	if (parts.some((p) => p.swings) && !source.swing)
 		throw new Error('swinging parts need a "swing"');

@@ -22,6 +22,7 @@ the built files would not match CI's.
 | Characters                       | `assets/models/character/<id>.json`                          | `models/<id>.<hash>.glb`     |
 | NPCs                             | `assets/models/npc/<id>.json`                                | `models/<id>.<hash>.glb`     |
 | Enemies                          | `assets/models/enemy/<id>.json`                              | `models/<id>.<hash>.glb`     |
+| Kit, foliage, decor, effects     | `assets/models/{kit,foliage,decor,fx}/<id>.json`             | `models/<id>.<hash>.glb`     |
 | Any model made elsewhere         | `assets/models/<kind>/<id>.glb`                              | copied, after checking       |
 | Materials                        | `assets/materials.json`                                      | the manifest                 |
 | Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`         | `textures/<id>.<hash>.png`   |
@@ -103,10 +104,17 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   (`gloss`, 0.5 neutral). Both are data, loaded linear: `paint-normal` and `paint-gloss` are the
   paint detail props and minis sample in object space (`docs/RENDERING.md`, "Materials and world
   visibility").
-- **A material** is `{ "color", "roughness", "metalness", "map": <texture>, "cells": n }`. `cells`
-  is how many cells one repeat of the texture covers.
+- **A texture's usage** (`usage` in its recipe, or in `<id>.meta.json` beside a PNG): `albedo`
+  (the default), `normal`, `orm`, `height`, `emissive`, `mask`, `lut` or `sky`. The usage fixes
+  its colour space (`USAGE_SPACE`: colour is sRGB, data linear), and the manifest refuses a
+  texture whose colour space disagrees. The paint maps are `normal` and `mask`, the lens dirt
+  `mask`, the grade strips `lut`.
+- **A material** is `{ "color", "roughness", "metalness", "map": <texture>, "cells": n }`, and
+  optionally `"normal"` and `"orm"` textures. `cells` is how many cells one repeat of the texture
+  covers. Each map must be a texture of its usage (`map` albedo).
 - **An environment** is `{ "name", "surface", "ground", "walls", "table" }`. Each field names a
-  material, used for the floor, raised ground, walls and the table's rim.
+  material, used for the floor, raised ground, walls and the table's rim. `table` is optional:
+  without it the rim wears the floor's look (#220 takes the rim away).
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
 
@@ -144,19 +152,56 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   - Images and sounds are checked by their headers.
   - The manifest is validated again by the client (`parseManifest`). Its file paths can only point
     into `/assets/`.
-- **Limits** (`LIMITS` in `src/lib/assets/manifest.ts`):
-  - models: 512 kB and 20,000 triangles;
-  - textures: 512 kB and 1024 px;
-  - sounds: 2 MB and 30 s.
+- **Limits by class** (`LIMITS` in `src/lib/assets/manifest.ts`, `limitClass`), enforced by the
+  pipeline and again by the client's parser. A figure is a character, NPC or enemy; decor is held
+  to props' limits; a set piece is a prop whose source sets `"setPiece": true` (in its part list
+  or its `<id>.meta.json`).
+
+  | Class     | LOD0 triangles | Texture px | File bytes | GPU bytes |
+  | --------- | -------------- | ---------- | ---------- | --------- |
+  | kit       | 1,500          | 2048       | 256 kB     | 2 MB      |
+  | prop      | 20,000         | 2048       | 4 MB       | 16 MB     |
+  | foliage   | 6,000          | 2048       | 2 MB       | 8 MB      |
+  | fx        | 2,000          | 1024       | 1 MB       | 4 MB      |
+  | figure    | 40,000         | 2048       | 4 MB       | 16 MB     |
+  | set piece | 60,000         | 2048       | 8 MB       | 32 MB     |
+  | texture   | n/a            | 2048       | 4 MB       | 32 MB     |
+  | sky       | n/a            | 4096       | 4 MB       | 32 MB     |
+
+  Sounds: 2 MB and 30 s (`AUDIO_LIMITS`). GPU bytes are what a file takes once decoded: a model's
+  vertex and index arrays (a part list's binary chunk), and a texture's pixels with a third more
+  for mips, at 32 bits a pixel for PNG and 8 for KTX2, the worst of what KTX2 transcodes to. The
+  limits are a ceiling per asset; what a whole table may add up to is #193's.
+
 - **Only ids in saves.** Scene files and the room refer to assets by id (`Token.model`, the scene's
   `environment`), never by content. An id the client doesn't know draws as the placeholder.
-- **Repeatable.** The same sources build the same bytes. Files are named by a hash of their
-  content, so browsers can cache them for good. `server/assets/pipeline.spec.ts` fails when
-  `static/assets/` is out of date.
+- **Repeatable.** The same sources build the same bytes. Files are named by the first 8 hex
+  digits of their SHA-256, so browsers can cache them for good, and the manifest lists each
+  file's whole `sha256`, which a client checks a download from another host by (#191).
+  `server/assets/pipeline.spec.ts` fails when `static/assets/` is out of date.
 - **Every table checks.** `checkScenes` (`server/assets/scenes.ts`) builds each of The Hollow Bell's
   tables and checks every prop, figure and environment it uses against the manifest. That covers
   the people on its tables and the characters and enemies the story places. Scenes themselves stay
   on the server: a table holds the story's secrets.
+
+## The manifest (version 2)
+
+`src/lib/assets/manifest.ts` declares it and `manifest-parse.ts` checks it (tests in
+`server/assets/manifest.spec.ts`). Besides the fields above, it holds what later work fills in,
+each optional until then: a model's `lods` (levels after LOD0, coarsest last, each with its
+triangles and the `screenSize` below which it is drawn; their meshes are `<role>_lod<n>` in the
+same GLB, since three's GLTFLoader strips `.` from names), `cooked`, `materials` (manifest
+materials a kit piece or decor wears), a kit piece's `pivot` and `footprint`, a `preview` model
+and a `thumbnail`; `credit` on every file (`{ license, author, source?, modified?, ai? }`, #189);
+`pack` on every file and the `packs` they add up to (#192); `surfaces` (#187) and an
+environment's `surfaces`; and the KTX2 transcoder's folder under `decoders` (#188). Part lists get
+no LODs.
+
+It changes by one rule: a new optional field needs no version bump, and a field the client
+doesn't know is dropped; a kind, format, usage or class it doesn't know is refused. Only version 2
+is read, since the manifest ships with the client that parses it. The parse is all or nothing: one
+bad field and the client draws placeholders, never a half-trusted load. The pipeline parses its
+own output, so such a manifest never builds.
 
 ## At the table
 

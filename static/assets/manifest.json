@@ -1,8 +1,9 @@
 {
-	"version": 1,
+	"version": 2,
 	"models": {
 		"ember": {
 			"file": "models/ember.43d21356.glb",
+			"sha256": "43d2135641ddb0d31d098948c44ac061eac9d3102797498b740892f6d7cfa6eb",
 			"bytes": 28516,
 			"kind": "character",
 			"triangles": 1272,
@@ -17,10 +18,12 @@
 					1.15,
 					0.22
 				]
-			}
+			},
+			"gpuBytes": 27172
 		},
 		"saint": {
 			"file": "models/saint.9b0c9851.glb",
+			"sha256": "9b0c9851b9093245b17875f3d7aecedef7aa2abf0ed9d2c0194aeb9a41c8be60",
 			"bytes": 13740,
 			"kind": "character",
 			"triangles": 496,
@@ -35,10 +38,12 @@
 					0.96,
 					0.268
 				]
-			}
+			},
+			"gpuBytes": 12384
 		},
 		"veil": {
 			"file": "models/veil.b514bfdc.glb",
+			"sha256": "b514bfdcb7f3878ec03d1d96d2b90ba118ab3a6e0974cf03e7e9ddf87d1c1605",
 			"bytes": 14880,
 			"kind": "character",
 			"triangles": 764,
@@ -53,10 +58,12 @@
 					0.87,
 					0.21
 				]
-			}
+			},
+			"gpuBytes": 13516
 		},
 		"warden": {
 			"file": "models/warden.bc25ba67.glb",
+			"sha256": "bc25ba67aa57ca16df1f1b1f6e2874a4b3c28b98859e7789a37eccac6618b661",
 			"bytes": 17016,
 			"kind": "character",
 			"triangles": 616,
@@ -71,10 +78,12 @@
 					0.89,
 					0.24
 				]
-			}
+			},
+			"gpuBytes": 15668
 		},
 		"armored-brute": {
 			"file": "models/armored-brute.1e3fc884.glb",
+			"sha256": "1e3fc8842ed94816b5ad90b46f02232822ab337489cd9b7d64f19bd80573cd1b",
 			"bytes": 18384,
 			"kind": "enemy",
 			"triangles": 640,
@@ -89,10 +98,12 @@
 					1.05,
 					0.22
 				]
-			}
+			},
+			"gpuBytes": 17024
 		},
 		"giant-hand": {
 			"file": "models/giant-hand.54761626.glb",
+			"sha256": "547616269df8952dfdc96e8080e8f32974087cb3663b9ee11b578460ac98b3a9",
 			"bytes": 13256,
 			"kind": "enemy",
 			"triangles": 444,
@@ -107,10 +118,12 @@
 					0.702,
 					0.297
 				]
-			}
+			},
+			"gpuBytes": 11912
 		},
 		"hatted-shade": {
 			"file": "models/hatted-shade.601aa10c.glb",
+			"sha256": "601aa10ca66be7791966c678b80db3dc869e68719e936267c186ced4408164eb",
 			"bytes": 21436,
 			"kind": "enemy",
 			"triangles": 896,
@@ -125,10 +138,12 @@
 					1.03,
 					0.29
 				]
-			}
+			},
+			"gpuBytes": 20076
 		},
 		"hound": {
 			"file": "models/hound.0dc2d521.glb",
+			"sha256": "0dc2d521680f768d269310bf8cea117e6ed6e8a6a40c3fad419ea6d836eff6a7",
 			"bytes": 30936,
 			"kind": "enemy",
 			"triangles": 1136,
@@ -143,10 +158,12 @@
 					0.65,
 					0.6
 				]
-			}
+			},
+			"gpuBytes": 29572
 		},
 		"pulsing-mass": {
 			"file": "models/pulsing-mass.71b526f3.glb",
+			"sha256": "71b526f3ff46f19f20e820f024f2385d1761494e7fcb0abb669db317b70f517c",
 			"bytes": 18920,
 			"kind": "enemy",
 			"triangles": 920,
@@ -161,10 +178,12 @@
 					0.78,
 					0.31
 				]
-			}
+			},
+			"gpuBytes": 17544
 		},
 		"robed-figure": {
 			"file": "models/robed-figure.d112ef17.glb",
+			"sha256": "d112ef1767f3c9ddf7a68ba58e70df5d1e65e9ed906ff3bd66e4c57629f2e4b0",
 			"bytes": 16992,
 			"kind": "enemy",
 			"triangles": 824,
@@ -179,10 +198,12 @@
 					0.88,
 					0.22
 				]
-			}
+			},
+			"gpuBytes": 15636
 		},
 		"tentacle": {
 			"file": "models/tentacle.14d8b1e6.glb",
+			"sha256": "14d8b1e627f19a3f453c576202fe3855582aafcc30dcf474e9710760b5f8c1f7",
 			"bytes": 27404,
 			"kind": "enemy",
 			"triangles": 1308,
@@ -197,10 +218,12 @@
 					1.084,
 					0.189
 				]
-			}
+			},
+			"gpuBytes": 26040
 		},
 		"child": {
 			"file": "models/child.b29197f6.glb",
+			"sha256": "b29197f69d09eba150b826b18885f67b89dcd8e61ed600a1bc735cc8933dfee3",
 			"bytes": 17980,
 			"kind": "npc",
 			"triangles": 848,
@@ -215,10 +238,12 @@
 					0.707,
 					0.14
 				]
-			}
+			},
+			"gpuBytes": 16616
 		},
 		"elder": {
 			"file": "models/elder.b5a53331.glb",
+			"sha256": "b5a53331c960991ea15f80461631f8a93be5374b5a570ff08a1d667146369db7",
 			"bytes": 20636,
 			"kind": "npc",
 			"triangles": 920,
@@ -233,10 +258,12 @@
 					0.858,
 					0.165
 				]
-			}
+			},
+			"gpuBytes": 19288
 		},
 		"gravedigger": {
 			"file": "models/gravedigger.b776df81.glb",
+			"sha256": "b776df81923774337128be9cbdece1ad1e189c0a7b6a21830835aed3a69d4c2f",
 			"bytes": 18240,
 			"kind": "npc",
 			"triangles": 652,
@@ -251,10 +278,12 @@
 					0.93,
 					0.15
 				]
-			}
+			},
+			"gpuBytes": 16876
 		},
 		"monk": {
 			"file": "models/monk.9aede13c.glb",
+			"sha256": "9aede13c6654c1e4b5817e19e7775ad821f391ad86712837f2bc59689d9203ad",
 			"bytes": 16448,
 			"kind": "npc",
 			"triangles": 812,
@@ -269,10 +298,12 @@
 					0.87,
 					0.23
 				]
-			}
+			},
+			"gpuBytes": 15084
 		},
 		"priest": {
 			"file": "models/priest.73357485.glb",
+			"sha256": "733574850dda875383635ca4961c42b83708b3faa9d05dd9b1759ef5ece8356e",
 			"bytes": 10512,
 			"kind": "npc",
 			"triangles": 412,
@@ -287,10 +318,12 @@
 					0.918,
 					0.256
 				]
-			}
+			},
+			"gpuBytes": 9160
 		},
 		"smith": {
 			"file": "models/smith.5a991d2b.glb",
+			"sha256": "5a991d2b9c1e214a43bcd1582c38d950199d6fc2197bcb8cbdb34adfc0b8361d",
 			"bytes": 19980,
 			"kind": "npc",
 			"triangles": 872,
@@ -305,10 +338,12 @@
 					0.888,
 					0.17
 				]
-			}
+			},
+			"gpuBytes": 18616
 		},
 		"villager": {
 			"file": "models/villager.db6b742b.glb",
+			"sha256": "db6b742b8097b1494d965665389505d1d51f87e42291a17c23126e513729d672",
 			"bytes": 17868,
 			"kind": "npc",
 			"triangles": 824,
@@ -323,10 +358,12 @@
 					0.918,
 					0.215
 				]
-			}
+			},
+			"gpuBytes": 16508
 		},
 		"watchman": {
 			"file": "models/watchman.e5e2211c.glb",
+			"sha256": "e5e2211cfdc0c43cafd6f41448d820e0dacd67ad4c3f1e8a389afbd1afa16182",
 			"bytes": 21084,
 			"kind": "npc",
 			"triangles": 712,
@@ -341,10 +378,12 @@
 					1.24,
 					0.16
 				]
-			}
+			},
+			"gpuBytes": 19756
 		},
 		"wide-hat": {
 			"file": "models/wide-hat.e7c82a3f.glb",
+			"sha256": "e7c82a3f9f8add76acf8bfd852bb6aa483128cb81ac718011586138bb16e23f7",
 			"bytes": 16100,
 			"kind": "npc",
 			"triangles": 604,
@@ -359,10 +398,12 @@
 					1.03,
 					0.25
 				]
-			}
+			},
+			"gpuBytes": 14768
 		},
 		"altar": {
 			"file": "models/altar.2ecddf68.glb",
+			"sha256": "2ecddf684e613bd29e3f8e58b063eb665aba0e1c3e22a7efdb84841c9170ec08",
 			"bytes": 7296,
 			"kind": "prop",
 			"triangles": 168,
@@ -377,10 +418,12 @@
 					1.26,
 					0.45
 				]
-			}
+			},
+			"gpuBytes": 6448
 		},
 		"anvil": {
 			"file": "models/anvil.4639f8b7.glb",
+			"sha256": "4639f8b762aee7c48b3fa641969feb1431aa61ff58ebcbfea4c5392656acb748",
 			"bytes": 3668,
 			"kind": "prop",
 			"triangles": 60,
@@ -395,10 +438,12 @@
 					0.67,
 					0.175
 				]
-			}
+			},
+			"gpuBytes": 2820
 		},
 		"ashes": {
 			"file": "models/ashes.b165f2fb.glb",
+			"sha256": "b165f2fb20c657a40d2cba848af28fa3a37f233400332d6b043db850e213b2ce",
 			"bytes": 11792,
 			"kind": "prop",
 			"triangles": 460,
@@ -413,10 +458,12 @@
 					0.18,
 					0.3
 				]
-			}
+			},
+			"gpuBytes": 10920
 		},
 		"barrel": {
 			"file": "models/barrel.6a621d91.glb",
+			"sha256": "6a621d91b7769c7ca34020bdbcd73514fba1aa6e039f68408b673c9c0dd49d43",
 			"bytes": 8864,
 			"kind": "prop",
 			"triangles": 216,
@@ -431,10 +478,12 @@
 					0.9,
 					0.37
 				]
-			}
+			},
+			"gpuBytes": 8016
 		},
 		"bed": {
 			"file": "models/bed.13798cf7.glb",
+			"sha256": "13798cf74abee6364922db4e4e5e9a6e3126dee39fcf06db495777dfaf7a6850",
 			"bytes": 3052,
 			"kind": "prop",
 			"triangles": 48,
@@ -449,10 +498,12 @@
 					0.7,
 					0.95
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"belfry-bell": {
 			"file": "models/belfry-bell.65284073.glb",
+			"sha256": "65284073a3a537ba2e26b12bd0539b983cf8b235eaae028e6700d0ab38daea0d",
 			"bytes": 16756,
 			"kind": "prop",
 			"triangles": 568,
@@ -468,6 +519,7 @@
 					0.45
 				]
 			},
+			"gpuBytes": 15248,
 			"swing": {
 				"pivot": 2.55,
 				"throw": 0.5
@@ -475,6 +527,7 @@
 		},
 		"bell": {
 			"file": "models/bell.dcddd0a9.glb",
+			"sha256": "dcddd0a940126617cb2d9ade8a66e5eaf0f3abc29f8efabed389ebdce520e4a4",
 			"bytes": 10752,
 			"kind": "prop",
 			"triangles": 424,
@@ -489,10 +542,12 @@
 					2.68,
 					0.65
 				]
-			}
+			},
+			"gpuBytes": 9904
 		},
 		"boiler": {
 			"file": "models/boiler.95fa67e1.glb",
+			"sha256": "95fa67e17f16c579a0fedeeb56104e6e12fbbd4f66eeac5cca575fcad02b8461",
 			"bytes": 7844,
 			"kind": "prop",
 			"triangles": 180,
@@ -507,10 +562,12 @@
 					1.95,
 					0.85
 				]
-			}
+			},
+			"gpuBytes": 7000
 		},
 		"bookshelf": {
 			"file": "models/bookshelf.7efb81b0.glb",
+			"sha256": "7efb81b0bd59d3eec8e02a34147f8315ede4d3d739e2e7eb4bdcd2f6cc7cd686",
 			"bytes": 3052,
 			"kind": "prop",
 			"triangles": 48,
@@ -525,10 +582,12 @@
 					1.8,
 					0.24
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"brazier": {
 			"file": "models/brazier.2c1b49a3.glb",
+			"sha256": "2c1b49a3cb5e78149e9eb3ea7d18b1b8100ee18675438adcd8ad57ac0814af54",
 			"bytes": 11540,
 			"kind": "prop",
 			"triangles": 288,
@@ -543,10 +602,12 @@
 					0.89,
 					0.3
 				]
-			}
+			},
+			"gpuBytes": 10688
 		},
 		"broken-bell": {
 			"file": "models/broken-bell.be590db4.glb",
+			"sha256": "be590db4d689b2b80fcbc2b971db737380a6dddc660e1487b08e62e9af2ca890",
 			"bytes": 4760,
 			"kind": "prop",
 			"triangles": 84,
@@ -561,10 +622,12 @@
 					2.3,
 					1.25
 				]
-			}
+			},
+			"gpuBytes": 3924
 		},
 		"carvings": {
 			"file": "models/carvings.89ed8e26.glb",
+			"sha256": "89ed8e26dfa5b7ebf0009b4653d576ff2ade49640fc8758325208caa2f113516",
 			"bytes": 9592,
 			"kind": "prop",
 			"triangles": 400,
@@ -579,10 +642,12 @@
 					1.1,
 					-0.315
 				]
-			}
+			},
+			"gpuBytes": 8740
 		},
 		"chains": {
 			"file": "models/chains.0669f14f.glb",
+			"sha256": "0669f14fb22ea77228e94f8bc573227c5519e8968d4eb6b83bde745e59eeb56d",
 			"bytes": 21936,
 			"kind": "prop",
 			"triangles": 920,
@@ -597,10 +662,12 @@
 					2.3,
 					0.125
 				]
-			}
+			},
+			"gpuBytes": 21080
 		},
 		"chair": {
 			"file": "models/chair.c50bf515.glb",
+			"sha256": "c50bf5151c16e82222e815ee0c6a521c1127f94bc0c912e95c4b5406e250a42a",
 			"bytes": 4104,
 			"kind": "prop",
 			"triangles": 72,
@@ -615,10 +682,12 @@
 					0.97,
 					0.25
 				]
-			}
+			},
+			"gpuBytes": 3312
 		},
 		"chest-open": {
 			"file": "models/chest-open.300da21d.glb",
+			"sha256": "300da21de2da16877af7c36717f1e639af4ac465f93cc880f2e7fb64c89324c6",
 			"bytes": 3056,
 			"kind": "prop",
 			"triangles": 48,
@@ -633,10 +702,12 @@
 					1.015,
 					0.36
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"chest": {
 			"file": "models/chest.278a1d61.glb",
+			"sha256": "278a1d6146d80301942e65ee7e05dc86c9f59d19096e672bf936b8fc23e7d91c",
 			"bytes": 2500,
 			"kind": "prop",
 			"triangles": 36,
@@ -651,10 +722,12 @@
 					0.56,
 					0.31
 				]
-			}
+			},
+			"gpuBytes": 1656
 		},
 		"coffin-open": {
 			"file": "models/coffin-open.d4228be9.glb",
+			"sha256": "d4228be9ce29123662937d446914b5878521e8aa71e1ee06408fe3721133632b",
 			"bytes": 2516,
 			"kind": "prop",
 			"triangles": 36,
@@ -669,10 +742,12 @@
 					0.518,
 					0.92
 				]
-			}
+			},
+			"gpuBytes": 1656
 		},
 		"coffin": {
 			"file": "models/coffin.ae8a8aac.glb",
+			"sha256": "ae8a8aacfa296892b6f2fcdd519ac04ad43c264836867175d59bb2a0a027322b",
 			"bytes": 3056,
 			"kind": "prop",
 			"triangles": 48,
@@ -687,10 +762,12 @@
 					0.42,
 					0.87
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"crack": {
 			"file": "models/crack.c1567410.glb",
+			"sha256": "c15674101de073f13227d0910e73cdb3485befc0d26b90364e0efc1d9899684a",
 			"bytes": 2508,
 			"kind": "prop",
 			"triangles": 36,
@@ -705,10 +782,12 @@
 					0.035,
 					0.45
 				]
-			}
+			},
+			"gpuBytes": 1656
 		},
 		"crate": {
 			"file": "models/crate.19ff9d96.glb",
+			"sha256": "19ff9d9695ce382f519a5aaf4ce84d1725deb427f69e59e917f88e7eeb0b1ff7",
 			"bytes": 1948,
 			"kind": "prop",
 			"triangles": 24,
@@ -723,10 +802,12 @@
 					0.8,
 					0.42
 				]
-			}
+			},
+			"gpuBytes": 1104
 		},
 		"gear": {
 			"file": "models/gear.f2600d66.glb",
+			"sha256": "f2600d66143630786fc0147ec999cc70406e77277d0c06775e0a54fd8276b03e",
 			"bytes": 9900,
 			"kind": "prop",
 			"triangles": 240,
@@ -741,10 +822,12 @@
 					1.3,
 					1
 				]
-			}
+			},
+			"gpuBytes": 9120
 		},
 		"grate": {
 			"file": "models/grate.8203a03f.glb",
+			"sha256": "8203a03ff9f1de985b4438059af281e119bdd09fa8b858ae1a892f7b4819d891",
 			"bytes": 3052,
 			"kind": "prop",
 			"triangles": 48,
@@ -759,10 +842,12 @@
 					0.05,
 					0.4
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"gravestone": {
 			"file": "models/gravestone.a49a6555.glb",
+			"sha256": "a49a655590810b36cc43127e81600dafd4d44d2e46b8c525bb7ec6c2f37b34f4",
 			"bytes": 1948,
 			"kind": "prop",
 			"triangles": 24,
@@ -777,10 +862,12 @@
 					0.8,
 					0.45
 				]
-			}
+			},
+			"gpuBytes": 1104
 		},
 		"great-bell": {
 			"file": "models/great-bell.4883796b.glb",
+			"sha256": "4883796bf4eac34d14f74b55d54add47c0247faa702f50da90dd0e00210505af",
 			"bytes": 17204,
 			"kind": "prop",
 			"triangles": 592,
@@ -795,10 +882,12 @@
 					4.35,
 					1.425
 				]
-			}
+			},
+			"gpuBytes": 16352
 		},
 		"handbell": {
 			"file": "models/handbell.5d91fcc4.glb",
+			"sha256": "5d91fcc450002e24078c325b281ed2cc7b99a2cba6c22dd7267d2d211331dd47",
 			"bytes": 11776,
 			"kind": "prop",
 			"triangles": 460,
@@ -813,10 +902,12 @@
 					0.61,
 					0.17
 				]
-			}
+			},
+			"gpuBytes": 10920
 		},
 		"hatch-open": {
 			"file": "models/hatch-open.bd866af8.glb",
+			"sha256": "bd866af8496a0ebed4feead438373c75616106556e7bd6fecd75243dcb236fce",
 			"bytes": 1944,
 			"kind": "prop",
 			"triangles": 24,
@@ -831,10 +922,12 @@
 					0.8,
 					0.35
 				]
-			}
+			},
+			"gpuBytes": 1104
 		},
 		"hatch": {
 			"file": "models/hatch.302693f1.glb",
+			"sha256": "302693f170c62413dd51288beda91f031ab00695cbc6dd6eb1934b4be852d906",
 			"bytes": 1944,
 			"kind": "prop",
 			"triangles": 24,
@@ -849,10 +942,12 @@
 					0.038,
 					0.4
 				]
-			}
+			},
+			"gpuBytes": 1104
 		},
 		"heart": {
 			"file": "models/heart.bcd49f98.glb",
+			"sha256": "bcd49f98bebf0163d1b514cd1201d14fb5b26b0de6275dc1ed2444dcfe637c40",
 			"bytes": 23032,
 			"kind": "prop",
 			"triangles": 944,
@@ -867,10 +962,12 @@
 					2.6,
 					1.35
 				]
-			}
+			},
+			"gpuBytes": 22184
 		},
 		"keys": {
 			"file": "models/keys.db12febb.glb",
+			"sha256": "db12febb85914dfd62a6bf8fbf27e28da0463d318ea90fc6c37045bbb0878b5f",
 			"bytes": 4648,
 			"kind": "prop",
 			"triangles": 96,
@@ -885,10 +982,12 @@
 					0.055,
 					0.3
 				]
-			}
+			},
+			"gpuBytes": 3776
 		},
 		"lever-down": {
 			"file": "models/lever-down.e1cf3285.glb",
+			"sha256": "e1cf3285564fb0c257b72e064a9c60a2f37c65776a7279e4045d011b23ed3703",
 			"bytes": 9636,
 			"kind": "prop",
 			"triangles": 388,
@@ -904,6 +1003,7 @@
 					0.84
 				]
 			},
+			"gpuBytes": 8188,
 			"swing": {
 				"pivot": 0.22,
 				"throw": -1.5708
@@ -911,6 +1011,7 @@
 		},
 		"lever": {
 			"file": "models/lever.57e39809.glb",
+			"sha256": "57e39809003db54a7c06b3a0ac500600998849f9789da6bc648e4f34feb126e0",
 			"bytes": 9636,
 			"kind": "prop",
 			"triangles": 388,
@@ -926,6 +1027,7 @@
 					0.25
 				]
 			},
+			"gpuBytes": 8188,
 			"swing": {
 				"pivot": 0.22,
 				"throw": 1.5708
@@ -933,6 +1035,7 @@
 		},
 		"noticeboard": {
 			"file": "models/noticeboard.b002d876.glb",
+			"sha256": "b002d8769690c79fcf5a71a2a3f29ac8b42e981df978e4461f0f3d29e4387954",
 			"bytes": 3596,
 			"kind": "prop",
 			"triangles": 60,
@@ -947,10 +1050,12 @@
 					1.5,
 					0.05
 				]
-			}
+			},
+			"gpuBytes": 2760
 		},
 		"paper": {
 			"file": "models/paper.58e74404.glb",
+			"sha256": "58e74404e6bf1e43b06b4bcc58d442d419dd8884a9599f4a8944ee0220975a74",
 			"bytes": 1968,
 			"kind": "prop",
 			"triangles": 24,
@@ -965,10 +1070,12 @@
 					0.018,
 					0.128
 				]
-			}
+			},
+			"gpuBytes": 1104
 		},
 		"pew": {
 			"file": "models/pew.341ebe3e.glb",
+			"sha256": "341ebe3e77a31c559ba58555237342547ee42560f8fb349708887c4c23aa14ba",
 			"bytes": 3076,
 			"kind": "prop",
 			"triangles": 48,
@@ -983,10 +1090,12 @@
 					0.97,
 					0.225
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"pillar": {
 			"file": "models/pillar.e718fd26.glb",
+			"sha256": "e718fd26ab5bea3e94a6cfdb08a6987b857a8ebdc7f5396942efae03a010361c",
 			"bytes": 4628,
 			"kind": "prop",
 			"triangles": 96,
@@ -1001,10 +1110,12 @@
 					2.36,
 					0.45
 				]
-			}
+			},
+			"gpuBytes": 3776
 		},
 		"rope": {
 			"file": "models/rope.726131ce.glb",
+			"sha256": "726131ce780706721ebb54b79e5a39dd0eb7d90974c80b5abdcca06f39ce4964",
 			"bytes": 10056,
 			"kind": "prop",
 			"triangles": 424,
@@ -1019,10 +1130,12 @@
 					2.6,
 					0.08
 				]
-			}
+			},
+			"gpuBytes": 9204
 		},
 		"rubble": {
 			"file": "models/rubble.a4106dba.glb",
+			"sha256": "a4106dba102ae81cd4dae2f85af64e57fa3010839afc61c69569bb824600a93f",
 			"bytes": 3040,
 			"kind": "prop",
 			"triangles": 48,
@@ -1037,10 +1150,12 @@
 					0.12,
 					0.29
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"rug": {
 			"file": "models/rug.10079dfc.glb",
+			"sha256": "10079dfcc1a32b1b5f10135f3a077f9b8129a4758081e2024ed8120affed9c12",
 			"bytes": 1408,
 			"kind": "prop",
 			"triangles": 12,
@@ -1055,10 +1170,12 @@
 					0.022,
 					0.95
 				]
-			}
+			},
+			"gpuBytes": 552
 		},
 		"sconce": {
 			"file": "models/sconce.5e41d518.glb",
+			"sha256": "5e41d518619f16e0de078dd5424f027c2e3e81269a2ba9648e1a08be570e68ac",
 			"bytes": 10584,
 			"kind": "prop",
 			"triangles": 252,
@@ -1073,10 +1190,12 @@
 					1.22,
 					0.15
 				]
-			}
+			},
+			"gpuBytes": 9732
 		},
 		"stairs": {
 			"file": "models/stairs.400b0c45.glb",
+			"sha256": "400b0c4537e1e42757c256fb5df75e4769bfdd25550b9773f7f5a0534ae75229",
 			"bytes": 3056,
 			"kind": "prop",
 			"triangles": 48,
@@ -1091,10 +1210,12 @@
 					0.035,
 					0.45
 				]
-			}
+			},
+			"gpuBytes": 2208
 		},
 		"statue": {
 			"file": "models/statue.7a42c58a.glb",
+			"sha256": "7a42c58a9307648ad0e24c4004ddfb1d9c54c7bfc9f5d43bd4e2f94ac3a84426",
 			"bytes": 10592,
 			"kind": "prop",
 			"triangles": 436,
@@ -1109,10 +1230,12 @@
 					1.5,
 					0.4
 				]
-			}
+			},
+			"gpuBytes": 9756
 		},
 		"stove": {
 			"file": "models/stove.f6a96a35.glb",
+			"sha256": "f6a96a35dad0d5e42d5779131401f0f9a5bc56c9aa47b3693f8f6b14a822749a",
 			"bytes": 13220,
 			"kind": "prop",
 			"triangles": 508,
@@ -1127,10 +1250,12 @@
 					1.35,
 					0.25
 				]
-			}
+			},
+			"gpuBytes": 12428
 		},
 		"strongbox": {
 			"file": "models/strongbox.f0f676a5.glb",
+			"sha256": "f0f676a58ffcbedeca1f6275b6be4e4ef45c7c8bbff0f62457e1924f507c1942",
 			"bytes": 2488,
 			"kind": "prop",
 			"triangles": 36,
@@ -1145,10 +1270,12 @@
 					0.46,
 					0.25
 				]
-			}
+			},
+			"gpuBytes": 1656
 		},
 		"table": {
 			"file": "models/table.3a6779b8.glb",
+			"sha256": "3a6779b80de8c1c3ae3211c18c6bcc146d6ead7c0b06c298e1c1031cc5fafc13",
 			"bytes": 3608,
 			"kind": "prop",
 			"triangles": 60,
@@ -1163,10 +1290,12 @@
 					0.76,
 					0.45
 				]
-			}
+			},
+			"gpuBytes": 2760
 		},
 		"tree": {
 			"file": "models/tree.a685b5e2.glb",
+			"sha256": "a685b5e2424eb709374c3c0140747406054ccbe50e2ae11d2a3996d1d6053235",
 			"bytes": 6948,
 			"kind": "prop",
 			"triangles": 144,
@@ -1181,10 +1310,12 @@
 					2.7,
 					0.55
 				]
-			}
+			},
+			"gpuBytes": 6104
 		},
 		"water-lg": {
 			"file": "models/water-lg.dd0a2e6b.glb",
+			"sha256": "dd0a2e6bef4b540d1551095dc1dd78f9a64cb0e1cecdf2a8dcea67b7bab5bbde",
 			"bytes": 1324,
 			"kind": "prop",
 			"triangles": 12,
@@ -1199,10 +1330,12 @@
 					0.04,
 					2
 				]
-			}
+			},
+			"gpuBytes": 552
 		},
 		"water-sm": {
 			"file": "models/water-sm.b61cc84b.glb",
+			"sha256": "b61cc84b3bf71fbbc53b5de50b8c9202dd0fe88e2464462337f248a2e26ccb47",
 			"bytes": 1332,
 			"kind": "prop",
 			"triangles": 12,
@@ -1217,10 +1350,12 @@
 					0.04,
 					0.5
 				]
-			}
+			},
+			"gpuBytes": 552
 		},
 		"water": {
 			"file": "models/water.423e338b.glb",
+			"sha256": "423e338bf47ed38d28dc1f8ee6419bee952251b1dd15d282d93a23cfe6e79c2c",
 			"bytes": 1324,
 			"kind": "prop",
 			"triangles": 12,
@@ -1235,10 +1370,12 @@
 					0.04,
 					1
 				]
-			}
+			},
+			"gpuBytes": 552
 		},
 		"well": {
 			"file": "models/well.bd05d56c.glb",
+			"sha256": "bd05d56ce6b46722e0406c51205b587441491b6e0dc512d03c244b53b9ac8a18",
 			"bytes": 10464,
 			"kind": "prop",
 			"triangles": 252,
@@ -1253,393 +1390,842 @@
 					1.95,
 					0.75
 				]
-			}
+			},
+			"gpuBytes": 9672
 		}
 	},
 	"textures": {
 		"cave": {
 			"file": "textures/cave.7f019050.png",
+			"sha256": "7f019050a584930499edeca348850619ffeb6a6b35d451db96da428faf6fc821",
 			"bytes": 9168,
+			"format": "png",
+			"usage": "albedo",
+			"colorSpace": "srgb",
 			"width": 128,
-			"height": 128
+			"height": 128,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 87382
 		},
 		"earth": {
 			"file": "textures/earth.7ddfc394.png",
+			"sha256": "7ddfc3947248232a69b5694eadd7a2a269c7c70afee0a0dc0fe970445592e236",
 			"bytes": 10245,
+			"format": "png",
+			"usage": "albedo",
+			"colorSpace": "srgb",
 			"width": 128,
-			"height": 128
+			"height": 128,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 87382
 		},
 		"flagstones": {
 			"file": "textures/flagstones.a9be9fad.png",
+			"sha256": "a9be9fadf3ed63fdce7bb3df89468686ddbcf2c36bb6158e8abf5673628d1e73",
 			"bytes": 11619,
+			"format": "png",
+			"usage": "albedo",
+			"colorSpace": "srgb",
 			"width": 128,
-			"height": 128
+			"height": 128,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 87382
 		},
 		"flesh": {
 			"file": "textures/flesh.f24c20fb.png",
+			"sha256": "f24c20fb39cf0d8ee33e36800b7ac85cb5af0386872a3890dfbe5ce4e4c3877e",
 			"bytes": 10138,
+			"format": "png",
+			"usage": "albedo",
+			"colorSpace": "srgb",
 			"width": 128,
-			"height": 128
+			"height": 128,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 87382
 		},
 		"grass": {
 			"file": "textures/grass.a62dc809.png",
+			"sha256": "a62dc809403ff498950984aba8987f032d0e2c915704a7de7961d48b22d47d0a",
 			"bytes": 9818,
+			"format": "png",
+			"usage": "albedo",
+			"colorSpace": "srgb",
 			"width": 128,
-			"height": 128
+			"height": 128,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 87382
 		},
 		"lens-dirt": {
 			"file": "textures/lens-dirt.e6438b1c.png",
+			"sha256": "e6438b1c98dadc96cf57ab95612bbf9b7b4c6a97a474ee7faef8e5cf8374da0d",
 			"bytes": 42007,
+			"format": "png",
+			"usage": "mask",
+			"colorSpace": "linear",
 			"width": 256,
-			"height": 256
+			"height": 256,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 349526
 		},
 		"paint-gloss": {
 			"file": "textures/paint-gloss.3b79392c.png",
+			"sha256": "3b79392c89ee1c150ea26c4da9c8e5132b72677a5f7fad12e0d1f72130994fa0",
 			"bytes": 60580,
+			"format": "png",
+			"usage": "mask",
+			"colorSpace": "linear",
 			"width": 256,
-			"height": 256
+			"height": 256,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 349526
 		},
 		"paint-normal": {
 			"file": "textures/paint-normal.c002c2e1.png",
+			"sha256": "c002c2e174de2838af27243a198215c7438407c526c582a66bc2ddba0392e922",
 			"bytes": 158067,
+			"format": "png",
+			"usage": "normal",
+			"colorSpace": "linear",
 			"width": 256,
-			"height": 256
+			"height": 256,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 349526
 		},
 		"planks": {
 			"file": "textures/planks.0b8541ad.png",
+			"sha256": "0b8541ad0848cf78a42cbcc918b656196c3f33a7f57b1a98640135a4c7f67bce",
 			"bytes": 11740,
+			"format": "png",
+			"usage": "albedo",
+			"colorSpace": "srgb",
 			"width": 128,
-			"height": 128
+			"height": 128,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 87382
 		},
 		"rock": {
 			"file": "textures/rock.51df64a3.png",
+			"sha256": "51df64a3e1d1b3b4e38f51dbd7219ece415ff171b1d4145d07936b8f6d3174bf",
 			"bytes": 4243,
+			"format": "png",
+			"usage": "albedo",
+			"colorSpace": "srgb",
 			"width": 64,
-			"height": 64
+			"height": 64,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 21846
 		},
 		"grade-cavern-day-agx": {
 			"file": "textures/grade-cavern-day-agx.015cbb43.png",
+			"sha256": "015cbb43ef3f35cd6c9605a3feea4f8d87b6e22fbb4b0e90a78d8030b6356b89",
 			"bytes": 13853,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-dusk-agx": {
 			"file": "textures/grade-cavern-dusk-agx.78e80ab0.png",
+			"sha256": "78e80ab09cf2645ad0200444d333085cbafd4a54da56efd9297306f446bb3e84",
 			"bytes": 15147,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-dark-agx": {
 			"file": "textures/grade-cavern-dark-agx.9994fac0.png",
+			"sha256": "9994fac0bc76feeb8ad8f0169efcb527e7b7b076dea7109f368928f4c8b13962",
 			"bytes": 16730,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-day-aces": {
 			"file": "textures/grade-cavern-day-aces.fce37880.png",
+			"sha256": "fce37880ca085d8946b106a2ced1964c25a346a84a49e43ba23dfef6987d28bb",
 			"bytes": 8168,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-dusk-aces": {
 			"file": "textures/grade-cavern-dusk-aces.bd3d1546.png",
+			"sha256": "bd3d15463d028ea039664457831c942839c6a1eb5dbcd2b5f281256cd72d4ddf",
 			"bytes": 8085,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-dark-aces": {
 			"file": "textures/grade-cavern-dark-aces.0e9947a9.png",
+			"sha256": "0e9947a97090a2fee2438eb6cf7c71bdc0776c896c6a2af2f6f4e979462a4e48",
 			"bytes": 10849,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-day-neutral": {
 			"file": "textures/grade-cavern-day-neutral.b82b4d7a.png",
+			"sha256": "b82b4d7a903dc160834669bf86a496032977f608d39388fbbf1cbd35e2cdbf0d",
 			"bytes": 9802,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-dusk-neutral": {
 			"file": "textures/grade-cavern-dusk-neutral.7932a5af.png",
+			"sha256": "7932a5af1b85eebd2cbd660d9a41f515d4c01a819cc705c30df12af25669a53c",
 			"bytes": 10221,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-cavern-dark-neutral": {
 			"file": "textures/grade-cavern-dark-neutral.18ac4a2d.png",
+			"sha256": "18ac4a2d63f4270072d594e4360bb24da5058b02ed6e1deb61433346fbdf6776",
 			"bytes": 13508,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-day-agx": {
 			"file": "textures/grade-ghost-town-day-agx.bc10e2ee.png",
+			"sha256": "bc10e2eed3e62e4c09cbd81af1e3d0f76af044a7446b48c936cd5e3dba2d63bb",
 			"bytes": 10565,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-dusk-agx": {
 			"file": "textures/grade-ghost-town-dusk-agx.24e5daac.png",
+			"sha256": "24e5daac188faa36ca0ae533d02887e51c9599be28fde9d19a57ead4bc32be97",
 			"bytes": 10438,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-dark-agx": {
 			"file": "textures/grade-ghost-town-dark-agx.ff183382.png",
+			"sha256": "ff1833820a01a44f19bb0e3db3bee12b5645f88711f76e8d3c661e082e854cc1",
 			"bytes": 13424,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-day-aces": {
 			"file": "textures/grade-ghost-town-day-aces.a6cf23a0.png",
+			"sha256": "a6cf23a05d32c99194211cdcad61d1200fba287a9d6ecef1c678b9393412d98c",
 			"bytes": 9484,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-dusk-aces": {
 			"file": "textures/grade-ghost-town-dusk-aces.48891263.png",
+			"sha256": "48891263e504c37c69fcf47c6bd85d760e52a013705b0569634b4be00b8bb8ed",
 			"bytes": 13217,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-dark-aces": {
 			"file": "textures/grade-ghost-town-dark-aces.abe211c7.png",
+			"sha256": "abe211c72299399b601046a17115040579db76443e088dfb27f0c0b5167c2df8",
 			"bytes": 12843,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-day-neutral": {
 			"file": "textures/grade-ghost-town-day-neutral.98ada5ad.png",
+			"sha256": "98ada5adcb03cf18f7f11141e7e657b15168540166e32b6f72bb7b1ecc826128",
 			"bytes": 8651,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-dusk-neutral": {
 			"file": "textures/grade-ghost-town-dusk-neutral.af379c54.png",
+			"sha256": "af379c542bc8c39ffa0a23ee53d77156eea7202c7114507ac4ed9edccaa0b71a",
 			"bytes": 12328,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-ghost-town-dark-neutral": {
 			"file": "textures/grade-ghost-town-dark-neutral.785d7647.png",
+			"sha256": "785d7647a2640ff9a1536af169a79a81e549c17625cf9395c41f8b6fe9f81a8e",
 			"bytes": 13145,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-day-agx": {
 			"file": "textures/grade-living-cave-day-agx.2fca3773.png",
+			"sha256": "2fca3773d4c3a09be4e3c7a393c59f8fe5a617630feb9fd800d49804fdfa0bab",
 			"bytes": 13674,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-dusk-agx": {
 			"file": "textures/grade-living-cave-dusk-agx.9b4bf782.png",
+			"sha256": "9b4bf7821263a49165f43f6fff8ad66fe82ed787513a1cdb85fdc91eb1485e11",
 			"bytes": 14297,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-dark-agx": {
 			"file": "textures/grade-living-cave-dark-agx.a5bf1be2.png",
+			"sha256": "a5bf1be2d150ead7a407bacc74f65a8517136a6443c1c14081bd13fdc9339c58",
 			"bytes": 15424,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-day-aces": {
 			"file": "textures/grade-living-cave-day-aces.60be480f.png",
+			"sha256": "60be480fe78f8743b104a67bdfda415477238350f0e49d4f840a9c3891da2149",
 			"bytes": 12923,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-dusk-aces": {
 			"file": "textures/grade-living-cave-dusk-aces.c448222f.png",
+			"sha256": "c448222f129349d8e3f8b5f669261aafa76120221e38f90ee78af1da2a51cf3d",
 			"bytes": 12687,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-dark-aces": {
 			"file": "textures/grade-living-cave-dark-aces.3389fde6.png",
+			"sha256": "3389fde6ce486972b0a60e26907f40811c6417d042b70908eaab3c998b2db1c2",
 			"bytes": 14616,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-day-neutral": {
 			"file": "textures/grade-living-cave-day-neutral.81638be1.png",
+			"sha256": "81638be1f3b84705c5c0d6244a992f4f34f9d85e63d2f71666c6d86955f2921c",
 			"bytes": 11115,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-dusk-neutral": {
 			"file": "textures/grade-living-cave-dusk-neutral.46108b74.png",
+			"sha256": "46108b74a334d6d7ab7ffd0b2187dfaf9df80b4582f90a0dfffec3fd09f42ab5",
 			"bytes": 12443,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-living-cave-dark-neutral": {
 			"file": "textures/grade-living-cave-dark-neutral.789e8bc4.png",
+			"sha256": "789e8bc4c6906895f1b8a9846235e06f88b52e3c089b868a79d78baca44bfafd",
 			"bytes": 14259,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-day-agx": {
 			"file": "textures/grade-railcar-day-agx.d3d771fc.png",
+			"sha256": "d3d771fce368079bc4bce337dd54588fb6a03667b6cea0868493a22c78c39ccc",
 			"bytes": 10422,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-dusk-agx": {
 			"file": "textures/grade-railcar-dusk-agx.613586b1.png",
+			"sha256": "613586b120f0973e8ecb49adb4ce7e68d4f2b6e936a2fb4c8012d97ea1f420da",
 			"bytes": 6622,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-dark-agx": {
 			"file": "textures/grade-railcar-dark-agx.f2af981f.png",
+			"sha256": "f2af981f1e216cea197c8c35dc0b3ed56faf99e885d9640939a155bed568c797",
 			"bytes": 7216,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-day-aces": {
 			"file": "textures/grade-railcar-day-aces.1c555de7.png",
+			"sha256": "1c555de72a66037e09e991a91ff04ffd4b331da72ac171a188d492763823a615",
 			"bytes": 10471,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-dusk-aces": {
 			"file": "textures/grade-railcar-dusk-aces.d994cba0.png",
+			"sha256": "d994cba0bbb6946892dc562c27c2ca5754a6d474f139dbb1873cafeeeecf78d8",
 			"bytes": 13091,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-dark-aces": {
 			"file": "textures/grade-railcar-dark-aces.e9eb129f.png",
+			"sha256": "e9eb129ffe5db46d7fb4d737a8ee2562bec6e5b2e98f1615b382d712ff872268",
 			"bytes": 13284,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-day-neutral": {
 			"file": "textures/grade-railcar-day-neutral.e61b153c.png",
+			"sha256": "e61b153caaa8bd6f7a2efaa4b9e8c41c268e7e007a22167141b509f0323352ef",
 			"bytes": 10137,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-dusk-neutral": {
 			"file": "textures/grade-railcar-dusk-neutral.82ccb62c.png",
+			"sha256": "82ccb62ccad2e3a18b5bb7bf12868f12b311866b6c2ddec3f2b27c53449735f9",
 			"bytes": 13265,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-railcar-dark-neutral": {
 			"file": "textures/grade-railcar-dark-neutral.067372df.png",
+			"sha256": "067372dfc54f92f0d293cbe5182c58d16e97fb2eec638e16c82b84b098d17d07",
 			"bytes": 13608,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-day-agx": {
 			"file": "textures/grade-stone-halls-day-agx.0b274461.png",
+			"sha256": "0b274461898481b5aaccd43eaef9adb6a45201c06a0380eb8932291f2a7fef20",
 			"bytes": 12168,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-dusk-agx": {
 			"file": "textures/grade-stone-halls-dusk-agx.3b04478c.png",
+			"sha256": "3b04478c1319fb702d5abf0f4e64135148bad1a8a07a583096baa90c61f04de4",
 			"bytes": 15518,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-dark-agx": {
 			"file": "textures/grade-stone-halls-dark-agx.969e8a09.png",
+			"sha256": "969e8a09286abccf32cc70690b426b5a8f70a5eda93d2e00f2c7b97e88d2b546",
 			"bytes": 16216,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-day-aces": {
 			"file": "textures/grade-stone-halls-day-aces.a1091e63.png",
+			"sha256": "a1091e638ac13a5805b0b9908370e02b803a36a4ec8a6fb9f005d527d2c5fb6b",
 			"bytes": 6855,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-dusk-aces": {
 			"file": "textures/grade-stone-halls-dusk-aces.b9ca8df3.png",
+			"sha256": "b9ca8df33cb235bac3ce014145652702e6872b8686b1a5d8bc0df71536a9cfc2",
 			"bytes": 12626,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-dark-aces": {
 			"file": "textures/grade-stone-halls-dark-aces.03495bc7.png",
+			"sha256": "03495bc7023b1554eba6366fc275bca27070ff3b8d71677d450459cb607e465f",
 			"bytes": 13889,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-day-neutral": {
 			"file": "textures/grade-stone-halls-day-neutral.655f8afe.png",
+			"sha256": "655f8afe32e31136a3e980af9192a935ea18b212e86b05568e9f3b847acc955f",
 			"bytes": 6864,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-dusk-neutral": {
 			"file": "textures/grade-stone-halls-dusk-neutral.2d9dab49.png",
+			"sha256": "2d9dab4913d1642f9103dcb8b6a129bfaf54030ce9dbff34c2ac02393900bde6",
 			"bytes": 12232,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-stone-halls-dark-neutral": {
 			"file": "textures/grade-stone-halls-dark-neutral.fc9aaae9.png",
+			"sha256": "fc9aaae93604d136c0c34c2706360f46d581c272f0ab0043340d08598b8da190",
 			"bytes": 14855,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-day-agx": {
 			"file": "textures/grade-village-day-agx.939d679b.png",
+			"sha256": "939d679b07234aa608e0924cb356093040b596d69a8d909c26916e500dc4d109",
 			"bytes": 14533,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-dusk-agx": {
 			"file": "textures/grade-village-dusk-agx.b39349e6.png",
+			"sha256": "b39349e6341ee418819c512d10612b8a46b70930a3860601bcef69e783064505",
 			"bytes": 15793,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-dark-agx": {
 			"file": "textures/grade-village-dark-agx.a67b4c0b.png",
+			"sha256": "a67b4c0b3c3eb4279faf656fcf37831905558440333d7e048be45d829f26e099",
 			"bytes": 12403,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-day-aces": {
 			"file": "textures/grade-village-day-aces.1fe5a3ea.png",
+			"sha256": "1fe5a3ea425e619483b129b94a15f026c84eb28d11777806b242549d658370ed",
 			"bytes": 12167,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-dusk-aces": {
 			"file": "textures/grade-village-dusk-aces.318bc694.png",
+			"sha256": "318bc69471c4dfd896308be99d32b5d95e7400ca575c0c3e02e0ed883271053c",
 			"bytes": 11618,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-dark-aces": {
 			"file": "textures/grade-village-dark-aces.87c4e354.png",
+			"sha256": "87c4e35402bc5856e83434899acb0b48b43d36ae783d47ce0db4c0479e90959b",
 			"bytes": 13625,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-day-neutral": {
 			"file": "textures/grade-village-day-neutral.0a96d136.png",
+			"sha256": "0a96d136a743ed43246ca73b8f4144d9bac1cd9c395e92161674825978c3f1a2",
 			"bytes": 8360,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-dusk-neutral": {
 			"file": "textures/grade-village-dusk-neutral.3d2e65f0.png",
+			"sha256": "3d2e65f03882edda94d9dafd462a63a33efab301f3712b61f5fcc7e927317a03",
 			"bytes": 13484,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		},
 		"grade-village-dark-neutral": {
 			"file": "textures/grade-village-dark-neutral.eeecafb8.png",
+			"sha256": "eeecafb8f947612fc47e67da2132080ea04d9e01eae6d7ffd397e9036c7055bf",
 			"bytes": 14195,
+			"format": "png",
+			"usage": "lut",
+			"colorSpace": "srgb",
 			"width": 1024,
-			"height": 32
+			"height": 32,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 174763
 		}
 	},
 	"materials": {
@@ -1748,6 +2334,7 @@
 			"metalness": 0
 		}
 	},
+	"surfaces": {},
 	"environments": {
 		"cavern": {
 			"name": "Cavern",
@@ -1897,15 +2484,18 @@
 	"audio": {
 		"bell-great": {
 			"file": "audio/bell-great.d370c2af.wav",
+			"sha256": "d370c2af4c6414b770b93df14254185353d031ab3518650aed1ab30b37023c03",
 			"bytes": 288044,
 			"format": "wav",
 			"duration": 9
 		},
 		"bell-hand": {
 			"file": "audio/bell-hand.0af6d182.wav",
+			"sha256": "0af6d182efcdd1d62ed9d224c70eee4fd266d9bc2eba227b175edeb1027d2c85",
 			"bytes": 70444,
 			"format": "wav",
 			"duration": 2.2
 		}
-	}
+	},
+	"packs": {}
 }

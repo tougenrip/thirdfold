@@ -4,7 +4,7 @@ import path from 'node:path';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { parseManifest } from '../../src/lib/assets/manifest';
+import { parseManifest } from '../../src/lib/assets/manifest-parse';
 import { audioInfo, encodeWav, renderBell } from './audio';
 import { checkGlb, writeGlb } from './glb';
 import { bakeModel, readModelSource } from './models';
@@ -50,7 +50,9 @@ describe('The adventures’ assets', () => {
 		expect([...again.files.keys()]).toEqual([...built.files.keys()]);
 		for (const [file, data] of again.files) expect(data.equals(built.files.get(file)!)).toBe(true);
 		for (const file of built.files.keys()) {
-			expect(file).toMatch(/^(models|textures|audio)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|wav)$/);
+			expect(file).toMatch(
+				/^(models|textures|audio)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|ktx2|wav)$/
+			);
 		}
 	});
 

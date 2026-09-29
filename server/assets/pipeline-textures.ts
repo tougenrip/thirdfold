@@ -1,0 +1,127 @@
+// Textures for the asset pipeline (pipeline.ts): recipes and PNGs from
+// assets/textures, and the colour grades' lookup-table strips from
+// assets/grades. Each states what it is for (its usage, and so its colour
+// space) and what it takes on the GPU.
+
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import {
+	LIMITS,
+	TEXTURE_USAGES,
+	TONE_MAPPERS,
+	USAGE_SPACE,
+	limitClass,
+	type EnvironmentDef,
+	type TextureEntry,
+	type TextureUsage
+} from '../../src/lib/assets/manifest';
+import { BANDS, LUT_SIZE, readGrades, renderGrade, stripProblem } from './grades';
+import { AssetError, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
+import { encodePng, pngSize } from './png';
+import { readTextureSource, renderTexture } from './textures';
+
+/** A texture's usage as its source states it: albedo unless it says otherwise. */
+function usageOf(raw: unknown, source: string): TextureUsage {
+	const usage = isRecord(raw) ? (raw.usage ?? 'albedo') : 'albedo';
+	const known = TEXTURE_USAGES.find((u) => u === usage);
+	if (!known) throw new AssetError(source, `usage must be one of ${TEXTURE_USAGES.join(', ')}`);
+	return known;
+}
+
+/** A PNG's entry, checked against its class's limits. */
+function pngTexture(
+	emit: Emit,
+	source: string,
+	id: string,
+	png: Buffer,
+	usage: TextureUsage
+): TextureEntry {
+	const size = pngSize(png);
+	if (!size) throw new AssetError(source, 'not a PNG');
+	const limit = LIMITS[limitClass({ usage })];
+	if (size.width > limit.px || size.height > limit.px) {
+		throw new AssetError(source, `larger than ${limit.px} pixels`);
+	}
+	if (png.length > limit.bytes) throw new AssetError(source, 'file too large');
+	// 32 bits a pixel once decoded, and a third more for the mips the GPU makes.
+	const gpuBytes = Math.ceil((size.width * size.height * 4 * 4) / 3);
+	if (gpuBytes > limit.gpuBytes) throw new AssetError(source, 'too large on the GPU');
+	return {
+		...emit('textures', id, 'png', png),
+		bytes: png.length,
+		format: 'png',
+		usage,
+		colorSpace: USAGE_SPACE[usage],
+		...size,
+		layers: 1,
+		levels: 1,
+		gpuBytes
+	};
+}
+
+/** assets/textures: `<id>.json` recipes, or `<id>.png` with an optional `<id>.meta.json` for its usage. */
+export function buildTextures(dir: string, emit: Emit): Record<string, TextureEntry> {
+	const textures: Record<string, TextureEntry> = {};
+	const textureDir = path.join(dir, 'textures');
+	for (const name of list(textureDir)) {
+		const source = path.join(textureDir, name);
+		const { id, ext } = idOf(name, textureDir);
+		if (ext === 'meta.json') continue;
+		if (id in textures) throw new AssetError(source, 'a texture with this id already exists');
+		let png: Buffer;
+		let usage: TextureUsage;
+		if (ext === 'json') {
+			const raw = readJson(source);
+			usage = usageOf(raw, source);
+			try {
+				const recipe = readTextureSource(raw);
+				png = encodePng(recipe.size, recipe.size, renderTexture(recipe));
+			} catch (err) {
+				throw new AssetError(source, (err as Error).message);
+			}
+		} else if (ext === 'png') {
+			png = readFileSync(source);
+			const meta = path.join(textureDir, `${id}.meta.json`);
+			usage = usageOf(existsSync(meta) ? readJson(meta) : {}, meta);
+		} else throw new AssetError(source, 'textures are .json recipes or .png images');
+		textures[id] = pngTexture(emit, source, id, png, usage);
+	}
+	return textures;
+}
+
+/** assets/grades: each band of an environment for each tone mapper, as a lookup-table strip. */
+export function buildGrades(
+	dir: string,
+	emit: Emit,
+	environments: Record<string, EnvironmentDef>,
+	textures: Record<string, TextureEntry>
+): void {
+	const gradeDir = path.join(dir, 'grades');
+	for (const name of list(gradeDir)) {
+		const source = path.join(gradeDir, name);
+		const { id, ext } = idOf(name, gradeDir);
+		if (ext !== 'json') throw new AssetError(source, 'grades are .json');
+		if (!(id in environments)) throw new AssetError(source, `no environment "${id}"`);
+		let grades;
+		try {
+			grades = readGrades(readJson(source));
+		} catch (err) {
+			throw new AssetError(source, (err as Error).message);
+		}
+		const lut = {} as NonNullable<EnvironmentDef['lut']>;
+		for (const tm of TONE_MAPPERS) {
+			lut[tm] = {} as NonNullable<EnvironmentDef['lut']>[typeof tm];
+			for (const band of BANDS) {
+				const strip = renderGrade(grades[band][tm]);
+				const problem = stripProblem(strip);
+				if (problem) throw new AssetError(source, `${band} after ${tm}: ${problem}`);
+				const texture = `grade-${id}-${band}-${tm}`;
+				if (texture in textures) throw new AssetError(source, `texture "${texture}" exists`);
+				const png = encodePng(LUT_SIZE * LUT_SIZE, LUT_SIZE, strip, 'sub');
+				textures[texture] = pngTexture(emit, source, texture, png, 'lut');
+				lut[tm][band] = texture;
+			}
+		}
+		environments[id].lut = lut;
+	}
+}

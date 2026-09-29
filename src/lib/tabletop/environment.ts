@@ -157,7 +157,7 @@ export async function loadEnvironment(
 	if (!env) return null;
 	const [[surface, ground, walls, table], grades] = await Promise.all([
 		Promise.all(
-			[env.surface, env.ground, env.walls, env.table].map((m) =>
+			[env.surface, env.ground, env.walls, env.table ?? env.surface].map((m) =>
 				look(manifest.materials[m], manifest.textures)
 			)
 		),
