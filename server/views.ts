@@ -45,6 +45,8 @@ export interface View {
 	darkness: string | null;
 	/** The floors this viewer knows (explored cells), or null when none are painted. */
 	floor: string | null;
+	/** The roofed cells this viewer knows (explored cells), or null for none. */
+	interior: string | null;
 	paused: boolean;
 	/** How the table looks (an environment asset's id): the same for everyone. */
 	environment: string | null;
@@ -52,7 +54,7 @@ export interface View {
 
 type SceneView = Omit<
 	View,
-	'adventure' | 'terrain' | 'darkness' | 'floor' | 'paused' | 'environment'
+	'adventure' | 'terrain' | 'darkness' | 'floor' | 'interior' | 'paused' | 'environment'
 >;
 
 const noFog = (room: Room): FogView => ({
@@ -140,7 +142,8 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
 	// The ground's shape is scenery like walls: known where explored.
 	const terrain = room.terrain && encodeLevels(knownLevels(room.terrain, known));
-	const darkness = room.darkness && knownDarkness(room.darkness, known);
+	const darkness = room.darkness && knownMask(room.darkness, known);
+	const interior = room.interior && knownMask(room.interior, known);
 	const floor = room.floor && encodeFloor(knownFloor(room.floor, known));
 	return {
 		...scene,
@@ -148,15 +151,16 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 		terrain,
 		darkness,
 		floor,
+		interior,
 		paused: room.paused,
 		environment: room.environment
 	};
 }
 
-/** The dark areas among the cells a viewer knows (all of them for null), or null if it knows none. */
-function knownDarkness(darkness: CellMask, known: CellMask | null): string | null {
-	if (!known) return encodeMask(darkness);
-	const mask = darkness.map((v, i) => (v && known[i] ? 1 : 0));
+/** A mask's cells among those a viewer knows (all of them for null), or null if it knows none. */
+function knownMask(cells: CellMask, known: CellMask | null): string | null {
+	if (!known) return encodeMask(cells);
+	const mask = cells.map((v, i) => (v && known[i] ? 1 : 0));
 	return mask.some((v) => v) ? encodeMask(mask) : null;
 }
 
@@ -257,6 +261,7 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		terrain: view.terrain,
 		darkness: view.darkness,
 		floor: view.floor,
+		interior: view.interior,
 		paused: view.paused,
 		environment: view.environment
 	};
@@ -274,6 +279,7 @@ export interface SentView {
 	terrain: string | null;
 	darkness: string | null;
 	floor: string | null;
+	interior: string | null;
 	paused: boolean;
 	environment: string | null;
 }
@@ -290,6 +296,7 @@ export function sentFrom(view: View): SentView {
 		terrain: view.terrain,
 		darkness: view.darkness,
 		floor: view.floor,
+		interior: view.interior,
 		paused: view.paused,
 		environment: view.environment
 	};
@@ -342,6 +349,9 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 		messages.push({ type: 'darkness_update', darkness: view.darkness });
 	}
 	if (prev.floor !== view.floor) messages.push({ type: 'floor_update', floor: view.floor });
+	if (prev.interior !== view.interior) {
+		messages.push({ type: 'interior_update', interior: view.interior });
+	}
 	if (prev.paused !== view.paused) messages.push({ type: 'pause_update', paused: view.paused });
 	if (prev.environment !== view.environment) {
 		messages.push({ type: 'environment_update', environment: view.environment });

@@ -22,6 +22,7 @@ function room(): RoomSnapshot {
 		terrain: null,
 		floor: null,
 		darkness: null,
+		interior: null,
 		paused: false,
 		environment: null,
 		listed: false

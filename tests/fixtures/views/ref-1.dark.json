@@ -19,6 +19,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AAAAAAAAAAEBAQEAAAEBAQEAAAEBAQEAAAEBAQEAAAAAAAAA",
 		"tokens": [
 			{
@@ -162,6 +163,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AAAAAAAAAAEBAQEAAAEBAQEAAAEBAQEAAAEBAQEAAAAAAAAA",
 		"tokens": [
 			{
@@ -305,6 +307,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AAAAAAAAAAEBAQEAAAEBAQEAAAEBAQEAAAEBAQEAAAAAAAAA",
 		"tokens": [
 			{

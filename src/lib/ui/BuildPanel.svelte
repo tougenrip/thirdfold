@@ -15,7 +15,8 @@
 		| 'prop'
 		| 'height'
 		| 'floor'
-		| 'dark';
+		| 'dark'
+		| 'roof';
 
 	/** The prop the GM is about to place. */
 	export interface PropDraft {
@@ -190,6 +191,13 @@
 			<p class="muted">
 				Click two corners. Only light lets anyone see in a dark area, even by day. Start on a dark
 				cell to lift the dark instead.
+			</p>
+		{/if}
+		{@render toolButton({ id: 'roof', label: 'Roof', key: 'I' })}
+		{#if tool === 'roof'}
+			<p class="muted">
+				Click two corners to roof an area; roofed cells show green while the tool is out. A roof
+				only changes the look, never sight or light. Start on a roofed cell to lift the roof.
 			</p>
 		{/if}
 		{@render toolButton({ id: 'floor', label: 'Paint floor', key: 'F' })}

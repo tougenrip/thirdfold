@@ -275,6 +275,14 @@ export function bellweatherScene(now = new Date()): SceneFile {
 			lights,
 			ambient: 'dusk',
 			environment: 'village',
+			// Roofed: the Tolling Rest, the Hale house, the chapel, the smithy and the Crane cottage.
+			interior: [
+				{ from: { x: 2, y: 7 }, to: { x: 8, y: 12 } },
+				{ from: { x: 15, y: 7 }, to: { x: 21, y: 11 } },
+				{ from: { x: 25, y: 7 }, to: { x: 32, y: 12 } },
+				{ from: { x: 16, y: 20 }, to: { x: 21, y: 23 } },
+				{ from: { x: 2, y: 20 }, to: { x: 7, y: 23 } }
+			],
 			// The road the party arrives on is already in view.
 			arrival: { from: { x: 9, y: 23 }, to: { x: 16, y: 27 } }
 		},

@@ -19,6 +19,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD",
 		"tokens": [
 			{
@@ -59,6 +60,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD",
 		"tokens": [
 			{
@@ -99,6 +101,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD",
 		"tokens": [
 			{

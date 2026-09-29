@@ -82,6 +82,7 @@ export function fixtureViews(
 			fog: s.fog,
 			terrain: s.terrain,
 			darkness: s.darkness,
+			interior: s.interior,
 			floor: s.floor,
 			tokens: byId(s.tokens),
 			objects: byId(s.objects),

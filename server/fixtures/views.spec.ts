@@ -16,6 +16,7 @@ interface ViewFile {
 	terrain: string | null;
 	floor: string | null;
 	darkness: string | null;
+	interior?: string | null;
 	tokens: { id: string; hidden?: true }[];
 	props: { id: string; hidden?: true }[];
 }
@@ -59,6 +60,10 @@ describe('the per-viewer fixture views', () => {
 				expect(
 					unexplored(v.darkness ? decodeMask(v.darkness, size) : null),
 					`${role} darkness`
+				).toBe(0);
+				expect(
+					unexplored(v.interior ? decodeMask(v.interior, size) : null),
+					`${role} interior`
 				).toBe(0);
 			}
 		});

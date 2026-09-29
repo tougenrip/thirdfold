@@ -90,6 +90,13 @@ export function trainScene() {
 		environment: 'railcar',
 		ambient: 'dusk',
 		arrival: COACH,
+		// Every car is roofed; the gangways between them are open to the night.
+		interior: [
+			BAGGAGE,
+			{ from: at(15, 1), to: at(28, 5) },
+			{ from: at(30, 1), to: at(45, 5) },
+			COACH
+		],
 		floors: [
 			// Outside the cars, the prairie going by: nobody steps off a moving train.
 			floor(0, 0, 67, 0, 'void'),
@@ -162,6 +169,8 @@ export function engineScene() {
 		ambient: 'dark',
 		arrival: { from: at(0, 0), to: at(21, 8) },
 		terrain: coal,
+		// The cab is roofed; the tender is open to the sky.
+		interior: [{ from: at(10, 1), to: at(20, 7) }],
 		floors: [
 			floor(0, 0, 21, 0, 'void'),
 			floor(0, 8, 21, 8, 'void'),
@@ -219,6 +228,8 @@ export function blackwaterScene() {
 		environment: 'ghost-town',
 		ambient: 'dark',
 		arrival: { from: at(0, 0), to: at(25, 15) },
+		// The saloon's roof still stands.
+		interior: [{ from: at(2, 9), to: at(7, 13) }],
 		floors: [
 			floor(1, 2, 14, 4, 'wood'),
 			floor(0, 5, 20, 6, 'stone'),

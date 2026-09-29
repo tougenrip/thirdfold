@@ -64,6 +64,9 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 		case 'darkness_update':
 			room.darkness = msg.darkness;
 			return true;
+		case 'interior_update':
+			room.interior = msg.interior;
+			return true;
 		case 'pause_update':
 			room.paused = msg.paused;
 			return true;
