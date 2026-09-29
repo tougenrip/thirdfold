@@ -110,9 +110,7 @@ function fileInfo(
 	) {
 		throw new Invalid(`${what}: bad sha256`);
 	}
-	const info: FileInfo = { file, bytes: v.bytes, sha256: v.sha256 };
-	if (v.credit !== undefined) info.credit = credit(v.credit, what);
-	return info;
+	return { file, bytes: v.bytes, sha256: v.sha256, credit: credit(v.credit, what) };
 }
 
 /** An entry's pack, which the manifest must list. */

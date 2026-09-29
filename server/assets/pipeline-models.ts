@@ -14,6 +14,7 @@ import {
 	type ModelEntry
 } from '../../src/lib/assets/manifest';
 import { checkGlb, writeGlb } from './glb';
+import { creditOf, provenanceFor } from './licence';
 import { bakeModel, isModelKind, readModelSource } from './models';
 import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 
@@ -66,6 +67,7 @@ export async function buildModels(
 			} catch (err) {
 				throw err instanceof AssetError ? err : new AssetError(source, (err as Error).message);
 			}
+			const credit = creditOf(provenanceFor(kindDir, id, ext));
 			if (setPiece && kind !== 'prop') throw new AssetError(source, 'only a prop is a set piece');
 			const limit = LIMITS[limitClass({ kind, setPiece })];
 			const checked = await checkGlb(glb, limit);
@@ -83,6 +85,7 @@ export async function buildModels(
 				triangles,
 				bounds: { min: round(bounds.min), max: round(bounds.max) },
 				gpuBytes,
+				credit,
 				...(swing ? { swing } : {}),
 				...(checked.info.cooked ? { cooked: true as const } : {}),
 				...(setPiece ? { setPiece: true as const } : {})

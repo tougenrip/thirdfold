@@ -224,6 +224,12 @@ describe('the pipeline on other sources', () => {
 			)
 		);
 		writeFileSync(path.join(src, 'models', 'npc', 'golem.glb'), glb);
+		writeFileSync(
+			path.join(src, 'models', 'npc', 'golem.meta.json'),
+			JSON.stringify({
+				provenance: { license: 'LicenseRef-thirdfold-original', author: 'us', modified: false }
+			})
+		);
 		expect((await buildAssets(src)).manifest.models.golem).toMatchObject({
 			kind: 'npc',
 			triangles: 12
@@ -247,6 +253,9 @@ describe('the pipeline on other sources', () => {
 	it('builds a KTX2 texture checked against its usage', async () => {
 		const src = sources();
 		cpSync('tests/fixtures/assets/checker.ktx2', path.join(src, 'textures', 'checker.ktx2'));
+		const provenance = { license: 'LicenseRef-thirdfold-original', author: 'us', modified: false };
+		const meta = (usage: string) => JSON.stringify({ usage, provenance });
+		writeFileSync(path.join(src, 'textures', 'checker.meta.json'), meta('albedo'));
 		expect((await buildAssets(src)).manifest.textures.checker).toMatchObject({
 			format: 'ktx2',
 			usage: 'albedo',
@@ -255,7 +264,7 @@ describe('the pipeline on other sources', () => {
 			levels: 4,
 			layers: 1
 		});
-		writeFileSync(path.join(src, 'textures', 'checker.meta.json'), '{ "usage": "normal" }');
+		writeFileSync(path.join(src, 'textures', 'checker.meta.json'), meta('normal'));
 		await expect(buildAssets(src)).rejects.toThrow(
 			/checker\.ktx2: KTX2: declared srgb where linear is needed/
 		);

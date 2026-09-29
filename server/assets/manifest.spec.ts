@@ -103,7 +103,12 @@ describe('manifest v2', () => {
 
 	it('reads the fields later work fills: LODs, credits, packs, previews, surfaces, decoders', () => {
 		const table = raw.models.table;
-		const file = (f: string) => ({ file: f, bytes: 10, sha256: 'abcdef01' + '0'.repeat(56) });
+		const file = (f: string) => ({
+			file: f,
+			bytes: 10,
+			sha256: 'abcdef01' + '0'.repeat(56),
+			credit: table.credit
+		});
 		const filled = parse((m) => {
 			(m as Record<string, unknown>).packs = { core: { bytes: 10, gpuBytes: 20 } };
 			Object.assign(m.models.table, {
@@ -220,13 +225,19 @@ describe('the limits per class, in the parser', () => {
 describe('the limits per class, in the pipeline', () => {
 	let dir: string;
 	afterEach(() => rmSync(dir, { recursive: true, force: true }));
+	const own = { license: 'LicenseRef-thirdfold-original', author: 'us', modified: false };
+	/** A folder of sources, ours by its default (#189). */
 	const folder = (...parts: string[]) => {
 		const at = path.join(dir, ...parts);
 		mkdirSync(at, { recursive: true });
+		writeFileSync(path.join(at, '_provenance.json'), JSON.stringify(own));
 		return at;
 	};
 
 	/** A part list of `n` spheres, 352 triangles each. */
+	/** A binary source's meta.json: what it says, and its provenance. */
+	const meta = (fields: object) => JSON.stringify({ ...fields, provenance: own });
+
 	const spheres = (n: number, setPiece: boolean) => ({
 		parts: Array.from({ length: n }, (_, i) => ({
 			shape: 'sphere',
@@ -260,7 +271,7 @@ describe('the limits per class, in the pipeline', () => {
 			padded.writeUInt32LE(padded.length, 8);
 			padded.writeUInt32LE(glb.readUInt32LE(20 + json) + pad, 20 + json);
 			writeFileSync(path.join(at, 'm.glb'), padded);
-			if (setPiece) writeFileSync(path.join(at, 'm.meta.json'), '{ "setPiece": true }');
+			writeFileSync(path.join(at, 'm.meta.json'), meta(setPiece ? { setPiece: true } : {}));
 			await expect(build()).rejects.toThrow(/m\.glb: file too large/);
 		}
 	);
@@ -269,7 +280,7 @@ describe('the limits per class, in the pipeline', () => {
 		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-limits-'));
 		const limit = LIMITS[cls];
 		const at = folder('textures');
-		if (cls === 'sky') writeFileSync(path.join(at, 't.meta.json'), '{ "usage": "sky" }');
+		writeFileSync(path.join(at, 't.meta.json'), meta(cls === 'sky' ? { usage: 'sky' } : {}));
 		const build = () => buildTextures(dir, emitter(new Map()));
 		const png = (w: number, h: number, pixels = new Uint8Array(w * h * 4)) =>
 			writeFileSync(path.join(at, 't.png'), encodePng(w, h, pixels));
@@ -286,7 +297,7 @@ describe('the limits per class, in the pipeline', () => {
 	it('refuses a 4096 px sky as PNG: at that size a sky fits only as KTX2', () => {
 		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-limits-'));
 		const at = folder('textures');
-		writeFileSync(path.join(at, 'sky.meta.json'), '{ "usage": "sky" }');
+		writeFileSync(path.join(at, 'sky.meta.json'), meta({ usage: 'sky' }));
 		writeFileSync(path.join(at, 'sky.png'), encodePng(4096, 4096, new Uint8Array(4096 * 4096 * 4)));
 		expect(() => buildTextures(dir, emitter(new Map()))).toThrow(/sky\.png: too large on the GPU/);
 	});

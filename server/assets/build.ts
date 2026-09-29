@@ -4,6 +4,8 @@
 
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { ADVENTURES } from '../adventures';
+import { checkCredits } from './licence';
 import { CATALOG_MODULE, SHIPPED_FILE, shippedText, staleCatalog } from './catalog';
 import { AssetError, buildAssets, staleAssets, writeAssets } from './pipeline';
 import { checkScenes } from './scenes';
@@ -16,6 +18,11 @@ try {
 	const problems = checkScenes(built.manifest);
 	if (problems.length) {
 		console.error(`The adventures' tables refer to missing assets:\n  ${problems.join('\n  ')}`);
+		process.exit(1);
+	}
+	const named = checkCredits(built.manifest, ADVENTURES);
+	if (named.length) {
+		console.error(`The public manifest names the story:\n  ${named.join('\n  ')}`);
 		process.exit(1);
 	}
 	const bytes = [...built.files.values()].reduce((sum, d) => sum + d.length, 0);

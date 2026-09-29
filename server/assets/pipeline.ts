@@ -13,11 +13,12 @@
 //   assets/environments/<id>.json       how a place looks: materials for floor, ground, walls, table?
 //   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
+//   <folder>/_provenance.json | <id>.meta.json  where each came from and on what terms (licence.ts)
 //
 // Nothing built is executable: models are checked against an allowlist
 // (glb.ts, gltf-check.ts), images and sounds by their headers (KTX2 in
 // ktx2.ts), and every limit in LIMITS holds for the asset's class. Every
-// file is listed with its whole SHA-256. Models are built in
+// file is listed with its whole SHA-256 and its credit. Models are built in
 // pipeline-models.ts, textures and grades in pipeline-textures.ts, sounds in
 // pipeline-audio.ts.
 
@@ -35,6 +36,7 @@ import {
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
 import { catalogModule, loadCatalog } from './catalog';
 import { buildAudio } from './pipeline-audio';
+import { provenanceFor } from './licence';
 import { AssetError, emitter, idOf, isRecord, list, readJson } from './pipeline-files';
 import { buildModels } from './pipeline-models';
 import { buildGrades, buildTextures } from './pipeline-textures';
@@ -61,6 +63,7 @@ function buildMaterials(
 	const materials: Record<string, MaterialDef> = {};
 	const materialFile = path.join(dir, 'materials.json');
 	if (!existsSync(materialFile)) return materials;
+	provenanceFor(dir, 'materials', 'json');
 	const raw = readJson(materialFile);
 	if (!isRecord(raw)) throw new AssetError(materialFile, 'not an object');
 	for (const [id, m] of Object.entries(raw)) {
@@ -109,6 +112,7 @@ function buildEnvironments(
 		const source = path.join(envDir, name);
 		const { id, ext } = idOf(name, envDir);
 		if (ext !== 'json') throw new AssetError(source, 'environments are .json');
+		provenanceFor(envDir, id, ext);
 		const raw = readJson(source);
 		if (!isRecord(raw) || typeof raw.name !== 'string')
 			throw new AssetError(source, 'needs a name');

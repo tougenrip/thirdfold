@@ -394,6 +394,7 @@
 
 	{#if runError}<p class="error" role="alert">{runError}</p>{/if}
 	<p class="visually-hidden" role="status">{starting ? 'Opening a table…' : ''}</p>
+	<footer class="foot"><a href={resolve('/credits')}>Credits and licences</a></footer>
 </main>
 
 <NameDialog
@@ -412,6 +413,11 @@
 
 	.back {
 		margin: 0 0 var(--sp-6);
+	}
+
+	.foot {
+		margin-top: var(--sp-8);
+		font-size: var(--fs-sm);
 	}
 
 	h1 {
