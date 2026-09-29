@@ -85,7 +85,7 @@ function chain(a: THREE.Vector3, b: THREE.Vector3): THREE.BufferGeometry[] {
 	);
 	const links: THREE.BufferGeometry[] = [];
 	for (let i = 0; i < count; i++) {
-		const link = new THREE.TorusGeometry(0.075, 0.02, 4, 8).scale(0.8, 1.45, 1);
+		const link = new THREE.TorusGeometry(0.075, 0.02, 3, 6).scale(0.8, 1.45, 1);
 		link.rotateY(i % 2 ? Math.PI / 2 : 0);
 		link.applyQuaternion(along);
 		link.translate(
@@ -105,7 +105,8 @@ function chain(a: THREE.Vector3, b: THREE.Vector3): THREE.BufferGeometry[] {
 /** The bell: its profile turned about y, UVs round (u) and down (v) the outside or the inside. */
 function bell(): THREE.BufferGeometry {
 	const pts = profile();
-	const segments = 64;
+	// 40 round keeps the whole model within #196's 15k triangles; the normals keep it round.
+	const segments = 40;
 	const arc = [0];
 	for (let j = 1; j < pts.length; j++) {
 		arc.push(arc[j - 1] + Math.hypot(pts[j].r - pts[j - 1].r, pts[j].y - pts[j - 1].y));
@@ -194,9 +195,8 @@ function frame(): THREE.BufferGeometry[] {
 			[PIVOT, 0.12],
 			[PIVOT, -0.12]
 		]) {
-			parts.push(
-				part('cylinder', [0.08, 0.06, 0.08], [x + side * 0.16, y, z], IRON, [0, 0, Math.PI / 2])
-			);
+			// Square-headed bolts: a box is a third of a cylinder's triangles.
+			parts.push(part('box', [0.06, 0.08, 0.08], [x + side * 0.16, y, z], IRON));
 		}
 		// Chains from the tie beam's ends down to rings in the floor.
 		for (const z of [-1.3, 1.3]) {

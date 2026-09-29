@@ -1468,11 +1468,11 @@
 			}
 		},
 		"great-bell": {
-			"file": "models/great-bell.d7bbac6d.glb",
-			"sha256": "d7bbac6dd2740ace862cc16370fb17447a4c39aaba56aff79e97f1c34270cac8",
-			"bytes": 1732904,
+			"file": "models/great-bell.4818ba6c.glb",
+			"sha256": "4818ba6cbc1bd3ab5e7890893283f523c69a92ede36f845cf6fc775ce7be6163",
+			"bytes": 1571464,
 			"kind": "prop",
-			"triangles": 22708,
+			"triangles": 14292,
 			"bounds": {
 				"min": [
 					-1.55,
@@ -1485,7 +1485,7 @@
 					1.45
 				]
 			},
-			"gpuBytes": 4181106,
+			"gpuBytes": 3868098,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
@@ -1496,11 +1496,11 @@
 			},
 			"lods": [
 				{
-					"triangles": 11354,
+					"triangles": 6487,
 					"screenSize": 0.25
 				},
 				{
-					"triangles": 3405,
+					"triangles": 2416,
 					"screenSize": 0.1
 				}
 			],
@@ -1517,9 +1517,9 @@
 				}
 			},
 			"thumbnail": {
-				"file": "thumbs/great-bell.34ba21ba.png",
-				"sha256": "34ba21baec10d850a705323271e7def4ef73352fe668985c6cda91326dd4af68",
-				"bytes": 56188,
+				"file": "thumbs/great-bell.394c4fd8.png",
+				"sha256": "394c4fd8096c135aed642ac3fd89d7e680bf076726deb3346d8ec1eab793c6d5",
+				"bytes": 56083,
 				"credit": {
 					"license": "LicenseRef-thirdfold-original",
 					"author": "thirdfold contributors"
@@ -4411,8 +4411,8 @@
 	},
 	"packs": {
 		"cavern": {
-			"bytes": 1879367,
-			"gpuBytes": 5841355
+			"bytes": 1717927,
+			"gpuBytes": 5528347
 		},
 		"core": {
 			"bytes": 4212292,
