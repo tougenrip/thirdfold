@@ -188,26 +188,29 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
     - one GLB with its JSON chunk at most 256 kB and one embedded buffer (plus meshopt's empty
       fallbacks); no `uri` anywhere;
     - only the extensions `EXT_meshopt_compression`, `KHR_mesh_quantization`,
-      `KHR_texture_basisu`, `KHR_texture_transform` and `KHR_materials_emissive_strength` (at most
-      50), anywhere in the file; so no Draco, lights, instancing or other material extensions, and
-      no `KHR_meshopt_compression` until the checker can decode it;
+      `KHR_texture_basisu` and `KHR_materials_emissive_strength` (at most 50), anywhere in the file;
+      so no Draco, lights, instancing or other material extensions, no `KHR_meshopt_compression`
+      until the checker can decode it, and no `KHR_texture_transform` until the client honours it;
     - no skins, animations, cameras or morph targets; at most 256 nodes, 16 deep, as a tree;
     - meshes, and their nodes, named `body`, `swing` or `accent`, optionally `_lod1` or `_lod2`;
-    - attributes POSITION, NORMAL, TANGENT, TEXCOORD_0/1, COLOR_0 and `_BAKE`, each in the formats
+    - attributes POSITION, NORMAL, TANGENT, TEXCOORD_0 (the only uv set), COLOR_0 and `_BAKE`, each in the formats
       its semantic allows (quantised integers only with `KHR_mesh_quantization`), in triangles,
       with unsigned indices;
-    - every accessor inside its buffer view, every view inside its buffer, and what meshopt says it
-      will decode to at most the class's GPU bytes, summed before anything is decoded;
+    - every accessor inside its buffer view, every view inside its buffer, and all the accessors
+      together, and what meshopt says it will decode to, each at most the class's GPU bytes, summed
+      before anything is decoded;
     - images are KTX2 in the file, taken only through `KHR_texture_basisu` (no fallback);
-      materials only the PBR metallic-roughness values, OPAQUE or MASK;
-    - once decoded, every index below its vertex count; triangles counted per level of detail,
+      materials only the PBR metallic-roughness values, OPAQUE (not MASK until the client
+      alpha-tests), with texCoord 0;
+    - once decoded, every index below its vertex count; triangles counted per level of detail and
+      each level within the class's triangles, the GPU bytes with textures within the class's,
       bounds taken from every vertex through the node transforms, and each texture checked as a
       KTX2 file in the colour space of the slot it fills.
   - A KTX2 texture, in a model or on its own (`checkKtx2` in `server/assets/ktx2.ts`), is Basis
     Universal: ETC1S with BasisLZ, or UASTC with Zstd or none; sides multiples of 4 up to the
     class's pixels, no more mip levels than the size has, every block and level inside the file,
     what Zstd would inflate to within the class's GPU bytes, sRGB or linear as its usage needs, one
-    face (six for a sky) and one layer (up to 32 on its own, for arrays).
+    face (six square ones for a sky) and one layer (up to 32 on its own, for arrays).
   - PNG images and sounds are checked by their headers.
   - The manifest is validated again by the client (`parseManifest`). Its file paths can only point
     into `/assets/`.

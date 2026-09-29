@@ -281,6 +281,14 @@ export async function checkGlb(data: Uint8Array, limit: Limit = LIMITS.prop): Pr
 		textures.push(checked.info);
 		gpuBytes += checked.info.gpuBytes;
 	}
+	// The whole gate here, so an upload gets it too: every level within the class's triangles.
+	for (const [lod, triangles] of levels.entries()) {
+		if (triangles > limit.triangles) {
+			const what = lod ? `LOD ${lod}: ` : '';
+			return bad(`${what}${triangles} triangles is more than ${limit.triangles}`);
+		}
+	}
+	if (gpuBytes > limit.gpuBytes) return bad('too large on the GPU');
 	return {
 		ok: true,
 		info: {

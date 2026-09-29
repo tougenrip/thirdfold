@@ -8,12 +8,15 @@
 
 import type { Limit } from '../../src/lib/assets/manifest';
 
-/** The extensions a model may use: compressed geometry and textures, and a few material values. */
+/**
+ * The extensions a model may use: compressed geometry and textures, and a few material values.
+ * Not KHR_texture_transform, alpha MASK or a second uv set until the client honours them
+ * (models.ts, the prop and mini kinds sample at uv() with no transform, opaque).
+ */
 export const EXTENSIONS = new Set([
 	'EXT_meshopt_compression',
 	'KHR_mesh_quantization',
 	'KHR_texture_basisu',
-	'KHR_texture_transform',
 	'KHR_materials_emissive_strength'
 ]);
 
@@ -176,7 +179,6 @@ function attributeFormat(name: string, type: string, ct: number, norm: boolean, 
 		case 'TANGENT':
 			return type === 'VEC4' && (ct === FLOAT || (quant && signedNorm));
 		case 'TEXCOORD_0':
-		case 'TEXCOORD_1':
 			return type === 'VEC2' && (ct === FLOAT || unsignedNorm || (quant && ints));
 		case 'COLOR_0':
 			return (type === 'VEC3' || type === 'VEC4') && (ct === FLOAT || unsignedNorm);
@@ -269,8 +271,10 @@ function check(json: Json, binLength: number, limit: Limit): void {
 		compressed.add(i);
 	});
 
-	// Accessors fit their views, whatever they say.
+	// Accessors fit their views, whatever they say, and all of them together fit the GPU budget:
+	// decoding copies each one out, so many accessors over one view would multiply the data.
 	const accessors = records(json.accessors, 'accessors');
+	let accessorBytes = 0;
 	for (const a of accessors) {
 		onlyKeys(a, ACCESSOR_KEYS, 'accessor');
 		const view = views[index(a.bufferView, views.length, 'buffer view')];
@@ -285,6 +289,8 @@ function check(json: Json, binLength: number, limit: Limit): void {
 		const stride = (view.byteStride as number | undefined) ?? element;
 		const end = (offset as number) + ((a.count as number) - 1) * stride + element;
 		if (end > (view.byteLength as number)) fail('accessor runs past its buffer view');
+		accessorBytes += (a.count as number) * element;
+		if (accessorBytes > limit.gpuBytes) fail(`accessors hold more than ${limit.gpuBytes} bytes`);
 		for (const bound of ['min', 'max']) {
 			if (a[bound] !== undefined) numbers(a[bound], components, `accessor ${bound}`);
 		}
@@ -317,7 +323,7 @@ function check(json: Json, binLength: number, limit: Limit): void {
 		if (!isRecord(v)) return fail('bad texture reference');
 		onlyKeys(v, new Set(['index', 'texCoord', 'scale', 'strength', 'extensions']), 'texture');
 		index(v.index, textures.length, 'texture');
-		if (v.texCoord !== undefined && v.texCoord !== 0 && v.texCoord !== 1) fail('bad texCoord');
+		if (v.texCoord !== undefined && v.texCoord !== 0) fail('only texCoord 0');
 	};
 	for (const m of materials) {
 		onlyKeys(m, MATERIAL_KEYS, 'material');
@@ -332,9 +338,7 @@ function check(json: Json, binLength: number, limit: Limit): void {
 		textureInfo(m.occlusionTexture);
 		textureInfo(m.emissiveTexture);
 		if (m.emissiveFactor !== undefined) numbers(m.emissiveFactor, 3, 'emissive factor');
-		if (m.alphaMode !== undefined && m.alphaMode !== 'OPAQUE' && m.alphaMode !== 'MASK') {
-			fail('alphaMode must be OPAQUE or MASK');
-		}
+		if (m.alphaMode !== undefined && m.alphaMode !== 'OPAQUE') fail('alphaMode must be OPAQUE');
 		const strength = isRecord(m.extensions)
 			? m.extensions.KHR_materials_emissive_strength
 			: undefined;

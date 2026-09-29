@@ -73,10 +73,6 @@ export async function buildModels(
 			const checked = await checkGlb(glb, limit);
 			if (!checked.ok) throw new AssetError(source, checked.error);
 			const { triangles, bounds, gpuBytes } = checked.info;
-			if (triangles > limit.triangles) {
-				throw new AssetError(source, `${triangles} triangles is more than ${limit.triangles}`);
-			}
-			if (gpuBytes > limit.gpuBytes) throw new AssetError(source, 'too large on the GPU');
 			// Part lists have no LODs: a few hundred triangles need none.
 			models[id] = {
 				...emit('models', id, 'glb', glb),

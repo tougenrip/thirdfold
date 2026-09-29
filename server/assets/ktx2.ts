@@ -76,6 +76,8 @@ export function checkKtx2(data: Uint8Array, rules: Ktx2Rules): Ktx2Checked {
 		return bad(`${layerCount} layers is more than allowed`);
 	}
 	if (faces !== 1 && !(faces === 6 && rules.cube)) return bad(`${faces} faces is not allowed`);
+	if (faces === 6 && width !== height)
+		return bad(`a cube's faces are square, not ${width}×${height}`);
 	const maxLevels = Math.floor(Math.log2(Math.max(width, height))) + 1;
 	if (levels < 1 || levels > maxLevels) return bad(`${levels} mip levels for ${width}×${height}`);
 	// None (0), BasisLZ (1) or Zstd (2); never zlib or anything later.

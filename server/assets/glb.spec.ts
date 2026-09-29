@@ -150,6 +150,31 @@ describe('checkGlb', () => {
 			edited(PLAIN, (j) => (j.extensionsRequired = ['KHR_draco_mesh_compression'])),
 			/KHR_draco_mesh_compression is not allowed/
 		);
+		// Allowed by glTF, but the client doesn't honour them yet: refused until it does.
+		await refused(
+			edited(COOKED, (j) => {
+				j.extensionsUsed.push('KHR_texture_transform');
+				j.materials[0].pbrMetallicRoughness.baseColorTexture.extensions = {
+					KHR_texture_transform: { scale: [2, 2] }
+				};
+			}),
+			/extension KHR_texture_transform is not allowed/
+		);
+		await refused(
+			edited(COOKED, (j) => (j.materials[0].alphaMode = 'MASK')),
+			/alphaMode must be OPAQUE/
+		);
+		await refused(
+			edited(COOKED, (j) => (j.materials[0].pbrMetallicRoughness.baseColorTexture.texCoord = 1)),
+			/only texCoord 0/
+		);
+		await refused(
+			edited(PLAIN, (j) => {
+				j.accessors.push({ ...j.accessors[0], type: 'VEC2', min: undefined, max: undefined });
+				j.meshes[0].primitives[0].attributes.TEXCOORD_1 = j.accessors.length - 1;
+			}),
+			/attribute TEXCOORD_1 is not allowed/
+		);
 		// three reads KHR_meshopt_compression too, but gltf-transform 4.5.1 cannot decode it to check.
 		await refused(
 			edited(COOKED, (j) => (j.extensionsUsed = ['KHR_meshopt_compression'])),
@@ -236,6 +261,23 @@ describe('checkGlb', () => {
 			edited(COOKED, (j) => (j.buffers[1].byteLength = 2 ** 31)),
 			/meshopt data decodes past/
 		);
+		// Many accessors over one view: each would be copied out when decoded.
+		const small = { ...LIMITS.prop, gpuBytes: 100 };
+		const copies = edited(PLAIN, (j) => j.accessors.push(j.accessors[0], j.accessors[0]));
+		expect(await checkGlb(copies, small)).toEqual({
+			ok: false,
+			error: 'accessors hold more than 100 bytes'
+		});
+		// The whole gate is checkGlb's own: the GPU bytes with textures, and every level's triangles.
+		expect(await checkGlb(withImage(CHECKER), small)).toEqual({
+			ok: false,
+			error: 'too large on the GPU'
+		});
+		const two = { ...triangle('body_lod1'), indices: new Uint16Array([0, 1, 2, 0, 2, 1]) };
+		expect(await checkGlb(writeGlb([triangle(), two]), { ...LIMITS.prop, triangles: 1 })).toEqual({
+			ok: false,
+			error: 'LOD 1: 2 triangles is more than 1'
+		});
 		await refused(
 			edited(PLAIN, (j) => (j.asset.generator = 'x'.repeat(300_000))),
 			/JSON chunk over/
@@ -345,6 +387,13 @@ describe('checkKtx2', () => {
 		expect(checkKtx2(cube, { ...rules, cube: true })).toMatchObject({
 			ok: true,
 			info: { faces: 6 }
+		});
+		const tall = fakeKtx2((c) => {
+			c.pixelHeight = 12;
+			c.faceCount = 6;
+		});
+		expect(checkKtx2(tall, { ...rules, cube: true })).toMatchObject({
+			error: expect.stringMatching(/faces are square/)
 		});
 		const array = Buffer.from(CHECKER);
 		array.writeUInt32LE(4, 32);
