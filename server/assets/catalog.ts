@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { ASSET_ID_PATTERN } from '../../src/lib/assets/manifest';
 import { PROP_CATEGORIES, type Asset, type PropCategory } from '../../src/lib/game/props';
+import { provenanceFor } from './licence';
 import { AssetError, isRecord, readJson } from './pipeline-files';
 
 export const CATALOG_FILE = 'catalog.json';
@@ -97,6 +98,7 @@ export function removedIds(catalog: Catalog, shipped: readonly string[]): string
 export function loadCatalog(dir: string): { catalog: Catalog; shipped: string[] } {
 	const source = path.join(dir, CATALOG_FILE);
 	if (!existsSync(source)) throw new AssetError(source, 'missing: the prop catalogue');
+	provenanceFor(dir, 'catalog', 'json');
 	const catalog = readCatalog(readJson(source), source);
 	const shippedFile = path.join(dir, SHIPPED_FILE);
 	const old = existsSync(shippedFile) ? readJson(shippedFile) : [];

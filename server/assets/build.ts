@@ -4,11 +4,10 @@
 
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { ADVENTURES } from '../adventures';
 import { checkCredits } from './licence';
 import { CATALOG_MODULE, SHIPPED_FILE, shippedText, staleCatalog } from './catalog';
 import { AssetError, buildAssets, staleAssets, writeAssets } from './pipeline';
-import { checkScenes, sceneReport } from './scenes';
+import { adventures, checkScenes, sceneReport } from './scenes';
 
 const SOURCES = 'assets';
 const OUT = path.join('static', 'assets');
@@ -22,7 +21,10 @@ try {
 		);
 		process.exit(1);
 	}
-	const named = checkCredits(built.manifest, ADVENTURES);
+	const named = checkCredits(
+		built.manifest,
+		adventures().filter((A) => typeof A !== 'string')
+	);
 	if (named.length) {
 		console.error(`The public manifest names the story:\n  ${named.join('\n  ')}`);
 		process.exit(1);

@@ -17,6 +17,7 @@ import { gzipSync } from 'node:zlib';
 const BUDGETS = {
 	'/': { total: 64_000, own: 19_000 },
 	'/builder': { total: 97_000, own: 52_000 },
+	'/credits': { total: 54_000, own: 3_000 },
 	'/library': { total: 66_000, own: 21_000 },
 	'/room/[id]': { total: 121_000, own: 76_000 },
 	renderer: { total: 360_000 },

@@ -98,4 +98,10 @@ describe('the prop catalogue on other sources', () => {
 		editCatalog(src, (c) => Object.assign(c.aliases, { well: 'crate' }));
 		expect(loadCatalog(src).shipped).toContain('well');
 	});
+
+	it('refuses a catalogue with no provenance', () => {
+		const src = sources();
+		rmSync(path.join(src, '_provenance.json'));
+		expect(() => loadCatalog(src)).toThrow(/catalog\.json: no provenance/);
+	});
 });

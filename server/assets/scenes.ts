@@ -113,7 +113,7 @@ interface Table {
 }
 
 /** The adventures checked: the built-in ones, and the builder's example; or why the example won't load. */
-function adventures(): (AdventureDef | string)[] {
+export function adventures(): (AdventureDef | string)[] {
 	const example = loadAdventureFile(exampleAdventure(), 'example');
 	return [...ADVENTURES, example.ok ? example.adventure : `example: ${example.error}`];
 }
