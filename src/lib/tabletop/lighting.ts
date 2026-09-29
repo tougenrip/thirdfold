@@ -19,9 +19,11 @@ import {
 } from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
+import { MAX_EXPOSURE, type WorldLook } from '$lib/game/world';
 import type { Ground } from './ground';
 import { inWorld } from './materials/world-modify';
 import { modelNow } from './models';
+import { oneHot, presetWeights, type PresetWeights } from './time-blend';
 
 /** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
 const POOL_SIZE = 8;
@@ -112,6 +114,26 @@ const PRESETS: Record<Ambient, Preset> = {
 	}
 };
 
+const BANDS = ['day', 'dusk', 'dark'] as const;
+const scratch = new THREE.Color();
+
+/** A preset number mixed by the weights. */
+function mixed(w: PresetWeights, key: 'hemisphere' | 'sun' | 'lamp'): number {
+	return w.day * PRESETS.day[key] + w.dusk * PRESETS.dusk[key] + w.dark * PRESETS.dark[key];
+}
+
+/** A preset colour mixed by the weights into `out`; one-hot, it is exactly the preset's. */
+function mixColour(
+	out: THREE.Color,
+	w: PresetWeights,
+	key: 'background' | 'sky' | 'ground'
+): THREE.Color {
+	out.setRGB(0, 0, 0);
+	for (const band of BANDS)
+		if (w[band]) out.add(scratch.setHex(PRESETS[band][key]).multiplyScalar(w[band]));
+	return out;
+}
+
 export interface SceneLights {
 	hemisphere: THREE.HemisphereLight;
 	sun: THREE.DirectionalLight;
@@ -140,6 +162,8 @@ export class LightingLayer {
 	private hasDark = false;
 	private hemisphere = PRESETS.day.hemisphere;
 	private flash = 0;
+	/** The scene's background, one colour set in place on every relight. */
+	private background = new THREE.Color();
 
 	constructor(private readonly base: SceneLights) {
 		for (let i = 0; i < POOL_SIZE; i++) {
@@ -153,6 +177,10 @@ export class LightingLayer {
 	 * Recomputes lighting. `dark` marks the table's dark areas, which are as
 	 * dark as night whatever the ambient. What a fogged player sees is lit by
 	 * definition; `worldModify` adds that fill in the shader.
+	 *
+	 * With a sun, the look's hour blends the presets (#208, until the sky, #114, and #218); without
+	 * one, or without a look, the band's preset alone. What the rules darken (`levels`, and the
+	 * cell maps and grade the renderer keys on `ambient`) always follows the band, never the hour.
 	 */
 	update(
 		grid: SquareGrid,
@@ -162,20 +190,26 @@ export class LightingLayer {
 		blocked: Blockers,
 		ground: Ground | null = null,
 		dark: Uint8Array | null = null,
-		seats: ReadonlyMap<number, number> = new Map()
+		seats: ReadonlyMap<number, number> = new Map(),
+		world: WorldLook | null = null
 	): void {
 		const preset = PRESETS[ambient];
 		this.ambient = ambient;
-		this.base.scene.background = new THREE.Color(preset.background);
-		if (this.base.scene.fog instanceof THREE.Fog)
-			this.base.scene.fog.color.setHex(preset.background);
-		this.hemisphere = preset.hemisphere;
-		this.base.hemisphere.intensity = preset.hemisphere + this.flash * 1.5;
-		this.base.hemisphere.color.setHex(preset.sky);
-		this.base.hemisphere.groundColor.setHex(preset.ground);
+		const w = world?.sun ? presetWeights(world.time) : oneHot(ambient);
+		// Exposure in the lights until post applies it (#161): 2^EV, so 0 changes nothing.
+		const ev = Math.min(MAX_EXPOSURE, Math.max(-MAX_EXPOSURE, world?.grade.exposure ?? 0));
+		const gain = 2 ** ev;
+		const scene = this.base.scene;
+		if (scene.background !== this.background) scene.background = this.background;
+		mixColour(this.background, w, 'background');
+		if (scene.fog instanceof THREE.Fog) scene.fog.color.copy(this.background);
+		this.hemisphere = mixed(w, 'hemisphere') * gain;
+		this.base.hemisphere.intensity = this.hemisphere + this.flash * 1.5;
+		mixColour(this.base.hemisphere.color, w, 'sky');
+		mixColour(this.base.hemisphere.groundColor, w, 'ground');
 		this.hasDark = !!dark?.some((v) => v);
-		this.base.sun.intensity = preset.sun;
-		this.base.lamp.intensity = preset.lamp;
+		this.base.sun.intensity = mixed(w, 'sun') * gain;
+		this.base.lamp.intensity = mixed(w, 'lamp');
 
 		// Light levels matter only where it can be dark: never by day outside dark areas.
 		this.levels = preset.dark || this.hasDark ? lightLevels(grid, blocked, sources) : null;

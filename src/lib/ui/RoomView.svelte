@@ -1202,6 +1202,7 @@
 				objects={room.objects}
 				fog={room.fog}
 				ambient={room.ambient}
+				world={room.world}
 				lights={room.lights}
 				props={room.props}
 				{diceThrow}
