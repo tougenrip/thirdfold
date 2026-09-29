@@ -70,7 +70,8 @@ export function buildTextures(dir: string, emit: Emit): Record<string, TextureEn
 			checkMeta(textureDir, id, 'png');
 			continue;
 		}
-		if (id in textures) throw new AssetError(source, 'a texture with this id already exists');
+		if (Object.hasOwn(textures, id))
+			throw new AssetError(source, 'a texture with this id already exists');
 		let png: Buffer;
 		let usage: TextureUsage;
 		if (ext === 'json') {
@@ -119,7 +120,8 @@ export function buildGrades(
 				const problem = stripProblem(strip);
 				if (problem) throw new AssetError(source, `${band} after ${tm}: ${problem}`);
 				const texture = `grade-${id}-${band}-${tm}`;
-				if (texture in textures) throw new AssetError(source, `texture "${texture}" exists`);
+				if (Object.hasOwn(textures, texture))
+					throw new AssetError(source, `texture "${texture}" exists`);
 				const png = encodePng(LUT_SIZE * LUT_SIZE, LUT_SIZE, strip, 'sub');
 				textures[texture] = pngTexture(emit, source, texture, png, 'lut');
 				lut[tm][band] = texture;

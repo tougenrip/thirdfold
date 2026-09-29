@@ -54,7 +54,8 @@ export function buildModels(
 				checkMeta(kindDir, id, 'glb');
 				continue;
 			}
-			if (id in models) throw new AssetError(source, 'a model with this id already exists');
+			if (Object.hasOwn(models, id))
+				throw new AssetError(source, 'a model with this id already exists');
 			let glb: Buffer;
 			let swing: ModelEntry['swing'];
 			let setPiece = false;
