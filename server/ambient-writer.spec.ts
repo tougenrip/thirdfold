@@ -1,4 +1,4 @@
-// The rules band has one writer (#200): `lookWorld` in scene.ts sets the world
+// The rules band has one writer (#200): `lookWorld` in scene-look.ts sets the world
 // and the band it decides, so the hour and the band never disagree. This scans
 // every non-test source under server/ (fixtures and perf included) and the
 // scripts for any other assignment to `.ambient` or `.world`.
@@ -16,13 +16,13 @@ function sources(dir: string): string[] {
 }
 
 describe('the rules band', () => {
-	it('is written only by scene.ts', () => {
+	it('is written only by scene-look.ts', () => {
 		const files = [...sources(path.join(ROOT, 'server')), ...sources(path.join(ROOT, 'scripts'))];
-		expect(files).toContain(path.join('server', 'scene.ts'));
+		expect(files).toContain(path.join('server', 'scene-look.ts'));
 		const writers = files.filter((file) => {
 			const source = readFileSync(path.join(ROOT, file), 'utf8');
 			return /\.(ambient|world)\s*=(?!=)/.test(source);
 		});
-		expect(writers).toEqual([path.join('server', 'scene.ts')]);
+		expect(writers).toEqual([path.join('server', 'scene-look.ts')]);
 	});
 });
