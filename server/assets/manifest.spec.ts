@@ -25,8 +25,8 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 let built: BuiltAssets;
 /** The built manifest as the client fetches it. */
 let raw: Record<string, Record<string, Record<string, unknown>>>;
-beforeAll(() => {
-	built = buildAssets('assets');
+beforeAll(async () => {
+	built = await buildAssets('assets');
 	raw = JSON.parse(JSON.stringify(built.manifest));
 });
 
@@ -237,28 +237,33 @@ describe('the limits per class, in the pipeline', () => {
 		...(setPiece ? { setPiece: true } : {})
 	});
 
-	it.each(CLASSES)('%s: a model over its triangles or bytes is refused', (cls, kind, setPiece) => {
-		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-limits-'));
-		const limit = LIMITS[cls];
-		const at = folder('models', kind);
-		const build = () => buildModels(dir, emitter(new Map()), {});
-		const under = Math.floor(limit.triangles / 352);
-		writeFileSync(path.join(at, 'm.json'), JSON.stringify(spheres(under, setPiece)));
-		expect(build().m).toMatchObject({ kind, triangles: under * 352 });
-		writeFileSync(path.join(at, 'm.json'), JSON.stringify(spheres(under + 1, setPiece)));
-		expect(build).toThrow(new RegExp(`triangles is more than ${limit.triangles}`));
-		// A model made elsewhere, padded past the class's size (its binary chunk grown with zeros).
-		rmSync(path.join(at, 'm.json'));
-		const glb = writeGlb(bakeModel(readModelSource(spheres(1, false), new Set()), () => '#fff'));
-		const json = glb.readUInt32LE(12);
-		const pad = limit.bytes - glb.length + 4;
-		const padded = Buffer.concat([glb, Buffer.alloc(pad)]);
-		padded.writeUInt32LE(padded.length, 8);
-		padded.writeUInt32LE(glb.readUInt32LE(20 + json) + pad, 20 + json);
-		writeFileSync(path.join(at, 'm.glb'), padded);
-		if (setPiece) writeFileSync(path.join(at, 'm.meta.json'), '{ "setPiece": true }');
-		expect(build).toThrow(/m\.glb: file too large/);
-	});
+	it.each(CLASSES)(
+		'%s: a model over its triangles or bytes is refused',
+		async (cls, kind, setPiece) => {
+			dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-limits-'));
+			const limit = LIMITS[cls];
+			const at = folder('models', kind);
+			const build = () => buildModels(dir, emitter(new Map()), {});
+			const under = Math.floor(limit.triangles / 352);
+			writeFileSync(path.join(at, 'm.json'), JSON.stringify(spheres(under, setPiece)));
+			expect((await build()).m).toMatchObject({ kind, triangles: under * 352 });
+			writeFileSync(path.join(at, 'm.json'), JSON.stringify(spheres(under + 1, setPiece)));
+			await expect(build()).rejects.toThrow(
+				new RegExp(`triangles is more than ${limit.triangles}`)
+			);
+			// A model made elsewhere, padded past the class's size (its binary chunk grown with zeros).
+			rmSync(path.join(at, 'm.json'));
+			const glb = writeGlb(bakeModel(readModelSource(spheres(1, false), new Set()), () => '#fff'));
+			const json = glb.readUInt32LE(12);
+			const pad = limit.bytes - glb.length + 4;
+			const padded = Buffer.concat([glb, Buffer.alloc(pad)]);
+			padded.writeUInt32LE(padded.length, 8);
+			padded.writeUInt32LE(glb.readUInt32LE(20 + json) + pad, 20 + json);
+			writeFileSync(path.join(at, 'm.glb'), padded);
+			if (setPiece) writeFileSync(path.join(at, 'm.meta.json'), '{ "setPiece": true }');
+			await expect(build()).rejects.toThrow(/m\.glb: file too large/);
+		}
+	);
 
 	it.each(['texture', 'sky'] as const)('%s: a texture over its size or bytes is refused', (cls) => {
 		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-limits-'));
@@ -286,7 +291,7 @@ describe('the limits per class, in the pipeline', () => {
 		expect(() => buildTextures(dir, emitter(new Map()))).toThrow(/sky\.png: too large on the GPU/);
 	});
 
-	it('refuses an <id>.meta.json with nothing to describe, or beside a .json source', () => {
+	it('refuses an <id>.meta.json with nothing to describe, or beside a .json source', async () => {
 		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-meta-'));
 		const textures = folder('textures');
 		const buildT = () => buildTextures(dir, emitter(new Map()));
@@ -300,8 +305,10 @@ describe('the limits per class, in the pipeline', () => {
 		const props = folder('models', 'prop');
 		const buildM = () => buildModels(dir, emitter(new Map()), {});
 		writeFileSync(path.join(props, 'm.meta.json'), '{ "setPiece": true }');
-		expect(buildM).toThrow(/m\.meta\.json: describes an <id>\.glb that is not there/);
+		await expect(buildM()).rejects.toThrow(
+			/m\.meta\.json: describes an <id>\.glb that is not there/
+		);
 		writeFileSync(path.join(props, 'm.json'), JSON.stringify(spheres(1, false)));
-		expect(buildM).toThrow(/m\.meta\.json: a \.json source says this itself/);
+		await expect(buildM()).rejects.toThrow(/m\.meta\.json: a \.json source says this itself/);
 	});
 });

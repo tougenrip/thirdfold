@@ -6,18 +6,19 @@
 //
 // Sources (see docs/ASSETS.md):
 //   assets/materials.json               named surfaces: colour, roughness, metalness, texture
-//   assets/textures/<id>.json | .png    a texture recipe, or an image (<id>.meta.json: its usage)
+//   assets/textures/<id>.json | .png | .ktx2  a recipe, or an image (<id>.meta.json: its usage)
 //   assets/models/<kind>/<id>.json      a model from primitive parts (kind: a MODEL_KINDS folder)
-//   assets/models/<kind>/<id>.glb       or a model made elsewhere (meshes only), with <id>.meta.json for its swing
+//   assets/models/<kind>/<id>.glb       or a model made elsewhere or cooked, with <id>.meta.json for its swing
 //   assets/environments/<id>.json       how a place looks: materials for floor, ground, walls, table?
 //   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
 //
-// Nothing built is executable: models are checked to be meshes only, images
-// and sounds by their headers, and every limit in LIMITS holds for the
-// asset's class. Every file is listed with its whole SHA-256. Models are
-// built in pipeline-models.ts, textures and grades in pipeline-textures.ts,
-// sounds in pipeline-audio.ts.
+// Nothing built is executable: models are checked against an allowlist
+// (glb.ts, gltf-check.ts), images and sounds by their headers (KTX2 in
+// ktx2.ts), and every limit in LIMITS holds for the asset's class. Every
+// file is listed with its whole SHA-256. Models are built in
+// pipeline-models.ts, textures and grades in pipeline-textures.ts, sounds in
+// pipeline-audio.ts.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -125,13 +126,13 @@ function buildEnvironments(
 }
 
 /** Builds every asset under `dir`. Throws an AssetError naming the first bad source. */
-export function buildAssets(dir: string): BuiltAssets {
+export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	const files = new Map<string, Buffer>();
 	const emit = emitter(files);
 	// Textures first: materials refer to them, and models to materials.
 	const textures = buildTextures(dir, emit);
 	const materials = buildMaterials(dir, textures);
-	const models = buildModels(dir, emit, materials);
+	const models = await buildModels(dir, emit, materials);
 	const environments = buildEnvironments(dir, materials);
 	buildGrades(dir, emit, environments, textures);
 	const audio = buildAudio(dir, emit);

@@ -9,7 +9,7 @@ const SOURCES = 'assets';
 const OUT = path.join('static', 'assets');
 
 try {
-	const built = buildAssets(SOURCES);
+	const built = await buildAssets(SOURCES);
 	const problems = checkScenes(built.manifest);
 	if (problems.length) {
 		console.error(`The adventures' tables refer to missing assets:\n  ${problems.join('\n  ')}`);

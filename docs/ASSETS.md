@@ -16,19 +16,19 @@ the built files would not match CI's.
 
 ## Sources
 
-| Kind                             | Source                                                                         | Built into                   |
-| -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------- |
-| Props                            | `assets/models/prop/<id>.json`                                                 | `models/<id>.<hash>.glb`     |
-| Characters                       | `assets/models/character/<id>.json`                                            | `models/<id>.<hash>.glb`     |
-| NPCs                             | `assets/models/npc/<id>.json`                                                  | `models/<id>.<hash>.glb`     |
-| Enemies                          | `assets/models/enemy/<id>.json`                                                | `models/<id>.<hash>.glb`     |
-| Kit, foliage, decor, effects     | `assets/models/{kit,foliage,decor,fx}/<id>.json`                               | `models/<id>.<hash>.glb`     |
-| Any model made elsewhere         | `assets/models/<kind>/<id>.glb` (`<id>.meta.json`: swing, set piece)           | copied, after checking       |
-| Materials                        | `assets/materials.json`                                                        | the manifest                 |
-| Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png` (`<id>.meta.json`: usage) | `textures/<id>.<hash>.png`   |
-| Environments (how a place looks) | `assets/environments/<id>.json`                                                | the manifest                 |
-| Colour grades                    | `assets/grades/<environment>.json`                                             | `textures/grade-….png` (54)  |
-| Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg`                   | `audio/<id>.<hash>.wav\|ogg` |
+| Kind                             | Source                                                                                 | Built into                         |
+| -------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- |
+| Props                            | `assets/models/prop/<id>.json`                                                         | `models/<id>.<hash>.glb`           |
+| Characters                       | `assets/models/character/<id>.json`                                                    | `models/<id>.<hash>.glb`           |
+| NPCs                             | `assets/models/npc/<id>.json`                                                          | `models/<id>.<hash>.glb`           |
+| Enemies                          | `assets/models/enemy/<id>.json`                                                        | `models/<id>.<hash>.glb`           |
+| Kit, foliage, decor, effects     | `assets/models/{kit,foliage,decor,fx}/<id>.json`                                       | `models/<id>.<hash>.glb`           |
+| Any model made elsewhere         | `assets/models/<kind>/<id>.glb` (`<id>.meta.json`: swing, set piece)                   | copied, after checking             |
+| Materials                        | `assets/materials.json`                                                                | the manifest                       |
+| Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`/`.ktx2` (`<id>.meta.json`: usage) | `textures/<id>.<hash>.png`/`.ktx2` |
+| Environments (how a place looks) | `assets/environments/<id>.json`                                                        | the manifest                       |
+| Colour grades                    | `assets/grades/<environment>.json`                                                     | `textures/grade-….png` (54)        |
+| Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg`                           | `audio/<id>.<hash>.wav\|ogg`       |
 
 Ids are lowercase letters, digits and dashes, and they are the file names. Name an asset by how
 it looks (`robed-figure`, `giant-hand`, `cavern`), not by its part in a story. The manifest is
@@ -88,9 +88,11 @@ The pipeline merges the parts into at most three meshes: `body`, `swing` and `ac
 baked in as vertex colours. The client draws each prop model with one instanced draw call however
 many parts it has, plus one more if it swings.
 
-A `.glb` made in a modelling tool works too. It must hold only meshes named `body`, `swing` or
-`accent`, with vertex colours, and nothing else (see Rules). If it swings, put its swing in
-`<id>.meta.json`.
+A `.glb` made in a modelling tool, or cooked (#186), works too. Its meshes, and the nodes that carry
+them, are named `body`, `swing` or `accent`, with `_lod1` or `_lod2` for coarser levels of detail;
+it may have materials with KTX2 textures and meshopt-compressed geometry, and nothing else (see
+Rules). If it swings, put its swing in `<id>.meta.json`. `tests/fixtures/assets/cube-meshopt.glb`
+and `checker.ktx2` are small valid examples (`scripts/make-asset-fixtures.ts` makes them).
 
 Every prop in the catalogue (`ASSETS` in `src/lib/game/props.ts`) must have a model. The catalogue
 says what a prop is (footprint, what it blocks); the model only says how it looks.
@@ -149,9 +151,32 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
 ## Rules the pipeline enforces
 
 - **Nothing executable.**
-  - A model is only meshes: no extensions, no linked or data URIs, no images or textures, cameras,
-    skins or animations, and only position, normal, colour and UV attributes.
-  - Images and sounds are checked by their headers.
+  - A model (`checkGlb` in `server/assets/glb.ts`, the JSON in `gltf-check.ts`) is checked against
+    an allowlist, first as JSON before anything is decoded, then decoded:
+    - one GLB with its JSON chunk at most 256 kB and one embedded buffer (plus meshopt's empty
+      fallbacks); no `uri` anywhere;
+    - only the extensions `EXT_meshopt_compression`, `KHR_mesh_quantization`,
+      `KHR_texture_basisu`, `KHR_texture_transform` and `KHR_materials_emissive_strength` (at most
+      50), anywhere in the file; so no Draco, lights, instancing or other material extensions, and
+      no `KHR_meshopt_compression` until the checker can decode it;
+    - no skins, animations, cameras or morph targets; at most 256 nodes, 16 deep, as a tree;
+    - meshes, and their nodes, named `body`, `swing` or `accent`, optionally `_lod1` or `_lod2`;
+    - attributes POSITION, NORMAL, TANGENT, TEXCOORD_0/1, COLOR_0 and `_BAKE`, each in the formats
+      its semantic allows (quantised integers only with `KHR_mesh_quantization`), in triangles,
+      with unsigned indices;
+    - every accessor inside its buffer view, every view inside its buffer, and what meshopt says it
+      will decode to at most the class's GPU bytes, summed before anything is decoded;
+    - images are KTX2 in the file, taken only through `KHR_texture_basisu` (no fallback);
+      materials only the PBR metallic-roughness values, OPAQUE or MASK;
+    - once decoded, every index below its vertex count; triangles counted per level of detail,
+      bounds taken from every vertex through the node transforms, and each texture checked as a
+      KTX2 file in the colour space of the slot it fills.
+  - A KTX2 texture, in a model or on its own (`checkKtx2` in `server/assets/ktx2.ts`), is Basis
+    Universal: ETC1S with BasisLZ, or UASTC with Zstd or none; sides multiples of 4 up to the
+    class's pixels, no more mip levels than the size has, every block and level inside the file,
+    what Zstd would inflate to within the class's GPU bytes, sRGB or linear as its usage needs, one
+    face (six for a sky) and one layer (up to 32 on its own, for arrays).
+  - PNG images and sounds are checked by their headers.
   - The manifest is validated again by the client (`parseManifest`). Its file paths can only point
     into `/assets/`.
 - **Limits by class** (`LIMITS` in `src/lib/assets/manifest.ts`, `limitClass`), enforced by the

@@ -16,6 +16,7 @@ import {
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
 import { BANDS, LUT_SIZE, readGrades, renderGrade, stripProblem } from './grades';
+import { MAX_LAYERS, checkKtx2 } from './ktx2';
 import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 import { encodePng, pngSize } from './png';
 import { readTextureSource, renderTexture } from './textures';
@@ -59,7 +60,43 @@ function pngTexture(
 	};
 }
 
-/** assets/textures: `<id>.json` recipes, or `<id>.png` with an optional `<id>.meta.json` for its usage. */
+/** A KTX2 texture's entry: its header checked against its usage's class (arrays, and a sky's six faces). */
+function ktx2Texture(
+	emit: Emit,
+	source: string,
+	id: string,
+	data: Buffer,
+	usage: TextureUsage
+): TextureEntry {
+	const limit = LIMITS[limitClass({ usage })];
+	if (data.length > limit.bytes) throw new AssetError(source, 'file too large');
+	const checked = checkKtx2(data, {
+		maxPx: limit.px,
+		maxGpuBytes: limit.gpuBytes,
+		maxLayers: MAX_LAYERS,
+		cube: usage === 'sky',
+		colorSpace: USAGE_SPACE[usage]
+	});
+	if (!checked.ok) throw new AssetError(source, checked.error);
+	const { width, height, layers, levels, gpuBytes } = checked.info;
+	return {
+		...emit('textures', id, 'ktx2', data),
+		bytes: data.length,
+		format: 'ktx2',
+		usage,
+		colorSpace: USAGE_SPACE[usage],
+		width,
+		height,
+		layers,
+		levels,
+		gpuBytes
+	};
+}
+
+/**
+ * assets/textures: `<id>.json` recipes, or `<id>.png` or `<id>.ktx2` images with an optional
+ * `<id>.meta.json` for their usage.
+ */
 export function buildTextures(dir: string, emit: Emit): Record<string, TextureEntry> {
 	const textures: Record<string, TextureEntry> = {};
 	const textureDir = path.join(dir, 'textures');
@@ -67,7 +104,7 @@ export function buildTextures(dir: string, emit: Emit): Record<string, TextureEn
 		const source = path.join(textureDir, name);
 		const { id, ext } = idOf(name, textureDir);
 		if (ext === 'meta.json') {
-			checkMeta(textureDir, id, 'png');
+			checkMeta(textureDir, id, existsSync(path.join(textureDir, `${id}.ktx2`)) ? 'ktx2' : 'png');
 			continue;
 		}
 		if (Object.hasOwn(textures, id))
@@ -87,7 +124,12 @@ export function buildTextures(dir: string, emit: Emit): Record<string, TextureEn
 			png = readFileSync(source);
 			const meta = path.join(textureDir, `${id}.meta.json`);
 			usage = usageOf(existsSync(meta) ? readJson(meta) : {}, meta);
-		} else throw new AssetError(source, 'textures are .json recipes or .png images');
+		} else if (ext === 'ktx2') {
+			const meta = path.join(textureDir, `${id}.meta.json`);
+			const usage = usageOf(existsSync(meta) ? readJson(meta) : {}, meta);
+			textures[id] = ktx2Texture(emit, source, id, readFileSync(source), usage);
+			continue;
+		} else throw new AssetError(source, 'textures are .json recipes, or .png or .ktx2 images');
 		textures[id] = pngTexture(emit, source, id, png, usage);
 	}
 	return textures;
