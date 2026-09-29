@@ -394,6 +394,22 @@ export function setDarkness(
 	return { ok: true, cells: rectCells(room.grid, from, to).length };
 }
 
+/** GM: roofs an area or lifts its roof. Presentation only: sight, light and movement ignore it. */
+export function setInterior(
+	room: Room,
+	actor: Player,
+	from: GridPos,
+	to: GridPos,
+	roofed: boolean
+): Result<{ cells: number }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM builds the map.');
+	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
+		return fail('invalid_position', 'That area is off the map.');
+	}
+	room.interior = withDarkness(room.interior, room.grid, from, to, roofed);
+	return { ok: true, cells: rectCells(room.grid, from, to).length };
+}
+
 /** The table's sight cache, set to these obstacles (see SightCache). */
 export function sightsFor(room: Room, blocked: Obstacles): SightCache {
 	return (room.sights ??= new SightCache()).use(room.grid, blocked);

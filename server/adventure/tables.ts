@@ -71,6 +71,8 @@ export interface TableParts {
 	terrain?: readonly Rise[];
 	/** Dark areas (inclusive rectangles): only light lets anyone see there, whatever the ambient. */
 	dark?: readonly { from: GridPos; to: GridPos }[];
+	/** Roofed cells (inclusive rectangles): presentation only, never a rule of sight, light or movement. */
+	interior?: readonly { from: GridPos; to: GridPos }[];
 	/** How it looks: an environment asset (assets/environments). */
 	environment: string;
 	/** Painted floors (inclusive rectangles, later ones win); the rest is the table's own surface. */
@@ -108,6 +110,9 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 	const darkness = emptyMask(parts.grid);
 	for (const d of parts.dark ?? [])
 		for (const i of rectCells(parts.grid, d.from, d.to)) darkness[i] = 1;
+	const interior = emptyMask(parts.grid);
+	for (const d of parts.interior ?? [])
+		for (const i of rectCells(parts.grid, d.from, d.to)) interior[i] = 1;
 	return {
 		format: 'thirdfold-scene',
 		version: SCENE_FILE_VERSION,
@@ -120,7 +125,7 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		lights: parts.lights,
 		ambient: parts.ambient,
 		world: defaultWorldFor(parts.ambient),
-		interior: null,
+		interior: interior.some((v) => v) ? encodeMask(interior) : null,
 		fog: { enabled: true, revealed: encodeMask(revealed), shared: false },
 		discovery: {},
 		adventure: null,

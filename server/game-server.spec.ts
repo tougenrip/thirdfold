@@ -7,6 +7,7 @@ import type { AdventureView } from '../src/lib/adventure/adventure';
 import { exampleAdventure } from '../src/lib/adventure/example';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
+import { decodeMask } from '../src/lib/game/visibility';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { SCENE_FILE_VERSION } from '../src/lib/game/scene-file';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
@@ -762,6 +763,7 @@ describe('fog of war over the wire', () => {
 		gm.send({ type: 'terrain_set', from: { x: 15, y: 10 }, to: { x: 18, y: 13 }, level: 2 });
 		gm.send({ type: 'floor_set', from: { x: 14, y: 0 }, to: { x: 19, y: 5 }, floor: 'sand' });
 		gm.send({ type: 'darkness_set', from: { x: 15, y: 15 }, to: { x: 19, y: 19 }, dark: true });
+		gm.send({ type: 'interior_set', from: { x: 14, y: 6 }, to: { x: 19, y: 9 }, roofed: true });
 		gm.send({ type: 'object_create', kind: 'wall', a: { x: 16, y: 2 }, b: { x: 16, y: 8 } });
 		gm.send({
 			type: 'token_create',
@@ -801,6 +803,7 @@ describe('fog of war over the wire', () => {
 		gm.send({ type: 'terrain_set', from: { x: 3, y: 3 }, to: { x: 3, y: 3 }, level: 1 });
 		gm.send({ type: 'floor_set', from: { x: 1, y: 1 }, to: { x: 2, y: 1 }, floor: 'stone' });
 		gm.send({ type: 'darkness_set', from: { x: 5, y: 5 }, to: { x: 5, y: 5 }, dark: true });
+		gm.send({ type: 'interior_set', from: { x: 1, y: 3 }, to: { x: 2, y: 4 }, roofed: true });
 		gm.send({ type: 'light_create', pos: { x: 4, y: 2 }, radius: 2, color: '#ffa04d' });
 		// ...and in R, after they joined, to force diffs.
 		gm.send({ type: 'light_update', lightId: farLight.id, patch: { on: false } });
@@ -808,6 +811,7 @@ describe('fog of war over the wire', () => {
 		gm.send({ type: 'floor_set', from: { x: 14, y: 0 }, to: { x: 19, y: 3 }, floor: 'water' });
 		gm.send({ type: 'terrain_set', from: { x: 15, y: 10 }, to: { x: 16, y: 11 }, level: 3 });
 		gm.send({ type: 'darkness_set', from: { x: 15, y: 15 }, to: { x: 16, y: 16 }, dark: false });
+		gm.send({ type: 'interior_set', from: { x: 14, y: 6 }, to: { x: 15, y: 7 }, roofed: false });
 		gm.send({ type: 'token_move', tokenId: watcher.id, to: { x: 18, y: 6 } });
 		gm.send({ type: 'prop_update', propId: barrel.id, patch: { pos: { x: 16, y: 18 } } });
 		gm.send({ type: 'environment_set', environment: 'cavern' });
@@ -834,6 +838,7 @@ describe('fog of war over the wire', () => {
 				'terrain_update',
 				'floor_update',
 				'darkness_update',
+				'interior_update',
 				'lights_changed',
 				'environment_update'
 			] as const) {
@@ -848,6 +853,7 @@ describe('fog of war over the wire', () => {
 			'terrain',
 			'floor',
 			'darkness',
+			'interior',
 			'lights',
 			'tokens',
 			'props',
@@ -2702,5 +2708,71 @@ describe('token and prop looks over the wire (#202)', () => {
 		expect(framesLeaks(gmFrames, room.grid, nowhere, ['#6fe08a'])).toContainEqual(
 			expect.objectContaining({ field: 'marker:#6fe08a' })
 		);
+	});
+});
+
+describe('roofs over the wire (#203)', () => {
+	it('lets only the GM roof areas, and a player learns a roof only where they have explored', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		expect(room.interior).toBeNull();
+		const pip = await connect();
+		const frames: string[] = [];
+		pip.ws.on('message', (data) => frames.push(data.toString()));
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId } = await pip.expect('welcome');
+		gm.send({ type: 'fog_set', enabled: true });
+		await pip.until('fog_update');
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 2, y: 2 },
+			ownerId: playerId
+		});
+		const { token: hero } = await pip.until('token_upserted');
+
+		pip.send({ type: 'interior_set', from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, roofed: true });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// A roof far off: the GM learns it, Pip is sent nothing.
+		gm.send({ type: 'interior_set', from: { x: 15, y: 15 }, to: { x: 18, y: 18 }, roofed: true });
+		expect((await gm.until('interior_update')).interior).not.toBeNull();
+		gm.send({ type: 'chat_send', text: 'roofed' });
+		await pip.until('chat', (m) => m.message.kind === 'chat' && m.message.text === 'roofed');
+		const typeOf = (f: string) => (JSON.parse(f) as ServerMessage).type;
+		expect(frames.some((f) => typeOf(f) === 'interior_update')).toBe(false);
+
+		// Walked in, Pip learns the roof over what they explored, and no more.
+		gm.send({ type: 'token_move', tokenId: hero.id, to: { x: 16, y: 16 } });
+		const { fog } = await pip.until('fog_update');
+		const { interior } = await pip.until('interior_update');
+		const size = room.grid.width * room.grid.height;
+		const explored = decodeMask(fog.explored, size);
+		const roofed = decodeMask(interior!, size);
+		expect(roofed.some((v) => v)).toBe(true);
+		expect(roofed.every((v, i) => !v || explored[i])).toBe(true);
+
+		// The roof is saved with the table, and lifting it clears it.
+		gm.send({ type: 'scene_export', name: 'Roofed' });
+		expect((await gm.until('scene_exported')).file.interior).not.toBeNull();
+		gm.send({ type: 'interior_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, roofed: false });
+		expect(await pip.until('interior_update')).toEqual({ type: 'interior_update', interior: null });
+	});
+
+	it('rate-limits the GM painting roofs and dark areas together', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		await gm.expect('welcome');
+		for (let i = 0; i < 11; i++) {
+			const at = { x: i, y: 0 };
+			gm.send(
+				i % 2
+					? { type: 'darkness_set', from: at, to: at, dark: true }
+					: { type: 'interior_set', from: at, to: at, roofed: true }
+			);
+		}
+		expect(await gm.until('error')).toMatchObject({ code: 'rate_limited' });
 	});
 });

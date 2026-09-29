@@ -97,6 +97,8 @@ export interface RoomSnapshot {
 	floor: string | null;
 	/** The table's dark areas (a base64 CellMask), as far as this client knows them; null for none. */
 	darkness: string | null;
+	/** Roofed cells (a base64 CellMask), as far as this client knows them; null for none. Presentation only. */
+	interior: string | null;
 	/** The GM has paused the game. */
 	paused: boolean;
 	/** How the table looks (an environment asset's id), or null for the plain table. */
@@ -190,6 +192,8 @@ export type ClientMessage =
 	/** GM: paints an area's floor, or puts it off the map (`void`). */
 	| { type: 'floor_set'; from: GridPos; to: GridPos; floor: FloorId }
 	| { type: 'darkness_set'; from: GridPos; to: GridPos; dark: boolean }
+	/** GM: roofs (or unroofs) every cell in the rectangle between two cells. */
+	| { type: 'interior_set'; from: GridPos; to: GridPos; roofed: boolean }
 	/** GM: save the current table under a name. Replies with scene_saved. */
 	| { type: 'scene_save'; name: string }
 	/** GM: replace the table with a saved scene. */
@@ -403,6 +407,8 @@ export type ServerMessage =
 	| { type: 'terrain_update'; terrain: string | null }
 	| { type: 'floor_update'; floor: string | null }
 	| { type: 'darkness_update'; darkness: string | null }
+	/** The roofed cells this client knows changed. */
+	| { type: 'interior_update'; interior: string | null }
 	| { type: 'pause_update'; paused: boolean }
 	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
 	| { type: 'scene_saved'; sceneId: string; name: string; savedAt: string }
@@ -779,6 +785,13 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'darkness_set', from, to, dark: data.dark }
 				: null;
 		}
+		case 'interior_set': {
+			const from = parseGridPos(data.from);
+			const to = parseGridPos(data.to);
+			return from && to && typeof data.roofed === 'boolean'
+				? { type: 'interior_set', from, to, roofed: data.roofed }
+				: null;
+		}
 		case 'environment_set': {
 			const environment = data.environment;
 			return environment === null || isAssetRef(environment)
@@ -990,6 +1003,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
 		floor_update: (d) => d.floor === null || typeof d.floor === 'string',
 		darkness_update: (d) => d.darkness === null || typeof d.darkness === 'string',
+		interior_update: (d) => d.interior === null || typeof d.interior === 'string',
 		pause_update: (d) => typeof d.paused === 'boolean',
 		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',

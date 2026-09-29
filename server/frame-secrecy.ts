@@ -7,7 +7,7 @@
 // GM as the control (whose frames must leak every field, so the check can fire).
 //
 // The per-viewer render inputs checked, from snapshots (welcome, room_reset) and
-// diffs: fog (visible, explored), terrain, floor, darkness, lights, tokens,
+// diffs: fog (visible, explored), terrain, floor, darkness, interior (#203), lights, tokens,
 // props, walls and doors, environment (a public id only), and the markers (a
 // secret's name, id or colour) in any frame at all, the log included. Later
 // milestones add theirs here: world look (#199), interior (#203), last-seen
@@ -84,6 +84,7 @@ export function framesLeaks(
 	const terrain = (t: string | null) => t !== null && map('terrain', decodeLevels(t, size));
 	const floor = (f: string | null) => f !== null && map('floor', decodeFloor(f, size));
 	const darkness = (d: string | null) => d !== null && map('darkness', decodeMask(d, size));
+	const interior = (d: string | null) => d !== null && map('interior', decodeMask(d, size));
 	const lights = (ls: Light[]) => ls.forEach((l) => at('lights', l.pos, l.id));
 	// Token and prop looks (#202) ride on the piece itself, so they are exactly as secret as it
 	// is; a key outside the known fields is something new reaching the client unchecked.
@@ -117,6 +118,7 @@ export function framesLeaks(
 		terrain(room.terrain);
 		floor(room.floor);
 		darkness(room.darkness);
+		interior(room.interior);
 		lights(room.lights);
 		tokens(room.tokens);
 		props(room.props);
@@ -140,6 +142,8 @@ export function framesLeaks(
 				return floor(msg.floor);
 			case 'darkness_update':
 				return darkness(msg.darkness);
+			case 'interior_update':
+				return interior(msg.interior);
 			case 'lights_changed':
 				return lights(msg.upserted);
 			case 'props_changed':

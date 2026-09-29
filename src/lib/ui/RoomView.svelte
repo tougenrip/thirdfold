@@ -298,6 +298,12 @@
 	/** Whether a cell is in one of the table's dark areas. */
 	const isDark = (cell: GridPos) =>
 		!!room && !!darkness && darkness[cellIndex(room.grid, cell)] === 1;
+	/** The roofed cells this client knows (#203), or null for none. */
+	const interior = $derived(
+		room?.interior ? decodeMask(room.interior, room.grid.width * room.grid.height) : null
+	);
+	const isRoofed = (cell: GridPos) =>
+		!!room && !!interior && interior[cellIndex(room.grid, cell)] === 1;
 	const floor = $derived(
 		room?.floor ? decodeFloor(room.floor, room.grid.width * room.grid.height) : null
 	);
@@ -415,6 +421,20 @@
 		if (tool === 'dark' && hover.cell) {
 			const from = areaStart ?? hover.cell;
 			return [{ kind: 'area', from, to: hover.cell, tone: isDark(from) ? 'reveal' : 'hide' }];
+		}
+		if (tool === 'roof' && hover.cell) {
+			// Nothing draws roofs yet, so the tool shows every roofed cell while it is out.
+			const roofed = interior ? [...interior.keys()].filter((i) => interior[i]) : [];
+			const from = areaStart ?? hover.cell;
+			return [
+				...rowRuns(roofed, room!.grid.width).map(([a, b]): PreviewItem => ({
+					kind: 'area',
+					from: a,
+					to: b,
+					tone: 'valid'
+				})),
+				{ kind: 'area', from, to: hover.cell, tone: isRoofed(from) ? 'invalid' : 'reveal' }
+			];
 		}
 		if (tool === 'door' && hover.edge) {
 			const existing = room && objectOnEdge(room.objects, hover.edge);
@@ -571,6 +591,12 @@
 			return areaStart
 				? `Click the opposite corner cell to ${lifting ? 'lift the dark from' : 'darken'} the area. Esc to cancel.`
 				: 'Dark area: click a cell to start an area (a dark cell lifts the dark instead).';
+		}
+		if (tool === 'roof') {
+			const lifting = areaStart && isRoofed(areaStart);
+			return areaStart
+				? `Click the opposite corner cell to ${lifting ? 'lift the roof from' : 'roof'} the area. Esc to cancel.`
+				: 'Roof: click a cell to start an area (a roofed cell lifts the roof instead).';
 		}
 		if (tool === 'floor') {
 			const name = FLOORS.find((f) => f.id === floorDraft)!.name.toLowerCase();
@@ -876,6 +902,17 @@
 				areaStart = null;
 				return;
 			}
+			case 'roof': {
+				if (!pick.cell) return;
+				if (!areaStart) {
+					areaStart = pick.cell;
+					return;
+				}
+				const roofed = !isRoofed(areaStart);
+				act({ type: 'interior_set', from: areaStart, to: pick.cell, roofed });
+				areaStart = null;
+				return;
+			}
 			case 'reveal-room':
 			case 'hide-room': {
 				if (!pick.cell) return;
@@ -1058,6 +1095,7 @@
 			g: 'height',
 			f: 'floor',
 			n: 'dark',
+			i: 'roof',
 			...(room?.fog.enabled ? { r: 'reveal', h: 'hide', o: 'reveal-room', k: 'hide-room' } : {})
 		};
 		const next = shortcut[event.key.toLowerCase()];

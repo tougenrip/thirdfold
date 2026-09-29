@@ -61,6 +61,7 @@ import {
 	setFog,
 	setFogShared,
 	setDarkness,
+	setInterior,
 	setFloor,
 	setTerrain,
 	updateLight,
@@ -168,6 +169,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const chatLimiter = new RateLimiter(8, 4 / 3);
 	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
 	const sceneLimiter = new RateLimiter(4, 0.25);
+	// The GM's look of the table (dark areas, roofs): bursts of 10, then two a second.
+	const lookLimiter = new RateLimiter(10, 2);
 	// Creators' adventures a table is playing are kept while it plays them.
 	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
@@ -940,7 +943,18 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				);
 			}
 			case 'darkness_set': {
+				if (!lookLimiter.take(player.id)) {
+					return sendError(ws, 'rate_limited', 'Give it a moment before the next change.');
+				}
 				const result = setDarkness(room, player, msg.from, msg.to, msg.dark);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'interior_set': {
+				if (!lookLimiter.take(player.id)) {
+					return sendError(ws, 'rate_limited', 'Give it a moment before the next change.');
+				}
+				const result = setInterior(room, player, msg.from, msg.to, msg.roofed);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
 			}

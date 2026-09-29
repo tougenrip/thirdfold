@@ -11,6 +11,7 @@ import {
 	moveToken,
 	setAmbient,
 	setFog,
+	setInterior,
 	toggleDoor,
 	updateLight,
 	updateToken
@@ -126,6 +127,18 @@ describe('views with fog on', () => {
 		expect(explored[5 * 20 + 8]).toBe(1);
 		expect(seesCell(room, pip, 8, 5)).toBe(false);
 		expect(view.tokens.map((t) => t.id)).not.toContain(rat.id);
+	});
+
+	it('sends a player the roofs over explored cells only, and the GM all of them', () => {
+		const { room, gm, pip } = dungeon();
+		setInterior(room, gm, { x: 5, y: 3 }, { x: 14, y: 7 }, true);
+		const player = viewFor(room, pip);
+		const explored = decodeMask(player.fog.explored, 400);
+		const roofed = decodeMask(player.interior!, 400);
+		expect(roofed.every((v, i) => v === (room.interior![i] && explored[i] ? 1 : 0))).toBe(true);
+		expect(roofed[5 * 20 + 8]).toBe(1);
+		expect(roofed[5 * 20 + 12]).toBe(0);
+		expect(decodeMask(viewFor(room, gm).interior!, 400)).toEqual(room.interior);
 	});
 
 	it('reveals GM areas to everyone and hiding clears what players explored', () => {

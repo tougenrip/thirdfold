@@ -137,6 +137,13 @@ export function monasteryScene(now = new Date()): SceneFile {
 			terrain: TERRAIN,
 			// The sealed chamber is dark whatever the hour: only a flame shows anything there.
 			dark: [CHAMBER],
+			// Roofed: the nave, the gallery and the chamber, the tower's stair and the gatehouse;
+			// not the courtyard or the open belfry.
+			interior: [
+				{ from: { x: 2, y: 2 }, to: { x: 21, y: 9 } },
+				{ from: { x: 24, y: 2 }, to: { x: 28, y: 2 } },
+				{ from: { x: 1, y: 13 }, to: { x: 5, y: 17 } }
+			],
 			objects: [
 				// The monastery: x 2-21, y 2-9, the great doors in the south wall.
 				wall('mn-north', { x: 2, y: 2 }, { x: 22, y: 2 }),

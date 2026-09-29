@@ -19,6 +19,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": null,
 		"tokens": [
 			{
@@ -164,6 +165,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": null,
 		"tokens": [
 			{
@@ -309,6 +311,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": null,
 		"tokens": [
 			{

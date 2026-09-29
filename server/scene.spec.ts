@@ -9,6 +9,7 @@ import {
 	deleteProp,
 	deleteToken,
 	moveToken,
+	setInterior,
 	toggleDoor,
 	updateProp,
 	updateToken
@@ -410,5 +411,31 @@ describe('light looks (#201)', () => {
 		expect(
 			createLight(room, gm, { pos: { x: 2, y: 2 }, radius: 1, color: '#ffffff', kind: 'candle' })
 		).toMatchObject({ code: 'cell_occupied' });
+	});
+});
+
+describe('setInterior', () => {
+	it('lets only the GM roof an area within the map, and lifts the roof', () => {
+		const { room, gm, pip, sam } = setup();
+		for (const actor of [pip, sam]) {
+			expect(setInterior(room, actor, { x: 0, y: 0 }, { x: 1, y: 1 }, true)).toMatchObject({
+				ok: false,
+				code: 'forbidden'
+			});
+		}
+		expect(setInterior(room, gm, { x: 0, y: 0 }, { x: 99, y: 1 }, true)).toMatchObject({
+			ok: false,
+			code: 'invalid_position'
+		});
+		expect(room.interior).toBeNull();
+
+		expect(setInterior(room, gm, { x: 3, y: 2 }, { x: 1, y: 1 }, true)).toEqual({
+			ok: true,
+			cells: 6
+		});
+		const at = (x: number, y: number) => room.interior![y * room.grid.width + x];
+		expect([at(1, 1), at(3, 2), at(0, 0), at(4, 2)]).toEqual([1, 1, 0, 0]);
+		setInterior(room, gm, { x: 1, y: 1 }, { x: 3, y: 2 }, false);
+		expect(room.interior).toBeNull();
 	});
 });
