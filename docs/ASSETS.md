@@ -313,7 +313,9 @@ painted surface, repainted from a CC0 scan (docs/ART.md section 11):
 
 At the table, `tabletop/surfaces.ts` (its own chunk, loaded only for an environment with surfaces)
 transcodes each floor surface's maps for the device and lays them layer by layer into one
-`CompressedArrayTexture` per map (a set whose formats differ is refused whole), and the terrain
+`CompressedArrayTexture` per map (a set whose formats differ is refused whole; a device the
+transcoder gives RGBA gets a `DataArrayTexture` whose mips the GPU makes, since three's compressed
+upload refuses RGBA), and the terrain
 kind samples them (`materials/floors.ts`): global array nodes whose textures `wearFloors` swaps, a
 blank array standing in until they load, and each floor's layer from the ground map's floor byte,
 so every floor of a table is still one draw and nothing compiles when a table, a floor or its
