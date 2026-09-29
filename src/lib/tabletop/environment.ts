@@ -196,8 +196,14 @@ export async function loadEnvironment(
 		// Its painted surfaces (#187), from a chunk only tables that have them load.
 		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null
 	]);
-	if (own?.walls) Object.assign(walls, own.walls);
-	return { surface, ground, walls, table, floors: own?.floors ?? null, grades };
+	return {
+		surface,
+		ground,
+		walls: own?.walls ? { ...walls, ...own.walls } : walls,
+		table,
+		floors: own?.floors ?? null,
+		grades
+	};
 }
 
 /**
