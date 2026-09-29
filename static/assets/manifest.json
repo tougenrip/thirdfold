@@ -23,6 +23,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/ember.194db54c.png",
+				"sha256": "194db54c022ab655e2ef8ecfc58fb98b7c17b71a20d087918221a361d6b90f52",
+				"bytes": 49225,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"saint": {
@@ -47,6 +56,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/saint.39606f36.png",
+				"sha256": "39606f367bf47087acbea9f7ba51d682bd1581cc4d84185aa316815925760216",
+				"bytes": 52531,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"veil": {
@@ -71,6 +89,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/veil.66e9d3e8.png",
+				"sha256": "66e9d3e865621ccc4d6f1714a117bc9642af03c143eb1819e90d2ca13d559a2a",
+				"bytes": 51283,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"warden": {
@@ -95,6 +122,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/warden.a4dd6ab2.png",
+				"sha256": "a4dd6ab2fc3768e16900c2aad469f6ee119fdf235fe8c511440722bdca7ff3e0",
+				"bytes": 55949,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"armored-brute": {
@@ -119,6 +155,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/armored-brute.aec3e43d.png",
+				"sha256": "aec3e43d02865873778cbfbe1e8f510b8e9fdeec6fc3f466932e36fd386ecbf4",
+				"bytes": 53510,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"giant-hand": {
@@ -143,6 +188,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/giant-hand.6691f8bc.png",
+				"sha256": "6691f8bc63eae1d582f5df00e8b071fd354ded3fabd2983c3f7a3c17dee16eac",
+				"bytes": 55777,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"hatted-shade": {
@@ -167,6 +221,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/hatted-shade.b705075d.png",
+				"sha256": "b705075ddd192adb4a1190e32586a29fba9e514814b32493877392108dffc30a",
+				"bytes": 49657,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"hound": {
@@ -191,6 +254,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/hound.dfb953a7.png",
+				"sha256": "dfb953a73575753ee3e883c9ab46848f9cc8089fa0cef15be80a9f56e24446fb",
+				"bytes": 49822,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"pulsing-mass": {
@@ -215,6 +287,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/pulsing-mass.701d911c.png",
+				"sha256": "701d911ce621db9f26ccccd2089fa3444d707667a9b2374b67a5d26c6c16173c",
+				"bytes": 57280,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"robed-figure": {
@@ -239,6 +320,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/robed-figure.8c920bd2.png",
+				"sha256": "8c920bd2be05f046f9f93d237b3573ccd93169bc39bd2d31b4fce19e4dceaed9",
+				"bytes": 51626,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"tentacle": {
@@ -263,6 +353,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/tentacle.96c09bf5.png",
+				"sha256": "96c09bf584219a173cbb8191ef0c8d1138102d3c18189a4f4647e2a9ca299ee2",
+				"bytes": 49314,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"child": {
@@ -287,6 +386,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/child.7dbb4d3f.png",
+				"sha256": "7dbb4d3ff8aa1bf59556309788ba282b974b2895bfae352135bff917eb53a299",
+				"bytes": 54094,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"elder": {
@@ -311,6 +419,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/elder.b45d091a.png",
+				"sha256": "b45d091adfd208733cb8511b60b38465759262c955d9c83d347e1c66eb7e74b8",
+				"bytes": 52799,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"gravedigger": {
@@ -335,6 +452,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/gravedigger.65a76e22.png",
+				"sha256": "65a76e22fde5394a26545a8e75a1f38ad2b99dfb2568fad15037d30ea3e89085",
+				"bytes": 51054,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"monk": {
@@ -359,6 +485,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/monk.686ba42a.png",
+				"sha256": "686ba42acadbe991b31856cccc4022b01ddc14122403676c8fef9896981944a6",
+				"bytes": 51354,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"priest": {
@@ -383,6 +518,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/priest.80f906ae.png",
+				"sha256": "80f906aef14a686bba5546850ba83e0673cf3eac4fcf65824e6b791fc7cbb30c",
+				"bytes": 49808,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"smith": {
@@ -407,6 +551,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/smith.106d1bda.png",
+				"sha256": "106d1bdad0edb44970d71b4d0bd2c16de9f558c3a950f7931c776b3d02aa57f3",
+				"bytes": 51964,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"villager": {
@@ -431,6 +584,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/villager.25da9bbb.png",
+				"sha256": "25da9bbb94fb67452f9f7281a0c413c94a9f23008619817879116475cf0db945",
+				"bytes": 51715,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"watchman": {
@@ -455,6 +617,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/watchman.c6b12f1b.png",
+				"sha256": "c6b12f1b4adcff0c19ea64feffc8ba907af2a937378d9be54a80077ca5a100b9",
+				"bytes": 48395,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"wide-hat": {
@@ -479,6 +650,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/wide-hat.0b46ee3b.png",
+				"sha256": "0b46ee3be4535be3616103af3d4eb471a588e64dbc0dd840186bd1d385da3202",
+				"bytes": 49220,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"altar": {
@@ -503,6 +683,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/altar.0775e8bb.png",
+				"sha256": "0775e8bbeebf901651e6848a57c99a1b35c0f5c1a4884f0cf3d8420f8b97c6c1",
+				"bytes": 50841,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"anvil": {
@@ -527,6 +716,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/anvil.66fc5286.png",
+				"sha256": "66fc5286161b8eea23187513367b7093690814fd9127e9ddd912d93686cc662c",
+				"bytes": 47598,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"ashes": {
@@ -551,6 +749,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/ashes.d7475c4c.png",
+				"sha256": "d7475c4ca3d789d5aae94e9039d9b79b41573fd16f8b727ad7e498e2e76a39e1",
+				"bytes": 45276,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"barrel": {
@@ -575,6 +782,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/barrel.e682df32.png",
+				"sha256": "e682df32fb6eb2c8ecf98376c3229b68b975da927c75e7658f052e011052241f",
+				"bytes": 53661,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"bed": {
@@ -599,6 +815,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/bed.efd73e12.png",
+				"sha256": "efd73e1213e89e8adbfadbabb48f9871f79a423a2ee9d0e861d7db6b7db87945",
+				"bytes": 47486,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"belfry-bell": {
@@ -627,6 +852,15 @@
 			"swing": {
 				"pivot": 2.55,
 				"throw": 0.5
+			},
+			"thumbnail": {
+				"file": "thumbs/belfry-bell.594bfdc4.png",
+				"sha256": "594bfdc47ee2d2612db499f7f720c90cb70354eab52408a6266683cb2363e9dd",
+				"bytes": 45423,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"bell": {
@@ -651,6 +885,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/bell.10c3f18f.png",
+				"sha256": "10c3f18fcda6e38bdcd886dafdcfe424bf50de341f032649333c43ce3c58c45b",
+				"bytes": 47429,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"boiler": {
@@ -675,6 +918,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/boiler.bc659304.png",
+				"sha256": "bc659304351029fca8642221fda2892d1e6722aaddfc31f2b07d64a0e7ebcebf",
+				"bytes": 48990,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"bookshelf": {
@@ -699,6 +951,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/bookshelf.25b8bf8b.png",
+				"sha256": "25b8bf8b17a75d700b912fac60c3ae136339be51be491f361082484032b23e24",
+				"bytes": 53683,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"brazier": {
@@ -723,6 +984,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/brazier.9aaa161f.png",
+				"sha256": "9aaa161f53e34018001617e3b3efe74ecf92b88c5a23d27ffe4f647d1715ffbb",
+				"bytes": 47701,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"broken-bell": {
@@ -747,6 +1017,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/broken-bell.46dfdcd2.png",
+				"sha256": "46dfdcd2ac3d5805f129c797c4043f1cee00f1c647c77f85aaf7ce8d09dc333b",
+				"bytes": 43605,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"carvings": {
@@ -771,6 +1050,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/carvings.df984d62.png",
+				"sha256": "df984d6218f6962461ed451587f3a8660aa629521295a5dc4e0e0ee358e86caa",
+				"bytes": 52655,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"chains": {
@@ -795,6 +1083,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/chains.6f3c4e63.png",
+				"sha256": "6f3c4e631fd242b75ad17e31c338649d362bbe5997aa5ebc336890f38b0e2ed5",
+				"bytes": 42487,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"chair": {
@@ -819,6 +1116,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/chair.4aa3053d.png",
+				"sha256": "4aa3053d657bad6e60ee0b973a9318c03cca10123dfa9f042270ec09f1c85498",
+				"bytes": 48375,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"chest-open": {
@@ -843,6 +1149,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/chest-open.1c1fb1e1.png",
+				"sha256": "1c1fb1e14b2728701299a5de0041516c6ed0f8ce39828ec95f5f48fd685c6930",
+				"bytes": 54098,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"chest": {
@@ -867,6 +1182,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/chest.4ff57a88.png",
+				"sha256": "4ff57a881432ee21af1a20f07dc70ce2ed6594134db123c81ca136b01b4a2743",
+				"bytes": 53621,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"coffin-open": {
@@ -891,6 +1215,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/coffin-open.77910274.png",
+				"sha256": "779102745abb1531dbcaa394666afeefc6f097caa812b9b7a29c67d29dfc2a83",
+				"bytes": 44796,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"coffin": {
@@ -915,6 +1248,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/coffin.c7560b16.png",
+				"sha256": "c7560b16f6844612be699218c499cf705f0aca6143feb441dacd58ccaadb0804",
+				"bytes": 45424,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"crack": {
@@ -939,6 +1281,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/crack.8ab83006.png",
+				"sha256": "8ab83006c1c2df2ad111b8e4d8bf76edeee7fd248d51cbaa708e7b79c7ccc326",
+				"bytes": 43910,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"crate": {
@@ -963,6 +1314,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/crate.1f0774b7.png",
+				"sha256": "1f0774b73c5e7490303357c17ef483cc60ad1a213752477d24880807e20c6ca4",
+				"bytes": 62666,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"gear": {
@@ -987,6 +1347,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/gear.e6178647.png",
+				"sha256": "e6178647dc080c76437ed364ee998aa07895aa24dceb22f15c1a4cc3fd760306",
+				"bytes": 46681,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"grate": {
@@ -1011,6 +1380,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/grate.bd6e54a3.png",
+				"sha256": "bd6e54a3114f48abb1cd2b05fb4bbe2d7d2c75e8e9463ffbb1bb434da23276c0",
+				"bytes": 50524,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"gravestone": {
@@ -1035,6 +1413,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/gravestone.5667a7e3.png",
+				"sha256": "5667a7e3de37b45713f837d24e33d7a3bbd5637de4baaba75fa2c063de8b207c",
+				"bytes": 53917,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"great-bell": {
@@ -1059,6 +1446,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/great-bell.dcc01253.png",
+				"sha256": "dcc012537b251fbf89049bab9d886396a57938deca7c6c6c633572e619d1add9",
+				"bytes": 48364,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"handbell": {
@@ -1083,6 +1479,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/handbell.8d906e14.png",
+				"sha256": "8d906e14f1d89dc1ed67b79927d5784921f2582ad9a66edfa402637c037685a2",
+				"bytes": 44327,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"hatch-open": {
@@ -1107,6 +1512,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/hatch-open.aafe7e4e.png",
+				"sha256": "aafe7e4e3b4cd9d4115546193950bc0c0c53018ec6787b00027b14db5f5aa020",
+				"bytes": 53767,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"hatch": {
@@ -1131,6 +1545,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/hatch.00166076.png",
+				"sha256": "00166076a7754c81ab4644e8dcc12f9f76d366459b2cc62ebb5d2a593db17854",
+				"bytes": 48091,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"heart": {
@@ -1155,6 +1578,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/heart.9d233e75.png",
+				"sha256": "9d233e75b37dc381e00a0b684837ed16b35592a52fdd2edba3a80325abf0ab5b",
+				"bytes": 49239,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"keys": {
@@ -1179,6 +1611,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/keys.8ef94865.png",
+				"sha256": "8ef94865a38adb09064febac86aa5e8a09535fe3fdc1481a9910da703cd568c7",
+				"bytes": 45084,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"lever-down": {
@@ -1207,6 +1648,15 @@
 			"swing": {
 				"pivot": 0.22,
 				"throw": -1.5708
+			},
+			"thumbnail": {
+				"file": "thumbs/lever-down.7c5a6f71.png",
+				"sha256": "7c5a6f7194570d8002f214d076fbc90425d46533a274f5f541c4c2eb802109a1",
+				"bytes": 46735,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"lever": {
@@ -1235,6 +1685,15 @@
 			"swing": {
 				"pivot": 0.22,
 				"throw": 1.5708
+			},
+			"thumbnail": {
+				"file": "thumbs/lever.5b31dea8.png",
+				"sha256": "5b31dea8b343e41bc193ff257107f38098894731602e0744595a3870a71c136b",
+				"bytes": 45809,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"noticeboard": {
@@ -1259,6 +1718,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/noticeboard.29604a99.png",
+				"sha256": "29604a99d4875bd27276f253ee3fc9b04ec982f19d01fa11f61388020f8fef11",
+				"bytes": 47833,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"paper": {
@@ -1283,6 +1751,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/paper.3e3767e5.png",
+				"sha256": "3e3767e5d0a91028e6284ead126e918a62233afb9a4bb8b06504dd1b993fa7ad",
+				"bytes": 42563,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"pew": {
@@ -1307,6 +1784,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/pew.27b042e7.png",
+				"sha256": "27b042e757d27c19e8208b8f392ddddd8da03f69f822cec8f64a4a2595bff220",
+				"bytes": 46440,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"pillar": {
@@ -1331,6 +1817,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/pillar.f067acff.png",
+				"sha256": "f067acfffdec6e7b354d4c864149a96719460e382ab3d6178f2875fc2f673cb4",
+				"bytes": 47647,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"rope": {
@@ -1355,6 +1850,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/rope.4ee4d343.png",
+				"sha256": "4ee4d34320b6c528acd1b2d2e0099f32157bd20c0d0a89c27059799c4ad917f4",
+				"bytes": 42011,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"rubble": {
@@ -1379,6 +1883,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/rubble.808540cc.png",
+				"sha256": "808540cc0937099e49a59a2ef87e09466663c815a62a3af730aa3a9f4a8e320f",
+				"bytes": 46421,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"rug": {
@@ -1403,6 +1916,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/rug.36466d06.png",
+				"sha256": "36466d06a49b22aaecb0de3c6d5a2761960e0013b890d5d7ab500ae784132e19",
+				"bytes": 46571,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"sconce": {
@@ -1427,6 +1949,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/sconce.95fd3630.png",
+				"sha256": "95fd3630161174e29933896d22ec51031fd9efc35f6af6d3afda0e0c5e3d6576",
+				"bytes": 41544,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"stairs": {
@@ -1451,6 +1982,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/stairs.611800b0.png",
+				"sha256": "611800b02b68928a53719345ab3140101f1ec3a9bf4b42fb4d6d0a26f94c0031",
+				"bytes": 49508,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"statue": {
@@ -1475,6 +2015,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/statue.b3c88037.png",
+				"sha256": "b3c88037fe801958b39ecab3112b7635e2ecdff80059f2f5a18dad79901e07b1",
+				"bytes": 48901,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"stove": {
@@ -1499,6 +2048,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/stove.f7d9c836.png",
+				"sha256": "f7d9c8367827201bc61dc7a9bce86af2839c8575e5f51ab2107c7ae5c530d9e1",
+				"bytes": 42856,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"strongbox": {
@@ -1523,6 +2081,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/strongbox.bea44738.png",
+				"sha256": "bea447386a273461eb28bac26c988520e2329f9474c938e9faba7e973cf795fd",
+				"bytes": 54647,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"table": {
@@ -1547,6 +2114,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/table.e6638c5f.png",
+				"sha256": "e6638c5ff7da163eee9d3228b58643ad788b5777981441e67f76c72635be278b",
+				"bytes": 45288,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"tree": {
@@ -1571,6 +2147,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/tree.95612dcd.png",
+				"sha256": "95612dcd6a0984ef410cf889cf7a56fda38199eeef8327c62465527dde8d8676",
+				"bytes": 43924,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"water-lg": {
@@ -1595,6 +2180,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/water-lg.856331cf.png",
+				"sha256": "856331cf2224ed9f6d20390b4ac952bff1fe43bfca3ce783312ce032ab94e275",
+				"bytes": 46133,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"water-sm": {
@@ -1619,6 +2213,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/water-sm.de2eac6b.png",
+				"sha256": "de2eac6bfc50cdcd7d698a75448a2522878a11b049ff0f69b3310f7135aae901",
+				"bytes": 48854,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"water": {
@@ -1643,6 +2246,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/water.fb2b2041.png",
+				"sha256": "fb2b204124e2ffb1e8ae54c588e572abb63b50b9e12b84e0df122d39162f70f3",
+				"bytes": 48137,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		},
 		"well": {
@@ -1667,6 +2279,15 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
+			},
+			"thumbnail": {
+				"file": "thumbs/well.c7033117.png",
+				"sha256": "c70331173f65624141b4289b33524b96e7fdbec219f6b1595cd466495c253ce7",
+				"bytes": 52919,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
 			}
 		}
 	},
