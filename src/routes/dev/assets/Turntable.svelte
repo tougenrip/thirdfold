@@ -38,12 +38,19 @@
 	const kb = (n: number) => `${(n / 1024).toFixed(1)} kB`;
 	const mb = (n: number) => `${(n / 1024 / 1024).toFixed(2)} MB`;
 
+	let destroyed = false;
 	onMount(async () => {
 		manifest = await loadManifest();
-		turntable = await createTurntable(canvas, thumb ? { reducedMotion: true, fill: true } : {});
+		const made = await createTurntable(canvas, thumb ? { reducedMotion: true, fill: true } : {});
+		// Left before it was made: nobody else will dispose it.
+		if (destroyed) return void made.dispose();
+		turntable = made;
 		id ??= modelList(manifest)[0]?.[0] ?? null;
 	});
-	onDestroy(() => void turntable?.dispose());
+	onDestroy(() => {
+		destroyed = true;
+		void turntable?.dispose();
+	});
 
 	// A model, level or preview picked: show it.
 	$effect(() => {
