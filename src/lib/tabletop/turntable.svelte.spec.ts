@@ -19,7 +19,7 @@ beforeAll(async () => {
 	vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
 		const url = String(input);
 		if (url.endsWith(`/assets/${FILE}`)) return new Response(fixture.slice(0));
-		if (!url.endsWith('/assets/manifest.json')) return real(input, init);
+		if (!url.split('?')[0].endsWith('/assets/manifest.json')) return real(input, init);
 		const manifest = (await (await real(input, init)).json()) as Manifest;
 		const entry: ModelEntry = {
 			file: FILE,

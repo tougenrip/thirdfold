@@ -12,6 +12,10 @@ import { readFileSync } from 'node:fs';
  * The asset manifest's content hash, in its URL (assets/load.ts): the manifest is the one asset file
  * at a fixed name, so without it a browser or host cache could hand a new client an old manifest.
  */
+// Tests draw only the bases a checkout carries, whatever a local .env points the asset host at
+// (Vite keeps a variable already in the environment over the .env files).
+if (process.env.VITEST) process.env.VITE_ASSET_BASE_URL = '';
+
 const ASSET_MANIFEST = createHash('sha256')
 	.update(readFileSync('static/assets/manifest.json'))
 	.digest('hex')
