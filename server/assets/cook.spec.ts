@@ -197,6 +197,12 @@ describe.skipIf(!process.env.THIRDFOLD_COOK)('the cook', () => {
 		expect(checkCook(src, out)).toEqual([]);
 		// Without the art here (kept elsewhere) only the outputs are compared.
 		expect(checkCook(temp(), out)).toEqual([]);
+		// Nor with only its meta.json here (a generated source, gitignored), and the cook keeps it.
+		const only = art();
+		rmSync(path.join(only, 'prop', 'test-orb', 'test-orb.glb'));
+		expect(checkCook(only, out)).toEqual([]);
+		expect(await cook(only, out)).toEqual({ cooked: [], skipped: [] });
+		expect(readFileSync(path.join(out, LOCK_FILE)).equals(lock)).toBe(true);
 
 		const meta = path.join(src, 'prop', 'test-orb', 'meta.json');
 		writeFileSync(meta, readFileSync(meta, 'utf8') + ' ');

@@ -122,6 +122,10 @@ function sources(art: string): Map<string, Record<string, string>> {
 		}
 		for (const id of folders(path.join(art, kind))) {
 			const dir = path.join(art, kind, id);
+			// A generated source (the bell's, scripts/make-bell-art.ts) is gitignored beside its
+			// committed meta.json: without it the entry is kept elsewhere, like a missing folder.
+			const main = kind === 'texture' ? `${id}.png` : `${id}.glb`;
+			if (kind !== 'surfaces' && !existsSync(path.join(dir, main))) continue;
 			// A surface's source set is pinned by its meta.json's hash: only that is committed.
 			const files = readdirSync(dir)
 				.filter((f) => kind !== 'surfaces' || SURFACE_SOURCES.includes(f))

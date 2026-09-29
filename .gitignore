@@ -46,3 +46,6 @@ src/**/__screenshots__/*
 /art/surfaces/*/*
 !/art/surfaces/*/meta.json
 !/art/surfaces/*/touchup.png
+
+# Generated art (docs/ASSETS.md): made by a script, only its meta.json is kept
+/art/prop/great-bell/great-bell.glb
