@@ -161,6 +161,34 @@ export function remake(material: KindMaterial, change: Partial<MaterialOptions>)
 	return createMaterial(material.kind, { ...material.options, ...change, params, slots });
 }
 
+const twins = new WeakMap<KindMaterial, KindMaterial>();
+
+/**
+ * `material` in the other anti-tiling variant (#181), with its values and textures now: made once
+ * and kept both ways, so switching tiers back and forth makes no material and releases no program
+ * (#180): only the first switch compiles. `disposeTwins` disposes both.
+ */
+export function twinOf(material: KindMaterial): KindMaterial {
+	let twin = twins.get(material);
+	if (!twin) {
+		twin = remake(material, { antiTiled: !material.options.antiTiled });
+		twins.set(material, twin).set(twin, material);
+		return twin;
+	}
+	setParams(twin, material.params as unknown as ParamsInput);
+	for (const s of SLOT_NAMES) {
+		const texture = (material as unknown as Record<string, THREE.Texture>)[slotProperty(s)];
+		if (texture) (twin as unknown as Record<string, THREE.Texture>)[slotProperty(s)] = texture;
+	}
+	return twin;
+}
+
+/** Disposes a material and its twin, if it has one. */
+export function disposeTwins(material: KindMaterial): void {
+	twins.get(material)?.dispose();
+	material.dispose();
+}
+
 /**
  * Gives a geometry what an instanced kind reads per instance: the tint (rgb and strength, all 0)
  * and the lift (`LIFT_ATTRIBUTE`, 0; the layer writes `liftOf` each instance's asset and cell).

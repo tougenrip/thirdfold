@@ -58,6 +58,8 @@ jobs:
             run: npm run test:render -- src/lib/tabletop/fog-soft.svelte.spec.ts
           - name: materials
             run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts src/lib/tabletop/mapping.svelte.spec.ts src/lib/tabletop/kind-layers.svelte.spec.ts
+          - name: lobby
+            run: npm run test:render -- src/lib/tabletop/lobby.svelte.spec.ts
     steps:
       - uses: actions/checkout@v4
 

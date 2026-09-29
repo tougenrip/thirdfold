@@ -243,6 +243,8 @@ for (const name of TABLES) {
 			setTokens: round(t('setTokens').total),
 			setProps: round(t('setProps').total),
 			lighting: { count: t('lighting').count, total: round(t('lighting').total) },
+			// Shaders compiled while frames were held (warmup.ts, #149, #180).
+			warmupMs: round(t('warmup').total),
 			drawCalls: s.drawCalls,
 			triangles: s.triangles,
 			...counts(s)
@@ -255,7 +257,7 @@ for (const name of TABLES) {
 	for (const p of everyone) {
 		const r = scene[p.name];
 		console.log(
-			`  ${p.name}: snapshot ${kb(r.snapshot)}; long tasks ${r.longTasks.count} (${round(r.longTasks.total)} ms, max ${round(r.longTasks.max)}); setGrid ${r.setGrid} ms, setTokens ${r.setTokens} ms, setProps ${r.setProps} ms, lighting ×${r.lighting.count} ${r.lighting.total} ms; ${r.drawCalls} draws, ${r.triangles.toLocaleString()} tris, ${r.geometries} geo, ${r.textures} tex, ${r.programs} programs`
+			`  ${p.name}: snapshot ${kb(r.snapshot)}; long tasks ${r.longTasks.count} (${round(r.longTasks.total)} ms, max ${round(r.longTasks.max)}); setGrid ${r.setGrid} ms, setTokens ${r.setTokens} ms, setProps ${r.setProps} ms, lighting ×${r.lighting.count} ${r.lighting.total} ms, warm-up ${r.warmupMs} ms; ${r.drawCalls} draws, ${r.triangles.toLocaleString()} tris, ${r.geometries} geo, ${r.textures} tex, ${r.programs} programs`
 		);
 	}
 

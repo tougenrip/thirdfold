@@ -39,7 +39,7 @@
 	import type { FogMode } from './fog';
 	import type { PerfStats } from './perf';
 	import type { CameraView, HighlightKind, PreviewItem, Tabletop, TabletopEvents } from './types';
-	import { loadRenderer } from './load';
+	import { loadRenderer, takeWarmRenderer } from './load';
 	import TableOverlays from './TableOverlays.svelte';
 	import {
 		layersFrom,
@@ -49,16 +49,13 @@
 		startingTier,
 		tierAfterLoss,
 		tierFrom,
-		type AaMode,
-		type AoKind,
-		aoKind,
-		needsPrepass,
 		withOverrides,
 		toneMapperFrom,
 		type Backend,
 		type GraphicsPrefs,
 		type Tier
 	} from './quality';
+	import { initialShape, sameShape, shapeOf, type Shape } from './shape';
 	import type { Pose } from './shots';
 	import { tick, untrack } from 'svelte';
 
@@ -183,6 +180,8 @@
 	const losses: number[] = [];
 	/** The last tabletop's disposal: the next one waits for it. */
 	let lastDisposal: Promise<void> = Promise.resolve();
+	/** Only the first tabletop may adopt the lobby's renderer: later ones are rebuilds. */
+	let firstTabletop = true;
 	/** Where the camera was on the tabletop being replaced. */
 	let carriedPose: Pose | null = null;
 	/**
@@ -190,17 +189,7 @@
 	 * from the settings where they are known before the device is. A change of any builds a new
 	 * renderer.
 	 */
-	let { antialias, prepass, aa, ao } = initialShape();
-
-	function initialShape(): { antialias: boolean; prepass: boolean; aa: AaMode; ao: AoKind } {
-		if (typeof location === 'undefined')
-			return { antialias: true, prepass: true, aa: 'msaa', ao: 'ssao' };
-		const prefs = loadGraphics(localStorage);
-		const known =
-			tierFrom(location.search) ?? (prefs.tier !== 'auto' ? prefs.tier : prefs.measured);
-		const s = withOverrides(settingsFor(known ?? 'medium', 'webgpu'), prefs.overrides, 'webgpu');
-		return { antialias: s.msaa > 0, prepass: needsPrepass(s), aa: s.aa, ao: aoKind(s) };
-	}
+	let shape: Shape = initialShape();
 
 	/** Makes the tabletop again on a fresh canvas, the camera where it was. */
 	function rebuild(t: Tabletop): void {
@@ -248,16 +237,8 @@
 		);
 		// MSAA and the prepass make the pipeline's shape: a new one gets a new renderer, since
 		// rebuilding passes on the same one left their old shaders behind.
-		if (
-			settings.msaa > 0 !== antialias ||
-			needsPrepass(settings) !== prepass ||
-			settings.aa !== aa ||
-			aoKind(settings) !== ao
-		) {
-			antialias = settings.msaa > 0;
-			prepass = needsPrepass(settings);
-			aa = settings.aa;
-			ao = aoKind(settings);
+		if (!sameShape(shapeOf(settings), shape)) {
+			shape = shapeOf(settings);
 			rebuild(t);
 			return false;
 		}
@@ -307,19 +288,32 @@
 		// (and the join form before it) doesn't wait for them.
 		let t: Tabletop | null = null;
 		let gone = false;
+		/** The lobby's canvas, drawn on in this one's place. */
+		let adopted: HTMLCanvasElement | null = null;
+		// The first tabletop takes the renderer the lobby warmed up, if any (#180).
+		const warmed = firstTabletop ? takeWarmRenderer() : null;
+		firstTabletop = false;
 		// The last tabletop must be gone first: two renderers tearing down and starting up at once
 		// break each other's drawing (a rebuild after a loss, a new MSAA, #151).
-		Promise.all([loadRenderer(), lastDisposal])
-			.then(async ([{ createTabletop }]) => {
+		Promise.all([loadRenderer(), lastDisposal, warmed])
+			.then(async ([{ createTabletop }, , lobby]) => {
+				// One of another pipeline's shape, or timed (`?perf`), is no use: throw it away.
+				const warm = lobby && !gone && !showPerf && sameShape(lobby.shape, shape) ? lobby : null;
+				if (lobby && !warm) lobby.renderer.dispose();
 				if (gone) return;
+				if (warm) {
+					for (const { name, value } of el.attributes) warm.canvas.setAttribute(name, value);
+					el.replaceWith((adopted = warm.canvas));
+				}
 				// Handlers read the current props at call time, so the renderer never needs rebuilding.
 				const made = await createTabletop(
-					el,
+					adopted ?? el,
 					{ onClick: (pick) => onClick?.(pick), onHover: (pick) => onHover?.(pick) },
 					{
 						perf: showPerf,
 						inspector: showInspector,
-						antialias,
+						antialias: shape.antialias,
+						warm: warm ?? undefined,
 						onTierRefined: (tier) => t && tierRefined(t, tier),
 						onLost: () => t && lost(t)
 					}
@@ -352,6 +346,8 @@
 			gone = true;
 			if (t) lastDisposal = t.dispose();
 			tabletop = null;
+			// Its own canvas left the page with the block that made it; this one was put in its place.
+			adopted?.remove();
 		};
 	});
 

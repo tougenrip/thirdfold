@@ -14,6 +14,7 @@
 import * as THREE from 'three/webgpu';
 import { instancedDynamicBufferAttribute } from 'three/tsl';
 import { FLASH_MS, type Cue } from '$lib/game/chat';
+import { standIn } from './warmup';
 
 const TOLL_MS = 7000;
 const DUST = 420;
@@ -43,6 +44,7 @@ export class EffectsLayer {
 	private flashStart: number | null = null;
 	private size = { w: 20, d: 20, top: 4 };
 	private reduced = false;
+	private standIns: THREE.Object3D[] | null = null;
 
 	constructor() {
 		this.dustStart = new Float32Array(DUST * 3);
@@ -169,6 +171,22 @@ export class EffectsLayer {
 		this.shadow.position.z = Math.sin(k * Math.PI) * this.size.d * 0.08;
 		this.shadow.material.opacity = 0.7 * Math.sin(k * Math.PI);
 		return frame;
+	}
+
+	/**
+	 * Stand-ins for the toll's dust and shadow, which show only while it plays, for the warm-up to
+	 * compile (#180). The dust stays a sized-points sprite (#145), not a kind (#169): its position
+	 * is its own per-particle buffer, which no kind's graph reads; like the shadow it is black or
+	 * re-masked over hidden cells by the output stage (#173).
+	 */
+	gallery(): THREE.Object3D[] {
+		if (!this.standIns) {
+			const dust = new THREE.Sprite(this.dust.material);
+			dust.count = DUST;
+			this.standIns = [dust, new THREE.Mesh(this.shadow.geometry, this.shadow.material)];
+			for (const o of this.standIns) standIn(o);
+		}
+		return this.standIns;
 	}
 
 	dispose(): void {

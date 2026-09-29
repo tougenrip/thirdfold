@@ -274,9 +274,16 @@ export class Post {
 	 * invalid (a colour target the fragment stage never writes), so it compiles when first drawn.
 	 */
 	targets(): PassTarget[] {
-		return [this.scenePass].flatMap((p) =>
-			p ? [{ renderTarget: p.renderTarget, mrt: p.getMRT() as THREE.MRTNode }] : []
-		);
+		return this.passTargets(this.scenePass);
+	}
+
+	/** The overlay pass's target, for the warm-up to compile its marks against (#180). */
+	overlayTargets(): PassTarget[] {
+		return this.passTargets(this.overlayPass);
+	}
+
+	private passTargets(p: THREE.PassNode | null): PassTarget[] {
+		return p ? [{ renderTarget: p.renderTarget, mrt: p.getMRT() }] : [];
 	}
 
 	dispose(): void {

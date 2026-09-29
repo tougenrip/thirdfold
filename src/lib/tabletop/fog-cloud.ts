@@ -59,7 +59,7 @@ function cloudPosition(): N {
 
 export class FogCloudLayer {
 	readonly group = new THREE.Group();
-	/** The same mesh, never hidden and never in the scene: the warm-up compiles it (renderer.ts). */
+	/** The same mesh, never hidden and never in the scene: the warm-up's stand-in (`gallery`). */
 	readonly warm: THREE.Mesh;
 	private material: KindMaterial;
 	private mesh: THREE.Mesh;
@@ -92,6 +92,11 @@ export class FogCloudLayer {
 		// A placeholder with every attribute, so the warm-up compiles it before any grid comes.
 		this.build({ kind: 'square', cellSize: 1, width: 1, height: 1 });
 		this.grid = null;
+	}
+
+	/** The cloud compiled while it is hidden (warmup.ts's `Gallery`). */
+	gallery(): THREE.Object3D[] {
+		return [this.warm];
 	}
 
 	/** The layer switch (`layers.fogcloud`), and whether the tier holds it still (low). */

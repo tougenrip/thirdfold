@@ -21,10 +21,11 @@ import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
 import {
 	addInstanceTints,
 	createMaterial,
-	remake,
+	disposeTwins,
 	repeatFor,
 	setParams,
 	TINT_ATTRIBUTE,
+	twinOf,
 	type KindMaterial
 } from './materials';
 
@@ -87,10 +88,9 @@ export class WallLayer {
 	 */
 	setAntiTiled(on: boolean): boolean {
 		if (!!this.wallMaterial.options.antiTiled === on) return false;
-		const old = this.wallMaterial;
-		this.wallMaterial = remake(old, { antiTiled: on });
+		// Its twin, kept (#180): switching back and again releases and compiles nothing.
+		this.wallMaterial = twinOf(this.wallMaterial);
 		if (this.walls) this.walls.material = this.wallMaterial;
-		old.dispose();
 		return true;
 	}
 
@@ -184,7 +184,8 @@ export class WallLayer {
 		for (const id of [...this.doors.keys()]) this.removeDoor(id);
 		if (this.walls) this.walls.dispose();
 		this.wallGeometry?.dispose();
-		for (const m of [this.wallMaterial, this.doorMaterial, this.doorHoverMaterial]) m.dispose();
+		disposeTwins(this.wallMaterial);
+		for (const m of [this.doorMaterial, this.doorHoverMaterial]) m.dispose();
 		this.doorGeometry.dispose();
 	}
 

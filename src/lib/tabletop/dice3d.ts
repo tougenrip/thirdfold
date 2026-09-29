@@ -5,7 +5,8 @@
 // client sees the same throw.
 
 import * as THREE from 'three/webgpu';
-import { mrt, output, vec4 } from 'three/tsl';
+import * as TSL from 'three/tsl';
+import { interleavedGradientNoise, mrt, output, screenCoordinate, uniform, vec4 } from 'three/tsl';
 import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
 import { DIE_LABELS, seededRandom } from './dice-faces';
@@ -13,6 +14,7 @@ import { worldToGrid, type SquareGrid } from '$lib/game/grid';
 import { WALL_HEIGHT, type Ground } from './ground';
 import type { DieKind, ThrownDie } from './dice-throw';
 import { worldTexture } from './materials/texture-quality';
+import { standIn } from './warmup';
 
 export interface DiceThrow {
 	/** Room log sequence number of the roll; seeds the throw. */
@@ -66,9 +68,32 @@ const easeOut = (t: number) => 1 - (1 - t) ** 3;
  * One node for every die, so they share their programs.
  */
 const SHOWN = mrt({ output, hidden: vec4(0, 0, 0, output.a) });
+
+/** How much of a die still shows as it fades (`userData.fade` on each of its meshes, 1 unless fading). */
+const fade = uniform(1).onObjectUpdate(
+	({ object }: { object: THREE.Object3D | null }) => (object?.userData.fade as number) ?? 1
+);
+const Fn = TSL.Fn as unknown as (body: () => THREE.Node) => () => THREE.Node;
+const { Discard, If } = TSL as unknown as Record<'Discard' | 'If', (...args: unknown[]) => void>;
+/**
+ * Fades by a screen-door dither against `fade`, as a GM-hidden mini does (materials/hooks.ts):
+ * turning `transparent` on to fade would be a program of its own on the first roll's last frames
+ * (#180).
+ */
+const FADING = Fn(() => {
+	If(interleavedGradientNoise(screenCoordinate.xy).greaterThanEqual(fade), () => Discard());
+	return output;
+})();
+
+/**
+ * A die's material. Not a kind (#169): a roll is public and may land over black cells, which the
+ * kinds' `worldModify` would black out with no strength to set per material, and dice are flat
+ * shaded. Warmed up by the tabletop's gallery (`DiceLayer.gallery`, #180) instead.
+ */
 export function dieMaterial(parameters: THREE.MeshStandardMaterialParameters) {
 	const material = new THREE.MeshStandardNodeMaterial(parameters);
 	material.mrtNode = SHOWN;
+	material.outputNode = FADING;
 	return material;
 }
 const smoothstep = (a: number, b: number, t: number) => {
@@ -82,6 +107,7 @@ export class DiceLayer {
 	private labels = new Map<string, THREE.CanvasTexture>();
 	private decal = new THREE.PlaneGeometry(1, 1);
 	private active: ActiveDie[] = [];
+	private standIn: { root: THREE.Group; materials: THREE.Material[] } | null = null;
 
 	/**
 	 * Throws dice from `from` towards `center` (world units, table plane).
@@ -160,9 +186,16 @@ export class DiceLayer {
 		this.labels.clear();
 	}
 
+	/** A die for the warm-up to compile (#180): dice otherwise compile on the first roll. */
+	gallery(): THREE.Object3D[] {
+		this.standIn ??= this.buildDie('d6', this.model('d6'), '#ffffff');
+		return [standIn(this.standIn.root)];
+	}
+
 	dispose(): void {
 		for (const d of this.active) this.remove(d);
 		this.active = [];
+		for (const m of this.standIn?.materials ?? []) m.dispose();
 		for (const m of this.models.values()) m.geometry.dispose();
 		for (const tex of this.labels.values()) tex.dispose();
 		this.decal.dispose();
@@ -181,14 +214,9 @@ export class DiceLayer {
 			.clone()
 			.premultiply(new THREE.Quaternion().setFromAxisAngle(d.spinAxis, d.spin * easeOut(t)));
 		d.root.quaternion.copy(spinning.slerp(d.endQ, smoothstep(0.5, 0.95, t)));
-		const fade = d.age - (d.delay + d.flight + REST_S);
-		if (fade > 0) {
-			const opacity = Math.max(0, 1 - fade / FADE_S);
-			for (const m of d.materials) {
-				m.transparent = true;
-				m.opacity = opacity;
-			}
-		}
+		const fading = d.age - (d.delay + d.flight + REST_S);
+		const shown = fading > 0 ? Math.max(0, 1 - fading / FADE_S) : 1;
+		for (const mesh of d.root.children) mesh.userData.fade = shown;
 	}
 
 	private model(kind: DieKind): DieModel {

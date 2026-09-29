@@ -28,8 +28,8 @@ import type { FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { LightingLayer, lightSeats } from './lighting';
-import { frameOverview, warmUp } from './warmup';
-import { advanceNodeFrame, createNodeRenderer, watchReducedMotion } from './loop';
+import { frameOverview, Gallery, warmUp } from './warmup';
+import { advanceNodeFrame, createNodeRenderer, setUpRenderer, watchReducedMotion } from './loop';
 import { RenderScheduler, type FrameReport } from './scheduler';
 import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
@@ -46,13 +46,17 @@ import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
 import { WallLayer } from './walls';
 
+export { warmLobby } from './lobby';
+
 export async function createTabletop(
 	canvas: HTMLCanvasElement,
 	events: TabletopEvents,
 	options: TabletopOptions = {}
 ): Promise<Tabletop> {
 	const clock = options.now ?? (() => performance.now());
-	const renderer = await createNodeRenderer(canvas, options);
+	// A renderer the lobby warmed up (lobby.ts, #180) comes with its shaders compiled.
+	const renderer = options.warm?.renderer ?? (await createNodeRenderer(canvas, options));
+	if (options.warm) setUpRenderer(renderer, options);
 	let shadowsDirty = true;
 	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
 	let shadowMapDrawn = false;
@@ -60,6 +64,7 @@ export async function createTabletop(
 	let wasMoving = false;
 
 	const perf = new PerfRecorder();
+	if (options.warm) perf.add('lobby', options.warm.warmupMs);
 	const loop = new RenderScheduler(render, canvas);
 	const requestRender = loop.request;
 	const { scene, fog } = createScene();
@@ -101,18 +106,12 @@ export async function createTabletop(
 	// Read live: turning reduced motion on or off applies at once, without a reload.
 	const motion = watchReducedMotion(options.reducedMotion, (reduced) => {
 		reducedMotion = reduced;
-		loop.setReducedMotion(reduced);
-		propLayer.setReducedMotion(reduced);
-		ambience.setReducedMotion(reduced);
-		for (const l of [cellMaps, cloud]) l.setReducedMotion(reduced); // instant reveals, still cloud
+		for (const l of stillable()) l.setReducedMotion(reduced); // instant reveals, a still cloud
 		if (reduced) rig.endShot();
 		refreshLighting();
 	});
 	let reducedMotion = motion.reduced;
-	loop.setReducedMotion(reducedMotion);
-	for (const l of [cellMaps, cloud]) l.setReducedMotion(reducedMotion);
 	const propLayer = new PropLayer(onModel, clock);
-	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer({ ...lights, scene });
@@ -122,11 +121,13 @@ export async function createTabletop(
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
 	const ambience = new AmbienceLayer();
-	ambience.setReducedMotion(reducedMotion);
+	const stillable = () => [loop, propLayer, ambience, cellMaps, cloud];
+	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	scene.add(ambience.group);
 	const terrainLayer = new TerrainLayer();
 	scene.add(terrainLayer.group);
 	const effects = new EffectsLayer();
+	const gallery = new Gallery(scene, overlay.scene, [diceLayer, effects, cloud], [tokenLayer]);
 	scene.add(effects.group);
 	const previews = new PreviewLayer();
 	overlay.scene.add(previews.group, previews.highlight);
@@ -201,10 +202,10 @@ export async function createTabletop(
 		}
 		const t0 = performance.now();
 		frameOverview(warmCamera, extent, camera.aspect);
-		const layers = [...scene.children, cloud.warm]; // the cloud compiled while it is hidden
-		warming = warmUp(renderer, scene, warmCamera, layers, post.targets()).then(() => {
+		const targets = { scene: post.targets(), overlay: post.overlayTargets() };
+		warming = warmUp(renderer, warmCamera, gallery.batches(targets)).then(() => {
 			perf.add('warmup', performance.now() - t0);
-			shadowsDirty = true;
+			shadowsDirty = gallery.due = true;
 		});
 		loop.hold(warming);
 		loop.request();
@@ -245,12 +246,14 @@ export async function createTabletop(
 		camera.position.add(shakeOffset);
 		// With the sun out (after dark) its shadows show nowhere: leave them until it is back.
 		const sunShines = sun.intensity > 0;
-		sun.shadow.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn;
+		const hideGallery = gallery.show(); // drawn once after a warm-up, out of sight (warmup.ts)
+		sun.shadow.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn || !!hideGallery;
 		shadowMapDrawn = true;
 		if (sun.shadow.needsUpdate) perf.add('shadows', 0);
 		if (sunShines) shadowsDirty = false;
 		const draw = performance.now();
 		drawScene();
+		hideGallery?.();
 		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
 		return { active: moving, ambient: flickering || drifting };

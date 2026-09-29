@@ -148,7 +148,34 @@ environment's look or a model is new, the next frame is spent on a warm-up inste
 the frame loop is held (the canvas keeps its last frame) while each layer is compiled with
 `compileAsync`, one at a time, from one reused camera over the whole table; then the frame is drawn,
 with the sun's shadow. A warm-up never holds longer than 1.5 s; what it didn't reach compiles on
-draw. Hidden one-shot effects compile when they first play.
+draw.
+
+Since #180 it also compiles what shows only later, from stand-ins each layer gives (`gallery`: the
+selection ring and turn marker in the overlay's pass, a die, the toll's dust and shadow), never the
+real objects, and the first frame after it draws the stand-ins once, a millionth of their size far
+below the table (`Gallery` in `warmup.ts`): a compile can't make a die's shadow-pass material, nor
+a material in the AO's context, which only the scene pass itself sets, and r186 declares a shadowed
+material's uniforms in another order compiled than drawn. A tier switch that keeps the pipeline
+(no AO: low, or medium with Advanced options off; a new AO kind is a new renderer) swaps the
+table's, walls' and raised ground's materials for their twins in the other anti-tiling variant
+(`twinOf`, kept both ways): the first switch compiles their vertex stages (every InstancedMesh has
+its own) in the hold it starts, and switching back and again compiles nothing.
+
+**The lobby's warm-up** (`lobby.ts`): the landing page, the join form and the library make the
+table's renderer when idle (`prefetchRenderer` → `warmRenderer` in `load.ts`), on a canvas of its
+own, for the tier the table will start on (`startingSettings`, `shape.ts`), and compile a gallery
+of every shader kind in every variant the layers make, instanced or not, casting shadows or not
+(`materials/warmup.ts`, built from `SHADER_KINDS`, so a new kind joins by itself), plus the layers'
+stand-ins, through the same pipeline (MSAA, the half-float target and its outputs), one item at a
+time, then draw it twice on that unseen canvas. The first table adopts the renderer and its canvas
+(`TabletopOptions.warm`, `takeWarmRenderer` in `Tabletop.svelte`, which waits for a warm-up under
+way) and finds the pipeline's passes, the overlay's marks and what is unlit or unshadowed made (its
+lit kinds it still builds: see the lobby's test below), unless its pipeline's shape differs or
+`?perf` asks for GPU timestamps; its warm-up time is
+the `lobby` timing in the tabletop's stats. Only public data goes in (the kinds' blanks and
+defaults; the paint maps load with the first painted graph): no model, environment or adventure,
+so nothing fetched there tells where a story goes (#111 G3; `lobby.svelte.spec.ts` checks the
+requests). Software rasterisers skip it (the table's own warm-up still runs).
 
 Measured on the RTX 4060 (Chromium 153), loading the village, monastery and Hollow into a running
 table: the worst visible frame afterwards is 5–46 ms on the WebGL2 backend and 6–28 ms on WebGPU
@@ -315,7 +342,10 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                           |
 | `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                       |
 | `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness        |
-| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169)                                    |
+| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180) |
+| `warmup.ts`       | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                         |
+| `lobby.ts`        | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                 |
+| `shape.ts`        | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                  |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts`            |
 
 ## Quality tiers
@@ -738,7 +768,13 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
     frame 2.0 → 3.5 s and a mount 5 → 10 s against the classic materials, anti-tiling about a third
     of the difference; 164 → 178 programs. The real-GPU numbers are the perf gate's.
   - Not yet on the kinds: fixtures and flames, grid lines, mist, the toll's dust and shadow, and
-    dice (#172's remainder). Fixtures, flames and the mist take the world with `inWorld`
+    dice (#172's remainder). Dice stay `dieMaterial` (#180 looked): a roll is public and may land
+    over black cells, which the kinds' `worldModify` would black out with no strength to set per
+    material, and dice are flat shaded; they fade by a screen-door dither on a per-object uniform
+    (`userData.fade`), never by turning `transparent` on (a program of its own on a first roll's
+    last frames). The dust stays a sized-points sprite: its position is its own per-particle
+    buffer, which no kind's graph reads. Both are warmed by the tabletop's gallery instead.
+    Fixtures, flames and the mist take the world with `inWorld`
     (`world-modify.ts`: `worldModify` last, a flame's glow through `worldEmissive`; one shared
     flame material whose colour and glow are per-object uniforms, so lights coming and going
     compile nothing); the toll's shadow is black and the dust is re-masked by the output stage.
@@ -878,10 +914,21 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
   its own (its instance-matrix buffer is named by id), a built-in material's too; #170 counts it.
 - **Runtime state never compiles** (`program-count.svelte.spec.ts`, #170, per tier on both
   backends): after a warm-up of every environment and table, no named step (environments, times
-  of day, floors, fog, dark areas, light counts, tokens and props in every state, cues, table
-  travel) may change `shaderCounts` (`perf.ts`: programs, pipelines; node states are reported).
-  Every new kind or runtime state is added to the sweep. Compiles still left are in its `KNOWN`
-  list with the issue that ends each (`docs/PERFORMANCE.md`).
+  of day, floors, fog, dark areas, light counts, tokens and props in every state, cues, a thrown
+  die at rest, fading and gone, the toll with motion (its dust and shadow), table travel, and on
+  low anti-tiling back and forth) may change `shaderCounts` (`perf.ts`: programs, pipelines; node
+  states are reported). Every new kind or runtime state is added to the sweep. Compiles still left
+  are in its `KNOWN` list with the issue that ends each (`docs/PERFORMANCE.md`); since #180 only
+  the first in-place switch of anti-tiling.
+- **The lobby** (#180, `lobby.svelte.spec.ts`, both backends): its warm-up fetches only the
+  manifest and the paint maps; the first table adopts its renderer and canvas and compiles fewer
+  programs than a cold one (the test world on SwiftShader: 158 cold, 110 after the lobby), and an
+  environment swap then compiles none on WebGL2 (on WebGPU a first swap to a look still builds the
+  table's surface and two of the pipeline's quads, not yet explained). Not none at all: r186
+  declares a shadowed lit material's uniforms in an order that depends on what the renderer built
+  before, so a table still builds its own lit kinds (and every InstancedMesh its own vertex stage);
+  the pipeline's passes, the overlay and what is unlit or unshadowed it finds made. The lobby keeps
+  cell maps of its own: after a table, the maps it left are destroyed textures.
 
 ## Testing the renderer
 
