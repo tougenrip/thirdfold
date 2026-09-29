@@ -215,6 +215,200 @@ within 0.009 of v0 (see `docs/RENDERING.md`), so what moved below is the scale.
   cell, since a low camera can't see over 2 u walls; dithering occluders between the camera and
   the minis (#283) fixes it.
 
+## Milestone 63: the tone mapper (#158)
+
+The three tone mappers of r186 on the paired fixtures, with no grade, AO or bloom yet
+(`node scripts/look-metrics.mjs --ours-only --milestone m63-tonemap-<name> --tonemap <name>`;
+strips in `docs/look/m63-tonemap-<name>/`, side by side in `docs/look/m63-tonemap.png`: ACES,
+AgX, Neutral from left to right):
+
+| Reference | ACES  | AgX   | Neutral |
+| --------- | ----- | ----- | ------- |
+| 1         | 0.172 | 0.168 | 0.158   |
+| 2         | 0.287 | 0.250 | 0.283   |
+| 3         | 0.140 | 0.128 | 0.140   |
+| 4         | 0.162 | 0.150 | 0.123   |
+| 6         | 0.247 | 0.218 | 0.262   |
+| 7         | 0.127 | 0.143 | 0.125   |
+| 8         | 0.194 | 0.187 | 0.235   |
+| mean      | 0.190 | 0.178 | 0.189   |
+
+- **ACES** pushes fire toward yellow-white and measures farthest on average; it is what #153's
+  retune solved its colours for (backgrounds, the fog's hidden shade, the darkness colour).
+- **AgX** is closest on five of seven: hues hold in the highlights, but shadows and backgrounds
+  lift toward a cool grey and paint desaturates (ref 7 moves away, 0.127 → 0.143).
+- **Neutral** keeps base colours truest and warmest (best on 1, 4 and 7) but clips bright fire
+  (worst on 6 and 8).
+- All three cost the same, about 1 ms a frame on the RTX 4060 at 1080p (`scripts/perf-gpu.mjs`
+  with `PERF_EXTRA=tonemap=<name>`), and all map black to exactly 0.
+
+**Decision (owner, 27 September 2026):** all three stay, as the viewer's choice in the Graphics
+menu (Colour: Filmic, Soft, True colour). The default is ACES, `GRADE_TONE_MAPPER`, the one the
+grades of #162 are authored after.
+
+## Milestone 63: ambient occlusion (#159)
+
+SSAO on the indirect light only (`docs/look/m63-ao/`, against `m63-tonemap-aces` without it): the
+foot of a crate under a sky light loses about 11% of its luminance and a lamp-lit face nothing
+(`post.svelte.spec.ts`), but on the paired fixtures the metrics barely move (distances within
+0.002, local contrast within 0.001), even at a radius of a cell and 2.5× the intensity. Two
+reasons, both for later milestones to lift:
+
+- **Painted floors cover it.** Every paired fixture but the monastery paints its floors, and the
+  painted floor is a translucent plane (alpha 220–235) over the table surface: it is not in the
+  prepass and takes no AO, and hides most of the AO on the surface below. The ground becomes opaque
+  in #240 and #242.
+- **Little indirect light.** Today's light is nearly all direct: the sun and its shadows by day,
+  torches and lamps at night, where the hemisphere, the only indirect light, is 0.1. The sky light
+  (#114) and the lighting of #115 raise the indirect share.
+
+Its reach and depth stay three's defaults (half a cell, 1) until then. Where there is hemisphere light to take, it shows: the railcar's narrow cars
+darken between their walls at dusk (its golden re-baselined). SSAO's false occlusion of flat ground
+is small: a plain floor under a sky light loses 0.2% of its luminance at 3 units, 0.7% at 10 and 2.9%
+at 30.
+
+## Milestone 63: bloom (#160)
+
+`docs/look/m63-bloom/` against `m63-ao`: the braziers of refs 3 and 6, the ringing lamp of ref 1
+and the Cultist's lamp glow in a tight halo; the noon minis of ref 7 do not change.
+
+| Reference | distance before | after | bloom proxy (reference) | before | after  |
+| --------- | --------------- | ----- | ----------------------- | ------ | ------ |
+| 1         | 0.173           | 0.170 | 0.0190                  | 0.0131 | 0.0159 |
+| 3         | 0.140           | 0.139 | 0.0060                  | 0.0013 | 0.0016 |
+| 4         | 0.164           | 0.148 | 0.0000                  | 0.0013 | 0.0015 |
+| 6         | 0.247           | 0.261 | 0.0004                  | 0.0058 | 0.0071 |
+| 7         | 0.128           | 0.128 | 0.0094                  | 0.0007 | 0.0007 |
+
+Ref 1 moves toward its reference and ref 7 holds. Ref 6 moves away: its reference fire is orange
+and never reaches 95% in any channel, while our brazier cores already clip toward white under
+ACES, and the glow adds to them. The fire's own colour (#115, #312) and the grade (#162) are what
+bring it back, not a weaker bloom.
+
+## Milestone 63: the lens (#161)
+
+`docs/look/m63-lens/` against `m63-bloom`: a dark-purple vignette at the corners, colour fringes
+toward the edges, grain (off in the strips, which draw with reduced motion) and dither.
+
+| Reference | distance before | after | vignette (reference) | before | after |
+| --------- | --------------- | ----- | -------------------- | ------ | ----- |
+| 1         | 0.170           | 0.175 | 0.611                | 0.581  | 0.522 |
+| 2         | 0.286           | 0.298 | 0.926                | 0.740  | 0.666 |
+| 3         | 0.139           | 0.138 | 0.497                | 0.752  | 0.672 |
+| 4         | 0.148           | 0.144 | 0.575                | 0.978  | 0.874 |
+| 6         | 0.261           | 0.259 | 0.906                | 0.454  | 0.409 |
+| 7         | 0.128           | 0.131 | 0.840                | 1.024  | 0.924 |
+| 8         | 0.195           | 0.203 | 0.952                | 0.678  | 0.610 |
+
+The vignette metric (the outer ring's luminance over the centre's) moves toward refs 3, 4 and 7
+and away from 1, 2, 6 and 8. In those four our light already sits in the middle of the frame (a
+lamp at the centre, dark walls round it), so our edges are darker than the references' before any
+vignette; theirs are lit by ambient and sky light we do not have yet (#114, #115). The vignette's
+strength is the owner's call in review; each of the three lens effects is its own Graphics
+option.
+
+## Milestone 63: the colour grades (#162)
+
+`docs/look/m63-grade/` against `m63-lens`, under ACES. The paired fixtures are stone-halls (refs 1,
+3 and 4 at night, 2 at dusk) and village (7 by day, 8 at dusk, 6 at night).
+
+| Reference | distance before | after |
+| --------- | --------------- | ----- |
+| 1         | 0.175           | 0.176 |
+| 2         | 0.298           | 0.297 |
+| 3         | 0.138           | 0.144 |
+| 4         | 0.144           | 0.138 |
+| 6         | 0.259           | 0.238 |
+| 7         | 0.131           | 0.112 |
+| 8         | 0.203           | 0.210 |
+| mean      | 0.193           | 0.188 |
+
+Ref 7's warm yellow-green day, ref 6's cooler, less orange night and ref 4 move toward their
+references. The references' shadows are blue-violet (hue 275–290 at night); ours are the darks
+warmed by lamp spill, so a grade pulls them only part of the way (refs 3 and 8 move away a
+little). The night's blue fill (#167) and the sky light (#114) supply the cool darks a grade then
+shapes. The grades are restrained on purpose: each is a few numbers in `assets/grades/`.
+
+## Milestone 63: depth of field (#165)
+
+`docs/look/m63-dof/` against `m63-grade`: every pose drawn with depth of field on, focused on the
+pose's pivot, as the Miniature option draws play and every cinematic shot draws its hold
+(`node scripts/look-metrics.mjs --milestone m63-dof --ours-only --dof`). Shots blur whatever the
+option says; in play it is off unless the viewer turns it on.
+
+| Reference | distance before | after |
+| --------- | --------------- | ----- |
+| 1         | 0.176           | 0.178 |
+| 2         | 0.297           | 0.303 |
+| 3         | 0.144           | 0.145 |
+| 4         | 0.138           | 0.119 |
+| 6         | 0.238           | 0.237 |
+| 7         | 0.112           | 0.113 |
+| 8         | 0.210           | 0.217 |
+
+The metrics barely see blur (they measure colour, light and contrast over the whole frame): ref
+4's long dungeon moves toward its reference, whose far end is soft, and the rest hold within
+noise. In the strip the foreground minis of ref 7 and the far rim of the overviews soften while
+the pivot stays sharp, and the labels and markers, drawn over the finished image, stay sharp
+(#157). How much blur reads as a miniature, not a smear, is the owner's call in review:
+`FOCAL_SHARE` and the per-tier bokeh in `focus.ts` are the knobs.
+
+## Milestone 63: the grid at rest, night and dusk (#167)
+
+`docs/look/m63-night/` against `m63-grade` (both without depth of field, as the metrics draw):
+the grid lines are gone at rest (the tiles' seams are the grid; they show while the GM builds,
+while placing and while aiming a move, or always with the Graphics menu's Always show grid), and
+each ambient band has its own hemisphere and darkness hue in `PRESETS` (`lighting.ts`): day keeps
+its warm pair, dusk a peach sky over a slate-blue ground, night a moon-blue sky over a deep blue
+ground with a navy darkness and background.
+
+| Reference | band | distance before | after |
+| --------- | ---- | --------------- | ----- |
+| 1         | dark | 0.176           | 0.161 |
+| 2         | dusk | 0.297           | 0.307 |
+| 3         | dark | 0.144           | 0.123 |
+| 4         | dark | 0.138           | 0.121 |
+| 6         | dark | 0.238           | 0.221 |
+| 7         | day  | 0.112           | 0.112 |
+| 8         | dusk | 0.210           | 0.207 |
+
+Every night pairing moves toward its reference: the dark around the pools of light is blue, as in
+refs 1, 4 and 6, not brown. Dusk is mixed: ref 8's town block moves a little closer, ref 2's
+monastery a little away (its reference dusk is warmer and brighter than ours, which the sky of
+#114 supplies). The darkness overlay's alpha still comes from `lightLevels` and the fog still
+draws over it, so unexplored cells stay black and dark cells as dark as the rules say: only their
+hue changed. These colours are interim: #208 blends them by the hour and #218 and the art bible
+(#183) own the final palette.
+
+## Milestone 63 closed (#168)
+
+`docs/look/m63/`: the whole M63 chain as the metrics draw it (the medium tier, GM view without
+fog, reduced motion, so no grain and no depth of field), against the close of M62.
+
+| Reference | band | m62   | m63   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.169 | 0.161 |
+| 2         | dusk | 0.284 | 0.307 |
+| 3         | dark | 0.137 | 0.123 |
+| 4         | dark | 0.160 | 0.121 |
+| 6         | dark | 0.245 | 0.221 |
+| 7         | day  | 0.115 | 0.112 |
+| 8         | dusk | 0.193 | 0.207 |
+| mean      |      | 0.186 | 0.179 |
+
+Of the paired fixtures named for this milestone (refs 1, 3, 6, 7 and 8) four move toward their
+references: the nights most (blue darks and warm pools, the grade, AO under things), day a
+little. Ref 8 moves away, as ref 2 does: both are dusk, and both references' dusk is warmer and
+brighter than ours, lit by a sky we do not have; the grade and the dusk hemisphere shape a light
+that #114's sky and #208's hours supply. The per-effect strips above record each step.
+
+Still missing, for the milestones that own them: the material system (M64, #111) and the surface
+library and art bible (M65, #112), the sky and atmosphere (M67, #114, #218), lighting by the hour
+(#208), shadowed torches near the camera (#230), baked vertex AO (#190), and fog and darkness
+inside every material instead of planes on the floor (#171). The owner's sign-off of the look (G2) is pending, and so is a decision
+on the highlight colours under colour-vision simulation (#157: blocked and place nearly match for
+deuteranopes).
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

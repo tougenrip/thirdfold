@@ -19,8 +19,9 @@ import { groundFor } from './ground';
 import { labelFontReady } from './label-font';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
-import { settingsFor } from './quality';
-import { createTabletop, type Tabletop, type TabletopEvents } from './renderer';
+import { settingsFor, toneMapperFrom, type Tier } from './quality';
+import { createTabletop } from './renderer';
+import type { Tabletop, TabletopEvents } from './types';
 
 export type Band = 'day' | 'dusk' | 'dark';
 export type Viewer = 'gm' | 'player' | 'spectator';
@@ -100,6 +101,10 @@ export const HEIGHT = 500;
 declare module 'vitest' {
 	export interface ProvidedContext {
 		backend: 'webgl' | 'webgpu';
+		/** Which golden images to take: the slim set CI takes, or every one (by hand). */
+		goldens: 'slim' | 'full';
+		/** `k/n`: take every nth fixture from the kth in fixtures.svelte.spec.ts (CI's parallel jobs). */
+		shard: string;
 	}
 }
 
@@ -121,6 +126,10 @@ export async function mountFixture(
 		events?: TabletopEvents;
 		/** As under `?perf`: GPU timestamps recorded. */
 		perf?: boolean;
+		/** Miniature on in the tabletop view: depth of field at the pose (#165; motion not reduced). */
+		miniature?: boolean;
+		/** The quality tier, medium unless said (the high tier's TRAA golden, #163). */
+		tier?: Tier;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -129,7 +138,9 @@ export async function mountFixture(
 		...view.props.map((p) => p.assetId)
 	]);
 	await Promise.all([...models].map((id) => loadModel(id)));
-	if (view.environment) await loadEnvironment(view.environment);
+	// The page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
+	const toneMapper = toneMapperFrom(location.search) ?? undefined;
+	if (view.environment) await loadEnvironment(view.environment, toneMapper);
 
 	const canvas = document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
@@ -146,14 +157,19 @@ export async function mountFixture(
 			backend: webgpu ? 'webgpu' : 'webgl',
 			perf: options.perf,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
-			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : true
+			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : !options.miniature
 		}
 	);
 	const backend = tabletop.capabilities().backend;
 	// A WebGPU project that silently fell back to WebGL2 would test the wrong thing.
 	if (webgpu && backend === 'webgl2') throw new Error('Asked for WebGPU, drawing with WebGL2');
-	// One tier for every test, whatever the device suggests (a software rasteriser picks low).
-	tabletop.setQuality(settingsFor('medium', backend));
+	// One tier for every test unless it asks, whatever the device suggests (a software rasteriser
+	// picks low).
+	const miniature = !!options.miniature;
+	// Depth of field needs motion not reduced; the power saver still keeps flames and mist still,
+	// so the picture comes to rest (TRAA's jitter never would on an ambient table).
+	if (miniature) tabletop.setPowerSaver(true);
+	tabletop.setQuality({ ...settingsFor(options.tier ?? 'medium', backend), toneMapper, miniature });
 	const size = view.grid.width * view.grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
 	// In the order the Tabletop component sets them.
@@ -167,7 +183,10 @@ export async function mountFixture(
 	tabletop.setFog(view.fog, view.fogMode);
 	tabletop.setLighting(view.ambient, view.lights);
 	tabletop.setProps(view.props);
-	tabletop.setPose(poseFor(view.grid, groundFor(view.grid, levels), pose));
+	const at = poseFor(view.grid, groundFor(view.grid, levels), pose);
+	// The tabletop view focuses by depth; the pose then ends the move to it.
+	if (miniature) tabletop.setView('tabletop');
+	tabletop.setPose(at);
 	return {
 		tabletop,
 		canvas,

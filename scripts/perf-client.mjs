@@ -406,6 +406,35 @@ for (const name of TABLES) {
 	);
 }
 
+// Memory per tier (#166): Ana's table at each tier the backend runs (`?tier=`, a fresh renderer
+// each), its render targets and texture bytes. The post chain's targets are most of what a
+// tier adds; a rise is a regression unless the baseline changes with it.
+{
+	const tiers =
+		report.gate.backend === 'webgpu'
+			? ['low', 'medium', 'high', 'ultra']
+			: ['low', 'medium', 'high'];
+	report.gate.tiers = {};
+	const measure = async (query) => {
+		await ana.page.goto(`${roomUrl}${PERF_QUERY}${query}`, { waitUntil: 'load' });
+		await waitFor(ana, () => !!window.thirdfoldPerf?.stats().timings.setGrid);
+		await settle(ana);
+		return stats(ana);
+	};
+	for (const tier of tiers) {
+		const s = await measure(`&tier=${tier}`);
+		report.gate.tiers[tier] = { renderTargets: s.renderTargets, texturesBytes: s.texturesBytes };
+	}
+	console.log(
+		`memory per tier (Ana): ${Object.entries(report.gate.tiers)
+			.map(
+				([t, m]) =>
+					`${t} ${m.renderTargets} targets, ${(m.texturesBytes / 2 ** 20).toFixed(1)} MB textures`
+			)
+			.join('; ')}`
+	);
+}
+
 // Bundle sizes, from the same build.
 try {
 	const out = execFileSync('node', ['scripts/check-bundle.mjs', '--json'], { encoding: 'utf8' });
@@ -427,6 +456,7 @@ function baselineOf(gate) {
 		tables: gate.tables,
 		reload: gate.reload,
 		remount: { first: gate.remount.first },
+		tiers: gate.tiers,
 		bundle: gate.bundle.sizes
 	};
 }
@@ -494,6 +524,25 @@ if (BASELINE) {
 		0,
 		remount.contextWarnings === 0
 	);
+	for (const [tier, m] of Object.entries(report.gate.tiers)) {
+		const b = base.tiers?.[tier];
+		if (!b) {
+			check(`tier ${tier}: in the baseline`, 'new', '-', false);
+			continue;
+		}
+		check(
+			`tier ${tier}: render targets`,
+			m.renderTargets,
+			b.renderTargets,
+			m.renderTargets <= b.renderTargets
+		);
+		check(
+			`tier ${tier}: texture bytes`,
+			m.texturesBytes,
+			b.texturesBytes,
+			m.texturesBytes <= b.texturesBytes
+		);
+	}
 	for (const failure of report.gate.bundle.failures)
 		check(`bundle: ${failure}`, 'fail', '-', false);
 

@@ -4,8 +4,11 @@
 // .look-refs/ (gitignored) for the run. Only numbers land in
 // docs/look-metrics.json, keyed by milestone.
 //   LOOK_REFS=/path/to/refs node scripts/look-metrics.mjs [--milestone m63] [--ours-only]
+//     [--tonemap agx|aces|neutral] [--dof]
 // --ours-only measures our renders against the reference numbers already
-// committed, without the images.
+// committed, without the images. --tonemap renders through that tone mapper
+// (?tonemap=, #158) instead of the chosen one. --dof renders with depth of field
+// on, focused on each pose's pivot (the Miniature option, #165).
 
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
@@ -15,6 +18,9 @@ const args = process.argv.slice(2);
 const oursOnly = args.includes('--ours-only');
 const at = args.indexOf('--milestone');
 const milestone = at >= 0 ? args[at + 1] : 'm61';
+const tm = args.indexOf('--tonemap');
+const tonemap = tm >= 0 ? args[tm + 1] : '';
+const dof = args.includes('--dof');
 
 if (!oursOnly) {
 	const refs = process.env.LOOK_REFS;
@@ -37,7 +43,9 @@ execFileSync(
 		env: {
 			...process.env,
 			VITE_LOOK_MILESTONE: milestone,
-			VITE_LOOK_OURS_ONLY: oursOnly ? '1' : ''
+			VITE_LOOK_OURS_ONLY: oursOnly ? '1' : '',
+			VITE_LOOK_TONEMAP: tonemap,
+			VITE_LOOK_DOF: dof ? '1' : ''
 		}
 	}
 );

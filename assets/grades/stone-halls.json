@@ -1,0 +1,13 @@
+{
+	"day": { "gain": [0.98, 1.0, 1.03], "saturation": 0.95 },
+	"dusk": {
+		"saturation": 1.12,
+		"shadows": [0.94, 1.02, 1.06],
+		"highlights": [1.06, 1.04, 0.9]
+	},
+	"dark": {
+		"contrast": 1.05,
+		"shadows": [0.88, 0.86, 1.25],
+		"highlights": [1.06, 1.0, 0.9]
+	}
+}

@@ -8,6 +8,7 @@
 // holds for longer than WARM_UP_LIMIT_MS: what is left compiles on draw.
 
 import * as THREE from 'three/webgpu';
+import type { PassTarget } from './passes';
 
 /** Longest a warm-up may hold the frame loop, in ms (slow software GL). */
 export const WARM_UP_LIMIT_MS = 1500;
@@ -17,23 +18,50 @@ export const WARM_UP_LIMIT_MS = 1500;
  * resolving when done or when WARM_UP_LIMIT_MS has passed (then the layers
  * not reached compile on draw). Hidden one-shot effects (toll dust, previews)
  * are left to compile when they first play: showing them here could let a
- * frame drawn after a timed-out warm-up catch them visible.
+ * frame drawn after a timed-out warm-up catch them visible. With post-processing
+ * on, a pipeline is compiled per target and set of outputs, so the layers are
+ * compiled for the passes' `targets` (post.ts) rather than the canvas.
  */
 export async function warmUp(
 	renderer: THREE.WebGPURenderer,
 	scene: THREE.Scene,
 	camera: THREE.Camera,
-	layers: readonly THREE.Object3D[]
+	layers: readonly THREE.Object3D[],
+	targets: readonly PassTarget[] = []
 ): Promise<void> {
 	const limit = new Promise<void>((resolve) => setTimeout(resolve, WARM_UP_LIMIT_MS));
 	let timedOut = false;
+	/** The compile under way for a pass's target, which a frame must not interrupt. */
+	let inFlight: Promise<unknown> = Promise.resolve();
 	const compile = (async () => {
 		for (const layer of layers) {
 			if (timedOut) return;
-			await renderer.compileAsync(layer, camera, scene);
+			if (targets.length === 0) await renderer.compileAsync(layer, camera, scene);
+			for (const { renderTarget, mrt } of targets) {
+				if (timedOut) return;
+				const [target, outputs] = [renderer.getRenderTarget(), renderer.getMRT()];
+				const { toneMapping, outputColorSpace } = renderer;
+				// As RenderPipeline.render draws its passes: linear, no tone mapping.
+				renderer.toneMapping = THREE.NoToneMapping;
+				renderer.outputColorSpace = THREE.ColorManagement.workingColorSpace;
+				renderer.setRenderTarget(renderTarget);
+				renderer.setMRT(mrt);
+				// The target and outputs stay set until the compile is done (it reads them while it
+				// waits), so a timed-out warm-up still waits for this one before frames resume.
+				inFlight = renderer.compileAsync(layer, camera, scene);
+				await inFlight;
+				renderer.setRenderTarget(target);
+				renderer.setMRT(outputs);
+				renderer.toneMapping = toneMapping;
+				renderer.outputColorSpace = outputColorSpace;
+			}
 		}
 	})();
 	await Promise.race([compile, limit.then(() => void (timedOut = true))]);
+	// Frames drawn while a pass's target is set would draw into it (and on WebGPU build pipelines
+	// for the wrong targets, aborting the frame): finish that compile first. The compile puts the
+	// renderer's state back as it ends, before this resumes (it awaited the same promise first).
+	await inFlight.catch(() => {});
 }
 
 /**

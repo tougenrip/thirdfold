@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import type { BrowserCommand } from 'vitest/node';
 import type { BrowserContext } from 'playwright';
+import { ssimComparator } from './tests/visual/ssim.ts';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
@@ -31,13 +32,41 @@ function browser(args: string[], headless: boolean) {
 		expect: {
 			toMatchScreenshot: {
 				comparatorName: 'pixelmatch' as const,
-				// CI's small runners take several seconds per software-rendered capture.
-				timeout: 30_000,
-				comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 }
+				// No limit of its own: @vitest/browser 4.1.11 races the capture against a timer it never
+				// clears, which kept the process alive for up to this long after every golden run
+				// ("something prevents the main process from exiting"). With 0 there is no timer, and
+				// the golden tests' own 60 s timeout bounds a capture (CI's small runners take seconds).
+				timeout: 0,
+				comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.005 },
+				// SSIM for captures with TRAA, GTAO or depth of field (#168): tests/visual/ssim.ts.
+				comparators: { ssim: ssimComparator }
 			}
 		}
 	};
 }
+
+/** `THIRDFOLD_GOLDENS=slim|full` runs the golden images (package.json's test:golden scripts). */
+const GOLDENS = (['slim', 'full'] as const).find((g) => g === process.env.THIRDFOLD_GOLDENS);
+const GOLDEN_SPEC = 'src/lib/tabletop/golden.svelte.spec.ts';
+/**
+ * The renderer's pixel tests, minutes each on SwiftShader: not in `npm test` (so CI's verify job
+ * stays within minutes), but in `npm run test:render` and in .github/workflows/rendering.yml, on
+ * pull requests that touch rendering (`THIRDFOLD_RENDER=1`).
+ */
+const RENDER = process.env.THIRDFOLD_RENDER === '1';
+const RENDER_SPECS = [
+	'renderer',
+	'stability',
+	'fixtures',
+	'recovery',
+	'post',
+	'effects',
+	'grade',
+	'overlay',
+	'focus',
+	'shot-focus',
+	'unexplored-black'
+].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
 	plugins: [
@@ -79,10 +108,20 @@ export default defineConfig({
 					// Renderer tests and golden images draw with SwiftShader at DPR 1 on
 					// an 800x500 viewport, so pixels never depend on the machine's GPU.
 					browser: browser(['--use-angle=swiftshader', '--enable-unsafe-swiftshader'], true),
-					provide: { backend: 'webgl' as const },
+					provide: {
+						backend: 'webgl' as const,
+						goldens: GOLDENS ?? 'slim',
+						shard: process.env.THIRDFOLD_SHARD ?? '1/1'
+					},
 					attachmentsDir: '.vitest-attachments',
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-					exclude: ['src/lib/server/**']
+					// Golden images run only on their own (`npm run test:golden`, CI's slim set on PRs that
+					// touch rendering; `test:golden:full` by hand), never with the rest of the tests.
+					exclude: [
+						'src/lib/server/**',
+						...(GOLDENS ? [] : [GOLDEN_SPEC]),
+						...(RENDER || GOLDENS ? [] : RENDER_SPECS)
+					]
 				}
 			},
 			// The same golden images and renderer smoke tests through the WebGPU backend, on the real
@@ -104,15 +143,20 @@ export default defineConfig({
 									],
 									true
 								),
-								provide: { backend: 'webgpu' as const },
+								provide: { backend: 'webgpu' as const, goldens: GOLDENS ?? 'full', shard: '1/1' },
 								// One file at a time: the recovery test crashes the GPU process, which would
 								// take WebGPU away from files running beside it.
 								fileParallelism: false,
 								attachmentsDir: '.vitest-attachments',
 								include: [
-									'src/lib/tabletop/golden.svelte.spec.ts',
+									...(GOLDENS ? [GOLDEN_SPEC] : []),
 									'src/lib/tabletop/renderer.svelte.spec.ts',
-									'src/lib/tabletop/recovery.svelte.spec.ts'
+									'src/lib/tabletop/fixtures.svelte.spec.ts',
+									'src/lib/tabletop/stability.svelte.spec.ts',
+									'src/lib/tabletop/recovery.svelte.spec.ts',
+									'src/lib/tabletop/post.svelte.spec.ts',
+									'src/lib/tabletop/grade.svelte.spec.ts',
+									'src/lib/tabletop/unexplored-black.svelte.spec.ts'
 								]
 							}
 						}
@@ -124,7 +168,11 @@ export default defineConfig({
 				test: {
 					name: 'server',
 					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}', 'server/**/*.{test,spec}.ts'],
+					include: [
+						'src/**/*.{test,spec}.{js,ts}',
+						'server/**/*.{test,spec}.ts',
+						'tests/**/*.spec.ts'
+					],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
 				}
 			}

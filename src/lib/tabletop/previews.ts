@@ -9,7 +9,8 @@ import type { Ground } from './ground';
 import type { HighlightKind, PreviewItem } from './types';
 import { WALL_HEIGHT } from './walls';
 
-const HIGHLIGHT = { move: 0xe0a458, blocked: 0xe27a6b, place: 0x7fc47a } satisfies Record<
+/** The colours that mean move, blocked and place (G6: colour-vision.spec.ts). */
+export const HIGHLIGHT = { move: 0xe0a458, blocked: 0xe27a6b, place: 0x7fc47a } satisfies Record<
 	HighlightKind,
 	number
 >;

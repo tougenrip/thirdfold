@@ -91,6 +91,8 @@ export class RenderScheduler {
 	private pacing: Pacing = { fpsCap: 60, ambientFps: 30, convergeFrames: 0 };
 	private reducedMotion = false;
 	private powerSaver = false;
+	/** A change was asked for since the last frame. */
+	private changed = false;
 	private tabHidden = typeof document !== 'undefined' && document.hidden;
 	private offscreen = false;
 	private readonly observer: IntersectionObserver | null;
@@ -126,7 +128,9 @@ export class RenderScheduler {
 	}
 
 	get mode(): Mode {
-		if (this.frame && !this.timer) return 'active';
+		// A frame on its way: converging once nothing moves any more, else active.
+		if (this.frame && !this.timer)
+			return !this.report.active && this.converging > 0 ? 'converge' : 'active';
 		return modeFor(this.situation(false));
 	}
 
@@ -160,8 +164,17 @@ export class RenderScheduler {
 		});
 	}
 
-	/** Something changed: draw it (once, however often it is asked), within the frame-rate cap. */
+	/**
+	 * Something changed: draw it (once, however often it is asked), within the frame-rate cap. A
+	 * change restarts CONVERGE (TRAA's history needs its frames); the scheduler's own frames don't.
+	 */
 	request = (): void => {
+		this.changed = true;
+		this.schedule();
+	};
+
+	/** Asks for a frame without counting it as a change. */
+	private schedule(): void {
 		if (this.held) {
 			this.wanted = true;
 			return;
@@ -171,7 +184,7 @@ export class RenderScheduler {
 			this.timer = 0;
 		}
 		if (!this.frame) this.frame = requestAnimationFrame((now) => this.onFrame(now));
-	};
+	}
 
 	private onFrame(now: number): void {
 		this.frame = 0;
@@ -182,9 +195,12 @@ export class RenderScheduler {
 		}
 		this.last = now;
 		const wasActive = this.report.active;
+		const changed = this.changed;
+		this.changed = false;
 		this.report = this.draw();
-		if (this.report.active) this.converging = this.pacing.convergeFrames;
-		else if (wasActive) this.converging = this.pacing.convergeFrames;
+		// Power saver converges in half the frames.
+		const converge = Math.ceil(this.pacing.convergeFrames / (this.powerSaver ? 2 : 1));
+		if (this.report.active || wasActive || changed) this.converging = converge;
 		else if (this.converging > 0) this.converging--;
 		this.plan();
 	}
@@ -204,7 +220,7 @@ export class RenderScheduler {
 	private plan(): void {
 		if (this.held || this.frame) return;
 		const mode = modeFor(this.situation(this.report.active));
-		if (mode === 'active' || mode === 'converge') return this.request();
+		if (mode === 'active' || mode === 'converge') return this.schedule();
 		if (this.timer) {
 			clearTimeout(this.timer);
 			this.timer = 0;
@@ -213,7 +229,7 @@ export class RenderScheduler {
 		if (interval === null) return;
 		this.timer = setTimeout(() => {
 			this.timer = 0;
-			this.request();
+			this.schedule();
 		}, interval);
 	}
 

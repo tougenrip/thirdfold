@@ -1305,6 +1305,12 @@
 			"width": 128,
 			"height": 128
 		},
+		"lens-dirt": {
+			"file": "textures/lens-dirt.e6438b1c.png",
+			"bytes": 42007,
+			"width": 256,
+			"height": 256
+		},
 		"planks": {
 			"file": "textures/planks.0b8541ad.png",
 			"bytes": 11740,
@@ -1316,6 +1322,330 @@
 			"bytes": 4243,
 			"width": 64,
 			"height": 64
+		},
+		"grade-cavern-day-agx": {
+			"file": "textures/grade-cavern-day-agx.015cbb43.png",
+			"bytes": 13853,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-dusk-agx": {
+			"file": "textures/grade-cavern-dusk-agx.78e80ab0.png",
+			"bytes": 15147,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-dark-agx": {
+			"file": "textures/grade-cavern-dark-agx.9994fac0.png",
+			"bytes": 16730,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-day-aces": {
+			"file": "textures/grade-cavern-day-aces.fce37880.png",
+			"bytes": 8168,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-dusk-aces": {
+			"file": "textures/grade-cavern-dusk-aces.bd3d1546.png",
+			"bytes": 8085,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-dark-aces": {
+			"file": "textures/grade-cavern-dark-aces.0e9947a9.png",
+			"bytes": 10849,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-day-neutral": {
+			"file": "textures/grade-cavern-day-neutral.b82b4d7a.png",
+			"bytes": 9802,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-dusk-neutral": {
+			"file": "textures/grade-cavern-dusk-neutral.7932a5af.png",
+			"bytes": 10221,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-cavern-dark-neutral": {
+			"file": "textures/grade-cavern-dark-neutral.18ac4a2d.png",
+			"bytes": 13508,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-day-agx": {
+			"file": "textures/grade-ghost-town-day-agx.bc10e2ee.png",
+			"bytes": 10565,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-dusk-agx": {
+			"file": "textures/grade-ghost-town-dusk-agx.24e5daac.png",
+			"bytes": 10438,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-dark-agx": {
+			"file": "textures/grade-ghost-town-dark-agx.ff183382.png",
+			"bytes": 13424,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-day-aces": {
+			"file": "textures/grade-ghost-town-day-aces.a6cf23a0.png",
+			"bytes": 9484,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-dusk-aces": {
+			"file": "textures/grade-ghost-town-dusk-aces.48891263.png",
+			"bytes": 13217,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-dark-aces": {
+			"file": "textures/grade-ghost-town-dark-aces.abe211c7.png",
+			"bytes": 12843,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-day-neutral": {
+			"file": "textures/grade-ghost-town-day-neutral.98ada5ad.png",
+			"bytes": 8651,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-dusk-neutral": {
+			"file": "textures/grade-ghost-town-dusk-neutral.af379c54.png",
+			"bytes": 12328,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-ghost-town-dark-neutral": {
+			"file": "textures/grade-ghost-town-dark-neutral.785d7647.png",
+			"bytes": 13145,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-day-agx": {
+			"file": "textures/grade-living-cave-day-agx.2fca3773.png",
+			"bytes": 13674,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-dusk-agx": {
+			"file": "textures/grade-living-cave-dusk-agx.9b4bf782.png",
+			"bytes": 14297,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-dark-agx": {
+			"file": "textures/grade-living-cave-dark-agx.a5bf1be2.png",
+			"bytes": 15424,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-day-aces": {
+			"file": "textures/grade-living-cave-day-aces.60be480f.png",
+			"bytes": 12923,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-dusk-aces": {
+			"file": "textures/grade-living-cave-dusk-aces.c448222f.png",
+			"bytes": 12687,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-dark-aces": {
+			"file": "textures/grade-living-cave-dark-aces.3389fde6.png",
+			"bytes": 14616,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-day-neutral": {
+			"file": "textures/grade-living-cave-day-neutral.81638be1.png",
+			"bytes": 11115,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-dusk-neutral": {
+			"file": "textures/grade-living-cave-dusk-neutral.46108b74.png",
+			"bytes": 12443,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-living-cave-dark-neutral": {
+			"file": "textures/grade-living-cave-dark-neutral.789e8bc4.png",
+			"bytes": 14259,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-day-agx": {
+			"file": "textures/grade-railcar-day-agx.d3d771fc.png",
+			"bytes": 10422,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-dusk-agx": {
+			"file": "textures/grade-railcar-dusk-agx.613586b1.png",
+			"bytes": 6622,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-dark-agx": {
+			"file": "textures/grade-railcar-dark-agx.f2af981f.png",
+			"bytes": 7216,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-day-aces": {
+			"file": "textures/grade-railcar-day-aces.1c555de7.png",
+			"bytes": 10471,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-dusk-aces": {
+			"file": "textures/grade-railcar-dusk-aces.d994cba0.png",
+			"bytes": 13091,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-dark-aces": {
+			"file": "textures/grade-railcar-dark-aces.e9eb129f.png",
+			"bytes": 13284,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-day-neutral": {
+			"file": "textures/grade-railcar-day-neutral.e61b153c.png",
+			"bytes": 10137,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-dusk-neutral": {
+			"file": "textures/grade-railcar-dusk-neutral.82ccb62c.png",
+			"bytes": 13265,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-railcar-dark-neutral": {
+			"file": "textures/grade-railcar-dark-neutral.067372df.png",
+			"bytes": 13608,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-day-agx": {
+			"file": "textures/grade-stone-halls-day-agx.0b274461.png",
+			"bytes": 12168,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-dusk-agx": {
+			"file": "textures/grade-stone-halls-dusk-agx.3b04478c.png",
+			"bytes": 15518,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-dark-agx": {
+			"file": "textures/grade-stone-halls-dark-agx.969e8a09.png",
+			"bytes": 16216,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-day-aces": {
+			"file": "textures/grade-stone-halls-day-aces.a1091e63.png",
+			"bytes": 6855,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-dusk-aces": {
+			"file": "textures/grade-stone-halls-dusk-aces.b9ca8df3.png",
+			"bytes": 12626,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-dark-aces": {
+			"file": "textures/grade-stone-halls-dark-aces.03495bc7.png",
+			"bytes": 13889,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-day-neutral": {
+			"file": "textures/grade-stone-halls-day-neutral.655f8afe.png",
+			"bytes": 6864,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-dusk-neutral": {
+			"file": "textures/grade-stone-halls-dusk-neutral.2d9dab49.png",
+			"bytes": 12232,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-stone-halls-dark-neutral": {
+			"file": "textures/grade-stone-halls-dark-neutral.fc9aaae9.png",
+			"bytes": 14855,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-day-agx": {
+			"file": "textures/grade-village-day-agx.939d679b.png",
+			"bytes": 14533,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-dusk-agx": {
+			"file": "textures/grade-village-dusk-agx.b39349e6.png",
+			"bytes": 15793,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-dark-agx": {
+			"file": "textures/grade-village-dark-agx.a67b4c0b.png",
+			"bytes": 12403,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-day-aces": {
+			"file": "textures/grade-village-day-aces.1fe5a3ea.png",
+			"bytes": 12167,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-dusk-aces": {
+			"file": "textures/grade-village-dusk-aces.318bc694.png",
+			"bytes": 11618,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-dark-aces": {
+			"file": "textures/grade-village-dark-aces.87c4e354.png",
+			"bytes": 13625,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-day-neutral": {
+			"file": "textures/grade-village-day-neutral.0a96d136.png",
+			"bytes": 8360,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-dusk-neutral": {
+			"file": "textures/grade-village-dusk-neutral.3d2e65f0.png",
+			"bytes": 13484,
+			"width": 1024,
+			"height": 32
+		},
+		"grade-village-dark-neutral": {
+			"file": "textures/grade-village-dark-neutral.eeecafb8.png",
+			"bytes": 14195,
+			"width": 1024,
+			"height": 32
 		}
 	},
 	"materials": {
@@ -1430,42 +1760,144 @@
 			"surface": "cave-floor",
 			"ground": "cave-rock",
 			"walls": "ancient-stone",
-			"table": "oak"
+			"table": "oak",
+			"lut": {
+				"agx": {
+					"day": "grade-cavern-day-agx",
+					"dusk": "grade-cavern-dusk-agx",
+					"dark": "grade-cavern-dark-agx"
+				},
+				"aces": {
+					"day": "grade-cavern-day-aces",
+					"dusk": "grade-cavern-dusk-aces",
+					"dark": "grade-cavern-dark-aces"
+				},
+				"neutral": {
+					"day": "grade-cavern-day-neutral",
+					"dusk": "grade-cavern-dusk-neutral",
+					"dark": "grade-cavern-dark-neutral"
+				}
+			}
 		},
 		"ghost-town": {
 			"name": "Ghost town",
 			"surface": "desert",
 			"ground": "rail-ballast",
 			"walls": "weathered-wood",
-			"table": "oak"
+			"table": "oak",
+			"lut": {
+				"agx": {
+					"day": "grade-ghost-town-day-agx",
+					"dusk": "grade-ghost-town-dusk-agx",
+					"dark": "grade-ghost-town-dark-agx"
+				},
+				"aces": {
+					"day": "grade-ghost-town-day-aces",
+					"dusk": "grade-ghost-town-dusk-aces",
+					"dark": "grade-ghost-town-dark-aces"
+				},
+				"neutral": {
+					"day": "grade-ghost-town-day-neutral",
+					"dusk": "grade-ghost-town-dusk-neutral",
+					"dark": "grade-ghost-town-dark-neutral"
+				}
+			}
 		},
 		"living-cave": {
 			"name": "Living cave",
 			"surface": "flesh",
 			"ground": "flesh",
 			"walls": "sinew",
-			"table": "oak"
+			"table": "oak",
+			"lut": {
+				"agx": {
+					"day": "grade-living-cave-day-agx",
+					"dusk": "grade-living-cave-dusk-agx",
+					"dark": "grade-living-cave-dark-agx"
+				},
+				"aces": {
+					"day": "grade-living-cave-day-aces",
+					"dusk": "grade-living-cave-dusk-aces",
+					"dark": "grade-living-cave-dark-aces"
+				},
+				"neutral": {
+					"day": "grade-living-cave-day-neutral",
+					"dusk": "grade-living-cave-dusk-neutral",
+					"dark": "grade-living-cave-dark-neutral"
+				}
+			}
 		},
 		"railcar": {
 			"name": "Railcar",
 			"surface": "railcar-floor",
 			"ground": "rail-ballast",
 			"walls": "railcar-wall",
-			"table": "oak"
+			"table": "oak",
+			"lut": {
+				"agx": {
+					"day": "grade-railcar-day-agx",
+					"dusk": "grade-railcar-dusk-agx",
+					"dark": "grade-railcar-dark-agx"
+				},
+				"aces": {
+					"day": "grade-railcar-day-aces",
+					"dusk": "grade-railcar-dusk-aces",
+					"dark": "grade-railcar-dark-aces"
+				},
+				"neutral": {
+					"day": "grade-railcar-day-neutral",
+					"dusk": "grade-railcar-dusk-neutral",
+					"dark": "grade-railcar-dark-neutral"
+				}
+			}
 		},
 		"stone-halls": {
 			"name": "Stone halls",
 			"surface": "flagstones",
 			"ground": "monastery-stone",
 			"walls": "monastery-stone",
-			"table": "oak"
+			"table": "oak",
+			"lut": {
+				"agx": {
+					"day": "grade-stone-halls-day-agx",
+					"dusk": "grade-stone-halls-dusk-agx",
+					"dark": "grade-stone-halls-dark-agx"
+				},
+				"aces": {
+					"day": "grade-stone-halls-day-aces",
+					"dusk": "grade-stone-halls-dusk-aces",
+					"dark": "grade-stone-halls-dark-aces"
+				},
+				"neutral": {
+					"day": "grade-stone-halls-day-neutral",
+					"dusk": "grade-stone-halls-dusk-neutral",
+					"dark": "grade-stone-halls-dark-neutral"
+				}
+			}
 		},
 		"village": {
 			"name": "Village",
 			"surface": "village-grass",
 			"ground": "village-earth",
 			"walls": "plaster",
-			"table": "oak"
+			"table": "oak",
+			"lut": {
+				"agx": {
+					"day": "grade-village-day-agx",
+					"dusk": "grade-village-dusk-agx",
+					"dark": "grade-village-dark-agx"
+				},
+				"aces": {
+					"day": "grade-village-day-aces",
+					"dusk": "grade-village-dusk-aces",
+					"dark": "grade-village-dark-aces"
+				},
+				"neutral": {
+					"day": "grade-village-day-neutral",
+					"dusk": "grade-village-dusk-neutral",
+					"dark": "grade-village-dark-neutral"
+				}
+			}
 		}
 	},
 	"audio": {
