@@ -16,19 +16,19 @@ the built files would not match CI's.
 
 ## Sources
 
-| Kind                             | Source                                                       | Built into                   |
-| -------------------------------- | ------------------------------------------------------------ | ---------------------------- |
-| Props                            | `assets/models/prop/<id>.json`                               | `models/<id>.<hash>.glb`     |
-| Characters                       | `assets/models/character/<id>.json`                          | `models/<id>.<hash>.glb`     |
-| NPCs                             | `assets/models/npc/<id>.json`                                | `models/<id>.<hash>.glb`     |
-| Enemies                          | `assets/models/enemy/<id>.json`                              | `models/<id>.<hash>.glb`     |
-| Kit, foliage, decor, effects     | `assets/models/{kit,foliage,decor,fx}/<id>.json`             | `models/<id>.<hash>.glb`     |
-| Any model made elsewhere         | `assets/models/<kind>/<id>.glb`                              | copied, after checking       |
-| Materials                        | `assets/materials.json`                                      | the manifest                 |
-| Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`         | `textures/<id>.<hash>.png`   |
-| Environments (how a place looks) | `assets/environments/<id>.json`                              | the manifest                 |
-| Colour grades                    | `assets/grades/<environment>.json`                           | `textures/grade-….png` (54)  |
-| Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg` | `audio/<id>.<hash>.wav\|ogg` |
+| Kind                             | Source                                                                         | Built into                   |
+| -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------- |
+| Props                            | `assets/models/prop/<id>.json`                                                 | `models/<id>.<hash>.glb`     |
+| Characters                       | `assets/models/character/<id>.json`                                            | `models/<id>.<hash>.glb`     |
+| NPCs                             | `assets/models/npc/<id>.json`                                                  | `models/<id>.<hash>.glb`     |
+| Enemies                          | `assets/models/enemy/<id>.json`                                                | `models/<id>.<hash>.glb`     |
+| Kit, foliage, decor, effects     | `assets/models/{kit,foliage,decor,fx}/<id>.json`                               | `models/<id>.<hash>.glb`     |
+| Any model made elsewhere         | `assets/models/<kind>/<id>.glb` (`<id>.meta.json`: swing, set piece)           | copied, after checking       |
+| Materials                        | `assets/materials.json`                                                        | the manifest                 |
+| Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png` (`<id>.meta.json`: usage) | `textures/<id>.<hash>.png`   |
+| Environments (how a place looks) | `assets/environments/<id>.json`                                                | the manifest                 |
+| Colour grades                    | `assets/grades/<environment>.json`                                             | `textures/grade-….png` (54)  |
+| Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg`                   | `audio/<id>.<hash>.wav\|ogg` |
 
 Ids are lowercase letters, digits and dashes, and they are the file names. Name an asset by how
 it looks (`robed-figure`, `giant-hand`, `cavern`), not by its part in a story. The manifest is
@@ -171,7 +171,9 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   Sounds: 2 MB and 30 s (`AUDIO_LIMITS`). GPU bytes are what a file takes once decoded: a model's
   vertex and index arrays (a part list's binary chunk), and a texture's pixels with a third more
   for mips, at 32 bits a pixel for PNG and 8 for KTX2, the worst of what KTX2 transcodes to. The
-  limits are a ceiling per asset; what a whole table may add up to is #193's.
+  limits are a ceiling per asset; what a whole table may add up to is #193's. So a sky at 4096 px is
+  KTX2 only (as a PNG it would take about 85 MB), and a kit piece embeds no texture: kit
+  textures come through the materials it wears (trim sheets are materials).
 
 - **Only ids in saves.** Scene files and the room refer to assets by id (`Token.model`, the scene's
   `environment`), never by content. An id the client doesn't know draws as the placeholder.

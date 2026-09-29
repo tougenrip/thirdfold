@@ -14,7 +14,7 @@ import {
 } from '../../src/lib/assets/manifest';
 import { checkGlb, writeGlb } from './glb';
 import { bakeModel, isModelKind, readModelSource } from './models';
-import { AssetError, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
+import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 
 const ROLES = ['body', 'swing', 'accent'];
 
@@ -22,8 +22,10 @@ const ROLES = ['body', 'swing', 'accent'];
  * What a GLB takes on the GPU: its binary chunk, which in a model of plain meshes is exactly
  * the vertex and index arrays (#185's validator counts them view by view once models are cooked).
  */
-function glbGpuBytes(glb: Buffer): number {
-	return glb.readUInt32LE(20 + glb.readUInt32LE(12));
+function glbGpuBytes(glb: Buffer, source: string): number {
+	const bin = 20 + glb.readUInt32LE(12);
+	if (glb.length < bin + 8) throw new AssetError(source, 'no binary chunk');
+	return glb.readUInt32LE(bin);
 }
 
 const round = (v: number[]) =>
@@ -48,7 +50,10 @@ export function buildModels(
 		for (const name of list(kindDir)) {
 			const source = path.join(kindDir, name);
 			const { id, ext } = idOf(name, kindDir);
-			if (ext === 'meta.json') continue;
+			if (ext === 'meta.json') {
+				checkMeta(kindDir, id, 'glb');
+				continue;
+			}
 			if (id in models) throw new AssetError(source, 'a model with this id already exists');
 			let glb: Buffer;
 			let swing: ModelEntry['swing'];
@@ -87,7 +92,7 @@ export function buildModels(
 				throw new AssetError(source, `${triangles} triangles is more than ${limit.triangles}`);
 			}
 			if (glb.length > limit.bytes) throw new AssetError(source, 'file too large');
-			const gpuBytes = glbGpuBytes(glb);
+			const gpuBytes = glbGpuBytes(glb, source);
 			if (gpuBytes > limit.gpuBytes) throw new AssetError(source, 'too large on the GPU');
 			// Part lists have no LODs: a few hundred triangles need none.
 			models[id] = {

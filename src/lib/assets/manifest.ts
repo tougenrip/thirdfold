@@ -148,7 +148,10 @@ const MB = 1024 * kB;
 
 /**
  * Upper bounds per asset, which the pipeline and the client's parser both enforce, so no asset
- * can make a client download or draw too much. Budgets per table are #193's.
+ * can make a client download or draw too much. Budgets per table are #193's. A 4096 px sky fits
+ * its GPU bytes only as KTX2 (a PNG that size decodes to about 85 MB). A kit piece embeds no
+ * texture (its 2 MB on the GPU leaves no room for a 2048 px one): kit textures come through the
+ * materials it wears, and trim sheets are materials.
  */
 export const LIMITS: Record<LimitClass, Limit> = {
 	kit: { triangles: 1_500, px: 2048, bytes: 256 * kB, gpuBytes: 2 * MB },

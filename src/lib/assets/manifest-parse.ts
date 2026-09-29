@@ -118,7 +118,7 @@ function fileInfo(
 /** An entry's pack, which the manifest must list. */
 function pack(v: unknown, packs: Record<string, PackInfo>, what: string): { pack?: string } {
 	if (v === undefined) return {};
-	if (typeof v !== 'string' || !(v in packs)) throw new Invalid(`${what}: unknown pack`);
+	if (typeof v !== 'string' || !Object.hasOwn(packs, v)) throw new Invalid(`${what}: unknown pack`);
 	return { pack: v };
 }
 
@@ -279,7 +279,7 @@ function readModel(
 			!Array.isArray(list) ||
 			list.length > 16 ||
 			new Set(list).size !== list.length ||
-			!list.every((m) => typeof m === 'string' && m in materials)
+			!list.every((m) => typeof m === 'string' && Object.hasOwn(materials, m))
 		) {
 			throw new Invalid(`${what}: unknown materials`);
 		}
@@ -316,7 +316,7 @@ function readEnvironment(
 	if (!text(v.name, 60)) throw new Invalid(`${what}: bad name`);
 	const material = (k: string) => {
 		const name = v[k];
-		if (typeof name !== 'string' || !(name in m.materials)) {
+		if (typeof name !== 'string' || !Object.hasOwn(m.materials, name)) {
 			throw new Invalid(`${what}: unknown ${k} material`);
 		}
 		return name;
@@ -334,7 +334,7 @@ function readEnvironment(
 		const ids = (list: unknown): list is string[] =>
 			Array.isArray(list) &&
 			list.length <= 16 &&
-			list.every((x) => typeof x === 'string' && x in m.surfaces);
+			list.every((x) => typeof x === 'string' && Object.hasOwn(m.surfaces, x));
 		if (!isRecord(s) || !ids(s.floors) || !ids(s.walls)) {
 			throw new Invalid(`${what}: unknown surfaces`);
 		}

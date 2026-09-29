@@ -59,3 +59,14 @@ export function idOf(file: string, dir: string): { id: string; ext: string } {
 	}
 	return { id: match[1], ext: match[2] };
 }
+
+/** An `<id>.meta.json` describes the `<id>.<file>` beside it: refused alone, or beside a recipe. */
+export function checkMeta(dir: string, id: string, file: string): void {
+	const meta = path.join(dir, `${id}.meta.json`);
+	if (existsSync(path.join(dir, `${id}.json`))) {
+		throw new AssetError(meta, `a .json source says this itself, not a .meta.json`);
+	}
+	if (!existsSync(path.join(dir, `${id}.${file}`))) {
+		throw new AssetError(meta, `describes an <id>.${file} that is not there`);
+	}
+}

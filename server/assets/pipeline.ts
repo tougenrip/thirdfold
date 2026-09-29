@@ -70,7 +70,7 @@ function buildMaterials(
 			return n;
 		};
 		const texture = (v: unknown, usage: TextureUsage) => {
-			if (typeof v !== 'string' || !(v in textures)) {
+			if (typeof v !== 'string' || !Object.hasOwn(textures, v)) {
 				throw new AssetError(where, `unknown texture "${String(v)}"`);
 			}
 			if (textures[v].usage !== usage) throw new AssetError(where, `"${v}" is not ${usage}`);
@@ -108,7 +108,7 @@ function buildEnvironments(
 			throw new AssetError(source, 'needs a name');
 		const material = (k: string) => {
 			const m = raw[k];
-			if (typeof m !== 'string' || !(m in materials)) {
+			if (typeof m !== 'string' || !Object.hasOwn(materials, m)) {
 				throw new AssetError(source, `"${k}" must name a material`);
 			}
 			return m;

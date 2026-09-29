@@ -152,6 +152,9 @@ describe('manifest v2', () => {
 			ok: false
 		});
 		expect(bad({ materials: ['nothing'] })).toMatchObject({ ok: false });
+		// Names that are properties of every object are not ids a record holds.
+		expect(bad({ pack: 'constructor' })).toMatchObject({ ok: false });
+		expect(bad({ materials: ['toString'] })).toMatchObject({ ok: false });
 		expect(
 			parse((m) => (m.environments.village.surfaces = { floors: ['x'], walls: [] }))
 		).toMatchObject({ ok: false });
@@ -273,5 +276,32 @@ describe('the limits per class, in the pipeline', () => {
 		const side = Math.ceil(Math.sqrt(limit.bytes / 4)) + 8;
 		png(side, side, randomBytes(side * side * 4));
 		expect(build).toThrow(/t\.png: file too large/);
+	});
+
+	it('refuses a 4096 px sky as PNG: at that size a sky fits only as KTX2', () => {
+		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-limits-'));
+		const at = folder('textures');
+		writeFileSync(path.join(at, 'sky.meta.json'), '{ "usage": "sky" }');
+		writeFileSync(path.join(at, 'sky.png'), encodePng(4096, 4096, new Uint8Array(4096 * 4096 * 4)));
+		expect(() => buildTextures(dir, emitter(new Map()))).toThrow(/sky\.png: too large on the GPU/);
+	});
+
+	it('refuses an <id>.meta.json with nothing to describe, or beside a .json source', () => {
+		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-meta-'));
+		const textures = folder('textures');
+		const buildT = () => buildTextures(dir, emitter(new Map()));
+		writeFileSync(path.join(textures, 't.meta.json'), '{ "usage": "sky" }');
+		expect(buildT).toThrow(/t\.meta\.json: describes an <id>\.png that is not there/);
+		writeFileSync(
+			path.join(textures, 't.json'),
+			JSON.stringify({ recipe: 'noise', size: 16, colors: ['#000000', '#ffffff'], seed: 1 })
+		);
+		expect(buildT).toThrow(/t\.meta\.json: a \.json source says this itself/);
+		const props = folder('models', 'prop');
+		const buildM = () => buildModels(dir, emitter(new Map()), {});
+		writeFileSync(path.join(props, 'm.meta.json'), '{ "setPiece": true }');
+		expect(buildM).toThrow(/m\.meta\.json: describes an <id>\.glb that is not there/);
+		writeFileSync(path.join(props, 'm.json'), JSON.stringify(spheres(1, false)));
+		expect(buildM).toThrow(/m\.meta\.json: a \.json source says this itself/);
 	});
 });

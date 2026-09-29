@@ -16,7 +16,7 @@ import {
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
 import { BANDS, LUT_SIZE, readGrades, renderGrade, stripProblem } from './grades';
-import { AssetError, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
+import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 import { encodePng, pngSize } from './png';
 import { readTextureSource, renderTexture } from './textures';
 
@@ -66,7 +66,10 @@ export function buildTextures(dir: string, emit: Emit): Record<string, TextureEn
 	for (const name of list(textureDir)) {
 		const source = path.join(textureDir, name);
 		const { id, ext } = idOf(name, textureDir);
-		if (ext === 'meta.json') continue;
+		if (ext === 'meta.json') {
+			checkMeta(textureDir, id, 'png');
+			continue;
+		}
 		if (id in textures) throw new AssetError(source, 'a texture with this id already exists');
 		let png: Buffer;
 		let usage: TextureUsage;
