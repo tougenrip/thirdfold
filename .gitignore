@@ -52,3 +52,6 @@ src/**/__screenshots__/*
 
 # Texture detail's 1K and 2K variants (docs/ASSETS.md): cooked here, kept in the asset store
 /variants/
+
+# Data backups (npm run data:backup): session tokens and GM key hashes, keep them like the database
+/backups/
