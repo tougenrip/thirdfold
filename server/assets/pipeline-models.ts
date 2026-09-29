@@ -1,12 +1,16 @@
 // Models for the asset pipeline (pipeline.ts): assets/models/<kind>/, part
 // lists baked into GLBs, or GLBs made elsewhere or cooked (checked by
 // checkGlb: meshes, materials and KTX2 textures only) with an optional
-// <id>.meta.json for their swing and whether they are a set piece. Each is
-// held to its class's limits (LIMITS, by limitClass).
+// <id>.meta.json for their swing, whether they are a set piece and their pack
+// (#192: a look, never a story place; `core` by default). An <id>.preview.json
+// part list is a model's preview (#192): a light stand-in the client shows
+// until the full model arrives. Each is held to its class's limits (LIMITS,
+// by limitClass).
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
+	ASSET_ID_PATTERN,
 	LIMITS,
 	MODEL_KINDS,
 	limitClass,
@@ -18,6 +22,9 @@ import { creditOf, provenanceFor } from './licence';
 import { bakeModel, isModelKind, readModelSource } from './models';
 import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 
+/** The pack a model downloads with unless its meta.json names one (#192). */
+export const CORE_PACK = 'core';
+
 const round = (v: number[]) =>
 	v.map((n) => Math.round(n * 1000) / 1000) as [number, number, number];
 
@@ -27,7 +34,9 @@ export async function buildModels(
 	materials: Record<string, MaterialDef>
 ): Promise<Record<string, ModelEntry>> {
 	const materialColor = (id: string) => materials[id].color;
+	const known = new Set(Object.keys(materials));
 	const models: Record<string, ModelEntry> = {};
+	const previews: [string, string][] = [];
 	const modelDir = path.join(dir, 'models');
 	for (const kind of list(modelDir)) {
 		if (!isModelKind(kind)) {
@@ -44,14 +53,19 @@ export async function buildModels(
 				checkMeta(kindDir, id, 'glb');
 				continue;
 			}
+			if (ext === 'preview.json') {
+				previews.push([kindDir, id]);
+				continue;
+			}
 			if (Object.hasOwn(models, id))
 				throw new AssetError(source, 'a model with this id already exists');
 			let glb: Buffer;
 			let swing: ModelEntry['swing'];
 			let setPiece = false;
+			let pack = CORE_PACK;
 			try {
 				if (ext === 'json') {
-					const model = readModelSource(readJson(source), new Set(Object.keys(materials)));
+					const model = readModelSource(readJson(source), known);
 					glb = writeGlb(bakeModel(model, materialColor));
 					swing = model.swing;
 					setPiece = model.setPiece === true;
@@ -62,6 +76,11 @@ export async function buildModels(
 						const m = readJson(meta);
 						if (isRecord(m) && isRecord(m.swing)) swing = m.swing as ModelEntry['swing'];
 						setPiece = isRecord(m) && m.setPiece === true;
+						if (isRecord(m) && m.pack !== undefined) {
+							if (typeof m.pack !== 'string' || !ASSET_ID_PATTERN.test(m.pack))
+								throw new AssetError(meta, 'a pack is an asset id');
+							pack = m.pack;
+						}
 					}
 				} else throw new Error('models are .json part lists or .glb files');
 			} catch (err) {
@@ -84,9 +103,28 @@ export async function buildModels(
 				credit,
 				...(swing ? { swing } : {}),
 				...(checked.info.cooked ? { cooked: true as const } : {}),
-				...(setPiece ? { setPiece: true as const } : {})
+				...(setPiece ? { setPiece: true as const } : {}),
+				pack
 			};
 		}
+	}
+	for (const [kindDir, id] of previews) {
+		const source = path.join(kindDir, `${id}.preview.json`);
+		const model = models[id];
+		if (!model) throw new AssetError(source, 'a preview needs its model beside it');
+		let glb: Buffer;
+		try {
+			glb = writeGlb(bakeModel(readModelSource(readJson(source), known), materialColor));
+		} catch (err) {
+			throw new AssetError(source, (err as Error).message);
+		}
+		// Held to its model's class, and never heavier than the model it stands in for.
+		const checked = await checkGlb(glb, LIMITS[limitClass(model)]);
+		if (!checked.ok) throw new AssetError(source, checked.error);
+		if (glb.length >= model.bytes)
+			throw new AssetError(source, 'a preview must be lighter than its model');
+		const credit = creditOf(provenanceFor(kindDir, id, 'preview.json'));
+		model.preview = { ...emit('previews', id, 'glb', glb), bytes: glb.length, credit };
 	}
 	return models;
 }

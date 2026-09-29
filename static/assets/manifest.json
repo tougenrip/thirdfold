@@ -23,7 +23,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"saint": {
 			"file": "models/saint.9b0c9851.glb",
@@ -47,7 +48,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"veil": {
 			"file": "models/veil.b514bfdc.glb",
@@ -71,7 +73,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"warden": {
 			"file": "models/warden.bc25ba67.glb",
@@ -95,7 +98,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"armored-brute": {
 			"file": "models/armored-brute.1e3fc884.glb",
@@ -119,7 +123,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"giant-hand": {
 			"file": "models/giant-hand.54761626.glb",
@@ -143,7 +148,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"hatted-shade": {
 			"file": "models/hatted-shade.601aa10c.glb",
@@ -167,7 +173,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"hound": {
 			"file": "models/hound.0dc2d521.glb",
@@ -191,7 +198,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"pulsing-mass": {
 			"file": "models/pulsing-mass.71b526f3.glb",
@@ -215,7 +223,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"robed-figure": {
 			"file": "models/robed-figure.d112ef17.glb",
@@ -239,7 +248,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"tentacle": {
 			"file": "models/tentacle.14d8b1e6.glb",
@@ -263,7 +273,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"child": {
 			"file": "models/child.b29197f6.glb",
@@ -287,7 +298,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"elder": {
 			"file": "models/elder.b5a53331.glb",
@@ -311,7 +323,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"gravedigger": {
 			"file": "models/gravedigger.b776df81.glb",
@@ -335,7 +348,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"monk": {
 			"file": "models/monk.9aede13c.glb",
@@ -359,7 +373,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"priest": {
 			"file": "models/priest.73357485.glb",
@@ -383,7 +398,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"smith": {
 			"file": "models/smith.5a991d2b.glb",
@@ -407,7 +423,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"villager": {
 			"file": "models/villager.db6b742b.glb",
@@ -431,7 +448,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"watchman": {
 			"file": "models/watchman.e5e2211c.glb",
@@ -455,7 +473,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"wide-hat": {
 			"file": "models/wide-hat.e7c82a3f.glb",
@@ -479,7 +498,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"altar": {
 			"file": "models/altar.2ecddf68.glb",
@@ -503,7 +523,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"anvil": {
 			"file": "models/anvil.4639f8b7.glb",
@@ -527,7 +548,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"ashes": {
 			"file": "models/ashes.b165f2fb.glb",
@@ -551,7 +573,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"barrel": {
 			"file": "models/barrel.6a621d91.glb",
@@ -575,7 +598,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"bed": {
 			"file": "models/bed.13798cf7.glb",
@@ -599,7 +623,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"belfry-bell": {
 			"file": "models/belfry-bell.65284073.glb",
@@ -627,7 +652,8 @@
 			"swing": {
 				"pivot": 2.55,
 				"throw": 0.5
-			}
+			},
+			"pack": "core"
 		},
 		"bell": {
 			"file": "models/bell.dcddd0a9.glb",
@@ -651,7 +677,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"boiler": {
 			"file": "models/boiler.95fa67e1.glb",
@@ -675,7 +702,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"bookshelf": {
 			"file": "models/bookshelf.7efb81b0.glb",
@@ -699,7 +727,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"brazier": {
 			"file": "models/brazier.2c1b49a3.glb",
@@ -723,7 +752,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"broken-bell": {
 			"file": "models/broken-bell.be590db4.glb",
@@ -747,7 +777,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"carvings": {
 			"file": "models/carvings.89ed8e26.glb",
@@ -771,7 +802,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"chains": {
 			"file": "models/chains.0669f14f.glb",
@@ -795,7 +827,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"chair": {
 			"file": "models/chair.c50bf515.glb",
@@ -819,7 +852,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"chest-open": {
 			"file": "models/chest-open.300da21d.glb",
@@ -843,7 +877,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"chest": {
 			"file": "models/chest.278a1d61.glb",
@@ -867,7 +902,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"coffin-open": {
 			"file": "models/coffin-open.d4228be9.glb",
@@ -891,7 +927,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"coffin": {
 			"file": "models/coffin.ae8a8aac.glb",
@@ -915,7 +952,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"crack": {
 			"file": "models/crack.c1567410.glb",
@@ -939,7 +977,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"crate": {
 			"file": "models/crate.19ff9d96.glb",
@@ -963,7 +1002,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"gear": {
 			"file": "models/gear.f2600d66.glb",
@@ -987,7 +1027,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"grate": {
 			"file": "models/grate.8203a03f.glb",
@@ -1011,7 +1052,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"gravestone": {
 			"file": "models/gravestone.a49a6555.glb",
@@ -1035,7 +1077,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"great-bell": {
 			"file": "models/great-bell.4883796b.glb",
@@ -1059,7 +1102,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"handbell": {
 			"file": "models/handbell.5d91fcc4.glb",
@@ -1083,7 +1127,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"hatch-open": {
 			"file": "models/hatch-open.bd866af8.glb",
@@ -1107,7 +1152,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"hatch": {
 			"file": "models/hatch.302693f1.glb",
@@ -1131,7 +1177,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"heart": {
 			"file": "models/heart.bcd49f98.glb",
@@ -1155,7 +1202,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"keys": {
 			"file": "models/keys.db12febb.glb",
@@ -1179,7 +1227,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"lever-down": {
 			"file": "models/lever-down.e1cf3285.glb",
@@ -1207,7 +1256,8 @@
 			"swing": {
 				"pivot": 0.22,
 				"throw": -1.5708
-			}
+			},
+			"pack": "core"
 		},
 		"lever": {
 			"file": "models/lever.57e39809.glb",
@@ -1235,7 +1285,8 @@
 			"swing": {
 				"pivot": 0.22,
 				"throw": 1.5708
-			}
+			},
+			"pack": "core"
 		},
 		"noticeboard": {
 			"file": "models/noticeboard.b002d876.glb",
@@ -1259,7 +1310,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"paper": {
 			"file": "models/paper.58e74404.glb",
@@ -1283,7 +1335,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"pew": {
 			"file": "models/pew.341ebe3e.glb",
@@ -1307,7 +1360,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"pillar": {
 			"file": "models/pillar.e718fd26.glb",
@@ -1331,7 +1385,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"rope": {
 			"file": "models/rope.726131ce.glb",
@@ -1355,7 +1410,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"rubble": {
 			"file": "models/rubble.a4106dba.glb",
@@ -1379,7 +1435,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"rug": {
 			"file": "models/rug.10079dfc.glb",
@@ -1403,7 +1460,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"sconce": {
 			"file": "models/sconce.5e41d518.glb",
@@ -1427,7 +1485,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"stairs": {
 			"file": "models/stairs.400b0c45.glb",
@@ -1451,7 +1510,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"statue": {
 			"file": "models/statue.7a42c58a.glb",
@@ -1475,7 +1535,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"stove": {
 			"file": "models/stove.f6a96a35.glb",
@@ -1499,7 +1560,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"strongbox": {
 			"file": "models/strongbox.f0f676a5.glb",
@@ -1523,7 +1585,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"table": {
 			"file": "models/table.3a6779b8.glb",
@@ -1547,7 +1610,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"tree": {
 			"file": "models/tree.a685b5e2.glb",
@@ -1571,7 +1635,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"water-lg": {
 			"file": "models/water-lg.dd0a2e6b.glb",
@@ -1595,7 +1660,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"water-sm": {
 			"file": "models/water-sm.b61cc84b.glb",
@@ -1619,7 +1685,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"water": {
 			"file": "models/water.423e338b.glb",
@@ -1643,7 +1710,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"well": {
 			"file": "models/well.bd05d56c.glb",
@@ -1667,7 +1735,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		}
 	},
 	"textures": {
@@ -1686,7 +1755,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"earth": {
 			"file": "textures/earth.7ddfc394.png",
@@ -1703,7 +1773,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"flagstones": {
 			"file": "textures/flagstones.a9be9fad.png",
@@ -1720,7 +1791,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"flesh": {
 			"file": "textures/flesh.f24c20fb.png",
@@ -1737,7 +1809,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grass": {
 			"file": "textures/grass.a62dc809.png",
@@ -1754,7 +1827,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"lens-dirt": {
 			"file": "textures/lens-dirt.e6438b1c.png",
@@ -1771,7 +1845,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"paint-gloss": {
 			"file": "textures/paint-gloss.3b79392c.png",
@@ -1788,7 +1863,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"paint-normal": {
 			"file": "textures/paint-normal.c002c2e1.png",
@@ -1805,7 +1881,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"planks": {
 			"file": "textures/planks.0b8541ad.png",
@@ -1822,7 +1899,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"rock": {
 			"file": "textures/rock.51df64a3.png",
@@ -1839,7 +1917,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"grade-cavern-day-agx": {
 			"file": "textures/grade-cavern-day-agx.015cbb43.png",
@@ -1856,7 +1935,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-dusk-agx": {
 			"file": "textures/grade-cavern-dusk-agx.78e80ab0.png",
@@ -1873,7 +1953,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-dark-agx": {
 			"file": "textures/grade-cavern-dark-agx.9994fac0.png",
@@ -1890,7 +1971,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-day-aces": {
 			"file": "textures/grade-cavern-day-aces.fce37880.png",
@@ -1907,7 +1989,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-dusk-aces": {
 			"file": "textures/grade-cavern-dusk-aces.bd3d1546.png",
@@ -1924,7 +2007,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-dark-aces": {
 			"file": "textures/grade-cavern-dark-aces.0e9947a9.png",
@@ -1941,7 +2025,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-day-neutral": {
 			"file": "textures/grade-cavern-day-neutral.b82b4d7a.png",
@@ -1958,7 +2043,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-dusk-neutral": {
 			"file": "textures/grade-cavern-dusk-neutral.7932a5af.png",
@@ -1975,7 +2061,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-cavern-dark-neutral": {
 			"file": "textures/grade-cavern-dark-neutral.18ac4a2d.png",
@@ -1992,7 +2079,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "cavern"
 		},
 		"grade-ghost-town-day-agx": {
 			"file": "textures/grade-ghost-town-day-agx.bc10e2ee.png",
@@ -2009,7 +2097,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-dusk-agx": {
 			"file": "textures/grade-ghost-town-dusk-agx.24e5daac.png",
@@ -2026,7 +2115,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-dark-agx": {
 			"file": "textures/grade-ghost-town-dark-agx.ff183382.png",
@@ -2043,7 +2133,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-day-aces": {
 			"file": "textures/grade-ghost-town-day-aces.a6cf23a0.png",
@@ -2060,7 +2151,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-dusk-aces": {
 			"file": "textures/grade-ghost-town-dusk-aces.48891263.png",
@@ -2077,7 +2169,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-dark-aces": {
 			"file": "textures/grade-ghost-town-dark-aces.abe211c7.png",
@@ -2094,7 +2187,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-day-neutral": {
 			"file": "textures/grade-ghost-town-day-neutral.98ada5ad.png",
@@ -2111,7 +2205,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-dusk-neutral": {
 			"file": "textures/grade-ghost-town-dusk-neutral.af379c54.png",
@@ -2128,7 +2223,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-ghost-town-dark-neutral": {
 			"file": "textures/grade-ghost-town-dark-neutral.785d7647.png",
@@ -2145,7 +2241,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "ghost-town"
 		},
 		"grade-living-cave-day-agx": {
 			"file": "textures/grade-living-cave-day-agx.2fca3773.png",
@@ -2162,7 +2259,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-dusk-agx": {
 			"file": "textures/grade-living-cave-dusk-agx.9b4bf782.png",
@@ -2179,7 +2277,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-dark-agx": {
 			"file": "textures/grade-living-cave-dark-agx.a5bf1be2.png",
@@ -2196,7 +2295,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-day-aces": {
 			"file": "textures/grade-living-cave-day-aces.60be480f.png",
@@ -2213,7 +2313,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-dusk-aces": {
 			"file": "textures/grade-living-cave-dusk-aces.c448222f.png",
@@ -2230,7 +2331,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-dark-aces": {
 			"file": "textures/grade-living-cave-dark-aces.3389fde6.png",
@@ -2247,7 +2349,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-day-neutral": {
 			"file": "textures/grade-living-cave-day-neutral.81638be1.png",
@@ -2264,7 +2367,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-dusk-neutral": {
 			"file": "textures/grade-living-cave-dusk-neutral.46108b74.png",
@@ -2281,7 +2385,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-living-cave-dark-neutral": {
 			"file": "textures/grade-living-cave-dark-neutral.789e8bc4.png",
@@ -2298,7 +2403,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "living-cave"
 		},
 		"grade-railcar-day-agx": {
 			"file": "textures/grade-railcar-day-agx.d3d771fc.png",
@@ -2315,7 +2421,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-dusk-agx": {
 			"file": "textures/grade-railcar-dusk-agx.613586b1.png",
@@ -2332,7 +2439,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-dark-agx": {
 			"file": "textures/grade-railcar-dark-agx.f2af981f.png",
@@ -2349,7 +2457,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-day-aces": {
 			"file": "textures/grade-railcar-day-aces.1c555de7.png",
@@ -2366,7 +2475,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-dusk-aces": {
 			"file": "textures/grade-railcar-dusk-aces.d994cba0.png",
@@ -2383,7 +2493,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-dark-aces": {
 			"file": "textures/grade-railcar-dark-aces.e9eb129f.png",
@@ -2400,7 +2511,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-day-neutral": {
 			"file": "textures/grade-railcar-day-neutral.e61b153c.png",
@@ -2417,7 +2529,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-dusk-neutral": {
 			"file": "textures/grade-railcar-dusk-neutral.82ccb62c.png",
@@ -2434,7 +2547,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-railcar-dark-neutral": {
 			"file": "textures/grade-railcar-dark-neutral.067372df.png",
@@ -2451,7 +2565,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "railcar"
 		},
 		"grade-stone-halls-day-agx": {
 			"file": "textures/grade-stone-halls-day-agx.0b274461.png",
@@ -2468,7 +2583,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dusk-agx": {
 			"file": "textures/grade-stone-halls-dusk-agx.3b04478c.png",
@@ -2485,7 +2601,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dark-agx": {
 			"file": "textures/grade-stone-halls-dark-agx.969e8a09.png",
@@ -2502,7 +2619,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-day-aces": {
 			"file": "textures/grade-stone-halls-day-aces.a1091e63.png",
@@ -2519,7 +2637,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dusk-aces": {
 			"file": "textures/grade-stone-halls-dusk-aces.b9ca8df3.png",
@@ -2536,7 +2655,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dark-aces": {
 			"file": "textures/grade-stone-halls-dark-aces.03495bc7.png",
@@ -2553,7 +2673,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-day-neutral": {
 			"file": "textures/grade-stone-halls-day-neutral.655f8afe.png",
@@ -2570,7 +2691,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dusk-neutral": {
 			"file": "textures/grade-stone-halls-dusk-neutral.2d9dab49.png",
@@ -2587,7 +2709,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dark-neutral": {
 			"file": "textures/grade-stone-halls-dark-neutral.fc9aaae9.png",
@@ -2604,7 +2727,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "stone-halls"
 		},
 		"grade-village-day-agx": {
 			"file": "textures/grade-village-day-agx.939d679b.png",
@@ -2621,7 +2745,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-dusk-agx": {
 			"file": "textures/grade-village-dusk-agx.b39349e6.png",
@@ -2638,7 +2763,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-dark-agx": {
 			"file": "textures/grade-village-dark-agx.a67b4c0b.png",
@@ -2655,7 +2781,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-day-aces": {
 			"file": "textures/grade-village-day-aces.1fe5a3ea.png",
@@ -2672,7 +2799,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-dusk-aces": {
 			"file": "textures/grade-village-dusk-aces.318bc694.png",
@@ -2689,7 +2817,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-dark-aces": {
 			"file": "textures/grade-village-dark-aces.87c4e354.png",
@@ -2706,7 +2835,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-day-neutral": {
 			"file": "textures/grade-village-day-neutral.0a96d136.png",
@@ -2723,7 +2853,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-dusk-neutral": {
 			"file": "textures/grade-village-dusk-neutral.3d2e65f0.png",
@@ -2740,7 +2871,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		},
 		"grade-village-dark-neutral": {
 			"file": "textures/grade-village-dark-neutral.eeecafb8.png",
@@ -2757,7 +2889,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "village"
 		}
 	},
 	"materials": {
@@ -3023,7 +3156,8 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		},
 		"bell-hand": {
 			"file": "audio/bell-hand.0af6d182.wav",
@@ -3034,10 +3168,40 @@
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
-			}
+			},
+			"pack": "core"
 		}
 	},
-	"packs": {},
+	"packs": {
+		"cavern": {
+			"bytes": 115531,
+			"gpuBytes": 1660249
+		},
+		"core": {
+			"bytes": 1365341,
+			"gpuBytes": 1970822
+		},
+		"ghost-town": {
+			"bytes": 104095,
+			"gpuBytes": 1572867
+		},
+		"living-cave": {
+			"bytes": 131576,
+			"gpuBytes": 1660249
+		},
+		"railcar": {
+			"bytes": 98116,
+			"gpuBytes": 1572867
+		},
+		"stone-halls": {
+			"bytes": 111223,
+			"gpuBytes": 1572867
+		},
+		"village": {
+			"bytes": 125996,
+			"gpuBytes": 1660249
+		}
+	},
 	"decoders": {
 		"basis": {
 			"dir": "decoders/basis-dc5e5d6a",
