@@ -1468,33 +1468,58 @@
 			}
 		},
 		"great-bell": {
-			"file": "models/great-bell.ee197d70.glb",
-			"sha256": "ee197d70a8089626d847740ef187b7634602fc6032f5f0e50d1e8f7d03bb991f",
-			"bytes": 29992,
+			"file": "models/great-bell.d7bbac6d.glb",
+			"sha256": "d7bbac6dd2740ace862cc16370fb17447a4c39aaba56aff79e97f1c34270cac8",
+			"bytes": 1732904,
 			"kind": "prop",
-			"triangles": 932,
+			"triangles": 22708,
 			"bounds": {
 				"min": [
-					-1.45,
+					-1.55,
 					0,
-					-1.425
+					-1.45
 				],
 				"max": [
-					1.45,
-					4.35,
-					1.425
+					1.55,
+					4.55,
+					1.45
 				]
 			},
-			"gpuBytes": 27522,
+			"gpuBytes": 4181106,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core",
+			"swing": {
+				"pivot": 3.85,
+				"throw": 0.3
+			},
+			"lods": [
+				{
+					"triangles": 11354,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 3405,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"setPiece": true,
+			"pack": "cavern",
+			"preview": {
+				"file": "previews/great-bell.063caa3f.glb",
+				"sha256": "063caa3f82821d64c6bc73af04f7c51410c1a7bfcae0d451015ffb505c34ac7d",
+				"bytes": 30932,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
-				"file": "thumbs/great-bell.8b201f7d.png",
-				"sha256": "8b201f7d59ea8c5aa16391ac324aa21b9247c9a7859f9f214891621ac0910ef3",
-				"bytes": 48604,
+				"file": "thumbs/great-bell.34ba21ba.png",
+				"sha256": "34ba21baec10d850a705323271e7def4ef73352fe668985c6cda91326dd4af68",
+				"bytes": 56188,
 				"credit": {
 					"license": "LicenseRef-thirdfold-original",
 					"author": "thirdfold contributors"
@@ -4386,12 +4411,12 @@
 	},
 	"packs": {
 		"cavern": {
-			"bytes": 115531,
-			"gpuBytes": 1660249
+			"bytes": 1879367,
+			"gpuBytes": 5841355
 		},
 		"core": {
-			"bytes": 4242284,
-			"gpuBytes": 9749516
+			"bytes": 4212292,
+			"gpuBytes": 9721994
 		},
 		"ghost-town": {
 			"bytes": 104095,

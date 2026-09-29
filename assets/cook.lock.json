@@ -48,6 +48,16 @@
 		"stylise": 1
 	},
 	"entries": {
+		"prop/great-bell": {
+			"sources": {
+				"great-bell.glb": "71914ec5aeef622b60d2e893d646932d58c12c77d557eb8b98892ee9afe6c0af",
+				"meta.json": "b58d570b18498f926ef4e82eadb7b05137337de8e6b8eecca725eb5cd752c63f"
+			},
+			"outputs": {
+				"models/prop/great-bell.glb": "d7bbac6dd2740ace862cc16370fb17447a4c39aaba56aff79e97f1c34270cac8",
+				"models/prop/great-bell.meta.json": "bc1ec09ac40bcf8fd706523e0d289e0673a225c6618cdd15fb65df16b2761d7b"
+			}
+		},
 		"surfaces/ashlar": {
 			"sources": {
 				"meta.json": "6a4389a24f60c055e73b56529643ff8e0d38ccd966dee1b9f11051370b266ce2"

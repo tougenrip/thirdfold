@@ -12,6 +12,7 @@ import path from 'node:path';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { LIMITS } from '../../src/lib/assets/manifest';
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
 import { audioInfo, encodeWav, renderBell } from './audio';
 import { checkGlb, writeGlb } from './glb';
@@ -65,7 +66,7 @@ describe('The adventures’ assets', () => {
 		for (const [file, data] of again.files) expect(data.equals(built.files.get(file)!)).toBe(true);
 		for (const file of built.files.keys()) {
 			expect(file).toMatch(
-				/^((models|textures|audio|thumbs)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|ktx2|wav)|decoders\/basis-[0-9a-f]{8}\/basis_transcoder\.(js|wasm))$/
+				/^((models|previews|textures|audio|thumbs)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|ktx2|wav)|decoders\/basis-[0-9a-f]{8}\/basis_transcoder\.(js|wasm))$/
 			);
 		}
 	});
@@ -102,6 +103,23 @@ describe('The adventures’ assets', () => {
 		const warden = built.manifest.models.warden;
 		const figure = await checkGlb(built.files.get(warden.file)!);
 		expect(figure.ok && figure.info.meshes).toEqual(['body', 'accent']);
+	});
+
+	it('take the cooked great bell (the pilot, #196) with its LODs, swing, credit and preview', async () => {
+		const bell = built.manifest.models['great-bell'];
+		expect(bell).toMatchObject({
+			cooked: true,
+			setPiece: true,
+			pack: 'cavern',
+			swing: { pivot: 3.85, throw: 0.3 },
+			credit: { license: 'LicenseRef-thirdfold-original' },
+			preview: { file: expect.stringMatching(/^previews\/great-bell\./) }
+		});
+		expect(bell.lods?.map((l) => l.screenSize)).toEqual([0.25, 0.1]);
+		const checked = await checkGlb(built.files.get(bell.file)!, LIMITS.setPiece);
+		expect(checked.ok && checked.info.meshes).toEqual(
+			expect.arrayContaining(['body', 'swing', 'body_lod1', 'swing_lod2'])
+		);
 	});
 
 	it('load in three.js as plain geometry, colours and all', async () => {

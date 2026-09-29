@@ -377,6 +377,10 @@ seen from far off and close up.
 - **Review** on the turntable under the four lights, then in its table at the close and
   overview camera, by the reviewer. Two rounds of changes are included.
 
+Until it is commissioned, the pilot is made in house (`LicenseRef-thirdfold-original`) by
+`scripts/make-bell-art.ts`: the same meshes, pivot, maps and export shape, procedural rather than
+sculpted, with a 512² ORM (its occlusion, roughness and metal change slowly) to spare the download.
+
 ### Brief B: a stone-halls wall (the first kit piece, #263)
 
 A straight monastery wall of dressed stone, one cell edge long, the first piece of a kit.

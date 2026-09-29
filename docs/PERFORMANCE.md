@@ -616,3 +616,25 @@ Each environment alone is 56–68 kB to download and 683–789 kB on the GPU. Ev
 4% of the mobile download budget at M64, and under 15% with #190's baked models: the part-list
 models and 128 px textures are small. The budgets start to bite with the cooked models and
 surface sets (#186, #187). Record the totals here again at each milestone.
+
+### The great bell, the first cooked model (#196)
+
+The pilot (`scripts/make-bell-art.ts`, cooked from `art/prop/great-bell/`): a set piece of 22,708
+triangles at LOD0 (body 8,180, swing 14,528), 11,354 at LOD1 and 3,405 at LOD2, meshopt-encoded,
+with one texture set: 1024² albedo (ETC1S, 100 kB), 1024² normal (UASTC + Zstd, 844 kB), 512² ORM
+(UASTC + Zstd, 229 kB) and a 256² emissive rim mask (1 kB). Its part list is the preview.
+
+| What                        | Before (part list) | The pilot                             |
+| --------------------------- | ------------------ | ------------------------------------- |
+| Model file                  | 29 kB              | 1,692 kB, plus the 30 kB preview      |
+| GPU bytes (`gpuBytes`)      | 27 kB              | 4.0 MB (3 compressed maps + geometry) |
+| hollow-bell/hollow download | 653 kB             | 2,917 kB (with the 571 kB transcoder) |
+| hollow-bell/hollow GPU      | 1,313 kB           | 5,370 kB (desktop and mobile alike)   |
+
+The Hollow stays well inside its budgets (49% of mobile's 6 MB download, 7% of its 80 MB GPU). The
+normal map is most of the file: UASTC is 8 bits a texel before Zstd, so a 1024² normal map costs
+about as much as the rest together; the ORM is painted at 512², which quarters it with no visible
+loss (occlusion, roughness and metal change slowly). On the RTX 4060 Laptop the cooked bell is ready
+160–300 ms after its request goes out from a local dev server (download, meshopt decode, KTX2
+transcode and upload together; WebGL2 and WebGPU alike); the shader stages stay the same when it
+replaces its preview on both backends. The iGPU figures are still to be taken.
