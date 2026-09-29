@@ -32,6 +32,7 @@ import {
 	liftOf,
 	setParams,
 	TINT_ATTRIBUTE,
+	withBake,
 	type KindMaterial,
 	type MaterialOptions
 } from './materials';
@@ -82,7 +83,7 @@ interface AssetMeshes {
 
 export class PropLayer {
 	readonly group = new THREE.Group();
-	private placeholder = new THREE.BoxGeometry(1, 1, 1);
+	private placeholder = withBake(new THREE.BoxGeometry(1, 1, 1));
 	/**
 	 * Models: their colours are vertex colours. One material for every asset (#172), and one per
 	 * textured part in the same variant, so a textured model compiles nothing new.

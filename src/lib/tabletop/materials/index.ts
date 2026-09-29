@@ -13,6 +13,7 @@ import * as THREE from 'three/webgpu';
 import { SLOT_NAMES, slotDefault, slotProperty, type SlotName } from './defaults';
 import { LIFT_ATTRIBUTE } from './variation';
 import {
+	BAKE_ATTRIBUTE,
 	graphFor,
 	KINDS,
 	PARAM_DEFAULTS,
@@ -22,7 +23,7 @@ import {
 	type ShaderKind
 } from './kinds';
 
-export { SHADER_KINDS, KINDS, TINT_ATTRIBUTE, worldTime } from './kinds';
+export { BAKE_ATTRIBUTE, SHADER_KINDS, KINDS, TINT_ATTRIBUTE, worldTime } from './kinds';
 export { LIFT_ATTRIBUTE } from './variation';
 export { liftOf } from './lift';
 export { repeatFor } from './tiling';
@@ -122,7 +123,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		lift: 0,
 		macroScale: 0,
 		macroTint: 0,
-		macroRoughness: 0
+		macroRoughness: 0,
+		bake: 0
 	};
 	setParams(material, { ...PARAM_DEFAULTS, ...def.defaults, ...options.params });
 	for (const slot of lines ? [] : SLOT_NAMES)
@@ -203,4 +205,17 @@ export function addInstanceTints(geometry: THREE.BufferGeometry, count: number):
 		LIFT_ATTRIBUTE,
 		new THREE.InstancedBufferAttribute(new Float32Array(count), 1)
 	);
+}
+
+/**
+ * Gives a geometry the bake props and minis read (`BAKE_ATTRIBUTE`) when it has none: open to the
+ * sky and flat, so it shades as before and draws with the same program as a baked model.
+ */
+export function withBake<G extends THREE.BufferGeometry>(geometry: G): G {
+	if (geometry.getAttribute(BAKE_ATTRIBUTE)) return geometry;
+	const count = geometry.getAttribute('position').count;
+	const bake = new Float32Array(count * 2);
+	for (let i = 0; i < count; i++) bake.set([1, 0.5], i * 2);
+	geometry.setAttribute(BAKE_ATTRIBUTE, new THREE.BufferAttribute(bake, 2));
+	return geometry;
 }

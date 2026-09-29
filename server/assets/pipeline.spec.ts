@@ -264,7 +264,7 @@ describe('the pipeline on other sources', () => {
 		);
 		expect((await buildAssets(src)).manifest.models.golem).toMatchObject({
 			kind: 'npc',
-			triangles: 12
+			triangles: 44 // a chamfered box (#190)
 		});
 		const length = glb.readUInt32LE(12);
 		const text = glb

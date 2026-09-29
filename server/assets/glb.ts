@@ -28,6 +28,8 @@ export interface MeshData {
 	normals: Float32Array | null;
 	/** Linear RGB per vertex (0..1), or none (white). */
 	colors: Float32Array | null;
+	/** Baked occlusion and convexity per vertex (bake.ts), two bytes each, written as `_BAKE`. */
+	bake?: Uint8Array;
 	indices: Uint16Array | Uint32Array;
 }
 
@@ -35,6 +37,7 @@ const MAGIC = 0x46546c67; // 'glTF'
 const JSON_CHUNK = 0x4e4f534a; // 'JSON'
 const BIN_CHUNK = 0x004e4942; // 'BIN\0'
 const FLOAT = 5126;
+const UNSIGNED_BYTE = 5121;
 const UNSIGNED_SHORT = 5123;
 const UNSIGNED_INT = 5125;
 const ARRAY_BUFFER = 34962;
@@ -44,15 +47,22 @@ const pad4 = (n: number) => (n + 3) & ~3;
 
 /** A GLB holding these meshes, each on its own node. */
 export function writeGlb(meshes: readonly MeshData[]): Buffer {
-	const views: { buffer: 0; byteOffset: number; byteLength: number; target: number }[] = [];
+	const views: {
+		buffer: 0;
+		byteOffset: number;
+		byteLength: number;
+		byteStride?: number;
+		target: number;
+	}[] = [];
 	const accessors: Record<string, unknown>[] = [];
 	const chunks: Buffer[] = [];
 	let offset = 0;
-	const add = (data: ArrayBufferView, target: number): number => {
+	const add = (data: ArrayBufferView, target: number, byteStride?: number): number => {
 		const bytes = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 		const length = pad4(bytes.length);
 		chunks.push(Buffer.concat([bytes, Buffer.alloc(length - bytes.length)]));
-		views.push({ buffer: 0, byteOffset: offset, byteLength: bytes.length, target });
+		const stride = byteStride ? { byteStride } : {};
+		views.push({ buffer: 0, byteOffset: offset, byteLength: bytes.length, ...stride, target });
 		offset += length;
 		return views.length - 1;
 	};
@@ -100,6 +110,19 @@ export function writeGlb(meshes: readonly MeshData[]): Buffer {
 				type: 'VEC4'
 			});
 			attributes.COLOR_0 = accessors.length - 1;
+		}
+		if (m.bake) {
+			// Two bytes a vertex in a stride of four: glTF aligns each vertex's attribute to 4 bytes.
+			const padded = new Uint8Array(count * 4);
+			for (let i = 0; i < count; i++) padded.set(m.bake.subarray(i * 2, i * 2 + 2), i * 4);
+			accessors.push({
+				bufferView: add(padded, ARRAY_BUFFER, 4),
+				componentType: UNSIGNED_BYTE,
+				normalized: true,
+				count,
+				type: 'VEC2'
+			});
+			attributes._BAKE = accessors.length - 1;
 		}
 		accessors.push({
 			bufferView: add(m.indices, ELEMENT_ARRAY_BUFFER),

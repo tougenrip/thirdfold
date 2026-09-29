@@ -62,7 +62,7 @@ function rgb(hex: string): [number, number, number] {
 }
 
 /** A small seeded random source (mulberry32). */
-function random(seed: number): () => number {
+export function random(seed: number): () => number {
 	let a = seed >>> 0;
 	return () => {
 		a = (a + 0x6d2b79f5) >>> 0;

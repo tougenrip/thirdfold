@@ -6,7 +6,13 @@
 // paint maps load, when the first painted graph is built (#178), and they are the same for all.
 
 import * as THREE from 'three/webgpu';
-import { addInstanceTints, createMaterial, SHADER_KINDS, type MaterialOptions } from './index';
+import {
+	addInstanceTints,
+	createMaterial,
+	SHADER_KINDS,
+	withBake,
+	type MaterialOptions
+} from './index';
 import type { ShaderKind } from './kinds';
 
 /** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181). */
@@ -18,9 +24,9 @@ function variantsOf(kind: ShaderKind): MaterialOptions[] {
 	return out.flatMap((v) => [v, { ...v, instanced: true }]);
 }
 
-/** A box with every attribute a kind may read: normals, uv and vertex colours. */
+/** A box with every attribute a kind may read: normals, uv, vertex colours and the bake. */
 function geometryFor(options: MaterialOptions): THREE.BufferGeometry {
-	const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+	const geometry = withBake(new THREE.BoxGeometry(0.01, 0.01, 0.01));
 	if (options.vertexColors) {
 		const count = geometry.getAttribute('position').count;
 		geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));

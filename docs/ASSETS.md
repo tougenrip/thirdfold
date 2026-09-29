@@ -89,6 +89,28 @@ The pipeline merges the parts into at most three meshes: `body`, `swing` and `ac
 baked in as vertex colours. The client draws each prop model with one instanced draw call however
 many parts it has, plus one more if it swings.
 
+Each part is built at its own size, so its edges catch the light (#190, `models.ts`, `bake.ts`):
+
+- **Bevels.** Boxes, cylinders and cones get chamfered edges 8% of their least side wide, 0.004
+  to 0.04 cells and never over a quarter of it, built after sizing so a long part's chamfer is
+  as wide as a short one's. A box is 44 triangles, a cylinder 144, a cone 72; spheres are as
+  before. A point on a chamfer takes the normal of the face it lies on, so faces stay flat and
+  the chamfers shade smoothly between them. The normals are written into the GLB.
+- **Baked occlusion.** Every vertex casts 32 rays (cosine-weighted, the same for every vertex,
+  from a fixed seed) up to half a cell, against the model's own parts and the floor at y = 0.
+  The share that meet nothing is its occlusion: dark in the corners where parts meet and where
+  the model touches the floor.
+- **Convexity** per vertex: 0.5 flat, above it an edge, below it a hollow, for the painted
+  minis' drybrush (#267).
+- Both are written as `_BAKE` (VEC2, normalised unsigned bytes, in a 4-byte stride). The client
+  reads it as `aBake`, and the prop and mini kinds multiply their ambient occlusion by its
+  occlusion, times the `bake` param (1): indirect light only, so a torch is never darkened. A
+  model without `_BAKE` (a cooked or provided GLB) and the placeholders get a constant, open and
+  flat (`withBake`), so every prop and mini draws with the same program.
+- The whole library builds in about 9 s (6.5 s before), and part-list triangles went from
+  25,848 to 37,660 in all (see PERFORMANCE.md). Two builds give the same bytes; changing a ray
+  count, reach or the seed changes them, so `npm run assets -- --check` asks for a rebuild.
+
 A `.glb` made in a modelling tool, or cooked (#186), works too. Its meshes, and the nodes that carry
 them, are named `body`, `swing` or `accent`, with `_lod1` or `_lod2` for coarser levels of detail;
 it may have materials with KTX2 textures and meshopt-compressed geometry, and nothing else (see
@@ -193,8 +215,8 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
       until the checker can decode it, and no `KHR_texture_transform` until the client honours it;
     - no skins, animations, cameras or morph targets; at most 256 nodes, 16 deep, as a tree;
     - meshes, and their nodes, named `body`, `swing` or `accent`, optionally `_lod1` or `_lod2`;
-    - attributes POSITION, NORMAL, TANGENT, TEXCOORD_0 (the only uv set), COLOR_0 and `_BAKE`, each in the formats
-      its semantic allows (quantised integers only with `KHR_mesh_quantization`), in triangles,
+    - attributes POSITION, NORMAL, TANGENT, TEXCOORD_0 (the only uv set), COLOR_0 and `_BAKE`
+      (VEC2 normalised unsigned bytes, see Models from parts), each in the formats its semantic allows (quantised integers only with `KHR_mesh_quantization`), in triangles,
       with unsigned indices;
     - every accessor inside its buffer view, every view inside its buffer, and all the accessors
       together, and what meshopt says it will decode to, each at most the class's GPU bytes, summed
