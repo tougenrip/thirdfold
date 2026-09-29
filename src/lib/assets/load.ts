@@ -7,10 +7,11 @@
 // checked against the manifest's whole SHA-256 before anything decodes it,
 // and refused if it differs: the manifest itself always comes with the page.
 // Checking needs a secure context (crypto.subtle); a page without one (plain
-// http on a LAN) loads everything from its own origin.
+// http on a LAN) loads everything from its own origin, and so do the native
+// shells, which carry the files with them and must work offline.
 
 import { base } from '$app/paths';
-import { forPlatform } from '$lib/api';
+import { forPlatform, isNativeShell } from '$lib/api';
 import { ASSET_FILE_PATTERN, EMPTY_MANIFEST, type Manifest } from './manifest';
 import { parseManifest } from './manifest-parse';
 
@@ -21,8 +22,10 @@ export function assetUrl(file: string): string {
 	return `${base}/assets/${file}`;
 }
 
-/** The asset host, without a trailing slash; empty for the page's own origin. */
-const ASSET_BASE = forPlatform(import.meta.env.VITE_ASSET_BASE_URL ?? '').replace(/\/+$/, '');
+/** The asset host, without a trailing slash; empty for the page's own origin (always in a shell). */
+const ASSET_BASE = isNativeShell()
+	? ''
+	: forPlatform(import.meta.env.VITE_ASSET_BASE_URL ?? '').replace(/\/+$/, '');
 
 export function loadManifest(): Promise<Manifest> {
 	manifest ??= fetch(assetUrl('manifest.json'))

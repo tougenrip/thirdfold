@@ -19,6 +19,7 @@ import { bakeModel, readModelSource } from './models';
 import { buildAssets, staleAssets, writeAssets, type BuiltAssets } from './pipeline';
 import { encodePng, pngSize } from './png';
 import { checkScenes } from './scenes';
+import { LOCK_FILE, lockOf, lockText } from './store';
 import { NEUTRAL, readGrades, renderGrade, stripProblem } from './grades';
 import { readTextureSource, renderTexture } from './textures';
 
@@ -34,6 +35,10 @@ describe('The adventures’ assets', () => {
 	it('are built and committed: static/assets is exactly what assets/ builds', () => {
 		// Run `npm run assets` after changing anything in assets/.
 		expect(staleAssets(path.join('static', 'assets'), built)).toEqual([]);
+	});
+
+	it('are locked: assets/assets.lock.json is every hosted file’s SHA-256', () => {
+		expect(readFileSync(LOCK_FILE, 'utf8')).toBe(lockText(lockOf(built.files)));
 	});
 
 	it('cover every table, figure and prop the story uses', () => {

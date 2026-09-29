@@ -7,7 +7,9 @@ Hollow Bell is the reference: every prop, figure, place and bell it uses comes t
 
 ```bash
 npm run assets          # build assets/ into static/assets/ (commit both)
-npm run assets:check    # fail if static/assets/ isn't what assets/ builds (a test checks this too)
+npm run assets:check    # fail if static/assets/ or the lock isn't what assets/ builds (a test checks this too)
+npm run assets:publish  # upload new built files to the asset store (see "The asset store")
+npm run assets:pull     # download built files missing here from the asset store
 ```
 
 Build with Node 22, as CI does (`npx -y node@22 node_modules/tsx/dist/cli.mjs server/assets/build.ts`
@@ -347,3 +349,52 @@ own output, so such a manifest never builds.
   filters) when they have none (`defaults.ts`; `docs/RENDERING.md`, "Materials and world
   visibility").
 - **Sounds:** load when audio starts (the first click).
+
+## The asset store
+
+Built files can be served from a public Supabase Storage bucket instead of with the page (#191),
+by their content-hashed names, so a file never changes under its name and a browser caches it for
+good. The manifest and the decoders always ship with the page: the manifest is what the client
+checks everything else against, and the decoders are code.
+
+- **The bucket:** `assets`, made by `supabase/migrations/20260929124252_asset_bucket.sql` (and by
+  `[storage.buckets.assets]` in `supabase/config.toml` locally). Public to read, at
+  `<project>/storage/v1/object/public/assets/<file>`; no insert, update or delete policy, so only
+  the service key writes. Only the asset types (`.glb`, `.png`, `.ktx2`, `.wav`, `.ogg`), up to
+  16 MB each.
+- **The lock:** `assets/assets.lock.json` maps every hosted file (`ASSET_FILE_PATTERN`) to its
+  SHA-256. `npm run assets` writes it; `assets:check` and `pipeline.spec.ts` fail when it isn't
+  what the sources build.
+- **Publishing:** `npm run assets:publish` (`server/assets/store.ts`, with `SUPABASE_URL` and
+  `SUPABASE_SERVICE_KEY`) checks every file in `static/assets/` against the lock, then uploads the
+  ones the bucket lacks with `Cache-Control: max-age=31536000`, never replacing one. Run it after
+  `npm run assets` on `main`, before deploying a build that points at the bucket.
+- **Pulling:** `npm run assets:pull` (with `ASSET_STORE_URL`, the bucket's public URL) downloads
+  every locked file missing from `static/assets/`, checked against the lock before it is written,
+  and fails on a local file that differs. It restores a checkout without the binaries.
+- **The client:** `VITE_ASSET_BASE_URL=<project>/storage/v1/object/public/assets` at build time.
+  `fetchAsset` checks every file from there against the manifest's SHA-256 (see "At the table").
+- **Native shells:** the Tauri and Capacitor apps always load assets from their own origin
+  (`isNativeShell` in `src/lib/api.ts`), whatever `VITE_ASSET_BASE_URL` says. They bundle `build/`,
+  so every file ships with them and a KTX2 model loads offline. Every file is the core pack for
+  now (about 2.5 MB). Pruning the bundle to a smaller core pack waits for a textured library big
+  enough to need it.
+- **Tests:** `store.spec.ts` checks the lock, publishing and pulling against a fake Storage API,
+  and, with `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `SUPABASE_ANON_KEY` set, against a local
+  Supabase: a publish once, the year-long cache header, a pull, and the browser key refused a
+  write. The CI `supabase` job starts storage and runs it.
+
+### Moving binaries out of git
+
+`static/assets/` is still committed until the hosted project exists. Every source is text today,
+so `npm run assets` rebuilds every binary. The switch is one commit:
+
+1. `.gitignore`: add `/static/assets/*` and `!/static/assets/manifest.json`, then
+   `git rm -r --cached static/assets` and `git add static/assets/manifest.json`.
+2. `package.json`: add `"predev"`, `"pretest"` and `"prebuild"`, each `npm run assets` (or
+   `npm run assets:pull` once some binary source lives only in the bucket). CI's `npm test` and
+   `npm run build` then rebuild the files before `pipeline.spec.ts` compares them.
+3. A workflow on pushes to `main` with the hosted `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` as
+   secrets of that job only: `npm ci`, `npm run assets`, `npm run assets:publish`.
+4. The web deploy builds with `VITE_ASSET_BASE_URL` set to the bucket's public URL. The shells
+   need nothing.

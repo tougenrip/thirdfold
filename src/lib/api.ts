@@ -8,14 +8,19 @@ export function forPlatform(url: string): string {
 		: url;
 }
 
+/** Inside the Tauri or Capacitor app, which serve the page (and every asset) from their own origin. */
+export function isNativeShell(): boolean {
+	if (typeof window === 'undefined') return false;
+	return Capacitor.isNativePlatform() || '__TAURI_INTERNALS__' in window;
+}
+
 export const API_URL = forPlatform(import.meta.env.VITE_SUPABASE_URL ?? 'http://localhost:54321');
 
 // Defaults to port 8787 on whatever host served the page, so a LAN browser
 // reaches the dev machine's game server without extra config. Native shells
 // serve the app from their own origin, so they fall back to localhost.
 function defaultGameServerHost(): string {
-	if (typeof window === 'undefined' || Capacitor.isNativePlatform()) return 'localhost';
-	if ('__TAURI_INTERNALS__' in window) return 'localhost';
+	if (typeof window === 'undefined' || isNativeShell()) return 'localhost';
 	return window.location.hostname || 'localhost';
 }
 

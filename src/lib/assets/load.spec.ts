@@ -56,6 +56,14 @@ describe('fetchAsset', () => {
 		expect(digest).not.toHaveBeenCalled();
 	});
 
+	it('loads from its own origin inside a native shell, which carries the files offline', async () => {
+		vi.stubGlobal('window', { __TAURI_INTERNALS__: {} });
+		const { fetchAsset, fetch, digest } = await loader('https://cdn.example/assets');
+		await fetchAsset(FILE, 'not checked');
+		expect(fetch.mock.calls[0][0]).toBe(`/assets/${FILE}`);
+		expect(digest).not.toHaveBeenCalled();
+	});
+
 	it('refuses paths that are not built files', async () => {
 		const { fetchAsset, fetch } = await loader('');
 		await expect(fetchAsset('../secret.glb', SHA)).rejects.toThrow(/not an asset file/);
