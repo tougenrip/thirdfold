@@ -279,12 +279,13 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 	const views = [home, ...travel.map((v) => v.view)];
 	const models = new Set<string>(views.flatMap((v) => v.props.map((p) => p.assetId)));
 	for (const v of views) for (const k of v.tokens) if (k.model) models.add(k.model);
-	await Promise.all([...models].map((id) => loadModel(id)));
-	await Promise.all(ENVIRONMENTS.flatMap((e) => (e ? [loadEnvironment(e)] : [])));
 	const compile = vi.spyOn(THREE.WebGPURenderer.prototype, 'compileAsync');
 	const clock = manualClock();
 	const m = await mountFixture(home, sidecar.poses.overview, { clock, tier, reducedMotion });
 	mounted = m;
+	// Once the table is there: its renderer decodes the KTX2 files (models.ts).
+	await Promise.all([...models].map((id) => loadModel(id)));
+	await Promise.all(ENVIRONMENTS.flatMap((e) => (e ? [loadEnvironment(e)] : [])));
 	// Flames and mist still with motion on, so frames come only from the steps.
 	if (!reducedMotion) m.tabletop.setPowerSaver(true);
 	await drawn(m.tabletop, clock);
@@ -367,8 +368,6 @@ describe('the shader program count', () => {
 		]);
 		expect(changes).toEqual([]);
 	});
-
-	it.todo('stays put with a KTX2- and a PNG-textured material in one slot (#188)');
 
 	it('reports a material with a literal of its own, by step', async () => {
 		const { m, renderer, scene, clock } = await mountHome('medium');

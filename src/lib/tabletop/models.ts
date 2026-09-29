@@ -117,7 +117,8 @@ export function followDetail(use: (chunk: DetailChunk) => void, device = true): 
  */
 export function initModels(r: THREE.WebGPURenderer): void {
 	users++;
-	if (renderer && renderer !== r) freeAll();
+	// From none too: a load the last table left in flight may have failed its decoders since.
+	if (renderer !== r) freeAll();
 	renderer = r;
 }
 

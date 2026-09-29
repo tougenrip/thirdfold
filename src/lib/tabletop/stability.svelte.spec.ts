@@ -79,8 +79,12 @@ describe('the renderer, over time', () => {
 		};
 		const village = await load('village');
 		const hollow = await load('hollow');
-		// Environments' textures are kept once drawn, like models (#172): loaded first, so the
-		// first round trip draws both looks and fills that cache, whatever the loading takes.
+		const sidecar = await loadSidecar('village');
+		const m = await mountFixture(village, sidecar.poses.overview);
+		mounted.push(m);
+		const t = m.tabletop;
+		// Environments' textures are kept once drawn, like models (#172): loaded once the table is
+		// there (its renderer decodes the KTX2 files), so the first round trip draws both looks and fills that cache, whatever the loading takes.
 		await Promise.all(
 			[village, hollow].map((v) => v.environment && loadEnvironment(v.environment))
 		);
@@ -94,10 +98,6 @@ describe('the renderer, over time', () => {
 				])
 				.map((id) => loadModel(id))
 		);
-		const sidecar = await loadSidecar('village');
-		const m = await mountFixture(village, sidecar.poses.overview);
-		mounted.push(m);
-		const t = m.tabletop;
 		await settle(t);
 		const show = async (view: typeof village) => {
 			t.setGrid(view.grid);
