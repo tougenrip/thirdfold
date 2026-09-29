@@ -1,13 +1,14 @@
 // Builds the assets: `npm run assets` (writes static/assets), or
-// `npm run assets -- --check` (fails if static/assets isn't what the sources build).
+// `npm run assets -- --check` (fails if static/assets or the lock isn't what the sources build).
 // Also generates the prop catalogue's module and shipped list (catalog.ts).
 
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkCredits } from './licence';
 import { CATALOG_MODULE, SHIPPED_FILE, shippedText, staleCatalog } from './catalog';
 import { AssetError, buildAssets, staleAssets, writeAssets } from './pipeline';
 import { adventures, checkScenes, sceneReport } from './scenes';
+import { LOCK_FILE, lockOf, lockText } from './store';
 
 const SOURCES = 'assets';
 const OUT = path.join('static', 'assets');
@@ -43,6 +44,12 @@ try {
 	);
 	if (process.argv.includes('--check')) {
 		const stale = [...staleAssets(OUT, built), ...staleCatalog('.', SOURCES, built)];
+		if (
+			!existsSync(LOCK_FILE) ||
+			readFileSync(LOCK_FILE, 'utf8') !== lockText(lockOf(built.files))
+		) {
+			stale.push(`${LOCK_FILE} is out of date`);
+		}
 		if (stale.length) {
 			console.error(
 				`static/assets is out of date; run \`npm run assets\`:\n  ${stale.join('\n  ')}`
@@ -54,6 +61,7 @@ try {
 		const { written, removed } = writeAssets(OUT, built);
 		writeFileSync(CATALOG_MODULE, built.catalogModule);
 		writeFileSync(path.join(SOURCES, SHIPPED_FILE), shippedText(built.shipped));
+		writeFileSync(LOCK_FILE, lockText(lockOf(built.files)));
 		console.log(`Built ${summary}: ${written} written, ${removed} removed.`);
 	}
 } catch (err) {
