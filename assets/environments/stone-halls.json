@@ -3,5 +3,9 @@
 	"surface": "flagstones",
 	"ground": "monastery-stone",
 	"walls": "monastery-stone",
-	"table": "oak"
+	"table": "oak",
+	"surfaces": {
+		"floors": ["stone", "wood", "grass", "dirt", "sand"],
+		"walls": ["ashlar"]
+	}
 }

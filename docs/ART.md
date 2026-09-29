@@ -222,6 +222,20 @@ The floor and wall surfaces (#187) start from CC0 scans, repainted so they read 
 5. **Review** it on the turntable (section 14). A set that still reads as a photograph is refused,
    and another set or a stronger recipe is tried.
 
+The sets picked (all ambientCG, 2K PNG; each surface's `meta.json` has the URL and hash), awaiting
+the owner's review:
+
+| Surface | Set             | Why                                     |
+| ------- | --------------- | --------------------------------------- |
+| stone   | PavingStones131 | old medieval paving, deep joints        |
+| wood    | Planks039       | large rough medieval planks             |
+| grass   | Grass004        | dense short grass                       |
+| dirt    | Ground103       | old brown earth with stones             |
+| sand    | Ground080       | beach sand, soft ripples                |
+| plaster | Plaster003      | rough wall plaster                      |
+| ashlar  | Bricks100       | old beige stone blocks, recessed mortar |
+| planks  | Planks021       | raw rough wall planks                   |
+
 ## 12. Sources and licences
 
 The allowlist, as SPDX ids. `LICENSES` in `src/lib/assets/manifest.ts` is exactly this list;

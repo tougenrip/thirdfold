@@ -32,8 +32,125 @@
 				"enableRDO": true,
 				"rdoQualityLevel": 0.5,
 				"needSupercompression": true
+			},
+			"surfaceNormal": {
+				"isUASTC": true,
+				"enableRDO": true,
+				"rdoQualityLevel": 3,
+				"needSupercompression": true
+			},
+			"surfaceOrm": {
+				"isUASTC": false,
+				"qualityLevel": 128,
+				"compressionLevel": 2
+			}
+		},
+		"stylise": 1
+	},
+	"entries": {
+		"surfaces/ashlar": {
+			"sources": {
+				"meta.json": "6a4389a24f60c055e73b56529643ff8e0d38ccd966dee1b9f11051370b266ce2"
+			},
+			"outputs": {
+				"textures/surface-ashlar-albedo.ktx2": "3eeb14f2d4a15b12aa0d2d978cb7d4b888b17665b86539dcce40207e53134c5a",
+				"textures/surface-ashlar-albedo.meta.json": "b51945128659b7678de8b3c3261593ccd21897d44e3476fc30eb2ac19b33c9e6",
+				"textures/surface-ashlar-normal.ktx2": "3f6974f7e7d844e2b1959eb3d71f1479dcab10af766ed50050c38b3054f4f420",
+				"textures/surface-ashlar-normal.meta.json": "a296054b8a889e1fdc944a4acf1438291cb7fc2c9378bf929f64f1872920760f",
+				"textures/surface-ashlar-orm.ktx2": "95924ff44ef276391e4c365e5ef62af9e83fe90ab1eeab0c999a1d708999c505",
+				"textures/surface-ashlar-orm.meta.json": "c4ad13c81587b34eecb5ee6aeb3d9390db6c5a0fffcb19a4ef8f3c2d6c8d2c6a"
+			}
+		},
+		"surfaces/dirt": {
+			"sources": {
+				"meta.json": "f3e60f33e56ff8e64916cf6b0d3225ecba2da001907537ad3d002e706cbe95ac"
+			},
+			"outputs": {
+				"textures/surface-dirt-albedo.ktx2": "1b744125aa728303ff8bf1bfcd8ef0709e5c655684f999f5a8dca18a2369fb51",
+				"textures/surface-dirt-albedo.meta.json": "a1bb788f97d16334f1c9177dfd7ef14c725a05039e7ee0e343e50a85457ddadf",
+				"textures/surface-dirt-normal.ktx2": "b964309fe302d30439ea2a1a882a09b7365ca0feb027664b41f2768f4276064d",
+				"textures/surface-dirt-normal.meta.json": "8b3febd722cfa3fac9476c59d63e05d0f5e8873b1feba4f604969bc9c4b0be20",
+				"textures/surface-dirt-orm.ktx2": "806436ac7c085c81da112d0c73333848522bfb09626f1af229118155120e81b4",
+				"textures/surface-dirt-orm.meta.json": "c67fa026ecbe0f219f911dc77a0e387db6577d61bb3564bd1684ea9d4d2802c7"
+			}
+		},
+		"surfaces/grass": {
+			"sources": {
+				"meta.json": "9f107ffb58cf7ec73447369b511811094b41a691375d290e95565c64cc2030a5"
+			},
+			"outputs": {
+				"textures/surface-grass-albedo.ktx2": "f0ca01723681828693e00c5d6682ab9dfe21d64ea0ef32e9ddc4c58877934c94",
+				"textures/surface-grass-albedo.meta.json": "95ed431b5ecf3177f899a88d6bfdaca7248e1435ed34f8394b7212d07ebc3be7",
+				"textures/surface-grass-normal.ktx2": "4e11e7fca93029f2e3559cf6f8e4b010a99fea890f162b26a719614b4b7df098",
+				"textures/surface-grass-normal.meta.json": "881e72427bf28102930332def47e2ea723d1756dd87c4999611a2799369d7ef1",
+				"textures/surface-grass-orm.ktx2": "74c7db74f58ae3a5080054752663428fc2420351e095300d426d63d6cfce3c28",
+				"textures/surface-grass-orm.meta.json": "e8ec1dab0d71c54069a7c38cc7dc6bbb46808088be8527da81870be48d68e5b4"
+			}
+		},
+		"surfaces/planks": {
+			"sources": {
+				"meta.json": "1c1497116e49a8e7a993b334c86cf6136d34556102874ece95efa9a803723866"
+			},
+			"outputs": {
+				"textures/surface-planks-albedo.ktx2": "e7d2f2e8b281fad08e0e7b389e9440f6383c698a9b8a2416bb20631b1964d526",
+				"textures/surface-planks-albedo.meta.json": "4d6aec22028cc7f2c728a30c227c56c17f95f434f24783d130b1900f39ba01bd",
+				"textures/surface-planks-normal.ktx2": "45ba23bc8c14ad74c7ae3e9ec7d9e3e30f3b3b605f16332bfdfb2666b4835e67",
+				"textures/surface-planks-normal.meta.json": "efed2acd3ef14599e3c7cac243f46d6043bfcd25c210f42f9f7c897fc5901ab2",
+				"textures/surface-planks-orm.ktx2": "f5a1986b6f5280971d857d801656f37afa70aaac833079d171b87edcba9c18e9",
+				"textures/surface-planks-orm.meta.json": "2ef14ca36123a6bfabdb5b7351998ededad8f09b48d0071aaebd77fdc5af6569"
+			}
+		},
+		"surfaces/plaster": {
+			"sources": {
+				"meta.json": "3cdcc55a2b50fb5d73ad644e841387319d1e2e9e1df14d38f563efad47b317a7"
+			},
+			"outputs": {
+				"textures/surface-plaster-albedo.ktx2": "01235b4fd5a4a44ea6bda0f5d0e5e84953bc40d93a59b25ac4aa3ab94c6df177",
+				"textures/surface-plaster-albedo.meta.json": "cbec084e7687e41d8c9fa827f91ea3dc87c9d2fbb8fcd064ee6a984781784a7f",
+				"textures/surface-plaster-normal.ktx2": "14644e1d93a1f95b24bca176c4a3c68f0f6b30cf12e8b0030318e6b637c82dbc",
+				"textures/surface-plaster-normal.meta.json": "25c2e1d3efe336beb6699959d7de361d44d8e9b5fc0c0344aeb5c8af364462ef",
+				"textures/surface-plaster-orm.ktx2": "4fa6df3899ac6c0614b07afb79d7f3adcdd669fa71c2b7fc5c45fb7eadec6aa5",
+				"textures/surface-plaster-orm.meta.json": "d540519a8b19227a14ad65079f02a708363b122988ff504f35f8d9f5877ff19f"
+			}
+		},
+		"surfaces/sand": {
+			"sources": {
+				"meta.json": "3add7048e29ccf21d9e55f7efac2c9ecb2bf9972088da62226f0db218cacac8e"
+			},
+			"outputs": {
+				"textures/surface-sand-albedo.ktx2": "2f192c108ceacfee1e3379f2e7e399daa9bad031319acd44efa9b64277ac4aec",
+				"textures/surface-sand-albedo.meta.json": "fe5b929dc5795c1a41ba211bf43d70789ee7c05398de113f6f8444f0b7a17b46",
+				"textures/surface-sand-normal.ktx2": "bc5e24e653b2c1bedf30871be609d5acd601267bfdf45c24f7a2e7bb31e7fd7d",
+				"textures/surface-sand-normal.meta.json": "4ccef755a26174bb6f2a61de2be76895de0d27d060e2cd83ce3d043013ad0e63",
+				"textures/surface-sand-orm.ktx2": "e4a26a1d13c5615a1121c7a791a1e02256924770a9a8920b1215d4902317174f",
+				"textures/surface-sand-orm.meta.json": "6a689491b565921e6ccb1449d4dbc1a769f0d3a573030754954ae6e77f1362d4"
+			}
+		},
+		"surfaces/stone": {
+			"sources": {
+				"meta.json": "7f9b6c36d3a7b70df4a9fe39283a0228c4be4d5974a425b44a841b3ba0eddacc"
+			},
+			"outputs": {
+				"textures/surface-stone-albedo.ktx2": "832969308298c2196cc7ca6724dd31bfb3fe5657aa3f86645981c3b36ad0f77e",
+				"textures/surface-stone-albedo.meta.json": "68467249c15004aee8d475f708d8381021830b4fa65d871a16a3697ad3995aca",
+				"textures/surface-stone-normal.ktx2": "67a0587e7ceda4c8723e0a5556ae16b16eff59d64731feebbe6e28173a6030d6",
+				"textures/surface-stone-normal.meta.json": "9cc47ee558f00bf17cb115bedcce7c56f5e1841da20aaf59396ca015b31845bd",
+				"textures/surface-stone-orm.ktx2": "dbb0dae58ddde247d5568719129826d91ffe1d2277bc29362e2a261cc15ae79e",
+				"textures/surface-stone-orm.meta.json": "6f0b680004c61c2b97165abe4367d018c4ebd2f57b9227ad857bd1afd3219744"
+			}
+		},
+		"surfaces/wood": {
+			"sources": {
+				"meta.json": "cd93148dedaa1a1eddde0d0ae824bab45957b7e9440a3c915c5e57b15ab0e7b1"
+			},
+			"outputs": {
+				"textures/surface-wood-albedo.ktx2": "3ab2cd992ac498ec144362408b504ec14d7f97be2669eabc43d1e45aaaa6ddc7",
+				"textures/surface-wood-albedo.meta.json": "098cafc3694698d6bc5533f0cc0df43fcd1f74695852a571a3e6f6e3ae1d2ca8",
+				"textures/surface-wood-normal.ktx2": "1342bd41c694e707cd1caeacdc8acdc6aab6924d20786d522192d557de17f657",
+				"textures/surface-wood-normal.meta.json": "d727bc1ceb12b3918118446163956dfc78342a7c84eb38dec39a52f1d36752d0",
+				"textures/surface-wood-orm.ktx2": "3f4b21772d385907351d7a2fa73ba25c7db4edfc0d32fc72fc6ffcb83dd63b51",
+				"textures/surface-wood-orm.meta.json": "cc6be47bf57389f6dafc33d5e6471a83f3c4c257f4516440a190a6a46abc8da5"
 			}
 		}
-	},
-	"entries": {}
+	}
 }

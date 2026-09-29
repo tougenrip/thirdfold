@@ -40,3 +40,9 @@ src/**/__screenshots__/*
 
 # Private reference shots for look metrics (scripts/look-metrics.mjs); never commit them
 .look-refs/
+
+# The surface library's CC0 source sets (scripts/fetch-surfaces.mjs): only their meta.json (and a
+# hand-painted touchup.png) are kept; the cooked KTX2 files are in assets/textures
+/art/surfaces/*/*
+!/art/surfaces/*/meta.json
+!/art/surfaces/*/touchup.png

@@ -21,6 +21,10 @@ import { fetchAsset, loadManifest } from '$lib/assets/load';
 import { imageTexture } from './image-texture';
 import { ktx2Texture, slotTexture } from './models';
 import { setParams, setSlot, type KindMaterial } from './materials';
+import type { FloorSurfaces } from './materials/floors';
+
+/** What the surface chunk (#187, surfaces.ts) frees when the environment's textures go. */
+export const releasers = new Set<() => void>();
 
 /** One surface: its colour and finish, and its texture with how many cells one repeat covers. */
 export interface Look {
@@ -29,6 +33,9 @@ export interface Look {
 	metalness: number;
 	map: THREE.Texture | null;
 	cells: number;
+	/** A painted surface's (#187) normal and ORM maps. */
+	normal?: THREE.Texture | null;
+	orm?: THREE.Texture | null;
 }
 
 export interface EnvironmentLook {
@@ -36,6 +43,8 @@ export interface EnvironmentLook {
 	ground: Look;
 	walls: Look;
 	table: Look;
+	/** The floors' painted surfaces (#187), or null while an environment has none. */
+	floors: FloorSurfaces | null;
 	/** 32³ RGBA lookup tables (x red, y green, z blue); null when the environment has no grade. */
 	grades: Grades | null;
 }
@@ -131,17 +140,20 @@ export function releaseEnvironmentTextures(): void {
 		textures.delete(id);
 	}
 	transcoded.clear();
+	for (const release of releasers) release();
 }
 
-/** A texture, once for the page (KTX2 ones once per device). Its sampling is the albedo slot's. */
-function loadTexture(id: string, entry: TextureEntry): Promise<THREE.Texture | null> {
+/** A texture, once for the page (KTX2 ones once per device), sampled as the slot of its usage. */
+export function loadTexture(id: string, entry: TextureEntry): Promise<THREE.Texture | null> {
 	let loading = textures.get(id);
 	if (!loading) {
 		if (entry.format === 'ktx2') transcoded.add(id);
 		loading = fetchAsset(entry.file, entry.sha256)
 			.then((bytes) => (entry.format === 'ktx2' ? ktx2Texture(bytes) : imageTexture(bytes)))
-			// The albedo slot's sampling, and the tier's anisotropy (#179).
-			.then((t) => slotTexture(t, 'albedo'))
+			// Its slot's sampling, and the tier's anisotropy (#179).
+			.then((t) =>
+				slotTexture(t, entry.usage === 'normal' || entry.usage === 'orm' ? entry.usage : 'albedo')
+			)
 			.catch((err: Error) => {
 				console.warn(`[assets] texture "${id}" failed to load:`, err.message);
 				return null;
@@ -173,15 +185,19 @@ export async function loadEnvironment(
 	const manifest = await loadManifest();
 	const env = manifest.environments[id];
 	if (!env) return null;
-	const [[surface, ground, walls, table], grades] = await Promise.all([
+	const { surfaces: painted } = env;
+	const [[surface, ground, walls, table], grades, own] = await Promise.all([
 		Promise.all(
 			[env.surface, env.ground, env.walls, env.table ?? env.surface].map((m) =>
 				look(manifest.materials[m], manifest.textures)
 			)
 		),
-		env.lut ? gradesOf(id, env.lut, manifest.textures, toneMapper) : null
+		env.lut ? gradesOf(id, env.lut, manifest.textures, toneMapper) : null,
+		// Its painted surfaces (#187), from a chunk only tables that have them load.
+		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null
 	]);
-	return { surface, ground, walls, table, grades };
+	if (own?.walls) Object.assign(walls, own.walls);
+	return { surface, ground, walls, table, floors: own?.floors ?? null, grades };
 }
 
 /**
@@ -198,4 +214,6 @@ export function wear(
 	const { color, roughness, metalness } = look ?? { ...plain, metalness: 0 };
 	setParams(material, { color, roughness, metalness });
 	setSlot(material, 'albedo', look?.map ?? null);
+	setSlot(material, 'normal', look?.normal ?? null);
+	setSlot(material, 'orm', look?.orm ?? null);
 }

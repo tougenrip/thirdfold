@@ -3,5 +3,9 @@
 	"surface": "flesh",
 	"ground": "flesh",
 	"walls": "sinew",
-	"table": "oak"
+	"table": "oak",
+	"surfaces": {
+		"floors": ["stone", "wood", "grass", "dirt", "sand"],
+		"walls": []
+	}
 }

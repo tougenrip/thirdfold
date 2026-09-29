@@ -9,7 +9,8 @@
 // - `slotSample`: samples with #179's mip bias (`mipBias`, a uniform: 0 but on high with TRAA).
 // - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis (paint.ts).
 // - `ownAlbedo`, `ownOutput`: #172's per-surface colour (floors and height on the terrain kind,
-//   each mini's colour) and the mini's screen-door see-through for a GM-hidden token.
+//   each mini's colour; the floors' painted surfaces, floors.ts, #187) and the mini's
+//   screen-door see-through for a GM-hidden token.
 
 import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
@@ -17,6 +18,7 @@ import { FLOOR_IDS } from '../../game/floor';
 import { cellUniforms, groundTexel } from '../cell-maps';
 import { FLOOR_LOOKS } from '../floor-looks';
 import type { SlotName } from './defaults';
+import type { FloorSurface } from './floors';
 import { slotDefault, slotProperty } from './defaults';
 import type { ShaderKind, Variant } from './kinds';
 import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
@@ -95,9 +97,10 @@ const loose = (node: unknown) => node as N;
  * The terrain kind's albedo from the ground map (#172), as terrain.ts and floor.ts drew it with
  * instance colours and a plane: on the table, the floors over the textured surface at their cover
  * (plain covers nothing, the void everything); a raised cell's texture in its floor's colour (or
- * the look's), paler with height, less so where painted.
+ * the look's), paler with height, less so where painted. A floor with a painted surface (#187,
+ * floors.ts) is that surface, all of it, a little paler with height.
  */
-export function groundColour(texel: N, colour: N): N {
+export function groundColour(texel: N, colour: N, floor: FloorSurface | null = null): N {
 	const g = loose(groundTexel);
 	const entry = loose(floorPalette).element(g.x.mul(255).add(0.5).toInt());
 	const level = g.y.mul(255);
@@ -106,7 +109,13 @@ export function groundColour(texel: N, colour: N): N {
 	const high = tsl.mix(colour, tsl.vec3(1), HIGHER);
 	const k = level.div(loose(cellUniforms.maxLevel)).mul(painted.select(0.4, 1));
 	const raised = texel.mul(tsl.mix(painted.select(entry.xyz, colour), high, k.saturate()));
-	return level.greaterThan(0.5).select(raised, flat);
+	if (!floor) return level.greaterThan(0.5).select(raised, flat);
+	const surface = floor.albedo.xyz;
+	const paler = tsl.mix(surface, tsl.vec3(1), k.saturate().mul(HIGHER));
+	return floor.has.select(
+		level.greaterThan(0.5).select(paler, surface),
+		level.greaterThan(0.5).select(raised, flat)
+	);
 }
 
 const WHITE = new THREE.Color(0xffffff);
@@ -129,8 +138,8 @@ export const miniOpacity = T.uniform(1).onObjectUpdate(
  * A kind's albedo from its sampled albedo slot and its colour: the ground's on terrain, and times
  * the mini's own colour on minis (#172).
  */
-export function ownAlbedo(kind: ShaderKind, albedo: N, colour: N): N {
-	if (kind === 'terrain') return tsl.vec4(groundColour(albedo.xyz, colour), albedo.w);
+export function ownAlbedo(kind: ShaderKind, albedo: N, colour: N, floor: FloorSurface | null): N {
+	if (kind === 'terrain') return tsl.vec4(groundColour(albedo.xyz, colour, floor), albedo.w);
 	return albedo.mul(tsl.vec4(kind === 'mini' ? colour.mul(loose(miniColour)) : colour, 1));
 }
 

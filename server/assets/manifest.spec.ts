@@ -125,7 +125,8 @@ describe('manifest v2', () => {
 				thumbnail: file('thumbs/table.abcdef01.png'),
 				materials: ['flesh']
 			});
-			(m as Record<string, unknown>).surfaces = {
+			m.surfaces = {
+				...m.surfaces,
 				stone: { albedo: 'grass', normal: 'paint-normal', orm: 'lens-dirt' }
 			};
 			Object.assign(m.textures['lens-dirt'], { usage: 'orm', colorSpace: 'linear' });

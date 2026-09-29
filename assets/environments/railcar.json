@@ -3,5 +3,9 @@
 	"surface": "railcar-floor",
 	"ground": "rail-ballast",
 	"walls": "railcar-wall",
-	"table": "oak"
+	"table": "oak",
+	"surfaces": {
+		"floors": ["stone", "wood", "grass", "dirt", "sand"],
+		"walls": ["planks"]
+	}
 }

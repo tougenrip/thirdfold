@@ -3,5 +3,9 @@
 	"surface": "desert",
 	"ground": "rail-ballast",
 	"walls": "weathered-wood",
-	"table": "oak"
+	"table": "oak",
+	"surfaces": {
+		"floors": ["stone", "wood", "grass", "dirt", "sand"],
+		"walls": ["planks"]
+	}
 }

@@ -7,7 +7,7 @@ import {
 	type TextureEntry
 } from '../../src/lib/assets/manifest';
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
-import { checkScenes, overBudget, TABLE_BUDGETS, tableBudget } from './scenes';
+import { checkScenes, overBudget, SURFACE_FLOORS, TABLE_BUDGETS, tableBudget } from './scenes';
 
 const MB = 1024 * 1024;
 const credit = { license: 'LicenseRef-thirdfold-original', author: 'us' } as const;
@@ -114,6 +114,14 @@ describe('checkScenes', () => {
 		expect(checkScenes(m).filter((p) => p.startsWith('example: '))).toContainEqual(
 			expect.stringContaining('no npc model "villager"')
 		);
+	});
+
+	it('gives every environment a surface for each floor a GM can paint (#187)', () => {
+		for (const env of Object.values(shipped.manifest.environments))
+			expect(env.surfaces?.floors).toEqual(expect.arrayContaining(SURFACE_FLOORS));
+		const m = structuredClone(shipped.manifest);
+		m.environments.village.surfaces!.floors = ['stone'];
+		expect(checkScenes(m)).toContainEqual('environment village: no surface for the wood floor');
 	});
 
 	it('fails a table over budget, naming the adventure, location and number', () => {

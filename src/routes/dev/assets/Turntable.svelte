@@ -24,6 +24,7 @@
 	let manifest = $state<Manifest | null>(null);
 	let query = $state('');
 	let id = $state<string | null>(thumb);
+	let surface = $state<string | null>(null);
 	let lod = $state(0);
 	let preview = $state(false);
 	let light = $state<LightPreset>('day');
@@ -52,10 +53,18 @@
 		void turntable?.dispose();
 	});
 
+	// A surface picked (#187): show it on a floor and a wall, under the same lights.
+	$effect(() => {
+		const [t, want] = [turntable, surface];
+		if (!t || !want) return;
+		failed = false;
+		shown = null;
+		void t.showSurface(want).then((ok) => want === surface && (failed = !ok));
+	});
 	// A model, level or preview picked: show it.
 	$effect(() => {
 		const t = turntable;
-		if (!t || !id) return;
+		if (!t || !id || surface) return;
 		const [want, level, lighter] = [id, lod, preview];
 		failed = false;
 		void t.show(want, level, lighter).then((s) => {
@@ -84,6 +93,7 @@
 	}
 
 	function pick(next: string): void {
+		surface = null;
 		id = next;
 		lod = 0;
 		preview = false;
@@ -114,11 +124,16 @@
 					</li>
 				{/each}
 			</ul>
-			<p class="muted">
-				Surfaces: {manifest && Object.keys(manifest.surfaces).length
-					? Object.keys(manifest.surfaces).join(', ')
-					: 'none in the manifest yet (#187)'}
-			</p>
+			<h2>Surfaces</h2>
+			<ul class="models">
+				{#each Object.keys(manifest?.surfaces ?? {}) as sid (sid)}
+					<li>
+						<button class:on={sid === surface} onclick={() => (surface = sid)}>{sid}</button>
+					</li>
+				{:else}
+					<li class="muted">none in the manifest</li>
+				{/each}
+			</ul>
 		</aside>
 	{/if}
 	<div class="stage" style:--size={thumb ? `${size}px` : null}>
@@ -143,7 +158,23 @@
 			</label>
 			<label><input type="checkbox" bind:checked={spin} /> Spin (never under reduced motion)</label>
 			<p class="muted">Drag to orbit, wheel to zoom, ← → to turn the model.</p>
-			{#if entry}
+			{#if surface && manifest}
+				<h2>{surface}</h2>
+				<p class="muted">One repeat per two cells; the wall is 2.0 u tall.</p>
+				<dl>
+					{#each Object.entries(manifest.surfaces[surface]) as [map, tid] (map)}
+						{@const t = manifest.textures[tid]}
+						<dt>{map}</dt>
+						<dd>{t.width}×{t.height} {t.format}, {kb(t.bytes)}, {mb(t.gpuBytes)} on the GPU</dd>
+					{/each}
+					<dt>Licence</dt>
+					<dd>
+						{manifest.textures[manifest.surfaces[surface].albedo].credit.license},
+						{manifest.textures[manifest.surfaces[surface].albedo].credit.author}
+					</dd>
+				</dl>
+				{#if failed}<p class="danger">It failed to load (see the console).</p>{/if}
+			{:else if entry}
 				<h2>{id}</h2>
 				<dl>
 					<dt>Kind</dt>
@@ -193,7 +224,8 @@
 			{#if stats}
 				<p class="muted">
 					{stats.backend}{stats.compat ? ' (compat)' : ''}, tier {stats.tier} · {stats.drawCalls} draws,
-					{stats.triangles} triangles · textures {mb(stats.texturesBytes)} · {stats.adapter ?? ''}
+					{stats.triangles} triangles · {stats.programs} programs · textures
+					{mb(stats.texturesBytes)} · {stats.adapter ?? ''}
 				</p>
 				<p class="muted">?backend=webgl and ?tier=low…ultra switch them.</p>
 			{/if}

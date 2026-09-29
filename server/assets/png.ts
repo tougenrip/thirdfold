@@ -77,9 +77,9 @@ export function pngSize(data: Buffer): { width: number; height: number } | null 
 const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 4: 2, 6: 4 };
 
 /**
- * A PNG as RGBA, 8 bits a channel: 8-bit grey, grey and alpha, RGB or RGBA, or 16-bit grey (a
- * height map; its high byte kept). Refuses anything else (palettes, interlacing, other depths),
- * so an artist exports one of these.
+ * A PNG as RGBA, 8 bits a channel: grey, grey and alpha, RGB or RGBA, 8 or 16 bits a channel (a
+ * scan's height or normal map; a 16-bit sample's high byte kept). Refuses anything else
+ * (palettes, interlacing, other depths), so an artist exports one of these.
  */
 export function decodePng(data: Uint8Array): { width: number; height: number; data: Uint8Array } {
 	const png = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
@@ -88,8 +88,8 @@ export function decodePng(data: Uint8Array): { width: number; height: number; da
 	const { width, height } = size;
 	const [depth, type, , , interlace] = png.subarray(24, 29);
 	const channels = CHANNELS[type];
-	if (!channels || !(depth === 8 || (depth === 16 && type === 0)) || interlace !== 0) {
-		throw new Error('export 8-bit grey, RGB or RGBA (or 16-bit grey), not interlaced');
+	if (!channels || !(depth === 8 || depth === 16) || interlace !== 0) {
+		throw new Error('export 8- or 16-bit grey, RGB or RGBA, not interlaced');
 	}
 	if (width < 1 || height < 1 || width > 8192 || height > 8192) throw new Error('bad PNG size');
 	const idat: Buffer[] = [];

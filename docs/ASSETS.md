@@ -176,7 +176,9 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   covers. Each map must be a texture of its usage (`map` albedo).
 - **An environment** is `{ "name", "surface", "ground", "walls", "table" }`. Each field names a
   material, used for the floor, raised ground, walls and the table's rim. `table` is optional:
-  without it the rim wears the floor's look (#220 takes the rim away).
+  without it the rim wears the floor's look (#220 takes the rim away). `"surfaces": { "floors",
+"walls" }` lists its surfaces of the library (#187, below): the floors in layer order, and the
+  walls' (the walls wear the first).
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
 
@@ -213,10 +215,11 @@ Textured art needs encoders too slow for every build, so it goes through an offl
 export into cooked files in `assets/`, and `npm run assets` then only checks and hashes them like
 any other GLB or KTX2 source. Nothing cooks per pull request.
 
-| Art source                                                  | Cooked into                                            |
-| ----------------------------------------------------------- | ------------------------------------------------------ |
-| `art/<kind>/<id>/<id>.glb` + `meta.json` (a Blender export) | `assets/models/<kind>/<id>.glb` + `<id>.meta.json`     |
-| `art/texture/<id>/<id>.png` + `meta.json`                   | `assets/textures/<id>.ktx2` + `<id>.meta.json` (usage) |
+| Art source                                                  | Cooked into                                             |
+| ----------------------------------------------------------- | ------------------------------------------------------- |
+| `art/<kind>/<id>/<id>.glb` + `meta.json` (a Blender export) | `assets/models/<kind>/<id>.glb` + `<id>.meta.json`      |
+| `art/texture/<id>/<id>.png` + `meta.json`                   | `assets/textures/<id>.ktx2` + `<id>.meta.json` (usage)  |
+| `art/surfaces/<id>/meta.json` (a CC0 set, fetched)          | `assets/textures/surface-<id>-{albedo,normal,orm}.ktx2` |
 
 `meta.json` holds the `provenance` (required, docs/ART.md section 13, copied into the cooked
 meta), and optionally `swing`, `setPiece`, `textureSize` (the largest side; bigger maps are halved
@@ -237,8 +240,8 @@ docs/ART.md section 17. A model is cooked in this order:
 4. `meshopt` at level `medium` (quantised, `EXT_meshopt_compression`).
 5. Textures to KTX2 by the slots they fill, always with every mip level and power-of-two sides
    (the Khronos artist guide): albedo and emissive ETC1S (BasisLZ) with the sRGB transfer; normal
-   and ORM UASTC with RDO (λ 0.5) and Zstd, linear. PNGs are 8-bit grey, grey and alpha, RGB or
-   RGBA, or 16-bit grey (`decodePng`, `png.ts`).
+   and ORM UASTC with RDO (λ 0.5) and Zstd, linear. PNGs are grey, grey and alpha, RGB or RGBA,
+   8 or 16 bits a channel (a 16-bit sample's high byte kept; `decodePng`, `png.ts`).
 6. The result must pass `checkGlb` at its class's limits.
 
 The encoder is `ktx2-encoder` (Basis Universal as WASM, single-threaded, no native binary): the
@@ -260,6 +263,45 @@ by hand, cooks everything again on Linux and macOS and fails on any byte of diff
 
 Where `art/` and the cooked binaries are kept, and the upload, is #191; 1K variants for the mobile
 tier are #358.
+
+### The surface library (#187)
+
+Every floor a GM can paint with a look of its own (stone, wood, grass, dirt, sand: `SURFACE_FLOORS`
+in `scenes.ts`, a surface's id being its floor's; plain is the table's own, water is drawn as water,
+the void is nothing) and every wall surface the environments wear (plaster, ashlar, planks) is a
+painted surface, repainted from a CC0 scan (docs/ART.md section 11):
+
+1. `art/surfaces/<id>/meta.json` holds the set's `provenance` (`CC0-1.0`, the download's URL and
+   SHA-256 as its `source`, `modified: true`), its `ramp` (docs/ART.md "Surface ramps", which
+   `stylise.spec.ts` checks it against), `detail`, `normalBoost` and `textureSize` (512). Git keeps
+   only it (and an optional hand-painted `touchup.png`).
+2. `node scripts/fetch-surfaces.mjs` fetches each set from ambientCG or Poly Haven (no other host),
+   refuses one whose SHA-256 differs, and unzips its maps beside the meta (`--record` writes the
+   hash of a new set whose meta has all zeros). By hand only: CI never downloads.
+3. `npm run assets:cook` stylises it (`server/assets/stylise.ts`, deterministic: integer maths and
+   IEEE-exact floats only): colour softened, luminance stretched and half posterised through the
+   ramp with `detail` of the scan's own hue, cavities darker and cooler and edges lighter from a
+   difference of box blurs of the height, albedo in 30-240 with the height in alpha, roughness in
+   0.5-0.9 (cavities rougher) with the scan's occlusion, the normal softened and scaled by
+   `normalBoost` (from the height where a set has none), a 2:1 set stacked square, an optional
+   `touchup.png` laid over, and the albedo's seams compared (`seamError`: a set that no longer
+   tiles fails). It encodes three KTX2 textures at 512 px, one repeat per two cells: the albedo
+   ETC1S sRGB, the normal UASTC with RDO λ 3 and Zstd, the ORM ETC1S linear (`surfaceNormal`,
+   `surfaceOrm` in `KTX2_SETTINGS`; about 350 kB a surface). The lock pins a set by its meta.json,
+   so `--check` passes where the scans aren't.
+4. `npm run assets` groups each surface's three textures into the manifest's `surfaces`
+   (`buildSurfaces` in `pipeline-textures.ts`: all three maps, square, one size, the usage their
+   name says) and checks every environment's lists name them; `checkScenes` fails an environment
+   with surfaces that lacks one for a paintable floor.
+
+At the table, `tabletop/surfaces.ts` (its own chunk, loaded only for an environment with surfaces)
+transcodes each floor surface's maps for the device and lays them layer by layer into one
+`CompressedArrayTexture` per map (a set whose formats differ is refused whole), and the terrain
+kind samples them (`materials/floors.ts`): global array nodes whose textures `wearFloors` swaps, a
+blank array standing in until they load, and each floor's layer from the ground map's floor byte,
+so every floor of a table is still one draw and nothing compiles when a table, a floor or its
+surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. The walls wear their
+surface's three maps in the wall material's slots.
 
 ## Rules the pipeline enforces
 
@@ -387,7 +429,9 @@ own output, so such a manifest never builds.
 
 `/dev/assets` (#194) shows any manifest model as the game draws it: the real renderer
 (`tabletop/turntable.ts` through `createTabletop`'s dev-only `devScene` hook), the prop or mini
-kind, a figure on its base, on a small plain table or any environment, under four lights: day,
+kind, a figure on its base, on a small plain table or any environment, or a surface of the library
+(#187) on a 3×3-cell floor and a 2.0 u wall, its table painted with it when it is a floor's (so an
+environment shows it through the terrain kind as the game does), under four lights: day,
 dusk, torch (the night with a torch a cell off the model) and moon (the night with a Moonlight
 light). Beside it: triangles per LOD with a level picker, the preview (#192) if there is one, its
 textures (KTX2 or RGBA), the texture memory its first load added, its licence, and the backend,
