@@ -9,6 +9,7 @@ import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import { wear, type EnvironmentLook } from './environment';
 import { STEP_HEIGHT } from './ground';
+import { wearFloors } from './materials/floors';
 import {
 	createMaterial,
 	disposeTwins,
@@ -60,6 +61,7 @@ export class TableLayer {
 		const cellSize = grid?.cellSize ?? 1;
 		wear(this.surfaceMaterial, look?.surface ?? null, PLAIN.surface);
 		wear(this.slabMaterial, look?.table ?? null, PLAIN.table);
+		wearFloors(look?.floors ?? null, cellSize); // the floors' surfaces (#187), the terrain kind's
 		const tile = (cells: number) => ({ repeat: repeatFor(cells, cellSize, STEP_HEIGHT) });
 		setParams(this.surfaceMaterial, tile(look?.surface.cells ?? 1));
 		// The rim's look was drawn a repeat per two world units.

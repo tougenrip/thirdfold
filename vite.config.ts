@@ -5,6 +5,21 @@ import type { BrowserContext } from 'playwright';
 import { ssimComparator } from './tests/visual/ssim.ts';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+/**
+ * The asset manifest's content hash, in its URL (assets/load.ts): the manifest is the one asset file
+ * at a fixed name, so without it a browser or host cache could hand a new client an old manifest.
+ */
+// Tests draw only the bases a checkout carries, whatever a local .env points the asset host at
+// (Vite keeps a variable already in the environment over the .env files).
+if (process.env.VITEST) process.env.VITE_ASSET_BASE_URL = '';
+
+const ASSET_MANIFEST = createHash('sha256')
+	.update(readFileSync('static/assets/manifest.json'))
+	.digest('hex')
+	.slice(0, 12);
 
 /**
  * Crashes the browser's GPU process: every page loses its WebGL context or WebGPU device, as after a
@@ -20,7 +35,9 @@ const crashGpu: BrowserCommand<[]> = async (ctx) => {
 function browser(args: string[], headless: boolean) {
 	return {
 		enabled: true,
-		provider: playwright({ launchOptions: { args } }),
+		// Playwright's 30 s default is short for a high-tier capture on CI's small runners since the
+		// textured assets (M65); the tests' own timeouts still bound every action.
+		provider: playwright({ launchOptions: { args }, actionTimeout: 90_000 }),
 		viewport: { width: 800, height: 500 },
 		// No tester UI around the test frame: it would scale the frame, and every screenshot, down.
 		ui: false,
@@ -89,18 +106,20 @@ export default defineConfig({
 			adapter: adapter({ fallback: 'index.html' }) // SPA mode for native shells
 		})
 	],
+	define: { __ASSET_MANIFEST__: JSON.stringify(ASSET_MANIFEST) },
 	build: {
 		rolldownOptions: {
 			output: {
 				// three.js always gets its own chunk, so a module shared by the eager
 				// pages and the lazy renderer never drags it into a page's static
 				// imports (see scripts/check-bundle.mjs). The Inspector (?perf&inspector)
-				// stays out of it, a chunk of its own fetched only when asked for.
+				// and the decoders cooked assets need (KTX2, meshopt; tabletop/decoders.ts)
+				// stay out of it, chunks of their own fetched only when asked for.
 				codeSplitting: {
 					groups: [
 						{
 							name: 'three',
-							test: /[\\/]node_modules[\\/]three[\\/](?!examples[\\/]jsm[\\/]inspector[\\/])/
+							test: /[\\/]node_modules[\\/]three[\\/](?!examples[\\/]jsm[\\/](inspector[\\/]|loaders[\\/]KTX2Loader|libs[\\/](ktx-parse|zstddec|meshopt_decoder)))/
 						}
 					]
 				}

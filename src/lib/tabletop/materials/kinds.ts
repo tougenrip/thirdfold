@@ -8,6 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
+import { floorSurface } from './floors';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
 import { LIFTED, VARIED, lifted, macroOf, macroRoughness, macroTint } from './variation';
@@ -81,6 +82,8 @@ export interface Params {
 	macroTint: number;
 	/** How far macro variation moves roughness, either way (0 off). */
 	macroRoughness: number;
+	/** Props and minis: how much of their baked occlusion (`BAKE_ATTRIBUTE`) shades their ambient light. */
+	bake: number;
 }
 
 /** What a caller may set: colours and vectors in any form three takes. */
@@ -109,7 +112,8 @@ export const PARAM_DEFAULTS: Required<ParamsInput> = {
 	lift: 1e-3,
 	macroScale: 0.08,
 	macroTint: 0,
-	macroRoughness: 0
+	macroRoughness: 0,
+	bake: 1
 };
 
 /** The tiled kinds' macro variation (#181): gentle, over about a dozen cells. */
@@ -167,6 +171,14 @@ export const worldTime = uniform(0);
 
 /** The name of the per-instance tint an instanced kind reads: rgb, and its strength in w. */
 export const TINT_ATTRIBUTE = 'aTint';
+
+/**
+ * The per-vertex bake props and minis read (#190): occlusion by the model's own parts and the
+ * floor, and convexity (for #267). Every geometry drawn with those kinds has it (`withBake`), or
+ * the graph would differ and compile a program of its own.
+ */
+export const BAKE_ATTRIBUTE = 'aBake';
+const BAKED: readonly ShaderKind[] = ['prop', 'mini'];
 
 /** The node properties a kind sets on its materials. */
 export interface Graph {
@@ -229,8 +241,9 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	}
 	const flow = kind === 'water' ? param('flow', 'vec2').mul(time) : null;
 	const mapping = surfaceMapping(kind, variant, param('repeat', 'vec2'), flow);
+	const floor = kind === 'terrain' ? floorSurface(variant) : null;
 	const albedo = mapping.sample('albedo');
-	const orm = mapping.sample('orm');
+	const orm = floor ? floor.orm(mapping.sample('orm')) : mapping.sample('orm');
 	const glow = mapping
 		.sample('emissive')
 		.xyz.mul(param('emissive', 'color'))
@@ -259,7 +272,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				? lifted(param('lift', 'float'))
 				: null;
 	return {
-		colorNode: ownAlbedo(kind, albedo, colour),
+		colorNode: ownAlbedo(kind, albedo, colour, floor),
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
@@ -270,8 +283,11 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				macro ? macroRoughness(roughness, macro, param('macroRoughness', 'float')) : roughness
 			),
 			metalnessNode: tsl.max(param('metalness', 'float'), orm.z),
-			aoNode: orm.x,
-			normalNode: paintNormal(kind, mapping.normal()),
+			// Only indirect light takes ambient occlusion, so the bake never darkens a torch's.
+			aoNode: BAKED.includes(kind)
+				? orm.x.mul(tsl.mix(1, tsl.attribute(BAKE_ATTRIBUTE, 'vec2').x, param('bake', 'float')))
+				: orm.x,
+			normalNode: paintNormal(kind, floor ? floor.normal(mapping.normal()) : mapping.normal()),
 			emissiveNode: emissive,
 			clearcoatNode: def.base === 'physical' ? param('clearcoat', 'float') : null,
 			clearcoatRoughnessNode: def.base === 'physical' ? param('clearcoatRoughness', 'float') : null

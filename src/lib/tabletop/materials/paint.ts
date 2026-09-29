@@ -8,9 +8,9 @@
 // binding, not a program. How strongly the paint shows is uniforms, shared by every painted
 // material: tuning it (the low tier may set the strength to 0) compiles nothing.
 
-import * as THREE from 'three/webgpu';
 import { normalGeometry, positionGeometry, texture, uniform } from 'three/tsl';
-import { assetUrl, loadManifest } from '../../assets/load';
+import { fetchAsset, loadManifest } from '../../assets/load';
+import { imageTexture } from '../image-texture';
 import { blankTexture, prepareSlotTexture, SLOTS, type SlotSpec } from './defaults';
 import { derivativeFrame } from './mapping';
 import type { N } from './tsl';
@@ -49,8 +49,8 @@ export function loadPaint(): Promise<void> {
 			Object.values(maps).map(async ({ id, node }) => {
 				const entry = manifest.textures[id];
 				if (!entry) return;
-				const map = await new THREE.TextureLoader()
-					.loadAsync(assetUrl(entry.file))
+				const map = await fetchAsset(entry.file, entry.sha256)
+					.then(imageTexture)
 					.catch(() => null);
 				if (!map) return console.warn(`[assets] texture "${id}" failed to load`);
 				node.value = prepareSlotTexture(map, PAINT_SLOT);

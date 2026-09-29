@@ -1,1 +1,1 @@
-{ "recipe": "paint", "output": "gloss", "size": 256, "seed": 179, "scale": 8 }
+{ "recipe": "paint", "output": "gloss", "usage": "mask", "size": 256, "seed": 179, "scale": 8 }

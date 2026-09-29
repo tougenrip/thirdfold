@@ -61,7 +61,8 @@ import {
 } from 'three/tsl';
 import { fxaa } from 'three/examples/jsm/tsl/display/FXAANode.js';
 import { lut3D } from 'three/examples/jsm/tsl/display/Lut3DNode.js';
-import { LUT_SIZE, type Grades } from './environment';
+import { LUT_SIZE } from './environment';
+import type { Grades } from './grades-load';
 import { GradeBlend } from './grade';
 import { aoScale, buildAo, sizeAo, type AoNode } from './ao';
 import { morphological, temporal } from './antialias';

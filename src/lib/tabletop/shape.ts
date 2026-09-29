@@ -18,6 +18,7 @@ import {
 	type Caps,
 	type QualitySettings
 } from './quality';
+import { textureDetailFrom } from '$lib/assets/detail';
 
 export interface Shape {
 	antialias: boolean;
@@ -55,5 +56,6 @@ export function startingSettings(caps: Caps): QualitySettings {
 		caps.backend
 	);
 	const toneMapper = toneMapperFrom(search) ?? prefs.toneMapper;
-	return { ...settings, layers: layersFrom(search, settings.layers), toneMapper };
+	const textureDetail = textureDetailFrom(search) ?? settings.textureDetail;
+	return { ...settings, layers: layersFrom(search, settings.layers), toneMapper, textureDetail };
 }

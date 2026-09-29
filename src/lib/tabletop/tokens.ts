@@ -1,25 +1,23 @@
-// Token miniatures for the three.js view: builds one mini per token, diffs
-// incoming token state against what is on screen, and animates moves. The
-// logical position always comes from the Token; the tween is cosmetic. Minis
-// can also lie down (a fallen character) and show floating combat text. A
-// token with a model (a character, a villager, a hound) is drawn as that
-// figure once it has loaded (see models.ts); until then, and without one,
-// it is the plain miniature: a torso and a head in its colour.
+// Token miniatures for the three.js view: builds one mini per token, diffs incoming token state
+// against what is on screen, and animates moves. The logical position always comes from the Token;
+// the tween is cosmetic. Minis can also lie down (a fallen character) and show floating combat
+// text. A token with a model (a character, a villager, a hound) is drawn as that figure once it has
+// loaded (see models.ts); until then, and without one, it is the plain miniature: a torso and a
+// head in its colour.
 //
-// Minis are the mini kind (#172), three materials for every token: bases,
-// figure bodies (vertex colours) and the parts in the token's colour (accents
-// and the plain miniature). Each mesh carries its token's colour and how much
-// of it shows in `userData` (`miniColor`, `mini`), read per draw by the kind's
-// per-object uniforms (materials/hooks.ts), so a new token makes no material
-// and hiding one (a screen-door see-through for the GM) compiles nothing.
+// Minis are the mini kind (#172), three materials for every token: bases, figure bodies (vertex
+// colours) and the parts in the token's colour (accents and the plain miniature). Each mesh carries
+// its token's colour and how much of it shows in `userData` (`miniColor`, `mini`), read per draw by
+// the kind's per-object uniforms (materials/hooks.ts), so a new token makes no material and hiding
+// one (a screen-door see-through for the GM) compiles nothing.
 
 import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
-import { createMaterial } from './materials';
-import { loadModel, modelNow } from './models';
+import { createMaterial, withBake, type KindMaterial } from './materials';
+import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
 import type { OverlayLayer } from './overlay';
 import { standIn } from './warmup';
 
@@ -27,8 +25,9 @@ interface Entry {
 	root: THREE.Group;
 	/** Torso and head, or the model: tipped over when the character has fallen. */
 	figure: THREE.Group;
-	/** The model it is drawn as, or null for the plain miniature. */
+	/** The model it is drawn as, or null for the plain miniature; and what of it is drawn. */
 	model: string | null;
+	shows?: LoadedModel | null;
 	fallen: boolean;
 	/** Hidden from the players: the GM sees it see-through. */
 	hidden: boolean;
@@ -66,9 +65,9 @@ interface Float {
 }
 
 // Shared by every mini; sized for a 1-unit cell and scaled per grid.
-const baseGeometry = new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32);
-const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24);
-const headGeometry = new THREE.SphereGeometry(0.19, 24, 16);
+const baseGeometry = withBake(new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32));
+const bodyGeometry = withBake(new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24));
+const headGeometry = withBake(new THREE.SphereGeometry(0.19, 24, 16));
 const ringGeometry = new THREE.RingGeometry(0.47, 0.56, 48);
 
 function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite {
@@ -120,6 +119,8 @@ export class TokenLayer {
 		figure: createMaterial('mini', { vertexColors: true, params: { roughness: 0.6 } }),
 		coloured: createMaterial('mini')
 	};
+	/** A textured model part's own material (#188): its variant's, its maps in the slots. */
+	private readonly textured = new Map<ModelPart, KindMaterial>();
 	/** Whose turn it is in a fight: an arrow over that mini. */
 	private activeId: string | null = null;
 	private readonly marker = new THREE.Mesh(
@@ -332,7 +333,8 @@ export class TokenLayer {
 			disposeLabel(entry.label);
 		}
 		this.entries.clear();
-		for (const m of Object.values(this.materials)) m.dispose();
+		for (const m of [...Object.values(this.materials), ...this.textured.values()]) m.dispose();
+		this.textured.clear();
 		this.ring.removeFromParent();
 		this.marker.removeFromParent();
 		(this.ring.material as THREE.Material).dispose();
@@ -382,17 +384,21 @@ export class TokenLayer {
 		return entry;
 	}
 
-	/**
-	 * Draws the mini as `model` if it has loaded, else as the plain miniature (asking for
-	 * the model, and drawing it when it arrives if the token still wants it).
-	 */
+	/** Draws the mini as `model` if loaded, else as the plain miniature until `model` arrives. */
 	private dress(tokenId: string, entry: Entry, model: string | null): void {
 		entry.model = model;
 		entry.figure.clear();
-		const loaded = model ? modelNow(model) : null;
-		const add = (geometry: THREE.BufferGeometry, coloured: boolean, y: number) => {
+		const was = entry.shows;
+		const loaded = (entry.shows = model ? modelNow(model) : null);
+		// A preview nobody shows any more frees its textured materials (#192).
+		if (was?.preview && was !== loaded && ![...this.entries.values()].some((e) => e.shows === was))
+			for (const part of was.parts) {
+				this.textured.get(part)?.dispose();
+				this.textured.delete(part);
+			}
+		const add = (geo: THREE.BufferGeometry, coloured: boolean, y: number, part?: ModelPart) => {
 			const { figure, coloured: tinted } = this.materials;
-			const mesh = new THREE.Mesh(geometry, coloured ? tinted : figure);
+			const mesh = new THREE.Mesh(geo, this.materialOf(part) ?? (coloured ? tinted : figure));
 			mesh.userData.mini = entry.look;
 			if (coloured) mesh.userData.miniColor = entry.colour;
 			mesh.position.y = y;
@@ -402,19 +408,35 @@ export class TokenLayer {
 		};
 		if (loaded) {
 			// Figures stand on the base.
-			if (loaded.body) add(loaded.body, false, 0.08);
-			if (loaded.accent) add(loaded.accent, true, 0.08);
-			return;
+			for (const part of partsOf(loaded, 'body')) add(part.geometry, false, 0.08, part);
+			for (const part of partsOf(loaded, 'accent')) add(part.geometry, true, 0.08, part);
+		} else {
+			add(bodyGeometry, true, 0.08 + 0.31);
+			add(headGeometry, true, 0.08 + 0.62 + 0.14);
 		}
-		add(bodyGeometry, true, 0.08 + 0.31);
-		add(headGeometry, true, 0.08 + 0.62 + 0.14);
-		if (model && loaded === undefined) {
-			void loadModel(model).then((m) => {
-				if (!m || this.entries.get(tokenId) !== entry || entry.model !== model) return;
+		// Still coming (or only its preview is here): drawn again at each stage.
+		if (model && (loaded === undefined || loaded?.preview)) {
+			const redraw = () => {
+				const now = modelNow(model);
+				if (this.entries.get(tokenId) !== entry || entry.model !== model || now === entry.shows)
+					return;
 				this.dress(tokenId, entry, model);
 				this.onModel();
-			});
+			};
+			void loadModel(model, redraw).then(redraw);
 		}
+	}
+
+	/** A textured part's material, made once (figure bodies take their vertex colours too). */
+	private materialOf(part: ModelPart | undefined): KindMaterial | null {
+		if (!part?.maps) return null;
+		let material = this.textured.get(part);
+		if (!material) {
+			const vertexColors = part.role !== 'accent';
+			material = createMaterial('mini', { vertexColors, params: part.params, slots: part.maps });
+			this.textured.set(part, material);
+		}
+		return material;
 	}
 
 	private tickFloats(now: number): boolean {

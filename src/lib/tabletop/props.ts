@@ -31,9 +31,12 @@ import {
 	LIFT_ATTRIBUTE,
 	liftOf,
 	setParams,
-	TINT_ATTRIBUTE
+	TINT_ATTRIBUTE,
+	withBake,
+	type KindMaterial,
+	type MaterialOptions
 } from './materials';
-import { loadModel, modelNow, type LoadedModel } from './models';
+import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
 
 /** A placeholder's height and colour, until the model has loaded. */
 const PLACEHOLDER_HEIGHT = 0.5;
@@ -69,6 +72,8 @@ const GHOST = { color: new THREE.Color(0xb8c6e0), strength: 0.3 };
 
 interface AssetMeshes {
 	parts: { mesh: THREE.InstancedMesh; swings: boolean }[];
+	/** Materials of its own for textured parts (#188): the shared variant, its maps in the slots. */
+	materials: KindMaterial[];
 	/** Prop id for each instance index. */
 	owners: string[];
 	capacity: number;
@@ -78,9 +83,13 @@ interface AssetMeshes {
 
 export class PropLayer {
 	readonly group = new THREE.Group();
-	private placeholder = new THREE.BoxGeometry(1, 1, 1);
-	/** Models: their colours are vertex colours. One material for every asset (#172). */
-	private material = createMaterial('prop', { instanced: true, vertexColors: true });
+	private placeholder = withBake(new THREE.BoxGeometry(1, 1, 1));
+	/**
+	 * Models: their colours are vertex colours. One material for every asset (#172), and one per
+	 * textured part in the same variant, so a textured model compiles nothing new.
+	 */
+	private static readonly MODEL: MaterialOptions = { instanced: true, vertexColors: true };
+	private material = createMaterial('prop', PropLayer.MODEL);
 	private placeholderMaterial = createMaterial('prop', {
 		instanced: true,
 		params: { color: PLACEHOLDER, roughness: 0.9 }
@@ -188,7 +197,8 @@ export class PropLayer {
 		this.props = props;
 		this.last = { grid, ground };
 		// A thousandth of a cell at an `aLift` of 1 (#181).
-		for (const m of [this.material, this.placeholderMaterial])
+		const textured = [...this.meshes.values()].flatMap((m) => m.materials);
+		for (const m of [this.material, this.placeholderMaterial, ...textured])
 			setParams(m, { lift: 1e-3 * grid.cellSize });
 		const byAsset = new Map<AssetId, Prop[]>(ASSET_IDS.map((id) => [id, []]));
 		for (const p of props) byAsset.get(p.assetId)?.push(p);
@@ -302,17 +312,27 @@ export class PropLayer {
 		if (!meshes && count === 0) return null;
 		if (!this.requested.has(assetId)) {
 			this.requested.add(assetId);
-			void loadModel(assetId).then((model) => {
-				if (!model) return;
+			// Drawn again with its preview, if it has one, then with the model (or the box again).
+			const redraw = () => {
 				this.drop(assetId);
 				if (this.last) this.layout(this.props, this.last.grid, this.last.ground);
 				this.onModel();
-			});
+			};
+			void loadModel(assetId, redraw).then(redraw);
 		}
 		const model = modelNow(assetId) ?? null;
 		if (meshes && meshes.capacity >= count && meshes.model === model) return meshes;
 		this.drop(assetId);
 		const capacity = Math.max(8, Math.ceil(count * 1.5));
+		const materials: KindMaterial[] = [];
+		const materialOf = (part: ModelPart) => {
+			if (!part.maps) return this.material;
+			const lift = this.material.params.lift;
+			const params = { ...part.params, lift };
+			const own = createMaterial('prop', { ...PropLayer.MODEL, params, slots: part.maps });
+			materials.push(own);
+			return own;
+		};
 		const make = (shared: THREE.BufferGeometry, material: THREE.Material) => {
 			// A copy of its own, to carry this mesh's tints and lifts (#172, #181).
 			const geometry = shared.clone();
@@ -327,10 +347,12 @@ export class PropLayer {
 		};
 		const parts: AssetMeshes['parts'] = [];
 		if (model) {
-			if (model.body) parts.push({ mesh: make(model.body, this.material), swings: false });
-			if (model.swing) parts.push({ mesh: make(model.swing, this.material), swings: true });
+			// Drawn at its full level; choosing a coarser one by distance is #274's.
+			for (const role of ['body', 'swing'] as const)
+				for (const part of partsOf(model, role))
+					parts.push({ mesh: make(part.geometry, materialOf(part)), swings: role === 'swing' });
 		} else parts.push({ mesh: make(this.placeholder, this.placeholderMaterial), swings: false });
-		meshes = { capacity, owners: [], parts, model };
+		meshes = { capacity, owners: [], parts, materials, model };
 		this.meshes.set(assetId, meshes);
 		return meshes;
 	}
@@ -344,6 +366,7 @@ export class PropLayer {
 			mesh.geometry.dispose(); // its own copy
 			mesh.dispose();
 		}
+		for (const m of meshes.materials) m.dispose(); // not its maps: the model's (models.ts)
 		this.meshes.delete(assetId);
 	}
 

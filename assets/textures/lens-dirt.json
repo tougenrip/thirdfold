@@ -1,1 +1,8 @@
-{ "recipe": "noise", "size": 256, "colors": ["#080808", "#b4b4b4"], "seed": 160, "scale": 6 }
+{
+	"recipe": "noise",
+	"usage": "mask",
+	"size": 256,
+	"colors": ["#080808", "#b4b4b4"],
+	"seed": 160,
+	"scale": 6
+}

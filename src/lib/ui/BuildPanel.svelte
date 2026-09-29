@@ -32,7 +32,7 @@
 
 <script lang="ts">
 	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
-	import { ASSET_IDS, ASSETS } from '$lib/game/props';
+	import { ASSET_IDS, ASSETS, PROP_CATEGORIES } from '$lib/game/props';
 	import { FLOORS, type FloorId } from '$lib/game/floor';
 	import { MAX_LEVEL } from '$lib/game/terrain';
 	import { FLOOR_LOOKS } from '$lib/tabletop/floor-looks';
@@ -91,6 +91,11 @@
 
 	const BLOCKS_HINT = { none: 'walk over', movement: 'blocks movement', sight: 'blocks sight' };
 
+	// The palette in the catalogue's groups, empty ones left out.
+	const PROP_GROUPS = PROP_CATEGORIES.map(
+		(category) => [category, ASSET_IDS.filter((id) => ASSETS[id].category === category)] as const
+	).filter(([, ids]) => ids.length > 0);
+
 	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
 
 	let environments = $state<[string, string][]>([]);
@@ -136,14 +141,17 @@
 		{@render toolButton({ id: 'prop', label: 'Place prop', key: 'P' })}
 		{#if tool === 'prop'}
 			<div class="palette" role="radiogroup" aria-label="Prop">
-				{#each ASSET_IDS as id (id)}
-					<button
-						type="button"
-						role="radio"
-						aria-checked={propDraft.assetId === id}
-						title={`${ASSETS[id].name}: ${BLOCKS_HINT[ASSETS[id].blocks]}`}
-						onclick={() => onPropDraft({ ...propDraft, assetId: id })}>{ASSETS[id].name}</button
-					>
+				{#each PROP_GROUPS as [category, ids] (category)}
+					<h3 class="group">{category.replace('-', ' ')}</h3>
+					{#each ids as id (id)}
+						<button
+							type="button"
+							role="radio"
+							aria-checked={propDraft.assetId === id}
+							title={`${ASSETS[id].name}: ${BLOCKS_HINT[ASSETS[id].blocks]}`}
+							onclick={() => onPropDraft({ ...propDraft, assetId: id })}>{ASSETS[id].name}</button
+						>
+					{/each}
 				{/each}
 			</div>
 			<button
@@ -313,6 +321,15 @@
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
 		gap: var(--sp-2);
+	}
+
+	.palette .group {
+		grid-column: 1 / -1;
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-xs);
+		font-weight: 600;
+		text-transform: capitalize;
+		color: var(--muted);
 	}
 
 	.palette button {

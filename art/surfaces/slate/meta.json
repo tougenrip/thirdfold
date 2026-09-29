@@ -1,0 +1,14 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=RoofingTiles001_2K-PNG.zip",
+			"sha256": "d7f15ff305f9974ba815e9fda3b7ee2806c57ab3689c7e3c48607f1dd5b5ff39"
+		},
+		"modified": true
+	},
+	"ramp": ["#262a35", "#3d4250", "#5a5f6b", "#7d808a"],
+	"detail": 0.25,
+	"normalBoost": 1.5
+}

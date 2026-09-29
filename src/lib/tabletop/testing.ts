@@ -140,16 +140,6 @@ export async function mountFixture(
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
-	const models = new Set<string>([
-		...view.tokens.flatMap((t) => (t.model ? [t.model] : [])),
-		...view.props.map((p) => p.assetId)
-	]);
-	// The paint maps too (#178), so no fixture's first frame races them.
-	await Promise.all([...[...models].map((id) => loadModel(id)), loadPaint()]);
-	// The page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
-	const toneMapper = toneMapperFrom(location.search) ?? undefined;
-	if (view.environment) await loadEnvironment(view.environment, toneMapper);
-
 	const canvas = options.warm?.canvas ?? document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
 	document.body.appendChild(canvas);
@@ -169,6 +159,16 @@ export async function mountFixture(
 			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : !options.miniature
 		}
 	);
+	// Loaded once the table is there, whose renderer decodes the KTX2 files (models.ts), and
+	// before it is set up, so no fixture's first frame races them. The paint maps too (#178).
+	const models = new Set<string>([
+		...view.tokens.flatMap((t) => (t.model ? [t.model] : [])),
+		...view.props.map((p) => p.assetId)
+	]);
+	await Promise.all([...[...models].map((id) => loadModel(id)), loadPaint()]);
+	// The page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
+	const toneMapper = toneMapperFrom(location.search) ?? undefined;
+	if (view.environment) await loadEnvironment(view.environment, toneMapper);
 	const backend = tabletop.capabilities().backend;
 	// A WebGPU project that silently fell back to WebGL2 would test the wrong thing.
 	if (webgpu && backend === 'webgl2') throw new Error('Asked for WebGPU, drawing with WebGL2');

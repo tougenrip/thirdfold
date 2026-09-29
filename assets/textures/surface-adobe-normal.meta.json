@@ -1,0 +1,12 @@
+{
+	"usage": "normal",
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/clay_block_wall/clay_block_wall_diff_2k.png",
+			"sha256": "3d4517b4de59c05810281fefc97ebc1352c4a9b60e266b25eb2c715c1e405e40"
+		},
+		"modified": true
+	}
+}

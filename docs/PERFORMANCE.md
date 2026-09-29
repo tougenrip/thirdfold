@@ -557,3 +557,134 @@ Slowest at 1920×1080: hollow low (Ana), 39.66 ms.
 - **The GM's larger view.** The GM sees everything by design.
 - **Ambient flicker and mist at dusk.** These are an intended look. They run on a slow timer, only
   when visible, and are off with reduced motion.
+
+## Manifest v2 (#184)
+
+`static/assets/manifest.json`, the one fetch before any asset loads, before and after manifest
+v2 (the same 69 models, 64 textures and 2 sounds; gzip -9):
+
+| Manifest | Bytes  | Gzipped |
+| -------- | ------ | ------- |
+| v1       | 32,061 | 4,781   |
+| v2       | 52,140 | 10,605  |
+
+Most of the growth is the whole SHA-256 of each of the 135 files, which does not compress
+(135 × 64 hex digits is 8.6 kB), and each texture's usage, colour space, layers, levels and GPU
+bytes. It stays one fetch, cached by the browser like the rest of the page.
+
+## Asset budgets
+
+What one table's assets may add up to (`TABLE_BUDGETS` in `server/assets/scenes.ts`, #193), from
+the roadmap's first-table download and GPU memory budgets. The build fails over any of them.
+
+| Tier    | Download | GPU    | Counted at texture detail                 |
+| ------- | -------- | ------ | ----------------------------------------- |
+| Desktop | 15 MB    | 160 MB | medium (1K), the reference tier's default |
+| Mobile  | 6 MB     | 80 MB  | low (512), what phones start on           |
+
+MB here is 1024 × 1024 bytes, as in the manifest's `LIMITS`. Mobile's download is the roadmap's
+mobile first-table budget, stricter than half the desktop's; its GPU figure counts the 512 px bases
+(texture detail's low, which the low tier and phones default to) and KTX2 at RGBA8 (four times the
+manifest's `gpuBytes`, which assume a compressed transcode target), what a phone the transcoder
+finds no compressed format on gets; a cooked model's whole `gpuBytes` is counted so, geometry too,
+a bound rather than the figure. Each level counts a variant's download after its base (which
+always loads first) and its GPU bytes instead. High (2K) is reported, not held to the budgets:
+see below. These are starting values, confirmed per tier in #155: change them only on purpose,
+with the reason here.
+
+What is counted is in [ASSETS.md](ASSETS.md#rules-the-pipeline-enforces). Totals with the assets
+of milestone 64 (`npm run assets`; kB of 1024 bytes), and with #190's bevelled, baked part lists
+(normals and `_BAKE` in every model file):
+
+| Table                   | Download (M64 → #190) | GPU (M64 → #190)  | Mobile GPU |
+| ----------------------- | --------------------- | ----------------- | ---------- |
+| hollow-bell/bellweather | 519 kB → 855 kB       | 1176 kB → 1460 kB | 1460 kB    |
+| hollow-bell/monastery   | 443 kB → 725 kB       | 1052 kB → 1290 kB | 1290 kB    |
+| hollow-bell/hollow      | 401 kB → 653 kB       | 1100 kB → 1313 kB | 1313 kB    |
+| hollow-bell/heart       | 300 kB → 479 kB       | 905 kB → 1057 kB  | 1057 kB    |
+| blackwater/train        | 383 kB → 620 kB       | 979 kB → 1178 kB  | 1178 kB    |
+| blackwater/engine       | 260 kB → 405 kB       | 870 kB → 992 kB   | 992 kB     |
+| blackwater/blackwater   | 254 kB → 399 kB       | 864 kB → 986 kB   | 986 kB     |
+| example/yard            | 191 kB → 279 kB       | 882 kB → 957 kB   | 957 kB     |
+| example/cellar          | 171 kB → 251 kB       | 808 kB → 876 kB   | 876 kB     |
+
+Part-list triangles (#190): 25,848 → 37,660 over the 69 models, their files 692 → 1,200 kB. A box
+is 12 → 44 triangles, a cylinder 72 → 144 and a cone 36 → 72; spheres are unchanged. Some models:
+crate 24 → 88, barrel 216 → 432, great-bell 592 → 932, warden 616 → 960, tentacle 1,308 → 1,560,
+hound 1,136 → 1,628 (the largest now), each far under its class's limit. Draw calls and programs
+are unchanged: the bevels are in the same meshes, and every prop and mini geometry carries the
+bake (`withBake`).
+
+Each environment alone is 56–68 kB to download and 683–789 kB on the GPU. Every table is under
+4% of the mobile download budget at M64, and under 15% with #190's baked models: the part-list
+models and 128 px textures are small. The budgets start to bite with the cooked models and
+surface sets (#186, #187). Record the totals here again at each milestone.
+
+With the surface library (#187) and the cooked bell (#196), KTX2 counted at RGBA8 on mobile: the
+largest table, the Hollow, is 4,805 kB to download, 11,208 kB on the GPU and 40,972 kB on a mobile
+GPU (51% of its 80 MB); every other table is 2.4–3.6 MB, 5.8–7.6 MB and 21–26 MB.
+
+With texture detail (every texture at a 512 px base, 1K and 2K variants in the asset store;
+recipes rendered at 512 rather than 64–256), per level (`npm run assets`, kB):
+
+| Table                   | Download low | medium | high   | GPU low | medium | high    | Mobile GPU |
+| ----------------------- | ------------ | ------ | ------ | ------- | ------ | ------- | ---------- |
+| hollow-bell/bellweather | 3,775        | 12,553 | 32,450 | 11,444  | 42,164 | 160,948 | 29,876     |
+| hollow-bell/monastery   | 3,518        | 11,669 | 30,777 | 11,338  | 42,058 | 160,842 | 29,770     |
+| hollow-bell/hollow      | 4,368        | 14,708 | 37,877 | 14,600  | 52,488 | 199,944 | 38,988     |
+| hollow-bell/heart       | 2,957        | 10,027 | 25,614 | 8,737   | 32,289 | 122,401 | 24,097     |
+| blackwater/train        | 3,356        | 11,390 | 29,443 | 9,882   | 36,506 | 138,906 | 28,314     |
+| blackwater/engine       | 3,142        | 11,175 | 29,228 | 9,696   | 36,320 | 138,720 | 28,128     |
+| blackwater/blackwater   | 3,136        | 11,169 | 29,222 | 9,690   | 36,314 | 138,714 | 28,122     |
+| example/yard            | 3,200        | 11,977 | 31,875 | 10,941  | 41,661 | 160,445 | 29,373     |
+| example/cellar          | 3,044        | 11,195 | 30,303 | 10,924  | 41,644 | 160,428 | 29,356     |
+
+Every table fits at low (mobile: at most 4.4 MB of 6 and 39 of 80 MB) and at medium (desktop: the
+Hollow is 14.7 of 15 MB to download, the tightest). At high every table is over the desktop
+download budget (25–38 MB) and the Hollow over its GPU budget (195 MB): a recipe's 2K PNG is
+21 MB on the GPU (seven or eight of them per table: the materials' maps, the paint maps, the lens
+dirt) and each surface's 2K maps are 5.3 MB. Before high is held to a budget, either the budget
+for high is set on purpose or the recipes' variants become KTX2 (#193). The 2K grass normal map
+(4.4 MB) is over the texture file limit, so the cook leaves it out and the floors' normal array
+tops out at 1K at high (the albedo and ORM arrays reach 2K).
+
+### The great bell, the first cooked model (#196)
+
+The pilot (`scripts/make-bell-art.ts`, cooked from `art/prop/great-bell/`): a set piece of 14,292
+triangles at LOD0 (body 4,852, swing 9,440), 6,487 at LOD1 and 2,416 at LOD2, meshopt-encoded,
+with one texture set painted at 2048² (albedo ETC1S, normal and ORM UASTC + Zstd) and a 512²
+emissive rim mask, cooked into a 512 px base GLB (876 kB, 1.9 MB GPU) and 1K (2,059 kB, 4.9 MB) and
+2K (5,952 kB, 16.9 MB) variants in the asset store. Its part list is the preview. (Its first
+texture set was 1024² albedo and normal and a 512² ORM in one 1,535 kB file, the table below.)
+
+| What                        | Before (part list) | The pilot                             |
+| --------------------------- | ------------------ | ------------------------------------- |
+| Model file                  | 29 kB              | 1,535 kB, plus the 30 kB preview      |
+| GPU bytes (`gpuBytes`)      | 27 kB              | 3.7 MB (3 compressed maps + geometry) |
+| hollow-bell/hollow download | 653 kB             | 2,759 kB (with the 571 kB transcoder) |
+| hollow-bell/hollow GPU      | 1,313 kB           | 5,064 kB (desktop)                    |
+
+The Hollow stays well inside its budgets (45% of mobile's 6 MB download, 6% of its 80 MB GPU; with
+the surface library's floors and walls (#187) 4,805 kB and 11,208 kB). The first cut was 22,708
+triangles; 40 segments round the bell instead of 64, lighter chain links and square bolt heads
+brought it within #196's 15k. The normal map is most of the file: UASTC is 8 bits a texel before
+Zstd, so a 1024² normal map costs about as much as the rest together; the ORM is painted at 512²,
+which quarters it with no visible loss (occlusion, roughness and metal change slowly). On the RTX
+4060 Laptop the cooked bell is ready 160–300 ms after its request goes out from a local dev server
+(download, meshopt decode, KTX2 transcode and upload together; WebGL2 and WebGPU alike); the shader
+stages stay the same when it replaces its preview on both backends. The iGPU figures are still to be
+taken.
+
+## The M65 perf re-baseline
+
+The test world on the RTX 4060 Laptop (WebGL2, reduced motion, the 512 bases). Programs,
+pipelines, geometries, draws and render targets are unchanged: 164 programs, 116 draws. Nothing
+leaked over two reloads and two remounts (45 geometries, 79 textures, 164 programs). Idle drew 0
+frames in 2 s.
+
+Two numbers rose, both from the floor surface arrays (#187), the albedo, normal and ORM arrays
+that the terrain kind samples per cell:
+
+- Textures went from 77 to 79.
+- Texture bytes rose by 6.1 MB on every tier (low 53.5 → 59.6 MB, medium 134.6 → 140.7 MB,
+  high 169.2 → 175.3 MB).

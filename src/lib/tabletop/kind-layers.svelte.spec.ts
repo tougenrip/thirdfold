@@ -15,7 +15,8 @@ import {
 	createMaterial,
 	prepareSlotTexture,
 	SLOTS,
-	TINT_ATTRIBUTE
+	TINT_ATTRIBUTE,
+	withBake
 } from './materials';
 import { OverlayLayer } from './overlay';
 import { PropLayer } from './props';
@@ -167,9 +168,11 @@ describe('the ported kinds drawn', () => {
 		const albedo = prepareSlotTexture(new THREE.DataTexture(data, 2, 1), SLOTS.albedo);
 		albedo.magFilter = THREE.NearestFilter;
 		const material = createMaterial('prop', { instanced: true, slots: { albedo } });
-		// Object-space mapping: 4 units across, one repeat, so cells 0-1 dark and 2-3 bright.
-		material.params.repeat.set(0.25, 0.25);
-		const geometry = new THREE.PlaneGeometry(4, 1).rotateX(-Math.PI / 2).translate(2, 0, 0);
+		// The mesh's uvs (#188): one repeat across the 4 units, so cells 0-1 dark and 2-3 bright.
+		material.params.repeat.set(1, 1);
+		const geometry = withBake(
+			new THREE.PlaneGeometry(4, 1).rotateX(-Math.PI / 2).translate(2, 0, 0)
+		);
 		addInstanceTints(geometry, 1);
 		const mesh = new THREE.InstancedMesh(geometry, material, 1);
 		mesh.setMatrixAt(0, new THREE.Matrix4().makeTranslation(-2, 0, 0));

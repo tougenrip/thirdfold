@@ -145,6 +145,18 @@ describe('the saved graphics settings', () => {
 		const broken = { getItem: () => ({}) as string };
 		expect(loadGraphics(broken)).toEqual(DEFAULT_GRAPHICS);
 	});
+
+	it('survive an update: options it no longer has, or values it no longer offers, drop out', () => {
+		const old =
+			'{"tier":"high","overrides":{"textureDetail":"ultra","shadows":true,"bloom":false}}';
+		expect(loadGraphics(storage(old))).toEqual({
+			...DEFAULT_GRAPHICS,
+			tier: 'high',
+			overrides: { bloom: false }
+		});
+		const now = '{"overrides":{"textureDetail":"high"}}';
+		expect(loadGraphics(storage(now)).overrides).toEqual({ textureDetail: 'high' });
+	});
 });
 
 describe('after the graphics device is lost', () => {

@@ -43,7 +43,7 @@ function perturbNormal(sampled: N, at: N): N {
 	return T.mul(n.x).add(B.mul(n.y)).add(normal.mul(n.z)).normalize();
 }
 
-/** Slots sampled at `at` (the mesh's uv, or object-space coordinates for props and minis). */
+/** Slots sampled at `at` (the mesh's uv, times the tile). */
 export function uvMapping(at: N): Mapping {
 	return {
 		sample: (slot) => slotSample(slot, at),
@@ -69,7 +69,8 @@ export function boxMapping(
 	geometric: N,
 	repeat: N,
 	toView: (n: N) => N,
-	antiTiled = false
+	antiTiled = false,
+	source: (slot: SlotName, at: N) => N = slotSample
 ): Mapping {
 	const p = tsl.vec3(position);
 	const n = tsl.vec3(geometric).normalize();
@@ -86,11 +87,13 @@ export function boxMapping(
 	const bitangent = onY.select(tsl.vec3(0, 0, sy.negate()), tsl.vec3(0, 1, 0));
 	const tiles = antiTiled ? antiTile(at) : null;
 	const fetch = (slot: SlotName): N => {
-		if (!tiles) return slotSample(slot, at);
-		const a = slotSample(slot, at.add(tiles.a)) as N & { node: N & { gradNode: N[] } };
-		a.node.gradNode = [at.dFdx(), at.dFdy()];
+		if (!tiles) return source(slot, at);
+		const a = source(slot, at.add(tiles.a)) as N & { node?: N };
+		// A slot's texture node is its reference's; a source may give the texture node itself.
+		const node = (a.node ?? a) as N & { gradNode: N[] };
+		node.gradNode = [at.dFdx(), at.dFdy()];
 		// A clone of the same texture node, so both fetches bind the slot once (TextureNode.sample).
-		return tsl.mix(a, a.node.sample(at.add(tiles.b)), tiles.blend);
+		return tsl.mix(a, node.sample(at.add(tiles.b)), tiles.blend);
 	};
 	return {
 		sample: fetch,
@@ -101,14 +104,22 @@ export function boxMapping(
 	};
 }
 
-/** Box projection in world space: walls and raised ground, continuous across instances. */
-export const worldBox = (repeat: N, antiTiled = false): Mapping =>
+/**
+ * Box projection in world space: walls and raised ground, continuous across instances; from
+ * `source` instead of the slots for the floors' surface arrays (hooks.ts `floorMapping`).
+ */
+export const worldBox = (
+	repeat: N,
+	antiTiled = false,
+	source?: (slot: SlotName, at: N) => N
+): Mapping =>
 	boxMapping(
 		tsl.positionWorld,
 		tsl.normalWorldGeometry,
 		repeat,
 		(n) => n.transformDirection(tsl.cameraViewMatrix),
-		antiTiled
+		antiTiled,
+		source
 	);
 
 /** Box projection in the geometry's own space: a door panel's texture swings with it. */

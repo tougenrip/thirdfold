@@ -3,25 +3,26 @@
 // textures, loaded when the table first needs them. Textures are PNGs
 // loaded as images, once each, shared by every material that uses them. And
 // its colour grades (#162): a lookup table per tone mapper and ambient band,
-// loaded a tone mapper at a time.
+// loaded a tone mapper at a time. Every file comes through fetchAsset (checked
+// when it comes from the asset host, #191); a KTX2 texture is transcoded by
+// the models' decoders (#188), for this device.
 
 import * as THREE from 'three/webgpu';
 import {
 	GRADE_TONE_MAPPER,
-	type EnvironmentDef,
-	type GradeBand,
 	type MaterialDef,
+	type TextureEntry,
 	type ToneMapper
 } from '$lib/assets/manifest';
-import { assetUrl, loadManifest } from '$lib/assets/load';
-import {
-	prepareSlotTexture,
-	setParams,
-	setSlot,
-	SLOTS,
-	worldTexture,
-	type KindMaterial
-} from './materials';
+import { fetchAsset, loadManifest } from '$lib/assets/load';
+import { imageTexture } from './image-texture';
+import { followDetail, ktx2Texture, slotTexture } from './models';
+import { setParams, setSlot, type KindMaterial } from './materials';
+import type { Grades } from './grades-load';
+import type { FloorSurfaces } from './materials/floors';
+
+/** What the surface chunk (#187, surfaces.ts) frees when the environment's textures go. */
+export const releasers = new Set<() => void>();
 
 /** One surface: its colour and finish, and its texture with how many cells one repeat covers. */
 export interface Look {
@@ -30,6 +31,9 @@ export interface Look {
 	metalness: number;
 	map: THREE.Texture | null;
 	cells: number;
+	/** A painted surface's (#187) normal and ORM maps. */
+	normal?: THREE.Texture | null;
+	orm?: THREE.Texture | null;
 }
 
 export interface EnvironmentLook {
@@ -37,6 +41,8 @@ export interface EnvironmentLook {
 	ground: Look;
 	walls: Look;
 	table: Look;
+	/** The floors' painted surfaces (#187), or null while an environment has none. */
+	floors: FloorSurfaces | null;
 	/** 32³ RGBA lookup tables (x red, y green, z blue); null when the environment has no grade. */
 	grades: Grades | null;
 }
@@ -44,86 +50,37 @@ export interface EnvironmentLook {
 /** The size of a grade's lookup table, per side. */
 export const LUT_SIZE = 32;
 
-/**
- * A grade strip (1024×32: 32 slices of 32×32 side by side, blue choosing the slice, red across,
- * green down) as a 3D table in Data3DTexture order. Black is forced to exactly black: a browser
- * that perturbs canvas reads against fingerprinting must not lift unexplored cells (#161).
- */
-async function loadGrade(file: string): Promise<Uint8Array> {
-	const blob = await (await fetch(assetUrl(file))).blob();
-	const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' });
-	const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-	const ctx = canvas.getContext('2d')!;
-	ctx.drawImage(bitmap, 0, 0);
-	const strip = ctx.getImageData(0, 0, bitmap.width, bitmap.height).data;
-	const n = LUT_SIZE;
-	const out = new Uint8Array(n * n * n * 4);
-	for (let b = 0; b < n; b++)
-		for (let g = 0; g < n; g++)
-			for (let r = 0; r < n; r++) {
-				const from = (g * n * n + b * n + r) * 4;
-				out.set(strip.subarray(from, from + 4), ((b * n + g) * n + r) * 4);
-			}
-	out.fill(0, 0, 3);
-	return out;
-}
-
-/**
- * An environment's grades, loaded a tone mapper at a time (its three bands) the first time
- * that tone mapper is wanted: the rest wait for the viewer to pick them, so a table's first
- * frame fetches 3 strips, not all 9.
- */
-export class Grades {
-	/** The tone mappers loaded so far: their grades by band, or null if they failed to load. */
-	readonly ready: Partial<Record<ToneMapper, Record<GradeBand, Uint8Array> | null>> = {};
-	private readonly loading = new Map<ToneMapper, Promise<void>>();
-
-	constructor(
-		private readonly lut: NonNullable<EnvironmentDef['lut']>,
-		private readonly files: Record<string, { file: string }>
-	) {}
-
-	/** Loads a tone mapper's grades, once; resolves when they are in `ready`. */
-	load(tm: ToneMapper): Promise<void> {
-		let loading = this.loading.get(tm);
-		if (!loading) {
-			const bands = Object.entries(this.lut[tm]);
-			loading = Promise.all(
-				bands.map(async ([band, id]) => [band, await loadGrade(this.files[id].file)] as const)
-			)
-				.then((loaded) => Object.fromEntries(loaded) as Record<GradeBand, Uint8Array>)
-				.catch(() => null)
-				.then((set) => void (this.ready[tm] = set));
-			this.loading.set(tm, loading);
-		}
-		return loading;
-	}
-}
-
-const gradeCache = new Map<string, Grades>();
-
-/** An environment's grades (one Grades per environment), with `toneMapper`'s loaded. */
-async function gradesOf(
-	id: string,
-	lut: NonNullable<EnvironmentDef['lut']>,
-	files: Record<string, { file: string }>,
-	toneMapper: ToneMapper
-): Promise<Grades> {
-	let grades = gradeCache.get(id);
-	if (!grades) gradeCache.set(id, (grades = new Grades(lut, files)));
-	await grades.load(toneMapper);
-	return grades;
-}
-
 const textures = new Map<string, Promise<THREE.Texture | null>>();
+/** The KTX2 ones among them: transcoded for one device's formats. */
+const transcoded = new Set<string>();
 
-function loadTexture(id: string, file: string): Promise<THREE.Texture | null> {
+/**
+ * Frees the KTX2 textures (releaseModels calls it when the last table goes, or another renderer
+ * comes): a new device may not take the format they were transcoded to. PNGs stay for the page.
+ */
+export function releaseEnvironmentTextures(): void {
+	for (const id of transcoded) {
+		void textures.get(id)?.then((t) => t?.dispose());
+		textures.delete(id);
+	}
+	transcoded.clear();
+	for (const release of releasers) release();
+}
+
+/** A texture, once for the page (KTX2 ones once per device), sampled as the slot of its usage. */
+export function loadTexture(id: string, entry: TextureEntry): Promise<THREE.Texture | null> {
 	let loading = textures.get(id);
 	if (!loading) {
-		loading = new THREE.TextureLoader()
-			.loadAsync(assetUrl(file))
-			// The albedo slot's sampling, and the tier's anisotropy (#179).
-			.then((t) => worldTexture(prepareSlotTexture(t, SLOTS.albedo)))
+		if (entry.format === 'ktx2') transcoded.add(id);
+		loading = fetchAsset(entry.file, entry.sha256)
+			.then((bytes) => (entry.format === 'ktx2' ? ktx2Texture(bytes) : imageTexture(bytes)))
+			// Its slot's sampling, and the tier's anisotropy (#179); then its size by texture detail.
+			.then((t) => {
+				const slot = entry.usage === 'normal' || entry.usage === 'orm' ? entry.usage : 'albedo';
+				if (entry.variants)
+					followDetail((m) => m.trackTexture(entry, t, slot), entry.format === 'ktx2');
+				return slotTexture(t, slot);
+			})
 			.catch((err: Error) => {
 				console.warn(`[assets] texture "${id}" failed to load:`, err.message);
 				return null;
@@ -133,8 +90,8 @@ function loadTexture(id: string, file: string): Promise<THREE.Texture | null> {
 	return loading;
 }
 
-async function look(def: MaterialDef, files: Record<string, { file: string }>): Promise<Look> {
-	const map = def.map && files[def.map] ? await loadTexture(def.map, files[def.map].file) : null;
+async function look(def: MaterialDef, files: Record<string, TextureEntry>): Promise<Look> {
+	const map = def.map && files[def.map] ? await loadTexture(def.map, files[def.map]) : null;
 	return {
 		color: new THREE.Color(def.color),
 		roughness: def.roughness,
@@ -155,15 +112,28 @@ export async function loadEnvironment(
 	const manifest = await loadManifest();
 	const env = manifest.environments[id];
 	if (!env) return null;
-	const [[surface, ground, walls, table], grades] = await Promise.all([
+	const { surfaces: painted } = env;
+	const [[surface, ground, walls, table], grades, own] = await Promise.all([
 		Promise.all(
-			[env.surface, env.ground, env.walls, env.table].map((m) =>
+			[env.surface, env.ground, env.walls, env.table ?? env.surface].map((m) =>
 				look(manifest.materials[m], manifest.textures)
 			)
 		),
-		env.lut ? gradesOf(id, env.lut, manifest.textures, toneMapper) : null
+		// Its grades, from a chunk of their own (grades-load.ts), keeping the renderer's in budget.
+		env.lut
+			? import('./grades-load').then((m) => m.gradesOf(id, env.lut!, manifest.textures, toneMapper))
+			: null,
+		// Its painted surfaces (#187), from a chunk only tables that have them load.
+		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null
 	]);
-	return { surface, ground, walls, table, grades };
+	return {
+		surface,
+		ground,
+		walls: own?.walls ? { ...walls, ...own.walls } : walls,
+		table,
+		floors: own?.floors ?? null,
+		grades
+	};
 }
 
 /**
@@ -180,4 +150,6 @@ export function wear(
 	const { color, roughness, metalness } = look ?? { ...plain, metalness: 0 };
 	setParams(material, { color, roughness, metalness });
 	setSlot(material, 'albedo', look?.map ?? null);
+	setSlot(material, 'normal', look?.normal ?? null);
+	setSlot(material, 'orm', look?.orm ?? null);
 }

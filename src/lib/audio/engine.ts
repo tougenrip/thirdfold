@@ -8,7 +8,7 @@
 
 import type { Sound } from '../game/motion';
 import { BELLS, bellPartials, type BellSize } from './bell';
-import { assetUrl, loadManifest } from '../assets/load';
+import { fetchAsset, loadManifest } from '../assets/load';
 import type { Ambience, AudioEvent, MusicState, Surface } from './cues';
 import { busGain, DEFAULT_MIX, type Mix } from './mix';
 
@@ -175,8 +175,7 @@ function loadSamples(ctx: AudioContext): void {
 		for (const id of ids) {
 			const entry = manifest.audio[id];
 			if (!entry) continue;
-			fetch(assetUrl(entry.file))
-				.then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+			fetchAsset(entry.file, entry.sha256, 'low')
 				.then((data) => ctx.decodeAudioData(data))
 				.then((buffer) => samples.set(id, buffer))
 				.catch((err: Error) => console.warn(`[audio] sound "${id}" failed to load:`, err.message));

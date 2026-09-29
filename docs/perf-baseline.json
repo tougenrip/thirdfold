@@ -8,21 +8,21 @@
 			"viewers": {
 				"Gia": {
 					"geometries": 45,
-					"textures": 70,
+					"textures": 79,
 					"programs": 164,
-					"heap": 17994648
+					"heap": 18701556
 				},
 				"Ana": {
 					"geometries": 45,
-					"textures": 70,
+					"textures": 79,
 					"programs": 164,
-					"heap": 18231012
+					"heap": 18933792
 				},
 				"Ben": {
 					"geometries": 45,
-					"textures": 70,
+					"textures": 79,
 					"programs": 164,
-					"heap": 18232916
+					"heap": 18932656
 				}
 			},
 			"idleFrames": 0,
@@ -33,68 +33,78 @@
 	"reload": {
 		"first": {
 			"geometries": 45,
-			"textures": 70,
+			"textures": 79,
 			"programs": 164,
-			"heap": 18781832
+			"heap": 19470284
 		},
 		"after": {
 			"geometries": 45,
-			"textures": 70,
+			"textures": 79,
 			"programs": 164,
-			"heap": 19052092
+			"heap": 19719536
 		}
 	},
 	"remount": {
 		"first": {
 			"geometries": 45,
-			"textures": 70,
+			"textures": 79,
 			"programs": 164,
-			"heap": 17455032
+			"heap": 18227712
 		}
 	},
 	"tiers": {
 		"low": {
 			"renderTargets": 17,
-			"texturesBytes": 53504683,
+			"texturesBytes": 59598030,
 			"programs": 99,
 			"pipelines": 69
 		},
 		"medium": {
 			"renderTargets": 27,
-			"texturesBytes": 134587809,
+			"texturesBytes": 140681156,
 			"programs": 162,
 			"pipelines": 105
 		},
 		"high": {
 			"renderTargets": 29,
-			"texturesBytes": 169237912,
+			"texturesBytes": 175331259,
 			"programs": 164,
 			"pipelines": 106
 		}
 	},
 	"bundle": {
 		"/": {
-			"gz": 57875,
-			"own": 16744,
+			"gz": 62036,
+			"own": 14251,
 			"three": false
 		},
 		"/builder": {
-			"gz": 88298,
-			"own": 47167,
+			"gz": 92333,
+			"own": 44548,
+			"three": false
+		},
+		"/credits": {
+			"gz": 50023,
+			"own": 2238,
+			"three": false
+		},
+		"/dev/assets": {
+			"gz": 48092,
+			"own": 307,
 			"three": false
 		},
 		"/library": {
-			"gz": 60116,
-			"own": 18985,
+			"gz": 64282,
+			"own": 16497,
 			"three": false
 		},
 		"/room/[id]": {
-			"gz": 116395,
-			"own": 75264,
+			"gz": 120906,
+			"own": 73121,
 			"three": false
 		},
 		"renderer (added)": {
-			"gz": 356016,
+			"gz": 359546,
 			"own": null,
 			"three": true
 		}

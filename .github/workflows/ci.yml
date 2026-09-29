@@ -32,6 +32,9 @@ jobs:
 
       - run: npm run check
       - run: npm run lint
+      # The cooked assets are what assets/cook.lock.json says: hashes only, nothing is encoded
+      # (cooking is by hand or in cook.yml, docs/ASSETS.md "Cooking art").
+      - run: npm run assets:cook -- --check
       # Live Supabase tests skip themselves without SUPABASE_* env. The renderer's pixel tests and
       # golden images are not part of this: they run in rendering.yml, on pull requests that touch
       # rendering.
@@ -43,7 +46,7 @@ jobs:
   supabase:
     # Runs the live SupabaseSceneStore tests against a local Supabase with the
     # repo's migrations applied: the round trip, RLS locking out the browser
-    # key, and the table's constraints.
+    # key, and the table's constraints; and the asset bucket (publish, pull).
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -56,11 +59,11 @@ jobs:
 
       - run: npm ci
 
-      # Only the database, API gateway, auth and REST are needed; auth is kept
-      # because `supabase status` only reports the keys with it running.
+      # Only the database, API gateway, auth, REST and storage (the asset bucket) are
+      # needed; auth is kept because `supabase status` only reports the keys with it running.
       # `start` applies supabase/migrations to the fresh database.
       - name: Start Supabase
-        run: npx supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+        run: npx supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
       # Local development keys, generated for this throwaway stack.
       - name: Export Supabase env
@@ -77,7 +80,7 @@ jobs:
       # if any test was skipped rather than pass without running them.
       - name: Run live Supabase tests
         run: |
-          npx vitest run --project server server/supabase-scene-store.spec.ts --reporter=default --reporter=json --outputFile=vitest-supabase.json
+          npx vitest run --project server server/supabase-scene-store.spec.ts server/assets/store.spec.ts --reporter=default --reporter=json --outputFile=vitest-supabase.json
           node -e "const r=require('./vitest-supabase.json'); const skipped=r.numPendingTests+r.numTodoTests; if (skipped||!r.numPassedTests) { console.error('Supabase tests skipped: ' + skipped + ', passed: ' + r.numPassedTests); process.exit(1) }"
 
       - name: Stop Supabase
