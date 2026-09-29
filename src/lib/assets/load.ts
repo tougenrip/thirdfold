@@ -35,8 +35,11 @@ const ASSET_BASE = isNativeShell()
 export const remoteAssets = (): boolean =>
 	ASSET_BASE !== '' && !!globalThis.isSecureContext && !!globalThis.crypto?.subtle;
 
+/** The manifest's URL, versioned by its content so no cache keeps an old one past an update. */
+export const manifestUrl = (): string => assetUrl(`manifest.json?v=${__ASSET_MANIFEST__}`);
+
 export function loadManifest(): Promise<Manifest> {
-	manifest ??= fetch(assetUrl('manifest.json'))
+	manifest ??= fetch(manifestUrl())
 		.then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
 		.then((raw: unknown) => {
 			const parsed = parseManifest(raw);

@@ -21,7 +21,8 @@ const BUDGETS = {
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	'/dev/assets': { total: 50_000, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
-	'/room/[id]': { total: 121_000, own: 76_000 },
+	// 121.0 → 121.1: the blocked-storage guard and the manifest's versioned URL (121,029 B measured).
+	'/room/[id]': { total: 121_100, own: 76_000 },
 	renderer: { total: 360_000 },
 	decoders: { total: 40_000 }
 };

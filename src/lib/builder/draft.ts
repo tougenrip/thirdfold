@@ -32,7 +32,8 @@ export const toDraft = (file: AdventureFile): Draft => file as Draft;
 export function loadDraft(): Draft {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		if (raw) return JSON.parse(raw) as Draft;
+		const saved: unknown = raw && JSON.parse(raw);
+		if (typeof saved === 'object' && saved !== null && !Array.isArray(saved)) return saved as Draft;
 	} catch {
 		// A private window, or storage turned off: start from the example.
 	}
