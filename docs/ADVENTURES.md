@@ -133,6 +133,9 @@ version 1) is `AdventureDef` written as JSON:
 - **Tables are scene files.** Build one at a table (Scene panel: New table,
   floors, walls, doors, props, lights, raised ground), export it with Export
   file, and bring it into a place in the builder.
+  Tables saved by any older version load and are brought forward (a v9 table
+  gets the default world look at its band's hour); the world look, its hour and
+  the sun are described in `docs/RENDERING.md` ("World look").
 - **An enemy's hit points** are `{ base, perCharacter }`.
 - **Characters** are picked from the character library by id.
 - **People** stand on their table by themselves. Their token is `npc-<id>`

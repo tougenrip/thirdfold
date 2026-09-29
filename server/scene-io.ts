@@ -19,12 +19,14 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 			props: room.props.values(),
 			lights: room.lights.values(),
 			ambient: room.ambient,
+			world: room.world,
+			interior: room.interior,
 			fog: room.fog,
 			playerName: (id) => room.players.get(id)?.name,
 			// What each player has discovered, by name, so it comes back with the table.
 			discovery: [...room.players.values()]
 				.filter((p) => p.role === 'player')
-				.map((p): [string, Uint8Array] => [p.name, p.explored]),
+				.map((p) => [p.name, { explored: p.explored, lights: p.seenLights?.values() }]),
 			adventure: room.adventure && saveAdventure(room.adventure),
 			terrain: room.terrain,
 			darkness: room.darkness,
@@ -59,7 +61,7 @@ export function reclaim(room: Room, player: Player): string[] {
 		room.awaiting!.delete(tokenId);
 		back.push(tokenId);
 	}
-	const mask = room.discovery?.get(name);
+	const mask = room.discovery?.get(name)?.explored;
 	if (mask && back.length) {
 		const saved = decodeMask(mask, room.grid.width * room.grid.height);
 		for (let i = 0; i < saved.length; i++) if (saved[i]) player.explored[i] = 1;
@@ -91,11 +93,13 @@ export function applyScene(room: Room, scene: SceneFile): void {
 	room.props = new Map(scene.props.map((p) => [p.id, structuredClone(p)]));
 	room.lights = new Map(scene.lights.map((l) => [l.id, structuredClone(l)]));
 	room.ambient = scene.ambient;
+	room.world = structuredClone(scene.world);
 	room.terrain = scene.terrain
 		? decodeLevels(scene.terrain, scene.grid.width * scene.grid.height)
 		: null;
 	const size = room.grid.width * room.grid.height;
 	room.darkness = scene.darkness ? decodeMask(scene.darkness, size) : null;
+	room.interior = scene.interior ? decodeMask(scene.interior, size) : null;
 	room.floor = scene.floor ? decodeFloor(scene.floor, size) : null;
 	room.environment = scene.environment;
 	room.flashUntil = undefined;
@@ -105,11 +109,13 @@ export function applyScene(room: Room, scene: SceneFile): void {
 		shared: scene.fog.shared
 	};
 	const discovered = new Map(
-		Object.entries(scene.discovery).map(([name, mask]) => [name.toLowerCase(), mask])
+		Object.entries(scene.discovery).map(([name, d]) => [name.toLowerCase(), structuredClone(d)])
 	);
 	room.discovery = discovered;
 	for (const p of room.players.values()) {
-		const mask = discovered.get(p.name.toLowerCase());
-		p.explored = mask ? decodeMask(mask, size) : emptyMask(room.grid);
+		const d = discovered.get(p.name.toLowerCase());
+		p.explored = d ? decodeMask(d.explored, size) : emptyMask(room.grid);
+		p.seenLights = d?.lights && new Map(d.lights.map((l) => [l.id, structuredClone(l)]));
+		p.lightsLearned = undefined;
 	}
 }

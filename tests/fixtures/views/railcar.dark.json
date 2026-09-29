@@ -5,9 +5,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 68,
-			"height": 7
+			"height": 7,
+			"cellSize": 1
 		},
 		"environment": "railcar",
 		"ambient": "dark",
@@ -291,9 +291,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 68,
-			"height": 7
+			"height": 7,
+			"cellSize": 1
 		},
 		"environment": "railcar",
 		"ambient": "dark",
@@ -577,9 +577,9 @@
 		"fogMode": "gm",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 68,
-			"height": 7
+			"height": 7,
+			"cellSize": 1
 		},
 		"environment": "railcar",
 		"ambient": "dark",

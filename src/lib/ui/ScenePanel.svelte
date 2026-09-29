@@ -3,7 +3,7 @@
 		normalizeSceneName,
 		SCENE_FILE_MAX_BYTES,
 		SCENE_NAME_MAX_LENGTH
-	} from '$lib/game/scene-file';
+	} from '$lib/game/file-limits';
 	import { NEW_TABLE_LIMITS, type SavedScene } from '$lib/game/protocol';
 	import { loadManifest } from '$lib/assets/load';
 	import { sharedCode, sharedLink } from './share';

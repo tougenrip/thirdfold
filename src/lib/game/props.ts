@@ -9,6 +9,7 @@ import { blockingEdges, windowEdges, type Obstacles, type SceneObject } from './
 import { VOID, type FloorMap } from './floor';
 import { inBounds, type GridPos, type SquareGrid } from './grid';
 import { ALIASES, ASSETS } from './catalog';
+import { TOKEN_COLOR_PATTERN } from './token';
 
 export { ALIASES, ASSETS };
 
@@ -66,7 +67,30 @@ export function resolveAssetId(
 /** Quarter turns clockwise (seen from above). */
 export type Rotation = 0 | 1 | 2 | 3;
 
-export interface Prop {
+/** How a prop is drawn; look only. Every field is optional. */
+export interface PropLook {
+	/** Multiplied over the model's colours, `#rrggbb`. */
+	tint: string;
+	/** Which of the model's variants, 0 to 255. */
+	variant: number;
+}
+
+/** The look fields present on `raw`, or null when any is invalid. Absent fields stay absent. */
+export function parsePropLook(raw: Record<string, unknown>): Partial<PropLook> | null {
+	const look: Partial<PropLook> = {};
+	if (raw.tint !== undefined) {
+		if (typeof raw.tint !== 'string' || !TOKEN_COLOR_PATTERN.test(raw.tint)) return null;
+		look.tint = raw.tint;
+	}
+	if (raw.variant !== undefined) {
+		const v = raw.variant;
+		if (!Number.isInteger(v) || (v as number) < 0 || (v as number) > 255) return null;
+		look.variant = v as number;
+	}
+	return look;
+}
+
+export interface Prop extends Partial<PropLook> {
 	id: string;
 	assetId: AssetId;
 	/** The footprint's min-x/min-y cell. */

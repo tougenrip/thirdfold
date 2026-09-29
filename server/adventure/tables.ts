@@ -10,6 +10,7 @@ import type { AssetId, Prop, Rotation } from '../../src/lib/game/props';
 import { SCENE_FILE_VERSION, type SavedToken, type SceneFile } from '../../src/lib/game/scene-file';
 import { encodeLevels, flatLevels, withLevel, type LevelMap } from '../../src/lib/game/terrain';
 import { emptyMask, encodeMask, rectCells } from '../../src/lib/game/visibility';
+import { defaultWorldFor } from '../../src/lib/game/world';
 
 export const wall = (id: string, a: GridPos, b: GridPos): SceneObject => ({
 	id,
@@ -114,6 +115,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		props: parts.props,
 		lights: parts.lights,
 		ambient: parts.ambient,
+		world: defaultWorldFor(parts.ambient),
+		interior: null,
 		fog: { enabled: true, revealed: encodeMask(revealed), shared: false },
 		discovery: {},
 		adventure: null,

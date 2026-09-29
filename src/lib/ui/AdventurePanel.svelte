@@ -9,7 +9,7 @@
 	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
-	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/adventure/file';
+	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/game/file-limits';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';

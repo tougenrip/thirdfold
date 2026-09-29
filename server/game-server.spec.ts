@@ -8,6 +8,7 @@ import { exampleAdventure } from '../src/lib/adventure/example';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
+import { SCENE_FILE_VERSION } from '../src/lib/game/scene-file';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { framesLeaks } from './frame-secrecy';
 import { FileSceneStore, MemorySceneStore, type SceneStore } from './scene-store';
@@ -965,7 +966,11 @@ describe('saving and loading scenes over the wire', () => {
 		await gm.expect('token_upserted');
 		gm.send({ type: 'scene_export', name: 'Backup' });
 		const { file } = await gm.expect('scene_exported');
-		expect(file).toMatchObject({ format: 'thirdfold-scene', version: 9, name: 'Backup' });
+		expect(file).toMatchObject({
+			format: 'thirdfold-scene',
+			version: SCENE_FILE_VERSION,
+			name: 'Backup'
+		});
 
 		gm.send({
 			type: 'scene_import',
@@ -973,7 +978,7 @@ describe('saving and loading scenes over the wire', () => {
 		});
 		expect(await gm.expect('error')).toMatchObject({
 			code: 'invalid_scene',
-			message: expect.stringMatching(/off the table/)
+			message: expect.stringMatching(/off the map/)
 		});
 		gm.send({ type: 'scene_load', sceneId: 'f'.repeat(32) });
 		expect(await gm.expect('error')).toMatchObject({ code: 'scene_not_found' });
@@ -1096,7 +1101,7 @@ describe('lighting over the wire', () => {
 		// Both come back with the table.
 		gm.send({ type: 'scene_export', name: 'Dressed' });
 		const { file } = await gm.until('scene_exported');
-		expect(file).toMatchObject({ version: 9, environment: 'village' });
+		expect(file).toMatchObject({ version: SCENE_FILE_VERSION, environment: 'village' });
 		expect(file.tokens[0]).toMatchObject({ model: 'warden' });
 		gm.send({ type: 'token_update', tokenId: token.id, patch: { model: null } });
 		expect((await pip.until('token_upserted')).token.model).toBeUndefined();

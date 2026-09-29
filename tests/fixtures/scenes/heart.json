@@ -1,13 +1,13 @@
 {
 	"format": "thirdfold-scene",
-	"version": 9,
+	"version": 10,
 	"name": "The Heart of the Hollow",
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
 		"kind": "square",
-		"cellSize": 1,
 		"width": 16,
-		"height": 14
+		"height": 14,
+		"cellSize": 1
 	},
 	"tokens": [
 		{
@@ -18,13 +18,13 @@
 				"x": 7,
 				"y": 11
 			},
+			"vision": 8,
+			"light": 0,
+			"model": "warden",
 			"owner": {
 				"id": "fixture-p1",
 				"name": "Ana"
-			},
-			"vision": 8,
-			"light": 0,
-			"model": "warden"
+			}
 		},
 		{
 			"id": "heart-mini-b",
@@ -34,10 +34,10 @@
 				"x": 8,
 				"y": 11
 			},
-			"owner": null,
 			"vision": 8,
 			"light": 0,
-			"model": "saint"
+			"model": "saint",
+			"owner": null
 		}
 	],
 	"objects": [
@@ -237,15 +237,40 @@
 		}
 	],
 	"ambient": "dark",
+	"world": {
+		"time": 1380,
+		"rate": 0,
+		"sun": true,
+		"sky": null,
+		"weather": {
+			"kind": "none",
+			"intensity": 0,
+			"seed": 0,
+			"since": 0
+		},
+		"haze": {
+			"density": 0,
+			"color": null
+		},
+		"grade": {
+			"preset": null,
+			"exposure": 0
+		},
+		"backdrop": {
+			"kind": null,
+			"level": 0
+		}
+	},
+	"interior": null,
 	"fog": {
 		"enabled": true,
 		"revealed": "AAAAAAAAAAAAAAAAAAAAAAAA8A/wD/AP8A/wDw==",
 		"shared": false
 	},
-	"discovery": {},
 	"adventure": null,
 	"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 	"darkness": null,
 	"environment": "living-cave",
-	"floor": null
+	"floor": null,
+	"discovery": {}
 }

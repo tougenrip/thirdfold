@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DieRoller } from '../src/lib/game/dice';
+import { defaultWorldFor } from '../src/lib/game/world';
 import { beginAdventure, claimCharacter, direct, startAdventure } from './adventure/engine';
 import { postChat } from './chat';
 import {
@@ -74,6 +75,24 @@ describe('a live room kept across a restart', () => {
 		const older = copy(serializeRoom(room));
 		delete older.listed;
 		expect(ok(restoreRoom(older, 5000)).room.listed).toBe(false);
+	});
+
+	it('comes back from before the world look: a room stored with a v9 table', () => {
+		const live = copy(serializeRoom(room));
+		const scene = live.scene as unknown as Record<string, unknown>;
+		const discovery = live.scene.discovery;
+		scene.version = 9;
+		delete scene.world;
+		delete scene.interior;
+		scene.discovery = Object.fromEntries(
+			Object.entries(discovery).map(([name, d]) => [name, d.explored])
+		);
+		const back = ok(restoreRoom(live, 5000)).room;
+		expect(back.ambient).toBe(room.ambient);
+		expect(back.world).toEqual(defaultWorldFor(room.ambient));
+		expect(back.interior).toBeNull();
+		expect(back.players.get(ana.id)!.explored[5]).toBe(1);
+		expect(back.adventure).toMatchObject({ stage: 'playing', chapter: room.adventure!.chapter });
 	});
 
 	it('never trusts what it reads back: a damaged room is rejected whole', () => {

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { exampleAdventure } from '$lib/adventure/example';
+import { parseSceneFile, SCENE_FILE_VERSION } from '$lib/game/scene-file';
+import { DEFAULT_WORLD } from '$lib/game/world';
 import {
 	flowOf,
 	formatArea,
 	formatCells,
 	idFrom,
+	newTable,
 	parseArea,
 	parseCell,
 	parseCells,
@@ -28,6 +31,13 @@ describe('the builder draft', () => {
 		expect(parseArea(formatArea(area))).toEqual(area);
 		expect(parseArea('4,4')).toEqual({ from: { x: 4, y: 4 }, to: { x: 4, y: 4 } });
 		expect(parseList(' a, b ,, c ')).toEqual(['a', 'b', 'c']);
+	});
+
+	it('starts a new table as a current (v10) scene file, at noon under a sun', () => {
+		const scene = newTable('Yard', 8, 6);
+		expect(scene).toMatchObject({ version: SCENE_FILE_VERSION, ambient: 'day', interior: null });
+		expect(scene.world).toEqual(DEFAULT_WORLD);
+		expect(parseSceneFile(JSON.parse(JSON.stringify(scene)))).toMatchObject({ ok: true });
 	});
 
 	it('makes ids from names, never one already taken', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { exampleAdventure } from '../../src/lib/adventure/example';
-import { parseSceneFile } from '../../src/lib/game/scene-file';
+import { parseSceneFile, SCENE_FILE_VERSION } from '../../src/lib/game/scene-file';
+import { canonicalTime } from '../../src/lib/game/world';
 import { RoomManager } from '../rooms';
 import { applyScene, exportScene } from '../scene-io';
 import { loadCustomAdventure } from './custom';
@@ -24,6 +25,21 @@ describe("creators' adventures", () => {
 		const changed = file();
 		changed.title = 'Another Key';
 		expect(ok(loadCustomAdventure(changed)).adventure.id).not.toBe(a.adventure.id);
+	});
+
+	it('loads a file whose tables were saved before the world look (v9 scenes)', () => {
+		const old = file();
+		for (const loc of Object.values(old.locations) as { scene: Record<string, unknown> }[]) {
+			loc.scene.version = 9;
+			delete loc.scene.world;
+			delete loc.scene.interior;
+		}
+		const A = ok(loadCustomAdventure(old)).adventure;
+		for (const loc of Object.values(A.locations)) {
+			const scene = loc.scene();
+			expect(scene.version).toBe(SCENE_FILE_VERSION);
+			expect(scene.world.time).toBe(canonicalTime(scene.ambient));
+		}
 	});
 
 	it('refuses a file that is broken, naming the problem', () => {

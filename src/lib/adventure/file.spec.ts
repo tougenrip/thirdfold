@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { exampleAdventure } from './example';
 import { compileAdventure, loadAdventureFile, parseAdventureFile } from './file';
+import { SCENE_FILE_VERSION } from '../game/scene-file';
+import { defaultWorldFor } from '../game/world';
 
 const json = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
@@ -24,6 +26,21 @@ describe('adventure files', () => {
 		});
 		// Each call is a fresh table.
 		expect(A.locations.yard.scene()).not.toBe(A.locations.yard.scene());
+	});
+
+	it('loads a file published before the world look, whose tables are v9 scenes', () => {
+		const file = json(exampleAdventure());
+		for (const loc of Object.values(file.locations)) {
+			const scene = loc.scene as unknown as Record<string, unknown>;
+			scene.version = 9;
+			delete scene.world;
+			delete scene.interior;
+		}
+		const loaded = loadAdventureFile(file, 'custom-old');
+		if (!loaded.ok) throw new Error(`${loaded.error}\n${loaded.problems?.join('\n')}`);
+		const yard = loaded.adventure.locations.yard.scene();
+		expect(yard.version).toBe(SCENE_FILE_VERSION);
+		expect(yard.world).toEqual(defaultWorldFor(yard.ambient));
 	});
 
 	it('round-trips through JSON unchanged', () => {
