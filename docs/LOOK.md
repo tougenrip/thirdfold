@@ -411,8 +411,7 @@ deuteranopes).
 
 ## Milestone 64: the material system (#111)
 
-What changed in the look, before the strip and the metrics (`docs/look/m64/`, the table against
-M63's close) come with the goldens, before the PR:
+What changed in the look (the strip is `docs/look/m64/`; the metrics are below):
 
 - **Every surface is a shader kind** (#169, #172): the table, walls, raised ground, props and
   minis draw through the kinds with the environment's textures in their slots, so the picture is
@@ -434,6 +433,29 @@ M63's close) come with the goldens, before the PR:
 - **Less repetition and no flicker** (#181): gentle macro variation of tint and roughness on the
   tiled kinds, two-fetch anti-tiling on medium and up, and a stable per-instance lift that ends
   z-fighting between coplanar props, decals and water.
+
+Against M63's close (the same pairings and conditions; reduced motion, the GM without fog):
+
+| Reference | band | m63   | m64   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.161 | 0.193 |
+| 2         | dusk | 0.307 | 0.324 |
+| 3         | dark | 0.123 | 0.127 |
+| 4         | dark | 0.121 | 0.097 |
+| 6         | dark | 0.221 | 0.205 |
+| 7         | day  | 0.112 | 0.113 |
+| 8         | dusk | 0.207 | 0.219 |
+
+The first run of this strip scored every night further away (ref 1 0.227, ref 4 0.172): moving
+darkness from the overlay into the materials had dropped the band's dark tint (#167), so the dark
+went to neutral black and the shadow hue was lost. `worldModify` now takes each band's tint for
+the darkened part of a surface (`DARK_TINT` in `cell-maps.ts`), as the overlay did. With it the
+long dungeon (4) and the night palisade (6) move toward their references: G2's shadow distance on
+ref 6 drops. The torch room (ref 1) moves away: its explored walls and props now darken with the
+floor, so the room reads darker than the reference, whose walls catch more bounce light than we
+have, and its shadows come out a little bluer (hue 269 against the reference's 291). The two dusk
+pairings move a little away, as in M63, for want of a sky. Whether explored rooms read well
+darker is the owner's call (G2).
 
 The M63 note's "fog and darkness inside every material instead of planes on the floor (#171)" is
 done; the surface library and art bible (M65, #112), the sky (M67, #114, #218) and lighting by
