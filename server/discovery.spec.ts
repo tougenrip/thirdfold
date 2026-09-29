@@ -3,6 +3,7 @@ import { parseSceneFile } from '../src/lib/game/scene-file';
 import { decodeMask } from '../src/lib/game/visibility';
 import { RoomManager, type Player, type Room } from './rooms';
 import {
+	createLight,
 	createObject,
 	createProp,
 	createToken,
@@ -10,9 +11,13 @@ import {
 	moveToken,
 	setFog,
 	setFogShared,
+	updateLight,
 	updateProp,
 	updateToken
 } from './scene';
+import { run } from './adventure/engine';
+import { defaultAdventure } from './adventure/registry';
+import type { AdventureState } from './adventure/state';
 import { applyScene, exportScene } from './scene-io';
 import { viewFor } from './views';
 
@@ -194,5 +199,63 @@ describe('persistent discovery', () => {
 		expect(again.room.fog.shared).toBe(true);
 		expect([...pip2.player.explored]).toEqual([...pipSaw]);
 		expect(newcomer.player.explored.every((v) => v === 0)).toBe(true);
+	});
+});
+
+describe('remembered lights', () => {
+	const lights = (room: Room, viewer: Player) =>
+		viewFor(room, viewer)
+			.lights.map((l) => `${l.pos.x},${l.pos.y} ${l.on ? 'on' : 'off'}`)
+			.sort();
+
+	it('learns the lights of a room whose layout a character learns, as they are then', () => {
+		const { room, gm, pip, hero } = table();
+		// Short sight: walking in shows the far corner only through the room's layout.
+		updateToken(room, gm, hero.id, { vision: 1 });
+		const lamp = createLight(room, gm, { pos: { x: 15, y: 5 }, radius: 1, color: '#ffa04d' });
+		if (!lamp.ok) throw new Error(lamp.message);
+		updateLight(room, gm, lamp.light.id, { on: false });
+		expect(lights(room, pip)).toEqual([]);
+		moveToken(room, gm, hero.id, { x: 12, y: 3 });
+		expect(visible(room, pip)[cell(room, 15, 5)]).toBe(0);
+		expect(lights(room, pip)).toEqual(['15,5 off']);
+		// Lit again while nobody looks: still remembered as it was.
+		updateLight(room, gm, lamp.light.id, { on: true });
+		expect(lights(room, pip)).toEqual(['15,5 off']);
+	});
+
+	it('learns the lights of ground the story makes known, as they are then', () => {
+		const { room, gm, pip, ivy } = table();
+		createLight(room, gm, { pos: { x: 18, y: 10 }, radius: 1, color: '#ffa04d' });
+		expect(lights(room, pip)).toEqual([]);
+		run(room, { id: defaultAdventure().id } as AdventureState, [
+			{ explore: { from: { x: 17, y: 9 }, to: { x: 19, y: 11 } } }
+		]);
+		expect(lights(room, pip)).toEqual(['18,10 on']);
+		expect(lights(room, ivy)).toEqual(['18,10 on']);
+		// Placed there afterwards, out of everyone's sight: not news.
+		createLight(room, gm, { pos: { x: 17, y: 11 }, radius: 1, color: '#ffa04d' });
+		expect(lights(room, pip)).toEqual(['18,10 on']);
+	});
+
+	it('saves each player’s remembered lights with the table and gives them back by name', () => {
+		const { room, gm, pip, hero } = table();
+		const lamp = createLight(room, gm, { pos: { x: 9, y: 3 }, radius: 1, color: '#ffa04d' });
+		if (!lamp.ok) throw new Error(lamp.message);
+		expect(lights(room, pip)).toEqual(['9,3 on']);
+		moveToken(room, gm, hero.id, { x: 2, y: 12 });
+		updateLight(room, gm, lamp.light.id, { on: false });
+		createLight(room, gm, { pos: { x: 8, y: 4 }, radius: 1, color: '#ffa04d' });
+		expect(lights(room, pip)).toEqual(['9,3 on']);
+		const file = parseSceneFile(JSON.parse(JSON.stringify(exportScene(room, 'Lamps'))));
+		if (!file.ok) throw new Error(file.error);
+
+		const rooms = new RoomManager();
+		const again = rooms.create('Gemma');
+		if (!again.ok) throw new Error(again.message);
+		const pip2 = rooms.join(again.room.id, 'pip', 'player');
+		if (!pip2.ok) throw new Error(pip2.message);
+		applyScene(again.room, file.scene);
+		expect(lights(again.room, pip2.player)).toEqual(['9,3 on']);
 	});
 });

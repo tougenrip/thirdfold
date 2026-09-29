@@ -2282,6 +2282,112 @@ describe('session recovery over the wire', () => {
 		expect(lou.explored[7]).toBe(1);
 		expect(welcome.room.adventure?.stage).toBe('playing');
 	});
+
+	it('catches a late joiner up on the lights the party remembers, as remembered', async () => {
+		const { gm, pip, roomId, pipWelcome } = await seated();
+		gm.send({ type: 'adventure_start' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		const room = server.rooms.get(roomId)!;
+		const pipSeat = room.players.get(pipWelcome.playerId)!;
+		const old = { id: 'old-lamp', pos: { x: 7, y: 0 }, radius: 2, color: '#ffa04d', on: true };
+		pipSeat.explored[7] = 1;
+		pipSeat.lightsLearned = pipSeat.explored.slice();
+		pipSeat.seenLights = new Map([[old.id, old]]);
+
+		const late = await connect();
+		late.send({ type: 'join', roomId, name: 'Lou', role: 'player' });
+		const welcome = await late.expect('welcome');
+		expect(welcome.room.lights).toContainEqual(old);
+	});
+
+	it('never shows a player a remembered torch change out of sight: live, after a restart, a load and a rejoin', async () => {
+		const store = new MemoryRoomStore();
+		await restart({ port: 0, host: '127.0.0.1', roomStore: store, roomSaveMs: 0 });
+		const { gm, pip, roomId, gmWelcome, pipWelcome } = await seated();
+		/** Every light a client was sent, from snapshots and changes. */
+		const lightsIn = (frames: string[]) =>
+			frames.flatMap((f) => {
+				const m = JSON.parse(f) as ServerMessage;
+				if (m.type === 'lights_changed') return m.upserted;
+				if (m.type === 'welcome' || m.type === 'room_reset') return m.room.lights;
+				return [];
+			});
+		const watch = (c: TestClient) => {
+			const frames: string[] = [];
+			c.ws.on('message', (d) => frames.push(d.toString()));
+			return frames;
+		};
+		/** Everything the server sent `c` before now has arrived. */
+		const settle = async (c: TestClient, text: string) => {
+			c.send({ type: 'chat_send', text });
+			await c.until('chat', (m) => m.message.kind === 'chat' && m.message.text === text);
+		};
+
+		gm.send({ type: 'fog_set', enabled: true });
+		gm.send({
+			type: 'token_create',
+			name: 'Scout',
+			color: '#2e86de',
+			pos: { x: 2, y: 2 },
+			ownerId: pipWelcome.playerId
+		});
+		const { token } = await pip.until('token_upserted');
+		gm.send({ type: 'light_create', pos: { x: 5, y: 2 }, radius: 2, color: '#ffa04d' });
+		const torch = (await pip.until('lights_changed')).upserted[0];
+		expect(torch).toMatchObject({ pos: { x: 5, y: 2 }, on: true });
+
+		// The scout walks off; out of its sight the torch goes out and a lamp is lit nearby.
+		gm.send({ type: 'token_move', tokenId: token.id, to: { x: 2, y: 17 } });
+		await pip.until('token_moved');
+		const live = watch(pip);
+		gm.send({ type: 'light_update', lightId: torch.id, patch: { on: false } });
+		gm.send({ type: 'light_create', pos: { x: 4, y: 2 }, radius: 1, color: '#ffa04d' });
+		const lamp = (await gm.until('lights_changed', (m) => m.upserted[0]?.id !== torch.id))
+			.upserted[0];
+		await settle(pip, 'Anyone there?');
+		const remembered = (frames: string[]) => {
+			expect(frames.join('')).not.toContain(lamp.id);
+			for (const l of lightsIn(frames)) if (l.id === torch.id) expect(l.on).toBe(true);
+		};
+		remembered(live);
+		expect(lightsIn(live)).toEqual([]);
+
+		// A restart: the seat comes back remembering the torch lit, and nothing of the lamp.
+		await restart({ port: 0, host: '127.0.0.1', roomStore: store, roomSaveMs: 0 });
+		const gmBack = await resume(roomId, gmWelcome.sessionToken);
+		const pipC = await connect();
+		const afterRestart = watch(pipC);
+		pipC.send({ type: 'resume', roomId, sessionToken: pipWelcome.sessionToken });
+		const back = await pipC.expect('welcome');
+		expect(back.room.lights).toEqual([torch]);
+		await settle(pipC, 'Back.');
+		remembered(afterRestart);
+
+		// A save and a load: the same.
+		gmBack.c.send({ type: 'scene_save', name: 'Lamps' });
+		const { sceneId } = await gmBack.c.until('scene_saved');
+		gmBack.c.send({ type: 'scene_load', sceneId });
+		expect((await pipC.until('room_reset')).room.lights).toEqual([torch]);
+		await settle(pipC, 'Loaded.');
+		remembered(afterRestart);
+
+		// A new table on that save, and Pip joining it under the same name.
+		const other = await connect();
+		other.send({ type: 'create', name: 'Gemma', gmKey: gmWelcome.gmKey, continueFrom: sceneId });
+		const table = await other.expect('welcome');
+		const again = await connect();
+		const rejoined = watch(again);
+		again.send({ type: 'join', roomId: table.room.id, name: 'Pip', role: 'player' });
+		const welcome = await again.expect('welcome');
+		expect(welcome.room.tokens.map((t) => t.name)).toEqual(['Scout']);
+		expect(welcome.room.lights).toEqual([torch]);
+		await settle(again, 'Me again.');
+		remembered(rejoined);
+	});
 });
 
 describe('save and resume over the wire', () => {

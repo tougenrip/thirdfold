@@ -35,7 +35,7 @@ import {
 	type PublicGame
 } from '../src/lib/game/library';
 import { LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
-import { applyScene, exportScene, reclaim } from './scene-io';
+import { applyScene, catchUpLights, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { keyOwner, newGmKey } from './gm-keys';
 import { newSceneId } from './scene-store';
@@ -326,6 +326,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						for (let i = 0; i < player.explored.length; i++) {
 							if (other.explored[i]) player.explored[i] = 1;
 						}
+						// And its lights as the party remembers them, not as they are now.
+						catchUpLights(player, other);
 					}
 				}
 				// Logged before seating so the joiner's snapshot already contains it.

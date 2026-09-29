@@ -62,12 +62,33 @@ export function reclaim(room: Room, player: Player): string[] {
 		room.awaiting!.delete(tokenId);
 		back.push(tokenId);
 	}
-	const mask = room.discovery?.get(name)?.explored;
-	if (mask && back.length) {
-		const saved = decodeMask(mask, room.grid.width * room.grid.height);
+	const found = room.discovery?.get(name);
+	if (found && back.length) {
+		const saved = decodeMask(found.explored, room.grid.width * room.grid.height);
 		for (let i = 0; i < saved.length; i++) if (saved[i]) player.explored[i] = 1;
+		// And the lights as they remembered them, on the cells they had explored.
+		if (found.lights) {
+			const seen = (player.seenLights ??= new Map());
+			for (const l of found.lights) if (!seen.has(l.id)) seen.set(l.id, structuredClone(l));
+			const learned = (player.lightsLearned ??= emptyMask(room.grid));
+			for (let i = 0; i < saved.length; i++) if (saved[i]) learned[i] = 1;
+		}
 	}
 	return back;
+}
+
+/**
+ * A player catching up on what another has explored (joining a story under
+ * way) also takes on the lights that one remembers, as remembered: the
+ * first record of each light wins, and cells the other had learned the lights
+ * of count as learned.
+ */
+export function catchUpLights(player: Player, other: Player): void {
+	if (!other.seenLights || !other.lightsLearned) return;
+	const seen = (player.seenLights ??= new Map());
+	for (const [id, l] of other.seenLights) if (!seen.has(id)) seen.set(id, structuredClone(l));
+	const learned = (player.lightsLearned ??= new Uint8Array(other.lightsLearned.length));
+	for (let i = 0; i < learned.length; i++) if (other.lightsLearned[i]) learned[i] = 1;
 }
 
 export function applyScene(room: Room, scene: SceneFile): void {
@@ -116,6 +137,7 @@ export function applyScene(room: Room, scene: SceneFile): void {
 		const d = discovered.get(p.name.toLowerCase());
 		p.explored = d ? decodeMask(d.explored, size) : emptyMask(room.grid);
 		p.seenLights = d?.lights && new Map(d.lights.map((l) => [l.id, structuredClone(l)]));
-		p.lightsLearned = undefined;
+		// Remembered lights were taken in on every explored cell; a save without them learns afresh.
+		p.lightsLearned = p.seenLights && p.explored.slice();
 	}
 }

@@ -5,6 +5,7 @@ import { postSystem } from './chat';
 import {
 	createLight,
 	createObject,
+	deleteLight,
 	createProp,
 	createToken,
 	fogArea,
@@ -254,6 +255,79 @@ describe('lighting and visibility', () => {
 		createLight(room, gm, { pos: { x: 3, y: 3 }, radius: 2, color: '#ffa04d' });
 		expect(viewFor(room, pip).lights.map((l) => l.pos)).toEqual([{ x: 3, y: 3 }]);
 		expect(viewFor(room, gm).lights).toHaveLength(2);
+	});
+
+	it('shows a torch put out in front of you going out, though its cell goes dark', () => {
+		const { room, gm, pip } = darkRoom();
+		const r = createLight(room, gm, { pos: { x: 5, y: 3 }, radius: 1, color: '#ffa04d' });
+		if (!r.ok) throw new Error(r.message);
+		expect(viewFor(room, pip).lights).toMatchObject([{ id: r.light.id, on: true }]);
+		updateLight(room, gm, r.light.id, { on: false });
+		expect(seesCell(room, pip, 5, 3)).toBe(false);
+		expect(viewFor(room, pip).lights).toMatchObject([{ id: r.light.id, on: false }]);
+	});
+
+	describe('remembered lights', () => {
+		/** Day, fog on: Pip's Hero at (3, 3) sees a torch at (6, 3); then walks off out of sight. */
+		function torchRoom() {
+			const t = setup();
+			setFog(t.room, t.gm, true);
+			const hero = token(t.room, t.gm, 'Hero', 3, 3, t.pip.id);
+			const r = createLight(t.room, t.gm, { pos: { x: 6, y: 3 }, radius: 2, color: '#ffa04d' });
+			if (!r.ok) throw new Error(r.message);
+			const lights = (viewer: Player) =>
+				viewFor(t.room, viewer)
+					.lights.map((l) => `${l.pos.x},${l.pos.y} ${l.on ? 'on' : 'off'} ${l.radius}`)
+					.sort();
+			expect(lights(t.pip)).toEqual(['6,3 on 2']);
+			const away = () => moveToken(t.room, t.gm, hero.id, { x: 3, y: 17 });
+			const back = () => moveToken(t.room, t.gm, hero.id, { x: 3, y: 3 });
+			away();
+			expect(seesCell(t.room, t.pip, 6, 3)).toBe(false);
+			return { ...t, hero, torch: r.light, lights, back };
+		}
+
+		it('keeps a torch switched out of sight as it was, until it is seen again', () => {
+			const { room, gm, pip, torch, lights, back } = torchRoom();
+			updateLight(room, gm, torch.id, { on: false, radius: 4 });
+			expect(lights(pip)).toEqual(['6,3 on 2']);
+			back();
+			expect(lights(pip)).toEqual(['6,3 off 4']);
+		});
+
+		it('does not send a light placed out of sight on ground already explored', () => {
+			const { room, gm, pip, lights, back } = torchRoom();
+			createLight(room, gm, { pos: { x: 5, y: 4 }, radius: 1, color: '#ffa04d' });
+			expect(lights(pip)).toEqual(['6,3 on 2']);
+			back();
+			expect(lights(pip)).toEqual(['5,4 on 1', '6,3 on 2']);
+		});
+
+		it('remembers a light removed out of sight until its cell is seen again', () => {
+			const { room, gm, pip, torch, lights, back } = torchRoom();
+			deleteLight(room, gm, torch.id);
+			expect(lights(pip)).toEqual(['6,3 on 2']);
+			back();
+			expect(lights(pip)).toEqual([]);
+		});
+
+		it('forgets the lights of ground the GM hides', () => {
+			const { room, gm, pip, lights } = torchRoom();
+			fogArea(room, gm, { x: 5, y: 2 }, { x: 7, y: 4 }, false);
+			expect(lights(pip)).toEqual([]);
+		});
+
+		it('gives the GM, and everyone without fog, the lights as they are', () => {
+			const { room, gm, pip, sam, torch, lights } = torchRoom();
+			updateLight(room, gm, torch.id, { on: false });
+			expect(lights(gm)).toEqual(['6,3 off 2']);
+			setFog(room, gm, false);
+			expect(lights(pip)).toEqual(['6,3 off 2']);
+			expect(lights(sam)).toEqual(['6,3 off 2']);
+			// Fog back on: what they learn is the truth, not an older memory.
+			setFog(room, gm, true);
+			expect(lights(pip)).toEqual(['6,3 off 2']);
+		});
 	});
 
 	it('ignores light entirely in daylight', () => {
