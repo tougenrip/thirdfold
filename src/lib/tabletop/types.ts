@@ -2,6 +2,7 @@
 // fog, lights, previews) and what it reports back (picks in grid terms).
 // renderer.ts implements it and re-exports these types.
 
+import type * as THREE from 'three/webgpu';
 import type { Cue, Shot } from '$lib/game/chat';
 import type { GridEdge, GridPos, SquareGrid } from '$lib/game/grid';
 import type { Ambient, Light } from '$lib/game/lights';
@@ -68,6 +69,11 @@ export interface TabletopOptions {
 	inspector?: boolean;
 	/** MSAA (default on). Fixed for the renderer's life: changing it takes a new tabletop. */
 	antialias?: boolean;
+	/**
+	 * A renderer the lobby warmed up on this canvas (lobby.ts, #180), adopted instead of making
+	 * one: its compiled shaders come with it. Its warm-up took `warmupMs`.
+	 */
+	warm?: { renderer: THREE.WebGPURenderer; warmupMs: number };
 	/** The WebGL context or WebGPU device was lost: the tabletop draws no more (rebuild it). */
 	onLost?: (info: { api: string; message: string }) => void;
 	/** Refinement stepped an automatic tier down (see `setQuality`): remember it for this device. */

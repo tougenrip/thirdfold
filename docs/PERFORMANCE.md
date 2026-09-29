@@ -343,10 +343,18 @@ Environments, the times of day, every floor, fog off and on in both modes, fully
 explored and unseen fog, dark areas, 0, 1 and 12 lights (past the pool of 8), recolouring and
 switching them, a token carrying light, a token without a model, fallen and enemy turns, props
 selected, hovered, hidden and moved, both cues and travel between four tables of three sizes change
-none. What still compiles (`KNOWN` in the spec, each with the issue that ends it):
-
-- **The first selection** (+1 vertex, +1 fragment) **and the first turn marker** (+1 fragment):
-  the ring and the marker live in the overlay scene, which the warm-up does not compile (#180).
+none. Of `KNOWN` in the spec (each compile still left, with the issue that ends it) #180 ended both
+entries: the first selection (+1 vertex, +1 fragment) and the first turn marker (+1 fragment)
+compiled because the ring and the marker live in the overlay scene, which the warm-up did not
+compile. It now compiles the overlay's pass too, and stand-ins for everything that shows only later
+(the ring and marker, a die, the toll's dust and shadow; the first frame after a warm-up draws them
+once, far below the table, for what only a draw makes: a die's shadow-pass material). The sweep
+also throws a die (at rest, fading, gone), plays the toll with motion (its dust and shadow shown)
+and, on low, switches anti-tiling back and forth. That adds the one entry `KNOWN` holds now: the
+first switch of anti-tiling in place compiles the table's, walls' and raised ground's twins' vertex
+stages (every InstancedMesh has its own, and a compile declares a shadowed material's uniforms in
+another order than the draw), in the hold the switch starts; switching back and again compiles
+nothing, since the twins are kept (`twinOf`).
 
 #172 ended two more by putting the layers on the shader kinds: hiding a token (which toggled
 `transparent` on the mini's own materials; the mini kind's hidden token is a screen-door dither on

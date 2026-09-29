@@ -115,6 +115,15 @@ export async function createNodeRenderer(
 		throw webgl2 ? err : new Error('WebGL2 unavailable', { cause: err });
 	}
 	stopInternalLoop(renderer);
+	setUpRenderer(renderer, options);
+	return renderer;
+}
+
+/**
+ * The rest of the renderer's setup, for one made here or adopted from the lobby's warm-up
+ * (lobby.ts, #180), which was made without the table's handlers.
+ */
+export function setUpRenderer(renderer: THREE.WebGPURenderer, options: TabletopOptions): void {
 	// A lost WebGL context or WebGPU device: stop drawing (as three's default does, which also
 	// logs an error) and say so, so the tabletop can be rebuilt on a fresh canvas (#150).
 	renderer.onDeviceLost = (info) => {
@@ -136,5 +145,4 @@ export async function createNodeRenderer(
 		void import('three/examples/jsm/inspector/Inspector.js').then(
 			({ Inspector }) => (renderer.inspector = new Inspector())
 		);
-	return renderer;
 }

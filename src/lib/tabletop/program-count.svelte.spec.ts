@@ -12,8 +12,8 @@
 // their props' meshes are compiled then, and a table left behind keeps its programs. A
 // deliberately bad material (a literal of its own in the graph) proves the sweep is not vacuous.
 // Per tier, on both backends (WebGL2 on SwiftShader here; WebGPU on the real GPU in the
-// client-webgpu project). Reduced motion, as the other renderer tests: the toll's dust is not
-// drawn, so it is left to the warm-up gallery (#180).
+// client-webgpu project). Reduced motion, as the other renderer tests, so the toll's dust is not
+// drawn in the sweep: a second test plays it with motion (the warm-up's gallery compiles it, #180).
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -25,7 +25,7 @@ import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
-import type { Tier } from './quality';
+import { aoKind, settingsFor, type Tier } from './quality';
 import type { Tabletop } from './types';
 import {
 	loadSidecar,
@@ -68,7 +68,8 @@ async function viewOf(fixture: string, viewer: 'gm' | 'player' = 'gm') {
 	return { view: await loadView(fixture, sidecar.ambient, viewer), sidecar };
 }
 
-type Step = readonly [name: string, run: () => void];
+/** A named change, and how far the held clock moves before its frame (default: past its end). */
+type Step = readonly [name: string, run: () => void, advance?: number];
 type Clock = ReturnType<typeof manualClock>;
 
 /**
@@ -77,9 +78,9 @@ type Clock = ReturnType<typeof manualClock>;
  * frames on high). The held clock is first moved past any transition the step starts (a grade
  * blending into a new environment's, a cue), so the frames after it draw its end.
  */
-async function drawn(t: Tabletop, clock: Clock): Promise<boolean> {
+async function drawn(t: Tabletop, clock: Clock, advance = 30_000): Promise<boolean> {
 	const from = t.stats().frames;
-	clock.set(clock.now() + 30_000);
+	clock.set(clock.now() + advance);
 	const until = performance.now() + 10_000;
 	while (performance.now() < until) {
 		await new Promise(requestAnimationFrame);
@@ -95,13 +96,17 @@ async function drawn(t: Tabletop, clock: Clock): Promise<boolean> {
  * shrinks as they are fixed.
  */
 const KNOWN: Record<string, string> = {
-	// The selection ring and the turn marker live in the overlay scene, which the warm-up does not
-	// compile, so each compiles on the first click or turn (#180, the warm-up gallery).
-	'token selected': '#180',
-	'token active': '#180'
+	// The first switch of anti-tiling in place swaps the table's, the walls' and the raised
+	// ground's materials for their twins (kept since #180, so switching back and again compiles
+	// nothing). A compile can't make what the draw will use: r186 gives every InstancedMesh a
+	// vertex stage of its own and declares a shadowed material's uniforms in another order compiled
+	// than drawn, and the real meshes can't be drawn in their twins unseen. It happens only where a
+	// tier switch keeps the pipeline (no AO: low, or medium with Advanced options off), in the hold
+	// the switch starts anyway; a lobby's warm-up (#180) has drawn every kind's variants by then.
+	'anti-tiling on': 'r186 (no issue: see above)'
 };
 /** The KNOWN steps that always compile (on their first use). */
-const FIRST_USE = ['token selected', 'token active'];
+const FIRST_USE: string[] = ['anti-tiling on'];
 
 interface Sweep {
 	/** Runs `steps`, drawing after each; returns the steps that changed the counts, and how. */
@@ -120,11 +125,11 @@ function sweeper(m: Mounted, renderer: THREE.WebGPURenderer, clock: Clock): Swee
 		counts,
 		async run(steps) {
 			const changes: string[] = [];
-			for (const [name, run] of steps) {
+			for (const [name, run, advance] of steps) {
 				const [was, stages] = [counts(), shaderStages(renderer)];
 				run();
 				// A step that draws nothing could compile nothing: it would pass without testing.
-				if (!(await drawn(m.tabletop, clock))) changes.push(`${name}: no frame drawn`);
+				if (!(await drawn(m.tabletop, clock, advance))) changes.push(`${name}: no frame drawn`);
 				const now = counts();
 				if (now.programs !== was.programs || now.pipelines !== was.pipelines) {
 					const after = shaderStages(renderer);
@@ -237,11 +242,19 @@ function homeSteps(m: Mounted, home: FixtureView): Step[] {
 		['prop moved', () => t.setProps(withProp({ pos: { x: prop.pos.x + 1, y: prop.pos.y } }))],
 		['props back', () => t.setProps(home.props)],
 		['flash cue', cue('flash')],
-		['toll cue', cue('toll')]
+		['toll cue', cue('toll')],
+		// Reduced motion throws instantly; the frame is drawn with the die at rest, then fading
+		// (after REST_S, 3.2 s, dice3d.ts), then gone.
+		['die thrown', () => t.throwDice(THROW), 100],
+		['die fading', () => {}, 3_300],
+		['die gone', () => {}]
 	];
 }
 
-async function mountHome(tier: Tier) {
+/** A roll to throw: a d20 showing its last face. */
+const THROW = { seq: 1, dice: [{ kind: 'd20' as const, face: 19 }], color: '#8a2f24' };
+
+async function mountHome(tier: Tier, reducedMotion = true) {
 	const { view: home, sidecar } = await viewOf(HOME);
 	const travel = await Promise.all(TRAVEL.map((f) => viewOf(f)));
 	// Loaded before the sweep, so a step's frame is its final one (models arrive by then).
@@ -252,8 +265,10 @@ async function mountHome(tier: Tier) {
 	await Promise.all(ENVIRONMENTS.flatMap((e) => (e ? [loadEnvironment(e)] : [])));
 	const compile = vi.spyOn(THREE.WebGPURenderer.prototype, 'compileAsync');
 	const clock = manualClock();
-	const m = await mountFixture(home, sidecar.poses.overview, { clock, tier });
+	const m = await mountFixture(home, sidecar.poses.overview, { clock, tier, reducedMotion });
 	mounted = m;
+	// Flames and mist still with motion on, so frames come only from the steps.
+	if (!reducedMotion) m.tabletop.setPowerSaver(true);
 	await drawn(m.tabletop, clock);
 	const renderer = compile.mock.contexts[0] as THREE.WebGPURenderer;
 	const scene = compile.mock.calls[0][2] as THREE.Scene;
@@ -266,8 +281,9 @@ describe('the shader program count', () => {
 		const { m, home, travel, clock, renderer } = await mountHome(tier);
 		const sweep = sweeper(m, renderer, clock);
 		const t = m.tabletop;
-		// Warm-up: every environment once, every table once (#180's gallery will take its place).
-		// The programs of a table left behind stay compiled, so from here the counts hold still.
+		// Warm-up: every environment once, every table once. The programs of a table left behind stay
+		// compiled, so from here the counts hold still. (The lobby's gallery can't stand in, #180:
+		// r186 orders a shadowed lit material's uniforms by what the renderer built before.)
 		for (const e of ENVIRONMENTS) {
 			t.setEnvironment(e);
 			await drawn(t, clock);
@@ -278,6 +294,21 @@ describe('the shader program count', () => {
 		}
 		const p0 = sweep.counts();
 		const changes = await sweep.run(homeSteps(m, home));
+		// Low draws one fetch a slot, medium and up anti-tile (#181). A switch that keeps the
+		// pipeline swaps the table's, the walls' and the raised ground's materials for their twins;
+		// it has no AO (low has none, and a new AO kind is a new renderer, Tabletop.svelte), so it
+		// is swept where there is none. See KNOWN for the first one.
+		const settings = settingsFor(tier, t.capabilities().backend);
+		const antiTile = (on: boolean) => () => t.setQuality({ ...settings, antiTile: on });
+		if (aoKind(settings) === 'none')
+			changes.push(
+				...(await sweep.run([
+					[`anti-tiling ${settings.antiTile ? 'off' : 'on'}`, antiTile(!settings.antiTile)],
+					['anti-tiling back', antiTile(settings.antiTile)],
+					['anti-tiling again', antiTile(!settings.antiTile)],
+					['anti-tiling as it was', antiTile(settings.antiTile)]
+				]))
+			);
 		// Table travel: to each table and back home, in both directions.
 		for (const view of [...travel, ...[...travel].reverse()]) {
 			const [w, h] = [view.grid.width, view.grid.height];
@@ -293,8 +324,30 @@ describe('the shader program count', () => {
 		console.info(`${tier} after the warm-up: ${JSON.stringify(p0)}; then\n${known.join('\n')}`);
 		if (sweep.codegen.length) console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
 		expect(changes.filter((c) => !(stepOf(c) in KNOWN))).toEqual([]);
-		const gone = FIRST_USE.filter((step) => !known.some((c) => stepOf(c) === step));
+		const swept = (step: string) => !step.startsWith('anti-tiling') || aoKind(settings) === 'none';
+		const gone = FIRST_USE.filter(swept).filter((step) => !known.some((c) => stepOf(c) === step));
 		expect(gone, 'known compiles that are gone: drop them from KNOWN').toEqual([]);
+	});
+
+	it('stays put through the toll with motion, its dust and shadow shown (#180)', async () => {
+		const { m, home, clock, renderer } = await mountHome('medium', false);
+		const sweep = sweeper(m, renderer, clock);
+		const [prop] = home.props;
+		// The pipeline's own passes settle over its first frames (the AO's blur): draw a few first.
+		for (let i = 0; i < 3; i++) {
+			m.tabletop.setPose(m.tabletop.cameraPose()!);
+			await drawn(m.tabletop, clock);
+		}
+		// A second in: the dust is falling and the shadow crossing; then the toll ends. A die thrown
+		// with motion flies, lands and fades.
+		const changes = await sweep.run([
+			['toll cue, with motion', () => m.tabletop.playCue('toll', prop.id), 1_000],
+			['toll over', () => {}],
+			['die thrown, with motion', () => m.tabletop.throwDice({ ...THROW, seq: 2 }), 500],
+			['die fading, with motion', () => {}, 4_300],
+			['die gone, with motion', () => {}]
+		]);
+		expect(changes).toEqual([]);
 	});
 
 	it.todo('stays put with a KTX2- and a PNG-textured material in one slot (#188)');

@@ -9,7 +9,14 @@ import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import { wear, type EnvironmentLook } from './environment';
 import { STEP_HEIGHT } from './ground';
-import { createMaterial, remake, repeatFor, setParams, type KindMaterial } from './materials';
+import {
+	createMaterial,
+	disposeTwins,
+	repeatFor,
+	setParams,
+	twinOf,
+	type KindMaterial
+} from './materials';
 
 export const TABLE_MARGIN = 3;
 const TABLE_THICKNESS = 0.6;
@@ -65,13 +72,11 @@ export class TableLayer {
 	 */
 	setAntiTiled(on: boolean): boolean {
 		if (!!this.surfaceMaterial.options.antiTiled === on) return false;
-		const [slab, surface] = [this.slabMaterial, this.surfaceMaterial];
-		this.slabMaterial = remake(slab, { antiTiled: on });
-		this.surfaceMaterial = remake(surface, { antiTiled: on });
+		// Their twins, kept (#180): switching back releases nothing and the warm-up compiled them.
+		this.slabMaterial = twinOf(this.slabMaterial);
+		this.surfaceMaterial = twinOf(this.surfaceMaterial);
 		if (this.slab) this.slab.material = this.slabMaterial;
 		if (this.surface) this.surface.material = this.surfaceMaterial;
-		slab.dispose();
-		surface.dispose();
 		return true;
 	}
 
@@ -86,7 +91,7 @@ export class TableLayer {
 
 	dispose(): void {
 		this.clear();
-		this.slabMaterial.dispose();
-		this.surfaceMaterial.dispose();
+		disposeTwins(this.slabMaterial);
+		disposeTwins(this.surfaceMaterial);
 	}
 }

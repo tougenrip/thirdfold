@@ -11,7 +11,14 @@ import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { wear, type Look } from './environment';
 import { STEP_HEIGHT, type Ground } from './ground';
-import { createMaterial, remake, repeatFor, setParams, type KindMaterial } from './materials';
+import {
+	createMaterial,
+	disposeTwins,
+	repeatFor,
+	setParams,
+	twinOf,
+	type KindMaterial
+} from './materials';
 
 const PLAIN = { color: 0x77705f, roughness: 0.9 };
 
@@ -42,10 +49,9 @@ export class TerrainLayer {
 	 */
 	setAntiTiled(on: boolean): boolean {
 		if (!!this.material.options.antiTiled === on) return false;
-		const old = this.material;
-		this.material = remake(old, { antiTiled: on });
+		// Its twin, kept (#180): switching back releases nothing and the warm-up compiled it.
+		this.material = twinOf(this.material);
 		if (this.mesh) this.mesh.material = this.material;
-		old.dispose();
 		return true;
 	}
 
@@ -105,6 +111,6 @@ export class TerrainLayer {
 	dispose(): void {
 		this.mesh?.dispose();
 		this.geometry.dispose();
-		this.material.dispose();
+		disposeTwins(this.material);
 	}
 }

@@ -23,6 +23,7 @@ import { poseFor, type GridPose } from './poses';
 import { settingsFor, toneMapperFrom, type Tier } from './quality';
 import { createTabletop } from './renderer';
 import type { Tabletop, TabletopEvents } from './types';
+import type { WarmRenderer } from './lobby';
 
 export type Band = 'day' | 'dusk' | 'dark';
 export type Viewer = 'gm' | 'player' | 'spectator';
@@ -131,6 +132,8 @@ export async function mountFixture(
 		miniature?: boolean;
 		/** The quality tier, medium unless said (the high tier's TRAA golden, #163). */
 		tier?: Tier;
+		/** A renderer the lobby warmed up, adopted with its canvas (#180; no `pixels()` then). */
+		warm?: WarmRenderer;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -144,7 +147,7 @@ export async function mountFixture(
 	const toneMapper = toneMapperFrom(location.search) ?? undefined;
 	if (view.environment) await loadEnvironment(view.environment, toneMapper);
 
-	const canvas = document.createElement('canvas');
+	const canvas = options.warm?.canvas ?? document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
 	document.body.appendChild(canvas);
 	const webgpu = BACKEND === 'webgpu';
@@ -158,6 +161,7 @@ export async function mountFixture(
 			preserveDrawingBuffer: !webgpu,
 			backend: webgpu ? 'webgpu' : 'webgl',
 			perf: options.perf,
+			warm: options.warm,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
 			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : !options.miniature
 		}

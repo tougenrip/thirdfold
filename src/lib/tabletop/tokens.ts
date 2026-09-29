@@ -21,6 +21,7 @@ import type { Token } from '$lib/game/token';
 import { createMaterial } from './materials';
 import { loadModel, modelNow } from './models';
 import type { OverlayLayer } from './overlay';
+import { standIn } from './warmup';
 
 interface Entry {
 	root: THREE.Group;
@@ -125,6 +126,7 @@ export class TokenLayer {
 		new THREE.ConeGeometry(0.14, 0.3, 4),
 		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
 	);
+	private standIns: THREE.Object3D[] | null = null;
 
 	/**
 	 * `onModel` is told when a figure's model has arrived and it has been drawn. Moves and
@@ -310,6 +312,16 @@ export class TokenLayer {
 			entry.label = makeLabel(entry.name);
 			entry.tag.add(entry.label);
 		}
+	}
+
+	/**
+	 * Stand-ins for the selection ring and the turn marker, which show on a first click or turn, for
+	 * the warm-up to compile in the overlay's pass (#180).
+	 */
+	gallery(): THREE.Object3D[] {
+		return (this.standIns ??= [this.ring, this.marker].map((m) =>
+			standIn(new THREE.Mesh(m.geometry, m.material))
+		));
 	}
 
 	dispose(): void {
