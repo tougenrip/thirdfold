@@ -409,6 +409,36 @@ inside every material instead of planes on the floor (#171). The owner's sign-of
 on the highlight colours under colour-vision simulation (#157: blocked and place nearly match for
 deuteranopes).
 
+## Milestone 64: the material system (#111)
+
+What changed in the look, before the strip and the metrics (`docs/look/m64/`, the table against
+M63's close) come with the goldens, before the PR:
+
+- **Every surface is a shader kind** (#169, #172): the table, walls, raised ground, props and
+  minis draw through the kinds with the environment's textures in their slots, so the picture is
+  the same family of materials everywhere rather than the classic materials plus overlays.
+- **Fog and darkness are in the materials** (#171, #173): no planes on the floor any more. Walls,
+  props and minis in an explored room are dimmed, desaturated and cooled as its floor is, and the
+  dark shades raised ground's sides and props, not only what lies under a plane; a player's
+  unexplored cells stay exactly black, now also after bloom and the lens (the re-mask).
+- **The fog is atmosphere** (#174): soft, slightly irregular edges instead of the cell grid's
+  steps, and newly seen ground fades in (instant under reduced motion). The fog cloud over hidden
+  cells is built but its layer stays off until the owner approves it on ref-1 and the Hollow.
+- **Textures sit on the world, not on each piece** (#177): walls, raised ground and the table
+  share one box projection, so stone runs on across wall segments and step heights without
+  seams; rock is triplanar; props and minis in object space.
+- **Painted miniatures** (#178): props and minis have paint noise in their normal and gloss
+  (off on the low tier), the TaleSpire recipe the references show.
+- **Crisper ground at grazing angles** (#179): anisotropic filtering by tier and a mip bias with
+  TRAA on high and ultra.
+- **Less repetition and no flicker** (#181): gentle macro variation of tint and roughness on the
+  tiled kinds, two-fetch anti-tiling on medium and up, and a stable per-instance lift that ends
+  z-fighting between coplanar props, decals and water.
+
+The M63 note's "fog and darkness inside every material instead of planes on the floor (#171)" is
+done; the surface library and art bible (M65, #112), the sky (M67, #114, #218) and lighting by
+the hour (#208) are still missing.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

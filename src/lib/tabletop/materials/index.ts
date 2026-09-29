@@ -2,7 +2,8 @@
 // kinds, made here. A kind's graph is shared by all its materials (kinds.ts), its values are
 // `params` and its textures sit in typed slots that are never empty (defaults.ts), so making a
 // material, changing its values or swapping its textures adds no program. The rules are in
-// docs/RENDERING.md, "Shader kinds"; what later looks plug into, in hooks.ts and world-modify.ts.
+// docs/RENDERING.md, "Materials and world visibility"; what later looks plug into, in hooks.ts
+// and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
 // the kind, `instanced`, `lines`, `local`, `antiTiled`, `vertexColors`, and the kind's

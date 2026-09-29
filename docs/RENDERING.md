@@ -151,8 +151,8 @@ with the sun's shadow. A warm-up never holds longer than 1.5 s; what it didn't r
 draw.
 
 Since #180 it also compiles what shows only later, from stand-ins each layer gives (`gallery`: the
-selection ring and turn marker in the overlay's pass, a die, the toll's dust and shadow), never the
-real objects, and the first frame after it draws the stand-ins once, a millionth of their size far
+selection ring and turn marker in the overlay's pass, a die, the toll's dust and shadow, the fog
+cloud), never the real objects, and the first frame after it draws the stand-ins once, a millionth of their size far
 below the table (`Gallery` in `warmup.ts`): a compile can't make a die's shadow-pass material, nor
 a material in the AO's context, which only the scene pass itself sets, and r186 declares a shadowed
 material's uniforms in another order compiled than drawn. A tier switch that keeps the pipeline
@@ -325,28 +325,31 @@ Published wire values are accepted forever: the `{ambient}` effect, `ambient_set
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
 delegations; every module in the folder stays under 500 lines (`modules.spec.ts` checks it).
 
-| Module            | What it holds                                                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                     |
-| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                         |
-| `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                           |
-| `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                  |
-| `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                               |
-| `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                    |
-| `table.ts`        | The slab and surface (surface and terrain kinds), worn in the environment's looks                                               |
-| `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                            |
-| `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                   |
-| `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics` |
-| `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement        |
-| `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                  |
-| `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                           |
-| `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                       |
-| `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness        |
-| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180) |
-| `warmup.ts`       | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                         |
-| `lobby.ts`        | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                 |
-| `shape.ts`        | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                  |
-| layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts`            |
+| Module            | What it holds                                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                       |
+| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                           |
+| `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                             |
+| `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                    |
+| `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                 |
+| `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                      |
+| `table.ts`        | The slab and surface (surface and terrain kinds), worn in the environment's looks                                                 |
+| `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                              |
+| `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                     |
+| `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`   |
+| `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement          |
+| `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                    |
+| `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                             |
+| `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                         |
+| `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness          |
+| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)   |
+| `cell-maps.ts`    | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)        |
+| `fog-soft.ts`     | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                            |
+| `fog-cloud.ts`    | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                             |
+| `warmup.ts`       | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                           |
+| `lobby.ts`        | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                   |
+| `shape.ts`        | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                    |
+| layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode` |
 
 ## Quality tiers
 
@@ -583,9 +586,9 @@ passes, in order:
   dither of ±1 step against banding, never on the overlay. Each is a uniform and a Graphics
   option (Vignette, Chromatic aberration, Film grain; `?off=lens` all three).
   - **The black rule:** every step maps 0 to 0. The vignette multiplies, grain and dither are
-    masked by `smoothstep(0, 2/255, luminance)`, and the fog's hidden shade is exactly black
-    (`SHADE` 0, 0, 0, `fog: false` so the distance haze never lifts it), so unexplored cells are
-    exactly (0, 0, 0) on screen. A test draws black with every effect at full strength and reads
+    masked by `smoothstep(0, 2/255, luminance)`, `worldModify` makes a player's hidden cells
+    exactly 0 (haze included), and the re-mask takes back what bloom and the lens spread over them
+    (see "Materials and world visibility"), so unexplored cells are exactly (0, 0, 0) on screen. A test draws black with every effect at full strength and reads
     only zeros; #176 checks it over the fixtures' fogged views.
   - **Grain and dither are seeded by the tabletop's clock** (`uniforms.frameIndex`, 24 steps a
     second), so a held clock holds them still (goldens, the idle table) and they only move on
@@ -713,222 +716,338 @@ at the M63 tip, after the loose ends of #157, #159, #160, #162, #163, #165 and #
 - `npm run bundle:check`: the renderer chunk is 343.1 kB gz of its 360 kB (from 303.4 kB: SMAA's
   lookup textures and GTAO); the room page's own code 74.9 kB gz of its 76 kB (74.4 before M63).
 
-## Shader kinds
+## Materials and world visibility (milestone 64)
 
-Every surface is one of a closed set of kinds from `src/lib/tabletop/materials/` (#169;
-the full rules and costs are #182). `createMaterial(kind, options)` makes one.
+Every surface the renderer draws is one of a closed set of **shader kinds**
+(`src/lib/tabletop/materials/`, #169), and every kind ends in the same world term, `worldModify`
+(#171), which draws the fog of war and the dark from two cell maps. Milestone 64 put every layer
+on the kinds (#172) and deleted the fog plane, the darkness overlay, the floor plane and raised
+ground's instance shading (#173). Two tests hold it in place: runtime state never compiles a
+shader (`program-count.svelte.spec.ts`, #170) and unexplored cells stay exactly black
+(`unexplored-black.svelte.spec.ts`, #176). Every kind runs on both backends; CI checks WebGL2
+(SwiftShader, `rendering.yml`), and the WebGPU runs are the local `client-webgpu` project.
 
-| Kind     | Base                               | Fixed at creation                 | Slots                         |
-| -------- | ---------------------------------- | --------------------------------- | ----------------------------- |
-| surface  | Standard                           | instanced, vertex colours, local  | albedo, normal, ORM, emissive |
-| terrain  | Standard                           | as surface                        | as surface                    |
-| rock     | Standard                           | as surface                        | as surface                    |
-| prop     | Standard                           | as surface; object-space sampling | as surface                    |
-| mini     | Physical (clearcoat a uniform)     | as prop                           | as surface                    |
-| emissive | Standard                           | as surface                        | as surface                    |
-| decal    | Standard, transparent              | as surface                        | as surface                    |
-| foliage  | Standard, alpha-tested, both sides | as surface; sways on `worldTime`  | as surface                    |
-| water    | Standard, transparent              | as surface; slides on `worldTime` | as surface                    |
-| overlay  | Basic, or LineBasic (`lines`)      | as surface; lines                 | albedo (lines: none)          |
+### Kinds and slots
 
-- **The layers on the kinds** (#172; `kind-layers.svelte.spec.ts` walks them and checks every
-  material came from the factory):
-  - The table's surface is the terrain kind and its rim the surface kind, walls the surface kind
-    (instanced), door panels the surface kind's `local` variant (one material, and a second, the
-    same but tinted, for the hovered door), raised ground the terrain kind, props the prop kind
-    (one material for models, vertex colours; one for placeholder boxes, their colour a param),
-    minis the mini kind (three materials for every token: bases, figure bodies with vertex colours,
-    and the parts in the token's colour).
-  - Environments `wear` their looks (environment.ts): colour, roughness and metalness as params,
-    the loaded map itself in the albedo slot (registered with `worldTexture` once, as it loads, so
-    #179's anisotropy reaches what is drawn; no copies), the tile `repeatFor(look.cells, cellSize,
-STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two world units.
-  - Walls, raised ground and the table are `antiTiled` on medium and up (`QualitySettings.antiTile`):
-    a tier switch that changes it `remake`s their materials (one compile, as a new pipeline shape
-    would be); runtime state never does.
-  - Hover, selection and the GM's hidden ghost are emissive tints: per instance on props and walls
-    (`aTint`), a textured albedo is never multiplied by them. Props write `liftOf(assetId, pos)`
-    into `aLift` and set `params.lift` to a thousandth of a cell (#181).
-  - The terrain kind reads the `ground` map (`ownAlbedo` in hooks.ts): on the table, each floor's
-    colour (`floorPalette`, from `FLOOR_LOOKS`, a uniform array) over the textured surface at its
-    cover (plain none, the void all); on a raised cell, its texture in its floor's colour or the
-    look's, paler with height toward `cellUniforms.maxLevel`. #173 deleted the floor plane
-    (floor.ts) and raised ground's grey instance colours (`shadeTerrain`, `TerrainLayer.shade`):
-    fog and darkness are `worldModify`'s on every surface.
-  - Minis read their colour and how much of them shows per object (`miniColour`, `miniOpacity`:
-    `uniform().onObjectUpdate` over the mesh's `userData.miniColor` and `userData.mini`), so a new
-    token makes no material, and the GM's see-through hidden token is a screen-door dither
-    (`interleavedGradientNoise(screenCoordinate)` against the opacity, discarding) that never
-    flips `transparent`.
-  - Params and slots are read from the drawn object's own kind material (`OwnReferenceNode` in
-    tsl.ts), not three's `materialReference` of the material drawing it: the shadow pass draws
-    with three's own material while still running the kind's colour and position nodes.
-  - The low tier sets `paint.strength` 0 (`QualitySettings.paint`, a uniform).
-  - Cost on SwiftShader (medium, the village, a loaded machine; not the perf gate): a benchmarked
-    frame 2.0 → 3.5 s and a mount 5 → 10 s against the classic materials, anti-tiling about a third
-    of the difference; 164 → 178 programs. The real-GPU numbers are the perf gate's.
-  - Not yet on the kinds: fixtures and flames, grid lines, mist, the toll's dust and shadow, and
-    dice (#172's remainder). Dice stay `dieMaterial` (#180 looked): a roll is public and may land
-    over black cells, which the kinds' `worldModify` would black out with no strength to set per
-    material, and dice are flat shaded; they fade by a screen-door dither on a per-object uniform
-    (`userData.fade`), never by turning `transparent` on (a program of its own on a first roll's
-    last frames). The dust stays a sized-points sprite: its position is its own per-particle
-    buffer, which no kind's graph reads. Both are warmed by the tabletop's gallery instead.
-    Fixtures, flames and the mist take the world with `inWorld`
-    (`world-modify.ts`: `worldModify` last, a flame's glow through `worldEmissive`; one shared
-    flame material whose colour and glow are per-object uniforms, so lights coming and going
-    compile nothing); the toll's shadow is black and the dust is re-masked by the output stage.
-- **One graph per kind and variant** (`kinds.ts` `graphFor`), shared by all its materials: their
-  values are `material.params.*` read through `materialReference`, kept in one object because r186
-  keys node state by whether each number on a material is zero. Textures sit in slots
-  (`<slot>Slot`, `setSlot`), each a `materialReference` whose texture node samples at the kind's
-  coordinates times `params.repeat` (a texture's own matrix is snapshotted by r186).
-- **Slots are never empty** (`defaults.ts`): blanks of the slot's type, colour space, wrap,
-  filters and mapping (albedo white sRGB; normal (128, 128, 255) and ORM (255, 255, 0) linear;
-  emissive black; array and 3D slots get 1×1 `DataArrayTexture` and `Data3DTexture`), and loaders
-  put the same sampling on real textures with `prepareSlotTexture`. ORM's blue can only add metal
-  (`max(params.metalness, b)`), so the blank keeps a material's own metalness.
-- **Never toggle** `transparent`, `side`, `alphaTest`, `vertexColors` or `fog` after creation;
-  foliage cuts by `params.cutoff` through `alphaTestNode`, the mini's clearcoat is
-  `clearcoatNode` on `params.clearcoat` (0 until #267).
-- **World modify** (#171): `worldModify` last on every kind and `worldEmissive` on its emissive
-  (`world-modify.ts`) read the cell maps (`cell-maps.ts`: `visibility` RGBA8, R visible, G explored,
-  B the rules' light level, A sky visibility; `ground` RGBA8, floor index and level, then the
-  reveal fades of #174; grid row order, one texel per cell, fed by `CellMaps.update` from the
-  renderer's `relight`) and uniforms only:
-  a player's hidden cells exactly 0 (haze and emissive included), explored dim, desaturated and
-  cool, the GM's unseen cells tinted, darkness `1 - shade x (1 - max(level, fill))` as the old
-  overlay drew it, the flash, and a discard above `cutY`. Fog, mode, ambient, flash, cut and a new
-  grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends); the pure mirrors are
-  tested against the old overlays in `cell-maps.spec.ts`. On for good since #173, which deleted the
-  overlays it replaces:
-  - the fog plane (`FogLayer`, fog.ts keeps only `FogMode`), the darkness overlay and its
-    `cellBrightness` (lighting.ts keeps `levels` for the map's B channel; the flash is `uFlash`
-    through `CellMaps.setFlash`, and the hemisphere boost stays until #222), the floor plane
-    (floor.ts) and raised ground's instance shading, and the tier's `fogshade` switch. Two
-    transparent grid-sized planes fewer: 129 → 127 draw calls for the GM and 65 → 63 for a player
-    on the test world (medium, SwiftShader; the floor plane had drawn nothing since #172).
-  - Bloom, chromatic aberration, depth of field and FXAA spread light over hidden cells, so the
-    scene pass writes `hidden` (`worldHidden`: 1 where a player's fog hides the fragment's cell)
-    and the output stage multiplies the world by what it leaves shown, after FXAA and before the
-    overlay, so unexplored cells stay exactly black after post. The attachment is 8-bit RGBA, not
-    R8 (three r186 declares a WebGPU fragment output with the target's channels, so an R8 target
-    has no alpha to blend transparent surfaces with), and clears to 0 (`setClearColor` on the MRT,
-    #176), so the sky around the table counts as shown however bright a sky becomes
-    (`post.svelte.spec.ts` on both backends, a bright background included, and
-    `unexplored-black.svelte.spec.ts`). Dice are not the world: their materials write 0 there
-    (`dieMaterial`, dice3d.ts), so a throw over a hidden cell still shows, as it did over the plane.
-  - Fog as atmosphere (#174, `fog-soft.ts` holds the pure mirrors, tested in `fog-soft.spec.ts`):
-    soft edges take the `visibility` map's linear samples of R and G through a `smoothstep` band
-    (`edgeBand`, 0.3 of the sample) that low world noise (`mx_noise_float`, no time term, so edges
-    don't crawl; `edgeNoise`, `edgeScale`) pushes inward only, and keep `min(hard, soft)`: 0 on the
-    line between cells whatever the noise, the cell's own value at a known cell's centre, a hidden
-    cell exactly 0, and `worldHidden` reads the same soft factor, so the output stage's re-mask
-    follows the edge. Reveals fade: `CellMaps.setFog` diffs the viewer's visible mask on the client
-    (`RevealFades`) and writes each newly visible cell's remaining fade and the state it came from
-    (hidden or explored) into the `ground` map's B and A (RGBA8 since #174, so no texture is added
-    to any stage), rewritten on the renderer's clock by `CellMaps.tick` only while a fade runs
-    (`FADE_MS`, 450), which counts as movement for the scheduler: frames stop when the last fade
-    ends. Losing sight is immediate, a new mode or a table of a new size fades nothing, and under reduced motion
-    reveals are instant. The fog cloud (`fog-cloud.ts`) is one overlay-kind mesh over the grid,
-    `cloudDivisions` vertices a cell under a 64k cap, raised in the vertex stage by an `aHidden`
-    attribute (`cloudMask`: 1 - explored, bilinear between cell centres) times fractal noise on
-    `cloudTime`, capped at a quarter cell and sunk into the slab where nothing is hidden; raycast
-    off, players and spectators only, black over hidden cells through `worldModify`. It drifts only
-    while the scheduler draws ambient frames and is held still on low, under reduced motion and in
-    power saver; its layer (`fogcloud`, `?off=fogcloud`) is off until the owner approves it on
-    ref-1 and the Hollow. The warm-up compiles it through `FogCloudLayer.warm`, the same geometry
-    and material never hidden, so turning it on compiles nothing (the program-count sweep's fog
-    cloud and reveal steps).
-- **Hooks**, each the identity until its issue: `surfaceMapping` (#177), `paintNormal`/`paintRoughness`
-  (#178) and `slotSample`'s sampler settings (#179) in `hooks.ts`; `params.tint` plus the instanced variant's
-  `aTint` attribute is the emissive tint input #172's hover and selection use.
-- **Mapping per kind** (#177, `materials/mapping.ts`, chosen by `surfaceMapping` in `hooks.ts`;
-  `params.repeat` is always the tile, so changing it compiles nothing):
-  - surface and terrain: a box projection of the world (`positionWorld`, the face by the largest
-    axis of `normalWorldGeometry`, ties to x then y). Textures run on across instances, walls of
-    any length and raised cells of any height, and neighbouring cells share their phase. Sides
-    repeat `repeat.x` per world unit across and `repeat.y` up; tops `repeat.x` both ways. u is
-    flipped by the face's sign so opposite faces don't mirror. `repeatFor` (`materials/tiling.ts`,
-    from `look.cells`, the cell size and `STEP_HEIGHT`) gives it: across, one repeat per
-    `look.cells` cells; up, the whole number of level steps or the course (a step divided evenly,
-    so a wall is a multiple of `WALL_LEVELS` courses) nearest the width, from `STEP_HEIGHT`, never
-    a fixed height. One fetch per slot, as with uv; each face's tangent frame is constant, so
-    normal maps need no tangents.
-  - `local: true` (surface, terrain, rock): the same box projection in the geometry's own space,
-    for door panels, whose texture would slide across them as they swing in world space. It is
-    for single meshes: its normal goes to view space by the mesh's normal matrix alone, so on an
-    `InstancedMesh` the texture starts over on each instance but a rotated instance is lit wrong.
-  - rock: triplanar in world space (projections on zy, xz and xy, `repeat.x` per unit, weights
-    `pow(|n|, triplanarSharpness)` normalised, normals blended by Whiteout). A slot's three fetches
-    are its reference plus two `.sample()` clones of its texture node, which keep a
-    `referenceNode`, so a new texture reaches all three and binds once. Three fetches per slot, on
-    rock only.
-  - prop and mini: object space (`positionGeometry.xz`); every other kind the mesh's uv, water's
-    moved by `params.flow` on `worldTime`.
-  - `mapping.svelte.spec.ts` checks it drawn on both backends: no seam between two wall instances
-    or two raised cells of different heights (the geometry's own space shows one), a door panel's
-    texture moving with it, and rock's new texture on every face with no new program.
-- **Against z-fighting and tiling** (#181, `materials/variation.ts`, `materials/lift.ts`):
-  - Instanced prop, decal and water meshes carry a per-instance `aLift` in [0, 1) (`LIFT_ATTRIBUTE`,
-    added by `addInstanceTints` with the tint), and their vertex stage moves each instance
-    `aLift × params.lift` along its normal (`params.lift`: a thousandth of a cell in world units,
-    so the layer sets it from the cell size). The layer writes `liftOf(assetId, anchorCell)`: the
-    PCG hash (the arithmetic of three's TSL `hash`) of FNV-1a of the id xor the cell times
-    Teschner's primes, worked out in JS, so it is the same on every client, load and backend and a
-    server-project test pins it. Never negative, so the table and raised ground (not lifted) stay
-    below; exact duplicates get the same lift and are identical anyway.
-  - Surface, terrain and rock vary by MaterialX fractal noise of world xz times
-    `params.macroScale`: albedo times `1 ± params.macroTint` and roughness moved by up to
-    `± params.macroRoughness` (defaults 0.1 and 0.08 on those kinds, 0 elsewhere; 0 is off in the
-    same graph). ALU only, on every tier.
-  - `antiTiled: true` (surface and terrain in world space) samples each slot twice at offsets a
-    low-frequency noise index picks (iq, "Texture repetition", technique 3), with the coordinates'
-    own gradients, and blends them: a graph of its own for the medium tier and up; low keeps one
-    fetch.
-  - Depth precision (worked out, not measured): with the near plane at 0.1 and a 24-bit depth
-    buffer, a depth step is about z² / (0.1 × 2²⁴): 6e-5 at 10 units, 1e-3 at 41 and 2e-3 at 58.
-    Two coplanar lifted sheets are on average a third of `params.lift` (3e-4 of a cell) apart, so
-    they resolve to about 23 units away, and the whole lift to about 41; farther, coplanar
-    surfaces need the reversed float depth buffer, decided with the horizon work in 67.
-- **Paint** (#178, `paint.ts`): props and minis take TaleSpire's painted-miniature recipe through
-  `paintNormal`/`paintRoughness`, sampled triplanar in object space (`positionGeometry`,
-  `normalGeometry`: r186 gives instanced meshes the instance-transformed `positionLocal`, so noise
-  there would swim as a prop glides). The noise tilt comes in a frame of screen-space derivatives
-  of each projection's coordinates and is added over the vertex normal; gloss sets
-  `roughness = clamp(r - (gloss - 0.5) × amount, 0.1, 1)`, smoothness capped at 0.9. The maps
-  (`paint-normal`, `paint-gloss`, 256 px, linear data) load when the first painted graph is built,
-  behind neutral blanks sampled the same way; `paint.strength` (0.5; 0 is unpainted), `paint.gloss`
-  (0.4) and `paint.scale` (repeats per cell, 1.5) are uniforms shared by every painted material.
-  Six fetches per prop or mini fragment. `paint.svelte.spec.ts`: the maps' arrival and tuning add
-  no program or node state, 1 and 200 props share one, and the paint moves with a gliding prop.
-- **Animated kinds** read `worldTime`, a uniform the renderer owns and holds still under reduced
-  motion, never three's `time`.
-- **No GLSL, no `onBeforeCompile`**: ESLint refuses `onBeforeCompile`, `glslFn` and `wgslFn` under
-  `src/lib/tabletop/`.
-- **Sampled textures per kind:** 4 slots on the lit kinds, 1 on overlay meshes, none on lines,
-  before shadow maps and #171's two cell maps (16 per stage are guaranteed).
-- **Programs:** a second material, other values, a slot swapped between blank and real, or the
-  mini's clearcoat leaving 0 add no program, and a slot swap no node state
-  (`materials.svelte.spec.ts`, both backends). r186 gives every `InstancedMesh` a vertex stage of
-  its own (its instance-matrix buffer is named by id), a built-in material's too; #170 counts it.
+`createMaterial(kind, options)` makes a material; `KINDS` in `kinds.ts` defines each kind.
+
+| Kind     | Base                               | Slots                         | Defaults and extras                                 | First users                         |
+| -------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- | ----------------------------------- |
+| surface  | Standard                           | albedo, normal, ORM, emissive | box mapping in the world, macro variation           | walls, door panels, the table's rim |
+| terrain  | Standard                           | as surface                    | as surface; floors and height from the `ground` map | the table's top, raised ground      |
+| rock     | Standard                           | as surface                    | triplanar in the world, macro variation             | none yet (#177's tests)             |
+| prop     | Standard                           | as surface                    | object space, paint (#178), lift (#181)             | props and placeholder boxes         |
+| mini     | Physical (clearcoat a uniform)     | as surface                    | object space, paint, own colour and see-through     | tokens                              |
+| emissive | Standard                           | as surface                    | the mesh's uv                                       | none yet                            |
+| decal    | Standard, transparent              | as surface                    | the mesh's uv, lift                                 | none yet                            |
+| foliage  | Standard, alpha-tested, both sides | as surface                    | the mesh's uv, sways on `worldTime`                 | none yet                            |
+| water    | Standard, transparent              | as surface                    | the mesh's uv slid on `worldTime`, lift             | none yet                            |
+| overlay  | Basic, or LineBasic (`lines`)      | albedo (lines: none)          | transparent                                         | the fog cloud                       |
+
+- **Fixed at creation**, each a variant with a graph of its own (never toggled later): the kind,
+  `instanced` (an `InstancedMesh` whose geometry has the tint and lift attributes,
+  `addInstanceTints`), `lines`, `local` (box mapping in the geometry's own space), `antiTiled`,
+  `vertexColors`, and the kind's `transparent`, `side` and alpha test. `graphFor(kind, variant)`
+  builds a graph the first time a material of that kind and variant is made; every later material
+  shares it.
+- **Values are `params`**, one object per material (`Params` in `kinds.ts`: colour, roughness,
+  metalness, emissive, tint, opacity, repeat, cutoff, sway, flow, clearcoat, lift and the macro
+  variation), read by the graph through a reference to the drawn object's own kind material
+  (`OwnReferenceNode` in `tsl.ts`, not three's `materialReference`: the shadow pass draws with
+  three's own material while still running the kind's colour and position nodes). They sit in one
+  object because r186 keys node state by whether each number on a material is zero
+  (`RenderObject.getMaterialCacheKey`), so a value of the material's own crossing 0 would build
+  new state. `setParams` changes them; nothing compiles.
+- **Slots are never empty** (`defaults.ts`). Each slot has a type (2D, array, 3D), a colour space,
+  wrap, filters and mapping, and while it holds no texture it holds a blank of exactly those:
+  albedo white sRGB, normal (128, 128, 255) and ORM (255, 255, 0) linear, emissive black; array and
+  3D slots 1×1 `DataArrayTexture` and `Data3DTexture`. World slots repeat and filter trilinearly
+  (`WORLD`), so anisotropy can apply (#179). Loaders put the same sampling on real textures with
+  `prepareSlotTexture`, and `setSlot(material, slot, texture | null)` swaps one in or back out
+  with no program and no node state (r186 keys node state by a texture's mapping, and on WebGPU
+  its wrap and filters). ORM's blue can only add metal (`max(params.metalness, b)`), so the blank
+  keeps a material's own metalness.
+- **Sampled textures:** 4 slots on the lit kinds, 1 on overlay meshes, none on lines, plus the
+  two cell maps and the shadow maps; 16 per stage are guaranteed. Paint adds two maps on props and
+  minis (below). The reveal fades live in the `ground` map's spare channels rather than a map of
+  their own for this reason.
+- **Never `clone()` a kind material** (`Material.copy` drops `params` and the slots): `remake`
+  makes one of another variant with the same values and textures, and `twinOf` keeps a material's
+  other anti-tiling variant both ways, so switching tiers back and forth makes no material.
+
+### Variant rules: what makes a new program
+
+A program is compiled for each graph and each set of material properties three puts in its cache
+key. So:
+
+- **No literal that differs between materials.** A value a material or runtime state chooses is a
+  `params` field, a per-object uniform (`uniform().onObjectUpdate`, as the mini's colour and
+  see-through are), an instance attribute (`aTint`, `aLift`) or a shared uniform (`worldTime`,
+  `cellUniforms`, `paint`, `mipBias`). The hooks that later looks attach to (`hooks.ts`:
+  `surfaceMapping`, `slotSample`, `paintNormal`, `paintRoughness`, `ownAlbedo`, `ownOutput`) run
+  once, while a graph is built: no runtime value may pick a branch there.
+- **Never toggle** `transparent`, `side`, `alphaTest`, `vertexColors` or `fog` after creation, and
+  never let a numeric material property cross 0 at runtime. Foliage cuts by `params.cutoff`
+  through `alphaTestNode`; physical features are driven by their node (`clearcoatNode` on
+  `params.clearcoat`, 0 until #267), since three's `useClearcoat` would add a define the moment
+  `material.clearcoat` left 0.
+- **Tier differences are separate graphs** chosen when the pipeline is (anti-tiling is the one
+  so far); a tier switch that keeps the pipeline swaps materials for their kept twins (see
+  "Shader warm-up"). A uniform strength (paint, macro variation, the mip bias) is not a variant.
+- **Animated kinds read `worldTime`**, a uniform the renderer owns and holds still under reduced
+  motion, never three's `time`. The fog cloud has its own `cloudTime`.
+- **No GLSL, no WGSL, no `onBeforeCompile`**: ESLint refuses `onBeforeCompile`, `glslFn` and
+  `wgslFn` under `src/lib/tabletop/` (`eslint.config.js`).
+- **r186's own costs**: every `InstancedMesh` gets a vertex stage of its own (its instance matrix
+  buffer is named by id), a built-in material's too, and a shadowed lit material's uniforms are
+  declared in another order compiled than drawn. The warm-up and the sweep account for both.
+
+`materials.svelte.spec.ts` checks, on both backends, that a second material, other values, a slot
+swapped between blank and real, or the mini's clearcoat leaving 0 add no program, and a slot swap
+no node state.
+
+### worldModify and the cell maps
+
+`cell-maps.ts` keeps two one-texel-per-cell textures in grid row order (no flip on either
+backend), fed by `CellMaps.update` from the renderer's `relight` with what the viewer was sent
+(no wire change):
+
+- `visibility`, RGBA8, linear, no mipmaps: R visible, G explored (the viewer's fog), B the rules'
+  light level (`lightLevels`), A sky visibility (255 open, 0 in a dark area; #219 adds roofs).
+- `ground`, RGBA8, nearest: R the floor (`FLOOR_IDS` index), G the level, B and A the reveal
+  fades (below).
+
+Each channel is written only when its input changed; a new grid size replaces the textures under
+the same nodes. The uniforms (`cellUniforms`) carry fog on or off, the mode (player or GM), the
+ambient's darkness and night's, the flash (`CellMaps.setFlash`), the cut height, the cell size and
+the soft-fog shape.
+
+Every kind ends in `worldModify(output, emissive)` and passes its emissive through
+`worldEmissive` first (`world-modify.ts`). Per fragment, from the fragment's cell:
+
+- **fog**: 1 visible; a player's explored cells `FOG_LEVELS.player.explored`, hidden exactly 0;
+  the GM's unseen cells lighter, with explored dimmer (`FOG_LEVELS.gm`, the deleted plane's alphas
+  as `1 - alpha / 255`);
+- **the unseen tint** on a player's explored cells (desaturated and cool) or the GM's unseen ones
+  (the GM tint);
+- **light**: `1 - shade × (1 - max(level, fill))`, where `shade` is the ambient's darkness (night's
+  in a dark area at any hour), `level` the rules' light level and `fill` the perception fill
+  (`PERCEPTION_FILL`) on a fogged player's visible cells, so a cell the rules show is never black;
+  the flash thins it (`FLASH_THINS`);
+- the result `(output - emissive) × light × fog + emissive × (light × fog)`, emissive dimmed once:
+  the emissive the scene pass's MRT reads for bloom is the fogged one too;
+- a discard above `cutY`, parked at `NO_CUT` (a large finite value: WGSL may assume no infinities)
+  when nothing is cut;
+- outside the grid it is neutral. There is no weather input yet (#320 adds it as a uniform or a
+  map channel, never a variant).
+
+A hidden cell comes out exactly 0, haze and emissive included. Fog, mode, ambient, flash, cut and
+a new grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends), and the pure mirrors
+in `cell-maps.ts` are tested against the old overlays' numbers in `cell-maps.spec.ts`. What isn't a
+kind takes the same terms: `inWorld(material, glow)` puts `worldModify` last and the glow through
+`worldEmissive` on fixtures, flames (one shared flame material, colour and glow per-object
+uniforms) and the mist; `worldShade()` fades the grid lines (`overlay.ts`); `worldHidden()` is
+the re-mask's input.
+
+### The re-mask
+
+Bloom, chromatic aberration, depth of field and FXAA carry light a little way over hidden cells.
+So the scene pass writes a third attachment, `hidden` (`worldHidden`: 1 where a player's fog
+hides the fragment's cell), and `Post.compose` multiplies the world by `1 - hidden` after FXAA,
+before grain and the overlay (post.ts): unexplored cells are exactly black after every effect.
+The attachment is RGBA8, not R8 (r186 declares a WebGPU fragment output with the target's
+channels, so an R8 target has no alpha to blend transparent surfaces with), blends normally, and
+clears to 0 (shown, `setClearColor` on the MRT, #176), so the sky around the table counts as shown
+however bright it becomes. Dice are not the world: `dieMaterial` writes 0 there (`mrtNode`,
+dice3d.ts), so a public roll over a hidden cell still shows. `post.svelte.spec.ts` checks it on
+both backends, a bright background included.
+
+### Fog as atmosphere (#174)
+
+`fog-soft.ts` holds the pure halves, tested in `fog-soft.spec.ts`; `fog-soft.svelte.spec.ts`
+checks them drawn. The rule every piece keeps: softening and fading only ever darken, so a hidden
+cell stays exactly 0 and the re-mask follows the soft edge.
+
+- **Soft edges**: the `visibility` map's linear samples of R and G through a `smoothstep` band
+  (`EDGE_BAND`, 0.3 of the sample) that low world noise (`mx_noise_float`, no time term, so edges
+  don't crawl; `EDGE_NOISE`, `EDGE_SCALE`) pushes inward only, keeping `min(hard, soft)`: 0 on the
+  line between cells whatever the noise, the cell's own value at a known cell's centre.
+- **Reveal fades**: `CellMaps.setFog` diffs the viewer's visible mask (`RevealFades`) and writes
+  each newly visible cell's remaining fade and the state it came from (hidden or explored) into
+  the `ground` map's B and A, rewritten on the renderer's clock by `CellMaps.tick` only while a
+  fade runs (`FADE_MS`, 450), which counts as movement for the scheduler. Losing sight is
+  immediate; a new mode or table size fades nothing; under reduced motion reveals are instant.
+- **The fog cloud** (`fog-cloud.ts`): one overlay-kind mesh over the grid, `cloudDivisions`
+  vertices a cell under `CLOUD_VERTEX_CAP` (64k), raised in the vertex stage by an `aHidden`
+  attribute (`cloudMask`: 1 - explored, bilinear between cell centres) times fractal noise on
+  `cloudTime`, capped at a quarter cell and sunk into the slab where nothing is hidden. Raycast
+  off, players and spectators only, black over hidden cells through `worldModify`. It drifts only
+  in ambient frames and is held still on low, under reduced motion and in power saver. Its layer
+  (`fogcloud`, `?off=fogcloud`) is off until the owner approves it on ref-1 and the Hollow.
+
+### Mapping (#177)
+
+`surfaceMapping` in `hooks.ts` picks `materials/mapping.ts`'s mapping per kind; `params.repeat` is
+always the tile, so changing it compiles nothing, and slots sample at the mapping's coordinates,
+never through a texture's own matrix (r186 snapshots it from the first texture it sees).
+
+- **surface and terrain**: a box projection of the world (`positionWorld`, the face by the largest
+  axis of `normalWorldGeometry`, ties to x then y). Textures run on across instances, walls of any
+  length and raised cells of any height. Sides repeat `repeat.x` per world unit across and
+  `repeat.y` up, tops `repeat.x` both ways, u flipped by the face's sign. `repeatFor`
+  (`materials/tiling.ts`) gives the tile from `look.cells`, the cell size and `STEP_HEIGHT`: one
+  repeat per `look.cells` cells across, and up the whole number of level steps or courses nearest
+  the width. One fetch per slot; each face's tangent frame is constant, so normal maps need no
+  tangents.
+- **`local: true`** (surface, terrain, rock): the same box in the geometry's own space, for door
+  panels, whose texture would slide as they swing. For single meshes: on an `InstancedMesh` a
+  rotated instance would be lit wrong.
+- **rock**: triplanar in the world (zy, xz and xy, weights `pow(|n|, triplanarSharpness)`,
+  normals blended by Whiteout). A slot's three fetches are its reference plus two `.sample()`
+  clones that keep its `referenceNode`, so a new texture reaches all three. Three fetches a slot.
+- **prop and mini**: object space (`positionGeometry.xz`); the models carry no uv.
+- **everything else**: the mesh's uv, water's slid by `params.flow` on `worldTime`.
+
+`mapping.svelte.spec.ts` checks it drawn on both backends: no seam between two wall instances or
+two raised cells of different heights, a door panel's texture moving with it, and rock's new
+texture on every face with no new program.
+
+### Paint (#178)
+
+Props and minis take TaleSpire's painted-miniature recipe through `paintNormal` and
+`paintRoughness` (`paint.ts`), sampled triplanar in object space (`positionGeometry`,
+`normalGeometry`: r186 gives instanced meshes the instance-transformed `positionLocal`, so noise
+there would swim as a prop glides). The noise tilt comes in a frame of screen-space derivatives of
+each projection's coordinates and is added over the vertex normal; gloss sets
+`roughness = clamp(r - (gloss - 0.5) × amount, 0.1, 1)`. The maps (`paint-normal`, `paint-gloss`,
+256 px, linear data, from the `paint` texture recipe in `server/assets/textures.ts`) load when the
+first painted graph is built, behind neutral blanks sampled the same way. `paint.strength` (0.5;
+0 on the low tier, `QualitySettings.paint`), `paint.gloss` (0.4) and `paint.scale` (1.5 repeats a
+cell) are uniforms shared by every painted material. Six fetches per prop or mini fragment.
+`paint.svelte.spec.ts`: the maps' arrival and tuning add no program or node state, 1 and 200
+props share one, and the paint moves with a gliding prop.
+
+### Texture filtering (#179)
+
+`materials/texture-quality.ts`: every world texture (an environment's map, a dice numeral, later
+KTX2 and array textures) is registered with `worldTexture` as it loads, and `setTextureQuality`
+gives the registered ones the tier's anisotropy (4 on low, 8 on medium, 16 on high and ultra,
+clamped to `renderer.getMaxAnisotropy()`: 0 on WebGL2 without the extension, where it stays 1)
+and sets `mipBias` (`mipBiasFor`: -0.5 on high and ultra with TRAA, else 0), a uniform every slot
+sample reads. Anisotropy is part of the sampler on WebGPU and a texture parameter on WebGL2, never
+of a material's cache key, so a tier switch re-uploads the registered textures and makes no
+program. Data textures (cell maps, LUTs, the slots' blanks) are never registered.
+
+### Lift and variation (#181)
+
+- **Lift, against z-fighting**: instanced prop, decal and water meshes carry `aLift` in [0, 1)
+  (`LIFT_ATTRIBUTE`, added by `addInstanceTints`), and their vertex stage moves each instance
+  `aLift × params.lift` along its normal; the layer sets `params.lift` to a thousandth of a cell.
+  `liftOf(assetId, anchorCell)` (`lift.ts`) is a PCG hash of FNV-1a of the id xor the cell,
+  worked out in JS, so it is the same on every client, load and backend (`lift.spec.ts` pins it).
+  Never negative, so the table and raised ground (not lifted) stay below.
+- **Macro variation**: surface, terrain and rock vary by fractal noise of world xz times
+  `params.macroScale`: albedo `1 ± macroTint`, roughness `± macroRoughness` (0.1 and 0.08 on those
+  kinds, 0 elsewhere; 0 is off in the same graph). ALU only, every tier.
+- **Anti-tiling** (`antiTiled: true`, surface and terrain): each slot sampled twice at offsets a
+  low-frequency noise index picks (iq, "Texture repetition", technique 3), with the coordinates'
+  own gradients, and blended. A variant: medium and up (`QualitySettings.antiTile`); low keeps
+  one fetch.
+- **Depth precision** (worked out, not measured): with the near plane at 0.1 and a 24-bit depth
+  buffer a depth step is about z² / (0.1 × 2²⁴): 6e-5 at 10 units, 1e-3 at 41. Two coplanar lifted
+  sheets are on average a third of `params.lift` apart, so they resolve to about 23 units away,
+  and the whole lift to about 41; farther needs the reversed float depth buffer, decided with the
+  horizon work in 67.
+
+### What each layer uses (#172)
+
+`kind-layers.svelte.spec.ts` walks the layers and checks every material came from the factory.
+
+- **The table** (`table.ts`): the top is the terrain kind, the rim the surface kind, both
+  `antiTiled` from the start and remade (`twinOf`) when the tier's `antiTile` differs.
+  **Raised ground** (`terrain.ts`) is the terrain kind, instanced. The terrain kind reads the
+  `ground` map (`ownAlbedo`): on the table each floor's colour (`floorPalette`, from
+  `FLOOR_LOOKS`, a uniform array) over the textured surface at its cover (plain none, the void
+  all); on a raised cell its texture in its floor's colour or the look's, paler with height toward
+  `cellUniforms.maxLevel`.
+- **Walls** (`walls.ts`): the surface kind, instanced; door panels the surface kind's `local`
+  variant, one material and a tinted second for the hovered door.
+- **Props** (`props.ts`): the prop kind, instanced, one material for models (vertex colours) and
+  one for placeholder boxes (their colour a param); `aLift` from `liftOf`.
+- **Minis** (`tokens.ts`): the mini kind, three materials for every token (bases, figure bodies
+  with vertex colours, the parts in the token's colour). Colour and how much shows are per-object
+  uniforms (`miniColour`, `miniOpacity` over `userData.miniColor` and `userData.mini`), so a new
+  token makes no material, and the GM's see-through hidden token is a screen-door dither
+  (`interleavedGradientNoise(screenCoordinate)` against the opacity, discarding) that never
+  flips `transparent`.
+- **Environments** `wear` their looks (`environment.ts`): colour, roughness and metalness as
+  params, the loaded map in the albedo slot (registered with `worldTexture`), the tile from
+  `repeatFor` on walls, raised ground and the table, the rim a repeat per two world units.
+- **Hover, selection and the GM's hidden ghost** are emissive tints: per instance on props and
+  walls (`aTint`), `params.tint` elsewhere; a textured albedo is never multiplied by them.
+- **Not kinds**: fixtures, flames and the mist take the world with `inWorld`; the grid lines with
+  `worldShade`; the fog cloud is the overlay kind. Dice stay `dieMaterial`: a roll is public and
+  may land over black cells, and dice are flat shaded; they fade by a screen-door dither on a
+  per-object uniform (`userData.fade`), never by turning `transparent` on. The toll's dust stays a
+  sized-points sprite (its position is its own per-particle buffer, which no kind reads), re-masked
+  by the output stage; its shadow is black. All of them are warmed as gallery stand-ins.
+
+### Warm-up
+
+A table's warm-up (see "Shader warm-up") compiles its layers and the tabletop gallery's stand-ins
+(`gallery()` on the dice, effects, the fog cloud (`FogCloudLayer.warm`, the same geometry and
+material never hidden) and the tokens' ring and marker). The lobby compiles `kindGallery()`
+(`materials/warmup.ts`): every kind in every variant the layers make (plain and instanced;
+anti-tiled surface and terrain; vertex-coloured prop and mini), casting shadows or not, plus the
+`local` box and the overlay's lines. It is built from `SHADER_KINDS`, so a new kind joins by
+itself; a new variant a layer makes must be added to `variantsOf`.
+
+### The tests that hold it
+
 - **Runtime state never compiles** (`program-count.svelte.spec.ts`, #170, per tier on both
-  backends): after a warm-up of every environment and table, no named step (environments, times
-  of day, floors, fog, dark areas, light counts, tokens and props in every state, cues, a thrown
-  die at rest, fading and gone, the toll with motion (its dust and shadow), table travel, and on
-  low anti-tiling back and forth) may change `shaderCounts` (`perf.ts`: programs, pipelines; node
-  states are reported). Every new kind or runtime state is added to the sweep. Compiles still left
-  are in its `KNOWN` list with the issue that ends each (`docs/PERFORMANCE.md`); since #180 only
-  the first in-place switch of anti-tiling.
-- **The lobby** (#180, `lobby.svelte.spec.ts`, both backends): its warm-up fetches only the
-  manifest and the paint maps; the first table adopts its renderer and canvas and compiles fewer
-  programs than a cold one (the test world on SwiftShader: 158 cold, 110 after the lobby), and an
-  environment swap then compiles none on WebGL2 (on WebGPU a first swap to a look still builds the
-  table's surface and two of the pipeline's quads, not yet explained). Not none at all: r186
-  declares a shadowed lit material's uniforms in an order that depends on what the renderer built
-  before, so a table still builds its own lit kinds (and every InstancedMesh its own vertex stage);
-  the pipeline's passes, the overlay and what is unlit or unshadowed it finds made. The lobby keeps
-  cell maps of its own: after a table, the maps it left are destroyed textures.
+  backends): after a warm-up of every environment and table, each named step (environments, times
+  of day, floors, fog in both modes, the fog cloud on and a reveal fading, dark areas, light
+  counts past the pool, tokens and props in every state, walls and doors hovered, cues, a thrown
+  die at rest, fading and gone, table travel, and where the tier keeps the pipeline anti-tiling
+  back and forth) must leave `shaderCounts` (`perf.ts`: programs, pipelines) unchanged; node
+  states are reported, not failed. A second test plays the toll with motion (its dust and shadow).
+  A deliberately bad material (a literal of its own in the graph) proves the sweep is not vacuous.
+  A failure names the step and the stages it made or dropped; a stage is named after its
+  material, so a kind's shows as its kind. Compiles still left are in `KNOWN` with the issue or
+  reason that ends each; since #180 only the first in-place switch of anti-tiling. Shrink it,
+  never grow it without a written reason.
+- **Unexplored cells stay black** (`unexplored-black.svelte.spec.ts`, #176; see "Testing the
+  renderer").
+- Beside them: `materials.svelte.spec.ts` (programs per material, value and slot),
+  `cell-maps.svelte.spec.ts` (world state compiles nothing), `kind-layers.svelte.spec.ts`,
+  `mapping.svelte.spec.ts`, `paint.svelte.spec.ts`, `fog-soft.svelte.spec.ts`,
+  `lobby.svelte.spec.ts` (the lobby fetches only public data and a table after it compiles fewer
+  programs) and `post.svelte.spec.ts` (the re-mask).
+
+### Adding a kind or a layer
+
+1. **A kind**: add it to `ShaderKind`, `SHADER_KINDS` and `KINDS` (base, slots, `transparent`,
+   side, alpha test, defaults); build its graph in `graphFor` from `params` and slots only, ending
+   in `worldModify` and with its emissive through `worldEmissive`. The lobby's gallery picks it up;
+   if a layer makes it in a new variant, add that to `variantsOf`.
+2. **A layer**: make its materials with `createMaterial` (or, when it can't be a kind, `inWorld`),
+   and give it `gallery()` stand-ins for anything it shows only later, handed to the tabletop's
+   `Gallery`. Add its runtime states as steps to the program-count sweep, and add it to
+   `kind-layers.svelte.spec.ts`.
+3. **Turn it on in the unexplored-black sweep** (`mountCase`, or in the fixtures if it comes from
+   the view) and, if it stands on explored ground, add its height to `standing`. A layer that
+   fails there is fixed in the render path, never by skipping cells.
+4. **Any new per-viewer input** (a mask, a list, anything that differs by who looks) is built
+   from the viewer's view only, and joins the raw-frame secrecy check (`framesLeaks` in
+   `server/frame-secrecy.ts`, #175, run by `game-server.spec.ts` for a fogged player and a
+   spectator, with the GM as the control): decode it there and require nothing in the never
+   explored region. The file's header lists the inputs later milestones add.
+5. Run the render specs named above on WebGL2 (`npm run test:render -- <files>`) and on WebGPU,
+   add a new spec to `RENDER_SPECS` in `vite.config.ts` and a group in `rendering.yml` within
+   about 5 minutes (a slim set for CI and the full set by hand, as the goldens do).
+
+Costs on SwiftShader and what the perf gate measures on real GPUs are in `docs/PERFORMANCE.md`
+("Milestone 64").
 
 ## Testing the renderer
 
@@ -965,8 +1084,8 @@ test:render`), which leave `npm test` too, so the verify job stays within minute
 **Unexplored cells stay black** (#176, `unexplored-black.svelte.spec.ts`). For each fixture with
 fog and unexplored ground, the player's view and the spectator's (left out where it is exactly the
 player's), each named pose (overview, close and low in the fixture's band, dark in its own), each
-tier (low, medium, high; ultra too on WebGPU) and the medium tier again with reduced motion, it
-mounts the view with every layer on (grid lines shown, mist, fixtures, carried light, bloom, the lens
+tier (low, medium, high; ultra too on WebGPU), the medium tier again with reduced motion and again
+with the fog cloud's layer on (#174), it mounts the view with every layer on (grid lines shown, mist, fixtures, carried light, bloom, the lens
 and grain; no dice, no hover), projects each unexplored cell's centre and reads a 3x3 block from the
 captured frame (`readFrame` in testing.ts: the drawing buffer on WebGL2, a screenshot on WebGPU),
 requiring exactly (0, 0, 0). Skipped are cells whose block leaves the cell's outline on screen and
@@ -977,9 +1096,10 @@ close and low poses, which look at explored ground), and so is a view with none 
 the dark band of the monastery, railcar, test world and village, whose one pose looks at the party).
 Each pose also checks the frame read back is not all black, and a self-check lays the GM's reveal
 preview (an overlay the fog never shades) over the dungeon and must fail, naming the fixture, pose
-and cell. CI takes the slim set (`SLIM`: five cases on WebGL2, about 1.5 minutes on SwiftShader
-here; six with ultra on WebGPU), and fails if one of them stops existing; the full set (85 cases,
-about 30 minutes on SwiftShader) runs by hand before a rendering PR:
+and cell. CI takes the slim set (`SLIM`: six cases on WebGL2, about 2 minutes on SwiftShader
+here; seven with ultra on WebGPU), and fails if one of them stops existing; the full set (every
+view, five cases each on WebGL2 and six on WebGPU; over half an hour on SwiftShader) runs by hand
+before a rendering PR:
 
 ```bash
 THIRDFOLD_UNEXPLORED=full npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts

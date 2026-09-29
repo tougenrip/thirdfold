@@ -375,6 +375,45 @@ rise (`program-count.svelte.spec.ts` passes unchanged on every tier and both bac
 pass gains an 8-bit `hidden` attachment, and the output stage one more fetch. Real-GPU numbers
 come with the perf gate before the PR.
 
+### What milestone 64 costs, and what the perf gate still measures
+
+What the kinds and the world term cost per fragment (`docs/RENDERING.md`, "Materials and world
+visibility"), worked out from the graphs:
+
+| Where                         | Fetches a fragment                                               | ALU                                                 |
+| ----------------------------- | ---------------------------------------------------------------- | --------------------------------------------------- |
+| every kind (`worldModify`)    | 3 cell-map fetches (visibility texel and bilinear, ground texel) | one `mx_noise_float` for the soft edge (#174)       |
+| surface, terrain (low)        | one per slot, box mapping (#177); terrain one more ground texel  | fractal macro variation (#181)                      |
+| surface, terrain (medium, up) | two per slot, anti-tiling (#181)                                 | the noise index and the blend, macro variation      |
+| rock                          | three per slot, triplanar (#177)                                 | Whiteout normal blend, macro variation              |
+| prop, mini                    | one per slot, plus six for paint (#178)                          | the derivative frames; strength 0 on low still runs |
+| fog cloud (layer off)         | none: not drawn                                                  | on: fractal noise per vertex, up to 64k vertices    |
+| output stage                  | one more (`hidden`, the re-mask, #173)                           |                                                     |
+
+Measured so far, all on SwiftShader WebGL2 in the `client` project (a software rasteriser on a
+loaded machine, so ratios, not budgets):
+
+- **Draw calls**: the fog and darkness planes' going took 129 → 127 for the GM and 65 → 63 for a
+  player on the test world (#173, above). The fog cloud adds one while its layer is on (off).
+- **Programs**: the village on medium went 164 → 178 with the layers on the kinds (#172), and the
+  per-tier table above is from before that; the lobby's warm-up leaves a table to compile fewer
+  (the test world: 158 cold, 110 after the lobby, #180, `lobby.svelte.spec.ts`).
+- **Frame and mount**: a benchmarked frame 2.0 → 3.5 s and a mount 5 → 10 s against the classic
+  materials (medium, the village), anti-tiling about a third of the difference (#172, #181).
+- **Filtering** (#179): anisotropy 4, 8 and 16 by tier and the mip bias change no program; a tier
+  switch re-uploads the registered world textures once.
+- **Reveal fades** (#174) rewrite the `ground` map only while a fade runs (450 ms), and keep the
+  scheduler drawing for that long; soft edges cost nothing between frames.
+
+Left for the perf gate (`node scripts/perf-client.mjs --baseline docs/perf-baseline.json`, the
+test world) on the RTX 4060 Laptop and the integrated GPU, before the PR, on both backends:
+the per-tier GPU ms of the scene pass with `worldModify`, paint and anti-tiling against the M63
+baseline, and the output stage's re-mask fetch; draw calls, programs and pipelines per tier,
+exactly, written into a new baseline (the #172 counts replace the table above); the fog cloud's
+cost with its layer on (`?perf`, the Hollow); the first frame after the lobby's warm-up; and
+whether anisotropy 16 on high and ultra costs anything measurable on the integrated GPU, where
+the low tier's 4 is the budget.
+
 ### Memory
 
 - Heap after GC is 6.6–8.6 MB per client on every table.

@@ -101,7 +101,8 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
 "scale" }`, no colours: two octaves of tiling value noise as a height field, turned into a
   tangent-space normal map by a Sobel filter whose neighbours wrap (`normal`), or kept as grey
   (`gloss`, 0.5 neutral). Both are data, loaded linear: `paint-normal` and `paint-gloss` are the
-  paint detail props and minis sample in object space (`docs/RENDERING.md`, "Shader kinds").
+  paint detail props and minis sample in object space (`docs/RENDERING.md`, "Materials and world
+  visibility").
 - **A material** is `{ "color", "roughness", "metalness", "map": <texture>, "cells": n }`. `cells`
   is how many cells one repeat of the texture covers.
 - **An environment** is `{ "name", "surface", "ground", "walls", "table" }`. Each field names a
@@ -165,6 +166,7 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   - Until then a prop shows as a plain box on its footprint, and a token as the plain miniature.
   - When the model arrives it replaces them, without waiting on anything else.
 - **Environments:** load their textures once each, shared by every material that uses them.
-  Changing environments never changes a shader: materials always carry a texture, a blank one when
-  they have none.
+  Changing environments never changes a shader: a shader kind's slots always hold a texture, their
+  slot's blank (same type, colour space, wrap and filters) when they have none (`defaults.ts`;
+  `docs/RENDERING.md`, "Materials and world visibility").
 - **Sounds:** load when audio starts (the first click).

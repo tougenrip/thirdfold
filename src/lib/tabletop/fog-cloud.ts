@@ -10,8 +10,8 @@
 // It drifts on `cloudTime`, which only moves in the scheduler's ambient frames and is held still
 // on the low tier, under reduced motion and in power saver. Nothing about it is a literal that
 // runtime state picks: showing it, its shape and its time are visibility, an attribute and a
-// uniform, and `warm` (the same geometry and material, always visible) lets the warm-up compile it
-// while it is hidden, so turning it on compiles nothing.
+// uniform, and `warm` (the same geometry and material, always visible) is the warm-up gallery's
+// stand-in for it (`gallery`, warmup.ts), so turning it on compiles nothing.
 
 import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';

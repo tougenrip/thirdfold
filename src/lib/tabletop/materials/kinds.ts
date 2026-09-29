@@ -124,7 +124,7 @@ export interface KindDef {
 	side: THREE.Side;
 	/** The slots its graph samples (lines sample none). */
 	slots: readonly SlotName[];
-	/** Today's look for its first users (docs/RENDERING.md, "Shader kinds"). */
+	/** Today's look for its first users (docs/RENDERING.md, "Materials and world visibility"). */
 	defaults: ParamsInput;
 }
 
