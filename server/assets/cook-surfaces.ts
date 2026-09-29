@@ -7,9 +7,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { USAGE_SPACE, type TextureUsage } from '../../src/lib/assets/manifest';
-import { json, readMeta } from './cook';
 import { KTX2_SETTINGS, cookImage, type Image } from './cook-textures';
-import { AssetError } from './pipeline-files';
+import { readMeta } from './licence';
+import { AssetError, json } from './pipeline-files';
 import { decodePng } from './png';
 import { seamError, stylise, type StyliseRecipe, type SurfaceSource } from './stylise';
 

@@ -42,15 +42,14 @@ import {
 	MODEL_KINDS,
 	USAGE_SPACE,
 	limitClass,
-	type ModelKind,
-	type TextureUsage
+	type ModelKind
 } from '../../src/lib/assets/manifest';
 import { SURFACE_SOURCES, cookSurface } from './cook-surfaces';
 import { KTX2_SETTINGS, cookTexture } from './cook-textures';
 import { checkGlb } from './glb';
 import { EXTENSIONS, MESH_NAME } from './gltf-check';
-import { readProvenance } from './licence';
-import { AssetError, isRecord, readJson } from './pipeline-files';
+import { readMeta } from './licence';
+import { AssetError, isRecord, json, readJson } from './pipeline-files';
 import { isModelKind } from './models';
 
 /** What the cook does besides each asset's meta.json: in the lock, so changing it shows as drift. */
@@ -87,12 +86,6 @@ export interface Lock {
 }
 
 const sha256 = (data: Uint8Array) => createHash('sha256').update(data).digest('hex');
-/** JSON as prettier would lay it out: tabs, and short lists of numbers or words on one line. */
-export const json = (v: unknown) =>
-	JSON.stringify(v, null, '\t').replace(
-		/\[[^[\]{}]*\]/g,
-		(list) => `[${(JSON.parse(list) as unknown[]).map((x) => JSON.stringify(x)).join(', ')}]`
-	) + '\n';
 const folders = (dir: string) =>
 	existsSync(dir)
 		? readdirSync(dir, { withFileTypes: true })
@@ -214,34 +207,6 @@ export async function cook(
 	}
 	writeFileSync(path.join(assets, LOCK_FILE), json(lock));
 	return { cooked, skipped };
-}
-
-interface ArtMeta {
-	provenance: unknown;
-	swing?: unknown;
-	setPiece?: boolean;
-	/** The pack it downloads with (#192), checked by the build. */
-	pack?: string;
-	textureSize?: number;
-	lods?: { ratio?: number; error?: number; screenSize?: number }[];
-	lockBorder?: boolean;
-	usage?: TextureUsage;
-}
-
-export function readMeta(dir: string): ArtMeta {
-	const file = path.join(dir, 'meta.json');
-	if (!existsSync(file)) throw new AssetError(dir, 'needs a meta.json with its provenance');
-	const meta = readJson(file);
-	if (!isRecord(meta)) throw new AssetError(file, 'must be an object');
-	readProvenance(meta.provenance, file);
-	const size = meta.textureSize;
-	if (size !== undefined && !(Number.isInteger(size) && (size as number) >= 4)) {
-		throw new AssetError(file, 'textureSize must be a whole number of pixels, at least 4');
-	}
-	if (meta.lods !== undefined && !(Array.isArray(meta.lods) && meta.lods.every(isRecord))) {
-		throw new AssetError(file, 'lods must be a list of { ratio, error, screenSize }');
-	}
-	return meta as unknown as ArtMeta;
 }
 
 // Warnings only: what the transforms skipped, not what they removed.

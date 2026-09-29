@@ -74,3 +74,10 @@ export function checkMeta(dir: string, id: string, ...exts: string[]): void {
 		throw new AssetError(meta, `describes an <id>.${exts.join(' or ')} that is not there`);
 	}
 }
+
+/** JSON as prettier would lay it out: tabs, and short lists of numbers or words on one line. */
+export const json = (v: unknown) =>
+	JSON.stringify(v, null, '\t').replace(
+		/\[[^[\]{}]*\]/g,
+		(list) => `[${(JSON.parse(list) as unknown[]).map((x) => JSON.stringify(x)).join(', ')}]`
+	) + '\n';

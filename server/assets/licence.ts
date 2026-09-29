@@ -10,7 +10,13 @@
 
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { LICENSES, type Credit, type License, type Manifest } from '../../src/lib/assets/manifest';
+import {
+	LICENSES,
+	type Credit,
+	type License,
+	type Manifest,
+	type TextureUsage
+} from '../../src/lib/assets/manifest';
 import type { AdventureDef } from '../adventure/define';
 import { AssetError, isRecord, readJson } from './pipeline-files';
 
@@ -187,4 +193,33 @@ export function checkCredits(manifest: Manifest, adventures: readonly AdventureD
 	for (const [id, a] of Object.entries(manifest.audio)) file(`audio ${id}`, a.credit);
 	for (const [id, e] of Object.entries(manifest.environments)) check(`environment ${id}`, e.name);
 	return problems;
+}
+
+/** An art folder's meta.json (cook.ts): its provenance first, then how it is cooked. */
+export interface ArtMeta {
+	provenance: unknown;
+	swing?: unknown;
+	setPiece?: boolean;
+	/** The pack it downloads with (#192), checked by the build. */
+	pack?: string;
+	textureSize?: number;
+	lods?: { ratio?: number; error?: number; screenSize?: number }[];
+	lockBorder?: boolean;
+	usage?: TextureUsage;
+}
+
+export function readMeta(dir: string): ArtMeta {
+	const file = path.join(dir, 'meta.json');
+	if (!existsSync(file)) throw new AssetError(dir, 'needs a meta.json with its provenance');
+	const meta = readJson(file);
+	if (!isRecord(meta)) throw new AssetError(file, 'must be an object');
+	readProvenance(meta.provenance, file);
+	const size = meta.textureSize;
+	if (size !== undefined && !(Number.isInteger(size) && (size as number) >= 4)) {
+		throw new AssetError(file, 'textureSize must be a whole number of pixels, at least 4');
+	}
+	if (meta.lods !== undefined && !(Array.isArray(meta.lods) && meta.lods.every(isRecord))) {
+		throw new AssetError(file, 'lods must be a list of { ratio, error, screenSize }');
+	}
+	return meta as unknown as ArtMeta;
 }
