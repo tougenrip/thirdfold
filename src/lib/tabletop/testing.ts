@@ -5,6 +5,7 @@
 // Fixtures and views are JSON made by server/fixtures (see docs/PERFORMANCE.md).
 
 import { inject } from 'vitest';
+import { page } from 'vitest/browser';
 import { decodeFloor } from '$lib/game/floor';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient, Light } from '$lib/game/lights';
@@ -106,6 +107,8 @@ declare module 'vitest' {
 		goldens: 'slim' | 'full';
 		/** `k/n`: take every nth fixture from the kth in fixtures.svelte.spec.ts (CI's parallel jobs). */
 		shard: string;
+		/** Which unexplored-black cases to run: the slim set CI takes, or every one (by hand). */
+		unexplored: 'slim' | 'full';
 	}
 }
 
@@ -238,3 +241,34 @@ export async function settle(tabletop: Tabletop, quietMs = 250, limitMs = 8000):
 
 /** Waits `ms` of real time. */
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The finished frame, RGB at (x, y) from the top left, read as the goldens capture it: the drawing
+ * buffer on WebGL2 (`preserveDrawingBuffer`), a decoded screenshot of the canvas on WebGPU, which
+ * has no readback of the canvas here (seconds each). The canvas must be in the page, at DPR 1.
+ */
+export async function readFrame(
+	canvas: HTMLCanvasElement,
+	width: number,
+	height: number
+): Promise<(x: number, y: number) => number[]> {
+	if (BACKEND !== 'webgpu') {
+		const gl = canvas.getContext('webgl2')!;
+		// Indexed as width x height: a buffer of another size (a tier's pixel cap) would misread.
+		const size = [gl.drawingBufferWidth, gl.drawingBufferHeight];
+		if (size[0] !== width || size[1] !== height) throw new Error(`Drawing buffer ${size}`);
+		const px = new Uint8Array(width * height * 4);
+		gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, px);
+		const row = (y: number) => (height - 1 - y) * width;
+		return (x, y) => [...px.slice((row(y) + x) * 4, (row(y) + x) * 4 + 3)];
+	}
+	const png = await page.screenshot({ element: canvas, save: false });
+	const blob = await (await fetch(`data:image/png;base64,${png}`)).blob();
+	const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' });
+	if (bitmap.width !== width || bitmap.height !== height)
+		throw new Error(`Screenshot ${bitmap.width}x${bitmap.height}`);
+	const ctx = new OffscreenCanvas(width, height).getContext('2d')!;
+	ctx.drawImage(bitmap, 0, 0);
+	const { data } = ctx.getImageData(0, 0, width, height);
+	return (x, y) => [...data.slice((y * width + x) * 4, (y * width + x) * 4 + 3)];
+}

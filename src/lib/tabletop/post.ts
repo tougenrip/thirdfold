@@ -97,8 +97,6 @@ const LENS = {
 	aberration: 0.008,
 	grain: 0.035
 };
-/** Below this, the `hidden` attachment is the clear colour (the background), not a hidden cell. */
-export const HIDDEN_FLOOR = 0.1;
 /** The grain's pattern moves on at most this often, by the tabletop's clock (ms). */
 export const GRAIN_MS = 1000 / 24;
 
@@ -321,8 +319,12 @@ export class Post {
 		// A transparent surface in front of a glow covers its emissive, as it covers its colour.
 		outputs.setBlendMode('emissive', new THREE.BlendMode(THREE.NormalBlending));
 		outputs.setBlendMode('hidden', new THREE.BlendMode(THREE.NormalBlending));
+		// Cleared to shown whatever the background (#176): a brighter sky must never read as hidden.
+		outputs.setClearColor('hidden', 0x000000, 0);
 		scenePass.setMRT(outputs);
 		scenePass.getTexture('emissive').type = THREE.UnsignedByteType;
+		// RGBA, though only red is read: blended by alpha, and three r186 declares a WebGPU fragment
+		// output with the target's channels, so an R8 target has no alpha to blend with (#176).
 		scenePass.getTexture('hidden').type = THREE.UnsignedByteType;
 		// Set now (setup sets the same later) so a warm-up before the first frame compiles for them.
 		scenePass.renderTarget.samples = stages.samples;
@@ -428,16 +430,10 @@ export class Post {
 			smoothed === finished
 				? null
 				: (smoothed as unknown as { textureNode: THREE.Node }).textureNode;
-		// Hidden cells back to exactly black, whatever spread over them. The attachment clears to
-		// the background's colour, whose red stays under HIDDEN_FLOOR (lighting.ts), so the sky
-		// around the table counts as shown; MSAA's resolve leaves edges in between.
+		// Hidden cells back to exactly black, whatever spread over them. The attachment clears to 0
+		// (shown), so the sky around the table stays; MSAA's resolve leaves edges in between.
 		const covered = this.scenePass!.getTextureNode('hidden').sample(screenUV).r;
-		const shownPart = float(1).sub(
-			covered
-				.sub(HIDDEN_FLOOR)
-				.div(1 - HIDDEN_FLOOR)
-				.saturate()
-		);
+		const shownPart = float(1).sub(covered.saturate());
 		const world = (smoothed as THREE.Node<'vec4'>).rgb.mul(shownPart);
 		// Nothing is added where the picture is black.
 		const lit = smoothstep(0, 2 / 255, luminance(world));
