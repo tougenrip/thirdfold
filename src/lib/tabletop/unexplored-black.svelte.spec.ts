@@ -1,69 +1,129 @@
 // Unexplored cells are exactly black (#176, the acceptance item of #161): for
-// players and spectators, on every tier, with grain and dither on (motion not
-// reduced, the clock held), the centre of every unexplored cell a pose shows
+// players and spectators, on every tier, with every layer on (grid lines shown,
+// mist at dusk and after dark, fixtures, carried light, bloom, the lens and
+// grain; no dice, no hover), the centre of every unexplored cell a pose shows
 // reads (0, 0, 0) in the captured frame, the path the goldens use. It is the
 // picture's side of the server keeping secrets: no layer or effect may lift
-// space the viewer was never shown. Cells near explored ground are left out
-// (bloom and the lens carry what the viewer already sees a little way over the
-// fog's edge), and so are cells hidden behind something standing on explored
-// ground, cells too small to hold a 3x3 block and cells off screen.
+// space the viewer was never shown. Cells right beside explored ground count
+// too, where bloom and the lens spread light and the output stage's re-mask
+// (#173) must take it away again; left out are cells hidden behind something
+// standing on explored ground, cells too small to hold a 3x3 block and cells
+// off screen. A new layer is turned on here when it lands (docs/RENDERING.md).
+//
+// CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
+// the player and the spectator, every pose and tier, and the medium tier again
+// with reduced motion run by hand, before a rendering PR:
+//   THIRDFOLD_UNEXPLORED=full npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+//   THIRDFOLD_WEBGPU=1 THIRDFOLD_UNEXPLORED=full npx vitest run --project client-webgpu src/lib/tabletop/unexplored-black.svelte.spec.ts
 
 import * as THREE from 'three/webgpu';
-import { page } from 'vitest/browser';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { cellsBeside, unitEdges } from '$lib/game/objects';
-import { decodeMask } from '$lib/game/visibility';
+import { cellsBeside, MAX_STEP, unitEdges } from '$lib/game/objects';
+import { footprintCells } from '$lib/game/props';
+import { decodeLevels } from '$lib/game/terrain';
+import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
+import { STEP_HEIGHT } from './ground';
 import { settingsFor, type Tier } from './quality';
 import {
 	BACKEND,
+	FIXTURES,
 	HEIGHT,
 	WIDTH,
 	loadSidecar,
 	loadView,
 	manualClock,
 	mountFixture,
+	readFrame,
 	settle,
 	wait,
+	type Band,
 	type FixtureView,
 	type Mounted,
 	type PoseName,
 	type Viewer
 } from './testing';
 
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
-/** Cells (Chebyshev) a sample keeps from explored ground: beyond the bloom of its lights. */
-const MARGIN = 3;
-/** Taller than anything that can stand on explored ground (raised ground, a wall, a bell). */
-const TALLEST = 8;
-/** Fewer samples than this and a pose proves nothing. */
+/**
+ * How tall, in cells above its floor, what the viewer was sent stands, with room to spare: explored
+ * floor (grid lines, mist), a wall or door beside its edge (WALL_LEVELS steps, the lintel), a mini
+ * with its name label, a light's fixture, and a prop (the tallest model, a tree or a bell frame).
+ */
+const TALL = { floor: 0.1, wall: WALL_LEVELS * STEP_HEIGHT + 0.3, token: 2, light: 2, prop: 4 };
+/** Fewer samples than this and a pose proves nothing: it is left out, and said so. */
 const MIN_SAMPLES = 20;
 /** The rig camera's vertical field of view (camera.ts). */
 const FOV = 45;
+const POSES: readonly PoseName[] = ['overview', 'close', 'low', 'dark'];
+const TIERS: readonly Tier[] =
+	BACKEND === 'webgpu' ? ['low', 'medium', 'high', 'ultra'] : ['low', 'medium', 'high'];
+/**
+ * CI's cases, a few minutes on its software GPU: the Hollow (the most unexplored ground in view)
+ * on every tier, ref-8's own spectator at dusk, whose close and low poses keep enough samples, and
+ * its dark pose with reduced motion.
+ */
+const SLIM = new Set([
+	...TIERS.map((t) => `hollow player dark ${t}`),
+	'ref-8 spectator dusk medium',
+	'ref-8 spectator dark medium reduced',
+	'hollow player dark medium cloud'
+]);
+const FULL = inject('unexplored') === 'full';
 
-const TIERS: Tier[] = ['low', 'medium', 'high'];
+interface Case {
+	fixture: string;
+	viewer: Viewer;
+	band: Band;
+	poses: PoseName[];
+	tier: Tier;
+	reduced: boolean;
+	/** The fog cloud's layer on, off by default until the owner's review (#174). */
+	cloud: boolean;
+	label: string;
+}
+
 /**
- * The fixtures with fog on and enough unexplored ground in view at the overview pose, one of each
- * kind (dark, dusk, day, raised ground, a large table), and who looks. The spectator sees the whole
- * party, which is the one player in every fixture but ref-8, so only ref-8's spectator is its own
- * case. Left out: ref-1, ref-3 and ref-7 have nothing unexplored; the close and low poses look at
- * the party, whose explored ground leaves fewer than MIN_SAMPLES cells in view; the other story
- * and stress tables repeat these (and SwiftShader's readback costs seconds a frame, #176's budget).
+ * Every case: each fixture's views with fog on and ground unexplored, for the player and the
+ * spectator (left out where the spectator is sent exactly what the player is: the one player is
+ * the whole party), the poses grouped by the band they draw in (the dark pose is its own), on every
+ * tier, and the medium tier again with reduced motion (the static cloud, instant reveals) and
+ * again with the fog cloud's layer on (#174).
  */
-/**
- * Every tier on the two darkest player views (the most unexplored ground in view), and the dusk
- * village and ref-8's spectator on medium: kept to a few minutes on CI's software GPU. Soft edges
- * are always on; the Hollow on medium is taken again with the fog cloud's layer on (#174).
- */
-const CASES: { fixture: string; viewer: Viewer; tiers: readonly Tier[]; cloud?: boolean }[] = [
-	{ fixture: 'dungeon-40', viewer: 'player', tiers: TIERS },
-	{ fixture: 'hollow', viewer: 'player', tiers: TIERS },
-	{ fixture: 'village', viewer: 'player', tiers: ['medium'] },
-	{ fixture: 'ref-8', viewer: 'spectator', tiers: ['medium'] },
-	{ fixture: 'hollow', viewer: 'player', tiers: ['medium'], cloud: true }
-];
-const POSE: PoseName = 'overview';
+async function allCases(): Promise<Case[]> {
+	const out: Case[] = [];
+	for (const fixture of FIXTURES) {
+		const sidecar = await loadSidecar(fixture);
+		const bands = new Map<Band, PoseName[]>();
+		for (const pose of POSES) {
+			const band = (sidecar.poses[pose] as { ambient?: Band }).ambient ?? sidecar.ambient;
+			bands.set(band, [...(bands.get(band) ?? []), pose]);
+		}
+		for (const [band, poses] of bands)
+			for (const viewer of ['player', 'spectator'] as const) {
+				const view = await loadView(fixture, band, viewer);
+				const size = view.grid.width * view.grid.height;
+				if (!view.fog.enabled || decodeMask(view.fog.explored, size).every((c) => c === 1))
+					continue;
+				const player = await loadView(fixture, band, 'player');
+				const same = (v: FixtureView) => JSON.stringify({ ...v, viewer: null });
+				if (viewer === 'spectator' && same(view) === same(player)) continue;
+				const each = (tier: Tier, reduced: boolean, cloud = false) => {
+					const label =
+						`${fixture} ${viewer} ${band} ${tier}` +
+						`${reduced ? ' reduced' : ''}${cloud ? ' cloud' : ''}`;
+					out.push({ fixture, viewer, band, poses, tier, reduced, cloud, label });
+				};
+				for (const tier of TIERS) each(tier, false);
+				each('medium', true);
+				each('medium', false, true);
+			}
+	}
+	return out;
+}
+
+const CASES = (await allCases()).filter((c) => FULL || SLIM.has(c.label));
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -79,88 +139,84 @@ interface Sample {
 }
 
 /**
- * The unexplored cell centres a camera shows clearly: at least MARGIN cells from known ground
- * (knownGround), on screen with a 3x3 block inside the cell, and with nothing that could stand on
- * known ground (or off the table) between them and the camera.
+ * The unexplored cell centres a camera shows clearly: on screen with a 3x3 block inside the cell,
+ * and with nothing the viewer was sent standing between them and the camera (`standing`).
  */
 function samplesFor(
 	grid: SquareGrid,
-	ground: Uint8Array,
+	tall: Float32Array,
 	camera: THREE.PerspectiveCamera
 ): Sample[] {
 	const { width: w, height: h, cellSize } = grid;
-	const known = (x: number, y: number) =>
-		x < 0 || y < 0 || x >= w || y >= h || ground[y * w + x] === 1;
-	const near = (x: number, y: number) => {
-		for (let dy = -MARGIN + 1; dy < MARGIN; dy++)
-			for (let dx = -MARGIN + 1; dx < MARGIN; dx++)
-				if (ground[(y + dy) * w + (x + dx)] === 1) return true;
-		return false;
-	};
 	const toPixel = (v: THREE.Vector3) => {
 		v.project(camera);
 		return { x: ((v.x + 1) / 2) * WIDTH, y: ((1 - v.y) / 2) * HEIGHT, z: v.z };
 	};
+	const top = tall.reduce((a, b) => Math.max(a, b), 0) * cellSize;
 	const out: Sample[] = [];
-	for (let y = MARGIN - 1; y <= h - MARGIN; y++)
-		for (let x = MARGIN - 1; x <= w - MARGIN; x++) {
-			if (ground[y * w + x] || near(x, y)) continue;
+	for (let y = 0; y < h; y++)
+		for (let x = 0; x < w; x++) {
+			if (tall[y * w + x] >= 0) continue;
 			const at = gridToWorld(grid, { x, y });
 			const p = toPixel(new THREE.Vector3(at.x, 0, at.z));
 			if (p.z > 1 || p.x < 2 || p.y < 2 || p.x > WIDTH - 3 || p.y > HEIGHT - 3) continue;
-			// The cell's half-width on screen, along both axes: a 3x3 block must fit.
-			const ex = toPixel(new THREE.Vector3(at.x + cellSize / 2, 0, at.z));
-			const ez = toPixel(new THREE.Vector3(at.x, 0, at.z + cellSize / 2));
-			if (Math.min(Math.hypot(ex.x - p.x, ex.y - p.y), Math.hypot(ez.x - p.x, ez.y - p.y)) < 2.5)
-				continue;
-			if (!occluded(at, camera.position, cellSize, grid, known))
-				out.push({ cell: { x, y }, px: Math.floor(p.x), py: Math.floor(p.y) });
+			// The 3x3 block, whole pixels, must lie inside the cell's outline on screen: at a grazing
+			// angle a cell is thinner than it is wide, and what stands beyond it shows just past it.
+			const outline = [
+				[-1, -1],
+				[1, -1],
+				[1, 1],
+				[-1, 1]
+			].map(([dx, dz]) =>
+				toPixel(new THREE.Vector3(at.x + (dx * cellSize) / 2, 0, at.z + (dz * cellSize) / 2))
+			);
+			const px = Math.floor(p.x);
+			const py = Math.floor(p.y);
+			const block = [
+				[px - 1, py - 1],
+				[px + 2, py - 1],
+				[px + 2, py + 2],
+				[px - 1, py + 2]
+			];
+			if (!block.every(([bx, by]) => inside(outline, bx, by))) continue;
+			if (!occluded(at, camera.position, grid, tall, top)) out.push({ cell: { x, y }, px, py });
 		}
 	return out;
 }
 
-/** Whether the ray from a floor point to the camera passes, below TALLEST, over known ground. */
-function occluded(
-	at: { x: number; z: number },
-	eye: THREE.Vector3,
-	cellSize: number,
-	grid: SquareGrid,
-	known: (x: number, y: number) => boolean
-): boolean {
-	const run = Math.hypot(eye.x - at.x, eye.z - at.z);
-	const reach = Math.min(run, ((TALLEST * cellSize) / eye.y) * run);
-	for (let s = 0; s <= reach; s += cellSize / 4) {
-		const k = s / run;
-		const x = at.x + (eye.x - at.x) * k;
-		const z = at.z + (eye.z - at.z) * k;
-		const cx = Math.floor(x / cellSize + grid.width / 2);
-		const cy = Math.floor(z / cellSize + grid.height / 2);
-		if (known(cx, cy)) return true;
-	}
-	return false;
+/** Whether a point is inside a convex outline (either winding). */
+function inside(outline: { x: number; y: number }[], x: number, y: number): boolean {
+	const sides = outline.map((a, i) => {
+		const b = outline[(i + 1) % outline.length];
+		return Math.sign((b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x));
+	});
+	return sides.every((s) => s >= 0) || sides.every((s) => s <= 0);
 }
 
 /**
- * The finished frame's colour at a pixel (from the top left). WebGL2 reads the drawing buffer back;
- * WebGPU has no readback here, so it decodes a screenshot, as the goldens capture (seconds each).
+ * Whether the ray from a floor point up to the camera passes through something standing in a cell
+ * (as tall as `standing` says), or leaves the table below `top`, the tallest thing on it (the rim
+ * and what lies beyond count as in the way).
  */
-async function capture(m: Mounted): Promise<(x: number, y: number) => number[]> {
-	if (BACKEND !== 'webgpu') {
-		const px = m.pixels();
-		// Indexed as WIDTH x HEIGHT: a tier's pixel cap shrinking the buffer would misread it.
-		expect(px.length, 'drawing buffer size').toBe(WIDTH * HEIGHT * 4);
-		return (x, y) => [
-			...px.slice(((HEIGHT - 1 - y) * WIDTH + x) * 4, ((HEIGHT - 1 - y) * WIDTH + x) * 4 + 3)
-		];
+function occluded(
+	at: { x: number; z: number },
+	eye: THREE.Vector3,
+	grid: SquareGrid,
+	tall: Float32Array,
+	top: number
+): boolean {
+	const { width: w, height: h, cellSize } = grid;
+	const run = Math.hypot(eye.x - at.x, eye.z - at.z);
+	for (let s = 0; s <= run; s += cellSize / 8) {
+		const k = s / run;
+		const up = eye.y * k;
+		if (up > top) return false;
+		const cx = Math.floor((at.x + (eye.x - at.x) * k) / cellSize + w / 2);
+		const cy = Math.floor((at.z + (eye.z - at.z) * k) / cellSize + h / 2);
+		if (cx < 0 || cy < 0 || cx >= w || cy >= h) return true;
+		if (tall[cy * w + cx] * cellSize >= up) return true;
 	}
-	const png = await page.screenshot({ element: m.canvas, save: false });
-	const blob = await (await fetch(`data:image/png;base64,${png}`)).blob();
-	const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' });
-	expect([bitmap.width, bitmap.height]).toEqual([WIDTH, HEIGHT]);
-	const ctx = new OffscreenCanvas(WIDTH, HEIGHT).getContext('2d')!;
-	ctx.drawImage(bitmap, 0, 0);
-	const { data } = ctx.getImageData(0, 0, WIDTH, HEIGHT);
-	return (x, y) => [...data.slice((y * WIDTH + x) * 4, (y * WIDTH + x) * 4 + 3)];
+	return false;
 }
 
 /** The camera the tabletop draws with now. */
@@ -183,69 +239,137 @@ async function converge(m: Mounted, frames: number): Promise<void> {
 	const stats = () => m.tabletop.stats();
 	while ((stats().frames === 0 || stats().holding) && performance.now() < until) await wait(50);
 	const start = stats().frames;
-	while (stats().frames - start < frames && performance.now() < until) await wait(50);
+	while (stats().frames - start < frames + 1 && performance.now() < until) await wait(50);
 	await settle(m.tabletop, 250, 1000);
 	expect(stats().frames, 'frames drawn').toBeGreaterThan(0);
 }
 
-/** What the samples read that isn't exactly black, named by cell and pixel. */
-function litAt(samples: Sample[], at: (x: number, y: number) => number[]): string[] {
+/** Whether any pixel of the frame, every fourth along both axes, is not black. */
+function litAnywhere(at: (x: number, y: number) => number[]): boolean {
+	for (let y = 0; y < HEIGHT; y += 4)
+		for (let x = 0; x < WIDTH; x += 4) if (at(x, y).some((c) => c !== 0)) return true;
+	return false;
+}
+
+/** What the samples read that isn't exactly black, named by case, pose, cell and pixel. */
+function litAt(name: string, samples: Sample[], at: (x: number, y: number) => number[]): string[] {
 	const lit: string[] = [];
 	for (const { cell, px, py } of samples)
 		for (let dy = -1; dy <= 1; dy++)
 			for (let dx = -1; dx <= 1; dx++) {
 				const rgb = at(px + dx, py + dy);
 				if (rgb.some((c) => c !== 0))
-					lit.push(`cell ${cell.x},${cell.y} at ${px + dx},${py + dy}: ${rgb}`);
+					lit.push(`${name}: cell ${cell.x},${cell.y} at ${px + dx},${py + dy}: ${rgb}`);
 			}
 	return lit;
 }
 
 /**
- * The cells the viewer knows something stands on: explored ground, and the cells beside every wall
- * and door it was sent. The server sends a wall whole once any cell beside it was explored
+ * How tall (in cells, from level 0) what the viewer was sent stands in each cell, or -1 for a cell
+ * it knows nothing of: explored ground, the cells beside every wall and door it was sent, and every
+ * token, light and prop. The server sends a wall whole once any cell beside it was explored
  * (views.ts `touches`), so a long wall runs on through unexplored ground (village: the smithy's
  * south wall); that is the view's rule, not a layer lifting black, and this test holds the picture
  * to what the viewer was sent.
  */
-function knownGround(view: FixtureView): Uint8Array {
-	const known = decodeMask(view.fog.explored, view.grid.width * view.grid.height);
+function standing(view: FixtureView): Float32Array {
+	const { grid } = view;
+	const size = grid.width * grid.height;
+	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
+	const tall = new Float32Array(size).fill(-1);
+	const raise = (c: { x: number; y: number }, above: number) => {
+		if (c.x < 0 || c.y < 0 || c.x >= grid.width || c.y >= grid.height) return;
+		const i = c.y * grid.width + c.x;
+		tall[i] = Math.max(tall[i], (levels?.[i] ?? 0) * STEP_HEIGHT + above);
+	};
+	const explored = decodeMask(view.fog.explored, size);
+	for (let i = 0; i < size; i++)
+		if (explored[i]) raise({ x: i % grid.width, y: Math.floor(i / grid.width) }, TALL.floor);
 	for (const o of view.objects)
 		for (const e of unitEdges(o.a, o.b))
-			for (const c of cellsBeside(view.grid, e)) known[c.y * view.grid.width + c.x] = 1;
-	return known;
+			for (const c of cellsBeside(grid, e)) raise(c, TALL.wall + MAX_STEP * STEP_HEIGHT);
+	for (const t of view.tokens) raise(t.pos, TALL.token);
+	for (const l of view.lights) raise(l.pos, TALL.light);
+	for (const p of view.props) for (const c of footprintCells(p)) raise(c, TALL.prop);
+	return tall;
+}
+
+/**
+ * Mounts a case's view at its first pose with every layer on: grid lines shown (their fade run out
+ * on the held clock), and grain and dither on unless motion is reduced.
+ */
+async function mountCase(
+	c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 'reduced'> & { cloud?: boolean }
+) {
+	const sidecar = await loadSidecar(c.fixture);
+	const view = await loadView(c.fixture, c.band, c.viewer);
+	expect(view.fog.enabled).toBe(true);
+	const clock = manualClock(5000);
+	const m = await mountFixture(view, sidecar.poses.overview, {
+		clock,
+		reducedMotion: c.reduced,
+		tier: c.tier
+	});
+	mounted = m;
+	m.tabletop.setGridShown(true);
+	clock.set(65_000); // past every fade; flames, mist and grain still hold still
+	const settings = settingsFor(c.tier, m.tabletop.capabilities().backend);
+	expect(settings.bloom && settings.layers.lens && settings.grain).toBe(true);
+	if (c.cloud) {
+		const layers = { ...settings.layers, fogcloud: true };
+		m.tabletop.setQuality({ ...settings, miniature: false, layers });
+	}
+	return { m, sidecar, view, settings };
 }
 
 describe(`unexplored cells on ${BACKEND}`, () => {
-	for (const { fixture, viewer, tiers, cloud } of CASES)
-		for (const tier of tiers)
-			it(`${fixture} ${viewer} ${tier}${cloud ? ' with the cloud' : ''}: black at ${POSE}`, async () => {
-				const sidecar = await loadSidecar(fixture);
-				const view = await loadView(fixture, sidecar.ambient, viewer);
-				expect(view.fog.enabled).toBe(true);
-				const size = view.grid.width * view.grid.height;
-				const known = knownGround(view);
-				// Grain and dither on: motion not reduced, the clock held so they hold still.
-				mounted = await mountFixture(view, sidecar.poses[POSE], {
-					clock: manualClock(5000),
-					reducedMotion: false,
-					tier
-				});
-				const settings = settingsFor(tier, mounted.tabletop.capabilities().backend);
-				expect(settings.grain && settings.layers.lens).toBe(true);
-				if (cloud) {
-					const layers = { ...settings.layers, fogcloud: true };
-					mounted.tabletop.setQuality({ ...settings, miniature: false, layers });
+	// A slim case whose fixture or view changed would otherwise drop out of CI without a word.
+	it.skipIf(FULL)('finds every case of the slim set', () => {
+		expect(CASES.map((c) => c.label).sort()).toEqual([...SLIM].sort());
+	});
+
+	for (const c of CASES)
+		it(`${c.label}: black at ${c.poses.join(', ')}`, async () => {
+			const { m, sidecar, view, settings } = await mountCase(c);
+			const tall = standing(view);
+			const lit: string[] = [];
+			let checked = 0;
+			for (const pose of c.poses) {
+				// The camera takes the pose at once: a pose with too few samples draws nothing more.
+				m.tabletop.setGridPose(sidecar.poses[pose]);
+				const camera = cameraOf(m);
+				const samples = samplesFor(view.grid, tall, camera);
+				if (samples.length < MIN_SAMPLES) {
+					console.info(`${c.label} ${pose}: ${samples.length} samples, left out`);
+					continue;
 				}
-				await converge(mounted, settings.convergeFrames);
-				const camera = cameraOf(mounted);
-				const samples = samplesFor(view.grid, known, camera);
-				expect(samples.length, `${fixture} ${POSE}: samples`).toBeGreaterThanOrEqual(MIN_SAMPLES);
-				const at = await capture(mounted);
-				const lit = litAt(samples, at);
-				expect(lit.slice(0, 10), `${fixture} ${POSE}: ${lit.length} lit pixels`).toEqual([]);
-				// The check can fail: taken as if nothing were explored, the same frame shows lit cells.
-				const planted = litAt(samplesFor(view.grid, new Uint8Array(size), camera), at);
-				expect(planted.length, 'lit pixels with nothing counted as explored').toBeGreaterThan(0);
-			});
+				checked++;
+				await converge(m, settings.convergeFrames);
+				const at = await readFrame(m.canvas, WIDTH, HEIGHT);
+				lit.push(...litAt(`${c.label} ${pose}`, samples, at));
+				// The frame read back isn't all black (the self-check below shows a lit sample fails).
+				expect(litAnywhere(at), `${pose}: anything lit`).toBe(true);
+			}
+			// A view whose every pose is left out proves nothing (ref-6, and the dark pose close by the
+			// party on four tables); every case CI takes checks at least one pose.
+			if (!FULL) expect(checked, 'poses with enough samples').toBeGreaterThan(0);
+			else if (!checked) console.info(`${c.label}: no pose with ${MIN_SAMPLES} samples, left out`);
+			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
+		});
+
+	it('fails on a layer exempt from the fog, naming the fixture, pose and cell', async () => {
+		const c = { fixture: 'dungeon-40', viewer: 'player', band: 'dark', tier: 'medium' } as const;
+		const { m, view, settings } = await mountCase({ ...c, reduced: false });
+		// The GM's reveal preview over the whole table: an overlay the fog never shades.
+		const { width, height } = view.grid;
+		m.tabletop.setPreview([
+			{ kind: 'area', from: { x: 0, y: 0 }, to: { x: width - 1, y: height - 1 }, tone: 'reveal' }
+		]);
+		await converge(m, settings.convergeFrames);
+		const samples = samplesFor(view.grid, standing(view), cameraOf(m));
+		expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
+		const lit = litAt('dungeon-40 overview', samples, await readFrame(m.canvas, WIDTH, HEIGHT));
+		expect(lit.length).toBeGreaterThan(0);
+		expect(lit[0]).toMatch(/^dungeon-40 overview: cell \d+,\d+ at \d+,\d+: /);
+	});
 });

@@ -775,10 +775,12 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
   - Bloom, chromatic aberration, depth of field and FXAA spread light over hidden cells, so the
     scene pass writes `hidden` (`worldHidden`: 1 where a player's fog hides the fragment's cell)
     and the output stage multiplies the world by what it leaves shown, after FXAA and before the
-    overlay, so unexplored cells stay exactly black after post. The attachment clears to the
-    background's colour, whose linear red stays under `HIDDEN_FLOOR` (0.1), so the sky around the
-    table counts as shown (`post.svelte.spec.ts`, and `unexplored-black.svelte.spec.ts` on every
-    tier it covers, both backends). Dice are not the world: their materials write 0 there
+    overlay, so unexplored cells stay exactly black after post. The attachment is 8-bit RGBA, not
+    R8 (three r186 declares a WebGPU fragment output with the target's channels, so an R8 target
+    has no alpha to blend transparent surfaces with), and clears to 0 (`setClearColor` on the MRT,
+    #176), so the sky around the table counts as shown however bright a sky becomes
+    (`post.svelte.spec.ts` on both backends, a bright background included, and
+    `unexplored-black.svelte.spec.ts`). Dice are not the world: their materials write 0 there
     (`dieMaterial`, dice3d.ts), so a throw over a hidden cell still shows, as it did over the plane.
   - Fog as atmosphere (#174, `fog-soft.ts` holds the pure mirrors, tested in `fog-soft.spec.ts`):
     soft edges take the `visibility` map's linear samples of R and G through a `smoothstep` band
@@ -904,7 +906,7 @@ DPR 1, with a clock the test holds still, reduced motion on and the camera at a 
   0.98, a diff of each window's loss), the rest by pixelmatch with threshold 0.1 and at most 0.5%
   mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
   and the spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
-  Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts`.
+  Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts` (below).
   **When they run:** never with `npm test`. CI takes the slim set (`SLIM` in the spec, 26 images)
   in `.github/workflows/rendering.yml`, only on pull requests that touch rendering, never on
   pushes, beside the renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run
@@ -912,6 +914,35 @@ test:render`), which leave `npm test` too, so the verify job stays within minute
   The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
   hand, once a rendering PR is ready and agreed, not during development, where the test world and
   the targeted specs are the check.
+
+**Unexplored cells stay black** (#176, `unexplored-black.svelte.spec.ts`). For each fixture with
+fog and unexplored ground, the player's view and the spectator's (left out where it is exactly the
+player's), each named pose (overview, close and low in the fixture's band, dark in its own), each
+tier (low, medium, high; ultra too on WebGPU) and the medium tier again with reduced motion, it
+mounts the view with every layer on (grid lines shown, mist, fixtures, carried light, bloom, the lens
+and grain; no dice, no hover), projects each unexplored cell's centre and reads a 3x3 block from the
+captured frame (`readFrame` in testing.ts: the drawing buffer on WebGL2, a screenshot on WebGPU),
+requiring exactly (0, 0, 0). Skipped are cells whose block leaves the cell's outline on screen and
+cells behind something the viewer was sent (explored floor, walls, minis, lights and props, each as
+tall as it can stand); cells right beside explored ground count, where bloom and the lens spread and
+the re-mask must take them back. A pose with fewer than 20 such cells is left out and logged (most
+close and low poses, which look at explored ground), and so is a view with none left (ref-6, and
+the dark band of the monastery, railcar, test world and village, whose one pose looks at the party).
+Each pose also checks the frame read back is not all black, and a self-check lays the GM's reveal
+preview (an overlay the fog never shades) over the dungeon and must fail, naming the fixture, pose
+and cell. CI takes the slim set (`SLIM`: five cases on WebGL2, about 1.5 minutes on SwiftShader
+here; six with ultra on WebGPU), and fails if one of them stops existing; the full set (85 cases,
+about 30 minutes on SwiftShader) runs by hand before a rendering PR:
+
+```bash
+THIRDFOLD_UNEXPLORED=full npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+THIRDFOLD_WEBGPU=1 THIRDFOLD_UNEXPLORED=full npx vitest run --project client-webgpu src/lib/tabletop/unexplored-black.svelte.spec.ts
+```
+
+**A new layer joins it when it lands:** turn it on in `mountCase` (or in the fixtures, if it comes
+from the view), and if it stands on explored ground add its height to `standing`. The sky (#214),
+grass (#302), scatter, decals, water (#293), VFX, weather (#320), motes, x-ray (#284) and overlays
+(#285) are next. A layer that fails here is fixed in the render path, never by skipping cells.
 
 **When a golden fails in CI**, the `goldens` job of `rendering.yml` uploads the `goldens-diffs`
 artifact (`.vitest-attachments/`: the reference, the actual image and a diff for each failure;

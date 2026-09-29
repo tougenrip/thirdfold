@@ -73,8 +73,7 @@ interface Preset {
 }
 
 // The whole frame is tone mapped, background and overlays too, so these colours are the ones
-// ACES turns into the sRGB 16120f, 120e10 and 07060a of before (#153). Each background's linear
-// red stays under post.ts's `HIDDEN_FLOOR`, which tells the clear colour from a hidden cell.
+// ACES turns into the sRGB 16120f, 120e10 and 07060a of before (#153).
 // Interim (#167) until the sky (#114) and the art bible (#183): #208 blends these by the hour
 // and #218 replaces them with atmosphere curves.
 const PRESETS: Record<Ambient, Preset> = {

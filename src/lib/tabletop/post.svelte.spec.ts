@@ -16,7 +16,7 @@ import { postScene } from './post-scene';
 import { STILL } from './focus';
 import { TONE_MAPPERS } from '../assets/manifest';
 import { settingsFor, TIERS } from './quality';
-import { BACKEND } from './testing';
+import { BACKEND, readFrame } from './testing';
 
 // Software rendering under a full run's load takes a while: as the other renderer specs.
 vi.setConfig({ testTimeout: 60_000 });
@@ -58,6 +58,10 @@ describe('the post-processing pipeline', () => {
 			draw(tier);
 			const scene = post.scenePass!;
 			expect(scene.getTexture('emissive').type).toBe(THREE.UnsignedByteType);
+			// The fog's re-mask (#173): 8-bit, cleared to shown whatever the sky (#176).
+			expect(scene.getTexture('hidden').type).toBe(THREE.UnsignedByteType);
+			const clear = (scene.getMRT() as THREE.MRTNode).getClearColor('hidden')!;
+			expect([clear.r, clear.g, clear.b, clear.a]).toEqual([0, 0, 0, 0]);
 			expect(scene.renderTarget.texture.type).toBe(THREE.HalfFloatType);
 			expect(scene.renderTarget.samples).toBe(settingsFor(tier, 'webgl2').msaa);
 			if (tier === 'low') expect(post.prepass).toBeNull();
@@ -205,8 +209,13 @@ describe('the post-processing pipeline', () => {
 	});
 });
 
-// Pixels are read back on WebGL2 (preserveDrawingBuffer); WebGPU compares golden images.
-describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
+// Pixels are read back as the goldens capture them (`readFrame`): the drawing buffer on WebGL2, a
+// screenshot on WebGPU, so the re-mask of hidden cells after bloom and the lens is checked on both.
+describe('the overlay', () => {
+	const canvases: HTMLCanvasElement[] = [];
+	afterEach(() => {
+		for (const c of canvases.splice(0)) c.remove();
+	});
 	/** A top-down view of a 4×4 table, the overlay drawn over `world`. */
 	async function view(
 		world: THREE.Object3D[],
@@ -216,7 +225,16 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		background = 0x000000
 	) {
 		const canvas = document.createElement('canvas');
-		renderer = await createNodeRenderer(canvas, { pixelRatio: 1, preserveDrawingBuffer: true });
+		// In the page at DPR 1: WebGPU's frame is read from a screenshot of it.
+		canvas.style.cssText = `display:block;width:${size}px;height:${size}px`;
+		document.body.appendChild(canvas);
+		canvases.push(canvas);
+		const webgpu = BACKEND === 'webgpu';
+		renderer = await createNodeRenderer(canvas, {
+			pixelRatio: 1,
+			preserveDrawingBuffer: !webgpu,
+			backend: BACKEND
+		});
 		renderer.setSize(size, size, false);
 		const scene = new THREE.Scene();
 		scene.background = new THREE.Color(background);
@@ -225,7 +243,7 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		camera.position.set(0, 10, 0);
 		camera.lookAt(0, 0, 0);
 		const post = new Post(renderer, scene, camera, overlay.scene);
-		post.set(settingsFor('medium', 'webgl2'));
+		post.set(settingsFor('medium', webgpu ? 'webgpu' : 'webgl2'));
 		tune(post);
 		// The first frame compiles the passes; the overlay tests depth from the second on.
 		const draw = () => {
@@ -235,26 +253,17 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 			}
 		};
 		draw();
-		const gl = (renderer.backend as unknown as { gl: WebGL2RenderingContext }).gl;
-		const resize = (next: number) => {
+		let frame = await readFrame(canvas, size, size);
+		const resize = async (next: number) => {
 			size = next;
+			canvas.style.width = canvas.style.height = `${size}px`;
 			renderer!.setSize(size, size, false);
 			draw();
+			frame = await readFrame(canvas, size, size);
 		};
-		/** The pixel at world (x, z), RGB. */
-		const at = (x: number, z: number) => {
-			const px = new Uint8Array(4);
-			gl.readPixels(
-				Math.round(((x + 2) * size) / 4),
-				Math.round(((z + 2) * size) / 4),
-				1,
-				1,
-				gl.RGBA,
-				gl.UNSIGNED_BYTE,
-				px
-			);
-			return [...px.slice(0, 3)];
-		};
+		/** The pixel at world (x, z), RGB (z up the drawing buffer, as the camera looks down). */
+		const at = (x: number, z: number) =>
+			frame(Math.round(((x + 2) * size) / 4), size - 1 - Math.round(((z + 2) * size) / 4));
 		return Object.assign(at, { resize });
 	}
 	const plane = (color: number, y: number, material?: THREE.Material) => {
@@ -300,7 +309,7 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		expect(at(1, 0)).toEqual([0x40, 0xc0, 0x70]);
 		expect(at(-1, 0)).not.toEqual([0x40, 0xc0, 0x70]);
 		// Still after the canvas resizes (every target is reallocated).
-		at.resize(120);
+		await at.resize(120);
 		expect(at(1, 0)).toEqual([0x40, 0xc0, 0x70]);
 		expect(at(-1, 0)).not.toEqual([0x40, 0xc0, 0x70]);
 	});
@@ -362,9 +371,10 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		expect(Math.max(...at(-0.5, 0))).toBe(0);
 	});
 
-	it('leaves the background around the table shown under the fog', async () => {
-		// The day's background (lighting.ts), the brightest red: the clear colour of the `hidden`
-		// attachment too, which must read as shown. A 2×2 grid in the middle, all of it hidden.
+	// The day's background (lighting.ts), and a bright sky such as #114's: the `hidden` attachment
+	// clears to 0 whatever the background (#176), so neither reads as hidden.
+	it.each([0x292421, 0xe8f0ff])('leaves the background %s shown under the fog', async (sky) => {
+		// A 2×2 grid in the middle, all of it hidden.
 		maps = new CellMaps();
 		const none = encodeMask(new Uint8Array(4));
 		const fog: FogView = { enabled: true, shared: false, visible: none, explored: none };
@@ -379,7 +389,7 @@ describe.skipIf(BACKEND === 'webgpu')('the overlay', () => {
 		);
 		const white = plane(0xffffff, 0);
 		white.scale.setScalar(0.5); // the grid's 2×2 cells
-		const at = await view([white], new OverlayLayer(), 200, () => {}, 0x292421);
+		const at = await view([white], new OverlayLayer(), 200, () => {}, sky);
 		expect(Math.max(...at(0, 0))).toBe(0);
 		expect(Math.min(...at(1.6, 1.6))).toBeGreaterThan(0);
 	});

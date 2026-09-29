@@ -48,6 +48,8 @@ function browser(args: string[], headless: boolean) {
 /** `THIRDFOLD_GOLDENS=slim|full` runs the golden images (package.json's test:golden scripts). */
 const GOLDENS = (['slim', 'full'] as const).find((g) => g === process.env.THIRDFOLD_GOLDENS);
 const GOLDEN_SPEC = 'src/lib/tabletop/golden.svelte.spec.ts';
+/** `THIRDFOLD_UNEXPLORED=full` runs every unexplored-black case (by hand); CI takes the slim set. */
+const UNEXPLORED = process.env.THIRDFOLD_UNEXPLORED === 'full' ? ('full' as const) : undefined;
 /**
  * The renderer's pixel tests, minutes each on SwiftShader: not in `npm test` (so CI's verify job
  * stays within minutes), but in `npm run test:render` and in .github/workflows/rendering.yml, on
@@ -117,7 +119,8 @@ export default defineConfig({
 					provide: {
 						backend: 'webgl' as const,
 						goldens: GOLDENS ?? 'slim',
-						shard: process.env.THIRDFOLD_SHARD ?? '1/1'
+						shard: process.env.THIRDFOLD_SHARD ?? '1/1',
+						unexplored: UNEXPLORED ?? ('slim' as const)
 					},
 					attachmentsDir: '.vitest-attachments',
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
@@ -149,7 +152,12 @@ export default defineConfig({
 									],
 									true
 								),
-								provide: { backend: 'webgpu' as const, goldens: GOLDENS ?? 'full', shard: '1/1' },
+								provide: {
+									backend: 'webgpu' as const,
+									goldens: GOLDENS ?? 'full',
+									shard: '1/1',
+									unexplored: UNEXPLORED ?? ('slim' as const)
+								},
 								// One file at a time: the recovery test crashes the GPU process, which would
 								// take WebGPU away from files running beside it.
 								fileParallelism: false,
