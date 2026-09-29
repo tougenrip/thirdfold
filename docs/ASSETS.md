@@ -34,6 +34,8 @@ Ids are lowercase letters, digits and dashes, and they are the file names. Name 
 it looks (`robed-figure`, `giant-hand`, `cavern`), not by its part in a story. The manifest is
 public, so a story's name for something would give it away.
 
+What art must look like, where it may come from and on what terms is in `docs/ART.md`, the art bible.
+
 ### Scale
 
 thirdfold's world scale is fixed (milestone 62, #152): **1 cell = 1 unit = 5 ft**. A level of
