@@ -20,7 +20,9 @@ const crashGpu: BrowserCommand<[]> = async (ctx) => {
 function browser(args: string[], headless: boolean) {
 	return {
 		enabled: true,
-		provider: playwright({ launchOptions: { args } }),
+		// Playwright's 30 s default is short for a high-tier capture on CI's small runners since the
+		// textured assets (M65); the tests' own timeouts still bound every action.
+		provider: playwright({ launchOptions: { args }, actionTimeout: 90_000 }),
 		viewport: { width: 800, height: 500 },
 		// No tester UI around the test frame: it would scale the frame, and every screenshot, down.
 		ui: false,
