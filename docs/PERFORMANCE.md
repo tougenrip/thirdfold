@@ -590,21 +590,29 @@ compressed transcode target for KTX2; devices that fall back to RGBA are the mob
 purpose, with the reason here.
 
 What is counted is in [ASSETS.md](ASSETS.md#rules-the-pipeline-enforces). Totals with the assets
-of milestone 64 (`npm run assets`; kB of 1024 bytes):
+of milestone 64 (`npm run assets`; kB of 1024 bytes), and with #190's bevelled, baked part lists
+(normals and `_BAKE` in every model file):
 
-| Table                   | Download | GPU     | Mobile GPU |
-| ----------------------- | -------- | ------- | ---------- |
-| hollow-bell/bellweather | 519 kB   | 1176 kB | 1176 kB    |
-| hollow-bell/monastery   | 443 kB   | 1052 kB | 1052 kB    |
-| hollow-bell/hollow      | 401 kB   | 1100 kB | 1100 kB    |
-| hollow-bell/heart       | 300 kB   | 905 kB  | 905 kB     |
-| blackwater/train        | 383 kB   | 979 kB  | 979 kB     |
-| blackwater/engine       | 260 kB   | 870 kB  | 870 kB     |
-| blackwater/blackwater   | 254 kB   | 864 kB  | 864 kB     |
-| example/yard            | 191 kB   | 882 kB  | 882 kB     |
-| example/cellar          | 171 kB   | 808 kB  | 808 kB     |
+| Table                   | Download (M64 → #190) | GPU (M64 → #190)  | Mobile GPU |
+| ----------------------- | --------------------- | ----------------- | ---------- |
+| hollow-bell/bellweather | 519 kB → 855 kB       | 1176 kB → 1460 kB | 1460 kB    |
+| hollow-bell/monastery   | 443 kB → 725 kB       | 1052 kB → 1290 kB | 1290 kB    |
+| hollow-bell/hollow      | 401 kB → 653 kB       | 1100 kB → 1313 kB | 1313 kB    |
+| hollow-bell/heart       | 300 kB → 479 kB       | 905 kB → 1057 kB  | 1057 kB    |
+| blackwater/train        | 383 kB → 620 kB       | 979 kB → 1178 kB  | 1178 kB    |
+| blackwater/engine       | 260 kB → 405 kB       | 870 kB → 992 kB   | 992 kB     |
+| blackwater/blackwater   | 254 kB → 399 kB       | 864 kB → 986 kB   | 986 kB     |
+| example/yard            | 191 kB → 279 kB       | 882 kB → 957 kB   | 957 kB     |
+| example/cellar          | 171 kB → 251 kB       | 808 kB → 876 kB   | 876 kB     |
+
+Part-list triangles (#190): 25,848 → 37,660 over the 69 models, their files 692 → 1,200 kB. A box
+is 12 → 44 triangles, a cylinder 72 → 144 and a cone 36 → 72; spheres are unchanged. Some models:
+crate 24 → 88, barrel 216 → 432, great-bell 592 → 932, warden 616 → 960, tentacle 1,308 → 1,560,
+hound 1,136 → 1,628 (the largest now), each far under its class's limit. Draw calls and programs
+are unchanged: the bevels are in the same meshes, and every prop and mini geometry carries the
+bake (`withBake`).
 
 Each environment alone is 56–68 kB to download and 683–789 kB on the GPU. Every table is under
-4% of the mobile download budget: the part-list models and 128 px textures are small. The budgets
-start to bite with the cooked models and surface sets (#186, #187). Record the totals here again at
-each milestone.
+4% of the mobile download budget at M64, and under 15% with #190's baked models: the part-list
+models and 128 px textures are small. The budgets start to bite with the cooked models and
+surface sets (#186, #187). Record the totals here again at each milestone.

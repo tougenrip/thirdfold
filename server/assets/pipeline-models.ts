@@ -18,8 +18,9 @@ import { creditOf, provenanceFor } from './licence';
 import { bakeModel, isModelKind, readModelSource } from './models';
 import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 
+/** To a thousandth, and never -0, which JSON writes as 0. */
 const round = (v: number[]) =>
-	v.map((n) => Math.round(n * 1000) / 1000) as [number, number, number];
+	v.map((n) => Math.round(n * 1000) / 1000 || 0) as [number, number, number];
 
 export async function buildModels(
 	dir: string,

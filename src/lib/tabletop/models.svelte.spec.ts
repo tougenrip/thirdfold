@@ -104,6 +104,17 @@ describe('the model loader', () => {
 		expect(lodFor(undefined, 0.01)).toBe(0);
 	});
 
+	it("keeps a part list's baked occlusion (#190)", async () => {
+		initModels(renderer);
+		const [body] = partsOf((await loadModel('crate'))!, 'body');
+		const bake = body.geometry.getAttribute('aBake');
+		const ao = Array.from({ length: bake.count }, (_, i) => bake.getX(i));
+		expect(Math.max(...ao)).toBe(1);
+		// Where the crate meets the floor, and under its band.
+		expect(Math.min(...ao)).toBeLessThan(0.7);
+		releaseModels();
+	});
+
 	it('loads a cooked model into parts with its transforms and texture, and frees it', async () => {
 		const { model, drawn, freed } = await round();
 		expect(model.parts.map((p) => `${p.role}${p.lod}`).sort()).toEqual([
@@ -115,11 +126,15 @@ describe('the model loader', () => {
 		// One attribute set for every part, textured or not: the same program as a part list.
 		for (const p of model.parts) {
 			expect(Object.keys(p.geometry.attributes).sort()).toEqual([
+				'aBake',
 				'color',
 				'normal',
 				'position',
 				'uv'
 			]);
+			// No `_BAKE` in the file: open to the sky and flat (#190).
+			const bake = p.geometry.getAttribute('aBake');
+			expect([bake.getX(0), bake.getY(0)]).toEqual([1, 0.5]);
 		}
 		// Its two pieces in one material, merged; the body's node lifts it 0.25 off the floor.
 		expect(body.geometry.getAttribute('position').count).toBe(48);

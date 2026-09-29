@@ -6,8 +6,9 @@
 //
 // Part lists are plain glTF; cooked models (#186) have meshopt geometry and KTX2 textures,
 // whose decoders (decoders.ts) load in a chunk of their own the first time one is needed. Every
-// part is made to the same attribute set (position, normal, uv, colour; floats), so a textured
-// part and a part list draw with the same program, and its glTF maps go into the kind's slots.
+// part is made to the same attribute set (position, normal, uv, colour, bake; floats), so a
+// textured part and a part list draw with the same program, and its glTF maps go into the kind's
+// slots.
 // When the last table goes (initModels/releaseModels), every geometry and texture is freed and
 // the transcoder's workers stop: a lost device's replacement starts afresh.
 
@@ -16,8 +17,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { ModelEntry, ModelLod } from '$lib/assets/manifest';
 import { assetUrl, fetchAsset, loadManifest } from '$lib/assets/load';
 import {
+	BAKE_ATTRIBUTE,
 	prepareSlotTexture,
 	SLOTS,
+	withBake,
 	worldTexture,
 	type ParamsInput,
 	type SlotName
@@ -281,9 +284,10 @@ function merge(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
 }
 
 /**
- * A copy with exactly position, normal, uv and colour, as floats (quantized meshopt attributes
- * dequantized), and an index: every part then merges with its kin and compiles the same program
- * as a part list. Files without normals get them made (every hard edge has its own vertices).
+ * A copy with exactly position, normal, uv, colour and the bake, as floats (quantized meshopt
+ * attributes dequantized), and an index: every part then merges with its kin and compiles the same
+ * program as a part list. Files without normals get them made (every hard edge has its own
+ * vertices); without a bake (`_BAKE`, which GLTFLoader names `_bake`), an open, flat one.
  */
 function uniform(source: THREE.BufferGeometry): THREE.BufferGeometry {
 	const geometry = new THREE.BufferGeometry();
@@ -302,8 +306,10 @@ function uniform(source: THREE.BufferGeometry): THREE.BufferGeometry {
 		'color',
 		color ? floats(color, 3) : new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3)
 	);
+	const bake = source.getAttribute('_bake');
+	if (bake) geometry.setAttribute(BAKE_ATTRIBUTE, floats(bake, 2));
 	const index = source.getIndex();
 	geometry.setIndex(index ? Array.from(index.array) : [...Array(count).keys()]);
 	if (!normal) geometry.computeVertexNormals();
-	return geometry;
+	return withBake(geometry);
 }

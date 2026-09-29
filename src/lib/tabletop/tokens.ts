@@ -18,7 +18,7 @@ import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
-import { createMaterial, type KindMaterial } from './materials';
+import { createMaterial, withBake, type KindMaterial } from './materials';
 import { loadModel, modelNow, partsOf, type ModelPart } from './models';
 import type { OverlayLayer } from './overlay';
 import { standIn } from './warmup';
@@ -66,9 +66,9 @@ interface Float {
 }
 
 // Shared by every mini; sized for a 1-unit cell and scaled per grid.
-const baseGeometry = new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32);
-const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24);
-const headGeometry = new THREE.SphereGeometry(0.19, 24, 16);
+const baseGeometry = withBake(new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32));
+const bodyGeometry = withBake(new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24));
+const headGeometry = withBake(new THREE.SphereGeometry(0.19, 24, 16));
 const ringGeometry = new THREE.RingGeometry(0.47, 0.56, 48);
 
 function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite {

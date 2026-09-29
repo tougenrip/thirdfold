@@ -2,11 +2,11 @@
 	"version": 2,
 	"models": {
 		"ember": {
-			"file": "models/ember.43d21356.glb",
-			"sha256": "43d2135641ddb0d31d098948c44ac061eac9d3102797498b740892f6d7cfa6eb",
-			"bytes": 28516,
+			"file": "models/ember.77579897.glb",
+			"sha256": "77579897a5c4338ede0a4b3e0b1a5133565355d9bc245af95eab79c814cda3b7",
+			"bytes": 47248,
 			"kind": "character",
-			"triangles": 1272,
+			"triangles": 1488,
 			"bounds": {
 				"min": [
 					-0.217,
@@ -19,66 +19,66 @@
 					0.22
 				]
 			},
-			"gpuBytes": 27172,
+			"gpuBytes": 43174,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"saint": {
-			"file": "models/saint.9b0c9851.glb",
-			"sha256": "9b0c9851b9093245b17875f3d7aecedef7aa2abf0ed9d2c0194aeb9a41c8be60",
-			"bytes": 13740,
+			"file": "models/saint.8bbd5f96.glb",
+			"sha256": "8bbd5f963b2a85930ff384192ac1c7a924987958d6d8250380f6fa7aecec9af5",
+			"bytes": 23396,
 			"kind": "character",
-			"triangles": 496,
+			"triangles": 700,
 			"bounds": {
 				"min": [
-					-0.283,
+					-0.282,
 					0,
 					-0.22
 				],
 				"max": [
 					0.217,
 					0.96,
-					0.268
+					0.267
 				]
 			},
-			"gpuBytes": 12384,
+			"gpuBytes": 20430,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"veil": {
-			"file": "models/veil.b514bfdc.glb",
-			"sha256": "b514bfdcb7f3878ec03d1d96d2b90ba118ab3a6e0974cf03e7e9ddf87d1c1605",
-			"bytes": 14880,
+			"file": "models/veil.136a0696.glb",
+			"sha256": "136a069659fad99f33822ef19a33c56781350833e1f9ac523c56416157420918",
+			"bytes": 25192,
 			"kind": "character",
-			"triangles": 764,
+			"triangles": 864,
 			"bounds": {
 				"min": [
-					-0.241,
+					-0.24,
 					0,
 					-0.21
 				],
 				"max": [
-					0.241,
+					0.24,
 					0.87,
 					0.21
 				]
 			},
-			"gpuBytes": 13516,
+			"gpuBytes": 22052,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"warden": {
-			"file": "models/warden.bc25ba67.glb",
-			"sha256": "bc25ba67aa57ca16df1f1b1f6e2874a4b3c28b98859e7789a37eccac6618b661",
-			"bytes": 17016,
+			"file": "models/warden.19521853.glb",
+			"sha256": "19521853e23ad28ba69444f6b8760d0d9240d1a6c46b960fefe4ffd1126f726b",
+			"bytes": 30352,
 			"kind": "character",
-			"triangles": 616,
+			"triangles": 960,
 			"bounds": {
 				"min": [
 					-0.315,
@@ -91,18 +91,18 @@
 					0.24
 				]
 			},
-			"gpuBytes": 15668,
+			"gpuBytes": 27062,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"armored-brute": {
-			"file": "models/armored-brute.1e3fc884.glb",
-			"sha256": "1e3fc8842ed94816b5ad90b46f02232822ab337489cd9b7d64f19bd80573cd1b",
-			"bytes": 18384,
+			"file": "models/armored-brute.8a455658.glb",
+			"sha256": "8a455658353675fefdf0b530b96fa58e363523c9cd8d8b2a55818fdad40e4bee",
+			"bytes": 32616,
 			"kind": "enemy",
-			"triangles": 640,
+			"triangles": 988,
 			"bounds": {
 				"min": [
 					-0.438,
@@ -115,42 +115,42 @@
 					0.22
 				]
 			},
-			"gpuBytes": 17024,
+			"gpuBytes": 29190,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"giant-hand": {
-			"file": "models/giant-hand.54761626.glb",
-			"sha256": "547616269df8952dfdc96e8080e8f32974087cb3663b9ee11b578460ac98b3a9",
-			"bytes": 13256,
+			"file": "models/giant-hand.bb8f4c57.glb",
+			"sha256": "bb8f4c5759b75a37d094487dfd8ba601673b9de225abe2f9cfb0634d28372597",
+			"bytes": 28152,
 			"kind": "enemy",
-			"triangles": 444,
+			"triangles": 908,
 			"bounds": {
 				"min": [
-					-0.463,
+					-0.458,
 					-0.04,
 					-0.25
 				],
 				"max": [
 					0.25,
-					0.702,
-					0.297
+					0.7,
+					0.295
 				]
 			},
-			"gpuBytes": 11912,
+			"gpuBytes": 24768,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"hatted-shade": {
-			"file": "models/hatted-shade.601aa10c.glb",
-			"sha256": "601aa10ca66be7791966c678b80db3dc869e68719e936267c186ced4408164eb",
-			"bytes": 21436,
+			"file": "models/hatted-shade.00a0c02c.glb",
+			"sha256": "00a0c02c8d28654a5747d003dd6d8bc30a5c7e73c9560b9f1b941c6bf17d2e73",
+			"bytes": 35760,
 			"kind": "enemy",
-			"triangles": 896,
+			"triangles": 1108,
 			"bounds": {
 				"min": [
 					-0.276,
@@ -163,18 +163,18 @@
 					0.29
 				]
 			},
-			"gpuBytes": 20076,
+			"gpuBytes": 32220,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"hound": {
-			"file": "models/hound.0dc2d521.glb",
-			"sha256": "0dc2d521680f768d269310bf8cea117e6ed6e8a6a40c3fad419ea6d836eff6a7",
-			"bytes": 30936,
+			"file": "models/hound.435a198c.glb",
+			"sha256": "435a198c83a2d657fd288e158bd6398cbd745ca8ee9b2363504d3a6b0996d7df",
+			"bytes": 53912,
 			"kind": "enemy",
-			"triangles": 1136,
+			"triangles": 1628,
 			"bounds": {
 				"min": [
 					-0.13,
@@ -187,23 +187,23 @@
 					0.6
 				]
 			},
-			"gpuBytes": 29572,
+			"gpuBytes": 49508,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"pulsing-mass": {
-			"file": "models/pulsing-mass.71b526f3.glb",
-			"sha256": "71b526f3ff46f19f20e820f024f2385d1761494e7fcb0abb669db317b70f517c",
-			"bytes": 18920,
+			"file": "models/pulsing-mass.fce90905.glb",
+			"sha256": "fce909055bcf57e3442592f3e2722c1bebde543a50b2a498d3f04c14ee01331c",
+			"bytes": 33504,
 			"kind": "enemy",
-			"triangles": 920,
+			"triangles": 1136,
 			"bounds": {
 				"min": [
 					-0.35,
 					0.05,
-					-0.347
+					-0.346
 				],
 				"max": [
 					0.35,
@@ -211,18 +211,18 @@
 					0.31
 				]
 			},
-			"gpuBytes": 17544,
+			"gpuBytes": 29936,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"robed-figure": {
-			"file": "models/robed-figure.d112ef17.glb",
-			"sha256": "d112ef1767f3c9ddf7a68ba58e70df5d1e65e9ed906ff3bd66e4c57629f2e4b0",
-			"bytes": 16992,
+			"file": "models/robed-figure.8b5cde95.glb",
+			"sha256": "8b5cde95b9f2afbe2e41fef83ccc41fad0f927aca835f6fe64fb0e8d49fad18d",
+			"bytes": 29024,
 			"kind": "enemy",
-			"triangles": 824,
+			"triangles": 964,
 			"bounds": {
 				"min": [
 					-0.299,
@@ -230,23 +230,23 @@
 					-0.22
 				],
 				"max": [
-					0.288,
+					0.286,
 					0.88,
 					0.22
 				]
 			},
-			"gpuBytes": 15636,
+			"gpuBytes": 25712,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"tentacle": {
-			"file": "models/tentacle.14d8b1e6.glb",
-			"sha256": "14d8b1e627f19a3f453c576202fe3855582aafcc30dcf474e9710760b5f8c1f7",
-			"bytes": 27404,
+			"file": "models/tentacle.4d3c6226.glb",
+			"sha256": "4d3c62265a7eabf4c144ccb5c933c2ce8740b3e1fefb5ed497c044fd14ae2d62",
+			"bytes": 46940,
 			"kind": "enemy",
-			"triangles": 1308,
+			"triangles": 1560,
 			"bounds": {
 				"min": [
 					-0.148,
@@ -254,23 +254,23 @@
 					-0.15
 				],
 				"max": [
-					0.282,
+					0.278,
 					1.084,
-					0.189
+					0.185
 				]
 			},
-			"gpuBytes": 26040,
+			"gpuBytes": 42770,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"child": {
-			"file": "models/child.b29197f6.glb",
-			"sha256": "b29197f69d09eba150b826b18885f67b89dcd8e61ed600a1bc735cc8933dfee3",
-			"bytes": 17980,
+			"file": "models/child.13a4078a.glb",
+			"sha256": "13a4078a4ae4c267f9e427cc5bb2a2fa2d4d825b6fbc354fc8fd1b11d9bb9046",
+			"bytes": 30256,
 			"kind": "npc",
-			"triangles": 848,
+			"triangles": 992,
 			"bounds": {
 				"min": [
 					-0.14,
@@ -283,18 +283,18 @@
 					0.14
 				]
 			},
-			"gpuBytes": 16616,
+			"gpuBytes": 26908,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"elder": {
-			"file": "models/elder.b5a53331.glb",
-			"sha256": "b5a53331c960991ea15f80461631f8a93be5374b5a570ff08a1d667146369db7",
-			"bytes": 20636,
+			"file": "models/elder.45007102.glb",
+			"sha256": "450071024df8321710214a0402f5b5ec651c31039a224155f570d33b2b14d480",
+			"bytes": 35208,
 			"kind": "npc",
-			"triangles": 920,
+			"triangles": 1136,
 			"bounds": {
 				"min": [
 					-0.15,
@@ -304,21 +304,21 @@
 				"max": [
 					0.237,
 					0.858,
-					0.165
+					0.16
 				]
 			},
-			"gpuBytes": 19288,
+			"gpuBytes": 31648,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"gravedigger": {
-			"file": "models/gravedigger.b776df81.glb",
-			"sha256": "b776df81923774337128be9cbdece1ad1e189c0a7b6a21830835aed3a69d4c2f",
-			"bytes": 18240,
+			"file": "models/gravedigger.0c29ab1f.glb",
+			"sha256": "0c29ab1fdc9e8a34b039c833bd56f5cfb5780482c42fffbbfb1a4761866e8601",
+			"bytes": 32164,
 			"kind": "npc",
-			"triangles": 652,
+			"triangles": 972,
 			"bounds": {
 				"min": [
 					-0.158,
@@ -331,18 +331,18 @@
 					0.15
 				]
 			},
-			"gpuBytes": 16876,
+			"gpuBytes": 28754,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"monk": {
-			"file": "models/monk.9aede13c.glb",
-			"sha256": "9aede13c6654c1e4b5817e19e7775ad821f391ad86712837f2bc59689d9203ad",
-			"bytes": 16448,
+			"file": "models/monk.dd83adfd.glb",
+			"sha256": "dd83adfd94c1106e1be6a4a3664e1b5fc8482c1b63773b7e1459934257ce9300",
+			"bytes": 27904,
 			"kind": "npc",
-			"triangles": 812,
+			"triangles": 920,
 			"bounds": {
 				"min": [
 					-0.227,
@@ -355,18 +355,18 @@
 					0.23
 				]
 			},
-			"gpuBytes": 15084,
+			"gpuBytes": 24632,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"priest": {
-			"file": "models/priest.73357485.glb",
-			"sha256": "733574850dda875383635ca4961c42b83708b3faa9d05dd9b1759ef5ece8356e",
-			"bytes": 10512,
+			"file": "models/priest.5ce89976.glb",
+			"sha256": "5ce89976c0e5ad262cb23505ab0a19742632b6cad9bf3a28ea60e03d41911644",
+			"bytes": 17296,
 			"kind": "npc",
-			"triangles": 412,
+			"triangles": 512,
 			"bounds": {
 				"min": [
 					-0.217,
@@ -376,21 +376,21 @@
 				"max": [
 					0.217,
 					0.918,
-					0.256
+					0.255
 				]
 			},
-			"gpuBytes": 9160,
+			"gpuBytes": 14610,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"smith": {
-			"file": "models/smith.5a991d2b.glb",
-			"sha256": "5a991d2b9c1e214a43bcd1582c38d950199d6fc2197bcb8cbdb34adfc0b8361d",
-			"bytes": 19980,
+			"file": "models/smith.d1151dff.glb",
+			"sha256": "d1151dffed31a466ad974ce9acc2341c7fe95e071fcbfa8af3acdca34358e54d",
+			"bytes": 33420,
 			"kind": "npc",
-			"triangles": 872,
+			"triangles": 1080,
 			"bounds": {
 				"min": [
 					-0.177,
@@ -403,18 +403,18 @@
 					0.17
 				]
 			},
-			"gpuBytes": 18616,
+			"gpuBytes": 29980,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"villager": {
-			"file": "models/villager.db6b742b.glb",
-			"sha256": "db6b742b8097b1494d965665389505d1d51f87e42291a17c23126e513729d672",
-			"bytes": 17868,
+			"file": "models/villager.061edb88.glb",
+			"sha256": "061edb88a936ea0a9f35dc34208bf4d9868443482bd9313323b91d19664dcc96",
+			"bytes": 29888,
 			"kind": "npc",
-			"triangles": 824,
+			"triangles": 964,
 			"bounds": {
 				"min": [
 					-0.207,
@@ -424,21 +424,21 @@
 				"max": [
 					0.207,
 					0.918,
-					0.215
+					0.213
 				]
 			},
-			"gpuBytes": 16508,
+			"gpuBytes": 26568,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"watchman": {
-			"file": "models/watchman.e5e2211c.glb",
-			"sha256": "e5e2211cfdc0c43cafd6f41448d820e0dacd67ad4c3f1e8a389afbd1afa16182",
-			"bytes": 21084,
+			"file": "models/watchman.20812b85.glb",
+			"sha256": "20812b8597300d33be3f3d81e999ed38572ada1d98f43135bcba41e38847f0cb",
+			"bytes": 37336,
 			"kind": "npc",
-			"triangles": 712,
+			"triangles": 1072,
 			"bounds": {
 				"min": [
 					-0.279,
@@ -451,18 +451,18 @@
 					0.16
 				]
 			},
-			"gpuBytes": 19756,
+			"gpuBytes": 33706,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"wide-hat": {
-			"file": "models/wide-hat.e7c82a3f.glb",
-			"sha256": "e7c82a3f9f8add76acf8bfd852bb6aa483128cb81ac718011586138bb16e23f7",
-			"bytes": 16100,
+			"file": "models/wide-hat.49906f4d.glb",
+			"sha256": "49906f4d78572b35013529f3fe3dba381e581ceb746761bb972c3e084a1c914f",
+			"bytes": 28596,
 			"kind": "npc",
-			"triangles": 604,
+			"triangles": 856,
 			"bounds": {
 				"min": [
 					-0.246,
@@ -475,18 +475,18 @@
 					0.25
 				]
 			},
-			"gpuBytes": 14768,
+			"gpuBytes": 25342,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"altar": {
-			"file": "models/altar.2ecddf68.glb",
-			"sha256": "2ecddf684e613bd29e3f8e58b063eb665aba0e1c3e22a7efdb84841c9170ec08",
-			"bytes": 7296,
+			"file": "models/altar.5fcf84e0.glb",
+			"sha256": "5fcf84e0095f79a8d0185e0c3bce7faf7ad1b5292c378c38c2629efb273215c7",
+			"bytes": 13372,
 			"kind": "prop",
-			"triangles": 168,
+			"triangles": 376,
 			"bounds": {
 				"min": [
 					-0.95,
@@ -499,18 +499,18 @@
 					0.45
 				]
 			},
-			"gpuBytes": 6448,
+			"gpuBytes": 11640,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"anvil": {
-			"file": "models/anvil.4639f8b7.glb",
-			"sha256": "4639f8b762aee7c48b3fa641969feb1431aa61ff58ebcbfea4c5392656acb748",
-			"bytes": 3668,
+			"file": "models/anvil.7d07e2fa.glb",
+			"sha256": "7d07e2fa533f9a132d5369823396755ba93c426e37962f26e4b09f3ad10d5104",
+			"bytes": 6600,
 			"kind": "prop",
-			"triangles": 60,
+			"triangles": 160,
 			"bounds": {
 				"min": [
 					-0.35,
@@ -523,18 +523,18 @@
 					0.175
 				]
 			},
-			"gpuBytes": 2820,
+			"gpuBytes": 5176,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"ashes": {
-			"file": "models/ashes.b165f2fb.glb",
-			"sha256": "b165f2fb20c657a40d2cba848af28fa3a37f233400332d6b043db850e213b2ce",
-			"bytes": 11792,
+			"file": "models/ashes.c084c7ca.glb",
+			"sha256": "c084c7ca315ed353c88626a81ad740a9bfa44411f3c2c670ea32e4f1b3ef5280",
+			"bytes": 19388,
 			"kind": "prop",
-			"triangles": 460,
+			"triangles": 568,
 			"bounds": {
 				"min": [
 					-0.394,
@@ -547,18 +547,18 @@
 					0.3
 				]
 			},
-			"gpuBytes": 10920,
+			"gpuBytes": 17382,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"barrel": {
-			"file": "models/barrel.6a621d91.glb",
-			"sha256": "6a621d91b7769c7ca34020bdbcd73514fba1aa6e039f68408b673c9c0dd49d43",
-			"bytes": 8864,
+			"file": "models/barrel.a5f68e34.glb",
+			"sha256": "a5f68e349db6760ffeec86231f483c2c168ca7239675dcb0b250e71ae87c2bd9",
+			"bytes": 16088,
 			"kind": "prop",
-			"triangles": 216,
+			"triangles": 432,
 			"bounds": {
 				"min": [
 					-0.364,
@@ -571,18 +571,18 @@
 					0.37
 				]
 			},
-			"gpuBytes": 8016,
+			"gpuBytes": 14220,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"bed": {
-			"file": "models/bed.13798cf7.glb",
-			"sha256": "13798cf74abee6364922db4e4e5e9a6e3126dee39fcf06db495777dfaf7a6850",
-			"bytes": 3052,
+			"file": "models/bed.0ed690fa.glb",
+			"sha256": "0ed690fa83676a2bf0f5f60e75321c6580d41fb3989d345a98454e3fea505c2b",
+			"bytes": 5684,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.45,
@@ -595,18 +595,18 @@
 					0.95
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"belfry-bell": {
-			"file": "models/belfry-bell.65284073.glb",
-			"sha256": "65284073a3a537ba2e26b12bd0539b983cf8b235eaae028e6700d0ab38daea0d",
-			"bytes": 16756,
+			"file": "models/belfry-bell.8519c595.glb",
+			"sha256": "8519c59506e472bd4cd90647293023e7e617c4b81e36c40e9f50416c416786a0",
+			"bytes": 28700,
 			"kind": "prop",
-			"triangles": 568,
+			"triangles": 844,
 			"bounds": {
 				"min": [
 					-0.65,
@@ -619,7 +619,7 @@
 					0.45
 				]
 			},
-			"gpuBytes": 15248,
+			"gpuBytes": 25362,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
@@ -630,11 +630,11 @@
 			}
 		},
 		"bell": {
-			"file": "models/bell.dcddd0a9.glb",
-			"sha256": "dcddd0a940126617cb2d9ade8a66e5eaf0f3abc29f8efabed389ebdce520e4a4",
-			"bytes": 10752,
+			"file": "models/bell.1e3accc4.glb",
+			"sha256": "1e3accc497794848f25f3a0d07f1ce12d8ba7a8d68efc14e29a92a058612eaa3",
+			"bytes": 17800,
 			"kind": "prop",
-			"triangles": 424,
+			"triangles": 556,
 			"bounds": {
 				"min": [
 					-0.95,
@@ -647,18 +647,18 @@
 					0.65
 				]
 			},
-			"gpuBytes": 9904,
+			"gpuBytes": 15882,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"boiler": {
-			"file": "models/boiler.95fa67e1.glb",
-			"sha256": "95fa67e17f16c579a0fedeeb56104e6e12fbbd4f66eeac5cca575fcad02b8461",
-			"bytes": 7844,
+			"file": "models/boiler.0297aaad.glb",
+			"sha256": "0297aaade5eaad3c3e6e6d37caf89e366eeff7801d15e3e15a9493fe568e5aef",
+			"bytes": 14500,
 			"kind": "prop",
-			"triangles": 180,
+			"triangles": 420,
 			"bounds": {
 				"min": [
 					-0.8,
@@ -671,18 +671,18 @@
 					0.85
 				]
 			},
-			"gpuBytes": 7000,
+			"gpuBytes": 12720,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"bookshelf": {
-			"file": "models/bookshelf.7efb81b0.glb",
-			"sha256": "7efb81b0bd59d3eec8e02a34147f8315ede4d3d739e2e7eb4bdcd2f6cc7cd686",
-			"bytes": 3052,
+			"file": "models/bookshelf.aca6bc65.glb",
+			"sha256": "aca6bc6531452720c9341141b2fd1187356a4049233e3fff9f6fcd04b5d0f98a",
+			"bytes": 5684,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.95,
@@ -695,18 +695,18 @@
 					0.24
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"brazier": {
-			"file": "models/brazier.2c1b49a3.glb",
-			"sha256": "2c1b49a3cb5e78149e9eb3ea7d18b1b8100ee18675438adcd8ad57ac0814af54",
-			"bytes": 11540,
+			"file": "models/brazier.fa78fb21.glb",
+			"sha256": "fa78fb21b2152e3a5f94f6cad329fc9ce14220eb1d1174621f71a7d46c586ef6",
+			"bytes": 21056,
 			"kind": "prop",
-			"triangles": 288,
+			"triangles": 576,
 			"bounds": {
 				"min": [
 					-0.295,
@@ -719,18 +719,18 @@
 					0.3
 				]
 			},
-			"gpuBytes": 10688,
+			"gpuBytes": 18960,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"broken-bell": {
-			"file": "models/broken-bell.be590db4.glb",
-			"sha256": "be590db4d689b2b80fcbc2b971db737380a6dddc660e1487b08e62e9af2ca890",
-			"bytes": 4760,
+			"file": "models/broken-bell.609852ae.glb",
+			"sha256": "609852ae4fe5d6dd7d8a452261aa01e6e8b7c40149495e858e7fff22483c5579",
+			"bytes": 8824,
 			"kind": "prop",
-			"triangles": 84,
+			"triangles": 248,
 			"bounds": {
 				"min": [
 					-1.55,
@@ -743,18 +743,18 @@
 					1.25
 				]
 			},
-			"gpuBytes": 3924,
+			"gpuBytes": 7336,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"carvings": {
-			"file": "models/carvings.89ed8e26.glb",
-			"sha256": "89ed8e26dfa5b7ebf0009b4653d576ff2ade49640fc8758325208caa2f113516",
-			"bytes": 9592,
+			"file": "models/carvings.5a8a9fa4.glb",
+			"sha256": "5a8a9fa47e58eafa955e8fdcf42a091b5a8aee754053741a5539889a2c74a841",
+			"bytes": 15768,
 			"kind": "prop",
-			"triangles": 400,
+			"triangles": 528,
 			"bounds": {
 				"min": [
 					-0.45,
@@ -767,18 +767,18 @@
 					-0.315
 				]
 			},
-			"gpuBytes": 8740,
+			"gpuBytes": 13946,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"chains": {
-			"file": "models/chains.0669f14f.glb",
-			"sha256": "0669f14fb22ea77228e94f8bc573227c5519e8968d4eb6b83bde745e59eeb56d",
-			"bytes": 21936,
+			"file": "models/chains.84f7004f.glb",
+			"sha256": "84f7004f01fb098f90822f5a09f65fec82e0ede9a84ccb51a8450f90d984c48a",
+			"bytes": 36208,
 			"kind": "prop",
-			"triangles": 920,
+			"triangles": 1136,
 			"bounds": {
 				"min": [
 					-0.26,
@@ -791,18 +791,18 @@
 					0.125
 				]
 			},
-			"gpuBytes": 21080,
+			"gpuBytes": 33472,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"chair": {
-			"file": "models/chair.c50bf515.glb",
-			"sha256": "c50bf5151c16e82222e815ee0c6a521c1127f94bc0c912e95c4b5406e250a42a",
-			"bytes": 4104,
+			"file": "models/chair.48e990a4.glb",
+			"sha256": "48e990a484cbede1e3211ed029bb7b6103fd39f71bd24c39ea404492f6ad017b",
+			"bytes": 7888,
 			"kind": "prop",
-			"triangles": 72,
+			"triangles": 264,
 			"bounds": {
 				"min": [
 					-0.25,
@@ -815,18 +815,18 @@
 					0.25
 				]
 			},
-			"gpuBytes": 3312,
+			"gpuBytes": 6480,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"chest-open": {
-			"file": "models/chest-open.300da21d.glb",
-			"sha256": "300da21de2da16877af7c36717f1e639af4ac465f93cc880f2e7fb64c89324c6",
-			"bytes": 3056,
+			"file": "models/chest-open.27f3173b.glb",
+			"sha256": "27f3173b8491239a56b2258c6608959526c6705e74d94f8acd8aeda35e4c1917",
+			"bytes": 5688,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.42,
@@ -839,18 +839,18 @@
 					0.36
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"chest": {
-			"file": "models/chest.278a1d61.glb",
-			"sha256": "278a1d6146d80301942e65ee7e05dc86c9f59d19096e672bf936b8fc23e7d91c",
-			"bytes": 2500,
+			"file": "models/chest.b1f0fbb6.glb",
+			"sha256": "b1f0fbb6aada41781ce17e320dca898f9b6ebf4af69f560cbfef95fa5afeb0de",
+			"bytes": 4556,
 			"kind": "prop",
-			"triangles": 36,
+			"triangles": 132,
 			"bounds": {
 				"min": [
 					-0.42,
@@ -863,42 +863,42 @@
 					0.31
 				]
 			},
-			"gpuBytes": 1656,
+			"gpuBytes": 3240,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"coffin-open": {
-			"file": "models/coffin-open.d4228be9.glb",
-			"sha256": "d4228be9ce29123662937d446914b5878521e8aa71e1ee06408fe3721133632b",
-			"bytes": 2516,
+			"file": "models/coffin-open.e5c0b3d5.glb",
+			"sha256": "e5c0b3d5e08839b6472e2aed6a537739eb924d5a4a484bb409ca6d57efb9a05e",
+			"bytes": 4548,
 			"kind": "prop",
-			"triangles": 36,
+			"triangles": 132,
 			"bounds": {
 				"min": [
 					-0.31,
-					-0.118,
+					-0.117,
 					-0.85
 				],
 				"max": [
-					0.568,
-					0.518,
+					0.566,
+					0.517,
 					0.92
 				]
 			},
-			"gpuBytes": 1656,
+			"gpuBytes": 3240,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"coffin": {
-			"file": "models/coffin.ae8a8aac.glb",
-			"sha256": "ae8a8aacfa296892b6f2fcdd519ac04ad43c264836867175d59bb2a0a027322b",
-			"bytes": 3056,
+			"file": "models/coffin.52af77c3.glb",
+			"sha256": "52af77c3bc8370433e83d1490e5a9b566f9f7d34d1426065095df1bf8186478c",
+			"bytes": 5688,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.33,
@@ -911,18 +911,18 @@
 					0.87
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"crack": {
-			"file": "models/crack.c1567410.glb",
-			"sha256": "c15674101de073f13227d0910e73cdb3485befc0d26b90364e0efc1d9899684a",
-			"bytes": 2508,
+			"file": "models/crack.51c36cac.glb",
+			"sha256": "51c36cacbb81240913ed872235af08cede80e163ea0afa6cecd188ba07dd3b8f",
+			"bytes": 4540,
 			"kind": "prop",
-			"triangles": 36,
+			"triangles": 132,
 			"bounds": {
 				"min": [
 					-0.45,
@@ -935,18 +935,18 @@
 					0.45
 				]
 			},
-			"gpuBytes": 1656,
+			"gpuBytes": 3240,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"crate": {
-			"file": "models/crate.19ff9d96.glb",
-			"sha256": "19ff9d9695ce382f519a5aaf4ce84d1725deb427f69e59e917f88e7eeb0b1ff7",
-			"bytes": 1948,
+			"file": "models/crate.adfdc570.glb",
+			"sha256": "adfdc570bf5749745f1398e24066dcf49f2229d97913dc1b8b8883579d14659c",
+			"bytes": 3428,
 			"kind": "prop",
-			"triangles": 24,
+			"triangles": 88,
 			"bounds": {
 				"min": [
 					-0.42,
@@ -959,18 +959,18 @@
 					0.42
 				]
 			},
-			"gpuBytes": 1104,
+			"gpuBytes": 2160,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"gear": {
-			"file": "models/gear.f2600d66.glb",
-			"sha256": "f2600d66143630786fc0147ec999cc70406e77277d0c06775e0a54fd8276b03e",
-			"bytes": 9900,
+			"file": "models/gear.7b4ba4f8.glb",
+			"sha256": "7b4ba4f81e777c5cdce1628e78575558622af8bbaa37eeebe0ebdfb927c36e8b",
+			"bytes": 18276,
 			"kind": "prop",
-			"triangles": 240,
+			"triangles": 520,
 			"bounds": {
 				"min": [
 					-1,
@@ -983,18 +983,18 @@
 					1
 				]
 			},
-			"gpuBytes": 9120,
+			"gpuBytes": 16380,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"grate": {
-			"file": "models/grate.8203a03f.glb",
-			"sha256": "8203a03ff9f1de985b4438059af281e119bdd09fa8b858ae1a892f7b4819d891",
-			"bytes": 3052,
+			"file": "models/grate.8bb96139.glb",
+			"sha256": "8bb961395a8e407b1c4e4b05df7978d56af4b6ab2dfc8929d0406aa466659d40",
+			"bytes": 5688,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.4,
@@ -1007,18 +1007,18 @@
 					0.4
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"gravestone": {
-			"file": "models/gravestone.a49a6555.glb",
-			"sha256": "a49a655590810b36cc43127e81600dafd4d44d2e46b8c525bb7ec6c2f37b34f4",
-			"bytes": 1948,
+			"file": "models/gravestone.aea8ced3.glb",
+			"sha256": "aea8ced393f6f12b0f66e20b957bfdcb5659c75c415836929a0921e43d3f61a2",
+			"bytes": 3428,
 			"kind": "prop",
-			"triangles": 24,
+			"triangles": 88,
 			"bounds": {
 				"min": [
 					-0.3,
@@ -1031,18 +1031,18 @@
 					0.45
 				]
 			},
-			"gpuBytes": 1104,
+			"gpuBytes": 2160,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"great-bell": {
-			"file": "models/great-bell.4883796b.glb",
-			"sha256": "4883796bf4eac34d14f74b55d54add47c0247faa702f50da90dd0e00210505af",
-			"bytes": 17204,
+			"file": "models/great-bell.ee197d70.glb",
+			"sha256": "ee197d70a8089626d847740ef187b7634602fc6032f5f0e50d1e8f7d03bb991f",
+			"bytes": 29992,
 			"kind": "prop",
-			"triangles": 592,
+			"triangles": 932,
 			"bounds": {
 				"min": [
 					-1.45,
@@ -1055,18 +1055,18 @@
 					1.425
 				]
 			},
-			"gpuBytes": 16352,
+			"gpuBytes": 27522,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"handbell": {
-			"file": "models/handbell.5d91fcc4.glb",
-			"sha256": "5d91fcc450002e24078c325b281ed2cc7b99a2cba6c22dd7267d2d211331dd47",
-			"bytes": 11776,
+			"file": "models/handbell.9e030913.glb",
+			"sha256": "9e030913f5e022c6b6623c943090a2bae1059d623112143dd182b83824e37a4f",
+			"bytes": 19392,
 			"kind": "prop",
-			"triangles": 460,
+			"triangles": 568,
 			"bounds": {
 				"min": [
 					-0.167,
@@ -1079,18 +1079,18 @@
 					0.17
 				]
 			},
-			"gpuBytes": 10920,
+			"gpuBytes": 17382,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"hatch-open": {
-			"file": "models/hatch-open.bd866af8.glb",
-			"sha256": "bd866af8496a0ebed4feead438373c75616106556e7bd6fecd75243dcb236fce",
-			"bytes": 1944,
+			"file": "models/hatch-open.5933dcc3.glb",
+			"sha256": "5933dcc30caed4666d51fea29c9112124a78f5922ec9b8b7cb812e20343ffde1",
+			"bytes": 3424,
 			"kind": "prop",
-			"triangles": 24,
+			"triangles": 88,
 			"bounds": {
 				"min": [
 					-0.4,
@@ -1103,18 +1103,18 @@
 					0.35
 				]
 			},
-			"gpuBytes": 1104,
+			"gpuBytes": 2160,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"hatch": {
-			"file": "models/hatch.302693f1.glb",
-			"sha256": "302693f170c62413dd51288beda91f031ab00695cbc6dd6eb1934b4be852d906",
-			"bytes": 1944,
+			"file": "models/hatch.d106a98e.glb",
+			"sha256": "d106a98e7992c60459e029a9cea0a0e4b47d3b59fc251096ababf3b3d4f4447f",
+			"bytes": 3428,
 			"kind": "prop",
-			"triangles": 24,
+			"triangles": 88,
 			"bounds": {
 				"min": [
 					-0.4,
@@ -1127,18 +1127,18 @@
 					0.4
 				]
 			},
-			"gpuBytes": 1104,
+			"gpuBytes": 2160,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"heart": {
-			"file": "models/heart.bcd49f98.glb",
-			"sha256": "bcd49f98bebf0163d1b514cd1201d14fb5b26b0de6275dc1ed2444dcfe637c40",
-			"bytes": 23032,
+			"file": "models/heart.e51b2016.glb",
+			"sha256": "e51b20161b2cfcec3a928f6954f2ef1e78db144059a1639d8fa09709eb74d332",
+			"bytes": 38476,
 			"kind": "prop",
-			"triangles": 944,
+			"triangles": 1224,
 			"bounds": {
 				"min": [
 					-1.4,
@@ -1151,18 +1151,18 @@
 					1.35
 				]
 			},
-			"gpuBytes": 22184,
+			"gpuBytes": 35632,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"keys": {
-			"file": "models/keys.db12febb.glb",
-			"sha256": "db12febb85914dfd62a6bf8fbf27e28da0463d318ea90fc6c37045bbb0878b5f",
-			"bytes": 4648,
+			"file": "models/keys.cf7c4bed.glb",
+			"sha256": "cf7c4bed5335158b15faa000876ab0f4bd2df7f1c6a6d759f854a0262a0c46a5",
+			"bytes": 8408,
 			"kind": "prop",
-			"triangles": 96,
+			"triangles": 232,
 			"bounds": {
 				"min": [
 					-0.118,
@@ -1175,18 +1175,18 @@
 					0.3
 				]
 			},
-			"gpuBytes": 3776,
+			"gpuBytes": 6900,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"lever-down": {
-			"file": "models/lever-down.e1cf3285.glb",
-			"sha256": "e1cf3285564fb0c257b72e064a9c60a2f37c65776a7279e4045d011b23ed3703",
-			"bytes": 9636,
+			"file": "models/lever-down.045f52a1.glb",
+			"sha256": "045f52a1057e1b24cbca92b61eab2cde45fc07136da3c4c814f44a30a0c3ce5b",
+			"bytes": 15544,
 			"kind": "prop",
-			"triangles": 388,
+			"triangles": 484,
 			"bounds": {
 				"min": [
 					-0.25,
@@ -1199,7 +1199,7 @@
 					0.84
 				]
 			},
-			"gpuBytes": 8188,
+			"gpuBytes": 12866,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
@@ -1210,11 +1210,11 @@
 			}
 		},
 		"lever": {
-			"file": "models/lever.57e39809.glb",
-			"sha256": "57e39809003db54a7c06b3a0ac500600998849f9789da6bc648e4f34feb126e0",
-			"bytes": 9636,
+			"file": "models/lever.ac680f44.glb",
+			"sha256": "ac680f44669ce24b7c092971e4ef39e127d1a9626cd1102da71306518320e1d1",
+			"bytes": 15544,
 			"kind": "prop",
-			"triangles": 388,
+			"triangles": 484,
 			"bounds": {
 				"min": [
 					-0.25,
@@ -1227,7 +1227,7 @@
 					0.25
 				]
 			},
-			"gpuBytes": 8188,
+			"gpuBytes": 12866,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
@@ -1238,11 +1238,11 @@
 			}
 		},
 		"noticeboard": {
-			"file": "models/noticeboard.b002d876.glb",
-			"sha256": "b002d8769690c79fcf5a71a2a3f29ac8b42e981df978e4461f0f3d29e4387954",
-			"bytes": 3596,
+			"file": "models/noticeboard.030d8bff.glb",
+			"sha256": "030d8bff1f847441f432ac8a0c1c1b3f44e86100969a911428af0902e8ab160d",
+			"bytes": 6784,
 			"kind": "prop",
-			"triangles": 60,
+			"triangles": 220,
 			"bounds": {
 				"min": [
 					-0.42,
@@ -1255,42 +1255,42 @@
 					0.05
 				]
 			},
-			"gpuBytes": 2760,
+			"gpuBytes": 5400,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"paper": {
-			"file": "models/paper.58e74404.glb",
-			"sha256": "58e74404e6bf1e43b06b4bcc58d442d419dd8884a9599f4a8944ee0220975a74",
-			"bytes": 1968,
+			"file": "models/paper.b0682b26.glb",
+			"sha256": "b0682b26f6959fba471ce69d6e0da6cb8b143083577fb9edbda1d5c2d91b2b2d",
+			"bytes": 3428,
 			"kind": "prop",
-			"triangles": 24,
+			"triangles": 88,
 			"bounds": {
 				"min": [
-					-0.16,
+					-0.159,
 					0.005,
-					-0.128
+					-0.127
 				],
 				"max": [
-					0.16,
+					0.159,
 					0.018,
-					0.128
+					0.127
 				]
 			},
-			"gpuBytes": 1104,
+			"gpuBytes": 2160,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"pew": {
-			"file": "models/pew.341ebe3e.glb",
-			"sha256": "341ebe3e77a31c559ba58555237342547ee42560f8fb349708887c4c23aa14ba",
-			"bytes": 3076,
+			"file": "models/pew.36d09bbc.glb",
+			"sha256": "36d09bbc0f95a90ad6f7874b8d1174170deda0b864c0133d1c16fbb465781a70",
+			"bytes": 5688,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.9,
@@ -1303,18 +1303,18 @@
 					0.225
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"pillar": {
-			"file": "models/pillar.e718fd26.glb",
-			"sha256": "e718fd26ab5bea3e94a6cfdb08a6987b857a8ebdc7f5396942efae03a010361c",
-			"bytes": 4628,
+			"file": "models/pillar.e3a1064e.glb",
+			"sha256": "e3a1064ec744739d21d66a4ab4923ea13f981fed707a05a111017f96dc8263ff",
+			"bytes": 8404,
 			"kind": "prop",
-			"triangles": 96,
+			"triangles": 232,
 			"bounds": {
 				"min": [
 					-0.45,
@@ -1327,18 +1327,18 @@
 					0.45
 				]
 			},
-			"gpuBytes": 3776,
+			"gpuBytes": 6900,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"rope": {
-			"file": "models/rope.726131ce.glb",
-			"sha256": "726131ce780706721ebb54b79e5a39dd0eb7d90974c80b5abdcca06f39ce4964",
-			"bytes": 10056,
+			"file": "models/rope.5c671cbf.glb",
+			"sha256": "5c671cbf5d85aea0820768818e0096b2e77d2b86b53bb5628ab077eb1d137ffd",
+			"bytes": 16224,
 			"kind": "prop",
-			"triangles": 424,
+			"triangles": 496,
 			"bounds": {
 				"min": [
 					-0.08,
@@ -1351,18 +1351,18 @@
 					0.08
 				]
 			},
-			"gpuBytes": 9204,
+			"gpuBytes": 14366,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"rubble": {
-			"file": "models/rubble.a4106dba.glb",
-			"sha256": "a4106dba102ae81cd4dae2f85af64e57fa3010839afc61c69569bb824600a93f",
-			"bytes": 3040,
+			"file": "models/rubble.50c1e168.glb",
+			"sha256": "50c1e16825fe46bd67cb6b09d8ba36fac208f695614909052519782c137e6631",
+			"bytes": 5672,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.4,
@@ -1375,18 +1375,18 @@
 					0.29
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"rug": {
-			"file": "models/rug.10079dfc.glb",
-			"sha256": "10079dfcc1a32b1b5f10135f3a077f9b8129a4758081e2024ed8120affed9c12",
-			"bytes": 1408,
+			"file": "models/rug.295a6f18.glb",
+			"sha256": "295a6f187fa4a5fa4f34ff33ae02fe04c7475df4e9b6498598b25728c91431c4",
+			"bytes": 2288,
 			"kind": "prop",
-			"triangles": 12,
+			"triangles": 44,
 			"bounds": {
 				"min": [
 					-0.95,
@@ -1399,18 +1399,18 @@
 					0.95
 				]
 			},
-			"gpuBytes": 552,
+			"gpuBytes": 1080,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"sconce": {
-			"file": "models/sconce.5e41d518.glb",
-			"sha256": "5e41d518619f16e0de078dd5424f027c2e3e81269a2ba9648e1a08be570e68ac",
-			"bytes": 10584,
+			"file": "models/sconce.f5fa61c8.glb",
+			"sha256": "f5fa61c898745a2770b238b187a313f64221f5b2a7a3b1ea6edf452a51118f5d",
+			"bytes": 19260,
 			"kind": "prop",
-			"triangles": 252,
+			"triangles": 504,
 			"bounds": {
 				"min": [
 					-0.148,
@@ -1423,18 +1423,18 @@
 					0.15
 				]
 			},
-			"gpuBytes": 9732,
+			"gpuBytes": 17236,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"stairs": {
-			"file": "models/stairs.400b0c45.glb",
-			"sha256": "400b0c4537e1e42757c256fb5df75e4769bfdd25550b9773f7f5a0534ae75229",
-			"bytes": 3056,
+			"file": "models/stairs.fb68aaee.glb",
+			"sha256": "fb68aaee689f4d3759feb80c4deb945a89d7ae142cdd711d39951576ef900743",
+			"bytes": 5692,
 			"kind": "prop",
-			"triangles": 48,
+			"triangles": 176,
 			"bounds": {
 				"min": [
 					-0.45,
@@ -1447,18 +1447,18 @@
 					0.45
 				]
 			},
-			"gpuBytes": 2208,
+			"gpuBytes": 4320,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"statue": {
-			"file": "models/statue.7a42c58a.glb",
-			"sha256": "7a42c58a9307648ad0e24c4004ddfb1d9c54c7bfc9f5d43bd4e2f94ac3a84426",
-			"bytes": 10592,
+			"file": "models/statue.fbeac885.glb",
+			"sha256": "fbeac885d9d6fe0f808f616765412541fa6f8b9222302c53b2d9a78390e82d0e",
+			"bytes": 17332,
 			"kind": "prop",
-			"triangles": 436,
+			"triangles": 540,
 			"bounds": {
 				"min": [
 					-0.4,
@@ -1471,18 +1471,18 @@
 					0.4
 				]
 			},
-			"gpuBytes": 9756,
+			"gpuBytes": 15446,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"stove": {
-			"file": "models/stove.f6a96a35.glb",
-			"sha256": "f6a96a35dad0d5e42d5779131401f0f9a5bc56c9aa47b3693f8f6b14a822749a",
-			"bytes": 13220,
+			"file": "models/stove.5e6cdecc.glb",
+			"sha256": "5e6cdeccc58428762f1a1eacefbad9bfb371235ac18a5c6ef7a8746aecc64394",
+			"bytes": 22260,
 			"kind": "prop",
-			"triangles": 508,
+			"triangles": 684,
 			"bounds": {
 				"min": [
 					-0.25,
@@ -1495,18 +1495,18 @@
 					0.25
 				]
 			},
-			"gpuBytes": 12428,
+			"gpuBytes": 20186,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"strongbox": {
-			"file": "models/strongbox.f0f676a5.glb",
-			"sha256": "f0f676a58ffcbedeca1f6275b6be4e4ef45c7c8bbff0f62457e1924f507c1942",
-			"bytes": 2488,
+			"file": "models/strongbox.4b98089c.glb",
+			"sha256": "4b98089c20f9feadba9ba6b59b58d710db919067fd6e6df4ca4581cf2d08736e",
+			"bytes": 4540,
 			"kind": "prop",
-			"triangles": 36,
+			"triangles": 132,
 			"bounds": {
 				"min": [
 					-0.31,
@@ -1519,18 +1519,18 @@
 					0.25
 				]
 			},
-			"gpuBytes": 1656,
+			"gpuBytes": 3240,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"table": {
-			"file": "models/table.3a6779b8.glb",
-			"sha256": "3a6779b80de8c1c3ae3211c18c6bcc146d6ead7c0b06c298e1c1031cc5fafc13",
-			"bytes": 3608,
+			"file": "models/table.30be06f8.glb",
+			"sha256": "30be06f87cc14cd0d5e392a712516c5be1a6b922457f1e7b5aef3feb78308e5b",
+			"bytes": 6816,
 			"kind": "prop",
-			"triangles": 60,
+			"triangles": 220,
 			"bounds": {
 				"min": [
 					-0.95,
@@ -1543,18 +1543,18 @@
 					0.45
 				]
 			},
-			"gpuBytes": 2760,
+			"gpuBytes": 5400,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"tree": {
-			"file": "models/tree.a685b5e2.glb",
-			"sha256": "a685b5e2424eb709374c3c0140747406054ccbe50e2ae11d2a3996d1d6053235",
-			"bytes": 6948,
+			"file": "models/tree.1d441a84.glb",
+			"sha256": "1d441a84baab7c3d911ee8e463293147ce5488075c84b7bc5b4c2580d5f2a7b4",
+			"bytes": 12460,
 			"kind": "prop",
-			"triangles": 144,
+			"triangles": 288,
 			"bounds": {
 				"min": [
 					-0.542,
@@ -1567,18 +1567,18 @@
 					0.55
 				]
 			},
-			"gpuBytes": 6104,
+			"gpuBytes": 10772,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"water-lg": {
-			"file": "models/water-lg.dd0a2e6b.glb",
-			"sha256": "dd0a2e6bef4b540d1551095dc1dd78f9a64cb0e1cecdf2a8dcea67b7bab5bbde",
-			"bytes": 1324,
+			"file": "models/water-lg.ae4739dc.glb",
+			"sha256": "ae4739dcd54300272f26296f97be3af8f8cc423563de3d82cd28a30062f1c110",
+			"bytes": 2228,
 			"kind": "prop",
-			"triangles": 12,
+			"triangles": 44,
 			"bounds": {
 				"min": [
 					-2,
@@ -1591,18 +1591,18 @@
 					2
 				]
 			},
-			"gpuBytes": 552,
+			"gpuBytes": 1080,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"water-sm": {
-			"file": "models/water-sm.b61cc84b.glb",
-			"sha256": "b61cc84b3bf71fbbc53b5de50b8c9202dd0fe88e2464462337f248a2e26ccb47",
-			"bytes": 1332,
+			"file": "models/water-sm.9803bc95.glb",
+			"sha256": "9803bc956cee21fb51d52804c33ec985309e1f5c2feb67c463f1386347cd0a47",
+			"bytes": 2236,
 			"kind": "prop",
-			"triangles": 12,
+			"triangles": 44,
 			"bounds": {
 				"min": [
 					-0.5,
@@ -1615,18 +1615,18 @@
 					0.5
 				]
 			},
-			"gpuBytes": 552,
+			"gpuBytes": 1080,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"water": {
-			"file": "models/water.423e338b.glb",
-			"sha256": "423e338bf47ed38d28dc1f8ee6419bee952251b1dd15d282d93a23cfe6e79c2c",
-			"bytes": 1324,
+			"file": "models/water.cefad43b.glb",
+			"sha256": "cefad43b2ff3d5222216fa721b316558f9c8b133526f7ec4e8d88880e3aa04cd",
+			"bytes": 2228,
 			"kind": "prop",
-			"triangles": 12,
+			"triangles": 44,
 			"bounds": {
 				"min": [
 					-1,
@@ -1639,18 +1639,18 @@
 					1
 				]
 			},
-			"gpuBytes": 552,
+			"gpuBytes": 1080,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			}
 		},
 		"well": {
-			"file": "models/well.bd05d56c.glb",
-			"sha256": "bd05d56ce6b46722e0406c51205b587441491b6e0dc512d03c244b53b9ac8a18",
-			"bytes": 10464,
+			"file": "models/well.50c78f60.glb",
+			"sha256": "50c78f60a47c531014c9d18c649a4a24962a6177f1a8a1d607a20ae9cd9f81b6",
+			"bytes": 19416,
 			"kind": "prop",
-			"triangles": 252,
+			"triangles": 564,
 			"bounds": {
 				"min": [
 					-0.75,
@@ -1663,7 +1663,7 @@
 					0.75
 				]
 			},
-			"gpuBytes": 9672,
+			"gpuBytes": 17460,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
