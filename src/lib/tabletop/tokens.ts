@@ -1,17 +1,15 @@
-// Token miniatures for the three.js view: builds one mini per token, diffs
-// incoming token state against what is on screen, and animates moves. The
-// logical position always comes from the Token; the tween is cosmetic. Minis
-// can also lie down (a fallen character) and show floating combat text. A
-// token with a model (a character, a villager, a hound) is drawn as that
-// figure once it has loaded (see models.ts); until then, and without one,
-// it is the plain miniature: a torso and a head in its colour.
+// Token miniatures for the three.js view: builds one mini per token, diffs incoming token state
+// against what is on screen, and animates moves. The logical position always comes from the Token;
+// the tween is cosmetic. Minis can also lie down (a fallen character) and show floating combat
+// text. A token with a model (a character, a villager, a hound) is drawn as that figure once it has
+// loaded (see models.ts); until then, and without one, it is the plain miniature: a torso and a
+// head in its colour.
 //
-// Minis are the mini kind (#172), three materials for every token: bases,
-// figure bodies (vertex colours) and the parts in the token's colour (accents
-// and the plain miniature). Each mesh carries its token's colour and how much
-// of it shows in `userData` (`miniColor`, `mini`), read per draw by the kind's
-// per-object uniforms (materials/hooks.ts), so a new token makes no material
-// and hiding one (a screen-door see-through for the GM) compiles nothing.
+// Minis are the mini kind (#172), three materials for every token: bases, figure bodies (vertex
+// colours) and the parts in the token's colour (accents and the plain miniature). Each mesh carries
+// its token's colour and how much of it shows in `userData` (`miniColor`, `mini`), read per draw by
+// the kind's per-object uniforms (materials/hooks.ts), so a new token makes no material and hiding
+// one (a screen-door see-through for the GM) compiles nothing.
 
 import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
@@ -386,22 +384,21 @@ export class TokenLayer {
 		return entry;
 	}
 
-	/**
-	 * Draws the mini as `model` if it has loaded, else as the plain miniature (asking for
-	 * the model, and drawing it when it arrives if the token still wants it).
-	 */
+	/** Draws the mini as `model` if loaded, else as the plain miniature until `model` arrives. */
 	private dress(tokenId: string, entry: Entry, model: string | null): void {
 		entry.model = model;
 		entry.figure.clear();
+		const was = entry.shows;
 		const loaded = (entry.shows = model ? modelNow(model) : null);
-		const add = (
-			geometry: THREE.BufferGeometry,
-			coloured: boolean,
-			y: number,
-			part?: ModelPart
-		) => {
+		// A preview nobody shows any more frees its textured materials (#192).
+		if (was?.preview && was !== loaded && ![...this.entries.values()].some((e) => e.shows === was))
+			for (const part of was.parts) {
+				this.textured.get(part)?.dispose();
+				this.textured.delete(part);
+			}
+		const add = (geo: THREE.BufferGeometry, coloured: boolean, y: number, part?: ModelPart) => {
 			const { figure, coloured: tinted } = this.materials;
-			const mesh = new THREE.Mesh(geometry, this.materialOf(part) ?? (coloured ? tinted : figure));
+			const mesh = new THREE.Mesh(geo, this.materialOf(part) ?? (coloured ? tinted : figure));
 			mesh.userData.mini = entry.look;
 			if (coloured) mesh.userData.miniColor = entry.colour;
 			mesh.position.y = y;
