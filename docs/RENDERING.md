@@ -320,6 +320,30 @@ The rules track shares the version sequence ([#100](https://github.com/tougenrip
 Published wire values are accepted forever: the `{ambient}` effect, `ambient_set`, Shot frame
 `table` and the stored `tabletop` camera view.
 
+Each bump is forward-only. `migrate` in `src/lib/game/scene-file.ts` refuses a newer version, so once
+a v10 server has written saves, autosaves, live rooms or library versions, a v9 server can't read
+them: it skips the stored rooms (and leaves them in the store) and refuses those saves. Nothing is
+deleted, but games can't go on until the newer build is back or the data is restored. So:
+
+- **Back up before deploying a bump**: `npm run data:backup` (`server/data-backup.ts`), with the
+  server's env. It copies `SCENES_DIR`, `ROOMS_DIR` and `LIBRARY_DIR` into
+  `backups/<time>/files/` and, with `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`, pages `scenes`,
+  `live_rooms`, `library_adventures`, `library_versions` and `library_ratings` into
+  `backups/<time>/tables/<table>.ndjson`. `manifest.json` records the counts, the scene-file versions
+  seen in saves and rooms, and the app version. Any error exits non-zero. `backups/` is gitignored;
+  a backup holds session tokens and GM key hashes, so keep it like the database.
+- **Rolling back**: stop the game server, `npm run data:restore -- <backup dir> --yes`
+  (`server/data-restore.ts`, which refuses without `--yes` and checks the files against the
+  manifest), then deploy the previous build. Files are copied back over same-named ones; rows are
+  upserted by primary key, parents first. What was saved after the backup is lost where the backup
+  holds the same id; what is new stays, unreadable until the newer build returns.
+- **Tried**: `server/data-backup.spec.ts` round-trips the file stores byte for byte and the tables
+  through a fake client, and, with `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` set, round-trips a live
+  Supabase unchanged. By hand on 30 September 2026, against local Supabase: seeded a save, a live
+  room and a rated library adventure, backed up, rewrote them as v10 and changed the rating and
+  plays, restored, and a second backup's tables were identical to the first.
+- The closing PR of a milestone that bumps the version ticks "backup taken before deploy".
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
