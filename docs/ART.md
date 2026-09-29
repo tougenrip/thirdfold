@@ -46,10 +46,12 @@ and 3.9 u across for 1-4 cells are a _target_ (#265, #270).
 
 ## 3. Texel density
 
-- **Environments:** about 256 px per cell. A 2048 trim sheet covers a 2.0 u wall section.
+- **Environments:** 512 px per cell. A 2048² trim sheet covers a 4×4-cell repeat: four cells of
+  wall run, two walls high.
 - **Minis:** about 400 px per unit: 512² for most, 1024² for the four characters and hero enemies.
 - **Props:** 512² for small ones, 1024² for hero props.
-- **Surfaces:** 2048² per 2×2-cell repeat at most (`tile` in the surface's `meta.json`).
+- **Surfaces:** 512 px per cell, so 2048² per 4×4-cell repeat (`tile` in the surface's
+  `meta.json`).
 
 Stay within a factor of two of these, so nothing looks sharper or blurrier than its neighbours.
 
@@ -184,15 +186,15 @@ _Targets_ that #250 enforces:
 `LIMITS` in `src/lib/assets/manifest.ts` is the authority; both `buildAssets` and the client's
 `parseManifest` refuse anything over it. Manifest v2's classes (#184):
 
-| Class                          | LOD0 triangles | Texture px      | File bytes | GPU bytes |
-| ------------------------------ | -------------- | --------------- | ---------- | --------- |
-| kit                            | 1,500          | 2048            | 256 kB     | 2 MB      |
-| prop, decor                    | 20,000         | 2048            | 4 MB       | 16 MB     |
-| foliage                        | 6,000          | 2048            | 2 MB       | 8 MB      |
-| fx                             | 2,000          | 1024            | 1 MB       | 4 MB      |
-| figure (character, npc, enemy) | 40,000         | 2048            | 4 MB       | 16 MB     |
-| set piece (`setPiece`)         | 60,000         | 2048            | 8 MB       | 32 MB     |
-| standalone texture             | n/a            | 2048 (4096 sky) | 4 MB       | 32 MB     |
+| Class                           | LOD0 triangles | Texture px                    | File bytes | GPU bytes |
+| ------------------------------- | -------------- | ----------------------------- | ---------- | --------- |
+| kit (trim sheets are materials) | 1,500          | 2048                          | 256 kB     | 2 MB      |
+| prop, decor                     | 20,000         | 2048                          | 4 MB       | 16 MB     |
+| foliage                         | 6,000          | 2048                          | 2 MB       | 8 MB      |
+| fx                              | 2,000          | 1024                          | 1 MB       | 4 MB      |
+| figure (character, npc, enemy)  | 40,000         | 2048                          | 4 MB       | 16 MB     |
+| set piece (`setPiece`)          | 60,000         | 2048                          | 8 MB       | 32 MB     |
+| standalone texture              | n/a            | 2048 (sky: 4096 only as KTX2) | 4 MB       | 32 MB     |
 
 These are ceilings per asset. What a whole table may load is #193's per-table budget. Aim well
 under the ceiling: a 1-cell mini at 6,000 triangles, a kit piece at 500-1,500.
@@ -222,11 +224,12 @@ The floor and wall surfaces (#187) start from CC0 scans, repainted so they read 
 
 ## 12. Sources and licences
 
-The allowlist, as SPDX ids. #189's `LICENSES` enforces exactly this list; change both together.
+The allowlist, as SPDX ids. `LICENSES` in `src/lib/assets/manifest.ts` is exactly this list;
+change both together. #189 makes a credit from it required on every file.
 
 | Licence                             | Conditions                                                   |
 | ----------------------------------- | ------------------------------------------------------------ |
-| `CC0-1.0`                           | source URL and hash recorded                                 |
+| `CC0-1.0`                           | source URL and hash recorded (#189's provenance check)       |
 | `CC-BY-4.0`                         | author, source and "modified" credited on `/credits`         |
 | `LicenseRef-thirdfold-commissioned` | a signed assignment on section 16's terms, kept by the owner |
 | `LicenseRef-thirdfold-original`     | made by a contributor for thirdfold, or by our recipes       |
@@ -281,8 +284,9 @@ Every asset carries a provenance record, and the build refuses one without it (#
 ```
 
 - `license` from the allowlist; `author` a person, studio or site; `source` required for CC0 and
-  CC-BY, https only; `modified` whether we changed it; `ai` only when a generator was used, which
-  also requires `modified: true`.
+  CC-BY, https only (#189's provenance check enforces the URL and hash, not the manifest);
+  `modified` whether we changed it; `ai` only when a generator was used, which also requires
+  `modified: true`.
 - A binary source (a GLB, PNG, WAV or Ogg) carries its own `<id>.meta.json` or `meta.json`. Only
   text sources (part lists, recipes) may fall back on a folder's `_provenance.json`, and that
   default may only grant `LicenseRef-thirdfold-original`.
@@ -311,8 +315,9 @@ Asset binaries are hosted in **Supabase Storage**, a public bucket, by content h
 - Objects are named as the manifest names them (`models/<id>.<first 8 hex of sha256>.glb`), and
   the manifest carries each file's full sha256. The client checks the digest of every file it
   fetches from the bucket and falls back to the placeholder on a mismatch.
-- Objects are immutable: written once by CI, never overwritten, served with
-  `Cache-Control: public, max-age=31536000, immutable`. Nobody but the service key can write.
+- Objects are immutable by naming: a changed file gets a new name, so CI writes each once and
+  never overwrites it. Uploads set `cacheControl: '31536000'`, which Supabase serves as
+  `Cache-Control: max-age=31536000`. Nobody but the service key can write.
 - Source binaries (2K surface maps, Blender exports) are stored the same way, recorded by sha256
   in a lock, so git keeps only text: JSON sources, `meta.json` files, the manifest and the lock.
 - The core pack (what the first table and the native shells need) is still served same-origin.
@@ -351,8 +356,8 @@ seen from far off and close up.
 - **Textures.** 1024² albedo, normal and ORM, plus an emissive mask for a faint rim glow on the
   lip; 2048² albedo only if review asks for it.
 - **Deliver** as `art/prop/great-bell/`: `great-bell.glb` (textures embedded as 8-bit PNG),
-  `meta.json` (provenance, the swing pivot's height), the `.blend`, the painter files and the
-  high-poly.
+  `meta.json` (provenance, the swing's pivot height and throw), the `.blend`, the painter files
+  and the high-poly.
 - **Review** on the turntable under the four lights, then in its table at the close and
   overview camera, by the reviewer. Two rounds of changes are included.
 
@@ -366,13 +371,16 @@ A straight monastery wall of dressed stone, one cell edge long, the first piece 
 - **Scale.** 1.0 u long, 2.0 u tall above the floor. Thickness 0.07 u each side of the cell edge
   (the plinth and cap may overhang by 0.03 u); corner posts 0.3 u square come later in the kit.
   Pivot at the midpoint of the cell edge on the floor, facing +Z.
-- **Pieces.** Three variants of the straight wall (plain, a cracked block, a small niche) sharing
-  one trim sheet.
+- **Pieces.** Three variants of the straight wall, each its own asset: `stone-wall` (plain),
+  `stone-wall-cracked` (a cracked block) and `stone-wall-niche` (a small niche), sharing one trim
+  sheet.
 - **Budget.** Kit: LOD0 500-1,500 triangles each; LOD1 at about 50%.
-- **Textures.** One 2048² trim sheet (albedo, normal, ORM) shared by the whole kit; about 256 px
-  per cell.
-- **Deliver** as `art/kit/stone-wall/`: `stone-wall.glb` with meshes `body`, `body_lod1`,
-  one node per variant, `meta.json`, the `.blend` and the trim sheet's painter file.
+- **Textures.** One 2048² trim sheet (albedo, normal, ORM) shared by the whole kit, 512 px per
+  cell. It ships once, as standalone textures referenced by one manifest material (`map`,
+  `normal`, `orm`) that each variant lists in `ModelEntry.materials`; the GLBs embed no textures.
+- **Deliver** as `art/kit/<id>/` for each variant: `<id>.glb` with meshes `body` and `body_lod1`
+  only, and its `meta.json`; plus the trim sheet's PNGs and `meta.json` in
+  `art/kit/stone-halls-trim/`, the `.blend` and the trim sheet's painter file.
 - **Review** as brief A, plus a run of eight walls in a row to check the variants don't repeat.
 
 The four characters' minis (#276) get their brief once these two are accepted.
@@ -387,7 +395,8 @@ Matches what the cook (#186) expects:
 - [ ] Meshes named by role: `body`, `swing`, `accent`, `<role>_lod<n>`; nothing else.
 - [ ] Tangents exported (MikkTSpace); normals OpenGL.
 - [ ] One material per mesh at most, Principled BSDF with the texture sets of section 6.
-- [ ] Textures embedded as 8-bit PNG, power-of-two sizes, at or under the budget.
+- [ ] Textures embedded as 8-bit PNG (a kit's trim sheet ships apart, as brief B), power-of-two
+      sizes, at or under the budget.
 - [ ] No cameras, lights, animations, shape keys or extra UV sets.
 - [ ] Export as `.glb` into `art/<kind>/<id>/<id>.glb` beside its `meta.json`, then
       `npm run assets:cook` and `npm run assets`.
