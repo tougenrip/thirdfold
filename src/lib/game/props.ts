@@ -186,7 +186,7 @@ export function placementProblem(
 	if (!footprintInBounds(grid, placement)) {
 		return {
 			code: 'invalid_position',
-			message: 'That would stick out over the edge of the table.'
+			message: 'That would stick out past the edge of the map.'
 		};
 	}
 	if (propBlocks(placement) === 'none') return null;

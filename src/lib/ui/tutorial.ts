@@ -50,13 +50,13 @@ export const TUTORIAL: readonly TutorialStep[] = [
 	{
 		id: 'approach',
 		title: 'Something is glowing nearby',
-		text: 'A faint light is glowing close by; it is marked on the table. Walk up and stand beside it.',
+		text: 'A faint light is glowing close by; it is marked on the map. Walk up and stand beside it.',
 		needsFind: true
 	},
 	{
 		id: 'inspect',
 		title: 'Inspect it',
-		text: 'It is right beside you. Click it on the table, or press its button in the bar, to look closer.',
+		text: 'It is right beside you. Click it on the map, or press its button in the bar, to look closer.',
 		needsFind: true
 	},
 	{

@@ -1442,8 +1442,7 @@ export function setObject(
 	if (!def.states.includes(state)) {
 		return fail('invalid_message', `The ${def.name.toLowerCase()} can't be ${state}.`);
 	}
-	if (!objectCells(room, def))
-		return fail('object_not_found', `The ${def.name} isn't on the table.`);
+	if (!objectCells(room, def)) return fail('object_not_found', `The ${def.name} isn't here.`);
 	if (adventure.carried.has(def.id)) {
 		return fail('forbidden', `Someone is carrying the ${def.name.toLowerCase()}.`);
 	}
@@ -3038,7 +3037,7 @@ function spawn(
 	const A = content(adventure);
 	const def = Object.hasOwn(A.enemies, kind) ? A.enemies[kind] : undefined;
 	if (!def) return fail('invalid_message', 'There is no such enemy in this story.');
-	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the table.');
+	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the map.');
 	if (!isFree(room, pos)) return fail('cell_occupied', 'Something is already there.');
 	const log = [postSystem(room, `${actor.name} brought on ${def.name}.`, 'gm')];
 	const token = enemyToken(A, kind, pos);

@@ -187,7 +187,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="note">No enemies on the table.</p>
+			<p class="note">No enemies on the map.</p>
 		{/if}
 	</div>
 

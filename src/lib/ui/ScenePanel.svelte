@@ -353,7 +353,7 @@
 			<label>
 				<span class="muted">Looks like</span>
 				<select bind:value={newLook}>
-					<option value="">Plain table</option>
+					<option value="">Plain ground</option>
 					{#each environments as [id, envName] (id)}
 						<option value={id}>{envName}</option>
 					{/each}

@@ -2,14 +2,14 @@
 // wood, grass, water...), or `void`, off the map: nobody can stand there.
 // Like the level map (terrain.ts) it is one byte per cell, and a table with
 // nothing painted has no floor map at all (null): every cell is the table's
-// own surface (its environment, or the plain table).
+// own surface (its environment, or the plain ground).
 
 import type { GridPos, SquareGrid } from './grid';
 import { rectCells, type CellMask } from './visibility';
 
 /** The floors, by the byte stored for each cell. `plain` (0) is the table's own surface. */
 export const FLOORS = [
-	{ id: 'plain', name: 'Table' },
+	{ id: 'plain', name: 'Default ground' },
 	{ id: 'stone', name: 'Stone' },
 	{ id: 'wood', name: 'Wood' },
 	{ id: 'grass', name: 'Grass' },

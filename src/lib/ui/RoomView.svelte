@@ -606,7 +606,7 @@
 				? `Click: ${target.name}.`
 				: `Click to ${target.name[0].toLowerCase()}${target.name.slice(1)}.`;
 		}
-		if (targeting) return 'Choose a target on the table or in the action bar. Esc to cancel.';
+		if (targeting) return 'Choose a target on the map or in the action bar. Esc to cancel.';
 		if (selected) {
 			const distance = hoverCell ? (steps ?? gridDistance(selected.pos, hoverCell)) : null;
 			const suffix = distance ? ` · ${distance} ${distance === 1 ? 'cell' : 'cells'}` : '';
@@ -623,7 +623,7 @@
 			return 'Waiting for the GM to give you a token.';
 		}
 		return isGm
-			? 'Click any token to move it, or open Build the table to add walls, props and light.'
+			? 'Click any token to move it, or open Build to add walls, props and light.'
 			: 'Click one of your tokens to move it, or a door next to it to open it.';
 	});
 
@@ -1019,7 +1019,7 @@
 			const to = { x: selected.pos.x + dx, y: selected.pos.y + dy };
 			event.preventDefault();
 			if (!room || to.x < 0 || to.y < 0 || to.x >= room.grid.width || to.y >= room.grid.height) {
-				moved = `${selected.name} is at the edge of the table.`;
+				moved = `${selected.name} is at the edge of the map.`;
 				return;
 			}
 			act({ type: 'token_move', tokenId: selected.id, to });
@@ -1227,7 +1227,7 @@
 				Tactical
 			</button>
 			<button type="button" aria-pressed={view === 'tabletop'} onclick={() => (view = 'tabletop')}>
-				Tabletop
+				Explore
 			</button>
 		</div>
 		<span class="graphics-bar">
@@ -1320,7 +1320,7 @@
 			{#if isGm}
 				<details class="panel fold" bind:open={folds.build}>
 					<summary>
-						<span class="section-title">Build the table</span>
+						<span class="section-title">Build</span>
 						{#if tool !== 'select'}<span class="current">{tool.replace('-', ' ')}</span>{/if}
 					</summary>
 					<BuildPanel
@@ -1403,7 +1403,7 @@
 
 		<nav class="dock-tabs" aria-label="Panels">
 			<button type="button" aria-pressed={sheet === 'table'} onclick={() => (sheet = 'table')}>
-				Table
+				Map
 			</button>
 			<button type="button" aria-pressed={sheet === 'side'} onclick={() => (sheet = 'side')}>
 				{isGm ? 'GM tools' : 'Party'}

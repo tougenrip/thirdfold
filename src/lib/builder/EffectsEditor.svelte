@@ -15,7 +15,7 @@
 		{ kind: 'enter', label: 'Go to a chapter', make: () => ({ enter: '' }) },
 		{ kind: 'heal', label: 'Heal the party', make: () => ({ heal: 2 }) },
 		{ kind: 'ambient', label: 'Time of day', make: () => ({ ambient: 'dusk' }) },
-		{ kind: 'reveal', label: 'Reveal the whole table', make: () => ({ reveal: 'all' }) },
+		{ kind: 'reveal', label: 'Reveal the whole map', make: () => ({ reveal: 'all' }) },
 		{ kind: 'settle', label: 'People go to their places', make: () => ({ settle: true }) },
 		{ kind: 'remember', label: 'Remember a moment', make: () => ({ remember: '' }) },
 		{ kind: 'rules', label: 'If… (the first that holds)', make: () => ({ rules: [{ do: [] }] }) }

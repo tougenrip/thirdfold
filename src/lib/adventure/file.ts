@@ -250,9 +250,11 @@ function dice(v: unknown, path: string): string {
 
 function shot(v: unknown, path: string): Shot {
 	const s = obj(v, path);
+	const frame = oneOf(s.frame, ['close', 'wide', 'overview', 'table'] as const, `${path}.frame`);
 	return {
 		focus: s.focus === null ? null : cell(s.focus, `${path}.focus`),
-		frame: oneOf(s.frame, ['close', 'wide', 'table'] as const, `${path}.frame`)
+		// Stored as 'table', which every bundle's shotPose knows (#210).
+		frame: frame === 'overview' ? 'table' : frame
 	};
 }
 
@@ -1284,7 +1286,7 @@ function problemsOf(file: AdventureFile, adventure: AdventureDef): string[] {
 		const g = l.scene.grid;
 		for (const c of l.spawn) {
 			if (c.x >= g.width || c.y >= g.height)
-				problems.push(`location ${k}: a spawn cell is off the table`);
+				problems.push(`location ${k}: a spawn cell is off the map`);
 		}
 	}
 	for (const o of adventure.objects) {

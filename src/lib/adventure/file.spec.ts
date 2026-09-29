@@ -33,6 +33,21 @@ describe('adventure files', () => {
 		expect(again).toEqual({ ok: true, file: parsed.file });
 	});
 
+	it("takes a shot's frame 'overview' or 'table', and stores 'table' for older bundles", () => {
+		const withFrame = (frame: string) => {
+			const file = json(exampleAdventure()) as unknown as {
+				start: { arrival: Record<string, unknown>[] };
+			};
+			file.start.arrival[0].shot = { focus: null, frame };
+			const parsed = parseAdventureFile(file);
+			if (!parsed.ok) throw new Error(parsed.error);
+			return parsed.file.start.arrival[0];
+		};
+		expect(withFrame('table')).toMatchObject({ shot: { focus: null, frame: 'table' } });
+		expect(withFrame('overview')).toMatchObject({ shot: { focus: null, frame: 'table' } });
+		expect(() => withFrame('tabletop')).toThrow();
+	});
+
 	it('refuses what is not an adventure, naming where', () => {
 		const file = json(exampleAdventure()) as unknown as Record<string, unknown>;
 		expect(parseAdventureFile({ ...file, format: 'thirdfold-scene' })).toMatchObject({ ok: false });

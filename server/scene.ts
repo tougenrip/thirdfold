@@ -82,7 +82,7 @@ function checkOwner(room: Room, ownerId: string | null): Result<object> {
 }
 
 function checkCell(room: Room, pos: GridPos, movingId?: string): Result<object> {
-	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the table.');
+	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the map.');
 	const occupant = tokenAt(room.tokens.values(), pos);
 	// No name here: under fog the occupant may be a token the mover cannot see.
 	if (occupant && occupant.id !== movingId) return fail('cell_occupied', 'That cell is occupied.');
@@ -280,7 +280,7 @@ export function fogArea(
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can reveal or hide the map.');
 	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
+		return fail('invalid_position', 'That area is off the map.');
 	}
 	const cells = rectCells(room.grid, from, to);
 	for (const i of cells) {
@@ -302,7 +302,7 @@ export function fogRoom(
 	reveal: boolean
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can reveal or hide the map.');
-	if (!inBounds(room.grid, cell)) return fail('invalid_position', 'That cell is off the table.');
+	if (!inBounds(room.grid, cell)) return fail('invalid_position', 'That cell is off the map.');
 	const cells = roomAround(room.grid, roomBoundary(room.objects.values()), cell);
 	if (!cells) {
 		return fail('invalid_position', 'That is open ground, not a room with walls around it.');
@@ -336,7 +336,7 @@ export function setTerrain(
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM shapes the ground.');
 	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
+		return fail('invalid_position', 'That area is off the map.');
 	}
 	if (!Number.isInteger(level) || level < 0 || level > MAX_LEVEL) {
 		return fail('invalid_position', `Levels run from 0 to ${MAX_LEVEL}.`);
@@ -359,7 +359,7 @@ export function setFloor(
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM paints the floor.');
 	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
+		return fail('invalid_position', 'That area is off the map.');
 	}
 	const cells = rectCells(room.grid, from, to);
 	if (floor === 'void') {
@@ -383,7 +383,7 @@ export function setDarkness(
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM controls lights.');
 	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
+		return fail('invalid_position', 'That area is off the map.');
 	}
 	room.darkness = withDarkness(room.darkness, room.grid, from, to, dark);
 	return { ok: true, cells: rectCells(room.grid, from, to).length };
@@ -417,8 +417,7 @@ export function createLight(
 	if (room.lights.size >= MAX_LIGHTS_PER_ROOM) {
 		return fail('limit_reached', `A room can hold at most ${MAX_LIGHTS_PER_ROOM} lights.`);
 	}
-	if (!inBounds(room.grid, input.pos))
-		return fail('invalid_position', 'That cell is off the table.');
+	if (!inBounds(room.grid, input.pos)) return fail('invalid_position', 'That cell is off the map.');
 	if ([...room.lights.values()].some((l) => l.pos.x === input.pos.x && l.pos.y === input.pos.y)) {
 		return fail('cell_occupied', 'There is already a light on that cell.');
 	}
@@ -471,7 +470,7 @@ export function setEnvironment(
 	actor: Player,
 	environment: string | null
 ): Result<{ changed: boolean }> {
-	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM sets how the table looks.');
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM sets how the world looks.');
 	const changed = room.environment !== environment;
 	room.environment = environment;
 	return { ok: true, changed };

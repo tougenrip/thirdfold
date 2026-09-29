@@ -176,10 +176,10 @@
 			<span class="muted">Looks like</span>
 			<select
 				value={environment ?? ''}
-				aria-label="How the table looks"
+				aria-label="How the world looks"
 				onchange={(e) => onEnvironment(e.currentTarget.value || null)}
 			>
-				<option value="">Plain table</option>
+				<option value="">Plain ground</option>
 				{#each environments as [id, name] (id)}
 					<option value={id}>{name}</option>
 				{/each}
@@ -209,7 +209,8 @@
 				{/each}
 			</div>
 			<p class="muted">
-				Click two corners of an area. Off the map: nobody can stand there. Table clears the paint.
+				Click two corners of an area. Off the map: nobody can stand there. Default ground clears the
+				paint.
 			</p>
 		{/if}
 		{@render toolButton({ id: 'height', label: 'Shape ground', key: 'G' })}

@@ -141,7 +141,7 @@
 		}
 		if (adventure.stage === 'choosing') return 'Waiting for the GM to begin.';
 		if (adventure.stage !== 'playing') return 'The story is over.';
-		if (chosen) return `${chosen.name}: choose a target, here or on the table.`;
+		if (chosen) return `${chosen.name}: choose a target, here or on the map.`;
 		if (!encounter) {
 			return nearby.length
 				? 'Something here you can use.'

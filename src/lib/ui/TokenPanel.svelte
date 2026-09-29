@@ -98,7 +98,7 @@
 
 	{#if listed.length === 0}
 		<p class="muted">
-			{isGm ? 'No tokens on the table yet.' : 'The GM has not given you a token yet.'}
+			{isGm ? 'No tokens on the map yet.' : 'The GM has not given you a token yet.'}
 		</p>
 	{:else}
 		<ul class="list">
@@ -223,7 +223,7 @@
 				class="danger"
 				onclick={() => send({ type: 'token_delete', tokenId: selected.id })}
 			>
-				Remove from table
+				Remove from the map
 			</button>
 		</div>
 	{/if}
@@ -262,7 +262,7 @@
 				<button type="button" onclick={() => onPlace(null)}>Cancel placing</button>
 			{:else}
 				<button class="primary" type="submit" disabled={!draft.name.trim()}>
-					Place on table
+					Place on the map
 				</button>
 			{/if}
 		</form>

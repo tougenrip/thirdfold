@@ -51,7 +51,8 @@ export function shotPose(
 	extent: number,
 	cell: number
 ): Pose {
-	const target = frame === 'table' || !focus ? { x: 0, y: 0, z: 0 } : { ...focus };
+	const overview = frame === 'table' || frame === 'overview';
+	const target = overview || !focus ? { x: 0, y: 0, z: 0 } : { ...focus };
 	let dx = from.position.x - from.target.x;
 	let dz = from.position.z - from.target.z;
 	const flat = Math.hypot(dx, dz);
@@ -62,8 +63,8 @@ export function shotPose(
 		dx /= flat;
 		dz /= flat;
 	}
-	const distance = frame === 'table' ? extent * 1.3 : FRAMES[frame].cells * cell;
-	const elevation = frame === 'table' ? 1.05 : FRAMES[frame].elevation;
+	const distance = overview ? extent * 1.3 : FRAMES[frame].cells * cell;
+	const elevation = overview ? 1.05 : FRAMES[frame].elevation;
 	return {
 		target,
 		position: {

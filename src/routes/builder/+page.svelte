@@ -1156,7 +1156,7 @@
 								</select>
 							</label>
 							<label class="field">
-								<span>Which {thingOf(o)} on the table</span>
+								<span>Which {thingOf(o)} on the map</span>
 								{#if thingOf(o) === 'prop'}
 									<select
 										value={(o.thing as { prop: string }).prop}

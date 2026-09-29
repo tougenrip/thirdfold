@@ -31,7 +31,8 @@ export const FLASH_MS = 2500;
  */
 export interface Shot {
 	focus: GridPos | null;
-	frame: 'close' | 'wide' | 'table';
+	/** 'overview' and 'table' are the same pull-back; the server always writes 'table' (#210). */
+	frame: 'close' | 'wide' | 'overview' | 'table';
 }
 
 export type ChatMessage =
