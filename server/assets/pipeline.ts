@@ -5,6 +5,7 @@
 // built files are out of date.
 //
 // Sources (see docs/ASSETS.md):
+//   assets/catalog.json                 the props there are, and aliases of renamed ids (catalog.ts)
 //   assets/materials.json               named surfaces: colour, roughness, metalness, texture
 //   assets/textures/<id>.json | .png | .ktx2  a recipe, or an image (<id>.meta.json: its usage)
 //   assets/models/<kind>/<id>.json      a model from primitive parts (kind: a MODEL_KINDS folder)
@@ -32,7 +33,7 @@ import {
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
-import { ASSET_IDS } from '../../src/lib/game/props';
+import { catalogModule, loadCatalog } from './catalog';
 import { buildAudio } from './pipeline-audio';
 import { AssetError, emitter, idOf, isRecord, list, readJson } from './pipeline-files';
 import { buildModels } from './pipeline-models';
@@ -44,6 +45,10 @@ export interface BuiltAssets {
 	manifest: Manifest;
 	/** Built files by their path under the output folder. */
 	files: Map<string, Buffer>;
+	/** src/lib/game/catalog.ts, generated from assets/catalog.json. */
+	catalogModule: string;
+	/** assets/catalog.shipped.json's ids with the catalogue's new ones added. */
+	shipped: string[];
 }
 
 const COLOR = /^#[0-9a-f]{6}$/;
@@ -129,6 +134,7 @@ function buildEnvironments(
 export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	const files = new Map<string, Buffer>();
 	const emit = emitter(files);
+	const { catalog, shipped } = loadCatalog(dir);
 	// Textures first: materials refer to them, and models to materials.
 	const textures = buildTextures(dir, emit);
 	const materials = buildMaterials(dir, textures);
@@ -138,7 +144,7 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	const audio = buildAudio(dir, emit);
 
 	// Every prop in the catalogue has a model, so no table is left with placeholders.
-	for (const assetId of ASSET_IDS) {
+	for (const assetId of Object.keys(catalog.props)) {
 		if (models[assetId]?.kind !== 'prop') {
 			throw new AssetError(path.join(dir, 'models', 'prop'), `no model for the prop "${assetId}"`);
 		}
@@ -156,7 +162,7 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	};
 	const checked = parseManifest(JSON.parse(JSON.stringify(manifest)));
 	if (!checked.ok) throw new AssetError('manifest', checked.error);
-	return { manifest, files };
+	return { manifest, files, catalogModule: catalogModule(catalog), shipped };
 }
 
 export const MANIFEST_FILE = 'manifest.json';
