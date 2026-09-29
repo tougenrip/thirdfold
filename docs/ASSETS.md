@@ -244,6 +244,19 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   tables and checks every prop, figure and environment it uses against the manifest. That covers
   the people on its tables and the characters and enemies the story places. Scenes themselves stay
   on the server: a table holds the story's secrets.
+- **Every table fits its budget** (#193). `checkScenes` also loads the builder's example (The
+  Miller's Key) through `loadAdventureFile` and checks it the same way, and `tableBudget` adds up
+  what each table of every adventure makes a viewer download and hold on the GPU. A file counts
+  once however often it is used: the environment's materials' maps, its surfaces, its grades for
+  the tone mapper in use, and the models of the table's props and people, what its objects and
+  fights turn props into, every character and every enemy of the adventure (the GM can bring any
+  kind anywhere), with each model's preview and the materials it wears. When any of it is KTX2 or
+  cooked, the Basis transcoder counts once. Over `TABLE_BUDGETS` (desktop 15 MB download and
+  160 MB GPU, mobile 6 MB and 80 MB with textures held to 1024 px) the build fails, naming the
+  adventure, the table and the number. `npm run assets` prints the report: a row per environment
+  alone, in brackets, then a row per table, with its download, its GPU bytes on desktop, and its
+  GPU bytes on mobile. The budgets and today's totals are in
+  [PERFORMANCE.md](PERFORMANCE.md#asset-budgets).
 - **Licences and provenance** (#189, `server/assets/licence.ts`, tests in `licence.spec.ts`).
   Every source says on what terms we have it, and the build refuses anything else:
   - The licence is one of `LICENSES` (CC0-1.0, CC-BY-4.0, `LicenseRef-thirdfold-commissioned`,

@@ -571,3 +571,40 @@ v2 (the same 69 models, 64 textures and 2 sounds; gzip -9):
 Most of the growth is the whole SHA-256 of each of the 135 files, which does not compress
 (135 × 64 hex digits is 8.6 kB), and each texture's usage, colour space, layers, levels and GPU
 bytes. It stays one fetch, cached by the browser like the rest of the page.
+
+## Asset budgets
+
+What one table's assets may add up to (`TABLE_BUDGETS` in `server/assets/scenes.ts`, #193), from
+the roadmap's first-table download and GPU memory budgets. The build fails over any of them.
+
+| Tier    | Download | GPU    | Textures counted at |
+| ------- | -------- | ------ | ------------------- |
+| Desktop | 15 MB    | 160 MB | their size          |
+| Mobile  | 6 MB     | 80 MB  | at most 1024 px     |
+
+MB here is 1024 × 1024 bytes, as in the manifest's `LIMITS`. Mobile's download is the roadmap's
+mobile first-table budget, stricter than half the desktop's; its GPU figure counts textures at the
+size the 1K tier (#358) will serve. GPU bytes are the manifest's `gpuBytes`, which assume a
+compressed transcode target for KTX2; devices that fall back to RGBA are the mobile tier's and
+#358's concern. These are starting values, confirmed per tier in #155: change them only on
+purpose, with the reason here.
+
+What is counted is in [ASSETS.md](ASSETS.md#rules-the-pipeline-enforces). Totals with the assets
+of milestone 64 (`npm run assets`; kB of 1024 bytes):
+
+| Table                   | Download | GPU     | Mobile GPU |
+| ----------------------- | -------- | ------- | ---------- |
+| hollow-bell/bellweather | 519 kB   | 1176 kB | 1176 kB    |
+| hollow-bell/monastery   | 443 kB   | 1052 kB | 1052 kB    |
+| hollow-bell/hollow      | 401 kB   | 1100 kB | 1100 kB    |
+| hollow-bell/heart       | 300 kB   | 905 kB  | 905 kB     |
+| blackwater/train        | 383 kB   | 979 kB  | 979 kB     |
+| blackwater/engine       | 260 kB   | 870 kB  | 870 kB     |
+| blackwater/blackwater   | 254 kB   | 864 kB  | 864 kB     |
+| example/yard            | 191 kB   | 882 kB  | 882 kB     |
+| example/cellar          | 171 kB   | 808 kB  | 808 kB     |
+
+Each environment alone is 56–68 kB to download and 683–789 kB on the GPU. Every table is under
+4% of the mobile download budget: the part-list models and 128 px textures are small. The budgets
+start to bite with the cooked models and surface sets (#186, #187). Record the totals here again at
+each milestone.
