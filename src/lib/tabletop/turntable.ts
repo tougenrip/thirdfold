@@ -7,7 +7,7 @@ import * as THREE from 'three/webgpu';
 import { fetchAsset, loadManifest } from '$lib/assets/load';
 import { isFigureKind, type Manifest, type ModelEntry } from '$lib/assets/manifest';
 import { MAX_LIGHT_RADIUS, type Ambient, type Light } from '$lib/game/lights';
-import { createMaterial, type KindMaterial } from './materials';
+import { createMaterial, withBake, type KindMaterial } from './materials';
 import { loadModel, parseModel, type LoadedModel, type ModelPart } from './models';
 import { createTabletop } from './renderer';
 import { initialShape, shapeOf, startingSettings } from './shape';
@@ -103,7 +103,7 @@ export function modelGroup(
 	};
 	const lift = figure ? 0.08 : 0;
 	if (figure) {
-		const base = new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32);
+		const base = withBake(new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32));
 		add(base, createMaterial('mini', { params: { color: 0x1b1612, roughness: 0.6 } }), 0.04);
 		group.userData.base = base;
 	}
