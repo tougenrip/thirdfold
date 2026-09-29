@@ -173,7 +173,7 @@ export async function createTabletop(
 	let objects: readonly SceneObject[] = [];
 	let grid: SquareGrid | null = null;
 	let extent = 20;
-
+	options.devScene?.(scene, () => ((shadowsDirty = true), requestRender()));
 	/** Draws one frame: counters and the node frame are advanced here, since the internal loop is off. */
 	function drawScene(): void {
 		renderer.info.reset();

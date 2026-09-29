@@ -18,6 +18,8 @@ const BUDGETS = {
 	'/': { total: 64_000, own: 19_000 },
 	'/builder': { total: 97_000, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
+	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
+	'/dev/assets': { total: 50_000, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	'/room/[id]': { total: 121_000, own: 76_000 },
 	renderer: { total: 360_000 },
@@ -25,6 +27,8 @@ const BUDGETS = {
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
+/** Only the asset turntable (tabletop/turntable.ts, #194) has this: dev builds only. */
+const TURNTABLE_MARKER = 'thirdfold-turntable';
 /** Only classic WebGLRenderer (build/three.module.js) has this: the renderer is WebGPURenderer now. */
 const CLASSIC_MARKER = 'THREE.WebGLRenderer: Error creating WebGL context';
 /** Property names three.js keeps through minification. */
@@ -134,6 +138,11 @@ for (const f of rendererFiles) {
 	const text = readFileSync(`${OUT}/${f}`, 'utf8');
 	if (DECODER_MARKERS.some((m) => text.includes(m)))
 		failures.push(`the renderer statically imports the KTX2 decoders (${f})`);
+}
+// The asset turntable is dev only: no file of the production build carries it.
+for (const f of new Set(Object.values(manifest).map((e) => e.file))) {
+	if (readFileSync(`${OUT}/${f}`, 'utf8').includes(TURNTABLE_MARKER))
+		failures.push(`the dev-only asset turntable ships in production (${f})`);
 }
 // The Inspector (?perf&inspector) is its own chunk, fetched only when asked for.
 const inspectorKey = Object.keys(manifest).find((k) => k.endsWith('jsm/inspector/Inspector.js'));

@@ -378,6 +378,26 @@ is read, since the manifest ships with the client that parses it. The parse is a
 bad field and the client draws placeholders, never a half-trusted load. The pipeline parses its
 own output, so such a manifest never builds.
 
+## The turntable and thumbnails
+
+`/dev/assets` (#194) shows any manifest model as the game draws it: the real renderer
+(`tabletop/turntable.ts` through `createTabletop`'s dev-only `devScene` hook), the prop or mini
+kind, a figure on its base, on a small plain table or any environment, under four lights: day,
+dusk, torch (the night with a torch a cell off the model) and moon (the night with a Moonlight
+light). Beside it: triangles per LOD with a level picker, the preview (#192) if there is one, its
+textures (KTX2 or RGBA), the texture memory its first load added, its licence, and the backend,
+tier and GPU (`?backend=webgl`, `?tier=`). Drag orbits, the wheel zooms, the arrow keys turn the
+model, and Spin turns it slowly, never under reduced motion. `npm run dev` serves it; a production
+build answers 404 there and carries none of it (`scripts/check-bundle.mjs` fails if it does).
+
+Thumbnails: with the dev server up, `node scripts/thumbnails.mjs [http://localhost:1420]
+[--only id,id] [--size 256]` opens `/dev/assets?thumb=<id>` for each model (the day light, the
+three-quarter pose, a small model drawn larger to fill the frame) and writes
+`assets/thumbnails/<id>.png` with its `<id>.meta.json` (a thirdfold original). `npm run assets`
+emits each as `thumbs/<id>.<hash>.png` and sets the model's `thumbnail`; a thumbnail with no
+model, no provenance or over `THUMBNAIL_BYTES` (64 kB) is refused. The GPU and driver change the
+pixels, so they are made by hand after a model changes, never in CI.
+
 ## At the table
 
 - **The manifest:** the client fetches `/assets/manifest.json` once (`src/lib/assets/load.ts`),
