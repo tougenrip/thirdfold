@@ -13,7 +13,7 @@
 		parseAdventureFile
 	} from '$lib/adventure/file';
 	import { loadManifest } from '$lib/assets/load';
-	import { NAME_MAX_LENGTH } from '$lib/game/protocol';
+	import { NAME_MAX_LENGTH } from '$lib/game/names';
 	import { parseSceneFile, SCENE_FILE_MAX_BYTES } from '$lib/game/scene-file';
 	import CellsInput from '$lib/builder/CellsInput.svelte';
 	import {

@@ -4,7 +4,7 @@
 
 import type { SquareGrid } from './grid';
 import { AMBIENTS, parseLightList, type Ambient, type Light } from './lights';
-import { normalizeName } from './protocol';
+import { normalizeName } from './names';
 import { decodeMask, encodeMask } from './visibility';
 import type { SceneObject } from './objects';
 import type { Prop } from './props';

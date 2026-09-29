@@ -3,7 +3,8 @@
 // answer of the expected type (or an error), and closes.
 
 import { GAME_SERVER_URL } from '$lib/api';
-import { parseServerMessage, type ClientMessage, type ServerMessage } from '$lib/game/protocol';
+import type { ClientMessage, ServerMessage } from '$lib/game/protocol';
+import { parseServerMessage } from '$lib/game/server-message';
 
 export function ask<T extends ServerMessage['type']>(
 	message: ClientMessage,

@@ -3,14 +3,14 @@
 
 import { GAME_SERVER_URL } from '$lib/api';
 import type { Motion } from '$lib/game/motion';
-import {
-	parseServerMessage,
-	type ClientMessage,
-	type ErrorCode,
-	type JoinRole,
-	type RoomSnapshot,
-	type ServerMessage
+import type {
+	ClientMessage,
+	ErrorCode,
+	JoinRole,
+	RoomSnapshot,
+	ServerMessage
 } from '$lib/game/protocol';
+import { parseServerMessage } from '$lib/game/server-message';
 import { saveGmKey } from '$lib/prefs';
 import { applyRoomUpdate, snapshotOf } from './room-state';
 

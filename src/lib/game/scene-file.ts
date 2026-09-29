@@ -19,7 +19,7 @@ import {
 	unitEdges,
 	type SceneObject
 } from './objects';
-import { normalizeName } from './protocol';
+import { normalizeName } from './names';
 import {
 	footprintCells,
 	footprintInBounds,

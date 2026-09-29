@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeName, parseClientMessage, parseServerMessage } from './protocol';
+import { normalizeName, parseClientMessage } from './protocol';
+import { parseServerMessage } from './server-message';
 
 const token = 'a'.repeat(64);
 

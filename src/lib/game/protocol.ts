@@ -1,6 +1,6 @@
 // Wire protocol shared by the game server and the browser client. Everything
 // arriving from the network is untrusted: parse it with parseClientMessage /
-// parseServerMessage rather than casting.
+// parseServerMessage (server-message.ts) rather than casting.
 
 import {
 	isObjectState,
@@ -51,6 +51,9 @@ import {
 import { MAX_LEVEL } from './terrain';
 import { parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
+import { NAME_MAX_LENGTH, normalizeName, ROOM_ID_PATTERN } from './names';
+
+export { NAME_MAX_LENGTH, normalizeName, ROOM_ID_PATTERN };
 
 export type Role = 'gm' | 'player' | 'spectator';
 /** Roles a client may ask for when joining. GM is only ever the room creator. */
@@ -452,18 +455,8 @@ export type ServerMessage =
 	| { type: 'games_list'; games: PublicGame[] }
 	| { type: 'error'; code: ErrorCode; message: string };
 
-export const NAME_MAX_LENGTH = 32;
-export const ROOM_ID_PATTERN = /^[A-Z2-9]{6}$/;
 const SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const ID_MAX_LENGTH = 64;
-
-/** Trims and strips control characters; null when the result is empty or too long. */
-export function normalizeName(raw: unknown): string | null {
-	if (typeof raw !== 'string') return null;
-	// eslint-disable-next-line no-control-regex
-	const name = raw.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-	return name.length > 0 && name.length <= NAME_MAX_LENGTH ? name : null;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -989,53 +982,4 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		default:
 			return null;
 	}
-}
-
-const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unknown>) => boolean> =
-	{
-		welcome: (d) =>
-			typeof d.playerId === 'string' && typeof d.sessionToken === 'string' && isRecord(d.room),
-		player_joined: (d) => isRecord(d.player),
-		player_presence: (d) => typeof d.playerId === 'string' && typeof d.connected === 'boolean',
-		token_upserted: (d) => isRecord(d.token),
-		token_moved: (d) => typeof d.tokenId === 'string' && parseGridPos(d.pos) !== null,
-		token_deleted: (d) => typeof d.tokenId === 'string',
-		scene_saved: (d) => typeof d.sceneId === 'string' && typeof d.name === 'string',
-		scene_list: (d) => Array.isArray(d.scenes),
-		scene_exported: (d) => isRecord(d.file),
-		scene_shared: (d) => typeof d.code === 'string' && typeof d.name === 'string',
-		room_reset: (d) => isRecord(d.room),
-		props_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
-		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
-		ambient_update: (d) => typeof d.ambient === 'string',
-		environment_update: (d) => d.environment === null || typeof d.environment === 'string',
-		world_update: (d) => isRecord(d.world) && typeof d.world.time === 'number',
-		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
-		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
-		floor_update: (d) => d.floor === null || typeof d.floor === 'string',
-		darkness_update: (d) => d.darkness === null || typeof d.darkness === 'string',
-		interior_update: (d) => d.interior === null || typeof d.interior === 'string',
-		pause_update: (d) => typeof d.paused === 'boolean',
-		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
-		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
-		adventure_update: (d) => d.adventure === null || isRecord(d.adventure),
-		motion: (d) => Array.isArray(d.motions),
-		listing_update: (d) => typeof d.listed === 'boolean',
-		library_list: (d) => Array.isArray(d.adventures),
-		library_story: (d) => d.story === null || isRecord(d.story),
-		library_mine: (d) => Array.isArray(d.adventures),
-		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
-		games_list: (d) => Array.isArray(d.games),
-		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
-	};
-
-/**
- * The server is trusted, so this only guards against version skew and
- * corrupted frames by checking the discriminant and top-level fields.
- */
-export function parseServerMessage(data: unknown): ServerMessage | null {
-	if (!isRecord(data) || typeof data.type !== 'string') return null;
-	if (!Object.hasOwn(SERVER_FIELD_CHECKS, data.type)) return null;
-	const check = SERVER_FIELD_CHECKS[data.type as ServerMessage['type']];
-	return check?.(data) ? (data as unknown as ServerMessage) : null;
 }

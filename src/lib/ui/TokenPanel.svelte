@@ -8,7 +8,8 @@
 </script>
 
 <script lang="ts">
-	import { NAME_MAX_LENGTH, type PublicPlayer } from '$lib/game/protocol';
+	import { NAME_MAX_LENGTH } from '$lib/game/names';
+	import type { PublicPlayer } from '$lib/game/protocol';
 	import { MAX_TOKEN_LIFT, TOKEN_COLORS, TOKEN_SCALE, type Token } from '$lib/game/token';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import { MAX_VISION } from '$lib/game/visibility';
