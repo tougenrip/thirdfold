@@ -320,6 +320,25 @@ The rules track shares the version sequence ([#100](https://github.com/tougenrip
 Published wire values are accepted forever: the `{ambient}` effect, `ambient_set`, Shot frame
 `table` and the stored `tabletop` camera view.
 
+v10 (`src/lib/game/scene-versions.ts`) adds `world` (the world look, below), `interior` (roofed cells,
+a base64 mask checked to the grid's exact length by `decodeMaskExact`), each player's remembered
+lights in `discovery[name].lights` (checked like scene lights by `parseLightList`), and optional looks
+on lights (`LightLook`), tokens (`TokenLook`) and props (`PropLook`); absent means the default, so
+older content needs no new fields. A v9 file comes forward with `defaultWorldFor(ambient)` (under a
+sun, even underground), no roofs and no remembered lights. M66 takes v10; #100 takes v11.
+
+## World look
+
+`src/lib/game/world.ts` is the world's look as data (`WorldLook`): the hour (`time`, whole minutes
+0-1439), the clock's `rate` (stopped until #324), `sun`, a `sky` and grade `preset` (asset ids, null
+for the environment's), `weather` (kind, intensity, seed and the server-stamped `since`), `haze`,
+`exposure` and the `backdrop`. Only the hour is a rule, and only with a sun: `bandOf` gives the band
+(day 07:00-18:59, dusk 05:00-06:59 and 19:00-20:59, dark otherwise), and the room's `ambient` is
+always `ambientFor(world, ambient)`. A sunless table (underground) keeps its band whatever the hour.
+`canonicalTime` is each band's hour (12:00, 19:30, 23:00) and `withBand` moves a look into a band,
+snapping the hour only when it is outside it. Rules read `room.ambient`, never `world.time`; the rest
+is presentation. `world.spec.ts` pins every band edge, so moving a threshold is a deliberate change.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

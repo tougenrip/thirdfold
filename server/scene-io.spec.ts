@@ -140,3 +140,29 @@ describe('props in saved scenes', () => {
 		]);
 	});
 });
+
+describe('the world look, roofs and what players remember (v10)', () => {
+	it('saves and restores them; the band a room was set to stays, its hour moved into it', () => {
+		const t = room();
+		const pip = t.seat('Pip');
+		t.room.world = { ...t.room.world, haze: { density: 0.4, color: '#334455' } };
+		t.room.interior = new Uint8Array(t.room.grid.width * t.room.grid.height);
+		t.room.interior[7] = 1;
+		setAmbient(t.room, t.gm, 'dusk');
+		pip.explored[3] = 1;
+		const lamp = { id: 'lamp', pos: { x: 3, y: 0 }, radius: 3, color: '#ffa04d', on: true };
+		pip.seenLights = new Map([[lamp.id, lamp]]);
+		const file = exportScene(t.room, 'Roofs');
+		expect(file.discovery.Pip).toEqual({ explored: expect.any(String), lights: [lamp] });
+
+		const fresh = room();
+		const back = fresh.seat('pip');
+		applyScene(fresh.room, file);
+		expect(fresh.room.ambient).toBe('dusk');
+		expect(fresh.room.world).toMatchObject({ time: 1170, haze: { density: 0.4 } });
+		expect(fresh.room.interior?.[7]).toBe(1);
+		expect(back.explored[3]).toBe(1);
+		expect([...back.seenLights!.values()]).toEqual([lamp]);
+		expect(fresh.room.discovery?.get('pip')?.lights).toEqual([lamp]);
+	});
+});

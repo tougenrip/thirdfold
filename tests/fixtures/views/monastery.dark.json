@@ -5,9 +5,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 30,
-			"height": 20
+			"height": 20,
+			"cellSize": 1
 		},
 		"environment": "stone-halls",
 		"ambient": "dark",
@@ -187,9 +187,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 30,
-			"height": 20
+			"height": 20,
+			"cellSize": 1
 		},
 		"environment": "stone-halls",
 		"ambient": "dark",
@@ -369,9 +369,9 @@
 		"fogMode": "gm",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 30,
-			"height": 20
+			"height": 20,
+			"cellSize": 1
 		},
 		"environment": "stone-halls",
 		"ambient": "dark",

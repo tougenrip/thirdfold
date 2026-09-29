@@ -25,8 +25,7 @@ function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 describe('an aliased prop id', () => {
 	it('loads in a scene file, stored as the prop that replaced it', () => {
 		const scene = blankScene('Cellar', 6, 6, null);
-		expect(scene.version).toBe(9);
-		expect(SCENE_FILE_VERSION).toBe(9);
+		expect(scene.version).toBe(SCENE_FILE_VERSION);
 		scene.props = [
 			{ id: 'p1', assetId: 'old-crate' as never, pos: { x: 1, y: 1 }, rotation: 0, scale: 1 }
 		];

@@ -5,9 +5,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 26,
-			"height": 16
+			"height": 16,
+			"cellSize": 1
 		},
 		"environment": "ghost-town",
 		"ambient": "dusk",
@@ -127,9 +127,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 26,
-			"height": 16
+			"height": 16,
+			"cellSize": 1
 		},
 		"environment": "ghost-town",
 		"ambient": "dusk",
@@ -249,9 +249,9 @@
 		"fogMode": "gm",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 26,
-			"height": 16
+			"height": 16,
+			"cellSize": 1
 		},
 		"environment": "ghost-town",
 		"ambient": "dusk",

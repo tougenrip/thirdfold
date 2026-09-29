@@ -5,9 +5,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 16,
-			"height": 14
+			"height": 14,
+			"cellSize": 1
 		},
 		"environment": "living-cave",
 		"ambient": "day",
@@ -185,9 +185,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 16,
-			"height": 14
+			"height": 14,
+			"cellSize": 1
 		},
 		"environment": "living-cave",
 		"ambient": "day",
@@ -365,9 +365,9 @@
 		"fogMode": "gm",
 		"grid": {
 			"kind": "square",
-			"cellSize": 1,
 			"width": 16,
-			"height": 14
+			"height": 14,
+			"cellSize": 1
 		},
 		"environment": "living-cave",
 		"ambient": "day",

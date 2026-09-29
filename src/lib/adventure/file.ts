@@ -44,8 +44,7 @@ import { ASSET_ID_PATTERN } from '../assets/manifest';
 
 export const ADVENTURE_FILE_FORMAT = 'thirdfold-adventure';
 export const ADVENTURE_FILE_VERSION = 1;
-/** Serialized size cap, checked before parsing. */
-export const ADVENTURE_FILE_MAX_BYTES = 1024 * 1024;
+export { ADVENTURE_FILE_MAX_BYTES } from '../game/file-limits';
 
 /** Limits on how much an adventure holds. */
 export const ADVENTURE_LIMITS = {

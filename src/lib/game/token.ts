@@ -3,7 +3,20 @@
 
 import type { GridPos } from './grid';
 
-export interface Token {
+/** How a miniature is drawn; look only. Every field is optional. */
+export interface TokenLook {
+	/** Size against a plain miniature, 0.5 to 3. */
+	scale: number;
+	/** Raised off its floor, in levels (a flier), 0 to 10. */
+	lift: number;
+	/** The colour of the light it carries, `#rrggbb`. */
+	lightColor: string;
+}
+
+export const TOKEN_SCALE = { min: 0.5, max: 3 };
+export const MAX_TOKEN_LIFT = 10;
+
+export interface Token extends Partial<TokenLook> {
 	id: string;
 	name: string;
 	/** `#rrggbb`. */
@@ -25,6 +38,29 @@ export interface Token {
 }
 
 export const TOKEN_COLOR_PATTERN = /^#[0-9a-f]{6}$/;
+
+const num = (v: unknown, min: number, max: number) =>
+	typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+
+/** The look fields present on `raw`, or null when any is invalid. Absent fields stay absent. */
+export function parseTokenLook(raw: Record<string, unknown>): Partial<TokenLook> | null {
+	const look: Partial<TokenLook> = {};
+	if (raw.scale !== undefined) {
+		if (!num(raw.scale, TOKEN_SCALE.min, TOKEN_SCALE.max)) return null;
+		look.scale = raw.scale as number;
+	}
+	if (raw.lift !== undefined) {
+		if (!num(raw.lift, 0, MAX_TOKEN_LIFT)) return null;
+		look.lift = raw.lift as number;
+	}
+	if (raw.lightColor !== undefined) {
+		if (typeof raw.lightColor !== 'string' || !TOKEN_COLOR_PATTERN.test(raw.lightColor)) {
+			return null;
+		}
+		look.lightColor = raw.lightColor;
+	}
+	return look;
+}
 
 /** Suggested colours for the GM's picker; any `#rrggbb` is accepted. */
 export const TOKEN_COLORS = [
