@@ -35,9 +35,13 @@ export function emitter(files: Map<string, Buffer>): Emit {
 	};
 }
 
-/** Files in a folder (none if it doesn't exist), sorted so builds are stable. */
+/** Files in a folder (none if it doesn't exist), sorted so builds are stable. `_`-files describe the folder (licence.ts). */
 export function list(dir: string): string[] {
-	return existsSync(dir) ? readdirSync(dir).sort() : [];
+	return existsSync(dir)
+		? readdirSync(dir)
+				.filter((n) => !n.startsWith('_'))
+				.sort()
+		: [];
 }
 
 export function readJson(file: string): unknown {
@@ -60,13 +64,13 @@ export function idOf(file: string, dir: string): { id: string; ext: string } {
 	return { id: match[1], ext: match[2] };
 }
 
-/** An `<id>.meta.json` describes the `<id>.<file>` beside it: refused alone, or beside a recipe. */
-export function checkMeta(dir: string, id: string, file: string): void {
+/** An `<id>.meta.json` describes the `<id>.<ext>` beside it: refused alone, or beside a recipe. */
+export function checkMeta(dir: string, id: string, ...exts: string[]): void {
 	const meta = path.join(dir, `${id}.meta.json`);
 	if (existsSync(path.join(dir, `${id}.json`))) {
 		throw new AssetError(meta, `a .json source says this itself, not a .meta.json`);
 	}
-	if (!existsSync(path.join(dir, `${id}.${file}`))) {
-		throw new AssetError(meta, `describes an <id>.${file} that is not there`);
+	if (!exts.some((ext) => existsSync(path.join(dir, `${id}.${ext}`)))) {
+		throw new AssetError(meta, `describes an <id>.${exts.join(' or ')} that is not there`);
 	}
 }

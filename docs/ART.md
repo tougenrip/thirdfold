@@ -225,7 +225,8 @@ The floor and wall surfaces (#187) start from CC0 scans, repainted so they read 
 ## 12. Sources and licences
 
 The allowlist, as SPDX ids. `LICENSES` in `src/lib/assets/manifest.ts` is exactly this list;
-change both together. #189 makes a credit from it required on every file.
+change both together. Every file's manifest entry carries a credit from it (#189; the checks are in
+`server/assets/licence.ts`, the rules in docs/ASSETS.md, "Licences and provenance").
 
 | Licence                             | Conditions                                                   |
 | ----------------------------------- | ------------------------------------------------------------ |

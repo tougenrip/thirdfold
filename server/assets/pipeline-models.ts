@@ -13,6 +13,7 @@ import {
 	type ModelEntry
 } from '../../src/lib/assets/manifest';
 import { checkGlb, writeGlb } from './glb';
+import { creditOf, provenanceFor } from './licence';
 import { bakeModel, isModelKind, readModelSource } from './models';
 import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 
@@ -77,6 +78,7 @@ export function buildModels(
 			} catch (err) {
 				throw err instanceof AssetError ? err : new AssetError(source, (err as Error).message);
 			}
+			const credit = creditOf(provenanceFor(kindDir, id, ext));
 			if (setPiece && kind !== 'prop') throw new AssetError(source, 'only a prop is a set piece');
 			const checked = checkGlb(glb);
 			if (!checked.ok) throw new AssetError(source, checked.error);
@@ -103,6 +105,7 @@ export function buildModels(
 				triangles,
 				bounds: { min: round(bounds.min), max: round(bounds.max) },
 				gpuBytes,
+				credit,
 				...(swing ? { swing } : {}),
 				...(setPiece ? { setPiece: true as const } : {})
 			};

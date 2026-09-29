@@ -19,7 +19,11 @@
 					0.22
 				]
 			},
-			"gpuBytes": 27172
+			"gpuBytes": 27172,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"saint": {
 			"file": "models/saint.9b0c9851.glb",
@@ -39,7 +43,11 @@
 					0.268
 				]
 			},
-			"gpuBytes": 12384
+			"gpuBytes": 12384,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"veil": {
 			"file": "models/veil.b514bfdc.glb",
@@ -59,7 +67,11 @@
 					0.21
 				]
 			},
-			"gpuBytes": 13516
+			"gpuBytes": 13516,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"warden": {
 			"file": "models/warden.bc25ba67.glb",
@@ -79,7 +91,11 @@
 					0.24
 				]
 			},
-			"gpuBytes": 15668
+			"gpuBytes": 15668,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"armored-brute": {
 			"file": "models/armored-brute.1e3fc884.glb",
@@ -99,7 +115,11 @@
 					0.22
 				]
 			},
-			"gpuBytes": 17024
+			"gpuBytes": 17024,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"giant-hand": {
 			"file": "models/giant-hand.54761626.glb",
@@ -119,7 +139,11 @@
 					0.297
 				]
 			},
-			"gpuBytes": 11912
+			"gpuBytes": 11912,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"hatted-shade": {
 			"file": "models/hatted-shade.601aa10c.glb",
@@ -139,7 +163,11 @@
 					0.29
 				]
 			},
-			"gpuBytes": 20076
+			"gpuBytes": 20076,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"hound": {
 			"file": "models/hound.0dc2d521.glb",
@@ -159,7 +187,11 @@
 					0.6
 				]
 			},
-			"gpuBytes": 29572
+			"gpuBytes": 29572,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"pulsing-mass": {
 			"file": "models/pulsing-mass.71b526f3.glb",
@@ -179,7 +211,11 @@
 					0.31
 				]
 			},
-			"gpuBytes": 17544
+			"gpuBytes": 17544,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"robed-figure": {
 			"file": "models/robed-figure.d112ef17.glb",
@@ -199,7 +235,11 @@
 					0.22
 				]
 			},
-			"gpuBytes": 15636
+			"gpuBytes": 15636,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"tentacle": {
 			"file": "models/tentacle.14d8b1e6.glb",
@@ -219,7 +259,11 @@
 					0.189
 				]
 			},
-			"gpuBytes": 26040
+			"gpuBytes": 26040,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"child": {
 			"file": "models/child.b29197f6.glb",
@@ -239,7 +283,11 @@
 					0.14
 				]
 			},
-			"gpuBytes": 16616
+			"gpuBytes": 16616,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"elder": {
 			"file": "models/elder.b5a53331.glb",
@@ -259,7 +307,11 @@
 					0.165
 				]
 			},
-			"gpuBytes": 19288
+			"gpuBytes": 19288,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"gravedigger": {
 			"file": "models/gravedigger.b776df81.glb",
@@ -279,7 +331,11 @@
 					0.15
 				]
 			},
-			"gpuBytes": 16876
+			"gpuBytes": 16876,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"monk": {
 			"file": "models/monk.9aede13c.glb",
@@ -299,7 +355,11 @@
 					0.23
 				]
 			},
-			"gpuBytes": 15084
+			"gpuBytes": 15084,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"priest": {
 			"file": "models/priest.73357485.glb",
@@ -319,7 +379,11 @@
 					0.256
 				]
 			},
-			"gpuBytes": 9160
+			"gpuBytes": 9160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"smith": {
 			"file": "models/smith.5a991d2b.glb",
@@ -339,7 +403,11 @@
 					0.17
 				]
 			},
-			"gpuBytes": 18616
+			"gpuBytes": 18616,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"villager": {
 			"file": "models/villager.db6b742b.glb",
@@ -359,7 +427,11 @@
 					0.215
 				]
 			},
-			"gpuBytes": 16508
+			"gpuBytes": 16508,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"watchman": {
 			"file": "models/watchman.e5e2211c.glb",
@@ -379,7 +451,11 @@
 					0.16
 				]
 			},
-			"gpuBytes": 19756
+			"gpuBytes": 19756,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"wide-hat": {
 			"file": "models/wide-hat.e7c82a3f.glb",
@@ -399,7 +475,11 @@
 					0.25
 				]
 			},
-			"gpuBytes": 14768
+			"gpuBytes": 14768,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"altar": {
 			"file": "models/altar.2ecddf68.glb",
@@ -419,7 +499,11 @@
 					0.45
 				]
 			},
-			"gpuBytes": 6448
+			"gpuBytes": 6448,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"anvil": {
 			"file": "models/anvil.4639f8b7.glb",
@@ -439,7 +523,11 @@
 					0.175
 				]
 			},
-			"gpuBytes": 2820
+			"gpuBytes": 2820,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"ashes": {
 			"file": "models/ashes.b165f2fb.glb",
@@ -459,7 +547,11 @@
 					0.3
 				]
 			},
-			"gpuBytes": 10920
+			"gpuBytes": 10920,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"barrel": {
 			"file": "models/barrel.6a621d91.glb",
@@ -479,7 +571,11 @@
 					0.37
 				]
 			},
-			"gpuBytes": 8016
+			"gpuBytes": 8016,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"bed": {
 			"file": "models/bed.13798cf7.glb",
@@ -499,7 +595,11 @@
 					0.95
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"belfry-bell": {
 			"file": "models/belfry-bell.65284073.glb",
@@ -520,6 +620,10 @@
 				]
 			},
 			"gpuBytes": 15248,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
 			"swing": {
 				"pivot": 2.55,
 				"throw": 0.5
@@ -543,7 +647,11 @@
 					0.65
 				]
 			},
-			"gpuBytes": 9904
+			"gpuBytes": 9904,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"boiler": {
 			"file": "models/boiler.95fa67e1.glb",
@@ -563,7 +671,11 @@
 					0.85
 				]
 			},
-			"gpuBytes": 7000
+			"gpuBytes": 7000,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"bookshelf": {
 			"file": "models/bookshelf.7efb81b0.glb",
@@ -583,7 +695,11 @@
 					0.24
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"brazier": {
 			"file": "models/brazier.2c1b49a3.glb",
@@ -603,7 +719,11 @@
 					0.3
 				]
 			},
-			"gpuBytes": 10688
+			"gpuBytes": 10688,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"broken-bell": {
 			"file": "models/broken-bell.be590db4.glb",
@@ -623,7 +743,11 @@
 					1.25
 				]
 			},
-			"gpuBytes": 3924
+			"gpuBytes": 3924,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"carvings": {
 			"file": "models/carvings.89ed8e26.glb",
@@ -643,7 +767,11 @@
 					-0.315
 				]
 			},
-			"gpuBytes": 8740
+			"gpuBytes": 8740,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"chains": {
 			"file": "models/chains.0669f14f.glb",
@@ -663,7 +791,11 @@
 					0.125
 				]
 			},
-			"gpuBytes": 21080
+			"gpuBytes": 21080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"chair": {
 			"file": "models/chair.c50bf515.glb",
@@ -683,7 +815,11 @@
 					0.25
 				]
 			},
-			"gpuBytes": 3312
+			"gpuBytes": 3312,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"chest-open": {
 			"file": "models/chest-open.300da21d.glb",
@@ -703,7 +839,11 @@
 					0.36
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"chest": {
 			"file": "models/chest.278a1d61.glb",
@@ -723,7 +863,11 @@
 					0.31
 				]
 			},
-			"gpuBytes": 1656
+			"gpuBytes": 1656,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"coffin-open": {
 			"file": "models/coffin-open.d4228be9.glb",
@@ -743,7 +887,11 @@
 					0.92
 				]
 			},
-			"gpuBytes": 1656
+			"gpuBytes": 1656,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"coffin": {
 			"file": "models/coffin.ae8a8aac.glb",
@@ -763,7 +911,11 @@
 					0.87
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"crack": {
 			"file": "models/crack.c1567410.glb",
@@ -783,7 +935,11 @@
 					0.45
 				]
 			},
-			"gpuBytes": 1656
+			"gpuBytes": 1656,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"crate": {
 			"file": "models/crate.19ff9d96.glb",
@@ -803,7 +959,11 @@
 					0.42
 				]
 			},
-			"gpuBytes": 1104
+			"gpuBytes": 1104,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"gear": {
 			"file": "models/gear.f2600d66.glb",
@@ -823,7 +983,11 @@
 					1
 				]
 			},
-			"gpuBytes": 9120
+			"gpuBytes": 9120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grate": {
 			"file": "models/grate.8203a03f.glb",
@@ -843,7 +1007,11 @@
 					0.4
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"gravestone": {
 			"file": "models/gravestone.a49a6555.glb",
@@ -863,7 +1031,11 @@
 					0.45
 				]
 			},
-			"gpuBytes": 1104
+			"gpuBytes": 1104,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"great-bell": {
 			"file": "models/great-bell.4883796b.glb",
@@ -883,7 +1055,11 @@
 					1.425
 				]
 			},
-			"gpuBytes": 16352
+			"gpuBytes": 16352,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"handbell": {
 			"file": "models/handbell.5d91fcc4.glb",
@@ -903,7 +1079,11 @@
 					0.17
 				]
 			},
-			"gpuBytes": 10920
+			"gpuBytes": 10920,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"hatch-open": {
 			"file": "models/hatch-open.bd866af8.glb",
@@ -923,7 +1103,11 @@
 					0.35
 				]
 			},
-			"gpuBytes": 1104
+			"gpuBytes": 1104,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"hatch": {
 			"file": "models/hatch.302693f1.glb",
@@ -943,7 +1127,11 @@
 					0.4
 				]
 			},
-			"gpuBytes": 1104
+			"gpuBytes": 1104,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"heart": {
 			"file": "models/heart.bcd49f98.glb",
@@ -963,7 +1151,11 @@
 					1.35
 				]
 			},
-			"gpuBytes": 22184
+			"gpuBytes": 22184,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"keys": {
 			"file": "models/keys.db12febb.glb",
@@ -983,7 +1175,11 @@
 					0.3
 				]
 			},
-			"gpuBytes": 3776
+			"gpuBytes": 3776,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"lever-down": {
 			"file": "models/lever-down.e1cf3285.glb",
@@ -1004,6 +1200,10 @@
 				]
 			},
 			"gpuBytes": 8188,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
 			"swing": {
 				"pivot": 0.22,
 				"throw": -1.5708
@@ -1028,6 +1228,10 @@
 				]
 			},
 			"gpuBytes": 8188,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
 			"swing": {
 				"pivot": 0.22,
 				"throw": 1.5708
@@ -1051,7 +1255,11 @@
 					0.05
 				]
 			},
-			"gpuBytes": 2760
+			"gpuBytes": 2760,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"paper": {
 			"file": "models/paper.58e74404.glb",
@@ -1071,7 +1279,11 @@
 					0.128
 				]
 			},
-			"gpuBytes": 1104
+			"gpuBytes": 1104,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"pew": {
 			"file": "models/pew.341ebe3e.glb",
@@ -1091,7 +1303,11 @@
 					0.225
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"pillar": {
 			"file": "models/pillar.e718fd26.glb",
@@ -1111,7 +1327,11 @@
 					0.45
 				]
 			},
-			"gpuBytes": 3776
+			"gpuBytes": 3776,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"rope": {
 			"file": "models/rope.726131ce.glb",
@@ -1131,7 +1351,11 @@
 					0.08
 				]
 			},
-			"gpuBytes": 9204
+			"gpuBytes": 9204,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"rubble": {
 			"file": "models/rubble.a4106dba.glb",
@@ -1151,7 +1375,11 @@
 					0.29
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"rug": {
 			"file": "models/rug.10079dfc.glb",
@@ -1171,7 +1399,11 @@
 					0.95
 				]
 			},
-			"gpuBytes": 552
+			"gpuBytes": 552,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"sconce": {
 			"file": "models/sconce.5e41d518.glb",
@@ -1191,7 +1423,11 @@
 					0.15
 				]
 			},
-			"gpuBytes": 9732
+			"gpuBytes": 9732,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"stairs": {
 			"file": "models/stairs.400b0c45.glb",
@@ -1211,7 +1447,11 @@
 					0.45
 				]
 			},
-			"gpuBytes": 2208
+			"gpuBytes": 2208,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"statue": {
 			"file": "models/statue.7a42c58a.glb",
@@ -1231,7 +1471,11 @@
 					0.4
 				]
 			},
-			"gpuBytes": 9756
+			"gpuBytes": 9756,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"stove": {
 			"file": "models/stove.f6a96a35.glb",
@@ -1251,7 +1495,11 @@
 					0.25
 				]
 			},
-			"gpuBytes": 12428
+			"gpuBytes": 12428,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"strongbox": {
 			"file": "models/strongbox.f0f676a5.glb",
@@ -1271,7 +1519,11 @@
 					0.25
 				]
 			},
-			"gpuBytes": 1656
+			"gpuBytes": 1656,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"table": {
 			"file": "models/table.3a6779b8.glb",
@@ -1291,7 +1543,11 @@
 					0.45
 				]
 			},
-			"gpuBytes": 2760
+			"gpuBytes": 2760,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"tree": {
 			"file": "models/tree.a685b5e2.glb",
@@ -1311,7 +1567,11 @@
 					0.55
 				]
 			},
-			"gpuBytes": 6104
+			"gpuBytes": 6104,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"water-lg": {
 			"file": "models/water-lg.dd0a2e6b.glb",
@@ -1331,7 +1591,11 @@
 					2
 				]
 			},
-			"gpuBytes": 552
+			"gpuBytes": 552,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"water-sm": {
 			"file": "models/water-sm.b61cc84b.glb",
@@ -1351,7 +1615,11 @@
 					0.5
 				]
 			},
-			"gpuBytes": 552
+			"gpuBytes": 552,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"water": {
 			"file": "models/water.423e338b.glb",
@@ -1371,7 +1639,11 @@
 					1
 				]
 			},
-			"gpuBytes": 552
+			"gpuBytes": 552,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"well": {
 			"file": "models/well.bd05d56c.glb",
@@ -1391,7 +1663,11 @@
 					0.75
 				]
 			},
-			"gpuBytes": 9672
+			"gpuBytes": 9672,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		}
 	},
 	"textures": {
@@ -1406,7 +1682,11 @@
 			"height": 128,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 87382
+			"gpuBytes": 87382,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"earth": {
 			"file": "textures/earth.7ddfc394.png",
@@ -1419,7 +1699,11 @@
 			"height": 128,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 87382
+			"gpuBytes": 87382,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"flagstones": {
 			"file": "textures/flagstones.a9be9fad.png",
@@ -1432,7 +1716,11 @@
 			"height": 128,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 87382
+			"gpuBytes": 87382,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"flesh": {
 			"file": "textures/flesh.f24c20fb.png",
@@ -1445,7 +1733,11 @@
 			"height": 128,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 87382
+			"gpuBytes": 87382,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grass": {
 			"file": "textures/grass.a62dc809.png",
@@ -1458,7 +1750,11 @@
 			"height": 128,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 87382
+			"gpuBytes": 87382,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"lens-dirt": {
 			"file": "textures/lens-dirt.e6438b1c.png",
@@ -1471,7 +1767,11 @@
 			"height": 256,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 349526
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"paint-gloss": {
 			"file": "textures/paint-gloss.3b79392c.png",
@@ -1484,7 +1784,11 @@
 			"height": 256,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 349526
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"paint-normal": {
 			"file": "textures/paint-normal.c002c2e1.png",
@@ -1497,7 +1801,11 @@
 			"height": 256,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 349526
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"planks": {
 			"file": "textures/planks.0b8541ad.png",
@@ -1510,7 +1818,11 @@
 			"height": 128,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 87382
+			"gpuBytes": 87382,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"rock": {
 			"file": "textures/rock.51df64a3.png",
@@ -1523,7 +1835,11 @@
 			"height": 64,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 21846
+			"gpuBytes": 21846,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-day-agx": {
 			"file": "textures/grade-cavern-day-agx.015cbb43.png",
@@ -1536,7 +1852,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-dusk-agx": {
 			"file": "textures/grade-cavern-dusk-agx.78e80ab0.png",
@@ -1549,7 +1869,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-dark-agx": {
 			"file": "textures/grade-cavern-dark-agx.9994fac0.png",
@@ -1562,7 +1886,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-day-aces": {
 			"file": "textures/grade-cavern-day-aces.fce37880.png",
@@ -1575,7 +1903,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-dusk-aces": {
 			"file": "textures/grade-cavern-dusk-aces.bd3d1546.png",
@@ -1588,7 +1920,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-dark-aces": {
 			"file": "textures/grade-cavern-dark-aces.0e9947a9.png",
@@ -1601,7 +1937,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-day-neutral": {
 			"file": "textures/grade-cavern-day-neutral.b82b4d7a.png",
@@ -1614,7 +1954,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-dusk-neutral": {
 			"file": "textures/grade-cavern-dusk-neutral.7932a5af.png",
@@ -1627,7 +1971,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-cavern-dark-neutral": {
 			"file": "textures/grade-cavern-dark-neutral.18ac4a2d.png",
@@ -1640,7 +1988,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-day-agx": {
 			"file": "textures/grade-ghost-town-day-agx.bc10e2ee.png",
@@ -1653,7 +2005,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-dusk-agx": {
 			"file": "textures/grade-ghost-town-dusk-agx.24e5daac.png",
@@ -1666,7 +2022,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-dark-agx": {
 			"file": "textures/grade-ghost-town-dark-agx.ff183382.png",
@@ -1679,7 +2039,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-day-aces": {
 			"file": "textures/grade-ghost-town-day-aces.a6cf23a0.png",
@@ -1692,7 +2056,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-dusk-aces": {
 			"file": "textures/grade-ghost-town-dusk-aces.48891263.png",
@@ -1705,7 +2073,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-dark-aces": {
 			"file": "textures/grade-ghost-town-dark-aces.abe211c7.png",
@@ -1718,7 +2090,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-day-neutral": {
 			"file": "textures/grade-ghost-town-day-neutral.98ada5ad.png",
@@ -1731,7 +2107,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-dusk-neutral": {
 			"file": "textures/grade-ghost-town-dusk-neutral.af379c54.png",
@@ -1744,7 +2124,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-ghost-town-dark-neutral": {
 			"file": "textures/grade-ghost-town-dark-neutral.785d7647.png",
@@ -1757,7 +2141,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-day-agx": {
 			"file": "textures/grade-living-cave-day-agx.2fca3773.png",
@@ -1770,7 +2158,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-dusk-agx": {
 			"file": "textures/grade-living-cave-dusk-agx.9b4bf782.png",
@@ -1783,7 +2175,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-dark-agx": {
 			"file": "textures/grade-living-cave-dark-agx.a5bf1be2.png",
@@ -1796,7 +2192,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-day-aces": {
 			"file": "textures/grade-living-cave-day-aces.60be480f.png",
@@ -1809,7 +2209,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-dusk-aces": {
 			"file": "textures/grade-living-cave-dusk-aces.c448222f.png",
@@ -1822,7 +2226,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-dark-aces": {
 			"file": "textures/grade-living-cave-dark-aces.3389fde6.png",
@@ -1835,7 +2243,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-day-neutral": {
 			"file": "textures/grade-living-cave-day-neutral.81638be1.png",
@@ -1848,7 +2260,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-dusk-neutral": {
 			"file": "textures/grade-living-cave-dusk-neutral.46108b74.png",
@@ -1861,7 +2277,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-living-cave-dark-neutral": {
 			"file": "textures/grade-living-cave-dark-neutral.789e8bc4.png",
@@ -1874,7 +2294,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-day-agx": {
 			"file": "textures/grade-railcar-day-agx.d3d771fc.png",
@@ -1887,7 +2311,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-dusk-agx": {
 			"file": "textures/grade-railcar-dusk-agx.613586b1.png",
@@ -1900,7 +2328,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-dark-agx": {
 			"file": "textures/grade-railcar-dark-agx.f2af981f.png",
@@ -1913,7 +2345,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-day-aces": {
 			"file": "textures/grade-railcar-day-aces.1c555de7.png",
@@ -1926,7 +2362,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-dusk-aces": {
 			"file": "textures/grade-railcar-dusk-aces.d994cba0.png",
@@ -1939,7 +2379,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-dark-aces": {
 			"file": "textures/grade-railcar-dark-aces.e9eb129f.png",
@@ -1952,7 +2396,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-day-neutral": {
 			"file": "textures/grade-railcar-day-neutral.e61b153c.png",
@@ -1965,7 +2413,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-dusk-neutral": {
 			"file": "textures/grade-railcar-dusk-neutral.82ccb62c.png",
@@ -1978,7 +2430,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-railcar-dark-neutral": {
 			"file": "textures/grade-railcar-dark-neutral.067372df.png",
@@ -1991,7 +2447,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-day-agx": {
 			"file": "textures/grade-stone-halls-day-agx.0b274461.png",
@@ -2004,7 +2464,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-dusk-agx": {
 			"file": "textures/grade-stone-halls-dusk-agx.3b04478c.png",
@@ -2017,7 +2481,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-dark-agx": {
 			"file": "textures/grade-stone-halls-dark-agx.969e8a09.png",
@@ -2030,7 +2498,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-day-aces": {
 			"file": "textures/grade-stone-halls-day-aces.a1091e63.png",
@@ -2043,7 +2515,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-dusk-aces": {
 			"file": "textures/grade-stone-halls-dusk-aces.b9ca8df3.png",
@@ -2056,7 +2532,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-dark-aces": {
 			"file": "textures/grade-stone-halls-dark-aces.03495bc7.png",
@@ -2069,7 +2549,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-day-neutral": {
 			"file": "textures/grade-stone-halls-day-neutral.655f8afe.png",
@@ -2082,7 +2566,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-dusk-neutral": {
 			"file": "textures/grade-stone-halls-dusk-neutral.2d9dab49.png",
@@ -2095,7 +2583,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-stone-halls-dark-neutral": {
 			"file": "textures/grade-stone-halls-dark-neutral.fc9aaae9.png",
@@ -2108,7 +2600,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-day-agx": {
 			"file": "textures/grade-village-day-agx.939d679b.png",
@@ -2121,7 +2617,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-dusk-agx": {
 			"file": "textures/grade-village-dusk-agx.b39349e6.png",
@@ -2134,7 +2634,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-dark-agx": {
 			"file": "textures/grade-village-dark-agx.a67b4c0b.png",
@@ -2147,7 +2651,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-day-aces": {
 			"file": "textures/grade-village-day-aces.1fe5a3ea.png",
@@ -2160,7 +2668,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-dusk-aces": {
 			"file": "textures/grade-village-dusk-aces.318bc694.png",
@@ -2173,7 +2685,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-dark-aces": {
 			"file": "textures/grade-village-dark-aces.87c4e354.png",
@@ -2186,7 +2702,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-day-neutral": {
 			"file": "textures/grade-village-day-neutral.0a96d136.png",
@@ -2199,7 +2719,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-dusk-neutral": {
 			"file": "textures/grade-village-dusk-neutral.3d2e65f0.png",
@@ -2212,7 +2736,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"grade-village-dark-neutral": {
 			"file": "textures/grade-village-dark-neutral.eeecafb8.png",
@@ -2225,7 +2753,11 @@
 			"height": 32,
 			"layers": 1,
 			"levels": 1,
-			"gpuBytes": 174763
+			"gpuBytes": 174763,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		}
 	},
 	"materials": {
@@ -2487,14 +3019,22 @@
 			"sha256": "d370c2af4c6414b770b93df14254185353d031ab3518650aed1ab30b37023c03",
 			"bytes": 288044,
 			"format": "wav",
-			"duration": 9
+			"duration": 9,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		},
 		"bell-hand": {
 			"file": "audio/bell-hand.0af6d182.wav",
 			"sha256": "0af6d182efcdd1d62ed9d224c70eee4fd266d9bc2eba227b175edeb1027d2c85",
 			"bytes": 70444,
 			"format": "wav",
-			"duration": 2.2
+			"duration": 2.2,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			}
 		}
 	},
 	"packs": {}

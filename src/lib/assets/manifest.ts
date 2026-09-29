@@ -179,7 +179,7 @@ export function limitClass(
 	return entry.kind === 'decor' ? 'prop' : entry.kind;
 }
 
-/** Where an asset came from and on what terms, in brief (#189 makes it required). */
+/** Where an asset came from and on what terms, in brief: required on every file (#189). */
 export interface Credit {
 	license: License;
 	author: string;
@@ -197,7 +197,7 @@ export interface FileInfo {
 	bytes: number;
 	/** The whole file's SHA-256; the name carries its first 8 hex digits. */
 	sha256: string;
-	credit?: Credit;
+	credit: Credit;
 }
 
 export interface ModelLod {

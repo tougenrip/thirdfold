@@ -258,6 +258,12 @@ describe('the pipeline on other sources', () => {
 			)
 		);
 		writeFileSync(path.join(src, 'models', 'npc', 'golem.glb'), glb);
+		writeFileSync(
+			path.join(src, 'models', 'npc', 'golem.meta.json'),
+			JSON.stringify({
+				provenance: { license: 'LicenseRef-thirdfold-original', author: 'us', modified: false }
+			})
+		);
 		expect(buildAssets(src).manifest.models.golem).toMatchObject({ kind: 'npc', triangles: 12 });
 		const length = glb.readUInt32LE(12);
 		const text = glb

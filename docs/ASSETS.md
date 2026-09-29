@@ -187,6 +187,28 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   tables and checks every prop, figure and environment it uses against the manifest. That covers
   the people on its tables and the characters and enemies the story places. Scenes themselves stay
   on the server: a table holds the story's secrets.
+- **Licences and provenance** (#189, `server/assets/licence.ts`, tests in `licence.spec.ts`).
+  Every source says on what terms we have it, and the build refuses anything else:
+  - The licence is one of `LICENSES` (CC0-1.0, CC-BY-4.0, `LicenseRef-thirdfold-commissioned`,
+    `LicenseRef-thirdfold-original`); store licences, NC and ND variants and any other
+    `LicenseRef-*` are refused. CC0 and CC-BY need a source (an https URL and the SHA-256 of the
+    download); every record needs an author and `modified`.
+  - AI output needs `modified: true` (repainted by a person), a `paid` or `self-hosted` plan and
+    the date; Hunyuan3D is refused by name (`AI_DENYLIST`).
+  - A binary source (`.glb`, `.png`, `.ktx2`, `.wav`, `.ogg`) carries its own
+    `<id>.meta.json` with a `provenance` record. A text source (a part list, a recipe,
+    `materials.json`, an environment, a grade) falls back on its folder's `_provenance.json`,
+    which may only grant `LicenseRef-thirdfold-original`. Every folder in `assets/` has one
+    today, crediting "thirdfold contributors". Files starting with `_` are never sources.
+  - Each file's manifest entry carries a compact `credit` (`license`, `author`, the source's URL,
+    `modified` when it was, the AI tool), required by `parseManifest`. `/credits`
+    (`src/routes/credits/+page.svelte`) lists them by licence and author, the AI-assisted ones,
+    and the shipped code and fonts from `src/lib/credits.ts` (its npm entries' licences are
+    checked against their `package.json` in `credits.spec.ts`; the decoders three.js vendors are
+    listed by hand).
+  - `checkCredits` (run by `npm run assets`) fails when an id, a pack name or a credit names a
+    story's people, foes, places or chapters (whole names, from every built-in adventure): the
+    manifest is public.
 
 ## The manifest (version 2)
 
@@ -196,7 +218,7 @@ each optional until then: a model's `lods` (levels after LOD0, coarsest last, ea
 triangles and the `screenSize` below which it is drawn; their meshes are `<role>_lod<n>` in the
 same GLB, since three's GLTFLoader strips `.` from names), `cooked`, `materials` (manifest
 materials a kit piece or decor wears), a kit piece's `pivot` and `footprint`, a `preview` model
-and a `thumbnail`; `credit` on every file (`{ license, author, source?, modified?, ai? }`, #189);
+and a `thumbnail`; `credit`, required on every file (`{ license, author, source?, modified?, ai? }`, #189);
 `pack` on every file and the `packs` they add up to (#192); `surfaces` (#187) and an
 environment's `surfaces`; and the KTX2 transcoder's folder under `decoders` (#188). Part lists get
 no LODs.

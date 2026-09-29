@@ -6,7 +6,8 @@ import path from 'node:path';
 import { AUDIO_LIMITS, type AudioEntry } from '../../src/lib/assets/manifest';
 import { BELLS, type BellSize } from '../../src/lib/audio/bell';
 import { audioInfo, encodeWav, renderBell } from './audio';
-import { AssetError, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
+import { creditOf, provenanceFor } from './licence';
+import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 
 export function buildAudio(dir: string, emit: Emit): Record<string, AudioEntry> {
 	const audio: Record<string, AudioEntry> = {};
@@ -14,7 +15,12 @@ export function buildAudio(dir: string, emit: Emit): Record<string, AudioEntry> 
 	for (const name of list(audioDir)) {
 		const source = path.join(audioDir, name);
 		const { id, ext } = idOf(name, audioDir);
-		if (id in audio) throw new AssetError(source, 'a sound with this id already exists');
+		if (ext === 'meta.json') {
+			checkMeta(audioDir, id, 'wav', 'ogg');
+			continue;
+		}
+		if (Object.hasOwn(audio, id))
+			throw new AssetError(source, 'a sound with this id already exists');
 		let data: Buffer;
 		if (ext === 'json') {
 			const raw = readJson(source);
@@ -37,7 +43,8 @@ export function buildAudio(dir: string, emit: Emit): Record<string, AudioEntry> 
 			...emit('audio', id, info.format, data),
 			bytes: data.length,
 			format: info.format,
-			duration: Math.round(info.duration * 1000) / 1000
+			duration: Math.round(info.duration * 1000) / 1000,
+			credit: creditOf(provenanceFor(audioDir, id, ext))
 		};
 	}
 	return audio;

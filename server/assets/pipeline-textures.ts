@@ -11,11 +11,13 @@ import {
 	TONE_MAPPERS,
 	USAGE_SPACE,
 	limitClass,
+	type Credit,
 	type EnvironmentDef,
 	type TextureEntry,
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
 import { BANDS, LUT_SIZE, readGrades, renderGrade, stripProblem } from './grades';
+import { creditOf, provenanceFor } from './licence';
 import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 import { encodePng, pngSize } from './png';
 import { readTextureSource, renderTexture } from './textures';
@@ -34,7 +36,8 @@ function pngTexture(
 	source: string,
 	id: string,
 	png: Buffer,
-	usage: TextureUsage
+	usage: TextureUsage,
+	credit: Credit
 ): TextureEntry {
 	const size = pngSize(png);
 	if (!size) throw new AssetError(source, 'not a PNG');
@@ -55,7 +58,8 @@ function pngTexture(
 		...size,
 		layers: 1,
 		levels: 1,
-		gpuBytes
+		gpuBytes,
+		credit
 	};
 }
 
@@ -88,7 +92,8 @@ export function buildTextures(dir: string, emit: Emit): Record<string, TextureEn
 			const meta = path.join(textureDir, `${id}.meta.json`);
 			usage = usageOf(existsSync(meta) ? readJson(meta) : {}, meta);
 		} else throw new AssetError(source, 'textures are .json recipes or .png images');
-		textures[id] = pngTexture(emit, source, id, png, usage);
+		const credit = creditOf(provenanceFor(textureDir, id, ext));
+		textures[id] = pngTexture(emit, source, id, png, usage, credit);
 	}
 	return textures;
 }
@@ -106,6 +111,7 @@ export function buildGrades(
 		const { id, ext } = idOf(name, gradeDir);
 		if (ext !== 'json') throw new AssetError(source, 'grades are .json');
 		if (!(id in environments)) throw new AssetError(source, `no environment "${id}"`);
+		const credit = creditOf(provenanceFor(gradeDir, id, ext));
 		let grades;
 		try {
 			grades = readGrades(readJson(source));
@@ -123,7 +129,7 @@ export function buildGrades(
 				if (Object.hasOwn(textures, texture))
 					throw new AssetError(source, `texture "${texture}" exists`);
 				const png = encodePng(LUT_SIZE * LUT_SIZE, LUT_SIZE, strip, 'sub');
-				textures[texture] = pngTexture(emit, source, texture, png, 'lut');
+				textures[texture] = pngTexture(emit, source, texture, png, 'lut', credit);
 				lut[tm][band] = texture;
 			}
 		}
