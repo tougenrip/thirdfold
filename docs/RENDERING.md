@@ -1049,6 +1049,15 @@ itself; a new variant a layer makes must be added to `variantsOf`.
 Costs on SwiftShader and what the perf gate measures on real GPUs are in `docs/PERFORMANCE.md`
 ("Milestone 64").
 
+### Milestone 64 smoke run, 29 September 2026
+
+From the built app at the M64 tip, on the RTX 4060 Laptop: `node scripts/playthrough.mjs` plays
+The Hollow Bell to its end (Silence, 14 steps, 68 s) and The Last Train to Blackwater (Stopped
+Short, 6 steps, 33 s) on WebGL2, and again with `PERF_BACKEND=webgpu` (70 s and 33 s): every
+table came to rest after each step, moves animated, no console errors. The perf gate passed on
+the new baseline, both golden sets (159 each) were re-recorded and the slim set passes against
+them, and the renderer chunk is 356.1 kB gz of its 360 kB.
+
 ## Testing the renderer
 
 The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500 viewport, with no
