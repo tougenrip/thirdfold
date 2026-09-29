@@ -53,6 +53,8 @@ describe('the prefetch plan', () => {
 			]
 		};
 		expect(plan(view, manifest, { x: 0, y: 0 })).toEqual([
+			// The village's surfaces are KTX2 (#187).
+			{ kind: 'decoders', id: manifest.decoders!.basis.dir, priority: 'high' },
 			{ kind: 'environment', id: 'village', priority: 'high' },
 			{ kind: 'model', id: 'hound', priority: 'low' },
 			{ kind: 'model', id: 'warden', priority: 'low' },
@@ -61,13 +63,11 @@ describe('the prefetch plan', () => {
 		]);
 		// Without a focus, in the order they were sent; from the other corner, nearest it first.
 		expect(ids(view).slice(1)).toEqual(['hound', 'warden', 'barrel', 'crate']);
-		expect(plan(view, manifest, { x: 9, y: 9 }).map((p) => p.id)).toEqual([
-			'village',
-			'hound',
-			'warden',
-			'barrel',
-			'crate'
-		]);
+		expect(
+			plan(view, manifest, { x: 9, y: 9 })
+				.map((p) => p.id)
+				.slice(1)
+		).toEqual(['village', 'hound', 'warden', 'barrel', 'crate']);
 	});
 
 	it('plans every preview first, and the transcoder once when anything is cooked', () => {
@@ -91,6 +91,23 @@ describe('the prefetch plan', () => {
 			'model crate low'
 		]);
 		expect(plan(view, manifest, null).some((p) => p.kind === 'decoders')).toBe(false);
+	});
+
+	it('plans the transcoder for a table whose only KTX2 files are its surfaces', () => {
+		const m = structuredClone(manifest);
+		const env = Object.keys(m.environments).find(
+			(id) => m.environments[id].surfaces?.floors.length
+		)!;
+		const e = m.environments[env];
+		for (const mat of [e.surface, e.ground, e.walls, e.table]) {
+			const map = mat && m.materials[mat]?.map;
+			if (map) m.textures[map] = { ...m.textures[map], format: 'png' } as never;
+		}
+		delete e.lut;
+		const view: PlanView = { environment: env, tokens: [], props: [] };
+		expect(plan(view, m, null)[0].kind).toBe('decoders');
+		delete e.surfaces;
+		expect(plan(view, m, null).some((p) => p.kind === 'decoders')).toBe(false);
 	});
 
 	it('reads nothing of the viewer’s snapshot but its environment, tokens and props', () => {

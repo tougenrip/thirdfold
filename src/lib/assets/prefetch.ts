@@ -66,6 +66,12 @@ export function plan(view: PlanView, manifest: Manifest, focus: GridPos | null):
 		? [env.surface, env.ground, env.walls, env.table]
 				.flatMap((m) => (m ? [manifest.materials[m]?.map] : []))
 				.concat(Object.values(env.lut ?? {}).flatMap((bands) => Object.values(bands)))
+				.concat(
+					[...(env.surfaces?.floors ?? []), ...(env.surfaces?.walls ?? [])].flatMap((id) => {
+						const s = manifest.surfaces[id];
+						return s ? [s.albedo, s.normal, s.orm] : [];
+					})
+				)
 		: [];
 	const ktx2 = textures.some((t) => t && manifest.textures[t]?.format === 'ktx2');
 	if (manifest.decoders && (ktx2 || models.some((id) => manifest.models[id].cooked))) {
