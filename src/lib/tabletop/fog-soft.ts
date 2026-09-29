@@ -8,7 +8,7 @@
 // is 0, and the soft and faded factors are each at most the hard one, so its centre stays exactly
 // black (#176), and the output stage's re-mask (`worldHidden`) follows the same soft factor.
 
-/** Where the soft band starts and how wide it is, in the bilinear sample's 0-1 (0.5 is the edge). */
+/** How wide the soft band is, in the bilinear sample's 0-1 (0.5 is the line between cells). */
 export const EDGE_BAND = 0.3;
 /** How far low-frequency noise pushes the band inward, in the same units (never outward). */
 export const EDGE_NOISE = 0.12;

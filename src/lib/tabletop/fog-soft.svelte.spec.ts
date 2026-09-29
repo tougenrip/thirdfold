@@ -128,9 +128,10 @@ describe('reveal fades', () => {
 		expect(first, 'revealed on the first frame').toBeGreaterThan(10);
 		expect(await idle(m)).toBe(0);
 		expect(probe(m, view)).toBe(first);
-		// The cloud, turned on, is held still.
+		// The cloud, turned on, is held still: by reduced motion alone, so on medium (low holds it
+		// still anyway) with the power saver off.
 		m.tabletop.setPowerSaver(false);
-		const settings = settingsFor('low', m.tabletop.capabilities().backend);
+		const settings = settingsFor('medium', m.tabletop.capabilities().backend);
 		m.tabletop.setQuality({ ...settings, layers: { ...settings.layers, fogcloud: true } });
 		await nextDrawn(m);
 		expect(await idle(m), 'ambient frames with the cloud on').toBe(0);

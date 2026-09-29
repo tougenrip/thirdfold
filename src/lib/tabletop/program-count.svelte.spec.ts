@@ -1,19 +1,20 @@
 // Runtime state never compiles a shader (#170). A table is warmed up (every environment drawn once,
-// every table the sweep travels to visited once), its shader counts taken (shaderCounts in
-// perf.ts: programs, pipelines, node states), and then everything that changes at runtime is done
-// one named step at a time, a frame drawn after each: environments, times of day, floors, fog and
-// its modes (with the fog cloud on and a reveal fading, #174), dark areas, light counts past the
-// pool, tokens and props in every state, both cues and table travel. No step may change the programs or pipelines; a change names the step and
-// the stages it made or dropped (a stage is named after its material, and the material module
-// names its materials by kind: the layers #172 ported show as surface, terrain, prop and mini).
-// Compiles today's renderer still makes are listed in KNOWN, with the issue that ends them. New node states with no new program are reported, not failed:
-// they cost code generation, not a driver compile. r186 gives every InstancedMesh a vertex stage
-// of its own (materials.svelte.spec.ts), so the warm-up visits every table the sweep travels to:
-// their props' meshes are compiled then, and a table left behind keeps its programs. A
-// deliberately bad material (a literal of its own in the graph) proves the sweep is not vacuous.
-// Per tier, on both backends (WebGL2 on SwiftShader here; WebGPU on the real GPU in the
-// client-webgpu project). Reduced motion, as the other renderer tests: the toll's dust is not
-// drawn, so it is left to the warm-up gallery (#180).
+// every table the sweep travels to visited once), its shader counts taken (shaderCounts in perf.ts:
+// programs, pipelines, node states), and then everything that changes at runtime is done one named
+// step at a time, a frame drawn after each: environments, times of day, floors, fog and its modes
+// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past the pool, tokens
+// and props in every state, both cues and table travel. No step may change the programs or
+// pipelines; a change names the step and the stages it made or dropped (a stage is named after its
+// material, and the material module names its materials by kind: the layers #172 ported show as
+// surface, terrain, prop and mini). Compiles today's renderer still makes are listed in KNOWN, with
+// the issue that ends them. New node states with no new program are reported, not failed: they cost
+// code generation, not a driver compile. r186 gives every InstancedMesh a vertex stage of its own
+// (materials.svelte.spec.ts), so the warm-up visits every table the sweep travels to: their props'
+// meshes are compiled then, and a table left behind keeps its programs. A deliberately bad material
+// (a literal of its own in the graph) proves the sweep is not vacuous. Per tier, on both backends
+// (WebGL2 on SwiftShader here; WebGPU on the real GPU in the client-webgpu project). Reduced
+// motion, as the other renderer tests: the toll's dust is not drawn, so it is left to the warm-up
+// gallery (#180).
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';

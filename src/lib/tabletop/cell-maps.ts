@@ -225,7 +225,7 @@ export const groundTexel = textureLoad(
 	cellAt(uvOf(positionWorld.sub(normalWorldGeometry.mul(u.cellSize.mul(0.01)))))
 );
 
-/** The `ground` texel of the fragment's cell, for what has no normals (the grid lines) and the fades. */
+/** The `ground` texel of the fragment's cell: for what has no normals (grid lines), and the fades. */
 export const groundFlat = textureLoad(BLANK_GROUND, cell);
 
 type Channel = 'fog' | 'light' | 'sky' | 'ground';

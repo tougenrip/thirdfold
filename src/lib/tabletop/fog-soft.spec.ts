@@ -48,7 +48,7 @@ describe('fogEdge', () => {
 		}
 	});
 
-	it('darkens a band inside a visible cell toward its hidden neighbour, down to 0 at the line', () => {
+	it('darkens a band inside a visible cell toward a hidden neighbour, to 0 at the line', () => {
 		// Across the half cell from the centre (sample 1) to the line (0.5).
 		const across = [1, 0.9, 0.8, 0.7, 0.6, 0.5].map((s) =>
 			fogEdge(1, level, { visible: s, explored: s }, 0)
@@ -137,5 +137,40 @@ describe('the cloud’s shape', () => {
 		const row = [...m.slice(0, 5)];
 		expect(row).toEqual([0, 0, 0.5, 1, 1]);
 		expect([...m.slice(5, 10)]).toEqual(row);
+	});
+});
+
+describe('the cloud’s drift', () => {
+	const grid = { kind: 'square' as const, cellSize: 1, width: 4, height: 4 };
+	const fog = { enabled: true, shared: false, visible: '', explored: '' };
+
+	it('drifts only while shown to a player and not held still, a capped step a frame', async () => {
+		const { FogCloudLayer, cloudTime } = await import('./fog-cloud');
+		const cloud = new FogCloudLayer();
+		const drifts = (now: number) => [cloud.tick(now), cloudTime.value] as const;
+		cloud.update(grid, fog, 'player');
+		expect(drifts(0)[0], 'layer off').toBe(false);
+		cloud.setLayer(true, false);
+		cloud.update(grid, fog, 'gm');
+		expect(drifts(0)[0], 'the GM').toBe(false);
+		cloud.update(grid, fog, 'player');
+		const t0 = cloudTime.value;
+		expect(drifts(0)).toEqual([true, t0]);
+		expect(drifts(100)).toEqual([true, t0 + 0.1]);
+		expect(drifts(60_000)[1], 'a long gap moves it half a second').toBeCloseTo(t0 + 0.6);
+		for (const hold of [
+			() => cloud.setLayer(true, true),
+			() => cloud.setReducedMotion(true),
+			() => cloud.setPowerSaver(true)
+		]) {
+			hold();
+			const before = cloudTime.value;
+			expect(drifts(61_000)).toEqual([false, before]);
+			expect(drifts(62_000)).toEqual([false, before]);
+			cloud.setLayer(true, false);
+			cloud.setReducedMotion(false);
+			cloud.setPowerSaver(false);
+		}
+		cloud.dispose();
 	});
 });

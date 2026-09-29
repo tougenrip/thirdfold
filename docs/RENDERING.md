@@ -791,7 +791,7 @@ STEP_HEIGHT)` on walls, raised ground and the surface, the rim a repeat per two 
     (hidden or explored) into the `ground` map's B and A (RGBA8 since #174, so no texture is added
     to any stage), rewritten on the renderer's clock by `CellMaps.tick` only while a fade runs
     (`FADE_MS`, 450), which counts as movement for the scheduler: frames stop when the last fade
-    ends. Losing sight is immediate, a new mode or table fades nothing, and under reduced motion
+    ends. Losing sight is immediate, a new mode or a table of a new size fades nothing, and under reduced motion
     reveals are instant. The fog cloud (`fog-cloud.ts`) is one overlay-kind mesh over the grid,
     `cloudDivisions` vertices a cell under a 64k cap, raised in the vertex stage by an `aHidden`
     attribute (`cloudMask`: 1 - explored, bilinear between cell centres) times fractal noise on
