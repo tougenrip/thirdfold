@@ -1,10 +1,13 @@
 // The model loader (#188) on the WebGL2 fallback: a cooked file (meshopt geometry, a KTX2
 // texture; tests/fixtures/assets/loader, made by server/fixtures/loader-fixture.ts) loads into
 // parts by role and level, with its node transforms, its texture in the mini kind's albedo slot,
-// and is freed with the transcoder's workers when the last table goes, round after round.
+// and is freed with the transcoder's workers when the last table goes, round after round. A
+// model with a preview (#192) shows it before the full model, and a table's prefetch fetches
+// only what it was sent.
 
 import * as THREE from 'three/webgpu';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { loadManifest } from '$lib/assets/load';
 import type { Manifest, ModelEntry } from '$lib/assets/manifest';
 import type { SquareGrid } from '$lib/game/grid';
 import {
@@ -13,6 +16,7 @@ import {
 	lodFor,
 	modelNow,
 	partsOf,
+	prefetch,
 	releaseModels,
 	roleOf,
 	type LoadedModel
@@ -23,6 +27,14 @@ import { TokenLayer } from './tokens';
 const ID = 'loader-cube';
 const FILE = 'models/loader-cube.0123abcd.glb';
 const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 3, height: 3 };
+/** A model with a preview, each file held back until its gate opens. */
+const STAGED = 'staged-cube';
+const STAGED_FILES = {
+	full: 'models/staged-cube.1111aaaa.glb',
+	preview: 'previews/staged-cube.2222bbbb.glb'
+};
+const gates = new Map<keyof typeof STAGED_FILES, () => void>();
+const token = { id: 't', name: 'T', color: '#ff0000', pos: { x: 1, y: 1 }, ownerId: null };
 
 let renderer: THREE.WebGPURenderer;
 const warn = vi.spyOn(console, 'warn');
@@ -34,6 +46,14 @@ beforeAll(async () => {
 	vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
 		const url = String(input);
 		if (url.endsWith(`/assets/${FILE}`)) return new Response(fixture.slice(0));
+		for (const [stage, file] of Object.entries(STAGED_FILES) as [
+			keyof typeof STAGED_FILES,
+			string
+		][])
+			if (url.endsWith(`/assets/${file}`))
+				return new Promise((resolve) =>
+					gates.set(stage, () => resolve(new Response(fixture.slice(0))))
+				);
 		if (!url.endsWith('/assets/manifest.json')) return real(input, init);
 		const manifest = (await (await real(input, init)).json()) as Manifest;
 		const entry: ModelEntry = {
@@ -49,6 +69,19 @@ beforeAll(async () => {
 			credit: { license: 'LicenseRef-thirdfold-original', author: 'thirdfold contributors' }
 		};
 		manifest.models[ID] = entry;
+		const sha = (file: string) => file.split('.').at(-2) + '0'.repeat(56);
+		const { full, preview } = STAGED_FILES;
+		manifest.models[STAGED] = {
+			...entry,
+			file: full,
+			sha256: sha(full),
+			preview: {
+				file: preview,
+				bytes: fixture.byteLength,
+				sha256: sha(preview),
+				credit: entry.credit
+			}
+		};
 		return Response.json(manifest);
 	});
 	renderer = new THREE.WebGPURenderer({
@@ -68,7 +101,6 @@ async function round(): Promise<{ model: LoadedModel; drawn: THREE.Mesh[]; freed
 	initModels(renderer);
 	const model = (await loadModel(ID))!;
 	const layer = new TokenLayer(new OverlayLayer());
-	const token = { id: 't', name: 'T', color: '#ff0000', pos: { x: 1, y: 1 }, ownerId: null };
 	layer.sync([{ ...token, vision: 0, light: 0, model: ID }], grid, null, true);
 	const drawn: THREE.Mesh[] = [];
 	layer.group.traverse(
@@ -151,5 +183,60 @@ describe('the model loader', () => {
 		expect(renderer.info.memory.textures).toBe(after.textures);
 		const multiple = warn.mock.calls.filter((c) => String(c[0]).includes('Multiple active KTX2'));
 		expect(multiple).toEqual([]);
+	});
+
+	it('shows a preview in place of the placeholder, then the full model, one redraw each', async () => {
+		initModels(renderer);
+		const onModel = vi.fn();
+		const layer = new TokenLayer(new OverlayLayer(), onModel);
+		layer.sync([{ ...token, vision: 0, light: 0, model: STAGED }], grid, null, true);
+		const drawn = () => {
+			const out: THREE.BufferGeometry[] = [];
+			layer.group.traverse((o) => o instanceof THREE.Mesh && out.push(o.geometry));
+			return out;
+		};
+		const body = (m: LoadedModel) => partsOf(m, 'body')[0].geometry;
+		expect(modelNow(STAGED)).toBeUndefined(); // the plain miniature
+		await vi.waitFor(() => expect([...gates.keys()].sort()).toEqual(['full', 'preview']));
+		gates.get('preview')!();
+		await vi.waitFor(() => expect(onModel).toHaveBeenCalledTimes(1));
+		const preview = modelNow(STAGED)!;
+		expect(preview.preview).toBe(true);
+		expect(drawn()).toContain(body(preview));
+		let freed = false;
+		body(preview).addEventListener('dispose', () => (freed = true));
+		gates.get('full')!();
+		const full = (await loadModel(STAGED))!;
+		await vi.waitFor(() => expect(onModel).toHaveBeenCalledTimes(2));
+		expect(full.preview).toBeUndefined();
+		expect(modelNow(STAGED)).toBe(full);
+		expect(drawn()).toContain(body(full));
+		expect(drawn()).not.toContain(body(preview));
+		expect(freed).toBe(true);
+		await new Promise((r) => setTimeout(r, 50));
+		expect(onModel).toHaveBeenCalledTimes(2);
+		layer.dispose();
+		releaseModels();
+		gates.clear();
+	});
+
+	it('prefetches only what the table was sent', async () => {
+		const manifest = await loadManifest();
+		initModels(renderer);
+		const fetches = vi.mocked(fetch);
+		const before = fetches.mock.calls.length;
+		const view = {
+			environment: null,
+			tokens: [{ model: ID, pos: { x: 0, y: 0 } }],
+			props: [{ assetId: 'crate', pos: { x: 2, y: 2 } }]
+		};
+		prefetch(view, grid, new THREE.Vector3(), 'aces');
+		await Promise.all([loadModel(ID), loadModel('crate')]);
+		const files = fetches.mock.calls
+			.slice(before)
+			.map(([input]) => /\/assets\/((?:models|previews|textures)\/.+)$/.exec(String(input))?.[1])
+			.filter(Boolean);
+		expect(files.sort()).toEqual([FILE, manifest.models.crate.file].sort());
+		releaseModels();
 	});
 });

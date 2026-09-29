@@ -19,7 +19,7 @@ import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
 import { createMaterial, type KindMaterial } from './materials';
-import { loadModel, modelNow, partsOf, type ModelPart } from './models';
+import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
 import type { OverlayLayer } from './overlay';
 import { standIn } from './warmup';
 
@@ -27,8 +27,9 @@ interface Entry {
 	root: THREE.Group;
 	/** Torso and head, or the model: tipped over when the character has fallen. */
 	figure: THREE.Group;
-	/** The model it is drawn as, or null for the plain miniature. */
+	/** The model it is drawn as, or null for the plain miniature; and what of it is drawn. */
 	model: string | null;
+	shows?: LoadedModel | null;
 	fallen: boolean;
 	/** Hidden from the players: the GM sees it see-through. */
 	hidden: boolean;
@@ -392,7 +393,7 @@ export class TokenLayer {
 	private dress(tokenId: string, entry: Entry, model: string | null): void {
 		entry.model = model;
 		entry.figure.clear();
-		const loaded = model ? modelNow(model) : null;
+		const loaded = (entry.shows = model ? modelNow(model) : null);
 		const add = (
 			geometry: THREE.BufferGeometry,
 			coloured: boolean,
@@ -412,16 +413,20 @@ export class TokenLayer {
 			// Figures stand on the base.
 			for (const part of partsOf(loaded, 'body')) add(part.geometry, false, 0.08, part);
 			for (const part of partsOf(loaded, 'accent')) add(part.geometry, true, 0.08, part);
-			return;
+		} else {
+			add(bodyGeometry, true, 0.08 + 0.31);
+			add(headGeometry, true, 0.08 + 0.62 + 0.14);
 		}
-		add(bodyGeometry, true, 0.08 + 0.31);
-		add(headGeometry, true, 0.08 + 0.62 + 0.14);
-		if (model && loaded === undefined) {
-			void loadModel(model).then((m) => {
-				if (!m || this.entries.get(tokenId) !== entry || entry.model !== model) return;
+		// Still coming (or only its preview is here): drawn again at each stage.
+		if (model && (loaded === undefined || loaded?.preview)) {
+			const redraw = () => {
+				const now = modelNow(model);
+				if (this.entries.get(tokenId) !== entry || entry.model !== model || now === entry.shows)
+					return;
 				this.dress(tokenId, entry, model);
 				this.onModel();
-			});
+			};
+			void loadModel(model, redraw).then(redraw);
 		}
 	}
 

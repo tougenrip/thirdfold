@@ -311,12 +311,13 @@ export class PropLayer {
 		if (!meshes && count === 0) return null;
 		if (!this.requested.has(assetId)) {
 			this.requested.add(assetId);
-			void loadModel(assetId).then((model) => {
-				if (!model) return;
+			// Drawn again with its preview, if it has one, then with the model (or the box again).
+			const redraw = () => {
 				this.drop(assetId);
 				if (this.last) this.layout(this.props, this.last.grid, this.last.ground);
 				this.onModel();
-			});
+			};
+			void loadModel(assetId, redraw).then(redraw);
 		}
 		const model = modelNow(assetId) ?? null;
 		if (meshes && meshes.capacity >= count && meshes.model === model) return meshes;

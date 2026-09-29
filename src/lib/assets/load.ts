@@ -15,6 +15,7 @@ import { ASSET_FILE_PATTERN, EMPTY_MANIFEST, type Manifest } from './manifest';
 import { parseManifest } from './manifest-parse';
 
 let manifest: Promise<Manifest> | null = null;
+let loaded: Manifest | null = null;
 
 /** Where a built asset file is served on this origin (the manifest and the decoders, always). */
 export function assetUrl(file: string): string {
@@ -35,9 +36,13 @@ export function loadManifest(): Promise<Manifest> {
 		.catch((err: Error) => {
 			console.warn('[assets] no asset manifest; drawing placeholders:', err.message);
 			return EMPTY_MANIFEST;
-		});
+		})
+		.then((m) => (loaded = m));
 	return manifest;
 }
+
+/** The manifest if it has loaded (or failed: the empty one), for planning without waiting. */
+export const manifestNow = (): Manifest | null => loaded;
 
 export type Priority = 'high' | 'low';
 
@@ -81,7 +86,7 @@ export async function fetchAsset(
 	await acquire(priority);
 	let bytes: ArrayBuffer;
 	try {
-		const response = await fetch(remote ? `${ASSET_BASE}/${file}` : assetUrl(file));
+		const response = await fetch(remote ? `${ASSET_BASE}/${file}` : assetUrl(file), { priority });
 		if (!response.ok) throw new Error(`HTTP ${response.status}`);
 		bytes = await response.arrayBuffer();
 	} finally {
