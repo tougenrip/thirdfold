@@ -118,15 +118,26 @@ async function gradesOf(
 }
 
 const textures = new Map<string, Promise<THREE.Texture | null>>();
+/** The KTX2 ones among them: transcoded for one device's formats. */
+const transcoded = new Set<string>();
 
 /**
- * A texture, once for the page. Its sampling is the albedo slot's, which every look sets.
- * ponytail: never freed, like the PNGs before; a KTX2 one stays in the format of the device it
- * was first transcoded for (free it with the models if a backend switch ever needs another).
+ * Frees the KTX2 textures (releaseModels calls it when the last table goes, or another renderer
+ * comes): a new device may not take the format they were transcoded to. PNGs stay for the page.
  */
+export function releaseEnvironmentTextures(): void {
+	for (const id of transcoded) {
+		void textures.get(id)?.then((t) => t?.dispose());
+		textures.delete(id);
+	}
+	transcoded.clear();
+}
+
+/** A texture, once for the page (KTX2 ones once per device). Its sampling is the albedo slot's. */
 function loadTexture(id: string, entry: TextureEntry): Promise<THREE.Texture | null> {
 	let loading = textures.get(id);
 	if (!loading) {
+		if (entry.format === 'ktx2') transcoded.add(id);
 		loading = fetchAsset(entry.file, entry.sha256)
 			.then((bytes) => (entry.format === 'ktx2' ? ktx2Texture(bytes) : imageTexture(bytes)))
 			// The albedo slot's sampling, and the tier's anisotropy (#179).

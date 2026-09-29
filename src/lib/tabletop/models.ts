@@ -23,6 +23,7 @@ import {
 	type SlotName
 } from './materials';
 import type { Decoders } from './decoders';
+import { releaseEnvironmentTextures } from './environment';
 
 export type Role = 'body' | 'swing' | 'accent';
 
@@ -76,10 +77,13 @@ let generation = 0;
 let decoding: Promise<Decoders> | null = null;
 let decoderModule: typeof import('./decoders') | null = null;
 
-/** A table on `r` uses models: textures upload to it, and its device picks the KTX2 format. */
+/**
+ * A table on `r` uses models: textures upload to it, and its device picks the KTX2 format. A
+ * different renderer frees what was loaded for the old one (its textures are in its format).
+ */
 export function initModels(r: THREE.WebGPURenderer): void {
 	users++;
-	if (renderer !== r && decoding) dropDecoders();
+	if (renderer && renderer !== r) freeAll();
 	renderer = r;
 }
 
@@ -87,12 +91,17 @@ export function initModels(r: THREE.WebGPURenderer): void {
 export function releaseModels(): void {
 	if (--users > 0) return;
 	users = 0;
+	freeAll();
+	renderer = null;
+}
+
+function freeAll(): void {
 	generation++;
 	for (const model of ready.values()) if (model) disposeModel(model);
 	cache.clear();
 	ready.clear();
 	dropDecoders();
-	renderer = null;
+	releaseEnvironmentTextures();
 }
 
 function dropDecoders(): void {
@@ -206,9 +215,9 @@ function lookOf(m: THREE.Material): Pick<ModelPart, 'maps' | 'params'> {
 	const found: Partial<Record<SlotName, THREE.Texture | null>> = {
 		albedo: s.map,
 		normal: s.normalMap,
-		// glTF packs occlusion, roughness and metalness as the ORM slot does; a separate
-		// occlusion texture is not kept (#186 cooks them into one).
-		orm: s.roughnessMap ?? s.metalnessMap ?? s.aoMap,
+		// glTF packs roughness and metalness in G and B as the ORM slot does; a separate occlusion
+		// texture is not kept, nor read as ORM (its G and B aren't those) until #186 packs them.
+		orm: s.roughnessMap ?? s.metalnessMap,
 		emissive: s.emissiveMap
 	};
 	const maps: Partial<Record<SlotName, THREE.Texture>> = {};

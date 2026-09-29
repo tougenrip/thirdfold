@@ -108,6 +108,12 @@ describe('checkGlb', () => {
 		[0.5, 1, 0.5].forEach((v, i) => expect(bounds!.max[i]).toBeCloseTo(v, 3));
 	});
 
+	it('passes the loader’s fixture, so the client never tests a model the pipeline would refuse', async () => {
+		// server/fixtures/loader-fixture.ts makes it; models.svelte.spec.ts loads it.
+		const cube = readFileSync('tests/fixtures/assets/loader/cube.glb');
+		expect(await checkGlb(cube, LIMITS.figure)).toMatchObject({ ok: true, info: { cooked: true } });
+	});
+
 	it('passes plain meshes, with bounds through node transforms and levels of detail counted', async () => {
 		expect(await checkGlb(PLAIN)).toMatchObject({
 			ok: true,
