@@ -667,7 +667,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'adventure_claim' ||
 			msg.type === 'adventure_release';
 		if (chatty && !chatLimiter.take(player.id)) {
-			return sendError(ws, 'rate_limited', 'Slow down a little.');
+			return sendError(ws, 'rate_limited', 'Give it a moment before the next change.');
 		}
 		const result = (() => {
 			switch (msg.type) {

@@ -39,14 +39,6 @@ export function exportScene(room: Room, name: string, now = new Date()): SceneFi
 }
 
 /**
- * Replaces the room's table with a (validated) scene. Players and the log are
- * untouched. A saved owner is matched to a player in this room by id (same
- * session) or else by name (a new session with the same group); otherwise the
- * token becomes GM-only. Each player's explored map comes from what a player
- * of the same name had discovered when it was saved; everyone else starts
- * with nothing explored.
- */
-/**
  * A player joining a table loaded from a save: under the name a saved owner
  * had, they get that owner's tokens (their character) and what they had
  * explored back. Returns the tokens handed back.
@@ -91,6 +83,14 @@ export function catchUpLights(player: Player, other: Player): void {
 	for (let i = 0; i < learned.length; i++) if (other.lightsLearned[i]) learned[i] = 1;
 }
 
+/**
+ * Replaces the room's table with a (validated) scene. Players and the log are
+ * untouched. A saved owner is matched to a player in this room by id (same
+ * session) or else by name (a new session with the same group); otherwise the
+ * token becomes GM-only. Each player's explored map comes from what a player
+ * of the same name had discovered when it was saved; everyone else starts
+ * with nothing explored.
+ */
 export function applyScene(room: Room, scene: SceneFile): void {
 	const players = [...room.players.values()].filter((p) => p.role === 'player');
 	const ownerFor = (owner: SceneFile['tokens'][number]['owner']): string | null => {

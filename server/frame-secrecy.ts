@@ -8,11 +8,10 @@
 //
 // The per-viewer render inputs checked, from snapshots (welcome, room_reset) and
 // diffs: fog (visible, explored), terrain, floor, darkness, interior (#203), lights (as last
-// seen, #204), tokens, props, walls and doors, environment (a public id only), and the markers (a
-// secret's name, id or colour) in any frame at all, the log included. Later
-// milestones add theirs here: world look (#199), token looks (#202: tokens and props carry only
-// their known fields), VFX sources and attacker ids (#314) and
-// camera shots (#355).
+// seen, #204), tokens and props (carrying only their known fields, looks included, #202), walls
+// and doors, environment (a public id only), the world look (only WorldLook's keys, #199), and
+// the markers (a secret's name, id or colour) in any frame at all, the log included. Later
+// milestones add theirs here: VFX sources and attacker ids (#314) and camera shots (#355).
 
 import { decodeFloor } from '../src/lib/game/floor';
 import type { GridPos, SquareGrid } from '../src/lib/game/grid';

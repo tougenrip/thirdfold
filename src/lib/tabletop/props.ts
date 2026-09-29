@@ -68,9 +68,9 @@ const still = (): Pose => ({ dx: 0, dy: 0, dz: 0, turn: 0, swing: 0 });
 /** The emissive tints (colour and strength): selected, hovered, and hidden from the players. */
 const SELECTED = { color: new THREE.Color(0xe0a458), strength: 0.4 };
 const HOVERED = { color: new THREE.Color(0xe27a6b), strength: 0.4 };
-/** What the GM sees a prop hidden from the players as: pale, like a ghost of itself. */
 /** Reused by `paint` for each instance's tint (#202). */
 const tintColour = new THREE.Color();
+/** What the GM sees a prop hidden from the players as: pale, like a ghost of itself. */
 const GHOST = { color: new THREE.Color(0xb8c6e0), strength: 0.3 };
 
 interface AssetMeshes {
