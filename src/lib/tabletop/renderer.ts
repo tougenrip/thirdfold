@@ -37,7 +37,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
-import { initModels, prefetch, releaseModels } from './models';
+import { initModels, loadProgress, prefetch, releaseModels } from './models';
 import { PropLayer } from './props';
 import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
@@ -235,8 +235,7 @@ export async function createTabletop(
 		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends
 		const moving =
 			casters || gridFading || revealing || fx.active || rig.tick(now) || post.blending;
-		// With damping enabled, update() emits 'change' while the camera is still settling,
-		// which schedules the next frame; once still, rendering stops.
+		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
 		// A shudder from a cue: offset the camera for this frame only.
 		shakeOffset.copy(fx.shake);
@@ -490,6 +489,7 @@ export async function createTabletop(
 			if (remade.includes(true)) warmPending = true;
 		},
 		capabilities: () => quality.caps,
+		loads: loadProgress,
 		setPowerSaver: (on) => (loop.setPowerSaver(on), cloud.setPowerSaver(on)),
 		...perfMethods(renderer, perf, drawScene, { loop, quality })
 	};

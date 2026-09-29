@@ -2,19 +2,17 @@
 	import type { PerfStats } from './perf';
 
 	/**
-	 * What shows over the table besides the table (Tabletop.svelte): the `?perf` overlay, the
-	 * "Restoring the table…" cover after a lost device, the notices for a lost device and for
+	 * What shows over the table besides the table (Tabletop.svelte; the loading cover is
+	 * TableLoading.svelte): the `?perf` overlay, the notices for a lost device and for
 	 * software rendering (dismissable), and the panel when the table can't be shown at all.
 	 */
 	let {
 		perf,
-		restoring,
 		lossNotice = $bindable(),
 		softwareNotice = $bindable(),
 		webglError
 	}: {
 		perf: PerfStats | null;
-		restoring: boolean;
 		lossNotice: boolean;
 		softwareNotice: boolean;
 		webglError: string | null;
@@ -45,9 +43,6 @@
 	);
 </script>
 
-{#if restoring}
-	<p class="restoring" role="status">Restoring the table…</p>
-{/if}
 {#if lossNotice}
 	<p class="software-notice" role="status">
 		The graphics device was lost twice: the table is drawn at low quality for now.
@@ -137,18 +132,6 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-
-	.restoring {
-		position: absolute;
-		inset: 0;
-		display: grid;
-		place-items: center;
-		margin: 0;
-		font-size: var(--fs-sm);
-		color: var(--glow);
-		background: var(--scrim);
-		z-index: var(--z-overlay);
 	}
 
 	.software-notice {

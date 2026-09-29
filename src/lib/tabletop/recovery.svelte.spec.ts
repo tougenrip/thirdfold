@@ -97,7 +97,7 @@ describe('a lost WebGL context or WebGPU device', () => {
 		if (BACKEND === 'webgpu') await commands.crashGpu();
 		else oldCanvas.getContext('webgl2')!.getExtension('WEBGL_lose_context')!.loseContext();
 
-		await expect.element(page.getByText('Restoring the table…')).toBeInTheDocument();
+		await expect.element(page.getByText('Restoring the table')).toBeInTheDocument();
 		await expect
 			.poll(() => perfApi() !== first && (perfApi()?.stats().frames ?? 0) > 0, { timeout: 5000 })
 			.toBe(true);
@@ -105,7 +105,7 @@ describe('a lost WebGL context or WebGPU device', () => {
 		await settle(second);
 		await steady(second);
 		expect(document.querySelector('canvas')).not.toBe(oldCanvas);
-		await expect.element(page.getByText('Restoring the table…')).not.toBeInTheDocument();
+		await expect.element(page.getByText('Restoring the table')).not.toBeInTheDocument();
 		const after = second.stats();
 		expect(after.tier).toBe('medium');
 		expect(second.cameraPose()).toEqual(pose);
