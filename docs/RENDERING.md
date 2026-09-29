@@ -907,8 +907,9 @@ close and low poses, which look at explored ground), and so is a view with none 
 the dark band of the monastery, railcar, test world and village, whose one pose looks at the party).
 Each pose also checks the frame read back is not all black, and a self-check lays the GM's reveal
 preview (an overlay the fog never shades) over the dungeon and must fail, naming the fixture, pose
-and cell. CI takes the slim set (`SLIM`, six cases, 2 to 3 minutes on SwiftShader); the full set
-(85 cases, about 30 minutes on SwiftShader) runs by hand before a rendering PR:
+and cell. CI takes the slim set (`SLIM`: five cases on WebGL2, about 1.5 minutes on SwiftShader
+here; six with ultra on WebGPU), and fails if one of them stops existing; the full set (85 cases,
+about 30 minutes on SwiftShader) runs by hand before a rendering PR:
 
 ```bash
 THIRDFOLD_UNEXPLORED=full npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
