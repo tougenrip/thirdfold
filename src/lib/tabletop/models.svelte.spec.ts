@@ -45,7 +45,8 @@ beforeAll(async () => {
 			bounds: { min: [-0.25, 0, -0.25], max: [0.25, 1.1, 0.25] },
 			gpuBytes: 4096,
 			lods: [{ triangles: 12, screenSize: 0.1 }],
-			cooked: true
+			cooked: true,
+			credit: { license: 'LicenseRef-thirdfold-original', author: 'thirdfold contributors' }
 		};
 		manifest.models[ID] = entry;
 		return Response.json(manifest);
