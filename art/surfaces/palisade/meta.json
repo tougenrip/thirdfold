@@ -1,0 +1,33 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_trunk_wall/wood_trunk_wall_diff_2k.png",
+			"sha256": "40bf7037e5ad0ee4cb2729e1d0c8ec36aef30468911a27c3ace7e0abd64277a2"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_trunk_wall/wood_trunk_wall_nor_gl_2k.png",
+			"sha256": "9e8a2734a747cb7bfacf91f78a53b98f1fc04cc801649638f510baf431f40305"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_trunk_wall/wood_trunk_wall_rough_2k.png",
+			"sha256": "da1842ee27f62f2bf63ebb08b39ae3f2f7c7a59afab34cb635261a1adf960403"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_trunk_wall/wood_trunk_wall_ao_2k.png",
+			"sha256": "132340b4d99ec5cf2642eb65ce8dcd91052d78c23cbfe186c27721eefd87bb83"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_trunk_wall/wood_trunk_wall_disp_2k.png",
+			"sha256": "50cbc65bf21749291512d4a769771f498fac34c90afd2aeed9e08754b2c33fdd"
+		}
+	],
+	"ramp": ["#2e2527", "#4d3a30", "#6d5441", "#8e7355"],
+	"detail": 0.25,
+	"normalBoost": 1.5,
+	"textureSize": 512
+}

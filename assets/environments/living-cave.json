@@ -6,6 +6,6 @@
 	"table": "oak",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
-		"walls": []
+		"walls": ["cave-rock"]
 	}
 }

@@ -1,0 +1,12 @@
+{
+	"usage": "albedo",
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=Rock030_2K-PNG.zip",
+			"sha256": "1f548aa38bd8daca31254db183c32994910adfa3aeeaab84ad939963c37c0c79"
+		},
+		"modified": true
+	}
+}

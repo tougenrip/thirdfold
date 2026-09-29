@@ -1,0 +1,33 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/clay_block_wall/clay_block_wall_diff_2k.png",
+			"sha256": "3d4517b4de59c05810281fefc97ebc1352c4a9b60e266b25eb2c715c1e405e40"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/clay_block_wall/clay_block_wall_nor_gl_2k.png",
+			"sha256": "7e53f9d237c6f97887500f6aa17562cdc3872d04e2c0ef27f7131c72099de9aa"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/clay_block_wall/clay_block_wall_rough_2k.png",
+			"sha256": "782ad03ff6ec312e3463fbe498622764a6314a627ca7743e95d72ee3d2316213"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/clay_block_wall/clay_block_wall_ao_2k.png",
+			"sha256": "a6bb559d3de4cd4af3bbec8606fe8d98ecff39bf5469381955c7051717d7ec80"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/clay_block_wall/clay_block_wall_disp_2k.png",
+			"sha256": "2e029df558ebc7bacf0d5db7a11a00197d5a829e7dfd84eb0a4dc9cffed261c2"
+		}
+	],
+	"ramp": ["#5a4040", "#8a5f48", "#b0835d", "#cfa77c"],
+	"detail": 0.25,
+	"normalBoost": 1.5,
+	"textureSize": 512
+}

@@ -1,0 +1,33 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/mud_cracked_dry_03/mud_cracked_dry_03_diff_2k.png",
+			"sha256": "419252b13ddb77e75823356850292ebbc11e62fe87dea02f2a6b459e15df372c"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/mud_cracked_dry_03/mud_cracked_dry_03_nor_gl_2k.png",
+			"sha256": "c86b49ab2f4f40e12fa6e6a7d74895f09b231b6a2b721e6c6063ba09d9c364f6"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/mud_cracked_dry_03/mud_cracked_dry_03_rough_2k.png",
+			"sha256": "3e52357b901afe93af53ed2e0d6cfdda7cef5fcc780efae60aed8f08467b72f3"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/mud_cracked_dry_03/mud_cracked_dry_03_ao_2k.png",
+			"sha256": "51b5d1144555772cfe05a8cc2e11b43c8ade3a19ab0ee65d95a1ab3aadf60550"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/mud_cracked_dry_03/mud_cracked_dry_03_disp_2k.png",
+			"sha256": "da28c56e6236e9d8d22dd555257b65ba2f394bc4cce5dec5e29069e939b6b122"
+		}
+	],
+	"ramp": ["#2c2527", "#4a3a33", "#6b5541", "#8b7250"],
+	"detail": 0.25,
+	"normalBoost": 1.5,
+	"textureSize": 512
+}

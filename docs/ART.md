@@ -222,19 +222,35 @@ The floor and wall surfaces (#187) start from CC0 scans, repainted so they read 
 5. **Review** it on the turntable (section 14). A set that still reads as a photograph is refused,
    and another set or a stronger recipe is tried.
 
-The sets picked (all ambientCG, 2K PNG; each surface's `meta.json` has the URL and hash), awaiting
-the owner's review:
+The sets picked (2K PNG, ambientCG unless named; each surface's `meta.json` has the URL and hash;
+a Poly Haven set is one file per map, its `maps` beside the colour map's `source`), awaiting the
+owner's review:
 
-| Surface | Set             | Why                                     |
-| ------- | --------------- | --------------------------------------- |
-| stone   | PavingStones131 | old medieval paving, deep joints        |
-| wood    | Planks039       | large rough medieval planks             |
-| grass   | Grass004        | dense short grass                       |
-| dirt    | Ground103       | old brown earth with stones             |
-| sand    | Ground080       | beach sand, soft ripples                |
-| plaster | Plaster003      | rough wall plaster                      |
-| ashlar  | Bricks100       | old beige stone blocks, recessed mortar |
-| planks  | Planks021       | raw rough wall planks                   |
+| Surface      | Set                               | Why                                                          |
+| ------------ | --------------------------------- | ------------------------------------------------------------ |
+| stone        | PavingStones131                   | old medieval paving, deep joints                             |
+| wood         | Planks039                         | large rough medieval planks                                  |
+| grass        | Grass004                          | dense short grass                                            |
+| dirt         | Ground103                         | old brown earth with stones                                  |
+| sand         | Ground080                         | beach sand, soft ripples                                     |
+| plaster      | Plaster003                        | rough wall plaster                                           |
+| ashlar       | Bricks100                         | old beige stone blocks, recessed mortar                      |
+| planks       | Planks021                         | raw rough wall planks                                        |
+| riverbed     | Rocks022                          | rounded river pebbles                                        |
+| cobble       | PavingStones141                   | old rounded medieval cobbles                                 |
+| flagstone    | PavingStones149                   | large broken slabs, cracked                                  |
+| rock         | Rock030                           | grey cliff rock, walkable relief                             |
+| mud          | Poly Haven mud_cracked_dry_03     | cracked mud (ref 6)                                          |
+| snow         | Snow006                           | stomped snow with footsteps                                  |
+| gravel       | Gravel022                         | grey pebble gravel                                           |
+| timber-frame | Poly Haven wood_inlaid_stone_wall | no CC0 half-timbered set: stone with a timber band, stand-in |
+| brick        | Bricks076A                        | old medieval bricks                                          |
+| cave-rock    | Rock035                           | dark cave rock                                               |
+| adobe        | Poly Haven clay_block_wall        | cracked clay blocks                                          |
+| palisade     | Poly Haven wood_trunk_wall        | a wall of upright logs                                       |
+| roof-tile    | RoofingTiles014A                  | clay roof tiles                                              |
+| thatch       | ThatchedRoof001A                  | straw thatch                                                 |
+| slate        | RoofingTiles001                   | old slate roof                                               |
 
 ## 12. Sources and licences
 
