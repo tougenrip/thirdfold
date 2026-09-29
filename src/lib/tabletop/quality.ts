@@ -55,7 +55,8 @@ export const LAYERS = [
 	'vfx',
 	'weather',
 	'xray',
-	'dof'
+	'dof',
+	'fogcloud'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 

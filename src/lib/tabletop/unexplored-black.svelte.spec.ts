@@ -53,13 +53,15 @@ const TIERS: Tier[] = ['low', 'medium', 'high'];
  */
 /**
  * Every tier on the two darkest player views (the most unexplored ground in view), and the dusk
- * village and ref-8's spectator on medium: kept to a few minutes on CI's software GPU.
+ * village and ref-8's spectator on medium: kept to a few minutes on CI's software GPU. Soft edges
+ * are always on; the Hollow on medium is taken again with the fog cloud's layer on (#174).
  */
-const CASES: { fixture: string; viewer: Viewer; tiers: readonly Tier[] }[] = [
+const CASES: { fixture: string; viewer: Viewer; tiers: readonly Tier[]; cloud?: boolean }[] = [
 	{ fixture: 'dungeon-40', viewer: 'player', tiers: TIERS },
 	{ fixture: 'hollow', viewer: 'player', tiers: TIERS },
 	{ fixture: 'village', viewer: 'player', tiers: ['medium'] },
-	{ fixture: 'ref-8', viewer: 'spectator', tiers: ['medium'] }
+	{ fixture: 'ref-8', viewer: 'spectator', tiers: ['medium'] },
+	{ fixture: 'hollow', viewer: 'player', tiers: ['medium'], cloud: true }
 ];
 const POSE: PoseName = 'overview';
 
@@ -215,9 +217,9 @@ function knownGround(view: FixtureView): Uint8Array {
 }
 
 describe(`unexplored cells on ${BACKEND}`, () => {
-	for (const { fixture, viewer, tiers } of CASES)
+	for (const { fixture, viewer, tiers, cloud } of CASES)
 		for (const tier of tiers)
-			it(`${fixture} ${viewer} ${tier}: black at ${POSE}`, async () => {
+			it(`${fixture} ${viewer} ${tier}${cloud ? ' with the cloud' : ''}: black at ${POSE}`, async () => {
 				const sidecar = await loadSidecar(fixture);
 				const view = await loadView(fixture, sidecar.ambient, viewer);
 				expect(view.fog.enabled).toBe(true);
@@ -231,6 +233,10 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 				});
 				const settings = settingsFor(tier, mounted.tabletop.capabilities().backend);
 				expect(settings.grain && settings.layers.lens).toBe(true);
+				if (cloud) {
+					const layers = { ...settings.layers, fogcloud: true };
+					mounted.tabletop.setQuality({ ...settings, miniature: false, layers });
+				}
 				await converge(mounted, settings.convergeFrames);
 				const camera = cameraOf(mounted);
 				const samples = samplesFor(view.grid, known, camera);

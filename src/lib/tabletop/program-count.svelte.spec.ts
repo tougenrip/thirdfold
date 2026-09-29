@@ -1,19 +1,20 @@
 // Runtime state never compiles a shader (#170). A table is warmed up (every environment drawn once,
-// every table the sweep travels to visited once), its shader counts taken (shaderCounts in
-// perf.ts: programs, pipelines, node states), and then everything that changes at runtime is done
-// one named step at a time, a frame drawn after each: environments, times of day, floors, fog and
-// its modes, dark areas, light counts past the pool, tokens and props in every state, both cues
-// and table travel. No step may change the programs or pipelines; a change names the step and
-// the stages it made or dropped (a stage is named after its material, and the material module
-// names its materials by kind: the layers #172 ported show as surface, terrain, prop and mini).
-// Compiles today's renderer still makes are listed in KNOWN, with the issue that ends them. New node states with no new program are reported, not failed:
-// they cost code generation, not a driver compile. r186 gives every InstancedMesh a vertex stage
-// of its own (materials.svelte.spec.ts), so the warm-up visits every table the sweep travels to:
-// their props' meshes are compiled then, and a table left behind keeps its programs. A
-// deliberately bad material (a literal of its own in the graph) proves the sweep is not vacuous.
-// Per tier, on both backends (WebGL2 on SwiftShader here; WebGPU on the real GPU in the
-// client-webgpu project). Reduced motion, as the other renderer tests: the toll's dust is not
-// drawn, so it is left to the warm-up gallery (#180).
+// every table the sweep travels to visited once), its shader counts taken (shaderCounts in perf.ts:
+// programs, pipelines, node states), and then everything that changes at runtime is done one named
+// step at a time, a frame drawn after each: environments, times of day, floors, fog and its modes
+// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past the pool, tokens
+// and props in every state, both cues and table travel. No step may change the programs or
+// pipelines; a change names the step and the stages it made or dropped (a stage is named after its
+// material, and the material module names its materials by kind: the layers #172 ported show as
+// surface, terrain, prop and mini). Compiles today's renderer still makes are listed in KNOWN, with
+// the issue that ends them. New node states with no new program are reported, not failed: they cost
+// code generation, not a driver compile. r186 gives every InstancedMesh a vertex stage of its own
+// (materials.svelte.spec.ts), so the warm-up visits every table the sweep travels to: their props'
+// meshes are compiled then, and a table left behind keeps its programs. A deliberately bad material
+// (a literal of its own in the graph) proves the sweep is not vacuous. Per tier, on both backends
+// (WebGL2 on SwiftShader here; WebGPU on the real GPU in the client-webgpu project). Reduced
+// motion, as the other renderer tests: the toll's dust is not drawn, so it is left to the warm-up
+// gallery (#180).
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -25,7 +26,7 @@ import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
-import type { Tier } from './quality';
+import { settingsFor, type Tier } from './quality';
 import type { Tabletop } from './types';
 import {
 	loadSidecar,
@@ -161,7 +162,7 @@ function show(m: Mounted, view: FixtureView): void {
 }
 
 /** Everything that changes at runtime on the home table, as named steps. */
-function homeSteps(m: Mounted, home: FixtureView): Step[] {
+function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	const t = m.tabletop;
 	const size = home.grid.width * home.grid.height;
 	const all = encodeMask(new Uint8Array(size).fill(1));
@@ -186,6 +187,11 @@ function homeSteps(m: Mounted, home: FixtureView): Step[] {
 		home.objects.find((o) => o.kind === k)!
 	);
 	const cue = (c: 'flash' | 'toll') => () => t.playCue(c, c === 'toll' ? prop.id : null);
+	// The tier as mounted, with the fog cloud's layer on or off (#174).
+	const cloud = (on: boolean) => () => {
+		const settings = settingsFor(tier, t.capabilities().backend);
+		t.setQuality({ ...settings, miniature: false, layers: { ...settings.layers, fogcloud: on } });
+	};
 	return [
 		...ENVIRONMENTS.map((e): Step => [`environment ${e ?? 'none'}`, () => t.setEnvironment(e)]),
 		['environment back', () => t.setEnvironment(home.environment)],
@@ -204,6 +210,15 @@ function homeSteps(m: Mounted, home: FixtureView): Step[] {
 		['fog, all explored', () => t.setFog({ ...home.fog, visible: none, explored: all }, 'player')],
 		['fog, nothing seen', () => t.setFog({ ...home.fog, visible: none, explored: none }, 'player')],
 		['fog back', () => t.setFog(home.fog, home.fogMode)],
+		// Soft edges are always on; a reveal fades on a map and a uniform, the cloud is warmed up.
+		['fog cloud on, player', () => (cloud(true)(), t.setFog(home.fog, 'player'))],
+		[
+			'fog revealed, fading',
+			() => t.setFog({ ...home.fog, visible: all, explored: all }, 'player')
+		],
+		['fog cloud, GM', () => t.setFog(home.fog, 'gm')],
+		['fog cloud off', () => (cloud(false)(), t.setFog(home.fog, 'player'))],
+		['fog back again', () => t.setFog(home.fog, home.fogMode)],
 		['dark areas everywhere', () => t.setDarkness(new Uint8Array(size).fill(1))],
 		['dark areas removed', () => t.setDarkness(null)],
 		['lights 0', () => t.setLighting('dark', [])],
@@ -277,7 +292,7 @@ describe('the shader program count', () => {
 			await drawn(t, clock);
 		}
 		const p0 = sweep.counts();
-		const changes = await sweep.run(homeSteps(m, home));
+		const changes = await sweep.run(homeSteps(m, home, tier));
 		// Table travel: to each table and back home, in both directions.
 		for (const view of [...travel, ...[...travel].reverse()]) {
 			const [w, h] = [view.grid.width, view.grid.height];

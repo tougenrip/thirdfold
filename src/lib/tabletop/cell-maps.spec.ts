@@ -68,12 +68,12 @@ describe('packing', () => {
 		expect([...data]).toEqual(Array(8).fill(255));
 	});
 
-	it('packs the ground as floor index and level', () => {
-		const data = new Uint8Array(3 * 2).fill(9);
+	it('packs the ground as floor index and level, keeping the fades in B and A', () => {
+		const data = new Uint8Array(3 * 4).fill(9);
 		packGround(data, new Uint8Array([0, 3, 7]), new Uint8Array([2, 0, 10]));
-		expect([...data]).toEqual([0, 2, 3, 0, 7, 10]);
+		expect([...data]).toEqual([0, 2, 9, 9, 3, 0, 9, 9, 7, 10, 9, 9]);
 		packGround(data, null, null);
-		expect([...data]).toEqual([0, 0, 0, 0, 0, 0]);
+		expect([...data]).toEqual([0, 0, 9, 9, 0, 0, 9, 9, 0, 0, 9, 9]);
 	});
 });
 

@@ -10,18 +10,47 @@
 // `inWorld` puts it on the few materials that are not kinds (fixtures, flames, mist),
 // `worldShade` fades the grid lines by it, and `worldHidden` is what the scene pass writes for
 // the output stage to re-mask hidden cells after bloom, the lens and depth of field spread light
-// over them (post.ts). Soft edges and reveal fades are #174's.
+// over them (post.ts). Since #174 the fog's edges are soft and reveals fade (fog-soft.ts has the
+// pure mirrors): both only ever darken, so a hidden cell's centre stays exactly 0 and `worldHidden`
+// follows the soft edge.
 
 import type * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
-import { FLASH_THINS, cellUniforms, onGrid, visibilitySmooth, visibilityTexel } from '../cell-maps';
+import {
+	FLASH_THINS,
+	cellUniforms,
+	groundFlat,
+	onGrid,
+	visibilitySmooth,
+	visibilityTexel
+} from '../cell-maps';
 import { tsl, type N } from './tsl';
 
 const loose = (node: unknown) => node as N;
 type Loose = (...args: unknown[]) => N;
 // Loosely typed, as tsl.ts does for the kinds (its reasons hold here).
-const { Discard, If, float, luminance, mix, output, positionWorld } = T as unknown as Record<
-	'Discard' | 'If' | 'float' | 'luminance' | 'mix' | 'output' | 'positionWorld',
+const {
+	Discard,
+	If,
+	float,
+	luminance,
+	min,
+	mix,
+	mx_noise_float,
+	output,
+	positionWorld,
+	smoothstep
+} = T as unknown as Record<
+	| 'Discard'
+	| 'If'
+	| 'float'
+	| 'luminance'
+	| 'min'
+	| 'mix'
+	| 'mx_noise_float'
+	| 'output'
+	| 'positionWorld'
+	| 'smoothstep',
 	Loose
 >;
 const Fn = T.Fn as unknown as (body: () => N) => () => N;
@@ -47,13 +76,27 @@ function terms(): World {
 	const [visible, explored] = [texel.x, texel.y];
 	const shown = loose(onGrid);
 	const fogged = shown.mul(u.fogOn);
-	const player = mix(float(0), u.exploredLevel, explored);
-	const gm = mix(u.gmHiddenLevel, u.gmExploredLevel, explored);
-	const unseenLevel = loose(mix(player, gm, u.fogMode));
-	const fog = mix(float(1), mix(unseenLevel, float(1), visible), fogged);
-	const unseen = fogged.mul(visible.oneMinus()).mul(mix(explored, float(1), u.fogMode));
+	/** The fog factor for a cell visible and explored this far (0-1 each). */
+	const levelOf = (seen: N, known: N): N => {
+		const player = mix(float(0), u.exploredLevel, known);
+		const gm = mix(u.gmHiddenLevel, u.gmExploredLevel, known);
+		return mix(float(1), mix(mix(player, gm, u.fogMode), float(1), seen), fogged);
+	};
+	// Soft edges (#174): the linear samples pulled through a band that noise pushes inward, never
+	// above the hard factor. 0 on the line between cells, whatever the noise, so the edge is
+	// continuous; at a known cell's centre the sample is the cell's own 1, past the band's reach.
+	const at = loose(positionWorld).xz.div(u.cellSize).mul(u.edgeScale);
+	const noise = mx_noise_float(at).mul(0.5).add(0.5).saturate().mul(u.edgeNoise);
+	const shape = (x: N) => smoothstep(float(0.5), u.edgeBand.add(0.5), x.sub(noise));
+	const current = min(levelOf(visible, explored), levelOf(shape(smooth.x), shape(smooth.y)));
+	// Reveal fades (#174): from the state a newly visible cell came from, `remaining` of the way.
+	const fade = loose(groundFlat);
+	const [remaining, from] = [fade.z, levelOf(float(0), fade.w)];
+	const fog = min(current, mix(current, from, remaining));
+	const seen = visible.mul(remaining.oneMinus());
+	const unseen = fogged.mul(seen.oneMinus()).mul(mix(explored, float(1), u.fogMode));
 	// Today's overlay (lighting.ts): a fogged player's visible cells are lit at least the fill.
-	const fill = visible.mul(u.perceptionFill).mul(fogged).mul(u.fogMode.oneMinus());
+	const fill = seen.mul(u.perceptionFill).mul(fogged).mul(u.fogMode.oneMinus());
 	const level = max(smooth.z, fill);
 	const shade = mix(max(u.ambientDark, u.nightDark), u.ambientDark, smooth.w);
 	const dark = loose(shade).mul(loose(level).oneMinus());
