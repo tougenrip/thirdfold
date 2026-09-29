@@ -244,6 +244,9 @@ docs/ART.md section 17. A model is cooked in this order:
 The encoder is `ktx2-encoder` (Basis Universal as WASM, single-threaded, no native binary): the
 same input gives the same bytes on Node 22 and 26 on Linux, which `cook.spec.ts` checks on a
 fixture (`tests/fixtures/art`, written by `scripts/make-art-fixture.ts`) and the `Cook` workflow checks on macOS.
+Its cook tests encode KTX2 for about 10 s, so they stay out of `npm test` and run by hand and in
+the `Cook` workflow: `THIRDFOLD_COOK=1 npx vitest run --project server server/assets/cook.spec.ts`
+(CI's `verify` still checks the lock with `assets:cook -- --check`).
 KTX-Software's `ktx create` is not needed. `meshoptimizer` is pinned to 1.1.1, the version whose
 decoder three r186 vendors.
 

@@ -128,7 +128,10 @@ describe('decodePng', () => {
 	});
 });
 
-describe('the cook', () => {
+// Encoding KTX2 takes about 10 s, so the cook's own tests run by hand and in cook.yml, never in
+// npm test (CI checks the lock with `assets:cook -- --check`):
+// THIRDFOLD_COOK=1 npx vitest run --project server server/assets/cook.spec.ts
+describe.skipIf(!process.env.THIRDFOLD_COOK)('the cook', () => {
 	it('gives the same bytes every time, and a model with meshopt, KTX2, tangents and LODs', async () => {
 		const [a, b] = [temp(), temp()];
 		expect(await cook(ART, a)).toEqual({ cooked: ['prop/test-orb'], skipped: [] });

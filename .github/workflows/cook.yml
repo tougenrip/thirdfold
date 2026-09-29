@@ -28,6 +28,10 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - name: The cook's tests
+        run: npx vitest run --project server server/assets/cook.spec.ts
+        env:
+          THIRDFOLD_COOK: '1'
       - run: npm run assets:cook -- --force
       - name: The same bytes as the committed cook
         run: git diff --exit-code -- assets/

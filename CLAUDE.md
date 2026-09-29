@@ -42,6 +42,7 @@ npx tsx server/fixtures/build.ts   # rebuild tests/fixtures (--refreeze also reb
 npm run bundle:check                # after build: three.js out of every page's static imports, sizes in budget
 npm run test:webgpu                 # the renderer smoke, recovery and post tests on WebGPU, on the local GPU (RTX 4060); local only
 node scripts/playthrough.mjs <url>  # plays every built-in adventure to its end in a real browser (GM skipping, a player): the table must come to rest after each step, moves must animate, no console errors; about 1.5 minutes, local only
+THIRDFOLD_COOK=1 npx vitest run --project server server/assets/cook.spec.ts  # the cook's KTX2 tests (about 10 s; not in npm test, run by hand and by .github/workflows/cook.yml)
 ```
 
 `expect.requireAssertions` is on, so a test with no assertions fails. The live Supabase tests in `server/supabase-scene-store.spec.ts` are skipped unless `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` and `SUPABASE_ANON_KEY` are set; to run them, start local Supabase (`npm run db:start`, which needs a Docker daemon), apply migrations (`npx supabase migration up`), and export the values from `npx supabase status -o env` (`API_URL`, `SECRET_KEY`, `PUBLISHABLE_KEY`). The `client` project needs a Playwright Chromium that matches the installed `playwright` version (`npx playwright install chromium`); it draws with SwiftShader on an 800x500 viewport with no tester UI. `three`, `@types/three`, `playwright`, `vitest` and `@vitest/browser-playwright` are pinned exactly: upgrade one at a time with the procedure in `docs/RENDERING.md`.
