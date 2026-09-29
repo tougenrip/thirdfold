@@ -42,7 +42,6 @@
 	import ActionBar from './ActionBar.svelte';
 	import AudioControls from './AudioControls.svelte';
 	import AdventurePanel from './AdventurePanel.svelte';
-	import DirectorPanel from './DirectorPanel.svelte';
 	import Decision from './Decision.svelte';
 	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
 	import CharacterSelect from './CharacterSelect.svelte';
@@ -1260,34 +1259,37 @@
 			</div>
 			{#if isGm && adventure && adventure.stage !== 'choosing'}
 				<div class="panel">
-					<DirectorPanel
-						{adventure}
-						paused={room.paused}
-						ambient={room.ambient}
-						lights={room.lights}
-						fogEnabled={room.fog.enabled}
-						fogShared={room.fog.shared}
-						{tool}
-						{spawning}
-						send={act}
-						onTool={setTool}
-						onSpawn={(kind) => {
-							setTool('select');
-							spawning = kind;
-						}}
-						onSelectToken={(id) => {
-							setTool('select');
-							selectedId = id;
-						}}
-						onFogAll={(reveal) =>
-							act({
-								type: 'fog_area',
-								from: { x: 0, y: 0 },
-								to: { x: room.grid.width - 1, y: room.grid.height - 1 },
-								reveal
-							})}
-						onError={showToast}
-					/>
+					<!-- The GM's Direct panel is only needed once play begins, so it loads then. -->
+					{#await import('./DirectorPanel.svelte') then { default: DirectorPanel }}
+						<DirectorPanel
+							{adventure}
+							paused={room.paused}
+							ambient={room.ambient}
+							lights={room.lights}
+							fogEnabled={room.fog.enabled}
+							fogShared={room.fog.shared}
+							{tool}
+							{spawning}
+							send={act}
+							onTool={setTool}
+							onSpawn={(kind) => {
+								setTool('select');
+								spawning = kind;
+							}}
+							onSelectToken={(id) => {
+								setTool('select');
+								selectedId = id;
+							}}
+							onFogAll={(reveal) =>
+								act({
+									type: 'fog_area',
+									from: { x: 0, y: 0 },
+									to: { x: room.grid.width - 1, y: room.grid.height - 1 },
+									reveal
+								})}
+							onError={showToast}
+						/>
+					{/await}
 				</div>
 			{/if}
 
