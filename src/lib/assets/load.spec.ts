@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const FILE = 'models/crate.0123abcd.glb';
 const BYTES = new Uint8Array([1, 2, 3, 4]);
@@ -15,6 +15,11 @@ async function loader(base: string, secure = true) {
 	const digest = vi.spyOn(crypto.subtle, 'digest');
 	return { ...(await import('./load')), fetch, digest };
 }
+
+// Transformed once off the tests' clock: a busy full run can take seconds over the first import.
+beforeAll(async () => {
+	await import('./load');
+}, 60_000);
 
 afterEach(() => {
 	vi.unstubAllEnvs();
