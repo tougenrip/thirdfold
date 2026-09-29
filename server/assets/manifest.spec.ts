@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
 	ASSET_FILE_PATTERN,
+	BASE_PX,
 	LIMITS,
 	isFigureKind,
 	type LimitClass,
@@ -215,6 +216,7 @@ describe('the limits per class, in the parser', () => {
 			parse((m) => {
 				// The lens dirt: a texture no material wears, so its usage may change.
 				const dirt = m.textures['lens-dirt'];
+				delete dirt.variants; // a variant is larger than its base
 				if (limitClass === 'sky') Object.assign(dirt, { usage: 'sky', colorSpace: 'srgb' });
 				Object.assign(dirt, change);
 			});
@@ -224,6 +226,53 @@ describe('the limits per class, in the parser', () => {
 		expect(texture({ width: limit.px + 1 })).toMatchObject({ ok: false });
 		expect(texture({ bytes: limit.bytes + 1 })).toMatchObject({ ok: false });
 		expect(texture({ gpuBytes: limit.gpuBytes + 1 })).toMatchObject({ ok: false });
+	});
+});
+
+describe('texture detail variants, in the parser', () => {
+	const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+	const variant = (id: string, size: number, folder = 'textures', ext = 'ktx2') => {
+		const sha256 = sha(`${id}${size}`);
+		const k = size / 1024;
+		const file = `${folder}/${id}-${k}k.${sha256.slice(0, 8)}.${ext}`;
+		return { size, file, sha256, bytes: 10, gpuBytes: 10, credit: raw.textures.grass.credit };
+	};
+	/** The grass, a 512 px PNG, and the bell, a cooked model, with the variants given. */
+	const withVariants = (t: unknown[], m: unknown[] = []) =>
+		parse((x) => {
+			x.textures.grass.variants = t as never;
+			x.models['great-bell'].variants = m as never;
+			if (!m.length) delete x.models['great-bell'].variants;
+		});
+
+	it('reads a 1K and a 2K copy of a texture and a model, credited as their base', () => {
+		const read = withVariants(
+			[variant('grass', 1024, 'textures', 'png'), variant('grass', 2048, 'textures', 'png')],
+			[variant('great-bell', 1024, 'models', 'glb')]
+		);
+		expect(read.ok).toBe(true);
+		if (!read.ok) return;
+		expect(read.manifest.textures.grass.variants?.map((v) => v.size)).toEqual([1024, 2048]);
+		expect(read.manifest.models['great-bell'].variants?.[0].credit.license).toBeDefined();
+	});
+
+	it('refuses other sizes, sizes out of order or not above the base, and other names', () => {
+		const png = (size: number) => variant('grass', size, 'textures', 'png');
+		expect(withVariants([png(4096)])).toMatchObject({ ok: false });
+		expect(withVariants([png(512)])).toMatchObject({ ok: false });
+		expect(withVariants([png(2048), png(1024)])).toMatchObject({ ok: false });
+		expect(withVariants([png(1024), png(1024)])).toMatchObject({ ok: false });
+		expect(withVariants([variant('grass', 1024)])).toMatchObject({ ok: false }); // not a PNG
+		expect(withVariants([variant('moss', 1024, 'textures', 'png')])).toMatchObject({
+			ok: false,
+			error: 'texture grass: a variant is named for its entry'
+		});
+		expect(withVariants([{ ...png(1024), sha256: sha('other') }])).toMatchObject({ ok: false });
+		expect(withVariants([{ ...png(1024), gpuBytes: LIMITS.texture.gpuBytes + 1 }])).toMatchObject({
+			ok: false
+		});
+		expect(withVariants([], [variant('great-bell', 1024)])).toMatchObject({ ok: false });
+		expect(withVariants([png(1024), png(2048), png(2048)])).toMatchObject({ ok: false });
 	});
 });
 
@@ -289,10 +338,14 @@ describe('the limits per class, in the pipeline', () => {
 		const build = () => buildTextures(dir, emitter(new Map()));
 		const png = (w: number, h: number, pixels = new Uint8Array(w * h * 4)) =>
 			writeFileSync(path.join(at, 't.png'), encodePng(w, h, pixels));
-		png(limit.px, 1);
-		expect(build().t).toMatchObject({ width: limit.px, usage: cls === 'sky' ? 'sky' : 'albedo' });
-		png(limit.px + 1, 1);
-		expect(build).toThrow(new RegExp(`larger than ${limit.px} pixels`));
+		// A texture's base is at most BASE_PX (larger sizes are its variants); a sky's is its limit.
+		const px = cls === 'sky' ? limit.px : BASE_PX;
+		png(px, 1);
+		expect(build().t).toMatchObject({ width: px, usage: cls === 'sky' ? 'sky' : 'albedo' });
+		png(px + 1, 1);
+		expect(build).toThrow(
+			cls === 'sky' ? `larger than ${limit.px} pixels` : `a texture's base is at most ${BASE_PX}`
+		);
 		// Noise does not compress: a square just big enough to pass the byte limit.
 		const side = Math.ceil(Math.sqrt(limit.bytes / 4)) + 8;
 		png(side, side, randomBytes(side * side * 4));

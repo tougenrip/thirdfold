@@ -4,8 +4,12 @@
 // ETC1S with sRGB transfer; data (normal, ORM) is UASTC with RDO and Zstd,
 // linear. Always every mip level, and a power-of-two size.
 
+import type { Document } from '@gltf-transform/core';
+import { KHRTextureBasisu } from '@gltf-transform/extensions';
+import { listTextureSlots } from '@gltf-transform/functions';
 import { encodeToKTX2 } from 'ktx2-encoder';
 import type { ColorSpace } from '../../src/lib/assets/manifest';
+import { AssetError } from './pipeline-files';
 import { decodePng } from './png';
 
 export type Image = { width: number; height: number; data: Uint8Array };
@@ -104,4 +108,29 @@ export async function cookImage(
 			imageDecoder: async () => image
 		})
 	);
+}
+
+/** A model's PNG textures as KTX2 at most `maxPx` a side, by the slots they fill. */
+export async function encodeTextures(doc: Document, maxPx: number, source: string): Promise<void> {
+	const root = doc.getRoot();
+	for (const texture of root.listTextures()) {
+		// One used as both is refused by checkGlb.
+		const slots = listTextureSlots(texture);
+		const colour = slots.some((s) => s === 'baseColorTexture' || s === 'emissiveTexture');
+		if (texture.getMimeType() !== 'image/png') {
+			throw new AssetError(source, `texture "${texture.getName()}" must be a PNG`);
+		}
+		try {
+			const ktx2 = await cookTexture(
+				texture.getImage()!,
+				colour ? 'srgb' : 'linear',
+				maxPx,
+				slots.includes('normalTexture')
+			);
+			texture.setImage(ktx2).setMimeType('image/ktx2').setURI('');
+		} catch (err) {
+			throw new AssetError(source, `texture "${texture.getName()}": ${(err as Error).message}`);
+		}
+	}
+	if (root.listTextures().length) doc.createExtension(KHRTextureBasisu).setRequired(true);
 }

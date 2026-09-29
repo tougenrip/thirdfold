@@ -9,8 +9,8 @@ Hollow Bell is the reference: every prop, figure, place and bell it uses comes t
 npm run assets          # build assets/ into static/assets/ (commit both)
 npm run assets:check    # fail if static/assets/ or the lock isn't what assets/ builds (a test checks this too)
 npm run assets:cook     # cook art/ into assets/ (see Cooking art); -- --check only compares hashes
-npm run assets:publish  # upload new built files to the asset store (see "The asset store")
-npm run assets:pull     # download built files missing here from the asset store
+npm run assets:publish  # upload new built files and texture detail's variants to the asset store
+npm run assets:pull     # download built files and variants missing here from the asset store
 ```
 
 Build with Node 22, as CI does (`npx -y node@22 node_modules/tsx/dist/cli.mjs server/assets/build.ts`
@@ -159,7 +159,8 @@ the same id in `assets/models/prop`, then `npm run assets`; no code changes.
 
 - **A texture recipe** is `{ "recipe": "noise" | "flagstones" | "planks", "size": 16..512 (a power
 of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PNG every time. A
-  PNG can be provided instead.
+  PNG can be provided instead. `size` is the size it is drawn at: the build renders it at the
+  512 px base and the cook at 1K and 2K (see Texture detail), where only its detail sharpens.
 - **A paint recipe** (#178) is `{ "recipe": "paint", "output": "normal" | "gloss", "size", "seed",
 "scale" }`, no colours: two octaves of tiling value noise as a height field, turned into a
   tangent-space normal map by a Sobel filter whose neighbours wrap (`normal`), or kept as grey
@@ -263,8 +264,9 @@ by hand, cooks everything again on Linux and macOS and fails on any byte of diff
 
 The first cooked model is the Hollow's great bell (#196), an in-house pilot until brief A (ART.md)
 is commissioned: `scripts/make-bell-art.ts` builds `art/prop/great-bell/` the way a Blender export
-would (`body`, `swing` with its pivot in `meta.json`, UVs, one material with painted albedo, normal,
-ORM and emissive PNGs; the same bytes on every run under Node 22), and its old part list is
+would (`body`, `swing` with its pivot in `meta.json`, UVs, one material with painted albedo, normal
+and ORM PNGs at 2048² and a 512² emissive rim; the same bytes on every run under Node 22), which the
+cook turns into the 512 px base GLB and a 1K and a 2K variant, and its old part list is
 `great-bell.preview.json`, shown until the cooked bell arrives. The script's `great-bell.glb` is
 generated, so it is gitignored and only `meta.json` is committed; the cook and `--check` pass over a
 model folder without its GLB as art kept elsewhere. To cook the bell again, make its art first:
@@ -278,8 +280,8 @@ Its geometry uses `Math.sin`/`cos`, which V8 need not keep bit for bit across ve
 regenerated GLB's hash differs from the lock's, the cook re-cooks it and the lock changes with it.
 Its numbers are in PERFORMANCE.md ("The great bell").
 
-Where `art/` and the cooked binaries are kept, and the upload, is #191; 1K variants for the mobile
-tier are #358.
+Where `art/` and the cooked binaries are kept, and the upload, is #191. Every cooked texture is
+cooked at the 512 px base and its 1K and 2K variants (see Texture detail).
 
 ### The surface library (#187)
 
@@ -302,9 +304,10 @@ painted surface, repainted from a CC0 scan (docs/ART.md section 11):
    0.5-0.9 (cavities rougher) with the scan's occlusion, the normal softened and scaled by
    `normalBoost` (from the height where a set has none), a 2:1 set stacked square, an optional
    `touchup.png` laid over, and the albedo's seams compared (`seamError`: a set that no longer
-   tiles fails). It encodes three KTX2 textures at 512 px, one repeat per two cells: the albedo
-   ETC1S sRGB, the normal UASTC with RDO λ 3 and Zstd, the ORM ETC1S linear (`surfaceNormal`,
-   `surfaceOrm` in `KTX2_SETTINGS`; about 350 kB a surface). The lock pins a set by its meta.json,
+   tiles fails). It encodes three KTX2 textures, one repeat per two cells: the albedo ETC1S sRGB,
+   the normal UASTC with RDO λ 3 and Zstd, the ORM ETC1S linear (`surfaceNormal`, `surfaceOrm` in
+   `KTX2_SETTINGS`), each at the 512 px base (about 350 kB a surface) and from the 2K stylised set
+   at 1K and 2K as variants (see Texture detail). The lock pins a set by its meta.json,
    so `--check` passes where the scans aren't.
 4. `npm run assets` groups each surface's three textures into the manifest's `surfaces`
    (`buildSurfaces` in `pipeline-textures.ts`: all three maps, square, one size, the usage their
@@ -312,7 +315,8 @@ painted surface, repainted from a CC0 scan (docs/ART.md section 11):
    with surfaces that lacks one for a paintable floor.
 
 At the table, `tabletop/surfaces.ts` (its own chunk, loaded only for an environment with surfaces)
-transcodes each floor surface's maps for the device and lays them layer by layer into one
+transcodes each floor surface's maps (the base, then whichever size texture detail wants, every
+layer at the same size, the array rebuilt and swapped in place) for the device and lays them layer by layer into one
 `CompressedArrayTexture` per map (a set whose formats differ is refused whole; a device the
 transcoder gives RGBA gets a `DataArrayTexture` whose mips the GPU makes, since three's compressed
 upload refuses RGBA), and the terrain
@@ -321,6 +325,45 @@ blank array standing in until they load, and each floor's layer from the ground 
 so every floor of a table is still one draw and nothing compiles when a table, a floor or its
 surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. The walls wear their
 surface's three maps in the wall material's slots.
+
+## Texture detail
+
+Every texture (recipes, PNGs, cooked KTX2, the surface library) and every cooked model's
+textures exist in up to three sizes: a **base** of at most 512 px, always, and **variants** at
+1K and 2K where the source is that large. The grade strips (`lut`) and skies have no variants.
+
+- **Where they live.** The bases are committed in `static/assets/` and served with the page, so
+  CI, tests, offline play and the native shells always have them. Variants are never committed:
+  `npm run assets:cook` writes them into `variants/` (gitignored) by their hashed names
+  (`textures/<id>-1k.<hash>.<ext>`, `models/<id>-2k.<hash>.glb`) and records each, with its SHA-256,
+  bytes and GPU bytes, in `assets/variants.lock.json` (`server/assets/variants.ts`,
+  `cook-variants.ts`). `npm run assets:publish` uploads them to the asset store beside the bases
+  (a variant cooked elsewhere need only be in the bucket), and `assets:pull` brings them back.
+- **The manifest.** A texture's or model's `variants` (`Variant`: `size` 1024 or 2048, `file`,
+  `bytes`, `sha256`, `gpuBytes`, the base's `credit`), smallest first. The build reads them from the
+  lock alone, so the manifest is the same bytes whether or not the files are here (as the cook
+  treats art kept elsewhere); `npm run assets -- --check` and `assets:cook -- --check` fail on a
+  variant file that is here and differs from the lock. The parser refuses a size other than 1024
+  or 2048, one not above its base (a model's base is 512) or out of order, a name other than its
+  entry's, and anything over its class's limits. The pipeline refuses a base over 512 px.
+- **Sizes a source makes.** A cooked texture or model gets each variant its source reaches (a
+  2048² set: 1K and 2K; a 1024² one: 1K only), a recipe both unless a size's PNG is over the
+  texture limits (the paint normal map has no 2K). A cooked model's variant is the whole GLB with
+  larger textures; its geometry is the base's.
+- **The setting.** The Graphics menu's **Texture detail** (`textureDetail` in `quality.ts`: low,
+  medium, high = at most 512, 1K, 2K; low on the low tier, medium on medium, high on high and
+  ultra; `?texture=` for tests) picks, per texture, the largest size it has up to the setting,
+  else its base (`sizeFor` in `src/lib/assets/detail.ts`).
+- **At the table.** Everything loads at its base first. With an asset host (`VITE_ASSET_BASE_URL`,
+  `remoteAssets()`) whatever has variants is handed to `tabletop/texture-detail.ts`, its own chunk,
+  which fetches the size wanted through `fetchAsset` (checked by its SHA-256) and swaps it in: the
+  same texture object, disposed and given the new pixels, so the renderer uploads it afresh and no
+  material, slot or program changes (floor arrays are rebuilt at that size and swapped the same
+  way; a model's variant gives its textures to the loaded model, part by part). Changing the
+  setting swaps again; a size that fails to load falls back to the base (`Retargeter`). Without an
+  asset host (CI, tests, native shells) only bases are drawn, so golden images stay the same.
+- **The turntable** has a Texture detail picker and shows the size each map is drawn at.
+- **Budgets** are counted per detail (see "Every table fits its budget").
 
 ## Rules the pipeline enforces
 
@@ -396,11 +439,13 @@ surface's three maps in the wall material's slots.
   the tone mapper in use, and the models of the table's props and people, what its objects and
   fights turn props into, every character and every enemy of the adventure (the GM can bring any
   kind anywhere), with each model's preview and the materials it wears. When any of it is KTX2 or
-  cooked, the Basis transcoder counts once. Over `TABLE_BUDGETS` (desktop 15 MB download and
-  160 MB GPU, mobile 6 MB and 80 MB with textures held to 1024 px) the build fails, naming the
-  adventure, the table and the number. `npm run assets` prints the report: a row per environment
-  alone, in brackets, then a row per table, with its download, its GPU bytes on desktop, and its
-  GPU bytes on mobile. The budgets and today's totals are in
+  cooked, the Basis transcoder counts once. Each is counted at each texture detail: a variant's
+  download after its base (which always loads first) and its GPU bytes instead of the base's.
+  Over `TABLE_BUDGETS` (desktop at medium, the reference tier's: 15 MB download and 160 MB GPU, high reported only; mobile at low, where
+  phones start: 6 MB and 80 MB, KTX2 at RGBA8) the build fails, naming the adventure, the table
+  and the number. `npm run assets` prints the report: a row per environment alone, in brackets,
+  then a row per table, with its download and GPU bytes at low, medium and high, and its GPU bytes
+  on mobile. The budgets and today's totals are in
   [PERFORMANCE.md](PERFORMANCE.md#asset-budgets).
 - **Licences and provenance** (#189, `server/assets/licence.ts`, tests in `licence.spec.ts`).
   Every source says on what terms we have it, and the build refuses anything else:

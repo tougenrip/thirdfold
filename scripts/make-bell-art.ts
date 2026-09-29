@@ -2,7 +2,7 @@
 // cook expects (docs/ART.md brief A, section 17): `body` (the timber A-frame,
 // its iron straps and bolts, the chains) and `swing` (the bell, its headstock
 // and clapper, turning about the headstock's axis), one material whose
-// baseColor and normal (1024²), ORM (512²) maps, one atlas, and emissive rim mask are
+// baseColor, normal and ORM maps (2048², one atlas) and emissive rim mask (512²) are
 // painted as PNG (bell-art-paint.ts): cast bronze with patina streaking down from the bands,
 // the lip and bands worn bright, three bands of illegible lettering, a crack up
 // from the lip; dark timber grain; hammered, rusting iron. Same bytes every run
@@ -18,7 +18,6 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { placementOf, shapeAt, type Shape } from '../server/assets/models';
 import { encodePng } from '../server/assets/png';
-import { fit } from '../server/assets/cook-textures';
 import {
 	BELL,
 	GLOW,
@@ -268,9 +267,8 @@ const png = (name: string, size: number, rgba: Uint8Array) =>
 		.createTexture(name)
 		.setMimeType('image/png')
 		.setImage(encodePng(size, size, rgba, 'sub'));
-// Occlusion, roughness and metal change slowly: half the size is a quarter of the download.
-const half = fit({ width: SIZE, height: SIZE, data: maps.orm }, SIZE / 2);
-const orm = png('bell-orm', SIZE / 2, half.data);
+// Every map at the atlas's size: the cook makes each texture detail's (512 base, 1K, 2K) from it.
+const orm = png('bell-orm', SIZE, maps.orm);
 const bronze = doc
 	.createMaterial('bell')
 	.setBaseColorTexture(png('bell-albedo', SIZE, maps.albedo))

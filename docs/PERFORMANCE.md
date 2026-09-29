@@ -577,18 +577,20 @@ bytes. It stays one fetch, cached by the browser like the rest of the page.
 What one table's assets may add up to (`TABLE_BUDGETS` in `server/assets/scenes.ts`, #193), from
 the roadmap's first-table download and GPU memory budgets. The build fails over any of them.
 
-| Tier    | Download | GPU    | Textures counted at |
-| ------- | -------- | ------ | ------------------- |
-| Desktop | 15 MB    | 160 MB | their size          |
-| Mobile  | 6 MB     | 80 MB  | at most 1024 px     |
+| Tier    | Download | GPU    | Counted at texture detail                 |
+| ------- | -------- | ------ | ----------------------------------------- |
+| Desktop | 15 MB    | 160 MB | medium (1K), the reference tier's default |
+| Mobile  | 6 MB     | 80 MB  | low (512), what phones start on           |
 
 MB here is 1024 × 1024 bytes, as in the manifest's `LIMITS`. Mobile's download is the roadmap's
-mobile first-table budget, stricter than half the desktop's; its GPU figure counts textures at the
-size the 1K tier (#358) will serve, and KTX2 at RGBA8 (four times the manifest's `gpuBytes`, which
-assume a compressed transcode target), what a phone the transcoder finds no compressed format on
-gets; a cooked model's whole `gpuBytes` is counted so, geometry too, a bound rather than the
-figure. These are starting values, confirmed per tier in #155: change them only on
-purpose, with the reason here.
+mobile first-table budget, stricter than half the desktop's; its GPU figure counts the 512 px bases
+(texture detail's low, which the low tier and phones default to) and KTX2 at RGBA8 (four times the
+manifest's `gpuBytes`, which assume a compressed transcode target), what a phone the transcoder
+finds no compressed format on gets; a cooked model's whole `gpuBytes` is counted so, geometry too,
+a bound rather than the figure. Each level counts a variant's download after its base (which
+always loads first) and its GPU bytes instead. High (2K) is reported, not held to the budgets:
+see below. These are starting values, confirmed per tier in #155: change them only on purpose,
+with the reason here.
 
 What is counted is in [ASSETS.md](ASSETS.md#rules-the-pipeline-enforces). Totals with the assets
 of milestone 64 (`npm run assets`; kB of 1024 bytes), and with #190's bevelled, baked part lists
@@ -622,12 +624,38 @@ With the surface library (#187) and the cooked bell (#196), KTX2 counted at RGBA
 largest table, the Hollow, is 4,805 kB to download, 11,208 kB on the GPU and 40,972 kB on a mobile
 GPU (51% of its 80 MB); every other table is 2.4–3.6 MB, 5.8–7.6 MB and 21–26 MB.
 
+With texture detail (every texture at a 512 px base, 1K and 2K variants in the asset store;
+recipes rendered at 512 rather than 64–256), per level (`npm run assets`, kB):
+
+| Table                   | Download low | medium | high   | GPU low | medium | high    | Mobile GPU |
+| ----------------------- | ------------ | ------ | ------ | ------- | ------ | ------- | ---------- |
+| hollow-bell/bellweather | 3,775        | 12,553 | 32,450 | 11,444  | 42,164 | 160,948 | 29,876     |
+| hollow-bell/monastery   | 3,518        | 11,669 | 30,777 | 11,338  | 42,058 | 160,842 | 29,770     |
+| hollow-bell/hollow      | 4,368        | 14,708 | 37,877 | 14,600  | 52,488 | 199,944 | 38,988     |
+| hollow-bell/heart       | 2,957        | 10,027 | 25,614 | 8,737   | 32,289 | 122,401 | 24,097     |
+| blackwater/train        | 3,356        | 11,390 | 29,443 | 9,882   | 36,506 | 138,906 | 28,314     |
+| blackwater/engine       | 3,142        | 11,175 | 29,228 | 9,696   | 36,320 | 138,720 | 28,128     |
+| blackwater/blackwater   | 3,136        | 11,169 | 29,222 | 9,690   | 36,314 | 138,714 | 28,122     |
+| example/yard            | 3,200        | 11,977 | 31,875 | 10,941  | 41,661 | 160,445 | 29,373     |
+| example/cellar          | 3,044        | 11,195 | 30,303 | 10,924  | 41,644 | 160,428 | 29,356     |
+
+Every table fits at low (mobile: at most 4.4 MB of 6 and 39 of 80 MB) and at medium (desktop: the
+Hollow is 14.7 of 15 MB to download, the tightest). At high every table is over the desktop
+download budget (25–38 MB) and the Hollow over its GPU budget (195 MB): a recipe's 2K PNG is
+21 MB on the GPU (seven or eight of them per table: the materials' maps, the paint maps, the lens
+dirt) and each surface's 2K maps are 5.3 MB. Before high is held to a budget, either the budget
+for high is set on purpose or the recipes' variants become KTX2 (#193). The 2K grass normal map
+(4.4 MB) is over the texture file limit, so the cook leaves it out and the floors' normal array
+tops out at 1K at high (the albedo and ORM arrays reach 2K).
+
 ### The great bell, the first cooked model (#196)
 
 The pilot (`scripts/make-bell-art.ts`, cooked from `art/prop/great-bell/`): a set piece of 14,292
 triangles at LOD0 (body 4,852, swing 9,440), 6,487 at LOD1 and 2,416 at LOD2, meshopt-encoded,
-with one texture set: 1024² albedo (ETC1S, 100 kB), 1024² normal (UASTC + Zstd, 844 kB), 512² ORM
-(UASTC + Zstd, 229 kB) and a 256² emissive rim mask (1 kB). Its part list is the preview.
+with one texture set painted at 2048² (albedo ETC1S, normal and ORM UASTC + Zstd) and a 512²
+emissive rim mask, cooked into a 512 px base GLB (876 kB, 1.9 MB GPU) and 1K (2,059 kB, 4.9 MB) and
+2K (5,952 kB, 16.9 MB) variants in the asset store. Its part list is the preview. (Its first
+texture set was 1024² albedo and normal and a 512² ORM in one 1,535 kB file, the table below.)
 
 | What                        | Before (part list) | The pilot                             |
 | --------------------------- | ------------------ | ------------------------------------- |

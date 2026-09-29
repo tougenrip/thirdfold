@@ -18,7 +18,14 @@
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { ModelEntry, ModelLod, ToneMapper } from '$lib/assets/manifest';
-import { assetUrl, fetchAsset, loadManifest, manifestNow, type Priority } from '$lib/assets/load';
+import {
+	assetUrl,
+	fetchAsset,
+	loadManifest,
+	manifestNow,
+	remoteAssets,
+	type Priority
+} from '$lib/assets/load';
 import { plan, type PlanView } from '$lib/assets/prefetch';
 import { worldToGrid, type SquareGrid } from '$lib/game/grid';
 import {
@@ -88,6 +95,21 @@ let users = 0;
 let generation = 0;
 let decoding: Promise<Decoders> | null = null;
 let decoderModule: typeof import('./decoders') | null = null;
+type DetailChunk = typeof import('./texture-detail');
+let detailChunk: DetailChunk | null = null;
+
+/**
+ * Hands something with 1K or 2K variants to texture detail's chunk (texture-detail.ts), loaded
+ * the first time: only with an asset host, the only place variants are. A `device` texture is
+ * dropped if the tables were freed meanwhile.
+ */
+export function followDetail(use: (chunk: DetailChunk) => void, device = true): void {
+	if (!remoteAssets()) return;
+	const at = generation;
+	void import('./texture-detail').then(
+		(m) => (!device || at === generation) && use((detailChunk = m))
+	);
+}
 
 /**
  * A table on `r` uses models: textures upload to it, and its device picks the KTX2 format. A
@@ -114,6 +136,7 @@ function freeAll(): void {
 	ready.clear();
 	staged.clear();
 	dropDecoders();
+	detailChunk?.forgetDevice();
 	releaseEnvironmentTextures();
 }
 
@@ -219,7 +242,9 @@ async function load(id: string, priority: Priority, at: number): Promise<LoadedM
 	if (!entry) return null;
 	const full = fetchAsset(entry.file, entry.sha256, priority);
 	if (entry.preview) void showPreview(id, entry, at);
-	return parseModel(entry, await full);
+	const model = await parseModel(entry, await full);
+	if (entry.variants) followDetail((m) => m.trackModel(model));
+	return model;
 }
 
 /** Shows a model's preview while the model itself is still coming; a failed preview is skipped. */

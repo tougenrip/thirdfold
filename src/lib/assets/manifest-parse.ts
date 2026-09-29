@@ -8,6 +8,7 @@ import {
 	ASSET_FILE_PATTERN,
 	ASSET_ID_PATTERN,
 	AUDIO_LIMITS,
+	BASE_PX,
 	GRADE_BANDS,
 	LICENSES,
 	LIMITS,
@@ -19,7 +20,9 @@ import {
 	THUMBNAIL_BYTES,
 	TONE_MAPPERS,
 	USAGE_SPACE,
+	VARIANT_PX,
 	limitClass,
+	variantId,
 	type Credit,
 	type EnvironmentDef,
 	type FileInfo,
@@ -31,7 +34,8 @@ import {
 	type SurfaceEntry,
 	type TextureEntry,
 	type TextureUsage,
-	type ToneMapper
+	type ToneMapper,
+	type Variant
 } from './manifest';
 
 type Parsed = { ok: true; manifest: Manifest } | { ok: false; error: string };
@@ -113,6 +117,40 @@ function fileInfo(
 	return { file, bytes: v.bytes, sha256: v.sha256, credit: credit(v.credit, what) };
 }
 
+/**
+ * An entry's larger copies: one or two, of `VARIANT_PX` sizes rising and over `base` (its own
+ * largest side), each named for the entry as the base is (same folder and type) and within the
+ * class's limits.
+ */
+function variants(
+	raw: unknown,
+	id: string,
+	base: { file: string; px: number },
+	limit: { bytes: number; gpuBytes: number },
+	what: string
+): { variants?: Variant[] } {
+	if (raw === undefined) return {};
+	if (!Array.isArray(raw) || raw.length < 1 || raw.length > VARIANT_PX.length) {
+		throw new Invalid(`${what}: bad variants`);
+	}
+	const folder = base.file.slice(0, base.file.indexOf('/'));
+	const ext = base.file.slice(base.file.lastIndexOf('.') + 1);
+	let below = base.px;
+	return {
+		variants: raw.map((v: unknown) => {
+			const size = isRecord(v) ? VARIANT_PX.find((px) => px === v.size) : undefined;
+			if (!isRecord(v) || !size || size <= below) throw new Invalid(`${what}: bad variant size`);
+			below = size;
+			const info = fileInfo(v, `${what} ${size} px`, limit.bytes, [ext]);
+			if (!info.file.startsWith(`${folder}/${variantId(id, size)}.`)) {
+				throw new Invalid(`${what}: a variant is named for its entry`);
+			}
+			if (!integer(v.gpuBytes, 1, limit.gpuBytes)) throw new Invalid(`${what}: bad GPU size`);
+			return { ...info, size, gpuBytes: v.gpuBytes };
+		})
+	};
+}
+
 /** An entry's pack, which the manifest must list. */
 function pack(v: unknown, packs: Record<string, PackInfo>, what: string): { pack?: string } {
 	if (v === undefined) return {};
@@ -171,6 +209,7 @@ function readTexture(
 		throw new Invalid(`${what}: ${usage} is ${USAGE_SPACE[usage]}`);
 	}
 	const limit = LIMITS[limitClass({ usage })];
+	const { file } = fileInfo(v, what, limit.bytes, [format]);
 	if (!integer(v.width, 1, limit.px) || !integer(v.height, 1, limit.px)) {
 		throw new Invalid(`${what}: bad size`);
 	}
@@ -189,7 +228,8 @@ function readTexture(
 		layers: v.layers,
 		levels: v.levels,
 		gpuBytes: v.gpuBytes,
-		...pack(v.pack, packs, what)
+		...pack(v.pack, packs, what),
+		...variants(v.variants, id, { file, px: Math.max(v.width, v.height) }, limit, what)
 	};
 }
 
@@ -240,6 +280,8 @@ function readModel(
 		gpuBytes: v.gpuBytes,
 		...pack(v.pack, packs, what)
 	};
+	// A cooked model's base carries textures of at most BASE_PX.
+	Object.assign(entry, variants(v.variants, id, { file: entry.file, px: BASE_PX }, limit, what));
 	if (setPiece) entry.setPiece = true;
 	if (v.swing !== undefined) {
 		const s = v.swing;

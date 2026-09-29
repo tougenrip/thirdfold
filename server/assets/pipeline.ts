@@ -16,6 +16,7 @@
 //   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
 //   <folder>/_provenance.json | <id>.meta.json  where each came from and on what terms (licence.ts)
+//   assets/variants.lock.json           textures' and cooked models' 1K and 2K copies (variants.ts)
 //
 // Nothing built is executable: models are checked against an allowlist
 // (glb.ts, gltf-check.ts), images and sounds by their headers (KTX2 in
@@ -56,6 +57,7 @@ import { AssetError, emitter, idOf, isRecord, list, readJson } from './pipeline-
 import { buildModels } from './pipeline-models';
 import { assignPacks } from './pipeline-packs';
 import { buildGrades, buildSurfaces, buildTextures } from './pipeline-textures';
+import { VARIANT_LOCK, attachVariants, readVariantLock } from './variants';
 
 export { AssetError } from './pipeline-files';
 
@@ -214,6 +216,8 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 		decoders: buildDecoders(files)
 	};
 	assignPacks(manifest);
+	// Texture detail's 1K and 2K copies, from their lock alone (variants.ts).
+	attachVariants(manifest, readVariantLock(dir), path.join(dir, VARIANT_LOCK));
 	const checked = parseManifest(JSON.parse(JSON.stringify(manifest)));
 	if (!checked.ok) throw new AssetError('manifest', checked.error);
 	return { manifest, files, catalogModule: catalogModule(catalog), shipped };

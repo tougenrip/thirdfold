@@ -6,6 +6,7 @@
 // `thirdfold:graphics`, in this browser only.
 
 import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
+import { TEXTURE_DETAILS, type TextureDetail } from '../assets/detail';
 
 export const TIERS = ['low', 'medium', 'high', 'ultra'] as const;
 export type Tier = (typeof TIERS)[number];
@@ -87,10 +88,7 @@ export interface QualitySettings {
 	grain: boolean;
 	/** The environment's colour grade (#162). */
 	grade: boolean;
-	/**
-	 * Depth of field in play, or tilt-shift in the tactical view (#165). Off in every preset:
-	 * zooming in on a blurred board gets in the way of play; shots blur whatever this says.
-	 */
+	/** Depth of field in play, or tilt-shift in the tactical view (#165); off in every preset. */
 	miniature: boolean;
 	/** Real point lights: a fixed pool, or clustered (ultra, #357). */
 	lights: 8 | 16 | 32 | 'clustered';
@@ -104,16 +102,12 @@ export interface QualitySettings {
 	/** Frames per second while something moves, and for flicker and mist. */
 	fpsCap: 30 | 60;
 	ambientFps: 20 | 30;
-	/**
-	 * Anisotropic filtering on every world texture (#179), clamped to what the device offers
-	 * (`setTextureQuality`); data textures keep 1.
-	 */
+	/** Anisotropic filtering on world textures (#179), clamped to the device; data textures keep 1. */
 	anisotropy: 4 | 8 | 16;
-	/**
-	 * Two-fetch anti-tiling on walls, raised ground and the table (#181): a variant of their
-	 * graphs, so a tier switch that changes it compiles them once.
-	 */
+	/** Two-fetch anti-tiling (#181): a variant of the graphs, compiled once on a tier switch. */
 	antiTile: boolean;
+	/** The largest texture size drawn (detail.ts): 512, 1K or 2K where a texture has it. */
+	textureDetail: TextureDetail;
 	/** How strongly props and minis show their paint (#178, `paint.strength`; 0 unpainted). */
 	paint: number;
 	/** Frames a still picture takes to converge, from `aa` (TRAA's history). */
@@ -143,7 +137,8 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		ambientFps: 20,
 		anisotropy: 4,
 		antiTile: false,
-		paint: 0
+		paint: 0,
+		textureDetail: 'low'
 	},
 	medium: {
 		megapixels: 2.1,
@@ -164,7 +159,8 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		ambientFps: 30,
 		anisotropy: 8,
 		antiTile: true,
-		paint: 0.5
+		paint: 0.5,
+		textureDetail: 'medium'
 	},
 	high: {
 		megapixels: 3.7,
@@ -185,7 +181,8 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		ambientFps: 30,
 		anisotropy: 16,
 		antiTile: true,
-		paint: 0.5
+		paint: 0.5,
+		textureDetail: 'high'
 	},
 	ultra: {
 		megapixels: 3.7,
@@ -206,7 +203,8 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		ambientFps: 30,
 		anisotropy: 16,
 		antiTile: true,
-		paint: 0.5
+		paint: 0.5,
+		textureDetail: 'high'
 	}
 };
 
@@ -286,7 +284,8 @@ export const OPTIONS = {
 	grade: [false, true],
 	miniature: [false, true],
 	sunShadowSize: [1024, 2048, 4096],
-	fpsCap: [30, 60]
+	fpsCap: [30, 60],
+	textureDetail: TEXTURE_DETAILS
 } as const;
 export type OptionKey = keyof typeof OPTIONS;
 /** The options the viewer changed from their preset. */

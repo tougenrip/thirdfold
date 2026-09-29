@@ -9,6 +9,7 @@ import { CATALOG_MODULE, SHIPPED_FILE, shippedText, staleCatalog } from './catal
 import { AssetError, buildAssets, staleAssets, writeAssets } from './pipeline';
 import { adventures, checkScenes, sceneReport } from './scenes';
 import { LOCK_FILE, lockOf, lockText } from './store';
+import { VARIANTS_DIR, readVariantLock, staleVariants } from './variants';
 
 const SOURCES = 'assets';
 const OUT = path.join('static', 'assets');
@@ -43,7 +44,11 @@ try {
 		`Per table (docs/PERFORMANCE.md, "Asset budgets"):\n  ${sceneReport(m).join('\n  ')}`
 	);
 	if (process.argv.includes('--check')) {
-		const stale = [...staleAssets(OUT, built), ...staleCatalog('.', SOURCES, built)];
+		const stale = [
+			...staleAssets(OUT, built),
+			...staleCatalog('.', SOURCES, built),
+			...staleVariants(VARIANTS_DIR, readVariantLock(SOURCES))
+		];
 		if (
 			!existsSync(LOCK_FILE) ||
 			readFileSync(LOCK_FILE, 'utf8') !== lockText(lockOf(built.files))

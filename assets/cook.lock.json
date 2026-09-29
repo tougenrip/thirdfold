@@ -6,7 +6,8 @@
 		"three": "0.186.0"
 	},
 	"settings": {
-		"version": 1,
+		"version": 2,
+		"sizes": [512, 1024, 2048],
 		"lods": [
 			{
 				"ratio": 0.5,
@@ -50,17 +51,17 @@
 	"entries": {
 		"prop/great-bell": {
 			"sources": {
-				"great-bell.glb": "a6173c0be46e1c2d4b609c0c8a15c15ddc53d06b84d69eb96a27454190a7a7de",
-				"meta.json": "b58d570b18498f926ef4e82eadb7b05137337de8e6b8eecca725eb5cd752c63f"
+				"great-bell.glb": "71ca2c580a643045e88c0420f1f151230f0e2e2c425b9eef9122f063b397d4ea",
+				"meta.json": "cdabcbbd006f9122a7fe604d2e8e803b766bc6bd3a0364346321978e62fbd448"
 			},
 			"outputs": {
-				"models/prop/great-bell.glb": "4818ba6cbc1bd3ab5e7890893283f523c69a92ede36f845cf6fc775ce7be6163",
+				"models/prop/great-bell.glb": "27896588a301ab36f54e1d4037f44b749ac9a5a5810fbe0295ec1f420e9fd64b",
 				"models/prop/great-bell.meta.json": "bc1ec09ac40bcf8fd706523e0d289e0673a225c6618cdd15fb65df16b2761d7b"
 			}
 		},
 		"surfaces/ashlar": {
 			"sources": {
-				"meta.json": "6a4389a24f60c055e73b56529643ff8e0d38ccd966dee1b9f11051370b266ce2"
+				"meta.json": "2424e604faec8373d1968b0cbf7b284ff3cb6572b3fb09729548d038e238d2d8"
 			},
 			"outputs": {
 				"textures/surface-ashlar-albedo.ktx2": "3eeb14f2d4a15b12aa0d2d978cb7d4b888b17665b86539dcce40207e53134c5a",
@@ -73,7 +74,7 @@
 		},
 		"surfaces/dirt": {
 			"sources": {
-				"meta.json": "f3e60f33e56ff8e64916cf6b0d3225ecba2da001907537ad3d002e706cbe95ac"
+				"meta.json": "5f82e9713690161b8bc02f1707c644b3a9cdc49df321c12acfd75ff795bba1aa"
 			},
 			"outputs": {
 				"textures/surface-dirt-albedo.ktx2": "1b744125aa728303ff8bf1bfcd8ef0709e5c655684f999f5a8dca18a2369fb51",
@@ -86,7 +87,7 @@
 		},
 		"surfaces/grass": {
 			"sources": {
-				"meta.json": "9f107ffb58cf7ec73447369b511811094b41a691375d290e95565c64cc2030a5"
+				"meta.json": "3e63e5a75bc3aaa571a7b7c5809456a089f0470890bbadd0719906eebd60e608"
 			},
 			"outputs": {
 				"textures/surface-grass-albedo.ktx2": "f0ca01723681828693e00c5d6682ab9dfe21d64ea0ef32e9ddc4c58877934c94",
@@ -99,7 +100,7 @@
 		},
 		"surfaces/planks": {
 			"sources": {
-				"meta.json": "1c1497116e49a8e7a993b334c86cf6136d34556102874ece95efa9a803723866"
+				"meta.json": "7ee8000d7aa5443f47cbe23f5ea13a228279c4ed3ade58fc2be72917b75642b0"
 			},
 			"outputs": {
 				"textures/surface-planks-albedo.ktx2": "e7d2f2e8b281fad08e0e7b389e9440f6383c698a9b8a2416bb20631b1964d526",
@@ -112,7 +113,7 @@
 		},
 		"surfaces/plaster": {
 			"sources": {
-				"meta.json": "3cdcc55a2b50fb5d73ad644e841387319d1e2e9e1df14d38f563efad47b317a7"
+				"meta.json": "09743d770fe487b91fad6335b48539c805236cb906b130a33411cf15eb2f982c"
 			},
 			"outputs": {
 				"textures/surface-plaster-albedo.ktx2": "01235b4fd5a4a44ea6bda0f5d0e5e84953bc40d93a59b25ac4aa3ab94c6df177",
@@ -125,7 +126,7 @@
 		},
 		"surfaces/sand": {
 			"sources": {
-				"meta.json": "3add7048e29ccf21d9e55f7efac2c9ecb2bf9972088da62226f0db218cacac8e"
+				"meta.json": "d53b13498d7908ed6ca852414ecb541100b1546ec757adc1e942e2e2ef77d246"
 			},
 			"outputs": {
 				"textures/surface-sand-albedo.ktx2": "2f192c108ceacfee1e3379f2e7e399daa9bad031319acd44efa9b64277ac4aec",
@@ -138,7 +139,7 @@
 		},
 		"surfaces/stone": {
 			"sources": {
-				"meta.json": "7f9b6c36d3a7b70df4a9fe39283a0228c4be4d5974a425b44a841b3ba0eddacc"
+				"meta.json": "859e3f9c698ebb731e5d20b3aab65d0e71b13af5b822a66954a3e3efc646fd2e"
 			},
 			"outputs": {
 				"textures/surface-stone-albedo.ktx2": "832969308298c2196cc7ca6724dd31bfb3fe5657aa3f86645981c3b36ad0f77e",
@@ -151,7 +152,7 @@
 		},
 		"surfaces/wood": {
 			"sources": {
-				"meta.json": "cd93148dedaa1a1eddde0d0ae824bab45957b7e9440a3c915c5e57b15ab0e7b1"
+				"meta.json": "9d2884139933d5df583786ad1de57ef8ba36f0b4a69475d96c6901b31fe94300"
 			},
 			"outputs": {
 				"textures/surface-wood-albedo.ktx2": "3ab2cd992ac498ec144362408b504ec14d7f97be2669eabc43d1e45aaaa6ddc7",
@@ -161,6 +162,66 @@
 				"textures/surface-wood-orm.ktx2": "3f4b21772d385907351d7a2fa73ba25c7db4edfc0d32fc72fc6ffcb83dd63b51",
 				"textures/surface-wood-orm.meta.json": "cc6be47bf57389f6dafc33d5e6471a83f3c4c257f4516440a190a6a46abc8da5"
 			}
+		},
+		"recipes/cave": {
+			"sources": {
+				"cave.json": "a0f6c793326ca4be939a813858009fe5e2e2aec77fa32cce07968c2df41237b7"
+			},
+			"outputs": {}
+		},
+		"recipes/earth": {
+			"sources": {
+				"earth.json": "5c32867544e0a6b4105059d263a857024b26367f1b79d9017fb14abd9677dcaf"
+			},
+			"outputs": {}
+		},
+		"recipes/flagstones": {
+			"sources": {
+				"flagstones.json": "8d2eb0468da436a5e7e323a23b6573f0db4eb7e513bf4c072532256d4f8c3cd7"
+			},
+			"outputs": {}
+		},
+		"recipes/flesh": {
+			"sources": {
+				"flesh.json": "1e5a1fbd02b57c98b602ef21e051b3c0a3b88b019fe66bdaff806b37162326df"
+			},
+			"outputs": {}
+		},
+		"recipes/grass": {
+			"sources": {
+				"grass.json": "5ba53faa339a99fa6cb295b8ceff79d15a2dd806ce093be3ce0008417ee9528b"
+			},
+			"outputs": {}
+		},
+		"recipes/lens-dirt": {
+			"sources": {
+				"lens-dirt.json": "e2a3c17e04a3519c2ea715e761c606cefd36534ed75edcaaa457d4f12b79c7e6"
+			},
+			"outputs": {}
+		},
+		"recipes/paint-gloss": {
+			"sources": {
+				"paint-gloss.json": "6f8ed3a63e16a0444ebe938f435177525fa72a24070589ed47a7e18fe6d0c7b1"
+			},
+			"outputs": {}
+		},
+		"recipes/paint-normal": {
+			"sources": {
+				"paint-normal.json": "6b843a0061e30db05404ffb009e0ba12ba37d10610847901bfe6501f84532d1d"
+			},
+			"outputs": {}
+		},
+		"recipes/planks": {
+			"sources": {
+				"planks.json": "763922cb0bfa27991239704cd2363b6e770f8e534a7b7bd713f4fd77ae65d13f"
+			},
+			"outputs": {}
+		},
+		"recipes/rock": {
+			"sources": {
+				"rock.json": "16e82513418105bc7e2ea4a060269db8912bcca78e2c4a0a04deac72a6e4555d"
+			},
+			"outputs": {}
 		}
 	}
 }

@@ -56,6 +56,7 @@
 		type Tier
 	} from './quality';
 	import { initialShape, sameShape, shapeOf, type Shape } from './shape';
+	import { textureDetailFrom } from '$lib/assets/detail';
 	import type { Pose } from './shots';
 	import { tick, untrack } from 'svelte';
 
@@ -243,8 +244,9 @@
 			return false;
 		}
 		const toneMapper = toneMapperFrom(search) ?? prefs.toneMapper;
+		const textureDetail = textureDetailFrom(search) ?? settings.textureDetail;
 		t.setQuality(
-			{ ...settings, layers: layersFrom(search, settings.layers), toneMapper },
+			{ ...settings, layers: layersFrom(search, settings.layers), toneMapper, textureDetail },
 			auto && !tier
 		);
 		t.setPowerSaver(prefs.powerSaver);

@@ -55,6 +55,20 @@ and 3.9 u across for 1-4 cells are a _target_ (#265, #270).
 
 Stay within a factor of two of these, so nothing looks sharper or blurrier than its neighbours.
 
+These are the densities at **high** texture detail (the Graphics menu, docs/ASSETS.md "Texture
+detail"): deliver every map at the size above, and the cook makes the 512 px base and the 1K
+from it. Each lower setting halves the density where a map is larger than it:
+
+| Texture detail | Largest side | A surface (2 cells a repeat) | A 2048² trim sheet (4×4 cells) | A 1024² hero mini (≈2.5 u) |
+| -------------- | ------------ | ---------------------------- | ------------------------------ | -------------------------- |
+| High           | 2048         | 1024 px per cell             | 512 px per cell                | about 400 px per unit      |
+| Medium         | 1024         | 512 px per cell              | 256 px per cell                | about 400 px per unit      |
+| Low (the base) | 512          | 256 px per cell              | 128 px per cell                | about 200 px per unit      |
+
+A map no larger than a setting's side is drawn at its own size at every setting above it, so
+small props (512²) look the same at low and high; only large maps gain. Paint for high, and check
+the look at low, which phones and the low tier start on.
+
 ## 4. Palette and values
 
 - **Albedo values** stay within 30-240 sRGB on every channel. Nothing is pure black or white.
@@ -369,8 +383,8 @@ seen from far off and close up.
   pivoting about the yoke's axis), each with `_lod1` and `_lod2`.
 - **Budget.** Set piece: LOD0 at most 30,000 triangles (ceiling 60,000), LOD1 about 50%, LOD2
   about 15%.
-- **Textures.** 1024² albedo, normal and ORM, plus an emissive mask for a faint rim glow on the
-  lip; 2048² albedo only if review asks for it.
+- **Textures.** 2048² albedo, normal and ORM (the cook makes the 512 base and the 1K), plus an
+  emissive mask for a faint rim glow on the lip.
 - **Deliver** as `art/prop/great-bell/`: `great-bell.glb` (textures embedded as 8-bit PNG),
   `meta.json` (provenance, the swing's pivot height and throw), the `.blend`, the painter files
   and the high-poly.
@@ -379,7 +393,7 @@ seen from far off and close up.
 
 Until it is commissioned, the pilot is made in house (`LicenseRef-thirdfold-original`) by
 `scripts/make-bell-art.ts`: the same meshes, pivot, maps and export shape, procedural rather than
-sculpted, with a 512² ORM (its occlusion, roughness and metal change slowly) to spare the download.
+sculpted, every map at 2048² (the emissive rim at 512²), so it has all three texture details.
 
 ### Brief B: a stone-halls wall (the first kit piece, #263)
 

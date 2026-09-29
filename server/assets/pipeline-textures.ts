@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
+	BASE_PX,
 	LIMITS,
 	TEXTURE_USAGES,
 	TONE_MAPPERS,
@@ -122,8 +123,8 @@ export function buildTextures(dir: string, emit: Emit): Record<string, TextureEn
 			const raw = readJson(source);
 			usage = usageOf(raw, source);
 			try {
-				const recipe = readTextureSource(raw);
-				png = encodePng(recipe.size, recipe.size, renderTexture(recipe));
+				// Every recipe's base is BASE_PX a side; the cook renders its 1K and 2K (cook-variants.ts).
+				png = encodePng(BASE_PX, BASE_PX, renderTexture(readTextureSource(raw), BASE_PX));
 			} catch (err) {
 				throw new AssetError(source, (err as Error).message);
 			}
@@ -140,6 +141,14 @@ export function buildTextures(dir: string, emit: Emit): Record<string, TextureEn
 		} else throw new AssetError(source, 'textures are .json recipes, or .png or .ktx2 images');
 		const credit = creditOf(provenanceFor(textureDir, id, ext));
 		textures[id] = pngTexture(emit, source, id, png, usage, credit);
+	}
+	for (const [id, t] of Object.entries(textures)) {
+		if (t.usage !== 'sky' && Math.max(t.width, t.height) > BASE_PX) {
+			throw new AssetError(
+				path.join(textureDir, id),
+				`over ${BASE_PX} px: a texture's base is at most ${BASE_PX}, larger sizes are its variants`
+			);
+		}
 	}
 	return textures;
 }

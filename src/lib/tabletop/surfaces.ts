@@ -7,11 +7,12 @@
 // only for an environment with surfaces), so the renderer chunk stays in budget.
 
 import * as THREE from 'three/webgpu';
+import { BASE_PX, type EnvironmentDef, type Manifest } from '$lib/assets/manifest';
+import { fileAt, sizesOf } from '$lib/assets/detail';
 import { fetchAsset, loadManifest } from '$lib/assets/load';
-import type { EnvironmentDef, Manifest } from '$lib/assets/manifest';
 import { loadTexture, releasers, type Look } from './environment';
 import { FLOOR_MAPS, SURFACE_CELLS, type FloorMap, type FloorSurfaces } from './materials/floors';
-import { ktx2Texture, slotTexture } from './models';
+import { followDetail, ktx2Texture, slotTexture } from './models';
 
 const floorCache = new Map<string, Promise<FloorSurfaces | null>>();
 // Transcoded for one device: freed with the environment's other KTX2 textures.
@@ -43,7 +44,19 @@ export async function surfacesOf(
 ): Promise<{ floors: FloorSurfaces | null; walls: Partial<Look> | null }> {
 	const manifest = await loadManifest();
 	const key = surfaces.floors.join();
-	if (key && !floorCache.has(key)) floorCache.set(key, floorArrays(surfaces.floors, manifest));
+	if (key && !floorCache.has(key)) {
+		const ids = surfaces.floors;
+		const loading = floorArrays(ids, manifest, BASE_PX) as Promise<FloorSurfaces | null>;
+		floorCache.set(key, loading);
+		// Each map's larger sizes (texture detail): a size every layer of it has.
+		for (const map of FLOOR_MAPS) {
+			const entries = ids.map((id) => manifest.textures[manifest.surfaces[id][map]]);
+			const sizes = sizesOf(entries[0]).filter((s) => entries.every((e) => sizesOf(e).includes(s)));
+			const build = (size: number) =>
+				floorArrays(ids, manifest, size, [map]).then((f) => f?.maps[map] ?? null);
+			void loading.then((f) => f && followDetail((m) => m.trackFloors(f, map, sizes, build)));
+		}
+	}
 	const [floors, maps] = await Promise.all([
 		floorCache.get(key) ?? null,
 		surfaces.walls[0] ? loadSurface(surfaces.walls[0]) : null
@@ -94,14 +107,22 @@ function arrayOf(layers: Layer[], map: FloorMap): THREE.Texture | null {
 	return slotTexture(array, map);
 }
 
-/** The floors `ids` name (in layer order) as arrays, or null if any fails to load or match. */
-async function floorArrays(ids: string[], manifest: Manifest): Promise<FloorSurfaces | null> {
+/**
+ * The floors `ids` name (in layer order) as arrays of their `size` copies, of `maps`, or null if
+ * any fails to load or match.
+ */
+async function floorArrays(
+	ids: string[],
+	manifest: Manifest,
+	size: number,
+	maps: readonly FloorMap[] = FLOOR_MAPS
+): Promise<{ maps: Partial<FloorSurfaces['maps']>; layers: FloorSurfaces['layers'] } | null> {
 	const layers = await Promise.all(
-		FLOOR_MAPS.map((map) =>
+		maps.map((map) =>
 			Promise.all(
 				ids.map(async (id) => {
-					const entry = manifest.textures[manifest.surfaces[id][map]];
-					return (await ktx2Texture(await fetchAsset(entry.file, entry.sha256, 'low'))) as Layer;
+					const { file, sha256 } = fileAt(manifest.textures[manifest.surfaces[id][map]], size);
+					return (await ktx2Texture(await fetchAsset(file, sha256, 'low'))) as Layer;
 				})
 			)
 		)
@@ -109,14 +130,14 @@ async function floorArrays(ids: string[], manifest: Manifest): Promise<FloorSurf
 		(err: Error) => void console.warn('[assets] floor surfaces failed to load:', err.message)
 	);
 	if (!layers) return null;
-	const arrays = FLOOR_MAPS.map((map, i) => arrayOf(layers[i], map));
+	const arrays = maps.map((map, i) => arrayOf(layers[i], map));
 	for (const t of layers.flat()) t.dispose();
 	if (arrays.some((a) => !a)) {
 		for (const a of arrays) a?.dispose();
 		return null;
 	}
 	return {
-		maps: Object.fromEntries(FLOOR_MAPS.map((m, i) => [m, arrays[i]])) as FloorSurfaces['maps'],
+		maps: Object.fromEntries(maps.map((m, i) => [m, arrays[i]])),
 		layers: Object.fromEntries(ids.map((id, i) => [id, i]))
 	};
 }

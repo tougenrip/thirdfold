@@ -200,6 +200,25 @@ export interface FileInfo {
 	credit: Credit;
 }
 
+/**
+ * Texture detail (docs/ASSETS.md "Texture detail"): every texture and cooked model has a base of
+ * at most `BASE_PX` a side, committed and served with the page, and may have larger variants
+ * (`VARIANT_PX`), kept in the asset store only.
+ */
+export const BASE_PX = 512;
+export const VARIANT_PX = [1024, 2048] as const;
+export type VariantPx = (typeof VARIANT_PX)[number];
+
+/** A larger copy of a texture or model, named `<folder>/<id>-1k|2k.<hash>.<ext>`; credited as its base. */
+export interface Variant extends FileInfo {
+	/** Its textures' largest side. */
+	size: VariantPx;
+	gpuBytes: number;
+}
+
+/** A variant's id: its base's with `-1k` or `-2k`. */
+export const variantId = (id: string, size: VariantPx) => `${id}-${size / 1024}k`;
+
 export interface ModelLod {
 	triangles: number;
 	/** The share of the screen's height below which this level is drawn. */
@@ -233,6 +252,8 @@ export interface ModelEntry extends FileInfo {
 	thumbnail?: FileInfo;
 	/** The pack it downloads with (#192): a look, never a story place. */
 	pack?: string;
+	/** A cooked model's copies with larger textures, smallest first (texture detail). */
+	variants?: Variant[];
 }
 
 export interface TextureEntry extends FileInfo {
@@ -248,6 +269,8 @@ export interface TextureEntry extends FileInfo {
 	/** Decoded with mips: 8 bits a pixel for KTX2 at worst, 32 for PNG, times 4/3. */
 	gpuBytes: number;
 	pack?: string;
+	/** Larger copies of the same format, smallest first (texture detail). */
+	variants?: Variant[];
 }
 
 export interface MaterialDef {

@@ -1,20 +1,30 @@
 // The great bell's pilot art (#196), its shape and paint: the atlas, the bell's profile and
 // the maps painted over it, for scripts/make-bell-art.ts, which builds and exports the model.
 
-export const SIZE = 1024;
-export const GLOW = 256;
+/** Painted at 2K, the largest texture detail; the cook makes the 512 base and the 1K from it. */
+export const SIZE = 2048;
+/** The atlas was laid out at 1024 px: its regions, insets and relief scale by this. */
+const K = SIZE / 1024;
+export const GLOW = 256 * K;
 
 // The atlas, in pixels: the bell's outside, then timber, iron and the bell's inside.
 export type Region = { x: number; y: number; w: number; h: number };
-export const BELL: Region = { x: 0, y: 0, w: 768, h: 1024 };
-export const WOOD: Region = { x: 768, y: 0, w: 256, h: 512 };
-export const IRON: Region = { x: 768, y: 512, w: 256, h: 256 };
-export const INNER: Region = { x: 768, y: 768, w: 256, h: 256 };
+const region = (x: number, y: number, w: number, h: number): Region => ({
+	x: x * K,
+	y: y * K,
+	w: w * K,
+	h: h * K
+});
+export const BELL = region(0, 0, 768, 1024);
+export const WOOD = region(768, 0, 256, 512);
+export const IRON = region(768, 512, 256, 256);
+export const INNER = region(768, 768, 256, 256);
 const REGIONS = [BELL, WOOD, IRON, INNER];
-/** Keeps UVs a few texels inside their region, so mips don't bleed across. */
+/** A few texels of the 1024 layout: UVs keep this far inside their region, so mips don't bleed across. */
+const EDGE = 4 * K;
 export const inset = (r: Region, s: number, t: number) => [
-	(r.x + 4 + s * (r.w - 8)) / SIZE,
-	(r.y + 4 + t * (r.h - 8)) / SIZE
+	(r.x + EDGE + s * (r.w - 2 * EDGE)) / SIZE,
+	(r.y + EDGE + t * (r.h - 2 * EDGE)) / SIZE
 ];
 
 const LIP = 1.0;
@@ -202,7 +212,10 @@ export function paint() {
 		for (let x = 0; x < SIZE; x++) {
 			const r = REGIONS.findIndex((g) => x >= g.x && x < g.x + g.w && y >= g.y && y < g.y + g.h);
 			const g = REGIONS[r];
-			const [s, v] = [(x - g.x - 4 + 0.5) / (g.w - 8), (y - g.y - 4 + 0.5) / (g.h - 8)];
+			const [s, v] = [
+				(x - g.x - EDGE + 0.5) / (g.w - 2 * EDGE),
+				(y - g.y - EDGE + 0.5) / (g.h - 2 * EDGE)
+			];
 			region[y * SIZE + x] = r;
 			texels.push(
 				g === BELL ? bellTexel(s, v) : g === WOOD ? woodTexel(s, v) : ironTexel(s, v, g === INNER)
@@ -224,7 +237,7 @@ export function paint() {
 		];
 		return texels[cy * SIZE + cx].height;
 	};
-	const relief = 1.6;
+	const relief = 1.6 * K;
 	for (let y = 0; y < SIZE; y++) {
 		for (let x = 0; x < SIZE; x++) {
 			const i = y * SIZE + x;
@@ -252,7 +265,7 @@ export function paint() {
 	const scale = SIZE / GLOW;
 	for (let y = 0; y < GLOW; y++) {
 		for (let x = 0; x < GLOW; x++) {
-			const v = (y * scale + scale / 2 - 4) / (BELL.h - 8);
+			const v = (y * scale + scale / 2 - EDGE) / (BELL.h - 2 * EDGE);
 			const k = x * scale < BELL.w ? smooth(0.965, 0.995, v) : 0;
 			glow.set([byte(80 * k), byte(130 * k), byte(220 * k), 255], (y * GLOW + x) * 4);
 		}

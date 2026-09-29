@@ -9,9 +9,11 @@
 import {
 	GRADE_TONE_MAPPER,
 	type Manifest,
+	type ModelEntry,
 	type ModelKind,
 	type TextureEntry
 } from '../../src/lib/assets/manifest';
+import { TEXTURE_DETAILS, sizeFor, sizesOf, type TextureDetail } from '../../src/lib/assets/detail';
 import type { AdventureDef } from '../adventure/define';
 import { FLOOR_IDS } from '../../src/lib/game/floor';
 import { parseSceneFile, type SceneFile } from '../../src/lib/game/scene-file';
@@ -22,14 +24,15 @@ import { ADVENTURES } from '../adventures';
 const MB = 1024 * 1024;
 
 /**
- * What one table's assets may add up to (docs/PERFORMANCE.md, "Asset budgets"). Mobile counts
- * textures capped at `textureSize`, what its 1K tier (#358) serves. Starting values, confirmed per
- * tier in #155: change them only deliberately, with the reason in docs/PERFORMANCE.md.
+ * What one table's assets may add up to (docs/PERFORMANCE.md, "Asset budgets"), each at a texture
+ * detail (detail.ts): desktop at medium, what the medium tier (the reference) draws, and mobile at
+ * low, what phones start on (its KTX2 at RGBA8). High is reported, not held to them. Starting values, confirmed per tier in #155: change them
+ * only deliberately, with the reason in docs/PERFORMANCE.md.
  */
 export const TABLE_BUDGETS = {
-	desktop: { download: 15 * MB, gpu: 160 * MB },
-	mobile: { download: 6 * MB, gpu: 80 * MB, textureSize: 1024 }
-} as const;
+	desktop: { download: 15 * MB, gpu: 160 * MB, detail: 'medium' },
+	mobile: { download: 6 * MB, gpu: 80 * MB, detail: 'low' }
+} as const satisfies Record<string, { download: number; gpu: number; detail: TextureDetail }>;
 
 /** What a table refers to: its environment and the models on it or brought onto it. */
 export interface TableRefs {
@@ -37,10 +40,29 @@ export interface TableRefs {
 	models: string[];
 }
 
-/** A table's assets added up: bytes to download, and GPU bytes on desktop and mobile. */
+type PerDetail = Record<TextureDetail, number>;
+
+/**
+ * A table's assets added up at each texture detail: bytes to download (a variant after its base,
+ * which always comes first) and GPU bytes; and its GPU bytes on a phone at low.
+ */
 export interface TableCost {
-	download: number;
-	gpu: { desktop: number; mobile: number };
+	download: PerDetail;
+	gpu: PerDetail;
+	mobile: number;
+}
+
+const perDetail = (f: (d: TextureDetail) => number) =>
+	Object.fromEntries(TEXTURE_DETAILS.map((d) => [d, f(d)])) as PerDetail;
+
+/** A file's download and GPU bytes at each detail: the base, or the base then a variant. */
+function atDetails(entry: TextureEntry | ModelEntry): { download: PerDetail; gpu: PerDetail } {
+	const variant = (d: TextureDetail) =>
+		entry.variants?.find((v) => v.size === sizeFor(sizesOf(entry), d));
+	return {
+		download: perDetail((d) => entry.bytes + (variant(d)?.bytes ?? 0)),
+		gpu: perDetail((d) => variant(d)?.gpuBytes ?? entry.gpuBytes)
+	};
 }
 
 /**
@@ -63,27 +85,33 @@ export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 			if (surface) for (const t of [surface.albedo, surface.normal, surface.orm]) textures.add(t);
 		}
 	}
-	const cost: TableCost = { download: 0, gpu: { desktop: 0, mobile: 0 } };
+	const cost: TableCost = { download: perDetail(() => 0), gpu: perDetail(() => 0), mobile: 0 };
+	const add = (entry: TextureEntry | ModelEntry, extra = 0) => {
+		const at = atDetails(entry);
+		for (const d of TEXTURE_DETAILS) {
+			cost.download[d] += at.download[d] + extra;
+			cost.gpu[d] += at.gpu[d];
+		}
+	};
 	let basis = false;
 	for (const id of new Set(refs.models)) {
 		const m = manifest.models[id];
 		if (!m) continue;
-		cost.download += m.bytes + (m.preview?.bytes ?? 0);
-		cost.gpu.desktop += m.gpuBytes;
+		add(m, m.preview?.bytes ?? 0);
 		// ponytail: a cooked model's geometry is counted at RGBA8 too; a bound, not the figure.
-		cost.gpu.mobile += m.cooked ? m.gpuBytes * RGBA8 : m.gpuBytes;
+		cost.mobile += m.cooked ? m.gpuBytes * RGBA8 : m.gpuBytes;
 		basis ||= m.cooked === true;
 		for (const material of m.materials ?? []) addMaterial(material);
 	}
 	for (const id of textures) {
 		const t = manifest.textures[id];
 		if (!t) continue;
-		cost.download += t.bytes;
-		cost.gpu.desktop += t.gpuBytes;
-		cost.gpu.mobile += mobileGpu(t);
+		add(t);
+		cost.mobile += t.gpuBytes * (t.format === 'ktx2' ? RGBA8 : 1);
 		basis ||= t.format === 'ktx2';
 	}
-	if (basis) cost.download += manifest.decoders?.basis.bytes ?? 0;
+	if (basis)
+		for (const d of TEXTURE_DETAILS) cost.download[d] += manifest.decoders?.basis.bytes ?? 0;
 	return cost;
 }
 
@@ -93,24 +121,16 @@ export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
  */
 const RGBA8 = 4;
 
-/**
- * A texture's GPU bytes at the mobile tier's size (a side over the cap scales both ways), KTX2 at
- * RGBA8, the transcoder's fallback.
- */
-function mobileGpu(t: TextureEntry): number {
-	const scale = Math.min(1, TABLE_BUDGETS.mobile.textureSize / Math.max(t.width, t.height));
-	return Math.round(t.gpuBytes * (t.format === 'ktx2' ? RGBA8 : 1) * scale * scale);
-}
-
 /** What the budgets make of a table's cost; empty when it fits. */
 export function overBudget(cost: TableCost): string[] {
 	const over: string[] = [];
 	for (const tier of ['desktop', 'mobile'] as const) {
 		const b = TABLE_BUDGETS[tier];
-		if (cost.download > b.download)
-			over.push(`${mb(cost.download)} download over the ${tier} ${mb(b.download)} budget`);
-		if (cost.gpu[tier] > b.gpu)
-			over.push(`${mb(cost.gpu[tier])} GPU over the ${tier} ${mb(b.gpu)} budget`);
+		const download = cost.download[b.detail];
+		const gpu = tier === 'mobile' ? cost.mobile : cost.gpu[b.detail];
+		if (download > b.download)
+			over.push(`${mb(download)} download over the ${tier} ${mb(b.download)} budget`);
+		if (gpu > b.gpu) over.push(`${mb(gpu)} GPU over the ${tier} ${mb(b.gpu)} budget`);
 	}
 	return over;
 }
@@ -163,8 +183,20 @@ export function sceneReport(manifest: Manifest): string[] {
 		`${name.padEnd(28)}${rest.map((c) => c.padStart(12)).join('')}`;
 	const kB = (bytes: number) => `${Math.round(bytes / 1024)} kB`;
 	const row = (name: string, c: TableCost) =>
-		cols(name, kB(c.download), kB(c.gpu.desktop), kB(c.gpu.mobile));
-	const lines = [cols('table', 'download', 'GPU', 'mobile GPU')];
+		cols(
+			name,
+			...TEXTURE_DETAILS.map((d) => kB(c.download[d])),
+			...TEXTURE_DETAILS.map((d) => kB(c.gpu[d])),
+			kB(c.mobile)
+		);
+	const lines = [
+		cols(
+			'table',
+			...TEXTURE_DETAILS.map((d) => `down ${d}`),
+			...TEXTURE_DETAILS.map((d) => `GPU ${d}`),
+			'mobile GPU'
+		)
+	];
 	for (const id of Object.keys(manifest.environments))
 		lines.push(row(`(${id})`, tableBudget(manifest, { environment: id, models: [] })));
 	for (const A of adventures()) {

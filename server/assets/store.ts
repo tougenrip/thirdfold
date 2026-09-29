@@ -5,6 +5,9 @@
 //   npm run assets:pull      downloads what static/assets lacks from the bucket's public URL
 //                            (ASSET_STORE_URL), each file checked against the lock
 //
+// Both do texture detail's 1K and 2K variants too (variants.ts): from and into variants/, by
+// assets/variants.lock.json; a variant cooked elsewhere need only be in the bucket.
+//
 // The lock, assets/assets.lock.json, maps each hosted file (ASSET_FILE_PATTERN: not the manifest,
 // not the decoders, which are code and always ship with the page) to its SHA-256. `npm run assets`
 // writes it and `assets:check` fails when it differs from what the sources build.
@@ -15,6 +18,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import { ASSET_FILE_PATTERN } from '../../src/lib/assets/manifest';
+import { VARIANTS_DIR, lockedVariants, readVariantLock } from './variants';
 
 export const LOCK_FILE = path.join('assets', 'assets.lock.json');
 export const BUCKET = 'assets';
@@ -69,19 +73,30 @@ export interface Tally {
 	skipped: string[];
 }
 
-/** Uploads every locked file the bucket lacks, never replacing one; each checked against the lock first. */
+/**
+ * Uploads every locked file the bucket lacks, never replacing one; each checked against the lock
+ * first. With `elsewhere`, a file that isn't in `dir` must already be in the bucket (a variant
+ * cooked on another machine).
+ */
 export async function publish(
 	dir: string,
 	lock: Lock,
-	env: { url: string; serviceKey: string; fetch?: typeof fetch }
+	env: { url: string; serviceKey: string; fetch?: typeof fetch },
+	elsewhere = false
 ): Promise<Tally> {
 	const bucket = createClient(env.url, env.serviceKey, {
 		auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 		global: env.fetch ? { fetch: env.fetch } : {}
 	}).storage.from(BUCKET);
 	// Every file checked before the first upload, so a bad build publishes nothing.
-	const files = new Map(Object.keys(lock).map((file) => [file, lockedBytes(dir, file, lock)]));
+	const here = Object.keys(lock).filter((f) => !elsewhere || existsSync(path.join(dir, f)));
+	const files = new Map(here.map((file) => [file, lockedBytes(dir, file, lock)]));
 	const tally: Tally = { done: [], skipped: [] };
+	for (const file of Object.keys(lock).filter((f) => !files.has(f))) {
+		if (!(await bucket.exists(file)).data)
+			throw new Error(`${file} is neither in ${dir} nor in the store: cook it or pull it`);
+		tally.skipped.push(file);
+	}
 	for (const [file, data] of files) {
 		const present = await bucket.exists(file);
 		if (present.data) {
@@ -132,16 +147,25 @@ export async function pull(
 async function main(command: string | undefined): Promise<void> {
 	const dir = path.join('static', 'assets');
 	const lock = parseLock(readFileSync(LOCK_FILE, 'utf8'));
+	// Texture detail's 1K and 2K (variants.ts): only in the store and in variants/, never committed.
+	const variants = Object.fromEntries(lockedVariants(readVariantLock('assets')));
 	if (command === 'publish') {
 		const { SUPABASE_URL: url, SUPABASE_SERVICE_KEY: serviceKey } = process.env;
 		if (!url || !serviceKey) throw new Error('set SUPABASE_URL and SUPABASE_SERVICE_KEY');
-		const { done, skipped } = await publish(dir, lock, { url, serviceKey });
-		console.log(`Published ${done.length} files; ${skipped.length} were already there.`);
+		const env = { url, serviceKey };
+		const base = await publish(dir, lock, env);
+		const larger = await publish(VARIANTS_DIR, variants, env, true);
+		console.log(
+			`Published ${base.done.length} files and ${larger.done.length} variants; ${base.skipped.length + larger.skipped.length} were already there.`
+		);
 	} else if (command === 'pull') {
 		const store = process.env.ASSET_STORE_URL;
 		if (!store) throw new Error('set ASSET_STORE_URL (<supabase>/storage/v1/object/public/assets)');
-		const { done, skipped } = await pull(dir, lock, store);
-		console.log(`Pulled ${done.length} files; ${skipped.length} were already here.`);
+		const base = await pull(dir, lock, store);
+		const larger = await pull(VARIANTS_DIR, variants, store);
+		console.log(
+			`Pulled ${base.done.length} files and ${larger.done.length} variants; ${base.skipped.length + larger.skipped.length} were already here.`
+		);
 	} else {
 		throw new Error('usage: tsx server/assets/store.ts publish|pull');
 	}

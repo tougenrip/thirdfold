@@ -4,7 +4,13 @@
 	// in the thumbnail pose and sets `window.thirdfoldThumbReady` once drawn (scripts/thumbnails.mjs).
 	import { onDestroy, onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { loadManifest } from '$lib/assets/load';
+	import { loadManifest, remoteAssets } from '$lib/assets/load';
+	import {
+		TEXTURE_DETAILS,
+		setTextureDetail,
+		textureDetailFrom,
+		type TextureDetail
+	} from '$lib/assets/detail';
 	import type { Manifest } from '$lib/assets/manifest';
 	import type { PerfStats } from '$lib/tabletop/perf';
 	import {
@@ -13,6 +19,7 @@
 		modelList,
 		type LightPreset,
 		type Shown,
+		type TextureFact,
 		type Turntable
 	} from '$lib/tabletop/turntable';
 
@@ -33,6 +40,9 @@
 	let shown = $state<Shown | null>(null);
 	let failed = $state(false);
 	let stats = $state<PerfStats | null>(null);
+	/** Texture detail (docs/ASSETS.md): `?texture=`, else the tier's; each shown map's size drawn. */
+	let detail = $state<TextureDetail>(textureDetailFrom(page.url.search) ?? 'high');
+	let drawn = $state<TextureFact[]>([]);
 
 	const entry = $derived(id && manifest ? manifest.models[id] : null);
 	const list = $derived(manifest ? modelList(manifest, query) : []);
@@ -77,7 +87,14 @@
 	$effect(() => turntable?.setLight(light));
 	$effect(() => turntable?.setEnvironment(environment));
 	$effect(() => turntable?.setSpin(spin));
-	const timer = setInterval(() => (stats = turntable?.tabletop.stats() ?? null), 500);
+	// After the table's quality has set the tier's detail.
+	$effect(() => {
+		if (turntable) setTextureDetail(detail);
+	});
+	const timer = setInterval(() => {
+		stats = turntable?.tabletop.stats() ?? null;
+		drawn = turntable?.drawn() ?? [];
+	}, 500);
 	onDestroy(() => clearInterval(timer));
 
 	/** Ready for a screenshot once warmed up and no frame has been drawn for a while. */
@@ -157,6 +174,17 @@
 				</select>
 			</label>
 			<label><input type="checkbox" bind:checked={spin} /> Spin (never under reduced motion)</label>
+			<label>
+				Texture detail
+				<select bind:value={detail}>
+					{#each TEXTURE_DETAILS as d (d)}<option value={d}>{d}</option>{/each}
+				</select>
+			</label>
+			<p class="muted">
+				Drawn: {drawn.map((t) => `${t.slot} ${t.width}`).join(', ') || 'no textures'}{remoteAssets()
+					? ''
+					: ' (no asset host: every texture at its base)'}
+			</p>
 			<p class="muted">Drag to orbit, wheel to zoom, ← → to turn the model.</p>
 			{#if surface && manifest}
 				<h2>{surface}</h2>

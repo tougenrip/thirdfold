@@ -28,6 +28,13 @@ const ASSET_BASE = isNativeShell()
 	? ''
 	: forPlatform(import.meta.env.VITE_ASSET_BASE_URL ?? '').replace(/\/+$/, '');
 
+/**
+ * Whether files come from the asset host, checked: the only place texture detail's 1K and 2K
+ * variants are (detail.ts). Without one (CI, tests, a native shell) every texture is its base.
+ */
+export const remoteAssets = (): boolean =>
+	ASSET_BASE !== '' && !!globalThis.isSecureContext && !!globalThis.crypto?.subtle;
+
 export function loadManifest(): Promise<Manifest> {
 	manifest ??= fetch(assetUrl('manifest.json'))
 		.then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -84,8 +91,8 @@ export async function fetchAsset(
 	priority: Priority = 'high'
 ): Promise<ArrayBuffer> {
 	if (!ASSET_FILE_PATTERN.test(file)) throw new Error(`not an asset file: ${file}`);
-	const subtle = globalThis.isSecureContext ? globalThis.crypto?.subtle : undefined;
-	const remote = ASSET_BASE !== '' && subtle !== undefined;
+	const remote = remoteAssets();
+	const subtle = globalThis.crypto?.subtle;
 	await acquire(priority);
 	let bytes: ArrayBuffer;
 	try {
@@ -95,7 +102,7 @@ export async function fetchAsset(
 	} finally {
 		release();
 	}
-	if (remote && hex(await subtle.digest('SHA-256', bytes)) !== sha256) {
+	if (remote && hex(await subtle!.digest('SHA-256', bytes)) !== sha256) {
 		throw new Error(`${file} is not what the manifest lists (SHA-256 differs)`);
 	}
 	return bytes;

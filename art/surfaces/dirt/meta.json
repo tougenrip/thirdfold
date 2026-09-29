@@ -10,6 +10,5 @@
 	},
 	"ramp": ["#3a2c2c", "#5c4535", "#806247", "#a2855f"],
 	"detail": 0.25,
-	"normalBoost": 1.2,
-	"textureSize": 512
+	"normalBoost": 1.2
 }

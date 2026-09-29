@@ -106,6 +106,20 @@ describe('Publishing to the bucket', () => {
 		);
 		expect(storage.objects.size).toBe(0);
 	});
+
+	it('takes a variant kept elsewhere as published only if the bucket has it', async () => {
+		const { lock, files } = built();
+		const storage = fakeStorage();
+		storage.objects.set(SOUND, { data: files.get(SOUND)!, headers: new Headers() });
+		const gone = mkdtempSync(path.join(tmpdir(), 'thirdfold-store-')); // no files here at all
+		expect(await publish(gone, { [SOUND]: lock[SOUND] }, env(storage.fetcher), true)).toEqual({
+			done: [],
+			skipped: [SOUND]
+		});
+		await expect(publish(gone, lock, env(storage.fetcher), true)).rejects.toThrow(
+			`${MODEL} is neither in ${gone} nor in the store`
+		);
+	});
 });
 
 describe('Pulling from the bucket', () => {

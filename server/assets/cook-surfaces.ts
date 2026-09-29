@@ -1,13 +1,15 @@
 // The cook's surface stage (#187, docs/ART.md section 11): a CC0 source set in
 // art/surfaces/<id>/ (fetched by scripts/fetch-surfaces.mjs beside its meta.json), stylised
 // (stylise.ts), checked to still tile, and encoded as three KTX2 textures the shader kinds' slots
-// take: `surface-<id>-albedo` (height in alpha), `-normal` and `-orm`. The build groups them into
+// take: `surface-<id>-albedo` (height in alpha), `-normal` and `-orm`, each at 512 px with its 1K and
+// 2K as variants (cook-variants.ts). The build groups them into
 // the manifest's `surfaces` (pipeline-textures.ts `buildSurfaces`).
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { USAGE_SPACE, type TextureUsage } from '../../src/lib/assets/manifest';
-import { KTX2_SETTINGS, cookImage, type Image } from './cook-textures';
+import { LIMITS, type TextureUsage } from '../../src/lib/assets/manifest';
+import { KTX2_SETTINGS, type Image } from './cook-textures';
+import { ktx2Sizes, type Cooked } from './cook-variants';
 import { readMeta } from './licence';
 import { AssetError, json } from './pipeline-files';
 import { decodePng } from './png';
@@ -70,7 +72,7 @@ function touchUp(albedo: Image, touchup: Image): void {
 	}
 }
 
-export async function cookSurface(dir: string, id: string): Promise<Map<string, Uint8Array>> {
+export async function cookSurface(dir: string, id: string): Promise<Cooked> {
 	const meta = readMeta(dir);
 	const metaFile = path.join(dir, 'meta.json');
 	const raw = JSON.parse(readFileSync(metaFile, 'utf8')) as Record<string, unknown>;
@@ -102,15 +104,18 @@ export async function cookSurface(dir: string, id: string): Promise<Map<string, 
 			`it doesn't tile (seam ${seam.toFixed(1)}× its texture): pick another set`
 		);
 	}
-	const size = meta.textureSize ?? 512;
-	const out = new Map<string, Uint8Array>();
+	// The base at 512 px, and 1K and 2K from the stylised set as variants (texture detail).
+	const cooked: Cooked = { outputs: new Map(), variants: [] };
 	for (const usage of ['albedo', 'normal', 'orm'] as const satisfies TextureUsage[]) {
-		const name = `textures/surface-${id}-${usage}`;
-		out.set(
-			`${name}.ktx2`,
-			await cookImage(maps[usage], USAGE_SPACE[usage], size, usage === 'normal', SETTINGS[usage])
+		const name = `surface-${id}-${usage}`;
+		const maxPx = meta.textureSize ?? LIMITS.texture.px;
+		const { base, variants } = await ktx2Sizes(name, maps[usage], usage, maxPx, SETTINGS[usage]);
+		cooked.outputs.set(`textures/${name}.ktx2`, base);
+		cooked.outputs.set(
+			`textures/${name}.meta.json`,
+			Buffer.from(json({ usage, provenance: meta.provenance }))
 		);
-		out.set(`${name}.meta.json`, Buffer.from(json({ usage, provenance: meta.provenance })));
+		cooked.variants.push(...variants);
 	}
-	return out;
+	return cooked;
 }

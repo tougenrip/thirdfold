@@ -49,3 +49,6 @@ src/**/__screenshots__/*
 
 # Generated art (docs/ASSETS.md): made by a script, only its meta.json is kept
 /art/prop/great-bell/great-bell.glb
+
+# Texture detail's 1K and 2K variants (docs/ASSETS.md): cooked here, kept in the asset store
+/variants/

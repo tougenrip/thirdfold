@@ -71,18 +71,21 @@ export interface TextureFact {
 	compressed: boolean;
 }
 
-/** The textures its parts carry, once each. */
-export function texturesOf(model: LoadedModel): TextureFact[] {
-	const seen = new Map<THREE.Texture, string>();
-	for (const p of model.parts)
-		for (const [slot, t] of Object.entries(p.maps ?? {})) if (!seen.has(t)) seen.set(t, slot);
-	return [...seen].map(([t, slot]) => ({
+/** Textures by slot, once each, at the size each holds now. */
+function factsOf(maps: [string, THREE.Texture][]): TextureFact[] {
+	return [...new Map(maps.map(([slot, t]) => [t, slot]))].map(([t, slot]) => ({
 		slot,
 		width: (t.image as { width?: number })?.width ?? 0,
 		height: (t.image as { height?: number })?.height ?? 0,
 		compressed: !!(t as THREE.CompressedTexture).isCompressedTexture
 	}));
 }
+
+const mapsOf = (model: LoadedModel) =>
+	model.parts.flatMap((p) => Object.entries(p.maps ?? {})) as [string, THREE.Texture][];
+
+/** The textures its parts carry, once each. */
+export const texturesOf = (model: LoadedModel): TextureFact[] => factsOf(mapsOf(model));
 
 /**
  * The model at `lod` as the game draws it: a figure stands on its base in the mini kind (its
@@ -139,6 +142,8 @@ export interface Turntable {
 	show(id: string, lod: number, preview: boolean): Promise<Shown | null>;
 	/** Shows a surface of the library (#187) on a 3×3-cell floor and a wall; false if it can't load. */
 	showSurface(id: string): Promise<boolean>;
+	/** Each texture shown, at the size drawn now (texture detail swaps it after it loads). */
+	drawn(): TextureFact[];
 	setLight(preset: LightPreset): void;
 	setEnvironment(id: string | null): void;
 	/** Turns the model (radians); drags orbit the camera. */
@@ -202,6 +207,8 @@ export async function createTurntable(
 		preview: LoadedModel | null;
 	} | null = null;
 	let bounds: ModelEntry['bounds'] | null = null;
+	/** What is shown's textures by slot, read again for the size each is drawn at. */
+	let shownMaps: [string, THREE.Texture][] = [];
 	const measured = new Map<string, number>();
 	const reduced = options.reducedMotion ?? matchMedia('(prefers-reduced-motion: reduce)').matches;
 	let spin = 0;
@@ -245,6 +252,7 @@ export async function createTurntable(
 			const levels = trianglesByLod(model);
 			const made = modelGroup(model, Math.min(lod, levels.length - 1));
 			current = { ...made, preview: preview ? model : null };
+			shownMaps = mapsOf(model);
 			holder.add(made.group);
 			bounds = entry.bounds;
 			if (sideFor(bounds) !== side) table(sideFor(bounds));
@@ -279,6 +287,7 @@ export async function createTurntable(
 			}
 			group.userData.geometries = [plane.geometry, wall.geometry];
 			current = { group, materials, preview: null };
+			shownMaps = Object.entries(slots);
 			holder.add(group);
 			bounds = { min: [-1.5, 0, -1.6], max: [1.5, WALL_HEIGHT, 1.5] };
 			table(sideFor(bounds));
@@ -292,6 +301,7 @@ export async function createTurntable(
 			tabletop.setLighting(ambient, kind ? [lightOf(kind, side)] : []);
 		},
 		setEnvironment: (id) => tabletop.setEnvironment(id),
+		drawn: () => factsOf(shownMaps),
 		turn(by) {
 			holder.rotation.y += by;
 			redraw();

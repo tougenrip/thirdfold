@@ -16,7 +16,7 @@
 
 	/**
 	 * The Graphics menu (#154): a quality preset, and apart from it the advanced options (resolution,
-	 * antialiasing, ambient occlusion, bloom, the lens effects, shadows, frame rate), the tone mapper (#158), the
+	 * antialiasing, ambient occlusion, bloom, the lens effects, shadows, texture detail, frame rate), the tone mapper (#158), the
 	 * compatibility backend and the power saver, as this viewer sets them for this browser. Choosing
 	 * a preset sets every option to its values; changing an option afterwards keeps that change on
 	 * top. Local only: nothing here reaches the room. `inline` opens it in place (the side sheet on
@@ -77,6 +77,11 @@
 		{ key: 'grade', name: 'Colour grading', labels: ['Off', 'On'] },
 		{ key: 'miniature', name: 'Miniature (depth of field)', labels: ['Off', 'On'] },
 		{ key: 'sunShadowSize', name: 'Shadows', labels: ['Low', 'Medium', 'High'] },
+		{
+			key: 'textureDetail',
+			name: 'Texture detail',
+			labels: ['Low (512)', 'Medium (1K)', 'High (2K)']
+		},
 		{ key: 'fpsCap', name: 'Frame rate', labels: ['30', '60'] }
 	];
 	const backend = $derived(effective?.backend ?? 'webgpu');

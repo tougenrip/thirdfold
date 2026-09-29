@@ -8,6 +8,11 @@
 //   art/texture/<id>/<id>.png + meta.json  a texture → assets/textures/<id>.ktx2 + <id>.meta.json
 //   art/surfaces/<id>/meta.json            a surface's CC0 set (scripts/fetch-surfaces.mjs), stylised
 //                                          (cook-surfaces.ts) → assets/textures/surface-<id>-*.ktx2
+//   assets/textures/<id>.json              a recipe: its 1K and 2K (the build renders its base)
+//
+// Every texture is cooked at a 512 px base into assets/ and, where the source is larger, at 1K
+// and 2K as variants into variants/ (never committed), listed in assets/variants.lock.json
+// (cook-variants.ts, variants.ts); a model with textures the same, as whole GLBs.
 //
 // A model is checked, cleaned (dedup, prune), given MikkTSpace tangents where
 // it has a normal map, welded, simplified into `<role>_lod1` and `_lod2`,
@@ -18,10 +23,10 @@
 // hashes without encoding anything.
 
 import { Logger, NodeIO, type Document, type Node, type Primitive } from '@gltf-transform/core';
-import { ALL_EXTENSIONS, KHRTextureBasisu } from '@gltf-transform/extensions';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import {
+	cloneDocument,
 	dedup,
-	listTextureSlots,
 	meshopt,
 	prune,
 	simplifyPrimitive,
@@ -38,14 +43,31 @@ import {
 	ready as mikktspace
 } from 'three/examples/jsm/libs/mikktspace.module.js';
 import {
+	BASE_PX,
 	LIMITS,
 	MODEL_KINDS,
-	USAGE_SPACE,
 	limitClass,
 	type ModelKind
 } from '../../src/lib/assets/manifest';
 import { SURFACE_SOURCES, cookSurface } from './cook-surfaces';
-import { KTX2_SETTINGS, cookTexture } from './cook-textures';
+import { KTX2_SETTINGS, encodeTextures } from './cook-textures';
+import {
+	cookRecipe,
+	cookTextureEntry,
+	recipeIds,
+	recipeSource,
+	variantSizes,
+	writeVariants,
+	type Cooked
+} from './cook-variants';
+import {
+	VARIANTS_DIR,
+	VARIANT_LOCK,
+	readVariantLock,
+	staleVariants,
+	variantLockText,
+	type VariantLock
+} from './variants';
 import { checkGlb } from './glb';
 import { EXTENSIONS, MESH_NAME } from './gltf-check';
 import { readMeta } from './licence';
@@ -54,7 +76,9 @@ import { isModelKind } from './models';
 
 /** What the cook does besides each asset's meta.json: in the lock, so changing it shows as drift. */
 export const COOK_SETTINGS = {
-	version: 1,
+	version: 2,
+	/** Texture detail: every texture's base, and the variants a source large enough gets. */
+	sizes: [512, 1024, 2048],
 	/** Each level's share of the triangles, the simplifier's error limit and the screen size below which it is drawn. */
 	lods: [
 		{ ratio: 0.5, error: 0.05, screenSize: 0.25 },
@@ -132,6 +156,15 @@ function sources(art: string): Map<string, Record<string, string>> {
 	return found;
 }
 
+/** Every entry: the art's, and `recipes/<id>` for the recipes in `assets`/textures. */
+function allSources(art: string, assets: string): Map<string, Record<string, string>> {
+	const found = sources(art);
+	const dir = path.join(assets, 'textures');
+	const names = existsSync(dir) ? readdirSync(dir).filter((n) => !n.startsWith('_')) : [];
+	for (const id of recipeIds(names).sort()) found.set(`recipes/${id}`, recipeSource(dir, id));
+	return found;
+}
+
 function readLock(assets: string): Lock | null {
 	const file = path.join(assets, LOCK_FILE);
 	return existsSync(file) ? (readJson(file) as Lock) : null;
@@ -140,14 +173,14 @@ function readLock(assets: string): Lock | null {
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** What `--check` finds wrong: sources, tools or settings changed since the cook, or outputs changed after it. */
-export function checkCook(art: string, assets: string): string[] {
+export function checkCook(art: string, assets: string, variants = VARIANTS_DIR): string[] {
 	const lock = readLock(assets);
 	if (!lock) return [`${LOCK_FILE} is missing`];
 	const problems: string[] = [];
 	if (!same(lock.tools, toolVersions())) problems.push('the tools changed since the cook');
 	if (!same(lock.settings, COOK_SETTINGS)) problems.push('the cook settings changed');
 	// art/ may be kept elsewhere (#191): only what is here is compared.
-	for (const [key, files] of sources(art)) {
+	for (const [key, files] of allSources(art, assets)) {
 		if (!same(lock.entries[key]?.sources, files))
 			problems.push(`${key}: not cooked since it changed`);
 	}
@@ -156,7 +189,8 @@ export function checkCook(art: string, assets: string): string[] {
 			problems.push(`${key}: ${file} is not what the cook wrote`);
 		}
 	}
-	return problems;
+	// Variants are compared only where they are here: they live in the asset store.
+	return [...problems, ...staleVariants(variants, readVariantLock(assets))];
 }
 
 /** An entry's outputs that are missing or not what the cook wrote. */
@@ -173,7 +207,8 @@ function changed(assets: string, entry: LockEntry): string[] {
 export async function cook(
 	art: string,
 	assets: string,
-	force = false
+	force = false,
+	variantDir = VARIANTS_DIR
 ): Promise<{ cooked: string[]; skipped: string[] }> {
 	const old = readLock(assets);
 	const tools = toolVersions();
@@ -182,19 +217,26 @@ export async function cook(
 	const lock: Lock = { tools, settings: COOK_SETTINGS, entries: { ...old?.entries } };
 	const cooked: string[] = [];
 	const skipped: string[] = [];
-	for (const [key, files] of sources(art)) {
+	const variants: VariantLock = readVariantLock(assets);
+	for (const [key, files] of allSources(art, assets)) {
 		const before = old?.entries[key];
 		if (fresh && before && same(before.sources, files) && !changed(assets, before).length) {
 			skipped.push(key);
 			continue;
 		}
 		const [kind, id] = key.split('/');
-		const outputs =
-			kind === 'texture'
-				? await cookTextureEntry(path.join(art, key), id)
-				: kind === 'surfaces'
-					? await cookSurface(path.join(art, key), id)
-					: await cookModel(path.join(art, key), kind as ModelKind, id);
+		const { outputs, variants: made }: Cooked =
+			kind === 'recipes'
+				? cookRecipe(path.join(assets, 'textures'), id)
+				: kind === 'texture'
+					? await cookTextureEntry(path.join(art, key), id)
+					: kind === 'surfaces'
+						? await cookSurface(path.join(art, key), id)
+						: await cookModel(path.join(art, key), kind as ModelKind, id);
+		// This entry's variants replace what the lock had for its ids.
+		for (const v of made) delete variants[v.kind][v.id];
+		const records = writeVariants(variantDir, made);
+		made.forEach((v, i) => (variants[v.kind][v.id] ??= []).push(records[i]));
 		const hashes: Record<string, string> = {};
 		for (const [file, data] of outputs) {
 			const out = path.join(assets, file);
@@ -206,6 +248,7 @@ export async function cook(
 		cooked.push(key);
 	}
 	writeFileSync(path.join(assets, LOCK_FILE), json(lock));
+	writeFileSync(path.join(assets, VARIANT_LOCK), variantLockText(variants));
 	return { cooked, skipped };
 }
 
@@ -294,11 +337,7 @@ const triangles = (prims: Primitive[]) =>
 		0
 	);
 
-async function cookModel(
-	dir: string,
-	kind: ModelKind,
-	id: string
-): Promise<Map<string, Uint8Array>> {
+async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cooked> {
 	const meta = readMeta(dir);
 	const source = path.join(dir, `${id}.glb`);
 	if (!existsSync(source)) throw new AssetError(dir, `needs ${id}.glb`);
@@ -362,75 +401,49 @@ async function cookModel(
 	}
 	await doc.transform(prune(), meshopt({ encoder: MeshoptEncoder, level: COOK_SETTINGS.meshopt }));
 
-	// Textures to KTX2 by the slots they fill: colour ETC1S, data UASTC.
+	// Textures to KTX2 by the slots they fill, colour ETC1S, data UASTC: at the 512 px base, and as
+	// whole GLBs with 1K and 2K textures where the source's are that large (texture detail).
 	const maxPx = Math.min(meta.textureSize ?? limit.px, limit.px);
-	for (const texture of root.listTextures()) {
-		// One used as both is refused by checkGlb below.
-		const slots = listTextureSlots(texture);
-		const colour = slots.some((s) => s === 'baseColorTexture' || s === 'emissiveTexture');
-		if (texture.getMimeType() !== 'image/png') {
-			throw new AssetError(source, `texture "${texture.getName()}" must be a PNG`);
-		}
-		try {
-			const ktx2 = await cookTexture(
-				texture.getImage()!,
-				colour ? 'srgb' : 'linear',
-				maxPx,
-				slots.includes('normalTexture')
-			);
-			texture.setImage(ktx2).setMimeType('image/ktx2').setURI('');
-		} catch (err) {
-			throw new AssetError(source, `texture "${texture.getName()}": ${(err as Error).message}`);
-		}
-	}
-	if (root.listTextures().length) doc.createExtension(KHRTextureBasisu).setRequired(true);
-
-	const glb = await io.writeBinary(doc);
-	const checked = await checkGlb(glb, limit);
-	if (!checked.ok) throw new AssetError(source, `cooked, but ${checked.error}`);
-	const screenSizes = checked.info.lods.map(
-		(_, i) => ({ ...COOK_SETTINGS.lods[i], ...meta.lods?.[i] }).screenSize
+	const sourcePx = Math.max(
+		0,
+		...root
+			.listTextures()
+			.map((t) => (t.getMimeType() === 'image/png' ? Math.max(...(t.getSize() ?? [0])) : 0))
 	);
-	const out = {
-		provenance: meta.provenance,
-		...(meta.swing !== undefined ? { swing: meta.swing } : {}),
-		...(setPiece ? { setPiece: true } : {}),
-		...(meta.pack !== undefined ? { pack: meta.pack } : {}),
-		...(screenSizes.length ? { screenSizes } : {})
-	};
-	return new Map([
-		[`models/${kind}/${id}.glb`, glb],
-		[`models/${kind}/${id}.meta.json`, Buffer.from(json(out))]
-	]);
-}
-
-async function cookTextureEntry(dir: string, id: string): Promise<Map<string, Uint8Array>> {
-	const meta = readMeta(dir);
-	const source = path.join(dir, `${id}.png`);
-	if (!existsSync(source)) throw new AssetError(dir, `needs ${id}.png`);
-	const usage = meta.usage ?? 'albedo';
-	if (!(usage in USAGE_SPACE) || usage === 'sky' || usage === 'lut') {
-		throw new AssetError(
-			dir,
-			`a cooked texture's usage is albedo, normal, orm, emissive and the like`
+	const sizes = [Math.min(BASE_PX, maxPx), ...variantSizes(sourcePx, maxPx)];
+	const cooked: Cooked = { outputs: new Map(), variants: [] };
+	for (const [i, px] of sizes.entries()) {
+		const copy = i === sizes.length - 1 ? doc : cloneDocument(doc);
+		await encodeTextures(copy, px, source);
+		const glb = await io.writeBinary(copy);
+		const checked = await checkGlb(glb, limit);
+		if (!checked.ok) throw new AssetError(source, `cooked at ${px} px, but ${checked.error}`);
+		if (i > 0) {
+			const size = px as 1024 | 2048;
+			cooked.variants.push({
+				kind: 'models',
+				id,
+				size,
+				ext: 'glb',
+				data: glb,
+				gpuBytes: checked.info.gpuBytes
+			});
+			continue;
+		}
+		const screenSizes = checked.info.lods.map(
+			(_, i) => ({ ...COOK_SETTINGS.lods[i], ...meta.lods?.[i] }).screenSize
 		);
+		const out = {
+			provenance: meta.provenance,
+			...(meta.swing !== undefined ? { swing: meta.swing } : {}),
+			...(setPiece ? { setPiece: true } : {}),
+			...(meta.pack !== undefined ? { pack: meta.pack } : {}),
+			...(screenSizes.length ? { screenSizes } : {})
+		};
+		cooked.outputs.set(`models/${kind}/${id}.glb`, glb);
+		cooked.outputs.set(`models/${kind}/${id}.meta.json`, Buffer.from(json(out)));
 	}
-	const limit = LIMITS[limitClass({ usage })];
-	let ktx2: Uint8Array;
-	try {
-		ktx2 = await cookTexture(
-			readFileSync(source),
-			USAGE_SPACE[usage],
-			Math.min(meta.textureSize ?? limit.px, limit.px),
-			usage === 'normal'
-		);
-	} catch (err) {
-		throw new AssetError(source, (err as Error).message);
-	}
-	return new Map([
-		[`textures/${id}.ktx2`, ktx2],
-		[`textures/${id}.meta.json`, Buffer.from(json({ usage, provenance: meta.provenance }))]
-	]);
+	return cooked;
 }
 
 // The command: `npm run assets:cook` cooks what changed; `-- --check` only compares hashes;
