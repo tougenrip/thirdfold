@@ -25,7 +25,8 @@ the built files would not match CI's.
 | NPCs                             | `assets/models/npc/<id>.json`                                                          | `models/<id>.<hash>.glb`           |
 | Enemies                          | `assets/models/enemy/<id>.json`                                                        | `models/<id>.<hash>.glb`           |
 | Kit, foliage, decor, effects     | `assets/models/{kit,foliage,decor,fx}/<id>.json`                                       | `models/<id>.<hash>.glb`           |
-| Any model made elsewhere         | `assets/models/<kind>/<id>.glb` (`<id>.meta.json`: swing, set piece)                   | copied, after checking             |
+| Any model made elsewhere         | `assets/models/<kind>/<id>.glb` (`<id>.meta.json`: swing, set piece, pack)             | copied, after checking             |
+| A model's preview                | `assets/models/<kind>/<id>.preview.json` (a part list)                                 | `previews/<id>.<hash>.glb`         |
 | Materials                        | `assets/materials.json`                                                                | the manifest                       |
 | Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`/`.ktx2` (`<id>.meta.json`: usage) | `textures/<id>.<hash>.png`/`.ktx2` |
 | Environments (how a place looks) | `assets/environments/<id>.json`                                                        | the manifest                       |
@@ -422,3 +423,30 @@ own output, so such a manifest never builds.
   filters) when they have none (`defaults.ts`; `docs/RENDERING.md`, "Materials and world
   visibility").
 - **Sounds:** load when audio starts (the first click).
+
+### Packs, prefetch and previews (#192)
+
+- **Packs** group files by look, never by a story's places or roles (the manifest is public: a
+  pack named for a chapter would tell where the story goes). `server/assets/pipeline-packs.ts`
+  puts a texture only one environment wears (its materials, grade strips, surfaces) in that
+  environment's pack and everything shared in `core`; a model is in `core` unless its
+  `<id>.meta.json` names a `pack` (an asset id); sounds are `core`. The manifest's `packs` lists
+  each pack's bytes (with previews) and GPU bytes, and `npm run assets` prints them. It stays one
+  file until it passes about 100 kB gzipped.
+- **Prefetch:** `src/lib/assets/prefetch.ts` `plan(view, manifest, focus)` orders a table's loads:
+  the KTX2 transcoder when anything planned is cooked or KTX2, the environment, every preview
+  (`high`), then the models (`low`), tokens' before props', each nearest the camera's cell first.
+  The renderer runs it (`prefetch` in `tabletop/models.ts`) whenever its tokens or props change,
+  before the layers ask, so the plan's order is the queue's; each file still loads once. A camera
+  that moves later changes nothing already queued.
+- **Secrecy:** the plan's only inputs are what this viewer was sent (the environment, its tokens'
+  models, its props' assets), the public manifest and the camera's cell: never the story, the
+  next table or server content. A prop the GM hides, or one under fog, is never sent to a player
+  and so never planned for them. `prefetch.spec.ts` checks this on every fixture view (and a
+  GM-hidden prop on the test world), and that the planner reads nothing else of the snapshot.
+- **Previews:** an `<id>.preview.json` part list beside a model is built as its preview (held to
+  the model's class, and lighter than the model). A model with one fetches both at once, the
+  preview ahead; the preview shows in place of the placeholder (the loader's `onStage`, which
+  `PropLayer` and `TokenLayer` redraw on), then the full model replaces it and the preview is
+  freed: one redraw each, no idle frames. The cook step (#186) may emit previews for cooked models
+  the same way.

@@ -112,7 +112,7 @@ describe('manifest v2', () => {
 			credit: table.credit
 		});
 		const filled = parse((m) => {
-			(m as Record<string, unknown>).packs = { core: { bytes: 10, gpuBytes: 20 } };
+			m.packs = { ...m.packs, core: { bytes: 10, gpuBytes: 20 } };
 			Object.assign(m.models.table, {
 				pack: 'core',
 				lods: [

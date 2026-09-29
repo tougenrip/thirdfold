@@ -37,7 +37,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
-import { initModels, releaseModels } from './models';
+import { initModels, prefetch, releaseModels } from './models';
 import { PropLayer } from './props';
 import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
@@ -145,10 +145,8 @@ export async function createTabletop(
 	const shakeOffset = new THREE.Vector3();
 
 	/**
-	 * Light depends on tokens (carried light), walls (blocking), fog (player visibility) and
-	 * lights, and has to be worked out again when they change. Several updates often come
-	 * together (a new table brings grid, tokens, walls, props, fog and lights), so it is
-	 * worked out once, just before the next frame.
+	 * Light depends on tokens (carried light), walls, fog and lights: worked out again when they
+	 * change, once just before the next frame however many updates came together (a new table).
 	 */
 	let lightingStale = false;
 	function refreshLighting(): void {
@@ -173,7 +171,6 @@ export async function createTabletop(
 	/** Tokens drawn lying down; kept here so newly synced minis pick it up. */
 	let fallen: ReadonlySet<string> = new Set();
 	let objects: readonly SceneObject[] = [];
-
 	let grid: SquareGrid | null = null;
 	let extent = 20;
 
@@ -262,6 +259,8 @@ export async function createTabletop(
 	/** The environment asked for, and its looks once loaded. */
 	let environment: string | null = null;
 	let look: EnvironmentLook | null = null;
+	const replan = () =>
+		prefetch({ environment, tokens, props }, grid, controls.target, post.toneMapper);
 
 	/** Dresses the table, raised ground and walls in the environment's looks (or the plain ones). */
 	function applyLook(): void {
@@ -298,7 +297,6 @@ export async function createTabletop(
 	const pickable = { tokens: tokenLayer, walls: wallLayer, lighting, props: propLayer };
 	const picker = new Picker(canvas, camera, { ...pickable, terrain: terrainLayer }, () => grid);
 	const stopPicking = listenForPicks(canvas, picker, events, perf, () => rig.endShot());
-
 	let view: CameraView = 'tactical';
 
 	const tabletop: Tabletop = {
@@ -326,6 +324,7 @@ export async function createTabletop(
 		},
 		setTokens(next) {
 			tokens = next;
+			replan(); // their downloads, nearest the camera first (#192), before the layer asks
 			if (!grid) return;
 			// The first tokens after a new table take their places at once: nobody glides in from
 			// where they stood on the last one.
@@ -364,6 +363,7 @@ export async function createTabletop(
 		},
 		setProps(next) {
 			props = next;
+			replan();
 			if (!grid) return;
 			propLayer.sync(props, grid, ground);
 			refreshLighting();

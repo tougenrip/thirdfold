@@ -9,7 +9,8 @@
 //   assets/materials.json               named surfaces: colour, roughness, metalness, texture
 //   assets/textures/<id>.json | .png | .ktx2  a recipe, or an image (<id>.meta.json: its usage)
 //   assets/models/<kind>/<id>.json      a model from primitive parts (kind: a MODEL_KINDS folder)
-//   assets/models/<kind>/<id>.glb       or a model made elsewhere or cooked, with <id>.meta.json for its swing
+//   assets/models/<kind>/<id>.glb       or a model made elsewhere or cooked, with <id>.meta.json for its swing and pack
+//   assets/models/<kind>/<id>.preview.json  a part list shown until the model arrives (#192)
 //   assets/environments/<id>.json       how a place looks: materials for floor, ground, walls, table?
 //   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
@@ -21,7 +22,8 @@
 // file is listed with its whole SHA-256 and its credit. Three's KTX2
 // transcoder is copied in beside them (decoders/, #188). Models are built in
 // pipeline-models.ts, textures and grades in pipeline-textures.ts, sounds in
-// pipeline-audio.ts.
+// pipeline-audio.ts, and every file is given its pack (a look) in
+// pipeline-packs.ts.
 
 import { createHash } from 'node:crypto';
 import {
@@ -50,6 +52,7 @@ import { buildAudio } from './pipeline-audio';
 import { provenanceFor } from './licence';
 import { AssetError, emitter, idOf, isRecord, list, readJson } from './pipeline-files';
 import { buildModels } from './pipeline-models';
+import { assignPacks } from './pipeline-packs';
 import { buildGrades, buildTextures } from './pipeline-textures';
 
 export { AssetError } from './pipeline-files';
@@ -195,6 +198,7 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 		packs: {},
 		decoders: buildDecoders(files)
 	};
+	assignPacks(manifest);
 	const checked = parseManifest(JSON.parse(JSON.stringify(manifest)));
 	if (!checked.ok) throw new AssetError('manifest', checked.error);
 	return { manifest, files, catalogModule: catalogModule(catalog), shipped };

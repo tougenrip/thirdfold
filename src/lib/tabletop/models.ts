@@ -11,11 +11,16 @@
 // slots.
 // When the last table goes (initModels/releaseModels), every geometry and texture is freed and
 // the transcoder's workers stop: a lost device's replacement starts afresh.
+//
+// A model with a preview (#192) is fetched with it: the preview shows (`onStage`) until the full
+// model arrives, then is freed. `prefetch` starts a table's loads in the order prefetch.ts plans.
 
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import type { ModelEntry, ModelLod } from '$lib/assets/manifest';
-import { assetUrl, fetchAsset, loadManifest } from '$lib/assets/load';
+import type { ModelEntry, ModelLod, ToneMapper } from '$lib/assets/manifest';
+import { assetUrl, fetchAsset, loadManifest, manifestNow, type Priority } from '$lib/assets/load';
+import { plan, type PlanView } from '$lib/assets/prefetch';
+import { worldToGrid, type SquareGrid } from '$lib/game/grid';
 import {
 	BAKE_ATTRIBUTE,
 	prepareSlotTexture,
@@ -26,7 +31,7 @@ import {
 	type SlotName
 } from './materials';
 import type { Decoders } from './decoders';
-import { releaseEnvironmentTextures } from './environment';
+import { loadEnvironment, releaseEnvironmentTextures } from './environment';
 
 export type Role = 'body' | 'swing' | 'accent';
 
@@ -44,6 +49,8 @@ export interface ModelPart {
 export interface LoadedModel {
 	entry: ModelEntry;
 	parts: ModelPart[];
+	/** The entry's preview, shown until the full model arrives. */
+	preview?: true;
 }
 
 /** A role's parts at level `lod`. */
@@ -71,6 +78,8 @@ export function roleOf(name: string): { role: Role; lod: number } | null {
 const cache = new Map<string, Promise<LoadedModel | null>>();
 /** Models that have loaded (or failed: null), for drawing without waiting. */
 const ready = new Map<string, LoadedModel | null>();
+/** Told when a model's preview is ready, while it is still loading. */
+const staged = new Map<string, (() => void)[]>();
 const loader = new GLTFLoader();
 let renderer: THREE.WebGPURenderer | null = null;
 /** Tables using the models; the last to go frees them. */
@@ -103,6 +112,7 @@ function freeAll(): void {
 	for (const model of ready.values()) if (model) disposeModel(model);
 	cache.clear();
 	ready.clear();
+	staged.clear();
 	dropDecoders();
 	releaseEnvironmentTextures();
 }
@@ -126,12 +136,21 @@ export function modelNow(id: string): LoadedModel | null | undefined {
 	return ready.get(id);
 }
 
-/** Loads a model once; null if the manifest has no such model or it fails to load. */
-export function loadModel(id: string): Promise<LoadedModel | null> {
+/**
+ * Loads a model once; null if the manifest has no such model or it fails to load. `onStage` is
+ * told if its preview shows first (modelNow gives it). The full file is fetched at `priority`
+ * (the first ask's), a preview always ahead of it.
+ */
+export function loadModel(
+	id: string,
+	onStage?: () => void,
+	priority: Priority = 'high'
+): Promise<LoadedModel | null> {
 	let loading = cache.get(id);
 	if (!loading) {
 		const at = generation;
-		loading = load(id)
+		staged.set(id, []);
+		loading = load(id, priority, at)
 			.catch((err: Error) => {
 				console.warn(`[assets] model "${id}" failed to load:`, err.message);
 				return null;
@@ -141,10 +160,40 @@ export function loadModel(id: string): Promise<LoadedModel | null> {
 				if (model) disposeModel(model); // everything was released meanwhile
 				return null;
 			});
-		loading.then((m) => at === generation && ready.set(id, m));
+		loading.then((m) => {
+			if (at !== generation) return;
+			const shown = ready.get(id);
+			ready.set(id, m);
+			staged.delete(id);
+			if (shown) disposeModel(shown); // the preview: whoever showed it redraws now
+		});
 		cache.set(id, loading);
 	}
+	if (onStage && !ready.has(id)) staged.get(id)?.push(onStage);
 	return loading;
+}
+
+/**
+ * Starts the loads a table needs, as prefetch.ts plans them from what this viewer was sent: nearest
+ * `target` (the camera's, in the world) first. Each loads once however often it is planned.
+ */
+export function prefetch(
+	view: PlanView,
+	grid: SquareGrid | null,
+	target: THREE.Vector3,
+	toneMapper: ToneMapper
+): void {
+	const manifest = manifestNow();
+	if (!manifest) {
+		void loadManifest().then(() => prefetch(view, grid, target, toneMapper));
+		return;
+	}
+	for (const item of plan(view, manifest, grid && worldToGrid(grid, target))) {
+		if (item.kind === 'decoders') void decoders().catch(() => {});
+		else if (item.kind === 'environment') void loadEnvironment(item.id, toneMapper);
+		// A preview's model comes with it, queued behind every preview.
+		else void loadModel(item.id, undefined, 'low');
+	}
 }
 
 /** The decoders, for the current renderer, loaded the first time a cooked file needs them. */
@@ -165,9 +214,26 @@ export async function ktx2Texture(bytes: ArrayBuffer): Promise<THREE.Texture> {
 	return new Promise((resolve, reject) => ktx2.parse(bytes, resolve, reject));
 }
 
-async function load(id: string): Promise<LoadedModel | null> {
+async function load(id: string, priority: Priority, at: number): Promise<LoadedModel | null> {
 	const entry = (await loadManifest()).models[id];
-	return entry ? parseModel(entry, await fetchAsset(entry.file, entry.sha256)) : null;
+	if (!entry) return null;
+	const full = fetchAsset(entry.file, entry.sha256, priority);
+	if (entry.preview) void showPreview(id, entry, at);
+	return parseModel(entry, await full);
+}
+
+/** Shows a model's preview while the model itself is still coming; a failed preview is skipped. */
+async function showPreview(id: string, entry: ModelEntry, at: number): Promise<void> {
+	const { file, sha256 } = entry.preview!;
+	const model = await fetchAsset(file, sha256, 'high')
+		.then((bytes) => parseModel({ ...entry, lods: undefined }, bytes))
+		.catch((err: Error) => void console.warn(`[assets] preview "${id}":`, err.message));
+	if (!model) return;
+	const waiting = staged.get(id);
+	if (at !== generation || !waiting || ready.has(id)) return disposeModel(model);
+	ready.set(id, { ...model, preview: true });
+	staged.set(id, []);
+	for (const redraw of waiting) redraw();
 }
 
 /** A model file's parts: every mesh named for a role, at the levels its entry lists. */
