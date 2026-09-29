@@ -71,6 +71,8 @@ export interface CharacterDef {
 	vision: number;
 	/** Light carried, in cells (0 for none). */
 	light: number;
+	/** The colour of that light, `#rrggbb`; the carried-light default when absent. */
+	lightColor?: string;
 	stats: Record<StatId, number>;
 	/** The first is the character's basic attack. */
 	actions: readonly Action[];
@@ -168,6 +170,7 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
 		speed: 5,
 		vision: 6,
 		light: 3,
+		lightColor: '#ff6a2a',
 		stats: { might: 0, agility: 1, wits: 2, spirit: 2 },
 		actions: [
 			{

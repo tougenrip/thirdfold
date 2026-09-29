@@ -158,6 +158,23 @@ describe('updateToken / deleteToken', () => {
 		expect(token.name).toBe('T00');
 	});
 
+	it('scales, lifts and colours a token as look only: it still stands on one cell (#202)', () => {
+		const { room, gm, pip } = setup();
+		const giant = place(room, gm, 4, 4);
+		const hero = place(room, gm, 6, 4, pip.id);
+		expect(
+			updateToken(room, gm, giant.id, { scale: 3, lift: 2, lightColor: '#b8c8ff' })
+		).toMatchObject({ ok: true });
+		expect(giant).toMatchObject({ scale: 3, lift: 2, lightColor: '#b8c8ff', pos: { x: 4, y: 4 } });
+		// The cells round it are as free as before.
+		expect(moveToken(room, pip, hero.id, { x: 5, y: 4 })).toMatchObject({ ok: true });
+		expect(moveToken(room, pip, hero.id, { x: 5, y: 5 })).toMatchObject({ ok: true });
+		expect(updateToken(room, pip, giant.id, { scale: 1 })).toMatchObject({ code: 'forbidden' });
+		expect(updateToken(room, gm, giant.id, { lightColor: null })).toMatchObject({ ok: true });
+		expect(giant.lightColor).toBeUndefined();
+		expect(giant.scale).toBe(3);
+	});
+
 	it('refuses players trying to claim or delete tokens', () => {
 		const { room, gm, pip } = setup();
 		const token = place(room, gm, 0, 0);
@@ -327,6 +344,21 @@ describe('props', () => {
 		});
 		// Moving a prop onto its own old footprint is fine.
 		expect(updateProp(room, gm, table.id, { pos: c(6, 5) })).toMatchObject({ ok: true });
+	});
+
+	it('tints a prop and sets its variant without moving it; null clears the tint (#202)', () => {
+		const { room, gm, pip } = setup();
+		const crate = placeProp(room, gm, 'crate', 3, 3);
+		expect(updateProp(room, gm, crate.id, { tint: '#8a3b3b', variant: 7 })).toMatchObject({
+			ok: true
+		});
+		expect(crate).toMatchObject({ tint: '#8a3b3b', variant: 7, pos: c(3, 3), rotation: 0 });
+		expect(updateProp(room, pip, crate.id, { tint: '#ffffff' })).toMatchObject({
+			code: 'forbidden'
+		});
+		expect(updateProp(room, gm, crate.id, { tint: null })).toMatchObject({ ok: true });
+		expect(crate.tint).toBeUndefined();
+		expect(crate.variant).toBe(7);
 	});
 
 	it('blocks tokens from standing in or walking through solid props', () => {

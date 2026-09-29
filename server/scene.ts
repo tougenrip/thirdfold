@@ -166,6 +166,10 @@ export function updateToken(
 	else if (patch.hidden === false) delete token.hidden;
 	if (typeof patch.model === 'string') token.model = patch.model;
 	else if (patch.model === null) delete token.model;
+	if (patch.scale !== undefined) token.scale = patch.scale;
+	if (patch.lift !== undefined) token.lift = patch.lift;
+	if (typeof patch.lightColor === 'string') token.lightColor = patch.lightColor;
+	else if (patch.lightColor === null) delete token.lightColor;
 	return { ok: true, token, previousOwnerId };
 }
 
@@ -542,10 +546,14 @@ export function updateProp(
 		scale: patch.scale ?? prop.scale,
 		...((patch.hidden ?? wasHidden) ? { hidden: true as const } : {})
 	};
+	if (patch.variant !== undefined) next.variant = patch.variant;
+	if (typeof patch.tint === 'string') next.tint = patch.tint;
+	else if (patch.tint === null) delete next.tint;
 	const ok = checkPlacement(room, next, prop.id);
 	if (!ok.ok) return ok;
 	Object.assign(prop, next);
 	if (!next.hidden) delete prop.hidden;
+	if (!next.tint) delete prop.tint;
 	return { ok: true, prop };
 }
 

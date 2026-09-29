@@ -288,6 +288,7 @@ function placeCharacter(
 		ownerId,
 		vision: def.vision,
 		light: def.light,
+		...(def.lightColor ? { lightColor: def.lightColor } : {}),
 		model: id
 	};
 	room.tokens.set(token.id, token);
@@ -1492,6 +1493,7 @@ function enemyToken(A: AdventureDef, kind: string, pos: GridPos): Token {
 		ownerId: null,
 		vision: def.vision,
 		light: def.light,
+		...(def.lightColor ? { lightColor: def.lightColor } : {}),
 		model: def.model
 	};
 }

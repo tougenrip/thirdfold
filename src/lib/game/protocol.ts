@@ -24,7 +24,14 @@ import {
 } from './lights';
 import type { SceneObject } from './objects';
 import type { Motion } from './motion';
-import { resolveAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
+import {
+	parsePropLook,
+	resolveAssetId,
+	PROP_SCALE,
+	type AssetId,
+	type Prop,
+	type Rotation
+} from './props';
 import type { SceneFile } from './scene-file';
 import { isFloorId, type FloorId } from './floor';
 import {
@@ -41,7 +48,7 @@ import {
 	type StoryDetail
 } from './library';
 import { MAX_LEVEL } from './terrain';
-import { TOKEN_COLOR_PATTERN, type Token } from './token';
+import { parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
 
 export type Role = 'gm' | 'player' | 'spectator';
@@ -109,6 +116,10 @@ export interface TokenPatch {
 	hidden?: boolean;
 	/** The model it is drawn as (an asset id), or null for the plain miniature. */
 	model?: string | null;
+	/** Look only (TokenLook): size, lift in levels, and the carried light's colour (null clears). */
+	scale?: number;
+	lift?: number;
+	lightColor?: string | null;
 }
 
 /** Fields the GM may change on a placed prop: move, rotate, scale. */
@@ -118,6 +129,9 @@ export interface PropPatch {
 	scale?: number;
 	/** Keep it out of players' views (true), or show it again (false). */
 	hidden?: boolean;
+	/** Look only (PropLook): a tint over the model (null clears) and its variant. */
+	tint?: string | null;
+	variant?: number;
 }
 
 /** Fields the GM may change on an existing light; a look field set to null goes back to its kind's. */
@@ -547,6 +561,11 @@ function parseTokenPatch(value: unknown): TokenPatch | null {
 		if (model !== null && !isAssetRef(model)) return null;
 		patch.model = model;
 	}
+	const { lightColor, ...rest } = value;
+	const look = parseTokenLook({ ...rest, lightColor: lightColor ?? undefined });
+	if (!look) return null;
+	Object.assign(patch, look);
+	if (lightColor === null) patch.lightColor = null;
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -575,6 +594,10 @@ function parsePropPatch(value: unknown): PropPatch | null {
 		if (typeof value.hidden !== 'boolean') return null;
 		patch.hidden = value.hidden;
 	}
+	const look = parsePropLook({ variant: value.variant, tint: value.tint ?? undefined });
+	if (!look) return null;
+	Object.assign(patch, look);
+	if (value.tint === null) patch.tint = null;
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 

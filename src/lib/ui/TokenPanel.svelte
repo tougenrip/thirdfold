@@ -9,10 +9,10 @@
 
 <script lang="ts">
 	import { NAME_MAX_LENGTH, type PublicPlayer } from '$lib/game/protocol';
-	import { TOKEN_COLORS, type Token } from '$lib/game/token';
+	import { MAX_TOKEN_LIFT, TOKEN_COLORS, TOKEN_SCALE, type Token } from '$lib/game/token';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import { MAX_VISION } from '$lib/game/visibility';
-	import { MAX_LIGHT_RADIUS } from '$lib/game/lights';
+	import { CARRIED_LIGHT_COLOR, LIGHT_COLORS, MAX_LIGHT_RADIUS } from '$lib/game/lights';
 	import { loadManifest } from '$lib/assets/load';
 	import { FIGURE_KINDS, isFigureKind, type FigureKind } from '$lib/assets/manifest';
 
@@ -167,6 +167,60 @@
 					value={selected.light}
 					aria-label="Token light"
 					onchange={(e) => setLight(selected, e.currentTarget.valueAsNumber)}
+				/>
+			</label>
+			{#if selected.light > 0}
+				<div class="swatches" role="group" aria-label="Carried light colour">
+					{#each LIGHT_COLORS as c (c.color)}
+						<button
+							type="button"
+							class="swatch-btn"
+							style:background={c.color}
+							title={c.name}
+							aria-label={`Light ${c.name}`}
+							aria-pressed={(selected.lightColor ?? CARRIED_LIGHT_COLOR) === c.color}
+							onclick={() =>
+								send({
+									type: 'token_update',
+									tokenId: selected.id,
+									patch: { lightColor: c.color === CARRIED_LIGHT_COLOR ? null : c.color }
+								})}
+						></button>
+					{/each}
+				</div>
+			{/if}
+			<label class="row">
+				<span class="muted small">Size ×{(selected.scale ?? 1).toFixed(2)}</span>
+				<input
+					type="range"
+					min={TOKEN_SCALE.min}
+					max={TOKEN_SCALE.max}
+					step="0.25"
+					value={selected.scale ?? 1}
+					aria-label="Token size"
+					onchange={(e) =>
+						send({
+							type: 'token_update',
+							tokenId: selected.id,
+							patch: { scale: e.currentTarget.valueAsNumber }
+						})}
+				/>
+			</label>
+			<label class="row">
+				<span class="muted small">Flying (levels)</span>
+				<input
+					type="number"
+					min="0"
+					max={MAX_TOKEN_LIFT}
+					step="1"
+					value={selected.lift ?? 0}
+					aria-label="Token flying height"
+					onchange={(e) => {
+						const lift = Math.round(e.currentTarget.valueAsNumber);
+						if (lift >= 0 && lift <= MAX_TOKEN_LIFT && lift !== (selected.lift ?? 0)) {
+							send({ type: 'token_update', tokenId: selected.id, patch: { lift } });
+						}
+					}}
 				/>
 			</label>
 			<label class="row">

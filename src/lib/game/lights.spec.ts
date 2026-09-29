@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from './grid';
 import {
+	CARRIED_LIGHT_COLOR,
 	LIGHT_KIND_DEFAULTS,
 	LIGHT_KINDS,
 	lightLevels,
@@ -38,6 +39,19 @@ describe('lightSources', () => {
 			[1, 1, 3],
 			[5, 5, 2]
 		]);
+	});
+
+	it("gives a carried light its token's colour, else the carried-light default (#202)", () => {
+		const [plain, tinted] = lightSources(
+			[],
+			[
+				{ pos: { x: 1, y: 1 }, light: 2 },
+				{ pos: { x: 2, y: 2 }, light: 2, lightColor: '#b8c8ff' }
+			]
+		);
+		expect(CARRIED_LIGHT_COLOR).toBe('#ffa04d');
+		expect(plain.color).toBe('#ffa04d');
+		expect(tinted.color).toBe('#b8c8ff');
 	});
 });
 

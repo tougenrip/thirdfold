@@ -30,6 +30,7 @@ import {
 	createMaterial,
 	LIFT_ATTRIBUTE,
 	liftOf,
+	PAINT_ATTRIBUTE,
 	setParams,
 	TINT_ATTRIBUTE,
 	withBake,
@@ -68,6 +69,8 @@ const still = (): Pose => ({ dx: 0, dy: 0, dz: 0, turn: 0, swing: 0 });
 const SELECTED = { color: new THREE.Color(0xe0a458), strength: 0.4 };
 const HOVERED = { color: new THREE.Color(0xe27a6b), strength: 0.4 };
 /** What the GM sees a prop hidden from the players as: pale, like a ghost of itself. */
+/** Reused by `paint` for each instance's tint (#202). */
+const tintColour = new THREE.Color();
 const GHOST = { color: new THREE.Color(0xb8c6e0), strength: 0.3 };
 
 interface AssetMeshes {
@@ -371,15 +374,20 @@ export class PropLayer {
 	}
 
 	/**
-	 * Writes each instance's tint: the ghost if hidden, plus selected or hovered, added (as the
+	 * Writes each instance's paint (its tint, #202) and tint: the ghost if hidden, plus selected or hovered, added (as the
 	 * old instance colours lerped both in), so a selected hidden prop still reads as hidden.
 	 */
 	private paint(): void {
 		const hidden = new Set(this.props.filter((p) => p.hidden).map((p) => p.id));
+		const tinted = new Map(this.props.map((p) => [p.id, p.tint]));
 		for (const meshes of this.meshes.values()) {
 			for (const { mesh } of meshes.parts) {
 				const tints = mesh.geometry.getAttribute(TINT_ATTRIBUTE) as THREE.BufferAttribute;
+				const paints = mesh.geometry.getAttribute(PAINT_ATTRIBUTE) as THREE.BufferAttribute;
 				meshes.owners.forEach((id, i) => {
+					const tint = tinted.get(id);
+					tintColour.set(tint ?? 0xffffff);
+					paints.setXYZ(i, tintColour.r, tintColour.g, tintColour.b);
 					const hot = id === this.selectedId ? SELECTED : id === this.hoveredId ? HOVERED : null;
 					const sum = [0, 0, 0];
 					for (const t of [hidden.has(id) ? GHOST : null, hot]) {
@@ -391,6 +399,7 @@ export class PropLayer {
 					tints.setXYZW(i, sum[0], sum[1], sum[2], 1);
 				});
 				tints.needsUpdate = true;
+				paints.needsUpdate = true;
 			}
 		}
 	}

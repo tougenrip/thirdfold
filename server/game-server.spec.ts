@@ -2644,3 +2644,63 @@ describe('the library and open games over the wire', () => {
 		expect((await passerby.until('games_list')).games).toEqual([]);
 	});
 });
+
+describe('token and prop looks over the wire (#202)', () => {
+	it("sends a token's and a prop's look to whoever sees them, never a hidden token's", async () => {
+		const gm = await connect();
+		const gmFrames: string[] = [];
+		gm.ws.on('message', (data) => gmFrames.push(data.toString()));
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		const pipFrames: string[] = [];
+		pip.ws.on('message', (data) => pipFrames.push(data.toString()));
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+
+		const place = async (name: string, x: number) => {
+			gm.send({ type: 'token_create', name, color: '#2e86c1', pos: { x, y: 3 }, ownerId: null });
+			return (await pip.until('token_upserted', (m) => m.token.name === name)).token;
+		};
+		const giant = await place('Giant', 3);
+		gm.send({
+			type: 'token_update',
+			tokenId: giant.id,
+			patch: { scale: 2, lift: 1, lightColor: '#8f7bff' }
+		});
+		expect(
+			(await pip.until('token_upserted', (m) => m.token.id === giant.id && m.token.scale === 2))
+				.token
+		).toMatchObject({ scale: 2, lift: 1, lightColor: '#8f7bff' });
+
+		const lurker = await place('Lurker', 6);
+		gm.send({ type: 'token_update', tokenId: lurker.id, patch: { hidden: true } });
+		await pip.until('token_deleted', (m) => m.tokenId === lurker.id);
+		const hiddenFrom = pipFrames.length;
+		gm.send({
+			type: 'token_update',
+			tokenId: lurker.id,
+			patch: { scale: 3, lift: 4, lightColor: '#6fe08a' }
+		});
+		await gm.until('token_upserted', (m) => m.token.id === lurker.id && m.token.scale === 3);
+
+		gm.send({ type: 'prop_create', assetId: 'crate', pos: { x: 8, y: 8 }, rotation: 0 });
+		const crate = (await pip.until('props_changed')).upserted[0];
+		gm.send({ type: 'prop_update', propId: crate.id, patch: { tint: '#8a3b3b', variant: 9 } });
+		expect((await pip.until('props_changed')).upserted[0]).toMatchObject({
+			tint: '#8a3b3b',
+			variant: 9
+		});
+
+		gm.send({ type: 'chat_send', text: 'done' });
+		await pip.until('chat', (m) => m.message.kind === 'chat' && m.message.text === 'done');
+		const nowhere = { x0: 1, y0: 1, x1: 0, y1: 0 };
+		const after = pipFrames.slice(hiddenFrom);
+		expect(framesLeaks(after, room.grid, nowhere, ['#6fe08a'])).toEqual([]);
+		expect(after.join('\n')).not.toContain(lurker.id);
+		// The control: the GM was sent the hidden token's look.
+		expect(framesLeaks(gmFrames, room.grid, nowhere, ['#6fe08a'])).toContainEqual(
+			expect.objectContaining({ field: 'marker:#6fe08a' })
+		);
+	});
+});

@@ -203,6 +203,9 @@ export const LIGHT_COLORS = [
 	{ name: 'Fel', color: '#6fe08a' }
 ] as const;
 
+/** The colour of a carried light when its token names none. */
+export const CARRIED_LIGHT_COLOR = '#ffa04d';
+
 /** Anything that gives off light: a placed source, or a token carrying one. The rules read only pos, radius and colour. */
 export interface LightSource extends Partial<LightLook> {
 	pos: GridPos;
@@ -213,12 +216,13 @@ export interface LightSource extends Partial<LightLook> {
 /** Light sources in effect: switched-on lights plus tokens with a light radius. */
 export function lightSources(
 	lights: Iterable<Light>,
-	tokens: Iterable<{ pos: GridPos; light: number }>
+	tokens: Iterable<{ pos: GridPos; light: number; lightColor?: string }>
 ): LightSource[] {
 	const sources: LightSource[] = [];
 	for (const l of lights) if (l.on && l.radius > 0) sources.push(l);
 	for (const t of tokens) {
-		if (t.light > 0) sources.push({ pos: t.pos, radius: t.light, color: '#ffa04d' });
+		if (t.light > 0)
+			sources.push({ pos: t.pos, radius: t.light, color: t.lightColor ?? CARRIED_LIGHT_COLOR });
 	}
 	return sources;
 }
