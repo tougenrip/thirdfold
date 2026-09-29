@@ -143,6 +143,8 @@ export interface Tabletop {
 	setPowerSaver(on: boolean): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
+	/** The loads the table's first view waits for (models.ts): [settled, started]. */
+	loads(): [number, number];
 	/** Draws the current view `frames` times, timing the main thread and the GPU (see perf.ts). */
 	benchmark(frames: number): Promise<Benchmark>;
 	/** Reads the GPU timestamps of the frames since the last call into `stats().gpuMs`. */

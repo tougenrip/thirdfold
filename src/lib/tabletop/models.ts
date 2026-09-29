@@ -132,6 +132,8 @@ export function releaseModels(): void {
 
 function freeAll(): void {
 	generation++;
+	planned.clear();
+	settled = 0;
 	for (const model of ready.values()) if (model) disposeModel(model);
 	cache.clear();
 	ready.clear();
@@ -209,15 +211,38 @@ export function prefetch(
 ): void {
 	const manifest = manifestNow();
 	if (!manifest) {
+		track('manifest', loadManifest);
 		void loadManifest().then(() => prefetch(view, grid, target, toneMapper));
 		return;
 	}
-	for (const item of plan(view, manifest, grid && worldToGrid(grid, target))) {
-		if (item.kind === 'decoders') void decoders().catch(() => {});
-		else if (item.kind === 'environment') void loadEnvironment(item.id, toneMapper);
-		// A preview's model comes with it, queued behind every preview.
-		else void loadModel(item.id, undefined, 'low');
+	for (const { kind, id } of plan(view, manifest, grid && worldToGrid(grid, target))) {
+		if (kind === 'decoders') track(kind, decoders);
+		else if (kind === 'environment') track(`e:${id}`, () => loadEnvironment(id, toneMapper));
+		// A preview's model comes with it, queued behind every preview; the first view needs only
+		// the preview.
+		else if (kind === 'preview')
+			track(
+				id,
+				() => new Promise<void>((shown) => void loadModel(id, shown, 'low').then(() => shown()))
+			);
+		else track(id, () => loadModel(id, undefined, 'low'));
 	}
+}
+
+/** The first view's loads prefetch started, by key, and how many have settled (#193). */
+const planned = new Set<string>();
+let settled = 0;
+
+/** The loads a table's first view waits for: [settled, started], since the models were freed. */
+export const loadProgress = (): [number, number] => [settled, planned.size];
+
+/** Starts a load once per key, counted. */
+function track(key: string, start: () => Promise<unknown>): void {
+	if (planned.has(key)) return;
+	planned.add(key);
+	const at = generation;
+	const done = () => void (at === generation && settled++);
+	start().then(done, done);
 }
 
 /** The decoders, for the current renderer, loaded the first time a cooked file needs them. */
