@@ -7,11 +7,11 @@
 // GM as the control (whose frames must leak every field, so the check can fire).
 //
 // The per-viewer render inputs checked, from snapshots (welcome, room_reset) and
-// diffs: fog (visible, explored), terrain, floor, darkness, lights, tokens,
+// diffs: fog (visible, explored), terrain, floor, darkness, lights (as last seen, #204), tokens,
 // props, walls and doors, environment (a public id only), and the markers (a
 // secret's name, id or colour) in any frame at all, the log included. Later
-// milestones add theirs here: world look (#199), interior (#203), last-seen
-// lights (#204), token looks (#202), VFX sources and attacker ids (#314) and
+// milestones add theirs here: world look (#199), interior (#203),
+// token looks (#202), VFX sources and attacker ids (#314) and
 // camera shots (#355).
 
 import { decodeFloor } from '../src/lib/game/floor';
