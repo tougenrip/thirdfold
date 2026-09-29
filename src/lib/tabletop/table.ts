@@ -72,7 +72,7 @@ export class TableLayer {
 	 */
 	setAntiTiled(on: boolean): boolean {
 		if (!!this.surfaceMaterial.options.antiTiled === on) return false;
-		// Their twins, kept (#180): switching back releases nothing and the warm-up compiled them.
+		// Their twins, kept (#180): switching back and again releases and compiles nothing.
 		this.slabMaterial = twinOf(this.slabMaterial);
 		this.surfaceMaterial = twinOf(this.surfaceMaterial);
 		if (this.slab) this.slab.material = this.slabMaterial;

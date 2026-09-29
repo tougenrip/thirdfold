@@ -343,7 +343,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                       |
 | `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness        |
 | `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180) |
-| `warmup.ts`       | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up), `alternates` (the anti-tiling twins)                   |
+| `warmup.ts`       | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                         |
 | `lobby.ts`        | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                 |
 | `shape.ts`        | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                  |
 | layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `fog.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts`            |

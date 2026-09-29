@@ -49,7 +49,7 @@ export class TerrainLayer {
 	 */
 	setAntiTiled(on: boolean): boolean {
 		if (!!this.material.options.antiTiled === on) return false;
-		// Its twin, kept (#180): switching back releases nothing and the warm-up compiled it.
+		// Its twin, kept (#180): switching back and again releases and compiles nothing.
 		this.material = twinOf(this.material);
 		if (this.mesh) this.mesh.material = this.material;
 		return true;

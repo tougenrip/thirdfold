@@ -88,7 +88,7 @@ export class WallLayer {
 	 */
 	setAntiTiled(on: boolean): boolean {
 		if (!!this.wallMaterial.options.antiTiled === on) return false;
-		// Its twin, kept (#180): switching back releases nothing and the warm-up compiled it.
+		// Its twin, kept (#180): switching back and again releases and compiles nothing.
 		this.wallMaterial = twinOf(this.wallMaterial);
 		if (this.walls) this.walls.material = this.wallMaterial;
 		return true;

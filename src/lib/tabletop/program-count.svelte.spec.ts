@@ -102,7 +102,7 @@ const KNOWN: Record<string, string> = {
 	// vertex stage of its own and declares a shadowed material's uniforms in another order compiled
 	// than drawn, and the real meshes can't be drawn in their twins unseen. It happens only where a
 	// tier switch keeps the pipeline (no AO: low, or medium with Advanced options off), in the hold
-	// the switch starts anyway; a lobby's warm-up (#180) has drawn every kind's variants by then.
+	// the switch starts anyway (the lobby's gallery, drawn on the same renderer, doesn't prevent it).
 	'anti-tiling on': 'r186 (no issue: see above)'
 };
 /** The KNOWN steps that always compile (on their first use). */
