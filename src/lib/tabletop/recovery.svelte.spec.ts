@@ -18,7 +18,8 @@ declare module 'vitest/browser' {
 }
 import type { Tabletop as Renderer } from './types';
 
-vi.setConfig({ testTimeout: 60_000 });
+// Software frames on CI's small runners take seconds since the shader kinds (M64).
+vi.setConfig({ testTimeout: 180_000, hookTimeout: 90_000 });
 
 /** The table's stats once its geometry and texture counts hold still for a second. */
 async function steady(t: Renderer) {

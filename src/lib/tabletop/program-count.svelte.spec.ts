@@ -18,7 +18,7 @@
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import type { Light } from '$lib/game/lights';
 import { decodeLevels } from '$lib/game/terrain';
@@ -55,6 +55,9 @@ const HOME = 'test-world';
 /** More lights than the renderer's pool of real point lights (POOL_SIZE in lighting.ts, 8). */
 const MANY_LIGHTS = 12;
 const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
+/** `THIRDFOLD_SHARD=k/n`: every nth tier from the kth, so CI sweeps the tiers in parallel jobs. */
+const [k, n] = inject('shard').split('/').map(Number);
+const SWEPT = TIERS.filter((_, i) => i % n === k - 1);
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -292,7 +295,7 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 }
 
 describe('the shader program count', () => {
-	it.each(TIERS)('stays put through runtime state on %s', async (tier) => {
+	it.each(SWEPT)('stays put through runtime state on %s', async (tier) => {
 		const { m, home, travel, clock, renderer } = await mountHome(tier);
 		const sweep = sweeper(m, renderer, clock);
 		const t = m.tabletop;

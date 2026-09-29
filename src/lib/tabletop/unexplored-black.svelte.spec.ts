@@ -123,7 +123,10 @@ async function allCases(): Promise<Case[]> {
 	return out;
 }
 
-const CASES = (await allCases()).filter((c) => FULL || SLIM.has(c.label));
+const CHOSEN = (await allCases()).filter((c) => FULL || SLIM.has(c.label));
+/** `THIRDFOLD_SHARD=k/n`: every nth case from the kth, so CI takes them in parallel jobs. */
+const [k, n] = inject('shard').split('/').map(Number);
+const CASES = CHOSEN.filter((_, i) => i % n === k - 1);
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -325,7 +328,7 @@ async function mountCase(
 describe(`unexplored cells on ${BACKEND}`, () => {
 	// A slim case whose fixture or view changed would otherwise drop out of CI without a word.
 	it.skipIf(FULL)('finds every case of the slim set', () => {
-		expect(CASES.map((c) => c.label).sort()).toEqual([...SLIM].sort());
+		expect(CHOSEN.map((c) => c.label).sort()).toEqual([...SLIM].sort());
 	});
 
 	for (const c of CASES)

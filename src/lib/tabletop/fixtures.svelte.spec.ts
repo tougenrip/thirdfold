@@ -13,7 +13,8 @@ import {
 	type Viewer
 } from './testing';
 
-vi.setConfig({ testTimeout: 60_000 });
+// Software frames on CI's small runners take seconds since the shader kinds (M64).
+vi.setConfig({ testTimeout: 180_000, hookTimeout: 90_000 });
 
 const [k, n] = inject('shard').split('/').map(Number);
 const SHARD = FIXTURES.filter((_, i) => i % n === k - 1);

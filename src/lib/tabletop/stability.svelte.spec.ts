@@ -4,8 +4,9 @@
 // renderer.svelte.spec.ts so CI runs the two side by side.
 
 import * as THREE from 'three/webgpu';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { loadEnvironment } from './environment';
+import { loadModel } from './models';
 import { createTabletop } from './renderer';
 import { qualityFor, settingsFor } from './quality';
 import {
@@ -16,11 +17,16 @@ import {
 	mountFixture,
 	settle,
 	wait,
+	shardedIt,
 	type Mounted,
 	type Viewer
 } from './testing';
 
-vi.setConfig({ testTimeout: 60_000 });
+// Software frames on CI's small runners take seconds since the shader kinds (M64).
+/** This file's tests, sharded for CI's parallel jobs (`THIRDFOLD_SHARD`). */
+const test = shardedIt();
+
+vi.setConfig({ testTimeout: 180_000, hookTimeout: 90_000 });
 
 let errors: ReturnType<typeof vi.spyOn>;
 const mounted: Mounted[] = [];
@@ -44,7 +50,7 @@ async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?:
 
 describe('the renderer, over time', () => {
 	// Reads pixels back, which only WebGL2 does here; on WebGPU the golden images compare frames.
-	it.skipIf(BACKEND === 'webgpu')(
+	test.skipIf(BACKEND === 'webgpu')(
 		'draws the same pixels for the same table, pose and frozen clock',
 		async () => {
 			const sidecar = await loadSidecar('ref-1');
@@ -52,7 +58,7 @@ describe('the renderer, over time', () => {
 			const draw = async () => {
 				const m = await mountFixture(view, sidecar.poses.close, { clock: manualClock(5000) });
 				// A first mount compiles its shaders; CI's small runners take far longer than 8 s.
-				await settle(m.tabletop, 250, 30_000);
+				await settle(m.tabletop, 1000, 30_000);
 				const pixels = m.pixels();
 				await m.unmount();
 				return pixels;
@@ -66,7 +72,7 @@ describe('the renderer, over time', () => {
 		}
 	);
 
-	it('leaks nothing when tables are loaded again', async () => {
+	test('leaks nothing when tables are loaded again', async () => {
 		const load = async (fixture: string) => {
 			const sidecar = await loadSidecar(fixture);
 			return loadView(fixture, sidecar.ambient, 'gm');
@@ -77,6 +83,16 @@ describe('the renderer, over time', () => {
 		// first round trip draws both looks and fills that cache, whatever the loading takes.
 		await Promise.all(
 			[village, hollow].map((v) => v.environment && loadEnvironment(v.environment))
+		);
+		// And both tables' models, as mountFixture loads the one it mounts: on a loaded machine the
+		// Hollow's could otherwise still be arriving after the first round trip.
+		await Promise.all(
+			[village, hollow]
+				.flatMap((v) => [
+					...v.tokens.flatMap((t) => (t.model ? [t.model] : [])),
+					...v.props.map((p) => p.assetId)
+				])
+				.map((id) => loadModel(id))
 		);
 		const sidecar = await loadSidecar('village');
 		const m = await mountFixture(village, sidecar.poses.overview);
@@ -106,7 +122,7 @@ describe('the renderer, over time', () => {
 	});
 
 	// #167: the tiles' seams are the grid; lines show only while building, placing or aiming.
-	it('compiles nothing new the second time round the times of day', async () => {
+	test('compiles nothing new the second time round the times of day', async () => {
 		const { tabletop } = await mount('village', 'gm');
 		const view = await loadView('village', 'day', 'gm');
 		const cycle = async () => {
@@ -126,7 +142,7 @@ describe('the renderer, over time', () => {
 });
 
 describe('measuring', () => {
-	it('reports what it draws, still after a second idle, and benchmarks', async () => {
+	test('reports what it draws, still after a second idle, and benchmarks', async () => {
 		const sidecar = await loadSidecar('ref-7');
 		const view = await loadView('ref-7', sidecar.ambient, 'gm');
 		const m = await mountFixture(view, sidecar.poses.overview, { perf: true });
@@ -154,7 +170,7 @@ describe('measuring', () => {
 		expect(Number.isFinite(b.gpu)).toBe(true);
 	});
 
-	it('resolves no timestamps outside ?perf', async () => {
+	test('resolves no timestamps outside ?perf', async () => {
 		const resolve = vi.spyOn(THREE.WebGPURenderer.prototype, 'resolveTimestampsAsync');
 		const { tabletop } = await mount('ref-7', 'gm');
 		await tabletop.sampleGpu();
@@ -166,7 +182,7 @@ describe('measuring', () => {
 });
 
 describe('quality tiers', () => {
-	it('find a software rasteriser under SwiftShader (low), and a GPU on WebGPU', async () => {
+	test('find a software rasteriser under SwiftShader (low), and a GPU on WebGPU', async () => {
 		const { tabletop } = await mount('ref-7', 'gm');
 		const caps = tabletop.capabilities();
 		expect(caps.software).toBe(BACKEND === 'webgl');
@@ -174,7 +190,7 @@ describe('quality tiers', () => {
 		else expect(qualityFor(caps)).not.toBe('low');
 	});
 
-	it('keep 4K at DPR 2 on medium within 2.1 MP', async () => {
+	test('keep 4K at DPR 2 on medium within 2.1 MP', async () => {
 		const dpr = vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
 		const canvas = document.createElement('canvas');
 		canvas.style.cssText = 'display:block;width:3840px;height:2160px';
@@ -196,7 +212,7 @@ describe('quality tiers', () => {
 	});
 
 	// Tiers with other antialiasing or no prepass get a new renderer (Tabletop.svelte).
-	it('change no program between tiers with the same post-processing stages', async () => {
+	test('change no program between tiers with the same post-processing stages', async () => {
 		const { tabletop } = await mount('ref-7', 'gm');
 		const backend = tabletop.capabilities().backend;
 		tabletop.setQuality(settingsFor('high', backend));

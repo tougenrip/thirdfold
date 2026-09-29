@@ -4,7 +4,7 @@
 // fixture's named poses, so the same inputs always draw the same pixels.
 // Fixtures and views are JSON made by server/fixtures (see docs/PERFORMANCE.md).
 
-import { inject } from 'vitest';
+import { inject, it } from 'vitest';
 import { page } from 'vitest/browser';
 import { decodeFloor } from '$lib/game/floor';
 import type { SquareGrid } from '$lib/game/grid';
@@ -221,22 +221,42 @@ export async function mountFixture(
 	};
 }
 
+/**
+ * `it` for the tests of this CI shard (`THIRDFOLD_SHARD=k/n`: every nth test of the file from the
+ * kth) and `it.skip` for the others, so one spec runs in parallel jobs; one shard runs them all.
+ * Made per file: `const test = shardedIt()`.
+ */
+export function shardedIt(): typeof it {
+	const [k, n] = inject('shard').split('/').map(Number);
+	let index = 0;
+	const pick = () => (index++ % n === k - 1 ? it : it.skip);
+	return new Proxy(it, {
+		apply: (_, self, args) => Reflect.apply(pick(), self, args),
+		get: (target, key) =>
+			key === 'skipIf' ? (skip: boolean) => (skip ? it.skip : pick()) : Reflect.get(target, key)
+	});
+}
+
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 /**
  * Waits until the tabletop has drawn and then stopped drawing for `quietMs`,
  * or `limitMs` has passed (a table with flickering flames never goes quiet).
- * Time-based, so slow machines (CI's software rendering) wait as long as fast ones.
+ * Time-based, so slow machines (CI's software rendering) wait as long as fast ones. A second
+ * of quiet by default: on a loaded machine something still loading (a model, a texture) can
+ * land after a shorter spell and draw once more.
  */
-export async function settle(tabletop: Tabletop, quietMs = 250, limitMs = 8000): Promise<void> {
+export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_000): Promise<void> {
 	const start = performance.now();
 	let last = -1;
 	let quietSince = start;
 	while (performance.now() - start < limitMs) {
 		await nextFrame();
-		const { frames, holding } = tabletop.stats();
-		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet.
-		if (frames !== last || frames === 0 || holding) {
+		const { frames, holding, mode } = tabletop.stats();
+		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
+		// still drawing: one software frame can outlast the quiet spell (CI's small runners).
+		const drawing = mode === 'active' || mode === 'converge';
+		if (frames !== last || frames === 0 || holding || drawing) {
 			last = frames;
 			quietSince = performance.now();
 		} else if (performance.now() - quietSince >= quietMs) return;
