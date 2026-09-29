@@ -1,4 +1,12 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as THREE from 'three';
@@ -8,7 +16,7 @@ import { parseManifest } from '../../src/lib/assets/manifest-parse';
 import { audioInfo, encodeWav, renderBell } from './audio';
 import { checkGlb, writeGlb } from './glb';
 import { bakeModel, readModelSource } from './models';
-import { buildAssets, staleAssets, type BuiltAssets } from './pipeline';
+import { buildAssets, staleAssets, writeAssets, type BuiltAssets } from './pipeline';
 import { encodePng, pngSize } from './png';
 import { checkScenes } from './scenes';
 import { NEUTRAL, readGrades, renderGrade, stripProblem } from './grades';
@@ -51,8 +59,32 @@ describe('The adventures’ assets', () => {
 		for (const [file, data] of again.files) expect(data.equals(built.files.get(file)!)).toBe(true);
 		for (const file of built.files.keys()) {
 			expect(file).toMatch(
-				/^(models|textures|audio)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|ktx2|wav)$/
+				/^((models|textures|audio)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|ktx2|wav)|decoders\/basis-[0-9a-f]{8}\/basis_transcoder\.(js|wasm))$/
 			);
+		}
+	});
+
+	it('ship three’s KTX2 transcoder in a folder named by its hash, and replace an old one', () => {
+		const { dir, bytes } = built.manifest.decoders!.basis;
+		expect(built.files.has(`${dir}/basis_transcoder.js`)).toBe(true);
+		expect(built.files.has(`${dir}/basis_transcoder.wasm`)).toBe(true);
+		expect(bytes).toBe(
+			built.files.get(`${dir}/basis_transcoder.js`)!.length +
+				built.files.get(`${dir}/basis_transcoder.wasm`)!.length
+		);
+		const out = mkdtempSync(path.join(tmpdir(), 'thirdfold-out-'));
+		try {
+			const old = path.join(out, 'decoders', 'basis-00000000');
+			mkdirSync(old, { recursive: true });
+			writeFileSync(path.join(old, 'basis_transcoder.js'), '');
+			expect(staleAssets(out, built)).toContain(
+				'decoders/basis-00000000/basis_transcoder.js is no longer built'
+			);
+			writeAssets(out, built);
+			expect(existsSync(old)).toBe(false);
+			expect(staleAssets(out, built)).toEqual([]);
+		} finally {
+			rmSync(out, { recursive: true });
 		}
 	});
 

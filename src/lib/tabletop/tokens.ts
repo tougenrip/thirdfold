@@ -18,8 +18,8 @@ import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
-import { createMaterial } from './materials';
-import { loadModel, modelNow } from './models';
+import { createMaterial, type KindMaterial } from './materials';
+import { loadModel, modelNow, partsOf, type ModelPart } from './models';
 import type { OverlayLayer } from './overlay';
 import { standIn } from './warmup';
 
@@ -120,6 +120,8 @@ export class TokenLayer {
 		figure: createMaterial('mini', { vertexColors: true, params: { roughness: 0.6 } }),
 		coloured: createMaterial('mini')
 	};
+	/** A textured model part's own material (#188): its variant's, its maps in the slots. */
+	private readonly textured = new Map<ModelPart, KindMaterial>();
 	/** Whose turn it is in a fight: an arrow over that mini. */
 	private activeId: string | null = null;
 	private readonly marker = new THREE.Mesh(
@@ -332,7 +334,8 @@ export class TokenLayer {
 			disposeLabel(entry.label);
 		}
 		this.entries.clear();
-		for (const m of Object.values(this.materials)) m.dispose();
+		for (const m of [...Object.values(this.materials), ...this.textured.values()]) m.dispose();
+		this.textured.clear();
 		this.ring.removeFromParent();
 		this.marker.removeFromParent();
 		(this.ring.material as THREE.Material).dispose();
@@ -390,9 +393,14 @@ export class TokenLayer {
 		entry.model = model;
 		entry.figure.clear();
 		const loaded = model ? modelNow(model) : null;
-		const add = (geometry: THREE.BufferGeometry, coloured: boolean, y: number) => {
+		const add = (
+			geometry: THREE.BufferGeometry,
+			coloured: boolean,
+			y: number,
+			part?: ModelPart
+		) => {
 			const { figure, coloured: tinted } = this.materials;
-			const mesh = new THREE.Mesh(geometry, coloured ? tinted : figure);
+			const mesh = new THREE.Mesh(geometry, this.materialOf(part) ?? (coloured ? tinted : figure));
 			mesh.userData.mini = entry.look;
 			if (coloured) mesh.userData.miniColor = entry.colour;
 			mesh.position.y = y;
@@ -402,8 +410,8 @@ export class TokenLayer {
 		};
 		if (loaded) {
 			// Figures stand on the base.
-			if (loaded.body) add(loaded.body, false, 0.08);
-			if (loaded.accent) add(loaded.accent, true, 0.08);
+			for (const part of partsOf(loaded, 'body')) add(part.geometry, false, 0.08, part);
+			for (const part of partsOf(loaded, 'accent')) add(part.geometry, true, 0.08, part);
 			return;
 		}
 		add(bodyGeometry, true, 0.08 + 0.31);
@@ -415,6 +423,18 @@ export class TokenLayer {
 				this.onModel();
 			});
 		}
+	}
+
+	/** A textured part's material, made once (figure bodies take their vertex colours too). */
+	private materialOf(part: ModelPart | undefined): KindMaterial | null {
+		if (!part?.maps) return null;
+		let material = this.textured.get(part);
+		if (!material) {
+			const vertexColors = part.role !== 'accent';
+			material = createMaterial('mini', { vertexColors, params: part.params, slots: part.maps });
+			this.textured.set(part, material);
+		}
+		return material;
 	}
 
 	private tickFloats(now: number): boolean {

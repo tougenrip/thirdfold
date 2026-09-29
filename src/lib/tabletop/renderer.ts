@@ -37,6 +37,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
+import { initModels, releaseModels } from './models';
 import { PropLayer } from './props';
 import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
@@ -57,12 +58,12 @@ export async function createTabletop(
 	// A renderer the lobby warmed up (lobby.ts, #180) comes with its shaders compiled.
 	const renderer = options.warm?.renderer ?? (await createNodeRenderer(canvas, options));
 	if (options.warm) setUpRenderer(renderer, options);
+	initModels(renderer); // models upload to it; the last table's dispose frees them
 	let shadowsDirty = true;
 	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
 	let shadowMapDrawn = false;
 	/** Things moved in the last frame: their final step changes shadows too. */
 	let wasMoving = false;
-
 	const perf = new PerfRecorder();
 	if (options.warm) perf.add('lobby', options.warm.warmupMs);
 	const loop = new RenderScheduler(render, canvas);
@@ -80,7 +81,6 @@ export async function createTabletop(
 	}));
 	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;
-
 	const table = new TableLayer();
 	scene.add(table.group);
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
@@ -477,6 +477,7 @@ export async function createTabletop(
 			const layers = [rig, table, tokenLayer, wallLayer, lighting, post, cloud];
 			const more = [overlay, ambience, terrainLayer, effects, propLayer, diceLayer, previews];
 			for (const l of [...layers, ...more, cellMaps]) l.dispose();
+			releaseModels();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
 			return warming.then(() => renderer.dispose()).catch(() => {});
 		},

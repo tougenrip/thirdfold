@@ -57,7 +57,9 @@ describe('manifest v2', () => {
 			...Object.values(m.textures),
 			...Object.values(m.audio)
 		];
-		expect(entries).toHaveLength(built.files.size);
+		// Besides the KTX2 transcoder's two files, listed as a folder (#188).
+		expect(entries).toHaveLength(built.files.size - 2);
+		expect(built.files.has(`${m.decoders!.basis.dir}/basis_transcoder.wasm`)).toBe(true);
 		for (const e of entries) {
 			expect(e.sha256).toBe(createHash('sha256').update(built.files.get(e.file)!).digest('hex'));
 		}

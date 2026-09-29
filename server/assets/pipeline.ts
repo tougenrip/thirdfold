@@ -18,11 +18,22 @@
 // Nothing built is executable: models are checked against an allowlist
 // (glb.ts, gltf-check.ts), images and sounds by their headers (KTX2 in
 // ktx2.ts), and every limit in LIMITS holds for the asset's class. Every
-// file is listed with its whole SHA-256 and its credit. Models are built in
+// file is listed with its whole SHA-256 and its credit. Three's KTX2
+// transcoder is copied in beside them (decoders/, #188). Models are built in
 // pipeline-models.ts, textures and grades in pipeline-textures.ts, sounds in
 // pipeline-audio.ts.
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmdirSync,
+	rmSync,
+	statSync,
+	writeFileSync
+} from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
 	ASSET_ID_PATTERN,
@@ -134,6 +145,25 @@ function buildEnvironments(
 	return environments;
 }
 
+/**
+ * The KTX2 transcoder (#188), three's own (three is pinned exactly), copied into
+ * `decoders/basis-<hash>/`: its file names are fixed, so the folder carries the hash. Served
+ * same-origin with the page, never from an asset host: it is code.
+ */
+function buildDecoders(files: Map<string, Buffer>): NonNullable<Manifest['decoders']> {
+	const js = createRequire(import.meta.url).resolve(
+		'three/examples/jsm/libs/basis/basis_transcoder.js'
+	);
+	const parts = ['basis_transcoder.js', 'basis_transcoder.wasm'].map(
+		(name) => [name, readFileSync(path.join(path.dirname(js), name))] as const
+	);
+	const hash = createHash('sha256');
+	for (const [, data] of parts) hash.update(data);
+	const dir = `decoders/basis-${hash.digest('hex').slice(0, 8)}`;
+	for (const [name, data] of parts) files.set(`${dir}/${name}`, data);
+	return { basis: { dir, bytes: parts.reduce((sum, [, d]) => sum + d.length, 0) } };
+}
+
 /** Builds every asset under `dir`. Throws an AssetError naming the first bad source. */
 export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	const files = new Map<string, Buffer>();
@@ -162,7 +192,8 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 		surfaces: {},
 		environments,
 		audio,
-		packs: {}
+		packs: {},
+		decoders: buildDecoders(files)
 	};
 	const checked = parseManifest(JSON.parse(JSON.stringify(manifest)));
 	if (!checked.ok) throw new AssetError('manifest', checked.error);
@@ -173,6 +204,25 @@ export const MANIFEST_FILE = 'manifest.json';
 
 export function manifestText(manifest: Manifest): string {
 	return `${JSON.stringify(manifest, null, '\t')}\n`;
+}
+
+/** Every file under `dir` but the manifest, as `<folder>/.../<name>`. */
+function filesUnder(dir: string, prefix = ''): string[] {
+	return list(dir).flatMap((name) => {
+		const full = path.join(dir, name);
+		if (statSync(full).isDirectory()) return filesUnder(full, `${prefix}${name}/`);
+		return prefix === '' && name === MANIFEST_FILE ? [] : [`${prefix}${name}`];
+	});
+}
+
+/** Removes the empty folders under `dir` (a decoder folder left behind by an upgrade). */
+function pruneFolders(dir: string): void {
+	for (const name of list(dir)) {
+		const full = path.join(dir, name);
+		if (!statSync(full).isDirectory()) continue;
+		pruneFolders(full);
+		if (list(full).length === 0) rmdirSync(full);
+	}
 }
 
 /** Writes the built files and manifest to `out`, removing built files that are no longer made. */
@@ -186,15 +236,12 @@ export function writeAssets(out: string, built: BuiltAssets): { written: number;
 		writeFileSync(target, data);
 		written++;
 	}
-	for (const folder of list(out)) {
-		const sub = path.join(out, folder);
-		if (folder === MANIFEST_FILE) continue;
-		for (const name of list(sub)) {
-			if (built.files.has(`${folder}/${name}`)) continue;
-			rmSync(path.join(sub, name));
-			removed++;
-		}
+	for (const file of filesUnder(out)) {
+		if (built.files.has(file)) continue;
+		rmSync(path.join(out, file));
+		removed++;
 	}
+	pruneFolders(out);
 	writeFileSync(path.join(out, MANIFEST_FILE), manifestText(built.manifest));
 	return { written, removed };
 }
@@ -211,12 +258,8 @@ export function staleAssets(out: string, built: BuiltAssets): string[] {
 		if (!existsSync(target)) problems.push(`${file} is missing`);
 		else if (!readFileSync(target).equals(data)) problems.push(`${file} differs`);
 	}
-	for (const folder of list(out)) {
-		if (folder === MANIFEST_FILE) continue;
-		for (const name of list(path.join(out, folder))) {
-			if (!built.files.has(`${folder}/${name}`))
-				problems.push(`${folder}/${name} is no longer built`);
-		}
+	for (const file of filesUnder(out)) {
+		if (!built.files.has(file)) problems.push(`${file} is no longer built`);
 	}
 	return problems;
 }

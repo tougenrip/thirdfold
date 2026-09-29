@@ -95,12 +95,13 @@ export default defineConfig({
 				// three.js always gets its own chunk, so a module shared by the eager
 				// pages and the lazy renderer never drags it into a page's static
 				// imports (see scripts/check-bundle.mjs). The Inspector (?perf&inspector)
-				// stays out of it, a chunk of its own fetched only when asked for.
+				// and the decoders cooked assets need (KTX2, meshopt; tabletop/decoders.ts)
+				// stay out of it, chunks of their own fetched only when asked for.
 				codeSplitting: {
 					groups: [
 						{
 							name: 'three',
-							test: /[\\/]node_modules[\\/]three[\\/](?!examples[\\/]jsm[\\/]inspector[\\/])/
+							test: /[\\/]node_modules[\\/]three[\\/](?!examples[\\/]jsm[\\/](inspector[\\/]|loaders[\\/]KTX2Loader|libs[\\/](ktx-parse|zstddec|meshopt_decoder)))/
 						}
 					]
 				}
