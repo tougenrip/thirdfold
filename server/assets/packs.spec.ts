@@ -86,6 +86,7 @@ describe('the pipeline on other sources', () => {
 		const meta = (pack: unknown) =>
 			JSON.stringify({
 				pack,
+				screenSizes: [0.25],
 				provenance: { license: 'LicenseRef-thirdfold-original', author: 'us', modified: false }
 			});
 		const file = path.join(src, 'models', 'npc', 'golem.meta.json');
