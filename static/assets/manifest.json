@@ -1311,6 +1311,18 @@
 			"width": 256,
 			"height": 256
 		},
+		"paint-gloss": {
+			"file": "textures/paint-gloss.3b79392c.png",
+			"bytes": 60580,
+			"width": 256,
+			"height": 256
+		},
+		"paint-normal": {
+			"file": "textures/paint-normal.c002c2e1.png",
+			"bytes": 158067,
+			"width": 256,
+			"height": 256
+		},
 		"planks": {
 			"file": "textures/planks.0b8541ad.png",
 			"bytes": 11740,

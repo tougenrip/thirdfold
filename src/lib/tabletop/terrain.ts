@@ -1,84 +1,73 @@
 // Raised ground in the three.js view: every cell above level 0 is one
 // instance of a single box InstancedMesh (one draw call for all of it),
 // standing from the table up to the cell's floor, so stairs read as steps and
-// balconies as sheer drops. The fog and darkness overlays lie flat on the
-// table, under raised cells, so this layer shades its own tops by the same
-// rules: instance colours darken unexplored and unlit cells.
+// balconies as sheer drops. It is the terrain kind (#172): the painted floor
+// and the paleness of height come from the ground map (materials/hooks.ts
+// `groundColour`), the texture is world-mapped (#177) and anti-tiled on medium
+// and up (#181). Fog and darkness are the kind's `worldModify`, as on every
+// surface (#173 deleted the grey instance colours that shaded it here).
 
 import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { dress, undress, type Look } from './environment';
-import { FLOOR_IDS, type FloorMap } from '$lib/game/floor';
-import { FLOOR_LOOKS } from './floor-looks';
-import type { Ground } from './ground';
-import { decodeMask, type FogView } from '$lib/game/visibility';
-import type { FogMode } from './fog';
+import { wear, type Look } from './environment';
+import { STEP_HEIGHT, type Ground } from './ground';
+import {
+	createMaterial,
+	disposeTwins,
+	repeatFor,
+	setParams,
+	twinOf,
+	type KindMaterial
+} from './materials';
 
-/**
- * How lit each raised cell's top looks, by the same rules as the flat fog and
- * darkness overlays: `light` is each cell's brightness (null: all lit).
- */
-export function terrainShade(
-	size: number,
-	light: Float32Array | null,
-	fog: FogView | null,
-	mode: FogMode
-): Float32Array {
-	const visible = fog?.enabled ? decodeMask(fog.visible, size) : null;
-	const explored = fog?.enabled ? decodeMask(fog.explored, size) : null;
-	const shade = new Float32Array(size);
-	for (let i = 0; i < size; i++) {
-		let b = light ? light[i] : 1;
-		if (visible && explored) {
-			if (mode === 'gm') b *= visible[i] ? 1 : 0.8;
-			else b *= visible[i] ? 1 : explored[i] ? 0.45 : 0.04;
-		}
-		shade[i] = b;
-	}
-	return shade;
-}
-
-const STONE = 0x77705f;
-/** Higher ground is drawn this much paler. */
-const HIGHER = 0.25;
+const PLAIN = { color: 0x77705f, roughness: 0.9 };
 
 export class TerrainLayer {
 	readonly group = new THREE.Group();
 	private geometry = new THREE.BoxGeometry(1, 1, 1);
-	private material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+	private material: KindMaterial = createMaterial('terrain', { antiTiled: true });
 	private mesh: THREE.InstancedMesh | null = null;
 	/** Cell index (y * width + x) for each instance. */
 	private cells: number[] = [];
 	private grid: SquareGrid | null = null;
-	private maxLevel = 1;
-	/** Painted floors: a raised cell's top takes its floor's colour. */
-	private floor: FloorMap | null = null;
-	private low = new THREE.Color(STONE);
-	private high = new THREE.Color(STONE).lerp(new THREE.Color(0xffffff), HIGHER);
+	private look: Look | null = null;
 
 	constructor() {
-		dress(this.material, null, 0xffffff);
+		wear(this.material, null, PLAIN);
 	}
 
-	/** The environment's ground (null: plain stone). Shade again afterwards. */
+	/** The environment's ground (null: plain stone). */
 	setLook(look: Look | null): void {
-		dress(this.material, look && { ...look, color: new THREE.Color(0xffffff) }, 0xffffff);
-		this.low.set(look ? look.color : STONE);
-		this.high.copy(this.low).lerp(new THREE.Color(0xffffff), HIGHER);
+		this.look = look;
+		wear(this.material, look, PLAIN);
+		this.tile();
 	}
 
-	/** What each cell is made of; shade again afterwards. */
-	setFloor(floor: FloorMap | null): void {
-		this.floor = floor;
+	/**
+	 * The tier's anti-tiling (#181): the material made again in that variant, once.
+	 * True if remade: the renderer warms the new variant up, not compiling it mid-frame.
+	 */
+	setAntiTiled(on: boolean): boolean {
+		if (!!this.material.options.antiTiled === on) return false;
+		// Its twin, kept (#180): switching back and again releases and compiles nothing.
+		this.material = twinOf(this.material);
+		if (this.mesh) this.mesh.material = this.material;
+		return true;
+	}
+
+	/** One repeat of the look across `look.cells` cells, and up in whole steps (#177). */
+	private tile(): void {
+		const repeat = repeatFor(this.look?.cells ?? 1, this.grid?.cellSize ?? 1, STEP_HEIGHT);
+		setParams(this.material, { repeat });
 	}
 
 	/** Rebuilds the raised cells. The ground changes rarely, so a full rebuild is fine. */
 	sync(grid: SquareGrid, ground: Ground): void {
 		this.grid = grid;
+		this.tile();
 		const levels = ground.levels;
 		this.cells = [];
 		if (levels) for (let i = 0; i < levels.length; i++) if (levels[i] > 0) this.cells.push(i);
-		this.maxLevel = Math.max(1, ...this.cells.map((i) => levels![i]));
 		const count = this.cells.length;
 		if (!this.mesh || this.mesh.instanceMatrix.count < count) {
 			if (this.mesh) {
@@ -109,25 +98,6 @@ export class TerrainLayer {
 		this.mesh.count = count;
 		this.mesh.instanceMatrix.needsUpdate = true;
 		this.mesh.computeBoundingSphere();
-		this.shade(null, levels);
-	}
-
-	/**
-	 * Darkens raised cells the viewer can't see: `brightness` is 0-1 per cell
-	 * (null: all bright). Higher ground is drawn a little paler.
-	 */
-	shade(brightness: Float32Array | null, levels: Uint8Array | null): void {
-		if (!this.mesh || !levels) return;
-		const color = new THREE.Color();
-		this.cells.forEach((i, n) => {
-			const painted = this.floor?.[i] ? FLOOR_LOOKS[FLOOR_IDS[this.floor[i]]] : null;
-			if (painted && painted.alpha) color.set(painted.color);
-			else color.copy(this.low);
-			color.lerp(this.high, (levels[i] / this.maxLevel) * (painted ? 0.4 : 1));
-			if (brightness) color.multiplyScalar(brightness[i]);
-			this.mesh!.setColorAt(n, color);
-		});
-		if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
 	}
 
 	/** The cell whose raised top or side is under the ray, and where it was hit. */
@@ -141,6 +111,6 @@ export class TerrainLayer {
 	dispose(): void {
 		this.mesh?.dispose();
 		this.geometry.dispose();
-		undress(this.material);
+		disposeTwins(this.material);
 	}
 }

@@ -14,6 +14,14 @@ import {
 	type ToneMapper
 } from '$lib/assets/manifest';
 import { assetUrl, loadManifest } from '$lib/assets/load';
+import {
+	prepareSlotTexture,
+	setParams,
+	setSlot,
+	SLOTS,
+	worldTexture,
+	type KindMaterial
+} from './materials';
 
 /** One surface: its colour and finish, and its texture with how many cells one repeat covers. */
 export interface Look {
@@ -109,25 +117,13 @@ async function gradesOf(
 
 const textures = new Map<string, Promise<THREE.Texture | null>>();
 
-/**
- * Stands in for "no texture": every dressed material always has a map, so changing
- * environments never changes a shader (which would recompile it).
- */
-const BLANK = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
-BLANK.colorSpace = THREE.SRGBColorSpace;
-BLANK.needsUpdate = true;
-
 function loadTexture(id: string, file: string): Promise<THREE.Texture | null> {
 	let loading = textures.get(id);
 	if (!loading) {
 		loading = new THREE.TextureLoader()
 			.loadAsync(assetUrl(file))
-			.then((t) => {
-				t.colorSpace = THREE.SRGBColorSpace;
-				t.wrapS = t.wrapT = THREE.RepeatWrapping;
-				t.anisotropy = 4;
-				return t;
-			})
+			// The albedo slot's sampling, and the tier's anisotropy (#179).
+			.then((t) => worldTexture(prepareSlotTexture(t, SLOTS.albedo)))
 			.catch((err: Error) => {
 				console.warn(`[assets] texture "${id}" failed to load:`, err.message);
 				return null;
@@ -171,40 +167,17 @@ export async function loadEnvironment(
 }
 
 /**
- * Disposes a dressed material and its own map. Never the shared BLANK: every
- * tabletop's materials use it, and disposing it destroys it in every renderer
- * (another tabletop's draws that bind it drop out, #151).
+ * Puts a look on a material of the shader kinds (#172): its colour and finish, and its texture in
+ * the albedo slot (the loaded one itself: slots sample at the kind's own coordinates times
+ * `params.repeat`, so no material needs a copy), or `plain` and the blank without a look. The tile
+ * size is the layer's (`repeatFor`), from `look.cells`.
  */
-export function undress(material: THREE.MeshStandardMaterial): void {
-	if (material.map && material.map !== BLANK) material.map.dispose();
-	material.dispose();
-}
-
-/**
- * Puts a look on a material: colour and finish, and its texture repeated so
- * one repeat covers `look.cells` cells of a surface `across` × `down` cells.
- * The material gets its own copy of the texture (the image is shared).
- */
-export function dress(
-	material: THREE.MeshStandardMaterial,
+export function wear(
+	material: KindMaterial,
 	look: Look | null,
-	fallback: THREE.ColorRepresentation,
-	across = 1,
-	down = 1
+	plain: { color: THREE.ColorRepresentation; roughness: number }
 ): void {
-	if (material.map && material.map !== BLANK) material.map.dispose();
-	material.map = BLANK;
-	if (!look) {
-		material.color.set(fallback);
-		return;
-	}
-	material.color.copy(look.color);
-	material.roughness = look.roughness;
-	material.metalness = look.metalness;
-	if (look.map) {
-		const map = look.map.clone();
-		map.repeat.set(across / look.cells, down / look.cells);
-		map.needsUpdate = true;
-		material.map = map;
-	}
+	const { color, roughness, metalness } = look ?? { ...plain, metalness: 0 };
+	setParams(material, { color, roughness, metalness });
+	setSlot(material, 'albedo', look?.map ?? null);
 }

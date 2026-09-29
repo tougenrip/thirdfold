@@ -36,24 +36,52 @@ jobs:
       fail-fast: false
       matrix:
         group:
-          - name: goldens
-            run: npm run test:golden
+          - name: goldens 1
+            run: THIRDFOLD_SHARD=1/2 npm run test:golden
+          - name: goldens 2
+            run: THIRDFOLD_SHARD=2/2 npm run test:golden
           - name: smoke
-            run: npm run test:render -- src/lib/tabletop/renderer.svelte.spec.ts src/lib/tabletop/recovery.svelte.spec.ts
-          - name: stability
-            run: npm run test:render -- src/lib/tabletop/stability.svelte.spec.ts
+            run: npm run test:render -- src/lib/tabletop/renderer.svelte.spec.ts
+          - name: scheduling 1
+            run: THIRDFOLD_SHARD=1/2 npm run test:render -- src/lib/tabletop/scheduling.svelte.spec.ts
+          - name: scheduling 2
+            run: THIRDFOLD_SHARD=2/2 npm run test:render -- src/lib/tabletop/scheduling.svelte.spec.ts
+          - name: stability 1
+            run: THIRDFOLD_SHARD=1/3 npm run test:render -- src/lib/tabletop/stability.svelte.spec.ts
+          - name: stability 2
+            run: THIRDFOLD_SHARD=2/3 npm run test:render -- src/lib/tabletop/stability.svelte.spec.ts
+          - name: stability 3
+            run: THIRDFOLD_SHARD=3/3 npm run test:render -- src/lib/tabletop/stability.svelte.spec.ts
           - name: fixtures 1
-            run: THIRDFOLD_SHARD=1/2 npm run test:render -- src/lib/tabletop/fixtures.svelte.spec.ts
+            run: THIRDFOLD_SHARD=1/3 npm run test:render -- src/lib/tabletop/fixtures.svelte.spec.ts
           - name: fixtures 2
-            run: THIRDFOLD_SHARD=2/2 npm run test:render -- src/lib/tabletop/fixtures.svelte.spec.ts
+            run: THIRDFOLD_SHARD=2/3 npm run test:render -- src/lib/tabletop/fixtures.svelte.spec.ts
+          - name: fixtures 3
+            run: THIRDFOLD_SHARD=3/3 npm run test:render -- src/lib/tabletop/fixtures.svelte.spec.ts
           - name: post
-            run: npm run test:render -- src/lib/tabletop/post.svelte.spec.ts
+            run: npm run test:render -- src/lib/tabletop/post.svelte.spec.ts src/lib/tabletop/recovery.svelte.spec.ts
           - name: effects
             run: npm run test:render -- src/lib/tabletop/effects.svelte.spec.ts
           - name: lens
-            run: npm run test:render -- src/lib/tabletop/grade.svelte.spec.ts src/lib/tabletop/overlay.svelte.spec.ts src/lib/tabletop/focus.svelte.spec.ts src/lib/tabletop/shot-focus.svelte.spec.ts
-          - name: unexplored-black
-            run: npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+            run: npm run test:render -- src/lib/tabletop/grade.svelte.spec.ts src/lib/tabletop/overlay.svelte.spec.ts src/lib/tabletop/focus.svelte.spec.ts
+          - name: shot
+            run: npm run test:render -- src/lib/tabletop/shot-focus.svelte.spec.ts
+          - name: unexplored-black 1
+            run: THIRDFOLD_SHARD=1/2 npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+          - name: unexplored-black 2
+            run: THIRDFOLD_SHARD=2/2 npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+          - name: fog
+            run: npm run test:render -- src/lib/tabletop/fog-soft.svelte.spec.ts src/lib/tabletop/cell-maps.svelte.spec.ts
+          - name: materials
+            run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts src/lib/tabletop/mapping.svelte.spec.ts src/lib/tabletop/kind-layers.svelte.spec.ts
+          - name: programs low
+            run: THIRDFOLD_SHARD=1/3 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs medium
+            run: THIRDFOLD_SHARD=2/3 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs high
+            run: THIRDFOLD_SHARD=3/3 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: lobby
+            run: npm run test:render -- src/lib/tabletop/lobby.svelte.spec.ts
     steps:
       - uses: actions/checkout@v4
 

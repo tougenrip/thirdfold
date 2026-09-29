@@ -34,6 +34,28 @@ export default defineConfig(
 		}
 	},
 	{
+		// The renderer's shaders are TSL graphs from the material module's closed set of kinds
+		// (#169): no GLSL or WGSL strings, and no patching a built-in material's shader.
+		files: ['src/lib/tabletop/**'],
+		rules: {
+			'no-restricted-properties': [
+				'error',
+				{ property: 'onBeforeCompile', message: 'Use a shader kind (tabletop/materials).' },
+				{ property: 'glslFn', message: 'No GLSL: write the graph in TSL.' },
+				{ property: 'wgslFn', message: 'No WGSL: write the graph in TSL.' }
+			],
+			// Named imports only: `no-restricted-imports` with `importNames` would also refuse every
+			// `import * as THREE from 'three/webgpu'`; members of those are covered above.
+			'no-restricted-syntax': [
+				'error',
+				{
+					selector: 'ImportSpecifier[imported.name=/^(glsl|wgsl)Fn$/]',
+					message: 'No GLSL or WGSL: write the graph in TSL.'
+				}
+			]
+		}
+	},
+	{
 		// Override or add rule settings here, such as:
 		// 'svelte/button-has-type': 'error'
 		rules: {}

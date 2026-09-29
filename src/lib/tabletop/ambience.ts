@@ -3,17 +3,17 @@
 // it never touches the network. A handful of soft, transparent planes share
 // one generated texture; `tick` moves them, and the renderer only keeps a
 // slow frame timer running while something is drifting. With reduced motion
-// there is no mist at all: it is only ever seen drifting.
+// there is no mist at all: it is only ever seen drifting. It takes the fog and
+// the dark from `worldModify` like every surface (`inWorld`), so it shows only
+// where the viewer can see and dims in explored cells and with the light.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient } from '$lib/game/lights';
+import { inWorld } from './materials/world-modify';
 
 const BANKS = 6;
-/**
- * Just above the grid lines and under the darkness and fog overlays, so mist
- * only shows where the viewer can see, and dims with the light.
- */
+/** Just above the table. */
 const HEIGHT = 0.012;
 
 export class AmbienceLayer {
@@ -26,7 +26,7 @@ export class AmbienceLayer {
 		new THREE.Plane(new THREE.Vector3(0, 0, -1))
 	];
 	private texture: THREE.CanvasTexture | null = null;
-	private material: THREE.MeshBasicMaterial;
+	private material: THREE.MeshBasicNodeMaterial;
 	private geometry = new THREE.PlaneGeometry(1, 1);
 	private banks: { mesh: THREE.Mesh; speed: number; phase: number }[] = [];
 	private size = { w: 0, d: 0 };
@@ -34,12 +34,14 @@ export class AmbienceLayer {
 	private reducedMotion = false;
 
 	constructor() {
-		this.material = new THREE.MeshBasicMaterial({
-			color: 0xb8c2d0,
-			transparent: true,
-			opacity: 0,
-			depthWrite: false
-		});
+		this.material = inWorld(
+			new THREE.MeshBasicNodeMaterial({
+				color: 0xb8c2d0,
+				transparent: true,
+				opacity: 0,
+				depthWrite: false
+			})
+		);
 		this.texture = mistTexture();
 		if (this.texture) this.material.map = this.texture;
 		for (let i = 0; i < BANKS; i++) {

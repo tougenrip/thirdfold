@@ -41,7 +41,8 @@ export function stagesFor(settings: QualitySettings): Stages {
 /** Something to compile the table's materials for: a pass's target and outputs. */
 export interface PassTarget {
 	renderTarget: THREE.RenderTarget;
-	mrt: THREE.MRTNode;
+	/** Null for a pass with one output (the overlay's). */
+	mrt: THREE.MRTNode | null;
 }
 
 /**

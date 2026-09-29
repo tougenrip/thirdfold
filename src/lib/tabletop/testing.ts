@@ -4,7 +4,8 @@
 // fixture's named poses, so the same inputs always draw the same pixels.
 // Fixtures and views are JSON made by server/fixtures (see docs/PERFORMANCE.md).
 
-import { inject } from 'vitest';
+import { inject, it } from 'vitest';
+import { page } from 'vitest/browser';
 import { decodeFloor } from '$lib/game/floor';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient, Light } from '$lib/game/lights';
@@ -17,11 +18,13 @@ import { loadEnvironment } from './environment';
 import type { FogMode } from './fog';
 import { groundFor } from './ground';
 import { labelFontReady } from './label-font';
+import { loadPaint } from './materials';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
 import { settingsFor, toneMapperFrom, type Tier } from './quality';
 import { createTabletop } from './renderer';
 import type { Tabletop, TabletopEvents } from './types';
+import type { WarmRenderer } from './lobby';
 
 export type Band = 'day' | 'dusk' | 'dark';
 export type Viewer = 'gm' | 'player' | 'spectator';
@@ -105,6 +108,8 @@ declare module 'vitest' {
 		goldens: 'slim' | 'full';
 		/** `k/n`: take every nth fixture from the kth in fixtures.svelte.spec.ts (CI's parallel jobs). */
 		shard: string;
+		/** Which unexplored-black cases to run: the slim set CI takes, or every one (by hand). */
+		unexplored: 'slim' | 'full';
 	}
 }
 
@@ -130,6 +135,8 @@ export async function mountFixture(
 		miniature?: boolean;
 		/** The quality tier, medium unless said (the high tier's TRAA golden, #163). */
 		tier?: Tier;
+		/** A renderer the lobby warmed up, adopted with its canvas (#180; no `pixels()` then). */
+		warm?: WarmRenderer;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -137,12 +144,13 @@ export async function mountFixture(
 		...view.tokens.flatMap((t) => (t.model ? [t.model] : [])),
 		...view.props.map((p) => p.assetId)
 	]);
-	await Promise.all([...models].map((id) => loadModel(id)));
+	// The paint maps too (#178), so no fixture's first frame races them.
+	await Promise.all([...[...models].map((id) => loadModel(id)), loadPaint()]);
 	// The page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
 	const toneMapper = toneMapperFrom(location.search) ?? undefined;
 	if (view.environment) await loadEnvironment(view.environment, toneMapper);
 
-	const canvas = document.createElement('canvas');
+	const canvas = options.warm?.canvas ?? document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
 	document.body.appendChild(canvas);
 	const webgpu = BACKEND === 'webgpu';
@@ -156,6 +164,7 @@ export async function mountFixture(
 			preserveDrawingBuffer: !webgpu,
 			backend: webgpu ? 'webgpu' : 'webgl',
 			perf: options.perf,
+			warm: options.warm,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
 			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : !options.miniature
 		}
@@ -212,22 +221,42 @@ export async function mountFixture(
 	};
 }
 
+/**
+ * `it` for the tests of this CI shard (`THIRDFOLD_SHARD=k/n`: every nth test of the file from the
+ * kth) and `it.skip` for the others, so one spec runs in parallel jobs; one shard runs them all.
+ * Made per file: `const test = shardedIt()`.
+ */
+export function shardedIt(): typeof it {
+	const [k, n] = inject('shard').split('/').map(Number);
+	let index = 0;
+	const pick = () => (index++ % n === k - 1 ? it : it.skip);
+	return new Proxy(it, {
+		apply: (_, self, args) => Reflect.apply(pick(), self, args),
+		get: (target, key) =>
+			key === 'skipIf' ? (skip: boolean) => (skip ? it.skip : pick()) : Reflect.get(target, key)
+	});
+}
+
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 /**
  * Waits until the tabletop has drawn and then stopped drawing for `quietMs`,
  * or `limitMs` has passed (a table with flickering flames never goes quiet).
- * Time-based, so slow machines (CI's software rendering) wait as long as fast ones.
+ * Time-based, so slow machines (CI's software rendering) wait as long as fast ones. A second
+ * of quiet by default: on a loaded machine something still loading (a model, a texture) can
+ * land after a shorter spell and draw once more.
  */
-export async function settle(tabletop: Tabletop, quietMs = 250, limitMs = 8000): Promise<void> {
+export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_000): Promise<void> {
 	const start = performance.now();
 	let last = -1;
 	let quietSince = start;
 	while (performance.now() - start < limitMs) {
 		await nextFrame();
-		const { frames, holding } = tabletop.stats();
-		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet.
-		if (frames !== last || frames === 0 || holding) {
+		const { frames, holding, mode } = tabletop.stats();
+		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
+		// still drawing: one software frame can outlast the quiet spell (CI's small runners).
+		const drawing = mode === 'active' || mode === 'converge';
+		if (frames !== last || frames === 0 || holding || drawing) {
 			last = frames;
 			quietSince = performance.now();
 		} else if (performance.now() - quietSince >= quietMs) return;
@@ -236,3 +265,34 @@ export async function settle(tabletop: Tabletop, quietMs = 250, limitMs = 8000):
 
 /** Waits `ms` of real time. */
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The finished frame, RGB at (x, y) from the top left, read as the goldens capture it: the drawing
+ * buffer on WebGL2 (`preserveDrawingBuffer`), a decoded screenshot of the canvas on WebGPU, which
+ * has no readback of the canvas here (seconds each). The canvas must be in the page, at DPR 1.
+ */
+export async function readFrame(
+	canvas: HTMLCanvasElement,
+	width: number,
+	height: number
+): Promise<(x: number, y: number) => number[]> {
+	if (BACKEND !== 'webgpu') {
+		const gl = canvas.getContext('webgl2')!;
+		// Indexed as width x height: a buffer of another size (a tier's pixel cap) would misread.
+		const size = [gl.drawingBufferWidth, gl.drawingBufferHeight];
+		if (size[0] !== width || size[1] !== height) throw new Error(`Drawing buffer ${size}`);
+		const px = new Uint8Array(width * height * 4);
+		gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, px);
+		const row = (y: number) => (height - 1 - y) * width;
+		return (x, y) => [...px.slice((row(y) + x) * 4, (row(y) + x) * 4 + 3)];
+	}
+	const png = await page.screenshot({ element: canvas, save: false });
+	const blob = await (await fetch(`data:image/png;base64,${png}`)).blob();
+	const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' });
+	if (bitmap.width !== width || bitmap.height !== height)
+		throw new Error(`Screenshot ${bitmap.width}x${bitmap.height}`);
+	const ctx = new OffscreenCanvas(width, height).getContext('2d')!;
+	ctx.drawImage(bitmap, 0, 0);
+	const { data } = ctx.getImageData(0, 0, width, height);
+	return (x, y) => [...data.slice((y * width + x) * 4, (y * width + x) * 4 + 3)];
+}

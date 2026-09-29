@@ -5,14 +5,23 @@
 // token with a model (a character, a villager, a hound) is drawn as that
 // figure once it has loaded (see models.ts); until then, and without one,
 // it is the plain miniature: a torso and a head in its colour.
+//
+// Minis are the mini kind (#172), three materials for every token: bases,
+// figure bodies (vertex colours) and the parts in the token's colour (accents
+// and the plain miniature). Each mesh carries its token's colour and how much
+// of it shows in `userData` (`miniColor`, `mini`), read per draw by the kind's
+// per-object uniforms (materials/hooks.ts), so a new token makes no material
+// and hiding one (a screen-door see-through for the GM) compiles nothing.
 
 import * as THREE from 'three/webgpu';
 import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Ground } from './ground';
 import type { Token } from '$lib/game/token';
+import { createMaterial } from './materials';
 import { loadModel, modelNow } from './models';
 import type { OverlayLayer } from './overlay';
+import { standIn } from './warmup';
 
 interface Entry {
 	root: THREE.Group;
@@ -20,12 +29,13 @@ interface Entry {
 	figure: THREE.Group;
 	/** The model it is drawn as, or null for the plain miniature. */
 	model: string | null;
-	/** The model's own colours (vertex colours), see-through when hidden like `body`. */
-	paint: THREE.MeshStandardMaterial;
 	fallen: boolean;
 	/** Hidden from the players: the GM sees it see-through. */
 	hidden: boolean;
-	body: THREE.MeshStandardMaterial;
+	/** The token's colour, which its coloured parts read (their `userData.miniColor`). */
+	colour: THREE.Color;
+	/** How much of the mini shows, which every part reads (its `userData.mini`). */
+	look: { opacity: number };
 	/** In the overlay, following `root`: the label and floats. */
 	tag: THREE.Group;
 	label: THREE.Sprite;
@@ -45,6 +55,8 @@ const FIGURE_SCALE = 1.3;
 const HOP_HEIGHT = 0.45;
 const LABEL_HEIGHT = 1.9;
 const FLOAT_MS = 1500;
+/** How much of a hidden token the GM sees. */
+const HIDDEN_OPACITY = 0.35;
 
 interface Float {
 	sprite: THREE.Sprite;
@@ -58,7 +70,6 @@ const baseGeometry = new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32);
 const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24);
 const headGeometry = new THREE.SphereGeometry(0.19, 24, 16);
 const ringGeometry = new THREE.RingGeometry(0.47, 0.56, 48);
-const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1612, roughness: 0.6 });
 
 function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite {
 	const canvas = document.createElement('canvas');
@@ -103,12 +114,19 @@ export class TokenLayer {
 		ringGeometry,
 		new THREE.MeshBasicMaterial({ color: 0xe0a458, transparent: true, opacity: 0.95 })
 	);
+	/** Every mini's materials (#172): the base, figure bodies, and parts in the token's colour. */
+	private readonly materials = {
+		base: createMaterial('mini', { params: { color: 0x1b1612, roughness: 0.6 } }),
+		figure: createMaterial('mini', { vertexColors: true, params: { roughness: 0.6 } }),
+		coloured: createMaterial('mini')
+	};
 	/** Whose turn it is in a fight: an arrow over that mini. */
 	private activeId: string | null = null;
 	private readonly marker = new THREE.Mesh(
 		new THREE.ConeGeometry(0.14, 0.3, 4),
 		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
 	);
+	private standIns: THREE.Object3D[] | null = null;
 
 	/**
 	 * `onModel` is told when a figure's model has arrived and it has been drawn. Moves and
@@ -159,17 +177,13 @@ export class TokenLayer {
 				changed = true;
 			}
 			if (entry.color !== token.color) {
-				entry.body.color.set(token.color);
+				entry.colour.set(token.color);
 				entry.color = token.color;
 				changed = true;
 			}
 			if (entry.hidden !== (token.hidden === true)) {
 				entry.hidden = token.hidden === true;
-				for (const m of [entry.body, entry.paint]) {
-					m.transparent = entry.hidden;
-					m.opacity = entry.hidden ? 0.35 : 1;
-					m.needsUpdate = true;
-				}
+				entry.look.opacity = entry.hidden ? HIDDEN_OPACITY : 1;
 				changed = true;
 			}
 			if (entry.model !== (token.model ?? null)) {
@@ -207,8 +221,6 @@ export class TokenLayer {
 			this.group.remove(entry.root);
 			this.overlay.unfollow(entry.root);
 			disposeLabel(entry.label);
-			entry.body.dispose();
-			entry.paint.dispose();
 			this.entries.delete(id);
 			changed = true;
 		}
@@ -302,16 +314,25 @@ export class TokenLayer {
 		}
 	}
 
+	/**
+	 * Stand-ins for the selection ring and the turn marker, which show on a first click or turn, for
+	 * the warm-up to compile in the overlay's pass (#180).
+	 */
+	gallery(): THREE.Object3D[] {
+		return (this.standIns ??= [this.ring, this.marker].map((m) =>
+			standIn(new THREE.Mesh(m.geometry, m.material))
+		));
+	}
+
 	dispose(): void {
 		for (const f of this.floats) disposeLabel(f.sprite);
 		this.floats = [];
 		for (const entry of this.entries.values()) {
 			this.overlay.unfollow(entry.root);
 			disposeLabel(entry.label);
-			entry.body.dispose();
-			entry.paint.dispose();
 		}
 		this.entries.clear();
+		for (const m of Object.values(this.materials)) m.dispose();
 		this.ring.removeFromParent();
 		this.marker.removeFromParent();
 		(this.ring.material as THREE.Material).dispose();
@@ -320,21 +341,17 @@ export class TokenLayer {
 	}
 
 	private create(token: Token, at: THREE.Vector3): Entry {
-		const body = new THREE.MeshStandardMaterial({ color: token.color, roughness: 0.45 });
 		const root = new THREE.Group();
 		root.userData.tokenId = token.id;
+		const look = { opacity: 1 };
 
-		const base = new THREE.Mesh(baseGeometry, baseMaterial);
+		const base = new THREE.Mesh(baseGeometry, this.materials.base);
+		base.userData.mini = look;
 		base.position.y = 0.04;
 		base.castShadow = true;
 		base.receiveShadow = true;
 		const figure = new THREE.Group();
 		figure.scale.setScalar(FIGURE_SCALE);
-		const paint = new THREE.MeshStandardMaterial({
-			color: 0xffffff,
-			roughness: 0.6,
-			vertexColors: true
-		});
 		const label = makeLabel(token.name);
 		root.add(base, figure);
 		root.position.copy(at);
@@ -346,10 +363,10 @@ export class TokenLayer {
 			root,
 			figure,
 			model: null,
-			paint,
 			fallen: false,
 			hidden: false,
-			body,
+			colour: new THREE.Color(token.color),
+			look,
 			tag,
 			label,
 			name: token.name,
@@ -373,8 +390,11 @@ export class TokenLayer {
 		entry.model = model;
 		entry.figure.clear();
 		const loaded = model ? modelNow(model) : null;
-		const add = (geometry: THREE.BufferGeometry, material: THREE.Material, y: number) => {
-			const mesh = new THREE.Mesh(geometry, material);
+		const add = (geometry: THREE.BufferGeometry, coloured: boolean, y: number) => {
+			const { figure, coloured: tinted } = this.materials;
+			const mesh = new THREE.Mesh(geometry, coloured ? tinted : figure);
+			mesh.userData.mini = entry.look;
+			if (coloured) mesh.userData.miniColor = entry.colour;
 			mesh.position.y = y;
 			mesh.castShadow = true;
 			mesh.receiveShadow = true;
@@ -382,12 +402,12 @@ export class TokenLayer {
 		};
 		if (loaded) {
 			// Figures stand on the base.
-			if (loaded.body) add(loaded.body, entry.paint, 0.08);
-			if (loaded.accent) add(loaded.accent, entry.body, 0.08);
+			if (loaded.body) add(loaded.body, false, 0.08);
+			if (loaded.accent) add(loaded.accent, true, 0.08);
 			return;
 		}
-		add(bodyGeometry, entry.body, 0.08 + 0.31);
-		add(headGeometry, entry.body, 0.08 + 0.62 + 0.14);
+		add(bodyGeometry, true, 0.08 + 0.31);
+		add(headGeometry, true, 0.08 + 0.62 + 0.14);
 		if (model && loaded === undefined) {
 			void loadModel(model).then((m) => {
 				if (!m || this.entries.get(tokenId) !== entry || entry.model !== model) return;

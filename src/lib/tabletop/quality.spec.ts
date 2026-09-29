@@ -5,6 +5,7 @@ import {
 	DEFAULT_GRAPHICS,
 	layersFrom,
 	lensStrengths,
+	mipBiasFor,
 	needsPrepass,
 	withOverrides,
 	loadGraphics,
@@ -254,5 +255,20 @@ describe('depth of field and tilt-shift (#165)', () => {
 		expect(lensStrengths(mini, { ...play, shot: 1, reduced: true })).toEqual({ dof: 0, tilt: 0 });
 		const off = { ...mini, layers: layersFrom('?off=dof', mini.layers) };
 		expect(lensStrengths(off, { ...play, shot: 1 })).toEqual({ dof: 0, tilt: 0 });
+	});
+});
+
+describe('world texture filtering (#179)', () => {
+	it('takes anisotropy 4, 8 and 16 by tier', () => {
+		const at = (tier: 'low' | 'medium' | 'high' | 'ultra') =>
+			settingsFor(tier, 'webgpu').anisotropy;
+		expect([at('low'), at('medium'), at('high'), at('ultra')]).toEqual([4, 8, 16, 16]);
+	});
+	it('biases mips by -0.5 only on high and ultra with TRAA', () => {
+		const bias = (tier: 'low' | 'medium' | 'high' | 'ultra', aa?: 'traa' | 'msaa') =>
+			mipBiasFor(withOverrides(settingsFor(tier, 'webgpu'), aa ? { aa } : {}, 'webgpu'));
+		expect([bias('low'), bias('medium'), bias('high'), bias('ultra')]).toEqual([0, 0, -0.5, -0.5]);
+		expect(bias('high', 'msaa')).toBe(0);
+		expect(bias('medium', 'traa')).toBe(0);
 	});
 });

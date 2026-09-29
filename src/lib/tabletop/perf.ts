@@ -35,13 +35,16 @@ export interface PerfStats {
 	/**
 	 * From three.js: what the last frame drew (shadow passes included: they are drawn inside the
 	 * frame's render), and what lives on the GPU. `programs` counts the node renderer's shader
-	 * stages and pipelines, not linked GL programs, so it only compares with itself.
+	 * stages, not linked GL programs, so it only compares with itself; `pipelines` and
+	 * `nodeStates` are the rest of `shaderCounts` (#170).
 	 */
 	drawCalls: number;
 	triangles: number;
 	geometries: number;
 	textures: number;
 	programs: number;
+	pipelines: number;
+	nodeStates: number;
 	/** Bytes of textures, and of everything three.js tracks on the GPU. */
 	texturesBytes: number;
 	memoryBytes: number;
@@ -193,7 +196,7 @@ export function rendererStats(
 		triangles: render.triangles,
 		geometries: memory.geometries,
 		textures: memory.textures,
-		programs: (memory as { programs?: number }).programs ?? 0,
+		...shaderCounts(renderer),
 		texturesBytes: memory.texturesSize,
 		memoryBytes: memory.total,
 		renderTargets: memory.renderTargets,
@@ -204,6 +207,47 @@ export function rendererStats(
 		gpu: perf.gpu,
 		holding
 	};
+}
+
+/** Where r186 keeps its shader stages, pipelines and node states (private fields). */
+interface ShaderCaches {
+	_pipelines?: {
+		caches: Map<string, unknown>;
+		programs: Record<'vertex' | 'fragment', Map<string, { name: string; stage: string }>>;
+	};
+	_nodes?: { nodeBuilderCache: Map<string, unknown> };
+}
+
+/** What runtime state must never change (#170): each new one is a driver compile or a new graph. */
+export interface ShaderCounts {
+	/** Shader stages, vertex and fragment, deduplicated by code (`info.memory.programs`). */
+	programs: number;
+	/** Render pipelines: a pair of stages with the render state they are drawn with. */
+	pipelines: number;
+	/** Node-builder states: code generated, which may still end in a program already made. */
+	nodeStates: number;
+}
+
+/** Reads the counts; the one place a three upgrade that moves these fields breaks. */
+export function shaderCounts(renderer: THREE.WebGPURenderer): ShaderCounts {
+	const { _pipelines, _nodes } = renderer as unknown as ShaderCaches;
+	return {
+		programs: (renderer.info.memory as { programs?: number }).programs ?? 0,
+		pipelines: _pipelines?.caches.size ?? 0,
+		nodeStates: _nodes?.nodeBuilderCache.size ?? 0
+	};
+}
+
+/**
+ * The shader stages alive, by their code, labelled `<material name> <stage>` (three names a stage
+ * after the material it was made for; the material module names its materials by kind).
+ */
+export function shaderStages(renderer: THREE.WebGPURenderer): Map<string, string> {
+	const programs = (renderer as unknown as ShaderCaches)._pipelines?.programs;
+	const stages = new Map<string, string>();
+	for (const map of programs ? [programs.vertex, programs.fragment] : [])
+		for (const [code, s] of map) stages.set(code, `${s.name || '(unnamed)'} ${s.stage}`);
+	return stages;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import * as THREE from 'three';
@@ -12,9 +12,10 @@ import { buildAssets, staleAssets, type BuiltAssets } from './pipeline';
 import { encodePng, pngSize } from './png';
 import { checkScenes } from './scenes';
 import { NEUTRAL, readGrades, renderGrade, stripProblem } from './grades';
+import { readTextureSource, renderTexture } from './textures';
 
 // Several tests build every asset, the 54 colour-grade strips among them: a few seconds each.
-vi.setConfig({ testTimeout: 30_000 });
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 
 let built: BuiltAssets;
 beforeAll(() => {
@@ -172,6 +173,58 @@ describe('textures and sounds', () => {
 		expect(audioInfo(wav)).toMatchObject({ format: 'wav' });
 		expect(audioInfo(wav)!.duration).toBeCloseTo(2.2, 2);
 		expect(audioInfo(Buffer.from('ID3 an mp3 would start like this'))).toBeNull();
+	});
+});
+
+describe('paint detail (#178)', () => {
+	const paint = (output: string) =>
+		readTextureSource(
+			JSON.parse(readFileSync(path.join('assets', 'textures', `paint-${output}.json`), 'utf8'))
+		);
+
+	it('reads a paint recipe without colours, and only with an output', () => {
+		expect(paint('normal')).toMatchObject({ recipe: 'paint', output: 'normal', colors: [] });
+		expect(() => readTextureSource({ recipe: 'paint', size: 64, seed: 1 })).toThrow(/output/);
+		expect(() =>
+			readTextureSource({
+				recipe: 'paint',
+				size: 64,
+				seed: 1,
+				output: 'normal',
+				colors: ['#000000']
+			})
+		).toThrow(/needs 0 colours/);
+	});
+
+	it.each(['normal', 'gloss'])('builds the %s map the same every time, and it tiles', (output) => {
+		const source = paint(output);
+		const pixels = renderTexture(source);
+		expect(encodePng(source.size, source.size, renderTexture(source))).toEqual(
+			encodePng(source.size, source.size, pixels)
+		);
+		// Across the wrap (last row to first, last column to first) the map steps no more than it
+		// does anywhere inside: a seam would be the largest step of all.
+		const n = source.size;
+		const at = (x: number, y: number, c: number) => pixels[(y * n + x) * 4 + c];
+		const step = (x0: number, y0: number, x1: number, y1: number) =>
+			Math.max(...[0, 1, 2].map((c) => Math.abs(at(x0, y0, c) - at(x1, y1, c))));
+		let inside = 0;
+		let wrap = 0;
+		for (let i = 0; i < n; i++) {
+			for (let j = 0; j + 1 < n; j++)
+				inside = Math.max(inside, step(j, i, j + 1, i), step(i, j, i, j + 1));
+			wrap = Math.max(wrap, step(n - 1, i, 0, i), step(i, n - 1, i, 0));
+		}
+		expect(inside).toBeGreaterThan(0);
+		expect(wrap).toBeLessThanOrEqual(inside);
+		if (output === 'normal') {
+			// Tangent-space normals: z up, unit length (within 8-bit rounding).
+			for (let i = 0; i < n * n; i += 97) {
+				const v = [0, 1, 2].map((c) => pixels[i * 4 + c] / 127.5 - 1);
+				expect(v[2]).toBeGreaterThan(0.5);
+				expect(Math.hypot(...v)).toBeCloseTo(1, 1);
+			}
+		} else expect(pixels.every((v, i) => i % 4 === 3 || v === pixels[i - (i % 4)])).toBe(true);
 	});
 });
 

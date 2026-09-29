@@ -19,16 +19,17 @@ import type { FogView } from '$lib/game/visibility';
 import { AmbienceLayer } from './ambience';
 import { CameraRig } from './camera';
 import { QualityControl } from './capabilities';
+import { CellMaps } from './cell-maps';
 import { DiceLayer, throwFromView } from './dice3d';
 import { EffectsLayer } from './effects';
+import { FogCloudLayer } from './fog-cloud';
 import { loadEnvironment, type EnvironmentLook } from './environment';
-import { FloorLayer } from './floor';
-import { FogLayer, playerVisible, type FogMode } from './fog';
+import type { FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { LightingLayer, lightSeats } from './lighting';
-import { frameOverview, warmUp } from './warmup';
-import { advanceNodeFrame, createNodeRenderer, watchReducedMotion } from './loop';
+import { frameOverview, Gallery, warmUp } from './warmup';
+import { advanceNodeFrame, createNodeRenderer, setUpRenderer, watchReducedMotion } from './loop';
 import { RenderScheduler, type FrameReport } from './scheduler';
 import { instrument, PerfRecorder, perfMethods } from './perf';
 import { poseFor } from './poses';
@@ -40,10 +41,12 @@ import { PropLayer } from './props';
 import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
 import { TableLayer } from './table';
-import { TerrainLayer, terrainShade } from './terrain';
+import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
 import { WallLayer } from './walls';
+
+export { warmLobby } from './lobby';
 
 export async function createTabletop(
 	canvas: HTMLCanvasElement,
@@ -51,7 +54,9 @@ export async function createTabletop(
 	options: TabletopOptions = {}
 ): Promise<Tabletop> {
 	const clock = options.now ?? (() => performance.now());
-	const renderer = await createNodeRenderer(canvas, options);
+	// A renderer the lobby warmed up (lobby.ts, #180) comes with its shaders compiled.
+	const renderer = options.warm?.renderer ?? (await createNodeRenderer(canvas, options));
+	if (options.warm) setUpRenderer(renderer, options);
 	let shadowsDirty = true;
 	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
 	let shadowMapDrawn = false;
@@ -59,6 +64,7 @@ export async function createTabletop(
 	let wasMoving = false;
 
 	const perf = new PerfRecorder();
+	if (options.warm) perf.add('lobby', options.warm.warmupMs);
 	const loop = new RenderScheduler(render, canvas);
 	const requestRender = loop.request;
 	const { scene, fog } = createScene();
@@ -90,27 +96,22 @@ export async function createTabletop(
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer(clock);
 	scene.add(wallLayer.group);
-	const fogLayer = new FogLayer();
-	scene.add(fogLayer.mesh);
-	const floorLayer = new FloorLayer();
-	scene.add(floorLayer.mesh);
 	let floor: Uint8Array | null = null;
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
+	const cellMaps = new CellMaps(clock); // every material's fog and dark (worldModify, #171, #173)
+	const cloud = new FogCloudLayer(); // #174: over a player's hidden cells, with its layer on
+	scene.add(cloud.group);
 	const diceLayer = new DiceLayer();
 	scene.add(diceLayer.group);
 	// Read live: turning reduced motion on or off applies at once, without a reload.
 	const motion = watchReducedMotion(options.reducedMotion, (reduced) => {
 		reducedMotion = reduced;
-		loop.setReducedMotion(reduced);
-		propLayer.setReducedMotion(reduced);
-		ambience.setReducedMotion(reduced);
+		for (const l of stillable()) l.setReducedMotion(reduced); // instant reveals, a still cloud
 		if (reduced) rig.endShot();
 		refreshLighting();
 	});
 	let reducedMotion = motion.reduced;
-	loop.setReducedMotion(reducedMotion);
 	const propLayer = new PropLayer(onModel, clock);
-	propLayer.setReducedMotion(reducedMotion);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer({ ...lights, scene });
@@ -120,11 +121,13 @@ export async function createTabletop(
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
 	const ambience = new AmbienceLayer();
-	ambience.setReducedMotion(reducedMotion);
+	const stillable = () => [loop, propLayer, ambience, cellMaps, cloud];
+	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	scene.add(ambience.group);
 	const terrainLayer = new TerrainLayer();
 	scene.add(terrainLayer.group);
 	const effects = new EffectsLayer();
+	const gallery = new Gallery(scene, overlay.scene, [diceLayer, effects, cloud], [tokenLayer]);
 	scene.add(effects.group);
 	const previews = new PreviewLayer();
 	overlay.scene.add(previews.group, previews.highlight);
@@ -155,19 +158,15 @@ export async function createTabletop(
 
 	function relight(): void {
 		if (!grid) return;
-		const size = grid.width * grid.height;
-		const { fog, mode } = fogState;
 		ambience.update(grid, lightState.ambient);
 		const sources = lightSources(lightState.lights, tokens);
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
-		const visible = playerVisible(fog, mode, size);
 		const { ambient, lights } = lightState;
 		const seats = lightSeats(grid, props);
-		lighting.update(grid, ambient, lights, sources, blocked, visible, ground, darkness, seats);
-		overlay.setMasks(floorLayer.mask, fogLayer.mask, lighting.darkMask);
+		lighting.update(grid, ambient, lights, sources, blocked, ground, darkness, seats);
+		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
+		cloud.update(grid, fogState.fog, fogState.mode);
 		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade
-		// Raised ground under fog and darkness, by the same rules as the flat overlays.
-		if (levels) terrainLayer.shade(terrainShade(size, lighting.cellBrightness, fog, mode), levels);
 	}
 
 	let tokens: readonly Token[] = [];
@@ -203,9 +202,10 @@ export async function createTabletop(
 		}
 		const t0 = performance.now();
 		frameOverview(warmCamera, extent, camera.aspect);
-		warming = warmUp(renderer, scene, warmCamera, [...scene.children], post.targets()).then(() => {
+		const targets = { scene: post.targets(), overlay: post.overlayTargets() };
+		warming = warmUp(renderer, warmCamera, gallery.batches(targets)).then(() => {
 			perf.add('warmup', performance.now() - t0);
-			shadowsDirty = true;
+			shadowsDirty = gallery.due = true;
 		});
 		loop.hold(warming);
 		loop.request();
@@ -223,6 +223,7 @@ export async function createTabletop(
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
 		lighting.setFlash(fx.flash);
+		cellMaps.setFlash(fx.flash);
 		const bellSwinging = !!swinging;
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);
 		if (!fx.active) swinging = null;
@@ -232,9 +233,11 @@ export async function createTabletop(
 		if (casters || wasMoving) shadowsDirty = true;
 		wasMoving = casters;
 		const flickering = !reducedMotion && lighting.flicker(now);
-		const drifting = !reducedMotion && ambience.tick(now);
+		const drifting = (!reducedMotion && ambience.tick(now)) || cloud.tick(now);
 		const gridFading = overlay.tick(now);
-		const moving = casters || gridFading || fx.active || rig.tick(now) || post.blending;
+		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends
+		const moving =
+			casters || gridFading || revealing || fx.active || rig.tick(now) || post.blending;
 		// With damping enabled, update() emits 'change' while the camera is still settling,
 		// which schedules the next frame; once still, rendering stops.
 		controls.update();
@@ -243,12 +246,14 @@ export async function createTabletop(
 		camera.position.add(shakeOffset);
 		// With the sun out (after dark) its shadows show nowhere: leave them until it is back.
 		const sunShines = sun.intensity > 0;
-		sun.shadow.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn;
+		const hideGallery = gallery.show(); // drawn once after a warm-up, out of sight (warmup.ts)
+		sun.shadow.needsUpdate = (shadowsDirty && sunShines) || !shadowMapDrawn || !!hideGallery;
 		shadowMapDrawn = true;
 		if (sun.shadow.needsUpdate) perf.add('shadows', 0);
 		if (sunShines) shadowsDirty = false;
 		const draw = performance.now();
 		drawScene();
+		hideGallery?.();
 		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
 		return { active: moving, ambient: flickering || drifting };
@@ -260,7 +265,7 @@ export async function createTabletop(
 
 	/** Dresses the table, raised ground and walls in the environment's looks (or the plain ones). */
 	function applyLook(): void {
-		table.dress(look, grid, extent);
+		table.dress(look, grid);
 		terrainLayer.setLook(look?.ground ?? null);
 		wallLayer.setLook(look?.walls ?? null);
 		refreshLighting();
@@ -287,6 +292,7 @@ export async function createTabletop(
 
 	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
+	cloud.setLayer(quality.current.layers.fogcloud, quality.current.tier === 'low');
 	controls.addEventListener('change', requestRender);
 
 	const pickable = { tokens: tokenLayer, walls: wallLayer, lighting, props: propLayer };
@@ -312,9 +318,6 @@ export async function createTabletop(
 			buildTable(grid);
 			placeOnGround(grid, ground);
 			tokenLayer.setFallen(fallen);
-			fogLayer.update(grid, fogState.fog, fogState.mode);
-			floorLayer.update(grid, floor);
-			terrainLayer.setFloor(floor);
 			refreshLighting();
 			// A new table size (first load, a loaded scene, an adventure): frame it. This
 			// replaces any view change still in flight, which would aim at the old table.
@@ -349,7 +352,6 @@ export async function createTabletop(
 		setFog(fog, mode) {
 			fogState = { fog, mode };
 			if (!grid) return;
-			fogLayer.update(grid, fog, mode);
 			refreshLighting();
 			requestRender();
 		},
@@ -431,8 +433,6 @@ export async function createTabletop(
 			floor = next;
 			if (!grid) return;
 			if (floor && floor.length !== grid.width * grid.height) floor = null;
-			floorLayer.update(grid, floor);
-			terrainLayer.setFloor(floor);
 			refreshLighting();
 			requestRender();
 		},
@@ -474,18 +474,22 @@ export async function createTabletop(
 			motion.stop();
 			quality.dispose();
 			stopPicking();
-			const layers = [rig, table, tokenLayer, wallLayer, fogLayer, floorLayer, lighting, post];
+			const layers = [rig, table, tokenLayer, wallLayer, lighting, post, cloud];
 			const more = [overlay, ambience, terrainLayer, effects, propLayer, diceLayer, previews];
-			for (const l of [...layers, ...more]) l.dispose();
+			for (const l of [...layers, ...more, cellMaps]) l.dispose();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
 			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
 		setQuality(settings, refine) {
 			quality.set(settings, refine);
 			post.set(settings);
+			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
+			refreshLighting(); // shows or hides the cloud
+			const remade = [table, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
+			if (remade.includes(true)) warmPending = true;
 		},
 		capabilities: () => quality.caps,
-		setPowerSaver: (on) => loop.setPowerSaver(on),
+		setPowerSaver: (on) => (loop.setPowerSaver(on), cloud.setPowerSaver(on)),
 		...perfMethods(renderer, perf, drawScene, { loop, quality })
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
