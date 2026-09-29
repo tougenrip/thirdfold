@@ -310,6 +310,11 @@ async function mountCase(c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 
 }
 
 describe(`unexplored cells on ${BACKEND}`, () => {
+	// A slim case whose fixture or view changed would otherwise drop out of CI without a word.
+	it.skipIf(FULL)('finds every case of the slim set', () => {
+		expect(CASES.map((c) => c.label).sort()).toEqual([...SLIM].sort());
+	});
+
 	for (const c of CASES)
 		it(`${c.label}: black at ${c.poses.join(', ')}`, async () => {
 			const { m, sidecar, view, settings } = await mountCase(c);
