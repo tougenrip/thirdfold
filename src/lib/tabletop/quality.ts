@@ -55,7 +55,8 @@ export const LAYERS = [
 	'vfx',
 	'weather',
 	'xray',
-	'dof'
+	'dof',
+	'fogcloud'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
@@ -103,6 +104,18 @@ export interface QualitySettings {
 	/** Frames per second while something moves, and for flicker and mist. */
 	fpsCap: 30 | 60;
 	ambientFps: 20 | 30;
+	/**
+	 * Anisotropic filtering on every world texture (#179), clamped to what the device offers
+	 * (`setTextureQuality`); data textures keep 1.
+	 */
+	anisotropy: 4 | 8 | 16;
+	/**
+	 * Two-fetch anti-tiling on walls, raised ground and the table (#181): a variant of their
+	 * graphs, so a tier switch that changes it compiles them once.
+	 */
+	antiTile: boolean;
+	/** How strongly props and minis show their paint (#178, `paint.strength`; 0 unpainted). */
+	paint: number;
 	/** Frames a still picture takes to converge, from `aa` (TRAA's history). */
 	convergeFrames: number;
 	layers: Record<Layer, boolean>;
@@ -127,7 +140,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		particles: 250,
 		vegetation: 0.25,
 		fpsCap: 30,
-		ambientFps: 20
+		ambientFps: 20,
+		anisotropy: 4,
+		antiTile: false,
+		paint: 0
 	},
 	medium: {
 		megapixels: 2.1,
@@ -145,7 +161,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		particles: 1000,
 		vegetation: 0.5,
 		fpsCap: 60,
-		ambientFps: 30
+		ambientFps: 30,
+		anisotropy: 8,
+		antiTile: true,
+		paint: 0.5
 	},
 	high: {
 		megapixels: 3.7,
@@ -163,7 +182,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		particles: 4000,
 		vegetation: 1,
 		fpsCap: 60,
-		ambientFps: 30
+		ambientFps: 30,
+		anisotropy: 16,
+		antiTile: true,
+		paint: 0.5
 	},
 	ultra: {
 		megapixels: 3.7,
@@ -181,7 +203,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		particles: 8000,
 		vegetation: 1,
 		fpsCap: 60,
-		ambientFps: 30
+		ambientFps: 30,
+		anisotropy: 16,
+		antiTile: true,
+		paint: 0.5
 	}
 };
 
@@ -360,6 +385,13 @@ export function refineTier(start: Tier, samples: readonly number[], budgetMs: nu
 	const median = sorted[Math.floor(sorted.length / 2)];
 	return median > budgetMs ? TIERS[rank(start) - 1] : start;
 }
+
+/**
+ * The mip bias of world textures (#179): a little sharper on high and ultra while TRAA resolves
+ * the shimmer a negative bias brings, 0 otherwise. A uniform, so a change compiles nothing.
+ */
+export const mipBiasFor = (s: Pick<QualitySettings, 'tier' | 'aa'>) =>
+	s.aa === 'traa' && (s.tier === 'high' || s.tier === 'ultra') ? -0.5 : 0;
 
 /** A frame's budget at a tier: its frame rate's interval. */
 export const frameBudgetMs = (s: Pick<QualitySettings, 'fpsCap'>) => 1000 / s.fpsCap;

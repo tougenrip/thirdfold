@@ -20,7 +20,8 @@ import {
 	type Mounted
 } from './testing';
 
-vi.setConfig({ testTimeout: 120_000 });
+// Software frames on CI's small runners take seconds since the shader kinds (M64).
+vi.setConfig({ testTimeout: 300_000, hookTimeout: 90_000 });
 
 const WRITE = import.meta.env.VITE_LOOK_SHOT === '1';
 

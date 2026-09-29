@@ -9,7 +9,8 @@ const DIR = path.dirname(new URL(import.meta.url).pathname);
 
 describe('the tabletop modules', () => {
 	it('each stay under 500 lines', () => {
-		const long = readdirSync(DIR)
+		// The folders too (materials/, #169).
+		const long = readdirSync(DIR, { recursive: true, encoding: 'utf8' })
 			.filter((f) => /\.(ts|svelte)$/.test(f) && !/\.spec\.ts$/.test(f))
 			.map((f) => ({ f, lines: readFileSync(path.join(DIR, f), 'utf8').split('\n').length }))
 			.filter(({ lines }) => lines > 500);

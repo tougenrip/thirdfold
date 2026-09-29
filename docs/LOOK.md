@@ -409,6 +409,58 @@ inside every material instead of planes on the floor (#171). The owner's sign-of
 on the highlight colours under colour-vision simulation (#157: blocked and place nearly match for
 deuteranopes).
 
+## Milestone 64: the material system (#111)
+
+What changed in the look (the strip is `docs/look/m64/`; the metrics are below):
+
+- **Every surface is a shader kind** (#169, #172): the table, walls, raised ground, props and
+  minis draw through the kinds with the environment's textures in their slots, so the picture is
+  the same family of materials everywhere rather than the classic materials plus overlays.
+- **Fog and darkness are in the materials** (#171, #173): no planes on the floor any more. Walls,
+  props and minis in an explored room are dimmed, desaturated and cooled as its floor is, and the
+  dark shades raised ground's sides and props, not only what lies under a plane; a player's
+  unexplored cells stay exactly black, now also after bloom and the lens (the re-mask).
+- **The fog is atmosphere** (#174): soft, slightly irregular edges instead of the cell grid's
+  steps, and newly seen ground fades in (instant under reduced motion). The fog cloud over hidden
+  cells is built but its layer stays off until the owner approves it on ref-1 and the Hollow.
+- **Textures sit on the world, not on each piece** (#177): walls, raised ground and the table
+  share one box projection, so stone runs on across wall segments and step heights without
+  seams; rock is triplanar; props and minis in object space.
+- **Painted miniatures** (#178): props and minis have paint noise in their normal and gloss
+  (off on the low tier), the TaleSpire recipe the references show.
+- **Crisper ground at grazing angles** (#179): anisotropic filtering by tier and a mip bias with
+  TRAA on high and ultra.
+- **Less repetition and no flicker** (#181): gentle macro variation of tint and roughness on the
+  tiled kinds, two-fetch anti-tiling on medium and up, and a stable per-instance lift that ends
+  z-fighting between coplanar props, decals and water.
+
+Against M63's close (the same pairings and conditions; reduced motion, the GM without fog):
+
+| Reference | band | m63   | m64   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.161 | 0.193 |
+| 2         | dusk | 0.307 | 0.324 |
+| 3         | dark | 0.123 | 0.127 |
+| 4         | dark | 0.121 | 0.097 |
+| 6         | dark | 0.221 | 0.205 |
+| 7         | day  | 0.112 | 0.113 |
+| 8         | dusk | 0.207 | 0.219 |
+
+The first run of this strip scored every night further away (ref 1 0.227, ref 4 0.172): moving
+darkness from the overlay into the materials had dropped the band's dark tint (#167), so the dark
+went to neutral black and the shadow hue was lost. `worldModify` now takes each band's tint for
+the darkened part of a surface (`DARK_TINT` in `cell-maps.ts`), as the overlay did. With it the
+long dungeon (4) and the night palisade (6) move toward their references: G2's shadow distance on
+ref 6 drops. The torch room (ref 1) moves away: its explored walls and props now darken with the
+floor, so the room reads darker than the reference, whose walls catch more bounce light than we
+have, and its shadows come out a little bluer (hue 269 against the reference's 291). The two dusk
+pairings move a little away, as in M63, for want of a sky. Whether explored rooms read well
+darker is the owner's call (G2).
+
+The M63 note's "fog and darkness inside every material instead of planes on the floor (#171)" is
+done; the surface library and art bible (M65, #112), the sky (M67, #114, #218) and lighting by
+the hour (#208) are still missing.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

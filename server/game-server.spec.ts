@@ -9,6 +9,7 @@ import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
+import { framesLeaks } from './frame-secrecy';
 import { FileSceneStore, MemorySceneStore, type SceneStore } from './scene-store';
 import { beginAdventure, claimCharacter, postSentries, startAdventure } from './adventure/engine';
 import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventures/hollow-bell/hollow';
@@ -741,6 +742,119 @@ describe('fog of war over the wire', () => {
 		// Unhidden, it appears.
 		gm.send({ type: 'token_update', tokenId: spy.id, patch: { hidden: false } });
 		await pip.until('token_upserted', (m) => m.token.id === spy.id);
+	});
+
+	it('sends players and spectators nothing about ground they never explored, in any frame (#175)', async () => {
+		const gm = await connect();
+		const gmFrames: string[] = [];
+		gm.ws.on('message', (data) => gmFrames.push(data.toString()));
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		gm.send({ type: 'fog_set', enabled: true });
+		await gm.until('fog_update');
+
+		// Region R, x of 14 or more: nobody but the GM ever learns anything there.
+		const region = { x0: 14, y0: 0, x1: 19, y1: 19 };
+		gm.send({ type: 'light_create', pos: { x: 17, y: 17 }, radius: 2, color: '#5ec7a1' });
+		const { upserted } = await gm.until('lights_changed');
+		const farLight = upserted[0];
+		gm.send({ type: 'terrain_set', from: { x: 15, y: 10 }, to: { x: 18, y: 13 }, level: 2 });
+		gm.send({ type: 'floor_set', from: { x: 14, y: 0 }, to: { x: 19, y: 5 }, floor: 'sand' });
+		gm.send({ type: 'darkness_set', from: { x: 15, y: 15 }, to: { x: 19, y: 19 }, dark: true });
+		gm.send({ type: 'object_create', kind: 'wall', a: { x: 16, y: 2 }, b: { x: 16, y: 8 } });
+		gm.send({
+			type: 'token_create',
+			name: 'Veiled Watcher',
+			color: '#8e44ad',
+			pos: { x: 18, y: 4 },
+			ownerId: null
+		});
+		const { token: watcher } = await gm.until('token_upserted');
+		gm.send({ type: 'token_update', tokenId: watcher.id, patch: { hidden: true, light: 3 } });
+		gm.send({ type: 'prop_create', assetId: 'barrel', pos: { x: 15, y: 17 }, rotation: 0 });
+		const { upserted: props } = await gm.until('props_changed');
+		const barrel = props[0];
+		gm.send({ type: 'prop_update', propId: barrel.id, patch: { hidden: true } });
+		gm.send({ type: 'environment_set', environment: 'village' });
+		await gm.until('environment_update');
+
+		const watch = async (name: string, role: 'player' | 'spectator') => {
+			const c = await connect();
+			const frames: string[] = [];
+			c.ws.on('message', (data) => frames.push(data.toString()));
+			c.send({ type: 'join', roomId: room.id, name, role });
+			return { c, frames, welcome: await c.expect('welcome') };
+		};
+		const pip = await watch('Pip', 'player');
+		const sam = await watch('Sam', 'spectator');
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 2, y: 2 },
+			ownerId: pip.welcome.playerId
+		});
+		const { token: hero } = await gm.until('token_upserted', (m) => m.token.name === 'Hero');
+
+		// Changes where the viewers can see, so every masked field reaches them with data in it...
+		gm.send({ type: 'terrain_set', from: { x: 3, y: 3 }, to: { x: 3, y: 3 }, level: 1 });
+		gm.send({ type: 'floor_set', from: { x: 1, y: 1 }, to: { x: 2, y: 1 }, floor: 'stone' });
+		gm.send({ type: 'darkness_set', from: { x: 5, y: 5 }, to: { x: 5, y: 5 }, dark: true });
+		gm.send({ type: 'light_create', pos: { x: 4, y: 2 }, radius: 2, color: '#ffa04d' });
+		// ...and in R, after they joined, to force diffs.
+		gm.send({ type: 'light_update', lightId: farLight.id, patch: { on: false } });
+		gm.send({ type: 'light_update', lightId: farLight.id, patch: { on: true } });
+		gm.send({ type: 'floor_set', from: { x: 14, y: 0 }, to: { x: 19, y: 3 }, floor: 'water' });
+		gm.send({ type: 'terrain_set', from: { x: 15, y: 10 }, to: { x: 16, y: 11 }, level: 3 });
+		gm.send({ type: 'darkness_set', from: { x: 15, y: 15 }, to: { x: 16, y: 16 }, dark: false });
+		gm.send({ type: 'token_move', tokenId: watcher.id, to: { x: 18, y: 6 } });
+		gm.send({ type: 'prop_update', propId: barrel.id, patch: { pos: { x: 16, y: 18 } } });
+		gm.send({ type: 'environment_set', environment: 'cavern' });
+		pip.c.send({ type: 'token_move', tokenId: hero.id, to: { x: 4, y: 3 } });
+		await gm.until('token_moved', (m) => m.tokenId === hero.id);
+
+		// A fresh snapshot for everyone.
+		gm.send({ type: 'scene_export', name: 'Secrets' });
+		const { file } = await gm.until('scene_exported');
+		gm.send({ type: 'scene_import', file });
+		await gm.until('room_reset');
+		gm.send({ type: 'chat_send', text: 'done' });
+		for (const c of [gm, pip.c, sam.c]) {
+			await c.until('chat', (m) => m.message.kind === 'chat' && m.message.text === 'done');
+		}
+
+		const markers = ['Veiled Watcher', watcher.id, barrel.id, farLight.id, '#5ec7a1'];
+		for (const { frames } of [pip, sam]) {
+			const types = new Set(frames.map((f) => (JSON.parse(f) as ServerMessage).type));
+			for (const type of [
+				'welcome',
+				'room_reset',
+				'fog_update',
+				'terrain_update',
+				'floor_update',
+				'darkness_update',
+				'lights_changed',
+				'environment_update'
+			] as const) {
+				expect(types).toContain(type);
+			}
+			expect(framesLeaks(frames, room.grid, region, markers)).toEqual([]);
+		}
+		// The control: the GM was sent all of it, so each check can fire.
+		expect(gmFrames.some((f) => (JSON.parse(f) as ServerMessage).type === 'error')).toBe(false);
+		const fields = new Set(framesLeaks(gmFrames, room.grid, region, markers).map((l) => l.field));
+		for (const field of [
+			'terrain',
+			'floor',
+			'darkness',
+			'lights',
+			'tokens',
+			'props',
+			'objects',
+			...markers.map((m) => `marker:${m}`)
+		]) {
+			expect(fields).toContain(field);
+		}
 	});
 });
 

@@ -32,7 +32,8 @@ import {
 } from './testing';
 import type { Tier } from './quality';
 
-vi.setConfig({ testTimeout: 60_000 });
+// Software frames on CI's small runners take seconds since the shader kinds (M64).
+vi.setConfig({ testTimeout: 180_000, hookTimeout: 90_000 });
 
 const STORY = ['village', 'monastery', 'hollow', 'heart', 'railcar', 'ghost-town'];
 const COMPOSED = ['ref-1', 'ref-3', 'ref-6', 'ref-7', 'ref-8'];
@@ -99,6 +100,9 @@ const SLIM = new Set([
 	'hollow overview own player high'
 ]);
 const FULL = inject('goldens') === 'full';
+/** `THIRDFOLD_SHARD=k/n`: every nth image from the kth, so CI takes the set in parallel jobs. */
+const [k, n] = inject('shard').split('/').map(Number);
+let taken = 0;
 
 /** Depth of field at the close and low poses, as a shot or Miniature draws them there. */
 const FOCUSED: readonly PoseName[] = ['close', 'low'];
@@ -119,6 +123,7 @@ describe.skipIf(!linux)('golden images', () => {
 		const base = `${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}`;
 		const label = tier === 'medium' ? base : `${base} ${tier}`;
 		if (!FULL && !SLIM.has(label)) continue;
+		if (taken++ % n !== k - 1) continue;
 		it(label, async () => {
 			const sidecar = await loadSidecar(shot.fixture);
 			const band = shot.band === 'own' ? sidecar.ambient : shot.band;

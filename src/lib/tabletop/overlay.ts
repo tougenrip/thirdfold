@@ -11,32 +11,16 @@
 // the overlay draws.
 
 import * as THREE from 'three/webgpu';
-import { float, positionWorld, texture, uniform, vec2 } from 'three/tsl';
+import { float, uniform } from 'three/tsl';
 import type { SquareGrid } from '$lib/game/grid';
+import { groundFlat } from './cell-maps';
+import { floorPalette } from './materials/hooks';
+import { worldShade } from './materials/world-modify';
 
 const GRID_COLOR = 0xd8cfb4;
 const GRID_OPACITY = 0.35;
 /** How long the grid lines take to fade in or out (#167): aiming shows and hides them often. */
 export const GRID_FADE_MS = 150;
-
-/**
- * A 1×1 transparent texture, for no floor, fog or darkness over the grid lines. It is sampled
- * like the texture it stands in for: WebGPU fixes a sampler's filtering when the material
- * compiles, so a slot must keep one filter (nearest for the floor and fog, linear for darkness).
- */
-function clear(filter: THREE.MagnificationTextureFilter): THREE.DataTexture {
-	const t = new THREE.DataTexture(new Uint8Array(4), 1, 1);
-	t.colorSpace = THREE.SRGBColorSpace;
-	t.magFilter = filter;
-	t.minFilter = filter;
-	t.needsUpdate = true;
-	return t;
-}
-const CLEAR = [
-	clear(THREE.NearestFilter),
-	clear(THREE.NearestFilter),
-	clear(THREE.LinearFilter)
-] as const;
 
 export class OverlayLayer {
 	/** No background and no fog: it clears to transparent, over the world. */
@@ -49,9 +33,6 @@ export class OverlayLayer {
 	private readonly fade = uniform(0);
 	private fadeFrom = 0;
 	private fadeAt = -Infinity;
-	/** What lies over the grid lines: painted floors, the fog and the darkness. */
-	private readonly masks = CLEAR.map((c) => texture(c));
-	private readonly size = uniform(new THREE.Vector2(1, 1));
 	private readonly gridMaterial = new THREE.LineBasicNodeMaterial({
 		color: GRID_COLOR,
 		transparent: true,
@@ -60,17 +41,15 @@ export class OverlayLayer {
 
 	constructor() {
 		this.scene.onBeforeRender = () => this.sync();
-		// The overlays' planes are centred on the table; texture row 0 is their +z edge.
-		const uv = vec2(
-			positionWorld.x.div(this.size.x).add(0.5),
-			float(0.5).sub(positionWorld.z.div(this.size.y))
-		);
-		const [floor, fog, dark] = this.masks.map((m) => float(1).sub(m.sample(uv).a));
+		// Faded as the world is in their cell (fog and dark, `worldShade`), and by a painted
+		// floor's cover (none over the void), as when the floor, fog and darkness planes lay
+		// over them (#173 deleted those).
+		const entry = floorPalette.element(groundFlat.x.mul(255).add(0.5).toInt());
+		const floor = (entry as unknown as THREE.Node<'vec4'>).w;
 		this.gridMaterial.opacityNode = float(GRID_OPACITY)
 			.mul(this.fade)
-			.mul(floor)
-			.mul(fog)
-			.mul(dark);
+			.mul(float(1).sub(floor))
+			.mul(worldShade() as unknown as THREE.Node<'float'>);
 	}
 
 	/** A group that follows `anchor` (moves, turns and hides with it) until `unfollow`. */
@@ -88,9 +67,8 @@ export class OverlayLayer {
 	}
 
 	/**
-	 * The grid lines for a table: one draw call however large. They fade where painted floors,
-	 * the fog and the darkness overlays lie (their textures, one texel per cell), as when those
-	 * planes were drawn over them: never over an unexplored cell, and dimmer at night.
+	 * The grid lines for a table: one draw call however large. They fade by the cell maps under
+	 * painted floors, in the fog and in the dark: never over an unexplored cell, dimmer at night.
 	 */
 	setGrid(g: SquareGrid): void {
 		this.removeGrid();
@@ -107,7 +85,6 @@ export class OverlayLayer {
 		}
 		const geometry = new THREE.BufferGeometry();
 		geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-		this.size.value.set(w, d);
 		this.grid = new THREE.LineSegments(geometry, this.gridMaterial);
 		this.grid.visible = this.fade.value > 0;
 		this.scene.add(this.grid);
@@ -135,11 +112,6 @@ export class OverlayLayer {
 		// Faded out, they are not drawn at all.
 		if (this.grid) this.grid.visible = v > 0;
 		return v !== to;
-	}
-
-	/** The floor's, the fog's and the darkness's textures (null where there is none). */
-	setMasks(...masks: (THREE.Texture | null)[]): void {
-		masks.forEach((m, i) => (this.masks[i].value = m ?? CLEAR[i]));
 	}
 
 	/** Copies each followed anchor's world transform and visibility (before every overlay draw). */

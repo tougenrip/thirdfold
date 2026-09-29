@@ -25,7 +25,12 @@
 // bloom), radial chromatic aberration, a vignette tinted dark purple, the tone
 // mapper and sRGB, film grain, the overlay, and a triangular dither. Every step
 // maps 0 to 0 (the vignette multiplies; grain and dither are masked off at
-// black), so unexplored cells, black under the fog, stay exactly black.
+// black), so unexplored cells, black under the fog, stay exactly black. Bloom,
+// chromatic aberration, depth of field and FXAA carry light a little way over
+// them, though, so the scene pass also writes `hidden` (1 where a player's fog
+// hides the fragment's cell, `worldHidden` in materials/world-modify.ts) and the
+// output stage multiplies the world by what it leaves shown, before the overlay
+// goes on (#173).
 // The colour grade (#162): the environment's table for the tone mapper and band,
 // blended on the CPU into one 3D texture (grade.ts), so no shader changes.
 
@@ -76,6 +81,7 @@ import type BloomNode from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { bloom } from 'three/examples/jsm/tsl/display/BloomNode.js';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
 import { lensStrengths, type QualitySettings } from './quality';
+import { worldHidden } from './materials/world-modify';
 
 /** How much of the occlusion shows, when on. */
 const AO_STRENGTH = 1;
@@ -268,9 +274,16 @@ export class Post {
 	 * invalid (a colour target the fragment stage never writes), so it compiles when first drawn.
 	 */
 	targets(): PassTarget[] {
-		return [this.scenePass].flatMap((p) =>
-			p ? [{ renderTarget: p.renderTarget, mrt: p.getMRT() as THREE.MRTNode }] : []
-		);
+		return this.passTargets(this.scenePass);
+	}
+
+	/** The overlay pass's target, for the warm-up to compile its marks against (#180). */
+	overlayTargets(): PassTarget[] {
+		return this.passTargets(this.overlayPass);
+	}
+
+	private passTargets(p: THREE.PassNode | null): PassTarget[] {
+		return p ? [{ renderTarget: p.renderTarget, mrt: p.getMRT() }] : [];
 	}
 
 	dispose(): void {
@@ -304,11 +317,22 @@ export class Post {
 		});
 		if (this.prepass) scenePass.drawsFirst.push(this.prepass);
 		scenePass.name = 'scene';
-		const outputs = mrt({ output, emissive: vec4(emissive, output.a) });
+		const hidden = worldHidden() as unknown as THREE.Node<'float'>;
+		const outputs = mrt({
+			output,
+			emissive: vec4(emissive, output.a),
+			hidden: vec4(hidden, hidden, hidden, output.a)
+		});
 		// A transparent surface in front of a glow covers its emissive, as it covers its colour.
 		outputs.setBlendMode('emissive', new THREE.BlendMode(THREE.NormalBlending));
+		outputs.setBlendMode('hidden', new THREE.BlendMode(THREE.NormalBlending));
+		// Cleared to shown whatever the background (#176): a brighter sky must never read as hidden.
+		outputs.setClearColor('hidden', 0x000000, 0);
 		scenePass.setMRT(outputs);
 		scenePass.getTexture('emissive').type = THREE.UnsignedByteType;
+		// RGBA, though only red is read: blended by alpha, and three r186 declares a WebGPU fragment
+		// output with the target's channels, so an R8 target has no alpha to blend with (#176).
+		scenePass.getTexture('hidden').type = THREE.UnsignedByteType;
 		// Set now (setup sets the same later) so a warm-up before the first frame compiles for them.
 		scenePass.renderTarget.samples = stages.samples;
 		scenePass.renderTarget.texture.type = halfFloat;
@@ -413,7 +437,11 @@ export class Post {
 			smoothed === finished
 				? null
 				: (smoothed as unknown as { textureNode: THREE.Node }).textureNode;
-		const world = (smoothed as THREE.Node<'vec4'>).rgb;
+		// Hidden cells back to exactly black, whatever spread over them. The attachment clears to 0
+		// (shown), so the sky around the table stays; MSAA's resolve leaves edges in between.
+		const covered = this.scenePass!.getTextureNode('hidden').sample(screenUV).r;
+		const shownPart = float(1).sub(covered.saturate());
+		const world = (smoothed as THREE.Node<'vec4'>).rgb.mul(shownPart);
 		// Nothing is added where the picture is black.
 		const lit = smoothstep(0, 2 / 255, luminance(world));
 		const cell = screenCoordinate.xy;

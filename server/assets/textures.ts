@@ -1,19 +1,25 @@
 // Textures made from recipes: small, seamlessly tiling images (earth,
 // flagstones, planks, rock) generated from a seed, so the same source
 // always builds the same PNG. An author can also provide a PNG instead.
+// `paint` is data, not colour (#178): the painted-miniature detail props and minis sample in
+// object space, as a tangent-space normal map or a greyscale gloss map.
 
-export const RECIPES = ['noise', 'flagstones', 'planks'] as const;
+export const RECIPES = ['noise', 'flagstones', 'planks', 'paint'] as const;
 export type Recipe = (typeof RECIPES)[number];
+export const PAINT_OUTPUTS = ['normal', 'gloss'] as const;
+export type PaintOutput = (typeof PAINT_OUTPUTS)[number];
 
 export interface TextureSource {
 	recipe: Recipe;
 	/** Width and height in pixels: a power of two, 16 to 512. */
 	size: number;
-	/** `#rrggbb`: the base colours; flagstones and planks take a third for the joints. */
+	/** `#rrggbb`: the base colours; flagstones and planks take a third for the joints; paint none. */
 	colors: string[];
 	seed: number;
 	/** How many noise cells across the image (coarser for fewer). */
 	scale?: number;
+	/** Paint only: a normal map or a gloss map. */
+	output?: PaintOutput;
 }
 
 const COLOR = /^#[0-9a-f]{6}$/;
@@ -28,8 +34,8 @@ export function readTextureSource(raw: unknown): TextureSource {
 	if (typeof size !== 'number' || size < 16 || size > 512 || (size & (size - 1)) !== 0) {
 		throw new Error('size must be a power of two from 16 to 512');
 	}
-	const colors = raw.colors;
-	const needed = recipe === 'noise' ? 2 : 3;
+	const colors = recipe === 'paint' ? (raw.colors ?? []) : raw.colors;
+	const needed = recipe === 'paint' ? 0 : recipe === 'noise' ? 2 : 3;
 	if (
 		!Array.isArray(colors) ||
 		colors.length !== needed ||
@@ -43,7 +49,11 @@ export function readTextureSource(raw: unknown): TextureSource {
 	if (typeof scale !== 'number' || scale < 1 || scale > 64 || !Number.isInteger(scale)) {
 		throw new Error('scale must be 1 to 64');
 	}
-	return { recipe, size, colors: colors as string[], seed: raw.seed, scale };
+	const source: TextureSource = { recipe, size, colors: colors as string[], seed: raw.seed, scale };
+	if (recipe !== 'paint') return source;
+	const output = PAINT_OUTPUTS.find((o) => o === raw.output);
+	if (!output) throw new Error(`paint needs an output: ${PAINT_OUTPUTS.join(' or ')}`);
+	return { ...source, output };
 }
 
 function rgb(hex: string): [number, number, number] {
@@ -106,6 +116,10 @@ export function renderTexture(source: TextureSource): Uint8Array {
 	};
 	const mix = (t: number) => [0, 1, 2].map((k) => a[k] * (1 - t) + b[k] * t);
 	const g = grain(size, source.scale ?? 8, rand);
+	if (recipe === 'paint') {
+		paint(size, source.scale ?? 8, g, source.output, put);
+		return out;
+	}
 	if (recipe === 'noise') {
 		for (let i = 0; i < size * size; i++) put(i, mix(g[i]));
 		return out;
@@ -146,4 +160,49 @@ export function renderTexture(source: TextureSource): Uint8Array {
 		}
 	}
 	return out;
+}
+
+/** How steep the paint's bumps are: a slope of 1 per noise cell tilts the normal this far. */
+const PAINT_RELIEF = 0.35;
+
+/**
+ * Paint detail (#178). Gloss is the grain as grey (0.5 leaves roughness as it is). A normal map
+ * is the grain as a height field turned into tangent-space RGB (+y up the image, as three reads
+ * it) by a Sobel filter whose neighbours wrap, so the map tiles like the height does.
+ */
+function paint(
+	size: number,
+	scale: number,
+	height: Float32Array,
+	output: PaintOutput | undefined,
+	put: (i: number, c: readonly number[]) => void
+): void {
+	if (output === 'gloss') {
+		for (let i = 0; i < size * size; i++) put(i, [0, 0, 0].fill(height[i] * 255));
+		return;
+	}
+	const h = (x: number, y: number) => height[((y + size) % size) * size + ((x + size) % size)];
+	// Sobel sums 8 neighbour differences over 2 pixels; per noise cell, as the relief is.
+	const perCell = (size / scale / 8) * PAINT_RELIEF;
+	for (let y = 0; y < size; y++) {
+		for (let x = 0; x < size; x++) {
+			const dx =
+				h(x + 1, y - 1) +
+				2 * h(x + 1, y) +
+				h(x + 1, y + 1) -
+				(h(x - 1, y - 1) + 2 * h(x - 1, y) + h(x - 1, y + 1));
+			const dy =
+				h(x - 1, y + 1) +
+				2 * h(x, y + 1) +
+				h(x + 1, y + 1) -
+				(h(x - 1, y - 1) + 2 * h(x, y - 1) + h(x + 1, y - 1));
+			// Image rows run down, tangent space's y up: a height rising down the image tilts +y.
+			const [nx, ny, nz] = [-dx * perCell, dy * perCell, 1];
+			const length = Math.hypot(nx, ny, nz);
+			put(
+				y * size + x,
+				[nx, ny, nz].map((n) => ((n / length) * 0.5 + 0.5) * 255)
+			);
+		}
+	}
 }

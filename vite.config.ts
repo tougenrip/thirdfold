@@ -48,6 +48,8 @@ function browser(args: string[], headless: boolean) {
 /** `THIRDFOLD_GOLDENS=slim|full` runs the golden images (package.json's test:golden scripts). */
 const GOLDENS = (['slim', 'full'] as const).find((g) => g === process.env.THIRDFOLD_GOLDENS);
 const GOLDEN_SPEC = 'src/lib/tabletop/golden.svelte.spec.ts';
+/** `THIRDFOLD_UNEXPLORED=full` runs every unexplored-black case (by hand); CI takes the slim set. */
+const UNEXPLORED = process.env.THIRDFOLD_UNEXPLORED === 'full' ? ('full' as const) : undefined;
 /**
  * The renderer's pixel tests, minutes each on SwiftShader: not in `npm test` (so CI's verify job
  * stays within minutes), but in `npm run test:render` and in .github/workflows/rendering.yml, on
@@ -56,6 +58,7 @@ const GOLDEN_SPEC = 'src/lib/tabletop/golden.svelte.spec.ts';
 const RENDER = process.env.THIRDFOLD_RENDER === '1';
 const RENDER_SPECS = [
 	'renderer',
+	'scheduling',
 	'stability',
 	'fixtures',
 	'recovery',
@@ -65,7 +68,14 @@ const RENDER_SPECS = [
 	'overlay',
 	'focus',
 	'shot-focus',
-	'unexplored-black'
+	'unexplored-black',
+	'materials',
+	'cell-maps',
+	'program-count',
+	'mapping',
+	'kind-layers',
+	'fog-soft',
+	'lobby'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
@@ -111,7 +121,8 @@ export default defineConfig({
 					provide: {
 						backend: 'webgl' as const,
 						goldens: GOLDENS ?? 'slim',
-						shard: process.env.THIRDFOLD_SHARD ?? '1/1'
+						shard: process.env.THIRDFOLD_SHARD ?? '1/1',
+						unexplored: UNEXPLORED ?? ('slim' as const)
 					},
 					attachmentsDir: '.vitest-attachments',
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
@@ -143,7 +154,12 @@ export default defineConfig({
 									],
 									true
 								),
-								provide: { backend: 'webgpu' as const, goldens: GOLDENS ?? 'full', shard: '1/1' },
+								provide: {
+									backend: 'webgpu' as const,
+									goldens: GOLDENS ?? 'full',
+									shard: '1/1',
+									unexplored: UNEXPLORED ?? ('slim' as const)
+								},
 								// One file at a time: the recovery test crashes the GPU process, which would
 								// take WebGPU away from files running beside it.
 								fileParallelism: false,
@@ -151,12 +167,20 @@ export default defineConfig({
 								include: [
 									...(GOLDENS ? [GOLDEN_SPEC] : []),
 									'src/lib/tabletop/renderer.svelte.spec.ts',
+									'src/lib/tabletop/scheduling.svelte.spec.ts',
 									'src/lib/tabletop/fixtures.svelte.spec.ts',
 									'src/lib/tabletop/stability.svelte.spec.ts',
 									'src/lib/tabletop/recovery.svelte.spec.ts',
 									'src/lib/tabletop/post.svelte.spec.ts',
 									'src/lib/tabletop/grade.svelte.spec.ts',
-									'src/lib/tabletop/unexplored-black.svelte.spec.ts'
+									'src/lib/tabletop/unexplored-black.svelte.spec.ts',
+									'src/lib/tabletop/materials.svelte.spec.ts',
+									'src/lib/tabletop/cell-maps.svelte.spec.ts',
+									'src/lib/tabletop/program-count.svelte.spec.ts',
+									'src/lib/tabletop/mapping.svelte.spec.ts',
+									'src/lib/tabletop/paint.svelte.spec.ts',
+									'src/lib/tabletop/kind-layers.svelte.spec.ts',
+									'src/lib/tabletop/lobby.svelte.spec.ts'
 								]
 							}
 						}

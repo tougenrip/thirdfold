@@ -24,7 +24,7 @@ const props: Prop[] = [{ id: 'b', assetId: 'brazier', pos: { x: 1, y: 1 }, rotat
 function layerWith(seats: Map<number, number>) {
 	const scene = new THREE.Scene();
 	const layer = new LightingLayer({ ...createSceneLights(scene), scene });
-	layer.update(grid, 'dark', lights, lightSources(lights, []), new Set(), null, null, null, seats);
+	layer.update(grid, 'dark', lights, lightSources(lights, []), new Set(), null, null, seats);
 	return layer;
 }
 
