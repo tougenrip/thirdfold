@@ -43,6 +43,18 @@ import { EDGE_BAND, EDGE_NOISE, EDGE_SCALE, RevealFades } from './fog-soft';
 export const NIGHT_DARK = 0.82;
 /** How dark each ambient leaves an unlit cell (lighting.ts's presets). */
 export const AMBIENT_DARK: Record<Ambient, number> = { day: 0, dusk: 0.35, dark: NIGHT_DARK };
+/**
+ * The colour the dark takes per ambient band, sRGB bytes (#167: moon-blue at night, violet at
+ * dusk): a darkened surface goes toward it, as the old darkness overlay blended toward it. A dark
+ * area takes night's at any hour. Never lifts a hidden cell: the fog multiplies it out.
+ */
+export const DARK_TINT: Record<Ambient, readonly [number, number, number]> = {
+	day: [19, 17, 26],
+	dusk: [22, 18, 38],
+	dark: [8, 14, 42]
+};
+const tintOf = (rgb: readonly [number, number, number]) =>
+	new THREE.Color().setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, THREE.SRGBColorSpace);
 /** The light a player's visible cells have at least, so a cell the rules show is never black. */
 export const PERCEPTION_FILL = 0.55;
 /** How much the flash thins the dark at its height (the old overlay's `1 - 0.85k`). */
@@ -174,6 +186,9 @@ export const cellUniforms = {
 	gmHiddenLevel: uniform(FOG_LEVELS.gm.hidden),
 	/** The GM's light tint where the party can't see. */
 	gmTint: uniform(new THREE.Color(0.9, 0.94, 1)),
+	/** The dark's colour for the band, and for a dark area (`DARK_TINT`). */
+	darkTint: uniform(tintOf(DARK_TINT.day)),
+	nightTint: uniform(tintOf(DARK_TINT.dark)),
 	flash: uniform(0),
 	/** Fragments above this world height are cut (#72's cutaway). */
 	cutY: uniform(NO_CUT),
@@ -318,6 +333,7 @@ export class CellMaps {
 	/** B from the rules' light levels (null: all lit), A from the dark areas, and the ambient. */
 	setLight(ambient: Ambient, levels: Float32Array | null, dark: Uint8Array | null): void {
 		u.ambientDark.value = AMBIENT_DARK[ambient];
+		u.darkTint.value.copy(tintOf(DARK_TINT[ambient]));
 		const t = this.visibility;
 		if (!t) return;
 		if (this.changed('light', levels)) {

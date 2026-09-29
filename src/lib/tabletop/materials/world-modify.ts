@@ -64,6 +64,8 @@ interface World {
 	unseen: N;
 	/** How lit the cell is: 1 lit, down to 1 - the ambient's darkness. */
 	light: N;
+	/** The colour the dark takes there: the band's, a dark area's night (#167). */
+	darkTint: N;
 }
 
 let world: World | null = null;
@@ -103,7 +105,8 @@ function terms(): World {
 	const lit = dark.oneMinus();
 	const flashed = mix(lit, float(1), u.flash.mul(FLASH_THINS));
 	const light = mix(float(1), flashed, shown);
-	world = { fog: loose(fog), unseen, light: loose(light) };
+	const darkTint = loose(mix(u.nightTint, u.darkTint, smooth.w));
+	world = { fog: loose(fog), unseen, light: loose(light), darkTint };
 	return world;
 }
 
@@ -120,13 +123,15 @@ export const worldEmissive = (emissive: N): N => emissive.mul(terms().fog);
 
 /**
  * A surface's lit colour (`output`, haze included) as the viewer sees it, given the emissive
- * already in it (from `worldEmissive`): the rest is darkened and fogged, the emissive kept, so
- * `(output - emissive) x light x fog + emissive`. Hidden cells come out exactly 0, haze and all.
+ * already in it (from `worldEmissive`): the rest goes toward the dark's tint by the darkness and
+ * is fogged, the emissive kept, so `((output - emissive) x light + tint x (1 - light)) x fog +
+ * emissive`. Hidden cells come out exactly 0, haze and all.
  */
 export function worldModify(output: N, emissive: N): N {
-	const { fog, unseen, light } = terms();
+	const { fog, unseen, light, darkTint } = terms();
 	const kept = light.mul(fog);
-	const rgb = tinted(output.xyz, unseen).mul(kept).add(emissive.mul(kept.oneMinus()));
+	const darkened = tinted(output.xyz, unseen).mul(light).add(darkTint.mul(light.oneMinus()));
+	const rgb = darkened.mul(fog).add(emissive.mul(kept.oneMinus()));
 	const above = loose(positionWorld).y.greaterThan(u.cutY);
 	return Fn(() => {
 		If(above, () => {
