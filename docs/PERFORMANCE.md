@@ -405,14 +405,43 @@ loaded machine, so ratios, not budgets):
 - **Reveal fades** (#174) rewrite the `ground` map only while a fade runs (450 ms), and keep the
   scheduler drawing for that long; soft edges cost nothing between frames.
 
-Left for the perf gate (`node scripts/perf-client.mjs --baseline docs/perf-baseline.json`, the
-test world) on the RTX 4060 Laptop and the integrated GPU, before the PR, on both backends:
-the per-tier GPU ms of the scene pass with `worldModify`, paint and anti-tiling against the M63
-baseline, and the output stage's re-mask fetch; draw calls, programs and pipelines per tier,
-exactly, written into a new baseline (the #172 counts replace the table above); the fog cloud's
-cost with its layer on (`?perf`, the Hollow); the first frame after the lobby's warm-up; and
-whether anisotropy 16 on high and ultra costs anything measurable on the integrated GPU, where
-the low tier's 4 is the budget.
+**Measured on real GPUs before the PR** (29 September 2026; the same runs as #166's table:
+`PERF_BACKEND=webgpu TIER=… SCENES=ref-3,village,monastery,hollow POSES=overview
+scripts/perf-gpu.mjs`, 48 frames, the GM's overview at 1920×1080, reduced motion, the fog cloud
+off). GPU ms per frame, and of it the scene pass, where the kinds and `worldModify` run, against
+M63's:
+
+| GPU           | Tier   | Frame, M63 | Frame, M64 | Scene pass, M63 | Scene pass, M64 |
+| ------------- | ------ | ---------- | ---------- | --------------- | --------------- |
+| RTX 4060      | low    | 0.54–1.6   | 1.1–2.8    | 0.33–0.91       | 0.81–2.0        |
+| RTX 4060      | medium | 2.3–4.8    | 5.6–7.5    | 1.4–3.2         | 4.0–5.8         |
+| RTX 4060      | high   | 1.8–2.9    | 2.7–5.1    | 0.60–0.96       | 1.2–2.6         |
+| Intel (RPL-S) | low    | 8.8–10.9   | 11.4–19.4  | 5.5–7.9         | 9.3–17.4        |
+| Intel (RPL-S) | medium | 25.5–35.7  | 31.4–53.4  | 15.4–21.8       | 22.9–43.6       |
+| Intel (RPL-S) | high   | 18.5–25.4  | 38.1–54.6  | 6.4–10.9        | 21.9–37.6       |
+
+The scene pass costs about two to three times what it did: every fragment now fetches the cell
+maps and runs the soft edge's noise, props and minis add paint's six fetches, and medium and up
+fetch every surface slot twice for anti-tiling. On the RTX every tier stays well inside a 60 fps
+frame; on the integrated GPU, already over M63's post budgets, high doubles and medium and low
+grow by a third to a half. This is G1's finding for the review: the cheapest cuts are the
+anti-tiling (a third of the difference on SwiftShader), paint on medium (strength 0 on low still
+runs its fetches; a variant without them would not) and the soft edge's noise on low.
+
+The perf gate (`node scripts/perf-client.mjs --baseline docs/perf-baseline.json`, the test world
+on the RTX 4060, WebGL2) was re-baselined deliberately:
+
+- programs 131 → 164 (the kinds and their variants; now also recorded per tier with pipelines:
+  low 99 programs and 69 pipelines);
+- textures 63 → 70 (the cell maps, the paint maps and the slots' blanks), heap about +0.7 MB;
+- texture bytes per tier up 1.3 MB on medium and high (the paint maps and the cell maps) and
+  5.3 MB on low, whose extra 4 MB was not investigated;
+- draw calls 119 → 116 after orbiting (the fog and darkness planes are gone); 0 frames idle;
+  60 fps orbiting; reloads and remounts leak nothing.
+
+Still not measured: the fog cloud's cost with its layer on, the first frame after the lobby's
+warm-up in a real browser (`?perf` discards the lobby's renderer), and anisotropy 16 against 4 on
+the integrated GPU alone.
 
 ### Memory
 
