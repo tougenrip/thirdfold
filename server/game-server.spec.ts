@@ -1048,12 +1048,23 @@ describe('lighting over the wire', () => {
 			ownerId: null
 		});
 		// A far-away fixture Pip has never seen: must not be sent.
-		gm.send({ type: 'light_create', pos: { x: 18, y: 18 }, radius: 2, color: '#8f7bff' });
+		gm.send({
+			type: 'light_create',
+			pos: { x: 18, y: 18 },
+			radius: 2,
+			color: '#8f7bff',
+			kind: 'magic'
+		});
 		// Wait until the GM has seen both land, i.e. the server has processed them.
 		for (;;) if ((await gm.until('token_upserted')).token.name === 'Shade') break;
-		await gm.until('lights_changed');
+		const far = (await gm.until('lights_changed')).upserted[0];
+		expect(far).toMatchObject({ kind: 'magic' });
+		// Its look changes reach the GM, and still nothing of it reaches Pip (#201).
+		gm.send({ type: 'light_update', lightId: far.id, patch: { kind: 'neon' } });
+		expect((await gm.until('lights_changed')).upserted[0]).toMatchObject({ kind: 'neon' });
 		expect(pipFrames.join('\n')).not.toContain('Shade');
 		expect(pipFrames.join('\n')).not.toContain('#8f7bff');
+		expect(pipFrames.join('\n')).not.toMatch(/"kind":"(magic|neon)"/);
 
 		gm.send({ type: 'light_create', pos: { x: 5, y: 4 }, radius: 3, color: '#ffa04d' });
 		expect((await pip.expect('lights_changed')).upserted[0]).toMatchObject({ pos: { x: 5, y: 4 } });

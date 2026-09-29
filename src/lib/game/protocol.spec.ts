@@ -464,3 +464,42 @@ describe('adventure messages', () => {
 		expect(parseServerMessage({ type: 'adventure_update', adventure: 'x' })).toBeNull();
 	});
 });
+
+describe('light looks (#201)', () => {
+	const update = (patch: unknown) =>
+		parseClientMessage({ type: 'light_update', lightId: 'l', patch });
+
+	it('patches look fields, null clearing one back to its kind', () => {
+		expect(update({ kind: 'neon', intensity: 2, fixture: false, facing: 3 })).toEqual({
+			type: 'light_update',
+			lightId: 'l',
+			patch: { kind: 'neon', intensity: 2, fixture: false, facing: 3 }
+		});
+		expect(update({ kind: null, height: null, on: true })).toEqual({
+			type: 'light_update',
+			lightId: 'l',
+			patch: { kind: null, height: null, on: true }
+		});
+	});
+
+	it('rejects looks out of range or unknown', () => {
+		expect(update({ intensity: 5 })).toBeNull();
+		expect(update({ height: 11 })).toBeNull();
+		expect(update({ facing: 4 })).toBeNull();
+		expect(update({ kind: 'laser' })).toBeNull();
+		expect(update({ flicker: 'strobe' })).toBeNull();
+		expect(update({})).toBeNull();
+	});
+
+	it('places a light with a look', () => {
+		const create = { type: 'light_create', pos: { x: 1, y: 2 }, radius: 3, color: '#ffa04d' };
+		expect(parseClientMessage({ ...create, kind: 'glow', fixture: false })).toEqual({
+			...create,
+			kind: 'glow',
+			fixture: false
+		});
+		expect(parseClientMessage(create)).toEqual(create);
+		expect(parseClientMessage({ ...create, kind: 'laser' })).toBeNull();
+		expect(parseClientMessage({ ...create, kind: null })).toBeNull();
+	});
+});

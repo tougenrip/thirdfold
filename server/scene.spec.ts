@@ -13,6 +13,7 @@ import {
 	updateProp,
 	updateToken
 } from './scene';
+import { createLight, updateLight } from './scene';
 
 function setup() {
 	const rooms = new RoomManager();
@@ -343,5 +344,39 @@ describe('props', () => {
 		).toMatchObject({
 			code: 'cell_occupied'
 		});
+	});
+});
+
+describe('light looks (#201)', () => {
+	it('places a light with a look, patches it and clears it back to its kind', () => {
+		const { room, gm, pip } = setup();
+		const created = createLight(room, gm, {
+			pos: { x: 2, y: 2 },
+			radius: 3,
+			color: '#7fb6ff',
+			kind: 'glow',
+			fixture: false
+		});
+		if (!created.ok) throw new Error(created.message);
+		const { light } = created;
+		expect(light).toMatchObject({ kind: 'glow', fixture: false, on: true });
+		expect(updateLight(room, gm, light.id, { kind: 'neon', intensity: 2 })).toMatchObject({
+			ok: true
+		});
+		expect(room.lights.get(light.id)).toMatchObject({ kind: 'neon', intensity: 2, fixture: false });
+		updateLight(room, gm, light.id, { kind: null, fixture: null, intensity: null });
+		expect(room.lights.get(light.id)).toEqual({
+			id: light.id,
+			pos: { x: 2, y: 2 },
+			radius: 3,
+			color: '#7fb6ff',
+			on: true
+		});
+		expect(updateLight(room, pip, light.id, { kind: 'torch' })).toMatchObject({
+			code: 'forbidden'
+		});
+		expect(
+			createLight(room, gm, { pos: { x: 2, y: 2 }, radius: 1, color: '#ffffff', kind: 'candle' })
+		).toMatchObject({ code: 'cell_occupied' });
 	});
 });

@@ -15,7 +15,7 @@ import type { SceneObject } from '../../../src/lib/game/objects';
 import type { Prop } from '../../../src/lib/game/props';
 import type { SceneFile } from '../../../src/lib/game/scene-file';
 import { npcTokens } from './npcs';
-import { door, light, prop, table, wall } from '../../adventure/tables';
+import { door, GLOW, light, prop, table, wall } from '../../adventure/tables';
 
 export const GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 36, height: 28 };
 
@@ -261,7 +261,7 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		light('hb-forge-glow', 19, 22, 3, '#ff7a3d'),
 		light('hb-crane-candle', 7, 20, 2, '#ffd27a'),
 		// The charm's own faint glow: what catches a newcomer's eye.
-		light(IDS.charmGlow, CHARM_AT.x, CHARM_AT.y, 1, '#9fd7ff'),
+		light(IDS.charmGlow, CHARM_AT.x, CHARM_AT.y, 1, '#9fd7ff', true, GLOW),
 		{ ...light(IDS.brazierLight, 14, 6, 3, '#ffa04d'), on: false }
 	];
 

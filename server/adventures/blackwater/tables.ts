@@ -125,11 +125,11 @@ export function trainScene() {
 			prop(TRAIN_IDS.key, 'keys', 63, 2)
 		],
 		lights: [
-			light(TRAIN_IDS.coachLamps[0], 52, 3, 5, '#ffcf7a'),
-			light(TRAIN_IDS.coachLamps[1], 60, 3, 5, '#ffcf7a'),
-			light(TRAIN_IDS.diningLamp, 38, 3, 5, '#ffcf7a'),
-			light(TRAIN_IDS.sleeperLamp, 27, 3, 3, '#ffb347'),
-			light(TRAIN_IDS.baggageLamp, 9, 3, 3, '#ffb347'),
+			light(TRAIN_IDS.coachLamps[0], 52, 3, 5, '#ffcf7a', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.coachLamps[1], 60, 3, 5, '#ffcf7a', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.diningLamp, 38, 3, 5, '#ffcf7a', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.sleeperLamp, 27, 3, 3, '#ffb347', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.baggageLamp, 9, 3, 3, '#ffb347', true, { kind: 'lantern' }),
 			light(TRAIN_IDS.stoveGlow, 44, 2, 3, '#ff8c3a')
 		],
 		tokens: []
@@ -245,9 +245,9 @@ export function blackwaterScene() {
 			prop('bw-saloon-barrel', 'barrel', 3, 13)
 		],
 		lights: [
-			light('bw-ghost-lamp-1', 4, 3, 4, '#9fd0ff'),
-			light('bw-ghost-lamp-2', 12, 3, 4, '#9fd0ff'),
-			light('bw-ghost-lamp-3', 11, 9, 4, '#9fd0ff')
+			light('bw-ghost-lamp-1', 4, 3, 4, '#9fd0ff', true, { kind: 'lantern' }),
+			light('bw-ghost-lamp-2', 12, 3, 4, '#9fd0ff', true, { kind: 'lantern' }),
+			light('bw-ghost-lamp-3', 11, 9, 4, '#9fd0ff', true, { kind: 'lantern' })
 		],
 		tokens: []
 	});

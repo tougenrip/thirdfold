@@ -25,6 +25,7 @@ import {
 	type Ambient,
 	type Light
 } from '../src/lib/game/lights';
+import { LIGHT_LOOK_KEYS, type LightLook } from '../src/lib/game/lights';
 import {
 	isSolidCell,
 	MAX_PROPS_PER_ROOM,
@@ -411,7 +412,7 @@ const FORBIDDEN_LIGHTS = fail('forbidden', 'Only the GM controls lights.');
 export function createLight(
 	room: Room,
 	actor: Player,
-	input: { pos: GridPos; radius: number; color: string }
+	input: { pos: GridPos; radius: number; color: string } & Partial<LightLook>
 ): Result<{ light: Light }> {
 	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
 	if (room.lights.size >= MAX_LIGHTS_PER_ROOM) {
@@ -428,6 +429,9 @@ export function createLight(
 		color: input.color,
 		on: true
 	};
+	for (const key of LIGHT_LOOK_KEYS) {
+		if (input[key] !== undefined) Object.assign(light, { [key]: input[key] });
+	}
 	room.lights.set(light.id, light);
 	return { ok: true, light };
 }
@@ -444,6 +448,11 @@ export function updateLight(
 	if (patch.radius !== undefined) light.radius = patch.radius;
 	if (patch.color !== undefined) light.color = patch.color;
 	if (patch.on !== undefined) light.on = patch.on;
+	for (const key of LIGHT_LOOK_KEYS) {
+		const value = patch[key];
+		if (value === null) delete light[key];
+		else if (value !== undefined) Object.assign(light, { [key]: value });
+	}
 	return { ok: true, light };
 }
 

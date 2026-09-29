@@ -4,7 +4,7 @@
 
 import { encodeFloor, withFloor, type FloorId, type FloorMap } from '../../src/lib/game/floor';
 import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
-import type { Ambient, Light } from '../../src/lib/game/lights';
+import type { Ambient, Light, LightLook } from '../../src/lib/game/lights';
 import type { SceneObject } from '../../src/lib/game/objects';
 import type { AssetId, Prop, Rotation } from '../../src/lib/game/props';
 import { SCENE_FILE_VERSION, type SavedToken, type SceneFile } from '../../src/lib/game/scene-file';
@@ -50,8 +50,12 @@ export const light = (
 	y: number,
 	radius: number,
 	color: string,
-	on = true
-): Light => ({ id, pos: { x, y }, radius, color, on });
+	on = true,
+	look: Partial<LightLook> = {}
+): Light => ({ id, pos: { x, y }, radius, color, on, ...look });
+
+/** A light that is only a glow (the Bell's, a charm's, the lake's): no lantern post (#201). */
+export const GLOW: Partial<LightLook> = { kind: 'glow', fixture: false };
 
 export interface TableParts {
 	name: string;

@@ -13,7 +13,15 @@ import { isStatusId, type CharacterId, type StatusId } from '../adventure/charac
 import { ASSET_ID_PATTERN } from '../assets/manifest';
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
-import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
+import {
+	AMBIENTS,
+	LIGHT_LOOK_KEYS,
+	MAX_LIGHT_RADIUS,
+	parseLightLook,
+	type Ambient,
+	type Light,
+	type LightLook
+} from './lights';
 import type { SceneObject } from './objects';
 import type { Motion } from './motion';
 import { resolveAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
@@ -112,12 +120,12 @@ export interface PropPatch {
 	hidden?: boolean;
 }
 
-/** Fields the GM may change on an existing light. */
-export interface LightPatch {
+/** Fields the GM may change on an existing light; a look field set to null goes back to its kind's. */
+export type LightPatch = {
 	radius?: number;
 	color?: string;
 	on?: boolean;
-}
+} & { [K in keyof LightLook]?: LightLook[K] | null };
 
 export type ClientMessage =
 	/**
@@ -156,7 +164,7 @@ export type ClientMessage =
 	| { type: 'prop_update'; propId: string; patch: PropPatch }
 	| { type: 'prop_delete'; propId: string }
 	/** GM: place a light source on a cell. */
-	| { type: 'light_create'; pos: GridPos; radius: number; color: string }
+	| ({ type: 'light_create'; pos: GridPos; radius: number; color: string } & Partial<LightLook>)
 	| { type: 'light_update'; lightId: string; patch: LightPatch }
 	| { type: 'light_delete'; lightId: string }
 	/** GM: the room's ambient light level. */
@@ -589,6 +597,14 @@ function parseLightPatch(value: unknown): LightPatch | null {
 		if (typeof value.on !== 'boolean') return null;
 		patch.on = value.on;
 	}
+	const set: Record<string, unknown> = {};
+	for (const key of LIGHT_LOOK_KEYS) {
+		if (value[key] === null) (patch as Record<string, unknown>)[key] = null;
+		else if (value[key] !== undefined) set[key] = value[key];
+	}
+	const look = parseLightLook(set);
+	if (!look) return null;
+	Object.assign(patch, look);
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -702,7 +718,9 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		case 'light_create': {
 			const pos = parseGridPos(data.pos);
 			if (!pos || !isLightRadius(data.radius) || !isColor(data.color)) return null;
-			return { type: 'light_create', pos, radius: data.radius, color: data.color };
+			const look = parseLightLook(data);
+			if (!look) return null;
+			return { type: 'light_create', pos, radius: data.radius, color: data.color, ...look };
 		}
 		case 'light_update': {
 			const patch = parseLightPatch(data.patch);

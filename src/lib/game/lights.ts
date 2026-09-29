@@ -56,6 +56,45 @@ export interface LightLook {
 	facing: 0 | 1 | 2 | 3;
 }
 
+/** The look fields, in order. */
+export const LIGHT_LOOK_KEYS: readonly (keyof LightLook)[] = [
+	'kind',
+	'intensity',
+	'height',
+	'flicker',
+	'shadows',
+	'fixture',
+	'facing'
+];
+
+const kindLook = (
+	kind: LightKind,
+	intensity: number,
+	height: number,
+	flicker: Flicker,
+	fixture: boolean
+): LightLook => ({ kind, intensity, height, flicker, shadows: true, fixture, facing: 0 });
+
+/** Each kind's look, which a light's own fields override; starting points for #238 to tune. */
+export const LIGHT_KIND_DEFAULTS: Readonly<Record<LightKind, LightLook>> = {
+	torch: kindLook('torch', 1, 4, 'torch', true),
+	candle: kindLook('candle', 0.5, 1, 'candle', true),
+	brazier: kindLook('brazier', 1.5, 2, 'fire', true),
+	lantern: kindLook('lantern', 1, 4, 'candle', true),
+	glow: kindLook('glow', 1, 1, 'none', false),
+	magic: kindLook('magic', 1, 3, 'pulse', true),
+	fire: kindLook('fire', 1.5, 0, 'fire', false),
+	neon: kindLook('neon', 1, 3, 'none', true),
+	panel: kindLook('panel', 0.8, 3, 'none', true)
+};
+
+/** A light's whole look: its own fields over its kind's (no kind is a torch, the look lights always had). */
+export function lightLook(light: Partial<LightLook>): LightLook {
+	const look: Record<string, unknown> = { ...LIGHT_KIND_DEFAULTS[light.kind ?? 'torch'] };
+	for (const key of LIGHT_LOOK_KEYS) if (light[key] !== undefined) look[key] = light[key];
+	return look as unknown as LightLook;
+}
+
 /** A light source standing on a cell. */
 export interface Light extends Partial<LightLook> {
 	id: string;
@@ -164,8 +203,8 @@ export const LIGHT_COLORS = [
 	{ name: 'Fel', color: '#6fe08a' }
 ] as const;
 
-/** Anything that gives off light: a placed source, or a token carrying one. */
-export interface LightSource {
+/** Anything that gives off light: a placed source, or a token carrying one. The rules read only pos, radius and colour. */
+export interface LightSource extends Partial<LightLook> {
 	pos: GridPos;
 	radius: number;
 	color: string;

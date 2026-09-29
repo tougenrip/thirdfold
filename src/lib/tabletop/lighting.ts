@@ -10,7 +10,13 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { lightLevels, type Ambient, type Light, type LightSource } from '$lib/game/lights';
+import {
+	lightLevels,
+	lightLook,
+	type Ambient,
+	type Light,
+	type LightSource
+} from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
 import type { Ground } from './ground';
@@ -125,6 +131,8 @@ export class LightingLayer {
 	private flameMaterial = flameMaterial();
 	/** Each pool light's steady intensity, which flicker varies around. */
 	private steady: number[] = [];
+	/** How much each pool light wavers: none for a light whose look doesn't flicker. */
+	private wobble: number[] = [];
 	private ambient: Ambient = 'day';
 	/** The rules' light level per cell from the last update, or null by day (the cell maps', #171). */
 	levels: Float32Array | null = null;
@@ -215,8 +223,13 @@ export class LightingLayer {
 			light.distance = (s.radius + 1.5) * grid.cellSize;
 			// Raised to human height (#152), a lamp lights the floor a cell or two away about as
 			// before (the light lands less slanted); only the spot right under it is dimmer.
-			light.intensity = strength * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
+			// The look's intensity scales it (1 for every light before looks, #201); a number on a
+			// pool light, never a new program. Height waits for #228.
+			const look = lightLook(s);
+			light.intensity =
+				strength * look.intensity * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
 			this.steady[i] = light.intensity;
+			this.wobble[i] = look.flicker === 'none' ? 0 : 0.08;
 		});
 	}
 
@@ -246,12 +259,12 @@ export class LightingLayer {
 		const t = now / 1000;
 		this.pool.forEach((light, i) => {
 			const wave = Math.sin(t * 7.3 + i * 1.7) * 0.5 + Math.sin(t * 13.1 + i * 2.9) * 0.3;
-			light.intensity = this.steady[i] * (1 + 0.08 * wave);
+			light.intensity = this.steady[i] * (1 + (this.wobble[i] ?? 0) * wave);
 		});
 		let i = 0;
 		for (const fixture of this.fixtures.values()) {
 			const flame = fixture.children[1];
-			const wave = Math.sin(t * 9.7 + i++ * 2.3);
+			const wave = fixture.userData.still ? 0 : Math.sin(t * 9.7 + i++ * 2.3);
 			flame.scale.set(1 - 0.05 * wave, 1 + 0.1 * wave, 1 - 0.05 * wave);
 		}
 		return true;
@@ -265,6 +278,10 @@ export class LightingLayer {
 	): void {
 		const seen = new Set<string>();
 		for (const l of lights) {
+			// A light without a fixture (a glow) draws none: its pool light and the cells it
+			// lights are all there is of it (#201). The GM still picks it by its cell.
+			const look = lightLook(l);
+			if (!look.fixture) continue;
 			seen.add(l.id);
 			let fixture = this.fixtures.get(l.id);
 			if (!fixture) {
@@ -275,6 +292,7 @@ export class LightingLayer {
 			const w = gridToWorld(grid, l.pos);
 			fixture.position.set(w.x, ground?.floorY(l.pos) ?? 0, w.z);
 			fixture.scale.setScalar(grid.cellSize);
+			fixture.userData.still = look.flicker === 'none';
 			// On a sconce or brazier the prop is the post: only the flame, on its top.
 			const seat = seats.get(l.pos.y * grid.width + l.pos.x);
 			fixture.children[0].visible = seat === undefined;
