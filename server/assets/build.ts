@@ -3,7 +3,7 @@
 
 import path from 'node:path';
 import { AssetError, buildAssets, staleAssets, writeAssets } from './pipeline';
-import { checkScenes } from './scenes';
+import { checkScenes, sceneReport } from './scenes';
 
 const SOURCES = 'assets';
 const OUT = path.join('static', 'assets');
@@ -12,13 +12,18 @@ try {
 	const built = buildAssets(SOURCES);
 	const problems = checkScenes(built.manifest);
 	if (problems.length) {
-		console.error(`The adventures' tables refer to missing assets:\n  ${problems.join('\n  ')}`);
+		console.error(
+			`The adventures' tables refer to missing assets or go over budget:\n  ${problems.join('\n  ')}`
+		);
 		process.exit(1);
 	}
 	const bytes = [...built.files.values()].reduce((sum, d) => sum + d.length, 0);
 	const count = (o: object) => Object.keys(o).length;
 	const m = built.manifest;
 	const summary = `${count(m.models)} models, ${count(m.textures)} textures, ${count(m.materials)} materials, ${count(m.environments)} environments, ${count(m.audio)} sounds (${(bytes / 1024).toFixed(0)} kB)`;
+	console.log(
+		`Per table (docs/PERFORMANCE.md, "Asset budgets"):\n  ${sceneReport(m).join('\n  ')}`
+	);
 	if (process.argv.includes('--check')) {
 		const stale = staleAssets(OUT, built);
 		if (stale.length) {
