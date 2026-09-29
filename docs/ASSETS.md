@@ -258,6 +258,13 @@ seconds) encodes nothing: it fails when a source here changed since its cook, wh
 setting changed, or when an output is not what the cook wrote. `.github/workflows/cook.yml`, run
 by hand, cooks everything again on Linux and macOS and fails on any byte of difference.
 
+The first cooked model is the Hollow's great bell (#196), an in-house pilot until brief A (ART.md)
+is commissioned: `scripts/make-bell-art.ts` builds `art/prop/great-bell/` the way a Blender export
+would (`body`, `swing` with its pivot in `meta.json`, UVs, one material with painted albedo, normal,
+ORM and emissive PNGs; the same bytes on every run under Node 22), and its old part list is
+`great-bell.preview.json`, shown until the cooked bell arrives. Its numbers are in
+PERFORMANCE.md ("The great bell").
+
 Where `art/` and the cooked binaries are kept, and the upload, is #191; 1K variants for the mobile
 tier are #358.
 

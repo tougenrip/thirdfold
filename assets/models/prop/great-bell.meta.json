@@ -1,0 +1,14 @@
+{
+	"provenance": {
+		"license": "LicenseRef-thirdfold-original",
+		"author": "thirdfold contributors",
+		"modified": false
+	},
+	"swing": {
+		"pivot": 3.85,
+		"throw": 0.3
+	},
+	"setPiece": true,
+	"pack": "cavern",
+	"screenSizes": [0.25, 0.1]
+}

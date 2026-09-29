@@ -686,7 +686,10 @@
 				: []
 		);
 		if (cued.length) {
-			const bell = room.props.find((p) => p.assetId === 'belfry-bell');
+			// The tower's bell, else the Hollow's great bell (#196): each swings on its pivot.
+			const bell =
+				room.props.find((p) => p.assetId === 'belfry-bell') ??
+				room.props.find((p) => p.assetId === 'great-bell');
 			cuePlay = {
 				seq: cued.at(-1)!.seq,
 				cues: [...new Set(cued.flatMap((c) => (c.cue ? [c.cue] : [])))],
