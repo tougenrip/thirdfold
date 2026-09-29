@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DieRoller } from '../src/lib/game/dice';
 import { defaultWorldFor } from '../src/lib/game/world';
+import { setWorld } from './scene';
 import { beginAdventure, claimCharacter, direct, startAdventure } from './adventure/engine';
 import { postChat } from './chat';
 import {
@@ -75,6 +76,13 @@ describe('a live room kept across a restart', () => {
 		const older = copy(serializeRoom(room));
 		delete older.listed;
 		expect(ok(restoreRoom(older, 5000)).room.listed).toBe(false);
+	});
+
+	it("keeps the world's look", () => {
+		ok(setWorld(room, gm, { time: 1300, weather: { kind: 'storm', seed: 9 } }, 42));
+		const back = ok(restoreRoom(copy(serializeRoom(room)), 5000)).room;
+		expect(back.world).toEqual(room.world);
+		expect(back.ambient).toBe('dark');
 	});
 
 	it('comes back from before the world look: a room stored with a v9 table', () => {

@@ -8,6 +8,7 @@ import { exampleAdventure } from '../src/lib/adventure/example';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ServerMessage } from '../src/lib/game/protocol';
+import type { SquareGrid } from '../src/lib/game/grid';
 import { SCENE_FILE_VERSION } from '../src/lib/game/scene-file';
 import { CLOSE_SESSION_REPLACED, startGameServer, type GameServer } from './game-server';
 import { framesLeaks } from './frame-secrecy';
@@ -811,6 +812,7 @@ describe('fog of war over the wire', () => {
 		gm.send({ type: 'token_move', tokenId: watcher.id, to: { x: 18, y: 6 } });
 		gm.send({ type: 'prop_update', propId: barrel.id, patch: { pos: { x: 16, y: 18 } } });
 		gm.send({ type: 'environment_set', environment: 'cavern' });
+		gm.send({ type: 'world_set', patch: { weather: { kind: 'rain', intensity: 0.5 } } });
 		pip.c.send({ type: 'token_move', tokenId: hero.id, to: { x: 4, y: 3 } });
 		await gm.until('token_moved', (m) => m.tokenId === hero.id);
 
@@ -835,7 +837,8 @@ describe('fog of war over the wire', () => {
 				'floor_update',
 				'darkness_update',
 				'lights_changed',
-				'environment_update'
+				'environment_update',
+				'world_update'
 			] as const) {
 				expect(types).toContain(type);
 			}
@@ -1029,6 +1032,8 @@ describe('lighting over the wire', () => {
 		await pip.expect('fog_update');
 		gm.send({ type: 'ambient_set', ambient: 'dark' });
 		expect(await pip.expect('ambient_update')).toEqual({ type: 'ambient_update', ambient: 'dark' });
+		// An older bundle's ambient_set snaps the hour into the band too.
+		expect((await pip.expect('world_update')).world.time).toBe(1380);
 		await pip.untilNotice('Gemma changed the lighting to darkness.');
 
 		gm.send({
@@ -2631,5 +2636,109 @@ describe('the library and open games over the wire', () => {
 		await gm.until('listing_update');
 		passerby.send({ type: 'games_list' });
 		expect((await passerby.until('games_list')).games).toEqual([]);
+	});
+});
+
+describe("the world's look over the wire", () => {
+	async function table() {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		expect(room.world).toMatchObject({ time: 720, sun: true });
+		const join = async (name: string, role: 'player' | 'spectator') => {
+			const c = await connect();
+			const frames: string[] = [];
+			c.ws.on('message', (data) => frames.push(data.toString()));
+			c.send({ type: 'join', roomId: room.id, name, role });
+			const { playerId } = await c.expect('welcome');
+			await gm.until('player_joined');
+			return { c, frames, playerId };
+		};
+		const pip = await join('Pip', 'player');
+		const sam = await join('Sam', 'spectator');
+		await pip.c.until('player_joined');
+		return { gm, room, pip, sam };
+	}
+	const worldLeaks = (frames: string[], grid: SquareGrid) =>
+		framesLeaks(frames, grid, { x0: 0, y0: 0, x1: 0, y1: 0 }, []).filter(
+			(l) => l.field === 'world'
+		);
+
+	it("sends the GM's change to everyone, once, and refuses players", async () => {
+		const { gm, room, pip, sam } = await table();
+		gm.send({ type: 'world_set', patch: { weather: { kind: 'rain', intensity: 0.6 } } });
+		for (const c of [gm, pip.c, sam.c]) {
+			const { world } = await c.expect('world_update');
+			expect(world.weather).toMatchObject({ kind: 'rain', intensity: 0.6 });
+			expect(world.weather.since).toBeGreaterThan(0);
+		}
+		// The same patch again changes nothing, so sends nothing.
+		gm.send({ type: 'world_set', patch: { weather: { kind: 'rain', intensity: 0.6 } } });
+		pip.c.send({ type: 'world_set', patch: { time: 60 } });
+		expect(await pip.c.expect('error')).toMatchObject({ code: 'forbidden' });
+		sam.c.send({ type: 'world_set', patch: { time: 60 } });
+		expect(await sam.c.expect('error')).toMatchObject({ code: 'forbidden' });
+
+		gm.send({ type: 'scene_export', name: 'Rainy' });
+		const { file } = await gm.until('scene_exported');
+		expect(file.world.weather.kind).toBe('rain');
+		for (const { frames } of [pip, sam]) {
+			const updates = frames
+				.map((f) => JSON.parse(f) as ServerMessage)
+				.filter((m) => m.type === 'world_update');
+			expect(updates).toHaveLength(1);
+			expect(Object.keys(updates[0]).sort()).toEqual(['type', 'world']);
+			expect(worldLeaks(frames, room.grid)).toEqual([]);
+		}
+	});
+
+	it('limits a burst of changes', async () => {
+		const { gm } = await table();
+		for (let i = 0; i < 12; i++) gm.send({ type: 'world_set', patch: { time: 600 + i } });
+		expect(await gm.until('error')).toMatchObject({ code: 'rate_limited' });
+	});
+
+	it('moves the band with the hour on a table with a sun: one notice per band change', async () => {
+		const { gm, pip } = await table();
+		gm.send({ type: 'fog_set', enabled: true });
+		await pip.c.until('fog_update');
+		gm.send({
+			type: 'token_create',
+			name: 'Hero',
+			color: '#2e86c1',
+			pos: { x: 3, y: 3 },
+			ownerId: pip.playerId
+		});
+		await pip.c.until('token_upserted');
+		gm.send({ type: 'world_set', patch: { time: 1259 } });
+		expect((await pip.c.until('world_update')).world.time).toBe(1259);
+		await pip.c.untilNotice('Gemma changed the lighting to dusk.');
+		gm.send({ type: 'world_set', patch: { time: 1260 } });
+		expect(await pip.c.expect('ambient_update')).toEqual({
+			type: 'ambient_update',
+			ambient: 'dark'
+		});
+		expect((await pip.c.expect('world_update')).world.time).toBe(1260);
+		await pip.c.expect('fog_update');
+		await pip.c.untilNotice('Gemma changed the lighting to darkness.');
+
+		gm.send({ type: 'world_set', patch: { time: 1380 } });
+		expect((await pip.c.expect('world_update')).world.time).toBe(1380);
+		gm.send({ type: 'chat_send', text: 'mark' });
+		expect((await pip.c.expect('chat')).message).toMatchObject({ kind: 'chat', text: 'mark' });
+	});
+
+	it('keeps the band on a sunless table whatever the hour', async () => {
+		const { gm, pip } = await table();
+		gm.send({ type: 'world_set', patch: { sun: false } });
+		await pip.c.expect('world_update');
+		gm.send({ type: 'ambient_set', ambient: 'dark' });
+		expect(await pip.c.expect('ambient_update')).toEqual({
+			type: 'ambient_update',
+			ambient: 'dark'
+		});
+		gm.send({ type: 'world_set', patch: { time: 780 } });
+		expect((await pip.c.expect('world_update')).world.time).toBe(780);
+		expect(pip.frames.filter((f) => f.includes('"ambient_update"'))).toHaveLength(1);
 	});
 });

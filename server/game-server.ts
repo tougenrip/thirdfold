@@ -43,6 +43,7 @@ import { storySummary } from './adventure/view';
 import { builtInStory, openingOf, storyFacts } from './adventure/facts';
 import { MemorySceneStore, type SceneStore } from './scene-store';
 import { fail, RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
+import type { Ambient } from '../src/lib/game/lights';
 import {
 	createObject,
 	createToken,
@@ -58,6 +59,7 @@ import {
 	fogRoom,
 	setAmbient,
 	setEnvironment,
+	setWorld,
 	setFog,
 	setFogShared,
 	setDarkness,
@@ -168,6 +170,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const chatLimiter = new RateLimiter(8, 4 / 3);
 	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
 	const sceneLimiter = new RateLimiter(4, 0.25);
+	// The GM's look edits (the world, the roof, dark areas): bursts of 10, then two a second.
+	const lookLimiter = new RateLimiter(10, 2);
 	// Creators' adventures a table is playing are kept while it plays them.
 	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
@@ -522,6 +526,13 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			const viewer = room.players.get(playerId);
 			if (viewer && canSeeLogEntry(viewer, message) && ws.readyState === ws.OPEN) ws.send(frame);
 		}
+	}
+
+	/** One public notice when the rules band changed (ambient_set, world_set); none within a band. */
+	function bandNotice(room: Room, player: Player, before: Ambient): void {
+		if (room.ambient === before) return;
+		const described = { day: 'daylight', dusk: 'dusk', dark: 'darkness' }[room.ambient];
+		announce(room, postSystem(room, `${player.name} changed the lighting to ${described}.`));
 	}
 
 	/** The whole table was replaced: give every viewer a fresh snapshot and restart their diffs. */
@@ -1017,15 +1028,24 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				return;
 			}
 			case 'ambient_set': {
+				// Kept for older bundles: the hour snaps into the band (world_update with ambient_update).
+				const before = room.ambient;
 				const result = setAmbient(room, player, msg.ambient);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				if (!result.changed) return;
 				syncRoom(room);
-				const described = { day: 'daylight', dusk: 'dusk', dark: 'darkness' }[msg.ambient];
-				return announce(
-					room,
-					postSystem(room, `${player.name} changed the lighting to ${described}.`)
-				);
+				return bandNotice(room, player, before);
+			}
+			case 'world_set': {
+				if (!lookLimiter.take(player.id)) {
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				}
+				const before = room.ambient;
+				const result = setWorld(room, player, msg.patch);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				if (!result.changed) return;
+				syncRoom(room);
+				return bandNotice(room, player, before);
 			}
 			case 'scene_save':
 			case 'scene_load':

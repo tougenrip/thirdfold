@@ -11,6 +11,7 @@ import {
 	moveToken,
 	setAmbient,
 	setFog,
+	setWorld,
 	toggleDoor,
 	updateLight,
 	updateToken
@@ -299,5 +300,33 @@ describe('props and visibility', () => {
 		expect(names(room, pip)).toEqual(['Hero']);
 		expect(viewFor(room, pip).props.map((p) => p.assetId)).toEqual(['pillar']);
 		expect(viewFor(room, gm).props).toHaveLength(2);
+	});
+});
+
+describe("the world's look", () => {
+	it('is the same for the GM, a player and a spectator', () => {
+		const { room, gm, pip, sam } = setup();
+		setFog(room, gm, true);
+		setWorld(room, gm, { weather: { kind: 'fog', intensity: 0.3 } });
+		const worlds = [gm, pip, sam].map((v) => JSON.stringify(viewFor(room, v).world));
+		expect(new Set(worlds).size).toBe(1);
+		expect(JSON.parse(worlds[0])).toEqual(room.world);
+	});
+
+	it('a time change across a band edge changes what a player sees exactly as ambient_set did', () => {
+		const byTime = setup();
+		const byBand = setup();
+		for (const t of [byTime, byBand]) {
+			setFog(t.room, t.gm, true);
+			token(t.room, t.gm, 'Hero', 3, 3, t.pip.id);
+			createLight(t.room, t.gm, { pos: { x: 6, y: 3 }, radius: 2, color: '#ffa04d' });
+		}
+		const before = viewFor(byTime.room, byTime.pip).fog;
+		viewFor(byBand.room, byBand.pip);
+		setWorld(byTime.room, byTime.gm, { time: 1260 });
+		setAmbient(byBand.room, byBand.gm, 'dark');
+		const fog = viewFor(byTime.room, byTime.pip).fog;
+		expect(fog).toEqual(viewFor(byBand.room, byBand.pip).fog);
+		expect(fog).not.toEqual(before);
 	});
 });

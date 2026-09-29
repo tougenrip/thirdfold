@@ -10,6 +10,30 @@
 			"height": 64
 		},
 		"environment": "village",
+		"world": {
+			"time": 1170,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dusk",
 		"fog": {
 			"enabled": true,
@@ -111,6 +135,30 @@
 			"height": 64
 		},
 		"environment": "village",
+		"world": {
+			"time": 1170,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dusk",
 		"fog": {
 			"enabled": true,
@@ -212,6 +260,30 @@
 			"height": 64
 		},
 		"environment": "village",
+		"world": {
+			"time": 1170,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dusk",
 		"fog": {
 			"enabled": true,

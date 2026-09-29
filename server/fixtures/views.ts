@@ -11,6 +11,7 @@ import { emptyMask } from '../../src/lib/game/visibility';
 import { readAdventure } from '../adventure/persist';
 import { newRoom, type Player, type Room } from '../rooms';
 import { applyScene } from '../scene-io';
+import { setBand } from '../scene';
 import { snapshotFor, viewFor } from '../views';
 import type { FixtureSidecar } from './compositions';
 
@@ -55,7 +56,7 @@ export function fixtureViews(
 	room.gmOwner = undefined;
 	// Fog is always on, with nothing revealed by the GM, so the views differ.
 	room.fog = { enabled: true, revealed: emptyMask(room.grid), shared: false };
-	room.ambient = band;
+	setBand(room, band);
 	const token = room.tokens.get(sidecar.player.tokenId);
 	if (!token) throw new Error(`${name}: no token ${sidecar.player.tokenId}`);
 	token.ownerId = p1.id;
@@ -78,6 +79,7 @@ export function fixtureViews(
 			fogMode: role === 'gm' ? 'gm' : 'player',
 			grid: s.grid,
 			environment: s.environment,
+			world: s.world,
 			ambient: s.ambient,
 			fog: s.fog,
 			terrain: s.terrain,

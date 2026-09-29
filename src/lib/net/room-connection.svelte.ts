@@ -12,7 +12,7 @@ import {
 	type ServerMessage
 } from '$lib/game/protocol';
 import { saveGmKey } from '$lib/prefs';
-import { applyRoomUpdate } from './room-state';
+import { applyRoomUpdate, snapshotOf } from './room-state';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
@@ -188,7 +188,7 @@ export class RoomConnection {
 		}
 		switch (msg.type) {
 			case 'welcome':
-				this.room = msg.room;
+				this.room = snapshotOf(msg.room);
 				this.playerId = msg.playerId;
 				this.status = 'connected';
 				this.error = null;
@@ -216,7 +216,7 @@ export class RoomConnection {
 				}
 				return;
 			case 'room_reset':
-				this.room = msg.room;
+				this.room = snapshotOf(msg.room);
 				return;
 			case 'motion':
 				this.motion = { seq: ++this.errorSeq, motions: msg.motions };

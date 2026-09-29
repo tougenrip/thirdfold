@@ -9,6 +9,9 @@ import {
 	deleteProp,
 	deleteToken,
 	moveToken,
+	setAmbient,
+	setBand,
+	setWorld,
 	toggleDoor,
 	updateProp,
 	updateToken
@@ -343,5 +346,61 @@ describe('props', () => {
 		).toMatchObject({
 			code: 'cell_occupied'
 		});
+	});
+});
+
+describe('setWorld and the band', () => {
+	it('lets only the GM set the look, and reports an unchanged patch as no change', () => {
+		const { room, gm, pip, sam } = setup();
+		for (const who of [pip, sam]) {
+			expect(setWorld(room, who, { time: 60 })).toMatchObject({ ok: false, code: 'forbidden' });
+		}
+		expect(setWorld(room, gm, { haze: { density: 0.4 } }, 5)).toEqual({
+			ok: true,
+			changed: true,
+			bandChanged: false
+		});
+		expect(room.world.haze.density).toBe(0.4);
+		expect(setWorld(room, gm, { haze: { density: 0.4 } }, 6)).toMatchObject({ changed: false });
+	});
+
+	it('stamps a new weather kind and picks a seed when none is sent', () => {
+		const { room, gm } = setup();
+		setWorld(room, gm, { weather: { kind: 'rain' } }, 1234);
+		expect(room.world.weather).toMatchObject({ kind: 'rain', since: 1234 });
+		expect(Number.isInteger(room.world.weather.seed)).toBe(true);
+		setWorld(room, gm, { weather: { kind: 'snow', seed: 7 } }, 2000);
+		expect(room.world.weather).toMatchObject({ kind: 'snow', seed: 7, since: 2000 });
+	});
+
+	it('with a sun, the band follows the hour', () => {
+		const { room, gm } = setup();
+		expect(setWorld(room, gm, { time: 1259 })).toMatchObject({ bandChanged: true });
+		expect(room.ambient).toBe('dusk');
+		expect(setWorld(room, gm, { time: 1260 })).toMatchObject({ bandChanged: true });
+		expect(room.ambient).toBe('dark');
+		expect(setWorld(room, gm, { time: 1380 })).toMatchObject({ bandChanged: false });
+	});
+
+	it('with a sun, setting the band snaps the hour only when it lies outside it', () => {
+		const { room, gm } = setup();
+		setAmbient(room, gm, 'dark');
+		expect(room.world.time).toBe(1380);
+		setWorld(room, gm, { time: 1150 });
+		expect(room.ambient).toBe('dusk');
+		expect(setAmbient(room, gm, 'dusk')).toEqual({ ok: true, changed: false });
+		expect(room.world.time).toBe(1150);
+	});
+
+	it('without a sun, the band and the hour are apart', () => {
+		const { room, gm } = setup();
+		setWorld(room, gm, { sun: false });
+		expect(setWorld(room, gm, { time: 1380 })).toMatchObject({ bandChanged: false });
+		expect(room.ambient).toBe('day');
+		setAmbient(room, gm, 'dark');
+		expect(room.ambient).toBe('dark');
+		expect(room.world.time).toBe(1380);
+		expect(setBand(room, 'day')).toEqual({ changed: true });
+		expect(room.world.time).toBe(1380);
 	});
 });

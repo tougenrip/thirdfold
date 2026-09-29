@@ -19,6 +19,7 @@ import type { Motion } from './motion';
 import { resolveAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
 import type { SceneFile } from './scene-file';
 import { isFloorId, type FloorId } from './floor';
+import { parseWorldPatch, type WorldLook, type WorldPatch } from './world';
 import {
 	CREATOR_ID_PATTERN,
 	LIBRARY_ID_PATTERN,
@@ -86,6 +87,8 @@ export interface RoomSnapshot {
 	paused: boolean;
 	/** How the table looks (an environment asset's id), or null for the plain table. */
 	environment: string | null;
+	/** How the world looks (the hour, sky, weather, haze, grade, backdrop): the same for everyone. */
+	world: WorldLook;
 	/** The GM lists this game for anyone to find and join (else only its invite link leads here). */
 	listed: boolean;
 }
@@ -163,6 +166,8 @@ export type ClientMessage =
 	| { type: 'ambient_set'; ambient: Ambient }
 	/** GM: how the table looks (an environment asset's id), or null for the plain table. */
 	| { type: 'environment_set'; environment: string | null }
+	/** GM: the world's look (time, sky, weather, haze, grade, backdrop); with a sun the hour sets the band. */
+	| { type: 'world_set'; patch: WorldPatch }
 	/** GM: set the level (elevation) of every cell in the rectangle between two cells. */
 	| { type: 'terrain_set'; from: GridPos; to: GridPos; level: number }
 	/** GM: paints an area's floor, or puts it off the map (`void`). */
@@ -375,6 +380,7 @@ export type ServerMessage =
 	| { type: 'lights_changed'; upserted: Light[]; removed: string[] }
 	| { type: 'ambient_update'; ambient: Ambient }
 	| { type: 'environment_update'; environment: string | null }
+	| { type: 'world_update'; world: WorldLook }
 	/** This client's visibility changed (vision moved, doors, GM reveal, fog toggled). */
 	| { type: 'fog_update'; fog: FogView }
 	/** The ground this client knows changed (the GM reshaped it, or more of it was explored). */
@@ -744,6 +750,10 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'environment_set', environment }
 				: null;
 		}
+		case 'world_set': {
+			const patch = parseWorldPatch(data.patch);
+			return patch ? { type: 'world_set', patch } : null;
+		}
 		case 'ambient_set':
 			return AMBIENTS.includes(data.ambient as Ambient)
 				? { type: 'ambient_set', ambient: data.ambient as Ambient }
@@ -945,6 +955,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
 		ambient_update: (d) => typeof d.ambient === 'string',
 		environment_update: (d) => d.environment === null || typeof d.environment === 'string',
+		world_update: (d) => isRecord(d.world) && typeof d.world.time === 'number',
 		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
 		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
 		floor_update: (d) => d.floor === null || typeof d.floor === 'string',
