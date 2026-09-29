@@ -206,6 +206,8 @@ interface ArtMeta {
 	provenance: unknown;
 	swing?: unknown;
 	setPiece?: boolean;
+	/** The pack it downloads with (#192), checked by the build. */
+	pack?: string;
 	textureSize?: number;
 	lods?: { ratio?: number; error?: number; screenSize?: number }[];
 	lockBorder?: boolean;
@@ -414,6 +416,7 @@ async function cookModel(
 		provenance: meta.provenance,
 		...(meta.swing !== undefined ? { swing: meta.swing } : {}),
 		...(setPiece ? { setPiece: true } : {}),
+		...(meta.pack !== undefined ? { pack: meta.pack } : {}),
 		...(screenSizes.length ? { screenSizes } : {})
 	};
 	return new Map([
