@@ -461,6 +461,41 @@ The M63 note's "fog and darkness inside every material instead of planes on the 
 done; the surface library and art bible (M65, #112), the sky (M67, #114, #218) and lighting by
 the hour (#208) are still missing.
 
+## Milestone 65: the asset pipeline and surface library (#112)
+
+What changed in the look:
+
+- **Bevels and baked AO on part-list models** (#190): chamfered edges catch light, and creases
+  between parts darken in the indirect light.
+- **The surface library on floors and walls** (#187): twenty-three stylised CC0 sets (ambientCG,
+  Poly Haven) replace the recipe textures on painted floors and on walls. The living cave has
+  cave-rock walls. The cavern keeps ashlar for its download budget.
+- **Recipe textures at a 512 base** (texture detail): 1K and 2K come from the asset store when the
+  Graphics option asks for them. The metrics and goldens draw the 512 bases.
+- **The great bell** (#196): an in-house textured pilot until the commissioned bell arrives.
+
+Against M64 (the same pairings and conditions):
+
+| Reference | band | m64   | m65   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.193 | 0.166 |
+| 2         | dusk | 0.324 | 0.308 |
+| 3         | dark | 0.127 | 0.135 |
+| 4         | dark | 0.097 | 0.097 |
+| 6         | dark | 0.205 | 0.193 |
+| 7         | day  | 0.113 | 0.125 |
+| 8         | dusk | 0.219 | 0.215 |
+
+Five of seven move toward their references or hold. The torch room (1) gains most, from bevels
+and the crease AO on its crates and table, and the stone walls. Two move away:
+
+- ref 3 (a close, dark shot) and ref 7 (a close day shot) are dominated by painted ground;
+- the stylised photo-sourced sets still carry more fine detail than the references' hand-painted
+  ground, and grass and plaster were flagged in review as reading photographic.
+
+Tuning the stylise step per surface (detail and ramp in each set's `meta.json`) is the lever, and
+the owner's surface review (G2) decides it.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

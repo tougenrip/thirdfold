@@ -674,3 +674,17 @@ which quarters it with no visible loss (occlusion, roughness and metal change sl
 (download, meshopt decode, KTX2 transcode and upload together; WebGL2 and WebGPU alike); the shader
 stages stay the same when it replaces its preview on both backends. The iGPU figures are still to be
 taken.
+
+## The M65 perf re-baseline
+
+The test world on the RTX 4060 Laptop (WebGL2, reduced motion, the 512 bases). Programs,
+pipelines, geometries, draws and render targets are unchanged: 164 programs, 116 draws. Nothing
+leaked over two reloads and two remounts (45 geometries, 79 textures, 164 programs). Idle drew 0
+frames in 2 s.
+
+Two numbers rose, both from the floor surface arrays (#187), the albedo, normal and ORM arrays
+that the terrain kind samples per cell:
+
+- Textures went from 77 to 79.
+- Texture bytes rose by 6.1 MB on every tier (low 53.5 → 59.6 MB, medium 134.6 → 140.7 MB,
+  high 169.2 → 175.3 MB).
