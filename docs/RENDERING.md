@@ -363,6 +363,18 @@ always `ambientFor(world, ambient)`. A sunless table (underground) keeps its ban
 snapping the hour only when it is outside it. Rules read `room.ambient`, never `world.time`; the rest
 is presentation. `world.spec.ts` pins every band edge, so moving a threshold is a deliberate change.
 
+The GM changes it with one message, `world_set { patch }` (`setWorld` in `server/scene.ts`, GM
+only, `lookLimiter`: a burst of 10, then two a second; a new weather kind without a seed gets one from
+the server), and every viewer gets the whole look as `world_update`, the same for everyone (views,
+snapshots, saves and live rooms carry it; the raw-frame test allows only `WorldLook`'s keys in it).
+With a sun, the band follows the hour; only `ambientFor` decides it. One writer, `lookWorld` in
+`server/scene.ts`, sets `room.world` and `room.ambient` together, and everything goes through it:
+`setWorld`, `setBand` (the engine's `{ ambient }` effect, fixtures; with a sun it snaps the hour into
+the band), `setAmbient` (`ambient_set`, kept for older bundles, which now also sends `world_update`)
+and `applyScene`. `server/ambient-writer.spec.ts` fails if anything else under `server/` or `scripts/`
+assigns `.ambient` or `.world`. A band change posts one notice ("X changed the lighting to
+darkness."); moving the hour within a band posts none.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

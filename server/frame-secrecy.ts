@@ -23,6 +23,7 @@ import { decodeMask, type FogView } from '../src/lib/game/visibility';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { Token } from '../src/lib/game/token';
+import { DEFAULT_WORLD, parseWorldLook } from '../src/lib/game/world';
 
 /** Cells from (x0, y0) to (x1, y1), inclusive. */
 export interface Region {
@@ -113,6 +114,12 @@ export function framesLeaks(
 	const environment = (e: unknown) => {
 		if (e !== null && typeof e !== 'string') leak('environment', JSON.stringify(e));
 	};
+	// The world's look is table-wide: only WorldLook's keys (#199), never cells or ids.
+	const world = (w: unknown) => {
+		const extra = unknownKeys(w, DEFAULT_WORLD);
+		if (extra.length) leak('world', `carries ${extra.join(', ')}`);
+		else if (!parseWorldLook(w)) leak('world', 'is not a world look');
+	};
 	const snapshot = (room: RoomSnapshot) => {
 		fog(room.fog);
 		terrain(room.terrain);
@@ -124,6 +131,7 @@ export function framesLeaks(
 		props(room.props);
 		objects(room.objects);
 		environment(room.environment);
+		world(room.world);
 	};
 
 	frames.forEach((frame, n) => {
@@ -159,7 +167,22 @@ export function framesLeaks(
 				if (extra.length) leak('environment', `carries ${extra.join(', ')}`);
 				return environment(msg.environment);
 			}
+			case 'world_update': {
+				const extra = Object.keys(msg).filter((k) => k !== 'type' && k !== 'world');
+				if (extra.length) leak('world', `carries ${extra.join(', ')}`);
+				return world(msg.world);
+			}
 		}
 	});
 	return leaks;
+}
+
+/** Keys of `value` (and of its nested objects) that `shape` doesn't have, as dotted paths. */
+function unknownKeys(value: unknown, shape: object, path = ''): string[] {
+	if (typeof value !== 'object' || value === null) return [];
+	return Object.entries(value).flatMap(([k, v]) => {
+		if (!(k in shape)) return [path + k];
+		const inner = (shape as Record<string, unknown>)[k];
+		return typeof inner === 'object' && inner !== null ? unknownKeys(v, inner, `${path}${k}.`) : [];
+	});
 }

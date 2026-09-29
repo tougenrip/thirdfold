@@ -15,6 +15,7 @@ import {
 	FLASH_MS,
 	interact,
 	postSentries,
+	run,
 	startAdventure,
 	startEncounter
 } from './engine';
@@ -268,5 +269,18 @@ describe('the Hollow', () => {
 		const out = ok(interact(room, ana, 'bell', 'examine'));
 		expect(story().encounter?.id).toBe('hollow');
 		expect(out.log.some((e) => 'text' in e && /spots The Saint/.test(e.text))).toBe(true);
+	});
+});
+
+describe('the ambient effect', () => {
+	it('snaps the hour into the band on a table with a sun, and keeps it on a sunless one', () => {
+		room.world = { ...room.world, sun: true, time: 720 };
+		run(room, story(), [{ ambient: 'dark' }]);
+		expect(room.ambient).toBe('dark');
+		expect(room.world.time).toBe(1380);
+		room.world = { ...room.world, sun: false, time: 600 };
+		run(room, story(), [{ ambient: 'dusk' }]);
+		expect(room.ambient).toBe('dusk');
+		expect(room.world.time).toBe(600);
 	});
 });

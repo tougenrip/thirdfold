@@ -69,7 +69,7 @@ import { tokenAt, type Token } from '../../src/lib/game/token';
 import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
 import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
-import { lightFor, obstacles } from '../scene';
+import { lightFor, obstacles, setBand } from '../scene';
 import { applyScene } from '../scene-io';
 import { creatorIdOf } from '../library-store';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
@@ -988,7 +988,7 @@ export function run(
 			const prop = room.props.get(effect.prop);
 			if (prop) prop.assetId = effect.asset;
 		} else if ('ambient' in effect) {
-			room.ambient = effect.ambient;
+			setBand(room, effect.ambient);
 		} else if ('hurt' in effect) {
 			const def = objectDef(A, effect.hurt.near);
 			const cells = (def && objectCells(room, def)) ?? [];

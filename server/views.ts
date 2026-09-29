@@ -17,6 +17,7 @@ import { encodeFloor, knownFloor } from '../src/lib/game/floor';
 import { encodeLevels, knownLevels } from '../src/lib/game/terrain';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
+import type { WorldLook } from '../src/lib/game/world';
 import {
 	cellIndex,
 	emptyMask,
@@ -50,11 +51,13 @@ export interface View {
 	paused: boolean;
 	/** How the table looks (an environment asset's id): the same for everyone. */
 	environment: string | null;
+	/** How the world looks (world.ts): table-wide, no cells or ids, the same for everyone. */
+	world: WorldLook;
 }
 
 type SceneView = Omit<
 	View,
-	'adventure' | 'terrain' | 'darkness' | 'floor' | 'interior' | 'paused' | 'environment'
+	'adventure' | 'terrain' | 'darkness' | 'floor' | 'interior' | 'paused' | 'environment' | 'world'
 >;
 
 const noFog = (room: Room): FogView => ({
@@ -153,7 +156,8 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 		floor,
 		interior,
 		paused: room.paused,
-		environment: room.environment
+		environment: room.environment,
+		world: room.world
 	};
 }
 
@@ -263,7 +267,8 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		floor: view.floor,
 		interior: view.interior,
 		paused: view.paused,
-		environment: view.environment
+		environment: view.environment,
+		world: structuredClone(view.world)
 	};
 }
 
@@ -282,6 +287,7 @@ export interface SentView {
 	interior: string | null;
 	paused: boolean;
 	environment: string | null;
+	world: string;
 }
 
 export function sentFrom(view: View): SentView {
@@ -298,7 +304,8 @@ export function sentFrom(view: View): SentView {
 		floor: view.floor,
 		interior: view.interior,
 		paused: view.paused,
-		environment: view.environment
+		environment: view.environment,
+		world: JSON.stringify(view.world)
 	};
 }
 
@@ -340,6 +347,9 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 	}
 	if (prev.ambient !== view.ambient)
 		messages.push({ type: 'ambient_update', ambient: view.ambient });
+	if (prev.world !== JSON.stringify(view.world)) {
+		messages.push({ type: 'world_update', world: structuredClone(view.world) });
+	}
 
 	if (prev.fog !== JSON.stringify(view.fog)) messages.push({ type: 'fog_update', fog: view.fog });
 	if (prev.terrain !== view.terrain) {

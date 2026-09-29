@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { LOG_LIMIT } from '$lib/game/chat';
 import { DEFAULT_GRID } from '$lib/game/grid';
 import type { RoomSnapshot } from '$lib/game/protocol';
-import { applyRoomUpdate } from './room-state';
+import { applyRoomUpdate, snapshotOf } from './room-state';
+import { defaultWorldFor } from '$lib/game/world';
 
 function room(): RoomSnapshot {
 	return {
@@ -25,6 +26,7 @@ function room(): RoomSnapshot {
 		interior: null,
 		paused: false,
 		environment: null,
+		world: defaultWorldFor('day'),
 		listed: false
 	};
 }
@@ -213,5 +215,22 @@ describe('applyRoomUpdate', () => {
 		expect(r.adventure).toEqual(adventure);
 		applyRoomUpdate(r, { type: 'adventure_update', adventure: null });
 		expect(r.adventure).toBeNull();
+	});
+});
+
+describe("the world's look", () => {
+	it('follows world_update', () => {
+		const r = room();
+		const world = { ...defaultWorldFor('dark'), sun: false };
+		expect(applyRoomUpdate(r, { type: 'world_update', world })).toBe(true);
+		expect(r.world).toEqual(world);
+	});
+
+	it("gives an older server's snapshot the default look at its band", () => {
+		const r = room() as Partial<RoomSnapshot>;
+		delete r.world;
+		expect(snapshotOf({ ...(r as RoomSnapshot), ambient: 'dusk' }).world).toEqual(
+			defaultWorldFor('dusk')
+		);
 	});
 });

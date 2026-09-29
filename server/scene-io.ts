@@ -8,6 +8,7 @@ import { decodeFloor } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import { decodeMask, emptyMask } from '../src/lib/game/visibility';
 import type { Player, Room } from './rooms';
+import { lookWorld } from './scene';
 
 export function exportScene(room: Room, name: string, now = new Date()): SceneFile {
 	return serializeScene(
@@ -92,8 +93,7 @@ export function applyScene(room: Room, scene: SceneFile): void {
 	room.objects = new Map(scene.objects.map((o) => [o.id, structuredClone(o)]));
 	room.props = new Map(scene.props.map((p) => [p.id, structuredClone(p)]));
 	room.lights = new Map(scene.lights.map((l) => [l.id, structuredClone(l)]));
-	room.ambient = scene.ambient;
-	room.world = structuredClone(scene.world);
+	lookWorld(room, structuredClone(scene.world), scene.ambient);
 	room.terrain = scene.terrain
 		? decodeLevels(scene.terrain, scene.grid.width * scene.grid.height)
 		: null;

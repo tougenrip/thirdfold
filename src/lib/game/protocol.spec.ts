@@ -101,6 +101,19 @@ describe('token messages', () => {
 		expect(
 			parseClientMessage({ type: 'environment_set', environment: 'javascript:alert(1)' })
 		).toBeNull();
+		expect(parseClientMessage({ type: 'world_set', patch: { time: 1260 } })).toEqual({
+			type: 'world_set',
+			patch: { time: 1260 }
+		});
+		expect(parseClientMessage({ type: 'world_set', patch: {} })).toBeNull();
+		expect(
+			parseClientMessage({ type: 'world_set', patch: { weather: { kind: 'rain', since: 5 } } })
+		).toBeNull();
+		expect(
+			parseClientMessage({ type: 'world_set', patch: { weather: { kind: 'locusts' } } })
+		).toBeNull();
+		expect(parseServerMessage({ type: 'world_update', world: { time: 60 } })).not.toBeNull();
+		expect(parseServerMessage({ type: 'world_update', world: null })).toBeNull();
 		expect(
 			parseClientMessage({ type: 'prop_update', propId: 'p', patch: { hidden: false } })
 		).toEqual({ type: 'prop_update', propId: 'p', patch: { hidden: false } });

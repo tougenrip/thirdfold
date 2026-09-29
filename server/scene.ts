@@ -1,7 +1,7 @@
 // Authoritative scene edits. Every function takes the acting player and
 // checks permission and validity before touching the room.
 
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { inBounds, type GridPos } from '../src/lib/game/grid';
 import {
 	cutWall,
@@ -52,6 +52,14 @@ import {
 	type CellMask,
 	type VisionAdder
 } from '../src/lib/game/visibility';
+import {
+	ambientFor,
+	applyWorldPatch,
+	MAX_SEED,
+	withBand,
+	type WorldLook,
+	type WorldPatch
+} from '../src/lib/game/world';
 import { fail, type Player, type Result, type Room } from './rooms';
 
 /** Walls, closed doors and blocking props, as movement and sight see them. */
@@ -482,15 +490,53 @@ export function deleteLight(room: Room, actor: Player, lightId: string): Result<
 	return { ok: true };
 }
 
+/**
+ * The only writer of the rules band: sets the world's look and the band it
+ * decides (`ambientFor`: the hour's with a sun, else `band`).
+ */
+export function lookWorld(
+	room: Room,
+	next: WorldLook,
+	band: Ambient = room.ambient
+): { bandChanged: boolean } {
+	const before = room.ambient;
+	room.world = next;
+	room.ambient = ambientFor(next, band);
+	return { bandChanged: room.ambient !== before };
+}
+
+/** The band set without a permission check (the engine, fixtures): with a sun the hour snaps into it. */
+export function setBand(room: Room, band: Ambient): { changed: boolean } {
+	const before = JSON.stringify(room.world);
+	const { bandChanged } = lookWorld(room, withBand(room.world, band), band);
+	return { changed: bandChanged || JSON.stringify(room.world) !== before };
+}
+
 export function setAmbient(
 	room: Room,
 	actor: Player,
 	ambient: Ambient
 ): Result<{ changed: boolean }> {
 	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
-	const changed = room.ambient !== ambient;
-	room.ambient = ambient;
-	return { ok: true, changed };
+	return { ok: true, ...setBand(room, ambient) };
+}
+
+/** GM: the time, sky, weather, haze, grade and backdrop; a new weather kind gets a seed if none is sent. */
+export function setWorld(
+	room: Room,
+	actor: Player,
+	patch: WorldPatch,
+	now = Date.now()
+): Result<{ changed: boolean; bandChanged: boolean }> {
+	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM sets the time, sky and weather.');
+	const kind = patch.weather?.kind;
+	if (kind !== undefined && kind !== room.world.weather.kind && patch.weather?.seed === undefined) {
+		patch = { ...patch, weather: { ...patch.weather, seed: randomInt(MAX_SEED + 1) } };
+	}
+	const next = applyWorldPatch(room.world, patch, now);
+	const changed = JSON.stringify(next) !== JSON.stringify(room.world);
+	if (!changed) return { ok: true, changed, bandChanged: false };
+	return { ok: true, changed, ...lookWorld(room, next) };
 }
 
 /** GM: how the table looks (an environment asset's id; the client ignores ids it doesn't know). */
