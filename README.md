@@ -193,6 +193,7 @@ every pull request, plus the live Supabase tests against a fresh local Supabase.
 - `docs/ADVENTURES.md`: writing adventures, adventure files, the builder and
   the library.
 - `docs/ASSETS.md`: the asset pipeline.
+- `docs/ART.md`: the art bible: style, budgets, sources, licences and briefs.
 - `docs/PERFORMANCE.md`: how performance is measured, and what changed.
 - `CLAUDE.md`: a detailed map of the architecture, for contributors and
   coding agents.
