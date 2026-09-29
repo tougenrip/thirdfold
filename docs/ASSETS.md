@@ -18,6 +18,7 @@ the built files would not match CI's.
 
 | Kind                             | Source                                                                         | Built into                   |
 | -------------------------------- | ------------------------------------------------------------------------------ | ---------------------------- |
+| The prop catalogue               | `assets/catalog.json` (see Catalogue)                                          | `src/lib/game/catalog.ts`    |
 | Props                            | `assets/models/prop/<id>.json`                                                 | `models/<id>.<hash>.glb`     |
 | Characters                       | `assets/models/character/<id>.json`                                            | `models/<id>.<hash>.glb`     |
 | NPCs                             | `assets/models/npc/<id>.json`                                                  | `models/<id>.<hash>.glb`     |
@@ -92,8 +93,39 @@ A `.glb` made in a modelling tool works too. It must hold only meshes named `bod
 `accent`, with vertex colours, and nothing else (see Rules). If it swings, put its swing in
 `<id>.meta.json`.
 
-Every prop in the catalogue (`ASSETS` in `src/lib/game/props.ts`) must have a model. The catalogue
-says what a prop is (footprint, what it blocks); the model only says how it looks.
+Every prop in the catalogue (see Catalogue) must have a model. The catalogue says what a prop is
+(footprint, what it blocks); the model only says how it looks.
+
+### Catalogue
+
+`assets/catalog.json` lists the props there are. Adding a prop is an entry there plus a model with
+the same id in `assets/models/prop`, then `npm run assets`; no code changes.
+
+```json
+{
+	"props": {
+		"crate": { "name": "Crate", "category": "storage", "w": 1, "h": 1, "blocks": "movement" }
+	},
+	"aliases": { "old-crate": "crate" }
+}
+```
+
+- `name` is at most 40 characters of plain text. `category` is one of `PROP_CATEGORIES` in
+  `src/lib/game/props.ts` (furniture, storage, fixtures, religious, machinery, nature, water, ruins,
+  items, set-pieces), the Build panel's groups. `w` and `h` are the footprint unrotated, 1 to 8
+  cells. `blocks` is `none`, `movement` or `sight`. `jitter`, optional, is 0 to 0.4 of a cell.
+- The build (`server/assets/catalog.ts`) checks it and generates `src/lib/game/catalog.ts`, which is
+  committed and must not be edited by hand; `assets:check` and `catalog.spec.ts` fail when it is out
+  of date. It is a literal, so `AssetId` stays a union of the ids and the built-in adventures'
+  prop ids are type-checked.
+- **Ids are never removed.** `assets/catalog.shipped.json` lists every id ever shipped; the build
+  adds new ones to it (commit it with the prop) and refuses a catalogue that drops one. To rename a
+  prop, give it its new id and alias the old one to it: an alias names a prop, is not itself a prop
+  id, and never names another alias. Every place a prop id comes in (`prop_create`, scene files,
+  saved stories' origins, adventure files) reads it through `resolveAssetId` and keeps the new id,
+  so old saves and published adventures load and nothing past the parse sees an alias. Aliases
+  cover prop ids only; model and environment ids are pattern-checked, and an unknown one draws the
+  placeholder.
 
 ### Textures, materials, environments
 

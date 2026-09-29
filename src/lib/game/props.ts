@@ -1,81 +1,66 @@
-// Props: furniture and scenery. An asset (from the built-in catalog) says
-// what a thing is: its name, its footprint on the grid, and what it blocks.
-// A prop is one placement of an asset: where, which way round, how big.
-// How assets look is a model with the same id (assets/models/prop, built by the asset pipeline); only what
-// matters to the rules lives here.
+// Props: furniture and scenery. An asset (from the catalogue, assets/catalog.json,
+// generated into catalog.ts by `npm run assets`) says what a thing is: its name,
+// its footprint on the grid, and what it blocks. A prop is one placement of an
+// asset: where, which way round, how big. How assets look is a model with the
+// same id (assets/models/prop, built by the asset pipeline); only what matters
+// to the rules lives here.
 
 import { blockingEdges, windowEdges, type Obstacles, type SceneObject } from './objects';
 import { VOID, type FloorMap } from './floor';
 import { inBounds, type GridPos, type SquareGrid } from './grid';
+import { ALIASES, ASSETS } from './catalog';
+
+export { ALIASES, ASSETS };
 
 /** 'movement': can't walk into it. 'sight': can't walk into or see past it. */
 export type PropBlocks = 'none' | 'movement' | 'sight';
 
+/** The palette's groups, in the order the Build panel shows them. */
+export const PROP_CATEGORIES = [
+	'furniture',
+	'storage',
+	'fixtures',
+	'religious',
+	'machinery',
+	'nature',
+	'water',
+	'ruins',
+	'items',
+	'set-pieces'
+] as const;
+export type PropCategory = (typeof PROP_CATEGORIES)[number];
+
 export interface Asset {
 	name: string;
+	category: PropCategory;
 	/** Footprint in cells when unrotated: `w` along x, `h` along y. */
 	w: number;
 	h: number;
 	blocks: PropBlocks;
+	/** How far off its cell's centre a placement may be nudged, as a share of a cell (0 to 0.4). */
+	jitter?: number;
 }
-
-export const ASSETS = {
-	table: { name: 'Table', w: 2, h: 1, blocks: 'movement' },
-	chair: { name: 'Chair', w: 1, h: 1, blocks: 'none' },
-	crate: { name: 'Crate', w: 1, h: 1, blocks: 'movement' },
-	barrel: { name: 'Barrel', w: 1, h: 1, blocks: 'movement' },
-	chest: { name: 'Chest', w: 1, h: 1, blocks: 'movement' },
-	bed: { name: 'Bed', w: 1, h: 2, blocks: 'movement' },
-	bookshelf: { name: 'Bookshelf', w: 2, h: 1, blocks: 'sight' },
-	pillar: { name: 'Pillar', w: 1, h: 1, blocks: 'sight' },
-	statue: { name: 'Statue', w: 1, h: 1, blocks: 'movement' },
-	tree: { name: 'Tree', w: 1, h: 1, blocks: 'sight' },
-	rug: { name: 'Rug', w: 2, h: 2, blocks: 'none' },
-	well: { name: 'Well', w: 2, h: 2, blocks: 'movement' },
-	noticeboard: { name: 'Notice board', w: 1, h: 1, blocks: 'movement' },
-	'chest-open': { name: 'Open chest', w: 1, h: 1, blocks: 'movement' },
-	rubble: { name: 'Rubble', w: 1, h: 1, blocks: 'none' },
-	hatch: { name: 'Floor hatch', w: 1, h: 1, blocks: 'none' },
-	'hatch-open': { name: 'Open hatch', w: 1, h: 1, blocks: 'none' },
-	brazier: { name: 'Brazier', w: 1, h: 1, blocks: 'movement' },
-	ashes: { name: 'Ashes', w: 1, h: 1, blocks: 'none' },
-	altar: { name: 'Altar', w: 2, h: 1, blocks: 'movement' },
-	pew: { name: 'Pew', w: 2, h: 1, blocks: 'movement' },
-	gravestone: { name: 'Gravestone', w: 1, h: 1, blocks: 'movement' },
-	grate: { name: 'Iron grate', w: 1, h: 1, blocks: 'none' },
-	stairs: { name: 'Stair down', w: 1, h: 1, blocks: 'none' },
-	rope: { name: 'Bell rope', w: 1, h: 1, blocks: 'none' },
-	bell: { name: 'Great bell', w: 2, h: 2, blocks: 'movement' },
-	anvil: { name: 'Anvil', w: 1, h: 1, blocks: 'movement' },
-	chains: { name: 'Hanging chains', w: 1, h: 1, blocks: 'none' },
-	'belfry-bell': { name: 'Hanging bell', w: 1, h: 1, blocks: 'movement' },
-	lever: { name: 'Lever', w: 1, h: 1, blocks: 'movement' },
-	'lever-down': { name: 'Lever (pulled)', w: 1, h: 1, blocks: 'movement' },
-	coffin: { name: 'Coffin', w: 1, h: 2, blocks: 'movement' },
-	'coffin-open': { name: 'Open coffin', w: 1, h: 2, blocks: 'movement' },
-	stove: { name: 'Stove', w: 1, h: 1, blocks: 'movement' },
-	boiler: { name: 'Boiler', w: 2, h: 2, blocks: 'sight' },
-	strongbox: { name: 'Strongbox', w: 1, h: 1, blocks: 'movement' },
-	keys: { name: 'Keys', w: 1, h: 1, blocks: 'none' },
-	paper: { name: 'Paper', w: 1, h: 1, blocks: 'none' },
-	handbell: { name: 'Hand bell', w: 1, h: 1, blocks: 'none' },
-	sconce: { name: 'Torch stand', w: 1, h: 1, blocks: 'none' },
-	carvings: { name: 'Carvings', w: 1, h: 1, blocks: 'none' },
-	'great-bell': { name: 'Giant bell', w: 3, h: 3, blocks: 'movement' },
-	gear: { name: 'Great gear', w: 2, h: 2, blocks: 'movement' },
-	water: { name: 'Dark water', w: 2, h: 2, blocks: 'none' },
-	'water-sm': { name: 'Dark water (small)', w: 1, h: 1, blocks: 'none' },
-	'water-lg': { name: 'Dark water (large)', w: 4, h: 4, blocks: 'none' },
-	crack: { name: 'Cracked floor', w: 1, h: 1, blocks: 'none' },
-	heart: { name: 'Great heart', w: 3, h: 3, blocks: 'sight' },
-	'broken-bell': { name: 'Broken bell', w: 3, h: 3, blocks: 'movement' }
-} as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;
 export const ASSET_IDS = Object.keys(ASSETS) as AssetId[];
 
+/** Whether `value` is a catalogue id as it is now (not an alias): for data already read in. */
 export function isAssetId(value: unknown): value is AssetId {
 	return typeof value === 'string' && Object.hasOwn(ASSETS, value);
+}
+
+/**
+ * The catalogue id for an id or an old, aliased one, or null. Every place a
+ * prop id comes in (messages, scene files, story saves, adventure files) reads
+ * it through this and keeps what it returns, so ids are renamed without
+ * breaking a save and nothing past the parse ever sees an alias.
+ */
+export function resolveAssetId(
+	value: unknown,
+	aliases: Readonly<Record<string, AssetId>> = ALIASES
+): AssetId | null {
+	if (isAssetId(value)) return value;
+	return typeof value === 'string' && Object.hasOwn(aliases, value) ? aliases[value] : null;
 }
 
 /** Quarter turns clockwise (seen from above). */

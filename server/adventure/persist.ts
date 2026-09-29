@@ -18,7 +18,7 @@ import {
 	LIBRARY_LIMITS,
 	normalizeCreatorName
 } from '../../src/lib/game/library';
-import { isAssetId, type Rotation } from '../../src/lib/game/props';
+import { resolveAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
@@ -361,12 +361,13 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 		const o = record(raw, 'object');
 		const pos = record(o.pos, 'object');
 		// Items go from table to table with the party; everything else stays where it was.
-		check(def && (def.location === location || def.carry) && isAssetId(o.assetId), 'object');
+		const assetId = resolveAssetId(o.assetId);
+		check(def && (def.location === location || def.carry) && assetId, 'object');
 		const at: GridPos = { x: pos.x as number, y: pos.y as number };
 		check(Number.isInteger(at.x) && Number.isInteger(at.y) && inBounds(scene.grid, at), 'object');
 		// Saves from before things could be turned have none.
 		const rotation = (o.rotation === undefined ? 0 : int(o.rotation, 0, 3, 'object')) as Rotation;
-		origins.set(id, { pos: at, assetId: o.assetId, rotation });
+		origins.set(id, { pos: at, assetId, rotation });
 	}
 
 	// Saves from before things could be carried have nothing in anyone's hands.

@@ -1,7 +1,10 @@
 // Builds the assets: `npm run assets` (writes static/assets), or
 // `npm run assets -- --check` (fails if static/assets isn't what the sources build).
+// Also generates the prop catalogue's module and shipped list (catalog.ts).
 
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { CATALOG_MODULE, SHIPPED_FILE, shippedText, staleCatalog } from './catalog';
 import { AssetError, buildAssets, staleAssets, writeAssets } from './pipeline';
 import { checkScenes } from './scenes';
 
@@ -20,7 +23,7 @@ try {
 	const m = built.manifest;
 	const summary = `${count(m.models)} models, ${count(m.textures)} textures, ${count(m.materials)} materials, ${count(m.environments)} environments, ${count(m.audio)} sounds (${(bytes / 1024).toFixed(0)} kB)`;
 	if (process.argv.includes('--check')) {
-		const stale = staleAssets(OUT, built);
+		const stale = [...staleAssets(OUT, built), ...staleCatalog('.', SOURCES, built)];
 		if (stale.length) {
 			console.error(
 				`static/assets is out of date; run \`npm run assets\`:\n  ${stale.join('\n  ')}`
@@ -30,6 +33,8 @@ try {
 		console.log(`static/assets is up to date: ${summary}`);
 	} else {
 		const { written, removed } = writeAssets(OUT, built);
+		writeFileSync(CATALOG_MODULE, built.catalogModule);
+		writeFileSync(path.join(SOURCES, SHIPPED_FILE), shippedText(built.shipped));
 		console.log(`Built ${summary}: ${written} written, ${removed} removed.`);
 	}
 } catch (err) {

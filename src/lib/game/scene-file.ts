@@ -29,7 +29,7 @@ import { normalizeName } from './protocol';
 import {
 	footprintCells,
 	footprintInBounds,
-	isAssetId,
+	resolveAssetId,
 	MAX_PROPS_PER_ROOM,
 	PROP_SCALE,
 	propBlocks,
@@ -412,7 +412,8 @@ export function parseSceneFile(input: unknown): SceneParse {
 		if (!isRecord(raw) || typeof raw.id !== 'string' || !ID.test(raw.id) || ids.has(raw.id)) {
 			return bad('A prop has a missing or duplicate id.');
 		}
-		if (!isAssetId(raw.assetId)) return bad('A prop uses an unknown asset.');
+		const assetId = resolveAssetId(raw.assetId);
+		if (!assetId) return bad('A prop uses an unknown asset.');
 		const rotation = int(raw.rotation, 0, 3) as Prop['rotation'] | null;
 		if (rotation === null) return bad('A prop has an invalid rotation.');
 		const scale = raw.scale;
@@ -428,7 +429,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 		}
 		const prop: Prop = {
 			id: raw.id,
-			assetId: raw.assetId,
+			assetId,
 			pos,
 			rotation,
 			scale,

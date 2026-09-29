@@ -1,0 +1,348 @@
+{
+	"props": {
+		"table": {
+			"name": "Table",
+			"category": "furniture",
+			"w": 2,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"chair": {
+			"name": "Chair",
+			"category": "furniture",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"crate": {
+			"name": "Crate",
+			"category": "storage",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"barrel": {
+			"name": "Barrel",
+			"category": "storage",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"chest": {
+			"name": "Chest",
+			"category": "storage",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"bed": {
+			"name": "Bed",
+			"category": "furniture",
+			"w": 1,
+			"h": 2,
+			"blocks": "movement"
+		},
+		"bookshelf": {
+			"name": "Bookshelf",
+			"category": "furniture",
+			"w": 2,
+			"h": 1,
+			"blocks": "sight"
+		},
+		"pillar": {
+			"name": "Pillar",
+			"category": "ruins",
+			"w": 1,
+			"h": 1,
+			"blocks": "sight"
+		},
+		"statue": {
+			"name": "Statue",
+			"category": "religious",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"tree": {
+			"name": "Tree",
+			"category": "nature",
+			"w": 1,
+			"h": 1,
+			"blocks": "sight"
+		},
+		"rug": {
+			"name": "Rug",
+			"category": "furniture",
+			"w": 2,
+			"h": 2,
+			"blocks": "none"
+		},
+		"well": {
+			"name": "Well",
+			"category": "set-pieces",
+			"w": 2,
+			"h": 2,
+			"blocks": "movement"
+		},
+		"noticeboard": {
+			"name": "Notice board",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"chest-open": {
+			"name": "Open chest",
+			"category": "storage",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"rubble": {
+			"name": "Rubble",
+			"category": "ruins",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"hatch": {
+			"name": "Floor hatch",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"hatch-open": {
+			"name": "Open hatch",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"brazier": {
+			"name": "Brazier",
+			"category": "set-pieces",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"ashes": {
+			"name": "Ashes",
+			"category": "ruins",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"altar": {
+			"name": "Altar",
+			"category": "religious",
+			"w": 2,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"pew": {
+			"name": "Pew",
+			"category": "furniture",
+			"w": 2,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"gravestone": {
+			"name": "Gravestone",
+			"category": "religious",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"grate": {
+			"name": "Iron grate",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"stairs": {
+			"name": "Stair down",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"rope": {
+			"name": "Bell rope",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"bell": {
+			"name": "Great bell",
+			"category": "set-pieces",
+			"w": 2,
+			"h": 2,
+			"blocks": "movement"
+		},
+		"anvil": {
+			"name": "Anvil",
+			"category": "machinery",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"chains": {
+			"name": "Hanging chains",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"belfry-bell": {
+			"name": "Hanging bell",
+			"category": "set-pieces",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"lever": {
+			"name": "Lever",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"lever-down": {
+			"name": "Lever (pulled)",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"coffin": {
+			"name": "Coffin",
+			"category": "storage",
+			"w": 1,
+			"h": 2,
+			"blocks": "movement"
+		},
+		"coffin-open": {
+			"name": "Open coffin",
+			"category": "storage",
+			"w": 1,
+			"h": 2,
+			"blocks": "movement"
+		},
+		"stove": {
+			"name": "Stove",
+			"category": "machinery",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"boiler": {
+			"name": "Boiler",
+			"category": "machinery",
+			"w": 2,
+			"h": 2,
+			"blocks": "sight"
+		},
+		"strongbox": {
+			"name": "Strongbox",
+			"category": "storage",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
+		},
+		"keys": {
+			"name": "Keys",
+			"category": "items",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"paper": {
+			"name": "Paper",
+			"category": "items",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"handbell": {
+			"name": "Hand bell",
+			"category": "items",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"sconce": {
+			"name": "Torch stand",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"carvings": {
+			"name": "Carvings",
+			"category": "religious",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"great-bell": {
+			"name": "Giant bell",
+			"category": "set-pieces",
+			"w": 3,
+			"h": 3,
+			"blocks": "movement"
+		},
+		"gear": {
+			"name": "Great gear",
+			"category": "machinery",
+			"w": 2,
+			"h": 2,
+			"blocks": "movement"
+		},
+		"water": {
+			"name": "Dark water",
+			"category": "water",
+			"w": 2,
+			"h": 2,
+			"blocks": "none"
+		},
+		"water-sm": {
+			"name": "Dark water (small)",
+			"category": "water",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"water-lg": {
+			"name": "Dark water (large)",
+			"category": "water",
+			"w": 4,
+			"h": 4,
+			"blocks": "none"
+		},
+		"crack": {
+			"name": "Cracked floor",
+			"category": "ruins",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"heart": {
+			"name": "Great heart",
+			"category": "set-pieces",
+			"w": 3,
+			"h": 3,
+			"blocks": "sight"
+		},
+		"broken-bell": {
+			"name": "Broken bell",
+			"category": "set-pieces",
+			"w": 3,
+			"h": 3,
+			"blocks": "movement"
+		}
+	},
+	"aliases": {}
+}
