@@ -1420,6 +1420,29 @@ describe("creators' adventures over the wire", () => {
 		]);
 	});
 
+	it("plays a file's world effect: the hour and weather change, and the band follows (#205)", async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		const file = JSON.parse(JSON.stringify(exampleAdventure()));
+		file.start.arrival.push({ world: { time: 1320, weather: { kind: 'snow', intensity: 0.6 } } });
+
+		gm.send({ type: 'adventure_start', file });
+		const reset = await pip.until('room_reset');
+		expect(reset.room).toMatchObject({ ambient: 'day', world: { sun: true } });
+		pip.send({ type: 'adventure_claim', characterId: 'saint' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Saint');
+		gm.send({ type: 'adventure_begin' });
+		expect(await pip.until('ambient_update')).toEqual({ type: 'ambient_update', ambient: 'dark' });
+		expect((await pip.until('world_update')).world).toMatchObject({
+			time: 1320,
+			weather: { kind: 'snow', intensity: 0.6 }
+		});
+	});
+
 	it('lists the adventures on this server, and starts one by id', async () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });

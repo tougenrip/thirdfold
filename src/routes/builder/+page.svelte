@@ -353,6 +353,8 @@
 {@render datalist('ids-encounters', ids.encounters)}
 {@render datalist('ids-locations', ids.locations)}
 {@render datalist('ids-enemies', ids.enemies)}
+{@render datalist('ids-lights', ids.lights)}
+{@render datalist('ids-props', ids.props)}
 
 <div class="builder">
 	<header>

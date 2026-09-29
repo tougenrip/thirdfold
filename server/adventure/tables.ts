@@ -10,7 +10,12 @@ import type { AssetId, Prop, Rotation } from '../../src/lib/game/props';
 import { SCENE_FILE_VERSION, type SavedToken, type SceneFile } from '../../src/lib/game/scene-file';
 import { encodeLevels, flatLevels, withLevel, type LevelMap } from '../../src/lib/game/terrain';
 import { emptyMask, encodeMask, rectCells } from '../../src/lib/game/visibility';
-import { defaultWorldFor } from '../../src/lib/game/world';
+import {
+	ambientFor,
+	applyWorldPatch,
+	defaultWorldFor,
+	type WorldPatch
+} from '../../src/lib/game/world';
 
 export const wall = (id: string, a: GridPos, b: GridPos): SceneObject => ({
 	id,
@@ -65,6 +70,8 @@ export interface TableParts {
 	lights: Light[];
 	tokens: SavedToken[];
 	ambient: Ambient;
+	/** How the world looks over the default at `ambient`'s hour; with a sun its hour must fall in `ambient`. */
+	world?: WorldPatch;
 	/** Already in view when the party arrives: an inclusive rectangle of cells. */
 	arrival: { from: GridPos; to: GridPos };
 	/** Raised ground, applied in order (later areas win); the rest is level 0. */
@@ -99,6 +106,10 @@ export function stair(from: number, cells: readonly { from: GridPos; to: GridPos
 export const at = (x: number, y: number) => ({ from: { x, y }, to: { x, y } });
 
 export function table(parts: TableParts, now = new Date()): SceneFile {
+	const world = applyWorldPatch(defaultWorldFor(parts.ambient), parts.world ?? {}, now.getTime());
+	if (ambientFor(world, parts.ambient) !== parts.ambient) {
+		throw new Error(`${parts.name}: its world's hour is not ${parts.ambient}`);
+	}
 	const revealed = emptyMask(parts.grid);
 	for (const i of rectCells(parts.grid, parts.arrival.from, parts.arrival.to)) revealed[i] = 1;
 	let levels: LevelMap | null = null;
@@ -124,7 +135,7 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		props: parts.props,
 		lights: parts.lights,
 		ambient: parts.ambient,
-		world: defaultWorldFor(parts.ambient),
+		world,
 		interior: interior.some((v) => v) ? encodeMask(interior) : null,
 		fog: { enabled: true, revealed: encodeMask(revealed), shared: false },
 		discovery: {},

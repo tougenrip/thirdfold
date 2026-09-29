@@ -31,10 +31,11 @@ import type {
 import type { Attack, CharacterDef } from './characters';
 import type { Cue, Shot } from '../game/chat';
 import type { GridPos } from '../game/grid';
-import type { Ambient } from '../game/lights';
+import type { Ambient, LightLook } from '../game/lights';
 import type { MotionKind, Sound } from '../game/motion';
 import type { AssetId } from '../game/props';
 import type { SavedToken, SceneFile } from '../game/scene-file';
+import type { WorldPatch } from '../game/world';
 
 /** An inclusive rectangle of cells. */
 export interface Area {
@@ -133,12 +134,14 @@ export type Effect =
 	| { phase: string }
 	/** Its hazard opens (cracks under the party). */
 	| { hazard: 'open' }
-	/** A light changes. */
-	| { light: string; on?: boolean; color?: string; radius?: number }
+	/** A light changes: switched, recoloured, its reach, and any of its look (kind, flicker...). */
+	| ({ light: string; on?: boolean; color?: string; radius?: number } & Partial<LightLook>)
 	/** A prop becomes another asset. */
 	| { prop: string; asset: AssetId }
-	/** The time of day. */
+	/** The time of day, as a band (the hour snaps into it with a sun; kept for older files). */
 	| { ambient: Ambient }
+	/** The world's look: the hour (which sets the band with a sun), sky, weather, haze, grade. */
+	| { world: WorldPatch }
 	/** Standing characters near an object are hurt. */
 	| { hurt: { near: string; within: number; dice: string; text: string } }
 	/** An enemy comes up and joins the fight (the first free cell of `at`). */

@@ -7,6 +7,7 @@ import {
 	formatArea,
 	formatCells,
 	idFrom,
+	idsOf,
 	newTable,
 	parseArea,
 	parseCell,
@@ -31,6 +32,16 @@ describe('the builder draft', () => {
 		expect(parseArea(formatArea(area))).toEqual(area);
 		expect(parseArea('4,4')).toEqual({ from: { x: 4, y: 4 }, to: { x: 4, y: 4 } });
 		expect(parseList(' a, b ,, c ')).toEqual(['a', 'b', 'c']);
+	});
+
+	it("offers the places' light and prop ids once each, from tables of any version", () => {
+		const file = exampleAdventure();
+		const ids = idsOf(file);
+		expect(ids.props).toEqual(['sack', 'stair', 'hoard', 'hoard-2']);
+		expect(ids.lights).toEqual([]);
+		// A draft kept from before may hold a table without lights.
+		delete (file.locations.yard.scene as { lights?: unknown }).lights;
+		expect(idsOf(file).props).toContain('sack');
 	});
 
 	it('starts a new table as a current (v10) scene file, at noon under a sun', () => {

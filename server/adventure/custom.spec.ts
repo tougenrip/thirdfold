@@ -42,6 +42,31 @@ describe("creators' adventures", () => {
 		}
 	});
 
+	it('changes the world and its lights by effects, and the hour moves the band (#205)', () => {
+		const lit = file();
+		lit.locations.yard.scene.lights.push({
+			id: 'lamp',
+			pos: { x: 2, y: 2 },
+			radius: 3,
+			color: '#ffa04d',
+			on: true
+		});
+		lit.start.arrival.push(
+			{ world: { time: 1320, weather: { kind: 'rain', intensity: 0.4 } } },
+			{ light: 'lamp', kind: 'lantern', flicker: 'candle' }
+		);
+		const rooms = new RoomManager();
+		const { room, player: gm } = ok(rooms.create('Gia'));
+		const ana = ok(rooms.join(room.id, 'Ana', 'player')).player;
+		ok(engine.startAdventure(room, gm, ok(loadCustomAdventure(lit)).adventure.id));
+		ok(engine.claimCharacter(room, ana, 'veil'));
+		expect(room.ambient).toBe('day');
+		ok(engine.beginAdventure(room, gm, 5000));
+		expect(room.world).toMatchObject({ time: 1320, weather: { kind: 'rain', since: 5000 } });
+		expect(room.ambient).toBe('dark');
+		expect(room.lights.get('lamp')).toMatchObject({ on: true, kind: 'lantern', flicker: 'candle' });
+	});
+
 	it('refuses a file that is broken, naming the problem', () => {
 		const broken = file();
 		broken.start.chapter = 'nowhere';

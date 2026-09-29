@@ -129,6 +129,64 @@ describe('adventure files', () => {
 		);
 	});
 
+	it('parses world effects and light looks, and still the time of day (#205)', () => {
+		const file = json(exampleAdventure());
+		file.locations.yard.scene.lights.push({
+			id: 'lamp',
+			pos: { x: 2, y: 2 },
+			radius: 3,
+			color: '#ffa04d',
+			on: true
+		});
+		const arrival = file.start.arrival as unknown[];
+		arrival.push(
+			{ world: { time: 1290, weather: { kind: 'rain', intensity: 0.5 }, grade: { exposure: -1 } } },
+			{ light: 'lamp', on: false, kind: 'lantern', flicker: 'candle', fixture: false },
+			{ prop: 'sack', asset: 'barrel' },
+			{ ambient: 'dusk' }
+		);
+		const loaded = loadAdventureFile(file, 'custom-world');
+		if (!loaded.ok) throw new Error(`${loaded.error}\n${loaded.problems?.join('\n')}`);
+		expect(loaded.adventure.start.arrival.slice(-4)).toEqual(arrival.slice(-4));
+		expect(parseOk(json(parseOk(file)))).toEqual(parseOk(file));
+	});
+
+	it('names the path of a bad world patch or light look', () => {
+		const withEffect = (effect: unknown) => {
+			const file = json(exampleAdventure());
+			(file.start.arrival as unknown[]).push(effect);
+			return parseAdventureFile(file);
+		};
+		const at = (path: string) => ({ ok: false, error: expect.stringContaining(path) });
+		expect(withEffect({ world: { weather: { kind: 'hail' } } })).toMatchObject(
+			at('start.arrival[1].world.weather')
+		);
+		expect(withEffect({ world: { weather: { since: 5 } } })).toMatchObject(
+			at('start.arrival[1].world.weather')
+		);
+		expect(withEffect({ world: { time: 'noon' } })).toMatchObject(
+			at('start.arrival[1].world.time')
+		);
+		expect(withEffect({ world: {} })).toMatchObject(at('start.arrival[1].world'));
+		expect(withEffect({ world: 'dusk' })).toMatchObject(at('start.arrival[1].world'));
+		expect(withEffect({ light: 'lamp', kind: 'laser' })).toMatchObject(at('start.arrival[1].kind'));
+		expect(withEffect({ light: 'lamp', facing: 5 })).toMatchObject(at('start.arrival[1].facing'));
+	});
+
+	it('names light and prop effects whose ids no table has', () => {
+		const file = json(exampleAdventure());
+		(file.start.arrival as unknown[]).push(
+			{ light: 'nope', on: true },
+			{ prop: 'gone', asset: 'barrel' }
+		);
+		const loaded = loadAdventureFile(file, 'custom-ids');
+		expect(loaded.ok).toBe(false);
+		if (loaded.ok) return;
+		expect(loaded.problems).toEqual(
+			expect.arrayContaining(['arrival: no light "nope"', 'arrival: no prop "gone"'])
+		);
+	});
+
 	it('compiles a file without people or fights', () => {
 		const file = json(exampleAdventure());
 		const bare = { ...file, npcs: {}, reactions: [], encounters: {}, enemies: {} };

@@ -36,11 +36,12 @@ import { AMBUSH } from './define';
 import { validateAdventure } from './validate';
 import { CUES, type Shot } from '../game/chat';
 import type { GridPos } from '../game/grid';
-import { AMBIENTS } from '../game/lights';
+import { AMBIENTS, LIGHT_LOOK_KEYS, parseLightLook } from '../game/lights';
 import { MOTION_KINDS, SOUNDS } from '../game/motion';
 import { resolveAssetId, type AssetId } from '../game/props';
 import { parseSceneFile, type SavedToken, type SceneFile } from '../game/scene-file';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
+import { parseWorldPatch, type WorldPatch } from '../game/world';
 
 export const ADVENTURE_FILE_FORMAT = 'thirdfold-adventure';
 export const ADVENTURE_FILE_VERSION = 1;
@@ -356,6 +357,23 @@ function rules(v: unknown, path: string, depth: number): Rule[] {
 	);
 }
 
+/** A light effect's look fields; a bad one names its path. */
+function lightLook(e: Record<string, unknown>, path: string) {
+	for (const k of LIGHT_LOOK_KEYS) {
+		if (!parseLightLook({ [k]: e[k] })) bad(`${path}.${k}`, `not a light's ${k}`);
+	}
+	return parseLightLook(e)!;
+}
+
+/** A change to the world's look; a bad one names the field that is wrong. */
+function worldPatch(v: unknown, path: string): WorldPatch {
+	const w = obj(v, path);
+	for (const k of ['time', 'rate', 'sun', 'sky', 'weather', 'haze', 'grade', 'backdrop']) {
+		if (w[k] !== undefined && !parseWorldPatch({ [k]: w[k] })) bad(`${path}.${k}`, 'not valid');
+	}
+	return parseWorldPatch(w) ?? bad(path, "expected at least one field of the world's look");
+}
+
 /** The effect kinds, by the key that names each. */
 export const EFFECT_KINDS = [
 	'say',
@@ -382,6 +400,7 @@ export const EFFECT_KINDS = [
 	'light',
 	'prop',
 	'ambient',
+	'world',
 	'hurt',
 	'spawn',
 	'rules'
@@ -479,13 +498,16 @@ function effect(v: unknown, path: string, depth: number): Effect {
 				light: id(e.light, at),
 				...(e.on === undefined ? {} : { on: e.on === true }),
 				...(color === undefined ? {} : { color: color as string }),
-				...(e.radius === undefined ? {} : { radius: int(e.radius, `${path}.radius`, 0, 20) })
+				...(e.radius === undefined ? {} : { radius: int(e.radius, `${path}.radius`, 0, 20) }),
+				...lightLook(e, path)
 			};
 		}
 		case 'prop':
 			return { prop: id(e.prop, at), asset: asset(e.asset, `${path}.asset`) };
 		case 'ambient':
 			return { ambient: oneOf(e.ambient, AMBIENTS, at) };
+		case 'world':
+			return { world: worldPatch(e.world, at) };
 		case 'hurt': {
 			const h = obj(e.hurt, at);
 			return {

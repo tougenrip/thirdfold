@@ -66,10 +66,12 @@ import {
 } from '../../src/lib/game/props';
 import type { AdventureControl, CharacterPatch, Direction } from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
+import { LIGHT_LOOK_KEYS } from '../../src/lib/game/lights';
 import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
+import { applyWorldPatch } from '../../src/lib/game/world';
 import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
-import { lightFor, obstacles, setBand } from '../scene';
+import { lightFor, lookWorld, obstacles, setBand } from '../scene';
 import { applyScene } from '../scene-io';
 import { creatorIdOf } from '../library-store';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
@@ -984,11 +986,16 @@ export function run(
 			if (effect.on !== undefined) light.on = effect.on;
 			if (effect.color !== undefined) light.color = effect.color;
 			if (effect.radius !== undefined) light.radius = effect.radius;
+			for (const key of LIGHT_LOOK_KEYS) {
+				if (effect[key] !== undefined) Object.assign(light, { [key]: effect[key] });
+			}
 		} else if ('prop' in effect) {
 			const prop = room.props.get(effect.prop);
 			if (prop) prop.assetId = effect.asset;
 		} else if ('ambient' in effect) {
 			setBand(room, effect.ambient);
+		} else if ('world' in effect) {
+			lookWorld(room, applyWorldPatch(room.world, effect.world, now));
 		} else if ('hurt' in effect) {
 			const def = objectDef(A, effect.hurt.near);
 			const cells = (def && objectCells(room, def)) ?? [];
