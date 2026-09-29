@@ -11,7 +11,8 @@
 //   assets/models/<kind>/<id>.json      a model from primitive parts (kind: a MODEL_KINDS folder)
 //   assets/models/<kind>/<id>.glb       or a model made elsewhere or cooked, with <id>.meta.json for its swing and pack
 //   assets/models/<kind>/<id>.preview.json  a part list shown until the model arrives (#192)
-//   assets/environments/<id>.json       how a place looks: materials for floor, ground, walls, table?
+//   assets/environments/<id>.json       how a place looks: materials for floor, ground, walls, table?,
+//                                       and its surfaces (#187: surface-<id>-* textures the cook made)
 //   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
 //   <folder>/_provenance.json | <id>.meta.json  where each came from and on what terms (licence.ts)
@@ -43,6 +44,7 @@ import {
 	type EnvironmentDef,
 	type Manifest,
 	type MaterialDef,
+	type SurfaceEntry,
 	type TextureEntry,
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
@@ -53,7 +55,7 @@ import { provenanceFor } from './licence';
 import { AssetError, emitter, idOf, isRecord, list, readJson } from './pipeline-files';
 import { buildModels } from './pipeline-models';
 import { assignPacks } from './pipeline-packs';
-import { buildGrades, buildTextures } from './pipeline-textures';
+import { buildGrades, buildSurfaces, buildTextures } from './pipeline-textures';
 
 export { AssetError } from './pipeline-files';
 
@@ -118,7 +120,8 @@ function buildMaterials(
 /** assets/environments: the materials of each place's floor, ground, walls and (optionally) rim. */
 function buildEnvironments(
 	dir: string,
-	materials: Record<string, MaterialDef>
+	materials: Record<string, MaterialDef>,
+	surfaces: Record<string, SurfaceEntry>
 ): Record<string, EnvironmentDef> {
 	const environments: Record<string, EnvironmentDef> = {};
 	const envDir = path.join(dir, 'environments');
@@ -137,12 +140,23 @@ function buildEnvironments(
 			}
 			return m;
 		};
+		// Its surfaces (#187): the floors by layer, and the walls' (the first is worn).
+		const ids = (k: 'floors' | 'walls') => {
+			const list = isRecord(raw.surfaces) ? raw.surfaces[k] : undefined;
+			if (!Array.isArray(list) || !list.every((s) => Object.hasOwn(surfaces, s))) {
+				throw new AssetError(source, `"surfaces.${k}" must list surfaces of the library`);
+			}
+			return list as string[];
+		};
 		environments[id] = {
 			name: raw.name,
 			surface: material('surface'),
 			ground: material('ground'),
 			walls: material('walls'),
-			...(raw.table !== undefined ? { table: material('table') } : {})
+			...(raw.table !== undefined ? { table: material('table') } : {}),
+			...(raw.surfaces !== undefined
+				? { surfaces: { floors: ids('floors'), walls: ids('walls') } }
+				: {})
 		};
 	}
 	return environments;
@@ -176,7 +190,8 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	const textures = buildTextures(dir, emit);
 	const materials = buildMaterials(dir, textures);
 	const models = await buildModels(dir, emit, materials);
-	const environments = buildEnvironments(dir, materials);
+	const surfaces = buildSurfaces(textures);
+	const environments = buildEnvironments(dir, materials, surfaces);
 	buildGrades(dir, emit, environments, textures);
 	const audio = buildAudio(dir, emit);
 
@@ -192,7 +207,7 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 		models,
 		textures,
 		materials,
-		surfaces: {},
+		surfaces,
 		environments,
 		audio,
 		packs: {},

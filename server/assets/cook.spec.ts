@@ -97,7 +97,7 @@ describe('decodePng', () => {
 		}
 	});
 
-	it('reads grey, grey and alpha, RGB and 16-bit grey as RGBA, through every row filter', () => {
+	it('reads grey, grey and alpha, RGB and 16-bit grey and RGB as RGBA, through every row filter', () => {
 		const [w, h] = [3, 6];
 		const values = (n: number) => Array.from({ length: n }, (_, i) => (i * 53) % 255);
 		const grey = values(w * h);
@@ -116,11 +116,20 @@ describe('decodePng', () => {
 		expect(decodePng(png(0, 16, w, h, deep)).data).toEqual(
 			Uint8Array.from(deep.flatMap((v) => [v >> 8, v >> 8, v >> 8, 255]))
 		);
+		// A scan's 16-bit normal map (#187).
+		const deepRgb = values(w * h * 3).map((v) => v * 256 + 7);
+		expect(decodePng(png(2, 16, w, h, deepRgb)).data).toEqual(
+			Uint8Array.from(
+				grey.flatMap((_, i) => [0, 1, 2].map((c) => deepRgb[i * 3 + c] >> 8).concat(255))
+			)
+		);
 	});
 
-	it('refuses palettes, 16-bit colour and interlacing', () => {
-		expect(() => decodePng(png(3, 8, 2, 2, [0, 0, 0, 0]))).toThrow(/export 8-bit/);
-		expect(() => decodePng(png(2, 16, 1, 1, [0, 0, 0]))).toThrow(/export 8-bit/);
+	it('refuses palettes, other depths and interlacing', () => {
+		expect(() => decodePng(png(3, 8, 2, 2, [0, 0, 0, 0]))).toThrow(/export 8- or 16-bit/);
+		const shallow = png(0, 8, 2, 2, [0, 0, 0, 0]);
+		shallow[24] = 4;
+		expect(() => decodePng(shallow)).toThrow(/export 8- or 16-bit/);
 		const interlaced = png(0, 8, 2, 2, [0, 0, 0, 0]);
 		interlaced[28] = 1;
 		expect(() => decodePng(interlaced)).toThrow(/interlaced/);

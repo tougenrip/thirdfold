@@ -95,7 +95,7 @@ describe('the build', () => {
 			)
 		);
 
-	it('credits every file with an allowlisted licence, the backfilled ones as ours', () => {
+	it('credits every file with an allowlisted licence: the surfaces (#187) as ambientCG, the rest as ours', () => {
 		const { manifest } = built;
 		const files = [
 			...Object.values(manifest.models),
@@ -105,10 +105,16 @@ describe('the build', () => {
 		expect(files.length).toBeGreaterThan(100);
 		for (const f of files) {
 			expect(LICENSES).toContain(f.credit.license);
-			expect(f.credit).toEqual({
-				license: 'LicenseRef-thirdfold-original',
-				author: 'thirdfold contributors'
-			});
+			expect(f.credit).toEqual(
+				f.file.startsWith('textures/surface-')
+					? {
+							license: 'CC0-1.0',
+							author: 'ambientCG',
+							source: expect.stringMatching(/^https:\/\/ambientcg\.com\/get\?file=/),
+							modified: true
+						}
+					: { license: 'LicenseRef-thirdfold-original', author: 'thirdfold contributors' }
+			);
 		}
 	});
 

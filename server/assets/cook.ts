@@ -6,6 +6,8 @@
 //   art/<kind>/<id>/<id>.glb + meta.json   a model (a Blender export, PNG textures embedded)
 //                                          → assets/models/<kind>/<id>.glb + <id>.meta.json
 //   art/texture/<id>/<id>.png + meta.json  a texture → assets/textures/<id>.ktx2 + <id>.meta.json
+//   art/surfaces/<id>/meta.json            a surface's CC0 set (scripts/fetch-surfaces.mjs), stylised
+//                                          (cook-surfaces.ts) → assets/textures/surface-<id>-*.ktx2
 //
 // A model is checked, cleaned (dedup, prune), given MikkTSpace tangents where
 // it has a normal map, welded, simplified into `<role>_lod1` and `_lod2`,
@@ -43,6 +45,7 @@ import {
 	type ModelKind,
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
+import { SURFACE_SOURCES, cookSurface } from './cook-surfaces';
 import { KTX2_SETTINGS, cookTexture } from './cook-textures';
 import { checkGlb } from './glb';
 import { EXTENSIONS, MESH_NAME } from './gltf-check';
@@ -61,7 +64,9 @@ export const COOK_SETTINGS = {
 	/** A role with fewer triangles gets no LODs. */
 	lodFloor: 300,
 	meshopt: 'medium',
-	ktx2: KTX2_SETTINGS
+	ktx2: KTX2_SETTINGS,
+	/** The surface library's stylise step (#187): bump it when stylise.ts changes what it makes. */
+	stylise: 1
 } as const;
 
 /** The packages whose versions change the cooked bytes. */
@@ -83,7 +88,7 @@ export interface Lock {
 
 const sha256 = (data: Uint8Array) => createHash('sha256').update(data).digest('hex');
 /** JSON as prettier would lay it out: tabs, and short lists of numbers or words on one line. */
-const json = (v: unknown) =>
+export const json = (v: unknown) =>
 	JSON.stringify(v, null, '\t').replace(
 		/\[[^[\]{}]*\]/g,
 		(list) => `[${(JSON.parse(list) as unknown[]).map((x) => JSON.stringify(x)).join(', ')}]`
@@ -109,15 +114,18 @@ export function toolVersions(): Record<string, string> {
 function sources(art: string): Map<string, Record<string, string>> {
 	const found = new Map<string, Record<string, string>>();
 	for (const kind of folders(art)) {
-		if (kind !== 'texture' && !isModelKind(kind)) {
+		if (kind !== 'texture' && kind !== 'surfaces' && !isModelKind(kind)) {
 			throw new AssetError(
 				path.join(art, kind),
-				`art folders are texture, ${MODEL_KINDS.join(', ')}`
+				`art folders are texture, surfaces, ${MODEL_KINDS.join(', ')}`
 			);
 		}
 		for (const id of folders(path.join(art, kind))) {
 			const dir = path.join(art, kind, id);
-			const files = readdirSync(dir).sort();
+			// A surface's source set is pinned by its meta.json's hash: only that is committed.
+			const files = readdirSync(dir)
+				.filter((f) => kind !== 'surfaces' || SURFACE_SOURCES.includes(f))
+				.sort();
 			found.set(
 				`${kind}/${id}`,
 				Object.fromEntries(files.map((f) => [f, sha256(readFileSync(path.join(dir, f)))]))
@@ -187,7 +195,9 @@ export async function cook(
 		const outputs =
 			kind === 'texture'
 				? await cookTextureEntry(path.join(art, key), id)
-				: await cookModel(path.join(art, key), kind as ModelKind, id);
+				: kind === 'surfaces'
+					? await cookSurface(path.join(art, key), id)
+					: await cookModel(path.join(art, key), kind as ModelKind, id);
 		const hashes: Record<string, string> = {};
 		for (const [file, data] of outputs) {
 			const out = path.join(assets, file);
@@ -214,7 +224,7 @@ interface ArtMeta {
 	usage?: TextureUsage;
 }
 
-function readMeta(dir: string): ArtMeta {
+export function readMeta(dir: string): ArtMeta {
 	const file = path.join(dir, 'meta.json');
 	if (!existsSync(file)) throw new AssetError(dir, 'needs a meta.json with its provenance');
 	const meta = readJson(file);

@@ -13,6 +13,7 @@ import {
 	type TextureEntry
 } from '../../src/lib/assets/manifest';
 import type { AdventureDef } from '../adventure/define';
+import { FLOOR_IDS } from '../../src/lib/game/floor';
 import { parseSceneFile, type SceneFile } from '../../src/lib/game/scene-file';
 import { exampleAdventure } from '../../src/lib/adventure/example';
 import { loadAdventureFile } from '../../src/lib/adventure/file';
@@ -118,9 +119,27 @@ export function adventures(): (AdventureDef | string)[] {
 	return [...ADVENTURES, example.ok ? example.adventure : `example: ${example.error}`];
 }
 
-/** What the stories' tables refer to that the manifest lacks, or that goes over a budget; empty when all is well. */
+/**
+ * The floors drawn with a surface of the library (#187), whose id is the floor's: plain is the
+ * table's own, water is drawn as water (#120) and the void is nothing.
+ */
+export const SURFACE_FLOORS = FLOOR_IDS.filter(
+	(f) => f !== 'plain' && f !== 'water' && f !== 'void'
+);
+
+/**
+ * What the stories' tables refer to that the manifest lacks, or that goes over a budget, and
+ * an environment with surfaces missing one for a floor (a GM may paint any floor anywhere);
+ * empty when all is well.
+ */
 export function checkScenes(manifest: Manifest): string[] {
 	const problems: string[] = [];
+	for (const [id, env] of Object.entries(manifest.environments)) {
+		for (const floor of SURFACE_FLOORS) {
+			if (env.surfaces && !env.surfaces.floors.includes(floor))
+				problems.push(`environment ${id}: no surface for the ${floor} floor`);
+		}
+	}
 	for (const A of adventures()) {
 		if (typeof A === 'string') problems.push(A);
 		else problems.push(...checkAdventure(manifest, A).map((p) => `${A.id}: ${p}`));

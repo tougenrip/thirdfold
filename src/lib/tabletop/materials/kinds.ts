@@ -8,6 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
+import { floorSurface } from './floors';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
 import { LIFTED, VARIED, lifted, macroOf, macroRoughness, macroTint } from './variation';
@@ -240,8 +241,9 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	}
 	const flow = kind === 'water' ? param('flow', 'vec2').mul(time) : null;
 	const mapping = surfaceMapping(kind, variant, param('repeat', 'vec2'), flow);
+	const floor = kind === 'terrain' ? floorSurface(variant) : null;
 	const albedo = mapping.sample('albedo');
-	const orm = mapping.sample('orm');
+	const orm = floor ? floor.orm(mapping.sample('orm')) : mapping.sample('orm');
 	const glow = mapping
 		.sample('emissive')
 		.xyz.mul(param('emissive', 'color'))
@@ -270,7 +272,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				? lifted(param('lift', 'float'))
 				: null;
 	return {
-		colorNode: ownAlbedo(kind, albedo, colour),
+		colorNode: ownAlbedo(kind, albedo, colour, floor),
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
@@ -285,7 +287,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			aoNode: BAKED.includes(kind)
 				? orm.x.mul(tsl.mix(1, tsl.attribute(BAKE_ATTRIBUTE, 'vec2').x, param('bake', 'float')))
 				: orm.x,
-			normalNode: paintNormal(kind, mapping.normal()),
+			normalNode: paintNormal(kind, floor ? floor.normal(mapping.normal()) : mapping.normal()),
 			emissiveNode: emissive,
 			clearcoatNode: def.base === 'physical' ? param('clearcoat', 'float') : null,
 			clearcoatRoughnessNode: def.base === 'physical' ? param('clearcoatRoughness', 'float') : null

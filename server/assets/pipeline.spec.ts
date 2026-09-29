@@ -18,6 +18,7 @@ import { checkGlb, writeGlb } from './glb';
 import { bakeModel, readModelSource } from './models';
 import { buildAssets, staleAssets, writeAssets, type BuiltAssets } from './pipeline';
 import { encodePng, pngSize } from './png';
+import { buildSurfaces } from './pipeline-textures';
 import { checkScenes } from './scenes';
 import { LOCK_FILE, lockOf, lockText } from './store';
 import { NEUTRAL, readGrades, renderGrade, stripProblem } from './grades';
@@ -404,6 +405,40 @@ describe('colour grades', () => {
 		expect(parseManifest(manifest)).toMatchObject({
 			ok: false,
 			error: expect.stringMatching(/1024×32/)
+		});
+	});
+});
+
+describe('the surface library (#187)', () => {
+	it('lists each cooked surface with its three maps, and the environments that wear them', () => {
+		const { surfaces, textures, environments } = built.manifest;
+		expect(Object.keys(surfaces)).toEqual(
+			expect.arrayContaining(['stone', 'wood', 'grass', 'dirt', 'sand', 'plaster', 'ashlar'])
+		);
+		for (const s of Object.values(surfaces)) {
+			const maps = [s.albedo, s.normal, s.orm].map((t) => textures[t]);
+			expect(maps.map((t) => [t.format, t.width, t.height, t.credit.license])).toEqual(
+				maps.map(() => ['ktx2', maps[0].width, maps[0].width, 'CC0-1.0'])
+			);
+		}
+		expect(environments.village.surfaces?.walls).toEqual(['plaster']);
+	});
+
+	it('refuses a surface without all three maps, or a map of the wrong usage', () => {
+		const t = built.manifest.textures;
+		const stone = {
+			'surface-stone-albedo': t['surface-stone-albedo'],
+			'surface-stone-normal': t['surface-stone-normal']
+		};
+		expect(() => buildSurfaces(stone)).toThrow(/needs albedo, normal and orm/);
+		const wrong = { ...stone, 'surface-stone-orm': t['surface-stone-normal'] };
+		expect(() => buildSurfaces(wrong)).toThrow(/usage orm/);
+		expect(buildSurfaces({ ...stone, 'surface-stone-orm': t['surface-stone-orm'] })).toEqual({
+			stone: {
+				albedo: 'surface-stone-albedo',
+				normal: 'surface-stone-normal',
+				orm: 'surface-stone-orm'
+			}
 		});
 	});
 });

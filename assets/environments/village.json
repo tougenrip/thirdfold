@@ -3,5 +3,9 @@
 	"surface": "village-grass",
 	"ground": "village-earth",
 	"walls": "plaster",
-	"table": "oak"
+	"table": "oak",
+	"surfaces": {
+		"floors": ["stone", "wood", "grass", "dirt", "sand"],
+		"walls": ["plaster"]
+	}
 }

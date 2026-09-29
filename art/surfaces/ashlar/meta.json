@@ -1,0 +1,15 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=Bricks100_2K-PNG.zip",
+			"sha256": "abd7392a15c0318bbad789f7ba196fe1ce2a50c877ba906985d0f879cd725bb9"
+		},
+		"modified": true
+	},
+	"ramp": ["#4a4a52", "#6f6c6a", "#948d7f", "#b8ae98"],
+	"detail": 0.25,
+	"normalBoost": 1.5,
+	"textureSize": 512
+}

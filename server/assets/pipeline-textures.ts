@@ -13,6 +13,7 @@ import {
 	limitClass,
 	type Credit,
 	type EnvironmentDef,
+	type SurfaceEntry,
 	type TextureEntry,
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
@@ -180,4 +181,35 @@ export function buildGrades(
 		}
 		environments[id].lut = lut;
 	}
+}
+
+const SURFACE_TEXTURE = /^surface-([a-z0-9-]+)-(albedo|normal|orm)$/;
+
+/**
+ * The surface library (#187): the cook's `surface-<id>-albedo`, `-normal` and `-orm` textures,
+ * each surface with all three, square, of one size and of the usage its name says.
+ */
+export function buildSurfaces(
+	textures: Record<string, TextureEntry>
+): Record<string, SurfaceEntry> {
+	const found: Record<string, Partial<SurfaceEntry>> = {};
+	for (const [id, t] of Object.entries(textures)) {
+		const match = SURFACE_TEXTURE.exec(id);
+		if (!match) continue;
+		const [, surface, map] = match as unknown as [string, string, keyof SurfaceEntry];
+		if (t.usage !== map) throw new AssetError(id, `a surface's ${map} map must be of usage ${map}`);
+		(found[surface] ??= {})[map] = id;
+	}
+	const surfaces: Record<string, SurfaceEntry> = {};
+	for (const id of Object.keys(found).sort()) {
+		const { albedo, normal, orm } = found[id];
+		if (!albedo || !normal || !orm)
+			throw new AssetError(id, 'a surface needs albedo, normal and orm');
+		const [a, n, o] = [albedo, normal, orm].map((t) => textures[t]);
+		if (a.width !== a.height || [n, o].some((t) => t.width !== a.width || t.height !== a.height)) {
+			throw new AssetError(id, "a surface's maps are square and of one size");
+		}
+		surfaces[id] = { albedo, normal, orm };
+	}
+	return surfaces;
 }

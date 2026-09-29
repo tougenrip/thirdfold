@@ -2541,6 +2541,486 @@
 			},
 			"pack": "core"
 		},
+		"surface-ashlar-albedo": {
+			"file": "textures/surface-ashlar-albedo.3eeb14f2.ktx2",
+			"sha256": "3eeb14f2d4a15b12aa0d2d978cb7d4b888b17665b86539dcce40207e53134c5a",
+			"bytes": 88473,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Bricks100_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-ashlar-normal": {
+			"file": "textures/surface-ashlar-normal.3f6974f7.ktx2",
+			"sha256": "3f6974f7e7d844e2b1959eb3d71f1479dcab10af766ed50050c38b3054f4f420",
+			"bytes": 143593,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Bricks100_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-ashlar-orm": {
+			"file": "textures/surface-ashlar-orm.95924ff4.ktx2",
+			"sha256": "95924ff44ef276391e4c365e5ef62af9e83fe90ab1eeab0c999a1d708999c505",
+			"bytes": 32305,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Bricks100_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-dirt-albedo": {
+			"file": "textures/surface-dirt-albedo.1b744125.ktx2",
+			"sha256": "1b744125aa728303ff8bf1bfcd8ef0709e5c655684f999f5a8dca18a2369fb51",
+			"bytes": 90192,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Ground103_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-dirt-normal": {
+			"file": "textures/surface-dirt-normal.b964309f.ktx2",
+			"sha256": "b964309fe302d30439ea2a1a882a09b7365ca0feb027664b41f2768f4276064d",
+			"bytes": 313395,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Ground103_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-dirt-orm": {
+			"file": "textures/surface-dirt-orm.806436ac.ktx2",
+			"sha256": "806436ac7c085c81da112d0c73333848522bfb09626f1af229118155120e81b4",
+			"bytes": 34130,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Ground103_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-grass-albedo": {
+			"file": "textures/surface-grass-albedo.f0ca0172.ktx2",
+			"sha256": "f0ca01723681828693e00c5d6682ab9dfe21d64ea0ef32e9ddc4c58877934c94",
+			"bytes": 90532,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Grass004_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-grass-normal": {
+			"file": "textures/surface-grass-normal.4e11e7fc.ktx2",
+			"sha256": "4e11e7fca93029f2e3559cf6f8e4b010a99fea890f162b26a719614b4b7df098",
+			"bytes": 321737,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Grass004_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-grass-orm": {
+			"file": "textures/surface-grass-orm.74c7db74.ktx2",
+			"sha256": "74c7db74f58ae3a5080054752663428fc2420351e095300d426d63d6cfce3c28",
+			"bytes": 31746,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Grass004_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-planks-albedo": {
+			"file": "textures/surface-planks-albedo.e7d2f2e8.ktx2",
+			"sha256": "e7d2f2e8b281fad08e0e7b389e9440f6383c698a9b8a2416bb20631b1964d526",
+			"bytes": 68538,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Planks021_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-planks-normal": {
+			"file": "textures/surface-planks-normal.45ba23bc.ktx2",
+			"sha256": "45ba23bc8c14ad74c7ae3e9ec7d9e3e30f3b3b605f16332bfdfb2666b4835e67",
+			"bytes": 175586,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Planks021_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-planks-orm": {
+			"file": "textures/surface-planks-orm.f5a1986b.ktx2",
+			"sha256": "f5a1986b6f5280971d857d801656f37afa70aaac833079d171b87edcba9c18e9",
+			"bytes": 17443,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Planks021_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-plaster-albedo": {
+			"file": "textures/surface-plaster-albedo.01235b4f.ktx2",
+			"sha256": "01235b4fd5a4a44ea6bda0f5d0e5e84953bc40d93a59b25ac4aa3ab94c6df177",
+			"bytes": 90214,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Plaster003_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "village"
+		},
+		"surface-plaster-normal": {
+			"file": "textures/surface-plaster-normal.14644e1d.ktx2",
+			"sha256": "14644e1d93a1f95b24bca176c4a3c68f0f6b30cf12e8b0030318e6b637c82dbc",
+			"bytes": 283372,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Plaster003_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "village"
+		},
+		"surface-plaster-orm": {
+			"file": "textures/surface-plaster-orm.4fa6df38.ktx2",
+			"sha256": "4fa6df3899ac6c0614b07afb79d7f3adcdd669fa71c2b7fc5c45fb7eadec6aa5",
+			"bytes": 25365,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Plaster003_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "village"
+		},
+		"surface-sand-albedo": {
+			"file": "textures/surface-sand-albedo.2f192c10.ktx2",
+			"sha256": "2f192c108ceacfee1e3379f2e7e399daa9bad031319acd44efa9b64277ac4aec",
+			"bytes": 93815,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Ground080_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-sand-normal": {
+			"file": "textures/surface-sand-normal.bc5e24e6.ktx2",
+			"sha256": "bc5e24e653b2c1bedf30871be609d5acd601267bfdf45c24f7a2e7bb31e7fd7d",
+			"bytes": 230294,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Ground080_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-sand-orm": {
+			"file": "textures/surface-sand-orm.e4a26a1d.ktx2",
+			"sha256": "e4a26a1d13c5615a1121c7a791a1e02256924770a9a8920b1215d4902317174f",
+			"bytes": 34155,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Ground080_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-stone-albedo": {
+			"file": "textures/surface-stone-albedo.83296930.ktx2",
+			"sha256": "832969308298c2196cc7ca6724dd31bfb3fe5657aa3f86645981c3b36ad0f77e",
+			"bytes": 94086,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=PavingStones131_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-stone-normal": {
+			"file": "textures/surface-stone-normal.67a0587e.ktx2",
+			"sha256": "67a0587e7ceda4c8723e0a5556ae16b16eff59d64731feebbe6e28173a6030d6",
+			"bytes": 266618,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=PavingStones131_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-stone-orm": {
+			"file": "textures/surface-stone-orm.dbb0dae5.ktx2",
+			"sha256": "dbb0dae58ddde247d5568719129826d91ffe1d2277bc29362e2a261cc15ae79e",
+			"bytes": 30756,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=PavingStones131_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-wood-albedo": {
+			"file": "textures/surface-wood-albedo.3ab2cd99.ktx2",
+			"sha256": "3ab2cd992ac498ec144362408b504ec14d7f97be2669eabc43d1e45aaaa6ddc7",
+			"bytes": 67834,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Planks039_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-wood-normal": {
+			"file": "textures/surface-wood-normal.1342bd41.ktx2",
+			"sha256": "1342bd41c694e707cd1caeacdc8acdc6aab6924d20786d522192d557de17f657",
+			"bytes": 101106,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Planks039_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
+		"surface-wood-orm": {
+			"file": "textures/surface-wood-orm.3f4b2177.ktx2",
+			"sha256": "3f4b21772d385907351d7a2fa73ba25c7db4edfc0d32fc72fc6ffcb83dd63b51",
+			"bytes": 30233,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "CC0-1.0",
+				"author": "ambientCG",
+				"source": "https://ambientcg.com/get?file=Planks039_2K-PNG.zip",
+				"modified": true
+			},
+			"pack": "core"
+		},
 		"grade-cavern-day-agx": {
 			"file": "textures/grade-cavern-day-agx.015cbb43.png",
 			"sha256": "015cbb43ef3f35cd6c9605a3feea4f8d87b6e22fbb4b0e90a78d8030b6356b89",
@@ -3620,7 +4100,48 @@
 			"metalness": 0
 		}
 	},
-	"surfaces": {},
+	"surfaces": {
+		"ashlar": {
+			"albedo": "surface-ashlar-albedo",
+			"normal": "surface-ashlar-normal",
+			"orm": "surface-ashlar-orm"
+		},
+		"dirt": {
+			"albedo": "surface-dirt-albedo",
+			"normal": "surface-dirt-normal",
+			"orm": "surface-dirt-orm"
+		},
+		"grass": {
+			"albedo": "surface-grass-albedo",
+			"normal": "surface-grass-normal",
+			"orm": "surface-grass-orm"
+		},
+		"planks": {
+			"albedo": "surface-planks-albedo",
+			"normal": "surface-planks-normal",
+			"orm": "surface-planks-orm"
+		},
+		"plaster": {
+			"albedo": "surface-plaster-albedo",
+			"normal": "surface-plaster-normal",
+			"orm": "surface-plaster-orm"
+		},
+		"sand": {
+			"albedo": "surface-sand-albedo",
+			"normal": "surface-sand-normal",
+			"orm": "surface-sand-orm"
+		},
+		"stone": {
+			"albedo": "surface-stone-albedo",
+			"normal": "surface-stone-normal",
+			"orm": "surface-stone-orm"
+		},
+		"wood": {
+			"albedo": "surface-wood-albedo",
+			"normal": "surface-wood-normal",
+			"orm": "surface-wood-orm"
+		}
+	},
 	"environments": {
 		"cavern": {
 			"name": "Cavern",
@@ -3628,6 +4149,18 @@
 			"ground": "cave-rock",
 			"walls": "ancient-stone",
 			"table": "oak",
+			"surfaces": {
+				"floors": [
+					"stone",
+					"wood",
+					"grass",
+					"dirt",
+					"sand"
+				],
+				"walls": [
+					"ashlar"
+				]
+			},
 			"lut": {
 				"agx": {
 					"day": "grade-cavern-day-agx",
@@ -3652,6 +4185,18 @@
 			"ground": "rail-ballast",
 			"walls": "weathered-wood",
 			"table": "oak",
+			"surfaces": {
+				"floors": [
+					"stone",
+					"wood",
+					"grass",
+					"dirt",
+					"sand"
+				],
+				"walls": [
+					"planks"
+				]
+			},
 			"lut": {
 				"agx": {
 					"day": "grade-ghost-town-day-agx",
@@ -3676,6 +4221,16 @@
 			"ground": "flesh",
 			"walls": "sinew",
 			"table": "oak",
+			"surfaces": {
+				"floors": [
+					"stone",
+					"wood",
+					"grass",
+					"dirt",
+					"sand"
+				],
+				"walls": []
+			},
 			"lut": {
 				"agx": {
 					"day": "grade-living-cave-day-agx",
@@ -3700,6 +4255,18 @@
 			"ground": "rail-ballast",
 			"walls": "railcar-wall",
 			"table": "oak",
+			"surfaces": {
+				"floors": [
+					"stone",
+					"wood",
+					"grass",
+					"dirt",
+					"sand"
+				],
+				"walls": [
+					"planks"
+				]
+			},
 			"lut": {
 				"agx": {
 					"day": "grade-railcar-day-agx",
@@ -3724,6 +4291,18 @@
 			"ground": "monastery-stone",
 			"walls": "monastery-stone",
 			"table": "oak",
+			"surfaces": {
+				"floors": [
+					"stone",
+					"wood",
+					"grass",
+					"dirt",
+					"sand"
+				],
+				"walls": [
+					"ashlar"
+				]
+			},
 			"lut": {
 				"agx": {
 					"day": "grade-stone-halls-day-agx",
@@ -3748,6 +4327,18 @@
 			"ground": "village-earth",
 			"walls": "plaster",
 			"table": "oak",
+			"surfaces": {
+				"floors": [
+					"stone",
+					"wood",
+					"grass",
+					"dirt",
+					"sand"
+				],
+				"walls": [
+					"plaster"
+				]
+			},
 			"lut": {
 				"agx": {
 					"day": "grade-village-day-agx",
@@ -3799,8 +4390,8 @@
 			"gpuBytes": 1660249
 		},
 		"core": {
-			"bytes": 1885717,
-			"gpuBytes": 2409470
+			"bytes": 4242284,
+			"gpuBytes": 9749516
 		},
 		"ghost-town": {
 			"bytes": 104095,
@@ -3819,8 +4410,8 @@
 			"gpuBytes": 1572867
 		},
 		"village": {
-			"bytes": 125996,
-			"gpuBytes": 1660249
+			"bytes": 524947,
+			"gpuBytes": 2708827
 		}
 	},
 	"decoders": {

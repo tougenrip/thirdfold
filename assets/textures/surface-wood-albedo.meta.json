@@ -1,0 +1,12 @@
+{
+	"usage": "albedo",
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=Planks039_2K-PNG.zip",
+			"sha256": "2e1ab5188e515e7fe88f447665cf0474453071a3ada0e28ec69ac8867644b239"
+		},
+		"modified": true
+	}
+}

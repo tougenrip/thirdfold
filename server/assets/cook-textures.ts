@@ -8,13 +8,21 @@ import { encodeToKTX2 } from 'ktx2-encoder';
 import type { ColorSpace } from '../../src/lib/assets/manifest';
 import { decodePng } from './png';
 
-type Image = { width: number; height: number; data: Uint8Array };
+export type Image = { width: number; height: number; data: Uint8Array };
 
 /** The encoder settings per colour space: what the lock records, so a change re-cooks. */
 export const KTX2_SETTINGS = {
 	srgb: { isUASTC: false, qualityLevel: 128, compressionLevel: 2 },
-	linear: { isUASTC: true, enableRDO: true, rdoQualityLevel: 0.5, needSupercompression: true }
+	linear: { isUASTC: true, enableRDO: true, rdoQualityLevel: 0.5, needSupercompression: true },
+	/**
+	 * The surface library's data maps (#187), which repeat under the whole table: its normals
+	 * with a stronger RDO, and its ORM (soft occlusion and roughness) as ETC1S, a sixth the size.
+	 */
+	surfaceNormal: { isUASTC: true, enableRDO: true, rdoQualityLevel: 3, needSupercompression: true },
+	surfaceOrm: { isUASTC: false, qualityLevel: 128, compressionLevel: 2 }
 };
+
+type Settings = (typeof KTX2_SETTINGS)[keyof typeof KTX2_SETTINGS];
 
 /** Halves an image (a box filter) until neither side is over `max`. */
 export function fit(image: Image, max: number): Image {
@@ -69,14 +77,25 @@ export async function cookTexture(
 	maxPx: number,
 	normalMap = false
 ): Promise<Uint8Array> {
-	const image = fit(decodePng(png), maxPx);
+	return cookImage(decodePng(png), space, maxPx, normalMap);
+}
+
+/** An RGBA image as KTX2, as `cookTexture` (the surface library's stylised maps, #187). */
+export async function cookImage(
+	source: Image,
+	space: ColorSpace,
+	maxPx: number,
+	normalMap = false,
+	settings: Settings = KTX2_SETTINGS[space]
+): Promise<Uint8Array> {
+	const image = fit(source, maxPx);
 	if (!powerOfTwo(image.width) || !powerOfTwo(image.height)) {
 		throw new Error(`${image.width}×${image.height}: a texture's sides must be powers of two`);
 	}
 	const srgb = space === 'srgb';
 	return quietly(() =>
-		encodeToKTX2(png, {
-			...(srgb ? KTX2_SETTINGS.srgb : KTX2_SETTINGS.linear),
+		encodeToKTX2(new Uint8Array(0), {
+			...settings,
 			isNormalMap: normalMap,
 			isPerceptual: srgb,
 			isSetKTX2SRGBTransferFunc: srgb,

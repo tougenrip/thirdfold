@@ -6,10 +6,14 @@
 import * as THREE from 'three/webgpu';
 import { fetchAsset, loadManifest } from '$lib/assets/load';
 import { isFigureKind, type Manifest, type ModelEntry } from '$lib/assets/manifest';
+import { FLOOR_IDS, type FloorId } from '$lib/game/floor';
 import { MAX_LIGHT_RADIUS, type Ambient, type Light } from '$lib/game/lights';
-import { createMaterial, withBake, type KindMaterial } from './materials';
+import { WALL_HEIGHT, STEP_HEIGHT } from './ground';
+import { createMaterial, repeatFor, withBake, type KindMaterial } from './materials';
+import { SURFACE_CELLS } from './materials/floors';
 import { loadModel, parseModel, type LoadedModel, type ModelPart } from './models';
 import { createTabletop } from './renderer';
+import { loadSurface } from './surfaces';
 import { initialShape, shapeOf, startingSettings } from './shape';
 import type { QualitySettings } from './quality';
 import type { Pose } from './shots';
@@ -133,6 +137,8 @@ export interface Turntable {
 	readonly tabletop: Tabletop;
 	/** Shows a model at a level, full or its preview (#192); null if it can't load. */
 	show(id: string, lod: number, preview: boolean): Promise<Shown | null>;
+	/** Shows a surface of the library (#187) on a 3×3-cell floor and a wall; false if it can't load. */
+	showSurface(id: string): Promise<boolean>;
 	setLight(preset: LightPreset): void;
 	setEnvironment(id: string | null): void;
 	/** Turns the model (radians); drags orbit the camera. */
@@ -179,9 +185,12 @@ export async function createTurntable(
 	tabletop.setFog(null, 'gm');
 	let side = 0;
 	let light: LightPreset = 'day';
+	/** The floor a surface paints the whole table with (#187), drawn by the terrain kind. */
+	let floor = 0;
 	const table = (next: number) => {
 		side = next;
 		tabletop.setGrid({ kind: 'square', cellSize: 1, width: side, height: side });
+		tabletop.setFloor(floor ? new Uint8Array(side * side).fill(floor) : null);
 		turntable.setLight(light);
 	};
 
@@ -202,6 +211,8 @@ export async function createTurntable(
 		holder.remove(current.group);
 		for (const m of current.materials) m.dispose();
 		(current.group.userData.base as THREE.BufferGeometry | undefined)?.dispose();
+		for (const g of (current.group.userData.geometries as THREE.BufferGeometry[]) ?? [])
+			g.dispose();
 		for (const p of current.preview?.parts ?? []) {
 			p.geometry.dispose();
 			for (const t of Object.values(p.maps ?? {})) t.dispose();
@@ -224,6 +235,10 @@ export async function createTurntable(
 			const before = tabletop.stats().texturesBytes;
 			const model = await load(entry, id, preview);
 			if (!model) return null;
+			if (floor) {
+				floor = 0;
+				table(side);
+			}
 			const key = `${id}:${preview}`;
 			if (!measured.has(key)) measured.set(key, tabletop.stats().texturesBytes - before);
 			clear();
@@ -241,6 +256,35 @@ export async function createTurntable(
 				textures: texturesOf(model),
 				texturesBytes: measured.get(key) ?? 0
 			};
+		},
+		async showSurface(id) {
+			const maps = await loadSurface(id);
+			if (!maps) return false;
+			clear();
+			// A floor's surface also covers the table, so an environment shows it as the game does.
+			floor = Math.max(0, FLOOR_IDS.indexOf(id as FloorId));
+			const slots = { albedo: maps.map, normal: maps.normal, orm: maps.orm };
+			const params = { repeat: repeatFor(SURFACE_CELLS, 1, STEP_HEIGHT), roughness: 1 };
+			const group = new THREE.Group();
+			const materials = [0, 1].map(() =>
+				createMaterial('surface', { antiTiled: true, params, slots })
+			);
+			const plane = new THREE.Mesh(new THREE.BoxGeometry(3, 0.02, 3), materials[0]);
+			plane.position.y = 0.01;
+			const wall = new THREE.Mesh(new THREE.BoxGeometry(3, WALL_HEIGHT, 0.14), materials[1]);
+			wall.position.set(0, WALL_HEIGHT / 2, -1.57);
+			for (const mesh of [plane, wall]) {
+				mesh.castShadow = mesh.receiveShadow = true;
+				group.add(mesh);
+			}
+			group.userData.geometries = [plane.geometry, wall.geometry];
+			current = { group, materials, preview: null };
+			holder.add(group);
+			bounds = { min: [-1.5, 0, -1.6], max: [1.5, WALL_HEIGHT, 1.5] };
+			table(sideFor(bounds));
+			turntable.frame();
+			redraw();
+			return true;
 		},
 		setLight(preset) {
 			light = preset;

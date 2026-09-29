@@ -3,5 +3,9 @@
 	"surface": "cave-floor",
 	"ground": "cave-rock",
 	"walls": "ancient-stone",
-	"table": "oak"
+	"table": "oak",
+	"surfaces": {
+		"floors": ["stone", "wood", "grass", "dirt", "sand"],
+		"walls": ["ashlar"]
+	}
 }

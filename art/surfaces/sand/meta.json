@@ -1,0 +1,15 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=Ground080_2K-PNG.zip",
+			"sha256": "8dc9f3cc1b0c52995d0ae747d63efc1befc1043a6b30ce27e6a381541d161a18"
+		},
+		"modified": true
+	},
+	"ramp": ["#6b5a55", "#9a8468", "#c2a97f", "#dcc79c"],
+	"detail": 0.2,
+	"normalBoost": 1,
+	"textureSize": 512
+}
