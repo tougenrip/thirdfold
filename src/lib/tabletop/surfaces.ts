@@ -75,6 +75,13 @@ function arrayOf(layers: Layer[], map: FloorMap): THREE.Texture | null {
 		return { data, width, height };
 	});
 	const { width, height } = mipmaps[0];
+	// Transcoded to RGBA (no compressed format here): three uploads a CompressedArrayTexture with
+	// the compressed call, which refuses RGBA, so the layers go up as data and the GPU makes the mips.
+	if ((first.format as THREE.PixelFormat) === THREE.RGBAFormat) {
+		const array = new THREE.DataArrayTexture(mipmaps[0].data, width, height, layers.length);
+		array.type = first.type;
+		return slotTexture(array, map);
+	}
 	const array = new THREE.CompressedArrayTexture(
 		mipmaps as unknown as ImageData[],
 		width,
