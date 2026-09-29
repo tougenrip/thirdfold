@@ -43,7 +43,7 @@ function perturbNormal(sampled: N, at: N): N {
 	return T.mul(n.x).add(B.mul(n.y)).add(normal.mul(n.z)).normalize();
 }
 
-/** Slots sampled at `at` (the mesh's uv, or object-space coordinates for props and minis). */
+/** Slots sampled at `at` (the mesh's uv, times the tile). */
 export function uvMapping(at: N): Mapping {
 	return {
 		sample: (slot) => slotSample(slot, at),

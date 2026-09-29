@@ -905,7 +905,9 @@ never through a texture's own matrix (r186 snapshots it from the first texture i
 - **rock**: triplanar in the world (zy, xz and xy, weights `pow(|n|, triplanarSharpness)`,
   normals blended by Whiteout). A slot's three fetches are its reference plus two `.sample()`
   clones that keep its `referenceNode`, so a new texture reaches all three. Three fetches a slot.
-- **prop and mini**: object space (`positionGeometry.xz`); the models carry no uv.
+- **prop and mini**: the mesh's uv (#188): a cooked model's glTF uvs, and zeros on a part list,
+  whose slots hold their blanks, so both draw with one program (`tabletop/models.ts` gives every
+  model part the same attribute set). Their paint (#178) stays in object space on its own.
 - **everything else**: the mesh's uv, water's slid by `params.flow` on `worldTime`.
 
 `mapping.svelte.spec.ts` checks it drawn on both backends: no seam between two wall instances or

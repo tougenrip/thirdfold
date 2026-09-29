@@ -2497,5 +2497,11 @@
 			"duration": 2.2
 		}
 	},
-	"packs": {}
+	"packs": {},
+	"decoders": {
+		"basis": {
+			"dir": "decoders/basis-dc5e5d6a",
+			"bytes": 584862
+		}
+	}
 }

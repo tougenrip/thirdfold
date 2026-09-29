@@ -3,25 +3,24 @@
 // textures, loaded when the table first needs them. Textures are PNGs
 // loaded as images, once each, shared by every material that uses them. And
 // its colour grades (#162): a lookup table per tone mapper and ambient band,
-// loaded a tone mapper at a time.
+// loaded a tone mapper at a time. Every file comes through fetchAsset (checked
+// when it comes from the asset host, #191); a KTX2 texture is transcoded by
+// the models' decoders (#188), for this device.
 
 import * as THREE from 'three/webgpu';
 import {
 	GRADE_TONE_MAPPER,
 	type EnvironmentDef,
 	type GradeBand,
+	type FileInfo,
 	type MaterialDef,
+	type TextureEntry,
 	type ToneMapper
 } from '$lib/assets/manifest';
-import { assetUrl, loadManifest } from '$lib/assets/load';
-import {
-	prepareSlotTexture,
-	setParams,
-	setSlot,
-	SLOTS,
-	worldTexture,
-	type KindMaterial
-} from './materials';
+import { fetchAsset, loadManifest } from '$lib/assets/load';
+import { imageTexture } from './image-texture';
+import { ktx2Texture, slotTexture } from './models';
+import { setParams, setSlot, type KindMaterial } from './materials';
 
 /** One surface: its colour and finish, and its texture with how many cells one repeat covers. */
 export interface Look {
@@ -41,6 +40,9 @@ export interface EnvironmentLook {
 	grades: Grades | null;
 }
 
+/** A built file: where it is and its digest. */
+type Built = Pick<FileInfo, 'file' | 'sha256'>;
+
 /** The size of a grade's lookup table, per side. */
 export const LUT_SIZE = 32;
 
@@ -49,8 +51,8 @@ export const LUT_SIZE = 32;
  * green down) as a 3D table in Data3DTexture order. Black is forced to exactly black: a browser
  * that perturbs canvas reads against fingerprinting must not lift unexplored cells (#161).
  */
-async function loadGrade(file: string): Promise<Uint8Array> {
-	const blob = await (await fetch(assetUrl(file))).blob();
+async function loadGrade({ file, sha256 }: Built): Promise<Uint8Array> {
+	const blob = new Blob([await fetchAsset(file, sha256)], { type: 'image/png' });
 	const bitmap = await createImageBitmap(blob, { colorSpaceConversion: 'none' });
 	const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
 	const ctx = canvas.getContext('2d')!;
@@ -80,7 +82,7 @@ export class Grades {
 
 	constructor(
 		private readonly lut: NonNullable<EnvironmentDef['lut']>,
-		private readonly files: Record<string, { file: string }>
+		private readonly files: Record<string, Built>
 	) {}
 
 	/** Loads a tone mapper's grades, once; resolves when they are in `ready`. */
@@ -89,7 +91,7 @@ export class Grades {
 		if (!loading) {
 			const bands = Object.entries(this.lut[tm]);
 			loading = Promise.all(
-				bands.map(async ([band, id]) => [band, await loadGrade(this.files[id].file)] as const)
+				bands.map(async ([band, id]) => [band, await loadGrade(this.files[id])] as const)
 			)
 				.then((loaded) => Object.fromEntries(loaded) as Record<GradeBand, Uint8Array>)
 				.catch(() => null)
@@ -106,7 +108,7 @@ const gradeCache = new Map<string, Grades>();
 async function gradesOf(
 	id: string,
 	lut: NonNullable<EnvironmentDef['lut']>,
-	files: Record<string, { file: string }>,
+	files: Record<string, Built>,
 	toneMapper: ToneMapper
 ): Promise<Grades> {
 	let grades = gradeCache.get(id);
@@ -117,13 +119,18 @@ async function gradesOf(
 
 const textures = new Map<string, Promise<THREE.Texture | null>>();
 
-function loadTexture(id: string, file: string): Promise<THREE.Texture | null> {
+/**
+ * A texture, once for the page. Its sampling is the albedo slot's, which every look sets.
+ * ponytail: never freed, like the PNGs before; a KTX2 one stays in the format of the device it
+ * was first transcoded for (free it with the models if a backend switch ever needs another).
+ */
+function loadTexture(id: string, entry: TextureEntry): Promise<THREE.Texture | null> {
 	let loading = textures.get(id);
 	if (!loading) {
-		loading = new THREE.TextureLoader()
-			.loadAsync(assetUrl(file))
+		loading = fetchAsset(entry.file, entry.sha256)
+			.then((bytes) => (entry.format === 'ktx2' ? ktx2Texture(bytes) : imageTexture(bytes)))
 			// The albedo slot's sampling, and the tier's anisotropy (#179).
-			.then((t) => worldTexture(prepareSlotTexture(t, SLOTS.albedo)))
+			.then((t) => slotTexture(t, 'albedo'))
 			.catch((err: Error) => {
 				console.warn(`[assets] texture "${id}" failed to load:`, err.message);
 				return null;
@@ -133,8 +140,8 @@ function loadTexture(id: string, file: string): Promise<THREE.Texture | null> {
 	return loading;
 }
 
-async function look(def: MaterialDef, files: Record<string, { file: string }>): Promise<Look> {
-	const map = def.map && files[def.map] ? await loadTexture(def.map, files[def.map].file) : null;
+async function look(def: MaterialDef, files: Record<string, TextureEntry>): Promise<Look> {
+	const map = def.map && files[def.map] ? await loadTexture(def.map, files[def.map]) : null;
 	return {
 		color: new THREE.Color(def.color),
 		roughness: def.roughness,

@@ -19,8 +19,11 @@ const BUDGETS = {
 	'/builder': { total: 97_000, own: 52_000 },
 	'/library': { total: 66_000, own: 21_000 },
 	'/room/[id]': { total: 121_000, own: 76_000 },
-	renderer: { total: 360_000 }
+	renderer: { total: 360_000 },
+	decoders: { total: 40_000 }
 };
+/** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
+const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
 /** Only classic WebGLRenderer (build/three.module.js) has this: the renderer is WebGPURenderer now. */
 const CLASSIC_MARKER = 'THREE.WebGLRenderer: Error creating WebGL context';
 /** Property names three.js keeps through minification. */
@@ -115,6 +118,21 @@ for (const r of rows) {
 	if (maxOwn !== undefined && r.own > maxOwn) {
 		failures.push(`${r.name} adds ${kb(r.own)} gz to the shell, over ${kb(maxOwn)}`);
 	}
+}
+// The decoders (tabletop/decoders.ts) are a chunk of their own, fetched with the first cooked asset.
+const decodersKey = Object.keys(manifest).find((k) => k.endsWith('src/lib/tabletop/decoders.ts'));
+const rendererFiles = closure(rendererKey);
+if (!decodersKey) failures.push('the decoders are not a chunk of their own');
+else {
+	const own = [...closure(decodersKey)].filter((f) => !rendererFiles.has(f) && !roomFiles.has(f));
+	const { gz } = total(own);
+	log('decoders (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.decoders.total).padStart(10));
+	if (gz > BUDGETS.decoders.total) failures.push(`the decoders are ${kb(gz)} gz, over budget`);
+}
+for (const f of rendererFiles) {
+	const text = readFileSync(`${OUT}/${f}`, 'utf8');
+	if (DECODER_MARKERS.some((m) => text.includes(m)))
+		failures.push(`the renderer statically imports the KTX2 decoders (${f})`);
 }
 // The Inspector (?perf&inspector) is its own chunk, fetched only when asked for.
 const inspectorKey = Object.keys(manifest).find((k) => k.endsWith('jsm/inspector/Inspector.js'));

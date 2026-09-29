@@ -209,13 +209,46 @@ own output, so such a manifest never builds.
 
 ## At the table
 
-- **The manifest:** the client fetches `/assets/manifest.json` once (`src/lib/assets/load.ts`).
-- **Models:** each loads the first time something uses it (`tabletop/models.ts`, three.js's
-  `GLTFLoader`), and is then shared.
+- **The manifest:** the client fetches `/assets/manifest.json` once (`src/lib/assets/load.ts`),
+  always from the page's own origin.
+- **Files:** every built file comes through `fetchAsset(file, sha256, priority)` in `load.ts`
+  (#191): at most six downloads at once, what a table needs now (`high`) ahead of what it may need
+  later (`low`: sounds, lens dirt). With `VITE_ASSET_BASE_URL` set, files come from that asset
+  host and are checked against the manifest's whole SHA-256 before anything decodes them; bytes
+  that differ are refused (the placeholder stays, and the console says why). Checking needs a
+  secure context (`crypto.subtle`); without one (plain http on a LAN) files come from the page's
+  own origin, which needs no check. Images are decoded from the checked bytes
+  (`tabletop/image-texture.ts`: `createImageBitmap`, flipped as it decodes, colours unconverted).
+- **Models:** each loads the first time something uses it (`tabletop/models.ts`, #188), and is
+  shared by every prop and token that uses it.
   - Until then a prop shows as a plain box on its footprint, and a token as the plain miniature.
-  - When the model arrives it replaces them, without waiting on anything else.
-- **Environments:** load their textures once each, shared by every material that uses them.
-  Changing environments never changes a shader: a shader kind's slots always hold a texture, their
-  slot's blank (same type, colour space, wrap and filters) when they have none (`defaults.ts`;
-  `docs/RENDERING.md`, "Materials and world visibility").
+    When the model arrives it replaces them, without waiting on anything else.
+  - A model is parts: meshes named `body`, `swing` or `accent`, `<role>_lod<n>` for coarser levels
+    (`roleOf`; GLTFLoader's `_<n>` suffixes are allowed), with their node transforms applied and
+    pieces of one role, level and material merged. Every part gets the same attributes
+    (position, normal, uv, colour, as floats; an accent without colour), so textured and part-list
+    models draw with the same programs. Layers draw level 0; `lodFor` picks a level by screen
+    share for #274.
+  - A cooked model's glTF maps go into the prop and mini kinds' slots (base colour → albedo,
+    normal, metallic-roughness → ORM, emissive), on a material of the same variant, so nothing
+    compiles. Its textures are uploaded (`initTexture`) before it is drawn.
+  - Cooked files (meshopt geometry, KTX2 textures) need the decoders, `tabletop/decoders.ts`: a
+    chunk of its own (about 31 kB gz, `scripts/check-bundle.mjs` keeps KTX2Loader out of the
+    renderer's), imported the first time a cooked file loads. One KTX2Loader at a time, made for
+    the table's renderer (`detectSupport` picks ASTC, BC7, BC1/3 or ETC, else plain RGBA, on
+    WebGPU and the WebGL2 fallback alike). Its transcoder is three's own, copied by the pipeline
+    into `decoders/basis-<hash>/` and named in the manifest's `decoders`; it is code, so it is
+    always served same-origin.
+  - Lifecycle: every tabletop calls `initModels(renderer)`; when the last one is disposed
+    (leaving the room, a lost device, a new pipeline shape) `releaseModels` frees every model's
+    geometry and textures, stops the transcoder's workers and forgets the models, and a load still
+    under way is thrown away when it lands. The next table loads them again (from the HTTP cache).
+    `models.svelte.spec.ts` loads a cooked fixture (`tests/fixtures/assets/loader/cube.glb`, made
+    by `server/fixtures/loader-fixture.ts`) on the WebGL2 fallback and checks its parts, its slots,
+    that it is freed and that renderer memory holds steady over reloads.
+- **Environments:** load their textures once each, shared by every material that uses them (a
+  KTX2 one transcoded by the models' decoders). Changing environments never changes a shader: a
+  shader kind's slots always hold a texture, their slot's blank (same type, colour space, wrap and
+  filters) when they have none (`defaults.ts`; `docs/RENDERING.md`, "Materials and world
+  visibility").
 - **Sounds:** load when audio starts (the first click).

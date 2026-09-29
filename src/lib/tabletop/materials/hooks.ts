@@ -5,7 +5,7 @@
 //
 // - `surfaceMapping`: where a kind's slots lie (#177, mapping.ts): box projection from world
 //   position on the surface and terrain kinds, the geometry's own space for a `local` material
-//   (door panels), triplanar on rock, object space on props and minis, the mesh's uv elsewhere.
+//   (door panels), triplanar on rock, the mesh's uv elsewhere (props and minis: glTF uvs, #188).
 // - `slotSample`: samples with #179's mip bias (`mipBias`, a uniform: 0 but on high with TRAA).
 // - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis (paint.ts).
 // - `ownAlbedo`, `ownOutput`: #172's per-surface colour (floors and height on the terrain kind,
@@ -29,8 +29,9 @@ import { tsl, type N } from './tsl';
  * the world on walls and raised ground, so textures run on across instances and heights (two
  * offset fetches blended against visible tiling in the `antiTiled` variant, #181), or of
  * the geometry's own space for a `local` material (door panels, whose texture must not slide as
- * they swing); triplanar on rock; object space on props and minis, whose models carry no uv and
- * whose paint (#178) sits there; the mesh's uv, moved by `offset` (water's flow), elsewhere.
+ * they swing); triplanar on rock; the mesh's uv, moved by `offset` (water's flow), elsewhere: on
+ * props and minis a cooked model's glTF uvs (#188), which part lists carry as zeros so both draw
+ * with one program (models.ts). Their paint (#178) keeps to object space on its own.
  */
 export function surfaceMapping(
 	kind: ShaderKind,
@@ -41,7 +42,7 @@ export function surfaceMapping(
 	if (kind === 'surface' || kind === 'terrain')
 		return variant.local ? localBox(repeat) : worldBox(repeat, variant.antiTiled);
 	if (kind === 'rock') return variant.local ? localBox(repeat) : triplanar(repeat);
-	const at = (kind === 'prop' || kind === 'mini' ? tsl.positionGeometry.xz : tsl.uv()).mul(repeat);
+	const at = tsl.uv().mul(repeat);
 	return uvMapping(offset ? at.add(offset) : at);
 }
 

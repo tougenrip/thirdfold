@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 
 // The Android emulator reaches the host at 10.0.2.2; `localhost` there is the
 // emulator itself. Emulator-only: a physical device needs the LAN IP in .env.
-function forPlatform(url: string): string {
+export function forPlatform(url: string): string {
 	return Capacitor.getPlatform() === 'android' && url.includes('localhost')
 		? url.replace('localhost', '10.0.2.2')
 		: url;
