@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { parseManifest } from './manifest-parse';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const FILE = 'models/crate.0123abcd.glb';
@@ -92,5 +94,28 @@ describe('fetchAsset', () => {
 		await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(8));
 		gates.shift()!();
 		await Promise.all(rest);
+	});
+});
+
+describe('the manifest', () => {
+	it('comes from a URL versioned by its content, so no cache keeps an old one', async () => {
+		const hash = createHash('sha256')
+			.update(readFileSync('static/assets/manifest.json'))
+			.digest('hex')
+			.slice(0, 12);
+		const { manifestUrl } = await loader('https://cdn.example/assets');
+		expect(manifestUrl()).toBe(`/assets/manifest.json?v=${hash}`);
+	});
+
+	it('that does not parse says why, once, and leaves placeholders', async () => {
+		const { loadManifest, fetch } = await loader('');
+		fetch.mockResolvedValue(new Response('{"version":1}'));
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		expect((await loadManifest()).models).toEqual({});
+		expect(fetch.mock.calls[0][0]).toMatch(/^\/assets\/manifest\.json\?v=[0-9a-f]{12}$/);
+		expect(warn).toHaveBeenCalledOnce();
+		const why = parseManifest({ version: 1 });
+		expect(why.ok).toBe(false);
+		expect(warn.mock.calls[0][1]).toBe(!why.ok && why.error);
 	});
 });

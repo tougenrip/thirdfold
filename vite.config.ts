@@ -5,6 +5,17 @@ import type { BrowserContext } from 'playwright';
 import { ssimComparator } from './tests/visual/ssim.ts';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+/**
+ * The asset manifest's content hash, in its URL (assets/load.ts): the manifest is the one asset file
+ * at a fixed name, so without it a browser or host cache could hand a new client an old manifest.
+ */
+const ASSET_MANIFEST = createHash('sha256')
+	.update(readFileSync('static/assets/manifest.json'))
+	.digest('hex')
+	.slice(0, 12);
 
 /**
  * Crashes the browser's GPU process: every page loses its WebGL context or WebGPU device, as after a
@@ -89,6 +100,7 @@ export default defineConfig({
 			adapter: adapter({ fallback: 'index.html' }) // SPA mode for native shells
 		})
 	],
+	define: { __ASSET_MANIFEST__: JSON.stringify(ASSET_MANIFEST) },
 	build: {
 		rolldownOptions: {
 			output: {

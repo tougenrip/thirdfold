@@ -5,10 +5,12 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { play, setMix, unlock } from '$lib/audio/engine';
 	import { loadMix } from '$lib/audio/mix';
+	import { guardStorage } from '$lib/storage';
 	import { onNavigate } from '$app/navigation';
 
 	let { children } = $props();
 
+	guardStorage();
 	setMix(loadMix(localStorage));
 
 	// Browsers only let a page make sound once someone has interacted with it.
