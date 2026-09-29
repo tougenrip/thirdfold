@@ -70,7 +70,8 @@ export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 		if (!m) continue;
 		cost.download += m.bytes + (m.preview?.bytes ?? 0);
 		cost.gpu.desktop += m.gpuBytes;
-		cost.gpu.mobile += m.gpuBytes;
+		// ponytail: a cooked model's geometry is counted at RGBA8 too; a bound, not the figure.
+		cost.gpu.mobile += m.cooked ? m.gpuBytes * RGBA8 : m.gpuBytes;
 		basis ||= m.cooked === true;
 		for (const material of m.materials ?? []) addMaterial(material);
 	}
@@ -86,10 +87,19 @@ export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 	return cost;
 }
 
-/** A texture's GPU bytes at the mobile tier's size: a side over the cap scales both ways. */
+/**
+ * KTX2 on the GPU at RGBA8 against the 8 bits a texel `gpuBytes` counts: what a phone without a
+ * compressed format the transcoder targets gets instead (#187).
+ */
+const RGBA8 = 4;
+
+/**
+ * A texture's GPU bytes at the mobile tier's size (a side over the cap scales both ways), KTX2 at
+ * RGBA8, the transcoder's fallback.
+ */
 function mobileGpu(t: TextureEntry): number {
 	const scale = Math.min(1, TABLE_BUDGETS.mobile.textureSize / Math.max(t.width, t.height));
-	return Math.round(t.gpuBytes * scale * scale);
+	return Math.round(t.gpuBytes * (t.format === 'ktx2' ? RGBA8 : 1) * scale * scale);
 }
 
 /** What the budgets make of a table's cost; empty when it fits. */

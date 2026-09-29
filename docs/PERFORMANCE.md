@@ -584,9 +584,10 @@ the roadmap's first-table download and GPU memory budgets. The build fails over 
 
 MB here is 1024 × 1024 bytes, as in the manifest's `LIMITS`. Mobile's download is the roadmap's
 mobile first-table budget, stricter than half the desktop's; its GPU figure counts textures at the
-size the 1K tier (#358) will serve. GPU bytes are the manifest's `gpuBytes`, which assume a
-compressed transcode target for KTX2; devices that fall back to RGBA are the mobile tier's and
-#358's concern. These are starting values, confirmed per tier in #155: change them only on
+size the 1K tier (#358) will serve, and KTX2 at RGBA8 (four times the manifest's `gpuBytes`, which
+assume a compressed transcode target), what a phone the transcoder finds no compressed format on
+gets; a cooked model's whole `gpuBytes` is counted so, geometry too, a bound rather than the
+figure. These are starting values, confirmed per tier in #155: change them only on
 purpose, with the reason here.
 
 What is counted is in [ASSETS.md](ASSETS.md#rules-the-pipeline-enforces). Totals with the assets
@@ -616,6 +617,10 @@ Each environment alone is 56–68 kB to download and 683–789 kB on the GPU. Ev
 4% of the mobile download budget at M64, and under 15% with #190's baked models: the part-list
 models and 128 px textures are small. The budgets start to bite with the cooked models and
 surface sets (#186, #187). Record the totals here again at each milestone.
+
+With the surface library (#187) and the cooked bell (#196), KTX2 counted at RGBA8 on mobile: the
+largest table, the Hollow, is 4,805 kB to download, 11,208 kB on the GPU and 40,972 kB on a mobile
+GPU (51% of its 80 MB); every other table is 2.4–3.6 MB, 5.8–7.6 MB and 21–26 MB.
 
 ### The great bell, the first cooked model (#196)
 

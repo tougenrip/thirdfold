@@ -84,6 +84,19 @@ describe('tableBudget', () => {
 		expect(cost.gpu.desktop).toBe(4000 + 100);
 		expect(cost.gpu.mobile).toBe(1000 + 100);
 	});
+
+	it('counts KTX2 at RGBA8 on mobile, the transcoder’s fallback, and reports a table it puts over', () => {
+		const m = fake();
+		m.textures.stone = texture(100, 1000, 512, 'ktx2');
+		m.models.crate = model(5, 50, { cooked: true });
+		const cost = tableBudget(m, { environment: 'yard', models: ['crate', 'barrel'] });
+		expect(cost.gpu.desktop).toBe(1000 + 100 + 50 + 70);
+		expect(cost.gpu.mobile).toBe(4000 + 100 + 200 + 70);
+		m.textures.stone = texture(100, 25 * MB, 512, 'ktx2');
+		expect(overBudget(tableBudget(m, { environment: 'yard', models: [] }))).toEqual([
+			'100.0 MB GPU over the mobile 80.0 MB budget'
+		]);
+	});
 });
 
 describe('the budgets', () => {
