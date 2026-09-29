@@ -78,6 +78,11 @@ export interface TabletopOptions {
 	onLost?: (info: { api: string; message: string }) => void;
 	/** Refinement stepped an automatic tier down (see `setQuality`): remember it for this device. */
 	onTierRefined?: (tier: Tier) => void;
+	/**
+	 * Dev only (the asset turntable, #194): hands over the scene to add meshes to, and a `redraw`
+	 * that draws again with the sun's shadows. Never set by the app.
+	 */
+	devScene?: (scene: THREE.Scene, redraw: () => void) => void;
 }
 
 export interface Tabletop {

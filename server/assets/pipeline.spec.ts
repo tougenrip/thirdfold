@@ -59,7 +59,7 @@ describe('The adventures’ assets', () => {
 		for (const [file, data] of again.files) expect(data.equals(built.files.get(file)!)).toBe(true);
 		for (const file of built.files.keys()) {
 			expect(file).toMatch(
-				/^((models|textures|audio)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|ktx2|wav)|decoders\/basis-[0-9a-f]{8}\/basis_transcoder\.(js|wasm))$/
+				/^((models|textures|audio|thumbs)\/[a-z0-9-]+\.[0-9a-f]{8}\.(glb|png|ktx2|wav)|decoders\/basis-[0-9a-f]{8}\/basis_transcoder\.(js|wasm))$/
 			);
 		}
 	});
@@ -302,9 +302,31 @@ describe('the pipeline on other sources', () => {
 		);
 	});
 
+	it('lists a model’s thumbnail (#194), and refuses one with no model, no provenance or too big', async () => {
+		const src = sources();
+		const thumbs = path.join(src, 'thumbnails');
+		const png = encodePng(4, 4, new Uint8Array(64).fill(128));
+		writeFileSync(path.join(thumbs, 'well.png'), png);
+		cpSync(path.join(thumbs, 'crate.meta.json'), path.join(thumbs, 'well.meta.json'));
+		expect((await buildAssets(src)).manifest.models.well.thumbnail).toMatchObject({
+			file: expect.stringMatching(/^thumbs\/well\.[0-9a-f]{8}\.png$/),
+			bytes: png.length,
+			credit: { license: 'LicenseRef-thirdfold-original' }
+		});
+		rmSync(path.join(thumbs, 'well.meta.json'));
+		await expect(buildAssets(src)).rejects.toThrow(/well\.png: no provenance/);
+		cpSync(path.join(thumbs, 'crate.meta.json'), path.join(thumbs, 'well.meta.json'));
+		writeFileSync(path.join(thumbs, 'well.png'), Buffer.concat([png, Buffer.alloc(64 * 1024)]));
+		await expect(buildAssets(src)).rejects.toThrow(/well\.png: \d+ bytes, over 65536/);
+		rmSync(path.join(thumbs, 'well.png'));
+		cpSync(path.join(thumbs, 'crate.png'), path.join(thumbs, 'moon.png'));
+		await expect(buildAssets(src)).rejects.toThrow(/moon\.png: thumbnails are <model id>\.png/);
+	});
+
 	it('needs a model for every prop in the catalogue, and known materials and textures', async () => {
 		let src = sources();
 		rmSync(path.join(src, 'models', 'prop', 'well.json'));
+		for (const f of ['well.png', 'well.meta.json']) rmSync(path.join(src, 'thumbnails', f));
 		await expect(buildAssets(src)).rejects.toThrow(/no model for the prop "well"/);
 		rmSync(dir, { recursive: true, force: true });
 		src = sources();

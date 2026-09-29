@@ -55,7 +55,8 @@ describe('manifest v2', () => {
 		const entries = [
 			...Object.values(m.models),
 			...Object.values(m.textures),
-			...Object.values(m.audio)
+			...Object.values(m.audio),
+			...Object.values(m.models).flatMap((e) => (e.thumbnail ? [e.thumbnail] : []))
 		];
 		// Besides the KTX2 transcoder's two files, listed as a folder (#188).
 		expect(entries).toHaveLength(built.files.size - 2);

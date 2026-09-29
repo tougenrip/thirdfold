@@ -2,20 +2,24 @@
 // lists baked into GLBs, or GLBs made elsewhere or cooked (checked by
 // checkGlb: meshes, materials and KTX2 textures only) with an optional
 // <id>.meta.json for their swing and whether they are a set piece. Each is
-// held to its class's limits (LIMITS, by limitClass).
+// held to its class's limits (LIMITS, by limitClass). A model may have a
+// thumbnail, assets/thumbnails/<id>.png, rendered by scripts/thumbnails.mjs.
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
 	LIMITS,
 	MODEL_KINDS,
+	THUMBNAIL_BYTES,
 	limitClass,
+	type FileInfo,
 	type MaterialDef,
 	type ModelEntry
 } from '../../src/lib/assets/manifest';
 import { checkGlb, writeGlb } from './glb';
 import { creditOf, provenanceFor } from './licence';
 import { bakeModel, isModelKind, readModelSource } from './models';
+import { pngSize } from './png';
 import { AssetError, checkMeta, idOf, isRecord, list, readJson, type Emit } from './pipeline-files';
 
 const round = (v: number[]) =>
@@ -88,5 +92,24 @@ export async function buildModels(
 			};
 		}
 	}
+	const thumbDir = path.join(dir, 'thumbnails');
+	for (const name of list(thumbDir)) {
+		const { id, ext } = idOf(name, thumbDir);
+		if (ext === 'meta.json') checkMeta(thumbDir, id, 'png');
+		else if (ext !== 'png' || !Object.hasOwn(models, id))
+			throw new AssetError(path.join(thumbDir, name), 'thumbnails are <model id>.png');
+		else models[id].thumbnail = thumbnail(thumbDir, id, emit);
+	}
 	return models;
+}
+
+/** A model's thumbnail (#194): a small PNG with its own provenance. */
+function thumbnail(dir: string, id: string, emit: Emit): FileInfo {
+	const source = path.join(dir, `${id}.png`);
+	const png = readFileSync(source);
+	if (!pngSize(png)) throw new AssetError(source, 'not a PNG');
+	if (png.length > THUMBNAIL_BYTES)
+		throw new AssetError(source, `${png.length} bytes, over ${THUMBNAIL_BYTES} for a thumbnail`);
+	const credit = creditOf(provenanceFor(dir, id, 'png'));
+	return { ...emit('thumbs', id, 'png', png), bytes: png.length, credit };
 }

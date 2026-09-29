@@ -298,7 +298,8 @@ Every asset carries a provenance record, and the build refuses one without it (#
 ## 14. Review
 
 Nothing ships unreviewed. The reviewer (section 18) looks at every new or changed asset on the
-turntable, `/dev/assets` (#194, a dev-only page):
+turntable, `/dev/assets` (#194, a dev-only page: `npm run dev`, then open it; docs/ASSETS.md, "The
+turntable and thumbnails"):
 
 1. under all four lights: **day, dusk, torch and moon**;
 2. at the tactical and close camera, beside a 1.2 u reference mini and a 2.0 u wall;
