@@ -1158,7 +1158,9 @@ Pinned today: three.js 0.186.0, Playwright 1.63.0 (Chromium 153.0.8010.12, headl
    for every release crossed. List the renames and behaviour changes that touch `src/lib/tabletop`,
    `server/assets` or the TSL nodes in use, and grep for each.
 3. Run `npm run check`, `npm run lint`, `npm test` and `npm run build`. Run `npm run assets:check`,
-   because three.js can change the bytes of built GLBs, and `npm run bundle:check`.
+   because three.js can change the bytes of built GLBs, and `npm run bundle:check`. For three.js,
+   also run `npm run assets:cook` and commit `assets/cook.lock.json`: the lock records three's
+   version (the cook's tangents come from it), so CI's `assets:cook -- --check` fails until it does.
 4. Re-baseline the golden images deliberately (`--update`, on Linux or in the pinned Playwright
    image), with before and after images of every changed golden in the PR.
 5. Re-run the perf gate locally and `scripts/perf-gpu.mjs` on the reference GPUs (RTX 4060 and the iGPU). Update
