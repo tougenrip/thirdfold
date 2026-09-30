@@ -260,6 +260,8 @@ const PASSES: readonly (readonly [RegExp, string])[] = [
 	[/^prepass$/, 'prepass'],
 	[/^scene$/, 'scene'],
 	[/^overlay$/, 'overlay'],
+	// The sky's capture into the environment (sky.ts `envScene`) and PMREM's filter quads.
+	[/^pmrem$|^PMREM_/, 'pmrem'],
 	[/^SSAO\b|^AO$/, 'ao'],
 	[/^TRAA$|^Sharpen\b/, 'traa'],
 	[/^SMAANode\b/, 'smaa'],

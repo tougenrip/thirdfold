@@ -1,8 +1,10 @@
 // The sky's pure maths (#212): sRGB to linear, black-body colour, and where the sun and moon stand
-// on a path at an hour. Three-free (relative imports only); atmosphere-curve.ts re-exports it.
+// on a path at an hour; the dome's star field (#214) and when the sky is captured again (#216).
+// Three-free (relative imports only); atmosphere-curve.ts re-exports the first, sky.ts uses the rest.
 // Axes: Y up, grid north along -Z, east along +X; directions point toward the body.
 
 import { DAY_MINUTES } from '../game/world';
+import type { Tier } from './quality';
 
 export type Vec3 = [number, number, number];
 
@@ -92,4 +94,98 @@ export function elevationOf(dir: Vec3): number {
 export function smoothstep(a: number, b: number, x: number): number {
 	const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
 	return t * t * (3 - 2 * t);
+}
+
+/** Mulberry32, as the dice's (dice-faces.ts, which the server's build can't reach from here). */
+function seededRandom(seed: number): () => number {
+	let a = seed >>> 0;
+	return () => {
+		a = (a + 0x6d2b79f5) >>> 0;
+		let t = Math.imul(a ^ (a >>> 15), a | 1);
+		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
+/** The stars on the dome: unit directions, sizes in CSS px and linear colours (brightness in them). */
+export interface StarField {
+	directions: Float32Array<ArrayBuffer>;
+	sizes: Float32Array<ArrayBuffer>;
+	colors: Float32Array<ArrayBuffer>;
+}
+
+/** Stars drawn per tier (#214): the count changes with the tier only; low draws no dome at all. */
+export const STAR_COUNTS: Record<Tier, number> = { low: 0, medium: 1500, high: 3000, ultra: 3000 };
+export const STAR_COUNT = 3000;
+/** How far below the horizon stars are placed (they fade out there). */
+const STAR_FLOOR = -0.1;
+/** Coloured giants: a few percent, warm or blue. */
+const GIANTS = 0.04;
+const WARM: Vec3 = [1, 0.62, 0.36];
+const BLUE: Vec3 = [0.62, 0.74, 1];
+
+/**
+ * `n` stars from `seed`, the same on every client (no `Math.random`, as the dice): even over the
+ * sphere above `STAR_FLOOR`, most faint and small, a few bright, a few tinted.
+ */
+export function starField(seed: number, n: number): StarField {
+	const rand = seededRandom(seed);
+	const directions = new Float32Array(n * 3);
+	const sizes = new Float32Array(n);
+	const colors = new Float32Array(n * 3);
+	for (let i = 0; i < n; i++) {
+		// Uniform in y is uniform over the sphere's area.
+		const y = STAR_FLOOR + (1 - STAR_FLOOR) * rand();
+		const a = 2 * Math.PI * rand();
+		const r = Math.sqrt(1 - y * y);
+		directions.set([r * Math.cos(a), y, r * Math.sin(a)], i * 3);
+		const bright = rand() ** 6;
+		sizes[i] = 1 + 2 * bright;
+		const giant = rand() < GIANTS ? (rand() < 0.5 ? WARM : BLUE) : null;
+		const b = 0.15 + 0.85 * bright;
+		for (let c = 0; c < 3; c++) colors[i * 3 + c] = b * (giant ? giant[c] : 1);
+	}
+	return { directions, sizes, colors };
+}
+
+/** How often the sky may be captured again, per tier (ms); low captures once per table. */
+export const CAPTURE_INTERVAL_MS: Record<Tier, number> = {
+	low: Infinity,
+	medium: 5000,
+	high: 2000,
+	ultra: 2000
+};
+
+/**
+ * When to capture the sky into the environment again (#216): when its `environmentKey` changed,
+ * at most once per `interval`, and once more when a throttled key is still waiting (`nextAt`), so
+ * the last state is always the one captured. An infinite interval captures once until `reset`.
+ */
+export class CaptureThrottle {
+	private last = -Infinity;
+	private done: string | null = null;
+	private wanted: string | null = null;
+
+	constructor(public interval: number) {}
+
+	/** A new table: its first sky is captured at once. */
+	reset(): void {
+		this.last = -Infinity;
+		this.done = this.wanted = null;
+	}
+
+	/** Whether to capture `key` at `now` (ms); counted as captured when it says so. */
+	due(key: string, now: number): boolean {
+		this.wanted = key;
+		if (key === this.done || now - this.last < this.interval) return false;
+		this.done = key;
+		this.last = now;
+		return true;
+	}
+
+	/** When a throttled key falls due (the trailing capture), or null when none waits. */
+	nextAt(): number | null {
+		const waiting = this.wanted !== null && this.wanted !== this.done;
+		return waiting && Number.isFinite(this.interval) ? this.last + this.interval : null;
+	}
 }
