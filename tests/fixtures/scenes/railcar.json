@@ -5,9 +5,9 @@
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
 		"kind": "square",
+		"cellSize": 1,
 		"width": 68,
-		"height": 7,
-		"cellSize": 1
+		"height": 7
 	},
 	"tokens": [
 		{
@@ -18,13 +18,13 @@
 				"x": 63,
 				"y": 3
 			},
-			"vision": 8,
-			"light": 0,
-			"model": "warden",
 			"owner": {
 				"id": "fixture-p1",
 				"name": "Ana"
-			}
+			},
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
 		},
 		{
 			"id": "railcar-mini-b",
@@ -34,10 +34,10 @@
 				"x": 63,
 				"y": 4
 			},
+			"owner": null,
 			"vision": 8,
 			"light": 0,
-			"model": "saint",
-			"owner": null
+			"model": "saint"
 		}
 	],
 	"objects": [
@@ -808,7 +808,8 @@
 			},
 			"radius": 5,
 			"color": "#ffcf7a",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-lamp-coach-2",
@@ -818,7 +819,8 @@
 			},
 			"radius": 5,
 			"color": "#ffcf7a",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-lamp-dining",
@@ -828,7 +830,8 @@
 			},
 			"radius": 5,
 			"color": "#ffcf7a",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-lamp-sleeper",
@@ -838,7 +841,8 @@
 			},
 			"radius": 3,
 			"color": "#ffb347",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-lamp-baggage",
@@ -848,7 +852,8 @@
 			},
 			"radius": 3,
 			"color": "#ffb347",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-stove-glow",
@@ -882,20 +887,20 @@
 			"exposure": 0
 		},
 		"backdrop": {
-			"kind": null,
+			"kind": "prairie-scroll",
 			"level": 0
 		}
 	},
-	"interior": null,
+	"interior": "AAAAAAAAAADg//v//f/7/3/+v//f/7///+f/+//9//v/f/6//9//v///5//7//3/+/9/AAAAAAAAAAAA",
 	"fog": {
 		"enabled": true,
 		"revealed": "AAAAAAAAAAAAAAAAAAD4/38AAAAAAID//wcAAAAAAPj/fwAAAAAAgP//BwAAAAAA+P9/AAAAAAAAAAAA",
 		"shared": false
 	},
+	"discovery": {},
 	"adventure": null,
 	"terrain": null,
 	"darkness": null,
 	"environment": "railcar",
-	"floor": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHAgICAgICAgICAgICAgcAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAABwcCAgICAgICAgICAgICBwAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwICAgICAgICAgICAgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcHAgICAgICAgICAgICAgcAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAABwcCAgICAgICAgICAgICBwAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
-	"discovery": {}
+	"floor": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHAgICAgICAgICAgICAgcAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAABwcCAgICAgICAgICAgICBwAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwICAgICAgICAgICAgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcHAgICAgICAgICAgICAgcAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAABwcCAgICAgICAgICAgICBwAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="
 }

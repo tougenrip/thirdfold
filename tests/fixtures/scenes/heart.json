@@ -5,9 +5,9 @@
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
 		"kind": "square",
+		"cellSize": 1,
 		"width": 16,
-		"height": 14,
-		"cellSize": 1
+		"height": 14
 	},
 	"tokens": [
 		{
@@ -18,13 +18,13 @@
 				"x": 7,
 				"y": 11
 			},
-			"vision": 8,
-			"light": 0,
-			"model": "warden",
 			"owner": {
 				"id": "fixture-p1",
 				"name": "Ana"
-			}
+			},
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
 		},
 		{
 			"id": "heart-mini-b",
@@ -34,10 +34,10 @@
 				"x": 8,
 				"y": 11
 			},
+			"owner": null,
 			"vision": 8,
 			"light": 0,
-			"model": "saint",
-			"owner": null
+			"model": "saint"
 		}
 	],
 	"objects": [
@@ -223,7 +223,9 @@
 			},
 			"radius": 5,
 			"color": "#c0392b",
-			"on": true
+			"on": true,
+			"kind": "glow",
+			"fixture": false
 		},
 		{
 			"id": "hh-stair-light",
@@ -240,7 +242,7 @@
 	"world": {
 		"time": 1380,
 		"rate": 0,
-		"sun": true,
+		"sun": false,
 		"sky": null,
 		"weather": {
 			"kind": "none",
@@ -253,11 +255,11 @@
 			"color": null
 		},
 		"grade": {
-			"preset": null,
+			"preset": "ember-red",
 			"exposure": 0
 		},
 		"backdrop": {
-			"kind": null,
+			"kind": "cavern",
 			"level": 0
 		}
 	},
@@ -267,10 +269,10 @@
 		"revealed": "AAAAAAAAAAAAAAAAAAAAAAAA8A/wD/AP8A/wDw==",
 		"shared": false
 	},
+	"discovery": {},
 	"adventure": null,
 	"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 	"darkness": null,
 	"environment": "living-cave",
-	"floor": null,
-	"discovery": {}
+	"floor": null
 }

@@ -5,9 +5,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 36,
-			"height": 28,
-			"cellSize": 1
+			"height": 28
 		},
 		"environment": "village",
 		"world": {
@@ -22,7 +22,7 @@
 				"since": 0
 			},
 			"haze": {
-				"density": 0,
+				"density": 0.25,
 				"color": null
 			},
 			"grade": {
@@ -43,11 +43,11 @@
 		},
 		"terrain": null,
 		"darkness": null,
-		"interior": null,
+		"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 		"floor": null,
 		"tokens": [
 			{
-				"id": "5be8d4e2-51c7-483b-99f8-e185504c3745",
+				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -95,7 +95,9 @@
 				},
 				"radius": 1,
 				"color": "#9fd7ff",
-				"on": true
+				"on": true,
+				"kind": "glow",
+				"fixture": false
 			},
 			{
 				"id": "hb-lamp-south",
@@ -115,9 +117,9 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 36,
-			"height": 28,
-			"cellSize": 1
+			"height": 28
 		},
 		"environment": "village",
 		"world": {
@@ -132,7 +134,7 @@
 				"since": 0
 			},
 			"haze": {
-				"density": 0,
+				"density": 0.25,
 				"color": null
 			},
 			"grade": {
@@ -153,11 +155,11 @@
 		},
 		"terrain": null,
 		"darkness": null,
-		"interior": null,
+		"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 		"floor": null,
 		"tokens": [
 			{
-				"id": "5be8d4e2-51c7-483b-99f8-e185504c3745",
+				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -205,7 +207,9 @@
 				},
 				"radius": 1,
 				"color": "#9fd7ff",
-				"on": true
+				"on": true,
+				"kind": "glow",
+				"fixture": false
 			},
 			{
 				"id": "hb-lamp-south",
@@ -225,9 +229,9 @@
 		"fogMode": "gm",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 36,
-			"height": 28,
-			"cellSize": 1
+			"height": 28
 		},
 		"environment": "village",
 		"world": {
@@ -242,7 +246,7 @@
 				"since": 0
 			},
 			"haze": {
-				"density": 0,
+				"density": 0.25,
 				"color": null
 			},
 			"grade": {
@@ -263,11 +267,11 @@
 		},
 		"terrain": null,
 		"darkness": null,
-		"interior": null,
+		"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAf+OMf/IE//sEf+OMf/IE//sEf+OMf/AEA/gEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/AA/AMAP8AMA/AA/AMAP8AMAAAAAAAAAAAAAAAAAAAAAAAAA",
 		"floor": null,
 		"tokens": [
 			{
-				"id": "460e2b14-a685-4864-95bd-c8bfe929d482",
+				"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
 				"name": "The Saint",
 				"color": "#d4ac0d",
 				"pos": {
@@ -280,7 +284,7 @@
 				"ownerId": null
 			},
 			{
-				"id": "5be8d4e2-51c7-483b-99f8-e185504c3745",
+				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -1709,7 +1713,9 @@
 				},
 				"radius": 1,
 				"color": "#9fd7ff",
-				"on": true
+				"on": true,
+				"kind": "glow",
+				"fixture": false
 			},
 			{
 				"id": "hb-crane-candle",

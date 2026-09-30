@@ -5,9 +5,9 @@
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
 		"kind": "square",
+		"cellSize": 1,
 		"width": 30,
-		"height": 20,
-		"cellSize": 1
+		"height": 20
 	},
 	"tokens": [
 		{
@@ -24,7 +24,7 @@
 			"owner": null
 		},
 		{
-			"id": "5be8d4e2-51c7-483b-99f8-e185504c3745",
+			"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
 			"name": "The Warden",
 			"color": "#2e86c1",
 			"pos": {
@@ -35,12 +35,12 @@
 			"light": 0,
 			"model": "warden",
 			"owner": {
-				"id": "890b9ae5-0cfe-44af-9046-26336856f172",
+				"id": "1f7a7871-c89a-4fc2-a5d2-c5d1858e42c2",
 				"name": "Ana"
 			}
 		},
 		{
-			"id": "460e2b14-a685-4864-95bd-c8bfe929d482",
+			"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
 			"name": "The Saint",
 			"color": "#d4ac0d",
 			"pos": {
@@ -51,7 +51,7 @@
 			"light": 0,
 			"model": "saint",
 			"owner": {
-				"id": "9ef450ed-022c-4e30-aadc-418df5909882",
+				"id": "0342d569-9c11-4911-a409-3cf9b0a212d5",
 				"name": "Ben"
 			}
 		}
@@ -932,11 +932,11 @@
 			"since": 0
 		},
 		"haze": {
-			"density": 0,
+			"density": 0.15,
 			"color": null
 		},
 		"grade": {
-			"preset": null,
+			"preset": "cool-dusk",
 			"exposure": 0
 		},
 		"backdrop": {
@@ -944,7 +944,7 @@
 			"level": 0
 		}
 	},
-	"interior": null,
+	"interior": "AAAAAAAAAMD///Px//8A/P8/AP//D8D//wPw//8A/P8/AP//DwAAAAAAAAAAAAAAgA8AAOADAAD4AAAAPgAAgA8AAAAAAAAAAAAA",
 	"fog": {
 		"enabled": true,
 		"revealed": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwHwAA/AcAAP8BAMB/AADwHwAA/AcA",
@@ -959,7 +959,7 @@
 			"location": "monastery",
 			"characters": {
 				"warden": {
-					"tokenId": "5be8d4e2-51c7-483b-99f8-e185504c3745",
+					"tokenId": "af1df450-c966-4140-9c95-ae78b5ab5464",
 					"hp": 30,
 					"statuses": {},
 					"uses": {},
@@ -967,7 +967,7 @@
 					"dead": false
 				},
 				"saint": {
-					"tokenId": "460e2b14-a685-4864-95bd-c8bfe929d482",
+					"tokenId": "418bf6b4-0b3d-4b18-977a-637afd67455e",
 					"hp": 22,
 					"statuses": {},
 					"uses": {},

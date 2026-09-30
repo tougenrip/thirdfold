@@ -5,9 +5,9 @@
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
 		"kind": "square",
+		"cellSize": 1,
 		"width": 26,
-		"height": 16,
-		"cellSize": 1
+		"height": 16
 	},
 	"tokens": [
 		{
@@ -18,13 +18,13 @@
 				"x": 3,
 				"y": 3
 			},
-			"vision": 8,
-			"light": 0,
-			"model": "warden",
 			"owner": {
 				"id": "fixture-p1",
 				"name": "Ana"
-			}
+			},
+			"vision": 8,
+			"light": 0,
+			"model": "warden"
 		},
 		{
 			"id": "ghost-town-mini-b",
@@ -34,10 +34,10 @@
 				"x": 4,
 				"y": 3
 			},
+			"owner": null,
 			"vision": 8,
 			"light": 0,
-			"model": "saint",
-			"owner": null
+			"model": "saint"
 		}
 	],
 	"objects": [
@@ -236,7 +236,8 @@
 			},
 			"radius": 4,
 			"color": "#9fd0ff",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-ghost-lamp-2",
@@ -246,7 +247,8 @@
 			},
 			"radius": 4,
 			"color": "#9fd0ff",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-ghost-lamp-3",
@@ -256,12 +258,13 @@
 			},
 			"radius": 4,
 			"color": "#9fd0ff",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		}
 	],
 	"ambient": "dark",
 	"world": {
-		"time": 1380,
+		"time": 90,
 		"rate": 0,
 		"sun": true,
 		"sky": null,
@@ -284,16 +287,16 @@
 			"level": 0
 		}
 	},
-	"interior": null,
+	"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwAwDADwAAPwAA/AAA8AMAAAAAAAAAAA==",
 	"fog": {
 		"enabled": true,
 		"revealed": "/////////////////////////////////////////////////////////////////////w==",
 		"shared": false
 	},
+	"discovery": {},
 	"adventure": null,
 	"terrain": null,
 	"darkness": null,
 	"environment": "ghost-town",
-	"floor": "AAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwACAgICAgICAgICAgICAgAAAAYGBgcHBwcHAAICAgICAgICAgICAgICAAAABgYGBwcHBwcAAgICAgICAgICAgICAgIAAAAGBgYHBwcHBwEBAQEBAQEBAQEBAQEBAQEBAQEBAQcHBwcHAQEBAQEBAQEBAQEBAQEBAQEBAQEBBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwc=",
-	"discovery": {}
+	"floor": "AAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwACAgICAgICAgICAgICAgAAAAYGBgcHBwcHAAICAgICAgICAgICAgICAAAABgYGBwcHBwcAAgICAgICAgICAgICAgIAAAAGBgYHBwcHBwEBAQEBAQEBAQEBAQEBAQEBAQEBAQcHBwcHAQEBAQEBAQEBAQEBAQEBAQEBAQEBBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwc="
 }

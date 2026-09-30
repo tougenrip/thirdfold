@@ -5,13 +5,13 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 26,
-			"height": 16,
-			"cellSize": 1
+			"height": 16
 		},
 		"environment": "ghost-town",
 		"world": {
-			"time": 1380,
+			"time": 90,
 			"rate": 0,
 			"sun": true,
 			"sky": null,
@@ -130,7 +130,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	},
@@ -140,13 +141,13 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 26,
-			"height": 16,
-			"cellSize": 1
+			"height": 16
 		},
 		"environment": "ghost-town",
 		"world": {
-			"time": 1380,
+			"time": 90,
 			"rate": 0,
 			"sun": true,
 			"sky": null,
@@ -265,7 +266,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	},
@@ -275,13 +277,13 @@
 		"fogMode": "gm",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 26,
-			"height": 16,
-			"cellSize": 1
+			"height": 16
 		},
 		"environment": "ghost-town",
 		"world": {
-			"time": 1380,
+			"time": 90,
 			"rate": 0,
 			"sun": true,
 			"sky": null,
@@ -313,7 +315,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
-		"interior": null,
+		"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwAwDADwAAPwAA/AAA8AMAAAAAAAAAAA==",
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwACAgICAgICAgICAgICAgAAAAYGBgcHBwcHAAICAgICAgICAgICAgICAAAABgYGBwcHBwcAAgICAgICAgICAgICAgIAAAAGBgYHBwcHBwEBAQEBAQEBAQEBAQEBAQEBAQEBAQcHBwcHAQEBAQEBAQEBAQEBAQEBAQEBAQEBBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwc=",
 		"tokens": [
 			{
@@ -539,7 +541,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-ghost-lamp-2",
@@ -549,7 +552,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-ghost-lamp-3",
@@ -559,7 +563,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	}

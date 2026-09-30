@@ -5,15 +5,15 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 16,
-			"height": 14,
-			"cellSize": 1
+			"height": 14
 		},
 		"environment": "living-cave",
 		"world": {
 			"time": 1380,
 			"rate": 0,
-			"sun": true,
+			"sun": false,
 			"sky": null,
 			"weather": {
 				"kind": "none",
@@ -26,11 +26,11 @@
 				"color": null
 			},
 			"grade": {
-				"preset": null,
+				"preset": "ember-red",
 				"exposure": 0
 			},
 			"backdrop": {
-				"kind": null,
+				"kind": "cavern",
 				"level": 0
 			}
 		},
@@ -102,15 +102,15 @@
 		"fogMode": "player",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 16,
-			"height": 14,
-			"cellSize": 1
+			"height": 14
 		},
 		"environment": "living-cave",
 		"world": {
 			"time": 1380,
 			"rate": 0,
-			"sun": true,
+			"sun": false,
 			"sky": null,
 			"weather": {
 				"kind": "none",
@@ -123,11 +123,11 @@
 				"color": null
 			},
 			"grade": {
-				"preset": null,
+				"preset": "ember-red",
 				"exposure": 0
 			},
 			"backdrop": {
-				"kind": null,
+				"kind": "cavern",
 				"level": 0
 			}
 		},
@@ -199,15 +199,15 @@
 		"fogMode": "gm",
 		"grid": {
 			"kind": "square",
+			"cellSize": 1,
 			"width": 16,
-			"height": 14,
-			"cellSize": 1
+			"height": 14
 		},
 		"environment": "living-cave",
 		"world": {
 			"time": 1380,
 			"rate": 0,
-			"sun": true,
+			"sun": false,
 			"sky": null,
 			"weather": {
 				"kind": "none",
@@ -220,11 +220,11 @@
 				"color": null
 			},
 			"grade": {
-				"preset": null,
+				"preset": "ember-red",
 				"exposure": 0
 			},
 			"backdrop": {
-				"kind": null,
+				"kind": "cavern",
 				"level": 0
 			}
 		},
@@ -450,7 +450,9 @@
 				},
 				"radius": 5,
 				"color": "#c0392b",
-				"on": true
+				"on": true,
+				"kind": "glow",
+				"fixture": false
 			},
 			{
 				"id": "hh-stair-light",
