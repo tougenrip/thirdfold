@@ -46,7 +46,6 @@ import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
 import { WallLayer } from './walls';
-
 export { warmLobby } from './lobby';
 
 export async function createTabletop(
@@ -162,6 +161,7 @@ export async function createTabletop(
 		const { ambient, lights } = lightState;
 		const seats = lightSeats(grid, props);
 		lighting.update(grid, ambient, lights, sources, blocked, ground, darkness, seats);
+		lighting.showHandles(grid, lights, ground, fogState.mode === 'gm');
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		cloud.update(grid, fogState.fog, fogState.mode);
 		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade

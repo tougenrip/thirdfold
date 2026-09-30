@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AdventureView } from '$lib/adventure/adventure';
 	import { parseDice } from '$lib/game/dice';
-	import { AMBIENTS, type Ambient, type Light } from '$lib/game/lights';
+	import { AMBIENTS, lightKindName, type Ambient, type Light } from '$lib/game/lights';
 	import type { Direction } from '$lib/game/protocol';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { BuildTool } from './BuildPanel.svelte';
@@ -25,6 +25,8 @@
 		onTool(tool: BuildTool): void;
 		onSpawn(kind: string | null): void;
 		onSelectToken(tokenId: string): void;
+		/** Selects a light for the light inspector. */
+		onEditLight(lightId: string): void;
 		onFogAll(reveal: boolean): void;
 		onError(message: string): void;
 	}
@@ -42,6 +44,7 @@
 		onTool,
 		onSpawn,
 		onSelectToken,
+		onEditLight,
 		onFogAll,
 		onError
 	}: Props = $props();
@@ -85,7 +88,8 @@
 		);
 	}
 
-	const lightName = (l: Light) => `Light at ${l.pos.x + 1}, ${l.pos.y + 1}`;
+	const lightName = (l: Light) =>
+		`${lightKindName(l.kind ?? 'torch')} at ${l.pos.x + 1}, ${l.pos.y + 1}`;
 	const fightState = (state: string | null) =>
 		state === 'won' ? ' (won)' : state === 'lost' ? ' (lost)' : state === 'active' ? ' (on)' : '';
 </script>
@@ -244,7 +248,7 @@
 	{#if lights.length}
 		<details>
 			<summary>Lights ({lights.filter((l) => l.on).length} of {lights.length} on)</summary>
-			<ul class="list">
+			<ul class="list lights">
 				{#each lights as l (l.id)}
 					<li>
 						<span class="swatch" style:background={l.color}></span>
@@ -257,6 +261,12 @@
 						>
 							{l.on ? 'On' : 'Off'}
 						</button>
+						<button
+							type="button"
+							class="small"
+							aria-label="Edit {lightName(l)}"
+							onclick={() => onEditLight(l.id)}>Edit</button
+						>
 					</li>
 				{/each}
 			</ul>
@@ -378,6 +388,10 @@
 		grid-template-columns: auto 1fr auto;
 		align-items: center;
 		gap: var(--sp-3);
+	}
+
+	.lights li {
+		grid-template-columns: auto 1fr auto auto;
 	}
 
 	.chips {

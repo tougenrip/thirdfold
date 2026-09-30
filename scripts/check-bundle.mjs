@@ -25,8 +25,10 @@ const BUDGETS = {
 	// cover (TableLoading.svelte), 121,687 B measured.
 	'/room/[id]': { total: 121_700, own: 76_000 },
 	// 360.0 → 360.1: light looks (intensity, still flames, no fixture for a glow), prop paint and
-	// token lift and scale (#201, #202), 360,059 B measured.
-	renderer: { total: 360_100 },
+	// token lift and scale (#201, #202), 360,059 B measured. 360.1 → 360.6: the GM's handles on
+	// fixture-less lights (#209; as a lazy chunk they split the shared code into more chunks and
+	// cost twice as much), 360,597 B measured.
+	renderer: { total: 360_600 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

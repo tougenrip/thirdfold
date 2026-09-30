@@ -20,6 +20,7 @@ import {
 import type { Blockers } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
 import type { Ground } from './ground';
+import { LightHandles } from './light-handles';
 import { inWorld } from './materials/world-modify';
 import { modelNow } from './models';
 
@@ -140,6 +141,8 @@ export class LightingLayer {
 	private hasDark = false;
 	private hemisphere = PRESETS.day.hemisphere;
 	private flash = 0;
+	/** The GM's handles on fixture-less lights (#209), made the first time a GM needs them. */
+	private handles: LightHandles | null = null;
 
 	constructor(private readonly base: SceneLights) {
 		for (let i = 0; i < POOL_SIZE; i++) {
@@ -183,9 +186,23 @@ export class LightingLayer {
 		this.updateFixtures(grid, lights, ground, seats);
 	}
 
-	/** Id of the light fixture under the ray, if any. */
+	/**
+	 * The GM's handles on lights without a fixture (`gm`). Made the first time a GM needs them,
+	 * so a player's table never builds or draws them.
+	 */
+	showHandles(grid: SquareGrid, lights: readonly Light[], ground: Ground | null, gm: boolean) {
+		if (!this.handles && gm && lights.some((l) => !lightLook(l).fixture)) {
+			this.handles = new LightHandles();
+			this.group.add(this.handles.mesh);
+		}
+		this.handles?.update(grid, gm ? lights : [], ground);
+	}
+
+	/** Id of the light fixture or GM handle under the ray, if any: the nearer of the two. */
 	pick(raycaster: THREE.Raycaster): string | null {
 		const hit = raycaster.intersectObjects([...this.fixtures.values()], true)[0];
+		const handle = this.handles?.pick(raycaster);
+		if (handle && !(hit && hit.distance < handle.distance)) return handle.id;
 		for (let o: THREE.Object3D | null = hit?.object ?? null; o; o = o.parent) {
 			if (typeof o.userData.lightId === 'string') return o.userData.lightId;
 		}
@@ -197,6 +214,7 @@ export class LightingLayer {
 		this.flameGeometry.dispose();
 		this.postMaterial.dispose();
 		this.flameMaterial.dispose();
+		this.handles?.dispose();
 	}
 
 	/** Gives the pool's point lights to the strongest sources; the rest stay dark. */

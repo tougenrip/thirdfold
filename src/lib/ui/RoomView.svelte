@@ -164,11 +164,16 @@
 	let floorDraft = $state<FloorId>('stone');
 
 	let lightDraft = $state<LightDraft>({
+		kind: 'torch',
 		radius: DEFAULT_LIGHT_RADIUS,
 		color: LIGHT_COLORS[0].color
 	});
 	let propDraft = $state<PropDraft>({ assetId: 'table', rotation: 0 });
 	let selectedPropId = $state<string | null>(null);
+	/** The light the GM is editing in the light inspector. */
+	let selectedLightId = $state<string | null>(null);
+	/** A light put back by undo that was off: switched off again once it reappears. */
+	let restoringLight: { pos: GridPos; known: Set<string> } | null = null;
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
 	/** A one-step undo offered with the toast (a deleted prop, put back). */
@@ -317,6 +322,9 @@
 	let cuePlay = $state<CuePlay | null>(null);
 	const selectedProp = $derived(
 		(isGm && selectedPropId && room?.props.find((p) => p.id === selectedPropId)) || null
+	);
+	const selectedLight = $derived(
+		(isGm && selectedLightId && room?.lights.find((l) => l.id === selectedLightId)) || null
 	);
 	const canMove = (tokenId: string | null) => {
 		const token = tokenId && room?.tokens.find((t) => t.id === tokenId);
@@ -579,12 +587,13 @@
 		if (selectedProp) {
 			return 'Click a cell to move the prop. [ and ] rotate, Delete removes, Esc deselects.';
 		}
+		if (selectedLight) return 'Edit the light in its panel. Delete removes it, Esc deselects.';
 		if (hoveredPropId && isGm) return 'Click to select this prop.';
 		if (tool === 'light') {
 			const existing = lightUnder(hover);
 			return existing
 				? `Click to switch this light ${existing.on ? 'off' : 'on'}.`
-				: 'Light: click a cell to place a light there. Click a light to switch it on or off.';
+				: 'Light: click a cell to place a light of the chosen kind. Click a light to switch it on or off; select it (V) to edit it.';
 		}
 		if (tool === 'dark') {
 			const lifting = areaStart && isDark(areaStart);
@@ -790,6 +799,29 @@
 		});
 	}
 
+	function deleteLight(light: Light) {
+		act({ type: 'light_delete', lightId: light.id });
+		selectedLightId = null;
+		const { on, ...made } = light; // the server gives it a new id, and makes it lit
+		showUndo('Light removed.', 'Undo', () => {
+			if (!on) restoringLight = { pos: made.pos, known: new Set(room?.lights.map((l) => l.id)) };
+			act({ type: 'light_create', ...made });
+		});
+	}
+
+	// A restored light comes back lit, with a new id: find it and switch it off again.
+	$effect(() => {
+		const lights = room?.lights;
+		const was = restoringLight;
+		if (!lights || !was) return;
+		const back = lights.find(
+			(l) => !was.known.has(l.id) && l.pos.x === was.pos.x && l.pos.y === was.pos.y
+		);
+		if (!back) return;
+		restoringLight = null;
+		act({ type: 'light_update', lightId: back.id, patch: { on: false } });
+	});
+
 	// The server gives a restored prop a new id: find it, then give back what create can't carry.
 	$effect(() => {
 		const props = room?.props;
@@ -830,6 +862,7 @@
 		placing = null;
 		selectedId = null;
 		selectedPropId = null;
+		selectedLightId = null;
 	}
 
 	function rotateBy(rotation: Rotation, by: 1 | -1): Rotation {
@@ -995,6 +1028,7 @@
 		}
 		if (pick.tokenId) {
 			selectedPropId = null;
+			selectedLightId = null;
 			const id = pick.tokenId;
 			if (canMove(id)) {
 				selectedId = selectedId === id ? null : id;
@@ -1020,6 +1054,13 @@
 			const prop = propUnder(pick);
 			if (prop) {
 				selectedPropId = prop.id;
+				selectedLightId = null;
+				return;
+			}
+			// A light, by its fixture, its GM handle or its cell; clicking elsewhere lets go.
+			const light = lightUnder(pick);
+			if (light || selectedLight) {
+				selectedLightId = light && light.id !== selectedLightId ? light.id : null;
 				return;
 			}
 		}
@@ -1043,6 +1084,10 @@
 		}
 		if (isGm && !typing && selectedProp && (event.key === 'Delete' || event.key === 'Backspace')) {
 			deleteProp(selectedProp);
+			return;
+		}
+		if (isGm && !typing && selectedLight && (event.key === 'Delete' || event.key === 'Backspace')) {
+			deleteLight(selectedLight);
 			return;
 		}
 		if (!typing && event.key.startsWith('Arrow') && onTable(event.target) && selected) {
@@ -1073,6 +1118,7 @@
 				return;
 			}
 			selectedPropId = null;
+			selectedLightId = null;
 			if (wallStart || areaStart) {
 				wallStart = null;
 				areaStart = null;
@@ -1135,6 +1181,13 @@
 		}
 	});
 	/** Onboarding's glow on the table, while the player is being shown to it. */
+	/** The light being edited, marked on its cell. */
+	const lightMark = $derived<PreviewItem[]>(
+		selectedLight
+			? [{ kind: 'area', from: selectedLight.pos, to: selectedLight.pos, tone: 'valid' }]
+			: []
+	);
+
 	const beacon = $derived.by((): PreviewItem[] => {
 		const step = tutorial.stage === 'tutorial' ? currentStep(tutorial, !!firstFind) : null;
 		if (!firstFind || (step?.id !== 'approach' && step?.id !== 'inspect')) return [];
@@ -1210,7 +1263,7 @@
 				{hoveredPropId}
 				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
-				preview={beacon.length ? [...preview, ...beacon] : preview}
+				preview={beacon.length || selectedLight ? [...preview, ...beacon, ...lightMark] : preview}
 				selectedId={selected?.id ?? null}
 				{fallen}
 				{floats}
@@ -1307,6 +1360,10 @@
 							setTool('select');
 							selectedId = id;
 						}}
+						onEditLight={(id) => {
+							setTool('select');
+							selectedLightId = id;
+						}}
 						onFogAll={(reveal) =>
 							act({
 								type: 'fog_area',
@@ -1352,6 +1409,19 @@
 						onDone={() => (selectedPropId = null)}
 						onRemove={() => selectedProp && deleteProp(selectedProp)}
 					/>
+				</div>
+			{/if}
+
+			{#if selectedLight}
+				<div class="panel">
+					{#await import('./LightInspector.svelte') then { default: LightInspector }}
+						<LightInspector
+							light={selectedLight}
+							send={act}
+							onDone={() => (selectedLightId = null)}
+							onRemove={() => selectedLight && deleteLight(selectedLight)}
+						/>
+					{/await}
 				</div>
 			{/if}
 

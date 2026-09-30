@@ -88,6 +88,9 @@ export const LIGHT_KIND_DEFAULTS: Readonly<Record<LightKind, LightLook>> = {
 	panel: kindLook('panel', 0.8, 3, 'none', true)
 };
 
+/** A kind's name for people: 'Torch'. */
+export const lightKindName = (kind: LightKind): string => kind[0].toUpperCase() + kind.slice(1);
+
 /** A light's whole look: its own fields over its kind's (no kind is a torch, the look lights always had). */
 export function lightLook(light: Partial<LightLook>): LightLook {
 	const look: Record<string, unknown> = { ...LIGHT_KIND_DEFAULTS[light.kind ?? 'torch'] };
