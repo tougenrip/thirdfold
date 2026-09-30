@@ -1,7 +1,8 @@
 // The key light follows the hour (#215): the shadow map is drawn again about once per half degree
 // the light turns (SHADOW_STEP_DEG), and when it switches body, never while nothing changes, and
 // the hour compiles nothing. Under reduced motion a new hour snaps (no tween frames); with motion
-// it plays over TWEEN_MS on the held clock and then the table comes to rest.
+// it plays over TWEEN_MS on the held clock and then the table comes to rest. The low tier (#225:
+// software GL, compat WebGPU): a flat sky, one capture per table, range fog only.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadManifest } from '$lib/assets/load';
@@ -13,7 +14,8 @@ import {
 	shadowNeedsRedraw,
 	type KeyLight
 } from './atmosphere-curve';
-import { TWEEN_MS } from './atmosphere';
+import { atmosphereUniforms, skyBackground, TWEEN_MS } from './atmosphere';
+import type { Tier } from './quality';
 import type { Tabletop } from './types';
 import { loadSidecar, loadView, manualClock, mountFixture, settle, type Mounted } from './testing';
 
@@ -25,11 +27,11 @@ afterEach(async () => {
 	mounted = null;
 });
 
-async function mount(reducedMotion: boolean) {
+async function mount(reducedMotion: boolean, tier: Tier = 'medium') {
 	const sidecar = await loadSidecar('test-world');
 	const view = await loadView('test-world', 'day', 'gm');
 	const clock = manualClock();
-	mounted = await mountFixture(view, sidecar.poses.overview, { clock, reducedMotion });
+	mounted = await mountFixture(view, sidecar.poses.overview, { clock, reducedMotion, tier });
 	await settle(mounted.tabletop);
 	return { tabletop: mounted.tabletop, view, clock };
 }
@@ -109,6 +111,37 @@ describe('the key light', () => {
 		await settle(tabletop);
 		expect(shadows(tabletop)).toBeGreaterThan(mid);
 		expect(tabletop.stats().mode).not.toBe('active');
+		expect(tabletop.stats()).toMatchObject({ programs, pipelines });
+	});
+});
+
+describe('the low tier', () => {
+	it('keeps a flat sky, captures once per table and drops the height fog', async () => {
+		const { tabletop, view, clock } = await mount(true, 'low');
+		const captures = () => tabletop.stats().timings.pmrem?.count ?? 0;
+		expect(captures()).toBe(1);
+		const { programs, pipelines } = tabletop.stats();
+		// The hours, a dense haze and another sky: never captured again, no height fog, and the flat
+		// sky is the haze the far ground fades into.
+		for (const [time, sky] of [
+			[360, null],
+			[780, 'overcast'],
+			[1170, 'blood-moon'],
+			[1410, 'desert-night']
+		] as const) {
+			const world: WorldLook = {
+				...view.world,
+				time,
+				sky,
+				haze: { density: 1, color: '#8899aa' }
+			};
+			tabletop.setLighting(bandOf(time), view.lights, world);
+			clock.set(clock.now() + 60_000);
+			await drawn(tabletop);
+			expect(atmosphereUniforms.fogDensity.value, `${time}`).toBe(0);
+			expect(skyBackground.equals(atmosphereUniforms.fogColor.value), `${time}`).toBe(true);
+		}
+		expect(captures()).toBe(1);
 		expect(tabletop.stats()).toMatchObject({ programs, pipelines });
 	});
 });

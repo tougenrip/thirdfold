@@ -11,7 +11,7 @@ import temperate from '../../../assets/skies/temperate.json';
 import underground from '../../../assets/skies/underground.json';
 import { atmosphereAt, presetOf } from './atmosphere-curve';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
-import { SkyLayer, SKY_CUBE } from './sky';
+import { SkyLayer, SKY_CUBE, SKY_CUBE_LOW } from './sky';
 import { BACKEND } from './testing';
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -87,6 +87,9 @@ it('captures the dome alone, writes 0 to hidden, and a tier or sky switch compil
 	layer.setTier('low');
 	layer.apply(at(temperate, 23 * 60));
 	expect(layer.dome.visible).toBe(false);
+	// Low (software GL, compat WebGPU, #225) captures into the small cube.
+	expect(layer.cube).toBe(SKY_CUBE_LOW);
+	expect(SKY_CUBE_LOW.width).toBe(16);
 	const held = new THREE.Group();
 	held.position.y = -1000;
 	held.scale.setScalar(1e-6);
@@ -95,6 +98,17 @@ it('captures the dome alone, writes 0 to hidden, and a tier or sky switch compil
 	s.draw();
 	held.removeFromParent();
 	layer.capture(s.renderer);
+	// The small cube holds the sky it captured.
+	const small = (await s.renderer.readRenderTargetPixelsAsync(
+		SKY_CUBE_LOW,
+		0,
+		0,
+		4,
+		4,
+		0,
+		2
+	)) as Uint16Array;
+	expect(small.some((x) => x !== 0)).toBe(true);
 	s.draw();
 	const programs = s.programs();
 
@@ -113,6 +127,8 @@ it('captures the dome alone, writes 0 to hidden, and a tier or sky switch compil
 	}
 	expect(drawn).toBe(texels);
 	expect(shown).toBe(texels);
+
+	expect(layer.cube).toBe(SKY_CUBE);
 
 	// A day's hours, the tiers, an enclosed sky and captures: no new program.
 	for (const tier of ['medium', 'ultra', 'low', 'high'] as const) {

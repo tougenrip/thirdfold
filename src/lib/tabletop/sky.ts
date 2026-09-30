@@ -12,9 +12,9 @@
 //
 // The environment: `capture` renders `envScene` (a second dome sharing this one's geometry and
 // material, and nothing else, so no geometry of the table can ever show in a reflection) into
-// `SKY_CUBE`, which three's PMREM re-filters on the next frame. The target and camera are the
-// module's, never disposed (like the blank textures), so every renderer's environment node reads
-// one texture from its first frame. When to capture is `CaptureThrottle` (sky-maths.ts).
+// `SKY_CUBE` (the low tier's 16 px `SKY_CUBE_LOW`), which three's PMREM re-filters on the next
+// frame. The targets and cameras are the module's, never disposed (like the blank textures), so
+// every renderer's environment node reads one texture from its first frame. When to capture is `CaptureThrottle` (sky-maths.ts).
 
 import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
@@ -33,11 +33,19 @@ const v4 = L.vec4;
 const n = (x: unknown) => x as N;
 const fn = (body: (args: N[]) => unknown) => Fn(body) as unknown as Loose;
 
+function skyCube(size: number): THREE.CubeRenderTarget {
+	const cube = new THREE.CubeRenderTarget(size, { type: THREE.HalfFloatType });
+	// Without an MRT set, a material's `mrtNode` is its whole output: this names the one attachment.
+	cube.texture.name = 'output';
+	return cube;
+}
 /** The environment's cube: 64 px, half float, never disposed. */
-export const SKY_CUBE = new THREE.CubeRenderTarget(64, { type: THREE.HalfFloatType });
-// Without an MRT set, a material's `mrtNode` is its whole output: this names the one attachment.
-SKY_CUBE.texture.name = 'output';
-const cubeCamera = new THREE.CubeCamera(0.1, 10, SKY_CUBE);
+export const SKY_CUBE = skyCube(64);
+/** The low tier's (#225: software GL, compat WebGPU): 16 px, captured once per table. */
+export const SKY_CUBE_LOW = skyCube(16);
+const cameras = new Map(
+	[SKY_CUBE, SKY_CUBE_LOW].map((c) => [c, new THREE.CubeCamera(0.1, 10, c)] as const)
+);
 
 /** The sky is not the world: "shown" in the scene pass's `hidden` attachment, like dice. */
 const SHOWN = mrt({ output, hidden: vec4(0, 0, 0, output.a) });
@@ -48,6 +56,8 @@ const MOON_TINT = [0.92, 0.94, 1] as const;
 /** The moon's brightness by day and in the dark (blended by the grade's dark weight). */
 const MOON_DAY = 0.25;
 const MOON_NIGHT = 1.4;
+/** How high above the horizon (the sine of the elevation) the haze gives way to the sky's horizon. */
+const HAZE_BAND = 0.12;
 /** How far stars dim at the bottom of a twinkle. */
 const TWINKLE = 0.35;
 /** Stars stand this share of the camera's far plane away: inside it, behind everything drawn. */
@@ -59,6 +69,10 @@ function skyUniforms() {
 		zenith: T.uniform(new THREE.Color()),
 		horizon: T.uniform(new THREE.Color()),
 		ground: T.uniform(new THREE.Color()),
+		/** The haze at the horizon: the scene fog's colour, and its colour toward the sun, so the dome
+		 * meets the fogged ground there with no step (atmosphere.ts `skyFogNode`). */
+		haze: T.uniform(new THREE.Color()),
+		inscatter: T.uniform(new THREE.Color()),
 		sunDir: T.uniform(new THREE.Vector3(0, 1, 0)),
 		sunColor: T.uniform(new THREE.Color(1, 1, 1)),
 		sunGlow: T.uniform(0),
@@ -129,15 +143,22 @@ function domeColour(u: SkyUniforms): N {
 	return fn(() => {
 		const v = normalize(n(T.positionGeometry));
 		const up = v.y;
-		// Gradient: no hard line at the horizon, the ground below it.
-		const above = mix(horizon, zenith, pow(smoothstep(0, 1, max(up, 0)), 0.5));
-		const below = mix(horizon, ground, smoothstep(0, 0.25, up.negate()));
+		// Gradient: at the horizon the haze, as the fog paints the far ground (warmer toward the
+		// sun, as the fog node's inscatter), rising into the sky's own horizon over `HAZE_BAND`;
+		// the ground below it. No step where the fogged ground meets the sky.
+		const haze = mix(n(u.haze), n(u.inscatter), pow(max(dot(v, sunDir), 0), 8));
+		const low = mix(haze, horizon, smoothstep(0, HAZE_BAND, up));
+		const above = mix(low, zenith, pow(smoothstep(0, 1, max(up, 0)), 0.5));
+		const below = mix(haze, ground, smoothstep(0, 0.25, up.negate()));
 		const col = mix(below, above, smoothstep(-0.005, 0.005, up)).toVar();
 		const shellNoise = noise(v.xz.mul(4).add(v.yy.mul(2.3)))
 			.mul(0.5)
 			.add(0.5);
-		col.mulAssign(float(1).sub(n(u.shell).mul(0.6).mul(shellNoise)));
-		const rim = smoothstep(-0.05, 0.02, up);
+		// An enclosed sky's rock, fading into the haze at the horizon's line.
+		const shell = n(u.shell).mul(smoothstep(0, HAZE_BAND, up.abs()));
+		col.mulAssign(float(1).sub(shell.mul(0.6).mul(shellNoise)));
+		// The sun and moon set into the haze: nothing of them at or under the horizon's line.
+		const rim = smoothstep(0, 0.03, up);
 		// The sun: a wide glow and a tight one, and an HDR disc bloom catches.
 		const toSun = dot(v, sunDir);
 		const c = max(toSun, 0);
@@ -260,6 +281,8 @@ export class SkyLayer {
 	private readonly standIns: THREE.Object3D[];
 	private shown = true;
 	private reduced = false;
+	/** The cube the environment is captured into: the low tier's is small (#225). */
+	cube = SKY_CUBE;
 
 	constructor() {
 		this.domeMaterial = domeMaterial(this.uniforms);
@@ -279,9 +302,15 @@ export class SkyLayer {
 		this.stars.visible = false;
 	}
 
-	/** The sky at an hour, a sky and a weather: uniforms only. */
-	apply(s: AtmosphereState): void {
+	/**
+	 * The sky at an hour, a sky and a weather: uniforms only. `haze` and `inscatter` are the scene
+	 * fog's colours as the world's haze tints them (atmosphere.ts), the curve's fog without.
+	 */
+	apply(s: AtmosphereState, haze?: THREE.Color, inscatter?: THREE.Color): void {
 		const u = this.uniforms;
+		if (haze) u.haze.value.copy(haze);
+		else u.haze.value.setRGB(...s.fog.color);
+		u.inscatter.value.copy(inscatter ?? u.haze.value);
 		u.zenith.value.setRGB(...s.zenith);
 		u.horizon.value.setRGB(...s.horizon);
 		u.ground.value.setRGB(...s.ground);
@@ -315,6 +344,7 @@ export class SkyLayer {
 	 */
 	setTier(tier: Tier, on = true): void {
 		this.shown = on && tier !== 'low';
+		this.cube = tier === 'low' ? SKY_CUBE_LOW : SKY_CUBE;
 		this.dome.visible = this.shown;
 		this.stars.visible = this.shown && this.uniforms.stars.value > 0;
 		this.stars.count = Math.max(1, STAR_COUNTS[tier]);
@@ -326,7 +356,7 @@ export class SkyLayer {
 	}
 
 	/**
-	 * Captures the sky into `SKY_CUBE` (no sun disc), as the pipeline's passes draw: linear, no
+	 * Captures the sky into the tier's cube, `cube` (no sun disc), as the pipeline's passes draw: linear, no
 	 * tone mapping, no MRT. PMREM re-filters it on the next frame drawn with it.
 	 */
 	capture(renderer: THREE.WebGPURenderer): void {
@@ -337,7 +367,7 @@ export class SkyLayer {
 		renderer.setMRT(null);
 		this.uniforms.capture.value = 1;
 		try {
-			cubeCamera.update(renderer, this.envScene);
+			cameras.get(this.cube)!.update(renderer, this.envScene);
 		} finally {
 			this.uniforms.capture.value = 0;
 			renderer.setMRT(outputs);
@@ -346,7 +376,7 @@ export class SkyLayer {
 		}
 	}
 
-	/** Frees this layer's geometry and materials; `SKY_CUBE` stays. */
+	/** Frees this layer's geometry and materials; the cubes stay. */
 	dispose(): void {
 		this.group.removeFromParent();
 		this.geometry.dispose();

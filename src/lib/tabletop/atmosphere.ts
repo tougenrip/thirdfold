@@ -51,7 +51,7 @@ import {
 import { flashPolicy, type FlashPolicy } from './flash';
 import { skyAmbient } from './materials/world-modify';
 import type { Tier } from './quality';
-import { SkyLayer, SKY_CUBE } from './sky';
+import { SkyLayer, SKY_CUBE, SKY_CUBE_LOW } from './sky';
 import { CAPTURE_INTERVAL_MS, CaptureThrottle } from './sky-maths';
 
 /** How long a change of hour takes to play, in ms (ease-out; snapped under reduced motion). */
@@ -87,7 +87,7 @@ export const atmosphereUniforms = {
 	ibl: uniform(0)
 };
 
-/** The scene's background: the sky's horizon, which shows where the dome is hidden (low, #214). */
+/** The scene's background: the haze at the horizon, which shows where the dome is hidden (low). */
 export const skyBackground = new THREE.Color(0x292421);
 
 const u = atmosphereUniforms;
@@ -120,7 +120,7 @@ export function bindSkyEnv(renderer: THREE.WebGPURenderer): void {
 	node._generator?.dispose();
 	node._generator = new THREE.PMREMGenerator(renderer);
 	node._pmrem = null;
-	SKY_CUBE.texture.needsPMREMUpdate = true;
+	for (const cube of [SKY_CUBE, SKY_CUBE_LOW]) cube.texture.needsPMREMUpdate = true;
 }
 
 /** A scene with the sky's fog, environment and background, set once and never replaced. */
@@ -187,6 +187,8 @@ export class AtmosphereLayer {
 	/** The key light as the shadow map was last drawn with it; null before the first. */
 	private drawn: KeyLight | null = null;
 	private flash = 0;
+	/** The low tier: a flat sky, a small cube captured once, no height fog (#225). */
+	private low = false;
 	private policy = flashPolicy(false);
 	private readonly center = new THREE.Vector3();
 	private distance = 50;
@@ -261,6 +263,13 @@ export class AtmosphereLayer {
 	setTier(tier: Tier, on: boolean): void {
 		this.sky.setTier(tier, on);
 		this.captures.interval = CAPTURE_INTERVAL_MS[tier];
+		const low = tier === 'low';
+		if (low === this.low) return;
+		// Low (#225: software GL, compat WebGPU) reads the small cube, captured once per table.
+		this.low = low;
+		pmrem.value = this.sky.cube.texture;
+		this.captures.reset();
+		this.apply();
 	}
 
 	/**
@@ -396,12 +405,14 @@ export class AtmosphereLayer {
 		if (haze.color) fogColor.lerp(this.haze.set(haze.color), haze.density);
 		u.inscatter.value.copy(fogColor).lerp(this.haze.setRGB(...s.key.color), INSCATTER * s.sunGlow);
 		u.sunDir.value.set(...s.sunDir);
-		u.fogDensity.value = s.fog.density + haze.density * HAZE_DENSITY;
+		// Range fog only on the low tier (#225): no height term.
+		u.fogDensity.value = this.low ? 0 : s.fog.density + haze.density * HAZE_DENSITY;
 		u.fogHeight.value = s.fog.height;
 		u.ibl.value = s.ibl;
 		this.lights.lighting.setGlow(s.nightGlow);
-		skyBackground.setRGB(...s.horizon);
-		this.sky.apply(s);
+		// Where the dome is hidden (low, #225) the sky is flat: the haze the far ground fades into.
+		skyBackground.copy(fogColor);
+		this.sky.apply(s, fogColor, u.inscatter.value);
 		// Exposure in EV: the sky's and the look's, then the flash's (none over a red grade when
 		// flashes are reduced: the white hemisphere carries it instead).
 		const ev = s.exposure + (this.look?.grade.exposure ?? 0);
