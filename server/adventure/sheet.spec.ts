@@ -118,9 +118,8 @@ describe('the fifth edition character sheet', () => {
 			['Magic Missile', 'magic-missile', false],
 			['Burning Hands', 'burning-hands', false],
 			['Thunderwave', 'thunderwave', false],
-			['Sleep', null, true]
+			['Sleep', 'sleep', false]
 		]);
-		expect(d.spellcasting!.spells.at(-1)!.why).toContain('Incapacitated');
 		const trance = d.features.find((f) => f.name === 'Trance')!;
 		expect(trance.from).toBe('Species');
 		expect(trance.text).toContain('Long Rest');

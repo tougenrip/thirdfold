@@ -279,6 +279,8 @@ export type ClientMessage =
 	  }
 	/** Player, in an encounter: your character is done for this round. */
 	| { type: 'adventure_end_turn' }
+	/** GM: put a condition on someone, or end a lasting effect. */
+	| { type: 'adventure_effect'; op: EffectOp }
 	/** GM: narrate to the table. */
 	| { type: 'adventure_narrate'; text: string }
 	/** GM: read one of the adventure's prepared passages aloud. */
@@ -346,6 +348,32 @@ export type Direction =
 	| { op: 'spawn'; kind: string; pos: GridPos };
 
 export const ENCOUNTER_RESULTS = ['won', 'called_off'] as const;
+
+/** The GM's ruling on a lasting effect: a condition on someone (for rounds of its turns, or until removed), or an effect ended. */
+export type EffectOp =
+	| { kind: 'apply'; target: string; condition: string; rounds: number | null }
+	| { kind: 'remove'; effect: string };
+
+/** Most rounds a GM's condition lasts, when timed. */
+export const EFFECT_ROUNDS_MAX = 100;
+
+function parseEffectOp(value: unknown): EffectOp | null {
+	if (!isRecord(value)) return null;
+	if (value.kind === 'remove')
+		return typeof value.effect === 'string' && /^fx-\d{1,6}$/.test(value.effect)
+			? { kind: 'remove', effect: value.effect }
+			: null;
+	if (value.kind !== 'apply' || !isId(value.target)) return null;
+	if (typeof value.condition !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(value.condition))
+		return null;
+	const r = value.rounds;
+	if (
+		r !== null &&
+		(typeof r !== 'number' || !Number.isInteger(r) || r < 1 || r > EFFECT_ROUNDS_MAX)
+	)
+		return null;
+	return { kind: 'apply', target: value.target, condition: value.condition, rounds: r };
+}
 
 /** A player's character choices: plain, bounded JSON; the rules check what it says. */
 export type CharacterChoicesData = Record<string, unknown>;
@@ -1021,6 +1049,10 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return cast
 				? { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId, cast }
 				: null;
+		}
+		case 'adventure_effect': {
+			const op = parseEffectOp(data.op);
+			return op ? { type: 'adventure_effect', op } : null;
 		}
 		case 'adventure_override': {
 			const patch = parseCharacterPatch(data.patch);

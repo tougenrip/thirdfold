@@ -13,17 +13,10 @@
 // against half the damage (at least 10, at most 30).
 
 import type { Action, CharacterDef } from '../../../../src/lib/adventure/characters';
-import type { Ruleset, SpellHit, Spellcasting } from '../../ruleset';
+import type { EffectSpec, Ruleset, SpellHit, Spellcasting } from '../../ruleset';
+import { d20Test } from '../d20';
 import type { Catalog } from '../catalog';
-import {
-	abilityModifier,
-	abilityName,
-	describeD20,
-	proficiencyBonus,
-	rollD20,
-	rollDamage,
-	type Ability
-} from '../core';
+import { abilityModifier, abilityName, proficiencyBonus, rollDamage, type Ability } from '../core';
 import { sheetOf } from '../sheet';
 import {
 	cantripTier,
@@ -31,6 +24,7 @@ import {
 	SPELL_MECHANICS,
 	timesDice,
 	upcast,
+	type OnFail,
 	type SpellMechanics
 } from './mechanics';
 
@@ -61,6 +55,12 @@ export function damageDice(
 	if (spellLevel === 0 && mech.cantrip === 'dice')
 		return timesDice(d.dice, cantripTier(casterLevel));
 	return upcast(d.dice, d.perSlot, level - spellLevel);
+}
+
+/** A character that doesn't sleep: an elf's Trance (SRD: "you don't need to sleep"). */
+function trances(character: CharacterDef): boolean {
+	const details = sheetOf(character).details as { features?: { name: string }[] } | null;
+	return !!details?.features?.some((f) => f.name === 'Trance');
 }
 
 export function dndSpells(catalog: () => Catalog, strike: () => Ruleset['strike']): Spellcasting {
@@ -128,6 +128,28 @@ export function dndSpells(catalog: () => Catalog, strike: () => Ruleset['strike'
 							concentration: record.data.concentration
 						}
 					: null;
+			/** What a failed save leaves on the target for the spell's duration. */
+			const failedSave = (fail: OnFail, ability: string): EffectSpec => ({
+				name: record.name,
+				mods: { conditions: [...fail.conditions] },
+				ends: rounds !== null ? { at: 'start', turns: rounds } : null,
+				concentration: record.data.concentration,
+				...(fail.repeat
+					? { repeat: { stat: ability, dc, ...(fail.repeat.onDamage ? { onDamage: true } : {}) } }
+					: {}),
+				...(fail.worsens
+					? {
+							worsens: {
+								name: record.name,
+								mods: { conditions: [...fail.worsens] },
+								ends: null,
+								concentration: record.data.concentration,
+								...(fail.endsOnDamage ? { endsOnDamage: true } : {})
+							}
+						}
+					: {}),
+				...(fail.endsOnDamage ? { endsOnDamage: true } : {})
+			});
 			const rider = mech.rider
 				? {
 						name: record.name,
@@ -167,25 +189,34 @@ export function dndSpells(catalog: () => Catalog, strike: () => Ruleset['strike'
 						hit.damage = { roll: landed[0].damage!, amount: total, type };
 						hit.effect = rider;
 					}
-				} else if (mech.resolve === 'save' && shared && mech.save) {
+				} else if (mech.resolve === 'save' && mech.save) {
 					const ability = mech.save.ability;
-					const bonus = t.saveBonus(ability);
-					const d20 = rollD20(bonus, undefined, roller, t.boon);
-					const success = d20.total >= dc;
+					if (mech.sleepless && (t.sleepless || (t.character && trances(t.character)))) {
+						hit.note = 'doesn’t sleep';
+						return hit;
+					}
 					hit.dc = dc;
-					hit.save = {
-						roll: d20.roll,
-						success,
+					hit.save = d20Test({
+						bonus: t.saveBonus(ability),
+						kind: 'save',
+						stat: ability,
 						label: `${abilityName(ability as Ability)} saving throw`,
-						explain: `${describeD20(d20, bonus)} vs DC ${dc}: ${success ? 'success' : 'failure'}`
-					};
-					const amount = success
-						? mech.save.half
-							? Math.floor(shared.total / 2)
-							: 0
-						: shared.total;
-					hit.damage = { roll: shared, amount, type };
+						dc,
+						held: t.conditions,
+						boon: t.boon,
+						roller
+					});
+					const success = hit.save.success;
+					if (shared) {
+						const amount = success
+							? mech.save.half
+								? Math.floor(shared.total / 2)
+								: 0
+							: shared.total;
+						hit.damage = { roll: shared, amount, type };
+					}
 					if (!success && mech.push) hit.push = Math.floor(mech.push / 5);
+					if (!success && mech.onFail) hit.effect = failedSave(mech.onFail, ability);
 				} else if (mech.resolve === 'auto' && dice) {
 					// Each dart deals 1d4 + 1: n darts, n d4 and n more.
 					const n = Math.max(1, t.times);

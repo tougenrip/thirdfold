@@ -332,9 +332,12 @@ export const BARROW: AdventureDef = {
 					range: 5,
 					toHit: 0,
 					damage: '2d6',
-					save: { stat: 'con', dc: 12, half: true }
+					save: { stat: 'con', dc: 12, half: true },
+					// The grave's cold gets into the one it touches: Frightened of the Shade for a while.
+					inflicts: { conditions: ['frightened'], ends: 'end' }
 				}
 			],
+			immune: ['exhaustion', 'poisoned'],
 			saves: { str: -2, dex: 2, con: 0, int: 0, wis: 1, cha: 0 },
 			behavior: 'skirmish'
 		}

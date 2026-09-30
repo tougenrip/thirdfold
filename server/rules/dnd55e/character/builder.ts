@@ -133,7 +133,7 @@ export function creatorOptions(catalog: Catalog, attribution: string): CreatorOp
 				range: s.data.range,
 				concentration: s.data.concentration,
 				text: firstParagraph(s.text),
-				why: unsupported(s.id, s.data, s.text)
+				why: unsupported(s.id, s.data)
 			}));
 		return { cantrips, prepared, list };
 	};

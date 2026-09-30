@@ -2959,6 +2959,55 @@ describe('fifth edition rules over the wire', () => {
 		expect(back.room.props.some((p) => p.assetId === 'gear-pile')).toBe(true);
 	});
 
+	it('lets the GM put a condition on a character, which everyone sees with the rules’ words', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// Only the GM rules; a malformed ruling is no message at all.
+		pip.send({
+			type: 'adventure_effect',
+			op: { kind: 'apply', target: warden.token.id, condition: 'poisoned', rounds: null }
+		});
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({
+			type: 'adventure_effect',
+			op: { kind: 'apply', target: warden.token.id, condition: 'poisoned', rounds: 0 }
+		} as never);
+		expect(await gm.until('error')).toMatchObject({ code: 'invalid_message' });
+
+		gm.send({
+			type: 'adventure_effect',
+			op: { kind: 'apply', target: warden.token.id, condition: 'poisoned', rounds: null }
+		});
+		const seen = await pip.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.find((c) => c.id === 'warden')?.conditions.length
+		);
+		const mark = seen.adventure!.characters.find((c) => c.id === 'warden')!.conditions[0];
+		expect(mark).toMatchObject({
+			id: 'poisoned',
+			name: 'Poisoned',
+			from: 'from the GM',
+			until: 'until the GM removes it'
+		});
+		expect(mark.text).toContain('Disadvantage on attack rolls and ability checks');
+		gm.send({ type: 'adventure_effect', op: { kind: 'remove', effect: mark.effect } });
+		await pip.until(
+			'adventure_update',
+			(m) => m.adventure?.characters.find((c) => c.id === 'warden')?.conditions.length === 0
+		);
+	});
+
 	it('casts a spell by the rules: a slot spent and kept, a bad aim refused', async () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });

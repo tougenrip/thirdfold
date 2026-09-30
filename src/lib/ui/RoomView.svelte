@@ -1662,6 +1662,10 @@
 						{@const foe = t.tokenId
 							? encounter.enemies.find((e) => e.tokenId === t.tokenId)
 							: undefined}
+						{@const marks =
+							foe?.conditions ??
+							adventure.characters.find((c) => c.id === t.characterId)?.conditions ??
+							[]}
 						<li
 							class="turn"
 							class:enemy={t.kind === 'enemy'}
@@ -1678,6 +1682,11 @@
 								>
 								<span class="foe-num num">{foe.hp}/{foe.maxHp}</span>
 							{/if}
+							{#each marks as m (m.effect + m.id)}
+								<span class="mark" title={`${m.name}: ${m.until} (${m.from})`}
+									>{m.name}{m.level ? ` ${m.level}` : ''}</span
+								>
+							{/each}
 						</li>
 					{/each}
 				</ol>
@@ -2206,6 +2215,15 @@
 		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
+	.turn .mark {
+		font-size: var(--fs-2xs);
+		padding: 0 var(--sp-2);
+		border-radius: var(--radius-pill);
+		border: 1px solid var(--danger);
+		color: var(--danger);
+		cursor: help;
+	}
+
 	.foe-num {
 		font-size: var(--fs-xs);
 	}

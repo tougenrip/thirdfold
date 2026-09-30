@@ -32,6 +32,7 @@ const character = (patch: Partial<CharacterStatus>): CharacterStatus => ({
 	editable: false,
 	renamable: false,
 	effects: [],
+	conditions: [],
 	concentrating: null,
 	...patch
 });

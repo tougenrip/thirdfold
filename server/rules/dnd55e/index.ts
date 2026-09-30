@@ -35,6 +35,8 @@ import { dndBuilder } from './character/builder';
 import { dndEquipment } from './character/equipment';
 import { readSheet, sheetOf, type Sheet } from './sheet';
 import { dndSpells } from './spells/cast';
+import { attackReasons, conditionDef, dndConditions, exhaustionPenalty } from './conditions';
+import { d20Test } from './d20';
 
 export const DND_55E: RulesetRef = { id: 'dnd-5.5e', version: 1 };
 
@@ -69,19 +71,21 @@ export const dnd55e: Ruleset = {
 	bonus: (character, stat, kind) => bonusOf(sheetOf(character), stat, kind),
 	label: labelOf,
 	test(character, stat, kind, dc, situation, roller) {
-		const bonus = bonusOf(sheetOf(character), stat, kind);
-		// Bless adds its die to saving throws (not to ability checks).
-		const d20 = rollD20(bonus, undefined, roller, kind === 'save' ? situation.boon : undefined);
-		// In darkness a creature can't see: a check that needs sight fails (SRD: Blinded).
-		const blind = kind === 'check' && situation.dark && situation.sight;
-		const success = !blind && d20.total >= dc;
-		const why = blind ? ': in darkness, a check that needs sight fails' : '';
-		return {
-			roll: d20.roll,
-			success,
+		return d20Test({
+			bonus: bonusOf(sheetOf(character), stat, kind),
+			kind,
+			stat,
 			label: labelOf(stat, kind),
-			explain: `${describeD20(d20, bonus)} vs DC ${dc}: ${success ? 'success' : 'failure'}${why}`
-		};
+			dc,
+			held: situation.conditions,
+			// Bless adds its die to saving throws (not to ability checks); Bane takes one away.
+			boon: kind === 'save' ? situation.boon : undefined,
+			// In darkness a creature can't see: a check that needs sight fails (SRD: Blinded).
+			blindHere: kind === 'check' && situation.dark && situation.sight,
+			sight: situation.sight,
+			advantage: situation.advantage ? [situation.advantage] : [],
+			roller
+		});
 	},
 	initiativeBonus: (character) => {
 		const sheet = sheetOf(character);
@@ -105,9 +109,21 @@ export const dnd55e: Ruleset = {
 			disadvantages.push('ranged, with a foe beside');
 		if (situation.targetStatuses.has('guarded')) disadvantages.push('the target is taking cover');
 		if (situation.exposed) advantages.push('the target is exposed');
+		const byConditions = attackReasons(
+			situation.attackerConditions ?? [],
+			situation.targetConditions ?? [],
+			!!situation.within5,
+			situation.targetToken ?? null
+		);
+		advantages.push(...byConditions.advantages);
+		disadvantages.push(...byConditions.disadvantages);
+		// Exhaustion takes 2 a level off every d20 test, attack rolls too.
+		const penalty = exhaustionPenalty(situation.attackerConditions ?? []);
+		bonus -= penalty;
 		const mode = modeOf(advantages, disadvantages);
 		const d20 = rollD20(bonus, mode, roller, situation.boon);
-		const critical = d20.natural === 20;
+		const critical =
+			d20.natural === 20 || (byConditions.autoCrit && d20.natural !== 1 && d20.total >= ac);
 		const hit = critical || (d20.natural !== 1 && d20.total >= ac);
 		const reasons = mode
 			? ` [${mode}: ${(mode === 'advantage' ? advantages : disadvantages).join(', ')}]`
@@ -188,9 +204,15 @@ export const dnd55e: Ruleset = {
 			const read = readSheet(c);
 			return read.ok ? [] : read.problems;
 		});
-		for (const e of Object.values(A.enemies))
+		for (const e of Object.values(A.enemies)) {
 			for (const stat of Object.keys(e.saves ?? {}))
 				if (!isAbility(stat)) problems.push(`enemy ${e.kind}: no saving throw "${stat}"`);
+			for (const c of [
+				...(e.immune ?? []),
+				...e.attacks.flatMap((a) => a.inflicts?.conditions ?? [])
+			])
+				if (!conditionDef(c)) problems.push(`enemy ${e.kind}: no condition "${c}"`);
+		}
 		for (const t of testsOf(A))
 			if (!this.isStat(t.stat, t.kind))
 				problems.push(
@@ -201,7 +223,20 @@ export const dnd55e: Ruleset = {
 	details: (character) => sheetOf(character).details,
 	builder: dndBuilder(srdCatalog, DND_55E, ATTRIBUTION),
 	equipment: dndEquipment(srdCatalog, DND_55E),
-	spells: dndSpells(srdCatalog, () => dnd55e.strike)
+	spells: dndSpells(srdCatalog, () => dnd55e.strike),
+	conditions: dndConditions(srdCatalog),
+	saveWith: (bonus, stat, dc, situation, roller, advantage) =>
+		d20Test({
+			bonus,
+			kind: 'save',
+			stat,
+			label: labelOf(stat, 'save'),
+			dc,
+			held: situation.conditions,
+			boon: situation.boon,
+			advantage: advantage ? [advantage] : [],
+			roller
+		})
 };
 
 registerRuleset(dnd55e);

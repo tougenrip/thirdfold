@@ -7,6 +7,7 @@
 		type AdventureView,
 		type CharacterStatus,
 		type CheckView,
+		type ConditionMark,
 		type Sense
 	} from '$lib/adventure/adventure';
 	import { BLEED_OUT_ROUNDS, STATUSES, type Action } from '$lib/adventure/characters';
@@ -230,6 +231,9 @@
 	function kindOf(v: AdventureView['interactables'][number]['verbs'][number]): string {
 		return v.physical ? PHYSICAL_ACTIONS[v.physical] : INVESTIGATION_ACTIONS[v.action];
 	}
+	/** A condition's marker, explained: how long, where from, and the rules' words. */
+	const conditionTitle = (c: ConditionMark) =>
+		`${c.name}: ${c.until} (${c.from}).\n\n${c.text}${c.notPlayed.length ? `\n\nNot played yet: ${c.notPlayed.join('; ')}.` : ''}`;
 	const hpPercent = $derived(Math.round((100 * character.hp) / character.maxHp));
 </script>
 
@@ -255,6 +259,11 @@
 		{/each}
 		{#each character.carrying as item (item.id)}
 			<span class="chip carrying" title="Carrying">{item.name}</span>
+		{/each}
+		{#each character.conditions as c (c.effect + c.id)}
+			<span class="chip condition" title={conditionTitle(c)}
+				>{c.name}{c.level ? ` ${c.level}` : ''}</span
+			>
 		{/each}
 		{#each character.effects as line (line)}
 			<span class="chip effect" title={line}>{line.split(':')[0]}</span>
@@ -482,6 +491,11 @@
 	.chip.effect {
 		border-color: var(--char);
 		color: inherit;
+	}
+	.chip.condition {
+		border-color: var(--danger);
+		color: var(--danger);
+		cursor: help;
 	}
 
 	.status {

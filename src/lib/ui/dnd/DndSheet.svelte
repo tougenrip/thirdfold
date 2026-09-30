@@ -91,6 +91,33 @@
 		</div>
 	{/if}
 
+	<section aria-labelledby="dnd-conditions">
+		<h3 id="dnd-conditions" class="section-title"><span class="tag now">Now</span> Conditions</h3>
+		{#if status.conditions.length || status.effects.length || status.concentrating}
+			{#each status.conditions as c (c.effect + c.id)}
+				<details>
+					<summary>
+						<b>{c.name}{c.level ? ` ${c.level}` : ''}</b>
+						<small class="muted">{c.until} · {c.from}</small>
+					</summary>
+					{#each c.text.split('\n\n') as para, i (i)}<p>{para}</p>{/each}
+					{#if c.notPlayed.length}<p class="off">Not played yet: {c.notPlayed.join('; ')}.</p>{/if}
+				</details>
+			{/each}
+			{#each status.effects as line (line)}
+				<p class="effect">{line}</p>
+			{/each}
+			{#if status.concentrating}
+				<p class="muted">
+					Concentrating on {status.concentrating}: damage calls for a Constitution save to keep it,
+					and falling or being Incapacitated ends it.
+				</p>
+			{/if}
+		{:else}
+			<p class="muted">No conditions.</p>
+		{/if}
+	</section>
+
 	<section aria-labelledby="dnd-now">
 		<h3 id="dnd-now" class="section-title"><span class="tag now">Now</span> Resources</h3>
 		{#if card.resources?.length}
@@ -687,6 +714,11 @@
 
 	.off {
 		color: var(--warn, var(--accent));
+	}
+
+	.effect {
+		margin: 0;
+		font-size: var(--fs-sm);
 	}
 
 	.choices {

@@ -23,7 +23,7 @@ import {
 import { resolveAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { CLASSIC } from '../rules/classic';
-import { findRuleset, type JsonData, type RulesetRef } from '../rules/ruleset';
+import { findRuleset, type EffectSpec, type JsonData, type RulesetRef } from '../rules/ruleset';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
 import { BUILT_ID, BUILT_MAX, withBuilt, type BuiltCharacter } from './built';
@@ -89,6 +89,9 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 							[...adventure.kept].map(([id, b]) => [id, JSON.parse(JSON.stringify(b.saved))])
 						)
 					}
+				: {}),
+			...(adventure.effects?.length
+				? { effects: adventure.effects.map((f) => JSON.parse(JSON.stringify(f))) }
 				: {}),
 			...(adventure.piles?.size
 				? {
@@ -193,15 +196,6 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 					])
 				),
 				turn: adventure.encounter.turn,
-				...(adventure.encounter.effects?.length
-					? {
-							effects: adventure.encounter.effects.map((f) => ({
-								...f,
-								mods: { ...f.mods },
-								ends: { ...f.ends }
-							}))
-						}
-					: {}),
 				...(adventure.encounter.finale
 					? {
 							finale: adventure.encounter.finale,
@@ -221,12 +215,21 @@ export type AdventureRead = { ok: true; adventure: AdventureState } | { ok: fals
 
 class Invalid extends Error {}
 
-/** A fight's lasting effects, each checked: whose, on whom, what it changes and when it ends. */
-function lastingEffects(
-	value: unknown,
-	isCharacterId: (id: string) => boolean,
-	isInFight: (tokenId: string) => boolean
-): LastingEffect[] {
+/** What lasting effects may name, to read them back: characters, tokens on the table, the rules. */
+interface EffectContext {
+	character: (id: string) => { name: string; tokenId: string } | undefined;
+	isToken: (id: string) => boolean;
+	isEnemy: (id: string) => boolean;
+	isCondition: (id: string) => boolean;
+	isSave: (stat: string) => boolean;
+}
+
+/**
+ * The story's lasting effects, each checked: whose, on whom, what it changes
+ * and when it ends. Milestone 48 saved them on the fight with a character's
+ * id as the source; those read the same.
+ */
+function lastingEffects(value: unknown, ctx: EffectContext): LastingEffect[] {
 	const raw = list(value, 'effects');
 	check(raw.length <= EFFECTS_MAX, 'effects');
 	const ids = new Set<string>();
@@ -234,38 +237,122 @@ function lastingEffects(
 		const f = record(v, 'effect');
 		check(typeof f.id === 'string' && /^fx-\d{1,6}$/.test(f.id) && !ids.has(f.id), 'effect');
 		ids.add(f.id);
-		check(typeof f.name === 'string' && f.name.length > 0 && f.name.length <= 80, 'effect');
-		check(typeof f.source === 'string' && isCharacterId(f.source), 'effect');
-		check(typeof f.target === 'string' && isInFight(f.target), 'effect');
-		const m = record(f.mods, 'effect');
+		check(typeof f.target === 'string' && ctx.isToken(f.target), 'effect');
+		const source = effectSource(f.source, ctx);
+		const sourceToken =
+			f.sourceToken === undefined
+				? source.kind === 'character'
+					? ctx.character(source.id)!.tokenId
+					: source.kind === 'enemy'
+						? source.id
+						: undefined
+				: (f.sourceToken as string);
 		check(
-			Object.keys(m).every((k) => ['boon', 'defense', 'slow', 'exposed', 'noHealing'].includes(k)),
+			sourceToken === undefined || (typeof sourceToken === 'string' && ctx.isToken(sourceToken)),
 			'effect'
 		);
-		const boon = m.boon;
+		const spec = effectSpec(f, ctx, true);
 		check(
-			boon === undefined || (typeof boon === 'string' && boon.length <= 20 && parseDice(boon).ok),
+			f.clock === undefined ||
+				(typeof f.clock === 'string' && (!!ctx.character(f.clock) || ctx.isEnemy(f.clock))),
 			'effect'
 		);
-		const mods: LastingEffect['mods'] = {
-			...(boon === undefined ? {} : { boon: boon as string }),
-			...(m.defense === undefined ? {} : { defense: int(m.defense, -10, 10, 'effect') }),
-			...(m.slow === undefined ? {} : { slow: int(m.slow, 0, 20, 'effect') }),
-			...(m.exposed === undefined ? {} : { exposed: bool(m.exposed, 'effect') }),
-			...(m.noHealing === undefined ? {} : { noHealing: bool(m.noHealing, 'effect') })
-		};
-		const ends = record(f.ends, 'effect');
-		check(ends.at === 'start' || ends.at === 'end', 'effect');
 		return {
+			...(f.clock === undefined ? {} : { clock: f.clock as string }),
 			id: f.id,
-			name: f.name,
-			source: f.source,
+			...spec,
+			source,
+			...(sourceToken ? { sourceToken } : {}),
 			target: f.target,
-			mods,
-			ends: { at: ends.at, turns: int(ends.turns, 0, 1000, 'effect') },
-			concentration: bool(f.concentration, 'effect')
+			...(f.level === undefined ? {} : { level: int(f.level, 1, 6, 'effect') })
 		};
 	});
+}
+
+function effectSource(raw: unknown, ctx: EffectContext): LastingEffect['source'] {
+	if (typeof raw === 'string') {
+		const c = ctx.character(raw);
+		check(c, 'effect');
+		return { kind: 'character', id: raw, name: c.name };
+	}
+	const s = record(raw, 'effect');
+	const who = name(s.name, 'effect');
+	switch (s.kind) {
+		case 'character':
+			check(typeof s.id === 'string' && ctx.character(s.id), 'effect');
+			return { kind: 'character', id: s.id as string, name: who };
+		case 'enemy':
+			check(typeof s.id === 'string' && ctx.isEnemy(s.id), 'effect');
+			return { kind: 'enemy', id: s.id as string, name: who };
+		case 'gm':
+			return { kind: 'gm', name: who };
+		case 'story':
+			return { kind: 'story', name: who };
+	}
+	throw new Invalid('effect');
+}
+
+/** An effect's own part (its name, what it changes, how it ends), as an `EffectSpec`. */
+function effectSpec(f: Record<string, unknown>, ctx: EffectContext, top: boolean): EffectSpec {
+	check(typeof f.name === 'string' && f.name.length > 0 && f.name.length <= 80, 'effect');
+	const m = record(f.mods, 'effect');
+	check(
+		Object.keys(m).every((k) =>
+			['boon', 'defense', 'slow', 'exposed', 'noHealing', 'conditions'].includes(k)
+		),
+		'effect'
+	);
+	const boon = m.boon;
+	check(
+		boon === undefined || (typeof boon === 'string' && boon.length <= 20 && parseDice(boon).ok),
+		'effect'
+	);
+	const conditions =
+		m.conditions === undefined
+			? undefined
+			: list(m.conditions, 'effect').map((c) => {
+					check(typeof c === 'string' && ctx.isCondition(c), 'effect');
+					return c as string;
+				});
+	const mods: LastingEffect['mods'] = {
+		...(boon === undefined ? {} : { boon: boon as string }),
+		...(m.defense === undefined ? {} : { defense: int(m.defense, -10, 10, 'effect') }),
+		...(m.slow === undefined ? {} : { slow: int(m.slow, 0, 20, 'effect') }),
+		...(m.exposed === undefined ? {} : { exposed: bool(m.exposed, 'effect') }),
+		...(m.noHealing === undefined ? {} : { noHealing: bool(m.noHealing, 'effect') }),
+		...(conditions ? { conditions } : {})
+	};
+	let ends: LastingEffect['ends'] = null;
+	if (f.ends !== null) {
+		const e = record(f.ends, 'effect');
+		check(e.at === 'start' || e.at === 'end', 'effect');
+		ends = { at: e.at, turns: int(e.turns, 0, 1000, 'effect') };
+	}
+	let repeat: LastingEffect['repeat'];
+	if (f.repeat !== undefined) {
+		const r = record(f.repeat, 'effect');
+		check(typeof r.stat === 'string' && ctx.isSave(r.stat), 'effect');
+		repeat = {
+			stat: r.stat as string,
+			dc: int(r.dc, 1, 40, 'effect'),
+			...(r.onDamage === undefined ? {} : { onDamage: bool(r.onDamage, 'effect') })
+		};
+	}
+	// What a failed save turns it into is one step, never a chain.
+	const worsens: EffectSpec | undefined =
+		f.worsens === undefined || !top
+			? undefined
+			: effectSpec(record(f.worsens, 'effect'), ctx, false);
+	check(top || f.worsens === undefined, 'effect');
+	return {
+		name: f.name as string,
+		mods,
+		ends,
+		concentration: bool(f.concentration, 'effect'),
+		...(repeat ? { repeat } : {}),
+		...(worsens ? { worsens } : {}),
+		...(f.endsOnDamage === undefined ? {} : { endsOnDamage: bool(f.endsOnDamage, 'effect') })
+	};
 }
 
 function check(condition: unknown, what: string): asserts condition {
@@ -557,6 +644,8 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 	}
 
 	let encounter: Encounter | null = null;
+	// Milestone 48 kept lasting effects on the fight.
+	const oldEffects = isRecord(data.encounter) ? data.encounter.effects : undefined;
 	if (data.encounter !== null) {
 		const e = record(data.encounter, 'fight');
 		const id = oneOf(e.id, encounterIds, 'fight');
@@ -620,15 +709,6 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			moved,
 			enemies,
 			turn: int(e.turn, 1, 1_000_000, 'turn'),
-			...(e.effects === undefined
-				? {}
-				: {
-						effects: lastingEffects(
-							e.effects,
-							isCharacterId,
-							(t) => enemies.has(t) || characterTokens.has(t)
-						)
-					}),
 			...(e.finale === undefined
 				? {}
 				: {
@@ -676,6 +756,27 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			return t;
 		})
 	);
+	// Lasting effects: whose, on whom (a token on this table), what they change, by the rules.
+	const effectCtx: EffectContext = {
+		character: (id) => {
+			const c = characters.get(id);
+			return c && A.characters[id]
+				? { name: A.characters[id].name, tokenId: c.tokenId }
+				: undefined;
+		},
+		isToken: (id) => tokenIds.has(id),
+		isEnemy: (id) => !!encounter?.enemies.has(id) || sentries.has(id),
+		isCondition: (id) => !!ruleset.conditions?.known(id),
+		isSave: (stat) => ruleset.isStat(stat, 'save')
+	};
+	const effects = [
+		...(data.effects === undefined ? [] : lastingEffects(data.effects, effectCtx)),
+		...(oldEffects === undefined ? [] : lastingEffects(oldEffects, effectCtx))
+	];
+	check(
+		effects.length <= EFFECTS_MAX && new Set(effects.map((e) => e.id)).size === effects.length,
+		'effects'
+	);
 	// Things put down: where they lie (a table of the story, a cell on it) and what they are, by the rules.
 	const piles = new Map<string, Pile>();
 	if (data.piles !== undefined) {
@@ -709,6 +810,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		...(built.size ? { built } : {}),
 		...(kept.size ? { kept } : {}),
 		...(piles.size ? { piles } : {}),
+		...(effects.length ? { effects } : {}),
 		stage,
 		chapter,
 		location,

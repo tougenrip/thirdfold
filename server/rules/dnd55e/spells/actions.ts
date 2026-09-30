@@ -23,6 +23,7 @@ import {
 const FEET_PER_CELL = 5;
 const slug = (id: string) => id.slice(id.lastIndexOf(':') + 1);
 const signed = (n: number) => (n < 0 ? `${n}` : `+${n}`);
+const titled = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
 
 export interface CasterActions {
 	actions: Action[];
@@ -56,7 +57,10 @@ function resolves(
 				wis: 'Wisdom',
 				cha: 'Charisma'
 			}[mech.save!.ability];
-			return `DC ${numbers.dc} ${ability} save, ${damage}${mech.save!.half ? ', half on a success' : ''}${mech.push ? `, pushed ${mech.push} feet` : ''}`;
+			const fail = mech.onFail
+				? `, or ${mech.onFail.conditions.map(titled).join(' and ')}${mech.onFail.worsens ? `, then ${mech.onFail.worsens.map(titled).join(' and ')}` : ''}`
+				: '';
+			return `DC ${numbers.dc} ${ability} save${damage ? `, ${damage}` : ''}${mech.save!.half ? ', half on a success' : ''}${mech.push ? `, pushed ${mech.push} feet` : ''}${fail}`;
 		}
 		case 'auto':
 			return `${mech.targets.count} darts of ${damage}, never missing`;
@@ -105,7 +109,7 @@ export function casterActions(
 		const record = catalog.get('spell', id);
 		if (!record) continue;
 		const data = record.data;
-		const why = unsupported(id, data, record.text);
+		const why = unsupported(id, data);
 		const mech = SPELL_MECHANICS[id];
 		let action: string | null = null;
 		if (!why && mech) {
@@ -128,7 +132,8 @@ export function casterActions(
 				about: record.text.split('\n\n')[0],
 				kind: heals ? 'heal' : boon ? 'boon' : 'attack',
 				target: mech.targets.side === 'ally' ? 'ally' : 'enemy',
-				range: area ? area.size : range,
+				// A cone or cube runs from the caster; a sphere is aimed at a point within the spell's range.
+				range: area && area.shape !== 'sphere' ? area.size : range,
 				stat: 'wits',
 				...(dice ? { dice } : mech.heal ? { dice: `${mech.heal.dice}${signed(numbers.mod)}` } : {}),
 				uses: null,
@@ -139,6 +144,7 @@ export function casterActions(
 					perLevel: mech.targets.perSlot,
 					repeat: !!mech.targets.repeat,
 					area,
+					...(mech.chooses ? { chooses: true } : {}),
 					concentration: data.concentration,
 					resolves: resolves(mech, dice, numbers)
 				}

@@ -21,6 +21,7 @@ import {
 	areaCells,
 	canReach,
 	inActionRange,
+	inAttackRange,
 	EVIDENCE_KINDS,
 	INVESTIGATION_ACTIONS,
 	SHEET_NOTES_MAX,
@@ -64,7 +65,12 @@ import {
 	type Prop,
 	type Rotation
 } from '../../src/lib/game/props';
-import type { AdventureControl, CharacterPatch, Direction } from '../../src/lib/game/protocol';
+import type {
+	AdventureControl,
+	CharacterPatch,
+	Direction,
+	EffectOp
+} from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
 import { cellIndex, hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
 import { appendLog, postSystem } from '../chat';
@@ -78,6 +84,8 @@ import {
 	roll,
 	type AttackSituation,
 	type CharacterBuilder,
+	type EffectSpec,
+	type HeldCondition,
 	type JsonData,
 	type SpellHit,
 	type SpellTarget,
@@ -104,14 +112,19 @@ import {
 import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
 import { keepCharacter, layPiles, pickUp, putDown, withKept } from './gear';
 import {
+	activeOn,
 	addEffect,
 	clearOn,
 	concentratingOn,
 	dropConcentration,
+	fightEnds,
+	heldOn,
 	modsOn,
+	removeEffects,
 	spendExposed,
 	turnEnds,
-	turnStarts
+	turnStarts,
+	type EffectSource
 } from './effects';
 import { contentOf, defaultAdventure, findAdventure } from './registry';
 import type {
@@ -855,12 +868,20 @@ function rollCheck(
 	action: string,
 	check: Check,
 	roller: DieRoller,
-	sight = false
+	sight = false,
+	advantage?: string
 ): { entry: ChatMessage; success: boolean } {
 	const rules = rulesOf(room.adventure!);
 	const kind: TestKind = check.save ? 'save' : 'check';
-	const boon = check.save ? modsOn(room.adventure!.encounter, me.token.id).boon : undefined;
-	const situation = { dark: inDark(room, me.token.pos), sight, ...(boon ? { boon } : {}) };
+	const boon = check.save ? modsOn(room.adventure!, me.token.id).boon : undefined;
+	const conditions = heldFor(room, me.token.id);
+	const situation = {
+		dark: inDark(room, me.token.pos),
+		sight,
+		...(boon ? { boon } : {}),
+		...(conditions.length ? { conditions } : {}),
+		...(advantage ? { advantage } : {})
+	};
 	const result = rules.test(me.def, check.stat, kind, check.dc, situation, roller);
 	const entry = appendLog(room, {
 		kind: 'check',
@@ -2110,9 +2131,17 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 	const A = content(adventure);
 	const rules = rulesOf(adventure);
 	const log: ChatMessage[] = [];
-	// The turn that ends: what its character's effects last until ends with it.
+	// The turn that ends: its bearer's saves against what holds it, and what its effects last until.
 	const leaving = turnOf(encounter);
-	if (leaving?.kind === 'character') log.push(...effectsEnd(room, turnEnds(encounter, leaving.id)));
+	if (leaving) {
+		const key = leaving.kind === 'character' ? leaving.id : leaving.tokenId;
+		const bearer =
+			leaving.kind === 'character'
+				? adventure.characters.get(leaving.id)?.tokenId
+				: leaving.tokenId;
+		if (bearer && room.tokens.has(bearer)) log.push(...endOfTurnSaves(room, bearer, diceOf(room)));
+		log.push(...effectsEnded(room, turnEnds(adventure, key)));
+	}
 	for (let tries = 0; tries <= encounter.order.length * 2; tries++) {
 		encounter.current++;
 		if (encounter.current >= encounter.order.length) {
@@ -2135,12 +2164,13 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			return { log, enemyTurn: encounter.turn };
 		}
 		const c = played(room, adventure).find((p) => p.id === entry.id);
-		log.push(...effectsEnd(room, turnStarts(encounter, entry.id)));
+		log.push(...effectsEnded(room, turnStarts(adventure, entry.id)));
 		if (!c || c.state.dead) continue;
 		const def = c.def;
-		const speed = Math.max(
-			0,
-			rules.speed(def.speed, c.state.statuses) - modsOn(encounter, c.token.id).slow
+		let speed = conditionSpeed(
+			room,
+			c.token.id,
+			Math.max(0, rules.speed(def.speed, c.state.statuses) - modsOn(adventure, c.token.id).slow)
 		);
 		rules.tick(c.state.statuses);
 		if (c.state.hp <= 0) {
@@ -2160,22 +2190,20 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			}
 			continue;
 		}
+		const stood = standUp(room, c.token.id, speed);
+		speed = stood.speed;
 		encounter.speed = speed;
-		log.push(postSystem(room, `${def.name}'s turn.`));
+		log.push(postSystem(room, `${def.name}'s turn.`), ...stood.log);
+		const held = cannotAct(room, c);
+		if (held) log.push(postSystem(room, `${held} ${def.name} can move, but not act.`));
 		return { log };
 	}
 	return { log };
 }
 
-/** Effects that ran their time: a concentration spell's end is told (a spell's passing chill is not). */
-function effectsEnd(room: Room, ended: readonly LastingEffect[]): ChatMessage[] {
-	const spells = [...new Set(ended.filter((e) => e.concentration).map((e) => e.name))];
-	return spells.map((name) => postSystem(room, `${name} ends.`));
-}
-
 /** Defense against attacks, counting a guard and what lingers. */
-function characterDefense(rules: Ruleset, c: Played, encounter: Encounter | null): number {
-	return rules.defense(c.def.armor, c.state.statuses) + modsOn(encounter, c.token.id).defense;
+function characterDefense(rules: Ruleset, c: Played, adventure: AdventureState | null): number {
+	return rules.defense(c.def.armor, c.state.statuses) + modsOn(adventure, c.token.id).defense;
 }
 
 /**
@@ -2198,8 +2226,13 @@ export function act(
 	const def = me.def;
 	const action = actionOf(def, actionId);
 	if (!action) return fail('invalid_message', `${def.name} can't do that.`);
-	const unable = unableReason(me);
+	const unable = unableReason(me) ?? cannotAct(room, me);
 	if (unable) return fail('forbidden', unable);
+	if (targetId && spares(room, me.token.id, targetId))
+		return fail(
+			'forbidden',
+			`${def.name} is charmed and won't harm the ${room.tokens.get(targetId)?.name ?? 'charmer'}.`
+		);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
 	if (adventure.stage !== 'playing') return fail('forbidden', 'This story is over.');
 	const encounter = adventure.encounter;
@@ -2241,7 +2274,9 @@ export function act(
 		// What the attack spends as it is made (a piece of ammunition), by the rules.
 		const use = rules.equipment?.use(def, action) ?? null;
 		if (use && !use.ok) return fail('forbidden', use.problems[0] ?? `${def.name} can't fire that.`);
+		const hp = enemy.hp;
 		log = [attackEnemy(room, actor, me, action, encounter, enemy, target, roller)];
+		log.push(...afterHurt(room, target.id, hp - enemy.hp, roller));
 		if (use?.ok) {
 			const kept = keepCharacter(adventure, rules, contentOf(adventure.id), me.id, use.saved);
 			if (kept.ok && use.text) log.push(postSystem(room, use.text));
@@ -2322,13 +2357,22 @@ function castSpell(
 	if (aim.area) {
 		const at = request.at ?? (targetId ? (room.tokens.get(targetId)?.pos ?? null) : null);
 		if (!at || !inBounds(room.grid, at)) return fail('invalid_message', 'Aim it at a cell.');
+		// A sphere is cast at a point in range and sight, and spreads from there.
+		const sphere = aim.area.shape === 'sphere';
+		if (sphere && !inAttackRange(blocked, me.token.pos, at, Math.max(1, action.range)))
+			return fail('out_of_reach', 'That point is out of range or out of sight.');
+		const from = sphere ? at : me.token.pos;
 		const cells = areaCells(me.token.pos, at, aim.area, room.grid);
 		for (const cell of cells) {
-			if (!hasLineOfSight(blocked, me.token.pos, cell)) continue;
+			if (!(cell.x === from.x && cell.y === from.y) && !hasLineOfSight(blocked, from, cell))
+				continue;
 			const token = tokenAt(room.tokens.values(), cell);
 			if (!token) continue;
 			const landing = landOn(token.id);
 			if (typeof landing === 'string') continue;
+			// "Of your choice": only the spell's own side (a caster's foes) is caught.
+			if (aim.chooses && landing.kind !== (action.target === 'ally' ? 'character' : 'enemy'))
+				continue;
 			// The downed aren't caught (death saving throws come with a later milestone).
 			if (landing.kind === 'character' && landing.c.state.hp <= 0) continue;
 			landings.push(landing);
@@ -2383,7 +2427,11 @@ function castSpell(
 			l.kind === 'enemy'
 				? (stat: string) => content(adventure).enemies[l.enemy.kind]?.saves?.[stat] ?? 0
 				: (stat: string) => (rules.isStat(stat, 'save') ? rules.bonus(l.c.def, stat, 'save') : 0);
-		const boon = modsOn(encounter, l.token.id).boon;
+		const boon = modsOn(adventure, l.token.id).boon;
+		const conditions = heldFor(room, l.token.id);
+		const sleepless =
+			l.kind === 'enemy' &&
+			!!content(adventure).enemies[l.enemy.kind]?.immune?.includes('exhaustion');
 		const statuses = l.kind === 'enemy' ? l.enemy.statuses : l.c.state.statuses;
 		return {
 			id: l.token.id,
@@ -2393,10 +2441,13 @@ function castSpell(
 				l.kind === 'enemy' && encounter
 					? enemyDefense(room, encounter, l.enemy, l.token.id)
 					: l.kind === 'character'
-						? characterDefense(rules, l.c, encounter)
+						? characterDefense(rules, l.c, adventure)
 						: 0,
 			saveBonus,
 			...(boon ? { boon } : {}),
+			...(conditions.length ? { conditions } : {}),
+			...(sleepless ? { sleepless } : {}),
+			...(l.kind === 'character' ? { character: l.c.def } : {}),
 			times: l.times,
 			situation: encounter
 				? attackOn(room, encounter, me, l.token, statuses, action.range > 1)
@@ -2421,19 +2472,22 @@ function castSpell(
 	const hits = spells.resolve(me.def, action, plan.level, targets, roller);
 	// A new concentration spell ends the caster's last one.
 	if (hits.some((h) => h.effect?.concentration)) {
-		const old = dropConcentration(encounter, me.id);
+		const old = dropConcentration(adventure, me.id);
 		if (old) log.push(postSystem(room, `${me.def.name} lets ${old} go.`));
 	}
+	const source: EffectSource = { kind: 'character', id: me.id, name: me.def.name };
 	const blessed: string[] = [];
 	for (const hit of hits) {
 		const l = landings.find((x) => x.token.id === hit.targetId);
 		if (!l) continue;
 		log.push(...landHit(room, actor, me, action, l, hit, roller));
-		if (hit.effect && encounter && room.tokens.has(l.token.id)) {
-			addEffect(encounter, hit.effect, me.id, l.token.id);
-			if (!hit.strikes.length) blessed.push(l.token.name);
+		if (hit.effect && room.tokens.has(l.token.id) && !(l.kind === 'character' && l.c.state.dead)) {
+			const put = putEffect(room, hit.effect, source, l.token.id, me.token.id);
+			log.push(...put.log);
+			if (put.effect && !hit.strikes.length && !hit.save) blessed.push(l.token.name);
 		}
 	}
+	log.push(...settleConcentration(room));
 	if (blessed.length) {
 		const effect = hits.find((h) => h.effect)!.effect!;
 		log.push(
@@ -2466,6 +2520,7 @@ function landHit(
 	const log: ChatMessage[] = [];
 	const name = l.kind === 'enemy' ? `The ${l.token.name}` : l.c.def.name;
 	const encounter = room.adventure!.encounter;
+	if (hit.note) log.push(postSystem(room, `${name} ${hit.note}.`));
 	for (const strike of hit.strikes) {
 		log.push(
 			appendLog(room, {
@@ -2484,7 +2539,7 @@ function landHit(
 			})
 		);
 	}
-	if (hit.strikes.length && encounter) spendExposed(encounter, l.token.id);
+	if (hit.strikes.length) spendExposed(room.adventure!, l.token.id);
 	if (hit.save && hit.dc !== null) {
 		log.push(
 			appendLog(room, {
@@ -2532,7 +2587,7 @@ function landHit(
 				})
 			);
 		else if (outcome) log.push(postSystem(room, outcome.trim()));
-		if (l.kind === 'character') log.push(...keepFocus(room, l.c, damage.amount, roller));
+		log.push(...afterHurt(room, l.token.id, damage.amount, roller));
 	} else if (damage && hit.save) {
 		log.push(postSystem(room, `${name} shrugs off ${action.name}.`));
 	}
@@ -2601,7 +2656,7 @@ function attackEnemy(
 		attackOn(room, encounter, me, target, enemy.statuses, action.range > 1),
 		roller
 	);
-	spendExposed(encounter, target.id);
+	spendExposed(room.adventure!, target.id);
 	let outcome: string | undefined;
 	let effect: string | undefined;
 	if (result.hit) enemy.lastHitBy = me.id;
@@ -2642,7 +2697,7 @@ function enemyDefense(
 	const A = content(room.adventure!);
 	return (
 		rulesOf(room.adventure!).defense(A.enemies[enemy.kind].armor, enemy.statuses) +
-		modsOn(encounter, tokenId).defense
+		modsOn(room.adventure!, tokenId).defense
 	);
 }
 
@@ -2656,9 +2711,15 @@ function attackOn(
 	ranged: boolean
 ): AttackSituation {
 	const blocked = obstacles(room);
-	const on = modsOn(encounter, target.id);
-	const boon = modsOn(encounter, me.token.id).boon;
+	const on = modsOn(room.adventure!, target.id);
+	const boon = modsOn(room.adventure!, me.token.id).boon;
+	const attackerConditions = heldFor(room, me.token.id);
+	const targetConditions = heldFor(room, target.id);
 	return {
+		...(attackerConditions.length ? { attackerConditions } : {}),
+		...(targetConditions.length ? { targetConditions } : {}),
+		within5: gridDistance(me.token.pos, target.pos) <= 1,
+		targetToken: target.id,
 		ranged,
 		hostileBeside: [...encounter.enemies.keys()].some((id) => {
 			const foe = room.tokens.get(id);
@@ -2710,7 +2771,7 @@ function healed(
 	rolled: DiceRoll
 ): ChatMessage {
 	const name = ally.def.name;
-	if (modsOn(room.adventure?.encounter ?? null, ally.token.id).noHealing)
+	if (modsOn(room.adventure ?? null, ally.token.id).noHealing)
 		return appendLog(room, {
 			kind: 'ability',
 			authorId: actor.id,
@@ -2835,7 +2896,7 @@ function canStillAct(adventure: AdventureState, encounter: Encounter, me: Played
 /** An enemy is gone from the fight and the table; a fight's first fallen may leave remains. */
 function enemyDies(room: Room, encounter: Encounter, token: Token): void {
 	encounter.enemies.delete(token.id);
-	clearOn(encounter, token.id);
+	if (room.adventure) clearOn(room.adventure, token.id);
 	leaveOrder(encounter, token.id);
 	room.tokens.delete(token.id);
 	const adventure = room.adventure;
@@ -2864,11 +2925,13 @@ function victory(room: Room, adventure: AdventureState): Outcome {
 	const won = encounterDef(A, id)?.won ?? {};
 	adventure.encounter = null;
 	adventure.encounters.set(id, 'won');
+	const settled = effectsEnded(room, fightEnds(adventure));
 	const rounds = encounter?.round ?? 1;
 	const log = [
 		postSystem(room, `The fight is won in ${rounds} ${rounds === 1 ? 'round' : 'rounds'}.`)
 	];
 	if (won.text) log.push(say(room, won.text));
+	log.push(...settled);
 	const fallen = played(room, adventure).filter((c) => c.state.hp <= 0 && !c.state.dead);
 	for (const c of fallen) {
 		c.state.hp = 1;
@@ -2902,6 +2965,7 @@ function defeat(
 ): ChatMessage[] {
 	adventure.encounters.set(encounter.id, 'lost');
 	adventure.encounter = null;
+	fightEnds(adventure);
 	adventure.stage = 'defeat';
 	adventure.completedAt = now;
 	return [say(room, content(adventure).voice.defeat)];
@@ -2960,7 +3024,9 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 	const rules = rulesOf(adventure);
 	const hurt = rules.turnDamage(enemy.statuses);
 	if (hurt) {
+		const hp = enemy.hp;
 		log.push(burn(room, encounter, enemy, token, hurt, roller));
+		log.push(...afterHurt(room, token.id, hp - enemy.hp, roller));
 		if (!encounter.enemies.has(token.id)) {
 			const done = cleared(room, adventure, encounter);
 			if (done?.over) return merge({ log }, done.outcome);
@@ -2971,13 +3037,20 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 		}
 	}
 	const kind = content(adventure).enemies[enemy.kind];
-	const speed = Math.max(
-		0,
-		rules.speed(kind.speed, enemy.statuses) - modsOn(encounter, token.id).slow
+	log.push(...effectsEnded(room, turnStarts(adventure, token.id)));
+	let speed = conditionSpeed(
+		room,
+		token.id,
+		Math.max(0, rules.speed(kind.speed, enemy.statuses) - modsOn(adventure, token.id).slow)
 	);
 	rules.tick(enemy.statuses);
 	if (enemy.rest > 0) enemy.rest--;
-	log.push(...enemyActs(room, adventure, enemy, token, speed, roller));
+	const stood = standUp(room, token.id, speed);
+	speed = stood.speed;
+	log.push(...stood.log);
+	const held = incapacity(room, token.id);
+	if (held) log.push(postSystem(room, `The ${token.name} is ${held} and loses its turn.`));
+	else log.push(...enemyActs(room, adventure, enemy, token, speed, roller));
 	enemy.lastHitBy = undefined;
 	if (standing(room, adventure).length === 0)
 		return { log: [...log, ...defeat(room, adventure, encounter)] };
@@ -3006,7 +3079,9 @@ function enemyActs(
 		lastSeen: enemy.lastSeen,
 		post: enemy.post
 	});
-	const last = decided.path.at(-1);
+	const path = keepAway(room, token, decided.path);
+	const cut = path.length < decided.path.length;
+	const last = path.at(-1);
 	if (last) token.pos = { ...last };
 	enemy.target = decided.target;
 	enemy.lastSeen = decided.lastSeen && { ...decided.lastSeen };
@@ -3022,7 +3097,12 @@ function enemyActs(
 	}
 	if (deed?.kind === 'attack') {
 		const target = who(deed.target);
-		if (target) log.push(...enemyAttack(room, token, deed.attack, target, roller));
+		// Held back by fear short of its prey, it can't strike what it can't reach.
+		const reach =
+			!cut ||
+			(!!target && inAttackRange(obstacles(room), token.pos, target.token.pos, deed.attack.range));
+		if (!reach) log.push(say(room, `The ${token.name} hangs back, afraid.`));
+		else if (target) log.push(...enemyAttack(room, token, deed.attack, target, roller));
 	} else if (deed?.kind === 'toll') {
 		const toll = content(adventure).enemies[enemy.kind].toll;
 		const targets = deed.targets.flatMap((id) => who(id) ?? []);
@@ -3047,11 +3127,17 @@ function enemyAttack(
 ): ChatMessage[] {
 	const rules = rulesOf(room.adventure!);
 	if (attack.save) return saveAttack(room, token, attack, attack.save, target, roller);
-	const encounter = room.adventure!.encounter;
-	const defense = characterDefense(rules, target, encounter);
+	const adventure = room.adventure!;
+	const defense = characterDefense(rules, target, adventure);
 	const blocked = obstacles(room);
-	const exposed = modsOn(encounter, target.token.id).exposed;
+	const exposed = modsOn(adventure, target.token.id).exposed;
+	const attackerConditions = heldFor(room, token.id);
+	const targetConditions = heldFor(room, target.token.id);
 	const situation: AttackSituation = {
+		...(attackerConditions.length ? { attackerConditions } : {}),
+		...(targetConditions.length ? { targetConditions } : {}),
+		within5: gridDistance(token.pos, target.token.pos) <= 1,
+		targetToken: target.token.id,
 		ranged: attack.range > 1,
 		hostileBeside: standing(room, room.adventure!).some((c) =>
 			beside(blocked, token.pos, c.token.pos)
@@ -3062,7 +3148,7 @@ function enemyAttack(
 		...(exposed ? { exposed } : {})
 	};
 	const result = rules.strike(attack.toHit, attack.damage, defense, situation, roller);
-	if (exposed && encounter) spendExposed(encounter, target.token.id);
+	if (exposed) spendExposed(adventure, target.token.id);
 	let outcome: string | undefined;
 	if (result.damage) outcome = wound(target, result.damage.total);
 	return [
@@ -3080,38 +3166,393 @@ function enemyAttack(
 			...(outcome ? { outcome } : {}),
 			...strikeNotes(result)
 		}),
-		...keepFocus(room, target, result.damage?.total ?? 0, roller)
+		...afterHurt(room, target.token.id, result.damage?.total ?? 0, roller),
+		...(result.hit ? inflict(room, token, attack, target) : [])
 	];
 }
 
-/**
- * A character concentrating on a spell has taken damage: at 0 hit points it
- * loses concentration, else it makes the rules' saving throw to keep it.
- */
-function keepFocus(room: Room, c: Played, damage: number, roller: DieRoller): ChatMessage[] {
-	const adventure = room.adventure;
-	const encounter = adventure?.encounter ?? null;
-	const spell = concentratingOn(encounter, c.id);
-	if (!adventure || !spell || damage <= 0) return [];
-	if (c.state.hp <= 0) {
-		dropConcentration(encounter, c.id);
-		return [postSystem(room, `${c.def.name} loses concentration: ${spell} ends.`)];
-	}
-	const spells = rulesOf(adventure).spells;
-	if (!spells) return [];
-	const { stat, dc } = spells.concentration(damage);
-	const player = c.token.ownerId ? room.players.get(c.token.ownerId) : undefined;
-	const check = rollCheck(
-		room,
-		player ?? null,
-		c,
-		`Concentration on ${spell}`,
-		{ stat, dc, save: true },
-		roller
+/** An enemy's path, cut short before any step that takes it closer to the source of its fear. */
+function keepAway(room: Room, token: Token, path: readonly GridPos[]): readonly GridPos[] {
+	const rules = room.adventure ? rulesOf(room.adventure).conditions : undefined;
+	const sources = (rules?.feared(heldFor(room, token.id)) ?? []).flatMap(
+		(id) => room.tokens.get(id) ?? []
 	);
-	if (check.success) return [check.entry];
-	dropConcentration(encounter, c.id);
-	return [check.entry, postSystem(room, `${c.def.name} loses concentration: ${spell} ends.`)];
+	if (!sources.length) return path;
+	let at = token.pos;
+	const kept: GridPos[] = [];
+	for (const step of path) {
+		if (sources.some((s) => gridDistance(step, s.pos) < gridDistance(at, s.pos))) break;
+		kept.push(step);
+		at = step;
+	}
+	return kept;
+}
+
+/** What an enemy's attack leaves on a character it hit (or who failed its save): the conditions it inflicts. */
+function inflict(room: Room, token: Token, attack: Attack, target: Played): ChatMessage[] {
+	const inflicts = attack.inflicts;
+	if (!inflicts || target.state.dead || !room.adventure) return [];
+	const put = putEffect(
+		room,
+		{
+			name: attack.name,
+			mods: { conditions: [...inflicts.conditions] },
+			ends: { at: inflicts.ends, turns: 1 },
+			concentration: false
+		},
+		{ kind: 'enemy', id: token.id, name: `the ${token.name}` },
+		target.token.id,
+		token.id
+	);
+	return [...put.log, ...settleConcentration(room)];
+}
+
+// Conditions and lasting effects at the table (see effects.ts for what they
+// are, and the story's rules for what each condition does).
+
+/** A token's conditions as the rules read them: each with its source's token, and whether the bearer sees it. */
+function heldFor(room: Room, tokenId: string): HeldCondition[] {
+	const adventure = room.adventure;
+	const token = room.tokens.get(tokenId);
+	if (!adventure || !token || !adventure.effects?.length) return [];
+	const blocked = obstacles(room);
+	return heldOn(adventure, tokenId, (source) => {
+		const s = room.tokens.get(source);
+		return !!s && hasLineOfSight(blocked, token.pos, s.pos);
+	});
+}
+
+/** The condition that keeps a token from acting, by name, or null. */
+function incapacity(room: Room, tokenId: string): string | null {
+	const rules = room.adventure ? rulesOf(room.adventure).conditions : undefined;
+	return rules?.incapacitatedBy(heldFor(room, tokenId)) ?? null;
+}
+
+/** Why a character can't act for its conditions ("The Ember is Stunned."), or null. */
+function cannotAct(room: Room, me: Played): string | null {
+	const by = incapacity(room, me.token.id);
+	return by ? `${me.def.name} is ${by}.` : null;
+}
+
+/** Whether a token's conditions keep it from attacking another (a charmer). */
+function spares(room: Room, tokenId: string, targetId: string): boolean {
+	const rules = room.adventure ? rulesOf(room.adventure).conditions : undefined;
+	return !!rules?.spared(heldFor(room, tokenId)).includes(targetId);
+}
+
+/** Cells a token may move, its conditions counted (Restrained, Exhaustion). */
+function conditionSpeed(room: Room, tokenId: string, cells: number): number {
+	const rules = room.adventure ? rulesOf(room.adventure).conditions : undefined;
+	return rules ? rules.speed(heldFor(room, tokenId), cells) : cells;
+}
+
+/** A condition's name under the story's rules. */
+function conditionName(adventure: AdventureState, id: string): string {
+	return conditionInfo(adventure).get(id)?.name ?? id;
+}
+const infoCache = new WeakMap<Ruleset, Map<string, { name: string; text: string }>>();
+function conditionInfo(adventure: AdventureState): Map<string, { name: string; text: string }> {
+	const rules = rulesOf(adventure);
+	let known = infoCache.get(rules);
+	if (!known) {
+		known = new Map((rules.conditions?.list() ?? []).map((c) => [c.id, c]));
+		infoCache.set(rules, known);
+	}
+	return known;
+}
+
+/** Who bears a token, as the log names it: a character's name, "the Barrow Guard". */
+function bearerName(room: Room, tokenId: string): string {
+	const c = characterByToken(room, tokenId);
+	return c ? c.def.name : `the ${room.tokens.get(tokenId)?.name ?? 'foe'}`;
+}
+const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/**
+ * Puts an effect on a token (refused for a condition the bearer is immune
+ * to), says what it brings, and reports whether it stands.
+ */
+function putEffect(
+	room: Room,
+	spec: EffectSpec,
+	source: EffectSource,
+	target: string,
+	sourceToken: string | null
+): { effect: LastingEffect | null; log: ChatMessage[] } {
+	const adventure = room.adventure!;
+	const enemy = adventure.encounter?.enemies.get(target) ?? adventure.sentries.get(target);
+	const immune = enemy ? (content(adventure).enemies[enemy.kind]?.immune ?? []) : [];
+	const conditions = spec.mods.conditions ?? [];
+	const barred = conditions.find((c) => immune.includes(c));
+	if (barred)
+		return {
+			effect: null,
+			log: [
+				postSystem(
+					room,
+					`${capital(bearerName(room, target))} is immune to ${conditionName(adventure, barred)}.`
+				)
+			]
+		};
+	const effect = addEffect(adventure, spec, source, target, sourceToken);
+	if (!effect || !conditions.length) return { effect, log: [] };
+	const names = conditions.map((c) =>
+		c === 'exhaustion'
+			? `${conditionName(adventure, c)} (level ${effect.level ?? 1})`
+			: conditionName(adventure, c)
+	);
+	const why = names.length === 1 && names[0].startsWith(spec.name) ? '' : ` (${spec.name})`;
+	const log = [
+		postSystem(room, `${capital(bearerName(room, target))} is ${names.join(' and ')}${why}.`)
+	];
+	log.push(...deadlyConditions(room, target));
+	return { effect, log };
+}
+
+/** Conditions that kill (six levels of Exhaustion): the bearer dies. */
+function deadlyConditions(room: Room, tokenId: string): ChatMessage[] {
+	const adventure = room.adventure!;
+	if (!rulesOf(adventure).conditions?.deadly(heldFor(room, tokenId))) return [];
+	const c = characterByToken(room, tokenId);
+	if (c) {
+		c.state.hp = 0;
+		c.state.dead = true;
+		return [say(room, content(adventure).voice.gone.replace('{name}', c.def.name))];
+	}
+	const token = room.tokens.get(tokenId);
+	const encounter = adventure.encounter;
+	if (token && encounter?.enemies.has(tokenId)) {
+		enemyDies(room, encounter, token);
+		return [postSystem(room, `The ${token.name} falls.`)];
+	}
+	return [];
+}
+
+/**
+ * Effects that ended, told to the table: a concentration spell's end, the
+ * conditions a bearer is rid of. What a condition leaves behind stays
+ * (Unconscious leaves its bearer Prone).
+ */
+function effectsEnded(room: Room, gone: readonly LastingEffect[]): ChatMessage[] {
+	const adventure = room.adventure!;
+	const rules = rulesOf(adventure).conditions;
+	const log: ChatMessage[] = [];
+	for (const name of new Set(gone.filter((e) => e.concentration).map((e) => e.name)))
+		log.push(postSystem(room, `${name} ends.`));
+	for (const e of gone) {
+		if (!e.mods.conditions?.length || !room.tokens.has(e.target)) continue;
+		const still = new Set(activeOn(adventure, e.target).flatMap((x) => x.mods.conditions ?? []));
+		const freed = e.mods.conditions.filter((c) => !still.has(c));
+		if (freed.length && !e.concentration)
+			log.push(
+				postSystem(
+					room,
+					`${capital(bearerName(room, e.target))} is no longer ${freed.map((c) => conditionName(adventure, c)).join(' or ')}.`
+				)
+			);
+		for (const c of e.mods.conditions)
+			for (const left of rules?.leaves(c) ?? [])
+				if (!still.has(left))
+					addEffect(
+						adventure,
+						{
+							name: conditionName(adventure, left),
+							mods: { conditions: [left] },
+							ends: null,
+							concentration: false
+						},
+						{ kind: 'story', name: e.name },
+						e.target
+					);
+	}
+	return log;
+}
+
+/** A saving throw by a character or an enemy, logged for all. */
+function saveBy(
+	room: Room,
+	tokenId: string,
+	action: string,
+	stat: string,
+	dc: number,
+	roller: DieRoller,
+	advantage?: string
+): { entry: ChatMessage; success: boolean } | null {
+	const adventure = room.adventure!;
+	const c = characterByToken(room, tokenId);
+	if (c) {
+		const player = c.token.ownerId ? room.players.get(c.token.ownerId) : undefined;
+		return rollCheck(
+			room,
+			player ?? null,
+			c,
+			action,
+			{ stat, dc, save: true },
+			roller,
+			false,
+			advantage
+		);
+	}
+	const rules = rulesOf(adventure);
+	const enemy = adventure.encounter?.enemies.get(tokenId);
+	const token = room.tokens.get(tokenId);
+	if (!enemy || !token || !rules.saveWith) return null;
+	const bonus = content(adventure).enemies[enemy.kind]?.saves?.[stat] ?? 0;
+	const conditions = heldFor(room, tokenId);
+	const boon = modsOn(adventure, tokenId).boon;
+	const result = rules.saveWith(
+		bonus,
+		stat,
+		dc,
+		{
+			dark: false,
+			sight: false,
+			...(boon ? { boon } : {}),
+			...(conditions.length ? { conditions } : {})
+		},
+		roller,
+		advantage
+	);
+	const entry = appendLog(room, {
+		kind: 'check',
+		authorId: token.id,
+		authorName: token.name,
+		action,
+		stat: result.label,
+		roll: result.roll,
+		dc,
+		success: result.success,
+		save: true,
+		...(result.mode ? { mode: result.mode } : {}),
+		explain: result.explain
+	});
+	return { entry, success: result.success };
+}
+
+/** A bearer's turn ends: it repeats the saves its effects allow, and a failed one may make it worse (Sleep). */
+function endOfTurnSaves(room: Room, tokenId: string, roller: DieRoller): ChatMessage[] {
+	const adventure = room.adventure!;
+	const log: ChatMessage[] = [];
+	for (const e of activeOn(adventure, tokenId).filter((x) => x.repeat)) {
+		const save = saveBy(room, tokenId, e.name, e.repeat!.stat, e.repeat!.dc, roller);
+		if (!save) continue;
+		log.push(save.entry);
+		if (save.success) {
+			log.push(
+				...effectsEnded(
+					room,
+					removeEffects(adventure, (x) => x.id === e.id)
+				)
+			);
+			log.push(postSystem(room, `${capital(bearerName(room, tokenId))} shakes off ${e.name}.`));
+		} else if (e.worsens) {
+			const worse = e.worsens;
+			removeEffects(adventure, (x) => x.id === e.id);
+			const put = putEffect(
+				room,
+				{ ...worse, ends: e.ends ? { ...e.ends } : null, concentration: e.concentration },
+				e.source,
+				tokenId,
+				e.sourceToken ?? null
+			);
+			log.push(...put.log);
+		}
+	}
+	return log;
+}
+
+/**
+ * Something took damage: a concentrating character keeps its spell with a
+ * save (or loses it at 0 hit points), effects that end on damage end
+ * (Sleep), and those that allow a save when hurt get one, with the upper
+ * hand (Hideous Laughter).
+ */
+function afterHurt(room: Room, tokenId: string, damage: number, roller: DieRoller): ChatMessage[] {
+	const adventure = room.adventure;
+	if (!adventure || damage <= 0 || !room.tokens.has(tokenId)) return [];
+	const log: ChatMessage[] = [];
+	const c = characterByToken(room, tokenId);
+	const spell = c ? concentratingOn(adventure, c.id) : null;
+	if (c && spell) {
+		if (c.state.hp <= 0) {
+			dropConcentration(adventure, c.id);
+			log.push(postSystem(room, `${c.def.name} loses concentration: ${spell} ends.`));
+		} else {
+			const spells = rulesOf(adventure).spells;
+			if (spells) {
+				const { stat, dc } = spells.concentration(damage);
+				const save = saveBy(room, tokenId, `Concentration on ${spell}`, stat, dc, roller);
+				if (save) log.push(save.entry);
+				if (save && !save.success) {
+					dropConcentration(adventure, c.id);
+					log.push(postSystem(room, `${c.def.name} loses concentration: ${spell} ends.`));
+				}
+			}
+		}
+	}
+	const woken = removeEffects(adventure, (e) => e.target === tokenId && !!e.endsOnDamage);
+	if (woken.length) {
+		log.push(...effectsEnded(room, woken));
+		log.push(
+			postSystem(room, `${capital(bearerName(room, tokenId))} is jolted out of ${woken[0].name}.`)
+		);
+	}
+	for (const e of activeOn(adventure, tokenId).filter((x) => x.repeat?.onDamage)) {
+		const save = saveBy(room, tokenId, e.name, e.repeat!.stat, e.repeat!.dc, roller, 'hurt');
+		if (!save) continue;
+		log.push(save.entry);
+		if (save.success) {
+			log.push(
+				...effectsEnded(
+					room,
+					removeEffects(adventure, (x) => x.id === e.id)
+				)
+			);
+			log.push(postSystem(room, `${capital(bearerName(room, tokenId))} shakes off ${e.name}.`));
+		}
+	}
+	return log;
+}
+
+/** Concentrating characters whose conditions break concentration (Incapacitated) lose their spells. */
+function settleConcentration(room: Room): ChatMessage[] {
+	const adventure = room.adventure!;
+	const rules = rulesOf(adventure).conditions;
+	if (!rules) return [];
+	const log: ChatMessage[] = [];
+	for (const c of played(room, adventure)) {
+		const spell = concentratingOn(adventure, c.id);
+		if (spell && rules.breaksConcentration(heldFor(room, c.token.id))) {
+			dropConcentration(adventure, c.id);
+			log.push(postSystem(room, `${c.def.name} loses concentration: ${spell} ends.`));
+		}
+	}
+	return log;
+}
+
+/**
+ * A token lying Prone at the start of its turn stands, spending half its
+ * movement, when nothing holds it down (a Prone of its own, not one another
+ * condition or spell brings).
+ */
+function standUp(
+	room: Room,
+	tokenId: string,
+	speed: number
+): { speed: number; log: ChatMessage[] } {
+	const adventure = room.adventure!;
+	const rules = rulesOf(adventure).conditions;
+	if (!rules || speed <= 0 || !rules.prone(heldFor(room, tokenId))) return { speed, log: [] };
+	const lying = activeOn(adventure, tokenId).filter((e) => e.mods.conditions?.includes('prone'));
+	if (!lying.every((e) => e.mods.conditions!.length === 1)) return { speed, log: [] };
+	removeEffects(adventure, (e) => lying.includes(e));
+	if (rules.prone(heldFor(room, tokenId))) return { speed, log: [] };
+	return {
+		speed: speed - Math.floor(speed / 2),
+		log: [
+			postSystem(room, `${capital(bearerName(room, tokenId))} gets up, spending half its movement.`)
+		]
+	};
 }
 
 /** Damage to a character; what came of it when it fell. */
@@ -3160,7 +3601,8 @@ function saveAttack(
 			amount: -amount,
 			text
 		}),
-		...keepFocus(room, target, amount, roller)
+		...afterHurt(room, target.token.id, amount, roller),
+		...(check.success ? [] : inflict(room, token, attack, target))
 	];
 }
 
@@ -3193,7 +3635,7 @@ function tollOn(
 		amount: -rolled.total,
 		text: `${toll.text} ${names.join(', ')} ${near.length === 1 ? 'takes' : 'each take'} ${rolled.total} and ${near.length === 1 ? 'is' : 'are'} slowed.${fell.length ? ` ${fell.join(', ')} ${fell.length === 1 ? 'falls' : 'fall'}!` : ''}`
 	});
-	return [entry, ...near.flatMap((t) => keepFocus(room, t, rolled.total, roller))];
+	return [entry, ...near.flatMap((t) => afterHurt(room, t.token.id, rolled.total, roller))];
 }
 
 /** Fire eats at a burning enemy at the start of its turn. */
@@ -3245,6 +3687,20 @@ export function checkMove(
 	const unable = unableReason(me);
 	if (unable) return fail('forbidden', unable);
 	if (adventure.stage === 'choosing') return fail('forbidden', 'Wait for the GM to begin.');
+	const held = rulesOf(adventure).conditions ? heldFor(room, me.token.id) : [];
+	const conditions = rulesOf(adventure).conditions;
+	if (conditions && held.length) {
+		if (conditions.speed(held, def.speed) === 0)
+			return fail('forbidden', `${def.name} can't move: its speed is 0.`);
+		for (const source of conditions.feared(held)) {
+			const feared = room.tokens.get(source);
+			if (feared && gridDistance(to, feared.pos) < gridDistance(me.token.pos, feared.pos))
+				return fail(
+					'forbidden',
+					`${def.name} is too frightened to move closer to the ${feared.name}.`
+				);
+		}
+	}
 	const encounter = adventure.encounter;
 	if (!encounter) return { ok: true, cost: null };
 	if (!isTurnOf(encounter, me.id)) return fail('not_your_turn', notYourTurn(room, encounter));
@@ -3279,6 +3735,9 @@ export function afterMove(
 	const me = characterByToken(room, token.id);
 	if (!adventure || !me) return { log: [] };
 	const encounter = adventure.encounter;
+	// Outside a fight, a character lying Prone gets up as it walks off (time isn't counted).
+	const stood = encounter ? { log: [] } : standUp(room, token.id, me.def.speed);
+	if (stood.log.length) return merge({ log: stood.log }, afterMove(room, token, cost, now));
 	if (cost !== null && encounter) {
 		encounter.moved.set(me.id, (encounter.moved.get(me.id) ?? 0) + cost);
 		// Acted and walked as far as it can: the turn is over.
@@ -3294,6 +3753,54 @@ export function afterMove(
 	// Walking into a sentry's sight starts its fight.
 	const spotted = story.reset ? null : detect(room, adventure);
 	return spotted ? merge(story, spotted) : story;
+}
+
+/**
+ * GM: puts a condition on someone (a character in play, or an enemy on the
+ * table) for some rounds of its own turns or until removed, or removes a
+ * lasting effect by its id. The same condition from the GM again refreshes
+ * it; Exhaustion adds a level.
+ */
+export function ruleEffect(room: Room, actor: Player, op: EffectOp): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	if (adventure.stage !== 'playing') return fail('forbidden', 'The story isn’t in play.');
+	if (op.kind === 'remove') {
+		const gone = removeEffects(adventure, (e) => e.id === op.effect);
+		if (!gone.length) return fail('invalid_message', 'No such effect.');
+		const log = [
+			postSystem(
+				room,
+				`${actor.name} ended ${gone[0].name} on ${bearerName(room, gone[0].target)}.`
+			),
+			...effectsEnded(room, gone)
+		];
+		return { ok: true, log };
+	}
+	const conditions = rulesOf(adventure).conditions;
+	if (!conditions?.known(op.condition))
+		return fail('invalid_message', 'These rules have no such condition.');
+	const c = characterByToken(room, op.target);
+	const enemy = adventure.encounter?.enemies.get(op.target) ?? adventure.sentries.get(op.target);
+	if (!room.tokens.has(op.target) || (!c && !enemy) || c?.state.dead)
+		return fail('token_not_found', 'Choose a character in play or an enemy on the table.');
+	const name = conditionName(adventure, op.condition);
+	const put = putEffect(
+		room,
+		{
+			name,
+			mods: { conditions: [op.condition] },
+			ends: op.rounds === null ? null : { at: 'start', turns: op.rounds },
+			concentration: false
+		},
+		{ kind: 'gm', name: actor.name },
+		op.target,
+		null
+	);
+	// A ruling's rounds count on its bearer's own turns.
+	if (put.effect && op.rounds !== null) put.effect.clock = c ? c.id : op.target;
+	return { ok: true, log: [...put.log, ...settleConcentration(room)] };
 }
 
 /** Why a door won't open for this actor, or null if it will. The GM can always force it. */
@@ -3749,7 +4256,14 @@ export function directorOptions(room: Room, adventure: AdventureState): Director
 			return [{ id, name: def.name, state: adventure.encounters.get(id) ?? null }];
 		}),
 		enemies: Object.entries(A.enemies).map(([kind, e]) => ({ kind, name: e.name })),
-		skip: skipTo(adventure)
+		skip: skipTo(adventure),
+		conditions: [...conditionInfo(adventure)].map(([id, c]) => ({ id, name: c.name })),
+		bearers: [
+			...played(room, adventure)
+				.filter((c) => !c.state.dead)
+				.map((c) => ({ tokenId: c.token.id, name: c.def.name })),
+			...foes.map((f) => ({ tokenId: f.tokenId, name: f.name }))
+		]
 	};
 }
 
@@ -3810,6 +4324,7 @@ function settleAndHappen(
 			for (const tokenId of encounter.enemies.keys()) room.tokens.delete(tokenId);
 			clearHazard(room, adventure, encounter);
 			adventure.encounter = null;
+			fightEnds(adventure);
 		}
 		for (const [tokenId, sentry] of [...adventure.sentries]) {
 			if (sentry.encounter !== id) continue;
@@ -3911,6 +4426,7 @@ function endFight(
 	clearHazard(room, adventure, encounter);
 	const undo = encounterDef(content(adventure), encounter.id)?.calledOff ?? [];
 	adventure.encounter = null;
+	fightEnds(adventure);
 	adventure.encounters.delete(encounter.id);
 	for (const c of played(room, adventure)) {
 		if (c.state.hp <= 0 && !c.state.dead) {

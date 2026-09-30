@@ -35,8 +35,25 @@ export interface TestSituation {
 	dark: boolean;
 	/** The test is a matter of seeing (looking, searching, reading). */
 	sight: boolean;
-	/** Dice a lasting effect adds to the tester's saving throws (a blessing). */
+	/** Dice a lasting effect adds to the tester's saving throws (a blessing; "-1d4" takes away). */
 	boon?: string;
+	/** The conditions the tester holds. */
+	conditions?: readonly HeldCondition[];
+	/** Why the test has the upper hand, if something gives it one (a save against a spell when hurt). */
+	advantage?: string;
+}
+
+/**
+ * A condition a creature holds, as the engine tells the rules: its id (the
+ * rules' own), the token it came from (a charmer, the source of a fear) and
+ * whether that source is in the bearer's sight; `level` for one that counts
+ * levels (Exhaustion).
+ */
+export interface HeldCondition {
+	id: string;
+	source: string | null;
+	sourceSeen: boolean;
+	level?: number;
 }
 
 /** A d20 test, resolved. */
@@ -64,8 +81,13 @@ export interface AttackSituation {
 	targetStatuses: Statuses;
 	/** A lasting effect gives the next attack against the target the upper hand. */
 	exposed?: boolean;
-	/** Dice a lasting effect adds to the attacker's attack rolls (a blessing). */
+	/** Dice a lasting effect adds to the attacker's attack rolls (a blessing; "-1d4" takes away). */
 	boon?: string;
+	/** The conditions attacker and target hold, whether they stand within 5 feet, and the target's token. */
+	attackerConditions?: readonly HeldCondition[];
+	targetConditions?: readonly HeldCondition[];
+	within5?: boolean;
+	targetToken?: string;
 }
 
 /** An attack roll's result: the d20 roll, and the damage when it hit. */
@@ -143,6 +165,53 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	equipment?: Equipment;
 	/** How characters cast spells, under rules that have them. */
 	spells?: Spellcasting;
+	/** The conditions these rules have, and what they do beyond rolls (acting, moving, concentration). */
+	conditions?: ConditionRules;
+	/** A saving throw by something that isn't a character (an enemy), from its bonus. */
+	saveWith?(
+		bonus: number,
+		stat: string,
+		dc: number,
+		situation: TestSituation,
+		roller: DieRoller,
+		advantage?: string
+	): TestResult;
+}
+
+/** A condition as the table shows it. */
+export interface ConditionInfo {
+	id: string;
+	name: string;
+	/** Its rules text, as its source gives it. */
+	text: string;
+	/** What its text says that the table doesn't play yet. */
+	notPlayed: string[];
+	/** It counts levels (Exhaustion). */
+	levels: boolean;
+}
+
+/**
+ * Conditions, for rules that have them. The engine keeps who holds which
+ * (as effects) and asks here what they mean for acting and moving; what they
+ * do to rolls the rules work out from the situations' `conditions`.
+ */
+export interface ConditionRules {
+	list(): ConditionInfo[];
+	known(id: string): boolean;
+	/** The condition that keeps its bearer from acting, by name, or null. */
+	incapacitatedBy(held: readonly HeldCondition[]): string | null;
+	/** Cells it may move this turn, from what it could without conditions. */
+	speed(held: readonly HeldCondition[], cells: number): number;
+	/** Whether it lies Prone and must spend half its movement to stand before moving. */
+	prone(held: readonly HeldCondition[]): boolean;
+	/** Tokens it can't attack (a charmer), and tokens it can't move closer to (the source of its fear). */
+	spared(held: readonly HeldCondition[]): string[];
+	feared(held: readonly HeldCondition[]): string[];
+	breaksConcentration(held: readonly HeldCondition[]): boolean;
+	/** The conditions a condition leaves behind when it ends (Unconscious leaves Prone). */
+	leaves(id: string): string[];
+	/** Whether its conditions kill it (six levels of Exhaustion). */
+	deadly(held: readonly HeldCondition[]): boolean;
 }
 
 /**
@@ -162,6 +231,8 @@ export interface EffectMods {
 	exposed?: boolean;
 	/** Its bearer can't regain hit points. */
 	noHealing?: boolean;
+	/** Conditions its bearer has while it lasts (the rules' ids). */
+	conditions?: string[];
 }
 
 /**
@@ -172,8 +243,18 @@ export interface EffectMods {
 export interface EffectSpec {
 	name: string;
 	mods: EffectMods;
-	ends: { at: 'start' | 'end'; turns: number };
+	/** Counted on its source's turns; null for until it is removed (or saved against). */
+	ends: { at: 'start' | 'end'; turns: number } | null;
 	concentration: boolean;
+	/** Its bearer repeats a save at the end of each of its turns (and, with `onDamage`, when it takes damage), ending it on a success. */
+	repeat?: { stat: string; dc: number; onDamage?: boolean };
+	/**
+	 * What comes of a failed repeat save instead of carrying on (Sleep: the
+	 * Incapacitated sleeper, failing again, falls Unconscious for the rest).
+	 */
+	worsens?: EffectSpec;
+	/** It ends when its bearer takes damage (Sleep). */
+	endsOnDamage?: boolean;
 }
 
 /** A target of a spell, as the engine tells the rules about it. */
@@ -189,6 +270,12 @@ export interface SpellTarget {
 	saveBonus(stat: string): number;
 	/** Dice its effects add to its saves. */
 	boon?: string;
+	/** The conditions it holds. */
+	conditions?: readonly HeldCondition[];
+	/** It doesn't sleep (Immunity to Exhaustion); a character's own traits the rules read from `character`. */
+	sleepless?: boolean;
+	/** A character of the party, for what its rules say of it. */
+	character?: CharacterDef;
 	/** How many of the spell's darts, beams or blessings are aimed at it. */
 	times: number;
 	situation: AttackSituation;
@@ -210,6 +297,8 @@ export interface SpellHit {
 	push: number;
 	/** What lingers on it. */
 	effect: EffectSpec | null;
+	/** Something the table should hear about it, said after its name ("doesn't sleep"). */
+	note?: string;
 }
 
 /**

@@ -109,6 +109,10 @@ export interface DirectorView {
 	enemies: { kind: string; name: string }[];
 	/** What skipping ahead leads to, or null when it can't (a choice is waiting). */
 	skip: string | null;
+	/** The conditions the story's rules have, for the GM to put on someone (empty under rules without). */
+	conditions: { id: string; name: string }[];
+	/** Who a condition can be put on: the characters in play and the enemies on the table. */
+	bearers: { tokenId: string; name: string }[];
 }
 
 /** Where a fight is in its life. Encounters not listed have not started. */
@@ -393,6 +397,8 @@ export interface CharacterStatus {
 	renamable: boolean;
 	/** Lasting effects on it (a spell's), as a line each: "Bless: +1d4 to attack rolls and saves". */
 	effects: string[];
+	/** The conditions it holds. */
+	conditions: ConditionMark[];
 	/** The spell it is concentrating on, if any. */
 	concentrating: string | null;
 }
@@ -505,6 +511,26 @@ export interface EnemyStatus {
 	statuses: ActiveStatus[];
 	/** Lasting effects on it (a spell's), as a line each: "Guiding Bolt: the next attack has advantage". */
 	effects: string[];
+	/** The conditions it holds. */
+	conditions: ConditionMark[];
+}
+
+/** A condition someone holds, as the table shows it: the rules' words, where it came from, and how long it lasts. */
+export interface ConditionMark {
+	id: string;
+	name: string;
+	/** Its rules text. */
+	text: string;
+	/** What its text says that the table doesn't play yet. */
+	notPlayed: string[];
+	/** Exhaustion's level. */
+	level?: number;
+	/** The effect that gives it, and who that comes from ("Hideous Laughter, from the Ember"). */
+	from: string;
+	/** How long it lasts, in words ("until it saves: Wisdom DC 13"). */
+	until: string;
+	/** The effect, for the GM to remove. */
+	effect: string;
 }
 
 /** A place in the turn order, as a viewer sees it. */
@@ -645,22 +671,37 @@ export function inActionRange(
  * touches the origin: `size` cells square, straight ahead along the nearest
  * of the eight directions to the aim (centred on that line when it runs
  * along the grid, cornered on the origin when it runs diagonally). The
- * origin itself is never in it. The server and the aiming preview use this
+ * origin itself is never in either. A sphere is centred on the aim, `size`
+ * cells in radius (a spell cast at a point). The server and the aiming preview use this
  * same rule.
  */
 export function areaCells(
 	origin: GridPos,
 	aim: GridPos,
-	area: { shape: 'cone' | 'cube'; size: number },
+	area: { shape: 'cone' | 'cube' | 'sphere'; size: number },
 	bounds: { width: number; height: number }
 ): GridPos[] {
+	const cells: GridPos[] = [];
+	const n = area.size;
+	if (area.shape === 'sphere') {
+		// Centred on the cell aimed at: every cell whose centre lies within the radius (and half a cell).
+		for (let y = aim.y - n; y <= aim.y + n; y++)
+			for (let x = aim.x - n; x <= aim.x + n; x++)
+				if (
+					x >= 0 &&
+					y >= 0 &&
+					x < bounds.width &&
+					y < bounds.height &&
+					Math.hypot(x - aim.x, y - aim.y) <= n + 0.5
+				)
+					cells.push({ x, y });
+		return cells;
+	}
 	const dx = aim.x - origin.x;
 	const dy = aim.y - origin.y;
 	if (!dx && !dy) return [];
-	const cells: GridPos[] = [];
 	const inside = (x: number, y: number) =>
 		x >= 0 && y >= 0 && x < bounds.width && y < bounds.height && (x !== origin.x || y !== origin.y);
-	const n = area.size;
 	if (area.shape === 'cone') {
 		const len = Math.hypot(dx, dy);
 		const ux = dx / len;

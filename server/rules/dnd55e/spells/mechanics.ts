@@ -17,7 +17,19 @@ import type { EffectMods } from '../../ruleset';
 import type { Ability } from '../core';
 import type { SpellData } from '../srd/records';
 
-export type Area = { shape: 'cone' | 'cube'; feet: number };
+/** A cone or cube from the caster (`feet` long), or a sphere around a point in range (`feet` of radius). */
+export type Area = { shape: 'cone' | 'cube' | 'sphere'; feet: number };
+
+/** What a failed save leaves on the target, for the spell's duration. */
+export interface OnFail {
+	conditions: string[];
+	/** It saves again at the end of each of its turns (and when hurt, with the upper hand, with `onDamage`). */
+	repeat?: { onDamage?: boolean };
+	/** A failed repeat save turns it into these conditions for the rest of the spell. */
+	worsens?: string[];
+	/** It ends when the target takes damage. */
+	endsOnDamage?: boolean;
+}
 
 /** What lingers on a target after the spell (an effect), and when it ends. */
 export interface Linger {
@@ -47,6 +59,12 @@ export interface SpellMechanics {
 	rider?: Linger;
 	/** An effect on each target for the spell's duration. */
 	effect?: EffectMods;
+	/** What a failed save leaves on the target. */
+	onFail?: OnFail;
+	/** Only creatures of the caster's choice in its area are caught (its foes). */
+	chooses?: boolean;
+	/** Creatures that don't sleep (an elf's Trance, Immunity to Exhaustion) succeed on the save. */
+	sleepless?: boolean;
 	/** The SRD's words this entry is read from, each in the spell's text. */
 	phrases: readonly string[];
 }
@@ -184,6 +202,54 @@ export const SPELL_MECHANICS: Readonly<Record<string, SpellMechanics>> = {
 			'increases by 1d10 for each spell slot level above 1'
 		]
 	},
+	[srd('ray-of-sickness')]: {
+		resolve: 'attack',
+		attack: 'ranged',
+		damage: { dice: '2d8', type: 'Poison', perSlot: '1d8' },
+		targets: { count: 1, perSlot: 0, side: 'enemy' },
+		rider: { mods: { conditions: ['poisoned'] }, ends: 'end' },
+		phrases: [
+			'Make a ranged spell attack',
+			'2d8 Poison damage and has the Poisoned condition until the end of your next turn',
+			'increases by 1d8 for each spell slot level above 1'
+		]
+	},
+	[srd('hideous-laughter')]: {
+		resolve: 'save',
+		save: { ability: 'wis', half: false },
+		targets: { count: 1, perSlot: 1, side: 'enemy' },
+		onFail: { conditions: ['prone', 'incapacitated'], repeat: { onDamage: true } },
+		phrases: [
+			'makes a Wisdom saving throw',
+			'On a failed save, it has the Prone and Incapacitated conditions for the duration',
+			'can’t end the Prone condition on itself',
+			'At the end of each of its turns and each time it takes damage, it makes another Wisdom saving throw',
+			'Advantage on the save if the save is triggered by damage',
+			'On a successful save, the spell ends',
+			'one additional creature for each spell slot level above 1'
+		]
+	},
+	[srd('sleep')]: {
+		resolve: 'save',
+		save: { ability: 'wis', half: false },
+		targets: { count: 0, perSlot: 0, side: 'enemy' },
+		area: { shape: 'sphere', feet: 5 },
+		chooses: true,
+		sleepless: true,
+		onFail: {
+			conditions: ['incapacitated'],
+			repeat: {},
+			worsens: ['unconscious'],
+			endsOnDamage: true
+		},
+		phrases: [
+			'Each creature of your choice in a 5-foot-radius Sphere',
+			'must succeed on a Wisdom saving throw or have the Incapacitated condition until the end of its next turn, at which point it must repeat the save',
+			'If the target fails the second save, the target has the Unconscious condition for the duration',
+			'The spell ends on a target if it takes damage',
+			'Creatures that don’t sleep, such as elves, or that have Immunity to the Exhaustion condition automatically succeed'
+		]
+	},
 	[srd('cure-wounds')]: {
 		resolve: 'heal',
 		heal: { dice: '2d8', perSlot: '2d8' },
@@ -220,25 +286,6 @@ export const SPELL_MECHANICS: Readonly<Record<string, SpellMechanics>> = {
 	}
 };
 
-/** The SRD's conditions: a spell that gives one waits for milestone 49's conditions. */
-const CONDITIONS = [
-	'Blinded',
-	'Charmed',
-	'Deafened',
-	'Exhaustion',
-	'Frightened',
-	'Grappled',
-	'Incapacitated',
-	'Invisible',
-	'Paralyzed',
-	'Petrified',
-	'Poisoned',
-	'Prone',
-	'Restrained',
-	'Stunned',
-	'Unconscious'
-];
-
 /** The parts of a turn a spell may be cast with at the table. */
 export const CASTING_TIMES: Readonly<Record<string, 'action' | 'bonus'>> = {
 	Action: 'action',
@@ -246,18 +293,13 @@ export const CASTING_TIMES: Readonly<Record<string, 'action' | 'bonus'>> = {
 };
 
 /** Why a spell isn't cast at the table, or null when it is. */
-export function unsupported(id: string, data: SpellData, text: string): string | null {
+export function unsupported(id: string, data: SpellData): string | null {
 	if (SPELL_MECHANICS[id]) return null;
 	const time = data.castingTime;
 	if (!CASTING_TIMES[time.replace(/ or Ritual$/, '')])
 		return time.startsWith('Reaction')
 			? 'Cast as a reaction: reactions come with a later milestone.'
 			: `Takes ${time.toLowerCase()} to cast: only spells cast as an action or a bonus action are cast at the table.`;
-	// The condition it names first.
-	const condition = CONDITIONS.map((c) => ({ c, at: text.search(new RegExp(`\\b${c}\\b`)) }))
-		.filter((x) => x.at >= 0)
-		.sort((a, b) => a.at - b.at)[0]?.c;
-	if (condition) return `Gives the ${condition} condition: conditions come with milestone 49.`;
 	return 'Its effects aren’t played at the table yet.';
 }
 

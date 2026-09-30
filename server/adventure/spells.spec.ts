@@ -114,7 +114,8 @@ describe('fifth edition spells in play', () => {
 				'attack',
 				1,
 				'DC 13 Constitution save, 2d8 thunder, half on a success, pushed 10 feet'
-			]
+			],
+			['Sleep', 'attack', 1, 'DC 13 Wisdom save, or Incapacitated, then Unconscious']
 		]);
 		expect(actions.find((a) => a.name === 'Burning Hands')!.cast!.area).toEqual({
 			shape: 'cone',
@@ -304,15 +305,15 @@ describe('fifth edition spells in play', () => {
 		ok(act(room, ana, 'ray-of-frost', guard.id, dice([15], [4])));
 		const scene = exportScene(room, 'Cold Hill');
 		const back = ok(readAdventure(scene.adventure!, scene)).adventure;
-		expect(back.encounter!.effects).toEqual(room.adventure!.encounter!.effects);
+		expect(back.effects).toEqual(room.adventure!.effects);
 
 		const forged = structuredClone(scene.adventure!) as unknown as {
-			state: { encounter: { effects: { mods: object; target: string }[] } };
+			state: { effects: { mods: object; target: string }[] };
 		};
-		forged.state.encounter.effects[0].mods = { defense: 99 };
+		forged.state.effects[0].mods = { defense: 99 };
 		expect(readAdventure(forged as never, scene).ok).toBe(false);
 		const elsewhere = structuredClone(scene.adventure!) as unknown as typeof forged;
-		elsewhere.state.encounter.effects[0].target = 'nobody';
+		elsewhere.state.effects[0].target = 'nobody';
 		expect(readAdventure(elsewhere as never, scene).ok).toBe(false);
 	});
 });

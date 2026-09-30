@@ -38,6 +38,11 @@ export interface Attack {
 	/** Damage dice expression, e.g. `1d8+3`. */
 	damage: string;
 	save?: { stat: string; dc: number; half: boolean };
+	/**
+	 * Conditions (the rules' ids) it leaves on a hit, or on a failed save,
+	 * until the start or the end of the attacker's next turn.
+	 */
+	inflicts?: { conditions: string[]; ends: 'start' | 'end' };
 }
 
 /**
@@ -86,8 +91,14 @@ export interface CastAim {
 	targets: number;
 	perLevel: number;
 	repeat: boolean;
-	/** An area from the caster toward a cell it aims at, in cells; null for targets chosen one by one. */
-	area: { shape: 'cone' | 'cube'; size: number } | null;
+	/**
+	 * An area, in cells: a cone or cube from the caster toward a cell it aims
+	 * at, or a sphere around a cell within range; null for targets chosen one
+	 * by one.
+	 */
+	area: { shape: 'cone' | 'cube' | 'sphere'; size: number } | null;
+	/** Only the creatures of the caster's choice in its area (its foes), not everyone there. */
+	chooses?: boolean;
 	concentration: boolean;
 	/** A line on what it does, e.g. "Dexterity save, 3d6 fire, half on a success". */
 	resolves: string;
@@ -323,10 +334,15 @@ export function summarizeAction(action: Action, toHit: number): string {
 	const parts = [reach];
 	const cast = action.cast;
 	if (cast) {
-		if (cast.area) parts[0] = 'From you';
+		if (cast.area) parts[0] = cast.area.shape === 'sphere' ? `Range ${action.range}` : 'From you';
 		else if (action.range === 1) parts[0] = 'Touch';
 		parts.push(cast.level ? `level ${cast.level} spell` : 'cantrip', cast.resolves);
-		if (cast.area) parts.push(`${cast.area.size * 5}-foot ${cast.area.shape}`);
+		if (cast.area)
+			parts.push(
+				cast.area.shape === 'sphere'
+					? `${cast.area.size * 5}-foot-radius sphere`
+					: `${cast.area.size * 5}-foot ${cast.area.shape}`
+			);
 		if (cast.concentration) parts.push('concentration');
 		return parts.join(' · ');
 	}

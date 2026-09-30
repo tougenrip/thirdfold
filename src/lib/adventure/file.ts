@@ -779,18 +779,50 @@ function enemy(v: unknown, path: string): EnemyFile {
 			`${path}.attacks`,
 			(a, p) => {
 				const attack = obj(a, p);
+				const inflicts = opt(attack.inflicts, (x) => {
+					const i = obj(x, `${p}.inflicts`);
+					if (i.ends !== 'start' && i.ends !== 'end') bad(`${p}.inflicts.ends`, 'start or end');
+					return {
+						conditions: list(
+							i.conditions,
+							`${p}.inflicts.conditions`,
+							(v, q) => {
+								if (typeof v !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(v))
+									bad(q, 'expected a condition id');
+								return v as string;
+							},
+							4
+						),
+						ends: i.ends as 'start' | 'end'
+					};
+				});
 				return {
 					name: name(attack.name, `${p}.name`),
 					range: int(attack.range, `${p}.range`, 1, 20),
 					toHit: int(attack.toHit, `${p}.toHit`, -5, 20),
-					damage: dice(attack.damage, `${p}.damage`)
+					damage: dice(attack.damage, `${p}.damage`),
+					...(inflicts ? { inflicts } : {})
 				};
 			},
 			2
 		),
 		behavior: oneOf(e.behavior, BEHAVIORS, `${path}.behavior`),
 		...(toll ? { toll } : {}),
-		...(e.saves === undefined ? {} : { saves: saves(e.saves, `${path}.saves`) })
+		...(e.saves === undefined ? {} : { saves: saves(e.saves, `${path}.saves`) }),
+		...(e.immune === undefined
+			? {}
+			: {
+					immune: list(
+						e.immune,
+						`${path}.immune`,
+						(v, p) => {
+							if (typeof v !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(v))
+								bad(p, 'expected a condition id');
+							return v as string;
+						},
+						16
+					)
+				})
 	};
 }
 

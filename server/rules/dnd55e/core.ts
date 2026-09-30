@@ -139,7 +139,8 @@ export function rollD20(
 	const keep = mode === 'advantage' ? 'kh1' : mode === 'disadvantage' ? 'kl1' : '';
 	const dice = { kind: 'dice' as const, sign: 1 as const, count: mode ? 2 : 1, sides: 20 };
 	const boonTerms = added ? added.terms : [];
-	const expression = `${dice.count}d20${keep}${boon ? `+${boon}` : ''}${formatExpression(flat).replace(/^(?=\d)/, '+')}`;
+	const extraText = boon ? (boon.startsWith('-') ? boon : `+${boon}`) : '';
+	const expression = `${dice.count}d20${keep}${extraText}${formatExpression(flat).replace(/^(?=\d)/, '+')}`;
 	return {
 		roll: {
 			expression,
@@ -162,7 +163,9 @@ export function rollD20(
 export function describeD20(d20: D20, modifier: number): string {
 	const twice = d20.mode && d20.other !== null ? ` (${d20.mode}; the other ${d20.other})` : '';
 	const mod = modifier === 0 ? '' : ` ${modifier > 0 ? '+' : '−'}${Math.abs(modifier)}`;
-	const boon = d20.boon ? ` +${d20.boon.total} (${d20.boon.dice})` : '';
+	const boon = d20.boon
+		? ` ${d20.boon.total < 0 ? '−' : '+'}${Math.abs(d20.boon.total)} (${d20.boon.dice})`
+		: '';
 	return `d20 ${d20.natural}${twice}${boon}${mod} = ${d20.total}`;
 }
 

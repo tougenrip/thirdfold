@@ -705,6 +705,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie, msg.cast);
 				case 'adventure_end_turn':
 					return adventure.endTurn(room, player);
+				case 'adventure_effect':
+					return adventure.ruleEffect(room, player, msg.op);
 				case 'adventure_narrate':
 					return adventure.narrate(room, player, msg.text);
 				case 'adventure_cue':
@@ -1101,6 +1103,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_interact':
 			case 'adventure_act':
 			case 'adventure_override':
+			case 'adventure_effect':
 			case 'adventure_object':
 			case 'adventure_end_turn':
 			case 'adventure_narrate':

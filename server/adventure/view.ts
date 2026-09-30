@@ -3,8 +3,21 @@
 // is in that viewer's view, things to interact with only once their cells
 // have been seen, and the read-aloud passages only for the GM.
 
-import { concentratingOn, effectLine, effectsOn, modsOn } from './effects';
-import type { AdventureView, Objective, SessionSummary } from '../../src/lib/adventure/adventure';
+import {
+	activeOn,
+	concentratingOn,
+	conditionsOn,
+	effectLine,
+	modsOn,
+	suppressed,
+	effectsOn
+} from './effects';
+import type {
+	AdventureView,
+	ConditionMark,
+	Objective,
+	SessionSummary
+} from '../../src/lib/adventure/adventure';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
@@ -26,7 +39,7 @@ import {
 	usesLeft,
 	verbsFor
 } from './engine';
-import type { AdventureState, Statuses } from './state';
+import type { AdventureState, LastingEffect, Statuses } from './state';
 import { actionOfVerb, objectDef } from './world';
 import { rulesInfo } from '../rules/ruleset';
 
@@ -172,8 +185,9 @@ export function adventureView(
 				notes: editable ? (adventure.notes?.get(id) ?? '') : null,
 				editable,
 				renamable: editable && !!adventure.built?.has(id) && !!rules.builder?.rename,
-				effects: token ? effectsOn(encounter, token.id).map(effectLine) : [],
-				concentrating: concentratingOn(encounter, id),
+				effects: token ? linesOn(adventure, token.id) : [],
+				conditions: token ? marksOn(room, adventure, token.id) : [],
+				concentrating: concentratingOn(adventure, id),
 				spent: encounter
 					? [...encounter.acted].flatMap((key) => {
 							if (key === id) return ['action'];
@@ -287,9 +301,10 @@ export function adventureView(
 					maxHp: e.maxHp,
 					defense:
 						rulesOf(adventure).defense(A.enemies[e.kind]?.armor ?? 0, e.statuses) +
-						modsOn(encounter, tokenId).defense,
+						modsOn(adventure, tokenId).defense,
 					statuses: listStatuses(e.statuses),
-					effects: effectsOn(encounter, tokenId).map(effectLine)
+					effects: linesOn(adventure, tokenId),
+					conditions: marksOn(room, adventure, tokenId)
 				}))
 		},
 		decision: adventure.pending
@@ -379,4 +394,77 @@ function endingView(A: AdventureDef, adventure: AdventureState): AdventureView['
 		scene: def.scene,
 		result: def.result.map((r) => ({ ...r }))
 	};
+}
+
+/** A token's lasting effects beyond the conditions they give (shown as conditions), as lines; a suppressed one said so. */
+function linesOn(adventure: AdventureState, tokenId: string): string[] {
+	const names = conditionNames(adventure);
+	const beyond = (e: LastingEffect) =>
+		Object.entries(e.mods).some(([k, v]) => k !== 'conditions' && v !== undefined);
+	return effectsOn(adventure, tokenId)
+		.filter(beyond)
+		.map(
+			(e) =>
+				`${effectLine(e, (id) => names.get(id)?.name ?? id)}${suppressed(adventure, e) ? ' (suppressed: the same effect already applies)' : ''}`
+		);
+}
+
+function conditionNames(adventure: AdventureState) {
+	return new Map((rulesOf(adventure).conditions?.list() ?? []).map((c) => [c.id, c]));
+}
+
+/** The conditions a token holds, as the table shows them. */
+function marksOn(room: Room, adventure: AdventureState, tokenId: string): ConditionMark[] {
+	if (!activeOn(adventure, tokenId).length) return [];
+	const info = conditionNames(adventure);
+	return conditionsOn(adventure, tokenId).map(({ id, level, effect }) => {
+		const c = info.get(id);
+		return {
+			id,
+			name: c?.name ?? id,
+			text: c?.text ?? '',
+			notPlayed: c?.notPlayed ?? [],
+			...(level !== undefined ? { level } : {}),
+			from:
+				effect.source.kind === 'gm'
+					? effect.name === c?.name
+						? 'from the GM'
+						: `${effect.name}, from the GM`
+					: effect.name === c?.name
+						? `from ${effect.source.name}`
+						: `${effect.name}, from ${effect.source.name}`,
+			until: untilOf(room, effect),
+			effect: effect.id
+		};
+	});
+}
+
+/** How long an effect lasts, in words. */
+function untilOf(room: Room, e: LastingEffect): string {
+	const parts: string[] = [];
+	if (e.repeat)
+		parts.push(
+			`until it saves (${e.repeat.stat.toUpperCase()} DC ${e.repeat.dc}, at the end of each of its turns)`
+		);
+	if (e.endsOnDamage) parts.push('until it takes damage');
+	if (e.concentration) parts.push(`while ${e.source.name} concentrates`);
+	if (e.ends) {
+		const whose = e.clock ? clockName(room, e.clock) : e.source.name;
+		parts.push(
+			e.ends.turns <= 1
+				? `until the ${e.ends.at} of ${whose}'s next turn`
+				: `for ${e.ends.turns} more rounds`
+		);
+	}
+	if (!parts.length)
+		parts.push(e.source.kind === 'gm' ? 'until the GM removes it' : 'until it ends');
+	return parts.join('; ');
+}
+
+/** Whose turns an effect counts on, by name: a character's, or an enemy's ("the Barrow Guard"). */
+function clockName(room: Room, clock: string): string {
+	const adventure = room.adventure!;
+	const character = adventure.characters.get(clock);
+	if (character) return content(adventure).characters[clock]?.name ?? clock;
+	return `the ${room.tokens.get(clock)?.name ?? 'foe'}`;
 }

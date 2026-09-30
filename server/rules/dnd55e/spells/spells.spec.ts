@@ -16,7 +16,7 @@ const catalog = srdCatalog();
 const srd = (slug: string) => `srd-5.2.1:spell:${slug}`;
 const why = (slug: string) => {
 	const s = catalog.get('spell', srd(slug))!;
-	return unsupported(s.id, s.data, s.text);
+	return unsupported(s.id, s.data);
 };
 
 describe('the spells the table plays', () => {
@@ -27,11 +27,11 @@ describe('the spells the table plays', () => {
 			for (const phrase of mech.phrases) expect(spell!.text, `${id}: ${phrase}`).toContain(phrase);
 			expect(CASTING_TIMES[spell!.data.castingTime], id).toBeDefined();
 			expect(rangeCells(spell!.data.range), id).not.toBeNull();
-			if (mech.area) expect(spell!.data.range, id).toBe('Self');
+			if (mech.area && mech.area.shape !== 'sphere') expect(spell!.data.range, id).toBe('Self');
 			if (mech.cantrip) expect(spell!.data.level, id).toBe(0);
 			if (mech.damage?.perSlot) expect(spell!.data.higherLevels, id).toContain(mech.damage.perSlot);
 			if (mech.effect) expect(durationRounds(spell!.data.duration), id).not.toBeNull();
-			expect(unsupported(id, spell!.data, spell!.text), id).toBeNull();
+			expect(unsupported(id, spell!.data), id).toBeNull();
 		}
 		// The representative kinds: attack rolls, saves, healing, areas, concentration.
 		const kinds = new Set(Object.values(SPELL_MECHANICS).map((m) => m.resolve));
@@ -40,14 +40,12 @@ describe('the spells the table plays', () => {
 	});
 
 	it('says why every other spell isn’t cast here, never approximating it', () => {
-		expect(why('sleep')).toBe(
-			'Gives the Incapacitated condition: conditions come with milestone 49.'
-		);
+		expect(why('hold-person')).toBe('Its effects aren’t played at the table yet.');
 		expect(why('shield')).toBe('Cast as a reaction: reactions come with a later milestone.');
 		expect(why('alarm')).toMatch(/^Takes 1 minute to cast/);
 		expect(why('light')).toBe('Its effects aren’t played at the table yet.');
 		const all = catalog.all('spell');
-		expect(all.filter((s) => !unsupported(s.id, s.data, s.text))).toHaveLength(
+		expect(all.filter((s) => !unsupported(s.id, s.data))).toHaveLength(
 			Object.keys(SPELL_MECHANICS).length
 		);
 	});

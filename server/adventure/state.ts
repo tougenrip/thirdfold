@@ -14,7 +14,7 @@ import type {
 import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { Creator } from '../../src/lib/game/library';
-import type { EffectMods, JsonData, RulesetRef } from '../rules/ruleset';
+import type { EffectMods, EffectSpec, JsonData, RulesetRef } from '../rules/ruleset';
 import type { BuiltCharacter } from './built';
 import type { Origins } from './world';
 
@@ -109,28 +109,45 @@ export interface Encounter {
 	pulls?: number;
 	/** Something counted since the round began (so the unanswered rule doesn't strike). */
 	pulled?: boolean;
-	/** Lasting effects (a spell's) on those in the fight; they end with it. */
+	/** Lasting effects saved by milestone 48 on the fight: read into `AdventureState.effects`. */
 	effects?: LastingEffect[];
 }
 
+/** Who an effect comes from: a character's id, an enemy's token, the GM, or the story itself. */
+export type EffectSource =
+	| { kind: 'character'; id: CharacterId; name: string }
+	| { kind: 'enemy'; id: string; name: string }
+	| { kind: 'gm'; name: string }
+	| { kind: 'story'; name: string };
+
 /**
- * A lasting effect on someone in a fight (Bless, a Ray of Frost's chill),
- * from a character's spell: what it changes (`EffectMods`), and when it
- * ends, counted on its source's turns (`ends.turns` of them; at the start or
- * the end of the last). A concentration effect also ends when its source
- * loses concentration. Milestone 49 grows these into conditions.
+ * A lasting effect (Bless, a Ray of Frost's chill, the Poisoned condition a
+ * bite leaves, a GM's ruling) on one bearer, from a source: what it changes
+ * (`EffectMods`, conditions among them) and when it ends (see effects.ts).
  */
 export interface LastingEffect {
-	/** `fx-N`, unique in the fight. */
+	/** `fx-N`, unique in the story. */
 	id: string;
 	name: string;
-	/** The character whose spell it is. */
-	source: CharacterId;
+	source: EffectSource;
+	/** The source's token, when it has one (a charmer, the source of a fear). */
+	sourceToken?: string;
 	/** The token it is on. */
 	target: string;
+	/** Whose turns its time counts on, when not its source's (a GM's ruling counts on its bearer's). */
+	clock?: string;
 	mods: EffectMods;
-	ends: { at: 'start' | 'end'; turns: number };
+	/** Counted on its source's turns; null for until it is removed or saved against. */
+	ends: { at: 'start' | 'end'; turns: number } | null;
 	concentration: boolean;
+	/** Its bearer repeats this save at the end of each of its turns (and when damaged, with `onDamage`). */
+	repeat?: { stat: string; dc: number; onDamage?: boolean };
+	/** What a failed repeat save turns it into. */
+	worsens?: EffectSpec;
+	/** It ends when its bearer takes damage. */
+	endsOnDamage?: boolean;
+	/** Exhaustion's level. */
+	level?: number;
 }
 
 /** A published adventure a table plays: its library id, the version, and whose it is. */
@@ -190,6 +207,8 @@ export interface AdventureState {
 	 * (`Equipment`). The prop is only a marker; the items are not props.
 	 */
 	piles?: ReadonlyMap<string, Pile>;
+	/** Lasting effects on those in the story (see effects.ts); absent when none. */
+	effects?: LastingEffect[];
 	/**
 	 * Evidence found, in the order it was found, by clue id: who found it
 	 * themselves, and whether the whole party knows it.
