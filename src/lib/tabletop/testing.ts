@@ -4,6 +4,7 @@
 // fixture's named poses, so the same inputs always draw the same pixels.
 // Fixtures and views are JSON made by server/fixtures (see docs/PERFORMANCE.md).
 
+import type * as THREE from 'three/webgpu';
 import { inject, it } from 'vitest';
 import { page } from 'vitest/browser';
 import { decodeFloor } from '$lib/game/floor';
@@ -42,6 +43,7 @@ export interface FixtureView {
 	fog: FogView;
 	terrain: string | null;
 	darkness: string | null;
+	interior?: string | null;
 	floor: string | null;
 	tokens: Token[];
 	objects: SceneObject[];
@@ -139,6 +141,8 @@ export async function mountFixture(
 		tier?: Tier;
 		/** A renderer the lobby warmed up, adopted with its canvas (#180; no `pixels()` then). */
 		warm?: WarmRenderer;
+		/** The renderer's dev-only hook: the scene, and a redraw (sky-light.svelte.spec.ts). */
+		devScene?: (scene: THREE.Scene, redraw: () => void) => void;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -157,6 +161,7 @@ export async function mountFixture(
 			backend: webgpu ? 'webgpu' : 'webgl',
 			perf: options.perf,
 			warm: options.warm,
+			devScene: options.devScene,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
 			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : !options.miniature
 		}
@@ -188,6 +193,7 @@ export async function mountFixture(
 	tabletop.setTerrain(levels);
 	tabletop.setFloor(view.floor ? decodeFloor(view.floor, size) : null);
 	tabletop.setDarkness(view.darkness ? decodeMask(view.darkness, size) : null);
+	tabletop.setInterior(view.interior ? decodeMask(view.interior, size) : null);
 	tabletop.setEnvironment(view.environment);
 	tabletop.setTokens(view.tokens);
 	tabletop.setObjects(view.objects);

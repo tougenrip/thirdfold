@@ -12,7 +12,9 @@
 // the output stage to re-mask hidden cells after bloom, the lens and depth of field spread light
 // over them (post.ts). Since #174 the fog's edges are soft and reveals fade (fog-soft.ts has the
 // pure mirrors): both only ever darken, so a hidden cell's centre stays exactly 0 and `worldHidden`
-// follows the soft edge.
+// follows the soft edge. Since #219 the sky's light reads the same map: `skySun` and `skyAmbient`
+// (sky-light.ts puts them on the key light and the hemisphere, atmosphere.ts on the IBL) keep the
+// sun and the sky out of dark areas and the sun out from under roofs.
 
 import type * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
@@ -69,12 +71,40 @@ interface World {
 }
 
 let world: World | null = null;
+let sky: { notDark: N; ambient: N; sun: N } | null = null;
+
+/**
+ * Sky visibility at the fragment (#219, cell-maps.ts `skyVisibilityMap`): the linear sample,
+ * bounded by the cell's own value, so a dark cell reads exactly 0 and a roof never more than its
+ * fill, while open ground softens toward them (never below the fill). The ambient term is that,
+ * the sun's is what lies above the fill; the flash lifts both toward the open sky, and off the
+ * grid both are 1. Built once, shared.
+ */
+function skyTerms() {
+	if (sky) return sky;
+	const [texel, smooth] = [loose(visibilityTexel), loose(visibilitySmooth)];
+	const open = min(texel.w, max(smooth.w, u.indoorFill));
+	const lift = (k: N) => mix(float(1), mix(k, float(1), u.flashLift), loose(onGrid));
+	const sun = loose(open.sub(u.indoorFill).div(u.indoorFill.oneMinus())).saturate();
+	sky = {
+		notDark: loose(open.div(u.indoorFill)).saturate(),
+		ambient: lift(open),
+		sun: lift(sun)
+	};
+	return sky;
+}
+
+/** How much of the sun reaches the fragment: 0 in a dark area or under a roof, 1 in the open. */
+export const skySun = (): N => skyTerms().sun;
+/** How much of the sky's ambient light (hemisphere, IBL) reaches it: 0 dark, the fill indoors. */
+export const skyAmbient = (): N => skyTerms().ambient;
 
 /** The per-fragment terms, built once and shared by every kind's graph. */
 function terms(): World {
 	if (world) return world;
 	const texel = loose(visibilityTexel);
 	const smooth = loose(visibilitySmooth);
+	const { notDark } = skyTerms();
 	const [visible, explored] = [texel.x, texel.y];
 	const shown = loose(onGrid);
 	const fogged = shown.mul(u.fogOn);
@@ -100,12 +130,12 @@ function terms(): World {
 	// Today's overlay (lighting.ts): a fogged player's visible cells are lit at least the fill.
 	const fill = seen.mul(u.perceptionFill).mul(fogged).mul(u.fogMode.oneMinus());
 	const level = max(smooth.z, fill);
-	const shade = mix(max(u.ambientDark, u.nightDark), u.ambientDark, smooth.w);
+	const shade = mix(max(u.ambientDark, u.nightDark), u.ambientDark, notDark);
 	const dark = loose(shade).mul(loose(level).oneMinus());
 	const lit = dark.oneMinus();
 	const flashed = mix(lit, float(1), u.flash.mul(FLASH_THINS));
 	const light = mix(float(1), flashed, shown);
-	const darkTint = loose(mix(u.nightTint, u.darkTint, smooth.w));
+	const darkTint = loose(mix(u.nightTint, u.darkTint, notDark));
 	world = { fog: loose(fog), unseen, light: loose(light), darkTint };
 	return world;
 }

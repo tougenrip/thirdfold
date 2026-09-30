@@ -32,7 +32,8 @@ const BUDGETS = {
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B
 	// measured. → 361.1: the GM's handles on fixture-less lights (#209; as a lazy chunk they split
 	// the shared code into more chunks and cost twice as much), +538 B measured; both together 361.0 kB.
-	renderer: { total: 361_100 },
+	// → 361.4: sky visibility in the cell maps and worldModify (#219), 361.3 kB measured.
+	renderer: { total: 361_400 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
