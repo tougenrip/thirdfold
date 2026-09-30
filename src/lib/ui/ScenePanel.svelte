@@ -4,8 +4,7 @@
 		SCENE_FILE_MAX_BYTES,
 		SCENE_NAME_MAX_LENGTH
 	} from '$lib/game/file-limits';
-	import { NEW_TABLE_LIMITS, type SavedScene } from '$lib/game/protocol';
-	import { loadManifest } from '$lib/assets/load';
+	import type { SavedScene } from '$lib/game/protocol';
 	import { sharedCode, sharedLink } from './share';
 	import type { RoomAction, SceneReply } from '$lib/net/room-connection.svelte';
 	import { loadSavedScenes, storeSavedScenes, type SavedSceneRef } from '$lib/prefs';
@@ -137,40 +136,7 @@
 		send({ type: 'scene_load', sceneId: code });
 	}
 
-	// A new, empty table.
 	let creating = $state(false);
-	let newName = $state('New table');
-	let newWidth = $state(20);
-	let newHeight = $state(20);
-	let newLook = $state('');
-	let environments = $state<[string, string][]>([]);
-	$effect(() => {
-		if (!creating) return;
-		void loadManifest().then((m) => {
-			environments = Object.entries(m.environments).map(([id, e]) => [id, e.name]);
-		});
-	});
-	const sizeOk = (n: number) =>
-		Number.isInteger(n) && n >= NEW_TABLE_LIMITS.min && n <= NEW_TABLE_LIMITS.max;
-
-	function createTable(event: SubmitEvent) {
-		event.preventDefault();
-		const n = normalizeSceneName(newName);
-		if (!n) return onError(`Scene names are 1-${SCENE_NAME_MAX_LENGTH} characters.`);
-		if (!sizeOk(newWidth) || !sizeOk(newHeight)) {
-			return onError(
-				`Tables are ${NEW_TABLE_LIMITS.min} to ${NEW_TABLE_LIMITS.max} cells on a side.`
-			);
-		}
-		send({
-			type: 'scene_new',
-			name: n,
-			width: newWidth,
-			height: newHeight,
-			environment: newLook || null
-		});
-		creating = false;
-	}
 
 	async function importFile(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -325,43 +291,9 @@
 	{/if}
 
 	{#if creating}
-		<form class="new" onsubmit={createTable} aria-label="New table">
-			<label>
-				<span class="muted">Name</span>
-				<input bind:value={newName} maxlength={SCENE_NAME_MAX_LENGTH} />
-			</label>
-			<div class="size">
-				<label>
-					<span class="muted">Width</span>
-					<input
-						type="number"
-						min={NEW_TABLE_LIMITS.min}
-						max={NEW_TABLE_LIMITS.max}
-						bind:value={newWidth}
-					/>
-				</label>
-				<label>
-					<span class="muted">Height</span>
-					<input
-						type="number"
-						min={NEW_TABLE_LIMITS.min}
-						max={NEW_TABLE_LIMITS.max}
-						bind:value={newHeight}
-					/>
-				</label>
-			</div>
-			<label>
-				<span class="muted">Looks like</span>
-				<select bind:value={newLook}>
-					<option value="">Plain ground</option>
-					{#each environments as [id, envName] (id)}
-						<option value={id}>{envName}</option>
-					{/each}
-				</select>
-			</label>
-			<p class="muted">An empty table replaces this one (save first to keep it).</p>
-			<button class="primary" type="submit">Create table</button>
-		</form>
+		{#await import('./NewTable.svelte') then { default: NewTable }}
+			<NewTable {send} {onError} onDone={() => (creating = false)} />
+		{/await}
 	{/if}
 
 	<form class="open" onsubmit={openShared}>
@@ -479,33 +411,5 @@
 	.open input {
 		min-width: 0;
 		font-size: var(--fs-xs);
-	}
-
-	.new {
-		display: grid;
-		gap: var(--sp-3);
-		margin-top: var(--sp-4);
-		padding: var(--sp-4);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-	}
-
-	.new label {
-		display: grid;
-		gap: var(--sp-1);
-	}
-
-	.new .muted {
-		margin: 0;
-	}
-
-	.size {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: var(--sp-3);
-	}
-
-	.size input {
-		min-width: 0;
 	}
 </style>

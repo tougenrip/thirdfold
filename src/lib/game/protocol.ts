@@ -217,13 +217,14 @@ export type ClientMessage =
 	| { type: 'scene_list'; gmKey?: string }
 	/** GM: forget one of their saves. */
 	| { type: 'scene_delete'; sceneId: string }
-	/** GM: replace the table with a new, empty one of this size and look. */
+	/** GM: replace the table with a new, empty one of this size and look (and starting world). */
 	| {
 			type: 'scene_new';
 			name: string;
 			width: number;
 			height: number;
 			environment: string | null;
+			world?: WorldPatch;
 	  }
 	/**
 	 * GM: share the current table (the world, without the story or who plays
@@ -830,16 +831,19 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				(v as number) >= NEW_TABLE_LIMITS.min &&
 				(v as number) <= NEW_TABLE_LIMITS.max;
 			const environment = data.environment ?? null;
+			const world = data.world === undefined ? undefined : parseWorldPatch(data.world);
 			return typeof data.name === 'string' &&
 				size(data.width) &&
 				size(data.height) &&
-				(environment === null || isAssetRef(environment))
+				(environment === null || isAssetRef(environment)) &&
+				world !== null
 				? {
 						type: 'scene_new',
 						name: data.name,
 						width: data.width as number,
 						height: data.height as number,
-						environment
+						environment,
+						...(world && { world })
 					}
 				: null;
 		}

@@ -1328,6 +1328,21 @@ describe('custom tables over the wire', () => {
 		await gm.untilNotice('Gemma created the scene “The crossroads”.');
 	});
 
+	it('starts a new table at the hour or underground the GM chose', async () => {
+		const { gm, pip } = await tableWithPip();
+		const table = { type: 'scene_new' as const, name: 'Night', width: 8, height: 8 };
+		gm.send({ ...table, environment: null, world: { time: 1380 } });
+		expect((await pip.until('room_reset')).room).toMatchObject({
+			ambient: 'dark',
+			world: { time: 1380, sun: true }
+		});
+		gm.send({ ...table, environment: null, world: { sun: false } });
+		expect((await pip.until('room_reset')).room).toMatchObject({
+			ambient: 'day',
+			world: { sun: false }
+		});
+	});
+
 	it('shares a table as a code another GM opens: the world, not the story or the players', async () => {
 		const store = new MemorySceneStore();
 		await server.close();
