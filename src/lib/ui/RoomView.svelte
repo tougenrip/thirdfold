@@ -1292,6 +1292,7 @@
 						{adventure}
 						paused={room.paused}
 						ambient={room.ambient}
+						world={room.world}
 						lights={room.lights}
 						fogEnabled={room.fog.enabled}
 						fogShared={room.fog.shared}
@@ -1371,7 +1372,8 @@
 						{propDraft}
 						onTool={setTool}
 						onPropDraft={(draft) => (propDraft = draft)}
-						onAmbient={(ambient) => act({ type: 'ambient_set', ambient })}
+						world={room.world}
+						send={act}
 						environment={room.environment}
 						onEnvironment={(environment) => act({ type: 'environment_set', environment })}
 						onLightDraft={(draft) => (lightDraft = draft)}

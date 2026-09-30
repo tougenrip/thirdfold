@@ -44,6 +44,7 @@ import { builtInStory, openingOf, storyFacts } from './adventure/facts';
 import { MemorySceneStore, type SceneStore } from './scene-store';
 import { fail, RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
 import type { Ambient } from '../src/lib/game/lights';
+import { applyWorldPatch, DEFAULT_WORLD } from '../src/lib/game/world';
 import {
 	createObject,
 	createToken,
@@ -783,7 +784,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return loadIntoRoom(
 						room,
 						player,
-						blankScene(name, msg.width, msg.height, msg.environment),
+						blankScene(
+							name,
+							msg.width,
+							msg.height,
+							msg.environment,
+							new Date(),
+							msg.world && applyWorldPatch(DEFAULT_WORLD, msg.world, Date.now())
+						),
 						'created'
 					);
 				}

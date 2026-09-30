@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { AdventureView } from '$lib/adventure/adventure';
 	import { parseDice } from '$lib/game/dice';
-	import { AMBIENTS, type Ambient, type Light } from '$lib/game/lights';
+	import type { Ambient, Light } from '$lib/game/lights';
+	import type { WorldLook } from '$lib/game/world';
 	import type { Direction } from '$lib/game/protocol';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { BuildTool } from './BuildPanel.svelte';
@@ -15,6 +16,7 @@
 		adventure: AdventureView;
 		paused: boolean;
 		ambient: Ambient;
+		world: WorldLook;
 		lights: Light[];
 		fogEnabled: boolean;
 		fogShared: boolean;
@@ -33,6 +35,7 @@
 		adventure,
 		paused,
 		ambient,
+		world,
 		lights,
 		fogEnabled,
 		fogShared,
@@ -55,7 +58,6 @@
 	let enemyKind = $state('');
 	let dice = $state('1d20');
 
-	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
 	const VIEW_TOOLS: { tool: BuildTool; label: string }[] = [
 		{ tool: 'reveal', label: 'Reveal area' },
 		{ tool: 'hide', label: 'Hide area' },
@@ -229,18 +231,10 @@
 
 <div class="section">
 	<h3 class="section-title">Environment</h3>
-	<div class="row three" role="radiogroup" aria-label="Time of day">
-		{#each AMBIENTS as a (a)}
-			<button
-				type="button"
-				role="radio"
-				aria-checked={ambient === a}
-				onclick={() => send({ type: 'ambient_set', ambient: a })}
-			>
-				{AMBIENT_LABEL[a]}
-			</button>
-		{/each}
-	</div>
+	<!-- GM only: loaded on its own so the players' room page stays small. -->
+	{#await import('./TimeOfDay.svelte') then { default: TimeOfDay }}
+		<TimeOfDay {world} {ambient} {send} />
+	{/await}
 	{#if lights.length}
 		<details>
 			<summary>Lights ({lights.filter((l) => l.on).length} of {lights.length} on)</summary>
@@ -328,10 +322,6 @@
 		gap: var(--sp-3);
 	}
 
-	.row.three {
-		grid-template-columns: repeat(3, 1fr);
-	}
-
 	.row.pick {
 		grid-template-columns: 1fr auto;
 	}
@@ -343,12 +333,6 @@
 	button {
 		padding: var(--sp-3) var(--sp-3);
 		font-size: var(--fs-sm);
-	}
-
-	button[aria-checked='true'] {
-		border-color: var(--accent);
-		background: var(--accent-wash);
-		color: var(--accent);
 	}
 
 	select,

@@ -32,7 +32,9 @@
 </script>
 
 <script lang="ts">
-	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
+	import { LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
+	import type { WorldLook } from '$lib/game/world';
+	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import { ASSET_IDS, ASSETS, PROP_CATEGORIES } from '$lib/game/props';
 	import { FLOORS, type FloorId } from '$lib/game/floor';
 	import { MAX_LEVEL } from '$lib/game/terrain';
@@ -45,13 +47,14 @@
 		/** Whether players see through the whole party's eyes. */
 		fogShared: boolean;
 		ambient: Ambient;
+		world: WorldLook;
+		send(action: RoomAction): boolean;
 		lightDraft: LightDraft;
 		propDraft: PropDraft;
 		onTool(tool: BuildTool): void;
 		onFog(enabled: boolean): void;
 		onFogAll(reveal: boolean): void;
 		onFogShared(shared: boolean): void;
-		onAmbient(ambient: Ambient): void;
 		/** How the table looks: an environment asset's id, or null for the plain table. */
 		environment: string | null;
 		onEnvironment(environment: string | null): void;
@@ -70,13 +73,14 @@
 		fogEnabled,
 		fogShared,
 		ambient,
+		world,
+		send,
 		lightDraft,
 		propDraft,
 		onTool,
 		onFog,
 		onFogAll,
 		onFogShared,
-		onAmbient,
 		environment,
 		onEnvironment,
 		onLightDraft,
@@ -96,8 +100,6 @@
 	const PROP_GROUPS = PROP_CATEGORIES.map(
 		(category) => [category, ASSET_IDS.filter((id) => ASSETS[id].category === category)] as const
 	).filter(([, ids]) => ids.length > 0);
-
-	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
 
 	let environments = $state<[string, string][]>([]);
 	$effect(() => {
@@ -166,13 +168,10 @@
 	</div>
 
 	<div class="section">
-		<div class="ambient" role="radiogroup" aria-label="Lighting">
-			{#each AMBIENTS as a (a)}
-				<button type="button" role="radio" aria-checked={ambient === a} onclick={() => onAmbient(a)}
-					>{AMBIENT_LABEL[a]}</button
-				>
-			{/each}
-		</div>
+		<!-- GM only: loaded on its own so the players' room page stays small. -->
+		{#await import('./TimeOfDay.svelte') then { default: TimeOfDay }}
+			<TimeOfDay {world} {ambient} {send} />
+		{/await}
 		<label class="environment">
 			<span class="muted">Looks like</span>
 			<select
@@ -369,22 +368,6 @@
 
 	.environment select {
 		flex: 1;
-	}
-
-	.ambient {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: var(--sp-3);
-	}
-
-	.ambient button {
-		font-size: var(--fs-xs);
-	}
-
-	.ambient [aria-checked='true'] {
-		border-color: var(--accent);
-		background: var(--accent-wash);
-		color: var(--accent);
 	}
 
 	.row {

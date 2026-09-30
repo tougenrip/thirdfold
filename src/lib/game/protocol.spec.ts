@@ -473,6 +473,16 @@ describe('adventure messages', () => {
 			expect(parseClientMessage({ ...table, width })).toBeNull();
 		}
 		expect(parseClientMessage({ ...table, environment: 'https://x/y' })).toBeNull();
+		expect(parseClientMessage({ ...table, world: { time: 1380 } })).toEqual({
+			...table,
+			world: { time: 1380 }
+		});
+		expect(parseClientMessage({ ...table, world: { sun: false } })).toMatchObject({
+			world: { sun: false }
+		});
+		for (const world of [{}, { sun: 'no' }, { weather: { since: 1 } }, 'night', null]) {
+			expect(parseClientMessage({ ...table, world })).toBeNull();
+		}
 		expect(parseClientMessage({ type: 'scene_share', name: 'Mill' })).toEqual({
 			type: 'scene_share',
 			name: 'Mill'
