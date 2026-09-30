@@ -3,6 +3,13 @@
 
 import { LOG_LIMIT } from '$lib/game/chat';
 import type { RoomSnapshot, ServerMessage } from '$lib/game/protocol';
+import { defaultWorldFor } from '$lib/game/world';
+
+/** A snapshot as the client keeps it: an older server's, without a world, gets its band's default. */
+export function snapshotOf(room: RoomSnapshot): RoomSnapshot {
+	room.world ??= defaultWorldFor(room.ambient);
+	return room;
+}
 
 /** Applies a room broadcast in place. Returns false for messages that are not room updates. */
 export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean {
@@ -58,11 +65,17 @@ export function applyRoomUpdate(room: RoomSnapshot, msg: ServerMessage): boolean
 		case 'ambient_update':
 			room.ambient = msg.ambient;
 			return true;
+		case 'world_update':
+			room.world = msg.world;
+			return true;
 		case 'fog_update':
 			room.fog = msg.fog;
 			return true;
 		case 'darkness_update':
 			room.darkness = msg.darkness;
+			return true;
+		case 'interior_update':
+			room.interior = msg.interior;
 			return true;
 		case 'pause_update':
 			room.paused = msg.paused;

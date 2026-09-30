@@ -10,6 +10,30 @@
 			"height": 14
 		},
 		"environment": "living-cave",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": false,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": "ember-red",
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": "cavern",
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -19,6 +43,7 @@
 		},
 		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 		"darkness": null,
+		"interior": null,
 		"floor": null,
 		"tokens": [
 			{
@@ -82,6 +107,30 @@
 			"height": 14
 		},
 		"environment": "living-cave",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": false,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": "ember-red",
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": "cavern",
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -91,6 +140,7 @@
 		},
 		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 		"darkness": null,
+		"interior": null,
 		"floor": null,
 		"tokens": [
 			{
@@ -154,6 +204,30 @@
 			"height": 14
 		},
 		"environment": "living-cave",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": false,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": "ember-red",
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": "cavern",
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -163,6 +237,7 @@
 		},
 		"terrain": "AAAAAAAAAAAAAAAAAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAABAQEBAQEBAQAAAAAAAAAAAQEBAQEBAQEAAAAAAAAAAAEBAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 		"darkness": null,
+		"interior": null,
 		"floor": null,
 		"tokens": [
 			{
@@ -375,7 +450,9 @@
 				},
 				"radius": 5,
 				"color": "#c0392b",
-				"on": true
+				"on": true,
+				"kind": "glow",
+				"fixture": false
 			},
 			{
 				"id": "hh-stair-light",

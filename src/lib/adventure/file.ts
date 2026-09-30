@@ -36,16 +36,16 @@ import { AMBUSH } from './define';
 import { validateAdventure } from './validate';
 import { CUES, type Shot } from '../game/chat';
 import type { GridPos } from '../game/grid';
-import { AMBIENTS } from '../game/lights';
+import { AMBIENTS, LIGHT_LOOK_KEYS, parseLightLook } from '../game/lights';
 import { MOTION_KINDS, SOUNDS } from '../game/motion';
 import { resolveAssetId, type AssetId } from '../game/props';
 import { parseSceneFile, type SavedToken, type SceneFile } from '../game/scene-file';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
+import { parseWorldPatch, type WorldPatch } from '../game/world';
 
 export const ADVENTURE_FILE_FORMAT = 'thirdfold-adventure';
 export const ADVENTURE_FILE_VERSION = 1;
-/** Serialized size cap, checked before parsing. */
-export const ADVENTURE_FILE_MAX_BYTES = 1024 * 1024;
+export { ADVENTURE_FILE_MAX_BYTES } from '../game/file-limits';
 
 /** Limits on how much an adventure holds. */
 export const ADVENTURE_LIMITS = {
@@ -250,9 +250,11 @@ function dice(v: unknown, path: string): string {
 
 function shot(v: unknown, path: string): Shot {
 	const s = obj(v, path);
+	const frame = oneOf(s.frame, ['close', 'wide', 'overview', 'table'] as const, `${path}.frame`);
 	return {
 		focus: s.focus === null ? null : cell(s.focus, `${path}.focus`),
-		frame: oneOf(s.frame, ['close', 'wide', 'table'] as const, `${path}.frame`)
+		// Stored as 'table', which every bundle's shotPose knows (#210).
+		frame: frame === 'overview' ? 'table' : frame
 	};
 }
 
@@ -355,6 +357,23 @@ function rules(v: unknown, path: string, depth: number): Rule[] {
 	);
 }
 
+/** A light effect's look fields; a bad one names its path. */
+function lightLook(e: Record<string, unknown>, path: string) {
+	for (const k of LIGHT_LOOK_KEYS) {
+		if (!parseLightLook({ [k]: e[k] })) bad(`${path}.${k}`, `not a light's ${k}`);
+	}
+	return parseLightLook(e)!;
+}
+
+/** A change to the world's look; a bad one names the field that is wrong. */
+function worldPatch(v: unknown, path: string): WorldPatch {
+	const w = obj(v, path);
+	for (const k of ['time', 'rate', 'sun', 'sky', 'weather', 'haze', 'grade', 'backdrop']) {
+		if (w[k] !== undefined && !parseWorldPatch({ [k]: w[k] })) bad(`${path}.${k}`, 'not valid');
+	}
+	return parseWorldPatch(w) ?? bad(path, "expected at least one field of the world's look");
+}
+
 /** The effect kinds, by the key that names each. */
 export const EFFECT_KINDS = [
 	'say',
@@ -381,6 +400,7 @@ export const EFFECT_KINDS = [
 	'light',
 	'prop',
 	'ambient',
+	'world',
 	'hurt',
 	'spawn',
 	'rules'
@@ -478,13 +498,16 @@ function effect(v: unknown, path: string, depth: number): Effect {
 				light: id(e.light, at),
 				...(e.on === undefined ? {} : { on: e.on === true }),
 				...(color === undefined ? {} : { color: color as string }),
-				...(e.radius === undefined ? {} : { radius: int(e.radius, `${path}.radius`, 0, 20) })
+				...(e.radius === undefined ? {} : { radius: int(e.radius, `${path}.radius`, 0, 20) }),
+				...lightLook(e, path)
 			};
 		}
 		case 'prop':
 			return { prop: id(e.prop, at), asset: asset(e.asset, `${path}.asset`) };
 		case 'ambient':
 			return { ambient: oneOf(e.ambient, AMBIENTS, at) };
+		case 'world':
+			return { world: worldPatch(e.world, at) };
 		case 'hurt': {
 			const h = obj(e.hurt, at);
 			return {
@@ -753,6 +776,10 @@ function enemy(v: unknown, path: string): EnemyFile {
 		bad(`${path}.model`, 'expected a model asset id');
 	}
 	if (typeof e.color !== 'string' || !COLOR.test(e.color)) bad(`${path}.color`, 'expected #rrggbb');
+	const lightColor = e.lightColor;
+	if (lightColor !== undefined && (typeof lightColor !== 'string' || !COLOR.test(lightColor))) {
+		bad(`${path}.lightColor`, 'expected #rrggbb');
+	}
 	const toll = opt(e.toll, (x) => {
 		const t = obj(x, `${path}.toll`);
 		return {
@@ -772,6 +799,7 @@ function enemy(v: unknown, path: string): EnemyFile {
 		speed: int(e.speed, `${path}.speed`, 0, 20),
 		vision: int(e.vision, `${path}.vision`, 1, 30),
 		light: int(e.light, `${path}.light`, 0, 20),
+		...(lightColor === undefined ? {} : { lightColor: (lightColor as string).toLowerCase() }),
 		initiative: int(e.initiative, `${path}.initiative`, -10, 20),
 		hp: hitPoints(e.hp, `${path}.hp`),
 		attacks: list(
@@ -1330,7 +1358,7 @@ function problemsOf(file: AdventureFile, adventure: AdventureDef): string[] {
 		const g = l.scene.grid;
 		for (const c of l.spawn) {
 			if (c.x >= g.width || c.y >= g.height)
-				problems.push(`location ${k}: a spawn cell is off the table`);
+				problems.push(`location ${k}: a spawn cell is off the map`);
 		}
 	}
 	for (const o of adventure.objects) {

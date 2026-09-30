@@ -10,6 +10,7 @@ import type { Motion } from '$lib/game/motion';
 import type { SceneObject } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
+import type { WorldLook } from '$lib/game/world';
 import type { FogView } from '$lib/game/visibility';
 import type { DiceThrow } from './dice3d';
 import type { FogMode } from './fog';
@@ -92,7 +93,11 @@ export interface Tabletop {
 	setHoveredObject(objectId: string | null): void;
 	setPreview(items: readonly PreviewItem[]): void;
 	setFog(fog: FogView | null, mode: FogMode): void;
-	setLighting(ambient: Ambient, lights: readonly Light[]): void;
+	/**
+	 * The band (what the rules darken), the lights, and the world's look, whose hour blends the
+	 * lighting presets with a sun (#208); without a look, the band's preset alone.
+	 */
+	setLighting(ambient: Ambient, lights: readonly Light[], world?: WorldLook | null): void;
 	setProps(props: readonly Prop[]): void;
 	/** Throws 3D dice for a roll. Returns ms until they have landed. */
 	throwDice(t: DiceThrow): number;

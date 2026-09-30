@@ -3,16 +3,16 @@
 
 import { GAME_SERVER_URL } from '$lib/api';
 import type { Motion } from '$lib/game/motion';
-import {
-	parseServerMessage,
-	type ClientMessage,
-	type ErrorCode,
-	type JoinRole,
-	type RoomSnapshot,
-	type ServerMessage
+import type {
+	ClientMessage,
+	ErrorCode,
+	JoinRole,
+	RoomSnapshot,
+	ServerMessage
 } from '$lib/game/protocol';
+import { parseServerMessage } from '$lib/game/server-message';
 import { saveGmKey } from '$lib/prefs';
-import { applyRoomUpdate } from './room-state';
+import { applyRoomUpdate, snapshotOf } from './room-state';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
@@ -199,7 +199,7 @@ export class RoomConnection {
 		}
 		switch (msg.type) {
 			case 'welcome':
-				this.room = msg.room;
+				this.room = snapshotOf(msg.room);
 				this.playerId = msg.playerId;
 				this.status = 'connected';
 				this.error = null;
@@ -227,7 +227,7 @@ export class RoomConnection {
 				}
 				return;
 			case 'room_reset':
-				this.room = msg.room;
+				this.room = snapshotOf(msg.room);
 				return;
 			case 'motion':
 				this.motion = { seq: ++this.errorSeq, motions: msg.motions };

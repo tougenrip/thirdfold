@@ -16,6 +16,7 @@ import {
 	BAKE_ATTRIBUTE,
 	graphFor,
 	KINDS,
+	PAINT_ATTRIBUTE,
 	PARAM_DEFAULTS,
 	TINT_ATTRIBUTE,
 	type Params,
@@ -23,7 +24,14 @@ import {
 	type ShaderKind
 } from './kinds';
 
-export { BAKE_ATTRIBUTE, SHADER_KINDS, KINDS, TINT_ATTRIBUTE, worldTime } from './kinds';
+export {
+	BAKE_ATTRIBUTE,
+	SHADER_KINDS,
+	KINDS,
+	PAINT_ATTRIBUTE,
+	TINT_ATTRIBUTE,
+	worldTime
+} from './kinds';
 export { LIFT_ATTRIBUTE } from './variation';
 export { liftOf } from './lift';
 export { repeatFor } from './tiling';
@@ -194,9 +202,14 @@ export function disposeTwins(material: KindMaterial): void {
 
 /**
  * Gives a geometry what an instanced kind reads per instance: the tint (rgb and strength, all 0)
- * and the lift (`LIFT_ATTRIBUTE`, 0; the layer writes `liftOf` each instance's asset and cell).
+ * the lift (`LIFT_ATTRIBUTE`, 0; the layer writes `liftOf` each instance's asset and cell), and
+ * the paint (`PAINT_ATTRIBUTE`, white; props multiply their albedo by it).
  */
 export function addInstanceTints(geometry: THREE.BufferGeometry, count: number): void {
+	geometry.setAttribute(
+		PAINT_ATTRIBUTE,
+		new THREE.InstancedBufferAttribute(new Float32Array(count * 3).fill(1), 3)
+	);
 	geometry.setAttribute(
 		TINT_ATTRIBUTE,
 		new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4)

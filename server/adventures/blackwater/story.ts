@@ -168,7 +168,7 @@ export function blackwaterFile(): AdventureFile {
 				],
 				next: { on: 'reached_front', to: 'the_engine' },
 				opening: [
-					{ ambient: 'dark' },
+					{ world: { time: 0 } },
 					{ light: TRAIN_IDS.coachLamps[0], on: false },
 					{ light: TRAIN_IDS.diningLamp, on: false },
 					{ light: TRAIN_IDS.sleeperLamp, on: false },
@@ -350,7 +350,7 @@ export function blackwaterFile(): AdventureFile {
 							]
 						}
 					],
-					does: [{ ambient: 'dusk' }]
+					does: [{ world: { time: 345 } }]
 				},
 				confess: {
 					ending: 'rest',
@@ -376,7 +376,7 @@ export function blackwaterFile(): AdventureFile {
 						}
 					],
 					does: [
-						{ ambient: 'dusk' },
+						{ world: { time: 345 } },
 						{ light: TRAIN_IDS.coachLamps[0], on: true },
 						{ light: TRAIN_IDS.diningLamp, on: true }
 					]

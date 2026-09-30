@@ -9,13 +9,7 @@
 
 import { decodeFloor, encodeFloor, type FloorMap } from './floor';
 import { cornerInBounds, inBounds, type SquareGrid } from './grid';
-import {
-	AMBIENTS,
-	MAX_LIGHT_RADIUS,
-	MAX_LIGHTS_PER_ROOM,
-	type Ambient,
-	type Light
-} from './lights';
+import { AMBIENTS, MAX_LIGHT_RADIUS, parseLightList, type Ambient, type Light } from './lights';
 import {
 	edgeKey,
 	isUnitEdge,
@@ -25,111 +19,59 @@ import {
 	unitEdges,
 	type SceneObject
 } from './objects';
-import { normalizeName } from './protocol';
+import { normalizeName } from './names';
 import {
 	footprintCells,
 	footprintInBounds,
+	parsePropLook,
 	resolveAssetId,
 	MAX_PROPS_PER_ROOM,
 	PROP_SCALE,
 	propBlocks,
 	type Prop
 } from './props';
-import { MAX_TOKENS_PER_ROOM, TOKEN_COLOR_PATTERN, type Token } from './token';
+import { MAX_TOKENS_PER_ROOM, parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { decodeLevels, encodeLevels, type LevelMap } from './terrain';
-import { decodeMask, emptyMask, encodeMask, MAX_VISION } from './visibility';
+import {
+	decodeMask,
+	decodeMaskExact,
+	emptyMask,
+	encodeMask,
+	MAX_VISION,
+	type CellMask
+} from './visibility';
+import {
+	ambientFor,
+	DEFAULT_WORLD,
+	defaultWorldFor,
+	parseWorldLook,
+	withBand,
+	type WorldLook
+} from './world';
+import {
+	migrate,
+	parseDiscovery,
+	parseSavedStory,
+	SCENE_FILE_VERSION,
+	type Discovered,
+	type SavedStory,
+	type SavedToken,
+	type SceneFile
+} from './scene-versions';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
+import { normalizeSceneName } from './file-limits';
 
-/**
- * v2 added lights, the ambient level and token-carried light; v3 added props;
- * v4 added the state of a story being played at the table; v5 added
- * elevation (each cell's level) and windows; v6 added shared party vision,
- * hidden tokens and props, and what each player has discovered; v7 added
- * dark areas; v8 added the table's environment (how it looks: an asset id)
- * and each token's model (an asset id, optional); v9 added floors (what each
- * cell is made of, or off the map).
- */
-export const SCENE_FILE_VERSION = 9;
-export const SCENE_NAME_MAX_LENGTH = 48;
-/** Serialized size cap, applied before parsing uploads and when saving. */
-/** A table, and the adventure file a save of a creator's adventure carries with it. */
-export const SCENE_FILE_MAX_BYTES = 3 * 1024 * 1024;
+export {
+	SCENE_FILE_VERSION,
+	type Discovered,
+	type SavedStory,
+	type SavedToken,
+	type SceneFile,
+	type SceneFileV10
+} from './scene-versions';
+
+export { normalizeSceneName, SCENE_FILE_MAX_BYTES, SCENE_NAME_MAX_LENGTH } from './file-limits';
 export const GRID_LIMITS = { minCells: 1, maxCells: 100, minCellSize: 0.25, maxCellSize: 5 };
-
-/** A token as saved. The owner is kept by id and name so it can be re-matched in another session. */
-export interface SavedToken extends Omit<Token, 'ownerId'> {
-	owner: { id: string; name: string } | null;
-}
-
-export interface SceneFileV3 {
-	format: 'thirdfold-scene';
-	version: 3;
-	name: string;
-	/** ISO timestamp. */
-	savedAt: string;
-	grid: SquareGrid;
-	tokens: SavedToken[];
-	objects: SceneObject[];
-	props: Prop[];
-	lights: Light[];
-	ambient: Ambient;
-	fog: { enabled: boolean; revealed: string };
-}
-
-/**
- * The state of a story (an adventure module) played at the table, saved with
- * it. The core only checks that it is plain JSON within limits; the module
- * that wrote it validates the contents when it is loaded back.
- */
-export interface SavedStory {
-	/** The module, e.g. 'hollow-bell'. */
-	id: string;
-	/** The module's own save format version. */
-	version: number;
-	state: Record<string, unknown>;
-	/** A creator's adventure: the adventure file it was played from (checked again when loaded). */
-	content?: Record<string, unknown>;
-}
-
-export interface SceneFileV4 extends Omit<SceneFileV3, 'version'> {
-	version: 4;
-	/** The story being played here, or null for a free table. */
-	adventure: SavedStory | null;
-}
-
-export interface SceneFileV5 extends Omit<SceneFileV4, 'version'> {
-	version: 5;
-	/** Each cell's level, base64, one byte per cell (see terrain.ts); null for a flat table. */
-	terrain: string | null;
-}
-
-export interface SceneFileV6 extends Omit<SceneFileV5, 'version' | 'fog'> {
-	version: 6;
-	fog: { enabled: boolean; revealed: string; shared: boolean };
-	/** The cells each player has discovered, by player name (base64 masks), so it survives a reload. */
-	discovery: Record<string, string>;
-}
-
-export interface SceneFileV7 extends Omit<SceneFileV6, 'version'> {
-	version: 7;
-	/** The dark areas, where only light lets anyone see (a base64 CellMask); null for none. */
-	darkness: string | null;
-}
-
-export interface SceneFileV8 extends Omit<SceneFileV7, 'version'> {
-	version: 8;
-	/** How the table looks: an environment asset's id, or null for the plain table. */
-	environment: string | null;
-}
-
-export interface SceneFileV9 extends Omit<SceneFileV8, 'version'> {
-	version: 9;
-	/** What each cell is made of (a base64 FloorMap, see floor.ts); null when nothing is painted. */
-	floor: string | null;
-}
-
-/** The current format. Older versions only exist as input to `migrate`. */
-export type SceneFile = SceneFileV9;
 
 export type SceneParse = { ok: true; scene: SceneFile } | { ok: false; error: string };
 
@@ -141,8 +83,12 @@ export interface SceneSource {
 	lights: Iterable<Light>;
 	ambient: Ambient;
 	fog: { enabled: boolean; revealed: Uint8Array; shared: boolean };
-	/** What each player has discovered, by player name. */
-	discovery?: Iterable<[string, Uint8Array]>;
+	/** How the world looks; absent for the default at the ambient's hour. */
+	world?: WorldLook;
+	/** Roofed cells, or null for none. */
+	interior?: CellMask | null;
+	/** What each player has discovered, by player name: cells, and the lights they remember. */
+	discovery?: Iterable<[string, { explored: CellMask; lights?: Iterable<Light> }]>;
 	/** Resolves an owner id to a display name, so ownership survives into other sessions. */
 	playerName(id: string): string | undefined;
 	/** The story played at the table, if any. */
@@ -157,14 +103,9 @@ export interface SceneSource {
 	floor?: FloorMap | null;
 }
 
-export function normalizeSceneName(raw: unknown): string | null {
-	if (typeof raw !== 'string') return null;
-	// eslint-disable-next-line no-control-regex
-	const name = raw.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-	return name.length > 0 && name.length <= SCENE_NAME_MAX_LENGTH ? name : null;
-}
-
 export function serializeScene(name: string, source: SceneSource, now = new Date()): SceneFile {
+	// The look's hour always agrees with the band that is saved.
+	const world = withBand(source.world ?? defaultWorldFor(source.ambient), source.ambient);
 	return {
 		format: 'thirdfold-scene',
 		version: SCENE_FILE_VERSION,
@@ -178,7 +119,9 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		objects: [...source.objects].map((o) => structuredClone(o)),
 		props: [...source.props].map((p) => structuredClone(p)),
 		lights: [...source.lights].map((l) => structuredClone(l)),
-		ambient: source.ambient,
+		ambient: ambientFor(world, source.ambient),
+		world: structuredClone(world),
+		interior: source.interior?.some((v) => v) ? encodeMask(source.interior) : null,
 		fog: {
 			enabled: source.fog.enabled,
 			revealed: encodeMask(source.fog.revealed),
@@ -190,9 +133,11 @@ export function serializeScene(name: string, source: SceneSource, now = new Date
 		environment: source.environment ?? null,
 		floor: source.floor?.some((v) => v !== 0) ? encodeFloor(source.floor) : null,
 		discovery: Object.fromEntries(
-			[...(source.discovery ?? [])]
-				.filter(([, mask]) => mask.some((v) => v))
-				.map(([name, mask]) => [name, encodeMask(mask)])
+			[...(source.discovery ?? [])].flatMap(([name, d]): [string, Discovered][] => {
+				const lights = d.lights && [...d.lights].map((l) => structuredClone(l));
+				if (!d.explored.some((v) => v) && !lights?.length) return [];
+				return [[name, { explored: encodeMask(d.explored), ...(lights ? { lights } : {}) }]];
+			})
 		)
 	};
 }
@@ -202,69 +147,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
-/** At most this many players' discoveries in one scene. */
-const MAX_DISCOVERERS = 64;
 
 function int(value: unknown, min: number, max: number): number | null {
 	return Number.isInteger(value) && (value as number) >= min && (value as number) <= max
 		? (value as number)
 		: null;
-}
-
-/**
- * Upgrades older file versions to the current one. Each future version adds
- * one step here (v1 → v2 → …), so any old save keeps loading.
- */
-function migrate(data: Record<string, unknown>): Record<string, unknown> | string {
-	const version = data.version;
-	if (!Number.isInteger(version) || (version as number) < 1)
-		return 'This is not a valid scene file.';
-	if ((version as number) > SCENE_FILE_VERSION) {
-		return 'This scene was saved by a newer version of thirdfold.';
-	}
-	let upgraded = data;
-	if (upgraded.version === 1) {
-		// v1 → v2: no lights yet, full daylight, and tokens carried no light.
-		upgraded = {
-			...upgraded,
-			version: 2,
-			lights: [],
-			ambient: 'day',
-			tokens: Array.isArray(upgraded.tokens)
-				? upgraded.tokens.map((t) => (isRecord(t) ? { ...t, light: 0 } : t))
-				: upgraded.tokens
-		};
-	}
-	if (upgraded.version === 2) {
-		// v2 → v3: no props yet.
-		upgraded = { ...upgraded, version: 3, props: [] };
-	}
-	if (upgraded.version === 3) {
-		// v3 → v4: no story saved with the table.
-		upgraded = { ...upgraded, version: 4, adventure: null };
-	}
-	if (upgraded.version === 4) {
-		// v4 → v5: a flat table, and no windows yet.
-		upgraded = { ...upgraded, version: 5, terrain: null };
-	}
-	if (upgraded.version === 5) {
-		// v6: the party's sight was always each player's own; nobody's discoveries were kept.
-		const fog = isRecord(upgraded.fog) ? { ...upgraded.fog, shared: false } : upgraded.fog;
-		upgraded = { ...upgraded, version: 6, fog, discovery: {} };
-	}
-	if (upgraded.version === 6) {
-		// v6 → v7: no dark areas.
-		upgraded = { ...upgraded, version: 7, darkness: null };
-	}
-	if (upgraded.version === 7) {
-		// v7 → v8: the plain table, and plain miniatures.
-		upgraded = { ...upgraded, version: 8, environment: null };
-	}
-	if (upgraded.version === 8) {
-		// v8 → v9: nothing painted.
-		upgraded = { ...upgraded, version: 9, floor: null };
-	}
-	return upgraded;
 }
 
 /** Validates and normalises anything claiming to be a scene file. */
@@ -317,7 +204,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 		}
 		const pos = isRecord(raw.pos) ? { x: raw.pos.x, y: raw.pos.y } : null;
 		if (!pos || !inBounds(grid, pos as { x: number; y: number })) {
-			return bad(`${tokenName} is off the table.`);
+			return bad(`${tokenName} is off the map.`);
 		}
 		const cell = `${pos.x},${pos.y}`;
 		if (cells.has(cell)) return bad(`Two tokens share the cell ${cell}.`);
@@ -334,6 +221,8 @@ export function parseSceneFile(input: unknown): SceneParse {
 		) {
 			return bad(`${tokenName} has an invalid model.`);
 		}
+		const look = parseTokenLook(raw);
+		if (!look) return bad(`${tokenName} has an invalid look.`);
 		let owner: SavedToken['owner'] = null;
 		if (raw.owner !== null && raw.owner !== undefined) {
 			if (!isRecord(raw.owner) || typeof raw.owner.id !== 'string' || !ID.test(raw.owner.id)) {
@@ -352,6 +241,7 @@ export function parseSceneFile(input: unknown): SceneParse {
 			light,
 			...(raw.hidden === true ? { hidden: true as const } : {}),
 			...(typeof raw.model === 'string' ? { model: raw.model } : {}),
+			...look,
 			owner
 		});
 	}
@@ -422,20 +312,23 @@ export function parseSceneFile(input: unknown): SceneParse {
 		}
 		const pos = isRecord(raw.pos) ? { x: raw.pos.x as number, y: raw.pos.y as number } : null;
 		if (!pos || !Number.isInteger(pos.x) || !Number.isInteger(pos.y)) {
-			return bad('A prop is off the table.');
+			return bad('A prop is off the map.');
 		}
 		if (raw.hidden !== undefined && typeof raw.hidden !== 'boolean') {
 			return bad('A prop is neither hidden nor shown.');
 		}
+		const look = parsePropLook(raw);
+		if (!look) return bad('A prop has an invalid look.');
 		const prop: Prop = {
 			id: raw.id,
 			assetId,
 			pos,
 			rotation,
 			scale,
-			...(raw.hidden === true ? { hidden: true as const } : {})
+			...(raw.hidden === true ? { hidden: true as const } : {}),
+			...look
 		};
-		if (!footprintInBounds(grid, prop)) return bad('A prop is off the table.');
+		if (!footprintInBounds(grid, prop)) return bad('A prop is off the map.');
 		if (propBlocks(prop) !== 'none') {
 			for (const c of footprintCells(prop)) {
 				const key = `${c.x},${c.y}`;
@@ -448,26 +341,23 @@ export function parseSceneFile(input: unknown): SceneParse {
 	}
 
 	// Lights
-	if (!Array.isArray(data.lights) || data.lights.length > MAX_LIGHTS_PER_ROOM) {
-		return bad(`A scene holds at most ${MAX_LIGHTS_PER_ROOM} lights.`);
-	}
-	const lights: Light[] = [];
-	for (const raw of data.lights as unknown[]) {
-		if (!isRecord(raw) || typeof raw.id !== 'string' || !ID.test(raw.id) || ids.has(raw.id)) {
-			return bad('A light has a missing or duplicate id.');
-		}
-		const pos = isRecord(raw.pos) ? { x: raw.pos.x as number, y: raw.pos.y as number } : null;
-		if (!pos || !inBounds(grid, pos)) return bad('A light is off the table.');
-		const radius = int(raw.radius, 1, MAX_LIGHT_RADIUS);
-		if (radius === null) return bad('A light has an invalid radius.');
-		if (typeof raw.color !== 'string' || !TOKEN_COLOR_PATTERN.test(raw.color)) {
-			return bad('A light has an invalid colour.');
-		}
-		if (typeof raw.on !== 'boolean') return bad('A light is neither on nor off.');
-		ids.add(raw.id);
-		lights.push({ id: raw.id, pos, radius, color: raw.color, on: raw.on });
-	}
+	const lights = parseLightList(data.lights, grid, ids);
+	if (typeof lights === 'string') return bad(lights);
 	if (!AMBIENTS.includes(data.ambient as Ambient)) return bad('Unknown ambient light level.');
+
+	// How the world looks; a sunlit hour decides the band, so the file holds one truth.
+	const world = parseWorldLook(data.world);
+	if (!world) return bad('The world look is not valid.');
+	const ambient = ambientFor(world, data.ambient as Ambient);
+
+	// Roofs
+	let interior: string | null = null;
+	if (data.interior !== null && data.interior !== undefined) {
+		const roofs =
+			typeof data.interior === 'string' ? decodeMaskExact(data.interior, width * height) : null;
+		if (!roofs) return bad('The roofed cells do not fit the grid.');
+		interior = roofs.some((v) => v) ? encodeMask(roofs) : null;
+	}
 
 	// Fog
 	if (!isRecord(data.fog) || typeof data.fog.enabled !== 'boolean')
@@ -477,16 +367,9 @@ export function parseSceneFile(input: unknown): SceneParse {
 	if (typeof data.fog.shared !== 'boolean') return bad('Invalid fog settings.');
 	const shared = data.fog.shared;
 
-	// Discovery: what each player (by name) had seen.
-	if (!isRecord(data.discovery) || Object.keys(data.discovery).length > MAX_DISCOVERERS) {
-		return bad('Invalid discovery.');
-	}
-	const discovery: Record<string, string> = {};
-	for (const [who, raw] of Object.entries(data.discovery)) {
-		const player = normalizeName(who);
-		if (!player || player !== who || typeof raw !== 'string') return bad('Invalid discovery.');
-		discovery[player] = encodeMask(decodeMask(raw, grid.width * grid.height));
-	}
+	// Discovery: what each player (by name) had seen, and the lights they remember.
+	const discovery = parseDiscovery(data.discovery, grid);
+	if (typeof discovery === 'string') return bad(discovery);
 
 	// Elevation
 	let terrain: string | null = null;
@@ -523,28 +406,8 @@ export function parseSceneFile(input: unknown): SceneParse {
 	}
 
 	// The story: plain JSON here; its module checks the rest when it loads it.
-	let adventure: SavedStory | null = null;
-	if (data.adventure !== null && data.adventure !== undefined) {
-		const raw = data.adventure;
-		if (
-			!isRecord(raw) ||
-			typeof raw.id !== 'string' ||
-			!ID.test(raw.id) ||
-			int(raw.version, 1, 1000) === null ||
-			!isRecord(raw.state) ||
-			!isPlainJson(raw.state, 0, { nodes: 0 }) ||
-			(raw.content !== undefined &&
-				(!isRecord(raw.content) || !isPlainJson(raw.content, 0, { nodes: 0 }, CONTENT_LIMITS)))
-		) {
-			return bad('The saved story is not valid.');
-		}
-		adventure = {
-			id: raw.id,
-			version: raw.version as number,
-			state: JSON.parse(JSON.stringify(raw.state)),
-			...(raw.content === undefined ? {} : { content: JSON.parse(JSON.stringify(raw.content)) })
-		};
-	}
+	const adventure = parseSavedStory(data.adventure ?? null);
+	if (adventure === undefined) return bad('The saved story is not valid.');
 
 	return {
 		ok: true,
@@ -558,7 +421,9 @@ export function parseSceneFile(input: unknown): SceneParse {
 			objects,
 			props,
 			lights,
-			ambient: data.ambient as Ambient,
+			ambient,
+			world,
+			interior,
 			fog: { enabled: data.fog.enabled, revealed: encodeMask(mask), shared },
 			adventure,
 			terrain,
@@ -570,32 +435,17 @@ export function parseSceneFile(input: unknown): SceneParse {
 	};
 }
 
-const JSON_LIMITS = { depth: 12, nodes: 20000 };
-/** An adventure file carried by a save: bigger (it holds its tables), still bounded. */
-const CONTENT_LIMITS = { depth: 24, nodes: 400000 };
-
-/** Whether a value is plain JSON data (no functions, no cycles), within depth and size limits. */
-function isPlainJson(
-	value: unknown,
-	depth: number,
-	count: { nodes: number },
-	limits = JSON_LIMITS
-): boolean {
-	if (++count.nodes > limits.nodes || depth > limits.depth) return false;
-	if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
-	if (typeof value === 'number') return Number.isFinite(value);
-	if (Array.isArray(value)) return value.every((v) => isPlainJson(v, depth + 1, count, limits));
-	if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) return false;
-	return Object.values(value).every((v) => isPlainJson(v, depth + 1, count, limits));
-}
-
-/** A new, empty table: `width` × `height` cells, in the plain look or an environment's, in daylight. */
+/**
+ * A new, empty table: `width` × `height` cells, in the plain look or an
+ * environment's, in daylight unless `world`'s sunlit hour says otherwise.
+ */
 export function blankScene(
 	name: string,
 	width: number,
 	height: number,
 	environment: string | null,
-	now = new Date()
+	now = new Date(),
+	world: WorldLook = DEFAULT_WORLD
 ): SceneFile {
 	const grid: SquareGrid = { kind: 'square', cellSize: 1, width, height };
 	return serializeScene(
@@ -606,7 +456,8 @@ export function blankScene(
 			objects: [],
 			props: [],
 			lights: [],
-			ambient: 'day',
+			ambient: ambientFor(world, 'day'),
+			world,
 			fog: { enabled: false, revealed: emptyMask(grid), shared: false },
 			playerName: () => undefined,
 			environment
@@ -616,8 +467,9 @@ export function blankScene(
 }
 
 /**
- * A table as it is shared with other GMs: the world only. The story played
- * on it, what each player discovered and who played which token stay behind.
+ * A table as it is shared with other GMs: the world only, with its look and
+ * roofs. The story played on it, what each player discovered (and the lights
+ * they remember) and who played which token stay behind.
  */
 export function sharedScene(scene: SceneFile): SceneFile {
 	return {

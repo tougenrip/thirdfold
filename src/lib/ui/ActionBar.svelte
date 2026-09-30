@@ -210,12 +210,16 @@
 		if (adventure.stage === 'choosing') return 'Waiting for the GM to begin.';
 		if (adventure.stage !== 'playing') return 'The story is over.';
 		if (chosen?.cast?.area)
-			return `${chosen.name}: click a cell on the table to aim it (a ${chosen.cast.area.size * 5}-foot ${chosen.cast.area.shape} from you).`;
+			return `${chosen.name}: click a cell on the map to aim it (${
+				chosen.cast.area.shape === 'sphere'
+					? `a ${chosen.cast.area.size * 5}-foot-radius sphere there`
+					: `a ${chosen.cast.area.size * 5}-foot ${chosen.cast.area.shape} from you`
+			}).`;
 		if (chosen && maxTargets > 1)
 			return chosen.cast?.repeat
 				? `${chosen.name}: choose where its ${maxTargets} strikes go (one foe may take several), then cast.`
 				: `${chosen.name}: choose up to ${maxTargets} targets, then cast.`;
-		if (chosen) return `${chosen.name}: choose a target, here or on the table.`;
+		if (chosen) return `${chosen.name}: choose a target, here or on the map.`;
 		if (!encounter) {
 			return nearby.length
 				? 'Something here you can use.'

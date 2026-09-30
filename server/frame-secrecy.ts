@@ -7,12 +7,11 @@
 // GM as the control (whose frames must leak every field, so the check can fire).
 //
 // The per-viewer render inputs checked, from snapshots (welcome, room_reset) and
-// diffs: fog (visible, explored), terrain, floor, darkness, lights, tokens,
-// props, walls and doors, environment (a public id only), and the markers (a
-// secret's name, id or colour) in any frame at all, the log included. Later
-// milestones add theirs here: world look (#199), interior (#203), last-seen
-// lights (#204), token looks (#202), VFX sources and attacker ids (#314) and
-// camera shots (#355).
+// diffs: fog (visible, explored), terrain, floor, darkness, interior (#203), lights (as last
+// seen, #204), tokens and props (carrying only their known fields, looks included, #202), walls
+// and doors, environment (a public id only), the world look (only WorldLook's keys, #199), and
+// the markers (a secret's name, id or colour) in any frame at all, the log included. Later
+// milestones add theirs here: VFX sources and attacker ids (#314) and camera shots (#355).
 
 import { decodeFloor } from '../src/lib/game/floor';
 import type { GridPos, SquareGrid } from '../src/lib/game/grid';
@@ -23,6 +22,7 @@ import { decodeMask, type FogView } from '../src/lib/game/visibility';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { Token } from '../src/lib/game/token';
+import { DEFAULT_WORLD, parseWorldLook } from '../src/lib/game/world';
 
 /** Cells from (x0, y0) to (x1, y1), inclusive. */
 export interface Region {
@@ -39,6 +39,15 @@ export interface Leak {
 	field: string;
 	detail: string;
 }
+
+const TOKEN_KEYS: ReadonlySet<string> = new Set<keyof Token>([
+	...(['id', 'name', 'color', 'pos', 'ownerId', 'vision', 'light', 'hidden', 'model'] as const),
+	...(['scale', 'lift', 'lightColor'] as const)
+]);
+const PROP_KEYS: ReadonlySet<string> = new Set<keyof Prop>([
+	...(['id', 'assetId', 'pos', 'rotation', 'scale', 'hidden'] as const),
+	...(['tint', 'variant'] as const)
+]);
 
 export function framesLeaks(
 	frames: readonly string[],
@@ -75,11 +84,24 @@ export function framesLeaks(
 	const terrain = (t: string | null) => t !== null && map('terrain', decodeLevels(t, size));
 	const floor = (f: string | null) => f !== null && map('floor', decodeFloor(f, size));
 	const darkness = (d: string | null) => d !== null && map('darkness', decodeMask(d, size));
+	const interior = (d: string | null) => d !== null && map('interior', decodeMask(d, size));
 	const lights = (ls: Light[]) => ls.forEach((l) => at('lights', l.pos, l.id));
-	const tokens = (ts: Token[]) => ts.forEach((t) => at('tokens', t.pos, t.id));
+	// Token and prop looks (#202) ride on the piece itself, so they are exactly as secret as it
+	// is; a key outside the known fields is something new reaching the client unchecked.
+	const looks = (field: string, pieces: object[], known: ReadonlySet<string>) => {
+		for (const p of pieces) {
+			const extra = Object.keys(p).filter((k) => !known.has(k));
+			if (extra.length) leak(field, `carries ${extra.join(', ')}`);
+		}
+	};
+	const tokens = (ts: Token[]) => {
+		looks('tokens.look', ts, TOKEN_KEYS);
+		ts.forEach((t) => at('tokens', t.pos, t.id));
+	};
 	// Props and walls are sent whole once any cell of theirs is known, so only one wholly
 	// inside the region is a leak.
 	const props = (ps: Prop[]) => {
+		looks('props.look', ps, PROP_KEYS);
 		for (const p of ps) if (footprintCells(p).every(inside)) leak('props', p.id);
 	};
 	const objects = (os: SceneObject[]) => {
@@ -91,16 +113,24 @@ export function framesLeaks(
 	const environment = (e: unknown) => {
 		if (e !== null && typeof e !== 'string') leak('environment', JSON.stringify(e));
 	};
+	// The world's look is table-wide: only WorldLook's keys (#199), never cells or ids.
+	const world = (w: unknown) => {
+		const extra = unknownKeys(w, DEFAULT_WORLD);
+		if (extra.length) leak('world', `carries ${extra.join(', ')}`);
+		else if (!parseWorldLook(w)) leak('world', 'is not a world look');
+	};
 	const snapshot = (room: RoomSnapshot) => {
 		fog(room.fog);
 		terrain(room.terrain);
 		floor(room.floor);
 		darkness(room.darkness);
+		interior(room.interior);
 		lights(room.lights);
 		tokens(room.tokens);
 		props(room.props);
 		objects(room.objects);
 		environment(room.environment);
+		world(room.world);
 	};
 
 	frames.forEach((frame, n) => {
@@ -119,6 +149,8 @@ export function framesLeaks(
 				return floor(msg.floor);
 			case 'darkness_update':
 				return darkness(msg.darkness);
+			case 'interior_update':
+				return interior(msg.interior);
 			case 'lights_changed':
 				return lights(msg.upserted);
 			case 'props_changed':
@@ -134,7 +166,22 @@ export function framesLeaks(
 				if (extra.length) leak('environment', `carries ${extra.join(', ')}`);
 				return environment(msg.environment);
 			}
+			case 'world_update': {
+				const extra = Object.keys(msg).filter((k) => k !== 'type' && k !== 'world');
+				if (extra.length) leak('world', `carries ${extra.join(', ')}`);
+				return world(msg.world);
+			}
 		}
 	});
 	return leaks;
+}
+
+/** Keys of `value` (and of its nested objects) that `shape` doesn't have, as dotted paths. */
+function unknownKeys(value: unknown, shape: object, path = ''): string[] {
+	if (typeof value !== 'object' || value === null) return [];
+	return Object.entries(value).flatMap(([k, v]) => {
+		if (!(k in shape)) return [path + k];
+		const inner = (shape as Record<string, unknown>)[k];
+		return typeof inner === 'object' && inner !== null ? unknownKeys(v, inner, `${path}${k}.`) : [];
+	});
 }

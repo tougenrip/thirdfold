@@ -10,6 +10,30 @@
 			"height": 16
 		},
 		"environment": "ghost-town",
+		"world": {
+			"time": 90,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -19,6 +43,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgICAgICAgICAgAAAAAAAAAAAAAAAAAAAAICAgICAgICAgICAAAAAAAAAAAAAAAAAAAAAgICAgICAgICAgIAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 		"tokens": [
 			{
@@ -105,7 +130,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	},
@@ -120,6 +146,30 @@
 			"height": 16
 		},
 		"environment": "ghost-town",
+		"world": {
+			"time": 90,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -129,6 +179,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAgICAgICAgICAgAAAAAAAAAAAAAAAAAAAAICAgICAgICAgICAAAAAAAAAAAAAAAAAAAAAgICAgICAgICAgIAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEBAQAAAAAAAAAAAAAAAAAAAAEBAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
 		"tokens": [
 			{
@@ -215,7 +266,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	},
@@ -230,6 +282,30 @@
 			"height": 16
 		},
 		"environment": "ghost-town",
+		"world": {
+			"time": 90,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -239,6 +315,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwAwDADwAAPwAA/AAA8AMAAAAAAAAAAA==",
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwACAgICAgICAgICAgICAgAAAAYGBgcHBwcHAAICAgICAgICAgICAgICAAAABgYGBwcHBwcAAgICAgICAgICAgICAgIAAAAGBgYHBwcHBwEBAQEBAQEBAQEBAQEBAQEBAQEBAQcHBwcHAQEBAQEBAQEBAQEBAQEBAQEBAQEBBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAQEBAQEBAQEBAQEBAQEBAQABgYGBwcHBwcABAQEBAQEBAQEBAQEBAQEBAAGBgYHBwcHBwAEBAQEBAQEBAQEBAQEBAQEAAYGBgcHBwcHAAAAAAAAAAAAAAAAAAAAAAAABgYGBwcHBwc=",
 		"tokens": [
 			{
@@ -464,7 +541,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-ghost-lamp-2",
@@ -474,7 +552,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-ghost-lamp-3",
@@ -484,7 +563,8 @@
 				},
 				"radius": 4,
 				"color": "#9fd0ff",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	}

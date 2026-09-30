@@ -17,6 +17,7 @@ import { encodeFloor, knownFloor } from '../src/lib/game/floor';
 import { encodeLevels, knownLevels } from '../src/lib/game/terrain';
 import type { RoomSnapshot, ServerMessage } from '../src/lib/game/protocol';
 import type { Token } from '../src/lib/game/token';
+import type { WorldLook } from '../src/lib/game/world';
 import {
 	cellIndex,
 	emptyMask,
@@ -45,14 +46,18 @@ export interface View {
 	darkness: string | null;
 	/** The floors this viewer knows (explored cells), or null when none are painted. */
 	floor: string | null;
+	/** The roofed cells this viewer knows (explored cells), or null for none. */
+	interior: string | null;
 	paused: boolean;
 	/** How the table looks (an environment asset's id): the same for everyone. */
 	environment: string | null;
+	/** How the world looks (world.ts): table-wide, no cells or ids, the same for everyone. */
+	world: WorldLook;
 }
 
 type SceneView = Omit<
 	View,
-	'adventure' | 'terrain' | 'darkness' | 'floor' | 'paused' | 'environment'
+	'adventure' | 'terrain' | 'darkness' | 'floor' | 'interior' | 'paused' | 'environment' | 'world'
 >;
 
 const noFog = (room: Room): FogView => ({
@@ -90,11 +95,18 @@ export function sceneContext(room: Room): SceneContext {
 }
 
 /**
- * Cells a set of players can see right now: their tokens' vision plus the
- * GM's reveals. In the dark a token sees only lit cells (and its own).
+ * Cells a set of players can see right now (`visible`): their tokens' vision
+ * plus the GM's reveals. In the dark a token sees only lit cells (and its
+ * own). `sight` is the same before the dark is taken into account: every cell
+ * in their line of sight, lit or not (the same mask when nothing is dark).
  */
-function visionOf(room: Room, playerIds: ReadonlySet<string>, ctx: SceneContext): CellMask {
+function visionOf(
+	room: Room,
+	playerIds: ReadonlySet<string>,
+	ctx: SceneContext
+): { visible: CellMask; sight: CellMask } {
 	const mask = room.fog.revealed.slice();
+	const inSight = ctx.lit ? room.fog.revealed.slice() : mask;
 	for (const t of room.tokens.values()) {
 		if (!t.ownerId || !playerIds.has(t.ownerId)) continue;
 		const sight = ctx.sights.sight(room.grid, t.pos, t.vision);
@@ -103,9 +115,39 @@ function visionOf(room: Room, playerIds: ReadonlySet<string>, ctx: SceneContext)
 			continue;
 		}
 		const own = cellIndex(room.grid, t.pos);
-		for (let i = 0; i < sight.length; i++) if (sight[i] && (ctx.lit[i] || i === own)) mask[i] = 1;
+		for (let i = 0; i < sight.length; i++) {
+			if (!sight[i]) continue;
+			inSight[i] = 1;
+			if (ctx.lit[i] || i === own) mask[i] = 1;
+		}
 	}
-	return mask;
+	return { visible: mask, sight: inSight };
+}
+
+/**
+ * The lights a player or spectator knows, each as they last saw it, brought
+ * up to date after their explored map was (#204). In sight (explored and in
+ * line of sight, lit or not, so a torch put out in front of you is seen going
+ * out), and on explored cells not learned yet (walked into, a room's layout,
+ * the story's `explore`, a catch-up join), lights are recorded as they are
+ * now, and records there whose light is gone are dropped. Records on cells no
+ * longer explored (the GM hid them) are forgotten. Anything else stays as it
+ * was seen: a torch switched, moved or placed out of sight is not news.
+ */
+function rememberLights(room: Room, viewer: Player, sight: CellMask): Light[] {
+	const explored = viewer.explored;
+	const learned = viewer.lightsLearned ?? emptyMask(room.grid);
+	const seen = (viewer.seenLights ??= new Map());
+	const fresh = (i: number) => explored[i] === 1 && (sight[i] === 1 || learned[i] !== 1);
+	for (const [id, l] of seen) {
+		const i = cellIndex(room.grid, l.pos);
+		if (!explored[i] || fresh(i)) seen.delete(id);
+	}
+	for (const l of room.lights.values()) {
+		if (fresh(cellIndex(room.grid, l.pos))) seen.set(l.id, { ...l, pos: { ...l.pos } });
+	}
+	viewer.lightsLearned = explored.slice();
+	return [...seen.values()];
 }
 
 function partyIds(room: Room): Set<string> {
@@ -140,7 +182,8 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
 	// The ground's shape is scenery like walls: known where explored.
 	const terrain = room.terrain && encodeLevels(knownLevels(room.terrain, known));
-	const darkness = room.darkness && knownDarkness(room.darkness, known);
+	const darkness = room.darkness && knownMask(room.darkness, known);
+	const interior = room.interior && knownMask(room.interior, known);
 	const floor = room.floor && encodeFloor(knownFloor(room.floor, known));
 	return {
 		...scene,
@@ -148,15 +191,17 @@ export function viewFor(room: Room, viewer: Player, ctx: SceneContext = sceneCon
 		terrain,
 		darkness,
 		floor,
+		interior,
 		paused: room.paused,
-		environment: room.environment
+		environment: room.environment,
+		world: room.world
 	};
 }
 
-/** The dark areas among the cells a viewer knows (all of them for null), or null if it knows none. */
-function knownDarkness(darkness: CellMask, known: CellMask | null): string | null {
-	if (!known) return encodeMask(darkness);
-	const mask = darkness.map((v, i) => (v && known[i] ? 1 : 0));
+/** A mask's cells among those a viewer knows (all of them for null), or null if it knows none. */
+function knownMask(cells: CellMask, known: CellMask | null): string | null {
+	if (!known) return encodeMask(cells);
+	const mask = cells.map((v, i) => (v && known[i] ? 1 : 0));
 	return mask.some((v) => v) ? encodeMask(mask) : null;
 }
 
@@ -167,6 +212,8 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 	const allProps = [...room.props.values()];
 	const ambient = room.ambient;
 	if (!room.fog.enabled) {
+		// Without fog everyone sees every light; turning fog on learns them afresh, as they are.
+		viewer.seenLights = viewer.lightsLearned = undefined;
 		return {
 			tokens: allTokens,
 			objects: allObjects,
@@ -182,7 +229,7 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 		const party = partyIds(room);
 		const explored = emptyMask(room.grid);
 		for (const p of room.players.values()) if (party.has(p.id)) mergeInto(explored, p.explored);
-		const visible = visionOf(room, party, ctx);
+		const { visible } = visionOf(room, party, ctx);
 		mergeInto(explored, visible);
 		return {
 			tokens: allTokens,
@@ -202,7 +249,7 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 	// A player sees through their own tokens, or the whole party's when sight is shared;
 	// a spectator always through the party's.
 	const eyes = viewer.role === 'player' && !room.fog.shared ? new Set([viewer.id]) : partyIds(room);
-	const visible = visionOf(room, eyes, ctx);
+	const { visible, sight } = visionOf(room, eyes, ctx);
 	mergeInto(viewer.explored, visible);
 	// Standing in a room, you learn its layout: walls, doors and furniture, not who is in it.
 	for (const t of room.tokens.values()) {
@@ -213,11 +260,12 @@ function sceneViewFor(room: Room, viewer: Player, ctx: SceneContext): SceneView 
 	return {
 		tokens: allTokens.filter((t) => t.ownerId === viewer.id || at(t)),
 		objects: allObjects.filter((o) => touches(room, o, viewer.explored)),
-		// Props and light fixtures are like walls: known once their cells have been seen.
+		// Props are like walls: known once their cells have been seen.
 		props: allProps.filter((p) =>
 			footprintCells(p).some((c) => viewer.explored[cellIndex(room.grid, c)] === 1)
 		),
-		lights: allLights.filter((l) => viewer.explored[cellIndex(room.grid, l.pos)] === 1),
+		// Lights too, but each as it was last seen.
+		lights: rememberLights(room, viewer, sight),
 		ambient,
 		fog: {
 			enabled: true,
@@ -257,8 +305,10 @@ export function snapshotFor(room: Room, viewer: Player, view: View): RoomSnapsho
 		terrain: view.terrain,
 		darkness: view.darkness,
 		floor: view.floor,
+		interior: view.interior,
 		paused: view.paused,
-		environment: view.environment
+		environment: view.environment,
+		world: structuredClone(view.world)
 	};
 }
 
@@ -274,8 +324,10 @@ export interface SentView {
 	terrain: string | null;
 	darkness: string | null;
 	floor: string | null;
+	interior: string | null;
 	paused: boolean;
 	environment: string | null;
+	world: string;
 }
 
 export function sentFrom(view: View): SentView {
@@ -290,8 +342,10 @@ export function sentFrom(view: View): SentView {
 		terrain: view.terrain,
 		darkness: view.darkness,
 		floor: view.floor,
+		interior: view.interior,
 		paused: view.paused,
-		environment: view.environment
+		environment: view.environment,
+		world: JSON.stringify(view.world)
 	};
 }
 
@@ -333,6 +387,9 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 	}
 	if (prev.ambient !== view.ambient)
 		messages.push({ type: 'ambient_update', ambient: view.ambient });
+	if (prev.world !== JSON.stringify(view.world)) {
+		messages.push({ type: 'world_update', world: structuredClone(view.world) });
+	}
 
 	if (prev.fog !== JSON.stringify(view.fog)) messages.push({ type: 'fog_update', fog: view.fog });
 	if (prev.terrain !== view.terrain) {
@@ -342,6 +399,9 @@ export function diffView(prev: SentView, view: View, movedBy = ''): ServerMessag
 		messages.push({ type: 'darkness_update', darkness: view.darkness });
 	}
 	if (prev.floor !== view.floor) messages.push({ type: 'floor_update', floor: view.floor });
+	if (prev.interior !== view.interior) {
+		messages.push({ type: 'interior_update', interior: view.interior });
+	}
 	if (prev.paused !== view.paused) messages.push({ type: 'pause_update', paused: view.paused });
 	if (prev.environment !== view.environment) {
 		messages.push({ type: 'environment_update', environment: view.environment });

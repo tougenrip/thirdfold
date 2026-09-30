@@ -34,6 +34,7 @@
 	import type { Token } from '$lib/game/token';
 	import type { FogView } from '$lib/game/visibility';
 	import type { Ambient, Light } from '$lib/game/lights';
+	import type { WorldLook } from '$lib/game/world';
 	import type { Prop } from '$lib/game/props';
 	import type { DiceThrow } from './dice3d';
 	import type { FogMode } from './fog';
@@ -67,6 +68,8 @@
 		objects: readonly SceneObject[];
 		fog?: FogView | null;
 		ambient?: Ambient;
+		/** The world's look: its hour blends the lighting presets (#208); null for the band's alone. */
+		world?: WorldLook | null;
 		lights?: readonly Light[];
 		props?: readonly Prop[];
 		/** The latest roll to throw as 3D dice; a new `seq` throws again. */
@@ -110,6 +113,7 @@
 		objects,
 		fog = null,
 		ambient = 'day',
+		world = null,
 		lights = [],
 		props = [],
 		diceThrow = null,
@@ -377,7 +381,11 @@
 	});
 
 	$effect(() => {
-		tabletop?.setLighting(ambient, $state.snapshot(lights) as Light[]);
+		tabletop?.setLighting(
+			ambient,
+			$state.snapshot(lights) as Light[],
+			$state.snapshot(world) as WorldLook | null
+		);
 	});
 
 	$effect(() => {

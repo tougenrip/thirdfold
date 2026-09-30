@@ -26,6 +26,10 @@ describe('a cinematic shot', () => {
 		expect(dist(table)).toBeGreaterThan(30);
 	});
 
+	it("poses 'overview' exactly like 'table'", () => {
+		expect(shotPose(home, focus, 'overview', 30, 1)).toEqual(shotPose(home, focus, 'table', 30, 1));
+	});
+
 	it('copes with a camera looking straight down', () => {
 		const overhead: Pose = { position: { x: 0, y: 30, z: 0 }, target: { x: 0, y: 0, z: 0 } };
 		const pose = shotPose(overhead, focus, 'close', 30, 1);

@@ -1,6 +1,6 @@
 {
 	"format": "thirdfold-scene",
-	"version": 9,
+	"version": 10,
 	"name": "Perf: village",
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
@@ -141,7 +141,7 @@
 			"owner": null
 		},
 		{
-			"id": "5be8d4e2-51c7-483b-99f8-e185504c3745",
+			"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
 			"name": "The Warden",
 			"color": "#2e86c1",
 			"pos": {
@@ -152,12 +152,12 @@
 			"light": 0,
 			"model": "warden",
 			"owner": {
-				"id": "890b9ae5-0cfe-44af-9046-26336856f172",
+				"id": "1f7a7871-c89a-4fc2-a5d2-c5d1858e42c2",
 				"name": "Ana"
 			}
 		},
 		{
-			"id": "460e2b14-a685-4864-95bd-c8bfe929d482",
+			"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
 			"name": "The Saint",
 			"color": "#d4ac0d",
 			"pos": {
@@ -168,7 +168,7 @@
 			"light": 0,
 			"model": "saint",
 			"owner": {
-				"id": "9ef450ed-022c-4e30-aadc-418df5909882",
+				"id": "0342d569-9c11-4911-a409-3cf9b0a212d5",
 				"name": "Ben"
 			}
 		}
@@ -1539,7 +1539,9 @@
 			},
 			"radius": 1,
 			"color": "#9fd7ff",
-			"on": true
+			"on": true,
+			"kind": "glow",
+			"fixture": false
 		},
 		{
 			"id": "hb-brazier-light",
@@ -1553,6 +1555,31 @@
 		}
 	],
 	"ambient": "dusk",
+	"world": {
+		"time": 1170,
+		"rate": 0,
+		"sun": true,
+		"sky": null,
+		"weather": {
+			"kind": "none",
+			"intensity": 0,
+			"seed": 0,
+			"since": 0
+		},
+		"haze": {
+			"density": 0.25,
+			"color": null
+		},
+		"grade": {
+			"preset": null,
+			"exposure": 0
+		},
+		"backdrop": {
+			"kind": null,
+			"level": 0
+		}
+	},
+	"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAf+OMf/IE//sEf+OMf/IE//sEf+OMf/AEA/gEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/AA/AMAP8AMA/AA/AMAP8AMAAAAAAAAAAAAAAAAAAAAAAAAA",
 	"fog": {
 		"enabled": true,
 		"revealed": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgHwAAAP4BAADgHwAAAP4BAADgHwAA",
@@ -1567,7 +1594,7 @@
 			"location": "bellweather",
 			"characters": {
 				"warden": {
-					"tokenId": "5be8d4e2-51c7-483b-99f8-e185504c3745",
+					"tokenId": "af1df450-c966-4140-9c95-ae78b5ab5464",
 					"hp": 30,
 					"statuses": {},
 					"uses": {},
@@ -1575,7 +1602,7 @@
 					"dead": false
 				},
 				"saint": {
-					"tokenId": "460e2b14-a685-4864-95bd-c8bfe929d482",
+					"tokenId": "418bf6b4-0b3d-4b18-977a-637afd67455e",
 					"hp": 22,
 					"statuses": {},
 					"uses": {},
@@ -1828,7 +1855,11 @@
 	"environment": "village",
 	"floor": null,
 	"discovery": {
-		"Ana": "ADwAAADAAwAAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"Ben": "ADwAAADAAwAAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+		"Ana": {
+			"explored": "ADwAAADAAwAAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+		},
+		"Ben": {
+			"explored": "ADwAAADAAwAAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+		}
 	}
 }

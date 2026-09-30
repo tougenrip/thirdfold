@@ -13,7 +13,7 @@
 		parseAdventureFile
 	} from '$lib/adventure/file';
 	import { loadManifest } from '$lib/assets/load';
-	import { NAME_MAX_LENGTH } from '$lib/game/protocol';
+	import { NAME_MAX_LENGTH } from '$lib/game/names';
 	import { parseSceneFile, SCENE_FILE_MAX_BYTES } from '$lib/game/scene-file';
 	import CellsInput from '$lib/builder/CellsInput.svelte';
 	import {
@@ -353,6 +353,8 @@
 {@render datalist('ids-encounters', ids.encounters)}
 {@render datalist('ids-locations', ids.locations)}
 {@render datalist('ids-enemies', ids.enemies)}
+{@render datalist('ids-lights', ids.lights)}
+{@render datalist('ids-props', ids.props)}
 
 <div class="builder">
 	<header>
@@ -1156,7 +1158,7 @@
 								</select>
 							</label>
 							<label class="field">
-								<span>Which {thingOf(o)} on the table</span>
+								<span>Which {thingOf(o)} on the map</span>
 								{#if thingOf(o) === 'prop'}
 									<select
 										value={(o.thing as { prop: string }).prop}

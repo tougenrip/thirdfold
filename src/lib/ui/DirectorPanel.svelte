@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { AdventureView } from '$lib/adventure/adventure';
 	import { parseDice } from '$lib/game/dice';
-	import { AMBIENTS, type Ambient, type Light } from '$lib/game/lights';
+	import { lightKindName, type Ambient, type Light } from '$lib/game/lights';
+	import type { WorldLook } from '$lib/game/world';
 	import type { Direction } from '$lib/game/protocol';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { BuildTool } from './BuildPanel.svelte';
@@ -15,6 +16,7 @@
 		adventure: AdventureView;
 		paused: boolean;
 		ambient: Ambient;
+		world: WorldLook;
 		lights: Light[];
 		fogEnabled: boolean;
 		fogShared: boolean;
@@ -25,6 +27,8 @@
 		onTool(tool: BuildTool): void;
 		onSpawn(kind: string | null): void;
 		onSelectToken(tokenId: string): void;
+		/** Selects a light for the light inspector. */
+		onEditLight(lightId: string): void;
 		onFogAll(reveal: boolean): void;
 		onError(message: string): void;
 	}
@@ -33,6 +37,7 @@
 		adventure,
 		paused,
 		ambient,
+		world,
 		lights,
 		fogEnabled,
 		fogShared,
@@ -42,6 +47,7 @@
 		onTool,
 		onSpawn,
 		onSelectToken,
+		onEditLight,
 		onFogAll,
 		onError
 	}: Props = $props();
@@ -73,7 +79,6 @@
 		});
 	}
 
-	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
 	const VIEW_TOOLS: { tool: BuildTool; label: string }[] = [
 		{ tool: 'reveal', label: 'Reveal area' },
 		{ tool: 'hide', label: 'Hide area' },
@@ -107,7 +112,8 @@
 		);
 	}
 
-	const lightName = (l: Light) => `Light at ${l.pos.x + 1}, ${l.pos.y + 1}`;
+	const lightName = (l: Light) =>
+		`${lightKindName(l.kind ?? 'torch')} at ${l.pos.x + 1}, ${l.pos.y + 1}`;
 	const fightState = (state: string | null) =>
 		state === 'won' ? ' (won)' : state === 'lost' ? ' (lost)' : state === 'active' ? ' (on)' : '';
 </script>
@@ -209,7 +215,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="note">No enemies on the table.</p>
+			<p class="note">No enemies on the map.</p>
 		{/if}
 	</div>
 
@@ -300,22 +306,14 @@
 
 <div class="section">
 	<h3 class="section-title">Environment</h3>
-	<div class="row three" role="radiogroup" aria-label="Time of day">
-		{#each AMBIENTS as a (a)}
-			<button
-				type="button"
-				role="radio"
-				aria-checked={ambient === a}
-				onclick={() => send({ type: 'ambient_set', ambient: a })}
-			>
-				{AMBIENT_LABEL[a]}
-			</button>
-		{/each}
-	</div>
+	<!-- GM only: loaded on its own so the players' room page stays small. -->
+	{#await import('./TimeOfDay.svelte') then { default: TimeOfDay }}
+		<TimeOfDay {world} {ambient} {send} />
+	{/await}
 	{#if lights.length}
 		<details>
 			<summary>Lights ({lights.filter((l) => l.on).length} of {lights.length} on)</summary>
-			<ul class="list">
+			<ul class="list lights">
 				{#each lights as l (l.id)}
 					<li>
 						<span class="swatch" style:background={l.color}></span>
@@ -328,6 +326,12 @@
 						>
 							{l.on ? 'On' : 'Off'}
 						</button>
+						<button
+							type="button"
+							class="small"
+							aria-label="Edit {lightName(l)}"
+							onclick={() => onEditLight(l.id)}>Edit</button
+						>
 					</li>
 				{/each}
 			</ul>
@@ -399,10 +403,6 @@
 		gap: var(--sp-3);
 	}
 
-	.row.three {
-		grid-template-columns: repeat(3, 1fr);
-	}
-
 	.row.pick {
 		grid-template-columns: 1fr auto;
 	}
@@ -414,12 +414,6 @@
 	button {
 		padding: var(--sp-3) var(--sp-3);
 		font-size: var(--fs-sm);
-	}
-
-	button[aria-checked='true'] {
-		border-color: var(--accent);
-		background: var(--accent-wash);
-		color: var(--accent);
 	}
 
 	select,
@@ -449,6 +443,10 @@
 		grid-template-columns: auto 1fr auto;
 		align-items: center;
 		gap: var(--sp-3);
+	}
+
+	.lights li {
+		grid-template-columns: auto 1fr auto auto;
 	}
 
 	.chips {

@@ -15,7 +15,7 @@ import type { SceneObject } from '../../../src/lib/game/objects';
 import type { Prop } from '../../../src/lib/game/props';
 import type { SceneFile } from '../../../src/lib/game/scene-file';
 import { npcTokens } from './npcs';
-import { door, light, prop, table, wall } from '../../adventure/tables';
+import { door, GLOW, light, prop, table, wall } from '../../adventure/tables';
 
 export const GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 36, height: 28 };
 
@@ -261,7 +261,7 @@ export function bellweatherScene(now = new Date()): SceneFile {
 		light('hb-forge-glow', 19, 22, 3, '#ff7a3d'),
 		light('hb-crane-candle', 7, 20, 2, '#ffd27a'),
 		// The charm's own faint glow: what catches a newcomer's eye.
-		light(IDS.charmGlow, CHARM_AT.x, CHARM_AT.y, 1, '#9fd7ff'),
+		light(IDS.charmGlow, CHARM_AT.x, CHARM_AT.y, 1, '#9fd7ff', true, GLOW),
 		{ ...light(IDS.brazierLight, 14, 6, 3, '#ffa04d'), on: false }
 	];
 
@@ -274,7 +274,17 @@ export function bellweatherScene(now = new Date()): SceneFile {
 			props,
 			lights,
 			ambient: 'dusk',
+			// 19:30, clear, a little haze in the valley.
+			world: { time: 1170, haze: { density: 0.25 } },
 			environment: 'village',
+			// Roofed: the Tolling Rest, the Hale house, the chapel, the smithy and the Crane cottage.
+			interior: [
+				{ from: { x: 2, y: 7 }, to: { x: 8, y: 12 } },
+				{ from: { x: 15, y: 7 }, to: { x: 21, y: 11 } },
+				{ from: { x: 25, y: 7 }, to: { x: 32, y: 12 } },
+				{ from: { x: 16, y: 20 }, to: { x: 21, y: 23 } },
+				{ from: { x: 2, y: 20 }, to: { x: 7, y: 23 } }
+			],
 			// The road the party arrives on is already in view.
 			arrival: { from: { x: 9, y: 23 }, to: { x: 16, y: 27 } }
 		},

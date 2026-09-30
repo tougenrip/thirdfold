@@ -14,6 +14,7 @@ import type { Prop } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import type { Token } from '$lib/game/token';
 import { decodeMask, type FogView } from '$lib/game/visibility';
+import type { WorldLook } from '$lib/game/world';
 import { loadEnvironment } from './environment';
 import type { FogMode } from './fog';
 import { groundFor } from './ground';
@@ -36,6 +37,7 @@ export interface FixtureView {
 	fogMode: FogMode;
 	grid: SquareGrid;
 	environment: string | null;
+	world: WorldLook;
 	ambient: Ambient;
 	fog: FogView;
 	terrain: string | null;
@@ -190,7 +192,7 @@ export async function mountFixture(
 	tabletop.setTokens(view.tokens);
 	tabletop.setObjects(view.objects);
 	tabletop.setFog(view.fog, view.fogMode);
-	tabletop.setLighting(view.ambient, view.lights);
+	tabletop.setLighting(view.ambient, view.lights, view.world);
 	tabletop.setProps(view.props);
 	const at = poseFor(view.grid, groundFor(view.grid, levels), pose);
 	// The tabletop view focuses by depth; the pose then ends the move to it.

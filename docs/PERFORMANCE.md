@@ -688,3 +688,32 @@ that the terrain kind samples per cell:
 - Textures went from 77 to 79.
 - Texture bytes rose by 6.1 MB on every tier (low 53.5 → 59.6 MB, medium 134.6 → 140.7 MB,
   high 169.2 → 175.3 MB).
+
+## The M66 perf check
+
+The world look (#197-#209) needed no re-baseline. The test world on the RTX 4060 Laptop (WebGL2,
+reduced motion, the 512 bases) passed the gate against the M65 baseline with every counter
+unchanged: 164 programs, 116 draws, 45 geometries, 79 textures, 0 shadow passes while orbiting.
+Per tier, render targets, texture bytes, programs and pipelines were also unchanged (low 17, 59.6
+MB, 99, 69; medium 27, 140.7 MB, 162, 105; high 29, 175.3 MB, 164, 106). Nothing leaked over two
+reloads and two remounts, and idle drew 0 frames in 2 s.
+
+M66 adds light looks (kinds, flicker, fixtures; a glow draws no fixture), token and prop looks, the
+preset blend by the hour and the GM's light handles. None of them adds a shader program: the blend
+and the looks are uniforms and instance values, and the handles are one instanced mesh of the
+overlay kind (compiled by the warm-up), made only when a GM's table first needs one, so players
+never build or draw it.
+
+The server's view work with the world look in every view and diff (`npx tsx server/perf/sync.ts
+40`, 7 viewers, a character on a random walk). The machine was loaded during the run (load average
+about 6-9), so medians and p95s are noisy:
+
+| Table            | Views per action | Diffs   | Move reaches GM and mover (median, p95) | Patrol step (3 sentries) |
+| ---------------- | ---------------- | ------- | --------------------------------------- | ------------------------ |
+| Village 36×28    | 1.15 ms          | 0.37 ms | 1.42 ms, 4.39 ms                        |                          |
+| Monastery 30×20  | 0.57 ms          | 0.22 ms | 1.04 ms, 3.98 ms                        |                          |
+| The Hollow 48×36 | 1.21 ms          | 0.56 ms | 1.54 ms, 6.14 ms                        | 0.61 ms                  |
+
+These are within the M34 numbers above (views 2.46, 1.12 and 2.11 ms). The `world` in snapshots,
+the remembered lights and the roof masks add nothing per move: Ana's per-move traffic is still
+chat, fog and the move (0.7 kB in the village, 0.9 kB in the Hollow).

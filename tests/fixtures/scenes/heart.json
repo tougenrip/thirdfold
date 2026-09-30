@@ -1,6 +1,6 @@
 {
 	"format": "thirdfold-scene",
-	"version": 9,
+	"version": 10,
 	"name": "The Heart of the Hollow",
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
@@ -223,7 +223,9 @@
 			},
 			"radius": 5,
 			"color": "#c0392b",
-			"on": true
+			"on": true,
+			"kind": "glow",
+			"fixture": false
 		},
 		{
 			"id": "hh-stair-light",
@@ -237,6 +239,31 @@
 		}
 	],
 	"ambient": "dark",
+	"world": {
+		"time": 1380,
+		"rate": 0,
+		"sun": false,
+		"sky": null,
+		"weather": {
+			"kind": "none",
+			"intensity": 0,
+			"seed": 0,
+			"since": 0
+		},
+		"haze": {
+			"density": 0,
+			"color": null
+		},
+		"grade": {
+			"preset": "ember-red",
+			"exposure": 0
+		},
+		"backdrop": {
+			"kind": "cavern",
+			"level": 0
+		}
+	},
+	"interior": null,
 	"fog": {
 		"enabled": true,
 		"revealed": "AAAAAAAAAAAAAAAAAAAAAAAA8A/wD/AP8A/wDw==",

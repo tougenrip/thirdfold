@@ -29,6 +29,9 @@ export function validateAdventure(A: AdventureDef): string[] {
 		need(has(A.enemies, kind), `${where}: no enemy "${kind}"`);
 	const dice = (expression: string, where: string) =>
 		need(parseDice(expression).ok, `${where}: bad dice "${expression}"`);
+	const scenes = Object.values(A.locations).map((l) => l.scene());
+	const lightIds = new Set(scenes.flatMap((s) => s.lights.map((l) => l.id)));
+	const propIds = new Set(scenes.flatMap((s) => s.props.map((p) => p.id)));
 	const phases = new Set(
 		Object.values(A.encounters).flatMap((e) => Object.keys(e.phases?.all ?? {}))
 	);
@@ -76,6 +79,8 @@ export function validateAdventure(A: AdventureDef): string[] {
 				object(e.hurt.near, where);
 				dice(e.hurt.dice, where);
 			} else if ('spawn' in e) enemy(e.spawn.kind, where);
+			else if ('light' in e) need(lightIds.has(e.light), `${where}: no light "${e.light}"`);
+			else if ('prop' in e) need(propIds.has(e.prop), `${where}: no prop "${e.prop}"`);
 			else if ('rules' in e) rules(e.rules, where);
 		}
 	};

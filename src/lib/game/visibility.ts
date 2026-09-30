@@ -274,3 +274,18 @@ export function decodeMask(encoded: string, size: number): CellMask {
 	}
 	return mask;
 }
+
+/**
+ * Strict decodeMask for stored masks that must fit: null on bad base64 or a
+ * byte length other than the grid's `ceil(size / 8)`.
+ */
+export function decodeMaskExact(encoded: string, size: number): CellMask | null {
+	let binary: string;
+	try {
+		binary = atob(encoded);
+	} catch {
+		return null;
+	}
+	if (binary.length !== Math.ceil(size / 8)) return null;
+	return decodeMask(encoded, size);
+}

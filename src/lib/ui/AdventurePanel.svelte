@@ -9,7 +9,7 @@
 	import { STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
-	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/adventure/file';
+	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/game/file-limits';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';
@@ -68,12 +68,12 @@
 	});
 
 	function startFromLibrary(listing: LibraryListing) {
-		const warning = `Start ${listing.title}? This replaces everything on the table.`;
+		const warning = `Start ${listing.title}? This replaces the map and everything on it.`;
 		if (confirm(warning)) send({ type: 'adventure_start', libraryId: listing.id });
 	}
 
 	function start(listing: AdventureListing) {
-		const warning = `Start ${listing.title}? This replaces everything on the table.`;
+		const warning = `Start ${listing.title}? This replaces the map and everything on it.`;
 		if (confirm(warning)) send({ type: 'adventure_start', adventureId: listing.id });
 	}
 
@@ -90,7 +90,7 @@
 		} catch {
 			return onError?.('That file is not an adventure (not JSON).');
 		}
-		if (confirm('Start this adventure? This replaces everything on the table.')) {
+		if (confirm('Start this adventure? This replaces the map and everything on it.')) {
 			send({ type: 'adventure_start', file: data });
 		}
 	}

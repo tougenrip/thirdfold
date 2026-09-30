@@ -9,10 +9,15 @@ import {
 	deleteProp,
 	deleteToken,
 	moveToken,
+	setInterior,
+	setAmbient,
+	setBand,
+	setWorld,
 	toggleDoor,
 	updateProp,
 	updateToken
 } from './scene';
+import { createLight, updateLight } from './scene';
 
 function setup() {
 	const rooms = new RoomManager();
@@ -155,6 +160,23 @@ describe('updateToken / deleteToken', () => {
 			code: 'invalid_owner'
 		});
 		expect(token.name).toBe('T00');
+	});
+
+	it('scales, lifts and colours a token as look only: it still stands on one cell (#202)', () => {
+		const { room, gm, pip } = setup();
+		const giant = place(room, gm, 4, 4);
+		const hero = place(room, gm, 6, 4, pip.id);
+		expect(
+			updateToken(room, gm, giant.id, { scale: 3, lift: 2, lightColor: '#b8c8ff' })
+		).toMatchObject({ ok: true });
+		expect(giant).toMatchObject({ scale: 3, lift: 2, lightColor: '#b8c8ff', pos: { x: 4, y: 4 } });
+		// The cells round it are as free as before.
+		expect(moveToken(room, pip, hero.id, { x: 5, y: 4 })).toMatchObject({ ok: true });
+		expect(moveToken(room, pip, hero.id, { x: 5, y: 5 })).toMatchObject({ ok: true });
+		expect(updateToken(room, pip, giant.id, { scale: 1 })).toMatchObject({ code: 'forbidden' });
+		expect(updateToken(room, gm, giant.id, { lightColor: null })).toMatchObject({ ok: true });
+		expect(giant.lightColor).toBeUndefined();
+		expect(giant.scale).toBe(3);
 	});
 
 	it('refuses players trying to claim or delete tokens', () => {
@@ -328,6 +350,21 @@ describe('props', () => {
 		expect(updateProp(room, gm, table.id, { pos: c(6, 5) })).toMatchObject({ ok: true });
 	});
 
+	it('tints a prop and sets its variant without moving it; null clears the tint (#202)', () => {
+		const { room, gm, pip } = setup();
+		const crate = placeProp(room, gm, 'crate', 3, 3);
+		expect(updateProp(room, gm, crate.id, { tint: '#8a3b3b', variant: 7 })).toMatchObject({
+			ok: true
+		});
+		expect(crate).toMatchObject({ tint: '#8a3b3b', variant: 7, pos: c(3, 3), rotation: 0 });
+		expect(updateProp(room, pip, crate.id, { tint: '#ffffff' })).toMatchObject({
+			code: 'forbidden'
+		});
+		expect(updateProp(room, gm, crate.id, { tint: null })).toMatchObject({ ok: true });
+		expect(crate.tint).toBeUndefined();
+		expect(crate.variant).toBe(7);
+	});
+
 	it('blocks tokens from standing in or walking through solid props', () => {
 		const { room, gm, pip } = setup();
 		const hero = place(room, gm, 4, 4, pip.id);
@@ -343,5 +380,121 @@ describe('props', () => {
 		).toMatchObject({
 			code: 'cell_occupied'
 		});
+	});
+});
+
+describe('light looks (#201)', () => {
+	it('places a light with a look, patches it and clears it back to its kind', () => {
+		const { room, gm, pip } = setup();
+		const created = createLight(room, gm, {
+			pos: { x: 2, y: 2 },
+			radius: 3,
+			color: '#7fb6ff',
+			kind: 'glow',
+			fixture: false
+		});
+		if (!created.ok) throw new Error(created.message);
+		const { light } = created;
+		expect(light).toMatchObject({ kind: 'glow', fixture: false, on: true });
+		expect(updateLight(room, gm, light.id, { kind: 'neon', intensity: 2 })).toMatchObject({
+			ok: true
+		});
+		expect(room.lights.get(light.id)).toMatchObject({ kind: 'neon', intensity: 2, fixture: false });
+		updateLight(room, gm, light.id, { kind: null, fixture: null, intensity: null });
+		expect(room.lights.get(light.id)).toEqual({
+			id: light.id,
+			pos: { x: 2, y: 2 },
+			radius: 3,
+			color: '#7fb6ff',
+			on: true
+		});
+		expect(updateLight(room, pip, light.id, { kind: 'torch' })).toMatchObject({
+			code: 'forbidden'
+		});
+		expect(
+			createLight(room, gm, { pos: { x: 2, y: 2 }, radius: 1, color: '#ffffff', kind: 'candle' })
+		).toMatchObject({ code: 'cell_occupied' });
+	});
+});
+
+describe('setInterior', () => {
+	it('lets only the GM roof an area within the map, and lifts the roof', () => {
+		const { room, gm, pip, sam } = setup();
+		for (const actor of [pip, sam]) {
+			expect(setInterior(room, actor, { x: 0, y: 0 }, { x: 1, y: 1 }, true)).toMatchObject({
+				ok: false,
+				code: 'forbidden'
+			});
+		}
+		expect(setInterior(room, gm, { x: 0, y: 0 }, { x: 99, y: 1 }, true)).toMatchObject({
+			ok: false,
+			code: 'invalid_position'
+		});
+		expect(room.interior).toBeNull();
+
+		expect(setInterior(room, gm, { x: 3, y: 2 }, { x: 1, y: 1 }, true)).toEqual({
+			ok: true,
+			cells: 6
+		});
+		const at = (x: number, y: number) => room.interior![y * room.grid.width + x];
+		expect([at(1, 1), at(3, 2), at(0, 0), at(4, 2)]).toEqual([1, 1, 0, 0]);
+		setInterior(room, gm, { x: 1, y: 1 }, { x: 3, y: 2 }, false);
+		expect(room.interior).toBeNull();
+	});
+});
+
+describe('setWorld and the band', () => {
+	it('lets only the GM set the look, and reports an unchanged patch as no change', () => {
+		const { room, gm, pip, sam } = setup();
+		for (const who of [pip, sam]) {
+			expect(setWorld(room, who, { time: 60 })).toMatchObject({ ok: false, code: 'forbidden' });
+		}
+		expect(setWorld(room, gm, { haze: { density: 0.4 } }, 5)).toEqual({
+			ok: true,
+			changed: true,
+			bandChanged: false
+		});
+		expect(room.world.haze.density).toBe(0.4);
+		expect(setWorld(room, gm, { haze: { density: 0.4 } }, 6)).toMatchObject({ changed: false });
+	});
+
+	it('stamps a new weather kind and picks a seed when none is sent', () => {
+		const { room, gm } = setup();
+		setWorld(room, gm, { weather: { kind: 'rain' } }, 1234);
+		expect(room.world.weather).toMatchObject({ kind: 'rain', since: 1234 });
+		expect(Number.isInteger(room.world.weather.seed)).toBe(true);
+		setWorld(room, gm, { weather: { kind: 'snow', seed: 7 } }, 2000);
+		expect(room.world.weather).toMatchObject({ kind: 'snow', seed: 7, since: 2000 });
+	});
+
+	it('with a sun, the band follows the hour', () => {
+		const { room, gm } = setup();
+		expect(setWorld(room, gm, { time: 1259 })).toMatchObject({ bandChanged: true });
+		expect(room.ambient).toBe('dusk');
+		expect(setWorld(room, gm, { time: 1260 })).toMatchObject({ bandChanged: true });
+		expect(room.ambient).toBe('dark');
+		expect(setWorld(room, gm, { time: 1380 })).toMatchObject({ bandChanged: false });
+	});
+
+	it('with a sun, setting the band snaps the hour only when it lies outside it', () => {
+		const { room, gm } = setup();
+		setAmbient(room, gm, 'dark');
+		expect(room.world.time).toBe(1380);
+		setWorld(room, gm, { time: 1150 });
+		expect(room.ambient).toBe('dusk');
+		expect(setAmbient(room, gm, 'dusk')).toEqual({ ok: true, changed: false });
+		expect(room.world.time).toBe(1150);
+	});
+
+	it('without a sun, the band and the hour are apart', () => {
+		const { room, gm } = setup();
+		setWorld(room, gm, { sun: false });
+		expect(setWorld(room, gm, { time: 1380 })).toMatchObject({ bandChanged: false });
+		expect(room.ambient).toBe('day');
+		setAmbient(room, gm, 'dark');
+		expect(room.ambient).toBe('dark');
+		expect(room.world.time).toBe(1380);
+		expect(setBand(room, 'day')).toEqual({ changed: true });
+		expect(room.world.time).toBe(1380);
 	});
 });

@@ -47,6 +47,8 @@ interface Shot {
 	viewer: Viewer;
 	/** Medium unless said. */
 	tier?: Tier;
+	/** The hour in minutes, over the band's view's own (#208: the presets blend between bands). */
+	time?: number;
 }
 
 /** Which images are taken: see the table in #132. */
@@ -73,8 +75,20 @@ export const MATRIX: Shot[] = [
 		]),
 		{ fixture: 'village', pose: 'overview', band: 'own', viewer: 'spectator', tier },
 		{ fixture: 'hollow', pose: 'overview', band: 'own', viewer: 'player', tier }
-	])
+	]),
+	// #208: between the canonical hours, 06:30 a quarter day and 20:30 mostly dusk (both dusk by the rules).
+	...[390, 1230].map((time): Shot => ({
+		fixture: 'ref-8',
+		pose: 'overview',
+		band: 'dusk',
+		viewer: 'gm',
+		time
+	}))
 ];
+
+/** 390 → "0630". */
+const hhmm = (time: number) =>
+	`${Math.floor(time / 60)}`.padStart(2, '0') + `${time % 60}`.padStart(2, '0');
 
 /**
  * The images CI takes (#168's follow-up: a verify run stays within minutes): every table's
@@ -120,7 +134,8 @@ describe.skipIf(!linux)('golden images', () => {
 	const seen = new Set<string>();
 	for (const shot of MATRIX) {
 		const tier = shot.tier ?? 'medium';
-		const base = `${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}`;
+		const at = shot.time === undefined ? '' : ` ${hhmm(shot.time)}`;
+		const base = `${shot.fixture} ${shot.pose} ${shot.band} ${shot.viewer}${at}`;
 		const label = tier === 'medium' ? base : `${base} ${tier}`;
 		if (!FULL && !SLIM.has(label)) continue;
 		if (taken++ % n !== k - 1) continue;
@@ -130,11 +145,14 @@ describe.skipIf(!linux)('golden images', () => {
 			// Each backend keeps its own references: the rasterisers differ at edges.
 			const suffix =
 				(tier === 'medium' ? '' : `-${tier}`) + (BACKEND === 'webgpu' ? '-webgpu' : '');
-			const name = `${shot.fixture}-${shot.pose}-${band}-${shot.viewer}${suffix}`;
+			const at = shot.time === undefined ? '' : `-${hhmm(shot.time)}`;
+			const name = `${shot.fixture}-${shot.pose}-${band}${at}-${shot.viewer}${suffix}`;
 			// "own" can repeat an explicit band: take each image once.
 			if (seen.has(name)) return expect(true).toBe(true);
 			seen.add(name);
-			const view = await loadView(shot.fixture, band, shot.viewer);
+			const own = await loadView(shot.fixture, band, shot.viewer);
+			const view =
+				shot.time === undefined ? own : { ...own, world: { ...own.world, time: shot.time } };
 			const focused = FOCUSED.includes(shot.pose);
 			mounted = await mountFixture(view, sidecar.poses[shot.pose], {
 				clock: manualClock(5000),

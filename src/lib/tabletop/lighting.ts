@@ -10,12 +10,21 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { lightLevels, type Ambient, type Light, type LightSource } from '$lib/game/lights';
+import {
+	lightLevels,
+	lightLook,
+	type Ambient,
+	type Light,
+	type LightSource
+} from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
+import { MAX_EXPOSURE, type WorldLook } from '$lib/game/world';
 import type { Ground } from './ground';
+import { LightHandles } from './light-handles';
 import { inWorld } from './materials/world-modify';
 import { modelNow } from './models';
+import { oneHot, presetWeights, type PresetWeights } from './time-blend';
 
 /** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
 const POOL_SIZE = 8;
@@ -106,6 +115,26 @@ const PRESETS: Record<Ambient, Preset> = {
 	}
 };
 
+const BANDS = ['day', 'dusk', 'dark'] as const;
+const scratch = new THREE.Color();
+
+/** A preset number mixed by the weights. */
+function mixed(w: PresetWeights, key: 'hemisphere' | 'sun' | 'lamp'): number {
+	return w.day * PRESETS.day[key] + w.dusk * PRESETS.dusk[key] + w.dark * PRESETS.dark[key];
+}
+
+/** A preset colour mixed by the weights into `out`; one-hot, it is exactly the preset's. */
+function mixColour(
+	out: THREE.Color,
+	w: PresetWeights,
+	key: 'background' | 'sky' | 'ground'
+): THREE.Color {
+	out.setRGB(0, 0, 0);
+	for (const band of BANDS)
+		if (w[band]) out.add(scratch.setHex(PRESETS[band][key]).multiplyScalar(w[band]));
+	return out;
+}
+
 export interface SceneLights {
 	hemisphere: THREE.HemisphereLight;
 	sun: THREE.DirectionalLight;
@@ -125,6 +154,8 @@ export class LightingLayer {
 	private flameMaterial = flameMaterial();
 	/** Each pool light's steady intensity, which flicker varies around. */
 	private steady: number[] = [];
+	/** How much each pool light wavers: none for a light whose look doesn't flicker. */
+	private wobble: number[] = [];
 	private ambient: Ambient = 'day';
 	/** The rules' light level per cell from the last update, or null by day (the cell maps', #171). */
 	levels: Float32Array | null = null;
@@ -132,6 +163,10 @@ export class LightingLayer {
 	private hasDark = false;
 	private hemisphere = PRESETS.day.hemisphere;
 	private flash = 0;
+	/** The scene's background, one colour set in place on every relight. */
+	private background = new THREE.Color();
+	/** The GM's handles on fixture-less lights (#209), made the first time a GM needs them. */
+	private handles: LightHandles | null = null;
 
 	constructor(private readonly base: SceneLights) {
 		for (let i = 0; i < POOL_SIZE; i++) {
@@ -145,6 +180,10 @@ export class LightingLayer {
 	 * Recomputes lighting. `dark` marks the table's dark areas, which are as
 	 * dark as night whatever the ambient. What a fogged player sees is lit by
 	 * definition; `worldModify` adds that fill in the shader.
+	 *
+	 * With a sun, the look's hour blends the presets (#208, until the sky, #114, and #218); without
+	 * one, or without a look, the band's preset alone. What the rules darken (`levels`, and the
+	 * cell maps and grade the renderer keys on `ambient`) always follows the band, never the hour.
 	 */
 	update(
 		grid: SquareGrid,
@@ -154,20 +193,26 @@ export class LightingLayer {
 		blocked: Blockers,
 		ground: Ground | null = null,
 		dark: Uint8Array | null = null,
-		seats: ReadonlyMap<number, number> = new Map()
+		seats: ReadonlyMap<number, number> = new Map(),
+		world: WorldLook | null = null
 	): void {
 		const preset = PRESETS[ambient];
 		this.ambient = ambient;
-		this.base.scene.background = new THREE.Color(preset.background);
-		if (this.base.scene.fog instanceof THREE.Fog)
-			this.base.scene.fog.color.setHex(preset.background);
-		this.hemisphere = preset.hemisphere;
-		this.base.hemisphere.intensity = preset.hemisphere + this.flash * 1.5;
-		this.base.hemisphere.color.setHex(preset.sky);
-		this.base.hemisphere.groundColor.setHex(preset.ground);
+		const w = world?.sun ? presetWeights(world.time) : oneHot(ambient);
+		// Exposure in the lights until post applies it (#161): 2^EV, so 0 changes nothing.
+		const ev = Math.min(MAX_EXPOSURE, Math.max(-MAX_EXPOSURE, world?.grade.exposure ?? 0));
+		const gain = 2 ** ev;
+		const scene = this.base.scene;
+		if (scene.background !== this.background) scene.background = this.background;
+		mixColour(this.background, w, 'background');
+		if (scene.fog instanceof THREE.Fog) scene.fog.color.copy(this.background);
+		this.hemisphere = mixed(w, 'hemisphere') * gain;
+		this.base.hemisphere.intensity = this.hemisphere + this.flash * 1.5;
+		mixColour(this.base.hemisphere.color, w, 'sky');
+		mixColour(this.base.hemisphere.groundColor, w, 'ground');
 		this.hasDark = !!dark?.some((v) => v);
-		this.base.sun.intensity = preset.sun;
-		this.base.lamp.intensity = preset.lamp;
+		this.base.sun.intensity = mixed(w, 'sun') * gain;
+		this.base.lamp.intensity = mixed(w, 'lamp');
 
 		// Light levels matter only where it can be dark: never by day outside dark areas.
 		this.levels = preset.dark || this.hasDark ? lightLevels(grid, blocked, sources) : null;
@@ -175,9 +220,23 @@ export class LightingLayer {
 		this.updateFixtures(grid, lights, ground, seats);
 	}
 
-	/** Id of the light fixture under the ray, if any. */
+	/**
+	 * The GM's handles on lights without a fixture (`gm`). Made the first time a GM needs them,
+	 * so a player's table never builds or draws them.
+	 */
+	showHandles(grid: SquareGrid, lights: readonly Light[], ground: Ground | null, gm: boolean) {
+		if (!this.handles && gm && lights.some((l) => !lightLook(l).fixture)) {
+			this.handles = new LightHandles();
+			this.group.add(this.handles.mesh);
+		}
+		this.handles?.update(grid, gm ? lights : [], ground);
+	}
+
+	/** Id of the light fixture or GM handle under the ray, if any: the nearer of the two. */
 	pick(raycaster: THREE.Raycaster): string | null {
 		const hit = raycaster.intersectObjects([...this.fixtures.values()], true)[0];
+		const handle = this.handles?.pick(raycaster);
+		if (handle && !(hit && hit.distance < handle.distance)) return handle.id;
 		for (let o: THREE.Object3D | null = hit?.object ?? null; o; o = o.parent) {
 			if (typeof o.userData.lightId === 'string') return o.userData.lightId;
 		}
@@ -189,6 +248,7 @@ export class LightingLayer {
 		this.flameGeometry.dispose();
 		this.postMaterial.dispose();
 		this.flameMaterial.dispose();
+		this.handles?.dispose();
 	}
 
 	/** Gives the pool's point lights to the strongest sources; the rest stay dark. */
@@ -215,8 +275,13 @@ export class LightingLayer {
 			light.distance = (s.radius + 1.5) * grid.cellSize;
 			// Raised to human height (#152), a lamp lights the floor a cell or two away about as
 			// before (the light lands less slanted); only the spot right under it is dimmer.
-			light.intensity = strength * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
+			// The look's intensity scales it (1 for every light before looks, #201); a number on a
+			// pool light, never a new program. Height waits for #228.
+			const look = lightLook(s);
+			light.intensity =
+				strength * look.intensity * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
 			this.steady[i] = light.intensity;
+			this.wobble[i] = look.flicker === 'none' ? 0 : 0.08;
 		});
 	}
 
@@ -246,12 +311,12 @@ export class LightingLayer {
 		const t = now / 1000;
 		this.pool.forEach((light, i) => {
 			const wave = Math.sin(t * 7.3 + i * 1.7) * 0.5 + Math.sin(t * 13.1 + i * 2.9) * 0.3;
-			light.intensity = this.steady[i] * (1 + 0.08 * wave);
+			light.intensity = this.steady[i] * (1 + (this.wobble[i] ?? 0) * wave);
 		});
 		let i = 0;
 		for (const fixture of this.fixtures.values()) {
 			const flame = fixture.children[1];
-			const wave = Math.sin(t * 9.7 + i++ * 2.3);
+			const wave = fixture.userData.still ? 0 : Math.sin(t * 9.7 + i++ * 2.3);
 			flame.scale.set(1 - 0.05 * wave, 1 + 0.1 * wave, 1 - 0.05 * wave);
 		}
 		return true;
@@ -265,6 +330,10 @@ export class LightingLayer {
 	): void {
 		const seen = new Set<string>();
 		for (const l of lights) {
+			// A light without a fixture (a glow) draws none: its pool light and the cells it
+			// lights are all there is of it (#201). The GM still picks it by its cell.
+			const look = lightLook(l);
+			if (!look.fixture) continue;
 			seen.add(l.id);
 			let fixture = this.fixtures.get(l.id);
 			if (!fixture) {
@@ -275,6 +344,7 @@ export class LightingLayer {
 			const w = gridToWorld(grid, l.pos);
 			fixture.position.set(w.x, ground?.floorY(l.pos) ?? 0, w.z);
 			fixture.scale.setScalar(grid.cellSize);
+			fixture.userData.still = look.flicker === 'none';
 			// On a sconce or brazier the prop is the post: only the flame, on its top.
 			const seat = seats.get(l.pos.y * grid.width + l.pos.x);
 			fixture.children[0].visible = seat === undefined;

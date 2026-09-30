@@ -4,6 +4,8 @@ import path from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DieRoller } from '../src/lib/game/dice';
+import { defaultWorldFor } from '../src/lib/game/world';
+import { setWorld } from './scene';
 import { beginAdventure, claimCharacter, direct, startAdventure } from './adventure/engine';
 import { postChat } from './chat';
 import {
@@ -74,6 +76,55 @@ describe('a live room kept across a restart', () => {
 		const older = copy(serializeRoom(room));
 		delete older.listed;
 		expect(ok(restoreRoom(older, 5000)).room.listed).toBe(false);
+	});
+
+	it("keeps the world's look", () => {
+		ok(setWorld(room, gm, { time: 1300, weather: { kind: 'storm', seed: 9 } }, 42));
+		const back = ok(restoreRoom(copy(serializeRoom(room)), 5000)).room;
+		expect(back.world).toEqual(room.world);
+		expect(back.ambient).toBe('dark');
+	});
+
+	it('comes back from before the world look: a room stored with a v9 table', () => {
+		const live = copy(serializeRoom(room));
+		const scene = live.scene as unknown as Record<string, unknown>;
+		const discovery = live.scene.discovery;
+		scene.version = 9;
+		delete scene.world;
+		delete scene.interior;
+		scene.discovery = Object.fromEntries(
+			Object.entries(discovery).map(([name, d]) => [name, d.explored])
+		);
+		const back = ok(restoreRoom(live, 5000)).room;
+		expect(back.ambient).toBe(room.ambient);
+		expect(back.world).toEqual(defaultWorldFor(room.ambient));
+		expect(back.interior).toBeNull();
+		expect(back.players.get(ana.id)!.explored[5]).toBe(1);
+		expect(back.adventure).toMatchObject({ stage: 'playing', chapter: room.adventure!.chapter });
+	});
+
+	it('keeps the lights each seat remembers, as remembered, and restores a room from before them', () => {
+		const torch = { id: 'old-torch', pos: { x: 2, y: 2 }, radius: 3, color: '#ffa04d', on: true };
+		ana.seenLights = new Map([[torch.id, torch]]);
+		ana.lightsLearned = ana.explored.slice();
+		const live = copy(serializeRoom(room));
+		expect(live.players.find((p) => p.id === ana.id)!.lights).toEqual([torch]);
+		expect(live.players.find((p) => p.id === gm.id)!.lights).toBeUndefined();
+		const back = ok(restoreRoom(live, 5000)).room.players.get(ana.id)!;
+		expect([...back.seenLights!.values()]).toEqual([torch]);
+		expect([...back.lightsLearned!]).toEqual([...back.explored]);
+
+		// Stored before remembered lights: nothing learned, so the next sync learns them as today.
+		for (const p of live.players) delete p.lights;
+		for (const d of Object.values(live.scene.discovery)) delete d.lights;
+		const older = ok(restoreRoom(live, 5000)).room.players.get(ana.id)!;
+		expect(older.seenLights).toBeUndefined();
+		expect(older.lightsLearned).toBeUndefined();
+
+		// Checked like a scene's lights.
+		const bad = copy(serializeRoom(room));
+		bad.players.find((p) => p.id === ana.id)!.lights![0].pos = { x: 99, y: 0 };
+		expect(restoreRoom(bad).ok).toBe(false);
 	});
 
 	it('never trusts what it reads back: a damaged room is rejected whole', () => {

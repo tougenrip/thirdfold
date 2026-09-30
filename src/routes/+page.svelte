@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { asset, resolve } from '$app/paths';
-	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN } from '$lib/game/protocol';
+	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN } from '$lib/game/names';
 	import {
 		RoomConnection,
 		handOff,
