@@ -94,7 +94,8 @@ const RENDER_SPECS = [
 	'fog-soft',
 	'lobby',
 	'sky',
-	'sky-light'
+	'sky-light',
+	'atmosphere'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

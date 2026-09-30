@@ -424,12 +424,16 @@ export async function benchmark(
  * the sun's shadows are drawn again), and those from the room are timed under
  * their own names (what each costs on the main thread).
  */
-export function instrument(tabletop: Tabletop, perf: PerfRecorder, onChange: () => void): void {
+export function instrument(
+	tabletop: Tabletop,
+	perf: PerfRecorder,
+	onChange: (key: string) => void
+): void {
 	for (const key of [...TIMED, ...RESHADOWS]) {
 		const update = tabletop[key] as (...args: unknown[]) => unknown;
 		const timed = (TIMED as readonly string[]).includes(key);
 		(tabletop[key] as (...args: unknown[]) => unknown) = (...args) => {
-			onChange();
+			onChange(key);
 			return timed ? perf.time(key, () => update(...args)) : update(...args);
 		};
 	}
