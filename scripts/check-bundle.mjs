@@ -39,7 +39,10 @@ const BUDGETS = {
 	// → the atmosphere (#215, #217, #218: the fog and environment nodes, the key light's tween
 	// and shadow rule, the curve), less the presets, their blend, the mist and the lamp; three's
 	// fog and PMREM code was already in the chunk. Set to the merged build's measured size.
-	renderer: { total: 364_300 },
+	// → 367.3: the sky layer (#214: the dome, moon, stars and clouds, the star field) and its
+	// capture throttle (#216), wired into the table and the lobby (plan D1: not lazy, three's
+	// sky code was already here), 367.2 kB measured.
+	renderer: { total: 367_300 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

@@ -6,6 +6,7 @@ import * as THREE from 'three/webgpu';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { SquareGrid } from '$lib/game/grid';
 import type { AtmosphereLayer } from './atmosphere';
+import { SkyHemisphere, SkyLight } from './sky-light';
 import { worldExtents } from './world-ground';
 
 export { createScene } from './atmosphere';
@@ -19,10 +20,10 @@ export interface BaseLights {
 }
 
 export function createSceneLights(scene: THREE.Scene): BaseLights {
-	// SEAM(#219, sky-light.ts): SkyHemisphere and SkyLight, scaled by the sky's reach per cell.
-	const hemisphere = new THREE.HemisphereLight(0xfff1dc, 0x1c140e, 0.9);
+	// The sky's lights (sky-light.ts): scaled by the sky's reach per cell (#219).
+	const hemisphere = new SkyHemisphere(0xfff1dc, 0x1c140e, 0.9);
 	scene.add(hemisphere);
-	const sun = new THREE.DirectionalLight(0xffe2b8, 1.6);
+	const sun = new SkyLight(0xffe2b8, 1.6);
 	sun.castShadow = true;
 	sun.shadow.mapSize.set(2048, 2048);
 	sun.shadow.bias = -0.0005;

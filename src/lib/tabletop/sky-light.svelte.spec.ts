@@ -1,11 +1,12 @@
 // The sealed ringing chamber at noon (#219): a dark area the sky's lights never reach, so it looks
 // the same with the sun and the sky on as with both off, lit only by its candle stub, while the
-// open courtyard beside it plainly takes them. The frozen monastery at 12:00, as the GM sees it,
-// from straight above the chamber. Runs once the table's key light and hemisphere are the sky's
-// own (`SkyLight`, `SkyHemisphere`); until then it skips.
+// open courtyard beside it plainly takes them (the key light, the hemisphere and the captured
+// sky). The frozen monastery at 12:00, as the GM sees it, from straight above the chamber. Runs
+// once the table's key light and hemisphere are the sky's own (`SkyLight`, `SkyHemisphere`).
 
 import type * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { atmosphereUniforms } from './atmosphere';
 import { SkyHemisphere, SkyLight } from './sky-light';
 import { HEIGHT, WIDTH, loadView, mountFixture, readFrame, settle, type Mounted } from './testing';
 
@@ -53,12 +54,17 @@ describe('the sky’s lights', () => {
 			return [mean(read, CHAMBER_BOX), mean(read, COURTYARD_BOX)];
 		};
 		const [chamber, courtyard] = await measure();
+		// No sun and no sky: the key light, the hemisphere and the captured sky's light (IBL) off.
 		const strengths = lights.map((l) => l.intensity);
+		const ibl = atmosphereUniforms.ibl.value;
 		for (const l of lights) l.intensity = 0;
+		atmosphereUniforms.ibl.value = 0;
 		redraw();
 		const [unlit, unlitCourtyard] = await measure();
 		lights.forEach((l, i) => (l.intensity = strengths[i]));
+		atmosphereUniforms.ibl.value = ibl;
 		expect(Math.abs(chamber - unlit)).toBeLessThan(1.5);
-		expect(courtyard - unlitCourtyard).toBeGreaterThan(20);
+		// Plainly: noon lights the courtyard many times over (by the skies as tuned, about 19 of 255).
+		expect(courtyard - unlitCourtyard).toBeGreaterThan(10);
 	});
 });

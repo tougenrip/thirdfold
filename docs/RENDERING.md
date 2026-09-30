@@ -388,10 +388,17 @@ compiles anything: `skyFogNode` (`fog(colour, min(max(rangeFogFactor, exponentia
 cap))`, the colour the curve's haze warmed toward the key light by `pow(max(dot(view, sunDir), 0), 8)`
 times the sun's glow, the cap `PLAY_FOG_CAP` over the play area's circle lifting to 1 over
 `PLAY_FOG_BLEND` beyond it, the range `fogRange(extent)`; scene fog runs before `worldModify`, so
-unexplored cells stay 0), `skyEnvNode` (the PMREM of `sharedSkyCube`, the sky capture's target (#216),
-times `state.ibl` and the sky's reach per cell (#219)) and the background colour (the fog's, which the
-dome covers, #214). `bindSkyEnv` (from `setUpRenderer`) gives the environment node a prefilter of each
-new renderer's. `THREE.Fog`, `FOG`, the mist planes (`ambience.ts`), the presets, their blend
+unexplored cells stay 0), `skyEnvNode` (the PMREM of `SKY_CUBE` in `sky.ts`, the sky capture's
+target (#216), times `state.ibl` and `skyAmbient`, the sky's reach per cell (#219)) and the background
+colour (the horizon's, which the dome covers; on low the dome is hidden and it shows, #214).
+`bindSkyEnv` gives the environment node a prefilter of each new renderer's, and `registerSkyLights`
+maps `SkyLight` and `SkyHemisphere` to their masked nodes, both from `setUpRenderer` (loop.ts), so the
+lobby's renderer and a lost device's rebuild are covered. `AtmosphereLayer` owns the table's
+`SkyLayer` (`sky`): `apply` feeds it every state; `frame(now)`, on drawn frames only, sets its clock
+and captures the sky into the cube when `CaptureThrottle` (`CAPTURE_INTERVAL_MS` by tier, reset per
+table) says the `environmentKey` changed, timed as `pmrem`, with one timer for a trailing capture (set
+once per wait, so a held clock never asks for frames forever); the first capture runs in the warm-up
+hold, so no frame draws with an empty cube; `setTier` shows the dome or not and sets the interval. `THREE.Fog`, `FOG`, the mist planes (`ambience.ts`), the presets, their blend
 (`time-blend.ts`) and the lamp are gone.
 
 **Applying a state.** The key light stands two play radii from the play area's centre toward the

@@ -11,6 +11,11 @@ export interface SquareGrid {
 	height: number;
 }
 
+/** Whether two grids are the same size, in cells and in units. */
+export function sameGrid(a: SquareGrid, b: SquareGrid): boolean {
+	return a.width === b.width && a.height === b.height && a.cellSize === b.cellSize;
+}
+
 /** A cell on the grid. `x` runs along world x, `y` along world z. */
 export interface GridPos {
 	x: number;
