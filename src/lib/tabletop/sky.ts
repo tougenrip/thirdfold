@@ -4,7 +4,7 @@
 // `SkyMesh.js`) and, apart, one instanced draw of seeded stars. Everything that varies is a
 // uniform fed from `AtmosphereState` (atmosphere-curve.ts), so no hour, sky or weather compiles
 // anything; the low tier keeps the objects but hides them, and the scene's background (the horizon
-// colour) shows instead.
+// colour, `skyBackground` in atmosphere.ts) shows instead.
 //
 // It is not the world: it reads no cell map and writes "shown" to the scene pass's `hidden`
 // attachment (as dice do, dice3d.ts), so the output stage's re-mask never stamps unexplored ground
@@ -251,8 +251,6 @@ export class SkyLayer {
 	readonly group = new THREE.Group();
 	/** What only the environment is captured from: the dome again, and nothing else. */
 	readonly envScene = new THREE.Scene();
-	/** The horizon colour: the scene's background, what shows where the dome is hidden (low). */
-	readonly background = new THREE.Color();
 	readonly uniforms = skyUniforms();
 	readonly dome: THREE.Mesh;
 	readonly stars: THREE.Sprite;
@@ -287,7 +285,6 @@ export class SkyLayer {
 		u.zenith.value.setRGB(...s.zenith);
 		u.horizon.value.setRGB(...s.horizon);
 		u.ground.value.setRGB(...s.ground);
-		this.background.setRGB(...s.horizon);
 		u.sunDir.value.set(...s.sunDir);
 		// The key's colour is the moon's below the handover; the sun keeps its last there.
 		if (s.key.body === 'sun') u.sunColor.value.setRGB(...s.key.color);

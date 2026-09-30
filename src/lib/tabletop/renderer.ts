@@ -10,7 +10,7 @@
 // Its pieces live beside it, one per concern (docs/RENDERING.md, Modules).
 
 import * as THREE from 'three/webgpu';
-import type { SquareGrid } from '$lib/game/grid';
+import { sameGrid, type SquareGrid } from '$lib/game/grid';
 import { lightSources } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
 import { obstaclesFor, type Prop } from '$lib/game/props';
@@ -114,17 +114,20 @@ export async function createTabletop(
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer();
 	scene.add(lighting.group);
-	const atmosphere = new AtmosphereLayer({ ...lights, post, lighting }, clock, refreshLighting);
+	const hooks = { post, lighting, renderer, perf, request: requestRender };
+	const atmosphere = new AtmosphereLayer({ ...lights, ...hooks }, clock, refreshLighting);
+	const { sky } = atmosphere; // the dome, or the horizon's colour on low (#214)
+	scene.add(sky.group);
 	let lightState: Parameters<Tabletop['setLighting']> = ['day', []]; // band, lights, look
 	let darkness: Uint8Array | null = null;
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
-	const stillable = () => [loop, propLayer, cellMaps, cloud];
+	const stillable = () => [loop, propLayer, cellMaps, cloud, sky];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	const terrainLayer = new TerrainLayer();
 	scene.add(terrainLayer.group);
 	const effects = new EffectsLayer();
-	const gallery = new Gallery(scene, overlay.scene, [diceLayer, effects, cloud], [tokenLayer]);
+	const gallery = new Gallery(scene, overlay.scene, [diceLayer, effects, cloud, sky], [tokenLayer]);
 	scene.add(effects.group);
 	const previews = new PreviewLayer();
 	overlay.scene.add(previews.group, previews.highlight);
@@ -195,6 +198,7 @@ export async function createTabletop(
 			lightingStale = false;
 			perf.time('lighting', relight);
 		}
+		atmosphere.frame(clock()); // the first capture: no frame draws with an empty cube
 		const t0 = performance.now();
 		frameOverview(warmCamera, extent, camera.aspect);
 		const targets = { scene: post.targets(), overlay: post.overlayTargets() };
@@ -230,6 +234,7 @@ export async function createTabletop(
 		const flickering = !reducedMotion && lighting.flicker(now);
 		const drifting = cloud.tick(now);
 		const turning = atmosphere.tick(now); // a new hour plays (#215)
+		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const gridFading = overlay.tick(now);
 		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends
 		const moving =
@@ -288,6 +293,7 @@ export async function createTabletop(
 
 	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
+	atmosphere.setTier(quality.current.tier, quality.current.layers.sky);
 	cloud.setLayer(quality.current.layers.fogcloud, quality.current.tier === 'low');
 	controls.addEventListener('change', requestRender);
 
@@ -298,14 +304,7 @@ export async function createTabletop(
 
 	const tabletop: Tabletop = {
 		setGrid(next) {
-			if (
-				grid &&
-				grid.width === next.width &&
-				grid.height === next.height &&
-				grid.cellSize === next.cellSize
-			) {
-				return;
-			}
+			if (grid && sameGrid(grid, next)) return;
 			grid = { ...next };
 			freshTable = true;
 			if (levels && levels.length !== grid.width * grid.height) levels = null;
@@ -465,7 +464,7 @@ export async function createTabletop(
 			motion.stop();
 			quality.dispose();
 			stopPicking();
-			const layers = [rig, table, tokenLayer, wallLayer, lighting, post, cloud];
+			const layers = [rig, table, tokenLayer, wallLayer, lighting, post, cloud, atmosphere];
 			const more = [overlay, terrainLayer, effects, propLayer, diceLayer, previews];
 			for (const l of [...layers, ...more, cellMaps]) l.dispose();
 			releaseModels();
@@ -475,6 +474,7 @@ export async function createTabletop(
 		setQuality(settings, refine) {
 			quality.set(settings, refine);
 			post.set(settings);
+			atmosphere.setTier(settings.tier, settings.layers.sky);
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
 			const remade = [table, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));

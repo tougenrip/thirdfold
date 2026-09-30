@@ -40,8 +40,10 @@ const BUDGETS = {
 	// and shadow rule, the curve), less the presets, their blend, the mist and the lamp; three's
 	// fog and PMREM code was already in the chunk. Set to the merged build's measured size.
 	// → 364.5: the flash's envelope and policy wired to exposure, bloom and the hemisphere (#222,
-	// #223), 364.4 kB measured.
-	renderer: { total: 364_500 },
+	// #223). → the sky layer (#214: the dome, moon, stars and clouds, the star field) and its
+	// capture throttle (#216), wired into the table and the lobby (plan D1: not lazy, three's sky
+	// code was already here); set to the merged build's measured size.
+	renderer: { total: 367_600 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

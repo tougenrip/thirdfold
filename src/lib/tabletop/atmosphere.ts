@@ -37,6 +37,7 @@ import { canonicalTime, DAY_MINUTES, MAX_EXPOSURE, type WorldLook } from '$lib/g
 import {
 	atmosphereAt,
 	createAtmosphereState,
+	environmentKey,
 	fogRange,
 	PLAY_FOG_BLEND,
 	PLAY_FOG_CAP,
@@ -49,6 +50,10 @@ import {
 	type WeatherNow
 } from './atmosphere-curve';
 import { flashPolicy, type FlashPolicy } from './flash';
+import { skyAmbient } from './materials/world-modify';
+import type { Tier } from './quality';
+import { SkyLayer, SKY_CUBE } from './sky';
+import { CAPTURE_INTERVAL_MS, CaptureThrottle } from './sky-maths';
 
 /** How long a change of hour takes to play, in ms (ease-out; snapped under reduced motion). */
 export const TWEEN_MS = 3000;
@@ -83,25 +88,15 @@ export const atmosphereUniforms = {
 	ibl: uniform(0)
 };
 
-/** The scene's background: the fog's colour, so the world melts into it (the dome covers it, #214). */
+/** The scene's background: the sky's horizon, which shows where the dome is hidden (low, #214). */
 export const skyBackground = new THREE.Color(0x292421);
 
-/**
- * The captured sky (#216): a cube the sky layer (sky.ts) renders into, then flags
- * `texture.needsPMREMUpdate`, so the environment node prefilters it again. Never disposed, like
- * the kinds' blank textures: every program samples it through `skyEnvNode`.
- */
-export const sharedSkyCube = new THREE.CubeRenderTarget(64, { type: THREE.HalfFloatType });
-
-// SEAM(#219, sky-light and world-modify): `skyAmbient()` from materials/world-modify.ts, the sky's
-// reach per cell (0 in a dark area, the fill indoors), so a dark cell never reflects noon. Until it
-// lands the sky reaches everywhere.
-const skyAmbient = () => float(1);
-
 const u = atmosphereUniforms;
-const pmrem = pmremTexture(sharedSkyCube.texture);
-/** The environment light: the captured sky, by the sky's strength and reach. */
-export const skyEnvNode = pmrem.mul(u.ibl).mul(skyAmbient());
+// The captured sky (#216, `SKY_CUBE` in sky.ts): the capture flags `needsPMREMUpdate`, so this
+// prefilters it again on the next frame. Never disposed: every program samples it.
+const pmrem = pmremTexture(SKY_CUBE.texture);
+/** The environment light: the captured sky, by the sky's strength and its reach per cell (#219). */
+export const skyEnvNode = pmrem.mul(u.ibl).mul(skyAmbient() as unknown as Node<'float'>);
 
 /** The haze warms toward the sun (Inigo Quilez's inscatter), capped over the play area. */
 export const skyFogNode = (() => {
@@ -126,7 +121,7 @@ export function bindSkyEnv(renderer: THREE.WebGPURenderer): void {
 	node._generator?.dispose();
 	node._generator = new THREE.PMREMGenerator(renderer);
 	node._pmrem = null;
-	sharedSkyCube.texture.needsPMREMUpdate = true;
+	SKY_CUBE.texture.needsPMREMUpdate = true;
 }
 
 /** A scene with the sky's fog, environment and background, set once and never replaced. */
@@ -173,6 +168,10 @@ export interface AtmosphereLights {
 	};
 	/** The point lights and flames, which shine and flicker by the night glow. */
 	lighting: { setGlow(glow: number): void };
+	/** What draws the sky's captures (#216), where they are timed, and a frame for a late one. */
+	renderer: THREE.WebGPURenderer;
+	perf: { time<T>(label: string, fn: () => T): T };
+	request: () => void;
 }
 
 export class AtmosphereLayer {
@@ -197,8 +196,14 @@ export class AtmosphereLayer {
 
 	/** A new table: its first look snaps into place (as its tokens do). */
 	private fresh = true;
+	/** The dome, moon, stars and clouds (#214), fed from `state`; its capture is the IBL (#216). */
+	readonly sky = new SkyLayer();
+	private readonly captures = new CaptureThrottle(CAPTURE_INTERVAL_MS.medium);
+	/** The trailing capture's frame, and when it is for. */
+	private captureTimer: ReturnType<typeof setTimeout> | 0 = 0;
+	private captureFor = NaN;
 
-	/** `onReady` once the manifest, and so the skies, arrived. */
+	/** `onReady` once the manifest, and so the skies, arrived; `frames` draws the captures. */
 	constructor(
 		private readonly lights: AtmosphereLights,
 		private readonly clock: () => number,
@@ -250,9 +255,48 @@ export class AtmosphereLayer {
 		return !!this.tween;
 	}
 
+	/**
+	 * The tier and the `sky` layer: the dome shown or the flat horizon, and how often the sky is
+	 * captured again (low: once per table). Visibility and a count only: nothing compiles.
+	 */
+	setTier(tier: Tier, on: boolean): void {
+		this.sky.setTier(tier, on);
+		this.captures.interval = CAPTURE_INTERVAL_MS[tier];
+	}
+
+	/**
+	 * The sky for a frame drawn at `now` (only drawn frames: the sky never asks for one): its clock,
+	 * and a capture into the environment when it changed enough (`environmentKey`), at most once per
+	 * the tier's interval, before the frame draws with it; a change still waiting gets a frame of its
+	 * own when its interval is up. Nothing before the sky is known. Whether it captured.
+	 */
+	frame(now: number): boolean {
+		this.sky.setTime(now);
+		const { renderer, perf, request } = this.lights;
+		if (!this.preset) return false;
+		const due = this.captures.due(environmentKey(this.state), now);
+		// The cube's PMREM is flagged, so it is filtered again on the frame drawn next.
+		if (due) perf.time('pmrem', () => this.sky.capture(renderer));
+		const next = this.captures.nextAt();
+		// Once per wait: a clock held still (tests) must not ask for frames forever.
+		if (next !== null && next !== this.captureFor) {
+			this.captureFor = next;
+			clearTimeout(this.captureTimer);
+			this.captureTimer = setTimeout(request, Math.max(0, next - now) + 20);
+		}
+		return due;
+	}
+
+	/** Frees the sky's geometry and materials and the pending capture; the cube stays. */
+	dispose(): void {
+		clearTimeout(this.captureTimer);
+		this.sky.dispose();
+	}
+
 	/** Fits the key light and the fog to a table: its play sphere, and `extent` across. */
 	fit(center: { x: number; y: number; z: number }, radius: number, extent: number): void {
 		this.fresh = true;
+		this.captures.reset(); // a new table's sky is captured at once
 		this.center.set(center.x, center.y, center.z);
 		this.distance = radius * 2;
 		u.playCenter.value.set(center.x, center.z);
@@ -347,7 +391,8 @@ export class AtmosphereLayer {
 		u.fogHeight.value = s.fog.height;
 		u.ibl.value = s.ibl;
 		this.lights.lighting.setGlow(s.nightGlow);
-		skyBackground.copy(fogColor);
+		skyBackground.setRGB(...s.horizon);
+		this.sky.apply(s);
 		// Exposure in EV: the sky's and the look's, then the flash's (none over a red grade when
 		// flashes are reduced: the white hemisphere carries it instead).
 		const ev = s.exposure + (this.look?.grade.exposure ?? 0);

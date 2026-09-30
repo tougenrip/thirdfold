@@ -23,6 +23,7 @@ import { kindGallery } from './materials/warmup';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { createScene, createSceneLights, FAR } from './scene-lights';
+import { SkyLayer } from './sky';
 import { initialShape, sameShape, shapeOf, startingSettings, type Shape } from './shape';
 import { TokenLayer } from './tokens';
 import { settingsFor, type Tier } from './quality';
@@ -78,7 +79,8 @@ export async function warmLobby(
 	const post = new Post(renderer, scene, camera, overlay.scene);
 	post.set(settings);
 	const [dice, effects, tokens] = [new DiceLayer(), new EffectsLayer(), new TokenLayer(overlay)];
-	const gallery = [...kindGallery(), ...dice.gallery(), ...effects.gallery()];
+	const sky = new SkyLayer(); // the dome and the stars, so a table's sky compiles nothing (#214)
+	const gallery = [...kindGallery(), ...dice.gallery(), ...effects.gallery(), ...sky.gallery()];
 	const marks = tokens.gallery();
 	await warmUp(
 		renderer,
@@ -100,6 +102,6 @@ export async function warmLobby(
 		post.render(frame);
 	}
 	const warmupMs = performance.now() - t0;
-	const keep = [scene, overlay, post, lighting, dice, effects, tokens, gallery, cellMaps];
+	const keep = [scene, overlay, post, lighting, dice, effects, tokens, gallery, cellMaps, sky];
 	return { canvas, renderer, shape, warmupMs, keep };
 }
