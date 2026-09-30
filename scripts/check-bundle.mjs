@@ -39,7 +39,9 @@ const BUDGETS = {
 	// → the atmosphere (#215, #217, #218: the fog and environment nodes, the key light's tween
 	// and shadow rule, the curve), less the presets, their blend, the mist and the lamp; three's
 	// fog and PMREM code was already in the chunk. Set to the merged build's measured size.
-	renderer: { total: 364_300 },
+	// → 364.5: the flash's envelope and policy wired to exposure, bloom and the hemisphere (#222,
+	// #223), 364.4 kB measured.
+	renderer: { total: 364_500 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

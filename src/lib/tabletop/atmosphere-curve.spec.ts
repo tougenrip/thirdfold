@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseManifest } from '$lib/assets/manifest-parse';
-import { canonicalTime, WEATHERS, type Weather } from '$lib/game/world';
+import { bandOf, canonicalTime, WEATHERS, type Weather } from '$lib/game/world';
 import {
 	atmosphereAt,
 	checkBandContract,
@@ -157,17 +157,21 @@ describe('the sun and the moon', () => {
 describe('atmosphereAt', () => {
 	it('gives the built temperate sky the old lighting presets at the canonical hours', () => {
 		const old = {
-			day: { bg: '#292421', sky: '#fff1dc', ground: '#1c140e', hemi: 0.9, sun: 1.6 },
-			dusk: { bg: '#221f28', sky: '#ffd0a0', ground: '#1a2438', hemi: 0.45, sun: 0.55 },
-			dark: { bg: '#121828', sky: '#9ab4ff', ground: '#0a1230', hemi: 0.1, sun: 0 }
+			day: { sky: '#fff1dc', ground: '#1c140e', hemi: 0.9, sun: 1.6 },
+			dusk: { sky: '#ffd0a0', ground: '#1a2438', hemi: 0.45, sun: 0.55 },
+			dark: { sky: '#9ab4ff', ground: '#0a1230', hemi: 0.1, sun: 0 }
 		};
 		for (const band of ['day', 'dusk', 'dark'] as const) {
 			const s = at(canonicalTime(band));
 			const o = old[band];
 			closeTo(s.hemi.sky, hex(o.sky));
 			closeTo(s.hemi.ground, hex(o.ground));
-			// The old background is the haze now; the dome's horizon is the sky's own (#213).
-			closeTo(s.fog.color, hex(o.bg));
+			// The haze is no longer the old brown background (#221): a pale day haze toward the
+			// horizon, a warm dusk, a moonlit blue night.
+			const [r, g, bl] = s.fog.color;
+			if (band === 'day') expect(Math.min(r, g, bl)).toBeGreaterThan(0.3);
+			if (band === 'dusk') expect(r).toBeGreaterThan(bl * 1.5);
+			if (band === 'dark') expect(bl).toBeGreaterThan(r * 2);
 			expect(s.hemi.intensity).toBeCloseTo(o.hemi, 12);
 			expect(s.exposure).toBe(0);
 			if (band === 'dark') expect(s.key.body).toBe('moon');
@@ -337,6 +341,19 @@ describe('checkBandContract', () => {
 		expect(checkBandContract(ENCLOSED)).toEqual([]);
 	});
 
+	it('holds with room to spare: every shipped open sky is a degree inside its bands', () => {
+		for (const [id, sky] of Object.entries(built.manifest.skies)) {
+			if (sky.kind !== 'open') continue;
+			const preset = presetOf(sky);
+			for (let t = 0; t < 1440; t++) {
+				const e = at(t, NONE, preset).sunElevation;
+				const band = bandOf(t);
+				if (band === 'day') expect(e, `${id} ${t}`).toBeGreaterThan(1);
+				if (band === 'dark') expect(e, `${id} ${t}`).toBeLessThan(DARK_SUN_DEG - 1);
+			}
+		}
+	});
+
 	it('refuses solar noon at 12:00: the sun is too high before dawn', () => {
 		const problems = checkBandContract({ ...temperate, path: { ...temperate.path!, noon: 720 } });
 		expect(problems.length).toBeGreaterThan(0);
@@ -477,7 +494,24 @@ describe('fog', () => {
 		expect(fogFactorAt(fog, { near: 10, far: 20 }, 5, 3, 100)).toBe(0);
 		expect(fogFactorAt(fog, { near: 10, far: 20 }, 5, 0, 100)).toBeGreaterThan(0);
 		expect(fogRange(20)).toEqual({ near: 40, far: 90 });
-		expect(fogRange(108)).toEqual({ near: 80, far: 180 });
+		expect(fogRange(108)).toEqual({ near: 162, far: 378 });
+	});
+
+	it('leaves the play area clear at noon under every open sky (#221)', () => {
+		for (const [id, sky] of Object.entries(built.manifest.skies)) {
+			if (sky.kind !== 'open') continue;
+			const fog = at(720, NONE, presetOf(sky)).fog;
+			for (const extent of [10, 26, 42, 54, 70]) {
+				const range = fogRange(extent);
+				for (const view of ['tactical', 'tabletop'] as const) {
+					const { position: p } = viewPose(view, extent);
+					// The far corner, the farthest play cell the pose sees (the extent is the grid + 6).
+					const half = (extent - 6) / 2;
+					const far = Math.hypot(p.x + half, p.y, p.z + half);
+					expect(fogFactorAt(fog, range, far, 0, 0), `${id} ${extent} ${view}`).toBeLessThan(0.08);
+				}
+			}
+		}
 	});
 });
 

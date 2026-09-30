@@ -114,8 +114,7 @@ export async function createTabletop(
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer();
 	scene.add(lighting.group);
-	const { exposure } = post.uniforms;
-	const atmosphere = new AtmosphereLayer({ ...lights, exposure, lighting }, clock, refreshLighting);
+	const atmosphere = new AtmosphereLayer({ ...lights, post, lighting }, clock, refreshLighting);
 	let lightState: Parameters<Tabletop['setLighting']> = ['day', []]; // band, lights, look
 	let darkness: Uint8Array | null = null;
 	/** The table was just replaced: the next tokens snap into place. */
@@ -218,7 +217,7 @@ export async function createTabletop(
 		const doorsMoving = wallLayer.tick(now);
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
-		atmosphere.setFlash(fx.flash);
+		atmosphere.setFlash(fx.flash, fx.policy);
 		cellMaps.setFlash(fx.flash);
 		const bellSwinging = !!swinging;
 		if (swinging) propLayer.setSwing(swinging, fx.bellAngle);

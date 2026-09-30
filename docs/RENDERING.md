@@ -441,8 +441,8 @@ EV within ±1), which the spec checks every minute in every weather.
 light's strength by body), `hemiSky`, `hemiGround`, `hemi`, `ibl`, the dome's `zenith`, `horizon`
 and `ground`, `fog` (`color`, three's `density` per metre, the layer's `height` in metres),
 `exposure`, `stars`, `clouds` and `nightGlow` (how much windows and fixtures glow); an enclosed sky's
-keys add `fill` (colour and strength) and it uses its first key alone, whatever the hour and
-weather, with no key light (#221).
+keys add `fill` (colour and strength), one key per rules band at its canonical hour, and it never
+has a key light (#221, "Enclosed skies" below).
 
 **The sun and moon.** Hour angle `H = (minute - noon) / 1440 · 2π`, elevation `asin(sin φ sin δ +
 cos φ cos δ cos H)`. Solar noon is 13:00 (780), because the bands are symmetric about it: a path
@@ -483,11 +483,65 @@ glow shows; glow, clouds and stars by tenths). The environment is captured again
 (#216): about 160 times over a day with no weather, never under an enclosed sky.
 
 **Fog.** `fogFactorAt(fog, range, viewZ, y, fromPlay)` is what the scene's fog node works out (#217):
-the larger of range fog (three's `rangeFogFactor`, `fogRange(extent)`: 40-90 m, grown past the
-Hollow's 54 m like today's) and height fog (`exponentialHeightFogFactor`), held to `PLAY_FOG_CAP`
+the larger of range fog (three's `rangeFogFactor`, `fogRange(extent)`: from 1.5 to 3.5 table
+extents, never nearer than 40-90 m, so it starts about at the far edge of the play area as the
+default poses see it, #221) and height fog (`exponentialHeightFogFactor`), held to `PLAY_FOG_CAP`
 (0.3) over the play area and lifting to 1 over `PLAY_FOG_BLEND` (6 m) beyond it, so the world past
 the grid fades out while the play area always reads. The spec checks the cap from both default poses
-on every grid from 4×4 to 64×64 in thick fog.
+on every grid from 4×4 to 64×64 in thick fog, and that at noon with no weather every open sky leaves
+the play area's far corner under 8% fog.
+
+**The skies' haze (#221).** Height fog is `(height - y) · viewZ · density` squared, so at the default
+poses' 30-100 m a density of 0.012 over 30 m (the first presets) put every play cell at the cap in
+the old brown background. The haze is now thin and the colour of the sky's horizon: at noon 0.0004-
+0.0006 per metre under a 4-5 m layer (under 2% at the village's far corner), dawn and dusk about
+0.001 in the horizon's warm hue (5-10%), night 0.0008-0.0012 in moonlit blue. Past the play area the
+cap lifts and range fog closes the world into the horizon. IBL is 0.4 by day, 0.3 at dawn and dusk and
+0.2 at night on open skies, 0.1-0.15 under enclosed ones; moonlight 0.06-0.18.
+
+### Enclosed skies (#221)
+
+The cavern (the Hollow) wears `underground`, the living cave (the Heart) `abyss` and the railcar (the
+train and the locomotive) `lamplit`; "Underground (no sun)" on any table resolves to `underground`
+(`resolveSky`). None shows a sun, moon, stars or clouds, and none follows the hour or the weather,
+but each keeps the rules band: its three keys sit at 12:00, 19:30 and 23:00 and `presetFor`
+(atmosphere.ts) uses the band's whole, so a sunless table keeps its band's light (the GM's band
+radios underground, Communion's dusk in the Hollow, and the train, whose look has a sun switch on:
+its band follows the hour, and at Blackwater's midnight the dark key all but puts out its warm fill as
+the lamps go out). A key's hemisphere is the old preset's for its band; the `fill` is the look: the
+Hollow a dim desaturated navy (ref 4, silhouettes legible) over a near-black navy shell and lake mist
+below the shore (0.8 m); the Heart a low crimson over a black shell, crushed (ref 3); the train
+lamplit wood. `skies.spec.ts` checks that the train's band follows the hour and the Hollow's and the
+Heart's do not.
+
+### The flash (#222, #223)
+
+A `flash` cue lights the whole table for `FLASH_MS` (`src/lib/game/chat.ts`, the server's window).
+`EffectsLayer` keeps the envelope with `flashAt` (flash.ts): full in 5% of the window, held to 30%,
+then a linear fall to 0 at `FLASH_MS`; a cue while one plays (`retrigger`) holds it on from where it
+is, so the Keeper's tolls back to back never dip into the dark and rise again. The renderer hands the
+strength `k` and the policy to `AtmosphereLayer.setFlash(k, policy)` and to `CellMaps.setFlash(k)`:
+
+- exposure up `min(FLASH_EV · k, policy.maxEV)` EV (`FLASH_EV` 1);
+- bloom up `FLASH_BLOOM · k · policy.bloom` (0.4) over the tier's own, only where the tier blooms
+  (`Post.bloomBase` above 0), so the bloom passes' gate never opens for a flash;
+- the hemisphere up `FLASH_HEMI · k · policy.hemisphere` (1.5), in a cool white;
+- the sky's reach (`flashLift`) and the dark's thinning to `k`, never capped, so a reduced flash shows
+  exactly as much for exactly as long; fog of war is untouched and unexplored cells stay black.
+
+All uniforms: no program changes (`flash.svelte.spec.ts` counts them across both policies).
+
+**Reduce flashing** (the Graphics menu, `GraphicsPrefs.reduceFlashing`: `auto` follows
+`prefers-reduced-motion` live, `on` and `off` override it; per viewer, never sent) is separate from
+reduced motion, which keeps the flash as the one sign of what the server shows. `flashPolicy(true)`
+rises over 500 ms (`REDUCED_RISE_MS`, 20% of the window), holds to 40%, caps exposure at +0.5 EV,
+bloom at 30% and the hemisphere lift at half, and `neutralRed`: over a red grade's light (the
+hemisphere's red share 0.6 or more: `abyss`, `blood-moon`) the exposure lift is dropped and the
+hemisphere, doubled, carries the flash in white, so saturated red never pulses. Every flashing effect
+goes through `flashPolicy` (lightning #323 and the finale's effects #336 too). `countFlashes` is WCAG
+2.3.1's rule over sampled frames; `flash.svelte.spec.ts` feeds it frames of the chamber's flash, of
+tolls 2.5 s apart and of a cue inside the hold, in both modes: 3 or fewer flashes a second, no red
+flash, and with Reduce flashing no swing quicker than the 500 ms fade.
 
 ## Modules
 

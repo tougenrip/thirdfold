@@ -3,7 +3,7 @@
 	"kind": "open",
 	"path": {
 		"latitude": 45,
-		"declination": 0,
+		"declination": 10,
 		"north": 0,
 		"noon": 780,
 		"moonCycle": 29.5,
@@ -14,18 +14,18 @@
 			"minute": 270,
 			"sunColor": "#ffe2b8",
 			"sun": 0,
-			"moon": 0.2,
+			"moon": 0.18,
 			"hemiSky": "#ff8a7a",
 			"hemiGround": "#1a0608",
 			"hemi": 0.12,
-			"ibl": 0,
+			"ibl": 0.2,
 			"zenith": "#12040a",
 			"horizon": "#3a0d12",
 			"ground": "#080204",
 			"fog": {
-				"color": "#1a0a0e",
-				"density": 0.014,
-				"height": 30
+				"color": "#2a0c12",
+				"density": 0.0012,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 0.6,
@@ -40,14 +40,14 @@
 			"hemiSky": "#ffd0a0",
 			"hemiGround": "#1a2438",
 			"hemi": 0.45,
-			"ibl": 0,
+			"ibl": 0.3,
 			"zenith": "#402838",
 			"horizon": "#b06a4a",
 			"ground": "#1a1014",
 			"fog": {
-				"color": "#2a1a1e",
-				"density": 0.014,
-				"height": 30
+				"color": "#6e3c34",
+				"density": 0.0011,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -62,14 +62,14 @@
 			"hemiSky": "#fff1dc",
 			"hemiGround": "#1c140e",
 			"hemi": 0.9,
-			"ibl": 0,
+			"ibl": 0.4,
 			"zenith": "#6a7890",
 			"horizon": "#c0a080",
 			"ground": "#2a2020",
 			"fog": {
-				"color": "#2c2220",
-				"density": 0.014,
-				"height": 30
+				"color": "#a89486",
+				"density": 0.0007,
+				"height": 4
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -84,14 +84,14 @@
 			"hemiSky": "#fff1dc",
 			"hemiGround": "#1c140e",
 			"hemi": 0.9,
-			"ibl": 0,
+			"ibl": 0.4,
 			"zenith": "#6a7890",
 			"horizon": "#c0a080",
 			"ground": "#2a2020",
 			"fog": {
-				"color": "#2c2220",
-				"density": 0.014,
-				"height": 30
+				"color": "#ae9a8c",
+				"density": 0.0006,
+				"height": 4
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -106,14 +106,14 @@
 			"hemiSky": "#fff1dc",
 			"hemiGround": "#1c140e",
 			"hemi": 0.9,
-			"ibl": 0,
+			"ibl": 0.4,
 			"zenith": "#6a7890",
 			"horizon": "#c0a080",
 			"ground": "#2a2020",
 			"fog": {
-				"color": "#2c2220",
-				"density": 0.014,
-				"height": 30
+				"color": "#a89486",
+				"density": 0.0007,
+				"height": 4
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -128,14 +128,14 @@
 			"hemiSky": "#ffd0a0",
 			"hemiGround": "#1a2438",
 			"hemi": 0.45,
-			"ibl": 0,
+			"ibl": 0.3,
 			"zenith": "#3a2030",
 			"horizon": "#a0503a",
 			"ground": "#1a1014",
 			"fog": {
-				"color": "#2a1a1e",
-				"density": 0.014,
-				"height": 30
+				"color": "#6a342c",
+				"density": 0.0011,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -146,18 +146,18 @@
 			"minute": 1320,
 			"sunColor": "#ffe2b8",
 			"sun": 0,
-			"moon": 0.2,
+			"moon": 0.18,
 			"hemiSky": "#ff8a7a",
 			"hemiGround": "#1a0608",
 			"hemi": 0.12,
-			"ibl": 0,
+			"ibl": 0.2,
 			"zenith": "#12040a",
 			"horizon": "#3a0d12",
 			"ground": "#080204",
 			"fog": {
-				"color": "#1a0a0e",
-				"density": 0.014,
-				"height": 30
+				"color": "#2a0c12",
+				"density": 0.0012,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 0.6,

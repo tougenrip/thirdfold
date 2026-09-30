@@ -4,16 +4,19 @@
 // huge dark shape passes slowly underneath. Presentation only: driven by the
 // wall clock like the dice, and never sent over the network. With reduced
 // motion the bell still swings, gently, and nothing else moves. The flash:
-// the whole table lights up at once (the renderer hands it to
+// the whole table lights up at once (the renderer hands its strength to
+// `AtmosphereLayer.setFlash`, exposure, bloom and the sky light, and to
 // `CellMaps.setFlash`, which thins the dark in every material's
 // `worldModify`) and fades back into the dark over FLASH_MS, exactly as long
-// as the server lights the table for (it plays
-// alongside a toll; reduced motion keeps it, as it is the one sign of what
-// the server's fog is showing for that moment).
+// as the server lights the table for. Its envelope is flash.ts's `flashAt`:
+// a cue while one plays holds it on, and Reduce flashing (#223) makes it a
+// slow, dimmer fade (`flashPolicy`). Reduced motion keeps it, as it is the
+// one sign of what the server's fog is showing for that moment.
 
 import * as THREE from 'three/webgpu';
 import { instancedDynamicBufferAttribute } from 'three/tsl';
 import { FLASH_MS, type Cue } from '$lib/game/chat';
+import { flashAt, flashPolicy, retrigger, type Flash, type FlashPolicy } from './flash';
 import { standIn } from './warmup';
 
 const TOLL_MS = 7000;
@@ -28,6 +31,8 @@ export interface EffectFrame {
 	shake: THREE.Vector3;
 	/** How bright a flash is now: 0 none, 1 everything lit. */
 	flash: number;
+	/** The policy it was shaped by, which also caps its lifts (flash.ts). */
+	policy: FlashPolicy;
 }
 
 export class EffectsLayer {
@@ -40,12 +45,12 @@ export class EffectsLayer {
 	private shadowTexture: THREE.CanvasTexture | null;
 	private start = 0;
 	private cue: Cue | null = null;
-	/** When the last flash began, or null when none is playing. */
-	private flashStart: number | null = null;
+	/** The flash playing, or null. */
+	private flash: Flash | null = null;
 	private size = { w: 20, d: 20, top: 4 };
 	private reduced = false;
-	/** Reduce flashing (#223): the flash's envelope follows `flashPolicy(reduceFlashing)`. */
-	reduceFlashing = false;
+	/** Reduce flashing (#223): the flash's envelope and lifts follow this policy. */
+	private policy = flashPolicy(false);
 	private standIns: THREE.Object3D[] | null = null;
 
 	constructor() {
@@ -88,7 +93,7 @@ export class EffectsLayer {
 	}
 
 	setReduceFlashing(on: boolean): void {
-		this.reduceFlashing = on;
+		this.policy = flashPolicy(on);
 	}
 
 	/** The table's size (world units) and how high dust starts falling from. */
@@ -99,7 +104,7 @@ export class EffectsLayer {
 
 	play(cue: Cue, now: number, reducedMotion: boolean): void {
 		if (cue === 'flash') {
-			this.flashStart = now;
+			this.flash = retrigger(this.flash, now, this.policy);
 			return;
 		}
 		this.cue = cue;
@@ -128,16 +133,14 @@ export class EffectsLayer {
 			active: false,
 			bellAngle: 0,
 			shake: new THREE.Vector3(),
-			flash: 0
+			flash: 0,
+			policy: this.policy
 		};
-		if (this.flashStart !== null) {
-			const f = (now - this.flashStart) / FLASH_MS;
-			if (f >= 1) this.flashStart = null;
-			else {
-				frame.active = true;
-				// A near-instant flare, held a moment, then a slow fall back into the dark.
-				frame.flash = f < 0.05 ? f / 0.05 : f < 0.3 ? 1 : 1 - (f - 0.3) / 0.7;
-			}
+		if (this.flash) {
+			frame.flash = flashAt(this.flash, now, this.policy);
+			// Over once FLASH_MS has passed since the latest cue.
+			if (now - this.flash.last < FLASH_MS) frame.active = true;
+			else this.flash = null;
 		}
 		if (!this.cue) return frame;
 		const t = (now - this.start) / 1000;

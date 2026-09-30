@@ -3,7 +3,7 @@
 	"surface": "railcar-floor",
 	"ground": "rail-ballast",
 	"walls": "railcar-wall",
-	"sky": "underground",
+	"sky": "lamplit",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["planks"]

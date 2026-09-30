@@ -550,9 +550,11 @@ Tuning goes on in #221, #225 and #338.
 | desert-night | dusk  | horizon | `#c0703e` | ours                                                   |
 | overcast     | day   | horizon | `#a8acb0` | ours                                                   |
 | blood-moon   | night | horizon | `#3a0d12` | ref 3's crimson push                                   |
-| abyss        | all   | zenith  | `#010102` | ref 3 (crushed blacks), zenith                         |
-| abyss        | all   | horizon | `#010105` | ref 3, horizon                                         |
-| underground  | all   | horizon | `#0c0b0e` | ours: ref 4's near-black, warmer                       |
+| abyss        | all   | horizon | `#080103` | ref 3 (crushed blacks), a crimson black (#221)         |
+| abyss        | dark  | fill    | `#6e1614` | ref 3's crimson push, low                              |
+| underground  | all   | horizon | `#060914` | ref 4 (deep navy low key), near-black navy (#221)      |
+| underground  | dark  | fill    | `#34426e` | ref 4, desaturated navy: silhouettes legible           |
+| lamplit      | dusk  | fill    | `#ffc890` | ours: the train's lamplit wood (#221)                  |
 
 ## Target palettes
 

@@ -48,13 +48,22 @@ import {
 	type Vec3,
 	type WeatherNow
 } from './atmosphere-curve';
+import { flashPolicy, type FlashPolicy } from './flash';
 
 /** How long a change of hour takes to play, in ms (ease-out; snapped under reduced motion). */
 export const TWEEN_MS = 3000;
 /** The world's haze at its densest adds this to the fog's density (per metre). */
 const HAZE_DENSITY = 0.03;
-/** The flash lifts the hemisphere by this at its peak (as before #222, which reshapes it). */
-const FLASH_HEMI = 1.5;
+/** The flash (#222) at its peak: exposure up this many EV, bloom up this much over its base
+ * (only where bloom is on) and the hemisphere up this much in a cool white; `flashPolicy` caps
+ * them (Reduce flashing, #223). Tuned on the monastery's ringing chamber and the Hollow. */
+export const FLASH_EV = 1;
+export const FLASH_BLOOM = 0.4;
+export const FLASH_HEMI = 1.5;
+/** The flash's cool white (linear), and the red share of the hemisphere past which the light is
+ * a red grade's, so a reduced flash lifts it toward white and never by exposure (WCAG's red rule). */
+const FLASH_WHITE = new THREE.Color(0.85, 0.92, 1);
+const RED_GRADE = 0.6;
 /** How much of the key light's colour the haze takes looking toward the sun, at full glow. */
 const INSCATTER = 0.5;
 
@@ -132,8 +141,9 @@ export function createScene(): THREE.Scene {
 /** A sky's preset, made once (the curve caches parsed colours per object). */
 const presets = new WeakMap<object, SkyPreset>();
 function presetFor(sky: SkyDef, band: Ambient): SkyPreset {
-	// ponytail: an enclosed sky takes its band's key (they sit at the canonical hours) so a sunless
-	// table keeps its band's light as before; the curve's first key alone once #221 tunes them.
+	// An enclosed sky ignores the hour but not the rules band (#221): each of its keys sits at a
+	// band's canonical hour and is used whole for that band, so a sunless table keeps its band's
+	// light (the GM's band on an underground table, Communion's dusk, the train's midnight).
 	if (sky.kind === 'open') {
 		let open = presets.get(sky);
 		if (!open) presets.set(sky, (open = presetOf(sky)));
@@ -156,8 +166,11 @@ const NO_WEATHER: WeatherNow = { kind: 'none', intensity: 0 };
 export interface AtmosphereLights {
 	sun: THREE.DirectionalLight;
 	hemisphere: THREE.HemisphereLight;
-	/** Post's exposure (post.ts), linear. */
-	exposure: { value: number };
+	/** Post's exposure (linear) and bloom strength, and its tier's own bloom (post.ts). */
+	post: {
+		uniforms: { exposure: { value: number }; bloomStrength: { value: number } };
+		bloomBase: number;
+	};
 	/** The point lights and flames, which shine and flicker by the night glow. */
 	lighting: { setGlow(glow: number): void };
 }
@@ -176,6 +189,7 @@ export class AtmosphereLayer {
 	/** The key light as the shadow map was last drawn with it; null before the first. */
 	private drawn: KeyLight | null = null;
 	private flash = 0;
+	private policy = flashPolicy(false);
 	private readonly center = new THREE.Vector3();
 	private distance = 50;
 	private readonly dir: Vec3 = [0, 1, 0];
@@ -280,19 +294,27 @@ export class AtmosphereLayer {
 	}
 
 	/**
-	 * A flash of light over the table (0 none, 1 full): the sky light rises for its moment.
-	 * SEAM(#222, wave 3): exposure, bloom and the sky's reach join it, shaped by `flashPolicy`.
+	 * A flash of light over the table (0 none, 1 full; its envelope is flash.ts's): exposure rises
+	 * by `FLASH_EV`, bloom by `FLASH_BLOOM` where the tier blooms at all, the hemisphere by
+	 * `FLASH_HEMI` in a cool white, each capped by `policy` (Reduce flashing). The sky's reach per
+	 * cell (`CellMaps.setFlash`, the renderer's) rises with it, never capped: a reduced flash shows
+	 * as much for as long. Uniforms only.
 	 */
-	setFlash(k: number): void {
-		if (k === this.flash) return;
+	setFlash(k: number, policy: FlashPolicy = this.policy): void {
+		const { post } = this.lights;
+		const base = post.bloomBase;
+		post.uniforms.bloomStrength.value = base > 0 ? base + FLASH_BLOOM * k * policy.bloom : 0;
+		if (k === this.flash && policy === this.policy) return;
 		this.flash = k;
+		this.policy = policy;
 		this.apply();
 	}
 
 	private apply(): void {
 		if (!this.preset) return;
 		const s = atmosphereAt(this.preset, this.time, this.weather, this.state);
-		const { sun, hemisphere, exposure } = this.lights;
+		const { sun, hemisphere } = this.lights;
+		const { exposure } = this.lights.post.uniforms;
 		// The key light, from the play area's centre toward the body; never lower than 12° (shadows).
 		shadowDirection(s.key.dir, this.dir);
 		const [x, y, z] = this.dir;
@@ -306,7 +328,15 @@ export class AtmosphereLayer {
 		const w = all > 0 ? fill / all : 0;
 		hemisphere.color.setRGB(...hemi.sky).lerp(this.haze.setRGB(...fillColor), w);
 		hemisphere.groundColor.setRGB(...hemi.ground).lerp(this.haze, w);
-		hemisphere.intensity = all + this.flash * FLASH_HEMI;
+		// The flash's lift, in a cool white (a red grade's light would pulse red otherwise).
+		const red = hemisphere.color.r / (hemisphere.color.r + hemisphere.color.g + hemisphere.color.b);
+		const neutral = this.policy.neutralRed && red >= RED_GRADE;
+		const lift = this.flash * FLASH_HEMI * this.policy.hemisphere * (neutral ? 2 : 1);
+		if (lift > 0) {
+			hemisphere.color.lerp(FLASH_WHITE, lift / (all + lift));
+			hemisphere.groundColor.lerp(FLASH_WHITE, lift / (all + lift));
+		}
+		hemisphere.intensity = all + lift;
 		// The fog: the curve's, thickened and tinted by the world's haze.
 		const haze = this.look?.haze ?? { density: 0, color: null };
 		const fogColor = u.fogColor.value.setRGB(...s.fog.color);
@@ -318,8 +348,10 @@ export class AtmosphereLayer {
 		u.ibl.value = s.ibl;
 		this.lights.lighting.setGlow(s.nightGlow);
 		skyBackground.copy(fogColor);
-		// Exposure in EV: the sky's and the look's (SEAM(#222): the flash's joins it).
+		// Exposure in EV: the sky's and the look's, then the flash's (none over a red grade when
+		// flashes are reduced: the white hemisphere carries it instead).
 		const ev = s.exposure + (this.look?.grade.exposure ?? 0);
-		exposure.value = 2 ** Math.min(MAX_EXPOSURE, Math.max(-MAX_EXPOSURE, ev));
+		const flashEV = neutral ? 0 : Math.min(FLASH_EV * this.flash, this.policy.maxEV);
+		exposure.value = 2 ** (Math.min(MAX_EXPOSURE, Math.max(-MAX_EXPOSURE, ev)) + flashEV);
 	}
 }

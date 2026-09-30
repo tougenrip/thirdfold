@@ -18,14 +18,14 @@
 			"hemiSky": "#9ab4ff",
 			"hemiGround": "#0a1230",
 			"hemi": 0.1,
-			"ibl": 0,
+			"ibl": 0.2,
 			"zenith": "#070717",
 			"horizon": "#1e223f",
 			"ground": "#05060c",
 			"fog": {
-				"color": "#121828",
-				"density": 0.012,
-				"height": 30
+				"color": "#1b2240",
+				"density": 0.001,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 1,
@@ -40,14 +40,14 @@
 			"hemiSky": "#ffd0a0",
 			"hemiGround": "#1a2438",
 			"hemi": 0.45,
-			"ibl": 0,
+			"ibl": 0.3,
 			"zenith": "#3a4a6e",
 			"horizon": "#c89a70",
 			"ground": "#1a1a20",
 			"fog": {
-				"color": "#221f28",
-				"density": 0.012,
-				"height": 30
+				"color": "#8c7766",
+				"density": 0.0011,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -62,14 +62,14 @@
 			"hemiSky": "#fff1dc",
 			"hemiGround": "#1c140e",
 			"hemi": 0.9,
-			"ibl": 0,
+			"ibl": 0.4,
 			"zenith": "#4a78b0",
 			"horizon": "#c8b98f",
 			"ground": "#2a2620",
 			"fog": {
-				"color": "#292421",
-				"density": 0.012,
-				"height": 30
+				"color": "#b9b6ac",
+				"density": 0.0006,
+				"height": 4
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -84,14 +84,14 @@
 			"hemiSky": "#fff1dc",
 			"hemiGround": "#1c140e",
 			"hemi": 0.9,
-			"ibl": 0,
+			"ibl": 0.4,
 			"zenith": "#4a78b0",
 			"horizon": "#c8b98f",
 			"ground": "#2a2620",
 			"fog": {
-				"color": "#292421",
-				"density": 0.012,
-				"height": 30
+				"color": "#bdbab0",
+				"density": 0.0005,
+				"height": 4
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -106,14 +106,14 @@
 			"hemiSky": "#fff1dc",
 			"hemiGround": "#1c140e",
 			"hemi": 0.9,
-			"ibl": 0,
+			"ibl": 0.4,
 			"zenith": "#4a78b0",
 			"horizon": "#c8b98f",
 			"ground": "#2a2620",
 			"fog": {
-				"color": "#292421",
-				"density": 0.012,
-				"height": 30
+				"color": "#b9b6ac",
+				"density": 0.0006,
+				"height": 4
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -128,14 +128,14 @@
 			"hemiSky": "#ffd0a0",
 			"hemiGround": "#1a2438",
 			"hemi": 0.45,
-			"ibl": 0,
+			"ibl": 0.3,
 			"zenith": "#2d3350",
 			"horizon": "#866c54",
 			"ground": "#1a1820",
 			"fog": {
-				"color": "#221f28",
-				"density": 0.012,
-				"height": 30
+				"color": "#7d6552",
+				"density": 0.0011,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 0,
@@ -150,14 +150,14 @@
 			"hemiSky": "#9ab4ff",
 			"hemiGround": "#0a1230",
 			"hemi": 0.1,
-			"ibl": 0,
+			"ibl": 0.2,
 			"zenith": "#070717",
 			"horizon": "#1e223f",
 			"ground": "#05060c",
 			"fog": {
-				"color": "#121828",
-				"density": 0.012,
-				"height": 30
+				"color": "#1b2240",
+				"density": 0.001,
+				"height": 5
 			},
 			"exposure": 0,
 			"stars": 1,

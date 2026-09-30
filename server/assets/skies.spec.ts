@@ -4,7 +4,11 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
 import { parseSky, resolveSky } from '../../src/lib/assets/sky-parse';
-import { DEFAULT_WORLD } from '../../src/lib/game/world';
+import { parseSceneFile } from '../../src/lib/game/scene-file';
+import { ambientFor, DEFAULT_WORLD } from '../../src/lib/game/world';
+import { engineScene, trainScene } from '../adventures/blackwater/tables';
+import { heartScene } from '../adventures/hollow-bell/heart';
+import { hollowScene } from '../adventures/hollow-bell/hollow';
 import { buildSkies } from './pipeline-skies';
 
 /** The built manifest as the client fetches it (pipeline.spec.ts checks it is what assets/ builds). */
@@ -15,12 +19,13 @@ const parsed = parseManifest(raw);
 const manifest = parsed.ok ? parsed.manifest : (undefined as never);
 
 describe('skies (#213)', () => {
-	it('ship six, and every environment names one', () => {
+	it('ship seven, and every environment names one', () => {
 		expect(parsed.ok).toBe(true);
 		expect(Object.keys(manifest.skies).sort()).toEqual([
 			'abyss',
 			'blood-moon',
 			'desert-night',
+			'lamplit',
 			'overcast',
 			'temperate',
 			'underground'
@@ -89,13 +94,34 @@ describe('skies (#213)', () => {
 		const id = (world: Parameters<typeof resolveSky>[0], env: string | null) =>
 			resolveSky(world, env, manifest)?.id;
 		expect(id(null, 'ghost-town')).toBe('desert-night');
-		expect(id(DEFAULT_WORLD, 'cavern')).toBe('abyss');
+		expect(id(DEFAULT_WORLD, 'cavern')).toBe('underground');
+		expect(id(DEFAULT_WORLD, 'living-cave')).toBe('abyss');
+		expect(id(DEFAULT_WORLD, 'railcar')).toBe('lamplit');
 		expect(id({ sky: 'blood-moon', sun: true }, 'village')).toBe('blood-moon');
 		expect(id({ sky: 'nowhere', sun: true }, 'village')).toBe('temperate');
 		expect(id({ sky: null, sun: true }, 'nowhere')).toBe('temperate');
 		expect(id({ sky: null, sun: false }, 'village')).toBe('underground');
 		expect(id({ sky: 'abyss', sun: false }, 'village')).toBe('abyss');
 		expect(resolveSky(null, null, { skies: {}, environments: {} })).toBeNull();
+	});
+
+	it('leave the rules band to the sun switch: the train follows the hour, the Hollow and the Heart do not (#221)', () => {
+		const cases: [string, unknown, boolean][] = [
+			['train', trainScene(), true],
+			['locomotive', engineScene(), true],
+			['Hollow', hollowScene(), false],
+			['Heart', heartScene(), false]
+		];
+		for (const [name, raw, follows] of cases) {
+			const read = parseSceneFile(JSON.parse(JSON.stringify(raw)));
+			if (!read.ok) throw new Error(read.error);
+			const { world, environment } = read.scene;
+			// Every one under an enclosed sky: no sun shown, whatever the hour.
+			expect(resolveSky(world, environment, manifest)?.sky.kind, name).toBe('enclosed');
+			const band = (time: number) => ambientFor({ ...world, time }, 'dusk');
+			// Blackwater's midnight on the train is the dark band; underground stays as it was.
+			expect([band(0), band(720)], name).toEqual(follows ? ['dark', 'day'] : ['dusk', 'dusk']);
+		}
 	});
 });
 

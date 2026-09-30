@@ -463,10 +463,13 @@ export function environmentKey(s: AtmosphereState): string {
 	].join('|');
 }
 
-/** Range fog's start and end for a table `extent` across: as tuned for the Hollow (54), grown past it. */
+/**
+ * Range fog's start and end for a table `extent` across (#221): it starts past the far edge of the
+ * play area as the default poses see it (about 1.5 extents away), so the table itself stays clear
+ * and only the world beyond fades; never nearer than 40 and 90, and inside the camera's far plane.
+ */
 export function fogRange(extent: number): { near: number; far: number } {
-	const reach = Math.max(1, extent / 54);
-	return { near: 40 * reach, far: 90 * reach };
+	return { near: Math.max(40, 1.5 * extent), far: Math.max(90, 3.5 * extent) };
 }
 
 /**
