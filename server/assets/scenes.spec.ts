@@ -7,7 +7,15 @@ import {
 	type TextureEntry
 } from '../../src/lib/assets/manifest';
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
-import { checkScenes, overBudget, SURFACE_FLOORS, TABLE_BUDGETS, tableBudget } from './scenes';
+import { parseWorldPatch } from '../../src/lib/game/world';
+import {
+	checkScenes,
+	overBudget,
+	SURFACE_FLOORS,
+	TABLE_BUDGETS,
+	tableBudget,
+	worldPatches
+} from './scenes';
 
 const MB = 1024 * 1024;
 const credit = { license: 'LicenseRef-thirdfold-original', author: 'us' } as const;
@@ -150,6 +158,13 @@ describe('checkScenes', () => {
 		const m = structuredClone(shipped.manifest);
 		m.environments.village.surfaces!.floors = ['stone'];
 		expect(checkScenes(m)).toContainEqual('environment village: no surface for the wood floor');
+	});
+
+	it("finds every world effect's look, wherever it sits, for its ids' syntax", () => {
+		const def = { a: [{ does: [{ world: { grade: { preset: 'Not an id' } } }] }], scene: () => 1 };
+		const [patch] = worldPatches(def);
+		expect(patch).toEqual({ grade: { preset: 'Not an id' } });
+		expect(parseWorldPatch(patch)).toBeNull();
 	});
 
 	it('fails a table over budget, naming the adventure, location and number', () => {

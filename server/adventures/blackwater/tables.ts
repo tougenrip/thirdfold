@@ -89,6 +89,8 @@ export function trainScene() {
 		grid: { kind: 'square', cellSize: 1, width: 68, height: 7 },
 		environment: 'railcar',
 		ambient: 'dusk',
+		// 19:30, the prairie scrolling past the windows.
+		world: { time: 1170, backdrop: { kind: 'prairie-scroll' } },
 		arrival: COACH,
 		// Every car is roofed; the gangways between them are open to the night.
 		interior: [
@@ -167,6 +169,8 @@ export function engineScene() {
 		grid: { kind: 'square', cellSize: 1, width: 22, height: 9 },
 		environment: 'railcar',
 		ambient: 'dark',
+		// Midnight at the throttle.
+		world: { time: 0, backdrop: { kind: 'prairie-scroll' } },
 		arrival: { from: at(0, 0), to: at(21, 8) },
 		terrain: coal,
 		// The cab is roofed; the tender is open to the sky.
@@ -227,6 +231,8 @@ export function blackwaterScene() {
 		grid: { kind: 'square', cellSize: 1, width: 26, height: 16 },
 		environment: 'ghost-town',
 		ambient: 'dark',
+		// 01:30, a starry night (its sky comes from the environment).
+		world: { time: 90 },
 		arrival: { from: at(0, 0), to: at(25, 15) },
 		// The saloon's roof still stands.
 		interior: [{ from: at(2, 9), to: at(7, 13) }],

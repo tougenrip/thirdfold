@@ -1432,7 +1432,7 @@ describe("creators' adventures over the wire", () => {
 
 		gm.send({ type: 'adventure_start', file });
 		const reset = await pip.until('room_reset');
-		expect(reset.room).toMatchObject({ ambient: 'day', world: { sun: true } });
+		expect(reset.room).toMatchObject({ ambient: 'dusk', world: { sun: true, time: 1170 } });
 		pip.send({ type: 'adventure_claim', characterId: 'saint' });
 		await pip.until('token_upserted', (m) => m.token.name === 'The Saint');
 		gm.send({ type: 'adventure_begin' });

@@ -24,6 +24,9 @@ describe('adventure files', () => {
 			thing: { token: 'npc-miller' },
 			verbs: [{ id: 'talk' }]
 		});
+		// Looks come with the tables: evening in the yard, no sun in the cellar (still the day band).
+		expect(A.locations.yard.scene()).toMatchObject({ ambient: 'dusk', world: { time: 1170 } });
+		expect(A.locations.cellar.scene()).toMatchObject({ ambient: 'day', world: { sun: false } });
 		// Each call is a fresh table.
 		expect(A.locations.yard.scene()).not.toBe(A.locations.yard.scene());
 	});

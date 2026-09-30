@@ -328,7 +328,8 @@ export const ENDINGS_DEF: EndingsDef = {
 			],
 			does: [
 				{ npc: 'tobin', becomes: 'safe' },
-				{ ambient: 'dusk' },
+				// The band stays dark (the Hollow has no sun): the calm blue is the grade and the lights.
+				{ world: { grade: { preset: 'hollow-blue', exposure: 1 } } },
 				{ light: 'ho-bell-glow', color: '#9fd0ff', radius: 12, on: true },
 				{ light: 'ho-pit-glow', color: '#7fb6ff', radius: 4, on: true },
 				...GLOWS.map((light) => ({ light, radius: 4, on: true }))

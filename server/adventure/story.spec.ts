@@ -228,6 +228,8 @@ describe('playing the story through', () => {
 	it('goes from the village to an ending through play alone', () => {
 		begun();
 		expect(story()).toMatchObject({ chapter: 'village', location: 'bellweather' });
+		expect(room.world).toMatchObject({ time: 1170, sun: true, haze: { density: 0.25 } });
+		expect(room.ambient).toBe('dusk');
 
 		// The village: Maren, the well, the Hound.
 		walk({ x: 7, y: 10 });
@@ -309,6 +311,7 @@ describe('playing the story through', () => {
 
 		// In the dark, the Bell Keeper stands watch and two cultists walk their rounds.
 		expect(room.ambient).toBe('dark');
+		expect(room.world.sun).toBe(false);
 		expect(story().encounter).toBeNull();
 		expect([...story().sentries.values()].map((s) => s.kind)).toEqual([
 			'keeper',

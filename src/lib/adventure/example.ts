@@ -9,17 +9,26 @@ import { encodeFloor, withFloor, type FloorId, type FloorMap } from '../game/flo
 import type { GridPos, SquareGrid } from '../game/grid';
 import type { Prop } from '../game/props';
 import { blankScene, type SceneFile } from '../game/scene-file';
+import { applyWorldPatch, DEFAULT_WORLD, type WorldPatch } from '../game/world';
 
 function table(
 	name: string,
 	width: number,
 	height: number,
 	environment: string,
+	world: WorldPatch,
 	floors: [GridPos, GridPos, FloorId][],
 	props: Prop[],
 	walls: [GridPos, GridPos][] = []
 ): SceneFile {
-	const scene = blankScene(name, width, height, environment, new Date(0));
+	const scene = blankScene(
+		name,
+		width,
+		height,
+		environment,
+		new Date(0),
+		applyWorldPatch(DEFAULT_WORLD, world, 0)
+	);
 	const grid: SquareGrid = scene.grid;
 	let floor: FloorMap | null = null;
 	for (const [from, to, id] of floors) floor = withFloor(floor, grid, from, to, id);
@@ -67,6 +76,8 @@ export function exampleAdventure(): AdventureFile {
 					14,
 					12,
 					'village',
+					// 19:30: evening at the mill.
+					{ time: 1170 },
 					[
 						[at(0, 0), at(13, 11), 'grass'],
 						[at(0, 9), at(13, 10), 'dirt'],
@@ -90,6 +101,8 @@ export function exampleAdventure(): AdventureFile {
 					10,
 					8,
 					'stone-halls',
+					// Underground: no sun, and the table keeps its day band (it has no dark areas).
+					{ sun: false },
 					[[at(0, 0), at(9, 7), 'stone']],
 					[prop('hoard', 'barrel', 7, 5), prop('hoard-2', 'barrel', 8, 5)]
 				)
