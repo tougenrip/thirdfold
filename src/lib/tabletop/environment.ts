@@ -1,5 +1,5 @@
 // How a table looks (an environment asset, see src/lib/assets/manifest.ts):
-// the materials of its floor, raised ground, walls and rim, with their
+// the materials of its floor, raised ground (and the ground to the horizon) and walls, with their
 // textures, loaded when the table first needs them. Textures are PNGs
 // loaded as images, once each, shared by every material that uses them. And
 // its colour grades (#162): a lookup table per tone mapper and ambient band,
@@ -42,7 +42,6 @@ export interface EnvironmentLook {
 	surface: Look;
 	ground: Look;
 	walls: Look;
-	table: Look;
 	/** The floors' painted surfaces (#187), or null while an environment has none. */
 	floors: FloorSurfaces | null;
 	/** 32³ RGBA lookup tables (x red, y green, z blue); null when the environment has no grade. */
@@ -132,8 +131,6 @@ export async function loadEnvironment(
 		surface,
 		ground,
 		walls: own?.walls ? { ...walls, ...own.walls } : walls,
-		// The rim wears the floor's look until #220 takes the rim away.
-		table: surface,
 		floors: own?.floors ?? null,
 		grades
 	};

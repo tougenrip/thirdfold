@@ -27,6 +27,7 @@ import { loadEnvironment, type EnvironmentLook } from './environment';
 import type { FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
+import { WorldGround } from './landscape';
 import { LightingLayer, lightSeats } from './lighting';
 import { frameOverview, Gallery, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, setUpRenderer, watchReducedMotion } from './loop';
@@ -39,9 +40,8 @@ import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
 import { initModels, loadProgress, prefetch, releaseModels } from './models';
 import { PropLayer } from './props';
-import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
+import { createScene, createSceneLights, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
-import { TableLayer } from './table';
 import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
@@ -68,7 +68,7 @@ export async function createTabletop(
 	const loop = new RenderScheduler(render, canvas);
 	const requestRender = loop.request;
 	const scene = createScene();
-	const rig = new CameraRig(canvas, FAR);
+	const rig = new CameraRig(canvas);
 	const { camera, controls } = rig;
 	const lights = createSceneLights(scene);
 	const overlay = new OverlayLayer();
@@ -80,8 +80,8 @@ export async function createTabletop(
 	}));
 	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;
-	const table = new TableLayer();
-	scene.add(table.group);
+	const land = new WorldGround(); // the play plane and the ground to the horizon (#220)
+	scene.add(land.group);
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
 	const onModel = () => {
 		shadowsDirty = warmPending = true;
@@ -90,7 +90,7 @@ export async function createTabletop(
 	/** Something new needs its shaders compiled before the next frame (see warmup.ts). */
 	let warmPending = true;
 	let warming: Promise<void> = Promise.resolve();
-	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
+	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	const tokenLayer = new TokenLayer(overlay, onModel, clock);
 	scene.add(tokenLayer.group);
 	const wallLayer = new WallLayer(clock);
@@ -173,7 +173,7 @@ export async function createTabletop(
 	let fallen: ReadonlySet<string> = new Set();
 	let objects: readonly SceneObject[] = [];
 	let grid: SquareGrid | null = null;
-	let extent = 20;
+	let frame = 20; // what views and shots frame: the play area and a margin (world-ground.ts)
 	options.devScene?.(scene, () => ((shadowsDirty = true), requestRender()));
 	/** Draws one frame: counters and the node frame are advanced here, since the internal loop is off. */
 	function drawScene(): void {
@@ -200,7 +200,7 @@ export async function createTabletop(
 		}
 		atmosphere.frame(clock()); // the first capture: no frame draws with an empty cube
 		const t0 = performance.now();
-		frameOverview(warmCamera, extent, camera.aspect);
+		frameOverview(warmCamera, frame, camera.aspect);
 		const targets = { scene: post.targets(), overlay: post.overlayTargets() };
 		warming = warmUp(renderer, warmCamera, gallery.batches(targets)).then(() => {
 			perf.add('warmup', performance.now() - t0);
@@ -241,6 +241,7 @@ export async function createTabletop(
 			casters || turning || gridFading || revealing || fx.active || rig.tick(now) || post.blending;
 		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
+		rig.keepAbove(grid, ground); // tilted to the horizon, never under the ground (#220)
 		// A shudder from a cue: offset the camera for this frame only.
 		shakeOffset.copy(fx.shake);
 		camera.position.add(shakeOffset);
@@ -266,7 +267,7 @@ export async function createTabletop(
 
 	/** Dresses the table, raised ground and walls in the environment's looks (or the plain ones). */
 	function applyLook(): void {
-		table.dress(look, grid);
+		land.dress(look, grid);
 		terrainLayer.setLook(look?.ground ?? null);
 		wallLayer.setLook(look?.walls ?? null);
 		refreshLighting();
@@ -283,17 +284,18 @@ export async function createTabletop(
 	}
 
 	function buildTable(g: SquareGrid): void {
-		const across = table.build(g);
+		const extents = fitToTable(lights, atmosphere, camera, controls, g, levels, true);
+		land.build(extents);
 		overlay.setGrid(g);
 		applyLook();
-		extent = across;
-		fitToTable(lights, atmosphere, camera, controls, g, extent);
-		effects.setBounds(g.width * g.cellSize, g.height * g.cellSize, Math.max(4, extent * 0.2));
+		frame = extents.play.frame;
+		effects.setBounds(extents.play.width, extents.play.depth, Math.max(4, frame * 0.2));
 	}
 
 	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	atmosphere.setTier(quality.current.tier, quality.current.layers.sky);
+	land.setTier(quality.current.tier);
 	cloud.setLayer(quality.current.layers.fogcloud, quality.current.tier === 'low');
 	controls.addEventListener('change', requestRender);
 
@@ -315,7 +317,7 @@ export async function createTabletop(
 			refreshLighting();
 			// A new table size (first load, a loaded scene, an adventure): frame it. This
 			// replaces any view change still in flight, which would aim at the old table.
-			rig.frame(view, extent);
+			rig.frame(view, frame);
 			requestRender();
 		},
 		setTokens(next) {
@@ -418,6 +420,7 @@ export async function createTabletop(
 			if (levels && levels.length !== grid.width * grid.height) levels = null;
 			ground = groundFor(grid, levels);
 			placeOnGround(grid, ground);
+			fitToTable(lights, atmosphere, camera, controls, grid, levels, false); // its top
 			refreshLighting();
 		},
 		setFloor(next) {
@@ -441,12 +444,12 @@ export async function createTabletop(
 		},
 		playShot(next) {
 			if (reducedMotion || !grid) return;
-			rig.playShot(next, grid, ground, extent, clock());
+			rig.playShot(next, grid, ground, frame, clock());
 			requestRender();
 		},
 		setView(next) {
 			view = next;
-			rig.setView(next, extent, clock());
+			rig.setView(next, frame, clock());
 			requestRender();
 		},
 		setPose(pose) {
@@ -464,7 +467,7 @@ export async function createTabletop(
 			motion.stop();
 			quality.dispose();
 			stopPicking();
-			const layers = [rig, table, tokenLayer, wallLayer, lighting, post, cloud, atmosphere];
+			const layers = [rig, land, tokenLayer, wallLayer, lighting, post, cloud, atmosphere];
 			const more = [overlay, terrainLayer, effects, propLayer, diceLayer, previews];
 			for (const l of [...layers, ...more, cellMaps]) l.dispose();
 			releaseModels();
@@ -475,9 +478,10 @@ export async function createTabletop(
 			quality.set(settings, refine);
 			post.set(settings);
 			atmosphere.setTier(settings.tier, settings.layers.sky);
+			land.setTier(settings.tier);
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
-			const remade = [table, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
+			const remade = [land, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
 			if (remade.includes(true)) warmPending = true;
 		},
 		capabilities: () => quality.caps,

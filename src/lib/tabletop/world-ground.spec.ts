@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from '$lib/game/grid';
+import { fogRange } from './atmosphere-curve';
 import {
 	aboveGround,
 	GROUND_CLEARANCE,
@@ -43,11 +44,13 @@ describe('the play extent', () => {
 				}
 	});
 
-	it('frames the Hollow with the haze tuned for it, and a longer table with more', () => {
+	it('takes the haze from the retuned fog range (#221), more for a longer table', () => {
+		for (const g of GRIDS) {
+			const { play, world } = worldExtents(g);
+			expect({ near: world.fogNear, far: world.fogFar }).toEqual(fogRange(play.frame));
+		}
 		const hollow = worldExtents(grid(48, 36)).world;
-		expect([hollow.fogNear, hollow.fogFar]).toEqual([40, 90]);
-		const train = worldExtents(grid(68, 7)).world;
-		expect(train.fogFar).toBeGreaterThan(90);
+		expect(worldExtents(grid(68, 7)).world.fogFar).toBeGreaterThan(hollow.fogFar);
 		expect(worldExtents(grid(4, 4)).world.fogFar).toBe(90);
 	});
 });

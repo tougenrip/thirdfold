@@ -38,7 +38,6 @@ import {
 	atmosphereAt,
 	createAtmosphereState,
 	environmentKey,
-	fogRange,
 	PLAY_FOG_BLEND,
 	PLAY_FOG_CAP,
 	presetOf,
@@ -293,17 +292,27 @@ export class AtmosphereLayer {
 		this.sky.dispose();
 	}
 
-	/** Fits the key light and the fog to a table: its play sphere, and `extent` across. */
-	fit(center: { x: number; y: number; z: number }, radius: number, extent: number): void {
-		this.fresh = true;
-		this.captures.reset(); // a new table's sky is captured at once
+	/**
+	 * Fits the key light and the fog to a table: its play sphere, and the world's haze
+	 * (world-ground.ts `worldExtents`, from `fogRange`). `fresh`: a new table, whose hour snaps and
+	 * whose sky is captured at once (not the same table's ground raised).
+	 */
+	fit(
+		center: { x: number; y: number; z: number },
+		radius: number,
+		haze: { fogNear: number; fogFar: number },
+		fresh: boolean
+	): void {
+		if (fresh) {
+			this.fresh = true;
+			this.captures.reset(); // a new table's sky is captured at once
+		}
 		this.center.set(center.x, center.y, center.z);
 		this.distance = radius * 2;
 		u.playCenter.value.set(center.x, center.z);
 		u.playRadius.value = radius;
-		const range = fogRange(extent);
-		u.fogNear.value = range.near;
-		u.fogFar.value = range.far;
+		u.fogNear.value = haze.fogNear;
+		u.fogFar.value = haze.fogFar;
 		this.lights.sun.target.position.copy(this.center);
 		this.apply();
 	}

@@ -22,7 +22,7 @@ import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { kindGallery } from './materials/warmup';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
-import { createScene, createSceneLights, FAR } from './scene-lights';
+import { createScene, createSceneLights } from './scene-lights';
 import { SkyLayer } from './sky';
 import { initialShape, sameShape, shapeOf, startingSettings, type Shape } from './shape';
 import { TokenLayer } from './tokens';
@@ -69,7 +69,7 @@ export async function warmLobby(
 	const lights = createSceneLights(scene);
 	const lighting = new LightingLayer();
 	scene.add(lighting.group);
-	const camera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
+	const camera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	frameOverview(camera, 20, 1);
 	const overlay = new OverlayLayer();
 	// Every kind's fog and dark read the cell maps (#171): maps of their own, as a table's, not

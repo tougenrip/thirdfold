@@ -7,11 +7,12 @@
 // renderer turns the arrays into a mesh.
 
 import type { SquareGrid } from '../game/grid';
+import { fogRange } from './atmosphere-curve';
 import { WALL_HEIGHT } from './ground';
 import type { Vec3 } from './shots';
 
-/** The distance haze and far plane as tuned for a framing `across` this wide (the Hollow's). */
-const WORLD = { fogNear: 40, fogFar: 90, far: 200, across: 54 };
+/** The far plane as tuned for the Hollow: never nearer. */
+const MIN_FAR = 200;
 /**
  * Cells of room round the grid when framing it: the old table's rim, kept so
  * views, shots and the haze frame a table exactly as they did.
@@ -74,11 +75,8 @@ export function worldExtents(grid: SquareGrid, opts: ExtentOptions = {}): Extent
 	const maxDistance = frame * 2;
 	// The camera stands at most this far out from the grid's centre (its target on the grid).
 	const reach = maxDistance + Math.hypot(width, depth) / 2;
-	// Haze and far plane grow with a table wider than the Hollow, so a long
-	// table (a train) is not lost in the haze from where the camera frames it.
-	const grow = Math.max(1, frame / WORLD.across);
-	const fogNear = WORLD.fogNear * grow;
-	const fogFar = WORLD.fogFar * grow;
+	// The haze (#221's retune, atmosphere-curve.ts): past the play area as the views frame it.
+	const { near: fogNear, far: fogFar } = fogRange(frame);
 	const horizon = reach + fogFar * HORIZON_SLACK;
 	return {
 		play: {
@@ -95,7 +93,7 @@ export function worldExtents(grid: SquareGrid, opts: ExtentOptions = {}): Extent
 			horizon,
 			fogNear,
 			fogFar,
-			far: Math.max(WORLD.far * grow, Math.hypot(horizon + reach, maxDistance))
+			far: Math.max(MIN_FAR, Math.hypot(horizon + reach, maxDistance))
 		}
 	};
 }

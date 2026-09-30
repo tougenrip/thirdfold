@@ -1,18 +1,16 @@
 // The scene's base lights (the sky hemisphere and the key light, sun or moon) and fitting them and
-// the camera's reach to the size of the table. AtmosphereLayer (atmosphere.ts) aims and colours
+// the camera's reach to the table's extents. AtmosphereLayer (atmosphere.ts) aims and colours
 // them by the hour; the scene itself, with its fog and environment, is `createScene` there.
 
 import * as THREE from 'three/webgpu';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { SquareGrid } from '$lib/game/grid';
 import type { AtmosphereLayer } from './atmosphere';
+import { STEP_HEIGHT, WALL_HEIGHT } from './ground';
 import { SkyHemisphere, SkyLight } from './sky-light';
-import { worldExtents } from './world-ground';
+import { worldExtents, type Extents } from './world-ground';
 
 export { createScene } from './atmosphere';
-
-/** The camera's far plane for a table as wide as the Hollow (54 across). */
-export const FAR = 200;
 
 export interface BaseLights {
 	hemisphere: THREE.HemisphereLight;
@@ -36,8 +34,10 @@ export function createSceneLights(scene: THREE.Scene): BaseLights {
 }
 
 /**
- * Fits the key light's shadow box, the fog and the camera's reach to a table `extent` across:
- * the box is round the play area's bounding sphere, so it holds for the light from any direction.
+ * Fits the key light's shadow box, the fog and the camera's reach to a table's extents
+ * (world-ground.ts, returned): the shadow box is round the play area's bounding sphere, so it holds for the
+ * light from any direction; the far plane and the haze reach the world's horizon. `fresh`: a new
+ * table, whose hour snaps and whose sky is captured at once.
  */
 export function fitToTable(
 	{ sun }: BaseLights,
@@ -45,17 +45,20 @@ export function fitToTable(
 	camera: THREE.PerspectiveCamera,
 	controls: OrbitControls,
 	grid: SquareGrid,
-	extent: number
-): void {
-	// The far plane grows with a table wider than the Hollow, so a long table (a train) is not
-	// lost in the haze from where the camera frames it.
-	camera.far = FAR * Math.max(1, extent / 54);
+	levels: Uint8Array | null,
+	fresh: boolean
+): Extents {
+	// The play area's box reaches a wall above its highest floor.
+	const high = levels ? levels.reduce((a, b) => Math.max(a, b), 0) : 0;
+	const extents = worldExtents(grid, { top: (high * STEP_HEIGHT + WALL_HEIGHT) * grid.cellSize });
+	const { play, world } = extents;
+	camera.far = world.far;
 	camera.updateProjectionMatrix();
-	const { center, radius } = worldExtents(grid).play;
-	const r = radius;
+	const r = play.radius;
 	// The light stands two radii out (AtmosphereLayer.fit): the sphere lies between one and three.
 	Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: r, far: 3 * r });
 	sun.shadow.camera.updateProjectionMatrix();
-	atmosphere.fit(center, radius, extent);
-	controls.maxDistance = extent * 2;
+	atmosphere.fit(play.center, r, world, fresh);
+	controls.maxDistance = play.maxDistance;
+	return extents;
 }

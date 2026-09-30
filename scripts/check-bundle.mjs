@@ -42,8 +42,10 @@ const BUDGETS = {
 	// → 364.5: the flash's envelope and policy wired to exposure, bloom and the hemisphere (#222,
 	// #223). → the sky layer (#214: the dome, moon, stars and clouds, the star field) and its
 	// capture throttle (#216), wired into the table and the lobby (plan D1: not lazy, three's sky
-	// code was already here); set to the merged build's measured size.
-	renderer: { total: 367_600 },
+	// code was already here); set to the merged build's measured size. → 368.1: the ground to the
+	// horizon (#220: the ring's mesh and tier, the camera's clearance, extents per table), less
+	// the slab; 368.1 kB measured.
+	renderer: { total: 368_100 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
