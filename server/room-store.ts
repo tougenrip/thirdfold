@@ -1,7 +1,7 @@
 // Live rooms kept across game-server restarts. Each room is saved as a
 // `LiveRoom`: its seats (with their secret session tokens, so everyone can
-// resume the same seat), each player's explored map, the room log, and the
-// table and its story as a scene file. Loading validates all of it exactly as
+// resume the same seat), each seat's explored map and remembered lights, the
+// room log, and the table and its story as a scene file. Loading validates all of it exactly as
 // an uploaded scene is validated (parseSceneFile, readAdventure), so a
 // damaged or tampered file is skipped rather than trusted. Server-side only:
 // session tokens are secrets and never leave the server.
@@ -11,6 +11,7 @@ import path from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@supabase/supabase-js';
 import { LOG_LIMIT, type ChatMessage } from '../src/lib/game/chat';
+import { parseLightList, type Light } from '../src/lib/game/lights';
 import { normalizeName, ROOM_ID_PATTERN, type Role } from '../src/lib/game/protocol';
 import { parseSceneFile, type SceneFile } from '../src/lib/game/scene-file';
 import { decodeMask, encodeMask } from '../src/lib/game/visibility';
@@ -25,7 +26,15 @@ export interface LiveRoom {
 	id: string;
 	savedAt: string;
 	scene: SceneFile;
-	players: { id: string; name: string; role: Role; sessionToken: string; explored: string }[];
+	players: {
+		id: string;
+		name: string;
+		role: Role;
+		sessionToken: string;
+		explored: string;
+		/** The lights this seat remembers, as last seen (absent in rooms kept before #204). */
+		lights?: Light[];
+	}[];
 	log: ChatMessage[];
 	nextSeq: number;
 	/** When the room last had nobody connected; null while someone was. */
@@ -59,7 +68,8 @@ export function serializeRoom(room: Room, now = new Date()): LiveRoom {
 			name: p.name,
 			role: p.role,
 			sessionToken: p.sessionToken,
-			explored: encodeMask(p.explored)
+			explored: encodeMask(p.explored),
+			...(p.seenLights ? { lights: structuredClone([...p.seenLights.values()]) } : {})
 		})),
 		log: structuredClone(room.log),
 		nextSeq: room.nextSeq,
@@ -124,13 +134,23 @@ export function restoreRoom(raw: unknown, now = Date.now()): Restored {
 		} catch {
 			return bad('bad explored map');
 		}
+		// Remembered lights, checked like a scene's; they were taken in on every explored cell.
+		let lights;
+		if (p.lights !== undefined) {
+			lights = parseLightList(p.lights, scene.grid);
+			if (typeof lights === 'string') return bad(`bad remembered lights: ${lights}`);
+		}
 		players.set(p.id, {
 			id: p.id,
 			name,
 			role,
 			sessionToken: p.sessionToken,
 			connected: false,
-			explored
+			explored,
+			...(lights && {
+				seenLights: new Map(lights.map((l) => [l.id, l])),
+				lightsLearned: explored.slice()
+			})
 		});
 	}
 	if ([...players.values()].filter((p) => p.role === 'gm').length !== 1) return bad('no single GM');
@@ -153,11 +173,14 @@ export function restoreRoom(raw: unknown, now = Date.now()): Restored {
 
 	const room = newRoom(raw.id);
 	room.players = players;
+	const seats = new Map([...players.values()].map((p) => [p.id, { ...p }]));
 	applyScene(room, scene);
-	// Each player gets back exactly what they had explored (not the by-name discovery).
+	// Each seat gets back exactly what it had explored and remembers (not the by-name discovery).
 	for (const p of players.values()) {
-		const saved = (raw.players as { id: string; explored: string }[]).find((x) => x.id === p.id);
-		if (saved) p.explored = decodeMask(saved.explored, size);
+		const saved = seats.get(p.id)!;
+		p.explored = saved.explored;
+		p.seenLights = saved.seenLights;
+		p.lightsLearned = saved.lightsLearned;
 	}
 	room.adventure = story ? story.adventure : null;
 	room.log = structuredClone(log);

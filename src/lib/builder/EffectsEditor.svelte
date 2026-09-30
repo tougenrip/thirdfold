@@ -1,4 +1,5 @@
 <script lang="ts" module>
+	import { ASSET_IDS } from '$lib/game/props';
 	import { without, type DraftEffect as Effect } from './draft';
 
 	/** The effects the builder offers by name, with what a new one starts as. */
@@ -15,7 +16,10 @@
 		{ kind: 'enter', label: 'Go to a chapter', make: () => ({ enter: '' }) },
 		{ kind: 'heal', label: 'Heal the party', make: () => ({ heal: 2 }) },
 		{ kind: 'ambient', label: 'Time of day', make: () => ({ ambient: 'dusk' }) },
-		{ kind: 'reveal', label: 'Reveal the whole table', make: () => ({ reveal: 'all' }) },
+		{ kind: 'world', label: 'Time, sky and weather', make: () => ({ world: { time: 1170 } }) },
+		{ kind: 'light', label: 'A light changes', make: () => ({ light: '', on: true }) },
+		{ kind: 'prop', label: 'A prop becomes', make: () => ({ prop: '', asset: ASSET_IDS[0] }) },
+		{ kind: 'reveal', label: 'Reveal the whole map', make: () => ({ reveal: 'all' }) },
 		{ kind: 'settle', label: 'People go to their places', make: () => ({ settle: true }) },
 		{ kind: 'remember', label: 'Remember a moment', make: () => ({ remember: '' }) },
 		{ kind: 'rules', label: 'If… (the first that holds)', make: () => ({ rules: [{ do: [] }] }) }
@@ -25,7 +29,8 @@
 <script lang="ts">
 	import { OBJECT_STATES } from '$lib/adventure/adventure';
 	import { effectKind } from '$lib/adventure/file';
-	import { AMBIENTS } from '$lib/game/lights';
+	import { AMBIENTS, LIGHT_KINDS } from '$lib/game/lights';
+	import { WEATHERS } from '$lib/game/world';
 	import RulesEditor from './RulesEditor.svelte';
 
 	/**
@@ -49,6 +54,36 @@
 		next.splice(Math.max(0, Math.min(next.length, i + by)), 0, e);
 		effects = next;
 	};
+	/** Sets a field, or drops it when blank (a field left out is left as it is). */
+	const opt = (i: number, key: string, value: unknown) => {
+		const rest = without(effects[i] as Record<string, unknown>, key);
+		replace(i, (value === undefined || value === '' ? rest : { ...rest, [key]: value }) as Effect);
+	};
+	/** Sets one field of the world patch (`group.key`, or a top-level key), dropping empty groups. */
+	const worldField = (i: number, path: string, value: unknown) => {
+		const world = structuredClone((effects[i] as { world: Record<string, unknown> }).world);
+		const [a, b] = path.split('.');
+		if (b === undefined) {
+			if (value === undefined) delete world[a];
+			else world[a] = value;
+		} else {
+			const group = { ...(world[a] as Record<string, unknown> | undefined) };
+			if (value === undefined) delete group[b];
+			else group[b] = value;
+			if (Object.keys(group).length) world[a] = group;
+			else delete world[a];
+		}
+		replace(i, { world } as Effect);
+	};
+	const clock = (t: unknown) =>
+		typeof t === 'number'
+			? `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
+			: '';
+	const minutes = (v: string) => {
+		const [h, m] = v.split(':').map(Number);
+		return v ? h * 60 + m : undefined;
+	};
+	const numberOr = (v: string) => (v.trim() === '' ? undefined : Number(v));
 	const known = (e: Effect) => KINDS.some((k) => k.kind === effectKind(e));
 	const field = (e: Effect, key: string) => String((e as Record<string, unknown>)[key] ?? '');
 	let jsonError = $state<number | null>(null);
@@ -188,6 +223,110 @@
 				>
 					{#each AMBIENTS as a (a)}<option value={a}>{a}</option>{/each}
 				</select>
+			{:else if kind === 'world' && 'world' in e}
+				{@const w = e.world as Record<string, Record<string, unknown> | undefined>}
+				<div class="row">
+					<label class="check">
+						Time
+						<input
+							type="time"
+							value={clock(e.world.time)}
+							onchange={(ev) => worldField(i, 'time', minutes(ev.currentTarget.value))}
+						/>
+					</label>
+					<select
+						aria-label="Weather"
+						value={w.weather?.kind ?? ''}
+						onchange={(ev) => worldField(i, 'weather.kind', ev.currentTarget.value || undefined)}
+					>
+						<option value="">weather as it is</option>
+						{#each WEATHERS as k (k)}<option value={k}>{k}</option>{/each}
+					</select>
+					<input
+						type="number"
+						min="0"
+						max="1"
+						step="0.1"
+						aria-label="Weather intensity"
+						placeholder="intensity 0-1"
+						value={w.weather?.intensity ?? ''}
+						onchange={(ev) => worldField(i, 'weather.intensity', numberOr(ev.currentTarget.value))}
+					/>
+				</div>
+				<div class="row">
+					<select aria-label="Sky" disabled><option>the environment’s sky</option></select>
+					<select aria-label="Grade" disabled><option>the environment’s grade</option></select>
+					<input
+						type="number"
+						min="-2"
+						max="2"
+						step="0.25"
+						aria-label="Exposure"
+						placeholder="exposure, EV"
+						value={w.grade?.exposure ?? ''}
+						onchange={(ev) => worldField(i, 'grade.exposure', numberOr(ev.currentTarget.value))}
+					/>
+				</div>
+			{:else if kind === 'light' && 'light' in e}
+				<div class="row">
+					<input
+						aria-label="Light"
+						list="ids-lights"
+						value={e.light}
+						onchange={(ev) => patch(i, { light: ev.currentTarget.value.trim() })}
+					/>
+					<select
+						aria-label="On or off"
+						value={e.on === undefined ? '' : String(e.on)}
+						onchange={(ev) =>
+							opt(i, 'on', ev.currentTarget.value ? ev.currentTarget.value === 'true' : '')}
+					>
+						<option value="">as it is</option>
+						<option value="true">on</option>
+						<option value="false">off</option>
+					</select>
+					<select
+						aria-label="Kind of light"
+						value={e.kind ?? ''}
+						onchange={(ev) => opt(i, 'kind', ev.currentTarget.value)}
+					>
+						<option value="">kind as it is</option>
+						{#each LIGHT_KINDS as k (k)}<option value={k}>{k}</option>{/each}
+					</select>
+				</div>
+				<div class="row">
+					<input
+						aria-label="Colour"
+						placeholder="colour, #rrggbb"
+						value={e.color ?? ''}
+						onchange={(ev) => opt(i, 'color', ev.currentTarget.value.trim())}
+					/>
+					<input
+						type="number"
+						min="0"
+						max="20"
+						aria-label="Reach in cells"
+						placeholder="reach, cells"
+						value={e.radius ?? ''}
+						onchange={(ev) => opt(i, 'radius', numberOr(ev.currentTarget.value))}
+					/>
+				</div>
+			{:else if kind === 'prop' && 'prop' in e && 'asset' in e}
+				<div class="row">
+					<input
+						aria-label="Prop"
+						list="ids-props"
+						value={e.prop}
+						onchange={(ev) => patch(i, { prop: ev.currentTarget.value.trim() })}
+					/>
+					<select
+						aria-label="Becomes"
+						value={e.asset}
+						onchange={(ev) => patch(i, { asset: ev.currentTarget.value })}
+					>
+						{#each ASSET_IDS as a (a)}<option value={a}>{a}</option>{/each}
+					</select>
+				</div>
 			{:else if kind === 'rules' && 'rules' in e}
 				<RulesEditor bind:rules={() => [...e.rules], (rules) => replace(i, { rules })} />
 			{:else if !known(e)}

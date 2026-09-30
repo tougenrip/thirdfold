@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from './grid';
 import {
+	CARRIED_LIGHT_COLOR,
+	LIGHT_KIND_DEFAULTS,
+	LIGHT_KINDS,
 	lightLevels,
+	lightLook,
 	lightSources,
 	litMask,
 	seenByLight,
@@ -35,6 +39,19 @@ describe('lightSources', () => {
 			[1, 1, 3],
 			[5, 5, 2]
 		]);
+	});
+
+	it("gives a carried light its token's colour, else the carried-light default (#202)", () => {
+		const [plain, tinted] = lightSources(
+			[],
+			[
+				{ pos: { x: 1, y: 1 }, light: 2 },
+				{ pos: { x: 2, y: 2 }, light: 2, lightColor: '#b8c8ff' }
+			]
+		);
+		expect(CARRIED_LIGHT_COLOR).toBe('#ffa04d');
+		expect(plain.color).toBe('#ffa04d');
+		expect(tinted.color).toBe('#b8c8ff');
 	});
 });
 
@@ -79,5 +96,42 @@ describe('dark areas', () => {
 		const night = seenByLight(grid, new Set(), 'dark', null, sources)!;
 		expect(night[at(9, 9)]).toBe(0);
 		expect(night[at(2, 3)]).toBe(1);
+	});
+});
+
+describe('light looks (#201)', () => {
+	it('resolves a light without a kind to a torch, and a kind to its defaults', () => {
+		expect(lightLook({})).toEqual(LIGHT_KIND_DEFAULTS.torch);
+		expect(lightLook({ kind: 'glow' })).toMatchObject({ fixture: false, flicker: 'none' });
+		expect(lightLook({ kind: 'candle', intensity: 2 })).toMatchObject({
+			kind: 'candle',
+			intensity: 2,
+			height: 1
+		});
+		for (const kind of LIGHT_KINDS) expect(lightLook({ kind }).kind).toBe(kind);
+	});
+
+	it('changes nothing the rules see', () => {
+		const plain = [light(4, 4, 4), light(9, 9, 2)];
+		const dressed = plain.map((l): Light => ({
+			...l,
+			kind: 'neon',
+			intensity: 3,
+			height: 7,
+			flicker: 'pulse',
+			shadows: false,
+			fixture: false,
+			facing: 2
+		}));
+		const dark = withDarkness(null, grid, { x: 0, y: 0 }, { x: 11, y: 11 }, true);
+		const rules = (lights: Light[]) => {
+			const sources = lightSources(lights, []);
+			return [
+				litMask(grid, wallX6, sources),
+				lightLevels(grid, wallX6, sources),
+				seenByLight(grid, wallX6, 'dusk', dark, sources)
+			];
+		};
+		expect(rules(dressed)).toEqual(rules(plain));
 	});
 });

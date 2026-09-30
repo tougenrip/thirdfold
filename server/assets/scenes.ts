@@ -17,6 +17,7 @@ import { TEXTURE_DETAILS, sizeFor, sizesOf, type TextureDetail } from '../../src
 import type { AdventureDef } from '../adventure/define';
 import { FLOOR_IDS } from '../../src/lib/game/floor';
 import { parseSceneFile, type SceneFile } from '../../src/lib/game/scene-file';
+import { parseWorldPatch } from '../../src/lib/game/world';
 import { exampleAdventure } from '../../src/lib/adventure/example';
 import { loadAdventureFile } from '../../src/lib/adventure/file';
 import { ADVENTURES } from '../adventures';
@@ -263,8 +264,24 @@ function checkAdventure(manifest: Manifest, A: AdventureDef): string[] {
 		for (const over of overBudget(tableBudget(manifest, refs)))
 			problems.push(`${location}: ${over}`);
 	}
+	// A table's sky and grade ids are checked by parseSceneFile above, an effect's here: syntax
+	// only. ponytail: check they exist once the manifest has skies and grades (#162, #213).
+	for (const patch of worldPatches(A))
+		if (!parseWorldPatch(patch))
+			problems.push(`a world effect is not a valid look: ${JSON.stringify(patch)}`);
 	for (const npc of Object.values(A.npcs)) model(npc.model, 'npc', npc.name);
 	for (const id of Object.keys(A.characters)) model(id, 'character', id);
 	for (const def of Object.values(A.enemies)) model(def.model, 'enemy', def.name);
 	return problems;
+}
+
+/** Every `{ world }` effect's patch in an adventure, wherever its effects sit (tables are functions, skipped). */
+export function worldPatches(value: unknown, out: unknown[] = []): unknown[] {
+	if (Array.isArray(value)) for (const v of value) worldPatches(v, out);
+	else if (value && typeof value === 'object')
+		for (const [key, v] of Object.entries(value)) {
+			if (key === 'world') out.push(v);
+			else worldPatches(v, out);
+		}
+	return out;
 }

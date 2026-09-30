@@ -13,6 +13,8 @@ import type { Token } from '../src/lib/game/token';
 import type { FloorMap } from '../src/lib/game/floor';
 import type { LevelMap } from '../src/lib/game/terrain';
 import type { AdventureState } from './adventure/state';
+import type { Discovered } from '../src/lib/game/scene-file';
+import { DEFAULT_WORLD, type WorldLook } from '../src/lib/game/world';
 import { emptyMask, type CellMask } from '../src/lib/game/visibility';
 import {
 	normalizeName,
@@ -31,6 +33,10 @@ export interface Player {
 	connected: boolean;
 	/** Cells this player has ever seen while fog was on; kept across reconnects. */
 	explored: CellMask;
+	/** Every light this seat knows of, by id, as it last saw it (see #204). */
+	seenLights?: Map<string, Light>;
+	/** Explored cells whose lights this seat has learned (see #204). */
+	lightsLearned?: CellMask;
 }
 
 export interface Room {
@@ -42,6 +48,10 @@ export interface Room {
 	props: Map<string, Prop>;
 	lights: Map<string, Light>;
 	ambient: Ambient;
+	/** How the world looks (the hour, sky, weather, haze, grade, backdrop); see world.ts. */
+	world: WorldLook;
+	/** Roofed cells, or null for none. */
+	interior: CellMask | null;
 	/** Each cell's level (elevation), or null for a flat table. */
 	terrain: LevelMap | null;
 	/** Dark areas: cells where only light lets anyone see, whatever the ambient; null for none. */
@@ -68,11 +78,12 @@ export interface Room {
 	autosaveId?: string;
 	/**
 	 * After a load: tokens whose saved owner isn't at the table yet (token id → their
-	 * lowercase name), and what each saved player had explored, by lowercase name. A
-	 * player joining under that name gets both back (see `reclaim` in scene-io.ts).
+	 * lowercase name), and what each saved player had explored (and the lights they
+	 * remember), by lowercase name. A player joining under that name gets it back (see
+	 * `reclaim` in scene-io.ts).
 	 */
 	awaiting?: Map<string, string>;
-	discovery?: Map<string, string>;
+	discovery?: Map<string, Discovered>;
 	fog: {
 		enabled: boolean;
 		/** Cells the GM has revealed to everyone. */
@@ -117,6 +128,8 @@ export function newRoom(id: string): Room {
 		props: new Map(),
 		lights: new Map(),
 		ambient: 'day',
+		world: structuredClone(DEFAULT_WORLD),
+		interior: null,
 		terrain: null,
 		darkness: null,
 		floor: null,

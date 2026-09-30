@@ -35,7 +35,7 @@ import {
 	type PublicGame
 } from '../src/lib/game/library';
 import { LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
-import { applyScene, exportScene, reclaim } from './scene-io';
+import { applyScene, catchUpLights, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { keyOwner, newGmKey } from './gm-keys';
 import { newSceneId } from './scene-store';
@@ -43,6 +43,8 @@ import { storySummary } from './adventure/view';
 import { builtInStory, openingOf, storyFacts } from './adventure/facts';
 import { MemorySceneStore, type SceneStore } from './scene-store';
 import { fail, RoomManager, toPublicPlayer, type Player, type Room } from './rooms';
+import type { Ambient } from '../src/lib/game/lights';
+import { applyWorldPatch, DEFAULT_WORLD } from '../src/lib/game/world';
 import {
 	createObject,
 	createToken,
@@ -58,9 +60,11 @@ import {
 	fogRoom,
 	setAmbient,
 	setEnvironment,
+	setWorld,
 	setFog,
 	setFogShared,
 	setDarkness,
+	setInterior,
 	setFloor,
 	setTerrain,
 	updateLight,
@@ -168,6 +172,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const chatLimiter = new RateLimiter(8, 4 / 3);
 	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
 	const sceneLimiter = new RateLimiter(4, 0.25);
+	// The GM's look edits (the world, the roof, dark areas): bursts of 10, then two a second.
+	const lookLimiter = new RateLimiter(10, 2);
 	// Creators' adventures a table is playing are kept while it plays them.
 	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
@@ -321,6 +327,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						for (let i = 0; i < player.explored.length; i++) {
 							if (other.explored[i]) player.explored[i] = 1;
 						}
+						// And its lights as the party remembers them, not as they are now.
+						catchUpLights(player, other);
 					}
 				}
 				// Logged before seating so the joiner's snapshot already contains it.
@@ -524,6 +532,13 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 	}
 
+	/** One public notice when the rules band changed (ambient_set, world_set); none within a band. */
+	function bandNotice(room: Room, player: Player, before: Ambient): void {
+		if (room.ambient === before) return;
+		const described = { day: 'daylight', dusk: 'dusk', dark: 'darkness' }[room.ambient];
+		announce(room, postSystem(room, `${player.name} changed the lighting to ${described}.`));
+	}
+
 	/** The whole table was replaced: give every viewer a fresh snapshot and restart their diffs. */
 	function resetRoom(room: Room): void {
 		touch(room);
@@ -653,7 +668,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'adventure_claim' ||
 			msg.type === 'adventure_release';
 		if (chatty && !chatLimiter.take(player.id)) {
-			return sendError(ws, 'rate_limited', 'Slow down a little.');
+			return sendError(ws, 'rate_limited', 'Give it a moment before the next change.');
 		}
 		const result = (() => {
 			switch (msg.type) {
@@ -769,7 +784,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return loadIntoRoom(
 						room,
 						player,
-						blankScene(name, msg.width, msg.height, msg.environment),
+						blankScene(
+							name,
+							msg.width,
+							msg.height,
+							msg.environment,
+							new Date(),
+							msg.world && applyWorldPatch(DEFAULT_WORLD, msg.world, Date.now())
+						),
 						'created'
 					);
 				}
@@ -940,7 +962,18 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				);
 			}
 			case 'darkness_set': {
+				if (!lookLimiter.take(player.id)) {
+					return sendError(ws, 'rate_limited', 'Give it a moment before the next change.');
+				}
 				const result = setDarkness(room, player, msg.from, msg.to, msg.dark);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return syncRoom(room);
+			}
+			case 'interior_set': {
+				if (!lookLimiter.take(player.id)) {
+					return sendError(ws, 'rate_limited', 'Give it a moment before the next change.');
+				}
+				const result = setInterior(room, player, msg.from, msg.to, msg.roofed);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return syncRoom(room);
 			}
@@ -1017,15 +1050,24 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				return;
 			}
 			case 'ambient_set': {
+				// Kept for older bundles: the hour snaps into the band (world_update with ambient_update).
+				const before = room.ambient;
 				const result = setAmbient(room, player, msg.ambient);
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				if (!result.changed) return;
 				syncRoom(room);
-				const described = { day: 'daylight', dusk: 'dusk', dark: 'darkness' }[msg.ambient];
-				return announce(
-					room,
-					postSystem(room, `${player.name} changed the lighting to ${described}.`)
-				);
+				return bandNotice(room, player, before);
+			}
+			case 'world_set': {
+				if (!lookLimiter.take(player.id)) {
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				}
+				const before = room.ambient;
+				const result = setWorld(room, player, msg.patch);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				if (!result.changed) return;
+				syncRoom(room);
+				return bandNotice(room, player, before);
 			}
 			case 'scene_save':
 			case 'scene_load':

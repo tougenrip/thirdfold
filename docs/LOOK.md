@@ -496,6 +496,37 @@ and the crease AO on its crates and table, and the stone walls. Two move away:
 Tuning the stylise step per surface (detail and ramp in each set's `meta.json`) is the lever, and
 the owner's surface review (G2) decides it.
 
+## Milestone 66: the world look as data (#113)
+
+What changed in the look:
+
+- **The world look** (#198-#200, #205, #206): the hour, sun, sky, grade, weather, haze, exposure and
+  backdrop are authoritative data (`WorldLook`), set by the GM and by the adventures per location.
+- **The presets blend by the hour** (#208): between the canonical hours the day, dusk and night
+  lighting mix, until the sky (#114) lands. At each band's canonical hour the blend is exactly the
+  old preset.
+- **Light, token and prop looks** (#201, #202): lights have kinds, intensity, flicker and fixtures
+  (a glow draws no fixture), tokens scale, lift and carry coloured light, and props take a tint.
+- **Roofs** (#203) over the GM's painted interiors, shown to players only over explored ground.
+
+Against M65 (the same pairings and conditions):
+
+| Reference | band | m65   | m66   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.166 | 0.166 |
+| 2         | dusk | 0.308 | 0.308 |
+| 3         | dark | 0.135 | 0.135 |
+| 4         | dark | 0.097 | 0.097 |
+| 6         | dark | 0.193 | 0.192 |
+| 7         | day  | 0.125 | 0.125 |
+| 8         | dusk | 0.215 | 0.215 |
+
+No pairing moves by more than 0.001. The pairings draw each fixture at its band, and the fixture
+views now carry that band's canonical hour, where the blend reproduces the old preset. None of the
+reference fixtures has roofs, tinted props or recoloured tokens. What moves (hues by a fraction of
+a degree, L by a thousandth) is the refrozen fixtures' light looks. M66 gives the look its data;
+the look itself moves with the sky (#114) and the weather that fill that data in.
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

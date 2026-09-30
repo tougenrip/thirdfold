@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CHARACTERS } from '../../src/lib/adventure/characters';
 import type { DieRoller } from '../../src/lib/game/dice';
+import { canonicalTime } from '../../src/lib/game/world';
 import { RoomManager } from '../rooms';
 import { exportScene } from '../scene-io';
 import { HOLLOW_BELL } from '../adventures/hollow-bell';
@@ -49,6 +50,28 @@ describe('the engine and the content', () => {
 
 	it('finds nothing wrong with The Hollow Bell', () => {
 		expect(validateAdventure(HOLLOW_BELL)).toEqual([]);
+	});
+
+	it("builds a table's world from its parts, and refuses an hour that contradicts its band", () => {
+		const parts = {
+			name: 'A yard',
+			grid: { kind: 'square' as const, cellSize: 1, width: 4, height: 4 },
+			objects: [],
+			props: [],
+			lights: [],
+			tokens: [],
+			ambient: 'dusk' as const,
+			arrival: { from: { x: 0, y: 0 }, to: { x: 3, y: 3 } },
+			environment: 'village'
+		};
+		expect(table(parts).world.time).toBe(canonicalTime('dusk'));
+		expect(table({ ...parts, world: { time: 330, haze: { density: 0.3 } } }).world).toMatchObject({
+			time: 330,
+			haze: { density: 0.3 }
+		});
+		expect(() => table({ ...parts, world: { time: 720 } })).toThrow(/A yard/);
+		// Underground the hour is look only.
+		expect(table({ ...parts, world: { sun: false, time: 720 } }).ambient).toBe('dusk');
 	});
 
 	it('names what is wrong with an adventure whose references go nowhere', () => {

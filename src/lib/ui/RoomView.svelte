@@ -164,11 +164,16 @@
 	let floorDraft = $state<FloorId>('stone');
 
 	let lightDraft = $state<LightDraft>({
+		kind: 'torch',
 		radius: DEFAULT_LIGHT_RADIUS,
 		color: LIGHT_COLORS[0].color
 	});
 	let propDraft = $state<PropDraft>({ assetId: 'table', rotation: 0 });
 	let selectedPropId = $state<string | null>(null);
+	/** The light the GM is editing in the light inspector. */
+	let selectedLightId = $state<string | null>(null);
+	/** A light put back by undo that was off: switched off again once it reappears. */
+	let restoringLight: { pos: GridPos; known: Set<string> } | null = null;
 	let copied = $state(false);
 	let toast = $state<string | null>(null);
 	/** A one-step undo offered with the toast (a deleted prop, put back). */
@@ -298,6 +303,12 @@
 	/** Whether a cell is in one of the table's dark areas. */
 	const isDark = (cell: GridPos) =>
 		!!room && !!darkness && darkness[cellIndex(room.grid, cell)] === 1;
+	/** The roofed cells this client knows (#203), or null for none. */
+	const interior = $derived(
+		room?.interior ? decodeMask(room.interior, room.grid.width * room.grid.height) : null
+	);
+	const isRoofed = (cell: GridPos) =>
+		!!room && !!interior && interior[cellIndex(room.grid, cell)] === 1;
 	const floor = $derived(
 		room?.floor ? decodeFloor(room.floor, room.grid.width * room.grid.height) : null
 	);
@@ -311,6 +322,9 @@
 	let cuePlay = $state<CuePlay | null>(null);
 	const selectedProp = $derived(
 		(isGm && selectedPropId && room?.props.find((p) => p.id === selectedPropId)) || null
+	);
+	const selectedLight = $derived(
+		(isGm && selectedLightId && room?.lights.find((l) => l.id === selectedLightId)) || null
 	);
 	const canMove = (tokenId: string | null) => {
 		const token = tokenId && room?.tokens.find((t) => t.id === tokenId);
@@ -415,6 +429,20 @@
 		if (tool === 'dark' && hover.cell) {
 			const from = areaStart ?? hover.cell;
 			return [{ kind: 'area', from, to: hover.cell, tone: isDark(from) ? 'reveal' : 'hide' }];
+		}
+		if (tool === 'roof' && hover.cell) {
+			// Nothing draws roofs yet, so the tool shows every roofed cell while it is out.
+			const roofed = interior ? [...interior.keys()].filter((i) => interior[i]) : [];
+			const from = areaStart ?? hover.cell;
+			return [
+				...rowRuns(roofed, room!.grid.width).map(([a, b]): PreviewItem => ({
+					kind: 'area',
+					from: a,
+					to: b,
+					tone: 'valid'
+				})),
+				{ kind: 'area', from, to: hover.cell, tone: isRoofed(from) ? 'invalid' : 'reveal' }
+			];
 		}
 		if (tool === 'door' && hover.edge) {
 			const existing = room && objectOnEdge(room.objects, hover.edge);
@@ -559,18 +587,25 @@
 		if (selectedProp) {
 			return 'Click a cell to move the prop. [ and ] rotate, Delete removes, Esc deselects.';
 		}
+		if (selectedLight) return 'Edit the light in its panel. Delete removes it, Esc deselects.';
 		if (hoveredPropId && isGm) return 'Click to select this prop.';
 		if (tool === 'light') {
 			const existing = lightUnder(hover);
 			return existing
 				? `Click to switch this light ${existing.on ? 'off' : 'on'}.`
-				: 'Light: click a cell to place a light there. Click a light to switch it on or off.';
+				: 'Light: click a cell to place a light of the chosen kind. Click a light to switch it on or off; select it (V) to edit it.';
 		}
 		if (tool === 'dark') {
 			const lifting = areaStart && isDark(areaStart);
 			return areaStart
 				? `Click the opposite corner cell to ${lifting ? 'lift the dark from' : 'darken'} the area. Esc to cancel.`
 				: 'Dark area: click a cell to start an area (a dark cell lifts the dark instead).';
+		}
+		if (tool === 'roof') {
+			const lifting = areaStart && isRoofed(areaStart);
+			return areaStart
+				? `Click the opposite corner cell to ${lifting ? 'lift the roof from' : 'roof'} the area. Esc to cancel.`
+				: 'Roof: click a cell to start an area (a roofed cell lifts the roof instead).';
 		}
 		if (tool === 'floor') {
 			const name = FLOORS.find((f) => f.id === floorDraft)!.name.toLowerCase();
@@ -606,7 +641,7 @@
 				? `Click: ${target.name}.`
 				: `Click to ${target.name[0].toLowerCase()}${target.name.slice(1)}.`;
 		}
-		if (targeting) return 'Choose a target on the table or in the action bar. Esc to cancel.';
+		if (targeting) return 'Choose a target on the map or in the action bar. Esc to cancel.';
 		if (selected) {
 			const distance = hoverCell ? (steps ?? gridDistance(selected.pos, hoverCell)) : null;
 			const suffix = distance ? ` · ${distance} ${distance === 1 ? 'cell' : 'cells'}` : '';
@@ -623,7 +658,7 @@
 			return 'Waiting for the GM to give you a token.';
 		}
 		return isGm
-			? 'Click any token to move it, or open Build the table to add walls, props and light.'
+			? 'Click any token to move it, or open Build to add walls, props and light.'
 			: 'Click one of your tokens to move it, or a door next to it to open it.';
 	});
 
@@ -764,6 +799,29 @@
 		});
 	}
 
+	function deleteLight(light: Light) {
+		act({ type: 'light_delete', lightId: light.id });
+		selectedLightId = null;
+		const { on, ...made } = light; // the server gives it a new id, and makes it lit
+		showUndo('Light removed.', 'Undo', () => {
+			if (!on) restoringLight = { pos: made.pos, known: new Set(room?.lights.map((l) => l.id)) };
+			act({ type: 'light_create', ...made });
+		});
+	}
+
+	// A restored light comes back lit, with a new id: find it and switch it off again.
+	$effect(() => {
+		const lights = room?.lights;
+		const was = restoringLight;
+		if (!lights || !was) return;
+		const back = lights.find(
+			(l) => !was.known.has(l.id) && l.pos.x === was.pos.x && l.pos.y === was.pos.y
+		);
+		if (!back) return;
+		restoringLight = null;
+		act({ type: 'light_update', lightId: back.id, patch: { on: false } });
+	});
+
 	// The server gives a restored prop a new id: find it, then give back what create can't carry.
 	$effect(() => {
 		const props = room?.props;
@@ -804,6 +862,7 @@
 		placing = null;
 		selectedId = null;
 		selectedPropId = null;
+		selectedLightId = null;
 	}
 
 	function rotateBy(rotation: Rotation, by: 1 | -1): Rotation {
@@ -873,6 +932,17 @@
 				}
 				const dark = !isDark(areaStart);
 				act({ type: 'darkness_set', from: areaStart, to: pick.cell, dark });
+				areaStart = null;
+				return;
+			}
+			case 'roof': {
+				if (!pick.cell) return;
+				if (!areaStart) {
+					areaStart = pick.cell;
+					return;
+				}
+				const roofed = !isRoofed(areaStart);
+				act({ type: 'interior_set', from: areaStart, to: pick.cell, roofed });
 				areaStart = null;
 				return;
 			}
@@ -958,6 +1028,7 @@
 		}
 		if (pick.tokenId) {
 			selectedPropId = null;
+			selectedLightId = null;
 			const id = pick.tokenId;
 			if (canMove(id)) {
 				selectedId = selectedId === id ? null : id;
@@ -983,6 +1054,13 @@
 			const prop = propUnder(pick);
 			if (prop) {
 				selectedPropId = prop.id;
+				selectedLightId = null;
+				return;
+			}
+			// A light, by its fixture, its GM handle or its cell; clicking elsewhere lets go.
+			const light = lightUnder(pick);
+			if (light || selectedLight) {
+				selectedLightId = light && light.id !== selectedLightId ? light.id : null;
 				return;
 			}
 		}
@@ -1008,6 +1086,10 @@
 			deleteProp(selectedProp);
 			return;
 		}
+		if (isGm && !typing && selectedLight && (event.key === 'Delete' || event.key === 'Backspace')) {
+			deleteLight(selectedLight);
+			return;
+		}
 		if (!typing && event.key.startsWith('Arrow') && onTable(event.target) && selected) {
 			const step: Record<string, [number, number]> = {
 				ArrowUp: [0, -1],
@@ -1019,7 +1101,7 @@
 			const to = { x: selected.pos.x + dx, y: selected.pos.y + dy };
 			event.preventDefault();
 			if (!room || to.x < 0 || to.y < 0 || to.x >= room.grid.width || to.y >= room.grid.height) {
-				moved = `${selected.name} is at the edge of the table.`;
+				moved = `${selected.name} is at the edge of the map.`;
 				return;
 			}
 			act({ type: 'token_move', tokenId: selected.id, to });
@@ -1036,6 +1118,7 @@
 				return;
 			}
 			selectedPropId = null;
+			selectedLightId = null;
 			if (wallStart || areaStart) {
 				wallStart = null;
 				areaStart = null;
@@ -1058,6 +1141,7 @@
 			g: 'height',
 			f: 'floor',
 			n: 'dark',
+			i: 'roof',
 			...(room?.fog.enabled ? { r: 'reveal', h: 'hide', o: 'reveal-room', k: 'hide-room' } : {})
 		};
 		const next = shortcut[event.key.toLowerCase()];
@@ -1097,6 +1181,13 @@
 		}
 	});
 	/** Onboarding's glow on the table, while the player is being shown to it. */
+	/** The light being edited, marked on its cell. */
+	const lightMark = $derived<PreviewItem[]>(
+		selectedLight
+			? [{ kind: 'area', from: selectedLight.pos, to: selectedLight.pos, tone: 'valid' }]
+			: []
+	);
+
 	const beacon = $derived.by((): PreviewItem[] => {
 		const step = tutorial.stage === 'tutorial' ? currentStep(tutorial, !!firstFind) : null;
 		if (!firstFind || (step?.id !== 'approach' && step?.id !== 'inspect')) return [];
@@ -1164,6 +1255,7 @@
 				objects={room.objects}
 				fog={room.fog}
 				ambient={room.ambient}
+				world={room.world}
 				lights={room.lights}
 				props={room.props}
 				{diceThrow}
@@ -1172,7 +1264,7 @@
 				{hoveredPropId}
 				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
-				preview={beacon.length ? [...preview, ...beacon] : preview}
+				preview={beacon.length || selectedLight ? [...preview, ...beacon, ...lightMark] : preview}
 				selectedId={selected?.id ?? null}
 				{fallen}
 				{floats}
@@ -1227,7 +1319,7 @@
 				Tactical
 			</button>
 			<button type="button" aria-pressed={view === 'tabletop'} onclick={() => (view = 'tabletop')}>
-				Tabletop
+				Explore
 			</button>
 		</div>
 		<span class="graphics-bar">
@@ -1254,6 +1346,7 @@
 						{adventure}
 						paused={room.paused}
 						ambient={room.ambient}
+						world={room.world}
 						lights={room.lights}
 						fogEnabled={room.fog.enabled}
 						fogShared={room.fog.shared}
@@ -1268,6 +1361,10 @@
 						onSelectToken={(id) => {
 							setTool('select');
 							selectedId = id;
+						}}
+						onEditLight={(id) => {
+							setTool('select');
+							selectedLightId = id;
 						}}
 						onFogAll={(reveal) =>
 							act({
@@ -1317,10 +1414,23 @@
 				</div>
 			{/if}
 
+			{#if selectedLight}
+				<div class="panel">
+					{#await import('./LightInspector.svelte') then { default: LightInspector }}
+						<LightInspector
+							light={selectedLight}
+							send={act}
+							onDone={() => (selectedLightId = null)}
+							onRemove={() => selectedLight && deleteLight(selectedLight)}
+						/>
+					{/await}
+				</div>
+			{/if}
+
 			{#if isGm}
 				<details class="panel fold" bind:open={folds.build}>
 					<summary>
-						<span class="section-title">Build the table</span>
+						<span class="section-title">Build</span>
 						{#if tool !== 'select'}<span class="current">{tool.replace('-', ' ')}</span>{/if}
 					</summary>
 					<BuildPanel
@@ -1333,7 +1443,8 @@
 						{propDraft}
 						onTool={setTool}
 						onPropDraft={(draft) => (propDraft = draft)}
-						onAmbient={(ambient) => act({ type: 'ambient_set', ambient })}
+						world={room.world}
+						send={act}
 						environment={room.environment}
 						onEnvironment={(environment) => act({ type: 'environment_set', environment })}
 						onLightDraft={(draft) => (lightDraft = draft)}
@@ -1403,7 +1514,7 @@
 
 		<nav class="dock-tabs" aria-label="Panels">
 			<button type="button" aria-pressed={sheet === 'table'} onclick={() => (sheet = 'table')}>
-				Table
+				Map
 			</button>
 			<button type="button" aria-pressed={sheet === 'side'} onclick={() => (sheet = 'side')}>
 				{isGm ? 'GM tools' : 'Party'}

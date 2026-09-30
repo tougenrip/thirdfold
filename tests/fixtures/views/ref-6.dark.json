@@ -10,6 +10,30 @@
 			"height": 10
 		},
 		"environment": "village",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -19,6 +43,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
 		"tokens": [
 			{
@@ -143,6 +168,30 @@
 			"height": 10
 		},
 		"environment": "village",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -152,6 +201,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
 		"tokens": [
 			{
@@ -276,6 +326,30 @@
 			"height": 10
 		},
 		"environment": "village",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": null,
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -285,6 +359,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": null,
 		"floor": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB",
 		"tokens": [
 			{

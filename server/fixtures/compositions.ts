@@ -13,6 +13,7 @@ import type { Prop } from '../../src/lib/game/props';
 import type { SavedToken, SceneFile } from '../../src/lib/game/scene-file';
 import { door, light, prop, table, wall, type TableParts } from '../adventure/tables';
 import { testWorld } from './test-world';
+import { emptyMask, encodeMask, rectCells } from '../../src/lib/game/visibility';
 
 /** Every fixture is saved at this moment, so its bytes never change. */
 export const FIXTURE_DATE = new Date('2026-01-01T00:00:00.000Z');
@@ -387,7 +388,7 @@ function ref8(): Fixture {
 	].entries()) {
 		lights.push(light(`ref8-lantern-${i + 1}`, x, y, 4, '#ffa04d'));
 	}
-	return build(
+	const town = build(
 		{
 			name: 'Fixture: walled town block',
 			grid: g,
@@ -408,6 +409,11 @@ function ref8(): Fixture {
 			{ x: 15, y: 16 }
 		])
 	);
+	// The eight houses are roofed.
+	const roofs = emptyMask(g);
+	for (const h of houses) for (const i of rectCells(g, h.from, h.to)) roofs[i] = 1;
+	town.scene.interior = encodeMask(roofs);
+	return town;
 }
 
 /** Stress: rooms and corridors lit by 40 torches, in the dark. */

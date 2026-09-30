@@ -10,6 +10,30 @@
 			"height": 7
 		},
 		"environment": "railcar",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": "prairie-scroll",
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -19,6 +43,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": "AAAAAAAAAAAAAAAAAAD4/38AAAAAAID//wcAAAAAAPj/fwAAAAAAgP//BwAAAAAA+P9/AAAAAAAAAAAA",
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwcHBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwcHBwcHBwcAAAA=",
 		"tokens": [
 			{
@@ -271,7 +296,8 @@
 				},
 				"radius": 5,
 				"color": "#ffcf7a",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-lamp-coach-2",
@@ -281,7 +307,8 @@
 				},
 				"radius": 5,
 				"color": "#ffcf7a",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	},
@@ -296,6 +323,30 @@
 			"height": 7
 		},
 		"environment": "railcar",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": "prairie-scroll",
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -305,6 +356,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": "AAAAAAAAAAAAAAAAAAD4/38AAAAAAID//wcAAAAAAPj/fwAAAAAAgP//BwAAAAAA+P9/AAAAAAAAAAAA",
 		"floor": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwcHBwcHBwcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwcHBwcHBwcAAAA=",
 		"tokens": [
 			{
@@ -557,7 +609,8 @@
 				},
 				"radius": 5,
 				"color": "#ffcf7a",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-lamp-coach-2",
@@ -567,7 +620,8 @@
 				},
 				"radius": 5,
 				"color": "#ffcf7a",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			}
 		]
 	},
@@ -582,6 +636,30 @@
 			"height": 7
 		},
 		"environment": "railcar",
+		"world": {
+			"time": 1380,
+			"rate": 0,
+			"sun": true,
+			"sky": null,
+			"weather": {
+				"kind": "none",
+				"intensity": 0,
+				"seed": 0,
+				"since": 0
+			},
+			"haze": {
+				"density": 0,
+				"color": null
+			},
+			"grade": {
+				"preset": null,
+				"exposure": 0
+			},
+			"backdrop": {
+				"kind": "prairie-scroll",
+				"level": 0
+			}
+		},
 		"ambient": "dark",
 		"fog": {
 			"enabled": true,
@@ -591,6 +669,7 @@
 		},
 		"terrain": null,
 		"darkness": null,
+		"interior": "AAAAAAAAAADg//v//f/7/3/+v//f/7///+f/+//9//v/f/6//9//v///5//7//3/+/9/AAAAAAAAAAAA",
 		"floor": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHAgICAgICAgICAgICAgcAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAABwcCAgICAgICAgICAgICBwAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwICAgICAgICAgICAgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcHAgICAgICAgICAgICAgcAAAAAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAAAAAABwcCAgICAgICAgICAgICBwAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAAAAAAAAAAAAAHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
 		"tokens": [
 			{
@@ -1388,7 +1467,8 @@
 				},
 				"radius": 3,
 				"color": "#ffb347",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-lamp-coach-1",
@@ -1398,7 +1478,8 @@
 				},
 				"radius": 5,
 				"color": "#ffcf7a",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-lamp-coach-2",
@@ -1408,7 +1489,8 @@
 				},
 				"radius": 5,
 				"color": "#ffcf7a",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-lamp-dining",
@@ -1418,7 +1500,8 @@
 				},
 				"radius": 5,
 				"color": "#ffcf7a",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-lamp-sleeper",
@@ -1428,7 +1511,8 @@
 				},
 				"radius": 3,
 				"color": "#ffb347",
-				"on": true
+				"on": true,
+				"kind": "lantern"
 			},
 			{
 				"id": "bw-stove-glow",

@@ -172,6 +172,9 @@ export const worldTime = uniform(0);
 /** The name of the per-instance tint an instanced kind reads: rgb, and its strength in w. */
 export const TINT_ATTRIBUTE = 'aTint';
 
+/** The per-instance colour an instanced prop's albedo is multiplied by: a prop's tint (#202), else white. */
+export const PAINT_ATTRIBUTE = 'aPaint';
+
 /**
  * The per-vertex bake props and minis read (#190): occlusion by the model's own parts and the
  * floor, and convexity (for #267). Every geometry drawn with those kinds has it (`withBake`), or
@@ -271,8 +274,12 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			: variant.instanced && LIFTED.includes(kind)
 				? lifted(param('lift', 'float'))
 				: null;
+	const painted =
+		kind === 'prop' && variant.instanced
+			? colour.mul(tsl.attribute(PAINT_ATTRIBUTE, 'vec3'))
+			: colour;
 	return {
-		colorNode: ownAlbedo(kind, albedo, colour, floor),
+		colorNode: ownAlbedo(kind, albedo, painted, floor),
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,

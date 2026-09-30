@@ -157,6 +157,13 @@ The live database tests in `server/supabase-scene-store.spec.ts` run when
 
 ## Deploying
 
+0. Back up first: `npm run data:backup` on the game server's machine, with the same
+   `SCENES_DIR`, `ROOMS_DIR`, `LIBRARY_DIR` and `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` it runs
+   with. It copies saves, live rooms and the library into `backups/<time>/` (the files, and each
+   Supabase table as NDJSON) with a `manifest.json` of what it took, and fails loudly on any error.
+   A deploy that bumps the scene file is forward-only (docs/RENDERING.md, "Scene-file policy"):
+   the backup is the only way back. It holds session tokens and GM key hashes, so store it like
+   the database.
 1. Build the web app with `VITE_GAME_SERVER_URL` pointing at your game server
    (`wss://...` behind HTTPS): `npm run build`. Serve `build/` from any static
    host, with every unknown path falling back to `index.html`.
@@ -168,6 +175,12 @@ The live database tests in `server/supabase-scene-store.spec.ts` run when
    set to `<project>/storage/v1/object/public/assets` (docs/ASSETS.md, "The asset store"). Serve
    `build/assets/manifest.json` with `Cache-Control: no-cache`; the hashed files may be cached for
    a year. The native apps always use the files they carry.
+
+To roll back a deploy: stop the game server, `npm run data:restore -- backups/<time> --yes` (same
+env as the backup), then deploy the previous build. The restore puts every file back and upserts
+every row by primary key; whatever was saved after the backup is lost where the backup has the same
+save, room or adventure, and anything new stays behind, unreadable to the older build until the
+newer one is back.
 
 ## Native apps
 

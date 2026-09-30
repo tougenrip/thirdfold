@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SceneFile } from '../../src/lib/game/scene-file';
+import { parseSceneFile, SCENE_FILE_VERSION } from '../../src/lib/game/scene-file';
 import { compositions, type Fixture, type FixtureSidecar } from './compositions';
 import { frozenFixtures } from './frozen';
 import { BANDS, fixtureViews } from './views';
@@ -38,15 +38,22 @@ export function fixtureFiles(fixtures: Record<string, Fixture>): Map<string, str
 	return files;
 }
 
-/** The committed fixtures, read back from disk. */
+/**
+ * The committed fixtures, read back from disk. A table saved by an older
+ * version is migrated (the frozen tables are only rewritten on purpose), so
+ * rebuilding brings it up to the current file.
+ */
 export function committedFixtures(): Record<string, Fixture> {
 	const out: Record<string, Fixture> = {};
 	if (!existsSync(SCENES_DIR)) return out;
 	for (const file of readdirSync(SCENES_DIR).sort()) {
 		if (!file.endsWith('.json') || file.endsWith('.poses.json')) continue;
 		const name = file.slice(0, -'.json'.length);
+		const raw = JSON.parse(readFileSync(path.join(SCENES_DIR, file), 'utf8'));
+		const parsed = parseSceneFile(raw);
+		if (!parsed.ok) throw new Error(`${file}: ${parsed.error}`);
 		out[name] = {
-			scene: JSON.parse(readFileSync(path.join(SCENES_DIR, file), 'utf8')) as SceneFile,
+			scene: raw.version === SCENE_FILE_VERSION ? raw : parsed.scene,
 			sidecar: JSON.parse(
 				readFileSync(path.join(SCENES_DIR, `${name}.poses.json`), 'utf8')
 			) as FixtureSidecar

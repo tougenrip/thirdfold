@@ -38,7 +38,7 @@ export function orderCorners(a: GridPos, b: GridPos): { a: GridPos; b: GridPos }
 
 /** Why a segment is unusable, or null if it is a valid axis-aligned run of grid line. */
 export function segmentProblem(grid: SquareGrid, a: GridPos, b: GridPos): string | null {
-	if (!cornerInBounds(grid, a) || !cornerInBounds(grid, b)) return 'That runs off the table.';
+	if (!cornerInBounds(grid, a) || !cornerInBounds(grid, b)) return 'That runs off the map.';
 	if (a.x === b.x && a.y === b.y) return 'A wall needs two different corners.';
 	if (a.x !== b.x && a.y !== b.y) return 'Walls run along grid lines, not diagonally.';
 	return null;

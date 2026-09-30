@@ -23,7 +23,7 @@ import type { Prop } from '../../../src/lib/game/props';
 import type { SceneFile } from '../../../src/lib/game/scene-file';
 import { flatLevels, withLevel } from '../../../src/lib/game/terrain';
 import { npcTokens } from './npcs';
-import { at, light, prop, table, wall, window, type Rise } from '../../adventure/tables';
+import { at, GLOW, light, prop, table, wall, window, type Rise } from '../../adventure/tables';
 
 export const HOLLOW_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 48, height: 36 };
 
@@ -193,6 +193,12 @@ export function hollowScene(now = new Date()): SceneFile {
 			name: 'The Hollow',
 			grid: HOLLOW_GRID,
 			ambient: 'dark',
+			// Underground: no sun, and the lake runs off into the void at level 0.
+			world: {
+				sun: false,
+				grade: { preset: 'cavern-teal' },
+				backdrop: { kind: 'abyss', level: 0 }
+			},
 			environment: 'cavern',
 			arrival: LANDING,
 			tokens: npcTokens('hollow'),
@@ -264,16 +270,16 @@ export function hollowScene(now = new Date()): SceneFile {
 				...lake()
 			],
 			lights: [
-				light('ho-bell-glow', 24, 9, 6, '#7fb6ff'),
-				light('ho-pit-glow', PIT_AT.x, PIT_AT.y, 3, '#9c6cff'),
+				light('ho-bell-glow', 24, 9, 6, '#7fb6ff', true, GLOW),
+				light('ho-pit-glow', PIT_AT.x, PIT_AT.y, 3, '#9c6cff', true, GLOW),
 				light('ho-stair-light', 24, 35, 1, '#ffd27a'),
 				light(I.torchLight, TORCH_AT.x, TORCH_AT.y, 3, '#ffa04d'),
 				// Something in the water glows, here and there.
-				light('ho-lake-glow-1', 19, 25, 2, '#3fb6c4'),
-				light('ho-lake-glow-2', 30, 22, 2, '#3fb6c4'),
-				light('ho-lake-glow-3', 28, 27, 2, '#3fb6c4'),
+				light('ho-lake-glow-1', 19, 25, 2, '#3fb6c4', true, GLOW),
+				light('ho-lake-glow-2', 30, 22, 2, '#3fb6c4', true, GLOW),
+				light('ho-lake-glow-3', 28, 27, 2, '#3fb6c4', true, GLOW),
 				// The statues on the Watch have eyes that shine.
-				light('ho-watch-glow', 43, 7, 3, '#8f7bff'),
+				light('ho-watch-glow', 43, 7, 3, '#8f7bff', true, GLOW),
 				// A fire someone left burning in the ruins.
 				light('ho-ruin-fire', 9, 30, 2, '#ffa04d')
 			]

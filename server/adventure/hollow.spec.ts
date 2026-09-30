@@ -93,6 +93,12 @@ describe('the Hollow', () => {
 			2.5 * MONASTERY_GRID.width * MONASTERY_GRID.height
 		);
 		expect(room.ambient).toBe('dark');
+		// Underground: no sun, the lake running off into the abyss.
+		expect(room.world).toMatchObject({
+			sun: false,
+			grade: { preset: 'cavern-teal' },
+			backdrop: { kind: 'abyss', level: 0 }
+		});
 		// The Bell in its frame, gears, ruins, and the lake's black water.
 		expect(room.props.get(HOLLOW_IDS.bell)).toMatchObject({ assetId: 'great-bell', pos: BELL_AT });
 		const assets = [...room.props.values()].map((p) => p.assetId);
@@ -195,6 +201,15 @@ describe('arriving in the Hollow', () => {
 		expect(ana.explored.every((v) => v === 1)).toBe(true);
 		expect(characterOf(room, ana.id)!.token.pos).toEqual(HOLLOW_SPAWN[0]);
 		expect(story().sentries.size).toBe(3);
+		// The cultists' lanterns are their own colour (#202); what they light is as before.
+		const watch = [...story().sentries.keys()].map((id) => room.tokens.get(id)!);
+		const lanterns = watch.filter((t) => t.light > 0);
+		expect(lanterns.map((t) => t.lightColor)).toEqual(['#ffd27a', '#ffd27a']);
+		room.flashUntil = 0;
+		const lit = lightFor(room, obstacles(room));
+		for (const t of lanterns) delete t.lightColor;
+		room.sights = undefined;
+		expect(lightFor(room, obstacles(room))).toEqual(lit);
 		expect(patrol(room)).toMatchObject({ log: [] });
 		// A player joining now is welcomed to where the party is.
 		expect(adventureView(room, ana, new Set(), null)!.welcome).toMatchObject({

@@ -8,7 +8,7 @@
 
 import type { GridPos, SquareGrid } from '../../../src/lib/game/grid';
 import type { SceneFile } from '../../../src/lib/game/scene-file';
-import { light, prop, table, wall } from '../../adventure/tables';
+import { GLOW, light, prop, table, wall } from '../../adventure/tables';
 
 export const HEART_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 16, height: 14 };
 
@@ -52,6 +52,7 @@ export function heartScene(now = new Date()): SceneFile {
 			name: 'The Heart of the Hollow',
 			grid: HEART_GRID,
 			ambient: 'dark',
+			world: { sun: false, grade: { preset: 'ember-red' }, backdrop: { kind: 'cavern' } },
 			environment: 'living-cave',
 			arrival: { from: { x: 4, y: 9 }, to: { x: 11, y: 13 } },
 			tokens: [],
@@ -80,7 +81,7 @@ export function heartScene(now = new Date()): SceneFile {
 				prop('hh-stair', 'stairs', 7, 13)
 			],
 			lights: [
-				light(I.heartLight, HEART_AT.x + 1, HEART_AT.y + 1, 5, '#c0392b'),
+				light(I.heartLight, HEART_AT.x + 1, HEART_AT.y + 1, 5, '#c0392b', true, GLOW),
 				light('hh-stair-light', 7, 13, 1, '#7fb6ff')
 			]
 		},

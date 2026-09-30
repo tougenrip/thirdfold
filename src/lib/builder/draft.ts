@@ -5,7 +5,7 @@
 import { exampleAdventure } from '$lib/adventure/example';
 import type { AdventureFile } from '$lib/adventure/file';
 import type { Effect, Rule, When } from '$lib/adventure/define';
-import { blankScene } from '$lib/game/scene-file';
+import { blankScene, type SceneFile } from '$lib/game/scene-file';
 import type { GridPos } from '$lib/game/grid';
 
 const STORAGE_KEY = 'thirdfold:builder';
@@ -191,8 +191,16 @@ export function idsOf(file: AdventureFile) {
 		objects: [...file.objects.map((o) => o.id), ...Object.keys(file.npcs)],
 		decisions: Object.keys(file.decisions),
 		encounters: Object.keys(file.encounters),
-		enemies: Object.keys(file.enemies)
+		enemies: Object.keys(file.enemies),
+		lights: sceneIds(file, (s) => s.lights),
+		props: sceneIds(file, (s) => s.props)
 	};
+}
+
+/** Ids on the places' tables, once each (a draft's tables may be from any scene file version). */
+function sceneIds(file: AdventureFile, of: (s: SceneFile) => { id: string }[] | undefined) {
+	const all = Object.values(file.locations).flatMap((l) => of(l.scene) ?? []);
+	return [...new Set(all.map((x) => x.id))];
 }
 
 export type Ids = ReturnType<typeof idsOf>;

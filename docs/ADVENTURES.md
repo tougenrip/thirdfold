@@ -44,8 +44,35 @@ object's state, change someone's state, offer a choice, start a fight, move
 to a chapter, post sentries, send people to their places, reveal or explore
 an area, play a motion, heal, let the watch look about, remember a moment,
 count toward a phase's counter, change phase, open a hazard, change a light,
-a prop or the time of day, hurt those near something, bring up an enemy, or
-apply the first of some rules.
+a prop, the time of day or the world's look, hurt those near something,
+bring up an enemy, or apply the first of some rules.
+
+Three of them change how the table looks:
+
+- `{ world: WorldPatch }` changes the world's look (`src/lib/game/world.ts`,
+  `docs/RENDERING.md` "World look"): the hour (`time`, minutes after
+  midnight), `rate`, `sun`, `sky`, `weather` (`kind`, `intensity`, `seed`),
+  `haze`, `grade` (`preset`, `exposure`) and `backdrop`, any of them, nested
+  groups field by field. On a table with a sun the hour sets the band (day
+  07:00-18:59, dusk 05:00-06:59 and 19:00-20:59, dark otherwise), so
+  `{ world: { time: 1320 } }` makes it night for the rules too. A bad patch
+  is refused with its path (`start.arrival[2].world.weather`); `weather.since`
+  is the server's to stamp. A file using it is refused by a server from
+  before M66.
+- `{ light, on?, color?, radius? }` also takes a light's look (`LightLook` in
+  `lights.ts`: `kind`, `intensity`, `height`, `flicker`, `shadows`, `fixture`,
+  `facing`), each checked like a scene file's.
+- `{ ambient: 'dusk' }` is kept for files written before: it snaps the hour
+  into the band. Shot frames `'table'` and `'overview'` both still load.
+
+`validateAdventure` names a `{ light }` or `{ prop }` effect whose id no
+location's table has.
+
+A built-in adventure's tables are built with `server/adventure/tables.ts`,
+whose `TableParts.world` (optional) is the table's look as a patch over the
+default at its `ambient`'s hour. `table()` throws, naming the table, when a
+sunlit table's hour falls in another band than its `ambient`, so the content,
+Blackwater and asset checks fail on a table that contradicts itself.
 
 **Rules** choose effects: `{ if?: When, do: Effect[] }`, and the first rule
 whose conditions hold applies. Conditions (`When`) are the ones people's
@@ -133,6 +160,9 @@ version 1) is `AdventureDef` written as JSON:
 - **Tables are scene files.** Build one at a table (Scene panel: New table,
   floors, walls, doors, props, lights, raised ground), export it with Export
   file, and bring it into a place in the builder.
+  Tables saved by any older version load and are brought forward (a v9 table
+  gets the default world look at its band's hour); the world look, its hour and
+  the sun are described in `docs/RENDERING.md` ("World look").
 - **An enemy's hit points** are `{ base, perCharacter }`.
 - **Characters** are picked from the character library by id.
 - **People** stand on their table by themselves. Their token is `npc-<id>`
@@ -168,8 +198,12 @@ Miller's Key_ (`src/lib/adventure/example.ts`). Each part has a section:
 
 Effects are edited in lists: say, find or tell a clue, make an event happen,
 give a reward, set an object's state, change someone's state, offer a choice,
-start a fight, go to a chapter, heal, time of day, reveal, people to their
-places, remember, and "if…" rules. Conditions are lists of events, clues,
+start a fight, go to a chapter, heal, time of day, time, sky and weather (the
+hour, the weather and its intensity, the exposure; sky and grade are the
+environment's until #224), a light changes (a light on the places' tables:
+on or off, its kind, colour and reach), a prop becomes (another asset), reveal,
+people to their places, remember, and "if…" rules. Other kinds are edited as
+JSON. Conditions are lists of events, clues,
 chapters, states and choices.
 
 **Play it** opens a new table as its GM and starts the adventure

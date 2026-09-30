@@ -89,7 +89,16 @@ export function trainScene() {
 		grid: { kind: 'square', cellSize: 1, width: 68, height: 7 },
 		environment: 'railcar',
 		ambient: 'dusk',
+		// 19:30, the prairie scrolling past the windows.
+		world: { time: 1170, backdrop: { kind: 'prairie-scroll' } },
 		arrival: COACH,
+		// Every car is roofed; the gangways between them are open to the night.
+		interior: [
+			BAGGAGE,
+			{ from: at(15, 1), to: at(28, 5) },
+			{ from: at(30, 1), to: at(45, 5) },
+			COACH
+		],
 		floors: [
 			// Outside the cars, the prairie going by: nobody steps off a moving train.
 			floor(0, 0, 67, 0, 'void'),
@@ -125,11 +134,11 @@ export function trainScene() {
 			prop(TRAIN_IDS.key, 'keys', 63, 2)
 		],
 		lights: [
-			light(TRAIN_IDS.coachLamps[0], 52, 3, 5, '#ffcf7a'),
-			light(TRAIN_IDS.coachLamps[1], 60, 3, 5, '#ffcf7a'),
-			light(TRAIN_IDS.diningLamp, 38, 3, 5, '#ffcf7a'),
-			light(TRAIN_IDS.sleeperLamp, 27, 3, 3, '#ffb347'),
-			light(TRAIN_IDS.baggageLamp, 9, 3, 3, '#ffb347'),
+			light(TRAIN_IDS.coachLamps[0], 52, 3, 5, '#ffcf7a', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.coachLamps[1], 60, 3, 5, '#ffcf7a', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.diningLamp, 38, 3, 5, '#ffcf7a', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.sleeperLamp, 27, 3, 3, '#ffb347', true, { kind: 'lantern' }),
+			light(TRAIN_IDS.baggageLamp, 9, 3, 3, '#ffb347', true, { kind: 'lantern' }),
 			light(TRAIN_IDS.stoveGlow, 44, 2, 3, '#ff8c3a')
 		],
 		tokens: []
@@ -160,8 +169,12 @@ export function engineScene() {
 		grid: { kind: 'square', cellSize: 1, width: 22, height: 9 },
 		environment: 'railcar',
 		ambient: 'dark',
+		// Midnight at the throttle.
+		world: { time: 0, backdrop: { kind: 'prairie-scroll' } },
 		arrival: { from: at(0, 0), to: at(21, 8) },
 		terrain: coal,
+		// The cab is roofed; the tender is open to the sky.
+		interior: [{ from: at(10, 1), to: at(20, 7) }],
 		floors: [
 			floor(0, 0, 21, 0, 'void'),
 			floor(0, 8, 21, 8, 'void'),
@@ -218,7 +231,11 @@ export function blackwaterScene() {
 		grid: { kind: 'square', cellSize: 1, width: 26, height: 16 },
 		environment: 'ghost-town',
 		ambient: 'dark',
+		// 01:30, a starry night (its sky comes from the environment).
+		world: { time: 90 },
 		arrival: { from: at(0, 0), to: at(25, 15) },
+		// The saloon's roof still stands.
+		interior: [{ from: at(2, 9), to: at(7, 13) }],
 		floors: [
 			floor(1, 2, 14, 4, 'wood'),
 			floor(0, 5, 20, 6, 'stone'),
@@ -245,9 +262,9 @@ export function blackwaterScene() {
 			prop('bw-saloon-barrel', 'barrel', 3, 13)
 		],
 		lights: [
-			light('bw-ghost-lamp-1', 4, 3, 4, '#9fd0ff'),
-			light('bw-ghost-lamp-2', 12, 3, 4, '#9fd0ff'),
-			light('bw-ghost-lamp-3', 11, 9, 4, '#9fd0ff')
+			light('bw-ghost-lamp-1', 4, 3, 4, '#9fd0ff', true, { kind: 'lantern' }),
+			light('bw-ghost-lamp-2', 12, 3, 4, '#9fd0ff', true, { kind: 'lantern' }),
+			light('bw-ghost-lamp-3', 11, 9, 4, '#9fd0ff', true, { kind: 'lantern' })
 		],
 		tokens: []
 	});

@@ -17,14 +17,7 @@ import {
 	type SceneObject
 } from '../src/lib/game/objects';
 import { canEditScene, canMoveToken, canUseDoor } from '../src/lib/game/permissions';
-import {
-	MAX_LIGHTS_PER_ROOM,
-	lightSources,
-	seenByLight,
-	withDarkness,
-	type Ambient,
-	type Light
-} from '../src/lib/game/lights';
+import { lightSources, seenByLight } from '../src/lib/game/lights';
 import {
 	isSolidCell,
 	MAX_PROPS_PER_ROOM,
@@ -34,12 +27,7 @@ import {
 	type Prop,
 	type Rotation
 } from '../src/lib/game/props';
-import {
-	normalizeName,
-	type LightPatch,
-	type PropPatch,
-	type TokenPatch
-} from '../src/lib/game/protocol';
+import { normalizeName, type PropPatch, type TokenPatch } from '../src/lib/game/protocol';
 import { roomAround, roomBoundary } from '../src/lib/game/rooms';
 import { withFloor, type FloorId } from '../src/lib/game/floor';
 import { MAX_LEVEL, withLevel } from '../src/lib/game/terrain';
@@ -52,6 +40,19 @@ import {
 	type VisionAdder
 } from '../src/lib/game/visibility';
 import { fail, type Player, type Result, type Room } from './rooms';
+
+export {
+	createLight,
+	deleteLight,
+	lookWorld,
+	setAmbient,
+	setBand,
+	setDarkness,
+	setEnvironment,
+	setInterior,
+	setWorld,
+	updateLight
+} from './scene-look';
 
 /** Walls, closed doors and blocking props, as movement and sight see them. */
 export function obstacles(room: Room) {
@@ -82,7 +83,7 @@ function checkOwner(room: Room, ownerId: string | null): Result<object> {
 }
 
 function checkCell(room: Room, pos: GridPos, movingId?: string): Result<object> {
-	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the table.');
+	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the map.');
 	const occupant = tokenAt(room.tokens.values(), pos);
 	// No name here: under fog the occupant may be a token the mover cannot see.
 	if (occupant && occupant.id !== movingId) return fail('cell_occupied', 'That cell is occupied.');
@@ -165,6 +166,10 @@ export function updateToken(
 	else if (patch.hidden === false) delete token.hidden;
 	if (typeof patch.model === 'string') token.model = patch.model;
 	else if (patch.model === null) delete token.model;
+	if (patch.scale !== undefined) token.scale = patch.scale;
+	if (patch.lift !== undefined) token.lift = patch.lift;
+	if (typeof patch.lightColor === 'string') token.lightColor = patch.lightColor;
+	else if (patch.lightColor === null) delete token.lightColor;
 	return { ok: true, token, previousOwnerId };
 }
 
@@ -280,7 +285,7 @@ export function fogArea(
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can reveal or hide the map.');
 	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
+		return fail('invalid_position', 'That area is off the map.');
 	}
 	const cells = rectCells(room.grid, from, to);
 	for (const i of cells) {
@@ -302,7 +307,7 @@ export function fogRoom(
 	reveal: boolean
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM can reveal or hide the map.');
-	if (!inBounds(room.grid, cell)) return fail('invalid_position', 'That cell is off the table.');
+	if (!inBounds(room.grid, cell)) return fail('invalid_position', 'That cell is off the map.');
 	const cells = roomAround(room.grid, roomBoundary(room.objects.values()), cell);
 	if (!cells) {
 		return fail('invalid_position', 'That is open ground, not a room with walls around it.');
@@ -336,7 +341,7 @@ export function setTerrain(
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM shapes the ground.');
 	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
+		return fail('invalid_position', 'That area is off the map.');
 	}
 	if (!Number.isInteger(level) || level < 0 || level > MAX_LEVEL) {
 		return fail('invalid_position', `Levels run from 0 to ${MAX_LEVEL}.`);
@@ -359,7 +364,7 @@ export function setFloor(
 ): Result<{ cells: number }> {
 	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM paints the floor.');
 	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
+		return fail('invalid_position', 'That area is off the map.');
 	}
 	const cells = rectCells(room.grid, from, to);
 	if (floor === 'void') {
@@ -371,22 +376,6 @@ export function setFloor(
 	}
 	room.floor = withFloor(room.floor, room.grid, from, to, floor);
 	return { ok: true, cells: cells.length };
-}
-
-/** GM: makes an area dark (only light lets anyone see there) or not. */
-export function setDarkness(
-	room: Room,
-	actor: Player,
-	from: GridPos,
-	to: GridPos,
-	dark: boolean
-): Result<{ cells: number }> {
-	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM controls lights.');
-	if (!inBounds(room.grid, from) || !inBounds(room.grid, to)) {
-		return fail('invalid_position', 'That area is off the table.');
-	}
-	room.darkness = withDarkness(room.darkness, room.grid, from, to, dark);
-	return { ok: true, cells: rectCells(room.grid, from, to).length };
 }
 
 /** The table's sight cache, set to these obstacles (see SightCache). */
@@ -404,77 +393,6 @@ export function lightFor(
 	if ((room.flashUntil ?? 0) > now) return null;
 	const sources = lightSources(room.lights.values(), room.tokens.values());
 	return seenByLight(room.grid, blocked, room.ambient, room.darkness, sources, add);
-}
-
-const FORBIDDEN_LIGHTS = fail('forbidden', 'Only the GM controls lights.');
-
-export function createLight(
-	room: Room,
-	actor: Player,
-	input: { pos: GridPos; radius: number; color: string }
-): Result<{ light: Light }> {
-	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
-	if (room.lights.size >= MAX_LIGHTS_PER_ROOM) {
-		return fail('limit_reached', `A room can hold at most ${MAX_LIGHTS_PER_ROOM} lights.`);
-	}
-	if (!inBounds(room.grid, input.pos))
-		return fail('invalid_position', 'That cell is off the table.');
-	if ([...room.lights.values()].some((l) => l.pos.x === input.pos.x && l.pos.y === input.pos.y)) {
-		return fail('cell_occupied', 'There is already a light on that cell.');
-	}
-	const light: Light = {
-		id: randomUUID(),
-		pos: { x: input.pos.x, y: input.pos.y },
-		radius: input.radius,
-		color: input.color,
-		on: true
-	};
-	room.lights.set(light.id, light);
-	return { ok: true, light };
-}
-
-export function updateLight(
-	room: Room,
-	actor: Player,
-	lightId: string,
-	patch: LightPatch
-): Result<{ light: Light }> {
-	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
-	const light = room.lights.get(lightId);
-	if (!light) return fail('light_not_found', 'That light no longer exists.');
-	if (patch.radius !== undefined) light.radius = patch.radius;
-	if (patch.color !== undefined) light.color = patch.color;
-	if (patch.on !== undefined) light.on = patch.on;
-	return { ok: true, light };
-}
-
-export function deleteLight(room: Room, actor: Player, lightId: string): Result<object> {
-	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
-	if (!room.lights.delete(lightId)) return fail('light_not_found', 'That light no longer exists.');
-	return { ok: true };
-}
-
-export function setAmbient(
-	room: Room,
-	actor: Player,
-	ambient: Ambient
-): Result<{ changed: boolean }> {
-	if (!canEditScene(actor)) return FORBIDDEN_LIGHTS;
-	const changed = room.ambient !== ambient;
-	room.ambient = ambient;
-	return { ok: true, changed };
-}
-
-/** GM: how the table looks (an environment asset's id; the client ignores ids it doesn't know). */
-export function setEnvironment(
-	room: Room,
-	actor: Player,
-	environment: string | null
-): Result<{ changed: boolean }> {
-	if (!canEditScene(actor)) return fail('forbidden', 'Only the GM sets how the table looks.');
-	const changed = room.environment !== environment;
-	room.environment = environment;
-	return { ok: true, changed };
 }
 
 const FORBIDDEN_PROPS = fail('forbidden', 'Only the GM can place and arrange props.');
@@ -534,10 +452,14 @@ export function updateProp(
 		scale: patch.scale ?? prop.scale,
 		...((patch.hidden ?? wasHidden) ? { hidden: true as const } : {})
 	};
+	if (patch.variant !== undefined) next.variant = patch.variant;
+	if (typeof patch.tint === 'string') next.tint = patch.tint;
+	else if (patch.tint === null) delete next.tint;
 	const ok = checkPlacement(room, next, prop.id);
 	if (!ok.ok) return ok;
 	Object.assign(prop, next);
 	if (!next.hidden) delete prop.hidden;
+	if (!next.tint) delete prop.tint;
 	return { ok: true, prop };
 }
 

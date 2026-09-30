@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { NAME_MAX_LENGTH } from '$lib/game/protocol';
+	import { NAME_MAX_LENGTH } from '$lib/game/names';
 
 	/**
 	 * Asks for the name someone plays under: before running an adventure

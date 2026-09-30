@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeName, parseClientMessage, parseServerMessage } from './protocol';
+import { normalizeName, parseClientMessage } from './protocol';
+import { parseServerMessage } from './server-message';
 
 const token = 'a'.repeat(64);
 
@@ -101,9 +102,49 @@ describe('token messages', () => {
 		expect(
 			parseClientMessage({ type: 'environment_set', environment: 'javascript:alert(1)' })
 		).toBeNull();
+		expect(parseClientMessage({ type: 'world_set', patch: { time: 1260 } })).toEqual({
+			type: 'world_set',
+			patch: { time: 1260 }
+		});
+		expect(parseClientMessage({ type: 'world_set', patch: {} })).toBeNull();
+		expect(
+			parseClientMessage({ type: 'world_set', patch: { weather: { kind: 'rain', since: 5 } } })
+		).toBeNull();
+		expect(
+			parseClientMessage({ type: 'world_set', patch: { weather: { kind: 'locusts' } } })
+		).toBeNull();
+		expect(parseServerMessage({ type: 'world_update', world: { time: 60 } })).not.toBeNull();
+		expect(parseServerMessage({ type: 'world_update', world: null })).toBeNull();
 		expect(
 			parseClientMessage({ type: 'prop_update', propId: 'p', patch: { hidden: false } })
 		).toEqual({ type: 'prop_update', propId: 'p', patch: { hidden: false } });
+		// Looks (#202): in bounds, and null clears a colour.
+		const token = (patch: object) =>
+			parseClientMessage({ type: 'token_update', tokenId: 't', patch });
+		const prop = (patch: object) => parseClientMessage({ type: 'prop_update', propId: 'p', patch });
+		expect(token({ scale: 3, lift: 10, lightColor: '#b8c8ff' })).toMatchObject({
+			patch: { scale: 3, lift: 10, lightColor: '#b8c8ff' }
+		});
+		expect(token({ lightColor: null })).toMatchObject({ patch: { lightColor: null } });
+		expect(token({ scale: 0.5, lift: 0 })).toMatchObject({ patch: { scale: 0.5, lift: 0 } });
+		for (const bad of [
+			{ scale: 0.4 },
+			{ scale: 3.1 },
+			{ scale: '2' },
+			{ lift: -1 },
+			{ lift: 11 },
+			{ lightColor: 'red' },
+			{ lightColor: '#FFA04D' }
+		]) {
+			expect(token(bad)).toBeNull();
+		}
+		expect(prop({ tint: '#8a3b3b', variant: 255 })).toMatchObject({
+			patch: { tint: '#8a3b3b', variant: 255 }
+		});
+		expect(prop({ tint: null })).toMatchObject({ patch: { tint: null } });
+		for (const bad of [{ tint: 'blue' }, { variant: 256 }, { variant: -1 }, { variant: 1.5 }]) {
+			expect(prop(bad)).toBeNull();
+		}
 		expect(parseClientMessage({ type: 'fog_room', cell: { x: 3, y: 4 }, reveal: true })).toEqual({
 			type: 'fog_room',
 			cell: { x: 3, y: 4 },
@@ -432,6 +473,16 @@ describe('adventure messages', () => {
 			expect(parseClientMessage({ ...table, width })).toBeNull();
 		}
 		expect(parseClientMessage({ ...table, environment: 'https://x/y' })).toBeNull();
+		expect(parseClientMessage({ ...table, world: { time: 1380 } })).toEqual({
+			...table,
+			world: { time: 1380 }
+		});
+		expect(parseClientMessage({ ...table, world: { sun: false } })).toMatchObject({
+			world: { sun: false }
+		});
+		for (const world of [{}, { sun: 'no' }, { weather: { since: 1 } }, 'night', null]) {
+			expect(parseClientMessage({ ...table, world })).toBeNull();
+		}
 		expect(parseClientMessage({ type: 'scene_share', name: 'Mill' })).toEqual({
 			type: 'scene_share',
 			name: 'Mill'
@@ -462,5 +513,44 @@ describe('adventure messages', () => {
 	it('accepts adventure updates, including the adventure ending', () => {
 		expect(parseServerMessage({ type: 'adventure_update', adventure: null })).not.toBeNull();
 		expect(parseServerMessage({ type: 'adventure_update', adventure: 'x' })).toBeNull();
+	});
+});
+
+describe('light looks (#201)', () => {
+	const update = (patch: unknown) =>
+		parseClientMessage({ type: 'light_update', lightId: 'l', patch });
+
+	it('patches look fields, null clearing one back to its kind', () => {
+		expect(update({ kind: 'neon', intensity: 2, fixture: false, facing: 3 })).toEqual({
+			type: 'light_update',
+			lightId: 'l',
+			patch: { kind: 'neon', intensity: 2, fixture: false, facing: 3 }
+		});
+		expect(update({ kind: null, height: null, on: true })).toEqual({
+			type: 'light_update',
+			lightId: 'l',
+			patch: { kind: null, height: null, on: true }
+		});
+	});
+
+	it('rejects looks out of range or unknown', () => {
+		expect(update({ intensity: 5 })).toBeNull();
+		expect(update({ height: 11 })).toBeNull();
+		expect(update({ facing: 4 })).toBeNull();
+		expect(update({ kind: 'laser' })).toBeNull();
+		expect(update({ flicker: 'strobe' })).toBeNull();
+		expect(update({})).toBeNull();
+	});
+
+	it('places a light with a look', () => {
+		const create = { type: 'light_create', pos: { x: 1, y: 2 }, radius: 3, color: '#ffa04d' };
+		expect(parseClientMessage({ ...create, kind: 'glow', fixture: false })).toEqual({
+			...create,
+			kind: 'glow',
+			fixture: false
+		});
+		expect(parseClientMessage(create)).toEqual(create);
+		expect(parseClientMessage({ ...create, kind: 'laser' })).toBeNull();
+		expect(parseClientMessage({ ...create, kind: null })).toBeNull();
 	});
 });

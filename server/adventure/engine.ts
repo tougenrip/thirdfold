@@ -66,10 +66,12 @@ import {
 } from '../../src/lib/game/props';
 import type { AdventureControl, CharacterPatch, Direction } from '../../src/lib/game/protocol';
 import { tokenAt, type Token } from '../../src/lib/game/token';
+import { LIGHT_LOOK_KEYS } from '../../src/lib/game/lights';
 import { hasLineOfSight, rectCells } from '../../src/lib/game/visibility';
+import { applyWorldPatch } from '../../src/lib/game/world';
 import { appendLog, postSystem } from '../chat';
 import { fail, type Player, type Result, type Room } from '../rooms';
-import { lightFor, obstacles } from '../scene';
+import { lightFor, lookWorld, obstacles, setBand } from '../scene';
 import { applyScene } from '../scene-io';
 import { creatorIdOf } from '../library-store';
 import { patrolStep, plan as planTurn, seenBy, type Foe as Foe_, type Situation } from './ai';
@@ -288,6 +290,7 @@ function placeCharacter(
 		ownerId,
 		vision: def.vision,
 		light: def.light,
+		...(def.lightColor ? { lightColor: def.lightColor } : {}),
 		model: id
 	};
 	room.tokens.set(token.id, token);
@@ -983,11 +986,16 @@ export function run(
 			if (effect.on !== undefined) light.on = effect.on;
 			if (effect.color !== undefined) light.color = effect.color;
 			if (effect.radius !== undefined) light.radius = effect.radius;
+			for (const key of LIGHT_LOOK_KEYS) {
+				if (effect[key] !== undefined) Object.assign(light, { [key]: effect[key] });
+			}
 		} else if ('prop' in effect) {
 			const prop = room.props.get(effect.prop);
 			if (prop) prop.assetId = effect.asset;
 		} else if ('ambient' in effect) {
-			room.ambient = effect.ambient;
+			setBand(room, effect.ambient);
+		} else if ('world' in effect) {
+			lookWorld(room, applyWorldPatch(room.world, effect.world, now));
 		} else if ('hurt' in effect) {
 			const def = objectDef(A, effect.hurt.near);
 			const cells = (def && objectCells(room, def)) ?? [];
@@ -1442,8 +1450,7 @@ export function setObject(
 	if (!def.states.includes(state)) {
 		return fail('invalid_message', `The ${def.name.toLowerCase()} can't be ${state}.`);
 	}
-	if (!objectCells(room, def))
-		return fail('object_not_found', `The ${def.name} isn't on the table.`);
+	if (!objectCells(room, def)) return fail('object_not_found', `The ${def.name} isn't here.`);
 	if (adventure.carried.has(def.id)) {
 		return fail('forbidden', `Someone is carrying the ${def.name.toLowerCase()}.`);
 	}
@@ -1493,6 +1500,7 @@ function enemyToken(A: AdventureDef, kind: string, pos: GridPos): Token {
 		ownerId: null,
 		vision: def.vision,
 		light: def.light,
+		...(def.lightColor ? { lightColor: def.lightColor } : {}),
 		model: def.model
 	};
 }
@@ -3038,7 +3046,7 @@ function spawn(
 	const A = content(adventure);
 	const def = Object.hasOwn(A.enemies, kind) ? A.enemies[kind] : undefined;
 	if (!def) return fail('invalid_message', 'There is no such enemy in this story.');
-	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the table.');
+	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the map.');
 	if (!isFree(room, pos)) return fail('cell_occupied', 'Something is already there.');
 	const log = [postSystem(room, `${actor.name} brought on ${def.name}.`, 'gm')];
 	const token = enemyToken(A, kind, pos);

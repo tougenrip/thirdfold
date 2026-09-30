@@ -48,6 +48,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 		speed: 5,
 		vision: 8,
 		light: 2,
+		lightColor: '#ffd27a',
 		initiative: 1,
 		hp: (n) => 6 + 3 * party(n),
 		attacks: [

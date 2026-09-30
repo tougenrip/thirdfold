@@ -107,6 +107,16 @@ const guardAt = (keeper: string, pos: GridPos) => {
 };
 const texts = (log: ChatMessage[]) => log.flatMap((m) => ('text' in m ? [m.text] : []));
 
+describe('carried light (#202)', () => {
+	it('gives cultists and the Ember their own colours, and the Warden none', () => {
+		fight();
+		for (const id of foes('cultist')) expect(room.tokens.get(id)!.lightColor).toBe('#ffd27a');
+		expect(room.tokens.get(foes('keeper')[0])!.lightColor).toBeUndefined();
+		expect(warden().token.lightColor).toBeUndefined();
+		expect(CHARACTERS.ember.lightColor).toBe('#ff6a2a');
+	});
+});
+
 describe('initiative', () => {
 	it('orders everyone by a server roll, characters first on a tie, and starts with the first', () => {
 		const started = fight();

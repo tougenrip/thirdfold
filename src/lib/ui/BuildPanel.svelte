@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import type { AssetId, Rotation } from '$lib/game/props';
+	import type { LightKind } from '$lib/game/lights';
 	import { loadManifest } from '$lib/assets/load';
 
 	export type BuildTool =
@@ -15,7 +16,8 @@
 		| 'prop'
 		| 'height'
 		| 'floor'
-		| 'dark';
+		| 'dark'
+		| 'roof';
 
 	/** The prop the GM is about to place. */
 	export interface PropDraft {
@@ -25,13 +27,22 @@
 
 	/** Settings for the next light the GM places. */
 	export interface LightDraft {
+		kind: LightKind;
 		radius: number;
 		color: string;
 	}
 </script>
 
 <script lang="ts">
-	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
+	import {
+		LIGHT_COLORS,
+		LIGHT_KINDS,
+		lightKindName,
+		MAX_LIGHT_RADIUS,
+		type Ambient
+	} from '$lib/game/lights';
+	import type { WorldLook } from '$lib/game/world';
+	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import { ASSET_IDS, ASSETS, PROP_CATEGORIES } from '$lib/game/props';
 	import { FLOORS, type FloorId } from '$lib/game/floor';
 	import { MAX_LEVEL } from '$lib/game/terrain';
@@ -44,13 +55,14 @@
 		/** Whether players see through the whole party's eyes. */
 		fogShared: boolean;
 		ambient: Ambient;
+		world: WorldLook;
+		send(action: RoomAction): boolean;
 		lightDraft: LightDraft;
 		propDraft: PropDraft;
 		onTool(tool: BuildTool): void;
 		onFog(enabled: boolean): void;
 		onFogAll(reveal: boolean): void;
 		onFogShared(shared: boolean): void;
-		onAmbient(ambient: Ambient): void;
 		/** How the table looks: an environment asset's id, or null for the plain table. */
 		environment: string | null;
 		onEnvironment(environment: string | null): void;
@@ -69,13 +81,14 @@
 		fogEnabled,
 		fogShared,
 		ambient,
+		world,
+		send,
 		lightDraft,
 		propDraft,
 		onTool,
 		onFog,
 		onFogAll,
 		onFogShared,
-		onAmbient,
 		environment,
 		onEnvironment,
 		onLightDraft,
@@ -95,8 +108,6 @@
 	const PROP_GROUPS = PROP_CATEGORIES.map(
 		(category) => [category, ASSET_IDS.filter((id) => ASSETS[id].category === category)] as const
 	).filter(([, ids]) => ids.length > 0);
-
-	const AMBIENT_LABEL: Record<Ambient, string> = { day: 'Day', dusk: 'Dusk', dark: 'Dark' };
 
 	let environments = $state<[string, string][]>([]);
 	$effect(() => {
@@ -165,21 +176,18 @@
 	</div>
 
 	<div class="section">
-		<div class="ambient" role="radiogroup" aria-label="Lighting">
-			{#each AMBIENTS as a (a)}
-				<button type="button" role="radio" aria-checked={ambient === a} onclick={() => onAmbient(a)}
-					>{AMBIENT_LABEL[a]}</button
-				>
-			{/each}
-		</div>
+		<!-- GM only: loaded on its own so the players' room page stays small. -->
+		{#await import('./TimeOfDay.svelte') then { default: TimeOfDay }}
+			<TimeOfDay {world} {ambient} {send} />
+		{/await}
 		<label class="environment">
 			<span class="muted">Looks like</span>
 			<select
 				value={environment ?? ''}
-				aria-label="How the table looks"
+				aria-label="How the world looks"
 				onchange={(e) => onEnvironment(e.currentTarget.value || null)}
 			>
-				<option value="">Plain table</option>
+				<option value="">Plain ground</option>
 				{#each environments as [id, name] (id)}
 					<option value={id}>{name}</option>
 				{/each}
@@ -190,6 +198,13 @@
 			<p class="muted">
 				Click two corners. Only light lets anyone see in a dark area, even by day. Start on a dark
 				cell to lift the dark instead.
+			</p>
+		{/if}
+		{@render toolButton({ id: 'roof', label: 'Roof', key: 'I' })}
+		{#if tool === 'roof'}
+			<p class="muted">
+				Click two corners to roof an area; roofed cells show green while the tool is out. A roof
+				only changes the look, never sight or light. Start on a roofed cell to lift the roof.
 			</p>
 		{/if}
 		{@render toolButton({ id: 'floor', label: 'Paint floor', key: 'F' })}
@@ -209,7 +224,8 @@
 				{/each}
 			</div>
 			<p class="muted">
-				Click two corners of an area. Off the map: nobody can stand there. Table clears the paint.
+				Click two corners of an area. Off the map: nobody can stand there. Default ground clears the
+				paint.
 			</p>
 		{/if}
 		{@render toolButton({ id: 'height', label: 'Shape ground', key: 'G' })}
@@ -232,6 +248,19 @@
 		{/if}
 		{@render toolButton({ id: 'light', label: 'Place light', key: 'L' })}
 		{#if tool === 'light'}
+			<label class="row">
+				<span class="muted">Kind</span>
+				<select
+					value={lightDraft.kind}
+					aria-label="Light kind"
+					onchange={(e) =>
+						onLightDraft({ ...lightDraft, kind: e.currentTarget.value as LightKind })}
+				>
+					{#each LIGHT_KINDS as kind (kind)}
+						<option value={kind}>{lightKindName(kind)}</option>
+					{/each}
+				</select>
+			</label>
 			<label class="row">
 				<span class="muted">Radius (cells)</span>
 				<input
@@ -360,22 +389,6 @@
 
 	.environment select {
 		flex: 1;
-	}
-
-	.ambient {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: var(--sp-3);
-	}
-
-	.ambient button {
-		font-size: var(--fs-xs);
-	}
-
-	.ambient [aria-checked='true'] {
-		border-color: var(--accent);
-		background: var(--accent-wash);
-		color: var(--accent);
 	}
 
 	.row {

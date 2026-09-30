@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN, type JoinRole } from '$lib/game/protocol';
+	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN } from '$lib/game/names';
+	import type { JoinRole } from '$lib/game/protocol';
 	import {
 		RoomConnection,
 		savedSession,

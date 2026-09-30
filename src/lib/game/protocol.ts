@@ -1,6 +1,6 @@
 // Wire protocol shared by the game server and the browser client. Everything
 // arriving from the network is untrusted: parse it with parseClientMessage /
-// parseServerMessage rather than casting.
+// parseServerMessage (server-message.ts) rather than casting.
 
 import {
 	isObjectState,
@@ -13,12 +13,28 @@ import { isStatusId, type CharacterId, type StatusId } from '../adventure/charac
 import { ASSET_ID_PATTERN } from '../assets/manifest';
 import type { ChatMessage } from './chat';
 import type { GridPos, SquareGrid } from './grid';
-import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
+import {
+	AMBIENTS,
+	LIGHT_LOOK_KEYS,
+	MAX_LIGHT_RADIUS,
+	parseLightLook,
+	type Ambient,
+	type Light,
+	type LightLook
+} from './lights';
 import type { SceneObject } from './objects';
 import type { Motion } from './motion';
-import { resolveAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
+import {
+	parsePropLook,
+	resolveAssetId,
+	PROP_SCALE,
+	type AssetId,
+	type Prop,
+	type Rotation
+} from './props';
 import type { SceneFile } from './scene-file';
 import { isFloorId, type FloorId } from './floor';
+import { parseWorldPatch, type WorldLook, type WorldPatch } from './world';
 import {
 	CREATOR_ID_PATTERN,
 	LIBRARY_ID_PATTERN,
@@ -33,8 +49,11 @@ import {
 	type StoryDetail
 } from './library';
 import { MAX_LEVEL } from './terrain';
-import { TOKEN_COLOR_PATTERN, type Token } from './token';
+import { parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
+import { NAME_MAX_LENGTH, normalizeName, ROOM_ID_PATTERN } from './names';
+
+export { NAME_MAX_LENGTH, normalizeName, ROOM_ID_PATTERN };
 
 export type Role = 'gm' | 'player' | 'spectator';
 /** Roles a client may ask for when joining. GM is only ever the room creator. */
@@ -82,10 +101,14 @@ export interface RoomSnapshot {
 	floor: string | null;
 	/** The table's dark areas (a base64 CellMask), as far as this client knows them; null for none. */
 	darkness: string | null;
+	/** Roofed cells (a base64 CellMask), as far as this client knows them; null for none. Presentation only. */
+	interior: string | null;
 	/** The GM has paused the game. */
 	paused: boolean;
 	/** How the table looks (an environment asset's id), or null for the plain table. */
 	environment: string | null;
+	/** How the world looks (the hour, sky, weather, haze, grade, backdrop): the same for everyone. */
+	world: WorldLook;
 	/** The GM lists this game for anyone to find and join (else only its invite link leads here). */
 	listed: boolean;
 }
@@ -101,6 +124,10 @@ export interface TokenPatch {
 	hidden?: boolean;
 	/** The model it is drawn as (an asset id), or null for the plain miniature. */
 	model?: string | null;
+	/** Look only (TokenLook): size, lift in levels, and the carried light's colour (null clears). */
+	scale?: number;
+	lift?: number;
+	lightColor?: string | null;
 }
 
 /** Fields the GM may change on a placed prop: move, rotate, scale. */
@@ -110,14 +137,17 @@ export interface PropPatch {
 	scale?: number;
 	/** Keep it out of players' views (true), or show it again (false). */
 	hidden?: boolean;
+	/** Look only (PropLook): a tint over the model (null clears) and its variant. */
+	tint?: string | null;
+	variant?: number;
 }
 
-/** Fields the GM may change on an existing light. */
-export interface LightPatch {
+/** Fields the GM may change on an existing light; a look field set to null goes back to its kind's. */
+export type LightPatch = {
 	radius?: number;
 	color?: string;
 	on?: boolean;
-}
+} & { [K in keyof LightLook]?: LightLook[K] | null };
 
 export type ClientMessage =
 	/**
@@ -156,18 +186,22 @@ export type ClientMessage =
 	| { type: 'prop_update'; propId: string; patch: PropPatch }
 	| { type: 'prop_delete'; propId: string }
 	/** GM: place a light source on a cell. */
-	| { type: 'light_create'; pos: GridPos; radius: number; color: string }
+	| ({ type: 'light_create'; pos: GridPos; radius: number; color: string } & Partial<LightLook>)
 	| { type: 'light_update'; lightId: string; patch: LightPatch }
 	| { type: 'light_delete'; lightId: string }
 	/** GM: the room's ambient light level. */
 	| { type: 'ambient_set'; ambient: Ambient }
 	/** GM: how the table looks (an environment asset's id), or null for the plain table. */
 	| { type: 'environment_set'; environment: string | null }
+	/** GM: the world's look (time, sky, weather, haze, grade, backdrop); with a sun the hour sets the band. */
+	| { type: 'world_set'; patch: WorldPatch }
 	/** GM: set the level (elevation) of every cell in the rectangle between two cells. */
 	| { type: 'terrain_set'; from: GridPos; to: GridPos; level: number }
 	/** GM: paints an area's floor, or puts it off the map (`void`). */
 	| { type: 'floor_set'; from: GridPos; to: GridPos; floor: FloorId }
 	| { type: 'darkness_set'; from: GridPos; to: GridPos; dark: boolean }
+	/** GM: roofs (or unroofs) every cell in the rectangle between two cells. */
+	| { type: 'interior_set'; from: GridPos; to: GridPos; roofed: boolean }
 	/** GM: save the current table under a name. Replies with scene_saved. */
 	| { type: 'scene_save'; name: string }
 	/** GM: replace the table with a saved scene. */
@@ -183,13 +217,14 @@ export type ClientMessage =
 	| { type: 'scene_list'; gmKey?: string }
 	/** GM: forget one of their saves. */
 	| { type: 'scene_delete'; sceneId: string }
-	/** GM: replace the table with a new, empty one of this size and look. */
+	/** GM: replace the table with a new, empty one of this size and look (and starting world). */
 	| {
 			type: 'scene_new';
 			name: string;
 			width: number;
 			height: number;
 			environment: string | null;
+			world?: WorldPatch;
 	  }
 	/**
 	 * GM: share the current table (the world, without the story or who plays
@@ -375,12 +410,15 @@ export type ServerMessage =
 	| { type: 'lights_changed'; upserted: Light[]; removed: string[] }
 	| { type: 'ambient_update'; ambient: Ambient }
 	| { type: 'environment_update'; environment: string | null }
+	| { type: 'world_update'; world: WorldLook }
 	/** This client's visibility changed (vision moved, doors, GM reveal, fog toggled). */
 	| { type: 'fog_update'; fog: FogView }
 	/** The ground this client knows changed (the GM reshaped it, or more of it was explored). */
 	| { type: 'terrain_update'; terrain: string | null }
 	| { type: 'floor_update'; floor: string | null }
 	| { type: 'darkness_update'; darkness: string | null }
+	/** The roofed cells this client knows changed. */
+	| { type: 'interior_update'; interior: string | null }
 	| { type: 'pause_update'; paused: boolean }
 	/** To the GM who saved: where the scene is stored. Keep the id to load it again. */
 	| { type: 'scene_saved'; sceneId: string; name: string; savedAt: string }
@@ -418,18 +456,8 @@ export type ServerMessage =
 	| { type: 'games_list'; games: PublicGame[] }
 	| { type: 'error'; code: ErrorCode; message: string };
 
-export const NAME_MAX_LENGTH = 32;
-export const ROOM_ID_PATTERN = /^[A-Z2-9]{6}$/;
 const SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const ID_MAX_LENGTH = 64;
-
-/** Trims and strips control characters; null when the result is empty or too long. */
-export function normalizeName(raw: unknown): string | null {
-	if (typeof raw !== 'string') return null;
-	// eslint-disable-next-line no-control-regex
-	const name = raw.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-	return name.length > 0 && name.length <= NAME_MAX_LENGTH ? name : null;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -539,6 +567,11 @@ function parseTokenPatch(value: unknown): TokenPatch | null {
 		if (model !== null && !isAssetRef(model)) return null;
 		patch.model = model;
 	}
+	const { lightColor, ...rest } = value;
+	const look = parseTokenLook({ ...rest, lightColor: lightColor ?? undefined });
+	if (!look) return null;
+	Object.assign(patch, look);
+	if (lightColor === null) patch.lightColor = null;
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -567,6 +600,10 @@ function parsePropPatch(value: unknown): PropPatch | null {
 		if (typeof value.hidden !== 'boolean') return null;
 		patch.hidden = value.hidden;
 	}
+	const look = parsePropLook({ variant: value.variant, tint: value.tint ?? undefined });
+	if (!look) return null;
+	Object.assign(patch, look);
+	if (value.tint === null) patch.tint = null;
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -589,6 +626,14 @@ function parseLightPatch(value: unknown): LightPatch | null {
 		if (typeof value.on !== 'boolean') return null;
 		patch.on = value.on;
 	}
+	const set: Record<string, unknown> = {};
+	for (const key of LIGHT_LOOK_KEYS) {
+		if (value[key] === null) (patch as Record<string, unknown>)[key] = null;
+		else if (value[key] !== undefined) set[key] = value[key];
+	}
+	const look = parseLightLook(set);
+	if (!look) return null;
+	Object.assign(patch, look);
 	return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -702,7 +747,9 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		case 'light_create': {
 			const pos = parseGridPos(data.pos);
 			if (!pos || !isLightRadius(data.radius) || !isColor(data.color)) return null;
-			return { type: 'light_create', pos, radius: data.radius, color: data.color };
+			const look = parseLightLook(data);
+			if (!look) return null;
+			return { type: 'light_create', pos, radius: data.radius, color: data.color, ...look };
 		}
 		case 'light_update': {
 			const patch = parseLightPatch(data.patch);
@@ -738,11 +785,22 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'darkness_set', from, to, dark: data.dark }
 				: null;
 		}
+		case 'interior_set': {
+			const from = parseGridPos(data.from);
+			const to = parseGridPos(data.to);
+			return from && to && typeof data.roofed === 'boolean'
+				? { type: 'interior_set', from, to, roofed: data.roofed }
+				: null;
+		}
 		case 'environment_set': {
 			const environment = data.environment;
 			return environment === null || isAssetRef(environment)
 				? { type: 'environment_set', environment }
 				: null;
+		}
+		case 'world_set': {
+			const patch = parseWorldPatch(data.patch);
+			return patch ? { type: 'world_set', patch } : null;
 		}
 		case 'ambient_set':
 			return AMBIENTS.includes(data.ambient as Ambient)
@@ -773,16 +831,19 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				(v as number) >= NEW_TABLE_LIMITS.min &&
 				(v as number) <= NEW_TABLE_LIMITS.max;
 			const environment = data.environment ?? null;
+			const world = data.world === undefined ? undefined : parseWorldPatch(data.world);
 			return typeof data.name === 'string' &&
 				size(data.width) &&
 				size(data.height) &&
-				(environment === null || isAssetRef(environment))
+				(environment === null || isAssetRef(environment)) &&
+				world !== null
 				? {
 						type: 'scene_new',
 						name: data.name,
 						width: data.width as number,
 						height: data.height as number,
-						environment
+						environment,
+						...(world && { world })
 					}
 				: null;
 		}
@@ -925,51 +986,4 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		default:
 			return null;
 	}
-}
-
-const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unknown>) => boolean> =
-	{
-		welcome: (d) =>
-			typeof d.playerId === 'string' && typeof d.sessionToken === 'string' && isRecord(d.room),
-		player_joined: (d) => isRecord(d.player),
-		player_presence: (d) => typeof d.playerId === 'string' && typeof d.connected === 'boolean',
-		token_upserted: (d) => isRecord(d.token),
-		token_moved: (d) => typeof d.tokenId === 'string' && parseGridPos(d.pos) !== null,
-		token_deleted: (d) => typeof d.tokenId === 'string',
-		scene_saved: (d) => typeof d.sceneId === 'string' && typeof d.name === 'string',
-		scene_list: (d) => Array.isArray(d.scenes),
-		scene_exported: (d) => isRecord(d.file),
-		scene_shared: (d) => typeof d.code === 'string' && typeof d.name === 'string',
-		room_reset: (d) => isRecord(d.room),
-		props_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
-		lights_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
-		ambient_update: (d) => typeof d.ambient === 'string',
-		environment_update: (d) => d.environment === null || typeof d.environment === 'string',
-		fog_update: (d) => isRecord(d.fog) && typeof d.fog.enabled === 'boolean',
-		terrain_update: (d) => d.terrain === null || typeof d.terrain === 'string',
-		floor_update: (d) => d.floor === null || typeof d.floor === 'string',
-		darkness_update: (d) => d.darkness === null || typeof d.darkness === 'string',
-		pause_update: (d) => typeof d.paused === 'boolean',
-		objects_changed: (d) => Array.isArray(d.upserted) && Array.isArray(d.removed),
-		chat: (d) => isRecord(d.message) && typeof d.message.seq === 'number',
-		adventure_update: (d) => d.adventure === null || isRecord(d.adventure),
-		motion: (d) => Array.isArray(d.motions),
-		listing_update: (d) => typeof d.listed === 'boolean',
-		library_list: (d) => Array.isArray(d.adventures),
-		library_story: (d) => d.story === null || isRecord(d.story),
-		library_mine: (d) => Array.isArray(d.adventures),
-		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
-		games_list: (d) => Array.isArray(d.games),
-		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
-	};
-
-/**
- * The server is trusted, so this only guards against version skew and
- * corrupted frames by checking the discriminant and top-level fields.
- */
-export function parseServerMessage(data: unknown): ServerMessage | null {
-	if (!isRecord(data) || typeof data.type !== 'string') return null;
-	if (!Object.hasOwn(SERVER_FIELD_CHECKS, data.type)) return null;
-	const check = SERVER_FIELD_CHECKS[data.type as ServerMessage['type']];
-	return check?.(data) ? (data as unknown as ServerMessage) : null;
 }

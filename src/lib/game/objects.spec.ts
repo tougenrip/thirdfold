@@ -57,7 +57,7 @@ describe('segments', () => {
 		expect(segmentProblem(grid, { x: 0, y: 2 }, { x: 10, y: 2 })).toBeNull();
 		expect(segmentProblem(grid, { x: 1, y: 1 }, { x: 3, y: 3 })).toMatch(/diagonal/);
 		expect(segmentProblem(grid, { x: 1, y: 1 }, { x: 1, y: 1 })).toMatch(/two different/);
-		expect(segmentProblem(grid, { x: 0, y: 0 }, { x: 11, y: 0 })).toMatch(/off the table/);
+		expect(segmentProblem(grid, { x: 0, y: 0 }, { x: 11, y: 0 })).toMatch(/off the map/);
 	});
 
 	it('lists unit edges regardless of direction', () => {

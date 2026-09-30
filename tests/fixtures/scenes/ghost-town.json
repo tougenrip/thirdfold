@@ -1,6 +1,6 @@
 {
 	"format": "thirdfold-scene",
-	"version": 9,
+	"version": 10,
 	"name": "Blackwater",
 	"savedAt": "2026-01-01T00:00:00.000Z",
 	"grid": {
@@ -236,7 +236,8 @@
 			},
 			"radius": 4,
 			"color": "#9fd0ff",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-ghost-lamp-2",
@@ -246,7 +247,8 @@
 			},
 			"radius": 4,
 			"color": "#9fd0ff",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		},
 		{
 			"id": "bw-ghost-lamp-3",
@@ -256,10 +258,36 @@
 			},
 			"radius": 4,
 			"color": "#9fd0ff",
-			"on": true
+			"on": true,
+			"kind": "lantern"
 		}
 	],
 	"ambient": "dark",
+	"world": {
+		"time": 90,
+		"rate": 0,
+		"sun": true,
+		"sky": null,
+		"weather": {
+			"kind": "none",
+			"intensity": 0,
+			"seed": 0,
+			"since": 0
+		},
+		"haze": {
+			"density": 0,
+			"color": null
+		},
+		"grade": {
+			"preset": null,
+			"exposure": 0
+		},
+		"backdrop": {
+			"kind": null,
+			"level": 0
+		}
+	},
+	"interior": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwAwDADwAAPwAA/AAA8AMAAAAAAAAAAA==",
 	"fog": {
 		"enabled": true,
 		"revealed": "/////////////////////////////////////////////////////////////////////w==",

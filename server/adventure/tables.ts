@@ -4,12 +4,18 @@
 
 import { encodeFloor, withFloor, type FloorId, type FloorMap } from '../../src/lib/game/floor';
 import type { GridPos, SquareGrid } from '../../src/lib/game/grid';
-import type { Ambient, Light } from '../../src/lib/game/lights';
+import type { Ambient, Light, LightLook } from '../../src/lib/game/lights';
 import type { SceneObject } from '../../src/lib/game/objects';
 import type { AssetId, Prop, Rotation } from '../../src/lib/game/props';
 import { SCENE_FILE_VERSION, type SavedToken, type SceneFile } from '../../src/lib/game/scene-file';
 import { encodeLevels, flatLevels, withLevel, type LevelMap } from '../../src/lib/game/terrain';
 import { emptyMask, encodeMask, rectCells } from '../../src/lib/game/visibility';
+import {
+	ambientFor,
+	applyWorldPatch,
+	defaultWorldFor,
+	type WorldPatch
+} from '../../src/lib/game/world';
 
 export const wall = (id: string, a: GridPos, b: GridPos): SceneObject => ({
 	id,
@@ -49,8 +55,12 @@ export const light = (
 	y: number,
 	radius: number,
 	color: string,
-	on = true
-): Light => ({ id, pos: { x, y }, radius, color, on });
+	on = true,
+	look: Partial<LightLook> = {}
+): Light => ({ id, pos: { x, y }, radius, color, on, ...look });
+
+/** A light that is only a glow (the Bell's, a charm's, the lake's): no lantern post (#201). */
+export const GLOW: Partial<LightLook> = { kind: 'glow', fixture: false };
 
 export interface TableParts {
 	name: string;
@@ -60,12 +70,16 @@ export interface TableParts {
 	lights: Light[];
 	tokens: SavedToken[];
 	ambient: Ambient;
+	/** How the world looks over the default at `ambient`'s hour; with a sun its hour must fall in `ambient`. */
+	world?: WorldPatch;
 	/** Already in view when the party arrives: an inclusive rectangle of cells. */
 	arrival: { from: GridPos; to: GridPos };
 	/** Raised ground, applied in order (later areas win); the rest is level 0. */
 	terrain?: readonly Rise[];
 	/** Dark areas (inclusive rectangles): only light lets anyone see there, whatever the ambient. */
 	dark?: readonly { from: GridPos; to: GridPos }[];
+	/** Roofed cells (inclusive rectangles): presentation only, never a rule of sight, light or movement. */
+	interior?: readonly { from: GridPos; to: GridPos }[];
 	/** How it looks: an environment asset (assets/environments). */
 	environment: string;
 	/** Painted floors (inclusive rectangles, later ones win); the rest is the table's own surface. */
@@ -92,6 +106,10 @@ export function stair(from: number, cells: readonly { from: GridPos; to: GridPos
 export const at = (x: number, y: number) => ({ from: { x, y }, to: { x, y } });
 
 export function table(parts: TableParts, now = new Date()): SceneFile {
+	const world = applyWorldPatch(defaultWorldFor(parts.ambient), parts.world ?? {}, now.getTime());
+	if (ambientFor(world, parts.ambient) !== parts.ambient) {
+		throw new Error(`${parts.name}: its world's hour is not ${parts.ambient}`);
+	}
 	const revealed = emptyMask(parts.grid);
 	for (const i of rectCells(parts.grid, parts.arrival.from, parts.arrival.to)) revealed[i] = 1;
 	let levels: LevelMap | null = null;
@@ -103,6 +121,9 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 	const darkness = emptyMask(parts.grid);
 	for (const d of parts.dark ?? [])
 		for (const i of rectCells(parts.grid, d.from, d.to)) darkness[i] = 1;
+	const interior = emptyMask(parts.grid);
+	for (const d of parts.interior ?? [])
+		for (const i of rectCells(parts.grid, d.from, d.to)) interior[i] = 1;
 	return {
 		format: 'thirdfold-scene',
 		version: SCENE_FILE_VERSION,
@@ -114,6 +135,8 @@ export function table(parts: TableParts, now = new Date()): SceneFile {
 		props: parts.props,
 		lights: parts.lights,
 		ambient: parts.ambient,
+		world,
+		interior: interior.some((v) => v) ? encodeMask(interior) : null,
 		fog: { enabled: true, revealed: encodeMask(revealed), shared: false },
 		discovery: {},
 		adventure: null,

@@ -180,7 +180,9 @@ describe('ending C: Communion', () => {
 		toTheChoice();
 		const end = ok(decide(room, ana, 'bell', 'use', 5000));
 		expect(story().ending).toBe('communion');
-		expect(room.ambient).toBe('dusk');
+		// The band stays dark (no sun underground): the calm blue is the grade and the lights.
+		expect(room.ambient).toBe('dark');
+		expect(room.world.grade).toEqual({ preset: 'hollow-blue', exposure: 1 });
 		expect(light('ho-bell-glow')).toMatchObject({ on: true, radius: 12 });
 		expect(end.log).toContainEqual(
 			expect.objectContaining({ cue: 'flash', text: expect.stringContaining('calm blue') })
@@ -287,6 +289,9 @@ describe('the session’s end', () => {
 			ending: null
 		});
 		expect(view().summary).toBeNull();
+		// Back in Bellweather at 19:30, Communion's grade gone with the Hollow.
+		expect(room.world).toMatchObject({ time: 1170, sun: true, grade: { preset: null } });
+		expect(room.ambient).toBe('dusk');
 		expect(me().id).toBe('warden');
 		expect(me().token.ownerId).toBe(ana.id);
 	});

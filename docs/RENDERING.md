@@ -320,6 +320,72 @@ The rules track shares the version sequence ([#100](https://github.com/tougenrip
 Published wire values are accepted forever: the `{ambient}` effect, `ambient_set`, Shot frame
 `table` and the stored `tabletop` camera view.
 
+v10 (`src/lib/game/scene-versions.ts`) adds `world` (the world look, below), `interior` (roofed cells,
+a base64 mask checked to the grid's exact length by `decodeMaskExact`), each player's remembered
+lights in `discovery[name].lights` (checked like scene lights by `parseLightList`), and optional looks
+on lights (`LightLook`), tokens (`TokenLook`) and props (`PropLook`); absent means the default, so
+older content needs no new fields. A v9 file comes forward with `defaultWorldFor(ambient)` (under a
+sun, even underground), no roofs and no remembered lights. M66 takes v10; #100 takes v11.
+
+Each bump is forward-only. `migrate` in `src/lib/game/scene-file.ts` refuses a newer version, so once
+a v10 server has written saves, autosaves, live rooms or library versions, a v9 server can't read
+them: it skips the stored rooms (and leaves them in the store) and refuses those saves. Nothing is
+deleted, but games can't go on until the newer build is back or the data is restored. So:
+
+- **Back up before deploying a bump**: `npm run data:backup` (`server/data-backup.ts`), with the
+  server's env. It copies `SCENES_DIR`, `ROOMS_DIR` and `LIBRARY_DIR` into
+  `backups/<time>/files/` and, with `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`, pages `scenes`,
+  `live_rooms`, `library_adventures`, `library_versions` and `library_ratings` into
+  `backups/<time>/tables/<table>.ndjson`. `manifest.json` records the counts, the scene-file versions
+  seen in saves and rooms, and the app version. Any error exits non-zero. `backups/` is gitignored;
+  a backup holds session tokens and GM key hashes, so keep it like the database.
+- **Rolling back**: stop the game server, `npm run data:restore -- <backup dir> --yes`
+  (`server/data-restore.ts`, which refuses without `--yes` and checks the files against the
+  manifest), then deploy the previous build. Files are copied back over same-named ones; rows are
+  upserted by primary key, parents first. What was saved after the backup is lost where the backup
+  holds the same id; what is new stays, unreadable until the newer build returns.
+- **Tried**: `server/data-backup.spec.ts` round-trips the file stores byte for byte and the tables
+  through a fake client, and, with `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` set, round-trips a live
+  Supabase unchanged. By hand on 30 September 2026, against local Supabase: seeded a save, a live
+  room and a rated library adventure, backed up, rewrote them as v10 and changed the rating and
+  plays, restored, and a second backup's tables were identical to the first.
+- The closing PR of a milestone that bumps the version ticks "backup taken before deploy".
+
+## World look
+
+`src/lib/game/world.ts` is the world's look as data (`WorldLook`): the hour (`time`, whole minutes
+0-1439), the clock's `rate` (stopped until #324), `sun`, a `sky` and grade `preset` (asset ids, null
+for the environment's), `weather` (kind, intensity, seed and the server-stamped `since`), `haze`,
+`exposure` and the `backdrop`. Only the hour is a rule, and only with a sun: `bandOf` gives the band
+(day 07:00-18:59, dusk 05:00-06:59 and 19:00-20:59, dark otherwise), and the room's `ambient` is
+always `ambientFor(world, ambient)`. A sunless table (underground) keeps its band whatever the hour.
+`canonicalTime` is each band's hour (12:00, 19:30, 23:00) and `withBand` moves a look into a band,
+snapping the hour only when it is outside it. Rules read `room.ambient`, never `world.time`; the rest
+is presentation. `world.spec.ts` pins every band edge, so moving a threshold is a deliberate change.
+
+The GM changes it with one message, `world_set { patch }` (`setWorld` in `server/scene-look.ts`, GM
+only, `lookLimiter`: a burst of 10, then two a second; a new weather kind without a seed gets one from
+the server), and every viewer gets the whole look as `world_update`, the same for everyone (views,
+snapshots, saves and live rooms carry it; the raw-frame test allows only `WorldLook`'s keys in it).
+With a sun, the band follows the hour; only `ambientFor` decides it. One writer, `lookWorld` in
+`server/scene-look.ts`, sets `room.world` and `room.ambient` together, and everything goes through it:
+`setWorld`, `setBand` (the engine's `{ ambient }` effect, fixtures; with a sun it snaps the hour into
+the band), `setAmbient` (`ambient_set`, kept for older bundles, which now also sends `world_update`)
+and `applyScene`. `server/ambient-writer.spec.ts` fails if anything else under `server/` or `scripts/`
+assigns `.ambient` or `.world`. A band change posts one notice ("X changed the lighting to
+darkness."); moving the hour within a band posts none.
+
+Until the sky (#114), the renderer shows the hour by blending its three lighting presets
+(`LightingLayer.update`; temporary, #218 replaces it with atmosphere curves): `presetWeights(time)`
+in `tabletop/time-blend.ts` (pure, `time-blend.spec.ts`) is one-hot at the canonical hours and at
+06:00, holds day from 08:00 to 17:30 and dark from 22:00 to 04:30, and is linear between those keys,
+so at most two presets mix. Only the background, the hemisphere's colours and strength, the sun and
+the lamp blend (numbers and one reused background colour, no program); a sunless table keeps its
+band's preset. What the rules darken (the light levels, the cell maps, the colour grade) stays keyed
+on `ambient`, so between 19:30 and 21:00 the scene darkens while the dark itself waits for 21:00. The
+look's `grade.exposure` scales the hemisphere and sun by 2^EV until post applies it (#161). A table
+from before the world look sits at its band's canonical hour and draws exactly as it did.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

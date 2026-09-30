@@ -51,6 +51,24 @@
 				})}
 		/>
 	</label>
+	<div class="tint">
+		<label>
+			<span class="muted">Tint</span>
+			<input
+				type="color"
+				value={prop.tint ?? '#ffffff'}
+				aria-label="Prop tint"
+				onchange={(e) =>
+					send({ type: 'prop_update', propId: prop.id, patch: { tint: e.currentTarget.value } })}
+			/>
+		</label>
+		<button
+			type="button"
+			disabled={!prop.tint}
+			onclick={() => send({ type: 'prop_update', propId: prop.id, patch: { tint: null } })}
+			>Clear tint</button
+		>
+	</div>
 	<label class="hidden">
 		<input
 			type="checkbox"
@@ -104,6 +122,27 @@
 		display: grid;
 		gap: var(--sp-2);
 		margin-bottom: var(--sp-4);
+		font-size: var(--fs-xs);
+	}
+
+	.tint {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+	}
+
+	.tint label {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.tint .muted {
+		margin: 0;
+	}
+
+	.tint button {
 		font-size: var(--fs-xs);
 	}
 

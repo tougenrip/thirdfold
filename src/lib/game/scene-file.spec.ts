@@ -5,6 +5,7 @@ import { decodeFloor, FLOORS, withFloor } from './floor';
 import {
 	blankScene,
 	parseSceneFile,
+	SCENE_FILE_VERSION,
 	serializeScene,
 	sharedScene,
 	type SceneSource
@@ -94,8 +95,8 @@ describe('serializeScene / parseSceneFile', () => {
 		['a bogus version', (d) => (d.version = 'one'), /not a valid scene/],
 		['a huge grid', (d) => (d.grid.width = 5000), /grid size/],
 		['a hex grid', (d) => (d.grid.kind = 'hex'), /Unsupported grid/],
-		['a token off the table', (d) => (d.tokens[0].pos = { x: 40, y: 0 }), /off the table/],
-		['a fractional cell', (d) => (d.tokens[0].pos = { x: 1.5, y: 0 }), /off the table/],
+		['a token off the table', (d) => (d.tokens[0].pos = { x: 40, y: 0 }), /off the map/],
+		['a fractional cell', (d) => (d.tokens[0].pos = { x: 1.5, y: 0 }), /off the map/],
 		['stacked tokens', (d) => (d.tokens[1].pos = { ...d.tokens[0].pos }), /share the cell/],
 		['a duplicate id', (d) => (d.tokens[1].id = d.tokens[0].id), /duplicate id/],
 		['an id with path characters', (d) => (d.tokens[0].id = '../../etc'), /duplicate id/],
@@ -124,7 +125,7 @@ describe('serializeScene / parseSceneFile', () => {
 describe('scene file v2: lights', () => {
 	it('saves lights, ambient and token light', () => {
 		const file = serializeScene('Crypt', source());
-		expect(file.version).toBe(9);
+		expect(file.version).toBe(SCENE_FILE_VERSION);
 		expect(file.ambient).toBe('dark');
 		expect(file.lights).toHaveLength(1);
 		expect(file.tokens[0].light).toBe(3);
@@ -139,7 +140,7 @@ describe('scene file v2: lights', () => {
 		const parsed = parseSceneFile(v1);
 		expect(parsed.ok).toBe(true);
 		if (!parsed.ok) return;
-		expect(parsed.scene.version).toBe(9);
+		expect(parsed.scene.version).toBe(SCENE_FILE_VERSION);
 		expect(parsed.scene.props).toEqual([]);
 		expect(parsed.scene.lights).toEqual([]);
 		expect(parsed.scene.ambient).toBe('day');
@@ -148,7 +149,7 @@ describe('scene file v2: lights', () => {
 
 	type Mutation = (d: ReturnType<typeof saved>) => void;
 	it.each<[string, Mutation, RegExp]>([
-		['a light off the table', (d) => (d.lights[0].pos = { x: 50, y: 0 }), /off the table/],
+		['a light off the table', (d) => (d.lights[0].pos = { x: 50, y: 0 }), /off the map/],
 		['a huge light', (d) => (d.lights[0].radius = 500), /radius/],
 		['a zero light', (d) => (d.lights[0].radius = 0), /radius/],
 		['a bad light colour', (d) => (d.lights[0].color = 'orange'), /colour/],
@@ -178,7 +179,7 @@ describe('scene file v3: props', () => {
 		['a prototype key as asset', (d) => (d.props[0].assetId = '__proto__'), /unknown asset/],
 		['a bad rotation', (d) => (d.props[0].rotation = 5), /rotation/],
 		['a giant prop', (d) => (d.props[0].scale = 40), /scale/],
-		['a prop off the table', (d) => (d.props[0].pos = { x: 20, y: 0 }), /off the table/],
+		['a prop off the table', (d) => (d.props[0].pos = { x: 20, y: 0 }), /off the map/],
 		['a prop on a token', (d) => (d.props[0].pos = { ...d.tokens[0].pos }), /overlaps/]
 	])('rejects %s', (_label, mutate, error) => {
 		const data = saved();
@@ -197,7 +198,10 @@ describe('scene file v4: the story played at the table', () => {
 		v3.version = 3;
 		delete v3.adventure;
 		const parsed = parseSceneFile(v3);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 9, adventure: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({
+			version: SCENE_FILE_VERSION,
+			adventure: null
+		});
 	});
 
 	it('keeps a story through a round trip, as a copy', () => {
@@ -232,7 +236,7 @@ describe('scene file v5: elevation and windows', () => {
 		v4.version = 4;
 		delete v4.terrain;
 		const parsed = parseSceneFile(v4);
-		expect(parsed.ok && parsed.scene).toMatchObject({ version: 9, terrain: null });
+		expect(parsed.ok && parsed.scene).toMatchObject({ version: SCENE_FILE_VERSION, terrain: null });
 	});
 
 	it('keeps dark areas through a round trip, and upgrades a v6 file to none', () => {
@@ -249,7 +253,10 @@ describe('scene file v5: elevation and windows', () => {
 		const v6 = saved();
 		v6.version = 6;
 		delete v6.darkness;
-		expect(parseSceneFile(v6)).toMatchObject({ ok: true, scene: { version: 9, darkness: null } });
+		expect(parseSceneFile(v6)).toMatchObject({
+			ok: true,
+			scene: { version: SCENE_FILE_VERSION, darkness: null }
+		});
 	});
 
 	it('keeps the environment and token models (v8), only as asset ids', () => {
@@ -267,11 +274,11 @@ describe('scene file v5: elevation and windows', () => {
 		expect(parseSceneFile(badModel)).toMatchObject({ ok: false });
 		// Saves from before v8 have the plain table and plain miniatures.
 		const v7 = saved();
-		v7.version = 7 as 8;
+		v7.version = 7;
 		delete (v7 as { environment?: unknown }).environment;
 		expect(parseSceneFile(v7)).toMatchObject({
 			ok: true,
-			scene: { version: 9, environment: null }
+			scene: { version: SCENE_FILE_VERSION, environment: null }
 		});
 	});
 
@@ -289,13 +296,16 @@ describe('scene file v5: elevation and windows', () => {
 		const v8 = saved();
 		v8.version = 8;
 		delete v8.floor;
-		expect(parseSceneFile(v8)).toMatchObject({ ok: true, scene: { version: 9, floor: null } });
+		expect(parseSceneFile(v8)).toMatchObject({
+			ok: true,
+			scene: { version: SCENE_FILE_VERSION, floor: null }
+		});
 	});
 
 	it('makes an empty table of a size, and shares a table without its story or players', () => {
 		const blank = blankScene('Field', 12, 8, 'village', new Date(0));
 		expect(blank).toMatchObject({
-			version: 9,
+			version: SCENE_FILE_VERSION,
 			name: 'Field',
 			grid: { width: 12, height: 8 },
 			tokens: [],
@@ -307,7 +317,7 @@ describe('scene file v5: elevation and windows', () => {
 		const file = serializeScene('Crypt', {
 			...source(),
 			adventure: { id: 'hollow-bell', version: 1, state: { stage: 'playing' } },
-			discovery: [['Pip', emptyMask(DEFAULT_GRID).fill(1)]]
+			discovery: [['Pip', { explored: emptyMask(DEFAULT_GRID).fill(1) }]]
 		});
 		expect(file.tokens.some((t) => t.owner)).toBe(true);
 		const shared = sharedScene(file);
