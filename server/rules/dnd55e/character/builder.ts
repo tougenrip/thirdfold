@@ -404,6 +404,7 @@ export function actionsOf(
 			range,
 			stat: ability === 'dex' ? 'agility' : 'might',
 			dice: damage,
+			damageType: w.data.damageType.toLowerCase(),
 			uses: null
 		});
 	}
@@ -419,6 +420,7 @@ export function actionsOf(
 			range: 1,
 			stat: 'might',
 			dice: `${Math.max(0, 1 + derived.modifiers.str)}`,
+			damageType: 'bludgeoning',
 			uses: null
 		});
 	}

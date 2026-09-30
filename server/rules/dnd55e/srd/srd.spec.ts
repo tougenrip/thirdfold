@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { PHRASES as COMBAT_PHRASES } from '../combat';
 import { dnd55e } from '../index';
 import { SrdDocument } from './document';
 import {
@@ -29,6 +30,12 @@ const find = <K extends SrdRecord['kind']>(kind: K, name: string) =>
 	catalog.records[kind].find((r) => r.name === name) as Extract<SrdRecord, { kind: K }>;
 
 describe('the SRD 5.2.1 import', () => {
+	it('holds, word for word, every combat rule the table plays (death saves, cover, reactions, actions)', () => {
+		// Lines joined: a word split at a line's end rejoined, then single spaces.
+		const text = [...pageText.values()].join('\n').replace(/-\n/g, '').replace(/\s+/g, ' ');
+		for (const phrase of COMBAT_PHRASES) expect(text, phrase).toContain(phrase);
+	});
+
 	it('is committed: the catalog is exactly what the pinned source imports to', () => {
 		// Run `npm run srd` after changing the importer; the diff is the change to review.
 		expect(staleCatalog(CATALOG_DIR, catalog)).toEqual([]);

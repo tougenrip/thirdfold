@@ -59,6 +59,7 @@ export function characterDefOf(
 			initiative: derived.initiative,
 			attacks: { ...attacks },
 			bonusActions: [...bonusActions],
+			...(derived.resistances.length ? { resistances: [...derived.resistances] } : {}),
 			...(full
 				? {
 						details: full.details as unknown as RulesData,

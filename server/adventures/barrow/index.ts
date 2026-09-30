@@ -310,7 +310,11 @@ export const BARROW: AdventureDef = {
 			light: 0,
 			initiative: 0,
 			hp: (characters) => 9 + 4 * characters,
-			attacks: [{ name: 'Rusted blade', range: 1, toHit: 4, damage: '1d8+2' }],
+			attacks: [
+				{ name: 'Rusted blade', range: 1, toHit: 4, damage: '1d8+2', damageType: 'slashing' }
+			],
+			// Old bones: a hammer breaks them.
+			damage: { vulnerable: ['bludgeoning'] },
 			saves: { str: 2, dex: 0, con: 2, int: -3, wis: 0, cha: -3 },
 			behavior: 'rush'
 		},
@@ -326,18 +330,31 @@ export const BARROW: AdventureDef = {
 			initiative: 2,
 			hp: (characters) => 4 + 2 * characters,
 			attacks: [
-				{ name: 'Freezing touch', range: 1, toHit: 4, damage: '1d6+2' },
+				{
+					name: 'Freezing touch',
+					range: 1,
+					toHit: 4,
+					damage: '1d6+2',
+					damageType: 'cold'
+				},
 				{
 					name: 'Grave chill',
 					range: 5,
 					toHit: 0,
 					damage: '2d6',
+					damageType: 'cold',
 					save: { stat: 'con', dc: 12, half: true },
 					// The grave's cold gets into the one it touches: Frightened of the Shade for a while.
 					inflicts: { conditions: ['frightened'], ends: 'end' }
 				}
 			],
 			immune: ['exhaustion', 'poisoned'],
+			// A thing of the grave's cold: little harms it but radiance.
+			damage: {
+				immune: ['necrotic', 'poison'],
+				resist: ['acid', 'cold', 'fire', 'lightning', 'thunder'],
+				vulnerable: ['radiant']
+			},
 			saves: { str: -2, dex: 2, con: 0, int: 0, wis: 1, cha: 0 },
 			behavior: 'skirmish'
 		}

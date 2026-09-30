@@ -298,7 +298,7 @@ export function unsupported(id: string, data: SpellData): string | null {
 	const time = data.castingTime;
 	if (!CASTING_TIMES[time.replace(/ or Ritual$/, '')])
 		return time.startsWith('Reaction')
-			? 'Cast as a reaction: reactions come with a later milestone.'
+			? 'Cast as a reaction: the only reaction played at the table yet is the Opportunity Attack.'
 			: `Takes ${time.toLowerCase()} to cast: only spells cast as an action or a bonus action are cast at the table.`;
 	return 'Its effects aren’t played at the table yet.';
 }

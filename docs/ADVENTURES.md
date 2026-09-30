@@ -166,6 +166,12 @@ The fifth edition rules of the SRD 5.2.1 are `dnd-5.5e` v1. Under them:
   `inflicts` (`{ "conditions": ["frightened"], "ends": "end" }`) the
   conditions a hit, or a failed save, leaves on its target until the start
   or end of the attacker's next turn;
+- an attack's `damageType` (`"slashing"`, `"cold"`, one of the SRD's
+  thirteen) is the damage it deals, and an enemy's `damage`
+  (`{ "immune": ["poison"], "resist": ["cold"], "vulnerable": ["radiant"] }`)
+  what it takes none of, half of (rounded down) or double; characters' own
+  resistances come from their species, and their weapons and spells carry
+  their types;
 - the `hurt` effect can carry the same `save`, for a trap or a hazard.
 
 A character built from the catalog casts the spells it has chosen (its

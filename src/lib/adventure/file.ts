@@ -829,6 +829,9 @@ function enemy(v: unknown, path: string): EnemyFile {
 					range: int(attack.range, `${p}.range`, 1, 20),
 					toHit: int(attack.toHit, `${p}.toHit`, -5, 20),
 					damage: dice(attack.damage, `${p}.damage`),
+					...(attack.damageType === undefined
+						? {}
+						: { damageType: damageType(attack.damageType, `${p}.damageType`) }),
 					...(inflicts ? { inflicts } : {})
 				};
 			},
@@ -850,8 +853,29 @@ function enemy(v: unknown, path: string): EnemyFile {
 						},
 						16
 					)
-				})
+				}),
+		...(e.damage === undefined ? {} : { damage: damageTraits(e.damage, `${path}.damage`) })
 	};
+}
+
+/** A damage type, in the rules' words ("cold"). */
+function damageType(v: unknown, path: string): string {
+	if (typeof v !== 'string' || !/^[a-z][a-z-]{0,23}$/.test(v)) bad(path, 'expected a damage type');
+	return v as string;
+}
+
+/** What damage an enemy shrugs off, halves or takes double, by type. */
+function damageTraits(
+	v: unknown,
+	path: string
+): { immune?: string[]; resist?: string[]; vulnerable?: string[] } {
+	const d = obj(v, path);
+	for (const k of Object.keys(d))
+		if (!['immune', 'resist', 'vulnerable'].includes(k)) bad(`${path}.${k}`, 'unknown field');
+	const out: { immune?: string[]; resist?: string[]; vulnerable?: string[] } = {};
+	for (const k of ['immune', 'resist', 'vulnerable'] as const)
+		if (d[k] !== undefined) out[k] = list(d[k], `${path}.${k}`, damageType, 13);
+	return out;
 }
 
 /** An enemy's saving throw bonuses: up to six stats, each a whole number. */

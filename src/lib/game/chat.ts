@@ -101,6 +101,8 @@ export type ChatMessage =
 			defense: number;
 			hit: boolean;
 			damage: DiceRoll | null;
+			/** The damage the target took, when its traits changed it from the roll (resistance, immunity). */
+			taken?: number;
 			/** What came of it, e.g. "The Hollow Hound falls." */
 			outcome?: string;
 			/** A status it put on the target, e.g. "Slowed". */

@@ -546,7 +546,7 @@
 		};
 		if (entry.kind === 'attack') {
 			if (!entry.hit) add(entry.targetId, 'Miss', '#b3a38a');
-			else add(entry.targetId, `-${entry.damage?.total ?? 0}`, '#ff7b6b');
+			else add(entry.targetId, `-${entry.taken ?? entry.damage?.total ?? 0}`, '#ff7b6b');
 			if (entry.effect) add(entry.targetId, entry.effect, '#e0a458');
 		} else if (entry.kind === 'ability') {
 			if (entry.amount !== null && entry.amount !== 0) {
@@ -1653,7 +1653,7 @@
 							>{rollCard.authorName} · {rollCard.attack} → {rollCard.targetName}</span
 						>
 						<span class="big num" class:miss={!rollCard.hit}>
-							{rollCard.hit ? `${rollCard.damage?.total ?? 0}` : 'Miss'}
+							{rollCard.hit ? `${rollCard.taken ?? rollCard.damage?.total ?? 0}` : 'Miss'}
 						</span>
 						<span class="how">
 							{rollCard.toHit.total} vs {rollCard.defense}{rollCard.hit ? ' · hit, damage' : ''}

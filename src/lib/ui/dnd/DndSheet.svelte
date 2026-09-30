@@ -290,6 +290,14 @@
 				<dt>Passive Perception</dt>
 				<dd>{details.derived.passivePerception}</dd>
 			</div>
+			{#if card.resistances?.length}
+				<div>
+					<dt>Resistance</dt>
+					<dd class="words">
+						{card.resistances.map((r) => r[0].toUpperCase() + r.slice(1)).join(', ')}
+					</dd>
+				</div>
+			{/if}
 			{#if details.spellcasting}
 				<div>
 					<dt>Spell save DC</dt>
@@ -804,5 +812,8 @@
 
 	.field.small input {
 		width: 5rem;
+	}
+	.words {
+		font-size: var(--fs-sm);
 	}
 </style>

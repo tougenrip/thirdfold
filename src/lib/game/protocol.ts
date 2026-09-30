@@ -432,6 +432,8 @@ function parseSheetEdit(value: unknown): SheetEdit | null {
 				value.spent <= 999
 				? { kind: 'resource', resource: value.resource, spent: value.spent }
 				: null;
+		case 'reaction':
+			return typeof value.ready === 'boolean' ? { kind: 'reaction', ready: value.ready } : null;
 		default:
 			return null;
 	}

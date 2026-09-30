@@ -39,9 +39,13 @@ export interface CharacterState {
 	statuses: Statuses;
 	/** Times each limited action has been used this encounter, by action id. */
 	uses: Map<string, number>;
-	/** Rounds spent at 0 HP; at BLEED_OUT_ROUNDS the character dies. */
+	/** Rounds spent at 0 HP; under the classic rules it dies at BLEED_OUT_ROUNDS. */
 	downedFor: number;
+	/** Death saving throws so far at 0 HP, under rules that have them (reset when healed); `stable` when steadied. */
+	deathSaves?: { successes: number; failures: number; stable?: boolean };
 	dead: boolean;
+	/** Its player keeps its reaction for themselves: no opportunity attacks are made for it. */
+	holdReaction?: boolean;
 	/**
 	 * Uses spent of the rules' resources its player marks by hand (spell
 	 * slots, …), by resource id; those an action tracks count in `uses`.
@@ -95,8 +99,16 @@ export interface Encounter {
 	acted: Set<string>;
 	/** Cells moved this round, per character. */
 	moved: Map<CharacterId, number>;
-	/** Cells the character whose turn it is may move this turn (half its speed when slowed). */
+	/** Cells the character whose turn it is may move this turn (half its speed when slowed; more when it dashes). */
 	speed: number;
+	/** Its speed as the turn began, which a Dash adds again. */
+	turnSpeed?: number;
+	/**
+	 * Who has taken their reaction since their turn last began (an
+	 * opportunity attack): a character's id, an enemy's token. Absent when
+	 * nobody has.
+	 */
+	reacted?: Set<string>;
 	/** By token id. */
 	enemies: Map<string, EnemyState>;
 	/** Bumped on every turn, so a stale scheduled enemy turn does nothing. */

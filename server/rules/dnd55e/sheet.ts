@@ -18,6 +18,7 @@
 //     casting: 'int',                    // optional: the spellcasting ability
 //     spells: { 'fire-bolt': 'srd-5.2.1:spell:fire-bolt' },  // optional: the spell each action casts
 //     slots: { 'spell-slots-1': 1 },     // optional: the level of each resource that is spell slots
+//     resistances: ['poison'],           // optional: damage types it has Resistance to
 //   }
 //
 // A character built from its choices (character/) also carries its full
@@ -37,6 +38,23 @@ import {
 	skillOf,
 	type Ability
 } from './core';
+
+/** The SRD's damage types, as sheets and adventures name them. */
+export const DAMAGE_TYPES = [
+	'acid',
+	'bludgeoning',
+	'cold',
+	'fire',
+	'force',
+	'lightning',
+	'necrotic',
+	'piercing',
+	'poison',
+	'psychic',
+	'radiant',
+	'slashing',
+	'thunder'
+];
 
 export interface Sheet {
 	/** The full sheet (character/details.ts), for a character built from its choices. */
@@ -62,6 +80,8 @@ export interface Sheet {
 	spells: Record<string, string>;
 	/** The slot level of each resource that is spell slots, by resource id. */
 	slots: Record<string, number>;
+	/** Damage types it has Resistance to (lower case: "poison"). */
+	resistances: string[];
 }
 
 type Read = { ok: true; sheet: Sheet } | { ok: false; problems: string[] };
@@ -87,7 +107,8 @@ const KEYS = [
 	'saved',
 	'casting',
 	'spells',
-	'slots'
+	'slots',
+	'resistances'
 ];
 
 /** The sheet of a character, or everything wrong with it. */
@@ -223,6 +244,10 @@ export function readSheet(character: CharacterDef): Read {
 		else slots[id] = level;
 	}
 
+	const resistances = strings(raw.resistances, 'resistances');
+	for (const r of resistances)
+		if (!DAMAGE_TYPES.includes(r)) bad(`resistances: no damage type "${r}"`);
+
 	if (problems.length) return { ok: false, problems };
 	return {
 		ok: true,
@@ -246,7 +271,8 @@ export function readSheet(character: CharacterDef): Read {
 			saved: isRecord(raw.saved) ? raw.saved : null,
 			casting: typeof casting === 'string' ? (casting as Ability) : null,
 			spells,
-			slots
+			slots,
+			resistances
 		}
 	};
 }

@@ -112,7 +112,11 @@
 						>
 						{#if m.damage}
 							<span class="expr">{m.damage.expression}</span>
-							<span class="total num damage">{m.damage.total} damage</span>
+							<span class="total num damage"
+								>{m.taken ?? m.damage.total} damage{m.taken !== undefined
+									? ` (${m.damage.total} rolled)`
+									: ''}</span
+							>
 						{/if}
 					</p>
 					{#if m.explain}<p class="explain">{m.explain}</p>{/if}

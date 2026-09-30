@@ -63,10 +63,17 @@ export function activeOn(adventure: AdventureState, tokenId: string): LastingEff
 export function modsOn(
 	adventure: AdventureState | null,
 	tokenId: string
-): Required<Pick<EffectMods, 'defense' | 'slow' | 'exposed' | 'noHealing'>> & { boon?: string } {
-	const mods = { defense: 0, slow: 0, exposed: false, noHealing: false } as ReturnType<
-		typeof modsOn
-	>;
+): Required<
+	Pick<EffectMods, 'defense' | 'slow' | 'exposed' | 'noHealing' | 'evading' | 'disengaged'>
+> & { boon?: string } {
+	const mods = {
+		defense: 0,
+		slow: 0,
+		exposed: false,
+		noHealing: false,
+		evading: false,
+		disengaged: false
+	} as ReturnType<typeof modsOn>;
 	const boons: string[] = [];
 	for (const e of adventure ? activeOn(adventure, tokenId) : []) {
 		if (e.mods.boon) boons.push(e.mods.boon);
@@ -74,6 +81,8 @@ export function modsOn(
 		mods.slow += e.mods.slow ?? 0;
 		mods.exposed ||= !!e.mods.exposed;
 		mods.noHealing ||= !!e.mods.noHealing;
+		mods.evading ||= !!e.mods.evading;
+		mods.disengaged ||= !!e.mods.disengaged;
 	}
 	if (boons.length) mods.boon = boons.join('+').replace(/\+-/g, '-');
 	return mods;
@@ -246,7 +255,11 @@ export function effectLine(e: LastingEffect, names: (id: string) => string = (id
 		m.defense ? `${m.defense > 0 ? '+' : ''}${m.defense} defense` : '',
 		m.slow ? `${m.slow * 5} feet slower` : '',
 		m.exposed ? 'the next attack against it has the upper hand' : '',
-		m.noHealing ? 'can’t regain hit points' : ''
+		m.noHealing ? 'can’t regain hit points' : '',
+		m.evading
+			? 'attacks against it have Disadvantage, and it makes Dexterity saves with Advantage'
+			: '',
+		m.disengaged ? 'its movement doesn’t provoke Opportunity Attacks' : ''
 	].filter(Boolean);
 	return parts.length ? `${e.name}: ${parts.join(', ')}` : e.name;
 }

@@ -434,6 +434,12 @@ export interface EnemyDef {
 	saves?: Readonly<Record<string, number>>;
 	/** Conditions it can't be given, by the rules' ids (an undead thing isn't Poisoned). */
 	immune?: readonly string[];
+	/** Damage types (the rules' words) it takes none of, half of, or double, under rules that have them. */
+	damage?: {
+		immune?: readonly string[];
+		resist?: readonly string[];
+		vulnerable?: readonly string[];
+	};
 	behavior: Behavior;
 	/** A toll: damage and a slow to everyone standing within `range`, then a rest; told as `text`, lighting the table (`flash`). */
 	toll?: {

@@ -18,7 +18,10 @@ import type { Action, CharacterDef } from '../../src/lib/adventure/characters';
 import type { AdventureDef } from '../../src/lib/adventure/define';
 import type { RollMode } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
+import type { Cover } from '../../src/lib/game/cover';
 import type { CharacterState, Statuses } from '../adventure/state';
+
+export type { Cover };
 
 /** Which rules a story plays by, exactly. */
 export interface RulesetRef {
@@ -41,6 +44,10 @@ export interface TestSituation {
 	conditions?: readonly HeldCondition[];
 	/** Why the test has the upper hand, if something gives it one (a save against a spell when hurt). */
 	advantage?: string;
+	/** How much of the tester is hidden from where what it saves against comes from. */
+	cover?: Cover;
+	/** The tester spends its turn evading (a Dodge): what that is worth to a save is the rules'. */
+	evading?: boolean;
 }
 
 /**
@@ -88,6 +95,10 @@ export interface AttackSituation {
 	targetConditions?: readonly HeldCondition[];
 	within5?: boolean;
 	targetToken?: string;
+	/** How much of the target obstacles and others hide from the attacker (see cover.ts). */
+	cover?: Cover;
+	/** The target spends its turn evading attacks (a Dodge), and sees its attacker. */
+	evading?: boolean;
 }
 
 /** An attack roll's result: the d20 roll, and the damage when it hit. */
@@ -98,10 +109,59 @@ export interface Strike {
 	critical?: boolean;
 	mode?: RollMode;
 	explain?: string;
+	/** The defense it was rolled against, when the situation changed it (cover). */
+	defense?: number;
 }
 
-/** What starting its turn does to a downed character. */
-export type Downed = { dead: true } | { dead: false; turnsLeft: number };
+/**
+ * What starting its turn (or taking damage) does to a downed character:
+ * it dies, or it hangs on (`turnsLeft` of the rules' count), comes to with
+ * 1 HP (`revived`), or is `stable`; with the roll that decided it, if one
+ * did, and the rules' account of it.
+ */
+export type Downed =
+	| { dead: true; roll?: DiceRoll; test?: DownedTest; explain?: string }
+	| {
+			dead: false;
+			turnsLeft: number;
+			roll?: DiceRoll;
+			test?: DownedTest;
+			explain?: string;
+			revived?: boolean;
+			stable?: boolean;
+	  };
+
+/** A roll a downed character made (a death save): what it is called, its difficulty and whether it succeeded. */
+export interface DownedTest {
+	label: string;
+	dc: number;
+	success: boolean;
+}
+
+/** What harm a creature shrugs off, halves or takes double, by damage type (the rules' ids). */
+export interface DamageTraits {
+	immune: readonly string[];
+	resist: readonly string[];
+	vulnerable: readonly string[];
+}
+
+/**
+ * Something every character can do on its turn beyond its own actions
+ * (under rules that have them: Dash, Disengage, Dodge, Help): the action as
+ * the table offers it (its target and reach say at whom), whether it adds
+ * the turn's movement again, an effect it leaves on the character or its
+ * target (counted on the character's turns), and a check it takes to
+ * steady a downed ally (`stabilize`).
+ */
+export interface Maneuver {
+	action: Action;
+	move?: boolean;
+	effect?: EffectSpec;
+	check?: { stat: string; dc: number };
+	stabilize?: boolean;
+	/** What the table hears, after the character's name ("dashes."). */
+	says: string;
+}
 
 /** A ruleset's own words about itself: its name, and the credit its sources require. */
 export type RulesetInfo = Omit<RulesInfo, 'id' | 'version'>;
@@ -144,11 +204,21 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	/** Cells something may move this turn, from its base speed and its statuses as the turn starts. */
 	speed(base: number, statuses: Statuses): number;
 	/** Damage something takes as its turn starts (a burn): dice and cause, or null. */
-	turnDamage(statuses: Statuses): { dice: string; cause: string } | null;
+	turnDamage(statuses: Statuses): { dice: string; cause: string; type?: string } | null;
 	/** Statuses count down as their bearer's turn starts. */
 	tick(statuses: Statuses): void;
-	/** The turn of a character at 0 HP: it bleeds, and may die. */
-	downedTurn(state: CharacterState): Downed;
+	/** The turn of a character at 0 HP: it bleeds (or, under rules that have them, rolls a death save), and may die. */
+	downedTurn(state: CharacterState, roller: DieRoller): Downed;
+	/**
+	 * Damage that drops a character to 0 HP (`overflow`: what was left over)
+	 * or lands on one already there: whether it dies of it (massive damage, a
+	 * third failed death save), for rules that say so; null when it changes
+	 * nothing but the fall.
+	 */
+	downedDamage?(
+		state: CharacterState,
+		damage: { overflow: number; max: number; critical: boolean; already: boolean }
+	): Downed | null;
 	/** Most turns a character can spend down (a save's bound). */
 	downedLimit: number;
 	// Characters
@@ -167,6 +237,22 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	spells?: Spellcasting;
 	/** The conditions these rules have, and what they do beyond rolls (acting, moving, concentration). */
 	conditions?: ConditionRules;
+	/** Damage of a type against what its target shrugs off, halves or doubles: what it takes, and why. */
+	damageTaken?(
+		amount: number,
+		type: string | undefined,
+		traits: DamageTraits
+	): { amount: number; note?: string };
+	/** What harm a character shrugs off or halves, from its sheet. */
+	damageTraits?(character: CharacterDef): DamageTraits;
+	/** What cover is worth to a defense (and to the saves it helps): a bonus and its name, or null for none. */
+	coverBonus?(cover: Cover): { bonus: number; name: string } | null;
+	/** Leaving a foe's reach lets it strike as the creature goes (an opportunity attack, a reaction). */
+	opportunityAttacks?: boolean;
+	/** What every character may do on its turn beyond its own actions. */
+	maneuvers?: readonly Maneuver[];
+	/** A downed character is steadied: it stops dying (Stable), for rules where that is a state. */
+	stabilize?(state: CharacterState): void;
 	/** A saving throw by something that isn't a character (an enemy), from its bonus. */
 	saveWith?(
 		bonus: number,
@@ -233,6 +319,10 @@ export interface EffectMods {
 	noHealing?: boolean;
 	/** Conditions its bearer has while it lasts (the rules' ids). */
 	conditions?: string[];
+	/** Its bearer spends its turn evading attacks (Dodge): attacks against it it sees, and its saves, are the rules'. */
+	evading?: boolean;
+	/** Its bearer moves without drawing strikes as it leaves a foe's reach (Disengage). */
+	disengaged?: boolean;
 }
 
 /**

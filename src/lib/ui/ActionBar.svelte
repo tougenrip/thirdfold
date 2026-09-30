@@ -92,6 +92,9 @@
 			? []
 			: def.actions.filter((a) => (encounter ? true : a.kind === 'heal'))
 	);
+	/** The character's own actions, and what the rules let every character do (Dash, Dodge, …). */
+	const own = $derived(actions.filter((a) => a.kind !== 'maneuver'));
+	const common = $derived(actions.filter((a) => a.kind === 'maneuver'));
 	const chosen = $derived(actions.find((a) => a.id === targeting) ?? null);
 	/** A spell's aim, if the chosen action is a spell. */
 	const aim = $derived(chosen?.cast ?? null);
@@ -163,6 +166,19 @@
 	const canUse = (action: Action) =>
 		(encounter ? isMine && able && !character.spent.includes(cardOf(action).part) : true) &&
 		character.usesLeft[action.id] !== 0;
+	/** Why an action can't be taken now, in words, or '' when it can. */
+	function whyNot(action: Action): string {
+		if (canUse(action)) return '';
+		if (character.usesLeft[action.id] === 0) return `${action.name} is spent until the next fight.`;
+		if (!isMine) return `Not ${def.name}'s turn.`;
+		return `${def.name} has used this turn's ${cardOf(action).partName.toLowerCase()}.`;
+	}
+	/** A reaction's state, as its button says it. */
+	const REACTION = {
+		ready: 'Strikes at foes leaving its reach (an Opportunity Attack). Click to hold it.',
+		used: 'Used: back at the start of its turn.',
+		held: 'Held: no Opportunity Attacks. Click to let the table take them.'
+	} as const;
 	/** The parts of this turn still to take ("action", "bonus action"), for the status line. */
 	const partsLeft = $derived([
 		...new Set([
@@ -203,6 +219,11 @@
 
 	const status = $derived.by(() => {
 		if (character.dead) return `${def.name} is dead. The GM can bring them back.`;
+		if (character.downed && character.deathSaves) {
+			const d = character.deathSaves;
+			if (d.stable) return `${def.name} is down but stable: heal them to bring them back.`;
+			return `${def.name} is dying: a death save each turn (${d.successes} of 3 successes, ${d.failures} of 3 failures). Heal them, or steady them with first aid.`;
+		}
 		if (character.downed) {
 			const left = BLEED_OUT_ROUNDS - character.downedFor;
 			return `${def.name} is down: heal them within ${left} ${left === 1 ? 'round' : 'rounds'}.`;
@@ -272,6 +293,33 @@
 		{#each character.effects as line (line)}
 			<span class="chip effect" title={line}>{line.split(':')[0]}</span>
 		{/each}
+		{#if character.reaction}
+			<button
+				type="button"
+				class="chip reaction"
+				class:used={character.reaction !== 'ready'}
+				aria-pressed={character.reaction !== 'held'}
+				title={REACTION[character.reaction]}
+				disabled={character.reaction === 'used'}
+				onclick={() =>
+					send({
+						type: 'adventure_sheet',
+						characterId: character.id,
+						edit: { kind: 'reaction', ready: character.reaction === 'held' }
+					})}
+			>
+				Reaction: {character.reaction}
+			</button>
+		{/if}
+		{#if character.deathSaves && !character.deathSaves.stable}
+			<span
+				class="chip condition"
+				title="Death saves: three successes and it is stable, three failures and it dies"
+				>Death saves {'✓'.repeat(character.deathSaves.successes)}{'✗'.repeat(
+					character.deathSaves.failures
+				)}</span
+			>
+		{/if}
 		{#if character.concentrating}
 			<span class="chip effect" title="Concentrating: taking damage may end it"
 				>Concentrating: {character.concentrating}</span
@@ -380,19 +428,30 @@
 					</button>
 				{/each}
 			{/if}
-			{#each actions as action (action.id)}
+			{#each own as action (action.id)}
 				{@const left = character.usesLeft[action.id]}
 				<button
 					type="button"
 					class="action"
 					disabled={!canUse(action)}
-					title={`${cardOf(action).summary}. ${action.about}`}
+					title={whyNot(action) || `${cardOf(action).summary}. ${action.about}`}
 					onclick={() => pick(action)}
 				>
 					{#if cardOf(action).part !== 'action'}<small class="kind">{cardOf(action).partName}</small
 						>{/if}
 					{action.name}
 					{#if left !== null && left !== undefined}<small class="num">{left} left</small>{/if}
+				</button>
+			{/each}
+			{#each common as action (action.id)}
+				<button
+					type="button"
+					class="common"
+					disabled={!canUse(action)}
+					title={whyNot(action) || action.about}
+					onclick={() => pick(action)}
+				>
+					{action.name}
 				</button>
 			{/each}
 			{#if encounter && able}
@@ -410,6 +469,19 @@
 </section>
 
 <style>
+	.common {
+		font-size: var(--fs-xs);
+	}
+
+	.chip.reaction {
+		cursor: pointer;
+		background: transparent;
+	}
+
+	.chip.reaction.used {
+		opacity: 0.7;
+	}
+
 	.kind {
 		display: block;
 		font-size: var(--fs-2xs);

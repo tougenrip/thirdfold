@@ -15,6 +15,7 @@ import {
 	armorTraining,
 	columnNumber,
 	OPTION_SPEED,
+	SPECIES_RESISTANCE,
 	SPELLCASTING_ABILITY,
 	type ArmorTraining
 } from './options';
@@ -60,6 +61,8 @@ export interface DerivedCharacter {
 	/** In feet. */
 	speed: number;
 	passivePerception: number;
+	/** Damage types it has Resistance to, from its species (lower case). */
+	resistances: string[];
 	/** What it carries and can carry, in pounds (Carrying Capacity: Strength × 15). */
 	carrying: { weight: number; capacity: number };
 	hitPoints: { max: number; current: number; temp: number };
@@ -277,6 +280,7 @@ export function deriveCharacter(c: DndCharacter, catalog: Catalog): DerivedChara
 		initiative,
 		speed,
 		passivePerception: 10 + perception,
+		resistances: resistancesOf(c),
 		carrying: { weight: carriedWeight(c, catalog), capacity: capacityOf(scores.str) },
 		hitPoints: { max, current: Math.min(c.state.hp, max), temp: c.state.tempHp },
 		hitDice: { die, total: c.level, spent: c.state.hitDiceSpent },
@@ -292,4 +296,12 @@ export function deriveCharacter(c: DndCharacter, catalog: Catalog): DerivedChara
 		spellcasting,
 		columns: row.columns
 	};
+}
+
+/** Damage types a character's species gives it Resistance to. */
+export function resistancesOf(c: DndCharacter): string[] {
+	const r = SPECIES_RESISTANCE[c.species.id];
+	if (!r) return [];
+	const chosen = r.by ? r.by.types[String(c.species.options[r.by.option] ?? '')] : undefined;
+	return [...new Set([...(r.always ? [r.always] : []), ...(chosen ? [chosen] : [])])];
 }

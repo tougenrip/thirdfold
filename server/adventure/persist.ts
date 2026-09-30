@@ -116,7 +116,9 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						statuses: statuses(c.statuses),
 						uses: entriesOf(c.uses),
 						downedFor: c.downedFor,
+						...(c.deathSaves ? { deathSaves: { ...c.deathSaves } } : {}),
 						dead: c.dead,
+						...(c.holdReaction ? { holdReaction: true } : {}),
 						...(c.resources?.size ? { resources: entriesOf(c.resources) } : {})
 					}
 				])
@@ -177,6 +179,10 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 				),
 				current: adventure.encounter.current,
 				speed: adventure.encounter.speed,
+				...(adventure.encounter.turnSpeed !== undefined
+					? { turnSpeed: adventure.encounter.turnSpeed }
+					: {}),
+				...(adventure.encounter.reacted?.size ? { reacted: [...adventure.encounter.reacted] } : {}),
 				acted: [...adventure.encounter.acted],
 				moved: entriesOf(adventure.encounter.moved),
 				enemies: Object.fromEntries(
@@ -505,7 +511,11 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			statuses: statuses(c.statuses, `${def.name}'s statuses`),
 			uses,
 			downedFor: int(c.downedFor, 0, ruleset.downedLimit, `${def.name}'s condition`),
+			...(c.deathSaves === undefined ? {} : { deathSaves: deathSaves(c.deathSaves, def.name) }),
 			dead: c.dead,
+			...(c.holdReaction === undefined
+				? {}
+				: { holdReaction: bool(c.holdReaction, `${def.name}'s reaction`) || undefined }),
 			...(c.resources === undefined
 				? {}
 				: {
@@ -702,11 +712,27 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 					check(typeof key === 'string', 'turns');
 					const [who, type, ...rest] = (key as string).split(':');
 					check(isCharacterId(who) && rest.length === 0, 'turns');
-					check(type === undefined || /^[a-z]{1,16}$/.test(type), 'turns');
+					check(type === undefined || /^[a-z][a-z0-9-]{0,15}$/.test(type), 'turns');
 					return key as string;
 				})
 			),
 			moved,
+			...(e.turnSpeed === undefined
+				? {}
+				: { turnSpeed: int(e.turnSpeed, 0, COUNT_MAX, 'movement') }),
+			...(e.reacted === undefined
+				? {}
+				: {
+						reacted: new Set(
+							list(e.reacted, 'reactions').map((key) => {
+								check(
+									typeof key === 'string' && (isCharacterId(key) || enemies.has(key)),
+									'reactions'
+								);
+								return key as string;
+							})
+						)
+					}),
 			enemies,
 			turn: int(e.turn, 1, 1_000_000, 'turn'),
 			...(e.finale === undefined
@@ -975,4 +1001,17 @@ function turnOrder(
 /** Doors follow their scene door, so any door may be saved opened or closed. */
 function isDoorState(def: ObjectDef, state: ObjectState): boolean {
 	return 'door' in def.thing && (state === 'opened' || state === 'closed');
+}
+
+/** Death saving throws so far: fewer than three of each, and Stable only with none. */
+function deathSaves(
+	value: unknown,
+	name: string
+): { successes: number; failures: number; stable?: boolean } {
+	const d = record(value, `${name}'s death saves`);
+	const successes = int(d.successes, 0, 2, `${name}'s death saves`);
+	const failures = int(d.failures, 0, 2, `${name}'s death saves`);
+	if (d.stable === undefined) return { successes, failures };
+	check(d.stable === true && !successes && !failures, `${name}'s death saves`);
+	return { successes, failures, stable: true };
 }

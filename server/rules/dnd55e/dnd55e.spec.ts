@@ -256,7 +256,7 @@ describe('the fifth edition ruleset', () => {
 			bonus: 5,
 			proficient: true
 		});
-		expect(card.actions).toEqual([
+		expect(card.actions.slice(0, 3)).toEqual([
 			{
 				id: 'longsword',
 				summary: 'Melee · +5 to hit · 1d8+3 damage',
@@ -275,6 +275,14 @@ describe('the fifth edition ruleset', () => {
 				part: 'bonus',
 				partName: 'Bonus action'
 			}
+		]);
+		// And what every creature can do with its action.
+		expect(card.actions.slice(3).map((a) => `${a.id}: ${a.summary}`)).toEqual([
+			'dash: Yourself',
+			'disengage: Yourself',
+			'dodge: Yourself',
+			'help: Beside you',
+			'first-aid: Beside you'
 		]);
 	});
 });

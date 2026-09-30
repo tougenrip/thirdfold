@@ -242,6 +242,8 @@ export interface SheetValue {
 export interface CharacterCard {
 	/** Who the character is by the rules, e.g. "Orc Fighter 1 (Soldier)", where the rules say. */
 	title?: string;
+	/** Damage types it has Resistance to, where the rules have them. */
+	resistances?: string[];
 	/** e.g. "Defense" or "Armor Class", and its value now (statuses counted). */
 	defense: { name: string; value: number };
 	level: number | null;
@@ -330,7 +332,9 @@ export type SheetEdit =
 	/** The player's own notes about the character. */
 	| { kind: 'notes'; text: string }
 	/** Mark uses of a resource spent (or restored), where the table doesn't track it itself. */
-	| { kind: 'resource'; resource: string; spent: number };
+	| { kind: 'resource'; resource: string; spent: number }
+	/** Let the table take the character's reaction for it (opportunity attacks), or hold it. */
+	| { kind: 'reaction'; ready: boolean };
 
 /** The most a character's notes may hold, in characters. */
 export const SHEET_NOTES_MAX = 2000;
@@ -376,6 +380,14 @@ export interface CharacterStatus {
 	dead: boolean;
 	/** Rounds a downed character has been down. */
 	downedFor: number;
+	/** Its death saving throws while down, under rules that have them; else null. */
+	deathSaves: { successes: number; failures: number; stable: boolean } | null;
+	/**
+	 * Its reaction, under rules that have them: ready (the table takes it for
+	 * an opportunity attack), used since its turn began, or held by its
+	 * player; null under rules without.
+	 */
+	reaction: 'ready' | 'used' | 'held' | null;
 	statuses: ActiveStatus[];
 	/** Uses left this encounter per action id; null means unlimited. */
 	usesLeft: Record<string, number | null>;

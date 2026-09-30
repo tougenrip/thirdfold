@@ -6,11 +6,14 @@
 // turns with an action and a bonus action. Characters' numbers come from
 // their sheets (sheet.ts); Armor Class is the definition's `armor`.
 //
-// Not yet here, and so not approximated: reactions (milestone 50), death
-// saving throws (a downed character bleeds out as under the classic rules
-// until milestone 50), conditions (49; the table's statuses
-// keep their meaning: guarded is taking cover, slowed halves speed, burning
-// burns). Spells are cast by spells/cast.ts. This work includes material from the SRD 5.2.1; see core.ts.
+// Combat beyond the roll (combat.ts): death saving throws, massive damage,
+// damage types against Resistance, Vulnerability and Immunity, cover, the
+// Opportunity Attack as every creature's reaction, and Dash, Disengage, Dodge
+// and Help. Conditions are conditions.ts; the table's older statuses keep
+// their meaning (guarded is taking cover, slowed halves speed, burning
+// burns). Spells are cast by spells/cast.ts. Reactions beyond the
+// Opportunity Attack (a Shield spell) are not played yet, and not
+// approximated. This work includes material from the SRD 5.2.1; see core.ts.
 
 import { summarizeAction, STATUSES } from '../../../src/lib/adventure/characters';
 import { classic } from '../classic';
@@ -37,6 +40,28 @@ import { readSheet, sheetOf, type Sheet } from './sheet';
 import { dndSpells } from './spells/cast';
 import { attackReasons, conditionDef, dndConditions, exhaustionPenalty } from './conditions';
 import { d20Test } from './d20';
+import {
+	coverBonus,
+	damageTaken,
+	damageTraits,
+	deathSave,
+	DOWNED_LIMIT,
+	downedDamage,
+	MANEUVERS,
+	stabilize
+} from './combat';
+import { DAMAGE_TYPES } from './sheet';
+import type { TestSituation } from '../ruleset';
+
+/** What a save gains from where the saver stands: cover and a Dodge help Dexterity saves. */
+function saveHelps(stat: string, situation: TestSituation): { bonus: number; advantage: string[] } {
+	if (stat !== 'dex') return { bonus: 0, advantage: [] };
+	const cover = situation.cover ? coverBonus(situation.cover) : null;
+	return {
+		bonus: cover?.bonus ?? 0,
+		advantage: situation.evading ? ['dodging'] : []
+	};
+}
 
 export const DND_55E: RulesetRef = { id: 'dnd-5.5e', version: 1 };
 
@@ -71,8 +96,9 @@ export const dnd55e: Ruleset = {
 	bonus: (character, stat, kind) => bonusOf(sheetOf(character), stat, kind),
 	label: labelOf,
 	test(character, stat, kind, dc, situation, roller) {
+		const helps = kind === 'save' ? saveHelps(stat, situation) : { bonus: 0, advantage: [] };
 		return d20Test({
-			bonus: bonusOf(sheetOf(character), stat, kind),
+			bonus: bonusOf(sheetOf(character), stat, kind) + helps.bonus,
 			kind,
 			stat,
 			label: labelOf(stat, kind),
@@ -83,7 +109,7 @@ export const dnd55e: Ruleset = {
 			// In darkness a creature can't see: a check that needs sight fails (SRD: Blinded).
 			blindHere: kind === 'check' && situation.dark && situation.sight,
 			sight: situation.sight,
-			advantage: situation.advantage ? [situation.advantage] : [],
+			advantage: [...(situation.advantage ? [situation.advantage] : []), ...helps.advantage],
 			roller
 		});
 	},
@@ -109,6 +135,10 @@ export const dnd55e: Ruleset = {
 			disadvantages.push('ranged, with a foe beside');
 		if (situation.targetStatuses.has('guarded')) disadvantages.push('the target is taking cover');
 		if (situation.exposed) advantages.push('the target is exposed');
+		// Dodge: attacks against it have Disadvantage if it can see the attacker.
+		if (situation.evading && !situation.attackerUnseen) disadvantages.push('the target is dodging');
+		const cover = situation.cover ? coverBonus(situation.cover) : null;
+		if (cover) ac += cover.bonus;
 		const byConditions = attackReasons(
 			situation.attackerConditions ?? [],
 			situation.targetConditions ?? [],
@@ -143,7 +173,8 @@ export const dnd55e: Ruleset = {
 			damage: hit ? rollDamage(damage, critical, roller) : null,
 			...(critical ? { critical } : {}),
 			...(mode ? { mode } : {}),
-			explain: `${describeD20(d20, bonus)} vs AC ${ac}: ${verdict}${reasons}`
+			...(cover ? { defense: ac } : {}),
+			explain: `${describeD20(d20, bonus)} vs AC ${ac}${cover ? ` (+${cover.bonus}, ${cover.name})` : ''}: ${verdict}${reasons}`
 		};
 	},
 	actionType: (character, action) =>
@@ -151,10 +182,17 @@ export const dnd55e: Ruleset = {
 	actionTypeName: (type) => (type === 'bonus' ? 'Bonus action' : 'Action'),
 	speed: classic.speed,
 	turnDamage: (statuses) =>
-		statuses.has('burning') ? { dice: '1d4', cause: STATUSES.burning.name } : null,
+		statuses.has('burning') ? { dice: '1d4', cause: STATUSES.burning.name, type: 'fire' } : null,
 	tick: classic.tick,
-	downedTurn: classic.downedTurn,
-	downedLimit: classic.downedLimit,
+	downedTurn: deathSave,
+	downedLimit: DOWNED_LIMIT,
+	downedDamage,
+	stabilize,
+	damageTaken,
+	damageTraits,
+	coverBonus,
+	opportunityAttacks: true,
+	maneuvers: MANEUVERS,
 	card(character, statuses) {
 		const sheet = sheetOf(character);
 		const p = prof(sheet);
@@ -164,6 +202,7 @@ export const dnd55e: Ruleset = {
 			...(sheet.details ? { details: DND_55E.id } : {}),
 			...(sheet.inventory ? { inventory: sheet.inventory.map((i) => ({ ...i })) } : {}),
 			...(sheet.carrying ? { carrying: { ...sheet.carrying } } : {}),
+			...(sheet.resistances.length ? { resistances: [...sheet.resistances] } : {}),
 			defense: { name: 'Armor Class', value: this.defense(character.armor, statuses) },
 			level: sheet.level,
 			proficiency: p,
@@ -188,7 +227,7 @@ export const dnd55e: Ruleset = {
 				score: null,
 				proficient: sheet.skills.includes(s.id)
 			})),
-			actions: character.actions.map((a) => {
+			actions: [...character.actions, ...MANEUVERS.map((m) => m.action)].map((a) => {
 				const part = this.actionType(character, a);
 				return {
 					id: a.id,
@@ -204,7 +243,19 @@ export const dnd55e: Ruleset = {
 			const read = readSheet(c);
 			return read.ok ? [] : read.problems;
 		});
+		const own = new Set(MANEUVERS.map((m) => m.action.id));
+		for (const c of Object.values(A.characters))
+			for (const a of c.actions)
+				if (own.has(a.id))
+					problems.push(`character ${c.id}: "${a.id}" is an action every character has`);
 		for (const e of Object.values(A.enemies)) {
+			for (const t of [
+				...(e.damage?.immune ?? []),
+				...(e.damage?.resist ?? []),
+				...(e.damage?.vulnerable ?? []),
+				...e.attacks.flatMap((a) => (a.damageType ? [a.damageType] : []))
+			])
+				if (!DAMAGE_TYPES.includes(t)) problems.push(`enemy ${e.kind}: no damage type "${t}"`);
 			for (const stat of Object.keys(e.saves ?? {}))
 				if (!isAbility(stat)) problems.push(`enemy ${e.kind}: no saving throw "${stat}"`);
 			for (const c of [
@@ -225,18 +276,20 @@ export const dnd55e: Ruleset = {
 	equipment: dndEquipment(srdCatalog, DND_55E),
 	spells: dndSpells(srdCatalog, () => dnd55e.strike),
 	conditions: dndConditions(srdCatalog),
-	saveWith: (bonus, stat, dc, situation, roller, advantage) =>
-		d20Test({
-			bonus,
+	saveWith: (bonus, stat, dc, situation, roller, advantage) => {
+		const helps = saveHelps(stat, situation);
+		return d20Test({
+			bonus: bonus + helps.bonus,
 			kind: 'save',
 			stat,
 			label: labelOf(stat, 'save'),
 			dc,
 			held: situation.conditions,
 			boon: situation.boon,
-			advantage: advantage ? [advantage] : [],
+			advantage: [...(advantage ? [advantage] : []), ...helps.advantage],
 			roller
-		})
+		});
+	}
 };
 
 registerRuleset(dnd55e);

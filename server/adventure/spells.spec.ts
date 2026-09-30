@@ -201,9 +201,11 @@ describe('fifth edition spells in play', () => {
 			['Cold Shade', true, 13]
 		]);
 		expect(texts(log)).toContain('The Barrow Guard takes 12 fire damage.');
-		expect(texts(log)).toContain('The Cold Shade takes 6 fire damage (half, on a save).');
+		// Half on its save, and half again: the Shade has Resistance to fire.
+		expect(texts(log)).toContain('The Cold Shade: resistant to fire: halved.');
+		expect(texts(log)).toContain('The Cold Shade takes 3 fire damage (half, on a save).');
 		expect(room.adventure!.encounter!.enemies.get(guard.id)!.hp).toBe(25 - 12);
-		expect(room.adventure!.encounter!.enemies.get(shade.id)!.hp).toBe(12 - 6);
+		expect(room.adventure!.encounter!.enemies.get(shade.id)!.hp).toBe(12 - 3);
 	});
 
 	it('pushes those who fail against Thunderwave, not through a wall or someone else', () => {

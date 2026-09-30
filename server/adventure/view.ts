@@ -152,6 +152,8 @@ export function adventureView(
 			const maxHp = def.hp;
 			const card = rules.card(def, token && state ? state.statuses : new Map());
 			const editable = viewer.role === 'gm' || (!!token && token.ownerId === viewer.id);
+			// What every character can do under the rules (Dash, Dodge, …) is offered with its own actions.
+			const actions = [...def.actions, ...(rules.maneuvers ?? []).map((m) => m.action)];
 			return {
 				id,
 				inPlay: !!token,
@@ -164,14 +166,29 @@ export function adventureView(
 				downedFor: state?.downedFor ?? 0,
 				statuses: token && state ? listStatuses(state.statuses) : [],
 				usesLeft: Object.fromEntries(
-					def.actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
+					actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
 				),
+				deathSaves:
+					token && state && state.hp <= 0 && !state.dead && rules.downedDamage
+						? {
+								successes: state.deathSaves?.successes ?? 0,
+								failures: state.deathSaves?.failures ?? 0,
+								stable: !!state.deathSaves?.stable
+							}
+						: null,
+				reaction: !rules.opportunityAttacks
+					? null
+					: state?.holdReaction
+						? 'held'
+						: encounter?.reacted?.has(id)
+							? 'used'
+							: 'ready',
 				carrying: [...adventure.carried].flatMap(([item, by]) => {
 					const thing = by === id && token ? objectDef(A, item) : undefined;
 					return thing ? [{ id: thing.id, name: thing.name }] : [];
 				}),
 				// The rules' own data about a character (its sheet) stays on the server: the card is what the rules show.
-				def: { ...def, sheet: undefined },
+				def: { ...def, actions, sheet: undefined },
 				card,
 				resourcesSpent: Object.fromEntries(
 					(card.resources ?? []).map((r) => {

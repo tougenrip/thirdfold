@@ -37,6 +37,8 @@ export interface Attack {
 	toHit: number;
 	/** Damage dice expression, e.g. `1d8+3`. */
 	damage: string;
+	/** The kind of damage, in the rules' words ("cold"), where the rules have kinds. */
+	damageType?: string;
 	save?: { stat: string; dc: number; half: boolean };
 	/**
 	 * Conditions (the rules' ids) it leaves on a hit, or on a failed save,
@@ -63,9 +65,10 @@ export interface Action {
 	/**
 	 * attack: harms enemies (a to-hit roll then damage, or what its rules say
 	 * for a spell); heal: restores hit points; guard: a status on self and
-	 * allies beside; boon: a lasting benefit on allies (a spell's).
+	 * allies beside; boon: a lasting benefit on allies (a spell's); maneuver:
+	 * something the rules let every character do (Dash, Dodge, Help).
 	 */
-	kind: 'attack' | 'heal' | 'guard' | 'boon';
+	kind: 'attack' | 'heal' | 'guard' | 'boon' | 'maneuver';
 	target: 'enemy' | 'ally' | 'self';
 	/** Reach in cells (0 for self). Beyond 1 it needs a clear line. */
 	range: number;
@@ -73,6 +76,8 @@ export interface Action {
 	stat: StatId;
 	/** Damage (attack) or healing (heal) dice. */
 	dice?: string;
+	/** The kind of damage it deals, in its rules' words ("slashing"), where the rules have kinds. */
+	damageType?: string;
 	/** A status the action puts on its target (attack, on a hit) or on the guarded (guard). */
 	applies?: { status: StatusId; rounds: number };
 	/** Uses per encounter; null for as often as you like. */
@@ -326,6 +331,7 @@ export function describeAction(character: CharacterDef, action: Action): string 
 
 /** The same summary, with the attack bonus as the story's rules work it out. */
 export function summarizeAction(action: Action, toHit: number): string {
+	if (action.kind === 'maneuver') return action.target === 'self' ? 'Yourself' : 'Beside you';
 	const reach =
 		action.target === 'self'
 			? action.kind === 'heal'

@@ -124,7 +124,15 @@ describe('The Barrow on Cold Hill (fifth edition rules)', () => {
 			level: 1,
 			proficiency: 2
 		});
-		expect(card.actions.map((a) => a.partName)).toEqual(['Action', 'Bonus action']);
+		expect(card.actions.map((a) => `${a.id}: ${a.partName}`)).toEqual([
+			'longsword: Action',
+			'second-wind: Bonus action',
+			'dash: Action',
+			'disengage: Action',
+			'dodge: Action',
+			'help: Action',
+			'first-aid: Action'
+		]);
 		const carvings = view.interactables.find((i) => i.id === 'carvings')!;
 		// The Veil: Intelligence 12 (+1) and proficient in Investigation (+2).
 		expect(carvings.verbs[0].check).toEqual({

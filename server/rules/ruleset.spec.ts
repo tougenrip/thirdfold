@@ -105,8 +105,8 @@ describe('the classic rules', () => {
 		]);
 		classic.tick(statuses);
 		expect([...statuses]).toEqual([['burning', 1]]);
-		expect(classic.downedTurn(state(0))).toEqual({ dead: false, turnsLeft: 2 });
-		expect(classic.downedTurn(state(2))).toEqual({ dead: true });
+		expect(classic.downedTurn(state(0), () => 1)).toEqual({ dead: false, turnsLeft: 2 });
+		expect(classic.downedTurn(state(2), () => 1)).toEqual({ dead: true });
 	});
 
 	it('hits on a natural 20 and misses on a natural 1, whatever the numbers', () => {

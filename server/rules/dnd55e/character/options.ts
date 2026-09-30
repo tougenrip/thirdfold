@@ -55,6 +55,51 @@ export const SPECIES_OPTIONS: Readonly<Record<string, Readonly<Record<string, Op
 	}
 };
 
+/**
+ * The damage types a species' traits give Resistance to: the Dwarf's
+ * Dwarven Resilience, and by the option chosen, the Dragonborn's Draconic
+ * Ancestry and the Tiefling's Fiendish Legacy (the SRD's tables, whose
+ * rows `RESISTANCE_PHRASES` quotes).
+ */
+export const SPECIES_RESISTANCE: Readonly<
+	Record<string, { always?: string; by?: { option: string; types: Record<string, string> } }>
+> = {
+	'srd-5.2.1:species:dwarf': { always: 'poison' },
+	'srd-5.2.1:species:dragonborn': {
+		by: {
+			option: 'ancestry',
+			types: {
+				black: 'acid',
+				blue: 'lightning',
+				brass: 'fire',
+				bronze: 'lightning',
+				copper: 'acid',
+				gold: 'fire',
+				green: 'poison',
+				red: 'fire',
+				silver: 'cold',
+				white: 'cold'
+			}
+		}
+	},
+	'srd-5.2.1:species:tiefling': {
+		by: {
+			option: 'legacy',
+			types: { abyssal: 'poison', chthonic: 'necrotic', infernal: 'fire' }
+		}
+	}
+};
+
+/** Where the SRD says so (the Tiefling's table is printed beside the Human's traits). */
+export const RESISTANCE_PHRASES = [
+	'You have Resistance to Poison damage.',
+	'You have Resistance to the damage type determined by your Draconic Ancestry trait.',
+	'Black Acid Gold Fire Blue Lightning Green Poison Brass Fire Red Fire Bronze Lightning Silver Cold Copper Acid White Cold',
+	'Abyssal You have Resistance to Poison damage.',
+	'Chthonic You have Resistance to Necrotic damage.',
+	'Infernal You have Resistance to Fire damage.'
+];
+
 /** Species whose traits give an Origin feat of the player's choice (Human: Versatile). */
 export const SPECIES_FEAT = new Set(['srd-5.2.1:species:human']);
 

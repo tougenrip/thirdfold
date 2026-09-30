@@ -14,6 +14,7 @@
 
 import type { Action, CharacterDef } from '../../../../src/lib/adventure/characters';
 import type { EffectSpec, Ruleset, SpellHit, Spellcasting } from '../../ruleset';
+import { coverBonus } from '../combat';
 import { d20Test } from '../d20';
 import type { Catalog } from '../catalog';
 import { abilityModifier, abilityName, proficiencyBonus, rollDamage, type Ability } from '../core';
@@ -196,14 +197,18 @@ export function dndSpells(catalog: () => Catalog, strike: () => Ruleset['strike'
 						return hit;
 					}
 					hit.dc = dc;
+					// Cover between the caster and a target helps its Dexterity save, and so does a Dodge.
+					const dex = ability === 'dex';
+					const cover = dex && t.situation.cover ? coverBonus(t.situation.cover) : null;
 					hit.save = d20Test({
-						bonus: t.saveBonus(ability),
+						bonus: t.saveBonus(ability) + (cover?.bonus ?? 0),
 						kind: 'save',
 						stat: ability,
 						label: `${abilityName(ability as Ability)} saving throw`,
 						dc,
 						held: t.conditions,
 						boon: t.boon,
+						advantage: dex && t.situation.evading ? ['dodging'] : [],
 						roller
 					});
 					const success = hit.save.success;

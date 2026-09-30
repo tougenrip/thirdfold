@@ -13,6 +13,8 @@ const character = (patch: Partial<CharacterStatus>): CharacterStatus => ({
 	downed: false,
 	dead: false,
 	downedFor: 0,
+	deathSaves: null,
+	reaction: null,
 	statuses: [],
 	usesLeft: {},
 	carrying: [],

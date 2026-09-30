@@ -914,7 +914,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					token.ownerId
 				);
 				// Walking somewhere can move the story on, even to another table.
-				return applyOutcome(room, adventure.afterMove(room, token, allowed.cost), player.id);
+				return applyOutcome(
+					room,
+					adventure.afterMove(room, token, allowed.cost, Date.now(), allowed.walk),
+					player.id
+				);
 			}
 			case 'token_update': {
 				const result = updateToken(room, player, msg.tokenId, msg.patch);

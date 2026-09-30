@@ -41,7 +41,9 @@ describe('the spells the table plays', () => {
 
 	it('says why every other spell isn’t cast here, never approximating it', () => {
 		expect(why('hold-person')).toBe('Its effects aren’t played at the table yet.');
-		expect(why('shield')).toBe('Cast as a reaction: reactions come with a later milestone.');
+		expect(why('shield')).toBe(
+			'Cast as a reaction: the only reaction played at the table yet is the Opportunity Attack.'
+		);
 		expect(why('alarm')).toMatch(/^Takes 1 minute to cast/);
 		expect(why('light')).toBe('Its effects aren’t played at the table yet.');
 		const all = catalog.all('spell');

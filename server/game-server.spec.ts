@@ -3107,7 +3107,13 @@ describe('fifth edition rules over the wire', () => {
 		expect(dropped.adventure!.piles[0].items).toEqual([{ index: 0, name: 'Longsword' }]);
 		expect(warden(dropped)!.def.actions.map((a) => a.id)).toEqual([
 			'unarmed-strike',
-			'second-wind'
+			'second-wind',
+			// What every character can do under the fifth edition rules.
+			'dash',
+			'disengage',
+			'dodge',
+			'help',
+			'first-aid'
 		]);
 
 		// A player can't conjure gear, nor change another's.
@@ -3177,6 +3183,108 @@ describe('fifth edition rules over the wire', () => {
 			'adventure_update',
 			(m) => m.adventure?.characters.find((c) => c.id === 'warden')?.conditions.length === 0
 		);
+	});
+
+	it('plays a fight from initiative to victory for two players, kept through a save and load', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		const quinn = await connect();
+		quinn.send({ type: 'join', roomId: room.id, name: 'Quinn', role: 'player' });
+		await quinn.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		await quinn.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		const veil = await pip.until('token_upserted', (m) => m.token.name === 'The Veil');
+		quinn.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await quinn.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await quinn.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// The GM starts the guardians' fight: initiative is rolled on the server, the same for all.
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'encounter_start', encounter: 'guardians' }
+		});
+		const started = await quinn.until('adventure_update', (m) => !!m.adventure?.encounter);
+		const order = started.adventure!.encounter!.order;
+		// The Veil: 20 + Dexterity 3 + Alert 2; the Shade 20 + 2; the Warden and the Guard after.
+		expect(order.map((t) => [t.name, t.initiative])).toEqual([
+			['The Veil', 25],
+			['Cold Shade', 22],
+			['The Warden', 21],
+			['Barrow Guard', 20]
+		]);
+		expect(started.adventure!.characters.find((c) => c.id === 'warden')!.reaction).toBe('ready');
+
+		// Saved mid-fight and loaded again: everyone is back in the same fight.
+		gm.send({ type: 'scene_save', name: 'Cold Hill, mid-fight' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = await pip.until('room_reset');
+		expect(back.room.adventure!.encounter).toMatchObject({ round: 1, current: 0 });
+		expect(back.room.adventure!.encounter!.order).toEqual(order);
+		// The GM sees every foe.
+		const reset = await gm.until('room_reset');
+		const foes = reset.room.adventure!.encounter!.enemies;
+		const at = (name: string) => {
+			const id = foes.find((e) => e.name === name)!.tokenId;
+			return reset.room.tokens.find((t) => t.id === id)!;
+		};
+		const shade = at('Cold Shade');
+		const guard = at('Barrow Guard');
+
+		// The GM sets the scene: each character beside its foe.
+		gm.send({
+			type: 'token_move',
+			tokenId: veil.token.id,
+			to: { x: shade.pos.x, y: shade.pos.y + 1 }
+		});
+		await pip.until('token_moved', (m) => m.tokenId === veil.token.id);
+		gm.send({
+			type: 'token_move',
+			tokenId: warden.token.id,
+			to: { x: guard.pos.x - 1, y: guard.pos.y }
+		});
+		await quinn.until('token_moved', (m) => m.tokenId === warden.token.id);
+
+		// Not the Warden's turn yet.
+		quinn.send({ type: 'adventure_act', actionId: 'longsword', targetId: guard.id });
+		expect(await quinn.until('error')).toMatchObject({ code: 'not_your_turn' });
+
+		// The Veil's shortsword: a critical hit (2d6 + 3 = 15) fells the Shade, for everyone.
+		pip.send({ type: 'adventure_act', actionId: 'shortsword', targetId: shade.id });
+		expect(await untilLog(quinn, 'attack')).toMatchObject({
+			authorName: 'The Veil',
+			critical: true,
+			outcome: 'The Cold Shade falls.'
+		});
+		await pip.until('token_deleted', (m) => m.tokenId === shade.id);
+		pip.send({ type: 'adventure_end_turn' });
+
+		// The Shade is gone from the order: the Warden is up, and its longsword ends the fight.
+		await quinn.until(
+			'adventure_update',
+			(m) => m.adventure?.encounter?.order[m.adventure.encounter.current]?.name === 'The Warden'
+		);
+		quinn.send({ type: 'adventure_act', actionId: 'longsword', targetId: guard.id });
+		const blow = await pip.until(
+			'chat',
+			(m) => m.message.kind === 'attack' && m.message.authorName === 'The Warden'
+		);
+		expect(blow.message).toMatchObject({ outcome: 'The Barrow Guard falls.' });
+		for (const client of [pip, quinn, gm]) {
+			await client.until('adventure_update', (m) => m.adventure?.encounter === null);
+			const won = await client.until(
+				'chat',
+				(m) => 'text' in m.message && m.message.text.startsWith('The guard folds back')
+			);
+			expect(won.message.kind).toBe('narration');
+		}
 	});
 
 	it('casts a spell by the rules: a slot spent and kept, a bad aim refused', async () => {
