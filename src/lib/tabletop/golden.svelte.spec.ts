@@ -83,6 +83,16 @@ export const MATRIX: Shot[] = [
 		band: 'dusk',
 		viewer: 'gm',
 		time
+	})),
+	// #225: dawn on the village (its noon, dusk and night are the band overviews: 12:00, 19:30,
+	// 23:00), and the enclosed Hollow and Heart at noon, which must match their midnight (#221).
+	{ fixture: 'village', pose: 'overview', band: 'dusk', viewer: 'gm', time: 360 },
+	...['hollow', 'heart'].map((fixture): Shot => ({
+		fixture,
+		pose: 'overview',
+		band: 'own',
+		viewer: 'gm',
+		time: 720
 	}))
 ];
 
@@ -103,6 +113,7 @@ const SLIM = new Set([
 	'ref-8 overview own spectator',
 	'village dark dark player',
 	'village overview dark gm',
+	'village overview dusk gm 0600',
 	'ref-1 close own gm',
 	'ref-7 close own gm',
 	'village low own gm',
