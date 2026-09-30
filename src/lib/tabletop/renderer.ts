@@ -102,14 +102,13 @@ export async function createTabletop(
 	scene.add(cloud.group);
 	const diceLayer = new DiceLayer();
 	scene.add(diceLayer.group);
-	// Read live: turning reduced motion on or off applies at once, without a reload.
 	const motion = watchReducedMotion(options.reducedMotion, (reduced) => {
 		reducedMotion = reduced;
 		for (const l of stillable()) l.setReducedMotion(reduced); // instant reveals, a still cloud
 		if (reduced) rig.endShot();
 		refreshLighting();
 	});
-	let reducedMotion = motion.reduced;
+	let reducedMotion = motion.reduced; // read live: a change applies at once, without a reload
 	const propLayer = new PropLayer(onModel, clock);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
@@ -491,6 +490,7 @@ export async function createTabletop(
 		capabilities: () => quality.caps,
 		loads: loadProgress,
 		setPowerSaver: (on) => (loop.setPowerSaver(on), cloud.setPowerSaver(on)),
+		setReduceFlashing: (on) => effects.setReduceFlashing(on),
 		...perfMethods(renderer, perf, drawScene, { loop, quality })
 	};
 	// Changes to the table redraw the sun's shadows on the next frame.
