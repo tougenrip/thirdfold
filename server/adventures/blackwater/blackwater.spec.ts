@@ -121,6 +121,8 @@ describe('The Last Train to Blackwater', () => {
 		gmDo({ op: 'encounter_end', result: 'won' });
 		expect(story()).toMatchObject({ chapter: 'midnight', location: 'train' });
 		expect(story().rewards).toContain('Mr. Grant, alive');
+		// Midnight is the hour (00:00), so the band is dark.
+		expect(room.world.time).toBe(0);
 		expect(room.ambient).toBe('dark');
 		expect(story().sentries).toHaveLength(3);
 
@@ -139,6 +141,9 @@ describe('The Last Train to Blackwater', () => {
 		ok(engine.decide(room, ana, 'reckoning', 'confess'));
 		expect(story()).toMatchObject({ stage: 'complete', ending: 'rest' });
 		expect(view().ending).toMatchObject({ title: 'Laid to Rest' });
+		// Dawn: 05:45, the band dusk.
+		expect(room.world.time).toBe(345);
+		expect(room.ambient).toBe('dusk');
 		expect(story().rewards).toEqual([
 			'The 1861 manifest',
 			'Mr. Grant, alive',
@@ -166,6 +171,8 @@ describe('The Last Train to Blackwater', () => {
 		ok(engine.decide(room, ana, 'reckoning', 'brake'));
 		expect(story()).toMatchObject({ stage: 'complete', ending: 'stopped' });
 		expect(view().ending).toMatchObject({ title: 'Stopped Short' });
+		expect(room.world.time).toBe(345);
+		expect(room.ambient).toBe('dusk');
 	});
 
 	it('saves at the bridge, loads, and rides on to Blackwater for End of the Line', () => {

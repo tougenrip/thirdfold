@@ -274,6 +274,8 @@ export function bellweatherScene(now = new Date()): SceneFile {
 			props,
 			lights,
 			ambient: 'dusk',
+			// 19:30, clear, a little haze in the valley.
+			world: { time: 1170, haze: { density: 0.25 } },
 			environment: 'village',
 			// Roofed: the Tolling Rest, the Hale house, the chapel, the smithy and the Crane cottage.
 			interior: [

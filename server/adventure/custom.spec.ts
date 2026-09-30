@@ -60,7 +60,7 @@ describe("creators' adventures", () => {
 		const ana = ok(rooms.join(room.id, 'Ana', 'player')).player;
 		ok(engine.startAdventure(room, gm, ok(loadCustomAdventure(lit)).adventure.id));
 		ok(engine.claimCharacter(room, ana, 'veil'));
-		expect(room.ambient).toBe('day');
+		expect(room.ambient).toBe('dusk');
 		ok(engine.beginAdventure(room, gm, 5000));
 		expect(room.world).toMatchObject({ time: 1320, weather: { kind: 'rain', since: 5000 } });
 		expect(room.ambient).toBe('dark');

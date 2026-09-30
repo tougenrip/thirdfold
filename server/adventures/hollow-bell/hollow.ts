@@ -193,6 +193,12 @@ export function hollowScene(now = new Date()): SceneFile {
 			name: 'The Hollow',
 			grid: HOLLOW_GRID,
 			ambient: 'dark',
+			// Underground: no sun, and the lake runs off into the void at level 0.
+			world: {
+				sun: false,
+				grade: { preset: 'cavern-teal' },
+				backdrop: { kind: 'abyss', level: 0 }
+			},
 			environment: 'cavern',
 			arrival: LANDING,
 			tokens: npcTokens('hollow'),

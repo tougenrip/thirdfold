@@ -112,6 +112,7 @@ describe('the ringing chamber in the dark', () => {
 
 	it('is dark at dusk: only light shows anything there, while the nave is plain to see', () => {
 		expect(room.ambient).toBe('dusk');
+		expect(room.world).toMatchObject({ time: 1170, sun: true, grade: { preset: 'cool-dusk' } });
 		const lit = lightFor(room, obstacles(room))!;
 		expect(lit[cellIndex(room.grid, { x: 3, y: 7 })]).toBe(0);
 		// The candle stub lights the cell it stands on and little else.

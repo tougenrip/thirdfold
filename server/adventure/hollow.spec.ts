@@ -93,6 +93,12 @@ describe('the Hollow', () => {
 			2.5 * MONASTERY_GRID.width * MONASTERY_GRID.height
 		);
 		expect(room.ambient).toBe('dark');
+		// Underground: no sun, the lake running off into the abyss.
+		expect(room.world).toMatchObject({
+			sun: false,
+			grade: { preset: 'cavern-teal' },
+			backdrop: { kind: 'abyss', level: 0 }
+		});
 		// The Bell in its frame, gears, ruins, and the lake's black water.
 		expect(room.props.get(HOLLOW_IDS.bell)).toMatchObject({ assetId: 'great-bell', pos: BELL_AT });
 		const assets = [...room.props.values()].map((p) => p.assetId);
