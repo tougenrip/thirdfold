@@ -18,11 +18,14 @@ const BUDGETS = {
 	'/': { total: 64_000, own: 19_000 },
 	// 97.0 → 97.4: the manifest's sky presets and their closed parser (sky-parse.ts, #213), 97,327 B
 	// measured.
-	'/builder': { total: 97_400, own: 52_000 },
+	// 97.4 → 97.5: the sky's resolver and the canonical hours, now used by the renderer, stay in the
+	// shared chunk with the manifest's parser (#215), 97,479 B measured.
+	'/builder': { total: 97_500, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
-	'/dev/assets': { total: 51_100, own: 500 },
+	// → 51.2: the same shared code (#215), 51,128 B measured.
+	'/dev/assets': { total: 51_200, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
@@ -32,7 +35,10 @@ const BUDGETS = {
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B
 	// measured. → 361.1: the GM's handles on fixture-less lights (#209; as a lazy chunk they split
 	// the shared code into more chunks and cost twice as much), +538 B measured; both together 361.0 kB.
-	renderer: { total: 361_100 },
+	// 361.1 → 363.8: the atmosphere (#215, #217, #218: the fog and environment nodes, the key
+	// light's tween and shadow rule, the curve), less the presets, their blend, the mist and the
+	// lamp; three's fog and PMREM code was already in the chunk. 363,757 B measured.
+	renderer: { total: 363_800 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

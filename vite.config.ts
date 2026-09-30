@@ -92,7 +92,8 @@ const RENDER_SPECS = [
 	'mapping',
 	'kind-layers',
 	'fog-soft',
-	'lobby'
+	'lobby',
+	'atmosphere'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

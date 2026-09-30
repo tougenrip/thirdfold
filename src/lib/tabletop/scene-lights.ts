@@ -1,74 +1,60 @@
-// The scene's base lights (a sky hemisphere, the sun and a warm lamp off to
-// one side) and fitting them, the distance haze and the camera's reach to the
-// size of the table. LightingLayer sets their strengths for the time of day.
+// The scene's base lights (the sky hemisphere and the key light, sun or moon) and fitting them and
+// the camera's reach to the size of the table. AtmosphereLayer (atmosphere.ts) aims and colours
+// them by the hour; the scene itself, with its fog and environment, is `createScene` there.
 
 import * as THREE from 'three/webgpu';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { SquareGrid } from '$lib/game/grid';
+import type { AtmosphereLayer } from './atmosphere';
+import { worldExtents } from './world-ground';
 
-/** The distance haze, as tuned for tables up to `extent` across (the Hollow's). */
-export const FOG = { near: 40, far: 90, extent: 54 };
-/** The camera's far plane for such a table. */
+export { createScene } from './atmosphere';
+
+/** The camera's far plane for a table as wide as the Hollow (54 across). */
 export const FAR = 200;
 
 export interface BaseLights {
 	hemisphere: THREE.HemisphereLight;
 	sun: THREE.DirectionalLight;
-	lamp: THREE.PointLight;
-}
-
-/** The scene, with a plain background and the distance haze in its colour. */
-/** The day preset's background (lighting.ts), until the lighting layer sets the hour's. */
-export function createScene(background = 0x292421): { scene: THREE.Scene; fog: THREE.Fog } {
-	const scene = new THREE.Scene();
-	scene.background = new THREE.Color(background);
-	const fog = new THREE.Fog(background, FOG.near, FOG.far);
-	scene.fog = fog;
-	return { scene, fog };
 }
 
 export function createSceneLights(scene: THREE.Scene): BaseLights {
+	// SEAM(#219, sky-light.ts): SkyHemisphere and SkyLight, scaled by the sky's reach per cell.
 	const hemisphere = new THREE.HemisphereLight(0xfff1dc, 0x1c140e, 0.9);
 	scene.add(hemisphere);
 	const sun = new THREE.DirectionalLight(0xffe2b8, 1.6);
 	sun.castShadow = true;
 	sun.shadow.mapSize.set(2048, 2048);
 	sun.shadow.bias = -0.0005;
-	// The sun's shadows are drawn again only when something on the table changed (the
-	// renderer's shadowsDirty), not when just the camera moves or flames flicker: that pass
-	// draws the whole scene a second time.
+	// The shadow map is drawn again only when something on the table changed (the renderer's
+	// shadowsDirty) or the key light turned (AtmosphereLayer.shadowDue), not when just the camera
+	// moves or flames flicker: that pass draws the whole scene a second time.
 	sun.shadow.autoUpdate = false;
 	scene.add(sun, sun.target);
-	// A warm low light off to one side so the table reads as lit by a lamp, not a studio.
-	const lamp = new THREE.PointLight(0xffa04d, 30, 0, 2);
-	scene.add(lamp);
-	return { hemisphere, sun, lamp };
+	return { hemisphere, sun };
 }
 
-/** Fits the sun's shadow, the lamp, the haze and the camera's reach to a table `extent` across. */
+/**
+ * Fits the key light's shadow box, the fog and the camera's reach to a table `extent` across:
+ * the box is round the play area's bounding sphere, so it holds for the light from any direction.
+ */
 export function fitToTable(
-	{ sun, lamp }: BaseLights,
-	fog: THREE.Fog,
+	{ sun }: BaseLights,
+	atmosphere: AtmosphereLayer,
 	camera: THREE.PerspectiveCamera,
 	controls: OrbitControls,
+	grid: SquareGrid,
 	extent: number
 ): void {
-	// Distance haze and the far plane grow with a table wider than the Hollow, so a long
-	// table (a train) is not lost in the haze from where the camera frames it.
-	const reach = Math.max(1, extent / FOG.extent);
-	fog.near = FOG.near * reach;
-	fog.far = FOG.far * reach;
-	camera.far = FAR * reach;
+	// The far plane grows with a table wider than the Hollow, so a long table (a train) is not
+	// lost in the haze from where the camera frames it.
+	camera.far = FAR * Math.max(1, extent / 54);
 	camera.updateProjectionMatrix();
-	const half = extent / 2;
-	Object.assign(sun.shadow.camera, {
-		left: -half,
-		right: half,
-		top: half,
-		bottom: -half,
-		far: extent * 3
-	});
+	const { center, radius } = worldExtents(grid).play;
+	const r = radius;
+	// The light stands two radii out (AtmosphereLayer.fit): the sphere lies between one and three.
+	Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: r, far: 3 * r });
 	sun.shadow.camera.updateProjectionMatrix();
-	sun.position.set(extent * 0.4, extent, extent * 0.25);
-	lamp.position.set(-half * 0.8, extent * 0.25, -half * 0.5);
+	atmosphere.fit(center, radius, extent);
 	controls.maxDistance = extent * 2;
 }

@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import type { Light } from '$lib/game/lights';
 import { LightingLayer } from './lighting';
-import { createSceneLights } from './scene-lights';
 
 const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 6, height: 6 };
 const lights: Light[] = [
@@ -14,10 +13,7 @@ const lights: Light[] = [
 	{ id: 'torch', pos: { x: 4, y: 1 }, radius: 3, color: '#ffa04d', on: true }
 ];
 
-function layer() {
-	const scene = new THREE.Scene();
-	return new LightingLayer({ ...createSceneLights(scene), scene });
-}
+const layer = () => new LightingLayer();
 
 /** A ray straight down onto a cell's centre. */
 function rayOnto(x: number, y: number): THREE.Raycaster {

@@ -62,11 +62,11 @@ export async function warmLobby(
 		return null;
 	}
 	const t0 = performance.now();
-	// The table's scene as far as shaders see it: its background, haze and lights (the sun
-	// casting, the lamp and the fixed pool of point lights).
-	const { scene } = createScene();
+	// The table's scene as far as shaders see it: the sky's fog and environment (the same nodes,
+	// atmosphere.ts) and lights (the key light casting, the hemisphere and the fixed point lights).
+	const scene = createScene();
 	const lights = createSceneLights(scene);
-	const lighting = new LightingLayer({ ...lights, scene });
+	const lighting = new LightingLayer();
 	scene.add(lighting.group);
 	const camera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
 	frameOverview(camera, 20, 1);

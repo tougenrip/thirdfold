@@ -245,6 +245,15 @@ timer (80 ms, the render scheduler's AMBIENT mode since M62), by design since M1
   | Monastery, player                   | 74       | 45       |
   | The Hollow (dark, sun out)          | 113 / 98 | 113 / 98 |
 
+  Since M67 (#215) the key light moves with the hour, and the map is also redrawn when the light
+  has turned `SHADOW_STEP_DEG` (0.5°) or switched between sun and moon (`shadowFrame` in
+  `atmosphere.ts`), never while its strength is 0. A day swept a minute at a time redraws 481 times
+  (two body switches); noon to 13:00, 21; noon to 18:30, 131. A 3 s tween across hours redraws on
+  most of its frames (bounded by the frames it draws, all in ACTIVE); at the running clock's one
+  game minute a second (#324) that is about one redraw every 2 s. A tween frame costs one
+  `atmosphereAt` (about 1 µs in Node) and a handful of uniform writes; the lamp's point light went
+  (#218), one light fewer per lit fragment.
+
 - **Software GPU experiments.** With `perf-gpu.mjs` (GPU ms per frame under SwiftShader, 1400×900):
 
   | Change                      | Effect  |
