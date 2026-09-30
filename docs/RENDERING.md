@@ -375,6 +375,17 @@ and `applyScene`. `server/ambient-writer.spec.ts` fails if anything else under `
 assigns `.ambient` or `.world`. A band change posts one notice ("X changed the lighting to
 darkness."); moving the hour within a band posts none.
 
+Until the sky (#114), the renderer shows the hour by blending its three lighting presets
+(`LightingLayer.update`; temporary, #218 replaces it with atmosphere curves): `presetWeights(time)`
+in `tabletop/time-blend.ts` (pure, `time-blend.spec.ts`) is one-hot at the canonical hours and at
+06:00, holds day from 08:00 to 17:30 and dark from 22:00 to 04:30, and is linear between those keys,
+so at most two presets mix. Only the background, the hemisphere's colours and strength, the sun and
+the lamp blend (numbers and one reused background colour, no program); a sunless table keeps its
+band's preset. What the rules darken (the light levels, the cell maps, the colour grade) stays keyed
+on `ambient`, so between 19:30 and 21:00 the scene darkens while the dark itself waits for 21:00. The
+look's `grade.exposure` scales the hemisphere and sun by 2^EV until post applies it (#161). A table
+from before the world look sits at its band's canonical hour and draws exactly as it did.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

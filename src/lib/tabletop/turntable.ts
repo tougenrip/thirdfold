@@ -8,6 +8,7 @@ import { fetchAsset, loadManifest } from '$lib/assets/load';
 import { isFigureKind, type Manifest, type ModelEntry } from '$lib/assets/manifest';
 import { FLOOR_IDS, type FloorId } from '$lib/game/floor';
 import { MAX_LIGHT_RADIUS, type Ambient, type Light } from '$lib/game/lights';
+import { defaultWorldFor } from '$lib/game/world';
 import { WALL_HEIGHT, STEP_HEIGHT } from './ground';
 import { createMaterial, repeatFor, withBake, type KindMaterial } from './materials';
 import { SURFACE_CELLS } from './materials/floors';
@@ -298,7 +299,8 @@ export async function createTurntable(
 		setLight(preset) {
 			light = preset;
 			const { ambient, light: kind } = LIGHTS[preset];
-			tabletop.setLighting(ambient, kind ? [lightOf(kind, side)] : []);
+			// The band's own hour, as a table from before the world look draws it.
+			tabletop.setLighting(ambient, kind ? [lightOf(kind, side)] : [], defaultWorldFor(ambient));
 		},
 		setEnvironment: (id) => tabletop.setEnvironment(id),
 		drawn: () => factsOf(shownMaps),

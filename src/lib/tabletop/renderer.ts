@@ -11,7 +11,7 @@
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
-import { lightSources, type Ambient, type Light } from '$lib/game/lights';
+import { lightSources } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
 import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
@@ -116,7 +116,7 @@ export async function createTabletop(
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer({ ...lights, scene });
 	scene.add(lighting.group);
-	let lightState: { ambient: Ambient; lights: readonly Light[] } = { ambient: 'day', lights: [] };
+	let lightState: Parameters<Tabletop['setLighting']> = ['day', []]; // band, lights, look
 	let darkness: Uint8Array | null = null;
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
@@ -156,12 +156,12 @@ export async function createTabletop(
 
 	function relight(): void {
 		if (!grid) return;
-		ambience.update(grid, lightState.ambient);
-		const sources = lightSources(lightState.lights, tokens);
+		const [ambient, lights, world = null] = lightState;
+		ambience.update(grid, ambient);
+		const sources = lightSources(lights, tokens);
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
-		const { ambient, lights } = lightState;
 		const seats = lightSeats(grid, props);
-		lighting.update(grid, ambient, lights, sources, blocked, ground, darkness, seats);
+		lighting.update(grid, ambient, lights, sources, blocked, ground, darkness, seats, world);
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		cloud.update(grid, fogState.fog, fogState.mode);
 		post.setLook(environment, grid.cellSize, look?.grades ?? null, ambient); // AO, grade
@@ -374,8 +374,8 @@ export async function createTabletop(
 		setHoveredProp(propId) {
 			if (propLayer.setHovered(propId)) requestRender();
 		},
-		setLighting(ambient, lights) {
-			lightState = { ambient, lights };
+		setLighting(...state) {
+			lightState = state;
 			refreshLighting();
 			requestRender();
 		},
