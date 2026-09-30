@@ -386,6 +386,80 @@ on `ambient`, so between 19:30 and 21:00 the scene darkens while the dark itself
 look's `grade.exposure` scales the hemisphere and sun by 2^EV until post applies it (#161). A table
 from before the world look sits at its band's canonical hour and draws exactly as it did.
 
+### The atmosphere curve (#212)
+
+`tabletop/atmosphere-curve.ts` is pure and three-free (relative imports only, tested in the server
+project by `atmosphere-curve.spec.ts`, so the asset pipeline runs it too): `atmosphereAt(preset,
+time, weather, out?)` turns a `SkyPreset`, the hour and the weather into an `AtmosphereState`, every
+number the sky, key light, hemisphere, IBL, fog and grade need. It is the one place that decides what
+19:30 in rain looks like; the renderer applies its result and nothing else. `out` is filled in place,
+so a tween frame allocates nothing, and the same inputs always give the same state. The maths it
+builds on (`kelvinToLinear`, `sunDirection`, `moonDirection`, `moonIllumination`, `elevationOf`) is
+in `tabletop/sky-maths.ts` and re-exported. Until the pipeline builds skies (#213), the default open
+sky is `temperate` in `tabletop/sky-presets.ts`, tuned so 12:00, 19:30 and 23:00 give exactly the
+old lighting presets' hemisphere, sun and haze (its zenith, IBL, moon, stars, clouds and night glow
+are a first guess for the M67 look review).
+
+**Axes and units.** Y up, grid north along -Z, east along +X, all turned about Y by the path's
+`north` (degrees). Directions are unit vectors from the table toward the body; elevations are in
+degrees. Colours are linear sRGB, written in presets as `#rrggbb` and linearised as three's
+`Color.setHex` does; the sun's may instead be a temperature (`sunKelvin`, Tanner Helland's fit,
+1000-40000 K). Colours stay in 0-1 (the HDR is in the strengths: the key light up to 2, exposure in
+EV within ±1), which the spec checks every minute in every weather.
+
+**A preset.** `kind` open or enclosed; an open sky's `path` (`latitude`, `declination`, `north`,
+`noon`, `DEFAULT_PATH` when absent), `moonCycle` and `moonPhase` (days; half the cycle is full) and
+`moonColor`; 2-16 `keys` in rising minutes, each with the sun's colour, `sun` and `moon` (the key
+light's strength by body), `hemiSky`, `hemiGround`, `hemi`, `ibl`, the dome's `zenith`, `horizon`
+and `ground`, `fog` (`color`, three's `density` per metre, the layer's `height` in metres),
+`exposure`, `stars`, `clouds` and `nightGlow` (how much windows and fixtures glow); an enclosed sky
+adds `fill` and uses its first key alone, whatever the hour and weather, with no key light.
+
+**The sun and moon.** Hour angle `H = (minute - noon) / 1440 · 2π`, elevation `asin(sin φ sin δ +
+cos φ cos δ cos H)`. Solar noon is 13:00 (780), because the bands are symmetric about it: a path
+symmetric about 12:00 cannot have the sun up at 18:59 and 6° down at 04:59. The moon runs the same
+path a `phase` of a turn behind (`phase = ((day + moonPhase) mod moonCycle) / moonCycle`, whole days
+of the absolute time; `WorldLook.time` is a minute of day, so today the phase is the preset's own).
+The one directional light, `key`, is the sun down to `HANDOVER_DEG` (-4°), fading to 0 there from
+0°, then the moon, fading in to -8°, its strength times its lit share with `MOON_FLOOR` (a moonless
+night still reads) and its colour moon-blue (the Purkinje shift). The body switches only at key light
+0, so `shadowNeedsRedraw` counts the switch without a visible pop.
+
+**Keys and weather.** Keys blend by smoothstep between neighbours, round midnight too (23:59 and
+00:00 agree). Weather (`none`, `rain`, `storm`, `fog`, `snow`, `ash`, `dust`, by `intensity` 0-1)
+only dims the sun and hemisphere, only raises clouds (hiding stars), fog density and height, only
+lowers exposure, and tints the haze (rain grey-blue, ash grey, dust ochre; snow also whitens the
+horizon and ground), so every field is monotonic in intensity. Overcast is a preset, not a weather.
+`lut` weighs the grade by the sun's height (day above 0°, dark below -10°), for #162; the grade stays
+keyed by band for now.
+
+**Continuity.** Over any minute no number moves more than 0.05 (the key light as colour times
+strength; its direction and colour jump only at strength 0), and the sun and moon less than 0.3°.
+
+**The band contract.** `checkBandContract(preset)` names every way an open preset contradicts the
+rules' bands (`bandOf`, the only source of the edges), minute by minute with no weather: by day the
+sun is above the horizon and no stars show; in the dark the sun is at `DARK_SUN_DEG` (-6°) or lower
+and the moon is the key; and every day minute's hemisphere is brighter than every dark minute's. It
+also checks the keys' count and order. `temperate` (latitude 45°, declination 10°, noon 13:00)
+passes; noon at 12:00 fails. The pipeline refuses a preset that fails (#213).
+
+**Shadows.** `shadowDirection` raises the key light to at least `MIN_SHADOW_ELEVATION_DEG` (12°)
+for the shadow map, keeping its bearing. `shadowNeedsRedraw(drawn, next)` is true when the light as
+last drawn turned `SHADOW_STEP_DEG` (0.5°) or more, or switched body, and never for a light of
+strength 0: a day's sweep redraws about once per half degree.
+
+**The captured sky.** `environmentKey(state)` quantises what the captured environment sees (the dome's
+colours in square-root steps, so night's dim colours count; the sun's direction by about 5° while its
+glow shows; glow, clouds and stars by tenths). The environment is captured again only when it changes
+(#216): about 160 times over a day with no weather, never under an enclosed sky.
+
+**Fog.** `fogFactorAt(fog, range, viewZ, y, fromPlay)` is what the scene's fog node works out (#217):
+the larger of range fog (three's `rangeFogFactor`, `fogRange(extent)`: 40-90 m, grown past the
+Hollow's 54 m like today's) and height fog (`exponentialHeightFogFactor`), held to `PLAY_FOG_CAP`
+(0.3) over the play area and lifting to 1 over `PLAY_FOG_BLEND` (6 m) beyond it, so the world past
+the grid fades out while the play area always reads. The spec checks the cap from both default poses
+on every grid from 4×4 to 64×64 in thick fog.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
