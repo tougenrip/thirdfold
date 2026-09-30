@@ -14,13 +14,17 @@
 // (a literal of its own in the graph) proves the sweep is not vacuous. Per tier, on both backends
 // (WebGL2 on SwiftShader here; WebGPU on the real GPU in the client-webgpu project). Reduced
 // motion, as the other renderer tests, so the toll's dust is not drawn in the sweep: a second test
-// plays it with motion (the warm-up's gallery compiles it, #180).
+// plays it with motion (the warm-up's gallery compiles it, #180). The sky (#225): a 24-hour sweep in
+// hourly steps under every sky in the manifest, haze 0 to 1, a roof on and off, and the flash with
+// Reduce flashing on and off.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
 import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import type { Light } from '$lib/game/lights';
+import { bandOf, type WorldLook } from '$lib/game/world';
+import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
@@ -170,7 +174,7 @@ function show(m: Mounted, view: FixtureView): void {
 }
 
 /** Everything that changes at runtime on the home table, as named steps. */
-function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
+function homeSteps(m: Mounted, home: FixtureView, tier: Tier, skies: readonly string[]): Step[] {
 	const t = m.tabletop;
 	const size = home.grid.width * home.grid.height;
 	const all = encodeMask(new Uint8Array(size).fill(1));
@@ -195,6 +199,7 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		home.objects.find((o) => o.kind === k)!
 	);
 	const cue = (c: 'flash' | 'toll') => () => t.playCue(c, c === 'toll' ? prop.id : null);
+	const world = (over: Partial<WorldLook>): WorldLook => ({ ...home.world, time: 780, ...over });
 	// The tier as mounted, with the fog cloud's layer on or off (#174).
 	const cloud = (on: boolean) => () => {
 		const settings = settingsFor(tier, t.capabilities().backend);
@@ -208,6 +213,24 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 			() => t.setLighting(a, home.lights)
 		]),
 		['ambient back', () => t.setLighting(home.ambient, home.lights)],
+		// The sky (#225): a day in hourly steps under every sky (each step captures it again, the
+		// clock moved past the tier's interval), haze from none to dense, a roof on and off, the
+		// flash and Reduce flashing.
+		...skies.flatMap((sky) =>
+			Array.from({ length: 24 }, (_, hour): Step => [
+				`sky ${sky} ${hour}:00`,
+				() => t.setLighting(bandOf(hour * 60), home.lights, world({ sky, time: hour * 60 }))
+			])
+		),
+		...[0, 0.25, 0.5, 1].map((density): Step => [
+			`haze ${density}`,
+			() => t.setLighting('day', home.lights, world({ haze: { density, color: '#b8c0cc' } }))
+		]),
+		['roofed', () => t.setInterior(new Uint8Array(size).fill(1))],
+		['roof off', () => t.setInterior(null)],
+		['flash, reduced', () => (t.setReduceFlashing(true), cue('flash')())],
+		['flash, not reduced', () => (t.setReduceFlashing(false), cue('flash')())],
+		['world back', () => t.setLighting(home.ambient, home.lights, home.world)],
 		...FLOOR_IDS.map((id, i): Step => [`floor ${id}`, () => t.setFloor(floorOf(i))]),
 		['floor cleared', () => t.setFloor(null)],
 		['floor back', () => t.setFloor(floor)],
@@ -312,7 +335,9 @@ describe('the shader program count', () => {
 			await drawn(t, clock);
 		}
 		const p0 = sweep.counts();
-		const changes = await sweep.run(homeSteps(m, home, tier));
+		const skies = Object.keys((await loadManifest()).skies ?? {});
+		expect(skies.length).toBeGreaterThan(0);
+		const changes = await sweep.run(homeSteps(m, home, tier, skies));
 		// Low draws one fetch a slot, medium and up anti-tile (#181). A switch that keeps the
 		// pipeline swaps the table's, the walls' and the raised ground's materials for their twins;
 		// it has no AO (low has none, and a new AO kind is a new renderer, Tabletop.svelte), so it
