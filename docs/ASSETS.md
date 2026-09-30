@@ -177,8 +177,8 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   optionally `"normal"` and `"orm"` textures. `cells` is how many cells one repeat of the texture
   covers. Each map must be a texture of its usage (`map` albedo).
 - **An environment** is `{ "name", "surface", "ground", "walls", "sky" }`. The first three name
-  materials, used for the floor, raised ground and walls (the table's rim wears the floor's until
-  #220 takes the rim away); `sky` names a sky (below), and an optional `world` is a world look
+  materials, used for the floor, raised ground and walls (the ground past the grid, out to the
+  horizon, wears `ground`, #220; there is no rim any more); `sky` names a sky (below), and an optional `world` is a world look
   (a `parseWorldPatch` patch, docs/RENDERING.md "World look") a table there starts from.
   `"surfaces": { "floors", "walls" }` lists its surfaces of the library (#187, below): the floors
   in layer order, and the walls' (the walls wear the first).
@@ -200,11 +200,14 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
     bounded.
   - `path` (open skies only): `latitude`, `declination`, `north`, `noon` (minutes; 780 keeps the
     bands), `moonCycle` (days) and `moonPhase` (0-1).
-  - Six ship: `temperate` (the village and the monastery), `desert-night` (the train and the
-    ghost town), `underground` (the living cave), `abyss` (the cavern), and `overcast` and
-    `blood-moon` for the GM to pick. Their lights at 12:00, 19:30 and 23:00 are the day, dusk and
-    dark presets the renderer drew before, so the look doesn't jump; their colours are seeded
-    from the references (docs/LOOK.md, "Sky targets").
+  - Seven ship: `temperate` (the village and the monastery), `desert-night` (the ghost town),
+    `underground` (the cavern), `abyss` (the living cave), `lamplit` (the railcar), and
+    `overcast` and `blood-moon` for the GM to pick. Their lights at 12:00, 19:30 and 23:00 are
+    the day, dusk and dark presets the renderer drew before, so the look doesn't jump; their
+    colours are seeded from the references (docs/LOOK.md, "Sky targets"), and the owner approved
+    the look at M67's checkpoint. The renderer draws them as docs/RENDERING.md says ("The dome
+    and its capture", "Enclosed skies"); the dome's horizon is always the fog's colour, so a
+    preset's `horizon` shows a few degrees up, not at the line.
   - Which sky a table shows is `resolveSky(world, environment, manifest)`: the look's sky if the
     manifest has it, else its environment's, else `temperate`; a sunless look ("Underground")
     shows `underground` instead of an open sky. Unknown ids fall back without a word.
