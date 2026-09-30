@@ -311,6 +311,7 @@ export const BARROW: AdventureDef = {
 			initiative: 0,
 			hp: (characters) => 9 + 4 * characters,
 			attacks: [{ name: 'Rusted blade', range: 1, toHit: 4, damage: '1d8+2' }],
+			saves: { str: 2, dex: 0, con: 2, int: -3, wis: 0, cha: -3 },
 			behavior: 'rush'
 		},
 		shade: {
@@ -334,6 +335,7 @@ export const BARROW: AdventureDef = {
 					save: { stat: 'con', dc: 12, half: true }
 				}
 			],
+			saves: { str: -2, dex: 2, con: 0, int: 0, wis: 1, cha: 0 },
 			behavior: 'skirmish'
 		}
 	},

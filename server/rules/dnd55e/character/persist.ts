@@ -46,7 +46,9 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
 			),
 			state: { ...state, expended: {} }
 		};
-	}
+	},
+	// Version 4 chooses spells; a version 3 character has chosen none yet.
+	3: (raw) => ({ ...raw, spells: { cantrips: [], prepared: [] } })
 };
 
 /** A character as JSON, the same character always the same text. */

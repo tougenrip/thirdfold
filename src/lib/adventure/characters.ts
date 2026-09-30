@@ -55,8 +55,12 @@ export interface Action {
 	id: string;
 	name: string;
 	about: string;
-	/** attack: to-hit roll then damage; heal: restores hit points; guard: a status on self and allies beside. */
-	kind: 'attack' | 'heal' | 'guard';
+	/**
+	 * attack: harms enemies (a to-hit roll then damage, or what its rules say
+	 * for a spell); heal: restores hit points; guard: a status on self and
+	 * allies beside; boon: a lasting benefit on allies (a spell's).
+	 */
+	kind: 'attack' | 'heal' | 'guard' | 'boon';
 	target: 'enemy' | 'ally' | 'self';
 	/** Reach in cells (0 for self). Beyond 1 it needs a clear line. */
 	range: number;
@@ -68,6 +72,25 @@ export interface Action {
 	applies?: { status: StatusId; rounds: number };
 	/** Uses per encounter; null for as often as you like. */
 	uses: number | null;
+	/** A spell (under rules that have them): how it is aimed. */
+	cast?: CastAim;
+}
+
+/** How a spell is aimed at the table; its rules say what it costs and does. */
+export interface CastAim {
+	/** The spell's level; 0 for a cantrip, which spends nothing. */
+	level: number;
+	/** The highest level the caster can cast it at (its highest slot). */
+	upTo: number;
+	/** Targets at its level, and more for each level above; `repeat`: one may be chosen more than once. */
+	targets: number;
+	perLevel: number;
+	repeat: boolean;
+	/** An area from the caster toward a cell it aims at, in cells; null for targets chosen one by one. */
+	area: { shape: 'cone' | 'cube'; size: number } | null;
+	concentration: boolean;
+	/** A line on what it does, e.g. "Dexterity save, 3d6 fire, half on a success". */
+	resolves: string;
 }
 
 export interface CharacterDef {
@@ -298,6 +321,15 @@ export function summarizeAction(action: Action, toHit: number): string {
 				? 'Melee'
 				: `Range ${action.range}`;
 	const parts = [reach];
+	const cast = action.cast;
+	if (cast) {
+		if (cast.area) parts[0] = 'From you';
+		else if (action.range === 1) parts[0] = 'Touch';
+		parts.push(cast.level ? `level ${cast.level} spell` : 'cantrip', cast.resolves);
+		if (cast.area) parts.push(`${cast.area.size * 5}-foot ${cast.area.shape}`);
+		if (cast.concentration) parts.push('concentration');
+		return parts.join(' · ');
+	}
 	if (action.kind === 'attack')
 		parts.push(`${toHit >= 0 ? '+' : ''}${toHit} to hit`, `${action.dice} damage`);
 	if (action.kind === 'heal') parts.push(`heals ${action.dice}`);

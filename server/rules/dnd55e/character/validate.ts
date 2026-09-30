@@ -34,6 +34,8 @@ import {
 } from './model';
 import {
 	armorTraining,
+	columnNumber,
+	highestSlot,
 	classSkills,
 	featIncrease,
 	featSkills,
@@ -217,6 +219,7 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 		'feats',
 		'hitPoints',
 		'inventory',
+		'spells',
 		'notes',
 		'state'
 	]);
@@ -332,6 +335,9 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 				source: source!
 			});
 		});
+	const spellChoices = fields(c.spells, 'spells', ['cantrips', 'prepared']);
+	const cantrips = spellChoices ? ids(spellChoices.cantrips, 'spells.cantrips', 30) : [];
+	const prepared = spellChoices ? ids(spellChoices.prepared, 'spells.prepared', 30) : [];
 	const notes: Record<string, string> = {};
 	if (!isObject(c.notes) || Object.keys(c.notes).length > NOTES_MAX)
 		fail(`notes must map up to ${NOTES_MAX} names to text`);
@@ -396,6 +402,7 @@ function readShape(raw: Json, bad: (msg: string) => void): DndCharacter | null {
 				? { method: 'average' }
 				: { method: 'rolled', rolls: [...(hp!.rolls as number[])] },
 		inventory,
+		spells: { cantrips, prepared },
 		notes,
 		state: {
 			hp: state!.hp as number,
@@ -630,6 +637,37 @@ function checkChoices(c: DndCharacter, catalog: Catalog, bad: (msg: string) => v
 		if (c.hitPoints.rolls.length !== c.level - 1)
 			bad(`hit points rolled for ${c.hitPoints.rolls.length} levels, not ${c.level - 1}`);
 		if (c.hitPoints.rolls.some((r) => r > die)) bad(`a hit point roll above the d${die}`);
+	}
+
+	// Spells: cantrips and prepared spells from the class's list, no more than
+	// its table allows at this level, of levels it has slots for.
+	const cantripsMax = columnNumber(klass.data.levels[c.level - 1].columns.Cantrips);
+	const preparedMax = columnNumber(klass.data.levels[c.level - 1].columns['Prepared Spells']);
+	const highest = highestSlot(klass.data.levels[c.level - 1].columns);
+	if (c.spells.cantrips.length > cantripsMax)
+		bad(`${klass.name} ${c.level} knows ${cantripsMax} cantrips, not ${c.spells.cantrips.length}`);
+	if (c.spells.prepared.length > preparedMax)
+		bad(`${klass.name} ${c.level} prepares ${preparedMax} spells, not ${c.spells.prepared.length}`);
+	const seen = new Set<string>();
+	for (const [id, cantrip] of [
+		...c.spells.cantrips.map((id) => [id, true] as const),
+		...c.spells.prepared.map((id) => [id, false] as const)
+	]) {
+		const spell = catalog.get('spell', id);
+		if (!spell) {
+			bad(`no spell "${id}"`);
+			continue;
+		}
+		if (seen.has(id)) bad(`${spell.name} is chosen twice`);
+		seen.add(id);
+		if (!spell.data.classes.includes(klass.name)) bad(`${spell.name} isn't a ${klass.name} spell`);
+		else if (cantrip && spell.data.level !== 0) bad(`${spell.name} isn't a cantrip`);
+		else if (!cantrip && spell.data.level === 0)
+			bad(`${spell.name} is a cantrip, not a spell to prepare`);
+		else if (!cantrip && spell.data.level > highest)
+			bad(
+				`${spell.name} is level ${spell.data.level}; ${klass.name} ${c.level} has slots up to level ${highest}`
+			);
 	}
 
 	// Armor the class is trained in, hands, and what it can carry.

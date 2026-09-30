@@ -3,6 +3,7 @@
 // is in that viewer's view, things to interact with only once their cells
 // have been seen, and the read-aloud passages only for the GM.
 
+import { concentratingOn, effectLine, effectsOn, modsOn } from './effects';
 import type { AdventureView, Objective, SessionSummary } from '../../src/lib/adventure/adventure';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { SavedScene } from '../../src/lib/game/protocol';
@@ -171,6 +172,8 @@ export function adventureView(
 				notes: editable ? (adventure.notes?.get(id) ?? '') : null,
 				editable,
 				renamable: editable && !!adventure.built?.has(id) && !!rules.builder?.rename,
+				effects: token ? effectsOn(encounter, token.id).map(effectLine) : [],
+				concentrating: concentratingOn(encounter, id),
 				spent: encounter
 					? [...encounter.acted].flatMap((key) => {
 							if (key === id) return ['action'];
@@ -282,8 +285,11 @@ export function adventureView(
 					name: room.tokens.get(tokenId)?.name ?? A.enemies[e.kind]?.name ?? 'Enemy',
 					hp: e.hp,
 					maxHp: e.maxHp,
-					defense: rulesOf(adventure).defense(A.enemies[e.kind]?.armor ?? 0, e.statuses),
-					statuses: listStatuses(e.statuses)
+					defense:
+						rulesOf(adventure).defense(A.enemies[e.kind]?.armor ?? 0, e.statuses) +
+						modsOn(encounter, tokenId).defense,
+					statuses: listStatuses(e.statuses),
+					effects: effectsOn(encounter, tokenId).map(effectLine)
 				}))
 		},
 		decision: adventure.pending

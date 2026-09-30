@@ -133,8 +133,18 @@ The fifth edition rules of the SRD 5.2.1 are `dnd-5.5e` v1. Under them:
   `save: true` makes it a saving throw (abilities only);
 - an enemy's `armor` is its Armor Class and an attack's `toHit` its full
   bonus; an attack with `save: { stat, dc, half }` makes its target save
-  instead of being rolled against;
+  instead of being rolled against; its `saves` (`{ "dex": 2, … }`) are its
+  bonuses when a spell makes it save (0 for an ability it doesn't list);
 - the `hurt` effect can carry the same `save`, for a trap or a hazard.
+
+A character built from the catalog casts the spells it has chosen (its
+cantrips and prepared spells) where the table plays them: sixteen SRD spells
+so far (`server/rules/dnd55e/spells/mechanics.ts`), each read from the SRD's
+own words. Every other spell is on its sheet with the reason it isn't cast
+yet. Casting spends a spell slot (one a turn in a fight); slots are kept with
+the story and, until rests come, regained by hand on the sheet. What lingers
+(Bless, Shield of Faith, a Ray of Frost's chill) lasts on the fight and ends
+with it, on its caster's turns, or when the caster's concentration breaks.
 
 Checks in the dark that need sight fail; attacks get advantage or
 disadvantage from the table (unseen, a foe beside an archer, a target taking

@@ -15,7 +15,7 @@ import type { Ability } from '../core';
 import type { InventoryItem } from './inventory';
 
 /** The version of the stored shape. Bump it and add a migration in persist.ts when it changes. */
-export const CHARACTER_VERSION = 3;
+export const CHARACTER_VERSION = 4;
 
 /** How the six base scores were generated (SRD: "Generate Your Scores"). */
 export type ScoreMethod = 'standard-array' | 'point-buy' | 'rolled';
@@ -87,6 +87,15 @@ export interface DndCharacter {
 	 * and where it is equipped (worn armor, a Shield, weapons in hand).
 	 */
 	inventory: InventoryItem[];
+	/**
+	 * The spells its class lets it cast (version 4): cantrips known and
+	 * spells prepared, spell record ids, no more than the class table's
+	 * Cantrips and Prepared Spells at its level (fewer while some are still
+	 * to choose). A Wizard's spellbook, and spells from feats or species
+	 * (Magic Initiate, a lineage's cantrip), are not modelled yet: those stay
+	 * in `notes`.
+	 */
+	spells: { cantrips: string[]; prepared: string[] };
 	/**
 	 * Choices the rules keep but don't check yet, by name (spells from Magic
 	 * Initiate, tools, instruments): later milestones check them.

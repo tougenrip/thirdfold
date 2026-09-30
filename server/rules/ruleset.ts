@@ -35,6 +35,8 @@ export interface TestSituation {
 	dark: boolean;
 	/** The test is a matter of seeing (looking, searching, reading). */
 	sight: boolean;
+	/** Dice a lasting effect adds to the tester's saving throws (a blessing). */
+	boon?: string;
 }
 
 /** A d20 test, resolved. */
@@ -60,6 +62,10 @@ export interface AttackSituation {
 	attackerUnseen: boolean;
 	/** The target's statuses. */
 	targetStatuses: Statuses;
+	/** A lasting effect gives the next attack against the target the upper hand. */
+	exposed?: boolean;
+	/** Dice a lasting effect adds to the attacker's attack rolls (a blessing). */
+	boon?: string;
 }
 
 /** An attack roll's result: the d20 roll, and the damage when it hit. */
@@ -135,6 +141,105 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	builder?: CharacterBuilder;
 	/** What characters own and wield, under rules that keep an inventory (and the builder to restore them). */
 	equipment?: Equipment;
+	/** How characters cast spells, under rules that have them. */
+	spells?: Spellcasting;
+}
+
+/**
+ * What a lasting effect changes while it lasts, in words the engine applies
+ * (milestone 49 grows this into conditions). Effects are the engine's:
+ * it keeps them on the fight, ends them on time, and reads them where it
+ * works out a defense, a speed, an attack or a save.
+ */
+export interface EffectMods {
+	/** Dice added to its bearer's attack rolls and saving throws. */
+	boon?: string;
+	/** Added to its bearer's defense. */
+	defense?: number;
+	/** Cells off its bearer's speed. */
+	slow?: number;
+	/** The next attack against its bearer has the upper hand; then the effect ends. */
+	exposed?: boolean;
+	/** Its bearer can't regain hit points. */
+	noHealing?: boolean;
+}
+
+/**
+ * A lasting effect the rules put on a target. It ends at the start or the
+ * end of its source's turn, `turns` of that source's turns from now (1: its
+ * next turn), sooner if its source loses concentration, and with the fight.
+ */
+export interface EffectSpec {
+	name: string;
+	mods: EffectMods;
+	ends: { at: 'start' | 'end'; turns: number };
+	concentration: boolean;
+}
+
+/** A target of a spell, as the engine tells the rules about it. */
+export interface SpellTarget {
+	/** Its token. */
+	id: string;
+	name: string;
+	/** A character of the party (not a foe). */
+	ally: boolean;
+	/** The number an attack must reach (its defense, counting its effects). */
+	defense: number;
+	/** Its bonus to a saving throw of a stat. */
+	saveBonus(stat: string): number;
+	/** Dice its effects add to its saves. */
+	boon?: string;
+	/** How many of the spell's darts, beams or blessings are aimed at it. */
+	times: number;
+	situation: AttackSituation;
+}
+
+/** What a spell did to one target. */
+export interface SpellHit {
+	targetId: string;
+	/** Each attack roll made at it (one per beam). */
+	strikes: Strike[];
+	/** Its saving throw, for a spell that calls for one, and the difficulty. */
+	save: TestResult | null;
+	dc: number | null;
+	/** Damage it takes (after a save), and the dice. */
+	damage: { roll: DiceRoll; amount: number; type: string } | null;
+	/** Hit points it regains, and the dice. */
+	heal: DiceRoll | null;
+	/** Cells it is pushed away from the caster. */
+	push: number;
+	/** What lingers on it. */
+	effect: EffectSpec | null;
+}
+
+/**
+ * Casting spells, for rules that have them. A spell is one of a
+ * character's actions, with its aim (`Action.cast`); the rules say what it
+ * costs and what it does, the engine where it lands and what that changes.
+ */
+export interface Spellcasting {
+	/**
+	 * A cast checked before anything is spent: the level it is cast at (a
+	 * cantrip's 0; else `slot`, or the lowest the caster has left), the
+	 * resource it spends (null for none), and how many targets it takes at
+	 * that level; or why it can't be cast.
+	 */
+	plan(
+		character: CharacterDef,
+		action: Action,
+		slot: number | null,
+		spent: (resource: string) => number
+	): { ok: true; level: number; resource: string | null; targets: number } | Refused;
+	/** A cast at a level on its targets, resolved: what it does to each. */
+	resolve(
+		character: CharacterDef,
+		action: Action,
+		level: number,
+		targets: readonly SpellTarget[],
+		roller: DieRoller
+	): SpellHit[];
+	/** The saving throw that keeps concentration after taking damage: its stat and difficulty. */
+	concentration(damage: number): { stat: string; dc: number };
 }
 
 type Refused = { ok: false; problems: string[] };

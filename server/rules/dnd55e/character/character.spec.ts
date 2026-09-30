@@ -35,7 +35,7 @@ describe('fifth edition characters', () => {
 	it('derives every number from the choices, by the SRD', () => {
 		const { character, derived } = partyMember('warden');
 		expect(character).toMatchObject({
-			version: 3,
+			version: 4,
 			rules: DND_55E,
 			catalog: {
 				source: 'srd-5.2.1',
@@ -184,6 +184,7 @@ describe('fifth edition characters', () => {
 				feats: [],
 				hitPoints: { method: 'average' },
 				inventory: gear(null, false, [srd('weapon', 'quarterstaff')]),
+				spells: { cantrips: [], prepared: [] },
 				notes: {}
 			}),
 			catalog
@@ -219,6 +220,7 @@ describe('fifth edition characters', () => {
 				feats: [],
 				hitPoints: { method: 'average' },
 				inventory: gear(null, true, [srd('weapon', 'handaxe')]),
+				spells: { cantrips: [], prepared: [] },
 				notes: {}
 			}),
 			catalog
@@ -340,6 +342,32 @@ describe('fifth edition characters', () => {
 		expect(problemsOf(ember)).toContain('Elf: choose keen-senses');
 	});
 
+	it('chooses spells from its class list, no more than its table allows, of levels it has slots for', () => {
+		const ember = () => structuredClone(PARTY_CHOICES.ember);
+		expect(problemsOf(ember())).toEqual([]);
+		const four = ember();
+		four.spells.cantrips.push(srd('spell', 'light'));
+		expect(problemsOf(four)).toContain('Wizard 1 knows 3 cantrips, not 4');
+		const foreign = ember();
+		foreign.spells.prepared[0] = srd('spell', 'cure-wounds');
+		expect(problemsOf(foreign)).toContain("Cure Wounds isn't a Wizard spell");
+		const high = ember();
+		high.spells.prepared[0] = srd('spell', 'fireball');
+		expect(problemsOf(high)).toContain('Fireball is level 3; Wizard 1 has slots up to level 1');
+		const mixed = ember();
+		mixed.spells.prepared[0] = srd('spell', 'fire-bolt');
+		expect(problemsOf(mixed)).toEqual(
+			expect.arrayContaining(['Fire Bolt is a cantrip, not a spell to prepare'])
+		);
+		// Fewer is allowed: the rest are still to choose. A Fighter chooses none.
+		const fewer = ember();
+		fewer.spells.prepared.pop();
+		expect(problemsOf(fewer)).toEqual([]);
+		const fighter = warden();
+		fighter.spells.cantrips = [srd('spell', 'fire-bolt')];
+		expect(problemsOf(fighter)).toContain('Fighter 1 knows 0 cantrips, not 1');
+	});
+
 	it('refuses a character of another shape, other rules or another catalog', () => {
 		const saved = JSON.parse(serializeCharacter(partyMember('veil').character));
 		const read = (change: (raw: Record<string, unknown>) => void) => {
@@ -395,11 +423,11 @@ describe('fifth edition characters', () => {
 
 	it('migrates older versions forward and refuses newer ones', () => {
 		const current = JSON.parse(serializeCharacter(partyMember('veil').character));
-		expect(current.version).toBe(3);
+		expect(current.version).toBe(4);
 		expect(migrateCharacter(current, catalog)).toEqual({ ok: true, raw: current });
-		expect(migrateCharacter({ ...current, version: 4 }, catalog)).toEqual({
+		expect(migrateCharacter({ ...current, version: 5 }, catalog)).toEqual({
 			ok: false,
-			problems: ["saved as version 4, newer than this server's 3"]
+			problems: ["saved as version 5, newer than this server's 4"]
 		});
 		expect(migrateCharacter({ ...current, version: undefined }, catalog)).toEqual({
 			ok: false,
@@ -407,7 +435,8 @@ describe('fifth edition characters', () => {
 		});
 		// A version 2 character (armor, a Shield and weapons) owns them as its inventory,
 		// equipped as a new character's are, with the arrows its shortbow fires.
-		const { inventory, state, ...rest } = current;
+		const { inventory, state, spells, ...rest } = current;
+		expect(spells).toEqual({ cantrips: [], prepared: [] });
 		expect(inventory.length).toBe(4);
 		const { expended, ...v2state } = state;
 		expect(expended).toEqual({});
@@ -427,21 +456,22 @@ describe('fifth edition characters', () => {
 		expect(one).toMatchObject({
 			ok: true,
 			character: {
-				version: 3,
-				inventory: [{ item: srd('armor', 'leather-armor'), equipped: 'armor' }]
+				version: 4,
+				inventory: [{ item: srd('armor', 'leather-armor'), equipped: 'armor' }],
+				spells: { cantrips: [], prepared: [] }
 			}
 		});
 		// A later shape upgrades step by step, and one with no way forward is refused.
-		const v4 = migrateCharacter(
+		const v5 = migrateCharacter(
 			current,
 			catalog,
-			{ 3: ({ notes, ...rest }) => ({ ...rest, extras: notes }) },
-			4
+			{ 4: ({ notes, ...rest }) => ({ ...rest, extras: notes }) },
+			5
 		);
-		expect(v4).toMatchObject({ ok: true, raw: { version: 4, extras: {} } });
-		expect(migrateCharacter(current, catalog, {}, 5)).toEqual({
+		expect(v5).toMatchObject({ ok: true, raw: { version: 5, extras: {} } });
+		expect(migrateCharacter(current, catalog, {}, 6)).toEqual({
 			ok: false,
-			problems: ['no way to bring version 3 forward']
+			problems: ['no way to bring version 4 forward']
 		});
 	});
 

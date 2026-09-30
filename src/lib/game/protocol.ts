@@ -270,7 +270,13 @@ export type ClientMessage =
 	/** GM: put a world object in a state (reveal, hide, open, break, …). */
 	| { type: 'adventure_object'; objectId: string; state: ObjectState }
 	/** Player: your character uses an action (an attack, a heal, a guard) on a token, or on no one. */
-	| { type: 'adventure_act'; actionId: string; targetId: string | null }
+	| {
+			type: 'adventure_act';
+			actionId: string;
+			targetId: string | null;
+			/** For a spell: the slot level to cast it with, its targets (darts may repeat one), or the cell an area is aimed at. */
+			cast?: { slot: number | null; targets: string[]; at: GridPos | null };
+	  }
 	/** Player, in an encounter: your character is done for this round. */
 	| { type: 'adventure_end_turn' }
 	/** GM: narrate to the table. */
@@ -1008,7 +1014,12 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		case 'adventure_act': {
 			if (!isId(data.actionId)) return null;
 			if (data.targetId !== null && !isId(data.targetId)) return null;
-			return { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId };
+			if (data.cast === undefined)
+				return { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId };
+			const cast = parseCast(data.cast);
+			return cast
+				? { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId, cast }
+				: null;
 		}
 		case 'adventure_override': {
 			const patch = parseCharacterPatch(data.patch);
@@ -1109,4 +1120,21 @@ export function parseServerMessage(data: unknown): ServerMessage | null {
 	if (!Object.hasOwn(SERVER_FIELD_CHECKS, data.type)) return null;
 	const check = SERVER_FIELD_CHECKS[data.type as ServerMessage['type']];
 	return check?.(data) ? (data as unknown as ServerMessage) : null;
+}
+
+/** Most targets a cast may name (darts and blessings at a high slot). */
+export const CAST_TARGETS_MAX = 12;
+
+function parseCast(
+	raw: unknown
+): { slot: number | null; targets: string[]; at: GridPos | null } | null {
+	if (!isRecord(raw)) return null;
+	const { slot, targets, at } = raw;
+	if (slot !== null && (!Number.isInteger(slot) || (slot as number) < 0 || (slot as number) > 9))
+		return null;
+	if (!Array.isArray(targets) || targets.length > CAST_TARGETS_MAX || !targets.every(isId))
+		return null;
+	const cell = at === null ? null : parseGridPos(at);
+	if (at !== null && !cell) return null;
+	return { slot: slot as number | null, targets: [...targets], at: cell };
 }

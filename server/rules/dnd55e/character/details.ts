@@ -6,7 +6,11 @@
 
 import type { Action } from '../../../../src/lib/adventure/characters';
 import type { CardResource } from '../../../../src/lib/adventure/adventure';
-import type { DndSheetDetails, SheetFeature } from '../../../../src/lib/rules/dnd55e/sheet';
+import type {
+	DndSheetDetails,
+	SheetFeature,
+	SheetSpell
+} from '../../../../src/lib/rules/dnd55e/sheet';
 import type { Catalog } from '../catalog';
 import { ABILITIES, abilityName, skillOf, type Ability } from '../core';
 import type { DerivedCharacter } from './derive';
@@ -36,7 +40,8 @@ export function sheetDetails(
 	character: DndCharacter,
 	derived: DerivedCharacter,
 	catalog: Catalog,
-	actions: readonly Action[]
+	actions: readonly Action[],
+	spells: SheetSpell[] = []
 ): { details: DndSheetDetails; resources: CardResource[] } {
 	const klass = catalog.get('class', character.class.id)!;
 	const worn = character.inventory.find((e) => e.equipped === 'armor');
@@ -162,7 +167,8 @@ export function sheetDetails(
 					saveDc: derived.spellcasting.saveDc,
 					attackBonus: derived.spellcasting.attackBonus,
 					cantrips: derived.spellcasting.cantrips,
-					prepared: derived.spellcasting.prepared
+					prepared: derived.spellcasting.prepared,
+					spells
 				}
 			: null
 	};

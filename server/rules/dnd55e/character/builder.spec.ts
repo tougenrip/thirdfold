@@ -218,4 +218,69 @@ describe('building a fifth edition character', () => {
 		expect(builder.restore(saved, 'pc-1').ok).toBe(false);
 		expect(builder.restore({ character: saved.character }, 'pc-1').ok).toBe(false);
 	});
+
+	it('lets a caster choose its spells, and plays the ones the table casts', () => {
+		const options = builder.options() as unknown as CreatorOptions;
+		const cleric = options.classes.find((c) => c.name === 'Cleric')!;
+		expect(cleric.spells).toMatchObject({ cantrips: 3, prepared: 4 });
+		expect(cleric.spells!.list.every((s) => s.level <= 1)).toBe(true);
+		expect(cleric.spells!.list.find((s) => s.name === 'Bless')).toMatchObject({
+			concentration: true,
+			why: null
+		});
+		expect(options.classes.find((c) => c.name === 'Fighter')!.spells).toBeNull();
+
+		const choices: CreatorChoices = {
+			...rogue(),
+			name: 'Tamsin',
+			class: {
+				id: srd('class', 'cleric'),
+				skills: ['insight', 'religion'],
+				expertise: [],
+				fightingStyle: null,
+				weaponMasteries: []
+			},
+			abilities: {
+				method: 'point-buy',
+				base: { str: 12, dex: 10, con: 14, int: 8, wis: 15, cha: 13 }
+			},
+			armor: { worn: srd('armor', 'scale-mail'), shield: true },
+			weapons: [srd('weapon', 'mace')],
+			spells: {
+				cantrips: [srd('spell', 'sacred-flame'), srd('spell', 'guidance'), srd('spell', 'light')],
+				prepared: [
+					srd('spell', 'healing-word'),
+					srd('spell', 'bless'),
+					srd('spell', 'guiding-bolt'),
+					srd('spell', 'sanctuary')
+				]
+			}
+		};
+		const built = builder.build(choices, 'pc-1');
+		if (!built.ok) throw new Error(built.problems.join('; '));
+		const spells = built.def.actions.filter((a) => a.cast);
+		expect(spells.map((a) => a.name)).toEqual([
+			'Sacred Flame',
+			'Healing Word',
+			'Bless',
+			'Guiding Bolt'
+		]);
+		// Healing Word is a bonus action.
+		const word = spells.find((a) => a.name === 'Healing Word')!;
+		expect(dnd55e.actionType(built.def, word)).toBe('bonus');
+		// Too many, the wrong class's, or a level it has no slot for: refused.
+		const wrong = (spells: CreatorChoices['spells']) => problemsOf({ ...choices, spells });
+		expect(
+			wrong({
+				...choices.spells!,
+				cantrips: [...choices.spells!.cantrips, srd('spell', 'thaumaturgy')]
+			})
+		).toContainEqual(expect.stringContaining('knows 3 cantrips, not 4'));
+		expect(wrong({ ...choices.spells!, prepared: [srd('spell', 'magic-missile')] })).toContainEqual(
+			expect.stringContaining("Magic Missile isn't a Cleric spell")
+		);
+		expect(
+			wrong({ ...choices.spells!, prepared: [srd('spell', 'spiritual-weapon')] })
+		).toContainEqual(expect.stringContaining('Spiritual Weapon is level 2'));
+	});
 });

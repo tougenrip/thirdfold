@@ -6,12 +6,13 @@
 // so a page can't grant an option, a level or a number. Only the standard
 // array and point buy are accepted: a roll the server didn't make is not a
 // roll. The character then plays with its weapons as its attacks and, where
-// its class has them at level 1, Second Wind or Lay On Hands; spells come
-// with milestone 48.
+// its class has them at level 1, Second Wind or Lay On Hands, and with the
+// spells it chose that the table casts (spells/actions.ts).
 
 import type { Action, CharacterDef, RulesData } from '../../../../src/lib/adventure/characters';
 import type {
 	AbilityId,
+	ClassOption,
 	CreatorOptions,
 	CreatorSummary,
 	FeatOption
@@ -19,7 +20,9 @@ import type {
 import type { Built, CharacterBuilder, JsonData, RulesetRef } from '../../ruleset';
 import type { Catalog } from '../catalog';
 import { ABILITIES, abilityName, SKILLS, type Ability } from '../core';
-import type { WeaponData } from '../srd/records';
+import type { ClassData, WeaponData } from '../srd/records';
+import { unsupported } from '../spells/mechanics';
+import { casterActions, type CasterActions } from '../spells/actions';
 import { characterDefOf } from './adventure';
 import { deriveCharacter, type DerivedCharacter } from './derive';
 import { sheetDetails } from './details';
@@ -29,6 +32,8 @@ import {
 	abilitiesNamed,
 	armorTraining,
 	classSkills,
+	columnNumber,
+	highestSlot,
 	featSkills,
 	SPECIES_FEAT,
 	SPECIES_OPTIONS,
@@ -104,6 +109,34 @@ const firstParagraph = (text: string) => text.split('\n\n')[0].slice(0, 600);
 
 /** What a creation page may offer, from the catalog. */
 export function creatorOptions(catalog: Catalog, attribution: string): CreatorOptions {
+	/** A class's level 1 spell choices: how many, from its list up to its highest slot. */
+	const spellOptions = (data: ClassData, name: string): ClassOption['spells'] => {
+		const columns = data.levels[START_LEVEL - 1]?.columns ?? {};
+		const cantrips = columnNumber(columns.Cantrips);
+		const prepared = columnNumber(columns['Prepared Spells']);
+		if (!cantrips && !prepared) return null;
+		const highest = highestSlot(columns);
+		const list = catalog
+			.all('spell')
+			.filter(
+				(s) =>
+					s.data.classes.includes(name) &&
+					(s.data.level === 0 ? cantrips > 0 : s.data.level <= highest)
+			)
+			.sort((a, b) => a.data.level - b.data.level || a.name.localeCompare(b.name))
+			.map((s) => ({
+				id: s.id,
+				name: s.name,
+				level: s.data.level,
+				school: s.data.school,
+				castingTime: s.data.castingTime,
+				range: s.data.range,
+				concentration: s.data.concentration,
+				text: firstParagraph(s.text),
+				why: unsupported(s.id, s.data, s.text)
+			}));
+		return { cantrips, prepared, list };
+	};
 	const weapons = catalog.all('weapon');
 	const feat = (id: string): FeatOption => {
 		const f = catalog.get('feat', id)!;
@@ -177,6 +210,7 @@ export function creatorOptions(catalog: Catalog, attribution: string): CreatorOp
 				expertise: 2 * first.filter((f) => f.name === 'Expertise').length,
 				weaponMastery: weaponMastery(c.data, START_LEVEL),
 				spellcasting: SPELLCASTING_ABILITY[c.id] ?? null,
+				spells: spellOptions(c.data, c.name),
 				trainedWeapons: weapons.filter((w) => trainedWith(c.data, w.data)).map((w) => w.id)
 			};
 		}),
@@ -280,10 +314,18 @@ export function choicesOf(
 				},
 				catalog
 			),
+			spells: {
+				cantrips: stringsOf(isObject(raw.spells) ? raw.spells.cantrips : []),
+				prepared: stringsOf(isObject(raw.spells) ? raw.spells.prepared : [])
+			},
 			notes: {}
 		}
 	};
 }
+
+/** A page's list of ids, as strings (readCharacter checks each). */
+const stringsOf = (v: unknown): string[] =>
+	Array.isArray(v) ? v.slice(0, 30).map((x) => String(x).slice(0, 120)) : [];
 
 /** The ability an attack with this weapon uses: Dexterity at range, the better for Finesse, else Strength. */
 function weaponAbility(weapon: WeaponData, derived: DerivedCharacter): Ability {
@@ -311,6 +353,8 @@ export function actionsOf(
 	bonusActions: string[];
 	unproficient: string[];
 	weapons: Record<string, string>;
+	/** Its spells (spells/actions.ts): the spell each action casts, its slots, and the sheet's list. */
+	caster: CasterActions;
 } {
 	const actions: Action[] = [];
 	const attacks: Record<string, Ability> = {};
@@ -407,7 +451,11 @@ export function actionsOf(
 		});
 		bonusActions.push('lay-on-hands');
 	}
-	return { actions, attacks, bonusActions, unproficient, weapons: weaponOf };
+	const caster = casterActions(character, derived, catalog, new Set(actions.map((a) => a.id)));
+	actions.push(...caster.actions);
+	Object.assign(attacks, caster.attacks);
+	bonusActions.push(...caster.bonusActions);
+	return { actions, attacks, bonusActions, unproficient, weapons: weaponOf, caster };
 }
 
 /** How a character looks at the table where the adventure says (its own characters). */
@@ -421,9 +469,13 @@ export function tableCharacter(
 	look: Look = {}
 ): CharacterDef {
 	const derived = deriveCharacter(character, catalog);
-	const { actions, attacks, bonusActions, unproficient } = actionsOf(character, derived, catalog);
+	const { actions, attacks, bonusActions, unproficient, caster } = actionsOf(
+		character,
+		derived,
+		catalog
+	);
 	const klass = slug(character.class.id);
-	const full = sheetDetails(character, derived, catalog, actions);
+	const full = sheetDetails(character, derived, catalog, actions, caster.list);
 	return characterDefOf(
 		derived,
 		{
@@ -446,7 +498,10 @@ export function tableCharacter(
 			...full,
 			inventory: inventoryCard(character, catalog),
 			unproficient,
-			saved: savedOf(character, color)
+			saved: savedOf(character, color),
+			...(derived.spellcasting
+				? { casting: derived.spellcasting.ability, spells: caster.spells, slots: caster.slots }
+				: {})
 		}
 	);
 }
@@ -491,8 +546,9 @@ export function summaryOf(character: DndCharacter, catalog: Catalog): CreatorSum
 			: null,
 		actions: actions.map((a) => ({
 			name: a.name,
-			summary:
-				a.kind === 'attack'
+			summary: a.cast
+				? a.cast.resolves
+				: a.kind === 'attack'
 					? `${signed(d.modifiers[attacks[a.id]] + (unproficient.includes(a.id) ? 0 : d.proficiency))} to hit, ${a.dice} damage${a.range > 1 ? `, range ${a.range}` : ''}`
 					: `heals ${a.dice}${a.uses ? `, ${a.uses} use${a.uses === 1 ? '' : 's'}` : ''}`
 		}))

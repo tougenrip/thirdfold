@@ -702,7 +702,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				case 'adventure_object':
 					return adventure.setObject(room, player, msg.objectId, msg.state);
 				case 'adventure_act':
-					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie);
+					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie, msg.cast);
 				case 'adventure_end_turn':
 					return adventure.endTurn(room, player);
 				case 'adventure_narrate':

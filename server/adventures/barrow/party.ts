@@ -46,6 +46,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		feats: [],
 		hitPoints: { method: 'average' },
 		inventory: gear(srd('armor', 'chain-mail'), true, [srd('weapon', 'longsword')]),
+		spells: { cantrips: [], prepared: [] },
 		notes: { 'Gaming Set': 'Dice' }
 	},
 	veil: {
@@ -72,6 +73,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 			srd('weapon', 'shortsword'),
 			srd('weapon', 'shortbow')
 		]),
+		spells: { cantrips: [], prepared: [] },
 		notes: {}
 	},
 	ember: {
@@ -99,6 +101,19 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		feats: [],
 		hitPoints: { method: 'average' },
 		inventory: gear(null, false, [srd('weapon', 'light-crossbow'), srd('weapon', 'dagger')]),
+		spells: {
+			cantrips: [
+				srd('spell', 'fire-bolt'),
+				srd('spell', 'ray-of-frost'),
+				srd('spell', 'shocking-grasp')
+			],
+			prepared: [
+				srd('spell', 'magic-missile'),
+				srd('spell', 'burning-hands'),
+				srd('spell', 'thunderwave'),
+				srd('spell', 'sleep')
+			]
+		},
 		notes: { 'Magic Initiate (Wizard)': 'Light, Mage Hand; Sleep' }
 	},
 	saint: {
@@ -122,6 +137,7 @@ export const PARTY_CHOICES: Record<'warden' | 'veil' | 'ember' | 'saint', Charac
 		feats: [],
 		hitPoints: { method: 'average' },
 		inventory: gear(srd('armor', 'chain-mail'), true, [srd('weapon', 'mace')]),
+		spells: { cantrips: [], prepared: [srd('spell', 'bless'), srd('spell', 'cure-wounds')] },
 		notes: { 'Magic Initiate (Cleric)': 'Guidance, Sacred Flame; Bless' }
 	}
 };

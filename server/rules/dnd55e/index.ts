@@ -8,9 +8,9 @@
 //
 // Not yet here, and so not approximated: reactions (milestone 50), death
 // saving throws (a downed character bleeds out as under the classic rules
-// until milestone 50), spells (48), conditions (49; the table's statuses
+// until milestone 50), conditions (49; the table's statuses
 // keep their meaning: guarded is taking cover, slowed halves speed, burning
-// burns). This work includes material from the SRD 5.2.1; see core.ts.
+// burns). Spells are cast by spells/cast.ts. This work includes material from the SRD 5.2.1; see core.ts.
 
 import { summarizeAction, STATUSES } from '../../../src/lib/adventure/characters';
 import { classic } from '../classic';
@@ -34,6 +34,7 @@ import { srdCatalog } from './catalog';
 import { dndBuilder } from './character/builder';
 import { dndEquipment } from './character/equipment';
 import { readSheet, sheetOf, type Sheet } from './sheet';
+import { dndSpells } from './spells/cast';
 
 export const DND_55E: RulesetRef = { id: 'dnd-5.5e', version: 1 };
 
@@ -69,7 +70,8 @@ export const dnd55e: Ruleset = {
 	label: labelOf,
 	test(character, stat, kind, dc, situation, roller) {
 		const bonus = bonusOf(sheetOf(character), stat, kind);
-		const d20 = rollD20(bonus, undefined, roller);
+		// Bless adds its die to saving throws (not to ability checks).
+		const d20 = rollD20(bonus, undefined, roller, kind === 'save' ? situation.boon : undefined);
 		// In darkness a creature can't see: a check that needs sight fails (SRD: Blinded).
 		const blind = kind === 'check' && situation.dark && situation.sight;
 		const success = !blind && d20.total >= dc;
@@ -102,8 +104,9 @@ export const dnd55e: Ruleset = {
 		if (situation.ranged && situation.hostileBeside)
 			disadvantages.push('ranged, with a foe beside');
 		if (situation.targetStatuses.has('guarded')) disadvantages.push('the target is taking cover');
+		if (situation.exposed) advantages.push('the target is exposed');
 		const mode = modeOf(advantages, disadvantages);
-		const d20 = rollD20(bonus, mode, roller);
+		const d20 = rollD20(bonus, mode, roller, situation.boon);
 		const critical = d20.natural === 20;
 		const hit = critical || (d20.natural !== 1 && d20.total >= ac);
 		const reasons = mode
@@ -185,6 +188,9 @@ export const dnd55e: Ruleset = {
 			const read = readSheet(c);
 			return read.ok ? [] : read.problems;
 		});
+		for (const e of Object.values(A.enemies))
+			for (const stat of Object.keys(e.saves ?? {}))
+				if (!isAbility(stat)) problems.push(`enemy ${e.kind}: no saving throw "${stat}"`);
 		for (const t of testsOf(A))
 			if (!this.isStat(t.stat, t.kind))
 				problems.push(
@@ -194,7 +200,8 @@ export const dnd55e: Ruleset = {
 	},
 	details: (character) => sheetOf(character).details,
 	builder: dndBuilder(srdCatalog, DND_55E, ATTRIBUTION),
-	equipment: dndEquipment(srdCatalog, DND_55E)
+	equipment: dndEquipment(srdCatalog, DND_55E),
+	spells: dndSpells(srdCatalog, () => dnd55e.strike)
 };
 
 registerRuleset(dnd55e);

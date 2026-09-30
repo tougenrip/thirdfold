@@ -277,11 +277,36 @@
 		{#if details.spellcasting}
 			<p class="muted">
 				Casts with {details.spellcasting.ability}: {details.spellcasting.cantrips} cantrips and
-				{details.spellcasting.prepared} prepared spells at this level. Spells come to the table in a later
-				update; the slots above can be tracked now.
+				{details.spellcasting.prepared} prepared spells at this level. Casting a spell spends a slot above;
+				until rests come to the table, mark slots regained by hand.
 			</p>
 		{/if}
 	</section>
+
+	{#if details.spellcasting?.spells?.length}
+		<section aria-labelledby="dnd-spells">
+			<h3 id="dnd-spells" class="section-title"><span class="tag rules">Rules</span> Spells</h3>
+			{#each details.spellcasting.spells as sp (sp.id)}
+				<details>
+					<summary>
+						{sp.name}
+						<small class="muted"
+							>{sp.level ? `Level ${sp.level}` : 'Cantrip'} · {sp.school}{sp.concentration
+								? ' · Concentration'
+								: ''}</small
+						>
+						{#if !sp.action}<small class="off">Not cast at the table</small>{/if}
+					</summary>
+					<p class="muted">
+						{sp.castingTime} · {sp.range} · {sp.components} · {sp.duration}
+					</p>
+					{#if sp.why}<p class="off">{sp.why}</p>{/if}
+					{#each sp.text.split('\n\n') as para, i (i)}<p>{para}</p>{/each}
+				</details>
+			{/each}
+			<p class="muted">Material components aren’t tracked at the table.</p>
+		</section>
+	{/if}
 
 	<section aria-labelledby="dnd-abilities">
 		<h3 id="dnd-abilities" class="section-title">
@@ -653,6 +678,15 @@
 	summary {
 		font-size: var(--fs-sm);
 		cursor: pointer;
+	}
+
+	summary small {
+		margin-left: var(--sp-2);
+		font-size: var(--fs-2xs);
+	}
+
+	.off {
+		color: var(--warn, var(--accent));
 	}
 
 	.choices {

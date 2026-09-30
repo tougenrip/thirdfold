@@ -146,6 +146,14 @@ export function columnNumber(value: string | undefined): number {
 	return m ? Number(m[1]) : 0;
 }
 
+/** The highest spell level a class table's row has slots for (Pact Magic's slot level for a Warlock). */
+export function highestSlot(columns: Readonly<Record<string, string>>): number {
+	if (columns['Slot Level']) return columnNumber(columns['Slot Level']);
+	let highest = 0;
+	for (let l = 1; l <= 9; l++) if (columnNumber(columns[`Spell Slots ${l}`])) highest = l;
+	return highest;
+}
+
 const COUNT_WORDS: Readonly<Record<string, number>> = { one: 1, two: 2, three: 3, four: 4 };
 
 /**

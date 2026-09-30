@@ -501,6 +501,41 @@
 					</fieldset>
 				{/if}
 			{/if}
+		{:else if draft.step === 'spells'}
+			{#if !klass}
+				<p class="help">Choose a class first.</p>
+			{:else if !klass.spells}
+				<p class="help">A {klass.name} casts no spells at level 1. Carry on.</p>
+			{:else}
+				{@const spells = klass.spells}
+				<p class="help">
+					Spells marked “not at the table yet” can still be chosen; they are on the sheet, and play
+					when the table comes to them.
+				</p>
+				{#each [{ level: 0, max: spells.cantrips, key: 'cantrips' as const, title: 'Cantrips' }, { level: 1, max: spells.prepared, key: 'prepared' as const, title: 'Prepared spells' }] as group (group.key)}
+					{#if group.max}
+						<fieldset>
+							<legend>{group.title} ({draft[group.key].length} of {group.max})</legend>
+							{#each spells.list.filter( (sp) => (group.level === 0 ? sp.level === 0 : sp.level > 0) ) as sp (sp.id)}
+								<label class="option"
+									><input
+										type="checkbox"
+										checked={draft[group.key].includes(sp.id)}
+										onchange={() => (draft[group.key] = toggle(draft[group.key], sp.id, group.max))}
+									/>
+									<b>{sp.name}</b>
+									<span class="meta"
+										>{sp.level ? `Level ${sp.level} ` : ''}{sp.school} · {sp.castingTime} · {sp.range}{sp.concentration
+											? ' · Concentration'
+											: ''}{sp.why ? ' · not at the table yet' : ''}</span
+									>
+									<span class="rules">{sp.text}</span></label
+								>
+							{/each}
+						</fieldset>
+					{/if}
+				{/each}
+			{/if}
 		{:else if draft.step === 'gear'}
 			{#if !klass}
 				<p class="help">Choose a class first.</p>

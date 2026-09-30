@@ -789,8 +789,22 @@ function enemy(v: unknown, path: string): EnemyFile {
 			2
 		),
 		behavior: oneOf(e.behavior, BEHAVIORS, `${path}.behavior`),
-		...(toll ? { toll } : {})
+		...(toll ? { toll } : {}),
+		...(e.saves === undefined ? {} : { saves: saves(e.saves, `${path}.saves`) })
 	};
+}
+
+/** An enemy's saving throw bonuses: up to six stats, each a whole number. */
+function saves(v: unknown, path: string): Record<string, number> {
+	const s = obj(v, path);
+	const out: Record<string, number> = {};
+	const keys = Object.keys(s);
+	if (keys.length > 6) bad(path, 'at most six saving throws');
+	for (const k of keys.slice(0, 6)) {
+		if (!/^[a-z][a-z0-9-]{0,31}$/.test(k)) bad(`${path}.${k}`, 'expected a stat id');
+		else out[k] = int(s[k], `${path}.${k}`, -5, 20);
+	}
+	return out;
 }
 
 function npc(v: unknown, path: string): NpcFile {

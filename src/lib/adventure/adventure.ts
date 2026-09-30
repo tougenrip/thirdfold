@@ -391,6 +391,10 @@ export interface CharacterStatus {
 	editable: boolean;
 	/** Whether this viewer may rename it (a character its player built). */
 	renamable: boolean;
+	/** Lasting effects on it (a spell's), as a line each: "Bless: +1d4 to attack rolls and saves". */
+	effects: string[];
+	/** The spell it is concentrating on, if any. */
+	concentrating: string | null;
 }
 
 export interface ActiveStatus {
@@ -499,6 +503,8 @@ export interface EnemyStatus {
 	/** What an attack roll must reach to hit it. */
 	defense: number;
 	statuses: ActiveStatus[];
+	/** Lasting effects on it (a spell's), as a line each: "Guiding Bolt: the next attack has advantage". */
+	effects: string[];
 }
 
 /** A place in the turn order, as a viewer sees it. */
@@ -629,4 +635,58 @@ export function inActionRange(
 ): boolean {
 	if (action.target === 'self') return true;
 	return inAttackRange(blocked, from, to, Math.max(1, action.range));
+}
+
+/**
+ * The cells of an area that starts at `origin` and is aimed at `aim` (a
+ * spell's cone or cube from its caster), `size` cells long. A cone widens
+ * as it goes, as wide as it is far (half a right angle's worth, about 26.6°
+ * each side of its line), and reaches `size` cells along it. A cube's face
+ * touches the origin: `size` cells square, straight ahead along the nearest
+ * of the eight directions to the aim (centred on that line when it runs
+ * along the grid, cornered on the origin when it runs diagonally). The
+ * origin itself is never in it. The server and the aiming preview use this
+ * same rule.
+ */
+export function areaCells(
+	origin: GridPos,
+	aim: GridPos,
+	area: { shape: 'cone' | 'cube'; size: number },
+	bounds: { width: number; height: number }
+): GridPos[] {
+	const dx = aim.x - origin.x;
+	const dy = aim.y - origin.y;
+	if (!dx && !dy) return [];
+	const cells: GridPos[] = [];
+	const inside = (x: number, y: number) =>
+		x >= 0 && y >= 0 && x < bounds.width && y < bounds.height && (x !== origin.x || y !== origin.y);
+	const n = area.size;
+	if (area.shape === 'cone') {
+		const len = Math.hypot(dx, dy);
+		const ux = dx / len;
+		const uy = dy / len;
+		const half = Math.atan(0.5) + 1e-6;
+		for (let y = origin.y - n; y <= origin.y + n; y++)
+			for (let x = origin.x - n; x <= origin.x + n; x++) {
+				const cx = x - origin.x;
+				const cy = y - origin.y;
+				const along = cx * ux + cy * uy;
+				if (along <= 0 || along > n + 1e-6) continue;
+				const angle = Math.acos(Math.min(1, along / Math.hypot(cx, cy)));
+				if (angle <= half && inside(x, y)) cells.push({ x, y });
+			}
+		return cells;
+	}
+	// The nearest of the eight directions.
+	const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+	const sx = Math.round(Math.cos((octant * Math.PI) / 4));
+	const sy = Math.round(Math.sin((octant * Math.PI) / 4));
+	const side = (s: number, i: number) => (s === 0 ? i - Math.floor(n / 2) : s * (i + 1));
+	for (let i = 0; i < n; i++)
+		for (let j = 0; j < n; j++) {
+			const x = origin.x + (sx === 0 ? side(0, j) : side(sx, i));
+			const y = origin.y + (sy === 0 ? side(0, j) : side(sy, sx === 0 ? i : j));
+			if (inside(x, y)) cells.push({ x, y });
+		}
+	return cells;
 }

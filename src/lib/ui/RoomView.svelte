@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { asset, resolve } from '$app/paths';
-	import { canReach, inActionRange } from '$lib/adventure/adventure';
+	import { areaCells, canReach, inActionRange } from '$lib/adventure/adventure';
 	import { actionOf, type CharacterId } from '$lib/adventure/characters';
 	import type { ChatMessage } from '$lib/game/chat';
 	import { formatBreakdown } from '$lib/game/dice';
@@ -61,7 +61,6 @@
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import PropInspector from './PropInspector.svelte';
 	import ChatPanel from './ChatPanel.svelte';
-	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 	import GraphicsControls from './GraphicsControls.svelte';
 	import { gridShown } from './grid';
@@ -186,6 +185,8 @@
 	let dismissedEnd = $state<string | null>(null);
 	/** An action of my character waiting for a target. */
 	let targeting = $state<string | null>(null);
+	/** The slot level a spell being aimed is cast with (the action bar's choice); null for the lowest. */
+	let castSlot = $state<number | null>(null);
 	let sheetOpen = $state(false);
 	/** Another party member's sheet, opened from the party list (the GM's, or a player's look). */
 	let sheetFor = $state<string | null>(null);
@@ -443,7 +444,15 @@
 
 	type AdventureTarget =
 		| { kind: 'interact'; id: string; verb: string; name: string; inReach: boolean }
-		| { kind: 'act'; actionId: string; id: string; name: string; inReach: boolean };
+		| {
+				kind: 'act';
+				actionId: string;
+				id: string | null;
+				name: string;
+				inReach: boolean;
+				/** A spell: its slot, and the cell an area is aimed at. */
+				cast?: { slot: number | null; at: GridPos | null };
+		  };
 
 	/**
 	 * What clicking a pick would make my character do, if anything: the action
@@ -458,10 +467,28 @@
 		const enemy = token && adventure.encounter?.enemies.find((e) => e.tokenId === token.id);
 		const ally = token && adventure.characters.find((c) => c.tokenId === token.id && !c.dead);
 		const aimed = targeting ? actionOf(def, targeting) : undefined;
+		// An area spell is aimed at a cell: whatever stands there, or nothing.
+		if (aimed?.cast?.area && pick.cell) {
+			return {
+				kind: 'act',
+				actionId: aimed.id,
+				id: null,
+				name: aimed.name,
+				inReach: true,
+				cast: { slot: castSlot, at: pick.cell }
+			};
+		}
 		if (aimed && token && (aimed.target === 'enemy' ? enemy : ally)) {
 			const name = `${aimed.name} on ${enemy ? `the ${token.name}` : token.name}`;
 			const inReach = inActionRange(blocked, myCharacterToken.pos, token.pos, aimed);
-			return { kind: 'act', actionId: aimed.id, id: token.id, name, inReach };
+			return {
+				kind: 'act',
+				actionId: aimed.id,
+				id: token.id,
+				name,
+				inReach,
+				...(aimed.cast ? { cast: { slot: castSlot, at: null } } : {})
+			};
 		}
 		if (token && enemy) {
 			const basic = def.actions[0];
@@ -959,7 +986,14 @@
 			}
 			act(
 				target.kind === 'act'
-					? { type: 'adventure_act', actionId: target.actionId, targetId: target.id }
+					? {
+							type: 'adventure_act',
+							actionId: target.actionId,
+							targetId: target.id,
+							...(target.cast
+								? { cast: { slot: target.cast.slot, targets: [], at: target.cast.at } }
+								: {})
+						}
 					: { type: 'adventure_interact', targetId: target.id, verb: target.verb }
 			);
 			targeting = null;
@@ -1105,6 +1139,18 @@
 			learned('inspect');
 		}
 	});
+	/** Where an area spell being aimed would land, under the pointer. */
+	const spellArea = $derived.by((): PreviewItem[] => {
+		const aimed = targeting && myCharacter ? actionOf(myCharacter.def, targeting) : undefined;
+		const area = aimed?.cast?.area;
+		if (!area || !hoverCell || !myCharacterToken || !room) return [];
+		return areaCells(myCharacterToken.pos, hoverCell, area, room.grid).map((at) => ({
+			kind: 'area',
+			from: at,
+			to: at,
+			tone: 'invalid'
+		}));
+	});
 	/** Onboarding's glow on the table, while the player is being shown to it. */
 	const beacon = $derived.by((): PreviewItem[] => {
 		const step = tutorial.stage === 'tutorial' ? currentStep(tutorial, !!firstFind) : null;
@@ -1181,7 +1227,9 @@
 				{hoveredPropId}
 				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
-				preview={beacon.length ? [...preview, ...beacon] : preview}
+				preview={beacon.length || spellArea.length
+					? [...preview, ...beacon, ...spellArea]
+					: preview}
 				selectedId={selected?.id ?? null}
 				{fallen}
 				{floats}
@@ -1378,12 +1426,15 @@
 						<span class="section-title">Scenes and saves</span>
 						<span class="current">{room.sceneName}</span>
 					</summary>
-					<ScenePanel
-						sceneName={room.sceneName}
-						reply={conn.sceneReply}
-						send={act}
-						onError={showToast}
-					/>
+					<!-- The GM's own panel: loaded apart, so players never download it. -->
+					{#await import('./ScenePanel.svelte') then { default: ScenePanel }}
+						<ScenePanel
+							sceneName={room.sceneName}
+							reply={conn.sceneReply}
+							send={act}
+							onError={showToast}
+						/>
+					{/await}
 				</details>
 			{/if}
 
@@ -1684,6 +1735,7 @@
 						tokens={room.tokens}
 						{blocked}
 						{targeting}
+						bind:slot={castSlot}
 						onTargeting={(id) => (targeting = id)}
 						onSheet={() => (sheetOpen = true)}
 						send={act}

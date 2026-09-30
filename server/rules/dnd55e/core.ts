@@ -99,10 +99,20 @@ export interface D20 {
 	other: number | null;
 	total: number;
 	mode?: RollMode;
+	/** What the extra dice (a blessing) added, when there were some. */
+	boon?: { dice: string; total: number };
 }
 
-/** A d20 plus a modifier, rolled twice keeping the higher (advantage) or lower (disadvantage). */
-export function rollD20(modifier: number, mode: RollMode | undefined, roller: DieRoller): D20 {
+/**
+ * A d20 plus a modifier, rolled twice keeping the higher (advantage) or
+ * lower (disadvantage); `boon` adds dice to it (Bless's 1d4).
+ */
+export function rollD20(
+	modifier: number,
+	mode: RollMode | undefined,
+	roller: DieRoller,
+	boon?: string
+): D20 {
 	const first = roller(20);
 	const second = mode ? roller(20) : null;
 	const natural =
@@ -112,7 +122,10 @@ export function rollD20(modifier: number, mode: RollMode | undefined, roller: Di
 				? Math.max(first, second)
 				: Math.min(first, second);
 	const other = second === null ? null : natural === first ? second : first;
-	const total = natural + modifier;
+	const extra = boon ? parseDice(boon) : null;
+	if (extra && !extra.ok) throw new Error(`Bad dice in rules: ${boon}`);
+	const added = extra?.ok ? rollDice(extra.terms, roller) : null;
+	const total = natural + modifier + (added?.total ?? 0);
 	const flat =
 		modifier === 0
 			? []
@@ -125,17 +138,23 @@ export function rollD20(modifier: number, mode: RollMode | undefined, roller: Di
 				];
 	const keep = mode === 'advantage' ? 'kh1' : mode === 'disadvantage' ? 'kl1' : '';
 	const dice = { kind: 'dice' as const, sign: 1 as const, count: mode ? 2 : 1, sides: 20 };
-	const expression = `${dice.count}d20${keep}${formatExpression(flat).replace(/^(?=\d)/, '+')}`;
+	const boonTerms = added ? added.terms : [];
+	const expression = `${dice.count}d20${keep}${boon ? `+${boon}` : ''}${formatExpression(flat).replace(/^(?=\d)/, '+')}`;
 	return {
 		roll: {
 			expression,
-			terms: [{ ...dice, rolls: other === null ? [natural] : [natural, other] }, ...flat],
+			terms: [
+				{ ...dice, rolls: other === null ? [natural] : [natural, other] },
+				...boonTerms,
+				...flat
+			],
 			total
 		},
 		natural,
 		other,
 		total,
-		...(mode ? { mode } : {})
+		...(mode ? { mode } : {}),
+		...(added && boon ? { boon: { dice: boon, total: added.total } } : {})
 	};
 }
 
@@ -143,7 +162,8 @@ export function rollD20(modifier: number, mode: RollMode | undefined, roller: Di
 export function describeD20(d20: D20, modifier: number): string {
 	const twice = d20.mode && d20.other !== null ? ` (${d20.mode}; the other ${d20.other})` : '';
 	const mod = modifier === 0 ? '' : ` ${modifier > 0 ? '+' : '−'}${Math.abs(modifier)}`;
-	return `d20 ${d20.natural}${twice}${mod} = ${d20.total}`;
+	const boon = d20.boon ? ` +${d20.boon.total} (${d20.boon.dice})` : '';
+	return `d20 ${d20.natural}${twice}${boon}${mod} = ${d20.total}`;
 }
 
 /** Damage dice rolled for a hit; a critical hit rolls the damage dice twice (modifiers once). */

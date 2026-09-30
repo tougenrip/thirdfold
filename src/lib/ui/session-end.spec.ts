@@ -31,6 +31,8 @@ const character = (patch: Partial<CharacterStatus>): CharacterStatus => ({
 	notes: null,
 	editable: false,
 	renamable: false,
+	effects: [],
+	concentrating: null,
 	...patch
 });
 

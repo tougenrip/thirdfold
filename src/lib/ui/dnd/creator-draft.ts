@@ -16,6 +16,7 @@ export const STEPS = [
 	{ id: 'origin', title: 'Origin' },
 	{ id: 'abilities', title: 'Abilities' },
 	{ id: 'skills', title: 'Skills' },
+	{ id: 'spells', title: 'Spells' },
 	{ id: 'gear', title: 'Gear' },
 	{ id: 'review', title: 'Name & review' }
 ] as const;
@@ -48,6 +49,9 @@ export interface Draft {
 	armor: string | null;
 	shield: boolean;
 	weapons: string[];
+	/** A caster's cantrips and prepared spells. */
+	cantrips: string[];
+	prepared: string[];
 }
 
 export function emptyDraft(): Draft {
@@ -72,7 +76,9 @@ export function emptyDraft(): Draft {
 		masteries: [],
 		armor: null,
 		shield: false,
-		weapons: []
+		weapons: [],
+		cantrips: [],
+		prepared: []
 	};
 }
 
@@ -160,6 +166,15 @@ export function todo(draft: Draft, options: CreatorOptions, step: StepId): strin
 				out.push(`Choose ${klass.weaponMastery.count} weapons to master.`);
 			break;
 		}
+		case 'spells': {
+			const spells = klass?.spells;
+			if (!spells) break;
+			if (draft.cantrips.length !== spells.cantrips)
+				out.push(`Choose ${spells.cantrips} cantrips (${draft.cantrips.length} so far).`);
+			if (draft.prepared.length !== spells.prepared)
+				out.push(`Prepare ${spells.prepared} spells (${draft.prepared.length} so far).`);
+			break;
+		}
 		case 'gear':
 			if (!draft.weapons.length) out.push('Choose at least one weapon.');
 			break;
@@ -214,7 +229,8 @@ export function toChoices(draft: Draft, options: CreatorOptions): CreatorChoices
 		},
 		abilities: { method: draft.method, base },
 		armor: { worn: draft.armor, shield: draft.shield },
-		weapons: [...draft.weapons]
+		weapons: [...draft.weapons],
+		spells: { cantrips: [...draft.cantrips], prepared: [...draft.prepared] }
 	};
 }
 
@@ -230,7 +246,9 @@ export function withClass(draft: Draft, classId: string): Draft {
 		masteries: [],
 		armor: null,
 		shield: false,
-		weapons: []
+		weapons: [],
+		cantrips: [],
+		prepared: []
 	};
 }
 

@@ -18,6 +18,7 @@
 
 import { randomInt, randomUUID } from 'node:crypto';
 import {
+	areaCells,
 	canReach,
 	inActionRange,
 	EVIDENCE_KINDS,
@@ -46,7 +47,7 @@ import {
 	type LogAudience,
 	type Shot
 } from '../../src/lib/game/chat';
-import type { DieRoller } from '../../src/lib/game/dice';
+import type { DiceRoll, DieRoller } from '../../src/lib/game/dice';
 import { gridDistance, inBounds, type GridPos } from '../../src/lib/game/grid';
 import type { Motion, Sound } from '../../src/lib/game/motion';
 import {
@@ -78,6 +79,8 @@ import {
 	type AttackSituation,
 	type CharacterBuilder,
 	type JsonData,
+	type SpellHit,
+	type SpellTarget,
 	type Strike,
 	type Ruleset,
 	type TestKind
@@ -100,8 +103,26 @@ import {
 } from './define';
 import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
 import { keepCharacter, layPiles, pickUp, putDown, withKept } from './gear';
+import {
+	addEffect,
+	clearOn,
+	concentratingOn,
+	dropConcentration,
+	modsOn,
+	spendExposed,
+	turnEnds,
+	turnStarts
+} from './effects';
 import { contentOf, defaultAdventure, findAdventure } from './registry';
-import type { AdventureState, CharacterState, Encounter, EnemyState, TurnEntry } from './state';
+import type {
+	AdventureState,
+	CharacterState,
+	Encounter,
+	EnemyState,
+	LastingEffect,
+	Statuses,
+	TurnEntry
+} from './state';
 import {
 	actionOfVerb,
 	applyLook,
@@ -838,7 +859,8 @@ function rollCheck(
 ): { entry: ChatMessage; success: boolean } {
 	const rules = rulesOf(room.adventure!);
 	const kind: TestKind = check.save ? 'save' : 'check';
-	const situation = { dark: inDark(room, me.token.pos), sight };
+	const boon = check.save ? modsOn(room.adventure!.encounter, me.token.id).boon : undefined;
+	const situation = { dark: inDark(room, me.token.pos), sight, ...(boon ? { boon } : {}) };
 	const result = rules.test(me.def, check.stat, kind, check.dc, situation, roller);
 	const entry = appendLog(room, {
 		kind: 'check',
@@ -2088,6 +2110,9 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 	const A = content(adventure);
 	const rules = rulesOf(adventure);
 	const log: ChatMessage[] = [];
+	// The turn that ends: what its character's effects last until ends with it.
+	const leaving = turnOf(encounter);
+	if (leaving?.kind === 'character') log.push(...effectsEnd(room, turnEnds(encounter, leaving.id)));
 	for (let tries = 0; tries <= encounter.order.length * 2; tries++) {
 		encounter.current++;
 		if (encounter.current >= encounter.order.length) {
@@ -2110,9 +2135,13 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			return { log, enemyTurn: encounter.turn };
 		}
 		const c = played(room, adventure).find((p) => p.id === entry.id);
+		log.push(...effectsEnd(room, turnStarts(encounter, entry.id)));
 		if (!c || c.state.dead) continue;
 		const def = c.def;
-		const speed = rules.speed(def.speed, c.state.statuses);
+		const speed = Math.max(
+			0,
+			rules.speed(def.speed, c.state.statuses) - modsOn(encounter, c.token.id).slow
+		);
 		rules.tick(c.state.statuses);
 		if (c.state.hp <= 0) {
 			const downed = rules.downedTurn(c.state);
@@ -2138,9 +2167,15 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 	return { log };
 }
 
-/** Defense against attacks, counting a guard. */
-function characterDefense(rules: Ruleset, c: Played): number {
-	return rules.defense(c.def.armor, c.state.statuses);
+/** Effects that ran their time: a concentration spell's end is told (a spell's passing chill is not). */
+function effectsEnd(room: Room, ended: readonly LastingEffect[]): ChatMessage[] {
+	const spells = [...new Set(ended.filter((e) => e.concentration).map((e) => e.name))];
+	return spells.map((name) => postSystem(room, `${name} ends.`));
+}
+
+/** Defense against attacks, counting a guard and what lingers. */
+function characterDefense(rules: Ruleset, c: Played, encounter: Encounter | null): number {
+	return rules.defense(c.def.armor, c.state.statuses) + modsOn(encounter, c.token.id).defense;
 }
 
 /**
@@ -2153,7 +2188,8 @@ export function act(
 	actor: Player,
 	actionId: string,
 	targetId: string | null,
-	roller: DieRoller
+	roller: DieRoller,
+	cast: CastRequest = NO_CAST
 ): Outcomes {
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
@@ -2186,7 +2222,11 @@ export function act(
 
 	const blocked = obstacles(room);
 	let log: ChatMessage[];
-	if (action.target === 'enemy') {
+	if (action.cast) {
+		const cast_ = castSpell(room, actor, me, action, targetId, cast, roller);
+		if (!cast_.ok) return cast_;
+		log = cast_.log;
+	} else if (action.target === 'enemy') {
 		const enemy = targetId ? encounter?.enemies.get(targetId) : undefined;
 		const target = targetId ? room.tokens.get(targetId) : undefined;
 		if (!encounter || !enemy || !target) return fail('token_not_found', "That enemy isn't here.");
@@ -2226,6 +2266,306 @@ export function act(
 	return { ok: true, ...afterAction(room, adventure, encounter, me, log) };
 }
 
+/** How a spell is aimed: the slot level to cast it with, its targets, or the cell an area is aimed at. */
+export interface CastRequest {
+	slot: number | null;
+	targets: readonly string[];
+	at: GridPos | null;
+}
+const NO_CAST: CastRequest = { slot: null, targets: [], at: null };
+
+/** Someone a spell lands on: a foe in the fight, or one of the party. */
+type Landing =
+	| { kind: 'enemy'; token: Token; enemy: EnemyState; times: number }
+	| { kind: 'character'; token: Token; c: Played; times: number };
+
+/**
+ * A character casts a spell (one of its actions with a `cast` aim). The
+ * rules plan it (the slot it takes, how many targets), the engine finds
+ * its targets (named ones in range and sight, or everyone in its area with
+ * a clear line from the caster), spends the slot (one spell slot a turn in
+ * a fight), and the rules resolve it; the engine then applies each hit:
+ * damage, healing, a push, a lasting effect (ending the caster's earlier
+ * concentration spell for a new one).
+ */
+function castSpell(
+	room: Room,
+	actor: Player,
+	me: Played,
+	action: Action,
+	targetId: string | null,
+	request: CastRequest,
+	roller: DieRoller
+): Result<{ log: ChatMessage[] }> {
+	const adventure = room.adventure!;
+	const rules = rulesOf(adventure);
+	const spells = rules.spells;
+	const aim = action.cast!;
+	if (!spells) return fail('forbidden', 'These rules have no spells.');
+	const encounter = adventure.encounter;
+	const plan = spells.plan(me.def, action, request.slot, (id) => me.state.resources?.get(id) ?? 0);
+	if (!plan.ok) return fail('forbidden', plan.problems[0] ?? `${action.name} can't be cast.`);
+	const slotKey = spentKey(me.id, 'slot');
+	if (plan.resource && encounter?.acted.has(slotKey))
+		return fail('not_your_turn', `${me.def.name} has already spent a spell slot this turn.`);
+
+	const blocked = obstacles(room);
+	const landings: Landing[] = [];
+	const landOn = (id: string): Landing | string => {
+		const token = room.tokens.get(id);
+		const enemy = encounter?.enemies.get(id);
+		if (token && enemy) return { kind: 'enemy', token, enemy, times: 1 };
+		const c = token && characterByToken(room, id);
+		if (token && c) return { kind: 'character', token, c, times: 1 };
+		return 'That isn’t someone the spell can reach.';
+	};
+	if (aim.area) {
+		const at = request.at ?? (targetId ? (room.tokens.get(targetId)?.pos ?? null) : null);
+		if (!at || !inBounds(room.grid, at)) return fail('invalid_message', 'Aim it at a cell.');
+		const cells = areaCells(me.token.pos, at, aim.area, room.grid);
+		for (const cell of cells) {
+			if (!hasLineOfSight(blocked, me.token.pos, cell)) continue;
+			const token = tokenAt(room.tokens.values(), cell);
+			if (!token) continue;
+			const landing = landOn(token.id);
+			if (typeof landing === 'string') continue;
+			// The downed aren't caught (death saving throws come with a later milestone).
+			if (landing.kind === 'character' && landing.c.state.hp <= 0) continue;
+			landings.push(landing);
+		}
+	} else {
+		const ids = request.targets.length ? [...request.targets] : targetId ? [targetId] : [];
+		if (!ids.length) return fail('invalid_message', `Choose who ${action.name} is for.`);
+		if (ids.length > plan.targets)
+			return fail('invalid_message', `${action.name} takes at most ${plan.targets} targets here.`);
+		if (!aim.repeat && new Set(ids).size !== ids.length)
+			return fail('invalid_message', `Choose each target of ${action.name} once.`);
+		// What isn't aimed goes to the last named (three darts at one foe).
+		if (aim.repeat) while (ids.length < plan.targets) ids.push(ids[ids.length - 1]);
+		for (const id of ids) {
+			const known = landings.find((l) => l.token.id === id);
+			if (known) {
+				known.times++;
+				continue;
+			}
+			const landing = landOn(id);
+			if (typeof landing === 'string') return fail('token_not_found', landing);
+			const wanted = action.target === 'ally' ? 'character' : 'enemy';
+			if (landing.kind !== wanted)
+				return fail(
+					'token_not_found',
+					wanted === 'enemy' ? `${action.name} is for foes.` : `${action.name} is for the party.`
+				);
+			if (landing.kind === 'character' && landing.c.state.dead)
+				return fail('forbidden', `${landing.c.def.name} is beyond help.`);
+			if (action.kind === 'boon' && landing.kind === 'character' && landing.c.state.hp <= 0)
+				return fail('forbidden', `${landing.c.def.name} is down.`);
+			if (!inActionRange(blocked, me.token.pos, landing.token.pos, action))
+				return fail(
+					'out_of_reach',
+					action.range <= 1
+						? `Move ${me.def.name} next to ${landing.token.name} first.`
+						: `${landing.token.name} is out of range or out of sight.`
+				);
+			landings.push(landing);
+		}
+	}
+
+	// The slot is spent as the spell is cast.
+	if (plan.resource) {
+		const resources = new Map(me.state.resources ?? []);
+		resources.set(plan.resource, (resources.get(plan.resource) ?? 0) + 1);
+		me.state.resources = resources;
+		encounter?.acted.add(slotKey);
+	}
+	const targets: SpellTarget[] = landings.map((l) => {
+		const saveBonus =
+			l.kind === 'enemy'
+				? (stat: string) => content(adventure).enemies[l.enemy.kind]?.saves?.[stat] ?? 0
+				: (stat: string) => (rules.isStat(stat, 'save') ? rules.bonus(l.c.def, stat, 'save') : 0);
+		const boon = modsOn(encounter, l.token.id).boon;
+		const statuses = l.kind === 'enemy' ? l.enemy.statuses : l.c.state.statuses;
+		return {
+			id: l.token.id,
+			name: l.token.name,
+			ally: l.kind === 'character',
+			defense:
+				l.kind === 'enemy' && encounter
+					? enemyDefense(room, encounter, l.enemy, l.token.id)
+					: l.kind === 'character'
+						? characterDefense(rules, l.c, encounter)
+						: 0,
+			saveBonus,
+			...(boon ? { boon } : {}),
+			times: l.times,
+			situation: encounter
+				? attackOn(room, encounter, me, l.token, statuses, action.range > 1)
+				: {
+						ranged: action.range > 1,
+						hostileBeside: false,
+						targetUnseen: false,
+						attackerUnseen: false,
+						targetStatuses: statuses
+					}
+		};
+	});
+	const level = plan.level ? ` at level ${plan.level}` : '';
+	const log: ChatMessage[] = [
+		postSystem(
+			room,
+			landings.length || !aim.area
+				? `${me.def.name} casts ${action.name}${level}.`
+				: `${me.def.name} casts ${action.name}${level}; it catches nobody.`
+		)
+	];
+	const hits = spells.resolve(me.def, action, plan.level, targets, roller);
+	// A new concentration spell ends the caster's last one.
+	if (hits.some((h) => h.effect?.concentration)) {
+		const old = dropConcentration(encounter, me.id);
+		if (old) log.push(postSystem(room, `${me.def.name} lets ${old} go.`));
+	}
+	const blessed: string[] = [];
+	for (const hit of hits) {
+		const l = landings.find((x) => x.token.id === hit.targetId);
+		if (!l) continue;
+		log.push(...landHit(room, actor, me, action, l, hit, roller));
+		if (hit.effect && encounter && room.tokens.has(l.token.id)) {
+			addEffect(encounter, hit.effect, me.id, l.token.id);
+			if (!hit.strikes.length) blessed.push(l.token.name);
+		}
+	}
+	if (blessed.length) {
+		const effect = hits.find((h) => h.effect)!.effect!;
+		log.push(
+			appendLog(room, {
+				kind: 'ability',
+				authorId: actor.id,
+				authorName: me.def.name,
+				ability: action.name,
+				targetId: blessed.length === 1 ? landings[0].token.id : null,
+				targetName: blessed.length === 1 ? blessed[0] : null,
+				roll: null,
+				amount: null,
+				text: `${action.name} on ${blessed.join(', ')}${effect.concentration ? `, while ${me.def.name} keeps concentrating` : ''}.`
+			})
+		);
+	}
+	return { ok: true, log };
+}
+
+/** What one hit of a spell does to whoever it landed on: rolls logged, damage, healing, a push. */
+function landHit(
+	room: Room,
+	actor: Player,
+	me: Played,
+	action: Action,
+	l: Landing,
+	hit: SpellHit,
+	roller: DieRoller
+): ChatMessage[] {
+	const log: ChatMessage[] = [];
+	const name = l.kind === 'enemy' ? `The ${l.token.name}` : l.c.def.name;
+	const encounter = room.adventure!.encounter;
+	for (const strike of hit.strikes) {
+		log.push(
+			appendLog(room, {
+				kind: 'attack',
+				authorId: actor.id,
+				authorName: me.def.name,
+				attack: action.name,
+				targetId: l.token.id,
+				targetName: l.token.name,
+				toHit: strike.toHit,
+				defense:
+					l.kind === 'enemy' && encounter ? enemyDefense(room, encounter, l.enemy, l.token.id) : 0,
+				hit: strike.hit,
+				damage: strike.damage,
+				...strikeNotes(strike)
+			})
+		);
+	}
+	if (hit.strikes.length && encounter) spendExposed(encounter, l.token.id);
+	if (hit.save && hit.dc !== null) {
+		log.push(
+			appendLog(room, {
+				kind: 'check',
+				authorId: l.kind === 'enemy' ? l.token.id : (l.token.ownerId ?? l.token.id),
+				authorName: l.kind === 'enemy' ? l.token.name : l.c.def.name,
+				action: action.name,
+				stat: hit.save.label,
+				roll: hit.save.roll,
+				dc: hit.dc,
+				success: hit.save.success,
+				save: true,
+				...(hit.save.mode ? { mode: hit.save.mode } : {}),
+				explain: hit.save.explain
+			})
+		);
+	}
+	const damage = hit.damage;
+	if (damage && damage.amount > 0) {
+		let outcome = '';
+		if (l.kind === 'enemy') {
+			l.enemy.hp = Math.max(0, l.enemy.hp - damage.amount);
+			l.enemy.lastHitBy = me.id;
+			if (l.enemy.hp === 0 && encounter) {
+				enemyDies(room, encounter, l.token);
+				outcome = ` The ${l.token.name} falls.`;
+			}
+		} else {
+			const fell = wound(l.c, damage.amount);
+			if (fell) outcome = ` ${fell}`;
+		}
+		// An attack's entry already shows its damage.
+		if (!hit.strikes.length)
+			log.push(
+				appendLog(room, {
+					kind: 'ability',
+					authorId: actor.id,
+					authorName: me.def.name,
+					ability: action.name,
+					targetId: l.token.id,
+					targetName: l.token.name,
+					roll: damage.roll,
+					amount: -damage.amount,
+					text: `${name} takes ${damage.amount} ${damage.type.toLowerCase()} damage${hit.save?.success ? ' (half, on a save)' : ''}.${outcome}`
+				})
+			);
+		else if (outcome) log.push(postSystem(room, outcome.trim()));
+		if (l.kind === 'character') log.push(...keepFocus(room, l.c, damage.amount, roller));
+	} else if (damage && hit.save) {
+		log.push(postSystem(room, `${name} shrugs off ${action.name}.`));
+	}
+	if (hit.heal && l.kind === 'character')
+		log.push(healed(room, actor, me.def, action.name, l.c, hit.heal));
+	if (hit.push > 0 && room.tokens.has(l.token.id)) {
+		const moved = pushAway(room, l.token, me.token.pos, hit.push);
+		if (moved) log.push(postSystem(room, `${name} is pushed back ${moved * 5} feet.`));
+	}
+	return log;
+}
+
+/**
+ * A token pushed straight away from `from`, a cell at a time, stopping
+ * before a wall, a door, something solid, someone else or a drop: how many
+ * cells it went.
+ */
+function pushAway(room: Room, token: Token, from: GridPos, cells: number): number {
+	const sx = Math.sign(token.pos.x - from.x);
+	const sy = Math.sign(token.pos.y - from.y);
+	if (!sx && !sy) return 0;
+	const blocked = obstacles(room);
+	let moved = 0;
+	for (let i = 0; i < cells; i++) {
+		const next = { x: token.pos.x + sx, y: token.pos.y + sy };
+		if (!inBounds(room.grid, next) || tokenAt(room.tokens.values(), next)) break;
+		if (!canStep(blocked, token.pos, next)) break;
+		token.pos = next;
+		moved++;
+	}
+	return moved;
+}
+
 /** Who is taking the current turn, by name ("the Hound" for an enemy). */
 function turnName(room: Room, encounter: Encounter): string {
 	const entry = turnOf(encounter);
@@ -2252,26 +2592,16 @@ function attackEnemy(
 	target: Token,
 	roller: DieRoller
 ): ChatMessage {
-	const A = content(room.adventure!);
 	const rules = rulesOf(room.adventure!);
-	const defense = rules.defense(A.enemies[enemy.kind].armor, enemy.statuses);
-	const blocked = obstacles(room);
+	const defense = enemyDefense(room, encounter, enemy, target.id);
 	const result = rules.strike(
 		rules.attackBonus(me.def, action),
 		action.dice ?? '1d4',
 		defense,
-		{
-			ranged: action.range > 1,
-			hostileBeside: [...encounter.enemies.keys()].some((id) => {
-				const foe = room.tokens.get(id);
-				return !!foe && beside(blocked, me.token.pos, foe.pos);
-			}),
-			targetUnseen: inDark(room, target.pos),
-			attackerUnseen: inDark(room, me.token.pos),
-			targetStatuses: enemy.statuses
-		},
+		attackOn(room, encounter, me, target, enemy.statuses, action.range > 1),
 		roller
 	);
+	spendExposed(encounter, target.id);
 	let outcome: string | undefined;
 	let effect: string | undefined;
 	if (result.hit) enemy.lastHitBy = me.id;
@@ -2302,6 +2632,46 @@ function attackEnemy(
 	});
 }
 
+/** An enemy's defense against attacks, counting what lingers on it. */
+function enemyDefense(
+	room: Room,
+	encounter: Encounter,
+	enemy: EnemyState,
+	tokenId: string
+): number {
+	const A = content(room.adventure!);
+	return (
+		rulesOf(room.adventure!).defense(A.enemies[enemy.kind].armor, enemy.statuses) +
+		modsOn(encounter, tokenId).defense
+	);
+}
+
+/** What the table knows about a character's attack on a target (a foe, or an ally caught in a spell). */
+function attackOn(
+	room: Room,
+	encounter: Encounter,
+	me: Played,
+	target: Token,
+	statuses: Statuses,
+	ranged: boolean
+): AttackSituation {
+	const blocked = obstacles(room);
+	const on = modsOn(encounter, target.id);
+	const boon = modsOn(encounter, me.token.id).boon;
+	return {
+		ranged,
+		hostileBeside: [...encounter.enemies.keys()].some((id) => {
+			const foe = room.tokens.get(id);
+			return !!foe && beside(blocked, me.token.pos, foe.pos);
+		}),
+		targetUnseen: inDark(room, target.pos),
+		attackerUnseen: inDark(room, me.token.pos),
+		targetStatuses: statuses,
+		...(on.exposed ? { exposed: true } : {}),
+		...(boon ? { boon } : {})
+	};
+}
+
 /** What an attack's log entry says of how the rules resolved it, when they say. */
 function strikeNotes(
 	result: Strike
@@ -2327,17 +2697,41 @@ function heal(
 	roller: DieRoller
 ): ChatMessage {
 	const rolled = roll(action.dice ?? '1d4', roller);
+	return healed(room, actor, def, action.name, ally, rolled);
+}
+
+/** A character regains hit points (none while something keeps it from healing). */
+function healed(
+	room: Room,
+	actor: Player,
+	def: CharacterDef,
+	ability: string,
+	ally: Played,
+	rolled: DiceRoll
+): ChatMessage {
+	const name = ally.def.name;
+	if (modsOn(room.adventure?.encounter ?? null, ally.token.id).noHealing)
+		return appendLog(room, {
+			kind: 'ability',
+			authorId: actor.id,
+			authorName: def.name,
+			ability,
+			targetId: ally.token.id,
+			targetName: name,
+			roll: rolled,
+			amount: 0,
+			text: `${name} can't regain hit points.`
+		});
 	const maxHp = ally.def.hp;
 	const before = ally.state.hp;
 	ally.state.hp = Math.min(maxHp, before + rolled.total);
 	ally.state.downedFor = 0;
-	const name = ally.def.name;
 	const gained = ally.state.hp - before;
 	return appendLog(room, {
 		kind: 'ability',
 		authorId: actor.id,
 		authorName: def.name,
-		ability: action.name,
+		ability,
 		targetId: ally.token.id,
 		targetName: name,
 		roll: rolled,
@@ -2441,6 +2835,7 @@ function canStillAct(adventure: AdventureState, encounter: Encounter, me: Played
 /** An enemy is gone from the fight and the table; a fight's first fallen may leave remains. */
 function enemyDies(room: Room, encounter: Encounter, token: Token): void {
 	encounter.enemies.delete(token.id);
+	clearOn(encounter, token.id);
 	leaveOrder(encounter, token.id);
 	room.tokens.delete(token.id);
 	const adventure = room.adventure;
@@ -2576,7 +2971,10 @@ export function runEnemyTurn(room: Room, turn: number, roller: DieRoller): Outco
 		}
 	}
 	const kind = content(adventure).enemies[enemy.kind];
-	const speed = rules.speed(kind.speed, enemy.statuses);
+	const speed = Math.max(
+		0,
+		rules.speed(kind.speed, enemy.statuses) - modsOn(encounter, token.id).slow
+	);
 	rules.tick(enemy.statuses);
 	if (enemy.rest > 0) enemy.rest--;
 	log.push(...enemyActs(room, adventure, enemy, token, speed, roller));
@@ -2630,7 +3028,7 @@ function enemyActs(
 		const targets = deed.targets.flatMap((id) => who(id) ?? []);
 		if (toll && targets.length) {
 			enemy.rest = toll.every;
-			log.push(tollOn(room, token, targets, toll, roller), flare(room, toll.flash));
+			log.push(...tollOn(room, token, targets, toll, roller), flare(room, toll.flash));
 		}
 	}
 	return log;
@@ -2649,8 +3047,10 @@ function enemyAttack(
 ): ChatMessage[] {
 	const rules = rulesOf(room.adventure!);
 	if (attack.save) return saveAttack(room, token, attack, attack.save, target, roller);
-	const defense = characterDefense(rules, target);
+	const encounter = room.adventure!.encounter;
+	const defense = characterDefense(rules, target, encounter);
 	const blocked = obstacles(room);
+	const exposed = modsOn(encounter, target.token.id).exposed;
 	const situation: AttackSituation = {
 		ranged: attack.range > 1,
 		hostileBeside: standing(room, room.adventure!).some((c) =>
@@ -2658,9 +3058,11 @@ function enemyAttack(
 		),
 		targetUnseen: inDark(room, target.token.pos),
 		attackerUnseen: inDark(room, token.pos),
-		targetStatuses: target.state.statuses
+		targetStatuses: target.state.statuses,
+		...(exposed ? { exposed } : {})
 	};
 	const result = rules.strike(attack.toHit, attack.damage, defense, situation, roller);
+	if (exposed && encounter) spendExposed(encounter, target.token.id);
 	let outcome: string | undefined;
 	if (result.damage) outcome = wound(target, result.damage.total);
 	return [
@@ -2677,8 +3079,39 @@ function enemyAttack(
 			damage: result.damage,
 			...(outcome ? { outcome } : {}),
 			...strikeNotes(result)
-		})
+		}),
+		...keepFocus(room, target, result.damage?.total ?? 0, roller)
 	];
+}
+
+/**
+ * A character concentrating on a spell has taken damage: at 0 hit points it
+ * loses concentration, else it makes the rules' saving throw to keep it.
+ */
+function keepFocus(room: Room, c: Played, damage: number, roller: DieRoller): ChatMessage[] {
+	const adventure = room.adventure;
+	const encounter = adventure?.encounter ?? null;
+	const spell = concentratingOn(encounter, c.id);
+	if (!adventure || !spell || damage <= 0) return [];
+	if (c.state.hp <= 0) {
+		dropConcentration(encounter, c.id);
+		return [postSystem(room, `${c.def.name} loses concentration: ${spell} ends.`)];
+	}
+	const spells = rulesOf(adventure).spells;
+	if (!spells) return [];
+	const { stat, dc } = spells.concentration(damage);
+	const player = c.token.ownerId ? room.players.get(c.token.ownerId) : undefined;
+	const check = rollCheck(
+		room,
+		player ?? null,
+		c,
+		`Concentration on ${spell}`,
+		{ stat, dc, save: true },
+		roller
+	);
+	if (check.success) return [check.entry];
+	dropConcentration(encounter, c.id);
+	return [check.entry, postSystem(room, `${c.def.name} loses concentration: ${spell} ends.`)];
 }
 
 /** Damage to a character; what came of it when it fell. */
@@ -2726,7 +3159,8 @@ function saveAttack(
 			roll: rolled,
 			amount: -amount,
 			text
-		})
+		}),
+		...keepFocus(room, target, amount, roller)
 	];
 }
 
@@ -2737,7 +3171,7 @@ function tollOn(
 	near: Played[],
 	toll: NonNullable<EnemyDef['toll']>,
 	roller: DieRoller
-): ChatMessage {
+): ChatMessage[] {
 	const rolled = roll(toll.damage, roller);
 	const fell: string[] = [];
 	for (const t of near) {
@@ -2748,7 +3182,7 @@ function tollOn(
 		} else t.state.statuses.set('slowed', toll.rounds);
 	}
 	const names = near.map((t) => t.def.name);
-	return appendLog(room, {
+	const entry = appendLog(room, {
 		kind: 'ability',
 		authorId: token.id,
 		authorName: token.name,
@@ -2759,6 +3193,7 @@ function tollOn(
 		amount: -rolled.total,
 		text: `${toll.text} ${names.join(', ')} ${near.length === 1 ? 'takes' : 'each take'} ${rolled.total} and ${near.length === 1 ? 'is' : 'are'} slowed.${fell.length ? ` ${fell.join(', ')} ${fell.length === 1 ? 'falls' : 'fall'}!` : ''}`
 	});
+	return [entry, ...near.flatMap((t) => keepFocus(room, t, rolled.total, roller))];
 }
 
 /** Fire eats at a burning enemy at the start of its turn. */

@@ -27,6 +27,8 @@
 		onTargeting(actionId: string | null): void;
 		onSheet(): void;
 		send(action: RoomAction): boolean;
+		/** The slot level a spell being aimed is cast with; null for the lowest it can. */
+		slot?: number | null;
 	}
 
 	let {
@@ -38,7 +40,8 @@
 		targeting,
 		onTargeting,
 		onSheet,
-		send
+		send,
+		slot = $bindable(null)
 	}: Props = $props();
 
 	const def = $derived(character.def);
@@ -89,6 +92,37 @@
 			: def.actions.filter((a) => (encounter ? true : a.kind === 'heal'))
 	);
 	const chosen = $derived(actions.find((a) => a.id === targeting) ?? null);
+	/** A spell's aim, if the chosen action is a spell. */
+	const aim = $derived(chosen?.cast ?? null);
+	/** Targets picked so far, for a spell that takes several. */
+	let picked = $state<string[]>([]);
+	$effect(() => {
+		// A new action to aim starts afresh.
+		void targeting;
+		picked = [];
+		slot = null;
+	});
+	/** Slot levels a levelled spell may be cast at, with how many of each are left. */
+	const slotLevels = $derived(
+		aim && aim.level > 0
+			? Array.from({ length: aim.upTo - aim.level + 1 }, (_, i) => {
+					const level = aim.level + i;
+					const left = (character.card.resources ?? [])
+						.filter(
+							(r) =>
+								r.id === `spell-slots-${level}` ||
+								(r.id === 'pact-slots' && r.name.includes(`level ${level}`))
+						)
+						.reduce((n, r) => n + r.max - (character.resourcesSpent[r.id] ?? 0), 0);
+					return { level, left };
+				})
+			: []
+	);
+	/** How many targets the spell takes at the chosen slot. */
+	const maxTargets = $derived(
+		aim ? aim.targets + aim.perLevel * Math.max(0, (slot ?? aim.level) - aim.level) : 1
+	);
+	const castOf = (targets: string[]) => (aim ? { cast: { slot, targets, at: null } } : {});
 	/** Listening and looking around work anywhere, outside a fight. */
 	const canSense = $derived(able && !encounter && adventure.stage === 'playing');
 	const SENSES: Sense[] = ['listen', 'observe'];
@@ -137,7 +171,7 @@
 	]);
 
 	function pick(action: Action) {
-		if (action.target === 'self') {
+		if (action.target === 'self' && !action.cast) {
 			send({ type: 'adventure_act', actionId: action.id, targetId: null });
 			return onTargeting(null);
 		}
@@ -145,7 +179,24 @@
 	}
 
 	function use(action: Action, target: Target) {
-		send({ type: 'adventure_act', actionId: action.id, targetId: target.tokenId });
+		// A spell that takes several targets gathers them first (darts may go to one more than once).
+		if (aim && !aim.area && maxTargets > 1) {
+			if (!aim.repeat && picked.includes(target.tokenId))
+				picked = picked.filter((id) => id !== target.tokenId);
+			else if (picked.length < maxTargets) picked = [...picked, target.tokenId];
+			return;
+		}
+		send({
+			type: 'adventure_act',
+			actionId: action.id,
+			targetId: target.tokenId,
+			...castOf([])
+		});
+		onTargeting(null);
+	}
+
+	function castPicked(action: Action) {
+		send({ type: 'adventure_act', actionId: action.id, targetId: null, ...castOf(picked) });
 		onTargeting(null);
 	}
 
@@ -157,6 +208,12 @@
 		}
 		if (adventure.stage === 'choosing') return 'Waiting for the GM to begin.';
 		if (adventure.stage !== 'playing') return 'The story is over.';
+		if (chosen?.cast?.area)
+			return `${chosen.name}: click a cell on the table to aim it (a ${chosen.cast.area.size * 5}-foot ${chosen.cast.area.shape} from you).`;
+		if (chosen && maxTargets > 1)
+			return chosen.cast?.repeat
+				? `${chosen.name}: choose where its ${maxTargets} strikes go (one foe may take several), then cast.`
+				: `${chosen.name}: choose up to ${maxTargets} targets, then cast.`;
 		if (chosen) return `${chosen.name}: choose a target, here or on the table.`;
 		if (!encounter) {
 			return nearby.length
@@ -199,22 +256,59 @@
 		{#each character.carrying as item (item.id)}
 			<span class="chip carrying" title="Carrying">{item.name}</span>
 		{/each}
+		{#each character.effects as line (line)}
+			<span class="chip effect" title={line}>{line.split(':')[0]}</span>
+		{/each}
+		{#if character.concentrating}
+			<span class="chip effect" title="Concentrating: taking damage may end it"
+				>Concentrating: {character.concentrating}</span
+			>
+		{/if}
 	</div>
 	<p class="status" aria-live="polite">{status}</p>
 
 	{#if chosen}
+		{#if slotLevels.length > 1}
+			<div class="actions" role="group" aria-label="Spell slot">
+				{#each slotLevels as s (s.level)}
+					<button
+						type="button"
+						class:primary={(slot ?? aim!.level) === s.level}
+						aria-pressed={(slot ?? aim!.level) === s.level}
+						disabled={s.left === 0}
+						onclick={() => (slot = s.level === aim!.level ? null : s.level)}
+					>
+						Level {s.level} <small class="num">{s.left} left</small>
+					</button>
+				{/each}
+			</div>
+		{/if}
 		<div class="actions" aria-label={`Targets for ${chosen.name}`}>
 			{#each targetsFor(chosen) as t (t.tokenId)}
+				{@const times = picked.filter((id) => id === t.tokenId).length}
 				<button
 					type="button"
 					class="primary"
-					disabled={!t.inReach}
-					title={t.inReach ? '' : 'Out of reach'}
+					disabled={!t.inReach && !aim?.area}
+					aria-pressed={maxTargets > 1 && !aim?.area ? times > 0 : undefined}
+					title={t.inReach ? '' : aim?.area ? 'Aim at it' : 'Out of reach'}
 					onclick={() => use(chosen, t)}
 				>
 					{t.name} <small class="num">{t.detail}</small>
+					{#if times > 0}<small class="num">×{times}</small>{/if}
 				</button>
 			{/each}
+			{#if aim && !aim.area && maxTargets > 1}
+				<button
+					type="button"
+					class="action"
+					disabled={picked.length === 0}
+					onclick={() => castPicked(chosen)}
+				>
+					Cast {chosen.name}
+					<small class="num">{picked.length}/{maxTargets}</small>
+				</button>
+			{/if}
 			<button type="button" onclick={() => onTargeting(null)}>Cancel</button>
 		</div>
 	{:else}
@@ -383,6 +477,10 @@
 	}
 	.chip.carrying {
 		border-color: var(--muted);
+		color: inherit;
+	}
+	.chip.effect {
+		border-color: var(--char);
 		color: inherit;
 	}
 

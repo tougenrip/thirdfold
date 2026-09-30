@@ -63,6 +63,8 @@ export interface ClassOption extends Named {
 	expertise: number;
 	weaponMastery: { count: number; melee: boolean };
 	spellcasting: AbilityId | null;
+	/** What a caster of this class chooses at level 1: how many cantrips and prepared spells, from which. */
+	spells: { cantrips: number; prepared: number; list: SpellOption[] } | null;
 	/** Weapon ids it is trained with. */
 	trainedWeapons: string[];
 }
@@ -113,6 +115,22 @@ export interface CreatorOptions {
 }
 
 /** A player's choices for a level 1 character. The server fills in the rest (level, hit points by the average). */
+/** A spell a creator may choose, as the SRD gives it. */
+export interface SpellOption {
+	id: string;
+	name: string;
+	/** 0 for a cantrip. */
+	level: number;
+	school: string;
+	castingTime: string;
+	range: string;
+	concentration: boolean;
+	/** Its first paragraph. */
+	text: string;
+	/** Why it isn't cast at the table (it can still be chosen), or null. */
+	why: string | null;
+}
+
 export interface CreatorChoices {
 	name: string;
 	/** Token colour, `#rrggbb`. */
@@ -133,6 +151,8 @@ export interface CreatorChoices {
 	abilities: { method: ScoreMethod; base: Record<AbilityId, number> };
 	armor: { worn: string | null; shield: boolean };
 	weapons: string[];
+	/** A caster's cantrips and prepared spells (catalog ids). */
+	spells?: { cantrips: string[]; prepared: string[] };
 }
 
 /** What choices come to, by the rules, as the server works it out. */

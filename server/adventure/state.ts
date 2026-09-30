@@ -14,7 +14,7 @@ import type {
 import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { Creator } from '../../src/lib/game/library';
-import type { JsonData, RulesetRef } from '../rules/ruleset';
+import type { EffectMods, JsonData, RulesetRef } from '../rules/ruleset';
 import type { BuiltCharacter } from './built';
 import type { Origins } from './world';
 
@@ -109,6 +109,28 @@ export interface Encounter {
 	pulls?: number;
 	/** Something counted since the round began (so the unanswered rule doesn't strike). */
 	pulled?: boolean;
+	/** Lasting effects (a spell's) on those in the fight; they end with it. */
+	effects?: LastingEffect[];
+}
+
+/**
+ * A lasting effect on someone in a fight (Bless, a Ray of Frost's chill),
+ * from a character's spell: what it changes (`EffectMods`), and when it
+ * ends, counted on its source's turns (`ends.turns` of them; at the start or
+ * the end of the last). A concentration effect also ends when its source
+ * loses concentration. Milestone 49 grows these into conditions.
+ */
+export interface LastingEffect {
+	/** `fx-N`, unique in the fight. */
+	id: string;
+	name: string;
+	/** The character whose spell it is. */
+	source: CharacterId;
+	/** The token it is on. */
+	target: string;
+	mods: EffectMods;
+	ends: { at: 'start' | 'end'; turns: number };
+	concentration: boolean;
 }
 
 /** A published adventure a table plays: its library id, the version, and whose it is. */

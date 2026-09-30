@@ -15,6 +15,9 @@
 //     attacks: { longsword: 'str' },     // the ability each attack action uses
 //     bonusActions: ['second-wind'],     // actions that take a bonus action
 //     unproficient: ['greataxe'],        // optional: attacks without the Proficiency Bonus
+//     casting: 'int',                    // optional: the spellcasting ability
+//     spells: { 'fire-bolt': 'srd-5.2.1:spell:fire-bolt' },  // optional: the spell each action casts
+//     slots: { 'spell-slots-1': 1 },     // optional: the level of each resource that is spell slots
 //   }
 //
 // A character built from its choices (character/) also carries its full
@@ -53,6 +56,12 @@ export interface Sheet {
 	carrying: { weight: number; capacity: number } | null;
 	/** The character as its rules save it (character/builder.ts `savedOf`). */
 	saved: RulesData | null;
+	/** The spellcasting ability, for a caster. */
+	casting: Ability | null;
+	/** The catalog spell each action casts, by action id. */
+	spells: Record<string, string>;
+	/** The slot level of each resource that is spell slots, by resource id. */
+	slots: Record<string, number>;
 }
 
 type Read = { ok: true; sheet: Sheet } | { ok: false; problems: string[] };
@@ -75,7 +84,10 @@ const KEYS = [
 	'unproficient',
 	'inventory',
 	'carrying',
-	'saved'
+	'saved',
+	'casting',
+	'spells',
+	'slots'
 ];
 
 /** The sheet of a character, or everything wrong with it. */
@@ -190,6 +202,27 @@ export function readSheet(character: CharacterDef): Read {
 			}
 	}
 
+	// Spells: the casting ability, the spell each action casts, and which resources are slots.
+	const casting = raw.casting;
+	if (casting !== undefined && (typeof casting !== 'string' || !isAbility(casting)))
+		bad('casting must be an ability');
+	const spells: Record<string, string> = {};
+	if (raw.spells !== undefined && !isRecord(raw.spells)) bad('spells must map actions to spells');
+	for (const [id, spell] of Object.entries(isRecord(raw.spells) ? raw.spells : {})) {
+		if (!actionIds.has(id)) bad(`spells: no action "${id}"`);
+		if (typeof spell !== 'string') bad(`spells: "${id}" needs a spell`);
+		else spells[id] = spell;
+	}
+	if (Object.keys(spells).length && casting === undefined) bad('spells without a casting ability');
+	const slots: Record<string, number> = {};
+	if (raw.slots !== undefined && !isRecord(raw.slots)) bad('slots must map resources to levels');
+	for (const [id, level] of Object.entries(isRecord(raw.slots) ? raw.slots : {})) {
+		if (!resources.some((r) => r.id === id)) bad(`slots: no resource "${id}"`);
+		if (typeof level !== 'number' || !Number.isInteger(level) || level < 1 || level > 9)
+			bad(`slots: "${id}" needs a level from 1 to 9`);
+		else slots[id] = level;
+	}
+
 	if (problems.length) return { ok: false, problems };
 	return {
 		ok: true,
@@ -210,7 +243,10 @@ export function readSheet(character: CharacterDef): Read {
 			carrying: carrying
 				? { weight: carrying.weight as number, capacity: carrying.capacity as number }
 				: null,
-			saved: isRecord(raw.saved) ? raw.saved : null
+			saved: isRecord(raw.saved) ? raw.saved : null,
+			casting: typeof casting === 'string' ? (casting as Ability) : null,
+			spells,
+			slots
 		}
 	};
 }

@@ -425,6 +425,8 @@ export interface EnemyDef {
 	hp: (characters: number) => number;
 	/** The first is its melee attack; a second, longer one is ranged. */
 	attacks: readonly Attack[];
+	/** Its bonus to saving throws, by the rules' stat (a spell's save); 0 where it has none. */
+	saves?: Readonly<Record<string, number>>;
 	behavior: Behavior;
 	/** A toll: damage and a slow to everyone standing within `range`, then a rest; told as `text`, lighting the table (`flash`). */
 	toll?: {

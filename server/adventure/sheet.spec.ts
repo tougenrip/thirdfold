@@ -103,13 +103,24 @@ describe('the fifth edition character sheet', () => {
 			hitDie: 6,
 			hitDice: 1
 		});
-		expect(d.spellcasting).toEqual({
+		expect(d.spellcasting).toMatchObject({
 			ability: 'Intelligence',
 			saveDc: 13,
 			attackBonus: 5,
 			cantrips: 3,
 			prepared: 4
 		});
+		// Each spell it knows, with its action at the table or why it has none.
+		expect(d.spellcasting!.spells.map((s) => [s.name, s.action, s.why !== null])).toEqual([
+			['Fire Bolt', 'fire-bolt', false],
+			['Ray of Frost', 'ray-of-frost', false],
+			['Shocking Grasp', 'shocking-grasp', false],
+			['Magic Missile', 'magic-missile', false],
+			['Burning Hands', 'burning-hands', false],
+			['Thunderwave', 'thunderwave', false],
+			['Sleep', null, true]
+		]);
+		expect(d.spellcasting!.spells.at(-1)!.why).toContain('Incapacitated');
 		const trance = d.features.find((f) => f.name === 'Trance')!;
 		expect(trance.from).toBe('Species');
 		expect(trance.text).toContain('Long Rest');

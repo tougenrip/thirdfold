@@ -74,5 +74,27 @@ export interface DndSheetDetails {
 		attackBonus: number;
 		cantrips: number;
 		prepared: number;
+		/** Its cantrips and prepared spells. */
+		spells: SheetSpell[];
 	} | null;
+}
+
+/** A spell a character knows or has prepared, as the SRD gives it. */
+export interface SheetSpell {
+	id: string;
+	name: string;
+	/** 0 for a cantrip. */
+	level: number;
+	school: string;
+	castingTime: string;
+	range: string;
+	/** "V, S, M (a Holy Symbol worth 5+ GP)". */
+	components: string;
+	duration: string;
+	concentration: boolean;
+	text: string;
+	/** The action that casts it at the table, or null when it isn't cast here. */
+	action: string | null;
+	/** Why it isn't cast at the table. */
+	why: string | null;
 }

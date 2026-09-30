@@ -2958,4 +2958,51 @@ describe('fifth edition rules over the wire', () => {
 		expect(back.room.adventure!.piles).toHaveLength(1);
 		expect(back.room.props.some((p) => p.assetId === 'gear-pile')).toBe(true);
 	});
+
+	it('casts a spell by the rules: a slot spent and kept, a bad aim refused', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'saint' });
+		const saint = await pip.until('token_upserted', (m) => m.token.name === 'The Saint');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// A slot beyond any level is no aim at all.
+		pip.send({
+			type: 'adventure_act',
+			actionId: 'cure-wounds',
+			targetId: saint.token.id,
+			cast: { slot: 12, targets: [], at: null }
+		} as never);
+		expect(await pip.expect('error')).toMatchObject({ code: 'invalid_message' });
+		// Bless needs a fight.
+		pip.send({ type: 'adventure_act', actionId: 'bless', targetId: saint.token.id });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+
+		// Cure Wounds on herself, with a level 1 slot: 2d8 (16) + Charisma (+3).
+		pip.send({
+			type: 'adventure_act',
+			actionId: 'cure-wounds',
+			targetId: null,
+			cast: { slot: 1, targets: [saint.token.id], at: null }
+		});
+		expect(await untilLog(gm, 'ability')).toMatchObject({
+			ability: 'Cure Wounds',
+			roll: { total: 19 }
+		});
+		const update = await pip.until(
+			'adventure_update',
+			(m) =>
+				m.adventure?.characters.find((c) => c.id === 'saint')?.resourcesSpent['spell-slots-1'] === 1
+		);
+		expect(update.adventure!.characters.find((c) => c.id === 'saint')!.def.actions).toContainEqual(
+			expect.objectContaining({ id: 'bless', kind: 'boon' })
+		);
+	});
 });

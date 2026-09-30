@@ -36,6 +36,10 @@ export function characterDefOf(
 		inventory?: CardItem[];
 		unproficient?: string[];
 		saved?: RulesData;
+		/** A caster's spellcasting ability, the spell each action casts, and its slot resources' levels. */
+		casting?: Ability;
+		spells?: Record<string, string>;
+		slots?: Record<string, number>;
 	}
 ): CharacterDef {
 	const { attacks, bonusActions, ...def } = presentation;
@@ -66,7 +70,10 @@ export function characterDefOf(
 								}
 							: {}),
 						...(full.unproficient?.length ? { unproficient: [...full.unproficient] } : {}),
-						...(full.saved ? { saved: full.saved } : {})
+						...(full.saved ? { saved: full.saved } : {}),
+						...(full.casting
+							? { casting: full.casting, spells: { ...full.spells }, slots: { ...full.slots } }
+							: {})
 					}
 				: {})
 		}
