@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import type { AssetId, Rotation } from '$lib/game/props';
+	import type { LightKind } from '$lib/game/lights';
 	import { loadManifest } from '$lib/assets/load';
 
 	export type BuildTool =
@@ -26,13 +27,21 @@
 
 	/** Settings for the next light the GM places. */
 	export interface LightDraft {
+		kind: LightKind;
 		radius: number;
 		color: string;
 	}
 </script>
 
 <script lang="ts">
-	import { AMBIENTS, LIGHT_COLORS, MAX_LIGHT_RADIUS, type Ambient } from '$lib/game/lights';
+	import {
+		AMBIENTS,
+		LIGHT_COLORS,
+		LIGHT_KINDS,
+		lightKindName,
+		MAX_LIGHT_RADIUS,
+		type Ambient
+	} from '$lib/game/lights';
 	import { ASSET_IDS, ASSETS, PROP_CATEGORIES } from '$lib/game/props';
 	import { FLOORS, type FloorId } from '$lib/game/floor';
 	import { MAX_LEVEL } from '$lib/game/terrain';
@@ -241,6 +250,19 @@
 		{/if}
 		{@render toolButton({ id: 'light', label: 'Place light', key: 'L' })}
 		{#if tool === 'light'}
+			<label class="row">
+				<span class="muted">Kind</span>
+				<select
+					value={lightDraft.kind}
+					aria-label="Light kind"
+					onchange={(e) =>
+						onLightDraft({ ...lightDraft, kind: e.currentTarget.value as LightKind })}
+				>
+					{#each LIGHT_KINDS as kind (kind)}
+						<option value={kind}>{lightKindName(kind)}</option>
+					{/each}
+				</select>
+			</label>
 			<label class="row">
 				<span class="muted">Radius (cells)</span>
 				<input

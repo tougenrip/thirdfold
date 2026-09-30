@@ -27,8 +27,9 @@ const BUDGETS = {
 	// 360.0 → 360.1: light looks (intensity, still flames, no fixture for a glow), prop paint and
 	// token lift and scale (#201, #202), 360,059 B measured.
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B
-	// measured.
-	renderer: { total: 360_400 },
+	// measured. → 361.1: the GM's handles on fixture-less lights (#209; as a lazy chunk they split
+	// the shared code into more chunks and cost twice as much), +538 B measured; both together 361.0 kB.
+	renderer: { total: 361_100 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
