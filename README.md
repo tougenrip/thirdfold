@@ -56,7 +56,8 @@ The MVP (milestones 1-10) and the whole post-MVP roadmap (milestones 11-40,
   ledges). Line of sight works in 3D.
 - Fog of war: each player sees through their own tokens, and the GM reveals or
   hides areas and whole rooms.
-- Lighting: time of day, dark areas, torches and lanterns.
+- Lighting: time of day, dark areas, torches and lanterns. The GM's time of
+  day panel also sets the sky, the haze (density and colour) and the exposure.
 - Chat, a room log, server-rolled dice (d4 to d100, `NdX+M`, secret rolls) with
   3D dice.
 - A scene editor for the GM: select, move, rotate, scale and delete things.

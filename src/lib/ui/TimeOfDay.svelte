@@ -1,20 +1,38 @@
 <script lang="ts">
+	import { onMount, untrack } from 'svelte';
+	import { loadManifest } from '$lib/assets/load';
+	import { DEFAULT_SKY, type Manifest } from '$lib/assets/manifest';
 	import { AMBIENTS, type Ambient } from '$lib/game/lights';
-	import { bandOf, WEATHERS, type WorldLook } from '$lib/game/world';
+	import { bandOf, MAX_EXPOSURE, WEATHERS, type WorldLook, type WorldPatch } from '$lib/game/world';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 
 	/**
 	 * The GM's clock: the hour on a slider (sent once, on release), four quick
-	 * picks, the band it sets in words, the sun switch, and the atmosphere
-	 * controls, which stay disabled until the renderer draws them.
+	 * picks, the band it sets in words, the sun switch, and the atmosphere: the
+	 * sky, haze and exposure (#224). Grade and weather stay disabled until drawn.
 	 */
 	interface Props {
 		world: WorldLook;
 		ambient: Ambient;
+		/** The table's environment id, for the sky it falls back to. */
+		environment: string | null;
 		send(action: RoomAction): boolean;
 	}
 
-	let { world, ambient, send }: Props = $props();
+	let { world, ambient, environment, send }: Props = $props();
+
+	let manifest = $state<Pick<Manifest, 'skies' | 'environments'>>({ skies: {}, environments: {} });
+	onMount(() => void loadManifest().then((m) => (manifest = m)));
+	const skies = $derived(Object.entries(manifest.skies).map(([id, s]) => [id, s.name] as const));
+	// resolveSky's open-sky order (the look's, the place's, the default), inlined:
+	// importing it would pull it into the manifest parser's chunk on every page.
+	const enclosed = $derived.by(() => {
+		const { skies, environments } = manifest;
+		const env =
+			environment && Object.hasOwn(environments, environment) ? environments[environment] : null;
+		const id = [world.sky, env?.sky, DEFAULT_SKY].find((s) => s && Object.hasOwn(skies, s));
+		return !!id && skies[id].kind === 'enclosed';
+	});
 
 	const LAST = 1435;
 	const PICKS = [
@@ -45,6 +63,62 @@
 		draft = time;
 		if (time !== world.time) send({ type: 'world_set', patch: { time } });
 	}
+
+	// The atmosphere's sliders: shown as dragged, sent at most every THROTTLE_MS
+	// while dragging and once on release, never a value the world already has.
+	const THROTTLE_MS = 250;
+	type Knob = 'density' | 'color' | 'exposure';
+	type Value = number | string | null;
+	const PATCH: Record<Knob, (v: Value) => WorldPatch> = {
+		density: (v) => ({ haze: { density: v as number } }),
+		color: (v) => ({ haze: { color: v as string | null } }),
+		exposure: (v) => ({ grade: { exposure: v as number } })
+	};
+	const current = (k: Knob): Value =>
+		k === 'density' ? world.haze.density : k === 'color' ? world.haze.color : world.grade.exposure;
+
+	let drafts = $state<Partial<Record<Knob, Value>>>({});
+	let dragging: Knob | null = null;
+	const sent: Partial<Record<Knob, Value>> = {};
+	const timers: Partial<Record<Knob, ReturnType<typeof setTimeout>>> = {};
+	$effect(() => {
+		void world;
+		untrack(() => {
+			for (const k of Object.keys(drafts) as Knob[]) if (k !== dragging) delete drafts[k];
+			for (const k of Object.keys(sent) as Knob[]) delete sent[k];
+		});
+	});
+	$effect(() => () => Object.values(timers).forEach(clearTimeout));
+
+	const shownOf = (k: Knob): Value => (k in drafts ? (drafts[k] as Value) : current(k));
+
+	function push(k: Knob, v: Value) {
+		if (v === (k in sent ? sent[k] : current(k))) return;
+		sent[k] = v;
+		send({ type: 'world_set', patch: PATCH[k](v) });
+	}
+
+	function drag(k: Knob, v: Value) {
+		dragging = k;
+		drafts[k] = v;
+		timers[k] ??= setTimeout(() => {
+			delete timers[k];
+			push(k, drafts[k] as Value);
+		}, THROTTLE_MS);
+	}
+
+	function release(k: Knob, v: Value) {
+		clearTimeout(timers[k]);
+		delete timers[k];
+		if (dragging === k) dragging = null;
+		drafts[k] = v;
+		push(k, v);
+	}
+
+	const density = $derived(shownOf('density') as number);
+	const exposure = $derived(shownOf('exposure') as number);
+	const hazeColor = $derived(shownOf('color') as string | null);
+	const ev = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)} EV`;
 
 	// Browsers differ on a range's page step: here PageUp and PageDown move an hour.
 	function onKey(e: KeyboardEvent) {
@@ -105,13 +179,71 @@
 		/>
 		Underground (no sun)
 	</label>
+	{#if world.sun && enclosed}
+		<p class="note">No sky here: the hour doesn't change the look.</p>
+	{/if}
 	<details>
-		<summary>Atmosphere <span class="note">(not drawn yet)</span></summary>
-		<fieldset disabled title="Not drawn yet">
-			<label>
+		<summary>Atmosphere</summary>
+		<div class="grid">
+			<label class="wide">
 				<span class="note">Sky</span>
-				<select value={world.sky ?? ''}><option value="">The place's own</option></select>
+				<select
+					value={world.sky ?? ''}
+					onchange={(e) => {
+						const sky = e.currentTarget.value || null;
+						if (sky !== world.sky) send({ type: 'world_set', patch: { sky } });
+					}}
+				>
+					<option value="">The place's own</option>
+					{#each skies as [id, name] (id)}<option value={id}>{name}</option>{/each}
+				</select>
 			</label>
+			<label>
+				<span class="note">Haze</span>
+				<input
+					type="range"
+					min="0"
+					max="1"
+					step="0.05"
+					value={density}
+					aria-valuetext={`Haze ${Math.round(density * 100)}%`}
+					oninput={(e) => drag('density', e.currentTarget.valueAsNumber)}
+					onchange={(e) => release('density', e.currentTarget.valueAsNumber)}
+				/>
+			</label>
+			<label>
+				<span class="note">Exposure</span>
+				<input
+					type="range"
+					min={-MAX_EXPOSURE}
+					max={MAX_EXPOSURE}
+					step="0.25"
+					value={exposure}
+					aria-valuetext={ev(exposure)}
+					oninput={(e) => drag('exposure', e.currentTarget.valueAsNumber)}
+					onchange={(e) => release('exposure', e.currentTarget.valueAsNumber)}
+				/>
+			</label>
+			<label>
+				<span class="note">Haze colour</span>
+				<input
+					type="color"
+					value={hazeColor ?? '#9aa4b2'}
+					oninput={(e) => drag('color', e.currentTarget.value)}
+					onchange={(e) => release('color', e.currentTarget.value)}
+				/>
+			</label>
+			<div class="resets">
+				<button type="button" disabled={hazeColor === null} onclick={() => release('color', null)}
+					>Sky's haze</button
+				>
+				<button type="button" disabled={exposure === 0} onclick={() => release('exposure', 0)}
+					>Exposure 0</button
+				>
+			</div>
+		</div>
+		<fieldset class="grid" disabled title="Not drawn yet">
+			<legend class="note">Not drawn yet</legend>
 			<label>
 				<span class="note">Weather</span>
 				<select value={world.weather.kind}>
@@ -122,17 +254,9 @@
 				<span class="note">Weather strength</span>
 				<input type="range" min="0" max="1" step="0.1" value={world.weather.intensity} />
 			</label>
-			<label>
-				<span class="note">Haze</span>
-				<input type="range" min="0" max="1" step="0.1" value={world.haze.density} />
-			</label>
-			<label>
+			<label class="wide">
 				<span class="note">Grade</span>
 				<select value={world.grade.preset ?? ''}><option value="">The place's own</option></select>
-			</label>
-			<label>
-				<span class="note">Exposure</span>
-				<input type="range" min="-2" max="2" step="0.25" value={world.grade.exposure} />
 			</label>
 		</fieldset>
 	</details>
@@ -215,26 +339,50 @@
 		font-size: var(--fs-xs);
 	}
 
-	fieldset {
+	.grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: var(--sp-3);
 		margin: var(--sp-3) 0 0;
 		padding: 0;
 		border: 0;
+	}
+
+	fieldset {
 		opacity: 0.6;
 	}
 
-	fieldset label {
+	legend {
+		padding: 0;
+		margin-bottom: var(--sp-2);
+	}
+
+	.grid label {
 		display: grid;
 		gap: var(--sp-1);
 		min-width: 0;
 	}
 
-	fieldset select,
-	fieldset input {
+	.wide {
+		grid-column: 1 / -1;
+	}
+
+	.grid select,
+	.grid input {
 		width: 100%;
 		min-width: 0;
+		font-size: var(--fs-xs);
+		accent-color: var(--accent);
+	}
+
+	.resets {
+		display: grid;
+		gap: var(--sp-2);
+		align-content: end;
+	}
+
+	.resets button {
+		padding: var(--sp-2);
 		font-size: var(--fs-xs);
 	}
 
