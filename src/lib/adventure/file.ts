@@ -38,7 +38,7 @@ import { CUES, type Shot } from '../game/chat';
 import type { GridPos } from '../game/grid';
 import { AMBIENTS } from '../game/lights';
 import { MOTION_KINDS, SOUNDS } from '../game/motion';
-import { isAssetId } from '../game/props';
+import { resolveAssetId, type AssetId } from '../game/props';
 import { parseSceneFile, type SavedToken, type SceneFile } from '../game/scene-file';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
 
@@ -174,6 +174,11 @@ const name = (v: unknown, path: string) => text(v, path, ADVENTURE_LIMITS.name);
 function id(v: unknown, path: string): string {
 	if (typeof v !== 'string' || !ID.test(v)) bad(path, 'expected an id (a-z, 0-9, - and _)');
 	return v;
+}
+
+/** A prop asset, an old aliased id read as the id that replaced it. */
+function asset(v: unknown, path: string): AssetId {
+	return resolveAssetId(v) ?? bad(path, 'expected a prop asset');
 }
 
 function key(v: unknown, path: string): string {
@@ -477,8 +482,7 @@ function effect(v: unknown, path: string, depth: number): Effect {
 			};
 		}
 		case 'prop':
-			if (!isAssetId(e.asset)) bad(`${path}.asset`, 'expected a prop asset');
-			return { prop: id(e.prop, at), asset: e.asset };
+			return { prop: id(e.prop, at), asset: asset(e.asset, `${path}.asset`) };
 		case 'ambient':
 			return { ambient: oneOf(e.ambient, AMBIENTS, at) };
 		case 'hurt': {
@@ -541,10 +545,8 @@ function parseObject(v: unknown, path: string): ObjectDef {
 	const looks = opt(o.looks, (x) =>
 		dict(x, `${path}.looks`, (l, p) => {
 			const look = obj(l, p);
-			if (look.assetId !== undefined && !isAssetId(look.assetId))
-				bad(`${p}.assetId`, 'no such prop');
 			return {
-				...(look.assetId === undefined ? {} : { assetId: look.assetId as never }),
+				...(look.assetId === undefined ? {} : { assetId: asset(look.assetId, `${p}.assetId`) }),
 				...(look.offset === undefined ? {} : { offset: offset(look.offset, `${p}.offset`) }),
 				...(look.lit === undefined ? {} : { lit: look.lit === true })
 			};
@@ -675,9 +677,8 @@ function phase(v: unknown, path: string): PhaseDef {
 
 function hazard(v: unknown, path: string) {
 	const h = obj(v, path);
-	if (!isAssetId(h.asset)) bad(`${path}.asset`, 'expected a prop asset');
 	return {
-		asset: h.asset,
+		asset: asset(h.asset, `${path}.asset`),
 		prefix: `${id(h.prefix, `${path}.prefix`)}-`.replace(/-+$/, '-'),
 		damage: dice(h.damage, `${path}.damage`),
 		opens: text(h.opens, `${path}.opens`),
@@ -706,11 +707,10 @@ function encounter(v: unknown, path: string): EncounterFile {
 	});
 	const remains = opt(e.remains, (x) => {
 		const r = obj(x, `${path}.remains`);
-		if (!isAssetId(r.asset)) bad(`${path}.remains.asset`, 'expected a prop asset');
 		return {
 			object: id(r.object, `${path}.remains.object`),
 			prop: id(r.prop, `${path}.remains.prop`),
-			asset: r.asset
+			asset: asset(r.asset, `${path}.remains.asset`)
 		};
 	});
 	return {

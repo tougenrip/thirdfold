@@ -1,0 +1,12 @@
+{
+	"usage": "orm",
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_inlaid_stone_wall/wood_inlaid_stone_wall_diff_2k.png",
+			"sha256": "bab8de4687a26e80e3c34c7ae0f0e91adf52fe312f457d08e1f450f96e39063e"
+		},
+		"modified": true
+	}
+}

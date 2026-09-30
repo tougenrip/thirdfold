@@ -6,7 +6,8 @@
 
 import * as THREE from 'three/webgpu';
 import { GRADE_TONE_MAPPER, type GradeBand, type ToneMapper } from '$lib/assets/manifest';
-import { LUT_SIZE, type Grades } from './environment';
+import { LUT_SIZE } from './environment';
+import type { Grades } from './grades-load';
 
 /** How long a change of grade takes to blend in (ms). */
 export const GRADE_BLEND_MS = 1500;

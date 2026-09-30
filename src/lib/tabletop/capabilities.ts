@@ -25,11 +25,16 @@ import {
 import type { TabletopOptions } from './types';
 import { paint } from './materials/paint';
 import { setTextureQuality } from './materials/texture-quality';
+import { onTextureSwap, setTextureDetail } from '$lib/assets/detail';
 
-/** The tier's texture filtering (#179) and paint strength (#178): uniforms, no program. */
+/**
+ * The tier's texture filtering (#179), paint strength (#178) and texture detail (textures swap
+ * size in their slots): uniforms and texture data, no program.
+ */
 function applyMaterials(settings: QualitySettings, maxAnisotropy: number): void {
 	setTextureQuality(settings, maxAnisotropy);
 	paint.strength.value = settings.paint;
+	setTextureDetail(settings.textureDetail);
 }
 
 function shellOf(): Shell {
@@ -79,6 +84,8 @@ export class QualityControl {
 	private samples: number[] = [];
 	private readonly observer: ResizeObserver;
 	private stopResolution = () => {};
+	/** A texture swapped to another size (texture detail) is drawn at once. */
+	private readonly stopSwaps: () => void;
 
 	/**
 	 * Sizes `parts.canvas` for the tier and follows its resizes, drawing again after. A fixed
@@ -103,6 +110,7 @@ export class QualityControl {
 		this.observer.observe(parts.canvas);
 		parts.perf.onFrame = (ms) => this.frame(ms);
 		this.watchResolution();
+		this.stopSwaps = onTextureSwap(() => parts.loop.request());
 	}
 
 	get tier(): Tier {
@@ -166,5 +174,6 @@ export class QualityControl {
 		this.parts.perf.onFrame = null;
 		this.observer.disconnect();
 		this.stopResolution();
+		this.stopSwaps();
 	}
 }

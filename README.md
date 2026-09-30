@@ -112,6 +112,7 @@ The MVP (milestones 1-10) and the whole post-MVP roadmap (milestones 11-40,
 | `npm run lint` / `npm run format`   | Prettier and ESLint / fix formatting                                                             |
 | `npm test`                          | All tests once: server/domain tests in Node, component tests in headless Chromium via Playwright |
 | `npm run assets` / `assets:check`   | Rebuild `static/assets/` from `assets/` / check it is up to date                                 |
+| `npm run assets:publish` / `pull`   | Upload built assets to the asset store / download the ones missing here (docs/ASSETS.md)         |
 | `npm run db:start` / `db:stop`      | Local Supabase in Docker (optional, see below)                                                   |
 | `npm run desktop` / `desktop:build` | Tauri desktop app                                                                                |
 | `npm run android` / `npm run ios`   | Capacitor: build, sync and run on a device or emulator                                           |
@@ -124,14 +125,16 @@ Chromium (`npx playwright install chromium`).
 
 Everything is optional. Copy `.env.example` to `.env` to change it.
 
-| Variable                                | Read by    | Default              | Purpose                                                                 |
-| --------------------------------------- | ---------- | -------------------- | ----------------------------------------------------------------------- |
-| `GAME_SERVER_PORT` / `GAME_SERVER_HOST` | server     | `8787` / `0.0.0.0`   | Where the game server listens                                           |
-| `SCENES_DIR`                            | server     | `data/scenes`        | Saved tables and stories                                                |
-| `ROOMS_DIR`                             | server     | `data/rooms`         | Live rooms, so a restart doesn't end a game                             |
-| `LIBRARY_DIR`                           | server     | `data/library`       | Published adventures, their versions and ratings                        |
-| `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` | server     | unset                | Store all of the above in Supabase Postgres instead of files (set both) |
-| `VITE_GAME_SERVER_URL`                  | web bundle | port 8787, same host | Where the web app finds the game server, e.g. `wss://game.example.com`  |
+| Variable                                | Read by     | Default              | Purpose                                                                 |
+| --------------------------------------- | ----------- | -------------------- | ----------------------------------------------------------------------- |
+| `GAME_SERVER_PORT` / `GAME_SERVER_HOST` | server      | `8787` / `0.0.0.0`   | Where the game server listens                                           |
+| `SCENES_DIR`                            | server      | `data/scenes`        | Saved tables and stories                                                |
+| `ROOMS_DIR`                             | server      | `data/rooms`         | Live rooms, so a restart doesn't end a game                             |
+| `LIBRARY_DIR`                           | server      | `data/library`       | Published adventures, their versions and ratings                        |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` | server      | unset                | Store all of the above in Supabase Postgres instead of files (set both) |
+| `VITE_GAME_SERVER_URL`                  | web bundle  | port 8787, same host | Where the web app finds the game server, e.g. `wss://game.example.com`  |
+| `VITE_ASSET_BASE_URL`                   | web bundle  | same origin          | Where built assets come from: the asset store's public bucket URL       |
+| `ASSET_STORE_URL`                       | assets:pull | unset                | The same public bucket URL, for `npm run assets:pull`                   |
 
 `VITE_` values are baked into the web bundle when it is built. The Supabase
 service key bypasses row-level security, so it belongs to the game server
@@ -160,6 +163,11 @@ The live database tests in `server/supabase-scene-store.spec.ts` run when
 2. Run the game server with `npm run server:start` on a machine that keeps
    `data/`, or give it Supabase (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`).
    Put it behind a TLS proxy for `wss://`.
+3. Optionally serve the built assets from Supabase Storage: `npm run assets:publish` with the
+   project's `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`, then build with `VITE_ASSET_BASE_URL`
+   set to `<project>/storage/v1/object/public/assets` (docs/ASSETS.md, "The asset store"). Serve
+   `build/assets/manifest.json` with `Cache-Control: no-cache`; the hashed files may be cached for
+   a year. The native apps always use the files they carry.
 
 ## Native apps
 
@@ -193,6 +201,7 @@ every pull request, plus the live Supabase tests against a fresh local Supabase.
 - `docs/ADVENTURES.md`: writing adventures, adventure files, the builder and
   the library.
 - `docs/ASSETS.md`: the asset pipeline.
+- `docs/ART.md`: the art bible: style, budgets, sources, licences and briefs.
 - `docs/PERFORMANCE.md`: how performance is measured, and what changed.
 - `CLAUDE.md`: a detailed map of the architecture, for contributors and
   coding agents.

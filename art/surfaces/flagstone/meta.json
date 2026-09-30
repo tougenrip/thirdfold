@@ -1,0 +1,14 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=PavingStones149_2K-PNG.zip",
+			"sha256": "4cff2459dad8c9597688cca55f034b7760755fd3b6b8aa9d6f07b11f7c97a45e"
+		},
+		"modified": true
+	},
+	"ramp": ["#3a3d48", "#5f5f63", "#86826f", "#aca58d"],
+	"detail": 0.25,
+	"normalBoost": 1.5
+}

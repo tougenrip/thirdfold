@@ -62,7 +62,7 @@ function rgb(hex: string): [number, number, number] {
 }
 
 /** A small seeded random source (mulberry32). */
-function random(seed: number): () => number {
+export function random(seed: number): () => number {
 	let a = seed >>> 0;
 	return () => {
 		a = (a + 0x6d2b79f5) >>> 0;
@@ -102,9 +102,15 @@ function grain(size: number, scale: number, rand: () => number): Float32Array {
 	return coarse.map((v, i) => v * 0.7 + fine[i] * 0.3);
 }
 
-/** The RGBA pixels of a texture source. */
-export function renderTexture(source: TextureSource): Uint8Array {
-	const { size, recipe } = source;
+/**
+ * The RGBA pixels of a texture source, `px` a side (its `size` by default). The recipe is drawn
+ * at `size` and only sharpens at a larger `px` (texture detail: the 512 base, 1K and 2K): its
+ * noise cells, boards and stones stay where they are, and joints keep their width.
+ */
+export function renderTexture(source: TextureSource, px = source.size): Uint8Array {
+	const { recipe } = source;
+	const size = px;
+	const k = px / source.size;
 	const rand = random(source.seed);
 	const [a, b, joint] = source.colors.map(rgb);
 	const out = new Uint8Array(size * size * 4);
@@ -134,7 +140,7 @@ export function renderTexture(source: TextureSource): Uint8Array {
 			for (let x = 0; x < size; x++) {
 				const i = y * size + x;
 				const board = Math.floor(x / width);
-				if (x % width < 2) put(i, joint);
+				if (x % width < 2 * k) put(i, joint);
 				else
 					put(i, mix(lines[((y * 7) % size) * size + (x % size)] * 0.6 + g[i] * 0.4), tone[board]);
 			}
@@ -155,7 +161,7 @@ export function renderTexture(source: TextureSource): Uint8Array {
 			const col = Math.floor(sx / w);
 			const edge = Math.min(sx % w, w - (sx % w), y % h, h - (y % h));
 			// The mortar line wanders a little with the grain.
-			if (edge < 1.5 + g[i] * 2) put(i, joint);
+			if (edge < (1.5 + g[i] * 2) * k) put(i, joint);
 			else put(i, mix(g[i]), shades[row * 4 + col]);
 		}
 	}

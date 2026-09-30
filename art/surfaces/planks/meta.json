@@ -1,0 +1,14 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=Planks021_2K-PNG.zip",
+			"sha256": "4544c2f68a416155b4bb1ccfdca567b4e551715c0cc4e2d3cfb4b57cf7877e20"
+		},
+		"modified": true
+	},
+	"ramp": ["#3a2b2b", "#5f4533", "#856342", "#a7855a"],
+	"detail": 0.25,
+	"normalBoost": 1.5
+}

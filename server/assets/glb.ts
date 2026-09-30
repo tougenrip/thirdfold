@@ -1,9 +1,24 @@
 // Binary glTF (GLB) for models: writing what the pipeline bakes, and
-// checking what an author provides. Models are meshes and nothing else:
-// no scripts (glTF has none, but extensions could bring anything), no
-// extensions, no external or data URIs, no images, cameras, skins or
-// animations. What passes can be loaded by three.js's GLTFLoader as plain
-// geometry.
+// checking what an author provides or the cook makes. A model is meshes,
+// materials and KTX2 textures in one file, and nothing else: no links out
+// of it, no extension off the allowlist (gltf-check.ts), no cameras, skins,
+// animations or morph targets. The check runs in two stages: the JSON as an
+// allowlist before anything is decoded, then the decoded data (index ranges,
+// triangles per level of detail, bounds through the node transforms, every
+// texture's KTX2 header). Pure over bytes, so an upload path can reuse it.
+
+import { NodeIO, type Texture } from '@gltf-transform/core';
+import {
+	EXTMeshoptCompression,
+	KHRMaterialsEmissiveStrength,
+	KHRMeshQuantization,
+	KHRTextureBasisu,
+	KHRTextureTransform
+} from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { LIMITS, type ColorSpace, type Limit } from '../../src/lib/assets/manifest';
+import { MAX_JSON_BYTES, gltfProblem } from './gltf-check';
+import { checkKtx2, type Ktx2Info } from './ktx2';
 
 /** One mesh of a model: `body`, `swing` (the parts that swing) or `accent` (tinted with the token's colour). */
 export interface MeshData {
@@ -13,6 +28,8 @@ export interface MeshData {
 	normals: Float32Array | null;
 	/** Linear RGB per vertex (0..1), or none (white). */
 	colors: Float32Array | null;
+	/** Baked occlusion and convexity per vertex (bake.ts), two bytes each, written as `_BAKE`. */
+	bake?: Uint8Array;
 	indices: Uint16Array | Uint32Array;
 }
 
@@ -20,6 +37,7 @@ const MAGIC = 0x46546c67; // 'glTF'
 const JSON_CHUNK = 0x4e4f534a; // 'JSON'
 const BIN_CHUNK = 0x004e4942; // 'BIN\0'
 const FLOAT = 5126;
+const UNSIGNED_BYTE = 5121;
 const UNSIGNED_SHORT = 5123;
 const UNSIGNED_INT = 5125;
 const ARRAY_BUFFER = 34962;
@@ -29,15 +47,22 @@ const pad4 = (n: number) => (n + 3) & ~3;
 
 /** A GLB holding these meshes, each on its own node. */
 export function writeGlb(meshes: readonly MeshData[]): Buffer {
-	const views: { buffer: 0; byteOffset: number; byteLength: number; target: number }[] = [];
+	const views: {
+		buffer: 0;
+		byteOffset: number;
+		byteLength: number;
+		byteStride?: number;
+		target: number;
+	}[] = [];
 	const accessors: Record<string, unknown>[] = [];
 	const chunks: Buffer[] = [];
 	let offset = 0;
-	const add = (data: ArrayBufferView, target: number): number => {
+	const add = (data: ArrayBufferView, target: number, byteStride?: number): number => {
 		const bytes = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 		const length = pad4(bytes.length);
 		chunks.push(Buffer.concat([bytes, Buffer.alloc(length - bytes.length)]));
-		views.push({ buffer: 0, byteOffset: offset, byteLength: bytes.length, target });
+		const stride = byteStride ? { byteStride } : {};
+		views.push({ buffer: 0, byteOffset: offset, byteLength: bytes.length, ...stride, target });
 		offset += length;
 		return views.length - 1;
 	};
@@ -86,6 +111,19 @@ export function writeGlb(meshes: readonly MeshData[]): Buffer {
 			});
 			attributes.COLOR_0 = accessors.length - 1;
 		}
+		if (m.bake) {
+			// Two bytes a vertex in a stride of four: glTF aligns each vertex's attribute to 4 bytes.
+			const padded = new Uint8Array(count * 4);
+			for (let i = 0; i < count; i++) padded.set(m.bake.subarray(i * 2, i * 2 + 2), i * 4);
+			accessors.push({
+				bufferView: add(padded, ARRAY_BUFFER, 4),
+				componentType: UNSIGNED_BYTE,
+				normalized: true,
+				count,
+				type: 'VEC2'
+			});
+			attributes._BAKE = accessors.length - 1;
+		}
 		accessors.push({
 			bufferView: add(m.indices, ELEMENT_ARRAY_BUFFER),
 			componentType: m.indices instanceof Uint16Array ? UNSIGNED_SHORT : UNSIGNED_INT,
@@ -131,114 +169,159 @@ export function writeGlb(meshes: readonly MeshData[]): Buffer {
 }
 
 export interface GlbInfo {
+	/** The names of the nodes that carry meshes, in order: `<role>` or `<role>_lod<n>`. */
 	meshes: string[];
+	/** At LOD0. */
 	triangles: number;
+	/** Triangles at LOD1 and LOD2, when the model has them. */
+	lods: number[];
+	/** Around every vertex, through the node transforms. */
 	bounds: { min: [number, number, number]; max: [number, number, number] };
+	textures: Ktx2Info[];
+	/** Decoded vertex and index arrays, and the textures transcoded. */
+	gpuBytes: number;
+	/** Meshopt geometry or KTX2 textures, which the client needs its decoders for. */
+	cooked: boolean;
 }
-
-/** Top-level glTF properties a model may have. Anything else (extensions, images, animations...) is refused. */
-const ALLOWED = new Set([
-	'asset',
-	'scene',
-	'scenes',
-	'nodes',
-	'meshes',
-	'accessors',
-	'bufferViews',
-	'buffers',
-	'materials'
-]);
-const ALLOWED_ATTRIBUTES = new Set(['POSITION', 'NORMAL', 'COLOR_0', 'TEXCOORD_0']);
 
 type Checked = { ok: true; info: GlbInfo } | { ok: false; error: string };
 
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-	typeof v === 'object' && v !== null && !Array.isArray(v);
+let reader: Promise<NodeIO> | null = null;
+/** Reads only the allowlisted extensions, decoding meshopt with the decoder three's loader uses. */
+const io = () =>
+	(reader ??= MeshoptDecoder.ready.then(() =>
+		new NodeIO()
+			.registerExtensions([
+				EXTMeshoptCompression,
+				KHRMeshQuantization,
+				KHRTextureBasisu,
+				KHRTextureTransform,
+				KHRMaterialsEmissiveStrength
+			])
+			.registerDependencies({ 'meshopt.decoder': MeshoptDecoder })
+	));
 
-/** Whether `data` is a GLB made only of meshes, and what it holds. */
-export function checkGlb(data: Buffer): Checked {
+const LOD = /_lod(\d)$/;
+const COOKED = new Set(['EXT_meshopt_compression', 'KHR_texture_basisu']);
+
+/** Whether `data` is a model within `limit` (its class's; a prop's by default), and what it holds. */
+export async function checkGlb(data: Uint8Array, limit: Limit = LIMITS.prop): Promise<Checked> {
 	const bad = (error: string): Checked => ({ ok: false, error });
-	if (data.length < 20 || data.readUInt32LE(0) !== MAGIC) return bad('not a GLB file');
-	if (data.readUInt32LE(4) !== 2) return bad('not glTF 2.0');
-	if (data.readUInt32LE(8) !== data.length) return bad('length does not match');
-	const jsonLength = data.readUInt32LE(12);
-	if (data.readUInt32LE(16) !== JSON_CHUNK || 20 + jsonLength > data.length) {
-		return bad('no JSON chunk first');
-	}
+	if (data.length > limit.bytes) return bad('file too large');
+	if (data.length < 20) return bad('not a GLB file');
+	const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+	const u32 = (at: number) => view.getUint32(at, true);
+	if (u32(0) !== MAGIC) return bad('not a GLB file');
+	if (u32(4) !== 2) return bad('not glTF 2.0');
+	if (u32(8) !== data.length) return bad('length does not match');
+	const jsonLength = u32(12);
+	if (u32(16) !== JSON_CHUNK || 20 + jsonLength > data.length) return bad('no JSON chunk first');
+	if (jsonLength > MAX_JSON_BYTES) return bad(`JSON chunk over ${MAX_JSON_BYTES} bytes`);
 	let json: unknown;
 	try {
-		json = JSON.parse(data.subarray(20, 20 + jsonLength).toString('utf8'));
+		json = JSON.parse(Buffer.from(data.subarray(20, 20 + jsonLength)).toString('utf8'));
 	} catch {
 		return bad('JSON chunk does not parse');
 	}
-	if (!isRecord(json)) return bad('JSON chunk is not an object');
-	for (const key of Object.keys(json)) {
-		if (!ALLOWED.has(key)) return bad(`"${key}" is not allowed in a model`);
+	if (typeof json !== 'object' || json === null || Array.isArray(json)) {
+		return bad('JSON chunk is not an object');
 	}
 	const binStart = 20 + jsonLength;
-	const binLength = binStart + 8 <= data.length ? data.readUInt32LE(binStart) : 0;
-	if (binStart + 8 > data.length || data.readUInt32LE(binStart + 4) !== BIN_CHUNK) {
-		return bad('no binary chunk');
-	}
+	if (binStart + 8 > data.length || u32(binStart + 4) !== BIN_CHUNK) return bad('no binary chunk');
+	const binLength = u32(binStart);
 	if (binStart + 8 + binLength !== data.length) return bad('trailing or missing data');
-	const buffers = json.buffers;
-	if (!Array.isArray(buffers) || buffers.length !== 1 || !isRecord(buffers[0])) {
-		return bad('a model has exactly one buffer');
-	}
-	if ('uri' in buffers[0]) return bad('buffers must be embedded, not linked');
-	if (buffers[0].byteLength !== undefined && (buffers[0].byteLength as number) > binLength) {
-		return bad('buffer longer than its chunk');
-	}
-	// Nothing anywhere may point outside the file or bring in extensions.
-	const text = JSON.stringify(json);
-	if (/"uri"\s*:/.test(text)) return bad('external or data URIs are not allowed');
-	if (/"extensions(Used|Required)?"\s*:/.test(text)) return bad('extensions are not allowed');
-	// Materials may be there (they are ignored), but not the textures they would load.
-	if (/"\w*[tT]exture"\s*:/.test(text)) return bad('textures inside a model are not allowed');
-	// Materials may be there (they are ignored), but not the textures they would load.
-	if (/"\w*[tT]exture"\s*:/.test(text)) return bad('textures inside a model are not allowed');
+	const problem = gltfProblem(json as Record<string, unknown>, binLength, limit);
+	if (problem) return bad(problem);
 
-	const accessors = Array.isArray(json.accessors) ? json.accessors : [];
-	const views = Array.isArray(json.bufferViews) ? json.bufferViews : [];
-	for (const v of views) {
-		if (!isRecord(v) || v.buffer !== 0) return bad('bad buffer view');
-		const end = ((v.byteOffset as number) ?? 0) + (v.byteLength as number);
-		if (!Number.isInteger(end) || end > binLength) return bad('buffer view past the data');
+	let doc;
+	try {
+		doc = await (await io()).readBinary(data);
+	} catch (err) {
+		return bad(`does not decode: ${(err as Error).message}`);
 	}
-	const meshes = Array.isArray(json.meshes) ? json.meshes : [];
-	const nodes = Array.isArray(json.nodes) ? json.nodes : [];
-	if (meshes.length === 0) return bad('no meshes');
-	let triangles = 0;
+	const root = doc.getRoot();
+	const meshes: string[] = [];
+	const levels = [0, 0, 0];
 	const min: [number, number, number] = [Infinity, Infinity, Infinity];
 	const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-	for (const mesh of meshes) {
-		if (!isRecord(mesh) || !Array.isArray(mesh.primitives)) return bad('bad mesh');
-		for (const p of mesh.primitives) {
-			if (!isRecord(p) || !isRecord(p.attributes)) return bad('bad primitive');
-			if ((p.mode ?? 4) !== 4) return bad('only triangles');
-			for (const name of Object.keys(p.attributes)) {
-				if (!ALLOWED_ATTRIBUTES.has(name)) return bad(`attribute ${name} is not allowed`);
+	const p = [0, 0, 0];
+	for (const node of root.listNodes()) {
+		const mesh = node.getMesh();
+		if (!mesh) continue;
+		meshes.push(node.getName());
+		const lod = Number(LOD.exec(mesh.getName())?.[1] ?? 0);
+		const m = node.getWorldMatrix();
+		for (const prim of mesh.listPrimitives()) {
+			const position = prim.getAttribute('POSITION')!;
+			const count = position.getCount();
+			const indices = prim.getIndices();
+			const corners = indices ? indices.getCount() : count;
+			if (corners % 3) return bad('triangles need three corners each');
+			const array = indices?.getArray() ?? [];
+			for (let i = 0; i < array.length; i++) {
+				if (array[i] >= count) return bad('an index past the vertices');
 			}
-			const position = accessors[p.attributes.POSITION as number];
-			if (!isRecord(position) || !Array.isArray(position.min) || !Array.isArray(position.max)) {
-				return bad('positions need their bounds');
+			levels[lod] += corners / 3;
+			for (let i = 0; i < count; i++) {
+				position.getElement(i, p);
+				for (let axis = 0; axis < 3; axis++) {
+					const w = m[axis] * p[0] + m[4 + axis] * p[1] + m[8 + axis] * p[2] + m[12 + axis];
+					min[axis] = Math.min(min[axis], w);
+					max[axis] = Math.max(max[axis], w);
+				}
 			}
-			for (let i = 0; i < 3; i++) {
-				min[i] = Math.min(min[i], position.min[i] as number);
-				max[i] = Math.max(max[i], position.max[i] as number);
-			}
-			const index = typeof p.indices === 'number' ? accessors[p.indices] : null;
-			const count = isRecord(index) ? (index.count as number) : (position.count as number);
-			triangles += Math.floor(count / 3);
 		}
 	}
 	if (![...min, ...max].every(Number.isFinite)) return bad('bad bounds');
+
+	// Each texture's colour space by the slots it fills: colour is sRGB, data linear.
+	const spaces = new Map<Texture, ColorSpace>();
+	const slot = (texture: Texture | null, space: ColorSpace) => {
+		if (!texture) return true;
+		if ((spaces.get(texture) ?? space) !== space) return false;
+		spaces.set(texture, space);
+		return true;
+	};
+	for (const material of root.listMaterials()) {
+		const fits =
+			slot(material.getBaseColorTexture(), 'srgb') &&
+			slot(material.getEmissiveTexture(), 'srgb') &&
+			slot(material.getNormalTexture(), 'linear') &&
+			slot(material.getOcclusionTexture(), 'linear') &&
+			slot(material.getMetallicRoughnessTexture(), 'linear');
+		if (!fits) return bad('a texture used as both colour and data');
+	}
+	let gpuBytes = 0;
+	for (const accessor of root.listAccessors()) gpuBytes += accessor.getArray()?.byteLength ?? 0;
+	const textures: Ktx2Info[] = [];
+	for (const texture of root.listTextures()) {
+		const checked = checkKtx2(texture.getImage() ?? new Uint8Array(), {
+			maxPx: limit.px,
+			maxGpuBytes: limit.gpuBytes,
+			colorSpace: spaces.get(texture)
+		});
+		if (!checked.ok) return bad(`texture "${texture.getName()}": ${checked.error}`);
+		textures.push(checked.info);
+		gpuBytes += checked.info.gpuBytes;
+	}
+	// The whole gate here, so an upload gets it too: every level within the class's triangles.
+	for (const [lod, triangles] of levels.entries()) {
+		if (triangles > limit.triangles) {
+			const what = lod ? `LOD ${lod}: ` : '';
+			return bad(`${what}${triangles} triangles is more than ${limit.triangles}`);
+		}
+	}
+	if (gpuBytes > limit.gpuBytes) return bad('too large on the GPU');
 	return {
 		ok: true,
 		info: {
-			meshes: nodes.flatMap((n) => (isRecord(n) && typeof n.name === 'string' ? [n.name] : [])),
-			triangles,
-			bounds: { min, max }
+			meshes,
+			triangles: levels[0],
+			lods: levels.slice(1).filter((t) => t > 0),
+			bounds: { min, max },
+			textures,
+			gpuBytes,
+			cooked: root.listExtensionsUsed().some((e) => COOKED.has(e.extensionName))
 		}
 	};
 }

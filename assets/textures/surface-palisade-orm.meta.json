@@ -1,0 +1,12 @@
+{
+	"usage": "orm",
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Poly Haven",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/wood_trunk_wall/wood_trunk_wall_diff_2k.png",
+			"sha256": "40bf7037e5ad0ee4cb2729e1d0c8ec36aef30468911a27c3ace7e0abd64277a2"
+		},
+		"modified": true
+	}
+}

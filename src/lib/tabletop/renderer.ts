@@ -37,6 +37,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
+import { initModels, loadProgress, prefetch, releaseModels } from './models';
 import { PropLayer } from './props';
 import { createScene, createSceneLights, FAR, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
@@ -57,12 +58,12 @@ export async function createTabletop(
 	// A renderer the lobby warmed up (lobby.ts, #180) comes with its shaders compiled.
 	const renderer = options.warm?.renderer ?? (await createNodeRenderer(canvas, options));
 	if (options.warm) setUpRenderer(renderer, options);
+	initModels(renderer); // models upload to it; the last table's dispose frees them
 	let shadowsDirty = true;
 	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
 	let shadowMapDrawn = false;
 	/** Things moved in the last frame: their final step changes shadows too. */
 	let wasMoving = false;
-
 	const perf = new PerfRecorder();
 	if (options.warm) perf.add('lobby', options.warm.warmupMs);
 	const loop = new RenderScheduler(render, canvas);
@@ -80,7 +81,6 @@ export async function createTabletop(
 	}));
 	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;
-
 	const table = new TableLayer();
 	scene.add(table.group);
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
@@ -145,10 +145,8 @@ export async function createTabletop(
 	const shakeOffset = new THREE.Vector3();
 
 	/**
-	 * Light depends on tokens (carried light), walls (blocking), fog (player visibility) and
-	 * lights, and has to be worked out again when they change. Several updates often come
-	 * together (a new table brings grid, tokens, walls, props, fog and lights), so it is
-	 * worked out once, just before the next frame.
+	 * Light depends on tokens (carried light), walls, fog and lights: worked out again when they
+	 * change, once just before the next frame however many updates came together (a new table).
 	 */
 	let lightingStale = false;
 	function refreshLighting(): void {
@@ -173,10 +171,9 @@ export async function createTabletop(
 	/** Tokens drawn lying down; kept here so newly synced minis pick it up. */
 	let fallen: ReadonlySet<string> = new Set();
 	let objects: readonly SceneObject[] = [];
-
 	let grid: SquareGrid | null = null;
 	let extent = 20;
-
+	options.devScene?.(scene, () => ((shadowsDirty = true), requestRender()));
 	/** Draws one frame: counters and the node frame are advanced here, since the internal loop is off. */
 	function drawScene(): void {
 		renderer.info.reset();
@@ -238,8 +235,7 @@ export async function createTabletop(
 		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends
 		const moving =
 			casters || gridFading || revealing || fx.active || rig.tick(now) || post.blending;
-		// With damping enabled, update() emits 'change' while the camera is still settling,
-		// which schedules the next frame; once still, rendering stops.
+		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
 		// A shudder from a cue: offset the camera for this frame only.
 		shakeOffset.copy(fx.shake);
@@ -262,6 +258,8 @@ export async function createTabletop(
 	/** The environment asked for, and its looks once loaded. */
 	let environment: string | null = null;
 	let look: EnvironmentLook | null = null;
+	const replan = () =>
+		prefetch({ environment, tokens, props }, grid, controls.target, post.toneMapper);
 
 	/** Dresses the table, raised ground and walls in the environment's looks (or the plain ones). */
 	function applyLook(): void {
@@ -298,7 +296,6 @@ export async function createTabletop(
 	const pickable = { tokens: tokenLayer, walls: wallLayer, lighting, props: propLayer };
 	const picker = new Picker(canvas, camera, { ...pickable, terrain: terrainLayer }, () => grid);
 	const stopPicking = listenForPicks(canvas, picker, events, perf, () => rig.endShot());
-
 	let view: CameraView = 'tactical';
 
 	const tabletop: Tabletop = {
@@ -326,6 +323,7 @@ export async function createTabletop(
 		},
 		setTokens(next) {
 			tokens = next;
+			replan(); // their downloads, nearest the camera first (#192), before the layer asks
 			if (!grid) return;
 			// The first tokens after a new table take their places at once: nobody glides in from
 			// where they stood on the last one.
@@ -364,6 +362,7 @@ export async function createTabletop(
 		},
 		setProps(next) {
 			props = next;
+			replan();
 			if (!grid) return;
 			propLayer.sync(props, grid, ground);
 			refreshLighting();
@@ -477,6 +476,7 @@ export async function createTabletop(
 			const layers = [rig, table, tokenLayer, wallLayer, lighting, post, cloud];
 			const more = [overlay, ambience, terrainLayer, effects, propLayer, diceLayer, previews];
 			for (const l of [...layers, ...more, cellMaps]) l.dispose();
+			releaseModels();
 			// Not while a warm-up is still compiling for it; a lost context may throw.
 			return warming.then(() => renderer.dispose()).catch(() => {});
 		},
@@ -489,6 +489,7 @@ export async function createTabletop(
 			if (remade.includes(true)) warmPending = true;
 		},
 		capabilities: () => quality.caps,
+		loads: loadProgress,
 		setPowerSaver: (on) => (loop.setPowerSaver(on), cloud.setPowerSaver(on)),
 		...perfMethods(renderer, perf, drawScene, { loop, quality })
 	};

@@ -14,7 +14,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { postScene } from './post-scene';
 import { STILL } from './focus';
-import { TONE_MAPPERS } from '../assets/manifest';
+import { BASE_PX, TONE_MAPPERS } from '../assets/manifest';
 import { settingsFor, TIERS } from './quality';
 import { BACKEND, readFrame } from './testing';
 
@@ -182,7 +182,8 @@ describe('the post-processing pipeline', () => {
 		const blank = post.dirt.map.value;
 		post.dirt.set(1);
 		await vi.waitUntil(() => post.dirt.map.value !== blank, { timeout: 10_000 });
-		expect((post.dirt.map.value.image as { width: number }).width).toBeLessThanOrEqual(256);
+		// At the 512 px base every texture has (#193).
+		expect((post.dirt.map.value.image as { width: number }).width).toBeLessThanOrEqual(BASE_PX);
 		frame();
 		post.dirt.set(0);
 		frame();

@@ -8,7 +8,8 @@
 
 import * as THREE from 'three/webgpu';
 import { texture, uniform } from 'three/tsl';
-import { assetUrl, loadManifest } from '../assets/load';
+import { fetchAsset, loadManifest } from '../assets/load';
+import { imageTexture } from './image-texture';
 
 const TEXTURE = 'lens-dirt';
 
@@ -39,7 +40,9 @@ export class LensDirt {
 	private async load(): Promise<void> {
 		const entry = (await loadManifest()).textures[TEXTURE];
 		if (!entry) return;
-		const map = await new THREE.TextureLoader().loadAsync(assetUrl(entry.file)).catch(() => null);
+		const map = await fetchAsset(entry.file, entry.sha256, 'low')
+			.then(imageTexture)
+			.catch(() => null);
 		if (!map) return console.warn(`[assets] texture "${TEXTURE}" failed to load`);
 		if (this.disposed) return map.dispose();
 		map.magFilter = map.minFilter = THREE.LinearFilter;

@@ -1,0 +1,14 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=Grass004_2K-PNG.zip",
+			"sha256": "08dc98c95a936794b01b4c406bac578137688e603c678f98bb0512bf1222b274"
+		},
+		"modified": true
+	},
+	"ramp": ["#243a33", "#3d5a35", "#62803e", "#93a55a"],
+	"detail": 0.2,
+	"normalBoost": 1
+}

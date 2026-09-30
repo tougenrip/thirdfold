@@ -116,6 +116,13 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
+# The asset store (#191): also made by migration 20260929124252_asset_bucket.sql, which a hosted
+# project runs; this makes it locally whether or not storage had started when migrations ran.
+[storage.buckets.assets]
+public = true
+file_size_limit = "16MiB"
+allowed_mime_types = ["model/gltf-binary", "image/png", "image/ktx2", "audio/wav", "audio/ogg"]
+
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]
 # public = false

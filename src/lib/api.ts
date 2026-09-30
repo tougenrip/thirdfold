@@ -2,10 +2,16 @@ import { Capacitor } from '@capacitor/core';
 
 // The Android emulator reaches the host at 10.0.2.2; `localhost` there is the
 // emulator itself. Emulator-only: a physical device needs the LAN IP in .env.
-function forPlatform(url: string): string {
+export function forPlatform(url: string): string {
 	return Capacitor.getPlatform() === 'android' && url.includes('localhost')
 		? url.replace('localhost', '10.0.2.2')
 		: url;
+}
+
+/** Inside the Tauri or Capacitor app, which serve the page (and every asset) from their own origin. */
+export function isNativeShell(): boolean {
+	if (typeof window === 'undefined') return false;
+	return Capacitor.isNativePlatform() || '__TAURI_INTERNALS__' in window;
 }
 
 export const API_URL = forPlatform(import.meta.env.VITE_SUPABASE_URL ?? 'http://localhost:54321');
@@ -14,8 +20,7 @@ export const API_URL = forPlatform(import.meta.env.VITE_SUPABASE_URL ?? 'http://
 // reaches the dev machine's game server without extra config. Native shells
 // serve the app from their own origin, so they fall back to localhost.
 function defaultGameServerHost(): string {
-	if (typeof window === 'undefined' || Capacitor.isNativePlatform()) return 'localhost';
-	if ('__TAURI_INTERNALS__' in window) return 'localhost';
+	if (typeof window === 'undefined' || isNativeShell()) return 'localhost';
 	return window.location.hostname || 'localhost';
 }
 

@@ -905,7 +905,9 @@ never through a texture's own matrix (r186 snapshots it from the first texture i
 - **rock**: triplanar in the world (zy, xz and xy, weights `pow(|n|, triplanarSharpness)`,
   normals blended by Whiteout). A slot's three fetches are its reference plus two `.sample()`
   clones that keep its `referenceNode`, so a new texture reaches all three. Three fetches a slot.
-- **prop and mini**: object space (`positionGeometry.xz`); the models carry no uv.
+- **prop and mini**: the mesh's uv (#188): a cooked model's glTF uvs, and zeros on a part list,
+  whose slots hold their blanks, so both draw with one program (`tabletop/models.ts` gives every
+  model part the same attribute set). Their paint (#178) stays in object space on its own.
 - **everything else**: the mesh's uv, water's slid by `params.flow` on `worldTime`.
 
 `mapping.svelte.spec.ts` checks it drawn on both backends: no seam between two wall instances or
@@ -1156,7 +1158,9 @@ Pinned today: three.js 0.186.0, Playwright 1.63.0 (Chromium 153.0.8010.12, headl
    for every release crossed. List the renames and behaviour changes that touch `src/lib/tabletop`,
    `server/assets` or the TSL nodes in use, and grep for each.
 3. Run `npm run check`, `npm run lint`, `npm test` and `npm run build`. Run `npm run assets:check`,
-   because three.js can change the bytes of built GLBs, and `npm run bundle:check`.
+   because three.js can change the bytes of built GLBs, and `npm run bundle:check`. For three.js,
+   also run `npm run assets:cook` and commit `assets/cook.lock.json`: the lock records three's
+   version (the cook's tangents come from it), so CI's `assets:cook -- --check` fails until it does.
 4. Re-baseline the golden images deliberately (`--update`, on Linux or in the pinned Playwright
    image), with before and after images of every changed golden in the PR.
 5. Re-run the perf gate locally and `scripts/perf-gpu.mjs` on the reference GPUs (RTX 4060 and the iGPU). Update

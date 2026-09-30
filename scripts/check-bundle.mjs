@@ -17,10 +17,20 @@ import { gzipSync } from 'node:zlib';
 const BUDGETS = {
 	'/': { total: 64_000, own: 19_000 },
 	'/builder': { total: 97_000, own: 52_000 },
+	'/credits': { total: 54_000, own: 3_000 },
+	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
+	'/dev/assets': { total: 50_000, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
-	'/room/[id]': { total: 121_000, own: 76_000 },
-	renderer: { total: 360_000 }
+	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
+	// cover (TableLoading.svelte), 121,687 B measured.
+	'/room/[id]': { total: 121_700, own: 76_000 },
+	renderer: { total: 360_000 },
+	decoders: { total: 40_000 }
 };
+/** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
+const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
+/** Only the asset turntable (tabletop/turntable.ts, #194) has this: dev builds only. */
+const TURNTABLE_MARKER = 'thirdfold-turntable';
 /** Only classic WebGLRenderer (build/three.module.js) has this: the renderer is WebGPURenderer now. */
 const CLASSIC_MARKER = 'THREE.WebGLRenderer: Error creating WebGL context';
 /** Property names three.js keeps through minification. */
@@ -115,6 +125,26 @@ for (const r of rows) {
 	if (maxOwn !== undefined && r.own > maxOwn) {
 		failures.push(`${r.name} adds ${kb(r.own)} gz to the shell, over ${kb(maxOwn)}`);
 	}
+}
+// The decoders (tabletop/decoders.ts) are a chunk of their own, fetched with the first cooked asset.
+const decodersKey = Object.keys(manifest).find((k) => k.endsWith('src/lib/tabletop/decoders.ts'));
+const rendererFiles = closure(rendererKey);
+if (!decodersKey) failures.push('the decoders are not a chunk of their own');
+else {
+	const own = [...closure(decodersKey)].filter((f) => !rendererFiles.has(f) && !roomFiles.has(f));
+	const { gz } = total(own);
+	log('decoders (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.decoders.total).padStart(10));
+	if (gz > BUDGETS.decoders.total) failures.push(`the decoders are ${kb(gz)} gz, over budget`);
+}
+for (const f of rendererFiles) {
+	const text = readFileSync(`${OUT}/${f}`, 'utf8');
+	if (DECODER_MARKERS.some((m) => text.includes(m)))
+		failures.push(`the renderer statically imports the KTX2 decoders (${f})`);
+}
+// The asset turntable is dev only: no file of the production build carries it.
+for (const f of new Set(Object.values(manifest).map((e) => e.file))) {
+	if (readFileSync(`${OUT}/${f}`, 'utf8').includes(TURNTABLE_MARKER))
+		failures.push(`the dev-only asset turntable ships in production (${f})`);
 }
 // The Inspector (?perf&inspector) is its own chunk, fetched only when asked for.
 const inspectorKey = Object.keys(manifest).find((k) => k.endsWith('jsm/inspector/Inspector.js'));

@@ -41,6 +41,7 @@
 	import type { CameraView, HighlightKind, PreviewItem, Tabletop, TabletopEvents } from './types';
 	import { loadRenderer, takeWarmRenderer } from './load';
 	import TableOverlays from './TableOverlays.svelte';
+	import TableLoading from './TableLoading.svelte';
 	import {
 		layersFrom,
 		loadGraphics,
@@ -56,6 +57,7 @@
 		type Tier
 	} from './quality';
 	import { initialShape, sameShape, shapeOf, type Shape } from './shape';
+	import { textureDetailFrom } from '$lib/assets/detail';
 	import type { Pose } from './shots';
 	import { tick, untrack } from 'svelte';
 
@@ -171,8 +173,6 @@
 	 * Every effect below replays its prop into the new tabletop; one-shot cues don't replay.
 	 */
 	let generation = $state(0);
-	/** A new tabletop is being made after a loss: "Restoring the table…" until it draws. */
-	let restoring = $state(false);
 	/** Lost twice within five minutes: drawn at low for the rest of the session. */
 	let lossNotice = $state(false);
 	/** A tier for this session only, after a loss (never saved: a loss is not a measurement). */
@@ -212,7 +212,6 @@
 		}
 		sessionTier = next;
 		lossNotice = losses.filter((at) => now - at <= 5 * 60_000).length >= 2;
-		restoring = true;
 		// A backgrounded app can't draw: wait until it is back.
 		if (document.visibilityState !== 'hidden') return rebuild(t);
 		document.addEventListener('visibilitychange', () => rebuild(t), { once: true });
@@ -243,8 +242,9 @@
 			return false;
 		}
 		const toneMapper = toneMapperFrom(search) ?? prefs.toneMapper;
+		const textureDetail = textureDetailFrom(search) ?? settings.textureDetail;
 		t.setQuality(
-			{ ...settings, layers: layersFrom(search, settings.layers), toneMapper },
+			{ ...settings, layers: layersFrom(search, settings.layers), toneMapper, textureDetail },
 			auto && !tier
 		);
 		t.setPowerSaver(prefs.powerSaver);
@@ -263,16 +263,6 @@
 		sessionTier = null;
 		untrack(() => applyQuality(t));
 	});
-
-	/** Calls `done` once `t` has drawn a frame (unless `gone` first). */
-	function whenDrawn(t: Tabletop, gone: () => boolean, done: () => void): void {
-		const check = () => {
-			if (gone()) return;
-			if (t.stats().frames > 0) done();
-			else requestAnimationFrame(check);
-		};
-		check();
-	}
 
 	/** Refinement stepped the automatic tier down: remember it for this device, and use it. */
 	function tierRefined(t: Tabletop, tier: Tier): void {
@@ -329,12 +319,6 @@
 				const pose = carriedPose;
 				carriedPose = null;
 				if (pose) void tick().then(() => made.setPose(pose));
-				if (restoring)
-					whenDrawn(
-						made,
-						() => gone,
-						() => (restoring = false)
-					);
 			})
 			.catch((err) => {
 				console.error('[tabletop] failed to start renderer', err);
@@ -476,7 +460,10 @@
 		aria-label="3D tabletop. Select a token, then use the arrow keys to move it one cell."
 	></canvas>
 {/key}
-<TableOverlays {perf} {restoring} bind:lossNotice bind:softwareNotice {webglError} />
+{#if !webglError}
+	<TableLoading {tabletop} table="{grid.width}x{grid.height} {environment}" />
+{/if}
+<TableOverlays {perf} bind:lossNotice bind:softwareNotice {webglError} />
 
 <style>
 	canvas {

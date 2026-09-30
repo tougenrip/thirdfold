@@ -368,9 +368,15 @@
 	{#if error}
 		<p class="error" role="alert">{error}</p>
 	{/if}
+	<footer class="foot"><a href={resolve('/credits')}>Credits and licences</a></footer>
 </main>
 
 <style>
+	.foot {
+		margin-top: var(--sp-8);
+		font-size: var(--fs-sm);
+	}
+
 	.layout {
 		display: grid;
 		gap: var(--sp-8);

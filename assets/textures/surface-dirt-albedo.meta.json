@@ -1,0 +1,12 @@
+{
+	"usage": "albedo",
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "ambientCG",
+		"source": {
+			"url": "https://ambientcg.com/get?file=Ground103_2K-PNG.zip",
+			"sha256": "91dee59d83707a47d5c641ef193eac2473cffb7952df45bc2916aff63306acf3"
+		},
+		"modified": true
+	}
+}

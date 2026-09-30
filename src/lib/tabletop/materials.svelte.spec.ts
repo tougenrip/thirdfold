@@ -5,6 +5,9 @@
 
 import * as THREE from 'three/webgpu';
 import { wear } from './environment';
+import { fetchAsset, loadManifest } from '$lib/assets/load';
+import { imageTexture } from './image-texture';
+import { initModels, ktx2Texture, releaseModels, slotTexture } from './models';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { BACKEND } from './testing';
@@ -26,7 +29,8 @@ import {
 	type SlotName,
 	mipBias,
 	setTextureQuality,
-	worldTexture
+	worldTexture,
+	withBake
 } from './materials';
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -94,7 +98,8 @@ const slotsOf = (kind: ShaderKind) => KINDS[kind].slots;
 
 /** A mesh for a kind's material; instanced ones carry the per-instance tint. */
 function meshFor(kind: ShaderKind, material: KindMaterial, instanced = false): THREE.Object3D {
-	const geometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+	// Every geometry props and minis draw has their baked occlusion (models.ts, `withBake`).
+	const geometry = withBake(new THREE.BoxGeometry(0.6, 0.6, 0.6));
 	if (!instanced) return new THREE.Mesh(geometry, material);
 	addInstanceTints(geometry, 2);
 	const mesh = new THREE.InstancedMesh(geometry, material, 2);
@@ -234,6 +239,33 @@ describe('shader kinds', () => {
 		expect(still[2]).toBeGreaterThan(still[0] + 40);
 		expect(reddened[0]).toBeGreaterThan(reddened[1] + 40);
 		expect(programs()).toBe(programsBefore);
+	});
+
+	it('stays put with a KTX2- and a PNG-textured material in one slot (#188)', async () => {
+		const { scene, draw, programs, states, renderer: r } = await setup();
+		initModels(r);
+		try {
+			const manifest = await loadManifest();
+			const loaded = async (id: string, decode: (b: ArrayBuffer) => Promise<THREE.Texture>) => {
+				const entry = manifest.textures[id];
+				return slotTexture(await decode(await fetchAsset(entry.file, entry.sha256)), 'albedo');
+			};
+			const png = await loaded('flagstones', imageTexture);
+			const ktx2 = await loaded('surface-ashlar-albedo', ktx2Texture);
+			expect((ktx2 as THREE.CompressedTexture).isCompressedTexture).toBe(true);
+			const material = createMaterial('surface', { slots: { albedo: png } });
+			scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+			draw();
+			const [p0, s0] = [programs(), states()];
+			for (const texture of [ktx2, png, ktx2, null]) {
+				setSlot(material, 'albedo', texture);
+				draw();
+			}
+			expect(programs()).toBe(p0);
+			expect(states()).toBe(s0);
+		} finally {
+			releaseModels();
+		}
 	});
 });
 

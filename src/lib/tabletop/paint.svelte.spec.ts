@@ -5,9 +5,10 @@
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BASE_PX } from '$lib/assets/manifest';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { BACKEND } from './testing';
-import { addInstanceTints, createMaterial, loadPaint, paint } from './materials';
+import { addInstanceTints, createMaterial, loadPaint, paint, withBake } from './materials';
 import { paintMaps } from './materials/paint';
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -61,18 +62,19 @@ async function setup() {
 
 /** A flat square prop lying on the table, as an InstancedMesh of `count`. */
 function props(count: number, material = createMaterial('prop', { instanced: true })) {
-	const geometry = new THREE.PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2);
+	const geometry = withBake(new THREE.PlaneGeometry(1.5, 1.5).rotateX(-Math.PI / 2));
 	addInstanceTints(geometry, count);
 	return new THREE.InstancedMesh(geometry, material, count);
 }
 
-const loaded = () => (paintMaps.normal.value.image as { width: number }).width === 256;
+// At the 512 px base every texture has (#193).
+const loaded = () => (paintMaps.normal.value.image as { width: number }).width === BASE_PX;
 
 describe('paint detail', () => {
 	it('arrives, and is tuned, without a new program', async () => {
 		const { scene, draw, read, programs, states } = await setup();
 		const mini = new THREE.Mesh(
-			new THREE.SphereGeometry(0.5),
+			withBake(new THREE.SphereGeometry(0.5)),
 			createMaterial('mini', { vertexColors: false })
 		);
 		mini.position.x = 1;
@@ -82,7 +84,7 @@ describe('paint detail', () => {
 		const blank = await read();
 		await loadPaint();
 		expect(loaded()).toBe(true);
-		expect((paintMaps.gloss.value.image as { width: number }).width).toBe(256);
+		expect((paintMaps.gloss.value.image as { width: number }).width).toBe(BASE_PX);
 		expect(paintMaps.normal.value.colorSpace).toBe(THREE.NoColorSpace);
 		draw();
 		// The maps reached the already built graphs: the picture changed with the binding.

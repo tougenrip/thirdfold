@@ -19,7 +19,7 @@ import type { GridPos, SquareGrid } from './grid';
 import { AMBIENTS, MAX_LIGHT_RADIUS, type Ambient, type Light } from './lights';
 import type { SceneObject } from './objects';
 import type { Motion } from './motion';
-import { isAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
+import { resolveAssetId, PROP_SCALE, type AssetId, type Prop, type Rotation } from './props';
 import type { SceneFile } from './scene-file';
 import { isFloorId, type FloorId } from './floor';
 import {
@@ -806,8 +806,9 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return typeof data.shared === 'boolean' ? { type: 'fog_share', shared: data.shared } : null;
 		case 'prop_create': {
 			const pos = parseGridPos(data.pos);
-			if (!isAssetId(data.assetId) || !pos || !isRotation(data.rotation)) return null;
-			return { type: 'prop_create', assetId: data.assetId, pos, rotation: data.rotation };
+			const assetId = resolveAssetId(data.assetId);
+			if (!assetId || !pos || !isRotation(data.rotation)) return null;
+			return { type: 'prop_create', assetId, pos, rotation: data.rotation };
 		}
 		case 'prop_update': {
 			const patch = parsePropPatch(data.patch);
