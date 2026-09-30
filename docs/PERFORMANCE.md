@@ -726,3 +726,29 @@ about 6-9), so medians and p95s are noisy:
 These are within the M34 numbers above (views 2.46, 1.12 and 2.11 ms). The `world` in snapshots,
 the remembered lights and the roof masks add nothing per move: Ana's per-move traffic is still
 chat, fog and the move (0.7 kB in the village, 0.9 kB in the Hollow).
+
+## The M67 sky
+
+**Captures (#216, #225).** The sky is captured into the environment only when `environmentKey`
+changed (about 160 times over a day with no weather, never under an enclosed sky), at most every 2 s
+on high and ultra and 5 s on medium, with one trailing capture; low captures once per table into a
+16 px cube, and every table's first capture runs inside the warm-up hold, never on a drawn frame.
+The capture renders the dome alone into six faces; PMREM filters the cube on the next frame drawn.
+Main-thread time on SwiftShader (the test world, 800×500, reduced motion; a software GPU's
+timestamps mean nothing, so these are the CPU's share only): a table's first capture 14 ms on medium
+(the 64 px cube) and 42-51 ms on low (the 16 px cube's first use, in the hold); a later capture on
+medium under 1 ms. A frame drawn right after a capture took 8-16 ms on medium against 6-13 ms for a
+frame with none, and 4-6 ms against 3-6 ms on low. Real-GPU costs of the dome, the fog and a capture
+per tier come from `scripts/perf-gpu.mjs` on the RTX 4060 Laptop and the integrated GPU, run before
+the milestone's PR.
+
+**Shadow redraws (#215).** Recorded above ("Frame rate and GPU"): the key light's map is drawn again
+about once per half degree it turns and when it switches body; a 3 s tween across hours redraws on
+most of its frames.
+
+**The low tier (#225).** No dome, stars or clouds (hidden, not removed, so a tier switch compiles
+nothing), a clear-colour background, one 16 px capture per table and no height fog. The key light,
+hemisphere, sky visibility and flash are the same on every tier. The program count holds through a
+24-hour sweep in hourly steps under every sky, haze 0 to 1, a roof on and off, and the flash with
+Reduce flashing on and off, on low, medium and high (`program-count.svelte.spec.ts`, about 11 minutes
+on SwiftShader for the three tiers).
