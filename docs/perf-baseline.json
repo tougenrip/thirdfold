@@ -7,104 +7,104 @@
 			"ambient": "dusk",
 			"viewers": {
 				"Gia": {
-					"geometries": 54,
-					"textures": 81,
-					"programs": 168,
-					"heap": 24448280
+					"geometries": 55,
+					"textures": 82,
+					"programs": 174,
+					"heap": 24966476
 				},
 				"Ana": {
-					"geometries": 54,
-					"textures": 81,
-					"programs": 168,
-					"heap": 24657620
+					"geometries": 55,
+					"textures": 82,
+					"programs": 174,
+					"heap": 25003732
 				},
 				"Ben": {
-					"geometries": 54,
-					"textures": 81,
-					"programs": 168,
-					"heap": 24642828
+					"geometries": 55,
+					"textures": 82,
+					"programs": 174,
+					"heap": 24973204
 				}
 			},
 			"idleFrames": 0,
-			"orbitDrawCalls": 116,
+			"orbitDrawCalls": 117,
 			"orbitShadowPasses": 0
 		}
 	},
 	"reload": {
 		"first": {
-			"geometries": 54,
-			"textures": 81,
-			"programs": 168,
-			"heap": 25181456
+			"geometries": 55,
+			"textures": 82,
+			"programs": 174,
+			"heap": 25531696
 		},
 		"after": {
-			"geometries": 54,
-			"textures": 81,
-			"programs": 168,
-			"heap": 25431128
+			"geometries": 55,
+			"textures": 82,
+			"programs": 174,
+			"heap": 25850608
 		}
 	},
 	"remount": {
 		"first": {
-			"geometries": 54,
-			"textures": 81,
-			"programs": 168,
-			"heap": 24208432
+			"geometries": 55,
+			"textures": 82,
+			"programs": 174,
+			"heap": 24907172
 		}
 	},
 	"tiers": {
 		"low": {
-			"renderTargets": 19,
-			"texturesBytes": 59576582,
-			"programs": 103,
-			"pipelines": 71
+			"renderTargets": 20,
+			"texturesBytes": 58545414,
+			"programs": 109,
+			"pipelines": 74
 		},
 		"medium": {
-			"renderTargets": 29,
-			"texturesBytes": 140659708,
-			"programs": 166,
-			"pipelines": 107
+			"renderTargets": 30,
+			"texturesBytes": 140676082,
+			"programs": 172,
+			"pipelines": 110
 		},
 		"high": {
-			"renderTargets": 31,
-			"texturesBytes": 175309821,
-			"programs": 168,
-			"pipelines": 108
+			"renderTargets": 32,
+			"texturesBytes": 175326195,
+			"programs": 174,
+			"pipelines": 111
 		}
 	},
 	"bundle": {
 		"/": {
 			"gz": 59652,
-			"own": 8836,
+			"own": 8833,
 			"three": false
 		},
 		"/builder": {
-			"gz": 97474,
-			"own": 46658,
+			"gz": 97511,
+			"own": 46692,
 			"three": false
 		},
 		"/credits": {
-			"gz": 53079,
-			"own": 2263,
+			"gz": 53083,
+			"own": 2264,
 			"three": false
 		},
 		"/dev/assets": {
-			"gz": 51123,
+			"gz": 51126,
 			"own": 307,
 			"three": false
 		},
 		"/library": {
-			"gz": 61977,
-			"own": 11161,
+			"gz": 61975,
+			"own": 11156,
 			"three": false
 		},
 		"/room/[id]": {
-			"gz": 115540,
-			"own": 64724,
+			"gz": 115817,
+			"own": 64998,
 			"three": false
 		},
 		"renderer (added)": {
-			"gz": 363761,
+			"gz": 368311,
 			"own": null,
 			"three": true
 		}

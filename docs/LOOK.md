@@ -527,6 +527,48 @@ reference fixtures has roofs, tinted props or recoloured tokens. What moves (hue
 a degree, L by a thousandth) is the refrozen fixtures' light looks. M66 gives the look its data;
 the look itself moves with the sky (#114) and the weather that fill that data in.
 
+## Milestone 67: the sky (#114)
+
+What changed in the look:
+
+- **A sky dome** (#214) on medium and above: zenith, horizon and ground gradients, the sun's disc,
+  the moon and stars, clouds by the weather. The low tier keeps a flat horizon colour.
+- **Light from the sky** (#215, #218): the sun or moon is the key light at the hour's angle
+  (shadows redrawn per half degree), the hemisphere follows the sky, and the lamp is gone. The
+  sky's reach per cell (#219) keeps sun, sky and IBL out of dark areas and dims them under roofs.
+- **Image-based light from the sky** (#216): the dome captured into a cube every 2-5 s and
+  filtered by PMREM lights every material's indirect term.
+- **Sky-matched fog** (#217): range and height fog in the horizon's colour, warmed toward the sun.
+- **Ground to the horizon** (#220): the table's slab and rim are gone; a ring of the environment's
+  ground runs from the play area out to the haze.
+- **Enclosed skies** (#221) for the Hollow, the Heart and the train, and the flash lighting the
+  exposure, bloom and sky (#222, #223).
+
+Against M66 (the same pairings and conditions, the 512 bases):
+
+| Reference | band | m66   | m67   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.166 | 0.167 |
+| 2         | dusk | 0.308 | 0.259 |
+| 3         | dark | 0.135 | 0.144 |
+| 4         | dark | 0.097 | 0.087 |
+| 6         | dark | 0.192 | 0.193 |
+| 7         | day  | 0.125 | 0.109 |
+| 8         | dusk | 0.215 | 0.237 |
+
+Three pairings move toward their references, two hold and two move away:
+
+- ref 2 (the monastery's dusk overview) gains most, 0.049: the warm haze and sky-lit ground around
+  the table replace the dark void, closer to the reference's warm, low-contrast frame. ref 4 (a
+  dark overview) and ref 7 (a close day shot) gain from the sky's key and indirect light.
+- ref 8 (a dusk overview) moves away by 0.022: where M66 drew a dark blue void round a wooden
+  slab, the ground now runs to a brown haze, so the overview is hazier and flatter than the
+  reference. The owner accepted the hazier overview for now; #377 (M68) tunes the haze and the
+  overview's contrast.
+- ref 3 (a close, dark shot) moves away by 0.009: at night the moon's key and the sky's indirect
+  light replace the lamp's warm fill.
+- refs 1 and 6 (close, dark rooms) hold within 0.001: their frames are the rooms, not the sky.
+
 ## Sky targets (#213)
 
 The skies' colours (`assets/skies/`, docs/ASSETS.md) and where each comes from. The references'
