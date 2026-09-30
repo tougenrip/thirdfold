@@ -97,6 +97,8 @@
 		floor?: Uint8Array | null;
 		/** The table's dark areas, one byte per cell, or null for none. */
 		darkness?: Uint8Array | null;
+		/** The roofed cells, one byte per cell, or null for none. */
+		interior?: Uint8Array | null;
 		/** How the table looks: an environment asset's id, or null for the plain table. */
 		environment?: string | null;
 		cue?: CuePlay | null;
@@ -134,6 +136,7 @@
 		terrain = null,
 		floor = null,
 		darkness = null,
+		interior = null,
 		environment = null,
 		cue = null,
 		motion = null,
@@ -355,6 +358,10 @@
 
 	$effect(() => {
 		tabletop?.setDarkness(darkness);
+	});
+
+	$effect(() => {
+		tabletop?.setInterior(interior);
 	});
 
 	$effect(() => {

@@ -1,7 +1,8 @@
 // The cell maps read back on the GPU (#171), on both backends: each cell's fog lands on that cell
 // (visible only at (1, 0), explored only at (0, 1), the rest exactly black), darkness and the flash
 // match `cellLight`, a hidden emissive surface adds nothing, the cut discards, and none of it
-// (nor a new grid size) adds a program.
+// (nor a new grid size) adds a program. The sky's lights (#219, sky-light.ts) leave a dark area
+// as dark as no light at all, keep a roof's fill without the sun, and the flash lifts both.
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +11,7 @@ import { encodeMask, type FogView } from '$lib/game/visibility';
 import { AMBIENT_DARK, CellMaps, cellLight } from './cell-maps';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { createMaterial } from './materials';
+import { SkyHemisphere, SkyLight, registerSkyLights } from './sky-light';
 import { BACKEND } from './testing';
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -45,9 +47,11 @@ async function setup() {
 		backend: BACKEND === 'webgpu' ? 'webgpu' : 'webgl'
 	});
 	renderer = r;
+	registerSkyLights(r);
 	r.setSize(SIZE, SIZE, false);
 	const scene = new THREE.Scene();
-	scene.add(new THREE.AmbientLight(0xffffff, 1));
+	const ambient = new THREE.AmbientLight(0xffffff, 1);
+	scene.add(ambient);
 	const plain = createMaterial('overlay');
 	// Its glow is the emissive tint input (the emissive slot's blank is black).
 	const glow = createMaterial('emissive', { params: { color: 0x000000, tint: 0xffffff } });
@@ -61,6 +65,8 @@ async function setup() {
 	const m = maps;
 	return {
 		maps: m,
+		scene,
+		ambient,
 		quad,
 		plain,
 		glow,
@@ -189,6 +195,60 @@ describe('the cell maps on the GPU', () => {
 		const bigger = { ...GRID, width: 7, height: 5 };
 		t.maps.update(bigger, { fog: null, mode: 'player' }, 'day', null, null, null, null);
 		await t.at(hidden);
+		expect(t.programs()).toBe(programs);
+	});
+});
+
+describe('the sky’s lights on the GPU', () => {
+	it('keep sun and sky out of a dark area and the sun off a roof; the flash lifts both', async () => {
+		const t = await setup();
+		t.scene.remove(t.ambient);
+		const sun = new SkyLight(0xffffff, 0);
+		sun.position.set(0, 5, 0);
+		const sky = new SkyHemisphere(0xffffff, 0x000000, 0);
+		t.scene.add(sun, sun.target, sky);
+		t.quad.material = createMaterial('surface', { params: { color: 0xffffff } });
+		const dark = new Uint8Array(GRID.width * GRID.height);
+		const roof = new Uint8Array(GRID.width * GRID.height);
+		dark[0] = 1; // (0, 0), with open ground beside it
+		roof[4] = 1; // (1, 1)
+		t.maps.setInterior(roof);
+		t.maps.update(GRID, { fog: null, mode: 'player' }, 'day', null, dark, null, null);
+		const [darkCell, roofCell, openCell] = [
+			{ x: 0, y: 0 },
+			{ x: 1, y: 1 },
+			{ x: 2, y: 0 }
+		];
+		const read = async (cell: GridPos) => (await t.at(cell))[0];
+		const light = (s: number, h: number) => {
+			sun.intensity = s;
+			sky.intensity = h;
+		};
+		light(0, 0);
+		const none = await read(darkCell);
+		light(3, 0);
+		const programs = t.programs();
+		const sunOnly = [await read(darkCell), await read(roofCell), await read(openCell)];
+		light(0, 2);
+		const skyOnly = [await read(darkCell), await read(roofCell), await read(openCell)];
+		t.maps.setFlash(1);
+		light(3, 2);
+		const flashed = await read(darkCell);
+		t.maps.setFlash(0);
+		expect({ none, sunOnly, skyOnly, flashed }).toMatchObject({
+			none: 0,
+			sunOnly: [0, 0, expect.any(Number)],
+			skyOnly: [0, expect.any(Number), expect.any(Number)]
+		});
+		expect(sunOnly[2]).toBeGreaterThan(100);
+		// The roof keeps the sky's fill, less than the open sky, and more than nothing.
+		expect(skyOnly[1]).toBeGreaterThan(20);
+		expect(skyOnly[1]).toBeLessThan(skyOnly[2]);
+		expect(flashed).toBeGreaterThan(100);
+		// No lift, no interior, no dark: values only.
+		t.maps.setInterior(null);
+		t.maps.setLight('day', null, null);
+		await read(roofCell);
 		expect(t.programs()).toBe(programs);
 	});
 });

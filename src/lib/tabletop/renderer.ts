@@ -401,8 +401,8 @@ export async function createTabletop(
 		setDarkness(next) {
 			darkness = next;
 			refreshLighting();
-			requestRender();
 		},
+		setInterior: (next) => cellMaps.setInterior(next) && refreshLighting(), // sky light, #219
 		setEnvironment(next) {
 			if (next === environment) return;
 			environment = next;

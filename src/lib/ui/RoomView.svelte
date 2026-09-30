@@ -1271,6 +1271,7 @@
 				{terrain}
 				{floor}
 				{darkness}
+				{interior}
 				environment={room.environment}
 				cue={cuePlay}
 				motion={conn.motion}
