@@ -86,7 +86,7 @@
 		</div>
 	</div>
 	<label class="field">
-		<span class="muted num">Radius {light.radius} cells</span>
+		<span class="muted num">Radius {light.radius} {light.radius === 1 ? 'cell' : 'cells'}</span>
 		<input
 			type="range"
 			min="1"
@@ -108,7 +108,7 @@
 		/>
 	</label>
 	<label class="field">
-		<span class="muted num">Height {look.height} levels</span>
+		<span class="muted num">Height {look.height} {look.height === 1 ? 'level' : 'levels'}</span>
 		<input
 			type="range"
 			min="0"
@@ -193,8 +193,10 @@
 	}
 
 	.swatch {
-		width: 1.4rem;
-		height: 1.4rem;
+		flex: none;
+		width: 1.75rem;
+		height: 1.75rem;
+		min-height: 0;
 		padding: 0;
 		border-radius: 50%;
 		border: 2px solid transparent;
@@ -202,6 +204,13 @@
 
 	.swatch[aria-pressed='true'] {
 		border-color: var(--text);
+	}
+
+	.swatches input {
+		width: 2.25rem;
+		height: 1.75rem;
+		min-height: 0;
+		padding: 0.15rem;
 	}
 
 	.row {
