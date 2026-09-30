@@ -146,6 +146,11 @@ export interface Tabletop {
 	capabilities(): Caps;
 	/** Power saver (the viewer's setting): no ambient animation (scheduler.ts). */
 	setPowerSaver(on: boolean): void;
+	/**
+	 * Reduce flashing (the viewer's setting, `auto` already resolved against reduced motion): every
+	 * flash a slow, dimmer fade (flash.ts `flashPolicy`). Uniforms only: nothing recompiles.
+	 */
+	setReduceFlashing(on: boolean): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
 	/** The loads the table's first view waits for (models.ts): [settled, started]. */

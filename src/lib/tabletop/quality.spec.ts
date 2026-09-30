@@ -127,6 +127,7 @@ describe('the saved graphics settings', () => {
 			powerSaver: false,
 			toneMapper: 'agx',
 			alwaysGrid: true,
+			reduceFlashing: 'on',
 			measured: 'low'
 		} as const;
 		saveGraphics(s, prefs);

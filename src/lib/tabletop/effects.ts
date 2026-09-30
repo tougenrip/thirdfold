@@ -44,6 +44,8 @@ export class EffectsLayer {
 	private flashStart: number | null = null;
 	private size = { w: 20, d: 20, top: 4 };
 	private reduced = false;
+	/** Reduce flashing (#223): the flash's envelope follows `flashPolicy(reduceFlashing)`. */
+	reduceFlashing = false;
 	private standIns: THREE.Object3D[] | null = null;
 
 	constructor() {
@@ -83,6 +85,10 @@ export class EffectsLayer {
 		this.shadow.visible = false;
 		this.shadow.raycast = () => {};
 		this.group.add(this.dust, this.shadow);
+	}
+
+	setReduceFlashing(on: boolean): void {
+		this.reduceFlashing = on;
 	}
 
 	/** The table's size (world units) and how high dust starts falling from. */

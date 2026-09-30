@@ -58,6 +58,8 @@
 		type Tier
 	} from './quality';
 	import { initialShape, sameShape, shapeOf, type Shape } from './shape';
+	import { reducesFlashing } from './flash';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { textureDetailFrom } from '$lib/assets/detail';
 	import type { Pose } from './shots';
 	import { tick, untrack } from 'svelte';
@@ -426,6 +428,12 @@
 
 	$effect(() => {
 		tabletop?.setGridShown(gridShown || !!graphics?.alwaysGrid);
+	});
+
+	/** Reduce flashing (#223): `auto` follows the device's reduced motion, live. */
+	$effect(() => {
+		const setting = (graphics ?? untrack(() => loadGraphics(localStorage))).reduceFlashing;
+		tabletop?.setReduceFlashing(reducesFlashing(setting, prefersReducedMotion.current));
 	});
 
 	$effect(() => {

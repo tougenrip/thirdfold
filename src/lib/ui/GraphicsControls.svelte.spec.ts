@@ -120,6 +120,18 @@ describe('the Graphics menu', () => {
 		expect(loadGraphics(localStorage).toneMapper).toBe('agx');
 	});
 
+	it('sets Reduce flashing apart from reduced motion, Auto by default, saved', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		const group = page.getByRole('group', { name: 'Reduce flashing' });
+		await expect.element(group.getByRole('radio', { name: /^Auto/ })).toBeChecked();
+		await expect.element(group.getByText(/fade in slowly and stay dimmer/)).toBeInTheDocument();
+		await userEvent.click(group.getByRole('radio', { name: 'On', exact: true }));
+		expect(loadGraphics(localStorage).reduceFlashing).toBe('on');
+		await userEvent.click(group.getByRole('radio', { name: 'Off', exact: true }));
+		expect(loadGraphics(localStorage).reduceFlashing).toBe('off');
+	});
+
 	it('asks for a reload to switch the backend, and saves it', async () => {
 		mount();
 		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
