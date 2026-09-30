@@ -81,6 +81,15 @@ describe('the URL switches', () => {
 		expect(tierFrom('')).toBeNull();
 	});
 
+	it('keep the fog cloud off and the sky on in every tier (the owner: volumetric fog is M75)', () => {
+		for (const tier of ['low', 'medium', 'high', 'ultra'] as const)
+			for (const backend of ['webgpu', 'webgpu-compat', 'webgl2'] as const) {
+				const { layers } = settingsFor(tier, backend);
+				expect(layers.fogcloud, `${tier} ${backend}`).toBe(false);
+				expect(layers.sky, `${tier} ${backend}`).toBe(true);
+			}
+	});
+
 	it('turn ?off= layers off and ignore unknown names', () => {
 		const layers = { ...settingsFor('high', 'webgpu').layers, sky: true, grass: true };
 		const off = layersFrom('?off=sky,nonsense', layers);
