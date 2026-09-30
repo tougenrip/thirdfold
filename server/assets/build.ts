@@ -34,7 +34,7 @@ try {
 	const bytes = [...built.files.values()].reduce((sum, d) => sum + d.length, 0);
 	const count = (o: object) => Object.keys(o).length;
 	const m = built.manifest;
-	const summary = `${count(m.models)} models, ${count(m.textures)} textures, ${count(m.materials)} materials, ${count(m.environments)} environments, ${count(m.audio)} sounds (${(bytes / 1024).toFixed(0)} kB)`;
+	const summary = `${count(m.models)} models, ${count(m.textures)} textures, ${count(m.materials)} materials, ${count(m.environments)} environments, ${count(m.skies)} skies, ${count(m.audio)} sounds (${(bytes / 1024).toFixed(0)} kB)`;
 	const kB = (n: number) => `${(n / 1024).toFixed(0)} kB`;
 	const packs = Object.entries(m.packs).map(
 		([id, p]) => `${id}: ${kB(p.bytes)} (${kB(p.gpuBytes)} GPU)`

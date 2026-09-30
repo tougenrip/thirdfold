@@ -527,6 +527,33 @@ reference fixtures has roofs, tinted props or recoloured tokens. What moves (hue
 a degree, L by a thousandth) is the refrozen fixtures' light looks. M66 gives the look its data;
 the look itself moves with the sky (#114) and the weather that fill that data in.
 
+## Sky targets (#213)
+
+The skies' colours (`assets/skies/`, docs/ASSETS.md) and where each comes from. The references'
+colours are their zenith and horizon measures (`docs/look-metrics.json`) as sRGB; "ours" has no
+reference yet. Their lights (sun, hemisphere, flames) at 12:00, 19:30 and 23:00 are the old day,
+dusk and dark presets (`lighting.ts` before #218), and each band's fog colour the old background.
+Tuning goes on in #221, #225 and #338.
+
+| Sky          | Hour  | Colour  | Value     | From                                                   |
+| ------------ | ----- | ------- | --------- | ------------------------------------------------------ |
+| temperate    | night | zenith  | `#070717` | ref 6 (moonlit palisade gate), zenith                  |
+| temperate    | night | horizon | `#1e223f` | ref 6, horizon                                         |
+| temperate    | dusk  | horizon | `#866c54` | ref 2 (monastery at dusk), horizon                     |
+| temperate    | dusk  | zenith  | `#2d3350` | ours: cool over the warm horizon                       |
+| temperate    | dawn  | horizon | `#c89a70` | ours: ref 2's hue, lighter                             |
+| temperate    | day   | horizon | `#c8b98f` | ref 7 (daylight), horizon hue at a day sky's lightness |
+| temperate    | day   | zenith  | `#4a78b0` | ours                                                   |
+| desert-night | night | zenith  | `#020208` | ref 1 (torch-lit camp under a night sky), zenith       |
+| desert-night | night | horizon | `#262750` | ref 1, horizon                                         |
+| desert-night | day   | horizon | `#d9c29a` | ref 7's warm haze, sandier                             |
+| desert-night | dusk  | horizon | `#c0703e` | ours                                                   |
+| overcast     | day   | horizon | `#a8acb0` | ours                                                   |
+| blood-moon   | night | horizon | `#3a0d12` | ref 3's crimson push                                   |
+| abyss        | all   | zenith  | `#010102` | ref 3 (crushed blacks), zenith                         |
+| abyss        | all   | horizon | `#010105` | ref 3, horizon                                         |
+| underground  | all   | horizon | `#0c0b0e` | ours: ref 4's near-black, warmer                       |
+
 ## Target palettes
 
 From the references' numbers, as OkLCh (L, chroma, hue in degrees) and luminance percentiles:

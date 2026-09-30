@@ -3,7 +3,7 @@
 	"surface": "desert",
 	"ground": "rail-ballast",
 	"walls": "weathered-wood",
-	"table": "oak",
+	"sky": "desert-night",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["planks"]

@@ -3,7 +3,7 @@
 	"surface": "village-grass",
 	"ground": "village-earth",
 	"walls": "plaster",
-	"table": "oak",
+	"sky": "temperate",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["plaster"]

@@ -63,7 +63,7 @@ export function plan(view: PlanView, manifest: Manifest, focus: GridPos | null):
 	const env = view.environment ? manifest.environments[view.environment] : undefined;
 	const out: Planned[] = [];
 	const textures = env
-		? [env.surface, env.ground, env.walls, env.table]
+		? [env.surface, env.ground, env.walls]
 				.flatMap((m) => (m ? [manifest.materials[m]?.map] : []))
 				.concat(Object.values(env.lut ?? {}).flatMap((bands) => Object.values(bands)))
 				.concat(
