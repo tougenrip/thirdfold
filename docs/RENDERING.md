@@ -395,10 +395,11 @@ number the sky, key light, hemisphere, IBL, fog and grade need. It is the one pl
 19:30 in rain looks like; the renderer applies its result and nothing else. `out` is filled in place,
 so a tween frame allocates nothing, and the same inputs always give the same state. The maths it
 builds on (`kelvinToLinear`, `sunDirection`, `moonDirection`, `moonIllumination`, `elevationOf`) is
-in `tabletop/sky-maths.ts` and re-exported. Until the pipeline builds skies (#213), the default open
-sky is `temperate` in `tabletop/sky-presets.ts`, tuned so 12:00, 19:30 and 23:00 give exactly the
-old lighting presets' hemisphere, sun and haze (its zenith, IBL, moon, stars, clouds and night glow
-are a first guess for the M67 look review).
+in `tabletop/sky-maths.ts` and re-exported. Skies are the manifest's `SkyDef` (#213, built from
+`assets/skies`); `presetOf(def)` maps one to the `SkyPreset` the curve reads (the path's moon onto
+the preset, its phase from a share of the cycle into days). The default open sky, `temperate`, is
+tuned so 12:00, 19:30 and 23:00 give exactly the old lighting presets' hemisphere, sun and haze (its
+dome, IBL, moon, stars, clouds and night glow are a first guess for the M67 look review).
 
 **Axes and units.** Y up, grid north along -Z, east along +X, all turned about Y by the path's
 `north` (degrees). Directions are unit vectors from the table toward the body; elevations are in
@@ -412,8 +413,9 @@ EV within ±1), which the spec checks every minute in every weather.
 `moonColor`; 2-16 `keys` in rising minutes, each with the sun's colour, `sun` and `moon` (the key
 light's strength by body), `hemiSky`, `hemiGround`, `hemi`, `ibl`, the dome's `zenith`, `horizon`
 and `ground`, `fog` (`color`, three's `density` per metre, the layer's `height` in metres),
-`exposure`, `stars`, `clouds` and `nightGlow` (how much windows and fixtures glow); an enclosed sky
-adds `fill` and uses its first key alone, whatever the hour and weather, with no key light.
+`exposure`, `stars`, `clouds` and `nightGlow` (how much windows and fixtures glow); an enclosed sky's
+keys add `fill` (colour and strength) and it uses its first key alone, whatever the hour and
+weather, with no key light (#221).
 
 **The sun and moon.** Hour angle `H = (minute - noon) / 1440 · 2π`, elevation `asin(sin φ sin δ +
 cos φ cos δ cos H)`. Solar noon is 13:00 (780), because the bands are symmetric about it: a path
@@ -441,7 +443,7 @@ rules' bands (`bandOf`, the only source of the edges), minute by minute with no 
 sun is above the horizon and no stars show; in the dark the sun is at `DARK_SUN_DEG` (-6°) or lower
 and the moon is the key; and every day minute's hemisphere is brighter than every dark minute's. It
 also checks the keys' count and order. `temperate` (latitude 45°, declination 10°, noon 13:00)
-passes; noon at 12:00 fails. The pipeline refuses a preset that fails (#213).
+passes; noon at 12:00 fails. The pipeline refuses a sky that fails (`pipeline-skies.ts`, #213).
 
 **Shadows.** `shadowDirection` raises the key light to at least `MIN_SHADOW_ELEVATION_DEG` (12°)
 for the shadow map, keeping its bearing. `shadowNeedsRedraw(drawn, next)` is true when the light as

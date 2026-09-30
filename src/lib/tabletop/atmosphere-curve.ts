@@ -7,6 +7,7 @@
 // from the table toward the body. Colours are linear sRGB; presets write them as sRGB `#rrggbb`,
 // linearised exactly as three's `Color.setHex` does. Elevations are in degrees.
 
+import type { SkyDef, SkyKey } from '../assets/manifest';
 import { bandOf, DAY_MINUTES, type Weather } from '../game/world';
 import {
 	DEFAULT_PATH,
@@ -26,33 +27,11 @@ export { moonIllumination, srgbToLinear, sunDirection, type SunPath, type Vec3 }
 
 const RAD = Math.PI / 180;
 
-/** One keyframe of a preset's day; values between keys blend by smoothstep, round midnight too. */
-export interface SkyKey {
-	minute: number;
-	/** The sun's colour by temperature (1000-40000 K), or as `#rrggbb`; Kelvin wins when both. */
-	sunKelvin?: number;
-	sunColor?: string;
-	/** The key light's strength while the sun, or the moon, is the key. */
-	sun: number;
-	moon: number;
-	hemiSky: string;
-	hemiGround: string;
-	hemi: number;
-	/** Image-based light's strength (the captured sky, #216). */
-	ibl: number;
-	/** The dome, top, horizon and below it. */
-	zenith: string;
-	horizon: string;
-	ground: string;
-	/** Height fog: colour, three's density (per metre) and the layer's top in metres. */
-	fog: { color: string; density: number; height: number };
-	/** EV added before tone mapping. */
-	exposure: number;
-	/** 0-1 each. `nightGlow` is how much windows and fixtures glow (0 by day). */
-	stars: number;
-	clouds: number;
-	nightGlow: number;
-}
+/**
+ * One keyframe of a sky: the manifest's `SkyKey` (#213), the one shape of a key. Values between keys
+ * blend by smoothstep, round midnight too; an enclosed sky's first key carries its `fill`.
+ */
+export type { SkyKey };
 
 export interface SkyPreset {
 	/** Enclosed skies (caves, the abyss) ignore the hour and the weather and have no sun. */
@@ -66,8 +45,17 @@ export interface SkyPreset {
 	moonColor?: string;
 	/** 2-16 in rising minutes (an enclosed sky uses its first alone). */
 	keys: SkyKey[];
-	/** Enclosed skies: the constant fill light, 0-1. */
-	fill?: number;
+}
+
+/**
+ * What `atmosphereAt` reads, from a manifest sky (`SkyDef`, the wire and asset shape): the path's
+ * moon moves onto the preset, its phase from a share of the cycle (0 new, 0.5 full) into days.
+ * Keys are shared, not copied; make it once per sky, since parsed colours are cached per object.
+ */
+export function presetOf(def: Pick<SkyDef, 'kind' | 'keys' | 'path'>): SkyPreset {
+	if (!def.path) return { kind: def.kind, keys: def.keys };
+	const { moonCycle, moonPhase, ...path } = def.path;
+	return { kind: def.kind, keys: def.keys, path, moonCycle, moonPhase: moonPhase * moonCycle };
 }
 
 export interface KeyLight {
@@ -99,8 +87,9 @@ export interface AtmosphereState {
 	/** Grade weights by the sun's height, summing to 1 (#162; the band still keys the grade, D5). */
 	lut: { day: number; dusk: number; dark: number };
 	nightGlow: number;
-	/** Enclosed skies' fill; 0 under an open sky. */
+	/** Enclosed skies' fill, its strength and colour; 0 under an open sky. */
 	fill: number;
+	fillColor: Vec3;
 }
 
 export interface WeatherNow {
@@ -108,6 +97,7 @@ export interface WeatherNow {
 	intensity: number;
 }
 
+const NO_FILL: Vec3 = [0, 0, 0];
 const DEFAULT_MOON = { cycle: 29.5, color: '#9ab4ff' };
 /** Below this the sun hands the key light to the moon; both are 0 exactly there. */
 export const HANDOVER_DEG = -4;
@@ -142,6 +132,7 @@ interface Parsed {
 	horizon: Vec3;
 	ground: Vec3;
 	fogColor: Vec3;
+	fillColor: Vec3;
 }
 const parsedKeys = new WeakMap<SkyKey, Parsed>();
 const moonColours = new WeakMap<SkyPreset, Vec3>();
@@ -158,7 +149,8 @@ function parsed(key: SkyKey): Parsed {
 			zenith: v(key.zenith),
 			horizon: v(key.horizon),
 			ground: v(key.ground),
-			fogColor: v(key.fog.color)
+			fogColor: v(key.fog.color),
+			fillColor: v(key.fill?.color ?? '#000000')
 		};
 		parsedKeys.set(key, p);
 	}
@@ -266,7 +258,8 @@ export function createAtmosphereState(): AtmosphereState {
 		moon: { phase: 0, illumination: 0 },
 		lut: { day: 1, dusk: 0, dark: 0 },
 		nightGlow: 0,
-		fill: 0
+		fill: 0,
+		fillColor: v()
 	};
 }
 
@@ -313,6 +306,7 @@ export function atmosphereAt(
 	out.moon.phase = phase;
 	out.moon.illumination = moonIllumination(phase);
 	out.fill = 0;
+	copy(out.fillColor, NO_FILL);
 
 	// The key light: the sun fading out to 0 at the handover, then the moon fading in below it.
 	const e = out.sunElevation;
@@ -373,7 +367,8 @@ function enclosed(preset: SkyPreset, out: AtmosphereState): AtmosphereState {
 	out.lut.day = 1;
 	out.lut.dusk = 0;
 	out.lut.dark = 0;
-	out.fill = preset.fill ?? 0;
+	out.fill = first.fill?.intensity ?? 0;
+	copy(out.fillColor, parsed(first).fillColor);
 	return out;
 }
 

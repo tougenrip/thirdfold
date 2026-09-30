@@ -343,7 +343,7 @@ export interface SkyKey {
 	zenith: string;
 	horizon: string;
 	ground: string;
-	/** Distance and height fog: density per world unit (0-1), thinning over `height` world units (0-100). */
+	/** Height fog: its colour, three's density per metre (0-1) and the layer's top in metres (0-100). */
 	fog: { color: string; density: number; height: number };
 	/** Exposure in EV, -4 to 4, added to the look's. */
 	exposure: number;
@@ -351,7 +351,10 @@ export interface SkyKey {
 	stars: number;
 	clouds: number;
 	nightGlow: number;
-	/** An enclosed sky's light from nowhere in particular: every key of one gives it, an open sky's none. */
+	/**
+	 * An enclosed sky's light from nowhere in particular: every key of one gives it, an open sky's
+	 * none. An enclosed sky shows its first key alone, whatever the hour and weather (#221).
+	 */
 	fill?: { color: string; intensity: number };
 }
 
@@ -362,7 +365,7 @@ export interface SkyPath {
 	/** Where north lies on the table, degrees clockwise from the grid's -y. */
 	north: number;
 	noon: number;
-	/** Days from full moon to full moon, and where in it the first day stands (0-1). */
+	/** Days from full moon to full moon, and where in it the first day stands (0 new, 0.5 full). */
 	moonCycle: number;
 	moonPhase: number;
 }

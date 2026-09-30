@@ -5,6 +5,7 @@
 import path from 'node:path';
 import type { SkyDef } from '../../src/lib/assets/manifest';
 import { parseSky } from '../../src/lib/assets/sky-parse';
+import { checkBandContract, presetOf } from '../../src/lib/tabletop/atmosphere-curve';
 import { ORIGINAL, creditOf, readProvenance } from './licence';
 import { AssetError, idOf, isRecord, list, readJson } from './pipeline-files';
 
@@ -24,10 +25,9 @@ export function buildSkies(dir: string): Record<string, SkyDef> {
 		}
 		const parsed = parseSky(raw);
 		if (!parsed.ok) throw new AssetError(source, parsed.error);
-		// TODO(#212, merger): once atmosphere-curve.ts lands, import `checkBandContract` from
-		// '../../src/lib/tabletop/atmosphere-curve' and refuse a sky that breaks it here:
-		//   const broken = checkBandContract(parsed.sky);
-		//   if (broken) throw new AssetError(source, broken);
+		// A sky that contradicts the rules' bands (day with the sun down, stars by day) is refused.
+		const broken = checkBandContract(presetOf(parsed.sky));
+		if (broken.length) throw new AssetError(source, broken.join('; '));
 		skies[id] = { ...parsed.sky, credit: creditOf(provenance) };
 	}
 	return skies;

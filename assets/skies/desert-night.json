@@ -50,7 +50,7 @@
 				"height": 20
 			},
 			"exposure": 0,
-			"stars": 0.3,
+			"stars": 0,
 			"clouds": 0,
 			"nightGlow": 1
 		},
@@ -138,7 +138,7 @@
 				"height": 20
 			},
 			"exposure": 0,
-			"stars": 0.4,
+			"stars": 0,
 			"clouds": 0,
 			"nightGlow": 1
 		},

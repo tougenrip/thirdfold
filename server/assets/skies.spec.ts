@@ -130,4 +130,15 @@ describe('the skies step of the pipeline', () => {
 			/dawn\.json: key 1: minutes must rise/
 		);
 	});
+
+	it('refuses a sky that breaks the band contract (#212)', () => {
+		const t = source('temperate');
+		expect(buildSkies(write(t)).dawn.kind).toBe('open');
+		// Solar noon at 12:00: the sun is up before the day begins and still up in the dark.
+		expect(() => buildSkies(write({ ...t, path: { ...t.path, noon: 720 } }))).toThrow(
+			/dawn\.json: .*but the sun/
+		);
+		const starry = { ...t, keys: t.keys.map((k: object) => ({ ...k, stars: 0.5 })) };
+		expect(() => buildSkies(write(starry))).toThrow(/dawn\.json: .*is day but stars show/);
+	});
 });

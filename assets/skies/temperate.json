@@ -3,18 +3,18 @@
 	"kind": "open",
 	"path": {
 		"latitude": 45,
-		"declination": 0,
+		"declination": 10,
 		"north": 0,
 		"noon": 780,
 		"moonCycle": 29.5,
-		"moonPhase": 0
+		"moonPhase": 0.5
 	},
 	"keys": [
 		{
 			"minute": 270,
 			"sunColor": "#ffe2b8",
 			"sun": 0,
-			"moon": 0,
+			"moon": 0.15,
 			"hemiSky": "#9ab4ff",
 			"hemiGround": "#0a1230",
 			"hemi": 0.1,
@@ -50,7 +50,7 @@
 				"height": 30
 			},
 			"exposure": 0,
-			"stars": 0.2,
+			"stars": 0,
 			"clouds": 0.3,
 			"nightGlow": 1
 		},
@@ -138,7 +138,7 @@
 				"height": 30
 			},
 			"exposure": 0,
-			"stars": 0.3,
+			"stars": 0,
 			"clouds": 0.3,
 			"nightGlow": 1
 		},
@@ -146,7 +146,7 @@
 			"minute": 1320,
 			"sunColor": "#ffe2b8",
 			"sun": 0,
-			"moon": 0,
+			"moon": 0.15,
 			"hemiSky": "#9ab4ff",
 			"hemiGround": "#0a1230",
 			"hemi": 0.1,

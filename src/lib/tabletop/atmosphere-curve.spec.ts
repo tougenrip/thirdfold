@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { parseManifest } from '$lib/assets/manifest-parse';
 import { canonicalTime, WEATHERS, type Weather } from '$lib/game/world';
 import {
 	atmosphereAt,
@@ -18,6 +19,7 @@ import {
 	moonIllumination,
 	moonPhase,
 	PLAY_FOG_CAP,
+	presetOf,
 	SHADOW_STEP_DEG,
 	shadowDirection,
 	shadowNeedsRedraw,
@@ -29,8 +31,12 @@ import {
 	type Vec3,
 	type WeatherNow
 } from './atmosphere-curve';
-import { temperate } from './sky-presets';
 import { viewPose } from './shots';
+
+// The shipped skies as the client fetches them (pipeline.spec.ts checks they are what assets/ builds).
+const built = parseManifest(JSON.parse(readFileSync('static/assets/manifest.json', 'utf8')));
+if (!built.ok) throw new Error(built.error);
+const temperate = presetOf(built.manifest.skies.temperate);
 
 const NONE: WeatherNow = { kind: 'none', intensity: 0 };
 const at = (t: number, weather = NONE, preset: SkyPreset = temperate) =>
@@ -62,8 +68,7 @@ function numbers(s: AtmosphereState, prefix = ''): [string, number][] {
 
 const ENCLOSED: SkyPreset = {
 	kind: 'enclosed',
-	fill: 0.2,
-	keys: [{ ...temperate.keys[0], minute: 0, hemi: 0.3 }]
+	keys: [{ ...temperate.keys[0], minute: 0, hemi: 0.3, fill: { color: '#ff8000', intensity: 0.2 } }]
 };
 
 describe('kelvinToLinear', () => {
@@ -150,7 +155,7 @@ describe('the sun and the moon', () => {
 });
 
 describe('atmosphereAt', () => {
-	it('matches the old lighting presets at the canonical hours', () => {
+	it('gives the built temperate sky the old lighting presets at the canonical hours', () => {
 		const old = {
 			day: { bg: '#292421', sky: '#fff1dc', ground: '#1c140e', hemi: 0.9, sun: 1.6 },
 			dusk: { bg: '#221f28', sky: '#ffd0a0', ground: '#1a2438', hemi: 0.45, sun: 0.55 },
@@ -161,8 +166,8 @@ describe('atmosphereAt', () => {
 			const o = old[band];
 			closeTo(s.hemi.sky, hex(o.sky));
 			closeTo(s.hemi.ground, hex(o.ground));
+			// The old background is the haze now; the dome's horizon is the sky's own (#213).
 			closeTo(s.fog.color, hex(o.bg));
-			closeTo(s.horizon, hex(o.bg));
 			expect(s.hemi.intensity).toBeCloseTo(o.hemi, 12);
 			expect(s.exposure).toBe(0);
 			if (band === 'dark') expect(s.key.body).toBe('moon');
@@ -294,10 +299,12 @@ describe('atmosphereAt', () => {
 		const first = at(0, NONE, ENCLOSED);
 		expect(first.key.intensity).toBe(0);
 		expect(first.fill).toBe(0.2);
+		closeTo(first.fillColor, hex('#ff8000'));
 		expect(first.hemi.intensity).toBe(0.3);
 		for (const t of [0, 400, 720, 1380])
 			for (const kind of WEATHERS) expect(at(t, { kind, intensity: 1 }, ENCLOSED)).toEqual(first);
 		expect(at(720).fill).toBe(0);
+		expect(at(720).fillColor).toEqual([0, 0, 0]);
 	});
 
 	it('fills and returns `out`, the same as a fresh state', () => {
@@ -310,9 +317,23 @@ describe('atmosphereAt', () => {
 	});
 });
 
+describe('presetOf', () => {
+	it('moves the moon off the path, its phase from a share of the cycle into days', () => {
+		const sky = built.manifest.skies.temperate;
+		expect(temperate.keys).toBe(sky.keys);
+		expect(temperate.path).toEqual({ latitude: 45, declination: 10, north: 0, noon: 780 });
+		expect(temperate.moonCycle).toBe(29.5);
+		expect(temperate.moonPhase).toBe(14.75);
+		const cave = presetOf(built.manifest.skies.underground);
+		expect(cave).toEqual({ kind: 'enclosed', keys: built.manifest.skies.underground.keys });
+		expect(at(720, NONE, cave).fill).toBe(cave.keys[0].fill!.intensity);
+	});
+});
+
 describe('checkBandContract', () => {
-	it('passes the built-in presets and an enclosed sky', () => {
-		expect(checkBandContract(temperate)).toEqual([]);
+	it('passes every shipped sky and an enclosed one', () => {
+		for (const [id, sky] of Object.entries(built.manifest.skies))
+			expect(checkBandContract(presetOf(sky)), id).toEqual([]);
 		expect(checkBandContract(ENCLOSED)).toEqual([]);
 	});
 
@@ -331,8 +352,9 @@ describe('checkBandContract', () => {
 		const shuffled = { ...temperate, keys: [keys[1], keys[0], ...keys.slice(2)] };
 		expect(checkBandContract(shuffled)).toContain('key 1: minutes must rise');
 		expect(checkBandContract({ ...temperate, keys: [keys[0]] })).toContain('needs 2-16 keys');
-		const late = { ...temperate, keys: [...keys.slice(0, -1), { ...keys[7], minute: 1440 }] };
-		expect(checkBandContract(late)).toContain('key 7: minute 1440 is not 0-1439');
+		const last = keys.length - 1;
+		const late = { ...temperate, keys: [...keys.slice(0, -1), { ...keys[last], minute: 1440 }] };
+		expect(checkBandContract(late)).toContain(`key ${last}: minute 1440 is not 0-1439`);
 	});
 
 	it('refuses a sun too high in the dark (a polar summer)', () => {
@@ -398,7 +420,7 @@ describe('environmentKey', () => {
 			prev = k;
 		}
 		expect(changes).toBeGreaterThan(10);
-		expect(changes).toBeLessThanOrEqual(200);
+		expect(changes).toBeLessThanOrEqual(300); // the shipped temperate: 235
 		expect(environmentKey(at(720))).toBe(environmentKey(at(722)));
 	});
 
@@ -460,7 +482,7 @@ describe('fog', () => {
 });
 
 it('imports nothing from three.js, and only relatively', () => {
-	for (const file of ['./atmosphere-curve.ts', './sky-maths.ts', './sky-presets.ts']) {
+	for (const file of ['./atmosphere-curve.ts', './sky-maths.ts']) {
 		const source = readFileSync(new URL(file, import.meta.url), 'utf8');
 		expect(source).not.toMatch(/from ['"]three/);
 		expect(source).not.toMatch(/from ['"]\$lib/);
