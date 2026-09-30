@@ -76,12 +76,18 @@ jobs:
             run: npm run test:render -- src/lib/tabletop/fog-soft.svelte.spec.ts src/lib/tabletop/cell-maps.svelte.spec.ts
           - name: materials
             run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts src/lib/tabletop/mapping.svelte.spec.ts src/lib/tabletop/kind-layers.svelte.spec.ts
-          - name: programs low
-            run: THIRDFOLD_SHARD=1/3 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
-          - name: programs medium
-            run: THIRDFOLD_SHARD=2/3 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
-          - name: programs high
-            run: THIRDFOLD_SHARD=3/3 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 1
+            run: THIRDFOLD_SHARD=1/6 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 2
+            run: THIRDFOLD_SHARD=2/6 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 3
+            run: THIRDFOLD_SHARD=3/6 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 4
+            run: THIRDFOLD_SHARD=4/6 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 5
+            run: THIRDFOLD_SHARD=5/6 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 6
+            run: THIRDFOLD_SHARD=6/6 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: lobby
             run: npm run test:render -- src/lib/tabletop/lobby.svelte.spec.ts
     steps:

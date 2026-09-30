@@ -749,6 +749,7 @@ most of its frames.
 **The low tier (#225).** No dome, stars or clouds (hidden, not removed, so a tier switch compiles
 nothing), a clear-colour background, one 16 px capture per table and no height fog. The key light,
 hemisphere, sky visibility and flash are the same on every tier. The program count holds through a
-24-hour sweep in hourly steps under every sky, haze 0 to 1, a roof on and off, and the flash with
-Reduce flashing on and off, on low, medium and high (`program-count.svelte.spec.ts`, about 11 minutes
-on SwiftShader for the three tiers).
+24-hour sweep in hourly steps under the temperate sky, every other sky at 06:00, 12:00, 19:30 and
+23:00, haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off, on low, medium
+and high (`program-count.svelte.spec.ts`: each tier's sky its own test and CI job, 70 to 125 s on
+SwiftShader here; every sky every hour took about 11 minutes for the three tiers).

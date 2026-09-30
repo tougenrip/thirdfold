@@ -89,6 +89,9 @@ describe('a lost WebGL context or WebGPU device', () => {
 		await settle(first);
 		// Models and the environment arrive over a while on a slow machine: count once they have.
 		const before = await steady(first);
+		// The first table's cover has lifted, so the one after the loss is the rebuild's.
+		const cover = () => document.querySelector<HTMLElement>('[data-cover]')?.dataset.cover ?? null;
+		await expect.poll(cover, { timeout: 60_000 }).toBeNull();
 		const pose = first.cameraPose();
 		const oldCanvas = document.querySelector('canvas')!;
 
@@ -97,6 +100,8 @@ describe('a lost WebGL context or WebGPU device', () => {
 		if (BACKEND === 'webgpu') await commands.crashGpu();
 		else oldCanvas.getContext('webgl2')!.getExtension('WEBGL_lose_context')!.loseContext();
 
+		// The rebuild's cover says so from the loss until it lifts, whatever stage it is at.
+		await expect.poll(cover, { timeout: 10_000 }).toBe('restoring');
 		await expect.element(page.getByText('Restoring the table')).toBeInTheDocument();
 		await expect
 			.poll(() => perfApi() !== first && (perfApi()?.stats().frames ?? 0) > 0, { timeout: 5000 })
@@ -105,7 +110,7 @@ describe('a lost WebGL context or WebGPU device', () => {
 		await settle(second);
 		await steady(second);
 		expect(document.querySelector('canvas')).not.toBe(oldCanvas);
-		await expect.element(page.getByText('Restoring the table')).not.toBeInTheDocument();
+		await expect.poll(cover, { timeout: 60_000 }).toBeNull();
 		const after = second.stats();
 		expect(after.tier).toBe('medium');
 		expect(second.cameraPose()).toEqual(pose);
