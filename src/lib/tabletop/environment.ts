@@ -21,6 +21,8 @@ import { setParams, setSlot, type KindMaterial } from './materials';
 import type { Grades } from './grades-load';
 import type { FloorSurfaces } from './materials/floors';
 
+export { resolveSky } from '$lib/assets/sky-parse';
+
 /** What the surface chunk (#187, surfaces.ts) frees when the environment's textures go. */
 export const releasers = new Set<() => void>();
 
@@ -113,9 +115,9 @@ export async function loadEnvironment(
 	const env = manifest.environments[id];
 	if (!env) return null;
 	const { surfaces: painted } = env;
-	const [[surface, ground, walls, table], grades, own] = await Promise.all([
+	const [[surface, ground, walls], grades, own] = await Promise.all([
 		Promise.all(
-			[env.surface, env.ground, env.walls, env.table ?? env.surface].map((m) =>
+			[env.surface, env.ground, env.walls].map((m) =>
 				look(manifest.materials[m], manifest.textures)
 			)
 		),
@@ -130,7 +132,8 @@ export async function loadEnvironment(
 		surface,
 		ground,
 		walls: own?.walls ? { ...walls, ...own.walls } : walls,
-		table,
+		// The rim wears the floor's look until #220 takes the rim away.
+		table: surface,
 		floors: own?.floors ?? null,
 		grades
 	};

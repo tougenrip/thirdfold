@@ -59,7 +59,7 @@ function fake(): Manifest {
 			walls: { color: '#eeeeee', roughness: 1, metalness: 0, map: 'plaster' }
 		},
 		environments: {
-			yard: { name: 'Yard', surface: 'floor', ground: 'ground', walls: 'walls' }
+			yard: { name: 'Yard', surface: 'floor', ground: 'ground', walls: 'walls', sky: 'temperate' }
 		},
 		models: { crate: model(5, 50), barrel: model(7, 70) }
 	};

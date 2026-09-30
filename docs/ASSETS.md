@@ -32,6 +32,7 @@ the built files would not match CI's.
 | Materials                        | `assets/materials.json`                                                                | the manifest                       |
 | Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`/`.ktx2` (`<id>.meta.json`: usage) | `textures/<id>.<hash>.png`/`.ktx2` |
 | Environments (how a place looks) | `assets/environments/<id>.json`                                                        | the manifest                       |
+| Skies (#213)                     | `assets/skies/<id>.json` (with its own `provenance`)                                   | the manifest (inline)              |
 | Colour grades                    | `assets/grades/<environment>.json`                                                     | `textures/grade-….png` (54)        |
 | Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg`                           | `audio/<id>.<hash>.wav\|ogg`       |
 
@@ -175,13 +176,40 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
 - **A material** is `{ "color", "roughness", "metalness", "map": <texture>, "cells": n }`, and
   optionally `"normal"` and `"orm"` textures. `cells` is how many cells one repeat of the texture
   covers. Each map must be a texture of its usage (`map` albedo).
-- **An environment** is `{ "name", "surface", "ground", "walls", "table" }`. Each field names a
-  material, used for the floor, raised ground, walls and the table's rim. `table` is optional:
-  without it the rim wears the floor's look (#220 takes the rim away). `"surfaces": { "floors",
-"walls" }` lists its surfaces of the library (#187, below): the floors in layer order, and the
-  walls' (the walls wear the first).
+- **An environment** is `{ "name", "surface", "ground", "walls", "sky" }`. The first three name
+  materials, used for the floor, raised ground and walls (the table's rim wears the floor's until
+  #220 takes the rim away); `sky` names a sky (below), and an optional `world` is a world look
+  (a `parseWorldPatch` patch, docs/RENDERING.md "World look") a table there starts from.
+  `"surfaces": { "floors", "walls" }` lists its surfaces of the library (#187, below): the floors
+  in layer order, and the walls' (the walls wear the first).
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
+
+- **A sky** (#213) is `assets/skies/<id>.json`, procedural (no textures: the `sky` texture class
+  stays unused), built into the manifest's `skies` inline and checked by `sky-parse.ts` both when
+  built and when fetched (`SkyDef` in `manifest.ts`):
+  - `name`, `kind` (`open`, or `enclosed` for a roof of rock), and its own `provenance`, which
+    may only be ours (a text source; the manifest carries its `credit`).
+  - `keys`: 2-16 moments, minutes strictly rising (the curves blend round the clock, #212). Each
+    has `sun` and `moon` (their light), `hemiSky`, `hemiGround` and `hemi` (the hemisphere light),
+    `ibl` (the sky's light through its environment map), `zenith`, `horizon` and `ground` (the
+    dome), `fog` `{ color, density, height }`, `exposure` (EV, added to the look's), `stars`,
+    `clouds` and `nightGlow` (how strongly flames light the table). An open sky's key gives the
+    sun's colour as `sunKelvin` (1000-40000) or `sunColor`; an enclosed sky's gives neither, no
+    sun or moon, and a `fill` `{ color, intensity }`. Colours are `#rrggbb` sRGB; every number is
+    bounded.
+  - `path` (open skies only): `latitude`, `declination`, `north`, `noon` (minutes; 780 keeps the
+    bands), `moonCycle` (days) and `moonPhase` (0-1).
+  - Six ship: `temperate` (the village and the monastery), `desert-night` (the train and the
+    ghost town), `underground` (the living cave), `abyss` (the cavern), and `overcast` and
+    `blood-moon` for the GM to pick. Their lights at 12:00, 19:30 and 23:00 are the day, dusk and
+    dark presets the renderer drew before, so the look doesn't jump; their colours are seeded
+    from the references (docs/LOOK.md, "Sky targets").
+  - Which sky a table shows is `resolveSky(world, environment, manifest)`: the look's sky if the
+    manifest has it, else its environment's, else `temperate`; a sunless look ("Underground")
+    shows `underground` instead of an open sky. Unknown ids fall back without a word.
+  - `checkScenes` fails an environment, a table or a `world` effect naming a sky the manifest
+    lacks, and `checkCredits` a sky's id or name that names the story.
 
 - **A colour grade** (#162) is `assets/grades/<environment>.json`: `{ "day", "dusk", "dark" }`,
   each a grade on the tone-mapped (display) colour, any field left out being neutral:
@@ -482,7 +510,8 @@ same GLB, since three's GLTFLoader strips `.` from names), `cooked`, `materials`
 materials a kit piece or decor wears), a kit piece's `pivot` and `footprint`, a `preview` model
 and a `thumbnail`; `credit`, required on every file (`{ license, author, source?, modified?, ai? }`, #189);
 `pack` on every file and the `packs` they add up to (#192); `surfaces` (#187) and an
-environment's `surfaces`; and the KTX2 transcoder's folder under `decoders` (#188). Part lists get
+environment's `surfaces`; `skies` (#213) and an environment's `sky` and `world`; and the KTX2
+transcoder's folder under `decoders` (#188). Part lists get
 no LODs.
 
 It changes by one rule: a new optional field needs no version bump, and a field the client

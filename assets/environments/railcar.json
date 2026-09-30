@@ -3,7 +3,7 @@
 	"surface": "railcar-floor",
 	"ground": "rail-ballast",
 	"walls": "railcar-wall",
-	"table": "oak",
+	"sky": "desert-night",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["planks"]

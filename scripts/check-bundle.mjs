@@ -16,10 +16,13 @@ import { gzipSync } from 'node:zlib';
  */
 const BUDGETS = {
 	'/': { total: 64_000, own: 19_000 },
-	'/builder': { total: 97_000, own: 52_000 },
+	// 97.0 → 97.4: the manifest's sky presets and their closed parser (sky-parse.ts, #213), 97,327 B
+	// measured.
+	'/builder': { total: 97_400, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
-	'/dev/assets': { total: 50_000, own: 500 },
+	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
+	'/dev/assets': { total: 51_100, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.

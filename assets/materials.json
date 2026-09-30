@@ -15,12 +15,6 @@
 		"color": "#a39a88",
 		"roughness": 0.85
 	},
-	"oak": {
-		"color": "#ffffff",
-		"roughness": 0.7,
-		"map": "planks",
-		"cells": 2
-	},
 	"flagstones": {
 		"color": "#ffffff",
 		"roughness": 0.85,

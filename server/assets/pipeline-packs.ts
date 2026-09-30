@@ -20,7 +20,7 @@ export function assignPacks(manifest: Manifest): void {
 		return [m?.map, m?.normal, m?.orm];
 	};
 	for (const [id, env] of Object.entries(manifest.environments)) {
-		for (const m of [env.surface, env.ground, env.walls, env.table ?? env.surface])
+		for (const m of [env.surface, env.ground, env.walls])
 			for (const t of materialTextures(m)) wear(t, id);
 		for (const bands of Object.values(env.lut ?? {}))
 			for (const t of Object.values(bands)) wear(t, id);

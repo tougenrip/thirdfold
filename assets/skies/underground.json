@@ -1,0 +1,86 @@
+{
+	"name": "Underground",
+	"kind": "enclosed",
+	"keys": [
+		{
+			"minute": 720,
+			"sun": 0,
+			"moon": 0,
+			"hemiSky": "#fff1dc",
+			"hemiGround": "#1c140e",
+			"hemi": 0.9,
+			"ibl": 0,
+			"zenith": "#050507",
+			"horizon": "#0c0b0e",
+			"ground": "#040404",
+			"fog": {
+				"color": "#0c0b0e",
+				"density": 0.02,
+				"height": 10
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0,
+			"nightGlow": 0.5,
+			"fill": {
+				"color": "#ffe2b8",
+				"intensity": 0.6
+			}
+		},
+		{
+			"minute": 1170,
+			"sun": 0,
+			"moon": 0,
+			"hemiSky": "#ffd0a0",
+			"hemiGround": "#1a2438",
+			"hemi": 0.45,
+			"ibl": 0,
+			"zenith": "#050507",
+			"horizon": "#0c0b0e",
+			"ground": "#040404",
+			"fog": {
+				"color": "#0c0b0e",
+				"density": 0.02,
+				"height": 10
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0,
+			"nightGlow": 1,
+			"fill": {
+				"color": "#ffd0a0",
+				"intensity": 0.2
+			}
+		},
+		{
+			"minute": 1380,
+			"sun": 0,
+			"moon": 0,
+			"hemiSky": "#9ab4ff",
+			"hemiGround": "#0a1230",
+			"hemi": 0.1,
+			"ibl": 0,
+			"zenith": "#050507",
+			"horizon": "#0c0b0e",
+			"ground": "#040404",
+			"fog": {
+				"color": "#0c0b0e",
+				"density": 0.02,
+				"height": 10
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0,
+			"nightGlow": 1,
+			"fill": {
+				"color": "#6a5a4a",
+				"intensity": 0.05
+			}
+		}
+	],
+	"provenance": {
+		"license": "LicenseRef-thirdfold-original",
+		"author": "thirdfold contributors",
+		"modified": false
+	}
+}

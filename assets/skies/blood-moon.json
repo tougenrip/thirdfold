@@ -1,0 +1,173 @@
+{
+	"name": "Blood moon",
+	"kind": "open",
+	"path": {
+		"latitude": 45,
+		"declination": 0,
+		"north": 0,
+		"noon": 780,
+		"moonCycle": 29.5,
+		"moonPhase": 0
+	},
+	"keys": [
+		{
+			"minute": 270,
+			"sunColor": "#ffe2b8",
+			"sun": 0,
+			"moon": 0.2,
+			"hemiSky": "#ff8a7a",
+			"hemiGround": "#1a0608",
+			"hemi": 0.12,
+			"ibl": 0,
+			"zenith": "#12040a",
+			"horizon": "#3a0d12",
+			"ground": "#080204",
+			"fog": {
+				"color": "#1a0a0e",
+				"density": 0.014,
+				"height": 30
+			},
+			"exposure": 0,
+			"stars": 0.6,
+			"clouds": 0.4,
+			"nightGlow": 1
+		},
+		{
+			"minute": 360,
+			"sunKelvin": 2800,
+			"sun": 0.55,
+			"moon": 0,
+			"hemiSky": "#ffd0a0",
+			"hemiGround": "#1a2438",
+			"hemi": 0.45,
+			"ibl": 0,
+			"zenith": "#402838",
+			"horizon": "#b06a4a",
+			"ground": "#1a1014",
+			"fog": {
+				"color": "#2a1a1e",
+				"density": 0.014,
+				"height": 30
+			},
+			"exposure": 0,
+			"stars": 0.2,
+			"clouds": 0.4,
+			"nightGlow": 1
+		},
+		{
+			"minute": 480,
+			"sunKelvin": 4000,
+			"sun": 1.6,
+			"moon": 0,
+			"hemiSky": "#fff1dc",
+			"hemiGround": "#1c140e",
+			"hemi": 0.9,
+			"ibl": 0,
+			"zenith": "#6a7890",
+			"horizon": "#c0a080",
+			"ground": "#2a2020",
+			"fog": {
+				"color": "#2c2220",
+				"density": 0.014,
+				"height": 30
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0.4,
+			"nightGlow": 0.5
+		},
+		{
+			"minute": 720,
+			"sunColor": "#ffe2b8",
+			"sun": 1.6,
+			"moon": 0,
+			"hemiSky": "#fff1dc",
+			"hemiGround": "#1c140e",
+			"hemi": 0.9,
+			"ibl": 0,
+			"zenith": "#6a7890",
+			"horizon": "#c0a080",
+			"ground": "#2a2020",
+			"fog": {
+				"color": "#2c2220",
+				"density": 0.014,
+				"height": 30
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0.4,
+			"nightGlow": 0.5
+		},
+		{
+			"minute": 1050,
+			"sunKelvin": 4000,
+			"sun": 1.6,
+			"moon": 0,
+			"hemiSky": "#fff1dc",
+			"hemiGround": "#1c140e",
+			"hemi": 0.9,
+			"ibl": 0,
+			"zenith": "#6a7890",
+			"horizon": "#c0a080",
+			"ground": "#2a2020",
+			"fog": {
+				"color": "#2c2220",
+				"density": 0.014,
+				"height": 30
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0.4,
+			"nightGlow": 0.5
+		},
+		{
+			"minute": 1170,
+			"sunColor": "#ffe2b8",
+			"sun": 0.55,
+			"moon": 0,
+			"hemiSky": "#ffd0a0",
+			"hemiGround": "#1a2438",
+			"hemi": 0.45,
+			"ibl": 0,
+			"zenith": "#3a2030",
+			"horizon": "#a0503a",
+			"ground": "#1a1014",
+			"fog": {
+				"color": "#2a1a1e",
+				"density": 0.014,
+				"height": 30
+			},
+			"exposure": 0,
+			"stars": 0.3,
+			"clouds": 0.4,
+			"nightGlow": 1
+		},
+		{
+			"minute": 1320,
+			"sunColor": "#ffe2b8",
+			"sun": 0,
+			"moon": 0.2,
+			"hemiSky": "#ff8a7a",
+			"hemiGround": "#1a0608",
+			"hemi": 0.12,
+			"ibl": 0,
+			"zenith": "#12040a",
+			"horizon": "#3a0d12",
+			"ground": "#080204",
+			"fog": {
+				"color": "#1a0a0e",
+				"density": 0.014,
+				"height": 30
+			},
+			"exposure": 0,
+			"stars": 0.6,
+			"clouds": 0.4,
+			"nightGlow": 1
+		}
+	],
+	"provenance": {
+		"license": "LicenseRef-thirdfold-original",
+		"author": "thirdfold contributors",
+		"modified": false
+	}
+}
