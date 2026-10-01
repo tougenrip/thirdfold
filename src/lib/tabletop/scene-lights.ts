@@ -25,6 +25,8 @@ export function createSceneLights(scene: THREE.Scene): BaseLights {
 	sun.castShadow = true;
 	sun.shadow.mapSize.set(2048, 2048);
 	sun.shadow.bias = -0.0005;
+	// Soft PCF: `radius` by tier (quality.ts, `CapabilitiesLayer.set`), read as a uniform.
+	sun.shadow.radius = 2;
 	// The shadow map is drawn again only when something on the table changed (the renderer's
 	// shadowsDirty) or the key light turned (AtmosphereLayer.shadowDue), not when just the camera
 	// moves or flames flicker: that pass draws the whole scene a second time.
@@ -35,9 +37,9 @@ export function createSceneLights(scene: THREE.Scene): BaseLights {
 
 /**
  * Fits the key light's shadow box, the fog and the camera's reach to a table's extents
- * (world-ground.ts, returned): the shadow box is round the play area's bounding sphere, so it holds for the
- * light from any direction; the far plane and the haze reach the world's horizon. `fresh`: a new
- * table, whose hour snaps and whose sky is captured at once.
+ * (world-ground.ts, returned): the shadow box is the grid up to its top, which the key light fits
+ * to its direction each time it draws (`fitShadowFrustum`, #229); the far plane and the haze reach
+ * the world's horizon. `fresh`: a new table, whose hour snaps and whose sky is captured at once.
  */
 export function fitToTable(
 	{ sun }: BaseLights,
@@ -54,11 +56,11 @@ export function fitToTable(
 	const { play, world } = extents;
 	camera.far = world.far;
 	camera.updateProjectionMatrix();
-	const r = play.radius;
-	// The light stands two radii out (AtmosphereLayer.fit): the sphere lies between one and three.
-	Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: r, far: 3 * r });
-	sun.shadow.camera.updateProjectionMatrix();
-	atmosphere.fit(play.center, r, world, fresh);
+	const [hw, hd] = [play.width / 2, play.depth / 2];
+	atmosphere.shadowBox = { min: [-hw, 0, -hd], max: [hw, play.center.y * 2, hd] };
+	// About a fiftieth of a cell along the normal: no acne, no shadow lifting off thin minis.
+	sun.shadow.normalBias = 0.02 * grid.cellSize;
+	atmosphere.fit(play.center, play.radius, world, fresh);
 	controls.maxDistance = play.maxDistance;
 	return extents;
 }

@@ -130,8 +130,9 @@ export class QualityControl {
 		this.refining = refine;
 		this.samples = [];
 		const size = settings.sunShadowSize;
-		const { mapSize } = this.parts.sun.shadow;
-		if (mapSize.x !== size) mapSize.set(size, size);
+		const shadow = this.parts.sun.shadow;
+		if (shadow.mapSize.x !== size) shadow.mapSize.set(size, size);
+		shadow.radius = settings.sunShadowRadius; // a uniform: nothing compiles
 		this.resize();
 	}
 

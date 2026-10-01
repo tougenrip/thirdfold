@@ -49,6 +49,7 @@ import {
 	type WeatherNow
 } from './atmosphere-curve';
 import { flashPolicy, type FlashPolicy } from './flash';
+import { fitShadowFrustum, type ShadowBounds } from './light-model';
 import { skyAmbient } from './materials/world-modify';
 import type { Tier } from './quality';
 import { SkyLayer, SKY_CUBE, SKY_CUBE_LOW } from './sky';
@@ -70,6 +71,8 @@ const FLASH_WHITE = new THREE.Color(0.85, 0.92, 1);
 const RED_GRADE = 0.6;
 /** How much of the key light's colour the haze takes looking toward the sun, at full glow. */
 const INSCATTER = 0.5;
+/** How dark the moon's shadows fall (the sun's: 1): cool and weak, but silhouettes still read. */
+export const MOON_SHADOW = 0.5;
 
 /** The scene-level uniforms the fog and environment nodes read. */
 export const atmosphereUniforms = {
@@ -186,6 +189,8 @@ export class AtmosphereLayer {
 	private tween: { from: number; by: number; start: number } | null = null;
 	/** The key light as the shadow map was last drawn with it; null before the first. */
 	private drawn: KeyLight | null = null;
+	/** The box the key light's shadow covers: the grid up to its top (`fitToTable`, #229). */
+	shadowBox: ShadowBounds | null = null;
 	private flash = 0;
 	/** The low tier: a flat sky, a small cube captured once, no height fog (#225). */
 	private low = false;
@@ -335,13 +340,32 @@ export class AtmosphereLayer {
 		const sun = this.lights.sun;
 		const due = (dirty && sun.intensity > 0) || this.shadowDue() || forced;
 		sun.shadow.needsUpdate = due;
-		if (due) this.shadowDrawn();
+		if (due) {
+			this.fitShadow();
+			this.shadowDrawn();
+		}
 		return due;
 	}
 
 	/** Whether the shadow map needs drawing for the key light as it is now (turned or switched). */
 	shadowDue(): boolean {
 		return shadowNeedsRedraw(this.drawn, this.state.key);
+	}
+
+	/** The shadow box fitted to the grid for the key light as it stands now (#229). */
+	private fitShadow(): void {
+		const { sun } = this.lights;
+		if (!this.shadowBox) return;
+		const { position: e, target } = sun;
+		const t = target.position;
+		const box = fitShadowFrustum(
+			this.shadowBox,
+			[e.x, e.y, e.z],
+			[t.x, t.y, t.z],
+			sun.shadow.mapSize.x
+		);
+		Object.assign(sun.shadow.camera, box);
+		sun.shadow.camera.updateProjectionMatrix();
 	}
 
 	/** The shadow map was drawn with the key light as it is now. */
@@ -384,6 +408,7 @@ export class AtmosphereLayer {
 		sun.position.set(this.center.x + x * d, this.center.y + y * d, this.center.z + z * d);
 		sun.color.setRGB(...s.key.color);
 		sun.intensity = s.key.intensity;
+		sun.shadow.intensity = s.key.body === 'moon' ? MOON_SHADOW : 1;
 		// The hemisphere, with an enclosed sky's fill as light from nowhere in particular.
 		const { hemi, fill, fillColor } = s;
 		const all = hemi.intensity + fill;

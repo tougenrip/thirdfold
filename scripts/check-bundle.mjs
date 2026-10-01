@@ -45,8 +45,9 @@ const BUDGETS = {
 	// code was already here); set to the merged build's measured size. → 368.1: the ground to the
 	// horizon (#220: the ring's mesh and tier, the camera's clearance, extents per table), less
 	// the slab; 368.1 kB measured. → 368.4: the low tier's small cube and the dome's haze at the
-	// horizon (#225); 368.3 kB measured (just over 368 300 B).
-	renderer: { total: 368_400 },
+	// horizon (#225); 368.3 kB measured (just over 368 300 B). → 369.0: the shadow box fitted to
+	// the grid (#229, light-model.ts); 368.9 kB measured.
+	renderer: { total: 369_000 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
