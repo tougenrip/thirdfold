@@ -111,7 +111,7 @@ jobs:
           - name: programs 13
             run: THIRDFOLD_SHARD=13/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: lights
-            run: npm run test:render -- src/lib/tabletop/grid-lights.svelte.spec.ts
+            run: npm run test:render -- src/lib/tabletop/grid-lights.svelte.spec.ts src/lib/tabletop/translucency.svelte.spec.ts
           - name: lobby
             run: npm run test:render -- src/lib/tabletop/lobby.svelte.spec.ts
     steps:

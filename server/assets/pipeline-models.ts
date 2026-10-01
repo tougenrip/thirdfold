@@ -67,6 +67,7 @@ export async function buildModels(
 			let glb: Buffer;
 			let swing: ModelEntry['swing'];
 			let setPiece = false;
+			let translucency: number | undefined;
 			let screenSizes: unknown;
 			let pack = CORE_PACK;
 			try {
@@ -75,6 +76,7 @@ export async function buildModels(
 					glb = writeGlb(bakeModel(model, materialColor));
 					swing = model.swing;
 					setPiece = model.setPiece === true;
+					translucency = model.translucency;
 				} else if (ext === 'glb') {
 					glb = readFileSync(source);
 					const meta = path.join(kindDir, `${id}.meta.json`);
@@ -120,6 +122,7 @@ export async function buildModels(
 				...(lods.length ? { lods: lods as ModelEntry['lods'] } : {}),
 				...(checked.info.cooked ? { cooked: true as const } : {}),
 				...(setPiece ? { setPiece: true as const } : {}),
+				...(translucency ? { translucency } : {}),
 				pack
 			};
 		}

@@ -85,6 +85,12 @@ export interface Params {
 	macroRoughness: number;
 	/** Props and minis: how much of their baked occlusion (`BAKE_ATTRIBUTE`) shades their ambient light. */
 	bake: number;
+	/**
+	 * Props, minis and foliage: how much light behind them shines through (#237, lighting-model.ts:
+	 * tent canvas, banners, candles, crystals, leaves). 0 is opaque; a uniform, so changing it
+	 * compiles nothing.
+	 */
+	translucency: number;
 }
 
 /** What a caller may set: colours and vectors in any form three takes. */
@@ -114,7 +120,8 @@ export const PARAM_DEFAULTS: Required<ParamsInput> = {
 	macroScale: 0.08,
 	macroTint: 0,
 	macroRoughness: 0,
-	bake: 1
+	bake: 1,
+	translucency: 0
 };
 
 /** The tiled kinds' macro variation (#181): gentle, over about a dozen cells. */
@@ -152,7 +159,10 @@ export const KINDS: Record<ShaderKind, KindDef> = {
 	mini: lit({ roughness: 0.45 }, { base: 'physical' }),
 	emissive: lit({ roughness: 0.3 }),
 	decal: lit({ color: 0x000000 }, { transparent: true }),
-	foliage: lit({ roughness: 0.8 }, { alphaTested: true, side: THREE.DoubleSide }),
+	foliage: lit(
+		{ roughness: 0.8, translucency: 0.6 },
+		{ alphaTested: true, side: THREE.DoubleSide }
+	),
 	water: lit({ color: 0x2a4a5a, roughness: 0.1, opacity: 0.8 }, { transparent: true }),
 	overlay: {
 		base: 'basic',

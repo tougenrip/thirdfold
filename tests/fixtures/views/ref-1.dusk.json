@@ -114,6 +114,16 @@
 		],
 		"props": [
 			{
+				"id": "ref1-banner",
+				"assetId": "banner",
+				"pos": {
+					"x": 3,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
 				"id": "ref1-barrel",
 				"assetId": "barrel",
 				"pos": {
@@ -149,6 +159,16 @@
 				"pos": {
 					"x": 1,
 					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-tent",
+				"assetId": "tent",
+				"pos": {
+					"x": 3,
+					"y": 3
 				},
 				"rotation": 0,
 				"scale": 1
@@ -282,6 +302,16 @@
 		],
 		"props": [
 			{
+				"id": "ref1-banner",
+				"assetId": "banner",
+				"pos": {
+					"x": 3,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
 				"id": "ref1-barrel",
 				"assetId": "barrel",
 				"pos": {
@@ -317,6 +347,16 @@
 				"pos": {
 					"x": 1,
 					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-tent",
+				"assetId": "tent",
+				"pos": {
+					"x": 3,
+					"y": 3
 				},
 				"rotation": 0,
 				"scale": 1
@@ -450,6 +490,16 @@
 		],
 		"props": [
 			{
+				"id": "ref1-banner",
+				"assetId": "banner",
+				"pos": {
+					"x": 3,
+					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
 				"id": "ref1-barrel",
 				"assetId": "barrel",
 				"pos": {
@@ -485,6 +535,16 @@
 				"pos": {
 					"x": 1,
 					"y": 1
+				},
+				"rotation": 0,
+				"scale": 1
+			},
+			{
+				"id": "ref1-tent",
+				"assetId": "tent",
+				"pos": {
+					"x": 3,
+					"y": 3
 				},
 				"rotation": 0,
 				"scale": 1

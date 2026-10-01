@@ -109,6 +109,26 @@
 			},
 			"rotation": 0,
 			"scale": 1
+		},
+		{
+			"id": "ref6-crystal-w",
+			"assetId": "crystal",
+			"pos": {
+				"x": 4,
+				"y": 6
+			},
+			"rotation": 0,
+			"scale": 1
+		},
+		{
+			"id": "ref6-crystal-e",
+			"assetId": "crystal",
+			"pos": {
+				"x": 7,
+				"y": 6
+			},
+			"rotation": 0,
+			"scale": 1
 		}
 	],
 	"lights": [

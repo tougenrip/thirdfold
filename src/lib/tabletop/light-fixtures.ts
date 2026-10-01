@@ -279,11 +279,17 @@ export class LightFixtures {
 		if (!model) return null;
 		const capacity = MAX_LIGHTS_PER_ROOM;
 		const materials: KindMaterial[] = [];
+		// A translucent fixture (#237: candles, crystals) draws with materials of its own.
+		const translucency = model.entry.translucency ?? 0;
+		let plain: KindMaterial | null = null;
 		const bodyOf = (part: ModelPart) => {
-			if (!part.maps) return this.body;
-			const params = { ...part.params, lift: this.body.params.lift };
-			const own = createMaterial('prop', { ...BODY, params, slots: part.maps });
+			if (!part.maps && !translucency) return this.body;
+			if (!part.maps && plain) return plain;
+			const lift = this.body.params.lift;
+			const params = part.maps ? { ...part.params, lift, translucency } : { lift, translucency };
+			const own = createMaterial('prop', { ...BODY, params, slots: part.maps ?? {} });
 			materials.push(own);
+			if (!part.maps) plain = own;
 			return own;
 		};
 		const bodies = [...partsOf(model, 'body'), ...partsOf(model, 'swing')].map((p) =>

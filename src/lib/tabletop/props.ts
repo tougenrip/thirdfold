@@ -342,12 +342,17 @@ export class PropLayer {
 		this.drop(assetId);
 		const capacity = Math.max(8, Math.ceil(count * 1.5));
 		const materials: KindMaterial[] = [];
+		// A translucent model (#237) draws with materials of its own, in the same variant.
+		const translucency = model?.entry.translucency ?? 0;
+		let plain: KindMaterial | null = null;
 		const materialOf = (part: ModelPart) => {
-			if (!part.maps) return this.material;
+			if (!part.maps && !translucency) return this.material;
+			if (!part.maps && plain) return plain;
 			const lift = this.material.params.lift;
-			const params = { ...part.params, lift };
-			const own = createMaterial('prop', { ...PropLayer.MODEL, params, slots: part.maps });
+			const params = part.maps ? { ...part.params, lift, translucency } : { lift, translucency };
+			const own = createMaterial('prop', { ...PropLayer.MODEL, params, slots: part.maps ?? {} });
 			materials.push(own);
+			if (!part.maps) plain = own;
 			return own;
 		};
 		const make = (shared: THREE.BufferGeometry, material: THREE.Material, shadows = true) => {

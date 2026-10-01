@@ -38,6 +38,8 @@ export interface ModelSource {
 	swing?: { pivot: number; throw: number };
 	/** A prop held to the set-piece limits (see LIMITS). */
 	setPiece?: true;
+	/** How much light behind it shines through (#237): above 0, at most 1. */
+	translucency?: number;
 }
 
 const MAX_PARTS = 200;
@@ -240,6 +242,11 @@ export function readModelSource(raw: unknown, materials: ReadonlySet<string>): M
 	if (raw.setPiece !== undefined) {
 		if (raw.setPiece !== true) throw new Error('"setPiece" is true or absent');
 		source.setPiece = true;
+	}
+	if (raw.translucency !== undefined) {
+		const t = raw.translucency;
+		if (typeof t !== 'number' || !(t > 0 && t <= 1)) throw new Error('"translucency" is in (0, 1]');
+		source.translucency = t;
 	}
 	if (parts.some((p) => p.swings) && !source.swing)
 		throw new Error('swinging parts need a "swing"');

@@ -24,7 +24,8 @@
 // (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
 // flicker's (#231) are every profile on the 40 torches. Light fixtures (#232): every kind's fixture
 // model coming and going with the kinds, fixtures taken off (`fixture: false`) and put back, and a
-// carried light's flame with the carried steps.
+// carried light's flame with the carried steps. Translucency (#237): the home table's translucent
+// materials (its tree's) at 0 and back above it.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -332,6 +333,9 @@ function stageTextures(renderer: THREE.WebGPURenderer): Map<string, number> {
 	return most;
 }
 
+/** The home table's translucent materials (#237: its tree's), found by the many-light steps. */
+type Translucent = { params: { translucency: number } };
+const TRANSLUCENT_MATERIALS = new Set<Translucent>();
 /** Torches the many-light steps put on the table: dungeon-40's count. */
 const TORCHES = 40;
 
@@ -340,7 +344,7 @@ const TORCHES = 40;
  * carried light switched on, coloured, carried a cell and off, every light kind and a recolour.
  * Later lighting tasks append their steps here.
  */
-function lightSteps(m: Mounted, home: FixtureView): Step[] {
+function lightSteps(m: Mounted, home: FixtureView, scene: THREE.Scene): Step[] {
 	const t = m.tabletop;
 	const { width, height } = home.grid;
 	const torch = (i: number, over: Partial<Light> = {}): Light => ({
@@ -353,6 +357,18 @@ function lightSteps(m: Mounted, home: FixtureView): Step[] {
 	});
 	const torches = (n: number, over: Partial<Light> = {}) =>
 		Array.from({ length: n }, (_, i) => torch(i, over));
+	// Translucency (#237): a uniform, so its strength at 0 and back compiles nothing. A highlight
+	// asks for the frame, as setting a value does not.
+	const translucency = (value: number, cell: number) => () => {
+		if (!TRANSLUCENT_MATERIALS.size)
+			scene.traverse((o) => {
+				const material = (o as THREE.Mesh).material as Partial<Translucent> | undefined;
+				if (material?.params?.translucency) TRANSLUCENT_MATERIALS.add(material as Translucent);
+			});
+		expect(TRANSLUCENT_MATERIALS.size).toBeGreaterThan(0);
+		for (const material of TRANSLUCENT_MATERIALS) material.params.translucency = value;
+		t.setHighlight({ x: cell, y: 0 }, 'move');
+	};
 	const [token] = home.tokens;
 	const carry = (over: object) => home.tokens.map((k) => (k === token ? { ...k, ...over } : k));
 	const step = { x: Math.min(token.pos.x + 1, width - 1), y: token.pos.y };
@@ -377,6 +393,8 @@ function lightSteps(m: Mounted, home: FixtureView): Step[] {
 		// Fixtures (#232): every model off the table, then back.
 		['fixtures taken off', () => t.setLighting('dark', torches(TORCHES, { fixture: false }))],
 		['fixtures back', () => t.setLighting('dark', torches(TORCHES))],
+		['translucency at 0', translucency(0, 1)],
+		['translucency back', translucency(0.8, 2)],
 		['carried light on', () => t.setTokens(carry({ light: 4 }))],
 		['carried light coloured', () => t.setTokens(carry({ light: 4, lightColor: '#6fe08a' }))],
 		['carried light moved', () => t.setTokens(carry({ light: 4, pos: step }))],
@@ -528,13 +546,14 @@ describe('the shader program count', () => {
 	// STAGE_TEXTURES textures: GridLights' two keep the largest within WebGPU's default 16.
 	test('stays put through many lights on every tier', async () => {
 		for (const tier of TIERS) {
-			const { m, home, clock, renderer } = await mountHome(tier);
+			const { m, home, clock, renderer, scene } = await mountHome(tier);
 			// The pipeline's own passes settle over its first frames (the AO's blur): draw a few first.
 			for (let i = 0; i < 3; i++) {
 				m.tabletop.setPose(m.tabletop.cameraPose()!);
 				await drawn(m.tabletop, clock);
 			}
-			const changes = await sweeper(m, renderer, clock).run(lightSteps(m, home));
+			TRANSLUCENT_MATERIALS.clear();
+			const changes = await sweeper(m, renderer, clock).run(lightSteps(m, home, scene));
 			expect(changes, tier).toEqual([]);
 			console.info(
 				`${tier} textures per fragment stage: ${JSON.stringify([...stageTextures(renderer)])}`

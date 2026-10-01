@@ -133,7 +133,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		macroScale: 0,
 		macroTint: 0,
 		macroRoughness: 0,
-		bake: 0
+		bake: 0,
+		translucency: 0
 	};
 	setParams(material, { ...PARAM_DEFAULTS, ...def.defaults, ...options.params });
 	for (const slot of lines ? [] : SLOT_NAMES)

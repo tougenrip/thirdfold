@@ -241,6 +241,8 @@ export interface ModelEntry extends FileInfo {
 	lods?: ModelLod[];
 	/** A prop held to the set-piece limits (the Hollow's great bell). */
 	setPiece?: true;
+	/** Its materials' `translucency` (#237): how much light behind it shines through, in (0, 1]. */
+	translucency?: number;
 	/** Cooked (#186): meshopt geometry and KTX2 textures, which need the decoders. */
 	cooked?: true;
 	/** Manifest materials a kit piece or decor is drawn with instead of textures of its own. */

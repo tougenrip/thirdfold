@@ -783,6 +783,32 @@
 				}
 			}
 		},
+		"banner": {
+			"file": "models/banner.416eb78b.glb",
+			"sha256": "416eb78bf9c7049247b10314002ea87560cc99f4dfec3023751a5a62ce34d3b0",
+			"bytes": 18308,
+			"kind": "prop",
+			"triangles": 520,
+			"bounds": {
+				"min": [
+					-0.118,
+					0,
+					-0.12
+				],
+				"max": [
+					0.67,
+					2,
+					0.12
+				]
+			},
+			"gpuBytes": 16380,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"translucency": 0.8,
+			"pack": "core"
+		},
 		"barrel": {
 			"file": "models/barrel.a5f68e34.glb",
 			"sha256": "a5f68e349db6760ffeec86231f483c2c168ca7239675dcb0b250e71ae87c2bd9",
@@ -1082,6 +1108,7 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
+			"translucency": 0.5,
 			"pack": "core",
 			"thumbnail": {
 				"file": "thumbs/candle-cluster.a141868b.png",
@@ -1398,6 +1425,32 @@
 					"author": "thirdfold contributors"
 				}
 			}
+		},
+		"crystal": {
+			"file": "models/crystal.127d07cc.glb",
+			"sha256": "127d07ccfed3dee6c116546129fb80d1778868a2c0a31214ad9f61917aa2500f",
+			"bytes": 18824,
+			"kind": "prop",
+			"triangles": 432,
+			"bounds": {
+				"min": [
+					-0.28,
+					-0.026,
+					-0.255
+				],
+				"max": [
+					0.31,
+					0.9,
+					0.353
+				]
+			},
+			"gpuBytes": 16804,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"translucency": 0.9,
+			"pack": "core"
 		},
 		"gear": {
 			"file": "models/gear.7b4ba4f8.glb",
@@ -2476,6 +2529,32 @@
 				}
 			}
 		},
+		"tent": {
+			"file": "models/tent.46b7a9bc.glb",
+			"sha256": "46b7a9bc800c0cf4b904afd8e315f59d904e6cfc663992763a1ea7b26c17390b",
+			"bytes": 14472,
+			"kind": "prop",
+			"triangles": 420,
+			"bounds": {
+				"min": [
+					-0.703,
+					0,
+					-0.75
+				],
+				"max": [
+					0.703,
+					1.12,
+					0.75
+				]
+			},
+			"gpuBytes": 12720,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"translucency": 0.8,
+			"pack": "core"
+		},
 		"tree": {
 			"file": "models/tree.1d441a84.glb",
 			"sha256": "1d441a84baab7c3d911ee8e463293147ce5488075c84b7bc5b4c2580d5f2a7b4",
@@ -2499,6 +2578,7 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
+			"translucency": 0.4,
 			"pack": "core",
 			"thumbnail": {
 				"file": "thumbs/tree.727a1885.png",
@@ -8691,8 +8771,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 11077576,
-			"gpuBytes": 31741440
+			"bytes": 11129180,
+			"gpuBytes": 31787344
 		},
 		"ghost-town": {
 			"bytes": 104095,

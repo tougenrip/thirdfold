@@ -98,7 +98,8 @@ const RENDER_SPECS = [
 	'atmosphere',
 	'flash',
 	'exposure',
-	'grid-lights'
+	'grid-lights',
+	'translucency'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

@@ -141,6 +141,10 @@ These are the source of truth for #187; changing one changes the surface.
 - **Roughness** mostly 0.5-0.9. Below 0.4 only for wet, glazed, polished or oily things.
 - **Metalness** 1 only on bare metal, 0 everywhere else, never in between except on worn edges.
 - **Emissive** only for flames, embers, runes, glowing windows and lava.
+- **Translucency** (0 to 1, a part list's `translucency`; docs/RENDERING.md "Translucency") only
+  for thin or waxy things that glow with a light behind them: canvas and cloth 0.8, crystal and ice
+  0.9, wax 0.5, leaves 0.4. Never a substitute for emissive: in the dark with no light behind, it
+  adds nothing.
 - **Normals** are MikkTSpace tangent-space, OpenGL convention (+Y up, as glTF). A DirectX-style
   normal map (ambientCG's `NormalDX`) is refused.
 - **Bevel everything a light can catch.** Hard 90° edges read as CG; a 0.01-0.03 u bevel or a

@@ -194,7 +194,10 @@ function ref1(): Fixture {
 				prop('ref1-sconce', 'sconce', 1, 1),
 				prop('ref1-crate-a', 'crate', 4, 1),
 				prop('ref1-crate-b', 'crate', 4, 2),
-				prop('ref1-barrel', 'barrel', 1, 4)
+				prop('ref1-barrel', 'barrel', 1, 4),
+				// Lit from behind by the torch (#237): the canvas and the cloth glow toward the camera.
+				prop('ref1-tent', 'tent', 3, 3),
+				prop('ref1-banner', 'banner', 3, 1)
 			],
 			lights: [light('ref1-torch', 1, 1, 4, '#ff9a3c')],
 			tokens: [
@@ -270,7 +273,13 @@ function ref6(): Fixture {
 				door('ref6-gate-w', { x: 5, y: 4 }, { x: 6, y: 4 }),
 				door('ref6-gate-e', { x: 6, y: 4 }, { x: 7, y: 4 })
 			],
-			props: [prop('ref6-brazier-w', 'brazier', 4, 5), prop('ref6-brazier-e', 'brazier', 7, 5)],
+			props: [
+				prop('ref6-brazier-w', 'brazier', 4, 5),
+				prop('ref6-brazier-e', 'brazier', 7, 5),
+				// Crystal shards between the camera and the braziers (#237), lit through.
+				prop('ref6-crystal-w', 'crystal', 4, 6),
+				prop('ref6-crystal-e', 'crystal', 7, 6)
+			],
 			lights: [
 				light('ref6-brazier-w-light', 4, 5, 4, '#ff8a30'),
 				light('ref6-brazier-e-light', 7, 5, 4, '#ff8a30')

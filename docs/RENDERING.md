@@ -887,6 +887,33 @@ AMBIENT frames by day, with nothing flickering in view, or under reduced motion.
 their vertex stage, so flame and light breathe together. Changes are numbers only: the program-count
 sweep's `lightSteps` turns the 40 torches through every profile on every tier.
 
+### Translucency (#237)
+
+Thin and waxy things glow when a light is behind them. `KindLightingModel.direct()`
+(`materials/lighting-model.ts`) adds, for the prop, mini and foliage kinds only (by the material's
+`kind`, fixed with its graph), a term to direct diffuse before the standard one, so it reaches
+every light path that calls the model: GridLights, the sky's key light, the pool.
+
+- **Transmission**, `MeshSSSNodeMaterial`'s: `saturate(V · -normalize(L + 0.2 N))⁴ × 1.2`, times
+  thinness: `aBake.x` on props and minis (the bake's openness; where its own parts occlude it, it is
+  thick), 1 on foliage.
+- **Wrap**, a bump just past the terminator, `max(N·L + 0.5, 0) × saturate(-N·L / 0.5)`: 0 at the
+  terminator and on every face the light falls on, so lit from the front only a translucent thing
+  looks as it would opaque.
+- Both times the albedo (`diffuseContribution`), the light's colour, `1/π` and the strength,
+  `params.translucency` (a `materialReference` uniform, `Params` in `kinds.ts`): 0 is off, and any
+  value compiles nothing. Specular and emissive are untouched.
+
+The strength comes with the model: a part list's `translucency` (0 to 1) goes into its manifest
+entry (`ModelEntry.translucency`), and `PropLayer` and `LightFixtures` give a translucent model
+materials of its own in the shared variant (as a textured part's): tent 0.8, banner 0.8, crystal
+0.9, candle cluster 0.5, tree 0.4; the foliage kind defaults to 0.6. A model's whole body takes it
+(the candle cluster's holder too) until a per-part mask is needed (minis' wings and ears). Ref 1
+has a tent between the camera and its torch and a banner by it, ref 6 a crystal before each
+brazier. `translucency.svelte.spec.ts` draws each twice, at its strength and at 0, from behind
+(the term must brighten it) and, for the tent, from the torch's side (it must not), and checks no
+program is made; the program-count sweep's `lightSteps` sets the home table's tree to 0 and back.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

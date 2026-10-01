@@ -1,4 +1,5 @@
 {
+	"translucency": 0.5,
 	"parts": [
 		{
 			"shape": "cylinder",
