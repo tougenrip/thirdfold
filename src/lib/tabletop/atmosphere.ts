@@ -48,6 +48,8 @@ import {
 	type Vec3,
 	type WeatherNow
 } from './atmosphere-curve';
+import { cellUniforms } from './cell-maps';
+import { exposureFor, LIFT_MS, type ExposureFocus } from './exposure';
 import { flashPolicy, type FlashPolicy } from './flash';
 import { skyAmbient } from './materials/world-modify';
 import type { Tier } from './quality';
@@ -194,6 +196,14 @@ export class AtmosphereLayer {
 	private distance = 50;
 	private readonly dir: Vec3 = [0, 1, 0];
 	private readonly haze = new THREE.Color();
+	/** The exposure lift shown (EV, #233), the one it eases to, and the ease: null at rest. */
+	private lift = 0;
+	private liftTo = 0;
+	private liftEase: { from: number; start: number } | null = null;
+	private band: Ambient = 'day';
+	private reduced = false;
+	/** A new table: its first focus snaps the lift. */
+	private liftFresh = true;
 
 	/** A new table: its first look snaps into place (as its tokens do). */
 	private fresh = true;
@@ -227,6 +237,8 @@ export class AtmosphereLayer {
 		if (!sky) return;
 		const snap = reduced || this.fresh;
 		this.fresh = false;
+		this.band = band;
+		this.reduced = reduced;
 		const preset = presetFor(sky.sky, band);
 		const time = world?.sun ? world.time : canonicalTime(band);
 		const again = preset === this.preset && world === this.look && time === this.to;
@@ -244,8 +256,35 @@ export class AtmosphereLayer {
 		this.apply();
 	}
 
-	/** Moves a tween to `now`; whether it still plays (the frame after needs drawing). */
-	tick(now: number): boolean {
+	/**
+	 * Moves a tween to `now`, and the exposure lift toward the one `focus` asks for (the cell under
+	 * the camera's target, `CellMaps.focusAt`; null off the table: no lift), eased over `LIFT_MS`,
+	 * snapped under reduced motion and on a new table. Whether either still plays (the frame after
+	 * needs drawing).
+	 */
+	tick(now: number, focus: Omit<ExposureFocus, 'band'> | null = null): boolean {
+		const easing = this.ease(now, focus ? exposureFor({ ...focus, band: this.band }) : 0);
+		return this.tickHour(now) || easing;
+	}
+
+	/** Eases the lift toward `to`; whether it still eases. Applies when it moved. */
+	private ease(now: number, to: number): boolean {
+		if (to !== this.liftTo) {
+			this.liftTo = to;
+			this.liftEase = { from: this.lift, start: now };
+		}
+		const e = this.liftEase;
+		if (this.reduced || this.liftFresh) this.liftEase = null;
+		this.liftFresh = false;
+		if (!e && this.lift === to) return false;
+		const k = this.liftEase ? Math.min(1, Math.max(0, (now - e!.start) / LIFT_MS)) : 1;
+		this.lift = k >= 1 ? to : e!.from + (to - e!.from) * (1 - (1 - k) ** 3);
+		if (k >= 1) this.liftEase = null;
+		this.apply();
+		return !!this.liftEase;
+	}
+
+	private tickHour(now: number): boolean {
 		const t = this.tween;
 		if (!t) return false;
 		const k = Math.min(1, Math.max(0, (now - t.start) / TWEEN_MS));
@@ -313,7 +352,7 @@ export class AtmosphereLayer {
 		fresh: boolean
 	): void {
 		if (fresh) {
-			this.fresh = true;
+			this.fresh = this.liftFresh = true;
 			this.captures.reset(); // a new table's sky is captured at once
 		}
 		this.center.set(center.x, center.y, center.z);
@@ -417,6 +456,9 @@ export class AtmosphereLayer {
 		// flashes are reduced: the white hemisphere carries it instead).
 		const ev = s.exposure + (this.look?.grade.exposure ?? 0);
 		const flashEV = neutral ? 0 : Math.min(FLASH_EV * this.flash, this.policy.maxEV);
-		exposure.value = 2 ** (Math.min(MAX_EXPOSURE, Math.max(-MAX_EXPOSURE, ev)) + flashEV);
+		const sky = Math.min(MAX_EXPOSURE, Math.max(-MAX_EXPOSURE, ev));
+		// The focus's lift (#233), which remembered cells divide back out (worldModify).
+		exposure.value = 2 ** (sky + this.lift + flashEV);
+		cellUniforms.memoryGain.value = 2 ** -this.lift;
 	}
 }

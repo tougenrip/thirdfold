@@ -649,6 +649,27 @@ over raised ground, from a balcony behind its railing and through a window, at e
 ranges. Until #228 replaces it, the point-light pool's cutoff is `hypot(renderedReach, the light's
 height above its floor)`, so it ends where the floor meets the rules' rim.
 
+### Exposure from the focus cell (#233)
+
+Exposure follows what the camera looks at. `exposureFor({ band, focusDark, focusLight, focusVisible })`
+(`tabletop/exposure.ts`, pure, tested in `exposure.spec.ts`) gives an EV lift: 0 in the open by day
+or at dusk; in the dark band or a dark area at any hour, `LIFT_CAP · (1 − LIGHT_DAMPING · light)`,
+where `light` is the rules' level at the focus (0.6 of the lift goes at full light). `LIFT_CAP` is
+`MAX_LIFT` (1.5 EV) or less, so an unlit night cell (`1 − NIGHT_DARK`) never shows above
+`DARK_CEILING` (0.5): about 1.47 EV. It is 0 whenever the viewer can't see the focus cell (a fogged
+player's explored or hidden cell), so the lift never probes the dark beyond what the rules show. The
+focus is the cell under the camera's target, read from the visibility map as packed
+(`CellMaps.focusAt`: A 0 a dark area, B the light, R visible, or the GM, or no fog), so it is a
+function of what the viewer was sent and the local camera, with no readback.
+
+`AtmosphereLayer.tick` eases the lift over `LIFT_MS` (800 ms, ease-out, on the wall clock; ACTIVE
+frames until it lands, then none) and snaps it under reduced motion and on a new table. Exposure is
+`2^(clamp(sky + look) + lift + flash)`. Remembered cells must not brighten with it: `worldModify`
+multiplies the unseen (a player's explored cells, the GM's unseen ones) by `cellUniforms.memoryGain`
+(`2^−lift`), and since exposure multiplies before the tone mapper the compensation is exact;
+unexplored cells stay exactly 0. `exposure.svelte.spec.ts` holds both: explored pixels within 2
+levels whatever the lift, black stays black. All uniforms: no program changes.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

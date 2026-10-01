@@ -161,7 +161,9 @@ export function worldModify(output: N, emissive: N): N {
 	const { fog, unseen, light, darkTint } = terms();
 	const kept = light.mul(fog);
 	const darkened = tinted(output.xyz, unseen).mul(light).add(darkTint.mul(light.oneMinus()));
-	const rgb = darkened.mul(fog).add(emissive.mul(kept.oneMinus()));
+	// Memory doesn't brighten with the exposure lift (#233): unseen cells divided by `2^lift`.
+	const memory = mix(float(1), u.memoryGain, unseen);
+	const rgb = darkened.mul(fog).add(emissive.mul(kept.oneMinus())).mul(memory);
 	const above = loose(positionWorld).y.greaterThan(u.cutY);
 	return Fn(() => {
 		If(above, () => {
