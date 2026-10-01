@@ -618,6 +618,37 @@ goes through `flashPolicy` (lightning #323 and the finale's effects #336 too). `
 tolls 2.5 s apart and of a cue inside the hold, in both modes: 3 or fewer flashes a second, no red
 flash, and with Reduce flashing no swing quicker than the 500 ms fade.
 
+## Light falloff (#226)
+
+One pure definition of how far and how brightly a light renders, in `src/lib/game/lights.ts`, shared
+by the renderer and the tests. The contract every lighting change keeps:
+
+- **Zero where the rules are dark.** A light renders above zero only on the cells `litMask` lights
+  for it. Reach is `renderedReach(radius)` = `floor(radius) + 0.5` cells, measured horizontally from
+  the rule origin (the light's cell centre): lit cell centres have `d² ≤ r² + r < (r + 0.5)²`, the
+  rest `d² ≥ r² + r + 1`, so the window ends exactly between them. Occlusion comes from the same
+  origin and the same line of sight (`hasLineOfSight`: walls, windows, levels).
+- **Readable where lit.** `lightFalloff(radius, dxz, d3)` is the rules window
+  `saturate(1 - (dxz / reach)^4)^2` on the horizontal distance, times a body `1 / max(d3,
+CORE_RADIUS)^LIGHT_DECAY` on the 3D distance from the visual position, times a hot core inside
+  `CORE_RADIUS` (inverse-square, never past `CORE_MAX`). The window is tiny at the rim of a large
+  radius (about `1e-6` at radius 20, black in float32), so the shader tops a lit cell's point light
+  up to `READABLE_EDGE` in the source's colour: `readableFill(lightLevels)`, which is `READABLE_EDGE`
+  exactly on lit cells (`lightLevels` floors them at 0.2) and 0 elsewhere.
+- **The visual position is look only.** `lightMount` (`tabletop/light-model.ts`, pure) hangs a torch
+  or lantern `MOUNT_OFFSET` off the first walled edge of its cell (north, east, south, west) at
+  `MOUNT_HEIGHT` of a wall, so its light rakes across the wall's normals, and stands any other light
+  at its cell centre at its look's height. The rule origin never moves.
+
+`lightLevels` (the cell maps' light level) fades through the same window, floored at 0.2 where lit.
+`renderedLevels` is what the shader computes at cell centres, for the spec. `LIGHT_DECAY`,
+`CORE_RADIUS`, `CORE_MAX` and `READABLE_EDGE` are tuned in #238 within `FALLOFF_RANGES`
+(decay 0.5-2, core radius 1-2 cells so the body never passes 1, core cap 1-8, readable edge
+0.02-0.2); `lights.spec.ts` proves the contract on a 24×24 grid for radii 1-20, flat, behind a wall,
+over raised ground, from a balcony behind its railing and through a window, at every corner of those
+ranges. Until #228 replaces it, the point-light pool's cutoff is `hypot(renderedReach, the light's
+height above its floor)`, so it ends where the floor meets the rules' rim.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

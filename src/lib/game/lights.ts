@@ -9,7 +9,7 @@
 // toll lighting up a cavern) makes everything lit for a moment.
 
 import { inBounds, type GridPos, type SquareGrid } from './grid';
-import type { Blockers } from './objects';
+import { asObstacles, type Blockers } from './objects';
 import { TOKEN_COLOR_PATTERN } from './token';
 import {
 	addVision,
@@ -280,15 +280,101 @@ export function withDarkness(
 	return next.some((v) => v) ? next : null;
 }
 
+// The rendered falloff (#226): one definition of how far and how brightly a light renders, shared
+// by the renderer (#228's shader mirrors these numbers) and the tests. The contract: zero exactly
+// where the rules are dark, readable everywhere they light, reach and occlusion from the rule
+// origin (the light's cell centre). Distances are in cells.
+
 /**
- * Brightness per cell in [0, 1], fading out towards each light's edge, for
- * rendering. Uses the same reach and line of sight as litMask, so every cell
- * with brightness > 0 is lit by the rules.
+ * How the body of a light fades with 3D distance: `1 / d^LIGHT_DECAY`. About 1 keeps the tail
+ * readable (inverse-square leaves a rule-lit rim nearly black). Allowed: FALLOFF_RANGES.decay.
  */
-export function lightLevels(
+export const LIGHT_DECAY = 1;
+/** Inside this 3D distance the hot core rises, roughly inverse-square. Allowed: FALLOFF_RANGES.coreRadius. */
+export const CORE_RADIUS = 1.25;
+/** The most the falloff reaches, at the flame. Allowed: FALLOFF_RANGES.coreMax. */
+export const CORE_MAX = 4;
+/**
+ * The least point light a rule-lit cell centre shows: where the window is tiny (the diagonal rim
+ * of a large radius, about 1e-6 at radius 20, black in float32), the shader tops the light up to
+ * this in the source's colour. Allowed: FALLOFF_RANGES.readableEdge.
+ */
+export const READABLE_EDGE = 0.05;
+
+export interface FalloffTune {
+	decay: number;
+	coreRadius: number;
+	coreMax: number;
+}
+export const FALLOFF: Readonly<FalloffTune> = {
+	decay: LIGHT_DECAY,
+	coreRadius: CORE_RADIUS,
+	coreMax: CORE_MAX
+};
+/**
+ * The ranges #238 may tune the constants within; the spec holds across all of them. A core radius
+ * of at least 1 keeps the body at most 1, so the falloff never passes `coreMax`.
+ */
+export const FALLOFF_RANGES = {
+	decay: [0.5, 2],
+	coreRadius: [1, 2],
+	coreMax: [1, 8],
+	readableEdge: [0.02, 0.2]
+} as const;
+
+/** How far a light renders, horizontally from its rule origin: just past the rules' rim. */
+export function renderedReach(radius: number): number {
+	// With r = floor(radius), lit cell centres have d² ≤ r² + r < (r + 0.5)², the rest
+	// d² ≥ r² + r + 1 > (r + 0.5)², so the window ends exactly between the two.
+	return Math.floor(radius) + 0.5;
+}
+
+/** The rules window (Frostbite's): 1 at the origin, 0 at and beyond `reach`. */
+export function lightWindow(dxz: number, reach: number): number {
+	const q = (dxz / reach) ** 4;
+	return q >= 1 ? 0 : (1 - q) ** 2;
+}
+
+/**
+ * How brightly a light of `radius` renders: the rules window on the horizontal distance `dxz`
+ * from the rule origin, times a body `1 / max(d3, coreRadius)^decay` on the 3D distance `d3` from
+ * the visual position, times a hot core inside `coreRadius` (inverse-square, at most `coreMax`).
+ * The core only multiplies inside the window, so it never widens the lit area.
+ */
+export function lightFalloff(
+	radius: number,
+	dxz: number,
+	d3: number,
+	tune: FalloffTune = FALLOFF
+): number {
+	const window = lightWindow(dxz, renderedReach(radius));
+	if (window === 0) return 0;
+	const body = 1 / Math.max(d3, tune.coreRadius) ** tune.decay;
+	const core = d3 >= tune.coreRadius ? 1 : Math.min(tune.coreMax, (tune.coreRadius / d3) ** 2);
+	return window * body * core;
+}
+
+/** The point-light top-up for a cell of rules light level `level` (lightLevels): READABLE_EDGE where lit. */
+export function readableFill(level: number, edge = READABLE_EDGE): number {
+	// lightLevels floors lit cells at 0.2 ≥ every allowed edge, so this is `edge` exactly there.
+	return Math.min(level, edge);
+}
+
+/**
+ * A level in cells (a level is 0.4 of a cell: the renderer's STEP_HEIGHT, ground.ts), for the
+ * vertical part of a light's 3D distance.
+ */
+export const LEVEL_CELLS = 0.4;
+
+/**
+ * Per cell, the max over sources of `value(source, dxz, cell)` on the cells the source lights
+ * by the rules (litMask's radius and line of sight; the origin always). Values ≤ 0 are skipped.
+ */
+function perLitCell(
 	grid: SquareGrid,
 	blocked: Blockers,
-	sources: Iterable<LightSource>
+	sources: Iterable<LightSource>,
+	value: (s: LightSource, dxz: number, c: GridPos) => number
 ): Float32Array {
 	const levels = new Float32Array(grid.width * grid.height);
 	for (const s of sources) {
@@ -302,11 +388,45 @@ export function lightLevels(
 				const c = { x: s.pos.x + dx, y: s.pos.y + dy };
 				if (!inBounds(grid, c)) continue;
 				const i = cellIndex(grid, c);
-				const level = Math.max(0.2, 1 - Math.sqrt(d2) / (r + 1));
+				const level = value(s, Math.sqrt(d2), c);
 				if (level <= levels[i] || !hasLineOfSight(blocked, s.pos, c)) continue;
 				levels[i] = level;
 			}
 		}
 	}
 	return levels;
+}
+
+/**
+ * Brightness per cell in [0, 1], fading out towards each light's edge through the rendered
+ * window, never below 0.2 where lit; for rendering (the cell maps' light level). Uses the same
+ * reach and line of sight as litMask, so every cell with brightness > 0 is lit by the rules.
+ */
+export function lightLevels(
+	grid: SquareGrid,
+	blocked: Blockers,
+	sources: Iterable<LightSource>
+): Float32Array {
+	return perLitCell(grid, blocked, sources, (s, dxz) =>
+		Math.max(0.2, lightWindow(dxz, renderedReach(s.radius)))
+	);
+}
+
+/**
+ * What the shader's point light computes at each cell centre: the max over sources of
+ * `lightFalloff`, the 3D distance from the light's height (its look's, in levels above its
+ * floor) to the cell's floor, where the rules light the cell. For the spec; 0 where unlit.
+ */
+export function renderedLevels(
+	grid: SquareGrid,
+	blocked: Blockers,
+	sources: Iterable<LightSource>,
+	tune: FalloffTune = FALLOFF
+): Float32Array {
+	const levels = asObstacles(blocked).levels ?? null;
+	const level = (c: GridPos) => (levels ? levels[cellIndex(grid, c)] : 0);
+	return perLitCell(grid, blocked, sources, (s, dxz, c) => {
+		const up = (level(s.pos) + lightLook(s).height - level(c)) * LEVEL_CELLS;
+		return lightFalloff(s.radius, dxz, Math.hypot(dxz, up), tune);
+	});
 }

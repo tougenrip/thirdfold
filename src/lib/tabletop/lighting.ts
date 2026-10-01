@@ -15,6 +15,7 @@ import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import {
 	lightLevels,
 	lightLook,
+	renderedReach,
 	type Ambient,
 	type Light,
 	type LightSource
@@ -177,7 +178,9 @@ export class LightingLayer {
 			const flame = seats.get(s.pos.y * grid.width + s.pos.x) ?? FIXTURE_HEIGHT;
 			light.position.set(w.x, floor + (flame + ABOVE_FLAME) * grid.cellSize, w.z);
 			light.color.set(s.color);
-			light.distance = (s.radius + 1.5) * grid.cellSize;
+			// The cutoff ends where the floor below meets the rules' rim (#226), until #228's grid
+			// lights replace the pool.
+			light.distance = Math.hypot(renderedReach(s.radius), flame + ABOVE_FLAME) * grid.cellSize;
 			// Raised to human height (#152), a lamp lights the floor a cell or two away about as
 			// before (the light lands less slanted); only the spot right under it is dimmer.
 			// The look's intensity scales it (1 for every light before looks, #201); a number on a
