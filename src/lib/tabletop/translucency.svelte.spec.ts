@@ -111,7 +111,8 @@ describe.skipIf(BACKEND === 'webgpu')('translucency', () => {
 			'tent-front'
 		);
 		console.info(`tent: back-lit +${back}, front-lit +${front}`);
-		expect(back).toBeGreaterThan(40_000);
+		// About 25,000 with #238's torch (0.7, the core capped at 2.5); 40,000 at the old torch of 1.
+		expect(back).toBeGreaterThan(20_000);
 		expect(front).toBeLessThan(back / 10);
 	});
 
