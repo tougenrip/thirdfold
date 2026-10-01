@@ -53,8 +53,9 @@ const BUDGETS = {
 	// look and the vignette by distance (#377); set to the merged build's measured size.
 	// → 373.0: GridLights (#228: the node, its CPU side and the client's sight cache, the lit kinds'
 	// lighting model); 372.9 kB measured (the milestone's cap is
-	// about 378 kB).
-	renderer: { total: 373_000 },
+	// about 378 kB). → 373.3: flicker in the shader (#231: the profiles, their TSL mirror and the
+	// scheduling by view); 373.2 kB measured.
+	renderer: { total: 373_300 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

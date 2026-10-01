@@ -205,15 +205,19 @@ function obstacleSignature(grid: SquareGrid, blockers: Blockers): string {
 	].join('|');
 }
 
-/** FNV-1a over the bytes, with the length; '-' for none. */
-function hashBytes(bytes: Uint8Array | null | undefined): string {
-	if (!bytes) return '-';
+/** FNV-1a over the bytes, as an unsigned 32-bit number (a light's flicker phase uses it too). */
+export function fnv1a(bytes: Uint8Array): number {
 	let h = 0x811c9dc5;
 	for (let i = 0; i < bytes.length; i++) {
 		h ^= bytes[i];
 		h = Math.imul(h, 0x01000193);
 	}
-	return `${bytes.length}:${(h >>> 0).toString(36)}`;
+	return h >>> 0;
+}
+
+/** FNV-1a over the bytes, with the length; '-' for none. */
+export function hashBytes(bytes: Uint8Array | null | undefined): string {
+	return bytes ? `${bytes.length}:${fnv1a(bytes).toString(36)}` : '-';
 }
 
 /**

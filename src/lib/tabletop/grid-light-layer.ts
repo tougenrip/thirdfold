@@ -21,7 +21,7 @@ import type { Token } from '$lib/game/token';
 import { SightCache, type CellMask } from '$lib/game/visibility';
 import { STEP_HEIGHT, type Ground } from './ground';
 import { buildLists, buildRows, GRID_LIGHT_CAPACITY, type LightEntry } from './grid-lights';
-import { lightMount } from './light-model';
+import { flickerPhase, flickerProfile, lightMount } from './light-model';
 import type { GridLight } from './materials/grid-light-node';
 
 /** A carried light's hand, in the mini's size off its feet: to its side and at its chest. */
@@ -44,7 +44,7 @@ export function litSources(lights: readonly Light[], tokens: readonly Token[]): 
 	const carriers = tokens.filter((t) => t.light > 0);
 	return lightSources(lights, tokens).map((source, i) => {
 		const carrier = i < placed.length ? null : carriers[i - placed.length];
-		return { id: carrier?.id ?? placed[i].id, source, carrier };
+		return { id: source.id ?? '', source, carrier };
 	});
 }
 
@@ -90,6 +90,7 @@ export class GridLighting {
 		const shown = lit.slice(0, GRID_LIGHT_CAPACITY);
 		const colour = new THREE.Color();
 		this.entries = shown.map(({ id, source: s, carrier }) => {
+			const look = lightLook(s);
 			colour.set(s.color); // linear, as three's colours are
 			const seat = seats.get(s.pos.y * grid.width + s.pos.x);
 			const at = gridToWorld(grid, s.pos);
@@ -105,9 +106,9 @@ export class GridLighting {
 				visual,
 				reach: renderedReach(s.radius),
 				colour: [colour.r, colour.g, colour.b] as const,
-				intensity: lightLook(s).intensity * strength(s.radius),
-				profile: 0,
-				phase: 0,
+				intensity: look.intensity * strength(s.radius),
+				profile: flickerProfile(look.flicker),
+				phase: flickerPhase(id),
 				flags: 0
 			};
 		});

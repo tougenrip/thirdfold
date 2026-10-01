@@ -5,9 +5,11 @@
 // the rules about what darkness hides. The point lights are GridLights (#228, grid-light-layer.ts):
 // every source that is on, placed or carried, K of them per cell by tier (`setTier`), lit where
 // the rules light and never through a wall; `?off=manylights` puts back M67's fixed pool of 8 real
-// point lights for the largest sources until the milestone's gates pass. After dark, flames
-// flicker (`flicker`), which is cosmetic and costs no state. How strongly the pool shines follows
-// the sky's `nightGlow` (`setGlow`); the GridLights don't dim by day (the sky's exposure does).
+// point lights for the largest sources until the milestone's gates pass. Flames flicker in the
+// shader (#231, materials/flicker.ts): `animating` sets its clock each frame and asks for AMBIENT
+// frames only while a flickering light in view reads (after dark, or in a dark area), never under
+// reduced motion. How strongly the pool shines follows the sky's `nightGlow` (`setGlow`); the
+// GridLights don't dim by day (the sky's exposure does).
 
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
@@ -26,6 +28,7 @@ import type { Token } from '$lib/game/token';
 import type { Ground } from './ground';
 import { GridLighting, litSources } from './grid-light-layer';
 import { LightHandles } from './light-handles';
+import { setFlicker } from './materials/flicker';
 import { GridLight } from './materials/grid-light-node';
 import { inWorld } from './materials/world-modify';
 import { modelNow } from './models';
@@ -55,6 +58,9 @@ interface Flame {
 	glow: THREE.Color;
 }
 const BLACK = new THREE.Color(0);
+const VIEW = new THREE.Matrix4();
+const FRUSTUM = new THREE.Frustum();
+const REACH = new THREE.Sphere();
 /**
  * A flame's colour and glow, per flame mesh (`userData.flame`): one material draws every flame,
  * so lights coming and going never compile or drop a program.
@@ -88,16 +94,16 @@ export class LightingLayer {
 		new THREE.MeshStandardNodeMaterial({ color: 0x2b2420, roughness: 0.8 })
 	);
 	private flameMaterial = flameMaterial();
-	/** Each pool light's steady intensity at full glow, which flicker varies around. */
+	/** Each pool light's intensity at full glow. */
 	private steady: number[] = [];
 	/** The sky's night glow (atmosphere-curve.ts): 0.5 by day, 1 at night, as the bands were. */
 	private glow = 1;
-	/** How much each pool light wavers: none for a light whose look doesn't flicker. */
-	private wobble: number[] = [];
 	/** The rules' light level per cell from the last update, or null by day (the cell maps', #171). */
 	levels: Float32Array | null = null;
-	/** Whether the table has dark areas (they darken even by day, and their flames flicker). */
-	private hasDark = false;
+	/** Whether each GridLight's cell is in a dark area (its flame reads, so flickers, by day). */
+	private darkAt: boolean[] = [];
+	/** Reduced motion: flames hold still and ask for no frames. */
+	private still = false;
 	/** The GM's handles on fixture-less lights (#209), made the first time a GM needs them. */
 	private handles: LightHandles | null = null;
 	/** The point lights as GridLights, or null for the pool (`?off=manylights`). */
@@ -153,11 +159,11 @@ export class LightingLayer {
 		dark: Uint8Array | null = null,
 		seats: ReadonlyMap<number, number> = new Map()
 	): void {
-		this.hasDark = !!dark?.some((v) => v);
 		const lit = litSources(lights, tokens);
 		const sources = lit.map((l) => l.source);
+		this.darkAt = sources.map((s) => !!dark?.[s.pos.y * grid.width + s.pos.x]);
 		// Light levels matter only where it can be dark: never by day outside dark areas.
-		const dim = ambient !== 'day' || this.hasDark;
+		const dim = ambient !== 'day' || !!dark?.some((v) => v);
 		this.levels = dim ? lightLevels(grid, blocked, sources) : null;
 		if (this.grid) this.grid.update(grid, lit, blocked, ground, seats);
 		else this.updatePool(grid, sources, ground, seats);
@@ -225,14 +231,7 @@ export class LightingLayer {
 			const look = lightLook(s);
 			this.steady[i] = look.intensity * (4 + s.radius * 2) * grid.cellSize * grid.cellSize;
 			light.intensity = this.steady[i] * this.glow;
-			this.wobble[i] = look.flicker === 'none' ? 0 : 0.08;
 		});
-	}
-
-	/** Whether anything flickers: lit flames once night glows past day's, or in a dark area. */
-	get flickers(): boolean {
-		const any = this.grid ? this.grid.entries.length > 0 : this.steady.some((v) => v > 0);
-		return (this.glow > NIGHT_FLICKERS || this.hasDark) && any;
 	}
 
 	/** The sky's night glow (0-1): how strongly the pool shines. Numbers only, no program. */
@@ -242,24 +241,28 @@ export class LightingLayer {
 		this.pool.forEach((light, i) => (light.intensity = (this.steady[i] ?? 0) * glow));
 	}
 
+	setReducedMotion(reduced: boolean): void {
+		this.still = reduced;
+	}
+
 	/**
-	 * Makes flames waver for time `now` (ms): each light on its own slow,
-	 * irregular beat. Returns whether there is anything to animate.
+	 * Sets the flicker's clock to `now` (ms) and says whether it needs AMBIENT frames: a GridLight
+	 * that flickers, reads (night glows past day's, or it stands in a dark area) and reaches into
+	 * `camera`'s view. Never under reduced motion, nor for the pool (which holds still).
 	 */
-	flicker(now: number): boolean {
-		if (!this.flickers) return false;
-		const t = now / 1000;
-		this.pool.forEach((light, i) => {
-			const wave = Math.sin(t * 7.3 + i * 1.7) * 0.5 + Math.sin(t * 13.1 + i * 2.9) * 0.3;
-			light.intensity = this.steady[i] * this.glow * (1 + (this.wobble[i] ?? 0) * wave);
+	animating(camera: THREE.Camera, now: number): boolean {
+		setFlicker(now, this.still);
+		if (this.still || !this.grid) return false;
+		const night = this.glow > NIGHT_FLICKERS;
+		const cell = this.grid.light.cellSize.value;
+		VIEW.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+		FRUSTUM.setFromProjectionMatrix(VIEW, camera.coordinateSystem);
+		return this.grid.entries.some(({ profile, visual: v, reach }, i) => {
+			if (!profile || !(night || this.darkAt[i])) return false;
+			REACH.center.set(v.x, v.y, v.z);
+			REACH.radius = reach * cell;
+			return FRUSTUM.intersectsSphere(REACH);
 		});
-		let i = 0;
-		for (const fixture of this.fixtures.values()) {
-			const flame = fixture.children[1];
-			const wave = fixture.userData.still ? 0 : Math.sin(t * 9.7 + i++ * 2.3);
-			flame.scale.set(1 - 0.05 * wave, 1 + 0.1 * wave, 1 - 0.05 * wave);
-		}
-		return true;
 	}
 
 	private updateFixtures(

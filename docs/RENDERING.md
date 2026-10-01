@@ -409,8 +409,8 @@ drawn (#229, "The key light's shadow" below).
 The hemisphere takes `hemi` (an enclosed sky's `fill` blended in as light from nowhere), the fog its
 colour, density and height (the world's haze thickens it, `HAZE_DENSITY` per unit, and tints it to its
 colour), post's exposure `2^(state.exposure + grade.exposure)` in EV, and the point-light pool its
-strength from `nightGlow` (0.5 by day, 1 at night: `LightingLayer.setGlow`; flames flicker past 0.5 or
-in a dark area). Every write is into existing objects. A new hour tweens the short way round the clock
+strength from `nightGlow` (0.5 by day, 1 at night: `LightingLayer.setGlow`; flames ask for frames
+to flicker past 0.5 or in a dark area, "Flicker (#231)" below). Every write is into existing objects. A new hour tweens the short way round the clock
 over `TWEEN_MS` (3 s, ease-out), re-evaluating the curve each frame (`tick`, part of `drawFrame`'s
 moving flag); it snaps under reduced motion and on a new table (`fit`). The sky, weather and haze snap.
 
@@ -806,8 +806,8 @@ should be the first thing an upgrade fails.
   carried (`litSources`: `lightSources`' order with the light's or the carrier's id), to
   `GridLighting` (`grid-light-layer.ts`), which makes a `LightEntry` each (`grid-lights.ts`: id,
   rule origin, visual position, reach `renderedReach`, linear colour, intensity = the look's
-  intensity × `2 + radius`, flicker profile and phase, flags hero / bake-excluded / no-core; the last
-  four are 0 until #230, #231, #234 and #236 fill them, but the layout has them). The visual position
+  intensity × `2 + radius`, flicker profile and phase (#231, below), flags hero / bake-excluded /
+  no-core; the flags are 0 until #230, #234 and #236 fill them, but the layout has them). The visual position
   is `lightMount`, a sconce's or brazier's top (`lightSeats`), or the carrier's hand (`HAND`, by its
   scale and lift), which follows the mini as it glides (`LightingLayer.carry` from the frame's token
   tick: only those lights' layers upload). The day halving of the pool is gone: the sky's exposure
@@ -848,6 +848,42 @@ should be the first thing an upgrade fails.
   `grid-light-layer.spec.ts` (a hidden carrier beside a player is never one of the player's lights).
   The parity test against `DynamicLighting` waits: the falloff is no longer three's, so it would
   compare shapes, not pixels.
+
+### Flicker (#231)
+
+Flames flicker in the shader, at no CPU cost per light. Each `LightEntry` carries a `profile` (the
+look's `flicker`, its index in `FLICKERS`) and a `phase` (`flickerPhase`: FNV-1a of the light's id,
+or the carrying token's, over 2³², the same hash as the `SightCache`'s `hashBytes`, exported as
+`fnv1a`), so a torch flickers the same on every client, after a reload and however other lights come
+and go. `flickerAt(profile, phase, t)` in `light-model.ts` is the reference, two sines
+`1 + a1 sin 2π(f1 t + phase) + a2 sin 2π(f2 t + 2 phase)`, and `flickerNode` in
+`materials/flicker.ts` mirrors it from the same table (`FLICKER_WAVES`, a uniform array), multiplying
+each GridLight's falloff (never its `READABLE_EDGE` floor).
+
+| Profile (`flicker`) | Kinds by default  | Waves (amplitude @ Hz) | Character            |
+| ------------------- | ----------------- | ---------------------- | -------------------- |
+| `none`              | glow, neon, panel | none                   | steady               |
+| `candle`            | candle            | 3% @ 1.9, 2.5% @ 2.7   | small and quick      |
+| `torch`             | torch             | 4.5% @ 1.16, 3% @ 2.08 | M67's curve          |
+| `fire`              | brazier, fire     | 5% @ 0.7, 3% @ 1.45    | slower and deeper    |
+| `pulse`             | magic             | 8% @ 0.4               | arcane: a slow sine  |
+| `lantern`           | lantern           | 1.5% @ 0.9, 1% @ 1.7   | behind glass: gentle |
+
+Flash-safe by construction (tested in `light-flicker.spec.ts`): the amplitudes add to at most 8%
+and every wave is under 3 Hz, below WCAG 2.3.1's general-flash threshold, so Reduce flashing need
+not act. Every frequency is a whole number of cycles in `FLICKER_PERIOD` (100 s), so the shader's
+time wraps there without a jump and stays precise in 32-bit floats.
+
+Two uniforms drive it: `flickerTime` from the renderer's injected clock (never TSL's `time`, which
+follows frame time and would break held-clock goldens) and `flickerAmp`, 0 under reduced motion
+(the live media query, through `setReducedMotion`), so every golden (reduced motion) is unchanged.
+`LightingLayer.animating(camera, now)`, called from `drawFrame`, sets both and reports `ambient` to
+the scheduler only while a GridLight that flickers reads (the night glow past day's, or its cell in
+a dark area; roofed rooms are not counted yet) and its reach sphere meets the camera's frustum: no
+AMBIENT frames by day, with nothing flickering in view, or under reduced motion. The pool behind
+`?off=manylights` holds still. The fixtures' flames (#232) read the same `flickerNode` and uniforms in
+their vertex stage, so flame and light breathe together. Changes are numbers only: the program-count
+sweep's `lightSteps` turns the 40 torches through every profile on every tier.
 
 ## Modules
 
@@ -1040,7 +1076,7 @@ while shaders compile. `stats().mode` shows the mode in the `?perf` overlay.
 
 **The layer contract:** each frame the renderer asks the layers what they did (their `tick`
 returns) and reports it to the scheduler as a `FrameReport`: anything still moving (`active`), or
-animating slowly (`ambient`: `LightingLayer.flicker`, `AmbienceLayer.tick`). One-off changes call
+animating slowly (`ambient`: `LightingLayer.animating`, flicker in the shader, #231; the fog cloud). One-off changes call
 `request()`. Every animation runs on the injected clock (#128), from a start time and a duration,
 never on frame counts, so a throttled browser (Energy Saver, Low Power Mode) draws fewer frames of
 the same motion: token moves and floats, door swings, dice, props, cues and shots. Only layers that

@@ -122,7 +122,7 @@ export async function createTabletop(
 	let darkness: Uint8Array | null = null;
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
-	const stillable = () => [loop, propLayer, cellMaps, cloud, sky];
+	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	const terrainLayer = new TerrainLayer();
 	scene.add(terrainLayer.group);
@@ -230,7 +230,7 @@ export async function createTabletop(
 		const casters = tokensMoving || doorsMoving || diceRolling || propsMoving || bellSwinging;
 		if (casters || wasMoving) shadowsDirty = true;
 		wasMoving = casters;
-		const flickering = !reducedMotion && lighting.flicker(now);
+		const flickering = lighting.animating(camera, now); // in the shader (#231)
 		const drifting = cloud.tick(now);
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)

@@ -24,6 +24,7 @@ import {
 	HEIGHT,
 	WIDTH,
 	loadView,
+	manualClock,
 	mountFixture,
 	readFrame,
 	settle,
@@ -50,10 +51,15 @@ type Read = (x: number, y: number) => number[];
 type Sample = { cell: GridPos; px: number; py: number };
 
 /** Mounts a view at a pose with fog off and nothing that spreads light; its GridLight and frames. */
-async function mount(view: FixtureView, pose: GridPose) {
+async function mount(
+	view: FixtureView,
+	pose: GridPose,
+	options: Parameters<typeof mountFixture>[2] = {}
+) {
 	let scene: THREE.Scene | null = null;
 	let redraw = () => {};
-	const m = await mountFixture(view, pose, { devScene: (s, r) => ([scene, redraw] = [s, r]) });
+	const devScene = (s: THREE.Scene, r: () => void) => ([scene, redraw] = [s, r]);
+	const m = await mountFixture(view, pose, { ...options, devScene });
 	mounted = m;
 	const settings = settingsFor('medium', m.tabletop.capabilities().backend);
 	const quiet = { bloom: false, aberration: false, grain: false, vignette: false };
@@ -303,5 +309,33 @@ describe('GridLights', () => {
 			leaks.map((s) => key(s.cell)),
 			'cells it lights past the rules'
 		).toEqual([]);
+	});
+
+	it('flicker by the clock alone: two held times, two frames, each the same again (#231)', async () => {
+		const view = await loadView('dungeon-40', 'dark', 'gm');
+		const pose = { target: { x: 20, y: 15 }, distance: 40, azimuth: 0, elevation: 80 };
+		const clock = manualClock(1_000_000);
+		const { m } = await mount(view, pose, { clock, reducedMotion: false });
+		// The torches flicker, so the table never rests: wait for frames drawn at the held time.
+		const at = async (t: number) => {
+			clock.set(t);
+			const start = m.tabletop.stats().frames;
+			await expect
+				.poll(() => m.tabletop.stats().frames, { timeout: 60_000, interval: 50 })
+				.toBeGreaterThan(start + 1);
+			return readFrame(m.canvas, WIDTH, HEIGHT);
+		};
+		await settle(m.tabletop, 500, 20_000);
+		const [a, b, again] = [await at(1_000_000), await at(1_000_400), await at(1_000_000)];
+		// The output's dither follows the clock too (a level or two everywhere); flicker is more.
+		const DITHER = 2;
+		let [moved, differ] = [0, 0];
+		for (let y = 0; y < HEIGHT; y += 2)
+			for (let x = 0; x < WIDTH; x += 2) {
+				if (change(a, b, x, y, false) > DITHER) moved++;
+				if (change(a, again, x, y, false) > 0) differ++;
+			}
+		expect(moved, 'pixels the flicker changed').toBeGreaterThan(1000);
+		expect(differ, 'pixels that differ at the same time').toBe(0);
 	});
 });

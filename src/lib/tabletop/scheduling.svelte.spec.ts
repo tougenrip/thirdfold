@@ -4,6 +4,7 @@
 // renderer.svelte.spec.ts so CI runs the two side by side.
 
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
+import type { Ambient } from '$lib/game/lights';
 import { settingsFor, withOverrides } from './quality';
 import {
 	loadSidecar,
@@ -33,9 +34,13 @@ afterEach(async () => {
 	errors.mockRestore();
 });
 
-async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?: boolean } = {}) {
+async function mount(
+	fixture: string,
+	viewer: Viewer,
+	options: { reducedMotion?: boolean; band?: Ambient } = {}
+) {
 	const sidecar = await loadSidecar(fixture);
-	const view = await loadView(fixture, sidecar.ambient, viewer);
+	const view = await loadView(fixture, options.band ?? sidecar.ambient, viewer);
 	const m = await mountFixture(view, sidecar.poses.overview, options);
 	mounted.push(m);
 	// At rest for a while: on a loaded machine something loading can land after a short quiet
@@ -80,6 +85,24 @@ describe('the render scheduler', () => {
 		const before = tabletop.stats().frames;
 		await wait(3000);
 		expect(tabletop.stats().frames - before).toBe(0);
+	});
+
+	test('draws nothing by day, though a torch burns: its flicker does not read (#231)', async () => {
+		const { tabletop } = await mount('ref-1', 'gm', { reducedMotion: false, band: 'day' });
+		const before = tabletop.stats().frames;
+		await wait(3000);
+		expect(tabletop.stats().frames - before).toBe(0);
+	});
+
+	test('draws nothing at night when no light in view flickers (#231)', async () => {
+		const m = await mount('ref-1', 'gm', { reducedMotion: false });
+		const view = await loadView('ref-1', (await loadSidecar('ref-1')).ambient, 'gm');
+		const steady = view.lights.map((l) => ({ ...l, flicker: 'none' as const }));
+		m.tabletop.setLighting(view.ambient, steady, view.world);
+		await settle(m.tabletop);
+		const before = m.tabletop.stats().frames;
+		await wait(3000);
+		expect(m.tabletop.stats().frames - before).toBe(0);
 	});
 
 	test('draws flickering torchlight at the slow ambient rate, never every frame', async () => {

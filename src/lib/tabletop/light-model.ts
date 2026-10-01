@@ -4,8 +4,16 @@
 // sections, one per task.
 
 import { gridToWorld, type GridPos, type SquareGrid, type WorldPos } from '../game/grid';
-import { lightLook, type LightKind, type LightLook, type LightSource } from '../game/lights';
+import {
+	FLICKERS,
+	lightLook,
+	type Flicker,
+	type LightKind,
+	type LightLook,
+	type LightSource
+} from '../game/lights';
 import { edgeKey } from '../game/objects';
+import { fnv1a } from '../game/visibility';
 import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
 
 // ---------------------------------------------------------------------------------------------
@@ -213,4 +221,44 @@ export function fitShadowFrustum(
 		near: Math.max(0.01, lo[2] - height),
 		far: hi[2] + step
 	};
+}
+
+// ---------------------------------------------------------------------------------------------
+// Flicker (#231): flames waver in the shader (materials/flicker.ts mirrors `flickerAt` with the
+// same constants), from one time uniform and each light's profile and phase in its data, so a
+// light costs no CPU per frame. A light's phase hashes its id (a carried light's, its token's), so
+// a torch flickers the same on every client and after a reload, however lights come and go.
+
+/** A flicker's two waves: amplitude (a share of the light's intensity) and frequency (Hz). */
+export type FlickerWaves = readonly [a1: number, f1: number, a2: number, f2: number];
+
+/**
+ * Each profile's waves, by `FLICKERS` index (a light's `profile`; 0 is none). Flash-safe: the
+ * amplitudes add to at most 8% and every wave is under 3 Hz (WCAG 2.3.1). Frequencies are
+ * multiples of 1 / FLICKER_PERIOD, so the shader's time can wrap without a jump.
+ */
+export const FLICKER_WAVES: Readonly<Record<Flicker, FlickerWaves>> = {
+	none: [0, 0, 0, 0],
+	candle: [0.03, 1.9, 0.025, 2.7], // small and quick
+	torch: [0.045, 1.16, 0.03, 2.08], // M67's curve
+	fire: [0.05, 0.7, 0.03, 1.45], // a brazier's: slower and deeper
+	pulse: [0.08, 0.4, 0, 0], // arcane: a slow sine
+	lantern: [0.015, 0.9, 0.01, 1.7] // behind glass: gentle
+};
+
+/** Seconds after which the shader's time wraps: every wave is whole cycles in it. */
+export const FLICKER_PERIOD = 100;
+
+/** A flicker's profile id for its light's data: its `FLICKERS` index (0, none, never wavers). */
+export const flickerProfile = (flicker: Flicker): number => FLICKERS.indexOf(flicker);
+
+/** A light's flicker phase, 0-1, from its id (or its carrier's): FNV-1a of the id's bytes. */
+export const flickerPhase = (id: string): number =>
+	fnv1a(new TextEncoder().encode(id)) / 0x100000000;
+
+/** The flicker factor (about 1) of profile `profile` with phase `phase` at `t` seconds. */
+export function flickerAt(profile: number, phase: number, t: number): number {
+	const [a1, f1, a2, f2] = FLICKER_WAVES[FLICKERS[profile] ?? 'none'];
+	const tau = 2 * Math.PI;
+	return 1 + a1 * Math.sin(tau * (f1 * t + phase)) + a2 * Math.sin(tau * (f2 * t + 2 * phase));
 }

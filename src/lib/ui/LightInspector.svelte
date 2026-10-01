@@ -32,7 +32,8 @@
 		candle: 'Candle',
 		torch: 'Torch',
 		fire: 'Fire',
-		pulse: 'Pulse'
+		pulse: 'Pulse',
+		lantern: 'Lantern'
 	};
 
 	/** One change, one field. */

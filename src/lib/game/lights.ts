@@ -36,7 +36,8 @@ export const LIGHT_KINDS = [
 	'panel'
 ] as const;
 export type LightKind = (typeof LIGHT_KINDS)[number];
-export const FLICKERS = ['none', 'candle', 'torch', 'fire', 'pulse'] as const;
+/** How a light wavers (light-model.ts `FLICKER_WAVES`): a lantern's is the gentlest. */
+export const FLICKERS = ['none', 'candle', 'torch', 'fire', 'pulse', 'lantern'] as const;
 export type Flicker = (typeof FLICKERS)[number];
 export const MAX_LIGHT_INTENSITY = 4;
 /** How high a light hangs, in levels above its cell's floor. */
@@ -80,7 +81,7 @@ export const LIGHT_KIND_DEFAULTS: Readonly<Record<LightKind, LightLook>> = {
 	torch: kindLook('torch', 1, 4, 'torch', true),
 	candle: kindLook('candle', 0.5, 1, 'candle', true),
 	brazier: kindLook('brazier', 1.5, 2, 'fire', true),
-	lantern: kindLook('lantern', 1, 4, 'candle', true),
+	lantern: kindLook('lantern', 1, 4, 'lantern', true),
 	glow: kindLook('glow', 1, 1, 'none', false),
 	magic: kindLook('magic', 1, 3, 'pulse', true),
 	fire: kindLook('fire', 1.5, 0, 'fire', false),
@@ -211,6 +212,8 @@ export const CARRIED_LIGHT_COLOR = '#ffa04d';
 
 /** Anything that gives off light: a placed source, or a token carrying one. The rules read only pos, radius and colour. */
 export interface LightSource extends Partial<LightLook> {
+	/** The light's or carrier token's id: look only (a flicker's phase), the rules ignore it. */
+	id?: string;
 	pos: GridPos;
 	radius: number;
 	color: string;
@@ -219,13 +222,18 @@ export interface LightSource extends Partial<LightLook> {
 /** Light sources in effect: switched-on lights plus tokens with a light radius. */
 export function lightSources(
 	lights: Iterable<Light>,
-	tokens: Iterable<{ pos: GridPos; light: number; lightColor?: string }>
+	tokens: Iterable<{ id?: string; pos: GridPos; light: number; lightColor?: string }>
 ): LightSource[] {
 	const sources: LightSource[] = [];
 	for (const l of lights) if (l.on && l.radius > 0) sources.push(l);
 	for (const t of tokens) {
 		if (t.light > 0)
-			sources.push({ pos: t.pos, radius: t.light, color: t.lightColor ?? CARRIED_LIGHT_COLOR });
+			sources.push({
+				id: t.id,
+				pos: t.pos,
+				radius: t.light,
+				color: t.lightColor ?? CARRIED_LIGHT_COLOR
+			});
 	}
 	return sources;
 }

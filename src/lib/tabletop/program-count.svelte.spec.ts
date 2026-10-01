@@ -21,13 +21,14 @@
 // Each tier's runtime state (in two halves), its table travel and its sky are tests of their own, one CI shard each (shardedIt).
 // Many lights (#228, `lightSteps`): 40 torches coming and going, carried light on, coloured, moved
 // and off, kinds and colours changing, on every tier, in a shard of its own; later lighting tasks
-// (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there.
+// (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
+// flicker's (#231) are every profile on the 40 torches.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
 import { afterEach, describe, expect, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
-import { LIGHT_KINDS, type Light } from '$lib/game/lights';
+import { FLICKERS, LIGHT_KINDS, type Light } from '$lib/game/lights';
 import { bandOf, type WorldLook } from '$lib/game/world';
 import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
@@ -364,6 +365,11 @@ function lightSteps(m: Mounted, home: FixtureView): Step[] {
 		...LIGHT_KINDS.map((kind): Step => [
 			`torches as ${kind}`,
 			() => t.setLighting('dark', torches(TORCHES, { kind, intensity: 2, fixture: true }))
+		]),
+		// Flicker (#231): each profile is numbers in a light's data and a uniform array, no program.
+		...FLICKERS.map((flicker): Step => [
+			`torches flicker ${flicker}`,
+			() => t.setLighting('dark', torches(TORCHES, { flicker }))
 		]),
 		['carried light on', () => t.setTokens(carry({ light: 4 }))],
 		['carried light coloured', () => t.setTokens(carry({ light: 4, lightColor: '#6fe08a' }))],

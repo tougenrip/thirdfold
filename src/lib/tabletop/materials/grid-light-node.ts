@@ -10,12 +10,14 @@
 // reads and no other gets any. The set of light objects never changes (one GridLight per scene,
 // per K: a tier with another K swaps it, which is a new program, like any tier switch), so lights
 // coming and going only change texture data, and a light that changes uploads only its own layer.
-// Not dimmed by the rules' darkness: the lights are where the light is (KindLightingModel).
+// Not dimmed by the rules' darkness: the lights are where the light is (KindLightingModel). Each
+// light wavers by its flicker profile and phase (#231, materials/flicker.ts): numbers, no program.
 
 import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import { CORE_MAX, CORE_RADIUS, LIGHT_DECAY, READABLE_EDGE } from '$lib/game/lights';
 import type { SquareGrid } from '$lib/game/grid';
+import { flickerNode } from './flicker';
 import type { N } from './tsl';
 import {
 	DATA_TEXELS,
@@ -181,7 +183,9 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 						occ = occ.add(t.step(d, row.add(ROW_EPS)));
 					}
 					const d3 = t.positionWorld.distance(at.xyz).div(cellSize);
-					const lit = falloffNode(d, at.w, d3).mul(occ.div(TAPS.length));
+					// The flicker (#231) scales the light, never its floor at READABLE_EDGE.
+					const flicker = flickerNode(rule.z, rule.w);
+					const lit = falloffNode(d, at.w, d3).mul(occ.div(TAPS.length)).mul(flicker);
 					const lightVector = cameraViewMatrix.mul(vec4(at.xyz, 1)).xyz.sub(positionView);
 					b.lightsNode.setupDirectLight(builder, this, {
 						lightDirection: lightVector.normalize(),
