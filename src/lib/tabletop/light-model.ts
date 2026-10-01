@@ -4,7 +4,7 @@
 // sections, one per task.
 
 import { gridToWorld, type GridPos, type SquareGrid, type WorldPos } from '../game/grid';
-import { lightLook, type LightSource } from '../game/lights';
+import { lightLook, type LightKind, type LightLook, type LightSource } from '../game/lights';
 import { edgeKey } from '../game/objects';
 import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
 
@@ -36,6 +36,21 @@ const SIDES = [
 	{ edge: (c: GridPos) => ({ a: c, b: { x: c.x, y: c.y + 1 } }), dx: -1, dz: 0 }
 ] as const;
 
+/** The wall a light hangs on: a torch's or lantern's first walled edge in SIDES' order, if any. */
+function wallSide(light: Pick<LightSource, 'pos' | 'kind'>, walled: ReadonlySet<string>) {
+	if (!WALL_KINDS.has(lightLook(light).kind)) return undefined;
+	return SIDES.find((s) => walled.has(edgeKey(s.edge(light.pos))));
+}
+
+/** Whether a light hangs on a wall (as `lightMount` puts it) or stands on its floor. */
+export type Mount = 'wall' | 'floor';
+
+/** How `lightMount` mounts a light, for `fixtureFor`. */
+export const mountOf = (
+	light: Pick<LightSource, 'pos' | 'kind'>,
+	walled: ReadonlySet<string>
+): Mount => (wallSide(light, walled) ? 'wall' : 'floor');
+
 /**
  * Where a light is drawn, in world units. A torch or lantern (no kind counts as a torch) whose
  * cell has a walled edge (`walled`: edge keys, `edgeKey`) sits MOUNT_OFFSET off the first one in
@@ -51,18 +66,46 @@ export function lightMount(
 	const centre = gridToWorld(grid, light.pos);
 	const floor = ground?.floorY(light.pos) ?? 0;
 	const look = lightLook(light);
-	if (WALL_KINDS.has(look.kind)) {
-		const side = SIDES.find((s) => walled.has(edgeKey(s.edge(light.pos))));
-		if (side) {
-			const off = (0.5 - MOUNT_OFFSET) * grid.cellSize;
-			return {
-				x: centre.x + side.dx * off,
-				y: floor + MOUNT_HEIGHT * WALL_HEIGHT * grid.cellSize,
-				z: centre.z + side.dz * off
-			};
-		}
+	const side = wallSide(light, walled);
+	if (side) {
+		const off = (0.5 - MOUNT_OFFSET) * grid.cellSize;
+		return {
+			x: centre.x + side.dx * off,
+			y: floor + MOUNT_HEIGHT * WALL_HEIGHT * grid.cellSize,
+			z: centre.z + side.dz * off
+		};
 	}
 	return { x: centre.x, y: floor + look.height * STEP_HEIGHT * grid.cellSize, z: centre.z };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixtures (#232): the model a light is drawn with. Part lists in assets/models/prop (each glow a
+// `flame` mesh, white, for the light's colour to tint), replaceable by cooked or commissioned art
+// under the same ids. A wall fixture hangs on its cell's north wall with its flame where
+// `lightMount` puts it (turned a quarter per side, SIDES' order); a floor one stands at the cell
+// centre with its flame at its kind's default height. Ids describe looks, never story roles.
+
+/** Each kind's fixture on a wall and on the floor; null draws none (a glow is light alone). */
+export const FIXTURES: Readonly<Record<LightKind, Readonly<Record<Mount, string | null>>>> = {
+	torch: { wall: 'wall-sconce', floor: 'standing-torch' },
+	candle: { wall: 'candle-cluster', floor: 'candle-cluster' },
+	brazier: { wall: 'brazier', floor: 'brazier' },
+	lantern: { wall: 'wall-lantern', floor: 'post-lantern' },
+	glow: { wall: null, floor: null },
+	magic: { wall: 'glow-crystal', floor: 'glow-crystal' },
+	fire: { wall: 'ground-flame', floor: 'ground-flame' },
+	neon: { wall: 'neon-bar', floor: 'neon-bar' },
+	panel: { wall: 'light-panel', floor: 'light-panel' }
+};
+
+/**
+ * The fixture model a light is drawn with, or null: none when its look says `fixture: false` (a
+ * prop on its cell is the fixture, or it is a glow). Only torches and lanterns hang on walls
+ * (`mountOf`); every other kind stands on its floor whatever `mount` says.
+ */
+export function fixtureFor(light: Partial<LightLook>, mount: Mount): string | null {
+	const look = lightLook(light);
+	return look.fixture ? FIXTURES[look.kind][mount] : null;
 }
 
 // ---------------------------------------------------------------------------------------------

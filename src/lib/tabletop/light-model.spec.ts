@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from '../game/grid';
-import { LEVEL_CELLS } from '../game/lights';
+import { LEVEL_CELLS, LIGHT_KINDS } from '../game/lights';
 import { edgeKey } from '../game/objects';
 import { groundFor, STEP_HEIGHT, WALL_HEIGHT } from './ground';
 import {
+	FIXTURES,
+	fixtureFor,
+	mountOf,
 	fitShadowFrustum,
 	lightBasis,
 	lightMount,
@@ -97,6 +100,46 @@ function corners(b: ShadowBounds): V3[] {
 		i & 4 ? b.max[2] : b.min[2]
 	]);
 }
+
+describe('fixtureFor (#232)', () => {
+	it('picks each kind its fixture, on a wall and on the floor', () => {
+		const at = (kind: (typeof LIGHT_KINDS)[number]) => [
+			fixtureFor({ kind, fixture: true }, 'wall'),
+			fixtureFor({ kind, fixture: true }, 'floor')
+		];
+		expect(Object.fromEntries(LIGHT_KINDS.map((k) => [k, at(k)]))).toEqual({
+			torch: ['wall-sconce', 'standing-torch'],
+			candle: ['candle-cluster', 'candle-cluster'],
+			brazier: ['brazier', 'brazier'],
+			lantern: ['wall-lantern', 'post-lantern'],
+			glow: [null, null],
+			magic: ['glow-crystal', 'glow-crystal'],
+			fire: ['ground-flame', 'ground-flame'],
+			neon: ['neon-bar', 'neon-bar'],
+			panel: ['light-panel', 'light-panel']
+		});
+	});
+
+	it('draws none for fixture: false, and follows the kind defaults (no kind is a torch)', () => {
+		expect(fixtureFor({}, 'wall')).toBe('wall-sconce');
+		expect(fixtureFor({ fixture: false }, 'floor')).toBeNull();
+		expect(fixtureFor({ kind: 'lantern', fixture: false }, 'wall')).toBeNull();
+		// A glow and a fire are light alone unless a light asks for its fixture.
+		expect(fixtureFor({ kind: 'glow' }, 'floor')).toBeNull();
+		expect(fixtureFor({ kind: 'fire' }, 'floor')).toBeNull();
+		expect(fixtureFor({ kind: 'fire', fixture: true }, 'floor')).toBe('ground-flame');
+	});
+
+	it('mounts on a wall exactly where lightMount does', () => {
+		expect(mountOf({ pos }, new Set([east]))).toBe('wall');
+		expect(mountOf({ pos, kind: 'lantern' }, new Set([south]))).toBe('wall');
+		expect(mountOf({ pos }, new Set())).toBe('floor');
+		expect(mountOf({ pos, kind: 'brazier' }, new Set([north]))).toBe('floor');
+		// Only torches and lanterns hang, so every other kind's two fixtures are the same.
+		for (const kind of LIGHT_KINDS.filter((k) => k !== 'torch' && k !== 'lantern'))
+			expect(FIXTURES[kind].wall).toBe(FIXTURES[kind].floor);
+	});
+});
 
 describe('fitShadowFrustum', () => {
 	it('holds every grid corner and wall top for the light from any direction', () => {

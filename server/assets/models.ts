@@ -1,9 +1,10 @@
 // Models authored as primitive parts (boxes, cylinders, spheres, cones: the
 // look of every prop and figure in The Hollow Bell) and baked into meshes
-// for a GLB. Parts are merged into at most three meshes: `body`, `swing`
-// (parts that swing about the model's pivot) and `accent` (tinted with the
-// token's colour at the table), each drawn with one call per model however
-// many parts it has. Colours are baked in as vertex colours. Each part is
+// for a GLB. Parts are merged into at most four meshes: `body`, `swing`
+// (parts that swing about the model's pivot), `accent` (tinted with the
+// token's colour at the table) and `flame` (a light fixture's glowing part,
+// white, tinted by its light's colour and drawn emissive; #232), each drawn
+// with one call per model however many parts it has. Colours are baked in as vertex colours. Each part is
 // built at its own size with chamfered edges (#190), so they catch the light,
 // and carries its normals and a baked occlusion and convexity (bake.ts).
 
@@ -28,6 +29,8 @@ export interface PartSource {
 	swings?: boolean;
 	/** Takes the token's colour (a figure's cloak, a banner). */
 	accent?: boolean;
+	/** Glows: a fixture's flame or lamp, baked white into the `flame` mesh (#232). */
+	emissive?: boolean;
 }
 
 export interface ModelSource {
@@ -205,7 +208,13 @@ export function readModelSource(raw: unknown, materials: ReadonlySet<string>): M
 			throw new Error(`${where}: unknown material`);
 		}
 		if (p.accent && p.swings) throw new Error(`${where}: an accent can't swing`);
-		if (!p.accent && p.color === undefined && p.material === undefined) {
+		if (p.emissive !== undefined && p.emissive !== true) {
+			throw new Error(`${where}: "emissive" is true or absent`);
+		}
+		if (p.emissive && (p.accent || p.swings || p.color || p.material)) {
+			throw new Error(`${where}: a flame is white and neither swings nor takes an accent`);
+		}
+		if (!p.accent && !p.emissive && p.color === undefined && p.material === undefined) {
 			throw new Error(`${where}: needs a colour or a material`);
 		}
 		return {
@@ -216,7 +225,8 @@ export function readModelSource(raw: unknown, materials: ReadonlySet<string>): M
 			...(p.color ? { color: p.color as string } : {}),
 			...(p.material ? { material: p.material as string } : {}),
 			...(p.swings === true ? { swings: true } : {}),
-			...(p.accent === true ? { accent: true } : {})
+			...(p.accent === true ? { accent: true } : {}),
+			...(p.emissive === true ? { emissive: true } : {})
 		};
 	});
 	const source: ModelSource = { parts };
@@ -244,24 +254,31 @@ export const placementOf = (p: PartSource) =>
 		new THREE.Vector3(1, 1, 1)
 	);
 
+/** The meshes a part list bakes into, in the order they are written. */
+export const PART_ROLES = ['body', 'swing', 'accent', 'flame'] as const;
+type PartRole = (typeof PART_ROLES)[number];
+
+const roleOfPart = (p: PartSource): PartRole =>
+	p.emissive ? 'flame' : p.accent ? 'accent' : p.swings ? 'swing' : 'body';
+
 /**
  * The meshes of a model: parts chamfered and merged by role, with colours, normals, and occlusion
- * and convexity baked in (bake.ts).
+ * and convexity baked in (bake.ts). A flame is white and shades nothing: light comes out of it.
  */
 export function bakeModel(source: ModelSource, materialColor: (id: string) => string): MeshData[] {
-	const groups: Record<'body' | 'swing' | 'accent', THREE.BufferGeometry[]> = {
-		body: [],
-		swing: [],
-		accent: []
-	};
+	const groups = Object.fromEntries(PART_ROLES.map((r) => [r, []])) as unknown as Record<
+		PartRole,
+		THREE.BufferGeometry[]
+	>;
 	const color = new THREE.Color();
-	const solids = source.parts.map(solidOf);
+	const solids = source.parts.filter((p) => !p.emissive).map(solidOf);
 	for (const p of source.parts) {
 		const g = shapeAt(p.shape, p.size).applyMatrix4(placementOf(p));
 		bakeInto(g, solids);
-		const role = p.accent ? 'accent' : p.swings ? 'swing' : 'body';
+		const role = roleOfPart(p);
 		if (role !== 'accent') {
-			color.setStyle(p.color ?? materialColor(p.material!));
+			if (role === 'flame') color.setRGB(1, 1, 1);
+			else color.setStyle(p.color ?? materialColor(p.material!));
 			const count = g.getAttribute('position').count;
 			const colors = new Float32Array(count * 3);
 			for (let i = 0; i < count; i++) colors.set([color.r, color.g, color.b], i * 3);

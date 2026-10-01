@@ -992,11 +992,11 @@
 			}
 		},
 		"brazier": {
-			"file": "models/brazier.fa78fb21.glb",
-			"sha256": "fa78fb21b2152e3a5f94f6cad329fc9ce14220eb1d1174621f71a7d46c586ef6",
-			"bytes": 21056,
+			"file": "models/brazier.10c3f141.glb",
+			"sha256": "10c3f14158a88043109236c9c89b7ef363c25c18a92ddb3fe8091ff6f5c70c1c",
+			"bytes": 35260,
 			"kind": "prop",
-			"triangles": 576,
+			"triangles": 1000,
 			"bounds": {
 				"min": [
 					-0.295,
@@ -1005,11 +1005,11 @@
 				],
 				"max": [
 					0.295,
-					0.89,
+					1.25,
 					0.3
 				]
 			},
-			"gpuBytes": 18960,
+			"gpuBytes": 31602,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
@@ -1058,6 +1058,31 @@
 					"author": "thirdfold contributors"
 				}
 			}
+		},
+		"candle-cluster": {
+			"file": "models/candle-cluster.9c59378f.glb",
+			"sha256": "9c59378f93453639f6a41cf33be01138d3d5db03044905e2ed0af2f44637188a",
+			"bytes": 71688,
+			"kind": "prop",
+			"triangles": 2136,
+			"bounds": {
+				"min": [
+					-0.167,
+					0,
+					-0.17
+				],
+				"max": [
+					0.167,
+					0.491,
+					0.17
+				]
+			},
+			"gpuBytes": 66366,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
 		},
 		"carvings": {
 			"file": "models/carvings.5a8a9fa4.glb",
@@ -1399,6 +1424,31 @@
 				}
 			}
 		},
+		"glow-crystal": {
+			"file": "models/glow-crystal.9ce9c1fc.glb",
+			"sha256": "9ce9c1fcdf355ab32f4b3a348713ec54e2706f8bfce631549bc2b45e823592f5",
+			"bytes": 22728,
+			"kind": "prop",
+			"triangles": 548,
+			"bounds": {
+				"min": [
+					-0.197,
+					0,
+					-0.2
+				],
+				"max": [
+					0.197,
+					1.34,
+					0.2
+				]
+			},
+			"gpuBytes": 19608,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
 		"grate": {
 			"file": "models/grate.8bb96139.glb",
 			"sha256": "8bb961395a8e407b1c4e4b05df7978d56af4b6ab2dfc8929d0406aa466659d40",
@@ -1549,6 +1599,31 @@
 					}
 				}
 			]
+		},
+		"ground-flame": {
+			"file": "models/ground-flame.872e0c26.glb",
+			"sha256": "872e0c26b8a954b6239003a2042fb545af6dcc5cc4cfeca8544c2d76ad49d3c7",
+			"bytes": 30304,
+			"kind": "prop",
+			"triangles": 856,
+			"bounds": {
+				"min": [
+					-0.249,
+					0.011,
+					-0.247
+				],
+				"max": [
+					0.249,
+					0.57,
+					0.247
+				]
+			},
+			"gpuBytes": 26862,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
 		},
 		"handbell": {
 			"file": "models/handbell.9e030913.glb",
@@ -1796,6 +1871,56 @@
 				}
 			}
 		},
+		"light-panel": {
+			"file": "models/light-panel.b43d8a82.glb",
+			"sha256": "b43d8a8229df1a80f1106a9476338b39f62cfa00c624a3e10e0538ae1212997c",
+			"bytes": 14344,
+			"kind": "prop",
+			"triangles": 376,
+			"bounds": {
+				"min": [
+					-0.32,
+					0,
+					-0.15
+				],
+				"max": [
+					0.32,
+					1.42,
+					0.15
+				]
+			},
+			"gpuBytes": 11640,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"neon-bar": {
+			"file": "models/neon-bar.0251e79d.glb",
+			"sha256": "0251e79d15edb6e66c0b28a4f7d2d00a1ab8f31473edbbc7fc2b33314cfa9aa7",
+			"bytes": 18192,
+			"kind": "prop",
+			"triangles": 476,
+			"bounds": {
+				"min": [
+					-0.45,
+					0,
+					-0.025
+				],
+				"max": [
+					0.45,
+					1.22,
+					0.025
+				]
+			},
+			"gpuBytes": 15300,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
 		"noticeboard": {
 			"file": "models/noticeboard.030d8bff.glb",
 			"sha256": "030d8bff1f847441f432ac8a0c1c1b3f44e86100969a911428af0902e8ab160d",
@@ -1931,6 +2056,31 @@
 					"author": "thirdfold contributors"
 				}
 			}
+		},
+		"post-lantern": {
+			"file": "models/post-lantern.2b541667.glb",
+			"sha256": "2b5416672db84cecb792378df1a0d0fb94eac6216d50e643d37e12a527663e15",
+			"bytes": 37984,
+			"kind": "prop",
+			"triangles": 1104,
+			"bounds": {
+				"min": [
+					-0.128,
+					0,
+					-0.13
+				],
+				"max": [
+					0.128,
+					1.83,
+					0.13
+				]
+			},
+			"gpuBytes": 34198,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
 		},
 		"rope": {
 			"file": "models/rope.5c671cbf.glb",
@@ -2102,6 +2252,31 @@
 				}
 			}
 		},
+		"standing-torch": {
+			"file": "models/standing-torch.058db2fc.glb",
+			"sha256": "058db2fc4f312247e117827f0bfba631a648651c788c1faaf1ad2d479526828c",
+			"bytes": 33476,
+			"kind": "prop",
+			"triangles": 928,
+			"bounds": {
+				"min": [
+					-0.148,
+					0,
+					-0.15
+				],
+				"max": [
+					0.148,
+					1.816,
+					0.15
+				]
+			},
+			"gpuBytes": 29878,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
 		"statue": {
 			"file": "models/statue.fbeac885.glb",
 			"sha256": "fbeac885d9d6fe0f808f616765412541fa6f8b9222302c53b2d9a78390e82d0e",
@@ -2271,6 +2446,56 @@
 					"author": "thirdfold contributors"
 				}
 			}
+		},
+		"wall-lantern": {
+			"file": "models/wall-lantern.785cecec.glb",
+			"sha256": "785cecec73ad084cff47b3795758b5837d38c39e30adaca278f4fe6a93183760",
+			"bytes": 35256,
+			"kind": "prop",
+			"triangles": 1048,
+			"bounds": {
+				"min": [
+					-0.098,
+					1.255,
+					-0.45
+				],
+				"max": [
+					0.098,
+					1.74,
+					-0.25
+				]
+			},
+			"gpuBytes": 31618,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"wall-sconce": {
+			"file": "models/wall-sconce.712c3ea5.glb",
+			"sha256": "712c3ea52f66dc699225adb910c7fa5afd11de04b7660242c2c697704f53d2f0",
+			"bytes": 25784,
+			"kind": "prop",
+			"triangles": 728,
+			"bounds": {
+				"min": [
+					-0.05,
+					1.05,
+					-0.43
+				],
+				"max": [
+					0.05,
+					1.58,
+					-0.3
+				]
+			},
+			"gpuBytes": 22558,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
 		},
 		"water-lg": {
 			"file": "models/water-lg.ae4739dc.glb",
@@ -8385,8 +8610,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 10759400,
-			"gpuBytes": 31458128
+			"bytes": 11063360,
+			"gpuBytes": 31728798
 		},
 		"ghost-town": {
 			"bytes": 104095,

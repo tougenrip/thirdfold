@@ -1,0 +1,76 @@
+{
+	"parts": [
+		{
+			"shape": "cylinder",
+			"size": [0.34, 0.04, 0.34],
+			"at": [0, 0.02, 0],
+			"color": "#8a6a3a"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.05, 0.22, 0.05],
+			"at": [0, 0.15, 0],
+			"color": "#8a6a3a"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.26, 0.03, 0.26],
+			"at": [0, 0.27, 0],
+			"color": "#8a6a3a"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.05, 0.1, 0.05],
+			"at": [0, 0.33, 0],
+			"color": "#e3d6b8"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.04, 0.07, 0.04],
+			"at": [0.08, 0.315, 0.04],
+			"color": "#e3d6b8"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.04, 0.05, 0.04],
+			"at": [-0.07, 0.305, 0.05],
+			"color": "#e3d6b8"
+		},
+		{
+			"shape": "sphere",
+			"size": [0.045, 0.054, 0.045],
+			"at": [0, 0.41, 0],
+			"emissive": true
+		},
+		{
+			"shape": "cone",
+			"size": [0.036, 0.072, 0.036],
+			"at": [0, 0.455, 0],
+			"emissive": true
+		},
+		{
+			"shape": "sphere",
+			"size": [0.035, 0.042, 0.035],
+			"at": [0.08, 0.375, 0.04],
+			"emissive": true
+		},
+		{
+			"shape": "cone",
+			"size": [0.028, 0.056, 0.028],
+			"at": [0.08, 0.41, 0.04],
+			"emissive": true
+		},
+		{
+			"shape": "sphere",
+			"size": [0.035, 0.042, 0.035],
+			"at": [-0.07, 0.355, 0.05],
+			"emissive": true
+		},
+		{
+			"shape": "cone",
+			"size": [0.028, 0.056, 0.028],
+			"at": [-0.07, 0.39, 0.05],
+			"emissive": true
+		}
+	]
+}

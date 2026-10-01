@@ -20,7 +20,10 @@ import { LIMITS, type ColorSpace, type Limit } from '../../src/lib/assets/manife
 import { MAX_JSON_BYTES, gltfProblem } from './gltf-check';
 import { checkKtx2, type Ktx2Info } from './ktx2';
 
-/** One mesh of a model: `body`, `swing` (the parts that swing) or `accent` (tinted with the token's colour). */
+/**
+ * One mesh of a model: `body`, `swing` (the parts that swing), `accent` (tinted with the token's
+ * colour) or `flame` (a light fixture's glow, white, tinted by its light; #232).
+ */
 export interface MeshData {
 	name: string;
 	positions: Float32Array;

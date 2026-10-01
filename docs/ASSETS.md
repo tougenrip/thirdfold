@@ -89,10 +89,44 @@ been made of:
   token's colour, so one villager model dresses the whole village.
 - **Swinging parts:** mark them `"swings": true`, and give the model a `swing`: the height it turns
   about and how far a swing throws it. These are used by the tower bell and the lever.
+- **Glowing parts** (#232): mark a light fixture's flame, lamp or crystal `"emissive": true`, with
+  no colour or material. It is baked white into the `flame` mesh, which the light fixtures tint
+  with their light's colour and draw emissive, so it blooms; it never swings or takes an accent.
 
-The pipeline merges the parts into at most three meshes: `body`, `swing` and `accent`. Colours are
-baked in as vertex colours. The client draws each prop model with one instanced draw call however
-many parts it has, plus one more if it swings.
+The pipeline merges the parts into at most four meshes: `body`, `swing`, `accent` and `flame`.
+Colours are baked in as vertex colours. The client draws each prop model with one instanced draw
+call however many parts it has, plus one more if it swings.
+
+### Light fixtures
+
+A light is drawn with a fixture model that fits its kind (#232): `fixtureFor(light, mount)` in
+`src/lib/tabletop/light-model.ts` (`FIXTURES`) picks it, and none for a glow or a light whose look
+says `fixture: false`. They are part lists in `assets/models/prop` like any prop, but not in the
+catalogue (nobody places them; the light is the thing placed), and any of them can be replaced by
+a cooked or commissioned model under the same id, with its glow in a mesh named `flame`, with no
+code change.
+
+| Kind    | On a wall        | On the floor     |
+| ------- | ---------------- | ---------------- |
+| torch   | `wall-sconce`    | `standing-torch` |
+| lantern | `wall-lantern`   | `post-lantern`   |
+| candle  | `candle-cluster` | `candle-cluster` |
+| brazier | `brazier`        | `brazier`        |
+| magic   | `glow-crystal`   | `glow-crystal`   |
+| fire    | `ground-flame`   | `ground-flame`   |
+| neon    | `neon-bar`       | `neon-bar`       |
+| panel   | `light-panel`    | `light-panel`    |
+| glow    | none             | none             |
+
+- Only torches and lanterns hang on a wall (`mountOf`, the same rule as `lightMount`). A wall
+  fixture is modelled on its cell's north wall (the wall's face at z = -0.43) with its flame where
+  `lightMount` puts the light, 0.35 cells north of the centre and 1.4 up; it is turned a quarter
+  per side. A floor fixture stands at the cell centre with its flame at its kind's default height
+  (`LIGHT_KIND_DEFAULTS`, 0.4 cells a level).
+- `checkScenes` fails a table with a light whose fixture, on a wall or on the floor, has no prop
+  model, and counts the fixtures in the table's budget.
+- A light on the same cell as a prop that is its fixture (a `sconce`, a `brazier`) sets
+  `fixture: false` (`IN_PROP` in `server/adventure/tables.ts`), so nothing is drawn twice.
 
 Each part is built at its own size, so its edges catch the light (#190, `models.ts`, `bake.ts`):
 

@@ -21,10 +21,11 @@ export const EXTENSIONS = new Set([
 ]);
 
 /**
- * A mesh's name, and its node's: its role, and `_lod<n>` for a coarser level. GLTFLoader strips
+ * A mesh's name, and its node's: its role (`flame` a light fixture's glow, #232), and `_lod<n>`
+ * for a coarser level. GLTFLoader strips
  * `.`, `:`, `/`, `[` and `]` from names, so a dotted name would reach the client changed.
  */
-export const MESH_NAME = /^(body|swing|accent)(_lod[12])?$/;
+export const MESH_NAME = /^(body|swing|accent|flame)(_lod[12])?$/;
 
 export const MAX_JSON_BYTES = 256 * 1024;
 export const MAX_NODES = 256;
@@ -355,7 +356,9 @@ function check(json: Json, binLength: number, limit: Limit): void {
 	for (const mesh of meshes) {
 		onlyKeys(mesh, new Set(['name', 'primitives']), 'mesh');
 		if (typeof mesh.name !== 'string' || !MESH_NAME.test(mesh.name)) {
-			fail(`mesh "${String(mesh.name)}" must be named body, swing or accent (and _lod1 or _lod2)`);
+			fail(
+				`mesh "${String(mesh.name)}" must be named body, swing, accent or flame (and _lod1 or _lod2)`
+			);
 		}
 		const primitives = records(mesh.primitives, 'primitives');
 		if (!primitives.length) fail('a mesh without primitives');
