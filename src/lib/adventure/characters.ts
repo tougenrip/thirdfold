@@ -39,12 +39,17 @@ export interface Attack {
 	damage: string;
 	/** The kind of damage, in the rules' words ("cold"), where the rules have kinds. */
 	damageType?: string;
+	/** How many times it is made when its maker attacks (a Multiattack); once when absent. */
+	times?: number;
+	/** Damage of another kind it deals on a hit as well ("plus 7 (2d6) Fire damage"). */
+	plus?: { damage: string; damageType: string };
 	save?: { stat: string; dc: number; half: boolean };
 	/**
 	 * Conditions (the rules' ids) it leaves on a hit, or on a failed save,
-	 * until the start or the end of the attacker's next turn.
+	 * until the start or the end of the attacker's next turn, or (null) until
+	 * its bearer is rid of it (gets up from Prone).
 	 */
-	inflicts?: { conditions: string[]; ends: 'start' | 'end' };
+	inflicts?: { conditions: string[]; ends: 'start' | 'end' | null };
 }
 
 /**

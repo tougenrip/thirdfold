@@ -3287,6 +3287,86 @@ describe('fifth edition rules over the wire', () => {
 		}
 	});
 
+	it('lets the GM build an SRD encounter, run it, and pick it up again after a reconnect', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { sessionToken } = await pip.expect('welcome');
+		const quinn = await connect();
+		quinn.send({ type: 'join', roomId: room.id, name: 'Quinn', role: 'player' });
+		await quinn.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		await quinn.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		quinn.send({ type: 'adventure_claim', characterId: 'saint' });
+		await quinn.until('token_upserted', (m) => m.token.name === 'The Saint');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// Only the GM searches the SRD's monsters.
+		pip.send({ type: 'monster_search', query: 'wolf' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'monster_search', query: 'wolf' });
+		const found = await gm.until('monster_search');
+		const wolf = found.monsters.find((m) => m.name === 'Wolf')!;
+		expect(wolf).toMatchObject({ kind: 'srd-wolf', challenge: '1/4', xp: 50 });
+
+		// Placed for the GM's fight, beside the Warden: it waits, and the GM reads the summary.
+		gm.send({ type: 'token_move', tokenId: warden.token.id, to: { x: 3, y: 10 } });
+		await pip.until('token_moved', (m) => m.tokenId === warden.token.id);
+		const at = { x: 4, y: 10 };
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'spawn', kind: wolf.kind, pos: at, waiting: true }
+		});
+		const placed = await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.director?.bestiary?.summary
+		);
+		expect(placed.adventure!.encounter).toBeNull();
+		// Two level 1 characters: a Low budget of 100 XP, and one Wolf is 50.
+		expect(placed.adventure!.director!.bestiary!.summary).toMatchObject({
+			xp: 50,
+			band: 'Below Low',
+			party: { characters: 2, levels: [1, 1] }
+		});
+
+		// The GM starts it; the Wolf takes its turns by the rules (every die rolls high here).
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'encounter_start', encounter: 'ambush' }
+		});
+		const fight = await pip.until('adventure_update', (m) => !!m.adventure?.encounter);
+		expect(fight.adventure!.encounter!.order.map((t) => t.name)).toEqual(
+			expect.arrayContaining(['The Warden', 'Wolf'])
+		);
+		const bite = await pip.until(
+			'chat',
+			(m) => m.message.kind === 'attack' && m.message.authorName === 'Wolf'
+		);
+		expect(bite.message).toMatchObject({ attack: 'Bite', critical: true });
+
+		// Pip drops and comes back: the same fight, the Wolf in it.
+		pip.ws.close();
+		const again = await connect();
+		again.send({ type: 'resume', roomId: room.id, sessionToken });
+		const back = await again.expect('welcome');
+		const order = back.room.adventure!.encounter!.order;
+		expect(order.map((t) => t.name)).toEqual(expect.arrayContaining(['The Warden', 'Wolf']));
+		// Its critical bite (2d6 + 2 = 14) downed the Warden, whose death save (a 20) brought it back with 1 HP.
+		expect(back.room.adventure!.characters.find((c) => c.id === 'warden')).toMatchObject({
+			hp: 1,
+			downed: false
+		});
+		expect(back.room.log.some((m) => m.kind === 'check' && m.stat === 'Death saving throw')).toBe(
+			true
+		);
+	});
+
 	it('casts a spell by the rules: a slot spent and kept, a bad aim refused', async () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });

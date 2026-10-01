@@ -27,6 +27,7 @@ import {
 	SHEET_NOTES_MAX,
 	type Check,
 	type DirectorView,
+	type MonsterListing,
 	type ObjectState,
 	type Physical,
 	type Sense,
@@ -115,6 +116,7 @@ import {
 	type When
 } from './define';
 import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
+import { BESTIARY_MAX, withBestiary } from './bestiary';
 import { keepCharacter, layPiles, pickUp, putDown, withKept } from './gear';
 import {
 	activeOn,
@@ -154,7 +156,11 @@ import {
 
 /** The content of the adventure a story is of. */
 export function content(adventure: AdventureState): AdventureDef {
-	return withBuilt(withKept(contentOf(adventure.id), adventure.kept), adventure.built);
+	return withBestiary(
+		withBuilt(withKept(contentOf(adventure.id), adventure.kept), adventure.built),
+		adventure.bestiary,
+		findRuleset(adventure.rules)
+	);
 }
 
 /** The rules a story plays by. A story only ever names a ruleset this server has (see persist.ts). */
@@ -1991,7 +1997,7 @@ function detect(room: Room, adventure: AdventureState): Outcome | null {
 	if (adventure.encounter || adventure.stage !== 'playing') return null;
 	for (const [id, sentry] of adventure.sentries) {
 		const token = room.tokens.get(id);
-		if (!token) continue;
+		if (!token || sentry.waiting) continue;
 		const [spotted] = seenBy(situationFor(room, adventure, id), {
 			kind: sentry.kind,
 			pos: token.pos
@@ -3317,7 +3323,10 @@ function enemyActs(
 			!cut ||
 			(!!target && inAttackRange(obstacles(room), token.pos, target.token.pos, deed.attack.range));
 		if (!reach) log.push(say(room, `The ${token.name} hangs back, afraid.`));
-		else if (target) log.push(...enemyAttack(room, token, deed.attack, target, roller));
+		// A Multiattack makes the attack as many times, while its target still stands.
+		else if (target)
+			for (let i = 0; i < (deed.attack.times ?? 1) && target.state.hp > 0; i++)
+				log.push(...enemyAttack(room, token, deed.attack, target, roller));
 	} else if (deed?.kind === 'toll') {
 		const toll = content(adventure).enemies[enemy.kind].toll;
 		const targets = deed.targets.flatMap((id) => who(id) ?? []);
@@ -3369,7 +3378,23 @@ function enemyAttack(
 	const took = result.damage
 		? typed(room, result.damage.total, attack.damageType, () => characterTraits(room, target))
 		: null;
-	if (took) outcome = wound(room, target, took.amount, !!result.critical);
+	// Damage of another kind on a hit ("plus 7 (2d6) Fire damage"): one instance of damage with the rest.
+	const extra =
+		result.hit && attack.plus
+			? (rules.rollDamage?.(attack.plus.damage, !!result.critical, roller) ??
+				roll(attack.plus.damage, roller))
+			: null;
+	const plus =
+		extra && attack.plus
+			? typed(room, extra.total, attack.plus.damageType, () => characterTraits(room, target))
+			: null;
+	const amount = (took?.amount ?? 0) + (plus?.amount ?? 0);
+	if (took) outcome = wound(room, target, amount, !!result.critical);
+	const plusNote =
+		extra && plus && attack.plus
+			? `plus ${extra.expression} = ${extra.total} ${attack.plus.damageType}${plus.note ? ` (${plus.note})` : ''}`
+			: null;
+	const notes = takenNotes(result, took);
 	return [
 		appendLog(room, {
 			kind: 'attack',
@@ -3385,9 +3410,15 @@ function enemyAttack(
 			...(result.defense !== undefined ? { defense: result.defense } : {}),
 			...(outcome ? { outcome } : {}),
 			...strikeNotes(result),
-			...takenNotes(result, took)
+			...notes,
+			...(plusNote
+				? {
+						taken: amount,
+						explain: `${notes.explain ?? result.explain ?? ''}; ${plusNote}`
+					}
+				: {})
 		}),
-		...afterHurt(room, target.token.id, took?.amount ?? 0, roller),
+		...afterHurt(room, target.token.id, amount, roller),
 		...(result.hit ? inflict(room, token, attack, target) : [])
 	];
 }
@@ -3418,7 +3449,7 @@ function inflict(room: Room, token: Token, attack: Attack, target: Played): Chat
 		{
 			name: attack.name,
 			mods: { conditions: [...inflicts.conditions] },
-			ends: { at: inflicts.ends, turns: 1 },
+			ends: inflicts.ends ? { at: inflicts.ends, turns: 1 } : null,
 			concentration: false
 		},
 		{ kind: 'enemy', id: token.id, name: `the ${token.name}` },
@@ -4672,7 +4703,7 @@ export function direct(
 		case 'encounter_end':
 			return endFight(room, adventure, actor, direction.result, now);
 		case 'spawn':
-			return spawn(room, adventure, actor, direction.kind, direction.pos);
+			return spawn(room, adventure, actor, direction.kind, direction.pos, !!direction.waiting);
 	}
 }
 
@@ -4717,8 +4748,48 @@ export function directorOptions(room: Room, adventure: AdventureState): Director
 				.filter((c) => !c.state.dead)
 				.map((c) => ({ tokenId: c.token.id, name: c.def.name })),
 			...foes.map((f) => ({ tokenId: f.tokenId, name: f.name }))
-		]
+		],
+		bestiary: bestiaryView(room, adventure)
 	};
+}
+
+/** The monsters brought into the story, and how the GM's own fight looks as it stands (see `Bestiary`). */
+function bestiaryView(room: Room, adventure: AdventureState): DirectorView['bestiary'] {
+	const rules = rulesOf(adventure);
+	const bestiary = rules.bestiary;
+	if (!bestiary) return null;
+	const encounter = adventure.encounter;
+	// The GM's fight: the monsters placed for it, or fighting it now.
+	const kinds = [
+		...[...adventure.sentries].flatMap(([id, s]) =>
+			s.encounter === AMBUSH && room.tokens.has(id) ? [s.kind] : []
+		),
+		...(encounter?.id === AMBUSH ? [...encounter.enemies.values()].map((e) => e.kind) : [])
+	].filter((k) => bestiary.listing(k));
+	const levels = played(room, adventure)
+		.filter((c) => !c.state.dead)
+		.map((c) => rules.card(c.def, c.state.statuses).level ?? 1);
+	return {
+		monsters: (adventure.bestiary ?? []).flatMap((k) => bestiary.listing(k) ?? []),
+		summary: kinds.length ? bestiary.summary(kinds, levels) : null
+	};
+}
+
+/** Most monsters a search answers with. */
+export const MONSTER_RESULTS = 30;
+
+/** GM: monsters the story's rules can bring to the table, matching a search. */
+export function searchMonsters(
+	room: Room,
+	actor: Player,
+	query: string
+): Result<{ monsters: MonsterListing[] }> {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	const bestiary = rulesOf(adventure).bestiary;
+	if (!bestiary) return fail('forbidden', 'These rules have no monsters to bring on.');
+	return { ok: true, monsters: bestiary.search(query, MONSTER_RESULTS) };
 }
 
 /** The event a fight's phase raises when its foes are down, if it raises one. */
@@ -4905,22 +4976,37 @@ function spawn(
 	adventure: AdventureState,
 	actor: Player,
 	kind: string,
-	pos: GridPos
+	pos: GridPos,
+	waiting = false
 ): Outcomes {
-	const A = content(adventure);
-	const def = Object.hasOwn(A.enemies, kind) ? A.enemies[kind] : undefined;
-	if (!def) return fail('invalid_message', 'There is no such enemy in this story.');
+	let A = content(adventure);
 	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the map.');
 	if (!isFree(room, pos)) return fail('cell_occupied', 'Something is already there.');
+	// A monster from the rules' bestiary joins the story's enemies the first time it is brought on.
+	if (!Object.hasOwn(A.enemies, kind) && rulesOf(adventure).bestiary?.enemy(kind)) {
+		const kinds = adventure.bestiary ?? [];
+		if (kinds.length >= BESTIARY_MAX)
+			return fail('forbidden', `A story brings in at most ${BESTIARY_MAX} kinds of monster.`);
+		adventure.bestiary = [...kinds, kind];
+		A = content(adventure);
+	}
+	const def = Object.hasOwn(A.enemies, kind) ? A.enemies[kind] : undefined;
+	if (!def) return fail('invalid_message', 'There is no such enemy in this story.');
 	const log = [postSystem(room, `${actor.name} brought on ${def.name}.`, 'gm')];
 	const token = enemyToken(A, kind, pos);
 	room.tokens.set(token.id, token);
 	const encounter = adventure.encounter;
 	if (!encounter) {
-		adventure.sentries.set(token.id, { kind, encounter: AMBUSH, route: [{ ...pos }], leg: 0 });
+		adventure.sentries.set(token.id, {
+			kind,
+			encounter: AMBUSH,
+			route: [{ ...pos }],
+			leg: 0,
+			...(waiting ? { waiting: true } : {})
+		});
 		// Placed ones may be looked for again: the GM's fight is fought as often as the GM likes.
 		if (adventure.encounters.get(AMBUSH) !== 'active') adventure.encounters.delete(AMBUSH);
-		const spotted = room.paused ? null : detect(room, adventure);
+		const spotted = room.paused || waiting ? null : detect(room, adventure);
 		return { ok: true, ...(spotted ? merge({ log }, spotted) : { log }) };
 	}
 	const party = standing(room, adventure);

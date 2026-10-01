@@ -13,9 +13,14 @@
 // dark, is an attacker beside an enemy, can it see its target) in rules-
 // neutral words; what that means (disadvantage, or nothing) is the ruleset's.
 
-import type { CharacterCard, RulesInfo } from '../../src/lib/adventure/adventure';
+import type {
+	CharacterCard,
+	EncounterSummary,
+	MonsterListing,
+	RulesInfo
+} from '../../src/lib/adventure/adventure';
 import type { Action, CharacterDef } from '../../src/lib/adventure/characters';
-import type { AdventureDef } from '../../src/lib/adventure/define';
+import type { AdventureDef, EnemyDef } from '../../src/lib/adventure/define';
 import type { RollMode } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
 import type { Cover } from '../../src/lib/game/cover';
@@ -138,6 +143,19 @@ export interface DownedTest {
 	success: boolean;
 }
 
+/**
+ * Monsters a GM brings to a table under these rules: found by a search,
+ * each played as an enemy the engine runs (its kind is how the story keeps
+ * it), and a fight's summary by the rules' own guidance (advisory).
+ */
+export interface Bestiary {
+	search(query: string, limit: number): MonsterListing[];
+	listing(kind: string): MonsterListing | null;
+	/** The enemy the table plays for a kind, or null when the rules have no such playable monster. */
+	enemy(kind: string): EnemyDef | null;
+	summary(monsters: readonly string[], levels: readonly number[]): EncounterSummary;
+}
+
 /** What harm a creature shrugs off, halves or takes double, by damage type (the rules' ids). */
 export interface DamageTraits {
 	immune: readonly string[];
@@ -249,6 +267,10 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	coverBonus?(cover: Cover): { bonus: number; name: string } | null;
 	/** Leaving a foe's reach lets it strike as the creature goes (an opportunity attack, a reaction). */
 	opportunityAttacks?: boolean;
+	/** Damage dice rolled for a hit (a critical one doubles the dice, under rules that say so). */
+	rollDamage?(dice: string, critical: boolean, roller: DieRoller): DiceRoll;
+	/** The monsters these rules can bring to a table, for rules with a bestiary. */
+	bestiary?: Bestiary;
 	/** What every character may do on its turn beyond its own actions. */
 	maneuvers?: readonly Maneuver[];
 	/** A downed character is steadied: it stops dying (Stable), for rules where that is a state. */

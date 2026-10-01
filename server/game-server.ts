@@ -1120,6 +1120,13 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					options: result.options
 				});
 			}
+			case 'monster_search': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.searchMonsters(room, player, msg.query);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, { type: 'monster_search', query: msg.query, monsters: result.monsters });
+			}
 			case 'character_sheet': {
 				if (!creatorLimiter.take(player.id))
 					return sendError(ws, 'rate_limited', 'Slow down a little.');

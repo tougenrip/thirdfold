@@ -27,6 +27,7 @@ import { findRuleset, type EffectSpec, type JsonData, type RulesetRef } from '..
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
 import { BUILT_ID, BUILT_MAX, withBuilt, type BuiltCharacter } from './built';
+import { BESTIARY_MAX, withBestiary } from './bestiary';
 import { PILE_ID, PILE_ITEMS_MAX, PILES_MAX, withKept } from './gear';
 import { contentOf, findAdventure } from './registry';
 import type {
@@ -83,6 +84,7 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						)
 					}
 				: {}),
+			...(adventure.bestiary?.length ? { bestiary: [...adventure.bestiary] } : {}),
 			...(adventure.kept?.size
 				? {
 						kept: Object.fromEntries(
@@ -164,7 +166,8 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						kind: s.kind,
 						encounter: s.encounter,
 						route: s.route.map((c) => ({ ...c })),
-						leg: s.leg
+						leg: s.leg,
+						...(s.waiting ? { waiting: true } : {})
 					}
 				])
 			),
@@ -476,7 +479,21 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			kept.set(id, { def: restored.def, saved: restored.saved });
 		}
 	}
-	const A = withBuilt(withKept(base, kept), built);
+	// Monsters brought in from the rules' bestiary: kinds the rules still play, each once.
+	const bestiary =
+		data.bestiary === undefined
+			? []
+			: list(data.bestiary, 'monsters').map((k) => {
+					check(
+						typeof k === 'string' &&
+							!Object.hasOwn(base.enemies, k) &&
+							!!ruleset.bestiary?.enemy(k),
+						'monsters'
+					);
+					return k as string;
+				});
+	check(bestiary.length <= BESTIARY_MAX && new Set(bestiary).size === bestiary.length, 'monsters');
+	const A = withBestiary(withBuilt(withKept(base, kept), built), bestiary, ruleset);
 	const stage = oneOf(data.stage, STAGES, 'stage');
 	const chapter = oneOf(data.chapter, Object.keys(A.chapters), 'chapter');
 	const location = oneOf(data.location, Object.keys(A.locations), 'location');
@@ -649,7 +666,10 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			kind: oneOf(sentry.kind, enemyKinds, 'sentries'),
 			encounter: oneOf(sentry.encounter, encounterIds, 'sentries'),
 			route,
-			leg: int(sentry.leg, 0, route.length - 1, 'sentries')
+			leg: int(sentry.leg, 0, route.length - 1, 'sentries'),
+			...(sentry.waiting === undefined
+				? {}
+				: { waiting: bool(sentry.waiting, 'sentries') || undefined })
 		});
 	}
 
@@ -834,6 +854,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		id: A.id,
 		rules,
 		...(built.size ? { built } : {}),
+		...(bestiary.length ? { bestiary } : {}),
 		...(kept.size ? { kept } : {}),
 		...(piles.size ? { piles } : {}),
 		...(effects.length ? { effects } : {}),

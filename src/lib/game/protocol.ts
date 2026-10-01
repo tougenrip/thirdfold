@@ -10,6 +10,7 @@ import {
 	type ObjectState,
 	type Sense,
 	type GearChange,
+	type MonsterListing,
 	type SheetEdit
 } from '../adventure/adventure';
 import { isStatusId, type CharacterId, type StatusId } from '../adventure/characters';
@@ -296,6 +297,8 @@ export type ClientMessage =
 	| { type: 'character_sheet'; characterId: CharacterId }
 	/** Anyone at the table: what a character may be built from, under the story's rules. */
 	| { type: 'character_options' }
+	/** GM: monsters the story's rules can bring on, matching a search (name, type or challenge). */
+	| { type: 'monster_search'; query: string }
 	/** Anyone at the table: what these choices would come to, or what is wrong with them. Changes nothing. */
 	| { type: 'character_preview'; choices: CharacterChoicesData }
 	/** GM: characters are chosen, start playing. */
@@ -380,7 +383,16 @@ export type Direction =
 	/** The fight ends: won (the story goes on as if the party won) or called off (the enemies leave). */
 	| { op: 'encounter_end'; result: 'won' | 'called_off' }
 	/** An enemy appears on a cell: it joins the fight, or stands guard until it spots someone. */
-	| { op: 'spawn'; kind: string; pos: GridPos };
+	| {
+			op: 'spawn';
+			kind: string;
+			pos: GridPos;
+			/** Placed for the GM's own fight, started when the GM says: it spots nobody until then. */
+			waiting?: boolean;
+	  };
+
+/** The longest monster search. */
+export const MONSTER_QUERY_MAX = 40;
 
 export const ENCOUNTER_RESULTS = ['won', 'called_off'] as const;
 
@@ -598,6 +610,8 @@ export type ServerMessage =
 	  }
 	/** To whoever asked: what a character may be built from (the rules' own shape). */
 	| { type: 'character_options'; rules: string; options: Record<string, unknown> }
+	/** To the GM who searched: the monsters found. */
+	| { type: 'monster_search'; query: string; monsters: MonsterListing[] }
 	/** To whoever asked: what the choices come to (the rules' own shape), or what is wrong. */
 	| {
 			type: 'character_preview';
@@ -664,7 +678,10 @@ function parseDirection(value: unknown): Direction | null {
 				: null;
 		case 'spawn': {
 			const pos = parseGridPos(value.pos);
-			return isId(value.kind) && pos ? { op: 'spawn', kind: value.kind, pos } : null;
+			if (value.waiting !== undefined && typeof value.waiting !== 'boolean') return null;
+			return isId(value.kind) && pos
+				? { op: 'spawn', kind: value.kind, pos, ...(value.waiting ? { waiting: true } : {}) }
+				: null;
 		}
 		default:
 			return null;
@@ -1151,6 +1168,10 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		}
 		case 'character_options':
 			return { type: 'character_options' };
+		case 'monster_search':
+			return typeof data.query === 'string' && data.query.length <= MONSTER_QUERY_MAX
+				? { type: 'monster_search', query: data.query }
+				: null;
 		case 'character_sheet':
 			return isId(data.characterId)
 				? { type: 'character_sheet', characterId: data.characterId }

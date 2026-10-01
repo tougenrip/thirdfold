@@ -51,6 +51,7 @@ import {
 	stabilize
 } from './combat';
 import { DAMAGE_TYPES } from './sheet';
+import { srdBestiary } from './monsters';
 import type { TestSituation } from '../ruleset';
 
 /** What a save gains from where the saver stands: cover and a Dodge help Dexterity saves. */
@@ -192,6 +193,8 @@ export const dnd55e: Ruleset = {
 	damageTraits,
 	coverBonus,
 	opportunityAttacks: true,
+	rollDamage,
+	bestiary: srdBestiary(srdCatalog),
 	maneuvers: MANEUVERS,
 	card(character, statuses) {
 		const sheet = sheetOf(character);

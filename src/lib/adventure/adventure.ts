@@ -113,6 +113,54 @@ export interface DirectorView {
 	conditions: { id: string; name: string }[];
 	/** Who a condition can be put on: the characters in play and the enemies on the table. */
 	bearers: { tokenId: string; name: string }[];
+	/**
+	 * Under rules with a bestiary: the monsters brought into this story (on
+	 * the table or not), and what the GM's own fight comes to as it stands;
+	 * else null.
+	 */
+	bestiary: {
+		monsters: MonsterListing[];
+		/** The enemies on the table waiting for the GM's fight, and how hard it looks. */
+		summary: EncounterSummary | null;
+	} | null;
+}
+
+/**
+ * A monster a GM may bring to the table under the story's rules, as its
+ * source prints it: its kind (the id the table plays it by), name, challenge
+ * and XP, and what of it the table doesn't play yet.
+ */
+export interface MonsterListing {
+	kind: string;
+	name: string;
+	/** e.g. "Small Fey (Goblinoid)". */
+	type: string;
+	challenge: string;
+	xp: number;
+	armorClass: number;
+	hitPoints: number;
+	/** Its attacks as the table plays them, in a line each. */
+	attacks: string[];
+	/** Its traits and actions the table doesn't play yet, by name. */
+	notPlayed: string[];
+	/** Where it comes from: "SRD 5.2.1, Monsters A–Z › Goblins, p. 289". */
+	source: string;
+}
+
+/**
+ * How hard a fight looks by its rules' own guidance: advisory only. The
+ * monsters' total XP against the party's budgets, the band it falls in, and
+ * the assumptions behind it, in words.
+ */
+export interface EncounterSummary {
+	monsters: { name: string; count: number; xp: number }[];
+	xp: number;
+	party: { characters: number; levels: number[] };
+	/** The budgets by difficulty, for this party ("Low", "Moderate", "High"). */
+	budgets: { name: string; xp: number }[];
+	/** Where the total falls: "Below Low", "Low", "Moderate", "High", "Beyond High". */
+	band: string;
+	notes: string[];
 }
 
 /** Where a fight is in its life. Encounters not listed have not started. */

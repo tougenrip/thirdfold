@@ -38,6 +38,9 @@ export type CreatorReply = Extract<
 	{ type: 'character_options' | 'character_preview' }
 > & { seq: number };
 
+/** The monsters a GM's search found. */
+export type MonsterReply = Extract<ServerMessage, { type: 'monster_search' }> & { seq: number };
+
 /** A character's full sheet, as the server sent it. */
 export type SheetReply = Extract<ServerMessage, { type: 'character_sheet' }> & { seq: number };
 
@@ -100,6 +103,8 @@ export class RoomConnection {
 	actionError = $state<ActionError | null>(null);
 	sceneReply = $state<SceneReply | null>(null);
 	creatorReply = $state<CreatorReply | null>(null);
+	/** The latest monster search's answer (the GM's). */
+	monsterReply = $state<MonsterReply | null>(null);
 	sheetReply = $state<SheetReply | null>(null);
 	/** The latest motions to show; `seq` increases so each batch plays once. */
 	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
@@ -244,6 +249,9 @@ export class RoomConnection {
 			case 'character_options':
 			case 'character_preview':
 				this.creatorReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'monster_search':
+				this.monsterReply = { ...msg, seq: ++this.errorSeq };
 				return;
 			default:
 				if (this.room) applyRoomUpdate(this.room, msg);

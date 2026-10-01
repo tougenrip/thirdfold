@@ -80,6 +80,8 @@ export interface Sentry {
 	route: GridPos[];
 	/** The waypoint it is walking to. */
 	leg: number;
+	/** Placed by the GM for a fight they start themselves: it spots nobody until then. */
+	waiting?: boolean;
 }
 
 /** Someone with a place in the turn order. */
@@ -219,6 +221,12 @@ export interface AdventureState {
 	 * (`Equipment`). The prop is only a marker; the items are not props.
 	 */
 	piles?: ReadonlyMap<string, Pile>;
+	/**
+	 * Monsters the GM brought in from the rules' bestiary, by kind, in the
+	 * order they came (see bestiary.ts). Replaced, never changed in place.
+	 * Absent when none.
+	 */
+	bestiary?: readonly string[];
 	/** Lasting effects on those in the story (see effects.ts); absent when none. */
 	effects?: LastingEffect[];
 	/**

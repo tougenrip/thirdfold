@@ -150,6 +150,10 @@
 	let placing = $state<TokenDraft | null>(null);
 	/** GM: the kind of enemy the next click on the table brings on. */
 	let spawning = $state<string | null>(null);
+	/** What is being placed is held for the GM's own fight (it spots nobody until the GM starts it). */
+	let spawnHold = $state(false);
+	/** Its name, for a monster not yet in the story. */
+	let spawnName = $state<string | null>(null);
 	let hover = $state<Pick | null>(null);
 	/** First corner of the wall being drawn. */
 	let wallStart = $state<GridPos | null>(null);
@@ -602,7 +606,7 @@
 	const hint = $derived.by(() => {
 		if (placing) return `Click an empty cell to place ${placing.name}. Esc to cancel.`;
 		if (spawning) {
-			const name = adventure?.director?.enemies.find((e) => e.kind === spawning)?.name;
+			const name = spawnName ?? adventure?.director?.enemies.find((e) => e.kind === spawning)?.name;
 			return `Click an empty cell to bring on ${name ?? 'the enemy'}. Esc to stop.`;
 		}
 		if (tool === 'wall') {
@@ -919,7 +923,12 @@
 			if (tokenAt(room.tokens, pick.cell)) return showToast('That cell is taken.');
 			act({
 				type: 'adventure_direct',
-				direction: { op: 'spawn', kind: spawning, pos: pick.cell }
+				direction: {
+					op: 'spawn',
+					kind: spawning,
+					pos: pick.cell,
+					...(spawnHold ? { waiting: true } : {})
+				}
 			});
 			return;
 		}
@@ -1413,9 +1422,12 @@
 							{spawning}
 							send={act}
 							onTool={setTool}
-							onSpawn={(kind) => {
+							monsters={conn.monsterReply?.monsters ?? null}
+							onSpawn={(kind, hold = false, name = null) => {
 								setTool('select');
 								spawning = kind;
+								spawnHold = hold;
+								spawnName = name;
 							}}
 							onSelectToken={(id) => {
 								setTool('select');
