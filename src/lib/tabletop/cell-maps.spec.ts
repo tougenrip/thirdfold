@@ -1,7 +1,9 @@
 // The cell maps' pure pieces (#171): which texel a point reads, how each channel is packed, and
 // that `worldModify`'s brightness and fog are exactly what the overlays they replace drew.
 
+import type * as THREE from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
+import { MAP_SIDE, Staged } from './cell-maps-kept';
 import { gridToWorld, worldToGrid, type SquareGrid } from '$lib/game/grid';
 import type { Ambient } from '$lib/game/lights';
 import {
@@ -215,5 +217,17 @@ describe('skyVisibilityMap (#219)', () => {
 		const data = new Uint8Array(12);
 		packSky(data, sky);
 		expect([data[3], data[11]]).toEqual([0, Math.round(255 * INDOOR_FILL)]);
+	});
+});
+
+describe('the kept maps (#380)', () => {
+	it('copy a grid’s rows into the corner of the kept texture on each update', () => {
+		const into = { image: { data: new Uint8Array(MAP_SIDE * MAP_SIDE * 4) }, needsUpdate: false };
+		const staged = new Staged(grid(3, 2), into as unknown as THREE.DataTexture, 7);
+		expect(into.needsUpdate).toBe(true);
+		staged.image.data[(1 * 3 + 2) * 4] = 9; // cell (2, 1)
+		staged.needsUpdate = true;
+		const at = (x: number, y: number) => into.image.data[(y * MAP_SIDE + x) * 4];
+		expect([at(0, 0), at(2, 0), at(2, 1), at(3, 0), at(0, 2)]).toEqual([7, 7, 9, 0, 0]);
 	});
 });

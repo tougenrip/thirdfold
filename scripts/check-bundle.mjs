@@ -55,8 +55,9 @@ const BUDGETS = {
 	// lighting model); 372.9 kB measured (the milestone's cap is
 	// about 378 kB). → 373.3: flicker in the shader (#231: the profiles, their TSL mirror and the
 	// scheduling by view); 373.2 kB measured. → 374.6: light fixtures by kind, carried flames and
-	// props' flames (#232); 374.5 kB measured.
-	renderer: { total: 374_600 },
+	// props' flames (#232); 374.5 kB measured. → 374.8: the cell maps kept at the largest grid's
+	// size (#380); 374.6 kB measured.
+	renderer: { total: 374_800 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

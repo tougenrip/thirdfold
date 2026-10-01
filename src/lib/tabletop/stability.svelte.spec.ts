@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { loadEnvironment } from './environment';
 import { loadModel } from './models';
 import { createTabletop } from './renderer';
-import { qualityFor, settingsFor } from './quality';
+import { qualityFor, settingsFor, TIERS } from './quality';
+import { decodeFloor } from '$lib/game/floor';
+import { decodeLevels } from '$lib/game/terrain';
+import { decodeMask } from '$lib/game/visibility';
 import {
 	BACKEND,
 	loadSidecar,
@@ -120,6 +123,47 @@ describe('the renderer, over time', () => {
 		expect(again.textures).toBeLessThanOrEqual(back.textures);
 		expect(again.programs).toBe(back.programs);
 	});
+
+	// #380: a new table of another size replaced the cell maps' textures and destroyed the old
+	// ones, which a material without nodes still had bound ("Destroyed texture used in a submit" on
+	// WebGPU, a console.error that fails the test). WebGL2 is the control. Going round again
+	// compiles and keeps nothing more.
+	for (const tier of TIERS) {
+		// Every tier on WebGPU; WebGL2's control takes the low one (SwiftShader takes minutes a tier).
+		const run = BACKEND === 'webgl' && tier !== 'low' ? test.skip : test;
+		run(`switches between tables of different sizes on ${tier} without errors`, async () => {
+			const views = await Promise.all(
+				['dungeon-40', 'crowd-60'].map(async (f) =>
+					loadView(f, (await loadSidecar(f)).ambient, 'gm')
+				)
+			);
+			const sidecar = await loadSidecar('dungeon-40');
+			const m = await mountFixture(views[0], sidecar.poses.overview, { tier });
+			mounted.push(m);
+			const t = m.tabletop;
+			await settle(t);
+			const after: ReturnType<typeof t.stats>[] = [];
+			for (const view of [views[1], views[0], views[1]]) {
+				const size = view.grid.width * view.grid.height;
+				t.setGrid(view.grid);
+				t.setTerrain(view.terrain ? decodeLevels(view.terrain, size) : null);
+				t.setFloor(view.floor ? decodeFloor(view.floor, size) : null);
+				t.setDarkness(view.darkness ? decodeMask(view.darkness, size) : null);
+				t.setInterior(view.interior ? decodeMask(view.interior, size) : null);
+				t.setEnvironment(view.environment);
+				t.setTokens(view.tokens);
+				t.setObjects(view.objects);
+				t.setFog(view.fog, view.fogMode);
+				t.setLighting(view.ambient, view.lights, view.world);
+				t.setProps(view.props);
+				await t.benchmark(2); // frames at once, as a table arriving draws
+				await settle(t);
+				after.push(t.stats());
+			}
+			expect(after[2].textures).toBeLessThanOrEqual(after[0].textures);
+			expect(after[2].programs).toBe(after[0].programs);
+		});
+	}
 
 	// #167: the tiles' seams are the grid; lines show only while building, placing or aiming.
 	test('compiles nothing new the second time round the times of day', async () => {
