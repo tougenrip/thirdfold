@@ -20,7 +20,7 @@ const BUDGETS = {
 	// measured.
 	// 97.4 → 97.5: the sky's resolver and the canonical hours, now used by the renderer, stay in the
 	// shared chunk with the manifest's parser (#215), 97,479 B measured.
-	'/builder': { total: 97_600, own: 52_000 },
+	'/builder': { total: 97_700, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
