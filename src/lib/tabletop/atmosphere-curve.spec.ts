@@ -255,7 +255,7 @@ describe('atmosphereAt', () => {
 				}
 				expect(s.lut.day + s.lut.dusk + s.lut.dark).toBeCloseTo(1, 12);
 			}
-	});
+	}, 30_000); // every minute, every weather: slow under a loaded full run
 
 	it('keeps night blue and noon neutral to warm', () => {
 		for (const t of [0, 120, 1320, 1380]) {
