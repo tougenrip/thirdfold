@@ -20,8 +20,9 @@
 // from the scene pass's `hidden` attachment (post.ts), which `worldHidden` writes.
 //
 // Each channel is written only by its own update, and only when its input changed. The textures
-// are replaced when the grid's size changes, the nodes that read them keep their graph: the
-// values and the uniforms below are all that vary, so nothing here ever compiles a program.
+// are made once at the largest grid's size and kept (#380): a new table packs at its own size and
+// copies its rows in, the nodes that read them keep their graph, and the uniforms below are all
+// that vary, so nothing here ever compiles a program.
 // Everything is built from what the viewer was sent; there is no wire change.
 
 import * as THREE from 'three/webgpu';
@@ -30,6 +31,8 @@ import {
 	float,
 	floor,
 	ivec2,
+	max,
+	min,
 	normalWorldGeometry,
 	positionWorld,
 	texture,
@@ -42,6 +45,7 @@ import { decodeMask, type FogView } from '$lib/game/visibility';
 import type { FogMode } from './fog';
 import type { ExposureFocus } from './exposure';
 import { EDGE_BAND, EDGE_NOISE, EDGE_SCALE, RevealFades } from './fog-soft';
+import { MAP_SIDE, Staged } from './cell-maps-kept';
 
 /** Night's darkness, which a dark area has at any hour (lighting.ts, `PRESETS.dark.dark`). */
 export const NIGHT_DARK = 0.82;
@@ -277,8 +281,15 @@ const BLANK_VISIBILITY = visibilityTexture(1, 1);
 const BLANK_GROUND = groundTexture(1, 1);
 /** The fragment's cell's `visibility` texel, exact (R and G are 0 or 1). */
 export const visibilityTexel = textureLoad(BLANK_VISIBILITY, cell);
-/** The `visibility` map sampled linearly: B and A fall off smoothly between cells. */
-export const visibilitySmooth = texture(BLANK_VISIBILITY, cellUV);
+/**
+ * The `visibility` map sampled linearly: B and A fall off smoothly between cells. The grid fills
+ * only a corner of the kept texture, so the sample is held between its edge cells' centres, as a
+ * texture of the grid's size clamps at its edge.
+ */
+export const visibilitySmooth = texture(
+	BLANK_VISIBILITY,
+	min(max(cellUV.mul(u.gridSize), 0.5), u.gridSize.sub(0.5)).div(MAP_SIDE)
+);
 /**
  * The `ground` texel of the cell a fragment belongs to: R the floor's index / 255, G the level /
  * 255. Looked up a hundredth of a cell inside the surface, so a raised cell's sides (which lie on
@@ -296,8 +307,14 @@ type Channel = 'fog' | 'light' | 'sky' | 'ground';
 
 /** The renderer's side: feeds the maps and the uniforms from the layers' state. */
 export class CellMaps {
-	private visibility: THREE.DataTexture | null = null;
-	private ground: THREE.DataTexture | null = null;
+	/** The kept textures (#380), made once and freed only with the renderer. */
+	private readonly maps = {
+		visibility: visibilityTexture(MAP_SIDE, MAP_SIDE),
+		ground: groundTexture(MAP_SIDE, MAP_SIDE)
+	};
+	/** The maps at the grid's size, which the channels pack into. */
+	private visibility: Staged | null = null;
+	private ground: Staged | null = null;
 	private grid: SquareGrid | null = null;
 	/** Each channel's inputs when it was last written, compared by identity. */
 	private last = new Map<Channel, unknown[]>();
@@ -308,18 +325,17 @@ export class CellMaps {
 	/** `clock` is the renderer's (ms): reveals fade on it. */
 	constructor(private readonly clock: () => number = () => performance.now()) {}
 
-	/** Sizes the maps for a grid; a new size replaces the textures, and every channel follows. */
+	/** Sizes the maps for a grid; a new size starts them afresh, and every channel follows. */
 	setGrid(grid: SquareGrid): void {
 		u.cellSize.value = grid.cellSize;
+		visibilityTexel.value = visibilitySmooth.value = this.maps.visibility;
+		groundTexel.value = groundFlat.value = this.maps.ground;
 		const same = this.grid?.width === grid.width && this.grid.height === grid.height;
 		this.grid = { ...grid };
 		if (same) return;
 		u.gridSize.value.set(grid.width, grid.height);
-		this.release();
-		this.visibility = visibilityTexture(grid.width, grid.height);
-		this.ground = groundTexture(grid.width, grid.height);
-		visibilityTexel.value = visibilitySmooth.value = this.visibility;
-		groundTexel.value = groundFlat.value = this.ground;
+		this.visibility = new Staged(grid, this.maps.visibility, 255);
+		this.ground = new Staged(grid, this.maps.ground, 0);
 		this.last.clear();
 		this.fades.reset();
 	}
@@ -445,21 +461,19 @@ export class CellMaps {
 
 	/** Gives the nodes their blanks back and frees the maps. */
 	dispose(): void {
-		this.release();
+		if (visibilityTexel.value === this.maps.visibility) {
+			visibilityTexel.value = visibilitySmooth.value = BLANK_VISIBILITY;
+			groundTexel.value = groundFlat.value = BLANK_GROUND;
+		}
+		this.maps.visibility.dispose(); // with the renderer: nothing draws with them any more
+		this.maps.ground.dispose();
+		this.visibility = this.ground = null;
 		this.grid = null;
 		this.mode = null;
 		u.gridSize.value.set(1, 1); // the blanks' size, so a lone material reads them in bounds
 		u.fogOn.value = u.flash.value = u.flashLift.value = 0;
 		u.memoryGain.value = 1;
 		u.cutY.value = NO_CUT;
-	}
-
-	private release(): void {
-		visibilityTexel.value = visibilitySmooth.value = BLANK_VISIBILITY;
-		groundTexel.value = groundFlat.value = BLANK_GROUND;
-		this.visibility?.dispose();
-		this.ground?.dispose();
-		this.visibility = this.ground = null;
 	}
 
 	/** Whether a channel's inputs differ from the ones last written; notes them if so. */
