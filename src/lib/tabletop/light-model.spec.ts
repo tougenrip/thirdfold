@@ -26,6 +26,7 @@ import {
 	wantsProbes,
 	type ShadowBounds
 } from './light-model';
+import { assignHeroSlots, HERO_RANGE, type HeroSource } from './hero-slots';
 import { LIGHT_FLAGS, type LightEntry } from './grid-lights';
 
 const grid: SquareGrid = { kind: 'square', cellSize: 2, width: 4, height: 4 };
@@ -354,5 +355,55 @@ describe('ProbeBake (#235)', () => {
 		expect(bake.step(1000 + BAKE_DEBOUNCE_MS - 1)).toBeNull();
 		expect(bake.step(1000 + BAKE_DEBOUNCE_MS)).toEqual({ start: 0, count: 8, last: false });
 		expect(bake.change([{}, 'x'], 30, 2000)).toBe(true); // another table's size
+	});
+});
+
+describe('assignHeroSlots (#230)', () => {
+	const src = (id: string, x: number, y = 5, reach = 4): HeroSource => ({
+		id,
+		pos: { x, y },
+		reach
+	});
+	// Torches along y = 5, one every 3 cells, each with a mini beside it.
+	const row = Array.from({ length: 8 }, (_, i) => src(`t${i}`, i * 3));
+	const minis = row.map((s) => ({ x: s.pos.x + 1, y: s.pos.y }));
+	/** The focus over cell (x, 5). */
+	const at = (x: number) => ({ x: x + 0.5, y: 5.5 });
+
+	it('never gives out more than the slots, nearest the focus first', () => {
+		for (const slots of [0, 2, 4]) {
+			const held = assignHeroSlots(row, at(9), minis, slots, []).filter(Boolean);
+			expect(held).toHaveLength(slots);
+			expect(new Set(held).size).toBe(slots);
+		}
+		expect(assignHeroSlots(row, at(0), minis, 2, [])).toEqual(['t0', 't1']);
+		expect(assignHeroSlots([], at(0), minis, 2, ['t0'])).toEqual([null, null]);
+	});
+
+	it('is stable under small camera moves and hands over only past the margin', () => {
+		const held = assignHeroSlots(row, at(3), minis, 2, []);
+		expect(held).toEqual(['t1', 't0']); // the nearest first
+		// t0 is x cells from the focus and t2 6 - x: even at 3, t2 a margin nearer past 4.
+		expect(assignHeroSlots(row, at(3.9), minis, 2, held)).toEqual(held);
+		const moved = assignHeroSlots(row, at(4.2), minis, 2, held);
+		expect(moved).toEqual(['t1', 't2']); // t1 keeps its slot index
+		// Back toward t0: t2 keeps the slot until t0 is a margin nearer.
+		expect(assignHeroSlots(row, at(3.5), minis, 2, moved)).toEqual(moved);
+		expect(assignHeroSlots(row, at(1.8), minis, 2, moved)).toEqual(['t1', 't0']);
+	});
+
+	it('prefers sources with casters in reach, and leaves out those far away', () => {
+		const lone = src('lone', 1);
+		const busy = src('busy', 6);
+		expect(assignHeroSlots([lone, busy], at(1), [{ x: 7, y: 5 }], 1, [])).toEqual(['busy']);
+		const far = src('far', 0, 5 + HERO_RANGE + 2);
+		expect(assignHeroSlots([far], at(0), [{ x: 0, y: 30 }], 1, [])).toEqual([null]);
+	});
+
+	it('frees the slot of a source that is gone, and is deterministic', () => {
+		expect(assignHeroSlots(row, at(0), minis, 2, ['gone', 't1'])).toEqual(['t0', 't1']);
+		const tied = [src('b', 2), src('a', 4)];
+		expect(assignHeroSlots(tied, at(3), [], 1, [])).toEqual(['a']);
+		expect(assignHeroSlots([...tied].reverse(), at(3), [], 1, [])).toEqual(['a']);
 	});
 });

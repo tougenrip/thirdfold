@@ -91,6 +91,13 @@ export class GridLight extends THREE.Light {
 	/** How strongly bounce lights (the tier's, 0 off) and cavity shades (1 on, 0 off). */
 	readonly bounceGain = T.uniform(0);
 	readonly cavityGain = T.uniform(0);
+	/**
+	 * The hero shadow slots (#230, hero-shadows.ts): each slot's light as its 1-based layer (0
+	 * free) and how far it has faded in, the share of that light the slot draws instead. Uniforms,
+	 * not the data's `hero` flag, so a handover's fade uploads nothing.
+	 */
+	readonly heroIndex = [0, 1, 2, 3].map(() => T.uniform(0));
+	readonly heroFade = [0, 1, 2, 3].map(() => T.uniform(0));
 
 	/** `k`, light indices per cell (a multiple of 4), is fixed: another K is another GridLight. */
 	constructor(readonly k: number) {
@@ -167,6 +174,67 @@ export function falloffNode(dxz: N, reach: N, d3: N, noCore: N | number = 0): N 
 	return open.mul(open).mul(body).mul(core);
 }
 
+/** Reads texel `x` of layer `layer` of one of a GridLight's array textures. */
+export const load = (texture: THREE.Texture, x: N, layer: N): N =>
+	t.textureLoad(texture, t.ivec2(x, 0)).depth(layer);
+
+/**
+ * The fragment's cell on `light`'s grid, looked up a little along its normal (each wall face its
+ * own side): in cells (`cell`, a cell's centre at + 0.5), as integers (`c`), and whether it is on
+ * the grid. Inside a `Fn` (it declares variables).
+ */
+export function fragmentCell(light: GridLight): { cell: N; c: N; inside: N } {
+	const cellSize = light.cellSize as unknown as N;
+	const gridSize = light.gridSize as unknown as N;
+	const p = t.positionWorld.add(t.normalWorld.mul(cellSize.mul(NORMAL_LOOKUP)));
+	const cell = p.xz.div(cellSize).add(gridSize.mul(0.5)).toVar();
+	const c = t.ivec2(t.floor(cell)).toVar();
+	const inside = c.x
+		.greaterThanEqual(0)
+		.and(c.y.greaterThanEqual(0))
+		.and(c.x.lessThan(t.int(gridSize.x)))
+		.and(c.y.lessThan(t.int(gridSize.y)));
+	return { cell, c, inside };
+}
+
+/**
+ * Light `li`'s (its 0-based layer) light on the fragment at `cell`: where it is drawn from
+ * (`at`: xyz, reach in w), its data's colour texel (`col`: rgb, flags in w), and the colour it
+ * lends (`colour`): the falloff, three occlusion taps and the flicker, never below READABLE_EDGE.
+ */
+export function entryLight(light: GridLight, cell: N, li: N): { at: N; col: N; colour: N } {
+	const at = load(light.data, t.int(0), li);
+	const col = load(light.data, t.int(1), li);
+	const rule = load(light.data, t.int(2), li);
+	const rel = cell.sub(rule.xy);
+	const d = rel.length();
+	const turn = t
+		.atan(rel.y, rel.x)
+		.mul(ROW_ANGLES / (2 * Math.PI))
+		.add(ROW_ANGLES + 0.5);
+	const angle = t.int(t.floor(turn));
+	let occ: N = t.float(0);
+	for (const o of TAPS) {
+		const a = angle.add(o).mod(ROW_ANGLES);
+		const row = load(light.data, a.div(4).add(DATA_TEXELS), li).element(a.mod(4));
+		occ = occ.add(t.step(d, row.add(ROW_EPS)));
+	}
+	const d3 = t.positionWorld.distance(at.xyz).div(light.cellSize as unknown as N);
+	// The flicker (#231) scales the light, never its floor at READABLE_EDGE.
+	const flicker = flickerNode(rule.z, rule.w);
+	// The no-core flag (`LIGHT_FLAGS.noCore`, #236) and the bake-excluded flag (#235) in col.w:
+	// an excluded light is dark while the probes bake, its READABLE_EDGE floor too.
+	const noCore = t.floor(col.w.div(LIGHT_FLAGS.noCore)).mod(2);
+	const excluded = t.floor(col.w.div(LIGHT_FLAGS.bakeExcluded)).mod(2);
+	const kept = excluded.mul(baking as unknown as N).oneMinus();
+	const lit = falloffNode(d, at.w, d3, noCore).mul(occ.div(TAPS.length)).mul(flicker);
+	return { at, col, colour: col.rgb.mul(t.max(lit, READABLE_EDGE)).mul(kept) };
+}
+
+/** The light's direction from the fragment toward `at` (world), in view space. */
+export const towardNode = (at: N): N =>
+	t.cameraViewMatrix.mul(t.vec4(at.xyz, 1)).xyz.sub(t.positionView).normalize();
+
 class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 	static get type() {
 		return 'GridLightNode';
@@ -180,62 +248,31 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 		const { directDiffuse, directSpecular } = b.context.reflectedLight;
 		directDiffuse.toStack();
 		directSpecular.toStack();
-		const { int, ivec2, float, vec4, textureLoad, cameraViewMatrix, positionView } = t;
 		const k = light.k;
-		const cellSize = light.cellSize as unknown as N;
-		const gridSize = light.gridSize as unknown as N;
-		const load = (texture: THREE.Texture, x: N, layer: N) =>
-			textureLoad(texture, ivec2(x, 0)).depth(layer);
 		const model = (b.context as { lightingModel?: { gridIndirect?: GridIndirect } }).lightingModel;
 		if (model && 'gridIndirect' in model) model.gridIndirect = indirectNode(light, load);
+		const heroIndex = light.heroIndex as unknown as N[];
+		const heroFade = light.heroFade as unknown as N[];
 		(t.Fn as unknown as (f: () => void, type: string) => () => void)(() => {
-			const p = t.positionWorld.add(t.normalWorld.mul(cellSize.mul(NORMAL_LOOKUP)));
-			const cell = p.xz.div(cellSize).add(gridSize.mul(0.5)).toVar();
-			const c = ivec2(t.floor(cell)).toVar();
-			const inside = c.x
-				.greaterThanEqual(0)
-				.and(c.y.greaterThanEqual(0))
-				.and(c.x.lessThan(int(gridSize.x)))
-				.and(c.y.lessThan(int(gridSize.y)));
+			const { cell, c, inside } = fragmentCell(light);
 			t.If(inside, () => {
 				t.Loop(k, ({ i }: { i: N }) => {
 					const texel = load(light.lists, c.x.mul(k / 4).add(i.div(4)), c.y);
-					const index = int(t.round(texel.element(i.mod(4)).mul(255)));
+					const index = t.int(t.round(texel.element(i.mod(4)).mul(255)));
 					t.If(index.equal(0), () => {
 						t.Break();
 					});
-					const li = index.sub(1);
-					const at = load(light.data, int(0), li);
-					const col = load(light.data, int(1), li);
-					const rule = load(light.data, int(2), li);
-					const rel = cell.sub(rule.xy);
-					const d = rel.length();
-					const turn = t
-						.atan(rel.y, rel.x)
-						.mul(ROW_ANGLES / (2 * Math.PI))
-						.add(ROW_ANGLES + 0.5);
-					const angle = int(t.floor(turn));
-					let occ: N = float(0);
-					for (const o of TAPS) {
-						const a = angle.add(o).mod(ROW_ANGLES);
-						const row = load(light.data, a.div(4).add(DATA_TEXELS), li).element(a.mod(4));
-						occ = occ.add(t.step(d, row.add(ROW_EPS)));
+					const { at, colour } = entryLight(light, cell, index.sub(1));
+					// A light a hero shadow slot holds (#230, `heroIndex`) gives the share the slot
+					// has faded in to its shadowed light (hero-shadows.ts), so it is never lit twice.
+					let hero: N = t.float(0);
+					for (let s = 0; s < heroIndex.length; s++) {
+						const slot = t.max(heroIndex[s].sub(t.float(index)).abs().oneMinus(), 0);
+						hero = hero.add(slot.mul(heroFade[s]));
 					}
-					const d3 = t.positionWorld.distance(at.xyz).div(cellSize);
-					// The flicker (#231) scales the light, never its floor at READABLE_EDGE.
-					const flicker = flickerNode(rule.z, rule.w);
-					// The no-core flag (`LIGHT_FLAGS.noCore`, 4) and the bake-excluded flag in the colour texel's w.
-					const noCore = t.floor(col.w.div(LIGHT_FLAGS.noCore)).mod(2);
-					const excluded = t.floor(col.w.div(LIGHT_FLAGS.bakeExcluded)).mod(2);
-					const kept = excluded.mul(baking as unknown as N).oneMinus();
-					const lit = falloffNode(d, at.w, d3, noCore)
-						.mul(occ.div(TAPS.length))
-						.mul(flicker)
-						.mul(kept);
-					const lightVector = cameraViewMatrix.mul(vec4(at.xyz, 1)).xyz.sub(positionView);
 					b.lightsNode.setupDirectLight(builder, this, {
-						lightDirection: lightVector.normalize(),
-						lightColor: col.rgb.mul(colorNode).mul(t.max(lit, READABLE_EDGE))
+						lightDirection: towardNode(at),
+						lightColor: colour.mul(colorNode).mul(hero.oneMinus())
 					});
 				});
 			});

@@ -63,7 +63,9 @@ const BUDGETS = {
 	// grid's side (#235: its layout and bake policy, the setters it watches, the scheduler's
 	// background work, the bake flag); the grid itself is a lazy chunk (`probes` below); set to the
 	// merged build's measured size.
-	renderer: { total: 379_500 },
+	// → hero shadow slots (#230: the pool, its lights' node and atlas shadow, the slot
+	// assignment); set to the merged build's measured size.
+	renderer: { total: 383_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

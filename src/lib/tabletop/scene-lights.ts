@@ -7,6 +7,7 @@ import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js
 import type { SquareGrid } from '$lib/game/grid';
 import type { AtmosphereLayer } from './atmosphere';
 import { STEP_HEIGHT, WALL_HEIGHT } from './ground';
+import { HeroShadows } from './hero-shadows';
 import { DEFAULT_K } from './lighting';
 import { GridLight } from './materials/grid-light-node';
 import { SkyHemisphere, SkyLight } from './sky-light';
@@ -19,6 +20,8 @@ export interface BaseLights {
 	sun: THREE.DirectionalLight;
 	/** Every point light (#228): `LightingLayer` fills it, and swaps it for a tier's K. */
 	grid: GridLight;
+	/** The hero shadow slots (#230): medium's two until `LightingLayer.setTier` says. */
+	heroes: HeroShadows;
 }
 
 export function createSceneLights(scene: THREE.Scene): BaseLights {
@@ -39,7 +42,10 @@ export function createSceneLights(scene: THREE.Scene): BaseLights {
 	// The point lights' one light, here so the lobby's warm-up and the table compile the same.
 	const grid = new GridLight(DEFAULT_K);
 	scene.add(grid);
-	return { hemisphere, sun, grid };
+	// The shadow-casting slots, likewise: casting for their whole life, so the key stays put.
+	const heroes = new HeroShadows(grid, 2, 256);
+	if (heroes.lights.length) scene.add(...heroes.lights);
+	return { hemisphere, sun, grid, heroes };
 }
 
 /**

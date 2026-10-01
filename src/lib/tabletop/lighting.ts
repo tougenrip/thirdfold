@@ -30,6 +30,7 @@ import type { Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
 import type { Ground } from './ground';
 import { GridLighting, litSources } from './grid-light-layer';
+import { HeroShadows, heroTier, type HeroStats } from './hero-shadows';
 import { flameSeats, LightFixtures } from './light-fixtures';
 import { LightHandles } from './light-handles';
 import { setFlicker } from './materials/flicker';
@@ -81,16 +82,27 @@ export class LightingLayer {
 	grid: GridLighting | null;
 	/** The tier's bounce strength under the `bounce` layer, 0 off (#234). */
 	private bounce = 0;
+	/** The hero shadow slots near the camera's focus (#230), as many as the tier has. */
+	heroes: HeroShadows;
+	/** The minis carried lights and hero cubes follow, from the frame's `carry`. */
+	private minis: { rootOf(id: string): THREE.Object3D | null } = { rootOf: () => null };
 
 	/**
 	 * With the scene's GridLight (scene-lights.ts); without one, the layer makes its own. `onModel`
 	 * is told when a fixture's model arrives, to relight (and so draw it).
 	 */
-	constructor(light?: GridLight, onModel?: () => void) {
+	constructor(
+		light?: GridLight,
+		onModel?: () => void,
+		heroes?: HeroShadows,
+		/** Asks for another frame: a hero slot's handover or cube still due (#230). */
+		private readonly request: () => void = () => {}
+	) {
 		this.fixtures = new LightFixtures(onModel);
 		this.group.add(this.fixtures.group);
 		this.grid = new GridLighting(light ?? new GridLight(DEFAULT_K));
 		if (!light) this.group.add(this.grid.light);
+		this.heroes = heroes ?? new HeroShadows(this.grid.light, 0, 0);
 	}
 
 	/**
@@ -100,8 +112,19 @@ export class LightingLayer {
 	setTier(settings: QualitySettings): boolean {
 		this.bounce = settings.layers.bounce ? BOUNCE_STRENGTH[settings.tier] : 0;
 		const k = settings.layers.manylights ? settings.lights : 0;
-		if (k === (this.grid?.light.k ?? 0)) return false;
 		const parent = this.grid?.light.parent ?? this.pool[0]?.parent ?? this.group;
+		const swapped = k !== (this.grid?.light.k ?? 0);
+		if (swapped) this.swapGrid(k, parent);
+		// The tier's hero slots (#230), made with its GridLight: a new pool is a new program too.
+		if (this.heroes.fits(this.grid?.light ?? null, settings)) return swapped;
+		this.heroes.dispose();
+		const { slots, size } = heroTier(settings);
+		this.heroes = new HeroShadows(this.grid?.light ?? null, this.grid ? slots : 0, size);
+		if (this.heroes.lights.length) parent.add(...this.heroes.lights);
+		return true;
+	}
+
+	private swapGrid(k: number, parent: THREE.Object3D): void {
 		if (this.grid) parent.remove(this.grid.light);
 		this.grid?.dispose();
 		for (const light of this.pool) parent.remove(light);
@@ -112,11 +135,11 @@ export class LightingLayer {
 			this.pool.push(new THREE.PointLight(0xffffff, 0, 1, 2));
 			parent.add(this.pool[i]);
 		}
-		return true;
 	}
 
 	/** Carried lights follow their gliding minis (GridLights only); returns `moving`. */
 	carry(tokens: { rootOf(id: string): THREE.Object3D | null }, moving: boolean): boolean {
+		this.minis = tokens;
 		this.grid?.carry(tokens);
 		this.fixtures.carry(tokens);
 		return moving;
@@ -151,6 +174,8 @@ export class LightingLayer {
 		else this.updatePool(grid, sources, ground, seats);
 		const [r, g, b] = this.grid && this.bounce ? groundTintOf(floor) : [1, 1, 1];
 		groundTint.value.setRGB(r, g, b);
+		if (this.grid)
+			this.heroes.update(grid, this.grid, tokens, props, asObstacles(blocked).levels ?? null);
 		this.fixtures.update(grid, lights, tokens, asObstacles(blocked).edges, ground);
 	}
 
@@ -174,7 +199,13 @@ export class LightingLayer {
 		return hit?.id ?? null;
 	}
 
+	/** The hero slots' holders, redraws and cube memory, for `?perf`. */
+	heroStats(): HeroStats {
+		return this.heroes.stats();
+	}
+
 	dispose(): void {
+		this.heroes.dispose();
 		this.fixtures.dispose();
 		this.handles?.dispose();
 		this.grid?.dispose();
@@ -226,10 +257,18 @@ export class LightingLayer {
 	/**
 	 * Sets the flicker's clock to `now` (ms) and says whether it needs AMBIENT frames: a GridLight
 	 * that flickers, reads (night glows past day's, or it stands in a dark area) and reaches into
-	 * `camera`'s view. Never under reduced motion, nor for the pool (which holds still).
+	 * `camera`'s view. Never under reduced motion, nor for the pool (which holds still). The hero
+	 * slots (#230) follow `target`, the camera's focus, and request frames (reduced motion or not)
+	 * while a handover fades or a cube waits its turn; `gallery`: a warm-up's gallery shows this
+	 * frame (their shadow passes compile then).
 	 */
-	animating(camera: THREE.Camera, now: number): boolean {
+	animating(camera: THREE.Camera, now: number, target?: THREE.Vector3, gallery = false): boolean {
 		setFlicker(now, this.still);
+		if (target && this.heroes.frame(now, target, this.minis, gallery, this.still)) this.request();
+		return this.flickering(camera);
+	}
+
+	private flickering(camera: THREE.Camera): boolean {
 		if (this.still || !this.grid) return false;
 		const night = this.glow > NIGHT_FLICKERS;
 		const cell = this.grid.light.cellSize.value;

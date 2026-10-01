@@ -112,7 +112,7 @@ export async function createTabletop(
 	const propLayer = new PropLayer(onModel, clock);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
-	const lighting = new LightingLayer(lights.grid, onModel);
+	const lighting = new LightingLayer(lights.grid, onModel, lights.heroes, requestRender);
 	scene.add(lighting.group);
 	const hooks = { post, lighting, renderer, perf, request: requestRender };
 	const atmosphere = new AtmosphereLayer({ ...lights, ...hooks }, clock, refreshLighting);
@@ -230,7 +230,7 @@ export async function createTabletop(
 		const casters = tokensMoving || doorsMoving || diceRolling || propsMoving || bellSwinging;
 		if (casters || wasMoving) shadowsDirty = true;
 		wasMoving = casters;
-		const flickering = lighting.animating(camera, now); // in the shader (#231)
+		const flickering = lighting.animating(camera, now, controls.target, gallery.due); // #230, #231
 		const drifting = cloud.tick(now);
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
@@ -487,7 +487,7 @@ export async function createTabletop(
 		loads: loadProgress,
 		setPowerSaver: (on) => (loop.setPowerSaver(on), cloud.setPowerSaver(on)),
 		setReduceFlashing: (on) => effects.setReduceFlashing(on),
-		...perfMethods(renderer, perf, drawScene, { loop, quality, warming: () => warming })
+		...perfMethods(renderer, perf, drawScene, { loop, quality, lighting, warming: () => warming })
 	};
 	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key
 	// light, which redraws them by its own rule (AtmosphereLayer.shadowFrame), and lights only

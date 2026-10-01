@@ -885,3 +885,24 @@ last after a light changes, three runs on a machine running other tests beside i
   RGBA32F texels, 95 KB) and an 8 px half-float cube, whatever the table. The chunk is 4.5 kB gz.
 - **Programs:** none compiled by a bake (the warm-up's hold captures a probe); the largest fragment
   stage samples 16 textures on high with probes (229 programs on the test world on WebGPU).
+
+## The M68 hero shadows (#230)
+
+Measured with `scripts/perf-gpu.mjs` on the test world (`FRAMES=32 POSES=close,overview`, 1920×1080,
+WebGL2 on the RTX 4060, reduced motion), the same build with its slots forced to none against the
+slots on; other jobs shared the GPU, so a tenth or two either way is noise, and the first pose after
+the scene import (the GM's close) compiles and is left out.
+
+| Tier                    | GM overview | player close / overview | Cube memory (depth + R8 colour) |
+| ----------------------- | ----------- | ----------------------- | ------------------------------- |
+| medium, no slots        | 3.0         | 3.0 / 3.0               | 0                               |
+| medium, 2 slots, 256 px | 3.0         | 3.4 / 4.0               | 3.1 + 0.8 MB                    |
+| high, no slots          | 4.2         | 3.2 / 3.0               | 0                               |
+| high, 4 slots, 512 px   | 4.4         | 4.4 / 3.8               | 25.2 + 6.3 MB                   |
+
+- **Per fragment** a slot costs its cell-list check and one cube lookup (a face matrix and a 2×2
+  compare); the entry's light (data, occlusion taps, falloff) is worked out only where the slot's
+  light is listed. A first build that worked it out everywhere cost 2.5-3.5 ms more on medium.
+- **Per redraw** a cube is six caster passes into its row of the atlas, only when something in the
+  light's reach + 1 changed, at most one a frame on medium and two on high; camera moves draw none.
+- **The iGPU** was not measured for this change; low has no slots.

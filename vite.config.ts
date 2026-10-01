@@ -100,7 +100,8 @@ const RENDER_SPECS = [
 	'exposure',
 	'grid-lights',
 	'translucency',
-	'probe-grid'
+	'probe-grid',
+	'hero-shadows'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

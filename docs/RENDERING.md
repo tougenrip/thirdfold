@@ -991,6 +991,45 @@ for a review (`layersFrom` reads `?on=` as well as `?off=`).
   spec asserts at most 16; anything else a lit kind samples on high (hero shadow maps, #230) must
   share a binding or turn the probes off.
 
+### Hero shadows (#230)
+
+A fixed pool of shadow-casting point lights per tier (`shadowedTorches`: none on low, 2 at 256 px on
+medium, 4 at 512 px on high and ultra; `heroTier` in `hero-shadows.ts`) goes to the GridLights
+nearest the camera's focus. `assignHeroSlots` (`light-model.ts`, pure, `light-model.spec.ts`) scores
+each source by its distance from the focus, 8 cells more without a token, prop or step of raised
+ground in its reach, and leaves out those past 16 cells; a free slot takes the best, a holder keeps
+its slot (and its index) until a challenger is 2 cells better, so camera moves within that never
+hand one over. Casters are only what the viewer was sent.
+
+- **Lights.** `HeroLight` (`materials/hero-light-node.ts`), a `PointLight` subclass with its own
+  node, registered beside the GridLight's (`registerHeroLights`, `loop.ts`), made with the pool
+  (`createSceneLights` makes medium's, `LightingLayer.setTier` another tier's; a new pool is a new
+  program, as a tier switch is) and casting for its whole life, so the lights' cache key never
+  changes. Its node draws the entry its `layer` uniform names exactly as the GridLights do
+  (`entryLight` and `fragmentCell`, shared with `GridLightNode`), only on cells whose lists hold it,
+  times its `fade` and its cube's shadow. The GridLight gives that entry's light up by the same
+  share (`heroIndex`/`heroFade`, a float uniform per slot), so a light is never lit twice and an
+  unshadowed cell reads the same with or without its slot (`hero-shadows.svelte.spec.ts`: within 2%).
+  The share is uniforms, not the data's `hero` flag (reserved, left 0), so a handover uploads
+  nothing. Vector uniforms on these lights read back wrong on the WebGL2 backend (r186: the slot
+  uniforms as `vec4`s did), so they are floats or uniform arrays.
+- **Cubes.** One depth atlas for the pool (`HeroAtlas`, a row of six 90° faces per slot, compared
+  with the hardware's 2×2 PCF), so the slots add one texture to a lit fragment stage: the largest,
+  terrain, is at 16 (WebGPU's default and WebGL2's least), prop and mini at 15. `HeroShadowNode`
+  (a `ShadowNode` with its own render target, filter and `renderShadow`) fills each face's tile with
+  the far depth (a clear would clear the whole atlas), draws the casters with one shared material,
+  and records the face matrices and the light's position it drew with, which the filter uses, so a
+  cube and its lookup always agree. `shadow.autoUpdate` is off: a slot is due when what its reach + 1
+  holds changes at a relight (tokens, props, raised ground, the light's sight, so walls and doors), its
+  light moves (a carried light) or a mini glides through it, and for half a second after a change
+  (a door's swing, a prop's glide); at most `slots / 2` cubes draw a frame, taking turns. A camera
+  move draws none. On a warm-up's gallery frame every slot draws once over the whole table, so the
+  casters' shadow passes compile with the warm-up, and again at its reach the frame after.
+- **Handovers** fade the old holder out and the new in over `HERO_FADE_MS` (200 ms; at least a twelfth
+  a frame, snapped under reduced motion), the new one once its cube is drawn; frames are requested
+  until they land. `?perf` shows the holders, cubes drawn and cube memory; the program-count sweep
+  hands every slot over (`lightSteps`) on each tier, a test per tier.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
