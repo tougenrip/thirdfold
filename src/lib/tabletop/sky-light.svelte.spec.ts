@@ -12,7 +12,7 @@ import { atmosphereUniforms } from './atmosphere';
 import { SkyHemisphere, SkyLight } from './sky-light';
 import { HEIGHT, WIDTH, loadView, mountFixture, readFrame, settle, type Mounted } from './testing';
 
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
 let mounted: Mounted | null = null;
 afterEach(async () => {

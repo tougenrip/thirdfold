@@ -264,12 +264,15 @@ export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_00
 	// The limit counts at most STALL_MS a wait: one frame that stalls the page for half a minute
 	// (a loaded machine compiling what a timed-out warm-up left) must not end it before the
 	// frames after it, which compile the rest (the AO's real passes come on the second).
+	// Nor does a warm-up's hold count: it ends once the compile under way does, which on a loaded
+	// machine (render specs side by side on SwiftShader) can take longer than the whole limit, and a
+	// settle that ended in it read the canvas before the table's first real frame.
 	while (spent < limitMs) {
 		await nextFrame();
 		const now = performance.now();
-		[spent, before] = [spent + Math.min(now - before, STALL_MS), now];
 		const { frames, holding, mode } = tabletop.stats();
-		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
+		[spent, before] = [spent + (holding ? 0 : Math.min(now - before, STALL_MS)), now];
+		// A warm-up holds frames for at least WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
 		// still drawing: one software frame can outlast the quiet spell (CI's small runners). Nor
 		// a first view's load still out (the environment's look, the decoders): on a loaded machine
 		// it lands after the frames went quiet and changes the picture (the floor's maps, #230).
