@@ -7072,9 +7072,9 @@
 			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dark-agx": {
-			"file": "textures/grade-stone-halls-dark-agx.969e8a09.png",
-			"sha256": "969e8a09286abccf32cc70690b426b5a8f70a5eda93d2e00f2c7b97e88d2b546",
-			"bytes": 16216,
+			"file": "textures/grade-stone-halls-dark-agx.1af8c4c6.png",
+			"sha256": "1af8c4c67ac7fcbd6609daa21525f6c8539b86a385508f478ad1ec44caf2206d",
+			"bytes": 16417,
 			"format": "png",
 			"usage": "lut",
 			"colorSpace": "srgb",
@@ -7126,9 +7126,9 @@
 			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dark-aces": {
-			"file": "textures/grade-stone-halls-dark-aces.03495bc7.png",
-			"sha256": "03495bc7023b1554eba6366fc275bca27070ff3b8d71677d450459cb607e465f",
-			"bytes": 13889,
+			"file": "textures/grade-stone-halls-dark-aces.29c4d4ca.png",
+			"sha256": "29c4d4caf710186a4761ef0d9670726930abb656ea73166860634c5e54e7642a",
+			"bytes": 14737,
 			"format": "png",
 			"usage": "lut",
 			"colorSpace": "srgb",
@@ -7180,9 +7180,9 @@
 			"pack": "stone-halls"
 		},
 		"grade-stone-halls-dark-neutral": {
-			"file": "textures/grade-stone-halls-dark-neutral.fc9aaae9.png",
-			"sha256": "fc9aaae93604d136c0c34c2706360f46d581c272f0ab0043340d08598b8da190",
-			"bytes": 14855,
+			"file": "textures/grade-stone-halls-dark-neutral.1cbf7865.png",
+			"sha256": "1cbf78655cd53cb4e0032f619e2941ed1460e7bd0f5658f0e0bf78b450601663",
+			"bytes": 16513,
 			"format": "png",
 			"usage": "lut",
 			"colorSpace": "srgb",
@@ -7234,9 +7234,9 @@
 			"pack": "village"
 		},
 		"grade-village-dark-agx": {
-			"file": "textures/grade-village-dark-agx.a67b4c0b.png",
-			"sha256": "a67b4c0b3c3eb4279faf656fcf37831905558440333d7e048be45d829f26e099",
-			"bytes": 12403,
+			"file": "textures/grade-village-dark-agx.ae311666.png",
+			"sha256": "ae3116663e954994a01e16e53e0c0f8c93fe6dc9c8cfe2e4a66db1e91d9d3802",
+			"bytes": 14115,
 			"format": "png",
 			"usage": "lut",
 			"colorSpace": "srgb",
@@ -7288,9 +7288,9 @@
 			"pack": "village"
 		},
 		"grade-village-dark-aces": {
-			"file": "textures/grade-village-dark-aces.87c4e354.png",
-			"sha256": "87c4e35402bc5856e83434899acb0b48b43d36ae783d47ce0db4c0479e90959b",
-			"bytes": 13625,
+			"file": "textures/grade-village-dark-aces.30f229f6.png",
+			"sha256": "30f229f6f374911af4cfb34707025b2eff7b019c05f3356bdfeeaef30f1f3c1e",
+			"bytes": 11873,
 			"format": "png",
 			"usage": "lut",
 			"colorSpace": "srgb",
@@ -7342,9 +7342,9 @@
 			"pack": "village"
 		},
 		"grade-village-dark-neutral": {
-			"file": "textures/grade-village-dark-neutral.eeecafb8.png",
-			"sha256": "eeecafb8f947612fc47e67da2132080ea04d9e01eae6d7ffd397e9036c7055bf",
-			"bytes": 14195,
+			"file": "textures/grade-village-dark-neutral.5a8525db.png",
+			"sha256": "5a8525db15c95455fdfc6b597b3d1518c0e9e8c6b1feb811ad4aea4fcd75c7df",
+			"bytes": 12298,
 			"format": "png",
 			"usage": "lut",
 			"colorSpace": "srgb",
@@ -8488,7 +8488,7 @@
 				{
 					"minute": 270,
 					"sun": 0,
-					"moon": 0.15,
+					"moon": 0.3,
 					"hemi": 0.1,
 					"ibl": 0.2,
 					"exposure": 0,
@@ -8620,7 +8620,7 @@
 				{
 					"minute": 1320,
 					"sun": 0,
-					"moon": 0.15,
+					"moon": 0.3,
 					"hemi": 0.1,
 					"ibl": 0.2,
 					"exposure": 0,
@@ -8787,11 +8787,11 @@
 			"gpuBytes": 2970969
 		},
 		"stone-halls": {
-			"bytes": 111223,
+			"bytes": 113930,
 			"gpuBytes": 1572867
 		},
 		"village": {
-			"bytes": 576107,
+			"bytes": 574170,
 			"gpuBytes": 4019547
 		}
 	},

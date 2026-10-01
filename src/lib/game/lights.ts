@@ -76,15 +76,19 @@ const kindLook = (
 	fixture: boolean
 ): LightLook => ({ kind, intensity, height, flicker, shadows: true, fixture, facing: 0 });
 
-/** Each kind's look, which a light's own fields override; starting points for #238 to tune. */
+/**
+ * Each kind's look, which a light's own fields override. Flames tuned in #238 against the torch
+ * room and the night gate (docs/ART.md, "Light presets"): a torch at 0.7, a brazier and a fire at
+ * 1.5 times that.
+ */
 export const LIGHT_KIND_DEFAULTS: Readonly<Record<LightKind, LightLook>> = {
-	torch: kindLook('torch', 1, 4, 'torch', true),
+	torch: kindLook('torch', 0.7, 4, 'torch', true),
 	candle: kindLook('candle', 0.5, 1, 'candle', true),
-	brazier: kindLook('brazier', 1.5, 2, 'fire', true),
+	brazier: kindLook('brazier', 1.05, 2, 'fire', true),
 	lantern: kindLook('lantern', 1, 4, 'lantern', true),
 	glow: kindLook('glow', 1, 1, 'none', false),
 	magic: kindLook('magic', 1, 3, 'pulse', true),
-	fire: kindLook('fire', 1.5, 0, 'fire', false),
+	fire: kindLook('fire', 1.05, 0, 'fire', false),
 	neon: kindLook('neon', 1, 3, 'none', true),
 	panel: kindLook('panel', 0.8, 3, 'none', true)
 };
@@ -301,7 +305,7 @@ export const LIGHT_DECAY = 1;
 /** Inside this 3D distance the hot core rises, roughly inverse-square. Allowed: FALLOFF_RANGES.coreRadius. */
 export const CORE_RADIUS = 1.25;
 /** The most the falloff reaches, at the flame. Allowed: FALLOFF_RANGES.coreMax. */
-export const CORE_MAX = 4;
+export const CORE_MAX = 2.5;
 /**
  * The least point light a rule-lit cell centre shows: where the window is tiny (the diagonal rim
  * of a large radius, about 1e-6 at radius 20, black in float32), the shader tops the light up to
