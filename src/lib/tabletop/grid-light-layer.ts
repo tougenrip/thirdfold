@@ -136,7 +136,7 @@ export class GridLighting {
 				intensity: look.intensity * strength(s.radius),
 				profile: flickerProfile(look.flicker),
 				phase: flickerPhase(id),
-				flags: 0
+				flags: carrier ? LIGHT_FLAGS.bakeExcluded : 0 // carried light never bakes (#235)
 			};
 			// A carried or seated light is a point wherever its kind (a flame in the hand, on a prop).
 			const samples = carrier || seat !== undefined ? [] : stripSamples(s);

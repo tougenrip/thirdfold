@@ -373,3 +373,103 @@ interface StripEntry {
 	intensity: number;
 	flags: number;
 }
+
+// Probe grid (#235): on high and ultra, a coarse grid of L2 irradiance probes baked in the
+// background from the client's own scene (probe-grid.ts, a lazy chunk). The layout is a lattice
+// over the grid up to a wall above its highest floor; the bake policy waits for the table to
+// settle, then bakes a few probes a frame and restarts on any change to what it captures.
+
+/** Cells between probes across the table, and the most probes along either side (a fixed atlas). */
+export const PROBE_SPACING = 3;
+export const PROBE_MAX = 24;
+/** Probe heights: from PROBE_LIFT cells over the table to a wall above its highest floor. */
+export const PROBE_HEIGHTS = 3;
+export const PROBE_LIFT = 0.5;
+/** Probes baked a frame, the quiet before a bake starts, its fade in, and its full intensity. */
+export const PROBES_PER_FRAME = 8;
+export const BAKE_DEBOUNCE_MS = 500;
+export const PROBE_FADE_MS = 600;
+export const PROBE_INTENSITY = 1;
+
+/** A probe lattice in cells: x across the grid's width, y up, z down its rows; corners inclusive. */
+export interface ProbeLayout {
+	counts: readonly [x: number, y: number, z: number];
+	min: readonly [x: number, y: number, z: number];
+	max: readonly [x: number, y: number, z: number];
+}
+
+/** One probe per `spacing` cells (more apart past PROBE_MAX), cell centre to cell centre. */
+export function probeLayout(
+	grid: Pick<SquareGrid, 'width' | 'height'>,
+	levels: Uint8Array | null,
+	spacing = PROBE_SPACING
+): ProbeLayout {
+	const along = (cells: number) =>
+		Math.min(PROBE_MAX, Math.max(2, Math.round((cells - 1) / spacing) + 1));
+	const high = levels ? levels.reduce((a, b) => Math.max(a, b), 0) : 0;
+	return {
+		counts: [along(grid.width), PROBE_HEIGHTS, along(grid.height)],
+		min: [0.5, PROBE_LIFT, 0.5],
+		max: [grid.width - 0.5, high * STEP_HEIGHT + WALL_HEIGHT, grid.height - 0.5]
+	};
+}
+
+/** Whether a renderer bakes probes: the layer on, high or ultra, and never WebGL2 on an iGPU. */
+export function wantsProbes(
+	s: { tier: string; layers: { probes: boolean } },
+	caps: { backend: string; vendor: string | null; architecture: string | null }
+): boolean {
+	const integrated = /intel|integrated/i.test(`${caps.vendor} ${caps.architecture}`);
+	return (
+		s.layers.probes &&
+		(s.tier === 'high' || s.tier === 'ultra') &&
+		!(caps.backend === 'webgl2' && integrated)
+	);
+}
+
+/** A frame's share of a bake: probes `start` to `start + count`; `last` ends the bake. */
+export interface BakeStep {
+	start: number;
+	count: number;
+	last: boolean;
+}
+
+/**
+ * The bake's schedule: `change` with what the bake captures (compared item by item) restarts it
+ * BAKE_DEBOUNCE_MS later; then `step` hands out at most PROBES_PER_FRAME probes a frame until the
+ * grid is done. Times are the renderer's clock.
+ */
+export class ProbeBake {
+	private key: readonly unknown[] | null = null;
+	/** When the next step is due: Infinity while there is nothing to bake. */
+	private due = Infinity;
+	private next = 0;
+	private total = 0;
+
+	/** What the bake captures and how many probes: a change (and only one) restarts it. */
+	change(key: readonly unknown[], total: number, now: number): boolean {
+		const same =
+			this.key?.length === key.length &&
+			this.key.every((v, i) => v === key[i]) &&
+			total === this.total;
+		if (same) return false;
+		[this.key, this.total, this.next, this.due] = [key, total, 0, now + BAKE_DEBOUNCE_MS];
+		return true;
+	}
+
+	/** Ms until a step is due: 0 now, Infinity when the grid is baked. */
+	wait(now: number): number {
+		return this.due === Infinity ? Infinity : Math.max(0, this.due - now);
+	}
+
+	/** This frame's probes, or null when none is due. */
+	step(now: number): BakeStep | null {
+		if (this.wait(now) > 0) return null;
+		const start = this.next;
+		const count = Math.min(PROBES_PER_FRAME, this.total - start);
+		this.next += count;
+		const last = this.next >= this.total;
+		if (last) this.due = Infinity;
+		return { start, count, last };
+	}
+}

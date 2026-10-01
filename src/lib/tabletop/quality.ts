@@ -57,7 +57,8 @@ export const LAYERS = [
 	'dof',
 	'fogcloud',
 	'manylights',
-	'bounce'
+	'bounce',
+	'probes'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
@@ -340,12 +341,12 @@ export function aoKind(s: Pick<QualitySettings, 'tier' | 'msaa' | 'ao' | 'aa'>):
 }
 export type AoKind = 'none' | 'ssao' | 'gtao';
 
-/** `?off=sky,grass` turns those layers off; unknown names are ignored. Never saved. */
+/** `?off=sky,grass` turns those layers off, `?on=probes` on; unknown names are ignored. Never saved. */
 export function layersFrom(search: string, layers: Record<Layer, boolean>): Record<Layer, boolean> {
-	const off = new URLSearchParams(search).get('off');
-	if (!off) return layers;
-	const out = { ...layers };
-	for (const name of off.split(',')) if (name in out) out[name as Layer] = false;
+	const [params, out] = [new URLSearchParams(search), { ...layers }];
+	for (const on of [false, true])
+		for (const name of params.get(on ? 'on' : 'off')?.split(',') ?? [])
+			if (name in out) out[name as Layer] = on;
 	return out;
 }
 

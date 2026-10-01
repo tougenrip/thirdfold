@@ -13,7 +13,8 @@
 // never saw, its lantern reaching on into the dark (the server never sends one, grid-light-layer.spec.ts;
 // here the picture holds even if it did). The sky (#225) adds
 // its own poses, always run: a low camera toward the horizon, dense haze, a dark area at noon and a
-// roofed table. Bounce and cavity (#234) are on, at each tier's strength.
+// roofed table. Bounce and cavity (#234) are on, at each tier's strength. The probe grid (#235), off
+// by default, is baked and on for the test world's player on high.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -30,7 +31,7 @@ import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
 import type { GridPose } from './poses';
-import { settingsFor, type Tier } from './quality';
+import { settingsFor, type QualitySettings, type Tier } from './quality';
 import {
 	BACKEND,
 	FIXTURES,
@@ -78,7 +79,8 @@ const SLIM = new Set([
 	'ref-8 spectator dark medium reduced',
 	'hollow player dark medium cloud',
 	'dungeon-40 player dark medium carrier',
-	'ref-6 player dark medium carrier'
+	'ref-6 player dark medium carrier',
+	'test-world player dusk high probes'
 ]);
 const FULL = inject('unexplored') === 'full';
 
@@ -93,6 +95,8 @@ interface Case {
 	cloud: boolean;
 	/** A light carrier on unexplored ground beside the player's token (#228). */
 	carrier: boolean;
+	/** The probe grid's layer on (#235, off by default until its gates), baked before the poses. */
+	probes: boolean;
 	label: string;
 }
 
@@ -121,16 +125,24 @@ async function allCases(): Promise<Case[]> {
 				const player = await loadView(fixture, band, 'player');
 				const same = (v: FixtureView) => JSON.stringify({ ...v, viewer: null });
 				if (viewer === 'spectator' && same(view) === same(player)) continue;
-				const each = (tier: Tier, reduced: boolean, cloud = false, carrier = false) => {
+				const each = (
+					tier: Tier,
+					reduced: boolean,
+					cloud = false,
+					carrier = false,
+					probes = false
+				) => {
 					const label =
 						`${fixture} ${viewer} ${band} ${tier}` +
-						`${reduced ? ' reduced' : ''}${cloud ? ' cloud' : ''}${carrier ? ' carrier' : ''}`;
-					out.push({ fixture, viewer, band, poses, tier, reduced, cloud, carrier, label });
+						`${reduced ? ' reduced' : ''}${cloud ? ' cloud' : ''}${carrier ? ' carrier' : ''}` +
+						`${probes ? ' probes' : ''}`;
+					out.push({ fixture, viewer, band, poses, tier, reduced, cloud, carrier, probes, label });
 				};
 				for (const tier of TIERS) each(tier, false);
 				each('medium', true);
 				each('medium', false, true);
 				if (viewer === 'player') each('medium', false, false, true);
+				if (viewer === 'player') each('high', false, false, false, true);
 			}
 	}
 	return out;
@@ -318,6 +330,7 @@ async function mountCase(
 	c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 'reduced'> & {
 		cloud?: boolean;
 		carrier?: boolean;
+		probes?: boolean;
 	}
 ) {
 	const sidecar = await loadSidecar(c.fixture);
@@ -340,7 +353,25 @@ async function mountCase(
 		const layers = { ...settings.layers, fogcloud: true };
 		m.tabletop.setQuality({ ...settings, miniature: false, layers });
 	}
+	if (c.probes) await bakeProbes(m, clock, settings);
 	return { m, sidecar, view, settings };
+}
+
+/**
+ * Turns the probe grid on (#235) and moves the held clock on until a bake has finished and faded
+ * in, so the poses draw with the probes at full strength.
+ */
+async function bakeProbes(m: Mounted, clock: ReturnType<typeof manualClock>, s: QualitySettings) {
+	m.tabletop.setQuality({ ...s, miniature: false, layers: { ...s.layers, probes: true } });
+	const baked = () => m.tabletop.stats().timings['probe-bake']?.count ?? 0;
+	const until = performance.now() + 600_000;
+	while (!baked() && performance.now() < until) {
+		clock.set(clock.now() + 1000);
+		await wait(250);
+	}
+	expect(baked(), 'the probes baked').toBeGreaterThan(0);
+	clock.set(clock.now() + 1000); // past the fade
+	await settle(m.tabletop, 1500, 120_000);
 }
 
 /**

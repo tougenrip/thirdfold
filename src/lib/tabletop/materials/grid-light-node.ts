@@ -52,6 +52,9 @@ const CAVITY_REACH = 0.5 * STEP_HEIGHT;
 
 const t = T as unknown as Record<string, N & ((...args: unknown[]) => N)>;
 
+/** 1 while the probe grid bakes (#235): lights flagged `bakeExcluded` (carried ones) go dark. */
+export const baking = T.uniform(0);
+
 /** A float array texture, `width` texels by `layers`, read with `textureLoad` only. */
 function layered<A extends Float32Array | Uint8Array>(array: A, width: number, layers: number) {
 	const texture = new THREE.DataArrayTexture(array, width, 1, layers);
@@ -221,9 +224,14 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 					const d3 = t.positionWorld.distance(at.xyz).div(cellSize);
 					// The flicker (#231) scales the light, never its floor at READABLE_EDGE.
 					const flicker = flickerNode(rule.z, rule.w);
-					// The no-core flag (`LIGHT_FLAGS.noCore`, 4) in the colour texel's w.
+					// The no-core flag (`LIGHT_FLAGS.noCore`, 4) and the bake-excluded flag in the colour texel's w.
 					const noCore = t.floor(col.w.div(LIGHT_FLAGS.noCore)).mod(2);
-					const lit = falloffNode(d, at.w, d3, noCore).mul(occ.div(TAPS.length)).mul(flicker);
+					const excluded = t.floor(col.w.div(LIGHT_FLAGS.bakeExcluded)).mod(2);
+					const kept = excluded.mul(baking as unknown as N).oneMinus();
+					const lit = falloffNode(d, at.w, d3, noCore)
+						.mul(occ.div(TAPS.length))
+						.mul(flicker)
+						.mul(kept);
 					const lightVector = cameraViewMatrix.mul(vec4(at.xyz, 1)).xyz.sub(positionView);
 					b.lightsNode.setupDirectLight(builder, this, {
 						lightDirection: lightVector.normalize(),

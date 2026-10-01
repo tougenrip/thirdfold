@@ -858,3 +858,30 @@ first view that compiles (village's GM overview on WebGL2) is noise either way.
 RTX): textures 82 → 84 and texture bytes +353 KB on every tier (GridLights' two textures), the heap
 about 1.5 MB more; programs (174), pipelines, render targets, draw calls (117 after orbiting) and
 idle frames (0) unchanged, nothing leaked over reloads and remounts.
+
+## The M68 probe grid (#235)
+
+The probe grid's bake (docs/RENDERING.md, "Probe grid"), timed by `probe-grid.svelte.spec.ts` on
+the RTX 4060 Laptop (`THIRDFOLD_WEBGPU=1 npx vitest run --project client-webgpu --reporter=verbose
+--silent=false -t times src/lib/tabletop/probe-grid.svelte.spec.ts`): the Hollow's GM view on high
+(48 × 36, 17 × 3 × 13 = 663 probes, 8 px cube faces), a whole rebake from its first step to its
+last after a light changes, three runs on a machine running other tests beside it.
+
+| Backend                        | Bake, wall | In the 83 steps (CPU) | Longest step | Frames |
+| ------------------------------ | ---------- | --------------------- | ------------ | ------ |
+| WebGPU                         | 2.1-3.0 s  | 1.7-2.5 s             | 34-62 ms     | 131    |
+| WebGL2 (ANGLE Vulkan, the RTX) | 3.5-4.0 s  | 2.9-3.4 s             | 48-76 ms     | 131    |
+
+- **CPU-bound:** a step is 8 probes × 6 cube faces of the whole scene, about 0.6 ms of draw
+  submission a face; the GPU work is small at 8 px. A step is a long frame (35-75 ms, up to 200 ms
+  on a loaded machine, where one WebGL2 run took 12.8 s), so a bake hitches the picture while it
+  runs; fewer probes a frame would smooth it and take longer.
+- **Idle afterwards:** 131 frames are the 83 steps and TRAA's 24-frame settle after the last (and
+  the fade); then none (the spec waits 3 s for a frame and gets none).
+- **The gate** (about 3 s on the dGPU) is met on WebGPU, just; WebGL2 is over it, and the iGPU is
+  not measured (`wantsProbes` never bakes on WebGL2 on an integrated GPU). The layer stays off by
+  default.
+- **Memory:** the atlas, 24 × 3 × 182 RGBA16F texels (105 KB), the bake's batch target (9 × 663
+  RGBA32F texels, 95 KB) and an 8 px half-float cube, whatever the table. The chunk is 4.5 kB gz.
+- **Programs:** none compiled by a bake (the warm-up's hold captures a probe); the largest fragment
+  stage samples 16 textures on high with probes (229 programs on the test world on WebGPU).

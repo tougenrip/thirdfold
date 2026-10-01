@@ -953,6 +953,44 @@ brazier. `translucency.svelte.spec.ts` draws each twice, at its strength and at 
 (the term must brighten it) and, for the tent, from the torch's side (it must not), and checks no
 program is made; the program-count sweep's `lightSteps` sets the home table's tree to 0 and back.
 
+### Probe grid (#235)
+
+On high and ultra a coarse grid of L2 irradiance probes (three's `LightProbeGrid`) adds coloured
+bounce from the sun, the sky and placed lights. It is an additive layer, `probes`, **off by
+default** until the owner's gate (the Hollow's bake under about 3 s on the dGPU with the renderer
+idle afterwards; never on WebGL2 on an integrated GPU, `wantsProbes`); `?on=probes` turns it on
+for a review (`layersFrom` reads `?on=` as well as `?off=`).
+
+- **Layout** (`probeLayout` in `light-model.ts`, pure and tested): a lattice over the grid from
+  cell centre to cell centre, a probe every `PROBE_SPACING` (3) cells, at most `PROBE_MAX` (24) a
+  side (farther apart past that), at `PROBE_HEIGHTS` (3) heights from half a cell over the table to
+  a wall above its highest floor. The Hollow uses 17 × 3 × 13 = 663 probes.
+- **One grid and one atlas for the renderer's life** (`probe-grid.ts`, a lazy chunk with its own
+  bundle budget): the atlas is made at `PROBE_MAX × PROBE_HEIGHTS × PROBE_MAX` and a table uses its
+  corner; the light object, its texture and so every program stay the same from table to table (a
+  replaced texture strands bindings, #380). Our node (`ProbeGridNode`, registered for three's grid
+  class before anything compiles) is three's `LightProbeGridNode` sampling over the atlas's own
+  size, times `skyAmbient()`, so dark areas take no probe light; the kinds' lighting model then
+  dims it by the rules' light factor and cavity like any indirect light.
+- **Bake** (`probes.ts`, the scheduler's background `Work`): `ProbeBake` (pure, tested) restarts
+  `BAKE_DEBOUNCE_MS` (500) after anything the bake captures changes (the table, levels, walls and
+  doors, props, floors, dark areas, roofs, placed lights, the explored mask, the environment, the
+  band, the hour to the half hour, any warm-up; never tokens), then bakes `PROBES_PER_FRAME` (8) a
+  frame on CONVERGE frames, fades in over `PROBE_FADE_MS` (at once under reduced motion) and stops:
+  an idle table draws nothing for it. `ProbeLayer` follows the tabletop's own setters, so
+  `renderer.ts` only makes it. A capture renders the client's own scene, which holds only what the
+  viewer was sent, through `worldModify` (unexplored cells capture black), with tokens, dice,
+  effects and the fog cloud hidden and carried light zeroed (`baking`, the lights' `bakeExcluded`
+  flag); its data never leaves the client. Only the first pass is baked (three's indirect passes
+  would need a second atlas).
+- **Programs.** The grid is in the scene before a warm-up, and every warm-up's hold captures one
+  probe, so a bake compiles nothing (`probe-grid.svelte.spec.ts`: the programs and pipelines before
+  and after a rebake, and no frame for 3 s once it has converged).
+- **Texture slots.** The atlas is one 3D texture, so the largest fragment stage goes from 15 to 16
+  sampled textures on high with probes: exactly WebGPU's default limit, with none spare. The
+  spec asserts at most 16; anything else a lit kind samples on high (hero shadow maps, #230) must
+  share a binding or turn the probes off.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
