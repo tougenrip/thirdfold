@@ -31,8 +31,7 @@ export interface Caps {
 	mobile: boolean;
 	shell: Shell;
 	dpr: number;
-	/** Screen size in device pixels. */
-	screenPixels: number;
+	screenPixels: number; // device pixels
 	/** `navigator.deviceMemory`, GB (capped at 8 by browsers), where given. */
 	deviceMemory?: number;
 	/** `navigator.cpuPerformance` (Chrome 152+): 1 low to 4 high, where given. */
@@ -56,7 +55,8 @@ export const LAYERS = [
 	'weather',
 	'xray',
 	'dof',
-	'fogcloud'
+	'fogcloud',
+	'manylights'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
@@ -89,8 +89,8 @@ export interface QualitySettings {
 	grade: boolean;
 	/** Depth of field in play, or tilt-shift in the tactical view (#165); off in every preset. */
 	miniature: boolean;
-	/** Real point lights: a fixed pool, or clustered (ultra, #357). */
-	lights: 8 | 16 | 32 | 'clustered';
+	/** Point lights per cell, GridLights' K (#228; the pool of 8 under `?off=manylights`). */
+	lights: 4 | 8 | 16;
 	/** Torches near the camera that cast shadows (#230). */
 	shadowedTorches: 0 | 2 | 4;
 	/** The key light's shadow map, per side, and its soft PCF's radius in texels (#229). */
@@ -128,7 +128,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 8,
+		lights: 4,
 		shadowedTorches: 0,
 		sunShadowSize: 1024,
 		sunShadowRadius: 1,
@@ -151,7 +151,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 16,
+		lights: 8,
 		shadowedTorches: 2,
 		sunShadowSize: 2048,
 		sunShadowRadius: 2,
@@ -174,7 +174,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 32,
+		lights: 8,
 		shadowedTorches: 4,
 		sunShadowSize: 2048,
 		sunShadowRadius: 3,
@@ -197,7 +197,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 'clustered',
+		lights: 16,
 		shadowedTorches: 4,
 		sunShadowSize: 4096,
 		sunShadowRadius: 3,
@@ -213,7 +213,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof']);
+const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'manylights']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */

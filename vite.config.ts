@@ -97,7 +97,8 @@ const RENDER_SPECS = [
 	'sky-light',
 	'atmosphere',
 	'flash',
-	'exposure'
+	'exposure',
+	'grid-lights'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
@@ -205,7 +206,8 @@ export default defineConfig({
 									'src/lib/tabletop/mapping.svelte.spec.ts',
 									'src/lib/tabletop/paint.svelte.spec.ts',
 									'src/lib/tabletop/kind-layers.svelte.spec.ts',
-									'src/lib/tabletop/lobby.svelte.spec.ts'
+									'src/lib/tabletop/lobby.svelte.spec.ts',
+									'src/lib/tabletop/grid-lights.svelte.spec.ts'
 								]
 							}
 						}

@@ -152,15 +152,26 @@ function tinted(rgb: N, unseen: N): N {
 export const worldEmissive = (emissive: N): N => emissive.mul(terms().fog);
 
 /**
+ * How lit the fragment's cell is by the rules (1 lit, down to 1 - the ambient's darkness): what
+ * the lit kinds' lighting model scales their indirect light by and `SkyLightNode` their key light
+ * (materials/lighting-model.ts, #228), so their point lights are not dimmed twice.
+ */
+export const worldLight = (): N => terms().light;
+
+/**
  * A surface's lit colour (`output`, haze included) as the viewer sees it, given the emissive
  * already in it (from `worldEmissive`): the rest goes toward the dark's tint by the darkness and
  * is fogged, the emissive kept, so `((output - emissive) x light + tint x (1 - light)) x fog +
- * emissive`. Hidden cells come out exactly 0, haze and all.
+ * emissive`. Hidden cells come out exactly 0, haze and all. With `lit` (the lit kinds, whose
+ * lighting model already scaled the sky's light by `worldLight`) the light factor is not applied
+ * again: only the dark's tint is added.
  */
-export function worldModify(output: N, emissive: N): N {
-	const { fog, unseen, light, darkTint } = terms();
+export function worldModify(output: N, emissive: N, lit = false): N {
+	const { fog, unseen, light: factor, darkTint } = terms();
+	const light = lit ? float(1) : factor;
 	const kept = light.mul(fog);
-	const darkened = tinted(output.xyz, unseen).mul(light).add(darkTint.mul(light.oneMinus()));
+	const tint = darkTint.mul(factor.oneMinus());
+	const darkened = tinted(output.xyz, unseen).mul(light).add(tint);
 	// Memory doesn't brighten with the exposure lift (#233): unseen cells divided by `2^lift`.
 	const memory = mix(float(1), u.memoryGain, unseen);
 	const rgb = darkened.mul(fog).add(emissive.mul(kept.oneMinus())).mul(memory);

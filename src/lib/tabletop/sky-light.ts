@@ -11,7 +11,8 @@
 import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import type { N } from './materials/tsl';
-import { skyAmbient, skySun } from './materials/world-modify';
+import { kindLit } from './materials/lighting-model';
+import { skyAmbient, skySun, worldLight } from './materials/world-modify';
 
 /** The key light, masked by sky visibility. */
 export class SkyLight extends THREE.DirectionalLight {}
@@ -29,10 +30,14 @@ class SkyLightNode extends THREE.DirectionalLightNode {
 		return 'SkyLightNode';
 	}
 
-	/** Three's own, its colour (shadow included) times the sun term. */
+	/**
+	 * Three's own, its colour (shadow included) times the sun term, and on the lit kinds the light
+	 * factor (#228: their `worldModify` no longer dims it, materials/lighting-model.ts).
+	 */
 	setupDirect(builder: THREE.NodeBuilder) {
 		const direct = super.setupDirect(builder) as unknown as { lightColor: N };
-		return { ...direct, lightColor: direct.lightColor.mul(skySun()) } as unknown as ReturnType<
+		const sun = kindLit(builder) ? skySun().mul(worldLight()) : skySun();
+		return { ...direct, lightColor: direct.lightColor.mul(sun) } as unknown as ReturnType<
 			THREE.DirectionalLightNode['setupDirect']
 		>;
 	}

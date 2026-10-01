@@ -11,11 +11,12 @@ import { addVision, emptyMask, hasLineOfSight, SightCache } from '$lib/game/visi
 import {
 	buildLists,
 	buildRows,
+	contribution,
 	DATA_TEXELS,
 	GRID_LIGHT_CAPACITY,
-	packLightData,
-	ROW_ANGLES,
-	standInFalloff
+	LIGHT_TEXELS,
+	packLight,
+	ROW_ANGLES
 } from './grid-lights';
 
 const GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 24, height: 24 };
@@ -82,8 +83,7 @@ describe('buildLists', () => {
 		const sources = [source(10, 10, 6, 0.5), source(12, 10, 6, 1), source(9, 10, 6, 3)];
 		const lists = buildLists(grid, cache, sources, 2);
 		const c = 10 * grid.width + 11;
-		const score = (i: number) =>
-			sources[i].intensity! * standInFalloff(Math.abs(11 - sources[i].pos.x), sources[i].radius);
+		const score = (i: number) => contribution(sources[i], Math.abs(11 - sources[i].pos.x));
 		const order = [0, 1, 2].sort((a, b) => score(b) - score(a));
 		expect([...lists.subarray(c * 2, c * 2 + 2)]).toEqual([order[0] + 1, order[1] + 1]);
 		// Every listed light lights its cell by the rules, even when a cell's list is full.
@@ -219,24 +219,29 @@ describe('on the fixture tables', () => {
 	}
 });
 
-describe('packLightData', () => {
-	it('lays each light out in its column of three texel rows', () => {
-		const data = packLightData([
-			{
-				visual: { x: 1, y: 2, z: 3 },
-				reach: 4,
-				rgb: [0.5, 0.25, 0.125],
-				ruleOrigin: { x: 6, y: 7 },
-				profile: 2,
-				phase: 0.75,
-				flags: 1
-			}
-		]);
-		const line = GRID_LIGHT_CAPACITY * 4;
-		expect(data.length).toBe(line * DATA_TEXELS);
-		expect([...data.subarray(0, 4)]).toEqual([1, 2, 3, 4]);
-		expect([...data.subarray(line, line + 4)]).toEqual([0.5, 0.25, 0.125, 1]);
-		expect([...data.subarray(2 * line, 2 * line + 4)]).toEqual([6.5, 7.5, 2, 0.75]);
-		expect(data[4]).toBe(0);
+describe('packLight', () => {
+	it('lays a light out in a row of its own: three data texels, then its occlusion row', () => {
+		const row = Float32Array.from({ length: ROW_ANGLES }, (_, a) => a / 8);
+		const out = new Float32Array(LIGHT_TEXELS * 4 * 2);
+		const entry = {
+			id: 'torch',
+			visual: { x: 1, y: 2, z: 3 },
+			reach: 4.5,
+			colour: [0.5, 0.25, 0.125] as const,
+			intensity: 2,
+			ruleOrigin: { x: 6, y: 7 },
+			profile: 2,
+			phase: 0.75,
+			flags: 1
+		};
+		packLight(entry, row, out, LIGHT_TEXELS * 4);
+		const at = (texel: number) => [...out.subarray(LIGHT_TEXELS * 4 + texel * 4).slice(0, 4)];
+		expect(LIGHT_TEXELS).toBe(DATA_TEXELS + ROW_ANGLES / 4);
+		expect(out.subarray(0, LIGHT_TEXELS * 4).every((v) => v === 0)).toBe(true);
+		expect(at(0)).toEqual([1, 2, 3, 4.5]);
+		expect(at(1)).toEqual([1, 0.5, 0.25, 1]);
+		expect(at(2)).toEqual([6.5, 7.5, 2, 0.75]);
+		expect(at(DATA_TEXELS)).toEqual([0, 1 / 8, 2 / 8, 3 / 8]);
+		expect(at(LIGHT_TEXELS - 1)).toEqual([252 / 8, 253 / 8, 254 / 8, 255 / 8]);
 	});
 });

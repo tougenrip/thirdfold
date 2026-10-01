@@ -283,7 +283,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
-		outputNode: ownOutput(kind, worldModify(tsl.output, emissive)),
+		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true)),
 		lit: {
 			roughnessNode: paintRoughness(
 				kind,

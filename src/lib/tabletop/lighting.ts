@@ -1,13 +1,13 @@
 // Lighting for the three.js view (the sky's light is atmosphere.ts's): the rules' light level
-// per cell (`levels`, which the cell maps carry to every material's
-// `worldModify`, cell-maps.ts; the darkness overlay plane that drew it went in
-// #173), a fixed pool of real point lights for the nearest sources (so minis
-// and walls glow), and lantern fixtures, which take the world's fog and dark
-// like everything else (`inWorld`). Everything is derived from state the client
-// was sent; the server already applied the rules about what darkness hides.
-// After dark, flames flicker (`flicker`), which is cosmetic and costs no state. How strongly
-// the pool shines and whether flames flicker follow the sky's `nightGlow` (`setGlow`), so a
-// torch brightens smoothly through dusk instead of switching at a band's edge.
+// per cell (`levels`, which the cell maps carry to every material's `worldModify`, cell-maps.ts),
+// the point lights, and lantern fixtures, which take the world's fog and dark like everything else
+// (`inWorld`). Everything is derived from state the client was sent; the server already applied
+// the rules about what darkness hides. The point lights are GridLights (#228, grid-light-layer.ts):
+// every source that is on, placed or carried, K of them per cell by tier (`setTier`), lit where
+// the rules light and never through a wall; `?off=manylights` puts back M67's fixed pool of 8 real
+// point lights for the largest sources until the milestone's gates pass. After dark, flames
+// flicker (`flicker`), which is cosmetic and costs no state. How strongly the pool shines follows
+// the sky's `nightGlow` (`setGlow`); the GridLights don't dim by day (the sky's exposure does).
 
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
@@ -22,13 +22,19 @@ import {
 } from '$lib/game/lights';
 import type { Blockers } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
+import type { Token } from '$lib/game/token';
 import type { Ground } from './ground';
+import { GridLighting, litSources } from './grid-light-layer';
 import { LightHandles } from './light-handles';
+import { GridLight } from './materials/grid-light-node';
 import { inWorld } from './materials/world-modify';
 import { modelNow } from './models';
+import type { QualitySettings } from './quality';
 
-/** Real point lights available. Fixed so three.js never recompiles shaders as lights come and go. */
+/** The pool's point lights (`?off=manylights`). Fixed so nothing recompiles as lights come and go. */
 const POOL_SIZE = 8;
+/** Point lights per cell before a tier says: medium's, the K of the scene's first GridLight. */
+export const DEFAULT_K = 8;
 const FIXTURE_HEIGHT = 1.5;
 /** Night glow past this, flames flicker: day's is 0.5 (atmosphere-curve.ts `nightGlow`). */
 const NIGHT_FLICKERS = 0.5;
@@ -94,13 +100,40 @@ export class LightingLayer {
 	private hasDark = false;
 	/** The GM's handles on fixture-less lights (#209), made the first time a GM needs them. */
 	private handles: LightHandles | null = null;
+	/** The point lights as GridLights, or null for the pool (`?off=manylights`). */
+	grid: GridLighting | null;
 
-	constructor() {
-		for (let i = 0; i < POOL_SIZE; i++) {
-			const light = new THREE.PointLight(0xffffff, 0, 1, 2);
-			this.pool.push(light);
-			this.group.add(light);
+	/** With the scene's GridLight (scene-lights.ts); without one, the layer makes its own. */
+	constructor(light?: GridLight) {
+		this.grid = new GridLighting(light ?? new GridLight(DEFAULT_K));
+		if (!light) this.group.add(this.grid.light);
+	}
+
+	/**
+	 * The tier's K (`settings.lights`), or the pool with `manylights` off. A change swaps the light
+	 * objects, a new program as any tier switch makes (true then); the next update rebuilds.
+	 */
+	setTier(settings: QualitySettings): boolean {
+		const k = settings.layers.manylights ? settings.lights : 0;
+		if (k === (this.grid?.light.k ?? 0)) return false;
+		const parent = this.grid?.light.parent ?? this.pool[0]?.parent ?? this.group;
+		if (this.grid) parent.remove(this.grid.light);
+		this.grid?.dispose();
+		for (const light of this.pool) parent.remove(light);
+		this.pool = [];
+		this.grid = k ? new GridLighting(new GridLight(k)) : null;
+		if (this.grid) parent.add(this.grid.light);
+		for (let i = 0; !k && i < POOL_SIZE; i++) {
+			this.pool.push(new THREE.PointLight(0xffffff, 0, 1, 2));
+			parent.add(this.pool[i]);
 		}
+		return true;
+	}
+
+	/** Carried lights follow their gliding minis (GridLights only); returns `moving`. */
+	carry(tokens: { rootOf(id: string): THREE.Object3D | null }, moving: boolean): boolean {
+		this.grid?.carry(tokens);
+		return moving;
 	}
 
 	/**
@@ -114,17 +147,20 @@ export class LightingLayer {
 		grid: SquareGrid,
 		ambient: Ambient,
 		lights: readonly Light[],
-		sources: readonly LightSource[],
+		tokens: readonly Token[],
 		blocked: Blockers,
 		ground: Ground | null = null,
 		dark: Uint8Array | null = null,
 		seats: ReadonlyMap<number, number> = new Map()
 	): void {
 		this.hasDark = !!dark?.some((v) => v);
+		const lit = litSources(lights, tokens);
+		const sources = lit.map((l) => l.source);
 		// Light levels matter only where it can be dark: never by day outside dark areas.
 		const dim = ambient !== 'day' || this.hasDark;
 		this.levels = dim ? lightLevels(grid, blocked, sources) : null;
-		this.updatePool(grid, sources, ground, seats);
+		if (this.grid) this.grid.update(grid, lit, blocked, ground, seats);
+		else this.updatePool(grid, sources, ground, seats);
 		this.updateFixtures(grid, lights, ground, seats);
 	}
 
@@ -157,6 +193,7 @@ export class LightingLayer {
 		this.postMaterial.dispose();
 		this.flameMaterial.dispose();
 		this.handles?.dispose();
+		this.grid?.dispose();
 	}
 
 	/** Gives the pool's point lights to the strongest sources; the rest stay dark. */
@@ -194,7 +231,8 @@ export class LightingLayer {
 
 	/** Whether anything flickers: lit flames once night glows past day's, or in a dark area. */
 	get flickers(): boolean {
-		return (this.glow > NIGHT_FLICKERS || this.hasDark) && this.steady.some((v) => v > 0);
+		const any = this.grid ? this.grid.entries.length > 0 : this.steady.some((v) => v > 0);
+		return (this.glow > NIGHT_FLICKERS || this.hasDark) && any;
 	}
 
 	/** The sky's night glow (0-1): how strongly the pool shines. Numbers only, no program. */
