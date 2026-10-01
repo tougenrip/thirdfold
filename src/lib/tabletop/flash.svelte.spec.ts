@@ -4,9 +4,10 @@
 // sampled through the envelope stay within WCAG 2.3.1 (three flashes a second, no red flash),
 // normally and with Reduce flashing (a fade of 500 ms or more), for one flash and for tolls back
 // to back; and switching Reduce flashing compiles nothing. WebGL2 only: frames are read back.
+// Two CI shards (shardedIt): `THIRDFOLD_SHARD=k/2`.
 
 import * as THREE from 'three/webgpu';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, vi } from 'vitest';
 import { FLASH_MS } from '$lib/game/chat';
 import { countFlashes, frameSample, REDUCED_RISE_MS, type FrameSample } from './flash';
 import { shaderCounts } from './perf';
@@ -19,10 +20,12 @@ import {
 	mountFixture,
 	readFrame,
 	settle,
+	shardedIt,
 	type Mounted
 } from './testing';
 
 vi.setConfig({ testTimeout: 300_000 });
+const test = shardedIt();
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -94,7 +97,7 @@ async function capture(m: Awaited<ReturnType<typeof mount>>, cues: number[], ste
 }
 
 describe('the flash', () => {
-	it('lights the dark chamber and is gone by FLASH_MS and a frame', async (ctx) => {
+	test('lights the dark chamber and is gone by FLASH_MS and a frame', async (ctx) => {
 		if (BACKEND === 'webgpu') ctx.skip();
 		const m = await mount();
 		const before = await m.chamber();
@@ -107,21 +110,20 @@ describe('the flash', () => {
 		expect(Math.abs(after - before)).toBeLessThan(1.5);
 	});
 
-	it(
-		'stays within WCAG 2.3.1, normally and reduced, for one flash and tolls back to back',
-		{
-			timeout: 900_000
-		},
-		async (ctx) => {
-			if (BACKEND === 'webgpu') ctx.skip();
-			const m = await mount();
-			// One flash; the Keeper's tolls at the enemy turn delay; a cue again inside the hold.
-			const runs: [string, number[]][] = [
-				['one', [0]],
-				['tolls', [0, 2500, 5000]],
-				['held', [0, 600]]
-			];
-			for (const reduce of [false, true]) {
+	// Normally and reduced, each a test of its own: a CI shard each (shardedIt).
+	for (const reduce of [false, true])
+		test(
+			`stays within WCAG 2.3.1, ${reduce ? 'reduced' : 'normally'}, for one flash and tolls back to back`,
+			{ timeout: 600_000 },
+			async (ctx) => {
+				if (BACKEND === 'webgpu') ctx.skip();
+				const m = await mount();
+				// One flash; the Keeper's tolls at the enemy turn delay; a cue again inside the hold.
+				const runs: [string, number[]][] = [
+					['one', [0]],
+					['tolls', [0, 2500, 5000]],
+					['held', [0, 600]]
+				];
 				m.t.setReduceFlashing(reduce);
 				for (const [name, cues] of runs) {
 					const count = countFlashes(await capture(m, cues));
@@ -131,10 +133,9 @@ describe('the flash', () => {
 					if (reduce) expect(count.fastestMs, name).toBeGreaterThanOrEqual(REDUCED_RISE_MS - 100);
 				}
 			}
-		}
-	);
+		);
 
-	it('compiles nothing when Reduce flashing switches, or while a reduced flash plays', async (ctx) => {
+	test('compiles nothing when Reduce flashing switches, or while a reduced flash plays', async (ctx) => {
 		if (BACKEND === 'webgpu') ctx.skip();
 		const m = await mount();
 		// One flash each way first, so every uniform has been drawn at a lift.

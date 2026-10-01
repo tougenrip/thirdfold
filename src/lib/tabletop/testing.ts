@@ -246,6 +246,8 @@ export function shardedIt(): typeof it {
 }
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+/** The most of one wait for a frame that counts toward `settle`'s limit, in ms. */
+const STALL_MS = 2000;
 
 /**
  * Waits until the tabletop has drawn and then stopped drawing for `quietMs`,
@@ -255,11 +257,15 @@ const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() 
  * land after a shorter spell and draw once more.
  */
 export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_000): Promise<void> {
-	const start = performance.now();
 	let last = -1;
-	let quietSince = start;
-	while (performance.now() - start < limitMs) {
+	let [quietSince, before, spent] = [performance.now(), performance.now(), 0];
+	// The limit counts at most STALL_MS a wait: one frame that stalls the page for half a minute
+	// (a loaded machine compiling what a timed-out warm-up left) must not end it before the
+	// frames after it, which compile the rest (the AO's real passes come on the second).
+	while (spent < limitMs) {
 		await nextFrame();
+		const now = performance.now();
+		[spent, before] = [spent + Math.min(now - before, STALL_MS), now];
 		const { frames, holding, mode } = tabletop.stats();
 		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
 		// still drawing: one software frame can outlast the quiet spell (CI's small runners).

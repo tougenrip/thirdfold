@@ -15,6 +15,7 @@ import {
 	type KeyLight
 } from './atmosphere-curve';
 import { atmosphereUniforms, skyBackground, TWEEN_MS } from './atmosphere';
+import { GRADE_BLEND_MS } from './grade';
 import type { Tier } from './quality';
 import type { Tabletop } from './types';
 import { loadSidecar, loadView, manualClock, mountFixture, settle, type Mounted } from './testing';
@@ -53,7 +54,7 @@ const copyKey = (k: KeyLight): KeyLight => ({ ...k, dir: [...k.dir], color: [...
 
 describe('the key light', () => {
 	it('redraws its shadows by the angle it turns, and body switches, compiling nothing', async () => {
-		const { tabletop, view } = await mount(true);
+		const { tabletop, view, clock } = await mount(true);
 		const setTime = (time: number) =>
 			tabletop.setLighting(bandOf(time), view.lights, { ...view.world, time } as WorldLook);
 		// The hours to sweep: an hour past noon a minute at a time, then night (the moon).
@@ -79,6 +80,8 @@ describe('the key light', () => {
 			setTime(t);
 			await drawn(tabletop);
 		}
+		// Night's grade blends in over GRADE_BLEND_MS on the held clock: let it end.
+		clock.set(clock.now() + GRADE_BLEND_MS);
 		await settle(tabletop);
 		expect(shadows(tabletop) - before).toBe(expected);
 		expect(switches).toBe(1);
@@ -96,6 +99,9 @@ describe('the key light', () => {
 
 	it('plays a new hour over its tween, then rests', async () => {
 		const { tabletop, view, clock } = await mount(false);
+		// Flames and mist still (as program-count's sweep), or dusk's mist draws on and on.
+		tabletop.setPowerSaver(true);
+		await settle(tabletop);
 		const { programs, pipelines } = tabletop.stats();
 		const before = shadows(tabletop);
 		tabletop.setLighting('day', view.lights, { ...view.world, time: 1110 });
