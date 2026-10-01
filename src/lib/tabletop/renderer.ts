@@ -27,7 +27,7 @@ import type { FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { WorldGround } from './landscape';
-import { LightingLayer } from './lighting';
+import { LightingLayer, ProbeLayer } from './lighting';
 import { frameOverview, Gallery, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, setUpRenderer, watchReducedMotion } from './loop';
 import { RenderScheduler, type FrameReport } from './scheduler';
@@ -493,5 +493,7 @@ export async function createTabletop(
 	// light, which redraws them by its own rule (AtmosphereLayer.shadowFrame), and lights only
 	// when they change (their fixtures cast shadows).
 	instrument(tabletop, perf, (key) => key === 'setLighting' || (shadowsDirty = true));
+	const unbaked = [tokenLayer, diceLayer, effects, cloud].map((l) => l.group); // probes (#235)
+	new ProbeLayer({ renderer, scene, loop, clock, perf, warm: onModel }, unbaked).watch(tabletop);
 	return tabletop;
 }

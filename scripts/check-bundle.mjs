@@ -58,9 +58,15 @@ const BUDGETS = {
 	// props' flames (#232); 374.5 kB measured. → 374.9: translucency (#237: the lighting model's
 	// term, translucent models' own materials). → bounce and cavity (#234: the fields, their packing
 	// and the node's gated lookup), and the cell maps kept at the largest grid's size (#380); set to
-	// the merged build's measured size (the owner raised M68's cap to about 382 kB).
-	renderer: { total: 377_500 },
-	decoders: { total: 40_000 }
+	// the merged build's measured size (the owner raised M68's cap to about 382 kB). → 379.1: the
+	// probe grid's side (#235: its layout and bake policy, the setters it watches, the scheduler's
+	// background work, the bake flag); the grid itself is a lazy chunk (`probes` below), 379.0 kB
+	// measured.
+	renderer: { total: 379_100 },
+	decoders: { total: 40_000 },
+	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
+	// ultra only with its layer on; 4.5 kB measured.
+	probes: { total: 5_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
@@ -170,6 +176,17 @@ else {
 	const { gz } = total(own);
 	log('decoders (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.decoders.total).padStart(10));
 	if (gz > BUDGETS.decoders.total) failures.push(`the decoders are ${kb(gz)} gz, over budget`);
+}
+// The probe grid (tabletop/probe-grid.ts) likewise: on high and ultra with its layer on.
+const probesKey = Object.keys(manifest).find((k) => k.endsWith('src/lib/tabletop/probe-grid.ts'));
+if (!probesKey) failures.push('the probe grid is not a chunk of its own');
+else if (rendererFiles.has(manifest[probesKey].file))
+	failures.push('the renderer statically imports the probe grid');
+else {
+	const own = [...closure(probesKey)].filter((f) => !rendererFiles.has(f) && !roomFiles.has(f));
+	const { gz } = total(own);
+	log('probes (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.probes.total).padStart(10));
+	if (gz > BUDGETS.probes.total) failures.push(`the probe grid is ${kb(gz)} gz, over budget`);
 }
 for (const f of rendererFiles) {
 	const text = readFileSync(`${OUT}/${f}`, 'utf8');

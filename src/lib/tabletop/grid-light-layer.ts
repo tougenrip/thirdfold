@@ -28,6 +28,7 @@ import {
 	cavityField,
 	floorAlbedo,
 	GRID_LIGHT_CAPACITY,
+	LIGHT_FLAGS,
 	openSides,
 	packIndirect,
 	strength,
@@ -125,7 +126,7 @@ export class GridLighting {
 				intensity: look.intensity * strength(s.radius),
 				profile: flickerProfile(look.flicker),
 				phase: flickerPhase(id),
-				flags: 0
+				flags: carrier ? LIGHT_FLAGS.bakeExcluded : 0 // carried light never bakes (#235)
 			};
 		});
 		this.carriers = shown.map((l) => l.carrier?.id ?? null);

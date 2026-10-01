@@ -143,13 +143,15 @@ export async function mountFixture(
 		warm?: WarmRenderer;
 		/** The renderer's dev-only hook: the scene, and a redraw (sky-light.svelte.spec.ts). */
 		devScene?: (scene: THREE.Scene, redraw: () => void) => void;
+		/** WebGL2 in the WebGPU project too: on the real GPU (the probe bake's times, #235). */
+		webgl?: boolean;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
 	const canvas = options.warm?.canvas ?? document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
 	document.body.appendChild(canvas);
-	const webgpu = BACKEND === 'webgpu';
+	const webgpu = BACKEND === 'webgpu' && !options.webgl;
 	const tabletop = await createTabletop(
 		canvas,
 		options.events ?? { onClick: () => {}, onHover: () => {} },

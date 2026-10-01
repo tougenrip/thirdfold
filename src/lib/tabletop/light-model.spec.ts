@@ -13,6 +13,14 @@ import {
 	lightMount,
 	MOUNT_HEIGHT,
 	MOUNT_OFFSET,
+	BAKE_DEBOUNCE_MS,
+	PROBE_HEIGHTS,
+	PROBE_LIFT,
+	PROBE_MAX,
+	PROBES_PER_FRAME,
+	ProbeBake,
+	probeLayout,
+	wantsProbes,
 	type ShadowBounds
 } from './light-model';
 
@@ -192,5 +200,71 @@ describe('fitShadowFrustum', () => {
 		}
 		// The size steps by half a cell: almost every tenth of a degree keeps it.
 		expect(same / steps).toBeGreaterThan(0.9);
+	});
+});
+
+describe('probeLayout (#235)', () => {
+	it('puts a probe every 3 cells over the grid, up to a wall above the highest floor', () => {
+		const levels = new Uint8Array(48 * 36);
+		levels[5] = 7;
+		const hollow = probeLayout({ width: 48, height: 36 }, levels);
+		expect(hollow.counts).toEqual([17, PROBE_HEIGHTS, 13]);
+		expect(hollow.min).toEqual([0.5, PROBE_LIFT, 0.5]);
+		expect(hollow.max).toEqual([47.5, 7 * STEP_HEIGHT + WALL_HEIGHT, 35.5]);
+		expect(probeLayout({ width: 8, height: 8 }, null).max[1]).toBe(WALL_HEIGHT);
+	});
+
+	it('keeps two probes a side on a tiny table and spreads them past the cap on a huge one', () => {
+		expect(probeLayout({ width: 1, height: 2 }, null).counts).toEqual([2, PROBE_HEIGHTS, 2]);
+		expect(probeLayout({ width: 100, height: 64 }, null).counts).toEqual([PROBE_MAX, 3, 22]);
+	});
+});
+
+describe('wantsProbes (#235)', () => {
+	const gpu = { backend: 'webgpu', vendor: 'nvidia', architecture: 'lovelace' };
+	const on = { probes: true };
+	it('bakes only with the layer on, on high and ultra', () => {
+		expect(wantsProbes({ tier: 'high', layers: on }, gpu)).toBe(true);
+		expect(wantsProbes({ tier: 'ultra', layers: on }, gpu)).toBe(true);
+		expect(wantsProbes({ tier: 'medium', layers: on }, gpu)).toBe(false);
+		expect(wantsProbes({ tier: 'low', layers: on }, gpu)).toBe(false);
+		expect(wantsProbes({ tier: 'high', layers: { probes: false } }, gpu)).toBe(false);
+	});
+
+	it('never on WebGL2 on an integrated GPU', () => {
+		const igpu = { backend: 'webgl2', vendor: 'intel', architecture: null };
+		expect(wantsProbes({ tier: 'high', layers: on }, igpu)).toBe(false);
+		expect(wantsProbes({ tier: 'high', layers: on }, { ...igpu, backend: 'webgpu' })).toBe(true);
+		expect(wantsProbes({ tier: 'high', layers: on }, { ...gpu, backend: 'webgl2' })).toBe(true);
+	});
+});
+
+describe('ProbeBake (#235)', () => {
+	it('waits out the debounce, then bakes at most PROBES_PER_FRAME a frame to the end', () => {
+		const bake = new ProbeBake();
+		expect(bake.wait(0)).toBe(Infinity);
+		expect(bake.change(['a'], 20, 0)).toBe(true);
+		expect(bake.step(BAKE_DEBOUNCE_MS - 1)).toBeNull();
+		expect(bake.wait(100)).toBe(BAKE_DEBOUNCE_MS - 100);
+		const steps = [];
+		for (let s; (s = bake.step(BAKE_DEBOUNCE_MS));) steps.push(s);
+		expect(steps).toEqual([
+			{ start: 0, count: PROBES_PER_FRAME, last: false },
+			{ start: 8, count: PROBES_PER_FRAME, last: false },
+			{ start: 16, count: 4, last: true }
+		]);
+		expect(bake.wait(1e9)).toBe(Infinity);
+	});
+
+	it('restarts on a change to what it captures, and only then', () => {
+		const bake = new ProbeBake();
+		const walls = {};
+		bake.change([walls, 'x'], 20, 0);
+		bake.step(1000);
+		expect(bake.change([walls, 'x'], 20, 1000)).toBe(false);
+		expect(bake.change([{}, 'x'], 20, 1000)).toBe(true);
+		expect(bake.step(1000 + BAKE_DEBOUNCE_MS - 1)).toBeNull();
+		expect(bake.step(1000 + BAKE_DEBOUNCE_MS)).toEqual({ start: 0, count: 8, last: false });
+		expect(bake.change([{}, 'x'], 30, 2000)).toBe(true); // another table's size
 	});
 });

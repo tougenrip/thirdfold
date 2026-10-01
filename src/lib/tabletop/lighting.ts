@@ -37,6 +37,7 @@ import { groundTint as groundTintOf } from './grid-lights';
 import { GridLight } from './materials/grid-light-node';
 import type { QualitySettings, Tier } from './quality';
 import { groundTint } from './sky-light';
+export { ProbeLayer } from './probes'; // the probe grid (#235), made beside the lights
 
 /** The pool's point lights (`?off=manylights`). Fixed so nothing recompiles as lights come and go. */
 const POOL_SIZE = 8;
