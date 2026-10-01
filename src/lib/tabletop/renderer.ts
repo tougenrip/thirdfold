@@ -76,7 +76,8 @@ export async function createTabletop(
 		reduced: reducedMotion,
 		shot: rig.focusAt(now),
 		tactical: view === 'tactical',
-		target: controls.target
+		target: controls.target,
+		pull: camera.position.distanceTo(controls.target) / controls.maxDistance
 	}));
 	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;

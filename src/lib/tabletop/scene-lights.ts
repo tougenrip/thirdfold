@@ -58,7 +58,7 @@ export function fitToTable(
 	// The light stands two radii out (AtmosphereLayer.fit): the sphere lies between one and three.
 	Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: r, far: 3 * r });
 	sun.shadow.camera.updateProjectionMatrix();
-	atmosphere.fit(play.center, r, world, fresh);
+	atmosphere.fit(play.center, r, { x: play.width / 2, z: play.depth / 2 }, world, fresh);
 	controls.maxDistance = play.maxDistance;
 	return extents;
 }
