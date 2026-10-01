@@ -40,6 +40,7 @@ import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient } from '$lib/game/lights';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 import type { FogMode } from './fog';
+import type { ExposureFocus } from './exposure';
 import { EDGE_BAND, EDGE_NOISE, EDGE_SCALE, RevealFades } from './fog-soft';
 
 /** Night's darkness, which a dark area has at any hour (lighting.ts, `PRESETS.dark.dark`). */
@@ -232,6 +233,8 @@ export const cellUniforms = {
 	darkTint: uniform(tintOf(DARK_TINT.day)),
 	nightTint: uniform(tintOf(DARK_TINT.dark)),
 	flash: uniform(0),
+	/** `2^-lift` (#233, exposure.ts): explored cells divided by the exposure lift, so they keep. */
+	memoryGain: uniform(1),
 	/** Lifts sky visibility toward open sky (0 none, 1 all), for the flash's window (#219, #222). */
 	flashLift: uniform(0),
 	/** `INDOOR_FILL`, where A splits into the ambient and the sun terms. */
@@ -418,6 +421,23 @@ export class CellMaps {
 		u.flash.value = u.flashLift.value = k;
 	}
 
+	/**
+	 * The exposure focus at a world point (#233, exposure.ts), from the maps as packed: whether it
+	 * is a dark area (A 0), its light level (B), and whether the viewer sees it (R, or the GM, or
+	 * no fog). Null off the grid.
+	 */
+	focusAt(x: number, z: number): Omit<ExposureFocus, 'band'> | null {
+		const i = this.grid && this.visibility ? texelAt(this.grid, x, z) : -1;
+		if (i < 0) return null;
+		const data = this.visibility!.image.data as Uint8Array;
+		const seen = u.fogOn.value === 0 || this.mode === 'gm' || data[i * 4] > 127;
+		return {
+			focusDark: data[i * 4 + 3] === 0,
+			focusLight: data[i * 4 + 2] / 255,
+			focusVisible: seen
+		};
+	}
+
 	/** Cuts away everything above world height `y`; null cuts nothing. */
 	setCut(y: number | null): void {
 		u.cutY.value = y ?? NO_CUT;
@@ -430,6 +450,7 @@ export class CellMaps {
 		this.mode = null;
 		u.gridSize.value.set(1, 1); // the blanks' size, so a lone material reads them in bounds
 		u.fogOn.value = u.flash.value = u.flashLift.value = 0;
+		u.memoryGain.value = 1;
 		u.cutY.value = NO_CUT;
 	}
 
