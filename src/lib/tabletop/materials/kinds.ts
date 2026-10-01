@@ -8,6 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
+import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
@@ -215,18 +216,25 @@ export interface Variant {
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
 
-/** The emissive tint input: the material's, plus the instance's when instanced. */
-function tintOf(variant: Variant): N {
+/**
+ * The emissive tint input: the material's, plus the instance's when instanced. The instanced
+ * emissive kind is the lights' flames (#232): their glow breathes with their light's flicker
+ * (#231), its profile and phase in the instance's paint (`aPaint` x and y, unused by the kind).
+ */
+function tintOf(kind: ShaderKind, variant: Variant): N {
 	const own = param('tint', 'color');
 	if (!variant.instanced) return own;
 	const each = tsl.attribute(TINT_ATTRIBUTE, 'vec4');
-	return own.add(each.xyz.mul(each.w));
+	const glow = each.xyz.mul(each.w);
+	if (kind !== 'emissive') return own.add(glow);
+	const paint = tsl.attribute(PAINT_ATTRIBUTE, 'vec3');
+	return own.add(glow.mul(flickerNode(paint.x, paint.y)));
 }
 
 function build(kind: ShaderKind, variant: Variant): Graph {
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
-	const tint = tintOf(variant);
+	const tint = tintOf(kind, variant);
 	if (def.base === 'basic') {
 		const colour = tsl.vec4(param('color', 'color'), 1);
 		const opacity = param('opacity', 'float');

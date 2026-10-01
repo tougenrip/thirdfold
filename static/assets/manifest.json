@@ -1016,9 +1016,9 @@
 			},
 			"pack": "core",
 			"thumbnail": {
-				"file": "thumbs/brazier.cca58e5a.png",
-				"sha256": "cca58e5ae667a52b5c7056effd381adffad0bf481bc7f57db13e2a044a62f55d",
-				"bytes": 47163,
+				"file": "thumbs/brazier.d865413b.png",
+				"sha256": "d865413be4bcc7cc191604df1f4cb00aa8ecbd65c9c96176026ed183704a4ba5",
+				"bytes": 45987,
 				"credit": {
 					"license": "LicenseRef-thirdfold-original",
 					"author": "thirdfold contributors"
@@ -1082,7 +1082,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/candle-cluster.a141868b.png",
+				"sha256": "a141868b75d07687eea4222cdd6e477a4dd08f4b8863315492b1e411969e82ec",
+				"bytes": 49103,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"carvings": {
 			"file": "models/carvings.5a8a9fa4.glb",
@@ -1447,7 +1456,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/glow-crystal.009a5011.png",
+				"sha256": "009a501168d71c0134ff2a7bf077aca90733894d410e52e87c92f3cc95ea2cca",
+				"bytes": 44547,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"grate": {
 			"file": "models/grate.8bb96139.glb",
@@ -1623,7 +1641,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/ground-flame.ce83ddc5.png",
+				"sha256": "ce83ddc5c21bc744291091166fefde440ca59fa4ca07b6ba61ffc7522c07053c",
+				"bytes": 49437,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"handbell": {
 			"file": "models/handbell.9e030913.glb",
@@ -1894,7 +1921,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/light-panel.c1e3156b.png",
+				"sha256": "c1e3156b0e7d0c34248ec6bcca8ad3c4967c361bb439a6f3328e9201a6031076",
+				"bytes": 44904,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"neon-bar": {
 			"file": "models/neon-bar.0251e79d.glb",
@@ -1919,7 +1955,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/neon-bar.286be1df.png",
+				"sha256": "286be1dfd8bf9d31c5e05585f70f9a027dd880021f7d07f162fc201ca60b19dc",
+				"bytes": 44325,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"noticeboard": {
 			"file": "models/noticeboard.030d8bff.glb",
@@ -2080,7 +2125,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/post-lantern.ecfaf289.png",
+				"sha256": "ecfaf2896276c905a2121bfbd76ec8e551df24f103152af9d34f05255a55c1b1",
+				"bytes": 40635,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"rope": {
 			"file": "models/rope.5c671cbf.glb",
@@ -2185,11 +2239,11 @@
 			}
 		},
 		"sconce": {
-			"file": "models/sconce.f5fa61c8.glb",
-			"sha256": "f5fa61c898745a2770b238b187a313f64221f5b2a7a3b1ea6edf452a51118f5d",
-			"bytes": 19260,
+			"file": "models/sconce.84ec7a15.glb",
+			"sha256": "84ec7a158ef8b316ff5c8a174559db73042fee3413f3be7afc5956fa6981496e",
+			"bytes": 33476,
 			"kind": "prop",
-			"triangles": 504,
+			"triangles": 928,
 			"bounds": {
 				"min": [
 					-0.148,
@@ -2198,20 +2252,20 @@
 				],
 				"max": [
 					0.148,
-					1.22,
+					1.46,
 					0.15
 				]
 			},
-			"gpuBytes": 17236,
+			"gpuBytes": 29878,
 			"credit": {
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
 			"pack": "core",
 			"thumbnail": {
-				"file": "thumbs/sconce.f523358a.png",
-				"sha256": "f523358af1d8b34d834438e52304e72ce3b14031944d9b19afba28abeba1b4c5",
-				"bytes": 41674,
+				"file": "thumbs/sconce.31af9424.png",
+				"sha256": "31af942423bf6bda10372a71df5ecfc85d543cfef02aea24cb0fb2c3d6fdecb7",
+				"bytes": 41604,
 				"credit": {
 					"license": "LicenseRef-thirdfold-original",
 					"author": "thirdfold contributors"
@@ -2275,7 +2329,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/standing-torch.f40d06f0.png",
+				"sha256": "f40d06f0abc7c9dcaebce54845d6305c491896a74c461bec4f2b6605a560aa3d",
+				"bytes": 40867,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"statue": {
 			"file": "models/statue.fbeac885.glb",
@@ -2470,7 +2533,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/wall-lantern.62ccc88e.png",
+				"sha256": "62ccc88e3e424149cf3fbbd04e43dd44298d195b5bd4114a9b296e1e110f2025",
+				"bytes": 45543,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"wall-sconce": {
 			"file": "models/wall-sconce.712c3ea5.glb",
@@ -2495,7 +2567,16 @@
 				"license": "LicenseRef-thirdfold-original",
 				"author": "thirdfold contributors"
 			},
-			"pack": "core"
+			"pack": "core",
+			"thumbnail": {
+				"file": "thumbs/wall-sconce.690e602f.png",
+				"sha256": "690e602f53bda54508b56f0b9a8afc1c935571c2a6a90cb482fd05c1156b6b2f",
+				"bytes": 44733,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			}
 		},
 		"water-lg": {
 			"file": "models/water-lg.ae4739dc.glb",
@@ -8610,8 +8691,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 11063360,
-			"gpuBytes": 31728798
+			"bytes": 11077576,
+			"gpuBytes": 31741440
 		},
 		"ghost-town": {
 			"bytes": 104095,

@@ -7,6 +7,7 @@ import {
 	FIXTURES,
 	fixtureFor,
 	mountOf,
+	sideOf,
 	fitShadowFrustum,
 	lightBasis,
 	lightMount,
@@ -135,6 +136,11 @@ describe('fixtureFor (#232)', () => {
 		expect(mountOf({ pos, kind: 'lantern' }, new Set([south]))).toBe('wall');
 		expect(mountOf({ pos }, new Set())).toBe('floor');
 		expect(mountOf({ pos, kind: 'brazier' }, new Set([north]))).toBe('floor');
+		// The quarter turns a wall fixture (modelled on the north wall) is turned by.
+		expect(sideOf({ pos }, new Set([north]))).toBe(0);
+		expect(sideOf({ pos }, new Set([east]))).toBe(1);
+		expect(sideOf({ pos }, new Set([south]))).toBe(2);
+		expect(sideOf({ pos }, new Set())).toBe(-1);
 		// Only torches and lanterns hang, so every other kind's two fixtures are the same.
 		for (const kind of LIGHT_KINDS.filter((k) => k !== 'torch' && k !== 'lantern'))
 			expect(FIXTURES[kind].wall).toBe(FIXTURES[kind].floor);

@@ -6,7 +6,9 @@
 // hidden ghost are an emissive tint per instance (`aTint`), so a textured
 // albedo is never multiplied by them, and each instance is lifted a hash of
 // its asset and cell off whatever it lies on (`aLift`, #181). Placement comes
-// from the Prop data; this only draws it.
+// from the Prop data; this only draws it. A model's `flame` mesh (a brazier's coals, #232) is the
+// emissive kind, glowing in the colour of a light that is on in the prop's cell, with its flicker
+// (`setLights`).
 //
 // A prop that moves or turns glides to its new place, so a push, a pull or
 // a turn reads the same on every client; motions from the server (a shake,
@@ -24,7 +26,9 @@ import {
 	type AssetId,
 	type Prop
 } from '$lib/game/props';
+import type { Light } from '$lib/game/lights';
 import type { Ground } from './ground';
+import { flameMaterial, flameOf, paintFlame, type FlameLook } from './light-fixtures';
 import {
 	addInstanceTints,
 	createMaterial,
@@ -74,7 +78,7 @@ const tintColour = new THREE.Color();
 const GHOST = { color: new THREE.Color(0xb8c6e0), strength: 0.3 };
 
 interface AssetMeshes {
-	parts: { mesh: THREE.InstancedMesh; swings: boolean }[];
+	parts: { mesh: THREE.InstancedMesh; swings: boolean; flame: boolean }[];
 	/** Materials of its own for textured parts (#188): the shared variant, its maps in the slots. */
 	materials: KindMaterial[];
 	/** Prop id for each instance index. */
@@ -97,6 +101,9 @@ export class PropLayer {
 		instanced: true,
 		params: { color: PLACEHOLDER, roughness: 0.9 }
 	});
+	private flameMaterial = flameMaterial();
+	/** The flame of the light in each cell (`x,y`), which a prop's flame there glows as. */
+	private flames = new Map<string, FlameLook | null>();
 	/** Assets whose model has been asked for. */
 	private requested = new Set<AssetId>();
 
@@ -277,6 +284,12 @@ export class PropLayer {
 		return true;
 	}
 
+	/** The lights, which light the flames of the props on their cells. */
+	setLights(lights: readonly Light[]): void {
+		this.flames = new Map(lights.map((l) => [`${l.pos.x},${l.pos.y}`, flameOf(l)]));
+		this.paint();
+	}
+
 	/** Returns true if the tint changed. */
 	setSelected(id: string | null): boolean {
 		if (id === this.selectedId) return false;
@@ -304,6 +317,7 @@ export class PropLayer {
 		this.placeholder.dispose();
 		this.material.dispose();
 		this.placeholderMaterial.dispose();
+		this.flameMaterial.dispose();
 	}
 
 	/**
@@ -336,14 +350,13 @@ export class PropLayer {
 			materials.push(own);
 			return own;
 		};
-		const make = (shared: THREE.BufferGeometry, material: THREE.Material) => {
+		const make = (shared: THREE.BufferGeometry, material: THREE.Material, shadows = true) => {
 			// A copy of its own, to carry this mesh's tints and lifts (#172, #181).
 			const geometry = shared.clone();
 			addInstanceTints(geometry, capacity);
 			const mesh = new THREE.InstancedMesh(geometry, material, capacity);
 			mesh.userData.assetId = assetId;
-			mesh.castShadow = true;
-			mesh.receiveShadow = true;
+			mesh.castShadow = mesh.receiveShadow = shadows;
 			mesh.count = 0;
 			this.group.add(mesh);
 			return mesh;
@@ -353,8 +366,23 @@ export class PropLayer {
 			// Drawn at its full level; choosing a coarser one by distance is #274's.
 			for (const role of ['body', 'swing'] as const)
 				for (const part of partsOf(model, role))
-					parts.push({ mesh: make(part.geometry, materialOf(part)), swings: role === 'swing' });
-		} else parts.push({ mesh: make(this.placeholder, this.placeholderMaterial), swings: false });
+					parts.push({
+						mesh: make(part.geometry, materialOf(part)),
+						swings: role === 'swing',
+						flame: false
+					});
+			for (const part of partsOf(model, 'flame'))
+				parts.push({
+					mesh: make(part.geometry, this.flameMaterial, false),
+					swings: false,
+					flame: true
+				});
+		} else
+			parts.push({
+				mesh: make(this.placeholder, this.placeholderMaterial),
+				swings: false,
+				flame: false
+			});
 		meshes = { capacity, owners: [], parts, materials, model };
 		this.meshes.set(assetId, meshes);
 		return meshes;
@@ -380,8 +408,15 @@ export class PropLayer {
 	private paint(): void {
 		const hidden = new Set(this.props.filter((p) => p.hidden).map((p) => p.id));
 		const tinted = new Map(this.props.map((p) => [p.id, p.tint]));
+		const cells = new Map(this.props.map((p) => [p.id, `${p.pos.x},${p.pos.y}`]));
 		for (const meshes of this.meshes.values()) {
-			for (const { mesh } of meshes.parts) {
+			for (const { mesh, flame } of meshes.parts) {
+				if (flame) {
+					meshes.owners.forEach((id, i) =>
+						paintFlame(mesh, i, this.flames.get(cells.get(id) ?? '') ?? null)
+					);
+					continue;
+				}
 				const tints = mesh.geometry.getAttribute(TINT_ATTRIBUTE) as THREE.BufferAttribute;
 				const paints = mesh.geometry.getAttribute(PAINT_ATTRIBUTE) as THREE.BufferAttribute;
 				meshes.owners.forEach((id, i) => {

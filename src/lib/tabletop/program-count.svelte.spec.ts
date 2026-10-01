@@ -22,7 +22,9 @@
 // Many lights (#228, `lightSteps`): 40 torches coming and going, carried light on, coloured, moved
 // and off, kinds and colours changing, on every tier, in a shard of its own; later lighting tasks
 // (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
-// flicker's (#231) are every profile on the 40 torches.
+// flicker's (#231) are every profile on the 40 torches. Light fixtures (#232): every kind's fixture
+// model coming and going with the kinds, fixtures taken off (`fixture: false`) and put back, and a
+// carried light's flame with the carried steps.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -34,6 +36,7 @@ import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
+import { FIXTURES } from './light-model';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
 import { aoKind, settingsFor, type Tier } from './quality';
@@ -361,8 +364,8 @@ function lightSteps(m: Mounted, home: FixtureView): Step[] {
 		['torches off', () => t.setLighting('dark', torches(TORCHES, { on: false }))],
 		['torches recoloured', () => t.setLighting('dark', torches(TORCHES, { color: '#3c7aff' }))],
 		// With fixtures, so a GM's handles on fixture-less lights (#209, an overlay made on first
-		// need) stay out of it.
-		...LIGHT_KINDS.map((kind): Step => [
+		// need) stay out of it: every kind that has a fixture model (#232; a glow has none).
+		...LIGHT_KINDS.filter((kind) => FIXTURES[kind].floor).map((kind): Step => [
 			`torches as ${kind}`,
 			() => t.setLighting('dark', torches(TORCHES, { kind, intensity: 2, fixture: true }))
 		]),
@@ -371,6 +374,9 @@ function lightSteps(m: Mounted, home: FixtureView): Step[] {
 			`torches flicker ${flicker}`,
 			() => t.setLighting('dark', torches(TORCHES, { flicker }))
 		]),
+		// Fixtures (#232): every model off the table, then back.
+		['fixtures taken off', () => t.setLighting('dark', torches(TORCHES, { fixture: false }))],
+		['fixtures back', () => t.setLighting('dark', torches(TORCHES))],
 		['carried light on', () => t.setTokens(carry({ light: 4 }))],
 		['carried light coloured', () => t.setTokens(carry({ light: 4, lightColor: '#6fe08a' }))],
 		['carried light moved', () => t.setTokens(carry({ light: 4, pos: step }))],
@@ -390,6 +396,9 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 	const views = [home, ...travel.map((v) => v.view)];
 	const models = new Set<string>(views.flatMap((v) => v.props.map((p) => p.assetId)));
 	for (const v of views) for (const k of v.tokens) if (k.model) models.add(k.model);
+	// Every light kind's fixture (#232), which lightSteps brings on.
+	for (const f of Object.values(FIXTURES))
+		for (const id of [f.wall, f.floor]) if (id) models.add(id);
 	const compile = vi.spyOn(THREE.WebGPURenderer.prototype, 'compileAsync');
 	const clock = manualClock();
 	const m = await mountFixture(home, sidecar.poses.overview, { clock, tier, reducedMotion });
@@ -399,6 +408,13 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 	await Promise.all(ENVIRONMENTS.flatMap((e) => (e ? [loadEnvironment(e)] : [])));
 	// Flames and mist still with motion on, so frames come only from the steps.
 	if (!reducedMotion) m.tabletop.setPowerSaver(true);
+	// Warmed up again with every fixture model in hand, as a model's arrival warms a table (the
+	// renderer's `onModel`; a new look does the same): the warm-up relights first, so the fixtures'
+	// meshes are made and compiled in every pass before the sweep (light-fixtures.ts, #232).
+	m.tabletop.setEnvironment(null);
+	await drawn(m.tabletop, clock);
+	m.tabletop.setEnvironment(home.environment);
+	await loadEnvironment(home.environment!);
 	await drawn(m.tabletop, clock);
 	const renderer = compile.mock.contexts[0] as THREE.WebGPURenderer;
 	const scene = compile.mock.calls[0][2] as THREE.Scene;

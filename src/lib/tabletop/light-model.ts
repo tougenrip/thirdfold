@@ -50,6 +50,15 @@ function wallSide(light: Pick<LightSource, 'pos' | 'kind'>, walled: ReadonlySet<
 	return SIDES.find((s) => walled.has(edgeKey(s.edge(light.pos))));
 }
 
+/** Which wall a light hangs on, as quarter turns from north (SIDES' order), or -1 on its floor. */
+export function sideOf(
+	light: Pick<LightSource, 'pos' | 'kind'>,
+	walled: ReadonlySet<string>
+): number {
+	const side = wallSide(light, walled);
+	return side ? SIDES.indexOf(side) : -1;
+}
+
 /** Whether a light hangs on a wall (as `lightMount` puts it) or stands on its floor. */
 export type Mount = 'wall' | 'floor';
 

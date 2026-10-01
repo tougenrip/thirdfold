@@ -24,7 +24,7 @@
 			"owner": null
 		},
 		{
-			"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
+			"id": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 			"name": "The Warden",
 			"color": "#2e86c1",
 			"pos": {
@@ -35,12 +35,12 @@
 			"light": 0,
 			"model": "warden",
 			"owner": {
-				"id": "1f7a7871-c89a-4fc2-a5d2-c5d1858e42c2",
+				"id": "00c46de0-208a-431c-b560-e2baae95079e",
 				"name": "Ana"
 			}
 		},
 		{
-			"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
+			"id": "5d227106-741c-4814-80aa-244a6b03a4bc",
 			"name": "The Saint",
 			"color": "#d4ac0d",
 			"pos": {
@@ -51,12 +51,12 @@
 			"light": 0,
 			"model": "saint",
 			"owner": {
-				"id": "0342d569-9c11-4911-a409-3cf9b0a212d5",
+				"id": "283ed04c-25a5-4720-a4c9-c4c55abb6686",
 				"name": "Ben"
 			}
 		},
 		{
-			"id": "ffa4a531-a66f-46d3-9073-9e78ebe48e8f",
+			"id": "d839a0d9-fc80-4283-a895-22e47e250ef4",
 			"name": "Bell Keeper",
 			"color": "#3b3f5c",
 			"pos": {
@@ -69,7 +69,7 @@
 			"owner": null
 		},
 		{
-			"id": "1638cedd-dba1-4b6c-a40c-4e56148747ae",
+			"id": "9e20501c-4280-4a4e-88ab-75a334ab6943",
 			"name": "Bell Cultist",
 			"color": "#8a3b3b",
 			"pos": {
@@ -83,7 +83,7 @@
 			"owner": null
 		},
 		{
-			"id": "624e9a20-ca09-4681-8f41-9a29fa2f809c",
+			"id": "6fb5263b-7c25-43b7-9019-7ddfeaa42eee",
 			"name": "Bell Cultist",
 			"color": "#8a3b3b",
 			"pos": {
@@ -2807,7 +2807,8 @@
 			},
 			"radius": 3,
 			"color": "#ffa04d",
-			"on": true
+			"on": true,
+			"fixture": false
 		},
 		{
 			"id": "ho-lake-glow-1",
@@ -2908,7 +2909,7 @@
 			"location": "hollow",
 			"characters": {
 				"warden": {
-					"tokenId": "af1df450-c966-4140-9c95-ae78b5ab5464",
+					"tokenId": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 					"hp": 30,
 					"statuses": {},
 					"uses": {},
@@ -2916,7 +2917,7 @@
 					"dead": false
 				},
 				"saint": {
-					"tokenId": "418bf6b4-0b3d-4b18-977a-637afd67455e",
+					"tokenId": "5d227106-741c-4814-80aa-244a6b03a4bc",
 					"hp": 22,
 					"statuses": {},
 					"uses": {},
@@ -3091,7 +3092,7 @@
 			"carried": {},
 			"running": {},
 			"sentries": {
-				"ffa4a531-a66f-46d3-9073-9e78ebe48e8f": {
+				"d839a0d9-fc80-4283-a895-22e47e250ef4": {
 					"kind": "keeper",
 					"encounter": "hollow",
 					"route": [
@@ -3102,7 +3103,7 @@
 					],
 					"leg": 0
 				},
-				"1638cedd-dba1-4b6c-a40c-4e56148747ae": {
+				"9e20501c-4280-4a4e-88ab-75a334ab6943": {
 					"kind": "cultist",
 					"encounter": "hollow",
 					"route": [
@@ -3125,7 +3126,7 @@
 					],
 					"leg": 0
 				},
-				"624e9a20-ca09-4681-8f41-9a29fa2f809c": {
+				"6fb5263b-7c25-43b7-9019-7ddfeaa42eee": {
 					"kind": "cultist",
 					"encounter": "hollow",
 					"route": [

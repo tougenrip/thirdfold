@@ -1,12 +1,14 @@
 // The GM's handles on lights that draw no fixture (a glow, a fire): a small flat disc in the
 // light's colour on its cell, so the GM can find and pick it (#209). One InstancedMesh of the
-// overlay kind's instanced variant (the warm-up compiles it), one draw call, made only when a
-// GM's table first needs it (lighting.ts `showHandles`), so players never build or draw it.
+// overlay kind's instanced variant, one draw call, made with a GM's table and never culled, so
+// its warm-up compiles it before any light needs one (lighting.ts `showHandles`); players never
+// build or draw it.
 
 import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { lightLook, MAX_LIGHTS_PER_ROOM, type Light } from '$lib/game/lights';
+import { MAX_LIGHTS_PER_ROOM, type Light } from '$lib/game/lights';
 import type { Ground } from './ground';
+import { fixtureFor } from './light-model';
 import { addInstanceTints, createMaterial, TINT_ATTRIBUTE } from './materials';
 
 /** A handle's lift over its floor, in cells: above the floor and its decals. */
@@ -28,6 +30,7 @@ export class LightHandles {
 		this.mesh = new THREE.InstancedMesh(geometry, material, MAX_LIGHTS_PER_ROOM);
 		this.mesh.count = 0;
 		this.mesh.renderOrder = 2;
+		this.mesh.frustumCulled = false;
 	}
 
 	/** Puts a handle on every light without a fixture; none for an empty list. */
@@ -36,7 +39,7 @@ export class LightHandles {
 		const colour = new THREE.Color();
 		this.ids = [];
 		for (const l of lights) {
-			if (lightLook(l).fixture || this.ids.length >= MAX_LIGHTS_PER_ROOM) continue;
+			if (fixtureFor(l, 'floor') || this.ids.length >= MAX_LIGHTS_PER_ROOM) continue;
 			const i = this.ids.push(l.id) - 1;
 			const w = gridToWorld(grid, l.pos);
 			const s = grid.cellSize;

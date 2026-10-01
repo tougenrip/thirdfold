@@ -27,7 +27,7 @@ import type { FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { WorldGround } from './landscape';
-import { LightingLayer, lightSeats } from './lighting';
+import { LightingLayer } from './lighting';
 import { frameOverview, Gallery, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, setUpRenderer, watchReducedMotion } from './loop';
 import { RenderScheduler, type FrameReport } from './scheduler';
@@ -85,7 +85,7 @@ export async function createTabletop(
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
 	const onModel = () => {
 		shadowsDirty = warmPending = true;
-		refreshLighting(); // a sconce's or brazier's size seats its light's flame
+		refreshLighting(); // a fixture to draw, or a prop's flame to seat its light on
 	};
 	/** Something new needs its shaders compiled before the next frame (see warmup.ts). */
 	let warmPending = true;
@@ -112,7 +112,7 @@ export async function createTabletop(
 	const propLayer = new PropLayer(onModel, clock);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
-	const lighting = new LightingLayer(lights.grid);
+	const lighting = new LightingLayer(lights.grid, onModel);
 	scene.add(lighting.group);
 	const hooks = { post, lighting, renderer, perf, request: requestRender };
 	const atmosphere = new AtmosphereLayer({ ...lights, ...hooks }, clock, refreshLighting);
@@ -159,8 +159,8 @@ export async function createTabletop(
 		const [ambient, lights, world = null] = lightState;
 		atmosphere.setWorld(world, ambient, environment, reducedMotion);
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
-		const seats = lightSeats(grid, props);
-		lighting.update(grid, ambient, lights, tokens, blocked, ground, darkness, seats);
+		propLayer.setLights(lights); // the flames on props, lit by a light on their cell (#232)
+		lighting.update(grid, ambient, lights, tokens, blocked, ground, darkness, props);
 		lighting.showHandles(grid, lights, ground, fogState.mode === 'gm');
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		cloud.update(grid, fogState.fog, fogState.mode);
