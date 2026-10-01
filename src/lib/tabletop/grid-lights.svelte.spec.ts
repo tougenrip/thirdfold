@@ -458,18 +458,46 @@ describe('GridLights', () => {
 		expect(lamp.on).toBe(true);
 		const pose = { target: lamp.pos, distance: 16, azimuth: 0, elevation: 80 };
 		const { m, frame } = await mount(view, pose);
-		const on = await frame();
+		const settings = settingsFor('medium', m.tabletop.capabilities().backend);
+		const quiet = { bloom: false, aberration: false, grain: false, vignette: false };
+		const bounce = (on: boolean) =>
+			m.tabletop.setQuality({
+				...settings,
+				...quiet,
+				miniature: false,
+				layers: { ...settings.layers, bounce: on }
+			});
 		// Its colour turned black (no light): the rules' light stays as it was.
 		const others = view.lights.map((l) => (l === lamp ? { ...l, color: '#000000' } : l));
-		m.tabletop.setLighting(view.ambient, others, view.world);
-		const off = await frame();
+		const lit = (lights: Light[]) => m.tabletop.setLighting(view.ambient, lights, view.world);
 		const { blocked, ground } = groundOf(view);
 		const rules = litMask(view.grid, blocked, [lamp]);
+		const anyRules = litMask(view.grid, blocked, lightSources(view.lights, view.tokens));
 		const samples = centres(view, ground, cameraOf(m), occupied(view));
-		const isLit = (s: Sample) => rules[s.cell.y * view.grid.width + s.cell.x] === 1;
-		const leaks = samples.filter((s) => !isLit(s) && change(on, off, s.px, s.py) > 0);
 		expect(samples.length).toBeGreaterThan(100);
-		const lights = samples.filter((s) => isLit(s) && change(on, off, s.px, s.py, false) >= 1);
+		const at = (mask: Uint8Array, s: Sample) => mask[s.cell.y * view.grid.width + s.cell.x] === 1;
+		// With bounce: nothing of it reaches a cell no light lights. A cell another light lights
+		// smooths its bounce toward a lit neighbour's near their shared side, the lamp's included,
+		// capped by its own (the ledge lamp's 23,8 beside the gallery's 22,8: a level, which the stone
+		// halls' contrastier night grade shows since #238), and that is no secret: the cell is lit.
+		const bounced = await frame();
+		lit(others);
+		const unbounced = await frame();
+		const reached = samples.filter(
+			(s) => !at(anyRules, s) && change(bounced, unbounced, s.px, s.py) > 0
+		);
+		expect(
+			reached.map((s) => key(s.cell)),
+			'unlit cells its bounce reaches'
+		).toEqual([]);
+		// Its direct light, bounce off: exactly its cells.
+		bounce(false);
+		lit(view.lights);
+		const on = await frame();
+		lit(others);
+		const off = await frame();
+		const leaks = samples.filter((s) => !at(rules, s) && change(on, off, s.px, s.py) > 0);
+		const lights = samples.filter((s) => at(rules, s) && change(on, off, s.px, s.py, false) >= 1);
 		expect(lights.length, 'cells the lamp lights').toBeGreaterThan(0);
 		expect(
 			leaks.map((s) => key(s.cell)),
