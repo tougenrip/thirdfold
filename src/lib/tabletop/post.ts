@@ -117,6 +117,8 @@ export class Post {
 		/** How much of the grade shows: 1 on, 0 with the Colour grading option off. */
 		grade: uniform(1)
 	};
+	/** The tier's own bloom strength, which a flash adds to (AtmosphereLayer.setFlash). */
+	bloomBase = 0;
 	/** The grade drawn, blending toward the one in force (grade.ts). */
 	readonly grade = new GradeBlend();
 	/** Depth of field and tilt-shift (focus.ts), and how the output stage samples through them. */
@@ -178,7 +180,7 @@ export class Post {
 		// Off on low (no prepass), by the tier's `ao` or `?off=ao`: a uniform, so no recompile.
 		this.uniforms.aoStrength.value = settings.ao && settings.layers.ao ? AO_STRENGTH : 0;
 		this.aoScale = aoScale(settings.tier);
-		this.uniforms.bloomStrength.value =
+		this.uniforms.bloomStrength.value = this.bloomBase =
 			settings.bloom && settings.layers.bloom ? BLOOM.strength : 0;
 		this.bloomScale = settings.tier === 'low' ? 0.25 : 0.5;
 		const lens = settings.layers.lens;

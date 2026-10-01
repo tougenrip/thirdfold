@@ -245,6 +245,15 @@ timer (80 ms, the render scheduler's AMBIENT mode since M62), by design since M1
   | Monastery, player                   | 74       | 45       |
   | The Hollow (dark, sun out)          | 113 / 98 | 113 / 98 |
 
+  Since M67 (#215) the key light moves with the hour, and the map is also redrawn when the light
+  has turned `SHADOW_STEP_DEG` (0.5°) or switched between sun and moon (`shadowFrame` in
+  `atmosphere.ts`), never while its strength is 0. A day swept a minute at a time redraws 481 times
+  (two body switches); noon to 13:00, 21; noon to 18:30, 131. A 3 s tween across hours redraws on
+  most of its frames (bounded by the frames it draws, all in ACTIVE); at the running clock's one
+  game minute a second (#324) that is about one redraw every 2 s. A tween frame costs one
+  `atmosphereAt` (about 1 µs in Node) and a handful of uniform writes; the lamp's point light went
+  (#218), one light fewer per lit fragment.
+
 - **Software GPU experiments.** With `perf-gpu.mjs` (GPU ms per frame under SwiftShader, 1400×900):
 
   | Change                      | Effect  |
@@ -717,3 +726,96 @@ about 6-9), so medians and p95s are noisy:
 These are within the M34 numbers above (views 2.46, 1.12 and 2.11 ms). The `world` in snapshots,
 the remembered lights and the roof masks add nothing per move: Ana's per-move traffic is still
 chat, fog and the move (0.7 kB in the village, 0.9 kB in the Hollow).
+
+## The M67 sky
+
+**Captures (#216, #225).** The sky is captured into the environment only when `environmentKey`
+changed (about 160 times over a day with no weather, never under an enclosed sky), at most every 2 s
+on high and ultra and 5 s on medium, with one trailing capture; low captures once per table into a
+16 px cube, and every table's first capture runs inside the warm-up hold, never on a drawn frame.
+The capture renders the dome alone into six faces; PMREM filters the cube on the next frame drawn.
+Main-thread time on SwiftShader (the test world, 800×500, reduced motion; a software GPU's
+timestamps mean nothing, so these are the CPU's share only): a table's first capture 14 ms on medium
+(the 64 px cube) and 42-51 ms on low (the 16 px cube's first use, in the hold); a later capture on
+medium under 1 ms. A frame drawn right after a capture took 8-16 ms on medium against 6-13 ms for a
+frame with none, and 4-6 ms against 3-6 ms on low. Real-GPU costs of the dome, the fog and a capture
+per tier come from `scripts/perf-gpu.mjs` on the RTX 4060 Laptop and the integrated GPU (below,
+"The M67 perf re-baseline").
+
+**Shadow redraws (#215).** Recorded above ("Frame rate and GPU"): the key light's map is drawn again
+about once per half degree it turns and when it switches body; a 3 s tween across hours redraws on
+most of its frames.
+
+**The low tier (#225).** No dome, stars or clouds (hidden, not removed, so a tier switch compiles
+nothing), a clear-colour background, one 16 px capture per table and no height fog. The key light,
+hemisphere, sky visibility and flash are the same on every tier. The program count holds through a
+24-hour sweep in hourly steps under the temperate sky, every other sky at 06:00, 12:00, 19:30 and
+23:00, haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off, on low, medium
+and high (`program-count.svelte.spec.ts`: each tier's sky its own test and CI job, 70 to 125 s on
+SwiftShader here; every sky every hour took about 11 minutes for the three tiers).
+
+## The M67 perf re-baseline
+
+The test world on the RTX 4060 Laptop (WebGL2, reduced motion, the 512 bases, Chromium
+153.0.8010.12), re-baselined deliberately with `--update-baseline`. Against M66's baseline (main),
+counting the step already recorded at #215 (the PMREM pass: +4 programs, +2 pipelines, +2 targets):
+
+| Check                                | M66                   | M67                   |
+| ------------------------------------ | --------------------- | --------------------- |
+| Programs (each viewer)               | 164                   | 174                   |
+| Geometries                           | 45                    | 55                    |
+| Textures                             | 79                    | 82                    |
+| Draw calls after orbiting            | 116                   | 117                   |
+| Shadow passes while orbiting         | 0                     | 0                     |
+| Frames in 2 s idle                   | 0                     | 0                     |
+| Heap (Ana)                           | 18.9 MB               | 25.0 MB               |
+| Low: targets, programs, pipelines    | 17, 99, 69            | 20, 109, 74           |
+| Medium: targets, programs, pipelines | 27, 162, 105          | 30, 172, 110          |
+| High: targets, programs, pipelines   | 29, 164, 106          | 32, 174, 111          |
+| Texture bytes low, medium, high      | 59.6, 140.7, 175.3 MB | 58.5, 140.7, 175.3 MB |
+
+What moved, and why:
+
+- **Programs +10, pipelines +5 on every tier:** PMREM's filters for the sky's environment (+4,
+  #216, recorded at #215), then the dome and its stars in the scene pass and the dome again in the
+  capture (linear, no MRT, no tone mapping), and the ground ring (#220) in place of the table's
+  slab. All of them are compiled by the warm-up: the program count spec holds every hour and sky
+  on every tier, and the gate's reloads and remounts compile nothing more (174 → 174).
+- **Render targets +3:** the sky cubes (64 px, and 16 px on low) and PMREM's target.
+- **Geometries and textures:** the dome, the stars and the ring's geometry; the cube textures.
+  The table's slab and rim are gone (the ground runs to the horizon), and so is the lamp.
+- **Draw calls +1** after orbiting: the sky's dome and stars, less the table's slab and rim
+  that went (the ring draws in the slab's place). `?off=sky` draws one fewer.
+- **Texture bytes:** medium and high +16 kB (the cube); low 1.0 MB less.
+- **Heap +6 MB:** the sky, the atmosphere's state and the capture's cameras and targets.
+
+Nothing leaked: two reloads and two remounts end at 55 geometries, 82 textures and 174 programs,
+with no WebGL context warnings. Idle drew 0 frames in 2 s; orbiting ran at 60.6 fps (5.6 ms a
+frame).
+
+**Real GPUs** (`scripts/perf-gpu.mjs`, the test world at 1920×1080, reduced motion). The first view
+of each run is slow while the sky's programs compile (the `?perf` page discards the lobby's
+warm-up; 50-78 ms on the RTX, 40-76 ms on the iGPU), so the numbers are the later views. GPU ms
+per frame (timestamp queries), overview and close, GM and player:
+
+| GPU           | Backend | Tier   | GM overview | GM close  | Player overview | Player close |
+| ------------- | ------- | ------ | ----------- | --------- | --------------- | ------------ |
+| RTX 4060      | WebGL2  | low    | 0.95        | 0.80      | 0.76            | 0.80-1.11    |
+| RTX 4060      | WebGL2  | medium | 2.75        | 3.15      | 2.92            | 3.00-3.07    |
+| RTX 4060      | WebGL2  | high   | 5.55-5.70   | 6.66-7.07 | 3.06-5.98       | 3.42-4.46    |
+| RTX 4060      | WebGPU  | high   | 2.31        | 2.97      | 2.56-2.80       | 2.88-3.04    |
+| Intel (RPL-S) | WebGL2  | low    | 14.3        | 15.3      | 15.0            | 15.2-16.0    |
+| Intel (RPL-S) | WebGL2  | medium | 47.9        | 52.2      | 47.8            | 49.8         |
+| Intel (RPL-S) | WebGL2  | high   | 54.6        | 59.6      | 54.2            | 59.9-60.3    |
+
+- **The dome** costs nothing measurable: with `?off=sky` (PERF_EXTRA) the WebGPU scene pass on the
+  RTX is the same to 0.01 ms (1.26 ms overview, 1.25 close), and the iGPU's medium frame the same
+  within its noise (47.8-52.3 ms without, 47.8-52.2 with). It is one draw pinned to the far plane,
+  behind everything, and mostly covered by the ground.
+- **The fog** is in every kind's fog node and has no switch; its cost is inside the scene pass
+  above (WebGPU on the RTX: scene 1.24-1.40 ms of a 2.3-3.0 ms frame, against 1.2-2.6 ms at M64).
+- **A capture** is never in a benchmark frame (the key is unchanged while a view is drawn again),
+  and the scripts do not time one on a GPU; the SwiftShader main-thread numbers above are all we
+  have. At most one every 2 s (high) or 5 s (medium), it is not a per-frame cost.
+- **The iGPU** stays over its budgets, as recorded since M61 (low 14-16 ms, medium 48-52 ms, high
+  55-60 ms at 1080p); M67 did not change that picture, and the dome is not what costs.

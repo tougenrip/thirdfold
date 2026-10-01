@@ -178,7 +178,7 @@
 	<div class="section">
 		<!-- GM only: loaded on its own so the players' room page stays small. -->
 		{#await import('./TimeOfDay.svelte') then { default: TimeOfDay }}
-			<TimeOfDay {world} {ambient} {send} />
+			<TimeOfDay {world} {ambient} {environment} {send} />
 		{/await}
 		<label class="environment">
 			<span class="muted">Looks like</span>

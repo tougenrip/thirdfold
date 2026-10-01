@@ -13,6 +13,8 @@
 // no version bump and unknown fields are dropped; unknown kinds, formats,
 // usages and classes are refused, and a bad field refuses the whole manifest.
 
+import type { WorldPatch } from '../game/world';
+
 /** What an asset is for. Scenes are content too, but server-only (see docs/ASSETS.md). */
 export const ASSET_KINDS = [
 	'environment',
@@ -294,14 +296,16 @@ export interface SurfaceEntry {
 	orm: string;
 }
 
-/** How a place looks: the materials of its floor, its raised ground, its walls and the table's rim. */
+/** How a place looks: the materials of its floor, its raised ground and its walls, and its sky. */
 export interface EnvironmentDef {
 	name: string;
 	surface: string;
 	ground: string;
 	walls: string;
-	/** The rim's; without one it wears the floor's (#220 takes the rim away). */
-	table?: string;
+	/** Its sky (#213): an id in the manifest's `skies`. */
+	sky: string;
+	/** The world look a table here starts from (#213), checked by `parseWorldPatch`. */
+	world?: WorldPatch;
 	/**
 	 * Its colour grade (#162): a 1024×32 lookup-table strip (a texture id) per tone mapper and
 	 * band. Optional: without one the picture is not graded.
@@ -310,6 +314,76 @@ export interface EnvironmentDef {
 	/** Its surfaces (#187), surface ids in layer order. */
 	surfaces?: { floors: string[]; walls: string[] };
 }
+
+/**
+ * A sky (#213): procedural, no textures (the `sky` texture class stays unused). Open skies follow
+ * the clock along a sun path; enclosed ones (caves) have no sun, moon or path, and a fill light
+ * instead. Colours are `#rrggbb` sRGB. The atmosphere curves (src/lib/tabletop/atmosphere-curve.ts,
+ * #212) read its keys round the clock; the parser is sky-parse.ts.
+ */
+export const SKY_KINDS = ['open', 'enclosed'] as const;
+export type SkyKind = (typeof SKY_KINDS)[number];
+
+/** One moment of a sky, `minute` after midnight; between keys the curves blend, round the clock. */
+export interface SkyKey {
+	minute: number;
+	/** The sun's colour, as a temperature (1000-40000 K) or a colour: each open sky's key gives one. */
+	sunKelvin?: number;
+	sunColor?: string;
+	/** The sun's and the moon's light, 0-10 (0 under an enclosed sky). */
+	sun: number;
+	moon: number;
+	/** The hemisphere light: its sky and ground colours and its strength, 0-10. */
+	hemiSky: string;
+	hemiGround: string;
+	hemi: number;
+	/** How much the sky lights the scene through its environment map, 0-10. */
+	ibl: number;
+	/** The dome: overhead, at the horizon and below it. */
+	zenith: string;
+	horizon: string;
+	ground: string;
+	/** Height fog: its colour, three's density per metre (0-1) and the layer's top in metres (0-100). */
+	fog: { color: string; density: number; height: number };
+	/** Exposure in EV, -4 to 4, added to the look's. */
+	exposure: number;
+	/** How much shows, 0-1; `nightGlow` is how strongly flames light the table (the light pool). */
+	stars: number;
+	clouds: number;
+	nightGlow: number;
+	/**
+	 * An enclosed sky's light from nowhere in particular: every key of one gives it, an open sky's
+	 * none. An enclosed sky shows its first key alone, whatever the hour and weather (#221).
+	 */
+	fill?: { color: string; intensity: number };
+}
+
+/** Where an open sky's sun and moon run: degrees, and `noon` in minutes (780 keeps the bands). */
+export interface SkyPath {
+	latitude: number;
+	declination: number;
+	/** Where north lies on the table, degrees clockwise from the grid's -y. */
+	north: number;
+	noon: number;
+	/** Days from full moon to full moon, and where in it the first day stands (0 new, 0.5 full). */
+	moonCycle: number;
+	moonPhase: number;
+}
+
+export interface SkyDef {
+	kind: SkyKind;
+	name: string;
+	/** 2-16, their minutes strictly rising. */
+	keys: SkyKey[];
+	/** An open sky's; an enclosed one has none. */
+	path?: SkyPath;
+	credit: Credit;
+}
+
+/** The sky a table falls back to when neither its look nor its environment names a known one. */
+export const DEFAULT_SKY = 'temperate';
+/** What a sunless table ("Underground", `sun: false`) shows instead of an open sky (#213). */
+export const SUNLESS_SKY = 'underground';
 
 export interface AudioEntry extends FileInfo {
 	format: 'wav' | 'ogg';
@@ -331,6 +405,8 @@ export interface Manifest {
 	materials: Record<string, MaterialDef>;
 	surfaces: Record<string, SurfaceEntry>;
 	environments: Record<string, EnvironmentDef>;
+	/** Sky presets (#213), inline (a few kB each, no files); optional on the wire, read as {}. */
+	skies: Record<string, SkyDef>;
 	audio: Record<string, AudioEntry>;
 	packs: Record<string, PackInfo>;
 	/** The KTX2 transcoder (#188), served same-origin: code, never from the asset host. */
@@ -344,6 +420,7 @@ export const EMPTY_MANIFEST: Manifest = {
 	materials: {},
 	surfaces: {},
 	environments: {},
+	skies: {},
 	audio: {},
 	packs: {}
 };

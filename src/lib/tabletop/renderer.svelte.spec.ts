@@ -3,7 +3,8 @@
 // nothing. When frames are drawn (idle, ambient, converge) is
 // scheduling.svelte.spec.ts; every fixture drawing for every viewer is
 // fixtures.svelte.spec.ts; determinism, leaks and recompiles are
-// stability.svelte.spec.ts.
+// stability.svelte.spec.ts. The ground beyond the grid (#220): never picked, running to the
+// horizon with no gap under the sky, and the camera never below it.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GRID_FADE_MS } from './overlay';
@@ -14,11 +15,16 @@ import {
 	loadView,
 	manualClock,
 	mountFixture,
+	readFrame,
 	settle,
 	wait,
 	type Mounted,
-	type Viewer
+	type Viewer,
+	HEIGHT,
+	WIDTH
 } from './testing';
+import type { Tier } from './quality';
+import { GROUND_CLEARANCE } from './world-ground';
 
 // Software frames on CI's small runners take seconds since the shader kinds (M64).
 vi.setConfig({ testTimeout: 180_000, hookTimeout: 90_000 });
@@ -126,5 +132,112 @@ describe('the renderer', () => {
 		expect(events.onHover).not.toHaveBeenCalled();
 		expect(events.onClick).not.toHaveBeenCalled();
 		m.canvas.remove();
+	});
+});
+
+describe('the ground to the horizon', () => {
+	/** The village's grid and look at `time` with nothing on it: a clear view to the horizon. */
+	async function bare(
+		time: number,
+		events?: { onClick: () => void; onHover: () => void },
+		tier: Tier = 'medium'
+	) {
+		const view = await loadView('village', 'day', 'gm');
+		const plain = { ...view, tokens: [], props: [], objects: [], lights: [], terrain: null };
+		const sidecar = await loadSidecar('village');
+		const m = await mountFixture(
+			{ ...plain, world: { ...view.world, time } },
+			sidecar.poses.overview,
+			{ events, tier }
+		);
+		mounted.push(m);
+		return m;
+	}
+	/** Standing 1.5 up over the middle of the grid, looking past its far edge `pitch` degrees down. */
+	const outward = (pitch: number) => ({
+		position: { x: 0, y: 1.5, z: 0 },
+		target: { x: 0, y: 1.5 - 50 * Math.tan((pitch * Math.PI) / 180), z: -50 }
+	});
+
+	it('never picks the ground beyond the grid', async () => {
+		const events = { onClick: vi.fn(), onHover: vi.fn() };
+		const { tabletop, canvas } = await bare(720, events);
+		// Looking out from beyond the grid's far edge: everything in view is off the grid.
+		const depth = 28;
+		tabletop.setPose({
+			position: { x: 0, y: 4, z: -depth / 2 - 4 },
+			target: { x: 0, y: 0, z: -depth / 2 - 30 }
+		});
+		await settle(tabletop);
+		// Synthetic pointers can't be captured: the orbit controls would throw.
+		canvas.setPointerCapture = canvas.releasePointerCapture = () => {};
+		const rect = canvas.getBoundingClientRect();
+		for (const [x, y] of [
+			[0.5, 0.9],
+			[0.2, 0.7],
+			[0.8, 0.6]
+		]) {
+			const at = { clientX: rect.left + x * rect.width, clientY: rect.top + y * rect.height };
+			canvas.dispatchEvent(new PointerEvent('pointerdown', { ...at, button: 0, bubbles: true }));
+			canvas.dispatchEvent(new PointerEvent('pointerup', { ...at, button: 0, bubbles: true }));
+		}
+		expect(events.onClick).toHaveBeenCalledTimes(3);
+		for (const [pick] of events.onClick.mock.calls)
+			expect(pick).toMatchObject({ cell: null, tokenId: null, objectId: null, propId: null });
+	});
+
+	it('runs to the horizon at 85 degrees with no gap under the sky, day and dusk', async () => {
+		// The low tier hides the dome: the sky is its horizon's colour, so ground shows as ground.
+		for (const [time, tier] of [
+			[720, 'medium'],
+			[1170, 'medium'],
+			[720, 'low']
+		] as const) {
+			const { tabletop, canvas } = await bare(time, undefined, tier);
+			const pitch = 5; // the camera's full tilt: 85 degrees from straight down
+			tabletop.setPose(outward(pitch));
+			await settle(tabletop);
+			const at = await readFrame(canvas, WIDTH, HEIGHT);
+			// The horizon's row: `pitch` above the middle, at a 45 degree field of view.
+			const horizon = Math.round(
+				HEIGHT / 2 - (Math.tan((pitch * Math.PI) / 180) / Math.tan(Math.PI / 8)) * (HEIGHT / 2)
+			);
+			// From the sky above it, across the horizon, down to the ground near the grid's edge the
+			// colour changes smoothly, so no band of anything else lies between ground and sky. At the
+			// horizon itself the dome's haze is the fog's colour, so the fogged ground meets the sky with
+			// no step (measured 2 on SwiftShader). On low, with range fog only (#225), the ground comes
+			// out of the flat sky over fewer rows: a steeper fade, still no band.
+			const column = (x: number) => {
+				const rows: number[][] = [];
+				for (let y = horizon - 30; y < horizon + 40; y++) rows.push(at(x, y));
+				return rows;
+			};
+			for (const x of [100, 400, 700]) {
+				const rows = column(x);
+				for (let i = 1; i < rows.length; i++) {
+					const jump = Math.max(...rows[i].map((c, k) => Math.abs(c - rows[i - 1][k])));
+					const seam = i >= 28 && i <= 36; // horizon - 2 to horizon + 6
+					const limit = seam ? 8 : tier === 'low' ? 32 : 20;
+					expect(jump, `${time} ${tier} at ${x}, row ${i}`).toBeLessThan(limit);
+				}
+				// Never the old void's near-black.
+				for (const px of rows) expect(Math.max(...px), `${time} at ${x}`).toBeGreaterThan(30);
+			}
+			// The ground near the grid is ground, not sky: it differs from the sky above the horizon.
+			const sky = at(400, horizon - 30);
+			const near = at(400, horizon + 40);
+			expect(
+				Math.max(...sky.map((c, k) => Math.abs(c - near[k]))),
+				`${time} ${tier}`
+			).toBeGreaterThan(8);
+			await mounted.pop()!.unmount();
+		}
+	});
+
+	it('keeps the camera above the ground', async () => {
+		const { tabletop } = await bare(720);
+		tabletop.setPose({ position: { x: 0, y: 0.05, z: 3 }, target: { x: 0, y: 0, z: 0 } });
+		await settle(tabletop);
+		expect(tabletop.cameraPose()!.position.y).toBeGreaterThanOrEqual(GROUND_CLEARANCE - 1e-6);
 	});
 });

@@ -1637,6 +1637,7 @@ There is no VFX network traffic. Positions only ever come from what the viewer c
 - Running clock with restart
 - Weather audio
 - Soft particles and haze
+- Volumetric fog of war (#374), ground mist (#375) and light in the air (#376), replacing M64's flat fog cloud
 
 **Done when:**
 
@@ -1647,6 +1648,7 @@ There is no VFX network traffic. Positions only ever come from what the viewer c
 - A GM places a floor fire (which also lights cells) or a smoke column, and chimneys smoke
 - The GM sets rain: every client sees the same storm at the same moment with no extra traffic. Rain stops at roofs and interiors and never falls over black cells, cobbles darken and gloss, and lightning has at least 4 s between strikes and respects Reduce flashing
 - A running clock survives a server restart and keeps flipping bands on time
+- Unexplored ground lies under rolling cloud that parts as it is revealed, and never outlines what it hides (raw-frame and unexplored-black tests). Mist pools in the Hollow and at dusk, and torches glow through it
 - Particles cost almost no CPU, idle returns to 0 frames when effects end, and both adventures are playable
 
 ### Milestone 76: The Hollow Bell in full art

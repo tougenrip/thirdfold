@@ -3594,6 +3594,27 @@ describe("the world's look over the wire", () => {
 		}
 	});
 
+	it("sends the GM's sky, haze and exposure to everyone; a malformed sky id is refused", async () => {
+		const { gm, pip, sam } = await table();
+		const patch = {
+			sky: 'overcast',
+			haze: { density: 0.4, color: '#336699' },
+			grade: { exposure: 0.5 }
+		};
+		gm.send({ type: 'world_set', patch });
+		for (const c of [gm, pip.c, sam.c]) {
+			const { world } = await c.expect('world_update');
+			expect(world).toMatchObject(patch);
+		}
+		// A well-formed id the manifest lacks is fine on the wire: clients fall back to the place's sky.
+		gm.send({ type: 'world_set', patch: { sky: 'no-such-sky' } });
+		expect((await pip.c.expect('world_update')).world.sky).toBe('no-such-sky');
+		gm.send({ type: 'world_set', patch: { sky: 'Not A Sky!' } });
+		expect(await gm.until('error')).toMatchObject({ code: 'invalid_message' });
+		pip.c.send({ type: 'world_set', patch: { haze: { density: 1 } } });
+		expect(await pip.c.expect('error')).toMatchObject({ code: 'forbidden' });
+	});
+
 	it('limits a burst of changes', async () => {
 		const { gm } = await table();
 		for (let i = 0; i < 12; i++) gm.send({ type: 'world_set', patch: { time: 600 + i } });

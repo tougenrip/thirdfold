@@ -31,12 +31,15 @@ import {
 	type MaterialDef,
 	type ModelEntry,
 	type PackInfo,
+	type SkyDef,
 	type SurfaceEntry,
 	type TextureEntry,
 	type TextureUsage,
 	type ToneMapper,
 	type Variant
 } from './manifest';
+import { parseSky } from './sky-parse';
+import { parseWorldPatch } from '../game/world';
 
 type Parsed = { ok: true; manifest: Manifest } | { ok: false; error: string };
 
@@ -350,7 +353,7 @@ function readModel(
 function readEnvironment(
 	v: Record<string, unknown>,
 	id: string,
-	m: Pick<Manifest, 'materials' | 'textures' | 'surfaces'>
+	m: Pick<Manifest, 'materials' | 'textures' | 'surfaces' | 'skies'>
 ): EnvironmentDef {
 	const what = `environment ${id}`;
 	if (!text(v.name, 60)) throw new Invalid(`${what}: bad name`);
@@ -365,9 +368,15 @@ function readEnvironment(
 		name: v.name,
 		surface: material('surface'),
 		ground: material('ground'),
-		walls: material('walls')
+		walls: material('walls'),
+		sky: typeof v.sky === 'string' && Object.hasOwn(m.skies, v.sky) ? v.sky : ''
 	};
-	if (v.table !== undefined) env.table = material('table');
+	if (!env.sky) throw new Invalid(`${what}: unknown sky`);
+	if (v.world !== undefined) {
+		const world = parseWorldPatch(v.world);
+		if (!world) throw new Invalid(`${what}: bad world`);
+		env.world = world;
+	}
 	if (v.lut !== undefined) env.lut = readLut(v.lut, m.textures, what);
 	if (v.surfaces !== undefined) {
 		const s = v.surfaces;
@@ -403,9 +412,14 @@ export function parseManifest(raw: unknown): Parsed {
 			normal: textureOf(v.normal, 'normal', textures, `surface ${id}`),
 			orm: textureOf(v.orm, 'orm', textures, `surface ${id}`)
 		}));
+		const skies = section(raw.skies ?? {}, 'sky', (v, id): SkyDef => {
+			const parsed = parseSky(v);
+			if (!parsed.ok) throw new Invalid(`sky ${id}: ${parsed.error}`);
+			return { ...parsed.sky, credit: credit(v.credit, `sky ${id}`) };
+		});
 		const models = section(raw.models, 'model', (v, id) => readModel(v, id, materials, packs));
 		const environments = section(raw.environments, 'environment', (v, id) =>
-			readEnvironment(v, id, { materials, textures, surfaces })
+			readEnvironment(v, id, { materials, textures, surfaces, skies })
 		);
 		const audio = section(raw.audio, 'audio', (v, id) => {
 			const info = fileInfo(v, `audio ${id}`, AUDIO_LIMITS.bytes, ['wav', 'ogg']);
@@ -425,6 +439,7 @@ export function parseManifest(raw: unknown): Parsed {
 			materials,
 			surfaces,
 			environments,
+			skies,
 			audio,
 			packs
 		};

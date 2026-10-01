@@ -159,7 +159,7 @@ export function content(adventure: AdventureState): AdventureDef {
 	return withBestiary(
 		withBuilt(withKept(contentOf(adventure.id), adventure.kept), adventure.built),
 		adventure.bestiary,
-		findRuleset(adventure.rules)
+		adventure.bestiary?.length ? findRuleset(adventure.rules) : undefined
 	);
 }
 

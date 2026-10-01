@@ -1,0 +1,86 @@
+{
+	"name": "Abyss",
+	"kind": "enclosed",
+	"keys": [
+		{
+			"minute": 720,
+			"sun": 0,
+			"moon": 0,
+			"hemiSky": "#fff1dc",
+			"hemiGround": "#1c140e",
+			"hemi": 0.9,
+			"ibl": 0.1,
+			"zenith": "#030001",
+			"horizon": "#080103",
+			"ground": "#020001",
+			"fog": {
+				"color": "#0c0306",
+				"density": 0.006,
+				"height": 1.0
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0,
+			"nightGlow": 0.5,
+			"fill": {
+				"color": "#a0302a",
+				"intensity": 0.3
+			}
+		},
+		{
+			"minute": 1170,
+			"sun": 0,
+			"moon": 0,
+			"hemiSky": "#ffd0a0",
+			"hemiGround": "#1a2438",
+			"hemi": 0.45,
+			"ibl": 0.1,
+			"zenith": "#030001",
+			"horizon": "#080103",
+			"ground": "#020001",
+			"fog": {
+				"color": "#0c0306",
+				"density": 0.006,
+				"height": 1.0
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0,
+			"nightGlow": 1,
+			"fill": {
+				"color": "#8a2220",
+				"intensity": 0.22
+			}
+		},
+		{
+			"minute": 1380,
+			"sun": 0,
+			"moon": 0,
+			"hemiSky": "#9ab4ff",
+			"hemiGround": "#0a1230",
+			"hemi": 0.1,
+			"ibl": 0.1,
+			"zenith": "#030001",
+			"horizon": "#080103",
+			"ground": "#020001",
+			"fog": {
+				"color": "#0c0306",
+				"density": 0.006,
+				"height": 1.0
+			},
+			"exposure": 0,
+			"stars": 0,
+			"clouds": 0,
+			"nightGlow": 1,
+			"fill": {
+				"color": "#6e1614",
+				"intensity": 0.14
+			}
+		}
+	],
+	"provenance": {
+		"license": "LicenseRef-thirdfold-original",
+		"author": "thirdfold contributors",
+		"modified": false
+	}
+}

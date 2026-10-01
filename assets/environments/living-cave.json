@@ -3,7 +3,7 @@
 	"surface": "flesh",
 	"ground": "flesh",
 	"walls": "sinew",
-	"table": "oak",
+	"sky": "abyss",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["cave-rock"]

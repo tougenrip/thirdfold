@@ -7,6 +7,7 @@ import type { Ambient } from '$lib/game/lights';
 import {
 	AMBIENT_DARK,
 	FOG_LEVELS,
+	INDOOR_FILL,
 	PERCEPTION_FILL,
 	cellLight,
 	fogFactor,
@@ -14,6 +15,7 @@ import {
 	packGround,
 	packLight,
 	packSky,
+	skyVisibilityMap,
 	texelAt
 } from './cell-maps';
 
@@ -56,7 +58,7 @@ describe('packing', () => {
 		packFog(data, [0, 1, 0], [1, 1, 0]);
 		expect([...data]).toEqual([0, 255, 7, 7, 255, 255, 7, 7, 0, 0, 7, 7]);
 		packLight(data, [0, 0.5, 1]);
-		packSky(data, [0, 1, 0]);
+		packSky(data, [1, 0, 1]);
 		expect([...data]).toEqual([0, 255, 0, 255, 255, 255, 128, 0, 0, 0, 255, 255]);
 	});
 
@@ -145,5 +147,73 @@ describe('fog', () => {
 		}
 		// A player's hidden cells are exactly black.
 		expect(FOG_LEVELS.player.hidden).toBe(0);
+	});
+});
+
+describe('skyVisibilityMap (#219)', () => {
+	// The shader's terms, as world-modify.ts reads A at a cell's centre.
+	const sun = (a: number) => Math.min(1, Math.max(0, (a - INDOOR_FILL) / (1 - INDOOR_FILL)));
+	const mask = (w: number, h: number, cells: [number, number][]) => {
+		const m = new Uint8Array(w * h);
+		for (const [x, y] of cells) m[y * w + x] = 1;
+		return m;
+	};
+
+	it('is open sky everywhere without dark areas or roofs', () => {
+		expect([...skyVisibilityMap(grid(3, 2), null, null)]).toEqual(Array(6).fill(1));
+	});
+
+	it('keeps dark cells at 0 under the blur, roofs at the fill, and open ground at 1', () => {
+		const g = grid(9, 7);
+		// A dark block, a roofed block, open ground well away from both.
+		const dark = mask(9, 7, [
+			[1, 1],
+			[2, 1],
+			[1, 2],
+			[2, 2]
+		]);
+		const roof = mask(9, 7, [
+			[6, 1],
+			[7, 1],
+			[6, 2],
+			[7, 2]
+		]);
+		const sky = skyVisibilityMap(g, dark, roof);
+		const at = (x: number, y: number) => sky[y * 9 + x];
+		for (let i = 0; i < sky.length; i++) {
+			// Dark: no ambient, no sun. Roof: the fill, no sun. Nowhere below the fill but in the dark.
+			if (dark[i]) expect(sky[i]).toBe(0);
+			else if (roof[i]) {
+				expect(sky[i]).toBeCloseTo(INDOOR_FILL, 6);
+				expect(sun(sky[i])).toBeCloseTo(0, 6);
+			} else expect(sky[i]).toBeGreaterThanOrEqual(Math.fround(INDOOR_FILL));
+			expect(sky[i]).toBeLessThanOrEqual(1);
+		}
+		expect([at(4, 5), sun(at(4, 5))]).toEqual([1, 1]);
+		// Beside the dark area the open side softens, and never lifts a dark cell.
+		expect(at(3, 1)).toBeLessThan(1);
+		expect(sun(at(3, 1))).toBeLessThan(1);
+		expect(INDOOR_FILL).toBeGreaterThanOrEqual(PERCEPTION_FILL);
+	});
+
+	it('leaves a dark area dark at every size, and ignores masks of another size', () => {
+		const g = grid(4, 4);
+		const all = new Uint8Array(16).fill(1);
+		expect([...skyVisibilityMap(g, all, null)]).toEqual(Array(16).fill(0));
+		expect([...skyVisibilityMap(g, all, all)]).toEqual(Array(16).fill(0));
+		expect([...skyVisibilityMap(g, new Uint8Array(9).fill(1), null)]).toEqual(Array(16).fill(1));
+		// A lone dark cell in the open: its neighbours soften, it stays 0.
+		const one = skyVisibilityMap(g, mask(4, 4, [[1, 1]]), null);
+		expect(one[5]).toBe(0);
+		expect(Math.min(...[...one].filter((_, i) => i !== 5))).toBeGreaterThanOrEqual(
+			Math.fround(INDOOR_FILL)
+		);
+	});
+
+	it('packs into A as the shader reads it', () => {
+		const sky = skyVisibilityMap(grid(3, 1), mask(3, 1, [[0, 0]]), mask(3, 1, [[2, 0]]));
+		const data = new Uint8Array(12);
+		packSky(data, sky);
+		expect([data[3], data[11]]).toEqual([0, Math.round(255 * INDOOR_FILL)]);
 	});
 });

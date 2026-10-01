@@ -124,6 +124,8 @@ export interface Tabletop {
 	setEnvironment(id: string | null): void;
 	/** The table's dark areas (one byte per cell), or null for none. */
 	setDarkness(mask: Uint8Array | null): void;
+	/** The roofed cells (one byte per cell), or null for none: no sun under them (#219). */
+	setInterior(mask: Uint8Array | null): void;
 	/** Plays a cinematic moment; `swingPropId` is the bell to swing, if it is on the table. */
 	playCue(cue: Cue, swingPropId: string | null): void;
 	/** Points the camera at something for a moment (see shots.ts), then gives it back. */
@@ -146,6 +148,11 @@ export interface Tabletop {
 	capabilities(): Caps;
 	/** Power saver (the viewer's setting): no ambient animation (scheduler.ts). */
 	setPowerSaver(on: boolean): void;
+	/**
+	 * Reduce flashing (the viewer's setting, `auto` already resolved against reduced motion): every
+	 * flash a slow, dimmer fade (flash.ts `flashPolicy`). Uniforms only: nothing recompiles.
+	 */
+	setReduceFlashing(on: boolean): void;
 	/** What rendering has cost so far (see perf.ts). */
 	stats(): PerfStats;
 	/** The loads the table's first view waits for (models.ts): [settled, started]. */
@@ -182,6 +189,7 @@ export const TIMED = [
 	'setFog',
 	'setLighting',
 	'setDarkness',
+	'setInterior',
 	'setTerrain',
 	'setFloor',
 	'setEnvironment'

@@ -13,6 +13,7 @@
 		type Overrides,
 		type Tier
 	} from '$lib/tabletop/quality';
+	import type { ReduceFlashing } from '$lib/tabletop/flash';
 
 	/**
 	 * The Graphics menu (#154): a quality preset, and apart from it the advanced options (resolution,
@@ -61,6 +62,13 @@
 		},
 		neutral: { name: 'True colour (Neutral)', help: 'Paint and materials as they are, warmer.' }
 	};
+
+	/** Reduce flashing (#223): apart from reduced motion, which keeps the flash on purpose. */
+	const FLASHING: [ReduceFlashing, string][] = [
+		['auto', 'Auto'],
+		['on', 'On'],
+		['off', 'Off']
+	];
 
 	/** Ultra needs WebGPU with its core features. */
 	const ultraOff = $derived(!!effective && effective.backend !== 'webgpu');
@@ -210,6 +218,23 @@
 					</label>
 				{/each}
 				<p class="help">{TONES[graphics.toneMapper].help}</p>
+			</fieldset>
+			<fieldset class="switch">
+				<legend>Reduce flashing</legend>
+				{#each FLASHING as [value, name] (value)}
+					<label>
+						<input
+							type="radio"
+							name="reduce-flashing"
+							checked={graphics.reduceFlashing === value}
+							onchange={() => onchange({ ...graphics, reduceFlashing: value })}
+						/>
+						{name}{value === 'auto'
+							? ` (${prefersReducedMotion.current ? 'on' : 'off'}: follows reduced motion)`
+							: ''}
+					</label>
+				{/each}
+				<p class="help">Flashes of light fade in slowly and stay dimmer.</p>
 			</fieldset>
 			<label class="switch">
 				<input

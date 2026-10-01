@@ -356,7 +356,13 @@ describe('the pipeline on other sources', () => {
 		src = sources();
 		writeFileSync(
 			path.join(src, 'environments', 'moon.json'),
-			JSON.stringify({ name: 'Moon', surface: 'cheese', ground: 'oak', walls: 'oak', table: 'oak' })
+			JSON.stringify({
+				name: 'Moon',
+				surface: 'cheese',
+				ground: 'plaster',
+				walls: 'plaster',
+				sky: 'temperate'
+			})
 		);
 		await expect(buildAssets(src)).rejects.toThrow(/moon\.json: "surface" must name a material/);
 	});

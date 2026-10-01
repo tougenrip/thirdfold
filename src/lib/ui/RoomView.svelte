@@ -1337,6 +1337,7 @@
 				{terrain}
 				{floor}
 				{darkness}
+				{interior}
 				environment={room.environment}
 				cue={cuePlay}
 				motion={conn.motion}
@@ -1415,6 +1416,7 @@
 							paused={room.paused}
 							ambient={room.ambient}
 							world={room.world}
+							environment={room.environment}
 							lights={room.lights}
 							fogEnabled={room.fog.enabled}
 							fogShared={room.fog.shared}

@@ -17,6 +17,8 @@
 		paused: boolean;
 		ambient: Ambient;
 		world: WorldLook;
+		/** The table's environment id (which sky it falls back to). */
+		environment: string | null;
 		lights: Light[];
 		fogEnabled: boolean;
 		fogShared: boolean;
@@ -41,6 +43,7 @@
 		paused,
 		ambient,
 		world,
+		environment,
 		lights,
 		fogEnabled,
 		fogShared,
@@ -405,7 +408,7 @@
 	<h3 class="section-title">Environment</h3>
 	<!-- GM only: loaded on its own so the players' room page stays small. -->
 	{#await import('./TimeOfDay.svelte') then { default: TimeOfDay }}
-		<TimeOfDay {world} {ambient} {send} />
+		<TimeOfDay {world} {ambient} {environment} {send} />
 	{/await}
 	{#if lights.length}
 		<details>
@@ -591,6 +594,10 @@
 	}
 	.monsters li {
 		align-items: start;
+	}
+
+	.monsters li > button {
+		flex: none;
 	}
 
 	.monsters details {

@@ -7,6 +7,7 @@
 
 import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
 import { TEXTURE_DETAILS, type TextureDetail } from '../assets/detail';
+import { readReduceFlashing, type ReduceFlashing } from './flash';
 
 export const TIERS = ['low', 'medium', 'high', 'ultra'] as const;
 export type Tier = (typeof TIERS)[number];
@@ -209,7 +210,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['ao', 'bloom', 'lens', 'grade', 'dof']);
+const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
@@ -408,6 +409,8 @@ export interface GraphicsPrefs {
 	toneMapper: ToneMapper;
 	/** Grid lines at all times, not only while building, placing or aiming a move (#167). */
 	alwaysGrid: boolean;
+	/** Flashes as slow, dimmer fades (#223); `auto` while the device asks for reduced motion. */
+	reduceFlashing: ReduceFlashing;
 	/** The tier refinement settled on for this device, when `auto`. */
 	measured?: Tier;
 }
@@ -418,7 +421,8 @@ export const DEFAULT_GRAPHICS: GraphicsPrefs = {
 	compatibility: false,
 	powerSaver: false,
 	toneMapper: GRADE_TONE_MAPPER,
-	alwaysGrid: false
+	alwaysGrid: false,
+	reduceFlashing: 'auto'
 };
 
 const GRAPHICS_KEY = 'thirdfold:graphics';
@@ -438,7 +442,8 @@ export function loadGraphics(storage: Pick<Storage, 'getItem'>): GraphicsPrefs {
 			toneMapper: TONE_MAPPERS.includes(r.toneMapper as ToneMapper)
 				? (r.toneMapper as ToneMapper)
 				: GRADE_TONE_MAPPER,
-			alwaysGrid: r.alwaysGrid === true
+			alwaysGrid: r.alwaysGrid === true,
+			reduceFlashing: readReduceFlashing(r.reduceFlashing)
 		};
 		if (isTier(r.measured)) prefs.measured = r.measured;
 		return prefs;
@@ -479,10 +484,9 @@ export const LOSS_WINDOW_MS = 5 * 60_000;
 export const LOSS_LIMIT = 3;
 
 /**
- * The tier to rebuild at after the graphics device was lost (`losses`, this
- * one included): one lower than `current` for the session, low after a second
- * loss within five minutes, or `stop` after three within a minute. Never
- * saved: a lost device is not a measurement.
+ * The tier to rebuild at after the graphics device was lost (`losses`, this one included): one
+ * lower than `current` for the session, low after a second loss within five minutes, or `stop`
+ * after three within a minute. Never saved: a lost device is not a measurement.
  */
 export function tierAfterLoss(
 	current: Tier,

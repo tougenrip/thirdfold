@@ -14,13 +14,19 @@
 // (a literal of its own in the graph) proves the sweep is not vacuous. Per tier, on both backends
 // (WebGL2 on SwiftShader here; WebGPU on the real GPU in the client-webgpu project). Reduced
 // motion, as the other renderer tests, so the toll's dust is not drawn in the sweep: a second test
-// plays it with motion (the warm-up's gallery compiles it, #180).
+// plays it with motion (the warm-up's gallery compiles it, #180). The sky (#225): a 24-hour sweep in
+// hourly steps under the default open sky, every other sky in the manifest at the band hours (an
+// enclosed sky takes its band's key whole, and each hour is a capture: every sky every hour took
+// ten minutes a tier), haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off.
+// Each tier's runtime state (in two halves), its table travel and its sky are tests of their own, one CI shard each (shardedIt).
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
-import { afterEach, describe, expect, inject, it, vi } from 'vitest';
+import { afterEach, describe, expect, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import type { Light } from '$lib/game/lights';
+import { bandOf, type WorldLook } from '$lib/game/world';
+import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
@@ -33,11 +39,12 @@ import {
 	loadView,
 	manualClock,
 	mountFixture,
+	shardedIt,
 	type FixtureView,
 	type Mounted
 } from './testing';
 
-vi.setConfig({ testTimeout: 600_000 });
+vi.setConfig({ testTimeout: 600_000, hookTimeout: 90_000 });
 
 /** Every environment in the manifest, and the plain table. */
 const ENVIRONMENTS = [
@@ -55,9 +62,9 @@ const HOME = 'test-world';
 /** More lights than the renderer's pool of real point lights (POOL_SIZE in lighting.ts, 8). */
 const MANY_LIGHTS = 12;
 const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
-/** `THIRDFOLD_SHARD=k/n`: every nth tier from the kth, so CI sweeps the tiers in parallel jobs. */
-const [k, n] = inject('shard').split('/').map(Number);
-const SWEPT = TIERS.filter((_, i) => i % n === k - 1);
+/** The sky swept every hour; the others at the hours standing for each band, dawn and dusk apart. */
+const HOURLY_SKY = 'temperate';
+const BAND_HOURS = [360, 720, 1170, 1380];
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -269,6 +276,36 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	];
 }
 
+/** The sky and the rest of the world's look on the home table, as named steps (#225). */
+function skySteps(m: Mounted, home: FixtureView, skies: readonly string[]): Step[] {
+	const t = m.tabletop;
+	const size = home.grid.width * home.grid.height;
+	const world = (over: Partial<WorldLook>): WorldLook => ({ ...home.world, time: 780, ...over });
+	const flash = () => t.playCue('flash', null);
+	return [
+		// The sky (#225): a day in hourly steps under the open sky most tables wear, every sky at
+		// the band hours (each step captures it again, the clock moved past the tier's interval),
+		// haze from none to dense, a roof on and off, the flash and Reduce flashing.
+		...skies.flatMap((sky) =>
+			(sky === HOURLY_SKY ? Array.from({ length: 24 }, (_, h) => h * 60) : BAND_HOURS).map(
+				(time): Step => [
+					`sky ${sky} ${Math.floor(time / 60)}:${String(time % 60).padStart(2, '0')}`,
+					() => t.setLighting(bandOf(time), home.lights, world({ sky, time }))
+				]
+			)
+		),
+		...[0, 0.25, 0.5, 1].map((density): Step => [
+			`haze ${density}`,
+			() => t.setLighting('day', home.lights, world({ haze: { density, color: '#b8c0cc' } }))
+		]),
+		['roofed', () => t.setInterior(new Uint8Array(size).fill(1))],
+		['roof off', () => t.setInterior(null)],
+		['flash, reduced', () => (t.setReduceFlashing(true), flash())],
+		['flash, not reduced', () => (t.setReduceFlashing(false), flash())],
+		['world back', () => t.setLighting(home.ambient, home.lights, home.world)]
+	];
+}
+
 /** A roll to throw: a d20 showing its last face. */
 const THROW = { seq: 1, dice: [{ kind: 'd20' as const, face: 19 }], color: '#8a2f24' };
 
@@ -295,39 +332,16 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 	return { m, home, travel: travel.map((v) => v.view), clock, renderer, scene };
 }
 
-describe('the shader program count', () => {
-	it.each(SWEPT)('stays put through runtime state on %s', async (tier) => {
-		const { m, home, travel, clock, renderer } = await mountHome(tier);
-		const sweep = sweeper(m, renderer, clock);
-		const t = m.tabletop;
-		// Warm-up: every environment once, every table once. The programs of a table left behind stay
-		// compiled, so from here the counts hold still. (The lobby's gallery can't stand in, #180:
-		// r186 orders a shadowed lit material's uniforms by what the renderer built before.)
-		for (const e of ENVIRONMENTS) {
-			t.setEnvironment(e);
-			await drawn(t, clock);
-		}
-		for (const view of [...travel, home]) {
-			show(m, view);
-			await drawn(t, clock);
-		}
-		const p0 = sweep.counts();
-		const changes = await sweep.run(homeSteps(m, home, tier));
-		// Low draws one fetch a slot, medium and up anti-tile (#181). A switch that keeps the
-		// pipeline swaps the table's, the walls' and the raised ground's materials for their twins;
-		// it has no AO (low has none, and a new AO kind is a new renderer, Tabletop.svelte), so it
-		// is swept where there is none. See KNOWN for the first one.
-		const settings = settingsFor(tier, t.capabilities().backend);
-		const antiTile = (on: boolean) => () => t.setQuality({ ...settings, antiTile: on });
-		if (aoKind(settings) === 'none')
-			changes.push(
-				...(await sweep.run([
-					[`anti-tiling ${settings.antiTile ? 'off' : 'on'}`, antiTile(!settings.antiTile)],
-					['anti-tiling back', antiTile(settings.antiTile)],
-					['anti-tiling again', antiTile(!settings.antiTile)],
-					['anti-tiling as it was', antiTile(settings.antiTile)]
-				]))
-			);
+/**
+ * The runtime state on a tier against KNOWN: the home table's steps, or table travel (each its own
+ * test, so a CI job holds one of them within its budget).
+ */
+async function runtimeState(tier: Tier, part: 'home' | 'more' | 'travel'): Promise<void> {
+	const { m, home, travel, sweep } = await warmHome(tier);
+	const t = m.tabletop;
+	const p0 = sweep.counts();
+	if (part === 'travel') {
+		const changes: string[] = [];
 		// Table travel: to each table and back home, in both directions.
 		for (const view of [...travel, ...[...travel].reverse()]) {
 			const [w, h] = [view.grid.width, view.grid.height];
@@ -338,17 +352,87 @@ describe('the shader program count', () => {
 				]))
 			);
 		}
-		const stepOf = (change: string) => change.slice(0, change.indexOf(':'));
-		const known = changes.filter((c) => stepOf(c) in KNOWN);
-		console.info(`${tier} after the warm-up: ${JSON.stringify(p0)}; then\n${known.join('\n')}`);
-		if (sweep.codegen.length) console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
-		expect(changes.filter((c) => !(stepOf(c) in KNOWN))).toEqual([]);
-		const swept = (step: string) => !step.startsWith('anti-tiling') || aoKind(settings) === 'none';
-		const gone = FIRST_USE.filter(swept).filter((step) => !known.some((c) => stepOf(c) === step));
-		expect(gone, 'known compiles that are gone: drop them from KNOWN').toEqual([]);
-	});
+		expect(changes).toEqual([]);
+		return;
+	}
+	// The home steps in two halves, each a test (and a CI job) of its own.
+	const steps = homeSteps(m, home, tier);
+	const half = Math.ceil(steps.length / 2);
+	const changes = await sweep.run(part === 'home' ? steps.slice(0, half) : steps.slice(half));
+	if (part === 'home') {
+		expect(changes.filter((c) => !(c.slice(0, c.indexOf(':')) in KNOWN))).toEqual([]);
+		return;
+	}
+	// Low draws one fetch a slot, medium and up anti-tile (#181). A switch that keeps the
+	// pipeline swaps the table's, the walls' and the raised ground's materials for their twins;
+	// it has no AO (low has none, and a new AO kind is a new renderer, Tabletop.svelte), so it
+	// is swept where there is none. See KNOWN for the first one.
+	const settings = settingsFor(tier, t.capabilities().backend);
+	const antiTile = (on: boolean) => () => t.setQuality({ ...settings, antiTile: on });
+	if (aoKind(settings) === 'none')
+		changes.push(
+			...(await sweep.run([
+				[`anti-tiling ${settings.antiTile ? 'off' : 'on'}`, antiTile(!settings.antiTile)],
+				['anti-tiling back', antiTile(settings.antiTile)],
+				['anti-tiling again', antiTile(!settings.antiTile)],
+				['anti-tiling as it was', antiTile(settings.antiTile)]
+			]))
+		);
+	const stepOf = (change: string) => change.slice(0, change.indexOf(':'));
+	const known = changes.filter((c) => stepOf(c) in KNOWN);
+	console.info(`${tier} after the warm-up: ${JSON.stringify(p0)}; then\n${known.join('\n')}`);
+	if (sweep.codegen.length) console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
+	expect(changes.filter((c) => !(stepOf(c) in KNOWN))).toEqual([]);
+	const swept = (step: string) => !step.startsWith('anti-tiling') || aoKind(settings) === 'none';
+	const gone = FIRST_USE.filter(swept).filter((step) => !known.some((c) => stepOf(c) === step));
+	expect(gone, 'known compiles that are gone: drop them from KNOWN').toEqual([]);
+}
 
-	it('stays put through the toll with motion, its dust and shadow shown (#180)', async () => {
+/**
+ * The home table on a tier, warmed up: every environment once, every table once. The programs of a
+ * table left behind stay compiled, so from here the counts hold still. (The lobby's gallery can't
+ * stand in, #180: r186 orders a shadowed lit material's uniforms by what the renderer built before.)
+ */
+async function warmHome(tier: Tier) {
+	const home = await mountHome(tier);
+	const { m, travel, clock } = home;
+	for (const e of ENVIRONMENTS) {
+		m.tabletop.setEnvironment(e);
+		await drawn(m.tabletop, clock);
+	}
+	for (const view of [...travel, home.home]) {
+		show(m, view);
+		await drawn(m.tabletop, clock);
+	}
+	return { ...home, sweep: sweeper(m, home.renderer, clock) };
+}
+
+// One test per tier for the runtime state and one for the sky, so CI runs each in a job of its own
+// (`THIRDFOLD_SHARD=k/12`, .github/workflows/rendering.yml); the last two join the first shards.
+describe('the shader program count', () => {
+	const test = shardedIt();
+	for (const tier of TIERS) {
+		test(`stays put through runtime state on ${tier}`, async () => {
+			await runtimeState(tier, 'home');
+		});
+		test(`stays put through more runtime state on ${tier}`, async () => {
+			await runtimeState(tier, 'more');
+		});
+		test(`stays put through table travel on ${tier}`, async () => {
+			await runtimeState(tier, 'travel');
+		});
+		test(`stays put through the sky on ${tier}`, async () => {
+			const { m, home, sweep } = await warmHome(tier);
+			const skies = Object.keys((await loadManifest()).skies ?? {});
+			expect(skies).toContain(HOURLY_SKY);
+			const changes = await sweep.run(skySteps(m, home, skies));
+			if (sweep.codegen.length)
+				console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
+			expect(changes).toEqual([]);
+		});
+	}
+
+	test('stays put through the toll with motion, its dust and shadow shown (#180)', async () => {
 		const { m, home, clock, renderer } = await mountHome('medium', false);
 		const sweep = sweeper(m, renderer, clock);
 		const [prop] = home.props;
@@ -369,7 +453,7 @@ describe('the shader program count', () => {
 		expect(changes).toEqual([]);
 	});
 
-	it('reports a material with a literal of its own, by step', async () => {
+	test('reports a material with a literal of its own, by step', async () => {
 		const { m, renderer, scene, clock } = await mountHome('medium');
 		const sweep = sweeper(m, renderer, clock);
 		const bad = (value: number): Step => [
