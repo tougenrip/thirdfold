@@ -5,7 +5,8 @@
 // glides, `carry`), written to the scene's GridLight (materials/grid-light-node.ts). Only what
 // changed uploads: a light's own layer, the grid rows whose lists changed. Built only from what
 // the viewer was sent (its lights and tokens) and the client's obstacles: a hidden carrier is never
-// sent, so it is never a light here.
+// sent, so it is never a light here. Bounce and cavity (#234, grid-lights.ts) go in the lists
+// texture's tail when the lights, the obstacles or the floors changed, and only while `bounce` is on.
 
 import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
@@ -20,7 +21,18 @@ import { asObstacles, type Blockers } from '$lib/game/objects';
 import type { Token } from '$lib/game/token';
 import { SightCache, type CellMask } from '$lib/game/visibility';
 import { STEP_HEIGHT, type Ground } from './ground';
-import { buildLists, buildRows, GRID_LIGHT_CAPACITY, type LightEntry } from './grid-lights';
+import {
+	bounceField,
+	buildLists,
+	buildRows,
+	cavityField,
+	floorAlbedo,
+	GRID_LIGHT_CAPACITY,
+	openSides,
+	packIndirect,
+	strength,
+	type LightEntry
+} from './grid-lights';
 import { flickerPhase, flickerProfile, lightMount } from './light-model';
 import type { GridLight } from './materials/grid-light-node';
 
@@ -28,8 +40,7 @@ import type { GridLight } from './materials/grid-light-node';
 export const HAND = { x: 0.22, y: 0.75 };
 /** A light on a sconce or brazier hangs this far over the prop's top, in cells. */
 const ABOVE_SEAT = 0.1;
-/** A light's strength for its radius, over its look's intensity: about the pool's at two cells. */
-export const strength = (radius: number): number => 2 + radius;
+export { strength };
 
 /** A source that is on: a placed light or a token's carried light, with its id. */
 interface Lit {
@@ -71,8 +82,11 @@ export class GridLighting {
 	private sentRows: (Float32Array | null)[] = [];
 	/** The carrying token's id per layer, so `carry` follows its mini. */
 	private carriers: (string | null)[] = [];
-	/** How long the last build took, ms (`?perf`). */
+	/** How long the last build took, ms (`?perf`): bounce and cavity included. */
 	buildMs = 0;
+	/** What bounce and cavity were last built from, and the obstacles' sides and cavity (#234). */
+	private indirectKey: unknown[] = [];
+	private sides: { signature: string; open: Uint8Array; cavity: Float32Array } | null = null;
 
 	constructor(readonly light: GridLight) {}
 
@@ -82,7 +96,9 @@ export class GridLighting {
 		lit: readonly Lit[],
 		blocked: Blockers,
 		ground: Ground | null,
-		seats: ReadonlyMap<number, number>
+		seats: ReadonlyMap<number, number>,
+		floor: Uint8Array | null = null,
+		bounce = 0
 	): void {
 		const t0 = performance.now();
 		const obstacles = asObstacles(blocked);
@@ -129,7 +145,44 @@ export class GridLighting {
 		this.sent.length = this.sentRows.length = this.entries.length;
 		const sources = shown.map((l) => l.source);
 		this.light.setLists(grid, buildLists(grid, cache, sources, this.light.k));
+		this.indirect(grid, cache, blocked, sources, floor, bounce);
 		this.buildMs = performance.now() - t0;
+	}
+
+	/** Bounce and cavity (#234), rebuilt only when what they come from changed; off at 0. */
+	private indirect(
+		grid: SquareGrid,
+		cache: SightCache,
+		blocked: Blockers,
+		sources: readonly LightSource[],
+		floor: Uint8Array | null,
+		bounce: number
+	): void {
+		this.light.bounceGain.value = bounce;
+		this.light.cavityGain.value = bounce > 0 ? 1 : 0;
+		const lights = sources.map((s) => [
+			s.pos.x,
+			s.pos.y,
+			s.radius,
+			s.color,
+			lightLook(s).intensity
+		]);
+		const key = [bounce > 0, cache.signature, floor, JSON.stringify(lights)];
+		if (key.every((v, i) => v === this.indirectKey[i])) return;
+		this.indirectKey = key;
+		if (!bounce) return;
+		const cells = grid.width * grid.height;
+		if (this.sides?.signature !== cache.signature) {
+			this.sides = {
+				signature: cache.signature,
+				open: openSides(grid, blocked),
+				cavity: cavityField(grid, blocked)
+			};
+		}
+		const albedo = floorAlbedo(cells, floor?.length === cells ? floor : null);
+		const field = bounceField(grid, cache, sources, albedo, this.sides.open);
+		const { open, cavity } = this.sides;
+		this.light.setIndirect(grid, packIndirect(grid.width, field, cavity, open));
 	}
 
 	/** Carried lights follow their minis (`rootOf`: a mini's root, tweened): a layer each. */

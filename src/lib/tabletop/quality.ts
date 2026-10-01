@@ -56,7 +56,8 @@ export const LAYERS = [
 	'xray',
 	'dof',
 	'fogcloud',
-	'manylights'
+	'manylights',
+	'bounce'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
@@ -213,7 +214,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'manylights']);
+const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'manylights', 'bounce']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
@@ -258,10 +259,7 @@ export function settingsFor(tier: Tier, backend: Backend): QualitySettings {
 	);
 }
 
-/**
- * What follows from the antialiasing: MSAA's samples and TRAA's converge frames. Compatibility
- * WebGPU has no MSAA, so SMAA stands in for it.
- */
+/** MSAA's samples and TRAA's converge frames, from the antialiasing (compat WebGPU: SMAA). */
 function derive(s: QualitySettings, backend: Backend): QualitySettings {
 	const aa = backend === 'webgpu-compat' && s.aa === 'msaa' ? 'smaa' : s.aa;
 	return {

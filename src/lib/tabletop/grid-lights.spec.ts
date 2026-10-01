@@ -1,17 +1,32 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { decodeFloor } from '$lib/game/floor';
+import { decodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import type { GridPos, SquareGrid } from '$lib/game/grid';
 import { lightSources, litMask, type LightSource } from '$lib/game/lights';
-import { blockingEdges, windowEdges, type Obstacles, type SceneObject } from '$lib/game/objects';
+import {
+	blockingEdges,
+	canStep,
+	windowEdges,
+	type Obstacles,
+	type SceneObject
+} from '$lib/game/objects';
 import { obstaclesFor } from '$lib/game/props';
 import { parseSceneFile } from '$lib/game/scene-file';
 import { decodeLevels } from '$lib/game/terrain';
 import { addVision, emptyMask, hasLineOfSight, SightCache } from '$lib/game/visibility';
 import {
+	bounceField,
+	BOUNCE_RANGE,
 	buildLists,
 	buildRows,
+	CAVITY_PER_SIDE,
+	cavityField,
 	contribution,
+	floorAlbedo,
+	groundTint,
+	OPEN_BITS,
+	openSides,
+	packIndirect,
 	DATA_TEXELS,
 	GRID_LIGHT_CAPACITY,
 	LIGHT_TEXELS,
@@ -243,5 +258,109 @@ describe('packLight', () => {
 		expect(at(2)).toEqual([6.5, 7.5, 2, 0.75]);
 		expect(at(DATA_TEXELS)).toEqual([0, 1 / 8, 2 / 8, 3 / 8]);
 		expect(at(LIGHT_TEXELS - 1)).toEqual([252 / 8, 253 / 8, 254 / 8, 255 / 8]);
+	});
+});
+
+describe('bounce and cavity (#234)', () => {
+	const cells = grid.width * grid.height;
+	const bounceOf = (sources: LightSource[], blocked: Obstacles, floor: Uint8Array | null = null) =>
+		bounceField(
+			grid,
+			new SightCache().use(grid, blocked),
+			sources,
+			floorAlbedo(cells, floor),
+			openSides(grid, blocked)
+		);
+	const lit = (b: Float32Array, c: number) => b[c * 3] + b[c * 3 + 1] + b[c * 3 + 2] > 0;
+
+	it("stays on each light's own lit cells: nothing crosses a wall, nothing where it doesn't light", () => {
+		for (const s of SOURCES) {
+			const bounce = bounceOf([s], ROOMS);
+			const rules = litMask(grid, ROOMS, [s]);
+			const stray = [...rules.keys()].filter((c) => lit(bounce, c) && !rules[c]);
+			expect(stray, `${s.pos.x},${s.pos.y}`).toEqual([]);
+			expect(lit(bounce, s.pos.y * grid.width + s.pos.x)).toBe(true);
+		}
+		// Beside the wall on x = 12, away from the door gap: none on the far side.
+		const bounce = bounceOf([source(10, 5, 6)], ROOMS);
+		for (let y = 0; y < 10; y++) expect(lit(bounce, y * grid.width + 12), `12,${y}`).toBe(false);
+		expect(lit(bounce, 5 * grid.width + 11)).toBe(true);
+	});
+
+	it("follows the light's colour and the floor's albedo; a room without light has none", () => {
+		const open = obstacles([]);
+		const at = 5 * grid.width + 6;
+		const red = bounceOf([{ ...source(5, 5, 4), color: '#ff2000' }], open);
+		expect(red[at * 3]).toBeGreaterThan(10 * red[at * 3 + 1]);
+		const grass = new Uint8Array(cells).fill(FLOOR_IDS.indexOf('grass'));
+		const green = bounceOf([{ ...source(5, 5, 4), color: '#ffffff' }], open, grass);
+		expect(green[at * 3 + 1]).toBeGreaterThan(green[at * 3]);
+		expect(green[at * 3 + 1]).toBeGreaterThan(green[at * 3 + 2]);
+		const none = new Uint8Array(cells).fill(FLOOR_IDS.indexOf('void'));
+		expect(bounceOf([source(5, 5, 4)], open, none).every((v) => v === 0)).toBe(true);
+		expect(bounceOf([], ROOMS).every((v) => v === 0)).toBe(true);
+		// The same inputs, the same field.
+		expect(bounceOf(SOURCES, ROOMS)).toEqual(bounceOf(SOURCES, ROOMS));
+	});
+
+	it('puts cavity only at the feet of walls and ledges', () => {
+		const room = obstacles([
+			wall('n', { x: 2, y: 2 }, { x: 8, y: 2 }),
+			wall('w', { x: 2, y: 2 }, { x: 2, y: 8 })
+		]);
+		const cavity = cavityField(grid, room);
+		const at = (x: number, y: number) => cavity[y * grid.width + x];
+		expect(at(2, 2)).toBeCloseTo(2 * CAVITY_PER_SIDE); // the corner
+		expect(at(4, 2)).toBeCloseTo(CAVITY_PER_SIDE);
+		expect(at(4, 1)).toBeCloseTo(CAVITY_PER_SIDE); // the wall's far side
+		expect(at(5, 5)).toBe(0);
+		expect(at(0, 0)).toBe(0); // the grid's own edge doesn't count
+		const levels = new Uint8Array(cells);
+		levels[10 * grid.width + 10] = 2;
+		const ledge = cavityField(grid, obstacles([], levels));
+		expect(ledge[10 * grid.width + 9]).toBeCloseTo(CAVITY_PER_SIDE);
+		expect(ledge[10 * grid.width + 10]).toBe(0); // the top stays clean
+		expect([...ledge].filter((v) => v > 0)).toHaveLength(4);
+	});
+
+	it('spreads only across sides that sight crosses, never a window or a step too high', () => {
+		const levels = new Uint8Array(cells);
+		levels[3 * grid.width + 20] = 2;
+		const glass = [wall('win', { x: 3, y: 6 }, { x: 4, y: 6 }, true)];
+		const sides = openSides(grid, obstacles(glass, levels));
+		expect(sides[5 * grid.width + 3] & 2).toBe(0); // the window between (3,5) and (3,6)
+		expect(sides[5 * grid.width + 4] & 2).toBe(2);
+		expect(sides[3 * grid.width + 19] & 1).toBe(0); // up two levels
+		expect(sides[2 * grid.width + 20] & 2).toBe(0);
+		// Elsewhere, exactly what canStep in sight mode allows both ways (no windows there).
+		for (let y = 7; y < grid.height - 1; y++)
+			for (let x = 0; x < grid.width - 1; x++) {
+				const [c, e, s] = [
+					{ x, y },
+					{ x: x + 1, y },
+					{ x, y: y + 1 }
+				];
+				const both = (b: GridPos) => canStep(ROOMS, c, b, 'sight') && canStep(ROOMS, b, c, 'sight');
+				const open = openSides(grid, ROOMS)[y * grid.width + x];
+				expect(!!(open & 1), `${x},${y} east`).toBe(both(e));
+				expect(!!(open & 2), `${x},${y} south`).toBe(both(s));
+			}
+	});
+
+	it('packs bounce over BOUNCE_RANGE into RGB, and shut sides and open bits into A', () => {
+		const bounce = new Float32Array([BOUNCE_RANGE, BOUNCE_RANGE / 2, 9, 0, 0, 0]);
+		const cavity = new Float32Array([2 * CAVITY_PER_SIDE, 0]);
+		// Two cells side by side, open between them: the first's east, the second's west.
+		const out = packIndirect(2, bounce, cavity, new Uint8Array([1, 0]));
+		expect([...out]).toEqual([255, 128, 255, 2 * 16 + OPEN_BITS.east, 0, 0, 0, OPEN_BITS.west]);
+	});
+
+	it("tints the hemisphere's ground by the painted floors' hue, white with none", () => {
+		expect(groundTint(null)).toEqual([1, 1, 1]);
+		expect(groundTint(new Uint8Array(4))).toEqual([1, 1, 1]);
+		const [r, g, b] = groundTint(new Uint8Array(4).fill(FLOOR_IDS.indexOf('grass')));
+		expect(g).toBeGreaterThan(r);
+		expect(g).toBeGreaterThan(b);
+		expect(0.2126 * r + 0.7152 * g + 0.0722 * b).toBeCloseTo(1);
 	});
 });

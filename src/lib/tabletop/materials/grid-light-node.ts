@@ -12,17 +12,27 @@
 // coming and going only change texture data, and a light that changes uploads only its own layer.
 // Not dimmed by the rules' darkness: the lights are where the light is (KindLightingModel). Each
 // light wavers by its flicker profile and phase (#231, materials/flicker.ts): numbers, no program.
+// Bounce and cavity (#234) ride in the lists texture's tail, a texel per cell after each row's
+// lists, so they add no binding: the node reads them at the fragment's normal-offset cell as
+// `min(own cell, bilinear of four)`, so nothing filters across a wall, and hands them to the kinds'
+// lighting model (`KindLightingModel.gridIndirect`) for its indirect term. Their gains are uniforms.
 
 import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import { CORE_MAX, CORE_RADIUS, LIGHT_DECAY, READABLE_EDGE } from '$lib/game/lights';
 import type { SquareGrid } from '$lib/game/grid';
+import { groundFlat } from '../cell-maps';
+import { STEP_HEIGHT } from '../ground';
 import { flickerNode } from './flicker';
+import type { GridIndirect } from './lighting-model';
 import type { N } from './tsl';
 import {
+	BOUNCE_RANGE,
+	CAVITY_PER_SIDE,
 	DATA_TEXELS,
 	GRID_LIGHT_CAPACITY,
 	LIGHT_TEXELS,
+	OPEN_BITS,
 	packLight,
 	ROW_ANGLES,
 	type LightEntry
@@ -36,6 +46,8 @@ const TAPS = [-1, 0, 1];
 const ROW_EPS = 0.02;
 /** How far along its normal a fragment looks up its cell, in cells (each wall face its side). */
 const NORMAL_LOOKUP = 0.3;
+/** Cavity fades out this far over the floor, in cells: half a level, so wall tops stay clean. */
+const CAVITY_REACH = 0.5 * STEP_HEIGHT;
 
 const t = T as unknown as Record<string, N & ((...args: unknown[]) => N)>;
 
@@ -63,15 +75,25 @@ export class GridLight extends THREE.Light {
 		LIGHT_TEXELS,
 		GRID_LIGHT_CAPACITY
 	);
-	/** K light indices per cell, four to an RGBA8 texel, a layer per grid row. */
+	/**
+	 * A layer per grid row: K light indices per cell, four to an RGBA8 texel, then (from texel
+	 * `tail`) a texel per cell of bounce (RGB) and cavity (A), `packIndirect` (#234).
+	 */
 	readonly lists: THREE.DataArrayTexture;
+	/** The first bounce and cavity texel of a row. */
+	readonly tail: number;
 	readonly gridSize = T.uniform(new THREE.Vector2(1, 1));
 	readonly cellSize = T.uniform(1);
+	/** How strongly bounce lights (the tier's, 0 off) and cavity shades (1 on, 0 off). */
+	readonly bounceGain = T.uniform(0);
+	readonly cavityGain = T.uniform(0);
 
 	/** `k`, light indices per cell (a multiple of 4), is fixed: another K is another GridLight. */
 	constructor(readonly k: number) {
 		super(0xffffff, 1);
-		this.lists = layered(new Uint8Array(MAX_SIDE * k * MAX_SIDE), (MAX_SIDE * k) / 4, MAX_SIDE);
+		this.tail = (MAX_SIDE * k) / 4;
+		const width = this.tail + MAX_SIDE;
+		this.lists = layered(new Uint8Array(width * 4 * MAX_SIDE), width, MAX_SIDE);
 	}
 
 	/** Light `index`'s data and row, uploaded (its layer only) before the next frame. */
@@ -86,19 +108,29 @@ export class GridLight extends THREE.Light {
 
 	/** The cells' lists (`buildLists`' layout, `k` per cell): only the grid rows that changed upload. */
 	setLists(grid: SquareGrid, lists: Uint8Array): void {
+		this.setRows(grid, lists, grid.width * this.k, 0, this.tail * 4);
+		this.gridSize.value.set(grid.width, grid.height);
+		this.cellSize.value = grid.cellSize;
+	}
+
+	/** Each cell's bounce and cavity (`packIndirect`): only the grid rows that changed upload. */
+	setIndirect(grid: SquareGrid, texels: Uint8Array): void {
+		this.setRows(grid, texels, grid.width * 4, this.tail * 4, MAX_SIDE * 4);
+	}
+
+	/** Writes `w` bytes a grid row of `data` at byte `at` of each layer, `size` bytes, zero past it. */
+	private setRows(grid: SquareGrid, data: Uint8Array, w: number, at: number, size: number) {
 		const out = this.lists.image.data as unknown as Uint8Array;
-		const [w, stride] = [grid.width * this.k, MAX_SIDE * this.k];
-		const next = new Uint8Array(stride);
+		const stride = (this.tail + MAX_SIDE) * 4;
+		const next = new Uint8Array(size);
 		for (let y = 0; y < MAX_SIDE; y++) {
 			next.fill(0);
-			if (y < grid.height) next.set(lists.subarray(y * w, y * w + w));
-			const row = out.subarray(y * stride, y * stride + stride);
+			if (y < grid.height) next.set(data.subarray(y * w, y * w + w));
+			const row = out.subarray(y * stride + at, y * stride + at + size);
 			if (row.every((v, i) => v === next[i])) continue;
 			row.set(next);
 			this.lists.addLayerUpdate(y);
 		}
-		this.gridSize.value.set(grid.width, grid.height);
-		this.cellSize.value = grid.cellSize;
 		if (this.lists.layerUpdates.size) this.lists.needsUpdate = true;
 	}
 
@@ -149,6 +181,8 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 		const gridSize = light.gridSize as unknown as N;
 		const load = (texture: THREE.Texture, x: N, layer: N) =>
 			textureLoad(texture, ivec2(x, 0)).depth(layer);
+		const model = (b.context as { lightingModel?: { gridIndirect?: GridIndirect } }).lightingModel;
+		if (model && 'gridIndirect' in model) model.gridIndirect = indirectNode(light, load);
 		(t.Fn as unknown as (f: () => void, type: string) => () => void)(() => {
 			const p = t.positionWorld.add(t.normalWorld.mul(cellSize.mul(NORMAL_LOOKUP)));
 			const cell = p.xz.div(cellSize).add(gridSize.mul(0.5)).toVar();
@@ -196,6 +230,68 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 		}, 'void')();
 		return undefined as unknown as ReturnType<THREE.AnalyticLightNode<THREE.Light>['setup']>;
 	}
+}
+
+/**
+ * Bounce (irradiance) and cavity (the factor on the indirect light) at the fragment (#234), from the
+ * lists' tail at its normal-offset cell: the bilinear of that cell and its three nearest, each
+ * neighbour taken only across open sides (`OPEN_BITS`, else the cell's own), then `min` with the
+ * cell's own, so a value never rises past its cell's and nothing filters across a wall. Cavity
+ * fades out over `CAVITY_REACH` above that cell's floor (the ground map's level). Off the grid:
+ * no bounce and no cavity.
+ */
+function indirectNode(light: GridLight, load: (t: THREE.Texture, x: N, layer: N) => N) {
+	const { int, ivec2, float, floor, fract, mix, min, max, abs, step, smoothstep, vec4 } = t;
+	const cellSize = light.cellSize as unknown as N;
+	const gridSize = light.gridSize as unknown as N;
+	const p = t.positionWorld.add(t.normalWorld.mul(cellSize.mul(NORMAL_LOOKUP)));
+	const cell = p.xz.div(cellSize).add(gridSize.mul(0.5));
+	const last = ivec2(gridSize).sub(1);
+	const fit = (c: N) => max(min(c, last), ivec2(0, 0));
+	/** A cell's texel as (bounce, cavity) and its open-side bits, 0-15. */
+	const read = (c: N) => {
+		const texel = load(light.lists, fit(c).x.add(int(light.tail)), fit(c).y);
+		const a = t.round(texel.w.mul(255));
+		const shut = floor(a.div(16));
+		return { value: vec4(texel.xyz, shut.mul(CAVITY_PER_SIDE)), bits: a.sub(shut.mul(16)) };
+	};
+	const bit = (bits: N, value: number) => floor(bits.div(value)).mod(2);
+	// Toward the nearer neighbours: east or west, south or north, and how far (0 at the centre).
+	const u = fract(cell);
+	const [east, south] = [step(0.5, u.x), step(0.5, u.y)];
+	const k = abs(u.sub(0.5));
+	const dx = ivec2(int(east.mul(2).sub(1)), int(0));
+	const dy = ivec2(int(0), int(south.mul(2).sub(1)));
+	const ownAt = ivec2(floor(cell));
+	const across = (bits: N) => ({
+		x: mix(bit(bits, OPEN_BITS.west), bit(bits, OPEN_BITS.east), east),
+		y: mix(bit(bits, OPEN_BITS.north), bit(bits, OPEN_BITS.south), south)
+	});
+	const own = read(ownAt);
+	const [h, v, d] = [read(ownAt.add(dx)), read(ownAt.add(dy)), read(ownAt.add(dx).add(dy))];
+	const [o, oh, ov] = [across(own.bits), across(h.bits), across(v.bits)];
+	const diagonal = max(o.x.mul(oh.y), o.y.mul(ov.x));
+	const taken = (n: { value: N }, open: N) => mix(own.value, n.value, open);
+	const smooth = mix(
+		mix(own.value, taken(h, o.x), k.x),
+		mix(taken(v, o.y), taken(d, diagonal), k.x),
+		k.y
+	);
+	const inside = float(cell.x.greaterThanEqual(0))
+		.mul(float(cell.y.greaterThanEqual(0)))
+		.mul(float(cell.x.lessThan(gridSize.x)))
+		.mul(float(cell.y.lessThan(gridSize.y)));
+	const value = min(own.value, smooth).mul(inside);
+	const level = (groundFlat as unknown as { load(c: N): N }).load(fit(ownAt)).y.mul(255);
+	const above = t.positionWorld.y.div(cellSize).sub(level.mul(STEP_HEIGHT));
+	const near = smoothstep(float(0), float(CAVITY_REACH), above).oneMinus();
+	return {
+		bounce: value.xyz.mul((light.bounceGain as unknown as N).mul(BOUNCE_RANGE)),
+		cavity: value.w
+			.mul(light.cavityGain as unknown as N)
+			.mul(near)
+			.oneMinus()
+	};
 }
 
 const registered = new WeakSet<object>();

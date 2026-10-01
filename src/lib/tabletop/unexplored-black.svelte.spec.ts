@@ -13,7 +13,7 @@
 // never saw, its lantern reaching on into the dark (the server never sends one, grid-light-layer.spec.ts;
 // here the picture holds even if it did). The sky (#225) adds
 // its own poses, always run: a low camera toward the horizon, dense haze, a dark area at noon and a
-// roofed table.
+// roofed table. Bounce and cavity (#234) are on, at each tier's strength.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -335,6 +335,7 @@ async function mountCase(
 	clock.set(65_000); // past every fade; flames, mist and grain still hold still
 	const settings = settingsFor(c.tier, m.tabletop.capabilities().backend);
 	expect(settings.bloom && settings.layers.lens && settings.grain).toBe(true);
+	expect(settings.layers.bounce, 'bounce and cavity on (#234)').toBe(true);
 	if (c.cloud) {
 		const layers = { ...settings.layers, fogcloud: true };
 		m.tabletop.setQuality({ ...settings, miniature: false, layers });
