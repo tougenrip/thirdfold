@@ -796,9 +796,11 @@ should be the first thing an upgrade fails.
   low tier drops the occlusion taps and reads lists only (cell-exact walls, no wedges).
 - Radiance cascades do not deserve a research issue yet: the per-light rows give exact wall shadows
   at this cost, and #234's bounce field covers the indirect light the cascades would add.
-- Unrelated, seen on every path and on M67's pool: on WebGPU one pipeline per table fails with
-  "Color target has no corresponding fragment stage output" (`targets[1]`, a mini's), worth its own
-  issue.
+- Unrelated, seen on every path and on M67's pool: on WebGPU one pipeline per table failed with
+  "Color target has no corresponding fragment stage output" (`targets[1]`). Not a mini's (#379): the
+  mini's async compile only caught the error in its scope. It was the output stage's quad, drawn by
+  a perf benchmark while the warm-up held the scene pass's three targets set; a benchmark now waits
+  for the warm-up, and `fixtures.svelte.spec.ts` benchmarks during one on both backends.
 
 ### The shipped path (#228)
 

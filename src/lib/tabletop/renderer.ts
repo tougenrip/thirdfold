@@ -487,7 +487,7 @@ export async function createTabletop(
 		loads: loadProgress,
 		setPowerSaver: (on) => (loop.setPowerSaver(on), cloud.setPowerSaver(on)),
 		setReduceFlashing: (on) => effects.setReduceFlashing(on),
-		...perfMethods(renderer, perf, drawScene, { loop, quality })
+		...perfMethods(renderer, perf, drawScene, { loop, quality, warming: () => warming })
 	};
 	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key
 	// light, which redraws them by its own rule (AtmosphereLayer.shadowFrame), and lights only
