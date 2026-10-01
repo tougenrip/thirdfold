@@ -3,7 +3,7 @@
 	"surface": "cave-floor",
 	"ground": "cave-rock",
 	"walls": "ancient-stone",
-	"table": "oak",
+	"sky": "underground",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["ashlar"]

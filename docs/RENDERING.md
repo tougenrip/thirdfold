@@ -190,7 +190,7 @@ The port is [#144](https://github.com/tougenrip/thirdfold/issues/144).
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------- |
 | `render()` throws before `await renderer.init()`, so `createTabletop` becomes async                                                                                                                     | `renderer.ts`, `Tabletop.svelte`, `load.ts`                  | [#144](https://github.com/tougenrip/thirdfold/issues/144) |
 | `Renderer.shadowMap` is only `{ enabled, transmitted, type }`; shadow caching moves to per-light `shadow.autoUpdate` / `needsUpdate`                                                                    | `renderer.ts` (`shadowsDirty`)                               | [#143](https://github.com/tougenrip/thirdfold/issues/143) |
-| `material.clippingPlanes` and `localClippingEnabled` are ignored (clip through `ClippingGroup`); WebGPU points are 1 px                                                                                 | `ambience.ts` (mist), `effects.ts` (dust)                    | [#145](https://github.com/tougenrip/thirdfold/issues/145) |
+| `material.clippingPlanes` and `localClippingEnabled` are ignored (clip through `ClippingGroup`); WebGPU points are 1 px                                                                                 | `effects.ts` (dust)                                          | [#145](https://github.com/tougenrip/thirdfold/issues/145) |
 | In `Info`, `render.calls` counts render calls since start; draws are `render.drawCalls` and programs `memory.programs`; `gl.readPixels` timing gives way to `trackTimestamp` / `resolveTimestampsAsync` | `perf.ts`, `renderer.ts` (`benchmark`), `scripts/perf-*.mjs` | [#146](https://github.com/tougenrip/thirdfold/issues/146) |
 | `PCFSoftShadowMap` warns and falls back to `PCFShadowMap` (PCF is soft since r182); `PostProcessing` is now `RenderPipeline` (r183); `TRAAPassNode` is now `TRAANode` (r179)                            | `renderer.ts`                                                | [#144](https://github.com/tougenrip/thirdfold/issues/144) |
 
@@ -375,47 +375,284 @@ and `applyScene`. `server/ambient-writer.spec.ts` fails if anything else under `
 assigns `.ambient` or `.world`. A band change posts one notice ("X changed the lighting to
 darkness."); moving the hour within a band posts none.
 
-Until the sky (#114), the renderer shows the hour by blending its three lighting presets
-(`LightingLayer.update`; temporary, #218 replaces it with atmosphere curves): `presetWeights(time)`
-in `tabletop/time-blend.ts` (pure, `time-blend.spec.ts`) is one-hot at the canonical hours and at
-06:00, holds day from 08:00 to 17:30 and dark from 22:00 to 04:30, and is linear between those keys,
-so at most two presets mix. Only the background, the hemisphere's colours and strength, the sun and
-the lamp blend (numbers and one reused background colour, no program); a sunless table keeps its
-band's preset. What the rules darken (the light levels, the cell maps, the colour grade) stays keyed
-on `ambient`, so between 19:30 and 21:00 the scene darkens while the dark itself waits for 21:00. The
-look's `grade.exposure` scales the hemisphere and sun by 2^EV until post applies it (#161). A table
-from before the world look sits at its band's canonical hour and draws exactly as it did.
+The renderer shows the hour through the atmosphere curve (below): `AtmosphereLayer` in
+`tabletop/atmosphere.ts` (#215, #217, #218) resolves the table's sky (`resolveSky(world, environment,
+manifest)`, then `presetOf`), evaluates `atmosphereAt` at the look's hour (a sunless table, or one
+without a look, at its band's canonical hour; an enclosed sky takes its band's key until #221) and
+applies it. What the rules darken (the light levels, the cell maps, the colour grade) stays keyed on
+`ambient`, so between 19:30 and 21:00 the scene darkens while the dark itself waits for 21:00.
+
+**Scene-level nodes.** `createScene` sets three module singletons on every scene, the lobby's and
+each table's, before anything compiles, so their program keys match and no hour, sky, haze or weather
+compiles anything: `skyFogNode` (`fog(colour, min(max(rangeFogFactor, exponentialHeightFogFactor),
+cap))`, the colour the curve's haze warmed toward the key light by `pow(max(dot(view, sunDir), 0), 8)`
+times the sun's glow, the cap `PLAY_FOG_CAP` over the play area's circle lifting to 1 over
+`PLAY_FOG_BLEND` beyond it, the range `fogRange(extent)`; scene fog runs before `worldModify`, so
+unexplored cells stay 0), `skyEnvNode` (the PMREM of `SKY_CUBE` in `sky.ts`, the sky capture's
+target (#216), times `state.ibl` and `skyAmbient`, the sky's reach per cell (#219)) and the background
+colour (the haze's at the horizon, which the dome covers; on low the dome is hidden and it shows).
+`bindSkyEnv` gives the environment node a prefilter of each new renderer's, and `registerSkyLights`
+maps `SkyLight` and `SkyHemisphere` to their masked nodes, both from `setUpRenderer` (loop.ts), so the
+lobby's renderer and a lost device's rebuild are covered. `AtmosphereLayer` owns the table's
+`SkyLayer` (`sky`): `apply` feeds it every state; `frame(now)`, on drawn frames only, sets its clock
+and captures the sky into the cube when `CaptureThrottle` (`CAPTURE_INTERVAL_MS` by tier, reset per
+table) says the `environmentKey` changed, timed as `pmrem`, with one timer for a trailing capture (set
+once per wait, so a held clock never asks for frames forever); the first capture runs in the warm-up
+hold, so no frame draws with an empty cube; `setTier` shows the dome or not, sets the interval and
+picks the cube (below, "The low tier"). `THREE.Fog`, `FOG`, the mist planes (`ambience.ts`), the
+presets, their blend (`time-blend.ts`) and the lamp are gone.
+
+**Applying a state.** The key light stands two play radii from the play area's centre toward the
+body, raised to `MIN_SHADOW_ELEVATION_DEG` (the dome keeps the true position), with the state's colour
+and strength (0 under an enclosed sky); its shadow box is the play sphere, valid from any direction.
+The hemisphere takes `hemi` (an enclosed sky's `fill` blended in as light from nowhere), the fog its
+colour, density and height (the world's haze thickens it, `HAZE_DENSITY` per unit, and tints it to its
+colour), post's exposure `2^(state.exposure + grade.exposure)` in EV, and the point-light pool its
+strength from `nightGlow` (0.5 by day, 1 at night: `LightingLayer.setGlow`; flames flicker past 0.5 or
+in a dark area). Every write is into existing objects. A new hour tweens the short way round the clock
+over `TWEEN_MS` (3 s, ease-out), re-evaluating the curve each frame (`tick`, part of `drawFrame`'s
+moving flag); it snaps under reduced motion and on a new table (`fit`). The sky, weather and haze snap.
+
+**Shadows.** `AtmosphereLayer.shadowFrame` sets the key light's `shadow.needsUpdate` when the table
+changed (`shadowsDirty`, while the light shines), when `shadowNeedsRedraw` says the light turned
+`SHADOW_STEP_DEG` or switched body since it was last drawn, or when forced (the first frame, the
+gallery). `setLighting` no longer marks the table changed unless its lights did (their fixtures cast
+shadows), so an hour redraws by the rule alone: a day's sweep a minute at a time draws 481 maps (two
+body switches), noon to 13:00 21, noon to 18:30 131 (`atmosphere.svelte.spec.ts` checks the count
+against the rule and that nothing compiles).
+
+### The atmosphere curve (#212)
+
+`tabletop/atmosphere-curve.ts` is pure and three-free (relative imports only, tested in the server
+project by `atmosphere-curve.spec.ts`, so the asset pipeline runs it too): `atmosphereAt(preset,
+time, weather, out?)` turns a `SkyPreset`, the hour and the weather into an `AtmosphereState`, every
+number the sky, key light, hemisphere, IBL, fog and grade need. It is the one place that decides what
+19:30 in rain looks like; the renderer applies its result and nothing else. `out` is filled in place,
+so a tween frame allocates nothing, and the same inputs always give the same state. The maths it
+builds on (`kelvinToLinear`, `sunDirection`, `moonDirection`, `moonIllumination`, `elevationOf`) is
+in `tabletop/sky-maths.ts` and re-exported. Skies are the manifest's `SkyDef` (#213, built from
+`assets/skies`); `presetOf(def)` maps one to the `SkyPreset` the curve reads (the path's moon onto
+the preset, its phase from a share of the cycle into days). The default open sky, `temperate`, is
+tuned so 12:00, 19:30 and 23:00 give exactly the old lighting presets' hemisphere, sun and haze (its
+dome, IBL, moon, stars, clouds and night glow are a first guess for the M67 look review).
+
+**Axes and units.** Y up, grid north along -Z, east along +X, all turned about Y by the path's
+`north` (degrees). Directions are unit vectors from the table toward the body; elevations are in
+degrees. Colours are linear sRGB, written in presets as `#rrggbb` and linearised as three's
+`Color.setHex` does; the sun's may instead be a temperature (`sunKelvin`, Tanner Helland's fit,
+1000-40000 K). Colours stay in 0-1 (the HDR is in the strengths: the key light up to 2, exposure in
+EV within ±1), which the spec checks every minute in every weather.
+
+**A preset.** `kind` open or enclosed; an open sky's `path` (`latitude`, `declination`, `north`,
+`noon`, `DEFAULT_PATH` when absent), `moonCycle` and `moonPhase` (days; half the cycle is full) and
+`moonColor`; 2-16 `keys` in rising minutes, each with the sun's colour, `sun` and `moon` (the key
+light's strength by body), `hemiSky`, `hemiGround`, `hemi`, `ibl`, the dome's `zenith`, `horizon`
+and `ground`, `fog` (`color`, three's `density` per metre, the layer's `height` in metres),
+`exposure`, `stars`, `clouds` and `nightGlow` (how much windows and fixtures glow); an enclosed sky's
+keys add `fill` (colour and strength), one key per rules band at its canonical hour, and it never
+has a key light (#221, "Enclosed skies" below).
+
+**The sun and moon.** Hour angle `H = (minute - noon) / 1440 · 2π`, elevation `asin(sin φ sin δ +
+cos φ cos δ cos H)`. Solar noon is 13:00 (780), because the bands are symmetric about it: a path
+symmetric about 12:00 cannot have the sun up at 18:59 and 6° down at 04:59. The moon runs the same
+path a `phase` of a turn behind (`phase = ((day + moonPhase) mod moonCycle) / moonCycle`, whole days
+of the absolute time; `WorldLook.time` is a minute of day, so today the phase is the preset's own).
+The one directional light, `key`, is the sun down to `HANDOVER_DEG` (-4°), fading to 0 there from
+0°, then the moon, fading in to -8°, its strength times its lit share with `MOON_FLOOR` (a moonless
+night still reads) and its colour moon-blue (the Purkinje shift). The body switches only at key light
+0, so `shadowNeedsRedraw` counts the switch without a visible pop.
+
+**Keys and weather.** Keys blend by smoothstep between neighbours, round midnight too (23:59 and
+00:00 agree). Weather (`none`, `rain`, `storm`, `fog`, `snow`, `ash`, `dust`, by `intensity` 0-1)
+only dims the sun and hemisphere, only raises clouds (hiding stars), fog density and height, only
+lowers exposure, and tints the haze (rain grey-blue, ash grey, dust ochre; snow also whitens the
+horizon and ground), so every field is monotonic in intensity. Overcast is a preset, not a weather.
+`lut` weighs the grade by the sun's height (day above 0°, dark below -10°), for #162; the grade stays
+keyed by band for now.
+
+**Continuity.** Over any minute no number moves more than 0.05 (the key light as colour times
+strength; its direction and colour jump only at strength 0), and the sun and moon less than 0.3°.
+
+**The band contract.** `checkBandContract(preset)` names every way an open preset contradicts the
+rules' bands (`bandOf`, the only source of the edges), minute by minute with no weather: by day the
+sun is above the horizon and no stars show; in the dark the sun is at `DARK_SUN_DEG` (-6°) or lower
+and the moon is the key; and every day minute's hemisphere is brighter than every dark minute's. It
+also checks the keys' count and order. `temperate` (latitude 45°, declination 10°, noon 13:00)
+passes; noon at 12:00 fails. The pipeline refuses a sky that fails (`pipeline-skies.ts`, #213).
+
+**Shadows.** `shadowDirection` raises the key light to at least `MIN_SHADOW_ELEVATION_DEG` (12°)
+for the shadow map, keeping its bearing. `shadowNeedsRedraw(drawn, next)` is true when the light as
+last drawn turned `SHADOW_STEP_DEG` (0.5°) or more, or switched body, and never for a light of
+strength 0: a day's sweep redraws about once per half degree.
+
+**The captured sky.** `environmentKey(state)` quantises what the captured environment sees (the dome's
+colours in square-root steps, so night's dim colours count; the sun's direction by about 5° while its
+glow shows; glow, clouds and stars by tenths). The environment is captured again only when it changes
+(#216): about 160 times over a day with no weather, never under an enclosed sky.
+
+**Fog.** `fogFactorAt(fog, range, viewZ, y, fromPlay)` is what the scene's fog node works out (#217):
+the larger of range fog (three's `rangeFogFactor`, `fogRange(extent)`: from 1.5 to 3.5 table
+extents, never nearer than 40-90 m, so it starts about at the far edge of the play area as the
+default poses see it, #221) and height fog (`exponentialHeightFogFactor`), held to `PLAY_FOG_CAP`
+(0.3) over the play area and lifting to 1 over `PLAY_FOG_BLEND` (6 m) beyond it, so the world past
+the grid fades out while the play area always reads. The spec checks the cap from both default poses
+on every grid from 4×4 to 64×64 in thick fog, and that at noon with no weather every open sky leaves
+the play area's far corner under 8% fog.
+
+**The skies' haze (#221).** Height fog is `(height - y) · viewZ · density` squared, so at the default
+poses' 30-100 m a density of 0.012 over 30 m (the first presets) put every play cell at the cap in
+the old brown background. The haze is now thin and the colour of the sky's horizon: at noon 0.0004-
+0.0006 per metre under a 4-5 m layer (under 2% at the village's far corner), dawn and dusk about
+0.001 in the horizon's warm hue (5-10%), night 0.0008-0.0012 in moonlit blue. Past the play area the
+cap lifts and range fog closes the world into the horizon. IBL is 0.4 by day, 0.3 at dawn and dusk and
+0.2 at night on open skies, 0.1-0.15 under enclosed ones; moonlight 0.06-0.18.
+
+### The dome and its capture (#214, #216)
+
+`tabletop/sky.ts` `SkyLayer` is the sky: a unit sphere round the camera pinned to the far plane (as
+three's `SkyMesh`), whose colour is a zenith, horizon and ground gradient, the sun's disc (HDR, which
+bloom catches) and two glows, the moon as a sphere impostor lit from the sun (its phase for free),
+fbm clouds drifting on the wall clock (SkyMesh's sinless noise, so every GPU agrees), and an
+enclosed sky's rock (`shell`); apart from it, one instanced draw of seeded stars (`starField`,
+`STAR_COUNTS` per tier, turning with the hour, twinkling unless motion is reduced). Everything that
+varies is a uniform fed by `apply(state, haze, inscatter)`, so no hour, sky or weather compiles. It
+is not the world: it reads no cell map, fog is off on it, and it writes 0 to the scene pass's
+`hidden` attachment (as dice do), so the re-mask never stamps unexplored ground on the sky.
+
+**The horizon.** The fog paints the far ground in its colour (warming toward the sun by the
+inscatter), so the dome's horizon is that colour too: at the line the dome is exactly the haze (the
+world's haze tint included), rising into the preset's own `horizon` over `HAZE_BAND` (0.12, about 7°)
+and into the zenith above; below the line it is the haze into `ground`. The sun, moon and an enclosed
+sky's rock fade into the haze at the line. The fogged ground and the sky meet with no step for every
+sky and hour: the horizon test (`renderer.svelte.spec.ts`) measures 2 of 255 across the seam (it
+allows 8) at noon and dusk.
+
+**The capture.** `capture` renders `envScene` (a second dome sharing the material, and nothing
+else, so no geometry of the table ever shows in a reflection; no sun disc, which sparkles in rough
+surfaces) into `SKY_CUBE` (64 px, half float, module-level, never disposed), linear with no tone
+mapping or MRT; three's PMREM filters it again on the next frame, and `skyEnvNode` samples that.
+`CaptureThrottle` (sky-maths.ts) captures when `environmentKey` changed, at most every 2 s on high
+and ultra and 5 s on medium, with one trailing capture so the last state is the one captured.
+
+### Sky visibility (#219)
+
+How much of the sky each cell sees is the `visibility` map's A channel (`skyVisibilityMap` in
+`cell-maps.ts`, from the `darkness` and `interior` masks the viewer was sent, nothing else): 1 under
+the open sky, `INDOOR_FILL` (0.6) under a roof, 0 in a dark area, then a one-cell blur on the lit
+side only, so a dark cell never gets sky light. `worldModify`'s `skySun` (the sun's share: 0 below
+the fill) and `skyAmbient` scale the sky's lights: `SkyLight` (the key light) multiplies its direct
+light and shadows by `skySun`, `SkyHemisphere` its irradiance by `skyAmbient`, and `skyEnvNode` the
+IBL by `skyAmbient` too, so a dark area is as dark at noon as at midnight (the ringing chamber,
+`sky-light.svelte.spec.ts`, which also checks IBL alone, four times over, never reaches it) and a
+roofed room keeps an indoor fill without the sun. Point lights are untouched. `setInterior` on the
+tabletop carries `room.interior`; `flashLift` raises the sky's reach during a flash.
+
+### The ground to the horizon (#220)
+
+The table's slab and rim are gone. `tabletop/world-ground.ts` (pure) gives a table's extents:
+`worldExtents` has the play extent (the grid's box up to a wall above its highest floor: picking,
+views, shots, the warm-up camera, the effects' bounds, the shadow box's sphere and how far the
+camera may pull back) and the world extent (the ring out to the horizon, the haze from `fogRange`,
+the far plane); `ringVertices` is the ring from the grid's edge out to a circle at the horizon,
+closer together near the grid. `tabletop/landscape.ts` `WorldGround` draws the play plane (the
+terrain kind, painted floors from the ground map) and the ring (the surface kind in the environment's
+ground look, plain earth without one), fogged, never picked, built from the grid's size and the look
+only (never a cell), rebuilt only with the grid, 24 segments on low and 96 above. Off the grid
+`worldModify` is neutral. The camera tilts to 85° and `CameraRig.keepAbove` holds it
+`GROUND_CLEARANCE` over the ground under it.
+
+### The low tier and software GL (#225)
+
+Software rasterisers and compat WebGPU start on low (`qualityFor`); SwiftShader in the client tests
+is detected as software (`stability.svelte.spec.ts`), though the tests pin their own tier (medium
+unless asked). On low the atmosphere costs next to nothing: the dome and stars are hidden (the
+objects stay, so a tier switch is visibility only) and the background, a clear colour, is the haze at
+the horizon; the sky is captured once per table (`CAPTURE_INTERVAL_MS.low` is infinite, the throttle
+reset per table) into `SKY_CUBE_LOW`, 16 px, inside the warm-up hold (`setTier` swaps the PMREM
+node's texture, whose sizes are uniforms, so nothing compiles); and the fog's height density is 0,
+range fog only. The key light, hemisphere, sky visibility and flash are the same on every tier: they
+are the rules' picture. The gradient background the issue left open was not taken: the flat haze
+colour matches the fogged ground, and a gradient would cost a draw for no reading.
+
+### Enclosed skies (#221)
+
+The cavern (the Hollow) wears `underground`, the living cave (the Heart) `abyss` and the railcar (the
+train and the locomotive) `lamplit`; "Underground (no sun)" on any table resolves to `underground`
+(`resolveSky`). None shows a sun, moon, stars or clouds, and none follows the hour or the weather,
+but each keeps the rules band: its three keys sit at 12:00, 19:30 and 23:00 and `presetFor`
+(atmosphere.ts) uses the band's whole, so a sunless table keeps its band's light (the GM's band
+radios underground, Communion's dusk in the Hollow, and the train, whose look has a sun switch on:
+its band follows the hour, and at Blackwater's midnight the dark key all but puts out its warm fill as
+the lamps go out). A key's hemisphere is the old preset's for its band; the `fill` is the look: the
+Hollow a dim desaturated navy (ref 4, silhouettes legible) over a near-black navy shell and lake mist
+below the shore (0.8 m); the Heart a low crimson over a black shell, crushed (ref 3); the train
+lamplit wood. `skies.spec.ts` checks that the train's band follows the hour and the Hollow's and the
+Heart's do not.
+
+### The flash (#222, #223)
+
+A `flash` cue lights the whole table for `FLASH_MS` (`src/lib/game/chat.ts`, the server's window).
+`EffectsLayer` keeps the envelope with `flashAt` (flash.ts): full in 5% of the window, held to 30%,
+then a linear fall to 0 at `FLASH_MS`; a cue while one plays (`retrigger`) holds it on from where it
+is, so the Keeper's tolls back to back never dip into the dark and rise again. The renderer hands the
+strength `k` and the policy to `AtmosphereLayer.setFlash(k, policy)` and to `CellMaps.setFlash(k)`:
+
+- exposure up `min(FLASH_EV · k, policy.maxEV)` EV (`FLASH_EV` 1);
+- bloom up `FLASH_BLOOM · k · policy.bloom` (0.4) over the tier's own, only where the tier blooms
+  (`Post.bloomBase` above 0), so the bloom passes' gate never opens for a flash;
+- the hemisphere up `FLASH_HEMI · k · policy.hemisphere` (1.5), in a cool white;
+- the sky's reach (`flashLift`) and the dark's thinning to `k`, never capped, so a reduced flash shows
+  exactly as much for exactly as long; fog of war is untouched and unexplored cells stay black.
+
+All uniforms: no program changes (`flash.svelte.spec.ts` counts them across both policies).
+
+**Reduce flashing** (the Graphics menu, `GraphicsPrefs.reduceFlashing`: `auto` follows
+`prefers-reduced-motion` live, `on` and `off` override it; per viewer, never sent) is separate from
+reduced motion, which keeps the flash as the one sign of what the server shows. `flashPolicy(true)`
+rises over 500 ms (`REDUCED_RISE_MS`, 20% of the window), holds to 40%, caps exposure at +0.5 EV,
+bloom at 30% and the hemisphere lift at half, and `neutralRed`: over a red grade's light (the
+hemisphere's red share 0.6 or more: `abyss`, `blood-moon`) the exposure lift is dropped and the
+hemisphere, doubled, carries the flash in white, so saturated red never pulses. Every flashing effect
+goes through `flashPolicy` (lightning #323 and the finale's effects #336 too). `countFlashes` is WCAG
+2.3.1's rule over sampled frames; `flash.svelte.spec.ts` feeds it frames of the chamber's flash, of
+tolls 2.5 s apart and of a cue inside the hold, in both modes: 3 or fewer flashes a second, no red
+flash, and with Reduce flashing no swing quicker than the 500 ms fade.
 
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
 delegations; every module in the folder stays under 500 lines (`modules.spec.ts` checks it).
 
-| Module            | What it holds                                                                                                                     |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`        | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                       |
-| `camera.ts`       | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                           |
-| `picking.ts`      | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                             |
-| `loop.ts`         | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                    |
-| `scheduler.ts`    | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                 |
-| `scene-lights.ts` | Hemisphere, sun and lamp; fitting them, the haze and the camera to the table                                                      |
-| `table.ts`        | The slab and surface (surface and terrain kinds), worn in the environment's looks                                                 |
-| `previews.ts`     | Editor previews, the beacon and the highlighted cell                                                                              |
-| `perf.ts`         | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                     |
-| `quality.ts`      | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`   |
-| `capabilities.ts` | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement          |
-| `post.ts`         | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                    |
-| `focus.ts`        | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                             |
-| `passes.ts`       | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                         |
-| `overlay.ts`      | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness          |
-| `materials/`      | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)   |
-| `cell-maps.ts`    | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)        |
-| `fog-soft.ts`     | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                            |
-| `fog-cloud.ts`    | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                             |
-| `warmup.ts`       | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                           |
-| `lobby.ts`        | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                   |
-| `shape.ts`        | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                    |
-| layer modules     | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `ambience.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode` |
+| Module                                | What it holds                                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                            | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
+| `camera.ts`                           | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
+| `picking.ts`                          | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
+| `loop.ts`                             | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
+| `scheduler.ts`                        | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
+| `scene-lights.ts`                     | The hemisphere and the key light; fitting the shadow box, the fog and the camera to the table                                    |
+| `atmosphere.ts`                       | The scene's fog and environment nodes and background (`createScene`), `AtmosphereLayer`: the hour's light, tween and shadow rule |
+| `atmosphere-curve.ts`, `sky-maths.ts` | The pure curve (`atmosphereAt`), the sun's and moon's paths, the stars, `CaptureThrottle`                                        |
+| `sky.ts`                              | `SkyLayer`: the dome, moon, stars and clouds, and the capture into `SKY_CUBE`/`SKY_CUBE_LOW`                                     |
+| `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                          |
+| `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                |
+| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `ringVertices`); `WorldGround`, the play plane and the ring to the horizon           |
+| `previews.ts`                         | Editor previews, the beacon and the highlighted cell                                                                             |
+| `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
+| `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
+| `capabilities.ts`                     | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
+| `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
+| `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                            |
+| `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                        |
+| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
+| `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)  |
+| `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)       |
+| `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                           |
+| `fog-cloud.ts`                        | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                            |
+| `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
+| `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |
+| `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                   |
+| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`               |
 
 ## Quality tiers
 
@@ -458,11 +695,14 @@ viewer's choice in `thirdfold:graphics`, then the tier refinement measured on th
 | Particles        | 250  | 1000   | 4000 | 8000      | #122                        |
 | Vegetation       | 25%  | 50%    | 100% | 100%      | #121                        |
 | Frame rate cap   | 30   | 60     | 60   | 60        | the render scheduler (#148) |
-| Flicker and mist | 20   | 30     | 30   | 30        | the render scheduler (#148) |
+| Flicker          | 20   | 30     | 30   | 30        | the render scheduler (#148) |
+| Sky              | flat | dome   | dome | dome      | #225: 1 capture, 16 px      |
+| Sky captures     | once | 5 s    | 2 s  | 2 s       | #216                        |
 | Converge frames  | 0    | 4      | 8    | 16        | TRAA (#110)                 |
 
-Layers (`sky`, `post`, `grass`, `water`, `vfx`, `weather`, `xray`, `dof`) are all off until each
-passes its milestone's gates; `?off=sky,grass` turns layers off, for A/B tests and emergencies.
+Layers (`sky`, `ao`, `bloom`, `lens`, `grade`, `grass`, `water`, `vfx`, `weather`, `xray`, `dof`,
+`fogcloud`) are off until each passes its milestone's gates (on: `sky` since M67, `ao`, `bloom`,
+`lens`, `grade`, `dof`; `fogcloud` stays off by the owner's call, volumetric fog being M75); `?off=sky,grass` turns layers off, for A/B tests and emergencies.
 Neither `?tier=` nor `?off=` is saved.
 
 **The Graphics menu** (`src/lib/ui/GraphicsControls.svelte`, #154), beside Sound in the room's
@@ -613,10 +853,9 @@ passes, in order:
     highlight aims a move, or always with the Graphics menu's Always show grid (`alwaysGrid` in
     `thirdfold:graphics`). `Tabletop.setGridShown` only sets the lines' `visible`: one draw call
     fewer at rest, nothing compiled.
-- **Each ambient band has its own hues** (#167, interim until the sky of #114): `PRESETS` in
-  `lighting.ts` gives the hemisphere a sky and a ground colour per band (moon-blue over deep blue at
-  night, peach over slate at dusk, day's warm pair). Only colours change, so a change of band
-  compiles nothing. The dark itself is `worldModify`'s, from `lightLevels` (#173 deleted the
+- **Each hour has its own hues** (#167, since #218 from the atmosphere curve): the sky preset gives
+  the hemisphere a sky and a ground colour through the day (moon-blue over deep blue at night, peach
+  over slate at dusk, day's warm pair). Only colours change, so a change of hour compiles nothing. The dark itself is `worldModify`'s, from `lightLevels` (#173 deleted the
   darkness overlay and its tint).
 - **The prepass** draws opaque objects with no MSAA: the overlay's depth, normals for AO (#159)
   and depth of field (#165), and with TRAA each pixel's velocity (half-float).

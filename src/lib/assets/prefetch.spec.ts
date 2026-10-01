@@ -99,7 +99,7 @@ describe('the prefetch plan', () => {
 			(id) => m.environments[id].surfaces?.floors.length
 		)!;
 		const e = m.environments[env];
-		for (const mat of [e.surface, e.ground, e.walls, e.table]) {
+		for (const mat of [e.surface, e.ground, e.walls]) {
 			const map = mat && m.materials[mat]?.map;
 			if (map) m.textures[map] = { ...m.textures[map], format: 'png' } as never;
 		}

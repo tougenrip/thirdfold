@@ -20,10 +20,11 @@ import {
 } from './materials';
 import { OverlayLayer } from './overlay';
 import { PropLayer } from './props';
-import { TableLayer } from './table';
+import { WorldGround } from './landscape';
 import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import { WallLayer } from './walls';
+import { worldExtents } from './world-ground';
 import {
 	BACKEND,
 	loadSidecar,
@@ -61,8 +62,8 @@ describe('the layers on the shader kinds', () => {
 		const view = await loadView('test-world', sidecar.ambient, 'gm');
 		const size = view.grid.width * view.grid.height;
 		const ground = groundFor(view.grid, view.terrain ? decodeLevels(view.terrain, size) : null);
-		const table = new TableLayer();
-		table.build(view.grid);
+		const table = new WorldGround();
+		table.build(worldExtents(view.grid));
 		const walls = new WallLayer();
 		walls.sync(view.objects, view.grid, ground);
 		const terrain = new TerrainLayer();

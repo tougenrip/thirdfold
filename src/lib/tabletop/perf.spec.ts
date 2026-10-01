@@ -7,6 +7,8 @@ describe('GPU time by pass (#166)', () => {
 			prepass: 'prepass',
 			scene: 'scene',
 			overlay: 'overlay',
+			pmrem: 'pmrem',
+			PMREM_Blur: 'pmrem',
 			'SSAO.AO': 'ao',
 			'SSAO.Blur': 'ao',
 			AO: 'ao',

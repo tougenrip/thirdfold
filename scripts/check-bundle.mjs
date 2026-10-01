@@ -16,10 +16,16 @@ import { gzipSync } from 'node:zlib';
  */
 const BUDGETS = {
 	'/': { total: 64_000, own: 19_000 },
-	'/builder': { total: 97_000, own: 52_000 },
+	// 97.0 → 97.4: the manifest's sky presets and their closed parser (sky-parse.ts, #213), 97,327 B
+	// measured.
+	// 97.4 → 97.5: the sky's resolver and the canonical hours, now used by the renderer, stay in the
+	// shared chunk with the manifest's parser (#215), 97,479 B measured.
+	'/builder': { total: 97_600, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
-	'/dev/assets': { total: 50_000, own: 500 },
+	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
+	// → 51.2: the same shared code (#215), 51,128 B measured.
+	'/dev/assets': { total: 51_200, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
@@ -29,7 +35,18 @@ const BUDGETS = {
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B
 	// measured. → 361.1: the GM's handles on fixture-less lights (#209; as a lazy chunk they split
 	// the shared code into more chunks and cost twice as much), +538 B measured; both together 361.0 kB.
-	renderer: { total: 361_100 },
+	// → 361.4: sky visibility in the cell maps and worldModify (#219), 361.3 kB measured.
+	// → the atmosphere (#215, #217, #218: the fog and environment nodes, the key light's tween
+	// and shadow rule, the curve), less the presets, their blend, the mist and the lamp; three's
+	// fog and PMREM code was already in the chunk. Set to the merged build's measured size.
+	// → 364.5: the flash's envelope and policy wired to exposure, bloom and the hemisphere (#222,
+	// #223). → the sky layer (#214: the dome, moon, stars and clouds, the star field) and its
+	// capture throttle (#216), wired into the table and the lobby (plan D1: not lazy, three's sky
+	// code was already here); set to the merged build's measured size. → 368.1: the ground to the
+	// horizon (#220: the ring's mesh and tier, the camera's clearance, extents per table), less
+	// the slab; 368.1 kB measured. → 368.4: the low tier's small cube and the dome's haze at the
+	// horizon (#225); 368.3 kB measured (just over 368 300 B).
+	renderer: { total: 368_400 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

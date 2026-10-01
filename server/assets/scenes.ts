@@ -79,7 +79,7 @@ export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 	};
 	const env = refs.environment ? manifest.environments[refs.environment] : undefined;
 	if (env) {
-		for (const id of [env.surface, env.ground, env.walls, env.table]) if (id) addMaterial(id);
+		for (const id of [env.surface, env.ground, env.walls]) if (id) addMaterial(id);
 		for (const id of Object.values(env.lut?.[GRADE_TONE_MAPPER] ?? {})) textures.add(id);
 		for (const s of [...(env.surfaces?.floors ?? []), ...(env.surfaces?.walls ?? [])]) {
 			const surface = manifest.surfaces[s];
@@ -166,6 +166,8 @@ export const SURFACE_FLOORS = FLOOR_IDS.filter(
 export function checkScenes(manifest: Manifest): string[] {
 	const problems: string[] = [];
 	for (const [id, env] of Object.entries(manifest.environments)) {
+		if (!Object.hasOwn(manifest.skies, env.sky))
+			problems.push(`environment ${id}: no sky "${env.sky}"`);
 		for (const floor of SURFACE_FLOORS) {
 			if (env.surfaces && !env.surfaces.floors.includes(floor))
 				problems.push(`environment ${id}: no surface for the ${floor} floor`);
@@ -259,16 +261,21 @@ function checkAdventure(manifest: Manifest, A: AdventureDef): string[] {
 		if (!scene.environment || !(scene.environment in manifest.environments)) {
 			problems.push(`${location}: no environment "${scene.environment}"`);
 		}
+		const sky = scene.world.sky;
+		if (sky && !Object.hasOwn(manifest.skies, sky)) problems.push(`${location}: no sky "${sky}"`);
 		for (const p of scene.props) model(p.assetId, 'prop', `${location}: prop ${p.id}`);
 		for (const t of scene.tokens) model(t.model, 'npc', `${location}: ${t.name}`);
 		for (const over of overBudget(tableBudget(manifest, refs)))
 			problems.push(`${location}: ${over}`);
 	}
-	// A table's sky and grade ids are checked by parseSceneFile above, an effect's here: syntax
-	// only. ponytail: check they exist once the manifest has skies and grades (#162, #213).
-	for (const patch of worldPatches(A))
-		if (!parseWorldPatch(patch))
-			problems.push(`a world effect is not a valid look: ${JSON.stringify(patch)}`);
+	// A sky must exist (a table's above, an effect's here). ponytail: grade ids are syntax only
+	// until the manifest has grade presets (#162).
+	for (const patch of worldPatches(A)) {
+		const look = parseWorldPatch(patch);
+		if (!look) problems.push(`a world effect is not a valid look: ${JSON.stringify(patch)}`);
+		else if (look.sky && !Object.hasOwn(manifest.skies, look.sky))
+			problems.push(`a world effect names no sky "${look.sky}"`);
+	}
 	for (const npc of Object.values(A.npcs)) model(npc.model, 'npc', npc.name);
 	for (const id of Object.keys(A.characters)) model(id, 'character', id);
 	for (const def of Object.values(A.enemies)) model(def.model, 'enemy', def.name);

@@ -96,6 +96,15 @@ Per material family, in sRGB value (the brightest channel) and OkLCh chroma:
 A swatch strip rendered from our own assets on the turntable goes in `docs/look/m65/` once #194
 can render it.
 
+**Red never flashes** (#223, WCAG 2.3.1's red flash threshold). A red grade or sky (`abyss`,
+`blood-moon`, the crimson push) may hold a saturated red, where R / (R + G + B) is 0.8 or more,
+but nothing may pulse into or out of one: no emissive, light, VFX or grade that flickers,
+strobes or flashes in saturated red, at any speed. A flash over a red grade lifts toward a cool
+white instead (`flashPolicy().neutralRed` in `src/lib/tabletop/flash.ts`), and every flashing
+effect goes through `flashPolicy`, stays at 3 or fewer flashes in any second, and becomes a fade
+of 500 ms or more under the viewer's Reduce flashing setting (`countFlashes` checks captured
+frames).
+
 ### Surface ramps
 
 The stylise step (#187, section 11) maps each surface's luminance through its ramp, dark to light.

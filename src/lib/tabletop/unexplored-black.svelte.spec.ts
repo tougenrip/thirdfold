@@ -8,7 +8,9 @@
 // too, where bloom and the lens spread light and the output stage's re-mask
 // (#173) must take it away again; left out are cells hidden behind something
 // standing on explored ground, cells too small to hold a 3x3 block and cells
-// off screen. A new layer is turned on here when it lands (docs/RENDERING.md).
+// off screen. A new layer is turned on here when it lands (docs/RENDERING.md). The sky (#225) adds
+// its own poses, always run: a low camera toward the horizon, dense haze, a dark area at noon and a
+// roofed table.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -357,6 +359,75 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			// party on four tables); every case CI takes checks at least one pose.
 			if (!FULL) expect(checked, 'poses with enough samples').toBeGreaterThan(0);
 			else if (!checked) console.info(`${c.label}: no pose with ${MIN_SAMPLES} samples, left out`);
+			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
+		});
+
+	// The sky's poses (#225): the atmosphere never lifts unexplored ground. The village's player at
+	// noon under a clear sky: a low camera toward the horizon across hidden cells (on the dome's tier
+	// and the flat sky's), dense haze, a dark area at noon (the sky's light and IBL out of it), and a
+	// roof over the whole table (the sky's reach indoors).
+	const NOON = 780;
+	const size = (v: FixtureView) => v.grid.width * v.grid.height;
+	const SKY_CASES: [string, Tier, (m: Mounted, v: FixtureView) => void][] = [
+		['low toward the horizon', 'medium', () => {}],
+		['low toward the horizon, flat sky', 'low', () => {}],
+		[
+			'dense haze',
+			'medium',
+			(m, v) =>
+				m.tabletop.setLighting('day', v.lights, {
+					...v.world,
+					time: NOON,
+					haze: { density: 1, color: '#d8dde4' }
+				})
+		],
+		[
+			'a dark area at noon',
+			'medium',
+			(m, v) => m.tabletop.setDarkness(new Uint8Array(size(v)).fill(1))
+		],
+		['roofed', 'medium', (m, v) => m.tabletop.setInterior(new Uint8Array(size(v)).fill(1))]
+	];
+	for (const [name, tier, setUp] of SKY_CASES)
+		it(`the sky's poses: ${name} on ${tier}, black`, async () => {
+			const { m, sidecar, view, settings } = await mountCase({
+				fixture: 'village',
+				viewer: 'player',
+				band: 'day',
+				tier,
+				reduced: true
+			});
+			m.tabletop.setLighting('day', view.lights, { ...view.world, time: NOON, sky: 'temperate' });
+			setUp(m, view);
+			const tall = standing(view);
+			// Low, over the hidden cell nearest the table's middle, so it looks across hidden ground to
+			// the horizon (in view below 22.5 degrees, half the field of view), turned four ways.
+			const { width, height } = view.grid;
+			let target = { x: 0, y: 0 };
+			for (let i = 0, best = Infinity; i < tall.length; i++) {
+				const cell = { x: i % width, y: Math.floor(i / width) };
+				const d = Math.hypot(cell.x - width / 2, cell.y - height / 2);
+				if (tall[i] < 0 && d < best) [best, target] = [d, cell];
+			}
+			const poses = name.startsWith('low')
+				? [0, 90, 180, 270].map((azimuth) => ({ target, distance: 14, azimuth, elevation: 12 }))
+				: [sidecar.poses.overview];
+			const lit: string[] = [];
+			let checked = 0;
+			for (const pose of poses) {
+				m.tabletop.setGridPose(pose as never);
+				const samples = samplesFor(view.grid, tall, cameraOf(m));
+				if (samples.length < MIN_SAMPLES) {
+					console.info(`${name} ${JSON.stringify(pose)}: ${samples.length} samples, left out`);
+					continue;
+				}
+				checked++;
+				await converge(m, settings.convergeFrames);
+				const at = await readFrame(m.canvas, WIDTH, HEIGHT);
+				lit.push(...litAt(`village ${name} ${JSON.stringify(pose)}`, samples, at));
+				expect(litAnywhere(at), `${name}: anything lit`).toBe(true);
+			}
+			expect(checked, 'poses with enough samples').toBeGreaterThan(0);
 			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
 		});
 

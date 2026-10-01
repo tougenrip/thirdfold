@@ -5,7 +5,10 @@
 // guaranteed:
 //
 // - `visibility`, RGBA8, linear, no mipmaps: R visible and G explored (the viewer's fog), B the
-//   rules' light level, A sky visibility (255 open, 0 in a dark area; #219 adds roofs).
+//   rules' light level, A sky visibility (#219, `skyVisibilityMap`): 0 in a dark area,
+//   `INDOOR_FILL` under a roof, 1 under the open sky. The sky's ambient light (hemisphere, IBL)
+//   takes A, the sun `(A - INDOOR_FILL) / (1 - INDOOR_FILL)` (world-modify.ts `skyAmbient`,
+//   `skySun`), so one channel carries both.
 // - `ground`, RGBA8, nearest: R the floor (`FLOOR_IDS` index), G the level. The terrain kind reads
 //   them for floor colours and height (#172, materials/hooks.ts `groundColour`). B and A are the
 //   reveal fades (#174, fog-soft.ts `RevealFades`): B how much of a cell's fade is left, A whether
@@ -57,6 +60,11 @@ const tintOf = (rgb: readonly [number, number, number]) =>
 	new THREE.Color().setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, THREE.SRGBColorSpace);
 /** The light a player's visible cells have at least, so a cell the rules show is never black. */
 export const PERCEPTION_FILL = 0.55;
+/**
+ * The sky's ambient light an interior (roofed) cell keeps (#219): no sun, but the rules call it
+ * lit by day, so never below the perception fill.
+ */
+export const INDOOR_FILL = 0.6;
 /** How much the flash thins the dark at its height (the old overlay's `1 - 0.85k`). */
 export const FLASH_THINS = 0.85;
 /** Where the cut sits when nothing is cut: high, but finite (WGSL may assume no infinities). */
@@ -101,9 +109,43 @@ export function packLight(data: Uint8Array, levels: ArrayLike<number> | null) {
 	for (let i = 0, o = 2; o < data.length; i++, o += 4) data[o] = levels ? byte(levels[i]) : 255;
 }
 
-/** Writes sky visibility into A: 0 in a dark area, 255 under the open sky. */
-export function packSky(data: Uint8Array, dark: ArrayLike<number> | null) {
-	for (let i = 0, o = 3; o < data.length; i++, o += 4) data[o] = dark?.[i] ? 0 : 255;
+/**
+ * Each cell's sky visibility (#219), 0-1 in grid row order: 0 in a dark area, `fill` under a roof,
+ * 1 under the open sky, then a one-cell blur on the lit side only: a cell takes the mean of its
+ * 3x3 neighbourhood (the grid's edge repeating) where that is lower than its own, never below
+ * `fill`, and a dark cell stays 0. So no dark cell ever gets sky light, a roof never gets sun,
+ * and the open side softens toward them. Built from the viewer's `darkness` and `interior` masks
+ * alone (both already masked to explored cells by the server); a mask of another size is ignored.
+ */
+export function skyVisibilityMap(
+	grid: Pick<SquareGrid, 'width' | 'height'>,
+	dark: ArrayLike<number> | null,
+	interior: ArrayLike<number> | null,
+	fill = INDOOR_FILL
+): Float32Array {
+	const { width: w, height: h } = grid;
+	const fit = (m: ArrayLike<number> | null) => (m?.length === w * h ? m : null);
+	const [d, r] = [fit(dark), fit(interior)];
+	const raw = new Float32Array(w * h);
+	for (let i = 0; i < raw.length; i++) raw[i] = d?.[i] ? 0 : r?.[i] ? fill : 1;
+	if (!d && !r) return raw;
+	const out = new Float32Array(raw.length);
+	const at = (x: number, y: number) =>
+		raw[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))];
+	for (let y = 0; y < h; y++)
+		for (let x = 0; x < w; x++) {
+			const own = raw[y * w + x];
+			if (own === 0) continue;
+			let sum = 0;
+			for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) sum += at(x + dx, y + dy);
+			out[y * w + x] = Math.max(fill, Math.min(own, sum / 9));
+		}
+	return out;
+}
+
+/** Writes sky visibility (0-1 per cell, `skyVisibilityMap`) into A; null is open sky. */
+export function packSky(data: Uint8Array, sky: ArrayLike<number> | null) {
+	for (let i = 0, o = 3; o < data.length; i++, o += 4) data[o] = sky ? byte(sky[i]) : 255;
 }
 
 /** Writes the ground: R the floor's index, G the level (B and A are the fades'). */
@@ -190,6 +232,10 @@ export const cellUniforms = {
 	darkTint: uniform(tintOf(DARK_TINT.day)),
 	nightTint: uniform(tintOf(DARK_TINT.dark)),
 	flash: uniform(0),
+	/** Lifts sky visibility toward open sky (0 none, 1 all), for the flash's window (#219, #222). */
+	flashLift: uniform(0),
+	/** `INDOOR_FILL`, where A splits into the ambient and the sun terms. */
+	indoorFill: uniform(INDOOR_FILL),
 	/** Fragments above this world height are cut (#72's cutaway). */
 	cutY: uniform(NO_CUT),
 	/** The highest level on the table (at least 1), which the terrain kind pales toward (#172). */
@@ -254,6 +300,7 @@ export class CellMaps {
 	private last = new Map<Channel, unknown[]>();
 	private fades = new RevealFades();
 	private mode: FogMode | null = null;
+	private interior: Uint8Array | null = null;
 
 	/** `clock` is the renderer's (ms): reveals fade on it. */
 	constructor(private readonly clock: () => number = () => performance.now()) {}
@@ -330,7 +377,14 @@ export class CellMaps {
 		return fading;
 	}
 
-	/** B from the rules' light levels (null: all lit), A from the dark areas, and the ambient. */
+	/** The roofed cells (one byte per cell), or null; A follows at the next `setLight`. */
+	setInterior(mask: Uint8Array | null): boolean {
+		const changed = mask !== this.interior;
+		this.interior = mask;
+		return changed;
+	}
+
+	/** B from the rules' light levels (null: all lit), A from the dark areas and roofs, and the ambient. */
 	setLight(ambient: Ambient, levels: Float32Array | null, dark: Uint8Array | null): void {
 		u.ambientDark.value = AMBIENT_DARK[ambient];
 		u.darkTint.value.copy(tintOf(DARK_TINT[ambient]));
@@ -340,8 +394,9 @@ export class CellMaps {
 			packLight(t.image.data as Uint8Array, levels);
 			t.needsUpdate = true;
 		}
-		if (this.changed('sky', dark)) {
-			packSky(t.image.data as Uint8Array, dark);
+		if (this.grid && this.changed('sky', dark, this.interior)) {
+			const sky = dark || this.interior ? skyVisibilityMap(this.grid, dark, this.interior) : null;
+			packSky(t.image.data as Uint8Array, sky);
 			t.needsUpdate = true;
 		}
 	}
@@ -358,9 +413,9 @@ export class CellMaps {
 		t.needsUpdate = true;
 	}
 
-	/** The flash (0 none, 1 full): the dark thins as the old overlay did. */
+	/** The flash (0 none, 1 full): the dark thins as the old overlay did, and the sky reaches in. */
 	setFlash(k: number): void {
-		u.flash.value = k;
+		u.flash.value = u.flashLift.value = k;
 	}
 
 	/** Cuts away everything above world height `y`; null cuts nothing. */
@@ -374,7 +429,7 @@ export class CellMaps {
 		this.grid = null;
 		this.mode = null;
 		u.gridSize.value.set(1, 1); // the blanks' size, so a lone material reads them in bounds
-		u.fogOn.value = u.flash.value = 0;
+		u.fogOn.value = u.flash.value = u.flashLift.value = 0;
 		u.cutY.value = NO_CUT;
 	}
 

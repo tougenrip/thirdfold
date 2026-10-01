@@ -58,6 +58,8 @@
 		type Tier
 	} from './quality';
 	import { initialShape, sameShape, shapeOf, type Shape } from './shape';
+	import { reducesFlashing } from './flash';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { textureDetailFrom } from '$lib/assets/detail';
 	import type { Pose } from './shots';
 	import { tick, untrack } from 'svelte';
@@ -95,6 +97,8 @@
 		floor?: Uint8Array | null;
 		/** The table's dark areas, one byte per cell, or null for none. */
 		darkness?: Uint8Array | null;
+		/** The roofed cells, one byte per cell, or null for none. */
+		interior?: Uint8Array | null;
 		/** How the table looks: an environment asset's id, or null for the plain table. */
 		environment?: string | null;
 		cue?: CuePlay | null;
@@ -132,6 +136,7 @@
 		terrain = null,
 		floor = null,
 		darkness = null,
+		interior = null,
 		environment = null,
 		cue = null,
 		motion = null,
@@ -356,6 +361,10 @@
 	});
 
 	$effect(() => {
+		tabletop?.setInterior(interior);
+	});
+
+	$effect(() => {
 		tabletop?.setEnvironment(environment);
 	});
 
@@ -426,6 +435,12 @@
 
 	$effect(() => {
 		tabletop?.setGridShown(gridShown || !!graphics?.alwaysGrid);
+	});
+
+	/** Reduce flashing (#223): `auto` follows the device's reduced motion, live. */
+	$effect(() => {
+		const setting = (graphics ?? untrack(() => loadGraphics(localStorage))).reduceFlashing;
+		tabletop?.setReduceFlashing(reducesFlashing(setting, prefersReducedMotion.current));
 	});
 
 	$effect(() => {

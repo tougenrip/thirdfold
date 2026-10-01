@@ -11,8 +11,10 @@
 //   assets/models/<kind>/<id>.json      a model from primitive parts (kind: a MODEL_KINDS folder)
 //   assets/models/<kind>/<id>.glb       or a model made elsewhere or cooked, with <id>.meta.json for its swing and pack
 //   assets/models/<kind>/<id>.preview.json  a part list shown until the model arrives (#192)
-//   assets/environments/<id>.json       how a place looks: materials for floor, ground, walls, table?,
-//                                       and its surfaces (#187: surface-<id>-* textures the cook made)
+//   assets/environments/<id>.json       how a place looks: materials for floor, ground and walls, its sky,
+//                                       a world look to start from, and its surfaces (#187: surface-<id>-*
+//                                       textures the cook made)
+//   assets/skies/<id>.json              a sky preset (#213), procedural, inline in the manifest (pipeline-skies.ts)
 //   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
 //   <folder>/_provenance.json | <id>.meta.json  where each came from and on what terms (licence.ts)
@@ -45,16 +47,19 @@ import {
 	type EnvironmentDef,
 	type Manifest,
 	type MaterialDef,
+	type SkyDef,
 	type SurfaceEntry,
 	type TextureEntry,
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
+import { parseWorldPatch } from '../../src/lib/game/world';
 import { catalogModule, loadCatalog } from './catalog';
 import { buildAudio } from './pipeline-audio';
 import { provenanceFor } from './licence';
 import { AssetError, emitter, idOf, isRecord, list, readJson } from './pipeline-files';
 import { buildModels } from './pipeline-models';
+import { buildSkies } from './pipeline-skies';
 import { assignPacks } from './pipeline-packs';
 import { buildGrades, buildSurfaces, buildTextures } from './pipeline-textures';
 import { VARIANT_LOCK, attachVariants, readVariantLock } from './variants';
@@ -119,11 +124,12 @@ function buildMaterials(
 	return materials;
 }
 
-/** assets/environments: the materials of each place's floor, ground, walls and (optionally) rim. */
+/** assets/environments: the materials of each place's floor, ground and walls, and its sky. */
 function buildEnvironments(
 	dir: string,
 	materials: Record<string, MaterialDef>,
-	surfaces: Record<string, SurfaceEntry>
+	surfaces: Record<string, SurfaceEntry>,
+	skies: Record<string, SkyDef>
 ): Record<string, EnvironmentDef> {
 	const environments: Record<string, EnvironmentDef> = {};
 	const envDir = path.join(dir, 'environments');
@@ -150,12 +156,18 @@ function buildEnvironments(
 			}
 			return list as string[];
 		};
+		if (typeof raw.sky !== 'string' || !Object.hasOwn(skies, raw.sky)) {
+			throw new AssetError(source, '"sky" must name a sky');
+		}
+		const world = raw.world === undefined ? undefined : parseWorldPatch(raw.world);
+		if (world === null) throw new AssetError(source, '"world" is not a valid look');
 		environments[id] = {
 			name: raw.name,
 			surface: material('surface'),
 			ground: material('ground'),
 			walls: material('walls'),
-			...(raw.table !== undefined ? { table: material('table') } : {}),
+			sky: raw.sky,
+			...(world ? { world } : {}),
 			...(raw.surfaces !== undefined
 				? { surfaces: { floors: ids('floors'), walls: ids('walls') } }
 				: {})
@@ -193,7 +205,8 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	const materials = buildMaterials(dir, textures);
 	const models = await buildModels(dir, emit, materials);
 	const surfaces = buildSurfaces(textures);
-	const environments = buildEnvironments(dir, materials, surfaces);
+	const skies = buildSkies(dir);
+	const environments = buildEnvironments(dir, materials, surfaces, skies);
 	buildGrades(dir, emit, environments, textures);
 	const audio = buildAudio(dir, emit);
 
@@ -211,6 +224,7 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 		materials,
 		surfaces,
 		environments,
+		skies,
 		audio,
 		packs: {},
 		decoders: buildDecoders(files)

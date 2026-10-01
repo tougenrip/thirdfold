@@ -1,5 +1,5 @@
 // How a table looks (an environment asset, see src/lib/assets/manifest.ts):
-// the materials of its floor, raised ground, walls and rim, with their
+// the materials of its floor, raised ground (and the ground to the horizon) and walls, with their
 // textures, loaded when the table first needs them. Textures are PNGs
 // loaded as images, once each, shared by every material that uses them. And
 // its colour grades (#162): a lookup table per tone mapper and ambient band,
@@ -21,6 +21,8 @@ import { setParams, setSlot, type KindMaterial } from './materials';
 import type { Grades } from './grades-load';
 import type { FloorSurfaces } from './materials/floors';
 
+export { resolveSky } from '$lib/assets/sky-parse';
+
 /** What the surface chunk (#187, surfaces.ts) frees when the environment's textures go. */
 export const releasers = new Set<() => void>();
 
@@ -40,7 +42,6 @@ export interface EnvironmentLook {
 	surface: Look;
 	ground: Look;
 	walls: Look;
-	table: Look;
 	/** The floors' painted surfaces (#187), or null while an environment has none. */
 	floors: FloorSurfaces | null;
 	/** 32³ RGBA lookup tables (x red, y green, z blue); null when the environment has no grade. */
@@ -113,9 +114,9 @@ export async function loadEnvironment(
 	const env = manifest.environments[id];
 	if (!env) return null;
 	const { surfaces: painted } = env;
-	const [[surface, ground, walls, table], grades, own] = await Promise.all([
+	const [[surface, ground, walls], grades, own] = await Promise.all([
 		Promise.all(
-			[env.surface, env.ground, env.walls, env.table ?? env.surface].map((m) =>
+			[env.surface, env.ground, env.walls].map((m) =>
 				look(manifest.materials[m], manifest.textures)
 			)
 		),
@@ -130,7 +131,6 @@ export async function loadEnvironment(
 		surface,
 		ground,
 		walls: own?.walls ? { ...walls, ...own.walls } : walls,
-		table,
 		floors: own?.floors ?? null,
 		grades
 	};

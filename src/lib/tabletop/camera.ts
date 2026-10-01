@@ -4,11 +4,12 @@
 
 import * as THREE from 'three/webgpu';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { gridToWorld, type SquareGrid } from '$lib/game/grid';
+import { gridToWorld, worldToGrid, type SquareGrid } from '$lib/game/grid';
 import type { Shot } from '$lib/game/chat';
 import type { Ground } from './ground';
 import { shotAt, shotFocus, shotPose, viewPose, type Pose } from './shots';
 import type { CameraView } from './types';
+import { aboveGround, MAX_POLAR_ANGLE } from './world-ground';
 
 export const VIEW_TRANSITION_MS = 450;
 
@@ -27,12 +28,14 @@ export class CameraRig {
 	private shot: { home: Pose; to: Pose; start: number } | null = null;
 	private transition: { from: Ends; to: Ends; start: number } | null = null;
 
-	constructor(canvas: HTMLCanvasElement, far: number) {
-		this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, far);
+	/** The far plane is the table's (`fitToTable`). */
+	constructor(canvas: HTMLCanvasElement) {
+		this.camera = new THREE.PerspectiveCamera(45, 1, 0.1);
 		this.controls = new OrbitControls(this.camera, canvas);
 		this.controls.enableDamping = true;
 		this.controls.screenSpacePanning = false;
-		this.controls.maxPolarAngle = Math.PI / 2 - 0.08; // never dip below the table top
+		// Down to the horizon (#220); `keepAbove` keeps it off the ground.
+		this.controls.maxPolarAngle = MAX_POLAR_ANGLE;
 		this.controls.minDistance = 3;
 	}
 
@@ -84,6 +87,16 @@ export class CameraRig {
 			y: ground?.floorY(next.focus) ?? 0
 		};
 		this.shot = { home, to: shotPose(home, focus, next.frame, extent, grid.cellSize), start: now };
+	}
+
+	/**
+	 * Keeps the camera a clearance above the ground under it (a raised cell's floor over the grid,
+	 * the ground's level off it), after the controls have moved it.
+	 */
+	keepAbove(grid: SquareGrid | null, ground: Ground | null): void {
+		const p = this.camera.position;
+		const cell = grid && ground ? worldToGrid(grid, { x: p.x, z: p.z }) : null;
+		p.y = aboveGround(p, cell ? ground!.floorY(cell) : 0);
 	}
 
 	/** How much of the shot's depth of field shows at `now` (0 with no shot, or one cut short). */

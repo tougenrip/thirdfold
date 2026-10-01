@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu';
+import { bindSkyEnv } from './atmosphere';
 import { loadGraphics } from './quality';
+import { registerSkyLights } from './sky-light';
 import type { TabletopOptions } from './types';
 
 // The renderer's setup (`createNodeRenderer`), the frame hooks r186's own
@@ -124,6 +126,10 @@ export async function createNodeRenderer(
  * (lobby.ts, #180), which was made without the table's handlers.
  */
 export function setUpRenderer(renderer: THREE.WebGPURenderer, options: TabletopOptions): void {
+	// The sky's environment prefilters with this renderer (atmosphere.ts).
+	bindSkyEnv(renderer);
+	// The sky's lights' nodes (sky-light.ts), before anything compiles: the lobby's and every table's.
+	registerSkyLights(renderer);
 	// A lost WebGL context or WebGPU device: stop drawing (as three's default does, which also
 	// logs an error) and say so, so the tabletop can be rebuilt on a fresh canvas (#150).
 	renderer.onDeviceLost = (info) => {

@@ -22,7 +22,8 @@ import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { kindGallery } from './materials/warmup';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
-import { createScene, createSceneLights, FAR } from './scene-lights';
+import { createScene, createSceneLights } from './scene-lights';
+import { SkyLayer } from './sky';
 import { initialShape, sameShape, shapeOf, startingSettings, type Shape } from './shape';
 import { TokenLayer } from './tokens';
 import { settingsFor, type Tier } from './quality';
@@ -62,13 +63,13 @@ export async function warmLobby(
 		return null;
 	}
 	const t0 = performance.now();
-	// The table's scene as far as shaders see it: its background, haze and lights (the sun
-	// casting, the lamp and the fixed pool of point lights).
-	const { scene } = createScene();
+	// The table's scene as far as shaders see it: the sky's fog and environment (the same nodes,
+	// atmosphere.ts) and lights (the key light casting, the hemisphere and the fixed point lights).
+	const scene = createScene();
 	const lights = createSceneLights(scene);
-	const lighting = new LightingLayer({ ...lights, scene });
+	const lighting = new LightingLayer();
 	scene.add(lighting.group);
-	const camera = new THREE.PerspectiveCamera(60, 1, 0.1, FAR);
+	const camera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	frameOverview(camera, 20, 1);
 	const overlay = new OverlayLayer();
 	// Every kind's fog and dark read the cell maps (#171): maps of their own, as a table's, not
@@ -78,7 +79,8 @@ export async function warmLobby(
 	const post = new Post(renderer, scene, camera, overlay.scene);
 	post.set(settings);
 	const [dice, effects, tokens] = [new DiceLayer(), new EffectsLayer(), new TokenLayer(overlay)];
-	const gallery = [...kindGallery(), ...dice.gallery(), ...effects.gallery()];
+	const sky = new SkyLayer(); // the dome and the stars, so a table's sky compiles nothing (#214)
+	const gallery = [...kindGallery(), ...dice.gallery(), ...effects.gallery(), ...sky.gallery()];
 	const marks = tokens.gallery();
 	await warmUp(
 		renderer,
@@ -100,6 +102,6 @@ export async function warmLobby(
 		post.render(frame);
 	}
 	const warmupMs = performance.now() - t0;
-	const keep = [scene, overlay, post, lighting, dice, effects, tokens, gallery, cellMaps];
+	const keep = [scene, overlay, post, lighting, dice, effects, tokens, gallery, cellMaps, sky];
 	return { canvas, renderer, shape, warmupMs, keep };
 }

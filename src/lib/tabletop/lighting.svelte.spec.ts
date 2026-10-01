@@ -8,7 +8,6 @@ import { lightSources, type Light } from '$lib/game/lights';
 import type { Prop } from '$lib/game/props';
 import { LightingLayer, lightSeats } from './lighting';
 import { loadModel } from './models';
-import { createSceneLights } from './scene-lights';
 
 const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 4, height: 4 };
 const light = (id: string, x: number, y: number): Light => ({
@@ -22,8 +21,7 @@ const lights = [light('seated', 1, 1), light('standing', 3, 3)];
 const props: Prop[] = [{ id: 'b', assetId: 'brazier', pos: { x: 1, y: 1 }, rotation: 0, scale: 1 }];
 
 function layerWith(seats: Map<number, number>) {
-	const scene = new THREE.Scene();
-	const layer = new LightingLayer({ ...createSceneLights(scene), scene });
+	const layer = new LightingLayer();
 	layer.update(grid, 'dark', lights, lightSources(lights, []), new Set(), null, null, seats);
 	return layer;
 }

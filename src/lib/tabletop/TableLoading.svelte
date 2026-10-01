@@ -15,13 +15,24 @@
 	let ready = $state(false);
 	/** Shown once already: later covers lift quicker. */
 	let quick = $state(false);
+	/** The tabletop last covered, to tell a rebuilt renderer from a new table. */
+	let covered: Tabletop | null = null;
+	/** The cover is over a rebuilt renderer: "Restoring the table" until it lifts. */
+	let restoring = $state(false);
 
 	$effect(() => {
 		const t = tabletop;
 		void table;
 		ready = false;
 		stage = 0;
-		if (!t) return;
+		// The tabletop went (a lost device, a new pipeline shape): restoring until the next one is
+		// ready. The same tabletop on a new table is a new table, not a rebuild.
+		if (!t) {
+			if (covered) restoring = true;
+			return;
+		}
+		if (t === covered) restoring = false;
+		covered = t;
 		// Loads settled before now were the last table's.
 		const [before] = t.loads();
 		const started = performance.now();
@@ -58,7 +69,7 @@
 </script>
 
 {#if !ready}
-	<div class="loading" out:lift>
+	<div class="loading" data-cover={restoring ? 'restoring' : 'loading'} out:lift>
 		<svg viewBox="0 0 32 32" aria-hidden="true">
 			<g>
 				<path d="M16 3v3M9 23c0-9 2.5-15 7-15s7 6 7 15M6.5 23h19" />
@@ -66,7 +77,7 @@
 			</g>
 		</svg>
 		<p class="stage" role="status">
-			{stage === 0 && quick ? 'Restoring the table' : STAGES[stage]}{stage === 1
+			{restoring ? 'Restoring the table' : STAGES[stage]}{stage === 1
 				? `: ${loads[0]} of ${loads[1]}`
 				: ''}
 		</p>
