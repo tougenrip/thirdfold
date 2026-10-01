@@ -31,10 +31,20 @@ const FACES = [
 	[0, 0, -1, 0, 1, 0]
 ].map(([x, y, z, ux, uy, uz]) => [new THREE.Vector3(x, y, z), new THREE.Vector3(ux, uy, uz)]);
 
-/** The cubes' depth atlas: a row of six faces per slot. */
+/**
+ * The cubes' depth atlas: a row of six faces per slot, and the matrices and positions they were
+ * drawn with, one uniform buffer each for the whole pool (a buffer per light took instanced lit
+ * stages past WebGPU's 12 uniform buffers a stage on high, so the raised ground's failed to build).
+ */
 export class HeroAtlas {
 	readonly target: THREE.RenderTarget;
 	readonly depth: THREE.DepthTexture;
+	/** Each slot's six face matrices (bias × projection × view) as its cube was last drawn. */
+	readonly faces: ReturnType<typeof T.uniformArray>;
+	// An array (its own buffer), not a vec3 uniform: vector uniforms in a light's object block read
+	// back wrong on the WebGL2 backend (r186), as GridLight's slot uniforms did as vec4s.
+	/** Where each slot's cube was last drawn from. */
+	readonly drawnAt: ReturnType<typeof T.uniformArray>;
 
 	constructor(
 		readonly slots: number,
@@ -46,6 +56,12 @@ export class HeroAtlas {
 		// The colour no one reads, one byte a texel: a render target always has one.
 		this.target = new THREE.RenderTarget(6 * size, slots * size, { format: THREE.RedFormat });
 		this.target.depthTexture = this.depth;
+		const faces = Array.from({ length: slots * FACES.length }, () => new THREE.Matrix4());
+		this.faces = T.uniformArray(faces, 'mat4');
+		this.drawnAt = T.uniformArray(
+			Array.from({ length: slots }, () => new THREE.Vector4()),
+			'vec4'
+		);
 	}
 
 	/** Bytes the cubes hold on the GPU (32-bit depth). */
@@ -59,14 +75,6 @@ export class HeroLight extends THREE.PointLight {
 	readonly isHeroLight = true;
 	/** The entry it draws, as its 1-based layer in the GridLight's data (0 while free). */
 	readonly layer = T.uniform(0);
-	/** Each face's matrix (bias × projection × view) as its cube was last drawn, and from where. */
-	readonly faces = T.uniformArray(
-		FACES.map(() => new THREE.Matrix4()),
-		'mat4'
-	);
-	// An array (its own buffer), not a vec3 uniform: vector uniforms in a light's object block read
-	// back wrong on the WebGL2 backend (r186), as GridLight's slot uniforms did as vec4s.
-	readonly drawnAt = T.uniformArray([new THREE.Vector4()], 'vec4');
 	/** How far it has faded in: its share of its entry's light (0 while free). */
 	readonly fade = T.uniform(0);
 
@@ -145,7 +153,8 @@ class HeroShadowNode extends THREE.ShadowNode {
 		const hero = this.hero;
 		const { slots, size } = hero.atlas;
 		const cell = hero.grid.cellSize as unknown as N;
-		const from = (hero.drawnAt as unknown as N).element(0).xyz;
+		const { faces, drawnAt } = hero.atlas as unknown as { faces: N; drawnAt: N };
+		const from = drawnAt.element(hero.slot).xyz;
 		const p0 = shadowCoord.xyz;
 		const p = p0.add(from.sub(p0).normalize().mul(cell.mul(TOWARD_BIAS)));
 		const v = p.sub(from);
@@ -156,7 +165,7 @@ class HeroShadowNode extends THREE.ShadowNode {
 			sign(v.x, 0),
 			a.y.greaterThanEqual(a.z).select(sign(v.y, 2), sign(v.z, 4))
 		);
-		const clip = (hero.faces as unknown as N).element(face).mul(t.vec4(p, 1));
+		const clip = faces.element(face.add(hero.slot * FACES.length)).mul(t.vec4(p, 1));
 		const s = clip.xyz.div(clip.w);
 		const inset = 1 / size; // the filter's taps stay on this face's tile
 		const u = t.clamp(s.x, inset, 1 - inset);
@@ -175,7 +184,7 @@ class HeroShadowNode extends THREE.ShadowNode {
 		const cell = hero.grid.cellSize.value;
 		hero.updateMatrixWorld();
 		lightAt.setFromMatrixPosition(hero.matrixWorld);
-		(hero.drawnAt as unknown as { array: THREE.Vector4[] }).array[0].set(
+		(hero.atlas.drawnAt as unknown as { array: THREE.Vector4[] }).array[hero.slot].set(
 			lightAt.x,
 			lightAt.y,
 			lightAt.z,
@@ -195,7 +204,8 @@ class HeroShadowNode extends THREE.ShadowNode {
 			camera.up.copy(up);
 			camera.lookAt(lookAt.copy(lightAt).add(dir));
 			camera.updateMatrixWorld();
-			const m = (hero.faces as unknown as { array: THREE.Matrix4[] }).array[f];
+			const faces = (hero.atlas.faces as unknown as { array: THREE.Matrix4[] }).array;
+			const m = faces[hero.slot * FACES.length + f];
 			m.multiplyMatrices(bias, camera.projectionMatrix).multiply(camera.matrixWorldInverse);
 			renderer.render(clearScene, camera);
 			renderer.render(scene, camera);

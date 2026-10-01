@@ -270,11 +270,18 @@ export class LightFixtures {
 		mesh.computeBoundingSphere();
 	}
 
-	/** Asks for a fixture model a light needs, the first time. */
+	/**
+	 * Asks for a fixture model a light needs, the first time. Its arrival relights and warms up, but
+	 * not a model already here whose meshes were made (and warmed) before: a warm-up then would
+	 * compile mid-game for nothing (r186 orders a shadowed material's uniforms otherwise compiled).
+	 */
 	private request(id: string): void {
 		if (this.requested.has(id)) return;
 		this.requested.add(id);
-		void loadModel(id, this.onModel).then(this.onModel);
+		const arrived = (model: LoadedModel | null) => {
+			if (!model || this.batches.get(id)?.model !== model) this.onModel();
+		};
+		void loadModel(id, this.onModel).then(arrived);
 	}
 
 	/**

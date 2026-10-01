@@ -8,6 +8,7 @@ import { cornerToWorld, gridToWorld, type GridPos, type SquareGrid } from '$lib/
 import type { Ground } from './ground';
 import type { HighlightKind, PreviewItem } from './types';
 import { WALL_HEIGHT } from './walls';
+import { standIn } from './warmup';
 
 /** The colours that mean move, blocked and place (G6: colour-vision.spec.ts). */
 export const HIGHLIGHT = { move: 0xe0a458, blocked: 0xe27a6b, place: 0x7fc47a } satisfies Record<
@@ -64,7 +65,7 @@ export class PreviewLayer {
 	 */
 	gallery(): THREE.Object3D[] {
 		this.stands ??= [this.highlight.material, ...Object.values(this.materials)].map(
-			(m) => new THREE.Mesh(this.box, m)
+			(m) => standIn(new THREE.Mesh(this.box, m)) // never culled, far below the table
 		);
 		return this.stands;
 	}
