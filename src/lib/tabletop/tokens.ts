@@ -128,6 +128,7 @@ export class TokenLayer {
 		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
 	);
 	private standIns: THREE.Object3D[] | null = null;
+	readonly rootOf = (id: string) => this.entries.get(id)?.root ?? null; // where a mini is now
 
 	/**
 	 * `onModel` is told when a figure's model has arrived and it has been drawn. Moves and
@@ -142,8 +143,7 @@ export class TokenLayer {
 		this.ring.rotation.x = -Math.PI / 2;
 		this.ring.visible = false;
 		this.ring.raycast = () => {};
-		// Point down at the mini.
-		this.marker.rotation.x = Math.PI;
+		this.marker.rotation.x = Math.PI; // point down at the mini
 		this.marker.visible = false;
 		this.marker.raycast = () => {};
 	}

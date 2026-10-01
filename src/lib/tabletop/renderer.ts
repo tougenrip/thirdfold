@@ -11,7 +11,6 @@
 
 import * as THREE from 'three/webgpu';
 import { sameGrid, type SquareGrid } from '$lib/game/grid';
-import { lightSources } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
 import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
@@ -113,7 +112,7 @@ export async function createTabletop(
 	const propLayer = new PropLayer(onModel, clock);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
-	const lighting = new LightingLayer();
+	const lighting = new LightingLayer(lights.grid);
 	scene.add(lighting.group);
 	const hooks = { post, lighting, renderer, perf, request: requestRender };
 	const atmosphere = new AtmosphereLayer({ ...lights, ...hooks }, clock, refreshLighting);
@@ -159,10 +158,9 @@ export async function createTabletop(
 		if (!grid) return;
 		const [ambient, lights, world = null] = lightState;
 		atmosphere.setWorld(world, ambient, environment, reducedMotion);
-		const sources = lightSources(lights, tokens);
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
 		const seats = lightSeats(grid, props);
-		lighting.update(grid, ambient, lights, sources, blocked, ground, darkness, seats);
+		lighting.update(grid, ambient, lights, tokens, blocked, ground, darkness, seats);
 		lighting.showHandles(grid, lights, ground, fogState.mode === 'gm');
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		cloud.update(grid, fogState.fog, fogState.mode);
@@ -218,7 +216,7 @@ export async function createTabletop(
 			lightingStale = false;
 			perf.time('lighting', relight);
 		}
-		const tokensMoving = tokenLayer.tick(now);
+		const tokensMoving = lighting.carry(tokenLayer, tokenLayer.tick(now)); // carried lights too
 		const doorsMoving = wallLayer.tick(now);
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
@@ -483,7 +481,7 @@ export async function createTabletop(
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
 			const remade = [land, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
-			if (remade.includes(true)) warmPending = true;
+			if (lighting.setTier(settings) || remade.includes(true)) warmPending = true; // K: #228
 		},
 		capabilities: () => quality.caps,
 		loads: loadProgress,

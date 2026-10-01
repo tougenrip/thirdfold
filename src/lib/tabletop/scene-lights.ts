@@ -7,6 +7,8 @@ import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js
 import type { SquareGrid } from '$lib/game/grid';
 import type { AtmosphereLayer } from './atmosphere';
 import { STEP_HEIGHT, WALL_HEIGHT } from './ground';
+import { DEFAULT_K } from './lighting';
+import { GridLight } from './materials/grid-light-node';
 import { SkyHemisphere, SkyLight } from './sky-light';
 import { worldExtents, type Extents } from './world-ground';
 
@@ -15,6 +17,8 @@ export { createScene } from './atmosphere';
 export interface BaseLights {
 	hemisphere: THREE.HemisphereLight;
 	sun: THREE.DirectionalLight;
+	/** Every point light (#228): `LightingLayer` fills it, and swaps it for a tier's K. */
+	grid: GridLight;
 }
 
 export function createSceneLights(scene: THREE.Scene): BaseLights {
@@ -32,7 +36,10 @@ export function createSceneLights(scene: THREE.Scene): BaseLights {
 	// moves or flames flicker: that pass draws the whole scene a second time.
 	sun.shadow.autoUpdate = false;
 	scene.add(sun, sun.target);
-	return { hemisphere, sun };
+	// The point lights' one light, here so the lobby's warm-up and the table compile the same.
+	const grid = new GridLight(DEFAULT_K);
+	scene.add(grid);
+	return { hemisphere, sun, grid };
 }
 
 /**

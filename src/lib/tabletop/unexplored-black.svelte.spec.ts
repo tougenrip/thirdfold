@@ -8,7 +8,10 @@
 // too, where bloom and the lens spread light and the output stage's re-mask
 // (#173) must take it away again; left out are cells hidden behind something
 // standing on explored ground, cells too small to hold a 3x3 block and cells
-// off screen. A new layer is turned on here when it lands (docs/RENDERING.md). The sky (#225) adds
+// off screen. A new layer is turned on here when it lands (docs/RENDERING.md). Many lights (#228):
+// dungeon-40's torches and ref-6's braziers, and beside the player a light carrier on ground it
+// never saw, its lantern reaching on into the dark (the server never sends one, grid-light-layer.spec.ts;
+// here the picture holds even if it did). The sky (#225) adds
 // its own poses, always run: a low camera toward the horizon, dense haze, a dark area at noon and a
 // roofed table.
 //
@@ -26,6 +29,7 @@ import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
+import type { GridPose } from './poses';
 import { settingsFor, type Tier } from './quality';
 import {
 	BACKEND,
@@ -56,6 +60,8 @@ vi.setConfig({ testTimeout: 300_000 });
 const TALL = { floor: 0.1, wall: WALL_LEVELS * STEP_HEIGHT + 0.3, token: 2, light: 2, prop: 4 };
 /** Fewer samples than this and a pose proves nothing: it is left out, and said so. */
 const MIN_SAMPLES = 20;
+/** From above a light carrier on unexplored ground (#228), round its cell. */
+const ABOVE = { distance: 12, azimuth: 20, elevation: 70 };
 /** The rig camera's vertical field of view (camera.ts). */
 const FOV = 45;
 const POSES: readonly PoseName[] = ['overview', 'close', 'low', 'dark'];
@@ -70,7 +76,9 @@ const SLIM = new Set([
 	...TIERS.map((t) => `hollow player dark ${t}`),
 	'ref-8 spectator dusk medium',
 	'ref-8 spectator dark medium reduced',
-	'hollow player dark medium cloud'
+	'hollow player dark medium cloud',
+	'dungeon-40 player dark medium carrier',
+	'ref-6 player dark medium carrier'
 ]);
 const FULL = inject('unexplored') === 'full';
 
@@ -83,6 +91,8 @@ interface Case {
 	reduced: boolean;
 	/** The fog cloud's layer on, off by default until the owner's review (#174). */
 	cloud: boolean;
+	/** A light carrier on unexplored ground beside the player's token (#228). */
+	carrier: boolean;
 	label: string;
 }
 
@@ -111,15 +121,16 @@ async function allCases(): Promise<Case[]> {
 				const player = await loadView(fixture, band, 'player');
 				const same = (v: FixtureView) => JSON.stringify({ ...v, viewer: null });
 				if (viewer === 'spectator' && same(view) === same(player)) continue;
-				const each = (tier: Tier, reduced: boolean, cloud = false) => {
+				const each = (tier: Tier, reduced: boolean, cloud = false, carrier = false) => {
 					const label =
 						`${fixture} ${viewer} ${band} ${tier}` +
-						`${reduced ? ' reduced' : ''}${cloud ? ' cloud' : ''}`;
-					out.push({ fixture, viewer, band, poses, tier, reduced, cloud, label });
+						`${reduced ? ' reduced' : ''}${cloud ? ' cloud' : ''}${carrier ? ' carrier' : ''}`;
+					out.push({ fixture, viewer, band, poses, tier, reduced, cloud, carrier, label });
 				};
 				for (const tier of TIERS) each(tier, false);
 				each('medium', true);
 				each('medium', false, true);
+				if (viewer === 'player') each('medium', false, false, true);
 			}
 	}
 	return out;
@@ -304,10 +315,14 @@ function standing(view: FixtureView): Float32Array {
  * on the held clock), and grain and dither on unless motion is reduced.
  */
 async function mountCase(
-	c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 'reduced'> & { cloud?: boolean }
+	c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 'reduced'> & {
+		cloud?: boolean;
+		carrier?: boolean;
+	}
 ) {
 	const sidecar = await loadSidecar(c.fixture);
-	const view = await loadView(c.fixture, c.band, c.viewer);
+	const sent = await loadView(c.fixture, c.band, c.viewer);
+	const view = c.carrier ? withCarrier(sent, sidecar.player.tokenId) : sent;
 	expect(view.fog.enabled).toBe(true);
 	const clock = manualClock(5000);
 	const m = await mountFixture(view, sidecar.poses.overview, {
@@ -327,6 +342,25 @@ async function mountCase(
 	return { m, sidecar, view, settings };
 }
 
+/**
+ * The view with a lantern carrier on the unexplored cell nearest the player's token: what the
+ * server never sends (grid-light-layer.spec.ts), so its light reaches on into hidden ground.
+ */
+function withCarrier(view: FixtureView, tokenId: string): FixtureView {
+	const { width, height } = view.grid;
+	const me = view.tokens.find((t) => t.id === tokenId) ?? view.tokens[0];
+	const explored = decodeMask(view.fog.explored, width * height);
+	let [at, best] = [me.pos, Infinity];
+	for (let i = 0; i < explored.length; i++) {
+		const cell = { x: i % width, y: Math.floor(i / width) };
+		const d = Math.hypot(cell.x - me.pos.x, cell.y - me.pos.y);
+		if (!explored[i] && d < best) [at, best] = [cell, d];
+	}
+	expect(best).toBeLessThan(Infinity);
+	const carrier = { ...me, id: 'unseen-carrier', pos: at, light: 6, lightColor: '#6fe08a' };
+	return { ...view, tokens: [...view.tokens, carrier] };
+}
+
 describe(`unexplored cells on ${BACKEND}`, () => {
 	// A slim case whose fixture or view changed would otherwise drop out of CI without a word.
 	it.skipIf(FULL)('finds every case of the slim set', () => {
@@ -339,9 +373,13 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			const tall = standing(view);
 			const lit: string[] = [];
 			let checked = 0;
-			for (const pose of c.poses) {
+			// A carrier's case also looks down on it from above (ref-6's own poses keep too few samples).
+			const carrier = view.tokens.find((t) => t.id === 'unseen-carrier');
+			const poses: [string, GridPose][] = c.poses.map((p) => [p, sidecar.poses[p]]);
+			if (carrier) poses.push(['carrier', { ...ABOVE, target: carrier.pos }]);
+			for (const [pose, where] of poses) {
 				// The camera takes the pose at once: a pose with too few samples draws nothing more.
-				m.tabletop.setGridPose(sidecar.poses[pose]);
+				m.tabletop.setGridPose(where);
 				const camera = cameraOf(m);
 				const samples = samplesFor(view.grid, tall, camera);
 				if (samples.length < MIN_SAMPLES) {

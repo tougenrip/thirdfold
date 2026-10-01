@@ -20,7 +20,10 @@ const BUDGETS = {
 	// measured.
 	// 97.4 → 97.5: the sky's resolver and the canonical hours, now used by the renderer, stay in the
 	// shared chunk with the manifest's parser (#215), 97,479 B measured.
-	'/builder': { total: 97_700, own: 52_000 },
+	// 97.5 → 98.2: GridLights' sources and sight cache (#228) keep the shared chunk of the grid's,
+	// objects' and visibility's code larger (the renderer now uses `SightCache` and `asObstacles`
+	// from it), 98,180 B measured.
+	'/builder': { total: 98_200, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
@@ -48,7 +51,10 @@ const BUDGETS = {
 	// horizon (#225); 368.3 kB measured. → 368.9: exposure from the focus cell (#233). → 369.5:
 	// the sun and moon shadow fitted to the grid (#229). → the map's fog rectangle, the ring's land
 	// look and the vignette by distance (#377); set to the merged build's measured size.
-	renderer: { total: 369_700 },
+	// → 373.0: GridLights (#228: the node, its CPU side and the client's sight cache, the lit kinds'
+	// lighting model); 372.9 kB measured (the milestone's cap is
+	// about 378 kB).
+	renderer: { total: 373_000 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

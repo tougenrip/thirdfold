@@ -671,8 +671,9 @@ CORE_RADIUS)^LIGHT_DECAY` on the 3D distance from the visual position, times a h
 (decay 0.5-2, core radius 1-2 cells so the body never passes 1, core cap 1-8, readable edge
 0.02-0.2); `lights.spec.ts` proves the contract on a 24×24 grid for radii 1-20, flat, behind a wall,
 over raised ground, from a balcony behind its railing and through a window, at every corner of those
-ranges. Until #228 replaces it, the point-light pool's cutoff is `hypot(renderedReach, the light's
-height above its floor)`, so it ends where the floor meets the rules' rim.
+ranges. GridLights (#228, "Many lights" below) compute exactly this in the shader (`falloffNode`);
+the pool kept behind `?off=manylights` until the milestone closes cuts off at `hypot(renderedReach,
+the light's height above its floor)`, so it ends where the floor meets the rules' rim.
 
 ### Exposure from the focus cell (#233)
 
@@ -799,6 +800,55 @@ should be the first thing an upgrade fails.
   "Color target has no corresponding fragment stage output" (`targets[1]`, a mini's), worth its own
   issue.
 
+### The shipped path (#228)
+
+- **Sources and entries.** `LightingLayer` (`lighting.ts`) hands every source that is on, placed or
+  carried (`litSources`: `lightSources`' order with the light's or the carrier's id), to
+  `GridLighting` (`grid-light-layer.ts`), which makes a `LightEntry` each (`grid-lights.ts`: id,
+  rule origin, visual position, reach `renderedReach`, linear colour, intensity = the look's
+  intensity × `2 + radius`, flicker profile and phase, flags hero / bake-excluded / no-core; the last
+  four are 0 until #230, #231, #234 and #236 fill them, but the layout has them). The visual position
+  is `lightMount`, a sconce's or brazier's top (`lightSeats`), or the carrier's hand (`HAND`, by its
+  scale and lift), which follows the mini as it glides (`LightingLayer.carry` from the frame's token
+  tick: only those lights' layers upload). The day halving of the pool is gone: the sky's exposure
+  handles the day.
+- **Data and uploads.** `GridLight` (`materials/grid-light-node.ts`) holds two `DataArrayTexture`s:
+  the data, a layer per light (`packLight`: 3 data texels, then the 64 texels of its occlusion row),
+  and the lists, a layer per grid row (K per cell, four to an RGBA8 texel). A light that changes
+  uploads its own layer and a list change the rows that changed (`addLayerUpdate`, which r186 honours
+  on both backends; `Texture.addUpdateRange` is the classic renderer's only). Rows are cached per
+  sight (`WeakMap` on the `SightCache`'s mask), and the client's `SightCache` keeps every sight while
+  the obstacles are the same, so a token's move works out one sight.
+- **The node.** One `GridLight` per scene, made by `createSceneLights` so the lobby's warm-up and the
+  table compile the same, registered by `registerGridLights` beside the sky's lights (`loop.ts`). Its
+  K is the tier's `lights` (4 low, 8 medium and high, 16 ultra); another K is another `GridLight`,
+  swapped by `LightingLayer.setTier` (a new program, as any tier switch makes), and `?off=manylights`
+  swaps the pool of 8 back in. Per entry: the rules window, body and core (`falloffNode`, the mirror
+  of `lightFalloff`) times three occlusion taps, never below `READABLE_EDGE` on a listed cell, into
+  the lighting model as a direct light (`lightDirection` toward the visual position).
+- **One dimming.** The lit kinds light with `KindLightingModel` (`materials/lighting-model.ts`,
+  their `KindStandardMaterial` and `KindPhysicalMaterial` bases): its `indirect()` scales the indirect
+  light (hemisphere, image light, AO, a mini's clearcoat) by `worldLight` (the rules' light factor
+  `worldModify` used to put on the whole output), `SkyLightNode` scales the key light by it for these
+  materials only (`kindLit`), and `worldModify(output, emissive, true)` fogs, tints and adds the dark's
+  colour without darkening again, so a torch's pool is no longer dimmed by the dark it lights. Materials
+  that are not kinds (fixtures, flames, the mist) keep the whole darkening.
+- **Budget.** The largest fragment stage samples 15 textures (terrain on medium and high; 14 on
+  low), counted per material and tier from every fragment shader the table's warm-up compiled
+  (`program-count.svelte.spec.ts`, `STAGE_TEXTURES`); the readable fill needs no texture (it is the
+  `READABLE_EDGE` floor in the loop), so the plan's `light` cell map is left to #234, which packs
+  bounce and cavity into an existing texture.
+- **Tests.** `grid-lights.svelte.spec.ts` on both backends: dungeon-40 from above with the GridLight
+  on and off (every rule-lit cell centre brighter, every other one unchanged, every torch in view
+  lighting its pool), a wall with a torch half a cell from it (neither the far face nor the floor
+  behind it changes when the torch's colour goes black) and the monastery's `mn-gallery-lamp` on its
+  balcony (no cell past its rules' sight changes). The program-count sweep's `lightSteps` (40 torches
+  in and out, every kind, recoloured, a carried light on, coloured, moved and off) on every tier;
+  unexplored-black's dungeon-40 and ref-6 with a lantern carrier on hidden ground beside the player;
+  `grid-light-layer.spec.ts` (a hidden carrier beside a player is never one of the player's lights).
+  The parity test against `DynamicLighting` waits: the falloff is no longer three's, so it would
+  compare shapes, not pixels.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -829,6 +879,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)  |
 | `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)       |
 | `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                           |
+| `grid-light-layer.ts`                 | `GridLighting`: the point lights from what the viewer was sent, uploads, `carry`; `grid-lights.ts` its data (#228)               |
 | `fog-cloud.ts`                        | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                            |
 | `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
 | `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |

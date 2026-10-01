@@ -8,21 +8,21 @@
 			"viewers": {
 				"Gia": {
 					"geometries": 55,
-					"textures": 82,
+					"textures": 84,
 					"programs": 174,
-					"heap": 24966476
+					"heap": 26555492
 				},
 				"Ana": {
 					"geometries": 55,
-					"textures": 82,
+					"textures": 84,
 					"programs": 174,
-					"heap": 25003732
+					"heap": 26598944
 				},
 				"Ben": {
 					"geometries": 55,
-					"textures": 82,
+					"textures": 84,
 					"programs": 174,
-					"heap": 24973204
+					"heap": 26584712
 				}
 			},
 			"idleFrames": 0,
@@ -33,78 +33,78 @@
 	"reload": {
 		"first": {
 			"geometries": 55,
-			"textures": 82,
+			"textures": 84,
 			"programs": 174,
-			"heap": 25531696
+			"heap": 27194128
 		},
 		"after": {
 			"geometries": 55,
-			"textures": 82,
+			"textures": 84,
 			"programs": 174,
-			"heap": 25850608
+			"heap": 27509656
 		}
 	},
 	"remount": {
 		"first": {
 			"geometries": 55,
-			"textures": 82,
+			"textures": 84,
 			"programs": 174,
-			"heap": 24907172
+			"heap": 26434512
 		}
 	},
 	"tiers": {
 		"low": {
 			"renderTargets": 20,
-			"texturesBytes": 58545414,
+			"texturesBytes": 58858774,
 			"programs": 109,
 			"pipelines": 74
 		},
 		"medium": {
 			"renderTargets": 30,
-			"texturesBytes": 140676082,
+			"texturesBytes": 141029442,
 			"programs": 172,
 			"pipelines": 110
 		},
 		"high": {
 			"renderTargets": 32,
-			"texturesBytes": 175326195,
+			"texturesBytes": 175679565,
 			"programs": 174,
 			"pipelines": 111
 		}
 	},
 	"bundle": {
 		"/": {
-			"gz": 59652,
-			"own": 8833,
+			"gz": 59624,
+			"own": 8839,
 			"three": false
 		},
 		"/builder": {
-			"gz": 97511,
-			"own": 46692,
+			"gz": 98138,
+			"own": 47353,
 			"three": false
 		},
 		"/credits": {
-			"gz": 53083,
-			"own": 2264,
+			"gz": 53048,
+			"own": 2263,
 			"three": false
 		},
 		"/dev/assets": {
-			"gz": 51126,
+			"gz": 51092,
 			"own": 307,
 			"three": false
 		},
 		"/library": {
-			"gz": 61975,
-			"own": 11156,
+			"gz": 61950,
+			"own": 11165,
 			"three": false
 		},
 		"/room/[id]": {
-			"gz": 115817,
-			"own": 64998,
+			"gz": 116470,
+			"own": 65685,
 			"three": false
 		},
 		"renderer (added)": {
-			"gz": 368311,
+			"gz": 372862,
 			"own": null,
 			"three": true
 		}

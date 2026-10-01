@@ -819,3 +819,42 @@ per frame (timestamp queries), overview and close, GM and player:
   have. At most one every 2 s (high) or 5 s (medium), it is not a per-frame cost.
 - **The iGPU** stays over its budgets, as recorded since M61 (low 14-16 ms, medium 48-52 ms, high
   55-60 ms at 1080p); M67 did not change that picture, and the dome is not what costs.
+
+## The M68 many lights (#228)
+
+GridLights replace the pool of 8 point lights (docs/RENDERING.md, "Many lights"). Measured with
+`scripts/perf-gpu.mjs` (`SCENES=dungeon-40,village,hollow TIER=medium FRAMES=32`, 1920×1080,
+reduced motion) against the M67 build (`tougenrip/m68-lighting` before #228, its pool) served
+beside it, the two alternating twice; each cell is the lower of the two rounds' GPU ms per frame
+(timestamp queries). `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json` for the iGPU. A
+first view that compiles (village's GM overview on WebGL2) is noise either way.
+
+| GPU           | Backend | Path       | dungeon-40 GM overview / close | player overview / close | village GM overview / close | player overview / close | Hollow GM overview / close | player overview / close |
+| ------------- | ------- | ---------- | ------------------------------ | ----------------------- | --------------------------- | ----------------------- | -------------------------- | ----------------------- |
+| RTX 4060      | WebGPU  | M67 pool   | 2.3 / 3.0                      | 2.4 / 2.9               | 2.1 / 2.3                   | 2.1 / 2.3               | 3.0 / 6.8                  | 3.5 / 6.4               |
+| RTX 4060      | WebGPU  | GridLights | 2.4 / 2.9                      | 2.2 / 2.8               | 1.9 / 2.1                   | 1.9 / 2.1               | 3.2 / 5.8                  | 2.6 / 6.5               |
+| RTX 4060      | WebGL2  | M67 pool   | 2.7 / 3.3                      | 2.8 / 3.3               | (26.3) / 2.5                | 2.3 / 2.5               | 6.3 / 6.7                  | 3.6 / 7.4               |
+| RTX 4060      | WebGL2  | GridLights | 2.6 / 3.1                      | 2.6 / 3.2               | (14.7) / 2.4                | 2.0 / 2.3               | 4.7 / 6.7                  | 3.3 / 5.8               |
+| Intel (RPL-S) | WebGPU  | M67 pool   | 49.0 / 62.5                    | 49.8 / 63.2             | 43.9 / 45.1                 | 42.8 / 45.4             | 71.9 / 165.1               | 73.8 / 164.8            |
+| Intel (RPL-S) | WebGPU  | GridLights | 42.8 / 56.2                    | 43.9 / 56.3             | 40.7 / 39.3                 | 37.1 / 39.8             | 63.7 / 146.4               | 64.0 / 146.4            |
+| Intel (RPL-S) | WebGL2  | M67 pool   | 43.0 / 55.1                    | 43.9 / 55.9             | (71.4) / 38.5               | 36.7 / 39.3             | 62.4 / 108.9               | 74.4 / 131.6            |
+| Intel (RPL-S) | WebGL2  | GridLights | 39.2 / 49.3                    | 37.5 / 48.7             | (62.4) / 31.3               | 30.7 / 32.7             | 49.0 / 90.0                | 58.9 / 104.2            |
+
+- **The iGPU at medium is no worse than M67 on every view (the owner's gate), 8-20% faster on
+  most:** each fragment runs its cell's few lights (two at most on these tables) instead of all 8
+  pool lights. A first build whose falloff used `pow` for its squares was 5-15% slower than M67 on
+  the iGPU's WebGL2 views; `falloffNode` multiplies instead, and that is the build measured here.
+- **The RTX** is the same or a little faster on both backends, within a tenth of a millisecond on
+  most views.
+- **CPU.** The relight for the GM loading the village (`perf-client.mjs`, `SCENES=village`,
+  `lighting` over the load) averaged 1.2 ms a relight (14 in 16.8 ms) against M67's 3.1 ms (10 in
+  31.4 ms) on this machine, well within M34's 6.4 ms; the builders' own costs are the ADR's
+  (`buildLists` 0.2 ms with the sights cached, a door toggle 4.3 ms on dungeon-40). A light that
+  changes uploads its own data layer (1 KB), a list change the grid rows that changed.
+- **Memory.** The data texture (255 lights × 67 RGBA32F texels, 273 KB) and the lists (100 rows of
+  K per cell: 80 KB at K = 8, 160 KB at 16), whatever the table.
+
+**The perf gate** was re-baselined deliberately (`--update-baseline`, the test world, WebGL2 on the
+RTX): textures 82 → 84 and texture bytes +353 KB on every tier (GridLights' two textures), the heap
+about 1.5 MB more; programs (174), pipelines, render targets, draw calls (117 after orbiting) and
+idle frames (0) unchanged, nothing leaked over reloads and remounts.

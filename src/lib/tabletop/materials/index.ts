@@ -12,6 +12,7 @@
 import * as THREE from 'three/webgpu';
 import { SLOT_NAMES, slotDefault, slotProperty, type SlotName } from './defaults';
 import { LIFT_ATTRIBUTE } from './variation';
+import { KindPhysicalMaterial, KindStandardMaterial } from './lighting-model';
 import {
 	BAKE_ATTRIBUTE,
 	graphFor,
@@ -74,9 +75,9 @@ export interface MaterialOptions {
 function baseMaterial(kind: ShaderKind, lines: boolean): THREE.NodeMaterial {
 	switch (KINDS[kind].base) {
 		case 'physical':
-			return new THREE.MeshPhysicalNodeMaterial();
+			return new KindPhysicalMaterial();
 		case 'standard':
-			return new THREE.MeshStandardNodeMaterial();
+			return new KindStandardMaterial();
 		default:
 			return lines ? new THREE.LineBasicNodeMaterial() : new THREE.MeshBasicNodeMaterial();
 	}

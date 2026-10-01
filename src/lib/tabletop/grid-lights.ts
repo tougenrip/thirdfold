@@ -12,29 +12,27 @@
 //   under a balcony's edge) are marched over, so a balcony light still reaches the floor it sees
 //   beyond; the lists keep it off the cells it doesn't. Otherwise a row only darkens: it stops at
 //   the first hidden cell even if cells beyond it are in sight again.
-// - `packLightData`: the entries as `DATA_TEXELS` RGBA32F texels per light, `GRID_LIGHT_CAPACITY`
-//   wide, a layout ClusteredLighting can read on ultra too (#357).
+// - `packLight`: one light as the node reads it, a row of `LIGHT_TEXELS` RGBA32F texels (a layer of
+//   GridLight's data texture): its `DATA_TEXELS` of data, then its occlusion row four distances to
+//   a texel, so a light that changes uploads only its own row; a layout ClusteredLighting can read
+//   on ultra too (#357).
 
 import type { GridPos, SquareGrid } from '$lib/game/grid';
-import { lightLook, type LightSource } from '$lib/game/lights';
+import { lightFalloff, lightLook, type LightSource } from '$lib/game/lights';
 import type { SightCache } from '$lib/game/visibility';
 
 /** Lights the data holds: indices are bytes, 0 meaning none. */
 export const GRID_LIGHT_CAPACITY = 255;
 /** Angles per occlusion row. */
 export const ROW_ANGLES = 256;
-/** Texels per light in the data texture (rows of a `GRID_LIGHT_CAPACITY` × 3 texture). */
+/** Data texels per light, before its occlusion row. */
 export const DATA_TEXELS = 3;
+/** Texels per light in the data texture: its data, then its row four distances to a texel. */
+export const LIGHT_TEXELS = DATA_TEXELS + ROW_ANGLES / 4;
 
-// Seam for #226: `lightFalloff` and `renderedReach` land in game/lights.ts; these stand in until
-// then. Both in cells; the falloff reaches 0 at the reach, where `lightLevels` does.
-/** Stand-in for #226's `renderedReach`: how far a light of `radius` draws, in cells. */
-export const standInReach = (radius: number): number => radius + 1;
-/** Stand-in for #226's `lightFalloff`: brightness `d` cells from a light of `radius`, 0-1. */
-export function standInFalloff(d: number, radius: number): number {
-	const x = Math.max(0, 1 - d / standInReach(radius));
-	return x * x;
-}
+/** How a light ranks on a cell `d` cells from it: its look's intensity times `lightFalloff`. */
+export const contribution = (s: LightSource, d: number): number =>
+	lightLook(s).intensity * lightFalloff(s.radius, d, d);
 
 /**
  * K light indices per cell (`Uint8Array(width × height × k)`, cell-major: cell `c`'s list is
@@ -54,7 +52,6 @@ export function buildLists(
 	for (let i = 0; i < count; i++) {
 		const s = sources[i];
 		const sight = cache.sight(grid, s.pos, s.radius);
-		const intensity = lightLook(s).intensity;
 		const r = Math.floor(s.radius);
 		const x0 = Math.max(0, s.pos.x - r);
 		const x1 = Math.min(grid.width - 1, s.pos.x + r);
@@ -65,8 +62,7 @@ export function buildLists(
 				const c = y * grid.width + x;
 				if (!sight[c]) continue;
 				// A light's own cell still counts, at its full strength; never 0, so it always enters.
-				const score =
-					intensity * standInFalloff(Math.hypot(x - s.pos.x, y - s.pos.y), s.radius) + 1e-6;
+				const score = contribution(s, Math.hypot(x - s.pos.x, y - s.pos.y)) + 1e-6;
 				insert(lists, scores, c * k, k, i + 1, score);
 			}
 		}
@@ -157,39 +153,40 @@ export function buildRows(
 	return rows;
 }
 
-/** One light as the node reads it. Positions and reach in world units, colour linear. */
-export interface GridLightEntry {
-	/** Where it is drawn from (specular, the hot core): `lightMount`'s position (#226). */
-	visual: { x: number; y: number; z: number };
-	/** How far it draws, world units. */
-	reach: number;
-	/** Linear colour times intensity. */
-	rgb: readonly [number, number, number];
+/** Flag bits in a light's data (later tasks set them; the layout has them from the start). */
+export const LIGHT_FLAGS = { hero: 1, bakeExcluded: 2, noCore: 4 } as const;
+
+/** One light as the node reads it. Positions in world units, colour linear. */
+export interface LightEntry {
+	/** The placed light's id, or the carrying token's. */
+	id: string;
 	/** The rules' origin, in cells (its centre is `+ 0.5`): membership, reach and occlusion. */
 	ruleOrigin: GridPos;
+	/** Where it is drawn from (specular, the hot core): `lightMount`, or the carrier's hand. */
+	visual: { x: number; y: number; z: number };
+	/** How far it renders from the rule origin, in cells: `renderedReach`. */
+	reach: number;
+	/** Linear colour. */
+	colour: readonly [number, number, number];
+	/** Its look's intensity times the strength for its radius. */
+	intensity: number;
 	/** Flicker profile (#231), 0 for none. */
 	profile: number;
 	/** Flicker phase, 0-1. */
 	phase: number;
-	/** Bit flags: hero (#230), bake-excluded (#234), no-core (#236). */
+	/** `LIGHT_FLAGS` bits: hero (#230), bake-excluded (#234), no-core (#236). */
 	flags: number;
 }
 
 /**
- * The entries as an RGBA32F texture's data, `GRID_LIGHT_CAPACITY` wide and `DATA_TEXELS` high:
- * row 0 visual position and reach, row 1 colour and flags, row 2 the rule origin's centre in
- * cells, flicker profile and phase.
+ * One light's texels into `out` at `offset` (floats): texel 0 the visual position and reach,
+ * 1 the colour times intensity and the flags, 2 the rule origin's centre in cells, the flicker
+ * profile and phase, then its occlusion row, `ROW_ANGLES` distances four to a texel.
  */
-export function packLightData(entries: readonly GridLightEntry[]): Float32Array {
-	const line = GRID_LIGHT_CAPACITY * 4;
-	const data = new Float32Array(line * DATA_TEXELS);
-	const count = Math.min(entries.length, GRID_LIGHT_CAPACITY);
-	for (let i = 0; i < count; i++) {
-		const e = entries[i];
-		const o = i * 4;
-		data.set([e.visual.x, e.visual.y, e.visual.z, e.reach], o);
-		data.set([e.rgb[0], e.rgb[1], e.rgb[2], e.flags], line + o);
-		data.set([e.ruleOrigin.x + 0.5, e.ruleOrigin.y + 0.5, e.profile, e.phase], 2 * line + o);
-	}
-	return data;
+export function packLight(e: LightEntry, row: Float32Array, out: Float32Array, offset = 0): void {
+	const [r, g, b] = e.colour;
+	out.set([e.visual.x, e.visual.y, e.visual.z, e.reach], offset);
+	out.set([r * e.intensity, g * e.intensity, b * e.intensity, e.flags], offset + 4);
+	out.set([e.ruleOrigin.x + 0.5, e.ruleOrigin.y + 0.5, e.profile, e.phase], offset + 8);
+	out.set(row, offset + DATA_TEXELS * 4);
 }

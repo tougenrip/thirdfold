@@ -1,10 +1,11 @@
 // Lights on the props that hold them (#367): a light on a sconce or brazier
-// draws only its flame, on the prop's top, and hangs its pool light there.
+// draws only its flame, on the prop's top, and hangs its point light there (#228: its GridLights
+// entry's visual position).
 
 import * as THREE from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { lightSources, type Light } from '$lib/game/lights';
+import type { Light } from '$lib/game/lights';
 import type { Prop } from '$lib/game/props';
 import { LightingLayer, lightSeats } from './lighting';
 import { loadModel } from './models';
@@ -22,7 +23,7 @@ const props: Prop[] = [{ id: 'b', assetId: 'brazier', pos: { x: 1, y: 1 }, rotat
 
 function layerWith(seats: Map<number, number>) {
 	const layer = new LightingLayer();
-	layer.update(grid, 'dark', lights, lightSources(lights, []), new Set(), null, null, seats);
+	layer.update(grid, 'dark', lights, [], new Set(), null, null, seats);
 	return layer;
 }
 
@@ -34,7 +35,7 @@ function fixtureOf(layer: LightingLayer, id: string): THREE.Object3D {
 }
 
 describe('lights on the props that hold them', () => {
-	it('seat on the prop: no post, the flame and the pool light on its top', () => {
+	it('seat on the prop: no post, the flame and the point light on its top', () => {
 		const seats = lightSeats(grid, props);
 		const top = seats.get(1 * grid.width + 1)!;
 		expect(top).toBeGreaterThan(0);
@@ -47,12 +48,10 @@ describe('lights on the props that hold them', () => {
 		expect(standing.children[0].visible).toBe(true);
 		expect(standing.children[1].position.y).toBeCloseTo(1.5);
 
-		const pool = layer.group.children.filter(
-			(o): o is THREE.PointLight => o instanceof THREE.PointLight && o.intensity > 0
-		);
 		const w = gridToWorld(grid, { x: 1, y: 1 });
-		const over = pool.find((l) => l.position.x === w.x && l.position.z === w.z);
-		expect(over?.position.y).toBeCloseTo(top + 0.1);
+		const over = layer.grid!.entries.find((e) => e.id === 'seated')!;
+		expect([over.visual.x, over.visual.z]).toEqual([w.x, w.z]);
+		expect(over.visual.y).toBeCloseTo(top + 0.1);
 	});
 
 	it("take the prop's size from its model once loaded, scaled with the prop", async () => {
