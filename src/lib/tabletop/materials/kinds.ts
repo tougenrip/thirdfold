@@ -153,7 +153,9 @@ const lit = (defaults: ParamsInput, more: Partial<KindDef> = {}): KindDef => ({
 
 export const KINDS: Record<ShaderKind, KindDef> = {
 	surface: lit({ roughness: 0.85, ...VARY }),
-	terrain: lit({ roughness: 0.9, ...VARY }),
+	// No emissive slot: no floor glows, and the binding it saves keeps terrain's fragment stage
+	// within WebGPU's 16 sampled textures on high with the probes and the hero atlas (#235, #230).
+	terrain: lit({ roughness: 0.9, ...VARY }, { slots: ['albedo', 'normal', 'orm'] }),
 	rock: lit({ roughness: 0.95, ...VARY }),
 	prop: lit({ roughness: 0.75 }),
 	mini: lit({ roughness: 0.45 }, { base: 'physical' }),
@@ -265,11 +267,14 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	const floor = kind === 'terrain' ? floorSurface(variant) : null;
 	const albedo = mapping.sample('albedo');
 	const orm = floor ? floor.orm(mapping.sample('orm')) : mapping.sample('orm');
-	const glow = mapping
-		.sample('emissive')
-		.xyz.mul(param('emissive', 'color'))
-		.mul(param('emissiveIntensity', 'float'))
-		.add(tint);
+	// Without an emissive slot (terrain) the glow is the tint alone, as a blank slot's black gives.
+	const glow = def.slots.includes('emissive')
+		? mapping
+				.sample('emissive')
+				.xyz.mul(param('emissive', 'color'))
+				.mul(param('emissiveIntensity', 'float'))
+				.add(tint)
+		: tint;
 	const emissive = worldEmissive(glow);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;

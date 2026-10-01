@@ -318,6 +318,8 @@ export class HeroShadows {
 	}
 
 	dispose(): void {
+		// The GridLight outlives its pool (a tier's new pool, or none): it takes every share back.
+		if (this.gridLight) for (const u of this.gridLight.heroFade) u.value = 0;
 		for (const light of this.lights) {
 			light.removeFromParent();
 			light.dispose();

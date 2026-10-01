@@ -270,9 +270,12 @@ export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_00
 		[spent, before] = [spent + Math.min(now - before, STALL_MS), now];
 		const { frames, holding, mode } = tabletop.stats();
 		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
-		// still drawing: one software frame can outlast the quiet spell (CI's small runners).
+		// still drawing: one software frame can outlast the quiet spell (CI's small runners). Nor
+		// a first view's load still out (the environment's look, the decoders): on a loaded machine
+		// it lands after the frames went quiet and changes the picture (the floor's maps, #230).
 		const drawing = mode === 'active' || mode === 'converge';
-		if (frames !== last || frames === 0 || holding || drawing) {
+		const [loaded, loading] = tabletop.loads();
+		if (frames !== last || frames === 0 || holding || drawing || loaded < loading) {
 			last = frames;
 			quietSince = performance.now();
 		} else if (performance.now() - quietSince >= quietMs) return;

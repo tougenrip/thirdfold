@@ -989,7 +989,9 @@ for a review (`layersFrom` reads `?on=` as well as `?off=`).
 - **Texture slots.** The atlas is one 3D texture, so the largest fragment stage goes from 15 to 16
   sampled textures on high with probes: exactly WebGPU's default limit, with none spare. The
   spec asserts at most 16; anything else a lit kind samples on high (hero shadow maps, #230) must
-  share a binding or turn the probes off.
+  share a binding or turn the probes off. The hero atlas took terrain to 17, so terrain has no
+  emissive slot (no floor glows: its glow is the tint alone, `KINDS.terrain.slots`): with probes
+  and hero shadows on high, terrain samples 16 and prop and mini 15.
 
 ### Hero shadows (#230)
 
@@ -1015,7 +1017,8 @@ hand one over. Casters are only what the viewer was sent.
   uniforms as `vec4`s did), so they are floats or uniform arrays.
 - **Cubes.** One depth atlas for the pool (`HeroAtlas`, a row of six 90° faces per slot, compared
   with the hardware's 2×2 PCF), so the slots add one texture to a lit fragment stage: the largest,
-  terrain, is at 16 (WebGPU's default and WebGL2's least), prop and mini at 15. `HeroShadowNode`
+  terrain, is at 15 without probes and 16 with them (WebGPU's default and WebGL2's least, since
+  terrain dropped its emissive slot), prop and mini at 15 with probes. `HeroShadowNode`
   (a `ShadowNode` with its own render target, filter and `renderShadow`) fills each face's tile with
   the far depth (a clear would clear the whole atlas), draws the casters with one shared material,
   and records the face matrices and the light's position it drew with, which the filter uses, so a
