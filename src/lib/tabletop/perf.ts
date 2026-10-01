@@ -371,13 +371,17 @@ export interface Benchmark {
  * Draws the current view `frames` times, timing each: the main thread's ms
  * (`cpu`) and the GPU's, by timestamp queries where the renderer has them,
  * else by waiting until the frame is drawn (reading a pixel back on WebGL2,
- * `onSubmittedWorkDone` on WebGPU). `draw` draws one frame as the tabletop does.
+ * `onSubmittedWorkDone` on WebGPU). `draw` draws one frame as the tabletop does, once `warming`
+ * (the warm-up under way, warmup.ts) has settled: a warm-up keeps the scene pass's target and
+ * outputs set while it compiles, and a frame drawn then builds WebGPU pipelines for them (the
+ * output stage's quad with the scene pass's three colour targets, #379).
  */
 export async function benchmark(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
 	draw: () => void,
-	frames: number
+	frames: number,
+	warming: () => Promise<void> = () => Promise.resolve()
 ): Promise<Benchmark> {
 	const { gl, device } = backendOf(renderer);
 	const timer: GpuTimer = timestamps(renderer) ? 'timestamp' : gl || device ? 'sync' : 'none';
@@ -393,6 +397,7 @@ export async function benchmark(
 			readPasses(renderer);
 		}
 		for (let i = 0; i < frames; i++) {
+			await warming().catch(() => {});
 			const start = performance.now();
 			draw();
 			cpu += performance.now() - start;
@@ -444,13 +449,22 @@ export function perfMethods(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
 	draw: () => void,
-	{ loop, quality }: { loop: { holding: boolean; mode: Mode }; quality: { tier: Tier } }
+	{
+		loop,
+		quality,
+		warming
+	}: {
+		loop: { holding: boolean; mode: Mode };
+		quality: { tier: Tier };
+		/** The warm-up under way, if any (renderer.ts): no benchmark frame draws during it. */
+		warming: () => Promise<void>;
+	}
 ): Pick<Tabletop, 'stats' | 'resetStats' | 'benchmark' | 'sampleGpu'> {
 	return {
 		stats: () =>
 			rendererStats(renderer, perf, { holding: loop.holding, tier: quality.tier, mode: loop.mode }),
 		resetStats: () => perf.reset(),
-		benchmark: (frames) => benchmark(renderer, perf, draw, frames),
+		benchmark: (frames) => benchmark(renderer, perf, draw, frames, warming),
 		sampleGpu: () => sampleGpu(renderer, perf)
 	};
 }
