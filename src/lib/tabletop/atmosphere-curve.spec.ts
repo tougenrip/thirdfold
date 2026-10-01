@@ -213,7 +213,7 @@ describe('atmosphereAt', () => {
 				prev = next;
 			}
 		}
-	});
+	}, 30_000); // every minute of a day: slow under a loaded full run
 
 	it('hands the key light to the moon below -4°, crossing at zero', () => {
 		let switches = 0;

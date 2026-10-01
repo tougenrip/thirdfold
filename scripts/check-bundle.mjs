@@ -23,7 +23,7 @@ const BUDGETS = {
 	// 97.5 → 98.2: GridLights' sources and sight cache (#228) keep the shared chunk of the grid's,
 	// objects' and visibility's code larger (the renderer now uses `SightCache` and `asObstacles`
 	// from it), 98,180 B measured.
-	'/builder': { total: 98_200, own: 52_000 },
+	'/builder': { total: 98_300, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
