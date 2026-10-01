@@ -18,7 +18,7 @@
 // hourly steps under the default open sky, every other sky in the manifest at the band hours (an
 // enclosed sky takes its band's key whole, and each hour is a capture: every sky every hour took
 // ten minutes a tier), haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off.
-// Each tier's runtime state and its sky are tests of their own, one CI shard each (shardedIt).
+// Each tier's runtime state (in two halves), its table travel and its sky are tests of their own, one CI shard each (shardedIt).
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -44,7 +44,7 @@ import {
 	type Mounted
 } from './testing';
 
-vi.setConfig({ testTimeout: 600_000 });
+vi.setConfig({ testTimeout: 600_000, hookTimeout: 90_000 });
 
 /** Every environment in the manifest, and the plain table. */
 const ENVIRONMENTS = [
@@ -332,12 +332,37 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 	return { m, home, travel: travel.map((v) => v.view), clock, renderer, scene };
 }
 
-/** The runtime state and table travel on a tier, against KNOWN. */
-async function runtimeState(tier: Tier): Promise<void> {
+/**
+ * The runtime state on a tier against KNOWN: the home table's steps, or table travel (each its own
+ * test, so a CI job holds one of them within its budget).
+ */
+async function runtimeState(tier: Tier, part: 'home' | 'more' | 'travel'): Promise<void> {
 	const { m, home, travel, sweep } = await warmHome(tier);
 	const t = m.tabletop;
 	const p0 = sweep.counts();
-	const changes = await sweep.run(homeSteps(m, home, tier));
+	if (part === 'travel') {
+		const changes: string[] = [];
+		// Table travel: to each table and back home, in both directions.
+		for (const view of [...travel, ...[...travel].reverse()]) {
+			const [w, h] = [view.grid.width, view.grid.height];
+			changes.push(
+				...(await sweep.run([
+					[`travel to ${w}×${h} ${view.environment}`, () => show(m, view)],
+					['travel home', () => show(m, home)]
+				]))
+			);
+		}
+		expect(changes).toEqual([]);
+		return;
+	}
+	// The home steps in two halves, each a test (and a CI job) of its own.
+	const steps = homeSteps(m, home, tier);
+	const half = Math.ceil(steps.length / 2);
+	const changes = await sweep.run(part === 'home' ? steps.slice(0, half) : steps.slice(half));
+	if (part === 'home') {
+		expect(changes.filter((c) => !(c.slice(0, c.indexOf(':')) in KNOWN))).toEqual([]);
+		return;
+	}
 	// Low draws one fetch a slot, medium and up anti-tile (#181). A switch that keeps the
 	// pipeline swaps the table's, the walls' and the raised ground's materials for their twins;
 	// it has no AO (low has none, and a new AO kind is a new renderer, Tabletop.svelte), so it
@@ -353,16 +378,6 @@ async function runtimeState(tier: Tier): Promise<void> {
 				['anti-tiling as it was', antiTile(settings.antiTile)]
 			]))
 		);
-	// Table travel: to each table and back home, in both directions.
-	for (const view of [...travel, ...[...travel].reverse()]) {
-		const [w, h] = [view.grid.width, view.grid.height];
-		changes.push(
-			...(await sweep.run([
-				[`travel to ${w}×${h} ${view.environment}`, () => show(m, view)],
-				['travel home', () => show(m, home)]
-			]))
-		);
-	}
 	const stepOf = (change: string) => change.slice(0, change.indexOf(':'));
 	const known = changes.filter((c) => stepOf(c) in KNOWN);
 	console.info(`${tier} after the warm-up: ${JSON.stringify(p0)}; then\n${known.join('\n')}`);
@@ -393,12 +408,18 @@ async function warmHome(tier: Tier) {
 }
 
 // One test per tier for the runtime state and one for the sky, so CI runs each in a job of its own
-// (`THIRDFOLD_SHARD=k/6`, .github/workflows/rendering.yml); the last two join the first shards.
+// (`THIRDFOLD_SHARD=k/12`, .github/workflows/rendering.yml); the last two join the first shards.
 describe('the shader program count', () => {
 	const test = shardedIt();
 	for (const tier of TIERS) {
 		test(`stays put through runtime state on ${tier}`, async () => {
-			await runtimeState(tier);
+			await runtimeState(tier, 'home');
+		});
+		test(`stays put through more runtime state on ${tier}`, async () => {
+			await runtimeState(tier, 'more');
+		});
+		test(`stays put through table travel on ${tier}`, async () => {
+			await runtimeState(tier, 'travel');
 		});
 		test(`stays put through the sky on ${tier}`, async () => {
 			const { m, home, sweep } = await warmHome(tier);
