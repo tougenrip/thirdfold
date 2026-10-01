@@ -1,9 +1,7 @@
-// Quality tiers (milestone 62, #147): what a device can do (`Caps`) becomes a
-// starting tier, and each tier one row of settings every effect reads, so no
-// milestone invents its own switch. Pure: no three.js, no DOM (capabilities.ts
-// probes the browser). `?tier=` and `?off=` override for A/B tests and
-// emergencies and are never saved; the viewer's own choice is kept in
-// `thirdfold:graphics`, in this browser only.
+// Quality tiers (milestone 62, #147): what a device can do (`Caps`) becomes a starting tier, and
+// each tier one row of settings every effect reads, so no milestone invents its own switch. Pure:
+// no three.js, no DOM (capabilities.ts probes the browser). `?tier=` and `?off=` override for A/B
+// tests and emergencies and are never saved; the viewer's own choice is kept in this browser.
 
 import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
 import { TEXTURE_DETAILS, type TextureDetail } from '../assets/detail';
@@ -95,8 +93,9 @@ export interface QualitySettings {
 	lights: 8 | 16 | 32 | 'clustered';
 	/** Torches near the camera that cast shadows (#230). */
 	shadowedTorches: 0 | 2 | 4;
-	/** The sun's shadow map, per side. */
+	/** The key light's shadow map, per side, and its soft PCF's radius in texels (#229). */
 	sunShadowSize: 1024 | 2048 | 4096;
+	sunShadowRadius: 1 | 2 | 3;
 	/** Particle budget, and vegetation density (0..1). */
 	particles: number;
 	vegetation: number;
@@ -132,6 +131,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		lights: 8,
 		shadowedTorches: 0,
 		sunShadowSize: 1024,
+		sunShadowRadius: 1,
 		particles: 250,
 		vegetation: 0.25,
 		fpsCap: 30,
@@ -154,6 +154,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		lights: 16,
 		shadowedTorches: 2,
 		sunShadowSize: 2048,
+		sunShadowRadius: 2,
 		particles: 1000,
 		vegetation: 0.5,
 		fpsCap: 60,
@@ -176,6 +177,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		lights: 32,
 		shadowedTorches: 4,
 		sunShadowSize: 2048,
+		sunShadowRadius: 3,
 		particles: 4000,
 		vegetation: 1,
 		fpsCap: 60,
@@ -198,6 +200,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		lights: 'clustered',
 		shadowedTorches: 4,
 		sunShadowSize: 4096,
+		sunShadowRadius: 3,
 		particles: 8000,
 		vegetation: 1,
 		fpsCap: 60,
@@ -230,9 +233,8 @@ const rank = (t: Tier) => TIERS.indexOf(t);
 const lower = (a: Tier, b: Tier): Tier => (rank(a) <= rank(b) ? a : b);
 
 /**
- * The starting tier for a device, with no input: software rasterisers and
- * compat WebGPU get low, phones low or medium by memory, integrated GPUs
- * medium, everything else high. Ultra is only ever chosen by hand.
+ * The starting tier for a device, with no input: software rasterisers and compat WebGPU get low,
+ * phones low or medium by memory, integrated GPUs medium, everything else high. Ultra: by hand.
  */
 export function qualityFor(caps: Caps): Tier {
 	if (caps.software) return 'low';
@@ -362,9 +364,8 @@ export function tierFrom(search: string): Tier | null {
 }
 
 /**
- * The pixel ratio that keeps a canvas of `cssW`×`cssH` within `megapixels`:
- * the device's own where that fits, less where it doesn't (4K at DPR 2 on
- * medium draws about 2.1 MP, not 33).
+ * The pixel ratio that keeps a canvas of `cssW`×`cssH` within `megapixels`: the device's own where
+ * that fits, less where it doesn't (4K at DPR 2 on medium draws about 2.1 MP, not 33).
  */
 export function pixelRatioFor(cssW: number, cssH: number, dpr: number, megapixels: number): number {
 	if (cssW <= 0 || cssH <= 0) return dpr;
@@ -375,9 +376,8 @@ export function pixelRatioFor(cssW: number, cssH: number, dpr: number, megapixel
 export const REFINE_SAMPLES = 120;
 
 /**
- * After the first active frames: one tier down when the median frame (GPU ms
- * where measured, else main-thread ms) is over `budgetMs`, never up, never
- * below low. Frame rate is never the measure: an idle table draws nothing.
+ * After the first active frames: one tier down when the median frame (GPU ms where measured, else
+ * main-thread ms) is over `budgetMs`, never up, never below low. Frame rate is never the measure.
  */
 export function refineTier(start: Tier, samples: readonly number[], budgetMs: number): Tier {
 	if (samples.length < REFINE_SAMPLES || start === 'low') return start;

@@ -404,7 +404,8 @@ presets, their blend (`time-blend.ts`) and the lamp are gone.
 
 **Applying a state.** The key light stands two play radii from the play area's centre toward the
 body, raised to `MIN_SHADOW_ELEVATION_DEG` (the dome keeps the true position), with the state's colour
-and strength (0 under an enclosed sky); its shadow box is the play sphere, valid from any direction.
+and strength (0 under an enclosed sky); its shadow box is fitted to the grid each time the map is
+drawn (#229, "The key light's shadow" below).
 The hemisphere takes `hemi` (an enclosed sky's `fill` blended in as light from nowhere), the fog its
 colour, density and height (the world's haze thickens it, `HAZE_DENSITY` per unit, and tints it to its
 colour), post's exposure `2^(state.exposure + grade.exposure)` in EV, and the point-light pool its
@@ -420,6 +421,30 @@ gallery). `setLighting` no longer marks the table changed unless its lights did 
 shadows), so an hour redraws by the rule alone: a day's sweep a minute at a time draws 481 maps (two
 body switches), noon to 13:00 21, noon to 18:30 131 (`atmosphere.svelte.spec.ts` checks the count
 against the rule and that nothing compiles).
+
+### The key light's shadow (#229)
+
+`fitShadowFrustum` (`light-model.ts`, pure, tested in `light-model.spec.ts`) fits the shadow camera's
+orthographic box to the grid's box from the floor to a wall above the highest floor (`fitToTable` sets
+`AtmosphereLayer.shadowBox`), in the light's own axes as three's `lookAt` makes them: the box's corners
+in light space, four texels of room for the soft filter, sized in half-cell steps and centred on a
+whole texel, reaching toward the light by the box's height again for anything taller. It is refitted
+only when the map is drawn (`shadowFrame`), so a camera move never touches it and a light turning
+less than `SHADOW_STEP_DEG` keeps its texels; the world past the grid lies outside and reads as
+unshadowed. A 64×64 table gets at least 20 texels a cell at 2048 from any direction (the old sphere
+box spent them on the backdrop). The map's size is the tier's `sunShadowSize` (1024, 2048, 2048, 4096) and PCF's `radius` its `sunShadowRadius` (1, 2, 3, 3: low has no TRAA to hide the noise);
+`normalBias` is 0.02 of a cell and `bias` stays -0.0005. Radius, `normalBias` and `intensity` are
+uniforms in r186's `ShadowNode`, so none compiles. The moon casts with the same light at its curve
+intensity, its shadows at `MOON_SHADOW` (0.5) darkness; an enclosed sky's key light is 0, so it never
+redraws (the first frame's forced draw aside, which the warm-up needs).
+
+**Deferred.** PCSS (contact hardening on high): the blocker search must read raw depth, and the
+WebGL2 backend's `sampler2DShadow` can't be `texelFetch`ed (GLSL ES 3.0), so it could only be
+WebGPU's; a per-tier `filterNode` must also exist from the lobby's warm-up on and rebuild the renderer
+on a tier change (the pipeline-shape rule in `Tabletop.svelte`), and its look needs WebGPU goldens.
+High keeps PCF at radius 3 everywhere until then. r186's `SunLight` cascades for vista shots (the
+Hollow's pull-back, photo mode) are left to #125: they fit slices of the view frustum, so they redraw
+on every camera move, which is the cost #143 removed.
 
 ### The atmosphere curve (#212)
 
@@ -551,7 +576,7 @@ tabletop carries `room.interior`; `flashLift` raises the sky's reach during a fl
 
 The table's slab and rim are gone. `tabletop/world-ground.ts` (pure) gives a table's extents:
 `worldExtents` has the play extent (the grid's box up to a wall above its highest floor: picking,
-views, shots, the warm-up camera, the effects' bounds, the shadow box's sphere and how far the
+views, shots, the warm-up camera, the effects' bounds, the shadow box and how far the
 camera may pull back) and the world extent (the ring out to the horizon, the haze from `fogRange`,
 the far plane); `ringVertices` is the ring from the grid's edge out to a circle at the horizon,
 closer together near the grid. `tabletop/landscape.ts` `WorldGround` draws the play plane (the
