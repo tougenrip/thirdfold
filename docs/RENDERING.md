@@ -695,6 +695,110 @@ multiplies the unseen (a player's explored cells, the GM's unseen ones) by `cell
 unexplored cells stay exactly 0. `exposure.svelte.spec.ts` holds both: explored pixels within 2
 levels whatever the lift, black stays black. All uniforms: no program changes.
 
+## Many lights (milestone 68)
+
+### Decision (#227, spike 1 October 2026): GridLights
+
+Point lights are drawn by **GridLights**: one custom light per scene (`GridLight`, its node
+registered on the renderer's node library before the first compile, as `SkyLight` is), which every
+lit fragment runs as a fixed `Loop(K)` over its cell's light list, read with `textureLoad` only, so
+one graph runs on the WebGL2 and WebGPU backends with no compute and no storage buffers. Each entry
+reads its light's data and three taps of its polar occlusion row and adds three's `directPointLight`
+through the lighting model (`LightsNode.setupDirectLight`), as `ClusteredLightsNode` does per
+cluster. The set of light objects never changes, so lights coming and going change texture data,
+never a program. Three's `DynamicLighting` (option (a)) is rejected: it shines through walls, costs
+50-60% more GPU time than today's pool on the dGPU and about twice the pool on the iGPU at 40 lights,
+and needs a `constructor.name` lookup (`'PointLight'`) that a minifier may break.
+
+**Data** (pure builders in `src/lib/tabletop/grid-lights.ts`, tested in `grid-lights.spec.ts`):
+
+| What           | Built by                                                                                                                                                                                                                                                               | Texture                                                            | Size                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------- |
+| Light lists    | `buildLists(grid, sightCache, sources, K)`: each light's `SightCache` sight, the same `addVision` the rules' `litMask` uses, so a cell lists a light exactly where the rules light it; strongest first (`lightFalloff` at the cell centre), the weakest dropped past K | RGBA8, nearest, K/4 texels per cell, sized for the 100 × 100 limit | 80 KB at K = 8          |
+| Light data     | `packLightData(entries)`: visual position and reach; colour × intensity and flags (hero, bake-excluded, no-core); the rule origin's centre, flicker profile and phase                                                                                                  | RGBA32F                                                            | 3 texels a light        |
+| Occlusion rows | `buildRows(grid, sight, origin, levels)`: 256 angles marched from the light's own sight mask to the exact edge into the first cell out of it; cells below the light's floor it can't see (the drop under a balcony's edge) are marched over                            | the same RGBA32F texture, 64 texels a light after its 3 of data    | 255 × 67 texels, 268 KB |
+
+Capacity 255 lights (indices are bytes, 0 empty). Data and rows share one texture: with three
+textures the largest fragment stage reached 16 sampled textures, WebGPU's default
+`maxSampledTexturesPerShaderStage`; with two it is 15 (13 with the pool), counted from every
+fragment shader the page compiled, WGSL and GLSL. #228 must keep that budget: the plan's `light`
+cell map (fill, bounce, cavity) goes into an existing map's channels or this texture, not a 16th
+binding. `packLightData`'s layout (a texel row per field) is transposed into a row per light on
+upload in the spike; #228 should pack straight into the row-per-light layout.
+
+**Gating rule.** A light reaches a fragment only if it is in the fragment's cell list (cell looked up
+at `positionWorld + normalWorld × 0.3 cell`, so each wall face reads its own side), and only as far
+as its occlusion row allows at the fragment's angle from the rule origin (3 taps on medium; a tap is
+lit when the distance is within the row plus 0.02 cell). Membership comes from the rules' sight, so
+"rendered light only on rule-lit cells" holds by construction; the rows only shape light inside lit
+cells (shadow wedges behind corners and jambs) and can only darken.
+
+**Per-tier caps.** K = 4 (low), 8 (medium, high), 16 (ultra). No fixture overlaps more than 3 lights on
+a cell (dungeon-40 2, the village 3, the monastery and the Hollow 2), so K = 4 drops nothing on any
+shipped table; K only bounds the loop.
+
+### Measurements
+
+`scripts/spike-lights.mjs` (spike branch only) on dungeon-40 (40 torches in 20 walled rooms) at
+1920 × 1080, medium tier, fog off, GM view, reduced motion; GPU ms per frame by timestamp queries,
+median of 32 frames. _Leak_: on a 14 × 8 table split by a wall, torch A half a cell from it, torch B
+lighting the far room; the largest brightness change (8-bit luma, 5 × 5 patches) on the far side's
+cells beside the wall when A is switched on. _Lit_: the smallest change on A's own side.
+_Coverage_: torches whose neighbouring cell brightens by over half the brightest. _Programs_: before,
+with every light removed, and with all 40 back.
+
+| Path                | Backend, GPU                            | GPU ms overview / close | Leak (far side) | Lit (near side) | Coverage (of 40) | Programs, 40 lights out and back | Textures per fragment (max) |
+| ------------------- | --------------------------------------- | ----------------------- | --------------- | --------------- | ---------------- | -------------------------------- | --------------------------- |
+| Pool of 8 (M67)     | WebGPU, RTX 4060                        | 2.22 / 2.78             | 8.3             | 6.7             | 8¹               | no change²                       | 13                          |
+| GridLights K = 8    | WebGPU, RTX 4060                        | **2.07 / 2.61**         | **0.1**         | 6.6             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGPU, RTX 4060                        | 3.50 / 4.35             | 8.6             | 6.7             | 40               | no change                        | 12                          |
+| Pool of 8 (M67)     | WebGL2 (ANGLE Vulkan), RTX 4060         | 2.71 / 3.32             | 8.6             | 6.7             | 8                | no change                        | 13                          |
+| GridLights K = 8    | WebGL2 (ANGLE Vulkan), RTX 4060         | **2.49 / 3.09**         | **0.1**         | 6.7             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGL2 (ANGLE Vulkan), RTX 4060         | 4.34 / 5.00             | 8.4             | 6.5             | 40               | no change                        | 12                          |
+| Pool of 8 (M67)     | WebGL2 (ANGLE Vulkan), Intel RPL-S iGPU | 56.4 / 69.2             | 8.2             | 6.6             | 8                | no change                        | 13                          |
+| GridLights K = 8    | WebGL2 (ANGLE Vulkan), Intel RPL-S iGPU | **41.6 / 54.8**         | **0.1**         | 6.7             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGL2 (ANGLE Vulkan), Intel RPL-S iGPU | 105.1 / 131.2           | 8.3             | 6.6             | 40               | no change                        | 12                          |
+| Pool of 8 (M67)     | WebGPU, Intel RPL-S iGPU                | 81.2 / 77.1             | 8.3             | 6.6             | 8                | no change                        | 13                          |
+| GridLights K = 8    | WebGPU, Intel RPL-S iGPU                | **54.4 / 70.1**         | **0.1**         | 6.6             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGPU, Intel RPL-S iGPU                | 116.6 / 139.9           | 8.4             | 6.7             | 40               | no change                        | 12                          |
+
+¹ The pool lights the 8 largest; on the WebGPU dGPU run the readback saw 40 while the first view's
+pipelines were still compiling (programs 111 → 121 during it), so that cell is the WebGL2 and iGPU
+runs' 8. ² Programs are flat on every path once warm. The 0.1 left on GridLights' far side is the
+readback's floor (grain and dither).
+
+**CPU** (Node 22, `buildLists` + `buildRows` on the fixtures, median of 7): a light switched or moved
+with the sights cached rebuilds the lists in 0.20 ms on dungeon-40 (40 lights; 0.15 the village and
+the Hollow) and its own row in about 0.02 ms; a door toggle, which clears the sight cache, rebuilds
+all of it in 4.3 ms on dungeon-40 (the lists 3.35, every row 0.91; 2.2 + 0.3 the village, 1.0 + 0.5 the
+Hollow), within M34's 6.4 ms relight for the GM loading the village. In the browser the whole relight
+(the rules' light levels, the pool, fixtures and the cell maps included; median of 6 per run) was
+2-11 ms with the pool and 4-16 ms with GridLights across runs, too noisy to separate; the grid's own share being the Node figures above
+plus the uploads (80 KB lists, 268 KB data, all of it each time in the spike: #228 should upload only
+the rows that changed, `addUpdateRange`).
+
+### The r186 internals it rides on
+
+For the upgrade procedure ("Upgrading three.js"): `AnalyticLightNode.setup` (overridden whole, so
+three's shadow setup for the light never runs), `LightsNode.setupDirectLight` and the
+`builder.context.reflectedLight` `directDiffuse`/`directSpecular` `toStack()` calls before the loop
+(as `ClusteredLightsNode.setupLights`), `directPointLight` from `three/tsl`, `NodeLibrary.addLight`,
+`TextureNode.getUniformHash` (by the texture's uuid: several `textureLoad`s of one texture share one
+binding), and `PhysicalLightingModel.direct`'s `{ lightDirection, lightColor }` contract.
+`LightsNode.customCacheKey` hashes light ids and `castShadow` only, which is why one stable
+`GridLight` never recompiles. A parity test against `DynamicLighting` on a wall-free table (#228)
+should be the first thing an upgrade fails.
+
+### Fallback and what is left
+
+- If a device lacks 15 sampled textures per stage (none we target; WebGL2 guarantees 16 units), the
+  low tier drops the occlusion taps and reads lists only (cell-exact walls, no wedges).
+- Radiance cascades do not deserve a research issue yet: the per-light rows give exact wall shadows
+  at this cost, and #234's bounce field covers the indirect light the cascades would add.
+- Unrelated, seen on every path and on M67's pool: on WebGPU one pipeline per table fails with
+  "Color target has no corresponding fragment stage output" (`targets[1]`, a mini's), worth its own
+  issue.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
