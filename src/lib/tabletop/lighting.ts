@@ -12,7 +12,8 @@
 // together: `animating` sets its clock each frame and asks for AMBIENT frames only while a
 // flickering light in view reads (after dark, or in a dark area), never under reduced motion. How
 // strongly the pool shines follows the sky's `nightGlow` (`setGlow`); the GridLights don't dim by
-// day (the sky's exposure does).
+// day (the sky's exposure does). Bounce and cavity (#234) ride on the GridLights, at the tier's
+// `BOUNCE_STRENGTH` under the `bounce` layer, and the hemisphere's ground takes the floors' hue.
 
 import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
@@ -32,11 +33,20 @@ import { GridLighting, litSources } from './grid-light-layer';
 import { flameSeats, LightFixtures } from './light-fixtures';
 import { LightHandles } from './light-handles';
 import { setFlicker } from './materials/flicker';
+import { groundTint as groundTintOf } from './grid-lights';
 import { GridLight } from './materials/grid-light-node';
-import type { QualitySettings } from './quality';
+import type { QualitySettings, Tier } from './quality';
+import { groundTint } from './sky-light';
 
 /** The pool's point lights (`?off=manylights`). Fixed so nothing recompiles as lights come and go. */
 const POOL_SIZE = 8;
+/** How strongly lit floors throw light back, per tier (#234): none on low. */
+export const BOUNCE_STRENGTH: Record<Tier, number> = {
+	low: 0,
+	medium: 0.2,
+	high: 0.25,
+	ultra: 0.3
+};
 /** Point lights per cell before a tier says: medium's, the K of the scene's first GridLight. */
 export const DEFAULT_K = 8;
 /** A pool light's flame height without a seat, in cells: a fixture's, about human height. */
@@ -68,6 +78,8 @@ export class LightingLayer {
 	private handles: LightHandles | null = null;
 	/** The point lights as GridLights, or null for the pool (`?off=manylights`). */
 	grid: GridLighting | null;
+	/** The tier's bounce strength under the `bounce` layer, 0 off (#234). */
+	private bounce = 0;
 
 	/**
 	 * With the scene's GridLight (scene-lights.ts); without one, the layer makes its own. `onModel`
@@ -85,6 +97,7 @@ export class LightingLayer {
 	 * objects, a new program as any tier switch makes (true then); the next update rebuilds.
 	 */
 	setTier(settings: QualitySettings): boolean {
+		this.bounce = settings.layers.bounce ? BOUNCE_STRENGTH[settings.tier] : 0;
 		const k = settings.layers.manylights ? settings.lights : 0;
 		if (k === (this.grid?.light.k ?? 0)) return false;
 		const parent = this.grid?.light.parent ?? this.pool[0]?.parent ?? this.group;
@@ -123,7 +136,8 @@ export class LightingLayer {
 		blocked: Blockers,
 		ground: Ground | null = null,
 		dark: Uint8Array | null = null,
-		props: readonly Prop[] = []
+		props: readonly Prop[] = [],
+		floor: Uint8Array | null = null
 	): void {
 		const lit = litSources(lights, tokens);
 		const sources = lit.map((l) => l.source);
@@ -132,8 +146,10 @@ export class LightingLayer {
 		const dim = ambient !== 'day' || !!dark?.some((v) => v);
 		this.levels = dim ? lightLevels(grid, blocked, sources) : null;
 		const seats = flameSeats(grid, props);
-		if (this.grid) this.grid.update(grid, lit, blocked, ground, seats);
+		if (this.grid) this.grid.update(grid, lit, blocked, ground, seats, floor, this.bounce);
 		else this.updatePool(grid, sources, ground, seats);
+		const [r, g, b] = this.grid && this.bounce ? groundTintOf(floor) : [1, 1, 1];
+		groundTint.value.setRGB(r, g, b);
 		this.fixtures.update(grid, lights, tokens, asObstacles(blocked).edges, ground);
 	}
 

@@ -24,7 +24,8 @@
 // (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
 // flicker's (#231) are every profile on the 40 torches. Light fixtures (#232): every kind's fixture
 // model coming and going with the kinds, fixtures taken off (`fixture: false`) and put back, and a
-// carried light's flame with the carried steps.
+// carried light's flame with the carried steps. Bounce and cavity (#234): the layer off and on,
+// and the floors under the torches painted (their colour is the bounce's), data and uniforms only.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -340,9 +341,15 @@ const TORCHES = 40;
  * carried light switched on, coloured, carried a cell and off, every light kind and a recolour.
  * Later lighting tasks append their steps here.
  */
-function lightSteps(m: Mounted, home: FixtureView): Step[] {
+function lightSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	const t = m.tabletop;
+	const settings = settingsFor(tier, t.capabilities().backend);
+	const bounce = (on: boolean) => () =>
+		t.setQuality({ ...settings, layers: { ...settings.layers, bounce: on } });
+	const floor = (id: (typeof FLOOR_IDS)[number]) =>
+		new Uint8Array(width * height).fill(FLOOR_IDS.indexOf(id));
 	const { width, height } = home.grid;
+	const homeFloor = home.floor ? decodeFloor(home.floor, width * height) : null;
 	const torch = (i: number, over: Partial<Light> = {}): Light => ({
 		id: `torch-${i}`,
 		pos: { x: 1 + ((i * 3) % (width - 2)), y: 1 + ((i * 5) % (height - 2)) },
@@ -377,6 +384,12 @@ function lightSteps(m: Mounted, home: FixtureView): Step[] {
 		// Fixtures (#232): every model off the table, then back.
 		['fixtures taken off', () => t.setLighting('dark', torches(TORCHES, { fixture: false }))],
 		['fixtures back', () => t.setLighting('dark', torches(TORCHES))],
+		// Bounce and cavity (#234): the layer off and on, and the floors that colour the bounce.
+		['bounce off', bounce(false)],
+		['bounce on', bounce(true)],
+		['torches over grass', () => t.setFloor(floor('grass'))],
+		['torches over sand', () => t.setFloor(floor('sand'))],
+		['floors as they were', () => t.setFloor(homeFloor)],
 		['carried light on', () => t.setTokens(carry({ light: 4 }))],
 		['carried light coloured', () => t.setTokens(carry({ light: 4, lightColor: '#6fe08a' }))],
 		['carried light moved', () => t.setTokens(carry({ light: 4, pos: step }))],
@@ -534,7 +547,7 @@ describe('the shader program count', () => {
 				m.tabletop.setPose(m.tabletop.cameraPose()!);
 				await drawn(m.tabletop, clock);
 			}
-			const changes = await sweeper(m, renderer, clock).run(lightSteps(m, home));
+			const changes = await sweeper(m, renderer, clock).run(lightSteps(m, home, tier));
 			expect(changes, tier).toEqual([]);
 			console.info(
 				`${tier} textures per fragment stage: ${JSON.stringify([...stageTextures(renderer)])}`

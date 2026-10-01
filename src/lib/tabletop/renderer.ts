@@ -160,7 +160,7 @@ export async function createTabletop(
 		atmosphere.setWorld(world, ambient, environment, reducedMotion);
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
 		propLayer.setLights(lights); // the flames on props, lit by a light on their cell (#232)
-		lighting.update(grid, ambient, lights, tokens, blocked, ground, darkness, props);
+		lighting.update(grid, ambient, lights, tokens, blocked, ground, darkness, props, floor);
 		lighting.showHandles(grid, lights, ground, fogState.mode === 'gm');
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		cloud.update(grid, fogState.fog, fogState.mode);

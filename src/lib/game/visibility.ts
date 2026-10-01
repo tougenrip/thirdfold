@@ -145,7 +145,8 @@ export const MAX_CACHED_SIGHTS = 1024;
  * into one shared mask gives.
  */
 export class SightCache {
-	private signature = '';
+	/** The obstacles in use, as compared: equal strings, the same obstacles (#234 keys on it). */
+	signature = '';
 	private blocked: Blockers | null = null;
 	private readonly sights = new Map<string, CellMask>();
 	/** Sights worked out (not found in the cache) since it was made; for tests and measuring. */

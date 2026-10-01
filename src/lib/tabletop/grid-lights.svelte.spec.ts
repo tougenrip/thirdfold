@@ -5,11 +5,12 @@
 // the table (the moon, the sky, the rules' darkness, the exposure) drops out: what changes is that
 // light's alone. Bloom, the lens and grain are off (they spread light across cells; tested
 // elsewhere), motion is reduced. Runs on both backends: SwiftShader's WebGL2 here, WebGPU on the
-// real GPU (`npm run test:webgpu`).
+// real GPU (`npm run test:webgpu`). Bounce (#234): a lit green floor tints the wall beside it
+// green, and nothing of it reaches past the wall.
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { decodeFloor } from '$lib/game/floor';
+import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import { gridToWorld, type GridPos, type SquareGrid } from '$lib/game/grid';
 import { lightSources, litMask, type Light } from '$lib/game/lights';
 import { unitEdges, type SceneObject } from '$lib/game/objects';
@@ -283,6 +284,91 @@ describe('GridLights', () => {
 				if (d > 0) face.push(`row ${y} at ${h}: ${d}`);
 			}
 		expect(seen).toBeGreaterThan(10);
+		expect(face, 'the far face lit by A').toEqual([]);
+	});
+
+	it('bounce a lit green floor onto the wall beside it, and never through it (#234)', async () => {
+		const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 14, height: 8 };
+		const wall: SceneObject = { id: 'w', kind: 'wall', a: { x: 7, y: 0 }, b: { x: 7, y: 8 } };
+		const a: Light = { id: 'a', pos: { x: 5, y: 4 }, radius: 4, color: '#ffffff', on: true };
+		const black = { ...a, color: '#000000' };
+		const dungeon = await loadView('dungeon-40', 'dark', 'gm');
+		const all = encodeMask(new Uint8Array(grid.width * grid.height).fill(1));
+		const grass = new Uint8Array(grid.width * grid.height).fill(FLOOR_IDS.indexOf('grass'));
+		const view: FixtureView = {
+			...dungeon,
+			grid,
+			environment: null,
+			terrain: null,
+			darkness: null,
+			interior: null,
+			floor: encodeFloor(grass),
+			fog: { enabled: false, visible: all, explored: all, shared: false },
+			tokens: [],
+			props: [],
+			objects: [wall],
+			lights: [{ ...a, fixture: false }]
+		};
+		// From the west, onto the wall's lit face.
+		const west = { target: { x: 6, y: 4 }, distance: 7, azimuth: 270, elevation: 20 };
+		const { m, frame } = await mount(view, west);
+		const settings = settingsFor('medium', m.tabletop.capabilities().backend);
+		const quiet = { bloom: false, aberration: false, grain: false, vignette: false };
+		const bounce = (on: boolean) =>
+			m.tabletop.setQuality({
+				...settings,
+				...quiet,
+				miniature: false,
+				layers: { ...settings.layers, bounce: on }
+			});
+		const on = await frame();
+		bounce(false);
+		const off = await frame();
+		// Over the face's upper half (above the cavity's fade): how much each channel rose.
+		const camera = cameraOf(m);
+		const rise = [0, 0, 0];
+		let seen = 0;
+		for (let y = 2; y < grid.height - 2; y++)
+			for (const h of [0.5, 0.7, 0.9]) {
+				const z = gridToWorld(grid, { x: 7, y }).z;
+				const p = pixelOf(camera, -0.02, h * WALL_HEIGHT * grid.cellSize, z);
+				if (!p) continue;
+				seen++;
+				const [lit, dark] = [on(p.px, p.py), off(p.px, p.py)];
+				for (let i = 0; i < 3; i++) rise[i] += lit[i] - dark[i];
+			}
+		expect(seen).toBeGreaterThan(6);
+		expect(rise[1], 'green the bounce adds').toBeGreaterThan(seen);
+		expect(rise[1], 'more green than red').toBeGreaterThan(rise[0]);
+		expect(rise[1], 'more green than blue').toBeGreaterThan(rise[2]);
+
+		// With bounce on, A on and off: nothing past the wall changes, floor or far face.
+		bounce(true);
+		const above = { target: { x: 7, y: 4 }, distance: 14, azimuth: 0, elevation: 80 };
+		m.tabletop.setGridPose(above);
+		const pair = async () => {
+			m.tabletop.setLighting('dark', [{ ...a, fixture: false }], view.world);
+			const lit = await frame();
+			m.tabletop.setLighting('dark', [{ ...black, fixture: false }], view.world);
+			return [lit, await frame()] as const;
+		};
+		const [lit, unlit] = await pair();
+		const { ground } = groundOf(view);
+		const far = centres(view, ground, cameraOf(m), new Set()).filter((s) => s.cell.x >= 7);
+		expect(far.length).toBeGreaterThan(30);
+		const leaks = far.filter((s) => change(lit, unlit, s.px, s.py) > 0).map((s) => s.cell);
+		expect(leaks, 'floor behind the wall lit by A').toEqual([]);
+		m.tabletop.setGridPose({ target: { x: 7, y: 4 }, distance: 8, azimuth: 90, elevation: 30 });
+		const [faceOn, faceOff] = await pair();
+		const east = cameraOf(m);
+		const face: string[] = [];
+		for (let y = 1; y < grid.height - 1; y++)
+			for (const h of [0.2, 0.5, 0.8]) {
+				const z = gridToWorld(grid, { x: 7, y }).z;
+				const p = pixelOf(east, 0.02, h * WALL_HEIGHT * grid.cellSize, z);
+				const d = p ? change(faceOn, faceOff, p.px, p.py) : 0;
+				if (d > 0) face.push(`row ${y} at ${h}: ${d}`);
+			}
 		expect(face, 'the far face lit by A').toEqual([]);
 	});
 

@@ -5,17 +5,34 @@
 // point lights (GridLights), which only shine on cells the rules light, are left as they are.
 // `worldModify` then only fogs, tints and adds the dark's colour for these kinds; materials that
 // are not kinds (fixtures, flames, the mist) keep its whole darkening. Later lighting tasks
-// (translucency, #237; bounce and cavity, #234) belong here too.
+// (translucency, #237; bounce and cavity, #234) belong here too. Bounce and cavity (#234): the
+// GridLight's node (grid-light-node.ts) hands its reads over in `gridIndirect`; the bounce adds as
+// diffuse irradiance, not dimmed by the light factor (it comes from the lights), and cavity
+// multiplies the whole indirect light, as AO does.
 
 import * as THREE from 'three/webgpu';
+import * as T from 'three/tsl';
 import type { N } from './tsl';
 import { worldLight } from './world-modify';
 
 type Context = { reflectedLight: Record<'indirectDiffuse' | 'indirectSpecular', N> };
 
+/** The grid's indirect light at a fragment (#234): bounce irradiance and the cavity factor. */
+export interface GridIndirect {
+	bounce: N;
+	cavity: N;
+}
+
+const { BRDF_Lambert, diffuseContribution } = T as unknown as {
+	BRDF_Lambert: (inputs: { diffuseColor: N }) => N;
+	diffuseContribution: N;
+};
+
 export class KindLightingModel extends THREE.PhysicalLightingModel {
 	/** Marks the kinds' model: `SkyLightNode` dims the key light by the light factor for it. */
 	readonly isKindLighting = true;
+	/** Set by the GridLight's node, which is built before `indirect` (null without one). */
+	gridIndirect: GridIndirect | null = null;
 
 	indirect(builder: THREE.NodeBuilder): void {
 		super.indirect(builder);
@@ -25,6 +42,12 @@ export class KindLightingModel extends THREE.PhysicalLightingModel {
 		reflectedLight.indirectSpecular.mulAssign(light);
 		const coat = (this as unknown as { clearcoatSpecularIndirect?: N }).clearcoatSpecularIndirect;
 		coat?.mulAssign(light);
+		const grid = this.gridIndirect;
+		if (!grid) return;
+		const bounce = grid.bounce.mul(BRDF_Lambert({ diffuseColor: diffuseContribution }));
+		reflectedLight.indirectDiffuse.addAssign(bounce);
+		reflectedLight.indirectDiffuse.mulAssign(grid.cavity);
+		reflectedLight.indirectSpecular.mulAssign(grid.cavity);
 	}
 }
 
