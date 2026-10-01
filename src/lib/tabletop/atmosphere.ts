@@ -13,6 +13,7 @@
 import * as THREE from 'three/webgpu';
 import type { Node } from 'three/webgpu';
 import {
+	abs,
 	cameraPosition,
 	dot,
 	exponentialHeightFogFactor,
@@ -86,9 +87,9 @@ export const atmosphereUniforms = {
 	fogFar: uniform(90),
 	fogDensity: uniform(0),
 	fogHeight: uniform(0),
-	/** The play area as a circle round its centre (xz), past which the cap lifts to 1. */
+	/** The play area as a rectangle round its centre (xz, half extents), past which the cap lifts. */
 	playCenter: uniform(new THREE.Vector2()),
-	playRadius: uniform(1e6),
+	playHalf: uniform(new THREE.Vector2(1e6, 1e6)),
 	ibl: uniform(0)
 };
 
@@ -106,7 +107,8 @@ export const skyEnvNode = pmrem.mul(u.ibl).mul(skyAmbient() as unknown as Node<'
 export const skyFogNode = (() => {
 	const view = normalize(positionWorld.sub(cameraPosition));
 	const colour = mix(u.fogColor, u.inscatter, pow(max(dot(view, u.sunDir), 0), 8));
-	const beyond = positionWorld.xz.sub(u.playCenter).length().sub(u.playRadius);
+	// beyondPlay (atmosphere-curve.ts): the distance past the rectangle, 0 on the map (#377).
+	const beyond = max(abs(positionWorld.xz.sub(u.playCenter)).sub(u.playHalf), 0).length();
 	const cap = mix(float(PLAY_FOG_CAP), float(1), smoothstep(0, PLAY_FOG_BLEND, beyond));
 	const height = exponentialHeightFogFactor(u.fogDensity, u.fogHeight) as Node<'float'>;
 	return fog(colour, min(max(rangeFogFactor(u.fogNear, u.fogFar), height), cap));
@@ -346,13 +348,15 @@ export class AtmosphereLayer {
 	}
 
 	/**
-	 * Fits the key light and the fog to a table: its play sphere, and the world's haze
+	 * Fits the key light and the fog to a table: its play sphere, its rectangle (`half`, which the fog's cap
+	 * is measured from) and the world's haze
 	 * (world-ground.ts `worldExtents`, from `fogRange`). `fresh`: a new table, whose hour snaps and
 	 * whose sky is captured at once (not the same table's ground raised).
 	 */
 	fit(
 		center: { x: number; y: number; z: number },
 		radius: number,
+		half: { x: number; z: number },
 		haze: { fogNear: number; fogFar: number },
 		fresh: boolean
 	): void {
@@ -363,7 +367,7 @@ export class AtmosphereLayer {
 		this.center.set(center.x, center.y, center.z);
 		this.distance = radius * 2;
 		u.playCenter.value.set(center.x, center.z);
-		u.playRadius.value = radius;
+		u.playHalf.value.set(half.x, half.z);
 		u.fogNear.value = haze.fogNear;
 		u.fogFar.value = haze.fogFar;
 		this.lights.sun.target.position.copy(this.center);

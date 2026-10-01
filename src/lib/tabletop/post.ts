@@ -98,6 +98,13 @@ const LENS = {
 	aberration: 0.008,
 	grain: 0.035
 };
+/**
+ * How much of the vignette shows with the camera pulled back `pull` of its farthest (#377): all of
+ * it up close, fading to 40% from about the overview's distance, where it would frame the map dark.
+ */
+export const vignetteScale = (pull: number) =>
+	1 - 0.6 * Math.min(1, Math.max(0, (pull - 0.15) / 0.3));
+
 /** The grain's pattern moves on at most this often, by the tabletop's clock (ms). */
 export const GRAIN_MS = 1000 / 24;
 
@@ -109,6 +116,8 @@ export class Post {
 		aoStrength: uniform(0),
 		bloomStrength: uniform(0),
 		vignette: uniform(0),
+		/** The vignette's share by camera distance (`vignetteScale`), set every frame. */
+		vignetteScale: uniform(1),
 		vignetteTint: uniform(LENS.tint),
 		aberration: uniform(0),
 		grain: uniform(0),
@@ -251,6 +260,7 @@ export class Post {
 		this.grade.step(now);
 		const view = this.view(now);
 		this.uniforms.grain.value = view.reduced ? 0 : this.grain;
+		this.uniforms.vignetteScale.value = vignetteScale(view.pull ?? 0);
 		if (this.settings) {
 			const now = { ...view, hasDof: this.focus.hasDof };
 			this.focus.aim(this.camera, view.target, lensStrengths(this.settings, now));
@@ -426,7 +436,9 @@ export class Post {
 		const split = vec3(hdr(screenUV.add(shift)).r, hdr(screenUV).g, hdr(screenUV.sub(shift)).b);
 		// Vignette: multiplied, toward the tint at the corners, so black stays black.
 		const reach = smoothstep(0.2, 0.75, centred.length());
-		const vignetted = split.mul(mix(vec3(1), u.vignetteTint, reach.mul(u.vignette)));
+		const vignetted = split.mul(
+			mix(vec3(1), u.vignetteTint, reach.mul(u.vignette).mul(u.vignetteScale))
+		);
 		const toneMapping = TONE_MAPPINGS[this.stages!.toneMapper];
 		const mapped = renderOutput(vec4(vignetted, 1), toneMapping, THREE.SRGBColorSpace);
 		// The grade: on the display colour, after the curve it was made for.

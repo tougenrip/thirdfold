@@ -60,7 +60,7 @@ export function fitToTable(
 	atmosphere.shadowBox = { min: [-hw, 0, -hd], max: [hw, play.center.y * 2, hd] };
 	// About a fiftieth of a cell along the normal: no acne, no shadow lifting off thin minis.
 	sun.shadow.normalBias = 0.02 * grid.cellSize;
-	atmosphere.fit(play.center, play.radius, world, fresh);
+	atmosphere.fit(play.center, play.radius, { x: hw, z: hd }, world, fresh);
 	controls.maxDistance = play.maxDistance;
 	return extents;
 }

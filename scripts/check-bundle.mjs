@@ -46,8 +46,9 @@ const BUDGETS = {
 	// horizon (#220: the ring's mesh and tier, the camera's clearance, extents per table), less
 	// the slab; 368.1 kB measured. → 368.4: the low tier's small cube and the dome's haze at the
 	// horizon (#225); 368.3 kB measured. → 368.9: exposure from the focus cell (#233). → 369.5:
-	// the sun and moon shadow fitted to the grid (#229); set to the merged build's measured size.
-	renderer: { total: 369_500 },
+	// the sun and moon shadow fitted to the grid (#229). → the map's fog rectangle, the ring's land
+	// look and the vignette by distance (#377); set to the merged build's measured size.
+	renderer: { total: 369_700 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
