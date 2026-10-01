@@ -151,7 +151,17 @@ async function allCases(): Promise<Case[]> {
 const CHOSEN = (await allCases()).filter((c) => FULL || SLIM.has(c.label));
 /** `THIRDFOLD_SHARD=k/n`: every nth case from the kth, so CI takes them in parallel jobs. */
 const [k, n] = inject('shard').split('/').map(Number);
-const CASES = CHOSEN.filter((_, i) => i % n === k - 1);
+/**
+ * Whether the `i`th of the other tests (the cases without probes, then the sky's, then the last) is
+ * this shard's: every one but the last shard takes them in turn; the probe cases (a bake each,
+ * minutes on SwiftShader) have the last shard to themselves.
+ */
+const ours = (i: number) => (n === 1 ? true : k < n && i % (n - 1) === k - 1);
+const LIGHT = CHOSEN.filter((c) => !c.probes);
+const CASES = [
+	...LIGHT.filter((_, i) => ours(i)),
+	...CHOSEN.filter((c) => c.probes && (n === 1 || k === n))
+];
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -458,8 +468,8 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 		],
 		['roofed', 'medium', (m, v) => m.tabletop.setInterior(new Uint8Array(size(v)).fill(1))]
 	];
-	for (const [name, tier, setUp] of SKY_CASES)
-		it(`the sky's poses: ${name} on ${tier}, black`, async () => {
+	for (const [i, [name, tier, setUp]] of SKY_CASES.entries())
+		it.runIf(ours(LIGHT.length + i))(`the sky's poses: ${name} on ${tier}, black`, async () => {
 			const { m, sidecar, view, settings } = await mountCase({
 				fixture: 'village',
 				viewer: 'player',
@@ -501,19 +511,22 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
 		});
 
-	it('fails on a layer exempt from the fog, naming the fixture, pose and cell', async () => {
-		const c = { fixture: 'dungeon-40', viewer: 'player', band: 'dark', tier: 'medium' } as const;
-		const { m, view, settings } = await mountCase({ ...c, reduced: false });
-		// The GM's reveal preview over the whole table: an overlay the fog never shades.
-		const { width, height } = view.grid;
-		m.tabletop.setPreview([
-			{ kind: 'area', from: { x: 0, y: 0 }, to: { x: width - 1, y: height - 1 }, tone: 'reveal' }
-		]);
-		await converge(m, settings.convergeFrames);
-		const samples = samplesFor(view.grid, standing(view), cameraOf(m));
-		expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
-		const lit = litAt('dungeon-40 overview', samples, await readFrame(m.canvas, WIDTH, HEIGHT));
-		expect(lit.length).toBeGreaterThan(0);
-		expect(lit[0]).toMatch(/^dungeon-40 overview: cell \d+,\d+ at \d+,\d+: /);
-	});
+	it.runIf(ours(LIGHT.length + SKY_CASES.length))(
+		'fails on a layer exempt from the fog, naming the fixture, pose and cell',
+		async () => {
+			const c = { fixture: 'dungeon-40', viewer: 'player', band: 'dark', tier: 'medium' } as const;
+			const { m, view, settings } = await mountCase({ ...c, reduced: false });
+			// The GM's reveal preview over the whole table: an overlay the fog never shades.
+			const { width, height } = view.grid;
+			m.tabletop.setPreview([
+				{ kind: 'area', from: { x: 0, y: 0 }, to: { x: width - 1, y: height - 1 }, tone: 'reveal' }
+			]);
+			await converge(m, settings.convergeFrames);
+			const samples = samplesFor(view.grid, standing(view), cameraOf(m));
+			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
+			const lit = litAt('dungeon-40 overview', samples, await readFrame(m.canvas, WIDTH, HEIGHT));
+			expect(lit.length).toBeGreaterThan(0);
+			expect(lit[0]).toMatch(/^dungeon-40 overview: cell \d+,\d+ at \d+,\d+: /);
+		}
+	);
 });

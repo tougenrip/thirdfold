@@ -69,9 +69,11 @@ jobs:
           - name: shot
             run: npm run test:render -- src/lib/tabletop/shot-focus.svelte.spec.ts
           - name: unexplored-black 1
-            run: THIRDFOLD_SHARD=1/2 npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+            run: THIRDFOLD_SHARD=1/3 npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
           - name: unexplored-black 2
-            run: THIRDFOLD_SHARD=2/2 npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+            run: THIRDFOLD_SHARD=2/3 npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
+          - name: unexplored-black 3
+            run: THIRDFOLD_SHARD=3/3 npm run test:render -- src/lib/tabletop/unexplored-black.svelte.spec.ts
           - name: fog
             run: npm run test:render -- src/lib/tabletop/fog-soft.svelte.spec.ts src/lib/tabletop/cell-maps.svelte.spec.ts src/lib/tabletop/exposure.svelte.spec.ts
           - name: sky
