@@ -125,11 +125,10 @@ export async function createTabletop(
 	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	const terrainLayer = new TerrainLayer();
-	scene.add(terrainLayer.group);
 	const effects = new EffectsLayer();
-	const gallery = new Gallery(scene, overlay.scene, [diceLayer, effects, cloud, sky], [tokenLayer]);
-	scene.add(effects.group);
-	const previews = new PreviewLayer();
+	scene.add(terrainLayer.group, effects.group);
+	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky]];
+	const gallery = new Gallery(scene, overlay.scene, world, [tokenLayer, previews]);
 	overlay.scene.add(previews.group, previews.highlight);
 	let disposed = false;
 	// Labels drawn before the label font arrived are drawn again in it.

@@ -55,6 +55,20 @@ export class PreviewLayer {
 		this.highlight.renderOrder = 2; // above the fog overlay
 	}
 
+	private stands: THREE.Mesh[] | null = null;
+
+	/**
+	 * Stand-ins for the warm-up (warmup.ts `Gallery`), one per material: the highlight is hidden
+	 * until hovered and previews come and go, so a compile never sees them, and on WebGPU their
+	 * first draw would make a pipeline (their blending and depth state) mid-game.
+	 */
+	gallery(): THREE.Object3D[] {
+		this.stands ??= [this.highlight.material, ...Object.values(this.materials)].map(
+			(m) => new THREE.Mesh(this.box, m)
+		);
+		return this.stands;
+	}
+
 	set(items: readonly PreviewItem[], grid: SquareGrid | null, ground: Ground | null): void {
 		const { group, materials } = this;
 		group.clear();
