@@ -10,6 +10,7 @@
 // what it draws; `passOf` groups the names into the pipeline's passes.
 
 import type * as THREE from 'three/webgpu';
+import type { HeroStats } from './hero-shadows';
 import { isSoftware, type Tier } from './quality';
 import type { Mode } from './scheduler';
 import { RESHADOWS, TIMED, type Tabletop } from './types';
@@ -64,6 +65,8 @@ export interface PerfStats {
 	gpu: Record<string, number> | null;
 	/** Frames are held while shaders warm up (warmup.ts): the picture is about to change. */
 	holding: boolean;
+	/** The hero shadow slots (#230): holders, cubes redrawn (in all, last frame), cube bytes. */
+	heroes: HeroStats | null;
 }
 
 export class PerfRecorder {
@@ -181,13 +184,14 @@ export interface RendererState {
 	holding: boolean;
 	tier: Tier | null;
 	mode: Mode | null;
+	heroes?: HeroStats | null;
 }
 
 /** What the renderer has cost so far, with what three.js reports the last frame drew and what it holds. */
 export function rendererStats(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
-	{ holding, tier, mode }: RendererState
+	{ holding, tier, mode, heroes = null }: RendererState
 ): PerfStats {
 	const { render, memory } = renderer.info;
 	return {
@@ -205,7 +209,8 @@ export function rendererStats(
 		mode,
 		gpuMs: perf.gpuMs,
 		gpu: perf.gpu,
-		holding
+		holding,
+		heroes
 	};
 }
 
@@ -452,17 +457,25 @@ export function perfMethods(
 	{
 		loop,
 		quality,
-		warming
+		warming,
+		heroes
 	}: {
 		loop: { holding: boolean; mode: Mode };
 		quality: { tier: Tier };
+		/** The hero shadow slots' stats (lighting.ts). */
+		heroes?: () => HeroStats;
 		/** The warm-up under way, if any (renderer.ts): no benchmark frame draws during it. */
 		warming: () => Promise<void>;
 	}
 ): Pick<Tabletop, 'stats' | 'resetStats' | 'benchmark' | 'sampleGpu'> {
 	return {
 		stats: () =>
-			rendererStats(renderer, perf, { holding: loop.holding, tier: quality.tier, mode: loop.mode }),
+			rendererStats(renderer, perf, {
+				holding: loop.holding,
+				tier: quality.tier,
+				mode: loop.mode,
+				heroes: heroes?.()
+			}),
 		resetStats: () => perf.reset(),
 		benchmark: (frames) => benchmark(renderer, perf, draw, frames, warming),
 		sampleGpu: () => sampleGpu(renderer, perf)

@@ -20,11 +20,12 @@
 // ten minutes a tier), haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off.
 // Each tier's runtime state (in two halves), its table travel and its sky are tests of their own, one CI shard each (shardedIt).
 // Many lights (#228, `lightSteps`): 40 torches coming and going, carried light on, coloured, moved
-// and off, kinds and colours changing, on every tier, in a shard of its own; later lighting tasks
+// and off, kinds and colours changing, a test (and a shard) per tier; later lighting tasks
 // (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
 // flicker's (#231) are every profile on the 40 torches. Light fixtures (#232): every kind's fixture
 // model coming and going with the kinds, fixtures taken off (`fixture: false`) and put back, and a
-// carried light's flame with the carried steps.
+// carried light's flame with the carried steps. Hero shadow slots (#230): the focus moved so every
+// slot changes hands (a cube drawn for each new holder).
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -315,9 +316,11 @@ function skySteps(m: Mounted, home: FixtureView, skies: readonly string[]): Step
 
 /**
  * The most textures a fragment stage may sample: WebGPU's default `maxSampledTexturesPerShaderStage`
- * is 16, and GridLights' two textures (#228) brought the largest stage to 15; one is kept spare.
+ * and WebGL2's least `MAX_TEXTURE_IMAGE_UNITS` are 16. GridLights' two textures (#228) brought the
+ * largest stage (terrain) to 15, and the hero shadow slots' one atlas (#230) to 16 (the prop and mini
+ * kinds 15): none is spare, so the next texture a lit kind needs goes into an existing one.
  */
-const STAGE_TEXTURES = 15;
+const STAGE_TEXTURES = 16;
 
 /** The most textures any fragment stage of each material name samples, WGSL or GLSL. */
 function stageTextures(renderer: THREE.WebGPURenderer): Map<string, number> {
@@ -356,11 +359,21 @@ function lightSteps(m: Mounted, home: FixtureView): Step[] {
 	const [token] = home.tokens;
 	const carry = (over: object) => home.tokens.map((k) => (k === token ? { ...k, ...over } : k));
 	const step = { x: Math.min(token.pos.x + 1, width - 1), y: token.pos.y };
+	const focusOn = (x: number, y: number) => ({
+		target: { x, y },
+		distance: 12,
+		azimuth: 0,
+		elevation: 70
+	});
 	return [
 		['no lights', () => t.setLighting('dark', [])],
 		[`${TORCHES} torches`, () => t.setLighting('dark', torches(TORCHES))],
 		['torches taken away', () => t.setLighting('dark', torches(TORCHES / 4))],
 		[`${TORCHES} torches again`, () => t.setLighting('dark', torches(TORCHES))],
+		// Hero shadow slots (#230): the camera's focus to the far corner and back hands every slot
+		// to other torches (numbers and a cube drawn, no program).
+		['hero slots handed over', () => t.setGridPose(focusOn(width - 3, height - 3))],
+		['hero slots handed back', () => t.setGridPose(focusOn(2, 2))],
 		['torches off', () => t.setLighting('dark', torches(TORCHES, { on: false }))],
 		['torches recoloured', () => t.setLighting('dark', torches(TORCHES, { color: '#3c7aff' }))],
 		// With fixtures, so a GM's handles on fixture-less lights (#209, an overlay made on first
@@ -498,8 +511,8 @@ async function warmHome(tier: Tier) {
 }
 
 // One test per tier for the runtime state and one for the sky, so CI runs each in a job of its own
-// (`THIRDFOLD_SHARD=k/13`, .github/workflows/rendering.yml), the many lights' the 13th; the last two
-// join the first shards.
+// (`THIRDFOLD_SHARD=k/15`, .github/workflows/rendering.yml): the tiers' 12, then many lights per tier
+// (13 to 15), and the last two, which join the first shards.
 describe('the shader program count', () => {
 	const test = shardedIt();
 	for (const tier of TIERS) {
@@ -523,11 +536,11 @@ describe('the shader program count', () => {
 		});
 	}
 
-	// Many lights (#228): every tier in one test, its own shard (programs 13). With the table's
-	// warm-up done (every kind's gallery compiled, warmup.ts), no fragment stage samples more than
-	// STAGE_TEXTURES textures: GridLights' two keep the largest within WebGPU's default 16.
-	test('stays put through many lights on every tier', async () => {
-		for (const tier of TIERS) {
+	// Many lights (#228) and hero shadow slots (#230), a test (and a CI shard) per tier. With the
+	// table's warm-up done (every kind's gallery compiled, warmup.ts), no fragment stage samples more
+	// than STAGE_TEXTURES textures.
+	for (const tier of TIERS)
+		test(`stays put through many lights on ${tier}`, async () => {
 			const { m, home, clock, renderer } = await mountHome(tier);
 			// The pipeline's own passes settle over its first frames (the AO's blur): draw a few first.
 			for (let i = 0; i < 3; i++) {
@@ -536,17 +549,12 @@ describe('the shader program count', () => {
 			}
 			const changes = await sweeper(m, renderer, clock).run(lightSteps(m, home));
 			expect(changes, tier).toEqual([]);
-			console.info(
-				`${tier} textures per fragment stage: ${JSON.stringify([...stageTextures(renderer)])}`
-			);
-			const over = [...stageTextures(renderer)].filter(([, n]) => n > STAGE_TEXTURES);
+			const textures = stageTextures(renderer);
+			console.info(`${tier} textures per fragment stage: ${JSON.stringify([...textures])}`);
+			const over = [...textures].filter(([, n]) => n > STAGE_TEXTURES);
 			expect(over, `${tier}: fragment stages over ${STAGE_TEXTURES} textures`).toEqual([]);
-			expect(stageTextures(renderer).get('terrain'), `${tier}: terrain`).toBeGreaterThan(2);
-			await m.unmount();
-			mounted = null;
-			vi.restoreAllMocks(); // the next tier's renderer is the next spy's first
-		}
-	});
+			expect(textures.get('terrain'), `${tier}: terrain`).toBeGreaterThan(2);
+		});
 
 	test('stays put through the toll with motion, its dust and shadow shown (#180)', async () => {
 		const { m, home, clock, renderer } = await mountHome('medium', false);

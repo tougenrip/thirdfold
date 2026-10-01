@@ -71,6 +71,8 @@ export class GridLighting {
 	private sentRows: (Float32Array | null)[] = [];
 	/** The carrying token's id per layer, so `carry` follows its mini. */
 	private carriers: (string | null)[] = [];
+	/** Each entry's sight (its lit cells), by layer: what hero shadows key their cubes on (#230). */
+	entrySights: CellMask[] = [];
 	/** How long the last build took, ms (`?perf`). */
 	buildMs = 0;
 
@@ -114,11 +116,13 @@ export class GridLighting {
 		});
 		this.carriers = shown.map((l) => l.carrier?.id ?? null);
 		const levels = obstacles.levels ?? null;
+		this.entrySights = [];
 		for (let i = 0; i < Math.max(this.entries.length, this.sent.length); i++) {
 			const e = this.entries[i] ?? null;
 			let row: Float32Array | null = null;
 			if (e) {
 				const sight = cache.sight(grid, e.ruleOrigin, shown[i].source.radius);
+				this.entrySights[i] = sight;
 				row = this.rows.get(sight) ?? buildRows(grid, sight, e.ruleOrigin, levels);
 				this.rows.set(sight, row);
 			}

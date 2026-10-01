@@ -858,3 +858,24 @@ first view that compiles (village's GM overview on WebGL2) is noise either way.
 RTX): textures 82 → 84 and texture bytes +353 KB on every tier (GridLights' two textures), the heap
 about 1.5 MB more; programs (174), pipelines, render targets, draw calls (117 after orbiting) and
 idle frames (0) unchanged, nothing leaked over reloads and remounts.
+
+## The M68 hero shadows (#230)
+
+Measured with `scripts/perf-gpu.mjs` on the test world (`FRAMES=32 POSES=close,overview`, 1920×1080,
+WebGL2 on the RTX 4060, reduced motion), the same build with its slots forced to none against the
+slots on; other jobs shared the GPU, so a tenth or two either way is noise, and the first pose after
+the scene import (the GM's close) compiles and is left out.
+
+| Tier                    | GM overview | player close / overview | Cube memory (depth + R8 colour) |
+| ----------------------- | ----------- | ----------------------- | ------------------------------- |
+| medium, no slots        | 3.0         | 3.0 / 3.0               | 0                               |
+| medium, 2 slots, 256 px | 3.0         | 3.4 / 4.0               | 3.1 + 0.8 MB                    |
+| high, no slots          | 4.2         | 3.2 / 3.0               | 0                               |
+| high, 4 slots, 512 px   | 4.4         | 4.4 / 3.8               | 25.2 + 6.3 MB                   |
+
+- **Per fragment** a slot costs its cell-list check and one cube lookup (a face matrix and a 2×2
+  compare); the entry's light (data, occlusion taps, falloff) is worked out only where the slot's
+  light is listed. A first build that worked it out everywhere cost 2.5-3.5 ms more on medium.
+- **Per redraw** a cube is six caster passes into its row of the atlas, only when something in the
+  light's reach + 1 changed, at most one a frame on medium and two on high; camera moves draw none.
+- **The iGPU** was not measured for this change; low has no slots.

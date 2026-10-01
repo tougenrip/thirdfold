@@ -85,33 +85,39 @@ jobs:
           - name: materials
             run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts src/lib/tabletop/mapping.svelte.spec.ts src/lib/tabletop/kind-layers.svelte.spec.ts
           - name: programs 1
-            run: THIRDFOLD_SHARD=1/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=1/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 2
-            run: THIRDFOLD_SHARD=2/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=2/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 3
-            run: THIRDFOLD_SHARD=3/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=3/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 4
-            run: THIRDFOLD_SHARD=4/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=4/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 5
-            run: THIRDFOLD_SHARD=5/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=5/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 6
-            run: THIRDFOLD_SHARD=6/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=6/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 7
-            run: THIRDFOLD_SHARD=7/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=7/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 8
-            run: THIRDFOLD_SHARD=8/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=8/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 9
-            run: THIRDFOLD_SHARD=9/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=9/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 10
-            run: THIRDFOLD_SHARD=10/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=10/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 11
-            run: THIRDFOLD_SHARD=11/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=11/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 12
-            run: THIRDFOLD_SHARD=12/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=12/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 13
-            run: THIRDFOLD_SHARD=13/13 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+            run: THIRDFOLD_SHARD=13/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 14
+            run: THIRDFOLD_SHARD=14/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
+          - name: programs 15
+            run: THIRDFOLD_SHARD=15/15 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: lights
             run: npm run test:render -- src/lib/tabletop/grid-lights.svelte.spec.ts
+          - name: hero shadows
+            run: npm run test:render -- src/lib/tabletop/hero-shadows.svelte.spec.ts
           - name: lobby
             run: npm run test:render -- src/lib/tabletop/lobby.svelte.spec.ts
     steps:
