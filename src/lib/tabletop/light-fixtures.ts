@@ -4,7 +4,8 @@
 // kind, white, tinted per instance by the light's colour above 1 in HDR so it blooms, and dark
 // (the wick) when the light is off, and breathing with its light's flicker in the shader (#231:
 // the profile and phase in the instance's paint, materials/kinds.ts). A wall fixture is modelled on its cell's north wall and turned
-// a quarter per side; a floor one stands at the cell centre. Picking maps an instance to its light.
+// a quarter per side; a floor one stands at the cell centre, and a neon bar or a panel (#236) is
+// turned by its look's `facing`, its glow an emissive bar or quad in the light's colour. Picking maps an instance to its light.
 // A token carrying light shows a small flame at its hand (`carriedAt`), following its gliding
 // mini. Built only from what the viewer was sent: its lights, and the tokens in its view, so a
 // hidden carrier never shows a flame. A prop with a `flame` mesh (a brazier's coals, a torch
@@ -29,7 +30,14 @@ import type { Prop } from '$lib/game/props';
 import { MAX_TOKENS_PER_ROOM, type Token } from '$lib/game/token';
 import type { Ground } from './ground';
 import { carriedAt, HAND } from './grid-light-layer';
-import { FIXTURES, fixtureFor, flickerPhase, flickerProfile, sideOf } from './light-model';
+import {
+	FIXTURES,
+	fixtureFor,
+	flickerPhase,
+	flickerProfile,
+	sideOf,
+	STRIP_KINDS
+} from './light-model';
 import {
 	addInstanceTints,
 	createMaterial,
@@ -155,7 +163,10 @@ export class LightFixtures {
 		for (const light of lights) {
 			const side = sideOf(light, walled);
 			const id = fixtureFor(light, side < 0 ? 'floor' : 'wall');
-			if (id) byModel.set(id, [...(byModel.get(id) ?? []), { light, side }]);
+			// A strip's bar or panel (#236) stands turned to its facing, as a wall fixture to its side.
+			const look = lightLook(light);
+			const turn = STRIP_KINDS.has(look.kind) ? look.facing : side;
+			if (id) byModel.set(id, [...(byModel.get(id) ?? []), { light, side: turn }]);
 		}
 		for (const id of byModel.keys()) this.request(id);
 		setParams(this.body, { lift: 1e-3 * grid.cellSize });

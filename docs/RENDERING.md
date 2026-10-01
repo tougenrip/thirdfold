@@ -887,6 +887,45 @@ AMBIENT frames by day, with nothing flickering in view, or under reduced motion.
 their vertex stage, so flame and light breathe together. Changes are numbers only: the program-count
 sweep's `lightSteps` turns the 40 torches through every profile on every tier.
 
+### Strips and panels (#236)
+
+A light of kind `neon` is a bar and one of kind `panel` a lit quad: long sources, drawn through the
+GridLights on every tier.
+
+- **Samples.** `stripSamples(light, facing)` (`light-model.ts`, pure) gives a neon bar three
+  samples along its 0.84-cell bar (at −0.3, 0 and +0.3 cells, a twentieth of a cell in front) and a
+  panel two, corner to corner across it, each a third or a half of the light's intensity; every
+  other kind none. `stripEntries` turns a light's `LightEntry` into one per sample: the same id
+  (so the same flicker phase), **the same rule origin**, reach, colour and flicker, its share of the
+  intensity, its visual position the light's point (its cell centre at its look's height) plus the
+  sample's offset, and the no-core flag. Each sample is a layer of its own in the data and listed on
+  exactly the cells the light itself lights (`buildLists` takes the light's source for each), so
+  reach, occlusion and membership stay the rules' (`litMask` for its radius) and nothing lights past
+  a wall. Bounce counts the light once, not per sample. A carried light, or one seated on a prop's
+  flame, stays a point.
+- **No hot core.** The node reads the no-core flag (`LIGHT_FLAGS.noCore`, 4) from the colour
+  texel's w and sets `falloffNode`'s core to 1: a long source lights evenly, with no point to burn
+  at. A number in the data, never a program.
+- **Facing.** `LightLook.facing` turns a strip as a wall fixture is turned to its side: facing `f`
+  has its back to `SIDES[f]` (0 north, then east, south, west) and shines away from it (0 south, 1
+  west, 2 north, 3 east), a quarter turn clockwise each. The samples turn with it, and so does the
+  fixture.
+- **Fixtures.** `neon-bar` (a bar between two posts) and `light-panel` (a framed quad on a stand)
+  are part-list placeholders (#232) whose glowing part is the `flame` mesh: the emissive kind in the
+  light's colour at `FLAME_GLOW` (above 1, so it blooms), the wick's dark when off, dimmed by
+  `worldModify` in fog; `LightFixtures` turns them by `facing`.
+- **Deferred.** The ultra tier's fixed pool of `RectAreaLight`s (LTC, assigned to the strips nearest
+  the focus and taken out of the sampled path) waits for #357, with ClusteredLighting: its LTC table
+  is a large lazy chunk for a tier nobody has measured. A ceiling panel (facing down) waits for a
+  look that asks for it.
+- **Tests.** `light-model.spec.ts` (sample counts, shares adding to 1, samples inside the cell,
+  facing turning them, each entry the same light from the same rule origin with the no-core flag);
+  `grid-lights.svelte.spec.ts` (a magenta bar facing a wall lights the wall's face magenta, and from
+  above every floor cell its rules light changes and no other, the far side of the wall included);
+  the program-count sweep's `lightSteps` (the 40 torches as neon facing every way, recoloured, mixed
+  with panels and torches, turned, and back) on every tier, now a test and a CI shard per tier
+  (programs 13 to 15).
+
 ### Translucency (#237)
 
 Thin and waxy things glow when a light is behind them. `KindLightingModel.direct()`

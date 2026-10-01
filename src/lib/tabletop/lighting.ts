@@ -234,8 +234,9 @@ export class LightingLayer {
 		const cell = this.grid.light.cellSize.value;
 		VIEW.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
 		FRUSTUM.setFromProjectionMatrix(VIEW, camera.coordinateSystem);
+		const of = this.grid.sourceOf;
 		return this.grid.entries.some(({ profile, visual: v, reach }, i) => {
-			if (!profile || !(night || this.darkAt[i])) return false;
+			if (!profile || !(night || this.darkAt[of[i]])) return false;
 			REACH.center.set(v.x, v.y, v.z);
 			REACH.radius = reach * cell;
 			return FRUSTUM.intersectsSphere(REACH);

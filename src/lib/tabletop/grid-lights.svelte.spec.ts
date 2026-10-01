@@ -372,6 +372,86 @@ describe('GridLights', () => {
 		expect(face, 'the far face lit by A').toEqual([]);
 	});
 
+	it('light the wall and floor before a neon strip in its colour, only where the rules light (#236)', async () => {
+		const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 14, height: 8 };
+		const wall: SceneObject = { id: 'w', kind: 'wall', a: { x: 7, y: 0 }, b: { x: 7, y: 8 } };
+		// A magenta bar a cell from the wall, facing it (east), and the same bar black (no light).
+		const neon: Light = {
+			id: 'sign',
+			pos: { x: 5, y: 4 },
+			radius: 3,
+			color: '#ff00ff',
+			on: true,
+			kind: 'neon',
+			facing: 3,
+			fixture: false
+		};
+		const black = { ...neon, color: '#000000' };
+		const dungeon = await loadView('dungeon-40', 'dark', 'gm');
+		const all = encodeMask(new Uint8Array(grid.width * grid.height).fill(1));
+		const view: FixtureView = {
+			...dungeon,
+			grid,
+			environment: null,
+			terrain: null,
+			darkness: null,
+			interior: null,
+			floor: null,
+			fog: { enabled: false, visible: all, explored: all, shared: false },
+			tokens: [],
+			props: [],
+			objects: [wall],
+			lights: [neon]
+		};
+		const west = { target: { x: 6, y: 4 }, distance: 7, azimuth: 270, elevation: 20 };
+		const { m, frame } = await mount(view, west);
+		const pair = async () => {
+			m.tabletop.setLighting('dark', [neon], view.world);
+			const on = await frame();
+			m.tabletop.setLighting('dark', [black], view.world);
+			return [on, await frame()] as const;
+		};
+		// The wall's lit face, across from the bar: magenta, red and blue far over green.
+		const [faceOn, faceOff] = await pair();
+		const camera = cameraOf(m);
+		const rise = [0, 0, 0];
+		let seen = 0;
+		for (let y = 3; y <= 5; y++)
+			for (const h of [0.3, 0.5, 0.7]) {
+				const z = gridToWorld(grid, { x: 7, y }).z;
+				const p = pixelOf(camera, -0.02, h * WALL_HEIGHT * grid.cellSize, z);
+				if (!p) continue;
+				seen++;
+				const [lit, dark] = [faceOn(p.px, p.py), faceOff(p.px, p.py)];
+				for (let i = 0; i < 3; i++) rise[i] += lit[i] - dark[i];
+			}
+		expect(seen).toBeGreaterThan(6);
+		expect(rise[0], 'red the bar adds to its wall').toBeGreaterThan(3 * seen);
+		expect(rise[2], 'blue the bar adds to its wall').toBeGreaterThan(3 * seen);
+		expect(rise[0] + rise[2], 'magenta, not white').toBeGreaterThan(4 * rise[1]);
+
+		// From above: every floor cell it lights changes, no other does (past the wall included).
+		const above = { target: { x: 7, y: 4 }, distance: 14, azimuth: 0, elevation: 80 };
+		m.tabletop.setGridPose(above);
+		const [on, off] = await pair();
+		const { blocked, ground } = groundOf(view);
+		const rules = litMask(grid, blocked, lightSources([neon], []));
+		const samples = centres(view, ground, cameraOf(m), new Set([key(neon.pos)]));
+		const isLit = (s: Sample) => rules[s.cell.y * grid.width + s.cell.x] === 1;
+		expect(samples.length).toBeGreaterThan(60);
+		const dim = samples.filter((s) => isLit(s) && change(on, off, s.px, s.py, false) < 1);
+		const leaks = samples.filter((s) => !isLit(s) && change(on, off, s.px, s.py) > 0);
+		expect(samples.filter(isLit).length).toBeGreaterThan(15);
+		expect(
+			dim.map((s) => key(s.cell)),
+			'lit cells drawn unlit'
+		).toEqual([]);
+		expect(
+			leaks.map((s) => key(s.cell)),
+			'unlit cells drawn lit'
+		).toEqual([]);
+	});
+
 	it("keep the monastery's gallery lamp to the cells it lights, from its balcony", async () => {
 		const view = await loadView('monastery', 'dark', 'gm');
 		const lamp = view.lights.find((l) => l.id === 'mn-gallery-lamp')!;

@@ -31,6 +31,7 @@ import {
 	CAVITY_PER_SIDE,
 	DATA_TEXELS,
 	GRID_LIGHT_CAPACITY,
+	LIGHT_FLAGS,
 	LIGHT_TEXELS,
 	OPEN_BITS,
 	packLight,
@@ -148,9 +149,10 @@ type Builder = THREE.NodeBuilder & {
 
 /**
  * The TSL mirror of `lightFalloff` (game/lights.ts), in cells: the rules window on `dxz` from the
- * rule origin, times the body and hot core on `d3` from the visual position.
+ * rule origin, times the body and hot core on `d3` from the visual position. `noCore` (0 or 1,
+ * a strip's or panel's samples, #236) takes the hot core away: a long source has no point core.
  */
-export function falloffNode(dxz: N, reach: N, d3: N): N {
+export function falloffNode(dxz: N, reach: N, d3: N, noCore: N | number = 0): N {
 	// Squares as products, not `pow` (cheaper on the integrated GPUs); the decay is a constant.
 	const r2 = dxz.div(reach).toVar();
 	const q = r2.mul(r2).mul(r2.mul(r2));
@@ -158,7 +160,7 @@ export function falloffNode(dxz: N, reach: N, d3: N): N {
 	const far = t.max(d3, CORE_RADIUS);
 	const body = LIGHT_DECAY === 1 ? far.reciprocal() : far.pow(-LIGHT_DECAY);
 	const near = t.div(CORE_RADIUS, t.max(d3, 1e-3));
-	const core = t.clamp(near.mul(near), 1, CORE_MAX);
+	const core = t.mix(t.clamp(near.mul(near), 1, CORE_MAX), 1, noCore);
 	return open.mul(open).mul(body).mul(core);
 }
 
@@ -219,7 +221,9 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 					const d3 = t.positionWorld.distance(at.xyz).div(cellSize);
 					// The flicker (#231) scales the light, never its floor at READABLE_EDGE.
 					const flicker = flickerNode(rule.z, rule.w);
-					const lit = falloffNode(d, at.w, d3).mul(occ.div(TAPS.length)).mul(flicker);
+					// The no-core flag (`LIGHT_FLAGS.noCore`, 4) in the colour texel's w.
+					const noCore = t.floor(col.w.div(LIGHT_FLAGS.noCore)).mod(2);
+					const lit = falloffNode(d, at.w, d3, noCore).mul(occ.div(TAPS.length)).mul(flicker);
 					const lightVector = cameraViewMatrix.mul(vec4(at.xyz, 1)).xyz.sub(positionView);
 					b.lightsNode.setupDirectLight(builder, this, {
 						lightDirection: lightVector.normalize(),

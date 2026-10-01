@@ -20,13 +20,15 @@
 // ten minutes a tier), haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off.
 // Each tier's runtime state (in two halves), its table travel and its sky are tests of their own, one CI shard each (shardedIt).
 // Many lights (#228, `lightSteps`): 40 torches coming and going, carried light on, coloured, moved
-// and off, kinds and colours changing, on every tier, in a shard of its own; later lighting tasks
+// and off, kinds and colours changing, on every tier, a shard per tier; later lighting tasks
 // (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
 // flicker's (#231) are every profile on the 40 torches. Light fixtures (#232): every kind's fixture
 // model coming and going with the kinds, fixtures taken off (`fixture: false`) and put back, and a
 // carried light's flame with the carried steps. Translucency (#237): the home table's translucent
 // materials (its tree's) at 0 and back above it. Bounce and cavity (#234): the layer off and on,
 // and the floors under the torches painted (their colour is the bounce's), data and uniforms only.
+// Strips and panels (#236): the torches as neon bars facing every way, recoloured, mixed with
+// panels and torches, turned, and back.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -364,6 +366,13 @@ function lightSteps(m: Mounted, home: FixtureView, scene: THREE.Scene, tier: Tie
 	});
 	const torches = (n: number, over: Partial<Light> = {}) =>
 		Array.from({ length: n }, (_, i) => torch(i, over));
+	/** The torches as `kinds` in turn, each facing its own way (turned by `turn`). */
+	const strips = (kinds: Light['kind'][], turn = 0, color = '#ff9a3c') =>
+		torches(TORCHES, { color }).map((l, i) => ({
+			...l,
+			kind: kinds[i % kinds.length],
+			facing: ((i + turn) % 4) as Light['facing']
+		}));
 	// Translucency (#237): a uniform, so its strength at 0 and back compiles nothing. A highlight
 	// asks for the frame, as setting a value does not.
 	const translucency = (value: number, cell: number) => () => {
@@ -400,6 +409,12 @@ function lightSteps(m: Mounted, home: FixtureView, scene: THREE.Scene, tier: Tie
 		// Fixtures (#232): every model off the table, then back.
 		['fixtures taken off', () => t.setLighting('dark', torches(TORCHES, { fixture: false }))],
 		['fixtures back', () => t.setLighting('dark', torches(TORCHES))],
+		// Strips and panels (#236): their samples are more entries, a flag and data, no program.
+		['neon strips every way', () => t.setLighting('dark', strips(['neon']))],
+		['neon recoloured', () => t.setLighting('dark', strips(['neon'], 1, '#ff3cbe'))],
+		['torches, neon and panels', () => t.setLighting('dark', strips(['torch', 'neon', 'panel']))],
+		['strips turned', () => t.setLighting('dark', strips(['panel', 'neon', 'torch'], 2))],
+		['strips back to torches', () => t.setLighting('dark', torches(TORCHES))],
 		['translucency at 0', translucency(0, 1)],
 		['translucency back', translucency(0.8, 2)],
 		// Bounce and cavity (#234): the layer off and on, and the floors that colour the bounce.
@@ -529,8 +544,8 @@ async function warmHome(tier: Tier) {
 }
 
 // One test per tier for the runtime state and one for the sky, so CI runs each in a job of its own
-// (`THIRDFOLD_SHARD=k/13`, .github/workflows/rendering.yml), the many lights' the 13th; the last two
-// join the first shards.
+// (`THIRDFOLD_SHARD=k/15`, .github/workflows/rendering.yml), the many lights' the 13th to 15th; the
+// last two join the first shards.
 describe('the shader program count', () => {
 	const test = shardedIt();
 	for (const tier of TIERS) {
@@ -554,11 +569,12 @@ describe('the shader program count', () => {
 		});
 	}
 
-	// Many lights (#228): every tier in one test, its own shard (programs 13). With the table's
-	// warm-up done (every kind's gallery compiled, warmup.ts), no fragment stage samples more than
-	// STAGE_TEXTURES textures: GridLights' two keep the largest within WebGPU's default 16.
-	test('stays put through many lights on every tier', async () => {
-		for (const tier of TIERS) {
+	// Many lights (#228): a test per tier, each its own shard (programs 13 to 15: the steps outgrew
+	// one job for all three, #236). With the table's warm-up done (every kind's gallery compiled,
+	// warmup.ts), no fragment stage samples more than STAGE_TEXTURES textures: GridLights' two keep
+	// the largest within WebGPU's default 16.
+	for (const tier of TIERS) {
+		test(`stays put through many lights on ${tier}`, async () => {
 			const { m, home, clock, renderer, scene } = await mountHome(tier);
 			// The pipeline's own passes settle over its first frames (the AO's blur): draw a few first.
 			for (let i = 0; i < 3; i++) {
@@ -574,11 +590,8 @@ describe('the shader program count', () => {
 			const over = [...stageTextures(renderer)].filter(([, n]) => n > STAGE_TEXTURES);
 			expect(over, `${tier}: fragment stages over ${STAGE_TEXTURES} textures`).toEqual([]);
 			expect(stageTextures(renderer).get('terrain'), `${tier}: terrain`).toBeGreaterThan(2);
-			await m.unmount();
-			mounted = null;
-			vi.restoreAllMocks(); // the next tier's renderer is the next spy's first
-		}
-	});
+		});
+	}
 
 	test('stays put through the toll with motion, its dust and shadow shown (#180)', async () => {
 		const { m, home, clock, renderer } = await mountHome('medium', false);

@@ -7,6 +7,8 @@
 // the viewer was sent (its lights and tokens) and the client's obstacles: a hidden carrier is never
 // sent, so it is never a light here. Bounce and cavity (#234, grid-lights.ts) go in the lists
 // texture's tail when the lights, the obstacles or the floors changed, and only while `bounce` is on.
+// A neon strip or a panel (#236) is two or three layers, its samples (`stripEntries`), each listed
+// on exactly the cells the light itself lights.
 
 import * as THREE from 'three/webgpu';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
@@ -28,12 +30,19 @@ import {
 	cavityField,
 	floorAlbedo,
 	GRID_LIGHT_CAPACITY,
+	LIGHT_FLAGS,
 	openSides,
 	packIndirect,
 	strength,
 	type LightEntry
 } from './grid-lights';
-import { flickerPhase, flickerProfile, lightMount } from './light-model';
+import {
+	flickerPhase,
+	flickerProfile,
+	lightMount,
+	stripEntries,
+	stripSamples
+} from './light-model';
 import type { GridLight } from './materials/grid-light-node';
 
 /** A carried light's hand, in the mini's size off its feet: to its side and at its chest. */
@@ -80,6 +89,8 @@ export class GridLighting {
 	/** What each layer holds on the GPU, and its row. */
 	private sent: (LightEntry | null)[] = [];
 	private sentRows: (Float32Array | null)[] = [];
+	/** Each layer's source, by its index in `update`'s `lit` (a strip has several layers, #236). */
+	sourceOf: number[] = [];
 	/** The carrying token's id per layer, so `carry` follows its mini. */
 	private carriers: (string | null)[] = [];
 	/** How long the last build took, ms (`?perf`): bounce and cavity included. */
@@ -103,9 +114,9 @@ export class GridLighting {
 		const t0 = performance.now();
 		const obstacles = asObstacles(blocked);
 		const cache = this.sights.use(grid, blocked);
-		const shown = lit.slice(0, GRID_LIGHT_CAPACITY);
 		const colour = new THREE.Color();
-		this.entries = shown.map(({ id, source: s, carrier }) => {
+		// Each source as its entries: one, or a strip's samples (#236), up to the capacity.
+		const entries = lit.map(({ id, source: s, carrier }) => {
 			const look = lightLook(s);
 			colour.set(s.color); // linear, as three's colours are
 			const seat = seats.get(s.pos.y * grid.width + s.pos.x);
@@ -116,7 +127,7 @@ export class GridLighting {
 				: seat === undefined
 					? lightMount(grid, s, obstacles.edges, ground)
 					: { x: at.x, y: floor + (seat + ABOVE_SEAT) * grid.cellSize, z: at.z };
-			return {
+			const entry: LightEntry = {
 				id,
 				ruleOrigin: { ...s.pos },
 				visual,
@@ -127,7 +138,13 @@ export class GridLighting {
 				phase: flickerPhase(id),
 				flags: 0
 			};
+			// A carried or seated light is a point wherever its kind (a flame in the hand, on a prop).
+			const samples = carrier || seat !== undefined ? [] : stripSamples(s);
+			return stripEntries(entry, samples, grid.cellSize, LIGHT_FLAGS.noCore);
 		});
+		this.sourceOf = entries.flatMap((list, i) => list.map(() => i)).slice(0, GRID_LIGHT_CAPACITY);
+		this.entries = entries.flat().slice(0, GRID_LIGHT_CAPACITY);
+		const shown = this.sourceOf.map((i) => lit[i]);
 		this.carriers = shown.map((l) => l.carrier?.id ?? null);
 		const levels = obstacles.levels ?? null;
 		for (let i = 0; i < Math.max(this.entries.length, this.sent.length); i++) {
@@ -143,8 +160,17 @@ export class GridLighting {
 			[this.sent[i], this.sentRows[i]] = [e && { ...e }, row];
 		}
 		this.sent.length = this.sentRows.length = this.entries.length;
-		const sources = shown.map((l) => l.source);
-		this.light.setLists(grid, buildLists(grid, cache, sources, this.light.k));
+		this.light.setLists(
+			grid,
+			buildLists(
+				grid,
+				cache,
+				shown.map((l) => l.source),
+				this.light.k
+			)
+		);
+		// Bounce per source, not per sample: a strip throws back its light once.
+		const sources = lit.slice(0, (this.sourceOf.at(-1) ?? -1) + 1).map((l) => l.source);
 		this.indirect(grid, cache, blocked, sources, floor, bounce);
 		this.buildMs = performance.now() - t0;
 	}

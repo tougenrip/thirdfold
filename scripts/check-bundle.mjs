@@ -58,8 +58,9 @@ const BUDGETS = {
 	// props' flames (#232); 374.5 kB measured. → 374.9: translucency (#237: the lighting model's
 	// term, translucent models' own materials). → bounce and cavity (#234: the fields, their packing
 	// and the node's gated lookup), and the cell maps kept at the largest grid's size (#380); set to
-	// the merged build's measured size (the owner raised M68's cap to about 382 kB).
-	renderer: { total: 377_500 },
+	// the merged build's measured size (the owner raised M68's cap to about 382 kB). → 377.8: strips
+	// and panels (#236: their samples, the no-core flag in the node, fixtures by facing); measured.
+	renderer: { total: 377_800 },
 	decoders: { total: 40_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */

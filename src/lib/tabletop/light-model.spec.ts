@@ -13,8 +13,12 @@ import {
 	lightMount,
 	MOUNT_HEIGHT,
 	MOUNT_OFFSET,
+	STRIP_KINDS,
+	stripEntries,
+	stripSamples,
 	type ShadowBounds
 } from './light-model';
+import { LIGHT_FLAGS, type LightEntry } from './grid-lights';
 
 const grid: SquareGrid = { kind: 'square', cellSize: 2, width: 4, height: 4 };
 const pos = { x: 1, y: 1 };
@@ -192,5 +196,89 @@ describe('fitShadowFrustum', () => {
 		}
 		// The size steps by half a cell: almost every tenth of a degree keeps it.
 		expect(same / steps).toBeGreaterThan(0.9);
+	});
+});
+
+describe('stripSamples and stripEntries (#236)', () => {
+	const entry: LightEntry = {
+		id: 'sign',
+		ruleOrigin: { x: 3, y: 2 },
+		visual: { x: 1, y: 2.4, z: -3 },
+		reach: 5,
+		colour: [1, 0, 1],
+		intensity: 6,
+		profile: 0,
+		phase: 0.25,
+		flags: LIGHT_FLAGS.hero
+	};
+
+	it('gives strips two or three samples whose shares add to 1, inside their cell; points none', () => {
+		for (const kind of LIGHT_KINDS) {
+			const samples = stripSamples({ kind });
+			if (!STRIP_KINDS.has(kind)) {
+				expect(samples, kind).toEqual([]);
+				continue;
+			}
+			expect(samples.length, kind).toBeGreaterThanOrEqual(2);
+			expect(samples.length, kind).toBeLessThanOrEqual(3);
+			expect(samples.reduce((n, s) => n + s.share, 0)).toBeCloseTo(1, 12);
+			for (const facing of [0, 1, 2, 3])
+				for (const s of stripSamples({ kind }, facing)) {
+					expect(Math.abs(s.x)).toBeLessThan(0.5);
+					expect(Math.abs(s.z)).toBeLessThan(0.5);
+				}
+		}
+	});
+
+	it('spreads a neon bar along its length and turns it with its facing', () => {
+		const south = stripSamples({ kind: 'neon' });
+		// Facing south (0) the bar runs east-west, a little in front (+z).
+		expect(new Set(south.map((s) => s.z)).size).toBe(1);
+		expect(south[0].z).toBeGreaterThan(0);
+		const xs = south.map((s) => s.x);
+		expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(0.6);
+		// Each quarter turn clockwise: west, north, east in front.
+		const front = (f: 0 | 1 | 2 | 3) => {
+			const s = stripSamples({ kind: 'neon', facing: f })[1];
+			return [Math.sign(s.x), Math.sign(s.z)];
+		};
+		expect([front(0), front(1), front(2), front(3)]).toEqual([
+			[0, 1],
+			[-1, 0],
+			[0, -1],
+			[1, 0]
+		]);
+		// The look's facing is the default; a facing given wins.
+		expect(stripSamples({ kind: 'neon', facing: 1 })).toEqual(stripSamples({ kind: 'neon' }, 1));
+		const east = stripSamples({ kind: 'neon' }, 3);
+		expect(new Set(east.map((s) => s.x)).size).toBe(1);
+		expect(east.map((s) => s.z).sort()).toEqual(xs.map((x) => 0 - x).sort());
+	});
+
+	it('makes each sample the same light from the same rule origin, its share, no hot core', () => {
+		for (const kind of ['neon', 'panel'] as const) {
+			const samples = stripSamples({ kind }, 2);
+			const entries = stripEntries(entry, samples, 2, LIGHT_FLAGS.noCore);
+			expect(entries).toHaveLength(samples.length);
+			for (const [i, e] of entries.entries()) {
+				expect(e.ruleOrigin).toEqual(entry.ruleOrigin);
+				expect(e.ruleOrigin).not.toBe(entry.ruleOrigin);
+				expect([e.id, e.reach, e.colour, e.profile, e.phase]).toEqual([
+					entry.id,
+					entry.reach,
+					entry.colour,
+					entry.profile,
+					entry.phase
+				]);
+				expect(e.flags).toBe(LIGHT_FLAGS.hero | LIGHT_FLAGS.noCore);
+				expect(e.visual.x).toBeCloseTo(entry.visual.x + samples[i].x * 2);
+				expect(e.visual.y).toBeCloseTo(entry.visual.y + samples[i].y * 2);
+				expect(e.visual.z).toBeCloseTo(entry.visual.z + samples[i].z * 2);
+			}
+			expect(entries.reduce((n, e) => n + e.intensity, 0)).toBeCloseTo(entry.intensity);
+		}
+		// A point light is its own entry, untouched.
+		const point = stripEntries(entry, stripSamples({ kind: 'torch' }), 2, LIGHT_FLAGS.noCore);
+		expect(point).toEqual([entry]);
 	});
 });

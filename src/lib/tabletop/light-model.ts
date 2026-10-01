@@ -271,3 +271,105 @@ export function flickerAt(profile: number, phase: number, t: number): number {
 	const tau = 2 * Math.PI;
 	return 1 + a1 * Math.sin(tau * (f1 * t + phase)) + a2 * Math.sin(tau * (f2 * t + 2 * phase));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Strips and panels (#236): a neon bar or a lit panel is a long source, so its GridLight is two or
+// three entries along the bar or across the panel, each with the light's own rule origin (so the
+// rules' lit mask still decides every cell it lights, exactly), a share of its intensity and no hot
+// core (a long source has no point to burn at). Their fixtures (`neon-bar`, `light-panel`) stand at
+// the cell centre turned by the look's `facing` as a wall fixture is by its side: facing f has its
+// back to SIDES[f] (0 north) and shines away from it (0 south, 1 west, 2 north, 3 east). Samples
+// sit where the models' glowing parts are, a little in front of them. True area lights on ultra
+// (a RectAreaLight pool) wait for #357.
+
+/** The kinds drawn as long sources. */
+export const STRIP_KINDS: ReadonlySet<LightKind> = new Set<LightKind>(['neon', 'panel']);
+
+/** One sample of a strip: its offset in cells from the light's point and its share of the light. */
+export interface StripSample {
+	x: number;
+	y: number;
+	z: number;
+	share: number;
+}
+
+/** Each strip kind's samples facing south (+z), in cells off its point: the models' glow. */
+const STRIP_POINTS: Readonly<
+	Record<'neon' | 'panel', readonly (readonly [number, number, number])[]>
+> = {
+	// Along the 0.84-cell bar.
+	neon: [
+		[-0.3, 0, 0.05],
+		[0, 0, 0.05],
+		[0.3, 0, 0.05]
+	],
+	// Across the 0.58 × 0.38 panel, corner to corner.
+	panel: [
+		[-0.2, 0.08, 0.1],
+		[0.2, -0.08, 0.1]
+	]
+};
+
+/** A south-facing offset turned to `facing`: a quarter turn clockwise (seen from above) each. */
+function turned(x: number, z: number, facing: number): [number, number] {
+	switch (facing & 3) {
+		case 1:
+			return [-z, x];
+		case 2:
+			return [-x, -z];
+		case 3:
+			return [z, -x];
+		default:
+			return [x, z];
+	}
+}
+
+/**
+ * A strip's samples (offsets in cells from the light's point, which `lightMount` puts at its cell
+ * centre at its look's height) with their shares of its intensity, adding to 1, turned to
+ * `facing`; an empty list for every other kind (a point light).
+ */
+export function stripSamples(
+	light: Partial<LightLook>,
+	facing: number = lightLook(light).facing
+): StripSample[] {
+	const { kind } = lightLook(light);
+	if (kind !== 'neon' && kind !== 'panel') return [];
+	const points = STRIP_POINTS[kind];
+	return points.map(([x, y, z]) => {
+		const [tx, tz] = turned(x, z, facing);
+		// `+ 0` makes a turned -0 a 0.
+		return { x: tx + 0, y, z: tz + 0, share: 1 / points.length };
+	});
+}
+
+/**
+ * A light's entry as its strip's (`stripSamples`): each sample the same light (id, rule origin,
+ * reach, colour, flicker) drawn from its point plus the sample's offset, with its share of the
+ * intensity and the `noCore` flag bit (grid-lights.ts `LIGHT_FLAGS.noCore`, passed in: that module
+ * is the client's, this one the server's too). A point light's is the entry itself.
+ */
+export function stripEntries<E extends StripEntry>(
+	entry: E,
+	samples: readonly StripSample[],
+	cellSize: number,
+	noCore: number
+): E[] {
+	if (!samples.length) return [entry];
+	const { x, y, z } = entry.visual;
+	return samples.map((s) => ({
+		...entry,
+		ruleOrigin: { ...entry.ruleOrigin },
+		visual: { x: x + s.x * cellSize, y: y + s.y * cellSize, z: z + s.z * cellSize },
+		intensity: entry.intensity * s.share,
+		flags: entry.flags | noCore
+	}));
+}
+
+/** What `stripEntries` reads of a GridLight entry (grid-lights.ts `LightEntry`). */
+interface StripEntry {
+	ruleOrigin: GridPos;
+	visual: { x: number; y: number; z: number };
+	intensity: number;
+	flags: number;
+}
