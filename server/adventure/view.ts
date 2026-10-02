@@ -3,13 +3,27 @@
 // is in that viewer's view, things to interact with only once their cells
 // have been seen, and the read-aloud passages only for the GM.
 
-import type { AdventureView, Objective, SessionSummary } from '../../src/lib/adventure/adventure';
-import { defenseFor } from '../../src/lib/adventure/characters';
+import {
+	activeOn,
+	concentratingOn,
+	conditionsOn,
+	effectLine,
+	modsOn,
+	suppressed,
+	effectsOn
+} from './effects';
+import type {
+	AdventureView,
+	ConditionMark,
+	Objective,
+	SessionSummary
+} from '../../src/lib/adventure/adventure';
 import { cellIndex, type CellMask } from '../../src/lib/game/visibility';
 import type { SavedScene } from '../../src/lib/game/protocol';
 import type { Player, Room } from '../rooms';
 import { AMBUSH, type AdventureDef } from './define';
 import {
+	canBuild,
 	cannotRate,
 	chapterNumber,
 	characterOf,
@@ -20,12 +34,15 @@ import {
 	objectCells,
 	objectState,
 	optionLabel,
+	rulesOf,
 	shownState,
 	usesLeft,
 	verbsFor
 } from './engine';
-import type { AdventureState, Statuses } from './state';
+import type { AdventureState, LastingEffect, Statuses } from './state';
 import { actionOfVerb, objectDef } from './world';
+import { packsView } from './packs';
+import { rulesInfo } from '../rules/ruleset';
 
 /** Where a story saved now had got to, for the GM's list of saves (null for a table without one). */
 export function storySummary(room: Room): SavedScene['story'] {
@@ -97,7 +114,9 @@ export function adventureView(
 	const A = content(adventure);
 	const encounter = adventure.encounter;
 	// Evidence someone found alone stays theirs (and the GM's) until they share it.
-	const mine = viewer.role === 'player' ? (characterOf(room, viewer.id)?.id ?? null) : null;
+	const me = viewer.role === 'player' ? characterOf(room, viewer.id) : null;
+	const mine = me?.id ?? null;
+	const rules = rulesOf(adventure);
 	const clues = [...adventure.evidence].flatMap(([id, found]) => {
 		const own = mine !== null && found.by.includes(mine);
 		if (!found.shared && !own && viewer.role !== 'gm') return [];
@@ -132,6 +151,10 @@ export function adventureView(
 			const state = adventure.characters.get(id);
 			const token = state && room.tokens.get(state.tokenId);
 			const maxHp = def.hp;
+			const card = rules.card(def, token && state ? state.statuses : new Map());
+			const editable = viewer.role === 'gm' || (!!token && token.ownerId === viewer.id);
+			// What every character can do under the rules (Dash, Dodge, …) is offered with its own actions.
+			const actions = [...def.actions, ...(rules.maneuvers ?? []).map((m) => m.action)];
 			return {
 				id,
 				inPlay: !!token,
@@ -144,14 +167,66 @@ export function adventureView(
 				downedFor: state?.downedFor ?? 0,
 				statuses: token && state ? listStatuses(state.statuses) : [],
 				usesLeft: Object.fromEntries(
-					def.actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
+					actions.map((a) => [a.id, state ? usesLeft(state, a) : a.uses])
 				),
+				deathSaves:
+					token && state && state.hp <= 0 && !state.dead && rules.downedDamage
+						? {
+								successes: state.deathSaves?.successes ?? 0,
+								failures: state.deathSaves?.failures ?? 0,
+								stable: !!state.deathSaves?.stable
+							}
+						: null,
+				reaction: !rules.opportunityAttacks
+					? null
+					: state?.holdReaction
+						? 'held'
+						: encounter?.reacted?.has(id)
+							? 'used'
+							: 'ready',
 				carrying: [...adventure.carried].flatMap(([item, by]) => {
 					const thing = by === id && token ? objectDef(A, item) : undefined;
 					return thing ? [{ id: thing.id, name: thing.name }] : [];
-				})
+				}),
+				// The rules' own data about a character (its sheet) stays on the server: the card is what the rules show.
+				def: { ...def, actions, sheet: undefined },
+				card,
+				resourcesSpent: Object.fromEntries(
+					(card.resources ?? []).map((r) => {
+						const action = r.trackedBy ? def.actions.find((a) => a.id === r.trackedBy) : undefined;
+						const used = action
+							? (action.uses ?? 0) - ((state && usesLeft(state, action)) ?? action.uses ?? 0)
+							: (state?.resources?.get(r.id) ?? 0);
+						return [r.id, Math.min(r.max, Math.max(0, used))];
+					})
+				),
+				notes: editable ? (adventure.notes?.get(id) ?? '') : null,
+				editable,
+				renamable: editable && !!adventure.built?.has(id) && !!rules.builder?.rename,
+				effects: token ? linesOn(adventure, token.id) : [],
+				conditions: token ? marksOn(room, adventure, token.id) : [],
+				concentrating: concentratingOn(adventure, id),
+				spent: encounter
+					? [...encounter.acted].flatMap((key) => {
+							if (key === id) return ['action'];
+							return key.startsWith(`${id}:`) ? [key.slice(id.length + 1)] : [];
+						})
+					: []
 			};
 		}),
+		piles: [...(adventure.piles ?? [])].flatMap(([id, pile]) =>
+			pile.location === adventure.location &&
+			room.props.has(id) &&
+			(!known || known[cellIndex(room.grid, pile.pos)])
+				? [
+						{
+							id,
+							cell: { ...pile.pos },
+							items: pile.items.map((item, index) => ({ index, name: item.name }))
+						}
+					]
+				: []
+		),
 		interactables: A.objects.flatMap((def) => {
 			const state = objectState(adventure, def);
 			const verbs = verbsFor(adventure, def);
@@ -175,7 +250,16 @@ export function adventureView(
 						label: v.label,
 						action: actionOfVerb(v),
 						physical: v.physical ?? null,
-						check: v.check && state !== 'used' ? { ...v.check } : null,
+						check:
+							v.check && state !== 'used'
+								? {
+										...v.check,
+										label: rules.label(v.check.stat, v.check.save ? 'save' : 'check'),
+										bonus: me
+											? rules.bonus(me.def, v.check.stat, v.check.save ? 'save' : 'check')
+											: null
+									}
+								: null,
 						tried: mine !== null && adventure.tried.has(`${mine}:${def.id}:${v.id}`),
 						inFight: v.inFight === true
 					}))
@@ -223,7 +307,7 @@ export function adventureView(
 			}),
 			current: encounter.current,
 			counter: counterOf(adventure),
-			acted: [...encounter.acted],
+			acted: [...encounter.acted].filter((key) => !key.includes(':')),
 			moved: Object.fromEntries(encounter.moved),
 			speed: encounter.speed,
 			enemies: [...encounter.enemies]
@@ -233,8 +317,12 @@ export function adventureView(
 					name: room.tokens.get(tokenId)?.name ?? A.enemies[e.kind]?.name ?? 'Enemy',
 					hp: e.hp,
 					maxHp: e.maxHp,
-					defense: defenseFor(A.enemies[e.kind]?.armor ?? 0),
-					statuses: listStatuses(e.statuses)
+					defense:
+						rulesOf(adventure).defense(A.enemies[e.kind]?.armor ?? 0, e.statuses) +
+						modsOn(adventure, tokenId).defense,
+					statuses: listStatuses(e.statuses),
+					effects: linesOn(adventure, tokenId),
+					conditions: marksOn(room, adventure, tokenId)
 				}))
 		},
 		decision: adventure.pending
@@ -281,6 +369,9 @@ export function adventureView(
 		completedAt: adventure.completedAt,
 		summary: summaryOf(adventure),
 		rewards: [...adventure.rewards],
+		rules: rulesInfo(rules),
+		build: canBuild(adventure) ? { rules: rules.id } : null,
+		packs: packsView(adventure),
 		library: adventure.library
 			? {
 					id: adventure.library.id,
@@ -322,4 +413,77 @@ function endingView(A: AdventureDef, adventure: AdventureState): AdventureView['
 		scene: def.scene,
 		result: def.result.map((r) => ({ ...r }))
 	};
+}
+
+/** A token's lasting effects beyond the conditions they give (shown as conditions), as lines; a suppressed one said so. */
+function linesOn(adventure: AdventureState, tokenId: string): string[] {
+	const names = conditionNames(adventure);
+	const beyond = (e: LastingEffect) =>
+		Object.entries(e.mods).some(([k, v]) => k !== 'conditions' && v !== undefined);
+	return effectsOn(adventure, tokenId)
+		.filter(beyond)
+		.map(
+			(e) =>
+				`${effectLine(e, (id) => names.get(id)?.name ?? id)}${suppressed(adventure, e) ? ' (suppressed: the same effect already applies)' : ''}`
+		);
+}
+
+function conditionNames(adventure: AdventureState) {
+	return new Map((rulesOf(adventure).conditions?.list() ?? []).map((c) => [c.id, c]));
+}
+
+/** The conditions a token holds, as the table shows them. */
+function marksOn(room: Room, adventure: AdventureState, tokenId: string): ConditionMark[] {
+	if (!activeOn(adventure, tokenId).length) return [];
+	const info = conditionNames(adventure);
+	return conditionsOn(adventure, tokenId).map(({ id, level, effect }) => {
+		const c = info.get(id);
+		return {
+			id,
+			name: c?.name ?? id,
+			text: c?.text ?? '',
+			notPlayed: c?.notPlayed ?? [],
+			...(level !== undefined ? { level } : {}),
+			from:
+				effect.source.kind === 'gm'
+					? effect.name === c?.name
+						? 'from the GM'
+						: `${effect.name}, from the GM`
+					: effect.name === c?.name
+						? `from ${effect.source.name}`
+						: `${effect.name}, from ${effect.source.name}`,
+			until: untilOf(room, effect),
+			effect: effect.id
+		};
+	});
+}
+
+/** How long an effect lasts, in words. */
+function untilOf(room: Room, e: LastingEffect): string {
+	const parts: string[] = [];
+	if (e.repeat)
+		parts.push(
+			`until it saves (${e.repeat.stat.toUpperCase()} DC ${e.repeat.dc}, at the end of each of its turns)`
+		);
+	if (e.endsOnDamage) parts.push('until it takes damage');
+	if (e.concentration) parts.push(`while ${e.source.name} concentrates`);
+	if (e.ends) {
+		const whose = e.clock ? clockName(room, e.clock) : e.source.name;
+		parts.push(
+			e.ends.turns <= 1
+				? `until the ${e.ends.at} of ${whose}'s next turn`
+				: `for ${e.ends.turns} more rounds`
+		);
+	}
+	if (!parts.length)
+		parts.push(e.source.kind === 'gm' ? 'until the GM removes it' : 'until it ends');
+	return parts.join('; ');
+}
+
+/** Whose turns an effect counts on, by name: a character's, or an enemy's ("the Barrow Guard"). */
+function clockName(room: Room, clock: string): string {
+	const adventure = room.adventure!;
+	const character = adventure.characters.get(clock);
+	if (character) return content(adventure).characters[clock]?.name ?? clock;
+	return `the ${room.tokens.get(clock)?.name ?? 'foe'}`;
 }

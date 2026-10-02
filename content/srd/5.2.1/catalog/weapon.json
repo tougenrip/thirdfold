@@ -1,0 +1,1295 @@
+[
+	{
+		"id": "srd-5.2.1:weapon:battleaxe",
+		"kind": "weapon",
+		"name": "Battleaxe",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Slashing",
+			"properties": [
+				"Versatile (1d10)"
+			],
+			"range": null,
+			"versatile": "1d10",
+			"ammunition": null,
+			"mastery": "Topple",
+			"weight": "4 lb.",
+			"cost": "10 GP"
+		},
+		"text": "Battleaxe: Martial Melee Weapon. 1d8 Slashing. Properties: Versatile (1d10). Mastery: Topple. Weight: 4 lb.. Cost: 10 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:blowgun",
+		"kind": "weapon",
+		"name": "Blowgun",
+		"data": {
+			"category": "martial",
+			"type": "ranged",
+			"damage": "1",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 25/100; Needle)",
+				"Loading"
+			],
+			"range": {
+				"normal": 25,
+				"long": 100
+			},
+			"versatile": null,
+			"ammunition": "Needle",
+			"mastery": "Vex",
+			"weight": "1 lb.",
+			"cost": "10 GP"
+		},
+		"text": "Blowgun: Martial Ranged Weapon. 1 Piercing. Properties: Ammunition (Range 25/100; Needle), Loading. Mastery: Vex. Weight: 1 lb.. Cost: 10 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:club",
+		"kind": "weapon",
+		"name": "Club",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d4",
+			"damageType": "Bludgeoning",
+			"properties": [
+				"Light"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Slow",
+			"weight": "2 lb.",
+			"cost": "1 SP"
+		},
+		"text": "Club: Simple Melee Weapon. 1d4 Bludgeoning. Properties: Light. Mastery: Slow. Weight: 2 lb.. Cost: 1 SP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:dagger",
+		"kind": "weapon",
+		"name": "Dagger",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d4",
+			"damageType": "Piercing",
+			"properties": [
+				"Finesse",
+				"Light",
+				"Thrown (Range 20/60)"
+			],
+			"range": {
+				"normal": 20,
+				"long": 60
+			},
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Nick",
+			"weight": "1 lb.",
+			"cost": "2 GP"
+		},
+		"text": "Dagger: Simple Melee Weapon. 1d4 Piercing. Properties: Finesse, Light, Thrown (Range 20/60). Mastery: Nick. Weight: 1 lb.. Cost: 2 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:dart",
+		"kind": "weapon",
+		"name": "Dart",
+		"data": {
+			"category": "simple",
+			"type": "ranged",
+			"damage": "1d4",
+			"damageType": "Piercing",
+			"properties": [
+				"Finesse",
+				"Thrown (Range 20/60)"
+			],
+			"range": {
+				"normal": 20,
+				"long": 60
+			},
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Vex",
+			"weight": "1/4 lb.",
+			"cost": "5 CP"
+		},
+		"text": "Dart: Simple Ranged Weapon. 1d4 Piercing. Properties: Finesse, Thrown (Range 20/60). Mastery: Vex. Weight: 1/4 lb.. Cost: 5 CP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:flail",
+		"kind": "weapon",
+		"name": "Flail",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Bludgeoning",
+			"properties": [],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Sap",
+			"weight": "2 lb.",
+			"cost": "10 GP"
+		},
+		"text": "Flail: Martial Melee Weapon. 1d8 Bludgeoning. Properties: —. Mastery: Sap. Weight: 2 lb.. Cost: 10 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:glaive",
+		"kind": "weapon",
+		"name": "Glaive",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d10",
+			"damageType": "Slashing",
+			"properties": [
+				"Heavy",
+				"Reach",
+				"Two-Handed"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Graze",
+			"weight": "6 lb.",
+			"cost": "20 GP"
+		},
+		"text": "Glaive: Martial Melee Weapon. 1d10 Slashing. Properties: Heavy, Reach, Two-Handed. Mastery: Graze. Weight: 6 lb.. Cost: 20 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:greataxe",
+		"kind": "weapon",
+		"name": "Greataxe",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d12",
+			"damageType": "Slashing",
+			"properties": [
+				"Heavy",
+				"Two-Handed"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Cleave",
+			"weight": "7 lb.",
+			"cost": "30 GP"
+		},
+		"text": "Greataxe: Martial Melee Weapon. 1d12 Slashing. Properties: Heavy, Two-Handed. Mastery: Cleave. Weight: 7 lb.. Cost: 30 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:greatclub",
+		"kind": "weapon",
+		"name": "Greatclub",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Bludgeoning",
+			"properties": [
+				"Two-Handed"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Push",
+			"weight": "10 lb.",
+			"cost": "2 SP"
+		},
+		"text": "Greatclub: Simple Melee Weapon. 1d8 Bludgeoning. Properties: Two-Handed. Mastery: Push. Weight: 10 lb.. Cost: 2 SP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:greatsword",
+		"kind": "weapon",
+		"name": "Greatsword",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "2d6",
+			"damageType": "Slashing",
+			"properties": [
+				"Heavy",
+				"Two-Handed"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Graze",
+			"weight": "6 lb.",
+			"cost": "50 GP"
+		},
+		"text": "Greatsword: Martial Melee Weapon. 2d6 Slashing. Properties: Heavy, Two-Handed. Mastery: Graze. Weight: 6 lb.. Cost: 50 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:halberd",
+		"kind": "weapon",
+		"name": "Halberd",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d10",
+			"damageType": "Slashing",
+			"properties": [
+				"Heavy",
+				"Reach",
+				"Two-Handed"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Cleave",
+			"weight": "6 lb.",
+			"cost": "20 GP"
+		},
+		"text": "Halberd: Martial Melee Weapon. 1d10 Slashing. Properties: Heavy, Reach, Two-Handed. Mastery: Cleave. Weight: 6 lb.. Cost: 20 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:hand-crossbow",
+		"kind": "weapon",
+		"name": "Hand Crossbow",
+		"data": {
+			"category": "martial",
+			"type": "ranged",
+			"damage": "1d6",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 30/120; Bolt)",
+				"Light",
+				"Loading"
+			],
+			"range": {
+				"normal": 30,
+				"long": 120
+			},
+			"versatile": null,
+			"ammunition": "Bolt",
+			"mastery": "Vex",
+			"weight": "3 lb.",
+			"cost": "75 GP"
+		},
+		"text": "Hand Crossbow: Martial Ranged Weapon. 1d6 Piercing. Properties: Ammunition (Range 30/120; Bolt), Light, Loading. Mastery: Vex. Weight: 3 lb.. Cost: 75 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:handaxe",
+		"kind": "weapon",
+		"name": "Handaxe",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d6",
+			"damageType": "Slashing",
+			"properties": [
+				"Light",
+				"Thrown (Range 20/60)"
+			],
+			"range": {
+				"normal": 20,
+				"long": 60
+			},
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Vex",
+			"weight": "2 lb.",
+			"cost": "5 GP"
+		},
+		"text": "Handaxe: Simple Melee Weapon. 1d6 Slashing. Properties: Light, Thrown (Range 20/60). Mastery: Vex. Weight: 2 lb.. Cost: 5 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:heavy-crossbow",
+		"kind": "weapon",
+		"name": "Heavy Crossbow",
+		"data": {
+			"category": "martial",
+			"type": "ranged",
+			"damage": "1d10",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 100/400; Bolt)",
+				"Heavy",
+				"Loading",
+				"Two-Handed"
+			],
+			"range": {
+				"normal": 100,
+				"long": 400
+			},
+			"versatile": null,
+			"ammunition": "Bolt",
+			"mastery": "Push",
+			"weight": "18 lb.",
+			"cost": "50 GP"
+		},
+		"text": "Heavy Crossbow: Martial Ranged Weapon. 1d10 Piercing. Properties: Ammunition (Range 100/400; Bolt), Heavy, Loading, Two-Handed. Mastery: Push. Weight: 18 lb.. Cost: 50 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:javelin",
+		"kind": "weapon",
+		"name": "Javelin",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d6",
+			"damageType": "Piercing",
+			"properties": [
+				"Thrown (Range 30/120)"
+			],
+			"range": {
+				"normal": 30,
+				"long": 120
+			},
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Slow",
+			"weight": "2 lb.",
+			"cost": "5 SP"
+		},
+		"text": "Javelin: Simple Melee Weapon. 1d6 Piercing. Properties: Thrown (Range 30/120). Mastery: Slow. Weight: 2 lb.. Cost: 5 SP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:lance",
+		"kind": "weapon",
+		"name": "Lance",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d10",
+			"damageType": "Piercing",
+			"properties": [
+				"Heavy",
+				"Reach",
+				"Two-Handed (unless mounted)"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Topple",
+			"weight": "6 lb.",
+			"cost": "10 GP"
+		},
+		"text": "Lance: Martial Melee Weapon. 1d10 Piercing. Properties: Heavy, Reach, Two-Handed (unless mounted). Mastery: Topple. Weight: 6 lb.. Cost: 10 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:light-crossbow",
+		"kind": "weapon",
+		"name": "Light Crossbow",
+		"data": {
+			"category": "simple",
+			"type": "ranged",
+			"damage": "1d8",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 80/320; Bolt)",
+				"Loading",
+				"Two-Handed"
+			],
+			"range": {
+				"normal": 80,
+				"long": 320
+			},
+			"versatile": null,
+			"ammunition": "Bolt",
+			"mastery": "Slow",
+			"weight": "5 lb.",
+			"cost": "25 GP"
+		},
+		"text": "Light Crossbow: Simple Ranged Weapon. 1d8 Piercing. Properties: Ammunition (Range 80/320; Bolt), Loading, Two-Handed. Mastery: Slow. Weight: 5 lb.. Cost: 25 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:light-hammer",
+		"kind": "weapon",
+		"name": "Light Hammer",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d4",
+			"damageType": "Bludgeoning",
+			"properties": [
+				"Light",
+				"Thrown (Range 20/60)"
+			],
+			"range": {
+				"normal": 20,
+				"long": 60
+			},
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Nick",
+			"weight": "2 lb.",
+			"cost": "2 GP"
+		},
+		"text": "Light Hammer: Simple Melee Weapon. 1d4 Bludgeoning. Properties: Light, Thrown (Range 20/60). Mastery: Nick. Weight: 2 lb.. Cost: 2 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:longbow",
+		"kind": "weapon",
+		"name": "Longbow",
+		"data": {
+			"category": "martial",
+			"type": "ranged",
+			"damage": "1d8",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 150/600; Arrow)",
+				"Heavy",
+				"Two-Handed"
+			],
+			"range": {
+				"normal": 150,
+				"long": 600
+			},
+			"versatile": null,
+			"ammunition": "Arrow",
+			"mastery": "Slow",
+			"weight": "2 lb.",
+			"cost": "50 GP"
+		},
+		"text": "Longbow: Martial Ranged Weapon. 1d8 Piercing. Properties: Ammunition (Range 150/600; Arrow), Heavy, Two-Handed. Mastery: Slow. Weight: 2 lb.. Cost: 50 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:longsword",
+		"kind": "weapon",
+		"name": "Longsword",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Slashing",
+			"properties": [
+				"Versatile (1d10)"
+			],
+			"range": null,
+			"versatile": "1d10",
+			"ammunition": null,
+			"mastery": "Sap",
+			"weight": "3 lb.",
+			"cost": "15 GP"
+		},
+		"text": "Longsword: Martial Melee Weapon. 1d8 Slashing. Properties: Versatile (1d10). Mastery: Sap. Weight: 3 lb.. Cost: 15 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:mace",
+		"kind": "weapon",
+		"name": "Mace",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d6",
+			"damageType": "Bludgeoning",
+			"properties": [],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Sap",
+			"weight": "4 lb.",
+			"cost": "5 GP"
+		},
+		"text": "Mace: Simple Melee Weapon. 1d6 Bludgeoning. Properties: —. Mastery: Sap. Weight: 4 lb.. Cost: 5 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:maul",
+		"kind": "weapon",
+		"name": "Maul",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "2d6",
+			"damageType": "Bludgeoning",
+			"properties": [
+				"Heavy",
+				"Two-Handed"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Topple",
+			"weight": "10 lb.",
+			"cost": "10 GP"
+		},
+		"text": "Maul: Martial Melee Weapon. 2d6 Bludgeoning. Properties: Heavy, Two-Handed. Mastery: Topple. Weight: 10 lb.. Cost: 10 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:morningstar",
+		"kind": "weapon",
+		"name": "Morningstar",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Piercing",
+			"properties": [],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Sap",
+			"weight": "4 lb.",
+			"cost": "15 GP"
+		},
+		"text": "Morningstar: Martial Melee Weapon. 1d8 Piercing. Properties: —. Mastery: Sap. Weight: 4 lb.. Cost: 15 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:musket",
+		"kind": "weapon",
+		"name": "Musket",
+		"data": {
+			"category": "martial",
+			"type": "ranged",
+			"damage": "1d12",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 40/120; Bullet)",
+				"Loading",
+				"Two-Handed"
+			],
+			"range": {
+				"normal": 40,
+				"long": 120
+			},
+			"versatile": null,
+			"ammunition": "Bullet",
+			"mastery": "Slow",
+			"weight": "10 lb.",
+			"cost": "500 GP"
+		},
+		"text": "Musket: Martial Ranged Weapon. 1d12 Piercing. Properties: Ammunition (Range 40/120; Bullet), Loading, Two-Handed. Mastery: Slow. Weight: 10 lb.. Cost: 500 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:pike",
+		"kind": "weapon",
+		"name": "Pike",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d10",
+			"damageType": "Piercing",
+			"properties": [
+				"Heavy",
+				"Reach",
+				"Two-Handed"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Push",
+			"weight": "18 lb.",
+			"cost": "5 GP"
+		},
+		"text": "Pike: Martial Melee Weapon. 1d10 Piercing. Properties: Heavy, Reach, Two-Handed. Mastery: Push. Weight: 18 lb.. Cost: 5 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:pistol",
+		"kind": "weapon",
+		"name": "Pistol",
+		"data": {
+			"category": "martial",
+			"type": "ranged",
+			"damage": "1d10",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 30/90; Bullet)",
+				"Loading"
+			],
+			"range": {
+				"normal": 30,
+				"long": 90
+			},
+			"versatile": null,
+			"ammunition": "Bullet",
+			"mastery": "Vex",
+			"weight": "3 lb.",
+			"cost": "250 GP"
+		},
+		"text": "Pistol: Martial Ranged Weapon. 1d10 Piercing. Properties: Ammunition (Range 30/90; Bullet), Loading. Mastery: Vex. Weight: 3 lb.. Cost: 250 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:quarterstaff",
+		"kind": "weapon",
+		"name": "Quarterstaff",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d6",
+			"damageType": "Bludgeoning",
+			"properties": [
+				"Versatile (1d8)"
+			],
+			"range": null,
+			"versatile": "1d8",
+			"ammunition": null,
+			"mastery": "Topple",
+			"weight": "4 lb.",
+			"cost": "2 SP"
+		},
+		"text": "Quarterstaff: Simple Melee Weapon. 1d6 Bludgeoning. Properties: Versatile (1d8). Mastery: Topple. Weight: 4 lb.. Cost: 2 SP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:rapier",
+		"kind": "weapon",
+		"name": "Rapier",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Piercing",
+			"properties": [
+				"Finesse"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Vex",
+			"weight": "2 lb.",
+			"cost": "25 GP"
+		},
+		"text": "Rapier: Martial Melee Weapon. 1d8 Piercing. Properties: Finesse. Mastery: Vex. Weight: 2 lb.. Cost: 25 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:scimitar",
+		"kind": "weapon",
+		"name": "Scimitar",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d6",
+			"damageType": "Slashing",
+			"properties": [
+				"Finesse",
+				"Light"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Nick",
+			"weight": "3 lb.",
+			"cost": "25 GP"
+		},
+		"text": "Scimitar: Martial Melee Weapon. 1d6 Slashing. Properties: Finesse, Light. Mastery: Nick. Weight: 3 lb.. Cost: 25 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:shortbow",
+		"kind": "weapon",
+		"name": "Shortbow",
+		"data": {
+			"category": "simple",
+			"type": "ranged",
+			"damage": "1d6",
+			"damageType": "Piercing",
+			"properties": [
+				"Ammunition (Range 80/320; Arrow)",
+				"Two-Handed"
+			],
+			"range": {
+				"normal": 80,
+				"long": 320
+			},
+			"versatile": null,
+			"ammunition": "Arrow",
+			"mastery": "Vex",
+			"weight": "2 lb.",
+			"cost": "25 GP"
+		},
+		"text": "Shortbow: Simple Ranged Weapon. 1d6 Piercing. Properties: Ammunition (Range 80/320; Arrow), Two-Handed. Mastery: Vex. Weight: 2 lb.. Cost: 25 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:shortsword",
+		"kind": "weapon",
+		"name": "Shortsword",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d6",
+			"damageType": "Piercing",
+			"properties": [
+				"Finesse",
+				"Light"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Vex",
+			"weight": "2 lb.",
+			"cost": "10 GP"
+		},
+		"text": "Shortsword: Martial Melee Weapon. 1d6 Piercing. Properties: Finesse, Light. Mastery: Vex. Weight: 2 lb.. Cost: 10 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:sickle",
+		"kind": "weapon",
+		"name": "Sickle",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d4",
+			"damageType": "Slashing",
+			"properties": [
+				"Light"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Nick",
+			"weight": "2 lb.",
+			"cost": "1 GP"
+		},
+		"text": "Sickle: Simple Melee Weapon. 1d4 Slashing. Properties: Light. Mastery: Nick. Weight: 2 lb.. Cost: 1 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:sling",
+		"kind": "weapon",
+		"name": "Sling",
+		"data": {
+			"category": "simple",
+			"type": "ranged",
+			"damage": "1d4",
+			"damageType": "Bludgeoning",
+			"properties": [
+				"Ammunition (Range 30/120; Bullet)"
+			],
+			"range": {
+				"normal": 30,
+				"long": 120
+			},
+			"versatile": null,
+			"ammunition": "Bullet",
+			"mastery": "Slow",
+			"weight": "—",
+			"cost": "1 SP"
+		},
+		"text": "Sling: Simple Ranged Weapon. 1d4 Bludgeoning. Properties: Ammunition (Range 30/120; Bullet). Mastery: Slow. Weight: —. Cost: 1 SP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:spear",
+		"kind": "weapon",
+		"name": "Spear",
+		"data": {
+			"category": "simple",
+			"type": "melee",
+			"damage": "1d6",
+			"damageType": "Piercing",
+			"properties": [
+				"Thrown (Range 20/60)",
+				"Versatile (1d8)"
+			],
+			"range": {
+				"normal": 20,
+				"long": 60
+			},
+			"versatile": "1d8",
+			"ammunition": null,
+			"mastery": "Sap",
+			"weight": "3 lb.",
+			"cost": "1 GP"
+		},
+		"text": "Spear: Simple Melee Weapon. 1d6 Piercing. Properties: Thrown (Range 20/60), Versatile (1d8). Mastery: Sap. Weight: 3 lb.. Cost: 1 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:trident",
+		"kind": "weapon",
+		"name": "Trident",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Piercing",
+			"properties": [
+				"Thrown (Range 20/60)",
+				"Versatile (1d10)"
+			],
+			"range": {
+				"normal": 20,
+				"long": 60
+			},
+			"versatile": "1d10",
+			"ammunition": null,
+			"mastery": "Topple",
+			"weight": "4 lb.",
+			"cost": "5 GP"
+		},
+		"text": "Trident: Martial Melee Weapon. 1d8 Piercing. Properties: Thrown (Range 20/60), Versatile (1d10). Mastery: Topple. Weight: 4 lb.. Cost: 5 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:war-pick",
+		"kind": "weapon",
+		"name": "War Pick",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Piercing",
+			"properties": [
+				"Versatile (1d10)"
+			],
+			"range": null,
+			"versatile": "1d10",
+			"ammunition": null,
+			"mastery": "Sap",
+			"weight": "2 lb.",
+			"cost": "5 GP"
+		},
+		"text": "War Pick: Martial Melee Weapon. 1d8 Piercing. Properties: Versatile (1d10). Mastery: Sap. Weight: 2 lb.. Cost: 5 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:warhammer",
+		"kind": "weapon",
+		"name": "Warhammer",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Bludgeoning",
+			"properties": [
+				"Versatile (1d10)"
+			],
+			"range": null,
+			"versatile": "1d10",
+			"ammunition": null,
+			"mastery": "Push",
+			"weight": "5 lb.",
+			"cost": "15 GP"
+		},
+		"text": "Warhammer: Martial Melee Weapon. 1d8 Bludgeoning. Properties: Versatile (1d10). Mastery: Push. Weight: 5 lb.. Cost: 15 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:weapon:whip",
+		"kind": "weapon",
+		"name": "Whip",
+		"data": {
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d4",
+			"damageType": "Slashing",
+			"properties": [
+				"Finesse",
+				"Reach"
+			],
+			"range": null,
+			"versatile": null,
+			"ammunition": null,
+			"mastery": "Slow",
+			"weight": "3 lb.",
+			"cost": "2 GP"
+		},
+		"text": "Whip: Martial Melee Weapon. 1d4 Slashing. Properties: Finesse, Reach. Mastery: Slow. Weight: 3 lb.. Cost: 2 GP.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Weapons",
+				"Mastery Properties"
+			],
+			"pages": [
+				91
+			]
+		}
+	}
+]

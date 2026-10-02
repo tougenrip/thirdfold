@@ -6,11 +6,13 @@
 
 import {
 	isObjectState,
+	SHEET_NOTES_MAX,
 	type AdventureStage,
+	type CardResource,
 	type EncounterState,
 	type ObjectState
 } from '../../src/lib/adventure/adventure';
-import { BLEED_OUT_ROUNDS, STATUS_IDS, type StatusId } from '../../src/lib/adventure/characters';
+import { STATUS_IDS, type StatusId } from '../../src/lib/adventure/characters';
 import { inBounds, type GridPos } from '../../src/lib/game/grid';
 import {
 	CREATOR_ID_PATTERN,
@@ -20,8 +22,16 @@ import {
 } from '../../src/lib/game/library';
 import { resolveAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
+import { CLASSIC } from '../rules/classic';
+import { findRuleset, type EffectSpec, type JsonData, type RulesetRef } from '../rules/ruleset';
 import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
+import { BUILT_ID, BUILT_MAX, withBuilt, type BuiltCharacter } from './built';
+import { BESTIARY_MAX, withBestiary } from './bestiary';
+import { PACKS_MAX } from './packs';
+/** A creator's public id (library-store.ts `creatorIdOf`). */
+const CREATOR_ID = /^[0-9a-f]{16}$/;
+import { PILE_ID, PILE_ITEMS_MAX, PILES_MAX, withKept } from './gear';
 import { contentOf, findAdventure } from './registry';
 import type {
 	AdventureState,
@@ -31,15 +41,22 @@ import type {
 	Encounter,
 	LibrarySource,
 	EnemyState,
+	LastingEffect,
+	Pile,
 	Sentry,
+	StoryPack,
 	Statuses,
 	TurnEntry
 } from './state';
 import { objectDef, type Origins } from './world';
+import { EFFECTS_MAX } from './effects';
+import { parseDice } from '../../src/lib/game/dice';
 
 const STAGES: readonly AdventureStage[] = ['choosing', 'playing', 'complete', 'defeat'];
 const ENCOUNTER_STATES: readonly EncounterState[] = ['active', 'won', 'lost'];
 const NAME_MAX = 48;
+/** The most a character's notes may hold. */
+const NOTES_MAX = SHEET_NOTES_MAX;
 /** A failed check, after the character: `<object>:<verb>` or `sign:<id>`. */
 const TRIED = /^[a-z0-9-]{1,40}:[a-z0-9-]{1,40}$/;
 const LIST_MAX = 100;
@@ -52,14 +69,59 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 	const statuses = (s: Statuses) => entriesOf(s);
 	const A = contentOf(adventure.id);
 	const content = fileOf(A.id);
+	// Rules from a licensed source travel with the credit it requires (read back from the rules, not the file).
+	const attribution = findRuleset(adventure.rules)?.attribution;
 	return {
 		id: A.id,
 		version: A.version,
 		...(content ? { content: JSON.parse(JSON.stringify(content)) } : {}),
 		state: {
+			rules: { ...adventure.rules },
+			...(attribution ? { credits: [attribution] } : {}),
 			stage: adventure.stage,
 			chapter: adventure.chapter,
 			location: adventure.location,
+			...(adventure.built?.size
+				? {
+						built: Object.fromEntries(
+							[...adventure.built].map(([id, b]) => [id, JSON.parse(JSON.stringify(b.saved))])
+						)
+					}
+				: {}),
+			...(adventure.bestiary?.length ? { bestiary: [...adventure.bestiary] } : {}),
+			// Homebrew travels as written, so the save brings it back wherever it is loaded.
+			...(adventure.packs?.length
+				? {
+						packs: adventure.packs.map((p) => ({
+							owner: p.owner,
+							pack: JSON.parse(JSON.stringify(findRuleset(adventure.rules)!.packs!.content(p.id)))
+						}))
+					}
+				: {}),
+			...(adventure.kept?.size
+				? {
+						kept: Object.fromEntries(
+							[...adventure.kept].map(([id, b]) => [id, JSON.parse(JSON.stringify(b.saved))])
+						)
+					}
+				: {}),
+			...(adventure.effects?.length
+				? { effects: adventure.effects.map((f) => JSON.parse(JSON.stringify(f))) }
+				: {}),
+			...(adventure.piles?.size
+				? {
+						piles: Object.fromEntries(
+							[...adventure.piles].map(([id, p]) => [
+								id,
+								{
+									location: p.location,
+									pos: { ...p.pos },
+									items: p.items.map((i) => JSON.parse(JSON.stringify(i.item)))
+								}
+							])
+						)
+					}
+				: {}),
 			characters: Object.fromEntries(
 				[...adventure.characters].map(([id, c]) => [
 					id,
@@ -69,7 +131,10 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						statuses: statuses(c.statuses),
 						uses: entriesOf(c.uses),
 						downedFor: c.downedFor,
-						dead: c.dead
+						...(c.deathSaves ? { deathSaves: { ...c.deathSaves } } : {}),
+						dead: c.dead,
+						...(c.holdReaction ? { holdReaction: true } : {}),
+						...(c.resources?.size ? { resources: entriesOf(c.resources) } : {})
 					}
 				])
 			),
@@ -82,6 +147,7 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			npcs: entriesOf(adventure.npcs),
 			said: [...adventure.said],
 			rewards: [...adventure.rewards],
+			...(adventure.notes?.size ? { notes: entriesOf(adventure.notes) } : {}),
 			...(adventure.library
 				? {
 						library: {
@@ -113,7 +179,8 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						kind: s.kind,
 						encounter: s.encounter,
 						route: s.route.map((c) => ({ ...c })),
-						leg: s.leg
+						leg: s.leg,
+						...(s.waiting ? { waiting: true } : {})
 					}
 				])
 			),
@@ -128,6 +195,10 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 				),
 				current: adventure.encounter.current,
 				speed: adventure.encounter.speed,
+				...(adventure.encounter.turnSpeed !== undefined
+					? { turnSpeed: adventure.encounter.turnSpeed }
+					: {}),
+				...(adventure.encounter.reacted?.size ? { reacted: [...adventure.encounter.reacted] } : {}),
 				acted: [...adventure.encounter.acted],
 				moved: entriesOf(adventure.encounter.moved),
 				enemies: Object.fromEntries(
@@ -165,6 +236,146 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 export type AdventureRead = { ok: true; adventure: AdventureState } | { ok: false; error: string };
 
 class Invalid extends Error {}
+
+/** What lasting effects may name, to read them back: characters, tokens on the table, the rules. */
+interface EffectContext {
+	character: (id: string) => { name: string; tokenId: string } | undefined;
+	isToken: (id: string) => boolean;
+	isEnemy: (id: string) => boolean;
+	isCondition: (id: string) => boolean;
+	isSave: (stat: string) => boolean;
+}
+
+/**
+ * The story's lasting effects, each checked: whose, on whom, what it changes
+ * and when it ends. Milestone 48 saved them on the fight with a character's
+ * id as the source; those read the same.
+ */
+function lastingEffects(value: unknown, ctx: EffectContext): LastingEffect[] {
+	const raw = list(value, 'effects');
+	check(raw.length <= EFFECTS_MAX, 'effects');
+	const ids = new Set<string>();
+	return raw.map((v) => {
+		const f = record(v, 'effect');
+		check(typeof f.id === 'string' && /^fx-\d{1,6}$/.test(f.id) && !ids.has(f.id), 'effect');
+		ids.add(f.id);
+		check(typeof f.target === 'string' && ctx.isToken(f.target), 'effect');
+		const source = effectSource(f.source, ctx);
+		const sourceToken =
+			f.sourceToken === undefined
+				? source.kind === 'character'
+					? ctx.character(source.id)!.tokenId
+					: source.kind === 'enemy'
+						? source.id
+						: undefined
+				: (f.sourceToken as string);
+		check(
+			sourceToken === undefined || (typeof sourceToken === 'string' && ctx.isToken(sourceToken)),
+			'effect'
+		);
+		const spec = effectSpec(f, ctx, true);
+		check(
+			f.clock === undefined ||
+				(typeof f.clock === 'string' && (!!ctx.character(f.clock) || ctx.isEnemy(f.clock))),
+			'effect'
+		);
+		return {
+			...(f.clock === undefined ? {} : { clock: f.clock as string }),
+			id: f.id,
+			...spec,
+			source,
+			...(sourceToken ? { sourceToken } : {}),
+			target: f.target,
+			...(f.level === undefined ? {} : { level: int(f.level, 1, 6, 'effect') })
+		};
+	});
+}
+
+function effectSource(raw: unknown, ctx: EffectContext): LastingEffect['source'] {
+	if (typeof raw === 'string') {
+		const c = ctx.character(raw);
+		check(c, 'effect');
+		return { kind: 'character', id: raw, name: c.name };
+	}
+	const s = record(raw, 'effect');
+	const who = name(s.name, 'effect');
+	switch (s.kind) {
+		case 'character':
+			check(typeof s.id === 'string' && ctx.character(s.id), 'effect');
+			return { kind: 'character', id: s.id as string, name: who };
+		case 'enemy':
+			check(typeof s.id === 'string' && ctx.isEnemy(s.id), 'effect');
+			return { kind: 'enemy', id: s.id as string, name: who };
+		case 'gm':
+			return { kind: 'gm', name: who };
+		case 'story':
+			return { kind: 'story', name: who };
+	}
+	throw new Invalid('effect');
+}
+
+/** An effect's own part (its name, what it changes, how it ends), as an `EffectSpec`. */
+function effectSpec(f: Record<string, unknown>, ctx: EffectContext, top: boolean): EffectSpec {
+	check(typeof f.name === 'string' && f.name.length > 0 && f.name.length <= 80, 'effect');
+	const m = record(f.mods, 'effect');
+	check(
+		Object.keys(m).every((k) =>
+			['boon', 'defense', 'slow', 'exposed', 'noHealing', 'conditions'].includes(k)
+		),
+		'effect'
+	);
+	const boon = m.boon;
+	check(
+		boon === undefined || (typeof boon === 'string' && boon.length <= 20 && parseDice(boon).ok),
+		'effect'
+	);
+	const conditions =
+		m.conditions === undefined
+			? undefined
+			: list(m.conditions, 'effect').map((c) => {
+					check(typeof c === 'string' && ctx.isCondition(c), 'effect');
+					return c as string;
+				});
+	const mods: LastingEffect['mods'] = {
+		...(boon === undefined ? {} : { boon: boon as string }),
+		...(m.defense === undefined ? {} : { defense: int(m.defense, -10, 10, 'effect') }),
+		...(m.slow === undefined ? {} : { slow: int(m.slow, 0, 20, 'effect') }),
+		...(m.exposed === undefined ? {} : { exposed: bool(m.exposed, 'effect') }),
+		...(m.noHealing === undefined ? {} : { noHealing: bool(m.noHealing, 'effect') }),
+		...(conditions ? { conditions } : {})
+	};
+	let ends: LastingEffect['ends'] = null;
+	if (f.ends !== null) {
+		const e = record(f.ends, 'effect');
+		check(e.at === 'start' || e.at === 'end', 'effect');
+		ends = { at: e.at, turns: int(e.turns, 0, 1000, 'effect') };
+	}
+	let repeat: LastingEffect['repeat'];
+	if (f.repeat !== undefined) {
+		const r = record(f.repeat, 'effect');
+		check(typeof r.stat === 'string' && ctx.isSave(r.stat), 'effect');
+		repeat = {
+			stat: r.stat as string,
+			dc: int(r.dc, 1, 40, 'effect'),
+			...(r.onDamage === undefined ? {} : { onDamage: bool(r.onDamage, 'effect') })
+		};
+	}
+	// What a failed save turns it into is one step, never a chain.
+	const worsens: EffectSpec | undefined =
+		f.worsens === undefined || !top
+			? undefined
+			: effectSpec(record(f.worsens, 'effect'), ctx, false);
+	check(top || f.worsens === undefined, 'effect');
+	return {
+		name: f.name as string,
+		mods,
+		ends,
+		concentration: bool(f.concentration, 'effect'),
+		...(repeat ? { repeat } : {}),
+		...(worsens ? { worsens } : {}),
+		...(f.endsOnDamage === undefined ? {} : { endsOnDamage: bool(f.endsOnDamage, 'effect') })
+	};
+}
 
 function check(condition: unknown, what: string): asserts condition {
 	if (!condition) throw new Invalid(what);
@@ -252,8 +463,72 @@ export function readAdventure(saved: SavedStory, scene: SceneFile): AdventureRea
 	}
 }
 
-function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile): AdventureState {
+function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFile): AdventureState {
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
+	// Stories saved before rulesets played by the classic rules; a story keeps the rules it was pinned to.
+	const rules = data.rules === undefined ? { ...CLASSIC } : rulesRef(data.rules);
+	const ruleset = findRuleset(rules)!;
+	// Homebrew first, checked again in full: what follows may use it, and only it.
+	const packs: StoryPack[] = [];
+	if (data.packs !== undefined) {
+		const saved = list(data.packs, 'homebrew');
+		check(!!ruleset.packs && saved.length <= PACKS_MAX, 'homebrew');
+		for (const raw of saved) {
+			const entry = record(raw, 'homebrew');
+			check(
+				Object.keys(entry).every((k) => k === 'owner' || k === 'pack') &&
+					(entry.owner === null ||
+						(typeof entry.owner === 'string' && CREATOR_ID.test(entry.owner))),
+				'homebrew'
+			);
+			const held = ruleset.packs!.hold(entry.pack);
+			check(held.ok, 'homebrew');
+			const id = (held as { id: string }).id;
+			check(!packs.some((p) => p.id === id), 'homebrew');
+			packs.push({ id, owner: entry.owner as string | null });
+		}
+	}
+	const scope = packs.map((p) => p.id);
+	// Characters players built come back through their rules' builder, checked in full.
+	const built = new Map<string, BuiltCharacter>();
+	if (data.built !== undefined) {
+		const saved = Object.entries(record(data.built, 'built characters'));
+		check(!!ruleset.builder && saved.length <= BUILT_MAX, 'built characters');
+		for (const [id, raw] of saved) {
+			check(BUILT_ID.test(id) && !Object.hasOwn(base.characters, id), 'built characters');
+			const restored = ruleset.builder!.restore(raw, id, undefined, scope);
+			check(restored.ok, `built character ${id}`);
+			built.set(id, { def: restored.def, saved: restored.saved });
+		}
+	}
+	// The adventure's own characters whose gear changed come back through the builder too, keeping their look.
+	const kept = new Map<string, BuiltCharacter>();
+	if (data.kept !== undefined) {
+		const saved = Object.entries(record(data.kept, 'kept characters'));
+		check(!!ruleset.builder && !!ruleset.equipment, 'kept characters');
+		for (const [id, raw] of saved) {
+			check(Object.hasOwn(base.characters, id), 'kept characters');
+			const restored = ruleset.builder!.restore(raw, id, base.characters[id], scope);
+			check(restored.ok, `kept character ${id}`);
+			kept.set(id, { def: restored.def, saved: restored.saved });
+		}
+	}
+	// Monsters brought in from the rules' bestiary: kinds the rules still play, each once.
+	const bestiary =
+		data.bestiary === undefined
+			? []
+			: list(data.bestiary, 'monsters').map((k) => {
+					check(
+						typeof k === 'string' &&
+							!Object.hasOwn(base.enemies, k) &&
+							!!ruleset.bestiary?.enemy(k) &&
+							(!ruleset.packs?.packOf(k) || scope.includes(ruleset.packs.packOf(k)!)),
+						'monsters'
+					);
+					return k as string;
+				});
+	check(bestiary.length <= BESTIARY_MAX && new Set(bestiary).size === bestiary.length, 'monsters');
+	const A = withBestiary(withBuilt(withKept(base, kept), built), bestiary, ruleset);
 	const stage = oneOf(data.stage, STAGES, 'stage');
 	const chapter = oneOf(data.chapter, Object.keys(A.chapters), 'chapter');
 	const location = oneOf(data.location, Object.keys(A.locations), 'location');
@@ -287,8 +562,21 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 			hp: int(c.hp, 0, def.hp, `${def.name}'s hit points`),
 			statuses: statuses(c.statuses, `${def.name}'s statuses`),
 			uses,
-			downedFor: int(c.downedFor, 0, BLEED_OUT_ROUNDS, `${def.name}'s condition`),
-			dead: c.dead
+			downedFor: int(c.downedFor, 0, ruleset.downedLimit, `${def.name}'s condition`),
+			...(c.deathSaves === undefined ? {} : { deathSaves: deathSaves(c.deathSaves, def.name) }),
+			dead: c.dead,
+			...(c.holdReaction === undefined
+				? {}
+				: { holdReaction: bool(c.holdReaction, `${def.name}'s reaction`) || undefined }),
+			...(c.resources === undefined
+				? {}
+				: {
+						resources: markedResources(
+							c.resources,
+							ruleset.card(def, new Map()).resources,
+							def.name
+						)
+					})
 		});
 	}
 
@@ -306,6 +594,15 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 		...remembered(A)
 	];
 	const said = new Set(data.said === undefined ? [] : uniqueList(data.said, sayable, 'lines'));
+	const notes = new Map<string, string>();
+	for (const [id, text] of Object.entries(
+		data.notes === undefined ? {} : record(data.notes, 'notes')
+	)) {
+		check(isCharacterId(id), 'notes');
+		check(typeof text === 'string' && text.length <= NOTES_MAX, 'notes');
+		if (text) notes.set(id, text);
+	}
+
 	// Saves from before rewards have none; each is one the adventure can give.
 	const rewards =
 		data.rewards === undefined ? [] : uniqueList(data.rewards, rewardsOf(A), 'rewards');
@@ -404,11 +701,16 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 			kind: oneOf(sentry.kind, enemyKinds, 'sentries'),
 			encounter: oneOf(sentry.encounter, encounterIds, 'sentries'),
 			route,
-			leg: int(sentry.leg, 0, route.length - 1, 'sentries')
+			leg: int(sentry.leg, 0, route.length - 1, 'sentries'),
+			...(sentry.waiting === undefined
+				? {}
+				: { waiting: bool(sentry.waiting, 'sentries') || undefined })
 		});
 	}
 
 	let encounter: Encounter | null = null;
+	// Milestone 48 kept lasting effects on the fight.
+	const oldEffects = isRecord(data.encounter) ? data.encounter.effects : undefined;
 	if (data.encounter !== null) {
 		const e = record(data.encounter, 'fight');
 		const id = oneOf(e.id, encounterIds, 'fight');
@@ -460,12 +762,32 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 						: 0
 					: int(e.speed, 0, COUNT_MAX, 'movement'),
 			acted: new Set(
-				list(e.acted, 'turns').map((who) => {
-					check(isCharacterId(who), 'turns');
-					return who;
+				// A character's id for its action; `<id>:<type>` for another part of its turn.
+				list(e.acted, 'turns').map((key) => {
+					check(typeof key === 'string', 'turns');
+					const [who, type, ...rest] = (key as string).split(':');
+					check(isCharacterId(who) && rest.length === 0, 'turns');
+					check(type === undefined || /^[a-z][a-z0-9-]{0,15}$/.test(type), 'turns');
+					return key as string;
 				})
 			),
 			moved,
+			...(e.turnSpeed === undefined
+				? {}
+				: { turnSpeed: int(e.turnSpeed, 0, COUNT_MAX, 'movement') }),
+			...(e.reacted === undefined
+				? {}
+				: {
+						reacted: new Set(
+							list(e.reacted, 'reactions').map((key) => {
+								check(
+									typeof key === 'string' && (isCharacterId(key) || enemies.has(key)),
+									'reactions'
+								);
+								return key as string;
+							})
+						)
+					}),
 			enemies,
 			turn: int(e.turn, 1, 1_000_000, 'turn'),
 			...(e.finale === undefined
@@ -515,8 +837,63 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 			return t;
 		})
 	);
+	// Lasting effects: whose, on whom (a token on this table), what they change, by the rules.
+	const effectCtx: EffectContext = {
+		character: (id) => {
+			const c = characters.get(id);
+			return c && A.characters[id]
+				? { name: A.characters[id].name, tokenId: c.tokenId }
+				: undefined;
+		},
+		isToken: (id) => tokenIds.has(id),
+		isEnemy: (id) => !!encounter?.enemies.has(id) || sentries.has(id),
+		isCondition: (id) => !!ruleset.conditions?.known(id),
+		isSave: (stat) => ruleset.isStat(stat, 'save')
+	};
+	const effects = [
+		...(data.effects === undefined ? [] : lastingEffects(data.effects, effectCtx)),
+		...(oldEffects === undefined ? [] : lastingEffects(oldEffects, effectCtx))
+	];
+	check(
+		effects.length <= EFFECTS_MAX && new Set(effects.map((e) => e.id)).size === effects.length,
+		'effects'
+	);
+	// Things put down: where they lie (a table of the story, a cell on it) and what they are, by the rules.
+	const piles = new Map<string, Pile>();
+	if (data.piles !== undefined) {
+		const saved = Object.entries(record(data.piles, 'piles'));
+		check(!!ruleset.equipment && saved.length <= PILES_MAX, 'piles');
+		for (const [id, raw] of saved) {
+			check(PILE_ID.test(id), 'piles');
+			const p = record(raw, 'piles');
+			const where = oneOf(p.location, Object.keys(A.locations), 'piles');
+			const at = record(p.pos, 'piles');
+			const pos = { x: at.x as number, y: at.y as number };
+			const grid = where === location ? scene.grid : A.locations[where].scene().grid;
+			check(Number.isInteger(pos.x) && Number.isInteger(pos.y) && inBounds(grid, pos), 'piles');
+			const items = list(p.items, 'piles').map((item) => {
+				const name = ruleset.equipment!.nameOf(item);
+				check(name !== null && typeof item === 'object', 'piles');
+				return { item: item as JsonData, name: name! };
+			});
+			check(items.length > 0 && items.length <= PILE_ITEMS_MAX, 'piles');
+			// A pile on this table lies under its prop.
+			if (where === location) {
+				const prop = scene.props.find((x) => x.id === id);
+				check(!!prop && prop.pos.x === pos.x && prop.pos.y === pos.y, 'piles');
+			}
+			piles.set(id, { location: where, pos, items });
+		}
+	}
 	return {
 		id: A.id,
+		rules,
+		...(built.size ? { built } : {}),
+		...(bestiary.length ? { bestiary } : {}),
+		...(packs.length ? { packs } : {}),
+		...(kept.size ? { kept } : {}),
+		...(piles.size ? { piles } : {}),
+		...(effects.length ? { effects } : {}),
 		stage,
 		chapter,
 		location,
@@ -528,6 +905,7 @@ function read(A: AdventureDef, data: Record<string, unknown>, scene: SceneFile):
 		npcs,
 		said,
 		rewards,
+		...(notes.size ? { notes } : {}),
 		...(library ? { library } : {}),
 		decisions,
 		pending,
@@ -569,6 +947,18 @@ function remembered(A: AdventureDef): string[] {
 	return found;
 }
 
+/** A ruleset this server has, by exact id and version. */
+function rulesRef(value: unknown): RulesetRef {
+	const raw = record(value, 'rules');
+	check(
+		typeof raw.id === 'string' &&
+			typeof raw.version === 'number' &&
+			findRuleset({ id: raw.id, version: raw.version }) !== undefined,
+		'rules this server does not have'
+	);
+	return { id: raw.id as string, version: raw.version as number };
+}
+
 function librarySource(value: unknown): LibrarySource {
 	const raw = record(value, 'library');
 	const creator = record(raw.creator, 'library');
@@ -589,6 +979,21 @@ function librarySource(value: unknown): LibrarySource {
 		version: raw.version as number,
 		creator: { id: creator.id as string, name: name! }
 	};
+}
+
+/** Resources a player marked spent: only the card's hand-marked ones, each within its maximum. */
+function markedResources(
+	value: unknown,
+	resources: CardResource[] | undefined,
+	name: string
+): Map<string, number> {
+	const out = new Map<string, number>();
+	for (const [id, n] of Object.entries(record(value, `${name}'s resources`))) {
+		const r = resources?.find((x) => x.id === id && x.trackedBy === null);
+		check(r, `${name}'s resources`);
+		out.set(id, int(n, 0, r.max, `${name}'s resources`));
+	}
+	return out;
 }
 
 /** The rewards an adventure can give (its `reward` effects). */
@@ -653,4 +1058,17 @@ function turnOrder(
 /** Doors follow their scene door, so any door may be saved opened or closed. */
 function isDoorState(def: ObjectDef, state: ObjectState): boolean {
 	return 'door' in def.thing && (state === 'opened' || state === 'closed');
+}
+
+/** Death saving throws so far: fewer than three of each, and Stable only with none. */
+function deathSaves(
+	value: unknown,
+	name: string
+): { successes: number; failures: number; stable?: boolean } {
+	const d = record(value, `${name}'s death saves`);
+	const successes = int(d.successes, 0, 2, `${name}'s death saves`);
+	const failures = int(d.failures, 0, 2, `${name}'s death saves`);
+	if (d.stable === undefined) return { successes, failures };
+	check(d.stable === true && !successes && !failures, `${name}'s death saves`);
+	return { successes, failures, stable: true };
 }

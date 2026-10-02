@@ -1,0 +1,121 @@
+{
+	"format": "thirdfold-homebrew",
+	"formatVersion": 1,
+	"name": "The Cold Hill Armory",
+	"version": "1.0",
+	"rules": { "id": "dnd-5.5e", "version": 1 },
+	"base": {
+		"source": "srd-5.2.1",
+		"version": "5.2.1",
+		"sha256": "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87"
+	},
+	"creator": "thirdfold",
+	"about": "An example homebrew pack: a blade, a coat, two spells and a barrow beast, for The Barrow on Cold Hill.",
+	"license": "CC0-1.0",
+	"records": [
+		{
+			"kind": "weapon",
+			"slug": "barrow-blade",
+			"name": "Barrow Blade",
+			"text": "A long, leaf-shaped blade dug from a barrow, its edge still keen.",
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d8",
+			"damageType": "Slashing",
+			"properties": ["Finesse", "Versatile"],
+			"versatile": "1d10",
+			"mastery": "Vex",
+			"weight": 3,
+			"cost": 25
+		},
+		{
+			"kind": "armor",
+			"slug": "ringed-hide",
+			"name": "Ringed Hide",
+			"text": "Hide sewn with iron rings from an old mail shirt.",
+			"category": "medium",
+			"base": 13,
+			"stealthDisadvantage": false,
+			"weight": 15,
+			"cost": 30
+		},
+		{
+			"kind": "spell",
+			"slug": "grave-spark",
+			"name": "Grave Spark",
+			"text": "A cold blue spark leaps from your hand at a creature within range. Make a ranged spell attack. On a hit, the target takes 1d8 Necrotic damage. The damage grows at levels 5, 11 and 17.",
+			"level": 0,
+			"school": "Necromancy",
+			"classes": ["Sorcerer", "Wizard"],
+			"castingTime": "Action",
+			"range": "60 feet",
+			"duration": "Instantaneous",
+			"concentration": false,
+			"components": { "verbal": true, "somatic": true, "material": null },
+			"mechanics": {
+				"resolve": "attack",
+				"attack": "ranged",
+				"damage": { "dice": "1d8", "type": "Necrotic" },
+				"targets": { "count": 1, "perSlot": 0, "side": "enemy" },
+				"cantrip": true
+			}
+		},
+		{
+			"kind": "spell",
+			"slug": "barrow-chill",
+			"name": "Barrow Chill",
+			"text": "The cold of the grave rolls out around a point you choose within range. Each foe in a 10-foot sphere there makes a Constitution saving throw, taking 2d6 Cold damage on a failure or half as much on a success.",
+			"level": 1,
+			"school": "Necromancy",
+			"classes": ["Wizard", "Cleric"],
+			"castingTime": "Action",
+			"range": "60 feet",
+			"duration": "Instantaneous",
+			"concentration": false,
+			"components": { "verbal": true, "somatic": true, "material": "a pinch of grave dirt" },
+			"mechanics": {
+				"resolve": "save",
+				"save": { "ability": "con", "half": true },
+				"damage": { "dice": "2d6", "type": "Cold", "perSlot": "1d6" },
+				"targets": { "count": 1, "perSlot": 0, "side": "enemy" },
+				"area": { "shape": "sphere", "feet": 10 }
+			}
+		},
+		{
+			"kind": "monster",
+			"slug": "mound-crawler",
+			"name": "Mound Crawler",
+			"text": "A long, pale thing that lives in the earth of old barrows and bites at anything warm.",
+			"size": "Medium",
+			"type": "Monstrosity",
+			"alignment": "Unaligned",
+			"armorClass": 12,
+			"hitPoints": 16,
+			"speed": 30,
+			"abilities": { "str": 14, "dex": 12, "con": 13, "int": 2, "wis": 10, "cha": 3 },
+			"challenge": "1/2",
+			"darkvision": 60,
+			"resist": ["cold"],
+			"conditionImmune": ["frightened"],
+			"traits": [
+				{
+					"name": "Earth Glide",
+					"text": "The crawler can burrow through loose earth without disturbing it."
+				}
+			],
+			"attacks": [
+				{
+					"name": "Bite",
+					"kind": "melee",
+					"toHit": 4,
+					"reach": 5,
+					"damage": "1d8+2",
+					"damageType": "Piercing",
+					"plus": { "damage": "1d4", "damageType": "Cold" },
+					"prone": true
+				}
+			],
+			"multiattack": { "attack": "Bite", "times": 2 }
+		}
+	]
+}

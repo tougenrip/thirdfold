@@ -297,13 +297,32 @@ describe('the fight at the well', () => {
 		const far = { x: 17, y: 12 };
 		expect(checkMove(room, ana, id, far)).toMatchObject({ ok: false, code: 'out_of_reach' });
 		const near = checkMove(room, ana, id, { x: 14, y: 12 });
-		expect(near).toEqual({ ok: true, cost: 3 });
+		expect(near).toMatchObject({ ok: true, cost: 3 });
 		put(id, { x: 14, y: 12 });
 		afterMove(room, token(id), 3);
 		expect(checkMove(room, ana, id, far)).toMatchObject({
 			ok: false,
 			message: 'The Warden can move 2 more cells this round.'
 		});
+	});
+
+	it('keeps the classic rules’ fight: no opportunity attacks, no death saves, no fifth edition actions', () => {
+		const id = fighting();
+		const houndId = hound();
+		// Beside the Hound, the Warden walks away: nothing strikes.
+		put(houndId, { x: 12, y: 12 });
+		const away = checkMove(room, ana, id, { x: 9, y: 12 });
+		if (!away.ok) throw new Error('expected a way');
+		put(id, { x: 9, y: 12 });
+		const moved = afterMove(room, token(id), away.cost, 1000, away.walk);
+		expect(moved.log.filter((m) => m.kind === 'attack')).toEqual([]);
+		expect(room.adventure!.encounter!.reacted).toBeUndefined();
+		const me = adventureView(room, ana, new Set(room.tokens.keys()), null)!.characters.find(
+			(c) => c.id === 'warden'
+		)!;
+		expect(me).toMatchObject({ reaction: null, deathSaves: null });
+		expect(me.card.actions.map((a) => a.id)).not.toContain('dash');
+		expect(act(room, ana, 'dash', null, max)).toMatchObject({ ok: false });
 	});
 
 	it('resolves attacks on the server, one action a turn', () => {

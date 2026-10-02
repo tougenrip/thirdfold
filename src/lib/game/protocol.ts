@@ -5,9 +5,13 @@
 import {
 	isObjectState,
 	isSense,
+	SHEET_NOTES_MAX,
 	type AdventureView,
 	type ObjectState,
-	type Sense
+	type Sense,
+	type GearChange,
+	type MonsterListing,
+	type SheetEdit
 } from '../adventure/adventure';
 import { isStatusId, type CharacterId, type StatusId } from '../adventure/characters';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
@@ -279,6 +283,30 @@ export type ClientMessage =
 	| { type: 'adventure_claim'; characterId: CharacterId }
 	/** Player: give back your character, before play begins. */
 	| { type: 'adventure_release' }
+	/**
+	 * Player: build your own character under the story's rules (where the
+	 * story allows it) and take it to the table. `choices` is the rules' own
+	 * shape, checked in full on the server.
+	 */
+	| { type: 'adventure_build'; choices: CharacterChoicesData }
+	/** A character's player, or the GM: change its sheet (notes, a resource marked, a built character's name). */
+	| { type: 'adventure_sheet'; characterId: CharacterId; edit: SheetEdit }
+	/** A character's player (or the GM): equip, put away, drop, hand over or pick up something; the GM may grant. */
+	| { type: 'adventure_gear'; characterId: CharacterId; change: GearChange }
+	/** Anyone at the table: a character's full sheet, in its rules' shape. */
+	| { type: 'character_sheet'; characterId: CharacterId }
+	/** Anyone at the table: what a character may be built from, under the story's rules. */
+	| { type: 'character_options' }
+	/** GM: monsters the story's rules can bring on, matching a search (name, type or challenge). */
+	| { type: 'monster_search'; query: string }
+	/**
+	 * GM: bring a content pack (homebrew under the story's rules, checked in
+	 * full on the server) to the story, or take one out that nothing uses.
+	 */
+	| { type: 'adventure_pack'; op: 'attach'; pack: unknown }
+	| { type: 'adventure_pack'; op: 'detach'; id: string }
+	/** Anyone at the table: what these choices would come to, or what is wrong with them. Changes nothing. */
+	| { type: 'character_preview'; choices: CharacterChoicesData }
 	/** GM: characters are chosen, start playing. */
 	| { type: 'adventure_begin' }
 	/** Player: your character does `verb` (or the first thing it can) to something beside it. */
@@ -286,9 +314,17 @@ export type ClientMessage =
 	/** GM: put a world object in a state (reveal, hide, open, break, …). */
 	| { type: 'adventure_object'; objectId: string; state: ObjectState }
 	/** Player: your character uses an action (an attack, a heal, a guard) on a token, or on no one. */
-	| { type: 'adventure_act'; actionId: string; targetId: string | null }
+	| {
+			type: 'adventure_act';
+			actionId: string;
+			targetId: string | null;
+			/** For a spell: the slot level to cast it with, its targets (darts may repeat one), or the cell an area is aimed at. */
+			cast?: { slot: number | null; targets: string[]; at: GridPos | null };
+	  }
 	/** Player, in an encounter: your character is done for this round. */
 	| { type: 'adventure_end_turn' }
+	/** GM: put a condition on someone, or end a lasting effect. */
+	| { type: 'adventure_effect'; op: EffectOp }
 	/** GM: narrate to the table. */
 	| { type: 'adventure_narrate'; text: string }
 	/** GM: read one of the adventure's prepared passages aloud. */
@@ -353,9 +389,129 @@ export type Direction =
 	/** The fight ends: won (the story goes on as if the party won) or called off (the enemies leave). */
 	| { op: 'encounter_end'; result: 'won' | 'called_off' }
 	/** An enemy appears on a cell: it joins the fight, or stands guard until it spots someone. */
-	| { op: 'spawn'; kind: string; pos: GridPos };
+	| {
+			op: 'spawn';
+			kind: string;
+			pos: GridPos;
+			/** Placed for the GM's own fight, started when the GM says: it spots nobody until then. */
+			waiting?: boolean;
+	  };
+
+/** The longest monster search. */
+/** A content pack's id: `hb-` and 16 hex digits. */
+const PACK_ID = /^hb-[0-9a-f]{16}$/;
+
+export const MONSTER_QUERY_MAX = 40;
 
 export const ENCOUNTER_RESULTS = ['won', 'called_off'] as const;
+
+/** The GM's ruling on a lasting effect: a condition on someone (for rounds of its turns, or until removed), or an effect ended. */
+export type EffectOp =
+	| { kind: 'apply'; target: string; condition: string; rounds: number | null }
+	| { kind: 'remove'; effect: string };
+
+/** Most rounds a GM's condition lasts, when timed. */
+export const EFFECT_ROUNDS_MAX = 100;
+
+function parseEffectOp(value: unknown): EffectOp | null {
+	if (!isRecord(value)) return null;
+	if (value.kind === 'remove')
+		return typeof value.effect === 'string' && /^fx-\d{1,6}$/.test(value.effect)
+			? { kind: 'remove', effect: value.effect }
+			: null;
+	if (value.kind !== 'apply' || !isId(value.target)) return null;
+	if (typeof value.condition !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(value.condition))
+		return null;
+	const r = value.rounds;
+	if (
+		r !== null &&
+		(typeof r !== 'number' || !Number.isInteger(r) || r < 1 || r > EFFECT_ROUNDS_MAX)
+	)
+		return null;
+	return { kind: 'apply', target: value.target, condition: value.condition, rounds: r };
+}
+
+/** A player's character choices: plain, bounded JSON; the rules check what it says. */
+export type CharacterChoicesData = Record<string, unknown>;
+
+function parseSheetEdit(value: unknown): SheetEdit | null {
+	if (!isRecord(value)) return null;
+	switch (value.kind) {
+		case 'name':
+			return typeof value.name === 'string' && value.name.length <= 80
+				? { kind: 'name', name: value.name }
+				: null;
+		case 'notes':
+			return typeof value.text === 'string' && value.text.length <= SHEET_NOTES_MAX
+				? { kind: 'notes', text: value.text }
+				: null;
+		case 'resource':
+			return isId(value.resource) &&
+				typeof value.spent === 'number' &&
+				Number.isInteger(value.spent) &&
+				value.spent >= 0 &&
+				value.spent <= 999
+				? { kind: 'resource', resource: value.resource, spent: value.spent }
+				: null;
+		case 'reaction':
+			return typeof value.ready === 'boolean' ? { kind: 'reaction', ready: value.ready } : null;
+		default:
+			return null;
+	}
+}
+
+/** A rules catalog id, e.g. srd-5.2.1:weapon:longsword. */
+const isCatalogId = (v: unknown): v is string =>
+	typeof v === 'string' && v.length <= 120 && /^[a-z0-9][a-z0-9.:-]*$/.test(v);
+const isCount = (v: unknown): v is number =>
+	typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 999;
+
+function parseGearChange(value: unknown): GearChange | null {
+	if (!isRecord(value)) return null;
+	switch (value.kind) {
+		case 'equip':
+		case 'unequip':
+			return isId(value.item) ? { kind: value.kind, item: value.item } : null;
+		case 'drop':
+			return isId(value.item) && isCount(value.quantity)
+				? { kind: 'drop', item: value.item, quantity: value.quantity }
+				: null;
+		case 'give':
+			return isId(value.item) && isCount(value.quantity) && isId(value.to)
+				? { kind: 'give', item: value.item, quantity: value.quantity, to: value.to }
+				: null;
+		case 'take':
+			return isId(value.pile) &&
+				typeof value.index === 'number' &&
+				Number.isInteger(value.index) &&
+				value.index >= 0 &&
+				value.index < 100
+				? { kind: 'take', pile: value.pile, index: value.index }
+				: null;
+		case 'grant':
+			return isCatalogId(value.item) && isCount(value.quantity)
+				? { kind: 'grant', item: value.item, quantity: value.quantity }
+				: null;
+		default:
+			return null;
+	}
+}
+
+const CHOICES_LIMITS = { depth: 6, nodes: 400 };
+
+/** Choices are an object of plain JSON, small enough for any character. */
+function isChoices(value: unknown): value is CharacterChoicesData {
+	const count = { nodes: 0 };
+	const plain = (v: unknown, depth: number): boolean => {
+		if (++count.nodes > CHOICES_LIMITS.nodes || depth > CHOICES_LIMITS.depth) return false;
+		if (v === null || typeof v === 'string' || typeof v === 'boolean') return true;
+		if (typeof v === 'number') return Number.isFinite(v);
+		if (Array.isArray(v)) return v.every((x) => plain(x, depth + 1));
+		if (!isRecord(v) || Object.getPrototypeOf(v) !== Object.prototype) return false;
+		return Object.values(v).every((x) => plain(x, depth + 1));
+	};
+	return isRecord(value) && plain(value, 0);
+}
 
 export type ErrorCode =
 	| 'invalid_message'
@@ -454,6 +610,22 @@ export type ServerMessage =
 	| { type: 'library_published'; adventureId: string; version: number; gmKey?: string }
 	/** To whoever asked: the games open to join. */
 	| { type: 'games_list'; games: PublicGame[] }
+	/** To whoever asked: a character's full sheet (the rules' own shape). */
+	| {
+			type: 'character_sheet';
+			characterId: string;
+			rules: string;
+			details: Record<string, unknown>;
+	  }
+	/** To whoever asked: what a character may be built from (the rules' own shape). */
+	| { type: 'character_options'; rules: string; options: Record<string, unknown> }
+	/** To the GM who searched: the monsters found. */
+	| { type: 'monster_search'; query: string; monsters: MonsterListing[] }
+	/** To whoever asked: what the choices come to (the rules' own shape), or what is wrong. */
+	| {
+			type: 'character_preview';
+			preview: { ok: true; summary: Record<string, unknown> } | { ok: false; problems: string[] };
+	  }
 	| { type: 'error'; code: ErrorCode; message: string };
 
 const SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
@@ -515,7 +687,10 @@ function parseDirection(value: unknown): Direction | null {
 				: null;
 		case 'spawn': {
 			const pos = parseGridPos(value.pos);
-			return isId(value.kind) && pos ? { op: 'spawn', kind: value.kind, pos } : null;
+			if (value.waiting !== undefined && typeof value.waiting !== 'boolean') return null;
+			return isId(value.kind) && pos
+				? { op: 'spawn', kind: value.kind, pos, ...(value.waiting ? { waiting: true } : {}) }
+				: null;
 		}
 		default:
 			return null;
@@ -957,7 +1132,16 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		case 'adventure_act': {
 			if (!isId(data.actionId)) return null;
 			if (data.targetId !== null && !isId(data.targetId)) return null;
-			return { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId };
+			if (data.cast === undefined)
+				return { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId };
+			const cast = parseCast(data.cast);
+			return cast
+				? { type: 'adventure_act', actionId: data.actionId, targetId: data.targetId, cast }
+				: null;
+		}
+		case 'adventure_effect': {
+			const op = parseEffectOp(data.op);
+			return op ? { type: 'adventure_effect', op } : null;
 		}
 		case 'adventure_override': {
 			const patch = parseCharacterPatch(data.patch);
@@ -979,6 +1163,39 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				: null;
 		case 'adventure_again':
 			return { type: 'adventure_again' };
+		case 'adventure_sheet': {
+			const edit = parseSheetEdit(data.edit);
+			return isId(data.characterId) && edit
+				? { type: 'adventure_sheet', characterId: data.characterId, edit }
+				: null;
+		}
+		case 'adventure_gear': {
+			const change = parseGearChange(data.change);
+			return isId(data.characterId) && change
+				? { type: 'adventure_gear', characterId: data.characterId, change }
+				: null;
+		}
+		case 'character_options':
+			return { type: 'character_options' };
+		case 'adventure_pack':
+			if (data.op === 'attach')
+				return isRecord(data.pack)
+					? { type: 'adventure_pack', op: 'attach', pack: data.pack }
+					: null;
+			return data.op === 'detach' && typeof data.id === 'string' && PACK_ID.test(data.id)
+				? { type: 'adventure_pack', op: 'detach', id: data.id }
+				: null;
+		case 'monster_search':
+			return typeof data.query === 'string' && data.query.length <= MONSTER_QUERY_MAX
+				? { type: 'monster_search', query: data.query }
+				: null;
+		case 'character_sheet':
+			return isId(data.characterId)
+				? { type: 'character_sheet', characterId: data.characterId }
+				: null;
+		case 'adventure_build':
+		case 'character_preview':
+			return isChoices(data.choices) ? { type: data.type, choices: data.choices } : null;
 		case 'adventure_control':
 			return data.op === 'end_turn' || data.op === 'restart' || data.op === 'end'
 				? { type: 'adventure_control', op: data.op }
@@ -986,4 +1203,20 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		default:
 			return null;
 	}
+}
+/** Most targets a cast may name (darts and blessings at a high slot). */
+export const CAST_TARGETS_MAX = 12;
+
+function parseCast(
+	raw: unknown
+): { slot: number | null; targets: string[]; at: GridPos | null } | null {
+	if (!isRecord(raw)) return null;
+	const { slot, targets, at } = raw;
+	if (slot !== null && (!Number.isInteger(slot) || (slot as number) < 0 || (slot as number) > 9))
+		return null;
+	if (!Array.isArray(targets) || targets.length > CAST_TARGETS_MAX || !targets.every(isId))
+		return null;
+	const cell = at === null ? null : parseGridPos(at);
+	if (at !== null && !cell) return null;
+	return { slot: slot as number | null, targets: [...targets], at: cell };
 }

@@ -20,12 +20,15 @@ const BUDGETS = {
 	// measured.
 	// 97.4 → 97.5: the sky's resolver and the canonical hours, now used by the renderer, stay in the
 	// shared chunk with the manifest's parser (#215), 97,479 B measured.
-	'/builder': { total: 97_600, own: 52_000 },
+	// 97.6 → 98.2: the rules track's adventure-file fields (an enemy's immunities and damage traits,
+	// what its attacks inflict, damage types; #94–#96) beside the sky's, 98,159 B measured.
+	'/builder': { total: 98_200, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
-	'/dev/assets': { total: 51_200, own: 500 },
+	// → 51.3: the rules track's shared adventure types beside the sky's (#94–#96), 51,208 B measured.
+	'/dev/assets': { total: 51_300, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.

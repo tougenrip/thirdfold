@@ -46,6 +46,11 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		library_mine: (d) => Array.isArray(d.adventures),
 		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
 		games_list: (d) => Array.isArray(d.games),
+		character_sheet: (d) =>
+			typeof d.characterId === 'string' && typeof d.rules === 'string' && isRecord(d.details),
+		character_options: (d) => typeof d.rules === 'string' && isRecord(d.options),
+		monster_search: (d) => typeof d.query === 'string' && Array.isArray(d.monsters),
+		character_preview: (d) => isRecord(d.preview) && typeof d.preview.ok === 'boolean',
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};
 

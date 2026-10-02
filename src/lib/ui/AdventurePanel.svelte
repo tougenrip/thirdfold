@@ -6,10 +6,10 @@
 		type CharacterStatus,
 		type ObjectState
 	} from '$lib/adventure/adventure';
-	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
+	import { STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
-	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/game/file-limits';
+	import { ADVENTURE_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '$lib/game/file-limits';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';
@@ -23,9 +23,11 @@
 		adventures?: readonly AdventureListing[];
 		send(action: RoomAction): boolean;
 		onError?(message: string): void;
+		/** Opens a party member's character sheet. */
+		onSheet?(characterId: string): void;
 	}
 
-	let { adventure, isGm, players, adventures = [], send, onError }: Props = $props();
+	let { adventure, isGm, players, adventures = [], send, onError, onSheet }: Props = $props();
 
 	let narration = $state('');
 	/** The character the GM is adjusting. */
@@ -93,6 +95,35 @@
 		}
 	}
 
+	/** GM: brings a homebrew pack file to the story; the server checks every field of it. */
+	async function addPack(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (file.size > CONTENT_PACK_MAX_BYTES) return onError?.('That homebrew file is too large.');
+		let data: unknown;
+		try {
+			data = JSON.parse(await file.text());
+		} catch {
+			return onError?.('That file is not a homebrew pack (not JSON).');
+		}
+		send({ type: 'adventure_pack', op: 'attach', pack: data });
+	}
+
+	const KIND_LABEL: Record<string, string> = {
+		weapon: 'Weapons',
+		armor: 'Armor',
+		spell: 'Spells',
+		monster: 'Monsters'
+	};
+	const byKind = (records: { kind: string; name: string }[]) =>
+		[...new Set(records.map((r) => r.kind))].map((kind) => ({
+			kind,
+			label: KIND_LABEL[kind] ?? kind,
+			names: records.filter((r) => r.kind === kind).map((r) => r.name)
+		}));
+
 	function control(op: 'restart' | 'end') {
 		const warning =
 			op === 'restart'
@@ -120,6 +151,12 @@
 					· version {adventure.library.version}
 				</p>
 			{/if}
+			{#if adventure.rules.id !== 'thirdfold-classic'}
+				<p class="section">Rules: {adventure.rules.name}</p>
+				{#if adventure.rules.attribution}
+					<p class="credit">{adventure.rules.attribution}</p>
+				{/if}
+			{/if}
 			<p class="section">
 				Chapter {adventure.chapter.number} of {adventure.chapter.of} ·
 				<span class="stage">{STAGE_LABEL[adventure.stage] ?? adventure.chapter.title}</span>
@@ -143,9 +180,14 @@
 				{#each party as c (c.id)}
 					<li class:downed={c.downed || c.dead}>
 						<div class="member">
-							<span class="swatch" style:background={CHARACTERS[c.id].color}></span>
+							<span class="swatch" style:background={c.def.color}></span>
 							<span class="who">
-								{CHARACTERS[c.id].name}
+								{#if onSheet}<button
+										type="button"
+										class="link"
+										title="Open {c.def.name}'s character sheet"
+										onclick={() => onSheet(c.id)}>{c.def.name}</button
+									>{:else}{c.def.name}{/if}
 								<small>
 									{playerName(c.playerId)}{c.statuses.length
 										? ` · ${c.statuses.map((s) => STATUSES[s.id].name).join(', ')}`
@@ -166,7 +208,7 @@
 							{/if}
 						</div>
 						{#if isGm && editing === c.id}
-							<div class="override" aria-label={`Adjust ${CHARACTERS[c.id].name}`}>
+							<div class="override" aria-label={`Adjust ${c.def.name}`}>
 								<div class="row">
 									{#each [-5, -1, 1, 5] as delta (delta)}
 										<button
@@ -245,6 +287,52 @@
 						<li><strong>{reward}</strong></li>
 					{/each}
 				</ul>
+			</details>
+		{/if}
+
+		{#if adventure.packs && (adventure.packs.length || isGm)}
+			<details class="clues" open={adventure.packs.length > 0 && isGm}>
+				<summary>Homebrew ({adventure.packs.length})</summary>
+				{#if adventure.packs.length}
+					<ul aria-label="Homebrew">
+						{#each adventure.packs as pack (pack.id)}
+							<li class="pack">
+								<strong>{pack.name}</strong>
+								<span class="evidence-kind">{pack.version}</span>
+								{#if pack.creator || pack.license}
+									<p class="credit">
+										{pack.creator ? `by ${pack.creator}` : ''}{pack.creator && pack.license
+											? ' · '
+											: ''}{pack.license ?? ''}
+									</p>
+								{/if}
+								{#if pack.about}<p>{pack.about}</p>{/if}
+								{#each byKind(pack.records) as group (group.kind)}
+									<p class="pack-records"><em>{group.label}:</em> {group.names.join(', ')}</p>
+								{/each}
+								{#if isGm}
+									<button
+										type="button"
+										onclick={() => send({ type: 'adventure_pack', op: 'detach', id: pack.id })}
+									>
+										Put away
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="note">
+						Homebrew adds your own weapons, armor, spells and monsters to the rules’ own, for this
+						story only.
+					</p>
+				{/if}
+				{#if isGm && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
+					<label class="file-offer">
+						Add homebrew from a file…
+						<input type="file" accept=".json,application/json" hidden onchange={addPack} />
+					</label>
+				{/if}
 			</details>
 		{/if}
 
@@ -491,6 +579,17 @@
 		color: var(--accent);
 	}
 
+	.pack-records {
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-xs);
+	}
+
+	.credit {
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-2xs);
+		color: var(--muted);
+	}
+
 	.section {
 		margin: var(--sp-1) 0 0;
 		font-size: var(--fs-xs);
@@ -546,6 +645,19 @@
 	.edit {
 		padding: var(--sp-1) var(--sp-4);
 		font-size: var(--fs-xs);
+	}
+
+	.party .link {
+		justify-self: start;
+		text-align: left;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
+		cursor: pointer;
 	}
 
 	.party .downed {

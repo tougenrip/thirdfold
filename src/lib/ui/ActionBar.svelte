@@ -6,17 +6,12 @@
 		PHYSICAL_ACTIONS,
 		type AdventureView,
 		type CharacterStatus,
-		type Check,
+		type CheckView,
+		type ConditionMark,
 		type Sense
 	} from '$lib/adventure/adventure';
-	import {
-		BLEED_OUT_ROUNDS,
-		CHARACTERS,
-		describeAction,
-		STATS,
-		STATUSES,
-		type Action
-	} from '$lib/adventure/characters';
+	import { BLEED_OUT_ROUNDS, STATUSES, type Action } from '$lib/adventure/characters';
+	import { gridDistance } from '$lib/game/grid';
 	import type { Blockers } from '$lib/game/objects';
 	import type { Token } from '$lib/game/token';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
@@ -33,6 +28,8 @@
 		onTargeting(actionId: string | null): void;
 		onSheet(): void;
 		send(action: RoomAction): boolean;
+		/** The slot level a spell being aimed is cast with; null for the lowest it can. */
+		slot?: number | null;
 	}
 
 	let {
@@ -44,12 +41,22 @@
 		targeting,
 		onTargeting,
 		onSheet,
-		send
+		send,
+		slot = $bindable(null)
 	}: Props = $props();
 
-	const def = $derived(CHARACTERS[character.id]);
+	const def = $derived(character.def);
 	const encounter = $derived(adventure.encounter);
-	const acted = $derived(!!encounter?.acted.includes(character.id));
+	/** The turn's action is spent (other parts of a turn, a bonus action, may be left). */
+	const acted = $derived(character.spent.includes('action'));
+	/** An action as the rules show it: its summary and the part of a turn it takes. */
+	const cardOf = (action: Action) =>
+		character.card.actions.find((a) => a.id === action.id) ?? {
+			id: action.id,
+			summary: action.about,
+			part: 'action',
+			partName: 'Action'
+		};
 	const able = $derived(!character.downed && !character.dead);
 	/** Whose turn it is, in a fight. */
 	const up = $derived(encounter ? encounter.order[encounter.current] : undefined);
@@ -73,22 +80,61 @@
 						(i.carried || canReach(blocked, token.pos, i.cells))
 				)
 	);
+	/** Things put down beside the character, to pick up (on its turn, in a fight). */
+	const piles = $derived(
+		!able || adventure.stage === 'choosing' || (encounter && !isMine)
+			? []
+			: adventure.piles.filter((p) => gridDistance(token.pos, p.cell) <= 1)
+	);
 	/** Actions that make sense now: everything in a fight, only healing outside one. */
 	const actions = $derived(
 		!able || adventure.stage !== 'playing'
 			? []
 			: def.actions.filter((a) => (encounter ? true : a.kind === 'heal'))
 	);
+	/** The character's own actions, and what the rules let every character do (Dash, Dodge, …). */
+	const own = $derived(actions.filter((a) => a.kind !== 'maneuver'));
+	const common = $derived(actions.filter((a) => a.kind === 'maneuver'));
 	const chosen = $derived(actions.find((a) => a.id === targeting) ?? null);
+	/** A spell's aim, if the chosen action is a spell. */
+	const aim = $derived(chosen?.cast ?? null);
+	/** Targets picked so far, for a spell that takes several. */
+	let picked = $state<string[]>([]);
+	$effect(() => {
+		// A new action to aim starts afresh.
+		void targeting;
+		picked = [];
+		slot = null;
+	});
+	/** Slot levels a levelled spell may be cast at, with how many of each are left. */
+	const slotLevels = $derived(
+		aim && aim.level > 0
+			? Array.from({ length: aim.upTo - aim.level + 1 }, (_, i) => {
+					const level = aim.level + i;
+					const left = (character.card.resources ?? [])
+						.filter(
+							(r) =>
+								r.id === `spell-slots-${level}` ||
+								(r.id === 'pact-slots' && r.name.includes(`level ${level}`))
+						)
+						.reduce((n, r) => n + r.max - (character.resourcesSpent[r.id] ?? 0), 0);
+					return { level, left };
+				})
+			: []
+	);
+	/** How many targets the spell takes at the chosen slot. */
+	const maxTargets = $derived(
+		aim ? aim.targets + aim.perLevel * Math.max(0, (slot ?? aim.level) - aim.level) : 1
+	);
+	const castOf = (targets: string[]) => (aim ? { cast: { slot, targets, at: null } } : {});
 	/** Listening and looking around work anywhere, outside a fight. */
 	const canSense = $derived(able && !encounter && adventure.stage === 'playing');
 	const SENSES: Sense[] = ['listen', 'observe'];
 
-	/** "Wits 8": the stat and difficulty, with the character's bonus. */
-	function checkText(check: Check): string {
-		const stat = STATS.find((s) => s.id === check.stat)?.name ?? check.stat;
-		const bonus = def.stats[check.stat];
-		return `${stat} check (d20${bonus ? `+${bonus}` : ''} vs ${check.dc})`;
+	/** "Wits check (d20+2 vs 8)": the test and difficulty, with the character's bonus (by the rules, from the server). */
+	function checkText(check: CheckView): string {
+		const bonus = check.bonus ? `${check.bonus > 0 ? '+' : ''}${check.bonus}` : '';
+		return `${check.label}${check.save ? '' : ' check'} (d20${bonus} vs ${check.dc})`;
 	}
 
 	interface Target {
@@ -113,15 +159,36 @@
 			if (!t || c.dead) return [];
 			const inReach = inActionRange(blocked, token.pos, t.pos, action);
 			const detail = c.downed ? 'down' : `${c.hp}/${c.maxHp}`;
-			return [{ tokenId: t.id, name: CHARACTERS[c.id].name, detail, inReach }];
+			return [{ tokenId: t.id, name: c.def.name, detail, inReach }];
 		});
 	}
 
 	const canUse = (action: Action) =>
-		(encounter ? myTurn : true) && character.usesLeft[action.id] !== 0;
+		(encounter ? isMine && able && !character.spent.includes(cardOf(action).part) : true) &&
+		character.usesLeft[action.id] !== 0;
+	/** Why an action can't be taken now, in words, or '' when it can. */
+	function whyNot(action: Action): string {
+		if (canUse(action)) return '';
+		if (character.usesLeft[action.id] === 0) return `${action.name} is spent until the next fight.`;
+		if (!isMine) return `Not ${def.name}'s turn.`;
+		return `${def.name} has used this turn's ${cardOf(action).partName.toLowerCase()}.`;
+	}
+	/** A reaction's state, as its button says it. */
+	const REACTION = {
+		ready: 'Strikes at foes leaving its reach (an Opportunity Attack). Click to hold it.',
+		used: 'Used: back at the start of its turn.',
+		held: 'Held: no Opportunity Attacks. Click to let the table take them.'
+	} as const;
+	/** The parts of this turn still to take ("action", "bonus action"), for the status line. */
+	const partsLeft = $derived([
+		...new Set([
+			...(acted ? [] : ['action']),
+			...actions.filter(canUse).map((a) => cardOf(a).partName.toLowerCase())
+		])
+	]);
 
 	function pick(action: Action) {
-		if (action.target === 'self') {
+		if (action.target === 'self' && !action.cast) {
 			send({ type: 'adventure_act', actionId: action.id, targetId: null });
 			return onTargeting(null);
 		}
@@ -129,18 +196,50 @@
 	}
 
 	function use(action: Action, target: Target) {
-		send({ type: 'adventure_act', actionId: action.id, targetId: target.tokenId });
+		// A spell that takes several targets gathers them first (darts may go to one more than once).
+		if (aim && !aim.area && maxTargets > 1) {
+			if (!aim.repeat && picked.includes(target.tokenId))
+				picked = picked.filter((id) => id !== target.tokenId);
+			else if (picked.length < maxTargets) picked = [...picked, target.tokenId];
+			return;
+		}
+		send({
+			type: 'adventure_act',
+			actionId: action.id,
+			targetId: target.tokenId,
+			...castOf([])
+		});
+		onTargeting(null);
+	}
+
+	function castPicked(action: Action) {
+		send({ type: 'adventure_act', actionId: action.id, targetId: null, ...castOf(picked) });
 		onTargeting(null);
 	}
 
 	const status = $derived.by(() => {
 		if (character.dead) return `${def.name} is dead. The GM can bring them back.`;
+		if (character.downed && character.deathSaves) {
+			const d = character.deathSaves;
+			if (d.stable) return `${def.name} is down but stable: heal them to bring them back.`;
+			return `${def.name} is dying: a death save each turn (${d.successes} of 3 successes, ${d.failures} of 3 failures). Heal them, or steady them with first aid.`;
+		}
 		if (character.downed) {
 			const left = BLEED_OUT_ROUNDS - character.downedFor;
 			return `${def.name} is down: heal them within ${left} ${left === 1 ? 'round' : 'rounds'}.`;
 		}
 		if (adventure.stage === 'choosing') return 'Waiting for the GM to begin.';
 		if (adventure.stage !== 'playing') return 'The story is over.';
+		if (chosen?.cast?.area)
+			return `${chosen.name}: click a cell on the map to aim it (${
+				chosen.cast.area.shape === 'sphere'
+					? `a ${chosen.cast.area.size * 5}-foot-radius sphere there`
+					: `a ${chosen.cast.area.size * 5}-foot ${chosen.cast.area.shape} from you`
+			}).`;
+		if (chosen && maxTargets > 1)
+			return chosen.cast?.repeat
+				? `${chosen.name}: choose where its ${maxTargets} strikes go (one foe may take several), then cast.`
+				: `${chosen.name}: choose up to ${maxTargets} targets, then cast.`;
 		if (chosen) return `${chosen.name}: choose a target, here or on the map.`;
 		if (!encounter) {
 			return nearby.length
@@ -149,13 +248,17 @@
 		}
 		if (!isMine) return `${up?.name ?? 'Someone else'}'s turn…`;
 		const cells = `${movesLeft} ${movesLeft === 1 ? 'cell' : 'cells'} of movement`;
-		if (acted) return `Your turn: ${cells} left, then end your turn.`;
-		return `Your turn: ${cells}, one action.`;
+		if (partsLeft.length === 0) return `Your turn: ${cells} left, then end your turn.`;
+		const parts = partsLeft.map((p, i) => (i === 0 && p === 'action' ? 'one action' : `a ${p}`));
+		return `Your turn: ${cells}${acted ? ' left' : ''}, ${parts.join(' and ')}.`;
 	});
 	/** What a verb is: how it investigates, or what it physically does. */
 	function kindOf(v: AdventureView['interactables'][number]['verbs'][number]): string {
 		return v.physical ? PHYSICAL_ACTIONS[v.physical] : INVESTIGATION_ACTIONS[v.action];
 	}
+	/** A condition's marker, explained: how long, where from, and the rules' words. */
+	const conditionTitle = (c: ConditionMark) =>
+		`${c.name}: ${c.until} (${c.from}).\n\n${c.text}${c.notPlayed.length ? `\n\nNot played yet: ${c.notPlayed.join('; ')}.` : ''}`;
 	const hpPercent = $derived(Math.round((100 * character.hp) / character.maxHp));
 </script>
 
@@ -182,22 +285,91 @@
 		{#each character.carrying as item (item.id)}
 			<span class="chip carrying" title="Carrying">{item.name}</span>
 		{/each}
+		{#each character.conditions as c (c.effect + c.id)}
+			<span class="chip condition" title={conditionTitle(c)}
+				>{c.name}{c.level ? ` ${c.level}` : ''}</span
+			>
+		{/each}
+		{#each character.effects as line (line)}
+			<span class="chip effect" title={line}>{line.split(':')[0]}</span>
+		{/each}
+		{#if character.reaction}
+			<button
+				type="button"
+				class="chip reaction"
+				class:used={character.reaction !== 'ready'}
+				aria-pressed={character.reaction !== 'held'}
+				title={REACTION[character.reaction]}
+				disabled={character.reaction === 'used'}
+				onclick={() =>
+					send({
+						type: 'adventure_sheet',
+						characterId: character.id,
+						edit: { kind: 'reaction', ready: character.reaction === 'held' }
+					})}
+			>
+				Reaction: {character.reaction}
+			</button>
+		{/if}
+		{#if character.deathSaves && !character.deathSaves.stable}
+			<span
+				class="chip condition"
+				title="Death saves: three successes and it is stable, three failures and it dies"
+				>Death saves {'✓'.repeat(character.deathSaves.successes)}{'✗'.repeat(
+					character.deathSaves.failures
+				)}</span
+			>
+		{/if}
+		{#if character.concentrating}
+			<span class="chip effect" title="Concentrating: taking damage may end it"
+				>Concentrating: {character.concentrating}</span
+			>
+		{/if}
 	</div>
 	<p class="status" aria-live="polite">{status}</p>
 
 	{#if chosen}
+		{#if slotLevels.length > 1}
+			<div class="actions" role="group" aria-label="Spell slot">
+				{#each slotLevels as s (s.level)}
+					<button
+						type="button"
+						class:primary={(slot ?? aim!.level) === s.level}
+						aria-pressed={(slot ?? aim!.level) === s.level}
+						disabled={s.left === 0}
+						onclick={() => (slot = s.level === aim!.level ? null : s.level)}
+					>
+						Level {s.level} <small class="num">{s.left} left</small>
+					</button>
+				{/each}
+			</div>
+		{/if}
 		<div class="actions" aria-label={`Targets for ${chosen.name}`}>
 			{#each targetsFor(chosen) as t (t.tokenId)}
+				{@const times = picked.filter((id) => id === t.tokenId).length}
 				<button
 					type="button"
 					class="primary"
-					disabled={!t.inReach}
-					title={t.inReach ? '' : 'Out of reach'}
+					disabled={!t.inReach && !aim?.area}
+					aria-pressed={maxTargets > 1 && !aim?.area ? times > 0 : undefined}
+					title={t.inReach ? '' : aim?.area ? 'Aim at it' : 'Out of reach'}
 					onclick={() => use(chosen, t)}
 				>
 					{t.name} <small class="num">{t.detail}</small>
+					{#if times > 0}<small class="num">×{times}</small>{/if}
 				</button>
 			{/each}
+			{#if aim && !aim.area && maxTargets > 1}
+				<button
+					type="button"
+					class="action"
+					disabled={picked.length === 0}
+					onclick={() => castPicked(chosen)}
+				>
+					Cast {chosen.name}
+					<small class="num">{picked.length}/{maxTargets}</small>
+				</button>
+			{/if}
 			<button type="button" onclick={() => onTargeting(null)}>Cancel</button>
 		</div>
 	{:else}
@@ -226,6 +398,23 @@
 					</button>
 				{/each}
 			{/each}
+			{#each piles as p (p.id)}
+				{#each p.items as it (it.index)}
+					<button
+						type="button"
+						title="Pick up what lies here"
+						onclick={() =>
+							send({
+								type: 'adventure_gear',
+								characterId: character.id,
+								change: { kind: 'take', pile: p.id, index: it.index }
+							})}
+					>
+						<small class="kind">Pick up</small>
+						{it.name}
+					</button>
+				{/each}
+			{/each}
 			{#if canSense}
 				{#each SENSES as sense (sense)}
 					<button
@@ -239,23 +428,36 @@
 					</button>
 				{/each}
 			{/if}
-			{#each actions as action (action.id)}
+			{#each own as action (action.id)}
 				{@const left = character.usesLeft[action.id]}
 				<button
 					type="button"
 					class="action"
 					disabled={!canUse(action)}
-					title={`${describeAction(def, action)}. ${action.about}`}
+					title={whyNot(action) || `${cardOf(action).summary}. ${action.about}`}
+					onclick={() => pick(action)}
+				>
+					{#if cardOf(action).part !== 'action'}<small class="kind">{cardOf(action).partName}</small
+						>{/if}
+					{action.name}
+					{#if left !== null && left !== undefined}<small class="num">{left} left</small>{/if}
+				</button>
+			{/each}
+			{#each common as action (action.id)}
+				<button
+					type="button"
+					class="common"
+					disabled={!canUse(action)}
+					title={whyNot(action) || action.about}
 					onclick={() => pick(action)}
 				>
 					{action.name}
-					{#if left !== null && left !== undefined}<small class="num">{left} left</small>{/if}
 				</button>
 			{/each}
 			{#if encounter && able}
 				<button
 					type="button"
-					class:primary={isMine && acted}
+					class:primary={isMine && partsLeft.length === 0}
 					disabled={!isMine}
 					onclick={() => send({ type: 'adventure_end_turn' })}
 				>
@@ -267,6 +469,19 @@
 </section>
 
 <style>
+	.common {
+		font-size: var(--fs-xs);
+	}
+
+	.chip.reaction {
+		cursor: pointer;
+		background: transparent;
+	}
+
+	.chip.reaction.used {
+		opacity: 0.7;
+	}
+
 	.kind {
 		display: block;
 		font-size: var(--fs-2xs);
@@ -348,6 +563,15 @@
 	.chip.carrying {
 		border-color: var(--muted);
 		color: inherit;
+	}
+	.chip.effect {
+		border-color: var(--char);
+		color: inherit;
+	}
+	.chip.condition {
+		border-color: var(--danger);
+		color: var(--danger);
+		cursor: help;
 	}
 
 	.status {

@@ -1,0 +1,114 @@
+[
+	{
+		"kind": "repaired",
+		"at": "spell Acid Splash",
+		"message": "Heading read as \"Acid SplASh\".",
+		"pages": [
+			107
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Barkskin",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			112
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Contagion",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			119
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Divine Smite",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			125
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Find Steed",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			130
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Guidance",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			138
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Jump",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			143
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Power Word Heal",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			154
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Power Word Kill",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			154
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Resistance",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			158
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Searing Smite",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			160
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Shining Smite",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			162
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "spell Sorcerous Burst",
+		"message": "Field labelled \"Component:\" read as Components.",
+		"pages": [
+			163
+		]
+	},
+	{
+		"kind": "repaired",
+		"at": "monster Young White Dragon",
+		"message": "Int save printed without a sign (\"2\"); read as -2.",
+		"pages": [
+			340
+		]
+	}
+]

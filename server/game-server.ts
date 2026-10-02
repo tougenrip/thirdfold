@@ -25,6 +25,7 @@ import * as adventure from './adventure/engine';
 import { loadCustomAdventure } from './adventure/custom';
 import { readAdventure } from './adventure/persist';
 import { builtInAdventures, trackInUse } from './adventure/registry';
+import { trackPacksInUse } from './rules/ruleset';
 import { RateLimiter } from './rate-limit';
 import { createHash } from 'node:crypto';
 import { ADVENTURE_FILE_MAX_BYTES, loadAdventureFile } from '../src/lib/adventure/file';
@@ -132,7 +133,8 @@ const PAUSED_ACTIONS = new Set<ClientMessage['type']>([
 	'adventure_end_turn',
 	'adventure_decide',
 	'adventure_sense',
-	'adventure_share'
+	'adventure_share',
+	'adventure_gear'
 ]);
 /** How often a paused mechanism looks again whether the game has carried on. */
 const PAUSED_RETRY_MS = 250;
@@ -172,10 +174,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const chatLimiter = new RateLimiter(8, 4 / 3);
 	// Saving, loading, importing and exporting touch storage or whole-room state: a few at a time.
 	const sceneLimiter = new RateLimiter(4, 0.25);
+	/** A character creator asks for its options and previews as the player chooses. */
+	const creatorLimiter = new RateLimiter(20, 4);
 	// The GM's look edits (the world, the roof, dark areas): bursts of 10, then two a second.
 	const lookLimiter = new RateLimiter(10, 2);
 	// Creators' adventures a table is playing are kept while it plays them.
 	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
+	trackPacksInUse(
+		() => new Set([...rooms.all()].flatMap((r) => r.adventure?.packs?.map((p) => p.id) ?? []))
+	);
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
 	const libraryStore = options.libraryStore ?? new MemoryLibraryStore();
 	// Browsing the library and the open games: a few asks a second per connection.
@@ -666,6 +673,9 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'adventure_narrate' ||
 			msg.type === 'adventure_cue' ||
 			msg.type === 'adventure_claim' ||
+			msg.type === 'adventure_build' ||
+			msg.type === 'adventure_sheet' ||
+			msg.type === 'adventure_gear' ||
 			msg.type === 'adventure_release';
 		if (chatty && !chatLimiter.take(player.id)) {
 			return sendError(ws, 'rate_limited', 'Give it a moment before the next change.');
@@ -692,6 +702,17 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				}
 				case 'adventure_claim':
 					return adventure.claimCharacter(room, player, msg.characterId);
+				case 'adventure_pack':
+					if (msg.op === 'detach') return adventure.detachPack(room, player, msg.id);
+					if (player.role === 'gm' && !sceneLimiter.take(player.id))
+						return fail('rate_limited', 'Give it a moment before trying again.');
+					return adventure.attachPack(room, player, msg.pack);
+				case 'adventure_build':
+					return adventure.buildCharacter(room, player, msg.choices);
+				case 'adventure_sheet':
+					return adventure.editSheet(room, player, msg.characterId, msg.edit);
+				case 'adventure_gear':
+					return adventure.changeGear(room, player, msg.characterId, msg.change);
 				case 'adventure_release':
 					return adventure.releaseCharacter(room, player);
 				case 'adventure_begin':
@@ -705,9 +726,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				case 'adventure_object':
 					return adventure.setObject(room, player, msg.objectId, msg.state);
 				case 'adventure_act':
-					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie);
+					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie, msg.cast);
 				case 'adventure_end_turn':
 					return adventure.endTurn(room, player);
+				case 'adventure_effect':
+					return adventure.ruleEffect(room, player, msg.op);
 				case 'adventure_narrate':
 					return adventure.narrate(room, player, msg.text);
 				case 'adventure_cue':
@@ -900,7 +923,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					token.ownerId
 				);
 				// Walking somewhere can move the story on, even to another table.
-				return applyOutcome(room, adventure.afterMove(room, token, allowed.cost), player.id);
+				return applyOutcome(
+					room,
+					adventure.afterMove(room, token, allowed.cost, Date.now(), allowed.walk),
+					player.id
+				);
 			}
 			case 'token_update': {
 				const result = updateToken(room, player, msg.tokenId, msg.patch);
@@ -1091,13 +1118,54 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				if (!result.ok) return sendError(ws, result.code, result.message);
 				return announce(room, result.message);
 			}
+			case 'character_options': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.creatorOptions(room);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, {
+					type: 'character_options',
+					rules: result.rules,
+					options: result.options
+				});
+			}
+			case 'monster_search': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.searchMonsters(room, player, msg.query);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, { type: 'monster_search', query: msg.query, monsters: result.monsters });
+			}
+			case 'character_sheet': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.sheetDetails(room, msg.characterId);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, {
+					type: 'character_sheet',
+					characterId: msg.characterId,
+					rules: result.rules,
+					details: result.details
+				});
+			}
+			case 'character_preview': {
+				if (!creatorLimiter.take(player.id))
+					return sendError(ws, 'rate_limited', 'Slow down a little.');
+				const result = adventure.previewCharacter(room, msg.choices);
+				if (!result.ok) return sendError(ws, result.code, result.message);
+				return send(ws, { type: 'character_preview', preview: result.preview });
+			}
 			case 'adventure_start':
 			case 'adventure_claim':
+			case 'adventure_build':
+			case 'adventure_sheet':
+			case 'adventure_gear':
 			case 'adventure_release':
 			case 'adventure_begin':
 			case 'adventure_interact':
 			case 'adventure_act':
 			case 'adventure_override':
+			case 'adventure_effect':
 			case 'adventure_object':
 			case 'adventure_end_turn':
 			case 'adventure_narrate':
@@ -1109,6 +1177,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_again':
 			case 'adventure_direct':
 			case 'adventure_rate':
+			case 'adventure_pack':
 				return handleAdventure(ws, room, player, msg);
 			case 'room_listing': {
 				if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');

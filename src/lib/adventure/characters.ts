@@ -24,7 +24,12 @@ export const STATUSES: Record<StatusId, { name: string; about: string }> = {
 };
 export const STATUS_IDS = Object.keys(STATUSES) as StatusId[];
 
-/** An enemy's attack: a d20 plus `toHit` against the target's defense, then `damage` on a hit. */
+/**
+ * An enemy's attack: a d20 plus `toHit` against the target's defense, then
+ * `damage` on a hit. With `save`, there is no attack roll: the target makes
+ * a saving throw (the stat by the story's rules) against `dc`, and takes the
+ * damage on a failure (half on a success, when `half`).
+ */
 export interface Attack {
 	name: string;
 	/** Reach in cells: 1 is melee (adjacent), more is ranged and needs line of sight. */
@@ -32,6 +37,29 @@ export interface Attack {
 	toHit: number;
 	/** Damage dice expression, e.g. `1d8+3`. */
 	damage: string;
+	/** The kind of damage, in the rules' words ("cold"), where the rules have kinds. */
+	damageType?: string;
+	/** How many times it is made when its maker attacks (a Multiattack); once when absent. */
+	times?: number;
+	/** Damage of another kind it deals on a hit as well ("plus 7 (2d6) Fire damage"). */
+	plus?: { damage: string; damageType: string };
+	save?: { stat: string; dc: number; half: boolean };
+	/**
+	 * Conditions (the rules' ids) it leaves on a hit, or on a failed save,
+	 * until the start or the end of the attacker's next turn, or (null) until
+	 * its bearer is rid of it (gets up from Prone).
+	 */
+	inflicts?: { conditions: string[]; ends: 'start' | 'end' | null };
+}
+
+/**
+ * Plain data a ruleset reads about a character (ability scores, level,
+ * proficiencies, …): whatever that ruleset defines, checked by it on the
+ * server. The shared model knows nothing of its contents.
+ */
+export type RulesValue = number | string | boolean | readonly RulesValue[] | RulesData;
+export interface RulesData {
+	readonly [key: string]: RulesValue;
 }
 
 /** Something a character can do with their action. */
@@ -39,8 +67,13 @@ export interface Action {
 	id: string;
 	name: string;
 	about: string;
-	/** attack: to-hit roll then damage; heal: restores hit points; guard: a status on self and allies beside. */
-	kind: 'attack' | 'heal' | 'guard';
+	/**
+	 * attack: harms enemies (a to-hit roll then damage, or what its rules say
+	 * for a spell); heal: restores hit points; guard: a status on self and
+	 * allies beside; boon: a lasting benefit on allies (a spell's); maneuver:
+	 * something the rules let every character do (Dash, Dodge, Help).
+	 */
+	kind: 'attack' | 'heal' | 'guard' | 'boon' | 'maneuver';
 	target: 'enemy' | 'ally' | 'self';
 	/** Reach in cells (0 for self). Beyond 1 it needs a clear line. */
 	range: number;
@@ -48,10 +81,37 @@ export interface Action {
 	stat: StatId;
 	/** Damage (attack) or healing (heal) dice. */
 	dice?: string;
+	/** The kind of damage it deals, in its rules' words ("slashing"), where the rules have kinds. */
+	damageType?: string;
 	/** A status the action puts on its target (attack, on a hit) or on the guarded (guard). */
 	applies?: { status: StatusId; rounds: number };
 	/** Uses per encounter; null for as often as you like. */
 	uses: number | null;
+	/** A spell (under rules that have them): how it is aimed. */
+	cast?: CastAim;
+}
+
+/** How a spell is aimed at the table; its rules say what it costs and does. */
+export interface CastAim {
+	/** The spell's level; 0 for a cantrip, which spends nothing. */
+	level: number;
+	/** The highest level the caster can cast it at (its highest slot). */
+	upTo: number;
+	/** Targets at its level, and more for each level above; `repeat`: one may be chosen more than once. */
+	targets: number;
+	perLevel: number;
+	repeat: boolean;
+	/**
+	 * An area, in cells: a cone or cube from the caster toward a cell it aims
+	 * at, or a sphere around a cell within range; null for targets chosen one
+	 * by one.
+	 */
+	area: { shape: 'cone' | 'cube' | 'sphere'; size: number } | null;
+	/** Only the creatures of the caster's choice in its area (its foes), not everyone there. */
+	chooses?: boolean;
+	concentration: boolean;
+	/** A line on what it does, e.g. "Dexterity save, 3d6 fire, half on a success". */
+	resolves: string;
 }
 
 export interface CharacterDef {
@@ -63,7 +123,7 @@ export interface CharacterDef {
 	/** Token colour, `#rrggbb`. */
 	color: string;
 	hp: number;
-	/** Makes the character harder to hit: attacks must reach 10 + armor. */
+	/** Makes the character harder to hit (classic rules: attacks must reach 10 + armor; others read it as they define). */
 	armor: number;
 	/** Cells the character may move per round in an encounter. */
 	speed: number;
@@ -76,6 +136,10 @@ export interface CharacterDef {
 	stats: Record<StatId, number>;
 	/** The first is the character's basic attack. */
 	actions: readonly Action[];
+	/** What a story's ruleset needs beyond the above (e.g. ability scores); absent under the classic rules. */
+	sheet?: RulesData;
+	/** The figure (a model asset's id) it stands on the table as; its id when absent. */
+	model?: string;
 }
 
 export const CHARACTERS: Record<CharacterId, CharacterDef> = {
@@ -267,15 +331,37 @@ export const BLEED_OUT_ROUNDS = 3;
 
 /** A one-line summary of an action for buttons and sheets, e.g. "Melee · +5 to hit · 1d8+3". */
 export function describeAction(character: CharacterDef, action: Action): string {
+	return summarizeAction(action, toHitFor(character, action));
+}
+
+/** The same summary, with the attack bonus as the story's rules work it out. */
+export function summarizeAction(action: Action, toHit: number): string {
+	if (action.kind === 'maneuver') return action.target === 'self' ? 'Yourself' : 'Beside you';
 	const reach =
 		action.target === 'self'
-			? 'You and allies beside you'
+			? action.kind === 'heal'
+				? 'Yourself'
+				: 'You and allies beside you'
 			: action.range <= 1
 				? 'Melee'
 				: `Range ${action.range}`;
 	const parts = [reach];
+	const cast = action.cast;
+	if (cast) {
+		if (cast.area) parts[0] = cast.area.shape === 'sphere' ? `Range ${action.range}` : 'From you';
+		else if (action.range === 1) parts[0] = 'Touch';
+		parts.push(cast.level ? `level ${cast.level} spell` : 'cantrip', cast.resolves);
+		if (cast.area)
+			parts.push(
+				cast.area.shape === 'sphere'
+					? `${cast.area.size * 5}-foot-radius sphere`
+					: `${cast.area.size * 5}-foot ${cast.area.shape}`
+			);
+		if (cast.concentration) parts.push('concentration');
+		return parts.join(' · ');
+	}
 	if (action.kind === 'attack')
-		parts.push(`+${toHitFor(character, action)} to hit`, `${action.dice} damage`);
+		parts.push(`${toHit >= 0 ? '+' : ''}${toHit} to hit`, `${action.dice} damage`);
 	if (action.kind === 'heal') parts.push(`heals ${action.dice}`);
 	if (action.applies) parts.push(STATUSES[action.applies.status].name.toLowerCase());
 	if (action.uses !== null) parts.push(`${action.uses}× per fight`);

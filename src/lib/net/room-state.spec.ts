@@ -195,6 +195,7 @@ describe('applyRoomUpdate', () => {
 			clues: [],
 			characters: [],
 			interactables: [],
+			piles: [],
 			objects: null,
 			encounter: null,
 			decision: null,
@@ -208,6 +209,9 @@ describe('applyRoomUpdate', () => {
 			completedAt: null,
 			summary: null,
 			rewards: [],
+			rules: { id: 'thirdfold-classic', version: 1, name: 'Thirdfold Classic', attribution: null },
+			build: null,
+			packs: null,
 			library: null,
 			cues: null
 		};

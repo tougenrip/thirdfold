@@ -41,6 +41,7 @@ export const ASSETS = {
 	boiler: { name: 'Boiler', category: 'machinery', w: 2, h: 2, blocks: 'sight' },
 	strongbox: { name: 'Strongbox', category: 'storage', w: 1, h: 1, blocks: 'movement' },
 	keys: { name: 'Keys', category: 'items', w: 1, h: 1, blocks: 'none' },
+	'gear-pile': { name: 'Things put down', category: 'items', w: 1, h: 1, blocks: 'none' },
 	paper: { name: 'Paper', category: 'items', w: 1, h: 1, blocks: 'none' },
 	handbell: { name: 'Hand bell', category: 'items', w: 1, h: 1, blocks: 'none' },
 	sconce: { name: 'Torch stand', category: 'fixtures', w: 1, h: 1, blocks: 'none' },

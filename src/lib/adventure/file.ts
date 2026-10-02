@@ -807,18 +807,88 @@ function enemy(v: unknown, path: string): EnemyFile {
 			`${path}.attacks`,
 			(a, p) => {
 				const attack = obj(a, p);
+				const inflicts = opt(attack.inflicts, (x) => {
+					const i = obj(x, `${p}.inflicts`);
+					if (i.ends !== 'start' && i.ends !== 'end') bad(`${p}.inflicts.ends`, 'start or end');
+					return {
+						conditions: list(
+							i.conditions,
+							`${p}.inflicts.conditions`,
+							(v, q) => {
+								if (typeof v !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(v))
+									bad(q, 'expected a condition id');
+								return v as string;
+							},
+							4
+						),
+						ends: i.ends as 'start' | 'end'
+					};
+				});
 				return {
 					name: name(attack.name, `${p}.name`),
 					range: int(attack.range, `${p}.range`, 1, 20),
 					toHit: int(attack.toHit, `${p}.toHit`, -5, 20),
-					damage: dice(attack.damage, `${p}.damage`)
+					damage: dice(attack.damage, `${p}.damage`),
+					...(attack.damageType === undefined
+						? {}
+						: { damageType: damageType(attack.damageType, `${p}.damageType`) }),
+					...(inflicts ? { inflicts } : {})
 				};
 			},
 			2
 		),
 		behavior: oneOf(e.behavior, BEHAVIORS, `${path}.behavior`),
-		...(toll ? { toll } : {})
+		...(toll ? { toll } : {}),
+		...(e.saves === undefined ? {} : { saves: saves(e.saves, `${path}.saves`) }),
+		...(e.immune === undefined
+			? {}
+			: {
+					immune: list(
+						e.immune,
+						`${path}.immune`,
+						(v, p) => {
+							if (typeof v !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(v))
+								bad(p, 'expected a condition id');
+							return v as string;
+						},
+						16
+					)
+				}),
+		...(e.damage === undefined ? {} : { damage: damageTraits(e.damage, `${path}.damage`) })
 	};
+}
+
+/** A damage type, in the rules' words ("cold"). */
+function damageType(v: unknown, path: string): string {
+	if (typeof v !== 'string' || !/^[a-z][a-z-]{0,23}$/.test(v)) bad(path, 'expected a damage type');
+	return v as string;
+}
+
+/** What damage an enemy shrugs off, halves or takes double, by type. */
+function damageTraits(
+	v: unknown,
+	path: string
+): { immune?: string[]; resist?: string[]; vulnerable?: string[] } {
+	const d = obj(v, path);
+	for (const k of Object.keys(d))
+		if (!['immune', 'resist', 'vulnerable'].includes(k)) bad(`${path}.${k}`, 'unknown field');
+	const out: { immune?: string[]; resist?: string[]; vulnerable?: string[] } = {};
+	for (const k of ['immune', 'resist', 'vulnerable'] as const)
+		if (d[k] !== undefined) out[k] = list(d[k], `${path}.${k}`, damageType, 13);
+	return out;
+}
+
+/** An enemy's saving throw bonuses: up to six stats, each a whole number. */
+function saves(v: unknown, path: string): Record<string, number> {
+	const s = obj(v, path);
+	const out: Record<string, number> = {};
+	const keys = Object.keys(s);
+	if (keys.length > 6) bad(path, 'at most six saving throws');
+	for (const k of keys.slice(0, 6)) {
+		if (!/^[a-z][a-z0-9-]{0,31}$/.test(k)) bad(`${path}.${k}`, 'expected a stat id');
+		else out[k] = int(s[k], `${path}.${k}`, -5, 20);
+	}
+	return out;
 }
 
 function npc(v: unknown, path: string): NpcFile {

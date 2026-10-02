@@ -138,6 +138,103 @@ Enemy behaviours are code (`server/adventure/ai.ts`), chosen by name:
 - `guardian`: keeps to its post by the adventure's `ward`, first for anyone near it; tolls (`toll`) when crowded.
 - `grasp`: rooted, seizes whoever is in reach, weakest first.
 
+## Rules
+
+An adventure plays by one ruleset, named by exact id and version in
+`AdventureDef.rules`; without it, thirdfold's classic rules
+(`thirdfold-classic` v1: four stats, d20 + stat, 10 + armor). A story is
+pinned to its rules when it starts and its saves carry them. The server has
+the rules in code (`server/rules/`); an adventure only names them, and they
+check it before it can start (`rulesProblems`).
+
+The fifth edition rules of the SRD 5.2.1 are `dnd-5.5e` v1. Under them:
+
+- a character's `armor` is its Armor Class, and its `sheet` holds the rest:
+  `level`, `abilities` (`str`, `dex`, `con`, `int`, `wis`, `cha`, scores 1–30),
+  `saves` and `skills` it is proficient in, optionally `expertise` (skills
+  whose proficiency counts twice), `initiative` (its initiative bonus, else
+  Dexterity) and `title` ("Orc Fighter 1 (Soldier)"), `attacks` (the ability
+  each attack action uses) and `bonusActions` (actions that take a bonus
+  action);
+- a check's `stat` is an ability (`"str"`) or a skill (`"perception"`), and
+  `save: true` makes it a saving throw (abilities only);
+- an enemy's `armor` is its Armor Class and an attack's `toHit` its full
+  bonus; an attack with `save: { stat, dc, half }` makes its target save
+  instead of being rolled against; its `saves` (`{ "dex": 2, … }`) are its
+  bonuses when a spell makes it save (0 for an ability it doesn't list), its
+  `immune` the conditions it can't be given (`["poisoned"]`), and an attack's
+  `inflicts` (`{ "conditions": ["frightened"], "ends": "end" }`) the
+  conditions a hit, or a failed save, leaves on its target until the start
+  or end of the attacker's next turn;
+- an attack's `damageType` (`"slashing"`, `"cold"`, one of the SRD's
+  thirteen) is the damage it deals, and an enemy's `damage`
+  (`{ "immune": ["poison"], "resist": ["cold"], "vulnerable": ["radiant"] }`)
+  what it takes none of, half of (rounded down) or double; characters' own
+  resistances come from their species, and their weapons and spells carry
+  their types;
+- the `hurt` effect can carry the same `save`, for a trap or a hazard.
+
+A character built from the catalog casts the spells it has chosen (its
+cantrips and prepared spells) where the table plays them: sixteen SRD spells
+so far (`server/rules/dnd55e/spells/mechanics.ts`), each read from the SRD's
+own words. Every other spell is on its sheet with the reason it isn't cast
+yet. Casting spends a spell slot (one a turn in a fight); slots are kept with
+the story and, until rests come, regained by hand on the sheet. What lingers
+(Bless, Shield of Faith, a Ray of Frost's chill) lasts on the fight and ends
+with it, on its caster's turns, or when the caster's concentration breaks.
+
+The SRD's fifteen conditions are played by these rules (and named where a
+part isn't played yet, such as the Petrified creature's resistance): a
+spell, a monster's attack or the GM puts one on someone, and it lasts until
+its source's turn says, its bearer saves or is hurt, the fight ends, or the
+GM ends it. Conditions are ids in the data: `blinded`, `charmed`,
+`deafened`, `exhaustion`, `frightened`, `grappled`, `incapacitated`,
+`invisible`, `paralyzed`, `petrified`, `poisoned`, `prone`, `restrained`,
+`stunned`, `unconscious`.
+
+Checks in the dark that need sight fail; attacks get advantage or
+disadvantage from the table (unseen, a foe beside an archer, a target taking
+cover); a natural 20 is a critical hit. Every roll's log entry explains how it
+was resolved. The Barrow on Cold Hill (`server/adventures/barrow/`) is written
+for these rules. Adventure files and the builder still use the classic rules
+and character library.
+
+A fifth edition character can be built from the SRD catalog instead of
+written by hand (`server/rules/dnd55e/character/`): a `DndCharacter` stores
+only choices (species and its options, background and its +2/+1, class,
+skills, Expertise, Fighting Style, Weapon Mastery, subclass, ability scores by
+standard array, point buy or roll, feats at the levels that grant them, hit
+points by average or roll), what it owns and its state of play, bound to the
+rules and the catalog it was made from; `readCharacter` checks every choice,
+`deriveCharacter` works out every number, and `tableCharacter` makes the
+`CharacterDef` a table plays. The Barrow's four characters are made this way
+(`server/adventures/barrow/party.ts`), with the adventure's own words,
+colours and figures for them (a `Look`).
+
+Such a character owns its gear (`character/inventory.ts`): catalog weapons,
+armor and ammunition, each entry with a quantity, where it came from
+(starting equipment, found, given by someone, from the GM, recovered) and
+where it is equipped (worn armor, a Shield, weapons in hand). Its Armor Class
+comes from what it wears, its attacks from the weapons in its hands (a
+Versatile weapon alone in them deals its two-handed damage, a weapon it isn't
+trained with adds no Proficiency Bonus, empty hands make an Unarmed Strike),
+and a weapon that fires ammunition spends a piece a shot and gets half back
+when a fight is won. Its player (or the GM) equips, puts away, puts down,
+hands over and picks up things from its sheet and the action bar
+(`adventure_gear`); the server refuses armor the class isn't trained in, more
+than two hands can hold and more than its Carrying Capacity (Strength × 15
+lb.), and in a fight allows only weapons, on the character's own turn, twice.
+What is put down lies in a pile on the table, shown by a `gear-pile` prop; the
+pile is the rules' data, not a world object, and a story's objects can't be
+picked up this way. The GM may give any character something from the SRD.
+
+A story played by rules that can build characters may let players bring
+their own: set `openParty: true` on the adventure (The Barrow does). Players
+then see "Create your own character" beside the story's characters; the
+server builds only a legal level 1 character, and it plays like the others
+(its weapons are its attacks). A story that names its own characters in its
+events or lines (as The Hollow Bell does) should leave it off.
+
 ## Checking and testing
 
 `validateAdventure` (`server/adventure/validate.ts`) names every reference
