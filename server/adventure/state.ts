@@ -227,6 +227,12 @@ export interface AdventureState {
 	 * Absent when none.
 	 */
 	bestiary?: readonly string[];
+	/**
+	 * Content packs (homebrew under the story's rules) the GM brought to the
+	 * table, in order (see packs.ts). Replaced, never changed in place.
+	 * Absent when none.
+	 */
+	packs?: readonly StoryPack[];
 	/** Lasting effects on those in the story (see effects.ts); absent when none. */
 	effects?: LastingEffect[];
 	/**
@@ -276,4 +282,10 @@ export interface AdventureState {
 	library?: LibrarySource;
 	/** The stars each player gave it at this table, by player id (not saved: the library keeps them). */
 	rated?: Map<string, number>;
+}
+
+/** A content pack a story has: its id, and the public creator id of the GM key that brought it. */
+export interface StoryPack {
+	id: string;
+	owner: string | null;
 }

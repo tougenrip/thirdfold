@@ -35,6 +35,7 @@ import {
 } from './core';
 import { srdCatalog } from './catalog';
 import { dndBuilder } from './character/builder';
+import { dndPacks } from './homebrew';
 import { dndEquipment } from './character/equipment';
 import { readSheet, sheetOf, type Sheet } from './sheet';
 import { dndSpells } from './spells/cast';
@@ -195,6 +196,7 @@ export const dnd55e: Ruleset = {
 	opportunityAttacks: true,
 	rollDamage,
 	bestiary: srdBestiary(srdCatalog),
+	packs: dndPacks(srdCatalog),
 	maneuvers: MANEUVERS,
 	card(character, statuses) {
 		const sheet = sheetOf(character);

@@ -299,6 +299,12 @@ export type ClientMessage =
 	| { type: 'character_options' }
 	/** GM: monsters the story's rules can bring on, matching a search (name, type or challenge). */
 	| { type: 'monster_search'; query: string }
+	/**
+	 * GM: bring a content pack (homebrew under the story's rules, checked in
+	 * full on the server) to the story, or take one out that nothing uses.
+	 */
+	| { type: 'adventure_pack'; op: 'attach'; pack: unknown }
+	| { type: 'adventure_pack'; op: 'detach'; id: string }
 	/** Anyone at the table: what these choices would come to, or what is wrong with them. Changes nothing. */
 	| { type: 'character_preview'; choices: CharacterChoicesData }
 	/** GM: characters are chosen, start playing. */
@@ -392,6 +398,9 @@ export type Direction =
 	  };
 
 /** The longest monster search. */
+/** A content pack's id: `hb-` and 16 hex digits. */
+const PACK_ID = /^hb-[0-9a-f]{16}$/;
+
 export const MONSTER_QUERY_MAX = 40;
 
 export const ENCOUNTER_RESULTS = ['won', 'called_off'] as const;
@@ -1168,6 +1177,14 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		}
 		case 'character_options':
 			return { type: 'character_options' };
+		case 'adventure_pack':
+			if (data.op === 'attach')
+				return isRecord(data.pack)
+					? { type: 'adventure_pack', op: 'attach', pack: data.pack }
+					: null;
+			return data.op === 'detach' && typeof data.id === 'string' && PACK_ID.test(data.id)
+				? { type: 'adventure_pack', op: 'detach', id: data.id }
+				: null;
 		case 'monster_search':
 			return typeof data.query === 'string' && data.query.length <= MONSTER_QUERY_MAX
 				? { type: 'monster_search', query: data.query }

@@ -41,6 +41,7 @@ import {
 } from './engine';
 import type { AdventureState, LastingEffect, Statuses } from './state';
 import { actionOfVerb, objectDef } from './world';
+import { packsView } from './packs';
 import { rulesInfo } from '../rules/ruleset';
 
 /** Where a story saved now had got to, for the GM's list of saves (null for a table without one). */
@@ -370,6 +371,7 @@ export function adventureView(
 		rewards: [...adventure.rewards],
 		rules: rulesInfo(rules),
 		build: canBuild(adventure) ? { rules: rules.id } : null,
+		packs: packsView(adventure),
 		library: adventure.library
 			? {
 					id: adventure.library.id,

@@ -117,6 +117,7 @@ import {
 } from './define';
 import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
 import { BESTIARY_MAX, withBestiary } from './bestiary';
+import { outsidePacks, PACKS_MAX, packInUse, packsOf, withPack } from './packs';
 import { keepCharacter, layPiles, pickUp, putDown, withKept } from './gear';
 import {
 	activeOn,
@@ -549,7 +550,7 @@ export function editSheet(room: Room, actor: Player, id: string, edit: SheetEdit
 			const built = adventure.built?.get(id);
 			const rename = rulesOf(adventure).builder?.rename;
 			if (!built || !rename) return fail('forbidden', `${def.name}'s name is the story's.`);
-			const renamed = rename(built.saved, id, edit.name);
+			const renamed = rename(built.saved, id, edit.name, packsOf(adventure));
 			if (!renamed.ok) {
 				return fail('invalid_message', `That name won't do: ${renamed.problems.join('; ')}.`);
 			}
@@ -604,6 +605,8 @@ export function changeGear(room: Room, actor: Player, id: string, change: GearCh
 
 	if (change.kind === 'grant') {
 		if (!gm) return fail('forbidden', 'Only the GM can give things out of nowhere.');
+		if (outsidePacks(adventure, rules, change.item))
+			return fail('invalid_message', 'That comes from homebrew this story doesn’t have.');
 		const item = equipment.grant(change.item, change.quantity);
 		if (!item.ok) return refused(item);
 		const added = equipment.add(def, item.item, { how: 'granted' });
@@ -717,7 +720,7 @@ export function creatorOptions(
 	if (!adventure) return NO_ADVENTURE;
 	if (!canBuild(adventure)) return CANT_BUILD;
 	const rules = rulesOf(adventure);
-	return { ok: true, rules: rules.id, options: rules.builder!.options() };
+	return { ok: true, rules: rules.id, options: rules.builder!.options(packsOf(adventure)) };
 }
 
 /** What a player's choices would come to, or what is wrong with them. Changes nothing. */
@@ -728,7 +731,10 @@ export function previewCharacter(
 	const adventure = room.adventure;
 	if (!adventure) return NO_ADVENTURE;
 	if (!canBuild(adventure)) return CANT_BUILD;
-	return { ok: true, preview: rulesOf(adventure).builder!.preview(choices) };
+	return {
+		ok: true,
+		preview: rulesOf(adventure).builder!.preview(choices, packsOf(adventure))
+	};
 }
 
 /** A player builds a character under the story's rules and takes it to the table. */
@@ -747,7 +753,7 @@ export function buildCharacter(room: Room, actor: Player, choices: unknown): Out
 	if ((adventure.built?.size ?? 0) >= BUILT_MAX || !id) {
 		return fail('limit_reached', 'This story has as many built characters as it can hold.');
 	}
-	const built = rulesOf(adventure).builder!.build(choices, id);
+	const built = rulesOf(adventure).builder!.build(choices, id, packsOf(adventure));
 	if (!built.ok) {
 		return fail(
 			'invalid_message',
@@ -4618,6 +4624,8 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	const next = newState(A, room);
 	// Characters players built stay theirs.
 	if (adventure.built?.size) next.built = adventure.built;
+	// And the homebrew the story has stays with it (built characters may carry it).
+	if (adventure.packs?.length) next.packs = adventure.packs;
 	for (const { id, ownerId } of keep) {
 		const owner = ownerId && room.players.get(ownerId);
 		const token = placeCharacter(
@@ -4789,7 +4797,59 @@ export function searchMonsters(
 	if (actor.role !== 'gm') return GM_ONLY;
 	const bestiary = rulesOf(adventure).bestiary;
 	if (!bestiary) return fail('forbidden', 'These rules have no monsters to bring on.');
-	return { ok: true, monsters: bestiary.search(query, MONSTER_RESULTS) };
+	return { ok: true, monsters: bestiary.search(query, MONSTER_RESULTS, packsOf(adventure)) };
+}
+
+/** GM: brings a content pack (homebrew under the story's rules) to the story. */
+export function attachPack(room: Room, actor: Player, raw: unknown): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	const packs = rulesOf(adventure).packs;
+	if (!packs) return fail('forbidden', 'These rules take no homebrew.');
+	if (adventure.stage === 'complete' || adventure.stage === 'defeat')
+		return fail('forbidden', 'This story is over.');
+	if ((adventure.packs?.length ?? 0) >= PACKS_MAX)
+		return fail('limit_reached', `A story has at most ${PACKS_MAX} homebrew packs.`);
+	const held = packs.hold(raw);
+	if (!held.ok)
+		return fail(
+			'invalid_message',
+			`That homebrew can't be used: ${held.problems.slice(0, 4).join('; ')}${held.problems.length > 4 ? '; …' : ''}.`
+		);
+	if (packsOf(adventure).includes(held.id))
+		return fail('forbidden', 'The story already has that homebrew.');
+	const owner = room.gmOwner ? creatorIdOf(room.gmOwner) : null;
+	withPack(adventure, { id: held.id, owner });
+	const listing = packs.listing(held.id, { owner, visibility: 'table' })!;
+	const count = listing.records.length;
+	return {
+		ok: true,
+		log: [
+			postSystem(
+				room,
+				`The GM brings homebrew to the story: ${listing.name} ${listing.version} (${count} ${count === 1 ? 'thing' : 'things'}).`
+			)
+		]
+	};
+}
+
+/** GM: takes a content pack out of the story, when nothing in it uses the pack. */
+export function detachPack(room: Room, actor: Player, id: string): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	const pack = adventure.packs?.find((p) => p.id === id);
+	if (!pack) return fail('invalid_message', 'The story has no such homebrew.');
+	const used = packInUse(adventure, id);
+	if (used) return fail('forbidden', `That homebrew is in use: ${used}.`);
+	const listing = rulesOf(adventure).packs?.listing(id, { owner: pack.owner, visibility: 'table' });
+	adventure.packs = adventure.packs!.filter((p) => p.id !== id);
+	if (!adventure.packs.length) delete adventure.packs;
+	return {
+		ok: true,
+		log: [postSystem(room, `The GM puts away homebrew: ${listing?.name ?? 'a pack'}.`)]
+	};
 }
 
 /** The event a fight's phase raises when its foes are down, if it raises one. */
@@ -4982,8 +5042,13 @@ function spawn(
 	let A = content(adventure);
 	if (!inBounds(room.grid, pos)) return fail('invalid_position', 'That cell is off the map.');
 	if (!isFree(room, pos)) return fail('cell_occupied', 'Something is already there.');
-	// A monster from the rules' bestiary joins the story's enemies the first time it is brought on.
-	if (!Object.hasOwn(A.enemies, kind) && rulesOf(adventure).bestiary?.enemy(kind)) {
+	// A monster from the rules' bestiary (or the story's homebrew) joins the story's enemies the first time it is brought on.
+	const rules = rulesOf(adventure);
+	if (
+		!Object.hasOwn(A.enemies, kind) &&
+		!outsidePacks(adventure, rules, kind) &&
+		rules.bestiary?.enemy(kind)
+	) {
 		const kinds = adventure.bestiary ?? [];
 		if (kinds.length >= BESTIARY_MAX)
 			return fail('forbidden', `A story brings in at most ${BESTIARY_MAX} kinds of monster.`);

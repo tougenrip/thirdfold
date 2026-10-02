@@ -126,6 +126,33 @@ export interface DirectorView {
 }
 
 /**
+ * A content pack a story has (homebrew under its rules, milestone 52), as
+ * the table lists it: what it is, whose, and what it holds. What its records
+ * say reaches a viewer only where the rules offer them (a creation page, a
+ * sheet, the GM's bestiary).
+ */
+export interface ContentPackListing {
+	id: string;
+	name: string;
+	/** The creator's own version of it. */
+	version: string;
+	creator: string | null;
+	license: string | null;
+	about: string | null;
+	/** Its records by kind and name. */
+	records: { kind: string; id: string; name: string }[];
+	access: PackAccess;
+}
+
+/** Who a content pack belongs to and who may use it (prepared for milestones 53–55). */
+export interface PackAccess {
+	/** The public creator id of the GM key that brought it to the story (never the key), or null. */
+	owner: string | null;
+	/** `table`: shared with this story's table by its GM, and nobody else. */
+	visibility: 'table';
+}
+
+/**
  * A monster a GM may bring to the table under the story's rules, as its
  * source prints it: its kind (the id the table plays it by), name, challenge
  * and XP, and what of it the table doesn't play yet.
@@ -680,6 +707,8 @@ export interface AdventureView {
 	 * rules (the rules' id, for the creation page), else null.
 	 */
 	build: { rules: string } | null;
+	/** The content packs (homebrew) the story has; null under rules that take none. */
+	packs: ContentPackListing[] | null;
 	/** Where the adventure came from, when it is from the library; null otherwise. */
 	library: LibrarySourceView | null;
 	/** GM only: prepared text to read aloud. */

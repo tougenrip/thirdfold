@@ -25,6 +25,7 @@ import * as adventure from './adventure/engine';
 import { loadCustomAdventure } from './adventure/custom';
 import { readAdventure } from './adventure/persist';
 import { builtInAdventures, trackInUse } from './adventure/registry';
+import { trackPacksInUse } from './rules/ruleset';
 import { RateLimiter } from './rate-limit';
 import { createHash } from 'node:crypto';
 import { ADVENTURE_FILE_MAX_BYTES, loadAdventureFile } from '../src/lib/adventure/file';
@@ -179,6 +180,9 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const lookLimiter = new RateLimiter(10, 2);
 	// Creators' adventures a table is playing are kept while it plays them.
 	trackInUse(() => new Set([...rooms.all()].flatMap((r) => (r.adventure ? [r.adventure.id] : []))));
+	trackPacksInUse(
+		() => new Set([...rooms.all()].flatMap((r) => r.adventure?.packs?.map((p) => p.id) ?? []))
+	);
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
 	const libraryStore = options.libraryStore ?? new MemoryLibraryStore();
 	// Browsing the library and the open games: a few asks a second per connection.
@@ -698,6 +702,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				}
 				case 'adventure_claim':
 					return adventure.claimCharacter(room, player, msg.characterId);
+				case 'adventure_pack':
+					if (msg.op === 'detach') return adventure.detachPack(room, player, msg.id);
+					if (player.role === 'gm' && !sceneLimiter.take(player.id))
+						return fail('rate_limited', 'Give it a moment before trying again.');
+					return adventure.attachPack(room, player, msg.pack);
 				case 'adventure_build':
 					return adventure.buildCharacter(room, player, msg.choices);
 				case 'adventure_sheet':
@@ -1168,6 +1177,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_again':
 			case 'adventure_direct':
 			case 'adventure_rate':
+			case 'adventure_pack':
 				return handleAdventure(ws, room, player, msg);
 			case 'room_listing': {
 				if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');

@@ -527,7 +527,9 @@
 									<span class="meta"
 										>{sp.level ? `Level ${sp.level} ` : ''}{sp.school} · {sp.castingTime} · {sp.range}{sp.concentration
 											? ' · Concentration'
-											: ''}{sp.why ? ' · not at the table yet' : ''}</span
+											: ''}{sp.why ? ' · not at the table yet' : ''}{sp.homebrew
+											? ` · Homebrew: ${sp.homebrew}`
+											: ''}</span
 									>
 									<span class="rules">{sp.text}</span></label
 								>
@@ -553,7 +555,7 @@
 								<option value={a.id}
 									>{a.name} (AC {a.armorClass}{a.strength
 										? `, Strength ${a.strength}`
-										: ''})</option
+										: ''}){a.homebrew ? ` · Homebrew: ${a.homebrew}` : ''}</option
 								>
 							{/each}
 						</select>
@@ -575,7 +577,11 @@
 									onchange={() =>
 										(draft.weapons = toggle(draft.weapons, w.id, options!.weaponsMax))}
 								/>
-								{w.name} <span class="meta">{w.damage} {w.damageType.toLowerCase()}</span></label
+								{w.name}
+								<span class="meta"
+									>{w.damage}
+									{w.damageType.toLowerCase()}{w.homebrew ? ` · Homebrew: ${w.homebrew}` : ''}</span
+								></label
 							>
 						{/each}
 					</div>

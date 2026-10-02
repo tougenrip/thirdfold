@@ -15,8 +15,10 @@
 
 import type {
 	CharacterCard,
+	ContentPackListing,
 	EncounterSummary,
 	MonsterListing,
+	PackAccess,
 	RulesInfo
 } from '../../src/lib/adventure/adventure';
 import type { Action, CharacterDef } from '../../src/lib/adventure/characters';
@@ -149,11 +151,30 @@ export interface DownedTest {
  * it), and a fight's summary by the rules' own guidance (advisory).
  */
 export interface Bestiary {
-	search(query: string, limit: number): MonsterListing[];
+	/** Monsters by name, type or challenge: the story's own content packs' (`packs`, milestone 52) first. */
+	search(query: string, limit: number, packs?: readonly string[]): MonsterListing[];
 	listing(kind: string): MonsterListing | null;
 	/** The enemy the table plays for a kind, or null when the rules have no such playable monster. */
 	enemy(kind: string): EnemyDef | null;
 	summary(monsters: readonly string[], levels: readonly number[]): EncounterSummary;
+}
+
+/**
+ * Content packs (homebrew, milestone 52): a creator's own content for these
+ * rules, checked in full and held by an id its content gives, extending the
+ * rules' own content without changing it. A story keeps the ids of the packs
+ * it has; what the rules offer it (characters' options, the bestiary) is
+ * scoped to them.
+ */
+export interface ContentPacks {
+	/** Reads and holds a pack: its id, or everything wrong with it. */
+	hold(raw: unknown): { ok: true; id: string } | { ok: false; problems: string[] };
+	/** A held pack as the table lists it, or null. */
+	listing(id: string, access: PackAccess): ContentPackListing | null;
+	/** A held pack as written, to save with a story; null when not held. */
+	content(id: string): JsonData | null;
+	/** The pack an id comes from (a record's, or an enemy kind's), or null for the rules' own. */
+	packOf(id: string): string | null;
 }
 
 /** What harm a creature shrugs off, halves or takes double, by damage type (the rules' ids). */
@@ -271,6 +292,8 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	rollDamage?(dice: string, critical: boolean, roller: DieRoller): DiceRoll;
 	/** The monsters these rules can bring to a table, for rules with a bestiary. */
 	bestiary?: Bestiary;
+	/** Creators' own content for these rules (homebrew), for rules that take it. */
+	packs?: ContentPacks;
 	/** What every character may do on its turn beyond its own actions. */
 	maneuvers?: readonly Maneuver[];
 	/** A downed character is steadied: it stops dying (Stable), for rules where that is a state. */
@@ -509,21 +532,41 @@ export type JsonData = { [key: string]: JsonValue };
  * server: a creation page may guide a player, but only what `build` accepts
  * reaches the table, and every number comes from the rules.
  */
+/**
+ * Building characters. `packs` are the content packs the story has
+ * (homebrew, milestone 52): what may be chosen is the rules' own content
+ * and theirs, and nothing of a pack the story doesn't have.
+ */
 export interface CharacterBuilder {
 	/** What a player may choose from, as plain data for a creation page. */
-	options(): JsonData;
+	options(packs?: readonly string[]): JsonData;
 	/** What the choices come to (the numbers the rules give them), or what is wrong with them. */
-	preview(choices: unknown): { ok: true; summary: JsonData } | { ok: false; problems: string[] };
+	preview(
+		choices: unknown,
+		packs?: readonly string[]
+	): { ok: true; summary: JsonData } | { ok: false; problems: string[] };
 	/** A new character from a player's choices, with the id it will have at the table. */
-	build(choices: unknown, id: string): Built;
+	build(choices: unknown, id: string, packs?: readonly string[]): Built;
 	/**
 	 * A built character back from what `build` saved. With `base` (an
 	 * adventure's own character, whose inventory changed in play), it keeps
 	 * the adventure's presentation of it.
 	 */
-	restore(saved: unknown, id: string, base?: CharacterDef): Built;
+	restore(saved: unknown, id: string, base?: CharacterDef, packs?: readonly string[]): Built;
 	/** A built character under a new name, where the rules let a name change. */
-	rename?(saved: unknown, id: string, name: string): Built;
+	rename?(saved: unknown, id: string, name: string, packs?: readonly string[]): Built;
+}
+
+let packsUsed: () => ReadonlySet<string> = () => new Set();
+
+/** Tells rules that hold content packs which packs tables use now (the game server's rooms): those are never let go. */
+export function trackPacksInUse(used: () => ReadonlySet<string>): void {
+	packsUsed = used;
+}
+
+/** The content packs tables use now. */
+export function packsInUse(): ReadonlySet<string> {
+	return packsUsed();
 }
 
 const rulesets = new Map<string, Ruleset>();

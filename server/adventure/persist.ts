@@ -28,6 +28,9 @@ import { AMBUSH, type AdventureDef, type ObjectDef } from './define';
 import { CUSTOM_ID, fileOf, loadCustomAdventure } from './custom';
 import { BUILT_ID, BUILT_MAX, withBuilt, type BuiltCharacter } from './built';
 import { BESTIARY_MAX, withBestiary } from './bestiary';
+import { PACKS_MAX } from './packs';
+/** A creator's public id (library-store.ts `creatorIdOf`). */
+const CREATOR_ID = /^[0-9a-f]{16}$/;
 import { PILE_ID, PILE_ITEMS_MAX, PILES_MAX, withKept } from './gear';
 import { contentOf, findAdventure } from './registry';
 import type {
@@ -41,6 +44,7 @@ import type {
 	LastingEffect,
 	Pile,
 	Sentry,
+	StoryPack,
 	Statuses,
 	TurnEntry
 } from './state';
@@ -85,6 +89,15 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 					}
 				: {}),
 			...(adventure.bestiary?.length ? { bestiary: [...adventure.bestiary] } : {}),
+			// Homebrew travels as written, so the save brings it back wherever it is loaded.
+			...(adventure.packs?.length
+				? {
+						packs: adventure.packs.map((p) => ({
+							owner: p.owner,
+							pack: JSON.parse(JSON.stringify(findRuleset(adventure.rules)!.packs!.content(p.id)))
+						}))
+					}
+				: {}),
 			...(adventure.kept?.size
 				? {
 						kept: Object.fromEntries(
@@ -455,6 +468,27 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 	// Stories saved before rulesets played by the classic rules; a story keeps the rules it was pinned to.
 	const rules = data.rules === undefined ? { ...CLASSIC } : rulesRef(data.rules);
 	const ruleset = findRuleset(rules)!;
+	// Homebrew first, checked again in full: what follows may use it, and only it.
+	const packs: StoryPack[] = [];
+	if (data.packs !== undefined) {
+		const saved = list(data.packs, 'homebrew');
+		check(!!ruleset.packs && saved.length <= PACKS_MAX, 'homebrew');
+		for (const raw of saved) {
+			const entry = record(raw, 'homebrew');
+			check(
+				Object.keys(entry).every((k) => k === 'owner' || k === 'pack') &&
+					(entry.owner === null ||
+						(typeof entry.owner === 'string' && CREATOR_ID.test(entry.owner))),
+				'homebrew'
+			);
+			const held = ruleset.packs!.hold(entry.pack);
+			check(held.ok, 'homebrew');
+			const id = (held as { id: string }).id;
+			check(!packs.some((p) => p.id === id), 'homebrew');
+			packs.push({ id, owner: entry.owner as string | null });
+		}
+	}
+	const scope = packs.map((p) => p.id);
 	// Characters players built come back through their rules' builder, checked in full.
 	const built = new Map<string, BuiltCharacter>();
 	if (data.built !== undefined) {
@@ -462,7 +496,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		check(!!ruleset.builder && saved.length <= BUILT_MAX, 'built characters');
 		for (const [id, raw] of saved) {
 			check(BUILT_ID.test(id) && !Object.hasOwn(base.characters, id), 'built characters');
-			const restored = ruleset.builder!.restore(raw, id);
+			const restored = ruleset.builder!.restore(raw, id, undefined, scope);
 			check(restored.ok, `built character ${id}`);
 			built.set(id, { def: restored.def, saved: restored.saved });
 		}
@@ -474,7 +508,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		check(!!ruleset.builder && !!ruleset.equipment, 'kept characters');
 		for (const [id, raw] of saved) {
 			check(Object.hasOwn(base.characters, id), 'kept characters');
-			const restored = ruleset.builder!.restore(raw, id, base.characters[id]);
+			const restored = ruleset.builder!.restore(raw, id, base.characters[id], scope);
 			check(restored.ok, `kept character ${id}`);
 			kept.set(id, { def: restored.def, saved: restored.saved });
 		}
@@ -487,7 +521,8 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 					check(
 						typeof k === 'string' &&
 							!Object.hasOwn(base.enemies, k) &&
-							!!ruleset.bestiary?.enemy(k),
+							!!ruleset.bestiary?.enemy(k) &&
+							(!ruleset.packs?.packOf(k) || scope.includes(ruleset.packs.packOf(k)!)),
 						'monsters'
 					);
 					return k as string;
@@ -855,6 +890,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		rules,
 		...(built.size ? { built } : {}),
 		...(bestiary.length ? { bestiary } : {}),
+		...(packs.length ? { packs } : {}),
 		...(kept.size ? { kept } : {}),
 		...(piles.size ? { piles } : {}),
 		...(effects.length ? { effects } : {}),

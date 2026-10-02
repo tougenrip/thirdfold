@@ -9,7 +9,7 @@
 	import { STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
-	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/game/file-limits';
+	import { ADVENTURE_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '$lib/game/file-limits';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';
@@ -94,6 +94,35 @@
 			send({ type: 'adventure_start', file: data });
 		}
 	}
+
+	/** GM: brings a homebrew pack file to the story; the server checks every field of it. */
+	async function addPack(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (file.size > CONTENT_PACK_MAX_BYTES) return onError?.('That homebrew file is too large.');
+		let data: unknown;
+		try {
+			data = JSON.parse(await file.text());
+		} catch {
+			return onError?.('That file is not a homebrew pack (not JSON).');
+		}
+		send({ type: 'adventure_pack', op: 'attach', pack: data });
+	}
+
+	const KIND_LABEL: Record<string, string> = {
+		weapon: 'Weapons',
+		armor: 'Armor',
+		spell: 'Spells',
+		monster: 'Monsters'
+	};
+	const byKind = (records: { kind: string; name: string }[]) =>
+		[...new Set(records.map((r) => r.kind))].map((kind) => ({
+			kind,
+			label: KIND_LABEL[kind] ?? kind,
+			names: records.filter((r) => r.kind === kind).map((r) => r.name)
+		}));
 
 	function control(op: 'restart' | 'end') {
 		const warning =
@@ -258,6 +287,52 @@
 						<li><strong>{reward}</strong></li>
 					{/each}
 				</ul>
+			</details>
+		{/if}
+
+		{#if adventure.packs && (adventure.packs.length || isGm)}
+			<details class="clues" open={adventure.packs.length > 0 && isGm}>
+				<summary>Homebrew ({adventure.packs.length})</summary>
+				{#if adventure.packs.length}
+					<ul aria-label="Homebrew">
+						{#each adventure.packs as pack (pack.id)}
+							<li class="pack">
+								<strong>{pack.name}</strong>
+								<span class="evidence-kind">{pack.version}</span>
+								{#if pack.creator || pack.license}
+									<p class="credit">
+										{pack.creator ? `by ${pack.creator}` : ''}{pack.creator && pack.license
+											? ' · '
+											: ''}{pack.license ?? ''}
+									</p>
+								{/if}
+								{#if pack.about}<p>{pack.about}</p>{/if}
+								{#each byKind(pack.records) as group (group.kind)}
+									<p class="pack-records"><em>{group.label}:</em> {group.names.join(', ')}</p>
+								{/each}
+								{#if isGm}
+									<button
+										type="button"
+										onclick={() => send({ type: 'adventure_pack', op: 'detach', id: pack.id })}
+									>
+										Put away
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="note">
+						Homebrew adds your own weapons, armor, spells and monsters to the rules’ own, for this
+						story only.
+					</p>
+				{/if}
+				{#if isGm && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
+					<label class="file-offer">
+						Add homebrew from a file…
+						<input type="file" accept=".json,application/json" hidden onchange={addPack} />
+					</label>
+				{/if}
 			</details>
 		{/if}
 
@@ -502,6 +577,11 @@
 	header h2 {
 		font-size: var(--fs-md);
 		color: var(--accent);
+	}
+
+	.pack-records {
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-xs);
 	}
 
 	.credit {

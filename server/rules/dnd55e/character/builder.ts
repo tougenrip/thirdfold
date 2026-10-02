@@ -18,7 +18,9 @@ import type {
 	FeatOption
 } from '../../../../src/lib/rules/dnd55e/creator';
 import type { Built, CharacterBuilder, JsonData, RulesetRef } from '../../ruleset';
-import type { Catalog } from '../catalog';
+import { packOfId } from '../../../../src/lib/rules/dnd55e/homebrew';
+import { withHomebrew, type Catalog } from '../catalog';
+import { heldPack } from '../homebrew/registry';
 import { ABILITIES, abilityName, SKILLS, type Ability } from '../core';
 import type { ClassData, WeaponData } from '../srd/records';
 import { unsupported } from '../spells/mechanics';
@@ -107,6 +109,13 @@ const signed = (n: number) => (n < 0 ? `${n}` : `+${n}`);
 const article = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 const firstParagraph = (text: string) => text.split('\n\n')[0].slice(0, 600);
 
+/** Where a homebrew record comes from, for a creation page: its pack by name and version. */
+function homebrewOf(id: string): { homebrew?: string } {
+	const pack = packOfId(id);
+	const held = pack ? heldPack(pack) : undefined;
+	return held ? { homebrew: `${held.pack.name} ${held.pack.version}` } : {};
+}
+
 /** What a creation page may offer, from the catalog. */
 export function creatorOptions(catalog: Catalog, attribution: string): CreatorOptions {
 	/** A class's level 1 spell choices: how many, from its list up to its highest slot. */
@@ -133,7 +142,8 @@ export function creatorOptions(catalog: Catalog, attribution: string): CreatorOp
 				range: s.data.range,
 				concentration: s.data.concentration,
 				text: firstParagraph(s.text),
-				why: unsupported(s.id, s.data)
+				why: unsupported(s.id, s.data),
+				...homebrewOf(s.id)
 			}));
 		return { cantrips, prepared, list };
 	};
@@ -230,14 +240,16 @@ export function creatorOptions(catalog: Catalog, attribution: string): CreatorOp
 			damage: w.data.damage,
 			damageType: w.data.damageType,
 			properties: w.data.properties,
-			mastery: w.data.mastery
+			mastery: w.data.mastery,
+			...homebrewOf(w.id)
 		})),
 		armor: catalog.all('armor').map((a) => ({
 			id: a.id,
 			name: a.name,
 			category: a.data.category,
 			armorClass: a.data.armorClass,
-			strength: a.data.strength
+			strength: a.data.strength,
+			...homebrewOf(a.id)
 		})),
 		weaponsMax: WEAPONS_MAX,
 		colors: [...COLORS]
@@ -563,50 +575,55 @@ export function dndBuilder(
 	rules: RulesetRef,
 	attribution: string
 ): CharacterBuilder {
-	const make = (raw: unknown, id: string) => {
-		const read = choicesOf(raw, id, catalog());
+	/** The catalog as a story with these packs sees it; every pack's ids by id without. */
+	const seen = (packs?: readonly string[]) => (packs ? withHomebrew(catalog(), packs) : catalog());
+	const make = (raw: unknown, id: string, scope: Catalog) => {
+		const read = choicesOf(raw, id, scope);
 		if ('problems' in read) return { ok: false as const, problems: read.problems };
-		const made = createCharacter(read.choices, catalog(), rules);
+		const made = createCharacter(read.choices, scope, rules);
 		return made.ok ? { ok: true as const, character: made.character, color: read.color } : made;
 	};
-	const table = (character: DndCharacter, color: string, look?: Look): Built => ({
+	const table = (character: DndCharacter, color: string, scope: Catalog, look?: Look): Built => ({
 		ok: true,
-		def: tableCharacter(character, color, catalog(), look),
+		def: tableCharacter(character, color, scope, look),
 		saved: savedOf(character, color)
 	});
 	return {
-		options: () => creatorOptions(catalog(), attribution) as unknown as JsonData,
-		preview(raw) {
-			const made = make(raw, 'preview');
+		options: (packs) => creatorOptions(seen(packs), attribution) as unknown as JsonData,
+		preview(raw, packs) {
+			const scope = seen(packs);
+			const made = make(raw, 'preview', scope);
 			return made.ok
-				? { ok: true, summary: summaryOf(made.character, catalog()) as unknown as JsonData }
+				? { ok: true, summary: summaryOf(made.character, scope) as unknown as JsonData }
 				: made;
 		},
-		build(raw, id) {
-			const made = make(raw, id);
-			return made.ok ? table(made.character, made.color) : made;
+		build(raw, id, packs) {
+			const scope = seen(packs);
+			const made = make(raw, id, scope);
+			return made.ok ? table(made.character, made.color, scope) : made;
 		},
-		restore: (saved, id, base) => restore(saved, id, undefined, base && lookOf(base)),
-		rename(saved, id, name) {
+		restore: (saved, id, base, packs) =>
+			restore(saved, id, seen(packs), undefined, base && lookOf(base)),
+		rename(saved, id, name, packs) {
 			const trimmed = name.trim();
 			if (!trimmed || trimmed.length > NAME_MAX)
 				return { ok: false, problems: [`a name of 1 to ${NAME_MAX} characters`] };
-			return restore(saved, id, trimmed);
+			return restore(saved, id, seen(packs), trimmed);
 		}
 	};
 
 	/** A saved character back, checked in full; under a new name when one is given. */
-	function restore(saved: unknown, id: string, name?: string, look?: Look): Built {
+	function restore(saved: unknown, id: string, scope: Catalog, name?: string, look?: Look): Built {
 		if (!isObject(saved) || typeof saved.color !== 'string' || !COLOR.test(saved.color))
 			return { ok: false, problems: ['a built character must have its colour'] };
-		const migrated = migrateCharacter(saved.character, catalog());
+		const migrated = migrateCharacter(saved.character, scope);
 		if (!migrated.ok) return migrated;
 		const raw = name === undefined ? migrated.raw : { ...(migrated.raw as object), name };
-		const read = readCharacter(raw, catalog(), rules);
+		const read = readCharacter(raw, scope, rules);
 		if (!read.ok) return read;
 		if (read.character.id !== id)
 			return { ok: false, problems: ['a built character under another id'] };
-		return table(read.character, saved.color, look);
+		return table(read.character, saved.color, scope, look);
 	}
 }
 

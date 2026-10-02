@@ -20,6 +20,7 @@ import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventures/ho
 import { HOLLOW_BELL } from './adventures/hollow-bell/index';
 import { recordOrigins } from './adventure/world';
 import { RoomManager } from './rooms';
+import { examplePack } from './rules/dnd55e/homebrew/example';
 import { MemoryRoomStore } from './room-store';
 import { applyScene, exportScene } from './scene-io';
 
@@ -3364,6 +3365,91 @@ describe('fifth edition rules over the wire', () => {
 		});
 		expect(back.room.log.some((m) => m.kind === 'check' && m.stat === 'Death saving throw')).toBe(
 			true
+		);
+	});
+
+	it('lets the GM bring homebrew to the story: a player builds from it, and a save keeps it', async () => {
+		const srd = (kind: string, slug: string) => `srd-5.2.1:${kind}:${slug}`;
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId: pipId } = await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+
+		// Only the GM brings homebrew, and a broken pack is refused with what is wrong.
+		pip.send({ type: 'adventure_pack', op: 'attach', pack: examplePack() });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_pack', op: 'attach', pack: { ...examplePack(), formatVersion: 9 } });
+		expect((await gm.until('error')).message).toContain('only format version 1 is read');
+		gm.send({ type: 'adventure_pack', op: 'attach', pack: examplePack() });
+		const listed = await pip.until('adventure_update', (m) => !!m.adventure?.packs?.length);
+		const pack = listed.adventure!.packs![0];
+		expect(pack).toMatchObject({ name: 'The Cold Hill Armory', version: '1.0' });
+		expect(
+			(
+				await pip.until(
+					'chat',
+					(m) => m.message.kind === 'system' && m.message.text.includes('homebrew')
+				)
+			).message
+		).toMatchObject({
+			text: 'The GM brings homebrew to the story: The Cold Hill Armory 1.0 (5 things).'
+		});
+
+		// The creator offers it, labelled; a player builds with it.
+		pip.send({ type: 'character_options' });
+		const offered = (await pip.until('character_options')).options as {
+			weapons: { id: string; homebrew?: string }[];
+		};
+		const blade = `${pack.id}:weapon:barrow-blade`;
+		expect(offered.weapons.find((w) => w.id === blade)?.homebrew).toBe('The Cold Hill Armory 1.0');
+		pip.send({
+			type: 'adventure_build',
+			choices: {
+				name: 'Brann',
+				color: '#c0392b',
+				species: { id: srd('species', 'orc'), options: {}, feat: null },
+				background: { id: srd('background', 'soldier'), increases: { str: 2, con: 1 } },
+				class: {
+					id: srd('class', 'fighter'),
+					skills: ['perception', 'survival'],
+					expertise: [],
+					fightingStyle: srd('feat', 'defense'),
+					weaponMasteries: [blade, srd('weapon', 'longsword'), srd('weapon', 'javelin')]
+				},
+				abilities: {
+					method: 'standard-array',
+					base: { str: 15, dex: 14, con: 13, int: 8, wis: 12, cha: 10 }
+				},
+				armor: { worn: `${pack.id}:armor:ringed-hide`, shield: false },
+				weapons: [blade, srd('weapon', 'javelin')]
+			}
+		});
+		const token = await gm.until('token_upserted', (m) => m.token.name === 'Brann');
+		expect(token.token.ownerId).toBe(pipId);
+		const built = await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.some((c) => c.id === 'pc-1' && c.inPlay)
+		);
+		const brann = built.adventure!.characters.find((c) => c.id === 'pc-1')!;
+		expect(brann.card).toMatchObject({ defense: { name: 'Armor Class', value: 16 } });
+		expect(brann.def.actions[0].name).toBe('Barrow Blade');
+
+		// In use, it can't be put away; saved and loaded, it is all still there.
+		gm.send({ type: 'adventure_pack', op: 'detach', id: pack.id });
+		expect((await gm.until('error')).message).toBe(
+			'That homebrew is in use: Brann carries or knows something from it.'
+		);
+		gm.send({ type: 'scene_save', name: 'Cold Hill, homebrew' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = await pip.until('room_reset');
+		expect(back.room.adventure!.packs!.map((p) => p.id)).toEqual([pack.id]);
+		expect(back.room.adventure!.characters.find((c) => c.id === 'pc-1')!.def.actions[0].name).toBe(
+			'Barrow Blade'
 		);
 	});
 

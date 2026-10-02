@@ -76,6 +76,8 @@ export interface FeatOption extends Named {
 }
 
 export interface WeaponOption extends Named {
+	/** The homebrew pack it comes from, by name and version (milestone 52); absent for the SRD's. */
+	homebrew?: string;
 	category: 'simple' | 'martial';
 	type: 'melee' | 'ranged';
 	damage: string;
@@ -85,6 +87,8 @@ export interface WeaponOption extends Named {
 }
 
 export interface ArmorOption extends Named {
+	/** The homebrew pack it comes from, by name and version (milestone 52); absent for the SRD's. */
+	homebrew?: string;
 	category: ArmorKind;
 	armorClass: string;
 	strength: number | null;
@@ -119,6 +123,8 @@ export interface CreatorOptions {
 export interface SpellOption {
 	id: string;
 	name: string;
+	/** The homebrew pack it comes from, by name and version (milestone 52); absent for the SRD's. */
+	homebrew?: string;
 	/** 0 for a cantrip. */
 	level: number;
 	school: string;

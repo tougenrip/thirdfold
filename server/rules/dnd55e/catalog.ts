@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ContentSource } from '../../../src/lib/content/catalog';
+import { isHomebrewId, packOfId } from '../../../src/lib/rules/dnd55e/homebrew';
+import { heldPack, homebrewRecord } from './homebrew/registry';
 import type { SrdKind, SrdRecord } from './srd/records';
 
 /** Where the catalog is committed, relative to the repository (the server's working directory). */
@@ -80,10 +82,41 @@ export function openCatalog(dir = CATALOG_DIR): Catalog {
 	};
 }
 
+/**
+ * The catalog with homebrew (milestone 52) layered over it, never into it: a
+ * homebrew record is found by its id (which starts with its pack's, never
+ * with an SRD source's), and the SRD's records are the base's, untouched.
+ * Without `scope`, `all` and `named` are the base's alone and `get` finds a
+ * record of any held pack (a character already checked carries its ids);
+ * with `scope`, the packs a story has, `all` offers their records after the
+ * SRD's and `get` finds only theirs.
+ */
+export function withHomebrew(base: Catalog, scope?: readonly string[]): Catalog {
+	const inScope = (id: string) => !scope || scope.includes(packOfId(id)!);
+	return {
+		source: base.source,
+		pin: base.pin,
+		get<K extends SrdKind>(kind: K, id: string) {
+			if (!isHomebrewId(id)) return base.get(kind, id);
+			const record = inScope(id) ? homebrewRecord(id) : undefined;
+			return record?.kind === kind ? (record as RecordOf<K>) : undefined;
+		},
+		named: (kind, name) => base.named(kind, name),
+		all<K extends SrdKind>(kind: K) {
+			if (!scope?.length) return base.all(kind);
+			const extra = scope.flatMap(
+				(p) => heldPack(p)?.records.filter((r): r is RecordOf<K> => r.kind === kind) ?? []
+			);
+			return extra.length ? [...base.all(kind), ...extra] : base.all(kind);
+		}
+	};
+}
+
+let base: Catalog | undefined;
 let shared: Catalog | undefined;
 
-/** The server's catalog, opened once. */
+/** The server's catalog, opened once, with held homebrew found by id. */
 export function srdCatalog(): Catalog {
-	shared ??= openCatalog();
+	shared ??= withHomebrew((base ??= openCatalog()));
 	return shared;
 }

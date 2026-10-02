@@ -16,6 +16,7 @@
 import type { EffectMods } from '../../ruleset';
 import type { Ability } from '../core';
 import type { SpellData } from '../srd/records';
+import { homebrewMechanics } from '../homebrew/registry';
 
 /** A cone or cube from the caster (`feet` long), or a sphere around a point in range (`feet` of radius). */
 export type Area = { shape: 'cone' | 'cube' | 'sphere'; feet: number };
@@ -292,9 +293,15 @@ export const CASTING_TIMES: Readonly<Record<string, 'action' | 'bonus'>> = {
 	'Bonus Action': 'bonus'
 };
 
+/** How a spell is cast at the table: the SRD's table, or a held homebrew pack's (milestone 52). */
+export function mechanicsOf(id: string): SpellMechanics | undefined {
+	return SPELL_MECHANICS[id] ?? homebrewMechanics(id);
+}
+
 /** Why a spell isn't cast at the table, or null when it is. */
 export function unsupported(id: string, data: SpellData): string | null {
-	if (SPELL_MECHANICS[id]) return null;
+	if (mechanicsOf(id)) return null;
+	if (id.startsWith('hb-')) return 'Its homebrew pack gives it no mechanics: listed, not cast.';
 	const time = data.castingTime;
 	if (!CASTING_TIMES[time.replace(/ or Ritual$/, '')])
 		return time.startsWith('Reaction')

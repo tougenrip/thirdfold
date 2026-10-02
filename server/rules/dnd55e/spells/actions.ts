@@ -14,7 +14,7 @@ import {
 	cantripTier,
 	CASTING_TIMES,
 	rangeCells,
-	SPELL_MECHANICS,
+	mechanicsOf,
 	timesDice,
 	unsupported,
 	type SpellMechanics
@@ -110,7 +110,7 @@ export function casterActions(
 		if (!record) continue;
 		const data = record.data;
 		const why = unsupported(id, data);
-		const mech = SPELL_MECHANICS[id];
+		const mech = mechanicsOf(id);
 		let action: string | null = null;
 		if (!why && mech) {
 			action = slug(id);

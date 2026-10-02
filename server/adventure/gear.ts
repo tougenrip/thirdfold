@@ -12,6 +12,7 @@ import type { Prop } from '../../src/lib/game/props';
 import type { Room } from '../rooms';
 import type { JsonData, Ruleset } from '../rules/ruleset';
 import { withBuilt, type BuiltCharacter } from './built';
+import { packsOf } from './packs';
 import type { AdventureState, Pile } from './state';
 
 /** The asset that shows a pile. */
@@ -47,7 +48,7 @@ export function keepCharacter(
 	const built = adventure.built?.has(id);
 	const own = Object.hasOwn(base.characters, id) ? base.characters[id] : undefined;
 	if (!built && !own) return { ok: false, problems: ['no such character'] };
-	const restored = rules.builder.restore(saved, id, built ? undefined : own);
+	const restored = rules.builder.restore(saved, id, built ? undefined : own, packsOf(adventure));
 	if (!restored.ok) return restored;
 	const entry: BuiltCharacter = { def: restored.def, saved: restored.saved };
 	if (built) adventure.built = new Map([...adventure.built!, [id, entry]]);

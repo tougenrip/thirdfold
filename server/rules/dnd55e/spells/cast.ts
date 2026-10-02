@@ -22,7 +22,7 @@ import { sheetOf } from '../sheet';
 import {
 	cantripTier,
 	durationRounds,
-	SPELL_MECHANICS,
+	mechanicsOf,
 	timesDice,
 	upcast,
 	type OnFail,
@@ -68,7 +68,7 @@ export function dndSpells(catalog: () => Catalog, strike: () => Ruleset['strike'
 	const spellOf = (character: CharacterDef, action: Action) => {
 		const id = sheetOf(character).spells[action.id];
 		const record = id ? catalog().get('spell', id) : undefined;
-		const mech = id ? SPELL_MECHANICS[id] : undefined;
+		const mech = id ? mechanicsOf(id) : undefined;
 		return record && mech ? { id, record, mech } : null;
 	};
 
