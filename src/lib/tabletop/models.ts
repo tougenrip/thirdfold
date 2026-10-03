@@ -236,6 +236,8 @@ let settled = 0;
 
 /** The loads a table's first view waits for: [settled, started], since the models were freed. */
 export const loadProgress = (): [number, number] => [settled, planned.size];
+/** Every load started so far has settled. */
+export const loadsSettled = (): boolean => settled >= planned.size;
 
 /** Starts a load once per key, counted. */
 function track(key: string, start: () => Promise<unknown>): void {

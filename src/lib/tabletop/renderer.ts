@@ -37,7 +37,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
-import { initModels, loadProgress, prefetch, releaseModels } from './models';
+import { initModels, loadProgress, loadsSettled, prefetch, releaseModels } from './models';
 import { PropLayer } from './props';
 import { createScene, createSceneLights, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
@@ -58,10 +58,9 @@ export async function createTabletop(
 	if (options.warm) setUpRenderer(renderer, options);
 	initModels(renderer); // models upload to it; the last table's dispose frees them
 	let shadowsDirty = true;
-	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
-	let shadowMapDrawn = false;
-	/** Things moved in the last frame: their final step changes shadows too. */
-	let wasMoving = false;
+	let shadowMapDrawn = false; // a shadow map never drawn reads as garbage: the first frame draws it
+	/** Things moved last frame (shadows change); it was drawn at play (no gallery or loads). */
+	let [wasMoving, steady] = [false, false];
 	const perf = new PerfRecorder();
 	if (options.warm) perf.add('lobby', options.warm.warmupMs);
 	const loop = new RenderScheduler(render, canvas);
@@ -240,14 +239,13 @@ export async function createTabletop(
 		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
 		rig.keepAbove(grid, ground); // tilted to the horizon, never under the ground (#220)
-		// A shudder from a cue: offset the camera for this frame only.
-		shakeOffset.copy(fx.shake);
+		shakeOffset.copy(fx.shake); // a shudder from a cue: the camera's offset, this frame only
 		camera.position.add(shakeOffset);
 		const hideGallery = gallery.show(); // drawn once after a warm-up, out of sight (warmup.ts)
+		steady = !hideGallery && loadsSettled();
 		if (atmosphere.shadowFrame(shadowsDirty, !shadowMapDrawn || !!hideGallery))
 			perf.add('shadows', 0);
-		// With the key light out its shadows show nowhere: leave them until it is back.
-		if (sun.intensity > 0) shadowsDirty = false;
+		if (sun.intensity > 0) shadowsDirty = false; // with the key light out, until it is back
 		shadowMapDrawn = true;
 		const draw = performance.now();
 		drawScene();
@@ -290,7 +288,10 @@ export async function createTabletop(
 		effects.setBounds(extents.play.width, extents.play.depth, Math.max(4, frame * 0.2));
 	}
 
-	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
+	const quality = new QualityControl(
+		{ renderer, canvas, camera, sun, perf, loop, steady: () => steady },
+		options
+	);
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	atmosphere.setTier(quality.current.tier, quality.current.layers.sky);
 	land.setTier(quality.current.tier);
