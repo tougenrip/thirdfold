@@ -65,10 +65,10 @@ async function table(): Promise<FixtureView> {
 }
 
 /** Mounts a view at `pose` on medium with `slots` hero slots, nothing spreading light. */
-async function mount(view: FixtureView, pose: GridPose, slots: 0 | 2 = 2) {
+async function mount(view: FixtureView, pose: GridPose, slots: 0 | 2 = 2, reducedMotion = true) {
 	let scene: THREE.Scene | null = null;
 	const devScene = (s: THREE.Scene) => (scene = s);
-	const m = await mountFixture(view, pose, { clock: manualClock(), devScene });
+	const m = await mountFixture(view, pose, { clock: manualClock(), devScene, reducedMotion });
 	mounted = m;
 	const settings = settingsFor('medium', m.tabletop.capabilities().backend);
 	const quiet = { bloom: false, aberration: false, grain: false, vignette: false };
@@ -167,6 +167,22 @@ describe('hero shadows', () => {
 		expect(after[a], "the brazier's cube").toBeGreaterThan(before[a]);
 		expect(after[b], "the lamp's cube").toBe(before[b]);
 		expect(stats().lastRedraws).toBeLessThanOrEqual(1); // medium's budget a frame
+	});
+
+	it('hand a slot over with motion: the holder fades out and the new light takes it', async () => {
+		const lamp: Light = { id: 'lamp', pos: { x: 11, y: 2 }, radius: 2, color: '#ffd090', on: true };
+		const far: Light = { id: 'far', pos: { x: 1, y: 8 }, radius: 3, color: '#ffd090', on: true };
+		const view = { ...(await table()), lights: [torch, lamp, far] };
+		const focus: GridPose = { target: { x: 8, y: 4 }, distance: 14, azimuth: 0, elevation: 70 };
+		const { m, frame } = await mount(view, focus, 2, false);
+		await frame();
+		const owners = () => [...m.tabletop.stats().heroes!.owners].sort();
+		expect(owners()).toEqual(['brazier', 'lamp']);
+		// The focus moves to the far corner: the lamp's slot goes to the light there, after the
+		// lamp's fade (a step down and none back up, which once held it at full forever).
+		m.tabletop.setGridPose({ ...focus, target: { x: 1, y: 8 } });
+		await frame();
+		expect(owners()).toEqual(['brazier', 'far']);
 	});
 
 	it('make no slot on the low tier', async () => {

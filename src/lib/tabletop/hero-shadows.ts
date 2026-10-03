@@ -225,8 +225,8 @@ export class HeroShadows {
 		let busy = false;
 		const due: number[] = [];
 		this.slots.forEach((slot, i) => {
+			// A handover: the holder fades out (below), then the new one takes the slot.
 			if (slot.want !== slot.id) {
-				if (slot.id && slot.fade > 0 && !reduced) slot.fade = Math.max(0, slot.fade - step);
 				if (!slot.id || slot.fade === 0 || reduced) {
 					Object.assign(slot, { id: slot.want, fade: 0, drawn: false, drawnKey: '' });
 					slot.tokens = [];
@@ -237,7 +237,7 @@ export class HeroShadows {
 			const key = slot.id ? this.frameKey(slot, tokens) : '';
 			const settling = now < slot.settleUntil && now !== slot.drawnNow;
 			if (slot.id && (key !== slot.drawnKey || settling)) due.push(i);
-			const want = slot.id && slot.drawn ? 1 : 0;
+			const want = slot.id && slot.drawn && slot.want === slot.id ? 1 : 0;
 			slot.fade =
 				slot.fade < want ? Math.min(want, slot.fade + step) : Math.max(want, slot.fade - step);
 			busy ||= slot.fade !== want || slot.want !== slot.id;
