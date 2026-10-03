@@ -2,7 +2,7 @@
 // every table the sweep travels to visited once), its shader counts taken (shaderCounts in perf.ts:
 // programs, pipelines, node states), and then everything that changes at runtime is done one named
 // step at a time, a frame drawn after each: environments, times of day, floors, fog and its modes
-// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past the pool, tokens
+// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past a cell's K, tokens
 // and props in every state, both cues and table travel. No step may change the programs or
 // pipelines; a change names the step and the stages it made or dropped (a stage is named after its
 // material, and the material module names its materials by kind: the layers #172 ported show as
@@ -71,7 +71,7 @@ const ENVIRONMENTS = [
 /** The tables the sweep travels between: other sizes and environments than the test world's. */
 const TRAVEL = ['village', 'hollow', 'heart'] as const;
 const HOME = 'test-world';
-/** More lights than a cell lists (K, 4 to 16 by tier) and the pool under `?off=manylights` (8). */
+/** More lights than a cell lists (K, 4 to 16 by tier). */
 const MANY_LIGHTS = 12;
 const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
 /** The sky swept every hour; the others at the hours standing for each band, dawn and dusk apart. */

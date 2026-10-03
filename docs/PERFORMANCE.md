@@ -349,7 +349,7 @@ project, the RTX 4060 Laptop's WebGPU in `client-webgpu`):
 | high   | 211             | 173              | 212             | 178              |
 
 Environments, the times of day, every floor, fog off and on in both modes, fully visible,
-explored and unseen fog, dark areas, 0, 1 and 12 lights (past the pool of 8), recolouring and
+explored and unseen fog, dark areas, 0, 1 and 12 lights (past a cell's K on low, medium and high), recolouring and
 switching them, a token carrying light, a token without a model, fallen and enemy turns, props
 selected, hovered, hidden and moved, both cues and travel between four tables of three sizes change
 none. Of `KNOWN` in the spec (each compile still left, with the issue that ends it) #180 ended both
@@ -822,7 +822,8 @@ per frame (timestamp queries), overview and close, GM and player:
 
 ## The M68 many lights (#228)
 
-GridLights replace the pool of 8 point lights (docs/RENDERING.md, "Many lights"). Measured with
+GridLights replace the pool of 8 point lights (docs/RENDERING.md, "Many lights"; the pool, kept
+behind `?off=manylights` until then, was removed at M68's close). Measured with
 `scripts/perf-gpu.mjs` (`SCENES=dungeon-40,village,hollow TIER=medium FRAMES=32`, 1920×1080,
 reduced motion) against the M67 build (`tougenrip/m68-lighting` before #228, its pool) served
 beside it, the two alternating twice; each cell is the lower of the two rounds' GPU ms per frame

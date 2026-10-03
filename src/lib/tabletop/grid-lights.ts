@@ -37,7 +37,7 @@ export const DATA_TEXELS = 3;
 /** Texels per light in the data texture: its data, then its row four distances to a texel. */
 export const LIGHT_TEXELS = DATA_TEXELS + ROW_ANGLES / 4;
 
-/** A light's strength for its radius, over its look's intensity: about the pool's at two cells. */
+/** A light's strength for its radius, over its look's intensity: about M67's point-light pool's at two cells. */
 export const strength = (radius: number): number => 2 + radius;
 
 /** How a light ranks on a cell `d` cells from it: its look's intensity times `lightFalloff`. */

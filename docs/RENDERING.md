@@ -408,9 +408,9 @@ and strength (0 under an enclosed sky); its shadow box is fitted to the grid eac
 drawn (#229, "The key light's shadow" below).
 The hemisphere takes `hemi` (an enclosed sky's `fill` blended in as light from nowhere), the fog its
 colour, density and height (the world's haze thickens it, `HAZE_DENSITY` per unit, and tints it to its
-colour), post's exposure `2^(state.exposure + grade.exposure)` in EV, and the point-light pool its
-strength from `nightGlow` (0.5 by day, 1 at night: `LightingLayer.setGlow`; flames ask for frames
-to flicker past 0.5 or in a dark area, "Flicker (#231)" below). Every write is into existing objects. A new hour tweens the short way round the clock
+colour), post's exposure `2^(state.exposure + grade.exposure)` in EV, and the point lights the sky's
+`nightGlow` (0.5 by day, 1 at night: `LightingLayer.setGlow`; flames ask for frames to flicker past
+0.5 or in a dark area, "Flicker (#231)" below). Every write is into existing objects. A new hour tweens the short way round the clock
 over `TWEEN_MS` (3 s, ease-out), re-evaluating the curve each frame (`tick`, part of `drawFrame`'s
 moving flag); it snaps under reduced motion and on a new table (`fit`). The sky, weather and haze snap.
 
@@ -671,9 +671,9 @@ CORE_RADIUS)^LIGHT_DECAY` on the 3D distance from the visual position, times a h
 (decay 0.5-2, core radius 1-2 cells so the body never passes 1, core cap 1-8, readable edge
 0.02-0.2); `lights.spec.ts` proves the contract on a 24×24 grid for radii 1-20, flat, behind a wall,
 over raised ground, from a balcony behind its railing and through a window, at every corner of those
-ranges. GridLights (#228, "Many lights" below) compute exactly this in the shader (`falloffNode`);
-the pool kept behind `?off=manylights` until the milestone closes cuts off at `hypot(renderedReach,
-the light's height above its floor)`, so it ends where the floor meets the rules' rim.
+ranges. GridLights (#228, "Many lights" below) compute exactly this in the shader (`falloffNode`).
+M67's fixed pool of 8 point lights, kept behind `?off=manylights` until M68 closed, was removed at
+the close: GridLights are the only point lights on every tier.
 
 ### Exposure from the focus cell (#233)
 
@@ -824,8 +824,8 @@ should be the first thing an upgrade fails.
 - **The node.** One `GridLight` per scene, made by `createSceneLights` so the lobby's warm-up and the
   table compile the same, registered by `registerGridLights` beside the sky's lights (`loop.ts`). Its
   K is the tier's `lights` (4 low, 8 medium and high, 16 ultra); another K is another `GridLight`,
-  swapped by `LightingLayer.setTier` (a new program, as any tier switch makes), and `?off=manylights`
-  swaps the pool of 8 back in. Per entry: the rules window, body and core (`falloffNode`, the mirror
+  swapped by `LightingLayer.setTier` (a new program, as any tier switch makes). M67's pool of 8 (`?off=manylights`) was
+  removed at M68's close. Per entry: the rules window, body and core (`falloffNode`, the mirror
   of `lightFalloff`) times three occlusion taps, never below `READABLE_EDGE` on a listed cell, into
   the lighting model as a direct light (`lightDirection` toward the visual position).
 - **One dimming.** The lit kinds light with `KindLightingModel` (`materials/lighting-model.ts`,
@@ -882,8 +882,7 @@ follows frame time and would break held-clock goldens) and `flickerAmp`, 0 under
 `LightingLayer.animating(camera, now)`, called from `drawFrame`, sets both and reports `ambient` to
 the scheduler only while a GridLight that flickers reads (the night glow past day's, or its cell in
 a dark area; roofed rooms are not counted yet) and its reach sphere meets the camera's frustum: no
-AMBIENT frames by day, with nothing flickering in view, or under reduced motion. The pool behind
-`?off=manylights` holds still. The fixtures' flames (#232) read the same `flickerNode` and uniforms in
+AMBIENT frames by day, with nothing flickering in view, or under reduced motion. The fixtures' flames (#232) read the same `flickerNode` and uniforms in
 their vertex stage, so flame and light breathe together. Changes are numbers only: the program-count
 sweep's `lightSteps` turns the 40 torches through every profile on every tier.
 

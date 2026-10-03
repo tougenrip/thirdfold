@@ -39,8 +39,7 @@ const NORMAL_BIAS = 0.03;
 
 /** A tier's slots and cube size: none on low, 2 at 256 px on medium, 4 at 512 on high and up. */
 export function heroTier(settings: QualitySettings): { slots: number; size: number } {
-	const slots = settings.layers.manylights ? settings.shadowedTorches : 0;
-	return { slots, size: settings.tier === 'medium' ? 256 : 512 };
+	return { slots: settings.shadowedTorches, size: settings.tier === 'medium' ? 256 : 512 };
 }
 
 /** What `?perf` shows of the pool. */

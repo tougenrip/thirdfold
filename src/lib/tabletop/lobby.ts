@@ -68,7 +68,7 @@ export async function warmLobby(
 	const scene = createScene();
 	const lights = createSceneLights(scene);
 	const lighting = new LightingLayer(lights.grid, undefined, lights.heroes);
-	lighting.setTier(settings); // the tier's K, or the pool (`?off=manylights`)
+	lighting.setTier(settings); // the tier's K
 	scene.add(lighting.group);
 	const camera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	frameOverview(camera, 20, 1);

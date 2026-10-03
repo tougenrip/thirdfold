@@ -56,7 +56,6 @@ export const LAYERS = [
 	'xray',
 	'dof',
 	'fogcloud',
-	'manylights',
 	'bounce',
 	'probes'
 ] as const;
@@ -91,7 +90,7 @@ export interface QualitySettings {
 	grade: boolean;
 	/** Depth of field in play, or tilt-shift in the tactical view (#165); off in every preset. */
 	miniature: boolean;
-	/** Point lights per cell, GridLights' K (#228; the pool of 8 under `?off=manylights`). */
+	/** Point lights per cell, GridLights' K (#228). */
 	lights: 4 | 8 | 16;
 	/** Torches near the camera that cast shadows (#230). */
 	shadowedTorches: 0 | 2 | 4;
@@ -215,7 +214,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'manylights', 'bounce']);
+const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'bounce']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */

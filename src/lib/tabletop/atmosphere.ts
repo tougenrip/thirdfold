@@ -172,7 +172,7 @@ export interface AtmosphereLights {
 		uniforms: { exposure: { value: number }; bloomStrength: { value: number } };
 		bloomBase: number;
 	};
-	/** The point lights and flames, which shine and flicker by the night glow. */
+	/** The point lights and flames, which flicker by the night glow. */
 	lighting: { setGlow(glow: number): void };
 	/** What draws the sky's captures (#216), where they are timed, and a frame for a late one. */
 	renderer: THREE.WebGPURenderer;

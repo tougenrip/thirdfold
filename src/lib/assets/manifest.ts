@@ -349,7 +349,7 @@ export interface SkyKey {
 	fog: { color: string; density: number; height: number };
 	/** Exposure in EV, -4 to 4, added to the look's. */
 	exposure: number;
-	/** How much shows, 0-1; `nightGlow` is how strongly flames light the table (the light pool). */
+	/** How much shows, 0-1; `nightGlow` is whether flames read, so flicker (lighting.ts). */
 	stars: number;
 	clouds: number;
 	nightGlow: number;
