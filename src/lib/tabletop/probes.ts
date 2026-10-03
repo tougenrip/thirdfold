@@ -52,6 +52,8 @@ export interface ProbeHooks {
 	perf: PerfRecorder;
 	/** Warm the table up again (the grid came or went). */
 	warm: () => void;
+	/** Cells between probes (tests only, `TabletopOptions.probeSpacing`). */
+	spacing?: number;
 }
 
 export class ProbeLayer implements Work {
@@ -173,7 +175,8 @@ export class ProbeLayer implements Work {
 		const grid = this.grid;
 		if (!grid?.light.parent || !this.table) return;
 		if (!this.total) {
-			this.total = grid.layout(this.table, probeLayout(this.table, this.levels));
+			const layout = probeLayout(this.table, this.levels, this.hooks.spacing);
+			this.total = grid.layout(this.table, layout);
 			grid.light.intensity = 0;
 			this.fadeFrom = -1;
 			this.version++;

@@ -42,7 +42,11 @@ afterEach(async () => {
 	errors.mockRestore();
 });
 
-async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?: boolean } = {}) {
+async function mount(
+	fixture: string,
+	viewer: Viewer,
+	options: { reducedMotion?: boolean; clock?: { now: () => number } } = {}
+) {
 	const sidecar = await loadSidecar(fixture);
 	const view = await loadView(fixture, sidecar.ambient, viewer);
 	const m = await mountFixture(view, sidecar.poses.overview, options);
@@ -83,7 +87,8 @@ describe('the renderer, over time', () => {
 		const village = await load('village');
 		const hollow = await load('hollow');
 		const sidecar = await loadSidecar('village');
-		const m = await mountFixture(village, sidecar.poses.overview);
+		const clock = manualClock();
+		const m = await mountFixture(village, sidecar.poses.overview, { clock });
 		mounted.push(m);
 		const t = m.tabletop;
 		// Environments' textures are kept once drawn, like models (#172): loaded once the table is
@@ -110,7 +115,7 @@ describe('the renderer, over time', () => {
 			t.setLighting(view.ambient, view.lights);
 			t.setProps(view.props);
 			t.setEnvironment(view.environment);
-			await settle(t);
+			await settle(t, 1000, 20_000, clock); // the new look's grade blended in
 			return t.stats();
 		};
 		// The first round trip fills the caches (the Hollow's models and shaders stay loaded,
@@ -167,12 +172,15 @@ describe('the renderer, over time', () => {
 
 	// #167: the tiles' seams are the grid; lines show only while building, placing or aiming.
 	test('compiles nothing new the second time round the times of day', async () => {
-		const { tabletop } = await mount('village', 'gm');
+		const clock = manualClock();
+		const { tabletop } = await mount('village', 'gm', { clock });
 		const view = await loadView('village', 'day', 'gm');
 		const cycle = async () => {
 			for (const band of ['day', 'dusk', 'dark'] as const) {
 				tabletop.setLighting(band, view.lights);
-				await settle(tabletop);
+				// The band's grade blends in on the held clock: moved on to its end, or the table draws
+				// on until settle gives up (20 s a band).
+				await settle(tabletop, 1000, 20_000, clock);
 			}
 		};
 		await cycle();
@@ -257,14 +265,15 @@ describe('quality tiers', () => {
 
 	// Tiers with other antialiasing or no prepass get a new renderer (Tabletop.svelte).
 	test('change no program between tiers with the same post-processing stages', async () => {
-		const { tabletop } = await mount('ref-7', 'gm');
+		const clock = manualClock();
+		const { tabletop } = await mount('ref-7', 'gm', { clock });
 		const backend = tabletop.capabilities().backend;
 		tabletop.setQuality(settingsFor('high', backend));
-		await settle(tabletop);
+		await settle(tabletop, 1000, 20_000, clock);
 		const programs = tabletop.stats().programs;
 		for (const tier of ['ultra', 'high', 'ultra'] as const) {
 			tabletop.setQuality(settingsFor(tier, backend));
-			await settle(tabletop);
+			await settle(tabletop, 1000, 20_000, clock);
 		}
 		expect(tabletop.stats().programs).toBe(programs);
 	});

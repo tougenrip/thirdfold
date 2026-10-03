@@ -18,7 +18,8 @@
 // hourly steps under the default open sky, every other sky in the manifest at the band hours (an
 // enclosed sky takes its band's key whole, and each hour is a capture: every sky every hour took
 // ten minutes a tier), haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off.
-// Each tier's runtime state (in two halves), its table travel and its sky are tests of their own, one CI shard each (shardedIt).
+// Each tier's runtime state (in two halves), its table travel and its sky (in two halves) are tests
+// of their own, one CI shard each (shardedIt).
 // Many lights (#228, `lightSteps`): 40 torches coming and going, carried light on, coloured, moved
 // and off, kinds and colours changing, on every tier, a shard per tier; later lighting tasks
 // (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
@@ -556,9 +557,9 @@ async function warmHome(tier: Tier) {
 	return { ...home, sweep: sweeper(m, home.renderer, clock) };
 }
 
-// One test per tier for the runtime state and one for the sky, so CI runs each in a job of its own
-// (`THIRDFOLD_SHARD=k/15`, .github/workflows/rendering.yml): the tiers' 12, then many lights per tier
-// (13 to 15), and the last two, which join the first shards.
+// Tests per tier for the runtime state and the sky, so CI runs each in a job of its own
+// (`THIRDFOLD_SHARD=k/18`, .github/workflows/rendering.yml): the tiers' 15, then many lights per tier
+// (16 to 18), and the last two, which join the first shards.
 describe('the shader program count', () => {
 	const test = shardedIt();
 	for (const tier of TIERS) {
@@ -571,19 +572,27 @@ describe('the shader program count', () => {
 		test(`stays put through table travel on ${tier}`, async () => {
 			await runtimeState(tier, 'travel');
 		});
-		test(`stays put through the sky on ${tier}`, async () => {
-			const { m, home, sweep } = await warmHome(tier);
-			const skies = Object.keys((await loadManifest()).skies ?? {});
-			expect(skies).toContain(HOURLY_SKY);
-			const changes = await sweep.run(skySteps(m, home, skies));
-			if (sweep.codegen.length)
-				console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
-			expect(changes).toEqual([]);
-		});
+		// The sky in two halves, each a test (and a CI job) of its own: the hourly day, then the
+		// other skies and the rest of the look.
+		for (const part of ['day', 'skies'] as const)
+			test(`stays put through the sky on ${tier}${part === 'day' ? '' : ', every sky'}`, async () => {
+				const { m, home, sweep } = await warmHome(tier);
+				const skies = Object.keys((await loadManifest()).skies ?? {});
+				expect(skies).toContain(HOURLY_SKY);
+				const steps = skySteps(m, home, skies);
+				const hourly = steps.filter(([name]) => name.startsWith(`sky ${HOURLY_SKY} `));
+				expect(hourly).toHaveLength(24);
+				const changes = await sweep.run(
+					part === 'day' ? hourly : steps.filter((step) => !hourly.includes(step))
+				);
+				if (sweep.codegen.length)
+					console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
+				expect(changes).toEqual([]);
+			});
 	}
 
 	// Many lights (#228) and hero shadow slots (#230): a test per tier, each its own shard (programs
-	// 13 to 15). With the table's warm-up done (every kind's gallery compiled, warmup.ts), no fragment
+	// 16 to 18). With the table's warm-up done (every kind's gallery compiled, warmup.ts), no fragment
 	// stage samples more than STAGE_TEXTURES textures.
 	for (const tier of TIERS)
 		test(`stays put through many lights on ${tier}`, async () => {

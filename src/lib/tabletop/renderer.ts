@@ -489,11 +489,11 @@ export async function createTabletop(
 		setReduceFlashing: (on) => effects.setReduceFlashing(on),
 		...perfMethods(renderer, perf, drawScene, { loop, quality, lighting, warming: () => warming })
 	};
-	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key
-	// light, which redraws them by its own rule (AtmosphereLayer.shadowFrame), and lights only
-	// when they change (their fixtures cast shadows).
+	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key light,
+	// redrawn by its own rule (AtmosphereLayer.shadowFrame), and lights only when they change.
 	instrument(tabletop, perf, (key) => key === 'setLighting' || (shadowsDirty = true));
 	const unbaked = [tokenLayer, diceLayer, effects, cloud].map((l) => l.group); // probes (#235)
-	new ProbeLayer({ renderer, scene, loop, clock, perf, warm: onModel }, unbaked).watch(tabletop);
+	const probeHooks = { renderer, scene, loop, clock, perf, warm: onModel };
+	new ProbeLayer({ ...probeHooks, spacing: options.probeSpacing }, unbaked).watch(tabletop);
 	return tabletop;
 }

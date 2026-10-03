@@ -5,10 +5,13 @@
 
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import type { Ambient } from '$lib/game/lights';
+import type { Tabletop } from './types';
 import { settingsFor, withOverrides } from './quality';
 import {
 	loadSidecar,
 	loadView,
+	finishGpu,
+	manualClock,
 	mountFixture,
 	settle,
 	wait,
@@ -41,12 +44,35 @@ async function mount(
 ) {
 	const sidecar = await loadSidecar(fixture);
 	const view = await loadView(fixture, options.band ?? sidecar.ambient, viewer);
-	const m = await mountFixture(view, sidecar.poses.overview, options);
+	const clock = manualClock();
+	const m = await mountFixture(view, sidecar.poses.overview, { ...options, clock });
 	mounted.push(m);
 	// At rest for a while: on a loaded machine something loading can land after a short quiet
-	// spell and draw once, which is the table arriving, not what these tests count.
-	await settle(m.tabletop, 2000, 30_000);
+	// spell and draw once, which is the table arriving, not what these tests count. The held clock
+	// moves on meanwhile, so what eases in on it with motion on (the exposure's lift in the dark)
+	// ends, as it does in play, instead of keeping the table busy until the limit.
+	await rest(m.tabletop, clock);
 	return m;
+}
+
+/**
+ * Waits for 2 s with nothing loading and the scheduler only ambient or idle (at most 30 s): settle,
+ * except that ambient frames (flicker) count as rest, where a settle waited out its whole limit.
+ */
+async function rest(t: Tabletop, clock: ReturnType<typeof manualClock>): Promise<void> {
+	const until = performance.now() + 30_000;
+	let since = performance.now();
+	while (performance.now() < until) {
+		await new Promise(requestAnimationFrame);
+		const { mode, holding, frames } = t.stats();
+		const [loaded, loading] = t.loads();
+		const busy =
+			holding || frames === 0 || loaded < loading || (mode !== 'ambient' && mode !== 'idle');
+		if (mode === 'active' && !holding) clock.set(clock.now() + 500);
+		if (busy) since = performance.now();
+		else if (performance.now() - since >= 2000) break;
+	}
+	finishGpu(t);
 }
 
 describe('the render scheduler', () => {

@@ -21,6 +21,7 @@ import type { FogMode } from './fog';
 import { groundFor } from './ground';
 import { labelFontReady } from './label-font';
 import { loadPaint } from './materials';
+import { fixtureFor } from './light-model';
 import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
 import { settingsFor, toneMapperFrom, type Tier } from './quality';
@@ -110,7 +111,7 @@ declare module 'vitest' {
 		backend: 'webgl' | 'webgpu';
 		/** Which golden images to take: the slim set CI takes, or every one (by hand). */
 		goldens: 'slim' | 'full';
-		/** `k/n`: take every nth fixture from the kth in fixtures.svelte.spec.ts (CI's parallel jobs). */
+		/** `k/n`: this CI job's share of a sharded spec (`shardedIt`, and the goldens' and cases' own). */
 		shard: string;
 		/** Which unexplored-black cases to run: the slim set CI takes, or every one (by hand). */
 		unexplored: 'slim' | 'full';
@@ -145,6 +146,15 @@ export async function mountFixture(
 		devScene?: (scene: THREE.Scene, redraw: () => void) => void;
 		/** WebGL2 in the WebGPU project too: on the real GPU (the probe bake's times, #235). */
 		webgl?: boolean;
+		/**
+		 * The tier's hero shadow slots (#230), on unless a test of something else turns them off: they
+		 * add a third to every lit shader, so to a table's compile under SwiftShader (tens of seconds
+		 * on CI). Tests of the slots, their pixels and their programs keep them (hero-shadows,
+		 * program-count, the goldens, ...).
+		 */
+		heroes?: boolean;
+		/** Cells between baked probes (#235; `TabletopOptions.probeSpacing`). */
+		probeSpacing?: number;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
@@ -164,6 +174,7 @@ export async function mountFixture(
 			perf: options.perf,
 			warm: options.warm,
 			devScene: options.devScene,
+			probeSpacing: options.probeSpacing,
 			// Reduced motion unless the test says otherwise; `undefined` leaves it to the media query.
 			reducedMotion: 'reducedMotion' in options ? options.reducedMotion : !options.miniature
 		}
@@ -172,7 +183,12 @@ export async function mountFixture(
 	// before it is set up, so no fixture's first frame races them. The paint maps too (#178).
 	const models = new Set<string>([
 		...view.tokens.flatMap((t) => (t.model ? [t.model] : [])),
-		...view.props.map((p) => p.assetId)
+		...view.props.map((p) => p.assetId),
+		// The lights' fixtures (#232), which would otherwise arrive after the first warm-up and
+		// hold another: the same table, one warm-up fewer.
+		...view.lights.flatMap((l) =>
+			(['wall', 'floor'] as const).flatMap((m) => fixtureFor(l, m) ?? [])
+		)
 	]);
 	await Promise.all([...[...models].map((id) => loadModel(id)), loadPaint()]);
 	// The page's `?tonemap=` (the look-metrics A/B runs), as the room page would.
@@ -187,7 +203,9 @@ export async function mountFixture(
 	// Depth of field needs motion not reduced; the power saver still keeps flames and mist still,
 	// so the picture comes to rest (TRAA's jitter never would on an ambient table).
 	if (miniature) tabletop.setPowerSaver(true);
-	tabletop.setQuality({ ...settingsFor(options.tier ?? 'medium', backend), toneMapper, miniature });
+	const settings = settingsFor(options.tier ?? 'medium', backend);
+	if (options.heroes === false) settings.shadowedTorches = 0;
+	tabletop.setQuality({ ...settings, toneMapper, miniature });
 	const size = view.grid.width * view.grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
 	// In the order the Tabletop component sets them.
@@ -206,6 +224,7 @@ export async function mountFixture(
 	// The tabletop view focuses by depth; the pose then ends the move to it.
 	if (miniature) tabletop.setView('tabletop');
 	tabletop.setPose(at);
+	if (!webgpu) canvases.set(tabletop, canvas);
 	return {
 		tabletop,
 		canvas,
@@ -247,7 +266,25 @@ export function shardedIt(): typeof it {
 	});
 }
 
+/** Each WebGL2 tabletop's canvas, for `settle` to wait on the GPU (mountFixture). */
+const canvases = new WeakMap<Tabletop, HTMLCanvasElement>();
+
+/**
+ * Waits for the GPU to finish what was sent: a pixel read back. Under SwiftShader the GPU process
+ * still compiles (JITs) a new table's pipelines and draws its frames for many seconds after the
+ * frames stop (17 s for the test world's GM view on a fast machine); whatever touches the
+ * context next, a read or the renderer's dispose, waits for all of it. Waiting here keeps that
+ * time in the test that drew, not in the next step (an afterEach unmount timed out on it).
+ */
+export function finishGpu(tabletop: Tabletop): void {
+	const canvas = canvases.get(tabletop);
+	const gl = canvas?.isConnected ? canvas.getContext('webgl2') : null;
+	if (gl) gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+}
+
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+/** How far `settle` moves a held clock a frame while the table is drawing actively. */
+const ADVANCE_MS = 500;
 /** The most of one wait for a frame that counts toward `settle`'s limit, in ms. */
 const STALL_MS = 2000;
 
@@ -258,7 +295,17 @@ const STALL_MS = 2000;
  * of quiet by default: on a loaded machine something still loading (a model, a texture) can
  * land after a shorter spell and draw once more.
  */
-export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_000): Promise<void> {
+export async function settle(
+	tabletop: Tabletop,
+	quietMs = 1000,
+	limitMs = 20_000,
+	/**
+	 * The test's held clock, moved on while the scheduler is drawing actively, so what plays on the
+	 * clock (a grade blending into a new band's, a glide) ends instead of holding the table busy
+	 * until the limit. For tests of what a table comes to, not of the frames on the way.
+	 */
+	clock?: { now: () => number; set: (t: number) => void }
+): Promise<void> {
 	let last = -1;
 	let [quietSince, before, spent] = [performance.now(), performance.now(), 0];
 	// The limit counts at most STALL_MS a wait: one frame that stalls the page for half a minute
@@ -277,12 +324,14 @@ export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_00
 		// a first view's load still out (the environment's look, the decoders): on a loaded machine
 		// it lands after the frames went quiet and changes the picture (the floor's maps, #230).
 		const drawing = mode === 'active' || mode === 'converge';
+		if (clock && mode === 'active' && !holding) clock.set(clock.now() + ADVANCE_MS);
 		const [loaded, loading] = tabletop.loads();
 		if (frames !== last || frames === 0 || holding || drawing || loaded < loading) {
 			last = frames;
 			quietSince = performance.now();
-		} else if (performance.now() - quietSince >= quietMs) return;
+		} else if (performance.now() - quietSince >= quietMs) return finishGpu(tabletop);
 	}
+	finishGpu(tabletop);
 }
 
 /** Waits `ms` of real time. */

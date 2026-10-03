@@ -49,7 +49,7 @@ describe('exposure from the focus cell', () => {
 		if (BACKEND === 'webgpu') ctx.skip();
 		const base = await loadView('test-world', 'dark', 'player');
 		const view: FixtureView = { ...base, tokens: [], lights: [], fog: fogOf(base, true) };
-		mounted = await mountFixture(view, POSE, { reducedMotion: true });
+		mounted = await mountFixture(view, POSE, { reducedMotion: true, heroes: false });
 		const t = mounted.tabletop;
 		await settle(t);
 		expect(lift()).toBeCloseTo(LIFT_CAP, 5);

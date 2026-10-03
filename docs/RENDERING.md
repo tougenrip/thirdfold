@@ -923,7 +923,7 @@ GridLights on every tier.
   above every floor cell its rules light changes and no other, the far side of the wall included);
   the program-count sweep's `lightSteps` (the 40 torches as neon facing every way, recoloured, mixed
   with panels and torches, turned, and back) on every tier, now a test and a CI shard per tier
-  (programs 13 to 15).
+  (programs 16 to 18).
 
 ### Translucency (#237)
 
@@ -1786,6 +1786,17 @@ The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500
 tester UI around the frame. `src/lib/tabletop/testing.ts` mounts any fixture table
 (`tests/fixtures`, see `docs/PERFORMANCE.md`) as the GM, a fogged player or a spectator sees it, at
 DPR 1, with a clock the test holds still, reduced motion on and the camera at a named pose.
+Under SwiftShader a table's cost is its shader compile (the WebGL link in the frame that first draws
+a program, then SwiftShader's JIT in the GPU process for seconds after the frames stop), so the
+harness keeps it out of the way: `settle` ends by reading a pixel back, so the GPU's queued work is
+the test's that drew it (an `afterEach` unmount used to wait it out and time out); `mountFixture`
+loads the lights' fixture models with the table's (no extra warm-up); `settle(…, clock)` moves a
+held clock on while the table draws actively (a grade blending into a band's, the exposure's lift
+with motion on), where a held clock kept it busy until the limit; tests of other things mount with
+`heroes: false` (no hero shadow slots, #230, a third of every lit shader: smoke, atmosphere, flash,
+shot focus, exposure, sky light), while the slots' own tests, program-count, the goldens and the
+fixtures keep them; and the probe case of unexplored-black bakes a coarser lattice
+(`probeSpacing`).
 
 - **Smoke tests** (`fixtures.svelte.spec.ts`, `renderer.svelte.spec.ts`,
   `scheduling.svelte.spec.ts` and `stability.svelte.spec.ts`, apart so CI runs them side by

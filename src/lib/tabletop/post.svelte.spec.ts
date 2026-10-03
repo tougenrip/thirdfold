@@ -83,24 +83,29 @@ describe('the post-processing pipeline', () => {
 		expect(renderer.info.render.drawCalls).toBeGreaterThan(0);
 	});
 
-	it('gives every target back across tier changes and when disposed', async () => {
-		const { renderer, post, draw } = await setup();
-		const { memory } = renderer.info;
-		// What is left once a first pipeline is gone: the sun's shadow map, and nothing of post's.
-		draw('medium');
-		post.dispose();
-		const [targets, bytes] = [memory.renderTargets, memory.texturesSize];
-		for (const tier of ['low', 'high', 'medium', 'low'] as const) draw(tier);
-		// SMAA (#163), and GTAO at full resolution where ultra runs (#159).
-		draw('medium', { aa: 'smaa', msaa: 0 });
-		if (BACKEND === 'webgpu') draw('ultra');
-		post.dispose();
-		expect(memory.renderTargets).toBe(targets);
-		// r186's TRAANode keeps one 1×1 half-float texture (8 bytes) past its dispose; in play a
-		// change of antialiasing builds a new renderer, which frees it.
-		expect(memory.texturesSize - bytes).toBeLessThanOrEqual(64);
-		expect(memory.texturesSize).toBeGreaterThanOrEqual(bytes);
-	});
+	// Six pipelines built and compiled one after another: minutes on CI's software GPU.
+	it(
+		'gives every target back across tier changes and when disposed',
+		{ timeout: 180_000 },
+		async () => {
+			const { renderer, post, draw } = await setup();
+			const { memory } = renderer.info;
+			// What is left once a first pipeline is gone: the sun's shadow map, and nothing of post's.
+			draw('medium');
+			post.dispose();
+			const [targets, bytes] = [memory.renderTargets, memory.texturesSize];
+			for (const tier of ['low', 'high', 'medium', 'low'] as const) draw(tier);
+			// SMAA (#163), and GTAO at full resolution where ultra runs (#159).
+			draw('medium', { aa: 'smaa', msaa: 0 });
+			if (BACKEND === 'webgpu') draw('ultra');
+			post.dispose();
+			expect(memory.renderTargets).toBe(targets);
+			// r186's TRAANode keeps one 1×1 half-float texture (8 bytes) past its dispose; in play a
+			// change of antialiasing builds a new renderer, which frees it.
+			expect(memory.texturesSize - bytes).toBeLessThanOrEqual(64);
+			expect(memory.texturesSize).toBeGreaterThanOrEqual(bytes);
+		}
+	);
 
 	it('compiles nothing new going round the tiers again', async () => {
 		const { renderer, draw } = await setup();

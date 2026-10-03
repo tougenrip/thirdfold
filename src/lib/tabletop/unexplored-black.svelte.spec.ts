@@ -59,6 +59,8 @@ vi.setConfig({ testTimeout: 300_000 });
  * with its name label, a light's fixture, and a prop (the tallest model, a tree or a bell frame).
  */
 const TALL = { floor: 0.1, wall: WALL_LEVELS * STEP_HEIGHT + 0.3, token: 2, light: 2, prop: 4 };
+/** Cells between baked probes in the probe cases: 4 × 3 × 4 on the test world, not 9 × 3 × 9. */
+const PROBE_TEST_SPACING = 8;
 /** Fewer samples than this and a pose proves nothing: it is left out, and said so. */
 const MIN_SAMPLES = 20;
 /** From above a light carrier on unexplored ground (#228), round its cell. */
@@ -351,7 +353,10 @@ async function mountCase(
 	const m = await mountFixture(view, sidecar.poses.overview, {
 		clock,
 		reducedMotion: c.reduced,
-		tier: c.tier
+		tier: c.tier,
+		// A coarser lattice than the app's (PROBE_SPACING), corners and all: probes still stand over
+		// the hidden ground and light it, a fraction of the bake's minutes on SwiftShader.
+		probeSpacing: c.probes ? PROBE_TEST_SPACING : undefined
 	});
 	mounted = m;
 	m.tabletop.setGridShown(true);
@@ -381,7 +386,9 @@ async function bakeProbes(m: Mounted, clock: ReturnType<typeof manualClock>, s: 
 	}
 	expect(baked(), 'the probes baked').toBeGreaterThan(0);
 	clock.set(clock.now() + 1000); // past the fade
-	await settle(m.tabletop, 1500, 120_000);
+	// Its frames drawn: torches flicker at dusk with motion on, so the table never goes quiet (a
+	// settle waited out its whole limit, two minutes on SwiftShader).
+	await converge(m, 1);
 }
 
 /**

@@ -43,7 +43,7 @@ async function mount() {
 	const compile = vi.spyOn(THREE.WebGPURenderer.prototype, 'compileAsync');
 	const view = await loadView('monastery', 'day', 'gm');
 	const clock = manualClock(T0);
-	mounted = await mountFixture(view, POSE, { clock });
+	mounted = await mountFixture(view, POSE, { clock, heroes: false });
 	await settle(mounted.tabletop);
 	const renderer = compile.mock.contexts[0] as THREE.WebGPURenderer;
 	const t = mounted.tabletop;

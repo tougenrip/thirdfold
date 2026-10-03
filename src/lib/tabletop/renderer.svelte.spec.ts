@@ -6,7 +6,7 @@
 // stability.svelte.spec.ts. The ground beyond the grid (#220): never picked, running to the
 // horizon with no gap under the sky, and the camera never below it.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { GRID_FADE_MS } from './overlay';
 import { createTabletop } from './renderer';
 import {
@@ -18,6 +18,7 @@ import {
 	readFrame,
 	settle,
 	wait,
+	shardedIt,
 	type Mounted,
 	type Viewer,
 	HEIGHT,
@@ -28,6 +29,8 @@ import { GROUND_CLEARANCE } from './world-ground';
 
 // Software frames on CI's small runners take seconds since the shader kinds (M64).
 vi.setConfig({ testTimeout: 180_000, hookTimeout: 90_000 });
+// Two CI shards (shardedIt): `THIRDFOLD_SHARD=k/2`.
+const test = shardedIt();
 
 let errors: ReturnType<typeof vi.spyOn>;
 const mounted: Mounted[] = [];
@@ -43,14 +46,14 @@ afterEach(async () => {
 async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?: boolean } = {}) {
 	const sidecar = await loadSidecar(fixture);
 	const view = await loadView(fixture, sidecar.ambient, viewer);
-	const m = await mountFixture(view, sidecar.poses.overview, options);
+	const m = await mountFixture(view, sidecar.poses.overview, { heroes: false, ...options });
 	mounted.push(m);
 	await settle(m.tabletop);
 	return m;
 }
 
 describe('the renderer', () => {
-	it('draws no grid lines at rest, one draw call when shown, compiling nothing', async () => {
+	test('draws no grid lines at rest, one draw call when shown, compiling nothing', async () => {
 		const { tabletop } = await mount('village', 'gm');
 		await settle(tabletop);
 		const draw = async (shown: boolean) => {
@@ -67,11 +70,15 @@ describe('the renderer', () => {
 		expect(again.programs).toBe(shown.programs);
 	});
 
-	it('fades the grid lines in and out on the clock, drawing until they are gone', async () => {
+	test('fades the grid lines in and out on the clock, drawing until they are gone', async () => {
 		const clock = manualClock();
 		const sidecar = await loadSidecar('ref-7');
 		const view = await loadView('ref-7', 'day', 'gm');
-		const m = await mountFixture(view, sidecar.poses.overview, { clock, reducedMotion: false });
+		const m = await mountFixture(view, sidecar.poses.overview, {
+			clock,
+			reducedMotion: false,
+			heroes: false
+		});
 		mounted.push(m);
 		const t = m.tabletop;
 		await settle(t);
@@ -103,7 +110,7 @@ describe('the renderer', () => {
 		expect(t.stats().frames).toBe(quiet);
 	});
 
-	it('has no camera pose to carry before it frames a table', async () => {
+	test('has no camera pose to carry before it frames a table', async () => {
 		const canvas = document.createElement('canvas');
 		document.body.appendChild(canvas);
 		const t = await createTabletop(
@@ -118,11 +125,11 @@ describe('the renderer', () => {
 		expect(tabletop.cameraPose()).not.toBeNull();
 	});
 
-	it('disposes cleanly and stops answering the pointer', async () => {
+	test('disposes cleanly and stops answering the pointer', async () => {
 		const sidecar = await loadSidecar('ref-1');
 		const view = await loadView('ref-1', sidecar.ambient, 'gm');
 		const events = { onClick: vi.fn(), onHover: vi.fn() };
-		const m = await mountFixture(view, sidecar.poses.overview, { events });
+		const m = await mountFixture(view, sidecar.poses.overview, { events, heroes: false });
 		await settle(m.tabletop);
 		expect(() => m.tabletop.dispose()).not.toThrow();
 		const at = { clientX: 400, clientY: 250, bubbles: true };
@@ -148,7 +155,7 @@ describe('the ground to the horizon', () => {
 		const m = await mountFixture(
 			{ ...plain, world: { ...view.world, time } },
 			sidecar.poses.overview,
-			{ events, tier }
+			{ events, tier, heroes: false }
 		);
 		mounted.push(m);
 		return m;
@@ -159,7 +166,7 @@ describe('the ground to the horizon', () => {
 		target: { x: 0, y: 1.5 - 50 * Math.tan((pitch * Math.PI) / 180), z: -50 }
 	});
 
-	it('never picks the ground beyond the grid', async () => {
+	test('never picks the ground beyond the grid', async () => {
 		const events = { onClick: vi.fn(), onHover: vi.fn() };
 		const { tabletop, canvas } = await bare(720, events);
 		// Looking out from beyond the grid's far edge: everything in view is off the grid.
@@ -186,7 +193,7 @@ describe('the ground to the horizon', () => {
 			expect(pick).toMatchObject({ cell: null, tokenId: null, objectId: null, propId: null });
 	});
 
-	it('runs to the horizon at 85 degrees with no gap under the sky, day and dusk', async () => {
+	test('runs to the horizon at 85 degrees with no gap under the sky, day and dusk', async () => {
 		// The low tier hides the dome: the sky is its horizon's colour, so ground shows as ground.
 		for (const [time, tier] of [
 			[720, 'medium'],
@@ -235,7 +242,7 @@ describe('the ground to the horizon', () => {
 		}
 	});
 
-	it('keeps the camera above the ground', async () => {
+	test('keeps the camera above the ground', async () => {
 		const { tabletop } = await bare(720);
 		tabletop.setPose({ position: { x: 0, y: 0.05, z: 3 }, target: { x: 0, y: 0, z: 0 } });
 		await settle(tabletop);

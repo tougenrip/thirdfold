@@ -5,7 +5,7 @@
 // program count across slot handovers is program-count.svelte.spec.ts's.
 
 import * as THREE from 'three/webgpu';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, vi } from 'vitest';
 import { gridToWorld, type GridPos, type SquareGrid } from '$lib/game/grid';
 import type { Light } from '$lib/game/lights';
 import type { Token } from '$lib/game/token';
@@ -22,10 +22,13 @@ import {
 	readFrame,
 	settle,
 	type FixtureView,
-	type Mounted
+	type Mounted,
+	shardedIt
 } from './testing';
 
-vi.setConfig({ testTimeout: 300_000 });
+vi.setConfig({ testTimeout: 300_000, hookTimeout: 90_000 });
+// Two CI shards (shardedIt): `THIRDFOLD_SHARD=k/2`.
+const test = shardedIt();
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -104,7 +107,7 @@ const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, 0.02 * b);
 
 describe('hero shadows', () => {
-	it('give a brazier near the focus a slot and its mini a shadow, no brighter elsewhere', async () => {
+	test('give a brazier near the focus a slot and its mini a shadow, no brighter elsewhere', async () => {
 		const view = await table();
 		const cells = {
 			behind: { x: 8, y: 5 }, // past the mini, away from the brazier
@@ -141,7 +144,7 @@ describe('hero shadows', () => {
 		expect(off, `open cells ${shadowed.open} against ${plain.open}`).toEqual([]);
 	});
 
-	it('redraw a cube only for a change in its reach, never for the camera', async () => {
+	test('redraw a cube only for a change in its reach, never for the camera', async () => {
 		// The brazier by the mini, and a lamp in the far corner with nothing near it.
 		const lamp: Light = { id: 'lamp', pos: { x: 11, y: 2 }, radius: 2, color: '#ffd090', on: true };
 		const view = { ...(await table()), lights: [torch, lamp] };
@@ -169,7 +172,7 @@ describe('hero shadows', () => {
 		expect(stats().lastRedraws).toBeLessThanOrEqual(1); // medium's budget a frame
 	});
 
-	it('hand a slot over with motion: the holder fades out and the new light takes it', async () => {
+	test('hand a slot over with motion: the holder fades out and the new light takes it', async () => {
 		const lamp: Light = { id: 'lamp', pos: { x: 11, y: 2 }, radius: 2, color: '#ffd090', on: true };
 		const far: Light = { id: 'far', pos: { x: 1, y: 8 }, radius: 3, color: '#ffd090', on: true };
 		const view = { ...(await table()), lights: [torch, lamp, far] };
@@ -185,7 +188,7 @@ describe('hero shadows', () => {
 		expect(owners()).toEqual(['brazier', 'far']);
 	});
 
-	it('make no slot on the low tier', async () => {
+	test('make no slot on the low tier', async () => {
 		let scene: THREE.Scene | null = null;
 		const m = await mountFixture(await table(), above, {
 			tier: 'low',

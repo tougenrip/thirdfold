@@ -84,6 +84,11 @@ export interface TabletopOptions {
 	 * that draws again with the sun's shadows. Never set by the app.
 	 */
 	devScene?: (scene: THREE.Scene, redraw: () => void) => void;
+	/**
+	 * Tests only: cells between baked probes (#235, default PROBE_SPACING), so a test that bakes
+	 * them on SwiftShader lays a coarser lattice over the same table. Never set by the app.
+	 */
+	probeSpacing?: number;
 }
 
 export interface Tabletop {

@@ -9,7 +9,7 @@
 // green, and nothing of it reaches past the wall.
 
 import * as THREE from 'three/webgpu';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import { gridToWorld, type GridPos, type SquareGrid } from '$lib/game/grid';
 import { lightSources, litMask, type Light } from '$lib/game/lights';
@@ -30,10 +30,13 @@ import {
 	readFrame,
 	settle,
 	type FixtureView,
-	type Mounted
+	type Mounted,
+	shardedIt
 } from './testing';
 
-vi.setConfig({ testTimeout: 300_000 });
+vi.setConfig({ testTimeout: 300_000, hookTimeout: 90_000 });
+// Two CI shards (shardedIt): `THIRDFOLD_SHARD=k/2`.
+const test = shardedIt();
 
 /** The rig camera's vertical field of view (camera.ts). */
 const FOV = 45;
@@ -185,7 +188,7 @@ function centres(view: FixtureView, ground: Ground, camera: THREE.Camera, skip: 
 const key = (c: GridPos) => `${c.x},${c.y}`;
 
 describe('GridLights', () => {
-	it('light every cell the rules light on dungeon-40, and no other, at its centre', async () => {
+	test('light every cell the rules light on dungeon-40, and no other, at its centre', async () => {
 		const view = await loadView('dungeon-40', 'dark', 'gm');
 		const pose = { target: { x: 20, y: 15 }, distance: 40, azimuth: 0, elevation: 80 };
 		const { m, light, redraw, frame } = await mount(view, pose);
@@ -217,7 +220,7 @@ describe('GridLights', () => {
 		expect([...shining].sort(), 'torches lighting their pools').toEqual([...seen].sort());
 	});
 
-	it('never light through a wall, its far face or the floor behind it', async () => {
+	test('never light through a wall, its far face or the floor behind it', async () => {
 		const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 14, height: 8 };
 		const wall: SceneObject = { id: 'w', kind: 'wall', a: { x: 7, y: 0 }, b: { x: 7, y: 8 } };
 		const torch = (id: string, x: number): Light => ({
@@ -287,7 +290,7 @@ describe('GridLights', () => {
 		expect(face, 'the far face lit by A').toEqual([]);
 	});
 
-	it('bounce a lit green floor onto the wall beside it, and never through it (#234)', async () => {
+	test('bounce a lit green floor onto the wall beside it, and never through it (#234)', async () => {
 		const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 14, height: 8 };
 		const wall: SceneObject = { id: 'w', kind: 'wall', a: { x: 7, y: 0 }, b: { x: 7, y: 8 } };
 		const a: Light = { id: 'a', pos: { x: 5, y: 4 }, radius: 4, color: '#ffffff', on: true };
@@ -372,7 +375,7 @@ describe('GridLights', () => {
 		expect(face, 'the far face lit by A').toEqual([]);
 	});
 
-	it('light the wall and floor before a neon strip in its colour, only where the rules light (#236)', async () => {
+	test('light the wall and floor before a neon strip in its colour, only where the rules light (#236)', async () => {
 		const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 14, height: 8 };
 		const wall: SceneObject = { id: 'w', kind: 'wall', a: { x: 7, y: 0 }, b: { x: 7, y: 8 } };
 		// A magenta bar a cell from the wall, facing it (east), and the same bar black (no light).
@@ -452,7 +455,7 @@ describe('GridLights', () => {
 		).toEqual([]);
 	});
 
-	it("keep the monastery's gallery lamp to the cells it lights, from its balcony", async () => {
+	test("keep the monastery's gallery lamp to the cells it lights, from its balcony", async () => {
 		const view = await loadView('monastery', 'dark', 'gm');
 		const lamp = view.lights.find((l) => l.id === 'mn-gallery-lamp')!;
 		expect(lamp.on).toBe(true);
@@ -505,7 +508,7 @@ describe('GridLights', () => {
 		).toEqual([]);
 	});
 
-	it('flicker by the clock alone: two held times, two frames, each the same again (#231)', async () => {
+	test('flicker by the clock alone: two held times, two frames, each the same again (#231)', async () => {
 		const view = await loadView('dungeon-40', 'dark', 'gm');
 		const pose = { target: { x: 20, y: 15 }, distance: 40, azimuth: 0, elevation: 80 };
 		const clock = manualClock(1_000_000);
