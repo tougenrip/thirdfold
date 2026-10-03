@@ -68,7 +68,9 @@ const BUDGETS = {
 	// assignment); set to the merged build's measured size. → 382.9: M67's pool of 8 point lights
 	// and the `manylights` layer removed at M68's close; 382.8 kB measured.
 	// → the tier refined only from steady frames (models settled, no warm-up gallery): 383.0.
-	renderer: { total: 383_000 },
+	// → M69 raises it per PR to the measured size, capped at about 393 kB (the owner's decision):
+	// walls from the world shape's wall spans (#239), 383.2.
+	renderer: { total: 383_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

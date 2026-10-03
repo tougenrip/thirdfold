@@ -1032,6 +1032,159 @@ hand one over. Casters are only what the viewer was sent.
   until they land. `?perf` shows the holders, cubes drawn and cube memory; the program-count sweep
   hands every slot over (`lightSteps`) on each tier, a test per tier.
 
+## World shape (milestone 69)
+
+`src/lib/tabletop/world/` turns the grid data a viewer was sent into the description every ground,
+cliff, void, kit, water and scatter builder of M69 and after consumes (#239). It is pure: no three.js,
+relative imports of `src/lib/game/` and `ground.ts` only (a spec fails otherwise), so its specs run in
+the server project and `server/perf/world-shape.ts` runs it in Node. CPU only, the same on every tier
+and backend. Two rules hold for everything in it: **the picture never contradicts movement or sight**
+(steps are what `canStep` climbs, saddles follow `canStep`), and **no edge is drawn toward an
+unexplored cell**.
+
+### Input and secrecy
+
+`worldShape({ grid, levels, floor, objects, known })` takes the level and floor maps as sent (masked by
+`viewFor`), the scene objects, and `known`: the decoded `FogView.explored` for players and spectators
+under fog, null for the GM (whose `explored` is the party's) and with fog off (`knownOf(grid, fog, gm)`).
+It reads nothing of an unexplored cell: a property test scrambles every value sent for unexplored cells
+and finds every output unchanged. No wire change.
+
+### Continued maps
+
+- **Per cell** (`shape.levels`, `shape.floor`, and `shape.ground`, `groundFor` over them, for dice,
+  picks and `floorY`): a known cell's own value; an unexplored cell takes its first known orthogonal
+  neighbour's (N, E, S, W, N being y - 1), else 0. Only cells within one cell of the known region change.
+- **Per dual tile** (`shape.tiles.levels`, `shape.tiles.floor`): one tile per grid corner,
+  `(width + 1) * (height + 1)` of them (`tileIndex(grid, tx, ty)`), whose corners are the four cells
+  round it, clockwise from NW (`CORNERS`; off the table a corner is its nearest cell). Each corner's
+  quarter is two sectors, split along the diagonal from the tile's centre: eight bytes per tile,
+  clockwise from north (`SECTORS`: 0 NE toward NW, 1 NE toward SE, 2 SE toward NE, 3 SE toward SW,
+  4 SW toward SE, 5 SW toward NW, 6 NW toward SW, 7 NW toward NE; `SECTOR_H[k]` and `SECTOR_V[k]` are
+  corner k's halves toward its horizontal and vertical neighbours). A known corner's halves are its own
+  value. An unexplored corner's half toward a neighbour takes that neighbour's value if known, else the
+  other neighbour's, else the diagonal's, else its own continued value; so where its two known
+  neighbours differ it is split along the diagonal, and every boundary lies on a known-known edge or
+  inside unexplored cells. Across a known-unexplored half edge the sectors are always equal, so a
+  known-unexplored edge is always flat.
+
+`checkContinuation(shape)` (`invariants.ts`) checks this: every edge with an unexplored side is flat,
+every change between sectors is on a known-known half edge, between two unexplored corners or on an
+unexplored corner's diagonal, and neighbouring tiles agree on their shared side except inside an
+unexplored cell. It runs exhaustively over the 16 known/unexplored patterns of a tile times every
+triple of levels {0, 1, 3} and of floors {plain, water, void}, on 150 seeded random tables, and on
+every committed view.
+
+### Edge classes
+
+Two `EdgeMap`s (`shape.edges.ground`, `shape.edges.built`), one byte per unit edge:
+`h[y * width + x]` (y in 0..height) is the edge along the top of cell (x, y);
+`v[y * (width + 1) + x]` (x in 0..width) the one along its left side. `edgeSlot(grid, edge)` and
+`slotBetween(grid, i, j)` find an edge's slot; `hEdge` and `vEdge` index directly.
+
+| Ground (`EDGE_GROUND`) | When                                                                |
+| ---------------------- | ------------------------------------------------------------------- |
+| `flat` 0               | the same level, both void, or an unexplored cell on either side     |
+| `step` 1               | a difference of one level: what `canStep` climbs (`MAX_STEP`)       |
+| `cliff` 2              | two levels or more: one `STEP_HEIGHT` taller than any walkable step |
+| `void` 3               | void on one side only                                               |
+| `border` 4             | the table's edge (public; still no face below an unexplored cell)   |
+
+Built (`EDGE_BUILT`): `none`, `wall`, `window`, `door`; the first wall on an edge decides wall or
+window (as `walls.ts` draws it), and a door, open or shut, is over any wall it cut. A sealed secret door
+(`<id>-sealed`) is a wall, as sent.
+
+### Wall spans
+
+`shape.walls` (`wallSpans(grid, objects, levels, known)` in `wall-spans.ts`) is what `walls.ts`'s
+`rebuildWalls` drew, and `walls.ts` now draws from it: each unit edge once (its first wall), from the
+lower floor beside it to `WALL_HEIGHT` above the higher; a window a sill to `SILL` (0.35) of a wall
+above the higher floor and, between equal floors only, a lintel from `LINTEL` (0.8). With `known`, an
+unexplored side counts as level with the known side, so a wall shows no drop toward unexplored ground
+(no committed view has one: the spans equal the old ones on every fixture and view; `walls.ts` passes
+no mask until #240's layer owns the shape). The eye (`EYE_LEVELS` above the higher floor) lies in
+every window's gap. Where a window's floors differ by two levels or more (`mn-railing`, the gallery at
+5 over the nave at 0) the sill hides what the rules let the nave see; the spans keep it, and #253 and
+#256's balustrade must draw it see-through.
+
+### Regions
+
+`regionsOf(shape)` (`regions.ts`), over known cells only:
+
+- **Stair runs** (`StairRun { cells, dir }`, for #255): chains of known, non-void cells each one level
+  above the last in one direction (`DIRS[dir]`: N, E, S, W), with no wall or window between, two risers
+  or more, foot to head. A two-wide stair is two runs side by side. The monastery's belfry stair and the
+  stairs to the gallery, the Hollow's stairs to the steps and to the watch and the high bridge's end
+  are found.
+- **One-wide runs** (`OneWideRun { cells, along }`, for #256): known raised cells with a drop of two
+  levels or more (or the void) on both sides across `along`, joined along it within one level and no
+  wall between. A pillar is in a run of each axis. The Hollow's ruins' bridge (x = 12) and high bridge
+  (y = 9) are runs; the two-wide causeway is not.
+- **Water bodies** (`WaterBody { cells, level }`, for #292): edge-joined water cells at one level.
+- **Void regions** (`VoidRegion { cells, touchesBorder }`, for #243): edge-joined void cells; the night
+  train's border void is one region on the table's edge.
+
+### Dual-grid cases and saddles
+
+`dualCase(shape, tx, ty, mask)` (`dual.ts`) gives a tile's `sectors` (bit k: sector k is inside the
+mask), its classic `corners` case (corners clockwise from NW as bits 1, 2, 4, 8, so the saddles are 5
+and 10; -1 when an unexplored corner is split across the mask) and its `join`. Masks: `'walkable'`
+(not void), `'land'` (not water) and a number L, the level band `level >= L`. A tile whose ring of
+sectors changes four times or more is ambiguous, and resolves (`JOIN`) by the rules on ground-only
+obstacles (`groundObstacles`: levels and void, no walls or props):
+
+- a diagonal pair joins (`in` or `out`) only if `canStep` connects it both ways; otherwise the blocker
+  side joins;
+- where both pairs connect (a one-level checkerboard) the higher pair (`in`, in a band) joins, so the
+  riser stays continuous;
+- where neither connects (two cells two levels or more above the other two, and always for walkable
+  ground across void corners) the saddle is `pinch`ed at the grid corner, with no rounding: between two
+  high and two low cells nothing may suggest a passage;
+- land and water join by `tileHash(tx, ty)`, the same on every client;
+- an ambiguous tile with an unexplored corner is pinched.
+
+`saddleProblems(shape)` checks every saddle of every mask against `canStep`; it runs over every 2x2
+pattern of levels {0, 1, 2, 3} and void, the random tables and every fixture view.
+
+### Constants
+
+`TOKEN_DISK` 0.43 cell (half the 0.86 u base, docs/ART.md), `INTRUSION` 0.08, `MAX_ROUND` 0.25 and
+`MAX_NOISE` 0.07. A corner rounded by `MAX_ROUND` stays 0.6 cell from the centre and an edge pushed in
+by `MAX_NOISE` stops at 0.43, so neither eats a token's disk.
+
+### Dirty chunks
+
+`dirtyChunks(prev, next)` lists the `CHUNK` x `CHUNK` (16 x 16) chunks, row-major
+(`chunksAcross(grid)`), touched by a cell whose continued level, floor or known state changed, plus a
+one-cell margin (a dual tile reads the cells on both sides of a chunk's edge); every chunk with no
+previous shape or a new grid size. #240 rebuilds only these.
+
+### The invariant harness
+
+`invariants.ts` is test support. An emitter hands over an `EmitterMesh` (positions in world units,
+triangle indices, the owning cell of each vertex) and `checkEmitter(shape, ground, decorations?)` names
+each `Violation`:
+
+- `disk`: a known walkable cell's ground is not flat at `floorY` everywhere within `TOKEN_DISK`;
+- `intrusion`: a decoration stands above the floor within `TOKEN_DISK - INTRUSION` (it may reach 0.08
+  cell into the disk, no further);
+- `cliff-top`: along a step or cliff, away from its ends by `MAX_ROUND`, the ground just inside the
+  higher cell is not at the higher `floorY`, or something rises above it across the edge;
+- `unexplored-face`: a face that is not flat lies within `MAX_NOISE` of an edge with an unexplored cell
+  on either side (the border too);
+- `owner`: a vertex owned by no cell.
+
+`referenceBoxes(shape)` is today's boxes made from the shape (each cell's top at its floor, a side face
+where a known cell stands above a known neighbour or the table's edge) and passes on every fixture
+scene and the GM, fogged player and spectator of every committed view; the same boxes from the levels
+as sent fail with `unexplored-face`. #240, #241 and #243 add their emitters to the world specs beside
+it, on the same fixtures, views and random tables.
+
+### Costs
+
+In Node on the i9-13900HX (`npx tsx server/perf/world-shape.ts`, docs/PERFORMANCE.md): classifying a
+fogged 64x64 table with 64 walls takes 0.58 ms, a 100x100 one 1.4 ms.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -1067,6 +1220,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
 | `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                   |
+| `world/`                              | The world's shape (M69): continued maps, edge classes, wall spans, regions, dual cases, the harness                              |
 | layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`               |
 
 ## Quality tiers

@@ -907,3 +907,20 @@ the scene import (the GM's close) compiles and is left out.
 - **Per redraw** a cube is six caster passes into its row of the atlas, only when something in the
   light's reach + 1 changed, at most one a frame on medium and two on high; camera moves draw none.
 - **The iGPU** was not measured for this change; low has no slots.
+
+## The M69 world shape (#239)
+
+`npx tsx server/perf/world-shape.ts 200` in Node 22 on the i9-13900HX, median of 200 runs after a
+warm-up, on busy generated tables (terraces up to level 7, void, water and stone patches, a wall per
+row of cells, two thirds explored, so the continuation rule works on every cell):
+
+| Table   | Classify | Regions | Dual cases, walkable + 7 bands | Dirty chunks, one cell |
+| ------- | -------- | ------- | ------------------------------ | ---------------------- |
+| 64x64   | 0.58 ms  | 0.70 ms | 3.5 ms                         | 0.05 ms                |
+| 100x100 | 1.4 ms   | 2.1 ms  | 9.9 ms                         | 0.12 ms                |
+
+- **Classify** is `worldShape`: the continued cell maps, the dual tiles' sectors (eight per grid
+  corner, levels and floors), both edge maps and the wall spans. Under the issue's 1 ms for 64x64.
+- **Dual cases** for a whole table is every tile under every mask; #240 asks only a dirty chunk's tiles
+  (a 16 x 16 chunk is about a fifteenth of a 64x64 table's, about 0.25 ms here).
+- `walls.ts` builds its wall instances from the same spans, with no cost of note (it ran them inline).
