@@ -14,6 +14,7 @@
 // but tinted, for the hovered door: swapping between them compiles nothing.
 
 import * as THREE from 'three/webgpu';
+import { pickable } from './picking';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { edgeKey, type Door, type SceneObject } from '$lib/game/objects';
 import { wear, type Look } from './environment';
@@ -221,7 +222,9 @@ export class WallLayer {
 			const capacity = Math.max(64, Math.ceil(count * 1.5));
 			this.wallGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
 			addInstanceTints(this.wallGeometry, capacity);
-			this.walls = new THREE.InstancedMesh(this.wallGeometry, this.wallMaterial, capacity);
+			this.walls = pickable(
+				new THREE.InstancedMesh(this.wallGeometry, this.wallMaterial, capacity)
+			);
 			this.walls.castShadow = true;
 			this.walls.receiveShadow = true;
 			this.group.add(this.walls);
@@ -243,7 +246,7 @@ export class WallLayer {
 	private createDoor(door: Door, grid: SquareGrid, key: string, floor: number): DoorEntry {
 		const hinge = cornerToWorld(grid, door.a);
 		const vertical = door.a.x === door.b.x;
-		const panel = new THREE.Mesh(this.doorGeometry, this.doorMaterial);
+		const panel = pickable(new THREE.Mesh(this.doorGeometry, this.doorMaterial));
 		panel.castShadow = true;
 		panel.receiveShadow = true;
 		// The panel extends from the hinge along the edge; rotating the pivot swings it open.

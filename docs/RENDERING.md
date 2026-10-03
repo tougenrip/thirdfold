@@ -1180,10 +1180,48 @@ scene and the GM, fogged player and spectator of every committed view; the same 
 as sent fail with `unexplored-face`. #240, #241 and #243 add their emitters to the world specs beside
 it, on the same fixtures, views and random tables.
 
+### Picking cells (#246)
+
+A cell is picked by an Amanatides-Woo DDA over the grid's columns, not by raycasting ground meshes:
+`pickCell(grid, heightAt, origin, dir, cutLevel = Infinity)` in `world/pick.ts` (pure, server-tested
+in `pick.spec.ts`). Each cell is a column, solid up to `heightAt(x, y)`, its drawn floor (the
+renderer's `Ground.floorY`; void will pass `CHASM_DEPTH` with #243). The ray is clipped to the grid's
+x and z, then steps column by column (`tMax`/`tDelta` per axis): in each, a ray already under the
+column's top hits its `side` where it came in (a raised column's wall, picked as the raised cell,
+as `TerrainLayer.pick` did), and a ray that drops to the top before leaving hits its `top`. It
+returns `{ cell, point, face }`, or `{ cell: null, point }` with the ray's point on the y = 0 plane
+(null if it never meets it). Beyond the grid the ground is that plane: a ray coming into the grid
+under it met it outside, so it picks nothing. A cut (#281) lowers every column above `cutLevel` to
+it. The cost is one step per cell crossed, on every tier and backend, with no GPU work.
+
+`Picker` (`picking.ts`) keeps the order: tokens, walls and doors, light fixtures and handles, props,
+then the cell, whose point gives the corner, the edge and `edgeDistance` as before, so a click off
+the grid has no cell but still snaps corners and edges along the border. The things are raycast on
+`PICK_LAYER` (1) only: `pickable(mesh)` enables it (layer 0 stays, so they still draw) on every
+token base and figure, wall instance, door panel, prop mesh, fixture mesh and GM light handle, and
+the raycaster tests only that layer, so ground, cliffs, the backdrop, dice and effects are never
+tested. `tablePlane` is gone, and `TerrainLayer.pick` is no longer called (both go with the layer at
+the milestone's close).
+
+`pick.spec.ts` checks the DDA against the picker it replaced, written there in plain maths (a box
+per raised cell from y = 0 to its floor, and the y = 0 plane, the nearer winning, ties to the box):
+1,000 seeded rays from each named pose of every fixture (overshooting the frame, so rays beyond the
+grid too) and, where there is raised ground, 1,000 more at random points of raised columns, on every
+scene and every committed GM view as sent, and on every fogged player's view over the continued
+levels (`worldShape`'s `levels`, the surface #240 draws): 508,000 rays, 104,018 of them landing on
+raised ground (29,449 on a side) and 169,651 on no cell, every one the same cell and face. `renderer.svelte.spec.ts` clicks the monastery's gallery floor at level
+5, the nave beside it and the gallery's south face, and beyond the grid's edge (no cell, a border
+corner), and checks every object a raycast tested is on the pick layer.
+
+A fogged player's picks follow the levels the renderer draws: as sent while `TerrainLayer` draws
+them, the continued levels once #240's layer does (the renderer's `ground` then comes from
+`worldShape`). Neither reads anything of an unexplored cell that the picture doesn't show.
+
 ### Costs
 
 In Node on the i9-13900HX (`npx tsx server/perf/world-shape.ts`, docs/PERFORMANCE.md): classifying a
-fogged 64x64 table with 64 walls takes 0.58 ms, a 100x100 one 1.4 ms.
+fogged 64x64 table with 64 walls takes 0.58 ms, a 100x100 one 1.4 ms. A cell pick by the DDA takes about 1 µs on
+the Hollow (48x36), where raycasting its raised boxes and the plane took 88 µs (docs/PERFORMANCE.md).
 
 ## Modules
 
@@ -1194,7 +1232,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `types.ts`                            | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
 | `camera.ts`                           | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
-| `picking.ts`                          | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
+| `picking.ts`                          | `Picker` (pointer to cell by the DDA, corner, edge; token, wall, light, prop on `PICK_LAYER`), `pickKey`, clicks                 |
 | `loop.ts`                             | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
 | `scheduler.ts`                        | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
 | `scene-lights.ts`                     | The hemisphere and the key light; fitting the shadow box, the fog and the camera to the table                                    |

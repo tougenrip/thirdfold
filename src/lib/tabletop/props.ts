@@ -16,6 +16,7 @@
 // (`tick(now)`), only while something is moving.
 
 import * as THREE from 'three/webgpu';
+import { pickable } from './picking';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { MOTION_MS, type MotionKind } from '$lib/game/motion';
 import {
@@ -359,7 +360,7 @@ export class PropLayer {
 			// A copy of its own, to carry this mesh's tints and lifts (#172, #181).
 			const geometry = shared.clone();
 			addInstanceTints(geometry, capacity);
-			const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+			const mesh = pickable(new THREE.InstancedMesh(geometry, material, capacity));
 			mesh.userData.assetId = assetId;
 			mesh.castShadow = mesh.receiveShadow = shadows;
 			mesh.count = 0;

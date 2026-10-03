@@ -299,7 +299,7 @@ export async function createTabletop(
 	controls.addEventListener('change', requestRender);
 
 	const pickable = { tokens: tokenLayer, walls: wallLayer, lighting, props: propLayer };
-	const picker = new Picker(canvas, camera, { ...pickable, terrain: terrainLayer }, () => grid);
+	const picker = new Picker(canvas, camera, pickable, () => ({ grid, ground }));
 	const stopPicking = listenForPicks(canvas, picker, events, perf, () => rig.endShot());
 	let view: CameraView = 'tactical';
 

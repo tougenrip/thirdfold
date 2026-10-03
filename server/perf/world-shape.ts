@@ -2,7 +2,9 @@
 // continued maps, dual tiles, edge classes and wall spans), finding its
 // regions, the dual cases of every tile for the walkable mask and each level
 // band, and the dirty chunks after a one-cell edit, on 64x64 and 100x100
-// tables with fog. docs/PERFORMANCE.md records the numbers.
+// tables with fog, and picking a cell with the DDA (#246) over every pixel of
+// a 160x100 view from above the table's corner. docs/PERFORMANCE.md records
+// the numbers.
 //
 //   npx tsx server/perf/world-shape.ts [runs]
 
@@ -10,6 +12,7 @@ import { performance } from 'node:perf_hooks';
 import { VOID } from '../../src/lib/game/floor';
 import type { SceneObject } from '../../src/lib/game/objects';
 import { dualCase } from '../../src/lib/tabletop/world/dual';
+import { pickCell } from '../../src/lib/tabletop/world/pick';
 import { regionsOf } from '../../src/lib/tabletop/world/regions';
 import { dirtyChunks, worldShape, type ShapeInput } from '../../src/lib/tabletop/world/shape';
 
@@ -48,6 +51,20 @@ function table(size: number): ShapeInput {
 	};
 }
 
+const PICKS = 160 * 100;
+
+/** Picks every pixel of a 160x100 view at 45 degrees from above a corner, looking across the table. */
+function picks(shape: ReturnType<typeof worldShape>): void {
+	const { grid, ground } = shape;
+	const heightAt = (x: number, y: number) => ground.floorY({ x, y });
+	const o = { x: -grid.width / 2, y: grid.width / 2, z: -grid.height / 2 };
+	for (let j = 0; j < 100; j++)
+		for (let i = 0; i < 160; i++) {
+			const d = { x: 0.3 + i / 200, y: -0.3 - j / 200, z: 0.3 + (160 - i) / 200 };
+			pickCell(grid, heightAt, o, d);
+		}
+}
+
 function median(f: () => void): number {
 	for (let k = 0; k < 5; k++) f();
 	const times = Array.from({ length: RUNS }, () => {
@@ -75,9 +92,10 @@ for (const size of [64, 100]) {
 					for (let l = 1; l <= top; l++) dualCase(shape, tx, ty, l);
 				}
 		}),
-		'dirty chunks (one cell)': median(() => dirtyChunks(shape, next))
+		'dirty chunks (one cell)': median(() => dirtyChunks(shape, next)),
+		'pick a cell (DDA, per pick)': median(() => picks(shape)) / PICKS
 	};
 	console.log(`${size}x${size} (${top} levels, median of ${RUNS})`);
 	for (const [name, ms] of Object.entries(rows))
-		console.log(`  ${name.padEnd(36)} ${ms.toFixed(3)} ms`);
+		console.log(`  ${name.padEnd(36)} ${ms.toFixed(ms < 0.01 ? 4 : 3)} ms`);
 }

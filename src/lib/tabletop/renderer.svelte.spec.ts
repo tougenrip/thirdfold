@@ -4,10 +4,13 @@
 // scheduling.svelte.spec.ts; every fixture drawing for every viewer is
 // fixtures.svelte.spec.ts; determinism, leaks and recompiles are
 // stability.svelte.spec.ts. The ground beyond the grid (#220): never picked, running to the
-// horizon with no gap under the sky, and the camera never below it.
+// horizon with no gap under the sky, and the camera never below it. Cells picked by the DDA
+// (#246) on the monastery's gallery, and only the pick layer raycast.
 
+import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { GRID_FADE_MS } from './overlay';
+import { PICK_LAYER } from './picking';
 import { createTabletop } from './renderer';
 import {
 	BACKEND,
@@ -140,7 +143,78 @@ describe('the renderer', () => {
 		expect(events.onClick).not.toHaveBeenCalled();
 		m.canvas.remove();
 	});
+
+	test('picks cells by the DDA, raised ground included, and raycasts only the pick layer', async () => {
+		const sidecar = await loadSidecar('monastery');
+		const view = await loadView('monastery', sidecar.ambient, 'gm');
+		const events = { onClick: vi.fn(), onHover: vi.fn() };
+		const m = await mountFixture(view, sidecar.poses.overview, { events, heroes: false });
+		mounted.push(m);
+		await settle(m.tabletop);
+		// Every object a raycast tests, by any of the raycastable classes (not the stand-in mesh an
+		// instanced mesh tests each instance with).
+		const tested = new Set<THREE.Object3D>();
+		const spied = [THREE.Mesh, THREE.InstancedMesh, THREE.Sprite, THREE.Line, THREE.Points];
+		const originals = spied.map((c) => c.prototype.raycast);
+		let depth = 0;
+		spied.forEach((c, k) => {
+			c.prototype.raycast = function (this: THREE.Object3D, ...args: never[]) {
+				if (depth === 0) tested.add(this);
+				depth++;
+				try {
+					return (originals[k] as (...a: never[]) => void).apply(this, args);
+				} finally {
+					depth--;
+				}
+			};
+		});
+		const { position: eye, target } = m.tabletop.cameraPose()!;
+		const f = unit(sub(target, eye));
+		const r = unit({ x: -f.z, y: 0, z: f.x });
+		const u = { x: r.y * f.z - r.z * f.y, y: r.z * f.x - r.x * f.z, z: r.x * f.y - r.y * f.x };
+		const rect = m.canvas.getBoundingClientRect();
+		const tan = Math.tan(Math.PI / 8); // the 45 degree field of view
+		/** Clicks where a world point shows, by the camera's own projection. */
+		const click = (p: { x: number; y: number; z: number }) => {
+			const d = sub(p, eye);
+			const z = dot(d, f);
+			const nx = dot(d, r) / (z * tan * (rect.width / rect.height));
+			const ny = dot(d, u) / (z * tan);
+			const at = {
+				clientX: rect.left + ((nx + 1) / 2) * rect.width,
+				clientY: rect.top + ((1 - ny) / 2) * rect.height,
+				button: 0,
+				bubbles: true
+			};
+			m.canvas.dispatchEvent(new PointerEvent('pointerdown', at));
+			m.canvas.dispatchEvent(new PointerEvent('pointerup', at));
+			return events.onClick.mock.calls.at(-1)![0];
+		};
+		m.canvas.setPointerCapture = m.canvas.releasePointerCapture = () => {};
+		try {
+			// The gallery's floor at level 5, the nave's below it, and the gallery's south face.
+			expect(click({ x: 5.5, y: 2, z: -4.5 }).cell).toEqual({ x: 20, y: 5 });
+			expect(click({ x: 1.5, y: 0, z: -4.5 }).cell).toEqual({ x: 16, y: 5 });
+			expect(click({ x: 4.5, y: 1, z: 0 }).cell).toEqual({ x: 19, y: 9 });
+			// Beyond the grid's south edge: no cell, but a corner on the border still snaps.
+			const beyond = click({ x: 0.2, y: 0, z: 10.3 });
+			expect(beyond.cell).toBeNull();
+			expect(beyond.corner).toEqual({ x: 15, y: 20 });
+		} finally {
+			spied.forEach((c, k) => (c.prototype.raycast = originals[k]));
+		}
+		expect(tested.size).toBeGreaterThan(0);
+		for (const o of tested) expect(o.layers.isEnabled(PICK_LAYER), o.name || o.type).toBe(true);
+	});
 });
+
+type V3 = { x: number; y: number; z: number };
+const sub = (a: V3, b: V3) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const dot = (a: V3, b: V3) => a.x * b.x + a.y * b.y + a.z * b.z;
+const unit = (a: V3) => {
+	const l = Math.hypot(a.x, a.y, a.z);
+	return { x: a.x / l, y: a.y / l, z: a.z / l };
+};
 
 describe('the ground to the horizon', () => {
 	/** The village's grid and look at `time` with nothing on it: a clear view to the horizon. */
