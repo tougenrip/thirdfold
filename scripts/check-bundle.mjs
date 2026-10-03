@@ -67,7 +67,8 @@ const BUDGETS = {
 	// → hero shadow slots (#230: the pool, its lights' node and atlas shadow, the slot
 	// assignment); set to the merged build's measured size. → 382.9: M67's pool of 8 point lights
 	// and the `manylights` layer removed at M68's close; 382.8 kB measured.
-	renderer: { total: 382_900 },
+	// → the tier refined only from steady frames (models settled, no warm-up gallery): 383.0.
+	renderer: { total: 383_000 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
