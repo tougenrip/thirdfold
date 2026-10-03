@@ -9,6 +9,7 @@ import {
 	DARK_SUN_DEG,
 	elevationOf,
 	environmentKey,
+	beyondPlay,
 	fogFactorAt,
 	fogRange,
 	HANDOVER_DEG,
@@ -18,6 +19,7 @@ import {
 	moonDirection,
 	moonIllumination,
 	moonPhase,
+	PLAY_FOG_BLEND,
 	PLAY_FOG_CAP,
 	presetOf,
 	SHADOW_STEP_DEG,
@@ -211,7 +213,7 @@ describe('atmosphereAt', () => {
 				prev = next;
 			}
 		}
-	});
+	}, 30_000); // every minute of a day: slow under a loaded full run
 
 	it('hands the key light to the moon below -4°, crossing at zero', () => {
 		let switches = 0;
@@ -253,7 +255,7 @@ describe('atmosphereAt', () => {
 				}
 				expect(s.lut.day + s.lut.dusk + s.lut.dark).toBeCloseTo(1, 12);
 			}
-	});
+	}, 30_000); // every minute, every weather: slow under a loaded full run
 
 	it('keeps night blue and noon neutral to warm', () => {
 		for (const t of [0, 120, 1320, 1380]) {
@@ -452,41 +454,66 @@ describe('environmentKey', () => {
 describe('fog', () => {
 	const thick = (t: number) => at(t, { kind: 'fog', intensity: 1 }).fog;
 
-	it('never covers the play area past the cap, from the default poses, 4x4 to 64x64', () => {
+	it('never covers the map past a few percent, from the default poses and every distance (#377)', () => {
+		expect(PLAY_FOG_CAP).toBeLessThanOrEqual(0.05);
 		const sizes = [4, 8, 16, 20, 32, 48, 64];
 		for (const w of sizes)
 			for (const h of [4, w, 64]) {
 				const extent = Math.max(w, h) + 6;
 				const range = fogRange(extent);
-				const radius = Math.hypot(w, h) / 2;
-				for (const view of ['tactical', 'tabletop'] as const) {
-					const { position: p, target: q } = viewPose(view, extent);
-					const len = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
-					const f = [(q.x - p.x) / len, (q.y - p.y) / len, (q.z - p.z) / len];
-					for (const t of [720, 1170, 1380])
-						for (const [x, z] of [
-							[-w / 2, -h / 2],
-							[w / 2, -h / 2],
-							[-w / 2, h / 2],
-							[w / 2, h / 2],
-							[0, 0]
-						]) {
-							const viewZ = (x - p.x) * f[0] + (0 - p.y) * f[1] + (z - p.z) * f[2];
-							const fromPlay = Math.hypot(x, z) - radius;
-							expect(fogFactorAt(thick(t), range, viewZ, 0, fromPlay)).toBeLessThanOrEqual(
-								PLAY_FOG_CAP
-							);
-						}
-				}
+				// The fixtures' overview (1.1 times the grid out, 55° up) and the default views, each
+				// also pulled back as far as the controls allow (world-ground.ts: twice the frame).
+				const overview = {
+					position: { x: 0, y: Math.sin(0.96) * 1.1 * extent, z: Math.cos(0.96) * 1.1 * extent },
+					target: { x: 0, y: 0, z: 0 }
+				};
+				const poses = [overview, viewPose('tactical', extent), viewPose('tabletop', extent)];
+				for (const { position: p0, target: q } of poses)
+					for (const pulled of [1, (2 * extent) / Math.hypot(p0.x, p0.y, p0.z)]) {
+						const p = { x: p0.x * pulled, y: p0.y * pulled, z: p0.z * pulled };
+						const len = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z);
+						const f = [(q.x - p.x) / len, (q.y - p.y) / len, (q.z - p.z) / len];
+						for (const t of [720, 1170, 1380])
+							for (const [x, z] of [
+								[-w / 2, -h / 2],
+								[w / 2, -h / 2],
+								[-w / 2, h / 2],
+								[w / 2, h / 2],
+								[w / 2, 0],
+								[0, 0]
+							]) {
+								const viewZ = (x - p.x) * f[0] + (0 - p.y) * f[1] + (z - p.z) * f[2];
+								const fromPlay = beyondPlay(x, z, w / 2, h / 2);
+								expect(fromPlay).toBe(0);
+								expect(fogFactorAt(thick(t), range, viewZ, 0, fromPlay)).toBeLessThanOrEqual(
+									PLAY_FOG_CAP
+								);
+							}
+					}
 			}
 	});
 
-	it('lifts the cap past the play area, so the world beyond fades out', () => {
+	it('measures the map as a rectangle, so a long map is clear to its ends (#377)', () => {
+		expect(beyondPlay(0, 0, 24, 4)).toBe(0);
+		expect(beyondPlay(-24, 4, 24, 4)).toBe(0);
+		// Along the long side: what a circle round the map would have fogged, the rectangle keeps.
+		expect(beyondPlay(23, 0, 24, 4)).toBe(0);
+		expect(beyondPlay(0, 7, 24, 4)).toBe(3);
+		expect(beyondPlay(-27, -8, 24, 4)).toBe(5);
+	});
+
+	it('thickens only past the edge, over a wider blend, to the whole haze beyond (#377)', () => {
 		const range = fogRange(70);
 		expect(fogFactorAt(thick(720), range, 400, 0, 200)).toBeGreaterThan(0.99);
 		const inside = fogFactorAt(thick(720), range, 400, 0, 0);
 		expect(inside).toBe(PLAY_FOG_CAP);
-		expect(fogFactorAt(thick(720), range, 400, 0, 3)).toBeGreaterThan(inside);
+		const rising = [1, 4, 8, 12, PLAY_FOG_BLEND].map((m) =>
+			fogFactorAt(thick(720), range, 400, 0, m)
+		);
+		for (let i = 1; i < rising.length; i++) expect(rising[i]).toBeGreaterThan(rising[i - 1]);
+		// A cell past the edge is still mostly clear: the haze frames the map, it doesn't start at it.
+		expect(rising[0]).toBeLessThan(0.1);
+		expect(PLAY_FOG_BLEND).toBeGreaterThanOrEqual(12);
 	});
 
 	it('is range fog alone above the height fog, and grows range with tables past the Hollow', () => {

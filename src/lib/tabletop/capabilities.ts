@@ -100,6 +100,9 @@ export class QualityControl {
 			sun: THREE.DirectionalLight;
 			perf: PerfRecorder;
 			loop: RenderScheduler;
+			/** Whether the frame just drawn was at play: frames drawn while models load or a warm-up's
+			 * gallery shows don't say what the device can do, so they never refine the tier. */
+			steady?: () => boolean;
 		},
 		private readonly options: Pick<TabletopOptions, 'pixelRatio' | 'onTierRefined'>
 	) {
@@ -130,14 +133,15 @@ export class QualityControl {
 		this.refining = refine;
 		this.samples = [];
 		const size = settings.sunShadowSize;
-		const { mapSize } = this.parts.sun.shadow;
-		if (mapSize.x !== size) mapSize.set(size, size);
+		const shadow = this.parts.sun.shadow;
+		if (shadow.mapSize.x !== size) shadow.mapSize.set(size, size);
+		shadow.radius = settings.sunShadowRadius; // a uniform: nothing compiles
 		this.resize();
 	}
 
 	/** An active frame's main-thread ms (GPU ms need `?perf`, so they are not used here). */
 	private frame(ms: number): void {
-		if (!this.refining) return;
+		if (!this.refining || this.parts.steady?.() === false) return;
 		this.samples.push(ms);
 		if (this.samples.length < REFINE_SAMPLES) return;
 		this.refining = false;

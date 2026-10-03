@@ -299,6 +299,19 @@ describe('checkGlb', () => {
 		await refused(past, /index past the vertices/);
 	});
 
+	it("takes a fixture's flame, at its levels too, and no other glow (#232)", async () => {
+		expect(
+			await checkGlb(writeGlb([triangle(), triangle('flame'), triangle('flame_lod1')]))
+		).toMatchObject({
+			ok: true,
+			info: { meshes: ['body', 'flame', 'flame_lod1'], triangles: 2, lods: [1] }
+		});
+		await refused(
+			writeGlb([triangle('glow')]),
+			/mesh "glow" must be named body, swing, accent or flame/
+		);
+	});
+
 	it('refuses names off the roles, and node trees that are not trees', async () => {
 		await refused(writeGlb([triangle('body.lod1')]), /mesh "body\.lod1" must be named/);
 		await refused(

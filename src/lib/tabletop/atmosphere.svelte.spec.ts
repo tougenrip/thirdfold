@@ -15,6 +15,7 @@ import {
 	type KeyLight
 } from './atmosphere-curve';
 import { atmosphereUniforms, skyBackground, TWEEN_MS } from './atmosphere';
+import { GRADE_BLEND_MS } from './grade';
 import type { Tier } from './quality';
 import type { Tabletop } from './types';
 import { loadSidecar, loadView, manualClock, mountFixture, settle, type Mounted } from './testing';
@@ -53,7 +54,7 @@ const copyKey = (k: KeyLight): KeyLight => ({ ...k, dir: [...k.dir], color: [...
 
 describe('the key light', () => {
 	it('redraws its shadows by the angle it turns, and body switches, compiling nothing', async () => {
-		const { tabletop, view } = await mount(true);
+		const { tabletop, view, clock } = await mount(true);
 		const setTime = (time: number) =>
 			tabletop.setLighting(bandOf(time), view.lights, { ...view.world, time } as WorldLook);
 		// The hours to sweep: an hour past noon a minute at a time, then night (the moon).
@@ -79,6 +80,8 @@ describe('the key light', () => {
 			setTime(t);
 			await drawn(tabletop);
 		}
+		// Night's grade blends in over GRADE_BLEND_MS on the held clock: let it end.
+		clock.set(clock.now() + GRADE_BLEND_MS);
 		await settle(tabletop);
 		expect(shadows(tabletop) - before).toBe(expected);
 		expect(switches).toBe(1);
@@ -96,6 +99,9 @@ describe('the key light', () => {
 
 	it('plays a new hour over its tween, then rests', async () => {
 		const { tabletop, view, clock } = await mount(false);
+		// Flames and mist still (as program-count's sweep), or dusk's mist draws on and on.
+		tabletop.setPowerSaver(true);
+		await settle(tabletop);
 		const { programs, pipelines } = tabletop.stats();
 		const before = shadows(tabletop);
 		tabletop.setLighting('day', view.lights, { ...view.world, time: 1110 });
@@ -111,6 +117,47 @@ describe('the key light', () => {
 		await settle(tabletop);
 		expect(shadows(tabletop)).toBeGreaterThan(mid);
 		expect(tabletop.stats().mode).not.toBe('active');
+		expect(tabletop.stats()).toMatchObject({ programs, pipelines });
+	});
+});
+
+describe('the fitted shadow (#229)', () => {
+	it('draws no shadow pass for the camera alone, one for a move, none for a small turn', async () => {
+		const { tabletop, view, clock } = await mount(true);
+		const sidecar = await loadSidecar('test-world');
+		// The camera alone: frames, but no shadow pass (once the poses' nearer models have arrived:
+		// a model arriving casts anew).
+		const poses = async () => {
+			for (const pose of [sidecar.poses.close, sidecar.poses.low, sidecar.poses.overview]) {
+				tabletop.setGridPose(pose);
+				await drawn(tabletop);
+			}
+			await settle(tabletop);
+		};
+		await poses();
+		const { programs, pipelines } = tabletop.stats();
+		const [before, frames] = [shadows(tabletop), tabletop.stats().frames];
+		await poses();
+		expect(tabletop.stats().frames).toBeGreaterThan(frames);
+		expect(shadows(tabletop)).toBe(before);
+		// A token moved: drawn again on the frames it glides, then no more.
+		const token = view.tokens[0];
+		const moveFrom = tabletop.stats().frames;
+		tabletop.setTokens(
+			view.tokens.map((k) => (k === token ? { ...k, pos: { ...k.pos, x: k.pos.x + 1 } } : k))
+		);
+		await drawn(tabletop);
+		clock.set(clock.now() + 5000); // the glide ends on the held clock
+		await drawn(tabletop);
+		await settle(tabletop);
+		const moved = shadows(tabletop);
+		expect(moved).toBeGreaterThan(before);
+		expect(moved - before).toBeLessThanOrEqual(tabletop.stats().frames - moveFrom);
+		// The sun turning a quarter of a degree (a minute at noon): nothing.
+		tabletop.setLighting('day', view.lights, { ...view.world, time: view.world.time + 1 });
+		await drawn(tabletop);
+		await settle(tabletop);
+		expect(shadows(tabletop)).toBe(moved);
 		expect(tabletop.stats()).toMatchObject({ programs, pipelines });
 	});
 });

@@ -109,10 +109,10 @@ export const MOON_FLOOR = 0.25;
 export const MIN_SHADOW_ELEVATION_DEG = 12;
 /** A shadow map is redrawn once its light has turned this far. */
 export const SHADOW_STEP_DEG = 0.5;
-/** Fog over the play area never exceeds this, whatever the haze or weather (#217). */
-export const PLAY_FOG_CAP = 0.3;
-/** Metres beyond the play area over which the cap lifts to 1. */
-export const PLAY_FOG_BLEND = 6;
+/** Fog over the map never exceeds this, whatever the haze, weather or camera distance (#377). */
+export const PLAY_FOG_CAP = 0.04;
+/** Metres past the map's edge over which the cap lifts to 1: the haze frames the map (#377). */
+export const PLAY_FOG_BLEND = 16;
 
 /** The moon's phase at absolute `time` in minutes: 0 new, 0.5 full. */
 export function moonPhase(preset: SkyPreset, time: number): number {
@@ -472,11 +472,16 @@ export function fogRange(extent: number): { near: number; far: number } {
 	return { near: Math.max(40, 1.5 * extent), far: Math.max(90, 3.5 * extent) };
 }
 
+/** Metres from the map's centre (`dx`, `dz`) past its half extents, 0 on it (#377). */
+export function beyondPlay(dx: number, dz: number, halfX: number, halfZ: number): number {
+	return Math.hypot(Math.max(Math.abs(dx) - halfX, 0), Math.max(Math.abs(dz) - halfZ, 0));
+}
+
 /**
  * How much fog covers a point, as the scene's fog node works it out (#217): the larger of range
  * fog (three's `rangeFogFactor`) and height fog (`exponentialHeightFogFactor`) at view depth
  * `viewZ` and world height `y`, held to `PLAY_FOG_CAP` over the play area and rising to 1 over
- * `PLAY_FOG_BLEND` metres past it (`fromPlay`: metres beyond the play area's edge, ≤ 0 inside).
+ * `PLAY_FOG_BLEND` metres past it (`fromPlay`: metres beyond the play area's edge, `beyondPlay`).
  */
 export function fogFactorAt(
 	fog: AtmosphereState['fog'],

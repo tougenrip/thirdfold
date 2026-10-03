@@ -569,6 +569,38 @@ Three pairings move toward their references, two hold and two move away:
   light replace the lamp's warm fill.
 - refs 1 and 6 (close, dark rooms) hold within 0.001: their frames are the rooms, not the sky.
 
+## Milestone 68: warm and cool presets (#238)
+
+The art pass on light: the flame kinds' intensity, the hot core's cap, the temperate night's moon
+and the village and stone-halls night grades, tuned against refs 1 and 6 (values and reasons in
+`docs/ART.md`, "Light presets"). The strip is `docs/look/m68/`; `docs/look/m68-before-after.png`
+sets refs 1 (top) and 6 (bottom) side by side: M67, the M68 branch before this pass, and M68 tuned.
+
+| Reference | band | m67   | M68 before | m68   |
+| --------- | ---- | ----- | ---------- | ----- |
+| 1         | dark | 0.167 | 0.128      | 0.123 |
+| 2         | dusk | 0.259 | 0.276      | 0.287 |
+| 3         | dark | 0.144 | 0.118      | 0.119 |
+| 4         | dark | 0.087 | 0.134      | 0.103 |
+| 6         | dark | 0.193 | 0.237      | 0.119 |
+| 7         | day  | 0.109 | 0.108      | 0.108 |
+| 8         | dusk | 0.237 | 0.236      | 0.242 |
+
+- **The torch room (1) and the night gate (6), the pairings this pass is for, both move toward
+  their references**: the torch room by 0.044 since M67 (its pool lit the way the reference's is,
+  its highlights at the reference's chroma), the gate by 0.074 (its braziers no longer burn the
+  walls and cobbles orange-white, the village after dark is the reference's quiet, low-chroma
+  night, and the moon lights the cobbles between the pools).
+- **The long dungeon (4)** moved away earlier in the milestone (M68's falloff and hot cores made
+  its forty torches brighter than the reference's dim corridors); the dimmer torch brings back
+  0.031 of it.
+- **The two dusk pairings (2, 8)** move a little away: their torches are dimmer too, against
+  references that are brighter than ours at dusk. #377 tunes the dusk overviews' haze and contrast.
+- **What the art review still has to judge**: whether the village's quiet night (greyer plaster,
+  lavender-leaning highlights) reads as moonlight or as washed out; and what is missing, none of
+  it light: surface detail (local contrast is half the references'), the torch room's lit
+  foreground and both skies' indigo at the horizon rows, which the close poses fill with lit wall.
+
 ## Sky targets (#213)
 
 The skies' colours (`assets/skies/`, docs/ASSETS.md) and where each comes from. The references'

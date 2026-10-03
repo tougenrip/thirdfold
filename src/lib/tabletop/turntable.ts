@@ -117,6 +117,11 @@ export function modelGroup(
 	}
 	for (const part of model.parts.filter((p: ModelPart) => p.lod === lod)) {
 		const accented = part.role === 'accent';
+		if (part.role === 'flame') {
+			// A fixture's flame (#232) glows as a torch's would.
+			add(part.geometry, createMaterial('emissive', { params: { tint: '#ffa04d' } }), lift);
+			continue;
+		}
 		const params = part.maps ? part.params : accented ? { color: accent } : { roughness: 0.6 };
 		const material = createMaterial(kind, {
 			vertexColors: !accented,

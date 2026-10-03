@@ -206,7 +206,8 @@ describe('the ground to the horizon', () => {
 			// colour changes smoothly, so no band of anything else lies between ground and sky. At the
 			// horizon itself the dome's haze is the fog's colour, so the fogged ground meets the sky with
 			// no step (measured 2 on SwiftShader). On low, with range fog only (#225), the ground comes
-			// out of the flat sky over fewer rows: a steeper fade, still no band.
+			// out of the flat sky over fewer rows: a steeper fade, still no band (steeper again since
+			// #377 darkened the ring: a pale sky down to darker land over the same rows).
 			const column = (x: number) => {
 				const rows: number[][] = [];
 				for (let y = horizon - 30; y < horizon + 40; y++) rows.push(at(x, y));
@@ -217,7 +218,7 @@ describe('the ground to the horizon', () => {
 				for (let i = 1; i < rows.length; i++) {
 					const jump = Math.max(...rows[i].map((c, k) => Math.abs(c - rows[i - 1][k])));
 					const seam = i >= 28 && i <= 36; // horizon - 2 to horizon + 6
-					const limit = seam ? 8 : tier === 'low' ? 32 : 20;
+					const limit = seam ? 8 : tier === 'low' ? 40 : 20;
 					expect(jump, `${time} ${tier} at ${x}, row ${i}`).toBeLessThan(limit);
 				}
 				// Never the old void's near-black.

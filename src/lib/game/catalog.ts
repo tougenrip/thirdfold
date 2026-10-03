@@ -52,7 +52,10 @@ export const ASSETS = {
 	'water-lg': { name: 'Dark water (large)', category: 'water', w: 4, h: 4, blocks: 'none' },
 	crack: { name: 'Cracked floor', category: 'ruins', w: 1, h: 1, blocks: 'none' },
 	heart: { name: 'Great heart', category: 'set-pieces', w: 3, h: 3, blocks: 'sight' },
-	'broken-bell': { name: 'Broken bell', category: 'set-pieces', w: 3, h: 3, blocks: 'movement' }
+	'broken-bell': { name: 'Broken bell', category: 'set-pieces', w: 3, h: 3, blocks: 'movement' },
+	tent: { name: 'Tent', category: 'furniture', w: 2, h: 2, blocks: 'movement' },
+	banner: { name: 'Banner', category: 'fixtures', w: 1, h: 1, blocks: 'none' },
+	crystal: { name: 'Crystal', category: 'nature', w: 1, h: 1, blocks: 'movement' }
 } as const satisfies Record<string, Asset>;
 
 /** Old prop ids and the ids that replaced them. */

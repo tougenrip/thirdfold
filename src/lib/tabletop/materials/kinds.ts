@@ -8,6 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
+import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
@@ -84,6 +85,12 @@ export interface Params {
 	macroRoughness: number;
 	/** Props and minis: how much of their baked occlusion (`BAKE_ATTRIBUTE`) shades their ambient light. */
 	bake: number;
+	/**
+	 * Props, minis and foliage: how much light behind them shines through (#237, lighting-model.ts:
+	 * tent canvas, banners, candles, crystals, leaves). 0 is opaque; a uniform, so changing it
+	 * compiles nothing.
+	 */
+	translucency: number;
 }
 
 /** What a caller may set: colours and vectors in any form three takes. */
@@ -113,7 +120,8 @@ export const PARAM_DEFAULTS: Required<ParamsInput> = {
 	macroScale: 0.08,
 	macroTint: 0,
 	macroRoughness: 0,
-	bake: 1
+	bake: 1,
+	translucency: 0
 };
 
 /** The tiled kinds' macro variation (#181): gentle, over about a dozen cells. */
@@ -145,13 +153,18 @@ const lit = (defaults: ParamsInput, more: Partial<KindDef> = {}): KindDef => ({
 
 export const KINDS: Record<ShaderKind, KindDef> = {
 	surface: lit({ roughness: 0.85, ...VARY }),
-	terrain: lit({ roughness: 0.9, ...VARY }),
+	// No emissive slot: no floor glows, and the binding it saves keeps terrain's fragment stage
+	// within WebGPU's 16 sampled textures on high with the probes and the hero atlas (#235, #230).
+	terrain: lit({ roughness: 0.9, ...VARY }, { slots: ['albedo', 'normal', 'orm'] }),
 	rock: lit({ roughness: 0.95, ...VARY }),
 	prop: lit({ roughness: 0.75 }),
 	mini: lit({ roughness: 0.45 }, { base: 'physical' }),
 	emissive: lit({ roughness: 0.3 }),
 	decal: lit({ color: 0x000000 }, { transparent: true }),
-	foliage: lit({ roughness: 0.8 }, { alphaTested: true, side: THREE.DoubleSide }),
+	foliage: lit(
+		{ roughness: 0.8, translucency: 0.6 },
+		{ alphaTested: true, side: THREE.DoubleSide }
+	),
 	water: lit({ color: 0x2a4a5a, roughness: 0.1, opacity: 0.8 }, { transparent: true }),
 	overlay: {
 		base: 'basic',
@@ -215,18 +228,25 @@ export interface Variant {
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
 
-/** The emissive tint input: the material's, plus the instance's when instanced. */
-function tintOf(variant: Variant): N {
+/**
+ * The emissive tint input: the material's, plus the instance's when instanced. The instanced
+ * emissive kind is the lights' flames (#232): their glow breathes with their light's flicker
+ * (#231), its profile and phase in the instance's paint (`aPaint` x and y, unused by the kind).
+ */
+function tintOf(kind: ShaderKind, variant: Variant): N {
 	const own = param('tint', 'color');
 	if (!variant.instanced) return own;
 	const each = tsl.attribute(TINT_ATTRIBUTE, 'vec4');
-	return own.add(each.xyz.mul(each.w));
+	const glow = each.xyz.mul(each.w);
+	if (kind !== 'emissive') return own.add(glow);
+	const paint = tsl.attribute(PAINT_ATTRIBUTE, 'vec3');
+	return own.add(glow.mul(flickerNode(paint.x, paint.y)));
 }
 
 function build(kind: ShaderKind, variant: Variant): Graph {
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
-	const tint = tintOf(variant);
+	const tint = tintOf(kind, variant);
 	if (def.base === 'basic') {
 		const colour = tsl.vec4(param('color', 'color'), 1);
 		const opacity = param('opacity', 'float');
@@ -247,11 +267,14 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	const floor = kind === 'terrain' ? floorSurface(variant) : null;
 	const albedo = mapping.sample('albedo');
 	const orm = floor ? floor.orm(mapping.sample('orm')) : mapping.sample('orm');
-	const glow = mapping
-		.sample('emissive')
-		.xyz.mul(param('emissive', 'color'))
-		.mul(param('emissiveIntensity', 'float'))
-		.add(tint);
+	// Without an emissive slot (terrain) the glow is the tint alone, as a blank slot's black gives.
+	const glow = def.slots.includes('emissive')
+		? mapping
+				.sample('emissive')
+				.xyz.mul(param('emissive', 'color'))
+				.mul(param('emissiveIntensity', 'float'))
+				.add(tint)
+		: tint;
 	const emissive = worldEmissive(glow);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
@@ -283,7 +306,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
-		outputNode: ownOutput(kind, worldModify(tsl.output, emissive)),
+		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true)),
 		lit: {
 			roughnessNode: paintRoughness(
 				kind,

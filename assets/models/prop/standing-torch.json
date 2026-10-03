@@ -1,0 +1,41 @@
+{
+	"parts": [
+		{
+			"shape": "cylinder",
+			"size": [0.3, 0.05, 0.3],
+			"at": [0, 0.025, 0],
+			"color": "#3d3a38"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.06, 1.35, 0.06],
+			"at": [0, 0.7, 0],
+			"color": "#3d3a38"
+		},
+		{
+			"shape": "cone",
+			"size": [0.2, 0.15, 0.2],
+			"at": [0, 1.43, 0],
+			"turn": [3.142, 0, 0],
+			"color": "#3d3a38"
+		},
+		{
+			"shape": "cylinder",
+			"size": [0.09, 0.08, 0.09],
+			"at": [0, 1.5, 0],
+			"color": "#2a1d14"
+		},
+		{
+			"shape": "sphere",
+			"size": [0.12, 0.144, 0.12],
+			"at": [0, 1.6, 0],
+			"emissive": true
+		},
+		{
+			"shape": "cone",
+			"size": [0.096, 0.192, 0.096],
+			"at": [0, 1.72, 0],
+			"emissive": true
+		}
+	]
+}

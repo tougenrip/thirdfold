@@ -143,13 +143,15 @@ export async function mountFixture(
 		warm?: WarmRenderer;
 		/** The renderer's dev-only hook: the scene, and a redraw (sky-light.svelte.spec.ts). */
 		devScene?: (scene: THREE.Scene, redraw: () => void) => void;
+		/** WebGL2 in the WebGPU project too: on the real GPU (the probe bake's times, #235). */
+		webgl?: boolean;
 	} = {}
 ): Promise<Mounted> {
 	await labelFontReady;
 	const canvas = options.warm?.canvas ?? document.createElement('canvas');
 	canvas.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
 	document.body.appendChild(canvas);
-	const webgpu = BACKEND === 'webgpu';
+	const webgpu = BACKEND === 'webgpu' && !options.webgl;
 	const tabletop = await createTabletop(
 		canvas,
 		options.events ?? { onClick: () => {}, onHover: () => {} },
@@ -246,6 +248,8 @@ export function shardedIt(): typeof it {
 }
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+/** The most of one wait for a frame that counts toward `settle`'s limit, in ms. */
+const STALL_MS = 2000;
 
 /**
  * Waits until the tabletop has drawn and then stopped drawing for `quietMs`,
@@ -255,16 +259,26 @@ const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() 
  * land after a shorter spell and draw once more.
  */
 export async function settle(tabletop: Tabletop, quietMs = 1000, limitMs = 20_000): Promise<void> {
-	const start = performance.now();
 	let last = -1;
-	let quietSince = start;
-	while (performance.now() - start < limitMs) {
+	let [quietSince, before, spent] = [performance.now(), performance.now(), 0];
+	// The limit counts at most STALL_MS a wait: one frame that stalls the page for half a minute
+	// (a loaded machine compiling what a timed-out warm-up left) must not end it before the
+	// frames after it, which compile the rest (the AO's real passes come on the second).
+	// Nor does a warm-up's hold count: it ends once the compile under way does, which on a loaded
+	// machine (render specs side by side on SwiftShader) can take longer than the whole limit, and a
+	// settle that ended in it read the canvas before the table's first real frame.
+	while (spent < limitMs) {
 		await nextFrame();
+		const now = performance.now();
 		const { frames, holding, mode } = tabletop.stats();
-		// A warm-up holds frames for up to WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
-		// still drawing: one software frame can outlast the quiet spell (CI's small runners).
+		[spent, before] = [spent + (holding ? 0 : Math.min(now - before, STALL_MS)), now];
+		// A warm-up holds frames for at least WARM_UP_LIMIT_MS: that isn't quiet. Nor is a scheduler
+		// still drawing: one software frame can outlast the quiet spell (CI's small runners). Nor
+		// a first view's load still out (the environment's look, the decoders): on a loaded machine
+		// it lands after the frames went quiet and changes the picture (the floor's maps, #230).
 		const drawing = mode === 'active' || mode === 'converge';
-		if (frames !== last || frames === 0 || holding || drawing) {
+		const [loaded, loading] = tabletop.loads();
+		if (frames !== last || frames === 0 || holding || drawing || loaded < loading) {
 			last = frames;
 			quietSince = performance.now();
 		} else if (performance.now() - quietSince >= quietMs) return;
