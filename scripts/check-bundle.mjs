@@ -22,7 +22,9 @@ const BUDGETS = {
 	// shared chunk with the manifest's parser (#215), 97,479 B measured.
 	// 97.6 → 98.2: the rules track's adventure-file fields (an enemy's immunities and damage traits,
 	// what its attacks inflict, damage types; #94–#96) beside the sky's, 98,159 B measured.
-	'/builder': { total: 98_200, own: 52_000 },
+	// → 98.4: the library's client learns collections and homebrew packs (kinds, collection_check;
+	// #98), shared with the builder's Publish section, 98,392 B measured.
+	'/builder': { total: 98_400, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.

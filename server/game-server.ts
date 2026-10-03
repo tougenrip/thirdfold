@@ -25,7 +25,7 @@ import * as adventure from './adventure/engine';
 import { loadCustomAdventure } from './adventure/custom';
 import { readAdventure } from './adventure/persist';
 import { builtInAdventures, trackInUse } from './adventure/registry';
-import { trackPacksInUse } from './rules/ruleset';
+import { findRuleset, trackPacksInUse, type RulesetRef } from './rules/ruleset';
 import { RateLimiter } from './rate-limit';
 import { createHash } from 'node:crypto';
 import { ADVENTURE_FILE_MAX_BYTES, loadAdventureFile } from '../src/lib/adventure/file';
@@ -33,9 +33,13 @@ import {
 	LIBRARY_LIMITS,
 	normalizeCreatorName,
 	normalizeQuery,
+	type LibraryKind,
 	type PublicGame
 } from '../src/lib/game/library';
-import { LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
+import { parseCollectionFile, type CollectionFile } from '../src/lib/game/collection';
+import { COLLECTION_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '../src/lib/game/file-limits';
+import { creatorIdOf, LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
+import { problemsOf, reportOf, resolveCollection, withRules, type Shelves } from './collections';
 import { applyScene, catchUpLights, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { keyOwner, newGmKey } from './gm-keys';
@@ -295,6 +299,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'library_mine':
 			case 'library_publish':
 			case 'library_manage':
+			case 'collection_check':
 			case 'games_list':
 				// The library and the open games: at a table or not.
 				void handleLibrary(ws, msg);
@@ -656,6 +661,10 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		msg: Extract<ClientMessage, { type: `adventure_${string}` }>
 	): void {
 		// The library is storage: these two answer when it has.
+		if (msg.type === 'adventure_start' && msg.collectionId !== undefined) {
+			void startFromCollection(ws, room, player, msg.collectionId, msg.version, msg.entry ?? 0);
+			return;
+		}
 		if (msg.type === 'adventure_start' && msg.libraryId !== undefined) {
 			void startFromLibrary(ws, room, player, msg.libraryId, msg.version);
 			return;
@@ -1243,29 +1252,48 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					| 'library_mine'
 					| 'library_publish'
 					| 'library_manage'
+					| 'collection_check'
 					| 'games_list';
 			}
 		>
 	): Promise<void> {
 		const browsing =
-			msg.type === 'library_list' || msg.type === 'library_story' || msg.type === 'games_list';
+			msg.type === 'library_list' ||
+			msg.type === 'library_story' ||
+			msg.type === 'collection_check' ||
+			msg.type === 'games_list';
 		const limited = browsing
 			? browseLimiter.take(connectionKey(ws))
-			: publishLimiter.take(msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws));
+			: publishLimiter.take('gmKey' in msg && msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws));
 		if (!limited) return sendError(ws, 'rate_limited', 'Give it a moment before asking again.');
 		try {
 			switch (msg.type) {
 				case 'games_list':
 					return send(ws, { type: 'games_list', games: publicGames() });
 				case 'library_list': {
+					const kind = msg.kind ?? 'adventure';
 					const found = await libraryStore.list({
 						query: normalizeQuery(msg.query),
 						creator: msg.creator ?? null,
-						sort: msg.sort ?? 'top'
+						sort: msg.sort ?? 'top',
+						kind
 					});
 					// The whole library also shows the adventures that come with thirdfold.
-					const builtIn = msg.creator ? [] : builtInAdventures().map(builtInStory);
+					const builtIn =
+						msg.creator || kind !== 'adventure' ? [] : builtInAdventures().map(builtInStory);
 					return send(ws, { type: 'library_list', ...found, builtIn });
+				}
+				case 'collection_check': {
+					const copy = await libraryStore.get(msg.id, msg.version);
+					const mine = msg.gmKey !== undefined && copy?.owner === keyOwner(msg.gmKey);
+					if (!copy || copy.listing.kind !== 'collection' || (!copy.listed && !mine))
+						return send(ws, { type: 'collection_report', report: null });
+					const parsed = parseCollectionFile(copy.file);
+					if (!parsed.ok || !parsed.file.rules)
+						return send(ws, { type: 'collection_report', report: null });
+					const file = parsed.file as CollectionFile;
+					const { items } = await resolveCollection(shelves, file, copy.owner);
+					return send(ws, { type: 'collection_report', report: reportOf(copy, file, items) });
 				}
 				case 'library_story': {
 					const copy = await libraryStore.get(msg.id);
@@ -1304,22 +1332,12 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 							`Creator names are 1-${LIBRARY_LIMITS.creatorName} characters.`
 						);
 					}
-					if (JSON.stringify(msg.file).length > ADVENTURE_FILE_MAX_BYTES) {
-						return sendError(ws, 'invalid_message', 'That adventure is too large.');
-					}
-					// Checked in full, as it would be to play it: only playable adventures are published.
-					const loaded = loadAdventureFile(msg.file, 'custom-publish');
-					if (!loaded.ok) return sendError(ws, 'invalid_message', loaded.error);
 					const issued = msg.gmKey ? null : newGmKey();
 					const owner = keyOwner(msg.gmKey ?? issued!);
+					const checked = await publishable(msg.kind ?? 'adventure', msg.file, owner);
+					if (!checked.ok) return sendError(ws, 'invalid_message', checked.error);
 					const published = await libraryStore.publish(
-						{
-							owner,
-							creatorName: creator,
-							title: loaded.file.title,
-							about: loaded.file.about ?? '',
-							file: loaded.file
-						},
+						{ kind: msg.kind ?? 'adventure', owner, creatorName: creator, ...checked.item },
 						msg.adventureId
 					);
 					send(ws, {
@@ -1344,6 +1362,153 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			console.error('[library] failed', err);
 			sendError(ws, 'persistence_failed', 'The library could not be reached. Try again.');
 		}
+	}
+
+	/** Where collections find what they name. */
+	const shelves: Shelves = { library: libraryStore, scenes: sceneStore };
+
+	/**
+	 * A file checked in full as what it says it is, before it goes into the
+	 * library: an adventure as it would be played, a homebrew pack as its
+	 * rules hold it, a collection with everything it names found and fitting.
+	 */
+	async function publishable(
+		kind: LibraryKind,
+		raw: unknown,
+		owner: string
+	): Promise<
+		| { ok: true; item: { title: string; about: string; file: unknown } }
+		| { ok: false; error: string }
+	> {
+		const size = JSON.stringify(raw).length;
+		if (kind === 'adventure') {
+			if (size > ADVENTURE_FILE_MAX_BYTES)
+				return { ok: false, error: 'That adventure is too large.' };
+			// Checked in full, as it would be to play it: only playable adventures are published.
+			const loaded = loadAdventureFile(raw, 'custom-publish');
+			if (!loaded.ok) return { ok: false, error: loaded.error };
+			const { title, about } = loaded.file;
+			return { ok: true, item: { title, about: about ?? '', file: loaded.file } };
+		}
+		if (kind === 'pack') {
+			if (size > CONTENT_PACK_MAX_BYTES) return { ok: false, error: 'That homebrew is too large.' };
+			const declared = (raw as { rules?: unknown }).rules as RulesetRef | undefined;
+			const packs =
+				declared && typeof declared === 'object' ? findRuleset(declared)?.packs : undefined;
+			if (!packs) return { ok: false, error: 'That homebrew is for rules that take none here.' };
+			const held = packs.hold(raw);
+			if (!held.ok)
+				return {
+					ok: false,
+					error: `That homebrew can't be used: ${held.problems.slice(0, 4).join('; ')}.`
+				};
+			const listing = packs.listing(held.id, { owner: creatorIdOf(owner), visibility: 'table' })!;
+			return {
+				ok: true,
+				item: {
+					title: `${listing.name} ${listing.version}`,
+					about: listing.about ?? '',
+					file: packs.content(held.id)
+				}
+			};
+		}
+		if (size > COLLECTION_FILE_MAX_BYTES)
+			return { ok: false, error: 'That collection is too large.' };
+		const parsed = parseCollectionFile(raw);
+		if (!parsed.ok)
+			return {
+				ok: false,
+				error: `That is not a valid collection: ${parsed.problems.slice(0, 4).join('; ')}.`
+			};
+		const file = await withRules(shelves, parsed.file, owner);
+		if (!file) return { ok: false, error: 'The collection’s first adventure could not be found.' };
+		const { items } = await resolveCollection(shelves, file, owner);
+		if (items.some((i) => i.status !== 'ok'))
+			return { ok: false, error: `That collection can't be published: ${problemsOf(items)}` };
+		return { ok: true, item: { title: file.title, about: file.about, file } };
+	}
+
+	/**
+	 * GM: sets up a collection from the library (its latest version, or
+	 * `version`): everything it names is found and checked first, then its
+	 * adventure `entry` starts with its homebrew, and the story keeps the
+	 * collection and the versions it found.
+	 */
+	async function startFromCollection(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		id: string,
+		version: number | undefined,
+		entry: number
+	): Promise<void> {
+		if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');
+		if (!sceneLimiter.take(player.id)) {
+			return sendError(ws, 'rate_limited', 'Give it a moment before trying again.');
+		}
+		let copy;
+		let found;
+		try {
+			copy = await libraryStore.get(id, version);
+			if (
+				!copy ||
+				copy.listing.kind !== 'collection' ||
+				(!copy.listed && copy.owner !== room.gmOwner)
+			)
+				return sendError(ws, 'adventure_not_found', 'That collection is not in the library.');
+			const parsed = parseCollectionFile(copy.file);
+			if (!parsed.ok || !parsed.file.rules)
+				return sendError(ws, 'invalid_message', 'That collection no longer reads.');
+			found = await resolveCollection(shelves, parsed.file as CollectionFile, copy.owner);
+		} catch (err) {
+			console.error('[library] reading failed', err);
+			return sendError(ws, 'persistence_failed', 'The library could not be reached. Try again.');
+		}
+		const resolved = found.resolved;
+		if (!resolved)
+			return sendError(
+				ws,
+				'invalid_message',
+				`This collection can't be started: ${problemsOf(found.items)}`
+			);
+		const pick = resolved.adventures[entry];
+		if (!pick) return sendError(ws, 'invalid_message', 'The collection has no such adventure.');
+		if (rooms.get(room.id) !== room) return;
+		let started;
+		if ('copy' in pick) {
+			const custom = loadCustomAdventure(pick.copy.file);
+			if (!custom.ok) return sendError(ws, 'invalid_message', custom.error);
+			started = adventure.startAdventure(room, player, custom.adventure.id);
+			if (started.ok)
+				room.adventure!.library = {
+					id: pick.ref.library,
+					version: pick.ref.version,
+					creator: { ...pick.copy.listing.creator }
+				};
+		} else started = adventure.startAdventure(room, player, pick.ref.builtIn);
+		if (!started.ok) return sendError(ws, started.code, started.message);
+		applyOutcome(room, started);
+		const begun = adventure.beginCollection(
+			room,
+			{
+				id,
+				version: copy.listing.version,
+				title: resolved.file.title,
+				creator: { ...copy.listing.creator },
+				entry,
+				adventures: resolved.adventures.map((a) => ({ ref: { ...a.ref }, title: a.title })),
+				packs: resolved.packs.map((p) => ({ ref: { ...p.ref }, title: p.title, packId: p.packId })),
+				tables: resolved.tables
+			},
+			resolved.packs.map((p) => ({ id: p.packId, owner: p.creator.id }))
+		);
+		if (!begun.ok) return sendError(ws, begun.code, begun.message);
+		applyOutcome(room, begun);
+		const counted = [id, ...('copy' in pick ? [pick.ref.library] : [])];
+		for (const item of counted)
+			libraryStore
+				.played(item)
+				.catch((err) => console.error('[library] counting a play failed', err));
 	}
 
 	/** GM: sets up an adventure from the library (its latest version, or `version`). */

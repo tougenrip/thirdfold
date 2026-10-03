@@ -212,6 +212,7 @@ describe('applyRoomUpdate', () => {
 			rules: { id: 'thirdfold-classic', version: 1, name: 'Thirdfold Classic', attribution: null },
 			build: null,
 			packs: null,
+			collection: null,
 			library: null,
 			cues: null
 		};

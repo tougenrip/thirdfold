@@ -70,6 +70,7 @@ describe('FileLibraryStore', () => {
 describe('searching and sorting the library', () => {
 	const listing = (over: Partial<LibraryListing>): LibraryListing => ({
 		id: 'x',
+		kind: 'adventure',
 		title: 'Untitled',
 		about: '',
 		creator: { id: '0'.repeat(16), name: 'Someone' },

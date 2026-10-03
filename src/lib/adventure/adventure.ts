@@ -8,6 +8,7 @@
 
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
+import type { CollectionView } from '../game/collection';
 import type { Creator } from '../game/library';
 import { hasLineOfSight } from '../game/visibility';
 import type { Action, CharacterDef, CharacterId, StatusId } from './characters';
@@ -709,6 +710,8 @@ export interface AdventureView {
 	build: { rules: string } | null;
 	/** The content packs (homebrew) the story has; null under rules that take none. */
 	packs: ContentPackListing[] | null;
+	/** The collection the story was started from (milestone 53), else null. */
+	collection: CollectionView | null;
 	/** Where the adventure came from, when it is from the library; null otherwise. */
 	library: LibrarySourceView | null;
 	/** GM only: prepared text to read aloud. */

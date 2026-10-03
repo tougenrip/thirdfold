@@ -2802,6 +2802,122 @@ describe('the library and open games over the wire', () => {
 	});
 });
 
+describe('collections over the wire', () => {
+	it('publishes homebrew and a collection, checks what it names, starts it and resolves it again from a save', async () => {
+		// A creator publishes a homebrew pack, then a collection of the Barrow with it.
+		const mira = await connect();
+		mira.send({ type: 'library_publish', kind: 'pack', creator: 'Mira', file: examplePack() });
+		const pack = await mira.expect('library_published');
+		const gmKey = pack.gmKey!;
+		expect((await mira.expect('library_mine')).adventures).toMatchObject([
+			{ id: pack.adventureId, kind: 'pack', title: 'The Cold Hill Armory 1.0' }
+		]);
+		const draft = (adventures: unknown[]) => ({
+			format: 'thirdfold-collection',
+			formatVersion: 1,
+			title: 'Cold Hill Campaign',
+			about: 'The barrow, and what lies beyond.',
+			adventures,
+			packs: [{ library: pack.adventureId, version: 1 }],
+			tables: []
+		});
+		// One that mixes rules is refused, saying why.
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey,
+			creator: 'Mira',
+			file: draft([{ builtIn: 'barrow' }, { builtIn: 'hollow-bell' }])
+		});
+		expect((await mira.until('error')).message).toContain(
+			'The Hollow Bell plays by Thirdfold Classic, not Fifth Edition (SRD 5.2.1).'
+		);
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey,
+			creator: 'Mira',
+			file: draft([{ builtIn: 'barrow' }])
+		});
+		const set = await mira.until('library_published');
+
+		// Anyone finds it among the collections (not among the adventures) and checks it.
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		gm.send({ type: 'library_list', kind: 'collection', query: 'cold hill' });
+		const listed = await gm.until('library_list');
+		expect(listed.adventures.map((l) => [l.id, l.kind])).toEqual([[set.adventureId, 'collection']]);
+		expect(listed.builtIn).toEqual([]);
+		gm.send({ type: 'collection_check', id: set.adventureId });
+		const { report } = await gm.until('collection_report');
+		expect(report).toMatchObject({
+			title: 'Cold Hill Campaign',
+			rules: { id: 'dnd-5.5e', version: 1 },
+			creator: { name: 'Mira' },
+			ok: true
+		});
+		expect(report!.items.map((i) => [i.kind, i.status])).toEqual([
+			['rules', 'ok'],
+			['adventure', 'ok'],
+			['pack', 'ok']
+		]);
+
+		// The GM starts it: the Barrow, with the pack, and the story knows its collection.
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', collectionId: set.adventureId });
+		const started = await pip.until('adventure_update', (m) => !!m.adventure?.collection);
+		expect(started.adventure!.id).toBe('barrow');
+		expect(started.adventure!.collection).toMatchObject({
+			id: set.adventureId,
+			version: 1,
+			title: 'Cold Hill Campaign',
+			adventures: [{ title: 'The Barrow on Cold Hill', playing: true }],
+			packs: ['The Cold Hill Armory 1.0']
+		});
+		const packIds = started.adventure!.packs!.map((p) => p.id);
+		expect(packIds).toEqual([expect.stringMatching(/^hb-[0-9a-f]{16}$/)]);
+
+		// Saved and loaded, it is the same collection with the same homebrew.
+		gm.send({ type: 'scene_save', name: 'Cold Hill campaign' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = await pip.until('room_reset');
+		expect(back.room.adventure!.collection).toEqual(started.adventure!.collection);
+		expect(back.room.adventure!.packs!.map((p) => p.id)).toEqual(packIds);
+		// The pinned version still resolves to the same set.
+		gm.send({ type: 'collection_check', id: set.adventureId, version: 1 });
+		expect((await gm.until('collection_report')).report!.ok).toBe(true);
+
+		// Once its creator takes the pack out of the library, the collection says so and won't start for others.
+		mira.send({ type: 'library_manage', gmKey, adventureId: pack.adventureId, op: 'unlist' });
+		await mira.until('library_mine');
+		const other = await connect();
+		other.send({ type: 'create', name: 'Otto' });
+		await other.expect('welcome');
+		other.send({ type: 'collection_check', id: set.adventureId });
+		const after = (await other.until('collection_report')).report!;
+		expect(after.ok).toBe(true);
+		// (Still its creator's to use, and the collection is the creator's.)
+		expect(after.items[2]).toMatchObject({ status: 'ok' });
+		mira.send({ type: 'library_manage', gmKey, adventureId: pack.adventureId, op: 'remove' });
+		await mira.until('library_mine');
+		other.send({ type: 'collection_check', id: set.adventureId });
+		const gone = (await other.until('collection_report')).report!;
+		expect(gone.ok).toBe(false);
+		expect(gone.items[2]).toMatchObject({ kind: 'pack', status: 'missing' });
+		other.send({ type: 'adventure_start', collectionId: set.adventureId });
+		expect((await other.until('error')).message).toMatch(
+			/^This collection can't be started: No pack/
+		);
+		// The saved story still loads: it carries what it was started with.
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		expect((await gm.until('room_reset')).room.adventure!.collection?.id).toBe(set.adventureId);
+	});
+});
+
 describe('fifth edition rules over the wire', () => {
 	beforeEach(async () => {
 		// Every die rolls its highest face: every d20 is a natural 20.

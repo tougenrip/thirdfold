@@ -23,6 +23,15 @@ export const LIBRARY_LIMITS = {
 	games: 50
 } as const;
 
+/**
+ * What the library holds: adventures, homebrew packs (milestone 52's
+ * content packs) and collections (milestone 53: a campaign's adventures,
+ * tables and packs, each at a pinned version). All three are published,
+ * versioned, owned, listed and counted the same way.
+ */
+export const LIBRARY_KINDS = ['adventure', 'pack', 'collection'] as const;
+export type LibraryKind = (typeof LIBRARY_KINDS)[number];
+
 export const LIBRARY_SORTS = ['top', 'new', 'played'] as const;
 /** Best rated, newest, or most played first. */
 export type LibrarySort = (typeof LIBRARY_SORTS)[number];
@@ -38,9 +47,10 @@ export interface Rating {
 	count: number;
 }
 
-/** A published adventure as the library shows it (its latest version). */
+/** A published adventure, pack or collection as the library shows it (its latest version). */
 export interface LibraryListing {
 	id: string;
+	kind: LibraryKind;
 	title: string;
 	about: string;
 	creator: Creator;

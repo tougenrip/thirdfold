@@ -17,6 +17,7 @@ import {
 	ratingOf,
 	sortListings,
 	type Creator,
+	type LibraryKind,
 	type LibraryListing,
 	type LibrarySort,
 	type MyAdventure
@@ -35,16 +36,20 @@ export class LibraryError extends Error {
 }
 
 export interface Publication {
+	/** What it is: an adventure (the default), a homebrew pack or a collection. */
+	kind?: LibraryKind;
 	/** The publishing GM's key hash. */
 	owner: string;
 	creatorName: string;
 	title: string;
 	about: string;
-	/** The checked adventure file. */
+	/** The checked file: an adventure, a pack or a collection. */
 	file: unknown;
 }
 
 export interface LibraryQuery {
+	/** Which kind to list: adventures when absent. */
+	kind?: LibraryKind;
 	query?: string | null;
 	creator?: string | null;
 	sort?: LibrarySort;
@@ -60,13 +65,14 @@ export interface LibraryCopy {
 
 export interface LibraryStore {
 	/**
-	 * Publishes an adventure and returns its id and version. With `id`, adds
-	 * a new version of that adventure, which must be `owner`'s.
+	 * Publishes an adventure (or a pack or collection, by its `kind`) and
+	 * returns its id and version. With `id`, adds a new version of that one,
+	 * which must be `owner`'s and of the same kind.
 	 */
 	publish(publication: Publication, id?: string): Promise<{ id: string; version: number }>;
-	/** Listed adventures (a creator's, with `creator`), latest versions, in the sort's order. */
+	/** Listed adventures, or the query's kind (a creator's, with `creator`), latest versions, in the sort's order. */
 	list(query: LibraryQuery): Promise<{ adventures: LibraryListing[]; creator: Creator | null }>;
-	/** An owner's own adventures, listed or not, newest first. */
+	/** An owner's own adventures, packs and collections, listed or not, newest first. */
 	mine(owner: string): Promise<MyAdventure[]>;
 	/** A version (the latest without one), or null when there is no such adventure or version. */
 	get(id: string, version?: number): Promise<LibraryCopy | null>;
@@ -93,6 +99,8 @@ export function creatorIdOf(owner: string): string {
 
 interface Entry {
 	id: string;
+	/** Absent in entries from before milestone 53: an adventure. */
+	kind?: LibraryKind;
 	owner: string;
 	creatorName: string;
 	title: string;
@@ -122,6 +130,7 @@ function listingOf(e: Entry): LibraryListing {
 	const stars = Object.values(e.ratings);
 	return {
 		id: e.id,
+		kind: e.kind ?? 'adventure',
 		title: e.title,
 		about: e.about,
 		creator: { id: creatorIdOf(e.owner), name: e.creatorName },
@@ -171,8 +180,9 @@ class BlobLibraryStore implements LibraryStore {
 		return this.serial(async () => {
 			const now = new Date().toISOString();
 			let e = id === undefined ? null : await this.entry(id);
-			if (id !== undefined && !e)
-				throw new LibraryError('not_found', 'There is no such adventure.');
+			const kind = p.kind ?? 'adventure';
+			if (id !== undefined && (!e || (e.kind ?? 'adventure') !== kind))
+				throw new LibraryError('not_found', `There is no such ${kind}.`);
 			if (e && e.owner !== p.owner) {
 				throw new LibraryError('forbidden', 'That adventure belongs to someone else.');
 			}
@@ -186,6 +196,7 @@ class BlobLibraryStore implements LibraryStore {
 				}
 				e = {
 					id: newLibraryId(),
+					kind,
 					owner: p.owner,
 					creatorName: p.creatorName,
 					title: p.title,
@@ -215,8 +226,12 @@ class BlobLibraryStore implements LibraryStore {
 
 	async list(q: LibraryQuery) {
 		const all = await this.entries();
+		const kind = q.kind ?? 'adventure';
 		const listed = all.filter(
-			(e) => e.listed && (!q.creator || creatorIdOf(e.owner) === q.creator)
+			(e) =>
+				e.listed &&
+				(e.kind ?? 'adventure') === kind &&
+				(!q.creator || creatorIdOf(e.owner) === q.creator)
 		);
 		const adventures = sortListings(
 			listed.map(listingOf).filter((l) => matchesQuery(l, q.query ?? null)),

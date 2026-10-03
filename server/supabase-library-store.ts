@@ -9,6 +9,7 @@ import {
 	matchesQuery,
 	ratingOf,
 	sortListings,
+	type LibraryKind,
 	type LibraryListing,
 	type MyAdventure
 } from '../src/lib/game/library';
@@ -24,6 +25,7 @@ import {
 
 interface Row {
 	id: string;
+	kind: LibraryKind;
 	owner: string;
 	creator_id: string;
 	creator_name: string;
@@ -38,11 +40,12 @@ interface Row {
 }
 
 const COLUMNS =
-	'id, owner, creator_id, creator_name, title, about, listed, version, published_at, plays, rating_sum, rating_count';
+	'id, kind, owner, creator_id, creator_name, title, about, listed, version, published_at, plays, rating_sum, rating_count';
 
 function listingOf(r: Row): LibraryListing {
 	return {
 		id: r.id,
+		kind: r.kind,
 		title: r.title,
 		about: r.about,
 		creator: { id: r.creator_id, name: r.creator_name },
@@ -77,9 +80,11 @@ export class SupabaseLibraryStore implements LibraryStore {
 	}
 
 	async publish(p: Publication, id?: string): Promise<{ id: string; version: number }> {
+		const kind = p.kind ?? 'adventure';
 		if (id !== undefined) {
 			const current = await this.row(id);
-			if (!current) throw new LibraryError('not_found', 'There is no such adventure.');
+			if (!current || current.kind !== kind)
+				throw new LibraryError('not_found', `There is no such ${kind}.`);
 			if (current.owner !== p.owner) {
 				throw new LibraryError('forbidden', 'That adventure belongs to someone else.');
 			}
@@ -104,9 +109,13 @@ export class SupabaseLibraryStore implements LibraryStore {
 			creator_label: p.creatorName,
 			label: p.title,
 			blurb: p.about,
-			body: p.file
+			body: p.file,
+			item_kind: kind
 		});
 		if (error) {
+			if (error.message.includes('not_found')) {
+				throw new LibraryError('not_found', `There is no such ${kind}.`);
+			}
 			if (error.message.includes('forbidden')) {
 				throw new LibraryError('forbidden', 'That adventure belongs to someone else.');
 			}
@@ -116,7 +125,11 @@ export class SupabaseLibraryStore implements LibraryStore {
 	}
 
 	async list(q: LibraryQuery) {
-		let request = this.db.from('library_adventures').select(COLUMNS).eq('listed', true);
+		let request = this.db
+			.from('library_adventures')
+			.select(COLUMNS)
+			.eq('listed', true)
+			.eq('kind', q.kind ?? 'adventure');
 		if (q.creator) request = request.eq('creator_id', q.creator);
 		// The newest few hundred, matched and sorted here: the library is small.
 		const { data, error } = await request.order('published_at', { ascending: false }).limit(500);

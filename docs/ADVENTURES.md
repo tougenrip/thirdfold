@@ -365,3 +365,41 @@ where it came from (`AdventureState.library`, saved), and the panel credits its
 creator. When the story is over, everyone who played it (players with a
 character, and the GM unless it is their own) can give it 1-5 stars
 (`adventure_rate`), once each; rating again replaces their stars.
+
+## Collections
+
+A collection is a campaign's set of pieces, published to the library like an adventure (milestone 53, `src/lib/game/collection.ts`). It holds no content of its own. It names each piece where it lives:
+
+- an adventure that comes with thirdfold, by id (`{ "builtIn": "barrow" }`);
+- a library adventure or homebrew pack, by id and exact version (`{ "library": "<id>", "version": 2 }`);
+- a shared table, by its Share table code and a name.
+
+It also names the rules all of them play by. The server fills these in from the first adventure, so a page never claims them.
+
+```json
+{
+	"format": "thirdfold-collection",
+	"formatVersion": 1,
+	"title": "Cold Hill Campaign",
+	"about": "The barrow, and what lies beyond.",
+	"rules": { "id": "dnd-5.5e", "version": 1 },
+	"adventures": [{ "builtIn": "barrow" }],
+	"packs": [{ "library": "<pack id>", "version": 1 }],
+	"tables": [{ "code": "<shared table code>", "name": "The crossroads" }]
+}
+```
+
+**Making one.** The library page's "Your homebrew and collections" publishes homebrew packs from a file and gathers a collection from the adventures that come with thirdfold, your own published adventures and packs, and shared tables. Versions are pinned to the latest at the time. Packs, collections and adventures are three kinds of the same library item (`LibraryKind`), with the same versions, GM-key ownership, listing, plays and removal.
+
+**Checking.** `server/collections.ts` `resolveCollection` looks each piece up and checks it the way it would be played:
+
+- an adventure is loaded;
+- a pack is held by the collection's rules;
+- a table must be one of the shared ones;
+- every adventure must play by the collection's rules.
+
+A library piece may be used when it is listed or belongs to the collection's creator. The `CollectionReport` gives every piece a status: ready, missing, unavailable (taken out of the library), doesn't fit (other rules) or broken. A collection is published only when every piece is ready, and checked again each time anyone looks inside (`collection_check`) or a GM runs it.
+
+**Running it.** `adventure_start` with `collectionId` starts its first adventure (or `entry`), with its homebrew attached and credited to whoever published each pack. The story keeps the collection as `AdventureState.collection`: its id and version, its adventures and which one this is, and the packs and tables as they were found. The Adventure panel shows it, and the GM can start its other adventures at the same version.
+
+A save carries the collection, the adventure's file and the packs as written. Reading it back checks that the story is the adventure the collection says and that every one of its packs is among the story's. A saved session therefore names exactly the set it started with, even if the creator later changes or removes a piece in the library. Milestone 55 completes pinning for whole dependency graphs.

@@ -124,6 +124,14 @@
 			names: records.filter((r) => r.kind === kind).map((r) => r.name)
 		}));
 
+	/** GM: the next adventure of the story's collection, at the version this story started with. */
+	function playFromCollection(entry: number, title: string) {
+		const set = adventure?.collection;
+		if (!set) return;
+		if (confirm(`Start ${title}? This replaces the map and the story on it.`))
+			send({ type: 'adventure_start', collectionId: set.id, version: set.version, entry });
+	}
+
 	function control(op: 'restart' | 'end') {
 		const warning =
 			op === 'restart'
@@ -149,6 +157,14 @@
 						>{adventure.library.creator.name}</a
 					>
 					· version {adventure.library.version}
+				</p>
+			{/if}
+			{#if adventure.collection}
+				{@const set = adventure.collection}
+				<p class="section">
+					Part of <a href={resolve(`/library?collection=${set.id}`)}>{set.title}</a>
+					by {set.creator.name} · adventure {set.adventures.findIndex((a) => a.playing) + 1} of {set
+						.adventures.length}
 				</p>
 			{/if}
 			{#if adventure.rules.id !== 'thirdfold-classic'}
@@ -287,6 +303,35 @@
 						<li><strong>{reward}</strong></li>
 					{/each}
 				</ul>
+			</details>
+		{/if}
+
+		{#if adventure.collection && (adventure.collection.adventures.length > 1 || adventure.collection.tables.length)}
+			{@const set = adventure.collection}
+			<details class="clues">
+				<summary>Collection: {set.title}</summary>
+				<ol aria-label="Its adventures">
+					{#each set.adventures as a, i (i)}
+						<li>
+							<strong>{a.title}</strong>
+							{#if a.playing}<span class="evidence-kind">playing</span>{:else if isGm}
+								<button type="button" onclick={() => playFromCollection(i, a.title)}>
+									Play this one
+								</button>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+				{#if set.tables.length}
+					<p class="note">Tables that go with it:</p>
+					<ul>
+						{#each set.tables as t (t.code)}
+							<li>
+								<a href={resolve(`/?table=${t.code}`)} target="_blank" rel="noopener">{t.name}</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			</details>
 		{/if}
 

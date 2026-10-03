@@ -13,6 +13,7 @@ import type {
 } from '../../src/lib/adventure/adventure';
 import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
+import type { AdventureRef, PinnedRef, TableRef } from '../../src/lib/game/collection';
 import type { Creator } from '../../src/lib/game/library';
 import type { EffectMods, EffectSpec, JsonData, RulesetRef } from '../rules/ruleset';
 import type { BuiltCharacter } from './built';
@@ -171,6 +172,23 @@ export interface LibrarySource {
 	creator: Creator;
 }
 
+/**
+ * The collection a story was started from (milestone 53): which version,
+ * whose, its adventures in order and which one this story is (`entry`), and
+ * the homebrew and tables it named, as they were found when it started.
+ * Saved with the story, so a save names the same set again.
+ */
+export interface CollectionSource {
+	id: string;
+	version: number;
+	title: string;
+	creator: Creator;
+	entry: number;
+	adventures: { ref: AdventureRef; title: string }[];
+	packs: { ref: PinnedRef; title: string; packId: string }[];
+	tables: TableRef[];
+}
+
 export interface Finding {
 	/** Characters who found it themselves (they know it even before it is shared). */
 	by: CharacterId[];
@@ -280,6 +298,8 @@ export interface AdventureState {
 	again?: Set<string>;
 	/** The library adventure being played (a creator's, published), if it is one. */
 	library?: LibrarySource;
+	/** The collection the story was started from, if it was. */
+	collection?: CollectionSource;
 	/** The stars each player gave it at this table, by player id (not saved: the library keeps them). */
 	rated?: Map<string, number>;
 }

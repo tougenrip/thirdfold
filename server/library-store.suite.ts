@@ -139,4 +139,49 @@ export function libraryStoreSuite(make: () => LibraryStore | Promise<LibraryStor
 		expect(await store.get(id, 1)).toBeNull();
 		expect(await store.mine(owner)).toEqual([]);
 	});
+
+	it('keeps adventures, packs and collections apart: listed by kind, versions keep their kind', async () => {
+		const store = await make();
+		const owner = hex64();
+		const tag = randomBytes(4).toString('hex');
+		const story = await store.publish(publication(owner, `Story ${tag}`));
+		const pack = await store.publish(
+			publication(owner, `Armory ${tag}`, { kind: 'pack', file: { format: 'thirdfold-homebrew' } })
+		);
+		const set = await store.publish(
+			publication(owner, `Campaign ${tag}`, {
+				kind: 'collection',
+				file: { format: 'thirdfold-collection' }
+			})
+		);
+		// Adventures by default, each kind by asking for it.
+		expect((await store.list({ query: tag })).adventures.map((l) => l.id)).toEqual([story.id]);
+		expect(
+			(await store.list({ query: tag, kind: 'pack' })).adventures.map((l) => [l.id, l.kind])
+		).toEqual([[pack.id, 'pack']]);
+		expect(
+			(await store.list({ query: tag, kind: 'collection' })).adventures.map((l) => l.kind)
+		).toEqual(['collection']);
+		expect((await store.get(set.id))?.listing.kind).toBe('collection');
+		expect((await store.get(story.id))?.listing.kind).toBe('adventure');
+		// An owner sees all of theirs, each with its kind.
+		expect((await store.mine(owner)).map((m) => m.kind).sort()).toEqual([
+			'adventure',
+			'collection',
+			'pack'
+		]);
+		// A new version is of the same kind: a pack can't become a collection.
+		expect(
+			await store.publish(publication(owner, `Armory ${tag} 2`, { kind: 'pack' }), pack.id)
+		).toEqual({
+			id: pack.id,
+			version: 2
+		});
+		await expect(
+			store.publish(publication(owner, 'Not a pack', { kind: 'collection' }), pack.id)
+		).rejects.toMatchObject({ code: 'not_found' });
+		await expect(store.publish(publication(owner, 'Not a story'), set.id)).rejects.toMatchObject({
+			code: 'not_found'
+		});
+	});
 }

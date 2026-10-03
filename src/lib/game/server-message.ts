@@ -43,6 +43,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		listing_update: (d) => typeof d.listed === 'boolean',
 		library_list: (d) => Array.isArray(d.adventures),
 		library_story: (d) => d.story === null || isRecord(d.story),
+		collection_report: (d) => d.report === null || isRecord(d.report),
 		library_mine: (d) => Array.isArray(d.adventures),
 		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
 		games_list: (d) => Array.isArray(d.games),

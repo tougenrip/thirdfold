@@ -15,7 +15,9 @@
 		type StoryDetail
 	} from '$lib/game/library';
 	import { RoomConnection, handOff, type ConnectionError } from '$lib/net/room-connection.svelte';
-	import { listLibrary, openStory } from '$lib/net/library';
+	import { checkCollection, listLibrary, openStory } from '$lib/net/library';
+	import type { CollectionReport as Report } from '$lib/game/collection';
+	import CollectionReport from '$lib/ui/CollectionReport.svelte';
 	import { loadGmKey, loadName, saveName } from '$lib/prefs';
 	import { describeFacts, describePlays } from '$lib/ui/rating';
 	import { inSentence, lastPlayed } from '$lib/ui/when';
@@ -38,6 +40,10 @@
 		return id && LIBRARY_ID_PATTERN.test(id) ? id : null;
 	});
 	const builtId = $derived(params.get('built'));
+	const collectionId = $derived.by(() => {
+		const id = params.get('collection');
+		return id && LIBRARY_ID_PATTERN.test(id) ? id : null;
+	});
 
 	let query = $state(page.url.searchParams.get('q') ?? '');
 	let sort = $state<LibrarySort>(
@@ -51,6 +57,9 @@
 	let loadError = $state<string | null>(null);
 	let attempt = $state(0);
 
+	let collections = $state<LibraryListing[]>([]);
+	let report = $state<Report | null>(null);
+	let reportMissing = $state(false);
 	let detail = $state<StoryDetail | null>(null);
 	let detailMissing = $state(false);
 
@@ -61,7 +70,7 @@
 	let pending = $state<Runnable | null>(null);
 	let nameDialog = $state<ReturnType<typeof NameDialog> | null>(null);
 
-	type Runnable = { kind: 'library' | 'built'; id: string; title: string };
+	type Runnable = { kind: 'library' | 'built' | 'collection'; id: string; title: string };
 
 	/** Keeps the URL in step with the search and order (replacing, not stacking, history). */
 	function setParams(next: Record<string, string | null>) {
@@ -86,6 +95,10 @@
 		loading = true;
 		const timer = setTimeout(() => {
 			setParams({ q: query.trim() || null, sort: sort === 'top' ? null : sort });
+			listLibrary({ ...q, kind: 'collection' }).then(
+				(found) => (collections = found.adventures),
+				() => (collections = [])
+			);
 			listLibrary(q).then(
 				(found) => {
 					adventures = found.adventures;
@@ -118,6 +131,22 @@
 		);
 	});
 
+	// An opened collection: everything it names, as the server found it.
+	$effect(() => {
+		const id = collectionId;
+		report = null;
+		reportMissing = false;
+		if (!id) return;
+		void attempt;
+		checkCollection(id, undefined, loadGmKey()).then(
+			(found) => {
+				report = found;
+				reportMissing = found === null;
+			},
+			(err: Error) => (loadError = err.message)
+		);
+	});
+
 	const shownBuiltIn = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		if (creatorId) return [];
@@ -130,6 +159,8 @@
 	const opened = $derived(storyId !== null || builtId !== null);
 
 	const title = $derived.by(() => {
+		if (report) return report.title;
+		if (collectionId) return 'A collection';
 		if (detail) return detail.listing.title;
 		if (openedBuilt) return openedBuilt.title;
 		if (creatorId) return creator ? `${creator.name}’s adventures` : 'A creator';
@@ -180,7 +211,9 @@
 			const begin: ClientMessage =
 				r.kind === 'library'
 					? { type: 'adventure_start', libraryId: r.id }
-					: { type: 'adventure_start', adventureId: r.id };
+					: r.kind === 'collection'
+						? { type: 'adventure_start', collectionId: r.id }
+						: { type: 'adventure_start', adventureId: r.id };
 			conn.send(begin);
 			handOff(conn);
 			await goto(resolve('/room/[id]', { id: conn.room!.id }));
@@ -214,7 +247,7 @@
 
 <main>
 	<nav class="back">
-		{#if opened}
+		{#if opened || collectionId}
 			<a href={resolve('/library')}>← The library</a>
 		{:else if creatorId}
 			<a href={resolve('/library')}>← The whole library</a>
@@ -223,7 +256,41 @@
 		{/if}
 	</nav>
 
-	{#if opened}
+	{#if collectionId}
+		<!-- One collection, opened: what it holds and whether it can be run. -->
+		{#if report}
+			<header class="head">
+				<h1>{report.title}</h1>
+				<p class="tagline">
+					A collection by <a href={resolve(`/library?creator=${report.creator.id}`)}
+						>{report.creator.name}</a
+					>
+					· version {report.version} · plays by {report.rules.name ?? report.rules.id}
+				</p>
+				{#if report.about}<p class="tagline">{report.about}</p>{/if}
+			</header>
+			<CollectionReport {report} />
+			<div class="collection-run">
+				{#if report.ok}
+					{@render runButton({ kind: 'collection', id: report.id, title: report.title }, true)}
+					<p class="muted small">
+						You’ll open a table as its GM with its first adventure and its homebrew.
+					</p>
+				{:else}
+					<p class="muted">Its creator can fix what’s missing and publish it again.</p>
+				{/if}
+			</div>
+		{:else if reportMissing}
+			<h1>Collection not found</h1>
+			<p class="muted">
+				It may have been taken out of the library. <a href={resolve('/library')}
+					>Browse the library</a
+				>
+			</p>
+		{:else}
+			<p class="muted" role="status">Looking through the collection…</p>
+		{/if}
+	{:else if opened}
 		<!-- One adventure, opened. -->
 		{#if detail || openedBuilt}
 			{@const story = detail
@@ -392,6 +459,47 @@
 		</section>
 	{/if}
 
+	{#if !opened && !collectionId}
+		{#if collections.length}
+			<section class="shelf" aria-labelledby="collections-title">
+				<div class="shelf-head">
+					<h2 id="collections-title">Collections</h2>
+					<p class="muted">Campaigns: adventures, homebrew and tables that go together.</p>
+				</div>
+				<ul class="books" class:stale={loading}>
+					{#each collections as c (c.id)}
+						<LibraryBook id={c.id} title={c.title} opens={`collection=${c.id}`}>
+							<p>
+								{#if !creatorId}
+									by <a class="creator" href={resolve(`/library?creator=${c.creator.id}`)}
+										>{c.creator.name}</a
+									> ·
+								{/if}
+								updated {inSentence(lastPlayed(c.publishedAt))}
+							</p>
+							{#if c.about}<p class="about">{c.about}</p>{/if}
+							<p>{describePlays(c.plays)}</p>
+							{#snippet action()}
+								<a class="run-link" href={resolve(`/library?collection=${c.id}`)}>Look inside</a>
+							{/snippet}
+						</LibraryBook>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+		{#if !creatorId}
+			<!-- Loaded when shown: most visitors run stories and never publish. -->
+			{#await import('$lib/ui/LibraryWorkshop.svelte') then { default: LibraryWorkshop }}
+				<LibraryWorkshop
+					{builtIn}
+					onPublished={(id) => {
+						attempt++;
+						void goto(resolve(`/library?collection=${id}`));
+					}}
+				/>
+			{/await}
+		{/if}
+	{/if}
 	{#if runError}<p class="error" role="alert">{runError}</p>{/if}
 	<p class="visually-hidden" role="status">{starting ? 'Opening a table…' : ''}</p>
 	<footer class="foot"><a href={resolve('/credits')}>Credits and licences</a></footer>
@@ -580,5 +688,14 @@
 			display: inline-block;
 			padding-block: var(--sp-2);
 		}
+	}
+	.collection-run {
+		display: grid;
+		gap: var(--sp-3);
+		justify-items: start;
+		margin-top: var(--sp-6);
+	}
+	.small {
+		font-size: var(--fs-sm);
 	}
 </style>

@@ -372,6 +372,20 @@ export function adventureView(
 		rules: rulesInfo(rules),
 		build: canBuild(adventure) ? { rules: rules.id } : null,
 		packs: packsView(adventure),
+		collection: adventure.collection
+			? {
+					id: adventure.collection.id,
+					version: adventure.collection.version,
+					title: adventure.collection.title,
+					creator: { ...adventure.collection.creator },
+					adventures: adventure.collection.adventures.map((a, i) => ({
+						title: a.title,
+						playing: i === adventure.collection!.entry
+					})),
+					packs: adventure.collection.packs.map((p) => p.title),
+					tables: adventure.collection.tables.map((t) => ({ ...t }))
+				}
+			: null,
 		library: adventure.library
 			? {
 					id: adventure.library.id,

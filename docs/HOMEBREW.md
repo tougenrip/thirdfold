@@ -21,6 +21,15 @@ A save of the story carries the pack as written. Loading the save checks the pac
 
 **Put away** takes a pack out of the story. It is refused while anything uses the pack: a character who carries or knows something from it, gear from it lying on the table, or its monsters brought into the story.
 
+## Publishing one
+
+A pack can also go in the library, where a collection can include it (see "Collections" in `docs/ADVENTURES.md`).
+
+1. On the library page, open "Your homebrew and collections".
+2. Pick **Publish homebrew from a file…**.
+
+The server checks the pack in full, as it does at a table, and keeps it as read. Publishing it again makes a new version.
+
 ## The format
 
 A pack is plain JSON. No field holds code:

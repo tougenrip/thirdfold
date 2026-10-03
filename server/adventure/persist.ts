@@ -13,6 +13,13 @@ import {
 	type ObjectState
 } from '../../src/lib/adventure/adventure';
 import { STATUS_IDS, type StatusId } from '../../src/lib/adventure/characters';
+import {
+	COLLECTION_FORMAT,
+	COLLECTION_FORMAT_VERSION,
+	COLLECTION_LIMITS,
+	parseCollectionFile,
+	type CollectionDraft
+} from '../../src/lib/game/collection';
 import { inBounds, type GridPos } from '../../src/lib/game/grid';
 import {
 	CREATOR_ID_PATTERN,
@@ -35,6 +42,7 @@ import { PILE_ID, PILE_ITEMS_MAX, PILES_MAX, withKept } from './gear';
 import { contentOf, findAdventure } from './registry';
 import type {
 	AdventureState,
+	CollectionSource,
 	CharacterState,
 	Decision,
 	Finding,
@@ -156,6 +164,9 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 							creator: { ...adventure.library.creator }
 						}
 					}
+				: {}),
+			...(adventure.collection
+				? { collection: JSON.parse(JSON.stringify(adventure.collection)) }
 				: {}),
 			decisions: Object.fromEntries(
 				[...adventure.decisions].map(([id, d]) => [id, { option: d.option, by: d.by }])
@@ -608,6 +619,11 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		data.rewards === undefined ? [] : uniqueList(data.rewards, rewardsOf(A), 'rewards');
 	// Where a creator's adventure came from, when it came from the library.
 	const library = data.library === undefined ? undefined : librarySource(data.library);
+	// The collection it was started from: the same set again, this story one of its adventures.
+	const collection =
+		data.collection === undefined
+			? undefined
+			: collectionSource(data.collection, base.id, library, scope);
 
 	const decisions = new Map<string, Decision>();
 	const decisionIds = Object.keys(A.decisions);
@@ -907,6 +923,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		rewards,
 		...(notes.size ? { notes } : {}),
 		...(library ? { library } : {}),
+		...(collection ? { collection } : {}),
 		decisions,
 		pending,
 		encounters,
@@ -957,6 +974,82 @@ function rulesRef(value: unknown): RulesetRef {
 		'rules this server does not have'
 	);
 	return { id: raw.id as string, version: raw.version as number };
+}
+
+/**
+ * A story's collection, read back: well formed (as a collection names its
+ * pieces), and naming this story as the adventure it is playing and every
+ * one of its packs among the story's, so a save resolves to the set it was
+ * started with and nothing else.
+ */
+function collectionSource(
+	value: unknown,
+	adventureId: string,
+	library: LibrarySource | undefined,
+	packs: readonly string[]
+): CollectionSource {
+	const raw = record(value, 'collection');
+	check(
+		Object.keys(raw).every((k) =>
+			['id', 'version', 'title', 'creator', 'entry', 'adventures', 'packs', 'tables'].includes(k)
+		),
+		'collection'
+	);
+	const source = librarySource({ id: raw.id, version: raw.version, creator: raw.creator });
+	const titled = (v: unknown) =>
+		typeof v === 'string' && v.trim().length > 0 && v.length <= COLLECTION_LIMITS.title;
+	check(titled(raw.title), 'collection');
+	const adventures = list(raw.adventures, 'collection').map((a) => {
+		const entry = record(a, 'collection');
+		check(titled(entry.title) && Object.keys(entry).length === 2, 'collection');
+		return { ref: entry.ref, title: entry.title as string };
+	});
+	const packList = list(raw.packs, 'collection').map((p) => {
+		const entry = record(p, 'collection');
+		check(
+			titled(entry.title) &&
+				typeof entry.packId === 'string' &&
+				packs.includes(entry.packId) &&
+				Object.keys(entry).length === 3,
+			'collection homebrew'
+		);
+		return { ref: entry.ref, title: entry.title as string, packId: entry.packId as string };
+	});
+	// The references, as a collection writes them.
+	const parsed = parseCollectionFile({
+		format: COLLECTION_FORMAT,
+		formatVersion: COLLECTION_FORMAT_VERSION,
+		title: raw.title,
+		adventures: adventures.map((a) => a.ref),
+		packs: packList.map((p) => p.ref),
+		tables: raw.tables
+	});
+	check(parsed.ok, 'collection');
+	const file = (parsed as { file: CollectionDraft }).file;
+	const entry = raw.entry;
+	check(
+		typeof entry === 'number' && Number.isInteger(entry) && entry >= 0 && entry < adventures.length,
+		'collection'
+	);
+	const playing = file.adventures[entry as number];
+	check(
+		'builtIn' in playing
+			? playing.builtIn === adventureId && !library
+			: !!library && library.id === playing.library && library.version === playing.version,
+		'collection: this story is not its adventure'
+	);
+	return {
+		...source,
+		title: file.title,
+		entry: entry as number,
+		adventures: adventures.map((a, i) => ({ ref: file.adventures[i], title: a.title.trim() })),
+		packs: packList.map((p, i) => ({
+			ref: file.packs[i],
+			title: p.title.trim(),
+			packId: p.packId
+		})),
+		tables: file.tables
+	};
 }
 
 function librarySource(value: unknown): LibrarySource {

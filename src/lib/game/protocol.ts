@@ -43,15 +43,18 @@ import {
 	CREATOR_ID_PATTERN,
 	LIBRARY_ID_PATTERN,
 	LIBRARY_LIMITS,
+	LIBRARY_KINDS,
 	LIBRARY_SORTS,
 	type BuiltInStory,
 	type Creator,
+	type LibraryKind,
 	type LibraryListing,
 	type LibrarySort,
 	type MyAdventure,
 	type PublicGame,
 	type StoryDetail
 } from './library';
+import type { CollectionReport } from './collection';
 import { MAX_LEVEL } from './terrain';
 import { parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
@@ -250,6 +253,9 @@ export type ClientMessage =
 			type: 'adventure_start';
 			adventureId?: string;
 			libraryId?: string;
+			/** A collection from the library (milestone 53): its adventure `entry` (the first by default). */
+			collectionId?: string;
+			entry?: number;
 			version?: number;
 			file?: unknown;
 	  }
@@ -258,7 +264,20 @@ export type ClientMessage =
 	/** GM: list this game for anyone to find and join, or make it invite-only again. */
 	| { type: 'room_listing'; listed: boolean }
 	/** Anyone, at a table or not: the library's listed adventures (a creator's, with `creator`). */
-	| { type: 'library_list'; query?: string; creator?: string; sort?: LibrarySort }
+	| {
+			type: 'library_list';
+			query?: string;
+			creator?: string;
+			sort?: LibrarySort;
+			/** Adventures when absent; homebrew packs or collections when asked. */
+			kind?: LibraryKind;
+	  }
+	/**
+	 * Anyone: a collection from the library (its latest version, or `version`)
+	 * and everything it names, found or not. Its creator's unlisted one with
+	 * their `gmKey`. Replies with collection_report.
+	 */
+	| { type: 'collection_check'; id: string; version?: number; gmKey?: string }
 	/** Anyone: one listed adventure, opened (its opening and facts). Replies with library_story. */
 	| { type: 'library_story'; id: string }
 	/** A creator's own published adventures, listed or not, by their GM key. */
@@ -274,6 +293,8 @@ export type ClientMessage =
 			creator: string;
 			file: unknown;
 			adventureId?: string;
+			/** What `file` is: an adventure (the default), a homebrew pack or a collection. */
+			kind?: LibraryKind;
 	  }
 	/** A creator lists, unlists or removes one of their adventures. Replies with library_mine. */
 	| { type: 'library_manage'; gmKey: string; adventureId: string; op: LibraryOp }
@@ -602,6 +623,8 @@ export type ServerMessage =
 			/** The adventures that come with thirdfold (on the whole library, not a creator's page). */
 			builtIn: BuiltInStory[];
 	  }
+	/** A collection and what became of everything it names; null when there is no such collection. */
+	| { type: 'collection_report'; report: CollectionReport | null }
 	/** One adventure opened, or null when there is no such listed adventure. */
 	| { type: 'library_story'; story: StoryDetail | null }
 	/** To a creator: their own adventures. */
@@ -1041,6 +1064,25 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			if (data.file !== undefined) {
 				return isRecord(data.file) ? { type: 'adventure_start', file: data.file } : null;
 			}
+			if (data.collectionId !== undefined) {
+				if (!isLibraryId(data.collectionId)) return null;
+				if (data.version !== undefined && !isVersion(data.version)) return null;
+				if (
+					data.entry !== undefined &&
+					!(
+						Number.isInteger(data.entry) &&
+						(data.entry as number) >= 0 &&
+						(data.entry as number) < 12
+					)
+				)
+					return null;
+				return {
+					type: 'adventure_start',
+					collectionId: data.collectionId,
+					...(data.version !== undefined ? { version: data.version as number } : {}),
+					...(data.entry !== undefined ? { entry: data.entry as number } : {})
+				};
+			}
 			if (data.libraryId !== undefined) {
 				if (!isLibraryId(data.libraryId)) return null;
 				if (data.version === undefined) {
@@ -1082,18 +1124,34 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				if (!LIBRARY_SORTS.includes(data.sort as LibrarySort)) return null;
 				out.sort = data.sort as LibrarySort;
 			}
+			if (data.kind !== undefined) {
+				if (!LIBRARY_KINDS.includes(data.kind as LibraryKind)) return null;
+				out.kind = data.kind as LibraryKind;
+			}
 			return out;
 		}
+		case 'collection_check':
+			if (!isLibraryId(data.id)) return null;
+			if (data.version !== undefined && !isVersion(data.version)) return null;
+			if (data.gmKey !== undefined && !isGmKey(data.gmKey)) return null;
+			return {
+				type: 'collection_check',
+				id: data.id,
+				...(data.version !== undefined ? { version: data.version as number } : {}),
+				...(data.gmKey !== undefined ? { gmKey: data.gmKey } : {})
+			};
 		case 'library_mine':
 			return isGmKey(data.gmKey) ? { type: 'library_mine', gmKey: data.gmKey } : null;
 		case 'library_publish': {
 			if (typeof data.creator !== 'string' || !isRecord(data.file)) return null;
 			if (data.gmKey !== undefined && !isGmKey(data.gmKey)) return null;
 			if (data.adventureId !== undefined && !isLibraryId(data.adventureId)) return null;
+			if (data.kind !== undefined && !LIBRARY_KINDS.includes(data.kind as LibraryKind)) return null;
 			return {
 				type: 'library_publish',
 				creator: data.creator,
 				file: data.file,
+				...(data.kind !== undefined ? { kind: data.kind as LibraryKind } : {}),
 				...(data.gmKey !== undefined ? { gmKey: data.gmKey } : {}),
 				...(data.adventureId !== undefined ? { adventureId: data.adventureId } : {})
 			};

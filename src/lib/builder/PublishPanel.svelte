@@ -45,7 +45,7 @@
 	$effect(() => {
 		const key = gmKey;
 		if (!key) return void (mine = []);
-		listMine(key).then(
+		listMine(key, 'adventure').then(
 			(list) => {
 				mine = list;
 				const last = lastPublished();
@@ -80,7 +80,7 @@
 				done.version === 1
 					? `Published “${title}”. Anyone can find it in the library now.`
 					: `Published version ${done.version} of “${title}”. New games get it; games under way keep theirs.`;
-			mine = await listMine(done.gmKey);
+			mine = await listMine(done.gmKey, 'adventure');
 		} catch (err) {
 			error = (err as Error).message;
 		} finally {
@@ -95,7 +95,7 @@
 		}
 		error = message = null;
 		try {
-			mine = await manageAdventure(gmKey, a.id, op);
+			mine = await manageAdventure(gmKey, a.id, op, 'adventure');
 			if (op === 'remove' && target === a.id) target = '';
 		} catch (err) {
 			error = (err as Error).message;

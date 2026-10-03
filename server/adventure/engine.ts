@@ -138,10 +138,12 @@ import { contentOf, defaultAdventure, findAdventure } from './registry';
 import type {
 	AdventureState,
 	CharacterState,
+	CollectionSource,
 	Encounter,
 	EnemyState,
 	LastingEffect,
 	Statuses,
+	StoryPack,
 	TurnEntry
 } from './state';
 import {
@@ -4639,6 +4641,7 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	}
 	// The same adventure from the same place in the library, and what the table made of it.
 	if (adventure.library) next.library = adventure.library;
+	if (adventure.collection) next.collection = adventure.collection;
 	if (adventure.rated) next.rated = adventure.rated;
 	room.adventure = next;
 	const log = [postSystem(room, `${actor.name} started the story over.`)];
@@ -4798,6 +4801,39 @@ export function searchMonsters(
 	const bestiary = rulesOf(adventure).bestiary;
 	if (!bestiary) return fail('forbidden', 'These rules have no monsters to bring on.');
 	return { ok: true, monsters: bestiary.search(query, MONSTER_RESULTS, packsOf(adventure)) };
+}
+
+/**
+ * A story set up from a collection (the game server found and checked
+ * everything it names): the collection is recorded, and its homebrew
+ * (already held by the rules) comes with the story, each pack credited to
+ * whoever published it.
+ */
+export function beginCollection(
+	room: Room,
+	source: CollectionSource,
+	packs: readonly StoryPack[]
+): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	const held = rulesOf(adventure).packs;
+	if (packs.length && !held) return fail('forbidden', 'These rules take no homebrew.');
+	if (packs.length > PACKS_MAX)
+		return fail('limit_reached', `A story has at most ${PACKS_MAX} homebrew packs.`);
+	adventure.collection = source;
+	if (packs.length) adventure.packs = packs.map((p) => ({ ...p }));
+	const playing = source.adventures[source.entry];
+	return {
+		ok: true,
+		log: [
+			postSystem(
+				room,
+				`The GM opens ${source.title} by ${source.creator.name}: ${playing.title}, ${source.entry + 1} of ${source.adventures.length}${
+					source.packs.length ? `, with ${source.packs.map((p) => p.title).join(', ')}` : ''
+				}.`
+			)
+		]
+	};
 }
 
 /** GM: brings a content pack (homebrew under the story's rules) to the story. */
