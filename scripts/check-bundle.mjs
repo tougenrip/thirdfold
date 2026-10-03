@@ -22,8 +22,9 @@ const BUDGETS = {
 	// shared chunk with the manifest's parser (#215), 97,479 B measured.
 	// 97.5 → 98.2: GridLights' sources and sight cache (#228) keep the shared chunk of the grid's,
 	// objects' and visibility's code larger (the renderer now uses `SightCache` and `asObstacles`
-	// from it), 98,180 B measured.
-	'/builder': { total: 98_300, own: 52_000 },
+	// from it), 98,180 B measured. → 98.4: the shared chunk after M68's close (the pool's removal
+	// and the hero slots' assignment moving out of light-model.ts) measures just over 98.3 kB.
+	'/builder': { total: 98_400, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
