@@ -29,6 +29,13 @@ const PLAIN = {
 	surface: { color: 0x2f4a3a, roughness: 1 }
 };
 
+/**
+ * The ring's land look over the environment's ground (#377): darker than the map, so the map reads
+ * as the lit stage, with broad macro patches (about 30 m across) so it reads as land rather than a
+ * flat field from the overview. Params only: nothing compiles.
+ */
+const RING = { shade: 0.62, macroScale: 0.035, macroTint: 0.3, macroRoughness: 0.15 };
+
 /** Directions round the ring: fewer on the low tier. */
 const SEGMENTS = { low: 24, other: 96 };
 
@@ -91,6 +98,9 @@ export class WorldGround {
 		const tile = (cells: number) => ({ repeat: repeatFor(cells, cellSize, STEP_HEIGHT) });
 		setParams(this.surfaceMaterial, tile(look?.surface.cells ?? 1));
 		setParams(this.ringMaterial, tile(look?.ground.cells ?? 1));
+		const { shade, ...land } = RING;
+		this.ringMaterial.params.color.multiplyScalar(shade);
+		setParams(this.ringMaterial, land);
 	}
 
 	/**

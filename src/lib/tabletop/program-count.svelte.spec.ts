@@ -2,7 +2,7 @@
 // every table the sweep travels to visited once), its shader counts taken (shaderCounts in perf.ts:
 // programs, pipelines, node states), and then everything that changes at runtime is done one named
 // step at a time, a frame drawn after each: environments, times of day, floors, fog and its modes
-// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past the pool, tokens
+// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past a cell's K, tokens
 // and props in every state, both cues and table travel. No step may change the programs or
 // pipelines; a change names the step and the stages it made or dropped (a stage is named after its
 // material, and the material module names its materials by kind: the layers #172 ported show as
@@ -18,18 +18,31 @@
 // hourly steps under the default open sky, every other sky in the manifest at the band hours (an
 // enclosed sky takes its band's key whole, and each hour is a capture: every sky every hour took
 // ten minutes a tier), haze 0 to 1, a roof on and off, and the flash with Reduce flashing on and off.
-// Each tier's runtime state (in two halves), its table travel and its sky are tests of their own, one CI shard each (shardedIt).
+// Each tier's runtime state (in two halves), its table travel and its sky (in two halves) are tests
+// of their own, one CI shard each (shardedIt).
+// Many lights (#228, `lightSteps`): 40 torches coming and going, carried light on, coloured, moved
+// and off, kinds and colours changing, on every tier, a shard per tier; later lighting tasks
+// (hero shadows, flicker, fixtures, bounce, strips, translucency) append their steps there; the
+// flicker's (#231) are every profile on the 40 torches. Light fixtures (#232): every kind's fixture
+// model coming and going with the kinds, fixtures taken off (`fixture: false`) and put back, and a
+// carried light's flame with the carried steps. Translucency (#237): the home table's translucent
+// materials (its tree's) at 0 and back above it. Bounce and cavity (#234): the layer off and on,
+// and the floors under the torches painted (their colour is the bounce's), data and uniforms only.
+// Strips and panels (#236): the torches as neon bars facing every way, recoloured, mixed with
+// panels and torches, turned, and back. Hero shadow slots (#230): the focus moved so every slot
+// changes hands (a cube drawn for each new holder).
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
 import { afterEach, describe, expect, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
-import type { Light } from '$lib/game/lights';
+import { FLICKERS, LIGHT_KINDS, type Light } from '$lib/game/lights';
 import { bandOf, type WorldLook } from '$lib/game/world';
 import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
+import { FIXTURES } from './light-model';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
 import { aoKind, settingsFor, type Tier } from './quality';
@@ -59,7 +72,7 @@ const ENVIRONMENTS = [
 /** The tables the sweep travels between: other sizes and environments than the test world's. */
 const TRAVEL = ['village', 'hollow', 'heart'] as const;
 const HOME = 'test-world';
-/** More lights than the renderer's pool of real point lights (POOL_SIZE in lighting.ts, 8). */
+/** More lights than a cell lists (K, 4 to 16 by tier). */
 const MANY_LIGHTS = 12;
 const TIERS: readonly Tier[] = ['low', 'medium', 'high'];
 /** The sky swept every hour; the others at the hours standing for each band, dawn and dusk apart. */
@@ -306,6 +319,133 @@ function skySteps(m: Mounted, home: FixtureView, skies: readonly string[]): Step
 	];
 }
 
+/**
+ * The most textures a fragment stage may sample: WebGPU's default `maxSampledTexturesPerShaderStage`
+ * and WebGL2's least `MAX_TEXTURE_IMAGE_UNITS` are 16. GridLights' two textures (#228) brought the
+ * largest stage (terrain) to 15, and the hero shadow slots' one atlas (#230) to 16 (the prop and mini
+ * kinds 15): none is spare, so the next texture a lit kind needs goes into an existing one.
+ */
+const STAGE_TEXTURES = 16;
+
+/** The most textures any fragment stage of each material name samples, WGSL or GLSL. */
+function stageTextures(renderer: THREE.WebGPURenderer): Map<string, number> {
+	const most = new Map<string, number>();
+	for (const [code, label] of shaderStages(renderer)) {
+		if (!label.endsWith(' fragment')) continue;
+		const wgsl = code.match(/var\s+\w+\s*:\s*texture_/g)?.length ?? 0;
+		const glsl = code.match(/uniform\s+(?:(?:high|medium|low)p\s+)?\w*sampler\w*/g)?.length ?? 0;
+		const name = label.slice(0, -' fragment'.length);
+		most.set(name, Math.max(most.get(name) ?? 0, wgsl, glsl));
+	}
+	return most;
+}
+
+/** The home table's translucent materials (#237: its tree's), found by the many-light steps. */
+type Translucent = { params: { translucency: number } };
+const TRANSLUCENT_MATERIALS = new Set<Translucent>();
+/** Torches the many-light steps put on the table: dungeon-40's count. */
+const TORCHES = 40;
+
+/**
+ * The point lights (#228) on the home table, as named steps: 40 torches added and taken away, a
+ * carried light switched on, coloured, carried a cell and off, every light kind and a recolour.
+ * Later lighting tasks append their steps here.
+ */
+function lightSteps(m: Mounted, home: FixtureView, scene: THREE.Scene, tier: Tier): Step[] {
+	const t = m.tabletop;
+	const settings = settingsFor(tier, t.capabilities().backend);
+	const bounce = (on: boolean) => () =>
+		t.setQuality({ ...settings, layers: { ...settings.layers, bounce: on } });
+	const floor = (id: (typeof FLOOR_IDS)[number]) =>
+		new Uint8Array(width * height).fill(FLOOR_IDS.indexOf(id));
+	const { width, height } = home.grid;
+	const homeFloor = home.floor ? decodeFloor(home.floor, width * height) : null;
+	const torch = (i: number, over: Partial<Light> = {}): Light => ({
+		id: `torch-${i}`,
+		pos: { x: 1 + ((i * 3) % (width - 2)), y: 1 + ((i * 5) % (height - 2)) },
+		radius: 2 + (i % 5),
+		color: '#ff9a3c',
+		on: true,
+		...over
+	});
+	const torches = (n: number, over: Partial<Light> = {}) =>
+		Array.from({ length: n }, (_, i) => torch(i, over));
+	/** The torches as `kinds` in turn, each facing its own way (turned by `turn`). */
+	const strips = (kinds: Light['kind'][], turn = 0, color = '#ff9a3c') =>
+		torches(TORCHES, { color }).map((l, i) => ({
+			...l,
+			kind: kinds[i % kinds.length],
+			facing: ((i + turn) % 4) as Light['facing']
+		}));
+	// Translucency (#237): a uniform, so its strength at 0 and back compiles nothing. A highlight
+	// asks for the frame, as setting a value does not.
+	const translucency = (value: number, cell: number) => () => {
+		if (!TRANSLUCENT_MATERIALS.size)
+			scene.traverse((o) => {
+				const material = (o as THREE.Mesh).material as Partial<Translucent> | undefined;
+				if (material?.params?.translucency) TRANSLUCENT_MATERIALS.add(material as Translucent);
+			});
+		expect(TRANSLUCENT_MATERIALS.size).toBeGreaterThan(0);
+		for (const material of TRANSLUCENT_MATERIALS) material.params.translucency = value;
+		t.setHighlight({ x: cell, y: 0 }, 'move');
+	};
+	const [token] = home.tokens;
+	const carry = (over: object) => home.tokens.map((k) => (k === token ? { ...k, ...over } : k));
+	const step = { x: Math.min(token.pos.x + 1, width - 1), y: token.pos.y };
+	const focusOn = (x: number, y: number) => ({
+		target: { x, y },
+		distance: 12,
+		azimuth: 0,
+		elevation: 70
+	});
+	return [
+		['no lights', () => t.setLighting('dark', [])],
+		[`${TORCHES} torches`, () => t.setLighting('dark', torches(TORCHES))],
+		['torches taken away', () => t.setLighting('dark', torches(TORCHES / 4))],
+		[`${TORCHES} torches again`, () => t.setLighting('dark', torches(TORCHES))],
+		// Hero shadow slots (#230): the camera's focus to the far corner and back hands every slot
+		// to other torches (numbers and a cube drawn, no program).
+		['hero slots handed over', () => t.setGridPose(focusOn(width - 3, height - 3))],
+		['hero slots handed back', () => t.setGridPose(focusOn(2, 2))],
+		['torches off', () => t.setLighting('dark', torches(TORCHES, { on: false }))],
+		['torches recoloured', () => t.setLighting('dark', torches(TORCHES, { color: '#3c7aff' }))],
+		// With fixtures, so a GM's handles on fixture-less lights (#209, an overlay made on first
+		// need) stay out of it: every kind that has a fixture model (#232; a glow has none).
+		...LIGHT_KINDS.filter((kind) => FIXTURES[kind].floor).map((kind): Step => [
+			`torches as ${kind}`,
+			() => t.setLighting('dark', torches(TORCHES, { kind, intensity: 2, fixture: true }))
+		]),
+		// Flicker (#231): each profile is numbers in a light's data and a uniform array, no program.
+		...FLICKERS.map((flicker): Step => [
+			`torches flicker ${flicker}`,
+			() => t.setLighting('dark', torches(TORCHES, { flicker }))
+		]),
+		// Fixtures (#232): every model off the table, then back.
+		['fixtures taken off', () => t.setLighting('dark', torches(TORCHES, { fixture: false }))],
+		['fixtures back', () => t.setLighting('dark', torches(TORCHES))],
+		// Strips and panels (#236): their samples are more entries, a flag and data, no program.
+		['neon strips every way', () => t.setLighting('dark', strips(['neon']))],
+		['neon recoloured', () => t.setLighting('dark', strips(['neon'], 1, '#ff3cbe'))],
+		['torches, neon and panels', () => t.setLighting('dark', strips(['torch', 'neon', 'panel']))],
+		['strips turned', () => t.setLighting('dark', strips(['panel', 'neon', 'torch'], 2))],
+		['strips back to torches', () => t.setLighting('dark', torches(TORCHES))],
+		['translucency at 0', translucency(0, 1)],
+		['translucency back', translucency(0.8, 2)],
+		// Bounce and cavity (#234): the layer off and on, and the floors that colour the bounce.
+		['bounce off', bounce(false)],
+		['bounce on', bounce(true)],
+		['torches over grass', () => t.setFloor(floor('grass'))],
+		['torches over sand', () => t.setFloor(floor('sand'))],
+		['floors as they were', () => t.setFloor(homeFloor)],
+		['carried light on', () => t.setTokens(carry({ light: 4 }))],
+		['carried light coloured', () => t.setTokens(carry({ light: 4, lightColor: '#6fe08a' }))],
+		['carried light moved', () => t.setTokens(carry({ light: 4, pos: step }))],
+		['carried light off', () => t.setTokens(home.tokens)],
+		['no lights again', () => t.setLighting('dark', [])],
+		['lights back', () => t.setLighting(home.ambient, home.lights)]
+	];
+}
+
 /** A roll to throw: a d20 showing its last face. */
 const THROW = { seq: 1, dice: [{ kind: 'd20' as const, face: 19 }], color: '#8a2f24' };
 
@@ -316,6 +456,9 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 	const views = [home, ...travel.map((v) => v.view)];
 	const models = new Set<string>(views.flatMap((v) => v.props.map((p) => p.assetId)));
 	for (const v of views) for (const k of v.tokens) if (k.model) models.add(k.model);
+	// Every light kind's fixture (#232), which lightSteps brings on.
+	for (const f of Object.values(FIXTURES))
+		for (const id of [f.wall, f.floor]) if (id) models.add(id);
 	const compile = vi.spyOn(THREE.WebGPURenderer.prototype, 'compileAsync');
 	const clock = manualClock();
 	const m = await mountFixture(home, sidecar.poses.overview, { clock, tier, reducedMotion });
@@ -325,6 +468,13 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 	await Promise.all(ENVIRONMENTS.flatMap((e) => (e ? [loadEnvironment(e)] : [])));
 	// Flames and mist still with motion on, so frames come only from the steps.
 	if (!reducedMotion) m.tabletop.setPowerSaver(true);
+	// Warmed up again with every fixture model in hand, as a model's arrival warms a table (the
+	// renderer's `onModel`; a new look does the same): the warm-up relights first, so the fixtures'
+	// meshes are made and compiled in every pass before the sweep (light-fixtures.ts, #232).
+	m.tabletop.setEnvironment(null);
+	await drawn(m.tabletop, clock);
+	m.tabletop.setEnvironment(home.environment);
+	await loadEnvironment(home.environment!);
 	await drawn(m.tabletop, clock);
 	const renderer = compile.mock.contexts[0] as THREE.WebGPURenderer;
 	const scene = compile.mock.calls[0][2] as THREE.Scene;
@@ -407,8 +557,9 @@ async function warmHome(tier: Tier) {
 	return { ...home, sweep: sweeper(m, home.renderer, clock) };
 }
 
-// One test per tier for the runtime state and one for the sky, so CI runs each in a job of its own
-// (`THIRDFOLD_SHARD=k/12`, .github/workflows/rendering.yml); the last two join the first shards.
+// Tests per tier for the runtime state and the sky, so CI runs each in a job of its own
+// (`THIRDFOLD_SHARD=k/18`, .github/workflows/rendering.yml): the tiers' 15, then many lights per tier
+// (16 to 18), and the last two, which join the first shards.
 describe('the shader program count', () => {
 	const test = shardedIt();
 	for (const tier of TIERS) {
@@ -421,16 +572,45 @@ describe('the shader program count', () => {
 		test(`stays put through table travel on ${tier}`, async () => {
 			await runtimeState(tier, 'travel');
 		});
-		test(`stays put through the sky on ${tier}`, async () => {
-			const { m, home, sweep } = await warmHome(tier);
-			const skies = Object.keys((await loadManifest()).skies ?? {});
-			expect(skies).toContain(HOURLY_SKY);
-			const changes = await sweep.run(skySteps(m, home, skies));
-			if (sweep.codegen.length)
-				console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
-			expect(changes).toEqual([]);
-		});
+		// The sky in two halves, each a test (and a CI job) of its own: the hourly day, then the
+		// other skies and the rest of the look.
+		for (const part of ['day', 'skies'] as const)
+			test(`stays put through the sky on ${tier}${part === 'day' ? '' : ', every sky'}`, async () => {
+				const { m, home, sweep } = await warmHome(tier);
+				const skies = Object.keys((await loadManifest()).skies ?? {});
+				expect(skies).toContain(HOURLY_SKY);
+				const steps = skySteps(m, home, skies);
+				const hourly = steps.filter(([name]) => name.startsWith(`sky ${HOURLY_SKY} `));
+				expect(hourly).toHaveLength(24);
+				const changes = await sweep.run(
+					part === 'day' ? hourly : steps.filter((step) => !hourly.includes(step))
+				);
+				if (sweep.codegen.length)
+					console.info(`${tier}: code generated\n${sweep.codegen.join('\n')}`);
+				expect(changes).toEqual([]);
+			});
 	}
+
+	// Many lights (#228) and hero shadow slots (#230): a test per tier, each its own shard (programs
+	// 16 to 18). With the table's warm-up done (every kind's gallery compiled, warmup.ts), no fragment
+	// stage samples more than STAGE_TEXTURES textures.
+	for (const tier of TIERS)
+		test(`stays put through many lights on ${tier}`, async () => {
+			const { m, home, clock, renderer, scene } = await mountHome(tier);
+			// The pipeline's own passes settle over its first frames (the AO's blur): draw a few first.
+			for (let i = 0; i < 3; i++) {
+				m.tabletop.setPose(m.tabletop.cameraPose()!);
+				await drawn(m.tabletop, clock);
+			}
+			TRANSLUCENT_MATERIALS.clear();
+			const changes = await sweeper(m, renderer, clock).run(lightSteps(m, home, scene, tier));
+			expect(changes, tier).toEqual([]);
+			const textures = stageTextures(renderer);
+			console.info(`${tier} textures per fragment stage: ${JSON.stringify([...textures])}`);
+			const over = [...textures].filter(([, n]) => n > STAGE_TEXTURES);
+			expect(over, `${tier}: fragment stages over ${STAGE_TEXTURES} textures`).toEqual([]);
+			expect(textures.get('terrain'), `${tier}: terrain`).toBeGreaterThan(2);
+		});
 
 	test('stays put through the toll with motion, its dust and shadow shown (#180)', async () => {
 		const { m, home, clock, renderer } = await mountHome('medium', false);

@@ -152,6 +152,22 @@ describe('checkScenes', () => {
 		);
 	});
 
+	it('fails a light whose fixture has no model, and passes one that draws none (#232)', () => {
+		const m = structuredClone(shipped.manifest);
+		delete m.models['wall-sconce'];
+		delete m.models['standing-torch'];
+		const problems = checkScenes(m);
+		// The village's lamps are torches, which hang on a wall or stand on the floor.
+		expect(problems).toContainEqual(
+			'hollow-bell: bellweather: light hb-lamp-square\'s fixture: no prop model "wall-sconce"'
+		);
+		expect(problems).toContainEqual(
+			'hollow-bell: bellweather: light hb-lamp-square\'s fixture: no prop model "standing-torch"'
+		);
+		// The brazier's light is the brazier prop's (fixture: false), and the charm's a glow.
+		expect(problems.filter((p) => /hb-brazier-light|hb-charm-glow/.test(p))).toEqual([]);
+	});
+
 	it('gives every environment a surface for each floor a GM can paint (#187)', () => {
 		for (const env of Object.values(shipped.manifest.environments))
 			expect(env.surfaces?.floors).toEqual(expect.arrayContaining(SURFACE_FLOORS));

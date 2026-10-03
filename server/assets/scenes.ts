@@ -2,9 +2,9 @@
 // story's secrets: hidden doors, what is in the dark). The pipeline checks
 // every adventure's tables, and the builder's example's, against the manifest
 // instead: every prop has a model, every figure the story puts on a table
-// (people, characters, enemies) has one of its kind, every table's
-// environment exists, and no table makes a viewer download or hold more than
-// TABLE_BUDGETS (#193).
+// (people, characters, enemies) has one of its kind, every light's fixture
+// model exists (#232), every table's environment exists, and no table makes a
+// viewer download or hold more than TABLE_BUDGETS (#193).
 
 import {
 	GRADE_TONE_MAPPER,
@@ -18,6 +18,8 @@ import type { AdventureDef } from '../adventure/define';
 import { FLOOR_IDS } from '../../src/lib/game/floor';
 import { parseSceneFile, type SceneFile } from '../../src/lib/game/scene-file';
 import { parseWorldPatch } from '../../src/lib/game/world';
+import type { Light } from '../../src/lib/game/lights';
+import { fixtureFor } from '../../src/lib/tabletop/light-model';
 import { exampleAdventure } from '../../src/lib/adventure/example';
 import { loadAdventureFile } from '../../src/lib/adventure/file';
 import { ADVENTURES } from '../adventures';
@@ -210,6 +212,10 @@ export function sceneReport(manifest: Manifest): string[] {
 	return lines;
 }
 
+/** The fixture models a light may be drawn with, on a wall or on the floor (the GM may move it). */
+const fixturesOf = (light: Light) =>
+	(['wall', 'floor'] as const).flatMap((mount) => fixtureFor(light, mount) ?? []);
+
 /**
  * Each location's table and the models brought onto it: its props and tokens, what its objects
  * and fights turn props into, every character, and every enemy (the GM can bring any kind
@@ -233,6 +239,7 @@ function tablesOf(A: AdventureDef): { tables: Table[]; problems: string[] } {
 		const models = [
 			...scene.props.map((p) => p.assetId),
 			...scene.tokens.flatMap((t) => (t.model ? [t.model] : [])),
+			...scene.lights.flatMap(fixturesOf),
 			...A.objects
 				.filter((o) => o.location === location)
 				.flatMap((o) =>
@@ -265,6 +272,8 @@ function checkAdventure(manifest: Manifest, A: AdventureDef): string[] {
 		if (sky && !Object.hasOwn(manifest.skies, sky)) problems.push(`${location}: no sky "${sky}"`);
 		for (const p of scene.props) model(p.assetId, 'prop', `${location}: prop ${p.id}`);
 		for (const t of scene.tokens) model(t.model, 'npc', `${location}: ${t.name}`);
+		for (const l of scene.lights)
+			for (const id of fixturesOf(l)) model(id, 'prop', `${location}: light ${l.id}'s fixture`);
 		for (const over of overBudget(tableBudget(manifest, refs)))
 			problems.push(`${location}: ${over}`);
 	}

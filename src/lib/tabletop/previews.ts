@@ -8,6 +8,7 @@ import { cornerToWorld, gridToWorld, type GridPos, type SquareGrid } from '$lib/
 import type { Ground } from './ground';
 import type { HighlightKind, PreviewItem } from './types';
 import { WALL_HEIGHT } from './walls';
+import { standIn } from './warmup';
 
 /** The colours that mean move, blocked and place (G6: colour-vision.spec.ts). */
 export const HIGHLIGHT = { move: 0xe0a458, blocked: 0xe27a6b, place: 0x7fc47a } satisfies Record<
@@ -53,6 +54,20 @@ export class PreviewLayer {
 		this.highlight.rotation.x = -Math.PI / 2;
 		this.highlight.visible = false;
 		this.highlight.renderOrder = 2; // above the fog overlay
+	}
+
+	private stands: THREE.Mesh[] | null = null;
+
+	/**
+	 * Stand-ins for the warm-up (warmup.ts `Gallery`), one per material: the highlight is hidden
+	 * until hovered and previews come and go, so a compile never sees them, and on WebGPU their
+	 * first draw would make a pipeline (their blending and depth state) mid-game.
+	 */
+	gallery(): THREE.Object3D[] {
+		this.stands ??= [this.highlight.material, ...Object.values(this.materials)].map(
+			(m) => standIn(new THREE.Mesh(this.box, m)) // never culled, far below the table
+		);
+		return this.stands;
 	}
 
 	set(items: readonly PreviewItem[], grid: SquareGrid | null, ground: Ground | null): void {

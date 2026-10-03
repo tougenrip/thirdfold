@@ -6,8 +6,9 @@
 		"highlights": [1.06, 1.04, 0.9]
 	},
 	"dark": {
-		"contrast": 1.05,
+		"contrast": 1.15,
 		"shadows": [0.88, 0.86, 1.25],
-		"highlights": [1.06, 1.0, 0.9]
+		"highlights": [1.06, 1.0, 0.9],
+		"gain": [1.1, 1.07, 1.02]
 	}
 }

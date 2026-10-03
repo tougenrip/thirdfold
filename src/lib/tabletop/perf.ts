@@ -10,6 +10,7 @@
 // what it draws; `passOf` groups the names into the pipeline's passes.
 
 import type * as THREE from 'three/webgpu';
+import type { HeroStats } from './hero-shadows';
 import { isSoftware, type Tier } from './quality';
 import type { Mode } from './scheduler';
 import { RESHADOWS, TIMED, type Tabletop } from './types';
@@ -64,6 +65,8 @@ export interface PerfStats {
 	gpu: Record<string, number> | null;
 	/** Frames are held while shaders warm up (warmup.ts): the picture is about to change. */
 	holding: boolean;
+	/** The hero shadow slots (#230): holders, cubes redrawn (in all, last frame), cube bytes. */
+	heroes: HeroStats | null;
 }
 
 export class PerfRecorder {
@@ -181,13 +184,14 @@ export interface RendererState {
 	holding: boolean;
 	tier: Tier | null;
 	mode: Mode | null;
+	heroes?: HeroStats | null;
 }
 
 /** What the renderer has cost so far, with what three.js reports the last frame drew and what it holds. */
 export function rendererStats(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
-	{ holding, tier, mode }: RendererState
+	{ holding, tier, mode, heroes = null }: RendererState
 ): PerfStats {
 	const { render, memory } = renderer.info;
 	return {
@@ -205,7 +209,8 @@ export function rendererStats(
 		mode,
 		gpuMs: perf.gpuMs,
 		gpu: perf.gpu,
-		holding
+		holding,
+		heroes
 	};
 }
 
@@ -371,13 +376,17 @@ export interface Benchmark {
  * Draws the current view `frames` times, timing each: the main thread's ms
  * (`cpu`) and the GPU's, by timestamp queries where the renderer has them,
  * else by waiting until the frame is drawn (reading a pixel back on WebGL2,
- * `onSubmittedWorkDone` on WebGPU). `draw` draws one frame as the tabletop does.
+ * `onSubmittedWorkDone` on WebGPU). `draw` draws one frame as the tabletop does, once `warming`
+ * (the warm-up under way, warmup.ts) has settled: a warm-up keeps the scene pass's target and
+ * outputs set while it compiles, and a frame drawn then builds WebGPU pipelines for them (the
+ * output stage's quad with the scene pass's three colour targets, #379).
  */
 export async function benchmark(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
 	draw: () => void,
-	frames: number
+	frames: number,
+	warming: () => Promise<void> = () => Promise.resolve()
 ): Promise<Benchmark> {
 	const { gl, device } = backendOf(renderer);
 	const timer: GpuTimer = timestamps(renderer) ? 'timestamp' : gl || device ? 'sync' : 'none';
@@ -393,6 +402,7 @@ export async function benchmark(
 			readPasses(renderer);
 		}
 		for (let i = 0; i < frames; i++) {
+			await warming().catch(() => {});
 			const start = performance.now();
 			draw();
 			cpu += performance.now() - start;
@@ -444,13 +454,30 @@ export function perfMethods(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
 	draw: () => void,
-	{ loop, quality }: { loop: { holding: boolean; mode: Mode }; quality: { tier: Tier } }
+	{
+		loop,
+		quality,
+		warming,
+		lighting
+	}: {
+		loop: { holding: boolean; mode: Mode };
+		quality: { tier: Tier };
+		/** The hero shadow slots' stats (lighting.ts). */
+		lighting?: { heroStats(): HeroStats };
+		/** The warm-up under way, if any (renderer.ts): no benchmark frame draws during it. */
+		warming: () => Promise<void>;
+	}
 ): Pick<Tabletop, 'stats' | 'resetStats' | 'benchmark' | 'sampleGpu'> {
 	return {
 		stats: () =>
-			rendererStats(renderer, perf, { holding: loop.holding, tier: quality.tier, mode: loop.mode }),
+			rendererStats(renderer, perf, {
+				holding: loop.holding,
+				tier: quality.tier,
+				mode: loop.mode,
+				heroes: lighting?.heroStats()
+			}),
 		resetStats: () => perf.reset(),
-		benchmark: (frames) => benchmark(renderer, perf, draw, frames),
+		benchmark: (frames) => benchmark(renderer, perf, draw, frames, warming),
 		sampleGpu: () => sampleGpu(renderer, perf)
 	};
 }

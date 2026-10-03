@@ -96,7 +96,12 @@ const RENDER_SPECS = [
 	'sky',
 	'sky-light',
 	'atmosphere',
-	'flash'
+	'flash',
+	'exposure',
+	'grid-lights',
+	'translucency',
+	'probe-grid',
+	'hero-shadows'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
@@ -116,14 +121,15 @@ export default defineConfig({
 			output: {
 				// three.js always gets its own chunk, so a module shared by the eager
 				// pages and the lazy renderer never drags it into a page's static
-				// imports (see scripts/check-bundle.mjs). The Inspector (?perf&inspector)
-				// and the decoders cooked assets need (KTX2, meshopt; tabletop/decoders.ts)
-				// stay out of it, chunks of their own fetched only when asked for.
+				// imports (see scripts/check-bundle.mjs). The Inspector (?perf&inspector),
+				// the decoders cooked assets need (KTX2, meshopt; tabletop/decoders.ts) and
+				// the probe grid (tabletop/probe-grid.ts, #235) stay out of it, chunks of
+				// their own fetched only when asked for.
 				codeSplitting: {
 					groups: [
 						{
 							name: 'three',
-							test: /[\\/]node_modules[\\/]three[\\/](?!examples[\\/]jsm[\\/](inspector[\\/]|loaders[\\/]KTX2Loader|libs[\\/](ktx-parse|zstddec|meshopt_decoder)))/
+							test: /[\\/]node_modules[\\/]three[\\/](?!examples[\\/]jsm[\\/](inspector[\\/]|loaders[\\/]KTX2Loader|libs[\\/](ktx-parse|zstddec|meshopt_decoder)|(tsl[\\/])?lighting[\\/]LightProbeGrid))/
 						}
 					]
 				}
@@ -204,7 +210,9 @@ export default defineConfig({
 									'src/lib/tabletop/mapping.svelte.spec.ts',
 									'src/lib/tabletop/paint.svelte.spec.ts',
 									'src/lib/tabletop/kind-layers.svelte.spec.ts',
-									'src/lib/tabletop/lobby.svelte.spec.ts'
+									'src/lib/tabletop/lobby.svelte.spec.ts',
+									'src/lib/tabletop/grid-lights.svelte.spec.ts',
+									'src/lib/tabletop/probe-grid.svelte.spec.ts'
 								]
 							}
 						}

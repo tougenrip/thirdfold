@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { loadEnvironment } from './environment';
 import { loadModel } from './models';
 import { createTabletop } from './renderer';
-import { qualityFor, settingsFor } from './quality';
+import { qualityFor, settingsFor, TIERS } from './quality';
+import { decodeFloor } from '$lib/game/floor';
+import { decodeLevels } from '$lib/game/terrain';
+import { decodeMask } from '$lib/game/visibility';
 import {
 	BACKEND,
 	loadSidecar,
@@ -39,7 +42,11 @@ afterEach(async () => {
 	errors.mockRestore();
 });
 
-async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?: boolean } = {}) {
+async function mount(
+	fixture: string,
+	viewer: Viewer,
+	options: { reducedMotion?: boolean; clock?: { now: () => number } } = {}
+) {
 	const sidecar = await loadSidecar(fixture);
 	const view = await loadView(fixture, sidecar.ambient, viewer);
 	const m = await mountFixture(view, sidecar.poses.overview, options);
@@ -80,7 +87,8 @@ describe('the renderer, over time', () => {
 		const village = await load('village');
 		const hollow = await load('hollow');
 		const sidecar = await loadSidecar('village');
-		const m = await mountFixture(village, sidecar.poses.overview);
+		const clock = manualClock();
+		const m = await mountFixture(village, sidecar.poses.overview, { clock });
 		mounted.push(m);
 		const t = m.tabletop;
 		// Environments' textures are kept once drawn, like models (#172): loaded once the table is
@@ -107,7 +115,7 @@ describe('the renderer, over time', () => {
 			t.setLighting(view.ambient, view.lights);
 			t.setProps(view.props);
 			t.setEnvironment(view.environment);
-			await settle(t);
+			await settle(t, 1000, 20_000, clock); // the new look's grade blended in
 			return t.stats();
 		};
 		// The first round trip fills the caches (the Hollow's models and shaders stay loaded,
@@ -121,14 +129,58 @@ describe('the renderer, over time', () => {
 		expect(again.programs).toBe(back.programs);
 	});
 
+	// #380: a new table of another size replaced the cell maps' textures and destroyed the old
+	// ones, which a material without nodes still had bound ("Destroyed texture used in a submit" on
+	// WebGPU, a console.error that fails the test). WebGL2 is the control. Going round again
+	// compiles and keeps nothing more.
+	for (const tier of TIERS) {
+		// Every tier on WebGPU; WebGL2's control takes the low one (SwiftShader takes minutes a tier).
+		const run = BACKEND === 'webgl' && tier !== 'low' ? test.skip : test;
+		run(`switches between tables of different sizes on ${tier} without errors`, async () => {
+			const views = await Promise.all(
+				['dungeon-40', 'crowd-60'].map(async (f) =>
+					loadView(f, (await loadSidecar(f)).ambient, 'gm')
+				)
+			);
+			const sidecar = await loadSidecar('dungeon-40');
+			const m = await mountFixture(views[0], sidecar.poses.overview, { tier });
+			mounted.push(m);
+			const t = m.tabletop;
+			await settle(t);
+			const after: ReturnType<typeof t.stats>[] = [];
+			for (const view of [views[1], views[0], views[1]]) {
+				const size = view.grid.width * view.grid.height;
+				t.setGrid(view.grid);
+				t.setTerrain(view.terrain ? decodeLevels(view.terrain, size) : null);
+				t.setFloor(view.floor ? decodeFloor(view.floor, size) : null);
+				t.setDarkness(view.darkness ? decodeMask(view.darkness, size) : null);
+				t.setInterior(view.interior ? decodeMask(view.interior, size) : null);
+				t.setEnvironment(view.environment);
+				t.setTokens(view.tokens);
+				t.setObjects(view.objects);
+				t.setFog(view.fog, view.fogMode);
+				t.setLighting(view.ambient, view.lights, view.world);
+				t.setProps(view.props);
+				await t.benchmark(2); // frames at once, as a table arriving draws
+				await settle(t);
+				after.push(t.stats());
+			}
+			expect(after[2].textures).toBeLessThanOrEqual(after[0].textures);
+			expect(after[2].programs).toBe(after[0].programs);
+		});
+	}
+
 	// #167: the tiles' seams are the grid; lines show only while building, placing or aiming.
 	test('compiles nothing new the second time round the times of day', async () => {
-		const { tabletop } = await mount('village', 'gm');
+		const clock = manualClock();
+		const { tabletop } = await mount('village', 'gm', { clock });
 		const view = await loadView('village', 'day', 'gm');
 		const cycle = async () => {
 			for (const band of ['day', 'dusk', 'dark'] as const) {
 				tabletop.setLighting(band, view.lights);
-				await settle(tabletop);
+				// The band's grade blends in on the held clock: moved on to its end, or the table draws
+				// on until settle gives up (20 s a band).
+				await settle(tabletop, 1000, 20_000, clock);
 			}
 		};
 		await cycle();
@@ -213,14 +265,15 @@ describe('quality tiers', () => {
 
 	// Tiers with other antialiasing or no prepass get a new renderer (Tabletop.svelte).
 	test('change no program between tiers with the same post-processing stages', async () => {
-		const { tabletop } = await mount('ref-7', 'gm');
+		const clock = manualClock();
+		const { tabletop } = await mount('ref-7', 'gm', { clock });
 		const backend = tabletop.capabilities().backend;
 		tabletop.setQuality(settingsFor('high', backend));
-		await settle(tabletop);
+		await settle(tabletop, 1000, 20_000, clock);
 		const programs = tabletop.stats().programs;
 		for (const tier of ['ultra', 'high', 'ultra'] as const) {
 			tabletop.setQuality(settingsFor(tier, backend));
-			await settle(tabletop);
+			await settle(tabletop, 1000, 20_000, clock);
 		}
 		expect(tabletop.stats().programs).toBe(programs);
 	});

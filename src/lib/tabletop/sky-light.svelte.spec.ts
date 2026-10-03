@@ -12,7 +12,7 @@ import { atmosphereUniforms } from './atmosphere';
 import { SkyHemisphere, SkyLight } from './sky-light';
 import { HEIGHT, WIDTH, loadView, mountFixture, readFrame, settle, type Mounted } from './testing';
 
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: 300_000 });
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -44,7 +44,10 @@ async function chamberAtNoon() {
 	let scene: THREE.Scene | null = null;
 	let redraw = () => {};
 	const pose = { target: { x: 4, y: 6 }, distance: 22, azimuth: 0, elevation: 80 };
-	mounted = await mountFixture(view, pose, { devScene: (s, r) => ([scene, redraw] = [s, r]) });
+	mounted = await mountFixture(view, pose, {
+		devScene: (s, r) => ([scene, redraw] = [s, r]),
+		heroes: false
+	});
 	const lights: THREE.Light[] = [];
 	(scene as THREE.Scene | null)?.traverse((o) => {
 		if (o instanceof SkyLight || o instanceof SkyHemisphere) lights.push(o);

@@ -19,13 +19,14 @@ import { npcTokens } from './npcs';
 import {
 	at,
 	door,
+	IN_PROP,
 	light,
 	prop,
+	type Rise,
 	stair,
 	table,
 	wall,
-	window,
-	type Rise
+	window
 } from '../../adventure/tables';
 
 export const MONASTERY_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 30, height: 20 };
@@ -241,7 +242,7 @@ export function monasteryScene(now = new Date()): SceneFile {
 				light('mn-altar-candles', 14, 3, 4, '#ffe3a8'),
 				// Someone lit a candle in the sealed chamber not long ago; it has burned right down.
 				light('mn-chamber-candle', 5, 3, 1, '#ffd27a'),
-				light(I.torchLight, TORCH_AT.x, TORCH_AT.y, 4, '#ffa04d', false),
+				light(I.torchLight, TORCH_AT.x, TORCH_AT.y, 4, '#ffa04d', false, IN_PROP),
 				light('mn-gallery-lamp', 20, 6, 3, '#ffd27a'),
 				light('mn-ledge-lamp', 23, 9, 2, '#ffa04d'),
 				// Moonlight through the belfry arches.

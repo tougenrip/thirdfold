@@ -47,7 +47,7 @@
 		"floor": null,
 		"tokens": [
 			{
-				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
+				"id": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -159,7 +159,7 @@
 		"floor": null,
 		"tokens": [
 			{
-				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
+				"id": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -271,7 +271,7 @@
 		"floor": null,
 		"tokens": [
 			{
-				"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
+				"id": "5d227106-741c-4814-80aa-244a6b03a4bc",
 				"name": "The Saint",
 				"color": "#d4ac0d",
 				"pos": {
@@ -284,7 +284,7 @@
 				"ownerId": null
 			},
 			{
-				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
+				"id": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -1693,7 +1693,8 @@
 				},
 				"radius": 3,
 				"color": "#ffa04d",
-				"on": false
+				"on": false,
+				"fixture": false
 			},
 			{
 				"id": "hb-chapel-candles",

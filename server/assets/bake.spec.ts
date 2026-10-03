@@ -108,3 +108,33 @@ describe('the occlusion and convexity bake (#190)', () => {
 		expect(writeGlb(meshes).equals(writeGlb(bakeModel(source, () => '#fff')))).toBe(true);
 	});
 });
+
+describe('flames (#232)', () => {
+	const sconce = {
+		parts: [
+			{ shape: 'box', size: [0.1, 0.3, 0.05], at: [0, 1.2, -0.4], color: '#3d3a38' },
+			{ shape: 'sphere', size: [0.1, 0.12, 0.1], at: [0, 1.4, -0.35], emissive: true },
+			{ shape: 'cone', size: [0.08, 0.16, 0.08], at: [0, 1.5, -0.35], emissive: true }
+		]
+	};
+
+	it('bakes emissive parts into one white flame mesh beside the body', () => {
+		const meshes = bakeModel(readModelSource(sconce, new Set()), () => '#fff');
+		expect(meshes.map((m) => m.name)).toEqual(['body', 'flame']);
+		const flame = meshes[1];
+		expect(flame.colors!.every((c) => c === 1)).toBe(true);
+		expect(flame.bake!.length).toBe((flame.positions.length / 3) * 2);
+		// The body keeps its own colour, unshaded by the flame beside it.
+		expect(meshes[0].colors![0]).toBeLessThan(0.1);
+	});
+
+	it('refuses a flame with a colour, a swing or an accent, and a flag that is not true', () => {
+		const flame = sconce.parts[1];
+		const read = (p: object) => () => readModelSource({ parts: [p] }, new Set(['iron']));
+		expect(read({ ...flame, color: '#ff8800' })).toThrow(/a flame is white/);
+		expect(read({ ...flame, material: 'iron' })).toThrow(/a flame is white/);
+		expect(read({ ...flame, accent: true })).toThrow(/a flame is white/);
+		expect(read({ ...flame, swings: true })).toThrow(/a flame is white/);
+		expect(read({ ...flame, emissive: 'yes' })).toThrow(/"emissive" is true or absent/);
+	});
+});

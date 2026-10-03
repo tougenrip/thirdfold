@@ -67,7 +67,8 @@ export async function warmLobby(
 	// atmosphere.ts) and lights (the key light casting, the hemisphere and the fixed point lights).
 	const scene = createScene();
 	const lights = createSceneLights(scene);
-	const lighting = new LightingLayer();
+	const lighting = new LightingLayer(lights.grid, undefined, lights.heroes);
+	lighting.setTier(settings); // the tier's K
 	scene.add(lighting.group);
 	const camera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	frameOverview(camera, 20, 1);

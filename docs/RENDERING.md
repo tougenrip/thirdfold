@@ -404,12 +404,13 @@ presets, their blend (`time-blend.ts`) and the lamp are gone.
 
 **Applying a state.** The key light stands two play radii from the play area's centre toward the
 body, raised to `MIN_SHADOW_ELEVATION_DEG` (the dome keeps the true position), with the state's colour
-and strength (0 under an enclosed sky); its shadow box is the play sphere, valid from any direction.
+and strength (0 under an enclosed sky); its shadow box is fitted to the grid each time the map is
+drawn (#229, "The key light's shadow" below).
 The hemisphere takes `hemi` (an enclosed sky's `fill` blended in as light from nowhere), the fog its
 colour, density and height (the world's haze thickens it, `HAZE_DENSITY` per unit, and tints it to its
-colour), post's exposure `2^(state.exposure + grade.exposure)` in EV, and the point-light pool its
-strength from `nightGlow` (0.5 by day, 1 at night: `LightingLayer.setGlow`; flames flicker past 0.5 or
-in a dark area). Every write is into existing objects. A new hour tweens the short way round the clock
+colour), post's exposure `2^(state.exposure + grade.exposure)` in EV, and the point lights the sky's
+`nightGlow` (0.5 by day, 1 at night: `LightingLayer.setGlow`; flames ask for frames to flicker past
+0.5 or in a dark area, "Flicker (#231)" below). Every write is into existing objects. A new hour tweens the short way round the clock
 over `TWEEN_MS` (3 s, ease-out), re-evaluating the curve each frame (`tick`, part of `drawFrame`'s
 moving flag); it snaps under reduced motion and on a new table (`fit`). The sky, weather and haze snap.
 
@@ -420,6 +421,30 @@ gallery). `setLighting` no longer marks the table changed unless its lights did 
 shadows), so an hour redraws by the rule alone: a day's sweep a minute at a time draws 481 maps (two
 body switches), noon to 13:00 21, noon to 18:30 131 (`atmosphere.svelte.spec.ts` checks the count
 against the rule and that nothing compiles).
+
+### The key light's shadow (#229)
+
+`fitShadowFrustum` (`light-model.ts`, pure, tested in `light-model.spec.ts`) fits the shadow camera's
+orthographic box to the grid's box from the floor to a wall above the highest floor (`fitToTable` sets
+`AtmosphereLayer.shadowBox`), in the light's own axes as three's `lookAt` makes them: the box's corners
+in light space, four texels of room for the soft filter, sized in half-cell steps and centred on a
+whole texel, reaching toward the light by the box's height again for anything taller. It is refitted
+only when the map is drawn (`shadowFrame`), so a camera move never touches it and a light turning
+less than `SHADOW_STEP_DEG` keeps its texels; the world past the grid lies outside and reads as
+unshadowed. A 64×64 table gets at least 20 texels a cell at 2048 from any direction (the old sphere
+box spent them on the backdrop). The map's size is the tier's `sunShadowSize` (1024, 2048, 2048, 4096) and PCF's `radius` its `sunShadowRadius` (1, 2, 3, 3: low has no TRAA to hide the noise);
+`normalBias` is 0.02 of a cell and `bias` stays -0.0005. Radius, `normalBias` and `intensity` are
+uniforms in r186's `ShadowNode`, so none compiles. The moon casts with the same light at its curve
+intensity, its shadows at `MOON_SHADOW` (0.5) darkness; an enclosed sky's key light is 0, so it never
+redraws (the first frame's forced draw aside, which the warm-up needs).
+
+**Deferred.** PCSS (contact hardening on high): the blocker search must read raw depth, and the
+WebGL2 backend's `sampler2DShadow` can't be `texelFetch`ed (GLSL ES 3.0), so it could only be
+WebGPU's; a per-tier `filterNode` must also exist from the lobby's warm-up on and rebuild the renderer
+on a tier change (the pipeline-shape rule in `Tabletop.svelte`), and its look needs WebGPU goldens.
+High keeps PCF at radius 3 everywhere until then. r186's `SunLight` cascades for vista shots (the
+Hollow's pull-back, photo mode) are left to #125: they fit slices of the view frustum, so they redraw
+on every camera move, which is the cost #143 removed.
 
 ### The atmosphere curve (#212)
 
@@ -551,7 +576,7 @@ tabletop carries `room.interior`; `flashLift` raises the sky's reach during a fl
 
 The table's slab and rim are gone. `tabletop/world-ground.ts` (pure) gives a table's extents:
 `worldExtents` has the play extent (the grid's box up to a wall above its highest floor: picking,
-views, shots, the warm-up camera, the effects' bounds, the shadow box's sphere and how far the
+views, shots, the warm-up camera, the effects' bounds, the shadow box and how far the
 camera may pull back) and the world extent (the ring out to the horizon, the haze from `fogRange`,
 the far plane); `ringVertices` is the ring from the grid's edge out to a circle at the horizon,
 closer together near the grid. `tabletop/landscape.ts` `WorldGround` draws the play plane (the
@@ -618,6 +643,395 @@ goes through `flashPolicy` (lightning #323 and the finale's effects #336 too). `
 tolls 2.5 s apart and of a cue inside the hold, in both modes: 3 or fewer flashes a second, no red
 flash, and with Reduce flashing no swing quicker than the 500 ms fade.
 
+## Light falloff (#226)
+
+One pure definition of how far and how brightly a light renders, in `src/lib/game/lights.ts`, shared
+by the renderer and the tests. The contract every lighting change keeps:
+
+- **Zero where the rules are dark.** A light renders above zero only on the cells `litMask` lights
+  for it. Reach is `renderedReach(radius)` = `floor(radius) + 0.5` cells, measured horizontally from
+  the rule origin (the light's cell centre): lit cell centres have `d² ≤ r² + r < (r + 0.5)²`, the
+  rest `d² ≥ r² + r + 1`, so the window ends exactly between them. Occlusion comes from the same
+  origin and the same line of sight (`hasLineOfSight`: walls, windows, levels).
+- **Readable where lit.** `lightFalloff(radius, dxz, d3)` is the rules window
+  `saturate(1 - (dxz / reach)^4)^2` on the horizontal distance, times a body `1 / max(d3,
+CORE_RADIUS)^LIGHT_DECAY` on the 3D distance from the visual position, times a hot core inside
+  `CORE_RADIUS` (inverse-square, never past `CORE_MAX`). The window is tiny at the rim of a large
+  radius (about `1e-6` at radius 20, black in float32), so the shader tops a lit cell's point light
+  up to `READABLE_EDGE` in the source's colour: `readableFill(lightLevels)`, which is `READABLE_EDGE`
+  exactly on lit cells (`lightLevels` floors them at 0.2) and 0 elsewhere.
+- **The visual position is look only.** `lightMount` (`tabletop/light-model.ts`, pure) hangs a torch
+  or lantern `MOUNT_OFFSET` off the first walled edge of its cell (north, east, south, west) at
+  `MOUNT_HEIGHT` of a wall, so its light rakes across the wall's normals, and stands any other light
+  at its cell centre at its look's height. The rule origin never moves.
+
+`lightLevels` (the cell maps' light level) fades through the same window, floored at 0.2 where lit.
+`renderedLevels` is what the shader computes at cell centres, for the spec. `LIGHT_DECAY`,
+`CORE_RADIUS`, `CORE_MAX` and `READABLE_EDGE` are tuned in #238 within `FALLOFF_RANGES`
+(decay 0.5-2, core radius 1-2 cells so the body never passes 1, core cap 1-8, readable edge
+0.02-0.2); `lights.spec.ts` proves the contract on a 24×24 grid for radii 1-20, flat, behind a wall,
+over raised ground, from a balcony behind its railing and through a window, at every corner of those
+ranges. GridLights (#228, "Many lights" below) compute exactly this in the shader (`falloffNode`).
+M67's fixed pool of 8 point lights, kept behind `?off=manylights` until M68 closed, was removed at
+the close: GridLights are the only point lights on every tier.
+
+### Exposure from the focus cell (#233)
+
+Exposure follows what the camera looks at. `exposureFor({ band, focusDark, focusLight, focusVisible })`
+(`tabletop/exposure.ts`, pure, tested in `exposure.spec.ts`) gives an EV lift: 0 in the open by day
+or at dusk; in the dark band or a dark area at any hour, `LIFT_CAP · (1 − LIGHT_DAMPING · light)`,
+where `light` is the rules' level at the focus (0.6 of the lift goes at full light). `LIFT_CAP` is
+`MAX_LIFT` (1.5 EV) or less, so an unlit night cell (`1 − NIGHT_DARK`) never shows above
+`DARK_CEILING` (0.5): about 1.47 EV. It is 0 whenever the viewer can't see the focus cell (a fogged
+player's explored or hidden cell), so the lift never probes the dark beyond what the rules show. The
+focus is the cell under the camera's target, read from the visibility map as packed
+(`CellMaps.focusAt`: A 0 a dark area, B the light, R visible, or the GM, or no fog), so it is a
+function of what the viewer was sent and the local camera, with no readback.
+
+`AtmosphereLayer.tick` eases the lift over `LIFT_MS` (800 ms, ease-out, on the wall clock; ACTIVE
+frames until it lands, then none) and snaps it under reduced motion and on a new table. Exposure is
+`2^(clamp(sky + look) + lift + flash)`. Remembered cells must not brighten with it: `worldModify`
+multiplies the unseen (a player's explored cells, the GM's unseen ones) by `cellUniforms.memoryGain`
+(`2^−lift`), and since exposure multiplies before the tone mapper the compensation is exact;
+unexplored cells stay exactly 0. `exposure.svelte.spec.ts` holds both: explored pixels within 2
+levels whatever the lift, black stays black. All uniforms: no program changes.
+
+## Many lights (milestone 68)
+
+### Decision (#227, spike 1 October 2026): GridLights
+
+Point lights are drawn by **GridLights**: one custom light per scene (`GridLight`, its node
+registered on the renderer's node library before the first compile, as `SkyLight` is), which every
+lit fragment runs as a fixed `Loop(K)` over its cell's light list, read with `textureLoad` only, so
+one graph runs on the WebGL2 and WebGPU backends with no compute and no storage buffers. Each entry
+reads its light's data and three taps of its polar occlusion row and adds three's `directPointLight`
+through the lighting model (`LightsNode.setupDirectLight`), as `ClusteredLightsNode` does per
+cluster. The set of light objects never changes, so lights coming and going change texture data,
+never a program. Three's `DynamicLighting` (option (a)) is rejected: it shines through walls, costs
+50-60% more GPU time than today's pool on the dGPU and about twice the pool on the iGPU at 40 lights,
+and needs a `constructor.name` lookup (`'PointLight'`) that a minifier may break.
+
+**Data** (pure builders in `src/lib/tabletop/grid-lights.ts`, tested in `grid-lights.spec.ts`):
+
+| What           | Built by                                                                                                                                                                                                                                                               | Texture                                                            | Size                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------- |
+| Light lists    | `buildLists(grid, sightCache, sources, K)`: each light's `SightCache` sight, the same `addVision` the rules' `litMask` uses, so a cell lists a light exactly where the rules light it; strongest first (`lightFalloff` at the cell centre), the weakest dropped past K | RGBA8, nearest, K/4 texels per cell, sized for the 100 × 100 limit | 80 KB at K = 8          |
+| Light data     | `packLightData(entries)`: visual position and reach; colour × intensity and flags (hero, bake-excluded, no-core); the rule origin's centre, flicker profile and phase                                                                                                  | RGBA32F                                                            | 3 texels a light        |
+| Occlusion rows | `buildRows(grid, sight, origin, levels)`: 256 angles marched from the light's own sight mask to the exact edge into the first cell out of it; cells below the light's floor it can't see (the drop under a balcony's edge) are marched over                            | the same RGBA32F texture, 64 texels a light after its 3 of data    | 255 × 67 texels, 268 KB |
+
+Capacity 255 lights (indices are bytes, 0 empty). Data and rows share one texture: with three
+textures the largest fragment stage reached 16 sampled textures, WebGPU's default
+`maxSampledTexturesPerShaderStage`; with two it is 15 (13 with the pool), counted from every
+fragment shader the page compiled, WGSL and GLSL. #228 must keep that budget: the plan's `light`
+cell map (fill, bounce, cavity) goes into an existing map's channels or this texture, not a 16th
+binding. `packLightData`'s layout (a texel row per field) is transposed into a row per light on
+upload in the spike; #228 should pack straight into the row-per-light layout.
+
+**Gating rule.** A light reaches a fragment only if it is in the fragment's cell list (cell looked up
+at `positionWorld + normalWorld × 0.3 cell`, so each wall face reads its own side), and only as far
+as its occlusion row allows at the fragment's angle from the rule origin (3 taps on medium; a tap is
+lit when the distance is within the row plus 0.02 cell). Membership comes from the rules' sight, so
+"rendered light only on rule-lit cells" holds by construction; the rows only shape light inside lit
+cells (shadow wedges behind corners and jambs) and can only darken.
+
+**Per-tier caps.** K = 4 (low), 8 (medium, high), 16 (ultra). No fixture overlaps more than 3 lights on
+a cell (dungeon-40 2, the village 3, the monastery and the Hollow 2), so K = 4 drops nothing on any
+shipped table; K only bounds the loop.
+
+### Measurements
+
+`scripts/spike-lights.mjs` (spike branch only) on dungeon-40 (40 torches in 20 walled rooms) at
+1920 × 1080, medium tier, fog off, GM view, reduced motion; GPU ms per frame by timestamp queries,
+median of 32 frames. _Leak_: on a 14 × 8 table split by a wall, torch A half a cell from it, torch B
+lighting the far room; the largest brightness change (8-bit luma, 5 × 5 patches) on the far side's
+cells beside the wall when A is switched on. _Lit_: the smallest change on A's own side.
+_Coverage_: torches whose neighbouring cell brightens by over half the brightest. _Programs_: before,
+with every light removed, and with all 40 back.
+
+| Path                | Backend, GPU                            | GPU ms overview / close | Leak (far side) | Lit (near side) | Coverage (of 40) | Programs, 40 lights out and back | Textures per fragment (max) |
+| ------------------- | --------------------------------------- | ----------------------- | --------------- | --------------- | ---------------- | -------------------------------- | --------------------------- |
+| Pool of 8 (M67)     | WebGPU, RTX 4060                        | 2.22 / 2.78             | 8.3             | 6.7             | 8¹               | no change²                       | 13                          |
+| GridLights K = 8    | WebGPU, RTX 4060                        | **2.07 / 2.61**         | **0.1**         | 6.6             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGPU, RTX 4060                        | 3.50 / 4.35             | 8.6             | 6.7             | 40               | no change                        | 12                          |
+| Pool of 8 (M67)     | WebGL2 (ANGLE Vulkan), RTX 4060         | 2.71 / 3.32             | 8.6             | 6.7             | 8                | no change                        | 13                          |
+| GridLights K = 8    | WebGL2 (ANGLE Vulkan), RTX 4060         | **2.49 / 3.09**         | **0.1**         | 6.7             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGL2 (ANGLE Vulkan), RTX 4060         | 4.34 / 5.00             | 8.4             | 6.5             | 40               | no change                        | 12                          |
+| Pool of 8 (M67)     | WebGL2 (ANGLE Vulkan), Intel RPL-S iGPU | 56.4 / 69.2             | 8.2             | 6.6             | 8                | no change                        | 13                          |
+| GridLights K = 8    | WebGL2 (ANGLE Vulkan), Intel RPL-S iGPU | **41.6 / 54.8**         | **0.1**         | 6.7             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGL2 (ANGLE Vulkan), Intel RPL-S iGPU | 105.1 / 131.2           | 8.3             | 6.6             | 40               | no change                        | 12                          |
+| Pool of 8 (M67)     | WebGPU, Intel RPL-S iGPU                | 81.2 / 77.1             | 8.3             | 6.6             | 8                | no change                        | 13                          |
+| GridLights K = 8    | WebGPU, Intel RPL-S iGPU                | **54.4 / 70.1**         | **0.1**         | 6.6             | **40**           | no change                        | 15                          |
+| DynamicLighting, 40 | WebGPU, Intel RPL-S iGPU                | 116.6 / 139.9           | 8.4             | 6.7             | 40               | no change                        | 12                          |
+
+¹ The pool lights the 8 largest; on the WebGPU dGPU run the readback saw 40 while the first view's
+pipelines were still compiling (programs 111 → 121 during it), so that cell is the WebGL2 and iGPU
+runs' 8. ² Programs are flat on every path once warm. The 0.1 left on GridLights' far side is the
+readback's floor (grain and dither).
+
+**CPU** (Node 22, `buildLists` + `buildRows` on the fixtures, median of 7): a light switched or moved
+with the sights cached rebuilds the lists in 0.20 ms on dungeon-40 (40 lights; 0.15 the village and
+the Hollow) and its own row in about 0.02 ms; a door toggle, which clears the sight cache, rebuilds
+all of it in 4.3 ms on dungeon-40 (the lists 3.35, every row 0.91; 2.2 + 0.3 the village, 1.0 + 0.5 the
+Hollow), within M34's 6.4 ms relight for the GM loading the village. In the browser the whole relight
+(the rules' light levels, the pool, fixtures and the cell maps included; median of 6 per run) was
+2-11 ms with the pool and 4-16 ms with GridLights across runs, too noisy to separate; the grid's own share being the Node figures above
+plus the uploads (80 KB lists, 268 KB data, all of it each time in the spike: #228 should upload only
+the rows that changed, `addUpdateRange`).
+
+### The r186 internals it rides on
+
+For the upgrade procedure ("Upgrading three.js"): `AnalyticLightNode.setup` (overridden whole, so
+three's shadow setup for the light never runs), `LightsNode.setupDirectLight` and the
+`builder.context.reflectedLight` `directDiffuse`/`directSpecular` `toStack()` calls before the loop
+(as `ClusteredLightsNode.setupLights`), `directPointLight` from `three/tsl`, `NodeLibrary.addLight`,
+`TextureNode.getUniformHash` (by the texture's uuid: several `textureLoad`s of one texture share one
+binding), and `PhysicalLightingModel.direct`'s `{ lightDirection, lightColor }` contract.
+`LightsNode.customCacheKey` hashes light ids and `castShadow` only, which is why one stable
+`GridLight` never recompiles. A parity test against `DynamicLighting` on a wall-free table (#228)
+should be the first thing an upgrade fails.
+
+### Fallback and what is left
+
+- If a device lacks 15 sampled textures per stage (none we target; WebGL2 guarantees 16 units), the
+  low tier drops the occlusion taps and reads lists only (cell-exact walls, no wedges).
+- Radiance cascades do not deserve a research issue yet: the per-light rows give exact wall shadows
+  at this cost, and #234's bounce field covers the indirect light the cascades would add.
+- Unrelated, seen on every path and on M67's pool: on WebGPU one pipeline per table failed with
+  "Color target has no corresponding fragment stage output" (`targets[1]`). Not a mini's (#379): the
+  mini's async compile only caught the error in its scope. It was the output stage's quad, drawn by
+  a perf benchmark while the warm-up held the scene pass's three targets set; a benchmark now waits
+  for the warm-up, and `fixtures.svelte.spec.ts` benchmarks during one on both backends.
+
+### The shipped path (#228)
+
+- **Sources and entries.** `LightingLayer` (`lighting.ts`) hands every source that is on, placed or
+  carried (`litSources`: `lightSources`' order with the light's or the carrier's id), to
+  `GridLighting` (`grid-light-layer.ts`), which makes a `LightEntry` each (`grid-lights.ts`: id,
+  rule origin, visual position, reach `renderedReach`, linear colour, intensity = the look's
+  intensity × `2 + radius`, flicker profile and phase (#231, below), flags hero / bake-excluded /
+  no-core; the flags are 0 until #230, #234 and #236 fill them, but the layout has them). The visual position
+  is `lightMount`, a sconce's or brazier's top (`lightSeats`), or the carrier's hand (`HAND`, by its
+  scale and lift), which follows the mini as it glides (`LightingLayer.carry` from the frame's token
+  tick: only those lights' layers upload). The day halving of the pool is gone: the sky's exposure
+  handles the day.
+- **Data and uploads.** `GridLight` (`materials/grid-light-node.ts`) holds two `DataArrayTexture`s:
+  the data, a layer per light (`packLight`: 3 data texels, then the 64 texels of its occlusion row),
+  and the lists, a layer per grid row (K per cell, four to an RGBA8 texel). A light that changes
+  uploads its own layer and a list change the rows that changed (`addLayerUpdate`, which r186 honours
+  on both backends; `Texture.addUpdateRange` is the classic renderer's only). Rows are cached per
+  sight (`WeakMap` on the `SightCache`'s mask), and the client's `SightCache` keeps every sight while
+  the obstacles are the same, so a token's move works out one sight.
+- **The node.** One `GridLight` per scene, made by `createSceneLights` so the lobby's warm-up and the
+  table compile the same, registered by `registerGridLights` beside the sky's lights (`loop.ts`). Its
+  K is the tier's `lights` (4 low, 8 medium and high, 16 ultra); another K is another `GridLight`,
+  swapped by `LightingLayer.setTier` (a new program, as any tier switch makes). M67's pool of 8 (`?off=manylights`) was
+  removed at M68's close. Per entry: the rules window, body and core (`falloffNode`, the mirror
+  of `lightFalloff`) times three occlusion taps, never below `READABLE_EDGE` on a listed cell, into
+  the lighting model as a direct light (`lightDirection` toward the visual position).
+- **One dimming.** The lit kinds light with `KindLightingModel` (`materials/lighting-model.ts`,
+  their `KindStandardMaterial` and `KindPhysicalMaterial` bases): its `indirect()` scales the indirect
+  light (hemisphere, image light, AO, a mini's clearcoat) by `worldLight` (the rules' light factor
+  `worldModify` used to put on the whole output), `SkyLightNode` scales the key light by it for these
+  materials only (`kindLit`), and `worldModify(output, emissive, true)` fogs, tints and adds the dark's
+  colour without darkening again, so a torch's pool is no longer dimmed by the dark it lights. Materials
+  that are not kinds (fixtures, flames, the mist) keep the whole darkening.
+- **Budget.** The largest fragment stage samples 15 textures (terrain on medium and high; 14 on
+  low), counted per material and tier from every fragment shader the table's warm-up compiled
+  (`program-count.svelte.spec.ts`, `STAGE_TEXTURES`); the readable fill needs no texture (it is the
+  `READABLE_EDGE` floor in the loop), so the plan's `light` cell map is left to #234, which packs
+  bounce and cavity into an existing texture.
+- **Tests.** `grid-lights.svelte.spec.ts` on both backends: dungeon-40 from above with the GridLight
+  on and off (every rule-lit cell centre brighter, every other one unchanged, every torch in view
+  lighting its pool), a wall with a torch half a cell from it (neither the far face nor the floor
+  behind it changes when the torch's colour goes black) and the monastery's `mn-gallery-lamp` on its
+  balcony (no cell past its rules' sight changes). The program-count sweep's `lightSteps` (40 torches
+  in and out, every kind, recoloured, a carried light on, coloured, moved and off) on every tier;
+  unexplored-black's dungeon-40 and ref-6 with a lantern carrier on hidden ground beside the player;
+  `grid-light-layer.spec.ts` (a hidden carrier beside a player is never one of the player's lights).
+  The parity test against `DynamicLighting` waits: the falloff is no longer three's, so it would
+  compare shapes, not pixels.
+
+### Flicker (#231)
+
+Flames flicker in the shader, at no CPU cost per light. Each `LightEntry` carries a `profile` (the
+look's `flicker`, its index in `FLICKERS`) and a `phase` (`flickerPhase`: FNV-1a of the light's id,
+or the carrying token's, over 2³², the same hash as the `SightCache`'s `hashBytes`, exported as
+`fnv1a`), so a torch flickers the same on every client, after a reload and however other lights come
+and go. `flickerAt(profile, phase, t)` in `light-model.ts` is the reference, two sines
+`1 + a1 sin 2π(f1 t + phase) + a2 sin 2π(f2 t + 2 phase)`, and `flickerNode` in
+`materials/flicker.ts` mirrors it from the same table (`FLICKER_WAVES`, a uniform array), multiplying
+each GridLight's falloff (never its `READABLE_EDGE` floor).
+
+| Profile (`flicker`) | Kinds by default  | Waves (amplitude @ Hz) | Character            |
+| ------------------- | ----------------- | ---------------------- | -------------------- |
+| `none`              | glow, neon, panel | none                   | steady               |
+| `candle`            | candle            | 3% @ 1.9, 2.5% @ 2.7   | small and quick      |
+| `torch`             | torch             | 4.5% @ 1.16, 3% @ 2.08 | M67's curve          |
+| `fire`              | brazier, fire     | 5% @ 0.7, 3% @ 1.45    | slower and deeper    |
+| `pulse`             | magic             | 8% @ 0.4               | arcane: a slow sine  |
+| `lantern`           | lantern           | 1.5% @ 0.9, 1% @ 1.7   | behind glass: gentle |
+
+Flash-safe by construction (tested in `light-flicker.spec.ts`): the amplitudes add to at most 8%
+and every wave is under 3 Hz, below WCAG 2.3.1's general-flash threshold, so Reduce flashing need
+not act. Every frequency is a whole number of cycles in `FLICKER_PERIOD` (100 s), so the shader's
+time wraps there without a jump and stays precise in 32-bit floats.
+
+Two uniforms drive it: `flickerTime` from the renderer's injected clock (never TSL's `time`, which
+follows frame time and would break held-clock goldens) and `flickerAmp`, 0 under reduced motion
+(the live media query, through `setReducedMotion`), so every golden (reduced motion) is unchanged.
+`LightingLayer.animating(camera, now)`, called from `drawFrame`, sets both and reports `ambient` to
+the scheduler only while a GridLight that flickers reads (the night glow past day's, or its cell in
+a dark area; roofed rooms are not counted yet) and its reach sphere meets the camera's frustum: no
+AMBIENT frames by day, with nothing flickering in view, or under reduced motion. The fixtures' flames (#232) read the same `flickerNode` and uniforms in
+their vertex stage, so flame and light breathe together. Changes are numbers only: the program-count
+sweep's `lightSteps` turns the 40 torches through every profile on every tier.
+
+### Strips and panels (#236)
+
+A light of kind `neon` is a bar and one of kind `panel` a lit quad: long sources, drawn through the
+GridLights on every tier.
+
+- **Samples.** `stripSamples(light, facing)` (`light-model.ts`, pure) gives a neon bar three
+  samples along its 0.84-cell bar (at −0.3, 0 and +0.3 cells, a twentieth of a cell in front) and a
+  panel two, corner to corner across it, each a third or a half of the light's intensity; every
+  other kind none. `stripEntries` turns a light's `LightEntry` into one per sample: the same id
+  (so the same flicker phase), **the same rule origin**, reach, colour and flicker, its share of the
+  intensity, its visual position the light's point (its cell centre at its look's height) plus the
+  sample's offset, and the no-core flag. Each sample is a layer of its own in the data and listed on
+  exactly the cells the light itself lights (`buildLists` takes the light's source for each), so
+  reach, occlusion and membership stay the rules' (`litMask` for its radius) and nothing lights past
+  a wall. Bounce counts the light once, not per sample. A carried light, or one seated on a prop's
+  flame, stays a point.
+- **No hot core.** The node reads the no-core flag (`LIGHT_FLAGS.noCore`, 4) from the colour
+  texel's w and sets `falloffNode`'s core to 1: a long source lights evenly, with no point to burn
+  at. A number in the data, never a program.
+- **Facing.** `LightLook.facing` turns a strip as a wall fixture is turned to its side: facing `f`
+  has its back to `SIDES[f]` (0 north, then east, south, west) and shines away from it (0 south, 1
+  west, 2 north, 3 east), a quarter turn clockwise each. The samples turn with it, and so does the
+  fixture.
+- **Fixtures.** `neon-bar` (a bar between two posts) and `light-panel` (a framed quad on a stand)
+  are part-list placeholders (#232) whose glowing part is the `flame` mesh: the emissive kind in the
+  light's colour at `FLAME_GLOW` (above 1, so it blooms), the wick's dark when off, dimmed by
+  `worldModify` in fog; `LightFixtures` turns them by `facing`.
+- **Deferred.** The ultra tier's fixed pool of `RectAreaLight`s (LTC, assigned to the strips nearest
+  the focus and taken out of the sampled path) waits for #357, with ClusteredLighting: its LTC table
+  is a large lazy chunk for a tier nobody has measured. A ceiling panel (facing down) waits for a
+  look that asks for it.
+- **Tests.** `light-model.spec.ts` (sample counts, shares adding to 1, samples inside the cell,
+  facing turning them, each entry the same light from the same rule origin with the no-core flag);
+  `grid-lights.svelte.spec.ts` (a magenta bar facing a wall lights the wall's face magenta, and from
+  above every floor cell its rules light changes and no other, the far side of the wall included);
+  the program-count sweep's `lightSteps` (the 40 torches as neon facing every way, recoloured, mixed
+  with panels and torches, turned, and back) on every tier, now a test and a CI shard per tier
+  (programs 16 to 18).
+
+### Translucency (#237)
+
+Thin and waxy things glow when a light is behind them. `KindLightingModel.direct()`
+(`materials/lighting-model.ts`) adds, for the prop, mini and foliage kinds only (by the material's
+`kind`, fixed with its graph), a term to direct diffuse before the standard one, so it reaches
+every light path that calls the model: GridLights, the sky's key light, the pool.
+
+- **Transmission**, `MeshSSSNodeMaterial`'s: `saturate(V · -normalize(L + 0.2 N))⁴ × 1.2`, times
+  thinness: `aBake.x` on props and minis (the bake's openness; where its own parts occlude it, it is
+  thick), 1 on foliage.
+- **Wrap**, a bump just past the terminator, `max(N·L + 0.5, 0) × saturate(-N·L / 0.5)`: 0 at the
+  terminator and on every face the light falls on, so lit from the front only a translucent thing
+  looks as it would opaque.
+- Both times the albedo (`diffuseContribution`), the light's colour, `1/π` and the strength,
+  `params.translucency` (a `materialReference` uniform, `Params` in `kinds.ts`): 0 is off, and any
+  value compiles nothing. Specular and emissive are untouched.
+
+The strength comes with the model: a part list's `translucency` (0 to 1) goes into its manifest
+entry (`ModelEntry.translucency`), and `PropLayer` and `LightFixtures` give a translucent model
+materials of its own in the shared variant (as a textured part's): tent 0.8, banner 0.8, crystal
+0.9, candle cluster 0.5, tree 0.4; the foliage kind defaults to 0.6. A model's whole body takes it
+(the candle cluster's holder too) until a per-part mask is needed (minis' wings and ears). Ref 1
+has a tent between the camera and its torch and a banner by it, ref 6 a crystal before each
+brazier. `translucency.svelte.spec.ts` draws each twice, at its strength and at 0, from behind
+(the term must brighten it) and, for the tent, from the torch's side (it must not), and checks no
+program is made; the program-count sweep's `lightSteps` sets the home table's tree to 0 and back.
+
+### Probe grid (#235)
+
+On high and ultra a coarse grid of L2 irradiance probes (three's `LightProbeGrid`) adds coloured
+bounce from the sun, the sky and placed lights. It is an additive layer, `probes`, **off by
+default** until the owner's gate (the Hollow's bake under about 3 s on the dGPU with the renderer
+idle afterwards; never on WebGL2 on an integrated GPU, `wantsProbes`); `?on=probes` turns it on
+for a review (`layersFrom` reads `?on=` as well as `?off=`).
+
+- **Layout** (`probeLayout` in `light-model.ts`, pure and tested): a lattice over the grid from
+  cell centre to cell centre, a probe every `PROBE_SPACING` (3) cells, at most `PROBE_MAX` (24) a
+  side (farther apart past that), at `PROBE_HEIGHTS` (3) heights from half a cell over the table to
+  a wall above its highest floor. The Hollow uses 17 × 3 × 13 = 663 probes.
+- **One grid and one atlas for the renderer's life** (`probe-grid.ts`, a lazy chunk with its own
+  bundle budget): the atlas is made at `PROBE_MAX × PROBE_HEIGHTS × PROBE_MAX` and a table uses its
+  corner; the light object, its texture and so every program stay the same from table to table (a
+  replaced texture strands bindings, #380). Our node (`ProbeGridNode`, registered for three's grid
+  class before anything compiles) is three's `LightProbeGridNode` sampling over the atlas's own
+  size, times `skyAmbient()`, so dark areas take no probe light; the kinds' lighting model then
+  dims it by the rules' light factor and cavity like any indirect light.
+- **Bake** (`probes.ts`, the scheduler's background `Work`): `ProbeBake` (pure, tested) restarts
+  `BAKE_DEBOUNCE_MS` (500) after anything the bake captures changes (the table, levels, walls and
+  doors, props, floors, dark areas, roofs, placed lights, the explored mask, the environment, the
+  band, the hour to the half hour, any warm-up; never tokens), then bakes `PROBES_PER_FRAME` (8) a
+  frame on CONVERGE frames, fades in over `PROBE_FADE_MS` (at once under reduced motion) and stops:
+  an idle table draws nothing for it. `ProbeLayer` follows the tabletop's own setters, so
+  `renderer.ts` only makes it. A capture renders the client's own scene, which holds only what the
+  viewer was sent, through `worldModify` (unexplored cells capture black), with tokens, dice,
+  effects and the fog cloud hidden and carried light zeroed (`baking`, the lights' `bakeExcluded`
+  flag); its data never leaves the client. Only the first pass is baked (three's indirect passes
+  would need a second atlas).
+- **Programs.** The grid is in the scene before a warm-up, and every warm-up's hold captures one
+  probe, so a bake compiles nothing (`probe-grid.svelte.spec.ts`: the programs and pipelines before
+  and after a rebake, and no frame for 3 s once it has converged).
+- **Texture slots.** The atlas is one 3D texture, so the largest fragment stage goes from 15 to 16
+  sampled textures on high with probes: exactly WebGPU's default limit, with none spare. The
+  spec asserts at most 16; anything else a lit kind samples on high (hero shadow maps, #230) must
+  share a binding or turn the probes off. The hero atlas took terrain to 17, so terrain has no
+  emissive slot (no floor glows: its glow is the tint alone, `KINDS.terrain.slots`): with probes
+  and hero shadows on high, terrain samples 16 and prop and mini 15.
+
+### Hero shadows (#230)
+
+A fixed pool of shadow-casting point lights per tier (`shadowedTorches`: none on low, 2 at 256 px on
+medium, 4 at 512 px on high and ultra; `heroTier` in `hero-shadows.ts`) goes to the GridLights
+nearest the camera's focus. `assignHeroSlots` (`light-model.ts`, pure, `light-model.spec.ts`) scores
+each source by its distance from the focus, 8 cells more without a token, prop or step of raised
+ground in its reach, and leaves out those past 16 cells; a free slot takes the best, a holder keeps
+its slot (and its index) until a challenger is 2 cells better, so camera moves within that never
+hand one over. Casters are only what the viewer was sent.
+
+- **Lights.** `HeroLight` (`materials/hero-light-node.ts`), a `PointLight` subclass with its own
+  node, registered beside the GridLight's (`registerHeroLights`, `loop.ts`), made with the pool
+  (`createSceneLights` makes medium's, `LightingLayer.setTier` another tier's; a new pool is a new
+  program, as a tier switch is) and casting for its whole life, so the lights' cache key never
+  changes. Its node draws the entry its `layer` uniform names exactly as the GridLights do
+  (`entryLight` and `fragmentCell`, shared with `GridLightNode`), only on cells whose lists hold it,
+  times its `fade` and its cube's shadow. The GridLight gives that entry's light up by the same
+  share (`heroIndex`/`heroFade`, a float uniform per slot), so a light is never lit twice and an
+  unshadowed cell reads the same with or without its slot (`hero-shadows.svelte.spec.ts`: within 2%).
+  The share is uniforms, not the data's `hero` flag (reserved, left 0), so a handover uploads
+  nothing. Vector uniforms on these lights read back wrong on the WebGL2 backend (r186: the slot
+  uniforms as `vec4`s did), so they are floats or uniform arrays.
+- **Cubes.** One depth atlas for the pool (`HeroAtlas`, a row of six 90° faces per slot, compared
+  with the hardware's 2×2 PCF), so the slots add one texture to a lit fragment stage: the largest,
+  terrain, is at 15 without probes and 16 with them (WebGPU's default and WebGL2's least, since
+  terrain dropped its emissive slot), prop and mini at 15 with probes. `HeroShadowNode`
+  (a `ShadowNode` with its own render target, filter and `renderShadow`) fills each face's tile with
+  the far depth (a clear would clear the whole atlas), draws the casters with one shared material,
+  and records the face matrices and the light's position it drew with, which the filter uses, so a
+  cube and its lookup always agree. `shadow.autoUpdate` is off: a slot is due when what its reach + 1
+  holds changes at a relight (tokens, props, raised ground, the light's sight, so walls and doors), its
+  light moves (a carried light) or a mini glides through it, and for half a second after a change
+  (a door's swing, a prop's glide); at most `slots / 2` cubes draw a frame, taking turns. A camera
+  move draws none. On a warm-up's gallery frame every slot draws once over the whole table, so the
+  casters' shadow passes compile with the warm-up, and again at its reach the frame after.
+- **Handovers** fade the old holder out and the new in over `HERO_FADE_MS` (200 ms; at least a twelfth
+  a frame, snapped under reduced motion), the new one once its cube is drawn; frames are requested
+  until they land. `?perf` shows the holders, cubes drawn and cube memory; the program-count sweep
+  hands every slot over (`lightSteps`) on each tier, a test per tier.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -648,6 +1062,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)  |
 | `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)       |
 | `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                           |
+| `grid-light-layer.ts`                 | `GridLighting`: the point lights from what the viewer was sent, uploads, `carry`; `grid-lights.ts` its data (#228)               |
 | `fog-cloud.ts`                        | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                            |
 | `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
 | `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |
@@ -808,7 +1223,7 @@ while shaders compile. `stats().mode` shows the mode in the `?perf` overlay.
 
 **The layer contract:** each frame the renderer asks the layers what they did (their `tick`
 returns) and reports it to the scheduler as a `FrameReport`: anything still moving (`active`), or
-animating slowly (`ambient`: `LightingLayer.flicker`, `AmbienceLayer.tick`). One-off changes call
+animating slowly (`ambient`: `LightingLayer.animating`, flicker in the shader, #231; the fog cloud). One-off changes call
 `request()`. Every animation runs on the injected clock (#128), from a start time and a duration,
 never on frame counts, so a throttled browser (Energy Saver, Low Power Mode) draws fewer frames of
 the same motion: token moves and floats, door swings, dice, props, cues and shots. Only layers that
@@ -1371,6 +1786,17 @@ The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500
 tester UI around the frame. `src/lib/tabletop/testing.ts` mounts any fixture table
 (`tests/fixtures`, see `docs/PERFORMANCE.md`) as the GM, a fogged player or a spectator sees it, at
 DPR 1, with a clock the test holds still, reduced motion on and the camera at a named pose.
+Under SwiftShader a table's cost is its shader compile (the WebGL link in the frame that first draws
+a program, then SwiftShader's JIT in the GPU process for seconds after the frames stop), so the
+harness keeps it out of the way: `settle` ends by reading a pixel back, so the GPU's queued work is
+the test's that drew it (an `afterEach` unmount used to wait it out and time out); `mountFixture`
+loads the lights' fixture models with the table's (no extra warm-up); `settle(…, clock)` moves a
+held clock on while the table draws actively (a grade blending into a band's, the exposure's lift
+with motion on), where a held clock kept it busy until the limit; tests of other things mount with
+`heroes: false` (no hero shadow slots, #230, a third of every lit shader: smoke, atmosphere, flash,
+shot focus, exposure, sky light), while the slots' own tests, program-count, the goldens and the
+fixtures keep them; and the probe case of unexplored-black bakes a coarser lattice
+(`probeSpacing`).
 
 - **Smoke tests** (`fixtures.svelte.spec.ts`, `renderer.svelte.spec.ts`,
   `scheduling.svelte.spec.ts` and `stability.svelte.spec.ts`, apart so CI runs them side by

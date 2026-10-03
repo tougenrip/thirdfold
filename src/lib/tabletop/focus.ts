@@ -34,6 +34,8 @@ export interface FrameView {
 	tactical: boolean;
 	/** The camera's pivot, focused on. */
 	target: THREE.Vector3;
+	/** How far the camera is pulled back, as a share of its farthest (0 when unknown). */
+	pull?: number;
 }
 export const STILL: FrameView = {
 	reduced: false,

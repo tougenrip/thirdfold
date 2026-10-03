@@ -79,6 +79,14 @@
 		<dd>{mb(perf.memoryBytes)} (tex {mb(perf.texturesBytes)})</dd>
 		<dt>lighting ms</dt>
 		<dd>{avg('lighting')} ×{perf.timings.lighting?.count ?? 0}</dd>
+		{#if perf.heroes?.owners.length}
+			<dt>hero slots</dt>
+			<dd title={perf.heroes.owners.map((o) => o ?? '–').join(', ')}>
+				{perf.heroes.owners.filter(Boolean).length}/{perf.heroes.owners.length}, cubes
+				{perf.heroes.redraws.reduce((a, b) => a + b, 0)} (+{perf.heroes.lastRedraws}),
+				{mb(perf.heroes.cubeBytes)} MB
+			</dd>
+		{/if}
 	</dl>
 {/if}
 {#if softwareNotice}

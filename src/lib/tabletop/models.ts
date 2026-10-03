@@ -40,7 +40,8 @@ import {
 import type { Decoders } from './decoders';
 import { loadEnvironment, releaseEnvironmentTextures } from './environment';
 
-export type Role = 'body' | 'swing' | 'accent';
+/** `flame` is a light fixture's glow (#232), drawn by the light fixtures, never by props or minis. */
+export type Role = 'body' | 'swing' | 'accent' | 'flame';
 
 export interface ModelPart {
 	role: Role;
@@ -74,7 +75,7 @@ export function lodFor(lods: readonly ModelLod[] | undefined, screenShare: numbe
 	return level;
 }
 
-const ROLE = /^(body|swing|accent)(?:_lod([1-4]))?(?:_\d+)?$/;
+const ROLE = /^(body|swing|accent|flame)(?:_lod([1-4]))?(?:_\d+)?$/;
 
 /** A mesh's role and level from its name as GLTFLoader gives it (`_<n>` made names unique). */
 export function roleOf(name: string): { role: Role; lod: number } | null {
@@ -235,6 +236,8 @@ let settled = 0;
 
 /** The loads a table's first view waits for: [settled, started], since the models were freed. */
 export const loadProgress = (): [number, number] => [settled, planned.size];
+/** Every load started so far has settled. */
+export const loadsSettled = (): boolean => settled >= planned.size;
 
 /** Starts a load once per key, counted. */
 function track(key: string, start: () => Promise<unknown>): void {
