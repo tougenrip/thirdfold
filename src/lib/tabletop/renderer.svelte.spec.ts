@@ -1,3 +1,4 @@
+import type { WorldLook } from '$lib/game/world';
 // Renderer smoke tests (milestone 61): the grid's modes draw and idle (#245), a tabletop
 // with no table carries no camera pose, and a disposed tabletop answers
 // nothing. When frames are drawn (idle, ambient, converge) is
@@ -286,13 +287,21 @@ describe('the ground to the horizon', () => {
 	async function bare(
 		time: number,
 		events?: { onClick: () => void; onHover: () => void },
-		tier: Tier = 'medium'
+		tier: Tier = 'medium',
+		backdrop?: WorldLook['backdrop']['kind']
 	) {
 		const view = await loadView('village', 'day', 'gm');
 		const plain = { ...view, tokens: [], props: [], objects: [], lights: [], terrain: null };
 		const sidecar = await loadSidecar('village');
 		const m = await mountFixture(
-			{ ...plain, world: { ...view.world, time } },
+			{
+				...plain,
+				world: {
+					...view.world,
+					time,
+					...(backdrop === undefined ? {} : { backdrop: { kind: backdrop, level: 0 } })
+				}
+			},
 			sidecar.poses.overview,
 			{ events, tier, heroes: false }
 		);
@@ -339,7 +348,9 @@ describe('the ground to the horizon', () => {
 			[1170, 'medium'],
 			[720, 'low']
 		] as const) {
-			const { tabletop, canvas } = await bare(time, undefined, tier);
+			// No silhouettes (#244): their ridges are edges in the sky on purpose (beyond.svelte.spec.ts
+			// covers them); this checks the ground meets the sky with no band.
+			const { tabletop, canvas } = await bare(time, undefined, tier, 'none');
 			const pitch = 5; // the camera's full tilt: 85 degrees from straight down
 			tabletop.setPose(outward(pitch));
 			await settle(tabletop);
