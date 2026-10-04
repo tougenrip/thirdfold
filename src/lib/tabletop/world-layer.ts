@@ -14,11 +14,13 @@
 // levels, environments and painting change data and uniforms only: the tops
 // are the terrain kind's one graph and every face the rock kind's, each warmed
 // with a stand-in, so nothing compiles. Fog and darkness are `worldModify`'s,
-// as on every surface (the faces' read the cell behind them).
+// as on every surface (the faces' read the cell behind them). A cell whose level or floor
+// changes where the viewer knew it drops in (#249): its vertices carry the drop's start.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import type { FogView } from '$lib/game/visibility';
+import { cellsDropped, DROP_CELLS, NO_DROP, type Drops } from './drop-in';
 import { wear, type EnvironmentLook } from './environment';
 import type { FogMode } from './fog';
 import { GridOverlay } from './grid-overlay';
@@ -27,9 +29,11 @@ import type { WorldGround } from './landscape';
 import {
 	createMaterial,
 	disposeTwins,
+	dropHeight,
 	repeatFor,
 	setParams,
 	twinOf,
+	withDrops,
 	type KindMaterial
 } from './materials';
 import type { PerfRecorder } from './perf';
@@ -92,24 +96,32 @@ export class WorldLayer {
 	private drawn: WorldShape | null = null;
 	private readonly chunkGroup = new THREE.Group();
 	private chunks: Chunk[] = [];
-	private top: KindMaterial = createMaterial('terrain', { antiTiled: true });
+	private top: KindMaterial = createMaterial('terrain', { antiTiled: true, dropped: true });
 	/** The faces' materials by style: one graph (rock, vertex colours), each its own look. */
 	private sides: KindMaterial[];
 	private inputs: unknown[] = [];
 	private on = true;
 	private lastRebuilt = 0;
 	private standIns: THREE.Mesh[] | null = null;
+	/** Each cell's drop start (#249), and the shape the last drawn frame showed. */
+	private starts = new Float32Array(0);
+	private seen: { frame: number; shape: WorldShape | null } = { frame: -1, shape: null };
 
 	constructor(
 		private readonly perf: PerfRecorder,
 		private readonly land: WorldGround,
-		private readonly build: WorldBuilders
+		private readonly build: WorldBuilders,
+		private readonly drops: Drops
 	) {
 		this.group.add(this.chunkGroup, this.terrain.group);
 		this.terrain.group.visible = false;
 		land.showPlay(false);
 		this.sides = build.CLIFF_STYLES.map((style) => {
-			const material = createMaterial('rock', { antiTiled: true, vertexColors: true });
+			const material = createMaterial('rock', {
+				antiTiled: true,
+				vertexColors: true,
+				dropped: true
+			});
 			wear(material, null, PLAIN[style]);
 			return material;
 		});
@@ -140,6 +152,7 @@ export class WorldLayer {
 		const exploredChanged = !this.shape || explored !== this.inputs[5];
 		this.inputs = inputs;
 		const known = fog ? this.build.knownOf(grid, fog, mode === 'gm') : null;
+		const previous = this.shape;
 		this.shape = this.build.worldShape({
 			grid,
 			levels: fit(levels),
@@ -148,6 +161,7 @@ export class WorldLayer {
 			known
 		});
 		this.terrain.sync(grid, this.shape.ground);
+		this.dropIn(previous, this.shape);
 		this.rebuild();
 		return exploredChanged;
 	}
@@ -221,6 +235,7 @@ export class WorldLayer {
 			);
 			geometry.setAttribute('normal', triangle([0, 0, 1]));
 			geometry.setAttribute('color', triangle([1, 1, 1]));
+			withDrops(geometry);
 			const [top, face] = [this.top, this.sides[0]];
 			this.standIns = [standIn(this.mesh(top, false)), standIn(this.mesh(face, true))];
 			for (const s of this.standIns) s.geometry = geometry;
@@ -235,6 +250,26 @@ export class WorldLayer {
 		this.grid.dispose();
 		disposeTwins(this.top);
 		this.sides.forEach(disposeTwins);
+	}
+
+	/**
+	 * Starts the drops of the cells `shape` changed where the viewer knew them (#249), against
+	 * what the last drawn frame showed; none on a new table.
+	 */
+	private dropIn(previous: WorldShape | null, shape: WorldShape): void {
+		const n = shape.grid.width * shape.grid.height;
+		if (this.seen.frame !== this.drops.frame)
+			this.seen = { frame: this.drops.frame, shape: previous };
+		const before = this.seen.shape;
+		if (before?.grid !== shape.grid || this.starts.length !== n) {
+			this.starts = new Float32Array(n).fill(NO_DROP);
+			return;
+		}
+		const state = (s: WorldShape) => ({ ...s, ...s.grid });
+		const cells = cellsDropped(state(before), state(shape));
+		const start = cells.length ? this.drops.start() : NO_DROP;
+		if (start !== NO_DROP) for (const c of cells) this.starts[c] = start;
+		dropHeight.value = DROP_CELLS * shape.grid.cellSize;
 	}
 
 	/** Builds the chunks the shape changed since the drawn one (all of them on a new grid). */
@@ -253,8 +288,8 @@ export class WorldLayer {
 	private buildChunk(shape: WorldShape, c: number): void {
 		const { top, sides } = this.build.chunkWorld(shape, c);
 		const chunk = this.chunks[c];
-		fill(chunk.top, top);
-		sides.forEach((faces, i) => fill(chunk.sides[i], faces));
+		fill(chunk.top, top, this.starts);
+		sides.forEach((faces, i) => fill(chunk.sides[i], faces, this.starts));
 		this.grid.follow(chunk.grid, chunk.top);
 	}
 
@@ -289,10 +324,10 @@ export class WorldLayer {
 }
 
 /**
- * Puts a built mesh in a chunk's geometry: positions, normals, a face's shades (vertex colours)
- * and triangles; hidden when empty.
+ * Puts a built mesh in a chunk's geometry: positions, normals, a face's shades (vertex colours),
+ * each vertex's drop start (its owner cell's, #249) and triangles; hidden when empty.
  */
-function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh): void {
+function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh, starts: Float32Array): void {
 	if (mesh.geometry !== EMPTY) mesh.geometry.dispose();
 	mesh.visible = data.indices.length > 0;
 	if (!mesh.visible) {
@@ -303,6 +338,10 @@ function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh): void {
 	g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
 	g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
 	if ('colors' in data) g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+	withDrops(
+		g,
+		Float32Array.from(data.owners, (o) => starts[o] ?? NO_DROP)
+	);
 	g.setIndex(new THREE.BufferAttribute(data.indices, 1));
 	g.computeBoundingSphere();
 	mesh.geometry = g;

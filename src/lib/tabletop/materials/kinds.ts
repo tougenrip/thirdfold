@@ -8,6 +8,7 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
+import { dropLift } from './drop';
 import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { gridGraph } from './grid';
@@ -203,6 +204,8 @@ export interface Graph {
 	opacityNode: N | null;
 	alphaTestNode: N | null;
 	positionNode: N | null;
+	/** Where the shadow pass puts a vertex: at rest, so a drop-in never redraws a shadow (#249). */
+	castShadowPositionNode: N | null;
 	outputNode: N;
 	lit: {
 		roughnessNode: N;
@@ -227,6 +230,8 @@ export interface Variant {
 	local: boolean;
 	/** Surface and terrain in world space: two-fetch anti-tiling, medium tier and up (#181). */
 	antiTiled: boolean;
+	/** Terrain and rock: the world's chunks, dropping in by a start per vertex (#249, drop.ts). */
+	dropped: boolean;
 }
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
@@ -257,6 +262,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			opacityNode,
 			alphaTestNode: null,
 			positionNode: null,
+			castShadowPositionNode: null,
 			outputNode,
 			lit: null
 		};
@@ -272,6 +278,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			opacityNode: albedo ? albedo.w.mul(opacity) : opacity,
 			alphaTestNode: null,
 			positionNode: null,
+			castShadowPositionNode: null,
 			outputNode: worldModify(tsl.output, tsl.vec3(0)),
 			lit: null
 		};
@@ -298,6 +305,14 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		? param('color', 'color').mul(macroTint(macro, param('macroTint', 'float')))
 		: param('color', 'color');
 	const roughness = param('roughness', 'float').mul(orm.y);
+	// Instanced props, decals and water lift off what they lie on and drop in (#181, #249); the
+	// world's chunks drop in; the shadow pass draws both at rest.
+	const rest =
+		variant.instanced && LIFTED.includes(kind)
+			? lifted(param('lift', 'float'))
+			: variant.dropped
+				? tsl.positionGeometry
+				: null;
 	const position =
 		kind === 'foliage'
 			? tsl.positionLocal.add(
@@ -310,9 +325,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 						0
 					)
 				)
-			: variant.instanced && LIFTED.includes(kind)
-				? lifted(param('lift', 'float'))
-				: null;
+			: rest && rest.add(dropLift());
 	const painted =
 		kind === 'prop' && variant.instanced
 			? colour.mul(tsl.attribute(PAINT_ATTRIBUTE, 'vec3'))
@@ -322,6 +335,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
+		castShadowPositionNode: rest,
 		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true, face)),
 		lit: {
 			roughnessNode: paintRoughness(
@@ -350,7 +364,8 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 		['lines', 'l'],
 		['grid', 'g'],
 		['local', 'o'],
-		['antiTiled', 'a']
+		['antiTiled', 'a'],
+		['dropped', 'd']
 	];
 	const key = `${kind}:${flags.map(([f, c]) => (variant[f] ? c : '')).join('')}`;
 	let graph = graphs.get(key);

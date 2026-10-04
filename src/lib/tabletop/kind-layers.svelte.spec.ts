@@ -76,7 +76,7 @@ describe('the layers on the shader kinds', () => {
 		const overlay = new OverlayLayer();
 		const tokens = new TokenLayer(overlay);
 		tokens.sync(view.tokens, view.grid, ground);
-		const world = new WorldLayer(new PerfRecorder(), table, build);
+		const world = new WorldLayer(new PerfRecorder(), table, build, props.drops);
 		world.update(view.grid, ground.levels, null, null, 'gm');
 		const layers = [table, walls, terrain, props, tokens, world];
 		const drawn = layers.flatMap((l) => materialsOf(l.group));

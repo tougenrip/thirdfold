@@ -82,7 +82,9 @@ const BUDGETS = {
 	// build's measured size.
 	// → the shader grid (#245: its node, the twins, the modes and the highlight's patterns); set
 	// to the merged build's measured size.
-	renderer: { total: 389_300 },
+	// → drop-in (#249: the drops' clock, which props drop, the vertex node and its shadow rest);
+	// set to the measured size.
+	renderer: { total: 390_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
