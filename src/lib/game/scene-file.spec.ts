@@ -293,6 +293,17 @@ describe('scene file v5: elevation and windows', () => {
 		const past = String.fromCharCode(FLOORS.length).repeat(floor.length);
 		expect(parseSceneFile({ ...file, floor: btoa(past) })).toMatchObject({ ok: false });
 		expect(parseSceneFile({ ...file, floor: btoa('\u0001') })).toMatchObject({ ok: false });
+		// The floors after the void (#248) round-trip, and an older file's bytes keep their floors.
+		const every = Uint8Array.from({ length: floor.length }, (_, i) => i % FLOORS.length);
+		const rich = JSON.parse(JSON.stringify(serializeScene('Crypt', { ...source(), floor: every })));
+		expect(rich.version).toBe(SCENE_FILE_VERSION);
+		const back = parseSceneFile(rich);
+		if (!back.ok) throw new Error(back.error);
+		expect(decodeFloor(back.scene.floor!, every.length)).toEqual(every);
+		const old = every.map((v) => v % 8);
+		const v9 = parseSceneFile({ ...rich, version: 9, floor: btoa(String.fromCharCode(...old)) });
+		if (!v9.ok) throw new Error(v9.error);
+		expect(decodeFloor(v9.scene.floor!, old.length)).toEqual(old);
 		const v8 = saved();
 		v8.version = 8;
 		delete v8.floor;

@@ -237,6 +237,21 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		...FLOOR_IDS.map((id, i): Step => [`floor ${id}`, () => t.setFloor(floorOf(i))]),
 		['floor cleared', () => t.setFloor(null)],
 		['floor back', () => t.setFloor(floor)],
+		// Every floor (#248's appended ones too) side by side on every environment's surfaces.
+		...ENVIRONMENTS.map((e): Step => [
+			`every floor on ${e ?? 'none'}`,
+			() => {
+				t.setEnvironment(e);
+				t.setFloor(new Uint8Array(size).map((_, i) => i % FLOOR_IDS.length));
+			}
+		]),
+		[
+			'environment and floor back',
+			() => {
+				t.setEnvironment(home.environment);
+				t.setFloor(floor);
+			}
+		],
 		['terrain raised', () => t.setTerrain(raised)],
 		['terrain a stair', () => t.setTerrain(stair)],
 		['terrain flat', () => t.setTerrain(null)],

@@ -24,10 +24,12 @@
 // Faces made by unexplored cells, and the void's own walls, stay plain.
 //
 // The style follows the cell that owns the face: masonry on man-made floors
-// (stone, wood), earth on the rest; the layer gives each style its look by the
-// environment (the cave environments wear cave rock on every face).
+// (stone, wood, cobble, flagstone), earth on the rest (rock too); the layer
+// gives each style its look by the environment (the cave environments wear
+// cave rock on every face).
 
-import { FLOOR_IDS, VOID, type FloorId } from '../../game/floor';
+import { VOID } from '../../game/floor';
+import { MAN_MADE as MASONRY } from './floors';
 import { STEP_HEIGHT } from '../ground';
 import { chunkGround, joinMeshes, type GroundMesh, type WallSink } from './ground-mesh';
 import { CHUNK, chunksAcross, MAX_NOISE, type WorldShape } from './shape';
@@ -35,7 +37,6 @@ import { CHUNK, chunksAcross, MAX_NOISE, type WorldShape } from './shape';
 /** The styles a face may take, each a mesh of its own (world-layer.ts gives each its look). */
 export const CLIFF_STYLES = ['earth', 'masonry'] as const;
 export type CliffStyle = (typeof CLIFF_STYLES)[number];
-const MASONRY = new Set((['stone', 'wood'] as FloorId[]).map((id) => FLOOR_IDS.indexOf(id)));
 /** A floor's style index in `CLIFF_STYLES`. */
 export const styleOf = (floor: number): number => (MASONRY.has(floor) ? 1 : 0);
 

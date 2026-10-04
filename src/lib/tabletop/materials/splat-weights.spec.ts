@@ -30,6 +30,16 @@ describe('the floor splat (#242)', () => {
 		expect(FLOOR_STYLE.void).not.toBe(SOFT);
 		expect(FLOOR_STYLE.water).not.toBe(SOFT);
 		expect(SPLAT.heightRange).toBeLessThan(1 - SPLAT.depth);
+		// #248: cobble, flagstone and rock kerbed; mud, snow and gravel soft.
+		for (const id of ['cobble', 'flagstone', 'rock'] as const) expect(FLOOR_STYLE[id]).toBe(KERB);
+		for (const id of ['mud', 'snow', 'gravel'] as const) expect(FLOOR_STYLE[id]).toBe(SOFT);
+		const edge = { x: 0.99, y: 0.5 };
+		expect(
+			splatWeights(four(c('mud'), c('snow'), c('mud'), c('mud')), edge).weights[1]
+		).toBeGreaterThan(0);
+		expect(
+			splatWeights(four(c('cobble'), c('gravel'), c('cobble'), c('cobble')), edge).kerb.x
+		).toBe(1);
 	});
 
 	it('weights sum to 1, the heavier first', () => {

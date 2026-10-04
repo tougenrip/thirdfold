@@ -1272,7 +1272,8 @@ the pure `chunkGround(shape, chunk)` (`world/ground-mesh.ts`).
   known neighbours differ is split along its diagonal, as the continued tiles say.
 - **Corners.** A tile whose four cells are known, on the table and not void is rounded: within `r` of
   the grid corner each quarter has a sliver beyond a quarter circle (`MAX_ROUND`, `ARC_SEGMENTS` 4), a
-  straight chamfer of `BEVEL` 0.05 where any of the four is a man-made floor (stone, wood). The sliver's
+  straight chamfer of `BEVEL` 0.05 where any of the four is a man-made floor (stone, wood, cobble,
+  flagstone: `MAN_MADE` in `world/floors.ts`). The sliver's
   height comes from the level bands: a convex corner is cut down to its neighbours, a concave one filled
   up; across a saddle only the pair `dualCase` joins is (a filled low quarter, or cut high ones), and a
   pinched saddle stays square. A sliver lies 0.6 cell from any cell's centre, so token disks stay flat.
@@ -1452,7 +1453,8 @@ profile (`chunkWorld(shape, chunk)`: the tops, and the faces by style).
   so its normal is its own (crisp nosings and rims; the strata facet).
 
 **Style** follows the cell that owns the face (`styleOf`, `CLIFF_STYLES`): **masonry** on the man-made
-floors (stone, wood), **earth** on the rest (plain, grass, dirt, sand, water). Each style is a mesh and
+floors (stone, wood, cobble, flagstone; `MAN_MADE`), **earth** on the rest (plain, grass, dirt, sand,
+water, and #248's rock, mud, snow and gravel). Each style is a mesh and
 a material of its own, both the rock kind with vertex colours, so one program: earth wears the
 environment's `ground` look, masonry its `walls` look (the wall surface from the library, ashlar where
 the environment lists one), and in the cave environments (`cavern`, `living-cave`, by the id
@@ -1511,11 +1513,11 @@ in `materials/floors.ts`, and `groundColour` (hooks.ts) mixes the two floors it 
   G, also a load of a map already bound) and on the same level; sides (normals not up) look at none. So
   nothing blends or kerbs toward an unexplored cell or across a step or cliff, and the floor bytes a viewer
   was sent are all it reads.
-- **Styles** (`FLOOR_STYLE`, a uniform array by floor index): `SOFT` (plain, grass, dirt, sand) blend with
-  each other; `CRISP` (water, a tint until #293, and the void) and `KERB` (stone, wood) keep their border
-  on the grid line. A soft border can wander off the grid line, so only rule-neutral floors may be soft; a
-  floor that ever means something to movement (#85) must be crisp or kerbed. #248's floors take theirs in
-  the same table.
+- **Styles** (`FLOOR_STYLE`, a uniform array by floor index): `SOFT` (plain, grass, dirt, sand, mud,
+  snow, gravel) blend with each other; `CRISP` (water, a tint until #293, and the void) and `KERB` (stone,
+  wood, cobble, flagstone, rock) keep their border on the grid line. A soft border can wander off the grid
+  line, so only rule-neutral floors may be soft; a floor that ever means something to movement (#85) must
+  be crisp or kerbed.
 - **Weights.** Bilinear from the fragment's distance to its cell's centre (0.5 on the grid line), a
   neighbour's zeroed unless both floors are soft, merged per floor, the two heaviest kept and normalised.
   On medium and up (the anti-tiled graph) two `mx_noise_float` move the point by up to `reach` (0.15 cell)
@@ -1552,7 +1554,27 @@ noise (spread 0 px, off the line by 1) and wandering with it (spread 8 px, at mo
 and moves into the grass when the dirt stands higher; the dirt-stone border is crisp with a kerb about
 two-thirds as bright as the stone; neither blends nor kerbs across a level or toward an unexplored
 column; painting every floor, the kerb's width and the arrays going and coming compile nothing; and the
-`FLOOR_LOOKS` fallback blends too. `program-count` sweeps every floor and environment on every tier.
+`FLOOR_LOOKS` fallback blends too. `program-count` sweeps every floor and environment on every tier,
+and paints every floor side by side on every environment (shards 1, 6 and 11 pass with #248's floors).
+
+### Six more floors (#248)
+
+`FLOORS` (`src/lib/game/floor.ts`) is append-only: cobble, flagstone, rock, mud, snow and gravel are bytes
+8 to 13, after the void, so every byte saved before keeps its floor and nothing is migrated (scene files
+stay v10; `decodeFloor` accepts any byte below `FLOORS.length`, so builds from before #248 refuse a table
+that uses them, as v10 is already forward-only). They are rule-neutral: `obstaclesFor` makes nothing of
+them, exactly as of stone (`floor.spec.ts`), and they reach a player or spectator only on explored cells
+like every floor (`knownFloor`; the multi-client test in `game-server.spec.ts`). Plain (byte 0) is shown
+as "Default ground", and the Build panel lists the floors with Off the map last.
+
+Each declares its look in the existing tables: `FLOOR_STYLE` (cobble, flagstone and rock kerbed; mud,
+snow and gravel soft), `MAN_MADE` (`world/floors.ts`: cobble and flagstone bevel their corners and wear
+masonry cliffs; rock is kerbed but natural, so its cliffs are earth) and `FLOOR_LOOKS` (the tint). A
+surface layer comes from the library where an environment lists it (docs/ASSETS.md, "The surface
+library"): the village has cobble and the stone halls flagstone; everywhere else the floor is its
+`FLOOR_LOOKS` tint over the environment's surface, blended or kerbed by its style like any other. More
+layers wait on the table budgets (each surface is about 2 MB at medium, and every layer an environment
+lists is downloaded with it).
 
 ### The shader grid (#245)
 

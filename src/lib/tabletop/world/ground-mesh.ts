@@ -17,7 +17,8 @@
 // under known cells only. A `WallSink` takes every vertical face instead (cliffs.ts makes
 // them cliffs and risers, #241); the skirts between unexplored cells stay plain.
 
-import { FLOOR_IDS, VOID, type FloorId } from '../../game/floor';
+import { VOID } from '../../game/floor';
+import { MAN_MADE } from './floors';
 import { STEP_HEIGHT } from '../ground';
 import { dualCase, JOIN, type Join } from './dual';
 import type { EmitterMesh } from './invariants';
@@ -40,7 +41,6 @@ export const ARC_SEGMENTS = 4;
  * so no face lies along an edge toward unexplored ground.
  */
 export const SKIRT = 0.1;
-const MAN_MADE = new Set((['stone', 'wood'] as FloorId[]).map((id) => FLOOR_IDS.indexOf(id)));
 
 /** An emitter mesh with a normal per vertex. */
 export interface GroundMesh extends EmitterMesh {

@@ -362,9 +362,12 @@ cooked at the 512 px base and its 1K and 2K variants (see Texture detail).
 ### The surface library (#187)
 
 Every floor a GM can paint with a look of its own (stone, wood, grass, dirt, sand: `SURFACE_FLOORS`
-in `scenes.ts`, a surface's id being its floor's; plain is the table's own, water is drawn as water,
-the void is nothing), every wall surface the environments wear (plaster, ashlar, planks, cave-rock) and the rest of #187's library (the floors #248 will add, the walls and roofs kits will wear) is a
-painted surface, repainted from a CC0 scan (docs/ART.md section 11):
+in `scenes.ts`, a surface's id being its floor's, required of every environment with surfaces; plain is
+the table's own, water is drawn as water, the void is nothing; #248's cobble, flagstone, rock, mud, snow
+and gravel are optional, listed where the table budgets allow: cobble in the village, flagstone in the
+stone halls, the rest drawn in their `FLOOR_LOOKS` tint), every wall surface the environments wear
+(plaster, ashlar, planks, cave-rock) and the rest of #187's library (the walls and roofs kits will
+wear) is a painted surface, repainted from a CC0 scan (docs/ART.md section 11):
 
 1. `art/surfaces/<id>/meta.json` holds the set's `provenance` (`CC0-1.0`, the download's URL and
    SHA-256 as its `source`, `modified: true`), its `ramp` (docs/ART.md "Surface ramps", which

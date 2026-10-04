@@ -102,6 +102,12 @@
 	const floorSwatch = (id: FloorId) =>
 		id === 'plain' ? 'transparent' : `#${FLOOR_LOOKS[id].color.toString(16).padStart(6, '0')}`;
 
+	// Off the map last, after the floors appended behind it (#248).
+	const FLOOR_CHOICES = [
+		...FLOORS.filter((f) => f.id !== 'void'),
+		...FLOORS.filter((f) => f.id === 'void')
+	];
+
 	const BLOCKS_HINT = { none: 'walk over', movement: 'blocks movement', sight: 'blocks sight' };
 
 	// The palette in the catalogue's groups, empty ones left out.
@@ -210,7 +216,7 @@
 		{@render toolButton({ id: 'floor', label: 'Paint floor', key: 'F' })}
 		{#if tool === 'floor'}
 			<div class="floors" role="group" aria-label="Floor">
-				{#each FLOORS as f (f.id)}
+				{#each FLOOR_CHOICES as f (f.id)}
 					<button
 						type="button"
 						class="floor-choice"
