@@ -924,3 +924,35 @@ row of cells, two thirds explored, so the continuation rule works on every cell)
 - **Dual cases** for a whole table is every tile under every mask; #240 asks only a dirty chunk's tiles
   (a 16 x 16 chunk is about a fifteenth of a 64x64 table's, about 0.25 ms here).
 - `walls.ts` builds its wall instances from the same spans, with no cost of note (it ran them inline).
+
+## The M69 cell picks (#246)
+
+Cells are picked by a DDA over the drawn levels (`world/pick.ts`), not by raycasting the raised
+boxes and the table plane; things (tokens, walls, props, fixtures) are raycast on `PICK_LAYER` only.
+
+**The DDA on its own**, in Node 22 on the i9-13900HX. `npx tsx server/perf/world-shape.ts 200`
+picks every pixel of a 160x100 view across the generated tables: 0.004 ms a pick on 64x64 and 0.006
+ms on 100x100 (terraces to level 7), under the issue's 0.05 ms. On the fixtures' own poses (10,240
+rays from four poses each, median of 15 runs, measured once by a scratch script):
+
+| Fixture              | Raised cells | Raised boxes + plane (before) | DDA (after) |
+| -------------------- | ------------ | ----------------------------- | ----------- |
+| The Hollow, 48x36    | 788          | 87.5 µs                       | 0.9 µs      |
+| The monastery, 30x20 | 72           | 1.0 µs                        | 1.0 µs      |
+| outdoor-64, 64x64    | 0            | 0.06 µs                       | 1.3 µs      |
+
+The DDA's cost follows the cells a ray crosses, not the ground's detail, so it stays this size when
+#240's chunks replace the boxes; the old raycast grew with every raised cell.
+
+**The whole 'pick' timing** (`perf.time('pick')`: the things' raycasts and the cell), in the client
+project's Chromium (SwiftShader, 800x500), 2,000 pointer moves over the GM's overview pose after 200
+to warm up, mean per pick, by a scratch spec on this change and on the commit before it:
+
+| Fixture       | Before (runs) | After (runs)    |
+| ------------- | ------------- | --------------- |
+| The Hollow    | 277, 243 µs   | 185, 119, 97 µs |
+| The monastery | 55, 57 µs     | 106, 61, 50 µs  |
+
+The Hollow's picks drop by about half (its 788 boxes are no longer raycast); the monastery's are
+unchanged within the noise (the first run after had an 11 ms stall). What remains is the things'
+raycasts, which this change leaves as they were.
