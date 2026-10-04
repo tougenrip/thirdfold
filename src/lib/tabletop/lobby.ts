@@ -26,6 +26,7 @@ import { createScene, createSceneLights } from './scene-lights';
 import { SkyLayer } from './sky';
 import { initialShape, sameShape, shapeOf, startingSettings, type Shape } from './shape';
 import { TokenLayer } from './tokens';
+import { GridOverlay } from './grid-overlay';
 import { settingsFor, type Tier } from './quality';
 import { frameOverview, warmUp } from './warmup';
 
@@ -82,7 +83,8 @@ export async function warmLobby(
 	const [dice, effects, tokens] = [new DiceLayer(), new EffectsLayer(), new TokenLayer(overlay)];
 	const sky = new SkyLayer(); // the dome and the stars, so a table's sky compiles nothing (#214)
 	const gallery = [...kindGallery(), ...dice.gallery(), ...effects.gallery(), ...sky.gallery()];
-	const marks = tokens.gallery();
+	const grid = new GridOverlay(); // the shader grid and highlight (#245)
+	const marks = [...tokens.gallery(), ...grid.gallery()];
 	await warmUp(
 		renderer,
 		camera,
@@ -103,6 +105,18 @@ export async function warmLobby(
 		post.render(frame);
 	}
 	const warmupMs = performance.now() - t0;
-	const keep = [scene, overlay, post, lighting, dice, effects, tokens, gallery, cellMaps, sky];
+	const keep = [
+		scene,
+		overlay,
+		post,
+		lighting,
+		dice,
+		effects,
+		tokens,
+		gallery,
+		cellMaps,
+		sky,
+		grid
+	];
 	return { canvas, renderer, shape, warmupMs, keep };
 }
