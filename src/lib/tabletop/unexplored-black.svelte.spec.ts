@@ -337,8 +337,8 @@ function standing(view: FixtureView): Float32Array {
 }
 
 /**
- * Mounts a case's view at its first pose with every layer on: grid lines shown (their fade run out
- * on the held clock), and grain and dither on unless motion is reduced.
+ * Mounts a case's view at its first pose with every layer on: the full grid and a highlight on an
+ * unexplored cell (#245), and grain and dither on unless motion is reduced.
  */
 async function mountCase(
 	c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 'reduced'> & {
@@ -361,7 +361,16 @@ async function mountCase(
 		probeSpacing: c.probes ? PROBE_TEST_SPACING : undefined
 	});
 	mounted = m;
-	m.tabletop.setGridShown(true);
+	// The shader grid in full on every chunk's twin (#245), and a hatched highlight on an
+	// unexplored cell: neither may lay anything over black.
+	m.tabletop.setGridMode('build');
+	const { width, height } = view.grid;
+	const unexplored = decodeMask(view.fog.explored, width * height).indexOf(0);
+	if (unexplored >= 0)
+		m.tabletop.setHighlight(
+			{ x: unexplored % width, y: Math.floor(unexplored / width) },
+			'blocked'
+		);
 	clock.set(65_000); // past every fade; flames, mist and grain still hold still
 	const settings = settingsFor(c.tier, m.tabletop.capabilities().backend);
 	expect(settings.bloom && settings.layers.lens && settings.grain).toBe(true);

@@ -2,9 +2,9 @@
 // every table the sweep travels to visited once), its shader counts taken (shaderCounts in perf.ts:
 // programs, pipelines, node states), and then everything that changes at runtime is done one named
 // step at a time, a frame drawn after each: environments, times of day, floors, raised ground
-// (#240), fog and its modes (with the fog cloud on and a reveal fading, #174), dark areas, light counts past a cell's K, tokens
-// and props in every state, both cues and table travel. No step may change the programs or
-// pipelines; a change names the step and the stages it made or dropped (a stage is named after its
+// (#240), fog and its modes (with the fog cloud on and a reveal fading, #174), dark areas, light
+// counts past a cell's K, tokens and props in every state, the grid's modes and highlights (#245),
+// both cues and table travel. No step may change the programs or pipelines; a change names the step and the stages it made or dropped (a stage is named after its
 // material, and the material module names its materials by kind: the layers #172 ported show as
 // surface, terrain, prop and mini). Compiles today's renderer still makes are listed in KNOWN, with
 // the issue that ends them. New node states with no new program are reported, not failed: they cost
@@ -43,6 +43,7 @@ import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { FIXTURES } from './light-model';
+import { GRID_MODES } from './grid-modes';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
 import { aoKind, settingsFor, type Tier } from './quality';
@@ -308,6 +309,26 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		]),
 		['preview beacon', () => t.setPreview([{ kind: 'beacon', at: { x: 2, y: 2 } }])],
 		['previews cleared', () => t.setPreview([])],
+		// The shader grid (#245): every mode, the focus moving, and every highlight's pattern, with
+		// the grid on and off, are uniform writes on the chunks' twins, warmed by a stand-in.
+		...GRID_MODES.map((mode): Step => [
+			`grid ${mode}`,
+			() => t.setGridMode(mode, [{ x: 2, y: 2 }])
+		]),
+		[
+			'grid explore, focus moved',
+			() =>
+				t.setGridMode('explore', [
+					{ x: 5, y: 3 },
+					{ x: 1, y: 1 }
+				])
+		],
+		...(['move', 'blocked', 'place'] as const).map((kind): Step => [
+			`highlight ${kind}`,
+			() => t.setHighlight({ x: 2, y: 2 }, kind)
+		]),
+		['grid off, highlighted', () => t.setGridMode('off')],
+		['highlight cleared', () => t.setHighlight(null, 'move')],
 		['flash cue', cue('flash')],
 		['toll cue', cue('toll')],
 		// Reduced motion throws instantly; the frame is drawn with the die at rest, then fading

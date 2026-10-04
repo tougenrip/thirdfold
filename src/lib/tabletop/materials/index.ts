@@ -6,7 +6,7 @@
 // and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `local`, `antiTiled`, `vertexColors`, and the kind's
+// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `vertexColors`, and the kind's
 // `transparent`, `side` and alpha test.
 
 import * as THREE from 'three/webgpu';
@@ -55,6 +55,8 @@ export interface MaterialOptions {
 	instanced?: boolean;
 	/** Overlay only: a LineBasicNodeMaterial for LineSegments. */
 	lines?: boolean;
+	/** Overlay only: the shader grid and hover highlight (#245), for a twin of a chunk's tops. */
+	grid?: boolean;
 	/**
 	 * Surface, terrain and rock: box mapping in the geometry's own space, not the world's, for a
 	 * mesh that moves (door panels swing, so a world mapping would slide across them; #177).
@@ -143,6 +145,7 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	const graph = graphFor(kind, {
 		instanced: !!options.instanced,
 		lines,
+		grid: def.base === 'basic' && !lines && !!options.grid,
 		local: !!options.local,
 		antiTiled: !!options.antiTiled
 	});

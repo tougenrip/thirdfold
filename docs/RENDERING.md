@@ -1554,6 +1554,65 @@ two-thirds as bright as the stone; neither blends nor kerbs across a level or to
 column; painting every floor, the kerb's width and the arrays going and coming compile nothing; and the
 `FLOOR_LOOKS` fallback blends too. `program-count` sweeps every floor and environment on every tier.
 
+### The shader grid (#245)
+
+The grid is a gameplay overlay, never the world's art (docs/LOOK.md, gap 12): antialiased lines
+projected onto whatever ground the chunks draw, shown as much as the moment needs.
+
+- **The node** (`materials/grid.ts`, the overlay kind's `grid` variant, one graph): the fragment's
+  place on the grid in cells (`cellUV` times the grid's size, so integers are the lines), and per
+  axis Golus's pristine grid ("The best darn grid shader yet"): the pixel footprint from `dFdx`/`dFdy`,
+  the drawn width clamped to at least a pixel and its coverage scaled back to the line's true width
+  (`LINE_WIDTH`, 0.03 cell), fading toward the line's average where cells shrink below a pixel, so
+  far lines go grey instead of shimmering under TRAA. Only on tops (`normalWorldGeometry.y` above
+  0.5, so never on cliff faces), on the grid, off the void (the ground map's floor), faded out between
+  `FADE_NEAR` and `FADE_FAR` cells from the camera, times the mode's strength and, in explore mode,
+  a falloff from `EXPLORE_INNER` to `EXPLORE_RADIUS` (2 to 3.5 cells) round the nearer focus.
+  `grid-modes.ts` mirrors all of it in plain maths (`lineCoverage`, `exploreTerm`, `distanceFade`,
+  `patternCovers`; `grid-modes.spec.ts`).
+- **The twins.** `WorldLayer` gives each chunk a third mesh, `GridOverlay.twin()`, in the overlay's
+  scene: the chunk top's own `BufferGeometry` (`follow` after every rebuild), so no memory and the
+  lines lie on the gallery, the ledge and the belfry at their levels and follow every raise. Being in
+  the overlay pass they are crisp and ungraded, as the labels are; that pass draws with the unjittered
+  camera against the world's jittered depth, so the material tests less-or-equal with a polygon
+  offset toward the camera (factor -2, units -4: a depth bias on WebGPU) and never fights its top.
+- **Secrecy.** The node takes `worldModify`'s fog and cut, not its darkening (lines stay legible at
+  night): the lines' alpha times `worldFog()`, the highlight's times one minus `worldHidden()`, so a
+  player's unexplored cell gets alpha exactly 0 and nothing is laid over black after the output
+  stage's re-mask. unexplored-black mounts every case with the full grid and a highlight on an
+  unexplored cell; post.svelte.spec.ts checks lines and a highlight over a hidden half.
+- **The highlight** is the same pass: the hovered cell (`hover`), its kind's colour (`HIGHLIGHT`) and
+  a pattern twin, so move, blocked and place differ by shape as well as colour (G6): move fills the
+  cell, blocked hatches it diagonally, place brackets its corners, each inset from the grid line and
+  antialiased by `fwidth`. `grid-modes.spec.ts` checks every pair of patterns differs over more than
+  a quarter of the cell, which holds in greyscale and in any colour-vision simulation, where
+  colour-vision.spec.ts still finds three colour pairs too close (#157). The old highlight plane is
+  gone from `PreviewLayer`.
+- **Modes** (`GridMode`): **build** (all of it: the GM's Build panel open or a tool other than select
+  out, or anyone placing a token or an enemy), **explore** (in play, round the hovered cell and the
+  selected token), **overview** (faint, 0.4, in the tactical view with nothing selected) and **off**.
+  `gridModeOf` in `ui/grid.ts` derives the moment's mode in `RoomView`; the Graphics menu's Grid
+  (`GraphicsPrefs.grid`: Auto, Always, Off, in `thirdfold:graphics`; #167's `alwaysGrid` reads as
+  Always) applies on top there (`withGridSetting`), and `Tabletop.svelte`'s `gridView` hands the
+  mode and the focus to `Tabletop.setGridMode`: local, never synced. A mode, a focus or a highlight is a uniform write (`gridUniforms`):
+  nothing compiles (program-count's sweep sets every mode, moves the focus and every highlight kind,
+  with the grid on and off), there is no fade, and a change draws its frame and the table goes idle
+  (renderer.svelte.spec.ts). The twins are hidden while there is neither grid nor highlight, so off
+  costs nothing; otherwise one draw per chunk with tops.
+- **Warm-up.** The twins are hidden until shown, so `GridOverlay.gallery()` gives a stand-in (and one
+  for the old plane) to the overlay batch, as the selection ring has.
+- **The fallback.** Under `?off=terrain` the old `LineSegments` grid (by strength, masked by floor
+  cover and `worldShade`) and the highlight plane draw instead, beside the old boxes; the
+  milestone's close deletes them with `GridOverlay.setGrid`.
+- **Specs.** grid-overlay.svelte.spec.ts (`RENDER_SPECS`, the `grid` job in rendering.yml) mounts the
+  monastery: a twin on every chunk top sharing its geometry, hidden while off, following a raise;
+  and the pixels each mode changes (build the most, explore round the focus fewer, overview fainter,
+  off none), with no program between them.
+- **Deviations.** No fade between modes (#167 faded the lines over 150 ms): the issue asks for a
+  mode change to be one frame. The highlight is never dimmed at night; the lines are not darkened
+  either, only faded by the fog. Tile seams standing in for explore-mode lines on tiled floors wait
+  for #254; the held key is #279, modes per camera mode #289.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -1580,7 +1639,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                                                                                                             |
 | `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                                                                                                                      |
 | `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                                                                                                                  |
-| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness                                                                                                   |
+| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats                                                                                                                                                 |
 | `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)                                                                                            |
 | `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)                                                                                                 |
 | `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                                                                                                                     |
@@ -1590,7 +1649,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                                                                                                            |
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                                                                                                             |
 | `world/`                              | The world's shape (M69), the cliffs (`cliffs.ts`, #241), what lies beyond the grid (`beyond.ts`, `recipes.ts`, #244); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer |
-| `world-layer.ts`                      | `WorldLayer`: the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the shape it is built from, the old boxes behind `?off=terrain`                                                                    |
+| `world-layer.ts`                      | `WorldLayer`: the shader grid's twins per chunk (#245), the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the shape it is built from, the old boxes behind `?off=terrain`                          |
 | layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                                                         |
 
 ## Quality tiers
@@ -1787,11 +1846,11 @@ passes, in order:
   draws. Grid lines fade by the cell maps (#173): `worldShade` (the fog and the dark as every
   material has them) times one minus the cell's floor cover (`floorPalette`, from `groundFlat`, the
   ground texel without a normal): never over an unexplored cell, dimmer at night, none over the void.
-  - **The grid shows only when wanted** (#167): hidden at rest (the tiles' seams are the grid),
-    shown while the GM's Build panel is open, while placing a token or an enemy, and while a hover
-    highlight aims a move, or always with the Graphics menu's Always show grid (`alwaysGrid` in
-    `thirdfold:graphics`). `Tabletop.setGridShown` only sets the lines' `visible`: one draw call
-    fewer at rest, nothing compiled.
+  - **The grid shows only when wanted** (#167): hidden at rest, shown while the GM's Build panel
+    is open, while placing a token or an enemy, and while a hover highlight aims a move, or always
+    with the Graphics menu's Always show grid. Since #245 the grid is a shader on the ground with
+    display modes ("The shader grid" under M69); these lines draw only under `?off=terrain` until
+    the milestone closes.
 - **Each hour has its own hues** (#167, since #218 from the atmosphere curve): the sky preset gives
   the hemisphere a sky and a ground colour through the day (moon-blue over deep blue at night, peach
   over slate at dusk, day's warm pair). Only colours change, so a change of hour compiles nothing. The dark itself is `worldModify`'s, from `lightLevels` (#173 deleted the
@@ -2090,8 +2149,8 @@ a new grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends), and
 in `cell-maps.ts` are tested against the old overlays' numbers in `cell-maps.spec.ts`. What isn't a
 kind takes the same terms: `inWorld(material, glow)` puts `worldModify` last and the glow through
 `worldEmissive` on fixtures, flames (one shared flame material, colour and glow per-object
-uniforms) and the mist; `worldShade()` fades the grid lines (`overlay.ts`); `worldHidden()` is
-the re-mask's input.
+uniforms) and the mist; `worldShade()` fades the old grid lines and `worldFog()` the shader grid
+(`grid-overlay.ts`, #245); `worldHidden()` is the re-mask's input.
 
 ### The re-mask
 

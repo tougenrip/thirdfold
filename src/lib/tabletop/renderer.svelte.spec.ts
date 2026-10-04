@@ -1,4 +1,4 @@
-// Renderer smoke tests (milestone 61): grid lines show and fade, a tabletop
+// Renderer smoke tests (milestone 61): the grid's modes draw and idle (#245), a tabletop
 // with no table carries no camera pose, and a disposed tabletop answers
 // nothing. When frames are drawn (idle, ambient, converge) is
 // scheduling.svelte.spec.ts; every fixture drawing for every viewer is
@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
 import { DiceLayer } from './dice3d';
 import { buildDieModel } from './dice-geometry';
 import { WALL_HEIGHT } from './ground';
-import { GRID_FADE_MS } from './overlay';
+import type { GridMode } from './grid-modes';
 import { PreviewLayer, type Bucket } from './previews';
 import { PICK_LAYER } from './picking';
 import { createTabletop } from './renderer';
@@ -20,7 +20,6 @@ import {
 	BACKEND,
 	loadSidecar,
 	loadView,
-	manualClock,
 	mountFixture,
 	readFrame,
 	settle,
@@ -60,61 +59,50 @@ async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?:
 }
 
 describe('the renderer', () => {
-	test('draws no grid lines at rest, one draw call when shown, compiling nothing', async () => {
+	test('draws no grid when off, a draw per chunk top in every other mode, compiling nothing', async () => {
 		const { tabletop } = await mount('village', 'gm');
-		await settle(tabletop);
-		const draw = async (shown: boolean) => {
-			tabletop.setGridShown(shown);
+		const draw = async (mode: GridMode) => {
+			tabletop.setGridMode(mode, [{ x: 4, y: 4 }]);
 			await settle(tabletop);
 			await tabletop.benchmark(1);
 			return tabletop.stats();
 		};
-		const rest = await draw(false);
-		const shown = await draw(true);
-		expect(shown.drawCalls).toBe(rest.drawCalls + 1);
-		const again = await draw(false);
+		const rest = await draw('off');
+		const shown = await draw('build');
+		// The shader grid (#245): one twin per chunk with tops, however the mode weighs the lines.
+		expect(shown.drawCalls).toBeGreaterThan(rest.drawCalls);
+		expect(shown.drawCalls - rest.drawCalls).toBeLessThanOrEqual(shown.world!.chunks);
+		for (const mode of ['explore', 'overview'] as const)
+			expect((await draw(mode)).drawCalls).toBe(shown.drawCalls);
+		const again = await draw('off');
 		expect(again.drawCalls).toBe(rest.drawCalls);
-		expect(again.programs).toBe(shown.programs);
+		// The highlight is the same pass: with the grid off, its twins draw for it alone.
+		tabletop.setHighlight({ x: 4, y: 4 }, 'blocked');
+		await settle(tabletop);
+		await tabletop.benchmark(1);
+		expect(tabletop.stats().drawCalls).toBe(shown.drawCalls);
+		tabletop.setHighlight(null, 'move');
+		expect((await draw('off')).programs).toBe(shown.programs);
 	});
 
-	test('fades the grid lines in and out on the clock, drawing until they are gone', async () => {
-		const clock = manualClock();
-		const sidecar = await loadSidecar('ref-7');
-		const view = await loadView('ref-7', 'day', 'gm');
-		const m = await mountFixture(view, sidecar.poses.overview, {
-			clock,
-			reducedMotion: false,
-			heroes: false
-		});
-		mounted.push(m);
+	test('draws a frame when the grid mode changes, then idles', async () => {
+		const m = await mount('ref-7', 'gm');
 		const t = m.tabletop;
-		await settle(t);
-		const drawAt = async (ms: number) => {
-			clock.set(clock.now() + ms);
+		for (const mode of ['build', 'explore', 'overview', 'off'] as const) {
+			const before = t.stats().frames;
+			t.setGridMode(mode, [{ x: 2, y: 2 }]);
 			await settle(t);
-			await t.benchmark(1);
-			return t.stats();
-		};
-		const rest = await drawAt(0);
-		t.setGridShown(true);
-		const shown = await drawAt(GRID_FADE_MS);
-		expect(shown.drawCalls).toBe(rest.drawCalls + 1);
-		// Halfway out the clock stands still: the lines are still drawn, and frames keep coming.
-		t.setGridShown(false);
-		clock.set(clock.now() + GRID_FADE_MS / 2);
-		const frames = t.stats().frames;
-		await wait(300);
-		expect(t.stats().frames).toBeGreaterThan(frames);
-		expect(t.stats().mode).toBe('active');
-		await t.benchmark(1);
-		expect(t.stats().drawCalls).toBe(rest.drawCalls + 1);
-		// Faded out, they cost no draw call, the table goes quiet, and nothing was compiled.
-		const gone = await drawAt(GRID_FADE_MS);
-		expect(gone.drawCalls).toBe(rest.drawCalls);
-		expect(gone.programs).toBe(shown.programs);
-		const quiet = t.stats().frames;
-		await wait(1000);
-		expect(t.stats().frames).toBe(quiet);
+			expect(t.stats().frames, mode).toBeGreaterThan(before);
+			// No fade, nothing animates: the table goes quiet at once.
+			const quiet = t.stats().frames;
+			await wait(1000);
+			expect(t.stats().frames, mode).toBe(quiet);
+		}
+		// Setting the same mode again draws nothing.
+		const same = t.stats().frames;
+		t.setGridMode('off', [{ x: 2, y: 2 }]);
+		await wait(500);
+		expect(t.stats().frames).toBe(same);
 	});
 
 	test('has no camera pose to carry before it frames a table', async () => {

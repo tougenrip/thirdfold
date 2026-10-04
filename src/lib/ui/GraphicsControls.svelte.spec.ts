@@ -77,13 +77,15 @@ describe('the Graphics menu', () => {
 		// Miniature is off in every preset already: nothing to keep.
 	});
 
-	it('saves Always show grid, off by default', async () => {
+	it('saves the grid setting, Auto by default', async () => {
 		mount();
 		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
-		const always = page.getByRole('checkbox', { name: /Always show grid/ });
-		await expect.element(always).not.toBeChecked();
-		await userEvent.click(always);
-		expect(loadGraphics(localStorage).alwaysGrid).toBe(true);
+		const group = page.getByRole('group', { name: 'Grid' });
+		await expect.element(group.getByRole('radio', { name: 'Auto' })).toBeChecked();
+		await userEvent.click(group.getByRole('radio', { name: 'Always' }));
+		expect(loadGraphics(localStorage).grid).toBe('always');
+		await userEvent.click(group.getByRole('radio', { name: 'Off' }));
+		expect(loadGraphics(localStorage).grid).toBe('off');
 	});
 
 	it('forgets an option set back to the value of its preset', async () => {

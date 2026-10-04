@@ -80,7 +80,9 @@ const BUDGETS = {
 	// build's measured size.
 	// → floors blended per pixel (#242: the splat in the terrain kind's graph); set to the merged
 	// build's measured size.
-	renderer: { total: 388_200 },
+	// → the shader grid (#245: its node, the twins, the modes and the highlight's patterns); set
+	// to the merged build's measured size.
+	renderer: { total: 389_300 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
