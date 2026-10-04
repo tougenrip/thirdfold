@@ -54,7 +54,7 @@ const {
 	smoothstep
 } = T as unknown as Record<string, Loose>;
 const Fn = T.Fn as unknown as (body: () => N) => () => N;
-const { max, mix, vec2, vec3, vec4 } = tsl;
+const { max, mix, vec2, vec4 } = tsl;
 const loose = (node: unknown) => node as N;
 
 const FAR = new THREE.Vector2(-1e4, -1e4);
@@ -149,7 +149,7 @@ export function gridGraph(): { colorNode: N; opacityNode: N; outputNode: N } {
 	const hlA = highlightCover(fract(at)).mul(inCell).mul(shown).mul(visible);
 	const alpha = hlA.add(gridA.mul(float(1).sub(hlA)));
 	const share = hlA.div(max(alpha, 1e-4));
-	const rgb = mix(vec3(new THREE.Color(GRID_COLOR)), u.highlight, share);
+	const rgb = mix(loose(T.color(GRID_COLOR)), u.highlight, share);
 	const above = world.y.greaterThan(cells.cutY);
 	const outputNode = Fn(() => {
 		If(above, () => {

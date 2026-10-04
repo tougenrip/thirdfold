@@ -341,11 +341,16 @@ describe('the overlay', () => {
 		// A blocked highlight on a hidden cell (x 0, row 1) and on a seen one (x 3, row 1): only the
 		// seen one shows, with no grid at all.
 		grid.setMode('off');
-		/** A 6×6 patch of pixels inside row 1 (z -0.8 to -0.3) from `x` east. */
+		/**
+		 * 6×6 pixels inside the cell from `x` east, in row 1 and in its mirror (row 2), so the check
+		 * holds whichever way the top-down camera turns z on screen.
+		 */
 		const patch = (at: (x: number, z: number) => number[], x: number) =>
-			Array.from({ length: 36 }, (_, i) =>
-				at(x + (i % 6) * 0.1, -0.8 + Math.floor(i / 6) * 0.1)
-			).flat();
+			[-0.8, 0.3].flatMap((z) =>
+				Array.from({ length: 36 }, (_, i) =>
+					at(x + (i % 6) * 0.1, z + Math.floor(i / 6) * 0.1)
+				).flat()
+			);
 		grid.setHighlight({ x: 0, y: 1 }, 'blocked', TABLE, null);
 		const hidden = await view([], overlay);
 		expect(Math.max(...patch(hidden, -1.8))).toBe(0);
