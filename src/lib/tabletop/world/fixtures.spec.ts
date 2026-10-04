@@ -16,7 +16,8 @@ import { groundFor, STEP_HEIGHT, WALL_HEIGHT } from '../ground';
 import { checkContinuation, checkEmitter, referenceBoxes, saddleProblems } from './invariants';
 import { regionsOf } from './regions';
 import { chunkWorld, tableWorld } from './cliffs';
-import { chunkGround, tableGround } from './ground-mesh';
+import { chunkGround } from './ground-mesh';
+import { tableGround } from './join';
 import {
 	CHUNK,
 	chunksAcross,

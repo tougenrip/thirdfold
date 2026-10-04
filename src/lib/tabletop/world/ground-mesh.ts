@@ -5,8 +5,8 @@
 //
 // Render tiles sit on the grid's corners (shape.ts `tiles`), so each cell is
 // four quarters, each from the tile at one of its corners. A quarter is flat
-// at its sector's height (the floor, or a step below it in the void, where a
-// dark plane closes the hole until #243). Where a fully known tile without the
+// at its sector's height: the floor, or in the void the chasm's floor (#243,
+// chasm.ts), which goes in a mesh of its own (`bottom`). Where a fully known tile without the
 // void has a corner, it is rounded: within `r` of the grid corner a quarter's
 // sliver beyond a quarter circle (`MAX_ROUND`, four segments; a 0.05 chamfer
 // on man-made floors) takes the height its level bands give it, cut down on a
@@ -14,11 +14,13 @@
 // join, and a pinched one stays square. Sides are sheer: every place two
 // heights meet gets one vertical face, emitted by the higher piece's cell, so
 // each chunk holds what its cells own. The table's border gets a face down to 0
-// under known cells only. A `WallSink` takes every vertical face instead (cliffs.ts makes
+// under known cells only, but a known void cell's floor runs on past an open
+// border instead (`Chasm.open`). A `WallSink` takes every vertical face instead (cliffs.ts makes
 // them cliffs and risers, #241); the skirts between unexplored cells stay plain.
 
 import { FLOOR_IDS, VOID, type FloorId } from '../../game/floor';
 import { STEP_HEIGHT } from '../ground';
+import { chasmY, DEFAULT_CHASM, OPEN_REACH, type Chasm } from './chasm';
 import { dualCase, JOIN, type Join } from './dual';
 import type { EmitterMesh } from './invariants';
 import {
@@ -64,10 +66,11 @@ export interface WallSink {
 	): void;
 }
 
-/** A chunk's ground: its tops (flat, facing up) and its sheer sides. */
+/** A chunk's ground: its tops (flat, facing up), its sheer sides and the void's floor. */
 export interface ChunkGround {
 	top: GroundMesh;
 	sides: GroundMesh;
+	bottom: GroundMesh;
 }
 
 /** A tile's heights: each corner's halves toward its horizontal and vertical neighbours, its sliver. */
@@ -81,16 +84,14 @@ interface Tile {
 	rounded: boolean;
 }
 
-/** The world height of a sector: its floor, or a step below it in the void. */
-const heightOf = (step: number, level: number, floor: number) =>
-	level * step - (floor === VOID ? step : 0);
-
-function tileAt(shape: WorldShape, tx: number, ty: number): Tile {
+function tileAt(shape: WorldShape, tx: number, ty: number, voidY: number): Tile {
 	const { grid, tiles, known } = shape;
 	const { width: w, height: h } = grid;
 	const step = STEP_HEIGHT * grid.cellSize;
 	const base = (ty * (w + 1) + tx) * 8;
-	const at = (s: number) => heightOf(step, tiles.levels[base + s], tiles.floor[base + s]);
+	// A sector's height: its floor, or the chasm's floor in the void (below every floor).
+	const at = (s: number) =>
+		tiles.floor[base + s] === VOID ? voidY : tiles.levels[base + s] * step;
 	const tile: Tile = {
 		h: SECTOR_H.map(at),
 		v: SECTOR_V.map(at),
@@ -138,6 +139,8 @@ class Builder {
 	private idx: number[] = [];
 	private own: number[] = [];
 	owner = 0;
+	/** Where flat pieces below 0 go (the void's floor, #243), if not here. */
+	under: Builder | null = null;
 
 	constructor(private readonly sink: WallSink | null = null) {}
 
@@ -167,6 +170,7 @@ class Builder {
 
 	/** A flat fan at height y round (x, z) points, facing up. */
 	fan(points: number[], y: number): void {
+		if (y < 0 && this.under) return this.under.fan(points, y);
 		const first = this.vertex(points[0], y, points[1], 0, 1, 0);
 		let last = this.vertex(points[2], y, points[3], 0, 1, 0);
 		for (let i = 4; i < points.length; i += 2) {
@@ -178,6 +182,7 @@ class Builder {
 
 	/** A flat rectangle from (x0, z0) to (x1, z1) at height y, facing up. */
 	rect(x0: number, z0: number, x1: number, z1: number, y: number): void {
+		if (y < 0 && this.under) return this.under.rect(x0, z0, x1, z1, y);
 		const a = this.vertex(x0, y, z0, 0, 1, 0);
 		const b = this.vertex(x1, y, z0, 0, 1, 0);
 		const c = this.vertex(x1, y, z1, 0, 1, 0);
@@ -275,11 +280,17 @@ const point = (axis: 'a' | 'b', along: number, inward: number, y: number) =>
 /** The tiles a build reads, each worked out once. */
 class Tiles {
 	private cache = new Map<number, Tile>();
-	constructor(private readonly shape: WorldShape) {}
+	private readonly voidY: number;
+	constructor(
+		private readonly shape: WorldShape,
+		readonly chasm: Chasm
+	) {
+		this.voidY = chasmY(chasm, shape.grid.cellSize);
+	}
 	at(tx: number, ty: number): Tile {
 		const key = ty * (this.shape.grid.width + 1) + tx;
 		let t = this.cache.get(key);
-		if (!t) this.cache.set(key, (t = tileAt(this.shape, tx, ty)));
+		if (!t) this.cache.set(key, (t = tileAt(this.shape, tx, ty, this.voidY)));
 		return t;
 	}
 }
@@ -322,10 +333,16 @@ function quarter(
 		const lowA = outA ? 0 : tile.h[hk];
 		const lowB = outB ? 0 : tile.v[vk];
 		const [nA, nB] = [EDGE_NORMALS[k][0], EDGE_NORMALS[k][1]];
+		// The void at an open border: its floor runs on outward (and round the corner), no wall.
+		const open = tiles.chasm.open && y0 < 0;
+		const [ax, bz] = [ox - sx * OPEN_REACH * cs, oz - sz * OPEN_REACH * cs];
 		if (y0 > lowA) sides.wall(ox, oz, ox, ez, lowA, y0, nA);
+		else if (outA && open) top.rect(ox, oz, ax, ez, y0);
 		else if (outA && y0 < 0) sides.wall(ox, oz, ox, ez, y0, 0, negate(nA));
 		if (y0 > lowB) sides.wall(ox, oz, ex, oz, lowB, y0, nB);
+		else if (outB && open) top.rect(ox, oz, ex, bz, y0);
 		else if (outB && y0 < 0) sides.wall(ox, oz, ex, oz, y0, 0, negate(nB));
+		if (outA && outB && open) top.rect(ox, oz, ax, bz, y0);
 		return;
 	}
 	[P.ox, P.oz, P.sx, P.sz] = [ox, oz, sx * cs, sz * cs];
@@ -442,58 +459,24 @@ export function chunkGround(
 	shape: WorldShape,
 	chunk: number,
 	sink: WallSink | null = null,
-	margin = 0
+	margin = 0,
+	chasm: Chasm = DEFAULT_CHASM
 ): ChunkGround {
 	const { grid } = shape;
 	const across = chunksAcross(grid);
 	const cx = (chunk % across.x) * CHUNK;
 	const cy = Math.floor(chunk / across.x) * CHUNK;
-	const tiles = new Tiles(shape);
-	const [top, sides] = [new Builder(), new Builder(sink)];
+	const tiles = new Tiles(shape, chasm);
+	const [top, sides, bottom] = [new Builder(), new Builder(sink), new Builder()];
+	top.under = bottom;
 	const [scratchTop, scratchSides] = [new Dry(), new Dry(sink)];
 	const [x1, y1] = [cx + CHUNK, cy + CHUNK];
 	for (let y = Math.max(cy - margin, 0); y < Math.min(y1 + margin, grid.height); y++)
 		for (let x = Math.max(cx - margin, 0); x < Math.min(x1 + margin, grid.width); x++) {
 			const own = x >= cx && y >= cy && x < x1 && y < y1;
 			const [t, s] = own ? [top, sides] : [scratchTop, scratchSides];
-			t.owner = s.owner = y * grid.width + x;
+			t.owner = s.owner = bottom.owner = y * grid.width + x;
 			for (const q of QUARTERS) quarter(shape, tiles, t, s, x, y, x + q.dx, y + q.dy, q.k);
 		}
-	return { top: top.done(), sides: sides.done() };
-}
-
-/** Meshes joined into one (the whole table's ground, for the harness). */
-export function joinMeshes(meshes: readonly GroundMesh[]): GroundMesh {
-	const size = (f: (m: GroundMesh) => ArrayLike<number>) =>
-		meshes.reduce((n, m) => n + f(m).length, 0);
-	const out: GroundMesh = {
-		positions: new Float32Array(size((m) => m.positions)),
-		normals: new Float32Array(size((m) => m.normals)),
-		indices: new Uint32Array(size((m) => m.indices)),
-		owners: new Int32Array(size((m) => m.owners))
-	};
-	let [v, i] = [0, 0];
-	for (const m of meshes) {
-		out.positions.set(m.positions, v * 3);
-		out.normals.set(m.normals, v * 3);
-		out.owners.set(m.owners, v);
-		out.indices.set(
-			m.indices.map((x) => x + v),
-			i
-		);
-		v += m.owners.length;
-		i += m.indices.length;
-	}
-	return out;
-}
-
-/** Every chunk's ground, tops and sides, as one mesh. */
-export function tableGround(shape: WorldShape): GroundMesh {
-	const across = chunksAcross(shape.grid);
-	const parts: GroundMesh[] = [];
-	for (let c = 0; c < across.x * across.y; c++) {
-		const { top, sides } = chunkGround(shape, c);
-		parts.push(top, sides);
-	}
-	return joinMeshes(parts);
+	return { top: top.done(), sides: sides.done(), bottom: bottom.done() };
 }

@@ -8,7 +8,10 @@
 // same and it tells nobody about unexplored ground; it is never picked and casts no shadow. The
 // skirt wears the environment's ground look (water for the sea), the silhouettes the look each
 // recipe names, tinted. Backdrop kinds and environments change geometry, params and slots only:
-// one graph, so nothing compiles. Nothing moves, so reduced motion changes nothing.
+// one graph, so nothing compiles. Under the night train (prairie-scroll) the skirt is the moving
+// ground (#243): its slots slide along the grid's long axis on the world's clock (`worldTime`, which
+// the world layer holds still under reduced motion), and the void's floors wear the same look
+// (`wearSkirt`), so the ground beyond and under the gaps runs on as one.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -21,8 +24,11 @@ import {
 	disposeTwins,
 	repeatFor,
 	setParams,
+	setSlot,
+	SLOT_NAMES,
 	twinOf,
-	type KindMaterial
+	type KindMaterial,
+	type ParamsInput
 } from './materials';
 import type { Tier } from './quality';
 import type { Beyond, BeyondMesh } from './world/beyond';
@@ -44,6 +50,11 @@ const PLAIN = {
  */
 const LAND = { macroScale: 0.035, macroTint: 0.3, macroRoughness: 0.15 };
 const SHADE = 0.62;
+/**
+ * How fast the moving ground slides under the night train, in repeats a second: 0.5, so its slots
+ * come round whole every time `worldTime` wraps (an hour, world-layer.ts).
+ */
+export const SCROLL_SPEED = 0.5;
 /** At most this many silhouettes (draws); recipes have one or two. */
 const RIDGES = 3;
 
@@ -66,6 +77,8 @@ export class WorldGround {
 	private cellSize = 1;
 	private low = false;
 	private playShown = true;
+	/** Told the backdrop once its skirt is built and painted (world-layer.ts: the void follows it). */
+	onBackdrop: ((backdrop: WorldLook['backdrop']) => void) | null = null;
 
 	constructor(
 		parent: THREE.Object3D,
@@ -116,6 +129,13 @@ export class WorldGround {
 			return;
 		this.scene = { environment, backdrop: { ...backdrop } };
 		this.rebuild();
+		this.onBackdrop?.(this.scene.backdrop);
+	}
+
+	/** The skirt's look (params and slots, its slide too) on `material`: the void's floor (#243). */
+	wearSkirt(material: KindMaterial): void {
+		setParams(material, this.skirtMaterial.params as unknown as ParamsInput);
+		for (const slot of SLOT_NAMES) setSlot(material, slot, this.skirtMaterial[`${slot}Slot`]);
 	}
 
 	/** Fewer directions and loops on the low tier: rebuilt only when that changes. */
@@ -192,7 +212,12 @@ export class WorldGround {
 		const water = this.beyond?.sample === 'water';
 		const ground = water ? null : (look?.ground ?? null);
 		wear(this.skirtMaterial, ground, water ? PLAIN.water : PLAIN.ground);
-		setParams(this.skirtMaterial, { ...this.tile(ground?.cells ?? 1), ...LAND });
+		// The moving ground slides along the grid's long axis.
+		const play = this.extents?.play;
+		const along = !play || play.width >= play.depth;
+		const scroll = this.scene.backdrop.kind === 'prairie-scroll' ? SCROLL_SPEED : 0;
+		const flow = along ? { x: scroll, y: 0 } : { x: 0, y: scroll };
+		setParams(this.skirtMaterial, { ...this.tile(ground?.cells ?? 1), ...LAND, flow });
 		this.skirtMaterial.params.color.multiplyScalar(SHADE);
 		this.beyond?.recipe.ridges.slice(0, RIDGES).forEach((ridge, i) => {
 			const material = this.ridgeMaterials[i];

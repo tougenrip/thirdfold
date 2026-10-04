@@ -1183,7 +1183,7 @@ it, on the same fixtures, views and random tables.
 A cell is picked by an Amanatides-Woo DDA over the grid's columns, not by raycasting ground meshes:
 `pickCell(grid, heightAt, origin, dir, cutLevel = Infinity)` in `world/pick.ts` (pure, server-tested
 in `pick.spec.ts`). Each cell is a column, solid up to `heightAt(x, y)`, its drawn floor (the
-renderer's `Ground.floorY`; void will pass `CHASM_DEPTH` with #243). The ray is clipped to the grid's
+renderer's `Ground.floorY`, or `Ground.pickY` where it has one: the chasm's floor in the void, #243). The ray is clipped to the grid's
 x and z, then steps column by column (`tMax`/`tDelta` per axis): in each, a ray already under the
 column's top hits its `side` where it came in (a raised column's wall, picked as the raised cell,
 as `TerrainLayer.pick` did), and a ray that drops to the top before leaving hits its `top`. It
@@ -1267,8 +1267,8 @@ The ground inside the grid is no longer the play plane and `TerrainLayer`'s boxe
 the pure `chunkGround(shape, chunk)` (`world/ground-mesh.ts`).
 
 - **Quarters.** A cell is four quarters, each the corner of the render tile at one of its grid corners.
-  A quarter is flat at its sectors' height: its floor, or one `STEP_HEIGHT` below in the void, where a
-  flat plane (the void's palette, near black) closes the hole until #243. An unexplored cell whose two
+  A quarter is flat at its sectors' height: its floor, or in the void the chasm's floor (#243, below),
+  which goes in a mesh of its own. An unexplored cell whose two
   known neighbours differ is split along its diagonal, as the continued tiles say.
 - **Corners.** A tile whose four cells are known, on the table and not void is rounded: within `r` of
   the grid corner each quarter has a sliver beyond a quarter circle (`MAX_ROUND`, `ARC_SEGMENTS` 4), a
@@ -1388,8 +1388,9 @@ nothing to credit), textured from the environment's own looks (and so the surfac
   is no longer held off below `PLAY_FOG_DEPTH`, 1 m under the ground (`beyondPlay`'s depth term,
   mirrored in `skyFogNode`), so the drop fills with mist instead of standing on a black pillar;
   the void's own floors a step down are untouched: the Hollow) and
-  `prairie-scroll` (the moving ground, two levels below and still until #243 and #344 move it: the
-  train); those three keep the environment's silhouettes.
+  `prairie-scroll` (the moving ground, two levels and a half below, sliding along the grid's long
+  axis since #243; #344 adds fences, poles and sway: the train); those three keep the environment's
+  silhouettes.
 - **Rules.** Never picked (no-op raycast), casts no shadow (received, so it shares the old ring's
   program), drawn off the grid only, where `worldModify` is neutral, so unexplored cells stay black
   and nothing of the play area shows through it. Every mesh is the surface kind with the anti-tiled
@@ -1612,6 +1613,86 @@ projected onto whatever ground the chunks draw, shown as much as the moment need
   mode change to be one frame. The highlight is never dimmed at night; the lines are not darkened
   either, only faded by the fog. Tile seams standing in for explore-mode lines on tiled floors wait
   for #254; the held key is #279, modes per camera mode #289.
+
+### Void cells as chasms (#243)
+
+Void cells ('Off the map') are drops out of the world, not black paint: the ground is cut where they
+are, cliffs fall from each walkable neighbour's floor, and at the bottom lies whatever the world
+look's backdrop says. The rules don't change (void is solid in `obstaclesFor`, not opaque;
+`blackwater.spec.ts` checks every Blackwater table).
+
+- **Style** (`world/chasm.ts`, pure, in the `world` chunk): `voidStyle(kind)` is `chasm` for none,
+  plains, hills, forest, mountains, abyss, cavern and no backdrop, `sea` for sea, `scroll` for
+  prairie-scroll. `chasmOf(backdrop)` gives the void's floor in levels (`CHASM_DEPTH` 12 below level 0,
+  4.8 cells; the sea `SEA_DEPTH` half a level below the backdrop's level, never above level 0's floors;
+  the moving ground `SCROLL_DEPTH` 2.5 below, where #244's skirt lies) and whether it is `open` at the
+  border: wherever `beyondSample` is not land (abyss, sea, prairie-scroll). Scene-level only: every
+  viewer gets the same.
+- **The drop.** `chunkGround` takes the chasm: every void sector stands at its floor (`chasmY`), below
+  every walkable floor, so the faces between void and walkable ground run from the walkable floor down
+  to it, and #241 makes each a cliff (any face over the void is a cliff, half a level or twelve), in the
+  owner's style, darkening with depth (`depthShade`: a vertex shade from 1 at level 0 to 0.15 six levels
+  down; every face below 0 takes it, the plain skirts too). Void beside void needs no face, at any
+  level. The void's floor is the chunks' third mesh, `bottom` (`Builder.under`: flat pieces below 0 go
+  there), so a chunk is a top, its faces by style, the void's floor and the grid's twin.
+- **Open borders.** Where the chasm is open, a known void cell on the border has no wall at the edge:
+  its floor runs on `OPEN_REACH` (0.35 cell, the skirt's lip) past it, under the backdrop's lip, and
+  round the corner. Closed (land beyond), its wall rises to the border's 0 as before. Only known cells
+  open, so nothing is drawn past an edge the viewer never saw. The skirt's lip itself stays: it is
+  scene-level, and covering it would read cells into the backdrop.
+- **The floor's look** (`world-layer.ts`): one material for every chunk's floor, the surface kind
+  with the anti-tiled variant (twinned by tier) and the skirt's attributes (a world uv), received,
+  never cast or picked: the same program as the backdrop's skirt, so no stand-in and nothing compiles.
+  A chasm is a cold grey (`MIST`) over a tiling noise texture (`mistTexels`, 64², made once) a tile every
+  six cells: faint mist in the dark, deepened by the height fog (`PLAY_FOG_DEPTH` lets it in below
+  1 m). The sea and the moving ground wear the skirt's own look (`WorldGround.wearSkirt`: its params,
+  slots and flow), so the floor under a gap and the land beyond it are one. Styles are params and slots.
+- **Moving.** The surface kind's slots now slide by `params.flow × worldTime` in its world box
+  mapping (water's already did; every other surface's flow is 0, so the graph changed once and draws
+  as before). The skirt under the night train flows along the grid's long axis at `SCROLL_SPEED` (0.5
+  repeats a second, landscape.ts), and the floors under its gaps with it; the chasm's mist drifts at
+  `MIST_FLOW` on medium and up, still on low. `WorldLayer.tick(now, reducedMotion)` (from the frame's
+  `drifting`, one line in renderer.ts) sets `worldTime` to the clock in seconds, wrapped every hour
+  (every flow comes round to whole repeats), and asks for AMBIENT frames while the ground moves (always
+  under the train, with void on the table for the mist); under reduced motion it holds the clock and
+  asks for none.
+- **The backdrop's changes** reach the layer from the landscape (`WorldGround.onBackdrop`, after its
+  skirt is built and painted): the look follows, and a new floor height or opening rebuilds every chunk.
+- **Picking.** `chasmGround` gives the renderer's `Ground` a `pickY`: the chasm's floor in the void,
+  the floor elsewhere; `Picker` walks the DDA over `pickY ?? floorY`. A ray down a hole picks the void
+  cell (the server still refuses the move); one meeting a chasm wall first picks the walkable cell that
+  owns it, as a raised column's side (`chasm.spec.ts`). `floorY` is unchanged, so tokens, props, walls,
+  lights, previews and the camera stand where they did; dice already refuse void cells (#247).
+- **Fog and light.** The faces shade as the cell that owns them (#241's lookup behind the face); the
+  floor as the void cell above it, by `worldModify` like every surface, so unexplored void is black. A
+  floor or face inside an unexplored cell (continued as void beside a known one) is black too.
+- **Checked** in the server project (`chasm.spec.ts`; `ground-mesh.spec.ts`, `cliffs.spec.ts`): the
+  styles and depths of every backdrop kind; on every fixture scene and every GM, player and spectator
+  view with void (the train, the ghost town, ref-3), in each style closed and open: the harness with the
+  void's floor as decorations, the floor flat at its depth, under void cells only (or a sector of an
+  unexplored cell split toward one) and past the border only beside a known void cell of an open table,
+  nothing the void owns above level 0, and crack rays; the cliffs down to the floor in each scene's own
+  style; the night train's gaps and border on the moving ground; picks down a gap and onto a car's
+  wall. `chasm.svelte.spec.ts` (`RENDER_SPECS`, the `chasm` job in rendering.yml) paints void on the
+  Hollow's lake and finds the floor at the chasm's depth on the surface kind, the cliffs down to it,
+  every backdrop kind moving it, and nothing compiling; on the night train it finds the gaps on the
+  moving ground, sliding along the train, not black, its clock moving on ambient frames, and under
+  reduced motion no frame and a still clock. unexplored-black takes the train's player
+  (`railcar player dusk medium` in CI's slim set), leaving out a hole's sample whose ray falls on to
+  ground the viewer was shown (`pastHole` in invariants.ts).
+- **Cost.** A void cell is two triangles of floor; a cliff into a chasm 12 rows a face (the train:
+  158 void cells). Nothing per frame but the clock's uniform, and that only while the ground moves.
+
+**Deviations from #243.** `voidStyle` is in `world/chasm.ts`, not `world/shape.ts`, and the depth is
+`chasmOf`'s rather than a bottomless band in the cliffs: the void's sectors stand at the floor's
+height and #241's cliffs reach them. The chasm's floor is mist (a texture and the height fog), not an
+abyss plane with its own mist node; the sea is the skirt's water look (no fresnel of its own beyond
+the lit kind's), at half a level below the backdrop's level rather than a whole one, to meet the
+skirt. The skirt's kerb along an open border stays (the backdrop is scene-level); the void's floor
+runs under it instead of a drop piece replacing it. Goldens, the LOOK.md strip and look metrics are
+for the milestone's close (no golden runs during development); the perf gate and the iGPU were not
+run. The renderer chunk grows 389.3 → 389.8 kB gz (389,798 B) and the `world` chunk 9.9 → 10.4 kB
+(10,369 B).
 
 ## Modules
 

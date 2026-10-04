@@ -67,7 +67,7 @@ export interface Params {
 	cutoff: number;
 	/** Foliage: how far a leaf sways, in local units per unit of height (0 still). */
 	sway: number;
-	/** Water: how fast its slots slide, in repeats per second. */
+	/** Water and surface: how fast its slots slide, in repeats per second (#243's moving ground). */
 	flow: THREE.Vector2;
 	/** Minis: clearcoat (0 until #267) and its roughness, uniforms so leaving 0 compiles nothing. */
 	clearcoat: number;
@@ -276,7 +276,8 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			lit: null
 		};
 	}
-	const flow = kind === 'water' ? param('flow', 'vec2').mul(time) : null;
+	// Water's slots slide, and a surface's (the void's moving ground and mist, #243): 0 holds still.
+	const flow = kind === 'water' || kind === 'surface' ? param('flow', 'vec2').mul(time) : null;
 	const mapping = surfaceMapping(kind, variant, param('repeat', 'vec2'), flow);
 	const floor = kind === 'terrain' ? floorSurface(variant) : null;
 	const albedo = mapping.sample('albedo');

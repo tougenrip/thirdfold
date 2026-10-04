@@ -16,7 +16,9 @@
 // roofed table. Bounce and cavity (#234) are on, at each tier's strength. The probe grid (#235), off
 // by default, is baked and on for the test world's player on high. The world's chunks (#240) and
 // their cliffs and risers (#241, the rock kind reading the cell behind each face) are in every case;
-// the Hollow's fogged player sees cliffs on every tier, biplanar on low and triplanar above.
+// the Hollow's fogged player sees cliffs on every tier, biplanar on low and triplanar above. The
+// void's chasms (#243) too: the night train's player looks down its gaps onto the moving ground,
+// and a hole's sample is left out where its ray falls on to ground the viewer was shown (`pastHole`).
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -32,6 +34,7 @@ import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
+import { pastHole } from './world/invariants';
 import type { GridPose } from './poses';
 import { settingsFor, type QualitySettings, type Tier } from './quality';
 import {
@@ -81,6 +84,7 @@ const SLIM = new Set([
 	...TIERS.map((t) => `hollow player dark ${t}`),
 	'ref-8 spectator dusk medium',
 	'ref-8 spectator dark medium reduced',
+	'railcar player dusk medium',
 	'hollow player dark medium cloud',
 	'dungeon-40 player dark medium carrier',
 	'ref-6 player dark medium carrier',
@@ -187,7 +191,8 @@ interface Sample {
 function samplesFor(
 	grid: SquareGrid,
 	tall: Float32Array,
-	camera: THREE.PerspectiveCamera
+	camera: THREE.PerspectiveCamera,
+	hole: ReturnType<typeof pastHole> | null = null
 ): Sample[] {
 	const { width: w, height: h, cellSize } = grid;
 	const toPixel = (v: THREE.Vector3) => {
@@ -221,6 +226,8 @@ function samplesFor(
 				[px - 1, py + 2]
 			];
 			if (!block.every(([bx, by]) => inside(outline, bx, by))) continue;
+			// A hole (the void, #243) shows what its ray falls on to: left out if that was shown.
+			if (hole?.(y * w + x, camera.position)) continue;
 			if (!occluded(at, camera.position, grid, tall, top)) out.push({ cell: { x, y }, px, py });
 		}
 	return out;
@@ -441,7 +448,8 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 				// The camera takes the pose at once: a pose with too few samples draws nothing more.
 				m.tabletop.setGridPose(where);
 				const camera = cameraOf(m);
-				const samples = samplesFor(view.grid, tall, camera);
+				const hole = pastHole(view, (i) => tall[i] >= 0);
+				const samples = samplesFor(view.grid, tall, camera, hole);
 				if (samples.length < MIN_SAMPLES) {
 					console.info(`${c.label} ${pose}: ${samples.length} samples, left out`);
 					continue;

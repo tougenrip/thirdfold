@@ -21,6 +21,7 @@ import {
 	styleOf,
 	tableWorld
 } from './cliffs';
+import { chasmOf, CHASM_DEPTH } from './chasm';
 import { checkEmitter } from './invariants';
 import { cracks, hit, randomTable, topAt } from './random-table';
 import { CHUNK, chunksAcross, MAX_NOISE, worldShape, type ShapeInput } from './shape';
@@ -72,13 +73,35 @@ describe('cliffs and risers', () => {
 		expect(DEEPEST).toBeLessThan(MAX_NOISE);
 	});
 
-	it('draws a drop into the void as a cliff, even a step down', () => {
-		const levels = bytes(1, 1, 1);
-		const m = tableWorld(shapeOf({ grid: grid(3, 1), levels, floor: bytes(VOID, 0, 0) }));
-		// The cell at x = 0 stands a step above the void's floor at x = -1.
-		const y = LEVEL - (LIP + SET_BACK) - 0.05;
-		expect(hit(m, [-1.5, y, 0.1], [1, 0, 0]) - 1).toBeGreaterThanOrEqual(SET_BACK - 1e-6);
+	it('draws a drop into the void as a cliff down to its floor, even to the sea', () => {
+		const levels = new Uint8Array(9).fill(1);
+		const floor = bytes(VOID, 0, 0, VOID, 0, 0, VOID, 0, 0);
+		const s = shapeOf({ grid: grid(3, 3), levels, floor });
+		const m = tableWorld(s);
+		// The cells at x = 0 stand over the chasm's floor at x = -1: a rim at the edge, the face set
+		// back under it all the way down.
+		expect(hit(m, [-1.5, LEVEL - LIP / 2, 0], [1, 0, 0]) - 1).toBeCloseTo(0, 5);
+		for (const y of [0, -1, -2.5, -4])
+			expect(hit(m, [-1.5, y, 0], [1, 0, 0]) - 1).toBeGreaterThanOrEqual(SET_BACK - 1e-6);
+		expect(topAt(m, -1, 0)).toBeCloseTo(-CHASM_DEPTH * LEVEL);
+		// The sea's floor half a level below 0: still a cliff (its rim), never a riser.
+		const flat = shapeOf({ grid: grid(3, 3), floor });
+		const shallow = chunkWorld(flat, 0, chasmOf({ kind: 'sea', level: 0 })).sides;
+		const shaded = shallow.flatMap((f) => [...f.colors]);
+		expect(shaded).toContain(Math.fround(1.15));
+		expect(shaded).not.toContain(Math.fround(1.3));
 		expect(profile(FACE.cliff, 0, LEVEL, 1).some((r) => r.noisy)).toBe(true);
+	});
+
+	it('darkens every face below level 0 with depth', () => {
+		const s = shapeOf({ grid: grid(3, 1), levels: bytes(1, 1, 1), floor: bytes(VOID, 0, 0) });
+		const { sides } = chunkWorld(s, 0);
+		const deep: number[] = [];
+		for (const f of sides)
+			for (let v = 0; v < f.owners.length; v++)
+				if (f.positions[v * 3 + 1] < -4) deep.push(f.colors[v * 3]);
+		expect(deep.length).toBeGreaterThan(0);
+		for (const shade of deep) expect(shade).toBeLessThan(0.35);
 	});
 
 	it('keeps every top at its floor and stands nothing over the lower cell', () => {
