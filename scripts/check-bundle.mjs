@@ -73,8 +73,10 @@ const BUDGETS = {
 	// pick layer (#246), 383.7; dice and pooled previews on the ground (#247), 384.7 (384,615 B measured);
 	// the ground in chunks (#240: the dual-grid emitter, the world layer and the saddles' canStep),
 	// 390.0 (389.9 kB measured; the owner's M69 cap is about 393). → 386.1: the world's builders
-	// moved to their own chunk (`world` below, the owner's decision); 386,062 B measured.
-	renderer: { total: 386_100 },
+	// moved to their own chunk (`world` below, the owner's decision); 386,062 B measured. → the
+	// shader grid (#245: its node, the twins, the modes and the highlight's patterns), 387.2
+	// (387.1 kB measured).
+	renderer: { total: 387_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
