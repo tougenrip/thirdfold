@@ -123,34 +123,45 @@ describe('pickCell', () => {
 });
 
 // The picker before #246, in plain maths: the nearest of a box per raised cell and the y = 0 plane.
-function reference(g: SquareGrid, levels: Uint8Array | null, o: Vec3, d: Vec3) {
+interface Box {
+	lo: [number, number, number];
+	hi: [number, number, number];
+	cell: GridPos;
+}
+/** One box per raised cell, from y = 0 to its floor, as TerrainLayer drew them. */
+function boxesOf(g: SquareGrid, levels: Uint8Array | null): Box[] {
 	const ground = groundFor(g, levels);
+	const s = g.cellSize / 2;
+	const boxes: Box[] = [];
+	for (let i = 0; levels && i < levels.length; i++) {
+		if (!levels[i]) continue;
+		const cell = { x: i % g.width, y: Math.floor(i / g.width) };
+		const c = gridToWorld(g, cell);
+		boxes.push({ lo: [c.x - s, 0, c.z - s], hi: [c.x + s, ground.floorY(cell), c.z + s], cell });
+	}
+	return boxes;
+}
+function reference(g: SquareGrid, boxes: Box[], o: Vec3, d: Vec3) {
+	const [os, ds] = [
+		[o.x, o.y, o.z],
+		[d.x, d.y, d.z]
+	];
 	let best: { t: number; cell: GridPos; face: 'top' | 'side' } | null = null;
-	if (levels)
-		for (let i = 0; i < levels.length; i++) {
-			if (!levels[i]) continue;
-			const cell = { x: i % g.width, y: Math.floor(i / g.width) };
-			const c = gridToWorld(g, cell);
-			const s = g.cellSize / 2;
-			const box = [
-				[c.x - s, c.x + s, o.x, d.x],
-				[0, ground.floorY(cell), o.y, d.y],
-				[c.z - s, c.z + s, o.z, d.z]
-			];
-			let [tn, tf, axis] = [-Infinity, Infinity, -1];
-			for (let k = 0; k < 3; k++) {
-				const [lo, hi, ok, dk] = box[k];
-				if (dk === 0) {
-					if (ok < lo || ok > hi) tn = Infinity;
-					continue;
-				}
-				const [a, b] = [(lo - ok) / dk, (hi - ok) / dk];
-				if (Math.min(a, b) > tn) [tn, axis] = [Math.min(a, b), k];
-				tf = Math.min(tf, Math.max(a, b));
+	for (const box of boxes) {
+		let [tn, tf, axis] = [-Infinity, Infinity, -1];
+		for (let k = 0; k < 3; k++) {
+			const [lo, hi, ok, dk] = [box.lo[k], box.hi[k], os[k], ds[k]];
+			if (dk === 0) {
+				if (ok < lo || ok > hi) tn = Infinity;
+				continue;
 			}
-			if (tn > tf || tn < 0 || (best && best.t <= tn)) continue;
-			best = { t: tn, cell, face: axis === 1 ? 'top' : 'side' };
+			const [a, b] = [(lo - ok) / dk, (hi - ok) / dk];
+			if (Math.min(a, b) > tn) [tn, axis] = [Math.min(a, b), k];
+			tf = Math.min(tf, Math.max(a, b));
 		}
+		if (tn > tf || tn < 0 || (best && best.t <= tn)) continue;
+		best = { t: tn, cell: box.cell, face: axis === 1 ? 'top' : 'side' };
+	}
 	const tPlane = d.y * o.y < 0 ? -o.y / d.y : Infinity;
 	if (best && best.t <= tPlane) return { cell: best.cell, face: best.face };
 	if (tPlane === Infinity) return { cell: null };
@@ -222,12 +233,13 @@ const levelsOf = (s: Sent) =>
 /** The same cell and face as the reference for every ray; returns how many rays were cast. */
 function agree(g: SquareGrid, levels: Uint8Array | null, poses: GridPose[]) {
 	const h = heights(g, levels);
+	const boxes = boxesOf(g, levels);
 	let rays = 0;
 	const wrong: string[] = [];
 	for (const { o, d } of raysFrom(g, levels, poses, RAYS_PER_POSE)) {
 		rays++;
 		const got = pickCell(g, h, o, d);
-		const want = reference(g, levels, o, d);
+		const want = reference(g, boxes, o, d);
 		if (JSON.stringify({ cell: got.cell, face: got.face }) !== JSON.stringify(want))
 			wrong.push(
 				`${JSON.stringify(o)} ${JSON.stringify(d)}: ${JSON.stringify(got)} vs ${JSON.stringify(want)}`
@@ -241,7 +253,8 @@ const sceneNames = readdirSync(SCENES)
 	.filter((f) => f.endsWith('.json') && !f.endsWith('.poses.json'))
 	.map((f) => f.replace('.json', ''));
 
-describe('the DDA against the picker it replaces', () => {
+// The Hollow's 788 boxes against 24,000 rays take a few seconds when the whole project runs at once.
+describe('the DDA against the picker it replaces', { timeout: 30_000 }, () => {
 	it.each(sceneNames)('%s: every scene ray picks the same cell and face', (name) => {
 		const parsed = parseSceneFile(
 			JSON.parse(readFileSync(path.join(SCENES, `${name}.json`), 'utf8'))
