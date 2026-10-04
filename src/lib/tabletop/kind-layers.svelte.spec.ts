@@ -65,7 +65,7 @@ describe('the layers on the shader kinds', () => {
 		const build = await loadWorld(); // first: no model arrives between the layers and the look
 		const size = view.grid.width * view.grid.height;
 		const ground = groundFor(view.grid, view.terrain ? decodeLevels(view.terrain, size) : null);
-		const table = new WorldGround();
+		const table = new WorldGround(new THREE.Group(), build);
 		table.build(worldExtents(view.grid));
 		const walls = new WallLayer();
 		walls.sync(view.objects, view.grid, ground);

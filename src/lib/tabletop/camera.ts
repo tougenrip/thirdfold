@@ -91,12 +91,16 @@ export class CameraRig {
 
 	/**
 	 * Keeps the camera a clearance above the ground under it (a raised cell's floor over the grid,
-	 * the ground's level off it), after the controls have moved it.
+	 * the land beyond it off it, `beyond`'s height there, #244), after the controls have moved it.
 	 */
-	keepAbove(grid: SquareGrid | null, ground: Ground | null): void {
+	keepAbove(
+		grid: SquareGrid | null,
+		ground: Ground | null,
+		beyond?: (x: number, z: number) => number | null
+	): void {
 		const p = this.camera.position;
 		const cell = grid && ground ? worldToGrid(grid, { x: p.x, z: p.z }) : null;
-		p.y = aboveGround(p, cell ? ground!.floorY(cell) : 0);
+		p.y = aboveGround(p, cell ? ground!.floorY(cell) : (beyond?.(p.x, p.z) ?? 0));
 	}
 
 	/** How much of the shot's depth of field shows at `now` (0 with no shot, or one cut short). */

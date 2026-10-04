@@ -37,7 +37,7 @@ import { float, vec3 } from 'three/tsl';
 import { afterEach, describe, expect, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import { FLICKERS, LIGHT_KINDS, type Light } from '$lib/game/lights';
-import { bandOf, type WorldLook } from '$lib/game/world';
+import { BACKDROPS, bandOf, type WorldLook } from '$lib/game/world';
 import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
@@ -339,6 +339,11 @@ function skySteps(m: Mounted, home: FixtureView, skies: readonly string[]): Step
 		...[0, 0.25, 0.5, 1].map((density): Step => [
 			`haze ${density}`,
 			() => t.setLighting('day', home.lights, world({ haze: { density, color: '#b8c0cc' } }))
+		]),
+		// What lies beyond the grid (#244): every backdrop kind, its skirt and silhouettes.
+		...BACKDROPS.map((kind): Step => [
+			`backdrop ${kind}`,
+			() => t.setLighting('day', home.lights, world({ backdrop: { kind, level: 1 } }))
 		]),
 		['roofed', () => t.setInterior(new Uint8Array(size).fill(1))],
 		['roof off', () => t.setInterior(null)],

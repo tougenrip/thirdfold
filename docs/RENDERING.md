@@ -577,14 +577,12 @@ tabletop carries `room.interior`; `flashLift` raises the sky's reach during a fl
 The table's slab and rim are gone. `tabletop/world-ground.ts` (pure) gives a table's extents:
 `worldExtents` has the play extent (the grid's box up to a wall above its highest floor: picking,
 views, shots, the warm-up camera, the effects' bounds, the shadow box and how far the
-camera may pull back) and the world extent (the ring out to the horizon, the haze from `fogRange`,
-the far plane); `ringVertices` is the ring from the grid's edge out to a circle at the horizon,
-closer together near the grid. `tabletop/landscape.ts` `WorldGround` draws the play plane (the
-terrain kind, painted floors from the ground map) and the ring (the surface kind in the environment's
-ground look, plain earth without one), fogged, never picked, built from the grid's size and the look
-only (never a cell), rebuilt only with the grid, 24 segments on low and 96 above. Off the grid
-`worldModify` is neutral. The camera tilts to 85° and `CameraRig.keepAbove` holds it
-`GROUND_CLEARANCE` over the ground under it.
+camera may pull back) and the world extent (the land out to the horizon, the haze from `fogRange`,
+the far plane). `tabletop/landscape.ts` `WorldGround` draws the play plane (the terrain kind, painted
+floors from the ground map; only under `?off=terrain` since #240) and, since #244, what lies beyond
+the grid: the skirt to the horizon and the environment's silhouettes ("Beyond the grid (#244)"
+below). Off the grid `worldModify` is neutral. The camera tilts to 85° and `CameraRig.keepAbove`
+holds it `GROUND_CLEARANCE` over the ground under it (the skirt's height off the grid).
 
 ### The low tier and software GL (#225)
 
@@ -1330,8 +1328,8 @@ layer, hidden, synced from the continued ground. Both go at the milestone's clos
 neither: the DDA walks the renderer's `Ground`, which is the shape's, so a fogged player's picks land on
 the continued ground the chunks draw.
 
-**Deviations from #240.** Border tiles do not overhang the grid by half a cell: the ring meets the play
-area at the grid's edge at y = 0 (`ringVertices`), so an overhang would z-fight with it; they stop at the
+**Deviations from #240.** Border tiles do not overhang the grid by half a cell: the skirt meets the play
+area at the grid's edge at y = 0 (`skirtMesh`, #244), so an overhang would z-fight with it; they stop at the
 edge, with the boxes' faces down to 0. There is no owner-cell vertex attribute on the GPU: the terrain
 kind reads each fragment's cell from the ground map by its position, as the boxes did (a rounded sliver
 takes the colour of the cell it lies in), and an attribute only the chunks carry would be a program of
@@ -1344,6 +1342,79 @@ floor height (rays straight down onto the chunk meshes), the rebuild counts per 
 middle chunk 1, on its corner 4, every floor over its inside 1 each, a 16x16 area with its margin 9, a
 raise inside it 1), no program or pipeline from any of it, a fogged player's explored disc moving 35
 steps east rebuilding 1 to 4 chunks a step, and `?off=terrain`.
+
+### Beyond the grid (#244)
+
+The play area runs on into a landscape that belongs to its environment and fades into the sky:
+a skirt of land out to the horizon and a ring or two of far silhouettes. Procedural only (no art, so
+nothing to credit), textured from the environment's own looks (and so the surface library's walls).
+
+- **Its inputs are scene-level.** `world/beyond.ts` (pure, in the lazy `world` chunk, exported from
+  `world/build.ts`) builds everything from `BeyondInput`: the environment's id, `WorldLook.backdrop`
+  (kind and level) and the grid's size as a `Span` (`spanOf(worldExtents(grid))`: half extents, cell
+  size, frame, the camera's reach, the horizon and the haze's range; not the table's top, so raised ground a viewer
+  was or wasn't sent changes nothing). No cell is read, so the GM, players and spectators get the
+  same backdrop and it says nothing about unexplored ground. `beyond.spec.ts` builds it from every
+  fixture view as the GM, a player and a spectator and finds it byte for byte the same, checks the
+  input has only those three keys, and that the same input always builds the same arrays.
+- **The skirt** (`skirtMesh`) is an annulus whose hole is exactly the grid's rectangle (its corners
+  are vertices), so it meets the chunks' border faces at y = 0 with no gap or overlap. Its first loops
+  are the rectangle offset outward (the diagonal at the corners), so the lip runs along the border:
+  from 0 at the edge down to half a level below `backdrop.level` within `LIP_CELLS` (0.35 cell), a
+  bevelled kerb rather than a cliff. The rest run out to a circle at the horizon, closer together near
+  the grid (128 directions and 12 loops; 32 and 6 on low). Heights are `beyondHeightAt(beyond, x, z)`,
+  exported for the camera (`CameraRig.keepAbove`, and #280's rig): the land rises with seeded noise
+  (`recipe.rise` frames at most) only beyond the camera's reach, so wherever the camera may stand the
+  skirt is at or below max(0, the backdrop's level) (a spec sweeps every kind, level, environment and
+  grid). It wears the environment's ground look, darker (0.62) with broad macro patches.
+- **Silhouettes** (`ridgeMesh`) are rings of ridge round the grid, their foot sunk a step into the
+  skirt where the haze is partway (`distance` 0 at the fog's near, 1 at its far: by view depth, so
+  nearer than the camera's reach, or the haze would take them whole), their crest from periodic value
+  noise by style: `hills`, `forest` (a ragged canopy line), `mountains` (ridged peaks), `mesas` (flat
+  tops, sheer sides) and `cave` (rough walls rising into the dark with no ceiling, inside #221's
+  shell). Every face looks toward the grid (the spec checks it), so from beyond a ridge, where the
+  camera may stand, it is culled and never hides the map. The village's far ridge carries a landmark:
+  a peak at `MOUNTAIN.azimuth`, up the mountain path the `firstBell` shot looks along (a spec checks
+  the bearing against Bellweather's `MOUNTAIN_PATH` cell), with the monastery's hall and bell tower on
+  top as two flat silhouettes facing the grid. 240 columns a ridge, 72 on low.
+- **Recipes** (`world/recipes.ts`, keyed by the environment's id; not in the manifest): the village
+  (forest, and mountains with the monastery), stone halls (hills, and a mountainside in the walls'
+  stone), the cavern and the living cave (cave walls, dark navy and dark crimson), the railcar and
+  the ghost town (mesas, and far desert ridges); any other environment (or none) gets low hills.
+- **Backdrop kinds.** null keeps the environment's recipe; `none` (no silhouettes, flat land),
+  `plains`, `hills`, `forest`, `mountains` and `cavern` replace it with their own. `beyondSample(kind)`
+  says what lies beyond the border, for the border tiles (#240) and the chasms (#243): `land`, `water`
+  for `sea` (the skirt flat in a dark glossy water look, #120 gives it swell) and `void` for `abyss`
+  (past the lip a gap, no wall, then a plane 0.6 frame below that runs on under the grid: the haze
+  is no longer held off below `PLAY_FOG_DEPTH`, 1 m under the ground (`beyondPlay`'s depth term,
+  mirrored in `skyFogNode`), so the drop fills with mist instead of standing on a black pillar;
+  the void's own floors a step down are untouched: the Hollow) and
+  `prairie-scroll` (the moving ground, two levels below and still until #243 and #344 move it: the
+  train); those three keep the environment's silhouettes.
+- **Rules.** Never picked (no-op raycast), casts no shadow (received, so it shares the old ring's
+  program), drawn off the grid only, where `worldModify` is neutral, so unexplored cells stay black
+  and nothing of the play area shows through it. Every mesh is the surface kind with the anti-tiled
+  variant (twinned with the tier like the other layers): kinds, levels and environments change
+  geometry, params and slots only, so nothing compiles (`beyond.svelte.spec.ts`; the program-count
+  sweep's sky part steps through every kind). Rebuilt only when the grid's size, the environment, the
+  backdrop or the tier's row (low or not) changes, never per frame; nothing moves, so reduced motion
+  has nothing to still and there are no idle frames.
+- **Draws:** the skirt and one or two silhouettes (three at most), about 4k triangles for the skirt
+  and 1.4k a ridge on medium and up.
+- **Specs.** `world/beyond.spec.ts` (server project: the skirt meets the grid and covers the disc,
+  every vertex on `beyondHeightAt`, the camera never under it, the lip and the drops, the kinds'
+  samples and recipes, silhouettes round the play area and inside the horizon facing in, the landmark,
+  determinism and scene-level inputs); `beyond.svelte.spec.ts` (`RENDER_SPECS`, its own `beyond` job in
+  rendering.yml): the village at dusk as a fogged player, its three meshes, the mountain on screen and
+  not black, changed by `none`, and every kind and environment without a new program or pipeline.
+
+**Deviations from #244.** The recipes are code keyed by environment id, not a `beyond` block in the
+manifest: the landscape is procedural and needs no files, so parsing and the pipeline stay as they are
+(the owner's decision: no new art). The forest is a ragged ridge strip on every tier, not instanced
+tree cards: cards would be another variant (instanced) to warm and #121's vegetation brings real trees.
+The landmark is two flat procedural silhouettes, not a model. The silhouettes stand inside the camera's reach (in the haze's range), not beyond it, since the haze is by view depth and would hide them whole there; facing only the grid keeps them out of the way. The abyss needed the fog's play-area cap to lift with depth (`PLAY_FOG_DEPTH`): a change to the scene's fog node, so every program once, and to the picture only more than 1 m below the ground. The camera keeps above the skirt through
+`keepAbove(…, beyondHeightAt)` already; #280 owns the rig. Goldens and look metrics are for the
+milestone's close (G2).
 
 ## Modules
 
@@ -1363,7 +1434,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `sky.ts`                              | `SkyLayer`: the dome, moon, stars and clouds, and the capture into `SKY_CUBE`/`SKY_CUBE_LOW`                                     |
 | `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                          |
 | `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                |
-| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `ringVertices`); `WorldGround`, the play plane and the ring to the horizon           |
+| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `spanOf`); `WorldGround`, the play plane and what lies beyond (#244)                 |
 | `previews.ts`                         | Editor previews from a pool of instanced meshes on the ground (`previewPlacements`, #247), the beacon and the highlighted cell   |
 | `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
 | `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |

@@ -74,15 +74,18 @@ const BUDGETS = {
 	// the ground in chunks (#240: the dual-grid emitter, the world layer and the saddles' canStep),
 	// 390.0 (389.9 kB measured; the owner's M69 cap is about 393). → 386.1: the world's builders
 	// moved to their own chunk (`world` below, the owner's decision); 386,062 B measured.
-	renderer: { total: 386_100 },
+	// → 386.3: what lies beyond the grid (#244: the landscape layer, the fog's depth term, its
+	// builders in `world`); 386,226 B measured.
+	renderer: { total: 386_300 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
 	probes: { total: 5_000 },
 	// The world's builders (M69: world/build.ts, the shape, dual cases, regions, the ground's
 	// emitter and the builders to come), fetched with the renderer and awaited by the table;
-	// 5,166 B measured.
-	world: { total: 5_200 }
+	// 5,166 B measured. → 7.8: the backdrop beyond the grid (#244: the skirt, the silhouettes and
+	// their recipes); 7,762 B measured.
+	world: { total: 7_800 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

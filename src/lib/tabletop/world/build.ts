@@ -12,3 +12,4 @@
 export { chunksAcross, dirtyChunks, knownOf, worldShape } from './shape';
 export { chunkGround } from './ground-mesh';
 export { regionsOf } from './regions';
+export { beyondHeightAt, beyondOf, beyondSample, ridgeMesh, skirtMesh } from './beyond';

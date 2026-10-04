@@ -81,8 +81,7 @@ export async function createTabletop(
 	}));
 	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;
-	const land = new WorldGround(); // the play plane and the ground to the horizon (#220)
-	scene.add(land.group);
+	const land = new WorldGround(scene, build); // the ground to the horizon and beyond (#220, #244)
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
 	const onModel = () => {
 		shadowsDirty = warmPending = true;
@@ -158,6 +157,7 @@ export async function createTabletop(
 		if (!grid) return;
 		const [ambient, lights, world = null] = lightState;
 		atmosphere.setWorld(world, ambient, environment, reducedMotion);
+		land.setBackdrop(world, environment); // what lies beyond the grid (#244)
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
 		propLayer.setLights(lights); // the flames on props, lit by a light on their cell (#232)
 		lighting.update(grid, ambient, lights, tokens, blocked, ground, darkness, props, floor);
@@ -241,7 +241,7 @@ export async function createTabletop(
 			casters || turning || gridFading || revealing || fx.active || rig.tick(now) || post.blending;
 		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
-		rig.keepAbove(grid, ground); // tilted to the horizon, never under the ground (#220)
+		rig.keepAbove(grid, ground, land.heightAt); // tilted to the horizon, never under the ground (#220)
 		shakeOffset.copy(fx.shake); // a shudder from a cue: the camera's offset, this frame only
 		camera.position.add(shakeOffset);
 		const hideGallery = gallery.show(); // drawn once after a warm-up, out of sight (warmup.ts)

@@ -226,6 +226,9 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   in layer order, and the walls' (the walls wear the first).
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
+  - What lies beyond the grid (the skirt to the horizon and the far silhouettes, #244) is a
+    procedural recipe keyed by the environment's id in `src/lib/tabletop/world/recipes.ts`, not
+    manifest data; it wears the environment's own materials (docs/RENDERING.md "Beyond the grid").
 
 - **A sky** (#213) is `assets/skies/<id>.json`, procedural (no textures: the `sky` texture class
   stays unused), built into the manifest's `skies` inline and checked by `sky-parse.ts` both when
