@@ -5,7 +5,8 @@
 //
 // - `surfaceMapping`: where a kind's slots lie (#177, mapping.ts): box projection from world
 //   position on the surface and terrain kinds, the geometry's own space for a `local` material
-//   (door panels), triplanar on rock, the mesh's uv elsewhere (props and minis: glTF uvs, #188).
+//   (door panels), triplanar on rock (biplanar on low, #241), the mesh's uv elsewhere (props and
+//   minis: glTF uvs, #188).
 // - `slotSample`: samples with #179's mip bias (`mipBias`, a uniform: 0 but on high with TRAA).
 // - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis (paint.ts).
 // - `ownAlbedo`, `ownOutput`: #172's per-surface colour (floors and height on the terrain kind,
@@ -21,6 +22,7 @@ import type { SlotName } from './defaults';
 import type { FloorSurface } from './floors';
 import { slotDefault, slotProperty } from './defaults';
 import type { ShaderKind, Variant } from './kinds';
+import { biplanar } from './biplanar';
 import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
 import { paintedNormal, paintedRoughness } from './paint';
 import { mipBias } from './texture-quality';
@@ -43,7 +45,13 @@ export function surfaceMapping(
 ): Mapping {
 	if (kind === 'surface' || kind === 'terrain')
 		return variant.local ? localBox(repeat) : worldBox(repeat, variant.antiTiled);
-	if (kind === 'rock') return variant.local ? localBox(repeat) : triplanar(repeat);
+	// Rock (#241): triplanar from medium up (the `antiTiled` graph the tier picks), biplanar on low.
+	if (kind === 'rock')
+		return variant.local
+			? localBox(repeat)
+			: variant.antiTiled
+				? triplanar(repeat)
+				: biplanar(repeat);
 	const at = tsl.uv().mul(repeat);
 	return uvMapping(offset ? at.add(offset) : at);
 }

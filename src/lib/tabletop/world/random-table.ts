@@ -5,6 +5,7 @@
 import { FLOOR_IDS, VOID } from '../../game/floor';
 import type { SquareGrid } from '../../game/grid';
 import type { SceneObject } from '../../game/objects';
+import type { EmitterMesh } from './invariants';
 import type { ShapeInput } from './shape';
 
 const WATER = FLOOR_IDS.indexOf('water');
@@ -62,4 +63,60 @@ export function randomTable(seed: number, width = 14, height = 12): ShapeInput {
 		});
 	}
 	return { grid: g, levels, floor, objects, known };
+}
+
+/** The first hit along a ray from `o` in direction `d` (any facing), as its distance, or Infinity. */
+export function hit(m: EmitterMesh, o: number[], d: number[]): number {
+	const p = m.positions;
+	let best = Infinity;
+	for (let t = 0; t < m.indices.length; t += 3) {
+		const [a, b, c] = [m.indices[t] * 3, m.indices[t + 1] * 3, m.indices[t + 2] * 3];
+		const e1 = [p[b] - p[a], p[b + 1] - p[a + 1], p[b + 2] - p[a + 2]];
+		const e2 = [p[c] - p[a], p[c + 1] - p[a + 1], p[c + 2] - p[a + 2]];
+		const q = [
+			d[1] * e2[2] - d[2] * e2[1],
+			d[2] * e2[0] - d[0] * e2[2],
+			d[0] * e2[1] - d[1] * e2[0]
+		];
+		const det = e1[0] * q[0] + e1[1] * q[1] + e1[2] * q[2];
+		if (Math.abs(det) < 1e-12) continue;
+		const s = [o[0] - p[a], o[1] - p[a + 1], o[2] - p[a + 2]];
+		const u = (s[0] * q[0] + s[1] * q[1] + s[2] * q[2]) / det;
+		if (u < -1e-7 || u > 1 + 1e-7) continue;
+		const r = [
+			s[1] * e1[2] - s[2] * e1[1],
+			s[2] * e1[0] - s[0] * e1[2],
+			s[0] * e1[1] - s[1] * e1[0]
+		];
+		const v = (d[0] * r[0] + d[1] * r[1] + d[2] * r[2]) / det;
+		if (v < -1e-7 || u + v > 1 + 1e-7) continue;
+		const dist = (e2[0] * r[0] + e2[1] * r[1] + e2[2] * r[2]) / det;
+		if (dist > 0 && dist < best) best = dist;
+	}
+	return best;
+}
+
+/** The height of the ground straight below (x, z). */
+export const topAt = (m: EmitterMesh, x: number, z: number) => 10 - hit(m, [x, 10, z], [0, -1, 0]);
+
+/** Rays slanting down from above the table that reach the lowest ground still over it, unhit. */
+export function cracks(m: EmitterMesh, g: SquareGrid, seed: number, rays = 60): string[] {
+	const rnd = random(seed);
+	const [hw, hd] = [g.width / 2, g.height / 2];
+	let [lo, hi] = [Infinity, -Infinity];
+	for (let i = 1; i < m.positions.length; i += 3) {
+		lo = Math.min(lo, m.positions[i]);
+		hi = Math.max(hi, m.positions[i]);
+	}
+	const out: string[] = [];
+	for (let k = 0; k < rays; k++) {
+		const o = [(rnd() * 2 - 1) * hw * 0.98, hi + 1, (rnd() * 2 - 1) * hd * 0.98];
+		const [tilt, turn] = [0.3 + rnd(), rnd() * Math.PI * 2];
+		const d = [Math.sin(tilt) * Math.cos(turn), -Math.cos(tilt), Math.sin(tilt) * Math.sin(turn)];
+		const reach = (o[1] - lo + 0.01) / -d[1];
+		const [ex, ez] = [o[0] + d[0] * reach, o[2] + d[2] * reach];
+		if (Math.abs(ex) > hw - 1e-3 || Math.abs(ez) > hd - 1e-3) continue;
+		if (hit(m, o, d) > reach) out.push(`ray ${k} from ${o} along ${d}`);
+	}
+	return out;
 }

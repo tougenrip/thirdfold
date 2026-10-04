@@ -14,7 +14,9 @@
 // here the picture holds even if it did). The sky (#225) adds
 // its own poses, always run: a low camera toward the horizon, dense haze, a dark area at noon and a
 // roofed table. Bounce and cavity (#234) are on, at each tier's strength. The probe grid (#235), off
-// by default, is baked and on for the test world's player on high.
+// by default, is baked and on for the test world's player on high. The world's chunks (#240) and
+// their cliffs and risers (#241, the rock kind reading the cell behind each face) are in every case;
+// the Hollow's fogged player sees cliffs on every tier, biplanar on low and triplanar above.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again

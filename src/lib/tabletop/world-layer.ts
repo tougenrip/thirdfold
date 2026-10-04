@@ -1,18 +1,20 @@
 // The world's ground (#240): the dual-grid meshes of world/ground-mesh.ts in
 // 16x16-cell chunks, each a mesh of tops (the terrain kind in the environment's
-// surface look, receiving shadows) and a mesh of sheer sides (the terrain kind
-// in its ground look, casting and receiving; #241 gives the sides their own
-// cliffs and risers, the rock kind's, in their place). It replaces the old
-// boxes and the play-area plane, which draw again under `?off=terrain` until
-// the milestone closes. Cells are picked by the DDA over the same ground (#246).
+// surface look, receiving shadows) and a mesh of cliffs and risers per style
+// (#241, world/cliffs.ts: the rock kind with vertex colours, casting and
+// receiving; earth in the environment's ground look, masonry in its walls',
+// both in cave rock, the ground look, in the cave environments). It replaces
+// the old boxes and the play-area plane, which draw again under `?off=terrain`
+// until the milestone closes. Cells are picked by the DDA over the same ground (#246).
 //
 // It holds the world's shape for what the viewer was sent (levels, floors, the
 // explored mask; nothing about unexplored ground is an input), and rebuilds
 // only the chunks `dirtyChunks` names, each timed as `world-chunk`. The
 // renderer's `Ground` is the shape's, from the continued levels. Floors,
-// levels, environments and painting change data and uniforms only: both
-// materials are the terrain kind's one graph, warmed with stand-ins, so
-// nothing compiles. Fog and darkness are `worldModify`'s, as on every surface.
+// levels, environments and painting change data and uniforms only: the tops
+// are the terrain kind's one graph and every face the rock kind's, each warmed
+// with a stand-in, so nothing compiles. Fog and darkness are `worldModify`'s,
+// as on every surface (the faces' read the cell behind them).
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -32,6 +34,7 @@ import {
 import type { PerfRecorder } from './perf';
 import { TerrainLayer } from './terrain';
 import { standIn } from './warmup';
+import type { CliffMesh } from './world/cliffs';
 import type { GroundMesh } from './world/ground-mesh';
 import type { WorldShape } from './world/shape';
 
@@ -49,11 +52,15 @@ export function loadWorld(): Promise<WorldBuilders> {
 	return builders;
 }
 
-/** The looks without an environment: the play plane's green and the old boxes' stone. */
+/** The looks without an environment: the play plane's green, the old boxes' stone, a greyer masonry. */
 const PLAIN = {
 	top: { color: 0x2f4a3a, roughness: 1 },
-	sides: { color: 0x77705f, roughness: 0.9 }
+	earth: { color: 0x77705f, roughness: 0.9 },
+	masonry: { color: 0x8a867c, roughness: 0.85 }
 };
+
+/** The environments whose every face is cave rock (their ground look), masonry or not. */
+const CAVES = new Set(['cavern', 'living-cave']);
 
 /** What `stats()` reports of the world's chunks. */
 export interface WorldStats {
@@ -65,7 +72,8 @@ export interface WorldStats {
 
 interface Chunk {
 	top: THREE.Mesh;
-	sides: THREE.Mesh;
+	/** The faces by style (`CLIFF_STYLES`). */
+	sides: THREE.Mesh[];
 }
 
 const EMPTY = new THREE.BufferGeometry();
@@ -80,7 +88,8 @@ export class WorldLayer {
 	private readonly chunkGroup = new THREE.Group();
 	private chunks: Chunk[] = [];
 	private top: KindMaterial = createMaterial('terrain', { antiTiled: true });
-	private sides: KindMaterial = createMaterial('terrain', { antiTiled: true });
+	/** The faces' materials by style: one graph (rock, vertex colours), each its own look. */
+	private sides: KindMaterial[];
 	private inputs: unknown[] = [];
 	private on = true;
 	private lastRebuilt = 0;
@@ -94,8 +103,12 @@ export class WorldLayer {
 		this.group.add(this.chunkGroup, this.terrain.group);
 		this.terrain.group.visible = false;
 		land.showPlay(false);
+		this.sides = build.CLIFF_STYLES.map((style) => {
+			const material = createMaterial('rock', { antiTiled: true, vertexColors: true });
+			wear(material, null, PLAIN[style]);
+			return material;
+		});
 		wear(this.top, null, PLAIN.top);
-		wear(this.sides, null, PLAIN.sides);
 	}
 
 	/** The ground everything stands on: the continued levels' (identical on known cells). */
@@ -134,16 +147,26 @@ export class WorldLayer {
 		return exploredChanged;
 	}
 
-	/** The environment's looks (or the plain ones): tops wear its surface, sides its ground. */
-	setLook(look: EnvironmentLook | null, grid: SquareGrid | null): void {
+	/**
+	 * The environment's looks (or the plain ones): tops wear its surface; earth faces its ground,
+	 * masonry its walls, and in a cave environment (`environment`, its id) every face its ground.
+	 */
+	setLook(
+		look: EnvironmentLook | null,
+		grid: SquareGrid | null,
+		environment?: string | null
+	): void {
 		const cellSize = grid?.cellSize ?? 1;
-		for (const [material, own, plain] of [
-			[this.top, look?.surface ?? null, PLAIN.top],
-			[this.sides, look?.ground ?? null, PLAIN.sides]
-		] as const) {
-			wear(material, own, plain);
-			setParams(material, { repeat: repeatFor(own?.cells ?? 1, cellSize, STEP_HEIGHT) });
-		}
+		const cave = CAVES.has(environment ?? '');
+		wear(this.top, look?.surface ?? null, PLAIN.top);
+		setParams(this.top, { repeat: repeatFor(look?.surface.cells ?? 1, cellSize, STEP_HEIGHT) });
+		this.build.CLIFF_STYLES.forEach((style, i) => {
+			const own = (style === 'masonry' && !cave ? look?.walls : look?.ground) ?? null;
+			wear(this.sides[i], own, PLAIN[style]);
+			// Triplanar (or biplanar) mapping: repeats per world unit, both ways.
+			const per = 1 / ((own?.cells ?? 1) * cellSize);
+			setParams(this.sides[i], { repeat: { x: per, y: per } });
+		});
 		this.terrain.setLook(look?.ground ?? null);
 	}
 
@@ -164,10 +187,13 @@ export class WorldLayer {
 		const boxes = this.terrain.setAntiTiled(on);
 		if (!!this.top.options.antiTiled === on) return boxes;
 		this.top = twinOf(this.top);
-		this.sides = twinOf(this.sides);
-		for (const c of this.chunks) [c.top.material, c.sides.material] = [this.top, this.sides];
+		this.sides = this.sides.map(twinOf);
+		for (const c of this.chunks) {
+			c.top.material = this.top;
+			c.sides.forEach((m, i) => (m.material = this.sides[i]));
+		}
 		if (this.standIns)
-			[this.standIns[0].material, this.standIns[1].material] = [this.top, this.sides];
+			[this.standIns[0].material, this.standIns[1].material] = [this.top, this.sides[0]];
 		return true;
 	}
 
@@ -175,19 +201,22 @@ export class WorldLayer {
 		return { chunks: this.chunks.length, lastRebuilt: this.lastRebuilt };
 	}
 
-	/** Stand-ins for the warm-up (#180): a side casting its shadow may not be on the table yet. */
+	/**
+	 * Stand-ins for the warm-up (#180): a face casting its shadow may not be on the table yet. One
+	 * face stands in for every style: they share the rock kind's graph.
+	 */
 	gallery(): THREE.Object3D[] {
 		if (!this.standIns) {
 			const geometry = new THREE.BufferGeometry();
+			const triangle = (v: number[]) => new THREE.Float32BufferAttribute([...v, ...v, ...v], 3);
 			geometry.setAttribute(
 				'position',
 				new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3)
 			);
-			geometry.setAttribute(
-				'normal',
-				new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3)
-			);
-			this.standIns = [this.top, this.sides].map((m) => standIn(this.mesh(m, m === this.sides)));
+			geometry.setAttribute('normal', triangle([0, 0, 1]));
+			geometry.setAttribute('color', triangle([1, 1, 1]));
+			const [top, face] = [this.top, this.sides[0]];
+			this.standIns = [standIn(this.mesh(top, false)), standIn(this.mesh(face, true))];
 			for (const s of this.standIns) s.geometry = geometry;
 		}
 		return this.standIns;
@@ -198,7 +227,7 @@ export class WorldLayer {
 		this.standIns?.[0].geometry.dispose();
 		this.terrain.dispose();
 		disposeTwins(this.top);
-		disposeTwins(this.sides);
+		this.sides.forEach(disposeTwins);
 	}
 
 	/** Builds the chunks the shape changed since the drawn one (all of them on a new grid). */
@@ -215,9 +244,9 @@ export class WorldLayer {
 	}
 
 	private buildChunk(shape: WorldShape, c: number): void {
-		const { top, sides } = this.build.chunkGround(shape, c);
+		const { top, sides } = this.build.chunkWorld(shape, c);
 		fill(this.chunks[c].top, top);
-		fill(this.chunks[c].sides, sides);
+		sides.forEach((faces, i) => fill(this.chunks[c].sides[i], faces));
 	}
 
 	/** A chunk's mesh: never picked (#246 picks cells by maths), culled by its own bounds. */
@@ -232,21 +261,27 @@ export class WorldLayer {
 	private resize(count: number): void {
 		while (this.chunks.length > count) {
 			const c = this.chunks.pop()!;
-			for (const m of [c.top, c.sides]) {
+			for (const m of [c.top, ...c.sides]) {
 				if (m.geometry !== EMPTY) m.geometry.dispose();
 				this.chunkGroup.remove(m);
 			}
 		}
 		while (this.chunks.length < count) {
-			const c = { top: this.mesh(this.top, false), sides: this.mesh(this.sides, true) };
-			this.chunkGroup.add(c.top, c.sides);
+			const c = {
+				top: this.mesh(this.top, false),
+				sides: this.sides.map((m) => this.mesh(m, true))
+			};
+			this.chunkGroup.add(c.top, ...c.sides);
 			this.chunks.push(c);
 		}
 	}
 }
 
-/** Puts a built mesh in a chunk's geometry: positions, normals and triangles; hidden when empty. */
-function fill(mesh: THREE.Mesh, data: GroundMesh): void {
+/**
+ * Puts a built mesh in a chunk's geometry: positions, normals, a face's shades (vertex colours)
+ * and triangles; hidden when empty.
+ */
+function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh): void {
 	if (mesh.geometry !== EMPTY) mesh.geometry.dispose();
 	mesh.visible = data.indices.length > 0;
 	if (!mesh.visible) {
@@ -256,6 +291,7 @@ function fill(mesh: THREE.Mesh, data: GroundMesh): void {
 	const g = new THREE.BufferGeometry();
 	g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
 	g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
+	if ('colors' in data) g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
 	g.setIndex(new THREE.BufferAttribute(data.indices, 1));
 	g.computeBoundingSphere();
 	mesh.geometry = g;

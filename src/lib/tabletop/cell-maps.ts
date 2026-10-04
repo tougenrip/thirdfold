@@ -291,14 +291,16 @@ export const visibilitySmooth = texture(
 	min(max(cellUV.mul(u.gridSize), 0.5), u.gridSize.sub(0.5)).div(MAP_SIDE)
 );
 /**
- * The `ground` texel of the cell a fragment belongs to: R the floor's index / 255, G the level /
- * 255. Looked up a hundredth of a cell inside the surface, so a raised cell's sides (which lie on
- * the line between two cells) read their own cell, not the neighbour's.
+ * The cell a fragment belongs to, looked up a hundredth of a cell inside the surface, so a raised
+ * cell's sides (which lie on the line between two cells, or behind it under a cliff's rim, #241)
+ * read their own cell, not the neighbour's.
  */
-export const groundTexel = textureLoad(
-	BLANK_GROUND,
-	cellAt(uvOf(positionWorld.sub(normalWorldGeometry.mul(u.cellSize.mul(0.01)))))
+export const faceCell = cellAt(
+	uvOf(positionWorld.sub(normalWorldGeometry.mul(u.cellSize.mul(0.01))))
 );
+
+/** The `ground` texel of the cell a fragment belongs to (`faceCell`): R the floor's index / 255, G the level / 255. */
+export const groundTexel = textureLoad(BLANK_GROUND, faceCell);
 
 /** The `ground` texel of the fragment's cell: for what has no normals (grid lines), and the fades. */
 export const groundFlat = textureLoad(BLANK_GROUND, cell);

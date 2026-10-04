@@ -1,9 +1,10 @@
 // World-aligned mapping (#177) drawn: a wall's texture runs on across the seam between two wall
 // instances and raised cells of different heights share its phase (the geometry's own space, as
 // a door panel is mapped, would jump there), a door panel's texture moves with the panel, and
-// rock's triplanar mapping shows a new texture on every face with no new program. And against
-// z-fighting and tiling (#181): a lifted instance wins over a coplanar one whatever the draw
-// order, and macro variation and anti-tiling change the picture without a new program.
+// rock's triplanar mapping (biplanar on low, #241) shows a new texture on every face with no new
+// program. And against z-fighting and tiling (#181): a lifted instance wins over a coplanar one
+// whatever the draw order, and macro variation and anti-tiling change the picture without a new
+// program.
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -164,12 +165,18 @@ describe('world-aligned box mapping', () => {
 	});
 });
 
-describe('triplanar rock', () => {
-	it('shows a new texture on every face it draws, with no new program', async () => {
+describe('triplanar rock, and biplanar on low (#241)', () => {
+	it.each([
+		['triplanar', true],
+		['biplanar', false]
+	])('shows a new texture on every face it draws (%s), with no new program', async (_, tiled) => {
 		const { scene, camera, draw, programs } = await setup();
 		camera.position.set(3, 3, 5);
 		camera.lookAt(0, 0, 0);
-		const rock = createMaterial('rock', { slots: { albedo: flat([255, 0, 0]) } });
+		const rock = createMaterial('rock', {
+			antiTiled: tiled,
+			slots: { albedo: flat([255, 0, 0]) }
+		});
 		const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), rock);
 		mesh.rotation.y = 0.4;
 		scene.add(mesh);

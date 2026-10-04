@@ -83,7 +83,8 @@ describe('the layers on the shader kinds', () => {
 		// Doors, raised cells, props and minis are all on the fixture.
 		expect(drawn.length).toBeGreaterThan(20);
 		const kinds = new Set(drawn.map((m) => (m as { kind?: string }).kind));
-		expect(kinds).toEqual(new Set(['surface', 'terrain', 'prop', 'mini']));
+		// Rock: the world layer's cliffs and risers (#241).
+		expect(kinds).toEqual(new Set(['surface', 'terrain', 'rock', 'prop', 'mini']));
 		for (const l of layers) l.dispose();
 		overlay.dispose();
 	});

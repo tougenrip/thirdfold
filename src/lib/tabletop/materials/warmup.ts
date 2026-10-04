@@ -15,13 +15,16 @@ import {
 } from './index';
 import type { ShaderKind } from './kinds';
 
-/** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181). */
+/** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181, #241). */
 function variantsOf(kind: ShaderKind): MaterialOptions[] {
-	const world = kind === 'surface' || kind === 'terrain';
+	const world = kind === 'surface' || kind === 'terrain' || kind === 'rock';
 	const out: MaterialOptions[] = [{}];
 	if (world) out.push({ antiTiled: true });
 	if (kind === 'prop' || kind === 'mini') out.push({ vertexColors: true });
-	return out.flatMap((v) => [v, { ...v, instanced: true }]);
+	const each = out.flatMap((v) => [v, { ...v, instanced: true }]);
+	// The cliffs' and risers' faces (#241): rock with vertex colours, biplanar and triplanar.
+	if (kind === 'rock') each.push({ vertexColors: true }, { vertexColors: true, antiTiled: true });
+	return each;
 }
 
 /** A box with every attribute a kind may read: normals, uv, vertex colours and the bake. */

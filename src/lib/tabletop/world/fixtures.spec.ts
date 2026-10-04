@@ -15,6 +15,7 @@ import { EYE_LEVELS, type FogView } from '$lib/game/visibility';
 import { groundFor, STEP_HEIGHT, WALL_HEIGHT } from '../ground';
 import { checkContinuation, checkEmitter, referenceBoxes, saddleProblems } from './invariants';
 import { regionsOf } from './regions';
+import { chunkWorld, tableWorld } from './cliffs';
 import { chunkGround, tableGround } from './ground-mesh';
 import {
 	CHUNK,
@@ -175,6 +176,32 @@ describe('the world shape on every fixture', () => {
 			expect(strays, name).toEqual([]);
 		}
 	}, 60_000);
+});
+
+describe('cliffs and risers (#241) on every fixture', () => {
+	it('pass the harness for the GM, a fogged player and a spectator, each chunk its own cells', () => {
+		for (const { name } of every) {
+			const s = shapes.get(name)!;
+			expect(checkEmitter(s, tableWorld(s)), name).toEqual([]);
+			const across = chunksAcross(s.grid);
+			const strays: string[] = [];
+			for (let c = 0; c < across.x * across.y; c++) {
+				const { top, sides } = chunkWorld(s, c);
+				for (const m of [top, ...sides])
+					for (const o of m.owners) if (chunkOf(s.grid, o) !== c) strays.push(`chunk ${c}: ${o}`);
+			}
+			expect(strays, name).toEqual([]);
+		}
+	}, 120_000);
+
+	it("keeps the Hollow's faces under 30k triangles", () => {
+		const s = scene('hollow');
+		const across = chunksAcross(s.grid);
+		let triangles = 0;
+		for (let c = 0; c < across.x * across.y; c++)
+			for (const m of chunkWorld(s, c).sides) triangles += m.indices.length / 3;
+		expect(triangles).toBeLessThan(30_000);
+	});
 });
 
 describe('regions on the fixtures', () => {
