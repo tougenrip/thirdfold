@@ -578,9 +578,9 @@ The table's slab and rim are gone. `tabletop/world-ground.ts` (pure) gives a tab
 `worldExtents` has the play extent (the grid's box up to a wall above its highest floor: picking,
 views, shots, the warm-up camera, the effects' bounds, the shadow box and how far the
 camera may pull back) and the world extent (the land out to the horizon, the haze from `fogRange`,
-the far plane). `tabletop/landscape.ts` `WorldGround` draws the play plane (the terrain kind, painted
-floors from the ground map; only under `?off=terrain` since #240) and, since #244, what lies beyond
-the grid: the skirt to the horizon and the environment's silhouettes ("Beyond the grid (#244)"
+the far plane). `tabletop/landscape.ts` `WorldGround` drew the play plane (the terrain kind, painted
+floors from the ground map) until #240's chunks replaced it (deleted at M69's close) and, since #244,
+draws what lies beyond the grid: the skirt to the horizon and the environment's silhouettes ("Beyond the grid (#244)"
 below). Off the grid `worldModify` is neutral. The camera tilts to 85° and `CameraRig.keepAbove`
 holds it `GROUND_CLEARANCE` over the ground under it (the skirt's height off the grid).
 
@@ -1186,7 +1186,7 @@ in `pick.spec.ts`). Each cell is a column, solid up to `heightAt(x, y)`, its dra
 renderer's `Ground.floorY`, or `Ground.pickY` where it has one: the chasm's floor in the void, #243). The ray is clipped to the grid's
 x and z, then steps column by column (`tMax`/`tDelta` per axis): in each, a ray already under the
 column's top hits its `side` where it came in (a raised column's wall, picked as the raised cell,
-as `TerrainLayer.pick` did), and a ray that drops to the top before leaving hits its `top`. It
+as the old boxes' pick did), and a ray that drops to the top before leaving hits its `top`. It
 returns `{ cell, point, face }`, or `{ cell: null, point }` with the ray's point on the y = 0 plane
 (null if it never meets it). Beyond the grid the ground is that plane: a ray coming into the grid
 under it met it outside, so it picks nothing. A cut (#281) lowers every column above `cutLevel` to
@@ -1198,8 +1198,7 @@ the grid has no cell but still snaps corners and edges along the border. The thi
 `PICK_LAYER` (1) only: `pickable(mesh)` enables it (layer 0 stays, so they still draw) on every
 token base and figure, wall instance, door panel, prop mesh, fixture mesh and GM light handle, and
 the raycaster tests only that layer, so ground, cliffs, the backdrop, dice and effects are never
-tested. `tablePlane` is gone, and `TerrainLayer.pick` is no longer called (both go with the layer at
-the milestone's close).
+tested. `tablePlane` is gone, and so, since the milestone's close, is `TerrainLayer` with its `pick`.
 
 `pick.spec.ts` checks the DDA against the picker it replaced, written there in plain maths (a box
 per raised cell from y = 0 to its floor, and the y = 0 plane, the nearer winning, ties to the box):
@@ -1211,9 +1210,8 @@ raised ground (29,449 on a side) and 169,651 on no cell, every one the same cell
 5, the nave beside it and the gallery's south face, and beyond the grid's edge (no cell, a border
 corner), and checks every object a raycast tested is on the pick layer.
 
-A fogged player's picks follow the levels the renderer draws: as sent while `TerrainLayer` draws
-them, the continued levels once #240's layer does (the renderer's `ground` then comes from
-`worldShape`). Neither reads anything of an unexplored cell that the picture doesn't show.
+A fogged player's picks follow the levels the renderer draws: the continued levels #240's layer
+draws (the renderer's `ground` comes from `worldShape`). Neither reads anything of an unexplored cell that the picture doesn't show.
 
 ### Dice and previews on the ground (#247)
 
@@ -1262,7 +1260,8 @@ the Hollow (48x36), where raycasting its raised boxes and the plane took 88 µs 
 
 ### The ground in chunks (#240)
 
-The ground inside the grid is no longer the play plane and `TerrainLayer`'s boxes: `WorldLayer`
+The ground inside the grid is no longer the play plane and `TerrainLayer`'s boxes (both deleted at
+the milestone's close): `WorldLayer`
 (`world-layer.ts`) draws the world's shape as dual-grid meshes, one 16x16-cell chunk at a time, built by
 the pure `chunkGround(shape, chunk)` (`world/ground-mesh.ts`).
 
@@ -1323,11 +1322,11 @@ renderer chunk arrives, so a prefetched table never waits on it. Its materials a
 kinds', warmed as before. What a frame needs at once stays in the renderer: the DDA's picks (`world/pick.ts`) and
 the wall spans (`world/wall-spans.ts`, which the walls draw from).
 
-**The fallback.** The `terrain` layer (`LAYERS` in `quality.ts`, on): `?off=terrain` draws the old boxes
-and the play plane again and builds no chunk; back on, every chunk is built. `TerrainLayer` stays in the
-layer, hidden, synced from the continued ground. Both go at the milestone's close. Picking (#246) needs
-neither: the DDA walks the renderer's `Ground`, which is the shape's, so a fogged player's picks land on
-the continued ground the chunks draw.
+**No fallback.** Until the milestone's close a `terrain` layer (`?off=terrain`) drew the old boxes and
+the play plane instead of the chunks; the close deleted the layer, `TerrainLayer` (`terrain.ts`), the play
+plane, the old `LineSegments` grid and the highlight plane. Picking (#246) needs none of them: the DDA walks
+the renderer's `Ground`, which is the shape's, so a fogged player's picks land on the continued ground the
+chunks draw.
 
 **Deviations from #240.** Border tiles do not overhang the grid by half a cell: the skirt meets the play
 area at the grid's edge at y = 0 (`skirtMesh`, #244), so an overhang would z-fight with it; they stop at the
@@ -1341,7 +1340,7 @@ minute) mounts the Hollow for the GM and checks the nine chunks are drawn, the g
 floor height (rays straight down onto the chunk meshes), the rebuild counts per edit (a cell inside the
 middle chunk 1, on its corner 4, every floor over its inside 1 each, a 16x16 area with its margin 9, a
 raise inside it 1), no program or pipeline from any of it, a fogged player's explored disc moving 35
-steps east rebuilding 1 to 4 chunks a step, and `?off=terrain`.
+steps east rebuilding 1 to 4 chunks a step.
 
 ### Beyond the grid (#244)
 
@@ -1622,11 +1621,11 @@ projected onto whatever ground the chunks draw, shown as much as the moment need
   with the grid on and off), there is no fade, and a change draws its frame and the table goes idle
   (renderer.svelte.spec.ts). The twins are hidden while there is neither grid nor highlight, so off
   costs nothing; otherwise one draw per chunk with tops.
-- **Warm-up.** The twins are hidden until shown, so `GridOverlay.gallery()` gives a stand-in (and one
-  for the old plane) to the overlay batch, as the selection ring has.
-- **The fallback.** Under `?off=terrain` the old `LineSegments` grid (by strength, masked by floor
-  cover and `worldShade`) and the highlight plane draw instead, beside the old boxes; the
-  milestone's close deletes them with `GridOverlay.setGrid`.
+- **Warm-up.** The twins are hidden until shown, so `GridOverlay.gallery()` gives a stand-in to the
+  overlay batch, as the selection ring has.
+- **No fallback.** The old `LineSegments` grid and the highlight plane, drawn under `?off=terrain`
+  until the milestone's close, were deleted there with `GridOverlay.setGrid` and the `terrain` layer;
+  `setHighlight` takes only the cell and its kind.
 - **Specs.** grid-overlay.svelte.spec.ts (`RENDER_SPECS`, the `grid` job in rendering.yml) mounts the
   monastery: a twin on every chunk top sharing its geometry, hidden while off, following a raise;
   and the pixels each mode changes (build the most, explore round the focus fewer, overview fainter,
@@ -1786,7 +1785,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `sky.ts`                              | `SkyLayer`: the dome, moon, stars and clouds, and the capture into `SKY_CUBE`/`SKY_CUBE_LOW`                                                                                                                               |
 | `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                                                                                                                    |
 | `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                                                                                                          |
-| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `spanOf`); `WorldGround`, the play plane and what lies beyond (#244)                                                                                                           |
+| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `spanOf`); `WorldGround`, what lies beyond (#244)                                                                                                                              |
 | `previews.ts`                         | Editor previews from a pool of instanced meshes on the ground (`previewPlacements`, #247), the beacon and the highlighted cell                                                                                             |
 | `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                                                                                                              |
 | `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`                                                                                            |
@@ -1804,8 +1803,8 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                                                                                                            |
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                                                                                                             |
 | `world/`                              | The world's shape (M69), the cliffs (`cliffs.ts`, #241), what lies beyond the grid (`beyond.ts`, `recipes.ts`, #244); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer |
-| `world-layer.ts`                      | `WorldLayer`: the shader grid's twins per chunk (#245), the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the shape it is built from, the old boxes behind `?off=terrain`                          |
-| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                                                         |
+| `world-layer.ts`                      | `WorldLayer`: the shader grid's twins per chunk (#245), the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the void's floor (#243), the shape it is built from                                      |
+| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                                                                       |
 
 ## Quality tiers
 
@@ -2004,8 +2003,7 @@ passes, in order:
   - **The grid shows only when wanted** (#167): hidden at rest, shown while the GM's Build panel
     is open, while placing a token or an enemy, and while a hover highlight aims a move, or always
     with the Graphics menu's Always show grid. Since #245 the grid is a shader on the ground with
-    display modes ("The shader grid" under M69); these lines draw only under `?off=terrain` until
-    the milestone closes.
+    display modes ("The shader grid" under M69), and M69's close deleted these lines.
 - **Each hour has its own hues** (#167, since #218 from the atmosphere curve): the sky preset gives
   the hemisphere a sky and a ground colour through the day (moon-blue over deep blue at night, peach
   over slate at dusk, day's warm pair). Only colours change, so a change of hour compiles nothing. The dark itself is `worldModify`'s, from `lightLevels` (#173 deleted the
@@ -2428,7 +2426,8 @@ program. Data textures (cell maps, LUTs, the slots' blanks) are never registered
 
 - **The table** (`table.ts`): the top is the terrain kind, the rim the surface kind, both
   `antiTiled` from the start and remade (`twinOf`) when the tier's `antiTile` differs.
-  **Raised ground** (`terrain.ts`) is the terrain kind, instanced. The terrain kind reads the
+  **Raised ground** (`terrain.ts`, deleted at M69's close for the world layer's chunks) was the
+  terrain kind, instanced. The terrain kind reads the
   `ground` map (`ownAlbedo`): on the table each floor's colour (`floorPalette`, from
   `FLOOR_LOOKS`, a uniform array) over the textured surface at its cover (plain none, the void
   all); on a raised cell its texture in its floor's colour or the look's, paler with height toward

@@ -3,9 +3,8 @@
 // surface look, receiving shadows) and a mesh of cliffs and risers per style
 // (#241, world/cliffs.ts: the rock kind with vertex colours, casting and
 // receiving; earth in the environment's ground look, masonry in its walls',
-// both in cave rock, the ground look, in the cave environments). It replaces
-// the old boxes and the play-area plane, which draw again under `?off=terrain`
-// until the milestone closes. Cells are picked by the DDA over the same ground (#246).
+// both in cave rock, the ground look, in the cave environments). Cells are
+// picked by the DDA over the same ground (#246).
 //
 // It holds the world's shape for what the viewer was sent (levels, floors, the
 // explored mask; nothing about unexplored ground is an input), and rebuilds
@@ -49,7 +48,6 @@ import {
 	type KindMaterial
 } from './materials';
 import type { PerfRecorder } from './perf';
-import { TerrainLayer } from './terrain';
 import { standIn } from './warmup';
 import type { Chasm } from './world/chasm';
 import type { CliffMesh } from './world/cliffs';
@@ -70,7 +68,7 @@ export function loadWorld(): Promise<WorldBuilders> {
 	return builders;
 }
 
-/** The looks without an environment: the play plane's green, the old boxes' stone, a greyer masonry. */
+/** The looks without an environment: a green ground, stone earth, a greyer masonry. */
 const PLAIN = {
 	top: { color: 0x2f4a3a, roughness: 1 },
 	earth: { color: 0x77705f, roughness: 0.9 },
@@ -113,8 +111,6 @@ const EMPTY = new THREE.BufferGeometry();
 
 export class WorldLayer {
 	readonly group = new THREE.Group();
-	/** The old boxes: drawn with the layer off (`?off=terrain`). */
-	readonly terrain = new TerrainLayer();
 	/** The grid and the hover highlight on the chunks' tops (#245): its group goes in the overlay. */
 	readonly grid = new GridOverlay();
 	/** The world's shape for what the viewer was sent, and the one the chunks show. */
@@ -131,7 +127,6 @@ export class WorldLayer {
 	private picks: Ground | null = null;
 	private cellSize = 1;
 	private inputs: unknown[] = [];
-	private on = true;
 	private lastRebuilt = 0;
 	private standIns: THREE.Mesh[] | null = null;
 	/** Each cell's drop start (#249), and the shape the last drawn frame showed. */
@@ -144,9 +139,7 @@ export class WorldLayer {
 		private readonly build: WorldBuilders,
 		private readonly drops: Drops
 	) {
-		this.group.add(this.chunkGroup, this.terrain.group);
-		this.terrain.group.visible = false;
-		land.showPlay(false);
+		this.group.add(this.chunkGroup);
 		this.sides = build.CLIFF_STYLES.map((style) => {
 			const material = createMaterial('rock', {
 				antiTiled: true,
@@ -179,9 +172,7 @@ export class WorldLayer {
 		const { style } = this.chasm;
 		const mist = style === 'chasm' && !!this.top.options.antiTiled;
 		const moving =
-			!reducedMotion &&
-			this.on &&
-			(style === 'scroll' || (mist && this.chunks.some((c) => c.bottom.visible)));
+			!reducedMotion && (style === 'scroll' || (mist && this.chunks.some((c) => c.bottom.visible)));
 		if (moving) worldTime.value = (now / 1000) % WRAP_S;
 		return moving;
 	}
@@ -215,7 +206,6 @@ export class WorldLayer {
 		});
 		const { shape } = this;
 		this.picks = this.build.chasmGround(grid, shape.ground, shape.floor, () => this.chasm);
-		this.terrain.sync(grid, shape.ground);
 		this.dropIn(previous, shape);
 		this.rebuild();
 		return exploredChanged;
@@ -242,27 +232,12 @@ export class WorldLayer {
 			const per = 1 / ((own?.cells ?? 1) * cellSize);
 			setParams(this.sides[i], { repeat: { x: per, y: per } });
 		});
-		this.terrain.setLook(look?.ground ?? null);
 		this.paintVoid(); // the skirt's new look, under the sea and the moving ground
-	}
-
-	/** The chunks (on) or the old boxes and play plane (off, `?off=terrain`). True if it changed. */
-	setOn(on: boolean): boolean {
-		if (on === this.on) return false;
-		this.on = on;
-		this.chunkGroup.visible = on;
-		this.terrain.group.visible = !on;
-		this.grid.setOn(on);
-		this.land.showPlay(!on);
-		this.drawn = null; // back on, every chunk is built again
-		this.rebuild();
-		return true;
 	}
 
 	/** The tier's anti-tiling (#181), as the other layers: true if the materials were remade. */
 	setAntiTiled(on: boolean): boolean {
-		const boxes = this.terrain.setAntiTiled(on);
-		if (!!this.top.options.antiTiled === on) return boxes;
+		if (!!this.top.options.antiTiled === on) return false;
 		this.top = twinOf(this.top);
 		this.sides = this.sides.map(twinOf);
 		this.bottom = twinOf(this.bottom);
@@ -306,7 +281,6 @@ export class WorldLayer {
 	dispose(): void {
 		this.resize(0);
 		this.standIns?.[0].geometry.dispose();
-		this.terrain.dispose();
 		this.grid.dispose();
 		disposeTwins(this.top);
 		this.sides.forEach(disposeTwins);
@@ -362,7 +336,7 @@ export class WorldLayer {
 	/** Builds the chunks the shape changed since the drawn one (all of them on a new grid). */
 	private rebuild(): void {
 		const shape = this.shape;
-		if (!this.on || !shape) return;
+		if (!shape) return;
 		const drawn = this.drawn?.grid.cellSize === shape.grid.cellSize ? this.drawn : null;
 		const dirty = this.build.dirtyChunks(drawn, shape);
 		const { x, y } = this.build.chunksAcross(shape.grid);

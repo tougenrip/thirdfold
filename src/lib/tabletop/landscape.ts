@@ -1,9 +1,8 @@
-// The ground and what lies beyond it (#220, #244): the play plane under the grid (drawn only with
-// `?off=terrain`, the chunks draw the ground otherwise), and beyond the grid the skirt out to the
-// horizon and the environment's silhouettes, fogged into the sky (world/beyond.ts has the shapes,
-// built in the lazy world chunk). The play plane is the terrain kind (#172), so it draws the
-// painted floors from the ground map itself. Everything beyond is the surface kind, wholly off the
-// grid, where `worldModify` is neutral: it is built from the environment's id, the world look's
+// What lies beyond the ground (#220, #244): the world layer's chunks draw the ground inside the
+// grid (#240), and beyond it this draws the skirt out to the horizon and the environment's
+// silhouettes, fogged into the sky (world/beyond.ts has the shapes, built in the lazy world
+// chunk). It also puts the floors' surfaces (#187) in the terrain kind's arrays (`wearFloors`).
+// Everything here is the surface kind, wholly off the grid, where `worldModify` is neutral: it is built from the environment's id, the world look's
 // backdrop and the grid's size only, never from a cell, so the GM, players and spectators see the
 // same and it tells nobody about unexplored ground; it is never picked and casts no shadow. The
 // skirt wears the environment's ground look (water for the sea), the silhouettes the look each
@@ -38,7 +37,6 @@ import type { WorldBuilders } from './world-layer';
 const PLAIN = {
 	/** The skirt without an environment: plain earth, never wood. */
 	ground: { color: 0x4d4a42, roughness: 1 },
-	surface: { color: 0x2f4a3a, roughness: 1 },
 	/** The sea (#120 gives it swell and a water kind): flat, dark and glossy. */
 	water: { color: 0x1d3640, roughness: 0.25 }
 };
@@ -64,8 +62,6 @@ export class WorldGround {
 	private ridgeMaterials: KindMaterial[] = Array.from({ length: RIDGES }, () =>
 		createMaterial('surface', { antiTiled: true })
 	);
-	private surfaceMaterial: KindMaterial = createMaterial('terrain', { antiTiled: true });
-	private surface: THREE.Mesh | null = null;
 	private beyondMeshes: THREE.Mesh[] = [];
 	private extents: Extents | null = null;
 	private beyond: Beyond | null = null;
@@ -76,7 +72,6 @@ export class WorldGround {
 	private look: EnvironmentLook | null = null;
 	private cellSize = 1;
 	private low = false;
-	private playShown = true;
 	/** Told the backdrop once its skirt is built and painted (world-layer.ts: the void follows it). */
 	onBackdrop: ((backdrop: WorldLook['backdrop']) => void) | null = null;
 
@@ -91,26 +86,9 @@ export class WorldGround {
 	readonly heightAt = (x: number, z: number): number | null =>
 		this.beyond && this.builders.beyondHeightAt(this.beyond, x, z);
 
-	/** The play plane: hidden while the world's chunks (#240) draw the ground, shown with `?off=terrain`. */
-	showPlay(shown: boolean): void {
-		this.playShown = shown;
-		if (this.surface) this.surface.visible = shown;
-	}
-
-	/** Lays the ground for a table's extents. */
+	/** Lays what lies beyond for a table's extents. */
 	build(extents: Extents): void {
-		if (this.surface) {
-			this.surface.geometry.dispose();
-			this.group.remove(this.surface);
-		}
 		this.extents = extents;
-		const { width, depth } = extents.play;
-		const surface = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), this.surfaceMaterial);
-		surface.rotation.x = -Math.PI / 2;
-		surface.receiveShadow = true;
-		surface.visible = this.playShown;
-		this.surface = surface;
-		this.group.add(surface);
 		this.rebuild();
 	}
 
@@ -145,13 +123,11 @@ export class WorldGround {
 		this.rebuild();
 	}
 
-	/** Dresses the play plane and what lies beyond in the environment's looks, or the plain ones. */
+	/** Dresses what lies beyond in the environment's looks, or the plain ones. */
 	dress(look: EnvironmentLook | null, grid: SquareGrid | null): void {
 		this.look = look;
 		this.cellSize = grid?.cellSize ?? 1;
-		wear(this.surfaceMaterial, look?.surface ?? null, PLAIN.surface);
 		wearFloors(look?.floors ?? null, this.cellSize); // the floors' surfaces (#187), the terrain kind's
-		setParams(this.surfaceMaterial, this.tile(look?.surface.cells ?? 1));
 		this.paint();
 	}
 
@@ -160,21 +136,17 @@ export class WorldGround {
 	 * True if remade: the renderer warms the new variant up, not compiling it mid-frame.
 	 */
 	setAntiTiled(on: boolean): boolean {
-		if (!!this.surfaceMaterial.options.antiTiled === on) return false;
+		if (!!this.skirtMaterial.options.antiTiled === on) return false;
 		// Their twins, kept (#180): switching back and again releases and compiles nothing.
 		this.skirtMaterial = twinOf(this.skirtMaterial);
 		this.ridgeMaterials = this.ridgeMaterials.map(twinOf);
-		this.surfaceMaterial = twinOf(this.surfaceMaterial);
-		if (this.surface) this.surface.material = this.surfaceMaterial;
 		this.beyondMeshes.forEach((m, i) => (m.material = this.materialOf(i)));
 		return true;
 	}
 
 	dispose(): void {
 		this.clearBeyond();
-		this.surface?.geometry.dispose();
-		for (const m of [this.skirtMaterial, this.surfaceMaterial, ...this.ridgeMaterials])
-			disposeTwins(m);
+		for (const m of [this.skirtMaterial, ...this.ridgeMaterials]) disposeTwins(m);
 	}
 
 	private tile(cells: number) {

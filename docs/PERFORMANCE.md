@@ -977,7 +977,7 @@ bounds:
 - **A one-cell paint** rebuilds one chunk (four on a chunk's corner): about 1 ms of meshing; the edit's
   total (the shape, about 0.6 ms on 64x64, then the chunk) stays within 2-5 ms. A fogged player's step
   rebuilds one to four chunks (the world-layer spec walks 35 steps across the Hollow).
-- **A whole table** (a new table, or `?off=terrain` turned back on) is 3-21 ms on the fixtures and about
+- **A whole table** (a new table) is 3-21 ms on the fixtures and about
   45-65 ms on a busy 100x100 one. A new table is built twice today, once for `setGrid` (flat) and again
   for `setTerrain`; batching the build to the next frame would halve that, if it ever shows.
 - **The issue's 1.5 ms a chunk on the dGPU machine** holds on average (0.75-1.3 ms on the fixtures);

@@ -58,9 +58,7 @@ export const LAYERS = [
 	'dof',
 	'fogcloud',
 	'bounce',
-	'probes',
-	/** The world's dual-grid ground (#240); off draws the old boxes and play plane until M69 closes. */
-	'terrain'
+	'probes'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
@@ -217,7 +215,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'bounce', 'terrain']);
+const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'bounce']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */

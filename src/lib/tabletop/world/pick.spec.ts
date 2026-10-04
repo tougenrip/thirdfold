@@ -128,7 +128,7 @@ interface Box {
 	hi: [number, number, number];
 	cell: GridPos;
 }
-/** One box per raised cell, from y = 0 to its floor, as TerrainLayer drew them. */
+/** One box per raised cell, from y = 0 to its floor, as the old raised-cell boxes were drawn. */
 function boxesOf(g: SquareGrid, levels: Uint8Array | null): Box[] {
 	const ground = groundFor(g, levels);
 	const s = g.cellSize / 2;

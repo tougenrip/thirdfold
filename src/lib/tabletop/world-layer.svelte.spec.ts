@@ -2,7 +2,7 @@
 // lake's void): every chunk drawn, the ground at each cell's floor height, a floor paint or a
 // terrain raise rebuilding only the chunks it touches plus the margin, a fogged player's explored
 // ground growing step by step rebuilding at most four chunks a step, nothing compiling on any of
-// it, and `?off=terrain` drawing the old boxes and play plane instead. Cliffs and risers (#241):
+// it. Cliffs and risers (#241):
 // the Hollow's faces on the rock kind in cave rock, and the monastery's stairs as risers (their
 // worn nosing's shade) beside its cliffs (their rim's), nothing compiling as a stair is raised.
 
@@ -13,7 +13,6 @@ import { gridToWorld } from '$lib/game/grid';
 import { decodeLevels } from '$lib/game/terrain';
 import { encodeMask } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
-import { settingsFor } from './quality';
 import { loadSidecar, loadView, manualClock, mountFixture, settle, type Mounted } from './testing';
 
 vi.setConfig({ testTimeout: 240_000 });
@@ -151,20 +150,6 @@ describe('the world layer', () => {
 			expect(rebuilt(), `step to ${cx}`).toBeGreaterThan(0);
 			expect(rebuilt(), `step to ${cx}`).toBeLessThanOrEqual(4);
 		}
-
-		// ?off=terrain: the old boxes and the play plane, no chunks.
-		const settings = settingsFor('medium', t.capabilities().backend);
-		settings.shadowedTorches = 0;
-		t.setQuality({ ...settings, layers: { ...settings.layers, terrain: false } });
-		expect(chunkMeshes(scene).filter(shown)).toEqual([]);
-		const boxes: THREE.Object3D[] = [];
-		scene.traverse((o) => {
-			const kind = o instanceof THREE.InstancedMesh && (o.material as { kind?: string }).kind;
-			if (kind === 'terrain' && shown(o)) boxes.push(o);
-		});
-		expect(boxes).toHaveLength(1);
-		t.setQuality({ ...settings, layers: { ...settings.layers, terrain: true } });
-		expect(chunkMeshes(scene).filter(shown).length).toBeGreaterThanOrEqual(9);
 	});
 
 	it("draws the monastery's stairs as risers and its gallery, ledge and belfry as cliffs", async () => {

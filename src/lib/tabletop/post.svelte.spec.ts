@@ -351,11 +351,11 @@ describe('the overlay', () => {
 					at(x + (i % 6) * 0.1, z + Math.floor(i / 6) * 0.1)
 				).flat()
 			);
-		grid.setHighlight({ x: 0, y: 1 }, 'blocked', TABLE, null);
+		grid.setHighlight({ x: 0, y: 1 }, 'blocked');
 		const hidden = await view([], overlay);
 		expect(Math.max(...patch(hidden, -1.8))).toBe(0);
 		renderer!.dispose();
-		grid.setHighlight({ x: 3, y: 1 }, 'blocked', TABLE, null);
+		grid.setHighlight({ x: 3, y: 1 }, 'blocked');
 		const seen = await view([], overlay);
 		expect(Math.max(...patch(seen, 1.2))).toBeGreaterThan(0);
 		grid.dispose();

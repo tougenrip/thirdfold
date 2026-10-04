@@ -289,7 +289,6 @@ export async function createTabletop(
 	function buildTable(g: SquareGrid): void {
 		const extents = fitToTable(lights, atmosphere, camera, controls, g, levels, true);
 		land.build(extents);
-		worldLayer.grid.setGrid(g); // the old lines, for ?off=terrain until the close
 		applyLook();
 		frame = extents.play.frame;
 		effects.setBounds(extents.play.width, extents.play.depth, Math.max(4, frame * 0.2));
@@ -302,7 +301,6 @@ export async function createTabletop(
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	atmosphere.setTier(quality.current.tier, quality.current.layers.sky);
 	land.setTier(quality.current.tier);
-	worldLayer.setOn(quality.current.layers.terrain);
 	cloud.setLayer(quality.current.layers.fogcloud, quality.current.tier === 'low');
 	controls.addEventListener('change', requestRender);
 
@@ -386,7 +384,7 @@ export async function createTabletop(
 		setActive: (tokenId, enemy) => tokenLayer.setActive(tokenId, enemy) && requestRender(),
 		showFloat: (id, text, color) => tokenLayer.float(id, text, color) && requestRender(),
 		setHighlight(cell, kind) {
-			worldLayer.grid.setHighlight(cell, kind, grid, ground);
+			worldLayer.grid.setHighlight(cell, kind);
 			requestRender();
 		},
 		setDarkness(next) {
@@ -478,7 +476,6 @@ export async function createTabletop(
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
 			const remade = [land, worldLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
-			remade.push(worldLayer.setOn(settings.layers.terrain)); // ?off=terrain
 			if (lighting.setTier(settings) || remade.includes(true)) warmPending = true; // K: #228
 		},
 		capabilities: () => quality.caps,
