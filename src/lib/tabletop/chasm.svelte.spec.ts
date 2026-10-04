@@ -128,7 +128,13 @@ describe('the void as chasms', () => {
 		const clock = manualClock();
 		// Over the gap between the dining car and the coach (x = 46), from above.
 		const pose = { target: { x: 46, y: 3 }, distance: 9, azimuth: 0, elevation: 70 };
-		let m = await mountFixture(view, pose, { clock, heroes: false });
+		let redraw = () => {};
+		let m = await mountFixture(view, pose, {
+			clock,
+			heroes: false,
+			reducedMotion: false,
+			devScene: (_, draw) => (redraw = draw)
+		});
 		mounted = m;
 		await settle(m.tabletop, 400, 60_000, clock);
 		const scene = compile.mock.calls[0][2] as THREE.Scene;
@@ -144,18 +150,25 @@ describe('the void as chasms', () => {
 		const material = floors[0].material as unknown as { params: { flow: THREE.Vector2 } };
 		expect(material.params.flow.x).toBeGreaterThan(0);
 		expect(material.params.flow.y).toBe(0);
-		// The gap shows the ground going by, not black paint.
-		const gap = new THREE.Vector3(at(46, 1).x, drop, at(46, 1).z);
-		const camera = new THREE.PerspectiveCamera(45, WIDTH / HEIGHT, 0.1, 1000);
-		const p = m.tabletop.cameraPose()!;
-		camera.position.set(p.position.x, p.position.y, p.position.z);
-		camera.lookAt(p.target.x, p.target.y, p.target.z);
-		camera.updateMatrixWorld();
-		gap.project(camera);
-		const [px, py] = [((gap.x + 1) / 2) * WIDTH, ((1 - gap.y) / 2) * HEIGHT];
-		const read = await readFrame(m.canvas, WIDTH, HEIGHT);
-		const [r, g, b] = read(Math.round(px), Math.round(py));
-		expect((r + g + b) / 3, 'the moving ground in the gap').toBeGreaterThan(12);
+		// The floors are drawn: taking them away changes the frame, under the gaps.
+		const lit = await readFrame(m.canvas, WIDTH, HEIGHT);
+		for (const f of floors) f.visible = false;
+		redraw();
+		await settle(m.tabletop, 400, 60_000, clock);
+		const without = await readFrame(m.canvas, WIDTH, HEIGHT);
+		for (const f of floors) f.visible = true;
+		let changed = 0;
+		let most = 0;
+		for (let y = 0; y < HEIGHT; y += 2)
+			for (let x = 0; x < WIDTH; x += 2) {
+				const d = Math.max(...lit(x, y).map((c, k) => Math.abs(c - without(x, y)[k])));
+				most = Math.max(most, d);
+				if (d > 2) changed++;
+			}
+		// Dim in the GM's view of ground the party hasn't seen, under the enclosed sky: 173 pixels of
+		// every fourth (by up to 4 levels) on SwiftShader.
+		expect(changed, 'pixels the moving ground draws').toBeGreaterThan(50);
+		expect(most).toBeGreaterThan(2);
 		// Its clock runs on ambient frames as the held clock moves on.
 		const t0 = worldTime.value;
 		clock.set(clock.now() + 1500);
