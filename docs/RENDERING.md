@@ -1279,8 +1279,8 @@ the pure `chunkGround(shape, chunk)` (`world/ground-mesh.ts`).
   up; across a saddle only the pair `dualCase` joins is (a filled low quarter, or cut high ones), and a
   pinched saddle stays square. A sliver lies 0.6 cell from any cell's centre, so token disks stay flat.
   Tiles with an unexplored, off-table or void corner stay square.
-- **Sides** are sheer until #241 makes them cliffs and risers: wherever two heights meet there is one
-  vertical face, made by the higher piece's cell (normal toward the lower), so each chunk holds only its
+- **Sides** are sheer here, and #241 (below) turns each into a cliff or a riser: wherever two heights
+  meet there is one vertical face, made by the higher piece's cell (normal toward the lower), so each chunk holds only its
   own cells' triangles (the owners say so, and a spec checks it). A known cell on the table's border gets
   a face down (or, round the void, up) to the ring at 0. Between two unexplored cells, or an unexplored
   cell and the border, nothing may stand on the edge (the harness's `unexplored-face`), so a **skirt**
@@ -1292,16 +1292,16 @@ the pure `chunkGround(shape, chunk)` (`world/ground-mesh.ts`).
   each of them that must hit the ground before falling below its lowest point (no cracks), and the
   rounding, chamfer, saddle, void and chunk-ownership cases (`ground-mesh.spec.ts`, `fixtures.spec.ts`).
 
-**The layer.** Per chunk a top mesh (receives shadows) and a side mesh (casts and receives; the shadow
-pass draws back faces), each its own `BufferGeometry` (position, normal, 32-bit indices) with its own
-bounding sphere for culling, `raycast` a no-op. Both are the **terrain kind** (non-instanced, anti-tiled
-on medium and up): tops wear the environment's `surface` look (so plain cells look as the play plane
-did), sides its `ground` look (as the boxes did); the floors, their painted surfaces and the paleness of
-height come from the ground map as before. One graph, so nothing compiles: floors, levels, the explored
-mask and environments change data and uniforms only, and the warm-up compiles both through stand-ins
-(`gallery`), a casting side among them, since a flat table has none until the GM raises ground (the
-program-count sweep raises, stairs and flattens the test world's ground). Sides moving onto the rock
-kind is #241's, with their cliffs.
+**The layer.** Per chunk a top mesh (receives shadows) and a face mesh per cliff style (casts and
+receives; the shadow pass draws back faces), each its own `BufferGeometry` (position, normal, 32-bit
+indices; the faces also a colour) with its own bounding sphere for culling, `raycast` a no-op. Tops are
+the **terrain kind** (non-instanced, anti-tiled on medium and up) in the environment's `surface` look (so
+plain cells look as the play plane did); the floors, their painted surfaces and the paleness of height
+come from the ground map as before. The faces are the **rock kind** since #241 (below). Nothing
+compiles: floors, levels, the explored mask and environments change data and uniforms only, and the
+warm-up compiles both kinds through stand-ins (`gallery`), a casting face among them, since a flat table
+has none until the GM raises ground (the program-count sweep raises, stairs and flattens the test
+world's ground).
 
 **Its inputs and rebuilds.** `WorldLayer.update(grid, levels, floor, fog, mode)` (from the renderer's
 `setGrid`, `setTerrain`, `setFloor` and `setFog`) makes the shape from what the viewer was sent (`known`
@@ -1316,12 +1316,12 @@ changes. The renderer's own `levels` (the camera's fit, the light's) stay as sen
 
 **Its own chunk.** The builders are a lazy chunk, `world` (`world/build.ts`, its own budget in
 `scripts/check-bundle.mjs`): the shape (`worldShape`, `knownOf`, `dirtyChunks`), the dual cases, the
-regions and the ground's emitter, and every builder to come (cliffs, the void and beyond, splats), each
+regions, the ground's emitter, the cliffs (#241), and every builder to come (the void and beyond, splats), each
 exported from `build.ts` and imported elsewhere in the renderer only as a type. `WorldLayer` takes the
 module; `createTabletop` awaits `loadWorld()` beside the node renderer, so it is there before the table's
 first frame (inside the loading cover's wait), and `loadRenderer` (load.ts) starts it as soon as the
-renderer chunk arrives, so a prefetched table never waits on it. Its materials are the terrain kind's,
-warmed as before. What a frame needs at once stays in the renderer: the DDA's picks (`world/pick.ts`) and
+renderer chunk arrives, so a prefetched table never waits on it. Its materials are the terrain and rock
+kinds', warmed as before. What a frame needs at once stays in the renderer: the DDA's picks (`world/pick.ts`) and
 the wall spans (`world/wall-spans.ts`, which the walls draw from).
 
 **The fallback.** The `terrain` layer (`LAYERS` in `quality.ts`, on): `?off=terrain` draws the old boxes
@@ -1335,8 +1335,7 @@ area at the grid's edge at y = 0 (`ringVertices`), so an overhang would z-fight 
 edge, with the boxes' faces down to 0. There is no owner-cell vertex attribute on the GPU: the terrain
 kind reads each fragment's cell from the ground map by its position, as the boxes did (a rounded sliver
 takes the colour of the cell it lies in), and an attribute only the chunks carry would be a program of
-their own; the owners stay on the CPU for the harness. Sides are the terrain kind, not the rock kind,
-until #241.
+their own; the owners stay on the CPU for the harness. (Sides were the terrain kind until #241.)
 
 **Specs.** `world-layer.svelte.spec.ts` (`RENDER_SPECS`, its own `world` job in rendering.yml, about a
 minute) mounts the Hollow for the GM and checks the nine chunks are drawn, the ground at every cell's
@@ -1345,44 +1344,125 @@ middle chunk 1, on its corner 4, every floor over its inside 1 each, a 16x16 are
 raise inside it 1), no program or pipeline from any of it, a fogged player's explored disc moving 35
 steps east rebuilding 1 to 4 chunks a step, and `?off=terrain`.
 
+### Cliffs and risers (#241)
+
+Every vertical face of the chunks is now a **riser** or a **cliff**, so a player tells a step they can
+climb from a drop at a glance, by its shape as well as its colour. `world/cliffs.ts` (pure, in the
+`world` chunk) takes the faces `chunkGround` makes through its seam (`WallSink`: a face's ends, its
+lower and higher heights, its outward normal at each end and its owner) and extrudes each along a
+profile (`chunkWorld(shape, chunk)`: the tops, and the faces by style).
+
+- **A riser** (one level, what `canStep` climbs; `MAX_STEP` is 1): a `NOSING` (0.05 cell) tall face at
+  the edge, lighter (a worn nosing: vertex shade 1.3), over the riser set back `RECESS` (0.04 cell)
+  under it, in its shadow (0.55, then 0.8), kicking back out to the edge at its foot. No noise: straight,
+  even and regular, a stair.
+- **A cliff** (two levels or more, or any drop into the void): a rim `LIP` (0.04 cell) tall at the edge
+  (1.15), a chamfer back under it to `SET_BACK` (0.035 cell), then `ROWS_PER_LEVEL` (3) rows a level
+  (at most `MAX_ROWS`, 12: a tower's bands grow taller instead), each set back between `SET_BACK` and `DEEPEST` (`MAX_NOISE` − 0.005) by deterministic value noise of
+  its world position (stretched up the face, so it reads as strata; deeper is darker, 0.95 to 0.65),
+  and its foot back on the edge. Its texture's strata come from the rock kind's world mapping, so bands
+  line up across faces and chunks.
+- **Everything hangs back under the higher cell's top.** A face's top row and foot stay on the edge and
+  the rest is set back into the higher cell's edge band (at most 0.065 cell, outside the token disk's
+  0.43), so nothing stands over the lower cell, every top stays at its floorY (the harness's `disk` and
+  `cliff-top`), the rim is the higher top's own edge and its underside the lip, and the rock kind's cell
+  lookup a hundredth of a cell behind the face (below) always lands in the cell that owns it.
+- **Joins.** Two face ends at the same point with the same heights, normal and kind join (keys rounded
+  to 1e-4 of a cell); an end that doesn't (a sharp corner, a change of height, the edge of a chunk
+  whose partner is a cell beyond it: `chunkGround` with a one-cell margin hands those over too, and
+  `dirtyChunks`' margin already rebuilds both) tapers its set-back to the edge over `TAPER` (0.25
+  cell), so no gap ever opens (rays from above on every random table find none). Rounded corners'
+  arcs join smoothly, so a cliff runs on round them.
+- **Plain** faces: those made by unexplored cells (inside them, never toward them: no face lies on an
+  edge with an unexplored side) and the void's own walls, and the skirts between unexplored cells.
+- **Columns** every `COLUMN` (0.5 cell) along a face: the noise varies along it at half a cell. The
+  Hollow has 20,400 face triangles (from 1,752 sheer), the monastery 5,736 (from 684); columns every
+  0.25 cell made the Hollow 35,600, over the issue's 30k. Each band of a face has vertices of its own,
+  so its normal is its own (crisp nosings and rims; the strata facet).
+
+**Style** follows the cell that owns the face (`styleOf`, `CLIFF_STYLES`): **masonry** on the man-made
+floors (stone, wood), **earth** on the rest (plain, grass, dirt, sand, water). Each style is a mesh and
+a material of its own, both the rock kind with vertex colours, so one program: earth wears the
+environment's `ground` look, masonry its `walls` look (the wall surface from the library, ashlar where
+the environment lists one), and in the cave environments (`cavern`, `living-cave`, by the id
+`setLook` now takes) both wear the `ground` look, cave rock. Without an environment they are a brown
+and a grey. #248's floors bring their own style.
+
+**Fog and light.** The rock kind's `worldModify` reads the cell a hundredth of a cell behind the face
+(`faceCell` in `cell-maps.ts`, the lookup `groundTexel` already made: `positionWorld − normalWorld ×
+0.01 × cellSize`): its fog, unseen tint and reveal fades are the owning cell's (`worldModify(…, face)`,
+`terms(true)`, built once; every other kind keeps its own lookup). Faces never border unexplored cells
+(the continuation rule), so they add nothing to unexplored-is-black, which they pass.
+
+**Tiers.** The geometry is the same on every tier. Medium and up draw the rock kind's triplanar graph
+(three fetches a slot, Whiteout normals), low its biplanar one (`materials/biplanar.ts`: the two
+projections the normal faces most, two fetches, no normal map): the `antiTiled` variant the tier
+already picks, swapped as a twin with the tops, never at runtime. Both variants with vertex colours
+are in the lobby's kind gallery and the layer's stand-in. WebGL2 and compat need nothing more (no
+arrays, derivatives only in the normal map). Nothing animates.
+
+**Checked** in the server project (`cliffs.spec.ts`, `fixtures.spec.ts`): the riser's and the cliff's
+profiles by horizontal rays (the nosing at the edge, the riser at `RECESS`; the rim at the edge, the
+face between `SET_BACK` and `MAX_NOISE` and not flat), a drop into the void a cliff, tops at their
+floors, styles by floor, unexplored owners plain, the same arrays on every build, chunks of their own
+cells only, and `checkEmitter` with crack rays on 120 random tables fogged and not and on every fixture
+scene and GM, player and spectator view; the Hollow under 30k face triangles.
+`world-layer.svelte.spec.ts` finds the Hollow's faces on the rock kind with vertex colours and both a
+rim and a nosing among them, the monastery's stairs as risers beside its gallery, ledge and belfry's
+cliffs, and a stair raised and flattened across its nave compiling nothing; `mapping.svelte.spec.ts`
+draws both rock graphs.
+
+**Deviations from #241.** The noise is a small value noise of our own (hashing lattice points), not
+three's `SimplexNoise` with `mulberry32`: world/ imports no three.js, and the hash is as deterministic.
+The set-back goes into the higher cell, not out over the lower one, so the face shades with its owner
+under the issue's own 0.01 lookup and the rim is the top's edge (the issue's rim lip, read as an
+overhang). The style is a mesh per style, not a per-face attribute choosing a layer of the surface
+library's arrays: rock's graph has no array slots, and two draws per chunk where both styles meet keep
+it one program; the looks come from the environment's ground and wall looks, which hold the library's
+surfaces where an environment lists them. The nosing and the shadows under rims are vertex colours, not
+an AO attribute. Raised border cells drop to the ring at 0 in their style; `beyondSample` (#244) is not
+read. Goldens, the LOOK.md strip and look metrics are not recorded here (no golden runs during
+development); the perf gate and the iGPU were not run. The renderer chunk grows 386.1 → 386.7 kB gz
+(386,603 B: biplanar, the face lookup, the layer's styles) and the `world` chunk 5.2 → 7.3 kB (7,261 B).
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
 delegations; every module in the folder stays under 500 lines (`modules.spec.ts` checks it).
 
-| Module                                | What it holds                                                                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                            | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
-| `camera.ts`                           | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
-| `picking.ts`                          | `Picker` (pointer to cell by the DDA, corner, edge; token, wall, light, prop on `PICK_LAYER`), `pickKey`, clicks                 |
-| `loop.ts`                             | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
-| `scheduler.ts`                        | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
-| `scene-lights.ts`                     | The hemisphere and the key light; fitting the shadow box, the fog and the camera to the table                                    |
-| `atmosphere.ts`                       | The scene's fog and environment nodes and background (`createScene`), `AtmosphereLayer`: the hour's light, tween and shadow rule |
-| `atmosphere-curve.ts`, `sky-maths.ts` | The pure curve (`atmosphereAt`), the sun's and moon's paths, the stars, `CaptureThrottle`                                        |
-| `sky.ts`                              | `SkyLayer`: the dome, moon, stars and clouds, and the capture into `SKY_CUBE`/`SKY_CUBE_LOW`                                     |
-| `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                          |
-| `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                |
-| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `ringVertices`); `WorldGround`, the play plane and the ring to the horizon           |
-| `previews.ts`                         | Editor previews from a pool of instanced meshes on the ground (`previewPlacements`, #247), the beacon and the highlighted cell   |
-| `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
-| `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
-| `capabilities.ts`                     | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
-| `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
-| `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                            |
-| `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                        |
-| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
-| `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)  |
-| `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)       |
-| `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                           |
-| `grid-light-layer.ts`                 | `GridLighting`: the point lights from what the viewer was sent, uploads, `carry`; `grid-lights.ts` its data (#228)               |
-| `fog-cloud.ts`                        | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                            |
-| `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
-| `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |
-| `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                   |
-| `world/`                              | The world's shape (M69); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer    |
-| `world-layer.ts`                      | `WorldLayer`: the ground in 16x16-cell chunks (#240), the shape it is built from, the old boxes behind `?off=terrain`            |
-| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`               |
+| Module                                | What it holds                                                                                                                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                            | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                                                   |
+| `camera.ts`                           | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                                                       |
+| `picking.ts`                          | `Picker` (pointer to cell by the DDA, corner, edge; token, wall, light, prop on `PICK_LAYER`), `pickKey`, clicks                                              |
+| `loop.ts`                             | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                                                |
+| `scheduler.ts`                        | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                                             |
+| `scene-lights.ts`                     | The hemisphere and the key light; fitting the shadow box, the fog and the camera to the table                                                                 |
+| `atmosphere.ts`                       | The scene's fog and environment nodes and background (`createScene`), `AtmosphereLayer`: the hour's light, tween and shadow rule                              |
+| `atmosphere-curve.ts`, `sky-maths.ts` | The pure curve (`atmosphereAt`), the sun's and moon's paths, the stars, `CaptureThrottle`                                                                     |
+| `sky.ts`                              | `SkyLayer`: the dome, moon, stars and clouds, and the capture into `SKY_CUBE`/`SKY_CUBE_LOW`                                                                  |
+| `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                                                       |
+| `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                                             |
+| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `ringVertices`); `WorldGround`, the play plane and the ring to the horizon                                        |
+| `previews.ts`                         | Editor previews from a pool of instanced meshes on the ground (`previewPlacements`, #247), the beacon and the highlighted cell                                |
+| `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                                                 |
+| `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`                               |
+| `capabilities.ts`                     | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement                                      |
+| `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                                                |
+| `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                                                         |
+| `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                                                     |
+| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness                                      |
+| `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)                               |
+| `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)                                    |
+| `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                                                        |
+| `grid-light-layer.ts`                 | `GridLighting`: the point lights from what the viewer was sent, uploads, `carry`; `grid-lights.ts` its data (#228)                                            |
+| `fog-cloud.ts`                        | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                                                         |
+| `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                                                       |
+| `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                                               |
+| `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                                                |
+| `world/`                              | The world's shape (M69), the cliffs (`cliffs.ts`, #241); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer |
+| `world-layer.ts`                      | `WorldLayer`: the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the shape it is built from, the old boxes behind `?off=terrain`       |
+| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                            |
 
 ## Quality tiers
 
@@ -1770,7 +1850,7 @@ shader (`program-count.svelte.spec.ts`, #170) and unexplored cells stay exactly 
 | -------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- | ----------------------------------- |
 | surface  | Standard                           | albedo, normal, ORM, emissive | box mapping in the world, macro variation           | walls, door panels, the table's rim |
 | terrain  | Standard                           | as surface                    | as surface; floors and height from the `ground` map | the table's top, raised ground      |
-| rock     | Standard                           | as surface                    | triplanar in the world, macro variation             | none yet (#177's tests)             |
+| rock     | Standard                           | as surface                    | triplanar in the world (biplanar on low), macro     | cliffs and risers (#241)            |
 | prop     | Standard                           | as surface                    | object space, paint (#178), lift (#181)             | props and placeholder boxes         |
 | mini     | Physical (clearcoat a uniform)     | as surface                    | object space, paint, own colour and see-through     | tokens                              |
 | emissive | Standard                           | as surface                    | the mesh's uv                                       | none yet                            |
@@ -1940,6 +2020,9 @@ never through a texture's own matrix (r186 snapshots it from the first texture i
 - **rock**: triplanar in the world (zy, xz and xy, weights `pow(|n|, triplanarSharpness)`,
   normals blended by Whiteout). A slot's three fetches are its reference plus two `.sample()`
   clones that keep its `referenceNode`, so a new texture reaches all three. Three fetches a slot.
+  Without `antiTiled` (the low tier, #241) biplanar instead (`biplanar.ts`): the major and median
+  projections only, two fetches a slot, no normal map. Its `worldModify` reads the cell behind the
+  surface (`faceCell`), so a cliff shades with the cell that owns it.
 - **prop and mini**: the mesh's uv (#188): a cooked model's glTF uvs, and zeros on a part list,
   whose slots hold their blanks, so both draw with one program (`tabletop/models.ts` gives every
   model part the same attribute set). Their paint (#178) stays in object space on its own.

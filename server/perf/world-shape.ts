@@ -2,7 +2,8 @@
 // continued maps, dual tiles, edge classes and wall spans), finding its
 // regions, the dual cases of every tile for the walkable mask and each level
 // band, the dirty chunks after a one-cell edit, the ground's chunk meshes
-// (#240: the chunk that edit rebuilds, the slowest one, all), on 64x64 and
+// (#240: the chunk that edit rebuilds, the slowest one, all; and with the
+// cliffs and risers, #241), on 64x64 and
 // 100x100 tables with fog, and picking a cell with the DDA (#246) over every
 // pixel of a 160x100 view from above the table's corner. docs/PERFORMANCE.md
 // records the numbers.
@@ -15,6 +16,7 @@ import type { SceneObject } from '../../src/lib/game/objects';
 import { dualCase } from '../../src/lib/tabletop/world/dual';
 import { pickCell } from '../../src/lib/tabletop/world/pick';
 import { regionsOf } from '../../src/lib/tabletop/world/regions';
+import { chunkWorld } from '../../src/lib/tabletop/world/cliffs';
 import { chunkGround } from '../../src/lib/tabletop/world/ground-mesh';
 import {
 	chunksAcross,
@@ -112,6 +114,16 @@ for (const size of [64, 100]) {
 		),
 		'ground mesh, whole table': median(() => {
 			for (let c = 0; c < chunks; c++) chunkGround(shape, c);
+		}),
+		// With cliffs and risers (#241): what the world layer builds per chunk now.
+		'with cliffs, one chunk (one cell)': median(() => {
+			for (const c of dirtyChunks(shape, next)) chunkWorld(next, c);
+		}),
+		'with cliffs, slowest chunk': Math.max(
+			...Array.from({ length: chunks }, (_, c) => median(() => chunkWorld(shape, c)))
+		),
+		'with cliffs, whole table': median(() => {
+			for (let c = 0; c < chunks; c++) chunkWorld(shape, c);
 		})
 	};
 	console.log(`${size}x${size} (${top} levels, median of ${RUNS})`);

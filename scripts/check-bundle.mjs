@@ -73,16 +73,18 @@ const BUDGETS = {
 	// pick layer (#246), 383.7; dice and pooled previews on the ground (#247), 384.7 (384,615 B measured);
 	// the ground in chunks (#240: the dual-grid emitter, the world layer and the saddles' canStep),
 	// 390.0 (389.9 kB measured; the owner's M69 cap is about 393). → 386.1: the world's builders
-	// moved to their own chunk (`world` below, the owner's decision); 386,062 B measured.
-	renderer: { total: 386_100 },
+	// moved to their own chunk (`world` below, the owner's decision); 386,062 B measured. → 386.7:
+	// the cliffs' rock kind (#241: biplanar on low, `worldModify` reading the cell behind a face, the
+	// layer's faces by style); 386,603 B measured.
+	renderer: { total: 386_700 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
 	probes: { total: 5_000 },
 	// The world's builders (M69: world/build.ts, the shape, dual cases, regions, the ground's
 	// emitter and the builders to come), fetched with the renderer and awaited by the table;
-	// 5,166 B measured.
-	world: { total: 5_200 }
+	// 5,166 B measured. → 7.3: the cliffs and risers (#241, world/cliffs.ts); 7,261 B measured.
+	world: { total: 7_300 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

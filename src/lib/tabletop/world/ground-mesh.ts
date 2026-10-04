@@ -11,10 +11,11 @@
 // sliver beyond a quarter circle (`MAX_ROUND`, four segments; a 0.05 chamfer
 // on man-made floors) takes the height its level bands give it, cut down on a
 // convex corner and filled up in a concave one; saddles follow `dualCase`'s
-// join, and a pinched one stays square. Sides are sheer (#241 makes them
-// cliffs and risers): every place two heights meet gets one vertical face,
-// emitted by the higher piece's cell, so each chunk holds what its cells own.
-// The table's border gets a face down to 0 under known cells only.
+// join, and a pinched one stays square. Sides are sheer: every place two
+// heights meet gets one vertical face, emitted by the higher piece's cell, so
+// each chunk holds what its cells own. The table's border gets a face down to 0
+// under known cells only. A `WallSink` takes every vertical face instead (cliffs.ts makes
+// them cliffs and risers, #241); the skirts between unexplored cells stay plain.
 
 import { FLOOR_IDS, VOID, type FloorId } from '../../game/floor';
 import { STEP_HEIGHT } from '../ground';
@@ -44,6 +45,23 @@ const MAN_MADE = new Set((['stone', 'wood'] as FloorId[]).map((id) => FLOOR_IDS.
 /** An emitter mesh with a normal per vertex. */
 export interface GroundMesh extends EmitterMesh {
 	normals: Float32Array;
+}
+
+/**
+ * Where vertical faces go instead of the sides (cliffs.ts): a face from (x0, z0) to (x1, z1)
+ * between heights lo and hi, `n` its outward normal at each end (x, z, x, z), made by `owner`.
+ */
+export interface WallSink {
+	wall(
+		x0: number,
+		z0: number,
+		x1: number,
+		z1: number,
+		lo: number,
+		hi: number,
+		n: number[],
+		owner: number
+	): void;
 }
 
 /** A chunk's ground: its tops (flat, facing up) and its sheer sides. */
@@ -121,6 +139,8 @@ class Builder {
 	private own: number[] = [];
 	owner = 0;
 
+	constructor(private readonly sink: WallSink | null = null) {}
+
 	vertex(x: number, y: number, z: number, nx: number, ny: number, nz: number): number {
 		this.pos.push(x, y, z);
 		this.nor.push(nx, ny, nz);
@@ -193,6 +213,7 @@ class Builder {
 
 	/** A vertical face from (x0, z0) to (x1, z1) between heights lo and hi, normals at each end. */
 	wall(x0: number, z0: number, x1: number, z1: number, lo: number, hi: number, n: number[]) {
+		if (this.sink) return this.sink.wall(x0, z0, x1, z1, lo, hi, n, this.owner);
 		this.quad([x0, lo, z0, x1, lo, z1, x1, hi, z1, x0, hi, z0], n);
 	}
 
@@ -208,6 +229,14 @@ class Builder {
 			owners: new Int32Array(this.own)
 		};
 	}
+}
+
+/** A builder that keeps nothing but the faces it hands its sink: the margin's (`chunkGround`). */
+class Dry extends Builder {
+	override rect(): void {}
+	override fan(): void {}
+	override quad(): void {}
+	override facet(): void {}
 }
 
 /** Each corner's half-edge normals (toward its horizontal, then vertical, neighbour), x and z per end. */
@@ -232,6 +261,8 @@ function arcOf(r: number, segments: number): number[] {
 	ARCS.set(r * 100 + segments, arc);
 	return arc;
 }
+
+const negate = (n: number[]) => n.map((v) => -v);
 
 /** The quarter being built: its tile's centre and the steps toward its cell, in world units. */
 const P = { ox: 0, oz: 0, sx: 0, sz: 0 };
@@ -292,27 +323,9 @@ function quarter(
 		const lowB = outB ? 0 : tile.v[vk];
 		const [nA, nB] = [EDGE_NORMALS[k][0], EDGE_NORMALS[k][1]];
 		if (y0 > lowA) sides.wall(ox, oz, ox, ez, lowA, y0, nA);
-		else if (outA && y0 < 0)
-			sides.wall(
-				ox,
-				oz,
-				ox,
-				ez,
-				y0,
-				0,
-				nA.map((v) => -v)
-			);
+		else if (outA && y0 < 0) sides.wall(ox, oz, ox, ez, y0, 0, negate(nA));
 		if (y0 > lowB) sides.wall(ox, oz, ex, oz, lowB, y0, nB);
-		else if (outB && y0 < 0)
-			sides.wall(
-				ox,
-				oz,
-				ex,
-				oz,
-				y0,
-				0,
-				nB.map((v) => -v)
-			);
+		else if (outB && y0 < 0) sides.wall(ox, oz, ex, oz, y0, 0, negate(nB));
 		return;
 	}
 	[P.ox, P.oz, P.sx, P.sz] = [ox, oz, sx * cs, sz * cs];
@@ -375,7 +388,8 @@ function quarter(
 			if (mine[k] === 0) continue;
 			const [lo, hi] = [Math.min(mine[k], 0), Math.max(mine[k], 0)];
 			const facing = n.map((v) => (mine[k] > 0 ? v : -v));
-			sides.quad([...at(0, 0, lo), ...at(0.5, 0, lo), ...at(0.5, 0, hi), ...at(0, 0, hi)], facing);
+			const [a, b] = [at(0, 0, lo), at(0.5, 0, lo)];
+			sides.wall(a[0], a[2], b[0], b[2], lo, hi, facing);
 			continue;
 		}
 		const along = (lo: number, hi: number, m: number, o: number) =>
@@ -418,18 +432,32 @@ const QUARTERS = [
 	{ dx: 0, dy: 1, k: 1 }
 ] as const;
 
-/** The ground of one chunk (`chunksAcross` row-major), from the world's shape. */
-export function chunkGround(shape: WorldShape, chunk: number): ChunkGround {
+/**
+ * The ground of one chunk (`chunksAcross` row-major), from the world's shape. With a `sink`, every
+ * vertical face goes to it (with its owner) instead of the sides, and so do the faces of the cells
+ * `margin` cells round the chunk, whose tops and skirts are dropped: cliffs.ts joins faces across
+ * the chunk's edge by them.
+ */
+export function chunkGround(
+	shape: WorldShape,
+	chunk: number,
+	sink: WallSink | null = null,
+	margin = 0
+): ChunkGround {
 	const { grid } = shape;
 	const across = chunksAcross(grid);
 	const cx = (chunk % across.x) * CHUNK;
 	const cy = Math.floor(chunk / across.x) * CHUNK;
 	const tiles = new Tiles(shape);
-	const [top, sides] = [new Builder(), new Builder()];
-	for (let y = cy; y < Math.min(cy + CHUNK, grid.height); y++)
-		for (let x = cx; x < Math.min(cx + CHUNK, grid.width); x++) {
-			top.owner = sides.owner = y * grid.width + x;
-			for (const q of QUARTERS) quarter(shape, tiles, top, sides, x, y, x + q.dx, y + q.dy, q.k);
+	const [top, sides] = [new Builder(), new Builder(sink)];
+	const [scratchTop, scratchSides] = [new Dry(), new Dry(sink)];
+	const [x1, y1] = [cx + CHUNK, cy + CHUNK];
+	for (let y = Math.max(cy - margin, 0); y < Math.min(y1 + margin, grid.height); y++)
+		for (let x = Math.max(cx - margin, 0); x < Math.min(x1 + margin, grid.width); x++) {
+			const own = x >= cx && y >= cy && x < x1 && y < y1;
+			const [t, s] = own ? [top, sides] : [scratchTop, scratchSides];
+			t.owner = s.owner = y * grid.width + x;
+			for (const q of QUARTERS) quarter(shape, tiles, t, s, x, y, x + q.dx, y + q.dy, q.k);
 		}
 	return { top: top.done(), sides: sides.done() };
 }

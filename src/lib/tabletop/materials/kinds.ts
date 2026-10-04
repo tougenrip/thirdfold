@@ -275,7 +275,9 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				.mul(param('emissiveIntensity', 'float'))
 				.add(tint)
 		: tint;
-	const emissive = worldEmissive(glow);
+	// Rock is the cliffs' and risers' kind (#241): its faces read the cell behind them.
+	const face = kind === 'rock';
+	const emissive = worldEmissive(glow, face);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
 	const colour = macro
@@ -306,7 +308,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
-		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true)),
+		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true, face)),
 		lit: {
 			roughnessNode: paintRoughness(
 				kind,

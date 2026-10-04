@@ -267,7 +267,7 @@ export async function createTabletop(
 	/** Dresses the table, raised ground and walls in the environment's looks (or the plain ones). */
 	function applyLook(): void {
 		land.dress(look, grid);
-		worldLayer.setLook(look, grid);
+		worldLayer.setLook(look, grid, environment);
 		wallLayer.setLook(look?.walls ?? null);
 		refreshLighting();
 		shadowsDirty = warmPending = true;

@@ -991,3 +991,34 @@ bounds:
   Hollow, 32 for 64x64. Tops are eight triangles a cell (more at round corners), about 33k on
   64x64, where the play plane drew 2 and the boxes 12 a raised cell. The perf gate and the iGPU were not run
   for this change (the iGPU is not a gate for M69).
+
+## The M69 cliffs and risers (#241)
+
+What a chunk rebuild costs with its cliffs and risers (`chunkWorld`: the ground's emitter with its faces
+handed over, a one-cell margin of faces to join across the chunk's edge, and every face extruded along
+its profile), against the sheer sides of #240 (`chunkGround`), on the i9-13900HX in Node 22, bundled by
+esbuild as the browser bundle is (no names kept on closures), each chunk built 100 times after 20 to
+warm up, the median of three runs, while other agents' browser tests kept the load average at 7 to 9
+(upper bounds):
+
+| Table (GM)           | Mean chunk, sheer → cliffs | Slowest chunk | Whole table | Face triangles |
+| -------------------- | -------------------------- | ------------- | ----------- | -------------- |
+| The Hollow, 48x36    | 0.61 → 1.38 ms             | 0.98 → 2.49   | 5.5 → 12.4  | 1,752 → 20,400 |
+| The monastery, 30x20 | 0.48 → 1.13 ms             | 0.88 → 3.45   | 1.9 → 4.5   | 684 → 5,736    |
+| outdoor-64, 64x64    | 0.83 → 0.88 ms             | 1.38 → 1.23   | 13.2 → 14.1 | 0 → 0          |
+| test world, 24x24    | 0.42 → 0.59 ms             | 0.91 → 1.12   | 1.7 → 2.4   | 196 → 1,560    |
+
+- **The slowest chunk** is the monastery's north-east one (its gallery, ledge, belfry tower and every
+  stair): 11,000 face vertices. A one-cell edit rebuilds one to four chunks, so an edit there costs about
+  3.5 ms of meshing on this machine under load. Before capping a face at `MAX_ROWS` (12) rows it was
+  14,600 vertices and about 5 ms; a first version that kept vertices in JavaScript arrays of objects and
+  made closures per vertex cost two to three times this. A flat table pays almost nothing (outdoor-64).
+- **The faces' share** of a chunk is the extrusion (about 60% on the Hollow); the margin's faces add
+  under 10% (`chunkGround` with a sink and a margin costs what it did without).
+- **The GPU:** one more draw per chunk where a second style (masonry) meets earth, in the scene and the
+  shadow pass; the Hollow (cave rock, one style) keeps two draws a chunk. Its face triangles grow from
+  1,752 to 20,400, within the issue's 30k; the monastery's to 5,736. The rock kind's triplanar costs
+  three fetches a slot on medium and up, biplanar two on low. The per-tier GPU costs on the monastery's
+  overview, the perf gate and the iGPU were not measured for this change (the iGPU is not a gate for
+  M69); `npx tsx server/perf/world-shape.ts` prints `with cliffs, …` rows beside the ground's (inflated
+  by tsx's names, as noted above).
