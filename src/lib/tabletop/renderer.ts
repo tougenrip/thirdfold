@@ -124,7 +124,7 @@ export async function createTabletop(
 	let freshTable = false;
 	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
-	const worldLayer = new WorldLayer(perf, land, build); // the ground in chunks (#240)
+	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops); // the ground in chunks (#240)
 	const effects = new EffectsLayer();
 	scene.add(worldLayer.group, effects.group);
 	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky, worldLayer]];
@@ -235,7 +235,7 @@ export async function createTabletop(
 		const drifting = [worldLayer.tick(now, reducedMotion), cloud.tick(now)].includes(true); // #243
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
-		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends
+		const revealing = cellMaps.tick(now) || propLayer.drops.active; // reveals (#174), drops (#249)
 		const moving = casters || turning || revealing || fx.active || rig.tick(now) || post.blending;
 		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
@@ -276,7 +276,7 @@ export async function createTabletop(
 	function placeOnGround(g: SquareGrid, on: Ground): void {
 		tokenLayer.sync(tokens, g, on);
 		wallLayer.sync(objects, g, on, worldLayer.shape?.known);
-		propLayer.sync(props, g, on);
+		propLayer.sync(props, g, on, worldLayer.shape?.known);
 	}
 
 	/** The world's shape from what the viewer was sent (#240), its ground; true if `known` changed. */
@@ -314,7 +314,7 @@ export async function createTabletop(
 	const measured = { loop, quality, lighting, world: worldLayer, warming: () => warming };
 	const tabletop: Tabletop = {
 		setGrid(next) {
-			if (grid && sameGrid(grid, next)) return;
+			if (grid && sameGrid(grid, next)) return propLayer.drops.hold(); // a load: no drops (#249)
 			grid = { ...next };
 			freshTable = true;
 			if (levels && levels.length !== grid.width * grid.height) levels = null;
@@ -367,7 +367,7 @@ export async function createTabletop(
 			props = next;
 			replan();
 			if (!grid) return;
-			propLayer.sync(props, grid, ground);
+			propLayer.sync(props, grid, ground, worldLayer.shape?.known);
 			refreshLighting();
 		},
 		setSelectedProp: (propId) => propLayer.setSelected(propId) && requestRender(),

@@ -84,7 +84,10 @@ const BUDGETS = {
 	// to the merged build's measured size.
 	// → 389.8: the void's chasms (#243: the void's floor in the world layer, its mist and clock,
 	// the surface kind's flow, picks into the void); 389,798 B measured.
-	renderer: { total: 390_000 },
+
+	// → drop-in (#249: the drops' clock, which props drop, the vertex node and its shadow rest);
+	// set to the merged build's measured size.
+	renderer: { total: 391_100 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

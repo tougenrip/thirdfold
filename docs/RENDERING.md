@@ -1716,6 +1716,58 @@ for the milestone's close (no golden runs during development); the perf gate and
 run. The renderer chunk grows 389.3 → 389.8 kB gz (389,798 B) and the `world` chunk 9.9 → 10.4 kB
 (10,369 B).
 
+### Drop-in (#249)
+
+A prop the GM places, a floor painted and ground raised or lowered fall into place over `DROP_MS`
+(250 ms), like TaleSpire's tiles, in the vertex stage: nothing moves on the CPU per frame.
+
+- **The curve** (`dropLeft` in `drop-in.ts`, pure; `dropLift` in `materials/drop.ts` is the same in
+  TSL): a piece starts `DROP_CELLS` (a quarter of a cell) up, falls eased in until `FALL` (0.75 of
+  the drop), then hops `HOP` (6% of the drop) and settles, exactly 0 from the end on and never below
+  its place. `t = saturate((dropNow − start) / 0.25 s)`, the lift `dropHeight × left(t)` straight up.
+- **Starts.** Every instanced prop, decal and water mesh carries `aDrop` per instance from creation
+  (`addInstanceTints`, `NO_DROP` = −1e6 s, so `t` is 1), which `PropLayer.layout` writes beside the
+  lift. The world's chunks are the terrain and rock kinds' `dropped` variant (fixed at creation,
+  twins kept, in the lobby's gallery and the layer's stand-ins): `fill` writes each vertex's start,
+  its owner cell's (the owners `chunkGround` and the cliffs already keep), so a raised cell's top
+  and its faces drop together and a rebuilt chunk keeps the drops under way. Starts are seconds on
+  the drops' clock (`Drops`, one per renderer, owned by `PropLayer`, its epoch when made), so
+  float32 keeps milliseconds over a long session; `dropNow` is set by `Drops.tick` every drawn frame.
+- **Shadows** come from `castShadowPositionNode`, the resting position (the lift alone on props,
+  `positionGeometry` on the chunks): the edit redraws the cached sun shadow once, for the final
+  state, and the drop's frames redraw none (a drop is not a caster in `drawFrame`).
+- **What drops** (`propsDropped`, `cellsDropped`, `PropDrops`; `drop-in.spec.ts`): a prop whose id
+  is new and whose whole footprint the viewer knew, a cell whose level or floor changed while known
+  before and after. Before is what the last drawn frame showed (`Drops.frame`), so a fog diff and the
+  floors or props it reveals, which arrive as separate calls, count as one update and never drop.
+  Nothing drops on a new grid (the first snapshot, travel: `PropDrops.update` holds the drops until
+  the table's first frame), or in the update after `setGrid` with the same grid (`Drops.hold`: a
+  load, a reconnect, any new snapshot of the room), or under reduced
+  motion (`start` gives `NO_DROP`, so nothing animates and no frame is asked for). The GM, whose
+  fog knows every cell, sees every edit drop.
+- **Scheduling.** `Drops.start` keeps the latest end; `drawFrame` reports `drops.active` with the
+  reveal fades, so the scheduler is ACTIVE until the last drop ends and the table then goes idle.
+- **Secrecy.** The lift is vertical, inside the piece's own column: `worldModify` reads cells by x
+  and z, so unexplored cells stay black, and only what the viewer was sent on known cells drops.
+- **Programs.** The drop is ALU on an attribute and two uniforms. Every instanced lifted graph reads
+  it (a changed graph, not a new one); the chunks' variant replaces the plain one on the chunks and
+  is warmed through the stand-ins. A drop starting or ending compiles nothing (`drop-in.svelte.spec.ts`
+  checks the program count; program-count's shards place props, paint and raise).
+- **Spec.** `drop-in.svelte.spec.ts` (`RENDER_SPECS`, the `drop-in` job in rendering.yml): on ref-7
+  (no light flickers there, so the table rests) with the clock held, a placed prop, a painted floor
+  and raised ground keep the scheduler active and are drawn up; past the drop they are at rest, the
+  table draws no more than it did at rest, the sun's shadow was drawn at most once per edit and no
+  program was added; under reduced motion, and after a same-grid `setGrid`, nothing drops and the
+  table rests with the clock still held. About two minutes on SwiftShader.
+- **Deviations from #249.** No ramp texture: the one curve is ALU (the reserved rows wait for a
+  second animation), and `aDrop` is a float (the start), not (start, id). The ground's starts are a
+  per-vertex attribute written at the chunk's rebuild from the owners, not a per-cell texture read
+  through an owner-cell attribute (there is none on the GPU, #240), so no vertex texture fetch.
+  Changed ranges are not uploaded with `addUpdateRange`: the props' attributes upload whole, as the
+  lift always has. Faces drop whole with their cell, so a raised cell's foot shows a slit for the
+  first frames; the shader grid's twins lie at rest and are hidden under a falling top. TRAA has no
+  velocity for the lift. No golden at mid-drop (no golden runs during development).
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -1894,12 +1946,12 @@ and the component and the test helper make the next tabletop only after that.
 with `requestAnimationFrame` (r186's internal loop stays stopped, per the spike: each drawn frame
 resets `renderer.info` and advances the node frame itself).
 
-| Mode     | When                                                            | Frames                                                       |
-| -------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
-| IDLE     | nothing moves or animates, or the table can't be seen           | none until something changes                                 |
-| ACTIVE   | tokens, doors, dice, props, cue effects, shots, the camera move | every screen frame, at most the tier's `fpsCap` (60, low 30) |
-| AMBIENT  | flames flicker or mist drifts, nothing else                     | every 80 ms (12.5 fps), 100 ms after a minute without input  |
-| CONVERGE | movement just ended                                             | the tier's `convergeFrames` (0 until TRAA, #163), then IDLE  |
+| Mode     | When                                                                   | Frames                                                       |
+| -------- | ---------------------------------------------------------------------- | ------------------------------------------------------------ |
+| IDLE     | nothing moves or animates, or the table can't be seen                  | none until something changes                                 |
+| ACTIVE   | tokens, doors, dice, props, drops, cue effects, shots, the camera move | every screen frame, at most the tier's `fpsCap` (60, low 30) |
+| AMBIENT  | flames flicker or mist drifts, nothing else                            | every 80 ms (12.5 fps), 100 ms after a minute without input  |
+| CONVERGE | movement just ended                                                    | the tier's `convergeFrames` (0 until TRAA, #163), then IDLE  |
 
 AMBIENT is off under reduced motion (followed live, no reload), power saver (the viewer's setting),
 a hidden tab (`visibilitychange`) or a canvas scrolled out of view (`IntersectionObserver`);

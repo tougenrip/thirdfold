@@ -21,10 +21,14 @@
 // skirt is (one program), is drifting mist in the dark, or wears the skirt's own look, the sea or
 // the moving ground, whose slots slide on `worldTime`. `tick` moves that clock on AMBIENT frames,
 // never under reduced motion, and the mist only on medium and up (the anti-tiled tier).
+//
+// A cell whose level or floor changes where the viewer knew it drops in (#249): its vertices
+// carry the drop's start (the tops and faces; the void's floor stays where it is).
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
 import type { FogView } from '$lib/game/visibility';
+import { cellsDropped, DROP_CELLS, NO_DROP, type Drops } from './drop-in';
 import { wear, type EnvironmentLook } from './environment';
 import type { FogMode } from './fog';
 import { GridOverlay } from './grid-overlay';
@@ -33,12 +37,14 @@ import type { WorldGround } from './landscape';
 import {
 	createMaterial,
 	disposeTwins,
+	dropHeight,
 	prepareSlotTexture,
 	repeatFor,
 	setParams,
 	setSlot,
 	SLOTS,
 	twinOf,
+	withDrops,
 	worldTime,
 	type KindMaterial
 } from './materials';
@@ -116,7 +122,7 @@ export class WorldLayer {
 	private drawn: WorldShape | null = null;
 	private readonly chunkGroup = new THREE.Group();
 	private chunks: Chunk[] = [];
-	private top: KindMaterial = createMaterial('terrain', { antiTiled: true });
+	private top: KindMaterial = createMaterial('terrain', { antiTiled: true, dropped: true });
 	/** The faces' materials by style: one graph (rock, vertex colours), each its own look. */
 	private sides: KindMaterial[];
 	/** The void's floor: the surface kind, as the backdrop's skirt (one program). */
@@ -128,17 +134,25 @@ export class WorldLayer {
 	private on = true;
 	private lastRebuilt = 0;
 	private standIns: THREE.Mesh[] | null = null;
+	/** Each cell's drop start (#249), and the shape the last drawn frame showed. */
+	private starts = new Float32Array(0);
+	private seen: { frame: number; shape: WorldShape | null } = { frame: -1, shape: null };
 
 	constructor(
 		private readonly perf: PerfRecorder,
 		private readonly land: WorldGround,
-		private readonly build: WorldBuilders
+		private readonly build: WorldBuilders,
+		private readonly drops: Drops
 	) {
 		this.group.add(this.chunkGroup, this.terrain.group);
 		this.terrain.group.visible = false;
 		land.showPlay(false);
 		this.sides = build.CLIFF_STYLES.map((style) => {
-			const material = createMaterial('rock', { antiTiled: true, vertexColors: true });
+			const material = createMaterial('rock', {
+				antiTiled: true,
+				vertexColors: true,
+				dropped: true
+			});
 			wear(material, null, PLAIN[style]);
 			return material;
 		});
@@ -191,6 +205,7 @@ export class WorldLayer {
 		const exploredChanged = !this.shape || explored !== this.inputs[5];
 		this.inputs = inputs;
 		const known = fog ? this.build.knownOf(grid, fog, mode === 'gm') : null;
+		const previous = this.shape;
 		this.shape = this.build.worldShape({
 			grid,
 			levels: fit(levels),
@@ -201,6 +216,7 @@ export class WorldLayer {
 		const { shape } = this;
 		this.picks = this.build.chasmGround(grid, shape.ground, shape.floor, () => this.chasm);
 		this.terrain.sync(grid, shape.ground);
+		this.dropIn(previous, shape);
 		this.rebuild();
 		return exploredChanged;
 	}
@@ -279,6 +295,7 @@ export class WorldLayer {
 			);
 			geometry.setAttribute('normal', triangle([0, 0, 1]));
 			geometry.setAttribute('color', triangle([1, 1, 1]));
+			withDrops(geometry);
 			const [top, face] = [this.top, this.sides[0]];
 			this.standIns = [standIn(this.mesh(top, false)), standIn(this.mesh(face, true))];
 			for (const s of this.standIns) s.geometry = geometry;
@@ -322,6 +339,26 @@ export class WorldLayer {
 		setParams(m, { repeat: { x: per, y: per }, flow, macroTint: 0, macroRoughness: 0 });
 	}
 
+	/**
+	 * Starts the drops of the cells `shape` changed where the viewer knew them (#249), against
+	 * what the last drawn frame showed; none on a new table.
+	 */
+	private dropIn(previous: WorldShape | null, shape: WorldShape): void {
+		const n = shape.grid.width * shape.grid.height;
+		if (this.seen.frame !== this.drops.frame)
+			this.seen = { frame: this.drops.frame, shape: previous };
+		const before = this.seen.shape;
+		if (before?.grid !== shape.grid || this.starts.length !== n) {
+			this.starts = new Float32Array(n).fill(NO_DROP);
+			return;
+		}
+		const state = (s: WorldShape) => ({ ...s, ...s.grid });
+		const cells = cellsDropped(state(before), state(shape));
+		const start = cells.length ? this.drops.start() : NO_DROP;
+		if (start !== NO_DROP) for (const c of cells) this.starts[c] = start;
+		dropHeight.value = DROP_CELLS * shape.grid.cellSize;
+	}
+
 	/** Builds the chunks the shape changed since the drawn one (all of them on a new grid). */
 	private rebuild(): void {
 		const shape = this.shape;
@@ -338,9 +375,9 @@ export class WorldLayer {
 	private buildChunk(shape: WorldShape, c: number): void {
 		const { top, sides, bottom } = this.build.chunkWorld(shape, c, this.chasm);
 		const chunk = this.chunks[c];
-		fill(chunk.top, top);
-		sides.forEach((faces, i) => fill(chunk.sides[i], faces));
-		fill(chunk.bottom, bottom, true);
+		fill(chunk.top, top, this.starts);
+		sides.forEach((faces, i) => fill(chunk.sides[i], faces, this.starts));
+		fill(chunk.bottom, bottom, null, true);
 		this.grid.follow(chunk.grid, chunk.top);
 	}
 
@@ -377,11 +414,17 @@ export class WorldLayer {
 }
 
 /**
- * Puts a built mesh in a chunk's geometry: positions, normals, a face's shades (vertex colours)
- * and triangles, and for the void's floor the world uv the backdrop's skirt has (`uv`: the same
+ * Puts a built mesh in a chunk's geometry: positions, normals, a face's shades (vertex colours),
+ * each vertex's drop start (its owner cell's, #249, `starts`; none for the void's floor) and
+ * triangles, and for the void's floor the world uv the backdrop's skirt has (`uv`: the same
  * attributes, so the same program); hidden when empty.
  */
-function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh, uv = false): void {
+function fill(
+	mesh: THREE.Mesh,
+	data: GroundMesh | CliffMesh,
+	starts: Float32Array | null,
+	uv = false
+): void {
 	if (mesh.geometry !== EMPTY) mesh.geometry.dispose();
 	mesh.visible = data.indices.length > 0;
 	if (!mesh.visible) {
@@ -398,6 +441,11 @@ function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh, uv = false): void 
 		for (let v = 0; v < uvs.length / 2; v++) uvs.set([p[v * 3], -p[v * 3 + 2]], v * 2);
 		g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
 	}
+	if (starts)
+		withDrops(
+			g,
+			Float32Array.from(data.owners, (o) => starts[o] ?? NO_DROP)
+		);
 	g.setIndex(new THREE.BufferAttribute(data.indices, 1));
 	g.computeBoundingSphere();
 	mesh.geometry = g;
