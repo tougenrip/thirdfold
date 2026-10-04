@@ -4,7 +4,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const warmLobby = vi.fn(async () => ({ warmupMs: 1 }));
-vi.mock('./renderer', () => ({ warmLobby }));
+vi.mock('./renderer', () => ({ warmLobby, loadWorld: async () => ({}) }));
 
 beforeEach(() => {
 	vi.resetModules();

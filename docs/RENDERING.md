@@ -1314,6 +1314,16 @@ ground drawn elsewhere. The ground map is fed the continued maps too. Walls take
 (`wallSpans` with `known`), so none shows a drop toward unexplored ground, and are synced again when it
 changes. The renderer's own `levels` (the camera's fit, the light's) stay as sent.
 
+**Its own chunk.** The builders are a lazy chunk, `world` (`world/build.ts`, its own budget in
+`scripts/check-bundle.mjs`): the shape (`worldShape`, `knownOf`, `dirtyChunks`), the dual cases, the
+regions and the ground's emitter, and every builder to come (cliffs, the void and beyond, splats), each
+exported from `build.ts` and imported elsewhere in the renderer only as a type. `WorldLayer` takes the
+module; `createTabletop` awaits `loadWorld()` beside the node renderer, so it is there before the table's
+first frame (inside the loading cover's wait), and `loadRenderer` (load.ts) starts it as soon as the
+renderer chunk arrives, so a prefetched table never waits on it. Its materials are the terrain kind's,
+warmed as before. What a frame needs at once stays in the renderer: the DDA's picks (`world/pick.ts`) and
+the wall spans (`world/wall-spans.ts`, which the walls draw from).
+
 **The fallback.** The `terrain` layer (`LAYERS` in `quality.ts`, on): `?off=terrain` draws the old boxes
 and the play plane again and builds no chunk; back on, every chunk is built. `TerrainLayer` stays in the
 layer, hidden, synced from the continued ground. Both go at the milestone's close. Picking (#246) needs
@@ -1370,7 +1380,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
 | `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                   |
-| `world/`                              | The world's shape (M69): continued maps, edge classes, wall spans, regions, dual cases, the harness, the ground's chunk meshes   |
+| `world/`                              | The world's shape (M69); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer    |
 | `world-layer.ts`                      | `WorldLayer`: the ground in 16x16-cell chunks (#240), the shape it is built from, the old boxes behind `?off=terrain`            |
 | layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`               |
 

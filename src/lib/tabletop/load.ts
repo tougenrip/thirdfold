@@ -15,11 +15,19 @@ let warming: Promise<WarmRenderer | null> | null = null;
 let taken = false;
 
 export function loadRenderer(): Promise<typeof import('./renderer')> {
-	loading ??= import('./renderer').catch((err) => {
-		// A failed download may succeed next time.
-		loading = null;
-		throw err;
-	});
+	// The world's builders (world/build.ts) are a chunk of their own that the table awaits: started
+	// with the renderer's, so a table never waits on them. Through the renderer, so the chunks
+	// split as the renderer imports them.
+	loading ??= import('./renderer')
+		.then((r) => {
+			r.loadWorld().catch(() => {}); // a failure is tried again by the table
+			return r;
+		})
+		.catch((err) => {
+			// A failed download may succeed next time.
+			loading = null;
+			throw err;
+		});
 	return loading;
 }
 

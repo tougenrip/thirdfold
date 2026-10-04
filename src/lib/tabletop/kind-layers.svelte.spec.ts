@@ -25,7 +25,7 @@ import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import { WallLayer } from './walls';
 import { PerfRecorder } from './perf';
-import { WorldLayer } from './world-layer';
+import { loadWorld, WorldLayer } from './world-layer';
 import { worldExtents } from './world-ground';
 import {
 	BACKEND,
@@ -62,6 +62,7 @@ describe('the layers on the shader kinds', () => {
 	it('draw every surface with a material from the factory', async () => {
 		const sidecar = await loadSidecar('test-world');
 		const view = await loadView('test-world', sidecar.ambient, 'gm');
+		const build = await loadWorld(); // first: no model arrives between the layers and the look
 		const size = view.grid.width * view.grid.height;
 		const ground = groundFor(view.grid, view.terrain ? decodeLevels(view.terrain, size) : null);
 		const table = new WorldGround();
@@ -75,7 +76,7 @@ describe('the layers on the shader kinds', () => {
 		const overlay = new OverlayLayer();
 		const tokens = new TokenLayer(overlay);
 		tokens.sync(view.tokens, view.grid, ground);
-		const world = new WorldLayer(new PerfRecorder(), table);
+		const world = new WorldLayer(new PerfRecorder(), table, build);
 		world.update(view.grid, ground.levels, null, null, 'gm');
 		const layers = [table, walls, terrain, props, tokens, world];
 		const drawn = layers.flatMap((l) => materialsOf(l.group));

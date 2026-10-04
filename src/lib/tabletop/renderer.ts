@@ -44,8 +44,9 @@ import { playSound } from './sounds';
 import { TokenLayer } from './tokens';
 import type { CameraView, Tabletop, TabletopEvents, TabletopOptions } from './types';
 import { WallLayer } from './walls';
-import { WorldLayer } from './world-layer';
+import { loadWorld, WorldLayer } from './world-layer';
 export { warmLobby } from './lobby';
+export { loadWorld } from './world-layer';
 
 export async function createTabletop(
 	canvas: HTMLCanvasElement,
@@ -54,7 +55,8 @@ export async function createTabletop(
 ): Promise<Tabletop> {
 	const clock = options.now ?? (() => performance.now());
 	// A renderer the lobby warmed up (lobby.ts, #180) comes with its shaders compiled.
-	const renderer = options.warm?.renderer ?? (await createNodeRenderer(canvas, options));
+	const made = options.warm?.renderer ?? createNodeRenderer(canvas, options);
+	const [renderer, build] = await Promise.all([made, loadWorld()]); // world/build.ts, a lazy chunk
 	if (options.warm) setUpRenderer(renderer, options);
 	initModels(renderer); // models upload to it; the last table's dispose frees them
 	let shadowsDirty = true;
@@ -123,7 +125,7 @@ export async function createTabletop(
 	let freshTable = false;
 	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
-	const worldLayer = new WorldLayer(perf, land); // the ground in chunks (#240)
+	const worldLayer = new WorldLayer(perf, land, build); // the ground in chunks (#240)
 	const effects = new EffectsLayer();
 	scene.add(worldLayer.group, effects.group);
 	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky, worldLayer]];

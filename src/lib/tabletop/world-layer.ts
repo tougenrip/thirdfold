@@ -32,8 +32,22 @@ import {
 import type { PerfRecorder } from './perf';
 import { TerrainLayer } from './terrain';
 import { standIn } from './warmup';
-import { chunkGround, type GroundMesh } from './world/ground-mesh';
-import { chunksAcross, dirtyChunks, knownOf, worldShape, type WorldShape } from './world/shape';
+import type { GroundMesh } from './world/ground-mesh';
+import type { WorldShape } from './world/shape';
+
+/** The world's builders: their own chunk (world/build.ts), never imported statically here. */
+export type WorldBuilders = typeof import('./world/build');
+
+let builders: Promise<WorldBuilders> | null = null;
+
+/** Fetches the world's builders once (again after a failed download). */
+export function loadWorld(): Promise<WorldBuilders> {
+	builders ??= import('./world/build').catch((err) => {
+		builders = null;
+		throw err;
+	});
+	return builders;
+}
 
 /** The looks without an environment: the play plane's green and the old boxes' stone. */
 const PLAIN = {
@@ -74,7 +88,8 @@ export class WorldLayer {
 
 	constructor(
 		private readonly perf: PerfRecorder,
-		private readonly land: WorldGround
+		private readonly land: WorldGround,
+		private readonly build: WorldBuilders
 	) {
 		this.group.add(this.chunkGroup, this.terrain.group);
 		this.terrain.group.visible = false;
@@ -106,8 +121,14 @@ export class WorldLayer {
 		if (this.shape && inputs.every((v, i) => v === this.inputs[i])) return false;
 		const exploredChanged = !this.shape || explored !== this.inputs[5];
 		this.inputs = inputs;
-		const known = fog ? knownOf(grid, fog, mode === 'gm') : null;
-		this.shape = worldShape({ grid, levels: fit(levels), floor: fit(floor), objects: [], known });
+		const known = fog ? this.build.knownOf(grid, fog, mode === 'gm') : null;
+		this.shape = this.build.worldShape({
+			grid,
+			levels: fit(levels),
+			floor: fit(floor),
+			objects: [],
+			known
+		});
 		this.terrain.sync(grid, this.shape.ground);
 		this.rebuild();
 		return exploredChanged;
@@ -185,16 +206,16 @@ export class WorldLayer {
 		const shape = this.shape;
 		if (!this.on || !shape) return;
 		const drawn = this.drawn?.grid.cellSize === shape.grid.cellSize ? this.drawn : null;
-		const dirty = dirtyChunks(drawn, shape);
-		const { x, y } = chunksAcross(shape.grid);
+		const dirty = this.build.dirtyChunks(drawn, shape);
+		const { x, y } = this.build.chunksAcross(shape.grid);
 		this.resize(x * y);
-		for (const c of dirty) this.perf.time('world-chunk', () => this.build(shape, c));
+		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c));
 		this.drawn = shape;
 		this.lastRebuilt = dirty.length;
 	}
 
-	private build(shape: WorldShape, c: number): void {
-		const { top, sides } = chunkGround(shape, c);
+	private buildChunk(shape: WorldShape, c: number): void {
+		const { top, sides } = this.build.chunkGround(shape, c);
 		fill(this.chunks[c].top, top);
 		fill(this.chunks[c].sides, sides);
 	}

@@ -72,12 +72,17 @@ const BUDGETS = {
 	// walls from the world shape's wall spans (#239), 383.2; cells picked by the DDA, things on the
 	// pick layer (#246), 383.7; dice and pooled previews on the ground (#247), 384.7 (384,615 B measured);
 	// the ground in chunks (#240: the dual-grid emitter, the world layer and the saddles' canStep),
-	// 390.0 (389.9 kB measured; the owner's M69 cap is about 393).
-	renderer: { total: 390_000 },
+	// 390.0 (389.9 kB measured; the owner's M69 cap is about 393). → 386.1: the world's builders
+	// moved to their own chunk (`world` below, the owner's decision); 386,062 B measured.
+	renderer: { total: 386_100 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
-	probes: { total: 5_000 }
+	probes: { total: 5_000 },
+	// The world's builders (M69: world/build.ts, the shape, dual cases, regions, the ground's
+	// emitter and the builders to come), fetched with the renderer and awaited by the table;
+	// 5,166 B measured.
+	world: { total: 5_200 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
@@ -198,6 +203,17 @@ else {
 	const { gz } = total(own);
 	log('probes (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.probes.total).padStart(10));
 	if (gz > BUDGETS.probes.total) failures.push(`the probe grid is ${kb(gz)} gz, over budget`);
+}
+// The world's builders (tabletop/world/build.ts) likewise: with every table, never in its closure.
+const worldKey = Object.keys(manifest).find((k) => k.endsWith('src/lib/tabletop/world/build.ts'));
+if (!worldKey) failures.push("the world's builders are not a chunk of their own");
+else if (rendererFiles.has(manifest[worldKey].file))
+	failures.push("the renderer statically imports the world's builders");
+else {
+	const own = [...closure(worldKey)].filter((f) => !rendererFiles.has(f) && !roomFiles.has(f));
+	const { gz } = total(own);
+	log('world (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.world.total).padStart(10));
+	if (gz > BUDGETS.world.total) failures.push(`the world's builders are ${kb(gz)} gz, over budget`);
 }
 for (const f of rendererFiles) {
 	const text = readFileSync(`${OUT}/${f}`, 'utf8');
