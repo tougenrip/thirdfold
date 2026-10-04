@@ -1,6 +1,6 @@
 // Editor feedback drawn on the table: wall and door outlines, corner markers,
-// areas about to be revealed or hidden, the beacon a new player is shown to,
-// and the highlighted cell. Each sits on the ground it marks (#247): an area
+// areas about to be revealed or hidden, and the beacon a new player is shown
+// to (the highlighted cell is the grid's, grid-overlay.ts, #245). Each sits on the ground it marks (#247): an area
 // is a tile per patch of cells at one floor, a corner on the highest floor
 // round it, a segment a box per run of edges from the lower floor beside it.
 // They are drawn from a pool of instanced meshes, one per geometry and
@@ -11,9 +11,8 @@ import { cornerToWorld, gridToWorld, type GridPos, type SquareGrid } from '$lib/
 import { unitEdges } from '$lib/game/objects';
 import { groundFor, WALL_HEIGHT, type Ground } from './ground';
 import type { HighlightKind, PreviewItem } from './types';
-import { standIn } from './warmup';
 
-/** The colours that mean move, blocked and place (G6: colour-vision.spec.ts). */
+/** The colours that mean move, blocked and place, each with its pattern (G6: colour-vision.spec.ts). */
 export const HIGHLIGHT = { move: 0xe0a458, blocked: 0xe27a6b, place: 0x7fc47a } satisfies Record<
 	HighlightKind,
 	number
@@ -176,7 +175,6 @@ export const PREVIEW_CAPACITY = 1024;
 
 export class PreviewLayer {
 	readonly group = new THREE.Group();
-	readonly highlight: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
 	private box = new THREE.BoxGeometry(1, 1, 1);
 	private corner = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16);
 	private beaconColumn = new THREE.CylinderGeometry(0.32, 0.42, 1, 24, 1, true);
@@ -207,7 +205,6 @@ export class PreviewLayer {
 	 * drawing nothing while its count is 0, so the warm-up and the first frames compile them.
 	 */
 	readonly pool: ReadonlyMap<Bucket, THREE.InstancedMesh>;
-	private stands: THREE.Object3D[] | null = null;
 	private matrix = new THREE.Matrix4();
 	private turn = new THREE.Quaternion();
 	private at = new THREE.Vector3();
@@ -216,13 +213,6 @@ export class PreviewLayer {
 
 	constructor() {
 		this.group.renderOrder = 2;
-		this.highlight = new THREE.Mesh(
-			new THREE.PlaneGeometry(0.94, 0.94),
-			new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.35, depthWrite: false })
-		);
-		this.highlight.rotation.x = -Math.PI / 2;
-		this.highlight.visible = false;
-		this.highlight.renderOrder = 2; // above the fog overlay
 		const shapes = { corner: this.corner, beacon: this.beaconColumn, beaconRing: this.beaconRing };
 		this.pool = new Map(
 			BUCKETS.map((b) => {
@@ -235,17 +225,6 @@ export class PreviewLayer {
 				return [b, mesh];
 			})
 		);
-	}
-
-	/**
-	 * A stand-in for the warm-up (warmup.ts `Gallery`): the highlight is hidden until hovered, so a
-	 * compile never sees it, and on WebGPU its first draw would make a pipeline (its blending and
-	 * depth state) mid-game. The pool needs none: it is always there, drawing nothing.
-	 */
-	gallery(): THREE.Object3D[] {
-		// Never culled, far below the table.
-		this.stands ??= [standIn(new THREE.Mesh(this.box, this.highlight.material))];
-		return this.stands;
 	}
 
 	/** Shows these previews: only instance matrices and counts change (#247). */
@@ -264,28 +243,10 @@ export class PreviewLayer {
 		}
 	}
 
-	setHighlight(
-		cell: GridPos | null,
-		kind: HighlightKind,
-		grid: SquareGrid | null,
-		ground: Ground | null
-	): void {
-		const { highlight } = this;
-		if (cell && grid) {
-			const w = gridToWorld(grid, cell);
-			highlight.position.set(w.x, (ground?.floorY(cell) ?? 0) + 0.04, w.z);
-			highlight.scale.setScalar(grid.cellSize);
-			highlight.material.color.setHex(HIGHLIGHT[kind]);
-		}
-		highlight.visible = !!(cell && grid);
-	}
-
 	dispose(): void {
 		for (const mesh of this.pool.values()) mesh.dispose(); // their instance buffers
 		this.group.clear();
 		for (const g of [this.box, this.corner, this.beaconColumn, this.beaconRing]) g.dispose();
 		Object.values(this.materials).forEach((m) => m.dispose());
-		this.highlight.geometry.dispose();
-		this.highlight.material.dispose();
 	}
 }

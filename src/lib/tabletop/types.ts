@@ -14,6 +14,7 @@ import type { WorldLook } from '$lib/game/world';
 import type { FogView } from '$lib/game/visibility';
 import type { DiceThrow } from './dice3d';
 import type { FogMode } from './fog';
+import type { GridMode } from './grid-modes';
 import type { Benchmark, PerfStats } from './perf';
 import type { GridPose } from './poses';
 import type { Caps, QualitySettings, Tier } from './quality';
@@ -110,16 +111,17 @@ export interface Tabletop {
 	setHoveredProp(propId: string | null): void;
 	setSelected(tokenId: string | null): void;
 	/**
-	 * Shows or hides the grid lines (#167): off at rest, since the tiles' seams are the grid; on
-	 * while building, placing or aiming a move, or always by the viewer's choice.
+	 * How much grid shows (#245, `GridMode`): local UI state, never synced. In explore mode the
+	 * lines show round `focus` (the hovered cell, the selected token's). A uniform write.
 	 */
-	setGridShown(shown: boolean): void;
+	setGridMode(mode: GridMode, focus?: readonly (GridPos | null)[]): void;
 	/** Lays these tokens down (fallen characters); stands the others up. */
 	setFallen(tokenIds: readonly string[]): void;
 	/** Marks the token whose turn it is in a fight (an enemy's in red), or none. */
 	setActive(tokenId: string | null, enemy: boolean): void;
 	/** Floats combat text (damage, healing, a status) up from a token. */
 	showFloat(tokenId: string, text: string, color: string): void;
+	/** The hovered cell's highlight, its kind told by colour and pattern (move, blocked, place). */
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	/** Each cell's level (elevation), or null for a flat table. */
 	setTerrain(levels: Uint8Array | null): void;

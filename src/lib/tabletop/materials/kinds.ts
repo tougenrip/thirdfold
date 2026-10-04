@@ -10,6 +10,7 @@ import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
 import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
+import { gridGraph } from './grid';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
 import { LIFTED, VARIED, lifted, macroOf, macroRoughness, macroTint } from './variation';
@@ -220,6 +221,8 @@ export interface Variant {
 	instanced: boolean;
 	/** Overlay only: for LineSegments, which have no uv to sample. */
 	lines: boolean;
+	/** Overlay only: the shader grid and the hover highlight on a chunk top's twin (#245, grid.ts). */
+	grid: boolean;
 	/** Surface, terrain and rock: box mapping in the geometry's own space (door panels, #177). */
 	local: boolean;
 	/** Surface and terrain in world space: two-fetch anti-tiling, medium tier and up (#181). */
@@ -247,6 +250,17 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
 	const tint = tintOf(kind, variant);
+	if (def.base === 'basic' && variant.grid) {
+		const { colorNode, opacityNode, outputNode } = gridGraph();
+		return {
+			colorNode,
+			opacityNode,
+			alphaTestNode: null,
+			positionNode: null,
+			outputNode,
+			lit: null
+		};
+	}
 	if (def.base === 'basic') {
 		const colour = tsl.vec4(param('color', 'color'), 1);
 		const opacity = param('opacity', 'float');
@@ -332,6 +346,7 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 	const flags: [keyof Variant, string][] = [
 		['instanced', 'i'],
 		['lines', 'l'],
+		['grid', 'g'],
 		['local', 'o'],
 		['antiTiled', 'a']
 	];

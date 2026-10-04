@@ -35,7 +35,11 @@ const SIMULATIONS = {
 	]
 };
 
-/** Pairs that fall short today, reported on #157 rather than recoloured here. */
+/**
+ * Pairs that fall short today, reported on #157 rather than recoloured here. Since #245 each kind
+ * also has its own pattern (move fills, blocked hatches, place brackets the corners), which tells
+ * them apart in any vision: grid-modes.spec.ts.
+ */
 const KNOWN_SHORT = new Set([
 	'protanopia move/place',
 	'deuteranopia move/blocked',

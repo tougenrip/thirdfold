@@ -6,6 +6,7 @@
 import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
 import { TEXTURE_DETAILS, type TextureDetail } from '../assets/detail';
 import { readReduceFlashing, type ReduceFlashing } from './flash';
+import { readGridSetting, type GridSetting } from './grid-modes';
 
 export const TIERS = ['low', 'medium', 'high', 'ultra'] as const;
 export type Tier = (typeof TIERS)[number];
@@ -395,7 +396,6 @@ export const mipBiasFor = (s: Pick<QualitySettings, 'tier' | 'aa'>) =>
 
 /** A frame's budget at a tier: its frame rate's interval. */
 export const frameBudgetMs = (s: Pick<QualitySettings, 'fpsCap'>) => 1000 / s.fpsCap;
-
 /** The viewer's graphics settings, kept in this browser. */
 export interface GraphicsPrefs {
 	/** The preset. `auto`: what the device suggests (or `measured`), else the viewer's choice. */
@@ -407,8 +407,8 @@ export interface GraphicsPrefs {
 	powerSaver: boolean;
 	/** How the picture's light is mapped to the screen: taste, not cost (#158). */
 	toneMapper: ToneMapper;
-	/** Grid lines at all times, not only while building, placing or aiming a move (#167). */
-	alwaysGrid: boolean;
+	/** The grid (#245): as the moment calls for (`auto`), always in full, or never. */
+	grid: GridSetting;
 	/** Flashes as slow, dimmer fades (#223); `auto` while the device asks for reduced motion. */
 	reduceFlashing: ReduceFlashing;
 	/** The tier refinement settled on for this device, when `auto`. */
@@ -421,7 +421,7 @@ export const DEFAULT_GRAPHICS: GraphicsPrefs = {
 	compatibility: false,
 	powerSaver: false,
 	toneMapper: GRADE_TONE_MAPPER,
-	alwaysGrid: false,
+	grid: 'auto',
 	reduceFlashing: 'auto'
 };
 
@@ -442,7 +442,7 @@ export function loadGraphics(storage: Pick<Storage, 'getItem'>): GraphicsPrefs {
 			toneMapper: TONE_MAPPERS.includes(r.toneMapper as ToneMapper)
 				? (r.toneMapper as ToneMapper)
 				: GRADE_TONE_MAPPER,
-			alwaysGrid: r.alwaysGrid === true,
+			grid: readGridSetting(r.grid, r.alwaysGrid),
 			reduceFlashing: readReduceFlashing(r.reduceFlashing)
 		};
 		if (isTier(r.measured)) prefs.measured = r.measured;

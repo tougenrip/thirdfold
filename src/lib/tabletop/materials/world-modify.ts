@@ -187,6 +187,9 @@ export function worldModify(output: N, emissive: N, lit = false): N {
 /** How much of a surface shows in its cell, light times fog: the grid lines fade by it. */
 export const worldShade = (): N => terms().light.mul(terms().fog);
 
+/** How much the fog lets through (1 visible, exactly 0 on a player's hidden cell): the shader grid's (#245). */
+export const worldFog = (): N => terms().fog;
+
 /**
  * 1 where a player's fog hides the fragment's cell, else 0: the scene pass's `hidden` attachment
  * (post.ts), which the output stage turns back to black after everything that spreads light.

@@ -19,6 +19,7 @@ import type { SquareGrid } from '$lib/game/grid';
 import type { FogView } from '$lib/game/visibility';
 import { wear, type EnvironmentLook } from './environment';
 import type { FogMode } from './fog';
+import { GridOverlay } from './grid-overlay';
 import { STEP_HEIGHT, type Ground } from './ground';
 import type { WorldGround } from './landscape';
 import {
@@ -66,6 +67,8 @@ export interface WorldStats {
 interface Chunk {
 	top: THREE.Mesh;
 	sides: THREE.Mesh;
+	/** The top's twin in the overlay's scene, for the shader grid (#245). */
+	grid: THREE.Mesh;
 }
 
 const EMPTY = new THREE.BufferGeometry();
@@ -74,6 +77,8 @@ export class WorldLayer {
 	readonly group = new THREE.Group();
 	/** The old boxes: drawn with the layer off (`?off=terrain`). */
 	readonly terrain = new TerrainLayer();
+	/** The grid and the hover highlight on the chunks' tops (#245): its group goes in the overlay. */
+	readonly grid = new GridOverlay();
 	/** The world's shape for what the viewer was sent, and the one the chunks show. */
 	shape: WorldShape | null = null;
 	private drawn: WorldShape | null = null;
@@ -153,6 +158,7 @@ export class WorldLayer {
 		this.on = on;
 		this.chunkGroup.visible = on;
 		this.terrain.group.visible = !on;
+		this.grid.setOn(on);
 		this.land.showPlay(!on);
 		this.drawn = null; // back on, every chunk is built again
 		this.rebuild();
@@ -197,6 +203,7 @@ export class WorldLayer {
 		this.resize(0);
 		this.standIns?.[0].geometry.dispose();
 		this.terrain.dispose();
+		this.grid.dispose();
 		disposeTwins(this.top);
 		disposeTwins(this.sides);
 	}
@@ -216,8 +223,10 @@ export class WorldLayer {
 
 	private buildChunk(shape: WorldShape, c: number): void {
 		const { top, sides } = this.build.chunkGround(shape, c);
-		fill(this.chunks[c].top, top);
-		fill(this.chunks[c].sides, sides);
+		const chunk = this.chunks[c];
+		fill(chunk.top, top);
+		fill(chunk.sides, sides);
+		this.grid.follow(chunk.grid, chunk.top);
 	}
 
 	/** A chunk's mesh: never picked (#246 picks cells by maths), culled by its own bounds. */
@@ -236,9 +245,11 @@ export class WorldLayer {
 				if (m.geometry !== EMPTY) m.geometry.dispose();
 				this.chunkGroup.remove(m);
 			}
+			c.grid.removeFromParent();
 		}
 		while (this.chunks.length < count) {
-			const c = { top: this.mesh(this.top, false), sides: this.mesh(this.sides, true) };
+			const [top, sides] = [this.mesh(this.top, false), this.mesh(this.sides, true)];
+			const c = { top, sides, grid: this.grid.twin() };
 			this.chunkGroup.add(c.top, c.sides);
 			this.chunks.push(c);
 		}

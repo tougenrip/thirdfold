@@ -14,6 +14,7 @@
 		type Tier
 	} from '$lib/tabletop/quality';
 	import type { ReduceFlashing } from '$lib/tabletop/flash';
+	import type { GridSetting } from '$lib/tabletop/grid-modes';
 
 	/**
 	 * The Graphics menu (#154): a quality preset, and apart from it the advanced options (resolution,
@@ -67,6 +68,13 @@
 	const FLASHING: [ReduceFlashing, string][] = [
 		['auto', 'Auto'],
 		['on', 'On'],
+		['off', 'Off']
+	];
+
+	/** The grid (#245): as the moment calls for, always in full, or never. */
+	const GRID: [GridSetting, string][] = [
+		['auto', 'Auto'],
+		['always', 'Always'],
 		['off', 'Off']
 	];
 
@@ -250,14 +258,24 @@
 					<button type="button" onclick={() => location.reload()}>Reload</button>
 				</p>
 			{/if}
-			<label class="switch">
-				<input
-					type="checkbox"
-					checked={graphics.alwaysGrid}
-					onchange={(e) => onchange({ ...graphics, alwaysGrid: e.currentTarget.checked })}
-				/>
-				Always show grid, not only while building, placing or moving
-			</label>
+			<fieldset class="switch">
+				<legend>Grid</legend>
+				{#each GRID as [value, name] (value)}
+					<label>
+						<input
+							type="radio"
+							name="grid"
+							checked={graphics.grid === value}
+							onchange={() => onchange({ ...graphics, grid: value })}
+						/>
+						{name}
+					</label>
+				{/each}
+				<p class="help">
+					Auto shows it in full while building, near the pointer in play, faintly in the tactical
+					view.
+				</p>
+			</fieldset>
 			<label class="switch">
 				<input
 					type="checkbox"

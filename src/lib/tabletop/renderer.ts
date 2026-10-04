@@ -129,8 +129,8 @@ export async function createTabletop(
 	const effects = new EffectsLayer();
 	scene.add(worldLayer.group, effects.group);
 	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky, worldLayer]];
-	const gallery = new Gallery(scene, overlay.scene, world, [tokenLayer, previews]);
-	overlay.scene.add(previews.group, previews.highlight);
+	const gallery = new Gallery(scene, overlay.scene, world, [tokenLayer, worldLayer.grid]);
+	overlay.scene.add(previews.group, worldLayer.grid.group); // the grid and highlight (#245)
 	let disposed = false;
 	// Labels drawn before the label font arrived are drawn again in it.
 	void labelFontReady.then(() => {
@@ -235,10 +235,8 @@ export async function createTabletop(
 		const drifting = cloud.tick(now);
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
-		const gridFading = overlay.tick(now);
 		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends
-		const moving =
-			casters || turning || gridFading || revealing || fx.active || rig.tick(now) || post.blending;
+		const moving = casters || turning || revealing || fx.active || rig.tick(now) || post.blending;
 		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
 		rig.keepAbove(grid, ground); // tilted to the horizon, never under the ground (#220)
@@ -291,7 +289,7 @@ export async function createTabletop(
 	function buildTable(g: SquareGrid): void {
 		const extents = fitToTable(lights, atmosphere, camera, controls, g, levels, true);
 		land.build(extents);
-		overlay.setGrid(g);
+		worldLayer.grid.setGrid(g); // the old lines, for ?off=terrain until the close
 		applyLook();
 		frame = extents.play.frame;
 		effects.setBounds(extents.play.width, extents.play.depth, Math.max(4, frame * 0.2));
@@ -380,7 +378,7 @@ export async function createTabletop(
 			refreshLighting();
 		},
 		setSelected: (tokenId) => tokenLayer.setSelected(tokenId) && requestRender(),
-		setGridShown: (shown) => overlay.setGridShown(shown, clock(), reducedMotion) && requestRender(),
+		setGridMode: (mode, focus) => worldLayer.grid.setMode(mode, focus) && requestRender(),
 		setFallen(tokenIds) {
 			fallen = new Set(tokenIds);
 			if (tokenLayer.setFallen(fallen)) requestRender();
@@ -388,7 +386,7 @@ export async function createTabletop(
 		setActive: (tokenId, enemy) => tokenLayer.setActive(tokenId, enemy) && requestRender(),
 		showFloat: (id, text, color) => tokenLayer.float(id, text, color) && requestRender(),
 		setHighlight(cell, kind) {
-			previews.setHighlight(cell, kind, grid, ground);
+			worldLayer.grid.setHighlight(cell, kind, grid, ground);
 			requestRender();
 		},
 		setDarkness(next) {

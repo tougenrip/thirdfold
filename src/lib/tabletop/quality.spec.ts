@@ -138,7 +138,7 @@ describe('the saved graphics settings', () => {
 			compatibility: true,
 			powerSaver: false,
 			toneMapper: 'agx',
-			alwaysGrid: true,
+			grid: 'always',
 			reduceFlashing: 'on',
 			measured: 'low'
 		} as const;
@@ -157,6 +157,13 @@ describe('the saved graphics settings', () => {
 		});
 		const broken = { getItem: () => ({}) as string };
 		expect(loadGraphics(broken)).toEqual(DEFAULT_GRAPHICS);
+	});
+
+	it('turn the old Always show grid into Grid: Always, and an unknown grid into Auto', () => {
+		expect(loadGraphics(storage('{"alwaysGrid":true}')).grid).toBe('always');
+		expect(loadGraphics(storage('{"alwaysGrid":false}')).grid).toBe('auto');
+		expect(loadGraphics(storage('{"grid":"off","alwaysGrid":true}')).grid).toBe('off');
+		expect(loadGraphics(storage('{"grid":"sometimes"}')).grid).toBe('auto');
 	});
 
 	it('survive an update: options it no longer has, or values it no longer offers, drop out', () => {
