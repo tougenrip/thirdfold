@@ -70,8 +70,8 @@ const BUDGETS = {
 	// → the tier refined only from steady frames (models settled, no warm-up gallery): 383.0.
 	// → M69 raises it per PR to the measured size, capped at about 393 kB (the owner's decision):
 	// walls from the world shape's wall spans (#239), 383.2; cells picked by the DDA, things on the
-	// pick layer (#246), 383.7.
-	renderer: { total: 383_700 },
+	// pick layer (#246), 383.7; dice and pooled previews on the ground (#247), 384.7 (384,615 B measured).
+	renderer: { total: 384_700 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

@@ -9,7 +9,11 @@
 
 import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
+import { DiceLayer } from './dice3d';
+import { buildDieModel } from './dice-geometry';
+import { WALL_HEIGHT } from './ground';
 import { GRID_FADE_MS } from './overlay';
+import { PreviewLayer, type Bucket } from './previews';
 import { PICK_LAYER } from './picking';
 import { createTabletop } from './renderer';
 import {
@@ -205,6 +209,79 @@ describe('the renderer', () => {
 		}
 		expect(tested.size).toBeGreaterThan(0);
 		for (const o of tested) expect(o.layers.isEnabled(PICK_LAYER), o.name || o.type).toBe(true);
+	});
+
+	test('lands a die on the monastery gallery and lays previews on its ground (#247)', async () => {
+		const throws = vi.spyOn(DiceLayer.prototype, 'throw');
+		const sets = vi.spyOn(PreviewLayer.prototype, 'set');
+		const m = await mount('monastery', 'gm');
+		// Looking at the gallery's cell (20, 5), at level 5 (2 up), from the nave's side.
+		m.tabletop.setPose({ position: { x: -2.5, y: 9, z: 3.5 }, target: { x: 5.5, y: 2, z: -4.5 } });
+		await settle(m.tabletop);
+		const { position: eye, target } = m.tabletop.cameraPose()!;
+		/** The canvas pixel where a world point shows, by the camera's own projection. */
+		const f = unit(sub(target, eye));
+		const r = unit({ x: -f.z, y: 0, z: f.x });
+		const u = { x: r.y * f.z - r.z * f.y, y: r.z * f.x - r.x * f.z, z: r.x * f.y - r.y * f.x };
+		const tan = Math.tan(Math.PI / 8); // the 45 degree field of view
+		const pixelOf = (p: V3) => {
+			const d = sub(p, eye);
+			const z = dot(d, f);
+			const nx = dot(d, r) / (z * tan * (WIDTH / HEIGHT));
+			const ny = dot(d, u) / (z * tan);
+			return [Math.round(((nx + 1) / 2) * WIDTH), Math.round(((1 - ny) / 2) * HEIGHT)] as const;
+		};
+		const before = await readFrame(m.canvas, WIDTH, HEIGHT);
+
+		// Reduced motion lands it at once; the held clock keeps it resting there.
+		m.tabletop.throwDice({ seq: 3, dice: [{ kind: 'd20', face: 19 }], color: '#2050d0' });
+		const frames = m.tabletop.stats().frames;
+		while (m.tabletop.stats().frames < frames + 3) await wait(50);
+		const layer = throws.mock.contexts[0] as DiceLayer;
+		const [die] = layer.group.children;
+		const rest = buildDieModel('d20', 1).inradius * 0.9;
+		expect(die.position.y - rest).toBeCloseTo(2, 5); // on the gallery's floor, not the nave's
+		expect(Math.abs(die.position.x - target.x)).toBeLessThan(1.5);
+		const [px, py] = pixelOf(die.position);
+		const [was, now] = [before(px, py), (await readFrame(m.canvas, WIDTH, HEIGHT))(px, py)];
+		expect(now, `the die drawn at ${px}, ${py}`).not.toEqual(was);
+
+		// An area from the nave (cells 17, 18 at level 0) onto the gallery (19, 20 at 5), the gallery's
+		// corner over the nave, and a segment down its edge, a cliff from 0 to 2.
+		m.tabletop.setPreview([
+			{ kind: 'area', from: { x: 17, y: 5 }, to: { x: 20, y: 5 }, tone: 'reveal' },
+			{ kind: 'corner', at: { x: 19, y: 5 } },
+			{ kind: 'segment', a: { x: 19, y: 4 }, b: { x: 19, y: 6 }, tone: 'valid' }
+		]);
+		const previews = sets.mock.contexts.at(-1) as PreviewLayer;
+		const placed = (bucket: Bucket) => {
+			const mesh = previews.pool.get(bucket)!;
+			return Array.from({ length: mesh.count }, (_, i) => {
+				const [at, q, s] = [new THREE.Vector3(), new THREE.Quaternion(), new THREE.Vector3()];
+				mesh.getMatrixAt(i, new THREE.Matrix4()).decompose(at, q, s);
+				return { y: at.y, low: at.y - s.y / 2, high: at.y + s.y / 2 };
+			});
+		};
+		expect(
+			placed('reveal')
+				.map((p) => +p.low.toFixed(3))
+				.sort()
+		).toEqual([0, 2]);
+		expect(placed('corner').map((p) => +p.y.toFixed(3))).toEqual([2.15]);
+		const [edge] = placed('valid');
+		expect([edge.low, edge.high].map((y) => +y.toFixed(3))).toEqual([0, 2 + WALL_HEIGHT / 2]);
+		const groups = new Set(previews.pool.values());
+		for (let i = 0; i < 100; i++)
+			m.tabletop.setPreview([
+				{
+					kind: 'area',
+					from: { x: 17, y: 5 },
+					to: { x: 17 + (i % 5), y: 2 + (i % 7) },
+					tone: 'hide'
+				}
+			]);
+		expect(new Set(previews.group.children)).toEqual(groups); // no new meshes
+		m.tabletop.setPreview([]);
 	});
 });
 

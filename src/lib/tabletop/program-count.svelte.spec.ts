@@ -215,6 +215,7 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		home.objects.find((o) => o.kind === k)!
 	);
 	const cue = (c: 'flash' | 'toll') => () => t.playCue(c, c === 'toll' ? prop.id : null);
+	const corner = { x: home.grid.width - 1, y: home.grid.height - 1 };
 	// The tier as mounted, with the fog cloud's layer on or off (#174).
 	const cloud = (on: boolean) => () => {
 		const settings = settingsFor(tier, t.capabilities().backend);
@@ -279,6 +280,26 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		['prop hidden', () => t.setProps(withProp({ hidden: true }))],
 		['prop moved', () => t.setProps(withProp({ pos: { x: prop.pos.x + 1, y: prop.pos.y } }))],
 		['props back', () => t.setProps(home.props)],
+		// Previews come from a pool made with the table (#247): every tone, the corner, the segments,
+		// the beacon and the whole table at once only rewrite instances.
+		...(['reveal', 'hide', 'valid', 'invalid'] as const).map((tone): Step => [
+			`preview area ${tone}`,
+			() => t.setPreview([{ kind: 'area', from: { x: 0, y: 0 }, to: { x: 3, y: 2 }, tone }])
+		]),
+		[
+			'preview whole table',
+			() => t.setPreview([{ kind: 'area', from: { x: 0, y: 0 }, to: corner, tone: 'reveal' }])
+		],
+		...(['valid', 'invalid', 'door'] as const).map((tone): Step => [
+			`preview wall ${tone}`,
+			() =>
+				t.setPreview([
+					{ kind: 'corner', at: { x: 1, y: 1 } },
+					{ kind: 'segment', a: { x: 1, y: 1 }, b: { x: 5, y: 1 }, tone }
+				])
+		]),
+		['preview beacon', () => t.setPreview([{ kind: 'beacon', at: { x: 2, y: 2 } }])],
+		['previews cleared', () => t.setPreview([])],
 		['flash cue', cue('flash')],
 		['toll cue', cue('toll')],
 		// Reduced motion throws instantly; the frame is drawn with the die at rest, then fading

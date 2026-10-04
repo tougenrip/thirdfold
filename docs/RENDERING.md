@@ -1217,6 +1217,45 @@ A fogged player's picks follow the levels the renderer draws: as sent while `Ter
 them, the continued levels once #240's layer does (the renderer's `ground` then comes from
 `worldShape`). Neither reads anything of an unexplored cell that the picture doesn't show.
 
+### Dice and previews on the ground (#247)
+
+Dice land on the floor where they fall. `diceSurface(grid, ground, floor)` (`dice3d.ts`) is the
+surface they land on: a point's cell's `Ground.floorY`, the drawn floors (the same `ground` the picks
+use, so the continued levels once #240's layer draws them), and null on a void cell or off the
+grid. `throwFromView` centres the throw on the cell the camera looks at, or, where that is void or
+past the grid, on the nearest cell that holds dice (a scan of the cells, once per throw), and throws
+from the viewer's side above the walls on that floor; it hands `DiceLayer.throw` the centre, the
+start and the surface (`DiceAim`). Each die keeps its seeded spot on the golden-angle spiral; a spot
+the surface refuses is pulled in along the spiral's radius a quarter cell at a time to the first
+that holds (`landing`: no random draws, so every client's throw is still the same), and the die
+rests at the highest surface under its centre and four points half a die out (so it never sinks
+into the face of raised ground beside it) plus its inradius. The arc, `landingQuaternion` and the
+wall-clock timing are unchanged, so the face a player reads is too, and reduced motion still lands
+them at once. A die may pass through a wall or a cliff on the way down: the landing is what counts.
+`dice3d.spec.ts` lands every face of every die on raised ground reading the rolled face, pulls 40
+throws of 12 dice beside a void column and the table's edge in, and aims past the grid at the
+nearest cell; `renderer.svelte.spec.ts` throws a d20 at the monastery's gallery (level 5) and finds
+it drawn there, resting on the gallery's floor, not the nave's.
+
+Editor previews stand on the ground they mark. `previewPlacements(items, grid, ground)`
+(`previews.ts`, pure, `previews.spec.ts`) turns preview items into instances by bucket: an area is
+a tile per patch of cells at one floor (`patches`: each row's runs of equal floors, joined to the
+row above when the span and floor match, so a flat area is one tile however large and one across
+levels steps with the ground), a corner sits on the highest floor of the cells round it, a segment
+is a box per run of unit edges with the same floors beside them, from the lower floor to the
+preview's height above the higher (as a wall stands), its ends reaching past its corners as before,
+and the beacon's column and ring stand on their cell's floor. `PreviewLayer` draws them from a pool
+made with the layer: one `InstancedMesh` per bucket (the box in its five tones, the corner, the
+beacon's column and ring), `PREVIEW_CAPACITY` (1,024) instances each, always in the overlay scene
+and drawing nothing at a count of 0, so the warm-up compiles them and a hover only rewrites
+instance matrices and counts. They never grow: r186 gives every new `InstancedMesh` a vertex stage
+of its own, so a mesh made mid-game would compile; patches keep the counts far below the capacity,
+and past it the rest is left out. program-count's runtime sweep sets every tone, a whole-table
+area, walls in every tone, the beacon and none, compiling nothing. The hover highlight sits at its
+cell's floor, as before. Previews are the GM's but for the tutorial's beacon, and over an unexplored
+cell they stand on the height the viewer's ground gives it, so they show nothing the picture
+doesn't.
+
 ### Costs
 
 In Node on the i9-13900HX (`npx tsx server/perf/world-shape.ts`, docs/PERFORMANCE.md): classifying a
@@ -1242,7 +1281,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                          |
 | `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                |
 | `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `ringVertices`); `WorldGround`, the play plane and the ring to the horizon           |
-| `previews.ts`                         | Editor previews, the beacon and the highlighted cell                                                                             |
+| `previews.ts`                         | Editor previews from a pool of instanced meshes on the ground (`previewPlacements`, #247), the beacon and the highlighted cell   |
 | `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
 | `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
 | `capabilities.ts`                     | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
