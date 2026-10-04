@@ -23,7 +23,17 @@ import type { Prop } from '../../../src/lib/game/props';
 import type { SceneFile } from '../../../src/lib/game/scene-file';
 import { flatLevels, withLevel } from '../../../src/lib/game/terrain';
 import { npcTokens } from './npcs';
-import { at, GLOW, light, prop, table, wall, window, type Rise } from '../../adventure/tables';
+import {
+	at,
+	GLOW,
+	IN_PROP,
+	light,
+	prop,
+	table,
+	wall,
+	window,
+	type Rise
+} from '../../adventure/tables';
 
 export const HOLLOW_GRID: SquareGrid = { kind: 'square', cellSize: 1, width: 48, height: 36 };
 
@@ -273,7 +283,7 @@ export function hollowScene(now = new Date()): SceneFile {
 				light('ho-bell-glow', 24, 9, 6, '#7fb6ff', true, GLOW),
 				light('ho-pit-glow', PIT_AT.x, PIT_AT.y, 3, '#9c6cff', true, GLOW),
 				light('ho-stair-light', 24, 35, 1, '#ffd27a'),
-				light(I.torchLight, TORCH_AT.x, TORCH_AT.y, 3, '#ffa04d'),
+				light(I.torchLight, TORCH_AT.x, TORCH_AT.y, 3, '#ffa04d', true, IN_PROP),
 				// Something in the water glows, here and there.
 				light('ho-lake-glow-1', 19, 25, 2, '#3fb6c4', true, GLOW),
 				light('ho-lake-glow-2', 30, 22, 2, '#3fb6c4', true, GLOW),

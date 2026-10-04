@@ -349,6 +349,27 @@
 			"w": 3,
 			"h": 3,
 			"blocks": "movement"
+		},
+		"tent": {
+			"name": "Tent",
+			"category": "furniture",
+			"w": 2,
+			"h": 2,
+			"blocks": "movement"
+		},
+		"banner": {
+			"name": "Banner",
+			"category": "fixtures",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
+		"crystal": {
+			"name": "Crystal",
+			"category": "nature",
+			"w": 1,
+			"h": 1,
+			"blocks": "movement"
 		}
 	},
 	"aliases": {}

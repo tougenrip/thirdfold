@@ -136,11 +136,51 @@ These are the source of truth for #187; changing one changes the surface.
 | thatch       | `#3c3530 #6a5a3d #93804f #b8a46a`                          |
 | slate        | `#262a35 #3d4250 #5a5f6b #7d808a`                          |
 
+### Light presets (#238)
+
+Tuned against the torch room (reference 1, fixture `ref-1`, stone-halls) and the night gate
+(reference 6, `ref-6`, village) with `scripts/look-metrics.mjs`, at their fixed close poses. Every
+value is a constant, a sky key or a grade: nothing compiles, on any tier or backend. The swatches
+(`LIGHT_COLORS`) are unchanged; a torch's colour is the light's own, and the flame kinds' warmth
+(about 1800-2000 K) is in their swatches, not in the kind.
+
+| What                                                   | Was                               | Now                                                        | Why                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------ | --------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Torch intensity (`LIGHT_KIND_DEFAULTS`)                | 1                                 | 0.7                                                        | Two torch-strength braziers burned the gate's walls and cobbles orange-white (p95 L 0.75 against the reference's 0.40). The focus-cell exposure lift (#233) gives back some of the drop, so the torch room keeps its hot wall (p95 0.59).                              |
+| Brazier and fire intensity                             | 1.5                               | 1.05                                                       | The same 1.5 times a torch as before, so a GM's brazier keeps its place against a torch.                                                                                                                                                                               |
+| `CORE_MAX` (`lights.ts`)                               | 4                                 | 2.5                                                        | A softer hot core: less of the sconce's wall clips and blooms, and the top of the frame keeps the night's colour, 0.008 closer on the torch room; the gate is unchanged. Within `FALLOFF_RANGES` (1-8).                                                                |
+| Temperate night moon (`assets/skies`, 04:30 and 22:00) | 0.15                              | 0.3                                                        | The moonlit cobbles away from the pools read blue, not black (the gate's reference is lit to its edges, vignette 0.91); 0.15 → 0.3 moved the gate 0.004 closer, the torch room not at all. The hemisphere stays 0.1 (doubling it moved neither by more than 0.002).    |
+| Village night grade (`assets/grades/village.json`)     | sat 0.9, highlights 1, 0.96, 1.02 | sat 0.6, gain 0.78, 0.78, 0.84, highlights 0.96, 0.9, 1.08 | The gate's reference is a low-chroma night (mean chroma 0.035) whose highlights lean lavender, not orange (hue 341 at chroma 0.05): the grade cools and quiets the village after dark, so fire stays the only warm thing and the pools separate by brightness.         |
+| Stone-halls night grade                                | contrast 1.05                     | 1.15, gain 1.1, 1.07, 1.02                                 | The torch room's reference is brighter in its mids and darker in its darks than ours. Contrast and a warm gain lift the torch's pool without the lift a gamma gives the darks (a gamma of 1.25-1.35 measured 0.005 better on ref 1 but lifted ref 3's crushed blacks). |
+| Bloom, `READABLE_EDGE`, `LIGHT_DECAY`, flicker         | unchanged                         |                                                            | Bloom's proxy is within 0.009 of both references. A decay of 1.3 tightened the gate's pools (0.007 closer) but cost the torch room 0.008. Flicker is off in the measured renders (reduced motion), so there is nothing to tune it against.                             |
+
+Distances (0 is identical; M67 is the closing strip of the sky milestone, "M68 before" the branch
+before this pass):
+
+| Reference     | M67   | M68 before | M68   |
+| ------------- | ----- | ---------- | ----- |
+| 1, torch room | 0.167 | 0.128      | 0.123 |
+| 6, night gate | 0.193 | 0.237      | 0.119 |
+
+The gate's warm pools stay brighter than the moonlit cobbles by about 20 times in relative
+luminance as seen and under Machado's protanopia, deuteranopia and tritanopia simulations, so
+they separate by brightness, not hue alone.
+
+**Still missing** for the references, none of it light: local contrast (half theirs: normal maps,
+roughness pockets and painted cavities, art), the torch room's mids (p50 0.13 against 0.32: its
+foreground is open ground outside the room, where the reference is all lit camp), the gate's
+lavender highlights (ours are the flames' yellow-white; theirs are pale stone under the moon) and
+both skies' indigo at the horizon rows, which our close poses fill with lit wall.
+
 ## 5. Stylised PBR rules
 
 - **Roughness** mostly 0.5-0.9. Below 0.4 only for wet, glazed, polished or oily things.
 - **Metalness** 1 only on bare metal, 0 everywhere else, never in between except on worn edges.
 - **Emissive** only for flames, embers, runes, glowing windows and lava.
+- **Translucency** (0 to 1, a part list's `translucency`; docs/RENDERING.md "Translucency") only
+  for thin or waxy things that glow with a light behind them: canvas and cloth 0.8, crystal and ice
+  0.9, wax 0.5, leaves 0.4. Never a substitute for emissive: in the dark with no light behind, it
+  adds nothing.
 - **Normals** are MikkTSpace tangent-space, OpenGL convention (+Y up, as glTF). A DirectX-style
   normal map (ambientCG's `NormalDX`) is refused.
 - **Bevel everything a light can catch.** Hard 90° edges read as CG; a 0.01-0.03 u bevel or a

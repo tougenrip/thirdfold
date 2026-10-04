@@ -286,6 +286,12 @@ function readModel(
 	// A cooked model's base carries textures of at most BASE_PX.
 	Object.assign(entry, variants(v.variants, id, { file: entry.file, px: BASE_PX }, limit, what));
 	if (setPiece) entry.setPiece = true;
+	if (v.translucency !== undefined) {
+		if (!finite(v.translucency, 0, 1) || v.translucency === 0) {
+			throw new Invalid(`${what}: bad translucency`);
+		}
+		entry.translucency = v.translucency;
+	}
 	if (v.swing !== undefined) {
 		const s = v.swing;
 		if (!isRecord(s) || !finite(s.pivot, 0, 20) || !finite(s.throw, -7, 7)) {

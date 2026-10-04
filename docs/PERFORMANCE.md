@@ -349,7 +349,7 @@ project, the RTX 4060 Laptop's WebGPU in `client-webgpu`):
 | high   | 211             | 173              | 212             | 178              |
 
 Environments, the times of day, every floor, fog off and on in both modes, fully visible,
-explored and unseen fog, dark areas, 0, 1 and 12 lights (past the pool of 8), recolouring and
+explored and unseen fog, dark areas, 0, 1 and 12 lights (past a cell's K on low, medium and high), recolouring and
 switching them, a token carrying light, a token without a model, fallen and enemy turns, props
 selected, hovered, hidden and moved, both cues and travel between four tables of three sizes change
 none. Of `KNOWN` in the spec (each compile still left, with the issue that ends it) #180 ended both
@@ -819,3 +819,91 @@ per frame (timestamp queries), overview and close, GM and player:
   have. At most one every 2 s (high) or 5 s (medium), it is not a per-frame cost.
 - **The iGPU** stays over its budgets, as recorded since M61 (low 14-16 ms, medium 48-52 ms, high
   55-60 ms at 1080p); M67 did not change that picture, and the dome is not what costs.
+
+## The M68 many lights (#228)
+
+GridLights replace the pool of 8 point lights (docs/RENDERING.md, "Many lights"; the pool, kept
+behind `?off=manylights` until then, was removed at M68's close). Measured with
+`scripts/perf-gpu.mjs` (`SCENES=dungeon-40,village,hollow TIER=medium FRAMES=32`, 1920×1080,
+reduced motion) against the M67 build (`tougenrip/m68-lighting` before #228, its pool) served
+beside it, the two alternating twice; each cell is the lower of the two rounds' GPU ms per frame
+(timestamp queries). `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json` for the iGPU. A
+first view that compiles (village's GM overview on WebGL2) is noise either way.
+
+| GPU           | Backend | Path       | dungeon-40 GM overview / close | player overview / close | village GM overview / close | player overview / close | Hollow GM overview / close | player overview / close |
+| ------------- | ------- | ---------- | ------------------------------ | ----------------------- | --------------------------- | ----------------------- | -------------------------- | ----------------------- |
+| RTX 4060      | WebGPU  | M67 pool   | 2.3 / 3.0                      | 2.4 / 2.9               | 2.1 / 2.3                   | 2.1 / 2.3               | 3.0 / 6.8                  | 3.5 / 6.4               |
+| RTX 4060      | WebGPU  | GridLights | 2.4 / 2.9                      | 2.2 / 2.8               | 1.9 / 2.1                   | 1.9 / 2.1               | 3.2 / 5.8                  | 2.6 / 6.5               |
+| RTX 4060      | WebGL2  | M67 pool   | 2.7 / 3.3                      | 2.8 / 3.3               | (26.3) / 2.5                | 2.3 / 2.5               | 6.3 / 6.7                  | 3.6 / 7.4               |
+| RTX 4060      | WebGL2  | GridLights | 2.6 / 3.1                      | 2.6 / 3.2               | (14.7) / 2.4                | 2.0 / 2.3               | 4.7 / 6.7                  | 3.3 / 5.8               |
+| Intel (RPL-S) | WebGPU  | M67 pool   | 49.0 / 62.5                    | 49.8 / 63.2             | 43.9 / 45.1                 | 42.8 / 45.4             | 71.9 / 165.1               | 73.8 / 164.8            |
+| Intel (RPL-S) | WebGPU  | GridLights | 42.8 / 56.2                    | 43.9 / 56.3             | 40.7 / 39.3                 | 37.1 / 39.8             | 63.7 / 146.4               | 64.0 / 146.4            |
+| Intel (RPL-S) | WebGL2  | M67 pool   | 43.0 / 55.1                    | 43.9 / 55.9             | (71.4) / 38.5               | 36.7 / 39.3             | 62.4 / 108.9               | 74.4 / 131.6            |
+| Intel (RPL-S) | WebGL2  | GridLights | 39.2 / 49.3                    | 37.5 / 48.7             | (62.4) / 31.3               | 30.7 / 32.7             | 49.0 / 90.0                | 58.9 / 104.2            |
+
+- **The iGPU at medium is no worse than M67 on every view (the owner's gate), 8-20% faster on
+  most:** each fragment runs its cell's few lights (two at most on these tables) instead of all 8
+  pool lights. A first build whose falloff used `pow` for its squares was 5-15% slower than M67 on
+  the iGPU's WebGL2 views; `falloffNode` multiplies instead, and that is the build measured here.
+- **The RTX** is the same or a little faster on both backends, within a tenth of a millisecond on
+  most views.
+- **CPU.** The relight for the GM loading the village (`perf-client.mjs`, `SCENES=village`,
+  `lighting` over the load) averaged 1.2 ms a relight (14 in 16.8 ms) against M67's 3.1 ms (10 in
+  31.4 ms) on this machine, well within M34's 6.4 ms; the builders' own costs are the ADR's
+  (`buildLists` 0.2 ms with the sights cached, a door toggle 4.3 ms on dungeon-40). A light that
+  changes uploads its own data layer (1 KB), a list change the grid rows that changed.
+- **Memory.** The data texture (255 lights × 67 RGBA32F texels, 273 KB) and the lists (100 rows of
+  K per cell: 80 KB at K = 8, 160 KB at 16), whatever the table.
+
+**The perf gate** was re-baselined deliberately (`--update-baseline`, the test world, WebGL2 on the
+RTX): textures 82 → 84 and texture bytes +353 KB on every tier (GridLights' two textures), the heap
+about 1.5 MB more; programs (174), pipelines, render targets, draw calls (117 after orbiting) and
+idle frames (0) unchanged, nothing leaked over reloads and remounts.
+
+## The M68 probe grid (#235)
+
+The probe grid's bake (docs/RENDERING.md, "Probe grid"), timed by `probe-grid.svelte.spec.ts` on
+the RTX 4060 Laptop (`THIRDFOLD_WEBGPU=1 npx vitest run --project client-webgpu --reporter=verbose
+--silent=false -t times src/lib/tabletop/probe-grid.svelte.spec.ts`): the Hollow's GM view on high
+(48 × 36, 17 × 3 × 13 = 663 probes, 8 px cube faces), a whole rebake from its first step to its
+last after a light changes, three runs on a machine running other tests beside it.
+
+| Backend                        | Bake, wall | In the 83 steps (CPU) | Longest step | Frames |
+| ------------------------------ | ---------- | --------------------- | ------------ | ------ |
+| WebGPU                         | 2.1-3.0 s  | 1.7-2.5 s             | 34-62 ms     | 131    |
+| WebGL2 (ANGLE Vulkan, the RTX) | 3.5-4.0 s  | 2.9-3.4 s             | 48-76 ms     | 131    |
+
+- **CPU-bound:** a step is 8 probes × 6 cube faces of the whole scene, about 0.6 ms of draw
+  submission a face; the GPU work is small at 8 px. A step is a long frame (35-75 ms, up to 200 ms
+  on a loaded machine, where one WebGL2 run took 12.8 s), so a bake hitches the picture while it
+  runs; fewer probes a frame would smooth it and take longer.
+- **Idle afterwards:** 131 frames are the 83 steps and TRAA's 24-frame settle after the last (and
+  the fade); then none (the spec waits 3 s for a frame and gets none).
+- **The gate** (about 3 s on the dGPU) is met on WebGPU, just; WebGL2 is over it, and the iGPU is
+  not measured (`wantsProbes` never bakes on WebGL2 on an integrated GPU). The layer stays off by
+  default.
+- **Memory:** the atlas, 24 × 3 × 182 RGBA16F texels (105 KB), the bake's batch target (9 × 663
+  RGBA32F texels, 95 KB) and an 8 px half-float cube, whatever the table. The chunk is 4.5 kB gz.
+- **Programs:** none compiled by a bake (the warm-up's hold captures a probe); the largest fragment
+  stage samples 16 textures on high with probes (229 programs on the test world on WebGPU).
+
+## The M68 hero shadows (#230)
+
+Measured with `scripts/perf-gpu.mjs` on the test world (`FRAMES=32 POSES=close,overview`, 1920×1080,
+WebGL2 on the RTX 4060, reduced motion), the same build with its slots forced to none against the
+slots on; other jobs shared the GPU, so a tenth or two either way is noise, and the first pose after
+the scene import (the GM's close) compiles and is left out.
+
+| Tier                    | GM overview | player close / overview | Cube memory (depth + R8 colour) |
+| ----------------------- | ----------- | ----------------------- | ------------------------------- |
+| medium, no slots        | 3.0         | 3.0 / 3.0               | 0                               |
+| medium, 2 slots, 256 px | 3.0         | 3.4 / 4.0               | 3.1 + 0.8 MB                    |
+| high, no slots          | 4.2         | 3.2 / 3.0               | 0                               |
+| high, 4 slots, 512 px   | 4.4         | 4.4 / 3.8               | 25.2 + 6.3 MB                   |
+
+- **Per fragment** a slot costs its cell-list check and one cube lookup (a face matrix and a 2×2
+  compare); the entry's light (data, occlusion taps, falloff) is worked out only where the slot's
+  light is listed. A first build that worked it out everywhere cost 2.5-3.5 ms more on medium.
+- **Per redraw** a cube is six caster passes into its row of the atlas, only when something in the
+  light's reach + 1 changed, at most one a frame on medium and two on high; camera moves draw none.
+- **The iGPU** was not measured for this change; low has no slots.

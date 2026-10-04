@@ -62,6 +62,9 @@ export const light = (
 /** A light that is only a glow (the Bell's, a charm's, the lake's): no lantern post (#201). */
 export const GLOW: Partial<LightLook> = { kind: 'glow', fixture: false };
 
+/** A light whose fixture is a prop on its cell (a sconce, a brazier): no second one drawn (#232). */
+export const IN_PROP: Partial<LightLook> = { fixture: false };
+
 export interface TableParts {
 	name: string;
 	grid: SquareGrid;

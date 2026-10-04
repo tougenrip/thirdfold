@@ -8,9 +8,13 @@
 // too, where bloom and the lens spread light and the output stage's re-mask
 // (#173) must take it away again; left out are cells hidden behind something
 // standing on explored ground, cells too small to hold a 3x3 block and cells
-// off screen. A new layer is turned on here when it lands (docs/RENDERING.md). The sky (#225) adds
+// off screen. A new layer is turned on here when it lands (docs/RENDERING.md). Many lights (#228):
+// dungeon-40's torches and ref-6's braziers, and beside the player a light carrier on ground it
+// never saw, its lantern reaching on into the dark (the server never sends one, grid-light-layer.spec.ts;
+// here the picture holds even if it did). The sky (#225) adds
 // its own poses, always run: a low camera toward the horizon, dense haze, a dark area at noon and a
-// roofed table.
+// roofed table. Bounce and cavity (#234) are on, at each tier's strength. The probe grid (#235), off
+// by default, is baked and on for the test world's player on high.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -26,7 +30,8 @@ import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
-import { settingsFor, type Tier } from './quality';
+import type { GridPose } from './poses';
+import { settingsFor, type QualitySettings, type Tier } from './quality';
 import {
 	BACKEND,
 	FIXTURES,
@@ -54,8 +59,12 @@ vi.setConfig({ testTimeout: 300_000 });
  * with its name label, a light's fixture, and a prop (the tallest model, a tree or a bell frame).
  */
 const TALL = { floor: 0.1, wall: WALL_LEVELS * STEP_HEIGHT + 0.3, token: 2, light: 2, prop: 4 };
+/** Cells between baked probes in the probe cases: 4 × 3 × 4 on the test world, not 9 × 3 × 9. */
+const PROBE_TEST_SPACING = 8;
 /** Fewer samples than this and a pose proves nothing: it is left out, and said so. */
 const MIN_SAMPLES = 20;
+/** From above a light carrier on unexplored ground (#228), round its cell. */
+const ABOVE = { distance: 12, azimuth: 20, elevation: 70 };
 /** The rig camera's vertical field of view (camera.ts). */
 const FOV = 45;
 const POSES: readonly PoseName[] = ['overview', 'close', 'low', 'dark'];
@@ -70,7 +79,10 @@ const SLIM = new Set([
 	...TIERS.map((t) => `hollow player dark ${t}`),
 	'ref-8 spectator dusk medium',
 	'ref-8 spectator dark medium reduced',
-	'hollow player dark medium cloud'
+	'hollow player dark medium cloud',
+	'dungeon-40 player dark medium carrier',
+	'ref-6 player dark medium carrier',
+	'test-world player dusk high probes'
 ]);
 const FULL = inject('unexplored') === 'full';
 
@@ -83,6 +95,10 @@ interface Case {
 	reduced: boolean;
 	/** The fog cloud's layer on, off by default until the owner's review (#174). */
 	cloud: boolean;
+	/** A light carrier on unexplored ground beside the player's token (#228). */
+	carrier: boolean;
+	/** The probe grid's layer on (#235, off by default until its gates), baked before the poses. */
+	probes: boolean;
 	label: string;
 }
 
@@ -111,15 +127,24 @@ async function allCases(): Promise<Case[]> {
 				const player = await loadView(fixture, band, 'player');
 				const same = (v: FixtureView) => JSON.stringify({ ...v, viewer: null });
 				if (viewer === 'spectator' && same(view) === same(player)) continue;
-				const each = (tier: Tier, reduced: boolean, cloud = false) => {
+				const each = (
+					tier: Tier,
+					reduced: boolean,
+					cloud = false,
+					carrier = false,
+					probes = false
+				) => {
 					const label =
 						`${fixture} ${viewer} ${band} ${tier}` +
-						`${reduced ? ' reduced' : ''}${cloud ? ' cloud' : ''}`;
-					out.push({ fixture, viewer, band, poses, tier, reduced, cloud, label });
+						`${reduced ? ' reduced' : ''}${cloud ? ' cloud' : ''}${carrier ? ' carrier' : ''}` +
+						`${probes ? ' probes' : ''}`;
+					out.push({ fixture, viewer, band, poses, tier, reduced, cloud, carrier, probes, label });
 				};
 				for (const tier of TIERS) each(tier, false);
 				each('medium', true);
 				each('medium', false, true);
+				if (viewer === 'player') each('medium', false, false, true);
+				if (viewer === 'player') each('high', false, false, false, true);
 			}
 	}
 	return out;
@@ -128,7 +153,17 @@ async function allCases(): Promise<Case[]> {
 const CHOSEN = (await allCases()).filter((c) => FULL || SLIM.has(c.label));
 /** `THIRDFOLD_SHARD=k/n`: every nth case from the kth, so CI takes them in parallel jobs. */
 const [k, n] = inject('shard').split('/').map(Number);
-const CASES = CHOSEN.filter((_, i) => i % n === k - 1);
+/**
+ * Whether the `i`th of the other tests (the cases without probes, then the sky's, then the last) is
+ * this shard's: every one but the last shard takes them in turn; the probe cases (a bake each,
+ * minutes on SwiftShader) have the last shard to themselves.
+ */
+const ours = (i: number) => (n === 1 ? true : k < n && i % (n - 1) === k - 1);
+const LIGHT = CHOSEN.filter((c) => !c.probes);
+const CASES = [
+	...LIGHT.filter((_, i) => ours(i)),
+	...CHOSEN.filter((c) => c.probes && (n === 1 || k === n))
+];
 
 let mounted: Mounted | null = null;
 afterEach(async () => {
@@ -304,27 +339,75 @@ function standing(view: FixtureView): Float32Array {
  * on the held clock), and grain and dither on unless motion is reduced.
  */
 async function mountCase(
-	c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 'reduced'> & { cloud?: boolean }
+	c: Pick<Case, 'fixture' | 'viewer' | 'band' | 'tier' | 'reduced'> & {
+		cloud?: boolean;
+		carrier?: boolean;
+		probes?: boolean;
+	}
 ) {
 	const sidecar = await loadSidecar(c.fixture);
-	const view = await loadView(c.fixture, c.band, c.viewer);
+	const sent = await loadView(c.fixture, c.band, c.viewer);
+	const view = c.carrier ? withCarrier(sent, sidecar.player.tokenId) : sent;
 	expect(view.fog.enabled).toBe(true);
 	const clock = manualClock(5000);
 	const m = await mountFixture(view, sidecar.poses.overview, {
 		clock,
 		reducedMotion: c.reduced,
-		tier: c.tier
+		tier: c.tier,
+		// A coarser lattice than the app's (PROBE_SPACING), corners and all: probes still stand over
+		// the hidden ground and light it, a fraction of the bake's minutes on SwiftShader.
+		probeSpacing: c.probes ? PROBE_TEST_SPACING : undefined
 	});
 	mounted = m;
 	m.tabletop.setGridShown(true);
 	clock.set(65_000); // past every fade; flames, mist and grain still hold still
 	const settings = settingsFor(c.tier, m.tabletop.capabilities().backend);
 	expect(settings.bloom && settings.layers.lens && settings.grain).toBe(true);
+	expect(settings.layers.bounce, 'bounce and cavity on (#234)').toBe(true);
 	if (c.cloud) {
 		const layers = { ...settings.layers, fogcloud: true };
 		m.tabletop.setQuality({ ...settings, miniature: false, layers });
 	}
+	if (c.probes) await bakeProbes(m, clock, settings);
 	return { m, sidecar, view, settings };
+}
+
+/**
+ * Turns the probe grid on (#235) and moves the held clock on until a bake has finished and faded
+ * in, so the poses draw with the probes at full strength.
+ */
+async function bakeProbes(m: Mounted, clock: ReturnType<typeof manualClock>, s: QualitySettings) {
+	m.tabletop.setQuality({ ...s, miniature: false, layers: { ...s.layers, probes: true } });
+	const baked = () => m.tabletop.stats().timings['probe-bake']?.count ?? 0;
+	const until = performance.now() + 600_000;
+	while (!baked() && performance.now() < until) {
+		clock.set(clock.now() + 1000);
+		await wait(250);
+	}
+	expect(baked(), 'the probes baked').toBeGreaterThan(0);
+	clock.set(clock.now() + 1000); // past the fade
+	// Its frames drawn: torches flicker at dusk with motion on, so the table never goes quiet (a
+	// settle waited out its whole limit, two minutes on SwiftShader).
+	await converge(m, 1);
+}
+
+/**
+ * The view with a lantern carrier on the unexplored cell nearest the player's token: what the
+ * server never sends (grid-light-layer.spec.ts), so its light reaches on into hidden ground.
+ */
+function withCarrier(view: FixtureView, tokenId: string): FixtureView {
+	const { width, height } = view.grid;
+	const me = view.tokens.find((t) => t.id === tokenId) ?? view.tokens[0];
+	const explored = decodeMask(view.fog.explored, width * height);
+	let [at, best] = [me.pos, Infinity];
+	for (let i = 0; i < explored.length; i++) {
+		const cell = { x: i % width, y: Math.floor(i / width) };
+		const d = Math.hypot(cell.x - me.pos.x, cell.y - me.pos.y);
+		if (!explored[i] && d < best) [at, best] = [cell, d];
+	}
+	expect(best).toBeLessThan(Infinity);
+	const carrier = { ...me, id: 'unseen-carrier', pos: at, light: 6, lightColor: '#6fe08a' };
+	return { ...view, tokens: [...view.tokens, carrier] };
 }
 
 describe(`unexplored cells on ${BACKEND}`, () => {
@@ -339,9 +422,13 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			const tall = standing(view);
 			const lit: string[] = [];
 			let checked = 0;
-			for (const pose of c.poses) {
+			// A carrier's case also looks down on it from above (ref-6's own poses keep too few samples).
+			const carrier = view.tokens.find((t) => t.id === 'unseen-carrier');
+			const poses: [string, GridPose][] = c.poses.map((p) => [p, sidecar.poses[p]]);
+			if (carrier) poses.push(['carrier', { ...ABOVE, target: carrier.pos }]);
+			for (const [pose, where] of poses) {
 				// The camera takes the pose at once: a pose with too few samples draws nothing more.
-				m.tabletop.setGridPose(sidecar.poses[pose]);
+				m.tabletop.setGridPose(where);
 				const camera = cameraOf(m);
 				const samples = samplesFor(view.grid, tall, camera);
 				if (samples.length < MIN_SAMPLES) {
@@ -388,8 +475,8 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 		],
 		['roofed', 'medium', (m, v) => m.tabletop.setInterior(new Uint8Array(size(v)).fill(1))]
 	];
-	for (const [name, tier, setUp] of SKY_CASES)
-		it(`the sky's poses: ${name} on ${tier}, black`, async () => {
+	for (const [i, [name, tier, setUp]] of SKY_CASES.entries())
+		it.runIf(ours(LIGHT.length + i))(`the sky's poses: ${name} on ${tier}, black`, async () => {
 			const { m, sidecar, view, settings } = await mountCase({
 				fixture: 'village',
 				viewer: 'player',
@@ -431,19 +518,22 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
 		});
 
-	it('fails on a layer exempt from the fog, naming the fixture, pose and cell', async () => {
-		const c = { fixture: 'dungeon-40', viewer: 'player', band: 'dark', tier: 'medium' } as const;
-		const { m, view, settings } = await mountCase({ ...c, reduced: false });
-		// The GM's reveal preview over the whole table: an overlay the fog never shades.
-		const { width, height } = view.grid;
-		m.tabletop.setPreview([
-			{ kind: 'area', from: { x: 0, y: 0 }, to: { x: width - 1, y: height - 1 }, tone: 'reveal' }
-		]);
-		await converge(m, settings.convergeFrames);
-		const samples = samplesFor(view.grid, standing(view), cameraOf(m));
-		expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
-		const lit = litAt('dungeon-40 overview', samples, await readFrame(m.canvas, WIDTH, HEIGHT));
-		expect(lit.length).toBeGreaterThan(0);
-		expect(lit[0]).toMatch(/^dungeon-40 overview: cell \d+,\d+ at \d+,\d+: /);
-	});
+	it.runIf(ours(LIGHT.length + SKY_CASES.length))(
+		'fails on a layer exempt from the fog, naming the fixture, pose and cell',
+		async () => {
+			const c = { fixture: 'dungeon-40', viewer: 'player', band: 'dark', tier: 'medium' } as const;
+			const { m, view, settings } = await mountCase({ ...c, reduced: false });
+			// The GM's reveal preview over the whole table: an overlay the fog never shades.
+			const { width, height } = view.grid;
+			m.tabletop.setPreview([
+				{ kind: 'area', from: { x: 0, y: 0 }, to: { x: width - 1, y: height - 1 }, tone: 'reveal' }
+			]);
+			await converge(m, settings.convergeFrames);
+			const samples = samplesFor(view.grid, standing(view), cameraOf(m));
+			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
+			const lit = litAt('dungeon-40 overview', samples, await readFrame(m.canvas, WIDTH, HEIGHT));
+			expect(lit.length).toBeGreaterThan(0);
+			expect(lit[0]).toMatch(/^dungeon-40 overview: cell \d+,\d+ at \d+,\d+: /);
+		}
+	);
 });

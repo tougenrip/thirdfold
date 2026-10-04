@@ -1,9 +1,7 @@
-// Quality tiers (milestone 62, #147): what a device can do (`Caps`) becomes a
-// starting tier, and each tier one row of settings every effect reads, so no
-// milestone invents its own switch. Pure: no three.js, no DOM (capabilities.ts
-// probes the browser). `?tier=` and `?off=` override for A/B tests and
-// emergencies and are never saved; the viewer's own choice is kept in
-// `thirdfold:graphics`, in this browser only.
+// Quality tiers (milestone 62, #147): what a device can do (`Caps`) becomes a starting tier, and
+// each tier one row of settings every effect reads, so no milestone invents its own switch. Pure:
+// no three.js, no DOM (capabilities.ts probes the browser). `?tier=` and `?off=` override for A/B
+// tests and emergencies and are never saved; the viewer's own choice is kept in this browser.
 
 import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
 import { TEXTURE_DETAILS, type TextureDetail } from '../assets/detail';
@@ -33,8 +31,7 @@ export interface Caps {
 	mobile: boolean;
 	shell: Shell;
 	dpr: number;
-	/** Screen size in device pixels. */
-	screenPixels: number;
+	screenPixels: number; // device pixels
 	/** `navigator.deviceMemory`, GB (capped at 8 by browsers), where given. */
 	deviceMemory?: number;
 	/** `navigator.cpuPerformance` (Chrome 152+): 1 low to 4 high, where given. */
@@ -58,7 +55,9 @@ export const LAYERS = [
 	'weather',
 	'xray',
 	'dof',
-	'fogcloud'
+	'fogcloud',
+	'bounce',
+	'probes'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
@@ -91,12 +90,13 @@ export interface QualitySettings {
 	grade: boolean;
 	/** Depth of field in play, or tilt-shift in the tactical view (#165); off in every preset. */
 	miniature: boolean;
-	/** Real point lights: a fixed pool, or clustered (ultra, #357). */
-	lights: 8 | 16 | 32 | 'clustered';
+	/** Point lights per cell, GridLights' K (#228). */
+	lights: 4 | 8 | 16;
 	/** Torches near the camera that cast shadows (#230). */
 	shadowedTorches: 0 | 2 | 4;
-	/** The sun's shadow map, per side. */
+	/** The key light's shadow map, per side, and its soft PCF's radius in texels (#229). */
 	sunShadowSize: 1024 | 2048 | 4096;
+	sunShadowRadius: 1 | 2 | 3;
 	/** Particle budget, and vegetation density (0..1). */
 	particles: number;
 	vegetation: number;
@@ -129,9 +129,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 8,
+		lights: 4,
 		shadowedTorches: 0,
 		sunShadowSize: 1024,
+		sunShadowRadius: 1,
 		particles: 250,
 		vegetation: 0.25,
 		fpsCap: 30,
@@ -151,9 +152,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 16,
+		lights: 8,
 		shadowedTorches: 2,
 		sunShadowSize: 2048,
+		sunShadowRadius: 2,
 		particles: 1000,
 		vegetation: 0.5,
 		fpsCap: 60,
@@ -173,9 +175,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 32,
+		lights: 8,
 		shadowedTorches: 4,
 		sunShadowSize: 2048,
+		sunShadowRadius: 3,
 		particles: 4000,
 		vegetation: 1,
 		fpsCap: 60,
@@ -195,9 +198,10 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 		grain: true,
 		grade: true,
 		miniature: false,
-		lights: 'clustered',
+		lights: 16,
 		shadowedTorches: 4,
 		sunShadowSize: 4096,
+		sunShadowRadius: 3,
 		particles: 8000,
 		vegetation: 1,
 		fpsCap: 60,
@@ -210,7 +214,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof']);
+const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'bounce']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */
@@ -230,9 +234,8 @@ const rank = (t: Tier) => TIERS.indexOf(t);
 const lower = (a: Tier, b: Tier): Tier => (rank(a) <= rank(b) ? a : b);
 
 /**
- * The starting tier for a device, with no input: software rasterisers and
- * compat WebGPU get low, phones low or medium by memory, integrated GPUs
- * medium, everything else high. Ultra is only ever chosen by hand.
+ * The starting tier for a device, with no input: software rasterisers and compat WebGPU get low,
+ * phones low or medium by memory, integrated GPUs medium, everything else high. Ultra: by hand.
  */
 export function qualityFor(caps: Caps): Tier {
 	if (caps.software) return 'low';
@@ -256,10 +259,7 @@ export function settingsFor(tier: Tier, backend: Backend): QualitySettings {
 	);
 }
 
-/**
- * What follows from the antialiasing: MSAA's samples and TRAA's converge frames. Compatibility
- * WebGPU has no MSAA, so SMAA stands in for it.
- */
+/** MSAA's samples and TRAA's converge frames, from the antialiasing (compat WebGPU: SMAA). */
 function derive(s: QualitySettings, backend: Backend): QualitySettings {
 	const aa = backend === 'webgpu-compat' && s.aa === 'msaa' ? 'smaa' : s.aa;
 	return {
@@ -340,12 +340,12 @@ export function aoKind(s: Pick<QualitySettings, 'tier' | 'msaa' | 'ao' | 'aa'>):
 }
 export type AoKind = 'none' | 'ssao' | 'gtao';
 
-/** `?off=sky,grass` turns those layers off; unknown names are ignored. Never saved. */
+/** `?off=sky,grass` turns those layers off, `?on=probes` on; unknown names are ignored. Never saved. */
 export function layersFrom(search: string, layers: Record<Layer, boolean>): Record<Layer, boolean> {
-	const off = new URLSearchParams(search).get('off');
-	if (!off) return layers;
-	const out = { ...layers };
-	for (const name of off.split(',')) if (name in out) out[name as Layer] = false;
+	const [params, out] = [new URLSearchParams(search), { ...layers }];
+	for (const on of [false, true])
+		for (const name of params.get(on ? 'on' : 'off')?.split(',') ?? [])
+			if (name in out) out[name as Layer] = on;
 	return out;
 }
 
@@ -362,9 +362,8 @@ export function tierFrom(search: string): Tier | null {
 }
 
 /**
- * The pixel ratio that keeps a canvas of `cssW`×`cssH` within `megapixels`:
- * the device's own where that fits, less where it doesn't (4K at DPR 2 on
- * medium draws about 2.1 MP, not 33).
+ * The pixel ratio that keeps a canvas of `cssW`×`cssH` within `megapixels`: the device's own where
+ * that fits, less where it doesn't (4K at DPR 2 on medium draws about 2.1 MP, not 33).
  */
 export function pixelRatioFor(cssW: number, cssH: number, dpr: number, megapixels: number): number {
 	if (cssW <= 0 || cssH <= 0) return dpr;
@@ -375,9 +374,8 @@ export function pixelRatioFor(cssW: number, cssH: number, dpr: number, megapixel
 export const REFINE_SAMPLES = 120;
 
 /**
- * After the first active frames: one tier down when the median frame (GPU ms
- * where measured, else main-thread ms) is over `budgetMs`, never up, never
- * below low. Frame rate is never the measure: an idle table draws nothing.
+ * After the first active frames: one tier down when the median frame (GPU ms where measured, else
+ * main-thread ms) is over `budgetMs`, never up, never below low. Frame rate is never the measure.
  */
 export function refineTier(start: Tier, samples: readonly number[], budgetMs: number): Tier {
 	if (samples.length < REFINE_SAMPLES || start === 'low') return start;

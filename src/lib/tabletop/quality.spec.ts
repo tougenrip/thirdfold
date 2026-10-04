@@ -86,6 +86,7 @@ describe('the URL switches', () => {
 			for (const backend of ['webgpu', 'webgpu-compat', 'webgl2'] as const) {
 				const { layers } = settingsFor(tier, backend);
 				expect(layers.fogcloud, `${tier} ${backend}`).toBe(false);
+				expect(layers.probes, `${tier} ${backend}: off until its gates (#235)`).toBe(false);
 				expect(layers.sky, `${tier} ${backend}`).toBe(true);
 			}
 	});
@@ -95,7 +96,9 @@ describe('the URL switches', () => {
 		const off = layersFrom('?off=sky,nonsense', layers);
 		expect(off.sky).toBe(false);
 		expect(off.grass).toBe(true);
-		expect(layersFrom('', layers)).toBe(layers);
+		expect(layersFrom('', layers)).toEqual(layers);
+		const on = layersFrom('?on=probes&off=sky', layers);
+		expect([on.probes, on.sky]).toEqual([true, false]);
 	});
 });
 

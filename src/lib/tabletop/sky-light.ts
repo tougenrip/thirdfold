@@ -11,7 +11,14 @@
 import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import type { N } from './materials/tsl';
-import { skyAmbient, skySun } from './materials/world-modify';
+import { kindLit } from './materials/lighting-model';
+import { skyAmbient, skySun, worldLight } from './materials/world-modify';
+
+/**
+ * The hemisphere's ground colour's tint (#234): the known floors' hue (grid-lights.ts `groundTint`,
+ * set by `LightingLayer`). Module-wide, like the cell maps' uniforms: one tabletop draws at a time.
+ */
+export const groundTint = T.uniform(new THREE.Color(1, 1, 1));
 
 /** The key light, masked by sky visibility. */
 export class SkyLight extends THREE.DirectionalLight {}
@@ -29,10 +36,14 @@ class SkyLightNode extends THREE.DirectionalLightNode {
 		return 'SkyLightNode';
 	}
 
-	/** Three's own, its colour (shadow included) times the sun term. */
+	/**
+	 * Three's own, its colour (shadow included) times the sun term, and on the lit kinds the light
+	 * factor (#228: their `worldModify` no longer dims it, materials/lighting-model.ts).
+	 */
 	setupDirect(builder: THREE.NodeBuilder) {
 		const direct = super.setupDirect(builder) as unknown as { lightColor: N };
-		return { ...direct, lightColor: direct.lightColor.mul(skySun()) } as unknown as ReturnType<
+		const sun = kindLit(builder) ? skySun().mul(worldLight()) : skySun();
+		return { ...direct, lightColor: direct.lightColor.mul(sun) } as unknown as ReturnType<
 			THREE.DirectionalLightNode['setupDirect']
 		>;
 	}
@@ -47,7 +58,8 @@ class SkyHemisphereNode extends THREE.HemisphereLightNode {
 	setup(builder: THREE.NodeBuilder): Setup {
 		const { colorNode, groundColorNode, lightDirectionNode } = this as unknown as Hemisphere;
 		const weight = normalWorld.dot(lightDirectionNode).mul(0.5).add(0.5);
-		const irradiance = mix(groundColorNode, colorNode, weight).mul(skyAmbient());
+		const ground = groundColorNode.mul(groundTint as unknown as N);
+		const irradiance = mix(ground, colorNode, weight).mul(skyAmbient());
 		(builder.context as unknown as { irradiance: N }).irradiance.addAssign(irradiance);
 		return undefined;
 	}

@@ -78,6 +78,16 @@ export interface FrameReport {
 	ambient: boolean;
 }
 
+/**
+ * Background work on CONVERGE frames (the probe bake, #235): `frame` runs after each frame drawn
+ * outside a hold and says whether it wants more (each restarts TRAA's settle, its picture having
+ * changed); `warm` runs as each warm-up's hold ends, before frames resume.
+ */
+export interface Work {
+	frame(reducedMotion: boolean): boolean;
+	warm(): void;
+}
+
 export class RenderScheduler {
 	private frame = 0;
 	private timer: ReturnType<typeof setTimeout> | 0 = 0;
@@ -95,6 +105,7 @@ export class RenderScheduler {
 	private changed = false;
 	private tabHidden = typeof document !== 'undefined' && document.hidden;
 	private offscreen = false;
+	private readonly works: Work[] = [];
 	private readonly observer: IntersectionObserver | null;
 	private readonly stopWatching: () => void;
 
@@ -152,10 +163,15 @@ export class RenderScheduler {
 		this.plan();
 	}
 
+	addWork(work: Work): void {
+		this.works.push(work);
+	}
+
 	/** Holds frames until `work` settles, then draws once if anything asked meanwhile. */
 	hold(work: Promise<unknown>): void {
 		this.held = true;
 		void work.finally(() => {
+			for (const w of this.works) w.warm();
 			this.held = false;
 			if (this.wanted) {
 				this.wanted = false;
@@ -172,6 +188,9 @@ export class RenderScheduler {
 		this.changed = true;
 		this.schedule();
 	};
+
+	/** A frame for background work that came due (the probe bake's debounce): not a change. */
+	wake = (): void => this.schedule();
 
 	/** Asks for a frame without counting it as a change. */
 	private schedule(): void {
@@ -198,9 +217,11 @@ export class RenderScheduler {
 		const changed = this.changed;
 		this.changed = false;
 		this.report = this.draw();
+		const more = !this.held && this.works.map((w) => w.frame(this.reducedMotion)).includes(true);
 		// Power saver converges in half the frames.
 		const converge = Math.ceil(this.pacing.convergeFrames / (this.powerSaver ? 2 : 1));
 		if (this.report.active || wasActive || changed) this.converging = converge;
+		else if (more) this.converging = Math.max(converge, 1);
 		else if (this.converging > 0) this.converging--;
 		this.plan();
 	}

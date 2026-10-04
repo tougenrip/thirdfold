@@ -227,7 +227,7 @@ describe.skipIf(!process.env.THIRDFOLD_COOK)('the cook', () => {
 			return cook(src, out);
 		};
 		await expect(broken((doc) => doc.getRoot().listNodes()[0].setName('Cube'))).rejects.toThrow(
-			/test-orb\.glb: object "Cube" must be named body, swing or accent/
+			/test-orb\.glb: object "Cube" must be named body, swing, accent or flame/
 		);
 		await expect(
 			broken((doc) => {

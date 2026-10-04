@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from './grid';
 import {
 	CARRIED_LIGHT_COLOR,
+	CORE_MAX,
+	FALLOFF,
+	FALLOFF_RANGES,
+	READABLE_EDGE,
+	lightFalloff,
+	readableFill,
+	renderedLevels,
+	renderedReach,
 	LIGHT_KIND_DEFAULTS,
 	LIGHT_KINDS,
 	lightLevels,
@@ -12,7 +20,7 @@ import {
 	withDarkness,
 	type Light
 } from './lights';
-import { blockingEdges } from './objects';
+import { blockingEdges, edgeKey, type Obstacles } from './objects';
 import { cellIndex } from './visibility';
 
 const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 12, height: 12 };
@@ -133,5 +141,174 @@ describe('light looks (#201)', () => {
 			];
 		};
 		expect(rules(dressed)).toEqual(rules(plain));
+	});
+});
+
+describe('rendered falloff (#226)', () => {
+	const big: SquareGrid = { kind: 'square', cellSize: 1, width: 24, height: 24 };
+	const n = big.width * big.height;
+	const idx = (x: number, y: number) => y * big.width + x;
+	const area = (into: Uint8Array, x0: number, y0: number, x1: number, y1: number, v: number) => {
+		for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) into[idx(x, y)] = v;
+	};
+	const vertical = (x: number, y0: number, y1: number) =>
+		Array.from({ length: y1 - y0 }, (_, i) =>
+			edgeKey({ a: { x, y: y0 + i }, b: { x, y: y0 + i + 1 } })
+		);
+	const horizontal = (y: number, x0: number, x1: number) =>
+		Array.from({ length: x1 - x0 }, (_, i) =>
+			edgeKey({ a: { x: x0 + i, y }, b: { x: x0 + i + 1, y } })
+		);
+	const obstacles = (edges: string[], levels: Uint8Array | null, windows: string[] = []) =>
+		({
+			edges: new Set(edges),
+			width: big.width,
+			solid: null,
+			opaque: null,
+			windows: new Set(windows),
+			levels
+		}) satisfies Obstacles;
+
+	// A raised block whose rising ground hides the cells behind it.
+	const raised = new Uint8Array(n);
+	area(raised, 15, 8, 17, 16, 3);
+	// A balcony at level 5 behind a see-through railing on one side and a wall on the other, like the
+	// monastery's gallery.
+	const balcony = new Uint8Array(n);
+	area(balcony, 2, 2, 8, 8, 5);
+	const scenarios = [
+		{
+			name: 'flat',
+			blocked: obstacles([], null),
+			at: [
+				{ x: 12, y: 12 },
+				{ x: 0, y: 0 }
+			]
+		},
+		{
+			name: 'a wall with a gap',
+			blocked: obstacles([...vertical(14, 0, 10), ...vertical(14, 11, 24)], null),
+			at: [{ x: 12, y: 12 }]
+		},
+		{
+			name: 'raised ground',
+			blocked: obstacles([], raised),
+			at: [
+				{ x: 12, y: 12 },
+				{ x: 16, y: 12 }
+			]
+		},
+		{
+			name: 'a balcony behind a railing',
+			blocked: obstacles(
+				[...vertical(9, 2, 9), ...horizontal(9, 2, 9)],
+				balcony,
+				vertical(9, 2, 9)
+			),
+			at: [
+				{ x: 6, y: 6 },
+				{ x: 12, y: 12 }
+			]
+		},
+		{
+			name: 'a window',
+			blocked: obstacles(horizontal(14, 0, 24), null, horizontal(14, 10, 14)),
+			at: [{ x: 12, y: 12 }]
+		}
+	];
+	const radii = Array.from({ length: 20 }, (_, i) => i + 1);
+
+	it('renders above zero exactly on the cells the rules light, and readably on all of them', () => {
+		let lit = 0;
+		for (const { name, blocked, at } of scenarios) {
+			for (const pos of at) {
+				for (const radius of radii) {
+					const sources = [{ pos, radius, color: '#ffa04d' }];
+					const mask = litMask(big, blocked, sources);
+					const rendered = renderedLevels(big, blocked, sources);
+					const levels = lightLevels(big, blocked, sources);
+					for (let i = 0; i < n; i++) {
+						const shown = Math.max(rendered[i], readableFill(levels[i]));
+						if (mask[i]) lit++;
+						const agrees = rendered[i] > 0 === (mask[i] === 1);
+						const readable = mask[i] ? shown >= READABLE_EDGE : shown === 0;
+						if (!agrees || !readable) {
+							expect.fail(`${name} at ${pos.x},${pos.y} r${radius} cell ${i}: ${shown}`);
+						}
+					}
+				}
+			}
+		}
+		expect(lit).toBeGreaterThan(0);
+	});
+
+	it('hides what the rules hide in each case', () => {
+		const at = (s: (typeof scenarios)[number], x: number, y: number) =>
+			renderedLevels(big, s.blocked, [{ pos: s.at[0], radius: 20, color: '#ffa04d' }])[idx(x, y)];
+		expect(at(scenarios[1], 18, 20)).toBe(0); // behind the wall, off the gap's line
+		expect(at(scenarios[2], 20, 12)).toBe(0); // behind the raised block
+		expect(at(scenarios[4], 12, 16)).toBeGreaterThan(0); // through the window
+		expect(at(scenarios[4], 4, 16)).toBe(0); // not through the wall beside it
+		expect(at(scenarios[3], 12, 6)).toBeGreaterThan(0); // from the balcony, through its railing
+		expect(at(scenarios[3], 5, 12)).toBe(0); // not through its wall
+	});
+
+	it('holds across the tunable ranges', () => {
+		const corners = FALLOFF_RANGES.decay.flatMap((decay) =>
+			FALLOFF_RANGES.coreRadius.flatMap((coreRadius) =>
+				FALLOFF_RANGES.coreMax.map((coreMax) => ({ decay, coreRadius, coreMax }))
+			)
+		);
+		const { blocked, at } = scenarios[4];
+		for (const tune of corners) {
+			for (const radius of [1, 7, 20]) {
+				const sources = [{ pos: at[0], radius, color: '#ffa04d' }];
+				const mask = litMask(big, blocked, sources);
+				const rendered = renderedLevels(big, blocked, sources, tune);
+				const levels = lightLevels(big, blocked, sources);
+				for (let i = 0; i < n; i++) {
+					const ok = FALLOFF_RANGES.readableEdge.every((edge) => {
+						const shown = Math.max(rendered[i], readableFill(levels[i], edge));
+						return rendered[i] > 0 === (mask[i] === 1) && (mask[i] ? shown >= edge : shown === 0);
+					});
+					if (!ok) expect.fail(`${JSON.stringify(tune)} r${radius} cell ${i}`);
+				}
+			}
+		}
+		const within = (v: number, [lo, hi]: readonly [number, number]) => v >= lo && v <= hi;
+		expect(within(FALLOFF.decay, FALLOFF_RANGES.decay)).toBe(true);
+		expect(within(FALLOFF.coreRadius, FALLOFF_RANGES.coreRadius)).toBe(true);
+		expect(within(CORE_MAX, FALLOFF_RANGES.coreMax)).toBe(true);
+		expect(within(READABLE_EDGE, FALLOFF_RANGES.readableEdge)).toBe(true);
+	});
+
+	it('ends its reach between the rules rim and the next cell', () => {
+		for (const radius of radii) {
+			const reach = renderedReach(radius);
+			expect(radius * radius + radius).toBeLessThan(reach * reach);
+			expect(radius * radius + radius + 1).toBeGreaterThan(reach * reach);
+			expect(lightFalloff(radius, reach, reach)).toBe(0);
+		}
+	});
+
+	it('never rises with distance and never passes the core cap', () => {
+		for (const decay of FALLOFF_RANGES.decay) {
+			for (const coreRadius of FALLOFF_RANGES.coreRadius) {
+				for (const coreMax of FALLOFF_RANGES.coreMax) {
+					const tune = { decay, coreRadius, coreMax };
+					for (const radius of [1, 4, 20]) {
+						for (const height of [0, 0.4, 1.6, 4]) {
+							let last = Infinity;
+							for (let dxz = 0; dxz <= renderedReach(radius) + 1; dxz += 0.05) {
+								const f = lightFalloff(radius, dxz, Math.hypot(dxz, height), tune);
+								if (f > coreMax || f > last) expect.fail(`${f} at ${dxz} after ${last}`);
+								last = f;
+							}
+						}
+					}
+				}
+			}
+		}
+		expect(lightFalloff(4, 0, 0)).toBe(CORE_MAX / FALLOFF.coreRadius ** FALLOFF.decay);
 	});
 });

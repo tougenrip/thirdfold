@@ -184,7 +184,7 @@
 	let generation = $state(0);
 	/** Lost twice within five minutes: drawn at low for the rest of the session. */
 	let lossNotice = $state(false);
-	/** A tier for this session only, after a loss (never saved: a loss is not a measurement). */
+	/** This session's tier: after a loss (never saved), or the refined one a rebuild keeps. */
 	let sessionTier: Tier | null = null;
 	const losses: number[] = [];
 	/** The last tabletop's disposal: the next one waits for it. */
@@ -276,7 +276,7 @@
 	/** Refinement stepped the automatic tier down: remember it for this device, and use it. */
 	function tierRefined(t: Tabletop, tier: Tier): void {
 		saveGraphics(localStorage, { ...loadGraphics(localStorage), measured: tier });
-		applyQuality(t, tier);
+		applyQuality(t, (sessionTier = tier)); // its new shape's rebuild keeps it (`graphics` is older)
 	}
 
 	$effect(() => {

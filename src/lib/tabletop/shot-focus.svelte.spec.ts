@@ -70,10 +70,18 @@ describe.skipIf(BACKEND === 'webgpu')('a cinematic shot on a table', () => {
 		view.fog = { ...view.fog, enabled: false };
 		// No flames: they flicker by the clock, which moves on through the shot.
 		view.lights = [];
-		mounted = await mountFixture(view, sidecar.poses.overview, { clock, reducedMotion: false });
+		mounted = await mountFixture(view, sidecar.poses.overview, {
+			clock,
+			reducedMotion: false,
+			heroes: false
+		});
 		const t = mounted.tabletop;
 		// No grain: it would differ between frames drawn at different times.
-		const plain = { ...settingsFor('medium', t.capabilities().backend), grain: false };
+		const plain = {
+			...settingsFor('medium', t.capabilities().backend),
+			grain: false,
+			shadowedTorches: 0 as const
+		};
 		t.setQuality(plain);
 		await settle(t);
 

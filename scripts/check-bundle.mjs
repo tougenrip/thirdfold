@@ -24,7 +24,12 @@ const BUDGETS = {
 	// what its attacks inflict, damage types; #94–#96) beside the sky's, 98,159 B measured.
 	// → 98.4: the library's client learns collections and homebrew packs (kinds, collection_check;
 	// #98), shared with the builder's Publish section, 98,392 B measured.
-	'/builder': { total: 98_400, own: 52_000 },
+	// 97.5 → 98.2: GridLights' sources and sight cache (#228) keep the shared chunk of the grid's,
+	// objects' and visibility's code larger (the renderer now uses `SightCache` and `asObstacles`
+	// from it), 98,180 B measured. → 98.4: the shared chunk after M68's close (the pool's removal
+	// and the hero slots' assignment moving out of light-model.ts) measures just over 98.3 kB.
+	// → 99.2: both of those together, once main's M68 is merged into the rules track, 99,159 B measured.
+	'/builder': { total: 99_200, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
@@ -50,9 +55,30 @@ const BUDGETS = {
 	// code was already here); set to the merged build's measured size. → 368.1: the ground to the
 	// horizon (#220: the ring's mesh and tier, the camera's clearance, extents per table), less
 	// the slab; 368.1 kB measured. → 368.4: the low tier's small cube and the dome's haze at the
-	// horizon (#225); 368.3 kB measured (just over 368 300 B).
-	renderer: { total: 368_400 },
-	decoders: { total: 40_000 }
+	// horizon (#225); 368.3 kB measured. → 368.9: exposure from the focus cell (#233). → 369.5:
+	// the sun and moon shadow fitted to the grid (#229). → the map's fog rectangle, the ring's land
+	// look and the vignette by distance (#377); set to the merged build's measured size.
+	// → 373.0: GridLights (#228: the node, its CPU side and the client's sight cache, the lit kinds'
+	// lighting model); 372.9 kB measured (the milestone's cap is
+	// about 378 kB). → 373.3: flicker in the shader (#231: the profiles, their TSL mirror and the
+	// scheduling by view); 373.2 kB measured. → 374.6: light fixtures by kind, carried flames and
+	// props' flames (#232); 374.5 kB measured. → 374.9: translucency (#237: the lighting model's
+	// term, translucent models' own materials). → bounce and cavity (#234: the fields, their packing
+	// and the node's gated lookup), and the cell maps kept at the largest grid's size (#380); set to
+	// the merged build's measured size (the owner raised M68's cap to about 382 kB). → strips and
+	// panels (#236: their samples, the no-core flag in the node, fixtures by facing), and the probe
+	// grid's side (#235: its layout and bake policy, the setters it watches, the scheduler's
+	// background work, the bake flag); the grid itself is a lazy chunk (`probes` below); set to the
+	// merged build's measured size.
+	// → hero shadow slots (#230: the pool, its lights' node and atlas shadow, the slot
+	// assignment); set to the merged build's measured size. → 382.9: M67's pool of 8 point lights
+	// and the `manylights` layer removed at M68's close; 382.8 kB measured.
+	// → the tier refined only from steady frames (models settled, no warm-up gallery): 383.0.
+	renderer: { total: 383_000 },
+	decoders: { total: 40_000 },
+	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
+	// ultra only with its layer on; 4.5 kB measured.
+	probes: { total: 5_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
@@ -162,6 +188,17 @@ else {
 	const { gz } = total(own);
 	log('decoders (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.decoders.total).padStart(10));
 	if (gz > BUDGETS.decoders.total) failures.push(`the decoders are ${kb(gz)} gz, over budget`);
+}
+// The probe grid (tabletop/probe-grid.ts) likewise: on high and ultra with its layer on.
+const probesKey = Object.keys(manifest).find((k) => k.endsWith('src/lib/tabletop/probe-grid.ts'));
+if (!probesKey) failures.push('the probe grid is not a chunk of its own');
+else if (rendererFiles.has(manifest[probesKey].file))
+	failures.push('the renderer statically imports the probe grid');
+else {
+	const own = [...closure(probesKey)].filter((f) => !rendererFiles.has(f) && !roomFiles.has(f));
+	const { gz } = total(own);
+	log('probes (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.probes.total).padStart(10));
+	if (gz > BUDGETS.probes.total) failures.push(`the probe grid is ${kb(gz)} gz, over budget`);
 }
 for (const f of rendererFiles) {
 	const text = readFileSync(`${OUT}/${f}`, 'utf8');

@@ -11,7 +11,6 @@
 
 import * as THREE from 'three/webgpu';
 import { sameGrid, type SquareGrid } from '$lib/game/grid';
-import { lightSources } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
 import { obstaclesFor, type Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
@@ -28,7 +27,7 @@ import type { FogMode } from './fog';
 import { groundFor, type Ground } from './ground';
 import { labelFontReady } from './label-font';
 import { WorldGround } from './landscape';
-import { LightingLayer, lightSeats } from './lighting';
+import { LightingLayer, ProbeLayer } from './lighting';
 import { frameOverview, Gallery, warmUp } from './warmup';
 import { advanceNodeFrame, createNodeRenderer, setUpRenderer, watchReducedMotion } from './loop';
 import { RenderScheduler, type FrameReport } from './scheduler';
@@ -38,7 +37,7 @@ import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { listenForPicks, Picker } from './picking';
 import { PreviewLayer } from './previews';
-import { initModels, loadProgress, prefetch, releaseModels } from './models';
+import { initModels, loadProgress, loadsSettled, prefetch, releaseModels } from './models';
 import { PropLayer } from './props';
 import { createScene, createSceneLights, fitToTable } from './scene-lights';
 import { playSound } from './sounds';
@@ -59,10 +58,9 @@ export async function createTabletop(
 	if (options.warm) setUpRenderer(renderer, options);
 	initModels(renderer); // models upload to it; the last table's dispose frees them
 	let shadowsDirty = true;
-	/** A shadow map never drawn reads as garbage, so the first frame always draws it. */
-	let shadowMapDrawn = false;
-	/** Things moved in the last frame: their final step changes shadows too. */
-	let wasMoving = false;
+	let shadowMapDrawn = false; // a shadow map never drawn reads as garbage: the first frame draws it
+	/** Things moved last frame (shadows change); it was drawn at play (no gallery or loads). */
+	let [wasMoving, steady] = [false, false];
 	const perf = new PerfRecorder();
 	if (options.warm) perf.add('lobby', options.warm.warmupMs);
 	const loop = new RenderScheduler(render, canvas);
@@ -76,7 +74,8 @@ export async function createTabletop(
 		reduced: reducedMotion,
 		shot: rig.focusAt(now),
 		tactical: view === 'tactical',
-		target: controls.target
+		target: controls.target,
+		pull: camera.position.distanceTo(controls.target) / controls.maxDistance
 	}));
 	post.grade.onLoad = requestRender; // another tone mapper's grades arrived: blend them in
 	const { sun } = lights;
@@ -85,7 +84,7 @@ export async function createTabletop(
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
 	const onModel = () => {
 		shadowsDirty = warmPending = true;
-		refreshLighting(); // a sconce's or brazier's size seats its light's flame
+		refreshLighting(); // a fixture to draw, or a prop's flame to seat its light on
 	};
 	/** Something new needs its shaders compiled before the next frame (see warmup.ts). */
 	let warmPending = true;
@@ -112,7 +111,7 @@ export async function createTabletop(
 	const propLayer = new PropLayer(onModel, clock);
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
-	const lighting = new LightingLayer();
+	const lighting = new LightingLayer(lights.grid, onModel, lights.heroes, requestRender);
 	scene.add(lighting.group);
 	const hooks = { post, lighting, renderer, perf, request: requestRender };
 	const atmosphere = new AtmosphereLayer({ ...lights, ...hooks }, clock, refreshLighting);
@@ -122,14 +121,13 @@ export async function createTabletop(
 	let darkness: Uint8Array | null = null;
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
-	const stillable = () => [loop, propLayer, cellMaps, cloud, sky];
+	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	const terrainLayer = new TerrainLayer();
-	scene.add(terrainLayer.group);
 	const effects = new EffectsLayer();
-	const gallery = new Gallery(scene, overlay.scene, [diceLayer, effects, cloud, sky], [tokenLayer]);
-	scene.add(effects.group);
-	const previews = new PreviewLayer();
+	scene.add(terrainLayer.group, effects.group);
+	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky]];
+	const gallery = new Gallery(scene, overlay.scene, world, [tokenLayer, previews]);
 	overlay.scene.add(previews.group, previews.highlight);
 	let disposed = false;
 	// Labels drawn before the label font arrived are drawn again in it.
@@ -158,10 +156,9 @@ export async function createTabletop(
 		if (!grid) return;
 		const [ambient, lights, world = null] = lightState;
 		atmosphere.setWorld(world, ambient, environment, reducedMotion);
-		const sources = lightSources(lights, tokens);
 		const blocked = obstaclesFor(grid, objects, props, levels, floor);
-		const seats = lightSeats(grid, props);
-		lighting.update(grid, ambient, lights, sources, blocked, ground, darkness, seats);
+		propLayer.setLights(lights); // the flames on props, lit by a light on their cell (#232)
+		lighting.update(grid, ambient, lights, tokens, blocked, ground, darkness, props, floor);
 		lighting.showHandles(grid, lights, ground, fogState.mode === 'gm');
 		cellMaps.update(grid, fogState, ambient, lighting.levels, darkness, floor, levels);
 		cloud.update(grid, fogState.fog, fogState.mode);
@@ -217,7 +214,7 @@ export async function createTabletop(
 			lightingStale = false;
 			perf.time('lighting', relight);
 		}
-		const tokensMoving = tokenLayer.tick(now);
+		const tokensMoving = lighting.carry(tokenLayer, tokenLayer.tick(now)); // carried lights too
 		const doorsMoving = wallLayer.tick(now);
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
@@ -231,9 +228,9 @@ export async function createTabletop(
 		const casters = tokensMoving || doorsMoving || diceRolling || propsMoving || bellSwinging;
 		if (casters || wasMoving) shadowsDirty = true;
 		wasMoving = casters;
-		const flickering = !reducedMotion && lighting.flicker(now);
+		const flickering = lighting.animating(camera, now, controls.target, gallery.due); // #230, #231
 		const drifting = cloud.tick(now);
-		const turning = atmosphere.tick(now); // a new hour plays (#215)
+		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const gridFading = overlay.tick(now);
 		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends
@@ -242,14 +239,13 @@ export async function createTabletop(
 		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
 		rig.keepAbove(grid, ground); // tilted to the horizon, never under the ground (#220)
-		// A shudder from a cue: offset the camera for this frame only.
-		shakeOffset.copy(fx.shake);
+		shakeOffset.copy(fx.shake); // a shudder from a cue: the camera's offset, this frame only
 		camera.position.add(shakeOffset);
 		const hideGallery = gallery.show(); // drawn once after a warm-up, out of sight (warmup.ts)
+		steady = !hideGallery && loadsSettled();
 		if (atmosphere.shadowFrame(shadowsDirty, !shadowMapDrawn || !!hideGallery))
 			perf.add('shadows', 0);
-		// With the key light out its shadows show nowhere: leave them until it is back.
-		if (sun.intensity > 0) shadowsDirty = false;
+		if (sun.intensity > 0) shadowsDirty = false; // with the key light out, until it is back
 		shadowMapDrawn = true;
 		const draw = performance.now();
 		drawScene();
@@ -292,7 +288,10 @@ export async function createTabletop(
 		effects.setBounds(extents.play.width, extents.play.depth, Math.max(4, frame * 0.2));
 	}
 
-	const quality = new QualityControl({ renderer, canvas, camera, sun, perf, loop }, options);
+	const quality = new QualityControl(
+		{ renderer, canvas, camera, sun, perf, loop, steady: () => steady },
+		options
+	);
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	atmosphere.setTier(quality.current.tier, quality.current.layers.sky);
 	land.setTier(quality.current.tier);
@@ -482,17 +481,19 @@ export async function createTabletop(
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
 			const remade = [land, terrainLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));
-			if (remade.includes(true)) warmPending = true;
+			if (lighting.setTier(settings) || remade.includes(true)) warmPending = true; // K: #228
 		},
 		capabilities: () => quality.caps,
 		loads: loadProgress,
 		setPowerSaver: (on) => (loop.setPowerSaver(on), cloud.setPowerSaver(on)),
 		setReduceFlashing: (on) => effects.setReduceFlashing(on),
-		...perfMethods(renderer, perf, drawScene, { loop, quality })
+		...perfMethods(renderer, perf, drawScene, { loop, quality, lighting, warming: () => warming })
 	};
-	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key
-	// light, which redraws them by its own rule (AtmosphereLayer.shadowFrame), and lights only
-	// when they change (their fixtures cast shadows).
+	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key light,
+	// redrawn by its own rule (AtmosphereLayer.shadowFrame), and lights only when they change.
 	instrument(tabletop, perf, (key) => key === 'setLighting' || (shadowsDirty = true));
+	const unbaked = [tokenLayer, diceLayer, effects, cloud].map((l) => l.group); // probes (#235)
+	const probeHooks = { renderer, scene, loop, clock, perf, warm: onModel };
+	new ProbeLayer({ ...probeHooks, spacing: options.probeSpacing }, unbaked).watch(tabletop);
 	return tabletop;
 }

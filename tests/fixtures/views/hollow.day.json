@@ -47,7 +47,7 @@
 		"floor": null,
 		"tokens": [
 			{
-				"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
+				"id": "5d227106-741c-4814-80aa-244a6b03a4bc",
 				"name": "The Saint",
 				"color": "#d4ac0d",
 				"pos": {
@@ -60,7 +60,7 @@
 				"ownerId": null
 			},
 			{
-				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
+				"id": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -167,7 +167,7 @@
 		"floor": null,
 		"tokens": [
 			{
-				"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
+				"id": "5d227106-741c-4814-80aa-244a6b03a4bc",
 				"name": "The Saint",
 				"color": "#d4ac0d",
 				"pos": {
@@ -180,7 +180,7 @@
 				"ownerId": null
 			},
 			{
-				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
+				"id": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -287,21 +287,7 @@
 		"floor": null,
 		"tokens": [
 			{
-				"id": "1638cedd-dba1-4b6c-a40c-4e56148747ae",
-				"name": "Bell Cultist",
-				"color": "#8a3b3b",
-				"pos": {
-					"x": 6,
-					"y": 26
-				},
-				"vision": 8,
-				"light": 2,
-				"lightColor": "#ffd27a",
-				"model": "robed-figure",
-				"ownerId": null
-			},
-			{
-				"id": "418bf6b4-0b3d-4b18-977a-637afd67455e",
+				"id": "5d227106-741c-4814-80aa-244a6b03a4bc",
 				"name": "The Saint",
 				"color": "#d4ac0d",
 				"pos": {
@@ -314,7 +300,7 @@
 				"ownerId": null
 			},
 			{
-				"id": "624e9a20-ca09-4681-8f41-9a29fa2f809c",
+				"id": "6fb5263b-7c25-43b7-9019-7ddfeaa42eee",
 				"name": "Bell Cultist",
 				"color": "#8a3b3b",
 				"pos": {
@@ -328,7 +314,7 @@
 				"ownerId": null
 			},
 			{
-				"id": "af1df450-c966-4140-9c95-ae78b5ab5464",
+				"id": "78983cd2-6a7d-47f9-aa30-bd0f5ed3bc50",
 				"name": "The Warden",
 				"color": "#2e86c1",
 				"pos": {
@@ -341,7 +327,21 @@
 				"ownerId": "p1"
 			},
 			{
-				"id": "ffa4a531-a66f-46d3-9073-9e78ebe48e8f",
+				"id": "9e20501c-4280-4a4e-88ab-75a334ab6943",
+				"name": "Bell Cultist",
+				"color": "#8a3b3b",
+				"pos": {
+					"x": 6,
+					"y": 26
+				},
+				"vision": 8,
+				"light": 2,
+				"lightColor": "#ffd27a",
+				"model": "robed-figure",
+				"ownerId": null
+			},
+			{
+				"id": "d839a0d9-fc80-4283-a895-22e47e250ef4",
 				"name": "Bell Keeper",
 				"color": "#3b3f5c",
 				"pos": {
@@ -3123,7 +3123,8 @@
 				},
 				"radius": 3,
 				"color": "#ffa04d",
-				"on": true
+				"on": true,
+				"fixture": false
 			},
 			{
 				"id": "ho-watch-glow",
