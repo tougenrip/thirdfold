@@ -1496,6 +1496,64 @@ read. Goldens, the LOOK.md strip and look metrics are not recorded here (no gold
 development); the perf gate and the iGPU were not run. The renderer chunk grows 386.1 → 386.7 kB gz
 (386,603 B: biplanar, the face lookup, the layer's styles) and the `world` chunk 5.2 → 7.3 kB (7,261 B).
 
+### Floors blended per pixel (#242)
+
+Floors are no longer one surface per cell: the terrain kind blends the floors round each fragment of a
+top from the surface library's arrays (#187), with a height-based transition between natural floors and
+a crisp, kerbed border on man-made ones. The rules and their mirror are pure (`materials/splat-weights.ts`,
+`splatWeights` and `heightShare`, server-tested in `splat-weights.spec.ts`); the graph is `floorSurface`
+in `materials/floors.ts`, and `groundColour` (hooks.ts) mixes the two floors it hands over.
+
+- **The 2x2.** A fragment's own cell is the one `groundTexel` reads (a hair inside the surface, so a side
+  keeps its own); the cells across x, across y and on the diagonal are those on its side of the cell's
+  centre lines, read by texel loads of the same ground map (the continued floors, #239), clamped to the
+  table. A neighbour is looked at only if it is known (fog off, the GM, or explored in the visibility map's
+  G, also a load of a map already bound) and on the same level; sides (normals not up) look at none. So
+  nothing blends or kerbs toward an unexplored cell or across a step or cliff, and the floor bytes a viewer
+  was sent are all it reads.
+- **Styles** (`FLOOR_STYLE`, a uniform array by floor index): `SOFT` (plain, grass, dirt, sand) blend with
+  each other; `CRISP` (water, a tint until #293, and the void) and `KERB` (stone, wood) keep their border
+  on the grid line. A soft border can wander off the grid line, so only rule-neutral floors may be soft; a
+  floor that ever means something to movement (#85) must be crisp or kerbed. #248's floors take theirs in
+  the same table.
+- **Weights.** Bilinear from the fragment's distance to its cell's centre (0.5 on the grid line), a
+  neighbour's zeroed unless both floors are soft, merged per floor, the two heaviest kept and normalised.
+  On medium and up (the anti-tiled graph) two `mx_noise_float` move the point by up to `reach` (0.15 cell)
+  in the world, fading to nothing at the cells' centre lines, so both sides of a border and both 2x2 blocks
+  either side of a centre line see the same weights: soft borders wander, continuously. Low draws them
+  straight.
+- **Height.** Mishkinis's blend of the two: each layer's height (the albedo array's alpha, scaled into
+  `heightRange` 0.5; a floor without a layer at 0.5) plus its weight, the higher within `depth` (0.2,
+  `wearFloors`' third argument, a uniform) showing: sand settles between stones. The range is kept under
+  `1 - depth`, so a floor of weight 0 never shows whatever its height.
+- **Kerbs.** A kerbed floor next to a known floor on its level that it outranks (style, then index; never
+  the void, whose edge is a drop) is darkened by `kerbDark` (35%) in a band `kerbWidth` (0.05 cell) wide
+  inside its own cell, with the normal leaned toward the edge by `kerbBevel`: shader only, a uniform each.
+- **Fetches.** Both floors are sampled from the same three arrays, a layer each, through the same world box
+  mapping (and anti-tiling) as before: six fetches where there were three (twelve anti-tiled). Where one
+  floor covers the 2x2 the second fetch reads the same layer (a cache hit): WGSL allows no implicitly
+  derived sample inside a per-fragment branch, so the issue's one-layer fast path is that, not an `if`.
+- **The tint fallback.** A floor with no layer (plain, water, the void, and every floor while the arrays
+  load or where an environment has none) is its `FLOOR_LOOKS` colour over the environment's surface as
+  before, and blends the same way, so a table without arrays shows soft borders in flat colours.
+- **No binding, no program.** The neighbours are texel loads of the ground and visibility maps through
+  clones of their nodes (one binding each), and the second floor's fetches clones of the arrays' nodes:
+  the terrain kind's fragment stage samples as many textures as before (program-count's many-lights
+  shards count them per tier: within 16 on high with the probes and the hero atlas). Painting any floor,
+  the arrays coming and going, the styles, the depth and the kerb are data and uniforms.
+- **r186's integer index.** A floor index converted with `toInt()` at each use loses its conversion in
+  some uses (a `vec4` uniform array's index behind a select, `integer expression required` on WebGL2), so
+  each of the two floors is made an `int` variable once and every array is indexed by it.
+
+`floor-splat.svelte.spec.ts` (`RENDER_SPECS`, its own `floor splat` job in rendering.yml, about 20
+seconds) draws a 4x4 table of grass, grass, dirt and stone columns straight down with stand-in arrays of
+one colour per floor, on both graphs: the grass-dirt border is a blend on the grid line, straight without
+noise (spread 0 px, off the line by 1) and wandering with it (spread 8 px, at most 7 off at 64 px a cell),
+and moves into the grass when the dirt stands higher; the dirt-stone border is crisp with a kerb about
+two-thirds as bright as the stone; neither blends nor kerbs across a level or toward an unexplored
+column; painting every floor, the kerb's width and the arrays going and coming compile nothing; and the
+`FLOOR_LOOKS` fallback blends too. `program-count` sweeps every floor and environment on every tier.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

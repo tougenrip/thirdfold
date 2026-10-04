@@ -78,7 +78,9 @@ const BUDGETS = {
 	// builders in `world`); 386,226 B measured. → the cliffs' rock kind (#241: biplanar on low,
 	// `worldModify` reading the cell behind a face, the layer's faces by style); set to the merged
 	// build's measured size.
-	renderer: { total: 386_900 },
+	// → floors blended per pixel (#242: the splat in the terrain kind's graph); set to the merged
+	// build's measured size.
+	renderer: { total: 388_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
