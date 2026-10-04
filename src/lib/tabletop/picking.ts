@@ -95,8 +95,9 @@ export class Picker {
 		const { grid, ground } = this.table();
 		if (!grid) return pick;
 		const { origin, direction } = raycaster.ray;
-		const floorY = ground ? (x: number, y: number) => ground.floorY({ x, y }) : () => 0;
-		const hit = pickCell(grid, floorY, origin, direction);
+		// Each column to its floor, or the chasm's in the void (#243).
+		const at = ground && (ground.pickY ?? ground.floorY);
+		const hit = pickCell(grid, at ? (x, y) => at({ x, y }) : () => 0, origin, direction);
 		if (!hit.point) return pick;
 		const hitPoint = hit.point;
 		pick.cell = hit.cell;

@@ -21,7 +21,8 @@
 // owns it. Where faces meet with the same heights and normal they join; where
 // they don't (a sharp corner, a change of height, the chunk's edge without its
 // partner) the set-back tapers to the edge over TAPER, so no gap ever opens.
-// Faces made by unexplored cells, and the void's own walls, stay plain.
+// Faces made by unexplored cells, and the void's own walls, stay plain. Below
+// level 0, down a chasm (#243), every face darkens with depth (`depthShade`).
 //
 // The style follows the cell that owns the face: masonry on man-made floors
 // (stone, wood, cobble, flagstone), earth on the rest (rock too); the layer
@@ -31,7 +32,9 @@
 import { VOID } from '../../game/floor';
 import { MAN_MADE as MASONRY } from './floors';
 import { STEP_HEIGHT } from '../ground';
-import { chunkGround, joinMeshes, type GroundMesh, type WallSink } from './ground-mesh';
+import { DEFAULT_CHASM, depthShade, type Chasm } from './chasm';
+import { chunkGround, type GroundMesh, type WallSink } from './ground-mesh';
+import { joinMeshes } from './join';
 import { CHUNK, chunksAcross, MAX_NOISE, type WorldShape } from './shape';
 
 /** The styles a face may take, each a mesh of its own (world-layer.ts gives each its look). */
@@ -67,10 +70,11 @@ export interface CliffMesh extends GroundMesh {
 	colors: Float32Array;
 }
 
-/** A chunk's ground: its tops, and its faces by style (`CLIFF_STYLES`). */
+/** A chunk's ground: its tops, its faces by style (`CLIFF_STYLES`) and the void's floor (#243). */
 export interface ChunkWorld {
 	top: GroundMesh;
 	sides: CliffMesh[];
+	bottom: GroundMesh;
 }
 
 /** One row of a profile: its height, how far it sits back (cells), its shade, noise or not. */
@@ -166,15 +170,16 @@ function kindOf(shape: WorldShape, f: Omit<Face, 'kind'>): FaceKind {
 	const { grid, known, floor } = shape;
 	const cs = grid.cellSize;
 	if ((known && !known[f.owner]) || floor[f.owner] === VOID) return FACE.plain;
-	const levels = (f.hi - f.lo) / (STEP_HEIGHT * cs);
-	if (Math.abs(levels - Math.round(levels)) > 1e-3 || Math.round(levels) < 1) return FACE.plain;
-	// The cell beyond the face's middle: the void there makes any drop a cliff.
+	// The cell beyond the face's middle: the void there makes any drop a cliff, down to the
+	// chasm's floor (a whole number of levels or not: the sea's and the moving ground's aren't).
 	const [nx, nz] = [f.n[0] + f.n[2], f.n[1] + f.n[3]];
 	const len = Math.hypot(nx, nz) || 1;
 	const x = Math.floor(((f.x0 + f.x1) / 2 + (nx / len) * 0.25 * cs) / cs + grid.width / 2);
 	const y = Math.floor(((f.z0 + f.z1) / 2 + (nz / len) * 0.25 * cs) / cs + grid.height / 2);
 	const beyond = x >= 0 && y >= 0 && x < grid.width && y < grid.height;
 	if (beyond && floor[y * grid.width + x] === VOID) return FACE.cliff;
+	const levels = (f.hi - f.lo) / (STEP_HEIGHT * cs);
+	if (Math.abs(levels - Math.round(levels)) > 1e-3 || Math.round(levels) < 1) return FACE.plain;
 	return Math.round(levels) === 1 ? FACE.riser : FACE.cliff;
 }
 
@@ -261,7 +266,10 @@ class Faces {
 				v[o] = x - col[j * 5 + 2] * d;
 				v[o + 1] = row.y;
 				v[o + 2] = z - col[j * 5 + 3] * d;
-				v[o + 3] = row.noisy ? 0.95 - 0.3 * ((back - SET_BACK) / (DEEPEST - SET_BACK)) : row.shade;
+				const shade = row.noisy
+					? 0.95 - 0.3 * ((back - SET_BACK) / (DEEPEST - SET_BACK))
+					: row.shade;
+				v[o + 3] = shade * depthShade(row.y, cs);
 			}
 		}
 		// The winding that faces out: the same for the whole face (its rows only lean back).
@@ -297,12 +305,15 @@ class Faces {
 		}
 	}
 
-	/** Plain geometry (the skirts between unexplored cells), its shade 1. */
-	plain(mesh: GroundMesh): void {
+	/** Plain geometry (the skirts between unexplored cells), shaded only by depth. */
+	plain(mesh: GroundMesh, cs: number): void {
 		const base = this.own.n;
 		for (const v of mesh.positions) this.pos.add(v);
 		for (const v of mesh.normals) this.nor.add(v);
-		for (let v = 0; v < mesh.owners.length; v++) this.col.add3(1, 1, 1);
+		for (let v = 0; v < mesh.owners.length; v++) {
+			const shade = depthShade(mesh.positions[v * 3 + 1], cs);
+			this.col.add3(shade, shade, shade);
+		}
 		for (const o of mesh.owners) this.own.add(o);
 		for (const i of mesh.indices) this.idx.add(base + i);
 	}
@@ -318,8 +329,12 @@ class Faces {
 	}
 }
 
-/** The ground of one chunk with its cliffs and risers: tops, and faces by style. */
-export function chunkWorld(shape: WorldShape, chunk: number): ChunkWorld {
+/** The ground of one chunk with its cliffs and risers: tops, faces by style, the void's floor. */
+export function chunkWorld(
+	shape: WorldShape,
+	chunk: number,
+	chasm: Chasm = DEFAULT_CHASM
+): ChunkWorld {
 	const { grid } = shape;
 	const cs = grid.cellSize;
 	const faces: Face[] = [];
@@ -330,30 +345,30 @@ export function chunkWorld(shape: WorldShape, chunk: number): ChunkWorld {
 		}
 	};
 	// The cells a cell round the chunk make faces too, so ends across its edge join.
-	const { top, sides: skirts } = chunkGround(shape, chunk, sink, 1);
+	const { top, sides: skirts, bottom } = chunkGround(shape, chunk, sink, 1, chasm);
 	const ends = new Map<string, number>();
 	const keys = faces.map((f) => [endKey(f, 0, cs), endKey(f, 1, cs)] as const);
 	for (const pair of keys) for (const k of pair) ends.set(k, (ends.get(k) ?? 0) + 1);
 	const across = chunksAcross(grid);
 	const [cx, cy] = [(chunk % across.x) * CHUNK, Math.floor(chunk / across.x) * CHUNK];
 	const out = CLIFF_STYLES.map(() => new Faces());
-	out[0].plain(skirts);
+	out[0].plain(skirts, cs);
 	faces.forEach((f, i) => {
 		const [x, y] = [f.owner % grid.width, Math.floor(f.owner / grid.width)];
 		if (x < cx || y < cy || x >= cx + CHUNK || y >= cy + CHUNK) return;
 		const free: [boolean, boolean] = [ends.get(keys[i][0]) !== 2, ends.get(keys[i][1]) !== 2];
 		out[styleOf(shape.floor[f.owner])].add(f, free, cs);
 	});
-	return { top, sides: out.map((b) => b.done()) };
+	return { top, sides: out.map((b) => b.done()), bottom };
 }
 
-/** Every chunk's ground with its cliffs and risers, as one mesh (for the harness). */
-export function tableWorld(shape: WorldShape): GroundMesh {
+/** Every chunk's ground with its cliffs, risers and the void's floor, as one mesh (for the harness). */
+export function tableWorld(shape: WorldShape, chasm: Chasm = DEFAULT_CHASM): GroundMesh {
 	const across = chunksAcross(shape.grid);
 	const parts: GroundMesh[] = [];
 	for (let c = 0; c < across.x * across.y; c++) {
-		const { top, sides } = chunkWorld(shape, c);
-		parts.push(top, ...sides);
+		const { top, sides, bottom } = chunkWorld(shape, c, chasm);
+		parts.push(top, ...sides, bottom);
 	}
 	return joinMeshes(parts);
 }

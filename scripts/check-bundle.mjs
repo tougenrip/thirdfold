@@ -82,7 +82,9 @@ const BUDGETS = {
 	// build's measured size.
 	// → the shader grid (#245: its node, the twins, the modes and the highlight's patterns); set
 	// to the merged build's measured size.
-	renderer: { total: 389_300 },
+	// → 389.8: the void's chasms (#243: the void's floor in the world layer, its mist and clock,
+	// the surface kind's flow, picks into the void); 389,798 B measured.
+	renderer: { total: 390_000 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -91,8 +93,9 @@ const BUDGETS = {
 	// emitter and the builders to come), fetched with the renderer and awaited by the table;
 	// 5,166 B measured. → 7.8: the backdrop beyond the grid (#244: the skirt, the silhouettes and
 	// their recipes); 7,762 B measured. → the cliffs and risers (#241, world/cliffs.ts); set to the
-	// merged build's measured size.
-	world: { total: 9_900 }
+	// merged build's measured size. → 10.4: the void's chasms (#243, world/chasm.ts and the
+	// ground's void floor); 10,369 B measured.
+	world: { total: 10_400 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

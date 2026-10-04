@@ -6,18 +6,24 @@
 // today's boxes from the world's shape, the emitter every later one is held
 // beside (#240, #241 and #243 register theirs in the world specs).
 
-import { VOID } from '../../game/floor';
-import { cornerToWorld, gridToWorld, type GridEdge } from '../../game/grid';
-import { canStep } from '../../game/objects';
+import { decodeFloor, VOID } from '../../game/floor';
+import { cornerToWorld, gridToWorld, type GridEdge, type SquareGrid } from '../../game/grid';
+import { canStep, type SceneObject } from '../../game/objects';
+import { decodeLevels } from '../../game/terrain';
+import type { FogView } from '../../game/visibility';
+import type { WorldLook } from '../../game/world';
+import { chasmOf, chasmY } from './chasm';
 import { dualCase, JOIN, tileHash, type DualMask } from './dual';
 import {
 	CORNERS,
 	EDGE_GROUND,
 	groundObstacles,
 	INTRUSION,
+	knownOf,
 	MAX_NOISE,
 	MAX_ROUND,
 	TOKEN_DISK,
+	worldShape,
 	type WorldShape
 } from './shape';
 
@@ -439,4 +445,46 @@ export function saddleProblems(shape: WorldShape): { problems: string[]; count: 
 		}
 	}
 	return { problems, count };
+}
+
+/** What a viewer was sent of a table, as the fixtures' views hold it. */
+export interface SentTable {
+	grid: SquareGrid;
+	terrain: string | null;
+	floor: string | null;
+	objects: SceneObject[];
+	fog: FogView;
+	world: WorldLook;
+}
+
+/**
+ * For the unexplored-is-black test (#243): whether the picture at a cell's centre on the plane
+ * y = 0, seen from `eye`, may show something past it. Only a cell the viewer's ground continues as
+ * void is a hole there: the ray falls on into it down to the chasm's floor, and if on the way it
+ * passes over a cell `shown` says the viewer was shown (or off the table), the sample may see that.
+ */
+export function pastHole(sent: SentTable, shown: (i: number) => boolean) {
+	const { grid } = sent;
+	const { width: w, height: h, cellSize: cs } = grid;
+	const n = w * h;
+	const shape = worldShape({
+		grid,
+		levels: sent.terrain ? decodeLevels(sent.terrain, n) : null,
+		floor: sent.floor ? decodeFloor(sent.floor, n) : null,
+		objects: sent.objects,
+		known: knownOf(grid, sent.fog, false)
+	});
+	const depth = chasmY(chasmOf(sent.world.backdrop), cs);
+	return (i: number, eye: { x: number; y: number; z: number }): boolean => {
+		if (shape.floor[i] !== VOID) return false;
+		const at = gridToWorld(grid, { x: i % w, y: Math.floor(i / w) });
+		const d = [at.x - eye.x, -eye.y, at.z - eye.z];
+		const step = cs / 8 / Math.hypot(d[0], d[1], d[2]);
+		for (let s = step; d[1] * s >= depth; s += step) {
+			const [x, z] = [at.x + d[0] * s, at.z + d[2] * s];
+			const [cx, cy] = [Math.floor(x / cs + w / 2), Math.floor(z / cs + h / 2)];
+			if (cx < 0 || cy < 0 || cx >= w || cy >= h || shown(cy * w + cx)) return true;
+		}
+		return false;
+	};
 }

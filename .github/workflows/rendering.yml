@@ -124,6 +124,8 @@ jobs:
             run: npm run test:render -- src/lib/tabletop/floor-splat.svelte.spec.ts
           - name: grid
             run: npm run test:render -- src/lib/tabletop/grid-overlay.svelte.spec.ts
+          - name: chasm
+            run: npm run test:render -- src/lib/tabletop/chasm.svelte.spec.ts
           - name: programs 1
             run: THIRDFOLD_SHARD=1/18 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 2

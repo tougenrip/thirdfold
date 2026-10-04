@@ -33,7 +33,8 @@ import { tsl, type N } from './tsl';
  * the world on walls and raised ground, so textures run on across instances and heights (two
  * offset fetches blended against visible tiling in the `antiTiled` variant, #181), or of
  * the geometry's own space for a `local` material (door panels, whose texture must not slide as
- * they swing); triplanar on rock; the mesh's uv, moved by `offset` (water's flow), elsewhere: on
+ * they swing), moved by `offset` (a surface's flow); triplanar on rock; the mesh's uv, moved by
+ * `offset` (water's flow), elsewhere: on
  * props and minis a cooked model's glTF uvs (#188), which part lists carry as zeros so both draw
  * with one program (models.ts). Their paint (#178) keeps to object space on its own.
  */
@@ -44,7 +45,9 @@ export function surfaceMapping(
 	offset: N | null = null
 ): Mapping {
 	if (kind === 'surface' || kind === 'terrain')
-		return variant.local ? localBox(repeat) : worldBox(repeat, variant.antiTiled);
+		return variant.local
+			? localBox(repeat)
+			: worldBox(repeat, variant.antiTiled, undefined, offset);
 	// Rock (#241): triplanar from medium up (the `antiTiled` graph the tier picks), biplanar on low.
 	if (kind === 'rock')
 		return variant.local

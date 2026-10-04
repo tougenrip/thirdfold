@@ -70,7 +70,8 @@ export function boxMapping(
 	repeat: N,
 	toView: (n: N) => N,
 	antiTiled = false,
-	source: (slot: SlotName, at: N) => N = slotSample
+	source: (slot: SlotName, at: N) => N = slotSample,
+	offset: N | null = null
 ): Mapping {
 	const p = tsl.vec3(position);
 	const n = tsl.vec3(geometric).normalize();
@@ -79,10 +80,11 @@ export function boxMapping(
 	const onY = onX.not().and(a.y.greaterThanEqual(a.z));
 	const [sx, sy, sz] = [signOf(n.x), signOf(n.y), signOf(n.z)];
 	const side = (u: N) => tsl.vec2(u.mul(repeat.x), p.y.mul(repeat.y));
-	const at = onX.select(
+	const boxed = onX.select(
 		side(p.z.mul(sx).negate()),
 		onY.select(tsl.vec2(p.x, p.z.mul(sy).negate()).mul(repeat.x), side(p.x.mul(sz)))
 	);
+	const at = offset ? boxed.add(offset) : boxed;
 	const tangent = onX.select(tsl.vec3(0, 0, sx.negate()), tsl.vec3(onY.select(1, sz), 0, 0));
 	const bitangent = onY.select(tsl.vec3(0, 0, sy.negate()), tsl.vec3(0, 1, 0));
 	const tiles = antiTiled ? antiTile(at) : null;
@@ -111,7 +113,8 @@ export function boxMapping(
 export const worldBox = (
 	repeat: N,
 	antiTiled = false,
-	source?: (slot: SlotName, at: N) => N
+	source?: (slot: SlotName, at: N) => N,
+	offset: N | null = null
 ): Mapping =>
 	boxMapping(
 		tsl.positionWorld,
@@ -119,7 +122,8 @@ export const worldBox = (
 		repeat,
 		(n) => n.transformDirection(tsl.cameraViewMatrix),
 		antiTiled,
-		source
+		source,
+		offset
 	);
 
 /** Box projection in the geometry's own space: a door panel's texture swings with it. */

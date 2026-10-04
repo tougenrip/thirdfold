@@ -232,7 +232,7 @@ export async function createTabletop(
 		if (casters || wasMoving) shadowsDirty = true;
 		wasMoving = casters;
 		const flickering = lighting.animating(camera, now, controls.target, gallery.due); // #230, #231
-		const drifting = cloud.tick(now);
+		const drifting = [worldLayer.tick(now, reducedMotion), cloud.tick(now)].includes(true); // #243
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const revealing = cellMaps.tick(now); // a reveal's fade (#174): frames until it ends

@@ -15,6 +15,12 @@
 // are the terrain kind's one graph and every face the rock kind's, each warmed
 // with a stand-in, so nothing compiles. Fog and darkness are `worldModify`'s,
 // as on every surface (the faces' read the cell behind them).
+//
+// The void (#243, world/chasm.ts) drops to the chasm's floor, by the world look's backdrop (the
+// landscape tells it, `onBackdrop`): each chunk's third mesh, the surface kind as the backdrop's
+// skirt is (one program), is drifting mist in the dark, or wears the skirt's own look, the sea or
+// the moving ground, whose slots slide on `worldTime`. `tick` moves that clock on AMBIENT frames,
+// never under reduced motion, and the mist only on medium and up (the anti-tiled tier).
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -27,14 +33,19 @@ import type { WorldGround } from './landscape';
 import {
 	createMaterial,
 	disposeTwins,
+	prepareSlotTexture,
 	repeatFor,
 	setParams,
+	setSlot,
+	SLOTS,
 	twinOf,
+	worldTime,
 	type KindMaterial
 } from './materials';
 import type { PerfRecorder } from './perf';
 import { TerrainLayer } from './terrain';
 import { standIn } from './warmup';
+import type { Chasm } from './world/chasm';
 import type { CliffMesh } from './world/cliffs';
 import type { GroundMesh } from './world/ground-mesh';
 import type { WorldShape } from './world/shape';
@@ -60,6 +71,17 @@ const PLAIN = {
 	masonry: { color: 0x8a867c, roughness: 0.85 }
 };
 
+/** The chasm's mist: a cold grey over the dark, a tile every `MIST_CELLS`, drifting (repeats a second). */
+const MIST = { color: 0x2c333c, roughness: 1 };
+const MIST_CELLS = 6;
+const MIST_FLOW = { x: 0.025, y: 0.0125 };
+const STILL = { x: 0, y: 0 };
+/** `worldTime` wraps every hour: every flow comes round to whole repeats by then. */
+const WRAP_S = 3600;
+let mistTexture: THREE.DataTexture | null = null;
+/** The void's floor meshes' name (the render specs find them by it). */
+export const VOID_FLOOR = 'void-floor';
+
 /** The environments whose every face is cave rock (their ground look), masonry or not. */
 const CAVES = new Set(['cavern', 'living-cave']);
 
@@ -77,6 +99,8 @@ interface Chunk {
 	sides: THREE.Mesh[];
 	/** The top's twin in the overlay's scene, for the shader grid (#245). */
 	grid: THREE.Mesh;
+	/** The void's floor (#243): mist, the sea or the moving ground. */
+	bottom: THREE.Mesh;
 }
 
 const EMPTY = new THREE.BufferGeometry();
@@ -95,6 +119,11 @@ export class WorldLayer {
 	private top: KindMaterial = createMaterial('terrain', { antiTiled: true });
 	/** The faces' materials by style: one graph (rock, vertex colours), each its own look. */
 	private sides: KindMaterial[];
+	/** The void's floor: the surface kind, as the backdrop's skirt (one program). */
+	private bottom: KindMaterial = createMaterial('surface', { antiTiled: true });
+	private chasm: Chasm;
+	private picks: Ground | null = null;
+	private cellSize = 1;
 	private inputs: unknown[] = [];
 	private on = true;
 	private lastRebuilt = 0;
@@ -114,11 +143,33 @@ export class WorldLayer {
 			return material;
 		});
 		wear(this.top, null, PLAIN.top);
+		this.chasm = build.DEFAULT_CHASM;
+		land.onBackdrop = (backdrop) => this.setChasm(build.chasmOf(backdrop));
+		this.paintVoid();
 	}
 
-	/** The ground everything stands on: the continued levels' (identical on known cells). */
+	/**
+	 * The ground everything stands on: the continued levels' (identical on known cells), picked
+	 * into the void at the chasm's floor (#243).
+	 */
 	get ground(): Ground | null {
-		return this.shape?.ground ?? null;
+		return this.picks;
+	}
+
+	/**
+	 * Moves the clock the void's floor slides on: true while it does (the moving ground, or the
+	 * chasm's mist on medium and up, with void on the table), for AMBIENT frames; still under
+	 * reduced motion.
+	 */
+	tick(now: number, reducedMotion: boolean): boolean {
+		const { style } = this.chasm;
+		const mist = style === 'chasm' && !!this.top.options.antiTiled;
+		const moving =
+			!reducedMotion &&
+			this.on &&
+			(style === 'scroll' || (mist && this.chunks.some((c) => c.bottom.visible)));
+		if (moving) worldTime.value = (now / 1000) % WRAP_S;
+		return moving;
 	}
 
 	/**
@@ -147,7 +198,9 @@ export class WorldLayer {
 			objects: [],
 			known
 		});
-		this.terrain.sync(grid, this.shape.ground);
+		const { shape } = this;
+		this.picks = this.build.chasmGround(grid, shape.ground, shape.floor, () => this.chasm);
+		this.terrain.sync(grid, shape.ground);
 		this.rebuild();
 		return exploredChanged;
 	}
@@ -162,6 +215,7 @@ export class WorldLayer {
 		environment?: string | null
 	): void {
 		const cellSize = grid?.cellSize ?? 1;
+		this.cellSize = cellSize;
 		const cave = CAVES.has(environment ?? '');
 		wear(this.top, look?.surface ?? null, PLAIN.top);
 		setParams(this.top, { repeat: repeatFor(look?.surface.cells ?? 1, cellSize, STEP_HEIGHT) });
@@ -173,6 +227,7 @@ export class WorldLayer {
 			setParams(this.sides[i], { repeat: { x: per, y: per } });
 		});
 		this.terrain.setLook(look?.ground ?? null);
+		this.paintVoid(); // the skirt's new look, under the sea and the moving ground
 	}
 
 	/** The chunks (on) or the old boxes and play plane (off, `?off=terrain`). True if it changed. */
@@ -194,10 +249,13 @@ export class WorldLayer {
 		if (!!this.top.options.antiTiled === on) return boxes;
 		this.top = twinOf(this.top);
 		this.sides = this.sides.map(twinOf);
+		this.bottom = twinOf(this.bottom);
 		for (const c of this.chunks) {
 			c.top.material = this.top;
 			c.sides.forEach((m, i) => (m.material = this.sides[i]));
+			c.bottom.material = this.bottom;
 		}
+		this.paintVoid(); // the mist drifts on medium and up
 		if (this.standIns)
 			[this.standIns[0].material, this.standIns[1].material] = [this.top, this.sides[0]];
 		return true;
@@ -235,6 +293,33 @@ export class WorldLayer {
 		this.grid.dispose();
 		disposeTwins(this.top);
 		this.sides.forEach(disposeTwins);
+		disposeTwins(this.bottom);
+		this.land.onBackdrop = null;
+	}
+
+	/** The void for the scene's backdrop: its look, and every chunk again if its floor moved. */
+	private setChasm(chasm: Chasm): void {
+		const was = this.chasm;
+		this.chasm = chasm;
+		this.paintVoid();
+		if (chasm.depth === was.depth && chasm.open === was.open) return;
+		this.drawn = null;
+		this.rebuild();
+	}
+
+	/** The void's floor: mist over the dark, or the skirt's own look (the sea, the moving ground). */
+	private paintVoid(): void {
+		const m = this.bottom;
+		if (this.chasm.style !== 'chasm') return this.land.wearSkirt(m);
+		wear(m, null, MIST);
+		mistTexture ??= prepareSlotTexture(
+			new THREE.DataTexture(this.build.mistTexels(64), 64, 64),
+			SLOTS.albedo
+		);
+		setSlot(m, 'albedo', mistTexture);
+		const per = 1 / (MIST_CELLS * this.cellSize);
+		const flow = this.top.options.antiTiled ? MIST_FLOW : STILL;
+		setParams(m, { repeat: { x: per, y: per }, flow, macroTint: 0, macroRoughness: 0 });
 	}
 
 	/** Builds the chunks the shape changed since the drawn one (all of them on a new grid). */
@@ -251,10 +336,11 @@ export class WorldLayer {
 	}
 
 	private buildChunk(shape: WorldShape, c: number): void {
-		const { top, sides } = this.build.chunkWorld(shape, c);
+		const { top, sides, bottom } = this.build.chunkWorld(shape, c, this.chasm);
 		const chunk = this.chunks[c];
 		fill(chunk.top, top);
 		sides.forEach((faces, i) => fill(chunk.sides[i], faces));
+		fill(chunk.bottom, bottom, true);
 		this.grid.follow(chunk.grid, chunk.top);
 	}
 
@@ -270,7 +356,7 @@ export class WorldLayer {
 	private resize(count: number): void {
 		while (this.chunks.length > count) {
 			const c = this.chunks.pop()!;
-			for (const m of [c.top, ...c.sides]) {
+			for (const m of [c.top, ...c.sides, c.bottom]) {
 				if (m.geometry !== EMPTY) m.geometry.dispose();
 				this.chunkGroup.remove(m);
 			}
@@ -280,9 +366,11 @@ export class WorldLayer {
 			const c = {
 				top: this.mesh(this.top, false),
 				sides: this.sides.map((m) => this.mesh(m, true)),
-				grid: this.grid.twin()
+				grid: this.grid.twin(),
+				bottom: this.mesh(this.bottom, false)
 			};
-			this.chunkGroup.add(c.top, ...c.sides);
+			c.bottom.name = VOID_FLOOR;
+			this.chunkGroup.add(c.top, ...c.sides, c.bottom);
 			this.chunks.push(c);
 		}
 	}
@@ -290,9 +378,10 @@ export class WorldLayer {
 
 /**
  * Puts a built mesh in a chunk's geometry: positions, normals, a face's shades (vertex colours)
- * and triangles; hidden when empty.
+ * and triangles, and for the void's floor the world uv the backdrop's skirt has (`uv`: the same
+ * attributes, so the same program); hidden when empty.
  */
-function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh): void {
+function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh, uv = false): void {
 	if (mesh.geometry !== EMPTY) mesh.geometry.dispose();
 	mesh.visible = data.indices.length > 0;
 	if (!mesh.visible) {
@@ -303,6 +392,12 @@ function fill(mesh: THREE.Mesh, data: GroundMesh | CliffMesh): void {
 	g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
 	g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
 	if ('colors' in data) g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+	if (uv) {
+		const p = data.positions;
+		const uvs = new Float32Array((p.length / 3) * 2);
+		for (let v = 0; v < uvs.length / 2; v++) uvs.set([p[v * 3], -p[v * 3 + 2]], v * 2);
+		g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+	}
 	g.setIndex(new THREE.BufferAttribute(data.indices, 1));
 	g.computeBoundingSphere();
 	mesh.geometry = g;
