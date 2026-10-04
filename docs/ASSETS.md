@@ -398,7 +398,9 @@ upload refuses RGBA), and the terrain
 kind samples them (`materials/floors.ts`): global array nodes whose textures `wearFloors` swaps, a
 blank array standing in until they load, and each floor's layer from the ground map's floor byte,
 so every floor of a table is still one draw and nothing compiles when a table, a floor or its
-surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. The walls wear their
+surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. Since #242 the floors round
+each fragment are blended from the same arrays, by the height in the albedo's alpha (docs/RENDERING.md,
+"Floors blended per pixel"): no new art and no new texture, the height the stylise step already writes. The walls wear their
 surface's three maps in the wall material's slots.
 
 ## Texture detail
