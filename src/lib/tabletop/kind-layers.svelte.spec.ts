@@ -24,6 +24,8 @@ import { WorldGround } from './landscape';
 import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import { WallLayer } from './walls';
+import { PerfRecorder } from './perf';
+import { WorldLayer } from './world-layer';
 import { worldExtents } from './world-ground';
 import {
 	BACKEND,
@@ -73,7 +75,9 @@ describe('the layers on the shader kinds', () => {
 		const overlay = new OverlayLayer();
 		const tokens = new TokenLayer(overlay);
 		tokens.sync(view.tokens, view.grid, ground);
-		const layers = [table, walls, terrain, props, tokens];
+		const world = new WorldLayer(new PerfRecorder(), table);
+		world.update(view.grid, ground.levels, null, null, 'gm');
+		const layers = [table, walls, terrain, props, tokens, world];
 		const drawn = layers.flatMap((l) => materialsOf(l.group));
 		// Doors, raised cells, props and minis are all on the fixture.
 		expect(drawn.length).toBeGreaterThan(20);

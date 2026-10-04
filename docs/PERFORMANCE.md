@@ -956,3 +956,38 @@ to warm up, mean per pick, by a scratch spec on this change and on the commit be
 The Hollow's picks drop by about half (its 788 boxes are no longer raycast); the monastery's are
 unchanged within the noise (the first run after had an 11 ms stall). What remains is the things'
 raycasts, which this change leaves as they were.
+
+## The M69 ground in chunks (#240)
+
+What a chunk rebuild costs on the main thread (`chunkGround`, the pure emitter; the layer adds a
+`BufferGeometry` and its bounding sphere), on the RTX 4060 Laptop's i9-13900HX, Node 22 through Vite's
+transform (as the browser bundle runs it: no names kept on closures), medians of 20, measured while
+other agents' browser tests kept the machine at a load average of about 15, so read them as upper
+bounds:
+
+| Table                                   | Mean chunk | Slowest chunk | Whole table      | One-cell edit (shape + its chunks) |
+| --------------------------------------- | ---------- | ------------- | ---------------- | ---------------------------------- |
+| Hollow (48x36, GM)                      | 1.2 ms     | 2.5 ms        | 11 ms (9 chunks) | 2.0 ms (1 chunk)                   |
+| Monastery (30x20, GM)                   | 0.75 ms    | 1.5 ms        | 3.0 ms (4)       | 0.1 ms (0: an unchanged cell)      |
+| outdoor-64 (64x64, GM)                  | 1.3 ms     | 2.0 ms        | 21 ms (16)       | 1.9 ms (1)                         |
+| test world (24x24, GM)                  | 1.1 ms     | 2.4 ms        | 4.4 ms (4)       | 0.4 ms (1)                         |
+| busy random 64x64, all known / fogged   | 1.0 / 2.0  | 1.1 / 4.8     | 15 / 32 ms       | 4.6 / 1.6 ms                       |
+| busy random 100x100, all known / fogged | 0.9 / 1.3  | 1.7 / 2.2     | 45 / 64 ms       | 2.6 / 3.3 ms                       |
+
+- **A one-cell paint** rebuilds one chunk (four on a chunk's corner): about 1 ms of meshing; the edit's
+  total (the shape, about 0.6 ms on 64x64, then the chunk) stays within 2-5 ms. A fogged player's step
+  rebuilds one to four chunks (the world-layer spec walks 35 steps across the Hollow).
+- **A whole table** (a new table, or `?off=terrain` turned back on) is 3-21 ms on the fixtures and about
+  45-65 ms on a busy 100x100 one. A new table is built twice today, once for `setGrid` (flat) and again
+  for `setTerrain`; batching the build to the next frame would halve that, if it ever shows.
+- **The issue's 1.5 ms a chunk on the dGPU machine** holds on average (0.75-1.3 ms on the fixtures);
+  the slowest chunks (rounded corners all over, or fogged tiles split along diagonals with skirts) reach
+  2-2.5 ms under the background load, 4.8 ms on the busiest random table. No worker yet: the numbers
+  don't call for one, and the general path (rounded and unexplored quarters) is where to look first.
+- `npx tsx server/perf/world-shape.ts` prints the same rows (`ground mesh, ...`) but tsx keeps every
+  closure's name (`__name`), which inflates them two to three times; the table above is the one to
+  quote.
+- **The GPU:** two draws per chunk (tops and sides; sides also in the sun's shadow pass), 18 for the
+  Hollow, 32 for 64x64. Tops are eight triangles a cell (more at round corners), about 33k on
+  64x64, where the play plane drew 2 and the boxes 12 a raised cell. The perf gate and the iGPU were not run
+  for this change (the iGPU is not a gate for M69).

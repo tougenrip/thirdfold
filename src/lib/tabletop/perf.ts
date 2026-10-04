@@ -11,6 +11,7 @@
 
 import type * as THREE from 'three/webgpu';
 import type { HeroStats } from './hero-shadows';
+import type { WorldStats } from './world-layer';
 import { isSoftware, type Tier } from './quality';
 import type { Mode } from './scheduler';
 import { RESHADOWS, TIMED, type Tabletop } from './types';
@@ -67,6 +68,8 @@ export interface PerfStats {
 	holding: boolean;
 	/** The hero shadow slots (#230): holders, cubes redrawn (in all, last frame), cube bytes. */
 	heroes: HeroStats | null;
+	/** The world's chunks (#240): on the table, and rebuilt by the last update (`world-chunk` counts all). */
+	world: WorldStats | null;
 }
 
 export class PerfRecorder {
@@ -185,13 +188,14 @@ export interface RendererState {
 	tier: Tier | null;
 	mode: Mode | null;
 	heroes?: HeroStats | null;
+	world?: WorldStats | null;
 }
 
 /** What the renderer has cost so far, with what three.js reports the last frame drew and what it holds. */
 export function rendererStats(
 	renderer: THREE.WebGPURenderer,
 	perf: PerfRecorder,
-	{ holding, tier, mode, heroes = null }: RendererState
+	{ holding, tier, mode, heroes = null, world = null }: RendererState
 ): PerfStats {
 	const { render, memory } = renderer.info;
 	return {
@@ -210,7 +214,8 @@ export function rendererStats(
 		gpuMs: perf.gpuMs,
 		gpu: perf.gpu,
 		holding,
-		heroes
+		heroes,
+		world
 	};
 }
 
@@ -458,12 +463,15 @@ export function perfMethods(
 		loop,
 		quality,
 		warming,
-		lighting
+		lighting,
+		world
 	}: {
 		loop: { holding: boolean; mode: Mode };
 		quality: { tier: Tier };
 		/** The hero shadow slots' stats (lighting.ts). */
 		lighting?: { heroStats(): HeroStats };
+		/** The world's chunks (world-layer.ts). */
+		world?: { stats(): WorldStats };
 		/** The warm-up under way, if any (renderer.ts): no benchmark frame draws during it. */
 		warming: () => Promise<void>;
 	}
@@ -474,7 +482,8 @@ export function perfMethods(
 				holding: loop.holding,
 				tier: quality.tier,
 				mode: loop.mode,
-				heroes: lighting?.heroStats()
+				heroes: lighting?.heroStats(),
+				world: world?.stats()
 			}),
 		resetStats: () => perf.reset(),
 		benchmark: (frames) => benchmark(renderer, perf, draw, frames, warming),

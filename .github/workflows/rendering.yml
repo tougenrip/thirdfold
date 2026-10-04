@@ -116,6 +116,8 @@ jobs:
             run: THIRDFOLD_SHARD=3/3 npm run test:render -- src/lib/tabletop/flash.svelte.spec.ts
           - name: materials
             run: npm run test:render -- src/lib/tabletop/materials.svelte.spec.ts src/lib/tabletop/mapping.svelte.spec.ts src/lib/tabletop/kind-layers.svelte.spec.ts
+          - name: world
+            run: npm run test:render -- src/lib/tabletop/world-layer.svelte.spec.ts
           - name: programs 1
             run: THIRDFOLD_SHARD=1/18 npm run test:render -- src/lib/tabletop/program-count.svelte.spec.ts
           - name: programs 2

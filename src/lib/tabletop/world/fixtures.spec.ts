@@ -15,7 +15,15 @@ import { EYE_LEVELS, type FogView } from '$lib/game/visibility';
 import { groundFor, STEP_HEIGHT, WALL_HEIGHT } from '../ground';
 import { checkContinuation, checkEmitter, referenceBoxes, saddleProblems } from './invariants';
 import { regionsOf } from './regions';
-import { knownOf, worldShape, type ShapeInput, type WorldShape } from './shape';
+import { chunkGround, tableGround } from './ground-mesh';
+import {
+	CHUNK,
+	chunksAcross,
+	knownOf,
+	worldShape,
+	type ShapeInput,
+	type WorldShape
+} from './shape';
 import { LINTEL, SILL } from './wall-spans';
 
 const SCENES = 'tests/fixtures/scenes';
@@ -80,6 +88,11 @@ function legacySpans(grid: SquareGrid, objects: readonly SceneObject[], levels: 
 	}
 	return out;
 }
+
+/** The chunk a cell (by index) lies in. */
+const chunkOf = (g: SquareGrid, i: number) =>
+	Math.floor(Math.floor(i / g.width) / CHUNK) * chunksAcross(g).x +
+	Math.floor((i % g.width) / CHUNK);
 
 const cellsAt = (s: WorldShape, ...xy: [number, number][]) =>
 	xy.map(([x, y]) => y * s.grid.width + x);
@@ -146,6 +159,22 @@ describe('the world shape on every fixture', () => {
 			expect(checkEmitter(s, referenceBoxes(s)), name).toEqual([]);
 		}
 	});
+
+	it('passes the dual-grid ground (#240) through the harness on every scene and view', () => {
+		for (const { name } of every) {
+			const s = shapes.get(name)!;
+			expect(checkEmitter(s, tableGround(s)), name).toEqual([]);
+			// Each chunk holds only its own cells.
+			const across = chunksAcross(s.grid);
+			const strays: string[] = [];
+			for (let c = 0; c < across.x * across.y; c++) {
+				const { top, sides } = chunkGround(s, c);
+				for (const o of [...top.owners, ...sides.owners])
+					if (chunkOf(s.grid, o) !== c) strays.push(`chunk ${c}: cell ${o}`);
+			}
+			expect(strays, name).toEqual([]);
+		}
+	}, 60_000);
 });
 
 describe('regions on the fixtures', () => {

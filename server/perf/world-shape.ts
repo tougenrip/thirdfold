@@ -1,10 +1,11 @@
 // Measures the world's shape (#239) in Node: classifying a table (the
 // continued maps, dual tiles, edge classes and wall spans), finding its
 // regions, the dual cases of every tile for the walkable mask and each level
-// band, and the dirty chunks after a one-cell edit, on 64x64 and 100x100
-// tables with fog, and picking a cell with the DDA (#246) over every pixel of
-// a 160x100 view from above the table's corner. docs/PERFORMANCE.md records
-// the numbers.
+// band, the dirty chunks after a one-cell edit, the ground's chunk meshes
+// (#240: the chunk that edit rebuilds, the slowest one, all), on 64x64 and
+// 100x100 tables with fog, and picking a cell with the DDA (#246) over every
+// pixel of a 160x100 view from above the table's corner. docs/PERFORMANCE.md
+// records the numbers.
 //
 //   npx tsx server/perf/world-shape.ts [runs]
 
@@ -14,7 +15,13 @@ import type { SceneObject } from '../../src/lib/game/objects';
 import { dualCase } from '../../src/lib/tabletop/world/dual';
 import { pickCell } from '../../src/lib/tabletop/world/pick';
 import { regionsOf } from '../../src/lib/tabletop/world/regions';
-import { dirtyChunks, worldShape, type ShapeInput } from '../../src/lib/tabletop/world/shape';
+import { chunkGround } from '../../src/lib/tabletop/world/ground-mesh';
+import {
+	chunksAcross,
+	dirtyChunks,
+	worldShape,
+	type ShapeInput
+} from '../../src/lib/tabletop/world/shape';
 
 const RUNS = Number(process.argv[2] ?? 50);
 
@@ -82,6 +89,8 @@ for (const size of [64, 100]) {
 	const edited = { ...input, levels: input.levels!.slice() };
 	edited.levels[10 * size + 10] += 1;
 	const next = worldShape(edited);
+	const across = chunksAcross(shape.grid);
+	const chunks = across.x * across.y;
 	const rows = {
 		classify: median(() => worldShape(input)),
 		regions: median(() => regionsOf(shape)),
@@ -93,7 +102,17 @@ for (const size of [64, 100]) {
 				}
 		}),
 		'dirty chunks (one cell)': median(() => dirtyChunks(shape, next)),
-		'pick a cell (DDA, per pick)': median(() => picks(shape)) / PICKS
+		'pick a cell (DDA, per pick)': median(() => picks(shape)) / PICKS,
+		// The ground's meshes (#240): the chunk a one-cell edit rebuilds, the slowest chunk, all.
+		'ground mesh, one chunk (one cell)': median(() => {
+			for (const c of dirtyChunks(shape, next)) chunkGround(next, c);
+		}),
+		'ground mesh, slowest chunk': Math.max(
+			...Array.from({ length: chunks }, (_, c) => median(() => chunkGround(shape, c)))
+		),
+		'ground mesh, whole table': median(() => {
+			for (let c = 0; c < chunks; c++) chunkGround(shape, c);
+		})
 	};
 	console.log(`${size}x${size} (${top} levels, median of ${RUNS})`);
 	for (const [name, ms] of Object.entries(rows))

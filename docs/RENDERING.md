@@ -1262,6 +1262,79 @@ In Node on the i9-13900HX (`npx tsx server/perf/world-shape.ts`, docs/PERFORMANC
 fogged 64x64 table with 64 walls takes 0.58 ms, a 100x100 one 1.4 ms. A cell pick by the DDA takes about 1 µs on
 the Hollow (48x36), where raycasting its raised boxes and the plane took 88 µs (docs/PERFORMANCE.md).
 
+### The ground in chunks (#240)
+
+The ground inside the grid is no longer the play plane and `TerrainLayer`'s boxes: `WorldLayer`
+(`world-layer.ts`) draws the world's shape as dual-grid meshes, one 16x16-cell chunk at a time, built by
+the pure `chunkGround(shape, chunk)` (`world/ground-mesh.ts`).
+
+- **Quarters.** A cell is four quarters, each the corner of the render tile at one of its grid corners.
+  A quarter is flat at its sectors' height: its floor, or one `STEP_HEIGHT` below in the void, where a
+  flat plane (the void's palette, near black) closes the hole until #243. An unexplored cell whose two
+  known neighbours differ is split along its diagonal, as the continued tiles say.
+- **Corners.** A tile whose four cells are known, on the table and not void is rounded: within `r` of
+  the grid corner each quarter has a sliver beyond a quarter circle (`MAX_ROUND`, `ARC_SEGMENTS` 4), a
+  straight chamfer of `BEVEL` 0.05 where any of the four is a man-made floor (stone, wood). The sliver's
+  height comes from the level bands: a convex corner is cut down to its neighbours, a concave one filled
+  up; across a saddle only the pair `dualCase` joins is (a filled low quarter, or cut high ones), and a
+  pinched saddle stays square. A sliver lies 0.6 cell from any cell's centre, so token disks stay flat.
+  Tiles with an unexplored, off-table or void corner stay square.
+- **Sides** are sheer until #241 makes them cliffs and risers: wherever two heights meet there is one
+  vertical face, made by the higher piece's cell (normal toward the lower), so each chunk holds only its
+  own cells' triangles (the owners say so, and a spec checks it). A known cell on the table's border gets
+  a face down (or, round the void, up) to the ring at 0. Between two unexplored cells, or an unexplored
+  cell and the border, nothing may stand on the edge (the harness's `unexplored-face`), so a **skirt**
+  slants from the other side's height on the edge to the cell's top `SKIRT` (0.1 cell) in under it, its
+  ends closed (across the cell's middle line, and at the grid corner on a slant): no gap shows the sky,
+  and no face lies along the edge.
+- **Checked** in the server project: `checkEmitter` on every fixture scene and every GM, player and
+  spectator view, and on 120 seeded random tables fogged and not, plus rays slanting down from above
+  each of them that must hit the ground before falling below its lowest point (no cracks), and the
+  rounding, chamfer, saddle, void and chunk-ownership cases (`ground-mesh.spec.ts`, `fixtures.spec.ts`).
+
+**The layer.** Per chunk a top mesh (receives shadows) and a side mesh (casts and receives; the shadow
+pass draws back faces), each its own `BufferGeometry` (position, normal, 32-bit indices) with its own
+bounding sphere for culling, `raycast` a no-op. Both are the **terrain kind** (non-instanced, anti-tiled
+on medium and up): tops wear the environment's `surface` look (so plain cells look as the play plane
+did), sides its `ground` look (as the boxes did); the floors, their painted surfaces and the paleness of
+height come from the ground map as before. One graph, so nothing compiles: floors, levels, the explored
+mask and environments change data and uniforms only, and the warm-up compiles both through stand-ins
+(`gallery`), a casting side among them, since a flat table has none until the GM raises ground (the
+program-count sweep raises, stairs and flattens the test world's ground). Sides moving onto the rock
+kind is #241's, with their cliffs.
+
+**Its inputs and rebuilds.** `WorldLayer.update(grid, levels, floor, fog, mode)` (from the renderer's
+`setGrid`, `setTerrain`, `setFloor` and `setFog`) makes the shape from what the viewer was sent (`known`
+from `knownOf`, so the GM and fog-off tables have none), skipped when nothing it reads changed (a
+player's fog changes `explored` only as they explore), and rebuilds the chunks `dirtyChunks` names
+against the shape last drawn, each timed as `world-chunk`; `stats().world` has the chunks on the table
+and how many the last update rebuilt. The renderer's `Ground` (tokens, props, walls, lights, previews,
+dice, shots) is the shape's, from the continued levels: identical on known cells, flush with the
+ground drawn elsewhere. The ground map is fed the continued maps too. Walls take the explored mask
+(`wallSpans` with `known`), so none shows a drop toward unexplored ground, and are synced again when it
+changes. The renderer's own `levels` (the camera's fit, the light's) stay as sent.
+
+**The fallback.** The `terrain` layer (`LAYERS` in `quality.ts`, on): `?off=terrain` draws the old boxes
+and the play plane again and builds no chunk; back on, every chunk is built. `TerrainLayer` stays in the
+layer, hidden, synced from the continued ground. Both go at the milestone's close. Picking (#246) needs
+neither: the DDA walks the renderer's `Ground`, which is the shape's, so a fogged player's picks land on
+the continued ground the chunks draw.
+
+**Deviations from #240.** Border tiles do not overhang the grid by half a cell: the ring meets the play
+area at the grid's edge at y = 0 (`ringVertices`), so an overhang would z-fight with it; they stop at the
+edge, with the boxes' faces down to 0. There is no owner-cell vertex attribute on the GPU: the terrain
+kind reads each fragment's cell from the ground map by its position, as the boxes did (a rounded sliver
+takes the colour of the cell it lies in), and an attribute only the chunks carry would be a program of
+their own; the owners stay on the CPU for the harness. Sides are the terrain kind, not the rock kind,
+until #241.
+
+**Specs.** `world-layer.svelte.spec.ts` (`RENDER_SPECS`, its own `world` job in rendering.yml, about a
+minute) mounts the Hollow for the GM and checks the nine chunks are drawn, the ground at every cell's
+floor height (rays straight down onto the chunk meshes), the rebuild counts per edit (a cell inside the
+middle chunk 1, on its corner 4, every floor over its inside 1 each, a 16x16 area with its margin 9, a
+raise inside it 1), no program or pipeline from any of it, a fogged player's explored disc moving 35
+steps east rebuilding 1 to 4 chunks a step, and `?off=terrain`.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -1297,7 +1370,8 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
 | `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                   |
-| `world/`                              | The world's shape (M69): continued maps, edge classes, wall spans, regions, dual cases, the harness                              |
+| `world/`                              | The world's shape (M69): continued maps, edge classes, wall spans, regions, dual cases, the harness, the ground's chunk meshes   |
+| `world-layer.ts`                      | `WorldLayer`: the ground in 16x16-cell chunks (#240), the shape it is built from, the old boxes behind `?off=terrain`            |
 | layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`               |
 
 ## Quality tiers

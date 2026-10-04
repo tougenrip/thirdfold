@@ -47,6 +47,13 @@ export class WorldGround {
 	private surface: THREE.Mesh | null = null;
 	private extents: Extents | null = null;
 	private segments = SEGMENTS.other;
+	private playShown = true;
+
+	/** The play plane: hidden while the world's chunks (#240) draw the ground, shown with `?off=terrain`. */
+	showPlay(shown: boolean): void {
+		this.playShown = shown;
+		if (this.surface) this.surface.visible = shown;
+	}
 
 	/** Lays the ground for a table's extents. */
 	build(extents: Extents): void {
@@ -56,6 +63,7 @@ export class WorldGround {
 		const surface = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), this.surfaceMaterial);
 		surface.rotation.x = -Math.PI / 2;
 		surface.receiveShadow = true;
+		surface.visible = this.playShown;
 		this.surface = surface;
 		this.group.add(surface);
 		this.buildRing();

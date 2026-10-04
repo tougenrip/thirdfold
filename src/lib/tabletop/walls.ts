@@ -19,6 +19,7 @@ import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { edgeKey, type Door, type SceneObject } from '$lib/game/objects';
 import { wear, type Look } from './environment';
 import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
+import type { CellMask } from '$lib/game/visibility';
 import { wallSpans } from './world/wall-spans';
 import {
 	addInstanceTints,
@@ -107,7 +108,13 @@ export class WallLayer {
 	private objects: readonly SceneObject[] = [];
 
 	/** Rebuilds wall instances and diffs doors. Walls change rarely, so a full instance refresh is fine. */
-	sync(objects: readonly SceneObject[], grid: SquareGrid, ground: Ground): void {
+	sync(
+		objects: readonly SceneObject[],
+		grid: SquareGrid,
+		ground: Ground,
+		/** The viewer's explored cells (`knownOf`): no wall shows a drop toward unexplored ground. */
+		known: CellMask | null = null
+	): void {
 		const gridChanged =
 			!this.grid ||
 			this.grid.width !== grid.width ||
@@ -116,7 +123,7 @@ export class WallLayer {
 		this.grid = { ...grid };
 		this.tile();
 		this.objects = objects;
-		this.rebuildWalls(objects, grid, ground);
+		this.rebuildWalls(objects, grid, ground, known);
 
 		const seen = new Set<string>();
 		for (const o of objects) {
@@ -188,10 +195,15 @@ export class WallLayer {
 		this.doorGeometry.dispose();
 	}
 
-	private rebuildWalls(objects: readonly SceneObject[], grid: SquareGrid, ground: Ground): void {
+	private rebuildWalls(
+		objects: readonly SceneObject[],
+		grid: SquareGrid,
+		ground: Ground,
+		known: CellMask | null
+	): void {
 		// Each unit edge once, even if two walls overlap there; a window is two pieces (#239).
 		const units = new Map<string, { owner: string; matrix: THREE.Matrix4 }[]>();
-		for (const { owner, edge: e, bottom, top } of wallSpans(grid, objects, ground.levels)) {
+		for (const { owner, edge: e, bottom, top } of wallSpans(grid, objects, ground.levels, known)) {
 			const p = cornerToWorld(grid, e.a);
 			const q = cornerToWorld(grid, e.b);
 			const vertical = e.a.x === e.b.x;

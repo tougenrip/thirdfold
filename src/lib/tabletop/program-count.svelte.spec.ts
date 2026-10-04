@@ -1,8 +1,8 @@
 // Runtime state never compiles a shader (#170). A table is warmed up (every environment drawn once,
 // every table the sweep travels to visited once), its shader counts taken (shaderCounts in perf.ts:
 // programs, pipelines, node states), and then everything that changes at runtime is done one named
-// step at a time, a frame drawn after each: environments, times of day, floors, fog and its modes
-// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past a cell's K, tokens
+// step at a time, a frame drawn after each: environments, times of day, floors, raised ground
+// (#240), fog and its modes (with the fog cloud on and a reveal fading, #174), dark areas, light counts past a cell's K, tokens
 // and props in every state, both cues and table travel. No step may change the programs or
 // pipelines; a change names the step and the stages it made or dropped (a stage is named after its
 // material, and the material module names its materials by kind: the layers #172 ported show as
@@ -197,6 +197,10 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	const none = encodeMask(new Uint8Array(size));
 	const floorOf = (i: number) => decodeFloor(encodeFloor(new Uint8Array(size).fill(i))!, size);
 	const floor = home.floor ? decodeFloor(home.floor, size) : null;
+	const levels = home.terrain ? decodeLevels(home.terrain, size) : null;
+	// The world's chunks (#240): every cell raised, a stair across the table, flat, and back.
+	const raised = new Uint8Array(size).map((_, i) => (levels?.[i] ?? 0) + 2);
+	const stair = new Uint8Array(size).map((_, i) => (i % home.grid.width) % 6);
 	const light = (i: number, over: Partial<Light> = {}): Light => ({
 		id: `sweep-${i}`,
 		pos: { x: 2 + (i % 8) * 2, y: 2 + Math.floor(i / 8) * 4 },
@@ -232,6 +236,10 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		...FLOOR_IDS.map((id, i): Step => [`floor ${id}`, () => t.setFloor(floorOf(i))]),
 		['floor cleared', () => t.setFloor(null)],
 		['floor back', () => t.setFloor(floor)],
+		['terrain raised', () => t.setTerrain(raised)],
+		['terrain a stair', () => t.setTerrain(stair)],
+		['terrain flat', () => t.setTerrain(null)],
+		['terrain back', () => t.setTerrain(levels)],
 		['fog off', () => t.setFog(null, 'gm')],
 		['fog on, GM', () => t.setFog(home.fog, 'gm')],
 		['fog on, player', () => t.setFog(home.fog, 'player')],
