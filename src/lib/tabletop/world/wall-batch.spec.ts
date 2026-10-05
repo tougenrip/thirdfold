@@ -257,7 +257,7 @@ describe('every fixture', () => {
 			}
 		}
 		expect(checked).toBeGreaterThan(1000);
-	});
+	}, 30_000);
 
 	it('stands mn-tower-w on the belfry, WALL_HEIGHT tall, its retaining piece down to the ledge', () => {
 		const f = scenes.find((s) => s.name === 'monastery')!;

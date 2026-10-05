@@ -385,8 +385,11 @@ has no cap piece`).
   allowance, up to `FIGURE_CLEAR`) on every fixture scene and view, all 16 ways walls meet at a
   corner, walkable against void, and drops of 1 and 5. It covers the medium base; large bases
   (#270) exceed a cell by design.
-- Nothing draws from kits until #252; at runtime a role a kit lacks will draw a procedural piece,
-  never nothing.
+- The walls draw from kits since #252 (docs/RENDERING.md, "Kit walls"): `loadEnvironment` loads
+  the environment's kit (`loadKit`: every `body` part of each variant's model as one mesh,
+  `pieceOf`), and a role the kit lacks, or whose models fail to load, draws its built-in
+  procedural piece, never nothing. Kit pieces are drawn in the environment's wall look (the
+  surface kind): a greybox kit's vertex colours and textures are not read yet.
 
 #### Greybox kits (#261)
 
