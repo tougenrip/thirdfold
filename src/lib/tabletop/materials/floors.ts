@@ -19,7 +19,7 @@ import { FLOOR_IDS, VOID } from '../../game/floor';
 import { cellUniforms, groundTexel, visibilityTexel } from '../cell-maps';
 import { blankTexture, SLOTS } from './defaults';
 import type { Variant } from './kinds';
-import { worldBox } from './mapping';
+import { worldBox, type Mapping } from './mapping';
 import { SPLAT, STYLE_BY_INDEX } from './splat-weights';
 import { tsl, type N } from './tsl';
 
@@ -176,17 +176,20 @@ export function floorSurface(variant: Variant): FloorSurface {
 	// The one-layer fast path: with no second floor, the second fetch reads the first's layer
 	// (a cache hit), since WGSL allows no implicitly derived sample in a per-fragment branch.
 	const f2 = a2.greaterThan(0).select(next.y, best.y).toInt().toVar();
-	const surface = (fl: N) => {
-		const layer = loose(layers).element(fl);
-		const index = layer.sub(1).max(0);
-		const mapping = worldBox(loose(repeat), variant.antiTiled, (slot, p) =>
-			loose(maps[slot as FloorMap])
-				.sample(p)
-				.depth(index)
-		);
-		return { has: layer.greaterThan(0.5), mapping, albedo: mapping.sample('albedo') };
-	};
-	const [one, two] = [surface(f1), surface(f2)];
+	// Both floors' fetches from one box projection (mapping.ts `BoxMapping.on`): one set of
+	// coordinates, anti-tiling and gradients, each floor its own layer.
+	const [l1, l2] = [f1, f2].map((fl) => loose(layers).element(fl));
+	const layerSource = (layer: N) => (slot: string, p: N) =>
+		loose(maps[slot as FloorMap])
+			.sample(p)
+			.depth(layer.sub(1).max(0));
+	const box = worldBox(loose(repeat), variant.antiTiled, layerSource(l1));
+	const surface = (layer: N, mapping: Mapping) => ({
+		has: layer.greaterThan(0.5),
+		mapping,
+		albedo: mapping.sample('albedo')
+	});
+	const [one, two] = [surface(l1, box), surface(l2, box.on(layerSource(l2)))];
 	// Mishkinis's height blend: the higher surface shows through near an even split.
 	const height = (k: typeof one): N =>
 		k.has.select(k.albedo.w, SPLAT.flatHeight).mul(SPLAT.heightRange);
