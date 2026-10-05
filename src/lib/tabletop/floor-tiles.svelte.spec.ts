@@ -90,7 +90,12 @@ describe('kit floor tiles', () => {
 		expect(bedded).toBeGreaterThan(100);
 
 		// Every packed tile within the ring and its margin of the target, as the target moves.
-		const p0 = shaderCounts(renderer);
+		// Programs and pipelines (a node state with no new program is code generation, not a compile).
+		const compiled = () => {
+			const { programs, pipelines } = shaderCounts(renderer);
+			return { programs, pipelines };
+		};
+		const p0 = compiled();
 		const within = (target: { x: number; z: number }) => {
 			const m4 = new THREE.Matrix4();
 			const at = new THREE.Vector3();
@@ -122,7 +127,7 @@ describe('kit floor tiles', () => {
 			if (id === 'grass') expect(packed()).toBe(0);
 			else expect(packed()).toBeGreaterThan(100);
 		}
-		expect(shaderCounts(renderer)).toEqual(p0);
+		expect(compiled()).toEqual(p0);
 		// The tier's ring (a tier switch compiles its own passes, program-count's business).
 		const settings = settingsFor('medium', t.capabilities().backend);
 		t.setQuality({ ...settings, tier: 'high' });
