@@ -281,7 +281,8 @@ export async function createTabletop(
 
 	/** The world's shape from what the viewer was sent (#240), its ground; true if `known` changed. */
 	function reshape(): boolean {
-		const explored = worldLayer.update(grid!, levels, floor, fogState.fog, fogState.mode);
+		const { fog, mode } = fogState;
+		const explored = worldLayer.update(grid!, levels, floor, fog, mode, objects); // walls: #255
 		ground = worldLayer.ground;
 		return explored;
 	}
@@ -340,6 +341,7 @@ export async function createTabletop(
 		setObjects(next) {
 			objects = next;
 			if (!grid) return;
+			reshape(); // stairs stop at walls and rail no walled side (#255)
 			wallLayer.sync(objects, grid, ground!, worldLayer.shape?.known);
 			refreshLighting();
 		},

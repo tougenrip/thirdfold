@@ -371,8 +371,9 @@ at: [x, y, z] }`, the shape of #319's model sockets). `roof` (`gable` or `hip`, 
   toward the void or the table's edge, `plinth` and `wall.retaining` down a drop; a window's frame
   and glass (and sill between floors); a door's frame and leaf; a post by how built edges meet at
   each corner (end, L, T, X); a bare one-level step's `stair.riser`, a higher drop's `cliff.face`;
-  roofed cells' ridge, eaves and corners. Bridges, railings and chimneys join it with #255 and
-  #256. `checkScenes` fails a table whose kit lacks one (`hollow-bell: monastery: the kit "halls"
+  roofed cells' ridge, eaves and corners; a stair run's (#255) `stair.side` where a step has a
+  lower side and `railing` where a built stair drops two levels or more. Bridges and chimneys join
+  it with #256 and #257. `checkScenes` fails a table whose kit lacks one (`hollow-bell: monastery: the kit "halls"
 has no cap piece`).
 - **Phasing in.** `KIT_PENDING` in `server/assets/scenes.ts` listed the environments still on
   `plain` while #261 built their kits; it is empty now, so every built-in environment must have a

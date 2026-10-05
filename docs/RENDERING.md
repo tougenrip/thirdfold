@@ -1856,6 +1856,87 @@ straight walls; with one, every wall between two unroofed cells is a boundary (t
 and ledge walls, until #257's presumed roofs). The seed hash is written out (`keySeed`) rather than
 shared with #181 (which hashes ids, not keys). The cost is above the 0.5 ms target.
 
+## Stairs (milestone 70, #255)
+
+`world/stairs.ts` (pure, server-tested, in the lazy `world` chunk) builds every stair run
+`regionsOf` finds (#239: a chain of known cells each one level above the last, at least two risers,
+stopped by a wall or window across it) from what the viewer was sent. Stairs are presentation only:
+the rules' levels, `canStep`, sight and the DDA's picks are untouched, and every cell's top stays at
+its floor across its token disk.
+
+**Marks and pieces.** `stairsOf(shape, { kit, built })` returns `Stairs`: per unit edge a mark
+(`STAIR_EDGE` in `shape.ts`: `riser`, `side`, or `kit` where a kit piece stands), the runs' steps
+(their cells but the foot and the head) and `pieces` (`StairPiece`: role, the cell it belongs to, the
+cell across its edge, the direction its +z face looks, the drop in levels, and the kit's model or
+null). `withStairs(shape, options)` puts them on the shape (`WorldShape.stairs`), which is all the
+ground reads:
+
+- **A riser** of a run (every pair of its cells, foot and head included) is the ground's own face
+  between the two cells, drawn by `cliffs.ts` as a **stair** step (`FACE.stair`): each level two half
+  steps, the upper half under the same worn `NOSING` and `RECESS` as #241's riser, then a tread
+  half a level up reaching `HALF_TREAD` (0.07, `WALL_HALF_THIN`) over the lower cell's edge band (outside
+  its 0.43 disk), then the lower half down to the lower floor. The ground already owns the edge, so
+  exactly one of the two draws each step: #241's riser gives way to the stair wherever a run is.
+  The upper cell's top keeps its whole cell at its floor, which is why the intermediate tread lies
+  on the lower side only (0.07 wide, not the issue's 0.14): lowering the upper cell's band would cut
+  its top. The tread and the lower nosing are lighter (1.2, 1.3) than the risers (0.8), so a step
+  reads by shade as well as shape.
+- **A side** of a step down to a lower known neighbour (not across a riser, not walled, not the
+  void) is a **stringer** (`FACE.side`): a flat face down to the neighbour's floor, its top a
+  `SIDE_OUT` (0.03) coping proud of the edge with a lighter `COPING` band, replacing the riser or cliff
+  that was there. A bridge's sides (a step one wide with drops both ways and neither side walled: the
+  Hollow's (38, 9) and (39, 9)) are left to #256; a stair along a wall, like the gallery's, is not one.
+- **Rails** stand on a side whose drop is two levels or more (or the void): a balustrade
+  (`railing`: a plinth, four balusters and a handrail 0.9 high, all within ±0.05 of the edge) on a
+  man-made step (`MAN_MADE` floors, or the plain floor where the environment's default ground is
+  built: `builtGround`, `stone-halls` and `railcar` for now), else a 0.1 kerb (hewn and earthen
+  steps: the Hollow's). A walled side gets nothing. `stairTrim(shape, chunk)` draws them as boxes
+  with vertex shades, rails in the masonry mesh and kerbs in the earth mesh (`CLIFF_STYLES`).
+- **Square corners.** `tileAt` in `ground-mesh.ts` keeps every tile touching a step square (no
+  rounding or chamfer), so the stair's faces run the whole edge and meet their ends cleanly.
+- **Ends.** A step's free ends taper over `STAIR_TAPER` (0.1), so where a step meets its side the
+  half step closes as a short wedge; two-wide runs join across the middle and taper only outside.
+
+**On the tables.** The monastery's gallery stair (x 15-18, row 9) gets stringers down to the nave
+and rails from x 16 (the drop is 1 at x 15), its south side the nave's wall, nothing; the outside
+stair (x 22-23, rows 10-13, two wide) two risers a step and rails on both outer drops of two or
+more; the tower stair (row 2) is walled both sides: steps only. The Hollow's stairs at y 23 and y 13
+(two wide, cavern rock) get kerbs on their drops; the watch stair onto the high bridge gets steps and
+leaves its sides to the bridge.
+
+**Kits.** A kit (#250) with `stair.riser`, `stair.side` or `railing` pieces puts a model on those
+pieces (a variant by `keySeed` of the edge and the kit's weights, as #251), and the edge is marked
+`kit`: the ground draws nothing there and `stairTrim` no rail, for the kit's piece to stand in its
+place (a `stair.side` only down to five levels, its envelope's −H; deeper sides stay procedural).
+Nothing draws kit models at runtime yet (#252's path), so the renderer passes no kit and every
+piece is procedural; `rolesNeeded` (`src/lib/assets/kit-needs.ts`) asks a table's kit for
+`stair.side` wherever a step has a lower side and `railing` wherever a built stair has a rail,
+checked once an environment is off `KIT_PENDING` (#261). Kerbs are procedural only.
+
+**Drawing.** The steps and stringers are the chunks' own faces and the rails and kerbs go into the
+faces' meshes (`withTrim`), so stairs add no draw call, no geometry of their own and no program (the
+rock kind with vertex colours, as every face), cast into the cached sun shadow and receive it, and
+are never picked. The world layer builds its shape with the walls and windows (`update(..., objects)`;
+a door opening changes nothing) and the environment's ground (`setLook`), and rebuilds only the
+chunks whose stairs changed (`stairDirty`, beside `dirtyChunks`, the same one-cell margin).
+
+**Secrecy.** Runs, sides and rails come only from known cells: an unexplored neighbour continues the
+stair, so no stringer, rail or drop is drawn toward it, and every piece stands between two known
+cells (tested). Unexplored-is-black counts a rail as standing `TALL.rail` over its step.
+
+**Tests.** `world/stairs.spec.ts`: the monastery's and the Hollow's runs as above; two half steps a
+level with the tops at their floors (rays); every fixture scene and view and 60 seeded random tables,
+fogged and not, through the harness (`checkEmitter` with the trim as decorations, no `INTRUSION`
+allowance, up to `FIGURE_CLEAR`; `checkContinuation`; rays from above never fall through); nothing
+toward an unexplored neighbour; bridges and walls; a synthetic kit taking the pieces with the ground
+leaving their edges; rails by floor and environment; and `stairDirty`. `stairs.svelte.spec.ts` (a
+render spec) draws the monastery: steps at their floors, the half step, the rail, a wall taking it
+away rebuilding at most two chunks, a door opening rebuilding none, nothing compiling.
+
+**Deviations from #255.** No instanced stair layer: the procedural pieces are the ground's faces and
+trim, which costs nothing extra; kit models wait for #252's drawing. The intermediate tread is on the
+lower side only (above). Goldens and the closer-shot strip are left for the milestone's rendering PR.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

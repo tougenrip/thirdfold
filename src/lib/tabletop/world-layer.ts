@@ -23,9 +23,16 @@
 //
 // A cell whose level or floor changes where the viewer knew it drops in (#249): its vertices
 // carry the drop's start (the tops and faces; the void's floor stays where it is).
+//
+// Stairs (#255, world/stairs.ts) are part of the chunks: the shape is built with the walls (a
+// run stops at one, a walled side gets no rail) and `withStairs`, its steps and stringers go in the
+// faces, and its rails and kerbs (`stairTrim`) in the faces' meshes too, so they cost no draw call
+// and no program. A wall's change rebuilds only the chunks whose stairs it changed (`stairDirty`),
+// and so does a new environment whose default ground is built (or not): rails or kerbs.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
+import type { SceneObject } from '$lib/game/objects';
 import type { FogView } from '$lib/game/visibility';
 import { cellsDropped, DROP_CELLS, NO_DROP, type Drops } from './drop-in';
 import { wear, type EnvironmentLook } from './environment';
@@ -127,6 +134,8 @@ export class WorldLayer {
 	private picks: Ground | null = null;
 	private cellSize = 1;
 	private inputs: unknown[] = [];
+	/** Whether the environment's default ground is built (`builtGround`): its stairs get rails. */
+	private built = false;
 	private lastRebuilt = 0;
 	private standIns: THREE.Mesh[] | null = null;
 	/** Each cell's drop start (#249), and the shape the last drawn frame showed. */
@@ -179,31 +188,39 @@ export class WorldLayer {
 
 	/**
 	 * The shape for what the viewer was sent, and the chunks it changed rebuilt. Returns whether
-	 * the explored mask changed (walls follow it: `wallSpans` with `known`).
+	 * the explored mask changed (walls follow it: `wallSpans` with `known`). Of the objects only the
+	 * walls and windows count (stairs stop at them); a door opening rebuilds nothing.
 	 */
 	update(
 		grid: SquareGrid,
 		levels: Uint8Array | null,
 		floor: Uint8Array | null,
 		fog: FogView | null,
-		mode: FogMode
+		mode: FogMode,
+		objects: readonly SceneObject[] = []
 	): boolean {
 		const n = grid.width * grid.height;
 		const fit = (a: Uint8Array | null) => (a?.length === n ? a : null);
 		const explored = fog?.enabled && mode !== 'gm' ? fog.explored : null;
+		const walls = objects.filter((o) => o.kind === 'wall');
+		const wallKey = walls.map((o) => `${o.a.x},${o.a.y},${o.b.x},${o.b.y},${+!!o.window}`).join();
 		const inputs = [grid.width, grid.height, grid.cellSize, fit(levels), fit(floor), explored];
+		inputs.push(wallKey);
 		if (this.shape && inputs.every((v, i) => v === this.inputs[i])) return false;
 		const exploredChanged = !this.shape || explored !== this.inputs[5];
 		this.inputs = inputs;
 		const known = fog ? this.build.knownOf(grid, fog, mode === 'gm') : null;
 		const previous = this.shape;
-		this.shape = this.build.worldShape({
-			grid,
-			levels: fit(levels),
-			floor: fit(floor),
-			objects: [],
-			known
-		});
+		this.shape = this.build.withStairs(
+			this.build.worldShape({
+				grid,
+				levels: fit(levels),
+				floor: fit(floor),
+				objects: walls,
+				known
+			}),
+			{ built: this.built }
+		);
 		const { shape } = this;
 		this.picks = this.build.chasmGround(grid, shape.ground, shape.floor, () => this.chasm);
 		this.dropIn(previous, shape);
@@ -223,6 +240,14 @@ export class WorldLayer {
 		const cellSize = grid?.cellSize ?? 1;
 		this.cellSize = cellSize;
 		const cave = CAVES.has(environment ?? '');
+		const built = this.build.builtGround(environment);
+		if (built !== this.built) {
+			this.built = built;
+			if (this.shape) {
+				this.shape = this.build.withStairs(this.shape, { built });
+				this.rebuild();
+			}
+		}
 		wear(this.top, look?.surface ?? null, PLAIN.top);
 		setParams(this.top, { repeat: repeatFor(look?.surface.cells ?? 1, cellSize, STEP_HEIGHT) });
 		this.build.CLIFF_STYLES.forEach((style, i) => {
@@ -338,7 +363,9 @@ export class WorldLayer {
 		const shape = this.shape;
 		if (!shape) return;
 		const drawn = this.drawn?.grid.cellSize === shape.grid.cellSize ? this.drawn : null;
-		const dirty = this.build.dirtyChunks(drawn, shape);
+		const dirty = [
+			...new Set([...this.build.dirtyChunks(drawn, shape), ...this.build.stairDirty(drawn, shape)])
+		];
 		const { x, y } = this.build.chunksAcross(shape.grid);
 		this.resize(x * y);
 		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c));
@@ -348,9 +375,12 @@ export class WorldLayer {
 
 	private buildChunk(shape: WorldShape, c: number): void {
 		const { top, sides, bottom } = this.build.chunkWorld(shape, c, this.chasm);
+		const trim = this.build.stairTrim(shape, c); // rails and kerbs, with the faces (#255)
 		const chunk = this.chunks[c];
 		fill(chunk.top, top, this.starts);
-		sides.forEach((faces, i) => fill(chunk.sides[i], faces, this.starts));
+		sides.forEach((faces, i) =>
+			fill(chunk.sides[i], this.build.withTrim(faces, trim[i]), this.starts)
+		);
 		fill(chunk.bottom, bottom, null, true);
 		this.grid.follow(chunk.grid, chunk.top);
 	}

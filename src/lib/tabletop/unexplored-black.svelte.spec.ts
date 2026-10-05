@@ -19,6 +19,8 @@
 // the Hollow's fogged player sees cliffs on every tier, biplanar on low and triplanar above. The
 // void's chasms (#243) too: the night train's player looks down its gaps onto the moving ground,
 // and a hole's sample is left out where its ray falls on to ground the viewer was shown (`pastHole`).
+// Stairs (#255) are in the chunks too: the monastery's and the Hollow's steps, stringers, rails and
+// kerbs, built only from explored cells, and a rail stands as tall as `TALL.rail` over its step.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -34,7 +36,10 @@ import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
+import { decodeFloor } from '$lib/game/floor';
 import { pastHole } from './world/invariants';
+import { knownOf, worldShape } from './world/shape';
+import { builtGround, stairsOf } from './world/stairs';
 import type { GridPose } from './poses';
 import { settingsFor, type QualitySettings, type Tier } from './quality';
 import {
@@ -63,7 +68,14 @@ vi.setConfig({ testTimeout: 300_000 });
  * floor (grid lines, mist), a wall or door beside its edge (WALL_LEVELS steps, the lintel), a mini
  * with its name label, a light's fixture, and a prop (the tallest model, a tree or a bell frame).
  */
-const TALL = { floor: 0.1, wall: WALL_LEVELS * STEP_HEIGHT + 0.3, token: 2, light: 2, prop: 4 };
+const TALL = {
+	floor: 0.1,
+	wall: WALL_LEVELS * STEP_HEIGHT + 0.3,
+	token: 2,
+	light: 2,
+	prop: 4,
+	rail: 1
+};
 /** Cells between baked probes in the probe cases: 4 × 3 × 4 on the test world, not 9 × 3 × 9. */
 const PROBE_TEST_SPACING = 8;
 /** Fewer samples than this and a pose proves nothing: it is left out, and said so. */
@@ -340,6 +352,19 @@ function standing(view: FixtureView): Float32Array {
 	for (const t of view.tokens) raise(t.pos, TALL.token);
 	for (const l of view.lights) raise(l.pos, TALL.light);
 	for (const p of view.props) for (const c of footprintCells(p)) raise(c, TALL.prop);
+	// A stair's rail or kerb (#255) over its step and the edge beside it, from the step's floor.
+	const shape = worldShape({
+		grid,
+		levels,
+		floor: view.floor ? decodeFloor(view.floor, size) : null,
+		objects: view.objects,
+		known: knownOf(grid, view.fog, false)
+	});
+	for (const p of stairsOf(shape, { built: builtGround(view.environment) }).pieces) {
+		if (p.role !== 'railing' && p.role !== 'kerb') continue;
+		const top = shape.levels[p.cell] * STEP_HEIGHT + TALL.rail;
+		for (const i of [p.cell, p.across]) tall[i] = Math.max(tall[i], top);
+	}
 	return tall;
 }
 

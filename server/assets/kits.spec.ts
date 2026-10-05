@@ -295,6 +295,20 @@ describe('role coverage', () => {
 		);
 	});
 
+	it("reads a stair run's sides, and its railings where its ground is built (#255)", () => {
+		// A two-wide stair climbing east on rows 1 and 2 of a 5x4 table, level 0 north and south.
+		const terrain = encodeLevels(
+			Uint8Array.of(0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 0, 1, 2, 3, 3, 0, 0, 0, 0, 0)
+		);
+		const stair = { grid: grid(5, 4), terrain };
+		const earthen = rolesNeeded(scene(stair));
+		expect(earthen).toEqual(new Set(['stair.riser', 'stair.side', 'cliff.face']));
+		expect(rolesNeeded(scene({ ...stair, environment: 'stone-halls' }))).toEqual(
+			new Set([...earthen, 'railing'])
+		);
+		expect(rolesNeeded(scene({ ...stair, environment: 'cavern' }))).toEqual(earthen);
+	});
+
 	it('fails a table whose kit lacks a role, and an environment on plain or pending', () => {
 		const m = copy(built.manifest);
 		m.kits.halls = { ...m.kits.plain, pieces: { 'wall.straight': [{ model: 'x' }] } };

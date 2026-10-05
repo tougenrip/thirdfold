@@ -107,7 +107,8 @@ const RENDER_SPECS = [
 	'floor-splat',
 	'grid-overlay',
 	'chasm',
-	'drop-in'
+	'drop-in',
+	'stairs'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
