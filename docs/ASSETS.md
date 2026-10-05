@@ -306,8 +306,12 @@ constants and `parseKit`, shared by the pipeline, `parseManifest` and `world/sha
 at: [x, y, z] }`, the shape of #319's model sockets). `roof` (`gable` or `hip`, a pitch of
   15-60°, an eave of 0-0.5 u, a manifest material) or null; `presumeRoofs` puts roofs on walled
   rooms nobody painted. `floors` gives tiles, broken tiles (near drops) and an optional edge piece
-  per floor id (`plain` is the default ground; not the void); a floor without tiles is the blended
-  ground. Kit and piece ids describe looks (`ashlar-wall-a`), never story roles: the manifest is
+  per floor id (`plain` is the default ground; not the void; `KIT_FLOOR_IDS`, which lists `tile`
+  and `grating` since #254); a floor without tiles is the blended ground. A tile piece is one tile
+  at its own scale, centred on its pivot with its top at the floor: the lattice it is laid on has
+  its footprint (the first variant's bounds) plus a 0.025 u joint as its pitch, independent of the
+  cell (docs/RENDERING.md, "Kit floor tiles"); broken variants are drawn at cliff and void edges.
+  The edge piece is not drawn yet. Kit and piece ids describe looks (`ashlar-wall-a`), never story roles: the manifest is
   public, and no sealed door or secret room gets its own piece.
 - **Metrics.** 1 u per cell edge; `wall.straight` exactly `WALL_HEIGHT` (2.0 u) tall over its
   floor, a `plinth` one `STEP_HEIGHT` (0.4 u); the exterior face is +Z.
