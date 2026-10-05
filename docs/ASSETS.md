@@ -32,6 +32,7 @@ the built files would not match CI's.
 | Materials                        | `assets/materials.json`                                                                | the manifest                       |
 | Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`/`.ktx2` (`<id>.meta.json`: usage) | `textures/<id>.<hash>.png`/`.ktx2` |
 | Environments (how a place looks) | `assets/environments/<id>.json`                                                        | the manifest                       |
+| Architecture kits (#250)         | `assets/kits/<id>.json`                                                                | the manifest (inline)              |
 | Skies (#213)                     | `assets/skies/<id>.json` (with its own `provenance`)                                   | the manifest (inline)              |
 | Colour grades                    | `assets/grades/<environment>.json`                                                     | `textures/grade-….png` (54)        |
 | Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg`                           | `audio/<id>.<hash>.wav\|ogg`       |
@@ -223,7 +224,8 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   horizon, wears `ground`, #220; there is no rim any more); `sky` names a sky (below), and an optional `world` is a world look
   (a `parseWorldPatch` patch, docs/RENDERING.md "World look") a table there starts from.
   `"surfaces": { "floors", "walls" }` lists its surfaces of the library (#187, below): the floors
-  in layer order, and the walls' (the walls wear the first).
+  in layer order, and the walls' (the walls wear the first). `kit` names its architecture kit
+  (#250, below), required of every built-in environment (`plain` until #261).
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
   - What lies beyond the grid (the skirt to the horizon and the far silhouettes, #244) is a
@@ -275,6 +277,117 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
     mapper with the environment, another tone mapper's three when the viewer picks it (once
     each, `Grades` in `environment.ts`), and blends the one for the band into the picture
     (`grade.ts`).
+
+### Architecture kits (#250)
+
+A kit is one style's architecture as data: `assets/kits/<id>.json` lists its pieces by role, and
+the world's builders (#251, #252) map each wall, corner, opening, step, drop and roofed cell to a
+role and draw one of its variants. The rules never change with the kit. Every environment names
+one (`"kit"`); a table whose environment has none, or names `plain`, draws every role as a
+procedural box, slab or prism. `src/lib/assets/kit.ts` holds the schema, the roles, the clearance
+constants and `parseKit`, shared by the pipeline, `parseManifest` and `world/shape.ts`.
+
+```json
+{
+	"name": "Stone halls",
+	"roof": { "style": "gable", "pitch": 40, "eave": 0.2, "material": "monastery-stone" },
+	"presumeRoofs": false,
+	"pieces": {
+		"wall.straight": [{ "model": "stone-wall" }, { "model": "stone-wall-cracked", "weight": 0.5 }],
+		"cap": [{ "model": "stone-wall-cap" }]
+	},
+	"floors": { "flagstone": { "tiles": [{ "model": "flag-tile" }], "broken": [] } }
+}
+```
+
+- **Pieces** are manifest models of kind `kit` (`assets/models/kit/`, held to the kit class's
+  limits: 1,500 triangles at LOD0, no texture of their own), 1-8 variants a role, each with an
+  optional `weight` (how often it is picked, 1 when absent) and `sockets` (`{ kind: smoke | flame,
+at: [x, y, z] }`, the shape of #319's model sockets). `roof` (`gable` or `hip`, a pitch of
+  15-60°, an eave of 0-0.5 u, a manifest material) or null; `presumeRoofs` puts roofs on walled
+  rooms nobody painted. `floors` gives tiles, broken tiles (near drops) and an optional edge piece
+  per floor id (`plain` is the default ground; not the void); a floor without tiles is the blended
+  ground. Kit and piece ids describe looks (`ashlar-wall-a`), never story roles: the manifest is
+  public, and no sealed door or secret room gets its own piece.
+- **Metrics.** 1 u per cell edge; `wall.straight` exactly `WALL_HEIGHT` (2.0 u) tall over its
+  floor, a `plinth` one `STEP_HEIGHT` (0.4 u); the exterior face is +Z.
+- **Pivots.** A piece's origin is its role's pivot, so the manifest carries no pivot of its own:
+  - an **edge** piece's is the unit edge's midpoint **on the higher floor** beside it, 1 u long
+    along X, +Z toward the void, the table's edge or the lower side;
+  - a **corner** piece's is the grid corner, on the highest floor round it;
+  - a **cell** piece's (tiles, bridge decks and piers, roofs) is the cell's centre on its floor.
+- **Clearance**, the constants in `kit.ts`: a token stands on a disk of `TOKEN_DISK` 0.43 round
+  its cell's centre (one constant for walls and ground; `world/shape.ts` re-exports it), and no
+  kit piece enters a walkable cell's disk below `FIGURE_CLEAR` (1.45 u: 1.3 u figures and a
+  margin). So an edge piece reaches at most `WALL_HALF_THIN` 0.07 toward a walkable or unexplored
+  cell, and up to `WALL_HALF_THICK` 0.35 only toward the void or off the grid (a prop's solid cell
+  doesn't count: props are pushed and pulled); a cap overhangs at most `CAP_OVERHANG` 0.03, only
+  above `FIGURE_CLEAR`; posts are `POST_SIZE` 0.3 square, 0.495 from the nearest cell centre (a
+  0.2 wide buttress projecting 0.3 is 0.447 away); nothing on an edge rises above `WALL_HEIGHT`
+  over the higher floor but a post's finial (`FINIAL` 0.15), and crenels are cut into the wall's
+  top, never merlons above it, so the picture keeps the see-over-walls rule. Thickness is these
+  constants, a kit parameter to retune once the bases are sized (#270).
+- **Roles** (`KIT_ROLES`, closed; an unknown role is refused by name) and where each may lie
+  (`ENVELOPES`, in units about the pivot; T = 0.07, K = 0.35, O = T + 0.03, H = 2.0, S = 0.4,
+  F = 1.45, D = the deepest drop, 40 levels):
+
+  | Role                                                                                | Pivot  | Y             | Z (−interior, +exterior)                          |
+  | ----------------------------------------------------------------------------------- | ------ | ------------- | ------------------------------------------------- |
+  | `wall.straight`, `arch`, `railing`                                                  | edge   | 0 to H        | ±T                                                |
+  | `wall.outer` (toward the void), `wall.boundary` (palisade)                          | edge   | 0 to H        | −T to K                                           |
+  | `wall.retaining` (below the higher floor)                                           | edge   | −H to 0       | −K (buried) to T                                  |
+  | `cap`                                                                               | edge   | F to H        | ±O                                                |
+  | `cap.battlement`, `crenellation`                                                    | edge   | F to H        | −O to K                                           |
+  | `plinth`                                                                            | edge   | 0 to S        | ±T                                                |
+  | `window.frame`, `window.glass`, `door.frame`, `door.leaf`                           | edge   | 0 to H        | ±T (a leaf drawn shut)                            |
+  | `window.sill` (between different floors)                                            | edge   | −H to H       | ±T                                                |
+  | `stair.riser`                                                                       | edge   | −S to 0       | −K to T                                           |
+  | `stair.side`                                                                        | edge   | −H to 0       | −K to T                                           |
+  | `cliff.face` (trim for #241)                                                        | edge   | −D to 0       | −K to T                                           |
+  | `post.end`, `post.L`, `post.T`, `post.X`                                            | corner | 0 to H + 0.15 | clear of the four cells' disks                    |
+  | `buttress`                                                                          | corner | 0 to H        | clear of the four cells' disks                    |
+  | `pinnacle`                                                                          | corner | F to H + 0.15 | clear of the four cells' disks                    |
+  | `tower.corner`                                                                      | corner | 0 to H + 0.15 | clear of three; fills the +X+Z quarter (the void) |
+  | `cliff.corner`                                                                      | corner | −D to 0       | within ±0.5                                       |
+  | `bridge.deck`                                                                       | cell   | −S to 0       | within ±0.5                                       |
+  | `bridge.pier`                                                                       | cell   | −D to 0       | within ±0.5                                       |
+  | `roof.ridge`, `roof.hip`, `roof.eave`, `roof.corner`, `roof.chimney`, `roof.dormer` | cell   | F to 4H       | within ±1 (the eave)                              |
+  | floor `tiles`, `broken`                                                             | cell   | −S to 0       | within ±0.5                                       |
+  | floor `edge`                                                                        | cell   | −H to 0       | within ±0.5                                       |
+
+  Edge pieces lie within ±0.5 along X, corner pieces within ±0.5 (to 1 toward the void for a
+  tower). A piece is checked by its bounds, the box round every vertex through the node
+  transforms (`envelopeProblem`), which is stricter than vertex by vertex and covers the edges
+  between them; a corner piece's box keeps `TOKEN_DISK` from each cell centre round it while it
+  stands between the floor and `FIGURE_CLEAR`. A 0.2-thick `wall.straight` fails the build with
+  `kits/<id>.json: wall.straight "<model>": 0.1 > 0.07 toward -z`.
+
+- **Checked** by `parseKit` in the pipeline (`buildKits`: every piece a known model of kind `kit`
+  inside its role's envelope; a `plain` kit must exist; every environment must name a kit) and
+  again by `parseManifest` (`kits`, read as {} when absent; `EnvironmentDef.kit` optional on the
+  wire, but it must name a kit the manifest has).
+- **Coverage.** `rolesNeeded(scene)` (`src/lib/assets/kit-needs.ts`, pure; #352 reuses it) reads
+  the roles a table asks for from its scene file: a wall's `wall.straight` and `cap`, `wall.outer`
+  toward the void or the table's edge, `plinth` and `wall.retaining` down a drop; a window's frame
+  and glass (and sill between floors); a door's frame and leaf; a post by how built edges meet at
+  each corner (end, L, T, X); a bare one-level step's `stair.riser`, a higher drop's `cliff.face`;
+  roofed cells' ridge, eaves and corners. Bridges, railings and chimneys join it with #255 and
+  #256. `checkScenes` fails a table whose kit lacks one (`hollow-bell: monastery: the kit "halls"
+has no cap piece`).
+- **Phasing in.** Today every environment names `plain`, and `KIT_PENDING` in
+  `server/assets/scenes.ts` lists them all: coverage is checked for every kit but `plain`. When
+  #261 gives an environment its greybox kit, it comes off the list; `checkScenes` fails an
+  environment on the list that names a kit ("take it off KIT_PENDING") and one off the list still
+  on `plain` ("it needs a kit of its own"), so the list only shrinks, and once it is empty every
+  built-in environment must have a complete kit.
+- **The clearance invariant.** `src/lib/tabletop/world/kit-clearance.spec.ts` fills every role's
+  envelope to the brim where a kit would put it (walls, outer faces, caps, retaining walls and
+  sills, risers, posts) and runs the world's harness (`checkEmitter` with no `INTRUSION`
+  allowance, up to `FIGURE_CLEAR`) on every fixture scene and view, all 16 ways walls meet at a
+  corner, walkable against void, and drops of 1 and 5. It covers the medium base; large bases
+  (#270) exceed a cell by design.
+- Nothing draws from kits until #252; at runtime a role a kit lacks will draw a procedural piece,
+  never nothing.
 
 ### Audio
 
@@ -560,10 +673,11 @@ textures exist in up to three sizes: a **base** of at most 512 px, always, and *
 each optional until then: a model's `lods` (levels after LOD0, coarsest last, each with its
 triangles and the `screenSize` below which it is drawn; their meshes are `<role>_lod<n>` in the
 same GLB, since three's GLTFLoader strips `.` from names), `cooked`, `materials` (manifest
-materials a kit piece or decor wears), a kit piece's `pivot` and `footprint`, a `preview` model
+materials a kit piece or decor wears), a `preview` model
 and a `thumbnail`; `credit`, required on every file (`{ license, author, source?, modified?, ai? }`, #189);
 `pack` on every file and the `packs` they add up to (#192); `surfaces` (#187) and an
-environment's `surfaces`; `skies` (#213) and an environment's `sky` and `world`; and the KTX2
+environment's `surfaces`; `skies` (#213) and an environment's `sky` and `world`; `kits` (#250)
+and an environment's `kit` (a kit piece's pivot is its role's, so it has none of its own); and the KTX2
 transcoder's folder under `decoders` (#188). Part lists get
 no LODs.
 

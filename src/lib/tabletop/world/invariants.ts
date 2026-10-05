@@ -14,6 +14,7 @@ import type { FogView } from '../../game/visibility';
 import type { WorldLook } from '../../game/world';
 import { chasmOf, chasmY } from './chasm';
 import { dualCase, JOIN, tileHash, type DualMask } from './dual';
+import { TOKEN_DISK } from '../../assets/kit';
 import {
 	CORNERS,
 	EDGE_GROUND,
@@ -22,7 +23,6 @@ import {
 	knownOf,
 	MAX_NOISE,
 	MAX_ROUND,
-	TOKEN_DISK,
 	worldShape,
 	type WorldShape
 } from './shape';
@@ -141,7 +141,8 @@ function* edges(s: WorldShape): Generator<{ e: GridEdge; cls: number; cells: num
 /**
  * Where `ground` (and optional `decorations`) break the world's rules:
  * - disk: a known walkable cell's surface is not flat at its floor over TOKEN_DISK;
- * - intrusion: something stands above the floor within TOKEN_DISK - INTRUSION;
+ * - intrusion: something stands above the floor within TOKEN_DISK - `allowance` (INTRUSION;
+ *   kit pieces, #250, get none), lower than `clear` over it (no limit; kit pieces FIGURE_CLEAR);
  * - cliff-top: a step or cliff's top is not at the higher floor, or has a lip above it;
  * - unexplored-face: a face that is not flat lies along an edge with an unexplored side;
  * - owner: a vertex owned by no cell on the table.
@@ -149,7 +150,8 @@ function* edges(s: WorldShape): Generator<{ e: GridEdge; cls: number; cells: num
 export function checkEmitter(
 	shape: WorldShape,
 	ground: EmitterMesh,
-	decorations: EmitterMesh | null = null
+	decorations: EmitterMesh | null = null,
+	{ allowance = INTRUSION, clear = Infinity } = {}
 ): Violation[] {
 	const out: Violation[] = [];
 	const { grid } = shape;
@@ -177,9 +179,14 @@ export function checkEmitter(
 			}
 		}
 		if (!deco) continue;
-		const reach = (TOKEN_DISK - INTRUSION) * cs;
+		const reach = (TOKEN_DISK - allowance) * cs - eps;
 		for (const t of deco.near(i)) {
-			if (above(decorations!, t, floor + eps) && distanceTo(decorations!, t, c.x, c.z) < reach) {
+			const low = !above(decorations!, t, floor + clear * cs - eps, true);
+			if (
+				low &&
+				above(decorations!, t, floor + eps) &&
+				distanceTo(decorations!, t, c.x, c.z) < reach
+			) {
 				out.push({ rule: 'intrusion', cell: i, detail: `triangle ${t / 3}, floor ${floor}` });
 				break;
 			}
@@ -229,9 +236,10 @@ export function checkEmitter(
 	return out;
 }
 
-/** Whether any of triangle t stands above `y`. */
-function above(mesh: EmitterMesh, t: number, y: number): boolean {
-	return [0, 1, 2].some((k) => mesh.positions[mesh.indices[t + k] * 3 + 1] > y);
+/** Whether any (or, with `all`, every) vertex of triangle t stands above `y`. */
+function above(mesh: EmitterMesh, t: number, y: number, all = false): boolean {
+	const over = (k: number) => mesh.positions[mesh.indices[t + k] * 3 + 1] > y;
+	return all ? [0, 1, 2].every(over) : [0, 1, 2].some(over);
 }
 
 /** The distance in plan from (x, z) to triangle t (0 inside it). */

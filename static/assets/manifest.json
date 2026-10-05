@@ -7595,6 +7595,7 @@
 					"ashlar"
 				]
 			},
+			"kit": "plain",
 			"lut": {
 				"agx": {
 					"day": "grade-cavern-day-agx",
@@ -7631,6 +7632,7 @@
 					"planks"
 				]
 			},
+			"kit": "plain",
 			"lut": {
 				"agx": {
 					"day": "grade-ghost-town-day-agx",
@@ -7667,6 +7669,7 @@
 					"cave-rock"
 				]
 			},
+			"kit": "plain",
 			"lut": {
 				"agx": {
 					"day": "grade-living-cave-day-agx",
@@ -7703,6 +7706,7 @@
 					"planks"
 				]
 			},
+			"kit": "plain",
 			"lut": {
 				"agx": {
 					"day": "grade-railcar-day-agx",
@@ -7740,6 +7744,7 @@
 					"ashlar"
 				]
 			},
+			"kit": "plain",
 			"lut": {
 				"agx": {
 					"day": "grade-stone-halls-day-agx",
@@ -7777,6 +7782,7 @@
 					"plaster"
 				]
 			},
+			"kit": "plain",
 			"lut": {
 				"agx": {
 					"day": "grade-village-day-agx",
@@ -8795,6 +8801,15 @@
 		"village": {
 			"bytes": 992479,
 			"gpuBytes": 5068125
+		}
+	},
+	"kits": {
+		"plain": {
+			"name": "Plain",
+			"roof": null,
+			"presumeRoofs": false,
+			"pieces": {},
+			"floors": {}
 		}
 	},
 	"decoders": {

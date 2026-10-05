@@ -24,8 +24,8 @@ import { wallSpans, type WallSpan } from './wall-spans';
 
 export { wallSpans, type WallSpan } from './wall-spans';
 
-/** A token's footing: the radius (in cells) round a cell's centre that is flat at its floor. */
-export const TOKEN_DISK = 0.43;
+/** A token's footing (#250: kit.ts holds it, one constant for walls and ground). */
+export { TOKEN_DISK } from '../../assets/kit';
 /** How far (in cells) a decoration may reach into a token's disk. */
 export const INTRUSION = 0.08;
 /** The largest corner rounding (in cells) an emitter may give ground. */

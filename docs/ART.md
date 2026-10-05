@@ -222,15 +222,25 @@ chooses (#187).
 
 ## 8. Kits
 
-_Targets_ that #250 enforces:
+What #250 enforces (`src/lib/assets/kit.ts`; the roles and their envelopes in docs/ASSETS.md,
+"Architecture kits"):
 
-- 1 u per cell edge; walls 2.0 u tall; pivot at the midpoint of the cell edge, on the lower floor.
+- 1 u per cell edge; a straight wall exactly 2.0 u (`WALL_HEIGHT`) tall, a plinth one step
+  (0.4 u); exterior face +Z.
+- **Pivots.** The model's origin is its role's pivot: an edge piece's at the midpoint of the cell
+  edge **on the higher floor** beside it (what lies below that floor down a drop is its own piece,
+  `wall.retaining`); a corner piece's at the grid corner on the highest floor round it; a floor
+  tile's at the cell's centre on its floor.
 - Snapping at 0.5 u.
 - One 2048 trim sheet per kit, and 3-4 variants per piece so a long wall doesn't repeat.
-- **Thickness.** At most 0.07 u each side of the edge beside a walkable cell, so a 0.86 u base
-  still fits the cell; up to 0.35 u on a side facing solid, void or off-grid cells.
-- **Chunkiness** from detail, not thickness: 0.03 u overhangs on caps, 0.3 u corner posts,
-  plinths and relief.
+- **Thickness.** At most 0.07 u each side of the edge toward a walkable or unexplored cell, so a
+  0.86 u base still fits the cell. Up to 0.35 u only toward the void or off the grid, and only on
+  the roles made for it (`wall.outer`, `wall.boundary`, battlements; a solid prop's cell doesn't
+  count, since props move). The build measures every piece and names the one that is too thick.
+- **Chunkiness** from detail, not thickness: 0.3 u square corner posts (0.495 u from any cell's
+  centre), caps that may overhang 0.03 u but only above 1.45 u (`FIGURE_CLEAR`, over the minis'
+  heads), plinths and relief within the 0.07 u. Nothing on an edge rises over the wall's 2.0 u
+  but a post's finial (0.15 u); crenels are cut into the wall's top, never merlons added above it.
 
 ## 9. Naming
 
@@ -467,12 +477,14 @@ A straight monastery wall of dressed stone, one cell edge long, the first piece 
 - **Look.** Ashlar blocks of uneven size with chipped corners, a per-block hue shift and recessed
   mortar, a plinth course at the bottom and a projecting cap at the top. Grey-ochre stone, cool in
   the joints, warm on the top edges, per the `ashlar` ramp. Moss only in the lowest joints.
-- **Scale.** 1.0 u long, 2.0 u tall above the floor. Thickness 0.07 u each side of the cell edge
-  (the plinth and cap may overhang by 0.03 u); corner posts 0.3 u square come later in the kit.
-  Pivot at the midpoint of the cell edge on the floor, facing +Z.
-- **Pieces.** Three variants of the straight wall, each its own asset: `stone-wall` (plain),
-  `stone-wall-cracked` (a cracked block) and `stone-wall-niche` (a small niche), sharing one trim
-  sheet.
+- **Scale.** 1.0 u long, 2.0 u tall above the floor. Thickness 0.07 u each side of the cell edge,
+  plinth course included; the cap course is its own piece (`cap`, which may overhang 0.03 u only
+  above 1.45 u); corner posts 0.3 u square come later in the kit. Pivot at the midpoint of the
+  cell edge on the higher floor, exterior facing +Z.
+- **Pieces.** Three variants of the straight wall (`wall.straight`), each its own asset:
+  `stone-wall` (plain), `stone-wall-cracked` (a cracked block) and `stone-wall-niche` (a small
+  niche, cut into the 0.14 u, never standing proud of it), and the cap course (`cap`,
+  `stone-wall-cap`), sharing one trim sheet.
 - **Budget.** Kit: LOD0 500-1,500 triangles each; LOD1 at about 50%.
 - **Textures.** One 2048² trim sheet (albedo, normal, ORM) shared by the whole kit, 512 px per
   cell. It ships once, as standalone textures referenced by one manifest material (`map`,

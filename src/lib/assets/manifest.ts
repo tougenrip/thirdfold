@@ -14,6 +14,7 @@
 // usages and classes are refused, and a bad field refuses the whole manifest.
 
 import type { WorldPatch } from '../game/world';
+import type { KitDef } from './kit';
 
 /** What an asset is for. Scenes are content too, but server-only (see docs/ASSETS.md). */
 export const ASSET_KINDS = [
@@ -247,9 +248,6 @@ export interface ModelEntry extends FileInfo {
 	cooked?: true;
 	/** Manifest materials a kit piece or decor is drawn with instead of textures of its own. */
 	materials?: string[];
-	/** A kit piece's pivot and footprint in cells (#250). */
-	pivot?: [number, number, number];
-	footprint?: [number, number];
 	/** A light stand-in shown until the model arrives (#192). */
 	preview?: FileInfo;
 	/** A picture of it for the builder and the turntable (#194). */
@@ -315,6 +313,8 @@ export interface EnvironmentDef {
 	lut?: Record<ToneMapper, Record<GradeBand, string>>;
 	/** Its surfaces (#187), surface ids in layer order. */
 	surfaces?: { floors: string[]; walls: string[] };
+	/** Its architecture kit (#250), an id in the manifest's `kits`; without one, `plain`. */
+	kit?: string;
 }
 
 /**
@@ -411,6 +411,8 @@ export interface Manifest {
 	skies: Record<string, SkyDef>;
 	audio: Record<string, AudioEntry>;
 	packs: Record<string, PackInfo>;
+	/** Architecture kits (#250, kit.ts), inline; optional on the wire, read as {}. */
+	kits: Record<string, KitDef>;
 	/** The KTX2 transcoder (#188), served same-origin: code, never from the asset host. */
 	decoders?: { basis: { dir: string; bytes: number } };
 }
@@ -424,5 +426,6 @@ export const EMPTY_MANIFEST: Manifest = {
 	environments: {},
 	skies: {},
 	audio: {},
-	packs: {}
+	packs: {},
+	kits: {}
 };

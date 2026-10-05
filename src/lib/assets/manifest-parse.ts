@@ -38,6 +38,7 @@ import {
 	type ToneMapper,
 	type Variant
 } from './manifest';
+import { parseKit } from './kit';
 import { parseSky } from './sky-parse';
 import { parseWorldPatch } from '../game/world';
 
@@ -334,17 +335,6 @@ function readModel(
 		}
 		entry.materials = [...(list as string[])];
 	}
-	if (v.pivot !== undefined) {
-		if (!vec3(v.pivot)) throw new Invalid(`${what}: bad pivot`);
-		entry.pivot = [...v.pivot];
-	}
-	if (v.footprint !== undefined) {
-		const f = v.footprint;
-		if (!Array.isArray(f) || f.length !== 2 || !f.every((n) => integer(n, 1, 16))) {
-			throw new Invalid(`${what}: bad footprint`);
-		}
-		entry.footprint = [f[0], f[1]];
-	}
 	if (v.preview !== undefined) {
 		if (!isRecord(v.preview)) throw new Invalid(`${what}: bad preview`);
 		entry.preview = fileInfo(v.preview, `${what} preview`, limit.bytes, ['glb']);
@@ -359,7 +349,7 @@ function readModel(
 function readEnvironment(
 	v: Record<string, unknown>,
 	id: string,
-	m: Pick<Manifest, 'materials' | 'textures' | 'surfaces' | 'skies'>
+	m: Pick<Manifest, 'materials' | 'textures' | 'surfaces' | 'skies' | 'kits'>
 ): EnvironmentDef {
 	const what = `environment ${id}`;
 	if (!text(v.name, 60)) throw new Invalid(`${what}: bad name`);
@@ -395,6 +385,12 @@ function readEnvironment(
 		}
 		env.surfaces = { floors: [...s.floors], walls: [...s.walls] };
 	}
+	if (v.kit !== undefined) {
+		if (typeof v.kit !== 'string' || !Object.hasOwn(m.kits, v.kit)) {
+			throw new Invalid(`${what}: unknown kit`);
+		}
+		env.kit = v.kit;
+	}
 	return env;
 }
 
@@ -424,8 +420,13 @@ export function parseManifest(raw: unknown): Parsed {
 			return { ...parsed.sky, credit: credit(v.credit, `sky ${id}`) };
 		});
 		const models = section(raw.models, 'model', (v, id) => readModel(v, id, materials, packs));
+		const kits = section(raw.kits ?? {}, 'kit', (v, id) => {
+			const parsed = parseKit(v, models, materials);
+			if (!parsed.ok) throw new Invalid(`kit ${id}: ${parsed.error}`);
+			return parsed.kit;
+		});
 		const environments = section(raw.environments, 'environment', (v, id) =>
-			readEnvironment(v, id, { materials, textures, surfaces, skies })
+			readEnvironment(v, id, { materials, textures, surfaces, skies, kits })
 		);
 		const audio = section(raw.audio, 'audio', (v, id) => {
 			const info = fileInfo(v, `audio ${id}`, AUDIO_LIMITS.bytes, ['wav', 'ogg']);
@@ -447,7 +448,8 @@ export function parseManifest(raw: unknown): Parsed {
 			environments,
 			skies,
 			audio,
-			packs
+			packs,
+			kits
 		};
 		if (raw.decoders !== undefined) {
 			const basis = isRecord(raw.decoders) ? raw.decoders.basis : undefined;
