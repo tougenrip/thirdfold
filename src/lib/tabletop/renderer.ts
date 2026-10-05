@@ -93,7 +93,7 @@ export async function createTabletop(
 	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	const tokenLayer = new TokenLayer(overlay, onModel, clock);
 	scene.add(tokenLayer.group);
-	const wallLayer = new WallLayer(clock);
+	const wallLayer = new WallLayer(build, clock); // kit pieces by chunk (#252)
 	scene.add(wallLayer.group);
 	let floor: Uint8Array | null = null;
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
@@ -127,7 +127,8 @@ export async function createTabletop(
 	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops); // the ground in chunks (#240)
 	const effects = new EffectsLayer();
 	scene.add(worldLayer.group, effects.group);
-	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky, worldLayer]];
+	const previews = new PreviewLayer();
+	const world = [diceLayer, effects, cloud, sky, worldLayer, wallLayer];
 	const gallery = new Gallery(scene, overlay.scene, world, [tokenLayer, worldLayer.grid]);
 	overlay.scene.add(previews.group, worldLayer.grid.group); // the grid and highlight (#245)
 	let disposed = false;
@@ -266,7 +267,7 @@ export async function createTabletop(
 	function applyLook(): void {
 		land.dress(look, grid);
 		worldLayer.setLook(look, grid, environment);
-		wallLayer.setLook(look?.walls ?? null);
+		wallLayer.setLook(look?.walls ?? null, look?.kit ?? null);
 		refreshLighting();
 		shadowsDirty = warmPending = true;
 		requestRender();
@@ -275,7 +276,7 @@ export async function createTabletop(
 	/** Raised ground, and everything standing on the ground, for a table's ground. */
 	function placeOnGround(g: SquareGrid, on: Ground): void {
 		tokenLayer.sync(tokens, g, on);
-		wallLayer.sync(objects, g, on, worldLayer.shape?.known);
+		wallLayer.sync(objects, worldLayer.shape!, on);
 		propLayer.sync(props, g, on, worldLayer.shape?.known);
 	}
 
@@ -340,7 +341,7 @@ export async function createTabletop(
 		setObjects(next) {
 			objects = next;
 			if (!grid) return;
-			wallLayer.sync(objects, grid, ground!, worldLayer.shape?.known);
+			wallLayer.sync(objects, worldLayer.shape!, ground!);
 			refreshLighting();
 		},
 		setHoveredObject: (objectId) => wallLayer.setHovered(objectId) && requestRender(),
@@ -351,7 +352,7 @@ export async function createTabletop(
 		setFog(fog, mode) {
 			fogState = { fog, mode };
 			if (!grid) return;
-			if (reshape()) wallLayer.sync(objects, grid, ground!, worldLayer.shape!.known);
+			if (reshape()) wallLayer.sync(objects, worldLayer.shape!, ground!);
 			refreshLighting();
 		},
 		throwDice(t) {
@@ -391,7 +392,9 @@ export async function createTabletop(
 			darkness = next;
 			refreshLighting();
 		},
-		setInterior: (next) => cellMaps.setInterior(next) && refreshLighting(), // sky light, #219
+		setInterior: (next) =>
+			// boundary walls (#251), sky light (#219)
+			(wallLayer.setInterior(next), cellMaps.setInterior(next)) && refreshLighting(),
 		setEnvironment(next) {
 			if (next === environment) return;
 			environment = next;
@@ -421,6 +424,7 @@ export async function createTabletop(
 			if (!grid) return;
 			if (floor && floor.length !== grid.width * grid.height) floor = null;
 			reshape();
+			wallLayer.sync(objects, worldLayer.shape!, ground!); // the void's walls are outer (#251)
 			refreshLighting();
 		},
 		playMotions(motions) {

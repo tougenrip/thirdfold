@@ -16,3 +16,11 @@ export { beyondHeightAt, beyondOf, beyondSample, ridgeMesh, skirtMesh } from './
 export { chunkWorld, CLIFF_STYLES } from './cliffs';
 export { chasmGround, chasmOf, DEFAULT_CHASM, mistTexels } from './chasm';
 export { autotile, dirtyPieceChunks, tileInput, variantOf } from './autotile';
+export {
+	edgeIndex,
+	pieceOf,
+	proceduralPiece,
+	roleOfKey,
+	VARIANTS,
+	wallInstances
+} from './wall-batch';

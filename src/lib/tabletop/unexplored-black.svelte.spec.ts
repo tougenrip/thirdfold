@@ -19,6 +19,9 @@
 // the Hollow's fogged player sees cliffs on every tier, biplanar on low and triplanar above. The
 // void's chasms (#243) too: the night train's player looks down its gaps onto the moving ground,
 // and a hole's sample is left out where its ray falls on to ground the viewer was shown (`pastHole`).
+// Kit walls (#252) are in every case: every fixture's walls are the batched pieces autotile picks
+// (posts, caps, plinths and retaining pieces down drops), the surface kind's `batched` variant, the
+// same whether a role is the built-in piece or a kit's (walls.svelte.spec.ts draws a synthetic kit).
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again

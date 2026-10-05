@@ -16,10 +16,13 @@ import {
 } from '$lib/assets/manifest';
 import { fetchAsset, loadManifest } from '$lib/assets/load';
 import { imageTexture } from './image-texture';
-import { followDetail, ktx2Texture, slotTexture } from './models';
+import { followDetail, ktx2Texture, loadModel, partsOf, slotTexture } from './models';
 import { setParams, setSlot, type KindMaterial } from './materials';
 import type { Grades } from './grades-load';
 import type { FloorSurfaces } from './materials/floors';
+import type { KitDef } from '$lib/assets/kit';
+import type { WallKit } from './walls';
+import type { PieceMesh } from './world/wall-batch';
 
 export { resolveSky } from '$lib/assets/sky-parse';
 
@@ -46,6 +49,8 @@ export interface EnvironmentLook {
 	floors: FloorSurfaces | null;
 	/** 32³ RGBA lookup tables (x red, y green, z blue); null when the environment has no grade. */
 	grades: Grades | null;
+	/** Its architecture kit's pieces (#250, #252), or null when it has none (`plain`). */
+	kit: WallKit | null;
 }
 
 /** The size of a grade's lookup table, per side. */
@@ -114,7 +119,7 @@ export async function loadEnvironment(
 	const env = manifest.environments[id];
 	if (!env) return null;
 	const { surfaces: painted } = env;
-	const [[surface, ground, walls], grades, own] = await Promise.all([
+	const [[surface, ground, walls], grades, own, kit] = await Promise.all([
 		Promise.all(
 			[env.surface, env.ground, env.walls].map((m) =>
 				look(manifest.materials[m], manifest.textures)
@@ -125,14 +130,16 @@ export async function loadEnvironment(
 			? import('./grades-load').then((m) => m.gradesOf(id, env.lut!, manifest.textures, toneMapper))
 			: null,
 		// Its painted surfaces (#187), from a chunk only tables that have them load.
-		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null
+		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null,
+		loadKit(manifest.kits[env.kit ?? 'plain'])
 	]);
 	return {
 		surface,
 		ground,
 		walls: own?.walls ? { ...walls, ...own.walls } : walls,
 		floors: own?.floors ?? null,
-		grades
+		grades,
+		kit
 	};
 }
 
@@ -152,4 +159,27 @@ export function wear(
 	setSlot(material, 'albedo', look?.map ?? null);
 	setSlot(material, 'normal', look?.normal ?? null);
 	setSlot(material, 'orm', look?.orm ?? null);
+}
+
+/**
+ * A kit's pieces (#250) as the walls draw them: each role's variants, every `body` part of its
+ * model's full level as one mesh; a role whose models don't all load draws procedurally (#252).
+ * Null for a kit with none (`plain`).
+ */
+export async function loadKit(kit: KitDef | undefined): Promise<WallKit | null> {
+	const entries = Object.entries(kit?.pieces ?? {});
+	if (!entries.length) return null;
+	const { pieceOf } = await import('./world/build'); // the world's lazy chunk, loaded by now
+	const out: Record<string, { mesh: PieceMesh; weight: number }[]> = {};
+	await Promise.all(
+		entries.map(async ([role, list]) => {
+			const models = await Promise.all(list.map((p) => loadModel(p.model)));
+			if (models.some((m) => !m)) return;
+			out[role] = models.map((m, i) => ({
+				mesh: pieceOf(partsOf(m!, 'body').map((p) => p.geometry)),
+				weight: list[i].weight ?? 1
+			}));
+		})
+	);
+	return Object.keys(out).length ? (out as WallKit) : null;
 }
