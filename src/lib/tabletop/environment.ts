@@ -168,7 +168,8 @@ export function wear(
  */
 export async function loadKit(kit: KitDef | undefined): Promise<WallKit | null> {
 	const { BATCH_ROLES, pieceOf } = await import('./world/build'); // loaded with the table
-	// Only what the walls draw: doors, stairs, bridges, cliffs and roofs are other layers' (#253-#257).
+	// Only what the walls draw (with arches, railings and door leaves, #253): stairs, bridges,
+	// cliffs and roofs are other layers' (#255-#257).
 	const roles = new Set<string>(BATCH_ROLES);
 	const entries = Object.entries(kit?.pieces ?? {}).filter(([role]) => roles.has(role));
 	if (!entries.length) return null;

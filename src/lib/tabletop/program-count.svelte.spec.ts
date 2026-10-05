@@ -309,10 +309,19 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		['prop selected', () => t.setSelectedProp(prop.id)],
 		['prop hovered', () => t.setHoveredProp(prop.id)],
 		['prop states cleared', () => (t.setSelectedProp(null), t.setHoveredProp(null))],
-		// Walls take the hover as a tint per instance, a door by swapping to its tinted twin (#172).
+		// Walls and door leaves take the hover as a tint per instance (#252, #253).
 		['wall hovered', () => t.setHoveredObject(wall.id)],
 		['door hovered', () => t.setHoveredObject(door.id)],
 		['hover cleared', () => t.setHoveredObject(null)],
+		// A door's leaf (#253) swung the other way (snapped: the sweep reduces motion), and back.
+		[
+			'door swung',
+			() =>
+				t.setObjects(
+					home.objects.map((o) => (o === door && o.kind === 'door' ? { ...o, open: !o.open } : o))
+				)
+		],
+		['door back', () => t.setObjects(home.objects)],
 		['prop hidden', () => t.setProps(withProp({ hidden: true }))],
 		['prop moved', () => t.setProps(withProp({ pos: { x: prop.pos.x + 1, y: prop.pos.y } }))],
 		['props back', () => t.setProps(home.props)],

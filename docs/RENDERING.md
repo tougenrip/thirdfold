@@ -1927,8 +1927,8 @@ shared with #181 (which hashes ids, not keys). The cost is above the 0.5 ms targ
 
 ## Kit walls (milestone 70, #252)
 
-`walls.ts` draws the pieces autotile picks; its old stretched boxes are gone. Doors keep their
-hinged panels until #253's leaves.
+`walls.ts` draws the pieces autotile picks; its old stretched boxes are gone. Doors swing kit
+leaves since #253 (below).
 
 **Instances.** `world/wall-batch.ts` (pure, in the lazy `world` chunk) turns a chunk's
 `WallPieces` into `WallInstances`: a piece key per instance (`pieceKey(role, variant)`, the role an
@@ -1943,8 +1943,9 @@ kit's `cap` on top when the kit has one. #261's greybox walls, caps and posts al
 `WALL_HEIGHT`, so a kit's cap is lifted `KIT_LIFT.cap` (0.002 cell) and its posts `KIT_LIFT.post`
 (0.004) to keep their tops out of one plane.
 
-**Kits.** `loadEnvironment` loads the environment's kit (`loadKit`, roles in `BATCH_ROLES` only:
-doors, stairs, bridges, cliffs and roofs are other layers'), each variant's `body` parts merged by
+**Kits.** `loadEnvironment` loads the environment's kit (`loadKit`, roles in `BATCH_ROLES` only,
+with `arch`, `railing` and `door.leaf` since #253: stairs, bridges, cliffs and roofs are other
+layers'), each variant's `body` parts merged by
 `pieceOf` into positions, normals, triangles and the vertex colours #261 bakes each part's surface
 into. Since #261 every built-in environment has one, so the built-in tables draw kit pieces.
 
@@ -2008,6 +2009,65 @@ no surface-layer attribute yet, #261's "Not yet"). The low tier draws the same p
 exists). Posts are scaled to their corner's height, which stretches a kit post's finial where
 floors differ. `worldModify` reads the cell at each fragment, as before, not the cell a face looks
 into. Goldens, look metrics and per-table draw counts are the milestone's close (G1, G2).
+
+## Windows, door frames and leaves (milestone 70, #253)
+
+Openings are wall pieces, and door leaves one more batch; `DOOR_COLOR`, the per-door materials and
+the hinged panel meshes are gone.
+
+**Windows.** Between equal floors a window is `window.frame`: the built-in piece (`proceduralPiece`
+in `world/wall-batch.ts`) is a sill to `SILL` (0.35 of the wall), jambs 0.08 wide inside the edge,
+one mullion 0.04 wide (under 5% of the opening) and a lintel from `LINTEL` (0.8) under the cap, all
+within ±`WALL_HALF_THIN`; the gap between holds the eye's height (`EYE_LEVELS` steps, 1.2 u), so a
+token behind a window shows through it. The greybox kits' frames (#261) open from 0.85 to 1.65 u.
+Rules windows are never glazed. Between different floors (the monastery's gallery railing, the
+belfry's arches) a window is `window.sill`; the kit's `railing` stands there when it has one (the
+balustrade the stairs' rails use, #255), else the built-in balustrade, no taller than the sill (a
+plinth, four balusters, a rail). The drop below is the edge's retaining piece and plinth as before.
+
+**Arcades.** Autotile flags a framed window whose neighbour in line is one too (`ARCADE` in
+`world/autotile.ts`, from the edge views only, so ids, splits and unexplored ground change
+nothing); `wallInstances` draws the kit's `arch` there when it has one (stone halls, cavern), else
+the frame. `dirtyPieceChunks` marks the corners one edge further along a changed edge's line, whose
+flag it may change.
+
+**Doors.** The frame is `door.frame` (the built-in one jambs and a lintel over the leaf; posts
+beside a door keep their `JAMB` flag). The leaf (`door-leaves.ts` `DoorLeaves`) is the kit's
+`door.leaf` variant (by the edge's `keySeed`) or the built-in brown leaf, whose colour is baked in
+its vertex colours: every leaf of the table is in one `BatchedMesh` in the kit pieces' material (the
+surface kind's `batched` variant with colours, already warmed for the walls), so doors add one
+batch and no material or program. A leaf is drawn only where autotile draws the edge as a door: a
+door under a wall or window shows that, a door with no known side nothing. Its matrix is the edge's
+frame (#250's pivot, on the higher floor, +x from the door's first corner: 0 quarter turns east, 3
+south) times a turn about the leaf's own end (`hingeOf`, its least x), opening toward +z as the old
+panel did. `tick` rewrites only swinging leaves, a quarter turn in `DOOR_SWING_MS` (260) on the
+layer's clock, a reversed swing taking what is left; under reduced motion (`WallLayer` is in the
+renderer's `stillable` list) a swing snaps. Hover is the batch colour's alpha, the walls' hatched
+glow. Picks hit the batch itself on `PICK_LAYER` and map its instance (`batchId`) to the door; a
+new kit drops the leaves' batch, as it does the walls'.
+
+**Secret doors.** A sealed door is a wall until found (autotile reads kinds, not ids: tested by
+#251), and `revealDoor` swaps the wall for the door in one sync, so the rebuild swaps the plain wall
+for the frame and leaf.
+
+**Tests.** `autotile.spec.ts`: the arcade flag (a run, two windows end to end, a lone window, beside
+a wall or a door, across a drop). `wall-batch.spec.ts`: the window's open band round the eye's
+height with only its jambs and a slim mullion across it, the balustrade's height, the door frame's
+jambs and the leaf; a kit's arch in an arcade and railing between floors, else its frame and sill.
+`doors.svelte.spec.ts` (`RENDER_SPECS`): rays through built-in, village and stone-halls windows at
+eye height (open) and through their sills, lintels and jambs (blocked); a leaf at half its angle
+after 130 ms and open at 260 ms on the injected clock, picked shut and open, snapped shut under
+reduced motion, the village's leaf picked and swung, and no new shader stage. The program-count
+sweep swings the test world's door and back; unexplored-is-black counts an open leaf round its
+hinge's corner (the Hollow's player, in the slim set, has a door open).
+
+**Deviations from #253.** The leaves are a `BatchedMesh`, not an `InstancedMesh` per leaf
+geometry: r186 gives every `InstancedMesh` a vertex stage of its own (#255), and the batch shares
+the walls' program. Between floors the kit's `railing` replaces its `window.sill` (#261's greybox
+sill is a ledge over nothing), so `window.sill` kit pieces are drawn only where a kit has no
+railing. No threshold piece under doors (#254's tiles run to the edge; the greybox frames carry a
+threshold), and no lock marker. The leaf keeps its authored height (the built-in one 0.92 of the
+wall; the greybox leaves 1.74 u). Goldens and per-table draw counts are the milestone's close.
 
 ## Stairs (milestone 70, #255)
 

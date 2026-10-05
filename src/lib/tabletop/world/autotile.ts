@@ -64,6 +64,8 @@ export const SITE = { h: 0, v: 1, corner: 2 } as const;
 
 /** `flags` bit: a post beside a door (a jamb). */
 export const JAMB = 1;
+/** `flags` bit: a window between equal floors with another in line beside it (an arcade, #253). */
+export const ARCADE = 2;
 
 /**
  * Turns `mask`'s arms one quarter turn as a piece rotated by π/2 about +Y is
@@ -279,12 +281,38 @@ function edgePieces(t: TileInput, axis: 'h' | 'v', x: number, y: number, out: Si
 					: e.boundary
 						? ROLE['wall.boundary']
 						: ROLE['wall.straight'];
-	out.push(role, site, x, y, e.rotation, seed, e.high, e.high + WALL_HEIGHT * cs, 0);
+	out.push(
+		role,
+		site,
+		x,
+		y,
+		e.rotation,
+		seed,
+		e.high,
+		e.high + WALL_HEIGHT * cs,
+		arcade(t, axis, x, y)
+	);
 	if (e.high === e.low) return;
 	// A drop: a retaining piece from the lower floor up to the higher, under a plinth course.
 	out.push(ROLE['wall.retaining'], site, x, y, e.down, seed, e.low, e.high, 0);
 	const plinth = Math.max(e.low, e.high - STEP_HEIGHT * cs);
 	out.push(ROLE.plinth, site, x, y, e.down, seed, plinth, e.high, 0);
+}
+
+/** A framed window (equal floors) whose neighbour in line is one too: `ARCADE`, else 0. */
+function arcade(t: TileInput, axis: 'h' | 'v', x: number, y: number): number {
+	const framed = (e: EdgeView | null | undefined) =>
+		!!e && e.kind === EDGE_BUILT.window && e.high === e.low;
+	if (!framed(viewOf(t, axis, x, y))) return 0;
+	const { width: w, height: h } = t.shape.grid;
+	const [dx, dy] = axis === 'h' ? [1, 0] : [0, 1];
+	const inGrid = (i: number, j: number) =>
+		i >= 0 && j >= 0 && (axis === 'h' ? i < w && j <= h : i <= w && j < h);
+	for (const s of [-1, 1]) {
+		const [i, j] = [x + s * dx, y + s * dy];
+		if (inGrid(i, j) && framed(viewOf(t, axis, i, j))) return ARCADE;
+	}
+	return 0;
 }
 
 function cornerPiece(t: TileInput, tx: number, ty: number, out: Sink): void {
@@ -383,7 +411,8 @@ export function autotile(t: TileInput, chunks?: readonly number[]): Map<number, 
 
 /**
  * The chunks whose pieces may differ from `prev` to `next`: the shape's dirty chunks, and the
- * chunks of every corner beside an edge whose kind changed or a cell whose building changed.
+ * chunks of every corner beside an edge whose kind changed (and of its neighbours in line, whose
+ * `ARCADE` it may change) or a cell whose building changed.
  * Every chunk with no previous input or a new grid size. Sorted.
  */
 export function dirtyPieceChunks(prev: TileInput | null, next: TileInput): number[] {
@@ -398,10 +427,10 @@ export function dirtyPieceChunks(prev: TileInput | null, next: TileInput): numbe
 	};
 	for (let y = 0; y <= g.height; y++)
 		for (let x = 0; x < g.width; x++)
-			if (prev.kinds.h[hEdge(g, x, y)] !== next.kinds.h[hEdge(g, x, y)]) mark(x, y, x + 1, y);
+			if (prev.kinds.h[hEdge(g, x, y)] !== next.kinds.h[hEdge(g, x, y)]) mark(x - 1, y, x + 1, y);
 	for (let y = 0; y < g.height; y++)
 		for (let x = 0; x <= g.width; x++)
-			if (prev.kinds.v[vEdge(g, x, y)] !== next.kinds.v[vEdge(g, x, y)]) mark(x, y, x, y + 1);
+			if (prev.kinds.v[vEdge(g, x, y)] !== next.kinds.v[vEdge(g, x, y)]) mark(x, y - 1, x, y + 1);
 	for (let i = 0; i < g.width * g.height; i++) {
 		const was = prev.building ? prev.building[i] : 0;
 		const now = next.building ? next.building[i] : 0;

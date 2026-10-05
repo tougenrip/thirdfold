@@ -20,12 +20,39 @@ import {
 } from '../../assets/kit';
 import type { KitRole } from '../../assets/kit';
 import { cornerToWorld, type SquareGrid } from '../../game/grid';
-import { SITE, TILE_ROLES, variantOf, type WallPieces } from './autotile';
+import { ARCADE, SITE, TILE_ROLES, variantOf, type WallPieces } from './autotile';
 
-/** The roles instances draw: autotile's, and the cap a kit's walls may wear on top. */
-export const BATCH_ROLES = [...TILE_ROLES, 'cap'] as const satisfies readonly KitRole[];
+/**
+ * The roles instances draw: autotile's, the cap a kit's walls may wear on top, the arch and railing
+ * a kit's windows may take instead of their frame and sill (#253), and the door leaf (drawn by the
+ * walls' leaves, not by these instances).
+ */
+export const BATCH_ROLES = [
+	...TILE_ROLES,
+	'cap',
+	'arch',
+	'railing',
+	'door.leaf'
+] as const satisfies readonly KitRole[];
 export type BatchRole = (typeof BATCH_ROLES)[number];
 const CAP = BATCH_ROLES.indexOf('cap');
+const FRAME: number = TILE_ROLES.indexOf('window.frame');
+const SILL_ROLE: number = TILE_ROLES.indexOf('window.sill');
+const ARCH = BATCH_ROLES.indexOf('arch');
+const RAILING = BATCH_ROLES.indexOf('railing');
+
+/**
+ * What a kit draws for a piece (#253): a window in an arcade its `arch`, a window between different
+ * floors its `railing` (a balustrade, as the stairs' rails, #255), where the kit has them; else the
+ * piece's own role. The railing wins over the kit's `window.sill` (#261's greybox sill is a ledge
+ * over nothing; the drop below is the retaining piece's).
+ */
+function drawnRole(role: number, flags: number, kit: KitWeights): number {
+	if (role === FRAME && flags & ARCADE && kit.arch) return ARCH;
+	if (role === SILL_ROLE && kit.railing) return RAILING;
+	return role;
+}
+
 /** Pieces with a top: a kit's cap goes on them (a procedural one has its own). */
 const TOPPED = new Set<string>(['wall.straight', 'wall.outer', 'wall.boundary']);
 const RETAINING: number = TILE_ROLES.indexOf('wall.retaining');
@@ -93,8 +120,8 @@ export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights):
 	};
 	let k = 0;
 	for (let i = 0; i < p.count; i++) {
-		const role = p.role[i];
-		const weights = kit[TILE_ROLES[role]];
+		const role = drawnRole(p.role[i], p.flags[i], kit);
+		const weights = kit[BATCH_ROLES[role]];
 		const variant = weights ? variantOf(p.seed[i], weights) : -1;
 		const site = p.site[i];
 		const [x, y] = [p.x[i], p.y[i]];
@@ -199,11 +226,38 @@ const DOOR_TOP = 0.92 * H;
 const P = POST_SIZE / 2;
 /** A post stands a little over the caps, so their tops never meet in one plane. */
 const POST_RISE = 0.04;
+/** A jamb's width inside the edge (#253): a window's and a door's opening stand between two. */
+const JAMB_W = 0.08;
+const J = 0.5 - JAMB_W;
+/** The built-in leaf's half thickness, and its colour (linear, as a kit piece's are, #261). */
+const LEAF_T = 0.04;
+const LEAF_RGB = [0x7a, 0x4a, 0x26].map((c) => ((c / 255 + 0.055) / 1.055) ** 2.4);
+const jambs = (y0: number, y1: number): Box[] => [
+	[-0.5, y0, -T, -J, y1, T],
+	[J, y0, -T, 0.5, y1, T]
+];
+/** A balustrade no taller than the sill: a plinth, four balusters and a rail, within ±T. */
+const BALUSTRADE: Box[] = [
+	[-0.5, 0, -0.05, 0.5, 0.08, 0.05],
+	...[-0.375, -0.125, 0.125, 0.375].map((x): Box => [
+		x - 0.03,
+		0.08,
+		-0.03,
+		x + 0.03,
+		SILL - 0.06,
+		0.03
+	]),
+	[-0.5, SILL - 0.06, -T, 0.5, SILL, T]
+];
 
 /**
  * The built-in piece for each role, in kit units (#250's pivots, at a cell size of 1): what draws
  * where a kit has no variant. Walls with their cap; a retaining piece a little behind the plinth's
- * face so the course shows (the cliff behind it is set back, cliffs.ts); posts over the caps.
+ * face so the course shows (the cliff behind it is set back, cliffs.ts); posts over the caps. A
+ * window (#253) is a sill, jambs, a mullion (under 5% of the opening) and a lintel round an open
+ * gap from SILL to LINTEL, which holds the eye's height; between different floors a balustrade. A
+ * door's frame is jambs and a lintel over its leaf, which is brown: the one built-in piece with
+ * colours, so it draws in the kit pieces' material (every leaf is in one batch, #253).
  */
 export function proceduralPiece(role: BatchRole): PieceMesh {
 	switch (role) {
@@ -216,11 +270,25 @@ export function proceduralPiece(role: BatchRole): PieceMesh {
 		case 'plinth':
 			return boxes([body(0, STEP_HEIGHT)]);
 		case 'window.frame':
-			return boxes([body(0, SILL), body(LINTEL, H - CAP_DEPTH), cap]);
+		case 'arch':
+			return boxes([
+				body(0, SILL),
+				...jambs(SILL, LINTEL),
+				[-0.02, SILL, -0.03, 0.02, LINTEL, 0.03],
+				body(LINTEL, H - CAP_DEPTH),
+				cap
+			]);
 		case 'window.sill':
-			return boxes([body(0, SILL)]);
+		case 'railing':
+			return boxes(BALUSTRADE);
 		case 'door.frame':
-			return boxes([body(DOOR_TOP, H - CAP_DEPTH), cap]);
+			return boxes([...jambs(0, DOOR_TOP), body(DOOR_TOP, H - CAP_DEPTH), cap]);
+		case 'door.leaf': {
+			const leaf = boxes([[-J, 0, -LEAF_T, J, DOOR_TOP, LEAF_T]]);
+			const colors = new Float32Array(leaf.positions.length);
+			for (let i = 0; i < colors.length; i++) colors[i] = LEAF_RGB[i % 3];
+			return { ...leaf, colors };
+		}
 		case 'cap':
 			return boxes([cap]);
 		default: // the posts
