@@ -8,7 +8,7 @@
 import { readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { format, resolveConfig } from 'prettier';
-import { KIT_EXTRAS, STYLES } from './kits/looks';
+import { STYLES } from './kits/looks';
 import { buildKit, type Piece } from './kits/pieces';
 
 const ROOT = 'assets';
@@ -49,7 +49,6 @@ for (const style of STYLES) {
 		for (const p of f.tiles) floors[floor].tiles.push({ model: await model(p) });
 		for (const p of f.broken) floors[floor].broken.push({ model: await model(p) });
 	}
-	for (const p of KIT_EXTRAS[style.id]?.() ?? []) await model(p);
 	const def = { name: style.name, roof: style.roof ?? null, presumeRoofs: false, pieces, floors };
 	await write(path.join(ROOT, 'kits', `${style.id}.json`), def);
 }

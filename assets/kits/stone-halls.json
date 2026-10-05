@@ -75,6 +75,14 @@
 				{ "model": "stone-halls-planks-c" }
 			],
 			"broken": [{ "model": "stone-halls-planks-broken" }]
+		},
+		"tile": {
+			"tiles": [
+				{ "model": "stone-halls-tile-a" },
+				{ "model": "stone-halls-tile-b" },
+				{ "model": "stone-halls-tile-c" }
+			],
+			"broken": [{ "model": "stone-halls-tile-broken" }]
 		}
 	}
 }

@@ -4225,6 +4225,31 @@
 			},
 			"pack": "core"
 		},
+		"stone-halls-tile-broken": {
+			"file": "models/stone-halls-tile-broken.bd5d550a.glb",
+			"sha256": "bd5d550a703c4f9a8d3e7f7406e1dd08e2a6976479f5ffeb9dba3d8b10455f5b",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.194,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.486
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
 		"stone-halls-tile-c": {
 			"file": "models/stone-halls-tile-c.561001d9.glb",
 			"sha256": "561001d94f473a5024eb9bbe74c6bf385a20ca4499d911a067d704ac4cfd635d",
@@ -13824,8 +13849,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 11900126,
-			"gpuBytes": 30875668
+			"bytes": 11904686,
+			"gpuBytes": 30878908
 		},
 		"ghost-town": {
 			"bytes": 104095,
@@ -14511,6 +14536,14 @@
 							"model": "railcar-planks-broken"
 						}
 					]
+				},
+				"grating": {
+					"tiles": [
+						{
+							"model": "railcar-grating-a"
+						}
+					],
+					"broken": []
 				}
 			}
 		},
@@ -14779,6 +14812,24 @@
 					"broken": [
 						{
 							"model": "stone-halls-planks-broken"
+						}
+					]
+				},
+				"tile": {
+					"tiles": [
+						{
+							"model": "stone-halls-tile-a"
+						},
+						{
+							"model": "stone-halls-tile-b"
+						},
+						{
+							"model": "stone-halls-tile-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-tile-broken"
 						}
 					]
 				}
