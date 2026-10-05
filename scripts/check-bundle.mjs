@@ -24,12 +24,16 @@ const BUDGETS = {
 	// objects' and visibility's code larger (the renderer now uses `SightCache` and `asObstacles`
 	// from it), 98,180 B measured. → 98.4: the shared chunk after M68's close (the pool's removal
 	// and the hero slots' assignment moving out of light-model.ts) measures just over 98.3 kB.
-	'/builder': { total: 98_400, own: 52_000 },
-	'/credits': { total: 54_000, own: 3_000 },
+	// → 100.0: the manifest's kits and their parser with the roles' envelopes (kit.ts, #250), 99.9 kB
+	// measured.
+	'/builder': { total: 100_000, own: 52_000 },
+	// 54.0 → 54.8: the same (#250), 54.7 kB measured.
+	'/credits': { total: 54_800, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
-	'/dev/assets': { total: 51_300, own: 500 },
+	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
+	'/dev/assets': { total: 52_800, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.

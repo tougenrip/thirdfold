@@ -12,6 +12,7 @@
 //   and heights come from known sides only.
 // - Straight corners get no post, which hides every split.
 
+import type { KitRole } from '../../assets/kit';
 import { VOID } from '../../game/floor';
 import type { SquareGrid } from '../../game/grid';
 import { type SceneObject, unitEdges } from '../../game/objects';
@@ -30,9 +31,9 @@ import {
 } from './shape';
 
 /**
- * The kit roles autotile places. Local until #250's `KIT_ROLES` (src/lib/assets/kit.ts) lands;
- * the names are #250's. Caps are merged into `wall.straight` by the pipeline (#252), and door
- * leaves come from the door objects themselves (#253), so neither is placed here.
+ * The kit roles autotile places, a subset of #250's `KIT_ROLES` (src/lib/assets/kit.ts), indexed
+ * here for the packed pieces. Caps (`cap`, their own kit role, on every wall's top) are #252's to
+ * stack, and door leaves come from the door objects themselves (#253), so neither is placed here.
  */
 export const TILE_ROLES = [
 	'wall.straight',
@@ -47,7 +48,7 @@ export const TILE_ROLES = [
 	'post.L',
 	'post.T',
 	'post.X'
-] as const;
+] as const satisfies readonly KitRole[];
 export type TileRole = (typeof TILE_ROLES)[number];
 const ROLE = Object.fromEntries(TILE_ROLES.map((r, i) => [r, i])) as Record<TileRole, number>;
 

@@ -141,8 +141,7 @@ function* edges(s: WorldShape): Generator<{ e: GridEdge; cls: number; cells: num
 /**
  * Where `ground` (and optional `decorations`) break the world's rules:
  * - disk: a known walkable cell's surface is not flat at its floor over TOKEN_DISK;
- * - intrusion: something stands above the floor within TOKEN_DISK - `allowance` (INTRUSION;
- *   kit pieces, #250, get none), lower than `clear` over it (no limit; kit pieces FIGURE_CLEAR);
+ * - intrusion: something between the floor and `clear` over it is within TOKEN_DISK - `allowance`;
  * - cliff-top: a step or cliff's top is not at the higher floor, or has a lip above it;
  * - unexplored-face: a face that is not flat lies along an edge with an unexplored side;
  * - owner: a vertex owned by no cell on the table.
@@ -181,9 +180,9 @@ export function checkEmitter(
 		if (!deco) continue;
 		const reach = (TOKEN_DISK - allowance) * cs - eps;
 		for (const t of deco.near(i)) {
-			const low = !above(decorations!, t, floor + clear * cs - eps, true);
+			const high = above(decorations!, t, floor + clear * cs - eps, true);
 			if (
-				low &&
+				!high &&
 				above(decorations!, t, floor + eps) &&
 				distanceTo(decorations!, t, c.x, c.z) < reach
 			) {
@@ -238,8 +237,7 @@ export function checkEmitter(
 
 /** Whether any (or, with `all`, every) vertex of triangle t stands above `y`. */
 function above(mesh: EmitterMesh, t: number, y: number, all = false): boolean {
-	const over = (k: number) => mesh.positions[mesh.indices[t + k] * 3 + 1] > y;
-	return all ? [0, 1, 2].every(over) : [0, 1, 2].some(over);
+	return [0, 1, 2][all ? 'every' : 'some']((k) => mesh.positions[mesh.indices[t + k] * 3 + 1] > y);
 }
 
 /** The distance in plan from (x, z) to triangle t (0 inside it). */

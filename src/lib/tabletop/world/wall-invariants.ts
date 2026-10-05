@@ -2,18 +2,17 @@
 // re-exports it): autotile's pieces as plan envelopes, checked against every
 // walkable cell's base disk and the continuation rule. Test support, pure.
 //
-// The envelopes are the kit contract's clearance (#250 moves the constants to
+// The envelopes are the kit contract's clearance (#250, the constants in
 // src/lib/assets/kit.ts): an edge piece is the unit edge, `WALL_HALF_THIN`
 // thick on each side, but `WALL_HALF_THICK` on a `wall.outer`'s +z face (the
 // void, or beyond the grid); a post is `POST_SIZE` square on its corner.
 
+import { POST_SIZE, TOKEN_DISK, WALL_HALF_THICK, WALL_HALF_THIN } from '../../assets/kit';
 import { VOID } from '../../game/floor';
 import { SITE, TILE_ROLES, type WallPieces } from './autotile';
-import { TOKEN_DISK, type WorldShape } from './shape';
+import type { WorldShape } from './shape';
 
-export const WALL_HALF_THIN = 0.07;
-export const WALL_HALF_THICK = 0.35;
-export const POST_SIZE = 0.3;
+export { POST_SIZE, WALL_HALF_THICK, WALL_HALF_THIN } from '../../assets/kit';
 
 const OUTER = TILE_ROLES.indexOf('wall.outer');
 
