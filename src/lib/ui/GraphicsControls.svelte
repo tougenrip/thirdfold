@@ -308,6 +308,9 @@
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-md);
 		z-index: var(--z-overlay);
+		/* A short window scrolls the menu rather than hiding its last options under the edge. */
+		max-height: calc(100dvh - 5rem);
+		overflow-y: auto;
 	}
 
 	/* In the side sheet (phones): open in place, full width. */
@@ -316,6 +319,8 @@
 		width: auto;
 		margin-top: var(--sp-3);
 		box-shadow: none;
+		max-height: none;
+		overflow: visible;
 	}
 
 	fieldset {
