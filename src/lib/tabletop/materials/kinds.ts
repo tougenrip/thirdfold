@@ -12,6 +12,7 @@ import { dropLift } from './drop';
 import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { gridGraph } from './grid';
+import { bedSink, ringFadeNode } from './ring';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
 import {
@@ -101,6 +102,11 @@ export interface Params {
 	 * compiles nothing.
 	 */
 	translucency: number;
+	/**
+	 * Instanced props: world units an instance sinks past the tile ring (#254, materials/ring.ts):
+	 * kit floor tiles sink under the ground as they fade out; 0 for every other prop.
+	 */
+	sink: number;
 }
 
 /** What a caller may set: colours and vectors in any form three takes. */
@@ -131,7 +137,8 @@ export const PARAM_DEFAULTS: Required<ParamsInput> = {
 	macroTint: 0,
 	macroRoughness: 0,
 	bake: 1,
-	translucency: 0
+	translucency: 0,
+	sink: 0
 };
 
 /** The tiled kinds' macro variation (#181): gentle, over about a dozen cells. */
@@ -276,6 +283,23 @@ function tintOf(kind: ShaderKind, variant: Variant): N {
 	return own.add(glow.mul(flickerNode(paint.x, paint.y)));
 }
 
+/**
+ * What moves an instanced lifted kind's vertex besides the lift: its drop-in, and for props the
+ * tile ring's sink (`params.sink`, 0 but for floor tiles, #254).
+ */
+function lifts(kind: ShaderKind): N {
+	const drop = dropLift(tsl.attribute(LIFT_ATTRIBUTE, 'vec2').y);
+	if (kind !== 'prop') return drop;
+	const fade = ringFadeNode(tsl.positionLocal.xz);
+	return drop.sub(tsl.vec3(0, param('sink', 'float').mul(fade.oneMinus()), 0));
+}
+
+/** The world's chunks: the drop-in, and on the tops the bed under floor tiles (#254). */
+function sinks(kind: ShaderKind): N {
+	const drop = dropLift();
+	return kind === 'terrain' ? drop.sub(tsl.vec3(0, bedSink(tsl.positionGeometry.xz), 0)) : drop;
+}
+
 function build(kind: ShaderKind, variant: Variant): Graph {
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
@@ -351,12 +375,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 						0
 					)
 				)
-			: rest &&
-				rest.add(
-					variant.instanced && LIFTED.includes(kind)
-						? dropLift(tsl.attribute(LIFT_ATTRIBUTE, 'vec2').y)
-						: dropLift()
-				);
+			: rest && rest.add(variant.instanced && LIFTED.includes(kind) ? lifts(kind) : sinks(kind));
 	const painted =
 		kind === 'prop' && variant.instanced
 			? colour.mul(tsl.attribute(PAINT_ATTRIBUTE, 'vec3'))

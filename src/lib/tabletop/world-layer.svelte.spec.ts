@@ -69,7 +69,7 @@ describe('the world layer', () => {
 		const scene = compile.mock.calls[0][2] as THREE.Scene;
 		const { width: w, height: h } = view.grid;
 		const size = w * h;
-		expect(t.stats().world).toEqual({ chunks: 9, lastRebuilt: 9 });
+		expect(t.stats().world).toMatchObject({ chunks: 9, lastRebuilt: 9 });
 		const meshes = chunkMeshes(scene).filter(shown);
 		// Nine chunks of tops, and faces where the Hollow rises and falls: rock, with vertex colours.
 		expect(meshes.filter((x) => !x.castShadow)).toHaveLength(9);

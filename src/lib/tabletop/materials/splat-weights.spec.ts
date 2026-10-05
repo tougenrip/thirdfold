@@ -31,7 +31,8 @@ describe('the floor splat (#242)', () => {
 		expect(FLOOR_STYLE.water).not.toBe(SOFT);
 		expect(SPLAT.heightRange).toBeLessThan(1 - SPLAT.depth);
 		// #248: cobble, flagstone and rock kerbed; mud, snow and gravel soft.
-		for (const id of ['cobble', 'flagstone', 'rock'] as const) expect(FLOOR_STYLE[id]).toBe(KERB);
+		for (const id of ['cobble', 'flagstone', 'rock', 'tile', 'grating'] as const)
+			expect(FLOOR_STYLE[id]).toBe(KERB);
 		for (const id of ['mud', 'snow', 'gravel'] as const) expect(FLOOR_STYLE[id]).toBe(SOFT);
 		const edge = { x: 0.99, y: 0.5 };
 		expect(

@@ -29,6 +29,7 @@ import type { SquareGrid } from '$lib/game/grid';
 import type { FogView } from '$lib/game/visibility';
 import { cellsDropped, DROP_CELLS, NO_DROP, type Drops } from './drop-in';
 import { wear, type EnvironmentLook } from './environment';
+import { TileLayer } from './floor-tiles-layer';
 import type { FogMode } from './fog';
 import { GridOverlay } from './grid-overlay';
 import { STEP_HEIGHT, type Ground } from './ground';
@@ -48,6 +49,7 @@ import {
 	type KindMaterial
 } from './materials';
 import type { PerfRecorder } from './perf';
+import type { Tier } from './quality';
 import { standIn } from './warmup';
 import type { Chasm } from './world/chasm';
 import type { CliffMesh } from './world/cliffs';
@@ -95,6 +97,8 @@ export interface WorldStats {
 	chunks: number;
 	/** Chunks the last update rebuilt. */
 	lastRebuilt: number;
+	/** Kit floor tiles in the ring (#254): their meshes (draws) and instances. */
+	tiles: { meshes: number; instances: number };
 }
 
 interface Chunk {
@@ -132,14 +136,19 @@ export class WorldLayer {
 	/** Each cell's drop start (#249), and the shape the last drawn frame showed. */
 	private starts = new Float32Array(0);
 	private seen: { frame: number; shape: WorldShape | null } = { frame: -1, shape: null };
+	/** Kit floor tiles in a ring round the camera (#254), and the tiling they were last built from. */
+	private readonly tiles: TileLayer;
+	private tiled: { shape: WorldShape; tiled: Uint8Array } | null = null;
 
 	constructor(
 		private readonly perf: PerfRecorder,
 		private readonly land: WorldGround,
 		private readonly build: WorldBuilders,
-		private readonly drops: Drops
+		private readonly drops: Drops,
+		private readonly onTiles: () => void = () => {}
 	) {
-		this.group.add(this.chunkGroup);
+		this.tiles = new TileLayer(onTiles);
+		this.group.add(this.chunkGroup, this.tiles.group);
 		this.sides = build.CLIFF_STYLES.map((style) => {
 			const material = createMaterial('rock', {
 				antiTiled: true,
@@ -168,7 +177,8 @@ export class WorldLayer {
 	 * chasm's mist on medium and up, with void on the table), for AMBIENT frames; still under
 	 * reduced motion.
 	 */
-	tick(now: number, reducedMotion: boolean): boolean {
+	tick(now: number, reducedMotion: boolean, target?: THREE.Vector3): boolean {
+		if (target) this.tiles.follow(target); // the tile ring (#254): uniforms and visibility only
 		const { style } = this.chasm;
 		const mist = style === 'chasm' && !!this.top.options.antiTiled;
 		const moving =
@@ -223,6 +233,11 @@ export class WorldLayer {
 		const cellSize = grid?.cellSize ?? 1;
 		this.cellSize = cellSize;
 		const cave = CAVES.has(environment ?? '');
+		this.tiles.setEnvironment(environment ?? null, () => {
+			this.tiled = this.drawn = null; // every chunk again: its tiles and the bed under them
+			this.rebuild();
+			this.onTiles();
+		});
 		wear(this.top, look?.surface ?? null, PLAIN.top);
 		setParams(this.top, { repeat: repeatFor(look?.surface.cells ?? 1, cellSize, STEP_HEIGHT) });
 		this.build.CLIFF_STYLES.forEach((style, i) => {
@@ -253,7 +268,12 @@ export class WorldLayer {
 	}
 
 	stats(): WorldStats {
-		return { chunks: this.chunks.length, lastRebuilt: this.lastRebuilt };
+		return { chunks: this.chunks.length, lastRebuilt: this.lastRebuilt, tiles: this.tiles.stats() };
+	}
+
+	/** The tier's tile ring (#254): none on low. */
+	setTier(tier: Tier): void {
+		this.tiles.setTier(tier);
 	}
 
 	/**
@@ -280,6 +300,7 @@ export class WorldLayer {
 
 	dispose(): void {
 		this.resize(0);
+		this.tiles.dispose();
 		this.standIns?.[0].geometry.dispose();
 		this.grid.dispose();
 		disposeTwins(this.top);
@@ -338,18 +359,34 @@ export class WorldLayer {
 		const shape = this.shape;
 		if (!shape) return;
 		const drawn = this.drawn?.grid.cellSize === shape.grid.cellSize ? this.drawn : null;
-		const dirty = this.build.dirtyChunks(drawn, shape);
-		const { x, y } = this.build.chunksAcross(shape.grid);
+		// Kit floor tiles (#254): which cells take them, the chunks whose tiles or bed changed.
+		const b = this.build;
+		const kit = this.tiles.kit;
+		const tiled = b.tiledCells(shape, kit);
+		const was = this.tiled?.shape.grid.cellSize === shape.grid.cellSize ? this.tiled : null;
+		const bedded = new Set([
+			...b.dirtyChunks(drawn, shape),
+			...b.dirtyTileChunks(was, shape, tiled, 1)
+		]);
+		const dirty = [...bedded].sort((p, q) => p - q);
+		const { x, y } = b.chunksAcross(shape.grid);
 		this.resize(x * y);
-		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c));
+		this.tiles.layout(shape.grid, x * y, x, b.CHUNK);
+		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c, tiled));
+		const retiled = b.dirtyTileChunks(was, shape, tiled);
+		const brink = kit.size && retiled.length ? b.brinkCells(shape) : null;
+		for (const c of retiled)
+			this.tiles.fill(c, brink ? b.chunkTiles(shape, kit, tiled, brink, c) : []);
+		this.tiled = { shape, tiled };
 		this.drawn = shape;
 		this.lastRebuilt = dirty.length;
 	}
 
-	private buildChunk(shape: WorldShape, c: number): void {
+	private buildChunk(shape: WorldShape, c: number, tiled: Uint8Array): void {
 		const { top, sides, bottom } = this.build.chunkWorld(shape, c, this.chasm);
 		const chunk = this.chunks[c];
-		fill(chunk.top, top, this.starts);
+		const beds = this.build.tileBeds(shape, tiled, top.positions, top.owners);
+		fill(chunk.top, top, this.starts, false, beds);
 		sides.forEach((faces, i) => fill(chunk.sides[i], faces, this.starts));
 		fill(chunk.bottom, bottom, null, true);
 		this.grid.follow(chunk.grid, chunk.top);
@@ -397,7 +434,8 @@ function fill(
 	mesh: THREE.Mesh,
 	data: GroundMesh | CliffMesh,
 	starts: Float32Array | null,
-	uv = false
+	uv = false,
+	beds?: Float32Array
 ): void {
 	if (mesh.geometry !== EMPTY) mesh.geometry.dispose();
 	mesh.visible = data.indices.length > 0;
@@ -418,7 +456,8 @@ function fill(
 	if (starts)
 		withDrops(
 			g,
-			Float32Array.from(data.owners, (o) => starts[o] ?? NO_DROP)
+			Float32Array.from(data.owners, (o) => starts[o] ?? NO_DROP),
+			beds
 		);
 	g.setIndex(new THREE.BufferAttribute(data.indices, 1));
 	g.computeBoundingSphere();

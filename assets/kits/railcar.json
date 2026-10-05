@@ -53,6 +53,7 @@
 				{ "model": "railcar-planks-c" }
 			],
 			"broken": [{ "model": "railcar-planks-broken" }]
-		}
+		},
+		"grating": { "tiles": [{ "model": "railcar-grating-a" }], "broken": [] }
 	}
 }

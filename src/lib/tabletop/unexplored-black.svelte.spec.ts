@@ -22,6 +22,8 @@
 // Kit walls (#252) are in every case: every fixture's walls are the batched pieces autotile picks
 // (posts, caps, plinths and retaining pieces down drops), the surface kind's `batched` variant, the
 // same whether a role is the built-in piece or a kit's (walls.svelte.spec.ts draws a synthetic kit).
+// Kit floor tiles (#254): the stand-in kit's tiles on every case's default ground and man-made
+// floors, packed round the camera (built only from explored cells, so none stand on hidden ones).
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -37,6 +39,7 @@ import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
+import { useTileSet } from './floor-tiles-layer';
 import { pastHole } from './world/invariants';
 import type { GridPose } from './poses';
 import { settingsFor, type QualitySettings, type Tier } from './quality';
@@ -51,6 +54,7 @@ import {
 	mountFixture,
 	readFrame,
 	settle,
+	testTiles,
 	wait,
 	type Band,
 	type FixtureView,
@@ -178,6 +182,7 @@ let mounted: Mounted | null = null;
 afterEach(async () => {
 	await mounted?.unmount();
 	mounted = null;
+	useTileSet(null);
 });
 
 interface Sample {
@@ -362,6 +367,7 @@ async function mountCase(
 	const view = c.carrier ? withCarrier(sent, sidecar.player.tokenId) : sent;
 	expect(view.fog.enabled).toBe(true);
 	const clock = manualClock(5000);
+	useTileSet(testTiles()); // kit floor tiles (#254) on every case, until #261's greybox kits
 	const m = await mountFixture(view, sidecar.poses.overview, {
 		clock,
 		reducedMotion: c.reduced,

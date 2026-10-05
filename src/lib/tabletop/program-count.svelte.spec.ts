@@ -30,7 +30,9 @@
 // and the floors under the torches painted (their colour is the bounce's), data and uniforms only.
 // Strips and panels (#236): the torches as neon bars facing every way, recoloured, mixed with
 // panels and torches, turned, and back. Hero shadow slots (#230): the focus moved so every slot
-// changes hands (a cube drawn for each new holder).
+// changes hands (a cube drawn for each new holder). Kit floor tiles (#254): the stand-in kit's on
+// every table, the floors painted (tile and grating among them) and the ring packed round targets
+// across the table.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -43,6 +45,7 @@ import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { FIXTURES } from './light-model';
+import { useTileSet } from './floor-tiles-layer';
 import { GRID_MODES } from './grid-modes';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
@@ -54,6 +57,7 @@ import {
 	manualClock,
 	mountFixture,
 	shardedIt,
+	testTiles,
 	type FixtureView,
 	type Mounted
 } from './testing';
@@ -84,6 +88,7 @@ let mounted: Mounted | null = null;
 afterEach(async () => {
 	await mounted?.unmount();
 	mounted = null;
+	useTileSet(null);
 	vi.restoreAllMocks();
 });
 
@@ -221,6 +226,7 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	);
 	const cue = (c: 'flash' | 'toll') => () => t.playCue(c, c === 'toll' ? prop.id : null);
 	const corner = { x: home.grid.width - 1, y: home.grid.height - 1 };
+	const pose = t.cameraPose()!;
 	// The tier as mounted, with the fog cloud's layer on or off (#174).
 	const cloud = (on: boolean) => () => {
 		const settings = settingsFor(tier, t.capabilities().backend);
@@ -252,6 +258,12 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 				t.setFloor(floor);
 			}
 		],
+		// Kit floor tiles (#254, the stand-in kit): the ring packed round targets across the table.
+		...[{ x: 1, y: 1 }, corner, { x: 1, y: corner.y }].map((target): Step => [
+			`tiles round ${target.x},${target.y}`,
+			() => t.setGridPose({ target, distance: 12, azimuth: 30, elevation: 50 })
+		]),
+		['tiles round the pose', () => t.setPose(pose)],
 		['terrain raised', () => t.setTerrain(raised)],
 		['terrain a stair', () => t.setTerrain(stair)],
 		['terrain flat', () => t.setTerrain(null)],
@@ -531,6 +543,7 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 		for (const id of [f.wall, f.floor]) if (id) models.add(id);
 	const compile = vi.spyOn(THREE.WebGPURenderer.prototype, 'compileAsync');
 	const clock = manualClock();
+	useTileSet(testTiles()); // kit floor tiles on every table (#254), until #261's greybox kits
 	const m = await mountFixture(home, sidecar.poses.overview, { clock, tier, reducedMotion });
 	mounted = m;
 	// Once the table is there: its renderer decodes the KTX2 files (models.ts).

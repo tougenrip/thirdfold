@@ -1575,6 +1575,75 @@ library"): the village has cobble and the stone halls flagstone; everywhere else
 layers wait on the table budgets (each surface is about 2 MB at medium, and every layer an environment
 lists is downloaded with it).
 
+### Kit floor tiles (#254)
+
+Man-made floors (and the default ground, where a kit says so) draw as kit tile meshes near the
+camera, at the kit's own scale and independent of the grid (the owner's gap-12 decision on #254:
+the grid is the shader grid's overlay; no tile seam lines up with a cell edge by design).
+
+- **Floors.** `tile` and `grating` are bytes 14 and 15, after #248's six (no migration; v10 stays
+  forward-only, so older builds refuse a table that uses them), rule-neutral like stone, kerbed in
+  `FLOOR_STYLE`, man-made in `MAN_MADE`, with `FLOOR_LOOKS` tints (no surface layer yet: the tint
+  is their blended fallback) and in `KIT_FLOOR_IDS`. They reach players only on explored cells
+  (`knownFloor`; the multi-client test in `game-server.spec.ts`).
+- **Which cells** (`tiledCells`, `world/floor-tiles.ts`, in the `world` chunk): known, a floor the
+  kit tiles (`KitDef.floors`; `plain` for the default ground), and not void, water, a stair run
+  (#255) or a one-wide raised run (bridge decks, #256), all from the world shape, so from what the
+  viewer was sent.
+- **The lattice.** Each floor's tiles lie on a lattice whose pitch is its first tile piece's
+  footprint plus `JOINT` (0.025 u), anchored in the world at `LATTICE_OFFSET` (0.37 pitch), so a
+  tile's size never depends on the cell's. A slot whose footprint lies on tiled cells of its floor
+  at one level is a whole tile, a quarter turn and variant by its hash (`slotSeed`, the same on every
+  client); one that reaches past them is cut at the cell edges it crosses into a piece per tiled
+  cell (scaled to the rectangle; slivers under `SLIVER` of a pitch left out), so nothing overhangs a
+  drop, another floor or unexplored ground. Pieces on a cell with a cliff or void edge
+  (`brinkCells`) are the floor's broken variants. Tops sit at the floor, sunk by up to `TILE_JITTER`
+  (0.02 cell) by hash; no tilt.
+- **The bed.** `tileBeds` gives each vertex of a chunk's top a flag: 1 where every cell it touches is
+  tiled on its owner's level. The terrain kind's `dropped` graph sinks it by `aBed` x
+  `ringUniforms.bed` (`BED_DEPTH` 0.04 cell, 0 on low) x the ring's fade, so the joints show the
+  ground below the tiles and the bed rises back to the floor at the tiling's edge (no crack).
+- **The ring** (`tile-ring.ts`, mirrored by `materials/ring.ts`): `TILE_RING` low 0, medium 12,
+  high 20 cells, ultra the whole table, round the camera's target; the fade runs over `RING_BAND`
+  (3 cells) inside it. **The fade** is geometric, not a dither: across the band each tile sinks by
+  `params.sink` (`TILE_SINK` 0.12 cell) x (1 - fade) while the ground rises from the bed to its
+  floor, so at the ring's edge every tile is under the ground and nothing pops, on every
+  antialiasing mode. The uniforms move with the target each frame (`TileLayer.follow`, from
+  `WorldLayer.tick`).
+- **Drawn** (`floor-tiles-layer.ts` `TileLayer`, in the renderer chunk): one `InstancedMesh` per
+  variant geometry of the kit, on the instanced prop kind (vertex colours and the bake, as props;
+  `worldModify`'s fog and dark), receiving shadows and casting none, never picked. r186 gives every
+  new `InstancedMesh` a vertex stage of its own, so the meshes are a pool made only with a new kit
+  or a table that needs more room (both warm-ups, `onTiles`), sized for the high ring (or the table)
+  and never shrunk; painting, exploring and moving the camera only repack instance matrices and
+  counts. The pool is packed with the pieces within the ring and `REPACK` (2 cells) of the target,
+  nearest chunks first, again once the target has moved `REPACK` cells; an empty mesh keeps one
+  instance at zero scale, so every mesh is drawn and compiled from the first frame. Draws: one per
+  variant of the kit (the issue's per-chunk meshes would compile at runtime). `stats().world.tiles`
+  reports the meshes and the instances packed.
+- **The kit's tiles** come from the environment's kit (`kitTiles`: each floor's `tiles` and
+  `broken` pieces' `body` at its full level). #261's greybox kits tile the village's cobble and
+  wood, the stone halls' default ground, flagstone, stone, wood and `tile` (so the whole monastery
+  is tiled), the cavern's stone, the railcar's default ground, wood and `grating`, and the ghost
+  town's wood; every other floor keeps the blended ground. `useTileSet` puts a stand-in kit on
+  every table for the specs (`testTiles` in `testing.ts`).
+- **Secrecy.** Tiles are built only from the shape (known floors and levels, explored cells): the
+  invariant harness (`world/tile-invariants.ts` `checkTiles`: every piece on known, tiled cells of
+  its floor at one level, its top within `TILE_TOP_DEPTH` (0.035 cell) below the floor) runs on
+  every fixture view and 60 seeded random tables, fogged and not, and a differential test changes
+  every unexplored cell's floor and level in each player view and gets the same tiles
+  (`floor-tiles.spec.ts`). unexplored-black mounts every case with the stand-in kit.
+- **No compiles.** The sink and the bed are a `params.sink` (0 on props) and an attribute and
+  uniforms in the existing graphs; program-count's sweep runs with the stand-in kit and packs the
+  ring round targets across the test world, and `floor-tiles.svelte.spec.ts` (`RENDER_SPECS`) checks
+  the pool, the packing as the target moves, the bed, painting `tile`, `grating` and the rest, the
+  low tier (no tiles, no bed) and that tiles change the picture, with no program between.
+- **Deviations from #254.** Seams don't read as the grid (the owner's decision); explore mode keeps
+  its grid lines; one mesh per variant, packed round the camera, instead of a mesh per variant per
+  chunk; the fade is a sink, not a dither or alpha-to-coverage; no tilt; no `floor.edge` kerbs (the
+  splat's kerb band stays); the pitch is the first tile piece's; goldens and draw budgets wait for
+  #261's kits and #264.
+
 ### The shader grid (#245)
 
 The grid is a gameplay overlay, never the world's art (docs/LOOK.md, gap 12): antialiased lines
@@ -1631,8 +1700,8 @@ projected onto whatever ground the chunks draw, shown as much as the moment need
   off none), with no program between them.
 - **Deviations.** No fade between modes (#167 faded the lines over 150 ms): the issue asks for a
   mode change to be one frame. The highlight is never dimmed at night; the lines are not darkened
-  either, only faded by the fog. Tile seams standing in for explore-mode lines on tiled floors wait
-  for #254; the held key is #279, modes per camera mode #289.
+  either, only faded by the fog. Explore mode keeps its lines on tiled floors (#254): the owner's
+  gap-12 decision makes the grid an overlay that tile seams never stand in for; the held key is #279, modes per camera mode #289.
 
 ### Void cells as chasms (#243)
 

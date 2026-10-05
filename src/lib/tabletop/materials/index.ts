@@ -13,6 +13,7 @@ import * as THREE from 'three/webgpu';
 import { SLOT_NAMES, slotDefault, slotProperty, type SlotName } from './defaults';
 import { LIFT_ATTRIBUTE } from './variation';
 import { DROP_ATTRIBUTE } from './drop';
+import { BED_ATTRIBUTE } from './ring';
 import { NO_DROP } from '../drop-in';
 import { KindPhysicalMaterial, KindStandardMaterial } from './lighting-model';
 import {
@@ -38,6 +39,7 @@ export {
 export { LIFT_ATTRIBUTE } from './variation';
 export { DROP_ATTRIBUTE, dropHeight, dropNow } from './drop';
 export { liftOf } from './lift';
+export { BED_ATTRIBUTE, ringUniforms } from './ring';
 export { repeatFor } from './tiling';
 export type { Params, ParamsInput, ShaderKind } from './kinds';
 export { SLOTS, SLOT_NAMES, blankTexture, prepareSlotTexture, slotDefault } from './defaults';
@@ -146,7 +148,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		macroTint: 0,
 		macroRoughness: 0,
 		bake: 0,
-		translucency: 0
+		translucency: 0,
+		sink: 0
 	};
 	setParams(material, { ...PARAM_DEFAULTS, ...def.defaults, ...options.params });
 	for (const slot of lines ? [] : SLOT_NAMES)
@@ -238,11 +241,22 @@ export function addInstanceTints(geometry: THREE.BufferGeometry, count: number):
 	geometry.setAttribute(LIFT_ATTRIBUTE, new THREE.InstancedBufferAttribute(lift, 2));
 }
 
-/** A per-vertex drop start for a `dropped` material's geometry: none, or `starts` (#249). */
-export function withDrops(geometry: THREE.BufferGeometry, starts?: Float32Array): void {
+/**
+ * A per-vertex drop start for a `dropped` material's geometry: none, or `starts` (#249); and the
+ * bed under floor tiles (`BED_ATTRIBUTE`, #254): none, or `beds`.
+ */
+export function withDrops(
+	geometry: THREE.BufferGeometry,
+	starts?: Float32Array,
+	beds?: Float32Array
+): void {
 	const count = geometry.getAttribute('position').count;
 	const values = starts ?? new Float32Array(count).fill(NO_DROP);
 	geometry.setAttribute(DROP_ATTRIBUTE, new THREE.BufferAttribute(values, 1));
+	geometry.setAttribute(
+		BED_ATTRIBUTE,
+		new THREE.BufferAttribute(beds ?? new Float32Array(count), 1)
+	);
 }
 
 /**

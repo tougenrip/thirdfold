@@ -1,7 +1,7 @@
 // Each built-in environment's greybox kit (#261): its colours, walls, boundary, bridge deck,
 // floor tiles and the roles only it has. scripts/make-kits.ts writes them.
 
-import { cobbleTiles, flagTiles, gratingTile, plankTiles, type Piece, type Style } from './pieces';
+import { cobbleTiles, flagTiles, gratingTile, plankTiles, type Style } from './pieces';
 import { ball, boards, box, cone, courses, cyl, pointed, rubble, type Part } from './parts';
 
 const palisade = (logs: string[], tip: string): Part[] => [
@@ -108,7 +108,8 @@ export const stoneHalls: Style = {
 			plain: flags,
 			flagstone: flags,
 			stone: flags,
-			wood: plankTiles('planks', [s.door, '#856342', '#3a2b2b'])
+			wood: plankTiles('planks', [s.door, '#856342', '#3a2b2b']),
+			tile: flagTiles('tile', ['#93493a', '#b0714c', '#86826f'])
 		};
 	},
 	more: (s) => ({
@@ -278,7 +279,11 @@ export const railcar: Style = {
 	deck: plankDeck,
 	floors: () => {
 		const planks = plankTiles('planks', ['#856342', '#5f4533', '#a7855a']);
-		return { plain: planks, wood: planks };
+		return {
+			plain: planks,
+			wood: planks,
+			grating: { tiles: [gratingTile('grating-a', '#3d4250', '#30323d')], broken: [] }
+		};
 	}
 };
 
@@ -321,9 +326,3 @@ export const ghostTown: Style = {
 };
 
 export const STYLES: Style[] = [village, stoneHalls, cavern, livingCave, railcar, ghostTown];
-
-/** Pieces for #254's `tile` and `grating` floors, which kits name once the floor ids exist. */
-export const KIT_EXTRAS: Record<string, () => Piece[]> = {
-	'stone-halls': () => flagTiles('tile', ['#93493a', '#b0714c', '#86826f']).tiles,
-	railcar: () => [gratingTile('grating-a', '#3d4250', '#30323d')]
-};
