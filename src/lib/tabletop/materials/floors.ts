@@ -21,7 +21,7 @@ import { blankTexture, SLOTS } from './defaults';
 import type { Variant } from './kinds';
 import { worldBox, type Mapping } from './mapping';
 import { SPLAT, STYLE_BY_INDEX } from './splat-weights';
-import { tsl, type N } from './tsl';
+import { pick, tsl, type N } from './tsl';
 
 export type FloorMap = 'albedo' | 'normal' | 'orm';
 export const FLOOR_MAPS: readonly FloorMap[] = ['albedo', 'normal', 'orm'];
@@ -192,7 +192,7 @@ export function floorSurface(variant: Variant): FloorSurface {
 	const [one, two] = [surface(l1, box), surface(l2, box.on(layerSource(l2)))];
 	// Mishkinis's height blend: the higher surface shows through near an even split.
 	const height = (k: typeof one): N =>
-		k.has.select(k.albedo.w, SPLAT.flatHeight).mul(SPLAT.heightRange);
+		pick(k.has, k.albedo.w, L.float(SPLAT.flatHeight)).mul(SPLAT.heightRange);
 	const [p1, p2] = [height(one).add(a1), height(two).add(a2)];
 	const ma = L.max(p1, p2).sub(v.depth);
 	const [b1, b2] = [L.max(p1.sub(ma), 0), L.max(p2.sub(ma), 0)];
@@ -218,15 +218,15 @@ export function floorSurface(variant: Variant): FloorSurface {
 		kerb: L.max(kx, ky),
 		orm: (own) =>
 			tsl.mix(
-				one.has.select(one.mapping.sample('orm'), own),
-				two.has.select(two.mapping.sample('orm'), own),
+				pick(one.has, one.mapping.sample('orm'), own),
+				pick(two.has, two.mapping.sample('orm'), own),
 				share
 			),
 		normal(own) {
 			const blended = tsl
 				.mix(
-					one.has.select(one.mapping.normal(), own),
-					two.has.select(two.mapping.normal(), own),
+					pick(one.has, one.mapping.normal(), own),
+					pick(two.has, two.mapping.normal(), own),
 					share
 				)
 				.normalize();
