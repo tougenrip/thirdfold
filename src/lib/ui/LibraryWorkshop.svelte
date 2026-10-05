@@ -12,10 +12,12 @@
 		normalizeCreatorName,
 		type BuiltInStory,
 		type LibraryKind,
-		type MyAdventure
+		type LibraryListing,
+		type MyAdventure,
+		type SharedListing
 	} from '$lib/game/library';
-	import type { LibraryOp } from '$lib/game/protocol';
-	import { listMine, manageAdventure, publishAdventure } from '$lib/net/library';
+	import { libraryHome, manageAdventure, publishAdventure } from '$lib/net/library';
+	import LibraryAccess from '$lib/ui/LibraryAccess.svelte';
 	import { loadCreatorName, loadGmKey, saveCreatorName } from '$lib/prefs';
 	import { sharedCode } from '$lib/ui/share';
 
@@ -29,13 +31,20 @@
 		builtIn: readonly BuiltInStory[];
 		/** A collection was published: the page shows it. */
 		onPublished?(id: string): void;
+		/** Run something shared with this creator at a new table. */
+		onRun?(item: LibraryListing): void;
 	}
 
-	let { builtIn, onPublished }: Props = $props();
+	let { builtIn, onPublished, onRun }: Props = $props();
 
 	let gmKey = $state(loadGmKey());
 	let creator = $state(loadCreatorName());
 	let mine = $state<MyAdventure[]>([]);
+	/** What other creators shared with this one, and the id they share to. */
+	let shared = $state<SharedListing[]>([]);
+	let creatorId = $state<string | null>(null);
+	/** The item whose sharing is open. */
+	let sharing = $state<string | null>(null);
 	let busy = $state(false);
 	let message = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -50,8 +59,16 @@
 	let tableName = $state('');
 	let tableCode = $state('');
 
-	const ownAdventures = $derived(mine.filter((m) => m.kind === 'adventure'));
-	const ownPacks = $derived(mine.filter((m) => m.kind === 'pack'));
+	// Their own, and what they collaborate on (theirs to put in a collection too).
+	const collaborating = $derived(shared.filter((s) => s.role === 'collaborator'));
+	const ownAdventures = $derived([
+		...mine.filter((m) => m.kind === 'adventure'),
+		...collaborating.filter((m) => m.kind === 'adventure')
+	]);
+	const ownPacks = $derived([
+		...mine.filter((m) => m.kind === 'pack'),
+		...collaborating.filter((m) => m.kind === 'pack')
+	]);
 	const ownCollections = $derived(mine.filter((m) => m.kind === 'collection'));
 	const KIND_WORD: Record<LibraryKind, string> = {
 		adventure: 'adventure',
@@ -59,14 +76,27 @@
 		collection: 'collection'
 	};
 
+	function home(h: { mine: MyAdventure[]; shared?: SharedListing[]; creatorId?: string }) {
+		mine = h.mine;
+		if (h.shared) shared = h.shared;
+		if (h.creatorId) creatorId = h.creatorId;
+	}
+
 	$effect(() => {
 		const key = gmKey;
-		if (!key) return void (mine = []);
-		listMine(key).then(
-			(list) => (mine = list),
-			(err: Error) => (error = err.message)
-		);
+		if (!key) return void ((mine = []), (shared = []), (creatorId = null));
+		libraryHome(key).then(home, (err: Error) => (error = err.message));
 	});
+
+	async function copyId() {
+		if (!creatorId) return;
+		try {
+			await navigator.clipboard.writeText(creatorId);
+			message = 'Copied your creator id.';
+		} catch {
+			message = `Your creator id: ${creatorId}`;
+		}
+	}
 
 	function name(): string | null {
 		const n = normalizeCreatorName(creator);
@@ -92,7 +122,7 @@
 			const out = await publishAdventure({ gmKey, creator: n, file, kind });
 			gmKey = out.gmKey;
 			message = done(out.version);
-			mine = await listMine(out.gmKey);
+			home(await libraryHome(out.gmKey));
 			return out.adventureId;
 		} catch (err) {
 			error = (err as Error).message;
@@ -168,20 +198,22 @@
 		}
 	}
 
-	async function manage(item: MyAdventure, op: LibraryOp) {
+	async function remove(item: MyAdventure) {
 		if (!gmKey) return;
-		if (
-			op === 'remove' &&
-			!confirm(`Remove “${item.title}” and all its versions from the library?`)
-		)
-			return;
+		if (!confirm(`Remove “${item.title}” and all its versions from the library?`)) return;
 		error = message = null;
 		try {
-			mine = await manageAdventure(gmKey, item.id, op);
+			mine = await manageAdventure(gmKey, item.id, 'remove');
 		} catch (err) {
 			error = (err as Error).message;
 		}
 	}
+
+	const ACCESS_WORD = {
+		public: 'in the library',
+		restricted: 'restricted: only those you share it with',
+		private: 'private: not in the library'
+	} as const;
 </script>
 
 <section class="workshop" aria-labelledby="workshop-title">
@@ -235,7 +267,7 @@
 			</label>
 			<fieldset>
 				<legend>Adventures, in the order they are played ({chosen.length})</legend>
-				{#each [...builtIn.map( (b) => ({ id: b.id, title: b.title, note: 'comes with thirdfold' }) ), ...ownAdventures.map( (a) => ({ id: a.id, title: a.title, note: `yours, version ${a.version}` }) )] as a (a.id)}
+				{#each [...builtIn.map( (b) => ({ id: b.id, title: b.title, note: 'comes with thirdfold' }) ), ...ownAdventures.map( (a) => ({ id: a.id, title: a.title, note: 'role' in a ? `${a.creator.name}’s, version ${a.version}` : `yours, version ${a.version}` }) )] as a (a.id)}
 					<label class="option">
 						<input
 							type="checkbox"
@@ -259,7 +291,10 @@
 							checked={packs.includes(p.id)}
 							onchange={() => (packs = toggle(packs, p.id, COLLECTION_LIMITS.packs))}
 						/>
-						{p.title} <span class="muted small">version {p.version}</span>
+						{p.title}
+						<span class="muted small"
+							>{'role' in p ? `${p.creator.name}’s, ` : ''}version {p.version}</span
+						>
 					</label>
 				{:else}
 					<p class="muted small">Publish homebrew first to add it here.</p>
@@ -296,27 +331,68 @@
 	{#if message}<p class="ok" role="status">{message}</p>{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 
-	{#if ownPacks.length || ownCollections.length}
+	{#if creatorId}
+		<p class="muted small">
+			Your creator id is <code>{creatorId}</code>
+			<button type="button" class="ghost link" onclick={copyId}>Copy</button>: give it to a creator
+			who wants to share something with you.
+		</p>
+	{/if}
+
+	{#if mine.length}
 		<h3>Published</h3>
 		<ul class="mine">
-			{#each [...ownCollections, ...ownPacks] as item (item.id)}
+			{#each [...ownCollections, ...mine.filter((m) => m.kind !== 'collection')] as item (item.id)}
 				<li>
 					<span>
 						<strong>{item.title}</strong>
 						<span class="muted small"
-							>{KIND_WORD[item.kind]} · version {item.version}{item.listed
-								? ''
-								: ' · not in the library'}</span
+							>{KIND_WORD[item.kind]} · version {item.version} · {ACCESS_WORD[item.access]}{item
+								.grants.length
+								? ` · shared ${item.grants.filter((g) => g.revoked === null).length}×`
+								: ''}</span
 						>
 					</span>
 					<span class="actions">
-						<button type="button" onclick={() => manage(item, item.listed ? 'unlist' : 'list')}>
-							{item.listed ? 'Take out' : 'Put back'}
+						<button
+							type="button"
+							aria-expanded={sharing === item.id}
+							onclick={() => (sharing = sharing === item.id ? null : item.id)}
+						>
+							{sharing === item.id ? 'Done' : 'Access and sharing'}
 						</button>
-						<button type="button" class="danger" onclick={() => manage(item, 'remove')}>
-							Remove
-						</button>
+						<button type="button" class="danger" onclick={() => remove(item)}>Remove</button>
 					</span>
+					{#if sharing === item.id && gmKey}
+						<div class="access-wrap">
+							<LibraryAccess {item} {gmKey} onChange={home} />
+						</div>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	{#if shared.length}
+		<h3>Shared with you</h3>
+		<ul class="mine">
+			{#each shared as item (item.id)}
+				<li>
+					<span>
+						<strong>{item.title}</strong>
+						<span class="muted small"
+							>{KIND_WORD[item.kind]} by {item.creator.name} · {item.role === 'collaborator'
+								? 'you collaborate on it'
+								: 'yours to play'}{item.grant.expires
+								? ` · until ${new Date(item.grant.expires).toLocaleString()}`
+								: ''}</span
+						>
+					</span>
+					{#if item.kind !== 'pack' && onRun}
+						<span class="actions">
+							<button type="button" onclick={() => onRun(item)}>Run it</button>
+						</span>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -443,6 +519,13 @@
 	.actions {
 		display: flex;
 		gap: var(--sp-3);
+	}
+	.access-wrap {
+		flex-basis: 100%;
+	}
+	code {
+		font-size: var(--fs-xs);
+		overflow-wrap: anywhere;
 	}
 	.ok {
 		color: var(--ok);

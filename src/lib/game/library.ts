@@ -3,6 +3,8 @@
 // shapes here are what the wire carries; the library itself lives on the game
 // server (server/library-store.ts). Plain TypeScript, relative imports only.
 
+import type { Grant, GrantRole, LibraryAccess } from './access';
+
 /** A published adventure's id: 128 random bits, hex. */
 export const LIBRARY_ID_PATTERN = /^[0-9a-f]{32}$/;
 /** A creator's public id (derived from their GM key's hash; never the key or the hash itself). */
@@ -58,6 +60,8 @@ export interface LibraryListing {
 	publishedAt: string;
 	plays: number;
 	rating: Rating | null;
+	/** Who may find, open and play it (milestone 54, src/lib/game/access.ts). */
+	access: LibraryAccess;
 }
 
 /** What an adventure file holds, counted: what a GM weighs when choosing one. */
@@ -89,6 +93,14 @@ export interface StoryDetail {
 /** One of a creator's own adventures, listed in the library or not. */
 export interface MyAdventure extends LibraryListing {
 	listed: boolean;
+	/** Every grant on it, those revoked or run out too (newest first). */
+	grants: Grant[];
+}
+
+/** Something another creator shared with this one: its listing, the role and the grant. */
+export interface SharedListing extends LibraryListing {
+	role: GrantRole;
+	grant: Grant;
 }
 
 /** A game its GM listed for anyone to join. */

@@ -97,3 +97,44 @@ describe('a story from a collection', () => {
 		expect(forge(() => undefined).ok).toBe(true);
 	});
 });
+
+describe('the grants a story rests on (milestone 54)', () => {
+	const grant = (item: string, n: string) => ({ item, grant: n.repeat(32), role: 'member' });
+
+	it('keeps them through a save and a restart', () => {
+		ok(beginCollection(room, source(), [{ id: packId, owner: '0123456789abcdef' }]));
+		room.adventure!.entitlements = [
+			{ item: 'c'.repeat(32), grant: '1'.repeat(32), role: 'member' },
+			{ item: 'e'.repeat(32), grant: '2'.repeat(32), role: 'collaborator' }
+		];
+		const scene = exportScene(room, 'Cold Hill');
+		const back = ok(readAdventure(scene.adventure!, scene)).adventure;
+		expect(back.entitlements).toEqual(room.adventure!.entitlements);
+		ok(control(room, gm, 'restart'));
+		expect(room.adventure!.entitlements).toHaveLength(2);
+	});
+
+	it('refuses ones that are malformed, repeated, or for a story from no library', () => {
+		ok(beginCollection(room, source(), [{ id: packId, owner: '0123456789abcdef' }]));
+		const scene = exportScene(room, 'Cold Hill');
+		const withThese = (entitlements: unknown, keep = true) => {
+			const state: Record<string, unknown> = {
+				...(scene.adventure!.state as Record<string, unknown>),
+				entitlements
+			};
+			if (!keep) delete state.collection;
+			return readAdventure({ ...scene.adventure!, state }, scene);
+		};
+		expect(withThese([grant('c'.repeat(32), '1')]).ok).toBe(true);
+		for (const bad of [
+			'all of them',
+			[grant('nope', '1')],
+			[{ ...grant('c'.repeat(32), '1'), role: 'owner' }],
+			[grant('c'.repeat(32), '1'), grant('c'.repeat(32), '2')],
+			[{ ...grant('c'.repeat(32), '1'), extra: true }]
+		])
+			expect(withThese(bad).ok).toBe(false);
+		// A built-in story from no collection rests on no grant.
+		expect(withThese([grant('c'.repeat(32), '1')], false).ok).toBe(false);
+	});
+});

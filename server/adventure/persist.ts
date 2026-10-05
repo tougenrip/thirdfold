@@ -27,6 +27,7 @@ import {
 	LIBRARY_LIMITS,
 	normalizeCreatorName
 } from '../../src/lib/game/library';
+import { parseEntitlements } from '../../src/lib/game/access';
 import { resolveAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { CLASSIC } from '../rules/classic';
@@ -167,6 +168,9 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 				: {}),
 			...(adventure.collection
 				? { collection: JSON.parse(JSON.stringify(adventure.collection)) }
+				: {}),
+			...(adventure.entitlements?.length
+				? { entitlements: adventure.entitlements.map((e) => ({ ...e })) }
 				: {}),
 			decisions: Object.fromEntries(
 				[...adventure.decisions].map(([id, d]) => [id, { option: d.option, by: d.by }])
@@ -624,6 +628,11 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		data.collection === undefined
 			? undefined
 			: collectionSource(data.collection, base.id, library, scope);
+	// The grants its library content was played by (whether they still hold is the game server's to ask).
+	const entitlements =
+		data.entitlements === undefined ? undefined : parseEntitlements(data.entitlements);
+	check(entitlements !== null, 'entitlements');
+	check(!entitlements?.length || !!library || !!collection, 'entitlements');
 
 	const decisions = new Map<string, Decision>();
 	const decisionIds = Object.keys(A.decisions);
@@ -924,6 +933,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		...(notes.size ? { notes } : {}),
 		...(library ? { library } : {}),
 		...(collection ? { collection } : {}),
+		...(entitlements?.length ? { entitlements } : {}),
 		decisions,
 		pending,
 		encounters,

@@ -219,13 +219,39 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLibraryStore (live Sup
 			about: '',
 			file: {}
 		});
+		await store.grant(id, owner, {
+			target: { kind: 'creator', id: '1'.repeat(16) },
+			role: 'member'
+		});
 		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
-		for (const table of ['library_adventures', 'library_versions', 'library_ratings']) {
+		for (const table of [
+			'library_adventures',
+			'library_versions',
+			'library_ratings',
+			'library_grants'
+		]) {
 			const read = await browser.from(table).select('*');
 			expect(read.data ?? []).toEqual([]);
 		}
 		const write = await browser.from('library_adventures').update({ plays: 999 }).eq('id', id);
 		expect(write.error).not.toBeNull();
+		// Nobody grants themselves anything from a browser.
+		const forged = await browser.from('library_grants').insert({
+			id: '2'.repeat(32),
+			adventure_id: id,
+			target_kind: 'creator',
+			target_id: '3'.repeat(16),
+			role: 'collaborator',
+			granted_by: '0'.repeat(16),
+			granted_at: new Date().toISOString()
+		});
+		expect(forged.error).not.toBeNull();
+		const unrestrict = await browser
+			.from('library_adventures')
+			.update({ restricted: false })
+			.eq('id', id);
+		expect(unrestrict.error).not.toBeNull();
+		expect((await store.get(id))?.grants).toHaveLength(1);
 		const play = await browser.rpc('library_play', { target: id });
 		expect(play.error).not.toBeNull();
 		const rate = await browser.rpc('library_rate', { target: id, who: owner, score: 5 });
@@ -241,6 +267,44 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLibraryStore (live Sup
 		});
 		expect(publish.error).not.toBeNull();
 		expect((await store.get(id))?.listing).toMatchObject({ plays: 0, version: 1, rating: null });
+		await store.remove(id, owner);
+	});
+
+	it('rejects grants that are not grants at the database too', async () => {
+		const store = SupabaseLibraryStore.connect(url!, serviceKey!);
+		const owner = 'e'.repeat(64);
+		const { id } = await store.publish({
+			owner,
+			creatorName: 'M',
+			title: 'G',
+			about: '',
+			file: {}
+		});
+		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+		const row = {
+			adventure_id: id,
+			target_kind: 'creator',
+			target_id: '3'.repeat(16),
+			role: 'member',
+			granted_by: '0'.repeat(16),
+			granted_at: new Date().toISOString()
+		};
+		const bad = [
+			{ ...row, id: 'x' },
+			{ ...row, id: '4'.repeat(32), target_id: 'nope' },
+			// A table is never a collaborator, and its grant always runs out.
+			{ ...row, id: '5'.repeat(32), target_kind: 'room', target_id: 'ABC234', expires_at: null },
+			{
+				...row,
+				id: '6'.repeat(32),
+				target_kind: 'collection',
+				target_id: '7'.repeat(32),
+				role: 'collaborator'
+			},
+			{ ...row, id: '8'.repeat(32), role: 'owner' }
+		];
+		for (const b of bad)
+			expect((await admin.from('library_grants').insert(b)).error).not.toBeNull();
 		await store.remove(id, owner);
 	});
 

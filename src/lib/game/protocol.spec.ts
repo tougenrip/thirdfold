@@ -230,6 +230,47 @@ describe('library messages', () => {
 		expect(
 			parseClientMessage({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'sell' })
 		).toBeNull();
+		expect(
+			parseClientMessage({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'restrict' })
+		).toEqual({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'restrict' });
+		// Opening one with a key: what was shared with its holder.
+		expect(parseClientMessage({ type: 'library_story', id: lib, gmKey: key })).toEqual({
+			type: 'library_story',
+			id: lib,
+			gmKey: key
+		});
+		expect(parseClientMessage({ type: 'library_story', id: lib, gmKey: 'x' })).toBeNull();
+		// Grants: checked whole; a collaborator is a person, a table's grant runs out.
+		const grant = { target: { kind: 'creator', id: 'e'.repeat(16) }, role: 'member', x: 1 };
+		expect(
+			parseClientMessage({ type: 'library_grant', gmKey: key, adventureId: lib, grant })
+		).toBeNull();
+		const plain = { target: grant.target, role: grant.role };
+		expect(
+			parseClientMessage({ type: 'library_grant', gmKey: key, adventureId: lib, grant: plain })
+		).toEqual({ type: 'library_grant', gmKey: key, adventureId: lib, grant: plain });
+		expect(
+			parseClientMessage({
+				type: 'library_grant',
+				gmKey: key,
+				adventureId: lib,
+				grant: { target: { kind: 'room', id: 'ABC234' }, role: 'member' }
+			})
+		).toMatchObject({ grant: { hours: 24 } });
+		expect(
+			parseClientMessage({
+				type: 'library_grant',
+				gmKey: key,
+				adventureId: lib,
+				grant: { target: { kind: 'room', id: 'ABC234' }, role: 'collaborator' }
+			})
+		).toBeNull();
+		expect(
+			parseClientMessage({ type: 'library_revoke', gmKey: key, adventureId: lib, grantId: lib })
+		).toEqual({ type: 'library_revoke', gmKey: key, adventureId: lib, grantId: lib });
+		expect(
+			parseClientMessage({ type: 'library_revoke', gmKey: key, adventureId: lib, grantId: '1' })
+		).toBeNull();
 		expect(parseClientMessage({ type: 'games_list' })).toEqual({ type: 'games_list' });
 		expect(parseClientMessage({ type: 'room_listing', listed: true })).toEqual({
 			type: 'room_listing',

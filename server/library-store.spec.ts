@@ -78,6 +78,7 @@ describe('searching and sorting the library', () => {
 		publishedAt: '2026-01-01T00:00:00.000Z',
 		plays: 0,
 		rating: null,
+		access: 'public',
 		...over
 	});
 

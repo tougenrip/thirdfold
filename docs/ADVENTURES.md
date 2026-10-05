@@ -402,8 +402,44 @@ It also names the rules all of them play by. The server fills these in from the 
 - a table must be one of the shared ones;
 - every adventure must play by the collection's rules.
 
-A library piece may be used when it is listed or belongs to the collection's creator. The `CollectionReport` gives every piece a status: ready, missing, unavailable (taken out of the library), doesn't fit (other rules) or broken. A collection is published only when every piece is ready, and checked again each time anyone looks inside (`collection_check`) or a GM runs it.
+A library piece may be used when the collection may include it (see "Access and sharing" below): it is public, its creator's own, its creator is a collaborator on it, or it was granted to this collection. The `CollectionReport` gives every piece a status: ready, missing, unavailable (taken out of the library, or restricted and not shared with the collection), doesn't fit (other rules) or broken. A collection is published only when every piece is ready, and checked again each time anyone looks inside (`collection_check`) or a GM runs it.
 
 **Running it.** `adventure_start` with `collectionId` starts its first adventure (or `entry`), with its homebrew attached and credited to whoever published each pack. The story keeps the collection as `AdventureState.collection`: its id and version, its adventures and which one this is, and the packs and tables as they were found. The Adventure panel shows it, and the GM can start its other adventures at the same version.
 
 A save carries the collection, the adventure's file and the packs as written. Reading it back checks that the story is the adventure the collection says and that every one of its packs is among the story's. A saved session therefore names exactly the set it started with, even if the creator later changes or removes a piece in the library. Milestone 55 completes pinning for whole dependency graphs.
+
+## Access and sharing
+
+Every library item (an adventure, a homebrew pack or a collection) has an access level and may be shared (milestone 54, `src/lib/game/access.ts`). The server decides every request against them (`server/library-access.ts` `decide`); the page only shows what it is told.
+
+| Access     | Who finds it                             | Who opens, plays and includes it         |
+| ---------- | ---------------------------------------- | ---------------------------------------- |
+| Public     | anyone, in the library                   | anyone                                   |
+| Restricted | anyone, in the library                   | its owner, and whoever it is shared with |
+| Private    | its owner, and whoever it is shared with | the same                                 |
+
+Its owner (the GM key that published it) may do anything with it. Sharing is a **grant** of a role to:
+
+- **a creator**, by their public creator id (shown under "Your homebrew and collections"). A _member_ may find, open and play it. A _collaborator_ may also add versions (published under the owner's name), put it in their own collections and export what they play.
+- **a collection**, by its library id: anyone who runs that collection plays it there, and nowhere else.
+- **a table**, by its room code, for at most a day: whoever runs that table plays it.
+
+A grant records who gave it and when, may run out (a table's always does), and is revoked rather than deleted, so its history stays on the item. At most 50 are in force on one item.
+
+What each request needs:
+
+| Request                                                        | Needs                                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `library_list`                                                 | the item listed (public or restricted)                             |
+| `library_story`, `collection_check` (with the asker's `gmKey`) | read: public, owner or a grant                                     |
+| `adventure_start` (`libraryId`, `collectionId`)                | use, by the table's GM key or room                                 |
+| a piece of a collection                                        | include: public, owner, collaborator, or granted to the collection |
+| `library_publish` with an id                                   | publish: owner or collaborator                                     |
+| `library_manage`, `library_grant`, `library_revoke`            | owner                                                              |
+| `scene_export` of a story                                      | every grant it was played by is still the GM's own as collaborator |
+
+Whatever the asker may not know of reads exactly as something that isn't there (`adventure_not_found`, a null report), so guessing ids reveals nothing. A restricted item says it is shared with chosen GMs (`locked`).
+
+**Revoking.** A story records the grants its library content was played by (`AdventureState.entitlements`: the item, the grant and its role; saved with the story). A table already playing goes on. A save of it, though, only opens again (`scene_load`, `scene_import`, Continue) while every one of those grants is in force, and only a collaborator exports. A story played from public content, or its owner's own, rests on no grant and loads as it always did.
+
+Creators manage all of it from the library page: each published item's **Access and sharing** sets its level, lists its grants with Revoke, and shares it. **Shared with you** lists what others shared with this creator, to run.

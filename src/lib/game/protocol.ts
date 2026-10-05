@@ -52,9 +52,11 @@ import {
 	type LibrarySort,
 	type MyAdventure,
 	type PublicGame,
+	type SharedListing,
 	type StoryDetail
 } from './library';
 import type { CollectionReport } from './collection';
+import { GRANT_ID_PATTERN, parseNewGrant, type NewGrant } from './access';
 import { MAX_LEVEL } from './terrain';
 import { parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
@@ -278,9 +280,16 @@ export type ClientMessage =
 	 * their `gmKey`. Replies with collection_report.
 	 */
 	| { type: 'collection_check'; id: string; version?: number; gmKey?: string }
-	/** Anyone: one listed adventure, opened (its opening and facts). Replies with library_story. */
-	| { type: 'library_story'; id: string }
-	/** A creator's own published adventures, listed or not, by their GM key. */
+	/**
+	 * Anyone: one adventure, opened (its opening and facts), when they may
+	 * read it: a public one, or with the `gmKey` of its owner or of someone
+	 * it was shared with. Replies with library_story.
+	 */
+	| { type: 'library_story'; id: string; gmKey?: string }
+	/**
+	 * A creator's own published items, listed or not, and what others shared
+	 * with them, by their GM key. Replies with library_mine.
+	 */
 	| { type: 'library_mine'; gmKey: string }
 	/**
 	 * Publishes an adventure file (checked in full) under a creator name; with
@@ -296,8 +305,15 @@ export type ClientMessage =
 			/** What `file` is: an adventure (the default), a homebrew pack or a collection. */
 			kind?: LibraryKind;
 	  }
-	/** A creator lists, unlists or removes one of their adventures. Replies with library_mine. */
+	/**
+	 * A creator makes one of their items public (`list`), private (`unlist`)
+	 * or restricted (`restrict`), or removes it. Replies with library_mine.
+	 */
 	| { type: 'library_manage'; gmKey: string; adventureId: string; op: LibraryOp }
+	/** A creator grants a role on one of their items (milestone 54). Replies with library_mine. */
+	| { type: 'library_grant'; gmKey: string; adventureId: string; grant: NewGrant }
+	/** A creator revokes a grant on one of their items. Replies with library_mine. */
+	| { type: 'library_revoke'; gmKey: string; adventureId: string; grantId: string }
 	/** Anyone: the games GMs have listed. */
 	| { type: 'games_list' }
 	/** Player: play this character (one each). */
@@ -394,7 +410,7 @@ export const NEW_TABLE_LIMITS = { min: 4, max: 64 } as const;
 
 export type AdventureControl = 'end_turn' | 'restart' | 'end';
 
-export const LIBRARY_OPS = ['list', 'unlist', 'remove'] as const;
+export const LIBRARY_OPS = ['list', 'unlist', 'restrict', 'remove'] as const;
 export type LibraryOp = (typeof LIBRARY_OPS)[number];
 
 /**
@@ -623,12 +639,24 @@ export type ServerMessage =
 			/** The adventures that come with thirdfold (on the whole library, not a creator's page). */
 			builtIn: BuiltInStory[];
 	  }
-	/** A collection and what became of everything it names; null when there is no such collection. */
-	| { type: 'collection_report'; report: CollectionReport | null }
-	/** One adventure opened, or null when there is no such listed adventure. */
-	| { type: 'library_story'; story: StoryDetail | null }
-	/** To a creator: their own adventures. */
-	| { type: 'library_mine'; adventures: MyAdventure[] }
+	/**
+	 * A collection and what became of everything it names; null when there is
+	 * no such collection for the asker (`locked` when it is listed but
+	 * restricted to those it was shared with).
+	 */
+	| { type: 'collection_report'; report: CollectionReport | null; locked?: boolean }
+	/** One adventure opened, or null when there is none the asker may open (`locked`: restricted). */
+	| { type: 'library_story'; story: StoryDetail | null; locked?: boolean }
+	/**
+	 * To a creator: their own items (with their grants), what others shared
+	 * with them, and their public creator id (what others grant to).
+	 */
+	| {
+			type: 'library_mine';
+			adventures: MyAdventure[];
+			shared: SharedListing[];
+			creatorId: string;
+	  }
 	/** To the creator who published: where it is. `gmKey` only when the server just issued it. */
 	| { type: 'library_published'; adventureId: string; version: number; gmKey?: string }
 	/** To whoever asked: the games open to join. */
@@ -1109,7 +1137,13 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				? { type: 'room_listing', listed: data.listed }
 				: null;
 		case 'library_story':
-			return isLibraryId(data.id) ? { type: 'library_story', id: data.id } : null;
+			if (!isLibraryId(data.id)) return null;
+			if (data.gmKey !== undefined && !isGmKey(data.gmKey)) return null;
+			return {
+				type: 'library_story',
+				id: data.id,
+				...(data.gmKey !== undefined ? { gmKey: data.gmKey } : {})
+			};
 		case 'library_list': {
 			const out: Extract<ClientMessage, { type: 'library_list' }> = { type: 'library_list' };
 			if (data.query !== undefined) {
@@ -1165,6 +1199,30 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 						gmKey: data.gmKey,
 						adventureId: data.adventureId,
 						op: data.op as LibraryOp
+					}
+				: null;
+		case 'library_grant': {
+			if (!isGmKey(data.gmKey) || !isLibraryId(data.adventureId)) return null;
+			const parsed = parseNewGrant(data.grant);
+			return parsed.ok
+				? {
+						type: 'library_grant',
+						gmKey: data.gmKey,
+						adventureId: data.adventureId,
+						grant: parsed.grant
+					}
+				: null;
+		}
+		case 'library_revoke':
+			return isGmKey(data.gmKey) &&
+				isLibraryId(data.adventureId) &&
+				typeof data.grantId === 'string' &&
+				GRANT_ID_PATTERN.test(data.grantId)
+				? {
+						type: 'library_revoke',
+						gmKey: data.gmKey,
+						adventureId: data.adventureId,
+						grantId: data.grantId
 					}
 				: null;
 		case 'games_list':

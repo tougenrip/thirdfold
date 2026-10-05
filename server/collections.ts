@@ -5,8 +5,10 @@
 // every adventure and pack plays by the collection's rules. The report says
 // what became of each piece; nothing starts unless every one is there.
 //
-// A library piece is available to a collection when it is listed or is the
-// collection's creator's own (milestone 54 brings grants for the rest).
+// A library piece is available to a collection when the collection may
+// include it (milestone 54, server/library-access.ts): it is public, its
+// creator's own, the creator is a collaborator on it, or it was granted to
+// the collection. A piece the asker may not even know of reads as missing.
 
 import { loadAdventureFile } from '../src/lib/adventure/file';
 import {
@@ -20,7 +22,9 @@ import {
 	type TableRef
 } from '../src/lib/game/collection';
 import type { Creator } from '../src/lib/game/library';
+import type { Entitlement } from '../src/lib/game/access';
 import { builtInAdventures } from './adventure/registry';
+import { decide, entitlementOf } from './library-access';
 import type { LibraryCopy, LibraryStore } from './library-store';
 import { CLASSIC } from './rules/classic';
 import { findRuleset, type RulesetRef } from './rules/ruleset';
@@ -35,7 +39,7 @@ export interface Shelves {
 /** An adventure of a collection, found: how to start it. */
 export type FoundAdventure =
 	| { ref: { builtIn: string }; title: string }
-	| { ref: PinnedRef; title: string; copy: LibraryCopy };
+	| { ref: PinnedRef; title: string; copy: LibraryCopy; entitlement: Entitlement | null };
 
 /** A pack of a collection, found and held by its rules. */
 export interface FoundPack {
@@ -45,6 +49,8 @@ export interface FoundPack {
 	packId: string;
 	/** The public creator id of whoever published it. */
 	creator: Creator;
+	/** The grant it is carried by, when it isn't public or the collection creator's own. */
+	entitlement: Entitlement | null;
 }
 
 /** Everything a collection names, found and fitting: what a table starts from. */
@@ -69,22 +75,40 @@ function rulesOfAdventure(ref: AdventureRef, copy?: LibraryCopy): RulesetRef | n
 	return loaded.ok ? (loaded.adventure.rules ?? CLASSIC) : null;
 }
 
-/** A library item at its version, when it is of the kind and the collection may use it. */
+/**
+ * A library item at its version, when it is of the kind and the collection
+ * (made by `owner`, and `collection` once it has an id) may include it.
+ */
 async function pinned(
 	shelves: Shelves,
 	ref: PinnedRef,
 	kind: 'adventure' | 'pack',
-	owner: string
-): Promise<{ copy: LibraryCopy } | { status: 'missing' | 'unavailable'; message: string }> {
+	owner: string,
+	collection: string | null
+): Promise<
+	| { copy: LibraryCopy; entitlement: Entitlement | null }
+	| { status: 'missing' | 'unavailable'; message: string; title?: string }
+> {
 	const copy = await shelves.library.get(ref.library, ref.version);
-	if (!copy || copy.listing.kind !== kind)
-		return { status: 'missing', message: `No ${kind} ${refName(ref)} in the library.` };
-	if (!copy.listed && copy.owner !== owner)
+	const missing = {
+		status: 'missing' as const,
+		message: `No ${kind} ${refName(ref)} in the library.`
+	};
+	if (!copy || copy.listing.kind !== kind) return missing;
+	const decision = decide(copy, { owner, collection }, 'include');
+	if (!decision.ok) {
+		// One the asker can't know of is as good as not there.
+		if (!decision.visible) return missing;
 		return {
 			status: 'unavailable',
-			message: `${copy.listing.title} was taken out of the library by its creator.`
+			title: copy.listing.title,
+			message:
+				copy.listing.access === 'restricted'
+					? `${copy.listing.title} is shared only with those its creator chooses: ask them to grant this collection or you.`
+					: `${copy.listing.title} was taken out of the library by its creator.`
 		};
-	return { copy };
+	}
+	return { copy, entitlement: entitlementOf(ref.library, decision) };
 }
 
 /**
@@ -94,13 +118,14 @@ async function pinned(
 export async function withRules(
 	shelves: Shelves,
 	draft: CollectionDraft,
-	owner: string
+	owner: string,
+	collection: string | null = null
 ): Promise<CollectionFile | null> {
 	if (draft.rules) return draft as CollectionFile;
 	const first = draft.adventures[0];
 	let copy: LibraryCopy | undefined;
 	if (first && !('builtIn' in first)) {
-		const found = await pinned(shelves, first, 'adventure', owner);
+		const found = await pinned(shelves, first, 'adventure', owner, collection);
 		if (!('copy' in found)) return null;
 		copy = found.copy;
 	}
@@ -110,13 +135,15 @@ export async function withRules(
 
 /**
  * Looks for everything a collection names, as its creator (`owner`, the
- * key hash) may use it. Every piece gets a line in the report; `resolved`
- * is there only when every line is ok.
+ * key hash) may include it in this collection (`collection`, its library id
+ * once it has one). Every piece gets a line in the report; `resolved` is
+ * there only when every line is ok.
  */
 export async function resolveCollection(
 	shelves: Shelves,
 	file: CollectionFile,
-	owner: string
+	owner: string,
+	collection: string | null = null
 ): Promise<{ items: DependencyReport[]; resolved: Resolved | null }> {
 	const items: DependencyReport[] = [];
 	const rules = file.rules;
@@ -162,7 +189,7 @@ export async function resolveCollection(
 			adventures.push({ ref: { builtIn: ref.builtIn }, title: found.title });
 			continue;
 		}
-		const found = await pinned(shelves, ref, 'adventure', owner);
+		const found = await pinned(shelves, ref, 'adventure', owner, collection);
 		if (!('copy' in found)) {
 			Object.assign(line, found);
 			continue;
@@ -181,7 +208,7 @@ export async function resolveCollection(
 			});
 			continue;
 		}
-		adventures.push({ ref, title: line.title!, copy: found.copy });
+		adventures.push({ ref, title: line.title!, copy: found.copy, entitlement: found.entitlement });
 	}
 
 	const packs: FoundPack[] = [];
@@ -195,7 +222,7 @@ export async function resolveCollection(
 			message: ''
 		};
 		items.push(line);
-		const found = await pinned(shelves, ref, 'pack', owner);
+		const found = await pinned(shelves, ref, 'pack', owner, collection);
 		if (!('copy' in found)) {
 			Object.assign(line, found);
 			continue;
@@ -220,7 +247,8 @@ export async function resolveCollection(
 			ref,
 			title: line.title!,
 			packId: held.id,
-			creator: { ...found.copy.listing.creator }
+			creator: { ...found.copy.listing.creator },
+			entitlement: found.entitlement
 		});
 	}
 

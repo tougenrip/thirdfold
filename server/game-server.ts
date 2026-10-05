@@ -40,6 +40,8 @@ import { parseCollectionFile, type CollectionFile } from '../src/lib/game/collec
 import { COLLECTION_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '../src/lib/game/file-limits';
 import { creatorIdOf, LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
 import { problemsOf, reportOf, resolveCollection, withRules, type Shelves } from './collections';
+import { decide, entitlementOf, stillHolds, type Subject } from './library-access';
+import { parseEntitlements, type Entitlement } from '../src/lib/game/access';
 import { applyScene, catchUpLights, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { keyOwner, newGmKey } from './gm-keys';
@@ -150,6 +152,17 @@ interface Seat {
 }
 
 /** Starts the game server, first bringing back the live rooms in `options.roomStore`, if any. */
+/**
+ * The grants a saved story's library content was played by (milestone 54),
+ * read off a scene file before it is parsed in full: whatever is malformed
+ * there is left for readAdventure to refuse.
+ */
+function savedEntitlements(data: unknown): Entitlement[] {
+	const story = (data as { adventure?: { state?: { entitlements?: unknown } } } | null)?.adventure;
+	const raw = story && typeof story === 'object' ? story.state?.entitlements : undefined;
+	return (raw !== undefined && parseEntitlements(raw)) || [];
+}
+
 export async function startGameServer(options: GameServerOptions): Promise<GameServer> {
 	const restored: Room[] = [];
 	for (const raw of options.roomStore ? await options.roomStore.loadAll() : []) {
@@ -191,8 +204,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const libraryStore = options.libraryStore ?? new MemoryLibraryStore();
 	// Browsing the library and the open games: a few asks a second per connection.
 	const browseLimiter = new RateLimiter(10, 2);
-	// Publishing and changing the library: a handful, then one every 20 s per creator.
+	// Publishing to the library: a handful, then one every 20 s per creator.
 	const publishLimiter = new RateLimiter(5, 0.05);
+	// Managing what is published (access, grants, removal) and listing one's own: a creator's
+	// round of changes, then one a second.
+	const manageLimiter = new RateLimiter(20, 1);
 	/** Each connection's key for the browse limit (connections are not seated when browsing). */
 	const connectionIds = new WeakMap<WebSocket, string>();
 	let nextConnection = 0;
@@ -299,6 +315,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'library_mine':
 			case 'library_publish':
 			case 'library_manage':
+			case 'library_grant':
+			case 'library_revoke':
 			case 'collection_check':
 			case 'games_list':
 				// The library and the open games: at a table or not.
@@ -467,6 +485,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				return sendError(ws, 'persistence_failed', 'That save could not be opened. Try again.');
 			}
 			if (saved === null) return sendError(ws, 'scene_not_found', 'That save no longer exists.');
+			const refused = await withdrawn(saved);
+			if (refused) return sendError(ws, 'forbidden', refused);
 		}
 		// The socket may have gone, or been seated, while storage was busy.
 		if (ws.readyState !== ws.OPEN || seats.has(ws)) return;
@@ -782,7 +802,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					if (JSON.stringify(file).length > SCENE_FILE_MAX_BYTES) {
 						return sendError(ws, 'invalid_scene', 'This scene is too large to save.');
 					}
-					if (msg.type === 'scene_export') return send(ws, { type: 'scene_exported', file });
+					if (msg.type === 'scene_export') {
+						const refused = await unexportable(room);
+						if (refused) return sendError(ws, 'forbidden', refused);
+						return send(ws, { type: 'scene_exported', file });
+					}
 					const sceneId = await sceneStore.save(file, {
 						owner: room.gmOwner ?? null,
 						story: storySummary(room)
@@ -801,12 +825,18 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					if (data === null) {
 						return sendError(ws, 'scene_not_found', 'That saved scene no longer exists.');
 					}
+					const refused = await withdrawn(data);
+					if (refused) return sendError(ws, 'forbidden', refused);
 					// The room may have closed while storage was busy.
 					if (rooms.get(room.id) !== room) return;
 					return loadIntoRoom(room, player, data, 'loaded');
 				}
-				case 'scene_import':
+				case 'scene_import': {
+					const refused = await withdrawn(msg.file);
+					if (refused) return sendError(ws, 'forbidden', refused);
+					if (rooms.get(room.id) !== room) return;
 					return loadIntoRoom(room, player, msg.file, 'imported');
+				}
 				case 'scene_list':
 					if (!room.gmOwner) return send(ws, { type: 'scene_list', scenes: [] });
 					return send(ws, { type: 'scene_list', scenes: await sceneStore.list(room.gmOwner) });
@@ -1252,6 +1282,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					| 'library_mine'
 					| 'library_publish'
 					| 'library_manage'
+					| 'library_grant'
+					| 'library_revoke'
 					| 'collection_check'
 					| 'games_list';
 			}
@@ -1262,9 +1294,12 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'library_story' ||
 			msg.type === 'collection_check' ||
 			msg.type === 'games_list';
+		const creatorKey = 'gmKey' in msg && msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws);
 		const limited = browsing
 			? browseLimiter.take(connectionKey(ws))
-			: publishLimiter.take('gmKey' in msg && msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws));
+			: msg.type === 'library_publish'
+				? publishLimiter.take(creatorKey)
+				: manageLimiter.take(creatorKey);
 		if (!limited) return sendError(ws, 'rate_limited', 'Give it a moment before asking again.');
 		try {
 			switch (msg.type) {
@@ -1285,19 +1320,34 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				}
 				case 'collection_check': {
 					const copy = await libraryStore.get(msg.id, msg.version);
-					const mine = msg.gmKey !== undefined && copy?.owner === keyOwner(msg.gmKey);
-					if (!copy || copy.listing.kind !== 'collection' || (!copy.listed && !mine))
+					if (!copy || copy.listing.kind !== 'collection')
 						return send(ws, { type: 'collection_report', report: null });
+					const asker: Subject = { owner: msg.gmKey ? keyOwner(msg.gmKey) : null };
+					const may = decide(copy, asker, 'read');
+					if (!may.ok)
+						return send(ws, {
+							type: 'collection_report',
+							report: null,
+							...(may.visible ? { locked: true } : {})
+						});
 					const parsed = parseCollectionFile(copy.file);
 					if (!parsed.ok || !parsed.file.rules)
 						return send(ws, { type: 'collection_report', report: null });
 					const file = parsed.file as CollectionFile;
-					const { items } = await resolveCollection(shelves, file, copy.owner);
+					const { items } = await resolveCollection(shelves, file, copy.owner, copy.listing.id);
 					return send(ws, { type: 'collection_report', report: reportOf(copy, file, items) });
 				}
 				case 'library_story': {
 					const copy = await libraryStore.get(msg.id);
-					if (!copy || !copy.listed) return send(ws, { type: 'library_story', story: null });
+					if (!copy || copy.listing.kind !== 'adventure')
+						return send(ws, { type: 'library_story', story: null });
+					const may = decide(copy, { owner: msg.gmKey ? keyOwner(msg.gmKey) : null }, 'read');
+					if (!may.ok)
+						return send(ws, {
+							type: 'library_story',
+							story: null,
+							...(may.visible ? { locked: true } : {})
+						});
 					const loaded = loadAdventureFile(copy.file, `library-${msg.id}`);
 					if (!loaded.ok) return send(ws, { type: 'library_story', story: null });
 					return send(ws, {
@@ -1310,18 +1360,31 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					});
 				}
 				case 'library_mine':
-					return send(ws, {
-						type: 'library_mine',
-						adventures: await libraryStore.mine(keyOwner(msg.gmKey))
-					});
+					return send(ws, await mine(keyOwner(msg.gmKey)));
 				case 'library_manage': {
 					const owner = keyOwner(msg.gmKey);
 					const done =
 						msg.op === 'remove'
 							? await libraryStore.remove(msg.adventureId, owner)
-							: await libraryStore.setListed(msg.adventureId, owner, msg.op === 'list');
-					if (!done) return sendError(ws, 'forbidden', 'That adventure is not one of yours.');
-					return send(ws, { type: 'library_mine', adventures: await libraryStore.mine(owner) });
+							: await libraryStore.setAccess(
+									msg.adventureId,
+									owner,
+									msg.op === 'list' ? 'public' : msg.op === 'restrict' ? 'restricted' : 'private'
+								);
+					if (!done) return sendError(ws, 'forbidden', 'That is not one of yours.');
+					return send(ws, await mine(owner));
+				}
+				case 'library_grant': {
+					const owner = keyOwner(msg.gmKey);
+					const granted = await libraryStore.grant(msg.adventureId, owner, msg.grant);
+					if (!granted) return sendError(ws, 'forbidden', 'That is not one of yours.');
+					return send(ws, await mine(owner));
+				}
+				case 'library_revoke': {
+					const owner = keyOwner(msg.gmKey);
+					if (!(await libraryStore.revoke(msg.adventureId, owner, msg.grantId)))
+						return sendError(ws, 'forbidden', 'There is no such grant in force on one of yours.');
+					return send(ws, await mine(owner));
 				}
 				case 'library_publish': {
 					const creator = normalizeCreatorName(msg.creator);
@@ -1333,11 +1396,30 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						);
 					}
 					const issued = msg.gmKey ? null : newGmKey();
-					const owner = keyOwner(msg.gmKey ?? issued!);
-					const checked = await publishable(msg.kind ?? 'adventure', msg.file, owner);
+					const publisher = keyOwner(msg.gmKey ?? issued!);
+					// A new version is its owner's to add, or a collaborator's (under the owner's name).
+					let owner = publisher;
+					let name = creator;
+					if (msg.adventureId !== undefined) {
+						const current = await libraryStore.get(msg.adventureId);
+						const may = current && decide(current, { owner: publisher }, 'publish');
+						if (!current || !may!.ok) {
+							return may && !may.ok && may.visible
+								? sendError(ws, 'forbidden', 'That belongs to someone else.')
+								: sendError(ws, 'adventure_not_found', 'There is no such item in the library.');
+						}
+						owner = current.owner;
+						if (may!.ok && may!.as === 'grant') name = current.listing.creator.name;
+					}
+					const checked = await publishable(
+						msg.kind ?? 'adventure',
+						msg.file,
+						owner,
+						msg.adventureId ?? null
+					);
 					if (!checked.ok) return sendError(ws, 'invalid_message', checked.error);
 					const published = await libraryStore.publish(
-						{ kind: msg.kind ?? 'adventure', owner, creatorName: creator, ...checked.item },
+						{ kind: msg.kind ?? 'adventure', owner, creatorName: name, ...checked.item },
 						msg.adventureId
 					);
 					send(ws, {
@@ -1346,7 +1428,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						version: published.version,
 						...(issued ? { gmKey: issued } : {})
 					});
-					return send(ws, { type: 'library_mine', adventures: await libraryStore.mine(owner) });
+					return send(ws, await mine(publisher));
 				}
 			}
 		} catch (err) {
@@ -1367,6 +1449,59 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	/** Where collections find what they name. */
 	const shelves: Shelves = { library: libraryStore, scenes: sceneStore };
 
+	/** Who asks from a table: its GM (by key) at this room. */
+	function tableSubject(room: Room): Subject {
+		return { owner: room.gmOwner ?? null, room: room.id };
+	}
+
+	/** A creator's own items, what others shared with them, and the id others grant to. */
+	async function mine(owner: string): Promise<Extract<ServerMessage, { type: 'library_mine' }>> {
+		const creatorId = creatorIdOf(owner);
+		return {
+			type: 'library_mine',
+			adventures: await libraryStore.mine(owner),
+			shared: await libraryStore.shared(creatorId),
+			creatorId
+		};
+	}
+
+	/**
+	 * Why a saved story can't be opened, when a grant its library content was
+	 * played by has been revoked, has run out, or its item is gone; null when
+	 * all still hold (or it rests on none).
+	 */
+	async function withdrawn(data: unknown): Promise<string | null> {
+		for (const e of savedEntitlements(data)) {
+			const copy = await libraryStore.get(e.item);
+			if (!stillHolds(copy, e))
+				return copy
+					? `${copy.listing.title} is no longer shared with you, so this story can't be opened.`
+					: 'Something this story plays is no longer in the library, so it can’t be opened.';
+		}
+		return null;
+	}
+
+	/**
+	 * Why a table's story can't be exported: content played by a grant that
+	 * isn't a collaborator's (theirs to take away) goes no further than this
+	 * server's saves.
+	 */
+	async function unexportable(room: Room): Promise<string | null> {
+		const creator = room.gmOwner ? creatorIdOf(room.gmOwner) : null;
+		for (const e of room.adventure?.entitlements ?? []) {
+			const copy = await libraryStore.get(e.item);
+			const grant = stillHolds(copy, e);
+			if (
+				!grant ||
+				grant.role !== 'collaborator' ||
+				grant.target.kind !== 'creator' ||
+				grant.target.id !== creator
+			)
+				return `${copy?.listing.title ?? 'This story'} was shared with you to play, not to take away: save it here instead.`;
+		}
+		return null;
+	}
+
 	/**
 	 * A file checked in full as what it says it is, before it goes into the
 	 * library: an adventure as it would be played, a homebrew pack as its
@@ -1375,7 +1510,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	async function publishable(
 		kind: LibraryKind,
 		raw: unknown,
-		owner: string
+		owner: string,
+		id: string | null
 	): Promise<
 		| { ok: true; item: { title: string; about: string; file: unknown } }
 		| { ok: false; error: string }
@@ -1420,9 +1556,9 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				ok: false,
 				error: `That is not a valid collection: ${parsed.problems.slice(0, 4).join('; ')}.`
 			};
-		const file = await withRules(shelves, parsed.file, owner);
+		const file = await withRules(shelves, parsed.file, owner, id);
 		if (!file) return { ok: false, error: 'The collection’s first adventure could not be found.' };
-		const { items } = await resolveCollection(shelves, file, owner);
+		const { items } = await resolveCollection(shelves, file, owner, id);
 		if (items.some((i) => i.status !== 'ok'))
 			return { ok: false, error: `That collection can't be published: ${problemsOf(items)}` };
 		return { ok: true, item: { title: file.title, about: file.about, file } };
@@ -1448,18 +1584,23 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 		let copy;
 		let found;
+		let may;
 		try {
 			copy = await libraryStore.get(id, version);
-			if (
-				!copy ||
-				copy.listing.kind !== 'collection' ||
-				(!copy.listed && copy.owner !== room.gmOwner)
-			)
-				return sendError(ws, 'adventure_not_found', 'That collection is not in the library.');
+			may = copy && decide(copy, tableSubject(room), 'use');
+			if (!copy || copy.listing.kind !== 'collection' || !may!.ok)
+				return may && !may.ok && may.visible
+					? sendError(
+							ws,
+							'forbidden',
+							`${copy!.listing.title} is shared only with those its creator chooses.`
+						)
+					: sendError(ws, 'adventure_not_found', 'That collection is not in the library.');
 			const parsed = parseCollectionFile(copy.file);
 			if (!parsed.ok || !parsed.file.rules)
 				return sendError(ws, 'invalid_message', 'That collection no longer reads.');
-			found = await resolveCollection(shelves, parsed.file as CollectionFile, copy.owner);
+			// What it carries, as its creator put it in this collection.
+			found = await resolveCollection(shelves, parsed.file as CollectionFile, copy.owner, id);
 		} catch (err) {
 			console.error('[library] reading failed', err);
 			return sendError(ws, 'persistence_failed', 'The library could not be reached. Try again.');
@@ -1503,6 +1644,13 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			resolved.packs.map((p) => ({ id: p.packId, owner: p.creator.id }))
 		);
 		if (!begun.ok) return sendError(ws, begun.code, begun.message);
+		// The grants it all rests on, the collection's own and those of what it carries.
+		const entitlements = [
+			entitlementOf(id, may!),
+			'copy' in pick ? pick.entitlement : null,
+			...resolved.packs.map((p) => p.entitlement)
+		].filter((e): e is Entitlement => e !== null);
+		if (entitlements.length) room.adventure!.entitlements = entitlements;
 		applyOutcome(room, begun);
 		const counted = [id, ...('copy' in pick ? [pick.ref.library] : [])];
 		for (const item of counted)
@@ -1530,9 +1678,16 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			console.error('[library] reading failed', err);
 			return sendError(ws, 'persistence_failed', 'The library could not be reached. Try again.');
 		}
-		// An unlisted adventure is still its creator's to play.
-		if (!copy || (!copy.listed && copy.owner !== room.gmOwner)) {
-			return sendError(ws, 'adventure_not_found', 'That adventure is not in the library.');
+		// Its owner plays it whatever its access; anyone else as it allows, or by a grant.
+		const may = copy && decide(copy, tableSubject(room), 'use');
+		if (!copy || copy.listing.kind !== 'adventure' || !may!.ok) {
+			return may && !may.ok && may.visible
+				? sendError(
+						ws,
+						'forbidden',
+						`${copy!.listing.title} is shared only with those its creator chooses.`
+					)
+				: sendError(ws, 'adventure_not_found', 'That adventure is not in the library.');
 		}
 		if (rooms.get(room.id) !== room) return;
 		const custom = loadCustomAdventure(copy.file);
@@ -1544,6 +1699,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			version: copy.listing.version,
 			creator: { ...copy.listing.creator }
 		};
+		const entitlement = entitlementOf(id, may!);
+		if (entitlement) room.adventure!.entitlements = [entitlement];
 		applyOutcome(room, result);
 		libraryStore.played(id).catch((err) => console.error('[library] counting a play failed', err));
 	}

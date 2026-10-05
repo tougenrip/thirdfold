@@ -151,4 +151,6 @@ A record's id is `<pack id>:<kind>:<slug>`. A monster's kind at the table is `<p
 
 A character built from a pack carries those ids, so it names exactly the pack it was made from. A save whose pack was edited no longer matches its characters, and is refused.
 
-Only the GM who added a pack, at that table, shares it. The story records the GM's public creator id (never the key) and `visibility: "table"`. Milestones 53–55 build on that: collections, grants and versions.
+Only the GM who added a pack, at that table, shares it. The story records the GM's public creator id (never the key) and `visibility: "table"`.
+
+A pack published to the library can be public, restricted or private, and shared with chosen creators, collections or tables (see "Access and sharing" in `docs/ADVENTURES.md`). A collection carries a restricted pack only when its creator collaborates on it or the pack was granted to that collection.

@@ -30,7 +30,9 @@ const BUDGETS = {
 	// and the hero slots' assignment moving out of light-model.ts) measures just over 98.3 kB.
 	// → 99.2: both of those together, once main's M68 is merged into the rules track, 99,159 B measured.
 	// → 99.3: and main's M69 (the world) beside them, 99,217 B measured.
-	'/builder': { total: 99_300, own: 52_000 },
+	// → 99.6: the Publish section adds versions to adventures shared with a collaborator, and
+	// the library's client learns access and grants (#99), 99,548 B measured.
+	'/builder': { total: 99_600, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.

@@ -2944,6 +2944,352 @@ describe('collections over the wire', () => {
 	});
 });
 
+describe('permissions over the wire (milestone 54)', () => {
+	const file = () => JSON.parse(JSON.stringify(exampleAdventure()));
+	async function gmAt(name: string, gmKey?: string) {
+		const gm = await connect();
+		gm.send({ type: 'create', name, ...(gmKey ? { gmKey } : {}) });
+		const welcome = await gm.expect('welcome');
+		return { gm, room: welcome.room, gmKey: welcome.gmKey! };
+	}
+
+	it('keeps restricted and private content from guessed ids and forged requests, and plays it by grants', async () => {
+		// Mira publishes two adventures: one restricted (licensed), one private.
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const licensed = await mira.expect('library_published');
+		const key = licensed.gmKey!;
+		await mira.expect('library_mine');
+		mira.send({ type: 'library_publish', gmKey: key, creator: 'Mira', file: file() });
+		const secret = await mira.until('library_published');
+		mira.send({
+			type: 'library_manage',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			op: 'restrict'
+		});
+		await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.id === licensed.adventureId && a.access === 'restricted')
+		);
+		mira.send({
+			type: 'library_manage',
+			gmKey: key,
+			adventureId: secret.adventureId,
+			op: 'unlist'
+		});
+		const own = await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.id === secret.adventureId && a.access === 'private')
+		);
+		expect(own.creatorId).toMatch(/^[0-9a-f]{16}$/);
+
+		// Otto: a GM with a key of his own.
+		const otto = await gmAt('Otto');
+		otto.gm.send({ type: 'library_mine', gmKey: otto.gmKey });
+		const ottoMine = await otto.gm.until('library_mine');
+		expect(ottoMine).toMatchObject({ adventures: [], shared: [] });
+
+		// The restricted one is listed for anyone; the private one isn't.
+		otto.gm.send({ type: 'library_list', query: 'miller' });
+		const listed = (await otto.gm.until('library_list')).adventures;
+		expect(listed.find((l) => l.id === licensed.adventureId)?.access).toBe('restricted');
+		expect(listed.some((l) => l.id === secret.adventureId)).toBe(false);
+
+		// Opening: locked for the restricted one; the private one is as if it weren't there.
+		otto.gm.send({ type: 'library_story', id: licensed.adventureId, gmKey: otto.gmKey });
+		expect(await otto.gm.until('library_story')).toMatchObject({ story: null, locked: true });
+		otto.gm.send({ type: 'library_story', id: secret.adventureId, gmKey: otto.gmKey });
+		const hidden = await otto.gm.until('library_story');
+		expect(hidden.story).toBeNull();
+		expect(hidden.locked).toBeUndefined();
+		otto.gm.send({ type: 'library_story', id: 'f'.repeat(32) });
+		expect(await otto.gm.until('library_story')).toEqual({ type: 'library_story', story: null });
+
+		// Starting: refused, and a private id answers exactly like a made-up one.
+		otto.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		expect(await otto.gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			message: expect.stringContaining('shared only with those its creator chooses')
+		});
+		otto.gm.send({ type: 'adventure_start', libraryId: secret.adventureId });
+		const guessed = await otto.gm.until('error');
+		const other = await gmAt('Otto again', otto.gmKey);
+		other.gm.send({ type: 'adventure_start', libraryId: 'f'.repeat(32) });
+		const madeUp = await other.gm.until('error');
+		expect({ ...guessed }).toEqual({ ...madeUp });
+		expect(guessed.code).toBe('adventure_not_found');
+		// Neither a collection id where an adventure should be, nor the reverse.
+		other.gm.send({ type: 'collection_check', id: secret.adventureId, gmKey: otto.gmKey });
+		expect((await other.gm.until('collection_report')).report).toBeNull();
+
+		// Forged requests: managing, granting, revoking and versioning someone else's.
+		otto.gm.send({
+			type: 'library_manage',
+			gmKey: otto.gmKey,
+			adventureId: licensed.adventureId,
+			op: 'list'
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		otto.gm.send({
+			type: 'library_grant',
+			gmKey: otto.gmKey,
+			adventureId: licensed.adventureId,
+			grant: { target: { kind: 'creator', id: ottoMine.creatorId }, role: 'collaborator' }
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: file(),
+			adventureId: licensed.adventureId
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: file(),
+			adventureId: secret.adventureId
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'adventure_not_found' });
+		// A grant can't be forged in the message either: a collaborator is a person, a table's grant runs out.
+		otto.gm.send({
+			type: 'library_grant',
+			gmKey: otto.gmKey,
+			adventureId: licensed.adventureId,
+			grant: { target: { kind: 'room', id: otto.room.id }, role: 'collaborator' }
+		} as never);
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'invalid_message' });
+
+		// Mira shares the licensed one with Otto to play.
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			grant: {
+				target: { kind: 'creator', id: ottoMine.creatorId },
+				role: 'member',
+				note: 'For Otto’s group'
+			}
+		});
+		const granted = await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.id === licensed.adventureId && a.grants.length === 1)
+		);
+		const memberGrant = granted.adventures.find((a) => a.id === licensed.adventureId)!.grants[0];
+		expect(memberGrant).toMatchObject({
+			target: { kind: 'creator', id: ottoMine.creatorId },
+			role: 'member',
+			by: own.creatorId,
+			revoked: null,
+			note: 'For Otto’s group'
+		});
+		otto.gm.send({ type: 'library_mine', gmKey: otto.gmKey });
+		expect((await otto.gm.until('library_mine')).shared).toMatchObject([
+			{ id: licensed.adventureId, role: 'member', access: 'restricted', creator: { name: 'Mira' } }
+		]);
+		otto.gm.send({ type: 'library_story', id: licensed.adventureId, gmKey: otto.gmKey });
+		expect((await otto.gm.until('library_story')).story?.listing.id).toBe(licensed.adventureId);
+		// Still not his to version or take away.
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: file(),
+			adventureId: licensed.adventureId
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// He plays it at his table: saves it, but can't export it.
+		const table = await gmAt('Otto’s table', otto.gmKey);
+		table.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		const playing = await table.gm.until('room_reset');
+		expect(playing.room.adventure!.library!.id).toBe(licensed.adventureId);
+		table.gm.send({ type: 'scene_export', name: 'Miller' });
+		expect(await table.gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			message: expect.stringContaining('shared with you to play, not to take away')
+		});
+		table.gm.send({ type: 'scene_save', name: 'Miller' });
+		const saved = await table.gm.until('scene_saved');
+		table.gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		expect((await table.gm.until('room_reset')).room.adventure!.library!.id).toBe(
+			licensed.adventureId
+		);
+
+		// Mira revokes: the table plays on, but the save no longer opens and nothing new starts.
+		mira.send({
+			type: 'library_revoke',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			grantId: memberGrant.id
+		});
+		const revoked = await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.grants.some((g) => g.id === memberGrant.id && g.revoked !== null))
+		);
+		expect(revoked.adventures.find((a) => a.id === licensed.adventureId)!.grants).toHaveLength(1);
+		const later = await gmAt('Otto, later', otto.gmKey);
+		later.gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		expect(await later.gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			message: "The Miller’s Key is no longer shared with you, so this story can't be opened."
+		});
+		later.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		expect(await later.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		const resume = await connect();
+		resume.send({ type: 'create', name: 'Otto', gmKey: otto.gmKey, continueFrom: saved.sceneId });
+		expect(await resume.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// As a collaborator he may add a version (under Mira's name) and take what he starts away.
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			grant: { target: { kind: 'creator', id: ottoMine.creatorId }, role: 'collaborator' }
+		});
+		await mira.until('library_mine');
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: { ...file(), about: 'Revised with Otto.' },
+			adventureId: licensed.adventureId
+		});
+		expect(await otto.gm.until('library_published')).toMatchObject({
+			adventureId: licensed.adventureId,
+			version: 2
+		});
+		otto.gm.send({ type: 'library_list', query: 'miller' });
+		expect(
+			(await otto.gm.until('library_list')).adventures.find((l) => l.id === licensed.adventureId)
+		).toMatchObject({ version: 2, about: 'Revised with Otto.', creator: { name: 'Mira' } });
+		const again = await gmAt('Otto, again', otto.gmKey);
+		again.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		await again.gm.until('room_reset');
+		again.gm.send({ type: 'scene_export', name: 'Miller' });
+		const exported = await again.gm.until('scene_exported');
+		expect(JSON.stringify(exported.file)).toContain('entitlements');
+
+		// A table's grant: anyone GMing that room plays the private one, for a while.
+		const gemma = await gmAt('Gemma');
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: secret.adventureId,
+			grant: { target: { kind: 'room', id: gemma.room.id }, role: 'member', hours: 2 }
+		});
+		const roomGrant = (await mira.until('library_mine')).adventures.find(
+			(a) => a.id === secret.adventureId
+		)!.grants[0];
+		expect(Date.parse(roomGrant.expires!) - Date.parse(roomGrant.at)).toBe(2 * 3600_000);
+		gemma.gm.send({ type: 'adventure_start', libraryId: secret.adventureId });
+		expect((await gemma.gm.until('room_reset')).room.adventure!.library!.id).toBe(
+			secret.adventureId
+		);
+		// Only that room.
+		const elsewhere = await gmAt('Gemma elsewhere');
+		elsewhere.gm.send({ type: 'adventure_start', libraryId: secret.adventureId });
+		expect(await elsewhere.gm.until('error')).toMatchObject({ code: 'adventure_not_found' });
+	});
+
+	it('lets a collection carry restricted homebrew by a grant to that collection', async () => {
+		// Mira's armory, restricted.
+		const mira = await connect();
+		mira.send({ type: 'library_publish', kind: 'pack', creator: 'Mira', file: examplePack() });
+		const pack = await mira.expect('library_published');
+		const key = pack.gmKey!;
+		await mira.expect('library_mine');
+		mira.send({
+			type: 'library_manage',
+			gmKey: key,
+			adventureId: pack.adventureId,
+			op: 'restrict'
+		});
+		await mira.until('library_mine');
+
+		// Otto curates a campaign; with the armory it can't be published yet.
+		const otto = await connect();
+		const draft = (packs: unknown[]) => ({
+			format: 'thirdfold-collection',
+			formatVersion: 1,
+			title: 'Cold Hill with Mira’s armory',
+			adventures: [{ builtIn: 'barrow' }],
+			packs,
+			tables: []
+		});
+		const armory = [{ library: pack.adventureId, version: 1 }];
+		otto.send({
+			type: 'library_publish',
+			kind: 'collection',
+			creator: 'Otto',
+			file: draft(armory)
+		});
+		expect((await otto.expect('error')).message).toContain(
+			'shared only with those its creator chooses'
+		);
+		otto.send({ type: 'library_publish', kind: 'collection', creator: 'Otto', file: draft([]) });
+		const set = await otto.until('library_published');
+		const ottoKey = set.gmKey!;
+
+		// Mira grants the armory to that collection; its next version carries it.
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: pack.adventureId,
+			grant: { target: { kind: 'collection', id: set.adventureId }, role: 'member' }
+		});
+		await mira.until('library_mine');
+		otto.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey: ottoKey,
+			creator: 'Otto',
+			file: draft(armory),
+			adventureId: set.adventureId
+		});
+		expect(await otto.until('library_published')).toMatchObject({ version: 2 });
+
+		// Gemma, who was granted nothing herself, runs the campaign with the armory.
+		const gemma = await gmAt('Gemma');
+		gemma.gm.send({ type: 'collection_check', id: set.adventureId });
+		const report = (await gemma.gm.until('collection_report')).report!;
+		expect(report.ok).toBe(true);
+		gemma.gm.send({ type: 'adventure_start', collectionId: set.adventureId });
+		const started = await gemma.gm.until('adventure_update', (m) => !!m.adventure?.collection);
+		expect(started.adventure!.packs!.map((p) => p.name)).toEqual(['The Cold Hill Armory']);
+		// She plays it here; it doesn't leave with her.
+		gemma.gm.send({ type: 'scene_export', name: 'Campaign' });
+		expect(await gemma.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		// The armory alone, outside the collection, is still not hers.
+		gemma.gm.send({ type: 'library_list', kind: 'pack', query: 'armory' });
+		expect(
+			(await gemma.gm.until('library_list')).adventures.find((l) => l.id === pack.adventureId)
+				?.access
+		).toBe('restricted');
+	});
+
+	it('keeps public content and the SRD open to everyone, as before', async () => {
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const published = await mira.expect('library_published');
+		const otto = await gmAt('Otto');
+		otto.gm.send({ type: 'library_story', id: published.adventureId });
+		expect((await otto.gm.until('library_story')).story?.listing).toMatchObject({
+			access: 'public'
+		});
+		otto.gm.send({ type: 'adventure_start', libraryId: published.adventureId });
+		await otto.gm.until('room_reset');
+		// Public content leaves with its table, as it always could, resting on no grant.
+		otto.gm.send({ type: 'scene_export', name: 'Public' });
+		const out = await otto.gm.until('scene_exported');
+		expect(JSON.stringify(out.file)).not.toContain('entitlements');
+		// Built-in adventures under the SRD rules start for any GM, keyless or not.
+		const keyless = await gmAt('Barrow GM');
+		keyless.gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const barrow = await keyless.gm.until('room_reset');
+		expect(barrow.room.adventure!.rules?.attribution).toBeTruthy();
+	});
+});
+
 describe('fifth edition rules over the wire', () => {
 	beforeEach(async () => {
 		// Every die rolls its highest face: every d20 is a natural 20.

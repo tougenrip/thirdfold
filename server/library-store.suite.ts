@@ -3,6 +3,7 @@
 
 import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
+import { GRANT_LIMITS } from '../src/lib/game/access';
 import { CREATOR_ID_PATTERN, LIBRARY_ID_PATTERN } from '../src/lib/game/library';
 import { creatorIdOf, LibraryError, type LibraryStore, type Publication } from './library-store';
 
@@ -124,13 +125,16 @@ export function libraryStoreSuite(make: () => LibraryStore | Promise<LibraryStor
 		const tag = randomBytes(4).toString('hex');
 		const { id } = await store.publish(publication(owner, `Hidden ${tag}`));
 		const stranger = hex64();
-		expect(await store.setListed(id, stranger, false)).toBe(false);
-		expect(await store.setListed(id, owner, false)).toBe(true);
+		expect(await store.setAccess(id, stranger, 'private')).toBe(false);
+		expect(await store.setAccess(id, owner, 'private')).toBe(true);
 		expect((await store.list({ query: tag })).adventures).toEqual([]);
 		// Unlisted: out of the library, still its creator's, and still playable by id.
-		expect((await store.mine(owner)).map((m) => [m.id, m.listed])).toEqual([[id, false]]);
+		expect((await store.mine(owner)).map((m) => [m.id, m.listed, m.access])).toEqual([
+			[id, false, 'private']
+		]);
 		expect((await store.get(id))?.listed).toBe(false);
-		expect(await store.setListed(id, owner, true)).toBe(true);
+		expect((await store.get(id))?.listing.access).toBe('private');
+		expect(await store.setAccess(id, owner, 'public')).toBe(true);
 		expect((await store.list({ query: tag })).adventures.map((l) => l.id)).toEqual([id]);
 
 		expect(await store.remove(id, stranger)).toBe(false);
@@ -183,5 +187,116 @@ export function libraryStoreSuite(make: () => LibraryStore | Promise<LibraryStor
 		await expect(store.publish(publication(owner, 'Not a story'), set.id)).rejects.toMatchObject({
 			code: 'not_found'
 		});
+	});
+
+	it('restricts an item: listed for anyone, its grants kept with it', async () => {
+		const store = await make();
+		const owner = hex64();
+		const tag = randomBytes(4).toString('hex');
+		const { id } = await store.publish(publication(owner, `Licensed ${tag}`));
+		expect((await store.get(id))?.listing.access).toBe('public');
+		expect(await store.setAccess(id, owner, 'restricted')).toBe(true);
+		const copy = await store.get(id);
+		expect(copy).toMatchObject({ listed: true, restricted: true, grants: [] });
+		expect(copy!.listing.access).toBe('restricted');
+		// Still listed: anyone finds it (the game server keeps the rest from them).
+		expect((await store.list({ query: tag })).adventures.map((l) => [l.id, l.access])).toEqual([
+			[id, 'restricted']
+		]);
+		// A new version keeps the access.
+		await store.publish(publication(owner, `Licensed ${tag} 2`), id);
+		expect((await store.get(id))?.restricted).toBe(true);
+	});
+
+	it('grants and revokes for its owner only, keeping who gave what and when', async () => {
+		const store = await make();
+		const owner = hex64();
+		const ana = hex64();
+		const tag = randomBytes(4).toString('hex');
+		const { id } = await store.publish(publication(owner, `Shared ${tag}`));
+		await store.setAccess(id, owner, 'private');
+		const now = new Date();
+
+		expect(
+			await store.grant(id, ana, {
+				target: { kind: 'creator', id: creatorIdOf(ana) },
+				role: 'member'
+			})
+		).toBeNull();
+		const member = await store.grant(
+			id,
+			owner,
+			{ target: { kind: 'creator', id: creatorIdOf(ana) }, role: 'member', note: 'For Ana' },
+			now
+		);
+		expect(member).toMatchObject({
+			target: { kind: 'creator', id: creatorIdOf(ana) },
+			role: 'member',
+			by: creatorIdOf(owner),
+			at: now.toISOString(),
+			expires: null,
+			revoked: null,
+			note: 'For Ana'
+		});
+		expect(member!.id).toMatch(/^[0-9a-f]{32}$/);
+		const table = await store.grant(
+			id,
+			owner,
+			{ target: { kind: 'room', id: 'ABC234' }, role: 'member', hours: 2 },
+			now
+		);
+		expect(Date.parse(table!.expires!) - now.getTime()).toBe(2 * 3600_000);
+
+		expect((await store.get(id))?.grants.map((g) => g.id).sort()).toEqual(
+			[member!.id, table!.id].sort()
+		);
+		expect((await store.mine(owner))[0].grants).toHaveLength(2);
+
+		// What was shared with Ana, whatever its access.
+		const shared = await store.shared(creatorIdOf(ana));
+		expect(shared.map((s) => [s.id, s.role, s.grant.id])).toEqual([[id, 'member', member!.id]]);
+		expect(await store.shared(creatorIdOf(hex64()))).toEqual([]);
+
+		// Revoked, not forgotten.
+		expect(await store.revoke(id, ana, member!.id)).toBe(false);
+		expect(await store.revoke(id, owner, 'f'.repeat(32))).toBe(false);
+		const later = new Date(now.getTime() + 1000);
+		expect(await store.revoke(id, owner, member!.id, later)).toBe(true);
+		expect(await store.revoke(id, owner, member!.id, later)).toBe(false);
+		const kept = (await store.get(id))!.grants.find((g) => g.id === member!.id)!;
+		expect(kept.revoked).toBe(later.toISOString());
+		expect(await store.shared(creatorIdOf(ana))).toEqual([]);
+
+		// Removing the item takes its grants with it.
+		expect(await store.remove(id, owner)).toBe(true);
+		expect(await store.shared(creatorIdOf(ana))).toEqual([]);
+	});
+
+	it('refuses more grants in force than an item may have', async () => {
+		const store = await make();
+		const owner = hex64();
+		const { id } = await store.publish(publication(owner, 'Popular'));
+		const grants = [];
+		for (let i = 0; i < GRANT_LIMITS.active; i++)
+			grants.push(
+				await store.grant(id, owner, {
+					target: { kind: 'creator', id: creatorIdOf(hex64()) },
+					role: 'member'
+				})
+			);
+		await expect(
+			store.grant(id, owner, {
+				target: { kind: 'creator', id: creatorIdOf(hex64()) },
+				role: 'member'
+			})
+		).rejects.toMatchObject({ code: 'too_many' });
+		// A revoked one makes room.
+		expect(await store.revoke(id, owner, grants[0]!.id)).toBe(true);
+		expect(
+			await store.grant(id, owner, {
+				target: { kind: 'collection', id: 'a'.repeat(32) },
+				role: 'member'
+			})
+		).not.toBeNull();
 	});
 }

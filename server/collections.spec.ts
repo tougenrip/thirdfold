@@ -122,12 +122,16 @@ describe('resolving a collection', () => {
 			'The Hollow Bell plays by Thirdfold Classic, not Fifth Edition (SRD 5.2.1).'
 		);
 
-		// An unlisted pack is still its creator's to use, nobody else's.
-		await shelves.library.setListed(pack.id, owner, false);
+		// An unlisted pack is still its creator's to use; to anyone else it isn't there.
+		await shelves.library.setAccess(pack.id, owner, 'private');
 		const withPack = collection({ packs: [{ library: pack.id, version: 1 }] });
 		expect((await resolveCollection(shelves, withPack, owner)).resolved).not.toBeNull();
 		const theirs = await resolveCollection(shelves, withPack, stranger);
-		expect(theirs.items[2]).toMatchObject({ status: 'unavailable' });
+		expect(theirs.items[2]).toMatchObject({
+			status: 'missing',
+			title: null,
+			message: expect.not.stringContaining('Armory')
+		});
 		// A library adventure where a pack should be is not a pack.
 		const wrongKind = collection({ packs: [{ library: story.id, version: 1 }] });
 		expect((await resolveCollection(shelves, wrongKind, owner)).items[2]).toMatchObject({
@@ -151,5 +155,65 @@ describe('resolving a collection', () => {
 			id: 'thirdfold-classic',
 			version: 1
 		});
+	});
+});
+
+describe('what a collection may carry (milestone 54)', () => {
+	it('takes restricted content only by a grant to its creator as collaborator, or to the collection', async () => {
+		const { shelves, owner, pack } = await shelvesWith();
+		const curator = hex64();
+		const campaign = 'c'.repeat(32);
+		await shelves.library.setAccess(pack.id, owner, 'restricted');
+		const withPack = collection({ packs: [{ library: pack.id, version: 1 }] });
+
+		// Listed, so it can be named, but not carried.
+		const locked = await resolveCollection(shelves, withPack, curator, campaign);
+		expect(locked.resolved).toBeNull();
+		expect(locked.items[2]).toMatchObject({
+			status: 'unavailable',
+			title: 'The Cold Hill Armory 1.0'
+		});
+		expect(locked.items[2].message).toContain('shared only with those its creator chooses');
+
+		// A member may play it, not pass it on in a collection.
+		const { creatorIdOf } = await import('./library-store');
+		const member = await shelves.library.grant(pack.id, owner, {
+			target: { kind: 'creator', id: creatorIdOf(curator) },
+			role: 'member'
+		});
+		expect((await resolveCollection(shelves, withPack, curator, campaign)).resolved).toBeNull();
+
+		// Granted to the collection: carried, and the story will know by which grant.
+		const toCampaign = await shelves.library.grant(pack.id, owner, {
+			target: { kind: 'collection', id: campaign },
+			role: 'member'
+		});
+		const carried = await resolveCollection(shelves, withPack, curator, campaign);
+		expect(carried.resolved!.packs[0].entitlement).toEqual({
+			item: pack.id,
+			grant: toCampaign!.id,
+			role: 'member'
+		});
+		// Not to another collection.
+		expect(
+			(await resolveCollection(shelves, withPack, curator, 'd'.repeat(32))).resolved
+		).toBeNull();
+
+		// A collaborator may put it in any of their collections.
+		await shelves.library.revoke(pack.id, owner, toCampaign!.id);
+		await shelves.library.revoke(pack.id, owner, member!.id);
+		const collaborator = await shelves.library.grant(pack.id, owner, {
+			target: { kind: 'creator', id: creatorIdOf(curator) },
+			role: 'collaborator'
+		});
+		const theirs = await resolveCollection(shelves, withPack, curator);
+		expect(theirs.resolved!.packs[0].entitlement).toMatchObject({
+			grant: collaborator!.id,
+			role: 'collaborator'
+		});
+		// The owner's own needs no grant.
+		expect(
+			(await resolveCollection(shelves, withPack, owner)).resolved!.packs[0].entitlement
+		).toBeNull();
 	});
 });

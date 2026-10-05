@@ -3,7 +3,8 @@
 // that server; a key it issues on a first publish is kept in this browser.
 
 import type { LibraryOp } from '$lib/game/protocol';
-import type { LibraryKind, LibrarySort, MyAdventure } from '$lib/game/library';
+import type { NewGrant } from '$lib/game/access';
+import type { LibraryKind, LibrarySort, MyAdventure, SharedListing } from '$lib/game/library';
 import { saveGmKey } from '$lib/prefs';
 import { ask } from './ask';
 
@@ -26,30 +27,69 @@ export async function listLibrary(q: {
 	);
 }
 
-/** One listed adventure, opened: its listing, opening and facts; null when there is none. */
-export async function openStory(id: string) {
-	return (await ask({ type: 'library_story', id }, 'library_story')).story;
+/**
+ * One adventure, opened: its listing, opening and facts; null when there is
+ * none this browser's GM key may open (`locked` when it is listed but shared
+ * only with those its creator chooses).
+ */
+export async function openStory(id: string, gmKey?: string | null) {
+	const reply = await ask(
+		{ type: 'library_story', id, ...(gmKey ? { gmKey } : {}) },
+		'library_story'
+	);
+	return { story: reply.story, locked: reply.locked === true };
 }
 
-/** A creator's own items, of one kind when asked. */
-export async function listMine(gmKey: string, kind?: LibraryKind): Promise<MyAdventure[]> {
-	const all = (await ask({ type: 'library_mine', gmKey }, 'library_mine')).adventures;
-	return kind ? all.filter((a) => a.kind === kind) : all;
-}
-
-/** A collection and what became of everything it names; null when there is no such collection. */
+/**
+ * A collection and what became of everything it names; null when there is
+ * no such collection this GM key may open (`locked`: listed, but restricted).
+ */
 export async function checkCollection(id: string, version?: number, gmKey?: string | null) {
-	return (
-		await ask(
-			{
-				type: 'collection_check',
-				id,
-				...(version !== undefined ? { version } : {}),
-				...(gmKey ? { gmKey } : {})
-			},
-			'collection_report'
-		)
-	).report;
+	const reply = await ask(
+		{
+			type: 'collection_check',
+			id,
+			...(version !== undefined ? { version } : {}),
+			...(gmKey ? { gmKey } : {})
+		},
+		'collection_report'
+	);
+	return { report: reply.report, locked: reply.locked === true };
+}
+
+/** A creator's own items, what others shared with them, and the id others grant to. */
+export interface LibraryHome {
+	mine: MyAdventure[];
+	shared: SharedListing[];
+	creatorId: string;
+}
+
+const homeOf = (m: { adventures: MyAdventure[]; shared: SharedListing[]; creatorId: string }) => ({
+	mine: m.adventures,
+	shared: m.shared,
+	creatorId: m.creatorId
+});
+
+export async function libraryHome(gmKey: string): Promise<LibraryHome> {
+	return homeOf(await ask({ type: 'library_mine', gmKey }, 'library_mine'));
+}
+
+/** The owner shares one of their items. */
+export async function grantAccess(
+	gmKey: string,
+	adventureId: string,
+	grant: NewGrant
+): Promise<LibraryHome> {
+	return homeOf(await ask({ type: 'library_grant', gmKey, adventureId, grant }, 'library_mine'));
+}
+
+/** The owner takes a grant back. */
+export async function revokeGrant(
+	gmKey: string,
+	adventureId: string,
+	grantId: string
+): Promise<LibraryHome> {
+	return homeOf(await ask({ type: 'library_revoke', gmKey, adventureId, grantId }, 'library_mine'));
 }
 
 /**

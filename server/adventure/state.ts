@@ -15,6 +15,7 @@ import type { StatusId } from '../../src/lib/adventure/characters';
 import type { GridPos } from '../../src/lib/game/grid';
 import type { AdventureRef, PinnedRef, TableRef } from '../../src/lib/game/collection';
 import type { Creator } from '../../src/lib/game/library';
+import type { Entitlement } from '../../src/lib/game/access';
 import type { EffectMods, EffectSpec, JsonData, RulesetRef } from '../rules/ruleset';
 import type { BuiltCharacter } from './built';
 import type { Origins } from './world';
@@ -300,6 +301,12 @@ export interface AdventureState {
 	library?: LibrarySource;
 	/** The collection the story was started from, if it was. */
 	collection?: CollectionSource;
+	/**
+	 * The grants its library content was played by, when not public or the
+	 * GM's own (milestone 54): checked again before the story is loaded or
+	 * exported, so a revoked grant stops both.
+	 */
+	entitlements?: Entitlement[];
 	/** The stars each player gave it at this table, by player id (not saved: the library keeps them). */
 	rated?: Map<string, number>;
 }

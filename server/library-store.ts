@@ -2,7 +2,10 @@
 // publish, each a list of versions of an adventure file, owned by the GM key
 // that published it (by its hash, like saves). Anyone can find and play a
 // listed adventure; its creator can publish new versions, take it out of the
-// library (unlist) or remove it. Plays and ratings are counted here.
+// library (unlist) or remove it. Plays and ratings are counted here. Since
+// milestone 54 each item also has an access level and grants (who may find,
+// open and play it: src/lib/game/access.ts); the store keeps them, and the
+// game server decides by them (server/library-access.ts).
 //
 // The file and memory stores share one implementation over a small key/value
 // interface; the Supabase store keeps the same data in Postgres.
@@ -10,6 +13,16 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import {
+	accessOf,
+	flagsOf,
+	GRANT_LIMITS,
+	grantActive,
+	parseGrant,
+	type Grant,
+	type LibraryAccess,
+	type NewGrant
+} from '../src/lib/game/access';
 import {
 	LIBRARY_ID_PATTERN,
 	LIBRARY_LIMITS,
@@ -20,7 +33,8 @@ import {
 	type LibraryKind,
 	type LibraryListing,
 	type LibrarySort,
-	type MyAdventure
+	type MyAdventure,
+	type SharedListing
 } from '../src/lib/game/library';
 
 export type LibraryErrorCode = 'forbidden' | 'not_found' | 'too_many';
@@ -59,7 +73,11 @@ export interface LibraryQuery {
 export interface LibraryCopy {
 	listing: LibraryListing;
 	listed: boolean;
+	/** Listed, but only for its owner and those granted it (milestone 54). */
+	restricted: boolean;
 	owner: string;
+	/** Every grant on it, revoked and lapsed ones too: what access is decided by (server/library-access.ts). */
+	grants: Grant[];
 	file: unknown;
 }
 
@@ -76,8 +94,17 @@ export interface LibraryStore {
 	mine(owner: string): Promise<MyAdventure[]>;
 	/** A version (the latest without one), or null when there is no such adventure or version. */
 	get(id: string, version?: number): Promise<LibraryCopy | null>;
-	/** Puts an owner's adventure in the library or takes it out; false if it isn't theirs. */
-	setListed(id: string, owner: string, listed: boolean): Promise<boolean>;
+	/** Sets who may find and use an owner's item (public, restricted, private); false if it isn't theirs. */
+	setAccess(id: string, owner: string, access: LibraryAccess): Promise<boolean>;
+	/**
+	 * The owner grants a role on their item; null if it isn't theirs. At most
+	 * GRANT_LIMITS.active grants are in force on one item (else `too_many`).
+	 */
+	grant(id: string, owner: string, grant: NewGrant, now?: Date): Promise<Grant | null>;
+	/** The owner revokes a grant (kept, marked revoked); false if there is no such grant of theirs in force. */
+	revoke(id: string, owner: string, grantId: string, now?: Date): Promise<boolean>;
+	/** What others shared with a creator (by public id), by grants in force, newest first. */
+	shared(creator: string, now?: Date): Promise<SharedListing[]>;
 	/** Removes an owner's adventure and all its versions; false if it isn't theirs. */
 	remove(id: string, owner: string): Promise<boolean>;
 	/** A table started playing it. */
@@ -112,6 +139,10 @@ interface Entry {
 	plays: number;
 	/** Stars by rater. */
 	ratings: Record<string, number>;
+	/** Absent in entries from before milestone 54: not restricted. */
+	restricted?: boolean;
+	/** Absent in entries from before milestone 54: none. */
+	grants?: Grant[];
 }
 
 /** Where the shared store keeps its text: one entry per adventure, one per version. */
@@ -140,8 +171,45 @@ function listingOf(e: Entry): LibraryListing {
 		rating: ratingOf(
 			stars.reduce((a, b) => a + b, 0),
 			stars.length
-		)
+		),
+		access: accessOf(e.listed, e.restricted ?? false)
 	};
+}
+
+const grantsOf = (e: Entry): Grant[] =>
+	(e.grants ?? []).map(parseGrant).filter((g): g is Grant => g !== null);
+
+/** A new grant, as the owner asked for it. */
+export function makeGrant(owner: string, g: NewGrant, now: Date): Grant {
+	return {
+		id: randomBytes(16).toString('hex'),
+		target: { ...g.target },
+		role: g.role,
+		by: creatorIdOf(owner),
+		at: now.toISOString(),
+		expires:
+			g.hours === undefined ? null : new Date(now.getTime() + g.hours * 3600_000).toISOString(),
+		revoked: null,
+		note: g.note ?? ''
+	};
+}
+
+/**
+ * Adds a grant to an item's, refusing one too many in force, and dropping
+ * the oldest revoked or lapsed ones beyond what is kept.
+ */
+export function withGrant(grants: Grant[], added: Grant, now: Date): Grant[] {
+	const t = now.getTime();
+	if (grants.filter((g) => grantActive(g, t)).length >= GRANT_LIMITS.active)
+		throw new LibraryError('too_many', 'That has as many grants in force as it can have.');
+	const all = [added, ...grants];
+	let over = all.length - GRANT_LIMITS.kept;
+	for (let i = all.length - 1; i >= 0 && over > 0; i--)
+		if (!grantActive(all[i], t)) {
+			all.splice(i, 1);
+			over--;
+		}
+	return all;
 }
 
 class BlobLibraryStore implements LibraryStore {
@@ -206,7 +274,9 @@ class BlobLibraryStore implements LibraryStore {
 					publishedAt: now,
 					createdAt: now,
 					plays: 0,
-					ratings: {}
+					ratings: {},
+					restricted: false,
+					grants: []
 				};
 			}
 			const version = e.version + 1;
@@ -246,7 +316,19 @@ class BlobLibraryStore implements LibraryStore {
 		return (await this.entries())
 			.filter((e) => e.owner === owner)
 			.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
-			.map((e) => ({ ...listingOf(e), listed: e.listed }));
+			.map((e) => ({ ...listingOf(e), listed: e.listed, grants: grantsOf(e) }));
+	}
+
+	async shared(creator: string, now = new Date()): Promise<SharedListing[]> {
+		const t = now.getTime();
+		const out: SharedListing[] = [];
+		for (const e of await this.entries()) {
+			const grant = grantsOf(e)
+				.filter((g) => grantActive(g, t) && g.target.kind === 'creator' && g.target.id === creator)
+				.sort((a, b) => (a.role === b.role ? 0 : a.role === 'collaborator' ? -1 : 1))[0];
+			if (grant) out.push({ ...listingOf(e), role: grant.role, grant });
+		}
+		return out.sort((a, b) => b.grant.at.localeCompare(a.grant.at)).slice(0, LIBRARY_LIMITS.list);
 	}
 
 	async get(id: string, version?: number): Promise<LibraryCopy | null> {
@@ -258,16 +340,43 @@ class BlobLibraryStore implements LibraryStore {
 		return {
 			listing: { ...listingOf(e), version: v },
 			listed: e.listed,
+			restricted: e.restricted ?? false,
 			owner: e.owner,
+			grants: grantsOf(e),
 			file: JSON.parse(text)
 		};
 	}
 
-	setListed(id: string, owner: string, listed: boolean): Promise<boolean> {
+	setAccess(id: string, owner: string, access: LibraryAccess): Promise<boolean> {
 		return this.serial(async () => {
 			const e = await this.entry(id);
 			if (!e || e.owner !== owner) return false;
-			await this.save({ ...e, listed });
+			await this.save({ ...e, ...flagsOf(access) });
+			return true;
+		});
+	}
+
+	grant(id: string, owner: string, g: NewGrant, now = new Date()): Promise<Grant | null> {
+		return this.serial(async () => {
+			const e = await this.entry(id);
+			if (!e || e.owner !== owner) return null;
+			const added = makeGrant(owner, g, now);
+			await this.save({ ...e, grants: withGrant(grantsOf(e), added, now) });
+			return added;
+		});
+	}
+
+	revoke(id: string, owner: string, grantId: string, now = new Date()): Promise<boolean> {
+		return this.serial(async () => {
+			const e = await this.entry(id);
+			if (!e || e.owner !== owner) return false;
+			const grants = grantsOf(e);
+			const g = grants.find((x) => x.id === grantId);
+			if (!g || !grantActive(g, now.getTime())) return false;
+			await this.save({
+				...e,
+				grants: grants.map((x) => (x === g ? { ...x, revoked: now.toISOString() } : x))
+			});
 			return true;
 		});
 	}
