@@ -1,33 +1,29 @@
-// Walls and doors for the three.js view. Every unit of wall is one instance of
-// a single InstancedMesh (one draw call however much wall there is); doors
-// are individual hinged meshes that swing open. Presentation only: open/closed
-// comes from the Door objects handed in. With elevation, a wall stands on the
-// higher floor beside it and reaches down to the lower one (a balcony's edge
-// is one face); a window is a low sill and, between equal floors, a lintel,
-// with the gap between them to see through.
-//
-// Walls are the surface kind (#172), world-mapped so the texture runs on across
-// units and heights (#177), anti-tiled on medium and up (#181); their colour is
-// the material's and the hover an emissive tint per instance (`aTint`), so a
-// textured wall is never multiplied by it. Door panels share one material of
-// the `local` variant (their texture swings with them), and a second, the same
-// but tinted, for the hovered door: swapping between them compiles nothing.
+// Walls and doors (#252). Walls are the pieces autotile picks (world/autotile.ts) from what
+// the viewer was sent: runs, posts, caps, retaining pieces and plinths, window and door frames.
+// Per 16x16 chunk a BatchedMesh per material (the built-in pieces in the wall look; a kit's in
+// its baked vertex colours), rebuilt only when `dirtyPieceChunks` says so. The surface kind's
+// `batched` variant: an instance's colour is a slight shade by its seed, its alpha the erase
+// highlight (a hatched glow). Picks hit an invisible proxy of boxes from `wallSpans` on
+// PICK_LAYER. Doors are hinged meshes that swing (their leaves are #253's), a `local` material
+// and its tinted twin for the hovered door, so swapping compiles nothing.
 
 import * as THREE from 'three/webgpu';
 import { pickable } from './picking';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
-import { edgeKey, type Door, type SceneObject } from '$lib/game/objects';
+import { edgeKey, unitEdges, type Door, type SceneObject } from '$lib/game/objects';
 import { wear, type Look } from './environment';
 import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
-import type { CellMask } from '$lib/game/visibility';
+import { standIn } from './warmup';
 import { wallSpans } from './world/wall-spans';
+import type { TileInput } from './world/autotile';
+import type { WorldShape } from './world/shape';
+import type { BatchRole, KitWeights, PieceMesh, WallInstances } from './world/wall-batch';
+import type { WorldBuilders } from './world-layer';
 import {
-	addInstanceTints,
 	createMaterial,
 	disposeTwins,
 	repeatFor,
 	setParams,
-	TINT_ATTRIBUTE,
 	twinOf,
 	type KindMaterial
 } from './materials';
@@ -38,10 +34,15 @@ const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_MS = 260;
 
 const PLAIN_WALL = { color: 0x8d8578, roughness: 0.85 };
-/** The erase tool's target: an emissive tint (rgb and strength) on the wall's instances. */
-const WALL_HOVER = { color: new THREE.Color(0xe27a6b), strength: 0.45 };
+/** A kit's pieces carry their colours; the material only finishes them. */
+const KIT_WALL = { color: 0xffffff, roughness: 0.85 };
 const DOOR = { color: 0x7a4a26, roughness: 0.6 };
 const DOOR_HOVER = 0x5a2a10;
+/** How far a piece's seed darkens it: a slight variation from piece to piece. */
+const TINT = 0.06;
+
+/** A kit's pieces as drawn: each role's variants with their weights (a role it lacks is procedural). */
+export type WallKit = Partial<Record<BatchRole, { mesh: PieceMesh; weight: number }[]>>;
 
 interface DoorEntry {
 	pivot: THREE.Group;
@@ -54,14 +55,33 @@ interface DoorEntry {
 	key: string;
 }
 
+/** One chunk's pieces: its batch, the geometry id of each piece key, and each instance's edge. */
+interface Batch {
+	mesh: THREE.BatchedMesh;
+	geometries: Map<number, number>;
+	ids: number[];
+	edges: Int32Array;
+	/** Its vertex and index space. */
+	space: [number, number];
+}
+
+/** What the stats report: chunks with a batch, instances, and how many the last sync rebuilt. */
+export interface WallStats {
+	chunks: number;
+	instances: number;
+	lastRebuilt: number;
+}
+
 export class WallLayer {
 	readonly group = new THREE.Group();
 	private grid: SquareGrid | null = null;
-	/** The walls' geometry, made again with the mesh as it grows (it carries the tints). */
-	private wallGeometry: THREE.BoxGeometry | null = null;
-	private wallMaterial: KindMaterial = createMaterial('surface', {
-		instanced: true,
-		antiTiled: true
+	/** The built-in pieces' material, in the environment's wall look. */
+	private material: KindMaterial = createMaterial('surface', { batched: true, antiTiled: true });
+	/** A kit's pieces' material: their surfaces are baked into vertex colours (#261). */
+	private kitMaterial: KindMaterial = createMaterial('surface', {
+		batched: true,
+		antiTiled: true,
+		vertexColors: true
 	});
 	private doorMaterial = createMaterial('surface', { local: true, params: DOOR });
 	private doorHoverMaterial = createMaterial('surface', {
@@ -69,17 +89,55 @@ export class WallLayer {
 		params: { ...DOOR, tint: DOOR_HOVER }
 	});
 	private look: Look | null = null;
+	private kit: WallKit | null = null;
+	private weights: KitWeights = {};
+	private interior: Uint8Array | null = null;
+	/** By chunk and material: `chunk * 2`, plus 1 for the kit's pieces. */
+	private batches = new Map<number, Batch>();
+	/** The tile input last drawn (null: draw every chunk next). */
+	private drawn: TileInput | null = null;
+	private state: { objects: readonly SceneObject[]; shape: WorldShape; ground: Ground } | null =
+		null;
+	private lastRebuilt = 0;
+	private standIns: THREE.BatchedMesh[] | null = null;
+	/** The invisible boxes picks hit, and the wall each belongs to. */
+	private proxy: THREE.InstancedMesh | null = null;
+	private proxyGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
+	private instanceOwner: string[] = [];
+	private doorGeometry = new THREE.BoxGeometry(1, WALL_HEIGHT * 0.92, DOOR_THICKNESS);
+	private doors = new Map<string, DoorEntry>();
+	private hoveredId: string | null = null;
+	private hoveredEdges = new Set<number>();
 
 	/** Door swings run on `clock`, the tabletop's (ms), not on frame steps. */
-	constructor(private readonly clock: () => number = () => performance.now()) {
-		wear(this.wallMaterial, null, PLAIN_WALL);
+	constructor(
+		private readonly build: WorldBuilders,
+		private readonly clock: () => number = () => performance.now()
+	) {
+		wear(this.material, null, PLAIN_WALL);
+		wear(this.kitMaterial, null, KIT_WALL);
 	}
 
-	/** The environment's walls (null: plain stone). */
-	setLook(look: Look | null): void {
+	/** The environment's walls (null: plain stone) and its kit (null: every piece procedural). */
+	setLook(look: Look | null, kit: WallKit | null = null): void {
 		this.look = look;
-		wear(this.wallMaterial, look, PLAIN_WALL);
+		wear(this.material, look, PLAIN_WALL);
 		this.tile();
+		if (kit === this.kit) return;
+		this.kit = kit;
+		this.weights = Object.fromEntries(
+			Object.entries(kit ?? {}).map(([role, list]) => [role, list.map((v) => v.weight)])
+		);
+		// Piece keys name a role's variant, so another kit's pieces need batches of their own.
+		this.clear();
+		this.retile();
+	}
+
+	/** The building context (the interior mask as sent): boundary walls stand outside it. */
+	setInterior(mask: Uint8Array | null): void {
+		if (mask === this.interior) return;
+		this.interior = mask;
+		this.retile();
 	}
 
 	/**
@@ -87,43 +145,36 @@ export class WallLayer {
 	 * True if remade: the renderer warms the new variant up, not compiling it mid-frame.
 	 */
 	setAntiTiled(on: boolean): boolean {
-		if (!!this.wallMaterial.options.antiTiled === on) return false;
+		if (!!this.material.options.antiTiled === on) return false;
 		// Its twin, kept (#180): switching back and again releases and compiles nothing.
-		this.wallMaterial = twinOf(this.wallMaterial);
-		if (this.walls) this.walls.material = this.wallMaterial;
+		this.material = twinOf(this.material);
+		this.kitMaterial = twinOf(this.kitMaterial);
+		for (const [slot, b] of this.batches) b.mesh.material = this.materialOf(slot);
+		this.standIns?.forEach((s, m) => (s.material = this.materialOf(m)));
+		if (this.proxy) this.proxy.material = this.material;
 		return true;
 	}
 
 	/** One repeat of the look across `look.cells` cells, and up in whole steps (#177). */
 	private tile(): void {
 		const repeat = repeatFor(this.look?.cells ?? 1, this.grid?.cellSize ?? 1, STEP_HEIGHT);
-		setParams(this.wallMaterial, { repeat });
+		setParams(this.material, { repeat });
 	}
-	private walls: THREE.InstancedMesh | null = null;
-	/** Object id for each wall instance, so picking can map back to the wall. */
-	private instanceOwner: string[] = [];
-	private doorGeometry = new THREE.BoxGeometry(1, WALL_HEIGHT * 0.92, DOOR_THICKNESS);
-	private doors = new Map<string, DoorEntry>();
-	private hoveredId: string | null = null;
-	private objects: readonly SceneObject[] = [];
 
-	/** Rebuilds wall instances and diffs doors. Walls change rarely, so a full instance refresh is fine. */
-	sync(
-		objects: readonly SceneObject[],
-		grid: SquareGrid,
-		ground: Ground,
-		/** The viewer's explored cells (`knownOf`): no wall shows a drop toward unexplored ground. */
-		known: CellMask | null = null
-	): void {
+	/** Rebuilds the pieces that may have changed, the picking proxy and the doors. */
+	sync(objects: readonly SceneObject[], shape: WorldShape, ground: Ground): void {
+		const grid = shape.grid;
 		const gridChanged =
 			!this.grid ||
 			this.grid.width !== grid.width ||
 			this.grid.height !== grid.height ||
 			this.grid.cellSize !== grid.cellSize;
 		this.grid = { ...grid };
+		if (gridChanged) this.clear();
 		this.tile();
-		this.objects = objects;
-		this.rebuildWalls(objects, grid, ground, known);
+		this.state = { objects, shape, ground };
+		this.retile();
+		this.rebuildProxy(objects, grid, ground, shape.known);
 
 		const seen = new Set<string>();
 		for (const o of objects) {
@@ -169,7 +220,7 @@ export class WallLayer {
 	pick(raycaster: THREE.Raycaster): string | null {
 		const hit = raycaster.intersectObject(this.group, true)[0];
 		if (!hit) return null;
-		if (hit.object === this.walls && hit.instanceId !== undefined) {
+		if (hit.object === this.proxy && hit.instanceId !== undefined) {
 			return this.instanceOwner[hit.instanceId] ?? null;
 		}
 		for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
@@ -178,7 +229,7 @@ export class WallLayer {
 		return null;
 	}
 
-	/** Tints one object, e.g. the target of the erase tool. Returns true if anything changed. */
+	/** Highlights one object, e.g. the target of the erase tool. Returns true if anything changed. */
 	setHovered(id: string | null): boolean {
 		if (id === this.hoveredId) return false;
 		this.hoveredId = id;
@@ -186,73 +237,181 @@ export class WallLayer {
 		return true;
 	}
 
+	stats(): WallStats {
+		let instances = 0;
+		for (const b of this.batches.values()) instances += b.ids.length;
+		const chunks = new Set([...this.batches.keys()].map((slot) => slot >> 1)).size;
+		return { chunks, instances, lastRebuilt: this.lastRebuilt };
+	}
+
+	/** A stand-in for the warm-up (#180): a casting batch, so the first wall drawn compiles nothing. */
+	gallery(): THREE.Object3D[] {
+		if (!this.standIns) {
+			const piece = this.build.proceduralPiece('wall.straight');
+			this.standIns = [0, 1].map((m) => {
+				const b = this.makeBatch(m);
+				const colors = m ? new Float32Array(piece.positions.length).fill(1) : undefined;
+				const id = b.mesh.addGeometry(geometryOf({ ...piece, colors }));
+				b.mesh.setColorAt(b.mesh.addInstance(id), new THREE.Vector4(1, 1, 1, 1));
+				return standIn(b.mesh);
+			});
+		}
+		this.standIns.forEach((s, m) => (s.material = this.materialOf(m)));
+		return this.standIns;
+	}
+
 	dispose(): void {
 		for (const id of [...this.doors.keys()]) this.removeDoor(id);
-		if (this.walls) this.walls.dispose();
-		this.wallGeometry?.dispose();
-		disposeTwins(this.wallMaterial);
+		this.clear();
+		this.proxy?.dispose();
+		for (const s of this.standIns ?? []) s.dispose();
+		this.proxyGeometry.dispose();
+		disposeTwins(this.material);
+		disposeTwins(this.kitMaterial);
 		for (const m of [this.doorMaterial, this.doorHoverMaterial]) m.dispose();
 		this.doorGeometry.dispose();
 	}
 
-	private rebuildWalls(
+	/** Every batch gone: the next tiling draws every chunk. */
+	private clear(): void {
+		for (const b of this.batches.values()) {
+			this.group.remove(b.mesh);
+			b.mesh.dispose();
+		}
+		this.batches.clear();
+		this.drawn = null;
+	}
+
+	/** Draws the chunks whose pieces may have changed since the input last drawn. */
+	private retile(): void {
+		if (!this.state) return;
+		const { objects, shape } = this.state;
+		const input = this.build.tileInput(shape, objects, this.interior);
+		const dirty = this.build.dirtyPieceChunks(this.drawn, input);
+		const { VARIANTS } = this.build;
+		for (const [c, pieces] of this.build.autotile(input, dirty)) {
+			const inst = this.build.wallInstances(pieces, shape.grid, this.weights);
+			// The built-in pieces and the kit's, each in a batch of their own material.
+			const byMaterial: number[][] = [[], []];
+			for (let i = 0; i < inst.count; i++) byMaterial[+(inst.key[i] % VARIANTS !== 0)].push(i);
+			byMaterial.forEach((list, m) => this.fill(c * 2 + m, inst, list));
+		}
+		this.drawn = input;
+		this.lastRebuilt = dirty.length;
+	}
+
+	/** Slot or material index 0: the built-in pieces' material; odd: the kit's. */
+	private materialOf(slot: number): KindMaterial {
+		return slot & 1 ? this.kitMaterial : this.material;
+	}
+
+	private makeBatch(slot: number): Batch {
+		const mesh = new THREE.BatchedMesh(64, 1024, 2048, this.materialOf(slot));
+		// The colours exist from the start: a batch without them is another program (#252).
+		(mesh as unknown as { _initColorsTexture(): void })._initColorsTexture();
+		mesh.castShadow = true;
+		mesh.receiveShadow = true;
+		const edges = new Int32Array(64).fill(-1);
+		return { mesh, geometries: new Map(), ids: [], edges, space: [1024, 2048] };
+	}
+
+	/** A batch's instances (`list`, of `inst`), reusing its ids; a batch with none goes. */
+	private fill(slot: number, inst: WallInstances, list: number[]): void {
+		let b = this.batches.get(slot);
+		if (!list.length) {
+			if (b) {
+				this.group.remove(b.mesh);
+				b.mesh.dispose();
+				this.batches.delete(slot);
+			}
+			return;
+		}
+		if (!b) {
+			b = this.makeBatch(slot);
+			this.batches.set(slot, b);
+			this.group.add(b.mesh);
+		}
+		const { mesh } = b;
+		for (const i of list) if (!b.geometries.has(inst.key[i])) this.addPiece(b, inst.key[i]);
+		while (b.ids.length > list.length) mesh.deleteInstance(b.ids.pop()!);
+		if (list.length > mesh.maxInstanceCount) {
+			const size = Math.ceil(list.length * 1.5);
+			mesh.setInstanceCount(size);
+			const edges = new Int32Array(size).fill(-1);
+			edges.set(b.edges);
+			b.edges = edges;
+		}
+		const first = b.geometries.get(inst.key[list[0]])!;
+		while (b.ids.length < list.length) b.ids.push(mesh.addInstance(first));
+		const m = new THREE.Matrix4();
+		for (let n = 0; n < list.length; n++) {
+			const [id, i] = [b.ids[n], list[n]];
+			mesh.setGeometryIdAt(id, b.geometries.get(inst.key[i])!);
+			mesh.setMatrixAt(id, m.fromArray(inst.matrices, i * 16));
+			b.edges[id] = inst.edge[i];
+			mesh.setColorAt(id, colourOf(inst.seed[i], this.hoveredEdges.has(inst.edge[i])));
+		}
+		mesh.computeBoundingBox();
+		mesh.computeBoundingSphere();
+	}
+
+	/** A piece's geometry in a batch: the kit's variant, or the built-in piece (`pieceKey`). */
+	private addPiece(b: Batch, key: number): void {
+		const { VARIANTS, roleOfKey } = this.build;
+		const role = roleOfKey(key);
+		const variant = (key % VARIANTS) - 1;
+		const piece = variant < 0 ? this.build.proceduralPiece(role) : this.kit![role]![variant].mesh;
+		const geometry = geometryOf(piece);
+		const [v, i] = [piece.positions.length / 3, piece.indices.length];
+		const { mesh } = b;
+		if (mesh.unusedVertexCount < v || mesh.unusedIndexCount < i) {
+			// Grown by half again what it needs (the space used, and this piece).
+			const [vs, is] = b.space;
+			b.space = [
+				Math.ceil((vs - mesh.unusedVertexCount + v) * 1.5),
+				Math.ceil((is - mesh.unusedIndexCount + i) * 1.5)
+			];
+			mesh.setGeometrySize(...b.space);
+		}
+		b.geometries.set(key, mesh.addGeometry(geometry));
+		geometry.dispose();
+	}
+
+	/** The invisible boxes a pick hits: a unit of wall each (two for a window between equal floors). */
+	private rebuildProxy(
 		objects: readonly SceneObject[],
 		grid: SquareGrid,
 		ground: Ground,
-		known: CellMask | null
+		known: Uint8Array | null
 	): void {
-		// Each unit edge once, even if two walls overlap there; a window is two pieces (#239).
-		const units = new Map<string, { owner: string; matrix: THREE.Matrix4 }[]>();
-		for (const { owner, edge: e, bottom, top } of wallSpans(grid, objects, ground.levels, known)) {
+		const spans = wallSpans(grid, objects, ground.levels, known);
+		if (!this.proxy || this.proxy.instanceMatrix.count < spans.length) {
+			this.proxy?.removeFromParent();
+			this.proxy?.dispose();
+			const capacity = Math.max(64, Math.ceil(spans.length * 1.5));
+			this.proxy = pickable(new THREE.InstancedMesh(this.proxyGeometry, this.material, capacity));
+			this.proxy.visible = false; // raycasts test layers, not visibility
+			this.group.add(this.proxy);
+		}
+		this.instanceOwner = spans.map((s) => s.owner);
+		const m = new THREE.Matrix4();
+		const [up, turn] = [new THREE.Vector3(0, 1, 0), new THREE.Quaternion()];
+		spans.forEach(({ edge: e, bottom, top }, i) => {
 			const p = cornerToWorld(grid, e.a);
 			const q = cornerToWorld(grid, e.b);
-			const vertical = e.a.x === e.b.x;
-			const key = edgeKey(e);
-			if (!units.has(key)) units.set(key, []);
-			units.get(key)!.push({
-				owner,
-				matrix: new THREE.Matrix4().compose(
-					new THREE.Vector3((p.x + q.x) / 2, (bottom + top) / 2, (p.z + q.z) / 2),
-					new THREE.Quaternion().setFromAxisAngle(
-						new THREE.Vector3(0, 1, 0),
-						vertical ? Math.PI / 2 : 0
-					),
-					// Slightly longer than a cell so corners close up without gaps.
-					new THREE.Vector3(grid.cellSize * (1 + WALL_THICKNESS), top - bottom, grid.cellSize)
-				)
-			});
-		}
-
-		const count = [...units.values()].reduce((n, pieces) => n + pieces.length, 0);
-		if (!this.walls || this.walls.instanceMatrix.count < count) {
-			if (this.walls) {
-				this.group.remove(this.walls);
-				this.walls.dispose();
-				this.wallGeometry?.dispose();
-			}
-			// Grow in chunks so building a wall edge by edge does not reallocate every time.
-			const capacity = Math.max(64, Math.ceil(count * 1.5));
-			this.wallGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
-			addInstanceTints(this.wallGeometry, capacity);
-			this.walls = pickable(
-				new THREE.InstancedMesh(this.wallGeometry, this.wallMaterial, capacity)
+			turn.setFromAxisAngle(up, e.a.x === e.b.x ? Math.PI / 2 : 0);
+			// Slightly longer than a cell, so a pick at a corner finds a wall.
+			const size = new THREE.Vector3(
+				grid.cellSize * (1 + WALL_THICKNESS),
+				top - bottom,
+				grid.cellSize
 			);
-			this.walls.castShadow = true;
-			this.walls.receiveShadow = true;
-			this.group.add(this.walls);
-		}
-		this.instanceOwner = [];
-		let i = 0;
-		for (const pieces of units.values()) {
-			for (const { owner, matrix } of pieces) {
-				this.walls.setMatrixAt(i, matrix);
-				this.instanceOwner.push(owner);
-				i++;
-			}
-		}
-		this.walls.count = count;
-		this.walls.instanceMatrix.needsUpdate = true;
-		this.walls.computeBoundingSphere();
+			const at = new THREE.Vector3((p.x + q.x) / 2, (bottom + top) / 2, (p.z + q.z) / 2);
+			this.proxy!.setMatrixAt(i, m.compose(at, turn, size));
+		});
+		this.proxy.count = spans.length;
+		this.proxy.instanceMatrix.needsUpdate = true;
+		this.proxy.computeBoundingSphere();
 	}
 
 	private createDoor(door: Door, grid: SquareGrid, key: string, floor: number): DoorEntry {
@@ -292,19 +451,44 @@ export class WallLayer {
 		this.doors.delete(id);
 	}
 
+	/** The hovered door's material, and the hovered wall's edges' pieces lit. */
 	private applyHover(): void {
 		for (const [id, entry] of this.doors)
 			entry.panel.material = id === this.hoveredId ? this.doorHoverMaterial : this.doorMaterial;
-		if (!this.walls) return;
-		const hoveredWall = this.objects.some((o) => o.id === this.hoveredId && o.kind === 'wall');
-		const tints = this.walls.geometry.getAttribute(
-			TINT_ATTRIBUTE
-		) as THREE.InstancedBufferAttribute;
-		const { color, strength } = WALL_HOVER;
-		for (let i = 0; i < this.walls.count; i++) {
-			const hot = hoveredWall && this.instanceOwner[i] === this.hoveredId;
-			tints.setXYZW(i, color.r, color.g, color.b, hot ? strength : 0);
-		}
-		tints.needsUpdate = true;
+		const grid = this.grid;
+		const wall = this.state?.objects.find((o) => o.id === this.hoveredId && o.kind === 'wall');
+		const edges = new Set<number>();
+		if (wall && grid)
+			for (const e of unitEdges(wall.a, wall.b)) {
+				const vertical = e.a.x === e.b.x;
+				edges.add(this.build.edgeIndex(grid, vertical ? 'v' : 'h', e.a.x, e.a.y));
+			}
+		const changed = new Set([...edges, ...this.hoveredEdges]);
+		this.hoveredEdges = edges;
+		if (!changed.size) return;
+		const colour = new THREE.Vector4();
+		for (const b of this.batches.values())
+			for (const id of b.ids) {
+				if (!changed.has(b.edges[id])) continue;
+				b.mesh.getColorAt(id, colour);
+				b.mesh.setColorAt(id, colour.setW(edges.has(b.edges[id]) ? 0 : 1));
+			}
 	}
+}
+
+const tint = new THREE.Vector4();
+/** A piece's colour: a slight shade by its seed; alpha 0 when highlighted (`batched`). */
+function colourOf(seed: number, hot: boolean): THREE.Vector4 {
+	const shade = 1 - TINT * (seed / 0x100000000);
+	return tint.set(shade, shade, shade, hot ? 0 : 1);
+}
+
+/** A piece as a geometry a batch takes: positions, normals and triangles. */
+function geometryOf(piece: PieceMesh): THREE.BufferGeometry {
+	const g = new THREE.BufferGeometry();
+	g.setAttribute('position', new THREE.BufferAttribute(piece.positions, 3));
+	g.setAttribute('normal', new THREE.BufferAttribute(piece.normals, 3));
+	if (piece.colors) g.setAttribute('color', new THREE.BufferAttribute(piece.colors, 3));
+	g.setIndex(new THREE.BufferAttribute(piece.indices, 1));
+	return g;
 }

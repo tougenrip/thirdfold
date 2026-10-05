@@ -6,7 +6,7 @@
 // and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `vertexColors`, and the kind's
+// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `batched`, `vertexColors`, and the kind's
 // `transparent`, `side` and alpha test.
 
 import * as THREE from 'three/webgpu';
@@ -77,6 +77,8 @@ export interface MaterialOptions {
 	dropped?: boolean;
 	/** Multiplies the geometry's vertex colours in (figure bodies, part-list props). */
 	vertexColors?: boolean;
+	/** For a BatchedMesh with colours (the walls, #252): an instance's alpha is its highlight. */
+	batched?: boolean;
 	params?: ParamsInput;
 	/** Textures for the kind's slots (see `prepareSlotTexture`); the rest hold their blanks. */
 	slots?: Partial<Record<SlotName, THREE.Texture>>;
@@ -156,7 +158,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		grid: def.base === 'basic' && !lines && !!options.grid,
 		local: !!options.local,
 		antiTiled: !!options.antiTiled,
-		dropped: !!options.dropped
+		dropped: !!options.dropped,
+		batched: !!options.batched
 	});
 	const nodes = material as unknown as Record<string, unknown>;
 	nodes.colorNode = graph.colorNode;

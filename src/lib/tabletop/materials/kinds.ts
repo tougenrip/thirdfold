@@ -6,7 +6,7 @@
 // adds no program.
 
 import * as THREE from 'three/webgpu';
-import { uniform } from 'three/tsl';
+import { batchColor, positionWorld, uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
 import { dropLift } from './drop';
 import { flickerNode } from './flicker';
@@ -240,7 +240,15 @@ export interface Variant {
 	antiTiled: boolean;
 	/** Terrain and rock: the world's chunks, dropping in by a start per vertex (#249, drop.ts). */
 	dropped: boolean;
+	/**
+	 * For a BatchedMesh whose colours are set (#252, the walls): its highlight is one minus the
+	 * instance colour's alpha (opaque kinds never use alpha), glowing `HIGHLIGHT` with a hatch.
+	 */
+	batched: boolean;
 }
+
+/** A batched instance's highlight (#252): a warm glow below bloom, hatched for colour-blind eyes. */
+export const HIGHLIGHT = { color: [0.89, 0.48, 0.42], strength: 0.45, stripes: 3 } as const;
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
 
@@ -251,6 +259,15 @@ const param = (name: keyof Params, type: string) => tsl.materialReference(`param
  */
 function tintOf(kind: ShaderKind, variant: Variant): N {
 	const own = param('tint', 'color');
+	if (variant.batched) {
+		// Diagonal stripes across the world, half as bright between them.
+		const w = positionWorld as unknown as N;
+		const across = w.x.add(w.y).add(w.z).mul(HIGHLIGHT.stripes);
+		const hatch = tsl.smoothstep(0.45, 0.55, across.fract());
+		const on = (batchColor as unknown as N).w.oneMinus();
+		const glow = tsl.vec3(...HIGHLIGHT.color).mul(HIGHLIGHT.strength * 0.5);
+		return own.add(glow.mul(on).mul(hatch.add(1)));
+	}
 	if (!variant.instanced) return own;
 	const each = tsl.attribute(TINT_ATTRIBUTE, 'vec4');
 	const glow = each.xyz.mul(each.w);
@@ -379,7 +396,8 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 		['grid', 'g'],
 		['local', 'o'],
 		['antiTiled', 'a'],
-		['dropped', 'd']
+		['dropped', 'd'],
+		['batched', 'b']
 	];
 	const key = `${kind}:${flags.map(([f, c]) => (variant[f] ? c : '')).join('')}`;
 	let graph = graphs.get(key);
