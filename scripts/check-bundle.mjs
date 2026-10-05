@@ -96,8 +96,9 @@ const BUDGETS = {
 	// (warm-ups compile in parallel chunks in each pass's context, the floors' box shared);
 	// 390,193 B measured. → 390.4: stairs (#255: the world layer reads walls and the environment's
 	// ground, merges the stairs' trim into the faces); just over 390.3 kB measured. → 391.2: the
-	// kit's stair pieces drawn (stair-kit.ts, #255 with #261's kits); 391.1 kB measured.
-	renderer: { total: 391_200 },
+	// kit's stair pieces baked into the chunks (stair-kit.ts, #255 with #261's kits); 391.4 kB
+	// measured.
+	renderer: { total: 391_500 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -109,8 +110,8 @@ const BUDGETS = {
 	// merged build's measured size. → 10.4: the void's chasms (#243, world/chasm.ts and the
 	// ground's void floor); 10,369 B measured. → 12.4: wall autotiling (#251, world/autotile.ts);
 	// 12,355 B measured. → 14.6: stairs (#255, world/stairs.ts and the stair faces in cliffs.ts);
-	// about 14.5 kB measured.
-	world: { total: 14_600 }
+	// about 14.6 kB measured (`styleOf` and `CHUNK` exported for the kit's stair pieces).
+	world: { total: 14_700 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

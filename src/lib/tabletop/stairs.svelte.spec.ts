@@ -1,6 +1,6 @@
 // Stairs (#255) on the monastery as the renderer draws them: the stone halls' kit (#261) pieces
-// once they have loaded (risers, stringers and a balustrade on the prop kind's model program),
-// the ground leaving their edges to them, every step's top at its floor across the token's disk,
+// once they have loaded (risers, stringers and a balustrade baked into the chunks' faces), the
+// ground leaving their edges to them, every step's top at its floor across the token's disk,
 // the balustrade over the gallery stair's drop to the nave; a wall along it rebuilding only the
 // chunks it touched and taking the rail away, a door rebuilding none, nothing compiling.
 
@@ -11,7 +11,6 @@ import type { SceneObject } from '$lib/game/objects';
 import { decodeLevels } from '$lib/game/terrain';
 import { STEP_HEIGHT } from './ground';
 import { loadSidecar, loadView, manualClock, mountFixture, settle, type Mounted } from './testing';
-import { STAIR_KIT } from './stair-kit';
 
 vi.setConfig({ testTimeout: 240_000 });
 
@@ -40,25 +39,11 @@ function chunkMeshes(scene: THREE.Scene): THREE.Mesh[] {
 	return out;
 }
 
-/** The kit's stair pieces (stair-kit.ts), instanced. */
-function kitMeshes(scene: THREE.Scene): THREE.InstancedMesh[] {
-	const out: THREE.InstancedMesh[] = [];
-	scene.getObjectByName(STAIR_KIT)?.traverse((o) => {
-		if (o instanceof THREE.InstancedMesh) out.push(o);
-	});
-	return out;
-}
-
 /** The highest surface of the meshes straight below (x, z). */
 function topAt(meshes: THREE.Mesh[], x: number, z: number): number {
 	const ray = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
 	const hits: THREE.Intersection[] = [];
-	for (const m of meshes)
-		(m instanceof THREE.InstancedMesh ? THREE.InstancedMesh : THREE.Mesh).prototype.raycast.call(
-			m,
-			ray,
-			hits
-		);
+	for (const m of meshes) THREE.Mesh.prototype.raycast.call(m, ray, hits);
 	return Math.max(...hits.map((h) => h.point.y));
 }
 
@@ -75,9 +60,7 @@ describe('stairs', () => {
 		const scene = compile.mock.calls[0][2] as THREE.Scene;
 		const { grid } = view;
 		const levels = decodeLevels(view.terrain!, grid.width * grid.height)!;
-		const meshes = () => [...chunkMeshes(scene), ...kitMeshes(scene)];
-		// The kit's pieces arrived and stand in for the procedural ones.
-		expect(kitMeshes(scene).length).toBeGreaterThanOrEqual(3);
+		const meshes = () => chunkMeshes(scene);
 		const floorY = (x: number, y: number) => levels[y * grid.width + x] * STEP_HEIGHT;
 
 		// Every step of the gallery stair (x 15 to 18, row 9) and the outside stair (x 22 and 23,

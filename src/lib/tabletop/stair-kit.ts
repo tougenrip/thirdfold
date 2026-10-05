@@ -1,20 +1,19 @@
 // A kit's stair pieces (#255 with #261's greybox kits): the `stair.riser`, `stair.side` and
-// `railing` models of the environment's kit, drawn where `stairsOf` put them, one InstancedMesh
-// per model part on the prop kind's model variant (vertex colours, instanced: the props' own
-// program, so nothing new compiles). A role is handed to the stairs only once every variant of it
-// has loaded (`ready`), so until then, and for a model that fails, the procedural steps draw:
-// never nothing. Never picked; casts and receives the sun's shadow. A model's meshes are kept and
-// only their matrices and counts change (grown in chunks, as PropLayer's), since a new mesh is a
-// new program.
+// `railing` models of the environment's kit, placed where `stairsOf` put them and baked into the
+// world's chunks with the faces (the rock kind with vertex colours: each piece's own colours over
+// the face's look), so they add no mesh, draw call or program (r186 gives every InstancedMesh a
+// vertex stage of its own) and are rebuilt with their chunk. A role is handed to the stairs only
+// once every variant of it has loaded (`ready`), so until then, and for a model that fails, the
+// procedural steps draw: never nothing. Each vertex is owned by its piece's cell (fog, drop-in).
 
 import * as THREE from 'three/webgpu';
 import { PLAIN_KIT, type KitDef, type KitRole } from '$lib/assets/kit';
 import { loadManifest } from '$lib/assets/load';
 import { STEP_HEIGHT } from './ground';
-import { addInstanceTints, createMaterial } from './materials';
 import { loadModel, modelNow, partsOf } from './models';
-import type { StairPiece } from './world/stairs';
+import type { CliffMesh } from './world/cliffs';
 import type { WorldShape } from './world/shape';
+import type { StairPiece } from './world/stairs';
 
 const ROLES: readonly KitRole[] = ['stair.riser', 'stair.side', 'railing'];
 /** Directions by `DIRS` index (regions.ts): north, east, south, west, as (x, z) in the world. */
@@ -25,16 +24,12 @@ const DIRS = [
 	[-1, 0]
 ] as const;
 
-/** The group's name (the render spec finds it by it). */
-export const STAIR_KIT = 'stair-kit';
+/** Cells x0 to x1 and y0 to y1 (exclusive): a chunk's. */
+export type CellBox = readonly [x0: number, y0: number, x1: number, y1: number];
 
 export class StairKit {
-	readonly group = Object.assign(new THREE.Group(), { name: STAIR_KIT });
 	private kit: KitDef | null = null;
 	private environment: string | null | undefined = undefined;
-	private material = createMaterial('prop', { instanced: true, vertexColors: true });
-	/** Each model's meshes (one per body part) and how many instances they hold. */
-	private meshes = new Map<string, { parts: THREE.InstancedMesh[]; capacity: number }>();
 
 	/** `onReady` is told when more of the kit's stair pieces have loaded (the stairs change). */
 	constructor(private readonly onReady: () => void) {}
@@ -68,86 +63,91 @@ export class StairKit {
 		return Object.keys(pieces).length ? { ...kit, pieces } : null;
 	}
 
-	/** Draws the kit pieces of a shape's stairs (all of them: a table has a few dozen). */
-	sync(shape: WorldShape): void {
-		const pieces = (shape.stairs as { pieces?: StairPiece[] } | undefined)?.pieces ?? [];
-		const byModel = new Map<string, THREE.Matrix4[]>();
+	/**
+	 * The kit pieces of the cells in `box` as meshes by `CLIFF_STYLES` index (`styleOf` a cell's
+	 * floor), for the faces' meshes: each piece's body at its edge pivot on the higher floor, turned
+	 * so +z looks down the stair or out over the side; a side repeats down its drop by its own
+	 * height (#261's convention for pieces below a floor).
+	 */
+	chunkPieces(shape: WorldShape, box: CellBox, styleOf: (floor: number) => number): CliffMesh[] {
 		const { width: w, height: h, cellSize: cs } = shape.grid;
+		const out = [new Baked(), new Baked()];
 		const m = new THREE.Matrix4();
-		for (const p of pieces) {
+		const turn = new THREE.Matrix3();
+		const scale = new THREE.Vector3(cs, cs, cs);
+		for (const p of (shape.stairs as { pieces?: StairPiece[] } | undefined)?.pieces ?? []) {
 			if (!p.model) continue;
+			const [x, y] = [p.cell % w, Math.floor(p.cell / w)];
+			if (x < box[0] || y < box[1] || x >= box[2] || y >= box[3]) continue;
 			const model = modelNow(p.model);
 			if (!model) continue;
-			const [x, y] = [p.cell % w, Math.floor(p.cell / w)];
 			const [dx, dz] = DIRS[p.dir];
-			const at = new THREE.Vector3(
-				(x + 0.5 + dx / 2 - w / 2) * cs,
-				shape.ground.floorY({ x, y }),
-				(y + 0.5 + dz / 2 - h / 2) * cs
-			);
-			// A side repeats down its drop by its own height (#261's convention for pieces below a floor).
 			const tall = -model.entry.bounds.min[1];
 			const depth = p.role === 'stair.side' ? (p.drop ?? 0) * STEP_HEIGHT : 0;
 			const copies = tall > 0 ? Math.max(1, Math.ceil(depth / tall - 1e-6)) : 1;
-			const list = byModel.get(p.model) ?? [];
+			const floorY = shape.ground.floorY({ x, y });
+			const style = styleOf(shape.floor[p.cell]);
 			for (let k = 0; k < copies; k++) {
-				m.makeRotationY(Math.atan2(dx, dz)).scale(new THREE.Vector3(cs, cs, cs));
-				m.setPosition(at.x, at.y - k * tall * cs, at.z);
-				list.push(m.clone());
-			}
-			byModel.set(p.model, list);
-		}
-		for (const [id, kept] of this.meshes)
-			if (!byModel.has(id)) for (const mesh of kept.parts) mesh.count = 0;
-		for (const [id, matrices] of byModel) {
-			const parts = this.ensure(id, matrices.length);
-			for (const mesh of parts) {
-				matrices.forEach((mat, i) => mesh.setMatrixAt(i, mat));
-				mesh.count = matrices.length;
-				mesh.instanceMatrix.needsUpdate = true;
-				mesh.computeBoundingSphere();
+				m.makeRotationY(Math.atan2(dx, dz)).scale(scale);
+				m.setPosition(
+					(x + 0.5 + dx / 2 - w / 2) * cs,
+					floorY - k * tall * cs,
+					(y + 0.5 + dz / 2 - h / 2) * cs
+				);
+				turn.getNormalMatrix(m);
+				for (const part of partsOf(model, 'body')) out[style].add(part.geometry, m, turn, p.cell);
 			}
 		}
-	}
-
-	/** A model's meshes with room for `count`, made again (larger) only when it outgrows them. */
-	private ensure(id: string, count: number): THREE.InstancedMesh[] {
-		const kept = this.meshes.get(id);
-		if (kept && kept.capacity >= count) return kept.parts;
-		if (kept) this.drop(kept.parts);
-		const capacity = Math.max(16, Math.ceil(count * 1.5));
-		const parts = partsOf(modelNow(id)!, 'body').map((part) => {
-			const geometry = part.geometry.clone();
-			addInstanceTints(geometry, capacity);
-			const mesh = new THREE.InstancedMesh(geometry, this.material, capacity);
-			mesh.castShadow = mesh.receiveShadow = true;
-			mesh.raycast = () => {};
-			this.group.add(mesh);
-			return mesh;
-		});
-		this.meshes.set(id, { parts, capacity });
-		return parts;
-	}
-
-	dispose(): void {
-		this.clear();
-		this.material.dispose();
-	}
-
-	private clear(): void {
-		for (const { parts } of this.meshes.values()) this.drop(parts);
-		this.meshes.clear();
-	}
-
-	private drop(parts: THREE.InstancedMesh[]): void {
-		for (const mesh of parts) {
-			mesh.geometry.dispose();
-			mesh.removeFromParent();
-		}
+		return out.map((b) => b.done());
 	}
 }
+
+const shade = (c: number) => Math.min(c * 2, 1.3);
 
 const isLoaded = (id: string) => {
 	const model = modelNow(id);
 	return !!model && !model.preview;
 };
+
+/** Geometry placed into one mesh: positions, normals, vertex colours, owners and triangles. */
+class Baked {
+	private pos: number[] = [];
+	private nor: number[] = [];
+	private col: number[] = [];
+	private own: number[] = [];
+	private idx: number[] = [];
+	private readonly v = new THREE.Vector3();
+
+	add(g: THREE.BufferGeometry, m: THREE.Matrix4, turn: THREE.Matrix3, owner: number): void {
+		const position = g.getAttribute('position');
+		const normal = g.getAttribute('normal');
+		const color = g.getAttribute('color');
+		const base = this.own.length;
+		for (let i = 0; i < position.count; i++) {
+			this.v.fromBufferAttribute(position, i).applyMatrix4(m);
+			this.pos.push(this.v.x, this.v.y, this.v.z);
+			if (normal) this.v.fromBufferAttribute(normal, i).applyMatrix3(turn).normalize();
+			else this.v.set(0, 1, 0);
+			this.nor.push(this.v.x, this.v.y, this.v.z);
+			// The faces' material already wears the environment's look: a piece's colour (its surface's,
+			// until #252's surface layer) shades it, doubled so a mid stone reads near 1 as a face does.
+			// ponytail: a guessed gain; the kit material (#252) replaces it.
+			if (color) this.col.push(...[color.getX(i), color.getY(i), color.getZ(i)].map(shade));
+			else this.col.push(1, 1, 1);
+			this.own.push(owner);
+		}
+		const index = g.getIndex();
+		if (index) for (let i = 0; i < index.count; i++) this.idx.push(base + index.getX(i));
+		else for (let i = 0; i < position.count; i++) this.idx.push(base + i);
+	}
+
+	done(): CliffMesh {
+		return {
+			positions: new Float32Array(this.pos),
+			normals: new Float32Array(this.nor),
+			colors: new Float32Array(this.col),
+			indices: new Uint32Array(this.idx),
+			owners: new Int32Array(this.own)
+		};
+	}
+}

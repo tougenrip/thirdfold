@@ -1911,16 +1911,18 @@ place (a `stair.side` only down to five levels, its envelope's −H; deeper side
 Every built-in environment's greybox kit (#261) has all three. At the table `stair-kit.ts`
 `StairKit` (in the world layer) loads the environment's kit from the manifest and its stair
 models, and hands a role to `withStairs` only once every variant of it has loaded (`ready`), so
-the procedural steps draw until then and for a model that fails: never nothing. It draws the kit's
-pieces as one InstancedMesh per model part on the prop kind's model variant (the props' own
-program), at each piece's edge pivot on the higher floor, turned so +z looks down the stair or out
-over the side; a side repeats down its drop by its own height (#261's convention). Never picked,
-casting and receiving. The kit's riser is one riser a level (its own look), not the procedural half
+the procedural steps draw until then and for a model that fails: never nothing. The kit's pieces
+are baked into their chunk's face meshes (`chunkPieces`: each body at its edge pivot on the higher
+floor, turned so +z looks down the stair or out over the side, a side repeated down its drop by its
+own height, #261's convention; its vertex colours doubled as shades over the face's look until
+#252's kit material), owned by their cell: no mesh, draw call or program of their own (r186 gives
+every InstancedMesh a vertex stage of its own, so instanced pieces compiled on every table they
+first appeared on; the program count's table travel caught it). Never picked, casting and receiving. The kit's riser is one riser a level (its own look), not the procedural half
 steps. `rolesNeeded` (`src/lib/assets/kit-needs.ts`) asks a table's kit for `stair.side` wherever a
 step has a lower side and `railing` wherever a built stair has a rail. Kerbs are procedural only.
 
 **Drawing.** The steps and stringers are the chunks' own faces and the rails and kerbs go into the
-faces' meshes (`withTrim`), so procedural stairs add no draw call (a kit adds one per piece model), no geometry of their own and no program (the
+faces' meshes (`withTrim`), so stairs add no draw call, no geometry of their own and no program (the
 rock kind with vertex colours, as every face), cast into the cached sun shadow and receive it, and
 are never picked. The world layer builds its shape with the walls and windows (`update(..., objects)`;
 a door opening changes nothing) and the environment's ground (`setLook`), and rebuilds only the
@@ -1939,9 +1941,8 @@ leaving their edges; rails by floor and environment; and `stairDirty`. `stairs.s
 render spec) draws the monastery: steps at their floors, the stone halls' kit pieces, their nosing and balustrade, a wall taking it
 away rebuilding at most two chunks, a door opening rebuilding none, nothing compiling.
 
-**Deviations from #255.** The procedural pieces are the ground's own faces and trim (no instanced
-layer, no extra draw call); only kit pieces are instanced (`StairKit`), until #252's kit drawing
-can take them over. The intermediate tread is on the
+**Deviations from #255.** No instanced stair layer: procedural and kit pieces alike go into the
+chunks' face meshes (no extra draw call or program), until #252's kit drawing can take them over. The intermediate tread is on the
 lower side only (above). Goldens and the closer-shot strip are left for the milestone's rendering PR.
 
 ## Modules

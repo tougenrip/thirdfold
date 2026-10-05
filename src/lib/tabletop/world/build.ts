@@ -9,11 +9,11 @@
 // prefetch, so a table never waits on it. What a frame needs at once stays
 // out: the DDA's picks (pick.ts) and the wall spans (wall-spans.ts).
 
-export { chunksAcross, dirtyChunks, knownOf, worldShape } from './shape';
+export { CHUNK, chunksAcross, dirtyChunks, knownOf, worldShape } from './shape';
 export { chunkGround } from './ground-mesh';
 export { regionsOf } from './regions';
 export { beyondHeightAt, beyondOf, beyondSample, ridgeMesh, skirtMesh } from './beyond';
-export { chunkWorld, CLIFF_STYLES } from './cliffs';
+export { chunkWorld, CLIFF_STYLES, styleOf } from './cliffs';
 export { chasmGround, chasmOf, DEFAULT_CHASM, mistTexels } from './chasm';
 export { autotile, dirtyPieceChunks, tileInput, variantOf } from './autotile';
 export { builtGround, stairDirty, stairTrim, withStairs, withTrim } from './stairs';

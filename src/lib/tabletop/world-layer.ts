@@ -29,8 +29,8 @@
 // faces, and its rails and kerbs (`stairTrim`) in the faces' meshes too, so they cost no draw call
 // and no program. A wall's change rebuilds only the chunks whose stairs it changed (`stairDirty`),
 // and so does a new environment whose default ground is built (or not): rails or kerbs. The
-// environment's kit (#261) draws its stair pieces instead once their models have loaded
-// (stair-kit.ts `StairKit`), and the ground leaves those edges to them.
+// environment's kit (#261) puts its stair pieces in instead once their models have loaded
+// (stair-kit.ts `StairKit`, baked into the faces' meshes too), and the ground leaves those edges.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -155,7 +155,7 @@ export class WorldLayer {
 		/** Told when something arrived that changes the picture (a kit's stair pieces). */
 		private readonly onChange: () => void = () => {}
 	) {
-		this.group.add(this.chunkGroup, this.stairKit.group);
+		this.group.add(this.chunkGroup);
 		this.sides = build.CLIFF_STYLES.map((style) => {
 			const material = createMaterial('rock', {
 				antiTiled: true,
@@ -310,7 +310,6 @@ export class WorldLayer {
 
 	dispose(): void {
 		this.resize(0);
-		this.stairKit.dispose();
 		this.standIns?.[0].geometry.dispose();
 		this.grid.dispose();
 		disposeTwins(this.top);
@@ -387,7 +386,6 @@ export class WorldLayer {
 		const drawn = this.drawn?.grid.cellSize === shape.grid.cellSize ? this.drawn : null;
 		const stairs = this.build.stairDirty(drawn, shape);
 		const dirty = [...new Set([...this.build.dirtyChunks(drawn, shape), ...stairs])];
-		if (!drawn || stairs.length) this.stairKit.sync(shape);
 		const { x, y } = this.build.chunksAcross(shape.grid);
 		this.resize(x * y);
 		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c));
@@ -397,11 +395,20 @@ export class WorldLayer {
 
 	private buildChunk(shape: WorldShape, c: number): void {
 		const { top, sides, bottom } = this.build.chunkWorld(shape, c, this.chasm);
-		const trim = this.build.stairTrim(shape, c); // rails and kerbs, with the faces (#255)
+		// Rails and kerbs, and the kit's stair pieces, with the faces (#255).
+		const trim = this.build.stairTrim(shape, c);
+		const across = this.build.chunksAcross(shape.grid).x;
+		const n = this.build.CHUNK;
+		const [x0, y0] = [(c % across) * n, Math.floor(c / across) * n];
+		const kit = this.stairKit.chunkPieces(shape, [x0, y0, x0 + n, y0 + n], this.build.styleOf);
 		const chunk = this.chunks[c];
 		fill(chunk.top, top, this.starts);
 		sides.forEach((faces, i) =>
-			fill(chunk.sides[i], this.build.withTrim(faces, trim[i]), this.starts)
+			fill(
+				chunk.sides[i],
+				this.build.withTrim(this.build.withTrim(faces, trim[i]), kit[i]),
+				this.starts
+			)
 		);
 		fill(chunk.bottom, bottom, null, true);
 		this.grid.follow(chunk.grid, chunk.top);
