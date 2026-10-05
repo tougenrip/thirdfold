@@ -2,8 +2,8 @@
 // the monastery for the GM: a pool of one InstancedMesh per variant on the prop kind, receiving
 // shadows and casting none; the tiles packed round the camera's target within the ring, and packed
 // again as it moves; the ring's uniforms per tier (none on low); the ground's tops carrying the bed;
-// the tiles changing the picture; and nothing compiling as the camera moves, floors are painted
-// (`tile` and `grating` among them); the tier's ring. Without tiles the ground is as it was.
+// the stone halls' own kit tiles (#261) drawn; and nothing compiling as the camera moves, floors are painted
+// (`tile` and `grating` among them); the tier's ring.
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -135,7 +135,7 @@ describe('kit floor tiles', () => {
 		expect(ringUniforms.radius.value).toBe(TILE_RING.high * cs);
 	});
 
-	it('draws no tiles and no bed on low, and changes the picture where it does', async () => {
+	it("draws no tiles and no bed on low, and the environment kit's own tiles on the monastery", async () => {
 		const { m, renderer, clock } = await mount(true);
 		const t = m.tabletop;
 		const with_ = await readFrame(m.canvas, WIDTH, HEIGHT);
@@ -147,11 +147,13 @@ describe('kit floor tiles', () => {
 		expect(t.stats().world!.tiles.instances).toBe(0);
 		expect(renderer).toBeInstanceOf(THREE.WebGPURenderer);
 		await unmountAnd();
-		// The same table without tiles: the picture at the table's middle differs where tiles lie.
-		const plain = await mount(false);
-		expect(plain.m.tabletop.stats().world!.tiles.meshes).toBe(0);
-		expect(ringUniforms.bed.value).toBe(0);
-		const without = await readFrame(plain.m.canvas, WIDTH, HEIGHT);
+		// The same table with its environment's own kit (#261's stone halls): its tiles are drawn
+		// (a mesh per variant geometry), and the picture differs from the stand-in's grey slabs.
+		const own = await mount(false);
+		await settle(own.m.tabletop, 400, 60_000, own.clock); // the kit's models loaded
+		expect(own.m.tabletop.stats().world!.tiles.meshes).toBeGreaterThan(0);
+		expect(own.m.tabletop.stats().world!.tiles.instances).toBeGreaterThan(500);
+		const without = await readFrame(own.m.canvas, WIDTH, HEIGHT);
 		let differ = 0;
 		for (let y = 150; y < 350; y += 4)
 			for (let x = 250; x < 550; x += 4)

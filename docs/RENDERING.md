@@ -1622,9 +1622,11 @@ the grid is the shader grid's overlay; no tile seam lines up with a cell edge by
   variant of the kit (the issue's per-chunk meshes would compile at runtime). `stats().world.tiles`
   reports the meshes and the instances packed.
 - **The kit's tiles** come from the environment's kit (`kitTiles`: each floor's `tiles` and
-  `broken` pieces' `body` at its full level). No kit has floor tiles until #261's greybox kits, so
-  every table keeps the blended ground; `useTileSet` puts a stand-in kit on every table for the
-  specs (`testTiles` in `testing.ts`).
+  `broken` pieces' `body` at its full level). #261's greybox kits tile the village's cobble and
+  wood, the stone halls' default ground, flagstone, stone, wood and `tile` (so the whole monastery
+  is tiled), the cavern's stone, the railcar's default ground, wood and `grating`, and the ghost
+  town's wood; every other floor keeps the blended ground. `useTileSet` puts a stand-in kit on
+  every table for the specs (`testTiles` in `testing.ts`).
 - **Secrecy.** Tiles are built only from the shape (known floors and levels, explored cells): the
   invariant harness (`world/tile-invariants.ts` `checkTiles`: every piece on known, tiled cells of
   its floor at one level, its top within `TILE_TOP_DEPTH` (0.035 cell) below the floor) runs on
