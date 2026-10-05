@@ -36,7 +36,9 @@ export const KIT_FLOOR_IDS: readonly FloorId[] = [
 	'rock',
 	'mud',
 	'snow',
-	'gravel'
+	'gravel',
+	'tile',
+	'grating'
 ];
 
 /** A token's footing: the radius (in cells) round a cell's centre that is flat at its floor. */
