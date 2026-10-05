@@ -69,7 +69,10 @@ describe('the world layer', () => {
 		const scene = compile.mock.calls[0][2] as THREE.Scene;
 		const { width: w, height: h } = view.grid;
 		const size = w * h;
-		expect(t.stats().world).toMatchObject({ chunks: 9, lastRebuilt: 9 });
+		// Every chunk drawn; the cavern kit's stair pieces arriving rebuild only their chunks (#255).
+		expect(t.stats().world!.chunks).toBe(9);
+		expect(t.stats().world!.lastRebuilt).toBeGreaterThan(0);
+		expect(t.stats().timings['world-chunk']?.count ?? 0).toBeGreaterThanOrEqual(9);
 		const meshes = chunkMeshes(scene).filter(shown);
 		// Nine chunks of tops, and faces where the Hollow rises and falls: rock, with vertex colours.
 		expect(meshes.filter((x) => !x.castShadow)).toHaveLength(9);

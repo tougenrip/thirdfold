@@ -124,7 +124,7 @@ export async function createTabletop(
 	let freshTable = false;
 	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
-	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops, onModel); // #240, #254
+	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops, onModel); // #240, #254, #255
 	const effects = new EffectsLayer();
 	scene.add(worldLayer.group, effects.group);
 	const previews = new PreviewLayer();
@@ -282,7 +282,8 @@ export async function createTabletop(
 
 	/** The world's shape from what the viewer was sent (#240), its ground; true if `known` changed. */
 	function reshape(): boolean {
-		const explored = worldLayer.update(grid!, levels, floor, fogState.fog, fogState.mode);
+		const { fog, mode } = fogState;
+		const explored = worldLayer.update(grid!, levels, floor, fog, mode, objects); // walls: #255
 		ground = worldLayer.ground;
 		return explored;
 	}
@@ -339,8 +340,8 @@ export async function createTabletop(
 			refreshLighting();
 		},
 		setObjects(next) {
-			objects = next;
-			if (!grid) return;
+			if (((objects = next), !grid)) return;
+			reshape(); // stairs stop at walls and rail no walled side (#255)
 			wallLayer.sync(objects, worldLayer.shape!, ground!);
 			refreshLighting();
 		},

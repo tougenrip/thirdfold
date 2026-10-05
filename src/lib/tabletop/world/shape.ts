@@ -91,6 +91,19 @@ export interface WorldShape {
 	edges: { ground: EdgeMap; built: EdgeMap };
 	/** The walls' pieces, as `walls.ts` draws them. */
 	walls: WallSpan[];
+	/** Stair runs' marks (#255, stairs.ts `withStairs`), when the shape is drawn with stairs. */
+	stairs?: StairMarks;
+}
+
+/** What a stair (#255) puts on a unit edge: the ground draws it as a step, a stringer or not at all. */
+export const STAIR_EDGE = { none: 0, riser: 1, side: 2, kit: 3 } as const;
+
+/** Where the ground draws stairs instead of risers and cliffs (stairs.ts). */
+export interface StairMarks {
+	/** Per unit edge, a `STAIR_EDGE` (`kit`: a kit piece stands there, the ground draws nothing). */
+	edges: EdgeMap;
+	/** A run's steps (its cells but the foot and the head): the ground keeps their corners square. */
+	steps: Uint8Array;
 }
 
 /**

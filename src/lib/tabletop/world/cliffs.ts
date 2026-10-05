@@ -28,6 +28,13 @@
 // (stone, wood, cobble, flagstone), earth on the rest (rock too); the layer
 // gives each style its look by the environment (the cave environments wear
 // cave rock on every face).
+//
+// Stairs (#255, stairs.ts) take over their edges: a run's riser becomes a
+// **stair** step (each level two half steps, the lower half's narrow tread
+// HALF_TREAD out over the lower cell's edge band, under the same worn nosing),
+// a step's side down to a lower neighbour a **side** (a stringer with its top
+// SIDE_OUT proud of the edge), and an edge a kit piece stands on draws nothing.
+// Their ends taper over STAIR_TAPER, so a step's end is a closed wedge.
 
 import { VOID } from '../../game/floor';
 import { MAN_MADE as MASONRY } from './floors';
@@ -35,7 +42,7 @@ import { STEP_HEIGHT } from '../ground';
 import { DEFAULT_CHASM, depthShade, type Chasm } from './chasm';
 import { chunkGround, type GroundMesh, type WallSink } from './ground-mesh';
 import { joinMeshes } from './join';
-import { CHUNK, chunksAcross, MAX_NOISE, type WorldShape } from './shape';
+import { CHUNK, chunksAcross, MAX_NOISE, slotBetween, STAIR_EDGE, type WorldShape } from './shape';
 
 /** The styles a face may take, each a mesh of its own (world-layer.ts gives each its look). */
 export const CLIFF_STYLES = ['earth', 'masonry'] as const;
@@ -44,7 +51,7 @@ export type CliffStyle = (typeof CLIFF_STYLES)[number];
 export const styleOf = (floor: number): number => (MASONRY.has(floor) ? 1 : 0);
 
 /** What a face is drawn as. */
-export const FACE = { plain: 0, riser: 1, cliff: 2 } as const;
+export const FACE = { plain: 0, riser: 1, cliff: 2, stair: 3, side: 4, kit: 5 } as const;
 export type FaceKind = (typeof FACE)[keyof typeof FACE];
 
 /** A riser's nosing: its height at the edge, and how far the riser below sits back (cells). */
@@ -62,8 +69,18 @@ export const MAX_ROWS = 12;
 /** Columns along a face, at most this far apart (cells), and the taper's length at a free end. */
 export const COLUMN = 0.5;
 export const TAPER = 0.25;
+/** A stair step's lower half: how far its tread reaches over the lower cell (WALL_HALF_THIN). */
+export const HALF_TREAD = 0.07;
+/** How far a stair's side stands proud of its edge, its top a narrow coping. */
+export const SIDE_OUT = 0.03;
+/** A stair's side: its coping band's height. */
+export const COPING = 0.06;
+/** The taper of a stair's free ends (a step's end meets its side). */
+export const STAIR_TAPER = 0.1;
 /** Shades (vertex colours): the worn nosing and rim, the shadow under them, the foot. */
-const SHADE = { nose: 1.3, rim: 1.15, under: 0.55, recess: 0.8, foot: 0.85 };
+const SHADE = { nose: 1.3, rim: 1.15, under: 0.55, recess: 0.8, foot: 0.85, tread: 1.2 };
+/** Two rows this close stand for one, with a change of shade between their bands. */
+const SEAM = 1e-4;
 
 /** A mesh with a colour (rgb, the face's shade) per vertex. */
 export interface CliffMesh extends GroundMesh {
@@ -94,6 +111,32 @@ export function profile(kind: FaceKind, lo: number, hi: number, cs: number): Row
 		noisy
 	});
 	if (kind === FACE.plain) return [row(hi, 0, 1), row(lo, 0, 1)];
+	if (kind === FACE.stair) {
+		// The upper half under the nosing, the lower half's tread out over the lower cell, its riser.
+		const mid = (hi + lo) / 2;
+		const out = -HALF_TREAD;
+		return [
+			row(hi, 0, SHADE.nose),
+			row(hi - NOSING * cs, 0, SHADE.nose),
+			row(hi - (NOSING + RECESS) * cs, RECESS, SHADE.under),
+			row(mid + SEAM * cs, RECESS, SHADE.recess),
+			row(mid, RECESS, SHADE.tread),
+			row(mid, out, SHADE.tread),
+			row(mid - SEAM * cs, out, SHADE.nose),
+			row(mid - NOSING * cs, out, SHADE.nose),
+			row(mid - (NOSING + SEAM) * cs, out, SHADE.recess),
+			row(lo, out, SHADE.foot)
+		];
+	}
+	if (kind === FACE.side)
+		return [
+			row(hi, 0, SHADE.tread),
+			row(hi, -SIDE_OUT, SHADE.tread),
+			row(hi - SEAM * cs, -SIDE_OUT, SHADE.rim),
+			row(hi - COPING * cs, -SIDE_OUT, SHADE.rim),
+			row(hi - (COPING + SEAM) * cs, -SIDE_OUT, SHADE.recess),
+			row(lo, -SIDE_OUT, SHADE.foot)
+		];
 	if (kind === FACE.riser)
 		return [
 			row(hi, 0, SHADE.nose),
@@ -165,6 +208,15 @@ interface Face {
 	kind: FaceKind;
 }
 
+/** What a stair (#255) made of the edge between a cell and the one beyond it, if beside it. */
+function stairEdge(shape: WorldShape, owner: number, x: number, y: number): number {
+	const { grid, stairs } = shape;
+	const w = grid.width;
+	if (!stairs || Math.abs(x - (owner % w)) + Math.abs(y - Math.floor(owner / w)) !== 1) return 0;
+	const { axis, index } = slotBetween(grid, owner, y * w + x);
+	return stairs.edges[axis][index];
+}
+
 /** What a face is: plain where its owner is unexplored or the void, a cliff over the void. */
 function kindOf(shape: WorldShape, f: Omit<Face, 'kind'>): FaceKind {
 	const { grid, known, floor } = shape;
@@ -180,6 +232,10 @@ function kindOf(shape: WorldShape, f: Omit<Face, 'kind'>): FaceKind {
 	if (beyond && floor[y * grid.width + x] === VOID) return FACE.cliff;
 	const levels = (f.hi - f.lo) / (STEP_HEIGHT * cs);
 	if (Math.abs(levels - Math.round(levels)) > 1e-3 || Math.round(levels) < 1) return FACE.plain;
+	const stair = beyond ? stairEdge(shape, f.owner, x, y) : STAIR_EDGE.none;
+	if (stair === STAIR_EDGE.kit) return FACE.kit;
+	if (stair === STAIR_EDGE.riser && Math.round(levels) === 1) return FACE.stair;
+	if (stair === STAIR_EDGE.side) return FACE.side;
 	return Math.round(levels) === 1 ? FACE.riser : FACE.cliff;
 }
 
@@ -237,6 +293,7 @@ class Faces {
 		const [tx, tz] = [dx / len, dz / len];
 		const m = Math.max(1, Math.ceil(len / (COLUMN * cs) - 1e-6));
 		const w = m + 1;
+		const taperLength = (f.kind === FACE.stair || f.kind === FACE.side ? STAIR_TAPER : TAPER) * cs;
 		// Each column's point on the edge, its outward normal (x, z) and its taper.
 		const col = new Float64Array(w * 5);
 		for (let j = 0; j < w; j++) {
@@ -245,8 +302,8 @@ class Faces {
 			const nz = f.n[1] + (f.n[3] - f.n[1]) * t;
 			const nl = Math.hypot(nx, nz) || 1;
 			let taper = 1;
-			if (free[0]) taper = Math.min(taper, (t * len) / (TAPER * cs));
-			if (free[1]) taper = Math.min(taper, ((1 - t) * len) / (TAPER * cs));
+			if (free[0]) taper = Math.min(taper, (t * len) / taperLength);
+			if (free[1]) taper = Math.min(taper, ((1 - t) * len) / taperLength);
 			col[j * 5] = f.x0 + dx * t;
 			col[j * 5 + 1] = f.z0 + dz * t;
 			col[j * 5 + 2] = nx / nl;
@@ -275,7 +332,8 @@ class Faces {
 		// The winding that faces out: the same for the whole face (its rows only lean back).
 		const out = tz * (f.n[0] + f.n[2]) - tx * (f.n[1] + f.n[3]) > 0;
 		for (let r = 0; r + 1 < rows.length; r++) {
-			if (rows[r].y - rows[r + 1].y < 1e-9) continue;
+			const flat = rows[r].y - rows[r + 1].y < 1e-9;
+			if (flat && Math.abs(rows[r].back - rows[r + 1].back) < 1e-9) continue;
 			const base = this.own.n;
 			for (let k = r; k <= r + 1; k++)
 				for (let j = 0; j < w; j++) {
@@ -292,7 +350,9 @@ class Faces {
 					const outward = nx * col[j * 5 + 2] + nz * col[j * 5 + 3] < 0 ? -1 : 1;
 					const nl = outward / (Math.sqrt(nx * nx + ny * ny + nz * nz) || 1);
 					this.pos.add3(v[o], v[o + 1], v[o + 2]);
-					this.nor.add3(nx * nl, ny * nl, nz * nl);
+					// A stair's tread or coping (a level band) faces up, even where its end tapers shut.
+					if (flat) this.nor.add3(0, 1, 0);
+					else this.nor.add3(nx * nl, ny * nl, nz * nl);
 					this.col.add3(v[o + 3], v[o + 3], v[o + 3]);
 					this.own.add(f.owner);
 				}
@@ -356,6 +416,7 @@ export function chunkWorld(
 	faces.forEach((f, i) => {
 		const [x, y] = [f.owner % grid.width, Math.floor(f.owner / grid.width)];
 		if (x < cx || y < cy || x >= cx + CHUNK || y >= cy + CHUNK) return;
+		if (f.kind === FACE.kit) return; // a kit piece stands there (stairs.ts)
 		const free: [boolean, boolean] = [ends.get(keys[i][0]) !== 2, ends.get(keys[i][1]) !== 2];
 		out[styleOf(shape.floor[f.owner])].add(f, free, cs);
 	});
