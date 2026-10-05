@@ -39,6 +39,7 @@
 import { VOID } from '../../game/floor';
 import { MAN_MADE as MASONRY } from './floors';
 import { STEP_HEIGHT } from '../ground';
+import { bridgeTrim } from './bridge-mesh';
 import { DEFAULT_CHASM, depthShade, type Chasm } from './chasm';
 import { chunkGround, type GroundMesh, type WallSink } from './ground-mesh';
 import { joinMeshes } from './join';
@@ -229,11 +230,12 @@ function kindOf(shape: WorldShape, f: Omit<Face, 'kind'>): FaceKind {
 	const x = Math.floor(((f.x0 + f.x1) / 2 + (nx / len) * 0.25 * cs) / cs + grid.width / 2);
 	const y = Math.floor(((f.z0 + f.z1) / 2 + (nz / len) * 0.25 * cs) / cs + grid.height / 2);
 	const beyond = x >= 0 && y >= 0 && x < grid.width && y < grid.height;
+	const stair = beyond ? stairEdge(shape, f.owner, x, y) : STAIR_EDGE.none;
+	// A kit piece, or a bridge's side (#256, over the void too), stands there.
+	if (stair === STAIR_EDGE.kit) return FACE.kit;
 	if (beyond && floor[y * grid.width + x] === VOID) return FACE.cliff;
 	const levels = (f.hi - f.lo) / (STEP_HEIGHT * cs);
 	if (Math.abs(levels - Math.round(levels)) > 1e-3 || Math.round(levels) < 1) return FACE.plain;
-	const stair = beyond ? stairEdge(shape, f.owner, x, y) : STAIR_EDGE.none;
-	if (stair === STAIR_EDGE.kit) return FACE.kit;
 	if (stair === STAIR_EDGE.riser && Math.round(levels) === 1) return FACE.stair;
 	if (stair === STAIR_EDGE.side) return FACE.side;
 	return Math.round(levels) === 1 ? FACE.riser : FACE.cliff;
@@ -416,20 +418,23 @@ export function chunkWorld(
 	faces.forEach((f, i) => {
 		const [x, y] = [f.owner % grid.width, Math.floor(f.owner / grid.width)];
 		if (x < cx || y < cy || x >= cx + CHUNK || y >= cy + CHUNK) return;
-		if (f.kind === FACE.kit) return; // a kit piece stands there (stairs.ts)
+		if (f.kind === FACE.kit) return; // a kit piece or a bridge's side stands there (stairs.ts)
 		const free: [boolean, boolean] = [ends.get(keys[i][0]) !== 2, ends.get(keys[i][1]) !== 2];
 		out[styleOf(shape.floor[f.owner])].add(f, free, cs);
 	});
 	return { top, sides: out.map((b) => b.done()), bottom };
 }
 
-/** Every chunk's ground with its cliffs, risers and the void's floor, as one mesh (for the harness). */
+/**
+ * Every chunk's ground with its cliffs, risers, bridges' bodies (#256, bridge-mesh.ts: the ground
+ * leaves their sides to them) and the void's floor, as one mesh (for the harness).
+ */
 export function tableWorld(shape: WorldShape, chasm: Chasm = DEFAULT_CHASM): GroundMesh {
 	const across = chunksAcross(shape.grid);
 	const parts: GroundMesh[] = [];
 	for (let c = 0; c < across.x * across.y; c++) {
 		const { top, sides, bottom } = chunkWorld(shape, c, chasm);
-		parts.push(top, ...sides, bottom);
+		parts.push(top, ...sides, bottom, ...bridgeTrim(shape, c, chasm));
 	}
 	return joinMeshes(parts);
 }

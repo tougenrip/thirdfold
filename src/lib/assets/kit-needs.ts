@@ -22,9 +22,11 @@ export type NeedsInput = Pick<SceneFile, 'grid' | 'objects' | 'terrain' | 'floor
  * glass (and a sill between different floors); doors a frame and a leaf; every corner where built
  * edges meet a post by how they meet; a one-level step without a wall a riser, a higher drop a
  * cliff face; roofed cells a ridge, eaves and corners; a stair run (#255) a side down to each lower
- * neighbour of its steps and, on a built stair, a railing on a drop (stairs.ts, as the client
- * draws it). ponytail: bridges and chimneys need #256's and #257's readings of a table; add them
- * here when those land.
+ * neighbour of its steps and, on a built stair, a railing on a drop; a bridge (#256) a railing on
+ * each open long side, and a built floor's open drop a railing (stairs.ts and bridges.ts, as the
+ * client draws them). A bridge's body is procedural (bridge-mesh.ts), so it asks for no
+ * `bridge.deck` or `bridge.pier` yet. ponytail: chimneys need #257's reading of a table; add them
+ * here when it lands.
  */
 export function rolesNeeded(scene: NeedsInput): Set<KitRole> {
 	const { width: w, height: h } = scene.grid;

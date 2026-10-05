@@ -10,8 +10,12 @@
 //   rules' levels and `canStep` are untouched, and picking stays the DDA's.
 // - Rails stand where a man-made step's side drops two levels or more (or to
 //   the void); hewn and earthen steps get a kerb there, walled sides nothing,
-//   and a bridge's sides are #256's. They are drawn here (`stairTrim`), in the
-//   faces' meshes.
+//   and a bridge's sides are its parapets. They are drawn here (`stairTrim`),
+//   in the faces' meshes.
+// - Bridges and balustrades (#256, bridges.ts) are worked out here too, so one
+//   list holds every rail: a bridge's open long sides get parapets (their
+//   edges taken from the ground for bridge-mesh.ts), and a built floor's open
+//   drop a balustrade.
 // - A kit (#250) with `stair.riser`, `stair.side` or `railing` pieces takes
 //   those places (a piece's `model`), and the ground leaves the edge to it.
 // - Only known cells make a run, a side or a rail, and an unexplored neighbour
@@ -22,7 +26,7 @@ import { VOID } from '../../game/floor';
 import { STEP_HEIGHT, WALL_HEIGHT } from '../ground';
 import { keySeed, variantOf } from './autotile';
 import type { CliffMesh } from './cliffs';
-import { MAN_MADE } from './floors';
+import { bridgesOf, builtFloor, dropRails } from './bridges';
 import { DIRS, regionsOf } from './regions';
 import {
 	CHUNK,
@@ -54,6 +58,8 @@ export interface StairPiece {
 
 export interface Stairs extends StairMarks {
 	pieces: StairPiece[];
+	/** Per cell, what stands under a bridge's deck (bridges.ts `UNDER` | `ALONG_Y`), 0 off them. */
+	bridges: Uint8Array;
 }
 
 export interface StairOptions {
@@ -76,7 +82,6 @@ export const builtGround = (environment: string | null | undefined): boolean =>
 const EARTH = 0;
 const MASONRY = 1;
 
-const PLAIN_FLOOR = 0;
 /** The most levels a `stair.side` piece reaches down (its envelope's −H). */
 const SIDE_LEVELS = Math.round(WALL_HEIGHT / STEP_HEIGHT);
 
@@ -94,7 +99,7 @@ export function stairsOf(
 	};
 	const steps = new Uint8Array(n);
 	const pieces: StairPiece[] = [];
-	const { stairs: runs, oneWide } = regionsOf(shape);
+	const { stairs: runs } = regionsOf(shape);
 	const isKnown = (i: number) => !known || known[i] === 1;
 	const neighbour = (i: number, d: number) => {
 		const x = (i % w) + DIRS[d].dx;
@@ -105,14 +110,8 @@ export function stairsOf(
 		const { axis, index } = slotBetween(grid, i, j);
 		return shape.edges.built[axis][index] !== EDGE_BUILT.none;
 	};
-	// A bridge: one wide with a drop on both sides and neither walled (a stair along a wall, like
-	// the gallery's, is not one). Its sides are #256's balustrades.
-	const bridge = new Uint8Array(n);
-	for (const r of oneWide)
-		for (const i of r.cells) {
-			const sides = r.along === 'x' ? [0, 2] : [1, 3];
-			if (sides.every((d) => neighbour(i, d) < 0 || !walled(i, neighbour(i, d)))) bridge[i] = 1;
-		}
+	// A bridge (#256): its long sides are its parapets and its own faces, not a stair's.
+	const { cells: bridge, sides: parapets } = bridgesOf(shape);
 	const pick = (role: StairRole, i: number, j: number): string | null => {
 		const list: KitPiece[] | undefined =
 			role === 'kerb' ? undefined : kit?.pieces[role as Exclude<StairRole, 'kerb'>];
@@ -132,9 +131,10 @@ export function stairsOf(
 		cell: number,
 		across: number,
 		dir: number,
-		drop: number | null
+		drop: number | null,
+		procedural = false
 	) => {
-		const model = pick(role, cell, across);
+		const model = procedural ? null : pick(role, cell, across);
 		pieces.push({ role, cell, across, dir, drop, model });
 		if (role !== 'stair.riser' && role !== 'stair.side') return;
 		const { axis, index } = slotBetween(grid, cell, across);
@@ -165,7 +165,7 @@ export function stairsOf(
 	for (const run of runs)
 		for (let k = 1; k + 1 < run.cells.length; k++) {
 			const s = run.cells[k];
-			if (bridge[s]) continue; // a bridge's sides are #256's
+			if (bridge[s]) continue; // a bridge's sides are its parapets
 			for (const d of [(run.dir + 1) & 3, (run.dir + 3) & 3]) {
 				const j = neighbour(s, d);
 				if (j < 0 || !isKnown(j)) continue;
@@ -181,13 +181,20 @@ export function stairsOf(
 					if (drop <= SIDE_LEVELS || !kit?.pieces['stair.side']?.length)
 						place('stair.side', s, j, d, drop);
 				}
-				if (drop === null || drop >= 2) {
-					const manMade = MAN_MADE.has(floor[s]) || (floor[s] === PLAIN_FLOOR && built);
-					place(manMade ? 'railing' : 'kerb', s, j, d, drop);
-				}
+				if (drop === null || drop >= 2)
+					place(builtFloor(floor[s], built) ? 'railing' : 'kerb', s, j, d, drop);
 			}
 		}
-	return { edges, steps, pieces };
+	// A bridge's parapets, on the edges the ground leaves to the bridge (bridge-mesh.ts).
+	for (const p of parapets) {
+		place('railing', p.cell, p.across, p.dir, p.drop);
+		const { axis, index } = slotBetween(grid, p.cell, p.across);
+		edges[axis][index] = STAIR_EDGE.kit;
+	}
+	// Balustrades at a built floor's open drops; under a window's sill always the procedural one.
+	for (const r of dropRails(shape, built, (c) => steps[c] === 1 || bridge[c] !== 0))
+		place('railing', r.cell, r.across, r.dir, r.drop, r.window);
+	return { edges, steps, pieces, bridges: bridge };
 }
 
 /** The shape with its stairs, which the ground (ground-mesh.ts, cliffs.ts) then draws. */
@@ -203,19 +210,25 @@ type Box = [x0: number, x1: number, y0: number, y1: number, z0: number, z1: numb
 
 /** A kerb: a low course along the edge. */
 const KERB: Box[] = [[-0.5, 0.5, 0, 0.1, -0.05, 0.05, 1.1]];
-/** A balustrade: a plinth, four balusters and a handrail, all within ±0.05 of the edge. */
+/**
+ * A balustrade (stairs, bridges' parapets and open drops, #256): a plinth, four balusters and a
+ * handrail, all within ±0.05 of the edge, at least half open, and lower than a window's sill
+ * (`RAIL_TOP` under wall-batch.ts' `SILL`, 0.7), so it nests inside the procedural sill where a
+ * window stands over it.
+ */
+export const RAIL_TOP = 0.68;
 const RAIL: Box[] = [
-	[-0.5, 0.5, 0, 0.08, -0.05, 0.05, 0.9],
+	[-0.5, 0.5, 0, 0.06, -0.05, 0.05, 0.9],
 	...[-0.375, -0.125, 0.125, 0.375].map((x): Box => [
 		x - 0.03,
 		x + 0.03,
-		0.08,
-		0.8,
+		0.06,
+		0.6,
 		-0.03,
 		0.03,
 		1
 	]),
-	[-0.5, 0.5, 0.8, 0.9, -0.05, 0.05, 1.2]
+	[-0.5, 0.5, 0.6, RAIL_TOP, -0.05, 0.05, 1.2]
 ];
 
 /** A box's six sides, each by its corners (bits: x 1, y 2, z 4) and its outward normal. */
@@ -363,7 +376,10 @@ export function withTrim(face: CliffMesh, trim: CliffMesh): CliffMesh {
 	};
 }
 
-/** Each cell's stairs in one number: its step mark, its four edges' marks and its trim's sides. */
+/**
+ * Each cell's stairs in one number: its step mark, its four edges' marks, its trim's sides and its
+ * bridge mark.
+ */
 function signatures(shape: WorldShape): Uint32Array {
 	const { width: w, height: h } = shape.grid;
 	const sig = new Uint32Array(w * h);
@@ -378,7 +394,8 @@ function signatures(shape: WorldShape): Uint32Array {
 				(e.h[y * w + x] << 1) |
 				(e.h[(y + 1) * w + x] << 3) |
 				(e.v[y * (w + 1) + x] << 5) |
-				(e.v[y * (w + 1) + x + 1] << 7);
+				(e.v[y * (w + 1) + x + 1] << 7) |
+				(s.bridges[i] << 25); // what stands under a bridge's deck (#256)
 		}
 	for (const p of s.pieces)
 		if (p.role === 'railing' || p.role === 'kerb')

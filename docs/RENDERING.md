@@ -2038,9 +2038,10 @@ ground reads:
   void) is a **stringer** (`FACE.side`): a flat face down to the neighbour's floor, its top a
   `SIDE_OUT` (0.03) coping proud of the edge with a lighter `COPING` band, replacing the riser or cliff
   that was there. A bridge's sides (a step one wide with drops both ways and neither side walled: the
-  Hollow's (38, 9) and (39, 9)) are left to #256; a stair along a wall, like the gallery's, is not one.
+  Hollow's (38, 9) and (39, 9), and the monastery's outside stair where both its sides drop two or
+  more) are the bridge's since #256 (below); a stair along a wall, like the gallery's, is not one.
 - **Rails** stand on a side whose drop is two levels or more (or the void): a balustrade
-  (`railing`: a plinth, four balusters and a handrail 0.9 high, all within ±0.05 of the edge) on a
+  (`railing`: a plinth, four balusters and a handrail 0.68 high since #256, under a window's sill, all within ±0.05 of the edge) on a
   man-made step (`MAN_MADE` floors, or the plain floor where the environment's default ground is
   built: `builtGround`, `stone-halls` and `railcar` for now), else a 0.1 kerb (hewn and earthen
   steps: the Hollow's). A walled side gets nothing. `stairTrim(shape, chunk)` draws them as boxes
@@ -2055,7 +2056,7 @@ and rails from x 16 (the drop is 1 at x 15), its south side the nave's wall, not
 stair (x 22-23, rows 10-13, two wide) two risers a step and rails on both outer drops of two or
 more; the tower stair (row 2) is walled both sides: steps only. The Hollow's stairs at y 23 and y 13
 (two wide, cavern rock) get kerbs on their drops; the watch stair onto the high bridge gets steps and
-leaves its sides to the bridge.
+gives its sides to the high bridge's parapets.
 
 **Kits.** A kit (#250) with `stair.riser`, `stair.side` or `railing` pieces puts a model on those
 pieces (a variant by `keySeed` of the edge and the kit's weights, as #251), and the edge is marked
@@ -2097,6 +2098,90 @@ away rebuilding at most two chunks, a door opening rebuilding none, nothing comp
 **Deviations from #255.** No instanced stair layer: procedural and kit pieces alike go into the
 chunks' face meshes (no extra draw call or program), until #252's kit drawing can take them over. The intermediate tread is on the
 lower side only (above). Goldens and the closer-shot strip are left for the milestone's rendering PR.
+
+## Bridges and balustrades (milestone 70, #256)
+
+A height field has one floor a cell, so a bridge is a run of raised cells whose sides were cliffs
+down to whatever lies below: the Hollow's high bridge and causeway read as walls standing in the
+lake. `world/bridges.ts` (pure, server-tested, in the lazy `world` chunk) reads bridges and open
+drops off the world's shape, and `world/bridge-mesh.ts` builds their bodies; both from what the
+viewer was sent, presentation only (the rules' levels, `canStep`, sight and the DDA's picks are
+untouched, every top stays at its floor across its token disk).
+
+**Bridges.** `regionsOf(shape).bridges` (`regions.ts` `bridgeRuns`) finds raised runs at most
+`BRIDGE_WIDTH` (2) wide: slices across the run of one or two known cells joined side by side (within a
+level, unwalled) with an open drop of two levels or more, or the void, beyond both ends (a walled
+side is no bridge's: a stair or a walk along a wall), chained along the run, at least
+`BRIDGE_SLICES` (2) long; the ends may meet any ground. A wider strip is a terrace. `bridgesOf`
+marks each cell by what stands under its deck (`UNDER` in the low bits, `ALONG_Y` the run's axis):
+a **pier** every two or three slices by a hash of the slice's first cell (`keySeed`), never at an
+end; an **arch** where every long side of the slice is known void (and the slice is level); else a
+**span**, a solid spandrel down to the floor below. A cell on runs both ways (a corner) takes no
+arch. On the tables: the high bridge, x 32 to 39 on row 9 (its watch stair cells keep their treads),
+the ruins' bridge at y 16 to 21 (not 14 and 15, where the ledge is beside it), the causeway, and the
+monastery's outside stair where both its sides drop two or more (rows 10 to 12). The Hollow has no
+void, so no arch opens there.
+
+**Parapets and bodies.** `stairsOf` (stairs.ts) does the bridges first: a step on a bridge leaves its
+sides to it, each open long side gets a `railing` (the parapet) and its edge is marked `kit`, so the
+ground draws nothing there (`kindOf` in `cliffs.ts` reads the mark before the void's cliff), and the
+bridge cells' corners stay square (`StairMarks.bridges`, read by `tileAt`). `bridgeTrim(shape,
+chunk, chasm)` draws each open side, owned by its cell, in the masonry faces' mesh (a bridge is
+built, whatever its floor): a deck band `DECK` (0.15) deep standing `DECK_OUT` (0.03) proud of the
+edge (its ends closed only against the bridge's own next cells, so nothing lies along an edge of a
+cell it doesn't own); under it a flat spandrel down to the floor below (the void's floor, `chasmY`,
+over the void); a pier's pilaster `PIER_OUT` (0.06) proud of it, 0.44 wide; or over the void an
+arch: jambs `JAMB` (0.12) at each end of the cell, a half-round opening up to `CROWN` (0.1) under
+the deck, its soffit across the cell, the jambs' returns facing into it, and a floor at the void's
+floor, so no ray falls through. Nothing stands over the floor but the parapets, and nothing reaches
+more than 0.07 past an edge (`WALL_HALF_THIN`), so no walkable cell's disk is touched.
+
+**Balustrades.** `dropRails` puts a `railing` on every known edge from a built floor (`builtFloor`:
+`MAN_MADE`, or the plain floor of a `builtGround` environment) down two levels or more, or to the
+void, with no wall or door on it, on the higher cell, except on a stair's step or a bridge, which
+have their own; a window down to a lower floor takes one too (the gallery's `mn-railing`: always the
+procedural one, standing under the window's sill, #253), never a window out to the void (the night
+train's). Natural ground at a drop keeps #241's rim. On the tables: the monastery's ledge (its open
+east edge, y 6 to 9, and its north edge), the gallery's window (x 19, y 2 to 8) and the belfry's open
+edges; the night train's three gangways between cars, both sides; two edges of the ghost town; none
+on the Hollow, the village or the Heart. A one-level step never gets one.
+
+**The rail.** One procedural balustrade for stairs, parapets and drops (`stairTrim`): a plinth, four
+balusters and a handrail, `RAIL_TOP` (0.68) high, under wall-batch.ts' `SILL` (0.7) so it nests
+inside the procedural sill, within ±0.05 of the edge and more than half open, so what the rules
+show past it stays visible. A kit's `railing` (#261's, 1.0 high) takes a parapet's or a drop's place
+once loaded (`StairKit`, baked into the faces' meshes), never a window's.
+
+**Drawing.** Bodies, parapets and balustrades all go into the chunks' face meshes (`withTrim`), so a
+bridge adds no draw call, no mesh and no program (the rock kind with vertex colours), casts into the
+cached sun shadow and receives it, and is never picked; a change rebuilds only its chunks
+(`stairDirty` reads each cell's bridge mark too). The kit's `bridge.deck` and `bridge.pier` are not
+drawn: a cell piece within ±0.5 of its cell stands inside the bridge's solid column, which only an
+arch opens, and the deck's top would lie on the ground's. `rolesNeeded` asks for `railing` wherever a
+bridge or a built drop stands, not for those two.
+
+**Secrecy.** An unexplored side is no drop (`regions.ts` reads only known cells), so no bridge, arch,
+rail or body is drawn toward it, and the void is only known void. Unexplored-is-black counts every
+rail, parapets and balustrades too, as standing `TALL.rail` over its cell.
+
+**Tests.** `world/bridges.spec.ts`: the Hollow's three bridges as above, no arch over its lake;
+arches over void on both sides (a ray passes under the deck, a pier's meets stone), a spandrel with
+walkable ground on one side, nothing toward an unexplored side; the monastery's ledge and gallery
+railed and nothing on a one-level step, no rail on the cavern, village or heart, the train's
+gangways and never its windows; every fixture scene and view and 60 seeded tables of narrow runs over
+ground, water and void, fogged and not, through the harness (`tableWorld` now holds the bodies,
+`checkEmitter` with the parapets as trim, no `INTRUSION` allowance, up to `FIGURE_CLEAR`; no ray
+through; every piece between known cells; arches only over known void); a wall rebuilding only its
+chunks; every body under its deck. `stairs.spec.ts` and `kits.spec.ts` follow (their two-wide
+stair now has a terrace on one side, and the outside stair flies). `bridges.svelte.spec.ts` (a render
+spec) draws the Hollow's high bridge and causeway: decks and tops at their floors, the parapets
+over the edges, the bodies down to the lake, nothing compiling.
+
+**Deviations from #256.** No `InstancedMesh` per piece: bodies and rails are baked into the chunks'
+faces like #255's stairs (r186 compiles a vertex stage per InstancedMesh). The body is procedural
+(above), so a pilaster stands for the pier. Railings are 0.68 high, the issue's sill cap, while
+#261's kit railing stands 1.0. Goldens and the closer-shot strips are left for the milestone's
+rendering PR.
 
 ## Modules
 
