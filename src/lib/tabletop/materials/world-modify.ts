@@ -21,7 +21,9 @@ import * as T from 'three/tsl';
 import {
 	FLASH_THINS,
 	cellUniforms,
+	faceCell,
 	groundFlat,
+	groundTexel,
 	onGrid,
 	visibilitySmooth,
 	visibilityTexel
@@ -70,7 +72,7 @@ interface World {
 	darkTint: N;
 }
 
-let world: World | null = null;
+const worlds = new Map<boolean, World>();
 let sky: { notDark: N; ambient: N; sun: N } | null = null;
 
 /**
@@ -99,10 +101,15 @@ export const skySun = (): N => skyTerms().sun;
 /** How much of the sky's ambient light (hemisphere, IBL) reaches it: 0 dark, the fill indoors. */
 export const skyAmbient = (): N => skyTerms().ambient;
 
-/** The per-fragment terms, built once and shared by every kind's graph. */
-function terms(): World {
-	if (world) return world;
-	const texel = loose(visibilityTexel);
+/**
+ * The per-fragment terms, built once and shared by every kind's graph. With `face` (the rock
+ * kind's cliffs and risers, #241) the cell is looked up a hundredth of a cell behind the surface
+ * (`faceCell`), so a face shades with the cell that owns it, not the one it looks onto.
+ */
+function terms(face = false): World {
+	const built = worlds.get(face);
+	if (built) return built;
+	const texel = face ? loose(visibilityTexel).load(loose(faceCell)) : loose(visibilityTexel);
 	const smooth = loose(visibilitySmooth);
 	const { notDark } = skyTerms();
 	const [visible, explored] = [texel.x, texel.y];
@@ -122,7 +129,7 @@ function terms(): World {
 	const shape = (x: N) => smoothstep(float(0.5), u.edgeBand.add(0.5), x.sub(noise));
 	const current = min(levelOf(visible, explored), levelOf(shape(smooth.x), shape(smooth.y)));
 	// Reveal fades (#174): from the state a newly visible cell came from, `remaining` of the way.
-	const fade = loose(groundFlat);
+	const fade = loose(face ? groundTexel : groundFlat);
 	const [remaining, from] = [fade.z, levelOf(float(0), fade.w)];
 	const fog = min(current, mix(current, from, remaining));
 	const seen = visible.mul(remaining.oneMinus());
@@ -136,7 +143,8 @@ function terms(): World {
 	const flashed = mix(lit, float(1), u.flash.mul(FLASH_THINS));
 	const light = mix(float(1), flashed, shown);
 	const darkTint = loose(mix(u.nightTint, u.darkTint, notDark));
-	world = { fog: loose(fog), unseen, light: loose(light), darkTint };
+	const world = { fog: loose(fog), unseen, light: loose(light), darkTint };
+	worlds.set(face, world);
 	return world;
 }
 
@@ -149,7 +157,7 @@ function tinted(rgb: N, unseen: N): N {
 }
 
 /** A surface's authored emissive as the world lets it glow: dimmed by the fog, 0 where hidden. */
-export const worldEmissive = (emissive: N): N => emissive.mul(terms().fog);
+export const worldEmissive = (emissive: N, face = false): N => emissive.mul(terms(face).fog);
 
 /**
  * How lit the fragment's cell is by the rules (1 lit, down to 1 - the ambient's darkness): what
@@ -164,10 +172,11 @@ export const worldLight = (): N => terms().light;
  * is fogged, the emissive kept, so `((output - emissive) x light + tint x (1 - light)) x fog +
  * emissive`. Hidden cells come out exactly 0, haze and all. With `lit` (the lit kinds, whose
  * lighting model already scaled the sky's light by `worldLight`) the light factor is not applied
- * again: only the dark's tint is added.
+ * again: only the dark's tint is added. With `face` the fog, the unseen tint and the reveal fades
+ * are the cell's behind the surface (`terms`): the rock kind's cliffs and risers (#241).
  */
-export function worldModify(output: N, emissive: N, lit = false): N {
-	const { fog, unseen, light: factor, darkTint } = terms();
+export function worldModify(output: N, emissive: N, lit = false, face = false): N {
+	const { fog, unseen, light: factor, darkTint } = terms(face);
 	const light = lit ? float(1) : factor;
 	const kept = light.mul(fog);
 	const tint = darkTint.mul(factor.oneMinus());
@@ -186,6 +195,9 @@ export function worldModify(output: N, emissive: N, lit = false): N {
 
 /** How much of a surface shows in its cell, light times fog: the grid lines fade by it. */
 export const worldShade = (): N => terms().light.mul(terms().fog);
+
+/** How much the fog lets through (1 visible, exactly 0 on a player's hidden cell): the shader grid's (#245). */
+export const worldFog = (): N => terms().fog;
 
 /**
  * 1 where a player's fog hides the fragment's cell, else 0: the scene pass's `hidden` attachment

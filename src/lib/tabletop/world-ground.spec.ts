@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SquareGrid } from '$lib/game/grid';
 import { fogRange } from './atmosphere-curve';
-import {
-	aboveGround,
-	GROUND_CLEARANCE,
-	MAX_POLAR_ANGLE,
-	ringVertices,
-	worldExtents
-} from './world-ground';
+import { aboveGround, GROUND_CLEARANCE, MAX_POLAR_ANGLE, worldExtents } from './world-ground';
 
 const grid = (width: number, height: number, cellSize = 1): SquareGrid => ({
 	kind: 'square',
@@ -72,81 +66,6 @@ describe('the world extent', () => {
 			expect(play.maxDistance).toBeLessThan(world.far);
 		}
 	);
-});
-
-describe('the ground ring', () => {
-	const inner = (positions: Float32Array, loops: number) => {
-		const points: { x: number; z: number }[] = [];
-		for (let v = 0; v < positions.length / 3; v += loops)
-			points.push({ x: positions[v * 3], z: positions[v * 3 + 2] });
-		return points;
-	};
-
-	it.each(GRIDS.map((g) => [label(g), g] as const))(
-		'meets the play plane of %s with no gap or overlap and reaches the horizon',
-		(_, g) => {
-			const extent = worldExtents(g);
-			const { width, depth } = extent.play;
-			const { horizon } = extent.world;
-			const ring = ringVertices(extent, 48);
-			const { positions, uvs, indices } = ring;
-			const count = positions.length / 3;
-			expect(uvs.length).toBe(count * 2);
-			for (let v = 0; v < count; v++) {
-				expect(positions[v * 3 + 1]).toBe(0);
-				expect(uvs[v * 2]).toBe(positions[v * 3]);
-				expect(uvs[v * 2 + 1]).toBe(-positions[v * 3 + 2]);
-			}
-			expect(Math.max(...indices)).toBeLessThan(count);
-
-			// Every triangle faces up; together they cover exactly the disc less the grid.
-			let area = 0;
-			for (let i = 0; i < indices.length; i += 3) {
-				const [a, b, c] = [indices[i], indices[i + 1], indices[i + 2]].map((v) => ({
-					x: positions[v * 3],
-					z: positions[v * 3 + 2]
-				}));
-				// y of (b - a) × (c - a): positive faces +y.
-				const up = (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z);
-				expect(up).toBeGreaterThan(0);
-				area += up / 2;
-			}
-			// The rim is a polygon inscribed in the circle; the hole is the grid's rectangle.
-			// Seven vertices out from the grid in each direction (six loops).
-			const around = inner(positions, 7);
-			expect(indices.length).toBe(around.length * 6 * 6);
-			let rim = 0;
-			for (let i = 0; i < around.length; i++) {
-				const o = i * 7 + 6;
-				const n = ((i + 1) % around.length) * 7 + 6;
-				rim +=
-					(positions[o * 3] * positions[n * 3 + 2] - positions[n * 3] * positions[o * 3 + 2]) / 2;
-			}
-			expect(Math.abs(area - (rim - width * depth))).toBeLessThan(1e-9 * rim);
-			expect(rim).toBeGreaterThan(0.99 * Math.PI * horizon * horizon);
-
-			// The inner loop runs round the rectangle's edge, through its four corners.
-			for (const p of around)
-				expect(
-					Math.abs(Math.abs(p.x) - width / 2) < 1e-4 || Math.abs(Math.abs(p.z) - depth / 2) < 1e-4
-				).toBe(true);
-			for (const x of [-1, 1])
-				for (const z of [-1, 1])
-					expect(
-						around.some(
-							(p) =>
-								Math.abs(p.x - (x * width) / 2) < 1e-4 && Math.abs(p.z - (z * depth) / 2) < 1e-4
-						)
-					).toBe(true);
-		}
-	);
-
-	it('has fewer triangles with fewer segments', () => {
-		const extent = worldExtents(grid(48, 36));
-		expect(ringVertices(extent, 16).indices.length).toBeLessThan(
-			ringVertices(extent, 64).indices.length
-		);
-	});
 });
 
 describe('the camera', () => {

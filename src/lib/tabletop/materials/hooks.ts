@@ -5,7 +5,8 @@
 //
 // - `surfaceMapping`: where a kind's slots lie (#177, mapping.ts): box projection from world
 //   position on the surface and terrain kinds, the geometry's own space for a `local` material
-//   (door panels), triplanar on rock, the mesh's uv elsewhere (props and minis: glTF uvs, #188).
+//   (door panels), triplanar on rock (biplanar on low, #241), the mesh's uv elsewhere (props and
+//   minis: glTF uvs, #188).
 // - `slotSample`: samples with #179's mip bias (`mipBias`, a uniform: 0 but on high with TRAA).
 // - `paintNormal`, `paintRoughness`: #178's paint noise on props and minis (paint.ts).
 // - `ownAlbedo`, `ownOutput`: #172's per-surface colour (floors and height on the terrain kind,
@@ -18,9 +19,10 @@ import { FLOOR_IDS } from '../../game/floor';
 import { cellUniforms, groundTexel } from '../cell-maps';
 import { FLOOR_LOOKS } from '../floor-looks';
 import type { SlotName } from './defaults';
-import type { FloorSurface } from './floors';
+import { splatUniforms, type FloorSurface } from './floors';
 import { slotDefault, slotProperty } from './defaults';
 import type { ShaderKind, Variant } from './kinds';
+import { biplanar } from './biplanar';
 import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
 import { paintedNormal, paintedRoughness } from './paint';
 import { mipBias } from './texture-quality';
@@ -31,7 +33,8 @@ import { tsl, type N } from './tsl';
  * the world on walls and raised ground, so textures run on across instances and heights (two
  * offset fetches blended against visible tiling in the `antiTiled` variant, #181), or of
  * the geometry's own space for a `local` material (door panels, whose texture must not slide as
- * they swing); triplanar on rock; the mesh's uv, moved by `offset` (water's flow), elsewhere: on
+ * they swing), moved by `offset` (a surface's flow); triplanar on rock; the mesh's uv, moved by
+ * `offset` (water's flow), elsewhere: on
  * props and minis a cooked model's glTF uvs (#188), which part lists carry as zeros so both draw
  * with one program (models.ts). Their paint (#178) keeps to object space on its own.
  */
@@ -42,8 +45,16 @@ export function surfaceMapping(
 	offset: N | null = null
 ): Mapping {
 	if (kind === 'surface' || kind === 'terrain')
-		return variant.local ? localBox(repeat) : worldBox(repeat, variant.antiTiled);
-	if (kind === 'rock') return variant.local ? localBox(repeat) : triplanar(repeat);
+		return variant.local
+			? localBox(repeat)
+			: worldBox(repeat, variant.antiTiled, undefined, offset);
+	// Rock (#241): triplanar from medium up (the `antiTiled` graph the tier picks), biplanar on low.
+	if (kind === 'rock')
+		return variant.local
+			? localBox(repeat)
+			: variant.antiTiled
+				? triplanar(repeat)
+				: biplanar(repeat);
 	const at = tsl.uv().mul(repeat);
 	return uvMapping(offset ? at.add(offset) : at);
 }
@@ -98,24 +109,32 @@ const loose = (node: unknown) => node as N;
  * instance colours and a plane: on the table, the floors over the textured surface at their cover
  * (plain covers nothing, the void everything); a raised cell's texture in its floor's colour (or
  * the look's), paler with height, less so where painted. A floor with a painted surface (#187,
- * floors.ts) is that surface, all of it, a little paler with height.
+ * floors.ts) is that surface, all of it, a little paler with height. With the splat (#242) that is
+ * each of the two floors blended, mixed by the height blend's share and darkened along a kerb.
  */
 export function groundColour(texel: N, colour: N, floor: FloorSurface | null = null): N {
 	const g = loose(groundTexel);
-	const entry = loose(floorPalette).element(g.x.mul(255).add(0.5).toInt());
 	const level = g.y.mul(255);
-	const painted = entry.w.greaterThan(0);
-	const flat = tsl.mix(texel.mul(colour), entry.xyz, entry.w);
-	const high = tsl.mix(colour, tsl.vec3(1), HIGHER);
-	const k = level.div(loose(cellUniforms.maxLevel)).mul(painted.select(0.4, 1));
-	const raised = texel.mul(tsl.mix(painted.select(entry.xyz, colour), high, k.saturate()));
-	if (!floor) return level.greaterThan(0.5).select(raised, flat);
-	const surface = floor.albedo.xyz;
-	const paler = tsl.mix(surface, tsl.vec3(1), k.saturate().mul(HIGHER));
-	return floor.has.select(
-		level.greaterThan(0.5).select(paler, surface),
-		level.greaterThan(0.5).select(raised, flat)
+	const of = (id: N, surface: N | null, has: N | null): N => {
+		const entry = loose(floorPalette).element(id);
+		const painted = entry.w.greaterThan(0);
+		const flat = tsl.mix(texel.mul(colour), entry.xyz, entry.w);
+		const high = tsl.mix(colour, tsl.vec3(1), HIGHER);
+		const k = level.div(loose(cellUniforms.maxLevel)).mul(painted.select(0.4, 1));
+		const raised = texel.mul(tsl.mix(painted.select(entry.xyz, colour), high, k.saturate()));
+		const tint = level.greaterThan(0.5).select(raised, flat);
+		if (!surface || !has) return tint;
+		const paler = tsl.mix(surface, tsl.vec3(1), k.saturate().mul(HIGHER));
+		return has.select(level.greaterThan(0.5).select(paler, surface), tint);
+	};
+	if (!floor) return of(g.x.mul(255).add(0.5).toInt(), null, null);
+	const [f1, f2] = floor.floors;
+	const mixed = tsl.mix(
+		of(f1, floor.albedo[0].xyz, floor.has[0]),
+		of(f2, floor.albedo[1].xyz, floor.has[1]),
+		floor.share
 	);
+	return mixed.mul(floor.kerb.mul(loose(splatUniforms.kerbDark)).oneMinus());
 }
 
 const WHITE = new THREE.Color(0xffffff);

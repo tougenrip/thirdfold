@@ -4,7 +4,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const warmLobby = vi.fn(async () => ({ warmupMs: 1 }));
-vi.mock('./renderer', () => ({ warmLobby }));
+vi.mock('./renderer', () => ({ warmLobby, loadWorld: async () => ({}) }));
 
 beforeEach(() => {
 	vi.resetModules();
@@ -32,4 +32,14 @@ it('makes no renderer when a table took before the idle prefetch ran', async () 
 	prefetchRenderer();
 	await vi.runAllTimersAsync();
 	expect(warmLobby).toHaveBeenCalledOnce();
+});
+
+it('makes no renderer on a timed page, whose table would throw it away', async () => {
+	vi.stubGlobal('location', { search: '?perf&tier=high' });
+	const { prefetchRenderer, takeWarmRenderer } = await import('./load');
+	prefetchRenderer();
+	await vi.runAllTimersAsync();
+	expect(await takeWarmRenderer()).toBeNull();
+	expect(warmLobby).not.toHaveBeenCalled();
+	vi.unstubAllGlobals();
 });

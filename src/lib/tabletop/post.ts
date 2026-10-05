@@ -296,7 +296,7 @@ export class Post {
 	}
 
 	private passTargets(p: THREE.PassNode | null): PassTarget[] {
-		return p ? [{ renderTarget: p.renderTarget, mrt: p.getMRT() }] : [];
+		return p ? [{ renderTarget: p.renderTarget, mrt: p.getMRT(), pass: p }] : [];
 	}
 
 	dispose(): void {

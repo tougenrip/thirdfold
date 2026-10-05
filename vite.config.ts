@@ -65,12 +65,12 @@ function browser(args: string[], headless: boolean) {
 /** `THIRDFOLD_GOLDENS=slim|full` runs the golden images (package.json's test:golden scripts). */
 const GOLDENS = (['slim', 'full'] as const).find((g) => g === process.env.THIRDFOLD_GOLDENS);
 const GOLDEN_SPEC = 'src/lib/tabletop/golden.svelte.spec.ts';
-/** `THIRDFOLD_UNEXPLORED=full` runs every unexplored-black case (by hand); CI takes the slim set. */
+/** `THIRDFOLD_UNEXPLORED=full` runs every unexplored-black case; the default is the slim set. */
 const UNEXPLORED = process.env.THIRDFOLD_UNEXPLORED === 'full' ? ('full' as const) : undefined;
 /**
  * The renderer's pixel tests, minutes each on SwiftShader: not in `npm test` (so CI's verify job
- * stays within minutes), but in `npm run test:render` and in .github/workflows/rendering.yml, on
- * pull requests that touch rendering (`THIRDFOLD_RENDER=1`).
+ * stays within minutes), only in `npm run test:render` (`THIRDFOLD_RENDER=1`), on this machine:
+ * no workflow runs them.
  */
 const RENDER = process.env.THIRDFOLD_RENDER === '1';
 const RENDER_SPECS = [
@@ -101,7 +101,13 @@ const RENDER_SPECS = [
 	'grid-lights',
 	'translucency',
 	'probe-grid',
-	'hero-shadows'
+	'hero-shadows',
+	'world-layer',
+	'beyond',
+	'floor-splat',
+	'grid-overlay',
+	'chasm',
+	'drop-in'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

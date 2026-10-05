@@ -5,7 +5,7 @@
 	"walls": "plaster",
 	"sky": "temperate",
 	"surfaces": {
-		"floors": ["stone", "wood", "grass", "dirt", "sand"],
+		"floors": ["stone", "wood", "grass", "dirt", "sand", "cobble"],
 		"walls": ["plaster"]
 	}
 }

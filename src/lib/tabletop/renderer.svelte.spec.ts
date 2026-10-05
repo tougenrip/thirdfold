@@ -1,19 +1,26 @@
-// Renderer smoke tests (milestone 61): grid lines show and fade, a tabletop
+import type { WorldLook } from '$lib/game/world';
+// Renderer smoke tests (milestone 61): the grid's modes draw and idle (#245), a tabletop
 // with no table carries no camera pose, and a disposed tabletop answers
 // nothing. When frames are drawn (idle, ambient, converge) is
 // scheduling.svelte.spec.ts; every fixture drawing for every viewer is
 // fixtures.svelte.spec.ts; determinism, leaks and recompiles are
 // stability.svelte.spec.ts. The ground beyond the grid (#220): never picked, running to the
-// horizon with no gap under the sky, and the camera never below it.
+// horizon with no gap under the sky, and the camera never below it. Cells picked by the DDA
+// (#246) on the monastery's gallery, and only the pick layer raycast.
 
+import * as THREE from 'three/webgpu';
 import { afterEach, beforeEach, describe, expect, vi } from 'vitest';
-import { GRID_FADE_MS } from './overlay';
+import { DiceLayer } from './dice3d';
+import { buildDieModel } from './dice-geometry';
+import { WALL_HEIGHT } from './ground';
+import type { GridMode } from './grid-modes';
+import { PreviewLayer, type Bucket } from './previews';
+import { PICK_LAYER } from './picking';
 import { createTabletop } from './renderer';
 import {
 	BACKEND,
 	loadSidecar,
 	loadView,
-	manualClock,
 	mountFixture,
 	readFrame,
 	settle,
@@ -53,61 +60,50 @@ async function mount(fixture: string, viewer: Viewer, options: { reducedMotion?:
 }
 
 describe('the renderer', () => {
-	test('draws no grid lines at rest, one draw call when shown, compiling nothing', async () => {
+	test('draws no grid when off, a draw per chunk top in every other mode, compiling nothing', async () => {
 		const { tabletop } = await mount('village', 'gm');
-		await settle(tabletop);
-		const draw = async (shown: boolean) => {
-			tabletop.setGridShown(shown);
+		const draw = async (mode: GridMode) => {
+			tabletop.setGridMode(mode, [{ x: 4, y: 4 }]);
 			await settle(tabletop);
 			await tabletop.benchmark(1);
 			return tabletop.stats();
 		};
-		const rest = await draw(false);
-		const shown = await draw(true);
-		expect(shown.drawCalls).toBe(rest.drawCalls + 1);
-		const again = await draw(false);
+		const rest = await draw('off');
+		const shown = await draw('build');
+		// The shader grid (#245): one twin per chunk with tops, however the mode weighs the lines.
+		expect(shown.drawCalls).toBeGreaterThan(rest.drawCalls);
+		expect(shown.drawCalls - rest.drawCalls).toBeLessThanOrEqual(shown.world!.chunks);
+		for (const mode of ['explore', 'overview'] as const)
+			expect((await draw(mode)).drawCalls).toBe(shown.drawCalls);
+		const again = await draw('off');
 		expect(again.drawCalls).toBe(rest.drawCalls);
-		expect(again.programs).toBe(shown.programs);
+		// The highlight is the same pass: with the grid off, its twins draw for it alone.
+		tabletop.setHighlight({ x: 4, y: 4 }, 'blocked');
+		await settle(tabletop);
+		await tabletop.benchmark(1);
+		expect(tabletop.stats().drawCalls).toBe(shown.drawCalls);
+		tabletop.setHighlight(null, 'move');
+		expect((await draw('off')).programs).toBe(shown.programs);
 	});
 
-	test('fades the grid lines in and out on the clock, drawing until they are gone', async () => {
-		const clock = manualClock();
-		const sidecar = await loadSidecar('ref-7');
-		const view = await loadView('ref-7', 'day', 'gm');
-		const m = await mountFixture(view, sidecar.poses.overview, {
-			clock,
-			reducedMotion: false,
-			heroes: false
-		});
-		mounted.push(m);
+	test('draws a frame when the grid mode changes, then idles', async () => {
+		const m = await mount('ref-7', 'gm');
 		const t = m.tabletop;
-		await settle(t);
-		const drawAt = async (ms: number) => {
-			clock.set(clock.now() + ms);
+		for (const mode of ['build', 'explore', 'overview', 'off'] as const) {
+			const before = t.stats().frames;
+			t.setGridMode(mode, [{ x: 2, y: 2 }]);
 			await settle(t);
-			await t.benchmark(1);
-			return t.stats();
-		};
-		const rest = await drawAt(0);
-		t.setGridShown(true);
-		const shown = await drawAt(GRID_FADE_MS);
-		expect(shown.drawCalls).toBe(rest.drawCalls + 1);
-		// Halfway out the clock stands still: the lines are still drawn, and frames keep coming.
-		t.setGridShown(false);
-		clock.set(clock.now() + GRID_FADE_MS / 2);
-		const frames = t.stats().frames;
-		await wait(300);
-		expect(t.stats().frames).toBeGreaterThan(frames);
-		expect(t.stats().mode).toBe('active');
-		await t.benchmark(1);
-		expect(t.stats().drawCalls).toBe(rest.drawCalls + 1);
-		// Faded out, they cost no draw call, the table goes quiet, and nothing was compiled.
-		const gone = await drawAt(GRID_FADE_MS);
-		expect(gone.drawCalls).toBe(rest.drawCalls);
-		expect(gone.programs).toBe(shown.programs);
-		const quiet = t.stats().frames;
-		await wait(1000);
-		expect(t.stats().frames).toBe(quiet);
+			expect(t.stats().frames, mode).toBeGreaterThan(before);
+			// No fade, nothing animates: the table goes quiet at once.
+			const quiet = t.stats().frames;
+			await wait(1000);
+			expect(t.stats().frames, mode).toBe(quiet);
+		}
+		// Setting the same mode again draws nothing.
+		const same = t.stats().frames;
+		t.setGridMode('off', [{ x: 2, y: 2 }]);
+		await wait(500);
+		expect(t.stats().frames).toBe(same);
 	});
 
 	test('has no camera pose to carry before it frames a table', async () => {
@@ -140,20 +136,172 @@ describe('the renderer', () => {
 		expect(events.onClick).not.toHaveBeenCalled();
 		m.canvas.remove();
 	});
+
+	test('picks cells by the DDA, raised ground included, and raycasts only the pick layer', async () => {
+		const sidecar = await loadSidecar('monastery');
+		const view = await loadView('monastery', sidecar.ambient, 'gm');
+		const events = { onClick: vi.fn(), onHover: vi.fn() };
+		const m = await mountFixture(view, sidecar.poses.overview, { events, heroes: false });
+		mounted.push(m);
+		await settle(m.tabletop);
+		// Every object a raycast tests, by any of the raycastable classes (not the stand-in mesh an
+		// instanced mesh tests each instance with).
+		const tested = new Set<THREE.Object3D>();
+		const spied = [THREE.Mesh, THREE.InstancedMesh, THREE.Sprite, THREE.Line, THREE.Points];
+		const originals = spied.map((c) => c.prototype.raycast);
+		let depth = 0;
+		spied.forEach((c, k) => {
+			c.prototype.raycast = function (this: THREE.Object3D, ...args: never[]) {
+				if (depth === 0) tested.add(this);
+				depth++;
+				try {
+					return (originals[k] as (...a: never[]) => void).apply(this, args);
+				} finally {
+					depth--;
+				}
+			};
+		});
+		const { position: eye, target } = m.tabletop.cameraPose()!;
+		const f = unit(sub(target, eye));
+		const r = unit({ x: -f.z, y: 0, z: f.x });
+		const u = { x: r.y * f.z - r.z * f.y, y: r.z * f.x - r.x * f.z, z: r.x * f.y - r.y * f.x };
+		const rect = m.canvas.getBoundingClientRect();
+		const tan = Math.tan(Math.PI / 8); // the 45 degree field of view
+		/** Clicks where a world point shows, by the camera's own projection. */
+		const click = (p: { x: number; y: number; z: number }) => {
+			const d = sub(p, eye);
+			const z = dot(d, f);
+			const nx = dot(d, r) / (z * tan * (rect.width / rect.height));
+			const ny = dot(d, u) / (z * tan);
+			const at = {
+				clientX: rect.left + ((nx + 1) / 2) * rect.width,
+				clientY: rect.top + ((1 - ny) / 2) * rect.height,
+				button: 0,
+				bubbles: true
+			};
+			m.canvas.dispatchEvent(new PointerEvent('pointerdown', at));
+			m.canvas.dispatchEvent(new PointerEvent('pointerup', at));
+			return events.onClick.mock.calls.at(-1)![0];
+		};
+		m.canvas.setPointerCapture = m.canvas.releasePointerCapture = () => {};
+		try {
+			// The gallery's floor at level 5, the nave's below it, and the gallery's south face.
+			expect(click({ x: 5.5, y: 2, z: -4.5 }).cell).toEqual({ x: 20, y: 5 });
+			expect(click({ x: 1.5, y: 0, z: -4.5 }).cell).toEqual({ x: 16, y: 5 });
+			expect(click({ x: 4.5, y: 1, z: 0 }).cell).toEqual({ x: 19, y: 9 });
+			// Beyond the grid's south edge: no cell, but a corner on the border still snaps.
+			const beyond = click({ x: 0.2, y: 0, z: 10.3 });
+			expect(beyond.cell).toBeNull();
+			expect(beyond.corner).toEqual({ x: 15, y: 20 });
+		} finally {
+			spied.forEach((c, k) => (c.prototype.raycast = originals[k]));
+		}
+		expect(tested.size).toBeGreaterThan(0);
+		for (const o of tested) expect(o.layers.isEnabled(PICK_LAYER), o.name || o.type).toBe(true);
+	});
+
+	test('lands a die on the monastery gallery and lays previews on its ground (#247)', async () => {
+		const throws = vi.spyOn(DiceLayer.prototype, 'throw');
+		const sets = vi.spyOn(PreviewLayer.prototype, 'set');
+		const m = await mount('monastery', 'gm');
+		// Looking at the gallery's cell (20, 5), at level 5 (2 up), from the nave's side.
+		m.tabletop.setPose({ position: { x: -2.5, y: 9, z: 3.5 }, target: { x: 5.5, y: 2, z: -4.5 } });
+		await settle(m.tabletop);
+		const { position: eye, target } = m.tabletop.cameraPose()!;
+		/** The canvas pixel where a world point shows, by the camera's own projection. */
+		const f = unit(sub(target, eye));
+		const r = unit({ x: -f.z, y: 0, z: f.x });
+		const u = { x: r.y * f.z - r.z * f.y, y: r.z * f.x - r.x * f.z, z: r.x * f.y - r.y * f.x };
+		const tan = Math.tan(Math.PI / 8); // the 45 degree field of view
+		const pixelOf = (p: V3) => {
+			const d = sub(p, eye);
+			const z = dot(d, f);
+			const nx = dot(d, r) / (z * tan * (WIDTH / HEIGHT));
+			const ny = dot(d, u) / (z * tan);
+			return [Math.round(((nx + 1) / 2) * WIDTH), Math.round(((1 - ny) / 2) * HEIGHT)] as const;
+		};
+		const before = await readFrame(m.canvas, WIDTH, HEIGHT);
+
+		// Reduced motion lands it at once; the held clock keeps it resting there.
+		m.tabletop.throwDice({ seq: 3, dice: [{ kind: 'd20', face: 19 }], color: '#2050d0' });
+		const frames = m.tabletop.stats().frames;
+		while (m.tabletop.stats().frames < frames + 3) await wait(50);
+		const layer = throws.mock.contexts[0] as DiceLayer;
+		const [die] = layer.group.children;
+		const rest = buildDieModel('d20', 1).inradius * 0.9;
+		expect(die.position.y - rest).toBeCloseTo(2, 5); // on the gallery's floor, not the nave's
+		expect(Math.abs(die.position.x - target.x)).toBeLessThan(1.5);
+		const [px, py] = pixelOf(die.position);
+		const [was, now] = [before(px, py), (await readFrame(m.canvas, WIDTH, HEIGHT))(px, py)];
+		expect(now, `the die drawn at ${px}, ${py}`).not.toEqual(was);
+
+		// An area from the nave (cells 17, 18 at level 0) onto the gallery (19, 20 at 5), the gallery's
+		// corner over the nave, and a segment down its edge, a cliff from 0 to 2.
+		m.tabletop.setPreview([
+			{ kind: 'area', from: { x: 17, y: 5 }, to: { x: 20, y: 5 }, tone: 'reveal' },
+			{ kind: 'corner', at: { x: 19, y: 5 } },
+			{ kind: 'segment', a: { x: 19, y: 4 }, b: { x: 19, y: 6 }, tone: 'valid' }
+		]);
+		const previews = sets.mock.contexts.at(-1) as PreviewLayer;
+		const placed = (bucket: Bucket) => {
+			const mesh = previews.pool.get(bucket)!;
+			return Array.from({ length: mesh.count }, (_, i) => {
+				const [at, q, s] = [new THREE.Vector3(), new THREE.Quaternion(), new THREE.Vector3()];
+				mesh.getMatrixAt(i, new THREE.Matrix4()).decompose(at, q, s);
+				return { y: at.y, low: at.y - s.y / 2, high: at.y + s.y / 2 };
+			});
+		};
+		expect(
+			placed('reveal')
+				.map((p) => +p.low.toFixed(3))
+				.sort()
+		).toEqual([0, 2]);
+		expect(placed('corner').map((p) => +p.y.toFixed(3))).toEqual([2.15]);
+		const [edge] = placed('valid');
+		expect([edge.low, edge.high].map((y) => +y.toFixed(3))).toEqual([0, 2 + WALL_HEIGHT / 2]);
+		const groups = new Set(previews.pool.values());
+		for (let i = 0; i < 100; i++)
+			m.tabletop.setPreview([
+				{
+					kind: 'area',
+					from: { x: 17, y: 5 },
+					to: { x: 17 + (i % 5), y: 2 + (i % 7) },
+					tone: 'hide'
+				}
+			]);
+		expect(new Set(previews.group.children)).toEqual(groups); // no new meshes
+		m.tabletop.setPreview([]);
+	});
 });
+
+type V3 = { x: number; y: number; z: number };
+const sub = (a: V3, b: V3) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const dot = (a: V3, b: V3) => a.x * b.x + a.y * b.y + a.z * b.z;
+const unit = (a: V3) => {
+	const l = Math.hypot(a.x, a.y, a.z);
+	return { x: a.x / l, y: a.y / l, z: a.z / l };
+};
 
 describe('the ground to the horizon', () => {
 	/** The village's grid and look at `time` with nothing on it: a clear view to the horizon. */
 	async function bare(
 		time: number,
 		events?: { onClick: () => void; onHover: () => void },
-		tier: Tier = 'medium'
+		tier: Tier = 'medium',
+		backdrop?: WorldLook['backdrop']['kind']
 	) {
 		const view = await loadView('village', 'day', 'gm');
 		const plain = { ...view, tokens: [], props: [], objects: [], lights: [], terrain: null };
 		const sidecar = await loadSidecar('village');
 		const m = await mountFixture(
-			{ ...plain, world: { ...view.world, time } },
+			{
+				...plain,
+				world: {
+					...view.world,
+					time,
+					...(backdrop === undefined ? {} : { backdrop: { kind: backdrop, level: 0 } })
+				}
+			},
 			sidecar.poses.overview,
 			{ events, tier, heroes: false }
 		);
@@ -200,7 +348,9 @@ describe('the ground to the horizon', () => {
 			[1170, 'medium'],
 			[720, 'low']
 		] as const) {
-			const { tabletop, canvas } = await bare(time, undefined, tier);
+			// No silhouettes (#244): their ridges are edges in the sky on purpose (beyond.svelte.spec.ts
+			// covers them); this checks the ground meets the sky with no band.
+			const { tabletop, canvas } = await bare(time, undefined, tier, 'none');
 			const pitch = 5; // the camera's full tilt: 85 degrees from straight down
 			tabletop.setPose(outward(pitch));
 			await settle(tabletop);

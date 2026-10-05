@@ -7,7 +7,11 @@
 import type { ShaderKind } from './kinds';
 import { tsl, type N } from './tsl';
 
-/** The per-instance lift an instanced prop, decal or water reads: in [0, 1) of `params.lift`. */
+/**
+ * The per-instance lift an instanced prop, decal or water reads: x in [0, 1) of `params.lift`, and
+ * y its drop-in's start (#249; `dropLift`): one vertex buffer for both, since WebGPU allows 8 and a
+ * prop's pipeline is at that.
+ */
 export const LIFT_ATTRIBUTE = 'aLift';
 
 /**
@@ -26,7 +30,7 @@ export const VARIED: readonly ShaderKind[] = ['surface', 'terrain', 'rock'];
  */
 export const lifted = (unit: N): N =>
 	tsl.positionLocal.add(
-		tsl.normalLocal.normalize().mul(tsl.attribute(LIFT_ATTRIBUTE, 'float')).mul(unit)
+		tsl.normalLocal.normalize().mul(tsl.attribute(LIFT_ATTRIBUTE, 'vec2').x).mul(unit)
 	);
 
 /**

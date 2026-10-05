@@ -160,6 +160,10 @@ version 1) is `AdventureDef` written as JSON:
 - **Tables are scene files.** Build one at a table (Scene panel: New table,
   floors, walls, doors, props, lights, raised ground), export it with Export
   file, and bring it into a place in the builder.
+  The floors a table may be painted with are default ground, stone, wood,
+  grass, dirt, sand, water, off the map (`void`), and since #248 cobble,
+  flagstone, rock, mud, snow and gravel (only looks: they move and see like
+  stone). Builds from before #248 refuse a table that uses the six new ones.
   Tables saved by any older version load and are brought forward (a v9 table
   gets the default world look at its band's hour); the world look, its hour and
   the sun are described in `docs/RENDERING.md` ("World look").

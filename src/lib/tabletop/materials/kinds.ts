@@ -8,11 +8,21 @@
 import * as THREE from 'three/webgpu';
 import { uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
+import { dropLift } from './drop';
 import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
+import { gridGraph } from './grid';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
-import { LIFTED, VARIED, lifted, macroOf, macroRoughness, macroTint } from './variation';
+import {
+	LIFT_ATTRIBUTE,
+	LIFTED,
+	VARIED,
+	lifted,
+	macroOf,
+	macroRoughness,
+	macroTint
+} from './variation';
 import { worldEmissive, worldModify } from './world-modify';
 
 export type ShaderKind =
@@ -66,7 +76,7 @@ export interface Params {
 	cutoff: number;
 	/** Foliage: how far a leaf sways, in local units per unit of height (0 still). */
 	sway: number;
-	/** Water: how fast its slots slide, in repeats per second. */
+	/** Water and surface: how fast its slots slide, in repeats per second (#243's moving ground). */
 	flow: THREE.Vector2;
 	/** Minis: clearcoat (0 until #267) and its roughness, uniforms so leaving 0 compiles nothing. */
 	clearcoat: number;
@@ -202,6 +212,8 @@ export interface Graph {
 	opacityNode: N | null;
 	alphaTestNode: N | null;
 	positionNode: N | null;
+	/** Where the shadow pass puts a vertex: at rest, so a drop-in never redraws a shadow (#249). */
+	castShadowPositionNode: N | null;
 	outputNode: N;
 	lit: {
 		roughnessNode: N;
@@ -220,10 +232,14 @@ export interface Variant {
 	instanced: boolean;
 	/** Overlay only: for LineSegments, which have no uv to sample. */
 	lines: boolean;
+	/** Overlay only: the shader grid and the hover highlight on a chunk top's twin (#245, grid.ts). */
+	grid: boolean;
 	/** Surface, terrain and rock: box mapping in the geometry's own space (door panels, #177). */
 	local: boolean;
 	/** Surface and terrain in world space: two-fetch anti-tiling, medium tier and up (#181). */
 	antiTiled: boolean;
+	/** Terrain and rock: the world's chunks, dropping in by a start per vertex (#249, drop.ts). */
+	dropped: boolean;
 }
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
@@ -247,6 +263,18 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
 	const tint = tintOf(kind, variant);
+	if (def.base === 'basic' && variant.grid) {
+		const { colorNode, opacityNode, outputNode } = gridGraph();
+		return {
+			colorNode,
+			opacityNode,
+			alphaTestNode: null,
+			positionNode: null,
+			castShadowPositionNode: null,
+			outputNode,
+			lit: null
+		};
+	}
 	if (def.base === 'basic') {
 		const colour = tsl.vec4(param('color', 'color'), 1);
 		const opacity = param('opacity', 'float');
@@ -258,11 +286,13 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			opacityNode: albedo ? albedo.w.mul(opacity) : opacity,
 			alphaTestNode: null,
 			positionNode: null,
+			castShadowPositionNode: null,
 			outputNode: worldModify(tsl.output, tsl.vec3(0)),
 			lit: null
 		};
 	}
-	const flow = kind === 'water' ? param('flow', 'vec2').mul(time) : null;
+	// Water's slots slide, and a surface's (the void's moving ground and mist, #243): 0 holds still.
+	const flow = kind === 'water' || kind === 'surface' ? param('flow', 'vec2').mul(time) : null;
 	const mapping = surfaceMapping(kind, variant, param('repeat', 'vec2'), flow);
 	const floor = kind === 'terrain' ? floorSurface(variant) : null;
 	const albedo = mapping.sample('albedo');
@@ -275,13 +305,23 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				.mul(param('emissiveIntensity', 'float'))
 				.add(tint)
 		: tint;
-	const emissive = worldEmissive(glow);
+	// Rock is the cliffs' and risers' kind (#241): its faces read the cell behind them.
+	const face = kind === 'rock';
+	const emissive = worldEmissive(glow, face);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
 	const colour = macro
 		? param('color', 'color').mul(macroTint(macro, param('macroTint', 'float')))
 		: param('color', 'color');
 	const roughness = param('roughness', 'float').mul(orm.y);
+	// Instanced props, decals and water lift off what they lie on and drop in (#181, #249); the
+	// world's chunks drop in; the shadow pass draws both at rest.
+	const rest =
+		variant.instanced && LIFTED.includes(kind)
+			? lifted(param('lift', 'float'))
+			: variant.dropped
+				? tsl.positionGeometry
+				: null;
 	const position =
 		kind === 'foliage'
 			? tsl.positionLocal.add(
@@ -294,9 +334,12 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 						0
 					)
 				)
-			: variant.instanced && LIFTED.includes(kind)
-				? lifted(param('lift', 'float'))
-				: null;
+			: rest &&
+				rest.add(
+					variant.instanced && LIFTED.includes(kind)
+						? dropLift(tsl.attribute(LIFT_ATTRIBUTE, 'vec2').y)
+						: dropLift()
+				);
 	const painted =
 		kind === 'prop' && variant.instanced
 			? colour.mul(tsl.attribute(PAINT_ATTRIBUTE, 'vec3'))
@@ -306,7 +349,8 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
-		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true)),
+		castShadowPositionNode: rest,
+		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true, face)),
 		lit: {
 			roughnessNode: paintRoughness(
 				kind,
@@ -332,8 +376,10 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 	const flags: [keyof Variant, string][] = [
 		['instanced', 'i'],
 		['lines', 'l'],
+		['grid', 'g'],
 		['local', 'o'],
-		['antiTiled', 'a']
+		['antiTiled', 'a'],
+		['dropped', 'd']
 	];
 	const key = `${kind}:${flags.map(([f, c]) => (variant[f] ? c : '')).join('')}`;
 	let graph = graphs.get(key);

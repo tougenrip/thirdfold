@@ -66,7 +66,8 @@
 	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 	import GraphicsControls from './GraphicsControls.svelte';
-	import { gridShown } from './grid';
+	import { gridModeOf } from './grid';
+	import { withGridSetting } from '$lib/tabletop/grid-modes';
 	import {
 		loadGraphics,
 		saveGraphics,
@@ -553,6 +554,21 @@
 			(isGm || (steps !== null && (movesLeft === null || steps <= movesLeft)))
 	);
 
+	/** How much grid shows (#245): the moment's mode, then the Graphics menu's Grid on top. */
+	const gridMode = $derived(
+		withGridSetting(
+			gridModeOf({
+				isGm,
+				building: folds.build,
+				tooling: tool !== 'select',
+				placing: !!placing,
+				spawning: !!spawning,
+				view,
+				selected: !!selected
+			}),
+			graphics.grid
+		)
+	);
 	const highlight = $derived.by((): { cell: GridPos; kind: HighlightKind } | null => {
 		if (!hoverCell || tool !== 'select' || selectedProp) return null;
 		if (placing || spawning) return { cell: hoverCell, kind: occupant ? 'blocked' : 'place' };
@@ -1277,13 +1293,7 @@
 				motion={conn.motion}
 				{active}
 				{highlight}
-				gridShown={gridShown({
-					isGm,
-					building: folds.build,
-					placing: !!placing,
-					spawning: !!spawning,
-					aiming: highlight !== null
-				})}
+				gridView={[gridMode, [hoverCell, selected?.pos ?? null]]}
 				{view}
 				{graphics}
 				onQuality={(q) => (effectiveQuality = q)}

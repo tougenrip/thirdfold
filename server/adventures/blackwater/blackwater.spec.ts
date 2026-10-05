@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { DieRoller } from '../../../src/lib/game/dice';
 import type { GridPos } from '../../../src/lib/game/grid';
-import { isSolidCell } from '../../../src/lib/game/props';
+import { decodeFloor, VOID } from '../../../src/lib/game/floor';
+import { isSolidCell, obstaclesFor } from '../../../src/lib/game/props';
 import { parseSceneFile } from '../../../src/lib/game/scene-file';
+import { decodeLevels } from '../../../src/lib/game/terrain';
 import { RoomManager, type Player, type Room } from '../../rooms';
 import { obstacles } from '../../scene';
 import { applyScene, exportScene } from '../../scene-io';
@@ -11,7 +13,7 @@ import { readAdventure } from '../../adventure/persist';
 import { findAdventure } from '../../adventure/registry';
 import { adventureView } from '../../adventure/view';
 import { BLACKWATER } from '.';
-import { FRONT, TRAIN_IDS } from './tables';
+import { blackwaterScene, engineScene, FRONT, TRAIN_IDS, trainScene } from './tables';
 
 const max: DieRoller = (sides) => sides;
 
@@ -194,5 +196,22 @@ describe('The Last Train to Blackwater', () => {
 		gmDo({ op: 'encounter_end', result: 'won' });
 		expect(story()).toMatchObject({ stage: 'complete', ending: 'line' });
 		expect(view().ending).toMatchObject({ title: 'End of the Line' });
+	});
+});
+
+describe("Blackwater's void (#243 draws it as chasms and moving ground; the rules don't change)", () => {
+	it('keeps every void cell of every table solid and see-through, and nothing else blocked by it', () => {
+		for (const scene of [trainScene(), engineScene(), blackwaterScene()]) {
+			const { grid } = scene;
+			const size = grid.width * grid.height;
+			const floor = decodeFloor(scene.floor!, size)!;
+			const levels = scene.terrain ? decodeLevels(scene.terrain, size) : null;
+			const voids = [...floor.keys()].filter((i) => floor[i] === VOID);
+			expect(voids.length, scene.name).toBeGreaterThan(0);
+			const blocked = obstaclesFor(grid, scene.objects, [], levels, floor);
+			for (let i = 0; i < size; i++)
+				expect(blocked.solid?.[i] ?? 0, `${scene.name} ${i}`).toBe(floor[i] === VOID ? 1 : 0);
+			expect(blocked.opaque, scene.name).toBeNull();
+		}
 	});
 });

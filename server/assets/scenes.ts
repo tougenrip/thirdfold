@@ -153,11 +153,13 @@ export function adventures(): (AdventureDef | string)[] {
 }
 
 /**
- * The floors drawn with a surface of the library (#187), whose id is the floor's: plain is the
- * table's own, water is drawn as water (#120) and the void is nothing.
+ * The floors every environment with surfaces draws with a surface of the library (#187), whose id
+ * is the floor's: plain is the table's own, water is drawn as water (#120) and the void is nothing.
+ * The floors after the void (#248) are optional: an environment lists their surfaces where its
+ * budget allows, and elsewhere they are drawn in their `FLOOR_LOOKS` tint.
  */
-export const SURFACE_FLOORS = FLOOR_IDS.filter(
-	(f) => f !== 'plain' && f !== 'water' && f !== 'void'
+export const SURFACE_FLOORS = FLOOR_IDS.slice(0, FLOOR_IDS.indexOf('void')).filter(
+	(f) => f !== 'plain' && f !== 'water'
 );
 
 /**

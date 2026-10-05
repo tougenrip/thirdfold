@@ -1,33 +1,41 @@
 // Picking: turns pointer positions into what is under them, in grid terms
 // (cell, corner, nearest edge, token, wall or door, light fixture, prop), and
 // pointer input into clicks and hover changes. A press that moves more than
-// CLICK_SLOP_PX is a camera drag, not a click.
+// CLICK_SLOP_PX is a camera drag, not a click. Things (tokens, walls, light
+// fixtures, props) are raycast on PICK_LAYER only; cells come from the DDA over
+// the drawn levels (world/pick.ts, #246), never from a ground mesh.
 
 import * as THREE from 'three/webgpu';
-import {
-	cornerToWorld,
-	worldToCorner,
-	worldToEdge,
-	worldToGrid,
-	type SquareGrid
-} from '$lib/game/grid';
+import { cornerToWorld, worldToCorner, worldToEdge, type SquareGrid } from '$lib/game/grid';
+import type { Ground } from './ground';
 import type { LightingLayer } from './lighting';
 import type { PerfRecorder } from './perf';
 import type { PropLayer } from './props';
-import type { TerrainLayer } from './terrain';
 import type { TokenLayer } from './tokens';
 import type { Pick, TabletopEvents } from './types';
 import type { WallLayer } from './walls';
+import { pickCell } from './world/pick';
 
 /** Pointer travel (px) below which a press-release counts as a click rather than a camera drag. */
 export const CLICK_SLOP_PX = 6;
+
+/**
+ * The layer raycasts test (#246). Tokens, props, walls and light fixtures enable it (they still draw
+ * on layer 0); ground, cliffs, the backdrop, dice and effects never do, so they are never tested.
+ */
+export const PICK_LAYER = 1;
+
+/** Puts a mesh on the pick layer as well as the drawn one. */
+export function pickable<T extends THREE.Object3D>(object: T): T {
+	object.layers.enable(PICK_LAYER);
+	return object;
+}
 
 export interface PickLayers {
 	tokens: TokenLayer;
 	walls: WallLayer;
 	lighting: LightingLayer;
 	props: PropLayer;
-	terrain: TerrainLayer;
 }
 
 /** A key that changes exactly when the hover should be reported again. */
@@ -50,19 +58,20 @@ export function pickKey(p: Pick): string {
 export class Picker {
 	private raycaster = new THREE.Raycaster();
 	private pointer = new THREE.Vector2();
-	private tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-	private hitPoint = new THREE.Vector3();
 
 	constructor(
 		private readonly canvas: HTMLCanvasElement,
 		private readonly camera: THREE.Camera,
 		private readonly layers: PickLayers,
-		private readonly grid: () => SquareGrid | null
-	) {}
+		/** The grid, and the drawn ground the DDA walks (null: flat). */
+		private readonly table: () => { grid: SquareGrid | null; ground: Ground | null }
+	) {
+		this.raycaster.layers.set(PICK_LAYER);
+	}
 
 	/** What is under a pointer position: things first (tokens, walls, lights, props), then ground. */
 	at(event: { clientX: number; clientY: number }): Pick {
-		const { raycaster, layers, hitPoint } = this;
+		const { raycaster, layers } = this;
 		const rect = this.canvas.getBoundingClientRect();
 		this.pointer.set(
 			((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -83,23 +92,15 @@ export class Picker {
 			lightId,
 			propId
 		};
-		const grid = this.grid();
+		const { grid, ground } = this.table();
 		if (!grid) return pick;
-		// Raised ground first: pointing at a balcony picks the balcony, not the floor under it.
-		const raised = layers.terrain.pick(raycaster);
-		const onPlane = raycaster.ray.intersectPlane(this.tablePlane, hitPoint);
-		if (
-			raised &&
-			(!onPlane ||
-				raised.point.distanceTo(raycaster.ray.origin) <= onPlane.distanceTo(raycaster.ray.origin))
-		) {
-			hitPoint.copy(raised.point);
-			pick.cell = { x: raised.cell % grid.width, y: Math.floor(raised.cell / grid.width) };
-		} else if (onPlane) {
-			pick.cell = worldToGrid(grid, hitPoint);
-		} else {
-			return pick;
-		}
+		const { origin, direction } = raycaster.ray;
+		// Each column to its floor, or the chasm's in the void (#243).
+		const at = ground && (ground.pickY ?? ground.floorY);
+		const hit = pickCell(grid, at ? (x, y) => at({ x, y }) : () => 0, origin, direction);
+		if (!hit.point) return pick;
+		const hitPoint = hit.point;
+		pick.cell = hit.cell;
 		pick.corner = worldToCorner(grid, hitPoint);
 		pick.edge = worldToEdge(grid, hitPoint);
 		if (pick.edge) {

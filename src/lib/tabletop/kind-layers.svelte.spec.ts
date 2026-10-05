@@ -21,9 +21,10 @@ import {
 import { OverlayLayer } from './overlay';
 import { PropLayer } from './props';
 import { WorldGround } from './landscape';
-import { TerrainLayer } from './terrain';
 import { TokenLayer } from './tokens';
 import { WallLayer } from './walls';
+import { PerfRecorder } from './perf';
+import { loadWorld, WorldLayer } from './world-layer';
 import { worldExtents } from './world-ground';
 import {
 	BACKEND,
@@ -60,25 +61,40 @@ describe('the layers on the shader kinds', () => {
 	it('draw every surface with a material from the factory', async () => {
 		const sidecar = await loadSidecar('test-world');
 		const view = await loadView('test-world', sidecar.ambient, 'gm');
+		const build = await loadWorld(); // first: no model arrives between the layers and the look
 		const size = view.grid.width * view.grid.height;
 		const ground = groundFor(view.grid, view.terrain ? decodeLevels(view.terrain, size) : null);
-		const table = new WorldGround();
+		const table = new WorldGround(new THREE.Group(), build);
 		table.build(worldExtents(view.grid));
 		const walls = new WallLayer();
 		walls.sync(view.objects, view.grid, ground);
-		const terrain = new TerrainLayer();
-		terrain.sync(view.grid, ground);
 		const props = new PropLayer();
 		props.sync(view.props, view.grid, ground);
 		const overlay = new OverlayLayer();
 		const tokens = new TokenLayer(overlay);
 		tokens.sync(view.tokens, view.grid, ground);
-		const layers = [table, walls, terrain, props, tokens];
+		const world = new WorldLayer(new PerfRecorder(), table, build, props.drops);
+		world.update(view.grid, ground.levels, null, null, 'gm');
+		const layers = [table, walls, props, tokens, world];
 		const drawn = layers.flatMap((l) => materialsOf(l.group));
 		// Doors, raised cells, props and minis are all on the fixture.
 		expect(drawn.length).toBeGreaterThan(20);
 		const kinds = new Set(drawn.map((m) => (m as { kind?: string }).kind));
-		expect(kinds).toEqual(new Set(['surface', 'terrain', 'prop', 'mini']));
+		// Rock: the world layer's cliffs and risers (#241).
+		expect(kinds).toEqual(new Set(['surface', 'terrain', 'rock', 'prop', 'mini']));
+		// WebGPU allows 8 vertex buffers a pipeline (a buffer per attribute, the instance matrix and
+		// colour one each); WebGL2 allows more, so a ninth fails only there (#249's drop start did).
+		const buffers: [string, number][] = [];
+		for (const l of layers)
+			l.group.traverse((o) => {
+				if (!(o instanceof THREE.Mesh)) return;
+				const instanced = o instanceof THREE.InstancedMesh;
+				const n =
+					Object.keys(o.geometry.attributes).length +
+					(instanced ? 1 + (o.instanceColor ? 1 : 0) : 0);
+				buffers.push([o.name || o.type, n]);
+			});
+		expect(buffers.filter(([, n]) => n > 8)).toEqual([]);
 		for (const l of layers) l.dispose();
 		overlay.dispose();
 	});

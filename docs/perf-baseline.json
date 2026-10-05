@@ -7,104 +7,104 @@
 			"ambient": "dusk",
 			"viewers": {
 				"Gia": {
-					"geometries": 65,
+					"geometries": 77,
 					"textures": 84,
-					"programs": 222,
-					"heap": 46939464
+					"programs": 227,
+					"heap": 49444832
 				},
 				"Ana": {
-					"geometries": 64,
+					"geometries": 76,
 					"textures": 84,
-					"programs": 219,
-					"heap": 46697456
+					"programs": 224,
+					"heap": 49218240
 				},
 				"Ben": {
-					"geometries": 64,
+					"geometries": 76,
 					"textures": 84,
-					"programs": 219,
-					"heap": 46678812
+					"programs": 224,
+					"heap": 49146876
 				}
 			},
 			"idleFrames": 0,
-			"orbitDrawCalls": 117,
+			"orbitDrawCalls": 135,
 			"orbitShadowPasses": 0
 		}
 	},
 	"reload": {
 		"first": {
-			"geometries": 64,
+			"geometries": 76,
 			"textures": 84,
-			"programs": 219,
-			"heap": 47216340
+			"programs": 224,
+			"heap": 49674100
 		},
 		"after": {
-			"geometries": 64,
+			"geometries": 76,
 			"textures": 84,
-			"programs": 219,
-			"heap": 47507092
+			"programs": 224,
+			"heap": 50002732
 		}
 	},
 	"remount": {
 		"first": {
-			"geometries": 64,
+			"geometries": 76,
 			"textures": 86,
-			"programs": 219,
-			"heap": 47311840
+			"programs": 224,
+			"heap": 50239000
 		}
 	},
 	"tiers": {
 		"low": {
 			"renderTargets": 20,
-			"texturesBytes": 58974166,
-			"programs": 127,
-			"pipelines": 93
+			"texturesBytes": 58974176,
+			"programs": 147,
+			"pipelines": 111
 		},
 		"medium": {
 			"renderTargets": 31,
-			"texturesBytes": 153463504,
-			"programs": 217,
-			"pipelines": 154
+			"texturesBytes": 153148515,
+			"programs": 222,
+			"pipelines": 167
 		},
 		"high": {
 			"renderTargets": 33,
-			"texturesBytes": 249184781,
-			"programs": 219,
-			"pipelines": 155
+			"texturesBytes": 249184791,
+			"programs": 224,
+			"pipelines": 168
 		}
 	},
 	"bundle": {
 		"/": {
-			"gz": 59730,
-			"own": 8838,
+			"gz": 59818,
+			"own": 8915,
 			"three": false
 		},
 		"/builder": {
-			"gz": 98300,
-			"own": 47408,
+			"gz": 98375,
+			"own": 47472,
 			"three": false
 		},
 		"/credits": {
-			"gz": 53156,
-			"own": 2264,
+			"gz": 53168,
+			"own": 2265,
 			"three": false
 		},
 		"/dev/assets": {
-			"gz": 51199,
+			"gz": 51210,
 			"own": 307,
 			"three": false
 		},
 		"/library": {
-			"gz": 62054,
-			"own": 11162,
+			"gz": 62143,
+			"own": 11240,
 			"three": false
 		},
 		"/room/[id]": {
-			"gz": 116789,
-			"own": 65897,
+			"gz": 117324,
+			"own": 66421,
 			"three": false
 		},
 		"renderer (added)": {
-			"gz": 382920,
+			"gz": 390241,
 			"own": null,
 			"three": true
 		}

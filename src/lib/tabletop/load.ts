@@ -15,11 +15,19 @@ let warming: Promise<WarmRenderer | null> | null = null;
 let taken = false;
 
 export function loadRenderer(): Promise<typeof import('./renderer')> {
-	loading ??= import('./renderer').catch((err) => {
-		// A failed download may succeed next time.
-		loading = null;
-		throw err;
-	});
+	// The world's builders (world/build.ts) are a chunk of their own that the table awaits: started
+	// with the renderer's, so a table never waits on them. Through the renderer, so the chunks
+	// split as the renderer imports them.
+	loading ??= import('./renderer')
+		.then((r) => {
+			r.loadWorld().catch(() => {}); // a failure is tried again by the table
+			return r;
+		})
+		.catch((err) => {
+			// A failed download may succeed next time.
+			loading = null;
+			throw err;
+		});
 	return loading;
 }
 
@@ -34,10 +42,15 @@ export function prefetchRenderer(): void {
 	else setTimeout(start, 500);
 }
 
-/** Makes and warms up the renderer the first table adopts (lobby.ts); null where it can't. */
+/**
+ * Makes and warms up the renderer the first table adopts (lobby.ts); null where it can't, or on a
+ * timed page (`?perf`), whose table throws it away (Tabletop.svelte): warming one there only
+ * kept the table waiting for a renderer nobody used.
+ */
 export function warmRenderer(): Promise<WarmRenderer | null> {
+	const timed = typeof location !== 'undefined' && new URLSearchParams(location.search).has('perf');
 	warming ??= loadRenderer()
-		.then(({ warmLobby }) => warmLobby())
+		.then(({ warmLobby }) => (timed ? null : warmLobby()))
 		.catch(() => null);
 	return warming;
 }

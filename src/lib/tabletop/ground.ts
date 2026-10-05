@@ -24,6 +24,8 @@ export interface Ground {
 	floorY(c: GridPos): number;
 	/** World heights of the lower and higher floors beside an edge. */
 	edgeFloors(e: GridEdge): { low: number; high: number };
+	/** Where a pick meets a cell's column, if not its floor: the chasm's floor in the void (#243). */
+	pickY?(c: GridPos): number;
 }
 
 export function groundFor(grid: SquareGrid, levels: Uint8Array | null): Ground {

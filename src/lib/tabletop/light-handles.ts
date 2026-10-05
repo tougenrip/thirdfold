@@ -5,6 +5,7 @@
 // build or draw it.
 
 import * as THREE from 'three/webgpu';
+import { pickable } from './picking';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { MAX_LIGHTS_PER_ROOM, type Light } from '$lib/game/lights';
 import type { Ground } from './ground';
@@ -27,7 +28,7 @@ export class LightHandles {
 			instanced: true,
 			params: { color: 0x000000, opacity: 0.9 }
 		});
-		this.mesh = new THREE.InstancedMesh(geometry, material, MAX_LIGHTS_PER_ROOM);
+		this.mesh = pickable(new THREE.InstancedMesh(geometry, material, MAX_LIGHTS_PER_ROOM));
 		this.mesh.count = 0;
 		this.mesh.renderOrder = 2;
 		this.mesh.frustumCulled = false;

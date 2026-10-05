@@ -11,17 +11,28 @@ import {
 	createMaterial,
 	SHADER_KINDS,
 	withBake,
+	withDrops,
 	type MaterialOptions
 } from './index';
 import type { ShaderKind } from './kinds';
 
-/** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181). */
+/** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181, #241, #249). */
 function variantsOf(kind: ShaderKind): MaterialOptions[] {
-	const world = kind === 'surface' || kind === 'terrain';
+	const world = kind === 'surface' || kind === 'terrain' || kind === 'rock';
 	const out: MaterialOptions[] = [{}];
 	if (world) out.push({ antiTiled: true });
 	if (kind === 'prop' || kind === 'mini') out.push({ vertexColors: true });
-	return out.flatMap((v) => [v, { ...v, instanced: true }]);
+	const each = out.flatMap((v) => [v, { ...v, instanced: true }]);
+	// The cliffs' and risers' faces (#241): rock with vertex colours, biplanar and triplanar.
+	if (kind === 'rock') each.push({ vertexColors: true }, { vertexColors: true, antiTiled: true });
+	// The world's chunks drop in (#249): their tops and faces, both anti-tilings.
+	if (kind === 'terrain') each.push({ dropped: true }, { dropped: true, antiTiled: true });
+	if (kind === 'rock')
+		each.push(
+			{ vertexColors: true, dropped: true },
+			{ vertexColors: true, antiTiled: true, dropped: true }
+		);
+	return each;
 }
 
 /** A box with every attribute a kind may read: normals, uv, vertex colours and the bake. */
@@ -32,6 +43,7 @@ function geometryFor(options: MaterialOptions): THREE.BufferGeometry {
 		geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
 	}
 	if (options.instanced) addInstanceTints(geometry, 1);
+	if (options.dropped) withDrops(geometry);
 	return geometry;
 }
 

@@ -3,9 +3,11 @@
 // them on the first frame a player sees stalls it for hundreds of ms. Instead,
 // when a table, an environment's look or a model is new, the frame loop is
 // held (the canvas keeps its last frame) while every layer is compiled from a
-// camera that sees the whole table, one layer at a time (compiling several at
-// once while frames are drawn trips three.js issue 34632). A warm-up never
-// holds for longer than WARM_UP_LIMIT_MS: what is left compiles on draw.
+// camera that sees the whole table, a chunk of objects at once (`CHUNK`; no
+// frame draws meanwhile, which is what trips three.js issue 34632), in each
+// pass's context (the scene pass's AO, so its lit materials compile as drawn).
+// A warm-up never holds for longer than WARM_UP_LIMIT_MS (and the chunk under
+// way): what is left compiles on draw.
 //
 // Since #180 a warm-up also compiles what only shows later: stand-ins for the
 // one-shot marks and effects (the selection ring and turn marker in the
@@ -16,7 +18,9 @@
 // (lobby.ts).
 
 import * as THREE from 'three/webgpu';
-import type { PassTarget } from './passes';
+import { drawnFirst, passContext, type PassTarget } from './passes';
+import { gpuInfo } from './perf';
+import { isSoftware } from './quality';
 
 /** Longest a warm-up may hold the frame loop, in ms (slow software GL). */
 export const WARM_UP_LIMIT_MS = 1500;
@@ -30,30 +34,52 @@ export interface WarmBatch {
 }
 
 /**
- * Compiles `batches` for `camera`'s view, one item after another, resolving when done or when
- * `limit` ms have passed (then the items not reached compile on draw). With post-processing on, a
- * pipeline is compiled per target and set of outputs, so items are compiled for the passes'
- * targets (post.ts) rather than the canvas.
+ * Items compiled at once: three's `compileAsync` links one program after another, each waiting for
+ * a frame to see it done, so one item at a time took a frame or more per program and a gallery
+ * of a few hundred missed its limit. Several at once let the driver link them in parallel
+ * (KHR_parallel_shader_compile on WebGL2, async pipelines on WebGPU); frames are held meanwhile, so
+ * three.js issue 34632 (compiling while frames draw) can't happen. A chunk bounds how long a
+ * timed-out warm-up still waits for the compile under way. A software rasteriser links one
+ * program at a time anyway, so it compiles one item at a time, as before (a chunk there could hold
+ * frames for seconds past the limit).
+ */
+const CHUNK = 16;
+
+/**
+ * Compiles `batches` for `camera`'s view, a chunk of items at a time, resolving when done (true)
+ * or when `limit` ms have passed (false; the items not reached compile on draw). With
+ * post-processing on, a pipeline is compiled per target and set of outputs, so items are compiled
+ * for the passes' targets (post.ts) rather than the canvas.
  */
 export async function warmUp(
 	renderer: THREE.WebGPURenderer,
 	camera: THREE.Camera,
 	batches: readonly WarmBatch[],
 	limit = WARM_UP_LIMIT_MS
-): Promise<void> {
+): Promise<boolean> {
 	const expired = new Promise<void>((resolve) => setTimeout(resolve, limit));
 	let timedOut = false;
 	/** The compile under way for a pass's target, which a frame must not interrupt. */
 	let inFlight: Promise<unknown> = Promise.resolve();
+	const all = (items: readonly THREE.Object3D[], scene: THREE.Scene) =>
+		Promise.all(items.map((item) => renderer.compileAsync(item, camera, scene)));
+	const size = isSoftware(gpuInfo(renderer).adapter) ? 1 : CHUNK;
 	const compile = (async () => {
 		for (const { scene, items, targets } of batches) {
-			for (const item of items) {
+			for (let i = 0; i < items.length; i += size) {
+				const chunk = items.slice(i, i + size);
 				if (timedOut) return;
-				if (targets.length === 0) await renderer.compileAsync(item, camera, scene);
-				for (const { renderTarget, mrt } of targets) {
+				if (targets.length === 0) await all(chunk, scene);
+				for (const { renderTarget, mrt, pass } of targets) {
 					if (timedOut) return;
 					const [target, outputs] = [renderer.getRenderTarget(), renderer.getMRT()];
-					const { toneMapping, outputColorSpace } = renderer;
+					const { toneMapping, outputColorSpace, contextNode } = renderer;
+					const before = pass ? drawnFirst(pass) : [];
+					const updates = before.map((node) => node.updateBeforeType);
+					for (const node of before) node.updateBeforeType = 'none';
+					// As PassNode.updateBefore sets its context, the same node.
+					const context = pass && passContext(renderer, pass);
+					if (context) renderer.contextNode = context;
 					// As RenderPipeline.render draws its passes: linear, no tone mapping.
 					renderer.toneMapping = THREE.NoToneMapping;
 					renderer.outputColorSpace = THREE.ColorManagement.workingColorSpace;
@@ -61,21 +87,27 @@ export async function warmUp(
 					renderer.setMRT(mrt);
 					// The target and outputs stay set until the compile is done (it reads them while it
 					// waits), so a timed-out warm-up still waits for this one before frames resume.
-					inFlight = renderer.compileAsync(item, camera, scene);
+					inFlight = all(chunk, scene);
 					await inFlight;
 					renderer.setRenderTarget(target);
 					renderer.setMRT(outputs);
 					renderer.toneMapping = toneMapping;
 					renderer.outputColorSpace = outputColorSpace;
+					renderer.contextNode = contextNode;
+					before.forEach((node, k) => (node.updateBeforeType = updates[k]));
 				}
 			}
 		}
 	})();
-	await Promise.race([compile, expired.then(() => void (timedOut = true))]);
+	const done = await Promise.race([
+		compile.then(() => !timedOut),
+		expired.then(() => ((timedOut = true), false))
+	]);
 	// Frames drawn while a pass's target is set would draw into it (and on WebGPU build pipelines
 	// for the wrong targets, aborting the frame): finish that compile first. The compile puts the
 	// renderer's state back as it ends, before this resumes (it awaited the same promise first).
 	await inFlight.catch(() => {});
+	return done;
 }
 
 /** A stand-in for the warm-up's gallery: never culled, since it stands nowhere in particular. */

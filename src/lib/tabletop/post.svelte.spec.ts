@@ -10,6 +10,7 @@ import { encodeMask, type FogView } from '$lib/game/visibility';
 import { CellMaps } from './cell-maps';
 import { dieMaterial } from './dice3d';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
+import { GridOverlay } from './grid-overlay';
 import { OverlayLayer } from './overlay';
 import { Post } from './post';
 import { postScene } from './post-scene';
@@ -320,20 +321,44 @@ describe('the overlay', () => {
 		expect(at(-1, 0)).not.toEqual([0x40, 0xc0, 0x70]);
 	});
 
-	it('draws no grid line over a cell the fog hides', async () => {
+	it('draws no grid line or highlight over a cell the fog hides', async () => {
+		// The shader grid (#245) on a twin of a flat top, the full grid as while building.
 		const overlay = new OverlayLayer();
-		overlay.setGrid(TABLE);
-		// Hidden at rest since #167: shown as while building.
-		overlay.setGridShown(true, 0, true);
-		overlay.tick(0);
+		const grid = new GridOverlay();
+		const top = new THREE.Mesh(new THREE.PlaneGeometry(4, 4).rotateX(-Math.PI / 2));
+		grid.follow(grid.twin(), top);
+		overlay.scene.add(grid.group);
+		grid.setMode('build');
 		// The lines read the cell maps (#173): the west half hidden, the east half seen.
 		westHidden();
-		const at = await view([], overlay);
-		// Across a row, pixel by pixel, over the line x = -1 (hidden) and x = 1 (seen).
-		const across = (from: number) =>
+		const across = (at: (x: number, z: number) => number[], from: number) =>
 			Array.from({ length: 40 }, (_, i) => at(from + i * 0.02, -0.5)).flat();
-		expect(Math.max(...across(-1.4))).toBe(0);
-		expect(Math.max(...across(0.6))).toBeGreaterThan(0);
+		// Across a row, pixel by pixel, over the line x = -1 (hidden) and x = 1 (seen).
+		const lines = await view([], overlay);
+		expect(Math.max(...across(lines, -1.4))).toBe(0);
+		expect(Math.max(...across(lines, 0.6))).toBeGreaterThan(0);
+		renderer!.dispose();
+		// A blocked highlight on a hidden cell (x 0, row 1) and on a seen one (x 3, row 1): only the
+		// seen one shows, with no grid at all.
+		grid.setMode('off');
+		/**
+		 * 6×6 pixels inside the cell from `x` east, in row 1 and in its mirror (row 2), so the check
+		 * holds whichever way the top-down camera turns z on screen.
+		 */
+		const patch = (at: (x: number, z: number) => number[], x: number) =>
+			[-0.8, 0.3].flatMap((z) =>
+				Array.from({ length: 36 }, (_, i) =>
+					at(x + (i % 6) * 0.1, z + Math.floor(i / 6) * 0.1)
+				).flat()
+			);
+		grid.setHighlight({ x: 0, y: 1 }, 'blocked');
+		const hidden = await view([], overlay);
+		expect(Math.max(...patch(hidden, -1.8))).toBe(0);
+		renderer!.dispose();
+		grid.setHighlight({ x: 3, y: 1 }, 'blocked');
+		const seen = await view([], overlay);
+		expect(Math.max(...patch(seen, 1.2))).toBeGreaterThan(0);
+		grid.dispose();
 	});
 
 	it('keeps hidden cells black under the bloom and the lens spread from seen ones', async () => {
