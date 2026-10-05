@@ -372,7 +372,10 @@ export class WorldLayer {
 	/** The stairs again (a new environment, or more of its kit loaded), and the picture. */
 	private restair(): void {
 		if (!this.shape) return;
-		this.shape = this.build.withStairs(this.shape, this.stairOptions());
+		const next = this.build.withStairs(this.shape, this.stairOptions());
+		const same = !this.build.stairDirty(this.shape, next).length;
+		this.shape = next;
+		if (same) return; // a kit model that changed nothing
 		this.rebuild();
 		this.onChange();
 	}
