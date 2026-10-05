@@ -296,9 +296,10 @@ describe('role coverage', () => {
 	});
 
 	it("reads a stair run's sides, and its railings where its ground is built (#255)", () => {
-		// A two-wide stair climbing east on rows 1 and 2 of a 5x4 table, level 0 north and south.
+		// A two-wide stair climbing east on rows 1 and 2 of a 5x4 table, level 0 north and a terrace
+		// one level below it south (a drop on one side only: a stair, not a bridge, #256).
 		const terrain = encodeLevels(
-			Uint8Array.of(0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 0, 1, 2, 3, 3, 0, 0, 0, 0, 0)
+			Uint8Array.of(0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 0, 1, 2, 3, 3, 0, 0, 1, 2, 2)
 		);
 		const stair = { grid: grid(5, 4), terrain };
 		const earthen = rolesNeeded(scene(stair));
@@ -307,6 +308,17 @@ describe('role coverage', () => {
 			new Set([...earthen, 'railing'])
 		);
 		expect(rolesNeeded(scene({ ...stair, environment: 'cavern' }))).toEqual(earthen);
+	});
+
+	it("reads a bridge's parapets and a built floor's open drop as railings (#256)", () => {
+		// A one-wide run at level 3 across a 5x3 table, level 0 north and south: a bridge.
+		const terrain = encodeLevels(Uint8Array.of(0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0));
+		expect(rolesNeeded(scene({ grid: grid(5, 3), terrain })).has('railing')).toBe(true);
+		// A raised terrace (three wide, no bridge): railed on a built floor only.
+		const terrace = encodeLevels(Uint8Array.of(3, 3, 3, 3, 3, 3, 0, 0, 0));
+		const flat = { grid: grid(3, 3), terrain: terrace };
+		expect(rolesNeeded(scene(flat)).has('railing')).toBe(false);
+		expect(rolesNeeded(scene({ ...flat, environment: 'stone-halls' })).has('railing')).toBe(true);
 	});
 
 	it('fails a table whose kit lacks a role, and an environment on plain or pending', () => {

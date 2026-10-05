@@ -31,6 +31,9 @@
 // and so does a new environment whose default ground is built (or not): rails or kerbs. The
 // environment's kit (#261) puts its stair pieces in instead once their models have loaded
 // (stair-kit.ts `StairKit`, baked into the faces' meshes too), and the ground leaves those edges.
+// Bridges (#256, world/bridges.ts) ride on the stairs: their parapets are rails, and their bodies
+// under the deck (world/bridge-mesh.ts `bridgeTrim`, by the chasm for arches over the void) go
+// into the masonry faces' mesh, so they too cost no draw call and no program.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -428,8 +431,9 @@ export class WorldLayer {
 
 	private buildChunk(shape: WorldShape, c: number, tiled: Uint8Array): void {
 		const { top, sides, bottom } = this.build.chunkWorld(shape, c, this.chasm);
-		// Rails and kerbs, and the kit's stair pieces, with the faces (#255).
+		// Rails and kerbs, the kit's stair pieces (#255) and the bridges' bodies (#256), with the faces.
 		const trim = this.build.stairTrim(shape, c);
+		const body = this.build.bridgeTrim(shape, c, this.chasm);
 		const across = this.build.chunksAcross(shape.grid).x;
 		const n = this.build.CHUNK;
 		const [x0, y0] = [(c % across) * n, Math.floor(c / across) * n];
@@ -440,7 +444,7 @@ export class WorldLayer {
 		sides.forEach((faces, i) =>
 			fill(
 				chunk.sides[i],
-				this.build.withTrim(this.build.withTrim(faces, trim[i]), kit[i]),
+				[trim[i], kit[i], body[i]].reduce(this.build.withTrim, faces),
 				this.starts
 			)
 		);

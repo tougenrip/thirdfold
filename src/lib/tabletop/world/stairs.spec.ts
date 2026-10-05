@@ -108,9 +108,12 @@ const tableTrim = (s: WorldShape) => {
 	return joinMeshes(Array.from({ length: across.x * across.y }, (_, c) => stairTrim(s, c)).flat());
 };
 
-/** A two-wide stair climbing east on rows 1 and 2, levels 0 to 3, with level 0 north and south. */
+/**
+ * A two-wide stair climbing east on rows 1 and 2, levels 0 to 3, with level 0 north and a terrace
+ * one level below it south (a drop on one side only: a stair, not a bridge, #256).
+ */
 const G = grid(5, 4);
-const STAIR = Uint8Array.from([0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 0, 1, 2, 3, 3, 0, 0, 0, 0, 0]);
+const STAIR = Uint8Array.from([0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 0, 1, 2, 3, 3, 0, 0, 1, 2, 2]);
 /** The step at level 2 on row 1, and the cell north of it. */
 const STEP = 7;
 const NORTH = 2;
@@ -149,9 +152,12 @@ describe('stairs on the monastery', () => {
 			const rail = level >= 2 ? [W] : [];
 			expect(piecesAt(s, 'railing', at(s, 22, y)), `row ${y}`).toEqual(rail);
 			expect(piecesAt(s, 'railing', at(s, 23, y)), `row ${y}`).toEqual(level >= 2 ? [E] : []);
-			// Nothing between the two columns: they are one stair.
-			expect(piecesAt(s, 'stair.side', at(s, 22, y))).toEqual([W]);
-			expect(piecesAt(s, 'stair.side', at(s, 23, y))).toEqual([E]);
+			// Where both sides drop two or more it flies: a two-wide bridge (#256) whose rails are its
+			// parapets and whose sides its body; below that, stringers. Nothing between the columns.
+			const flying = level >= 2;
+			expect(s.stairs.bridges[at(s, 22, y)] !== 0, `row ${y}`).toBe(flying);
+			expect(piecesAt(s, 'stair.side', at(s, 22, y))).toEqual(flying ? [] : [W]);
+			expect(piecesAt(s, 'stair.side', at(s, 23, y))).toEqual(flying ? [] : [E]);
 		}
 	});
 
@@ -197,16 +203,24 @@ describe('stairs on the Hollow', () => {
 		}
 		expect(piecesAt(s, 'kerb', at(s, 40, 23))).toEqual([W]);
 		expect(piecesAt(s, 'kerb', at(s, 41, 23))).toEqual([E]);
-		expect(s.stairs.pieces.some((p) => p.role === 'railing')).toBe(false);
+		// No rail on a hewn stair; the only rails are the bridges' parapets (#256).
+		const rails = s.stairs.pieces.filter((p) => p.role === 'railing');
+		expect(rails.every((p) => s.stairs.bridges[p.cell] !== 0)).toBe(true);
 	});
 
-	it('gives the watch stair onto the high bridge treads, and leaves its sides to the bridge', () => {
+	it('gives the watch stair onto the high bridge treads, and the bridge its sides', () => {
 		for (const x of [38, 39, 40])
 			expect(piecesAt(s, 'stair.riser', at(s, x, 9)), `${x}`).toEqual([W]);
-		for (const x of [38, 39])
-			expect(
-				s.stairs.pieces.filter((p) => p.cell === at(s, x, 9) && p.role !== 'stair.riser')
-			).toEqual([]);
+		for (const x of [38, 39]) {
+			const sides = s.stairs.pieces.filter(
+				(p) => p.cell === at(s, x, 9) && p.role !== 'stair.riser'
+			);
+			// The bridge's parapets (#256), no stringer or kerb.
+			expect(sides.map((p) => [p.role, p.dir])).toEqual([
+				['railing', N],
+				['railing', S]
+			]);
+		}
 	});
 });
 
@@ -262,13 +276,16 @@ describe('stairs through the harness', () => {
 		expect(checkEmitter(fogged, tableWorld(fogged), tableTrim(fogged))).toEqual([]);
 	});
 
-	it("leaves an open bridge's sides to the bridge (#256), but not a stair along a wall", () => {
+	it("gives an open bridge's sides to the bridge (#256), but not a stair along a wall", () => {
 		const levels = Uint8Array.from([0, 0, 0, 0, 0, 0, 1, 2, 3, 3, 0, 0, 0, 0, 0]);
 		const open = shapeOf({ grid: G, levels });
-		// The step at level 2 drops two both ways: a bridge. The first step (drops of 1) is not one.
-		expect(open.stairs.pieces.filter((p) => p.cell === STEP && p.role !== 'stair.riser')).toEqual(
-			[]
-		);
+		// The step at level 2 drops two both ways: a bridge, with parapets. The first step (drops of
+		// 1) is not one.
+		const sides = open.stairs.pieces.filter((p) => p.cell === STEP && p.role !== 'stair.riser');
+		expect(sides.map((p) => [p.role, p.dir])).toEqual([
+			['railing', N],
+			['railing', S]
+		]);
 		expect(piecesAt(open, 'stair.side', STEP - 1)).toEqual([S, N]);
 		const wall: SceneObject = { id: 'w', kind: 'wall', a: { x: 0, y: 2 }, b: { x: 5, y: 2 } };
 		const walled = shapeOf({ grid: grid(5, 3), levels, objects: [wall] });

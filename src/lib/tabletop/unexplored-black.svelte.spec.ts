@@ -26,6 +26,8 @@
 // floors, packed round the camera (built only from explored cells, so none stand on hidden ones).
 // Stairs (#255) are in the chunks too: the monastery's and the Hollow's steps, stringers, rails and
 // kerbs, built only from explored cells, and a rail stands as tall as `TALL.rail` over its step.
+// Bridges and balustrades (#256) too: the Hollow's bridges and causeway (bodies under their decks in
+// the chunks' faces, parapets as rails) and the built floors' balustrades, every rail counted here.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -360,7 +362,8 @@ function standing(view: FixtureView): Float32Array {
 	for (const t of view.tokens) raise(t.pos, TALL.token);
 	for (const l of view.lights) raise(l.pos, TALL.light);
 	for (const p of view.props) for (const c of footprintCells(p)) raise(c, TALL.prop);
-	// A stair's rail or kerb (#255) over its step and the edge beside it, from the step's floor.
+	// A rail (a stair's, a bridge's parapet or a balustrade, #255, #256) or kerb over its cell and
+	// the edge beside it, from its floor.
 	const shape = worldShape({
 		grid,
 		levels,

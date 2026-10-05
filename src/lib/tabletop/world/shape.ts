@@ -95,7 +95,10 @@ export interface WorldShape {
 	stairs?: StairMarks;
 }
 
-/** What a stair (#255) puts on a unit edge: the ground draws it as a step, a stringer or not at all. */
+/**
+ * What a stair (#255) puts on a unit edge: the ground draws it as a step, a stringer or not at all
+ * (`kit`: a kit piece stands there, or a bridge's side, #256, which bridge-mesh.ts draws).
+ */
 export const STAIR_EDGE = { none: 0, riser: 1, side: 2, kit: 3 } as const;
 
 /** Where the ground draws stairs instead of risers and cliffs (stairs.ts). */
@@ -104,6 +107,8 @@ export interface StairMarks {
 	edges: EdgeMap;
 	/** A run's steps (its cells but the foot and the head): the ground keeps their corners square. */
 	steps: Uint8Array;
+	/** Bridge cells (#256, non-zero): their corners stay square too, under their parapets. */
+	bridges?: Uint8Array;
 }
 
 /**
