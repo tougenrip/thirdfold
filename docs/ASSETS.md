@@ -471,7 +471,8 @@ any other GLB or KTX2 source. Nothing cooks per pull request.
 `meta.json` holds the `provenance` (required, docs/ART.md section 13, copied into the cooked
 meta), and optionally `swing`, `setPiece`, `textureSize` (the largest side; bigger maps are halved
 until they fit), `lods` (per level `{ ratio, error, screenSize }` over the defaults), `lockBorder`
-(kit pieces, so simplified seams stay closed) and, for a texture, `usage`. The export follows
+(kit pieces, so simplified seams stay closed), `ramp` and `detail` (a CC0 bridge prop's colour
+maps recoloured to the palette before encoding, see "CC0 bridge props") and, for a texture, `usage`. The export follows
 docs/ART.md section 17. A model is cooked in this order:
 
 1. Checked: only the allowed extensions, no skins, animations, cameras or shape keys, objects
@@ -578,6 +579,56 @@ surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. Since #24
 each fragment are blended from the same arrays, by the height in the albedo's alpha (docs/RENDERING.md,
 "Floors blended per pixel"): no new art and no new texture, the height the stylise step already writes. The walls wear their
 surface's three maps in the wall material's slots.
+
+### CC0 bridge props (#262)
+
+The most-placed props on the built-in tables are textured CC0 models from
+[Poly Haven](https://polyhaven.com/models) (the owner's sources for #262: Poly Haven and ambientCG
+only, and ambientCG has no models), recoloured to the one palette, until authored art replaces them
+(#123, #124). Their ids are unchanged, so saves, adventures and library files load as before; each
+old part list is now the model's preview (`<id>.preview.json`).
+
+1. `art/prop/<id>/meta.json` pins the source: `provenance` (`CC0-1.0`, the artist and "(Poly
+   Haven)", the 1K glTF's URL and SHA-256 as its `source`, `modified: true`) and `maps` (the glTF's
+   buffer, the colour map and the ARM map as 1K PNGs, each URL and SHA-256), with how it is put
+   together (`fit`: the size in cells along x, y and z, a null axis scaled like the smallest given;
+   `turn`: quarter turns about y so its back faces −z like the part lists; `triangles` and `error`:
+   the simplifier's target and error limit; `roughness`), how it is recoloured (`ramp`, `detail`)
+   and cooked (`textureSize` 512, `lods`). Git keeps only the meta (`.gitignore`: `/art/prop/*/*`).
+2. `npx -y node@22 node_modules/tsx/dist/cli.mjs scripts/fetch-models.ts [id...]` fetches each
+   file from Poly Haven or ambientCG and no other host, refuses one whose SHA-256 differs
+   (`--record` writes the hash of a new file whose meta has all zeros), and writes the export the
+   cook expects, `<id>.glb`: one `body` mesh (flattened and joined; one material only), only
+   positions, normals and UVs, simplified, turned, scaled to `fit` with its base at 0 and its
+   footprint centred; its colour map darkened by the scan's occlusion (the ARM map's red, at most
+   20%, docs/ART.md section 4) as its only texture, no metal, the meta's roughness. The same bytes
+   every run under Node 22. By hand only: CI never downloads.
+3. `npm run assets:cook` cooks it like any model, first recolouring its colour maps through the
+   meta's `ramp` (`recolour` in `stylise.ts`: softened, luminance stretched and half posterised
+   through the ramp, `detail` of the scan's own hue, every value in 30-240), so a photo-scan reads
+   as painted in the palette. `stylise.spec.ts` checks every fetched prop's ramp is one of
+   docs/ART.md's surface ramps. `textureSize` 512 means no 1K or 2K variant: one albedo map only
+   (no normal or ORM), to keep each table within `TABLE_BUDGETS`.
+
+| Prop        | Poly Haven model                                                           | Artist           | Triangles (LODs)     | File   | Ramp  |
+| ----------- | -------------------------------------------------------------------------- | ---------------- | -------------------- | ------ | ----- |
+| `pew`       | [painted_wooden_bench](https://polyhaven.com/a/painted_wooden_bench)       | Kirill Sannikov  | 630 (314, 134)       | 56 kB  | wood  |
+| `table`     | [wooden_table_02](https://polyhaven.com/a/wooden_table_02)                 | Serhii Khromov   | 196                  | 51 kB  | wood  |
+| `statue`    | [gothic_statue](https://polyhaven.com/a/gothic_statue)                     | Benny Weimer     | 2,998 (1,907)        | 120 kB | stone |
+| `barrel`    | [wine_barrel_01](https://polyhaven.com/a/wine_barrel_01)                   | James Ray Cock   | 1,736 (1,660, 1,656) | 114 kB | wood  |
+| `bed`       | [GothicBed_01](https://polyhaven.com/a/GothicBed_01)                       | Kirill Sannikov  | 2,500 (1,482, 1,473) | 104 kB | wood  |
+| `chair`     | [painted_wooden_chair_01](https://polyhaven.com/a/painted_wooden_chair_01) | Kuutti Siitonen  | 724 (362, 296)       | 58 kB  | wood  |
+| `ashes`     | [stone_fire_pit](https://polyhaven.com/a/stone_fire_pit)                   | Sebastian Platen | 1,500 (746, 224)     | 70 kB  | stone |
+| `bookshelf` | [wooden_bookshelf_worn](https://polyhaven.com/a/wooden_bookshelf_worn)     | Ulan Cabanilla   | 2,000 (1,000, 300)   | 79 kB  | wood  |
+
+The rest of the most-placed props stay part lists: Poly Haven has no CC0 model that fits a
+gravestone, pillar, rubble pile, cube crate, coffin (and its open look), rope, chains, noticeboard,
+altar, brazier, gear or well, and the chest stays with its open look (`chest-open`) rather than
+swap families when it opens; the lever, the great bell and the heart are story pieces (#332). The
+bed and the table are scaled to their footprints along each axis, so the bed (a double) is narrower
+than modelled. Poly Haven has no modular family that fits the kit roles (#250), so no kit piece is
+bridged: the greybox kits stay. The thumbnails in `assets/thumbnails/` still show the part lists
+until `scripts/thumbnails.mjs` renders them again.
 
 ## Texture detail
 

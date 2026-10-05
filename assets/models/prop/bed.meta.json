@@ -1,0 +1,12 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Kirill Sannikov (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/GothicBed_01/GothicBed_01_1k.gltf",
+			"sha256": "67df189dd3a645936827f3cc123fb9e97ca9d2201d1e4090762bf477cab82fc0"
+		},
+		"modified": true
+	},
+	"screenSizes": [0.25, 0.1]
+}

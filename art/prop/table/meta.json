@@ -1,0 +1,33 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Serhii Khromov (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wooden_table_02/wooden_table_02_1k.gltf",
+			"sha256": "bb38e301840cb629d72c43c83fdb7fb308518efe2d0bc01e1ed0e9a9e43ed9d3"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/wooden_table_02/wooden_table_02.bin",
+			"sha256": "52ed7cc67b3aa403375cf9bd18050e8cc21bcced6532a0183c1a733f0965df6d"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/wooden_table_02/wooden_table_02_diff_1k.png",
+			"sha256": "96256cb41b80cdfe46855473616b9e09d30a1ce0327b88dac6666b721962b1ab"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/wooden_table_02/wooden_table_02_arm_1k.png",
+			"sha256": "8894894151b43416881926ba86cd7bc51cd02f0f55cfcbff9335bfc25e890ab6"
+		}
+	],
+	"polyhaven": "https://polyhaven.com/a/wooden_table_02",
+	"fit": [1.9, 0.76, 0.9],
+	"turn": 0,
+	"triangles": 1500,
+	"roughness": 0.75,
+	"ramp": ["#3a2a2a", "#5e4332", "#86623f", "#aa8656"],
+	"detail": 0.25,
+	"textureSize": 512
+}

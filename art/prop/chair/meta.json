@@ -1,0 +1,33 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Kuutti Siitonen (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/painted_wooden_chair_01/painted_wooden_chair_01_1k.gltf",
+			"sha256": "34f55ebe1851b89c045dc62d4461c848de3b93c0668e752a2b5f6cbed2d91a5e"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/painted_wooden_chair_01/painted_wooden_chair_01.bin",
+			"sha256": "eaf952048db1e770c45898049b8abe28deb83d3dbbaad81d5e7e43e22a322295"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/painted_wooden_chair_01/painted_wooden_chair_01_diff_1k.png",
+			"sha256": "47490b6013e5874121c995a9829449b3f9b730220b8f57eb023fee716d9c5b3d"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/painted_wooden_chair_01/painted_wooden_chair_01_arm_1k.png",
+			"sha256": "9f2a23604cf6b69286d6975e9ebfc506c76aa2c36b973e45ee4a9f3bce29bcd6"
+		}
+	],
+	"polyhaven": "https://polyhaven.com/a/painted_wooden_chair_01",
+	"fit": [0.5, 0.97, 0.5],
+	"turn": 0,
+	"triangles": 1500,
+	"roughness": 0.75,
+	"ramp": ["#3a2a2a", "#5e4332", "#86623f", "#aa8656"],
+	"detail": 0.25,
+	"textureSize": 512
+}

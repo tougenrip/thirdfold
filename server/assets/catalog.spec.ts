@@ -84,7 +84,7 @@ describe('the prop catalogue on other sources', () => {
 		editCatalog(src, (c) =>
 			Object.assign(c.props, { stool: { ...crate, name: 'Stool', category: 'furniture' } })
 		);
-		cpSync(path.join(src, 'models/prop/chair.json'), path.join(src, 'models/prop/stool.json'));
+		cpSync(path.join(src, 'models/prop/crate.json'), path.join(src, 'models/prop/stool.json'));
 		const built = await buildAssets(src);
 		expect(built.manifest.models.stool.kind).toBe('prop');
 		expect(built.catalogModule).toContain("stool: { name: 'Stool', category: 'furniture'");

@@ -1,0 +1,12 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Kirill Sannikov (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/painted_wooden_bench/painted_wooden_bench_1k.gltf",
+			"sha256": "2289ab82f3fe3045bf18f7b9541743d2c65b9f071cb34bbe424d2bc998f3e507"
+		},
+		"modified": true
+	},
+	"screenSizes": [0.25, 0.1]
+}

@@ -3,7 +3,9 @@
 // (Basis encoding) and needs the pinned encoders, so it never runs per PR;
 // the build only checks and hashes what it wrote.
 //
-//   art/<kind>/<id>/<id>.glb + meta.json   a model (a Blender export, PNG textures embedded)
+//   art/<kind>/<id>/<id>.glb + meta.json   a model (a Blender export, PNG textures embedded; a CC0
+//                                          bridge prop's put together by scripts/fetch-models.ts,
+//                                          its colour maps recoloured through the meta's `ramp`)
 //                                          → assets/models/<kind>/<id>.glb + <id>.meta.json
 //   art/texture/<id>/<id>.png + meta.json  a texture → assets/textures/<id>.ktx2 + <id>.meta.json
 //   art/surfaces/<id>/meta.json            a surface's CC0 set (scripts/fetch-surfaces.mjs), stylised
@@ -71,6 +73,8 @@ import {
 import { checkGlb } from './glb';
 import { EXTENSIONS, MESH_NAME } from './gltf-check';
 import { readMeta } from './licence';
+import { decodePng, encodePng } from './png';
+import { recolour } from './stylise';
 import { AssetError, isRecord, json, readJson } from './pipeline-files';
 import { isModelKind } from './models';
 
@@ -374,6 +378,25 @@ async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cook
 	delete root.getAsset().extras;
 	// Blender names mesh data apart from its object: the mesh takes its node's role.
 	for (const node of root.listNodes()) node.getMesh()?.setName(node.getName());
+	// A CC0 bridge prop's colour maps go through its palette ramp (#262).
+	if (meta.ramp) {
+		const colour = new Set(root.listMaterials().flatMap((m) => m.getBaseColorTexture() ?? []));
+		for (const texture of colour) {
+			try {
+				const { width, height, data } = recolour(
+					decodePng(texture.getImage()!),
+					meta.ramp,
+					meta.detail ?? 0.25
+				);
+				texture.setImage(encodePng(width, height, data));
+			} catch (err) {
+				throw new AssetError(
+					source,
+					`recolouring "${texture.getName()}": ${(err as Error).message}`
+				);
+			}
+		}
+	}
 
 	await doc.transform(dedup(), prune());
 	if (root.listMaterials().some((m) => m.getNormalTexture())) {
