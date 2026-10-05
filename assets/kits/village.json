@@ -1,7 +1,7 @@
 {
 	"name": "Village",
 	"roof": { "style": "gable", "pitch": 45, "eave": 0.25, "material": "thatch" },
-	"presumeRoofs": false,
+	"presumeRoofs": true,
 	"pieces": {
 		"wall.straight": [
 			{ "model": "village-wall-plaster" },

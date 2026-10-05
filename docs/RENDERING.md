@@ -1843,9 +1843,9 @@ viewer was sent. #252 draws them (below) and #253 the openings. CPU only, the
 same on every client, tier and backend.
 
 **Input.** `tileInput(shape, objects, building)`: the world shape (`known`, the continued levels and
-floors), the scene objects and the building context, the interior mask as sent (#203; #257 adds
-presumed roofs). A mask with no known building cell counts as none (views send null for it), so the
-presence of roofs on unexplored ground changes nothing. `autotile(input, chunks?)` returns a
+floors), the scene objects and the building context: the viewer's roof footprint (#257, the
+interior mask as sent and presumed roofs), or null when the kit has no roofs. It is read on known
+cells only, so roofs on unexplored ground change nothing. `autotile(input, chunks?)` returns a
 `Map<chunk, WallPieces>` (every chunk by default); `chunkPieces(input, chunk)` one chunk.
 
 **Edge kinds** (`edgeKinds`) follow the rules' precedence whatever the objects' order: a window
@@ -1864,14 +1864,14 @@ world +z) at 0, E at 1, N at 2, W at 3. `seed` is the FNV-1a of the edge's `edge
 `v:x:y`) or of `c:x:y` (`keySeed`, the same as `fnv1a` over the key's bytes); `variantOf(seed,
 weights)` maps it onto a kit's weighted variants.
 
-| Edge                                  | Pieces                                                                                                                             |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| wall                                  | `wall.straight` on the higher floor, `WALL_HEIGHT` tall                                                                            |
-| wall, one side known void or off-grid | `wall.outer`, facing the void (thick only toward it)                                                                               |
-| wall, neither side building           | `wall.boundary` (only with a building context)                                                                                     |
-| window                                | `window.frame`; `window.sill` between different floors (`mn-railing`)                                                              |
-| door (open or shut)                   | `door.frame`; the leaf is the door object's (#253)                                                                                 |
-| any, floors differ                    | plus `wall.retaining` from the lower floor to the higher and a `plinth` course (one step under the higher floor), both facing down |
+| Edge                                     | Pieces                                                                                                                             |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| wall                                     | `wall.straight` on the higher floor, `WALL_HEIGHT` tall                                                                            |
+| wall, one side known void or off-grid    | `wall.outer`, facing the void (thick only toward it)                                                                               |
+| wall, both sides known, neither building | `wall.boundary` (only with a building context, #257)                                                                               |
+| window                                   | `window.frame`; `window.sill` between different floors (`mn-railing`)                                                              |
+| door (open or shut)                      | `door.frame`; the leaf is the door object's (#253)                                                                                 |
+| any, floors differ                       | plus `wall.retaining` from the lower floor to the higher and a `plinth` course (one step under the higher floor), both facing down |
 
 Main pieces face the void, else out of the building, else down a drop, else S or E. Heights come from
 the known sides only.
@@ -1921,8 +1921,8 @@ loaded development machine (the issue's 0.5 ms target is informational).
 (caps are merged into `wall.straight` by #252's pipeline, door leaves are #253's, so neither is
 placed). `wall.retaining` and `plinth` are extra pieces on a drop edge beside its main piece, not
 the main role. Without a building context nothing is `wall.boundary`, so a table with no roofs gets
-straight walls; with one, every wall between two unroofed cells is a boundary (the monastery's tower
-and ledge walls, until #257's presumed roofs). The seed hash is written out (`keySeed`) rather than
+straight walls; with one, every wall between two known unroofed cells is a boundary (the
+monastery's tower and ledge walls). #257 settled the context (below, "Roofs"). The seed hash is written out (`keySeed`) rather than
 shared with #181 (which hashes ids, not keys). The cost is above the 0.5 ms target.
 
 ## Kit walls (milestone 70, #252)
@@ -2098,6 +2098,127 @@ away rebuilding at most two chunks, a door opening rebuilding none, nothing comp
 chunks' face meshes (no extra draw call or program), until #252's kit drawing can take them over. The intermediate tread is on the
 lower side only (above). Goldens and the closer-shot strip are left for the milestone's rendering PR.
 
+## Roofs (milestone 70, #257)
+
+`world/roofs.ts` (pure, server-tested, in the lazy `world` chunk) works out which cells a viewer
+sees roofed and builds their gables; `roofs.ts` `RoofLayer` draws them, owned by the walls' layer
+(`WallLayer.roofs`), which reads the same things: the objects, the world shape, the interior mask
+as sent and the kit. Presentation only: no wire field, no rule, nothing picked.
+
+**Footprints** (`roofFootprint(shape, objects, interior, presume)`):
+
+- **The GM and fog off** (`known` null): the interior mask itself. Presumption adds nothing (every
+  cell is known, so an enclosure is either all roofed already or has a known unroofed cell).
+- **Players and spectators:** the interior mask on known cells (views send it only there, #203; it
+  is masked to `known` again here), plus, when the kit's `presumeRoofs` is set, presumed cells: the
+  unexplored cells of every enclosure of known walls. An enclosure is a 4-connected flood from an
+  unexplored cell stopped only by a built edge (wall, window or door, open or shut) with a known
+  cell beside it; it is a room only if it never reaches the table's edge, stays within
+  `MAX_ROOM_CELLS` (150), and every known cell in it is roofed in the mask as sent (an explored
+  courtyard drops the presumption). Walls with no known side are never read, so a presumption
+  outlines nothing the walls the viewer was sent don't. The kits of the open air (village,
+  railcar, ghost town) presume (`presumeRoofs` in `scripts/kits/looks.ts`); stone halls has roofs
+  but presumes none, since its dungeons (dungeon-40) are walled rooms with no roof; the caves have
+  no roofs at all. A house seen from one street has walls the player doesn't know yet (its back
+  wall touches no explored cell), so it is roofed once its walls close (walked round, seen from
+  above, or entered), not before. No committed fixture view has a player who did; the specs build
+  one.
+
+**Shape** (`roofRegions`, `roofMesh`): regions are the footprint's 4-connected components (inner
+walls don't split a roof), each split greedily into maximal rectangles (`rectsOf`, in row order: as
+far right, then as far down). Each rectangle is a gable prism along its long axis (along x on a
+tie): slopes at the kit's pitch from the eave up to a ridge over the middle, the rise capped at
+`MAX_RISE` walls so wide halls flatten rather than tower; the eaves overhang the walls by the kit's
+`eave` on all four sides, held so the eave's edge stays over `FIGURE_CLEAR` (a 60° roof with a 0.5
+eave overhangs less); gables close each end from the eave to the ridge. Where rectangles meet the
+prisms interpenetrate: with one pitch the narrower wing's ridge sits lower, the valley. The eave
+height is the highest floor under the region plus `WALL_HEIGHT`, and a cell whose wall top is lower
+gets an infill band from it up to the eave on its outer sides, which belongs to the roof (and will
+fade with it, #259). Every face is drawn both ways (the soffit is seen from inside), as plain
+indexed triangles: a few hundred per house.
+
+**Fog and sky** (the surface kind's `roof` variant, `materials/world-modify.ts`): a roof is exterior
+scenery, so it never reads the cells under it, which may be unexplored. Each region takes one known
+cell outside it (`fogCell`: the known unroofed cell round it nearest its centre, ties by index, else
+a known cell of its own), carried as the per-vertex `aRoofCell`. `worldModify` and `worldEmissive`
+with `face = 'roof'` read the fog, the unseen tint, the reveal fade and the light level there,
+exactly (no soft edge, no noise). The sky's terms (`skySun`, `skyAmbient`), the lit kinds'
+`worldLight` and the scene pass's `worldHidden` are `ByRoof` nodes, which pick the roof's terms when
+the program being built is a roof material's (`roofLit`: `options.roof`) and the cell's own
+otherwise, so the sun reaches a roof over an interior (whose cells the sky map keeps at the indoor
+fill) and the output stage's re-mask never blacks a roof out. The roof variant is its own graph, so
+it never shares a program key with a plain surface. Point lights skip roofs (`GridLightNode` and
+`HeroLightNode` add nothing for a roof's program): the lists a roof's fragment would read are the
+cells' under it, so a torch inside would light the roof's top. Not yet a per-region state texture
+(the issue's "lit if any is visible"): one cell's state stands for the region.
+
+**Roofs never hide what the rules show:** a region the viewer sees into (any of its cells visible in
+the fog view, `seenInto`) is left out until it is out of sight again (`RoofLayer.setSight`, from the
+renderer's `setFog`). For the GM the visible cells are the party's. With fog off nothing is left
+out. #259 replaces the cut with a fade and adds the token and camera-pivot rule.
+
+**Drawing:** one `Mesh` per 16x16 chunk (a region belongs to its first cell's chunk) in one material
+per table (the kit's roof material, a manifest colour: thatch, slate, tin, boards; nothing to
+download), casting into the cached sun shadow and receiving, never on `PICK_LAYER`. A chunk is
+rebuilt only when what it draws changed (`roofKey`: eave, fog cell, rectangles and floors), so a
+sight change rebuilds only the chunks whose regions came or went (`stats().built` counts builds).
+The layer redraws with every wall retile (objects, the shape, explored growth, the interior mask)
+and with the kit (`WallLayer.setLook(look, kit, roof)`, from `EnvironmentLook.roof`).
+
+**Programs:** the lobby's gallery and the layer's stand-in compile the roof variant (casting), so
+roofs appearing, a new chunk, another kit's look, raised ground and a sight change compile nothing
+(`roofs.svelte.spec.ts`, and the program-count sweep's roof steps).
+
+**API for #258 and #259:** `RoofMesh.region` is each vertex's region index (for the fades), each
+rectangle's axis is its long side and `KitRoof.style` reaches `roofMesh`, so hips, cross-gables,
+ridge caps, chimneys and dormers slot in as other prisms or kit pieces per rectangle; `seenInto` is
+where the fade's test goes.
+
+**The boundary-wall rule, settled (#251).** Autotile's building context (`RoofLayer.update`'s
+result, `tileInput`'s `building`) is the viewer's roof footprint:
+
+- from the first frame wherever the kit presumes roofs (village, railcar, ghost town: public, the
+  same for every viewer, all zero while nothing is roofed);
+- for a kit with roofs that presumes none (stone halls), once the viewer knows a roofed cell (the
+  GM: the mask has one; a player: one explored), as #251 had it for every kit;
+- never for a kit without roofs (the caves, `plain`).
+
+With a context, a wall is `wall.boundary` only when **both** its sides are known and neither is
+roofed (the mask as sent, or presumed). A wall with an unexplored side may be a house's, so it stays
+`wall.straight` until its far side is explored or presumed. Before, a player's village fences
+switched to palisades on their first roofed cell; now the only switches in the open air are at the
+edge of exploration (a fence's far side explored, a house's walls closing into a presumption), as
+an end post becomes an L, and GM and player agree wherever the player knows both sides. A table of
+walls with no roofs painted keeps straight walls on stone halls (a dungeon), and gets palisades and
+yard walls on the village kit, whose walls between open cells are fences. The monastery's players
+still see its tower and ledge walls turn to curtain walls on their first roofed cell (stone halls
+presumes nothing). `dirtyPieceChunks` redraws every chunk when the context comes or goes.
+
+**Secrecy:** `roofs.spec.ts`'s differential test scrambles, for every fogged viewer of every
+committed view, the levels, the floors and the server's whole interior mask on unexplored cells and
+adds walls between unexplored cells: footprints, regions and meshes are identical. Autotile's own
+differential keeps a null context null. Unexplored-is-black stands a roof as high as one may rise
+over its cells and the eave's ring, and adds a village player who walked round a house: its
+presumed roof shows (lit from outside) and every other unexplored cell stays black.
+
+**Tests.** `world/roofs.spec.ts`: GM and presumed footprints; nothing presumed open to the table, at
+its edge, past `MAX_ROOM_CELLS` or with an explored unroofed cell; walls with no known side ignored;
+the greedy rectangles; the gable's ridge and eaves (over `FIGURE_CLEAR`, capped); the infill;
+`seenInto`; every fixture scene (the mask exactly); Bellweather's five houses one gable each; a
+player who walked Bellweather's streets presuming its four closed houses (not the open smithy);
+every fixture view; and the differential test. `roofs.svelte.spec.ts` (a render spec): a presumed
+roof drawn and lit over an unexplored room, its ridge, one chunk built per new house, the village's
+thatch, a room seen into left out and back, the GM's, and no new shader stage throughout.
+
+**Deviations from #257.** Roofs live in the walls' layer (they share its inputs), not a separate
+`roofs` tier layer: they are on wherever a kit has roofs. A seen-into region is cut, not faded,
+until #259. The per-region fog is one known cell's state, not a texture of the whole ring's. No
+world-unit UVs: the roof materials are colours, mapped by the surface kind's world box like the
+walls. No roof predicate in the DDA pick yet (a click on a roof picks the cell under it, which says
+no more than the roof). No posts on open sides (Bellweather's smithy already has end posts where its
+walls stop). Bellweather's and the monastery's roofed parts were already set (their tables' `interior`). Goldens and the
+closer-shot strips are the milestone's close.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -2135,7 +2256,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                                                                                                             |
 | `world/`                              | The world's shape (M69), the cliffs (`cliffs.ts`, #241), what lies beyond the grid (`beyond.ts`, `recipes.ts`, #244); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer |
 | `world-layer.ts`                      | `WorldLayer`: the shader grid's twins per chunk (#245), the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the void's floor (#243), the shape it is built from                                      |
-| layer modules                         | `tokens.ts`, `walls.ts` (kit walls, #252), `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                                                     |
+| layer modules                         | `tokens.ts`, `walls.ts` (kit walls, #252; its `roofs.ts`, #257), `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                               |
 
 ## Quality tiers
 

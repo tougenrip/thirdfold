@@ -26,6 +26,11 @@
 // floors, packed round the camera (built only from explored cells, so none stand on hidden ones).
 // Stairs (#255) are in the chunks too: the monastery's and the Hollow's steps, stringers, rails and
 // kerbs, built only from explored cells, and a rail stands as tall as `TALL.rail` over its step.
+// Roofs (#257) are on wherever a kit has them: over what the viewer was sent (the mask on explored
+// cells, and rooms presumed from known walls), read by the roof variant at a known cell outside,
+// so a roof over unexplored ground is drawn and stands as high as a roof may rise over its cells
+// and the eave's ring; the village's player who walked round a house sees its presumed roof, and
+// every other unexplored cell stays black.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -39,13 +44,14 @@ import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { cellsBeside, MAX_STEP, unitEdges } from '$lib/game/objects';
 import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
-import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
+import { decodeMask, encodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
 import { useTileSet } from './floor-tiles-layer';
-import { decodeFloor } from '$lib/game/floor';
+import { decodeFloor, encodeFloor, knownFloor } from '$lib/game/floor';
 import { pastHole } from './world/invariants';
 import { knownOf, worldShape } from './world/shape';
 import { builtGround, stairsOf } from './world/stairs';
+import { MAX_RISE, roofFootprint, roofRegions } from './world/roofs';
 import type { GridPose } from './poses';
 import { settingsFor, type QualitySettings, type Tier } from './quality';
 import {
@@ -373,6 +379,16 @@ function standing(view: FixtureView): Float32Array {
 		const top = shape.levels[p.cell] * STEP_HEIGHT + TALL.rail;
 		for (const i of [p.cell, p.across]) tall[i] = Math.max(tall[i], top);
 	}
+	// Roofs (#257), presumed ones too, as high as one may rise, over their cells and the eave's ring.
+	const interior = view.interior ? decodeMask(view.interior, size) : null;
+	const footprint = roofFootprint(shape, view.objects, interior, true);
+	for (const r of roofRegions(shape, footprint)) {
+		const top = r.eaveY / grid.cellSize + MAX_RISE * WALL_LEVELS * STEP_HEIGHT;
+		for (const i of r.cells)
+			for (let dy = -1; dy <= 1; dy++)
+				for (let dx = -1; dx <= 1; dx++)
+					raise({ x: (i % grid.width) + dx, y: Math.floor(i / grid.width) + dy }, top);
+	}
 	return tall;
 }
 
@@ -385,11 +401,17 @@ async function mountCase(
 		cloud?: boolean;
 		carrier?: boolean;
 		probes?: boolean;
+		roofs?: boolean;
 	}
 ) {
 	const sidecar = await loadSidecar(c.fixture);
 	const sent = await loadView(c.fixture, c.band, c.viewer);
-	const view = c.carrier ? withCarrier(sent, sidecar.player.tokenId) : sent;
+	const gm = c.roofs ? await loadView(c.fixture, c.band, 'gm') : null;
+	const view = c.carrier
+		? withCarrier(sent, sidecar.player.tokenId)
+		: gm
+			? walkedRound(sent, gm)
+			: sent;
 	expect(view.fog.enabled).toBe(true);
 	const clock = manualClock(5000);
 	useTileSet(testTiles()); // kit floor tiles (#254) on every case, until #261's greybox kits
@@ -460,6 +482,45 @@ function withCarrier(view: FixtureView, tokenId: string): FixtureView {
 	expect(best).toBeLessThan(Infinity);
 	const carrier = { ...me, id: 'unseen-carrier', pos: at, light: 6, lightColor: '#6fe08a' };
 	return { ...view, tokens: [...view.tokens, carrier] };
+}
+
+/**
+ * The view of a player who also walked round the first roofed room they had not explored (its
+ * outside two cells deep explored and in sight), as the server would send it: the walls touching
+ * explored cells, the mask and the floor on explored cells. The room stays unexplored, so its roof
+ * is presumed from the walls (#257). Returns the view and the room's cells.
+ */
+function walkedRound(view: FixtureView, gm: FixtureView): FixtureView & { house?: number[] } {
+	const { width: w, height: h } = view.grid;
+	const size = w * h;
+	const explored = decodeMask(view.fog.explored, size);
+	const visible = decodeMask(view.fog.visible, size);
+	const roofed = decodeMask(gm.interior!, size);
+	const house = roofRegions(
+		worldShape({ grid: view.grid, levels: null, floor: null, objects: [], known: null }),
+		roofed
+	).find((r) => r.cells.every((i) => !explored[i]))!;
+	expect(house, 'a roofed room the player has not explored').toBeDefined();
+	for (const i of house.cells)
+		for (let dy = -2; dy <= 2; dy++)
+			for (let dx = -2; dx <= 2; dx++) {
+				const [x, y] = [(i % w) + dx, Math.floor(i / w) + dy];
+				const j = y * w + x;
+				if (x < 0 || y < 0 || x >= w || y >= h || roofed[j]) continue;
+				explored[j] = visible[j] = 1;
+			}
+	const touches = (o: FixtureView['objects'][number]) =>
+		unitEdges(o.a, o.b).some((e) => cellsBeside(view.grid, e).some((c) => explored[c.y * w + c.x]));
+	const all = gm.floor ? decodeFloor(gm.floor, size) : null;
+	const floor = all ? encodeFloor(knownFloor(all, explored)) : null;
+	return {
+		...view,
+		fog: { ...view.fog, explored: encodeMask(explored), visible: encodeMask(visible) },
+		objects: gm.objects.filter(touches),
+		interior: encodeMask(roofed.map((v, i) => v & explored[i])),
+		floor,
+		house: house.cells
+	};
 }
 
 describe(`unexplored cells on ${BACKEND}`, () => {
@@ -570,6 +631,44 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			expect(checked, 'poses with enough samples').toBeGreaterThan(0);
 			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
 		});
+
+	// Presumed roofs (#257): a roof over unexplored ground, drawn (not black) from a known cell
+	// outside it, and every other unexplored cell black round it.
+	it.runIf(ours(LIGHT.length + SKY_CASES.length + 1))(
+		'presumed roofs: a roof over a room walked round, black all round it',
+		async () => {
+			const c = { fixture: 'village', viewer: 'player', band: 'dusk', tier: 'medium' } as const;
+			const { m, view, settings } = await mountCase({ ...c, reduced: true, roofs: true });
+			const { house } = view as FixtureView & { house: number[] };
+			const { width: w, height: h } = view.grid;
+			const [cx, cy] = [
+				house.reduce((a, i) => a + (i % w), 0) / house.length + 0.5,
+				house.reduce((a, i) => a + Math.floor(i / w), 0) / house.length + 0.5
+			];
+			m.tabletop.setGridPose({
+				target: { x: Math.floor(cx), y: Math.floor(cy) },
+				distance: 22,
+				azimuth: 30,
+				elevation: 60
+			} as never);
+			await converge(m, settings.convergeFrames);
+			const camera = cameraOf(m);
+			const at = await readFrame(m.canvas, WIDTH, HEIGHT);
+			// The roof over the room's middle: drawn, and lit from outside.
+			const ridge = new THREE.Vector3(cx - w / 2, (WALL_LEVELS + 1) * STEP_HEIGHT, cy - h / 2);
+			ridge.project(camera);
+			const px = Math.floor(((ridge.x + 1) / 2) * WIDTH);
+			const py = Math.floor(((1 - ridge.y) / 2) * HEIGHT);
+			expect(
+				at(px, py).some((v) => v > 0),
+				'the presumed roof shows'
+			).toBe(true);
+			const samples = samplesFor(view.grid, standing(view), camera);
+			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
+			const lit = litAt('village presumed roofs', samples, at);
+			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
+		}
+	);
 
 	it.runIf(ours(LIGHT.length + SKY_CASES.length))(
 		'fails on a layer exempt from the fog, naming the fixture, pose and cell',

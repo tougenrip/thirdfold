@@ -304,8 +304,10 @@ constants and `parseKit`, shared by the pipeline, `parseManifest` and `world/sha
   limits: 1,500 triangles at LOD0, no texture of their own), 1-8 variants a role, each with an
   optional `weight` (how often it is picked, 1 when absent) and `sockets` (`{ kind: smoke | flame,
 at: [x, y, z] }`, the shape of #319's model sockets). `roof` (`gable` or `hip`, a pitch of
-  15-60°, an eave of 0-0.5 u, a manifest material) or null; `presumeRoofs` puts roofs on walled
-  rooms nobody painted. `floors` gives tiles, broken tiles (near drops) and an optional edge piece
+  15-60°, an eave of 0-0.5 u, a manifest material) or null; `presumeRoofs` lets a player see a roof
+  over a room closed by walls they know but have not explored (#257; docs/RENDERING.md, "Roofs";
+  the kits of the open air set it, and it gives the walls a building context from the first
+  frame). `floors` gives tiles, broken tiles (near drops) and an optional edge piece
   per floor id (`plain` is the default ground; not the void; `KIT_FLOOR_IDS`, which lists `tile`
   and `grating` since #254); a floor without tiles is the blended ground. A tile piece is one tile
   at its own scale, centred on its pivot with its top at the floor: the lattice it is laid on has

@@ -110,7 +110,8 @@ const RENDER_SPECS = [
 	'chasm',
 	'drop-in',
 	'walls',
-	'stairs'
+	'stairs',
+	'roofs'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

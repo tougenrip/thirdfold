@@ -252,6 +252,11 @@ export interface Variant {
 	 * instance colour's alpha (opaque kinds never use alpha), glowing `HIGHLIGHT` with a hatch.
 	 */
 	batched: boolean;
+	/**
+	 * Surface: a roof (#257), whose fog, darkness and sky are read at its `aRoofCell` (a known cell
+	 * outside it) instead of the cells under it (world-modify.ts).
+	 */
+	roof: boolean;
 }
 
 /** A batched instance's highlight (#252): a warm glow below bloom, hatched for colour-blind eyes. */
@@ -346,8 +351,9 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				.mul(param('emissiveIntensity', 'float'))
 				.add(tint)
 		: tint;
-	// Rock is the cliffs' and risers' kind (#241): its faces read the cell behind them.
-	const face = kind === 'rock';
+	// Rock is the cliffs' and risers' kind (#241): its faces read the cell behind them; a roof
+	// reads its own cell outside it (#257).
+	const face = kind === 'rock' || (variant.roof && 'roof');
 	const emissive = worldEmissive(glow, face);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
@@ -416,7 +422,8 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 		['local', 'o'],
 		['antiTiled', 'a'],
 		['dropped', 'd'],
-		['batched', 'b']
+		['batched', 'b'],
+		['roof', 'r']
 	];
 	const key = `${kind}:${flags.map(([f, c]) => (variant[f] ? c : '')).join('')}`;
 	let graph = graphs.get(key);

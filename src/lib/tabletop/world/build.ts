@@ -27,3 +27,4 @@ export {
 } from './wall-batch';
 export { brinkCells, chunkTiles, dirtyTileChunks, tileBeds, tiledCells } from './floor-tiles';
 export { builtGround, stairDirty, stairTrim, withStairs, withTrim } from './stairs';
+export { roofFootprint, roofKey, roofMesh, roofRegions, roofsByChunk, seenInto } from './roofs';

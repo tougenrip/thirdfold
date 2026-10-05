@@ -127,9 +127,10 @@ export interface TileInput {
 	shape: WorldShape;
 	kinds: EdgeMap;
 	/**
-	 * Cells inside buildings: the interior mask as sent (#203, explored cells only), later with
-	 * #257's presumed roofs. Null, or no known cell in it, means no context: no wall is then
-	 * `wall.boundary` (a mask with nothing known is the same as none, as views send it).
+	 * Cells inside buildings: the viewer's roof footprint (#257, `roofFootprint`: the interior mask
+	 * as sent, #203, and presumed roofs), read on known cells only. Null means no building context:
+	 * no wall is then `wall.boundary`. `RoofLayer.update` gives one from the first frame where the
+	 * kit presumes roofs, else once the viewer knows a roofed cell (docs/RENDERING.md, "Roofs").
 	 */
 	building: CellMask | null;
 	/** Each edge's view (null: no piece), worked out once: an edge is read by its piece and both posts. */
@@ -145,9 +146,7 @@ export function tileInput(
 	const t: TileInput = {
 		shape,
 		kinds: edgeKinds(shape.grid, objects),
-		building: building?.some((v, i) => v === 1 && (!shape.known || shape.known[i] === 1))
-			? building
-			: null,
+		building,
 		views: { h: new Array(w * (h + 1)).fill(null), v: new Array((w + 1) * h).fill(null) }
 	};
 	for (let y = 0; y <= h; y++)
@@ -254,7 +253,8 @@ function edgeView(t: TileInput, axis: 'h' | 'v', x: number, y: number): EdgeView
 		rotation: faceP ? toP : toQ,
 		down: fp < fq ? toP : toQ,
 		outer: po || qo,
-		boundary: !!building && !pb && !qb
+		// Only between two known cells: a wall with an unexplored side may be a house's (#257).
+		boundary: !!building && pk && qk && !pb && !qb
 	};
 }
 
@@ -384,13 +384,15 @@ export function autotile(t: TileInput, chunks?: readonly number[]): Map<number, 
 /**
  * The chunks whose pieces may differ from `prev` to `next`: the shape's dirty chunks, and the
  * chunks of every corner beside an edge whose kind changed or a cell whose building changed.
- * Every chunk with no previous input or a new grid size. Sorted.
+ * Every chunk with no previous input, a new grid size or a building context come or gone. Sorted.
  */
 export function dirtyPieceChunks(prev: TileInput | null, next: TileInput): number[] {
 	const g = next.shape.grid;
 	const base = dirtyChunks(prev?.shape ?? null, next.shape);
 	if (!prev || prev.shape.grid.width !== g.width || prev.shape.grid.height !== g.height)
 		return base;
+	// A building context come or gone (a kit with roofs, #257) may change every wall.
+	if (!prev.building !== !next.building) return dirtyChunks(null, next.shape);
 	const dirty = new Set(base);
 	const mark = (x0: number, y0: number, x1: number, y1: number) => {
 		for (let y = y0; y <= y1; y++)

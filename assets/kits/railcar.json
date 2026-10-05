@@ -1,7 +1,7 @@
 {
 	"name": "Railcar",
 	"roof": { "style": "gable", "pitch": 15, "eave": 0.12, "material": "tin-roof" },
-	"presumeRoofs": false,
+	"presumeRoofs": true,
 	"pieces": {
 		"wall.straight": [
 			{ "model": "railcar-wall-panelled" },

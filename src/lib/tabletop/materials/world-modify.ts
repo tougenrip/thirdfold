@@ -14,9 +14,11 @@
 // pure mirrors): both only ever darken, so a hidden cell's centre stays exactly 0 and `worldHidden`
 // follows the soft edge. Since #219 the sky's light reads the same map: `skySun` and `skyAmbient`
 // (sky-light.ts puts them on the key light and the hemisphere, atmosphere.ts on the IBL) keep the
-// sun and the sky out of dark areas and the sun out from under roofs.
+// sun and the sky out of dark areas and the sun out from under roofs. Since #257 roofs (the surface
+// kind's `roof` variant) read all of it at one known cell outside them, their `aRoofCell`: a roof is
+// exterior scenery, open to the sky, never shaded (or blacked out) by the cells under it.
 
-import type * as THREE from 'three/webgpu';
+import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import {
 	FLASH_THINS,
@@ -37,6 +39,7 @@ const {
 	Discard,
 	If,
 	float,
+	ivec2,
 	luminance,
 	min,
 	mix,
@@ -48,6 +51,7 @@ const {
 	| 'Discard'
 	| 'If'
 	| 'float'
+	| 'ivec2'
 	| 'luminance'
 	| 'min'
 	| 'mix'
@@ -72,8 +76,38 @@ interface World {
 	darkTint: N;
 }
 
-const worlds = new Map<boolean, World>();
-let sky: { notDark: N; ambient: N; sun: N } | null = null;
+/** Where a fragment's cell is read: its own, behind its face (#241), or its roof's (#257). */
+export type CellRead = boolean | 'roof';
+
+/** A roof's vertex attribute: the known cell (x, y) outside it whose state the roof takes. */
+export const ROOF_CELL_ATTRIBUTE = 'aRoofCell';
+const roofCell = (): N => ivec2(tsl.attribute(ROOF_CELL_ATTRIBUTE, 'vec2'));
+
+const worlds = new Map<CellRead, World>();
+type Sky = { notDark: N; ambient: N; sun: N };
+const skies = new Map<boolean, Sky>();
+
+/** Whether a program being built is a roof's: a kind material made with `roof` (#257). */
+export const roofLit = (builder: THREE.NodeBuilder): boolean =>
+	(builder.material as unknown as { options?: { roof?: boolean } } | null)?.options?.roof === true;
+
+/**
+ * `flat` for every material but a roof's, `roof` for a roof's (#257): picked as each material's
+ * program is built, so the roof's branch (and its attribute) never reaches another program. A roof
+ * material is its own graph (the `roof` variant), so the two never share a program's key.
+ */
+class ByRoof extends THREE.Node {
+	constructor(
+		private readonly flat: () => N,
+		private readonly roof: () => N
+	) {
+		super('float');
+	}
+
+	setup(builder: THREE.NodeBuilder) {
+		return (roofLit(builder) ? this.roof() : this.flat()) as unknown as THREE.Node;
+	}
+}
 
 /**
  * Sky visibility at the fragment (#219, cell-maps.ts `skyVisibilityMap`): the linear sample,
@@ -82,38 +116,82 @@ let sky: { notDark: N; ambient: N; sun: N } | null = null;
  * the sun's is what lies above the fill; the flash lifts both toward the open sky, and off the
  * grid both are 1. Built once, shared.
  */
-function skyTerms() {
-	if (sky) return sky;
-	const [texel, smooth] = [loose(visibilityTexel), loose(visibilitySmooth)];
-	const open = min(texel.w, max(smooth.w, u.indoorFill));
-	const lift = (k: N) => mix(float(1), mix(k, float(1), u.flashLift), loose(onGrid));
+function skyTerms(roof = false): Sky {
+	const built = skies.get(roof);
+	if (built) return built;
+	const [texel, smooth] = roof
+		? [loose(visibilityTexel).load(roofCell()), null]
+		: [loose(visibilityTexel), loose(visibilitySmooth)];
+	// A roof's cell is outside it and on the grid: its own value, exactly.
+	const open = smooth ? min(texel.w, max(smooth.w, u.indoorFill)) : texel.w;
+	const shown = roof ? float(1) : loose(onGrid);
+	const lift = (k: N) => mix(float(1), mix(k, float(1), u.flashLift), shown);
 	const sun = loose(open.sub(u.indoorFill).div(u.indoorFill.oneMinus())).saturate();
-	sky = {
+	const sky = {
 		notDark: loose(open.div(u.indoorFill)).saturate(),
 		ambient: lift(open),
 		sun: lift(sun)
 	};
+	skies.set(roof, sky);
 	return sky;
 }
 
+let picked: { sun: N; ambient: N; light: N; hidden: N } | null = null;
+/** The sky terms and the hidden mask, each picked per material (`ByRoof`), built once. */
+function byRoof() {
+	picked ??= {
+		sun: loose(
+			new ByRoof(
+				() => skyTerms().sun,
+				() => skyTerms(true).sun
+			)
+		),
+		ambient: loose(
+			new ByRoof(
+				() => skyTerms().ambient,
+				() => skyTerms(true).ambient
+			)
+		),
+		light: loose(
+			new ByRoof(
+				() => terms().light,
+				() => terms('roof').light
+			)
+		),
+		hidden: loose(
+			new ByRoof(
+				() => hiddenOf(false),
+				() => hiddenOf('roof')
+			)
+		)
+	};
+	return picked;
+}
+
 /** How much of the sun reaches the fragment: 0 in a dark area or under a roof, 1 in the open. */
-export const skySun = (): N => skyTerms().sun;
+export const skySun = (): N => byRoof().sun;
 /** How much of the sky's ambient light (hemisphere, IBL) reaches it: 0 dark, the fill indoors. */
-export const skyAmbient = (): N => skyTerms().ambient;
+export const skyAmbient = (): N => byRoof().ambient;
 
 /**
  * The per-fragment terms, built once and shared by every kind's graph. With `face` (the rock
  * kind's cliffs and risers, #241) the cell is looked up a hundredth of a cell behind the surface
  * (`faceCell`), so a face shades with the cell that owns it, not the one it looks onto.
  */
-function terms(face = false): World {
+function terms(face: CellRead = false): World {
 	const built = worlds.get(face);
 	if (built) return built;
-	const texel = face ? loose(visibilityTexel).load(loose(faceCell)) : loose(visibilityTexel);
-	const smooth = loose(visibilitySmooth);
-	const { notDark } = skyTerms();
+	const roof = face === 'roof';
+	const texel = roof
+		? loose(visibilityTexel).load(roofCell())
+		: face
+			? loose(visibilityTexel).load(loose(faceCell))
+			: loose(visibilityTexel);
+	// A roof reads its cell exactly: no soft edge across it, no noise.
+	const smooth = roof ? texel : loose(visibilitySmooth);
+	const { notDark } = skyTerms(roof);
 	const [visible, explored] = [texel.x, texel.y];
-	const shown = loose(onGrid);
+	const shown = roof ? float(1) : loose(onGrid);
 	const fogged = shown.mul(u.fogOn);
 	/** The fog factor for a cell visible and explored this far (0-1 each). */
 	const levelOf = (seen: N, known: N): N => {
@@ -127,9 +205,11 @@ function terms(face = false): World {
 	const at = loose(positionWorld).xz.div(u.cellSize).mul(u.edgeScale);
 	const noise = mx_noise_float(at).mul(0.5).add(0.5).saturate().mul(u.edgeNoise);
 	const shape = (x: N) => smoothstep(float(0.5), u.edgeBand.add(0.5), x.sub(noise));
-	const current = min(levelOf(visible, explored), levelOf(shape(smooth.x), shape(smooth.y)));
+	const current = roof
+		? levelOf(visible, explored)
+		: min(levelOf(visible, explored), levelOf(shape(smooth.x), shape(smooth.y)));
 	// Reveal fades (#174): from the state a newly visible cell came from, `remaining` of the way.
-	const fade = loose(face ? groundTexel : groundFlat);
+	const fade = roof ? loose(groundFlat).load(roofCell()) : loose(face ? groundTexel : groundFlat);
 	const [remaining, from] = [fade.z, levelOf(float(0), fade.w)];
 	const fog = min(current, mix(current, from, remaining));
 	const seen = visible.mul(remaining.oneMinus());
@@ -157,14 +237,15 @@ function tinted(rgb: N, unseen: N): N {
 }
 
 /** A surface's authored emissive as the world lets it glow: dimmed by the fog, 0 where hidden. */
-export const worldEmissive = (emissive: N, face = false): N => emissive.mul(terms(face).fog);
+export const worldEmissive = (emissive: N, face: CellRead = false): N =>
+	emissive.mul(terms(face).fog);
 
 /**
  * How lit the fragment's cell is by the rules (1 lit, down to 1 - the ambient's darkness): what
  * the lit kinds' lighting model scales their indirect light by and `SkyLightNode` their key light
  * (materials/lighting-model.ts, #228), so their point lights are not dimmed twice.
  */
-export const worldLight = (): N => terms().light;
+export const worldLight = (): N => byRoof().light;
 
 /**
  * A surface's lit colour (`output`, haze included) as the viewer sees it, given the emissive
@@ -175,7 +256,7 @@ export const worldLight = (): N => terms().light;
  * again: only the dark's tint is added. With `face` the fog, the unseen tint and the reveal fades
  * are the cell's behind the surface (`terms`): the rock kind's cliffs and risers (#241).
  */
-export function worldModify(output: N, emissive: N, lit = false, face = false): N {
+export function worldModify(output: N, emissive: N, lit = false, face: CellRead = false): N {
 	const { fog, unseen, light: factor, darkTint } = terms(face);
 	const light = lit ? float(1) : factor;
 	const kept = light.mul(fog);
@@ -203,7 +284,8 @@ export const worldFog = (): N => terms().fog;
  * 1 where a player's fog hides the fragment's cell, else 0: the scene pass's `hidden` attachment
  * (post.ts), which the output stage turns back to black after everything that spreads light.
  */
-export const worldHidden = (): N => float(terms().fog.lessThan(1 / 1024));
+export const worldHidden = (): N => byRoof().hidden;
+const hiddenOf = (face: CellRead): N => float(terms(face).fog.lessThan(1 / 1024));
 
 /**
  * Puts the world on a material that is not a kind (a fixture's post, a flame, the mist):

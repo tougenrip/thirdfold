@@ -42,6 +42,11 @@ export interface Style {
 	/** Pointed window and arch heads (stone halls). */
 	gothic?: boolean;
 	roof?: { style: 'gable' | 'hip'; pitch: number; eave: number; material: string };
+	/**
+	 * Roofs presumed over rooms a player knows the walls of (#257), and a building context from the
+	 * first frame: kits of the open air only (not stone halls, whose dungeons have no roofs).
+	 */
+	presumeRoofs?: boolean;
 	/** The roof's ridge and the chimney's stone. */
 	ridge?: string;
 	walls: (s: Style) => Piece[];
