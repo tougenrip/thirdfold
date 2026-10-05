@@ -103,6 +103,7 @@ const RENDER_SPECS = [
 	'probe-grid',
 	'hero-shadows',
 	'world-layer',
+	'floor-tiles',
 	'beyond',
 	'floor-splat',
 	'grid-overlay',

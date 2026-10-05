@@ -124,7 +124,7 @@ export async function createTabletop(
 	let freshTable = false;
 	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
-	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops); // the ground in chunks (#240)
+	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops, onModel); // #240, #254
 	const effects = new EffectsLayer();
 	scene.add(worldLayer.group, effects.group);
 	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky, worldLayer]];
@@ -232,7 +232,7 @@ export async function createTabletop(
 		if (casters || wasMoving) shadowsDirty = true;
 		wasMoving = casters;
 		const flickering = lighting.animating(camera, now, controls.target, gallery.due); // #230, #231
-		const drifting = [worldLayer.tick(now, reducedMotion), cloud.tick(now)].includes(true); // #243
+		const drifting = [worldLayer.tick(now, reducedMotion, controls.target), cloud.tick(now)]; // #243, #254
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const revealing = cellMaps.tick(now) || propLayer.drops.active; // reveals (#174), drops (#249)
@@ -253,7 +253,7 @@ export async function createTabletop(
 		hideGallery?.();
 		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
-		return { active: moving, ambient: flickering || drifting };
+		return { active: moving, ambient: flickering || drifting.includes(true) };
 	}
 
 	/** The environment asked for, and its looks once loaded. */
@@ -300,7 +300,7 @@ export async function createTabletop(
 	);
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	atmosphere.setTier(quality.current.tier, quality.current.layers.sky);
-	land.setTier(quality.current.tier);
+	for (const l of [land, worldLayer]) l.setTier(quality.current.tier); // the tile ring (#254)
 	cloud.setLayer(quality.current.layers.fogcloud, quality.current.tier === 'low');
 	controls.addEventListener('change', requestRender);
 
@@ -472,7 +472,7 @@ export async function createTabletop(
 			quality.set(settings, refine);
 			post.set(settings);
 			atmosphere.setTier(settings.tier, settings.layers.sky);
-			land.setTier(settings.tier);
+			for (const l of [land, worldLayer]) l.setTier(settings.tier);
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
 			const remade = [land, worldLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));

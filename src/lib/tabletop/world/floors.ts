@@ -7,5 +7,7 @@ import { FLOOR_IDS } from '../../game/floor';
  * cliffs masonry (cliffs.ts). Rock is kerbed by the splat (FLOOR_STYLE) but natural.
  */
 export const MAN_MADE: ReadonlySet<number> = new Set(
-	(['stone', 'wood', 'cobble', 'flagstone', 'tile', 'grating'] as const).map((id) => FLOOR_IDS.indexOf(id))
+	(['stone', 'wood', 'cobble', 'flagstone', 'tile', 'grating'] as const).map((id) =>
+		FLOOR_IDS.indexOf(id)
+	)
 );
