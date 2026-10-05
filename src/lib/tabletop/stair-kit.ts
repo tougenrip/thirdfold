@@ -3,7 +3,9 @@
 // per model part on the prop kind's model variant (vertex colours, instanced: the props' own
 // program, so nothing new compiles). A role is handed to the stairs only once every variant of it
 // has loaded (`ready`), so until then, and for a model that fails, the procedural steps draw:
-// never nothing. Never picked; casts and receives the sun's shadow.
+// never nothing. Never picked; casts and receives the sun's shadow. A model's meshes are kept and
+// only their matrices and counts change (grown in chunks, as PropLayer's), since a new mesh is a
+// new program.
 
 import * as THREE from 'three/webgpu';
 import { PLAIN_KIT, type KitDef, type KitRole } from '$lib/assets/kit';
@@ -31,7 +33,8 @@ export class StairKit {
 	private kit: KitDef | null = null;
 	private environment: string | null | undefined = undefined;
 	private material = createMaterial('prop', { instanced: true, vertexColors: true });
-	private meshes: THREE.InstancedMesh[] = [];
+	/** Each model's meshes (one per body part) and how many instances they hold. */
+	private meshes = new Map<string, { parts: THREE.InstancedMesh[]; capacity: number }>();
 
 	/** `onReady` is told when more of the kit's stair pieces have loaded (the stairs change). */
 	constructor(private readonly onReady: () => void) {}
@@ -67,7 +70,6 @@ export class StairKit {
 
 	/** Draws the kit pieces of a shape's stairs (all of them: a table has a few dozen). */
 	sync(shape: WorldShape): void {
-		this.clear();
 		const pieces = (shape.stairs as { pieces?: StairPiece[] } | undefined)?.pieces ?? [];
 		const byModel = new Map<string, THREE.Matrix4[]>();
 		const { width: w, height: h, cellSize: cs } = shape.grid;
@@ -95,19 +97,36 @@ export class StairKit {
 			}
 			byModel.set(p.model, list);
 		}
+		for (const [id, kept] of this.meshes)
+			if (!byModel.has(id)) for (const mesh of kept.parts) mesh.count = 0;
 		for (const [id, matrices] of byModel) {
-			const model = modelNow(id)!;
-			for (const part of partsOf(model, 'body')) {
-				const geometry = part.geometry.clone();
-				addInstanceTints(geometry, matrices.length);
-				const mesh = new THREE.InstancedMesh(geometry, this.material, matrices.length);
+			const parts = this.ensure(id, matrices.length);
+			for (const mesh of parts) {
 				matrices.forEach((mat, i) => mesh.setMatrixAt(i, mat));
-				mesh.castShadow = mesh.receiveShadow = true;
-				mesh.raycast = () => {};
-				this.group.add(mesh);
-				this.meshes.push(mesh);
+				mesh.count = matrices.length;
+				mesh.instanceMatrix.needsUpdate = true;
+				mesh.computeBoundingSphere();
 			}
 		}
+	}
+
+	/** A model's meshes with room for `count`, made again (larger) only when it outgrows them. */
+	private ensure(id: string, count: number): THREE.InstancedMesh[] {
+		const kept = this.meshes.get(id);
+		if (kept && kept.capacity >= count) return kept.parts;
+		if (kept) this.drop(kept.parts);
+		const capacity = Math.max(16, Math.ceil(count * 1.5));
+		const parts = partsOf(modelNow(id)!, 'body').map((part) => {
+			const geometry = part.geometry.clone();
+			addInstanceTints(geometry, capacity);
+			const mesh = new THREE.InstancedMesh(geometry, this.material, capacity);
+			mesh.castShadow = mesh.receiveShadow = true;
+			mesh.raycast = () => {};
+			this.group.add(mesh);
+			return mesh;
+		});
+		this.meshes.set(id, { parts, capacity });
+		return parts;
 	}
 
 	dispose(): void {
@@ -116,11 +135,15 @@ export class StairKit {
 	}
 
 	private clear(): void {
-		for (const mesh of this.meshes) {
+		for (const { parts } of this.meshes.values()) this.drop(parts);
+		this.meshes.clear();
+	}
+
+	private drop(parts: THREE.InstancedMesh[]): void {
+		for (const mesh of parts) {
 			mesh.geometry.dispose();
 			mesh.removeFromParent();
 		}
-		this.meshes = [];
 	}
 }
 
