@@ -1908,13 +1908,19 @@ leaves its sides to the bridge.
 pieces (a variant by `keySeed` of the edge and the kit's weights, as #251), and the edge is marked
 `kit`: the ground draws nothing there and `stairTrim` no rail, for the kit's piece to stand in its
 place (a `stair.side` only down to five levels, its envelope's −H; deeper sides stay procedural).
-Nothing draws kit models at runtime yet (#252's path), so the renderer passes no kit and every
-piece is procedural; `rolesNeeded` (`src/lib/assets/kit-needs.ts`) asks a table's kit for
-`stair.side` wherever a step has a lower side and `railing` wherever a built stair has a rail,
-checked once an environment is off `KIT_PENDING` (#261). Kerbs are procedural only.
+Every built-in environment's greybox kit (#261) has all three. At the table `stair-kit.ts`
+`StairKit` (in the world layer) loads the environment's kit from the manifest and its stair
+models, and hands a role to `withStairs` only once every variant of it has loaded (`ready`), so
+the procedural steps draw until then and for a model that fails: never nothing. It draws the kit's
+pieces as one InstancedMesh per model part on the prop kind's model variant (the props' own
+program), at each piece's edge pivot on the higher floor, turned so +z looks down the stair or out
+over the side; a side repeats down its drop by its own height (#261's convention). Never picked,
+casting and receiving. The kit's riser is one riser a level (its own look), not the procedural half
+steps. `rolesNeeded` (`src/lib/assets/kit-needs.ts`) asks a table's kit for `stair.side` wherever a
+step has a lower side and `railing` wherever a built stair has a rail. Kerbs are procedural only.
 
 **Drawing.** The steps and stringers are the chunks' own faces and the rails and kerbs go into the
-faces' meshes (`withTrim`), so stairs add no draw call, no geometry of their own and no program (the
+faces' meshes (`withTrim`), so procedural stairs add no draw call (a kit adds one per piece model), no geometry of their own and no program (the
 rock kind with vertex colours, as every face), cast into the cached sun shadow and receive it, and
 are never picked. The world layer builds its shape with the walls and windows (`update(..., objects)`;
 a door opening changes nothing) and the environment's ground (`setLook`), and rebuilds only the
@@ -1930,11 +1936,12 @@ fogged and not, through the harness (`checkEmitter` with the trim as decorations
 allowance, up to `FIGURE_CLEAR`; `checkContinuation`; rays from above never fall through); nothing
 toward an unexplored neighbour; bridges and walls; a synthetic kit taking the pieces with the ground
 leaving their edges; rails by floor and environment; and `stairDirty`. `stairs.svelte.spec.ts` (a
-render spec) draws the monastery: steps at their floors, the half step, the rail, a wall taking it
+render spec) draws the monastery: steps at their floors, the stone halls' kit pieces, their nosing and balustrade, a wall taking it
 away rebuilding at most two chunks, a door opening rebuilding none, nothing compiling.
 
-**Deviations from #255.** No instanced stair layer: the procedural pieces are the ground's faces and
-trim, which costs nothing extra; kit models wait for #252's drawing. The intermediate tread is on the
+**Deviations from #255.** The procedural pieces are the ground's own faces and trim (no instanced
+layer, no extra draw call); only kit pieces are instanced (`StairKit`), until #252's kit drawing
+can take them over. The intermediate tread is on the
 lower side only (above). Goldens and the closer-shot strip are left for the milestone's rendering PR.
 
 ## Modules

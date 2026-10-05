@@ -28,7 +28,9 @@
 // run stops at one, a walled side gets no rail) and `withStairs`, its steps and stringers go in the
 // faces, and its rails and kerbs (`stairTrim`) in the faces' meshes too, so they cost no draw call
 // and no program. A wall's change rebuilds only the chunks whose stairs it changed (`stairDirty`),
-// and so does a new environment whose default ground is built (or not): rails or kerbs.
+// and so does a new environment whose default ground is built (or not): rails or kerbs. The
+// environment's kit (#261) draws its stair pieces instead once their models have loaded
+// (stair-kit.ts `StairKit`), and the ground leaves those edges to them.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
@@ -55,6 +57,7 @@ import {
 	type KindMaterial
 } from './materials';
 import type { PerfRecorder } from './perf';
+import { StairKit } from './stair-kit';
 import { standIn } from './warmup';
 import type { Chasm } from './world/chasm';
 import type { CliffMesh } from './world/cliffs';
@@ -136,6 +139,8 @@ export class WorldLayer {
 	private inputs: unknown[] = [];
 	/** Whether the environment's default ground is built (`builtGround`): its stairs get rails. */
 	private built = false;
+	/** The environment's kit's stair pieces (#255, #261). */
+	private stairKit = new StairKit(() => this.restair());
 	private lastRebuilt = 0;
 	private standIns: THREE.Mesh[] | null = null;
 	/** Each cell's drop start (#249), and the shape the last drawn frame showed. */
@@ -146,9 +151,11 @@ export class WorldLayer {
 		private readonly perf: PerfRecorder,
 		private readonly land: WorldGround,
 		private readonly build: WorldBuilders,
-		private readonly drops: Drops
+		private readonly drops: Drops,
+		/** Told when something arrived that changes the picture (a kit's stair pieces). */
+		private readonly onChange: () => void = () => {}
 	) {
-		this.group.add(this.chunkGroup);
+		this.group.add(this.chunkGroup, this.stairKit.group);
 		this.sides = build.CLIFF_STYLES.map((style) => {
 			const material = createMaterial('rock', {
 				antiTiled: true,
@@ -219,7 +226,7 @@ export class WorldLayer {
 				objects: walls,
 				known
 			}),
-			{ built: this.built }
+			this.stairOptions()
 		);
 		const { shape } = this;
 		this.picks = this.build.chasmGround(grid, shape.ground, shape.floor, () => this.chasm);
@@ -243,11 +250,9 @@ export class WorldLayer {
 		const built = this.build.builtGround(environment);
 		if (built !== this.built) {
 			this.built = built;
-			if (this.shape) {
-				this.shape = this.build.withStairs(this.shape, { built });
-				this.rebuild();
-			}
+			this.restair();
 		}
+		this.stairKit.setEnvironment(environment ?? null);
 		wear(this.top, look?.surface ?? null, PLAIN.top);
 		setParams(this.top, { repeat: repeatFor(look?.surface.cells ?? 1, cellSize, STEP_HEIGHT) });
 		this.build.CLIFF_STYLES.forEach((style, i) => {
@@ -305,6 +310,7 @@ export class WorldLayer {
 
 	dispose(): void {
 		this.resize(0);
+		this.stairKit.dispose();
 		this.standIns?.[0].geometry.dispose();
 		this.grid.dispose();
 		disposeTwins(this.top);
@@ -358,14 +364,27 @@ export class WorldLayer {
 		dropHeight.value = DROP_CELLS * shape.grid.cellSize;
 	}
 
+	/** The stairs' options: the environment's ground and the kit's pieces that have loaded. */
+	private stairOptions() {
+		return { built: this.built, kit: this.stairKit.ready() };
+	}
+
+	/** The stairs again (a new environment, or more of its kit loaded), and the picture. */
+	private restair(): void {
+		if (!this.shape) return;
+		this.shape = this.build.withStairs(this.shape, this.stairOptions());
+		this.rebuild();
+		this.onChange();
+	}
+
 	/** Builds the chunks the shape changed since the drawn one (all of them on a new grid). */
 	private rebuild(): void {
 		const shape = this.shape;
 		if (!shape) return;
 		const drawn = this.drawn?.grid.cellSize === shape.grid.cellSize ? this.drawn : null;
-		const dirty = [
-			...new Set([...this.build.dirtyChunks(drawn, shape), ...this.build.stairDirty(drawn, shape)])
-		];
+		const stairs = this.build.stairDirty(drawn, shape);
+		const dirty = [...new Set([...this.build.dirtyChunks(drawn, shape), ...stairs])];
+		if (!drawn || stairs.length) this.stairKit.sync(shape);
 		const { x, y } = this.build.chunksAcross(shape.grid);
 		this.resize(x * y);
 		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c));

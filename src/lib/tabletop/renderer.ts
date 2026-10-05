@@ -124,7 +124,7 @@ export async function createTabletop(
 	let freshTable = false;
 	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
-	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops); // the ground in chunks (#240)
+	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops, onModel); // chunks (#240)
 	const effects = new EffectsLayer();
 	scene.add(worldLayer.group, effects.group);
 	const [previews, world] = [new PreviewLayer(), [diceLayer, effects, cloud, sky, worldLayer]];

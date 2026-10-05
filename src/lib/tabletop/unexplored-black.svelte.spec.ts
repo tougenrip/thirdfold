@@ -74,7 +74,7 @@ const TALL = {
 	token: 2,
 	light: 2,
 	prop: 4,
-	rail: 1
+	rail: 1.1 // a kit's balustrade stands 1.0 (#261)
 };
 /** Cells between baked probes in the probe cases: 4 × 3 × 4 on the test world, not 9 × 3 × 9. */
 const PROBE_TEST_SPACING = 8;

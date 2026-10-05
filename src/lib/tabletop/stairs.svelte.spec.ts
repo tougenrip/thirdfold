@@ -1,8 +1,8 @@
-// Stairs (#255) on the monastery as the renderer draws them: in the world's chunks (the faces'
-// meshes, the rock kind: no draw call or program of their own), every step's top at its floor
-// across the token's disk, the lower half step's tread half a level up over the edge band, a
-// balustrade over the gallery stair's drop to the nave; a wall along it rebuilding only the
-// chunks it touched and taking the rail away, with nothing compiling.
+// Stairs (#255) on the monastery as the renderer draws them: the stone halls' kit (#261) pieces
+// once they have loaded (risers, stringers and a balustrade on the prop kind's model program),
+// the ground leaving their edges to them, every step's top at its floor across the token's disk,
+// the balustrade over the gallery stair's drop to the nave; a wall along it rebuilding only the
+// chunks it touched and taking the rail away, a door rebuilding none, nothing compiling.
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +11,7 @@ import type { SceneObject } from '$lib/game/objects';
 import { decodeLevels } from '$lib/game/terrain';
 import { STEP_HEIGHT } from './ground';
 import { loadSidecar, loadView, manualClock, mountFixture, settle, type Mounted } from './testing';
-import { HALF_TREAD } from './world/cliffs';
+import { STAIR_KIT } from './stair-kit';
 
 vi.setConfig({ testTimeout: 240_000 });
 
@@ -40,11 +40,25 @@ function chunkMeshes(scene: THREE.Scene): THREE.Mesh[] {
 	return out;
 }
 
-/** The highest surface of the chunks straight below (x, z). */
+/** The kit's stair pieces (stair-kit.ts), instanced. */
+function kitMeshes(scene: THREE.Scene): THREE.InstancedMesh[] {
+	const out: THREE.InstancedMesh[] = [];
+	scene.getObjectByName(STAIR_KIT)?.traverse((o) => {
+		if (o instanceof THREE.InstancedMesh) out.push(o);
+	});
+	return out;
+}
+
+/** The highest surface of the meshes straight below (x, z). */
 function topAt(meshes: THREE.Mesh[], x: number, z: number): number {
 	const ray = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
 	const hits: THREE.Intersection[] = [];
-	for (const m of meshes) THREE.Mesh.prototype.raycast.call(m, ray, hits);
+	for (const m of meshes)
+		(m instanceof THREE.InstancedMesh ? THREE.InstancedMesh : THREE.Mesh).prototype.raycast.call(
+			m,
+			ray,
+			hits
+		);
 	return Math.max(...hits.map((h) => h.point.y));
 }
 
@@ -61,7 +75,9 @@ describe('stairs', () => {
 		const scene = compile.mock.calls[0][2] as THREE.Scene;
 		const { grid } = view;
 		const levels = decodeLevels(view.terrain!, grid.width * grid.height)!;
-		const meshes = () => chunkMeshes(scene);
+		const meshes = () => [...chunkMeshes(scene), ...kitMeshes(scene)];
+		// The kit's pieces arrived and stand in for the procedural ones.
+		expect(kitMeshes(scene).length).toBeGreaterThanOrEqual(3);
 		const floorY = (x: number, y: number) => levels[y * grid.width + x] * STEP_HEIGHT;
 
 		// Every step of the gallery stair (x 15 to 18, row 9) and the outside stair (x 22 and 23,
@@ -84,16 +100,16 @@ describe('stairs', () => {
 			}
 		}
 		expect(wrong).toEqual([]);
-		// The gallery stair's first riser, between x 14 (the nave) and 15: the half step over x 14.
+		// The gallery stair's first riser, between x 14 (the nave) and 15: the kit's nosing, at the
+		// upper floor, over the nave's edge band.
 		const edge = gridToWorld(grid, { x: 15, y: 9 });
-		const half = topAt(meshes(), edge.x - 0.5 - HALF_TREAD / 2, edge.z);
-		expect(half).toBeCloseTo(STEP_HEIGHT / 2, 3);
+		expect(topAt(meshes(), edge.x - 0.5 - 0.035, edge.z)).toBeCloseTo(STEP_HEIGHT, 3);
 		// A balustrade on the north edge of x 17 (level 3 over the nave): its rail over the edge.
 		const rail = () => {
 			const c = gridToWorld(grid, { x: 17, y: 9 });
 			return topAt(meshes(), c.x, c.z - 0.5) - floorY(17, 9);
 		};
-		expect(rail()).toBeCloseTo(0.9, 3);
+		expect(rail()).toBeCloseTo(1, 3); // the stone halls' balustrade
 		const before = t.stats();
 
 		// A wall along the gallery stair's north side: the rail goes, nothing compiles.
@@ -111,7 +127,7 @@ describe('stairs', () => {
 		// A door opening (objects change, walls don't) rebuilds nothing.
 		t.setObjects([...view.objects]);
 		await settle(t, 400, 60_000, clock);
-		expect(rail()).toBeCloseTo(0.9, 3);
+		expect(rail()).toBeCloseTo(1, 3);
 		const built = () => t.stats().timings['world-chunk']?.count ?? 0;
 		const chunks = built();
 		const doors = view.objects.map((o) => (o.kind === 'door' ? { ...o, open: !o.open } : o));

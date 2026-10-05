@@ -95,8 +95,9 @@ const BUDGETS = {
 	// the highlight plane and the `terrain` layer; 389,901 B measured. → 390.2: the M69 load fix
 	// (warm-ups compile in parallel chunks in each pass's context, the floors' box shared);
 	// 390,193 B measured. → 390.4: stairs (#255: the world layer reads walls and the environment's
-	// ground, merges the stairs' trim into the faces); just over 390.3 kB measured.
-	renderer: { total: 390_400 },
+	// ground, merges the stairs' trim into the faces); just over 390.3 kB measured. → 391.2: the
+	// kit's stair pieces drawn (stair-kit.ts, #255 with #261's kits); 391.1 kB measured.
+	renderer: { total: 391_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
