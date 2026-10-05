@@ -94,8 +94,9 @@ const BUDGETS = {
 	// → 390.0: M69's close deleted the old raised-cell boxes, the play plane, the `LineSegments` grid,
 	// the highlight plane and the `terrain` layer; 389,901 B measured. → 390.2: the M69 load fix
 	// (warm-ups compile in parallel chunks in each pass's context, the floors' box shared);
-	// 390,193 B measured.
-	renderer: { total: 390_300 },
+	// 390,193 B measured. → 390.4: stairs (#255: the world layer reads walls and the environment's
+	// ground, merges the stairs' trim into the faces); just over 390.3 kB measured.
+	renderer: { total: 390_400 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -106,8 +107,9 @@ const BUDGETS = {
 	// their recipes); 7,762 B measured. → the cliffs and risers (#241, world/cliffs.ts); set to the
 	// merged build's measured size. → 10.4: the void's chasms (#243, world/chasm.ts and the
 	// ground's void floor); 10,369 B measured. → 12.4: wall autotiling (#251, world/autotile.ts);
-	// 12,355 B measured.
-	world: { total: 12_400 }
+	// 12,355 B measured. → 14.6: stairs (#255, world/stairs.ts and the stair faces in cliffs.ts);
+	// about 14.5 kB measured.
+	world: { total: 14_600 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
