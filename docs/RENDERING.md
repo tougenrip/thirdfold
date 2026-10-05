@@ -1944,7 +1944,7 @@ kit's `cap` on top when the kit has one. #261's greybox walls, caps and posts al
 (0.004) to keep their tops out of one plane.
 
 **Kits.** `loadEnvironment` loads the environment's kit (`loadKit`, roles in `BATCH_ROLES` only,
-with `arch`, `railing` and `door.leaf` since #253: stairs, bridges, cliffs and roofs are other
+with `arch` and `door.leaf` since #253: stairs, bridges, cliffs and roofs are other
 layers'), each variant's `body` parts merged by
 `pieceOf` into positions, normals, triangles and the vertex colours #261 bakes each part's surface
 into. Since #261 every built-in environment has one, so the built-in tables draw kit pieces.
@@ -2021,9 +2021,9 @@ one mullion 0.04 wide (under 5% of the opening) and a lintel from `LINTEL` (0.8)
 within ±`WALL_HALF_THIN`; the gap between holds the eye's height (`EYE_LEVELS` steps, 1.2 u), so a
 token behind a window shows through it. The greybox kits' frames (#261) open from 0.85 to 1.65 u.
 Rules windows are never glazed. Between different floors (the monastery's gallery railing, the
-belfry's arches) a window is `window.sill`; the kit's `railing` stands there when it has one (the
-balustrade the stairs' rails use, #255), else the built-in balustrade, no taller than the sill (a
-plinth, four balusters, a rail). The drop below is the edge's retaining piece and plinth as before.
+belfry's arches) a window stays `window.sill` (the kit's, or the built-in one up to `SILL`): the
+balustrade under it is #256's (`RAIL_TOP` 0.68, baked into the chunk faces), so the gallery shows
+one. The drop below is the edge's retaining piece and plinth as before.
 
 **Arcades.** Autotile flags a framed window whose neighbour in line is one too (`ARCADE` in
 `world/autotile.ts`, from the edge views only, so ids, splits and unexplored ground change
@@ -2052,8 +2052,8 @@ for the frame and leaf.
 
 **Tests.** `autotile.spec.ts`: the arcade flag (a run, two windows end to end, a lone window, beside
 a wall or a door, across a drop). `wall-batch.spec.ts`: the window's open band round the eye's
-height with only its jambs and a slim mullion across it, the balustrade's height, the door frame's
-jambs and the leaf; a kit's arch in an arcade and railing between floors, else its frame and sill.
+height with only its jambs and a slim mullion across it, the sill's height, the door frame's jambs
+and the leaf; a kit's arch in an arcade, else its frame, and a sill between floors.
 `doors.svelte.spec.ts` (`RENDER_SPECS`): rays through built-in, village and stone-halls windows at
 eye height (open) and through their sills, lintels and jambs (blocked); a leaf at half its angle
 after 130 ms and open at 260 ms on the injected clock, picked shut and open, snapped shut under
@@ -2063,9 +2063,7 @@ hinge's corner (the Hollow's player, in the slim set, has a door open).
 
 **Deviations from #253.** The leaves are a `BatchedMesh`, not an `InstancedMesh` per leaf
 geometry: r186 gives every `InstancedMesh` a vertex stage of its own (#255), and the batch shares
-the walls' program. Between floors the kit's `railing` replaces its `window.sill` (#261's greybox
-sill is a ledge over nothing), so `window.sill` kit pieces are drawn only where a kit has no
-railing. No threshold piece under doors (#254's tiles run to the edge; the greybox frames carry a
+the walls' program. Between floors the balustrade is #256's, not a wall piece. No threshold piece under doors (#254's tiles run to the edge; the greybox frames carry a
 threshold), and no lock marker. The leaf keeps its authored height (the built-in one 0.92 of the
 wall; the greybox leaves 1.74 u). Goldens and per-table draw counts are the milestone's close.
 

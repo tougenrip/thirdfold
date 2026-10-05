@@ -76,7 +76,8 @@ describe('the built-in pieces', () => {
 					b.max[1] <= SILL * WALL_HEIGHT + 1e-6 || b.min[1] >= LINTEL * WALL_HEIGHT - 1e-6
 				).toBe(true);
 		}
-		// Between different floors a balustrade no taller than the sill; a door's frame has jambs.
+		// Between different floors a sill up to SILL (#256's rail stands inside it); a door's frame
+		// has jambs.
 		expect(boundsOf(proceduralPiece('window.sill')).max[1]).toBeCloseTo(SILL * WALL_HEIGHT, 6);
 		const frame = proceduralPiece('door.frame');
 		expect(boxOf(frame, 0)).toMatchObject({
@@ -227,7 +228,7 @@ describe('instances', () => {
 		expect(wallInstances(p, g, { cap: [1] }).count).toBe(p.count);
 	});
 
-	it('draw a kit’s arch in an arcade and its railing between floors, else the frame (#253)', () => {
+	it('draw a kit’s arch in an arcade, else the frame, and keep a sill between floors (#253)', () => {
 		const g = grid(6, 3);
 		const roles = (levels: Uint8Array | null, objects: SceneObject[], kit: KitWeights) => {
 			const { pieces } = tiled({ grid: g, levels, floor: null, objects, known: null });
@@ -236,17 +237,15 @@ describe('instances', () => {
 		};
 		const arcade = [{ ...wall([1, 1], [3, 1]), window: true }];
 		const lone = [{ ...wall([1, 1], [2, 1]), window: true }];
-		const kit = { 'window.frame': [1], 'window.sill': [1], arch: [1], railing: [1] };
+		const kit = { 'window.frame': [1], 'window.sill': [1], arch: [1] };
 		expect(roles(null, arcade, kit)).toEqual(['arch', 'arch']);
 		expect(roles(null, lone, kit)).toEqual(['window.frame']);
 		expect(roles(null, arcade, { 'window.frame': [1] })).toEqual(['window.frame', 'window.frame']);
 		const levels = Uint8Array.from([3, 3, 3, 3, 3, 3, ...new Array(12).fill(0)]);
-		expect(roles(levels, lone, kit)).toEqual(['railing', 'wall.retaining', 'plinth']);
-		expect(roles(levels, lone, { 'window.sill': [1] })).toEqual([
-			'window.sill',
-			'wall.retaining',
-			'plinth'
-		]);
+		// A sill even in an arcade between floors: #256's balustrade stands under it.
+		const sill = ['window.sill', 'wall.retaining', 'plinth'];
+		expect(roles(levels, lone, kit)).toEqual(sill);
+		expect(roles(levels, arcade, kit)).toEqual([...sill, ...sill]);
 	});
 });
 

@@ -193,12 +193,12 @@ describe('arches only over the void', () => {
 describe('balustrades', () => {
 	const s = scene('monastery');
 
-	it("rails the ledge's open east edge, not the gallery's window or a one-level step", () => {
+	it("rails the ledge's open east edge and the gallery's window, not a one-level step", () => {
 		for (let y = 6; y <= 9; y++) expect(rails(s, at(s, 23, y)), `${y}`).toContain(E);
-		// The gallery's window keeps its own balustrade, drawn by the walls (#253): none here.
 		for (let y = 2; y <= 8; y++) {
 			const p = s.stairs.pieces.find((q) => q.cell === at(s, 19, y) && q.role === 'railing');
-			expect(p, `${y}`).toBeUndefined();
+			expect(p?.dir, `${y}`).toBe(W);
+			expect(p?.model, 'under the window sill: procedural').toBeNull();
 		}
 		for (const p of s.stairs.pieces.filter((q) => q.role === 'railing'))
 			expect(p.drop === null || p.drop >= 2, `${p.cell}`).toBe(true);
