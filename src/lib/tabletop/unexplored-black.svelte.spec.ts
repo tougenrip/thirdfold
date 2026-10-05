@@ -28,6 +28,9 @@
 // kerbs, built only from explored cells, and a rail stands as tall as `TALL.rail` over its step.
 // Bridges and balustrades (#256) too: the Hollow's bridges and causeway (bodies under their decks in
 // the chunks' faces, parapets as rails) and the built floors' balustrades, every rail counted here.
+// Window and door frames and door leaves (#253) are in every case with walls: frames are wall
+// pieces, leaves one batch in the kit pieces' material (the Hollow's player, in the slim set on
+// every tier, has a door open), and an open leaf stands round its hinge's corner.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -38,7 +41,7 @@
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
-import { cellsBeside, MAX_STEP, unitEdges } from '$lib/game/objects';
+import { cellsBeside, MAX_STEP, orderCorners, unitEdges } from '$lib/game/objects';
 import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, WALL_LEVELS } from '$lib/game/visibility';
@@ -359,6 +362,19 @@ function standing(view: FixtureView): Float32Array {
 	for (const o of view.objects)
 		for (const e of unitEdges(o.a, o.b))
 			for (const c of cellsBeside(grid, e)) raise(c, TALL.wall + MAX_STEP * STEP_HEIGHT);
+	// An open door's leaf (#253) stands along a grid line from its hinge, its first corner: the
+	// four cells round that corner.
+	for (const o of view.objects) {
+		if (o.kind !== 'door' || !o.open) continue;
+		const { a } = orderCorners(o.a, o.b);
+		for (const [dx, dy] of [
+			[-1, -1],
+			[0, -1],
+			[-1, 0],
+			[0, 0]
+		])
+			raise({ x: a.x + dx, y: a.y + dy }, TALL.wall + MAX_STEP * STEP_HEIGHT);
+	}
 	for (const t of view.tokens) raise(t.pos, TALL.token);
 	for (const l of view.lights) raise(l.pos, TALL.light);
 	for (const p of view.props) for (const c of footprintCells(p)) raise(c, TALL.prop);

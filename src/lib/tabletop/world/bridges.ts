@@ -13,8 +13,8 @@
 //   ground: bridge-mesh.ts draws its deck, spandrel, pier or arch instead.
 // - A man-made floor (or the plain floor where the environment's ground is
 //   built) at an open drop of two levels or more, or the void, gets a
-//   balustrade on its edge, and so does a window between such floors (the
-//   gallery's railing: its sill is the window's, #253).
+//   balustrade on its edge. A window between floors (the gallery's railing)
+//   gets none here: the walls' layer draws its balustrade (#253).
 // - Only known cells make a bridge, a side or a rail: an unexplored side is no
 //   drop (regions.ts), so no arch or void is hinted toward it.
 
@@ -136,8 +136,9 @@ export function dropRails(
 			const { axis, index } = slotBetween(grid, s, j);
 			const on = shape.edges.built[axis][index];
 			if (on === EDGE_BUILT.wall || on === EDGE_BUILT.door) continue;
-			// A window takes one only over a floor below (a gallery's), never out to the void.
-			if (on === EDGE_BUILT.window && drop === null) continue;
+			// A window takes none: its balustrade between floors is the window's own, drawn by the
+			// walls' layer (#253, the kit's railing or the built-in one), so it is never doubled.
+			if (on === EDGE_BUILT.window) continue;
 			out.push({ cell: s, across: j, dir: d, drop, window: on === EDGE_BUILT.window });
 		}
 	}

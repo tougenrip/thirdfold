@@ -11,7 +11,7 @@ import type { SquareGrid } from '$lib/game/grid';
 import type { SceneObject } from '$lib/game/objects';
 import { parseSceneFile } from '$lib/game/scene-file';
 import { decodeLevels } from '$lib/game/terrain';
-import type { FogView } from '$lib/game/visibility';
+import { EYE_LEVELS, type FogView } from '$lib/game/visibility';
 import { ENVELOPES, envelopeProblem, FIGURE_CLEAR, TOKEN_DISK } from '../../assets/kit';
 import { STEP_HEIGHT, WALL_HEIGHT } from '../ground';
 import { autotile, tileInput, TILE_ROLES, variantOf } from './autotile';
@@ -25,8 +25,10 @@ import {
 	roleOfKey,
 	VARIANTS,
 	wallInstances,
+	type KitWeights,
 	type PieceMesh
 } from './wall-batch';
+import { LINTEL, SILL } from './wall-spans';
 
 const boundsOf = (p: PieceMesh, from = 0, to = p.positions.length / 3) => {
 	const min = [Infinity, Infinity, Infinity];
@@ -39,6 +41,11 @@ const boundsOf = (p: PieceMesh, from = 0, to = p.positions.length / 3) => {
 	return { min, max } as { min: [number, number, number]; max: [number, number, number] };
 };
 
+const boxOf = (p: PieceMesh, b: number) => {
+	const { min, max } = boundsOf(p, b, b + 24);
+	return { min: min.map((v) => +v.toFixed(6)), max: max.map((v) => +v.toFixed(6)) };
+};
+
 describe('the built-in pieces', () => {
 	it('lie inside their roles’ envelopes, a wall’s merged cap inside the cap’s', () => {
 		for (const role of BATCH_ROLES) {
@@ -49,6 +56,38 @@ describe('the built-in pieces', () => {
 				expect(own && envelopeProblem(box, ENVELOPES.cap), role).toBeNull();
 			}
 		}
+	});
+
+	it('open a window from SILL to LINTEL round the eye’s height, framed, its mullion slim (#253)', () => {
+		const eye = EYE_LEVELS * STEP_HEIGHT;
+		for (const role of ['window.frame', 'arch'] as const) {
+			const mesh = proceduralPiece(role);
+			const boxes = [];
+			for (let b = 0; b < mesh.positions.length / 3; b += 24) boxes.push(boxOf(mesh, b));
+			// What stands across the eye's height: the two jambs at the ends and a thin mullion.
+			const across = boxes.filter((b) => b.min[1] < eye && b.max[1] > eye);
+			const width = (b: (typeof across)[number]) => b.max[0] - b.min[0];
+			expect(across.map((b) => +b.min[0].toFixed(2))).toEqual([-0.5, 0.42, -0.02]);
+			const opening = 1 - width(across[0]) - width(across[1]);
+			expect(width(across[2]) / opening).toBeLessThan(0.15);
+			// Nothing between the sill and the lintel but those.
+			for (const b of boxes.filter((b) => !across.includes(b)))
+				expect(
+					b.max[1] <= SILL * WALL_HEIGHT + 1e-6 || b.min[1] >= LINTEL * WALL_HEIGHT - 1e-6
+				).toBe(true);
+		}
+		// Between different floors a balustrade no taller than the sill; a door's frame has jambs.
+		expect(boundsOf(proceduralPiece('window.sill')).max[1]).toBeCloseTo(SILL * WALL_HEIGHT, 6);
+		const frame = proceduralPiece('door.frame');
+		expect(boxOf(frame, 0)).toMatchObject({
+			min: [-0.5, 0, -0.07],
+			max: [-0.42, 0.92 * WALL_HEIGHT, 0.07]
+		});
+		// The built-in leaf fills the frame's gap and carries its colour.
+		const leaf = proceduralPiece('door.leaf');
+		expect(boundsOf(leaf).min[0]).toBeCloseTo(-0.42, 6);
+		expect(boundsOf(leaf).max[1]).toBeCloseTo(0.92 * WALL_HEIGHT, 6);
+		expect(leaf.colors?.length).toBe(leaf.positions.length);
 	});
 
 	it('wind every triangle round its outward normal', () => {
@@ -186,6 +225,28 @@ describe('instances', () => {
 		expect(pieceKey(straight, -1) % VARIANTS).toBe(0);
 		// Without the straight wall's variants the kit's cap stays off: the built-in wall has one.
 		expect(wallInstances(p, g, { cap: [1] }).count).toBe(p.count);
+	});
+
+	it('draw a kit’s arch in an arcade and its railing between floors, else the frame (#253)', () => {
+		const g = grid(6, 3);
+		const roles = (levels: Uint8Array | null, objects: SceneObject[], kit: KitWeights) => {
+			const { pieces } = tiled({ grid: g, levels, floor: null, objects, known: null });
+			const inst = wallInstances(pieces.get(0)!, g, kit);
+			return Array.from(inst.key, (k) => roleOfKey(k)).filter((r) => !r.startsWith('post'));
+		};
+		const arcade = [{ ...wall([1, 1], [3, 1]), window: true }];
+		const lone = [{ ...wall([1, 1], [2, 1]), window: true }];
+		const kit = { 'window.frame': [1], 'window.sill': [1], arch: [1], railing: [1] };
+		expect(roles(null, arcade, kit)).toEqual(['arch', 'arch']);
+		expect(roles(null, lone, kit)).toEqual(['window.frame']);
+		expect(roles(null, arcade, { 'window.frame': [1] })).toEqual(['window.frame', 'window.frame']);
+		const levels = Uint8Array.from([3, 3, 3, 3, 3, 3, ...new Array(12).fill(0)]);
+		expect(roles(levels, lone, kit)).toEqual(['railing', 'wall.retaining', 'plinth']);
+		expect(roles(levels, lone, { 'window.sill': [1] })).toEqual([
+			'window.sill',
+			'wall.retaining',
+			'plinth'
+		]);
 	});
 });
 

@@ -122,7 +122,7 @@ export async function createTabletop(
 	let darkness: Uint8Array | null = null;
 	/** The table was just replaced: the next tokens snap into place. */
 	let freshTable = false;
-	const stillable = () => [loop, propLayer, cellMaps, cloud, sky, lighting];
+	const stillable = () => [loop, propLayer, wallLayer, cellMaps, cloud, sky, lighting];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops, onModel); // #240, #254, #255
 	const effects = new EffectsLayer();

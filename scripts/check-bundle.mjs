@@ -99,8 +99,9 @@ const BUDGETS = {
 	// → kit floor tiles (#254: the tile layer, its ring and the sink and bed in the prop and terrain
 	// graphs) → stairs (#255: walls and the environment's ground read, the stairs' trim and the
 	// kit's stair pieces baked into the faces); set to the merged build's measured size (the owner
-	// raised M70's cap to about 405 kB).
-	renderer: { total: 399_300 },
+	// raised M70's cap to about 405 kB). → door leaves (#253: one batch, door-leaves.ts and batch.ts);
+	// 399,813 B measured.
+	renderer: { total: 400_000 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -114,9 +115,9 @@ const BUDGETS = {
 	// 12,355 B measured. → 13.6: kit walls' instances and built-in pieces (#252, world/wall-batch.ts).
 	// → kit floor tiles (#254, world/floor-tiles.ts) → stairs (#255, world/stairs.ts and the stair
 	// faces in cliffs.ts); set to the merged build's measured size. → 19.5: bridges and balustrades
-	// (#256, world/bridges.ts, world/bridge-mesh.ts and the bridge runs in regions.ts); 19.4 kB
-	// measured.
-	world: { total: 19_500 }
+	// (#256, world/bridges.ts, world/bridge-mesh.ts and the bridge runs in regions.ts) → window and
+	// door frames, arcades and the built-in leaf (#253); set to the merged build's measured size.
+	world: { total: 19_800 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

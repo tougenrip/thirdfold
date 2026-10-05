@@ -8,6 +8,7 @@ import type { SquareGrid } from '$lib/game/grid';
 import { cutWall, type SceneObject } from '$lib/game/objects';
 import { STEP_HEIGHT, WALL_HEIGHT } from '../ground';
 import {
+	ARCADE,
 	ARM,
 	autotile,
 	chunkPieces,
@@ -273,6 +274,35 @@ describe('drops, the void, the border and buildings', () => {
 			'window.sill',
 			'wall.retaining',
 			'plinth'
+		]);
+	});
+
+	it('mark windows in line between equal floors as an arcade (#253), never a lone one or a sill', () => {
+		const flags = (objects: SceneObject[], levels: Uint8Array | null = null) =>
+			records(tile({ grid: grid(5, 3), levels }, objects))
+				.filter((p) => p.role === 'window.frame' || p.role === 'window.sill')
+				.map((p) => [p.x, p.role, p.flags & ARCADE]);
+		// Two units of one window, and two windows meeting end to end, either way round.
+		expect(flags([wall([1, 1], [3, 1], true)])).toEqual([
+			[1, 'window.frame', ARCADE],
+			[2, 'window.frame', ARCADE]
+		]);
+		expect(flags([wall([3, 1], [2, 1], true), wall([1, 1], [2, 1], true)])).toEqual([
+			[1, 'window.frame', ARCADE],
+			[2, 'window.frame', ARCADE]
+		]);
+		// A lone window, and one beside a wall or a door in line, is a framed window.
+		expect(flags([wall([1, 1], [2, 1], true), wall([2, 1], [3, 1])])).toEqual([
+			[1, 'window.frame', 0]
+		]);
+		expect(flags([wall([1, 1], [2, 1], true), door([2, 1], [3, 1])])).toEqual([
+			[1, 'window.frame', 0]
+		]);
+		// In line across a drop: sills, never an arcade.
+		const levels = Uint8Array.from([2, 2, 2, 2, 2, ...new Array(10).fill(0)]);
+		expect(flags([wall([1, 1], [3, 1], true)], levels)).toEqual([
+			[1, 'window.sill', 0],
+			[2, 'window.sill', 0]
 		]);
 	});
 
