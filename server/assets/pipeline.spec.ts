@@ -26,7 +26,9 @@ import { NEUTRAL, readGrades, renderGrade, stripProblem } from './grades';
 import { readTextureSource, renderTexture } from './textures';
 
 // Several tests build every asset, the 54 colour-grade strips among them: a few seconds each.
-vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
+// A test that builds the whole tree several times takes about 10 s a build since #261 added the
+// greybox kits (201 part lists).
+vi.setConfig({ testTimeout: 90_000, hookTimeout: 60_000 });
 
 let built: BuiltAssets;
 beforeAll(async () => {
