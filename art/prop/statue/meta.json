@@ -1,0 +1,41 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Benny Weimer (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/gothic_statue/gothic_statue_1k.gltf",
+			"sha256": "eecbc67793a1e1efa1359d57fa497cb267fc7a4039823d3feecb6d0fcd2ad2db"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/gothic_statue/gothic_statue.bin",
+			"sha256": "8608701ecff6b56e9fd9cddd130541f831ff8131a7758d54e7964af3d0152b9c"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/gothic_statue/gothic_statue_diff_1k.png",
+			"sha256": "1b694674d9a66cdabf35095127e7de7dd6dd3b0b30a4e93d28a1a77820c55f57"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/gothic_statue/gothic_statue_arm_1k.png",
+			"sha256": "fcd455a6999cf639334d5ca4f9e4cf5989b2fbffe43e159dfccd3beb1ce04ca0"
+		}
+	],
+	"polyhaven": "https://polyhaven.com/a/gothic_statue",
+	"fit": [0.95, null, 0.95],
+	"turn": 0,
+	"triangles": 3000,
+	"roughness": 0.85,
+	"ramp": ["#3b3f4a", "#5e6068", "#858276", "#aba594"],
+	"detail": 0.25,
+	"textureSize": 512,
+	"lods": [
+		{
+			"error": 0.2
+		},
+		{
+			"error": 0.5
+		}
+	]
+}

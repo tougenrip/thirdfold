@@ -347,6 +347,15 @@ change both together. Every file's manifest entry carries a credit from it (#189
 Good CC0 sources: Poly Haven, ambientCG, KayKit, Quaternius and Kenney. Use one source family per
 kit, recoloured to the palette; don't mix two kits' pieces in one wall.
 
+**The CC0 bridge (#262)** takes from Poly Haven and ambientCG only (the owner's decision): models
+from Poly Haven, textures and surfaces from ambientCG or Poly Haven, each fetched by a pinned URL
+and SHA-256. Every bridge prop is recoloured through one of the surface ramps (section 4, "Surface
+ramps": wood for wooden things, stone for stone), so one palette holds whatever the scan's photo
+colours were; the cook does it (docs/ASSETS.md, "CC0 bridge props"), and `stylise.spec.ts` fails a
+prop whose ramp isn't one of them. A bridge prop is one family per environment by construction
+(all Poly Haven), and carries one albedo map (the scan's occlusion baked in at most 20% darker, no
+normal or ORM map) to keep each table within its budget.
+
 **Refused, whatever the price:**
 
 - **Store licences that forbid web-extractable redistribution**: Synty, Fab, the Sketchfab Store

@@ -684,6 +684,30 @@ which quarters it with no visible loss (occlusion, roughness and metal change sl
 stages stay the same when it replaces its preview on both backends. The iGPU figures are still to be
 taken.
 
+### The CC0 bridge props (#262)
+
+Eight props became textured Poly Haven models (docs/ASSETS.md, "CC0 bridge props"): 196 to 2,998
+triangles at LOD0, one 512² ETC1S albedo map each, no variants, 51-120 kB a file and 0.35-0.47 MB
+on the GPU, the part lists kept as previews. Per table, kB (`npm run assets`; before is M70's kit
+branch at 724e86e):
+
+| Table                   | Download low  | Download medium | GPU medium      | Mobile GPU      |
+| ----------------------- | ------------- | --------------- | --------------- | --------------- |
+| hollow-bell/bellweather | 4,464 → 5,116 | 14,581 → 15,234 | 41,100 → 44,250 | 32,908 → 45,718 |
+| hollow-bell/monastery   | 4,112 → 4,636 | 13,071 → 13,595 | 41,019 → 43,446 | 32,827 → 42,676 |
+| hollow-bell/hollow      | 4,561 → 4,751 | 14,698 → 14,888 | 47,254 → 48,051 | 37,850 → 41,137 |
+| hollow-bell/heart       | 3,582 → 3,652 | 12,184 → 12,254 | 31,135 → 31,489 | 27,039 → 28,506 |
+| blackwater/train        | 3,713 → 4,038 | 11,747 → 12,072 | 36,803 → 38,398 | 28,611 → 35,073 |
+| blackwater/engine       | 3,427         | 11,461          | 36,553          | 28,361          |
+| blackwater/blackwater   | 3,338 → 3,559 | 11,169 → 11,390 | 31,085 → 32,229 | 26,989 → 31,634 |
+| example/yard            | 3,816         | 13,934          | 40,533          | 32,342          |
+| example/cellar          | 3,552 → 3,667 | 12,512 → 12,626 | 40,529 → 40,976 | 32,338 → 34,167 |
+
+Every table stays within `TABLE_BUDGETS`. Bellweather, with seven of the eight, is now the
+tightest at medium (15,234 of 15,360 kB, 126 kB left), then the Hollow (472 kB left); that is why
+the props carry no normal or ORM map and no 1K variant. Mobile GPU counts each cooked model's whole
+`gpuBytes` at RGBA8 (the bound above), so it rises most: Bellweather 57% of its 80 MB.
+
 ## The M65 perf re-baseline
 
 The test world on the RTX 4060 Laptop (WebGL2, reduced motion, the 512 bases). Programs,

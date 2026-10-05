@@ -6,6 +6,7 @@ import {
 	ROUGHNESS_RANGE,
 	boxBlur,
 	rampTable,
+	recolour,
 	seamError,
 	stylise,
 	type Image
@@ -88,6 +89,31 @@ describe('stylise (#187)', () => {
 			const meta = JSON.parse(readFileSync(path.join(dir, id, 'meta.json'), 'utf8'));
 			const row = new RegExp(`^\\| ${id}\\s+\\| (.*)\\|$`, 'm').exec(art);
 			expect(row?.[1].match(/#[0-9a-f]{6}/g), id).toEqual(meta.ramp);
+		}
+	});
+
+	it("recolours a bridge prop's map into 30-240 through its ramp, keeping alpha (#262)", () => {
+		const img = tiling(6);
+		img.data[3] = 7;
+		const out = recolour(img, RAMP, 0.25);
+		expect(out).toEqual(recolour(img, RAMP, 0.25));
+		expect(out.data[3]).toBe(7);
+		for (let i = 0; i < SIZE * SIZE * 4; i++) {
+			if (i % 4 === 3) continue;
+			expect(out.data[i]).toBeGreaterThanOrEqual(ALBEDO_RANGE[0]);
+			expect(out.data[i]).toBeLessThanOrEqual(ALBEDO_RANGE[1]);
+		}
+	});
+
+	it("takes each fetched prop's ramp from docs/ART.md's surface ramps: one palette (#262)", () => {
+		const art = readFileSync('docs/ART.md', 'utf8');
+		const ramps = [...art.matchAll(/^\| [a-z-]+\s+\| (`#.*)\|$/gm)].map((m) =>
+			m[1].match(/#[0-9a-f]{6}/g)
+		);
+		const dir = path.join('art', 'prop');
+		for (const id of readdirSync(dir)) {
+			const meta = JSON.parse(readFileSync(path.join(dir, id, 'meta.json'), 'utf8'));
+			if (meta.provenance.source) expect(ramps, id).toContainEqual(meta.ramp);
 		}
 	});
 });

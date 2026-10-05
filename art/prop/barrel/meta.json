@@ -1,0 +1,42 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "James Ray Cock (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wine_barrel_01/wine_barrel_01_1k.gltf",
+			"sha256": "503d3339677217c3241a3cdbc1c803ed1eb82d1a48f51436d1545ec5745ae8d8"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/wine_barrel_01/wine_barrel_01.bin",
+			"sha256": "d827c31afed824b923ea9168462c93ab3ad3a88c4a68b155bd35efb1a02cbf00"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/wine_barrel_01/wine_barrel_01_diff_1k.png",
+			"sha256": "a8c7b32eae23988751a204f75bc6b323a20c011651d048d215de7e206d8c3a06"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/wine_barrel_01/wine_barrel_01_arm_1k.png",
+			"sha256": "aa8d03a3ef65398797c7405f39d634ff22a9c6cb0d2efc74dc4b0fcaf55b9e51"
+		}
+	],
+	"polyhaven": "https://polyhaven.com/a/wine_barrel_01",
+	"fit": [0.74, null, 0.74],
+	"turn": 0,
+	"triangles": 1200,
+	"roughness": 0.75,
+	"ramp": ["#3a2a2a", "#5e4332", "#86623f", "#aa8656"],
+	"detail": 0.25,
+	"textureSize": 512,
+	"lods": [
+		{
+			"error": 0.2
+		},
+		{
+			"error": 0.5
+		}
+	],
+	"error": 0.1
+}

@@ -125,7 +125,7 @@ describe('The adventures’ assets', () => {
 	});
 
 	it('load in three.js as plain geometry, colours and all', async () => {
-		const file = built.files.get(built.manifest.models.table.file)!;
+		const file = built.files.get(built.manifest.models.crate.file)!;
 		const buffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
 		const gltf = await new GLTFLoader().parseAsync(buffer as ArrayBuffer, '');
 		const meshes: THREE.Mesh[] = [];

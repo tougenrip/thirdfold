@@ -213,6 +213,10 @@ export interface ArtMeta {
 	lods?: { ratio?: number; error?: number; screenSize?: number }[];
 	lockBorder?: boolean;
 	usage?: TextureUsage;
+	/** A model's colour maps recoloured through this palette ramp (#262, stylise.ts `recolour`). */
+	ramp?: string[];
+	/** How much of the source's own hue the recolour keeps, 0-1 (0.25 by default). */
+	detail?: number;
 }
 
 export function readMeta(dir: string): ArtMeta {

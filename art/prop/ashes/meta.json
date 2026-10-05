@@ -1,0 +1,33 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Sebastian Platen (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/stone_fire_pit/stone_fire_pit_1k.gltf",
+			"sha256": "40034b326d28c06f25cf1cdb39a5ab3f3b1d1a9415d490af39621efe6c31cee6"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/stone_fire_pit/stone_fire_pit.bin",
+			"sha256": "83528a314ac1ff67a583a59640612e7f8dca803dbb581188b8226d9b661ef0d6"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/stone_fire_pit/stone_fire_pit_diff_1k.png",
+			"sha256": "4e5b3818ae5a5972b8ea56a8f947fe68833e70e1da1147a54c78ff4b4d2156bd"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/stone_fire_pit/stone_fire_pit_arm_1k.png",
+			"sha256": "06bb171b53ef3dab71c90609bf606f0ac72d6df3fc0a41a79b03454010e3eb93"
+		}
+	],
+	"polyhaven": "https://polyhaven.com/a/stone_fire_pit",
+	"fit": [0.8, null, 0.8],
+	"turn": 0,
+	"triangles": 1500,
+	"roughness": 0.9,
+	"ramp": ["#3b3f4a", "#5e6068", "#858276", "#aba594"],
+	"detail": 0.25,
+	"textureSize": 512
+}
