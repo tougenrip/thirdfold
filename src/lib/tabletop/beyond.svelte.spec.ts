@@ -2,7 +2,7 @@
 // skirt and the two silhouettes (the forest and the mountain with its monastery) are there, never
 // picked and casting nothing, the mountain shows where the first bell looks (not black for a player,
 // changed by taking the backdrop away), and every backdrop kind and every environment compile
-// nothing. A render spec (RENDER_SPECS, its own `beyond` job in rendering.yml).
+// nothing. A render spec (RENDER_SPECS).
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';

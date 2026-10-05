@@ -628,7 +628,7 @@ async function warmHome(tier: Tier) {
 }
 
 // Tests per tier for the runtime state and the sky, so CI runs each in a job of its own
-// (`THIRDFOLD_SHARD=k/18`, .github/workflows/rendering.yml): the tiers' 15, then many lights per tier
+// (`THIRDFOLD_SHARD=k/18`, run one by one): the tiers' 15, then many lights per tier
 // (16 to 18), and the last two, which join the first shards.
 describe('the shader program count', () => {
 	const test = shardedIt();

@@ -3,7 +3,7 @@
 // the floor on the surface kind in mist; every backdrop kind moves the floor (the sea, the moving
 // ground) and none compiles; the night train's gaps and edges show the moving ground, its clock
 // running on AMBIENT frames and held still, with no frame at all, under reduced motion. A render
-// spec (RENDER_SPECS, the `chasm` job in rendering.yml).
+// spec (RENDER_SPECS).
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';

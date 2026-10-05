@@ -1335,7 +1335,7 @@ kind reads each fragment's cell from the ground map by its position, as the boxe
 takes the colour of the cell it lies in), and an attribute only the chunks carry would be a program of
 their own; the owners stay on the CPU for the harness. (Sides were the terrain kind until #241.)
 
-**Specs.** `world-layer.svelte.spec.ts` (`RENDER_SPECS`, its own `world` job in rendering.yml, about a
+**Specs.** `world-layer.svelte.spec.ts` (`RENDER_SPECS`, about a
 minute) mounts the Hollow for the GM and checks the nine chunks are drawn, the ground at every cell's
 floor height (rays straight down onto the chunk meshes), the rebuild counts per edit (a cell inside the
 middle chunk 1, on its corner 4, every floor over its inside 1 each, a 16x16 area with its margin 9, a
@@ -1404,8 +1404,7 @@ nothing to credit), textured from the environment's own looks (and so the surfac
 - **Specs.** `world/beyond.spec.ts` (server project: the skirt meets the grid and covers the disc,
   every vertex on `beyondHeightAt`, the camera never under it, the lip and the drops, the kinds'
   samples and recipes, silhouettes round the play area and inside the horizon facing in, the landmark,
-  determinism and scene-level inputs); `beyond.svelte.spec.ts` (`RENDER_SPECS`, its own `beyond` job in
-  rendering.yml): the village at dusk as a fogged player, its three meshes, the mountain on screen and
+  determinism and scene-level inputs); `beyond.svelte.spec.ts` (`RENDER_SPECS`): the village at dusk as a fogged player, its three meshes, the mountain on screen and
   not black, changed by `none`, and every kind and environment without a new program or pipeline.
 
 **Deviations from #244.** The recipes are code keyed by environment id, not a `beyond` block in the
@@ -1547,7 +1546,7 @@ in `materials/floors.ts`, and `groundColour` (hooks.ts) mixes the two floors it 
   some uses (a `vec4` uniform array's index behind a select, `integer expression required` on WebGL2), so
   each of the two floors is made an `int` variable once and every array is indexed by it.
 
-`floor-splat.svelte.spec.ts` (`RENDER_SPECS`, its own `floor splat` job in rendering.yml, about 20
+`floor-splat.svelte.spec.ts` (`RENDER_SPECS`, about 20
 seconds) draws a 4x4 table of grass, grass, dirt and stone columns straight down with stand-in arrays of
 one colour per floor, on both graphs: the grass-dirt border is a blend on the grid line, straight without
 noise (spread 0 px, off the line by 1) and wandering with it (spread 8 px, at most 7 off at 64 px a cell),
@@ -1626,7 +1625,7 @@ projected onto whatever ground the chunks draw, shown as much as the moment need
 - **No fallback.** The old `LineSegments` grid and the highlight plane, drawn under `?off=terrain`
   until the milestone's close, were deleted there with `GridOverlay.setGrid` and the `terrain` layer;
   `setHighlight` takes only the cell and its kind.
-- **Specs.** grid-overlay.svelte.spec.ts (`RENDER_SPECS`, the `grid` job in rendering.yml) mounts the
+- **Specs.** grid-overlay.svelte.spec.ts (`RENDER_SPECS`) mounts the
   monastery: a twin on every chunk top sharing its geometry, hidden while off, following a raise;
   and the pixels each mode changes (build the most, explore round the focus fewer, overview fainter,
   off none), with no program between them.
@@ -1694,12 +1693,12 @@ look's backdrop says. The rules don't change (void is solid in `obstaclesFor`, n
   unexplored cell split toward one) and past the border only beside a known void cell of an open table,
   nothing the void owns above level 0, and crack rays; the cliffs down to the floor in each scene's own
   style; the night train's gaps and border on the moving ground; picks down a gap and onto a car's
-  wall. `chasm.svelte.spec.ts` (`RENDER_SPECS`, the `chasm` job in rendering.yml) paints void on the
+  wall. `chasm.svelte.spec.ts` (`RENDER_SPECS`) paints void on the
   Hollow's lake and finds the floor at the chasm's depth on the surface kind, the cliffs down to it,
   every backdrop kind moving it, and nothing compiling; on the night train it finds the gaps on the
   moving ground, sliding along the train, not black, its clock moving on ambient frames, and under
   reduced motion no frame and a still clock. unexplored-black takes the train's player
-  (`railcar player dusk medium` in CI's slim set), leaving out a hole's sample whose ray falls on to
+  (`railcar player dusk medium` in the slim set), leaving out a hole's sample whose ray falls on to
   ground the viewer was shown (`pastHole` in invariants.ts).
 - **Cost.** A void cell is two triangles of floor; a cliff into a chasm 12 rows a face (the train:
   158 void cells). Nothing per frame but the clock's uniform, and that only while the ground moves.
@@ -1752,7 +1751,7 @@ A prop the GM places, a floor painted and ground raised or lowered fall into pla
   it (a changed graph, not a new one); the chunks' variant replaces the plain one on the chunks and
   is warmed through the stand-ins. A drop starting or ending compiles nothing (`drop-in.svelte.spec.ts`
   checks the program count; program-count's shards place props, paint and raise).
-- **Spec.** `drop-in.svelte.spec.ts` (`RENDER_SPECS`, the `drop-in` job in rendering.yml): on ref-7
+- **Spec.** `drop-in.svelte.spec.ts` (`RENDER_SPECS`): on ref-7
   (no light flickers there, so the table rests) with the clock held, a placed prop, a painted floor
   and raised ground keep the scheduler active and are drawn up; past the drop they are at rest, the
   table draws no more than it did at rest, the sun's shadow was drawn at most once per edit and no
@@ -2180,8 +2179,8 @@ Every surface the renderer draws is one of a closed set of **shader kinds**
 on the kinds (#172) and deleted the fog plane, the darkness overlay, the floor plane and raised
 ground's instance shading (#173). Two tests hold it in place: runtime state never compiles a
 shader (`program-count.svelte.spec.ts`, #170) and unexplored cells stay exactly black
-(`unexplored-black.svelte.spec.ts`, #176). Every kind runs on both backends; CI checks WebGL2
-(SwiftShader, `rendering.yml`), and the WebGPU runs are the local `client-webgpu` project.
+(`unexplored-black.svelte.spec.ts`, #176). Every kind runs on both backends, on this machine (no workflow runs the render specs since
+M69): WebGL2 on SwiftShader, and WebGPU in the local `client-webgpu` project.
 
 ### Kinds and slots
 
@@ -2505,8 +2504,8 @@ itself; a new variant a layer makes must be added to `variantsOf`.
    spectator, with the GM as the control): decode it there and require nothing in the never
    explored region. The file's header lists the inputs later milestones add.
 5. Run the render specs named above on WebGL2 (`npm run test:render -- <files>`) and on WebGPU,
-   add a new spec to `RENDER_SPECS` in `vite.config.ts` and a group in `rendering.yml` within
-   about 5 minutes (a slim set for CI and the full set by hand, as the goldens do).
+   and add a new spec to `RENDER_SPECS` in `vite.config.ts` (a slim set for every rendering PR
+   and the full set by hand, as the goldens do; all on this machine).
 
 Costs on SwiftShader and what the perf gate measures on real GPUs are in `docs/PERFORMANCE.md`
 ("Milestone 64").
@@ -2539,7 +2538,7 @@ fixtures keep them; and the probe case of unexplored-black bakes a coarser latti
 (`probeSpacing`).
 
 - **Smoke tests** (`fixtures.svelte.spec.ts`, `renderer.svelte.spec.ts`,
-  `scheduling.svelte.spec.ts` and `stability.svelte.spec.ts`, apart so CI runs them side by
+  `scheduling.svelte.spec.ts` and `stability.svelte.spec.ts`, apart so they can run side by
   side; the long ones sharded further with `THIRDFOLD_SHARD=k/n`, by fixture, tier or case, or
   by test with `shardedIt` from `testing.ts`): every fixture draws for every
   viewer with no `console.error`; the same inputs draw the same pixels; an idle daylight table draws no frames;
@@ -2555,12 +2554,12 @@ fixtures keep them; and the probe case of unexplored-black bakes a coarser latti
   compare by SSIM (`tests/visual/ssim.ts`: mean SSIM over luminance in 8×8 windows, at least
   0.98, a diff of each window's loss), the rest by pixelmatch with threshold 0.1 and at most 0.5%
   mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
-  and the spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
+  and the spec skips elsewhere; this machine (Linux) is the authority. Diffs land in `.vitest-attachments/`.
   Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts` (below).
-  **When they run:** never with `npm test`. CI takes the slim set (`SLIM` in the spec, 26 images)
-  in `.github/workflows/rendering.yml`, only on pull requests that touch rendering, never on
-  pushes, beside the renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run
-test:render`), which leave `npm test` too, so the verify job stays within minutes.
+  **When they run:** never with `npm test`. No workflow runs them (the owner's decision at M69): the slim set (`SLIM` in the spec,
+  26 images, `npm run test:golden`) runs on this machine before a rendering PR, beside the
+  renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run test:render`),
+  which leave `npm test` too, so CI's verify job stays within minutes.
   The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
   hand, once a rendering PR is ready and agreed, not during development, where the test world and
   the targeted specs are the check.
@@ -2595,10 +2594,8 @@ from the view), and if it stands on explored ground add its height to `standing`
 grass (#302), scatter, decals, water (#293), VFX, weather (#320), motes, x-ray (#284) and overlays
 (#285) are next. A layer that fails here is fixed in the render path, never by skipping cells.
 
-**When a golden fails in CI**, the `goldens` job of `rendering.yml` uploads the `goldens-diffs`
-artifact (`.vitest-attachments/`: the reference, the actual image and a diff for each failure;
-kept 14 days). Download it from the run's page; its reference and actual PNGs are the before and after a
-golden PR shows.
+**When a golden fails**, `.vitest-attachments/` holds the reference, the actual image and a
+diff for each failure; its reference and actual PNGs are the before and after a golden PR shows.
 
 **Changing goldens.** Update them only on purpose, on Linux:
 
