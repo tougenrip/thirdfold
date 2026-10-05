@@ -26,7 +26,7 @@ import { biplanar } from './biplanar';
 import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
 import { paintedNormal, paintedRoughness } from './paint';
 import { mipBias } from './texture-quality';
-import { tsl, type N } from './tsl';
+import { pick, tsl, type N } from './tsl';
 
 /**
  * Where a kind lays its slots, `repeat` (`params.repeat`) being the tile: a box projection of
@@ -122,10 +122,10 @@ export function groundColour(texel: N, colour: N, floor: FloorSurface | null = n
 		const high = tsl.mix(colour, tsl.vec3(1), HIGHER);
 		const k = level.div(loose(cellUniforms.maxLevel)).mul(painted.select(0.4, 1));
 		const raised = texel.mul(tsl.mix(painted.select(entry.xyz, colour), high, k.saturate()));
-		const tint = level.greaterThan(0.5).select(raised, flat);
+		const tint = pick(level.greaterThan(0.5), raised, flat);
 		if (!surface || !has) return tint;
 		const paler = tsl.mix(surface, tsl.vec3(1), k.saturate().mul(HIGHER));
-		return has.select(level.greaterThan(0.5).select(paler, surface), tint);
+		return pick(has, pick(level.greaterThan(0.5), paler, surface), tint);
 	};
 	if (!floor) return of(g.x.mul(255).add(0.5).toInt(), null, null);
 	const [f1, f2] = floor.floors;
