@@ -35,7 +35,6 @@ import { flameMaterial, flameOf, paintFlame, type FlameLook } from './light-fixt
 import {
 	addInstanceTints,
 	createMaterial,
-	DROP_ATTRIBUTE,
 	dropHeight,
 	dropNow,
 	LIFT_ATTRIBUTE,
@@ -282,15 +281,14 @@ export class PropLayer {
 					part.copy(local);
 					if (angle && swings) part.premultiply(swing);
 					mesh.setMatrixAt(i, out.multiplyMatrices(base, part));
-					(mesh.geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.BufferAttribute).setX(i, lift);
-					(mesh.geometry.getAttribute(DROP_ATTRIBUTE) as THREE.BufferAttribute).setX(i, drop);
+					const at = mesh.geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.BufferAttribute;
+					at.setXY(i, lift, drop);
 				}
 			});
 			for (const { mesh } of meshes.parts) {
 				mesh.count = list.length;
 				mesh.instanceMatrix.needsUpdate = true;
 				mesh.geometry.getAttribute(LIFT_ATTRIBUTE).needsUpdate = true;
-				mesh.geometry.getAttribute(DROP_ATTRIBUTE).needsUpdate = true;
 				mesh.computeBoundingSphere();
 			}
 		}

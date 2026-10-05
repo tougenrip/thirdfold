@@ -82,6 +82,19 @@ describe('the layers on the shader kinds', () => {
 		const kinds = new Set(drawn.map((m) => (m as { kind?: string }).kind));
 		// Rock: the world layer's cliffs and risers (#241).
 		expect(kinds).toEqual(new Set(['surface', 'terrain', 'rock', 'prop', 'mini']));
+		// WebGPU allows 8 vertex buffers a pipeline (a buffer per attribute, the instance matrix and
+		// colour one each); WebGL2 allows more, so a ninth fails only there (#249's drop start did).
+		const buffers: [string, number][] = [];
+		for (const l of layers)
+			l.group.traverse((o) => {
+				if (!(o instanceof THREE.Mesh)) return;
+				const instanced = o instanceof THREE.InstancedMesh;
+				const n =
+					Object.keys(o.geometry.attributes).length +
+					(instanced ? 1 + (o.instanceColor ? 1 : 0) : 0);
+				buffers.push([o.name || o.type, n]);
+			});
+		expect(buffers.filter(([, n]) => n > 8)).toEqual([]);
 		for (const l of layers) l.dispose();
 		overlay.dispose();
 	});

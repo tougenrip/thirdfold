@@ -14,7 +14,15 @@ import { floorSurface } from './floors';
 import { gridGraph } from './grid';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
-import { LIFTED, VARIED, lifted, macroOf, macroRoughness, macroTint } from './variation';
+import {
+	LIFT_ATTRIBUTE,
+	LIFTED,
+	VARIED,
+	lifted,
+	macroOf,
+	macroRoughness,
+	macroTint
+} from './variation';
 import { worldEmissive, worldModify } from './world-modify';
 
 export type ShaderKind =
@@ -326,7 +334,12 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 						0
 					)
 				)
-			: rest && rest.add(dropLift());
+			: rest &&
+				rest.add(
+					variant.instanced && LIFTED.includes(kind)
+						? dropLift(tsl.attribute(LIFT_ATTRIBUTE, 'vec2').y)
+						: dropLift()
+				);
 	const painted =
 		kind === 'prop' && variant.instanced
 			? colour.mul(tsl.attribute(PAINT_ATTRIBUTE, 'vec3'))

@@ -217,9 +217,9 @@ export function disposeTwins(material: KindMaterial): void {
 
 /**
  * Gives a geometry what an instanced kind reads per instance: the tint (rgb and strength, all 0)
- * the lift (`LIFT_ATTRIBUTE`, 0; the layer writes `liftOf` each instance's asset and cell), the
- * paint (`PAINT_ATTRIBUTE`, white; props multiply their albedo by it) and the drop-in's start
- * (`DROP_ATTRIBUTE`, none; #249).
+ * the lift and the drop-in's start (`LIFT_ATTRIBUTE`, (0, none): the layer writes `liftOf` each
+ * instance's asset and cell, and its drop's start, #249) and the paint (`PAINT_ATTRIBUTE`, white;
+ * props multiply their albedo by it).
  */
 export function addInstanceTints(geometry: THREE.BufferGeometry, count: number): void {
 	geometry.setAttribute(
@@ -230,14 +230,9 @@ export function addInstanceTints(geometry: THREE.BufferGeometry, count: number):
 		TINT_ATTRIBUTE,
 		new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4)
 	);
-	geometry.setAttribute(
-		LIFT_ATTRIBUTE,
-		new THREE.InstancedBufferAttribute(new Float32Array(count), 1)
-	);
-	geometry.setAttribute(
-		DROP_ATTRIBUTE,
-		new THREE.InstancedBufferAttribute(new Float32Array(count).fill(NO_DROP), 1)
-	);
+	const lift = new Float32Array(count * 2);
+	for (let i = 0; i < count; i++) lift[i * 2 + 1] = NO_DROP;
+	geometry.setAttribute(LIFT_ATTRIBUTE, new THREE.InstancedBufferAttribute(lift, 2));
 }
 
 /** A per-vertex drop start for a `dropped` material's geometry: none, or `starts` (#249). */
