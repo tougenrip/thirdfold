@@ -85,8 +85,8 @@
 		preview?: readonly PreviewItem[];
 		selectedId?: string | null;
 		highlight?: { cell: GridPos; kind: HighlightKind } | null;
-		/** Grid lines wanted now: building, placing or aiming a move (#167). */
-		gridShown?: boolean;
+		/** The grid's mode (with the viewer's Grid setting) and explore mode's focus (#245). */
+		gridView?: Parameters<Tabletop['setGridMode']>;
 		view?: CameraView;
 		/** Tokens drawn lying down (fallen characters). */
 		fallen?: readonly string[];
@@ -129,7 +129,7 @@
 		preview = [],
 		selectedId = null,
 		highlight = null,
-		gridShown = false,
+		gridView = ['off'],
 		view = 'tactical',
 		fallen = [],
 		floats = [],
@@ -434,7 +434,7 @@
 	});
 
 	$effect(() => {
-		tabletop?.setGridShown(gridShown || !!graphics?.alwaysGrid);
+		tabletop?.setGridMode(gridView[0], $state.snapshot(gridView[1]));
 	});
 
 	/** Reduce flashing (#223): `auto` follows the device's reduced motion, live. */

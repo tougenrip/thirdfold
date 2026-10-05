@@ -456,6 +456,9 @@ describe('adventure messages', () => {
 			to,
 			floor: 'void'
 		});
+		for (const floor of ['cobble', 'flagstone', 'rock', 'mud', 'snow', 'gravel']) {
+			expect(parseClientMessage({ type: 'floor_set', from, to, floor })).toMatchObject({ floor });
+		}
 		for (const floor of ['lava', 3, null, 'toString']) {
 			expect(parseClientMessage({ type: 'floor_set', from, to, floor })).toBeNull();
 		}

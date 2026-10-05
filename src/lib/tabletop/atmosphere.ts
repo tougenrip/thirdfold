@@ -28,7 +28,8 @@ import {
 	pow,
 	rangeFogFactor,
 	smoothstep,
-	uniform
+	uniform,
+	vec3
 } from 'three/tsl';
 import { loadManifest } from '$lib/assets/load';
 import type { Manifest, SkyDef } from '$lib/assets/manifest';
@@ -41,6 +42,7 @@ import {
 	environmentKey,
 	PLAY_FOG_BLEND,
 	PLAY_FOG_CAP,
+	PLAY_FOG_DEPTH,
 	presetOf,
 	shadowDirection,
 	shadowNeedsRedraw,
@@ -107,8 +109,11 @@ export const skyEnvNode = pmrem.mul(u.ibl).mul(skyAmbient() as unknown as Node<'
 export const skyFogNode = (() => {
 	const view = normalize(positionWorld.sub(cameraPosition));
 	const colour = mix(u.fogColor, u.inscatter, pow(max(dot(view, u.sunDir), 0), 8));
-	// beyondPlay (atmosphere-curve.ts): the distance past the rectangle, 0 on the map (#377).
-	const beyond = max(abs(positionWorld.xz.sub(u.playCenter)).sub(u.playHalf), 0).length();
+	// beyondPlay (atmosphere-curve.ts): the distance past the rectangle, 0 on the map (#377), and
+	// past PLAY_FOG_DEPTH below the ground (#244: an abyss fills with haze).
+	const flat = max(abs(positionWorld.xz.sub(u.playCenter)).sub(u.playHalf), 0);
+	const below = max(positionWorld.y.negate().sub(PLAY_FOG_DEPTH), 0);
+	const beyond = vec3(flat.x, below, flat.y).length();
 	const cap = mix(float(PLAY_FOG_CAP), float(1), smoothstep(0, PLAY_FOG_BLEND, beyond));
 	const height = exponentialHeightFogFactor(u.fogDensity, u.fogHeight) as Node<'float'>;
 	return fog(colour, min(max(rangeFogFactor(u.fogNear, u.fogFar), height), cap));

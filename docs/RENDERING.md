@@ -577,14 +577,12 @@ tabletop carries `room.interior`; `flashLift` raises the sky's reach during a fl
 The table's slab and rim are gone. `tabletop/world-ground.ts` (pure) gives a table's extents:
 `worldExtents` has the play extent (the grid's box up to a wall above its highest floor: picking,
 views, shots, the warm-up camera, the effects' bounds, the shadow box and how far the
-camera may pull back) and the world extent (the ring out to the horizon, the haze from `fogRange`,
-the far plane); `ringVertices` is the ring from the grid's edge out to a circle at the horizon,
-closer together near the grid. `tabletop/landscape.ts` `WorldGround` draws the play plane (the
-terrain kind, painted floors from the ground map) and the ring (the surface kind in the environment's
-ground look, plain earth without one), fogged, never picked, built from the grid's size and the look
-only (never a cell), rebuilt only with the grid, 24 segments on low and 96 above. Off the grid
-`worldModify` is neutral. The camera tilts to 85° and `CameraRig.keepAbove` holds it
-`GROUND_CLEARANCE` over the ground under it.
+camera may pull back) and the world extent (the land out to the horizon, the haze from `fogRange`,
+the far plane). `tabletop/landscape.ts` `WorldGround` drew the play plane (the terrain kind, painted
+floors from the ground map) until #240's chunks replaced it (deleted at M69's close) and, since #244,
+draws what lies beyond the grid: the skirt to the horizon and the environment's silhouettes ("Beyond the grid (#244)"
+below). Off the grid `worldModify` is neutral. The camera tilts to 85° and `CameraRig.keepAbove`
+holds it `GROUND_CLEARANCE` over the ground under it (the skirt's height off the grid).
 
 ### The low tier and software GL (#225)
 
@@ -1032,42 +1030,780 @@ hand one over. Casters are only what the viewer was sent.
   until they land. `?perf` shows the holders, cubes drawn and cube memory; the program-count sweep
   hands every slot over (`lightSteps`) on each tier, a test per tier.
 
+## World shape (milestone 69)
+
+`src/lib/tabletop/world/` turns the grid data a viewer was sent into the description every ground,
+cliff, void, kit, water and scatter builder of M69 and after consumes (#239). It is pure: no three.js,
+relative imports of `src/lib/game/` and `ground.ts` only (a spec fails otherwise), so its specs run in
+the server project and `server/perf/world-shape.ts` runs it in Node. CPU only, the same on every tier
+and backend. Two rules hold for everything in it: **the picture never contradicts movement or sight**
+(steps are what `canStep` climbs, saddles follow `canStep`), and **no edge is drawn toward an
+unexplored cell**.
+
+### Input and secrecy
+
+`worldShape({ grid, levels, floor, objects, known })` takes the level and floor maps as sent (masked by
+`viewFor`), the scene objects, and `known`: the decoded `FogView.explored` for players and spectators
+under fog, null for the GM (whose `explored` is the party's) and with fog off (`knownOf(grid, fog, gm)`).
+It reads nothing of an unexplored cell: a property test scrambles every value sent for unexplored cells
+and finds every output unchanged. No wire change.
+
+### Continued maps
+
+- **Per cell** (`shape.levels`, `shape.floor`, and `shape.ground`, `groundFor` over them, for dice,
+  picks and `floorY`): a known cell's own value; an unexplored cell takes its first known orthogonal
+  neighbour's (N, E, S, W, N being y - 1), else 0. Only cells within one cell of the known region change.
+- **Per dual tile** (`shape.tiles.levels`, `shape.tiles.floor`): one tile per grid corner,
+  `(width + 1) * (height + 1)` of them (`tileIndex(grid, tx, ty)`), whose corners are the four cells
+  round it, clockwise from NW (`CORNERS`; off the table a corner is its nearest cell). Each corner's
+  quarter is two sectors, split along the diagonal from the tile's centre: eight bytes per tile,
+  clockwise from north (`SECTORS`: 0 NE toward NW, 1 NE toward SE, 2 SE toward NE, 3 SE toward SW,
+  4 SW toward SE, 5 SW toward NW, 6 NW toward SW, 7 NW toward NE; `SECTOR_H[k]` and `SECTOR_V[k]` are
+  corner k's halves toward its horizontal and vertical neighbours). A known corner's halves are its own
+  value. An unexplored corner's half toward a neighbour takes that neighbour's value if known, else the
+  other neighbour's, else the diagonal's, else its own continued value; so where its two known
+  neighbours differ it is split along the diagonal, and every boundary lies on a known-known edge or
+  inside unexplored cells. Across a known-unexplored half edge the sectors are always equal, so a
+  known-unexplored edge is always flat.
+
+`checkContinuation(shape)` (`invariants.ts`) checks this: every edge with an unexplored side is flat,
+every change between sectors is on a known-known half edge, between two unexplored corners or on an
+unexplored corner's diagonal, and neighbouring tiles agree on their shared side except inside an
+unexplored cell. It runs exhaustively over the 16 known/unexplored patterns of a tile times every
+triple of levels {0, 1, 3} and of floors {plain, water, void}, on 150 seeded random tables, and on
+every committed view.
+
+### Edge classes
+
+Two `EdgeMap`s (`shape.edges.ground`, `shape.edges.built`), one byte per unit edge:
+`h[y * width + x]` (y in 0..height) is the edge along the top of cell (x, y);
+`v[y * (width + 1) + x]` (x in 0..width) the one along its left side. `edgeSlot(grid, edge)` and
+`slotBetween(grid, i, j)` find an edge's slot; `hEdge` and `vEdge` index directly.
+
+| Ground (`EDGE_GROUND`) | When                                                                |
+| ---------------------- | ------------------------------------------------------------------- |
+| `flat` 0               | the same level, both void, or an unexplored cell on either side     |
+| `step` 1               | a difference of one level: what `canStep` climbs (`MAX_STEP`)       |
+| `cliff` 2              | two levels or more: one `STEP_HEIGHT` taller than any walkable step |
+| `void` 3               | void on one side only                                               |
+| `border` 4             | the table's edge (public; still no face below an unexplored cell)   |
+
+Built (`EDGE_BUILT`): `none`, `wall`, `window`, `door`; the first wall on an edge decides wall or
+window (as `walls.ts` draws it), and a door, open or shut, is over any wall it cut. A sealed secret door
+(`<id>-sealed`) is a wall, as sent.
+
+### Wall spans
+
+`shape.walls` (`wallSpans(grid, objects, levels, known)` in `wall-spans.ts`) is what `walls.ts`'s
+`rebuildWalls` drew, and `walls.ts` now draws from it: each unit edge once (its first wall), from the
+lower floor beside it to `WALL_HEIGHT` above the higher; a window a sill to `SILL` (0.35) of a wall
+above the higher floor and, between equal floors only, a lintel from `LINTEL` (0.8). With `known`, an
+unexplored side counts as level with the known side, so a wall shows no drop toward unexplored ground
+(no committed view has one: the spans equal the old ones on every fixture and view; `walls.ts` passes
+no mask until #240's layer owns the shape). The eye (`EYE_LEVELS` above the higher floor) lies in
+every window's gap. Where a window's floors differ by two levels or more (`mn-railing`, the gallery at
+5 over the nave at 0) the sill hides what the rules let the nave see; the spans keep it, and #253 and
+#256's balustrade must draw it see-through.
+
+### Regions
+
+`regionsOf(shape)` (`regions.ts`), over known cells only:
+
+- **Stair runs** (`StairRun { cells, dir }`, for #255): chains of known, non-void cells each one level
+  above the last in one direction (`DIRS[dir]`: N, E, S, W), with no wall or window between, two risers
+  or more, foot to head. A two-wide stair is two runs side by side. The monastery's belfry stair and the
+  stairs to the gallery, the Hollow's stairs to the steps and to the watch and the high bridge's end
+  are found.
+- **One-wide runs** (`OneWideRun { cells, along }`, for #256): known raised cells with a drop of two
+  levels or more (or the void) on both sides across `along`, joined along it within one level and no
+  wall between. A pillar is in a run of each axis. The Hollow's ruins' bridge (x = 12) and high bridge
+  (y = 9) are runs; the two-wide causeway is not.
+- **Water bodies** (`WaterBody { cells, level }`, for #292): edge-joined water cells at one level.
+- **Void regions** (`VoidRegion { cells, touchesBorder }`, for #243): edge-joined void cells; the night
+  train's border void is one region on the table's edge.
+
+### Dual-grid cases and saddles
+
+`dualCase(shape, tx, ty, mask)` (`dual.ts`) gives a tile's `sectors` (bit k: sector k is inside the
+mask), its classic `corners` case (corners clockwise from NW as bits 1, 2, 4, 8, so the saddles are 5
+and 10; -1 when an unexplored corner is split across the mask) and its `join`. Masks: `'walkable'`
+(not void), `'land'` (not water) and a number L, the level band `level >= L`. A tile whose ring of
+sectors changes four times or more is ambiguous, and resolves (`JOIN`) by the rules on ground-only
+obstacles (`groundObstacles`: levels and void, no walls or props):
+
+- a diagonal pair joins (`in` or `out`) only if `canStep` connects it both ways; otherwise the blocker
+  side joins;
+- where both pairs connect (a one-level checkerboard) the higher pair (`in`, in a band) joins, so the
+  riser stays continuous;
+- where neither connects (two cells two levels or more above the other two, and always for walkable
+  ground across void corners) the saddle is `pinch`ed at the grid corner, with no rounding: between two
+  high and two low cells nothing may suggest a passage;
+- land and water join by `tileHash(tx, ty)`, the same on every client;
+- an ambiguous tile with an unexplored corner is pinched.
+
+`saddleProblems(shape)` checks every saddle of every mask against `canStep`; it runs over every 2x2
+pattern of levels {0, 1, 2, 3} and void, the random tables and every fixture view.
+
+### Constants
+
+`TOKEN_DISK` 0.43 cell (half the 0.86 u base, docs/ART.md), `INTRUSION` 0.08, `MAX_ROUND` 0.25 and
+`MAX_NOISE` 0.07. A corner rounded by `MAX_ROUND` stays 0.6 cell from the centre and an edge pushed in
+by `MAX_NOISE` stops at 0.43, so neither eats a token's disk.
+
+### Dirty chunks
+
+`dirtyChunks(prev, next)` lists the `CHUNK` x `CHUNK` (16 x 16) chunks, row-major
+(`chunksAcross(grid)`), touched by a cell whose continued level, floor or known state changed, plus a
+one-cell margin (a dual tile reads the cells on both sides of a chunk's edge); every chunk with no
+previous shape or a new grid size. #240 rebuilds only these.
+
+### The invariant harness
+
+`invariants.ts` is test support. An emitter hands over an `EmitterMesh` (positions in world units,
+triangle indices, the owning cell of each vertex) and `checkEmitter(shape, ground, decorations?)` names
+each `Violation`:
+
+- `disk`: a known walkable cell's ground is not flat at `floorY` everywhere within `TOKEN_DISK`;
+- `intrusion`: a decoration stands above the floor within `TOKEN_DISK - INTRUSION` (it may reach 0.08
+  cell into the disk, no further);
+- `cliff-top`: along a step or cliff, away from its ends by `MAX_ROUND`, the ground just inside the
+  higher cell is not at the higher `floorY`, or something rises above it across the edge;
+- `unexplored-face`: a face that is not flat lies within `MAX_NOISE` of an edge with an unexplored cell
+  on either side (the border too);
+- `owner`: a vertex owned by no cell.
+
+`referenceBoxes(shape)` is today's boxes made from the shape (each cell's top at its floor, a side face
+where a known cell stands above a known neighbour or the table's edge) and passes on every fixture
+scene and the GM, fogged player and spectator of every committed view; the same boxes from the levels
+as sent fail with `unexplored-face`. #240, #241 and #243 add their emitters to the world specs beside
+it, on the same fixtures, views and random tables.
+
+### Picking cells (#246)
+
+A cell is picked by an Amanatides-Woo DDA over the grid's columns, not by raycasting ground meshes:
+`pickCell(grid, heightAt, origin, dir, cutLevel = Infinity)` in `world/pick.ts` (pure, server-tested
+in `pick.spec.ts`). Each cell is a column, solid up to `heightAt(x, y)`, its drawn floor (the
+renderer's `Ground.floorY`, or `Ground.pickY` where it has one: the chasm's floor in the void, #243). The ray is clipped to the grid's
+x and z, then steps column by column (`tMax`/`tDelta` per axis): in each, a ray already under the
+column's top hits its `side` where it came in (a raised column's wall, picked as the raised cell,
+as the old boxes' pick did), and a ray that drops to the top before leaving hits its `top`. It
+returns `{ cell, point, face }`, or `{ cell: null, point }` with the ray's point on the y = 0 plane
+(null if it never meets it). Beyond the grid the ground is that plane: a ray coming into the grid
+under it met it outside, so it picks nothing. A cut (#281) lowers every column above `cutLevel` to
+it. The cost is one step per cell crossed, on every tier and backend, with no GPU work.
+
+`Picker` (`picking.ts`) keeps the order: tokens, walls and doors, light fixtures and handles, props,
+then the cell, whose point gives the corner, the edge and `edgeDistance` as before, so a click off
+the grid has no cell but still snaps corners and edges along the border. The things are raycast on
+`PICK_LAYER` (1) only: `pickable(mesh)` enables it (layer 0 stays, so they still draw) on every
+token base and figure, wall instance, door panel, prop mesh, fixture mesh and GM light handle, and
+the raycaster tests only that layer, so ground, cliffs, the backdrop, dice and effects are never
+tested. `tablePlane` is gone, and so, since the milestone's close, is `TerrainLayer` with its `pick`.
+
+`pick.spec.ts` checks the DDA against the picker it replaced, written there in plain maths (a box
+per raised cell from y = 0 to its floor, and the y = 0 plane, the nearer winning, ties to the box):
+1,000 seeded rays from each named pose of every fixture (overshooting the frame, so rays beyond the
+grid too) and, where there is raised ground, 1,000 more at random points of raised columns, on every
+scene and every committed GM view as sent, and on every fogged player's view over the continued
+levels (`worldShape`'s `levels`, the surface #240 draws): 508,000 rays, 104,018 of them landing on
+raised ground (29,449 on a side) and 169,651 on no cell, every one the same cell and face. `renderer.svelte.spec.ts` clicks the monastery's gallery floor at level
+5, the nave beside it and the gallery's south face, and beyond the grid's edge (no cell, a border
+corner), and checks every object a raycast tested is on the pick layer.
+
+A fogged player's picks follow the levels the renderer draws: the continued levels #240's layer
+draws (the renderer's `ground` comes from `worldShape`). Neither reads anything of an unexplored cell that the picture doesn't show.
+
+### Dice and previews on the ground (#247)
+
+Dice land on the floor where they fall. `diceSurface(grid, ground, floor)` (`dice3d.ts`) is the
+surface they land on: a point's cell's `Ground.floorY`, the drawn floors (the same `ground` the picks
+use, so the continued levels once #240's layer draws them), and null on a void cell or off the
+grid. `throwFromView` centres the throw on the cell the camera looks at, or, where that is void or
+past the grid, on the nearest cell that holds dice (a scan of the cells, once per throw), and throws
+from the viewer's side above the walls on that floor; it hands `DiceLayer.throw` the centre, the
+start and the surface (`DiceAim`). Each die keeps its seeded spot on the golden-angle spiral; a spot
+the surface refuses is pulled in along the spiral's radius a quarter cell at a time to the first
+that holds (`landing`: no random draws, so every client's throw is still the same), and the die
+rests at the highest surface under its centre and four points half a die out (so it never sinks
+into the face of raised ground beside it) plus its inradius. The arc, `landingQuaternion` and the
+wall-clock timing are unchanged, so the face a player reads is too, and reduced motion still lands
+them at once. A die may pass through a wall or a cliff on the way down: the landing is what counts.
+`dice3d.spec.ts` lands every face of every die on raised ground reading the rolled face, pulls 40
+throws of 12 dice beside a void column and the table's edge in, and aims past the grid at the
+nearest cell; `renderer.svelte.spec.ts` throws a d20 at the monastery's gallery (level 5) and finds
+it drawn there, resting on the gallery's floor, not the nave's.
+
+Editor previews stand on the ground they mark. `previewPlacements(items, grid, ground)`
+(`previews.ts`, pure, `previews.spec.ts`) turns preview items into instances by bucket: an area is
+a tile per patch of cells at one floor (`patches`: each row's runs of equal floors, joined to the
+row above when the span and floor match, so a flat area is one tile however large and one across
+levels steps with the ground), a corner sits on the highest floor of the cells round it, a segment
+is a box per run of unit edges with the same floors beside them, from the lower floor to the
+preview's height above the higher (as a wall stands), its ends reaching past its corners as before,
+and the beacon's column and ring stand on their cell's floor. `PreviewLayer` draws them from a pool
+made with the layer: one `InstancedMesh` per bucket (the box in its five tones, the corner, the
+beacon's column and ring), `PREVIEW_CAPACITY` (1,024) instances each, always in the overlay scene
+and drawing nothing at a count of 0, so the warm-up compiles them and a hover only rewrites
+instance matrices and counts. They never grow: r186 gives every new `InstancedMesh` a vertex stage
+of its own, so a mesh made mid-game would compile; patches keep the counts far below the capacity,
+and past it the rest is left out. program-count's runtime sweep sets every tone, a whole-table
+area, walls in every tone, the beacon and none, compiling nothing. The hover highlight sits at its
+cell's floor, as before. Previews are the GM's but for the tutorial's beacon, and over an unexplored
+cell they stand on the height the viewer's ground gives it, so they show nothing the picture
+doesn't.
+
+### Costs
+
+In Node on the i9-13900HX (`npx tsx server/perf/world-shape.ts`, docs/PERFORMANCE.md): classifying a
+fogged 64x64 table with 64 walls takes 0.58 ms, a 100x100 one 1.4 ms. A cell pick by the DDA takes about 1 µs on
+the Hollow (48x36), where raycasting its raised boxes and the plane took 88 µs (docs/PERFORMANCE.md).
+
+### The ground in chunks (#240)
+
+The ground inside the grid is no longer the play plane and `TerrainLayer`'s boxes (both deleted at
+the milestone's close): `WorldLayer`
+(`world-layer.ts`) draws the world's shape as dual-grid meshes, one 16x16-cell chunk at a time, built by
+the pure `chunkGround(shape, chunk)` (`world/ground-mesh.ts`).
+
+- **Quarters.** A cell is four quarters, each the corner of the render tile at one of its grid corners.
+  A quarter is flat at its sectors' height: its floor, or in the void the chasm's floor (#243, below),
+  which goes in a mesh of its own. An unexplored cell whose two
+  known neighbours differ is split along its diagonal, as the continued tiles say.
+- **Corners.** A tile whose four cells are known, on the table and not void is rounded: within `r` of
+  the grid corner each quarter has a sliver beyond a quarter circle (`MAX_ROUND`, `ARC_SEGMENTS` 4), a
+  straight chamfer of `BEVEL` 0.05 where any of the four is a man-made floor (stone, wood, cobble,
+  flagstone: `MAN_MADE` in `world/floors.ts`). The sliver's
+  height comes from the level bands: a convex corner is cut down to its neighbours, a concave one filled
+  up; across a saddle only the pair `dualCase` joins is (a filled low quarter, or cut high ones), and a
+  pinched saddle stays square. A sliver lies 0.6 cell from any cell's centre, so token disks stay flat.
+  Tiles with an unexplored, off-table or void corner stay square.
+- **Sides** are sheer here, and #241 (below) turns each into a cliff or a riser: wherever two heights
+  meet there is one vertical face, made by the higher piece's cell (normal toward the lower), so each chunk holds only its
+  own cells' triangles (the owners say so, and a spec checks it). A known cell on the table's border gets
+  a face down (or, round the void, up) to the ring at 0. Between two unexplored cells, or an unexplored
+  cell and the border, nothing may stand on the edge (the harness's `unexplored-face`), so a **skirt**
+  slants from the other side's height on the edge to the cell's top `SKIRT` (0.1 cell) in under it, its
+  ends closed (across the cell's middle line, and at the grid corner on a slant): no gap shows the sky,
+  and no face lies along the edge.
+- **Checked** in the server project: `checkEmitter` on every fixture scene and every GM, player and
+  spectator view, and on 120 seeded random tables fogged and not, plus rays slanting down from above
+  each of them that must hit the ground before falling below its lowest point (no cracks), and the
+  rounding, chamfer, saddle, void and chunk-ownership cases (`ground-mesh.spec.ts`, `fixtures.spec.ts`).
+
+**The layer.** Per chunk a top mesh (receives shadows) and a face mesh per cliff style (casts and
+receives; the shadow pass draws back faces), each its own `BufferGeometry` (position, normal, 32-bit
+indices; the faces also a colour) with its own bounding sphere for culling, `raycast` a no-op. Tops are
+the **terrain kind** (non-instanced, anti-tiled on medium and up) in the environment's `surface` look (so
+plain cells look as the play plane did); the floors, their painted surfaces and the paleness of height
+come from the ground map as before. The faces are the **rock kind** since #241 (below). Nothing
+compiles: floors, levels, the explored mask and environments change data and uniforms only, and the
+warm-up compiles both kinds through stand-ins (`gallery`), a casting face among them, since a flat table
+has none until the GM raises ground (the program-count sweep raises, stairs and flattens the test
+world's ground).
+
+**Its inputs and rebuilds.** `WorldLayer.update(grid, levels, floor, fog, mode)` (from the renderer's
+`setGrid`, `setTerrain`, `setFloor` and `setFog`) makes the shape from what the viewer was sent (`known`
+from `knownOf`, so the GM and fog-off tables have none), skipped when nothing it reads changed (a
+player's fog changes `explored` only as they explore), and rebuilds the chunks `dirtyChunks` names
+against the shape last drawn, each timed as `world-chunk`; `stats().world` has the chunks on the table
+and how many the last update rebuilt. The renderer's `Ground` (tokens, props, walls, lights, previews,
+dice, shots) is the shape's, from the continued levels: identical on known cells, flush with the
+ground drawn elsewhere. The ground map is fed the continued maps too. Walls take the explored mask
+(`wallSpans` with `known`), so none shows a drop toward unexplored ground, and are synced again when it
+changes. The renderer's own `levels` (the camera's fit, the light's) stay as sent.
+
+**Its own chunk.** The builders are a lazy chunk, `world` (`world/build.ts`, its own budget in
+`scripts/check-bundle.mjs`): the shape (`worldShape`, `knownOf`, `dirtyChunks`), the dual cases, the
+regions, the ground's emitter, the cliffs (#241), and every builder to come (the void and beyond, splats), each
+exported from `build.ts` and imported elsewhere in the renderer only as a type. `WorldLayer` takes the
+module; `createTabletop` awaits `loadWorld()` beside the node renderer, so it is there before the table's
+first frame (inside the loading cover's wait), and `loadRenderer` (load.ts) starts it as soon as the
+renderer chunk arrives, so a prefetched table never waits on it. Its materials are the terrain and rock
+kinds', warmed as before. What a frame needs at once stays in the renderer: the DDA's picks (`world/pick.ts`) and
+the wall spans (`world/wall-spans.ts`, which the walls draw from).
+
+**No fallback.** Until the milestone's close a `terrain` layer (`?off=terrain`) drew the old boxes and
+the play plane instead of the chunks; the close deleted the layer, `TerrainLayer` (`terrain.ts`), the play
+plane, the old `LineSegments` grid and the highlight plane. Picking (#246) needs none of them: the DDA walks
+the renderer's `Ground`, which is the shape's, so a fogged player's picks land on the continued ground the
+chunks draw.
+
+**Deviations from #240.** Border tiles do not overhang the grid by half a cell: the skirt meets the play
+area at the grid's edge at y = 0 (`skirtMesh`, #244), so an overhang would z-fight with it; they stop at the
+edge, with the boxes' faces down to 0. There is no owner-cell vertex attribute on the GPU: the terrain
+kind reads each fragment's cell from the ground map by its position, as the boxes did (a rounded sliver
+takes the colour of the cell it lies in), and an attribute only the chunks carry would be a program of
+their own; the owners stay on the CPU for the harness. (Sides were the terrain kind until #241.)
+
+**Specs.** `world-layer.svelte.spec.ts` (`RENDER_SPECS`, about a
+minute) mounts the Hollow for the GM and checks the nine chunks are drawn, the ground at every cell's
+floor height (rays straight down onto the chunk meshes), the rebuild counts per edit (a cell inside the
+middle chunk 1, on its corner 4, every floor over its inside 1 each, a 16x16 area with its margin 9, a
+raise inside it 1), no program or pipeline from any of it, a fogged player's explored disc moving 35
+steps east rebuilding 1 to 4 chunks a step.
+
+### Beyond the grid (#244)
+
+The play area runs on into a landscape that belongs to its environment and fades into the sky:
+a skirt of land out to the horizon and a ring or two of far silhouettes. Procedural only (no art, so
+nothing to credit), textured from the environment's own looks (and so the surface library's walls).
+
+- **Its inputs are scene-level.** `world/beyond.ts` (pure, in the lazy `world` chunk, exported from
+  `world/build.ts`) builds everything from `BeyondInput`: the environment's id, `WorldLook.backdrop`
+  (kind and level) and the grid's size as a `Span` (`spanOf(worldExtents(grid))`: half extents, cell
+  size, frame, the camera's reach, the horizon and the haze's range; not the table's top, so raised ground a viewer
+  was or wasn't sent changes nothing). No cell is read, so the GM, players and spectators get the
+  same backdrop and it says nothing about unexplored ground. `beyond.spec.ts` builds it from every
+  fixture view as the GM, a player and a spectator and finds it byte for byte the same, checks the
+  input has only those three keys, and that the same input always builds the same arrays.
+- **The skirt** (`skirtMesh`) is an annulus whose hole is exactly the grid's rectangle (its corners
+  are vertices), so it meets the chunks' border faces at y = 0 with no gap or overlap. Its first loops
+  are the rectangle offset outward (the diagonal at the corners), so the lip runs along the border:
+  from 0 at the edge down to half a level below `backdrop.level` within `LIP_CELLS` (0.35 cell), a
+  bevelled kerb rather than a cliff. The rest run out to a circle at the horizon, closer together near
+  the grid (128 directions and 12 loops; 32 and 6 on low). Heights are `beyondHeightAt(beyond, x, z)`,
+  exported for the camera (`CameraRig.keepAbove`, and #280's rig): the land rises with seeded noise
+  (`recipe.rise` frames at most) only beyond the camera's reach, so wherever the camera may stand the
+  skirt is at or below max(0, the backdrop's level) (a spec sweeps every kind, level, environment and
+  grid). It wears the environment's ground look, darker (0.62) with broad macro patches.
+- **Silhouettes** (`ridgeMesh`) are rings of ridge round the grid, their foot sunk a step into the
+  skirt where the haze is partway (`distance` 0 at the fog's near, 1 at its far: by view depth, so
+  nearer than the camera's reach, or the haze would take them whole), their crest from periodic value
+  noise by style: `hills`, `forest` (a ragged canopy line), `mountains` (ridged peaks), `mesas` (flat
+  tops, sheer sides) and `cave` (rough walls rising into the dark with no ceiling, inside #221's
+  shell). Every face looks toward the grid (the spec checks it), so from beyond a ridge, where the
+  camera may stand, it is culled and never hides the map. The village's far ridge carries a landmark:
+  a peak at `MOUNTAIN.azimuth`, up the mountain path the `firstBell` shot looks along (a spec checks
+  the bearing against Bellweather's `MOUNTAIN_PATH` cell), with the monastery's hall and bell tower on
+  top as two flat silhouettes facing the grid. 240 columns a ridge, 72 on low.
+- **Recipes** (`world/recipes.ts`, keyed by the environment's id; not in the manifest): the village
+  (forest, and mountains with the monastery), stone halls (hills, and a mountainside in the walls'
+  stone), the cavern and the living cave (cave walls, dark navy and dark crimson), the railcar and
+  the ghost town (mesas, and far desert ridges); any other environment (or none) gets low hills.
+- **Backdrop kinds.** null keeps the environment's recipe; `none` (no silhouettes, flat land),
+  `plains`, `hills`, `forest`, `mountains` and `cavern` replace it with their own. `beyondSample(kind)`
+  says what lies beyond the border, for the border tiles (#240) and the chasms (#243): `land`, `water`
+  for `sea` (the skirt flat in a dark glossy water look, #120 gives it swell) and `void` for `abyss`
+  (past the lip a gap, no wall, then a plane 0.6 frame below that runs on under the grid: the haze
+  is no longer held off below `PLAY_FOG_DEPTH`, 1 m under the ground (`beyondPlay`'s depth term,
+  mirrored in `skyFogNode`), so the drop fills with mist instead of standing on a black pillar;
+  the void's own floors a step down are untouched: the Hollow) and
+  `prairie-scroll` (the moving ground, two levels and a half below, sliding along the grid's long
+  axis since #243; #344 adds fences, poles and sway: the train); those three keep the environment's
+  silhouettes.
+- **Rules.** Never picked (no-op raycast), casts no shadow (received, so it shares the old ring's
+  program), drawn off the grid only, where `worldModify` is neutral, so unexplored cells stay black
+  and nothing of the play area shows through it. Every mesh is the surface kind with the anti-tiled
+  variant (twinned with the tier like the other layers): kinds, levels and environments change
+  geometry, params and slots only, so nothing compiles (`beyond.svelte.spec.ts`; the program-count
+  sweep's sky part steps through every kind). Rebuilt only when the grid's size, the environment, the
+  backdrop or the tier's row (low or not) changes, never per frame; nothing moves, so reduced motion
+  has nothing to still and there are no idle frames.
+- **Draws:** the skirt and one or two silhouettes (three at most), about 4k triangles for the skirt
+  and 1.4k a ridge on medium and up.
+- **Specs.** `world/beyond.spec.ts` (server project: the skirt meets the grid and covers the disc,
+  every vertex on `beyondHeightAt`, the camera never under it, the lip and the drops, the kinds'
+  samples and recipes, silhouettes round the play area and inside the horizon facing in, the landmark,
+  determinism and scene-level inputs); `beyond.svelte.spec.ts` (`RENDER_SPECS`): the village at dusk as a fogged player, its three meshes, the mountain on screen and
+  not black, changed by `none`, and every kind and environment without a new program or pipeline.
+
+**Deviations from #244.** The recipes are code keyed by environment id, not a `beyond` block in the
+manifest: the landscape is procedural and needs no files, so parsing and the pipeline stay as they are
+(the owner's decision: no new art). The forest is a ragged ridge strip on every tier, not instanced
+tree cards: cards would be another variant (instanced) to warm and #121's vegetation brings real trees.
+The landmark is two flat procedural silhouettes, not a model. The silhouettes stand inside the camera's reach (in the haze's range), not beyond it, since the haze is by view depth and would hide them whole there; facing only the grid keeps them out of the way. The abyss needed the fog's play-area cap to lift with depth (`PLAY_FOG_DEPTH`): a change to the scene's fog node, so every program once, and to the picture only more than 1 m below the ground. The camera keeps above the skirt through
+`keepAbove(…, beyondHeightAt)` already; #280 owns the rig. Goldens and look metrics are for the
+milestone's close (G2).
+
+### Cliffs and risers (#241)
+
+Every vertical face of the chunks is now a **riser** or a **cliff**, so a player tells a step they can
+climb from a drop at a glance, by its shape as well as its colour. `world/cliffs.ts` (pure, in the
+`world` chunk) takes the faces `chunkGround` makes through its seam (`WallSink`: a face's ends, its
+lower and higher heights, its outward normal at each end and its owner) and extrudes each along a
+profile (`chunkWorld(shape, chunk)`: the tops, and the faces by style).
+
+- **A riser** (one level, what `canStep` climbs; `MAX_STEP` is 1): a `NOSING` (0.05 cell) tall face at
+  the edge, lighter (a worn nosing: vertex shade 1.3), over the riser set back `RECESS` (0.04 cell)
+  under it, in its shadow (0.55, then 0.8), kicking back out to the edge at its foot. No noise: straight,
+  even and regular, a stair.
+- **A cliff** (two levels or more, or any drop into the void): a rim `LIP` (0.04 cell) tall at the edge
+  (1.15), a chamfer back under it to `SET_BACK` (0.035 cell), then `ROWS_PER_LEVEL` (3) rows a level
+  (at most `MAX_ROWS`, 12: a tower's bands grow taller instead), each set back between `SET_BACK` and `DEEPEST` (`MAX_NOISE` − 0.005) by deterministic value noise of
+  its world position (stretched up the face, so it reads as strata; deeper is darker, 0.95 to 0.65),
+  and its foot back on the edge. Its texture's strata come from the rock kind's world mapping, so bands
+  line up across faces and chunks.
+- **Everything hangs back under the higher cell's top.** A face's top row and foot stay on the edge and
+  the rest is set back into the higher cell's edge band (at most 0.065 cell, outside the token disk's
+  0.43), so nothing stands over the lower cell, every top stays at its floorY (the harness's `disk` and
+  `cliff-top`), the rim is the higher top's own edge and its underside the lip, and the rock kind's cell
+  lookup a hundredth of a cell behind the face (below) always lands in the cell that owns it.
+- **Joins.** Two face ends at the same point with the same heights, normal and kind join (keys rounded
+  to 1e-4 of a cell); an end that doesn't (a sharp corner, a change of height, the edge of a chunk
+  whose partner is a cell beyond it: `chunkGround` with a one-cell margin hands those over too, and
+  `dirtyChunks`' margin already rebuilds both) tapers its set-back to the edge over `TAPER` (0.25
+  cell), so no gap ever opens (rays from above on every random table find none). Rounded corners'
+  arcs join smoothly, so a cliff runs on round them.
+- **Plain** faces: those made by unexplored cells (inside them, never toward them: no face lies on an
+  edge with an unexplored side) and the void's own walls, and the skirts between unexplored cells.
+- **Columns** every `COLUMN` (0.5 cell) along a face: the noise varies along it at half a cell. The
+  Hollow has 20,400 face triangles (from 1,752 sheer), the monastery 5,736 (from 684); columns every
+  0.25 cell made the Hollow 35,600, over the issue's 30k. Each band of a face has vertices of its own,
+  so its normal is its own (crisp nosings and rims; the strata facet).
+
+**Style** follows the cell that owns the face (`styleOf`, `CLIFF_STYLES`): **masonry** on the man-made
+floors (stone, wood, cobble, flagstone; `MAN_MADE`), **earth** on the rest (plain, grass, dirt, sand,
+water, and #248's rock, mud, snow and gravel). Each style is a mesh and
+a material of its own, both the rock kind with vertex colours, so one program: earth wears the
+environment's `ground` look, masonry its `walls` look (the wall surface from the library, ashlar where
+the environment lists one), and in the cave environments (`cavern`, `living-cave`, by the id
+`setLook` now takes) both wear the `ground` look, cave rock. Without an environment they are a brown
+and a grey. #248's floors bring their own style.
+
+**Fog and light.** The rock kind's `worldModify` reads the cell a hundredth of a cell behind the face
+(`faceCell` in `cell-maps.ts`, the lookup `groundTexel` already made: `positionWorld − normalWorld ×
+0.01 × cellSize`): its fog, unseen tint and reveal fades are the owning cell's (`worldModify(…, face)`,
+`terms(true)`, built once; every other kind keeps its own lookup). Faces never border unexplored cells
+(the continuation rule), so they add nothing to unexplored-is-black, which they pass.
+
+**Tiers.** The geometry is the same on every tier. Medium and up draw the rock kind's triplanar graph
+(three fetches a slot, Whiteout normals), low its biplanar one (`materials/biplanar.ts`: the two
+projections the normal faces most, two fetches, no normal map): the `antiTiled` variant the tier
+already picks, swapped as a twin with the tops, never at runtime. Both variants with vertex colours
+are in the lobby's kind gallery and the layer's stand-in. WebGL2 and compat need nothing more (no
+arrays, derivatives only in the normal map). Nothing animates.
+
+**Checked** in the server project (`cliffs.spec.ts`, `fixtures.spec.ts`): the riser's and the cliff's
+profiles by horizontal rays (the nosing at the edge, the riser at `RECESS`; the rim at the edge, the
+face between `SET_BACK` and `MAX_NOISE` and not flat), a drop into the void a cliff, tops at their
+floors, styles by floor, unexplored owners plain, the same arrays on every build, chunks of their own
+cells only, and `checkEmitter` with crack rays on 120 random tables fogged and not and on every fixture
+scene and GM, player and spectator view; the Hollow under 30k face triangles.
+`world-layer.svelte.spec.ts` finds the Hollow's faces on the rock kind with vertex colours and both a
+rim and a nosing among them, the monastery's stairs as risers beside its gallery, ledge and belfry's
+cliffs, and a stair raised and flattened across its nave compiling nothing; `mapping.svelte.spec.ts`
+draws both rock graphs.
+
+**Deviations from #241.** The noise is a small value noise of our own (hashing lattice points), not
+three's `SimplexNoise` with `mulberry32`: world/ imports no three.js, and the hash is as deterministic.
+The set-back goes into the higher cell, not out over the lower one, so the face shades with its owner
+under the issue's own 0.01 lookup and the rim is the top's edge (the issue's rim lip, read as an
+overhang). The style is a mesh per style, not a per-face attribute choosing a layer of the surface
+library's arrays: rock's graph has no array slots, and two draws per chunk where both styles meet keep
+it one program; the looks come from the environment's ground and wall looks, which hold the library's
+surfaces where an environment lists them. The nosing and the shadows under rims are vertex colours, not
+an AO attribute. Raised border cells drop to the ring at 0 in their style; `beyondSample` (#244) is not
+read. Goldens, the LOOK.md strip and look metrics are not recorded here (no golden runs during
+development); the perf gate and the iGPU were not run. The renderer chunk grows 386.1 → 386.7 kB gz
+(386,603 B: biplanar, the face lookup, the layer's styles) and the `world` chunk 5.2 → 7.3 kB (7,261 B).
+
+### Floors blended per pixel (#242)
+
+Floors are no longer one surface per cell: the terrain kind blends the floors round each fragment of a
+top from the surface library's arrays (#187), with a height-based transition between natural floors and
+a crisp, kerbed border on man-made ones. The rules and their mirror are pure (`materials/splat-weights.ts`,
+`splatWeights` and `heightShare`, server-tested in `splat-weights.spec.ts`); the graph is `floorSurface`
+in `materials/floors.ts`, and `groundColour` (hooks.ts) mixes the two floors it hands over.
+
+- **The 2x2.** A fragment's own cell is the one `groundTexel` reads (a hair inside the surface, so a side
+  keeps its own); the cells across x, across y and on the diagonal are those on its side of the cell's
+  centre lines, read by texel loads of the same ground map (the continued floors, #239), clamped to the
+  table. A neighbour is looked at only if it is known (fog off, the GM, or explored in the visibility map's
+  G, also a load of a map already bound) and on the same level; sides (normals not up) look at none. So
+  nothing blends or kerbs toward an unexplored cell or across a step or cliff, and the floor bytes a viewer
+  was sent are all it reads.
+- **Styles** (`FLOOR_STYLE`, a uniform array by floor index): `SOFT` (plain, grass, dirt, sand, mud,
+  snow, gravel) blend with each other; `CRISP` (water, a tint until #293, and the void) and `KERB` (stone,
+  wood, cobble, flagstone, rock) keep their border on the grid line. A soft border can wander off the grid
+  line, so only rule-neutral floors may be soft; a floor that ever means something to movement (#85) must
+  be crisp or kerbed.
+- **Weights.** Bilinear from the fragment's distance to its cell's centre (0.5 on the grid line), a
+  neighbour's zeroed unless both floors are soft, merged per floor, the two heaviest kept and normalised.
+  On medium and up (the anti-tiled graph) two `mx_noise_float` move the point by up to `reach` (0.15 cell)
+  in the world, fading to nothing at the cells' centre lines, so both sides of a border and both 2x2 blocks
+  either side of a centre line see the same weights: soft borders wander, continuously. Low draws them
+  straight.
+- **Height.** Mishkinis's blend of the two: each layer's height (the albedo array's alpha, scaled into
+  `heightRange` 0.5; a floor without a layer at 0.5) plus its weight, the higher within `depth` (0.2,
+  `wearFloors`' third argument, a uniform) showing: sand settles between stones. The range is kept under
+  `1 - depth`, so a floor of weight 0 never shows whatever its height.
+- **Kerbs.** A kerbed floor next to a known floor on its level that it outranks (style, then index; never
+  the void, whose edge is a drop) is darkened by `kerbDark` (35%) in a band `kerbWidth` (0.05 cell) wide
+  inside its own cell, with the normal leaned toward the edge by `kerbBevel`: shader only, a uniform each.
+- **Fetches.** Both floors are sampled from the same three arrays, a layer each, through the same world box
+  mapping (and anti-tiling) as before: six fetches where there were three (twelve anti-tiled). Where one
+  floor covers the 2x2 the second fetch reads the same layer (a cache hit): WGSL allows no implicitly
+  derived sample inside a per-fragment branch, so the issue's one-layer fast path is that, not an `if`.
+- **The tint fallback.** A floor with no layer (plain, water, the void, and every floor while the arrays
+  load or where an environment has none) is its `FLOOR_LOOKS` colour over the environment's surface as
+  before, and blends the same way, so a table without arrays shows soft borders in flat colours.
+- **No binding, no program.** The neighbours are texel loads of the ground and visibility maps through
+  clones of their nodes (one binding each), and the second floor's fetches clones of the arrays' nodes:
+  the terrain kind's fragment stage samples as many textures as before (program-count's many-lights
+  shards count them per tier: within 16 on high with the probes and the hero atlas). Painting any floor,
+  the arrays coming and going, the styles, the depth and the kerb are data and uniforms.
+- **r186's integer index.** A floor index converted with `toInt()` at each use loses its conversion in
+  some uses (a `vec4` uniform array's index behind a select, `integer expression required` on WebGL2), so
+  each of the two floors is made an `int` variable once and every array is indexed by it.
+
+`floor-splat.svelte.spec.ts` (`RENDER_SPECS`, about 20
+seconds) draws a 4x4 table of grass, grass, dirt and stone columns straight down with stand-in arrays of
+one colour per floor, on both graphs: the grass-dirt border is a blend on the grid line, straight without
+noise (spread 0 px, off the line by 1) and wandering with it (spread 8 px, at most 7 off at 64 px a cell),
+and moves into the grass when the dirt stands higher; the dirt-stone border is crisp with a kerb about
+two-thirds as bright as the stone; neither blends nor kerbs across a level or toward an unexplored
+column; painting every floor, the kerb's width and the arrays going and coming compile nothing; and the
+`FLOOR_LOOKS` fallback blends too. `program-count` sweeps every floor and environment on every tier,
+and paints every floor side by side on every environment (shards 1, 6 and 11 pass with #248's floors).
+
+### Six more floors (#248)
+
+`FLOORS` (`src/lib/game/floor.ts`) is append-only: cobble, flagstone, rock, mud, snow and gravel are bytes
+8 to 13, after the void, so every byte saved before keeps its floor and nothing is migrated (scene files
+stay v10; `decodeFloor` accepts any byte below `FLOORS.length`, so builds from before #248 refuse a table
+that uses them, as v10 is already forward-only). They are rule-neutral: `obstaclesFor` makes nothing of
+them, exactly as of stone (`floor.spec.ts`), and they reach a player or spectator only on explored cells
+like every floor (`knownFloor`; the multi-client test in `game-server.spec.ts`). Plain (byte 0) is shown
+as "Default ground", and the Build panel lists the floors with Off the map last.
+
+Each declares its look in the existing tables: `FLOOR_STYLE` (cobble, flagstone and rock kerbed; mud,
+snow and gravel soft), `MAN_MADE` (`world/floors.ts`: cobble and flagstone bevel their corners and wear
+masonry cliffs; rock is kerbed but natural, so its cliffs are earth) and `FLOOR_LOOKS` (the tint). A
+surface layer comes from the library where an environment lists it (docs/ASSETS.md, "The surface
+library"): the village has cobble and the stone halls flagstone; everywhere else the floor is its
+`FLOOR_LOOKS` tint over the environment's surface, blended or kerbed by its style like any other. More
+layers wait on the table budgets (each surface is about 2 MB at medium, and every layer an environment
+lists is downloaded with it).
+
+### The shader grid (#245)
+
+The grid is a gameplay overlay, never the world's art (docs/LOOK.md, gap 12): antialiased lines
+projected onto whatever ground the chunks draw, shown as much as the moment needs.
+
+- **The node** (`materials/grid.ts`, the overlay kind's `grid` variant, one graph): the fragment's
+  place on the grid in cells (`cellUV` times the grid's size, so integers are the lines), and per
+  axis Golus's pristine grid ("The best darn grid shader yet"): the pixel footprint from `dFdx`/`dFdy`,
+  the drawn width clamped to at least a pixel and its coverage scaled back to the line's true width
+  (`LINE_WIDTH`, 0.03 cell), fading toward the line's average where cells shrink below a pixel, so
+  far lines go grey instead of shimmering under TRAA. Only on tops (`normalWorldGeometry.y` above
+  0.5, so never on cliff faces), on the grid, off the void (the ground map's floor), faded out between
+  `FADE_NEAR` and `FADE_FAR` cells from the camera, times the mode's strength and, in explore mode,
+  a falloff from `EXPLORE_INNER` to `EXPLORE_RADIUS` (2 to 3.5 cells) round the nearer focus.
+  `grid-modes.ts` mirrors all of it in plain maths (`lineCoverage`, `exploreTerm`, `distanceFade`,
+  `patternCovers`; `grid-modes.spec.ts`).
+- **The twins.** `WorldLayer` gives each chunk a third mesh, `GridOverlay.twin()`, in the overlay's
+  scene: the chunk top's own `BufferGeometry` (`follow` after every rebuild), so no memory and the
+  lines lie on the gallery, the ledge and the belfry at their levels and follow every raise. Being in
+  the overlay pass they are crisp and ungraded, as the labels are; that pass draws with the unjittered
+  camera against the world's jittered depth, so the material tests less-or-equal with a polygon
+  offset toward the camera (factor -2, units -4: a depth bias on WebGPU) and never fights its top.
+- **Secrecy.** The node takes `worldModify`'s fog and cut, not its darkening (lines stay legible at
+  night): the lines' alpha times `worldFog()`, the highlight's times one minus `worldHidden()`, so a
+  player's unexplored cell gets alpha exactly 0 and nothing is laid over black after the output
+  stage's re-mask. unexplored-black mounts every case with the full grid and a highlight on an
+  unexplored cell; post.svelte.spec.ts checks lines and a highlight over a hidden half.
+- **The highlight** is the same pass: the hovered cell (`hover`), its kind's colour (`HIGHLIGHT`) and
+  a pattern twin, so move, blocked and place differ by shape as well as colour (G6): move fills the
+  cell, blocked hatches it diagonally, place brackets its corners, each inset from the grid line and
+  antialiased by `fwidth`. `grid-modes.spec.ts` checks every pair of patterns differs over more than
+  a quarter of the cell, which holds in greyscale and in any colour-vision simulation, where
+  colour-vision.spec.ts still finds three colour pairs too close (#157). The old highlight plane is
+  gone from `PreviewLayer`.
+- **Modes** (`GridMode`): **build** (all of it: the GM's Build panel open or a tool other than select
+  out, or anyone placing a token or an enemy), **explore** (in play, round the hovered cell and the
+  selected token), **overview** (faint, 0.4, in the tactical view with nothing selected) and **off**.
+  `gridModeOf` in `ui/grid.ts` derives the moment's mode in `RoomView`; the Graphics menu's Grid
+  (`GraphicsPrefs.grid`: Auto, Always, Off, in `thirdfold:graphics`; #167's `alwaysGrid` reads as
+  Always) applies on top there (`withGridSetting`), and `Tabletop.svelte`'s `gridView` hands the
+  mode and the focus to `Tabletop.setGridMode`: local, never synced. A mode, a focus or a highlight is a uniform write (`gridUniforms`):
+  nothing compiles (program-count's sweep sets every mode, moves the focus and every highlight kind,
+  with the grid on and off), there is no fade, and a change draws its frame and the table goes idle
+  (renderer.svelte.spec.ts). The twins are hidden while there is neither grid nor highlight, so off
+  costs nothing; otherwise one draw per chunk with tops.
+- **Warm-up.** The twins are hidden until shown, so `GridOverlay.gallery()` gives a stand-in to the
+  overlay batch, as the selection ring has.
+- **No fallback.** The old `LineSegments` grid and the highlight plane, drawn under `?off=terrain`
+  until the milestone's close, were deleted there with `GridOverlay.setGrid` and the `terrain` layer;
+  `setHighlight` takes only the cell and its kind.
+- **Specs.** grid-overlay.svelte.spec.ts (`RENDER_SPECS`) mounts the
+  monastery: a twin on every chunk top sharing its geometry, hidden while off, following a raise;
+  and the pixels each mode changes (build the most, explore round the focus fewer, overview fainter,
+  off none), with no program between them.
+- **Deviations.** No fade between modes (#167 faded the lines over 150 ms): the issue asks for a
+  mode change to be one frame. The highlight is never dimmed at night; the lines are not darkened
+  either, only faded by the fog. Tile seams standing in for explore-mode lines on tiled floors wait
+  for #254; the held key is #279, modes per camera mode #289.
+
+### Void cells as chasms (#243)
+
+Void cells ('Off the map') are drops out of the world, not black paint: the ground is cut where they
+are, cliffs fall from each walkable neighbour's floor, and at the bottom lies whatever the world
+look's backdrop says. The rules don't change (void is solid in `obstaclesFor`, not opaque;
+`blackwater.spec.ts` checks every Blackwater table).
+
+- **Style** (`world/chasm.ts`, pure, in the `world` chunk): `voidStyle(kind)` is `chasm` for none,
+  plains, hills, forest, mountains, abyss, cavern and no backdrop, `sea` for sea, `scroll` for
+  prairie-scroll. `chasmOf(backdrop)` gives the void's floor in levels (`CHASM_DEPTH` 12 below level 0,
+  4.8 cells; the sea `SEA_DEPTH` half a level below the backdrop's level, never above level 0's floors;
+  the moving ground `SCROLL_DEPTH` 2.5 below, where #244's skirt lies) and whether it is `open` at the
+  border: wherever `beyondSample` is not land (abyss, sea, prairie-scroll). Scene-level only: every
+  viewer gets the same.
+- **The drop.** `chunkGround` takes the chasm: every void sector stands at its floor (`chasmY`), below
+  every walkable floor, so the faces between void and walkable ground run from the walkable floor down
+  to it, and #241 makes each a cliff (any face over the void is a cliff, half a level or twelve), in the
+  owner's style, darkening with depth (`depthShade`: a vertex shade from 1 at level 0 to 0.15 six levels
+  down; every face below 0 takes it, the plain skirts too). Void beside void needs no face, at any
+  level. The void's floor is the chunks' third mesh, `bottom` (`Builder.under`: flat pieces below 0 go
+  there), so a chunk is a top, its faces by style, the void's floor and the grid's twin.
+- **Open borders.** Where the chasm is open, a known void cell on the border has no wall at the edge:
+  its floor runs on `OPEN_REACH` (0.35 cell, the skirt's lip) past it, under the backdrop's lip, and
+  round the corner. Closed (land beyond), its wall rises to the border's 0 as before. Only known cells
+  open, so nothing is drawn past an edge the viewer never saw. The skirt's lip itself stays: it is
+  scene-level, and covering it would read cells into the backdrop.
+- **The floor's look** (`world-layer.ts`): one material for every chunk's floor, the surface kind
+  with the anti-tiled variant (twinned by tier) and the skirt's attributes (a world uv), received,
+  never cast or picked: the same program as the backdrop's skirt, so no stand-in and nothing compiles.
+  A chasm is a cold grey (`MIST`) over a tiling noise texture (`mistTexels`, 64², made once) a tile every
+  six cells: faint mist in the dark, deepened by the height fog (`PLAY_FOG_DEPTH` lets it in below
+  1 m). The sea and the moving ground wear the skirt's own look (`WorldGround.wearSkirt`: its params,
+  slots and flow), so the floor under a gap and the land beyond it are one. Styles are params and slots.
+- **Moving.** The surface kind's slots now slide by `params.flow × worldTime` in its world box
+  mapping (water's already did; every other surface's flow is 0, so the graph changed once and draws
+  as before). The skirt under the night train flows along the grid's long axis at `SCROLL_SPEED` (0.5
+  repeats a second, landscape.ts), and the floors under its gaps with it; the chasm's mist drifts at
+  `MIST_FLOW` on medium and up, still on low. `WorldLayer.tick(now, reducedMotion)` (from the frame's
+  `drifting`, one line in renderer.ts) sets `worldTime` to the clock in seconds, wrapped every hour
+  (every flow comes round to whole repeats), and asks for AMBIENT frames while the ground moves (always
+  under the train, with void on the table for the mist); under reduced motion it holds the clock and
+  asks for none.
+- **The backdrop's changes** reach the layer from the landscape (`WorldGround.onBackdrop`, after its
+  skirt is built and painted): the look follows, and a new floor height or opening rebuilds every chunk.
+- **Picking.** `chasmGround` gives the renderer's `Ground` a `pickY`: the chasm's floor in the void,
+  the floor elsewhere; `Picker` walks the DDA over `pickY ?? floorY`. A ray down a hole picks the void
+  cell (the server still refuses the move); one meeting a chasm wall first picks the walkable cell that
+  owns it, as a raised column's side (`chasm.spec.ts`). `floorY` is unchanged, so tokens, props, walls,
+  lights, previews and the camera stand where they did; dice already refuse void cells (#247).
+- **Fog and light.** The faces shade as the cell that owns them (#241's lookup behind the face); the
+  floor as the void cell above it, by `worldModify` like every surface, so unexplored void is black. A
+  floor or face inside an unexplored cell (continued as void beside a known one) is black too.
+- **Checked** in the server project (`chasm.spec.ts`; `ground-mesh.spec.ts`, `cliffs.spec.ts`): the
+  styles and depths of every backdrop kind; on every fixture scene and every GM, player and spectator
+  view with void (the train, the ghost town, ref-3), in each style closed and open: the harness with the
+  void's floor as decorations, the floor flat at its depth, under void cells only (or a sector of an
+  unexplored cell split toward one) and past the border only beside a known void cell of an open table,
+  nothing the void owns above level 0, and crack rays; the cliffs down to the floor in each scene's own
+  style; the night train's gaps and border on the moving ground; picks down a gap and onto a car's
+  wall. `chasm.svelte.spec.ts` (`RENDER_SPECS`) paints void on the
+  Hollow's lake and finds the floor at the chasm's depth on the surface kind, the cliffs down to it,
+  every backdrop kind moving it, and nothing compiling; on the night train it finds the gaps on the
+  moving ground, sliding along the train, not black, its clock moving on ambient frames, and under
+  reduced motion no frame and a still clock. unexplored-black takes the train's player
+  (`railcar player dusk medium` in the slim set), leaving out a hole's sample whose ray falls on to
+  ground the viewer was shown (`pastHole` in invariants.ts).
+- **Cost.** A void cell is two triangles of floor; a cliff into a chasm 12 rows a face (the train:
+  158 void cells). Nothing per frame but the clock's uniform, and that only while the ground moves.
+
+**Deviations from #243.** `voidStyle` is in `world/chasm.ts`, not `world/shape.ts`, and the depth is
+`chasmOf`'s rather than a bottomless band in the cliffs: the void's sectors stand at the floor's
+height and #241's cliffs reach them. The chasm's floor is mist (a texture and the height fog), not an
+abyss plane with its own mist node; the sea is the skirt's water look (no fresnel of its own beyond
+the lit kind's), at half a level below the backdrop's level rather than a whole one, to meet the
+skirt. The skirt's kerb along an open border stays (the backdrop is scene-level); the void's floor
+runs under it instead of a drop piece replacing it. Goldens, the LOOK.md strip and look metrics are
+for the milestone's close (no golden runs during development); the perf gate and the iGPU were not
+run. The renderer chunk grows 389.3 → 389.8 kB gz (389,798 B) and the `world` chunk 9.9 → 10.4 kB
+(10,369 B).
+
+### Drop-in (#249)
+
+A prop the GM places, a floor painted and ground raised or lowered fall into place over `DROP_MS`
+(250 ms), like TaleSpire's tiles, in the vertex stage: nothing moves on the CPU per frame.
+
+- **The curve** (`dropLeft` in `drop-in.ts`, pure; `dropLift` in `materials/drop.ts` is the same in
+  TSL): a piece starts `DROP_CELLS` (a quarter of a cell) up, falls eased in until `FALL` (0.75 of
+  the drop), then hops `HOP` (6% of the drop) and settles, exactly 0 from the end on and never below
+  its place. `t = saturate((dropNow − start) / 0.25 s)`, the lift `dropHeight × left(t)` straight up.
+- **Starts.** Every instanced prop, decal and water mesh carries `aDrop` per instance from creation
+  (`addInstanceTints`, `NO_DROP` = −1e6 s, so `t` is 1), which `PropLayer.layout` writes beside the
+  lift. The world's chunks are the terrain and rock kinds' `dropped` variant (fixed at creation,
+  twins kept, in the lobby's gallery and the layer's stand-ins): `fill` writes each vertex's start,
+  its owner cell's (the owners `chunkGround` and the cliffs already keep), so a raised cell's top
+  and its faces drop together and a rebuilt chunk keeps the drops under way. Starts are seconds on
+  the drops' clock (`Drops`, one per renderer, owned by `PropLayer`, its epoch when made), so
+  float32 keeps milliseconds over a long session; `dropNow` is set by `Drops.tick` every drawn frame.
+- **Shadows** come from `castShadowPositionNode`, the resting position (the lift alone on props,
+  `positionGeometry` on the chunks): the edit redraws the cached sun shadow once, for the final
+  state, and the drop's frames redraw none (a drop is not a caster in `drawFrame`).
+- **What drops** (`propsDropped`, `cellsDropped`, `PropDrops`; `drop-in.spec.ts`): a prop whose id
+  is new and whose whole footprint the viewer knew, a cell whose level or floor changed while known
+  before and after. Before is what the last drawn frame showed (`Drops.frame`), so a fog diff and the
+  floors or props it reveals, which arrive as separate calls, count as one update and never drop.
+  Nothing drops on a new grid (the first snapshot, travel: `PropDrops.update` holds the drops until
+  the table's first frame), or in the update after `setGrid` with the same grid (`Drops.hold`: a
+  load, a reconnect, any new snapshot of the room), or under reduced
+  motion (`start` gives `NO_DROP`, so nothing animates and no frame is asked for). The GM, whose
+  fog knows every cell, sees every edit drop.
+- **Scheduling.** `Drops.start` keeps the latest end; `drawFrame` reports `drops.active` with the
+  reveal fades, so the scheduler is ACTIVE until the last drop ends and the table then goes idle.
+- **Secrecy.** The lift is vertical, inside the piece's own column: `worldModify` reads cells by x
+  and z, so unexplored cells stay black, and only what the viewer was sent on known cells drops.
+- **Programs.** The drop is ALU on an attribute and two uniforms. Every instanced lifted graph reads
+  it (a changed graph, not a new one); the chunks' variant replaces the plain one on the chunks and
+  is warmed through the stand-ins. A drop starting or ending compiles nothing (`drop-in.svelte.spec.ts`
+  checks the program count; program-count's shards place props, paint and raise).
+- **Spec.** `drop-in.svelte.spec.ts` (`RENDER_SPECS`): on ref-7
+  (no light flickers there, so the table rests) with the clock held, a placed prop, a painted floor
+  and raised ground keep the scheduler active and are drawn up; past the drop they are at rest, the
+  table draws no more than it did at rest, the sun's shadow was drawn at most once per edit and no
+  program was added; under reduced motion, and after a same-grid `setGrid`, nothing drops and the
+  table rests with the clock still held. About two minutes on SwiftShader.
+- **Deviations from #249.** No ramp texture: the one curve is ALU (the reserved rows wait for a
+  second animation), and `aDrop` is a float (the start), not (start, id). The ground's starts are a
+  per-vertex attribute written at the chunk's rebuild from the owners, not a per-cell texture read
+  through an owner-cell attribute (there is none on the GPU, #240), so no vertex texture fetch.
+  Changed ranges are not uploaded with `addUpdateRange`: the props' attributes upload whole, as the
+  lift always has. Faces drop whole with their cell, so a raised cell's foot shows a slit for the
+  first frames; the shader grid's twins lie at rest and are hidden under a falling top. TRAA has no
+  velocity for the lift. No golden at mid-drop (no golden runs during development).
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
 delegations; every module in the folder stays under 500 lines (`modules.spec.ts` checks it).
 
-| Module                                | What it holds                                                                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                            | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                      |
-| `camera.ts`                           | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                          |
-| `picking.ts`                          | `Picker` (pointer to cell, corner, edge, token, wall, light, prop), `pickKey`, clicks                                            |
-| `loop.ts`                             | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                   |
-| `scheduler.ts`                        | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                |
-| `scene-lights.ts`                     | The hemisphere and the key light; fitting the shadow box, the fog and the camera to the table                                    |
-| `atmosphere.ts`                       | The scene's fog and environment nodes and background (`createScene`), `AtmosphereLayer`: the hour's light, tween and shadow rule |
-| `atmosphere-curve.ts`, `sky-maths.ts` | The pure curve (`atmosphereAt`), the sun's and moon's paths, the stars, `CaptureThrottle`                                        |
-| `sky.ts`                              | `SkyLayer`: the dome, moon, stars and clouds, and the capture into `SKY_CUBE`/`SKY_CUBE_LOW`                                     |
-| `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                          |
-| `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                |
-| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `ringVertices`); `WorldGround`, the play plane and the ring to the horizon           |
-| `previews.ts`                         | Editor previews, the beacon and the highlighted cell                                                                             |
-| `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                    |
-| `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`  |
-| `capabilities.ts`                     | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement         |
-| `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                   |
-| `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                            |
-| `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                        |
-| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats, grid lines masked by floor, fog and darkness         |
-| `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)  |
-| `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)       |
-| `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                           |
-| `grid-light-layer.ts`                 | `GridLighting`: the point lights from what the viewer was sent, uploads, `carry`; `grid-lights.ts` its data (#228)               |
-| `fog-cloud.ts`                        | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                            |
-| `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                          |
-| `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                  |
-| `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                   |
-| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `terrain.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`               |
+| Module                                | What it holds                                                                                                                                                                                                              |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                            | The `Tabletop` interface and its types (re-exported by `renderer.ts`), `TIMED`, `RESHADOWS`                                                                                                                                |
+| `camera.ts`                           | `CameraRig`: orbit controls, `viewPose`, view changes, shots, `setPose`                                                                                                                                                    |
+| `picking.ts`                          | `Picker` (pointer to cell by the DDA, corner, edge; token, wall, light, prop on `PICK_LAYER`), `pickKey`, clicks                                                                                                           |
+| `loop.ts`                             | `createNodeRenderer`, the frame hooks r186's own loop ran, live reduced motion                                                                                                                                             |
+| `scheduler.ts`                        | The render scheduler: IDLE, AMBIENT, ACTIVE and CONVERGE, the frame-rate cap, pausing when unseen                                                                                                                          |
+| `scene-lights.ts`                     | The hemisphere and the key light; fitting the shadow box, the fog and the camera to the table                                                                                                                              |
+| `atmosphere.ts`                       | The scene's fog and environment nodes and background (`createScene`), `AtmosphereLayer`: the hour's light, tween and shadow rule                                                                                           |
+| `atmosphere-curve.ts`, `sky-maths.ts` | The pure curve (`atmosphereAt`), the sun's and moon's paths, the stars, `CaptureThrottle`                                                                                                                                  |
+| `sky.ts`                              | `SkyLayer`: the dome, moon, stars and clouds, and the capture into `SKY_CUBE`/`SKY_CUBE_LOW`                                                                                                                               |
+| `sky-light.ts`                        | `SkyLight`, `SkyHemisphere`: the key light and hemisphere masked by sky visibility, `registerSkyLights`                                                                                                                    |
+| `flash.ts`                            | The flash's envelope (`flashAt`), `flashPolicy` (Reduce flashing), `countFlashes`                                                                                                                                          |
+| `world-ground.ts`, `landscape.ts`     | The play and world extents (`worldExtents`, `spanOf`); `WorldGround`, what lies beyond (#244)                                                                                                                              |
+| `previews.ts`                         | Editor previews from a pool of instanced meshes on the ground (`previewPlacements`, #247), the beacon and the highlighted cell                                                                                             |
+| `perf.ts`                             | Frame and update timings, renderer stats, `benchmark`, and the timing wrapper                                                                                                                                              |
+| `quality.ts`                          | Quality tiers: `Caps`, the settings table, the starting tier, `?tier=`/`?off=`, the pixel cap, refinement, `thirdfold:graphics`                                                                                            |
+| `capabilities.ts`                     | `probeCapabilities`, and `QualityControl`: canvas sizing within the tier's megapixels, the sun's shadow size, refinement                                                                                                   |
+| `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                                                                                                             |
+| `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                                                                                                                      |
+| `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                                                                                                                  |
+| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats                                                                                                                                                 |
+| `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)                                                                                            |
+| `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)                                                                                                 |
+| `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                                                                                                                     |
+| `grid-light-layer.ts`                 | `GridLighting`: the point lights from what the viewer was sent, uploads, `carry`; `grid-lights.ts` its data (#228)                                                                                                         |
+| `fog-cloud.ts`                        | `FogCloudLayer`: the fog cloud over a player's hidden cells, with its layer on (#174)                                                                                                                                      |
+| `warmup.ts`                           | `warmUp`, `Gallery` (the layers' stand-ins, drawn once after a warm-up)                                                                                                                                                    |
+| `lobby.ts`                            | `warmLobby`: the renderer made and warmed before any table, for the first table to adopt (#180)                                                                                                                            |
+| `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                                                                                                             |
+| `world/`                              | The world's shape (M69), the cliffs (`cliffs.ts`, #241), what lies beyond the grid (`beyond.ts`, `recipes.ts`, #244); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer |
+| `world-layer.ts`                      | `WorldLayer`: the shader grid's twins per chunk (#245), the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the void's floor (#243), the shape it is built from                                      |
+| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                                                                       |
 
 ## Quality tiers
 
@@ -1208,12 +1944,12 @@ and the component and the test helper make the next tabletop only after that.
 with `requestAnimationFrame` (r186's internal loop stays stopped, per the spike: each drawn frame
 resets `renderer.info` and advances the node frame itself).
 
-| Mode     | When                                                            | Frames                                                       |
-| -------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
-| IDLE     | nothing moves or animates, or the table can't be seen           | none until something changes                                 |
-| ACTIVE   | tokens, doors, dice, props, cue effects, shots, the camera move | every screen frame, at most the tier's `fpsCap` (60, low 30) |
-| AMBIENT  | flames flicker or mist drifts, nothing else                     | every 80 ms (12.5 fps), 100 ms after a minute without input  |
-| CONVERGE | movement just ended                                             | the tier's `convergeFrames` (0 until TRAA, #163), then IDLE  |
+| Mode     | When                                                                   | Frames                                                       |
+| -------- | ---------------------------------------------------------------------- | ------------------------------------------------------------ |
+| IDLE     | nothing moves or animates, or the table can't be seen                  | none until something changes                                 |
+| ACTIVE   | tokens, doors, dice, props, drops, cue effects, shots, the camera move | every screen frame, at most the tier's `fpsCap` (60, low 30) |
+| AMBIENT  | flames flicker or mist drifts, nothing else                            | every 80 ms (12.5 fps), 100 ms after a minute without input  |
+| CONVERGE | movement just ended                                                    | the tier's `convergeFrames` (0 until TRAA, #163), then IDLE  |
 
 AMBIENT is off under reduced motion (followed live, no reload), power saver (the viewer's setting),
 a hidden tab (`visibilitychange`) or a canvas scrolled out of view (`IntersectionObserver`);
@@ -1263,11 +1999,10 @@ passes, in order:
   draws. Grid lines fade by the cell maps (#173): `worldShade` (the fog and the dark as every
   material has them) times one minus the cell's floor cover (`floorPalette`, from `groundFlat`, the
   ground texel without a normal): never over an unexplored cell, dimmer at night, none over the void.
-  - **The grid shows only when wanted** (#167): hidden at rest (the tiles' seams are the grid),
-    shown while the GM's Build panel is open, while placing a token or an enemy, and while a hover
-    highlight aims a move, or always with the Graphics menu's Always show grid (`alwaysGrid` in
-    `thirdfold:graphics`). `Tabletop.setGridShown` only sets the lines' `visible`: one draw call
-    fewer at rest, nothing compiled.
+  - **The grid shows only when wanted** (#167): hidden at rest, shown while the GM's Build panel
+    is open, while placing a token or an enemy, and while a hover highlight aims a move, or always
+    with the Graphics menu's Always show grid. Since #245 the grid is a shader on the ground with
+    display modes ("The shader grid" under M69), and M69's close deleted these lines.
 - **Each hour has its own hues** (#167, since #218 from the atmosphere curve): the sky preset gives
   the hemisphere a sky and a ground colour through the day (moon-blue over deep blue at night, peach
   over slate at dusk, day's warm pair). Only colours change, so a change of hour compiles nothing. The dark itself is `worldModify`'s, from `lightLevels` (#173 deleted the
@@ -1444,8 +2179,8 @@ Every surface the renderer draws is one of a closed set of **shader kinds**
 on the kinds (#172) and deleted the fog plane, the darkness overlay, the floor plane and raised
 ground's instance shading (#173). Two tests hold it in place: runtime state never compiles a
 shader (`program-count.svelte.spec.ts`, #170) and unexplored cells stay exactly black
-(`unexplored-black.svelte.spec.ts`, #176). Every kind runs on both backends; CI checks WebGL2
-(SwiftShader, `rendering.yml`), and the WebGPU runs are the local `client-webgpu` project.
+(`unexplored-black.svelte.spec.ts`, #176). Every kind runs on both backends, on this machine (no workflow runs the render specs since
+M69): WebGL2 on SwiftShader, and WebGPU in the local `client-webgpu` project.
 
 ### Kinds and slots
 
@@ -1455,7 +2190,7 @@ shader (`program-count.svelte.spec.ts`, #170) and unexplored cells stay exactly 
 | -------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- | ----------------------------------- |
 | surface  | Standard                           | albedo, normal, ORM, emissive | box mapping in the world, macro variation           | walls, door panels, the table's rim |
 | terrain  | Standard                           | as surface                    | as surface; floors and height from the `ground` map | the table's top, raised ground      |
-| rock     | Standard                           | as surface                    | triplanar in the world, macro variation             | none yet (#177's tests)             |
+| rock     | Standard                           | as surface                    | triplanar in the world (biplanar on low), macro     | cliffs and risers (#241)            |
 | prop     | Standard                           | as surface                    | object space, paint (#178), lift (#181)             | props and placeholder boxes         |
 | mini     | Physical (clearcoat a uniform)     | as surface                    | object space, paint, own colour and see-through     | tokens                              |
 | emissive | Standard                           | as surface                    | the mesh's uv                                       | none yet                            |
@@ -1566,8 +2301,8 @@ a new grid size compile nothing (`cell-maps.svelte.spec.ts`, both backends), and
 in `cell-maps.ts` are tested against the old overlays' numbers in `cell-maps.spec.ts`. What isn't a
 kind takes the same terms: `inWorld(material, glow)` puts `worldModify` last and the glow through
 `worldEmissive` on fixtures, flames (one shared flame material, colour and glow per-object
-uniforms) and the mist; `worldShade()` fades the grid lines (`overlay.ts`); `worldHidden()` is
-the re-mask's input.
+uniforms) and the mist; `worldShade()` fades the old grid lines and `worldFog()` the shader grid
+(`grid-overlay.ts`, #245); `worldHidden()` is the re-mask's input.
 
 ### The re-mask
 
@@ -1625,6 +2360,9 @@ never through a texture's own matrix (r186 snapshots it from the first texture i
 - **rock**: triplanar in the world (zy, xz and xy, weights `pow(|n|, triplanarSharpness)`,
   normals blended by Whiteout). A slot's three fetches are its reference plus two `.sample()`
   clones that keep its `referenceNode`, so a new texture reaches all three. Three fetches a slot.
+  Without `antiTiled` (the low tier, #241) biplanar instead (`biplanar.ts`): the major and median
+  projections only, two fetches a slot, no normal map. Its `worldModify` reads the cell behind the
+  surface (`faceCell`), so a cliff shades with the cell that owns it.
 - **prop and mini**: the mesh's uv (#188): a cooked model's glTF uvs, and zeros on a part list,
   whose slots hold their blanks, so both draw with one program (`tabletop/models.ts` gives every
   model part the same attribute set). Their paint (#178) stays in object space on its own.
@@ -1687,7 +2425,8 @@ program. Data textures (cell maps, LUTs, the slots' blanks) are never registered
 
 - **The table** (`table.ts`): the top is the terrain kind, the rim the surface kind, both
   `antiTiled` from the start and remade (`twinOf`) when the tier's `antiTile` differs.
-  **Raised ground** (`terrain.ts`) is the terrain kind, instanced. The terrain kind reads the
+  **Raised ground** (`terrain.ts`, deleted at M69's close for the world layer's chunks) was the
+  terrain kind, instanced. The terrain kind reads the
   `ground` map (`ownAlbedo`): on the table each floor's colour (`floorPalette`, from
   `FLOOR_LOOKS`, a uniform array) over the textured surface at its cover (plain none, the void
   all); on a raised cell its texture in its floor's colour or the look's, paler with height toward
@@ -1765,8 +2504,8 @@ itself; a new variant a layer makes must be added to `variantsOf`.
    spectator, with the GM as the control): decode it there and require nothing in the never
    explored region. The file's header lists the inputs later milestones add.
 5. Run the render specs named above on WebGL2 (`npm run test:render -- <files>`) and on WebGPU,
-   add a new spec to `RENDER_SPECS` in `vite.config.ts` and a group in `rendering.yml` within
-   about 5 minutes (a slim set for CI and the full set by hand, as the goldens do).
+   and add a new spec to `RENDER_SPECS` in `vite.config.ts` (a slim set for every rendering PR
+   and the full set by hand, as the goldens do; all on this machine).
 
 Costs on SwiftShader and what the perf gate measures on real GPUs are in `docs/PERFORMANCE.md`
 ("Milestone 64").
@@ -1799,7 +2538,7 @@ fixtures keep them; and the probe case of unexplored-black bakes a coarser latti
 (`probeSpacing`).
 
 - **Smoke tests** (`fixtures.svelte.spec.ts`, `renderer.svelte.spec.ts`,
-  `scheduling.svelte.spec.ts` and `stability.svelte.spec.ts`, apart so CI runs them side by
+  `scheduling.svelte.spec.ts` and `stability.svelte.spec.ts`, apart so they can run side by
   side; the long ones sharded further with `THIRDFOLD_SHARD=k/n`, by fixture, tier or case, or
   by test with `shardedIt` from `testing.ts`): every fixture draws for every
   viewer with no `console.error`; the same inputs draw the same pixels; an idle daylight table draws no frames;
@@ -1815,12 +2554,12 @@ fixtures keep them; and the probe case of unexplored-black bakes a coarser latti
   compare by SSIM (`tests/visual/ssim.ts`: mean SSIM over luminance in 8×8 windows, at least
   0.98, a diff of each window's loss), the rest by pixelmatch with threshold 0.1 and at most 0.5%
   mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
-  and the spec skips elsewhere; CI is the authority. Diffs land in `.vitest-attachments/`.
+  and the spec skips elsewhere; this machine (Linux) is the authority. Diffs land in `.vitest-attachments/`.
   Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts` (below).
-  **When they run:** never with `npm test`. CI takes the slim set (`SLIM` in the spec, 26 images)
-  in `.github/workflows/rendering.yml`, only on pull requests that touch rendering, never on
-  pushes, beside the renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run
-test:render`), which leave `npm test` too, so the verify job stays within minutes.
+  **When they run:** never with `npm test`. No workflow runs them (the owner's decision at M69): the slim set (`SLIM` in the spec,
+  26 images, `npm run test:golden`) runs on this machine before a rendering PR, beside the
+  renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run test:render`),
+  which leave `npm test` too, so CI's verify job stays within minutes.
   The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
   hand, once a rendering PR is ready and agreed, not during development, where the test world and
   the targeted specs are the check.
@@ -1855,10 +2594,8 @@ from the view), and if it stands on explored ground add its height to `standing`
 grass (#302), scatter, decals, water (#293), VFX, weather (#320), motes, x-ray (#284) and overlays
 (#285) are next. A layer that fails here is fixed in the render path, never by skipping cells.
 
-**When a golden fails in CI**, the `goldens` job of `rendering.yml` uploads the `goldens-diffs`
-artifact (`.vitest-attachments/`: the reference, the actual image and a diff for each failure;
-kept 14 days). Download it from the run's page; its reference and actual PNGs are the before and after a
-golden PR shows.
+**When a golden fails**, `.vitest-attachments/` holds the reference, the actual image and a
+diff for each failure; its reference and actual PNGs are the before and after a golden PR shows.
 
 **Changing goldens.** Update them only on purpose, on Linux:
 

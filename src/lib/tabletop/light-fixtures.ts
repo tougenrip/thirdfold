@@ -18,6 +18,7 @@
 // arrival makes meshes, and that goes through the warm-up hold like any model (renderer `onModel`).
 
 import * as THREE from 'three/webgpu';
+import { pickable } from './picking';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import {
 	CARRIED_LIGHT_COLOR,
@@ -255,7 +256,7 @@ export class LightFixtures {
 		shadows: boolean
 	): THREE.InstancedMesh {
 		addInstanceTints(geometry, capacity);
-		const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+		const mesh = pickable(new THREE.InstancedMesh(geometry, material, capacity));
 		mesh.castShadow = mesh.receiveShadow = shadows;
 		mesh.count = 0;
 		mesh.frustumCulled = false;

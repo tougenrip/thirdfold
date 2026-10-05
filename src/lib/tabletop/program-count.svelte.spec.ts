@@ -1,10 +1,10 @@
 // Runtime state never compiles a shader (#170). A table is warmed up (every environment drawn once,
 // every table the sweep travels to visited once), its shader counts taken (shaderCounts in perf.ts:
 // programs, pipelines, node states), and then everything that changes at runtime is done one named
-// step at a time, a frame drawn after each: environments, times of day, floors, fog and its modes
-// (with the fog cloud on and a reveal fading, #174), dark areas, light counts past a cell's K, tokens
-// and props in every state, both cues and table travel. No step may change the programs or
-// pipelines; a change names the step and the stages it made or dropped (a stage is named after its
+// step at a time, a frame drawn after each: environments, times of day, floors, raised ground
+// (#240), fog and its modes (with the fog cloud on and a reveal fading, #174), dark areas, light
+// counts past a cell's K, tokens and props in every state, the grid's modes and highlights (#245),
+// both cues and table travel. No step may change the programs or pipelines; a change names the step and the stages it made or dropped (a stage is named after its
 // material, and the material module names its materials by kind: the layers #172 ported show as
 // surface, terrain, prop and mini). Compiles today's renderer still makes are listed in KNOWN, with
 // the issue that ends them. New node states with no new program are reported, not failed: they cost
@@ -37,12 +37,13 @@ import { float, vec3 } from 'three/tsl';
 import { afterEach, describe, expect, vi } from 'vitest';
 import { decodeFloor, encodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import { FLICKERS, LIGHT_KINDS, type Light } from '$lib/game/lights';
-import { bandOf, type WorldLook } from '$lib/game/world';
+import { BACKDROPS, bandOf, type WorldLook } from '$lib/game/world';
 import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { FIXTURES } from './light-model';
+import { GRID_MODES } from './grid-modes';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
 import { aoKind, settingsFor, type Tier } from './quality';
@@ -197,6 +198,10 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	const none = encodeMask(new Uint8Array(size));
 	const floorOf = (i: number) => decodeFloor(encodeFloor(new Uint8Array(size).fill(i))!, size);
 	const floor = home.floor ? decodeFloor(home.floor, size) : null;
+	const levels = home.terrain ? decodeLevels(home.terrain, size) : null;
+	// The world's chunks (#240): every cell raised, a stair across the table, flat, and back.
+	const raised = new Uint8Array(size).map((_, i) => (levels?.[i] ?? 0) + 2);
+	const stair = new Uint8Array(size).map((_, i) => (i % home.grid.width) % 6);
 	const light = (i: number, over: Partial<Light> = {}): Light => ({
 		id: `sweep-${i}`,
 		pos: { x: 2 + (i % 8) * 2, y: 2 + Math.floor(i / 8) * 4 },
@@ -215,6 +220,7 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		home.objects.find((o) => o.kind === k)!
 	);
 	const cue = (c: 'flash' | 'toll') => () => t.playCue(c, c === 'toll' ? prop.id : null);
+	const corner = { x: home.grid.width - 1, y: home.grid.height - 1 };
 	// The tier as mounted, with the fog cloud's layer on or off (#174).
 	const cloud = (on: boolean) => () => {
 		const settings = settingsFor(tier, t.capabilities().backend);
@@ -231,6 +237,25 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		...FLOOR_IDS.map((id, i): Step => [`floor ${id}`, () => t.setFloor(floorOf(i))]),
 		['floor cleared', () => t.setFloor(null)],
 		['floor back', () => t.setFloor(floor)],
+		// Every floor (#248's appended ones too) side by side on every environment's surfaces.
+		...ENVIRONMENTS.map((e): Step => [
+			`every floor on ${e ?? 'none'}`,
+			() => {
+				t.setEnvironment(e);
+				t.setFloor(new Uint8Array(size).map((_, i) => i % FLOOR_IDS.length));
+			}
+		]),
+		[
+			'environment and floor back',
+			() => {
+				t.setEnvironment(home.environment);
+				t.setFloor(floor);
+			}
+		],
+		['terrain raised', () => t.setTerrain(raised)],
+		['terrain a stair', () => t.setTerrain(stair)],
+		['terrain flat', () => t.setTerrain(null)],
+		['terrain back', () => t.setTerrain(levels)],
 		['fog off', () => t.setFog(null, 'gm')],
 		['fog on, GM', () => t.setFog(home.fog, 'gm')],
 		['fog on, player', () => t.setFog(home.fog, 'player')],
@@ -279,6 +304,46 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		['prop hidden', () => t.setProps(withProp({ hidden: true }))],
 		['prop moved', () => t.setProps(withProp({ pos: { x: prop.pos.x + 1, y: prop.pos.y } }))],
 		['props back', () => t.setProps(home.props)],
+		// Previews come from a pool made with the table (#247): every tone, the corner, the segments,
+		// the beacon and the whole table at once only rewrite instances.
+		...(['reveal', 'hide', 'valid', 'invalid'] as const).map((tone): Step => [
+			`preview area ${tone}`,
+			() => t.setPreview([{ kind: 'area', from: { x: 0, y: 0 }, to: { x: 3, y: 2 }, tone }])
+		]),
+		[
+			'preview whole table',
+			() => t.setPreview([{ kind: 'area', from: { x: 0, y: 0 }, to: corner, tone: 'reveal' }])
+		],
+		...(['valid', 'invalid', 'door'] as const).map((tone): Step => [
+			`preview wall ${tone}`,
+			() =>
+				t.setPreview([
+					{ kind: 'corner', at: { x: 1, y: 1 } },
+					{ kind: 'segment', a: { x: 1, y: 1 }, b: { x: 5, y: 1 }, tone }
+				])
+		]),
+		['preview beacon', () => t.setPreview([{ kind: 'beacon', at: { x: 2, y: 2 } }])],
+		['previews cleared', () => t.setPreview([])],
+		// The shader grid (#245): every mode, the focus moving, and every highlight's pattern, with
+		// the grid on and off, are uniform writes on the chunks' twins, warmed by a stand-in.
+		...GRID_MODES.map((mode): Step => [
+			`grid ${mode}`,
+			() => t.setGridMode(mode, [{ x: 2, y: 2 }])
+		]),
+		[
+			'grid explore, focus moved',
+			() =>
+				t.setGridMode('explore', [
+					{ x: 5, y: 3 },
+					{ x: 1, y: 1 }
+				])
+		],
+		...(['move', 'blocked', 'place'] as const).map((kind): Step => [
+			`highlight ${kind}`,
+			() => t.setHighlight({ x: 2, y: 2 }, kind)
+		]),
+		['grid off, highlighted', () => t.setGridMode('off')],
+		['highlight cleared', () => t.setHighlight(null, 'move')],
 		['flash cue', cue('flash')],
 		['toll cue', cue('toll')],
 		// Reduced motion throws instantly; the frame is drawn with the die at rest, then fading
@@ -310,6 +375,11 @@ function skySteps(m: Mounted, home: FixtureView, skies: readonly string[]): Step
 		...[0, 0.25, 0.5, 1].map((density): Step => [
 			`haze ${density}`,
 			() => t.setLighting('day', home.lights, world({ haze: { density, color: '#b8c0cc' } }))
+		]),
+		// What lies beyond the grid (#244): every backdrop kind, its skirt and silhouettes.
+		...BACKDROPS.map((kind): Step => [
+			`backdrop ${kind}`,
+			() => t.setLighting('day', home.lights, world({ backdrop: { kind, level: 1 } }))
 		]),
 		['roofed', () => t.setInterior(new Uint8Array(size).fill(1))],
 		['roof off', () => t.setInterior(null)],
@@ -558,7 +628,7 @@ async function warmHome(tier: Tier) {
 }
 
 // Tests per tier for the runtime state and the sky, so CI runs each in a job of its own
-// (`THIRDFOLD_SHARD=k/18`, .github/workflows/rendering.yml): the tiers' 15, then many lights per tier
+// (`THIRDFOLD_SHARD=k/18`, run one by one): the tiers' 15, then many lights per tier
 // (16 to 18), and the last two, which join the first shards.
 describe('the shader program count', () => {
 	const test = shardedIt();

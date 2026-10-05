@@ -907,3 +907,180 @@ the scene import (the GM's close) compiles and is left out.
 - **Per redraw** a cube is six caster passes into its row of the atlas, only when something in the
   light's reach + 1 changed, at most one a frame on medium and two on high; camera moves draw none.
 - **The iGPU** was not measured for this change; low has no slots.
+
+## The M69 world shape (#239)
+
+`npx tsx server/perf/world-shape.ts 200` in Node 22 on the i9-13900HX, median of 200 runs after a
+warm-up, on busy generated tables (terraces up to level 7, void, water and stone patches, a wall per
+row of cells, two thirds explored, so the continuation rule works on every cell):
+
+| Table   | Classify | Regions | Dual cases, walkable + 7 bands | Dirty chunks, one cell |
+| ------- | -------- | ------- | ------------------------------ | ---------------------- |
+| 64x64   | 0.58 ms  | 0.70 ms | 3.5 ms                         | 0.05 ms                |
+| 100x100 | 1.4 ms   | 2.1 ms  | 9.9 ms                         | 0.12 ms                |
+
+- **Classify** is `worldShape`: the continued cell maps, the dual tiles' sectors (eight per grid
+  corner, levels and floors), both edge maps and the wall spans. Under the issue's 1 ms for 64x64.
+- **Dual cases** for a whole table is every tile under every mask; #240 asks only a dirty chunk's tiles
+  (a 16 x 16 chunk is about a fifteenth of a 64x64 table's, about 0.25 ms here).
+- `walls.ts` builds its wall instances from the same spans, with no cost of note (it ran them inline).
+
+## The M69 cell picks (#246)
+
+Cells are picked by a DDA over the drawn levels (`world/pick.ts`), not by raycasting the raised
+boxes and the table plane; things (tokens, walls, props, fixtures) are raycast on `PICK_LAYER` only.
+
+**The DDA on its own**, in Node 22 on the i9-13900HX. `npx tsx server/perf/world-shape.ts 200`
+picks every pixel of a 160x100 view across the generated tables: 0.004 ms a pick on 64x64 and 0.006
+ms on 100x100 (terraces to level 7), under the issue's 0.05 ms. On the fixtures' own poses (10,240
+rays from four poses each, median of 15 runs, measured once by a scratch script):
+
+| Fixture              | Raised cells | Raised boxes + plane (before) | DDA (after) |
+| -------------------- | ------------ | ----------------------------- | ----------- |
+| The Hollow, 48x36    | 788          | 87.5 µs                       | 0.9 µs      |
+| The monastery, 30x20 | 72           | 1.0 µs                        | 1.0 µs      |
+| outdoor-64, 64x64    | 0            | 0.06 µs                       | 1.3 µs      |
+
+The DDA's cost follows the cells a ray crosses, not the ground's detail, so it stays this size when
+#240's chunks replace the boxes; the old raycast grew with every raised cell.
+
+**The whole 'pick' timing** (`perf.time('pick')`: the things' raycasts and the cell), in the client
+project's Chromium (SwiftShader, 800x500), 2,000 pointer moves over the GM's overview pose after 200
+to warm up, mean per pick, by a scratch spec on this change and on the commit before it:
+
+| Fixture       | Before (runs) | After (runs)    |
+| ------------- | ------------- | --------------- |
+| The Hollow    | 277, 243 µs   | 185, 119, 97 µs |
+| The monastery | 55, 57 µs     | 106, 61, 50 µs  |
+
+The Hollow's picks drop by about half (its 788 boxes are no longer raycast); the monastery's are
+unchanged within the noise (the first run after had an 11 ms stall). What remains is the things'
+raycasts, which this change leaves as they were.
+
+## The M69 ground in chunks (#240)
+
+What a chunk rebuild costs on the main thread (`chunkGround`, the pure emitter; the layer adds a
+`BufferGeometry` and its bounding sphere), on the RTX 4060 Laptop's i9-13900HX, Node 22 through Vite's
+transform (as the browser bundle runs it: no names kept on closures), medians of 20, measured while
+other agents' browser tests kept the machine at a load average of about 15, so read them as upper
+bounds:
+
+| Table                                   | Mean chunk | Slowest chunk | Whole table      | One-cell edit (shape + its chunks) |
+| --------------------------------------- | ---------- | ------------- | ---------------- | ---------------------------------- |
+| Hollow (48x36, GM)                      | 1.2 ms     | 2.5 ms        | 11 ms (9 chunks) | 2.0 ms (1 chunk)                   |
+| Monastery (30x20, GM)                   | 0.75 ms    | 1.5 ms        | 3.0 ms (4)       | 0.1 ms (0: an unchanged cell)      |
+| outdoor-64 (64x64, GM)                  | 1.3 ms     | 2.0 ms        | 21 ms (16)       | 1.9 ms (1)                         |
+| test world (24x24, GM)                  | 1.1 ms     | 2.4 ms        | 4.4 ms (4)       | 0.4 ms (1)                         |
+| busy random 64x64, all known / fogged   | 1.0 / 2.0  | 1.1 / 4.8     | 15 / 32 ms       | 4.6 / 1.6 ms                       |
+| busy random 100x100, all known / fogged | 0.9 / 1.3  | 1.7 / 2.2     | 45 / 64 ms       | 2.6 / 3.3 ms                       |
+
+- **A one-cell paint** rebuilds one chunk (four on a chunk's corner): about 1 ms of meshing; the edit's
+  total (the shape, about 0.6 ms on 64x64, then the chunk) stays within 2-5 ms. A fogged player's step
+  rebuilds one to four chunks (the world-layer spec walks 35 steps across the Hollow).
+- **A whole table** (a new table) is 3-21 ms on the fixtures and about
+  45-65 ms on a busy 100x100 one. A new table is built twice today, once for `setGrid` (flat) and again
+  for `setTerrain`; batching the build to the next frame would halve that, if it ever shows.
+- **The issue's 1.5 ms a chunk on the dGPU machine** holds on average (0.75-1.3 ms on the fixtures);
+  the slowest chunks (rounded corners all over, or fogged tiles split along diagonals with skirts) reach
+  2-2.5 ms under the background load, 4.8 ms on the busiest random table. No worker yet: the numbers
+  don't call for one, and the general path (rounded and unexplored quarters) is where to look first.
+- `npx tsx server/perf/world-shape.ts` prints the same rows (`ground mesh, ...`) but tsx keeps every
+  closure's name (`__name`), which inflates them two to three times; the table above is the one to
+  quote.
+- **The GPU:** two draws per chunk (tops and sides; sides also in the sun's shadow pass), 18 for the
+  Hollow, 32 for 64x64. Tops are eight triangles a cell (more at round corners), about 33k on
+  64x64, where the play plane drew 2 and the boxes 12 a raised cell. The perf gate and the iGPU were not run
+  for this change (the iGPU is not a gate for M69).
+
+## The M69 cliffs and risers (#241)
+
+What a chunk rebuild costs with its cliffs and risers (`chunkWorld`: the ground's emitter with its faces
+handed over, a one-cell margin of faces to join across the chunk's edge, and every face extruded along
+its profile), against the sheer sides of #240 (`chunkGround`), on the i9-13900HX in Node 22, bundled by
+esbuild as the browser bundle is (no names kept on closures), each chunk built 100 times after 20 to
+warm up, the median of three runs, while other agents' browser tests kept the load average at 7 to 9
+(upper bounds):
+
+| Table (GM)           | Mean chunk, sheer → cliffs | Slowest chunk | Whole table | Face triangles |
+| -------------------- | -------------------------- | ------------- | ----------- | -------------- |
+| The Hollow, 48x36    | 0.61 → 1.38 ms             | 0.98 → 2.49   | 5.5 → 12.4  | 1,752 → 20,400 |
+| The monastery, 30x20 | 0.48 → 1.13 ms             | 0.88 → 3.45   | 1.9 → 4.5   | 684 → 5,736    |
+| outdoor-64, 64x64    | 0.83 → 0.88 ms             | 1.38 → 1.23   | 13.2 → 14.1 | 0 → 0          |
+| test world, 24x24    | 0.42 → 0.59 ms             | 0.91 → 1.12   | 1.7 → 2.4   | 196 → 1,560    |
+
+- **The slowest chunk** is the monastery's north-east one (its gallery, ledge, belfry tower and every
+  stair): 11,000 face vertices. A one-cell edit rebuilds one to four chunks, so an edit there costs about
+  3.5 ms of meshing on this machine under load. Before capping a face at `MAX_ROWS` (12) rows it was
+  14,600 vertices and about 5 ms; a first version that kept vertices in JavaScript arrays of objects and
+  made closures per vertex cost two to three times this. A flat table pays almost nothing (outdoor-64).
+- **The faces' share** of a chunk is the extrusion (about 60% on the Hollow); the margin's faces add
+  under 10% (`chunkGround` with a sink and a margin costs what it did without).
+- **The GPU:** one more draw per chunk where a second style (masonry) meets earth, in the scene and the
+  shadow pass; the Hollow (cave rock, one style) keeps two draws a chunk. Its face triangles grow from
+  1,752 to 20,400, within the issue's 30k; the monastery's to 5,736. The rock kind's triplanar costs
+  three fetches a slot on medium and up, biplanar two on low. The per-tier GPU costs on the monastery's
+  overview, the perf gate and the iGPU were not measured for this change (the iGPU is not a gate for
+  M69); `npx tsx server/perf/world-shape.ts` prints `with cliffs, …` rows beside the ground's (inflated
+  by tsx's names, as noted above).
+
+## The M69 load
+
+The perf gate stopped finishing on M69: its per-tier step reloads the room page with
+`?perf&tier=…` and waits up to 30 s for the table, and the page's main thread was blocked for 21 s
+(low), 2.4 s (medium) and 73 s (high). Measured on the RTX 4060 Laptop, WebGL2 over ANGLE/Vulkan,
+in fresh Chromium profiles, with GL calls timed by a wrapper on `WebGL2RenderingContext` and a CPU
+profile of the main thread (scripts kept out of the repository):
+
+- **The cause was the lobby, not the table.** The room page prefetches the renderer, and a
+  `prefetchRenderer` whose idle callback ran before the table took it warmed the lobby
+  (`warmLobby`) on the room page itself. The table waits for that renderer and then, under `?perf`,
+  throws it away. The lobby compiled its gallery (every kind and variant, about 220 programs) one
+  item at a time, each `compileAsync` waiting a frame or more for its link, so it hit its 4 s limit
+  after a fraction; then it drew the whole gallery twice, which linked everything not yet linked
+  synchronously: a single 77 s task (high), 15 s (low). Which tier hit it was a race, so the gate's
+  numbers moved between runs. M68 had the same path, but fewer programs that the NVIDIA driver links
+  about four times faster (its shaders are in its disk cache from months of runs), so its worst case
+  was about 12-17 s.
+- **The table's own first frame** linked most of its programs synchronously too: the warm-up
+  compiled the scene pass's materials without the scene pass's context (the AO), so every lit
+  material compiled to other code than it draws with, and the first frame linked them again, one by
+  one (`_completeCompile`, 3.0 s of a 5.6 s first frame against M68's 1.0 s).
+- **Shader cost:** per program, M69 links about as fast as M68 on its own (all 76 table programs
+  linked serially and drawn once, no driver cache: 1.5 s + 13.4 s against M68's 56 at 1.4 s +
+  13.5 s). The floor splat (#242) is the biggest single addition: a build without it drew the first
+  frame about 1.6 s sooner with the driver's cache off (6.2 against 7.9 s, M68 6.0), and its
+  pieces (the wandering noise, the second layer, the neighbours' loads) cost little each. The
+  floors' two surfaces now share one box projection (`BoxMapping.on`: one set of coordinates,
+  anti-tiling and gradients); the same arithmetic, so the same pixels.
+
+What changed:
+
+- `warmUp` compiles a chunk of 16 items at once (one at a time on a software rasteriser), so the
+  driver links them in parallel (KHR_parallel_shader_compile; async pipelines on WebGPU) with frames
+  held, and returns whether it finished.
+- Each pass target is compiled in its pass's own context: the very context node the scene pass
+  draws with (`passContext` fills three's `_contextNodeCache` first), its prepass and AO kept from
+  drawing while it compiles (`drawnFirst`; a compile runs `updateBefore`, which drew the whole
+  prepass per item and took a table import to 60 s before this). Programs per table fell from 239
+  to 224 (M68 219): the warm-up no longer makes programs nobody draws with.
+- The lobby draws its gallery only when its compile finished within its limit; otherwise the table
+  compiles the rest. A timed page (`?perf`) makes no lobby renderer at all (load.ts), since its table
+  never adopts one.
+
+| RTX 4060 Laptop, WebGL2                | M68 (add78f5)     | M69 before      | M69 after         |
+| -------------------------------------- | ----------------- | --------------- | ----------------- |
+| Room page, first table frame (gate)    | 2.8 s             | 5.3-9 s         | 2.9 s             |
+| Tier reload low / medium / high (gate) | passed            | 21 / 2.4 / 73 s | 1.5 / 3.9 / 2.4 s |
+| Tier reload, fresh profile, l / m / h  | 2.1 / 4.3 / 2.9 s | 23 / 6.8 / 87 s | 1.7 / 2.5 / 2.9 s |
+| Longest task (tier reloads)            | 3.1 s             | 81 s            | 3.0 s             |
+| Test world built (gate, 3 viewers)     | 17.2 s            | 22.4 s          | 15.7 s            |
+| Warm-up / long tasks per viewer (gate) | 3.5 s / 10 s      | 4.5 s / 15 s    | 3.3 s / 8.6 s     |
+| Programs per viewer (gate)             | 219               | 239             | 224               |
+
+"M69 before" for the gate rows is the first run with the lobby skipped under `?perf`, which let the
+gate finish at all; the fresh-profile row is the branch as it was, its lobby racing the table (M68's
+row is from runs the lobby lost; when it won, M68 took 15-17 s on medium and high).
+WebGPU, fresh profile, first table frame per tier: M68 8.8 / 6.8 / 3.4 / 8.5 s (high, medium, low,
+ultra), M69 after 3.0 / 2.4 / 1.6 / 2.5 s. With the driver's shader cache off, M69's first frame is
+now 6.2 s against M68's 6.0 s (was 8.0 s). No pixel changes: every change is in when and how
+programs compile, and the floors' shared projection computes the same values.

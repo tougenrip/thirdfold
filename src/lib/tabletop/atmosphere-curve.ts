@@ -111,8 +111,8 @@ export const MIN_SHADOW_ELEVATION_DEG = 12;
 export const SHADOW_STEP_DEG = 0.5;
 /** Fog over the map never exceeds this, whatever the haze, weather or camera distance (#377). */
 export const PLAY_FOG_CAP = 0.04;
-/** Metres past the map's edge over which the cap lifts to 1: the haze frames the map (#377). */
-export const PLAY_FOG_BLEND = 16;
+/** Metres past the map's edge (or under it past `PLAY_FOG_DEPTH`) over which the cap lifts (#377). */
+export const [PLAY_FOG_BLEND, PLAY_FOG_DEPTH] = [16, 1]; // under the ground: an abyss hazes (#244)
 
 /** The moon's phase at absolute `time` in minutes: 0 new, 0.5 full. */
 export function moonPhase(preset: SkyPreset, time: number): number {
@@ -472,9 +472,10 @@ export function fogRange(extent: number): { near: number; far: number } {
 	return { near: Math.max(40, 1.5 * extent), far: Math.max(90, 3.5 * extent) };
 }
 
-/** Metres from the map's centre (`dx`, `dz`) past its half extents, 0 on it (#377). */
-export function beyondPlay(dx: number, dz: number, halfX: number, halfZ: number): number {
-	return Math.hypot(Math.max(Math.abs(dx) - halfX, 0), Math.max(Math.abs(dz) - halfZ, 0));
+/** Metres from the map's centre (`dx`, `dz`) past its half extents, and below the ground (#377, #244). */
+export function beyondPlay(dx: number, dz: number, halfX: number, halfZ: number, y = 0): number {
+	const past = (v: number, half: number) => Math.max(Math.abs(v) - half, 0);
+	return Math.hypot(past(dx, halfX), past(dz, halfZ), past(Math.min(y, 0), PLAY_FOG_DEPTH));
 }
 
 /**

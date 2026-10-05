@@ -8,7 +8,7 @@
 // adopts the renderer and its canvas (`TabletopOptions.warm`, Tabletop.svelte), so entering it
 // compiles less: the pipeline's passes, the overlay and what is unlit or unshadowed are made (r186
 // orders a shadowed lit material's uniforms by what was built before, so those the table builds).
-// Nothing draws while the compiles run, one item at a time (three.js issue 34632). Only public
+// Nothing draws while the compiles run, a chunk at a time (three.js issue 34632). Only public
 // data goes in: the kinds' blanks, no model, environment or adventure, so nothing fetched or
 // compiled here tells where a story goes (#111 G3).
 
@@ -26,6 +26,7 @@ import { createScene, createSceneLights } from './scene-lights';
 import { SkyLayer } from './sky';
 import { initialShape, sameShape, shapeOf, startingSettings, type Shape } from './shape';
 import { TokenLayer } from './tokens';
+import { GridOverlay } from './grid-overlay';
 import { settingsFor, type Tier } from './quality';
 import { frameOverview, warmUp } from './warmup';
 
@@ -82,8 +83,9 @@ export async function warmLobby(
 	const [dice, effects, tokens] = [new DiceLayer(), new EffectsLayer(), new TokenLayer(overlay)];
 	const sky = new SkyLayer(); // the dome and the stars, so a table's sky compiles nothing (#214)
 	const gallery = [...kindGallery(), ...dice.gallery(), ...effects.gallery(), ...sky.gallery()];
-	const marks = tokens.gallery();
-	await warmUp(
+	const grid = new GridOverlay(); // the shader grid and highlight (#245)
+	const marks = [...tokens.gallery(), ...grid.gallery()];
+	const compiled = await warmUp(
 		renderer,
 		camera,
 		[
@@ -94,15 +96,29 @@ export async function warmLobby(
 	);
 	// A compile can't make what only a draw makes (the shadow pass's materials): draw the gallery
 	// twice (effects draw their first two frames), on a canvas nobody sees, the sun's shadow too.
+	// Not after a timed-out compile: the draw would compile all it didn't reach at once, blocking
+	// the page for as long as that takes (a minute on some drivers); the table compiles it instead.
 	scene.add(...gallery);
 	overlay.scene.add(...marks);
-	for (let frame = 0; frame < 2; frame++) {
+	for (let frame = 0; compiled && frame < 2; frame++) {
 		lights.sun.shadow.needsUpdate = true;
 		renderer.info.reset();
 		advanceNodeFrame(renderer);
 		post.render(frame);
 	}
 	const warmupMs = performance.now() - t0;
-	const keep = [scene, overlay, post, lighting, dice, effects, tokens, gallery, cellMaps, sky];
+	const keep = [
+		scene,
+		overlay,
+		post,
+		lighting,
+		dice,
+		effects,
+		tokens,
+		gallery,
+		cellMaps,
+		sky,
+		grid
+	];
 	return { canvas, renderer, shape, warmupMs, keep };
 }

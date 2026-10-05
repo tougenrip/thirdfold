@@ -3785,7 +3785,7 @@
 				"source": "https://ambientcg.com/get?file=PavingStones141_2K-PNG.zip",
 				"modified": true
 			},
-			"pack": "core",
+			"pack": "village",
 			"variants": [
 				{
 					"size": 1024,
@@ -3833,7 +3833,7 @@
 				"source": "https://ambientcg.com/get?file=PavingStones141_2K-PNG.zip",
 				"modified": true
 			},
-			"pack": "core",
+			"pack": "village",
 			"variants": [
 				{
 					"size": 1024,
@@ -3881,7 +3881,7 @@
 				"source": "https://ambientcg.com/get?file=PavingStones141_2K-PNG.zip",
 				"modified": true
 			},
-			"pack": "core",
+			"pack": "village",
 			"variants": [
 				{
 					"size": 1024,
@@ -4073,7 +4073,7 @@
 				"source": "https://ambientcg.com/get?file=PavingStones149_2K-PNG.zip",
 				"modified": true
 			},
-			"pack": "core",
+			"pack": "stone-halls",
 			"variants": [
 				{
 					"size": 1024,
@@ -4121,7 +4121,7 @@
 				"source": "https://ambientcg.com/get?file=PavingStones149_2K-PNG.zip",
 				"modified": true
 			},
-			"pack": "core",
+			"pack": "stone-halls",
 			"variants": [
 				{
 					"size": 1024,
@@ -4169,7 +4169,7 @@
 				"source": "https://ambientcg.com/get?file=PavingStones149_2K-PNG.zip",
 				"modified": true
 			},
-			"pack": "core",
+			"pack": "stone-halls",
 			"variants": [
 				{
 					"size": 1024,
@@ -7758,7 +7758,8 @@
 					"wood",
 					"grass",
 					"dirt",
-					"sand"
+					"sand",
+					"flagstone"
 				],
 				"walls": [
 					"ashlar"
@@ -7794,7 +7795,8 @@
 					"wood",
 					"grass",
 					"dirt",
-					"sand"
+					"sand",
+					"cobble"
 				],
 				"walls": [
 					"plaster"
@@ -8796,8 +8798,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 11144800,
-			"gpuBytes": 31801144
+			"bytes": 10445778,
+			"gpuBytes": 29703988
 		},
 		"ghost-town": {
 			"bytes": 104095,
@@ -8812,12 +8814,12 @@
 			"gpuBytes": 2970969
 		},
 		"stone-halls": {
-			"bytes": 113930,
-			"gpuBytes": 1572867
+			"bytes": 394643,
+			"gpuBytes": 2621445
 		},
 		"village": {
-			"bytes": 574170,
-			"gpuBytes": 4019547
+			"bytes": 992479,
+			"gpuBytes": 5068125
 		}
 	},
 	"decoders": {

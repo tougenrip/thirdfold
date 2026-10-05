@@ -6,12 +6,14 @@
 // and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `local`, `antiTiled`, `vertexColors`, and the kind's
+// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `vertexColors`, and the kind's
 // `transparent`, `side` and alpha test.
 
 import * as THREE from 'three/webgpu';
 import { SLOT_NAMES, slotDefault, slotProperty, type SlotName } from './defaults';
 import { LIFT_ATTRIBUTE } from './variation';
+import { DROP_ATTRIBUTE } from './drop';
+import { NO_DROP } from '../drop-in';
 import { KindPhysicalMaterial, KindStandardMaterial } from './lighting-model';
 import {
 	BAKE_ATTRIBUTE,
@@ -34,6 +36,7 @@ export {
 	worldTime
 } from './kinds';
 export { LIFT_ATTRIBUTE } from './variation';
+export { DROP_ATTRIBUTE, dropHeight, dropNow } from './drop';
 export { liftOf } from './lift';
 export { repeatFor } from './tiling';
 export type { Params, ParamsInput, ShaderKind } from './kinds';
@@ -55,6 +58,8 @@ export interface MaterialOptions {
 	instanced?: boolean;
 	/** Overlay only: a LineBasicNodeMaterial for LineSegments. */
 	lines?: boolean;
+	/** Overlay only: the shader grid and hover highlight (#245), for a twin of a chunk's tops. */
+	grid?: boolean;
 	/**
 	 * Surface, terrain and rock: box mapping in the geometry's own space, not the world's, for a
 	 * mesh that moves (door panels swing, so a world mapping would slide across them; #177).
@@ -65,6 +70,11 @@ export interface MaterialOptions {
 	 * one fetch. A graph of its own, so the tier's pipeline chooses it (#169), never at runtime.
 	 */
 	antiTiled?: boolean;
+	/**
+	 * Terrain and rock: drops in by the geometry's per-vertex start (`DROP_ATTRIBUTE`, #249), for
+	 * the world's chunks. A graph of its own; every geometry it draws must carry the attribute.
+	 */
+	dropped?: boolean;
 	/** Multiplies the geometry's vertex colours in (figure bodies, part-list props). */
 	vertexColors?: boolean;
 	params?: ParamsInput;
@@ -143,14 +153,17 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	const graph = graphFor(kind, {
 		instanced: !!options.instanced,
 		lines,
+		grid: def.base === 'basic' && !lines && !!options.grid,
 		local: !!options.local,
-		antiTiled: !!options.antiTiled
+		antiTiled: !!options.antiTiled,
+		dropped: !!options.dropped
 	});
 	const nodes = material as unknown as Record<string, unknown>;
 	nodes.colorNode = graph.colorNode;
 	nodes.opacityNode = graph.opacityNode;
 	nodes.alphaTestNode = graph.alphaTestNode;
 	nodes.positionNode = graph.positionNode;
+	nodes.castShadowPositionNode = graph.castShadowPositionNode;
 	nodes.outputNode = graph.outputNode;
 	for (const [name, node] of Object.entries(graph.lit ?? {})) if (node) nodes[name] = node;
 	return material;
@@ -204,8 +217,9 @@ export function disposeTwins(material: KindMaterial): void {
 
 /**
  * Gives a geometry what an instanced kind reads per instance: the tint (rgb and strength, all 0)
- * the lift (`LIFT_ATTRIBUTE`, 0; the layer writes `liftOf` each instance's asset and cell), and
- * the paint (`PAINT_ATTRIBUTE`, white; props multiply their albedo by it).
+ * the lift and the drop-in's start (`LIFT_ATTRIBUTE`, (0, none): the layer writes `liftOf` each
+ * instance's asset and cell, and its drop's start, #249) and the paint (`PAINT_ATTRIBUTE`, white;
+ * props multiply their albedo by it).
  */
 export function addInstanceTints(geometry: THREE.BufferGeometry, count: number): void {
 	geometry.setAttribute(
@@ -216,10 +230,16 @@ export function addInstanceTints(geometry: THREE.BufferGeometry, count: number):
 		TINT_ATTRIBUTE,
 		new THREE.InstancedBufferAttribute(new Float32Array(count * 4), 4)
 	);
-	geometry.setAttribute(
-		LIFT_ATTRIBUTE,
-		new THREE.InstancedBufferAttribute(new Float32Array(count), 1)
-	);
+	const lift = new Float32Array(count * 2);
+	for (let i = 0; i < count; i++) lift[i * 2 + 1] = NO_DROP;
+	geometry.setAttribute(LIFT_ATTRIBUTE, new THREE.InstancedBufferAttribute(lift, 2));
+}
+
+/** A per-vertex drop start for a `dropped` material's geometry: none, or `starts` (#249). */
+export function withDrops(geometry: THREE.BufferGeometry, starts?: Float32Array): void {
+	const count = geometry.getAttribute('position').count;
+	const values = starts ?? new Float32Array(count).fill(NO_DROP);
+	geometry.setAttribute(DROP_ATTRIBUTE, new THREE.BufferAttribute(values, 1));
 }
 
 /**

@@ -7,7 +7,11 @@
 import type { GridPos, SquareGrid } from './grid';
 import { rectCells, type CellMask } from './visibility';
 
-/** The floors, by the byte stored for each cell. `plain` (0) is the table's own surface. */
+/**
+ * The floors, by the byte stored for each cell. `plain` (0) is the table's own surface, shown as
+ * "Default ground". Append-only (#248): a save stores the index, so a floor is only ever added at
+ * the end, and every floor after `void` is rule-neutral (moved over and seen through like stone).
+ */
 export const FLOORS = [
 	{ id: 'plain', name: 'Default ground' },
 	{ id: 'stone', name: 'Stone' },
@@ -16,7 +20,13 @@ export const FLOORS = [
 	{ id: 'dirt', name: 'Dirt' },
 	{ id: 'sand', name: 'Sand' },
 	{ id: 'water', name: 'Water' },
-	{ id: 'void', name: 'Off the map' }
+	{ id: 'void', name: 'Off the map' },
+	{ id: 'cobble', name: 'Cobble' },
+	{ id: 'flagstone', name: 'Flagstone' },
+	{ id: 'rock', name: 'Rock' },
+	{ id: 'mud', name: 'Mud' },
+	{ id: 'snow', name: 'Snow' },
+	{ id: 'gravel', name: 'Gravel' }
 ] as const;
 
 export type FloorId = (typeof FLOORS)[number]['id'];

@@ -13,9 +13,10 @@
 // A prop that moves or turns glides to its new place, so a push, a pull or
 // a turn reads the same on every client; motions from the server (a shake,
 // a swing, a landing) play on top. All of it runs on the wall clock
-// (`tick(now)`), only while something is moving.
+// (`tick(now)`), only while something is moving; a new prop drops in (#249).
 
 import * as THREE from 'three/webgpu';
+import { pickable } from './picking';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { MOTION_MS, type MotionKind } from '$lib/game/motion';
 import {
@@ -27,11 +28,15 @@ import {
 	type Prop
 } from '$lib/game/props';
 import type { Light } from '$lib/game/lights';
+import type { CellMask } from '$lib/game/visibility';
+import { Drops, DROP_CELLS, PropDrops } from './drop-in';
 import type { Ground } from './ground';
 import { flameMaterial, flameOf, paintFlame, type FlameLook } from './light-fixtures';
 import {
 	addInstanceTints,
 	createMaterial,
+	dropHeight,
+	dropNow,
 	LIFT_ATTRIBUTE,
 	liftOf,
 	PAINT_ATTRIBUTE,
@@ -102,6 +107,9 @@ export class PropLayer {
 		params: { color: PLACEHOLDER, roughness: 0.9 }
 	});
 	private flameMaterial = flameMaterial();
+	/** The renderer's drops and which props drop (#249). */
+	readonly drops: Drops;
+	private dropping: PropDrops;
 	/** The flame of the light in each cell (`x,y`), which a prop's flame there glows as. */
 	private flames = new Map<string, FlameLook | null>();
 	/** Assets whose model has been asked for. */
@@ -112,7 +120,9 @@ export class PropLayer {
 		private readonly onModel: () => void = () => {},
 		/** The renderer's clock (ms); glides start from it. */
 		private readonly clock: () => number = () => performance.now()
-	) {}
+	) {
+		this.dropping = new PropDrops((this.drops = new Drops(clock, dropNow)));
+	}
 	private meshes = new Map<AssetId, AssetMeshes>();
 	private props: readonly Prop[] = [];
 	private selectedId: string | null = null;
@@ -127,11 +137,18 @@ export class PropLayer {
 	private last: { grid: SquareGrid; ground: Ground | null } | null = null;
 
 	setReducedMotion(reduced: boolean): void {
-		this.reducedMotion = reduced;
+		this.reducedMotion = this.drops.reduced = reduced;
 	}
 
-	sync(props: readonly Prop[], grid: SquareGrid, ground: Ground | null = null): void {
+	/** `known`: the cells the viewer has explored (null: all); only props placed there drop. */
+	sync(
+		props: readonly Prop[],
+		grid: SquareGrid,
+		ground: Ground | null = null,
+		known?: CellMask | null
+	) {
 		const sameTable = this.last?.grid === grid;
+		this.dropping.update(props, grid.width, known ?? null, !sameTable);
 		if (!sameTable) this.anims.clear();
 		// Whatever moved or turned since last time glides there from where it was.
 		if (sameTable && !this.reducedMotion) {
@@ -173,6 +190,7 @@ export class PropLayer {
 
 	/** Advances the animations to `now`. Returns true while any is still playing. */
 	tick(now: number): boolean {
+		this.drops.tick(now); // the drops' clock, and whether one plays (`drops.active`)
 		if (this.anims.size === 0 && this.poses.size === 0) return false;
 		this.poses.clear();
 		for (const [id, list] of this.anims) {
@@ -210,6 +228,7 @@ export class PropLayer {
 		const textured = [...this.meshes.values()].flatMap((m) => m.materials);
 		for (const m of [this.material, this.placeholderMaterial, ...textured])
 			setParams(m, { lift: 1e-3 * grid.cellSize });
+		dropHeight.value = DROP_CELLS * grid.cellSize;
 		const byAsset = new Map<AssetId, Prop[]>(ASSET_IDS.map((id) => [id, []]));
 		for (const p of props) byAsset.get(p.assetId)?.push(p);
 
@@ -257,12 +276,13 @@ export class PropLayer {
 						.multiply(tilt.makeRotationX(angle))
 						.multiply(new THREE.Matrix4().makeTranslation(0, -pivot, 0));
 				}
-				const lift = liftOf(assetId, p.pos);
+				const [lift, drop] = [liftOf(assetId, p.pos), this.dropping.startOf(p.id)];
 				for (const { mesh, swings } of meshes.parts) {
 					part.copy(local);
 					if (angle && swings) part.premultiply(swing);
 					mesh.setMatrixAt(i, out.multiplyMatrices(base, part));
-					(mesh.geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.BufferAttribute).setX(i, lift);
+					const at = mesh.geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.BufferAttribute;
+					at.setXY(i, lift, drop);
 				}
 			});
 			for (const { mesh } of meshes.parts) {
@@ -359,7 +379,7 @@ export class PropLayer {
 			// A copy of its own, to carry this mesh's tints and lifts (#172, #181).
 			const geometry = shared.clone();
 			addInstanceTints(geometry, capacity);
-			const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+			const mesh = pickable(new THREE.InstancedMesh(geometry, material, capacity));
 			mesh.userData.assetId = assetId;
 			mesh.castShadow = mesh.receiveShadow = shadows;
 			mesh.count = 0;

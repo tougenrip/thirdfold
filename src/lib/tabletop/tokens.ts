@@ -19,6 +19,7 @@ import type { Token } from '$lib/game/token';
 import { createMaterial, withBake, type KindMaterial } from './materials';
 import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
 import type { OverlayLayer } from './overlay';
+import { pickable } from './picking';
 import { standIn } from './warmup';
 
 interface Entry {
@@ -351,11 +352,10 @@ export class TokenLayer {
 		root.userData.tokenId = token.id;
 		const look = { opacity: 1 };
 
-		const base = new THREE.Mesh(baseGeometry, this.materials.base);
+		const base = pickable(new THREE.Mesh(baseGeometry, this.materials.base));
 		base.userData.mini = look;
 		base.position.y = 0.04;
-		base.castShadow = true;
-		base.receiveShadow = true;
+		base.castShadow = base.receiveShadow = true;
 		const figure = new THREE.Group();
 		figure.scale.setScalar(FIGURE_SCALE);
 		const label = makeLabel(token.name);
@@ -402,12 +402,12 @@ export class TokenLayer {
 			}
 		const add = (geo: THREE.BufferGeometry, coloured: boolean, y: number, part?: ModelPart) => {
 			const { figure, coloured: tinted } = this.materials;
-			const mesh = new THREE.Mesh(geo, this.materialOf(part) ?? (coloured ? tinted : figure));
+			const material = this.materialOf(part) ?? (coloured ? tinted : figure);
+			const mesh = pickable(new THREE.Mesh(geo, material));
 			mesh.userData.mini = entry.look;
 			if (coloured) mesh.userData.miniColor = entry.colour;
 			mesh.position.y = y;
-			mesh.castShadow = true;
-			mesh.receiveShadow = true;
+			mesh.castShadow = mesh.receiveShadow = true;
 			entry.figure.add(mesh);
 		};
 		if (loaded) {

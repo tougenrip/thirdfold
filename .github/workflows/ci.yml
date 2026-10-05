@@ -36,8 +36,8 @@ jobs:
       # (cooking is by hand or in cook.yml, docs/ASSETS.md "Cooking art").
       - run: npm run assets:cook -- --check
       # Live Supabase tests skip themselves without SUPABASE_* env. The renderer's pixel tests and
-      # golden images are not part of this: they run in rendering.yml, on pull requests that touch
-      # rendering.
+      # golden images are not part of this, nor of any workflow: they run on the owner's machine
+      # (CLAUDE.md, docs/RENDERING.md).
       - run: npm test
       - run: npm run build
       # three.js stays out of every page's static imports; pages and the renderer stay in budget.

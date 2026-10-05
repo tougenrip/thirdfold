@@ -14,10 +14,13 @@
 // but tinted, for the hovered door: swapping between them compiles nothing.
 
 import * as THREE from 'three/webgpu';
+import { pickable } from './picking';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
-import { edgeKey, unitEdges, type Door, type SceneObject } from '$lib/game/objects';
+import { edgeKey, type Door, type SceneObject } from '$lib/game/objects';
 import { wear, type Look } from './environment';
 import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
+import type { CellMask } from '$lib/game/visibility';
+import { wallSpans } from './world/wall-spans';
 import {
 	addInstanceTints,
 	createMaterial,
@@ -30,9 +33,6 @@ import {
 } from './materials';
 
 export { WALL_HEIGHT };
-/** A window's sill and lintel, as fractions of a wall above the floor. */
-const SILL = 0.35;
-const LINTEL = 0.8;
 const WALL_THICKNESS = 0.14;
 const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_MS = 260;
@@ -108,7 +108,13 @@ export class WallLayer {
 	private objects: readonly SceneObject[] = [];
 
 	/** Rebuilds wall instances and diffs doors. Walls change rarely, so a full instance refresh is fine. */
-	sync(objects: readonly SceneObject[], grid: SquareGrid, ground: Ground): void {
+	sync(
+		objects: readonly SceneObject[],
+		grid: SquareGrid,
+		ground: Ground,
+		/** The viewer's explored cells (`knownOf`): no wall shows a drop toward unexplored ground. */
+		known: CellMask | null = null
+	): void {
 		const gridChanged =
 			!this.grid ||
 			this.grid.width !== grid.width ||
@@ -117,7 +123,7 @@ export class WallLayer {
 		this.grid = { ...grid };
 		this.tile();
 		this.objects = objects;
-		this.rebuildWalls(objects, grid, ground);
+		this.rebuildWalls(objects, grid, ground, known);
 
 		const seen = new Set<string>();
 		for (const o of objects) {
@@ -189,41 +195,32 @@ export class WallLayer {
 		this.doorGeometry.dispose();
 	}
 
-	private rebuildWalls(objects: readonly SceneObject[], grid: SquareGrid, ground: Ground): void {
-		// Each unit edge once, even if two walls overlap there; a window is two pieces.
+	private rebuildWalls(
+		objects: readonly SceneObject[],
+		grid: SquareGrid,
+		ground: Ground,
+		known: CellMask | null
+	): void {
+		// Each unit edge once, even if two walls overlap there; a window is two pieces (#239).
 		const units = new Map<string, { owner: string; matrix: THREE.Matrix4 }[]>();
-		const height = WALL_HEIGHT * grid.cellSize;
-		for (const o of objects) {
-			if (o.kind !== 'wall') continue;
-			for (const e of unitEdges(o.a, o.b)) {
-				const key = edgeKey(e);
-				if (units.has(key)) continue;
-				const p = cornerToWorld(grid, e.a);
-				const q = cornerToWorld(grid, e.b);
-				const vertical = e.a.x === e.b.x;
-				const { low, high } = ground.edgeFloors(e);
-				const spans: [number, number][] = o.window
-					? [
-							[low, high + height * SILL],
-							...(high === low ? [[high + height * LINTEL, high + height] as [number, number]] : [])
-						]
-					: [[low, high + height]];
-				units.set(
-					key,
-					spans.map(([bottom, top]) => ({
-						owner: o.id,
-						matrix: new THREE.Matrix4().compose(
-							new THREE.Vector3((p.x + q.x) / 2, (bottom + top) / 2, (p.z + q.z) / 2),
-							new THREE.Quaternion().setFromAxisAngle(
-								new THREE.Vector3(0, 1, 0),
-								vertical ? Math.PI / 2 : 0
-							),
-							// Slightly longer than a cell so corners close up without gaps.
-							new THREE.Vector3(grid.cellSize * (1 + WALL_THICKNESS), top - bottom, grid.cellSize)
-						)
-					}))
-				);
-			}
+		for (const { owner, edge: e, bottom, top } of wallSpans(grid, objects, ground.levels, known)) {
+			const p = cornerToWorld(grid, e.a);
+			const q = cornerToWorld(grid, e.b);
+			const vertical = e.a.x === e.b.x;
+			const key = edgeKey(e);
+			if (!units.has(key)) units.set(key, []);
+			units.get(key)!.push({
+				owner,
+				matrix: new THREE.Matrix4().compose(
+					new THREE.Vector3((p.x + q.x) / 2, (bottom + top) / 2, (p.z + q.z) / 2),
+					new THREE.Quaternion().setFromAxisAngle(
+						new THREE.Vector3(0, 1, 0),
+						vertical ? Math.PI / 2 : 0
+					),
+					// Slightly longer than a cell so corners close up without gaps.
+					new THREE.Vector3(grid.cellSize * (1 + WALL_THICKNESS), top - bottom, grid.cellSize)
+				)
+			});
 		}
 
 		const count = [...units.values()].reduce((n, pieces) => n + pieces.length, 0);
@@ -237,7 +234,9 @@ export class WallLayer {
 			const capacity = Math.max(64, Math.ceil(count * 1.5));
 			this.wallGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
 			addInstanceTints(this.wallGeometry, capacity);
-			this.walls = new THREE.InstancedMesh(this.wallGeometry, this.wallMaterial, capacity);
+			this.walls = pickable(
+				new THREE.InstancedMesh(this.wallGeometry, this.wallMaterial, capacity)
+			);
 			this.walls.castShadow = true;
 			this.walls.receiveShadow = true;
 			this.group.add(this.walls);
@@ -259,7 +258,7 @@ export class WallLayer {
 	private createDoor(door: Door, grid: SquareGrid, key: string, floor: number): DoorEntry {
 		const hinge = cornerToWorld(grid, door.a);
 		const vertical = door.a.x === door.b.x;
-		const panel = new THREE.Mesh(this.doorGeometry, this.doorMaterial);
+		const panel = pickable(new THREE.Mesh(this.doorGeometry, this.doorMaterial));
 		panel.castShadow = true;
 		panel.receiveShadow = true;
 		// The panel extends from the hinge along the edge; rotating the pivot swings it open.

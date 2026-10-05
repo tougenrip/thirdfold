@@ -10,7 +10,8 @@ import { interleavedGradientNoise, mrt, output, screenCoordinate, uniform, vec4 
 import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
 import { DIE_LABELS, seededRandom } from './dice-faces';
-import { worldToGrid, type SquareGrid } from '$lib/game/grid';
+import { gridToWorld, worldToGrid, type SquareGrid } from '$lib/game/grid';
+import { VOID } from '$lib/game/floor';
 import { WALL_HEIGHT, type Ground } from './ground';
 import type { DieKind, ThrownDie } from './dice-throw';
 import { worldTexture } from './materials/texture-quality';
@@ -29,6 +30,65 @@ const DIE_SCALE = 0.9;
 const FLIGHT_S = 1.3;
 const REST_S = 3.2;
 const FADE_S = 0.5;
+
+/**
+ * The height dice rest on at a world point, or null where they may not land (void, off the grid).
+ * The renderer's is `diceSurface`, the drawn floors (#247).
+ */
+export type SurfaceY = (x: number, z: number) => number | null;
+
+/** Where a throw lands and comes from (`throwFromView`), and the surface it lands on. */
+export interface DiceAim {
+	center: THREE.Vector3;
+	from: THREE.Vector3;
+	surface?: SurfaceY;
+}
+
+/** The drawn floor under a point: its cell's `floorY`, null off the grid or on a void cell. */
+export function diceSurface(
+	grid: SquareGrid,
+	ground: Ground | null,
+	floor: Uint8Array | null
+): SurfaceY {
+	return (x, z) => {
+		const cell = worldToGrid(grid, { x, z });
+		if (!cell || floor?.[cell.y * grid.width + cell.x] === VOID) return null;
+		return ground ? ground.floorY(cell) : 0;
+	};
+}
+
+/**
+ * Where a die meant for `(x, z)` (`r` out from `center` along its spiral) lands: there if the surface
+ * holds it, else pulled in along the radius a quarter cell at a time to the first spot that does
+ * (deterministic: no random draws, so every client's throw is the same). Its height is the highest
+ * surface under its centre and four points half a die out, so it never sinks into the face of raised
+ * ground beside it; null if nothing on the way in holds it.
+ */
+export function landing(
+	center: THREE.Vector3,
+	r: number,
+	a: number,
+	surface: SurfaceY,
+	cellSize: number,
+	half: number
+): { x: number; y: number; z: number } | null {
+	const step = cellSize / 4;
+	for (let k = r; ; k = Math.max(0, k - step)) {
+		const x = center.x + Math.cos(a) * k;
+		const z = center.z + Math.sin(a) * k;
+		const y = surface(x, z);
+		if (y !== null) {
+			const around = [
+				[half, 0],
+				[-half, 0],
+				[0, half],
+				[0, -half]
+			].map(([dx, dz]) => surface(x + dx, z + dz) ?? -Infinity);
+			return { x, y: Math.max(y, ...around), z };
+		}
+		if (k === 0) return null;
+	}
+}
 
 interface ActiveDie {
 	root: THREE.Group;
@@ -110,17 +170,12 @@ export class DiceLayer {
 	private standIn: { root: THREE.Group; materials: THREE.Material[] } | null = null;
 
 	/**
-	 * Throws dice from `from` towards `center` (world units, table plane).
-	 * Returns how long until they have all landed, in ms.
+	 * Throws dice from `aim.from` towards `aim.center` (world units; `center.y` the floor there). Each
+	 * lands on `aim.surface` where it falls (#247; flat at `center.y` without one). Returns how long
+	 * until they have all landed, in ms.
 	 */
-	throw(
-		t: DiceThrow,
-		center: THREE.Vector3,
-		from: THREE.Vector3,
-		cellSize: number,
-		instant: boolean,
-		now: number
-	): number {
+	throw(t: DiceThrow, aim: DiceAim, cellSize: number, instant: boolean, now: number): number {
+		const { center, from, surface = () => center.y } = aim;
 		// A new throw sweeps the previous dice off the table.
 		for (const d of this.active) this.remove(d);
 		this.active = [];
@@ -134,7 +189,8 @@ export class DiceLayer {
 			// Golden-angle spiral so dice land near each other without overlapping.
 			const r = cellSize * 1.1 * Math.sqrt(i + 0.3);
 			const a = i * 2.39996 + rand() * 0.6;
-			const to = new THREE.Vector3(center.x + Math.cos(a) * r, 0, center.z + Math.sin(a) * r);
+			const spot = landing(center, r, a, surface, cellSize, size / 2);
+			const to = spot ? new THREE.Vector3(spot.x, 0, spot.z) : center.clone().setY(0);
 			const spread = new THREE.Vector3((rand() - 0.5) * cellSize, 0, (rand() - 0.5) * cellSize);
 			const flight = instant ? 0 : FLIGHT_S + rand() * 0.25;
 			const delay = instant ? 0 : i * 0.06;
@@ -144,7 +200,7 @@ export class DiceLayer {
 				materials,
 				from: from.clone().add(spread),
 				to,
-				restY: center.y + model.inradius * size,
+				restY: (spot?.y ?? center.y) + model.inradius * size,
 				startQ: new THREE.Quaternion().setFromEuler(
 					new THREE.Euler(rand() * 6.3, rand() * 6.3, rand() * 6.3)
 				),
@@ -376,24 +432,37 @@ function brightness(hex: string): number {
 
 /**
  * Where dice land (around what the camera looks at, on the floor there, raised ground included) and
- * where they are thrown from (the viewer's side, above the walls standing on that floor).
+ * where they are thrown from (the viewer's side, above the walls standing on that floor). Where the
+ * camera looks at void or past the grid, around the nearest cell they may land on.
  */
 export function throwFromView(
 	target: THREE.Vector3,
 	cameraPosition: THREE.Vector3,
 	grid: SquareGrid,
-	ground: Ground | null
-): { center: THREE.Vector3; from: THREE.Vector3 } {
+	ground: Ground | null,
+	floor: Uint8Array | null
+): Required<DiceAim> {
 	const cellSize = grid.cellSize;
-	const cell = worldToGrid(grid, target);
-	const floor = cell && ground ? ground.floorY(cell) : 0;
-	const center = new THREE.Vector3(target.x, floor, target.z);
+	const surface = diceSurface(grid, ground, floor); // the drawn floors, no void (#247)
+	const center = new THREE.Vector3(target.x, surface(target.x, target.z) ?? NaN, target.z);
+	if (Number.isNaN(center.y)) {
+		// ponytail: a scan of every cell (10,000 at most), once per throw off the ground.
+		let best = Infinity;
+		center.y = 0;
+		for (let y = 0; y < grid.height; y++)
+			for (let x = 0; x < grid.width; x++) {
+				const w = gridToWorld(grid, { x, y });
+				const d = (w.x - target.x) ** 2 + (w.z - target.z) ** 2;
+				const h = d < best ? surface(w.x, w.z) : null;
+				if (h !== null) [best, center.x, center.y, center.z] = [d, w.x, h, w.z];
+			}
+	}
 	const toward = new THREE.Vector3(cameraPosition.x - center.x, 0, cameraPosition.z - center.z);
 	if (toward.lengthSq() < 1e-6) toward.set(0, 0, 1);
 	toward.normalize().multiplyScalar(cellSize * 5);
 	const from = center
 		.clone()
 		.add(toward)
-		.setY(floor + cellSize * (WALL_HEIGHT + 1)); // above the walls
-	return { center, from };
+		.setY(center.y + cellSize * (WALL_HEIGHT + 1)); // above the walls
+	return { center, from, surface };
 }

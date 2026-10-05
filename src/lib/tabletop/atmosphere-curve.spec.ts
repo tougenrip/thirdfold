@@ -500,6 +500,10 @@ describe('fog', () => {
 		expect(beyondPlay(23, 0, 24, 4)).toBe(0);
 		expect(beyondPlay(0, 7, 24, 4)).toBe(3);
 		expect(beyondPlay(-27, -8, 24, 4)).toBe(5);
+		// Below the ground past a metre counts too (#244): the void a step down does not.
+		expect(beyondPlay(0, 0, 24, 4, -0.4)).toBe(0);
+		expect(beyondPlay(0, 0, 24, 4, -5)).toBe(4);
+		expect(beyondPlay(0, 7, 24, 4, -5)).toBe(5);
 	});
 
 	it('thickens only past the edge, over a wider blend, to the whole haze beyond (#377)', () => {

@@ -18,6 +18,15 @@ export interface Mapping {
 }
 
 /**
+ * A box projection, and the same projection over another source (`on`): its coordinates, face,
+ * tangent frame, anti-tiling and gradients built once for both, so the floors' two surfaces
+ * (floors.ts, #242) share them instead of each building its own: the same values, less code.
+ */
+export interface BoxMapping extends Mapping {
+	on(source: (slot: SlotName, at: N) => N): Mapping;
+}
+
+/**
  * The tangent frame screen-space derivatives of `at` make over `normal` (Schüler, "Normal mapping
  * without precomputed tangents"), as three's own frame does with the mesh's uv, so meshes without
  * tangents warn about nothing. It holds under any instance transform, since both the derivatives
@@ -70,8 +79,9 @@ export function boxMapping(
 	repeat: N,
 	toView: (n: N) => N,
 	antiTiled = false,
-	source: (slot: SlotName, at: N) => N = slotSample
-): Mapping {
+	source: (slot: SlotName, at: N) => N = slotSample,
+	offset: N | null = null
+): BoxMapping {
 	const p = tsl.vec3(position);
 	const n = tsl.vec3(geometric).normalize();
 	const a = n.abs();
@@ -79,29 +89,34 @@ export function boxMapping(
 	const onY = onX.not().and(a.y.greaterThanEqual(a.z));
 	const [sx, sy, sz] = [signOf(n.x), signOf(n.y), signOf(n.z)];
 	const side = (u: N) => tsl.vec2(u.mul(repeat.x), p.y.mul(repeat.y));
-	const at = onX.select(
+	const boxed = onX.select(
 		side(p.z.mul(sx).negate()),
 		onY.select(tsl.vec2(p.x, p.z.mul(sy).negate()).mul(repeat.x), side(p.x.mul(sz)))
 	);
+	const at = offset ? boxed.add(offset) : boxed;
 	const tangent = onX.select(tsl.vec3(0, 0, sx.negate()), tsl.vec3(onY.select(1, sz), 0, 0));
 	const bitangent = onY.select(tsl.vec3(0, 0, sy.negate()), tsl.vec3(0, 1, 0));
 	const tiles = antiTiled ? antiTile(at) : null;
-	const fetch = (slot: SlotName): N => {
-		if (!tiles) return source(slot, at);
-		const a = source(slot, at.add(tiles.a)) as N & { node?: N };
-		// A slot's texture node is its reference's; a source may give the texture node itself.
-		const node = (a.node ?? a) as N & { gradNode: N[] };
-		node.gradNode = [at.dFdx(), at.dFdy()];
-		// A clone of the same texture node, so both fetches bind the slot once (TextureNode.sample).
-		return tsl.mix(a, node.sample(at.add(tiles.b)), tiles.blend);
+	const gradients = tiles ? [at.dFdx(), at.dFdy()] : [];
+	const on = (from: (slot: SlotName, at: N) => N): Mapping => {
+		const fetch = (slot: SlotName): N => {
+			if (!tiles) return from(slot, at);
+			const a = from(slot, at.add(tiles.a)) as N & { node?: N };
+			// A slot's texture node is its reference's; a source may give the texture node itself.
+			const node = (a.node ?? a) as N & { gradNode: N[] };
+			node.gradNode = gradients;
+			// A clone of the same texture node, so both fetches bind the slot once (TextureNode.sample).
+			return tsl.mix(a, node.sample(at.add(tiles.b)), tiles.blend);
+		};
+		return {
+			sample: fetch,
+			normal() {
+				const t = fetch('normal').xyz.mul(2).sub(1);
+				return toView(tangent.mul(t.x).add(bitangent.mul(t.y)).add(n.mul(t.z))).normalize();
+			}
+		};
 	};
-	return {
-		sample: fetch,
-		normal() {
-			const t = fetch('normal').xyz.mul(2).sub(1);
-			return toView(tangent.mul(t.x).add(bitangent.mul(t.y)).add(n.mul(t.z))).normalize();
-		}
-	};
+	return { ...on(source), on };
 }
 
 /**
@@ -111,15 +126,17 @@ export function boxMapping(
 export const worldBox = (
 	repeat: N,
 	antiTiled = false,
-	source?: (slot: SlotName, at: N) => N
-): Mapping =>
+	source?: (slot: SlotName, at: N) => N,
+	offset: N | null = null
+): BoxMapping =>
 	boxMapping(
 		tsl.positionWorld,
 		tsl.normalWorldGeometry,
 		repeat,
 		(n) => n.transformDirection(tsl.cameraViewMatrix),
 		antiTiled,
-		source
+		source,
+		offset
 	);
 
 /** Box projection in the geometry's own space: a door panel's texture swings with it. */

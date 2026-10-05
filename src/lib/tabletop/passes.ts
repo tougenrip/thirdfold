@@ -3,6 +3,7 @@
 // what it reads drawn first.
 
 import * as THREE from 'three/webgpu';
+import * as T from 'three/tsl';
 import { GRADE_TONE_MAPPER, type ToneMapper } from '../assets/manifest';
 import { aoKind, needsPrepass, type AaMode, type AoKind, type QualitySettings } from './quality';
 
@@ -43,6 +44,11 @@ export interface PassTarget {
 	renderTarget: THREE.RenderTarget;
 	/** Null for a pass with one output (the overlay's). */
 	mrt: THREE.MRTNode | null;
+	/**
+	 * The pass, whose context (the scene pass's AO) changes what its lit materials compile to, and
+	 * whose `drawsFirst` (the prepass and the AO) must not draw while they compile (`drawnFirst`).
+	 */
+	pass?: THREE.PassNode;
 }
 
 /**
@@ -97,3 +103,35 @@ export class ScenePassNode extends THREE.PassNode {
 		return super.updateBefore(frame);
 	}
 }
+
+type Flow = { getFlowContextData(): Record<string, unknown> };
+type Cached = {
+	_contextNodeCache: { version: number; context: THREE.ContextNode<unknown> } | null;
+};
+
+/**
+ * The context `pass` draws its materials in, or null without one: the very node
+ * `PassNode.updateBefore` makes and caches (three r186's `_contextNodeCache`, made here first if
+ * it has not drawn yet), so a warm-up compiles the render objects a draw then finds.
+ */
+export function passContext(
+	renderer: THREE.WebGPURenderer,
+	pass: THREE.PassNode
+): THREE.ContextNode<unknown> | null {
+	if (!pass.contextNode) return null;
+	const p = pass as unknown as Cached & { version: number };
+	if (p._contextNodeCache?.version !== p.version) {
+		const flow = (node: THREE.ContextNode<unknown>) =>
+			(node as unknown as Flow).getFlowContextData();
+		const context = T.context({ ...flow(renderer.contextNode), ...flow(pass.contextNode) });
+		p._contextNodeCache = { version: p.version, context };
+	}
+	return p._contextNodeCache!.context;
+}
+
+/**
+ * What `pass` draws first (the scene pass's prepass and AO): a compile runs its materials' nodes'
+ * `updateBefore`, so while they compile in the AO's context each would draw the whole prepass.
+ */
+export const drawnFirst = (pass: THREE.PassNode): readonly THREE.Node[] =>
+	pass instanceof ScenePassNode ? pass.drawsFirst : [];

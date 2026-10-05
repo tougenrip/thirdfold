@@ -29,7 +29,8 @@ const BUDGETS = {
 	// from it), 98,180 B measured. → 98.4: the shared chunk after M68's close (the pool's removal
 	// and the hero slots' assignment moving out of light-model.ts) measures just over 98.3 kB.
 	// → 99.2: both of those together, once main's M68 is merged into the rules track, 99,159 B measured.
-	'/builder': { total: 99_200, own: 52_000 },
+	// → 99.3: and main's M69 (the world) beside them, 99,217 B measured.
+	'/builder': { total: 99_300, own: 52_000 },
 	'/credits': { total: 54_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
@@ -74,11 +75,41 @@ const BUDGETS = {
 	// assignment); set to the merged build's measured size. → 382.9: M67's pool of 8 point lights
 	// and the `manylights` layer removed at M68's close; 382.8 kB measured.
 	// → the tier refined only from steady frames (models settled, no warm-up gallery): 383.0.
-	renderer: { total: 383_000 },
+	// → M69 raises it per PR to the measured size, capped at about 393 kB (the owner's decision):
+	// walls from the world shape's wall spans (#239), 383.2; cells picked by the DDA, things on the
+	// pick layer (#246), 383.7; dice and pooled previews on the ground (#247), 384.7 (384,615 B measured);
+	// the ground in chunks (#240: the dual-grid emitter, the world layer and the saddles' canStep),
+	// 390.0 (389.9 kB measured; the owner's M69 cap is about 393). → 386.1: the world's builders
+	// moved to their own chunk (`world` below, the owner's decision); 386,062 B measured.
+	// → 386.3: what lies beyond the grid (#244: the landscape layer, the fog's depth term, its
+	// builders in `world`); 386,226 B measured. → the cliffs' rock kind (#241: biplanar on low,
+	// `worldModify` reading the cell behind a face, the layer's faces by style); set to the merged
+	// build's measured size.
+	// → floors blended per pixel (#242: the splat in the terrain kind's graph); set to the merged
+	// build's measured size.
+	// → the shader grid (#245: its node, the twins, the modes and the highlight's patterns); set
+	// to the merged build's measured size.
+	// → 389.8: the void's chasms (#243: the void's floor in the world layer, its mist and clock,
+	// the surface kind's flow, picks into the void); 389,798 B measured.
+
+	// → drop-in (#249: the drops' clock, which props drop, the vertex node and its shadow rest);
+	// set to the merged build's measured size.
+	// → 390.0: M69's close deleted the old raised-cell boxes, the play plane, the `LineSegments` grid,
+	// the highlight plane and the `terrain` layer; 389,901 B measured. → 390.2: the M69 load fix
+	// (warm-ups compile in parallel chunks in each pass's context, the floors' box shared);
+	// 390,193 B measured.
+	renderer: { total: 390_300 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
-	probes: { total: 5_000 }
+	probes: { total: 5_000 },
+	// The world's builders (M69: world/build.ts, the shape, dual cases, regions, the ground's
+	// emitter and the builders to come), fetched with the renderer and awaited by the table;
+	// 5,166 B measured. → 7.8: the backdrop beyond the grid (#244: the skirt, the silhouettes and
+	// their recipes); 7,762 B measured. → the cliffs and risers (#241, world/cliffs.ts); set to the
+	// merged build's measured size. → 10.4: the void's chasms (#243, world/chasm.ts and the
+	// ground's void floor); 10,369 B measured.
+	world: { total: 10_400 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
@@ -199,6 +230,17 @@ else {
 	const { gz } = total(own);
 	log('probes (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.probes.total).padStart(10));
 	if (gz > BUDGETS.probes.total) failures.push(`the probe grid is ${kb(gz)} gz, over budget`);
+}
+// The world's builders (tabletop/world/build.ts) likewise: with every table, never in its closure.
+const worldKey = Object.keys(manifest).find((k) => k.endsWith('src/lib/tabletop/world/build.ts'));
+if (!worldKey) failures.push("the world's builders are not a chunk of their own");
+else if (rendererFiles.has(manifest[worldKey].file))
+	failures.push("the renderer statically imports the world's builders");
+else {
+	const own = [...closure(worldKey)].filter((f) => !rendererFiles.has(f) && !roomFiles.has(f));
+	const { gz } = total(own);
+	log('world (added)'.padEnd(18), kb(gz).padStart(21), kb(BUDGETS.world.total).padStart(10));
+	if (gz > BUDGETS.world.total) failures.push(`the world's builders are ${kb(gz)} gz, over budget`);
 }
 for (const f of rendererFiles) {
 	const text = readFileSync(`${OUT}/${f}`, 'utf8');

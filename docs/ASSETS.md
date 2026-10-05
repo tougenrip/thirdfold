@@ -226,6 +226,9 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   in layer order, and the walls' (the walls wear the first).
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
+  - What lies beyond the grid (the skirt to the horizon and the far silhouettes, #244) is a
+    procedural recipe keyed by the environment's id in `src/lib/tabletop/world/recipes.ts`, not
+    manifest data; it wears the environment's own materials (docs/RENDERING.md "Beyond the grid").
 
 - **A sky** (#213) is `assets/skies/<id>.json`, procedural (no textures: the `sky` texture class
   stays unused), built into the manifest's `skies` inline and checked by `sky-parse.ts` both when
@@ -359,9 +362,12 @@ cooked at the 512 px base and its 1K and 2K variants (see Texture detail).
 ### The surface library (#187)
 
 Every floor a GM can paint with a look of its own (stone, wood, grass, dirt, sand: `SURFACE_FLOORS`
-in `scenes.ts`, a surface's id being its floor's; plain is the table's own, water is drawn as water,
-the void is nothing), every wall surface the environments wear (plaster, ashlar, planks, cave-rock) and the rest of #187's library (the floors #248 will add, the walls and roofs kits will wear) is a
-painted surface, repainted from a CC0 scan (docs/ART.md section 11):
+in `scenes.ts`, a surface's id being its floor's, required of every environment with surfaces; plain is
+the table's own, water is drawn as water, the void is nothing; #248's cobble, flagstone, rock, mud, snow
+and gravel are optional, listed where the table budgets allow: cobble in the village, flagstone in the
+stone halls, the rest drawn in their `FLOOR_LOOKS` tint), every wall surface the environments wear
+(plaster, ashlar, planks, cave-rock) and the rest of #187's library (the walls and roofs kits will
+wear) is a painted surface, repainted from a CC0 scan (docs/ART.md section 11):
 
 1. `art/surfaces/<id>/meta.json` holds the set's `provenance` (`CC0-1.0`, the download's URL and
    SHA-256 as its `source`, `modified: true`), its `ramp` (docs/ART.md "Surface ramps", which
@@ -398,7 +404,9 @@ upload refuses RGBA), and the terrain
 kind samples them (`materials/floors.ts`): global array nodes whose textures `wearFloors` swaps, a
 blank array standing in until they load, and each floor's layer from the ground map's floor byte,
 so every floor of a table is still one draw and nothing compiles when a table, a floor or its
-surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. The walls wear their
+surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. Since #242 the floors round
+each fragment are blended from the same arrays, by the height in the albedo's alpha (docs/RENDERING.md,
+"Floors blended per pixel"): no new art and no new texture, the height the stylise step already writes. The walls wear their
 surface's three maps in the wall material's slots.
 
 ## Texture detail
