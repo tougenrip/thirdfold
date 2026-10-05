@@ -42,10 +42,15 @@ export function prefetchRenderer(): void {
 	else setTimeout(start, 500);
 }
 
-/** Makes and warms up the renderer the first table adopts (lobby.ts); null where it can't. */
+/**
+ * Makes and warms up the renderer the first table adopts (lobby.ts); null where it can't, or on a
+ * timed page (`?perf`), whose table throws it away (Tabletop.svelte): warming one there only
+ * kept the table waiting for a renderer nobody used.
+ */
 export function warmRenderer(): Promise<WarmRenderer | null> {
+	const timed = typeof location !== 'undefined' && new URLSearchParams(location.search).has('perf');
 	warming ??= loadRenderer()
-		.then(({ warmLobby }) => warmLobby())
+		.then(({ warmLobby }) => (timed ? null : warmLobby()))
 		.catch(() => null);
 	return warming;
 }

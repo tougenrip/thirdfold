@@ -33,3 +33,13 @@ it('makes no renderer when a table took before the idle prefetch ran', async () 
 	await vi.runAllTimersAsync();
 	expect(warmLobby).toHaveBeenCalledOnce();
 });
+
+it('makes no renderer on a timed page, whose table would throw it away', async () => {
+	vi.stubGlobal('location', { search: '?perf&tier=high' });
+	const { prefetchRenderer, takeWarmRenderer } = await import('./load');
+	prefetchRenderer();
+	await vi.runAllTimersAsync();
+	expect(await takeWarmRenderer()).toBeNull();
+	expect(warmLobby).not.toHaveBeenCalled();
+	vi.unstubAllGlobals();
+});
