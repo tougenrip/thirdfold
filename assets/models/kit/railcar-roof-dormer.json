@@ -1,0 +1,20 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [0.5, 0.5, 0.45], "at": [0, 2.3, 0.2], "material": "railcar-wall" },
+		{ "shape": "box", "size": [0.3, 0.26, 0.02], "at": [0, 2.3, 0.43], "color": "#5d6a78" },
+		{
+			"shape": "box",
+			"size": [0.62, 0.06, 0.55],
+			"at": [-0.15, 2.66, 0.2],
+			"turn": [0, 0, 0.6],
+			"material": "tin-roof"
+		},
+		{
+			"shape": "box",
+			"size": [0.62, 0.06, 0.55],
+			"at": [0.15, 2.66, 0.2],
+			"turn": [0, 0, -0.6],
+			"material": "tin-roof"
+		}
+	]
+}

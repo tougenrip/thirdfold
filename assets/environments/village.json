@@ -4,7 +4,7 @@
 	"ground": "village-earth",
 	"walls": "plaster",
 	"sky": "temperate",
-	"kit": "plain",
+	"kit": "village",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand", "cobble"],
 		"walls": ["plaster"]

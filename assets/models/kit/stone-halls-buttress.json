@@ -1,0 +1,12 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [0.2, 1.2, 0.4], "at": [0, 0.6, 0.1], "material": "monastery-stone" },
+		{
+			"shape": "box",
+			"size": [0.2, 0.7, 0.25],
+			"at": [0, 1.55, 0.025],
+			"material": "monastery-stone"
+		},
+		{ "shape": "box", "size": [0.2, 0.06, 0.4], "at": [0, 1.2, 0.1], "color": "#b8ae98" }
+	]
+}

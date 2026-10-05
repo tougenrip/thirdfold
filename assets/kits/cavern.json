@@ -1,0 +1,43 @@
+{
+	"name": "Cavern",
+	"roof": null,
+	"presumeRoofs": false,
+	"pieces": {
+		"wall.straight": [
+			{ "model": "cavern-wall-rough" },
+			{ "model": "cavern-wall-ancient", "weight": 0.6 }
+		],
+		"wall.outer": [{ "model": "cavern-wall-outer" }],
+		"wall.retaining": [{ "model": "cavern-wall-retaining" }],
+		"wall.boundary": [{ "model": "cavern-wall-boundary" }],
+		"cap": [{ "model": "cavern-cap" }],
+		"plinth": [{ "model": "cavern-plinth" }],
+		"window.frame": [{ "model": "cavern-window-frame" }],
+		"window.sill": [{ "model": "cavern-window-sill" }],
+		"window.glass": [{ "model": "cavern-window-glass" }],
+		"door.frame": [{ "model": "cavern-door-frame" }],
+		"door.leaf": [{ "model": "cavern-door-leaf" }],
+		"stair.riser": [{ "model": "cavern-stair-riser" }],
+		"stair.side": [{ "model": "cavern-stair-side" }],
+		"railing": [{ "model": "cavern-railing" }],
+		"cliff.face": [{ "model": "cavern-cliff-face" }],
+		"cliff.corner": [{ "model": "cavern-cliff-corner" }],
+		"bridge.deck": [{ "model": "cavern-bridge-deck" }],
+		"bridge.pier": [{ "model": "cavern-bridge-pier" }],
+		"post.end": [{ "model": "cavern-post-end" }],
+		"post.L": [{ "model": "cavern-post-l" }],
+		"post.T": [{ "model": "cavern-post-t" }],
+		"post.X": [{ "model": "cavern-post-x" }],
+		"arch": [{ "model": "cavern-arch" }]
+	},
+	"floors": {
+		"stone": {
+			"tiles": [
+				{ "model": "cavern-hewn-a" },
+				{ "model": "cavern-hewn-b" },
+				{ "model": "cavern-hewn-c" }
+			],
+			"broken": [{ "model": "cavern-hewn-broken" }]
+		}
+	}
+}

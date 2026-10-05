@@ -4,7 +4,7 @@
 // in by KIT_PENDING. The clearance rule through the world's harness is in
 // src/lib/tabletop/world/kit-clearance.spec.ts.
 
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -36,6 +36,10 @@ import { buildAssets, type BuiltAssets } from './pipeline';
 import { checkScenes, KIT_PENDING } from './scenes';
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
+
+/** The roles every greybox kit fills: all but the stone halls' own and the roofs. */
+const GREYBOX_ROLES =
+	/^(wall\.|cap$|plinth|post\.|window\.|door\.|stair\.|railing|bridge\.|cliff\.)/;
 
 let built: BuiltAssets;
 beforeAll(async () => {
@@ -131,13 +135,36 @@ describe('parseKit', () => {
 });
 
 describe('the built kits', () => {
-	it('are the plain kit, named by every built-in environment', () => {
-		expect(built.manifest.kits).toEqual({
-			[PLAIN_KIT]: { name: 'Plain', roof: null, presumeRoofs: false, pieces: {}, floors: {} }
+	it('give every built-in environment a greybox kit of its own, and leave plain procedural', () => {
+		expect(built.manifest.kits[PLAIN_KIT]).toEqual({
+			name: 'Plain',
+			roof: null,
+			presumeRoofs: false,
+			pieces: {},
+			floors: {}
 		});
-		for (const [id, env] of Object.entries(built.manifest.environments))
-			expect(env.kit, id).toBe(PLAIN_KIT);
-		expect([...KIT_PENDING].sort()).toEqual(Object.keys(built.manifest.environments).sort());
+		expect(KIT_PENDING.size).toBe(0);
+		for (const [id, env] of Object.entries(built.manifest.environments)) {
+			const kit = built.manifest.kits[env.kit!];
+			expect(env.kit, id).not.toBe(PLAIN_KIT);
+			// Every role the rules can ask a table of, so a GM's own table finds pieces too.
+			for (const role of KIT_ROLES.filter((r) => GREYBOX_ROLES.test(r)))
+				expect(kit.pieces[role]?.length, `${id} ${role}`).toBeGreaterThan(0);
+			// Roofs where the look has them, all six roles.
+			for (const role of KIT_ROLES.filter((r) => r.startsWith('roof.')))
+				expect(!!kit.pieces[role], `${id} ${role}`).toBe(kit.roof !== null);
+			// Every piece is a thirdfold original within the kit budget.
+			for (const p of [
+				...Object.values(kit.pieces).flat(),
+				...Object.values(kit.floors).flatMap((f) => [...f!.tiles, ...f!.broken])
+			]) {
+				const model = built.manifest.models[p!.model];
+				expect(model.credit.license, p!.model).toBe('LicenseRef-thirdfold-original');
+				expect(model.triangles, p!.model).toBeLessThanOrEqual(1_500);
+			}
+		}
+		// No built-in table is short of a role.
+		expect(checkScenes(built.manifest).filter((p) => p.includes('kit'))).toEqual([]);
 	});
 
 	it('are checked by parseManifest, which refuses an unknown kit or a bad piece', () => {
@@ -166,11 +193,6 @@ describe('the pipeline on kits', () => {
 		dir = mkdtempSync(path.join(tmpdir(), 'thirdfold-kits-'));
 		cpSync('assets', dir, { recursive: true });
 		const kitDir = path.join(dir, 'models', 'kit');
-		mkdirSync(kitDir);
-		cpSync(
-			path.join(dir, 'models', 'prop', '_provenance.json'),
-			path.join(kitDir, '_provenance.json')
-		);
 		const wall = (z: number) => ({
 			parts: [{ shape: 'box', size: [1, 2, z], at: [0, 1, 0], color: '#8a8a8a' }]
 		});
@@ -273,20 +295,20 @@ describe('role coverage', () => {
 		);
 	});
 
-	it('fails a table whose kit lacks a role, once its environment is off KIT_PENDING', () => {
+	it('fails a table whose kit lacks a role, and an environment on plain or pending', () => {
 		const m = copy(built.manifest);
 		m.kits.halls = { ...m.kits.plain, pieces: { 'wall.straight': [{ model: 'x' }] } };
 		m.environments['stone-halls'].kit = 'halls';
-		const pending = new Set([...KIT_PENDING].filter((id) => id !== 'stone-halls'));
-		expect(checkScenes(m)).toContain(
-			'environment stone-halls: has the kit "halls"; take it off KIT_PENDING'
-		);
-		const problems = checkScenes(m, pending);
+		const problems = checkScenes(m);
 		expect(problems).toContain('hollow-bell: monastery: the kit "halls" has no cap piece');
 		expect(problems).toContain('hollow-bell: monastery: the kit "halls" has no stair.riser piece');
 		expect(problems.some((p) => p.includes('wall.straight'))).toBe(false);
-		// Back on plain but off the list: it needs a kit of its own.
-		expect(checkScenes(built.manifest, pending)).toEqual([
+		expect(checkScenes(m, new Set(['stone-halls']))).toContain(
+			'environment stone-halls: has the kit "halls"; take it off KIT_PENDING'
+		);
+		// Back on plain: it needs a kit of its own.
+		m.environments['stone-halls'].kit = PLAIN_KIT;
+		expect(checkScenes(m)).toEqual([
 			'environment stone-halls: on the plain kit; it needs a kit of its own (#261)'
 		]);
 	});

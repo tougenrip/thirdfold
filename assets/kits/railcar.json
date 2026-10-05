@@ -1,0 +1,58 @@
+{
+	"name": "Railcar",
+	"roof": { "style": "gable", "pitch": 15, "eave": 0.12, "material": "tin-roof" },
+	"presumeRoofs": false,
+	"pieces": {
+		"wall.straight": [
+			{ "model": "railcar-wall-panelled" },
+			{ "model": "railcar-wall-boarded", "weight": 0.5 }
+		],
+		"wall.outer": [{ "model": "railcar-wall-outer" }],
+		"wall.retaining": [{ "model": "railcar-wall-retaining" }],
+		"wall.boundary": [{ "model": "railcar-wall-boundary" }],
+		"cap": [{ "model": "railcar-cap" }],
+		"plinth": [{ "model": "railcar-plinth" }],
+		"window.frame": [{ "model": "railcar-window-frame" }],
+		"window.sill": [{ "model": "railcar-window-sill" }],
+		"window.glass": [{ "model": "railcar-window-glass" }],
+		"door.frame": [{ "model": "railcar-door-frame" }],
+		"door.leaf": [{ "model": "railcar-door-leaf" }],
+		"stair.riser": [{ "model": "railcar-stair-riser" }],
+		"stair.side": [{ "model": "railcar-stair-side" }],
+		"railing": [{ "model": "railcar-railing" }],
+		"cliff.face": [{ "model": "railcar-cliff-face" }],
+		"cliff.corner": [{ "model": "railcar-cliff-corner" }],
+		"bridge.deck": [{ "model": "railcar-bridge-deck" }],
+		"bridge.pier": [{ "model": "railcar-bridge-pier" }],
+		"post.end": [{ "model": "railcar-post-end" }],
+		"post.L": [{ "model": "railcar-post-l" }],
+		"post.T": [{ "model": "railcar-post-t" }],
+		"post.X": [{ "model": "railcar-post-x" }],
+		"roof.eave": [{ "model": "railcar-roof-eave" }],
+		"roof.ridge": [{ "model": "railcar-roof-ridge" }],
+		"roof.hip": [{ "model": "railcar-roof-hip" }],
+		"roof.corner": [{ "model": "railcar-roof-corner" }],
+		"roof.chimney": [
+			{ "model": "railcar-roof-chimney", "sockets": [{ "kind": "smoke", "at": [0.2, 3.5, 0] }] }
+		],
+		"roof.dormer": [{ "model": "railcar-roof-dormer" }]
+	},
+	"floors": {
+		"plain": {
+			"tiles": [
+				{ "model": "railcar-planks-a" },
+				{ "model": "railcar-planks-b" },
+				{ "model": "railcar-planks-c" }
+			],
+			"broken": [{ "model": "railcar-planks-broken" }]
+		},
+		"wood": {
+			"tiles": [
+				{ "model": "railcar-planks-a" },
+				{ "model": "railcar-planks-b" },
+				{ "model": "railcar-planks-c" }
+			],
+			"broken": [{ "model": "railcar-planks-broken" }]
+		}
+	}
+}

@@ -1,0 +1,3 @@
+{
+	"parts": [{ "shape": "box", "size": [1, 0.12, 0.2], "at": [0, 1.94, 0], "material": "cave-rock" }]
+}

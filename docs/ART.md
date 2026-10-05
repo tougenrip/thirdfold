@@ -242,6 +242,12 @@ What #250 enforces (`src/lib/assets/kit.ts`; the roles and their envelopes in do
   heads), plinths and relief within the 0.07 u. Nothing on an edge rises over the wall's 2.0 u
   but a post's finial (0.15 u); crenels are cut into the wall's top, never merlons added above it.
 
+**Greybox kits** (#261) are every built-in environment's kit until authored art replaces it, role
+by role: part lists made by `scripts/make-kits.ts`, in the environment's colours from the surface
+ramps (section 4), within every envelope above and at most 1,500 triangles a piece (docs/ASSETS.md,
+"Greybox kits"). Chunkiness comes from courses, boards, frames and footings within 0.07 u, never
+from thickness; a brief for an authored kit (section 16) starts from the greybox kit's roles.
+
 ## 9. Naming
 
 - **Ids describe looks, never story roles.** The manifest, credits and thumbnails are public, so

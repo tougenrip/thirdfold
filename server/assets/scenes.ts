@@ -73,8 +73,8 @@ function atDetails(entry: TextureEntry | ModelEntry): { download: PerDetail; gpu
 
 /**
  * Sums the files a table needs, each once however often it is used: the environment's materials'
- * maps, its surfaces, its grades for the tone mapper in use, and the models with their preview and
- * the materials they wear; plus the Basis transcoder once when any of it is KTX2 or cooked.
+ * maps, its surfaces, its grades for the tone mapper in use, its kit's pieces, and the models with
+ * their preview and the materials they wear; plus the Basis transcoder once when any of it is KTX2 or cooked.
  */
 export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 	const textures = new Set<string>();
@@ -100,7 +100,15 @@ export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 		}
 	};
 	let basis = false;
-	for (const id of new Set(refs.models)) {
+	// The environment's kit pieces (#261): a table may draw any of them.
+	const kit = env?.kit ? manifest.kits[env.kit] : undefined;
+	const pieces = kit
+		? [
+				...Object.values(kit.pieces).flat(),
+				...Object.values(kit.floors).flatMap((f) => [...(f?.tiles ?? []), ...(f?.broken ?? [])])
+			].map((p) => p!.model)
+		: [];
+	for (const id of new Set([...refs.models, ...pieces])) {
 		const m = manifest.models[id];
 		if (!m) continue;
 		add(m, m.preview?.bytes ?? 0);
@@ -166,19 +174,11 @@ export const SURFACE_FLOORS = FLOOR_IDS.slice(0, FLOOR_IDS.indexOf('void')).filt
 );
 
 /**
- * The built-in environments still on the `plain` kit (every role procedural) until their greybox
- * kits land (#261), which empties this. Role coverage holds for every other kit; an environment
- * leaves this list when it names a kit of its own and may never come back to `plain`, so the
- * check only ever tightens.
+ * The built-in environments still on the `plain` kit (every role procedural). Empty since every
+ * built-in environment got its greybox kit (#261); an environment may never come back to `plain`,
+ * so role coverage holds for every built-in table.
  */
-export const KIT_PENDING: ReadonlySet<string> = new Set([
-	'cavern',
-	'ghost-town',
-	'living-cave',
-	'railcar',
-	'stone-halls',
-	'village'
-]);
+export const KIT_PENDING: ReadonlySet<string> = new Set<string>();
 
 /**
  * What the stories' tables refer to that the manifest lacks, or that goes over a budget, an

@@ -4,7 +4,7 @@
 	"ground": "rail-ballast",
 	"walls": "weathered-wood",
 	"sky": "desert-night",
-	"kit": "plain",
+	"kit": "ghost-town",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["planks"]

@@ -1,0 +1,38 @@
+{
+	"parts": [
+		{
+			"shape": "box",
+			"size": [0.16, 1.5, 0.12],
+			"at": [-0.42, 0.75, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.16, 1.5, 0.12],
+			"at": [0.42, 0.75, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.44, 0.24, 0.13],
+			"at": [-0.25, 1.657, 0],
+			"turn": [0, 0, 0.7],
+			"color": "#7a766c"
+		},
+		{
+			"shape": "box",
+			"size": [0.44, 0.24, 0.13],
+			"at": [0.25, 1.657, 0],
+			"turn": [0, 0, -0.7],
+			"color": "#7a766c"
+		},
+		{
+			"shape": "box",
+			"size": [0.13, 0.13, 0.13],
+			"at": [0, 1.787, 0],
+			"turn": [0, 0, 0.785],
+			"color": "#7a766c"
+		},
+		{ "shape": "box", "size": [1, 0.25, 0.12], "at": [0, 1.875, 0], "material": "ancient-stone" }
+	]
+}

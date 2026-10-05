@@ -1,0 +1,65 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [0.98, 2, 0.1], "at": [0, 1, 0], "color": "#3f3e46" },
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.136],
+			"at": [-0.25, 0.25, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.14],
+			"at": [0.25, 0.25, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.131],
+			"at": [-0.375, 0.75, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.123],
+			"at": [0, 0.75, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.129],
+			"at": [0.375, 0.75, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.13],
+			"at": [-0.25, 1.25, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.138],
+			"at": [0.25, 1.25, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.134],
+			"at": [-0.375, 1.75, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.124],
+			"at": [0, 1.75, 0],
+			"material": "ancient-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.127],
+			"at": [0.375, 1.75, 0],
+			"material": "ancient-stone"
+		}
+	]
+}

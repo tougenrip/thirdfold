@@ -179,6 +179,7 @@ export function checkCredits(manifest: Manifest, adventures: readonly AdventureD
 		material: manifest.materials,
 		surface: manifest.surfaces,
 		environment: manifest.environments,
+		kit: manifest.kits,
 		sky: manifest.skies,
 		audio: manifest.audio,
 		pack: manifest.packs
@@ -193,6 +194,7 @@ export function checkCredits(manifest: Manifest, adventures: readonly AdventureD
 	for (const [id, t] of Object.entries(manifest.textures)) file(`texture ${id}`, t.credit);
 	for (const [id, a] of Object.entries(manifest.audio)) file(`audio ${id}`, a.credit);
 	for (const [id, e] of Object.entries(manifest.environments)) check(`environment ${id}`, e.name);
+	for (const [id, k] of Object.entries(manifest.kits)) check(`kit ${id}`, k.name);
 	for (const [id, s] of Object.entries(manifest.skies)) {
 		check(`sky ${id}`, s.name);
 		file(`sky ${id}`, s.credit);

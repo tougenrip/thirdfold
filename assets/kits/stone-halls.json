@@ -1,0 +1,80 @@
+{
+	"name": "Stone halls",
+	"roof": { "style": "gable", "pitch": 40, "eave": 0.2, "material": "slate" },
+	"presumeRoofs": false,
+	"pieces": {
+		"wall.straight": [
+			{ "model": "stone-halls-wall-ashlar-a" },
+			{ "model": "stone-halls-wall-ashlar-b", "weight": 0.6 }
+		],
+		"wall.outer": [{ "model": "stone-halls-wall-outer" }],
+		"wall.retaining": [{ "model": "stone-halls-wall-retaining" }],
+		"wall.boundary": [{ "model": "stone-halls-wall-boundary" }],
+		"cap": [{ "model": "stone-halls-cap" }],
+		"plinth": [{ "model": "stone-halls-plinth" }],
+		"window.frame": [{ "model": "stone-halls-window-frame" }],
+		"window.sill": [{ "model": "stone-halls-window-sill" }],
+		"window.glass": [{ "model": "stone-halls-window-glass" }],
+		"door.frame": [{ "model": "stone-halls-door-frame" }],
+		"door.leaf": [{ "model": "stone-halls-door-leaf" }],
+		"stair.riser": [{ "model": "stone-halls-stair-riser" }],
+		"stair.side": [{ "model": "stone-halls-stair-side" }],
+		"railing": [{ "model": "stone-halls-railing" }],
+		"cliff.face": [{ "model": "stone-halls-cliff-face" }],
+		"cliff.corner": [{ "model": "stone-halls-cliff-corner" }],
+		"bridge.deck": [{ "model": "stone-halls-bridge-deck" }],
+		"bridge.pier": [{ "model": "stone-halls-bridge-pier" }],
+		"post.end": [{ "model": "stone-halls-post-end" }],
+		"post.L": [{ "model": "stone-halls-post-l" }],
+		"post.T": [{ "model": "stone-halls-post-t" }],
+		"post.X": [{ "model": "stone-halls-post-x" }],
+		"roof.eave": [{ "model": "stone-halls-roof-eave" }],
+		"roof.ridge": [{ "model": "stone-halls-roof-ridge" }],
+		"roof.hip": [{ "model": "stone-halls-roof-hip" }],
+		"roof.corner": [{ "model": "stone-halls-roof-corner" }],
+		"roof.chimney": [
+			{ "model": "stone-halls-roof-chimney", "sockets": [{ "kind": "smoke", "at": [0.2, 3.5, 0] }] }
+		],
+		"roof.dormer": [{ "model": "stone-halls-roof-dormer" }],
+		"cap.battlement": [{ "model": "stone-halls-battlement" }],
+		"crenellation": [{ "model": "stone-halls-crenels" }],
+		"buttress": [{ "model": "stone-halls-buttress" }],
+		"pinnacle": [{ "model": "stone-halls-pinnacle" }],
+		"tower.corner": [{ "model": "stone-halls-tower-corner" }],
+		"arch": [{ "model": "stone-halls-arch" }]
+	},
+	"floors": {
+		"plain": {
+			"tiles": [
+				{ "model": "stone-halls-flag-a" },
+				{ "model": "stone-halls-flag-b" },
+				{ "model": "stone-halls-flag-c" }
+			],
+			"broken": [{ "model": "stone-halls-flag-broken" }]
+		},
+		"flagstone": {
+			"tiles": [
+				{ "model": "stone-halls-flag-a" },
+				{ "model": "stone-halls-flag-b" },
+				{ "model": "stone-halls-flag-c" }
+			],
+			"broken": [{ "model": "stone-halls-flag-broken" }]
+		},
+		"stone": {
+			"tiles": [
+				{ "model": "stone-halls-flag-a" },
+				{ "model": "stone-halls-flag-b" },
+				{ "model": "stone-halls-flag-c" }
+			],
+			"broken": [{ "model": "stone-halls-flag-broken" }]
+		},
+		"wood": {
+			"tiles": [
+				{ "model": "stone-halls-planks-a" },
+				{ "model": "stone-halls-planks-b" },
+				{ "model": "stone-halls-planks-c" }
+			],
+			"broken": [{ "model": "stone-halls-planks-broken" }]
+		}
+	}
+}

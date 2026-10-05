@@ -225,7 +225,7 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   (a `parseWorldPatch` patch, docs/RENDERING.md "World look") a table there starts from.
   `"surfaces": { "floors", "walls" }` lists its surfaces of the library (#187, below): the floors
   in layer order, and the walls' (the walls wear the first). `kit` names its architecture kit
-  (#250, below), required of every built-in environment (`plain` until #261).
+  (#250, below), required of every built-in environment: its own greybox kit since #261.
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
   - What lies beyond the grid (the skirt to the horizon and the far silhouettes, #244) is a
@@ -374,12 +374,11 @@ at: [x, y, z] }`, the shape of #319's model sockets). `roof` (`gable` or `hip`, 
   roofed cells' ridge, eaves and corners. Bridges, railings and chimneys join it with #255 and
   #256. `checkScenes` fails a table whose kit lacks one (`hollow-bell: monastery: the kit "halls"
 has no cap piece`).
-- **Phasing in.** Today every environment names `plain`, and `KIT_PENDING` in
-  `server/assets/scenes.ts` lists them all: coverage is checked for every kit but `plain`. When
-  #261 gives an environment its greybox kit, it comes off the list; `checkScenes` fails an
-  environment on the list that names a kit ("take it off KIT_PENDING") and one off the list still
-  on `plain` ("it needs a kit of its own"), so the list only shrinks, and once it is empty every
-  built-in environment must have a complete kit.
+- **Phasing in.** `KIT_PENDING` in `server/assets/scenes.ts` listed the environments still on
+  `plain` while #261 built their kits; it is empty now, so every built-in environment must have a
+  kit of its own covering every role its tables need. `checkScenes` still fails an environment on
+  the list that names a kit ("take it off KIT_PENDING") and one back on `plain` ("it needs a kit
+  of its own").
 - **The clearance invariant.** `src/lib/tabletop/world/kit-clearance.spec.ts` fills every role's
   envelope to the brim where a kit would put it (walls, outer faces, caps, retaining walls and
   sills, risers, posts) and runs the world's harness (`checkEmitter` with no `INTRUSION`
@@ -388,6 +387,56 @@ has no cap piece`).
   (#270) exceed a cell by design.
 - Nothing draws from kits until #252; at runtime a role a kit lacks will draw a procedural piece,
   never nothing.
+
+#### Greybox kits (#261)
+
+Every built-in environment has a greybox kit of the same id, built from part lists: procedural,
+thirdfold-original (`assets/models/kit/_provenance.json`), and the permanent fallback that authored
+kits replace role by role (the stone-halls pilot, #263; CC0 pieces, #262). `plain` stays empty:
+every role procedural, for tables with no environment.
+
+- **Made by a script.** `npx tsx scripts/make-kits.ts` writes `assets/models/kit/<kit>-<piece>.json`
+  and `assets/kits/<kit>.json` (prettier-formatted, the same bytes every run), from
+  `scripts/kits/parts.ts` (boxes, cylinders, cones and spheres; courses of blocks, boards, rubble,
+  openings, pointed heads, floor slabs, roof slopes and terraces), `pieces.ts` (the pieces every
+  kit has, in its colours) and `looks.ts` (each kit's colours, walls, boundary, deck, tiles and own
+  roles). Edit those, run it, then `npm run assets`. Colours follow docs/ART.md's surface ramps;
+  a part may name a manifest material instead (`plaster`, `monastery-stone`, `ancient-stone`,
+  `cave-rock`, `sinew`, `railcar-wall`, `weathered-wood`, and the roofs' `thatch`, `slate`,
+  `tin-roof`, `roof-boards`), whose colour is baked in.
+- **Roles.** Every kit fills every wall, cap, plinth, post (end, L, T, X), window (frame, sill,
+  glass), door (frame, leaf), stair (riser, side), railing, bridge (deck, pier) and cliff (face,
+  corner) role, so a GM's own table finds pieces too; kits with a roof add all six roof roles;
+  stone halls add `cap.battlement`, `crenellation`, `buttress`, `pinnacle`, `tower.corner` and
+  `arch`, the cavern `arch`. `wall.straight` has two weighted variants.
+
+  | Kit           | Walls                                    | Boundary            | Roof              | Floor tiles                                    |
+  | ------------- | ---------------------------------------- | ------------------- | ----------------- | ---------------------------------------------- |
+  | `village`     | plaster on a stone footing; timber frame | palisade of logs    | thatch, gable 45° | cobble, wood (planks)                          |
+  | `stone-halls` | coursed ashlar; with a string course     | crenellated curtain | slate, gable 40°  | plain, flagstone, stone (flags); wood (planks) |
+  | `cavern`      | rough rubble; ancient coursed stone      | heaped rocks        | none              | stone (hewn flags)                             |
+  | `living-cave` | sinew with ribs; swollen sinew           | sinew posts         | none              | none                                           |
+  | `railcar`     | panelled planks; boarded                 | iron rail           | tin, gable 15°    | plain, wood (planks)                           |
+  | `ghost-town`  | adobe; weathered boards                  | picket fence        | boards, gable 22° | wood (boardwalk)                               |
+
+  Each floor has three tiles and one broken tile. Stone halls' `tile` slabs and the railcar's
+  `grating` are built but not yet named by a kit: #254 adds the floor ids, then a kit lists them.
+
+- **Conventions.** Vertical pieces below a floor (retaining walls, sills, cliff faces, piers) are
+  one wall's height (2 u) and repeat down a deeper drop. Roof pieces are one cell from the wall's
+  top: `eave` a slope across the cell falling toward +z, `ridge` both slopes meeting over its
+  centre, `corner` and `hip` stepped terraces (boxes make no triangles) falling toward +x and +z,
+  or all round; `chimney` carries a `smoke` socket for #319.
+- **Budgets.** Pieces are 132 to 1,168 triangles (the palisade); a kit is 23 to 43 pieces, 190 to
+  290 kB to download and 160 to 235 kB on the GPU. `tableBudget` counts the environment's kit with
+  every table, so each built-in table still fits `TABLE_BUDGETS` (the Hollow, the tightest, is
+  14.4 MB of 15 at medium). The manifest grew by 201 entries (220 → 337 kB, 33 → 48 kB gzipped).
+- **Review.** Search `kit` on the turntable (`/dev/assets`, dev only) to view a piece; floor tiles
+  lie below the turntable's floor, so view them through a table once #252 and #254 draw kits.
+  `node scripts/thumbnails.mjs <dev url> --only <id,…> --out <dir>` renders pieces to PNGs.
+- **Not yet:** the per-vertex surface-layer attribute (each part's surface, sampled from the
+  environment's arrays in world space) needs the validator, the GLB writer and the kit material
+  (#252) together; until then pieces carry their surface's colour as vertex colour.
 
 ### Audio
 
