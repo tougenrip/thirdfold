@@ -27,6 +27,8 @@ import {
 	type WorldShape
 } from './shape';
 
+export { checkWallPieces, type WallViolation } from './wall-invariants';
+
 /** Triangles in world units: xyz per vertex, three indices per triangle, a cell (or -1) per vertex. */
 export interface EmitterMesh {
 	positions: Float32Array;

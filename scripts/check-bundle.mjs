@@ -101,8 +101,9 @@ const BUDGETS = {
 	// 5,166 B measured. → 7.8: the backdrop beyond the grid (#244: the skirt, the silhouettes and
 	// their recipes); 7,762 B measured. → the cliffs and risers (#241, world/cliffs.ts); set to the
 	// merged build's measured size. → 10.4: the void's chasms (#243, world/chasm.ts and the
-	// ground's void floor); 10,369 B measured.
-	world: { total: 10_400 }
+	// ground's void floor); 10,369 B measured. → 12.4: wall autotiling (#251, world/autotile.ts);
+	// 12,355 B measured.
+	world: { total: 12_400 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

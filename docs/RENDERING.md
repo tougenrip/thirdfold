@@ -1766,6 +1766,96 @@ A prop the GM places, a floor painted and ground raised or lowered fall into pla
   first frames; the shader grid's twins lie at rest and are hidden under a falling top. TRAA has no
   velocity for the lift. No golden at mid-drop (no golden runs during development).
 
+## Wall autotiling (milestone 70, #251)
+
+`world/autotile.ts` (pure, server-tested, exported from `world/build.ts` so it lands in the lazy
+`world` chunk) picks the kit piece for every known wall edge and every grid corner from what the
+viewer was sent. #252 draws them and #253 the openings; nothing draws from it yet. CPU only, the
+same on every client, tier and backend.
+
+**Input.** `tileInput(shape, objects, building)`: the world shape (`known`, the continued levels and
+floors), the scene objects and the building context, the interior mask as sent (#203; #257 adds
+presumed roofs). A mask with no known building cell counts as none (views send null for it), so the
+presence of roofs on unexplored ground changes nothing. `autotile(input, chunks?)` returns a
+`Map<chunk, WallPieces>` (every chunk by default); `chunkPieces(input, chunk)` one chunk.
+
+**Edge kinds** (`edgeKinds`) follow the rules' precedence whatever the objects' order: a window
+wherever any window covers the edge (`windowEdges`, what sight uses), else a wall, else a door. A
+door on an edge a wall or window also covers is drawn as that wall or window (the rules block there
+anyway; the GM still picks the door through #252's proxy). Ids and object boundaries are never read:
+a wall split in three, cut by `cutWall` or holding a sealed secret door (`<id>-sealed`) tiles exactly
+as one wall. (`shape.edges.built` keeps M69's first-object rule; it draws nothing.)
+
+**Pieces** (`WallPieces`, parallel typed arrays per 16 x 16 chunk, in corner row order: each
+corner's edge east, its edge south, then its post): `role` (an index into `TILE_ROLES`), `site`
+(`SITE.h`, `SITE.v`: the unit edge from corner (x, y) east or south, centred on its midpoint;
+`SITE.corner`: the corner), `x`, `y`, `rotation`, `seed`, `y0`, `y1` (world heights) and `flags`
+(`JAMB`). `rotation` is quarter turns about +Y (θ = r·π/2): a piece's +z face looks S (grid +y,
+world +z) at 0, E at 1, N at 2, W at 3. `seed` is the FNV-1a of the edge's `edgeKey` (`h:x:y`,
+`v:x:y`) or of `c:x:y` (`keySeed`, the same as `fnv1a` over the key's bytes); `variantOf(seed,
+weights)` maps it onto a kit's weighted variants.
+
+| Edge                                  | Pieces                                                                                                                             |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| wall                                  | `wall.straight` on the higher floor, `WALL_HEIGHT` tall                                                                            |
+| wall, one side known void or off-grid | `wall.outer`, facing the void (thick only toward it)                                                                               |
+| wall, neither side building           | `wall.boundary` (only with a building context)                                                                                     |
+| window                                | `window.frame`; `window.sill` between different floors (`mn-railing`)                                                              |
+| door (open or shut)                   | `door.frame`; the leaf is the door object's (#253)                                                                                 |
+| any, floors differ                    | plus `wall.retaining` from the lower floor to the higher and a `plinth` course (one step under the higher floor), both facing down |
+
+Main pieces face the void, else out of the building, else down a drop, else S or E. Heights come from
+the known sides only.
+
+**Corners.** The mask of known built edges N (`v:x:y-1`), E (`h:x:y`), S (`v:x:y`), W (`h:x-1:y`),
+bits 1, 2, 4, 8 (`ARM`), gives the joint (`jointOf`): none, `end` (one), `straight` (5, 10), `L`,
+`T` (three), `X` (four), and the quarter turns that put the canonical arms there (end: S; L: S and
+E; T: E, S and W; X). Straight corners get no post, which hides every split, so two doors meeting in
+line, a door beside a window, and a sealed door in its wall show no post. Others get `post.end`,
+`post.L`, `post.T` or `post.X`, from the lowest known floor round the corner to the highest top of
+its edges, `JAMB` when an edge is a door.
+
+**Nothing toward unexplored cells.** An edge with no known side is absent; an unexplored side counts
+as walkable (never `wall.outer`, never building, no drop), so the known end of a wall running into
+the dark shows an end post until more is explored. The differential test (`autotile-fixtures.spec.ts`)
+scrambles levels, floors and roofs on every fogged viewer's unexplored cells and adds walls, windows
+and doors between them: every player's and spectator's pieces are byte-identical.
+
+**Clearance** (`checkWallPieces` in `world/wall-invariants.ts`, re-exported by `invariants.ts`): each
+piece's plan envelope (an edge `WALL_HALF_THIN` 0.07 thick each side, `WALL_HALF_THICK` 0.35 on a
+`wall.outer`'s +z face; a post `POST_SIZE` 0.3 square) keeps out of every walkable cell's
+`TOKEN_DISK` (unexplored cells count as walkable, no intrusion allowance), and every piece touches a
+known cell. #250 moves these constants to `src/lib/assets/kit.ts`.
+
+**Dirty chunks.** `dirtyPieceChunks(prev, next)`: the shape's `dirtyChunks`, plus the chunks of the
+corners beside an edge whose kind changed or a cell whose building changed; a property test checks
+every other chunk's pieces are unchanged.
+
+**Tests.** `autotile.spec.ts`: all 16 corner masks (the rotation checked against a geometric turn),
+a lone edge's two ends, splits, overlaps (wall + wall, wall + window either order, door under a
+wall or window, two doors in line, a door beside a window, jambs), `cutWall` and reordering, drops
+of 1, a sill, the void, the border and unexplored void, buildings, the envelope catching a thick wall
+toward walkable ground and a piece with no known side, 20 seeded wall tables (envelope, dirty
+chunks) and the cost. `autotile-fixtures.spec.ts`: every fixture scene and every viewer of every
+committed view (the envelope; one main piece per known built edge; a window wherever the sight rule
+has one; renaming and reordering every object changes nothing), the seeds, the sealed doors
+(`mn-secret-door-sealed` byte-identical to `mn-inner-n`..`mn-inner-s` merged and to the segment
+renamed, no post at (8, 5) or (8, 6), in the scene and every monastery view; `ho-cleft-sealed`
+identical to the island's west wall merged), `mn-tower-w` (a boundary wall on the belfry over a
+retaining piece five levels down to the ledge) and the secrecy differential.
+
+**Cost.** One pass over the objects for the kinds and the built edges' views, then O(corners) per
+chunk. About 1-1.5 ms for about 1,400 built edges (2,950 pieces) on a 64 x 64 table in Node on a
+loaded development machine (the issue's 0.5 ms target is informational).
+
+**Deviations from #251.** Roles are a local `TILE_ROLES` with #250's names until `KIT_ROLES` lands
+(caps are merged into `wall.straight` by #252's pipeline, door leaves are #253's, so neither is
+placed). `wall.retaining` and `plinth` are extra pieces on a drop edge beside its main piece, not
+the main role. Without a building context nothing is `wall.boundary`, so a table with no roofs gets
+straight walls; with one, every wall between two unroofed cells is a boundary (the monastery's tower
+and ledge walls, until #257's presumed roofs). The seed hash is written out (`keySeed`) rather than
+shared with #181 (which hashes ids, not keys). The cost is above the 0.5 ms target.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
