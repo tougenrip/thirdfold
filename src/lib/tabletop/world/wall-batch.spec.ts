@@ -19,6 +19,7 @@ import { knownOf, worldShape, type ShapeInput, type WorldShape } from './shape';
 import {
 	BATCH_ROLES,
 	edgeIndex,
+	KIT_LIFT,
 	pieceKey,
 	proceduralPiece,
 	roleOfKey,
@@ -121,9 +122,9 @@ describe('instances', () => {
 		// The first straight piece: midpoint of h:0:1 (world x -3, z -2), on the higher floor.
 		near(apply(inst.matrices, 0, [0, 0, 0]), [-3, high, -2]);
 		near(apply(inst.matrices, 0, [0.5, WALL_HEIGHT, 0]), [-2, high + WALL_HEIGHT * 2, -2]);
-		// The retaining piece hangs from the higher floor to the lower, facing down (south, +z).
+		// The retaining piece hangs from the higher floor, one wall deep (a drop of 1.6 needs one), facing down (+z).
 		expect(apply(inst.matrices, 1, [0, 0, 0])[1]).toBeCloseTo(high);
-		expect(apply(inst.matrices, 1, [0, -WALL_HEIGHT, 0])[1]).toBeCloseTo(0);
+		expect(apply(inst.matrices, 1, [0, -WALL_HEIGHT, 0])[1]).toBeCloseTo(high - WALL_HEIGHT * 2);
 		expect(apply(inst.matrices, 1, [0, 0, 1])[2]).toBeCloseTo(0);
 		// The post at corner (0, 1) runs from the lowest floor round it to the wall's top.
 		const post = apply(inst.matrices, 3, [0, WALL_HEIGHT, 0]);
@@ -131,6 +132,31 @@ describe('instances', () => {
 		expect(apply(inst.matrices, 3, [0, 0, 0])[1]).toBe(0);
 		expect(inst.edge[0]).toBe(edgeIndex(g, 'h', 0, 1));
 		expect(inst.edge[3]).toBe(-1);
+	});
+
+	it('repeat retaining pieces down a deeper drop and lift a kit’s caps and posts', () => {
+		const g = grid(4, 4);
+		const levels = new Uint8Array(16);
+		levels[0] = levels[1] = 12; // 4.8 u over the cells south: three retaining pieces
+		const { pieces } = tiled({
+			grid: g,
+			levels,
+			floor: null,
+			objects: [wall([0, 1], [2, 1])],
+			known: null
+		});
+		const p = pieces.get(0)!;
+		const retaining = BATCH_ROLES.indexOf('wall.retaining');
+		const built = wallInstances(p, g, {});
+		const tops = [...built.key.keys()]
+			.filter((k) => built.key[k] === pieceKey(retaining, -1))
+			.map((k) => apply(built.matrices, k, [0, 0, 0])[1]);
+		expect(tops.slice(0, 3).map((y) => +y.toFixed(5))).toEqual([4.8, 2.8, 0.8]);
+		const kit = wallInstances(p, g, { 'wall.straight': [1], cap: [1], 'post.end': [1] });
+		const cap = [...kit.key.keys()].find((k) => roleOfKey(kit.key[k]) === 'cap')!;
+		const post = [...kit.key.keys()].find((k) => roleOfKey(kit.key[k]) === 'post.end')!;
+		expect(apply(kit.matrices, cap, [0, 0, 0])[1]).toBeCloseTo(4.8 + KIT_LIFT.cap, 5);
+		expect(apply(kit.matrices, post, [0, 0, 0])[1]).toBeCloseTo(KIT_LIFT.post, 5);
 	});
 
 	it('draw a kit’s variants by seed and its cap on its own walls only', () => {

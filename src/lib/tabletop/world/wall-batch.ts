@@ -7,9 +7,9 @@
 // Matrices follow #250's pivots (src/lib/assets/kit.ts): an edge piece stands
 // at the unit edge's midpoint, a post at its corner, turned by the piece's
 // quarter turns and scaled by the cell size. Pieces whose height varies are
-// scaled vertically: a retaining piece hangs from the higher floor down to the
-// lower (authored for a drop of WALL_HEIGHT), a post runs from the lowest floor
-// round its corner to the highest top (authored WALL_HEIGHT tall).
+// placed by height: a retaining piece hangs from the higher floor, repeated down
+// a deeper drop (one is WALL_HEIGHT tall, #261), a post runs from the lowest floor
+// round its corner to the highest top (authored WALL_HEIGHT tall, scaled to it).
 
 import {
 	CAP_OVERHANG,
@@ -28,7 +28,7 @@ export type BatchRole = (typeof BATCH_ROLES)[number];
 const CAP = BATCH_ROLES.indexOf('cap');
 /** Pieces with a top: a kit's cap goes on them (a procedural one has its own). */
 const TOPPED = new Set<string>(['wall.straight', 'wall.outer', 'wall.boundary']);
-const RETAINING = TILE_ROLES.indexOf('wall.retaining');
+const RETAINING: number = TILE_ROLES.indexOf('wall.retaining');
 const POSTS = new Set(
 	['post.end', 'post.L', 'post.T', 'post.X'].map((r) => BATCH_ROLES.indexOf(r as BatchRole))
 );
@@ -64,14 +64,26 @@ export function edgeIndex(grid: SquareGrid, axis: 'h' | 'v', x: number, y: numbe
 		: grid.width * (grid.height + 1) + y * (grid.width + 1) + x;
 }
 
+/**
+ * How far a kit's cap and posts are lifted over the wall's top (a fraction of the cell): greybox
+ * walls, caps and posts all end at WALL_HEIGHT, and coplanar tops would z-fight.
+ */
+export const KIT_LIFT = { cap: 0.002, post: 0.004 };
+
+/** Retaining pieces are a wall's height (#261): as many as a drop needs, from the higher floor down. */
+const repeats = (p: WallPieces, i: number, cs: number) =>
+	p.role[i] === RETAINING
+		? Math.max(1, Math.ceil((p.y1[i] - p.y0[i]) / (WALL_HEIGHT * cs) - 1e-6))
+		: 1;
+
 export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights): WallInstances {
 	const cs = grid.cellSize;
 	const capWeights = kit.cap;
 	/** A kit's wall wears the kit's cap; a procedural wall has its own. */
 	const capped = (role: number) =>
 		!!capWeights && TOPPED.has(TILE_ROLES[role]) && !!kit[TILE_ROLES[role]];
-	let n = p.count;
-	for (let i = 0; i < p.count; i++) if (capped(p.role[i])) n++;
+	let n = 0;
+	for (let i = 0; i < p.count; i++) n += repeats(p, i, cs) + (capped(p.role[i]) ? 1 : 0);
 	const out: WallInstances = {
 		count: n,
 		key: new Uint16Array(n),
@@ -82,8 +94,7 @@ export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights):
 	let k = 0;
 	for (let i = 0; i < p.count; i++) {
 		const role = p.role[i];
-		const name = TILE_ROLES[role];
-		const weights = kit[name];
+		const weights = kit[TILE_ROLES[role]];
 		const variant = weights ? variantOf(p.seed[i], weights) : -1;
 		const site = p.site[i];
 		const [x, y] = [p.x[i], p.y[i]];
@@ -91,18 +102,24 @@ export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights):
 		const cx = c.x + (site === SITE.h ? cs / 2 : 0);
 		const cz = c.z + (site === SITE.v ? cs / 2 : 0);
 		const [y0, y1] = [p.y0[i], p.y1[i]];
-		const stretched = role === RETAINING || POSTS.has(role);
-		const sy = stretched ? (y1 - y0) / WALL_HEIGHT : cs;
+		// A post runs from the lowest floor round its corner to the highest top, scaled to it.
+		const post = POSTS.has(role);
+		const sy = post ? (y1 - y0) / WALL_HEIGHT : cs;
 		const edge = site === SITE.corner ? -1 : edgeIndex(grid, site === SITE.h ? 'h' : 'v', x, y);
-		const place = (key: number) => {
+		const place = (key: number, at: number) => {
 			out.key[k] = key;
 			out.edge[k] = edge;
 			out.seed[k] = p.seed[i];
-			compose(out.matrices, k * 16, cx, role === RETAINING ? y1 : y0, cz, p.rotation[i], cs, sy);
+			compose(out.matrices, k * 16, cx, at, cz, p.rotation[i], cs, sy);
 			k++;
 		};
-		place(pieceKey(role, variant));
-		if (capped(role)) place(pieceKey(CAP, variantOf(p.seed[i], capWeights!)));
+		const lift = post && variant >= 0 ? KIT_LIFT.post * cs : 0;
+		if (role === RETAINING)
+			for (let r = 0; r < repeats(p, i, cs); r++)
+				place(pieceKey(role, variant), y1 - r * WALL_HEIGHT * cs);
+		else place(pieceKey(role, variant), y0 + lift);
+		if (capped(role))
+			place(pieceKey(CAP, variantOf(p.seed[i], capWeights!)), y0 + KIT_LIFT.cap * cs);
 	}
 	return out;
 }
@@ -128,6 +145,8 @@ export interface PieceMesh {
 	positions: Float32Array;
 	normals: Float32Array;
 	indices: Uint32Array;
+	/** A kit piece's vertex colours (its surfaces baked in, #261); built-in pieces have none. */
+	colors?: Float32Array;
 }
 
 type Box = readonly [x0: number, y0: number, z0: number, x1: number, y1: number, z1: number];
@@ -217,23 +236,24 @@ interface Attribute {
 	getZ(i: number): number;
 }
 interface Geometry {
-	getAttribute(name: 'position' | 'normal'): Attribute;
+	getAttribute(name: 'position' | 'normal' | 'color'): Attribute | undefined;
 	getIndex(): Pick<Attribute, 'count' | 'getX'> | null;
 }
 
 /** A kit piece's parts (#252) as one mesh: positions, normals and triangles (made where none). */
 export function pieceOf(parts: readonly Geometry[]): PieceMesh {
-	const [positions, normals, indices]: number[][] = [[], [], []];
+	const [positions, normals, colors, indices]: number[][] = [[], [], [], []];
 	for (const g of parts) {
-		const [position, normal, index] = [
-			g.getAttribute('position'),
-			g.getAttribute('normal'),
-			g.getIndex()
-		];
+		const position = g.getAttribute('position')!;
+		const normal = g.getAttribute('normal')!;
+		const color = g.getAttribute('color');
+		const index = g.getIndex();
 		const base = positions.length / 3;
 		for (let v = 0; v < position.count; v++) {
 			positions.push(position.getX(v), position.getY(v), position.getZ(v));
 			normals.push(normal.getX(v), normal.getY(v), normal.getZ(v));
+			if (color) colors.push(color.getX(v), color.getY(v), color.getZ(v));
+			else colors.push(1, 1, 1);
 		}
 		const count = index ? index.count : position.count;
 		for (let i = 0; i < count; i++) indices.push(base + (index ? index.getX(i) : i));
@@ -241,6 +261,7 @@ export function pieceOf(parts: readonly Geometry[]): PieceMesh {
 	return {
 		positions: new Float32Array(positions),
 		normals: new Float32Array(normals),
-		indices: new Uint32Array(indices)
+		indices: new Uint32Array(indices),
+		colors: new Float32Array(colors)
 	};
 }

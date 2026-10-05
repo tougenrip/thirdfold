@@ -1865,68 +1865,80 @@ hinged panels until #253's leaves.
 `WallPieces` into `WallInstances`: a piece key per instance (`pieceKey(role, variant)`, the role an
 index into `BATCH_ROLES`, autotile's roles plus `cap`; variant -1 is the built-in piece), the unit
 edge it stands on (`edgeIndex`, -1 for a post), its seed and a column-major matrix at #250's pivot:
-the edge's midpoint or the corner, turned by the piece's quarter turns, scaled by the cell size. A
-retaining piece hangs from the higher floor and a post stands from the lowest floor round its
-corner, both scaled vertically (`(y1 - y0) / WALL_HEIGHT`: authored for a drop and a height of
-`WALL_HEIGHT`). A role the kit fills picks its variant with `variantOf(seed, weights)`; a kit's
-`wall.straight`, `wall.outer` or `wall.boundary` variant also gets the kit's `cap` on top when the
-kit has one.
+the edge's midpoint or the corner, turned by the piece's quarter turns, scaled by the cell size.
+A retaining piece is one wall's height (#261's convention) and repeats down a deeper drop from the
+higher floor; a post runs from the lowest floor round its corner to the highest top, scaled
+vertically to it (`(y1 - y0) / WALL_HEIGHT`). A role the kit fills picks its variant with
+`variantOf(seed, weights)`; a kit's `wall.straight`, `wall.outer` or `wall.boundary` also gets the
+kit's `cap` on top when the kit has one. #261's greybox walls, caps and posts all end at
+`WALL_HEIGHT`, so a kit's cap is lifted `KIT_LIFT.cap` (0.002 cell) and its posts `KIT_LIFT.post`
+(0.004) to keep their tops out of one plane.
 
-**The fallback.** A role with no kit variant (every role while kits are `plain`, until #261)
-draws `proceduralPiece(role)`, boxes in kit units: walls 0.14 thick with a cap course 0.12 deep
-overhanging 0.03 each face (merged into the wall: one instance per plain edge), a window frame's
-sill and lintel, a door frame's lintel over the leaf, a plinth one step tall, a retaining piece 0.02
-behind the plinth's face so the course shows, and 0.3 posts 0.04 over the caps (their tops never
-share a plane). `wall-batch.spec.ts` checks each box against its role's envelope (a merged cap
-against `cap`'s), the winding, the matrices, the kit's variants and caps, `mn-tower-w` (the belfry's
-floor to `WALL_HEIGHT` above it, its retaining piece down to the ledge), and on every fixture
-scene and view that no box reaches into a walkable cell's `TOKEN_DISK` below `FIGURE_CLEAR`.
+**Kits.** `loadEnvironment` loads the environment's kit (`loadKit`, roles in `BATCH_ROLES` only:
+doors, stairs, bridges, cliffs and roofs are other layers'), each variant's `body` parts merged by
+`pieceOf` into positions, normals, triangles and the vertex colours #261 bakes each part's surface
+into. Since #261 every built-in environment has one, so the built-in tables draw kit pieces.
 
-**Batches.** One `BatchedMesh` per 16x16 chunk with walls (one kit material, since greybox kits
-wear the environment's wall look; a chunk without walls has none), `addGeometry` once per piece
-key it uses (vertex and index space grown 1.5x), instance ids reused across rebuilds
-(`setGeometryIdAt`, `setMatrixAt`), `setInstanceCount` 1.5x when it outgrows them,
-`perObjectFrustumCulled` as three sets it, casting and receiving. `sync` (objects, the world
-shape, the ground) rebuilds only `dirtyPieceChunks`' chunks (`stats().lastRebuilt`); a new kit or
-grid clears every batch. Inputs: the renderer's `setGrid`, `setTerrain`, `setObjects`, `setFog`
-(when the explored mask changes), `setFloor` (void makes outer walls) and `setInterior` (the
-building context, so boundary walls). `optimize()` is not called: rebuilds reuse ids in place.
+**The fallback.** A role with no kit variant (every role on `plain`, or a model that failed to
+load) draws `proceduralPiece(role)`, boxes in kit units: walls 0.14 thick with a cap course 0.12
+deep overhanging 0.03 each face (merged: one instance per plain edge), a window frame's sill and
+lintel, a door frame's lintel over the leaf, a plinth one step tall, a retaining piece 0.02 behind
+the plinth's face so the course shows, and 0.3 posts 0.04 over the caps. `wall-batch.spec.ts`
+checks each box against its role's envelope (a merged cap against `cap`'s), the winding, the
+matrices, the repeats and lifts, the kit's variants and caps, `mn-tower-w` (the belfry's floor to
+`WALL_HEIGHT` above it, its retaining piece down to the ledge), and on every fixture scene and
+view that no box reaches into a walkable cell's `TOKEN_DISK` below `FIGURE_CLEAR`.
+
+**Batches.** Per 16x16 chunk with walls, one `BatchedMesh` per material: the built-in pieces in
+the environment's wall look (the surface kind's `batched` variant), a kit's in their baked colours
+(the same with `vertexColors`, white). `addGeometry` once per piece key a batch uses (vertex and
+index space grown 1.5x), instance ids reused across rebuilds (`setGeometryIdAt`, `setMatrixAt`),
+`setInstanceCount` 1.5x when outgrown, `perObjectFrustumCulled` as three sets it, casting and
+receiving. `sync` (objects, the world shape, the ground) rebuilds only `dirtyPieceChunks`' chunks
+(`stats().lastRebuilt`); a new kit or grid clears every batch. Inputs: the renderer's `setGrid`,
+`setTerrain`, `setObjects`, `setFog` (when the explored mask changes), `setFloor` (void makes
+outer walls) and `setInterior` (the building context, so boundary walls). `optimize()` is not
+called: rebuilds reuse ids in place.
 
 **Highlight and picking.** An instance's batch colour is a slight shade by its seed (6%), and its
-alpha the highlight: the surface kind's `batched` variant adds `HIGHLIGHT` (warm, 0.45, below
-bloom) times one minus `batchColor.w`, hatched by diagonal world stripes (`stripes` 3 a unit), so
-the erase tool's cue is a pattern as well as a colour. Opaque kinds set alpha to 1 after the
-diffuse, so the alpha is free. Picks hit an invisible proxy: one box per unit of wall from
-`wallSpans` (today's boxes, 1.14 cells long, two for a window between equal floors) on
-`PICK_LAYER`, `visible = false` (raycasts test layers); the batches are off it.
+alpha the highlight: the `batched` variant adds `HIGHLIGHT` (warm, 0.45, below bloom) times one
+minus `batchColor.w`, hatched by diagonal world stripes (`stripes` 3 a unit), so the erase tool's
+cue is a pattern as well as a colour. Opaque kinds set alpha to 1 after the diffuse, so the alpha
+is free. Picks hit an invisible proxy: one box per unit of wall from `wallSpans` (today's boxes,
+1.14 cells long, two for a window between equal floors) on `PICK_LAYER`, `visible = false`
+(raycasts test layers); the batches are off it.
 
-**Programs.** The `batched` variant is one graph per anti-tiling, in the lobby's `kindGallery`
-(a `BatchedMesh` with colours, casting) and in the walls' own warm-up stand-in. Colours exist from
-construction (`_initColorsTexture`), or a batch without them would build another program. Each
-batch is its own node state (r186 keys it by its matrices texture), but the same code: new chunks,
-growth, a kit, highlights and removals compile nothing (`walls.svelte.spec.ts`, by stage code; the
-first build of a graph may order its functions differently, which the lobby absorbs).
+**Programs.** The `batched` variant, with and without vertex colours, in each anti-tiling, is in
+the lobby's `kindGallery` (a `BatchedMesh` with colours, casting) and in the walls' own warm-up
+stand-ins. Colours exist from construction (`_initColorsTexture`), or a batch without them would
+build another program. Each batch is its own node state (r186 keys it by its matrices texture),
+but the same code: new chunks, growth, a kit, highlights and removals compile nothing
+(`walls.svelte.spec.ts`, by stage code; the first build of a graph may order its functions
+differently, which the lobby absorbs).
 
-**Draws.** WebGL2: one multi-draw per chunk batch per pass (a per-draw loop without
-`WEBGL_multi_draw`). WebGPU: one `drawIndexed` per visible instance (three's backend), counted in
-`info`; #264 measures it and may move WebGPU to instanced meshes per piece.
+**Draws.** WebGL2: one multi-draw per batch per pass (a per-draw loop without
+`WEBGL_multi_draw`), so a chunk costs one or two. WebGPU: one `drawIndexed` per visible instance
+(three's backend), counted in `info`; #264 measures it and may move WebGPU to instanced meshes per
+piece.
 
-**Bundle.** The renderer chunk grew to 395.9 kB gz, of which three's `BatchedMesh` is about 4.2;
-the world chunk to 13.4.
+**Bundle.** The renderer chunk grew to 396.1 kB gz, of which three's `BatchedMesh` is about 4.2;
+the world chunk to 13.6.
 
 **Specs.** `walls.svelte.spec.ts` (`RENDER_SPECS`): posts at an L and a T and caps mid-edge by
-raycasts onto the batches, a synthetic kit's post, variants and cap, the T keeping the built-in
-post, one chunk rebuilt per edit, batches dropped with their walls, the hatched warm glow on the
-hovered wall only, picks by the proxy mid-edge and at a post, and no new shader stage throughout.
+raycasts onto the batches, a synthetic kit's post, variants and lifted cap, the T keeping the
+built-in post, one chunk rebuilt per edit, batches dropped with their walls, the village's own kit
+drawing every piece of a room (one batch, with colours) with its L post at the corner, the hatched
+warm glow on the hovered wall only, picks by the proxy mid-edge and at a post, and no new shader
+stage throughout.
 
 **Deviations from #252.** The highlight lives in the batch colour's alpha, not a state
-`DataTexture` (R highlight, G #260's seed, B #282): one texture fewer and no `textureLoad` at
-`batchIndirectIndex`; #260 and #282 add theirs when they land. Caps are merged into the built-in
-wall piece rather than by the pipeline; a kit's cap is its own instance. Kit pieces are drawn in
-the surface kind with the wall look (no trim-sheet `prop` kind yet: no authored kit exists). The
-low tier draws the same pieces (no kit LOD1 exists). `worldModify` reads the cell at each fragment,
-as before, not the cell a face looks into. Goldens, look metrics and per-table draw counts are the
-milestone's close (G1, G2).
+`DataTexture` (R highlight, G #260's seed, B #282): one texture fewer; #260 and #282 add theirs
+when they land. Caps are merged into the built-in wall piece rather than by the pipeline; a kit's
+cap is its own instance. Kit pieces wear their baked vertex colours (no trim-sheet `prop` kind and
+no surface-layer attribute yet, #261's "Not yet"). The low tier draws the same pieces (no kit LOD1
+exists). Posts are scaled to their corner's height, which stretches a kit post's finial where
+floors differ. `worldModify` reads the cell at each fragment, as before, not the cell a face looks
+into. Goldens, look metrics and per-table draw counts are the milestone's close (G1, G2).
 
 ## Modules
 

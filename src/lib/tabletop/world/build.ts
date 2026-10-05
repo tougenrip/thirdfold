@@ -17,6 +17,7 @@ export { chunkWorld, CLIFF_STYLES } from './cliffs';
 export { chasmGround, chasmOf, DEFAULT_CHASM, mistTexels } from './chasm';
 export { autotile, dirtyPieceChunks, tileInput, variantOf } from './autotile';
 export {
+	BATCH_ROLES,
 	edgeIndex,
 	pieceOf,
 	proceduralPiece,

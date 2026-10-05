@@ -1,21 +1,11 @@
-// Walls and doors for the three.js view (#252). Walls are built from the pieces
-// autotile picks (world/autotile.ts) for what the viewer was sent: straight runs,
-// posts at ends, L, T and X joints, caps, retaining pieces and plinths down drops,
-// window frames and door lintels. Each 16x16 chunk is one BatchedMesh (every
-// piece of the kit's material: one multi-draw on WebGL2), rebuilt only when its
-// pieces may have changed (`dirtyPieceChunks`). A role the environment's kit
-// fills draws its variants; any other the built-in piece (world/wall-batch.ts),
-// so every table draws walls before and without a kit.
-//
-// Walls are the surface kind's `batched` variant (#172), world-mapped (#177),
-// anti-tiled on medium and up (#181). An instance's colour is a slight tint by
-// its seed, and its alpha the highlight (the erase tool's target): an emissive
-// glow with a hatch. Picking uses an invisible proxy: one box per unit of wall
-// (the old walls' boxes, from `wallSpans`) on PICK_LAYER; the pieces are off it.
-//
-// Doors are individual hinged meshes that swing open (their leaves are #253's):
-// a second material of the `local` variant, and its tinted twin for the hovered
-// door, so swapping between them compiles nothing.
+// Walls and doors (#252). Walls are the pieces autotile picks (world/autotile.ts) from what
+// the viewer was sent: runs, posts, caps, retaining pieces and plinths, window and door frames.
+// Per 16x16 chunk a BatchedMesh per material (the built-in pieces in the wall look; a kit's in
+// its baked vertex colours), rebuilt only when `dirtyPieceChunks` says so. The surface kind's
+// `batched` variant: an instance's colour is a slight shade by its seed, its alpha the erase
+// highlight (a hatched glow). Picks hit an invisible proxy of boxes from `wallSpans` on
+// PICK_LAYER. Doors are hinged meshes that swing (their leaves are #253's), a `local` material
+// and its tinted twin for the hovered door, so swapping compiles nothing.
 
 import * as THREE from 'three/webgpu';
 import { pickable } from './picking';
@@ -44,6 +34,8 @@ const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_MS = 260;
 
 const PLAIN_WALL = { color: 0x8d8578, roughness: 0.85 };
+/** A kit's pieces carry their colours; the material only finishes them. */
+const KIT_WALL = { color: 0xffffff, roughness: 0.85 };
 const DOOR = { color: 0x7a4a26, roughness: 0.6 };
 const DOOR_HOVER = 0x5a2a10;
 /** How far a piece's seed darkens it: a slight variation from piece to piece. */
@@ -83,7 +75,14 @@ export interface WallStats {
 export class WallLayer {
 	readonly group = new THREE.Group();
 	private grid: SquareGrid | null = null;
+	/** The built-in pieces' material, in the environment's wall look. */
 	private material: KindMaterial = createMaterial('surface', { batched: true, antiTiled: true });
+	/** A kit's pieces' material: their surfaces are baked into vertex colours (#261). */
+	private kitMaterial: KindMaterial = createMaterial('surface', {
+		batched: true,
+		antiTiled: true,
+		vertexColors: true
+	});
 	private doorMaterial = createMaterial('surface', { local: true, params: DOOR });
 	private doorHoverMaterial = createMaterial('surface', {
 		local: true,
@@ -93,6 +92,7 @@ export class WallLayer {
 	private kit: WallKit | null = null;
 	private weights: KitWeights = {};
 	private interior: Uint8Array | null = null;
+	/** By chunk and material: `chunk * 2`, plus 1 for the kit's pieces. */
 	private batches = new Map<number, Batch>();
 	/** The tile input last drawn (null: draw every chunk next). */
 	private drawn: TileInput | null = null;
@@ -115,6 +115,7 @@ export class WallLayer {
 		private readonly clock: () => number = () => performance.now()
 	) {
 		wear(this.material, null, PLAIN_WALL);
+		wear(this.kitMaterial, null, KIT_WALL);
 	}
 
 	/** The environment's walls (null: plain stone) and its kit (null: every piece procedural). */
@@ -147,8 +148,9 @@ export class WallLayer {
 		if (!!this.material.options.antiTiled === on) return false;
 		// Its twin, kept (#180): switching back and again releases and compiles nothing.
 		this.material = twinOf(this.material);
-		for (const b of this.batches.values()) b.mesh.material = this.material;
-		for (const s of this.standIns ?? []) s.material = this.material;
+		this.kitMaterial = twinOf(this.kitMaterial);
+		for (const [slot, b] of this.batches) b.mesh.material = this.materialOf(slot);
+		this.standIns?.forEach((s, m) => (s.material = this.materialOf(m)));
 		if (this.proxy) this.proxy.material = this.material;
 		return true;
 	}
@@ -238,18 +240,23 @@ export class WallLayer {
 	stats(): WallStats {
 		let instances = 0;
 		for (const b of this.batches.values()) instances += b.ids.length;
-		return { chunks: this.batches.size, instances, lastRebuilt: this.lastRebuilt };
+		const chunks = new Set([...this.batches.keys()].map((slot) => slot >> 1)).size;
+		return { chunks, instances, lastRebuilt: this.lastRebuilt };
 	}
 
 	/** A stand-in for the warm-up (#180): a casting batch, so the first wall drawn compiles nothing. */
 	gallery(): THREE.Object3D[] {
 		if (!this.standIns) {
-			const b = this.makeBatch();
-			const id = b.mesh.addGeometry(geometryOf(this.build.proceduralPiece('wall.straight')));
-			b.mesh.setColorAt(b.mesh.addInstance(id), new THREE.Vector4(1, 1, 1, 1));
-			this.standIns = [standIn(b.mesh)];
+			const piece = this.build.proceduralPiece('wall.straight');
+			this.standIns = [0, 1].map((m) => {
+				const b = this.makeBatch(m);
+				const colors = m ? new Float32Array(piece.positions.length).fill(1) : undefined;
+				const id = b.mesh.addGeometry(geometryOf({ ...piece, colors }));
+				b.mesh.setColorAt(b.mesh.addInstance(id), new THREE.Vector4(1, 1, 1, 1));
+				return standIn(b.mesh);
+			});
 		}
-		for (const s of this.standIns) s.material = this.material;
+		this.standIns.forEach((s, m) => (s.material = this.materialOf(m)));
 		return this.standIns;
 	}
 
@@ -260,6 +267,7 @@ export class WallLayer {
 		for (const s of this.standIns ?? []) s.dispose();
 		this.proxyGeometry.dispose();
 		disposeTwins(this.material);
+		disposeTwins(this.kitMaterial);
 		for (const m of [this.doorMaterial, this.doorHoverMaterial]) m.dispose();
 		this.doorGeometry.dispose();
 	}
@@ -280,14 +288,25 @@ export class WallLayer {
 		const { objects, shape } = this.state;
 		const input = this.build.tileInput(shape, objects, this.interior);
 		const dirty = this.build.dirtyPieceChunks(this.drawn, input);
-		for (const [c, pieces] of this.build.autotile(input, dirty))
-			this.fill(c, this.build.wallInstances(pieces, shape.grid, this.weights));
+		const { VARIANTS } = this.build;
+		for (const [c, pieces] of this.build.autotile(input, dirty)) {
+			const inst = this.build.wallInstances(pieces, shape.grid, this.weights);
+			// The built-in pieces and the kit's, each in a batch of their own material.
+			const byMaterial: number[][] = [[], []];
+			for (let i = 0; i < inst.count; i++) byMaterial[+(inst.key[i] % VARIANTS !== 0)].push(i);
+			byMaterial.forEach((list, m) => this.fill(c * 2 + m, inst, list));
+		}
 		this.drawn = input;
 		this.lastRebuilt = dirty.length;
 	}
 
-	private makeBatch(): Batch {
-		const mesh = new THREE.BatchedMesh(64, 1024, 2048, this.material);
+	/** Slot or material index 0: the built-in pieces' material; odd: the kit's. */
+	private materialOf(slot: number): KindMaterial {
+		return slot & 1 ? this.kitMaterial : this.material;
+	}
+
+	private makeBatch(slot: number): Batch {
+		const mesh = new THREE.BatchedMesh(64, 1024, 2048, this.materialOf(slot));
 		// The colours exist from the start: a batch without them is another program (#252).
 		(mesh as unknown as { _initColorsTexture(): void })._initColorsTexture();
 		mesh.castShadow = true;
@@ -296,37 +315,37 @@ export class WallLayer {
 		return { mesh, geometries: new Map(), ids: [], edges, space: [1024, 2048] };
 	}
 
-	/** A chunk's instances, reusing its batch's ids; a chunk with none has no batch. */
-	private fill(c: number, inst: WallInstances): void {
-		let b = this.batches.get(c);
-		if (!inst.count) {
+	/** A batch's instances (`list`, of `inst`), reusing its ids; a batch with none goes. */
+	private fill(slot: number, inst: WallInstances, list: number[]): void {
+		let b = this.batches.get(slot);
+		if (!list.length) {
 			if (b) {
 				this.group.remove(b.mesh);
 				b.mesh.dispose();
-				this.batches.delete(c);
+				this.batches.delete(slot);
 			}
 			return;
 		}
 		if (!b) {
-			b = this.makeBatch();
-			this.batches.set(c, b);
+			b = this.makeBatch(slot);
+			this.batches.set(slot, b);
 			this.group.add(b.mesh);
 		}
 		const { mesh } = b;
-		for (const key of new Set(inst.key)) if (!b.geometries.has(key)) this.addPiece(b, key);
-		while (b.ids.length > inst.count) mesh.deleteInstance(b.ids.pop()!);
-		if (inst.count > mesh.maxInstanceCount) {
-			const size = Math.ceil(inst.count * 1.5);
+		for (const i of list) if (!b.geometries.has(inst.key[i])) this.addPiece(b, inst.key[i]);
+		while (b.ids.length > list.length) mesh.deleteInstance(b.ids.pop()!);
+		if (list.length > mesh.maxInstanceCount) {
+			const size = Math.ceil(list.length * 1.5);
 			mesh.setInstanceCount(size);
 			const edges = new Int32Array(size).fill(-1);
 			edges.set(b.edges);
 			b.edges = edges;
 		}
-		const first = b.geometries.get(inst.key[0])!;
-		while (b.ids.length < inst.count) b.ids.push(mesh.addInstance(first));
+		const first = b.geometries.get(inst.key[list[0]])!;
+		while (b.ids.length < list.length) b.ids.push(mesh.addInstance(first));
 		const m = new THREE.Matrix4();
-		for (let i = 0; i < inst.count; i++) {
-			const id = b.ids[i];
+		for (let n = 0; n < list.length; n++) {
+			const [id, i] = [b.ids[n], list[n]];
 			mesh.setGeometryIdAt(id, b.geometries.get(inst.key[i])!);
 			mesh.setMatrixAt(id, m.fromArray(inst.matrices, i * 16));
 			b.edges[id] = inst.edge[i];
@@ -469,6 +488,7 @@ function geometryOf(piece: PieceMesh): THREE.BufferGeometry {
 	const g = new THREE.BufferGeometry();
 	g.setAttribute('position', new THREE.BufferAttribute(piece.positions, 3));
 	g.setAttribute('normal', new THREE.BufferAttribute(piece.normals, 3));
+	if (piece.colors) g.setAttribute('color', new THREE.BufferAttribute(piece.colors, 3));
 	g.setIndex(new THREE.BufferAttribute(piece.indices, 1));
 	return g;
 }

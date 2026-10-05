@@ -13,7 +13,8 @@ import { shaderStages } from './perf';
 import { PICK_LAYER } from './picking';
 import { BACKEND } from './testing';
 import { WallLayer, type WallKit } from './walls';
-import { boxes } from './world/wall-batch';
+import { boxes, KIT_LIFT } from './world/wall-batch';
+import { loadEnvironment } from './environment';
 import { loadWorld } from './world-layer';
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -44,13 +45,21 @@ const ROOM = [
 const at = (x: number, y: number) => [x - grid.width / 2, y - grid.height / 2] as const;
 
 /** A synthetic kit: two thick straight variants, an L post, a cap, all plain boxes. */
+/** Boxes as a kit piece: with vertex colours, as `pieceOf` makes every kit piece. */
+const piece = (...list: Parameters<typeof boxes>[0]) => {
+	const mesh = boxes(list);
+	return {
+		mesh: { ...mesh, colors: new Float32Array(mesh.positions.length).fill(0.6) },
+		weight: 1
+	};
+};
 const KIT: WallKit = {
 	'wall.straight': [
-		{ mesh: boxes([[-0.5, 0, -0.05, 0.5, WALL_HEIGHT, 0.05]]), weight: 1 },
-		{ mesh: boxes([[-0.5, 0, -0.06, 0.5, WALL_HEIGHT - 0.1, 0.06]]), weight: 1 }
+		piece([-0.5, 0, -0.05, 0.5, WALL_HEIGHT, 0.05]),
+		piece([-0.5, 0, -0.06, 0.5, WALL_HEIGHT - 0.1, 0.06])
 	],
-	'post.L': [{ mesh: boxes([[-0.12, 0, -0.12, 0.12, WALL_HEIGHT + 0.1, 0.12]]), weight: 1 }],
-	cap: [{ mesh: boxes([[-0.5, 1.9, -0.09, 0.5, WALL_HEIGHT, 0.09]]), weight: 1 }]
+	'post.L': [piece([-0.12, 0, -0.12, 0.12, WALL_HEIGHT + 0.1, 0.12])],
+	cap: [piece([-0.5, 1.9, -0.09, 0.5, WALL_HEIGHT, 0.09])]
 };
 
 async function setUp() {
@@ -132,9 +141,10 @@ describe('kit walls', () => {
 		// The kit: its L post and straight variants, its cap on its walls; no program.
 		t.layer.setLook(null, KIT);
 		await t.draw();
-		expect(t.topAt(...at(2, 2))).toBeCloseTo(WALL_HEIGHT + 0.1, 3);
+		// Its post and cap a little over the walls' tops (KIT_LIFT), never in their plane.
+		expect(t.topAt(...at(2, 2))).toBeCloseTo(WALL_HEIGHT + 0.1 + KIT_LIFT.post, 4);
 		const mid = t.topAt(at(3, 2)[0] + 0.5, at(3, 2)[1]);
-		expect(mid).toBeCloseTo(WALL_HEIGHT, 3); // the kit's cap on either variant
+		expect(mid).toBeCloseTo(WALL_HEIGHT + KIT_LIFT.cap, 4); // the kit's cap on either variant
 		// The T keeps the built-in post: the kit has none.
 		expect(t.topAt(...at(5, 2))).toBeCloseTo(WALL_HEIGHT + 0.04, 3);
 		expect(fresh()).toEqual([]);
@@ -149,6 +159,27 @@ describe('kit walls', () => {
 		t.sync(ROOM);
 		await t.draw();
 		expect(fresh()).toEqual([]);
+		t.layer.dispose();
+	});
+
+	it('draw an environment’s own kit, its pieces in their baked colours', async () => {
+		const t = await setUp();
+		t.gallery();
+		t.sync(ROOM);
+		await t.draw();
+		const before = t.stages();
+		const look = await loadEnvironment('village');
+		expect(look?.kit?.['wall.straight']?.length).toBe(2);
+		expect(look?.kit?.['post.L']?.[0].mesh.colors?.length).toBeGreaterThan(0);
+		t.layer.setLook(look!.walls, look!.kit);
+		await t.draw();
+		// Every piece of the room is the kit's (its batch has vertex colours), none built in.
+		const batches = t.layer.group.children.filter((o) => o instanceof THREE.BatchedMesh);
+		expect(batches.length).toBe(1);
+		expect(batches[0].geometry.getAttribute('color')).toBeDefined();
+		// The village's L post (2 u) a little over the walls, scaled to the corner.
+		expect(t.topAt(...at(2, 2))).toBeCloseTo(WALL_HEIGHT + KIT_LIFT.post, 3);
+		expect([...t.stages()].filter((code) => !before.has(code))).toEqual([]);
 		t.layer.dispose();
 	});
 

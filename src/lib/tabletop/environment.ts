@@ -167,9 +167,11 @@ export function wear(
  * Null for a kit with none (`plain`).
  */
 export async function loadKit(kit: KitDef | undefined): Promise<WallKit | null> {
-	const entries = Object.entries(kit?.pieces ?? {});
+	const { BATCH_ROLES, pieceOf } = await import('./world/build'); // loaded with the table
+	// Only what the walls draw: doors, stairs, bridges, cliffs and roofs are other layers' (#253-#257).
+	const roles = new Set<string>(BATCH_ROLES);
+	const entries = Object.entries(kit?.pieces ?? {}).filter(([role]) => roles.has(role));
 	if (!entries.length) return null;
-	const { pieceOf } = await import('./world/build'); // the world's lazy chunk, loaded by now
 	const out: Record<string, { mesh: PieceMesh; weight: number }[]> = {};
 	await Promise.all(
 		entries.map(async ([role, list]) => {

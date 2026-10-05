@@ -386,10 +386,9 @@ has no cap piece`).
   corner, walkable against void, and drops of 1 and 5. It covers the medium base; large bases
   (#270) exceed a cell by design.
 - The walls draw from kits since #252 (docs/RENDERING.md, "Kit walls"): `loadEnvironment` loads
-  the environment's kit (`loadKit`: every `body` part of each variant's model as one mesh,
-  `pieceOf`), and a role the kit lacks, or whose models fail to load, draws its built-in
-  procedural piece, never nothing. Kit pieces are drawn in the environment's wall look (the
-  surface kind): a greybox kit's vertex colours and textures are not read yet.
+  the wall roles of the environment's kit (`loadKit`: every `body` part of each variant's model as
+  one mesh with its vertex colours, `pieceOf`), and a role the kit lacks, or whose models fail to
+  load, draws its built-in procedural piece, never nothing.
 
 #### Greybox kits (#261)
 

@@ -77,16 +77,20 @@ export function kindGallery(): THREE.Object3D[] {
 		new THREE.Vector3(1)
 	]);
 	// The walls' batches (#252): positions, normals and triangles only, colours from the start.
-	for (const antiTiled of [false, true]) {
-		const box = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');
-		const material = createMaterial('surface', { batched: true, antiTiled });
-		const batch = new THREE.BatchedMesh(1, 24, 36, material);
-		(batch as unknown as { _initColorsTexture(): void })._initColorsTexture();
-		batch.addInstance(batch.addGeometry(box));
-		batch.castShadow = batch.receiveShadow = true;
-		batch.frustumCulled = false;
-		out.push(batch);
-	}
+	for (const antiTiled of [false, true])
+		for (const vertexColors of [false, true]) {
+			const box = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');
+			const count = box.getAttribute('position').count;
+			const color = new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3);
+			if (vertexColors) box.setAttribute('color', color);
+			const material = createMaterial('surface', { batched: true, antiTiled, vertexColors });
+			const batch = new THREE.BatchedMesh(1, 24, 36, material);
+			(batch as unknown as { _initColorsTexture(): void })._initColorsTexture();
+			batch.addInstance(batch.addGeometry(box));
+			batch.castShadow = batch.receiveShadow = true;
+			batch.frustumCulled = false;
+			out.push(batch);
+		}
 	const lines = new THREE.LineSegments(points, createMaterial('overlay', { lines: true }));
 	lines.frustumCulled = false;
 	out.push(lines);
