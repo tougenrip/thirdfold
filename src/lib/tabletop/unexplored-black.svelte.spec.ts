@@ -398,11 +398,12 @@ function standing(view: FixtureView): Float32Array {
 		const top = shape.levels[p.cell] * STEP_HEIGHT + TALL.rail;
 		for (const i of [p.cell, p.across]) tall[i] = Math.max(tall[i], top);
 	}
-	// Roofs (#257), presumed ones too, as high as one may rise, over their cells and the eave's ring.
+	// Roofs (#257), presumed ones too, as high as one may rise, over their cells and the eave's ring,
+	// and a wall higher for their chimneys (#258).
 	const interior = view.interior ? decodeMask(view.interior, size) : null;
 	const footprint = roofFootprint(shape, view.objects, interior, true);
 	for (const r of roofRegions(shape, footprint)) {
-		const top = r.eaveY / grid.cellSize + MAX_RISE * WALL_LEVELS * STEP_HEIGHT;
+		const top = r.eaveY / grid.cellSize + (MAX_RISE + 1) * WALL_LEVELS * STEP_HEIGHT;
 		for (const i of r.cells)
 			for (let dy = -1; dy <= 1; dy++)
 				for (let dx = -1; dx <= 1; dx++)

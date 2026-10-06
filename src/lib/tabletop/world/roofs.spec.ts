@@ -1,7 +1,8 @@
 // Roofs over roofed rooms (#257): footprints for the GM and for players (the interior mask as
 // sent, and presumed rooms closed by known walls), the rectangles and gables, every fixture scene
-// and view, Bellweather's houses, and the differential secrecy test: a player's roofs are the
-// same whatever the server holds for cells they haven't explored.
+// and view, Bellweather's houses, and the differential secrecy test: a player's roofs, hips, caps,
+// chimneys and dormers (#258) are the same whatever the server holds for cells they haven't
+// explored.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -15,10 +16,20 @@ import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, type FogView } from '$lib/game/visibility';
 import { WALL_HEIGHT } from '../ground';
 import { random } from './random-table';
-import { rectsOf, roofFootprint, roofMesh, roofRegions, seenInto } from './roofs';
+import { ROOF_PIECE_ROLES, roofMesh, type RoofPieces } from './roof-mesh';
+import { rectsOf, roofFootprint, roofRegions, seenInto } from './roofs';
 import { knownOf, worldShape, type ShapeInput } from './shape';
+import { boxes } from './wall-batch';
 
 const ROOF: KitRoof = { style: 'gable', pitch: 45, eave: 0.25, material: 'thatch' };
+/** A box for every roof piece (#258), the chimney's with a smoke socket. */
+const PIECES: RoofPieces = Object.fromEntries(
+	ROOF_PIECE_ROLES.map((role) => {
+		const mesh = boxes([[-0.1, 2, -0.1, 0.1, 2.6, 0.1]]);
+		const colors = new Float32Array(mesh.positions.length).fill(0.5);
+		return [role, [{ mesh: { ...mesh, colors }, weight: 1, smoke: [0, 3, 0] as const }]];
+	})
+);
 const grid = (width: number, height: number): SquareGrid => ({
 	kind: 'square',
 	cellSize: 1,
@@ -248,7 +259,13 @@ const roofsOf = (f: Fixture, input = f.input, interior = f.interior) => {
 	const shape = worldShape(input);
 	const footprint = roofFootprint(shape, input.objects, interior, true);
 	const regions = roofRegions(shape, footprint);
-	return { footprint, regions, mesh: roofMesh(shape, regions, ROOF, footprint) };
+	return {
+		footprint,
+		regions,
+		mesh: roofMesh(shape, regions, ROOF, footprint),
+		// Hips, caps, chimneys and dormers (#258) too, from the same footprint.
+		dressed: roofMesh(shape, regions, { ...ROOF, style: 'hip' }, footprint, PIECES)
+	};
 };
 
 describe('roofs on every fixture', () => {

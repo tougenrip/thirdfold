@@ -125,7 +125,7 @@ export async function loadEnvironment(
 	const kitDef = manifest.kits[env.kit ?? 'plain'];
 	const roofDef = kitDef?.roof ?? null;
 	const roofLook = roofDef && manifest.materials[roofDef.material];
-	const [[surface, ground, walls], grades, own, kit, roofed] = await Promise.all([
+	const [[surface, ground, walls], grades, own, kit, roofed, roofPieces] = await Promise.all([
 		Promise.all(
 			[env.surface, env.ground, env.walls].map((m) =>
 				look(manifest.materials[m], manifest.textures)
@@ -138,7 +138,8 @@ export async function loadEnvironment(
 		// Its painted surfaces (#187), from a chunk only tables that have them load.
 		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null,
 		loadKit(kitDef),
-		roofLook ? look(roofLook, manifest.textures) : null
+		roofLook ? look(roofLook, manifest.textures) : null,
+		roofDef ? kitPieces(kitDef, 'roofs') : null
 	]);
 	return {
 		surface,
@@ -147,7 +148,12 @@ export async function loadEnvironment(
 		floors: own?.floors ?? null,
 		grades,
 		kit,
-		roof: roofDef && { roof: roofDef, presume: kitDef!.presumeRoofs, look: roofed }
+		roof: roofDef && {
+			roof: roofDef,
+			presume: kitDef!.presumeRoofs,
+			look: roofed,
+			pieces: roofPieces ?? {}
+		}
 	};
 }
 
@@ -175,22 +181,36 @@ export function wear(
  * Null for a kit with none (`plain`).
  */
 export async function loadKit(kit: KitDef | undefined): Promise<WallKit | null> {
-	const { BATCH_ROLES, pieceOf } = await import('./world/build'); // loaded with the table
-	// Only what the walls draw (with arches and door leaves, #253): stairs, bridges,
-	// cliffs and roofs are other layers' (#255-#257).
-	const roles = new Set<string>(BATCH_ROLES);
+	const out = await kitPieces(kit, 'walls');
+	return Object.keys(out).length ? (out as WallKit) : null;
+}
+
+/**
+ * A kit's pieces for the walls (with arches and door leaves, #253) or for the roofs (caps,
+ * chimneys with their smoke sockets and dormers, #258); stairs, bridges and cliffs are other
+ * layers'. A role whose models don't all load is left out.
+ */
+async function kitPieces(kit: KitDef | undefined, of: 'walls' | 'roofs') {
+	const build = await import('./world/build'); // loaded with the table
+	const roles = new Set<string>(of === 'walls' ? build.BATCH_ROLES : build.ROOF_PIECE_ROLES);
 	const entries = Object.entries(kit?.pieces ?? {}).filter(([role]) => roles.has(role));
-	if (!entries.length) return null;
-	const out: Record<string, { mesh: PieceMesh; weight: number }[]> = {};
+	const out: Record<
+		string,
+		{ mesh: PieceMesh; weight: number; smoke?: [number, number, number] }[]
+	> = {};
 	await Promise.all(
 		entries.map(async ([role, list]) => {
 			const models = await Promise.all(list.map((p) => loadModel(p.model)));
 			if (models.some((m) => !m)) return;
-			out[role] = models.map((m, i) => ({
-				mesh: pieceOf(partsOf(m!, 'body').map((p) => p.geometry)),
-				weight: list[i].weight ?? 1
-			}));
+			out[role] = models.map((m, i) => {
+				const smoke = list[i].sockets?.find((s) => s.kind === 'smoke')?.at;
+				return {
+					mesh: build.pieceOf(partsOf(m!, 'body').map((p) => p.geometry)),
+					weight: list[i].weight ?? 1,
+					...(smoke ? { smoke } : {})
+				};
+			});
 		})
 	);
-	return Object.keys(out).length ? (out as WallKit) : null;
+	return out;
 }

@@ -2269,7 +2269,8 @@ as sent and the kit. Presentation only: no wire field, no rule, nothing picked.
 
 **Shape** (`roofRegions`, `roofMesh`): regions are the footprint's 4-connected components (inner
 walls don't split a roof), each split greedily into maximal rectangles (`rectsOf`, in row order: as
-far right, then as far down). Each rectangle is a gable prism along its long axis (along x on a
+far right, then as far down). (#258 roofs each region by its wings instead, the overlapping maximal
+rectangles, with the greedy split as the fallback; below.) Each rectangle is a gable prism along its long axis (along x on a
 tie): slopes at the kit's pitch from the eave up to a ridge over the middle, the rise capped at
 `MAX_RISE` walls so wide halls flatten rather than tower; the eaves overhang the walls by the kit's
 `eave` on all four sides, held so the eave's edge stays over `FIGURE_CLEAR` (a 60° roof with a 0.5
@@ -2312,10 +2313,8 @@ and with the kit (`WallLayer.setLook(look, kit, roof)`, from `EnvironmentLook.ro
 roofs appearing, a new chunk, another kit's look, raised ground and a sight change compile nothing
 (`roofs.svelte.spec.ts`, and the program-count sweep's roof steps).
 
-**API for #258 and #259:** `RoofMesh.region` is each vertex's region index (for the fades), each
-rectangle's axis is its long side and `KitRoof.style` reaches `roofMesh`, so hips, cross-gables,
-ridge caps, chimneys and dormers slot in as other prisms or kit pieces per rectangle; `seenInto` is
-where the fade's test goes.
+**API for #259:** `RoofMesh.region` is each vertex's region index (for the fades), pieces included
+(#258, below); `seenInto` is where the fade's test goes.
 
 **The boundary-wall rule, settled (#251).** Autotile's building context (`RoofLayer.update`'s
 result, `tileInput`'s `building`) is the viewer's roof footprint:
@@ -2361,6 +2360,88 @@ walls. No roof predicate in the DDA pick yet (a click on a roof picks the cell u
 no more than the roof). No posts on open sides (Bellweather's smithy already has end posts where its
 walls stop). Bellweather's and the monastery's roofed parts were already set (their tables' `interior`). Goldens and the
 closer-shot strips are the milestone's close.
+
+## Hips, caps, chimneys and dormers (milestone 70, #258)
+
+`world/roof-mesh.ts` (pure, in the lazy `world` chunk) builds a chunk's roofs; `world/roofs.ts`
+keeps the footprints and regions. Everything below comes from the region's footprint (what the
+viewer was sent, #257), the kit and hashes of cell coordinates, so every client builds the same.
+
+**Wings.** A region is roofed by its wings, `wingsOf`: every maximal rectangle of its cells (one no
+other rectangle of them contains), found in one pass from per-cell runs down and right. They cover
+every cell and overlap where a house turns: an L is two bars, a T two. Past `MAX_WINGS` (12, a
+ragged region) the region falls back to #257's greedy rectangles. Each wing is a prism along its
+long axis at the kit's pitch, `MAX_RISE` and the eave hold as before; the roof is their upper
+envelope, which the depth test draws.
+
+- **Hips** (`style: 'hip'`): each wing's ends are hipped slopes, its ridge running from half its
+  depth in at each end (a square comes to a point), in closed form. For a rectilinear outline at
+  one pitch the hip prisms of the maximal rectangles meet exactly where a straight skeleton puts
+  the hips and valleys: the height at a point is its max-norm distance to the outline (the largest
+  square round it inside the footprint lies in some maximal rectangle, and no rectangle reaches
+  further). So L, T and wider shapes need no skeleton library and nothing lazy beyond the world
+  chunk; where wings overlap, their coplanar faces are the same surface in the same material,
+  colour and fog cell, so nothing shows. `roof-mesh.spec.ts` checks the envelope against the
+  max-norm distance over every cell of a rectangle, an L, a T and a wide L.
+- **Cross-gables** (`style: 'gable'`): the wings' gable prisms cross, each wing's gable standing at
+  the outline where it ends; a narrower wing's ridge sits lower, its valleys where the slopes meet.
+- **Caps**: the kit's `roof.ridge` along each wing's ridge, one per cell, and `roof.hip` down each
+  hip about half a cell apart from the ridge's ends, each only where its wing is the top of the
+  roof (`onTop`, against every wing's height there) and once per spot. A cap's pivot is a one-cell
+  roof's ridge (`WALL_HEIGHT + tan(pitch) / 2` over the cell's centre, where the greybox pieces have
+  theirs); the ridge piece is drawn at `CAP_SCALE` (0.5) across the ridge and up (its slopes keep
+  the pitch, so they lie on the roof's), the hip piece at `CAP_SCALE` all round, both lifted 0.015
+  off the roof. Where a hall's rise is capped by `MAX_RISE`, the piece's steeper slopes sink into
+  the roof and the cap shows on top.
+- **Chimneys**: a wing two or more cells deep has one on its ridge cell of lowest hash when that
+  hash is under `CHIMNEY_ODDS` (0.25: about four in five six-cell houses), `0.35` of a cell down
+  the slope to the side a hash picks, the piece's pivot the same as a cap's. The choice is the
+  wing's ridge cells', not the region's, so a chimney stays put while its wing does: a house seen
+  whole and then with a wing added keeps it (tested). The kit's smoke socket (`KitPiece.sockets`,
+  kind `smoke`) is carried through each chimney's placement into `RoofMesh.smoke` (x y z in world
+  units) for #319; nothing reads it yet.
+- **Dormers**: on a wing longer than `DORMER_RUN` (4) cells, at cells of each long slope over an
+  outer wall (the cell beyond it unroofed), clear of the wing's end cells, the chimney's cell and
+  its neighbours and the last dormer, where a hash is under `DORMER_ODDS` (0.3) and the wing is the
+  top just inside the wall. A dormer's pivot is its wall's eave line (`0, WALL_HEIGHT, 0.5` in its
+  frame, the front toward +z), set on the wing's wall line at the eave height and turned to face
+  out.
+
+`roof.eave` and `roof.corner` are not drawn: the greybox pieces are whole slopes and hipped
+corners for a roof built a cell at a time, which the procedural slopes already are.
+
+**Drawing.** Pieces are baked into the chunk's one roof mesh, with the region's fog cell
+(`aRoofCell`) and region index (#259's fades) on every vertex, so they fade and fog with their roof
+and add no draw. The roof material is now the surface kind's roof variant with vertex colours (in
+the lobby's gallery and the layer's stand-in too, so the program count is unchanged: one roof
+program, as before): the slopes carry white, and a piece its baked colours divided by the roof
+material's linear colour, which the material multiplies back. `loadEnvironment` loads the kit's
+four roof roles beside the walls' (`RoofKit.pieces`; the models were already in every table's
+budget, which counts every piece of its kit, so nothing new is downloaded); a role whose models
+don't load is left out, and a kit without pieces draws plain roofs. The tier table drops nothing
+(the issue allows the low tier to drop chimneys and dormers; they cost a few hundred triangles a
+house).
+
+**Secrecy.** The differential test in `roofs.spec.ts` also builds every viewer's hipped roof with
+every piece (a chimney with a socket) and finds it identical whatever the server holds for
+unexplored cells. Unexplored-is-black stands a roof a wall higher than it may rise, for its
+chimneys.
+
+**Tests.** `world/roof-mesh.spec.ts`: wings (a rectangle, an L, a T, the fallback); a hipped
+rectangle's ridge, eaves and slopes and a square's point; the skeleton's heights on L, T and wide
+houses; cross-gables; caps on every ridge and hip that shows, on the roof and never twice in a
+spot; chimneys by hash, kept as a footprint grows, with their sockets; dormers only on long slopes
+at the eave; Bellweather's five houses capped along their ridges, several with chimneys and some
+with dormers. `roofs.svelte.spec.ts`: the village kit's pieces loaded, drawn and lit from outside,
+a hipped end where the kit says hip, and no new shader stage.
+
+**Deviations from #258.** No straight-skeleton library or lazy chunk: the maximal rectangles give
+the same roof for every rectilinear outline at one pitch (grid outlines always are), so the
+renderer chunk is unchanged and the world chunk grew 1.5 kB. Bellweather's kit stays gable (its
+houses get ridge caps, chimneys and dormers); hip is the kit's switch. No barge boards (no kit
+role for them), no eave or corner trims (see above), no `window.glass` in the dormer: its glass is
+baked in its colours, so #260's glow doesn't reach it yet. No skeleton timing per building (there
+is no skeleton). Goldens and the closer-shot strips are the milestone's close.
 
 ## Modules
 
