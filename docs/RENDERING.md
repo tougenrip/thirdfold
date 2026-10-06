@@ -2277,8 +2277,8 @@ tie): slopes at the kit's pitch from the eave up to a ridge over the middle, the
 eave overhangs less); gables close each end from the eave to the ridge. Where rectangles meet the
 prisms interpenetrate: with one pitch the narrower wing's ridge sits lower, the valley. The eave
 height is the highest floor under the region plus `WALL_HEIGHT`, and a cell whose wall top is lower
-gets an infill band from it up to the eave on its outer sides, which belongs to the roof (and will
-fade with it, #259). Every face is drawn both ways (the soffit is seen from inside), as plain
+gets an infill band from it up to the eave on its outer sides, which belongs to the roof (and fades
+with it, #259). Every face is drawn both ways (the soffit is seen from inside), as plain
 indexed triangles: a few hundred per house.
 
 **Fog and sky** (the surface kind's `roof` variant, `materials/world-modify.ts`): a roof is exterior
@@ -2296,10 +2296,8 @@ it never shares a program key with a plain surface. Point lights skip roofs (`Gr
 cells' under it, so a torch inside would light the roof's top. Not yet a per-region state texture
 (the issue's "lit if any is visible"): one cell's state stands for the region.
 
-**Roofs never hide what the rules show:** a region the viewer sees into (any of its cells visible in
-the fog view, `seenInto`) is left out until it is out of sight again (`RoofLayer.setSight`, from the
-renderer's `setFog`). For the GM the visible cells are the party's. With fog off nothing is left
-out. #259 replaces the cut with a fade and adds the token and camera-pivot rule.
+**Roofs never hide what the rules show:** a region the viewer sees into fades out (#259, "Roof
+fades" below) until it is out of sight again. For the GM the visible cells are the party's.
 
 **Drawing:** one `Mesh` per 16x16 chunk (a region belongs to its first cell's chunk) in one material
 per table (the kit's roof material, a manifest colour: thatch, slate, tin, boards; nothing to
@@ -2313,8 +2311,8 @@ and with the kit (`WallLayer.setLook(look, kit, roof)`, from `EnvironmentLook.ro
 roofs appearing, a new chunk, another kit's look, raised ground and a sight change compile nothing
 (`roofs.svelte.spec.ts`, and the program-count sweep's roof steps).
 
-**API for #259:** `RoofMesh.region` is each vertex's region index (for the fades), pieces included
-(#258, below); `seenInto` is where the fade's test goes.
+**API:** `RoofMesh.region` is each vertex's region index, pieces included (#258, below); the
+fades' key (#259) comes from it.
 
 **The boundary-wall rule, settled (#251).** Autotile's building context (`RoofLayer.update`'s
 result, `tileInput`'s `building`) is the viewer's roof footprint:
@@ -2346,15 +2344,14 @@ presumed roof shows (lit from outside) and every other unexplored cell stays bla
 **Tests.** `world/roofs.spec.ts`: GM and presumed footprints; nothing presumed open to the table, at
 its edge, past `MAX_ROOM_CELLS` or with an explored unroofed cell; walls with no known side ignored;
 the greedy rectangles; the gable's ridge and eaves (over `FIGURE_CLEAR`, capped); the infill;
-`seenInto`; every fixture scene (the mask exactly); Bellweather's five houses one gable each; a
+every fixture scene (the mask exactly); Bellweather's five houses one gable each; a
 player who walked Bellweather's streets presuming its four closed houses (not the open smithy);
 every fixture view; and the differential test. `roofs.svelte.spec.ts` (a render spec): a presumed
 roof drawn and lit over an unexplored room, its ridge, one chunk built per new house, the village's
-thatch, a room seen into left out and back, the GM's, and no new shader stage throughout.
+thatch, and no new shader stage throughout (the fades' tests are below).
 
 **Deviations from #257.** Roofs live in the walls' layer (they share its inputs), not a separate
-`roofs` tier layer: they are on wherever a kit has roofs. A seen-into region is cut, not faded,
-until #259. The per-region fog is one known cell's state, not a texture of the whole ring's. No
+`roofs` tier layer: they are on wherever a kit has roofs. The per-region fog is one known cell's state, not a texture of the whole ring's. No
 world-unit UVs: the roof materials are colours, mapped by the surface kind's world box like the
 walls. No roof predicate in the DDA pick yet (a click on a roof picks the cell under it, which says
 no more than the roof). No posts on open sides (Bellweather's smithy already has end posts where its
@@ -2442,6 +2439,54 @@ houses get ridge caps, chimneys and dormers); hip is the kit's switch. No barge 
 role for them), no eave or corner trims (see above), no `window.glass` in the dormer: its glass is
 baked in its colours, so #260's glow doesn't reach it yet. No skeleton timing per building (there
 is no skeleton). Goldens and the closer-shot strips are the milestone's close.
+
+## Roof fades (milestone 70, #259)
+
+A roof region dithers out over `ROOF_FADE_MS` (250 ms) and back, so tokens inside a building stay
+seen and clickable and the GM can edit inside one.
+
+**The rule** (`world/roof-fade.ts` `roofFade`, pure, in the `world` chunk) gives each region a target:
+0 when a cell of the viewer's own tokens or of the selected token is in it, when the camera's pivot
+is on a known cell of it, or (fog on) when any of its cells is visible; else `BUILDING_FADE` (0.5) for
+the GM while a build tool is out (the grid's build mode, `setGridMode`); else 1. A presumed roof over
+unexplored ground never fades for the pivot (fading it would show only black); tokens and visible
+cells are explored, so the other rules never open one either. With fog off the visible rule is
+skipped (the rules hide nothing, and roofs would never show). The GM's visible cells are the party's.
+
+**Inputs, all the viewer's own:** the tokens it was sent (`setTokens`), its own tokens' ids
+(`Tabletop.setOwnTokens`, from `RoomView`: the tokens whose `ownerId` is the viewer's seat), the
+selection (`setSelected`), the fog view and mode (`setFog`), the shape's `known` and the camera's
+pivot (`controls.target`, read each frame by `RoofLayer.tick`; a new pivot cell retargets). Nothing
+new goes over the wire, so a player's fades say nothing the player wasn't sent.
+
+**Drawing:** fades live in `ROOF_FADES` (`materials/roof-fade.ts`), a module-wide 128x128 R8 data
+texture (one texel per cell of the largest table, `GRID_LIMITS.maxCells` 100), at each region's key
+cell: its smallest cell, which every vertex carries as `aRoofKey`. The surface kind's `roof` variant
+has a `maskNode`: the fade read there is compared with three's `interleavedGradientNoise` at the
+pixel, and the fragment is discarded below it; so a fade is a screen-door dither with no
+transparency sorting, a half fade a visible pattern (TRAA smooths it on high). `maskShadowNode` is a
+constant true: the shadow pass never masks, so a fade never redraws the cached sun shadow and a room
+keeps its roof's shade, as indoors. `RoofLayer` keeps each fade by key across rebuilds (exploring a
+house doesn't restart it), eases it on the wall clock (`tick(now, pivot)`, from `drawFrame`, an ACTIVE
+frame while any fades, never a shadow redraw), writes only the texels that changed and stops: no
+frame after a fade ends. A region first met already open starts open; under reduced motion every
+fade jumps. A fade rebuilds no chunk and compiles nothing (the warm-up's stand-ins carry `aRoofKey`).
+
+**Secrecy:** a faded roof shows the cells under it as their own materials draw them, so unexplored
+cells stay exactly black (`worldModify`, and the output stage's re-mask from `hidden`, which a
+discarded roof fragment never writes).
+
+**Tests.** `world/roof-fade.spec.ts`: every rule, fog off, the pivot over unexplored ground and the
+GM's building. `roofs.svelte.spec.ts`: a room seen into faded and back over `ROOF_FADE_MS` with
+nothing rebuilt, an own token walking in and out, a selected one, the GM's pivot in and out, the
+GM's building half fade (a player's none), a player's pivot over a presumed roof (it stays), the
+reduced-motion jump, and no new shader stage throughout. The program-count sweep has a fade step;
+unexplored-is-black fades the roof over a partly explored house.
+
+**Deviations from #259.** Roofs were never on the pick layer (#257's deviation), so a faded roof
+takes no click, and an opaque one still passes a click to the cell below (the issue's DDA roof
+predicate waits for one). The GM's build mode includes placing and spawning (`gridModeOf`), so a
+GM placing a token sees roofs half there too. Goldens wait for the milestone's close.
 
 ## Modules
 

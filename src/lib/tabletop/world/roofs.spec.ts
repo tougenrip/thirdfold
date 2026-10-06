@@ -17,7 +17,7 @@ import { decodeMask, type FogView } from '$lib/game/visibility';
 import { WALL_HEIGHT } from '../ground';
 import { random } from './random-table';
 import { ROOF_PIECE_ROLES, roofMesh, type RoofPieces } from './roof-mesh';
-import { rectsOf, roofFootprint, roofRegions, seenInto } from './roofs';
+import { rectsOf, roofFootprint, roofRegions } from './roofs';
 import { knownOf, worldShape, type ShapeInput } from './shape';
 import { boxes } from './wall-batch';
 
@@ -188,25 +188,6 @@ describe('regions and gables', () => {
 		const flat = roofMesh(shapeOf(g, []), roofRegions(shapeOf(g, []), interior), ROOF, interior);
 		const raised = roofMesh(shape, regions, ROOF, interior);
 		expect(raised.indices.length).toBeGreaterThan(flat.indices.length);
-	});
-
-	it('are left out while the viewer sees into them', () => {
-		const g = grid(8, 6);
-		const interior = mask(g, (x, y) => x >= 1 && x < 6 && y >= 1 && y < 4);
-		const [r] = roofRegions(shapeOf(g, []), interior);
-		expect(seenInto(r, null)).toBe(false);
-		expect(
-			seenInto(
-				r,
-				mask(g, (x) => x === 0)
-			)
-		).toBe(false);
-		expect(
-			seenInto(
-				r,
-				mask(g, (x, y) => x === 1 && y === 1)
-			)
-		).toBe(true);
 	});
 });
 

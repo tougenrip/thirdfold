@@ -254,7 +254,3 @@ export const roofKey = (shape: WorldShape, regions: readonly RoofRegion[]): stri
 			return `${r.eaveY}:${r.fogCell}:${rects}:${r.cells.map((i) => shape.levels[i]).join(',')}`;
 		})
 		.join('|');
-
-/** Whether the viewer sees into a region now: any of its cells in `visible`. */
-export const seenInto = (r: RoofRegion, visible: CellMask | null): boolean =>
-	!!visible && r.cells.some((i) => visible[i] === 1);

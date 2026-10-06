@@ -1,14 +1,19 @@
 // Roofs (#257) drawn: a player's presumed roof over a room they walked round, lit by the known
-// cell outside it while the ground under it stays black; a roof left out while the viewer sees
-// into it; the gable's ridge where world/roofs.ts puts it; the village kit's caps, chimneys and
-// dormers and a hipped roof (#258); and none of it compiling a program after the warm-up's
-// stand-in (roofs appearing, a new chunk, the village's kit and its pieces, a sight change).
+// cell outside it while the ground under it stays black; the gable's ridge where world/roofs.ts
+// puts it; the village kit's caps, chimneys and dormers and a hipped roof (#258); roof fades (#259):
+// a roof fading while the viewer sees into it, while an own token stands in it and while the GM's
+// camera pivot is on it, back when none holds, over ROOF_FADE_MS on the clock given (at once under
+// reduced motion), never over unexplored ground, half while the GM builds; and none of it compiling
+// a program after the warm-up's stand-in (roofs appearing, a new chunk, the village's kit and its
+// pieces, a sight change, a fade).
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { KitRoof } from '$lib/assets/kit';
 import type { SquareGrid } from '$lib/game/grid';
 import type { SceneObject } from '$lib/game/objects';
+import { GRID_LIMITS } from '$lib/game/scene-file';
+import type { Token } from '$lib/game/token';
 import { encodeMask, type FogView } from '$lib/game/visibility';
 import { CellMaps } from './cell-maps';
 import { loadEnvironment } from './environment';
@@ -16,7 +21,9 @@ import { groundFor, WALL_HEIGHT } from './ground';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { shaderStages } from './perf';
 import { PICK_LAYER } from './picking';
-import type { RoofKit } from './roofs';
+import { ROOF_FADE_SIDE } from './materials/roof-fade';
+import { ROOF_FADE_MS, type RoofKit } from './roofs';
+import type { FogMode } from './fog';
 import { SkyHemisphere, registerSkyLights } from './sky-light';
 import { BACKEND } from './testing';
 import { WallLayer } from './walls';
@@ -90,20 +97,38 @@ async function setUp() {
 	const layer = new WallLayer(build);
 	scene.add(layer.group);
 	const ground = groundFor(grid, null);
+	/** The layer's clock (ms) and the camera's pivot (off the table until a test puts it on). */
+	const clock = { now: 0, pivot: { x: 1000, z: 1000 } };
 	return {
 		layer,
 		maps,
-		/** The view as a player: their fog on the cell maps, the shape, the sight, the walls. */
-		show(objects: SceneObject[], fog: FogView | null, interior: Uint8Array | null = null) {
-			maps!.update(grid, { fog, mode: 'player' }, 'day', null, null, null, null);
-			const known = fog ? build.knownOf(grid, fog, false) : null;
+		clock,
+		/** The view as a player (or the GM): the fog on the cell maps, the shape, the sight, the walls. */
+		show(
+			objects: SceneObject[],
+			fog: FogView | null,
+			interior: Uint8Array | null = null,
+			mode: FogMode = 'player'
+		) {
+			maps!.update(grid, { fog, mode }, 'day', null, null, null, null);
+			const known = fog && mode === 'player' ? build.knownOf(grid, fog, false) : null;
 			const shape = build.worldShape({ grid, levels: null, floor: null, objects, known });
-			layer.roofs.setSight(fog);
+			layer.roofs.setSight(fog, mode);
 			layer.setInterior(interior);
 			layer.sync(objects, shape, ground);
 		},
-		/** The centre pixel's rgb, looking straight down on a cell. */
+		/** Ticks the fades at `now` (ms), the pivot over cell (x, y) or off the table; true while fading. */
+		tick(now: number, pivot?: [number, number] | null): boolean {
+			clock.now = now;
+			if (pivot !== undefined)
+				clock.pivot = pivot ? { x: at(...pivot)[0], z: at(...pivot)[1] } : { x: 1000, z: 1000 };
+			return layer.roofs.tick(now, clock.pivot);
+		},
+		/** The house's roof's fade now (its key is its first cell). */
+		fade: () => layer.roofs.fadeLevels().get(3 * grid.width + 4),
+		/** The centre pixel's rgb, looking straight down on a cell (the fades ticked first). */
 		async pixel(x: number, y: number): Promise<number[]> {
+			layer.roofs.tick(clock.now, clock.pivot);
 			const [wx, wz] = at(x, y);
 			camera.position.set(wx, 10, wz);
 			camera.lookAt(wx, 0, wz);
@@ -214,23 +239,120 @@ describe('roofs', () => {
 		t.layer.dispose();
 	});
 
-	it('leave a roof out while the viewer sees into it, and keep the GM’s', async () => {
+	it('fade a roof while the viewer sees into it, and keep the GM’s', async () => {
 		const t = await setUp();
 		t.gallery();
 		t.layer.setLook(null, null, KIT);
-		// The player steps in at the door: the room is explored, roofed as sent, and in sight.
+		expect(ROOF_FADE_SIDE).toBeGreaterThanOrEqual(GRID_LIMITS.maxCells);
+		// The player steps in at the door: the room is explored, roofed as sent, and in sight. A
+		// roof met already open is drawn open at once (the clear colour shows through it).
 		const all = mask(() => true);
 		const roofed = mask((x, y) => inHouse(x, y) && x < 20);
 		const inside: FogView = { ...FOG, visible: encodeMask(all), explored: encodeMask(all) };
 		t.show(HOUSE, inside, roofed);
-		expect(t.layer.roofs.stats()).toMatchObject({ chunks: 0, regions: 1 });
-		// Out of sight again (remembered): the roof is back.
+		expect(t.tick(0)).toBe(false);
+		expect(t.layer.roofs.stats()).toMatchObject({ chunks: 1, regions: 1 });
+		expect(t.fade()).toBe(0);
+		expect(await t.pixel(5, 3)).toEqual([0, 0, 0]);
+		// Out of sight again (remembered): the roof comes back over ROOF_FADE_MS, nothing rebuilt.
+		const built = t.layer.roofs.stats().built;
 		t.layer.roofs.setSight({ ...inside, visible: encodeMask(OUTSIDE) });
-		expect(t.layer.roofs.stats().chunks).toBe(1);
+		expect(t.tick(1000)).toBe(true);
+		expect(t.tick(1000 + ROOF_FADE_MS / 2)).toBe(true);
+		expect(t.fade()).toBeCloseTo(0.5);
+		expect(t.tick(1000 + ROOF_FADE_MS)).toBe(false);
+		expect(Math.max(...(await t.pixel(5, 3)))).toBeGreaterThan(10);
+		expect(t.layer.roofs.stats().built).toBe(built);
 		// The GM with fog off: the mask, roofed.
-		t.show(HOUSE, null, roofed);
+		t.show(HOUSE, null, roofed, 'gm');
+		t.tick(2000);
 		expect(t.layer.roofs.stats()).toMatchObject({ chunks: 1, regions: 1 });
 		expect(Math.max(...(await t.pixel(5, 3)))).toBeGreaterThan(10);
+		t.layer.dispose();
+	});
+
+	it('fade for an own token inside and the GM’s pivot, never over unexplored ground', async () => {
+		const t = await setUp();
+		t.gallery();
+		t.layer.setLook(null, null, KIT);
+		// A player who explored the house but stands outside it, out of sight of its inside.
+		const all = mask(() => true);
+		const roofed = mask((x, y) => inHouse(x, y) && x < 20);
+		const outside: FogView = { ...FOG, visible: encodeMask(OUTSIDE), explored: encodeMask(all) };
+		t.show(HOUSE, outside, roofed);
+		t.tick(0, null);
+		expect(Math.max(...(await t.pixel(5, 3)))).toBeGreaterThan(10);
+		const before = t.stages();
+		const fresh = () => [...t.stages()].filter((code) => !before.has(code));
+		const token = (x: number, y: number): Token => ({
+			id: 'hero',
+			name: 'Hero',
+			color: '#ffffff',
+			pos: { x, y },
+			ownerId: 'p1',
+			vision: 6,
+			light: 0
+		});
+		// Their token walks in: the roof fades out over ROOF_FADE_MS.
+		t.layer.roofs.setTokens([token(5, 3)]);
+		t.tick(100);
+		expect(t.fade()).toBe(1); // not theirs (yet): no rule holds
+		expect(t.layer.roofs.setOwn(['hero'])).toBe(true);
+		expect(t.layer.roofs.setOwn(['hero'])).toBe(false);
+		expect(t.tick(100)).toBe(true);
+		expect(t.tick(100 + ROOF_FADE_MS)).toBe(false);
+		expect(t.fade()).toBe(0);
+		expect(await t.pixel(5, 3)).toEqual([0, 0, 0]);
+		// It walks out: the roof is back.
+		t.layer.roofs.setTokens([token(5, 7)]);
+		expect(t.tick(500)).toBe(true);
+		expect(t.tick(500 + ROOF_FADE_MS)).toBe(false);
+		expect(Math.max(...(await t.pixel(5, 3)))).toBeGreaterThan(10);
+		// Selected, someone else's token opens it too.
+		t.layer.roofs.setOwn([]);
+		t.layer.roofs.setTokens([{ ...token(4, 4), ownerId: 'p2' }]);
+		t.layer.roofs.setSelected('hero');
+		t.tick(1000);
+		t.tick(1000 + ROOF_FADE_MS);
+		expect(t.fade()).toBe(0);
+		t.layer.roofs.setSelected(null);
+		t.tick(2000);
+		t.tick(2000 + ROOF_FADE_MS);
+		expect(t.fade()).toBe(1);
+
+		// The GM: the camera's pivot over the house fades it, and off it brings it back.
+		t.show(HOUSE, outside, roofed, 'gm');
+		t.tick(3000, [5, 3]);
+		expect(t.tick(3000 + ROOF_FADE_MS)).toBe(false);
+		expect(t.fade()).toBe(0);
+		expect(await t.pixel(5, 3)).toEqual([0, 0, 0]);
+		t.tick(4000, [10, 8]);
+		t.tick(4000 + ROOF_FADE_MS);
+		expect(t.fade()).toBe(1);
+		// A build tool out: the GM's roofs stand half there; a player's never do.
+		t.layer.roofs.setBuilding(true);
+		t.tick(5000);
+		t.tick(5000 + ROOF_FADE_MS);
+		expect(t.fade()).toBe(0.5);
+		t.show(HOUSE, outside, roofed);
+		t.tick(6000);
+		t.tick(6000 + ROOF_FADE_MS);
+		expect(t.fade()).toBe(1);
+		t.layer.roofs.setBuilding(false);
+
+		// A player's pivot over a presumed roof (the house unexplored): it stays.
+		t.show(HOUSE, FOG);
+		t.tick(7000, [5, 3]);
+		expect(t.tick(7000 + ROOF_FADE_MS)).toBe(false);
+		expect(t.fade()).toBe(1);
+		// Under reduced motion a fade jumps.
+		t.layer.setReducedMotion(true);
+		t.show(HOUSE, outside, roofed);
+		t.layer.roofs.setTokens([token(5, 3)]);
+		t.layer.roofs.setOwn(['hero']);
+		expect(t.tick(8000)).toBe(false);
+		expect(t.fade()).toBe(0);
+		expect(fresh()).toEqual([]);
 		t.layer.dispose();
 	});
 });

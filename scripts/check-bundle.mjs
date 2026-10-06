@@ -101,8 +101,10 @@ const BUDGETS = {
 	// kit's stair pieces baked into the faces); set to the merged build's measured size (the owner
 	// raised M70's cap to about 405 kB). → door leaves (#253: one batch, door-leaves.ts and batch.ts)
 	// → roofs (#257: the roof layer, the surface kind's `roof` variant and the sky terms picked per
-	// material); set to the merged build's measured size.
-	renderer: { total: 401_100 },
+	// material); set to the merged build's measured size. → roof fades (#259: the fade map and the
+	// roof variant's dithered mask, the layer's fades on the wall clock, after #258); 401,941 B
+	// measured.
+	renderer: { total: 402_000 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -119,8 +121,9 @@ const BUDGETS = {
 	// (#256, world/bridges.ts, world/bridge-mesh.ts and the bridge runs in regions.ts) → window and
 	// door frames, arcades and the built-in leaf (#253) → roofs (#257, world/roofs.ts); set to the
 	// merged build's measured size. → 23.0: hips, wings, caps, chimneys and dormers (#258,
-	// world/roof-mesh.ts); 22,953 B measured.
-	world: { total: 23_000 }
+	// world/roof-mesh.ts); 22,953 B measured. → 23.1: roof fades' rule (#259, world/roof-fade.ts);
+	// 23,016 B measured.
+	world: { total: 23_100 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

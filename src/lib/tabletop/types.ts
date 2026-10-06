@@ -110,6 +110,8 @@ export interface Tabletop {
 	setSelectedProp(propId: string | null): void;
 	setHoveredProp(propId: string | null): void;
 	setSelected(tokenId: string | null): void;
+	/** The viewer's own tokens: a roof over one of them fades (#259), as over the selected one. */
+	setOwnTokens(tokenIds: readonly string[]): void;
 	/**
 	 * How much grid shows (#245, `GridMode`): local UI state, never synced. In explore mode the
 	 * lines show round `focus` (the hovered cell, the selected token's). A uniform write.

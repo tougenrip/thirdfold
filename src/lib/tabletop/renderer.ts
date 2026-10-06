@@ -236,7 +236,8 @@ export async function createTabletop(
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const revealing = cellMaps.tick(now) || propLayer.drops.active; // reveals (#174), drops (#249)
-		const moving = casters || turning || revealing || fx.active || rig.tick(now) || post.blending;
+		const fading = wallLayer.roofs.tick(now, controls.target); // roofs (#259), never shadows
+		const moving = casters || turning || revealing || fading || fx.active || rig.tick(now);
 		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
 		controls.update();
 		rig.keepAbove(grid, ground, land.heightAt); // tilted to the horizon, never under the ground (#220)
@@ -253,7 +254,7 @@ export async function createTabletop(
 		hideGallery?.();
 		perf.add('draw', performance.now() - draw);
 		camera.position.sub(shakeOffset);
-		return { active: moving, ambient: flickering || drifting.includes(true) };
+		return { active: moving || post.blending, ambient: flickering || drifting.includes(true) };
 	}
 
 	/** The environment asked for, and its looks once loaded. */
@@ -329,6 +330,7 @@ export async function createTabletop(
 		},
 		setTokens(next) {
 			tokens = next;
+			wallLayer.roofs.setTokens(next); // own and selected ones open their roofs (#259)
 			replan(); // their downloads, nearest the camera first (#192), before the layer asks
 			if (!grid) return;
 			// The first tokens after a new table take their places at once: nobody glides in from
@@ -345,13 +347,10 @@ export async function createTabletop(
 			refreshLighting();
 		},
 		setHoveredObject: (objectId) => wallLayer.setHovered(objectId) && requestRender(),
-		setPreview(items) {
-			previews.set(items, grid, ground);
-			requestRender();
-		},
+		setPreview: (items) => (previews.set(items, grid, ground), requestRender()),
 		setFog(fog, mode) {
 			fogState = { fog, mode };
-			wallLayer.roofs.setSight(fog); // roofs never hide what the rules show (#257)
+			wallLayer.roofs.setSight(fog, mode); // roofs never hide what the rules show (#257, #259)
 			if (!grid) return;
 			if (reshape()) wallLayer.sync(objects, worldLayer.shape!, ground!);
 			refreshLighting();
@@ -377,18 +376,19 @@ export async function createTabletop(
 			lightState = state;
 			refreshLighting();
 		},
-		setSelected: (tokenId) => tokenLayer.setSelected(tokenId) && requestRender(),
-		setGridMode: (mode, focus) => worldLayer.grid.setMode(mode, focus) && requestRender(),
+		setSelected: (id) =>
+			(wallLayer.roofs.setSelected(id), tokenLayer.setSelected(id)) && requestRender(),
+		setOwnTokens: (ids) => wallLayer.roofs.setOwn(ids) && requestRender(),
+		setGridMode: (mode, focus) =>
+			(wallLayer.roofs.setBuilding(mode === 'build'), worldLayer.grid.setMode(mode, focus)) &&
+			requestRender(),
 		setFallen(tokenIds) {
 			fallen = new Set(tokenIds);
 			if (tokenLayer.setFallen(fallen)) requestRender();
 		},
 		setActive: (tokenId, enemy) => tokenLayer.setActive(tokenId, enemy) && requestRender(),
 		showFloat: (id, text, color) => tokenLayer.float(id, text, color) && requestRender(),
-		setHighlight(cell, kind) {
-			worldLayer.grid.setHighlight(cell, kind);
-			requestRender();
-		},
+		setHighlight: (cell, kind) => (worldLayer.grid.setHighlight(cell, kind), requestRender()),
 		setDarkness(next) {
 			darkness = next;
 			refreshLighting();

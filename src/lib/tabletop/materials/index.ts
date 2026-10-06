@@ -174,6 +174,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	nodes.positionNode = graph.positionNode;
 	nodes.castShadowPositionNode = graph.castShadowPositionNode;
 	nodes.outputNode = graph.outputNode;
+	if (graph.maskNode)
+		[nodes.maskNode, nodes.maskShadowNode] = [graph.maskNode, graph.maskShadowNode];
 	for (const [name, node] of Object.entries(graph.lit ?? {})) if (node) nodes[name] = node;
 	return material;
 }

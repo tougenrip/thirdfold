@@ -35,7 +35,8 @@
 // cells, and rooms presumed from known walls), read by the roof variant at a known cell outside,
 // so a roof over unexplored ground is drawn and stands as high as a roof may rise over its cells
 // and the eave's ring; the village's player who walked round a house sees its presumed roof, and
-// every other unexplored cell stays black.
+// every other unexplored cell stays black. Roof fades (#259): the player's token in a house they
+// half explored fades its roof, and the half still unexplored under it stays black.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -352,7 +353,7 @@ function litAt(name: string, samples: Sample[], at: (x: number, y: number) => nu
  * south wall); that is the view's rule, not a layer lifting black, and this test holds the picture
  * to what the viewer was sent.
  */
-function standing(view: FixtureView): Float32Array {
+function standing(view: FixtureView, faded: readonly number[] = []): Float32Array {
 	const { grid } = view;
 	const size = grid.width * grid.height;
 	const levels = view.terrain ? decodeLevels(view.terrain, size) : null;
@@ -403,6 +404,7 @@ function standing(view: FixtureView): Float32Array {
 	const interior = view.interior ? decodeMask(view.interior, size) : null;
 	const footprint = roofFootprint(shape, view.objects, interior, true);
 	for (const r of roofRegions(shape, footprint)) {
+		if (r.cells.some((i) => faded.includes(i))) continue; // faded out (#259): nothing stands there
 		const top = r.eaveY / grid.cellSize + (MAX_RISE + 1) * WALL_LEVELS * STEP_HEIGHT;
 		for (const i of r.cells)
 			for (let dy = -1; dy <= 1; dy++)
@@ -422,6 +424,8 @@ async function mountCase(
 		carrier?: boolean;
 		probes?: boolean;
 		roofs?: boolean;
+		/** With `roofs`: the house half explored and in sight, the player's token inside (#259). */
+		partly?: boolean;
 	}
 ) {
 	const sidecar = await loadSidecar(c.fixture);
@@ -430,7 +434,7 @@ async function mountCase(
 	const view = c.carrier
 		? withCarrier(sent, sidecar.player.tokenId)
 		: gm
-			? walkedRound(sent, gm)
+			? walkedRound(sent, gm, c.partly)
 			: sent;
 	expect(view.fog.enabled).toBe(true);
 	const clock = manualClock(5000);
@@ -444,6 +448,7 @@ async function mountCase(
 		probeSpacing: c.probes ? PROBE_TEST_SPACING : undefined
 	});
 	mounted = m;
+	if (c.partly) m.tabletop.setOwnTokens(view.tokens.filter((t) => t.ownerId).map((t) => t.id));
 	// The shader grid in full on every chunk's twin (#245), and a hatched highlight on an
 	// unexplored cell: neither may lay anything over black.
 	m.tabletop.setGridMode('build');
@@ -508,9 +513,15 @@ function withCarrier(view: FixtureView, tokenId: string): FixtureView {
  * The view of a player who also walked round the first roofed room they had not explored (its
  * outside two cells deep explored and in sight), as the server would send it: the walls touching
  * explored cells, the mask and the floor on explored cells. The room stays unexplored, so its roof
- * is presumed from the walls (#257). Returns the view and the room's cells.
+ * is presumed from the walls (#257). With `partly` its first rows are explored and in sight too, and
+ * the player's own token stands in them: the roof fades (#259) over a house half unexplored.
+ * Returns the view and the room's cells.
  */
-function walkedRound(view: FixtureView, gm: FixtureView): FixtureView & { house?: number[] } {
+function walkedRound(
+	view: FixtureView,
+	gm: FixtureView,
+	partly = false
+): FixtureView & { house?: number[] } {
 	const { width: w, height: h } = view.grid;
 	const size = w * h;
 	const explored = decodeMask(view.fog.explored, size);
@@ -529,12 +540,21 @@ function walkedRound(view: FixtureView, gm: FixtureView): FixtureView & { house?
 				if (x < 0 || y < 0 || x >= w || y >= h || roofed[j]) continue;
 				explored[j] = visible[j] = 1;
 			}
+	const top = Math.floor(house.cells[0] / w);
+	const rows = Math.max(...house.cells.map((i) => Math.floor(i / w))) - top + 1;
+	const near = partly ? house.cells.filter((i) => Math.floor(i / w) < top + rows / 2) : [];
+	for (const i of near) explored[i] = visible[i] = 1;
+	const mine = view.tokens.findIndex((t) => t.ownerId);
+	const tokens = view.tokens.map((t, i) =>
+		partly && i === mine ? { ...t, pos: { x: near[0] % w, y: Math.floor(near[0] / w) } } : t
+	);
 	const touches = (o: FixtureView['objects'][number]) =>
 		unitEdges(o.a, o.b).some((e) => cellsBeside(view.grid, e).some((c) => explored[c.y * w + c.x]));
 	const all = gm.floor ? decodeFloor(gm.floor, size) : null;
 	const floor = all ? encodeFloor(knownFloor(all, explored)) : null;
 	return {
 		...view,
+		tokens,
 		fog: { ...view.fog, explored: encodeMask(explored), visible: encodeMask(visible) },
 		objects: gm.objects.filter(touches),
 		interior: encodeMask(roofed.map((v, i) => v & explored[i])),
@@ -686,6 +706,44 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			const samples = samplesFor(view.grid, standing(view), camera);
 			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
 			const lit = litAt('village presumed roofs', samples, at);
+			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
+		}
+	);
+
+	// Roof fades (#259): the player's token in a house they half explored, looking in. Its roof
+	// fades out, and the half still unexplored under it stays black.
+	it.runIf(ours(LIGHT.length + SKY_CASES.length + 1))(
+		'faded roofs: a house half explored, the player inside, black under the roof',
+		async () => {
+			const c = { fixture: 'village', viewer: 'player', band: 'dusk', tier: 'medium' } as const;
+			const { m, view, settings } = await mountCase({
+				...c,
+				reduced: true,
+				roofs: true,
+				partly: true
+			});
+			const { house } = view as FixtureView & { house: number[] };
+			const { width: w } = view.grid;
+			const explored = decodeMask(view.fog.explored, w * view.grid.height);
+			const hidden = house.filter((i) => !explored[i]);
+			expect(hidden.length, 'half the house unexplored').toBeGreaterThan(0);
+			const [cx, cy] = [
+				hidden.reduce((a, i) => a + (i % w), 0) / hidden.length,
+				hidden.reduce((a, i) => a + Math.floor(i / w), 0) / hidden.length
+			];
+			m.tabletop.setGridPose({
+				target: { x: Math.floor(cx), y: Math.floor(cy) },
+				distance: 16,
+				azimuth: 0,
+				elevation: 75
+			} as never);
+			await converge(m, settings.convergeFrames);
+			const camera = cameraOf(m);
+			const at = await readFrame(m.canvas, WIDTH, HEIGHT);
+			const samples = samplesFor(view.grid, standing(view, house), camera);
+			const under = samples.filter((p) => hidden.includes(p.cell.y * w + p.cell.x));
+			expect(under.length, 'unexplored cells under the faded roof sampled').toBeGreaterThan(0);
+			const lit = litAt('village faded roof', samples, at);
 			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
 		}
 	);
