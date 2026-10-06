@@ -151,6 +151,13 @@ await gm.page.fill('input[placeholder="e.g. Morgan"]', 'Gia');
 await gm.page.click('text=Create room');
 await gm.page.waitForURL(/room\//);
 const roomUrl = gm.page.url().split('?')[0];
+/**
+ * The pages measured after the GM's are held at the tier the device starts at (`?tier=`): an
+ * automatic tier steps down once when its first active frames run over budget (capabilities.ts),
+ * rebuilding the renderer mid-run, so every counter after it (the orbit's shadow passes and draws,
+ * the remounts) would follow frame times, which this gate never gates. Frame times stay printed.
+ */
+let measuredQuery;
 {
 	const start = Date.now();
 	await gm.page.goto(`${roomUrl}${PERF_QUERY}`, { waitUntil: 'load' });
@@ -160,7 +167,8 @@ const roomUrl = gm.page.url().split('?')[0];
 	checkBackend(drawing);
 	report.gate.backend = drawing.backend;
 	report.gate.adapter = drawing.adapter;
-	console.log(`drawing with ${drawing.backend} on ${drawing.adapter}`);
+	measuredQuery = `${PERF_QUERY}&tier=${drawing.tier}`;
+	console.log(`drawing with ${drawing.backend} on ${drawing.adapter}, ${drawing.tier} tier`);
 	const nav = await gm.page.evaluate(() => {
 		const res = performance.getEntriesByType('resource');
 		return { bytes: res.reduce((s, r) => s + r.transferSize, 0), requests: res.length };
@@ -176,7 +184,7 @@ const players = [];
 for (const name of ['Ana', 'Ben']) {
 	const p = await open(name);
 	const opened = Date.now();
-	await p.page.goto(`${roomUrl}${PERF_QUERY}`, { waitUntil: 'load' });
+	await p.page.goto(`${roomUrl}${measuredQuery}`, { waitUntil: 'load' });
 	await p.page.waitForSelector('button:has-text("Join the game")');
 	const joinForm = Date.now() - opened;
 	const joinBytes = await p.page.evaluate(() =>
@@ -396,7 +404,7 @@ for (const name of TABLES) {
 	const runs = [];
 	for (let r = 0; r <= REMOUNTS; r++) {
 		await ana.page.goto(`${BASE}/`, { waitUntil: 'load' });
-		await ana.page.goto(`${roomUrl}${PERF_QUERY}`, { waitUntil: 'load' });
+		await ana.page.goto(`${roomUrl}${measuredQuery}`, { waitUntil: 'load' });
 		await waitFor(ana, () => !!window.thirdfoldPerf?.stats().timings.setGrid);
 		await settle(ana);
 		runs.push({ ...counts(await stats(ana)), heap: await heap(ana) });
