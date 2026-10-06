@@ -11,6 +11,7 @@ import { EYE_LEVELS } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { groundFor, STEP_HEIGHT, WALL_HEIGHT } from './ground';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
+import { initModels, releaseModels } from './models';
 import { shaderStages } from './perf';
 import { PICK_LAYER } from './picking';
 import { BACKEND } from './testing';
@@ -21,6 +22,7 @@ vi.setConfig({ testTimeout: 120_000 });
 
 let renderer: THREE.WebGPURenderer | null = null;
 afterEach(() => {
+	if (renderer) releaseModels();
 	renderer?.dispose();
 	renderer = null;
 });
@@ -49,6 +51,7 @@ async function setUp() {
 		backend: BACKEND === 'webgpu' ? 'webgpu' : 'webgl'
 	});
 	renderer = r;
+	initModels(r); // the stone halls' pilot pieces are cooked: meshopt needs the decoders
 	r.setSize(SIZE, SIZE, false);
 	const scene = new THREE.Scene();
 	scene.add(new THREE.AmbientLight(0xffffff, 2));
