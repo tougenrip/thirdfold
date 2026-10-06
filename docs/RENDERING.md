@@ -2605,6 +2605,117 @@ baked vertex colours, so #263's ashlar trim sheet never showed. The greybox kits
   wears its first material). The goldens, the look against the reference shots and the owner's
   sign-off on the look are the milestone's close.
 
+## Kit budgets (milestone 70, #264)
+
+How much the kit-dressed tables draw on both backends, the budgets they are held to, and the
+WebGPU wall path. Measured 6 October 2026 on `tougenrip/m70-kits` at 38464fc (kit textures
+merged), on the RTX 4060 Laptop (Chromium 153, 1920×1080, reduced motion), the GM and a player
+(Ana) at each fixture table's four poses (overview, close, low, dark), every tier the backend runs.
+
+- **The harness.** `thirdfoldPerf.layers()` (`perf-layers.ts`, under `?perf` only) draws the
+  view twice, counting every draw three counts (`info.update`) by layer and pass: once steady, once
+  with the key light's map due again, which is what any change to the table costs (a token
+  moving, `shadowsDirty`). A layer is the nearest `userData.perfLayer` up an object's parents
+  (perf.ts `tagged`: walls, doors, window glass, roofs, floor tiles), else its material's kind
+  (`terrain` the ground's tops, `rock` its faces with the stairs and bridges, `surface` the void's
+  floor and what lies beyond, `mini` the tokens, `prop` the props and light fixtures, `emissive`
+  flames), else `post` for an effect's quad. `perf-layers.ts` is its own chunk, loaded by the
+  first `layers()`: the tags and the import add 121 bytes to the renderer chunk (403,795 of
+  403,800 gz). A pass is the shadow (an orthographic camera), a hero
+  cube (square, 90°), the scene pass (an `emissive` output), the prepass (other outputs) or the
+  overlay (the view's unjittered copy). For each batch it also counts the distinct pieces each
+  pass drew: what an InstancedMesh per piece geometry would draw instead. Hero cubes are redrawn
+  only when a reach changes, so no measured frame has them.
+- **The check.** `scripts/perf-gpu.mjs` with `LAYERS=1` prints the breakdown, and `BUDGETS=1`
+  checks every run against `DRAW_BUDGETS`, `TRIANGLE_BUDGETS` and the kit pieces' share of the
+  WebGPU budget, exiting 1 over any (the worse of the benchmark's frames and the shadowed frame).
+  Local only, like the perf gate; a backend takes a few minutes:
+
+  ```bash
+  npm run build && npx vite preview --port 4173 & npm run server:start &
+  SCENES=village,monastery,hollow,ref-8,outdoor-64 POSES=overview,close,low,dark \
+    TIER=low,medium,high BUDGETS=1 node scripts/perf-gpu.mjs http://localhost:4173 tests/fixtures/scenes webgl2.json
+  PERF_BACKEND=webgpu SCENES=… POSES=… TIER=low,medium,high,ultra BUDGETS=1 node scripts/perf-gpu.mjs …
+  ```
+
+- **Budgets.** Draw calls per frame, shadow passes included: 500 on WebGL2 low (a phone runs low),
+  1,000 on WebGL2 medium and up, 2,000 on WebGPU. Triangles per frame, every pass: 1M on low, 2M
+  on medium and high, 3M on ultra, about twice the heaviest pose. Kit pieces (walls, doors, window
+  glass) at most a quarter of the WebGPU draw budget, 500.
+
+### What the tables draw
+
+The heaviest pose of each (the overview; one WebGL2 high run of the Hollow's low pose drew 240),
+the GM's view, with the shadow redrawn. WebGL2 medium and high draw the same, as do WebGPU
+medium, high and ultra. Kit draws are walls, doors and window glass in all passes.
+
+| Table      | Backend, tier | Draws (steady) | Shadow pass | Kit draws | As InstancedMesh | Triangles |
+| ---------- | ------------- | -------------- | ----------- | --------- | ---------------- | --------- |
+| village    | WebGL2 low    | 207 (130)      | 77          | 28        | 96               | 380,970   |
+| village    | WebGL2 medium | 307 (230)      | 77          | 42        | 144              | 587,100   |
+| village    | WebGPU low    | 1,109 (580)    | 529         | 932       | 96               | 380,398   |
+| village    | WebGPU medium | 1,659 (1,130)  | 529         | 1,398     | 144              | 585,956   |
+| monastery  | WebGL2 low    | 141 (94)       | 47          | 18        | 76               | 452,284   |
+| monastery  | WebGL2 medium | 216 (169)      | 47          | 27        | 114              | 900,100   |
+| monastery  | WebGPU low    | 805 (426)      | 379         | 682       | 76               | 452,284   |
+| monastery  | WebGPU medium | 1,212 (833)    | 379         | 1,023     | 114              | 901,772   |
+| hollow     | WebGL2 low    | 158 (103)      | 55          | 14        | 72               | 436,644   |
+| hollow     | WebGL2 medium | 234 (179)      | 55          | 21        | 108              | 665,682   |
+| hollow     | WebGPU low    | 748 (396)      | 352         | 608       | 72               | 436,072   |
+| hollow     | WebGPU medium | 1,117 (765)    | 352         | 912       | 108              | 664,538   |
+| ref-8      | WebGL2 low    | 85 (61)        | 24          | 22        | 72               | 415,250   |
+| ref-8      | WebGL2 medium | 129 (105)      | 24          | 33        | 108              | 754,092   |
+| ref-8      | WebGPU low    | 1,335 (670)    | 665         | 1,274     | 72               | 414,678   |
+| ref-8      | WebGPU medium | 1,988 (1,323)  | 665         | 1,896     | 108              | 752,948   |
+| outdoor-64 | WebGL2 low    | 66 (62)        | 4           | 0         | 0                | 157,884   |
+| outdoor-64 | WebGL2 medium | 100 (96)       | 4           | 0         | 0                | 249,834   |
+| outdoor-64 | WebGPU low    | 58 (54)        | 4           | 0         | 0                | 155,508   |
+| outdoor-64 | WebGPU medium | 84 (80)        | 4           | 0         | 0                | 245,082   |
+
+The heaviest triangle count is the monastery's GM overview on high, 933,628 (WebGL2 and WebGPU).
+The player's views are lighter on every table but the Hollow and ref-8, where Ana is sent
+nearly or exactly what the GM is: village 101 draws on WebGL2 and 151 on WebGPU, the monastery
+126 and 249. ref-8's GM overview on WebGPU medium, by layer: walls 1,602
+draws (520,776 triangles), window glass 264, doors 30, then nothing over 18; on WebGL2 the same
+walls are 24 draws. WebGPU's GPU time has a median of 5.0 ms over its 160 runs (at most 15.2,
+the Hollow's GM on medium) and its main thread a median of 4.6 ms (at most 13.8); WebGL2's are
+5.9 and 8.8 ms. The per-instance draws cost encoding more than GPU time.
+
+- **Within budget.** Every WebGL2 run on every tier, the heaviest 307 of 1,000 (the village's
+  GM, medium) and 207 of 500 on low. Every triangle count, the heaviest 934k of 2M. Every WebGPU
+  total, but ref-8 sits at 1,988 of 2,000.
+- **Over.** The kit pieces' share on WebGPU: 75 of the 160 WebGPU checks, on every tier, the
+  village, monastery, Hollow and ref-8 for the GM and the Hollow and ref-8 for the player, up to
+  1,896 of 500 (ref-8). WebGPU draws a `BatchedMesh` one `drawIndexed` per visible instance and
+  pass (`WebGPUBackend`'s loop), where WebGL2's `WEBGL_multi_draw` makes one call per batch.
+- **No server re-measure.** M70 adds no per-viewer server state, so `server/perf/sync.ts` was not
+  run again.
+
+### The WebGPU wall path: InstancedMesh
+
+The issue's rule is to switch WebGPU to an InstancedMesh per piece geometry when walls take more
+than a quarter of the WebGPU budget on any of the five tables. They take up to 3.8 times that,
+on four of the five, so **WebGPU switches**; WebGL2 keeps its BatchedMesh (24 to 42 kit draws).
+The same frames drawn as an InstancedMesh per piece per chunk would draw 72 to 144 kit draws
+instead of 608 to 1,896 (8 to 18 times fewer), ref-8's frame 1,988 → about 200, the village's
+1,659 → about 400. Render bundles (#334) would cut the encoding but not the count.
+
+What the switch must keep (not done here; the walls are as they were):
+
+- **Programs.** r186 gives each new InstancedMesh a vertex stage of its own, so the meshes are a
+  pool made with the kit, as the floor tiles' (#254): one per piece variant and material for the
+  table, never per chunk and never grown, a mesh with no pieces kept at one instance of zero
+  scale. Table-wide meshes also put the draw count at pieces × passes whatever the table's size.
+- **The instance list.** `wallInstances` already gives each piece's key, matrix and seed, and
+  the batch's instance colour (the seed's shade, alpha 0 for the erase highlight) becomes an
+  instance attribute, as `addInstanceTints` does for tiles.
+- **Doors and window glass.** The same, though they are 30 and 264 draws at worst: the leaves
+  swing per instance (a matrix write) and the panes' two materials are two pools.
+
+To re-measure after a change to the kit pieces (more batches per chunk, a new kit, the switch):
+rebuild, then run the two commands above. The kit textures' sheet batches (cf8794d) are in these
+numbers; every count is the same as before they were merged.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

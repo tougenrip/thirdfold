@@ -7,6 +7,7 @@
 // door; hover is the batch colour's alpha, the walls' hatched glow.
 
 import * as THREE from 'three/webgpu';
+import { tagged } from './perf';
 import { cornerToWorld, type GridPos, type SquareGrid } from '$lib/game/grid';
 import { addPiece, colourOf, newBatch, type Batch } from './batch';
 import type { KindMaterial } from './materials';
@@ -145,6 +146,7 @@ export class DoorLeaves {
 	private place(s: LeafSpec, sig: string, grid: SquareGrid): Leaf {
 		if (!this.batch) {
 			this.batch = newBatch(this.material);
+			tagged(this.batch.mesh, 'doors');
 			pickable(this.batch.mesh);
 			this.group.add(this.batch.mesh);
 		}

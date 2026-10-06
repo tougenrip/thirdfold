@@ -8,6 +8,7 @@
 // out of black. Which panes and which light: world/glazing.ts.
 
 import * as THREE from 'three/webgpu';
+import { tagged } from './perf';
 import { addPiece, colourOf, newBatch, type Batch } from './batch';
 import {
 	blankTexture,
@@ -33,7 +34,7 @@ const [OUTER, INNER] = [0, 1];
 const WHITE = blankTexture({ ...SLOTS.emissive, texel: [255, 255, 255, 255] });
 
 export class WindowGlass {
-	readonly group = new THREE.Group();
+	readonly group = tagged(new THREE.Group(), 'window glass');
 	/** Panes that stay dark (0) and panes that light (1). */
 	private materials: KindMaterial[];
 	private readonly batches: Batch[];

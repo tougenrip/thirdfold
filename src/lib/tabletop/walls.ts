@@ -10,6 +10,7 @@
 // Glazed windows on building walls (#260, window-glass.ts) are frames here and panes there.
 
 import * as THREE from 'three/webgpu';
+import { tagged } from './perf';
 import { pickable } from './picking';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { orderCorners, unitEdges, type SceneObject } from '$lib/game/objects';
@@ -60,7 +61,7 @@ export interface WallStats {
 
 export class WallLayer {
 	readonly roofs = new RoofLayer(); // #257: their cells are the walls' building context
-	readonly group = new THREE.Group().add(this.roofs.group);
+	readonly group = tagged(new THREE.Group(), 'walls').add(this.roofs.group);
 	private grid: SquareGrid | null = null;
 	/** The built-in pieces' material, in the environment's wall look. */
 	private material: KindMaterial = createMaterial('surface', { batched: true, antiTiled: true });
