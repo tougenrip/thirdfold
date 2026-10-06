@@ -92,11 +92,19 @@ export function kindGallery(): THREE.Object3D[] {
 			batch.frustumCulled = false;
 			out.push(batch);
 		}
-	// Roofs (#257): positions, normals, triangles and the roof cell; casting and taking shadows.
+	// Roofs (#257): positions, normals, triangles, the roof cell and the pieces' colours (#258);
+	// casting and taking shadows.
 	const roof = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');
-	const cells = new Float32Array(roof.getAttribute('position').count * 2);
-	roof.setAttribute(ROOF_CELL_ATTRIBUTE, new THREE.BufferAttribute(cells, 2));
-	const roofed = new THREE.Mesh(roof, createMaterial('surface', { roof: true }));
+	const corners = roof.getAttribute('position').count;
+	roof.setAttribute(
+		ROOF_CELL_ATTRIBUTE,
+		new THREE.BufferAttribute(new Float32Array(corners * 2), 2)
+	);
+	roof.setAttribute('color', new THREE.BufferAttribute(new Float32Array(corners * 3).fill(1), 3));
+	const roofed = new THREE.Mesh(
+		roof,
+		createMaterial('surface', { roof: true, vertexColors: true })
+	);
 	roofed.castShadow = roofed.receiveShadow = true;
 	roofed.frustumCulled = false;
 	out.push(roofed);

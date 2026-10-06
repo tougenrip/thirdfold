@@ -1,7 +1,8 @@
 // Roofs (#257) drawn: a player's presumed roof over a room they walked round, lit by the known
 // cell outside it while the ground under it stays black; a roof left out while the viewer sees
-// into it; the gable's ridge where world/roofs.ts puts it; and none of it compiling a program
-// after the warm-up's stand-in (roofs appearing, a new chunk, the village's kit, a sight change).
+// into it; the gable's ridge where world/roofs.ts puts it; the village kit's caps, chimneys and
+// dormers and a hipped roof (#258); and none of it compiling a program after the warm-up's
+// stand-in (roofs appearing, a new chunk, the village's kit and its pieces, a sight change).
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -173,6 +174,43 @@ describe('roofs', () => {
 		t.show([...HOUSE, ...FAR], FOG);
 		expect(Math.max(...(await t.pixel(5, 3)))).toBeGreaterThan(10);
 		expect(fresh()).toEqual([]);
+		t.layer.dispose();
+	});
+
+	it('dress roofs in the kit’s caps, chimneys and dormers, hipped where it says, compiling nothing', async () => {
+		const t = await setUp();
+		t.gallery();
+		const village = (await loadEnvironment('village'))!;
+		expect(Object.keys(village.roof!.pieces ?? {}).sort()).toEqual([
+			'roof.chimney',
+			'roof.dormer',
+			'roof.hip',
+			'roof.ridge'
+		]);
+		// A long house (cells 10-18, 3-5) a player walked round.
+		const long = room(10, 3, 19, 6);
+		const inLong = (x: number, y: number) => x >= 10 && x < 19 && y >= 3 && y < 6;
+		const outside = encodeMask(mask((x, y) => !inLong(x, y)));
+		const fog: FogView = { enabled: true, shared: false, visible: outside, explored: outside };
+		t.layer.setLook(village.walls, village.kit, { ...village.roof!, pieces: {} });
+		t.show(long, fog);
+		await t.pixel(14, 4);
+		const before = t.stages();
+		const bare = t.layer.roofs.stats().triangles;
+		// The village's pieces: more triangles, the roof still drawn from the cell outside.
+		t.layer.setLook(village.walls, village.kit, village.roof);
+		t.show(long, fog);
+		expect(t.layer.roofs.stats().triangles).toBeGreaterThan(bare + 100);
+		expect(Math.max(...(await t.pixel(14, 4)))).toBeGreaterThan(10);
+		// Gabled, the ridge runs to the wall (1.5 up, 3 deep at 45°, its cap on it); hipped, the end
+		// slopes down: half a cell in from the west wall the roof is half a cell up.
+		expect(t.roofTop(10, 4)!).toBeGreaterThan(WALL_HEIGHT + 1.5);
+		const hip: RoofKit = { ...village.roof!, roof: { ...village.roof!.roof, style: 'hip' } };
+		t.layer.setLook(village.walls, village.kit, hip);
+		t.show(long, fog);
+		expect(t.roofTop(10, 4)!).toBeCloseTo(WALL_HEIGHT + 0.5, 3);
+		await t.pixel(10, 4);
+		expect([...t.stages()].filter((code) => !before.has(code))).toEqual([]);
 		t.layer.dispose();
 	});
 

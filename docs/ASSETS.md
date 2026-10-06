@@ -380,7 +380,10 @@ at: [x, y, z] }`, the shape of #319's model sockets). `roof` (`gable` or `hip`, 
   roofed cells' ridge, eaves and corners; a stair run's (#255) `stair.side` where a step has a
   lower side and `railing` where a built stair drops two levels or more, on a bridge's open long
   sides and at a built floor's open drop (#256; a bridge's body is procedural, so `bridge.deck` and
-  `bridge.pier` aren't asked for yet). Chimneys join it with #257. `checkScenes` fails a table whose kit lacks one (`hollow-bell: monastery: the kit "halls"
+  `bridge.pier` aren't asked for yet). Chimneys join it with #257; the roofs draw `roof.ridge`,
+  `roof.hip`, `roof.chimney` and `roof.dormer` (#258, docs/RENDERING.md "Hips, caps, chimneys and
+  dormers": a cap's and a chimney's pivot is a one-cell roof's ridge, a dormer's its wall's eave
+  line). `checkScenes` fails a table whose kit lacks one (`hollow-bell: monastery: the kit "halls"
 has no cap piece`).
 - **Phasing in.** `KIT_PENDING` in `server/assets/scenes.ts` listed the environments still on
   `plain` while #261 built their kits; it is empty now, so every built-in environment must have a

@@ -15,6 +15,7 @@ import { wear, type Look } from './environment';
 import { createMaterial } from './materials';
 import { ROOF_CELL_ATTRIBUTE } from './materials/world-modify';
 import { standIn } from './warmup';
+import type { RoofPieces } from './world/roof-mesh';
 import type { RoofRegion } from './world/roofs';
 import type { WorldShape } from './world/shape';
 import type { WorldBuilders } from './world-layer';
@@ -25,9 +26,12 @@ export interface RoofKit {
 	/** Roof walled rooms the viewer hasn't explored (`KitDef.presumeRoofs`). */
 	presume: boolean;
 	look: Look | null;
+	/** Its ridge and hip caps, chimneys and dormers (#258), as loaded; none drawn while absent. */
+	pieces?: RoofPieces;
 }
 
 const PLAIN_ROOF = { color: 0x6f5f4e, roughness: 0.9 };
+type Rgb = [number, number, number];
 
 export interface RoofStats {
 	chunks: number;
@@ -39,7 +43,7 @@ export interface RoofStats {
 
 export class RoofLayer {
 	readonly group = new THREE.Group();
-	private readonly material = createMaterial('surface', { roof: true });
+	private readonly material = createMaterial('surface', { roof: true, vertexColors: true });
 	private kit: RoofKit | null = null;
 	private build: WorldBuilders | null = null;
 	private shape: WorldShape | null = null;
@@ -110,6 +114,7 @@ export class RoofLayer {
 			const g = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');
 			const cells = new Float32Array(g.getAttribute('position').count * 2);
 			g.setAttribute(ROOF_CELL_ATTRIBUTE, new THREE.BufferAttribute(cells, 2));
+			g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cells.length * 1.5), 3));
 			const mesh = new THREE.Mesh(g, this.material);
 			mesh.castShadow = mesh.receiveShadow = true;
 			this.standIns = [standIn(mesh)];
@@ -151,10 +156,12 @@ export class RoofLayer {
 			const key = build.roofKey(shape, regions);
 			const entry = this.meshes.get(c);
 			if (entry?.key === key) continue;
-			const m = build.roofMesh(shape, regions, kit!.roof, this.footprint!);
+			const tint = new THREE.Color(kit!.look?.color ?? PLAIN_ROOF.color).toArray() as Rgb;
+			const m = build.roofMesh(shape, regions, kit!.roof, this.footprint!, kit!.pieces, tint);
 			const g = new THREE.BufferGeometry();
 			g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
 			g.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+			g.setAttribute('color', new THREE.BufferAttribute(m.colors, 3));
 			g.setAttribute(ROOF_CELL_ATTRIBUTE, new THREE.BufferAttribute(m.fogCells, 2));
 			g.setIndex(new THREE.BufferAttribute(m.indices, 1));
 			g.computeBoundingSphere();

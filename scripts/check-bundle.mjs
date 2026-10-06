@@ -118,8 +118,9 @@ const BUDGETS = {
 	// faces in cliffs.ts); set to the merged build's measured size. → 19.5: bridges and balustrades
 	// (#256, world/bridges.ts, world/bridge-mesh.ts and the bridge runs in regions.ts) → window and
 	// door frames, arcades and the built-in leaf (#253) → roofs (#257, world/roofs.ts); set to the
-	// merged build's measured size.
-	world: { total: 21_500 }
+	// merged build's measured size. → 23.0: hips, wings, caps, chimneys and dormers (#258,
+	// world/roof-mesh.ts); 22,953 B measured.
+	world: { total: 23_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];
