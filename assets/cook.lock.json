@@ -530,376 +530,6 @@
 				"models/prop/table.meta.json": "1563e9ca223da608784f20ec91462e19e9588fa135f67d84b24ced209f504e45"
 			}
 		},
-		"kit/ashlar-arch": {
-			"sources": {
-				"ashlar-arch.glb": "cc2141a6b37436e5acc82b26d2efbe45cc1425ec575f08673f528b9c2bb58d5e",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-arch.glb": "ef24a8df679def914d97ee177fa8fc835494b9c4a80e3bd95faf2ef5744cb50b",
-				"models/kit/ashlar-arch.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-battlement": {
-			"sources": {
-				"ashlar-battlement.glb": "6988c2e6d074f1bbc072b8d88e09f0ff90e021deb52055dd4bebc7dab68d091d",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-battlement.glb": "7ab516eff4c237f17c09afc4c9464c7e81e5f0f4bdc89551967b660d4f236c4d",
-				"models/kit/ashlar-battlement.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-buttress": {
-			"sources": {
-				"ashlar-buttress.glb": "be96e15005936ab8547d03556c3b77badcbf23a18a98edccd6a6b9f09e0cd6be",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-buttress.glb": "eda1e6e6c276fc005c0637d2174d5f833c11f121b35a5b79869b5a7599b013a0",
-				"models/kit/ashlar-buttress.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/ashlar-coping": {
-			"sources": {
-				"ashlar-coping.glb": "fe64d3690732f8347db472ffb7f4a58cb9a18b55e3cc86d5a1ef6e72283ce41b",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-coping.glb": "09ab746b08a9f6d05c25c2d464c2e2aedae8aaaedbe0d27ead03b366d5ac203f",
-				"models/kit/ashlar-coping.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/ashlar-crenels": {
-			"sources": {
-				"ashlar-crenels.glb": "e70cb0345c9fd41511ed9a055a5d74ca5a3ac7b70697aa11551c076e4fa21de1",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-crenels.glb": "3ace27990398d85fda1ff7006a0311290fd01a91d6fa526f6576907d282a79e6",
-				"models/kit/ashlar-crenels.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/ashlar-curtain": {
-			"sources": {
-				"ashlar-curtain.glb": "95f65f0873e6e8289eb8b287b7b019b3c1efe19851a483ddbf7fbe12a8a85118",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-curtain.glb": "bcf9d4109329f253c869a39f8003843c6fc59a9a8b35f1b1226977bbdd936378",
-				"models/kit/ashlar-curtain.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-door-frame": {
-			"sources": {
-				"ashlar-door-frame.glb": "97662a3d9709a345eb4f7532737827fc843d46dab539718b85e623b823755e1c",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-door-frame.glb": "27b1e80955332a76d434efb96cf57f7dcc1d5a28adf83f9698e7631bb30c3788",
-				"models/kit/ashlar-door-frame.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-pier": {
-			"sources": {
-				"ashlar-pier.glb": "7ba20008a489cb15ab125e5907ae5a252b685f0a82d43ca57c9eb737c05d2eea",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-pier.glb": "56e6aba7b11632512dfb9d44d701c661b164f33e47fecfc09ed76c7dbc10c568",
-				"models/kit/ashlar-pier.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-plinth": {
-			"sources": {
-				"ashlar-plinth.glb": "19923bcb0a7ed699b25239687ee5d0d4e2eeef13964c1de58c0105aee96dcb57",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-plinth.glb": "295e18eac3bc191e1003c4a0d916c352f19b3029fdd7a4e48d31d88527f8749b",
-				"models/kit/ashlar-plinth.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/ashlar-post-end": {
-			"sources": {
-				"ashlar-post-end.glb": "524fba09722e02651d23a283a27d7ff9e2f8a09d55423c2d955a14d12466dcbe",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-post-end.glb": "2e26cbc46c3f16a148bebc26fe7bdc175ab271b6bbe6ac3b7188eea42d6a0ae2",
-				"models/kit/ashlar-post-end.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-post-l": {
-			"sources": {
-				"ashlar-post-l.glb": "0875a82eaeb5ce4c026fa2f1b85ca1cdc9b14cb9cfbc9f99ed5c4e0bef34ab8b",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-post-l.glb": "1921d8bfda2e6793426ca3fc1dfa4e9c88dad0b8df06987f50d724a73bf0a244",
-				"models/kit/ashlar-post-l.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-post-t": {
-			"sources": {
-				"ashlar-post-t.glb": "1fde9c1336efcb16a63cadb992ff996fdb5a754f6688320e83cc729074b79433",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-post-t.glb": "16a131ceb86abc2cb0ad7c7b2613279b233a66f34a6e18c7489d75b15e97c0e6",
-				"models/kit/ashlar-post-t.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-post-x": {
-			"sources": {
-				"ashlar-post-x.glb": "c3271cab7781f380e2792b3964abeade56de01ba2551ef20b499fadd2d53fd75",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-post-x.glb": "af12e1057fa2a5bc6bed138c05e80193ff27b8cd056400ee24fca4a324ddda0f",
-				"models/kit/ashlar-post-x.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-retaining": {
-			"sources": {
-				"ashlar-retaining.glb": "b996b1762d94220760abb6eed4f38fc497677c8eb5ee152c5708a1b8f5f85158",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-retaining.glb": "fdb1b295313f36d3def1a26fee88661cba947d2369e55bd2158ae27878e618f1",
-				"models/kit/ashlar-retaining.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-stair-side": {
-			"sources": {
-				"ashlar-stair-side.glb": "a844217cb069809f81f007d63f992af24e8b8783454b4acb3fc4f3a2b333d977",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-stair-side.glb": "6533199c5528b0cb8bef4339a489e19b2add1c61ee014d5b2848f4c0e8784e40",
-				"models/kit/ashlar-stair-side.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-step": {
-			"sources": {
-				"ashlar-step.glb": "738a3b449ce4db29c6f78d19fc39a2a6944a3b804951d2d01dd558cb74061e10",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-step.glb": "d8bbefd3e5ffdc98f4d03dc05cee91f9ac7eb66dd90f80a8432463e80bfedb90",
-				"models/kit/ashlar-step.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/ashlar-turret": {
-			"sources": {
-				"ashlar-turret.glb": "292adbd75e30370876d408ae4c1d8ad15c2f97c2e18d7c0b634b02bdd13a86d7",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-turret.glb": "0b1b449439c0eba530cb74e34b66426d0b1838f7eafff2795f36386c6fb1d0c7",
-				"models/kit/ashlar-turret.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-wall-a": {
-			"sources": {
-				"ashlar-wall-a.glb": "590304705dd37f86bcc664e98c7aa3199ab253393b061a2ff6693c93fa9d3518",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-wall-a.glb": "266108ff0be653488ae7886b8177d12fa3a5e33f184ba6e51be39fdbce4b968a",
-				"models/kit/ashlar-wall-a.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-wall-b": {
-			"sources": {
-				"ashlar-wall-b.glb": "c14959217ba3e67ca0f93009c7782540f230a0e85884982bb43c96409e527579",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-wall-b.glb": "5aa13bbc04acef44765303799b6bcc47cd338f6f0c6da7ddc9c33db6576c0c75",
-				"models/kit/ashlar-wall-b.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-wall-cracked": {
-			"sources": {
-				"ashlar-wall-cracked.glb": "96073231815a1ad1edfa6ac61da1336367fa89524c735226d5f6237e7b32cd97",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-wall-cracked.glb": "fae5f66b7c4b7688f43a50df7abcee831f5b8e602840af00627c10e0d5e54b4d",
-				"models/kit/ashlar-wall-cracked.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-wall-niche": {
-			"sources": {
-				"ashlar-wall-niche.glb": "35a79a091a19cff06da2ce2646288eb3eece62630ec2ae60367673a1c8ffd676",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-wall-niche.glb": "2a61dc50728a675f2a3ef1392f0d5c85f2b4bbdd41dd9c9ea11994c67ae16bfa",
-				"models/kit/ashlar-wall-niche.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-wall-outer": {
-			"sources": {
-				"ashlar-wall-outer.glb": "f125a00958d3758f35671c4dd4dde857968226318fec9ac9d08af04bd82337fc",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-wall-outer.glb": "4c8f9c659a8b9f0f9ee062dd327da4eb86762e973caf9f8308abc2a1e54b648d",
-				"models/kit/ashlar-wall-outer.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-window": {
-			"sources": {
-				"ashlar-window.glb": "025bc5136ad3ce53b324b5ae94b47dd1229f5a82b636d14e669b6316b701e457",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-window.glb": "a713d697fe47d91e499ea9cf72559a2128e7d79893d8fda2c1262f389f153202",
-				"models/kit/ashlar-window.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/ashlar-window-sill": {
-			"sources": {
-				"ashlar-window-sill.glb": "c17a3fb19d59eb341637d8ecf46e24364f6e5f9faa1edb244c9a88c78b605860",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/ashlar-window-sill.glb": "1696bde3e2b57ecd7f7ee9ea58730f53be57adbb13cf3cedcc649ec19afe2461",
-				"models/kit/ashlar-window-sill.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/flag-deck": {
-			"sources": {
-				"flag-deck.glb": "b9a3592f8565143cc7f02ac431be7cba0bfb5999bddedc237759d1ca308d1cc7",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/flag-deck.glb": "f2bcf6b30100674a8e516a23d9561929dbb84765404d8d6d96597258356679f8",
-				"models/kit/flag-deck.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/flagstone-a": {
-			"sources": {
-				"flagstone-a.glb": "f9f473cfafa42b05ba8a7ca8d0a6e0a682d8ce5e2f9487d919d83452e37e5519",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/flagstone-a.glb": "4ebb6e9af824a949904d73606d96a1fe13f314a7c26a56dc7571c6da70731224",
-				"models/kit/flagstone-a.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/flagstone-b": {
-			"sources": {
-				"flagstone-b.glb": "ff9e732a533b07f9e6aecedab29d0f126eb15dba3f8ad0e37d4e3958d965a960",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/flagstone-b.glb": "6996fcbabf08e86e403520f1a5c31f321cc5578c9dc336718fa5f90ff0462f1e",
-				"models/kit/flagstone-b.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/flagstone-broken-a": {
-			"sources": {
-				"flagstone-broken-a.glb": "98f4e5d58cacd20ac09dbcc802694cfe90a63c7e096cd034627fe999b3b313fb",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/flagstone-broken-a.glb": "5b3000d801ac3f7fcaf11ac0a0c85dd505906aa1a1e584c2852a690094271e94",
-				"models/kit/flagstone-broken-a.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/flagstone-broken-b": {
-			"sources": {
-				"flagstone-broken-b.glb": "b3b8f6dc00685f541c4bab2b9bcadb864c35060290749abf586a94054562ee45",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/flagstone-broken-b.glb": "fd84fb6290824051304a5b8b97689cc713d2500b64951a4aec3e56bda0df5a1e",
-				"models/kit/flagstone-broken-b.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/flagstone-c": {
-			"sources": {
-				"flagstone-c.glb": "40298a3cd2f0568aafd5bdc6b7e4cee1f60a3c012a12ab3f1f5f23d44ac2de97",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/flagstone-c.glb": "2f5fecda36b7d524d8e756adfcf37364516aea9917ca74a4da57dc9b1ec56633",
-				"models/kit/flagstone-c.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/flagstone-d": {
-			"sources": {
-				"flagstone-d.glb": "7f029e6f70a900c39fb133f781e532618e4d48421580206b60cd83ec4a1533a4",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/flagstone-d.glb": "34071075cd35241bcd93721959b48c4de3ed39ea2f39532242685da804164c5e",
-				"models/kit/flagstone-d.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/leaded-glass": {
-			"sources": {
-				"leaded-glass.glb": "9ad0ba43078c0fb2246643da3a14a47314816d75e0750122f614065727cf3e89",
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
-			},
-			"outputs": {
-				"models/kit/leaded-glass.glb": "de056e62bef8289eda60fc59681395f5485ffae4ac878637fbe802c1fce94e88",
-				"models/kit/leaded-glass.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/oak-door": {
-			"sources": {
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
-				"oak-door.glb": "071fc07d1539376ba483a2d8f195c43b417ff72e840029e5fd966f47b94f978c"
-			},
-			"outputs": {
-				"models/kit/oak-door.glb": "abb7bf607bc61613dfbbae1b5a2e1d0b3289828588f7574822a30403d4e5a41f",
-				"models/kit/oak-door.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/rubble-corner": {
-			"sources": {
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
-				"rubble-corner.glb": "839334ba6dac14d49014027bda2683593e064f93475d4a70bc0496f1003f67ce"
-			},
-			"outputs": {
-				"models/kit/rubble-corner.glb": "101f9b64be2c4e70cd0283ac92ca17b696c543042f2107a2ebd5383bd367eb0e",
-				"models/kit/rubble-corner.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
-		"kit/rubble-face": {
-			"sources": {
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
-				"rubble-face.glb": "df2ba6117743995bdabb7d7135a8eb59dee4b42340620ebe90d6a62196bf3204"
-			},
-			"outputs": {
-				"models/kit/rubble-face.glb": "9f302b4835c5fc190967ed0461301a7fc9f0d4858a8e99161dd5d0bbb2847549",
-				"models/kit/rubble-face.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/stone-balustrade": {
-			"sources": {
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
-				"stone-balustrade.glb": "e8b98bdd5afbc114176650e6df1202b701091b2b1138fe8af2d6efa4fbc3e3c4"
-			},
-			"outputs": {
-				"models/kit/stone-balustrade.glb": "9b631b1d304cdfc877b748a9227de4d03a6dd9fe5fe302c3398930201dede9f9",
-				"models/kit/stone-balustrade.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
-			}
-		},
-		"kit/stone-pinnacle": {
-			"sources": {
-				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
-				"stone-pinnacle.glb": "f605ff776ad73afd7fe4e4ba13927596ed486b45bb74d1c68f1257f0f4cc5461"
-			},
-			"outputs": {
-				"models/kit/stone-pinnacle.glb": "0929292d2c0b2a569b00174f1f850b0bcebde72e3d12eba955b92418a98d3a7a",
-				"models/kit/stone-pinnacle.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
-			}
-		},
 		"texture/ashlar-trim-albedo": {
 			"sources": {
 				"ashlar-trim-albedo.png": "a6e72bb96c405addb3571342d024f786213fc394c1eb15859fe5bfbb2e041c10",
@@ -928,6 +558,376 @@
 			"outputs": {
 				"textures/ashlar-trim-orm.ktx2": "da199bc72b5dfe4d911c2199b90e3d06eb78016f4acb76e7cd4ba3f1f84cbda5",
 				"textures/ashlar-trim-orm.meta.json": "37ac086b818393b664ce4295899b1535d521dc10621a9a9f1ec401b305dca0f8"
+			}
+		},
+		"kit/ashlar-arch": {
+			"sources": {
+				"ashlar-arch.glb": "cc2141a6b37436e5acc82b26d2efbe45cc1425ec575f08673f528b9c2bb58d5e",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-arch.glb": "de5c789e208d72435df062d9efb927984924f44d872cac8892fe05e9a4b27a35",
+				"models/kit/ashlar-arch.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-battlement": {
+			"sources": {
+				"ashlar-battlement.glb": "6988c2e6d074f1bbc072b8d88e09f0ff90e021deb52055dd4bebc7dab68d091d",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-battlement.glb": "962ced297fb1dbb88c524f1e4753a674fbeb47b0832b80824faf64562a95c3ca",
+				"models/kit/ashlar-battlement.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-buttress": {
+			"sources": {
+				"ashlar-buttress.glb": "be96e15005936ab8547d03556c3b77badcbf23a18a98edccd6a6b9f09e0cd6be",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-buttress.glb": "be1fefbdc69fe31a7b6a3bc87233530cd639cea560d93eb8ecd620a9a0fd9e10",
+				"models/kit/ashlar-buttress.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/ashlar-coping": {
+			"sources": {
+				"ashlar-coping.glb": "fe64d3690732f8347db472ffb7f4a58cb9a18b55e3cc86d5a1ef6e72283ce41b",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-coping.glb": "a38d929dffa82d2a06a8ff70ce18a13c0880f16c9cb2eeba29e1d348e489609a",
+				"models/kit/ashlar-coping.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/ashlar-crenels": {
+			"sources": {
+				"ashlar-crenels.glb": "e70cb0345c9fd41511ed9a055a5d74ca5a3ac7b70697aa11551c076e4fa21de1",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-crenels.glb": "89fd8a882001af63fbbad7a3565f33966de58e97dab965d04713cf0d3ab8ef04",
+				"models/kit/ashlar-crenels.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/ashlar-curtain": {
+			"sources": {
+				"ashlar-curtain.glb": "95f65f0873e6e8289eb8b287b7b019b3c1efe19851a483ddbf7fbe12a8a85118",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-curtain.glb": "59668f2d8d7b0943a716491393fee01a6374de8a39a46ac2abb3ff91bc0cde4f",
+				"models/kit/ashlar-curtain.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-door-frame": {
+			"sources": {
+				"ashlar-door-frame.glb": "97662a3d9709a345eb4f7532737827fc843d46dab539718b85e623b823755e1c",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-door-frame.glb": "cca5abf6298d40a5c231b3593b69efae5c370a8b9bc0425366d36fe89ff2d9a0",
+				"models/kit/ashlar-door-frame.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-pier": {
+			"sources": {
+				"ashlar-pier.glb": "7ba20008a489cb15ab125e5907ae5a252b685f0a82d43ca57c9eb737c05d2eea",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-pier.glb": "85b06ce462a1d0bcb0e57be7567da32c6a31dbe54f85c79493bf74255899ba14",
+				"models/kit/ashlar-pier.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-plinth": {
+			"sources": {
+				"ashlar-plinth.glb": "19923bcb0a7ed699b25239687ee5d0d4e2eeef13964c1de58c0105aee96dcb57",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-plinth.glb": "66b835a5f6caf9e59a2f665134f3b7c7fc8ec89f444e4e771f0583a471f5c59e",
+				"models/kit/ashlar-plinth.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/ashlar-post-end": {
+			"sources": {
+				"ashlar-post-end.glb": "524fba09722e02651d23a283a27d7ff9e2f8a09d55423c2d955a14d12466dcbe",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-post-end.glb": "c1448e004c17498b4e1623a43035f3d1eaa3a36a6976f73903a5b4377575517e",
+				"models/kit/ashlar-post-end.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-post-l": {
+			"sources": {
+				"ashlar-post-l.glb": "0875a82eaeb5ce4c026fa2f1b85ca1cdc9b14cb9cfbc9f99ed5c4e0bef34ab8b",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-post-l.glb": "e2f322eae3ee3979b40e3282c24fe90e066df6a923e66024db6d1015d9821937",
+				"models/kit/ashlar-post-l.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-post-t": {
+			"sources": {
+				"ashlar-post-t.glb": "1fde9c1336efcb16a63cadb992ff996fdb5a754f6688320e83cc729074b79433",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-post-t.glb": "731f0ff2b554d83ce4e94544e880f64688530feb453b708a5526243146b6c2f1",
+				"models/kit/ashlar-post-t.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-post-x": {
+			"sources": {
+				"ashlar-post-x.glb": "c3271cab7781f380e2792b3964abeade56de01ba2551ef20b499fadd2d53fd75",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-post-x.glb": "628bae2aa7f361a63073d81da25779f073baa63ff00e415421a8215446882339",
+				"models/kit/ashlar-post-x.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-retaining": {
+			"sources": {
+				"ashlar-retaining.glb": "b996b1762d94220760abb6eed4f38fc497677c8eb5ee152c5708a1b8f5f85158",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-retaining.glb": "510ab804a024e665ddbd5ff092101465e5068b1e4810c2132a799084809aa04d",
+				"models/kit/ashlar-retaining.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-stair-side": {
+			"sources": {
+				"ashlar-stair-side.glb": "a844217cb069809f81f007d63f992af24e8b8783454b4acb3fc4f3a2b333d977",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-stair-side.glb": "abbd5d69347ef4e151d88252db2de34e84890f7423a6884f74bea79ac49483d1",
+				"models/kit/ashlar-stair-side.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-step": {
+			"sources": {
+				"ashlar-step.glb": "738a3b449ce4db29c6f78d19fc39a2a6944a3b804951d2d01dd558cb74061e10",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-step.glb": "0558dc5b147bd9740c21a58346d8fe14ffd2bb6f3b7ae21b025655b4f1b49039",
+				"models/kit/ashlar-step.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/ashlar-turret": {
+			"sources": {
+				"ashlar-turret.glb": "292adbd75e30370876d408ae4c1d8ad15c2f97c2e18d7c0b634b02bdd13a86d7",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-turret.glb": "8a614f1cc79f500094613a175235e4cc05fbf1d7985e85af42914a48b4b6814b",
+				"models/kit/ashlar-turret.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-wall-a": {
+			"sources": {
+				"ashlar-wall-a.glb": "590304705dd37f86bcc664e98c7aa3199ab253393b061a2ff6693c93fa9d3518",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-wall-a.glb": "145f3ee7233be1eee5866196c0471827719dbbab8e6ae7ebde85b348bf64fec7",
+				"models/kit/ashlar-wall-a.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-wall-b": {
+			"sources": {
+				"ashlar-wall-b.glb": "c14959217ba3e67ca0f93009c7782540f230a0e85884982bb43c96409e527579",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-wall-b.glb": "55fccb38449b071f808fde2af00cf0ae69a6bc051658e74136ec282284185b62",
+				"models/kit/ashlar-wall-b.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-wall-cracked": {
+			"sources": {
+				"ashlar-wall-cracked.glb": "96073231815a1ad1edfa6ac61da1336367fa89524c735226d5f6237e7b32cd97",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-wall-cracked.glb": "f1559c687879f64438d5248660453ebb596ef2d5e3776041cea96be9596ac9e8",
+				"models/kit/ashlar-wall-cracked.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-wall-niche": {
+			"sources": {
+				"ashlar-wall-niche.glb": "35a79a091a19cff06da2ce2646288eb3eece62630ec2ae60367673a1c8ffd676",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-wall-niche.glb": "dccc651359a716d9305295f511be53d872008310e46a82687006cee82647a12d",
+				"models/kit/ashlar-wall-niche.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-wall-outer": {
+			"sources": {
+				"ashlar-wall-outer.glb": "f125a00958d3758f35671c4dd4dde857968226318fec9ac9d08af04bd82337fc",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-wall-outer.glb": "14c7ecc1a25a9f8755d97f9d1e6e5c9e4aa709c1275b23325c218943dc942211",
+				"models/kit/ashlar-wall-outer.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-window": {
+			"sources": {
+				"ashlar-window.glb": "025bc5136ad3ce53b324b5ae94b47dd1229f5a82b636d14e669b6316b701e457",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-window.glb": "9b11257011a1947630330f79507eb94fa6df2dd6d24ebbd3620ceffa078e3127",
+				"models/kit/ashlar-window.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/ashlar-window-sill": {
+			"sources": {
+				"ashlar-window-sill.glb": "c17a3fb19d59eb341637d8ecf46e24364f6e5f9faa1edb244c9a88c78b605860",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/ashlar-window-sill.glb": "5692f4f4897c89fdee9bffb3d04e46ba4bf7cd0a9ad09f8df6644d1b67f975d0",
+				"models/kit/ashlar-window-sill.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/flag-deck": {
+			"sources": {
+				"flag-deck.glb": "b9a3592f8565143cc7f02ac431be7cba0bfb5999bddedc237759d1ca308d1cc7",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/flag-deck.glb": "bc709ad15ca7c5d01fd11bf71bcf4913546b4ed42c86ffa5348e8a9486bf7c24",
+				"models/kit/flag-deck.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/flagstone-a": {
+			"sources": {
+				"flagstone-a.glb": "f9f473cfafa42b05ba8a7ca8d0a6e0a682d8ce5e2f9487d919d83452e37e5519",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/flagstone-a.glb": "569ee8af55de56df9d392b3090310426b69e11cdd7b32cae5157cff53ac4f960",
+				"models/kit/flagstone-a.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/flagstone-b": {
+			"sources": {
+				"flagstone-b.glb": "ff9e732a533b07f9e6aecedab29d0f126eb15dba3f8ad0e37d4e3958d965a960",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/flagstone-b.glb": "4c1216accba02a62dcf357059dec18186bd7007df4ee45233060d4c266ee2de6",
+				"models/kit/flagstone-b.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/flagstone-broken-a": {
+			"sources": {
+				"flagstone-broken-a.glb": "98f4e5d58cacd20ac09dbcc802694cfe90a63c7e096cd034627fe999b3b313fb",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/flagstone-broken-a.glb": "2ae2c8c00fa2cbbb7aaa0edacb6e4f422143853fc6a7c8943b9720017501ccb3",
+				"models/kit/flagstone-broken-a.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/flagstone-broken-b": {
+			"sources": {
+				"flagstone-broken-b.glb": "b3b8f6dc00685f541c4bab2b9bcadb864c35060290749abf586a94054562ee45",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/flagstone-broken-b.glb": "9f49a1ff55ac3a33f254ce5725c63798d207f52ea66e649927cdfa8d85c68691",
+				"models/kit/flagstone-broken-b.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/flagstone-c": {
+			"sources": {
+				"flagstone-c.glb": "40298a3cd2f0568aafd5bdc6b7e4cee1f60a3c012a12ab3f1f5f23d44ac2de97",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/flagstone-c.glb": "4020fcb5c6f47f2b6690b9bc9e119db893aebc36f953d466735ed2b8f12ae49b",
+				"models/kit/flagstone-c.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/flagstone-d": {
+			"sources": {
+				"flagstone-d.glb": "7f029e6f70a900c39fb133f781e532618e4d48421580206b60cd83ec4a1533a4",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/flagstone-d.glb": "cbadf28ef2519732ce3275af11c269245f7eefb50844119a49edfd4e78a34509",
+				"models/kit/flagstone-d.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/leaded-glass": {
+			"sources": {
+				"leaded-glass.glb": "9ad0ba43078c0fb2246643da3a14a47314816d75e0750122f614065727cf3e89",
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3"
+			},
+			"outputs": {
+				"models/kit/leaded-glass.glb": "c3a61836f331e03f492756ace7aeb5446c2be95984498ac9068f3280267f2531",
+				"models/kit/leaded-glass.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/oak-door": {
+			"sources": {
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
+				"oak-door.glb": "071fc07d1539376ba483a2d8f195c43b417ff72e840029e5fd966f47b94f978c"
+			},
+			"outputs": {
+				"models/kit/oak-door.glb": "cd55470caaec786468b8c115445a859015e0e2e38c3ef247d1128fcc41a0eea3",
+				"models/kit/oak-door.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/rubble-corner": {
+			"sources": {
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
+				"rubble-corner.glb": "839334ba6dac14d49014027bda2683593e064f93475d4a70bc0496f1003f67ce"
+			},
+			"outputs": {
+				"models/kit/rubble-corner.glb": "c93af0d84fb57211669b4e6b61388e6d721966cc5130bf3f5b68eee015cb6ed9",
+				"models/kit/rubble-corner.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
+			}
+		},
+		"kit/rubble-face": {
+			"sources": {
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
+				"rubble-face.glb": "df2ba6117743995bdabb7d7135a8eb59dee4b42340620ebe90d6a62196bf3204"
+			},
+			"outputs": {
+				"models/kit/rubble-face.glb": "87791e8742cb42a0afeccc6852edf06d1ce8c59f3729659a8ce073d7e2b2a514",
+				"models/kit/rubble-face.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/stone-balustrade": {
+			"sources": {
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
+				"stone-balustrade.glb": "e8b98bdd5afbc114176650e6df1202b701091b2b1138fe8af2d6efa4fbc3e3c4"
+			},
+			"outputs": {
+				"models/kit/stone-balustrade.glb": "bafdeb20f778f285c6ec310974c1a7797b12bf003055ec0dc9c0e15143eeec3d",
+				"models/kit/stone-balustrade.meta.json": "008d5a22cbdaf5098f20981558cd3323e45e26152366aed9b37760755c67c643"
+			}
+		},
+		"kit/stone-pinnacle": {
+			"sources": {
+				"meta.json": "268c674600a2ae908d911e520b3cc0d48d61e7af19446338e2f1f1891c8f6fc3",
+				"stone-pinnacle.glb": "f605ff776ad73afd7fe4e4ba13927596ed486b45bb74d1c68f1257f0f4cc5461"
+			},
+			"outputs": {
+				"models/kit/stone-pinnacle.glb": "25a4e745803285f04b212ac4b6b19feb07273843b7ad39d570feca814ea813c9",
+				"models/kit/stone-pinnacle.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
 			}
 		}
 	}

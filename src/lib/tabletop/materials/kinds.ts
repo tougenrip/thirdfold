@@ -261,6 +261,11 @@ export interface Variant {
 	 * outside it) instead of the cells under it (world-modify.ts).
 	 */
 	roof: boolean;
+	/**
+	 * Surface: slots at the mesh's uv (times `params.repeat`), not the world box: a kit's trim
+	 * sheet on its pieces (M70, the walls' batches), whose geometry carries `uv`.
+	 */
+	sheet: boolean;
 }
 
 /** A batched instance's highlight (#252): a warm glow below bloom, hatched for colour-blind eyes. */
@@ -429,7 +434,8 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 		['antiTiled', 'a'],
 		['dropped', 'd'],
 		['batched', 'b'],
-		['roof', 'r']
+		['roof', 'r'],
+		['sheet', 's']
 	];
 	const key = `${kind}:${flags.map(([f, c]) => (variant[f] ? c : '')).join('')}`;
 	let graph = graphs.get(key);

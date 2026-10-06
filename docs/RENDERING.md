@@ -2557,6 +2557,54 @@ glow yet: no kit lantern exists and roofs draw no dormers (#258); light fixtures
 (#232). Bloom is shown as HDR over 1 in the scene's half floats (what `post.ts`'s bloom takes), not
 through the post chain. The issue's goldens are the milestone's close.
 
+## Kit textures (milestone 70)
+
+Kit pieces that wear a texture set draw it by their own UVs; until now every kit piece drew its
+baked vertex colours, so #263's ashlar trim sheet never showed. The greybox kits are unchanged.
+
+- **Which pieces.** `sheetOf(model)` (`environment.ts`): the first manifest material a piece's
+  entry names (`ModelEntry.materials`, #263) with its albedo, normal and ORM loaded through
+  `loadTexture`, else the piece's own glTF maps (a CC0 or commissioned piece, #262's kind of
+  textures), else none. One `Look` per material, shared by every piece wearing it, cleared with the
+  environment's KTX2 textures. `pieceOf` keeps a piece's UVs (`PieceMesh.uvs`) and `kitPieces`
+  drops them again from a piece with no sheet, so a greybox piece's geometry is what it was. The
+  cook keeps a piece's `TEXCOORD_0` when its meta names `materials` (docs/ASSETS.md); before M70 the
+  prune dropped them.
+- **The graph.** The surface kind's `sheet` variant (`Variant.sheet`, key `s`): `surfaceMapping`
+  samples the slots at `uv() x params.repeat` (1) instead of the world box, and the normal map in
+  the derivative frame (`uvMapping`), so the pieces need no tangents. Everything else is the
+  `batched` graph's: the instance shade and the erase highlight in the batch colour, macro variation
+  and `worldModify` last. No vertex colours: the pieces' baked colours are the sheet's mean (#263)
+  and would darken it twice. Not anti-tiled (a trim sheet must not be offset), and never twinned on
+  a tier switch.
+- **Batches.** Per chunk a batch per material (`PER_CHUNK` 8: the built-in pieces, the kit's
+  colours, then up to six sheets; a seventh falls back to colours): a kit with one trim sheet, the
+  intended case, adds one batch per chunk, one draw per pass. Its geometry carries UVs (one more
+  vertex buffer, within WebGPU's 8). Door leaves stay one batch, in the kit's leaf's sheet (every
+  leaf of a kit in one material) or its colours.
+- **Floor tiles.** `kitTiles` gives each floor the sheet all its pieces share (or none); such
+  tiles draw in a second material of the same instanced prop graph (it samples at `uv()` already)
+  with the sheet in its slots and their geometry's colours white. No new program.
+- **Not yet.** Stairs, bridges, cliffs and roofs keep their pieces' colours: they are baked into
+  the chunks' rock and roof meshes, which map by the world. Windows' panes stay procedural (#260).
+- **Texture detail.** The sheet's textures are the ones `loadTexture` gives (and tracks), so a
+  Texture detail change refills the same objects at 1K or 2K (`texture-detail.ts`), with no new
+  material or program, as for environment textures.
+- **Warm-up.** The lobby's `kindGallery` has a batch on the `sheet` graph (colours and UVs,
+  casting), and the walls' stand-ins a third, in the kit's first sheet's material (a blank one
+  before any kit), so the first sheeted walls compile nothing.
+- **Bundle and budgets.** The renderer chunk 403.0 to 403.7 kB gz, the world chunk 23.6 to 23.7.
+  The pieces' UVs add 98 kB to the 37 cooked pieces (421 kB), 89 kB on the monastery's table:
+  15,092 of 15,360 kB at medium.
+- **Tests.** `kit-textures.svelte.spec.ts` (`RENDER_SPECS`): the stone halls' walls in a sheet
+  batch with UVs, the sheet in its albedo slot, over 200 of 4,096 pixels unlike the same kit in its
+  colours, another albedo changing the picture and the sheet putting it back, a texture-detail
+  refill of the sheet's own texture changing it, and no new shader stage throughout; the village's
+  and cavern's kits with no sheet or UVs, drawing exactly as the same kit without them.
+- **Deviations.** One material per sheet, not a material per texture set within a piece (a piece
+  wears its first material). The goldens, the look against the reference shots and the owner's
+  sign-off on the look are the milestone's close.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

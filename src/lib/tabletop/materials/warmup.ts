@@ -64,7 +64,7 @@ function sample(kind: ShaderKind, options: MaterialOptions, shadows: boolean): T
 
 /**
  * The gallery: every kind in each of its variants, with and without shadows, plus the local
- * mapping (door panels, #177), the walls' batches (#252), roofs (#257) and the overlay's lines. Kept, not disposed: disposing its
+ * mapping (door panels, #177), the walls' batches (#252) and trim sheets (M70), roofs (#257) and the overlay's lines. Kept, not disposed: disposing its
  * materials would release the programs the table is to reuse.
  */
 export function kindGallery(): THREE.Object3D[] {
@@ -93,6 +93,21 @@ export function kindGallery(): THREE.Object3D[] {
 			batch.frustumCulled = false;
 			out.push(batch);
 		}
+	// A kit's trim sheet (M70): the same batch with colours and UVs, on the `sheet` graph.
+	const sheeted = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+	const vertices = sheeted.getAttribute('position').count;
+	sheeted.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vertices * 3), 3));
+	const sheet = new THREE.BatchedMesh(
+		1,
+		24,
+		36,
+		createMaterial('surface', { batched: true, sheet: true })
+	);
+	(sheet as unknown as { _initColorsTexture(): void })._initColorsTexture();
+	sheet.addInstance(sheet.addGeometry(sheeted));
+	sheet.castShadow = sheet.receiveShadow = true;
+	sheet.frustumCulled = false;
+	out.push(sheet);
 	// Roofs (#257): positions, normals, triangles, the roof cell, the pieces' colours (#258) and the fade's key (#259);
 	// casting and taking shadows.
 	const roof = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');

@@ -508,9 +508,12 @@ fallback, with the same roles and floors).
   maps by where it stands on the wall, so each block's face shows the block painted for it and the
   joints fall on the gaps; other faces map planar per part at the sheet's density. Each vertex also
   carries the sheet's mean colour over its face times the occlusion part lists bake (`bake.ts`):
-  the walls, tiles and stairs draw vertex colours today (#252's kit material), and wear the sheet
-  itself once a kit material samples it by UV (not yet: the walls' material uses world mapping;
-  the GLBs carry no tangents, as their material has no normal map).
+  since M70 the walls, door leaves and floor tiles wear the sheet itself by UV (docs/RENDERING.md,
+  "Kit textures"), and the colours stay what the stairs, bridges and cliffs draw (baked into the
+  chunks' faces) and what a piece falls back to. The cook keeps a piece's UVs when its `meta.json`
+  names `materials` (`prune({ keepAttributes })`: with no texture of its own a plain prune drops
+  them), so `TEXCOORD_0` is in its GLB; the GLBs carry no tangents (the normal map is mapped in the
+  derivative frame, mapping.ts).
 
 - **A commission replaces it** role by role through the same paths: deliver `art/kit/<id>/<id>.glb`
   and `meta.json` (provenance `LicenseRef-thirdfold-commissioned`, `materials`) per piece and the
@@ -518,17 +521,19 @@ fallback, with the same roles and floors).
   `assets/kits/stone-halls.json` at the new ids (and stop running the pilot script, which rewrites
   that file). The greybox kit stays the fallback.
 - **Budgets.** The sheet is 314 kB at the base (albedo 37, normal 195, ORM 82), 1,012 kB more at
-  1K and 3,015 kB at 2K; the 37 cooked pieces are 132 to 1,012 triangles and 323 kB together. Per
+  1K and 3,015 kB at 2K; the 37 cooked pieces are 132 to 1,012 triangles and 421 kB together (323 kB
+  before M70 kept their UVs). Per
   stone-halls table, from `npm run assets` (desktop held at medium, mobile at low):
 
   | Table                         | Download low | Download medium | GPU medium | Mobile GPU |
   | ----------------------------- | ------------ | --------------- | ---------- | ---------- |
-  | hollow-bell/monastery         | 5,032 kB     | 15,003 kB       | 47,713 kB  | 48,038 kB  |
-  | example/cellar                | 4,063 kB     | 14,034 kB       | 45,243 kB  | 39,529 kB  |
-  | (stone-halls), an empty table | 3,757 kB     | 13,728 kB       | 44,624 kB  | 37,527 kB  |
+  | hollow-bell/monastery         | 5,120 kB     | 15,092 kB       | 47,780 kB  | 48,306 kB  |
+  | example/cellar                | 4,151 kB     | 14,122 kB       | 45,310 kB  | 39,798 kB  |
+  | (stone-halls), an empty table | 3,845 kB     | 13,817 kB       | 44,691 kB  | 37,796 kB  |
 
-  The monastery was 13,595 kB at medium with the greybox kit; it now fits 15 MB with 357 kB to
-  spare, so a commissioned sheet must not be heavier at 1K (its normal map, 671 kB, is most of it).
+  The monastery was 13,595 kB at medium with the greybox kit; it fits 15 MB with 268 kB to spare
+  (357 before M70's UVs added 89 kB to the pieces), so a commissioned sheet must not be heavier at
+  1K (its normal map, 671 kB, is most of it).
 
 ### Audio
 

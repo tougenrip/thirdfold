@@ -4,7 +4,7 @@
 // branches here, only uniforms and slots may vary.
 //
 // - `surfaceMapping`: where a kind's slots lie (#177, mapping.ts): box projection from world
-//   position on the surface and terrain kinds, the geometry's own space for a `local` material
+//   position on the surface and terrain kinds (a `sheet` surface, a kit's trim sheet, at its uv), the geometry's own space for a `local` material
 //   (door panels), triplanar on rock (biplanar on low, #241), the mesh's uv elsewhere (props and
 //   minis: glTF uvs, #188).
 // - `slotSample`: samples with #179's mip bias (`mipBias`, a uniform: 0 but on high with TRAA).
@@ -44,7 +44,8 @@ export function surfaceMapping(
 	repeat: N,
 	offset: N | null = null
 ): Mapping {
-	if (kind === 'surface' || kind === 'terrain')
+	// A kit's trim sheet (M70) lies on the piece's own UVs, below.
+	if ((kind === 'surface' && !variant.sheet) || kind === 'terrain')
 		return variant.local
 			? localBox(repeat)
 			: worldBox(repeat, variant.antiTiled, undefined, offset);

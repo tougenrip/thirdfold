@@ -106,7 +106,9 @@ const BUDGETS = {
 	// roof variant's dithered mask, the layer's fades on the wall clock, after #258); 401,941 B
 	// measured.
 	// → the GridLights' cell lookup at the centroid (two varyings, grid-light-node.ts).
-	renderer: { total: 402_800 },
+	// → 403.7: kit textures (M70: kit pieces on their trim sheet by UV, the surface kind's `sheet`
+	// variant, a batch per sheet, `sheetOf`, sheeted floor tiles); 403,683 B measured.
+	renderer: { total: 403_700 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -124,8 +126,9 @@ const BUDGETS = {
 	// door frames, arcades and the built-in leaf (#253) → roofs (#257, world/roofs.ts); set to the
 	// merged build's measured size. → 23.0: hips, wings, caps, chimneys and dormers (#258,
 	// world/roof-mesh.ts); 22,953 B measured. → 23.1: roof fades' rule (#259, world/roof-fade.ts);
-	// 23,016 B measured. → glazed windows (#260, world/glazing.ts); 23,597 B measured.
-	world: { total: 23_600 }
+	// 23,016 B measured. → glazed windows (#260, world/glazing.ts); 23,597 B measured. → 23.7:
+	// kit pieces' UVs (M70, `pieceOf`); 23,650 B measured.
+	world: { total: 23_700 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

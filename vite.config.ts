@@ -114,7 +114,8 @@ const RENDER_SPECS = [
 	'stairs',
 	'bridges',
 	'roofs',
-	'window-glow'
+	'window-glow',
+	'kit-textures'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
