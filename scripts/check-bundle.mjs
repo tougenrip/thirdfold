@@ -105,7 +105,7 @@ const BUDGETS = {
 	// material); set to the merged build's measured size. → roof fades (#259: the fade map and the
 	// roof variant's dithered mask, the layer's fades on the wall clock, after #258); 401,941 B
 	// measured.
-	renderer: { total: 402_000 },
+	renderer: { total: 402_800 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -123,8 +123,8 @@ const BUDGETS = {
 	// door frames, arcades and the built-in leaf (#253) → roofs (#257, world/roofs.ts); set to the
 	// merged build's measured size. → 23.0: hips, wings, caps, chimneys and dormers (#258,
 	// world/roof-mesh.ts); 22,953 B measured. → 23.1: roof fades' rule (#259, world/roof-fade.ts);
-	// 23,016 B measured.
-	world: { total: 23_100 }
+	// 23,016 B measured. → glazed windows (#260, world/glazing.ts); 23,597 B measured.
+	world: { total: 23_600 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

@@ -43,6 +43,7 @@ import { FLICKERS, LIGHT_KINDS, type Light } from '$lib/game/lights';
 import { BACKDROPS, bandOf, type WorldLook } from '$lib/game/world';
 import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
+import { roomAround, roomBoundary } from '$lib/game/rooms';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { FIXTURES } from './light-model';
@@ -439,9 +440,38 @@ function skySteps(m: Mounted, home: FixtureView, skies: readonly string[]): Step
 		]),
 		['roofed', () => t.setInterior(new Uint8Array(size).fill(1))],
 		['roof off', () => t.setInterior(null)],
+		// Glowing windows (#260): the home table's first walled room roofed, so its walls are
+		// facades with glazed windows, through the night, a dark area over it, and back by day.
+		...windowSteps(t, home, world),
 		['flash, reduced', () => (t.setReduceFlashing(true), flash())],
 		['flash, not reduced', () => (t.setReduceFlashing(false), flash())],
 		['world back', () => t.setLighting(home.ambient, home.lights, home.world)]
+	];
+}
+
+/** The home table's first walled room as a roofed building, at night, dark, and by day (#260). */
+function windowSteps(
+	t: Tabletop,
+	home: FixtureView,
+	world: (over: Partial<WorldLook>) => WorldLook
+): Step[] {
+	const { width: w, height: h } = home.grid;
+	const boundary = roomBoundary(home.objects);
+	let cells: number[] | null = null;
+	for (let i = 0; i < w * h && !cells; i++)
+		cells = roomAround(home.grid, boundary, { x: i % w, y: Math.floor(i / w) });
+	expect(cells, 'a walled room on the home table').not.toBeNull();
+	const house = new Uint8Array(w * h);
+	for (const i of cells!) house[i] = 1;
+	const dark = home.darkness ? decodeMask(home.darkness, w * h) : null;
+	return [
+		[
+			'windows at night',
+			() => (t.setInterior(house), t.setLighting('dark', home.lights, world({ time: 1320 })))
+		],
+		['windows into the dark', () => t.setDarkness(house)],
+		['windows out of the dark', () => t.setDarkness(dark)],
+		['windows by day', () => (t.setLighting('day', home.lights, world({})), t.setInterior(null))]
 	];
 }
 
