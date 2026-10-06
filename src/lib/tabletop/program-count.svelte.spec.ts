@@ -33,7 +33,7 @@
 // changes hands (a cube drawn for each new holder). Kit floor tiles (#254): the stand-in kit's on
 // every table, the floors painted (tile and grating among them) and the ring packed round targets
 // across the table. Roofs (#257): over a room and the whole table, in another kit's look, raised,
-// seen into and gone.
+// seen into, faded (#259: an own token inside, the GM's pivot, half while building) and gone.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -276,6 +276,24 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		['roofs in thatch', () => t.setEnvironment('village')],
 		['roofs raised', () => t.setTerrain(raised)],
 		['roofs seen into', () => t.setFog({ ...home.fog, visible: all, explored: all }, 'player')],
+		// Roof fades (#259): an own token inside, the GM's pivot over the room and a build tool out
+		// (half there): texels of the fade map, never a program.
+		[
+			'roofs faded by an own token',
+			() => (t.setOwnTokens([token.id]), t.setTokens(withToken({ pos: { x: 3, y: 3 } })))
+		],
+		[
+			'roofs faded by the GM’s pivot',
+			() => (
+				t.setFog(home.fog, 'gm'),
+				t.setGridPose({ target: { x: 3, y: 3 }, distance: 12, azimuth: 30, elevation: 50 })
+			)
+		],
+		['roofs half while building', () => (t.setPose(pose), t.setGridMode('build'))],
+		[
+			'roofs fades back',
+			() => (t.setGridMode('off'), t.setOwnTokens([]), t.setTokens(home.tokens))
+		],
 		[
 			'roofs back',
 			() => (t.setFog(home.fog, home.fogMode), t.setTerrain(levels), t.setInterior(room))

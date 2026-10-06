@@ -16,6 +16,7 @@ import {
 } from './index';
 import type { ShaderKind } from './kinds';
 import { ROOF_CELL_ATTRIBUTE } from './world-modify';
+import { ROOF_KEY_ATTRIBUTE } from './roof-fade';
 
 /** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181, #241, #249). */
 function variantsOf(kind: ShaderKind): MaterialOptions[] {
@@ -92,12 +93,16 @@ export function kindGallery(): THREE.Object3D[] {
 			batch.frustumCulled = false;
 			out.push(batch);
 		}
-	// Roofs (#257): positions, normals, triangles, the roof cell and the pieces' colours (#258);
+	// Roofs (#257): positions, normals, triangles, the roof cell, the pieces' colours (#258) and the fade's key (#259);
 	// casting and taking shadows.
 	const roof = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');
 	const corners = roof.getAttribute('position').count;
 	roof.setAttribute(
 		ROOF_CELL_ATTRIBUTE,
+		new THREE.BufferAttribute(new Float32Array(corners * 2), 2)
+	);
+	roof.setAttribute(
+		ROOF_KEY_ATTRIBUTE,
 		new THREE.BufferAttribute(new Float32Array(corners * 2), 2)
 	);
 	roof.setAttribute('color', new THREE.BufferAttribute(new Float32Array(corners * 3).fill(1), 3));

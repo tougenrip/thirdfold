@@ -12,6 +12,7 @@ import { dropLift } from './drop';
 import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { gridGraph } from './grid';
+import { roofMask, roofShadowMask } from './roof-fade';
 import { bedSink, ringFadeNode } from './ring';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
@@ -222,6 +223,9 @@ export interface Graph {
 	/** Where the shadow pass puts a vertex: at rest, so a drop-in never redraws a shadow (#249). */
 	castShadowPositionNode: N | null;
 	outputNode: N;
+	/** A roof's fade (#259, roof-fade.ts): discards where false; the shadow pass never does. */
+	maskNode?: N;
+	maskShadowNode?: N;
 	lit: {
 		roughnessNode: N;
 		metalnessNode: N;
@@ -393,6 +397,8 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		positionNode: position,
 		castShadowPositionNode: rest,
 		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true, face)),
+		maskNode: variant.roof ? roofMask() : undefined,
+		maskShadowNode: variant.roof ? roofShadowMask() : undefined,
 		lit: {
 			roughnessNode: paintRoughness(
 				kind,

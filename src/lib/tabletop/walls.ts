@@ -163,6 +163,7 @@ export class WallLayer {
 	/** Door swings snap under reduced motion. */
 	setReducedMotion(reduced: boolean): void {
 		this.leaves.setReducedMotion(reduced);
+		this.roofs.setReducedMotion(reduced); // roof fades jump (#259)
 	}
 
 	/** Door leaves' angles by door, for tests. */
