@@ -25,8 +25,9 @@ const BUDGETS = {
 	// from it), 98,180 B measured. → 98.4: the shared chunk after M68's close (the pool's removal
 	// and the hero slots' assignment moving out of light-model.ts) measures just over 98.3 kB.
 	// → 100.0: the manifest's kits and their parser with the roles' envelopes (kit.ts, #250), 99.9 kB
-	// measured.
-	'/builder': { total: 100_000, own: 52_000 },
+	// measured. → 100.3: the shared chunk after roof fades (#259: Tabletop.setOwnTokens), just over
+	// 100.0 kB measured.
+	'/builder': { total: 100_300, own: 52_000 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured.
 	'/credits': { total: 54_800, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
