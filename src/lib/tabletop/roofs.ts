@@ -10,6 +10,7 @@
 // and receiving, never picked. Nothing here compiles: the material is the lobby's (`kindGallery`).
 
 import * as THREE from 'three/webgpu';
+import { tagged } from './perf';
 import type { KitRoof } from '$lib/assets/kit';
 import type { SceneObject } from '$lib/game/objects';
 import { worldToGrid } from '$lib/game/grid';
@@ -58,7 +59,7 @@ export interface RoofStats {
 }
 
 export class RoofLayer {
-	readonly group = new THREE.Group();
+	readonly group = tagged(new THREE.Group(), 'roofs');
 	private readonly material = createMaterial('surface', { roof: true, vertexColors: true });
 	private kit: RoofKit | null = null;
 	private build: WorldBuilders | null = null;

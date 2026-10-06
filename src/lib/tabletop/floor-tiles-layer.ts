@@ -15,6 +15,7 @@
 // loaded as models; a table whose kit has none keeps the blended ground.
 
 import * as THREE from 'three/webgpu';
+import { tagged } from './perf';
 import { loadManifest } from '$lib/assets/load';
 import type { KitPiece } from '$lib/assets/kit';
 import { FLOOR_IDS } from '$lib/game/floor';
@@ -104,7 +105,7 @@ export async function kitTiles(environment: string | null): Promise<TileSet | nu
 }
 
 export class TileLayer {
-	readonly group = new THREE.Group();
+	readonly group = tagged(new THREE.Group(), 'floor tiles');
 	/** One material for every tile: the instanced prop graph, sinking past the ring. */
 	private readonly material = createMaterial('prop', {
 		instanced: true,
