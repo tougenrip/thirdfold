@@ -825,7 +825,11 @@ should be the first thing an upgrade fails.
   swapped by `LightingLayer.setTier` (a new program, as any tier switch makes). M67's pool of 8 (`?off=manylights`) was
   removed at M68's close. Per entry: the rules window, body and core (`falloffNode`, the mirror
   of `lightFalloff`) times three occlusion taps, never below `READABLE_EDGE` on a listed cell, into
-  the lighting model as a direct light (`lightDirection` toward the visual position).
+  the lighting model as a direct light (`lightDirection` toward the visual position). A fragment
+  finds its cell 0.3 cells along its geometric normal (turned with the face shown), from a position
+  and normal sampled at the centroid (`lookupPoint`): under MSAA a pixel a face only partly covers
+  is shaded at its centre, off the triangle, and on a thin face seen edge on (a kit wall's mortar
+  joint, #252) the position and normal ran on into the cell beyond the wall.
 - **One dimming.** The lit kinds light with `KindLightingModel` (`materials/lighting-model.ts`,
   their `KindStandardMaterial` and `KindPhysicalMaterial` bases): its `indirect()` scales the indirect
   light (hemisphere, image light, AO, a mini's clearcoat) by `worldLight` (the rules' light factor

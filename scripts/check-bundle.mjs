@@ -105,6 +105,7 @@ const BUDGETS = {
 	// material); set to the merged build's measured size. → roof fades (#259: the fade map and the
 	// roof variant's dithered mask, the layer's fades on the wall clock, after #258); 401,941 B
 	// measured.
+	// → the GridLights' cell lookup at the centroid (two varyings, grid-light-node.ts).
 	renderer: { total: 402_800 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
