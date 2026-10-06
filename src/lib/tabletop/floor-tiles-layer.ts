@@ -19,8 +19,15 @@ import { loadManifest } from '$lib/assets/load';
 import type { KitPiece } from '$lib/assets/kit';
 import { FLOOR_IDS } from '$lib/game/floor';
 import type { SquareGrid } from '$lib/game/grid';
-import { addInstanceTints, createMaterial, ringUniforms, withBake } from './materials';
+import {
+	addInstanceTints,
+	createMaterial,
+	ringUniforms,
+	withBake,
+	type KindMaterial
+} from './materials';
 import { loadModel, partsOf } from './models';
+import { sheetOf, wear, type Look } from './environment';
 import { BED_DEPTH, rectInRing, ringCells, TILE_SINK } from './tile-ring';
 import type { Tier } from './quality';
 import type { TileFloor, TileKit, TilePiece } from './world/floor-tiles';
@@ -30,6 +37,8 @@ export interface TileSetFloor {
 	spec: TileFloor;
 	tiles: THREE.BufferGeometry[];
 	broken: THREE.BufferGeometry[];
+	/** The trim sheet every piece of the floor wears by its UVs (M70), else none: vertex colours. */
+	sheet?: Look | null;
 }
 
 /** The tiles of a kit, by floor byte. */
@@ -63,16 +72,21 @@ export async function kitTiles(environment: string | null): Promise<TileSet | nu
 	const kit = id ? manifest.kits[id] : undefined;
 	if (!kit) return null;
 	const out = new Map<number, TileSetFloor>();
-	const load = async (pieces: readonly KitPiece[]) =>
-		(await Promise.all(pieces.map((p) => loadModel(p.model, undefined, 'low')))).map((m) => {
-			const part = m && partsOf(m, 'body')[0];
-			return part ? { geometry: part.geometry, entry: m.entry } : null;
-		});
+	const load = async (pieces: readonly KitPiece[]) => {
+		const models = await Promise.all(pieces.map((p) => loadModel(p.model, undefined, 'low')));
+		return Promise.all(
+			models.map(async (m) => {
+				const part = m && partsOf(m, 'body')[0];
+				return part ? { geometry: part.geometry, entry: m.entry, sheet: await sheetOf(m) } : null;
+			})
+		);
+	};
 	for (const [floor, def] of Object.entries(kit.floors)) {
 		if (!def?.tiles.length) continue;
 		const [tiles, broken] = await Promise.all([load(def.tiles), load(def.broken)]);
 		if (tiles.some((t) => !t) || broken.some((b) => !b)) continue;
 		const { min, max } = tiles[0]!.entry.bounds;
+		const sheets = new Set([...tiles, ...broken].map((t) => t!.sheet));
 		out.set(FLOOR_IDS.indexOf(floor as (typeof FLOOR_IDS)[number]), {
 			spec: {
 				pitch: { x: max[0] - min[0] + JOINT, z: max[2] - min[2] + JOINT },
@@ -80,7 +94,10 @@ export async function kitTiles(environment: string | null): Promise<TileSet | nu
 				broken: def.broken.map((p) => p.weight ?? 1)
 			},
 			tiles: tiles.map((t) => t!.geometry),
-			broken: broken.map((b) => b!.geometry)
+			broken: broken.map((b) => b!.geometry),
+			// One sheet for the whole floor, or its pieces keep their colours (ponytail: mixed sheets
+			// within a floor would need a material per piece).
+			sheet: sheets.size === 1 ? [...sheets][0] : null
 		});
 	}
 	return out.size ? out : null;
@@ -94,6 +111,8 @@ export class TileLayer {
 		vertexColors: true,
 		params: { sink: 0 }
 	});
+	/** A trim sheet's tiles (M70): the same graph, the sheet in its slots, white vertex colours. */
+	private sheets = new Map<Look, KindMaterial>();
 	private set: TileSet | null = null;
 	/**
 	 * The pool: a mesh per variant geometry, kept across tables (r186 compiles each new one) and made
@@ -143,7 +162,7 @@ export class TileLayer {
 		this.grid = grid;
 		this.pieces.length = count;
 		for (let c = 0; c < count; c++) this.pieces[c] ??= [];
-		this.material.params.sink = TILE_SINK * cs;
+		for (const m of [this.material, ...this.sheets.values()]) m.params.sink = TILE_SINK * cs;
 		this.boxes = Array.from({ length: count }, (_, c) => {
 			const x0 = ((c % across) * chunk - grid.width / 2) * cs;
 			const z0 = (Math.floor(c / across) * chunk - grid.height / 2) * cs;
@@ -185,7 +204,7 @@ export class TileLayer {
 
 	dispose(): void {
 		this.drain();
-		this.material.dispose();
+		for (const m of [this.material, ...this.sheets.values()]) m.dispose();
 	}
 
 	/** The pool for the kit, table and ring now: made again only when one of them changed. */
@@ -200,7 +219,7 @@ export class TileLayer {
 		const ring = Math.max(ringCells(this.tier, g), ringCells('high', g));
 		const cells = Math.min(Math.PI * (ring + REPACK + 2) ** 2, g.width * g.height);
 		let grown = false;
-		for (const { spec, tiles, broken } of set.values()) {
+		for (const { spec, tiles, broken, sheet } of set.values()) {
 			const perCell = (g.cellSize * g.cellSize) / (spec.pitch.x * spec.pitch.z);
 			const n = cells * perCell * 1.25;
 			for (const [list, weights] of [
@@ -214,7 +233,7 @@ export class TileLayer {
 					const was = this.pool.get(shared);
 					if (was && was.instanceMatrix.count >= capacity) return;
 					if (was) this.free(was);
-					this.pool.set(shared, this.mesh(shared, capacity));
+					this.pool.set(shared, this.mesh(shared, capacity, sheet ?? null));
 					grown = true;
 				});
 			}
@@ -222,10 +241,16 @@ export class TileLayer {
 		if (grown) this.onPool();
 	}
 
-	private mesh(shared: THREE.BufferGeometry, capacity: number): THREE.InstancedMesh {
+	private mesh(
+		shared: THREE.BufferGeometry,
+		capacity: number,
+		sheet: Look | null
+	): THREE.InstancedMesh {
 		const geometry = withBake(shared.clone());
 		addInstanceTints(geometry, capacity);
-		const mesh = new THREE.InstancedMesh(geometry, this.material, capacity);
+		// On its sheet the piece's baked colours (the sheet's mean, #263) would darken it twice.
+		if (sheet) (geometry.getAttribute('color').array as Float32Array).fill(1);
+		const mesh = new THREE.InstancedMesh(geometry, this.materialFor(sheet), capacity);
 		mesh.castShadow = false;
 		mesh.receiveShadow = true;
 		mesh.frustumCulled = false; // its tiles move with the ring
@@ -235,6 +260,19 @@ export class TileLayer {
 		mesh.userData.tiles = 0;
 		this.group.add(mesh);
 		return mesh;
+	}
+
+	/** The tiles' material, or a sheet's: the same program, the sheet in its slots. */
+	private materialFor(sheet: Look | null): KindMaterial {
+		if (!sheet) return this.material;
+		let m = this.sheets.get(sheet);
+		if (!m) {
+			m = createMaterial('prop', { instanced: true, vertexColors: true, params: { sink: 0 } });
+			m.params.sink = this.material.params.sink;
+			wear(m, sheet, { color: 0xffffff, roughness: 0.75 });
+			this.sheets.set(sheet, m);
+		}
+		return m;
 	}
 
 	/** Packs the tiles within `reach` of the target, nearest chunks first, into the pool. */

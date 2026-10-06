@@ -1,7 +1,8 @@
 // Walls and doors (#252). Walls are the pieces autotile picks (world/autotile.ts) from what
 // the viewer was sent: runs, posts, caps, retaining pieces and plinths, window and door frames.
 // Per 16x16 chunk a BatchedMesh per material (the built-in pieces in the wall look; a kit's in
-// its baked vertex colours), rebuilt only when `dirtyPieceChunks` says so. The surface kind's
+// its baked vertex colours, or by UV on the trim sheet it wears, a batch per sheet: M70), rebuilt
+// only when `dirtyPieceChunks` says so. The surface kind's
 // `batched` variant: an instance's colour is a slight shade by its seed, its alpha the erase
 // highlight (a hatched glow). Picks hit an invisible proxy of boxes from `wallSpans` on
 // PICK_LAYER. Door leaves (#253, door-leaves.ts) are one more batch in the kit's material, the
@@ -39,9 +40,16 @@ const WALL_THICKNESS = 0.14;
 const PLAIN_WALL = { color: 0x8d8578, roughness: 0.85 };
 /** A kit's pieces carry their colours; the material only finishes them. */
 const KIT_WALL = { color: 0xffffff, roughness: 0.85 };
+/** Materials per chunk: the built-in pieces', the kit's colours', and up to six trim sheets'. */
+const PER_CHUNK = 8;
 
-/** A kit's pieces as drawn: each role's variants with their weights (a role it lacks is procedural). */
-export type WallKit = Partial<Record<BatchRole, { mesh: PieceMesh; weight: number }[]>>;
+/**
+ * A kit's pieces as drawn: each role's variants with their weights (a role it lacks is
+ * procedural), and the trim sheet a variant wears by its UVs (M70), else its vertex colours.
+ */
+export type WallKit = Partial<
+	Record<BatchRole, { mesh: PieceMesh; weight: number; sheet?: Look }[]>
+>;
 
 /** What the stats report: chunks with a batch, instances, and how many the last sync rebuilt. */
 export interface WallStats {
@@ -66,7 +74,11 @@ export class WallLayer {
 	private kit: WallKit | null = null;
 	private weights: KitWeights = {};
 	private interior: Uint8Array | null = null;
-	/** By chunk and material: `chunk * 2`, plus 1 for the kit's pieces. */
+	/** The kit's trim sheets' materials (M70): the surface kind's `sheet` graph, one per sheet. */
+	private sheets = new Map<Look, KindMaterial>();
+	/** A blank one, for the warm-up's stand-in. */
+	private readonly blankSheet = createMaterial('surface', { batched: true, sheet: true });
+	/** By chunk and material: `chunk * PER_CHUNK`, plus 1 for the kit's colours, 2 on its sheets. */
 	private batches = new Map<number, Batch>();
 	/** The tile input last drawn (null: draw every chunk next). */
 	private drawn: TileInput | null = null;
@@ -109,6 +121,15 @@ export class WallLayer {
 		);
 		// Piece keys name a role's variant, so another kit's pieces need batches of their own.
 		this.clear();
+		for (const m of this.sheets.values()) m.dispose();
+		this.sheets.clear();
+		for (const list of Object.values(kit ?? {}))
+			for (const { sheet } of list)
+				if (sheet && !this.sheets.has(sheet) && this.sheets.size < PER_CHUNK - 2) {
+					const m = createMaterial('surface', { batched: true, sheet: true });
+					wear(m, sheet, KIT_WALL);
+					this.sheets.set(sheet, m);
+				}
 		this.leaves.dispose();
 		this.retile();
 		this.syncLeaves();
@@ -142,7 +163,7 @@ export class WallLayer {
 		this.kitMaterial = twinOf(this.kitMaterial);
 		for (const [slot, b] of this.batches) b.mesh.material = this.materialOf(slot);
 		this.standIns?.forEach((s, m) => (s.material = this.materialOf(m)));
-		this.leaves.setMaterial(this.kitMaterial);
+		this.leaves.setMaterial(this.leafMaterial());
 		this.glass.setAntiTiled(on);
 		if (this.proxy) this.proxy.material = this.material;
 		return true;
@@ -209,7 +230,8 @@ export class WallLayer {
 	stats(): WallStats {
 		let instances = 0;
 		for (const b of this.batches.values()) instances += b.ids.length;
-		const chunks = new Set([...this.batches.keys()].map((slot) => slot >> 1)).size;
+		const chunks = new Set([...this.batches.keys()].map((slot) => Math.floor(slot / PER_CHUNK)))
+			.size;
 		return { chunks, instances, lastRebuilt: this.lastRebuilt };
 	}
 
@@ -217,10 +239,12 @@ export class WallLayer {
 	gallery(): THREE.Object3D[] {
 		if (!this.standIns) {
 			const piece = this.build.proceduralPiece('wall.straight');
-			this.standIns = [0, 1].map((m) => {
+			// The built-in pieces', the kit's colours' and a trim sheet's (with UVs, M70).
+			this.standIns = [0, 1, 2].map((m) => {
 				const b = newBatch(this.materialOf(m));
 				const colors = m ? new Float32Array(piece.positions.length).fill(1) : undefined;
-				const id = b.mesh.addGeometry(geometryOf({ ...piece, colors }));
+				const uvs = m > 1 ? new Float32Array((piece.positions.length / 3) * 2) : undefined;
+				const id = b.mesh.addGeometry(geometryOf({ ...piece, colors, uvs }));
 				b.mesh.setColorAt(b.mesh.addInstance(id), new THREE.Vector4(1, 1, 1, 1));
 				return standIn(b.mesh);
 			});
@@ -239,6 +263,7 @@ export class WallLayer {
 		this.proxyGeometry.dispose();
 		disposeTwins(this.material);
 		disposeTwins(this.kitMaterial);
+		for (const m of [...this.sheets.values(), this.blankSheet]) m.dispose();
 	}
 
 	/** Every batch gone: the next tiling draws every chunk. */
@@ -258,22 +283,39 @@ export class WallLayer {
 		const building = this.roofs.update(this.build, objects, shape, this.interior);
 		const input = this.build.tileInput(shape, objects, building);
 		const dirty = this.build.dirtyPieceChunks(this.drawn, input);
-		const { VARIANTS } = this.build;
 		const glazed = dirty.length ? this.glass.sync(input) : null; // #260
 		for (const [c, pieces] of this.build.autotile(input, dirty)) {
 			const inst = this.build.wallInstances(pieces, shape.grid, this.weights, glazed);
-			// The built-in pieces and the kit's, each in a batch of their own material.
-			const byMaterial: number[][] = [[], []];
-			for (let i = 0; i < inst.count; i++) byMaterial[+(inst.key[i] % VARIANTS !== 0)].push(i);
-			byMaterial.forEach((list, m) => this.fill(c * 2 + m, inst, list));
+			// The built-in pieces, the kit's in colours and on each sheet: a batch per material.
+			const byMaterial: number[][] = Array.from({ length: PER_CHUNK }, () => []);
+			for (let i = 0; i < inst.count; i++) byMaterial[this.materialIndex(inst.key[i])].push(i);
+			byMaterial.forEach((list, m) => this.fill(c * PER_CHUNK + m, inst, list));
 		}
 		this.drawn = input;
 		this.lastRebuilt = dirty.length;
 	}
 
-	/** Slot or material index 0: the built-in pieces' material; odd: the kit's. */
+	/** A slot's material by its index in the chunk: built-in, the kit's colours, then its sheets. */
 	private materialOf(slot: number): KindMaterial {
-		return slot & 1 ? this.kitMaterial : this.material;
+		const m = slot % PER_CHUNK;
+		if (m < 2) return m ? this.kitMaterial : this.material;
+		return [...this.sheets.values()][m - 2] ?? this.blankSheet;
+	}
+
+	/** Which of a chunk's materials a piece key draws in (`materialOf`). */
+	private materialIndex(key: number): number {
+		const { VARIANTS, roleOfKey } = this.build;
+		const variant = (key % VARIANTS) - 1;
+		if (variant < 0) return 0;
+		const sheet = this.kit![roleOfKey(key)]![variant].sheet;
+		const i = sheet ? [...this.sheets.keys()].indexOf(sheet) : -1;
+		return i < 0 ? 1 : i + 2;
+	}
+
+	/** The leaves' material: the kit's leaf's sheet (one for all its leaves), else its colours. */
+	private leafMaterial(): KindMaterial {
+		const sheet = this.kit?.['door.leaf']?.[0].sheet;
+		return (sheet && this.sheets.get(sheet)) || this.kitMaterial;
 	}
 
 	/** A batch's instances (`list`, of `inst`), reusing its ids; a batch with none goes. */
@@ -355,6 +397,7 @@ export class WallLayer {
 			const key = role * VARIANTS + variant + 1;
 			out.push({ id: o.id, key, mesh, at: a, vertical, floor: view.high, open: o.open, seed });
 		}
+		this.leaves.setMaterial(this.leafMaterial());
 		this.leaves.sync(out, input.shape.grid);
 	}
 

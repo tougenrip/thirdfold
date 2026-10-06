@@ -55,12 +55,13 @@ export function colourOf(seed: number, hot: boolean): THREE.Vector4 {
 	return tint.set(shade, shade, shade, hot ? 0 : 1);
 }
 
-/** A piece as a geometry a batch takes: positions, normals, triangles and any colours. */
+/** A piece as a geometry a batch takes: positions, normals, triangles and any colours and UVs. */
 export function geometryOf(piece: PieceMesh): THREE.BufferGeometry {
 	const g = new THREE.BufferGeometry();
 	g.setAttribute('position', new THREE.BufferAttribute(piece.positions, 3));
 	g.setAttribute('normal', new THREE.BufferAttribute(piece.normals, 3));
 	if (piece.colors) g.setAttribute('color', new THREE.BufferAttribute(piece.colors, 3));
+	if (piece.uvs) g.setAttribute('uv', new THREE.BufferAttribute(piece.uvs, 2)); // a sheet's (M70)
 	g.setIndex(new THREE.BufferAttribute(piece.indices, 1));
 	return g;
 }

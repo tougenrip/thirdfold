@@ -16,7 +16,14 @@ import {
 } from '$lib/assets/manifest';
 import { fetchAsset, loadManifest } from '$lib/assets/load';
 import { imageTexture } from './image-texture';
-import { followDetail, ktx2Texture, loadModel, partsOf, slotTexture } from './models';
+import {
+	followDetail,
+	ktx2Texture,
+	loadModel,
+	partsOf,
+	slotTexture,
+	type LoadedModel
+} from './models';
 import { setParams, setSlot, type KindMaterial } from './materials';
 import type { Grades } from './grades-load';
 import type { FloorSurfaces } from './materials/floors';
@@ -60,6 +67,8 @@ export interface EnvironmentLook {
 export const LUT_SIZE = 32;
 
 const textures = new Map<string, Promise<THREE.Texture | null>>();
+/** Trim sheets (M70) by manifest material: their textures are `textures`', freed with them. */
+const sheets = new Map<string, Promise<Look | null>>();
 /** The KTX2 ones among them: transcoded for one device's formats. */
 const transcoded = new Set<string>();
 
@@ -73,6 +82,7 @@ export function releaseEnvironmentTextures(): void {
 		textures.delete(id);
 	}
 	transcoded.clear();
+	sheets.clear();
 	for (const release of releasers) release();
 }
 
@@ -108,6 +118,40 @@ async function look(def: MaterialDef, files: Record<string, TextureEntry>): Prom
 		map,
 		cells: def.cells ?? 1
 	};
+}
+
+/**
+ * The trim sheet a kit piece wears (M70): the first manifest material its entry names (#263), its
+ * albedo, normal and ORM through `loadTexture` (so texture detail swaps them in place), else its
+ * own glTF maps; null for a piece coloured by its vertices alone (the greybox kits), or a sheet
+ * whose albedo fails to load. One Look per material, shared by every piece that wears it.
+ */
+export function sheetOf(model: LoadedModel): Promise<Look | null> {
+	const id = model.entry.materials?.[0];
+	if (!id) {
+		const part = partsOf(model, 'body').find((p) => p.maps?.albedo);
+		if (!part) return Promise.resolve(null);
+		const { albedo, normal, orm } = part.maps!;
+		const p = part.params;
+		const color = new THREE.Color(p.color ?? 0xffffff);
+		const [roughness, metalness] = [p.roughness ?? 1, p.metalness ?? 0];
+		return Promise.resolve({ color, roughness, metalness, map: albedo!, cells: 1, normal, orm });
+	}
+	let loading = sheets.get(id);
+	if (!loading) {
+		loading = loadManifest().then(async ({ materials, textures: files }) => {
+			const def = materials[id];
+			const get = (t?: string) => (t && files[t] ? loadTexture(t, files[t]) : null);
+			const [map, normal, orm] = await Promise.all([
+				get(def?.map),
+				get(def?.normal),
+				get(def?.orm)
+			]);
+			return map ? { ...(await look(def, {})), map, normal, orm } : null;
+		});
+		sheets.set(id, loading);
+	}
+	return loading;
 }
 
 /**
@@ -196,18 +240,23 @@ async function kitPieces(kit: KitDef | undefined, of: 'walls' | 'roofs') {
 	const entries = Object.entries(kit?.pieces ?? {}).filter(([role]) => roles.has(role));
 	const out: Record<
 		string,
-		{ mesh: PieceMesh; weight: number; smoke?: [number, number, number] }[]
+		{ mesh: PieceMesh; weight: number; smoke?: [number, number, number]; sheet?: Look }[]
 	> = {};
 	await Promise.all(
 		entries.map(async ([role, list]) => {
 			const models = await Promise.all(list.map((p) => loadModel(p.model)));
 			if (models.some((m) => !m)) return;
+			// The walls' pieces wear their trim sheet by UV (M70); roofs keep their baked colours.
+			const worn = await Promise.all(models.map((m) => (of === 'walls' ? sheetOf(m!) : null)));
 			out[role] = models.map((m, i) => {
 				const smoke = list[i].sockets?.find((s) => s.kind === 'smoke')?.at;
+				const mesh = build.pieceOf(partsOf(m!, 'body').map((p) => p.geometry));
+				if (!worn[i]) delete mesh.uvs; // drawn as before: by its vertex colours
 				return {
-					mesh: build.pieceOf(partsOf(m!, 'body').map((p) => p.geometry)),
+					mesh,
 					weight: list[i].weight ?? 1,
-					...(smoke ? { smoke } : {})
+					...(smoke ? { smoke } : {}),
+					...(worn[i] ? { sheet: worn[i] } : {})
 				};
 			});
 		})

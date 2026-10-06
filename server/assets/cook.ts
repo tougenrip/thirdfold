@@ -16,7 +16,7 @@
 // and 2K as variants into variants/ (never committed), listed in assets/variants.lock.json
 // (cook-variants.ts, variants.ts); a model with textures the same, as whole GLBs.
 //
-// A model is checked, cleaned (dedup, prune), given MikkTSpace tangents where
+// A model is checked, cleaned (dedup, prune; one wearing a manifest material keeps its UVs), given MikkTSpace tangents where
 // it has a normal map, welded, simplified into `<role>_lod1` and `_lod2`,
 // quantised and meshopt-encoded, its textures encoded to KTX2
 // (cook-textures.ts), and the result must pass checkGlb. assets/cook.lock.json
@@ -398,7 +398,10 @@ async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cook
 		}
 	}
 
-	await doc.transform(dedup(), prune());
+	// A piece that wears a manifest material (a kit's trim sheet, M70) keeps its UVs: prune would
+	// drop them, having no texture of its own to sample them.
+	const pruned = () => prune({ keepAttributes: meta.materials !== undefined });
+	await doc.transform(dedup(), pruned());
 	if (root.listMaterials().some((m) => m.getNormalTexture())) {
 		await doc.transform(unweld(), tangents({ generateTangents, overwrite: true }));
 	}
@@ -422,7 +425,7 @@ async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cook
 			previous = count;
 		}
 	}
-	await doc.transform(prune(), meshopt({ encoder: MeshoptEncoder, level: COOK_SETTINGS.meshopt }));
+	await doc.transform(pruned(), meshopt({ encoder: MeshoptEncoder, level: COOK_SETTINGS.meshopt }));
 
 	// Textures to KTX2 by the slots they fill, colour ETC1S, data UASTC: at the 512 px base, and as
 	// whole GLBs with 1K and 2K textures where the source's are that large (texture detail).

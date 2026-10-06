@@ -176,6 +176,8 @@ export interface PieceMesh {
 	indices: Uint32Array;
 	/** A kit piece's vertex colours (its surfaces baked in, #261); built-in pieces have none. */
 	colors?: Float32Array;
+	/** A kit piece's UVs on the trim sheet it wears (M70); none for the rest. */
+	uvs?: Float32Array;
 }
 
 type Box = readonly [x0: number, y0: number, z0: number, x1: number, y1: number, z1: number];
@@ -292,17 +294,24 @@ interface Attribute {
 	getZ(i: number): number;
 }
 interface Geometry {
-	getAttribute(name: 'position' | 'normal' | 'color'): Attribute | undefined;
+	getAttribute(name: 'position' | 'normal' | 'color' | 'uv'): Attribute | undefined;
 	getIndex(): Pick<Attribute, 'count' | 'getX'> | null;
 }
 
-/** A kit piece's parts (#252) as one mesh: positions, normals and triangles (made where none). */
+/**
+ * A kit piece's parts (#252) as one mesh: positions, normals and triangles (made where none),
+ * colours, and UVs (M70) when every part has them.
+ */
 export function pieceOf(parts: readonly Geometry[]): PieceMesh {
-	const [positions, normals, colors, indices]: number[][] = [[], [], [], []];
+	const [positions, normals, colors, indices, uvs]: number[][] = [[], [], [], [], []];
+	let mapped = parts.length > 0;
 	for (const g of parts) {
 		const position = g.getAttribute('position')!;
 		const normal = g.getAttribute('normal')!;
 		const color = g.getAttribute('color');
+		const uv = g.getAttribute('uv');
+		mapped &&= !!uv;
+		if (uv) for (let v = 0; v < uv.count; v++) uvs.push(uv.getX(v), uv.getY(v));
 		const index = g.getIndex();
 		const base = positions.length / 3;
 		for (let v = 0; v < position.count; v++) {
@@ -318,6 +327,7 @@ export function pieceOf(parts: readonly Geometry[]): PieceMesh {
 		positions: new Float32Array(positions),
 		normals: new Float32Array(normals),
 		indices: new Uint32Array(indices),
-		colors: new Float32Array(colors)
+		colors: new Float32Array(colors),
+		...(mapped ? { uvs: new Float32Array(uvs) } : {})
 	};
 }

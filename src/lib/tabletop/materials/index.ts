@@ -6,7 +6,7 @@
 // and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `batched`, `roof`, `vertexColors`, and the kind's
+// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `batched`, `roof`, `sheet`, `vertexColors`, and the kind's
 // `transparent`, `side` and alpha test.
 
 import * as THREE from 'three/webgpu';
@@ -83,6 +83,8 @@ export interface MaterialOptions {
 	batched?: boolean;
 	/** Surface: a roof (#257), shaded by its `aRoofCell` (`ROOF_CELL_ATTRIBUTE`), which its geometry carries. */
 	roof?: boolean;
+	/** Surface: slots at the geometry's `uv` (a kit's trim sheet, M70), not the world box. */
+	sheet?: boolean;
 	params?: ParamsInput;
 	/** Textures for the kind's slots (see `prepareSlotTexture`); the rest hold their blanks. */
 	slots?: Partial<Record<SlotName, THREE.Texture>>;
@@ -165,7 +167,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		antiTiled: !!options.antiTiled,
 		dropped: !!options.dropped,
 		batched: !!options.batched,
-		roof: !!options.roof
+		roof: !!options.roof,
+		sheet: !!options.sheet
 	});
 	const nodes = material as unknown as Record<string, unknown>;
 	nodes.colorNode = graph.colorNode;
