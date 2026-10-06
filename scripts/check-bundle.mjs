@@ -111,7 +111,8 @@ const BUDGETS = {
 	// perf tags (#264, `tagged` in perf.ts); 403.8 kB measured. → 399.6: kit pieces as a pool of
 	// InstancedMeshes on both backends (M70 after #264: piece-pool.ts, the surface kind's `piece`
 	// variant; three's BatchedMesh and batch.ts gone, about 4.3 kB); 399.5 kB measured.
-	renderer: { total: 399_600 },
+	// → 399.8: warm-ups at the draw depth (warmup.ts, DrawDepths and unlit); 399.7 kB measured.
+	renderer: { total: 399_800 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
