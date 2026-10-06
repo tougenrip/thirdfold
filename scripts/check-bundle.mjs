@@ -101,8 +101,9 @@ const BUDGETS = {
 	// kit's stair pieces baked into the faces); set to the merged build's measured size (the owner
 	// raised M70's cap to about 405 kB). → door leaves (#253: one batch, door-leaves.ts and batch.ts)
 	// → roofs (#257: the roof layer, the surface kind's `roof` variant and the sky terms picked per
-	// material); set to the merged build's measured size.
-	renderer: { total: 401_100 },
+	// material); set to the merged build's measured size. → the GridLights' cell lookup at the
+	// centroid (two varyings, grid-light-node.ts).
+	renderer: { total: 401_300 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

@@ -433,7 +433,9 @@ every role procedural, for tables with no environment.
   one); stone halls also tile `tile` (terracotta slabs) and the railcar `grating`, the floor ids
   #254 added.
 
-- **Conventions.** Vertical pieces below a floor (retaining walls, sills, cliff faces, piers) are
+- **Conventions.** A wall piece's core spans the whole edge (x ±0.5), even where its blocks or
+  boards stop short: a core 0.98 long left a crack at every joint through which the far side of
+  the wall, and its lights, showed. Vertical pieces below a floor (retaining walls, sills, cliff faces, piers) are
   one wall's height (2 u) and repeat down a deeper drop. Roof pieces are one cell from the wall's
   top: `eave` a slope across the cell falling toward +z, `ridge` both slopes meeting over its
   centre, `corner` and `hip` stepped terraces (boxes make no triangles) falling toward +x and +z,

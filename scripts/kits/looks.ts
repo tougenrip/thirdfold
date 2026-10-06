@@ -84,12 +84,12 @@ export const stoneHalls: Style = {
 	walls: (s) => [
 		{
 			id: 'wall-ashlar-a',
-			parts: [box([0.98, 2, 0.1], [0, 1, 0], s.dark), ...courses(0, 2, 5, 0.14, s.wall, 41)]
+			parts: [box([1, 2, 0.1], [0, 1, 0], s.dark), ...courses(0, 2, 5, 0.14, s.wall, 41)]
 		},
 		{
 			id: 'wall-ashlar-b',
 			parts: [
-				box([0.98, 2, 0.1], [0, 1, 0], s.dark),
+				box([1, 2, 0.1], [0, 1, 0], s.dark),
 				...courses(0, 1.2, 3, 0.13, s.wall, 42),
 				box([1, 0.1, 0.14], [0, 1.25, 0], s.base),
 				...courses(1.3, 2, 2, 0.13, s.wall, 43)
@@ -186,13 +186,13 @@ export const cavern: Style = {
 		{
 			id: 'wall-rough',
 			parts: [
-				box([0.98, 2, 0.08], [0, 1, 0], s.dark),
+				box([1, 2, 0.08], [0, 1, 0], s.dark),
 				...rubble(0, 2, -0.068, 0.068, [s.base, '#52535a', '#5f5a55'], 51, 5)
 			]
 		},
 		{
 			id: 'wall-ancient',
-			parts: [box([0.98, 2, 0.1], [0, 1, 0], s.dark), ...courses(0, 2, 4, 0.14, s.wall, 52)],
+			parts: [box([1, 2, 0.1], [0, 1, 0], s.dark), ...courses(0, 2, 4, 0.14, s.wall, 52)],
 			weight: 0.6
 		}
 	],
