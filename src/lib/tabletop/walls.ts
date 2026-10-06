@@ -17,6 +17,7 @@ import { wear, type Look } from './environment';
 import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
 import { standIn } from './warmup';
 import { wallSpans } from './world/wall-spans';
+import { RoofLayer, type RoofKit } from './roofs';
 import type { TileInput } from './world/autotile';
 import type { WorldShape } from './world/shape';
 import type { BatchRole, KitWeights, PieceMesh, WallInstances } from './world/wall-batch';
@@ -48,7 +49,8 @@ export interface WallStats {
 }
 
 export class WallLayer {
-	readonly group = new THREE.Group();
+	readonly roofs = new RoofLayer(); // #257: their cells are the walls' building context
+	readonly group = new THREE.Group().add(this.roofs.group);
 	private grid: SquareGrid | null = null;
 	/** The built-in pieces' material, in the environment's wall look. */
 	private material: KindMaterial = createMaterial('surface', { batched: true, antiTiled: true });
@@ -88,12 +90,13 @@ export class WallLayer {
 		wear(this.kitMaterial, null, KIT_WALL);
 	}
 
-	/** The environment's walls (null: plain stone) and its kit (null: every piece procedural). */
-	setLook(look: Look | null, kit: WallKit | null = null): void {
+	/** The environment's walls (null: plain stone), its kit (null: all procedural) and roofs. */
+	setLook(look: Look | null, kit: WallKit | null = null, roof: RoofKit | null = null): void {
 		this.look = look;
 		wear(this.material, look, PLAIN_WALL);
 		this.tile();
-		if (kit === this.kit) return;
+		const roofed = this.roofs.setKit(roof);
+		if (kit === this.kit) return void (roofed && this.retile());
 		this.kit = kit;
 		this.weights = Object.fromEntries(
 			Object.entries(kit ?? {}).map(([role, list]) => [role, list.map((v) => v.weight)])
@@ -105,7 +108,7 @@ export class WallLayer {
 		this.syncLeaves();
 	}
 
-	/** The building context (the interior mask as sent): boundary walls stand outside it. */
+	/** The interior mask as sent: the roofs over it (#257) are the walls' building context. */
 	setInterior(mask: Uint8Array | null): void {
 		if (mask === this.interior) return;
 		this.interior = mask;
@@ -205,12 +208,13 @@ export class WallLayer {
 			});
 		}
 		this.standIns.forEach((s, m) => (s.material = this.materialOf(m)));
-		return this.standIns;
+		return [...this.standIns, ...this.roofs.gallery()];
 	}
 
 	dispose(): void {
 		this.leaves.dispose();
 		this.clear();
+		this.roofs.dispose();
 		this.proxy?.dispose();
 		for (const s of this.standIns ?? []) s.dispose();
 		this.proxyGeometry.dispose();
@@ -232,7 +236,8 @@ export class WallLayer {
 	private retile(): void {
 		if (!this.state) return;
 		const { objects, shape } = this.state;
-		const input = this.build.tileInput(shape, objects, this.interior);
+		const building = this.roofs.update(this.build, objects, shape, this.interior);
+		const input = this.build.tileInput(shape, objects, building);
 		const dirty = this.build.dirtyPieceChunks(this.drawn, input);
 		const { VARIANTS } = this.build;
 		for (const [c, pieces] of this.build.autotile(input, dirty)) {

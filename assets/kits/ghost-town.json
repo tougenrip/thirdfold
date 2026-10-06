@@ -1,7 +1,7 @@
 {
 	"name": "Ghost town",
 	"roof": { "style": "gable", "pitch": 22, "eave": 0.2, "material": "roof-boards" },
-	"presumeRoofs": false,
+	"presumeRoofs": true,
 	"pieces": {
 		"wall.straight": [
 			{ "model": "ghost-town-wall-adobe" },

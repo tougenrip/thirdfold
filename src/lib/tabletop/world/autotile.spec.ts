@@ -339,16 +339,35 @@ describe('drops, the void, the border and buildings', () => {
 		expect(new Set(out.filter((p) => p.site === SITE.v).map((p) => p.role))).toEqual(
 			new Set(['wall.boundary'])
 		);
-		// Without any building context nothing is a boundary: no mask, an empty one, or one
-		// whose only building cell is unexplored (as views send it: nothing).
-		for (const t of [
-			{ grid: grid(5, 1) },
-			{ grid: grid(5, 1), building: new Uint8Array(5) },
-			{ grid: grid(5, 1), building: house, known: Uint8Array.from([1, 1, 1, 1, 0]) }
-		]) {
-			const none = records(tile(t, objects));
-			expect(none.some((p) => p.role === 'wall.boundary')).toBe(false);
-		}
+		// Without a building context (no mask: a kit without roofs) nothing is a boundary.
+		const none = records(tile({ grid: grid(5, 1) }, objects));
+		expect(none.some((p) => p.role === 'wall.boundary')).toBe(false);
+	});
+
+	it('makes boundaries only between two known unroofed cells, given a context (#257)', () => {
+		const objects = [wall([1, 0], [1, 1]), wall([2, 0], [2, 1]), wall([3, 0], [3, 1])];
+		const roles = (t: Table) =>
+			records(tile(t, objects))
+				.filter((p) => p.site === SITE.v)
+				.map((p) => [p.x, p.role]);
+		// A context with nothing roofed known (a kit that presumes roofs gives one from the first
+		// frame, roofs.ts): walls between known outside cells are boundaries.
+		const empty = new Uint8Array(5);
+		const all = { grid: grid(5, 1), building: empty };
+		expect(roles(all)).toEqual([
+			[1, 'wall.boundary'],
+			[2, 'wall.boundary'],
+			[3, 'wall.boundary']
+		]);
+		// A wall with an unexplored side may be a house's: straight until both sides are known.
+		const fog = { ...all, known: Uint8Array.from([1, 1, 0, 1, 1]) };
+		expect(roles(fog)).toEqual([
+			[1, 'wall.boundary'],
+			[2, 'wall.straight'],
+			[3, 'wall.straight']
+		]);
+		// The same whatever the mask holds on the unexplored cell.
+		expect(roles({ ...fog, building: Uint8Array.from([0, 0, 1, 0, 0]) })).toEqual(roles(fog));
 	});
 });
 

@@ -272,9 +272,10 @@ describe('secrecy', () => {
 				);
 			const levels = scramble(f.input.levels);
 			const floor = scramble(f.input.floor).map((v, i) => (!known[i] && v % 2 ? VOID : v));
-			const building = Uint8Array.from({ length: n }, (_, i) =>
-				known[i] ? (f.building ? f.building[i] : 0) : rnd() < 0.5 ? 1 : 0
-			);
+			// The context is the kit's (#257): null stays null, a mask is scrambled where unexplored.
+			const building =
+				f.building &&
+				Uint8Array.from({ length: n }, (_, i) => (known[i] ? f.building![i] : rnd() < 0.5 ? 1 : 0));
 			// Walls, windows and doors on edges with no explored side.
 			const extra: SceneObject[] = [];
 			for (let y = 0; y <= h; y++)

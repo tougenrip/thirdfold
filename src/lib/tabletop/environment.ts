@@ -22,6 +22,7 @@ import type { Grades } from './grades-load';
 import type { FloorSurfaces } from './materials/floors';
 import type { KitDef } from '$lib/assets/kit';
 import type { WallKit } from './walls';
+import type { RoofKit } from './roofs';
 import type { PieceMesh } from './world/wall-batch';
 
 export { resolveSky } from '$lib/assets/sky-parse';
@@ -51,6 +52,8 @@ export interface EnvironmentLook {
 	grades: Grades | null;
 	/** Its architecture kit's pieces (#250, #252), or null when it has none (`plain`). */
 	kit: WallKit | null;
+	/** Its kit's roofs (#257), or null when it has none (caves, `plain`). */
+	roof: RoofKit | null;
 }
 
 /** The size of a grade's lookup table, per side. */
@@ -119,7 +122,10 @@ export async function loadEnvironment(
 	const env = manifest.environments[id];
 	if (!env) return null;
 	const { surfaces: painted } = env;
-	const [[surface, ground, walls], grades, own, kit] = await Promise.all([
+	const kitDef = manifest.kits[env.kit ?? 'plain'];
+	const roofDef = kitDef?.roof ?? null;
+	const roofLook = roofDef && manifest.materials[roofDef.material];
+	const [[surface, ground, walls], grades, own, kit, roofed] = await Promise.all([
 		Promise.all(
 			[env.surface, env.ground, env.walls].map((m) =>
 				look(manifest.materials[m], manifest.textures)
@@ -131,7 +137,8 @@ export async function loadEnvironment(
 			: null,
 		// Its painted surfaces (#187), from a chunk only tables that have them load.
 		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null,
-		loadKit(manifest.kits[env.kit ?? 'plain'])
+		loadKit(kitDef),
+		roofLook ? look(roofLook, manifest.textures) : null
 	]);
 	return {
 		surface,
@@ -139,7 +146,8 @@ export async function loadEnvironment(
 		walls: own?.walls ? { ...walls, ...own.walls } : walls,
 		floors: own?.floors ?? null,
 		grades,
-		kit
+		kit,
+		roof: roofDef && { roof: roofDef, presume: kitDef!.presumeRoofs, look: roofed }
 	};
 }
 

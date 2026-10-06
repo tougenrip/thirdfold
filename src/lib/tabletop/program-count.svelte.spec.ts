@@ -32,7 +32,8 @@
 // panels and torches, turned, and back. Hero shadow slots (#230): the focus moved so every slot
 // changes hands (a cube drawn for each new holder). Kit floor tiles (#254): the stand-in kit's on
 // every table, the floors painted (tile and grating among them) and the ring packed round targets
-// across the table.
+// across the table. Roofs (#257): over a room and the whole table, in another kit's look, raised,
+// seen into and gone.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -207,6 +208,10 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	// The world's chunks (#240): every cell raised, a stair across the table, flat, and back.
 	const raised = new Uint8Array(size).map((_, i) => (levels?.[i] ?? 0) + 2);
 	const stair = new Uint8Array(size).map((_, i) => (i % home.grid.width) % 6);
+	const room = new Uint8Array(size).map((_, i) => {
+		const [x, y] = [i % home.grid.width, Math.floor(i / home.grid.width)];
+		return x >= 2 && x < 6 && y >= 2 && y < 5 ? 1 : 0;
+	});
 	const light = (i: number, over: Partial<Light> = {}): Light => ({
 		id: `sweep-${i}`,
 		pos: { x: 2 + (i % 8) * 2, y: 2 + Math.floor(i / 8) * 4 },
@@ -264,6 +269,18 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 			() => t.setGridPose({ target, distance: 12, azimuth: 30, elevation: 50 })
 		]),
 		['tiles round the pose', () => t.setPose(pose)],
+		// Roofs (#257): the kit's over a room, over the whole table, under another kit's look, raised
+		// with the ground, seen into (left out) and gone: geometry, attributes and params only.
+		['roofs over a room', () => t.setInterior(room)],
+		['roofs everywhere', () => t.setInterior(new Uint8Array(size).fill(1))],
+		['roofs in thatch', () => t.setEnvironment('village')],
+		['roofs raised', () => t.setTerrain(raised)],
+		['roofs seen into', () => t.setFog({ ...home.fog, visible: all, explored: all }, 'player')],
+		[
+			'roofs back',
+			() => (t.setFog(home.fog, home.fogMode), t.setTerrain(levels), t.setInterior(room))
+		],
+		['roofs gone', () => (t.setInterior(null), t.setEnvironment(home.environment))],
 		['terrain raised', () => t.setTerrain(raised)],
 		['terrain a stair', () => t.setTerrain(stair)],
 		['terrain flat', () => t.setTerrain(null)],

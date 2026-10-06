@@ -26,6 +26,7 @@ import { STEP_HEIGHT } from '../ground';
 import { flickerNode } from './flicker';
 import type { GridIndirect } from './lighting-model';
 import type { N } from './tsl';
+import { roofLit } from './world-modify';
 import {
 	BOUNCE_RANGE,
 	CAVITY_PER_SIDE,
@@ -248,6 +249,8 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 		const { directDiffuse, directSpecular } = b.context.reflectedLight;
 		directDiffuse.toStack();
 		directSpecular.toStack();
+		// A roof (#257) is lit by the sky, never by the lights its cells under it list.
+		if (roofLit(builder)) return undefined as never;
 		const k = light.k;
 		const model = (b.context as { lightingModel?: { gridIndirect?: GridIndirect } }).lightingModel;
 		if (model && 'gridIndirect' in model) model.gridIndirect = indirectNode(light, load);

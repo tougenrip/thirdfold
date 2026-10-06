@@ -204,6 +204,7 @@ describe('the renderer', () => {
 		const throws = vi.spyOn(DiceLayer.prototype, 'throw');
 		const sets = vi.spyOn(PreviewLayer.prototype, 'set');
 		const m = await mount('monastery', 'gm');
+		m.tabletop.setInterior(null); // the nave's roof (#257) would cover the gallery from here
 		// Looking at the gallery's cell (20, 5), at level 5 (2 up), from the nave's side.
 		m.tabletop.setPose({ position: { x: -2.5, y: 9, z: 3.5 }, target: { x: 5.5, y: 2, z: -4.5 } });
 		await settle(m.tabletop);
@@ -291,7 +292,9 @@ describe('the ground to the horizon', () => {
 		backdrop?: WorldLook['backdrop']['kind']
 	) {
 		const view = await loadView('village', 'day', 'gm');
-		const plain = { ...view, tokens: [], props: [], objects: [], lights: [], terrain: null };
+		// No roofs either (#257): with no walls, the village's would float over the bare ground.
+		const empty = { tokens: [], props: [], objects: [], lights: [], terrain: null, interior: null };
+		const plain = { ...view, ...empty };
 		const sidecar = await loadSidecar('village');
 		const m = await mountFixture(
 			{

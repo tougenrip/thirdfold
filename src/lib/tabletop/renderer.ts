@@ -92,9 +92,8 @@ export async function createTabletop(
 	let warming: Promise<void> = Promise.resolve();
 	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	const tokenLayer = new TokenLayer(overlay, onModel, clock);
-	scene.add(tokenLayer.group);
-	const wallLayer = new WallLayer(build, clock); // kit pieces by chunk (#252)
-	scene.add(wallLayer.group);
+	const wallLayer = new WallLayer(build, clock); // kit pieces by chunk (#252), roofs (#257)
+	scene.add(tokenLayer.group, wallLayer.group);
 	let floor: Uint8Array | null = null;
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
 	const cellMaps = new CellMaps(clock); // every material's fog and dark (worldModify, #171, #173)
@@ -267,7 +266,7 @@ export async function createTabletop(
 	function applyLook(): void {
 		land.dress(look, grid);
 		worldLayer.setLook(look, grid, environment);
-		wallLayer.setLook(look?.walls ?? null, look?.kit ?? null);
+		wallLayer.setLook(look?.walls ?? null, look?.kit ?? null, look?.roof ?? null); // roofs: #257
 		refreshLighting();
 		shadowsDirty = warmPending = true;
 		requestRender();
@@ -352,6 +351,7 @@ export async function createTabletop(
 		},
 		setFog(fog, mode) {
 			fogState = { fog, mode };
+			wallLayer.roofs.setSight(fog); // roofs never hide what the rules show (#257)
 			if (!grid) return;
 			if (reshape()) wallLayer.sync(objects, worldLayer.shape!, ground!);
 			refreshLighting();
@@ -394,7 +394,7 @@ export async function createTabletop(
 			refreshLighting();
 		},
 		setInterior: (next) =>
-			// boundary walls (#251), sky light (#219)
+			// roofs and boundary walls (#251, #257), sky light (#219)
 			(wallLayer.setInterior(next), cellMaps.setInterior(next)) && refreshLighting(),
 		setEnvironment(next) {
 			if (next === environment) return;

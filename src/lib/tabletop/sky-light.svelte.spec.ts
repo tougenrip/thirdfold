@@ -53,10 +53,18 @@ async function chamberAtNoon() {
 		if (o instanceof SkyLight || o instanceof SkyHemisphere) lights.push(o);
 	});
 	const measure = async () => {
+		// The nave's roof (#257) covers the chamber from above: taken out, so this reads the floor.
+		(scene as THREE.Scene | null)?.traverse((o) => {
+			const material = (o as THREE.Mesh).material as { options?: { roof?: boolean } } | undefined;
+			if (material?.options?.roof) o.visible = false;
+		});
+		redraw();
 		await settle(mounted!.tabletop);
 		const read = await readFrame(mounted!.canvas, WIDTH, HEIGHT);
 		return [mean(read, CHAMBER_BOX), mean(read, COURTYARD_BOX)];
 	};
+	// Once with the roofs out, so no frame of them is left in the antialiasing's history.
+	await measure();
 	return { lights, redraw, measure };
 }
 

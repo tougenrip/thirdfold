@@ -39,6 +39,7 @@ export const village: Style = {
 	iron: '#3d4250',
 	glass: '#5d6a78',
 	roof: { style: 'gable', pitch: 45, eave: 0.25, material: 'thatch' },
+	presumeRoofs: true,
 	ridge: '#6a5a3d',
 	walls: (s) => [
 		{
@@ -255,6 +256,7 @@ export const railcar: Style = {
 	iron: '#3d4250',
 	glass: '#5d6a78',
 	roof: { style: 'gable', pitch: 15, eave: 0.12, material: 'tin-roof' },
+	presumeRoofs: true,
 	ridge: '#3d4250',
 	walls: (s) => [
 		{
@@ -298,6 +300,7 @@ export const ghostTown: Style = {
 	iron: '#3a3438',
 	glass: '#3b3c44',
 	roof: { style: 'gable', pitch: 22, eave: 0.2, material: 'roof-boards' },
+	presumeRoofs: true,
 	ridge: '#5a4a3e',
 	walls: (s) => [
 		{

@@ -28,3 +28,4 @@ export {
 export { brinkCells, chunkTiles, dirtyTileChunks, tileBeds, tiledCells } from './floor-tiles';
 export { builtGround, stairDirty, stairTrim, withStairs, withTrim } from './stairs';
 export { bridgeTrim } from './bridge-mesh';
+export { roofFootprint, roofKey, roofMesh, roofRegions, roofsByChunk, seenInto } from './roofs';
