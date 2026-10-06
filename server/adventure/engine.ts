@@ -4643,6 +4643,7 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	if (adventure.library) next.library = adventure.library;
 	if (adventure.collection) next.collection = adventure.collection;
 	if (adventure.entitlements) next.entitlements = adventure.entitlements;
+	if (adventure.steps) next.steps = adventure.steps;
 	if (adventure.rated) next.rated = adventure.rated;
 	room.adventure = next;
 	const log = [postSystem(room, `${actor.name} started the story over.`)];

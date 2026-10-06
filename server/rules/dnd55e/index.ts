@@ -197,6 +197,18 @@ export const dnd55e: Ruleset = {
 	rollDamage,
 	bestiary: srdBestiary(srdCatalog),
 	packs: dndPacks(srdCatalog),
+	contentPins() {
+		const c = srdCatalog();
+		return [
+			{
+				id: c.pin.source,
+				name: c.source.title,
+				version: c.pin.version,
+				sha256: c.pin.sha256,
+				build: c.build
+			}
+		];
+	},
 	maneuvers: MANEUVERS,
 	card(character, statuses) {
 		const sheet = sheetOf(character);

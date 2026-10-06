@@ -3290,6 +3290,180 @@ describe('permissions over the wire (milestone 54)', () => {
 	});
 });
 
+describe('versions over the wire (milestone 55)', () => {
+	const v1 = () => JSON.parse(JSON.stringify(exampleAdventure()));
+	const v2 = () => {
+		const f = v1();
+		f.about = 'Now with more flour.';
+		f.clues.flour = { title: 'Flour on the stair', text: 'Small prints.', kind: 'environment' };
+		return f;
+	};
+
+	it('keeps a story on its version through a publisher’s update, and moves it only when the GM asks', async () => {
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: v1() });
+		const pub = await mira.expect('library_published');
+		const key = pub.gmKey!;
+		await mira.expect('library_mine');
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', libraryId: pub.adventureId });
+		const started = (await gm.until('room_reset')).room.adventure!;
+		expect(started.library).toMatchObject({ version: 1 });
+		// The GM sees what the story is pinned to; a player doesn't.
+		expect(started.versions).toMatchObject({
+			lock: {
+				rules: { id: 'thirdfold-classic', version: 1 },
+				content: [],
+				adventure: { kind: 'file', library: { id: pub.adventureId, version: 1 } },
+				packs: [],
+				collection: null
+			},
+			steps: [],
+			movable: { adventure: true, collection: false }
+		});
+		expect((await pip.until('room_reset')).room.adventure!.versions).toBeNull();
+
+		// The creator publishes version 2: the story under way, and its save, stay on version 1.
+		mira.send({
+			type: 'library_publish',
+			gmKey: key,
+			creator: 'Mira',
+			file: v2(),
+			adventureId: pub.adventureId
+		});
+		expect(await mira.until('library_published')).toMatchObject({ version: 2 });
+		// Every version stays readable.
+		gm.send({ type: 'library_story', id: pub.adventureId, version: 1 });
+		expect((await gm.until('library_story')).story!.listing).toMatchObject({
+			version: 1,
+			about: v1().about
+		});
+		gm.send({ type: 'scene_save', name: 'Mill' });
+		const saved = await gm.until('scene_saved');
+		const reopened = await connect();
+		reopened.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		expect((await reopened.expect('welcome')).room.adventure!.library).toMatchObject({
+			version: 1
+		});
+
+		// A player can't ask; the GM reviews the latest version.
+		pip.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		const reviewed = await gm.until('upgrade_review');
+		expect(reviewed).toMatchObject({
+			applied: false,
+			review: { from: 1, to: 2, rollback: false, ok: true, problems: [] }
+		});
+		expect(reviewed.review.changes).toContainEqual({
+			section: 'Clues',
+			added: ['flour'],
+			removed: [],
+			changed: []
+		});
+		// A collection move on a story from no collection is refused, saying why.
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'collection' });
+		expect((await gm.until('error')).message).toBe('This story wasn’t started from a collection.');
+
+		// Applied: everyone gets the story on version 2, and a save keeps it there.
+		gm.send({ type: 'adventure_upgrade', op: 'apply', what: 'adventure', version: 2 });
+		const moved = (await pip.until('room_reset')).room.adventure!;
+		expect(moved.library).toMatchObject({ version: 2 });
+		await pip.untilNotice('Gemma moved the story to version 2 of The Miller’s Key.');
+		const gmView = (await gm.until('room_reset')).room.adventure!;
+		expect(gmView.versions!.steps).toMatchObject([{ from: 1, to: 2, rollback: false }]);
+		expect((await gm.until('upgrade_review')).applied).toBe(true);
+		gm.send({ type: 'scene_save', name: 'Mill 2' });
+		const saved2 = await gm.until('scene_saved');
+
+		// Continued from that save on another day: version 2, and back to version 1, which the library still keeps.
+		const later = await connect();
+		later.send({ type: 'create', name: 'Gemma', gmKey: gmKey, continueFrom: saved2.sceneId });
+		const resumed = (await later.expect('welcome')).room.adventure!;
+		expect(resumed.library).toMatchObject({ version: 2 });
+		later.send({ type: 'adventure_upgrade', op: 'apply', what: 'adventure', version: 1 });
+		expect(
+			(await later.until('room_reset')).room.adventure!.versions!.steps.map((s) => s.rollback)
+		).toEqual([false, true]);
+		expect(await later.until('upgrade_review')).toMatchObject({
+			applied: true,
+			review: { rollback: true, to: 1 }
+		});
+		// A version that isn't there.
+		later.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure', version: 9 });
+		expect((await later.until('error')).message).toBe(
+			'That version of the adventure is not in the library.'
+		);
+	});
+
+	it('moves a story to its collection’s next version, with the homebrew that version names', async () => {
+		const mira = await connect();
+		mira.send({ type: 'library_publish', kind: 'pack', creator: 'Mira', file: examplePack() });
+		const pack = await mira.expect('library_published');
+		const key = pack.gmKey!;
+		await mira.expect('library_mine');
+		const draft = (packs: unknown[]) => ({
+			format: 'thirdfold-collection',
+			formatVersion: 1,
+			title: 'Cold Hill Campaign',
+			adventures: [{ builtIn: 'barrow' }],
+			packs,
+			tables: []
+		});
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey: key,
+			creator: 'Mira',
+			file: draft([{ library: pack.adventureId, version: 1 }])
+		});
+		const set = await mira.until('library_published');
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		await gm.expect('welcome');
+		gm.send({ type: 'adventure_start', collectionId: set.adventureId });
+		const started = await gm.until('adventure_update', (m) => !!m.adventure?.collection);
+		expect(started.adventure!.packs!.map((p) => p.name)).toEqual(['The Cold Hill Armory']);
+		expect(started.adventure!.versions!.movable).toEqual({ adventure: false, collection: true });
+		// Its adventure moves with the collection, not alone.
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		expect((await gm.until('error')).message).toMatch(/move the collection instead/);
+
+		// Version 2 of the collection drops the armory.
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey: key,
+			creator: 'Mira',
+			file: draft([]),
+			adventureId: set.adventureId
+		});
+		await mira.until('library_published');
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'collection' });
+		const review = (await gm.until('upgrade_review')).review;
+		expect(review).toMatchObject({
+			what: 'collection',
+			from: 1,
+			to: 2,
+			ok: true,
+			changes: [],
+			packs: { added: [], removed: ['The Cold Hill Armory'] }
+		});
+		gm.send({ type: 'adventure_upgrade', op: 'apply', what: 'collection' });
+		const moved = (await gm.until('room_reset')).room.adventure!;
+		expect(moved.collection).toMatchObject({ version: 2, packs: [] });
+		expect(moved.packs).toEqual([]);
+		expect(moved.versions!.lock.collection).toMatchObject({ version: 2 });
+	});
+});
+
 describe('fifth edition rules over the wire', () => {
 	beforeEach(async () => {
 		// Every die rolls its highest face: every d20 is a natural 20.

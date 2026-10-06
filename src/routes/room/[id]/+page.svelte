@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { NAME_MAX_LENGTH, ROOM_ID_PATTERN } from '$lib/game/names';
@@ -26,9 +27,13 @@
 		if (!validId) return;
 		const id = roomId;
 		const token = savedSession(id);
-		conn =
-			takeHandoff(id) ??
-			(token ? new RoomConnection({ type: 'resume', roomId: id, sessionToken: token }) : null);
+		// Only the room in the URL decides this: reading the handed-off connection's state here
+		// would re-run it on every reset of the room, closing a live connection for a new one.
+		conn = untrack(
+			() =>
+				takeHandoff(id) ??
+				(token ? new RoomConnection({ type: 'resume', roomId: id, sessionToken: token }) : null)
+		);
 	});
 
 	// Close each connection once it is replaced or the page unmounts.

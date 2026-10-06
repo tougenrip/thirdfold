@@ -3,6 +3,7 @@
 // is in that viewer's view, things to interact with only once their cells
 // have been seen, and the read-aloud passages only for the GM.
 
+import { lockOf } from './lock';
 import {
 	activeOn,
 	concentratingOn,
@@ -360,6 +361,17 @@ export function adventureView(
 					}
 				: null,
 		director: viewer.role === 'gm' ? directorOptions(room, adventure) : null,
+		versions:
+			viewer.role === 'gm'
+				? {
+						lock: lockOf(adventure),
+						steps: (adventure.steps ?? []).map((s) => ({ ...s })),
+						movable: {
+							adventure: !!adventure.library && !adventure.collection,
+							collection: !!adventure.collection
+						}
+					}
+				: null,
 		firstFind: firstFind(room, adventure),
 		welcome: {
 			title: `Welcome to ${A.locations[adventure.location].name}`,

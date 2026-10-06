@@ -13,6 +13,7 @@
 // dark, is an attacker beside an enemy, can it see its target) in rules-
 // neutral words; what that means (disadvantage, or nothing) is the ruleset's.
 
+import type { ContentPin } from '../../src/lib/adventure/versions';
 import type {
 	CharacterCard,
 	ContentPackListing,
@@ -294,6 +295,12 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	bestiary?: Bestiary;
 	/** Creators' own content for these rules (homebrew), for rules that take it. */
 	packs?: ContentPacks;
+	/**
+	 * The content these rules read (a catalog), pinned by its source and its
+	 * build (milestone 55): a story keeps them in its lock, and a load says
+	 * when they differ.
+	 */
+	contentPins?(): ContentPin[];
 	/** What every character may do on its turn beyond its own actions. */
 	maneuvers?: readonly Maneuver[];
 	/** A downed character is steadied: it stops dying (Stable), for rules where that is a state. */

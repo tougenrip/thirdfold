@@ -149,7 +149,7 @@ A pack's id is `hb-` followed by the start of the SHA-256 of the pack as read. T
 
 A record's id is `<pack id>:<kind>:<slug>`. A monster's kind at the table is `<pack id>-<slug>`.
 
-A character built from a pack carries those ids, so it names exactly the pack it was made from. A save whose pack was edited no longer matches its characters, and is refused.
+A character built from a pack carries those ids, so it names exactly the pack it was made from. A save whose pack was edited no longer matches its characters, and is refused. A story keeps its packs in its lock (see "Versions" in `docs/ADVENTURES.md`), and a newer pack reaches it only when the GM moves the story to a collection version that names it.
 
 Only the GM who added a pack, at that table, shares it. The story records the GM's public creator id (never the key) and `visibility: "table"`.
 

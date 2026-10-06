@@ -1470,6 +1470,7 @@
 						players={room.players}
 						adventures={room.adventures}
 						send={act}
+						upgrade={conn.upgradeReply}
 						onSheet={(id) => {
 							if (id === myCharacter?.id) sheetOpen = true;
 							else sheetFor = id;

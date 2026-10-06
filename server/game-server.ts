@@ -42,6 +42,8 @@ import { creatorIdOf, LibraryError, MemoryLibraryStore, type LibraryStore } from
 import { problemsOf, reportOf, resolveCollection, withRules, type Shelves } from './collections';
 import { decide, entitlementOf, stillHolds, type Subject } from './library-access';
 import { parseEntitlements, type Entitlement } from '../src/lib/game/access';
+import { prepareMove, type MoveTarget } from './adventure/upgrade';
+import type { AdventureState } from './adventure/state';
 import { applyScene, catchUpLights, exportScene, reclaim } from './scene-io';
 import { restoreRoom, serializeRoom, type RoomStore } from './room-store';
 import { keyOwner, newGmKey } from './gm-keys';
@@ -604,6 +606,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		const resumed = room.adventure;
 		if (!resumed) return;
 		announce(room, postSystem(room, adventure.resumeNotice(resumed)));
+		// What the load migrated and checked, for the GM.
+		for (const note of story!.ok ? story!.notes : []) announce(room, postSystem(room, note, 'gm'));
 		// A save made on an enemy's turn picks up with it.
 		const enemyTurn = adventure.pendingEnemyTurn(resumed);
 		if (enemyTurn !== null) scheduleEnemyTurn(room, enemyTurn);
@@ -691,6 +695,10 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 		if (msg.type === 'adventure_rate') {
 			void rate(ws, room, player, msg.stars);
+			return;
+		}
+		if (msg.type === 'adventure_upgrade') {
+			void moveStory(ws, room, player, msg);
 			return;
 		}
 		// Talking, narration and picking characters add to the log, so they share the chat rate limit.
@@ -1217,6 +1225,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_direct':
 			case 'adventure_rate':
 			case 'adventure_pack':
+			case 'adventure_upgrade':
 				return handleAdventure(ws, room, player, msg);
 			case 'room_listing': {
 				if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');
@@ -1338,7 +1347,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return send(ws, { type: 'collection_report', report: reportOf(copy, file, items) });
 				}
 				case 'library_story': {
-					const copy = await libraryStore.get(msg.id);
+					const copy = await libraryStore.get(msg.id, msg.version);
 					if (!copy || copy.listing.kind !== 'adventure')
 						return send(ws, { type: 'library_story', story: null });
 					const may = decide(copy, { owner: msg.gmKey ? keyOwner(msg.gmKey) : null }, 'read');
@@ -1353,7 +1362,12 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return send(ws, {
 						type: 'library_story',
 						story: {
-							listing: copy.listing,
+							// That version's own words (an older one reads as it was published).
+							listing: {
+								...copy.listing,
+								title: loaded.file.title,
+								about: loaded.file.about ?? ''
+							},
 							opening: openingOf(loaded.adventure),
 							facts: storyFacts(loaded.adventure)
 						}
@@ -1703,6 +1717,172 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		if (entitlement) room.adventure!.entitlements = [entitlement];
 		applyOutcome(room, result);
 		libraryStore.played(id).catch((err) => console.error('[library] counting a play failed', err));
+	}
+
+	/** The story's homebrew as written, with whoever brought each. */
+	function packsAsWritten(story: AdventureState) {
+		const packs = findRuleset(story.rules)?.packs;
+		return (story.packs ?? []).map((p) => ({ pack: packs!.content(p.id), owner: p.owner }));
+	}
+
+	/**
+	 * Where the story would go: its library adventure or its collection at
+	 * `version` (the latest without one), found, allowed and resolved as a
+	 * start would, as a move for the engine to try.
+	 */
+	async function moveTarget(
+		room: Room,
+		story: AdventureState,
+		what: 'adventure' | 'collection',
+		version: number | undefined
+	): Promise<MoveTarget | string> {
+		const asker = tableSubject(room);
+		if (what === 'adventure') {
+			const source = story.library;
+			if (!source || story.collection)
+				return story.collection
+					? 'This story’s adventure comes with its collection: move the collection instead.'
+					: 'This story’s adventure isn’t from the library.';
+			const copy = await libraryStore.get(source.id, version);
+			const may = copy && decide(copy, asker, 'use');
+			if (!copy || copy.listing.kind !== 'adventure' || !may!.ok)
+				return 'That version of the adventure is not in the library.';
+			const entitlement = entitlementOf(source.id, may!);
+			return {
+				what,
+				item: source.id,
+				title: copy.listing.title,
+				from: source.version,
+				to: copy.listing.version,
+				file: copy.file,
+				library: {
+					id: source.id,
+					version: copy.listing.version,
+					creator: { ...copy.listing.creator }
+				},
+				collection: null,
+				packs: packsAsWritten(story),
+				entitlements: [
+					...(story.entitlements ?? []).filter((e) => e.item !== source.id),
+					...(entitlement ? [entitlement] : [])
+				]
+			};
+		}
+		const source = story.collection;
+		if (!source) return 'This story wasn’t started from a collection.';
+		const copy = await libraryStore.get(source.id, version);
+		const may = copy && decide(copy, asker, 'use');
+		if (!copy || copy.listing.kind !== 'collection' || !may!.ok)
+			return 'That version of the collection is not in the library.';
+		const parsed = parseCollectionFile(copy.file);
+		if (!parsed.ok || !parsed.file.rules) return 'That version of the collection no longer reads.';
+		const base: MoveTarget = {
+			what,
+			item: source.id,
+			title: copy.listing.title,
+			from: source.version,
+			to: copy.listing.version,
+			file: null,
+			library: story.library ?? null,
+			collection: null,
+			packs: packsAsWritten(story),
+			entitlements: story.entitlements ?? []
+		};
+		const found = await resolveCollection(
+			shelves,
+			parsed.file as CollectionFile,
+			copy.owner,
+			source.id
+		);
+		const resolved = found.resolved;
+		if (!resolved) return { ...base, problems: [problemsOf(found.items)] };
+		// This story's adventure in that version: the same built-in, or the same library adventure.
+		const entry = resolved.adventures.findIndex((a) =>
+			'copy' in a
+				? a.ref.library === story.library?.id
+				: !story.library && a.ref.builtIn === story.id
+		);
+		if (entry < 0)
+			return {
+				...base,
+				problems: [
+					`Version ${copy.listing.version} of the collection no longer has this adventure.`
+				]
+			};
+		const pick = resolved.adventures[entry];
+		const packs = findRuleset(story.rules)?.packs;
+		const theirs = new Set(source.packs.map((p) => p.packId));
+		return {
+			...base,
+			file: 'copy' in pick ? pick.copy.file : null,
+			library:
+				'copy' in pick
+					? {
+							id: pick.ref.library,
+							version: pick.ref.version,
+							creator: { ...pick.copy.listing.creator }
+						}
+					: null,
+			collection: {
+				id: source.id,
+				version: copy.listing.version,
+				title: resolved.file.title,
+				creator: { ...copy.listing.creator },
+				entry,
+				adventures: resolved.adventures.map((a) => ({ ref: { ...a.ref }, title: a.title })),
+				packs: resolved.packs.map((p) => ({ ref: { ...p.ref }, title: p.title, packId: p.packId })),
+				tables: resolved.tables
+			},
+			// The GM's own homebrew stays; the collection's is what this version names.
+			packs: [
+				...packsAsWritten(story).filter((_, i) => !theirs.has(story.packs![i].id)),
+				...resolved.packs.map((p) => ({ pack: packs!.content(p.packId), owner: p.creator.id }))
+			],
+			entitlements: [
+				entitlementOf(source.id, may!),
+				'copy' in pick ? pick.entitlement : null,
+				...resolved.packs.map((p) => p.entitlement)
+			].filter((e): e is Entitlement => e !== null)
+		};
+	}
+
+	/** GM: reviews or makes a move of the story's library content to another version (milestone 55). */
+	async function moveStory(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		msg: Extract<ClientMessage, { type: 'adventure_upgrade' }>
+	): Promise<void> {
+		if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');
+		// A review only reads; moving the story is a whole-room change, like a load.
+		const limiter = msg.op === 'apply' ? sceneLimiter : creatorLimiter;
+		if (!limiter.take(player.id))
+			return sendError(ws, 'rate_limited', 'Give it a moment before trying again.');
+		const story = room.adventure;
+		if (!story) return sendError(ws, 'invalid_message', 'No story is being played.');
+		let target: MoveTarget | string;
+		try {
+			target = await moveTarget(room, story, msg.what, msg.version);
+		} catch (err) {
+			console.error('[library] reading failed', err);
+			return sendError(ws, 'persistence_failed', 'The library could not be reached. Try again.');
+		}
+		if (typeof target === 'string') return sendError(ws, 'invalid_message', target);
+		// The room may have moved on while the library was busy.
+		if (rooms.get(room.id) !== room || room.adventure !== story) return;
+		const { review, next } = prepareMove(room, target);
+		if (msg.op === 'review' || !next)
+			return send(ws, { type: 'upgrade_review', review, applied: false });
+		room.adventure = next;
+		resetRoom(room);
+		announce(
+			room,
+			postSystem(
+				room,
+				`${player.name} moved the story ${review.rollback ? 'back ' : ''}to version ${review.to} of ${review.title}.`
+			)
+		);
+		send(ws, { type: 'upgrade_review', review, applied: true });
 	}
 
 	/** Someone who played a library adventure rates it, once the story is over. */

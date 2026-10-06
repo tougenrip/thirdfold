@@ -28,6 +28,7 @@ import {
 	normalizeCreatorName
 } from '../../src/lib/game/library';
 import { parseEntitlements } from '../../src/lib/game/access';
+import { compareContent, lockOf, readSteps, savedPins } from './lock';
 import { resolveAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
 import { CLASSIC } from '../rules/classic';
@@ -172,6 +173,9 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			...(adventure.entitlements?.length
 				? { entitlements: adventure.entitlements.map((e) => ({ ...e })) }
 				: {}),
+			...(adventure.steps?.length ? { steps: adventure.steps.map((s) => ({ ...s })) } : {}),
+			// Everything it plays by, at the versions it found (milestone 55): checked again on a load.
+			lock: lockOf(adventure),
 			decisions: Object.fromEntries(
 				[...adventure.decisions].map(([id, d]) => [id, { option: d.option, by: d.by }])
 			),
@@ -248,7 +252,14 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 	};
 }
 
-export type AdventureRead = { ok: true; adventure: AdventureState } | { ok: false; error: string };
+export type AdventureRead =
+	| {
+			ok: true;
+			adventure: AdventureState;
+			/** What the load migrated and checked (content rebuilt since the save), for the GM. */
+			notes: string[];
+	  }
+	| { ok: false; error: string };
 
 class Invalid extends Error {}
 
@@ -469,8 +480,26 @@ export function readAdventure(saved: SavedStory, scene: SceneFile): AdventureRea
 	if (saved.version > A.version) {
 		return { ok: false, error: 'This story was saved by a newer version of thirdfold.' };
 	}
+	// The content its rules read, as it was when saved (saves from before locks carry none).
+	let notes: string[] = [];
+	if (saved.state.lock !== undefined) {
+		const pins = savedPins(saved.state.lock);
+		if (!pins) return { ok: false, error: 'The saved story is invalid: its lock.' };
+		const rules = saved.state.rules;
+		const ruleset =
+			rules === undefined
+				? findRuleset(CLASSIC)
+				: typeof rules === 'object' && rules !== null
+					? findRuleset(rules as { id: string; version: number })
+					: undefined;
+		if (ruleset) {
+			const compared = compareContent(pins, ruleset.contentPins?.() ?? []);
+			if (compared.error) return { ok: false, error: compared.error };
+			notes = compared.notes;
+		}
+	}
 	try {
-		return { ok: true, adventure: read(A, saved.state, scene) };
+		return { ok: true, adventure: read(A, saved.state, scene), notes };
 	} catch (err) {
 		if (err instanceof Invalid)
 			return { ok: false, error: `The saved story is invalid: ${err.message}.` };
@@ -631,6 +660,10 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 	// The grants its library content was played by (whether they still hold is the game server's to ask).
 	const entitlements =
 		data.entitlements === undefined ? undefined : parseEntitlements(data.entitlements);
+	// The moves its library content made between versions.
+	const steps = data.steps === undefined ? undefined : readSteps(data.steps);
+	check(steps !== null, 'versions');
+	check(!steps?.length || !!library || !!collection, 'versions');
 	check(entitlements !== null, 'entitlements');
 	check(!entitlements?.length || !!library || !!collection, 'entitlements');
 
@@ -934,6 +967,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		...(library ? { library } : {}),
 		...(collection ? { collection } : {}),
 		...(entitlements?.length ? { entitlements } : {}),
+		...(steps?.length ? { steps } : {}),
 		decisions,
 		pending,
 		encounters,

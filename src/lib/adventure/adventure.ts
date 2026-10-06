@@ -6,6 +6,7 @@
 // The reach rules below are shared: the server enforces them, the client
 // uses them only to decide which buttons to offer.
 
+import type { VersionsView } from './versions';
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
 import type { CollectionView } from '../game/collection';
@@ -712,6 +713,11 @@ export interface AdventureView {
 	packs: ContentPackListing[] | null;
 	/** The collection the story was started from (milestone 53), else null. */
 	collection: CollectionView | null;
+	/**
+	 * What the story plays by, at the versions it found, and the moves made
+	 * between versions (milestone 55): the GM's only, null for anyone else.
+	 */
+	versions: VersionsView | null;
 	/** Where the adventure came from, when it is from the library; null otherwise. */
 	library: LibrarySourceView | null;
 	/** GM only: prepared text to read aloud. */

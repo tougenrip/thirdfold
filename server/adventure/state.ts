@@ -16,6 +16,7 @@ import type { GridPos } from '../../src/lib/game/grid';
 import type { AdventureRef, PinnedRef, TableRef } from '../../src/lib/game/collection';
 import type { Creator } from '../../src/lib/game/library';
 import type { Entitlement } from '../../src/lib/game/access';
+import type { VersionStep } from '../../src/lib/adventure/versions';
 import type { EffectMods, EffectSpec, JsonData, RulesetRef } from '../rules/ruleset';
 import type { BuiltCharacter } from './built';
 import type { Origins } from './world';
@@ -307,6 +308,8 @@ export interface AdventureState {
 	 * exported, so a revoked grant stops both.
 	 */
 	entitlements?: Entitlement[];
+	/** The moves of its library content to other versions, oldest first (milestone 55; saved). */
+	steps?: VersionStep[];
 	/** The stars each player gave it at this table, by player id (not saved: the library keeps them). */
 	rated?: Map<string, number>;
 }

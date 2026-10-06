@@ -57,6 +57,7 @@ import {
 } from './library';
 import type { CollectionReport } from './collection';
 import { GRANT_ID_PATTERN, parseNewGrant, type NewGrant } from './access';
+import type { UpgradeReview } from '../adventure/versions';
 import { MAX_LEVEL } from './terrain';
 import { parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
@@ -263,6 +264,18 @@ export type ClientMessage =
 	  }
 	/** Player or GM, once a library adventure's story is over: 1-5 stars for it. */
 	| { type: 'adventure_rate'; stars: number }
+	/**
+	 * GM: another version of the story's library content (milestone 55): its
+	 * adventure, or the collection it was started from; the latest without a
+	 * `version`. `review` says what would change and whether the story fits;
+	 * `apply` moves it there (or back). Replies with upgrade_review.
+	 */
+	| {
+			type: 'adventure_upgrade';
+			op: 'review' | 'apply';
+			what: 'adventure' | 'collection';
+			version?: number;
+	  }
 	/** GM: list this game for anyone to find and join, or make it invite-only again. */
 	| { type: 'room_listing'; listed: boolean }
 	/** Anyone, at a table or not: the library's listed adventures (a creator's, with `creator`). */
@@ -283,9 +296,10 @@ export type ClientMessage =
 	/**
 	 * Anyone: one adventure, opened (its opening and facts), when they may
 	 * read it: a public one, or with the `gmKey` of its owner or of someone
-	 * it was shared with. Replies with library_story.
+	 * it was shared with; its latest version, or `version` (milestone 55:
+	 * every version stays readable). Replies with library_story.
 	 */
-	| { type: 'library_story'; id: string; gmKey?: string }
+	| { type: 'library_story'; id: string; gmKey?: string; version?: number }
 	/**
 	 * A creator's own published items, listed or not, and what others shared
 	 * with them, by their GM key. Replies with library_mine.
@@ -672,6 +686,8 @@ export type ServerMessage =
 	| { type: 'character_options'; rules: string; options: Record<string, unknown> }
 	/** To the GM who searched: the monsters found. */
 	| { type: 'monster_search'; query: string; monsters: MonsterListing[] }
+	/** To the GM who asked: what moving the story to another version would do, or did. */
+	| { type: 'upgrade_review'; review: UpgradeReview; applied: boolean }
 	/** To whoever asked: what the choices come to (the rules' own shape), or what is wrong. */
 	| {
 			type: 'character_preview';
@@ -1126,6 +1142,16 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 					: null;
 			}
 			return { type: 'adventure_start' };
+		case 'adventure_upgrade':
+			if (data.op !== 'review' && data.op !== 'apply') return null;
+			if (data.what !== 'adventure' && data.what !== 'collection') return null;
+			if (data.version !== undefined && !isVersion(data.version)) return null;
+			return {
+				type: 'adventure_upgrade',
+				op: data.op,
+				what: data.what,
+				...(data.version !== undefined ? { version: data.version as number } : {})
+			};
 		case 'adventure_rate':
 			return Number.isInteger(data.stars) &&
 				(data.stars as number) >= 1 &&
@@ -1139,10 +1165,12 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		case 'library_story':
 			if (!isLibraryId(data.id)) return null;
 			if (data.gmKey !== undefined && !isGmKey(data.gmKey)) return null;
+			if (data.version !== undefined && !isVersion(data.version)) return null;
 			return {
 				type: 'library_story',
 				id: data.id,
-				...(data.gmKey !== undefined ? { gmKey: data.gmKey } : {})
+				...(data.gmKey !== undefined ? { gmKey: data.gmKey } : {}),
+				...(data.version !== undefined ? { version: data.version as number } : {})
 			};
 		case 'library_list': {
 			const out: Extract<ClientMessage, { type: 'library_list' }> = { type: 'library_list' };

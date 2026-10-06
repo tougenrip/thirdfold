@@ -31,6 +31,12 @@ export type RecordOf<K extends SrdKind> = Extract<SrdRecord, { kind: K }>;
 export interface Catalog {
 	source: ContentSource;
 	pin: CatalogPin;
+	/**
+	 * A hash of the catalog as built (each kind's file hash, from its
+	 * manifest): the same source imported by another importer reads as
+	 * another build (milestone 55).
+	 */
+	build: string;
 	/** A record by id, if it is of that kind. */
 	get<K extends SrdKind>(kind: K, id: string): RecordOf<K> | undefined;
 	/** A record of that kind by its name as the SRD prints it. */
@@ -44,6 +50,15 @@ interface Manifest {
 	format: string;
 	source: ContentSource;
 	files: Record<string, { file: string; count: number; sha256: string }>;
+}
+
+/** The catalog's build: each kind's file hash, in order of kind. */
+function buildOf(manifest: Manifest): string {
+	const files = Object.keys(manifest.files)
+		.sort()
+		.map((k) => `${k}:${manifest.files[k].sha256}`)
+		.join('\n');
+	return createHash('sha256').update(files).digest('hex');
 }
 
 /** Reads the catalog in `dir`: the manifest now, each kind's file the first time it is asked for. */
@@ -74,6 +89,7 @@ export function openCatalog(dir = CATALOG_DIR): Catalog {
 			version: manifest.source.version,
 			sha256: manifest.source.sha256
 		},
+		build: buildOf(manifest),
 		get: <K extends SrdKind>(kind: K, id: string) =>
 			load(kind).byId.get(id) as RecordOf<K> | undefined,
 		named: <K extends SrdKind>(kind: K, name: string) =>
@@ -96,6 +112,7 @@ export function withHomebrew(base: Catalog, scope?: readonly string[]): Catalog 
 	return {
 		source: base.source,
 		pin: base.pin,
+		build: base.build,
 		get<K extends SrdKind>(kind: K, id: string) {
 			if (!isHomebrewId(id)) return base.get(kind, id);
 			const record = inScope(id) ? homebrewRecord(id) : undefined;

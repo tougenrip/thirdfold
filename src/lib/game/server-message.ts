@@ -52,6 +52,7 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 			typeof d.characterId === 'string' && typeof d.rules === 'string' && isRecord(d.details),
 		character_options: (d) => typeof d.rules === 'string' && isRecord(d.options),
 		monster_search: (d) => typeof d.query === 'string' && Array.isArray(d.monsters),
+		upgrade_review: (d) => isRecord(d.review) && typeof d.applied === 'boolean',
 		character_preview: (d) => isRecord(d.preview) && typeof d.preview.ok === 'boolean',
 		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
 	};

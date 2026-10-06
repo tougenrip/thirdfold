@@ -240,6 +240,24 @@ describe('library messages', () => {
 			gmKey: key
 		});
 		expect(parseClientMessage({ type: 'library_story', id: lib, gmKey: 'x' })).toBeNull();
+		expect(parseClientMessage({ type: 'library_story', id: lib, version: 2 })).toEqual({
+			type: 'library_story',
+			id: lib,
+			version: 2
+		});
+		// Moving a story to another version (milestone 55).
+		expect(
+			parseClientMessage({ type: 'adventure_upgrade', op: 'review', what: 'adventure', x: 1 })
+		).toEqual({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		expect(
+			parseClientMessage({ type: 'adventure_upgrade', op: 'apply', what: 'collection', version: 3 })
+		).toEqual({ type: 'adventure_upgrade', op: 'apply', what: 'collection', version: 3 });
+		for (const bad of [
+			{ op: 'force', what: 'adventure' },
+			{ op: 'apply', what: 'rules' },
+			{ op: 'apply', what: 'adventure', version: 0 }
+		])
+			expect(parseClientMessage({ type: 'adventure_upgrade', ...bad })).toBeNull();
 		// Grants: checked whole; a collaborator is a person, a table's grant runs out.
 		const grant = { target: { kind: 'creator', id: 'e'.repeat(16) }, role: 'member', x: 1 };
 		expect(

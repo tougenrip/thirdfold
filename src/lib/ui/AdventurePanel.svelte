@@ -10,7 +10,7 @@
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
 	import { ADVENTURE_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '$lib/game/file-limits';
-	import type { RoomAction } from '$lib/net/room-connection.svelte';
+	import type { RoomAction, UpgradeReply } from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';
 	import { describeRating } from '$lib/ui/rating';
@@ -25,9 +25,20 @@
 		onError?(message: string): void;
 		/** Opens a party member's character sheet. */
 		onSheet?(characterId: string): void;
+		/** The latest answer about the story's versions (the GM's). */
+		upgrade?: UpgradeReply | null;
 	}
 
-	let { adventure, isGm, players, adventures = [], send, onError, onSheet }: Props = $props();
+	let {
+		adventure,
+		isGm,
+		players,
+		adventures = [],
+		send,
+		onError,
+		onSheet,
+		upgrade = null
+	}: Props = $props();
 
 	let narration = $state('');
 	/** The character the GM is adjusting. */
@@ -333,6 +344,13 @@
 					</ul>
 				{/if}
 			</details>
+		{/if}
+
+		{#if isGm && adventure.versions}
+			<!-- Loaded when shown: only the GM's panel has it. -->
+			{#await import('$lib/ui/StoryVersions.svelte') then { default: StoryVersions }}
+				<StoryVersions versions={adventure.versions} reply={upgrade} {send} />
+			{/await}
 		{/if}
 
 		{#if adventure.packs && (adventure.packs.length || isGm)}

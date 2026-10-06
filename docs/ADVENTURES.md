@@ -443,3 +443,40 @@ Whatever the asker may not know of reads exactly as something that isn't there (
 **Revoking.** A story records the grants its library content was played by (`AdventureState.entitlements`: the item, the grant and its role; saved with the story). A table already playing goes on. A save of it, though, only opens again (`scene_load`, `scene_import`, Continue) while every one of those grants is in force, and only a collaborator exports. A story played from public content, or its owner's own, rests on no grant and loads as it always did.
 
 Creators manage all of it from the library page: each published item's **Access and sharing** sets its level, lists its grants with Revoke, and shares it. **Shared with you** lists what others shared with this creator, to run.
+
+## Versions
+
+Every story is pinned to what it plays by (milestone 55, `src/lib/adventure/versions.ts`). A publisher's update never changes a story under way or its saves; a story moves to another version only when its GM asks.
+
+**What is pinned.** Each piece is held at an exact version, and a save carries the story's lock (`state.lock`, worked out by `lockOf` in `server/adventure/lock.ts`):
+
+| Piece                                    | Pinned by                                                                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Rules                                    | id and exact version (`AdventureState.rules`)                                                                           |
+| Content the rules read (the SRD catalog) | its source's SHA-256 and its build (a hash of the catalog's files)                                                      |
+| A built-in adventure                     | its id and the version of its saved state; it changes only with a thirdfold release, through that state's migrations    |
+| A creator's adventure                    | its content (the id is a hash of the file, and a save carries the file), with the library item and version it came from |
+| Homebrew                                 | its content (the pack's id is a hash of it, and a save carries the pack)                                                |
+| A collection                             | its library id and version, with the version of each piece it found                                                     |
+
+**Loading.** A save's lock is compared with what this server has:
+
+- **Content from another source** refuses the save, saying which content and what to do: open it on a server with the same source.
+- **The same source rebuilt** (the catalog re-imported) loads. Every character is checked against the new build, and the GM is told what was migrated.
+- **Saves from before locks** read as they always did; their next save carries a lock.
+
+**Moving a story.** In the Adventure panel's **Versions**, the GM sees the lock and looks for a newer version of the story's library adventure, or of the collection it was started from (`adventure_upgrade`, op `review`). Before anything changes, the server does three things:
+
+- finds the version in the library, as a start would (access, grants, the collection's pieces);
+- saves the story and reads it back with that content in place, with every check a load makes (`prepareMove` in `server/adventure/upgrade.ts`): its chapter and location, its people, every character, its homebrew;
+- reports what changes section by section (title, description, chapters, places, characters, people, things, clues, events, choices, enemies, fights and the rest), the homebrew it adds and drops, and anything that stops the move.
+
+Moving (op `apply`) puts the story in place for everyone, records the step (`AdventureState.steps`: what moved, from and to, whether it went back, when), and the next save is pinned to the new version. Moving back is the same move to an earlier version, which the library still keeps.
+
+A story can't be moved:
+
+- mid-fight, while a mechanism is playing out, or while a choice is pending;
+- to a version that no longer reads;
+- to a version where the story doesn't fit where it is (its chapter is gone, for one).
+
+An adventure that came with a collection moves with the collection. Under a collection, the GM's own homebrew stays and the collection's is what the new version names. Every version of a library item stays readable (`library_story` and `collection_check` take a `version`).
