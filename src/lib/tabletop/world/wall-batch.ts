@@ -1,6 +1,6 @@
 // Wall pieces as instances (#252): autotile's pieces (autotile.ts) turned into
-// the geometry each one draws and its matrix, for the walls' BatchedMeshes
-// (walls.ts). Pure, in the lazy `world` chunk. A role the kit fills draws one
+// the geometry each one draws and its matrix, for the walls' piece pool
+// (walls.ts, piece-pool.ts). Pure, in the lazy `world` chunk. A role the kit fills draws one
 // of its variants (`variantOf` the piece's seed); a role it lacks draws the
 // built-in procedural piece below, so a table always draws, with any kit.
 //

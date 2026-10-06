@@ -30,8 +30,8 @@ import { BACKEND, checkBackend, GPU, launchBrowser, PERF_QUERY } from './perf-br
 
 /**
  * Draw calls per frame, shadow passes included (#264, from the roadmap): 500 on WebGL2's low tier
- * (and mobile, which runs low), 1,000 on the desktop tiers, 2,000 on WebGPU, which draws a
- * BatchedMesh one call per instance where WebGL2 makes one multi-draw.
+ * (and mobile, which runs low), 1,000 on the desktop tiers, 2,000 on WebGPU (set when WebGPU drew
+ * a BatchedMesh one call per instance; kit pieces are InstancedMesh pools since, piece-pool.ts).
  */
 const DRAW_BUDGETS = {
 	webgl2: { low: 500, medium: 1000, high: 1000, ultra: 1000 },
@@ -44,9 +44,9 @@ const DRAW_BUDGETS = {
  * on high), never loosened to fit.
  */
 const TRIANGLE_BUDGETS = { low: 1_000_000, medium: 2_000_000, high: 2_000_000, ultra: 3_000_000 };
-/** Kit pieces drawn as BatchedMesh (#252, #253, #260): their draws on WebGPU. */
+/** Kit pieces (#252, #253, #260; piece-pool.ts): their draws on WebGPU. */
 const KIT_LAYERS = ['walls', 'doors', 'window glass'];
-/** Over a quarter of the WebGPU budget, the walls go to an InstancedMesh per piece (#264). */
+/** At most a quarter of the WebGPU budget (#264). */
 const KIT_SHARE = 0.25;
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';

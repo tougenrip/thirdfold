@@ -9,6 +9,7 @@ import * as THREE from 'three/webgpu';
 import {
 	addInstanceTints,
 	createMaterial,
+	pieceMesh,
 	SHADER_KINDS,
 	withBake,
 	withDrops,
@@ -78,36 +79,27 @@ export function kindGallery(): THREE.Object3D[] {
 		new THREE.Vector3(),
 		new THREE.Vector3(1)
 	]);
-	// The walls' batches (#252): positions, normals and triangles only, colours from the start.
-	for (const antiTiled of [false, true])
-		for (const vertexColors of [false, true]) {
-			const box = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');
-			const count = box.getAttribute('position').count;
-			const color = new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3);
-			if (vertexColors) box.setAttribute('color', color);
-			const material = createMaterial('surface', { batched: true, antiTiled, vertexColors });
-			const batch = new THREE.BatchedMesh(1, 24, 36, material);
-			(batch as unknown as { _initColorsTexture(): void })._initColorsTexture();
-			batch.addInstance(batch.addGeometry(box));
-			batch.castShadow = batch.receiveShadow = true;
-			batch.frustumCulled = false;
-			out.push(batch);
-		}
-	// A kit's trim sheet (M70): the same batch with colours and UVs, on the `sheet` graph.
-	const sheeted = new THREE.BoxGeometry(0.01, 0.01, 0.01);
-	const vertices = sheeted.getAttribute('position').count;
-	sheeted.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vertices * 3), 3));
-	const sheet = new THREE.BatchedMesh(
-		1,
-		24,
-		36,
-		createMaterial('surface', { batched: true, sheet: true })
-	);
-	(sheet as unknown as { _initColorsTexture(): void })._initColorsTexture();
-	sheet.addInstance(sheet.addGeometry(sheeted));
-	sheet.castShadow = sheet.receiveShadow = true;
-	sheet.frustumCulled = false;
-	out.push(sheet);
+	// Kit pieces (#252, M70): pool-shaped meshes (piece.ts), with colours or not, and a trim sheet's
+	// with UVs on the `sheet` graph.
+	const pieces: MaterialOptions[] = [
+		{ antiTiled: false },
+		{ antiTiled: false, vertexColors: true },
+		{ antiTiled: true },
+		{ antiTiled: true, vertexColors: true },
+		{ sheet: true }
+	];
+	for (const options of pieces) {
+		const box = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+		if (!options.sheet) box.deleteAttribute('uv');
+		const count = box.getAttribute('position').count;
+		const color = new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3);
+		if (options.vertexColors) box.setAttribute('color', color);
+		const mesh = pieceMesh(box, createMaterial('surface', { piece: true, ...options }));
+		mesh.setMatrixAt(0, new THREE.Matrix4());
+		mesh.count = 1;
+		mesh.frustumCulled = false;
+		out.push(mesh);
+	}
 	// Roofs (#257): positions, normals, triangles, the roof cell, the pieces' colours (#258) and the fade's key (#259);
 	// casting and taking shadows.
 	const roof = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');

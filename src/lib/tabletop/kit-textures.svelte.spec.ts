@@ -1,5 +1,5 @@
 // Kit textures (M70): the stone halls' pilot pieces (#263) wear the ashlar trim sheet by their UVs
-// in batches of their own (the surface kind's `sheet` graph), so the monastery's walls differ from
+// in piece meshes of their own (the surface kind's `sheet` graph), so the monastery's walls differ from
 // their vertex colours and follow what the albedo slot holds (a texture-detail refill too), with no
 // new program after the warm-up's stand-ins; the greybox kits draw exactly as before.
 
@@ -71,8 +71,11 @@ async function setUp() {
 			return (await renderer.readRenderTargetPixelsAsync(target, 0, 0, SIZE, SIZE)) as Uint8Array;
 		},
 		stages: () => new Set(shaderStages(renderer).keys()),
+		/** The piece meshes drawing something. */
 		batches: () =>
-			layer.group.children.filter((o): o is THREE.BatchedMesh => o instanceof THREE.BatchedMesh)
+			layer.group.children.filter(
+				(o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh && o.visible
+			)
 	};
 }
 
@@ -112,7 +115,7 @@ describe('kit textures', () => {
 		t.layer.setLook(halls!.walls, kit);
 		const drawn = await t.draw();
 		expect(fresh()).toEqual([]);
-		// The room's pieces are in a sheet batch: UVs, the `sheet` graph, the sheet in its slot.
+		// The room's pieces are in sheet meshes: UVs, the `sheet` graph, the sheet in its slot.
 		const sheeted = t.batches().filter((b) => (b.material as KindMaterial).options.sheet);
 		expect(sheeted.length).toBeGreaterThan(0);
 		expect(sheeted[0].geometry.getAttribute('uv')).toBeDefined();

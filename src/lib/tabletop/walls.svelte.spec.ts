@@ -1,7 +1,7 @@
-// Kit walls (#252) drawn: the built-in pieces and a synthetic kit's, posts at corners, a batch per
-// chunk rebuilt only where its pieces changed, the erase highlight a hatched emissive glow, the
-// picking proxy, and none of it compiling a program after the first walls (a stand-in, then new
-// chunks' batches, the kit, the highlight).
+// Kit walls (#252) drawn: the built-in pieces and a synthetic kit's, posts at corners, a pool of
+// a mesh per piece (M70) refilled only where a chunk's pieces changed, the erase highlight a
+// hatched emissive glow, the picking proxy, and none of it compiling a program after the first
+// walls (a stand-in, then new chunks' pieces, the kit, the highlight).
 
 import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -99,11 +99,13 @@ async function setUp() {
 		/** The shader stages alive, by their code. */
 		stages: () => new Set(shaderStages(r).keys()),
 		gallery: () => scene.add(...layer.gallery()),
-		/** The top of what stands at world (x, z): a ray straight down onto the batches. */
+		/** The top of what stands at world (x, z): a ray straight down onto the pieces drawn. */
 		topAt(wx: number, wz: number): number | null {
 			const ray = new THREE.Raycaster(new THREE.Vector3(wx, 10, wz), new THREE.Vector3(0, -1, 0));
 			const hits = ray.intersectObjects(
-				layer.group.children.filter((o) => o instanceof THREE.BatchedMesh),
+				layer.group.children.filter(
+					(o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh && o.visible
+				),
 				false
 			);
 			return hits.length ? 10 - hits[0].distance : null;
@@ -121,8 +123,11 @@ describe('kit walls', () => {
 		// gallery builds every kind first, lobby.ts), so what counts is that no new code appears.
 		const before = t.stages();
 		const fresh = () => [...t.stages()].filter((code) => !before.has(code));
-		const meshes = () => t.layer.group.children.filter((o) => o instanceof THREE.BatchedMesh);
-		// One batch for the room's chunk; every piece is off the pick layer.
+		const meshes = () =>
+			t.layer.group.children.filter(
+				(o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh && o.visible
+			);
+		// The room's chunk drawn; every piece is off the pick layer.
 		expect(t.layer.stats().chunks).toBe(1);
 		for (const m of meshes()) expect(m.layers.isEnabled(PICK_LAYER)).toBe(false);
 		// The L at (2, 2) has a post over the caps; mid-edge the cap is the top; the T at (5, 2) too.
@@ -132,7 +137,7 @@ describe('kit walls', () => {
 		// Inside the room nothing.
 		expect(t.topAt(...at(4, 6))).toBeNull();
 
-		// A wall in another chunk: a new batch, only that chunk rebuilt, no program.
+		// A wall in another chunk: only that chunk rebuilt, no program.
 		t.sync([...ROOM, wall('far', [30, 4], [30, 10])]);
 		await t.draw();
 		expect(t.layer.stats()).toMatchObject({ chunks: 2, lastRebuilt: 1 });
@@ -149,13 +154,14 @@ describe('kit walls', () => {
 		expect(t.topAt(...at(5, 2))).toBeCloseTo(WALL_HEIGHT + 0.04, 3);
 		expect(fresh()).toEqual([]);
 
-		// Taking a wall away rebuilds its chunk alone; taking all leaves no batch.
+		// Taking a wall away rebuilds its chunk alone; taking all draws no piece.
 		t.sync(ROOM);
 		await t.draw();
 		expect(t.layer.stats()).toMatchObject({ chunks: 1, lastRebuilt: 1 });
 		t.sync([]);
 		await t.draw();
 		expect(t.layer.stats().chunks).toBe(0);
+		expect(meshes()).toEqual([]);
 		t.sync(ROOM);
 		await t.draw();
 		expect(fresh()).toEqual([]);
@@ -173,10 +179,12 @@ describe('kit walls', () => {
 		expect(look?.kit?.['post.L']?.[0].mesh.colors?.length).toBeGreaterThan(0);
 		t.layer.setLook(look!.walls, look!.kit);
 		await t.draw();
-		// Every piece of the room is the kit's (its batch has vertex colours), none built in.
-		const batches = t.layer.group.children.filter((o) => o instanceof THREE.BatchedMesh);
-		expect(batches.length).toBe(1);
-		expect(batches[0].geometry.getAttribute('color')).toBeDefined();
+		// Every piece of the room is the kit's (vertex colours, a mesh per piece), none built in.
+		const drawn = t.layer.group.children.filter(
+			(o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh && o.visible
+		);
+		expect(drawn.length).toBeGreaterThan(1);
+		for (const m of drawn) expect(m.geometry.getAttribute('color')).toBeDefined();
 		// The village's L post (2 u) a little over the walls, scaled to the corner.
 		expect(t.topAt(...at(2, 2))).toBeCloseTo(WALL_HEIGHT + KIT_LIFT.post, 3);
 		expect([...t.stages()].filter((code) => !before.has(code))).toEqual([]);

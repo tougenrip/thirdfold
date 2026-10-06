@@ -66,6 +66,12 @@ async function setUp() {
 	const layer = new WallLayer(build, () => now);
 	const shape = build.worldShape({ grid, levels: null, floor: null, objects: [], known: null });
 	scene.add(layer.group, ...layer.gallery());
+	/** The pieces and leaves drawn (not the hidden picking proxy or empty meshes). */
+	const drawn = () => {
+		const out: THREE.InstancedMesh[] = [];
+		layer.group.traverseVisible((o) => void (o instanceof THREE.InstancedMesh && out.push(o)));
+		return out;
+	};
 	return {
 		layer,
 		sync: (open: boolean, list = objects(open)) => layer.sync(list, shape, groundFor(grid, null)),
@@ -85,6 +91,7 @@ async function setUp() {
 			ray.layers.set(PICK_LAYER);
 			return layer.pick(ray);
 		},
+		drawn,
 		/** Whether a horizontal ray north at height `y` across grid x `gx` hits any drawn piece. */
 		blocked(gx: number, y: number): boolean {
 			const [wx, wz] = at(gx, 2);
@@ -93,8 +100,7 @@ async function setUp() {
 				new THREE.Vector3(0, 0, -1)
 			);
 			ray.far = 2;
-			const drawn = layer.group.children.filter((o) => o instanceof THREE.BatchedMesh);
-			return ray.intersectObjects(drawn, false).length > 0;
+			return ray.intersectObjects(drawn(), false).length > 0;
 		}
 	};
 }
@@ -137,10 +143,8 @@ describe('window frames, door frames and leaves', () => {
 		const fresh = () => [...t.stages()].filter((code) => !before.has(code));
 		const angle = () => t.layer.doorAngles().get('door')!;
 		expect(angle()).toBe(0);
-		// One batch for every leaf, on the pick layer.
-		const leaves = t.layer.group.children.filter(
-			(o) => o instanceof THREE.BatchedMesh && o.layers.isEnabled(PICK_LAYER)
-		);
+		// One mesh for the built-in leaf, on the pick layer.
+		const leaves = t.drawn().filter((o) => o.layers.isEnabled(PICK_LAYER));
 		expect(leaves.length).toBe(1);
 
 		// Shut: a ray down onto the leaf mid-edge picks the door.
@@ -174,7 +178,7 @@ describe('window frames, door frames and leaves', () => {
 		expect(t.layer.tick(t.now())).toBe(false);
 		await t.draw();
 
-		// A kit's leaf in place of the built-in one: the same batch's program.
+		// A kit's leaf in place of the built-in one: the same program.
 		const village = await loadEnvironment('village');
 		expect(village?.kit?.['door.leaf']?.length).toBe(1);
 		t.layer.setLook(village!.walls, village!.kit);

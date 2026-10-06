@@ -6,7 +6,7 @@
 // and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `batched`, `roof`, `sheet`, `vertexColors`, and the kind's
+// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `piece`, `roof`, `sheet`, `vertexColors`, and the kind's
 // `transparent`, `side` and alpha test.
 
 import * as THREE from 'three/webgpu';
@@ -37,6 +37,7 @@ export {
 	worldTime
 } from './kinds';
 export { LIFT_ATTRIBUTE } from './variation';
+export { PIECE_MIN, pieceMesh } from './piece';
 export { DROP_ATTRIBUTE, dropHeight, dropNow } from './drop';
 export { liftOf } from './lift';
 export { BED_ATTRIBUTE, ringUniforms } from './ring';
@@ -79,8 +80,8 @@ export interface MaterialOptions {
 	dropped?: boolean;
 	/** Multiplies the geometry's vertex colours in (figure bodies, part-list props). */
 	vertexColors?: boolean;
-	/** For a BatchedMesh with colours (the walls, #252): an instance's alpha is its highlight. */
-	batched?: boolean;
+	/** A kit piece in a pool (#252, piece.ts): its instance colour shades it, its tint's w lights it. */
+	piece?: boolean;
 	/** Surface: a roof (#257), shaded by its `aRoofCell` (`ROOF_CELL_ATTRIBUTE`), which its geometry carries. */
 	roof?: boolean;
 	/** Surface: slots at the geometry's `uv` (a kit's trim sheet, M70), not the world box. */
@@ -166,7 +167,7 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		local: !!options.local,
 		antiTiled: !!options.antiTiled,
 		dropped: !!options.dropped,
-		batched: !!options.batched,
+		piece: !!options.piece,
 		roof: !!options.roof,
 		sheet: !!options.sheet
 	});

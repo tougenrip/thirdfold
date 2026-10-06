@@ -19,8 +19,8 @@
 // the Hollow's fogged player sees cliffs on every tier, biplanar on low and triplanar above. The
 // void's chasms (#243) too: the night train's player looks down its gaps onto the moving ground,
 // and a hole's sample is left out where its ray falls on to ground the viewer was shown (`pastHole`).
-// Kit walls (#252) are in every case: every fixture's walls are the batched pieces autotile picks
-// (posts, caps, plinths and retaining pieces down drops), the surface kind's `batched` variant, the
+// Kit walls (#252) are in every case: every fixture's walls are the pooled pieces autotile picks
+// (posts, caps, plinths and retaining pieces down drops), the surface kind's `piece` variant, the
 // same whether a role is the built-in piece or a kit's (walls.svelte.spec.ts draws a synthetic kit).
 // Kit floor tiles (#254): the stand-in kit's tiles on every case's default ground and man-made
 // floors, packed round the camera (built only from explored cells, so none stand on hidden ones).
@@ -29,7 +29,7 @@
 // Bridges and balustrades (#256) too: the Hollow's bridges and causeway (bodies under their decks in
 // the chunks' faces, parapets as rails) and the built floors' balustrades, every rail counted here.
 // Window and door frames and door leaves (#253) are in every case with walls: frames are wall
-// pieces, leaves one batch in the kit pieces' material (the Hollow's player, in the slim set on
+// pieces, leaves a pool in the kit pieces' material (the Hollow's player, in the slim set on
 // every tier, has a door open), and an open leaf stands round its hinge's corner.
 // Roofs (#257) are on wherever a kit has them: over what the viewer was sent (the mask on explored
 // cells, and rooms presumed from known walls), read by the roof variant at a known cell outside,
