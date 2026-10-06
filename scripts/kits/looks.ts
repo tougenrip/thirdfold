@@ -70,7 +70,9 @@ export const village: Style = {
 
 export const stoneHalls: Style = {
 	id: 'stone-halls',
-	name: 'Stone halls',
+	// The pilot kit (#263, scripts/make-stone-halls-art.ts) is stone-halls.json; this is its fallback.
+	kit: 'stone-halls-greybox',
+	name: 'Stone halls (greybox)',
 	wall: 'monastery-stone',
 	dark: '#6f6c6a',
 	trim: '#948d7f',

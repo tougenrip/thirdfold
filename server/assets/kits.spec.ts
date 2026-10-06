@@ -167,6 +167,35 @@ describe('the built kits', () => {
 		expect(checkScenes(built.manifest).filter((p) => p.includes('kit'))).toEqual([]);
 	});
 
+	it('give the stone halls the pilot kit on its trim sheet, and keep the greybox as its fallback', () => {
+		const { kits, models, materials, textures } = built.manifest;
+		const [pilot, greybox] = [kits['stone-halls'], kits['stone-halls-greybox']];
+		// The same roles and floors, so a commission swaps in role by role.
+		expect(Object.keys(pilot.pieces).sort()).toEqual(Object.keys(greybox.pieces).sort());
+		expect(Object.keys(pilot.floors).sort()).toEqual(Object.keys(greybox.floors).sort());
+		// One trim sheet, its three maps with a 1K and a 2K each.
+		const trim = materials['ashlar-trim'];
+		const maps = [trim.map!, trim.normal!, trim.orm!].map((id) => textures[id]);
+		expect(maps.map((t) => t.usage)).toEqual(['albedo', 'normal', 'orm']);
+		for (const t of maps) expect(t.variants?.map((v) => v.size)).toEqual([1024, 2048]);
+		// Pilot pieces in every wall and opening role, cooked, wearing the sheet and no texture of
+		// their own; the roofs stay the greybox's.
+		const pilotRoles = ['wall.straight', 'cap', 'post.X', 'window.frame', 'door.leaf', 'railing'];
+		for (const role of pilotRoles) {
+			for (const p of pilot.pieces[role as keyof typeof pilot.pieces]!) {
+				const m = models[p.model];
+				expect([m.cooked, m.materials, m.variants], p.model).toEqual([
+					true,
+					['ashlar-trim'],
+					undefined
+				]);
+			}
+		}
+		expect(pilot.pieces['roof.ridge']).toEqual(greybox.pieces['roof.ridge']);
+		expect(pilot.floors.flagstone?.tiles.every((p) => models[p.model].cooked)).toBe(true);
+		expect(pilot.pieces['wall.straight']!.length).toBe(4);
+	});
+
 	it('are checked by parseManifest, which refuses an unknown kit or a bad piece', () => {
 		const m = copy(built.manifest);
 		m.environments.village.kit = 'nope';

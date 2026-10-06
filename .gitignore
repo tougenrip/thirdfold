@@ -47,10 +47,15 @@ src/**/__screenshots__/*
 !/art/surfaces/*/meta.json
 !/art/surfaces/*/touchup.png
 
-# Generated or fetched art (docs/ASSETS.md): made by a script (the great bell) or fetched by
-# scripts/fetch-models.ts (the CC0 bridge props, #262); only each meta.json is kept
+# Generated or fetched art (docs/ASSETS.md): made by a script (the great bell, the stone-halls
+# pilot kit and its trim sheet) or fetched by scripts/fetch-models.ts (the CC0 bridge props, #262);
+# only each meta.json is kept
 /art/prop/*/*
 !/art/prop/*/meta.json
+/art/kit/*/*
+!/art/kit/*/meta.json
+/art/texture/*/*
+!/art/texture/*/meta.json
 
 # Texture detail's 1K and 2K variants (docs/ASSETS.md): cooked here, kept in the asset store
 /variants/
