@@ -36,6 +36,9 @@
 // so a roof over unexplored ground is drawn and stands as high as a roof may rise over its cells
 // and the eave's ring; the village's player who walked round a house sees its presumed roof, and
 // every other unexplored cell stays black.
+// Glowing windows (#260) are on wherever a kit's houses have facades the viewer knows from both
+// sides: emissive panes dimmed by the fog of the cell in front of them; the village's player at
+// night, who walked into a house, sees its lit windows over 1 (bloom) and black all round.
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -57,6 +60,8 @@ import { pastHole } from './world/invariants';
 import { knownOf, worldShape } from './world/shape';
 import { builtGround, stairsOf } from './world/stairs';
 import { MAX_RISE, roofFootprint, roofRegions } from './world/roofs';
+import { tileInput } from './world/autotile';
+import { glazing, litPanes } from './world/glazing';
 import type { GridPose } from './poses';
 import { settingsFor, type QualitySettings, type Tier } from './quality';
 import {
@@ -421,6 +426,8 @@ async function mountCase(
 		carrier?: boolean;
 		probes?: boolean;
 		roofs?: boolean;
+		/** Into the house as well as round it (#260): its facades known from both sides. */
+		inside?: boolean;
 	}
 ) {
 	const sidecar = await loadSidecar(c.fixture);
@@ -429,7 +436,7 @@ async function mountCase(
 	const view = c.carrier
 		? withCarrier(sent, sidecar.player.tokenId)
 		: gm
-			? walkedRound(sent, gm)
+			? walkedRound(sent, gm, c.inside)
 			: sent;
 	expect(view.fog.enabled).toBe(true);
 	const clock = manualClock(5000);
@@ -509,7 +516,11 @@ function withCarrier(view: FixtureView, tokenId: string): FixtureView {
  * explored cells, the mask and the floor on explored cells. The room stays unexplored, so its roof
  * is presumed from the walls (#257). Returns the view and the room's cells.
  */
-function walkedRound(view: FixtureView, gm: FixtureView): FixtureView & { house?: number[] } {
+function walkedRound(
+	view: FixtureView,
+	gm: FixtureView,
+	inside = false
+): FixtureView & { house?: number[] } {
 	const { width: w, height: h } = view.grid;
 	const size = w * h;
 	const explored = decodeMask(view.fog.explored, size);
@@ -528,6 +539,7 @@ function walkedRound(view: FixtureView, gm: FixtureView): FixtureView & { house?
 				if (x < 0 || y < 0 || x >= w || y >= h || roofed[j]) continue;
 				explored[j] = visible[j] = 1;
 			}
+	if (inside) for (const i of house.cells) explored[i] = 1;
 	const touches = (o: FixtureView['objects'][number]) =>
 		unitEdges(o.a, o.b).some((e) => cellsBeside(view.grid, e).some((c) => explored[c.y * w + c.x]));
 	const all = gm.floor ? decodeFloor(gm.floor, size) : null;
@@ -685,6 +697,59 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			const samples = samplesFor(view.grid, standing(view), camera);
 			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
 			const lit = litAt('village presumed roofs', samples, at);
+			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
+		}
+	);
+
+	// Glowing windows (#260): a house the player walked into and round, at night, its lit windows
+	// glowing and every unexplored cell black round it.
+	it.runIf(ours(LIGHT.length + SKY_CASES.length + 2))(
+		'glowing windows: a house walked into at night, black all round it',
+		async () => {
+			const c = { fixture: 'village', viewer: 'player', band: 'dark', tier: 'medium' } as const;
+			const { m, view, settings } = await mountCase({
+				...c,
+				reduced: true,
+				roofs: true,
+				inside: true
+			});
+			const { house } = view as FixtureView & { house: number[] };
+			const { width: w, height: h } = view.grid;
+			const size = w * h;
+			// The windows the walls draw, from the view alone: some glazed, some of them lit.
+			const shape = worldShape({
+				grid: view.grid,
+				levels: null,
+				floor: null,
+				objects: view.objects,
+				known: knownOf(view.grid, view.fog, false)
+			});
+			const interior = view.interior ? decodeMask(view.interior, size) : null;
+			const building = roofFootprint(shape, view.objects, interior, true);
+			const glass = glazing(tileInput(shape, view.objects, building));
+			expect(
+				litPanes(glass, null).some((l) => l === 1),
+				'a lit window'
+			).toBe(true);
+			m.tabletop.setLighting('dark', view.lights, { ...view.world, time: 22 * 60 });
+			const [cx, cy] = [
+				house.reduce((a, i) => a + (i % w), 0) / house.length,
+				house.reduce((a, i) => a + Math.floor(i / w), 0) / house.length
+			];
+			m.tabletop.setGridPose({
+				target: { x: Math.floor(cx), y: Math.floor(cy) },
+				distance: 22,
+				azimuth: 30,
+				elevation: 60
+			} as never);
+			await converge(m, settings.convergeFrames);
+			const samples = samplesFor(view.grid, standing(view), cameraOf(m));
+			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
+			const lit = litAt(
+				'village glowing windows',
+				samples,
+				await readFrame(m.canvas, WIDTH, HEIGHT)
+			);
 			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
 		}
 	);

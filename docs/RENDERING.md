@@ -2362,6 +2362,71 @@ no more than the roof). No posts on open sides (Bellweather's smithy already has
 walls stop). Bellweather's and the monastery's roofed parts were already set (their tables' `interior`). Goldens and the
 closer-shot strips are the milestone's close.
 
+## Window glow (milestone 70, #260)
+
+After dusk most glazed windows on building walls glow and bloom, from the atmosphere curve, without
+lighting anything. Presentation only, built from what the viewer was sent; no wire field.
+
+**Which walls are glazed.** `world/glazing.ts` (pure, in the `world` chunk, server-tested) reads the
+tile input (#251): a **facade** is a `wall` edge (never a rules window or door: those are open gaps
+and never glow) between equal floors, not `outer` or `boundary`, both cells known, exactly one of
+them a building cell (the building context, #257: the interior mask as sent and presumed roofs).
+`GLAZED_SHARE` (0.35) of facades are glazed by `shareOf(keySeed, 1)` (murmur3's finaliser of the
+edge's `keySeed`, so it doesn't follow the kit's variant), and `LIT_SHARE` (0.6) of glazed windows
+light by `shareOf(keySeed, 2)` (`lightsUp`): the same windows on every client, 55-65% over 1,000
+synthetic keys. Bellweather (GM) has 41 glazed windows, 23 lit; ref-8 44 and 27; the monastery 15
+(its painted rooms), the railcar 24, the ghost town 9; tables with no building context have none.
+Rules windows stay `window.frame` and never take a pane.
+
+**How they draw.** `wallInstances` takes the glazed edges and draws each as a `window.frame` (the
+kit's, or the built-in one) instead of `wall.straight`, so its opening is real; `window-glass.ts`
+`WindowGlass` (in `WallLayer`, `walls.glass`) draws a pane in each opening (`paneMesh`: procedural,
+±0.45 by 0.7-1.66, within ±0.01 of the wall's plane, so its edges sit inside both the built-in frame
+and the greybox frames and nothing enters a base disk; the greybox glass colour baked in). Panes are
+two BatchedMeshes in the kit pieces' graph (the surface kind's `batched` variant with colours,
+already warmed by the walls' stand-in): unlit panes, and panes that light, whose material holds
+white in its emissive slot (a 1x1 texture of the slot's own spec, so no program changes) and a 2200
+K warm `emissive`. Both rebuild whole (a few dozen instances) when any wall chunk is dirty or the
+dark areas change. No kit `window.glass` model is loaded: that would be a new download for every
+village table, and the procedural pane is enough for the greybox kits; a kit's glass can replace it
+role by role later.
+
+**The ramp.** `windowGlow(nightGlow)` maps the curve's `nightGlow` (0.5 by day in every sky, 1 at
+night) to 0-1: on the temperate sky 0 until 17:30 (0 at 17:00), a smoothstep to 1 by 19:30 (1 from
+20:00), back down 06:00-08:00, never more than 0.03 in a minute; enclosed skies by their band's
+key (day 0, dusk and dark 1). `AtmosphereLayer.apply` hands `nightGlow` to the walls beside the
+lights (`AtmosphereLights.walls`), so it is written when the world time changes and during the
+hour's tween, never on its own frames; `WindowGlass.setGlow` writes `emissiveIntensity` =
+`GLOW_STRENGTH` (2.5) times it only when it changed. Under reduced motion the hour snaps, and so does
+the glow; nothing flickers.
+
+**Never light, never out of black.** The glow is the kind's emissive term only: no GridLight entry,
+bounce, cavity or probe reads it (the probe bake hides `walls.glass.group` with the tokens and dice,
+so it bakes no glow). Each pane is two halves either side of the wall's plane: only the outer half
+(on the exterior cell's side) of a lit pane glows, the inner half never does, so the glow is outside
+only. `worldEmissive` scales it by the fog of that cell, so a window on explored but unseen ground
+glows dimmed and none glows out of black. A pane whose inside cell is in a dark area the
+viewer was sent (`setDarkness`, the renderer's) is drawn unlit (`litPanes`).
+
+**Tests.** `world/glazing.spec.ts`: the glow 0 from 08:00 to 17:00, 1 from 20:00 to 04:30, the
+ramp monotonic and under 0.03 a minute, enclosed skies by band; the hashes (55-65% lit, identical
+runs, the glazed share); facades (none without context, between buildings, toward unexplored
+ground, on rules windows or doors), dark areas, frames drawn exactly on glazed edges, the pane's
+bounds, Bellweather's windows. `window-glow.svelte.spec.ts` (`RENDER_SPECS`): a village house's lit
+window below 1 at noon and over 1 (warm) at night in a half-float target, the hash's unlit window as
+by day, the floor in front unchanged by the glow, a dark area keeping it dark, and no new shader
+stage. `unexplored-black.svelte.spec.ts`: the village's player who walked into and round a house,
+at 22:00, its lit windows in view, every unexplored cell black. `program-count.svelte.spec.ts`'s
+sky sweep (every-sky half): the test world's walled room roofed at 22:00, a dark area over it and
+back by day.
+
+**Deviations from #260.** Glazed windows are a share of facade units drawn as the kit's window
+frame with a procedural pane, not a glazed wall variant or the kit's `window.glass` model (no new
+download). Exterior-only glow is by geometry (the pane's two halves), not a mask per face. No lanterns or dormers
+glow yet: no kit lantern exists and roofs draw no dormers (#258); light fixtures keep their flames
+(#232). Bloom is shown as HDR over 1 in the scene's half floats (what `post.ts`'s bloom takes), not
+through the post chain. The issue's goldens are the milestone's close.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

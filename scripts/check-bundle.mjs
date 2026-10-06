@@ -101,8 +101,9 @@ const BUDGETS = {
 	// kit's stair pieces baked into the faces); set to the merged build's measured size (the owner
 	// raised M70's cap to about 405 kB). → door leaves (#253: one batch, door-leaves.ts and batch.ts)
 	// → roofs (#257: the roof layer, the surface kind's `roof` variant and the sky terms picked per
-	// material); set to the merged build's measured size.
-	renderer: { total: 401_100 },
+	// material); set to the merged build's measured size. → 401.7: window glow (#260, window-glass.ts:
+	// two pane batches and the glow's value).
+	renderer: { total: 401_700 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -118,8 +119,8 @@ const BUDGETS = {
 	// faces in cliffs.ts); set to the merged build's measured size. → 19.5: bridges and balustrades
 	// (#256, world/bridges.ts, world/bridge-mesh.ts and the bridge runs in regions.ts) → window and
 	// door frames, arcades and the built-in leaf (#253) → roofs (#257, world/roofs.ts); set to the
-	// merged build's measured size.
-	world: { total: 21_500 }
+	// merged build's measured size. → 22.0: glazed windows (#260, world/glazing.ts).
+	world: { total: 22_000 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

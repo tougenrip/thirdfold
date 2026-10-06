@@ -6,6 +6,7 @@
 // highlight (a hatched glow). Picks hit an invisible proxy of boxes from `wallSpans` on
 // PICK_LAYER. Door leaves (#253, door-leaves.ts) are one more batch in the kit's material, the
 // kit's leaf or the built-in one, swung on the hinge; their frames and windows' are pieces here.
+// Glazed windows on building walls (#260, window-glass.ts) are frames here and panes there.
 
 import * as THREE from 'three/webgpu';
 import { pickable } from './picking';
@@ -18,6 +19,7 @@ import { STEP_HEIGHT, WALL_HEIGHT, type Ground } from './ground';
 import { standIn } from './warmup';
 import { wallSpans } from './world/wall-spans';
 import { RoofLayer, type RoofKit } from './roofs';
+import { WindowGlass } from './window-glass';
 import type { TileInput } from './world/autotile';
 import type { WorldShape } from './world/shape';
 import type { BatchRole, KitWeights, PieceMesh, WallInstances } from './world/wall-batch';
@@ -77,6 +79,8 @@ export class WallLayer {
 	private proxyGeometry = new THREE.BoxGeometry(1, 1, WALL_THICKNESS);
 	private instanceOwner: string[] = [];
 	private leaves: DoorLeaves;
+	/** Glazed windows' panes, which light after dusk (#260). */
+	readonly glass: WindowGlass;
 	private hoveredId: string | null = null;
 	private hoveredEdges = new Set<number>();
 
@@ -86,6 +90,8 @@ export class WallLayer {
 		clock: () => number = () => performance.now()
 	) {
 		this.leaves = new DoorLeaves(this.group, this.kitMaterial, clock);
+		this.glass = new WindowGlass(build);
+		this.group.add(this.glass.group);
 		wear(this.material, null, PLAIN_WALL);
 		wear(this.kitMaterial, null, KIT_WALL);
 	}
@@ -115,6 +121,16 @@ export class WallLayer {
 		this.retile();
 	}
 
+	/** The dark areas as sent: windows into them stay dark (#260). */
+	setDarkness(mask: Uint8Array | null): void {
+		this.glass.setDarkness(mask);
+	}
+
+	/** The sky's night glow (atmosphere-curve.ts): how brightly windows glow (#260). */
+	setGlow(nightGlow: number): void {
+		this.glass.setGlow(nightGlow);
+	}
+
 	/**
 	 * The tier's anti-tiling (#181): the walls' material made again in that variant, once.
 	 * True if remade: the renderer warms the new variant up, not compiling it mid-frame.
@@ -127,6 +143,7 @@ export class WallLayer {
 		for (const [slot, b] of this.batches) b.mesh.material = this.materialOf(slot);
 		this.standIns?.forEach((s, m) => (s.material = this.materialOf(m)));
 		this.leaves.setMaterial(this.kitMaterial);
+		this.glass.setAntiTiled(on);
 		if (this.proxy) this.proxy.material = this.material;
 		return true;
 	}
@@ -214,6 +231,7 @@ export class WallLayer {
 	dispose(): void {
 		this.leaves.dispose();
 		this.clear();
+		this.glass.dispose();
 		this.roofs.dispose();
 		this.proxy?.dispose();
 		for (const s of this.standIns ?? []) s.dispose();
@@ -240,8 +258,9 @@ export class WallLayer {
 		const input = this.build.tileInput(shape, objects, building);
 		const dirty = this.build.dirtyPieceChunks(this.drawn, input);
 		const { VARIANTS } = this.build;
+		const glazed = dirty.length ? this.glass.sync(input) : null; // #260
 		for (const [c, pieces] of this.build.autotile(input, dirty)) {
-			const inst = this.build.wallInstances(pieces, shape.grid, this.weights);
+			const inst = this.build.wallInstances(pieces, shape.grid, this.weights, glazed);
 			// The built-in pieces and the kit's, each in a batch of their own material.
 			const byMaterial: number[][] = [[], []];
 			for (let i = 0; i < inst.count; i++) byMaterial[+(inst.key[i] % VARIANTS !== 0)].push(i);

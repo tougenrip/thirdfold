@@ -113,7 +113,7 @@ export async function createTabletop(
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer(lights.grid, onModel, lights.heroes, requestRender);
 	scene.add(lighting.group);
-	const hooks = { post, lighting, renderer, perf, request: requestRender };
+	const hooks = { post, lighting, walls: wallLayer, renderer, perf, request: requestRender };
 	const atmosphere = new AtmosphereLayer({ ...lights, ...hooks }, clock, refreshLighting);
 	const { sky } = atmosphere; // the dome, or the horizon's colour on low (#214)
 	scene.add(sky.group);
@@ -390,7 +390,7 @@ export async function createTabletop(
 			requestRender();
 		},
 		setDarkness(next) {
-			darkness = next;
+			wallLayer.setDarkness((darkness = next)); // windows into it stay dark (#260)
 			refreshLighting();
 		},
 		setInterior: (next) =>
@@ -492,7 +492,7 @@ export async function createTabletop(
 	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key light,
 	// redrawn by its own rule (AtmosphereLayer.shadowFrame), and lights only when they change.
 	instrument(tabletop, perf, (key) => key === 'setLighting' || (shadowsDirty = true));
-	const unbaked = [tokenLayer, diceLayer, effects, cloud].map((l) => l.group); // probes (#235)
+	const unbaked = [tokenLayer, diceLayer, effects, cloud, wallLayer.glass].map((l) => l.group);
 	const probeHooks = { renderer, scene, loop, clock, perf, warm: onModel };
 	new ProbeLayer({ ...probeHooks, spacing: options.probeSpacing }, unbaked).watch(tabletop);
 	return tabletop;

@@ -36,6 +36,7 @@ export const BATCH_ROLES = [
 export type BatchRole = (typeof BATCH_ROLES)[number];
 const CAP = BATCH_ROLES.indexOf('cap');
 const FRAME: number = TILE_ROLES.indexOf('window.frame');
+const STRAIGHT: number = TILE_ROLES.indexOf('wall.straight');
 const ARCH = BATCH_ROLES.indexOf('arch');
 
 /**
@@ -97,7 +98,13 @@ const repeats = (p: WallPieces, i: number, cs: number) =>
 		? Math.max(1, Math.ceil((p.y1[i] - p.y0[i]) / (WALL_HEIGHT * cs) - 1e-6))
 		: 1;
 
-export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights): WallInstances {
+/** `glazed`: the facade edges drawn as window frames, a pane in each (#260, glazing.ts). */
+export function wallInstances(
+	p: WallPieces,
+	grid: SquareGrid,
+	kit: KitWeights,
+	glazed: ReadonlySet<number> | null = null
+): WallInstances {
 	const cs = grid.cellSize;
 	const capWeights = kit.cap;
 	/** A kit's wall wears the kit's cap; a procedural wall has its own. */
@@ -114,11 +121,13 @@ export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights):
 	};
 	let k = 0;
 	for (let i = 0; i < p.count; i++) {
-		const role = drawnRole(p.role[i], p.flags[i], kit);
-		const weights = kit[BATCH_ROLES[role]];
-		const variant = weights ? variantOf(p.seed[i], weights) : -1;
 		const site = p.site[i];
 		const [x, y] = [p.x[i], p.y[i]];
+		const edge = site === SITE.corner ? -1 : edgeIndex(grid, site === SITE.h ? 'h' : 'v', x, y);
+		const role =
+			p.role[i] === STRAIGHT && glazed?.has(edge) ? FRAME : drawnRole(p.role[i], p.flags[i], kit);
+		const weights = kit[BATCH_ROLES[role]];
+		const variant = weights ? variantOf(p.seed[i], weights) : -1;
 		const c = cornerToWorld(grid, { x, y });
 		const cx = c.x + (site === SITE.h ? cs / 2 : 0);
 		const cz = c.z + (site === SITE.v ? cs / 2 : 0);
@@ -126,7 +135,6 @@ export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights):
 		// A post runs from the lowest floor round its corner to the highest top, scaled to it.
 		const post = POSTS.has(role);
 		const sy = post ? (y1 - y0) / WALL_HEIGHT : cs;
-		const edge = site === SITE.corner ? -1 : edgeIndex(grid, site === SITE.h ? 'h' : 'v', x, y);
 		const place = (key: number, at: number) => {
 			out.key[k] = key;
 			out.edge[k] = edge;
@@ -146,7 +154,7 @@ export function wallInstances(p: WallPieces, grid: SquareGrid, kit: KitWeights):
 }
 
 /** T(x, y, z) · Ry(r · π/2) · S(s, sy, s), column-major, at `o`: +z turns to (sin θ, 0, cos θ). */
-function compose(
+export function compose(
 	m: Float32Array,
 	o: number,
 	x: number,
