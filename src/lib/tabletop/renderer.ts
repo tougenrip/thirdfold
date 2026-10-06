@@ -231,15 +231,15 @@ export async function createTabletop(
 		const casters = tokensMoving || doorsMoving || diceRolling || propsMoving || bellSwinging;
 		if (casters || wasMoving) shadowsDirty = true;
 		wasMoving = casters;
+		const shooting = rig.tick(now); // first, so the pivot's readers below see this frame's camera
 		const flickering = lighting.animating(camera, now, controls.target, gallery.due); // #230, #231
 		const drifting = [worldLayer.tick(now, reducedMotion, controls.target), cloud.tick(now)]; // #243, #254
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const revealing = cellMaps.tick(now) || propLayer.drops.active; // reveals (#174), drops (#249)
 		const fading = wallLayer.roofs.tick(now, controls.target); // roofs (#259), never shadows
-		const moving = casters || turning || revealing || fading || fx.active || rig.tick(now);
-		// Damped, update() emits 'change' while the camera settles: once still, rendering stops.
-		controls.update();
+		const moving = casters || turning || revealing || fading || fx.active || shooting;
+		controls.update(); // damped: 'change' while the camera settles, then rendering stops
 		rig.keepAbove(grid, ground, land.heightAt); // tilted to the horizon, never under the ground (#220)
 		shakeOffset.copy(fx.shake); // a shudder from a cue: the camera's offset, this frame only
 		camera.position.add(shakeOffset);
