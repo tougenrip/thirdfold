@@ -31,6 +31,8 @@ export interface Kit {
 export interface Style {
 	id: string;
 	name: string;
+	/** The kit's file, when it isn't the style's id (stone halls: the pilot's fallback, #263). */
+	kit?: string;
 	/** The wall's face, its darker stone or board, frames and timbers, footings and copings. */
 	wall: string;
 	dark: string;

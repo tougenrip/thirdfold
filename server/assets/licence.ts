@@ -11,6 +11,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
+	ASSET_ID_PATTERN,
 	LICENSES,
 	type Credit,
 	type License,
@@ -217,6 +218,8 @@ export interface ArtMeta {
 	ramp?: string[];
 	/** How much of the source's own hue the recolour keeps, 0-1 (0.25 by default). */
 	detail?: number;
+	/** Manifest materials a kit piece wears instead of textures of its own (a trim sheet, #263). */
+	materials?: string[];
 }
 
 export function readMeta(dir: string): ArtMeta {
@@ -231,6 +234,13 @@ export function readMeta(dir: string): ArtMeta {
 	}
 	if (meta.lods !== undefined && !(Array.isArray(meta.lods) && meta.lods.every(isRecord))) {
 		throw new AssetError(file, 'lods must be a list of { ratio, error, screenSize }');
+	}
+	const worn = meta.materials;
+	if (
+		worn !== undefined &&
+		!(Array.isArray(worn) && worn.every((m) => typeof m === 'string' && ASSET_ID_PATTERN.test(m)))
+	) {
+		throw new AssetError(file, 'materials must be a list of material ids');
 	}
 	return meta as unknown as ArtMeta;
 }

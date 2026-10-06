@@ -18,9 +18,11 @@ const config = (await resolveConfig(path.join(ROOT, 'kits', 'plain.json'))) ?? {
 const write = async (file: string, value: unknown) =>
 	writeFileSync(file, await format(JSON.stringify(value), { ...config, parser: 'json' }));
 
-// Every piece is written again; one a look no longer has goes from the folder.
+// Every piece is written again; one a look no longer has goes from the folder. Cooked pieces (the
+// stone-halls pilot's GLBs and their meta.json, scripts/make-stone-halls-art.ts) are not ours.
 for (const name of readdirSync(MODELS))
-	if (name.endsWith('.json') && !name.startsWith('_')) rmSync(path.join(MODELS, name));
+	if (name.endsWith('.json') && !name.startsWith('_') && !name.endsWith('.meta.json'))
+		rmSync(path.join(MODELS, name));
 
 for (const style of STYLES) {
 	const kit = buildKit(style);
@@ -56,5 +58,5 @@ for (const style of STYLES) {
 		pieces,
 		floors
 	};
-	await write(path.join(ROOT, 'kits', `${style.id}.json`), def);
+	await write(path.join(ROOT, 'kits', `${style.kit ?? style.id}.json`), def);
 }

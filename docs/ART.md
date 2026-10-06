@@ -246,7 +246,9 @@ What #250 enforces (`src/lib/assets/kit.ts`; the roles and their envelopes in do
 by role: part lists made by `scripts/make-kits.ts`, in the environment's colours from the surface
 ramps (section 4), within every envelope above and at most 1,500 triangles a piece (docs/ASSETS.md,
 "Greybox kits"). Chunkiness comes from courses, boards, frames and footings within 0.07 u, never
-from thickness; a brief for an authored kit (section 16) starts from the greybox kit's roles.
+from thickness; a brief for an authored kit (section 16) starts from the greybox kit's roles. The
+stone halls' pilot (#263, brief B) is the first authored kit: one trim sheet, a manifest material
+every piece lists in `materials`, and pieces that embed no texture.
 
 ## 9. Naming
 
@@ -505,9 +507,19 @@ A straight monastery wall of dressed stone, one cell edge long, the first piece 
   cell. It ships once, as standalone textures referenced by one manifest material (`map`,
   `normal`, `orm`) that each variant lists in `ModelEntry.materials`; the GLBs embed no textures.
 - **Deliver** as `art/kit/<id>/` for each variant: `<id>.glb` with meshes `body` and `body_lod1`
-  only, and its `meta.json`; plus the trim sheet's PNGs and `meta.json` in
-  `art/kit/stone-halls-trim/`, the `.blend` and the trim sheet's painter file.
+  only, its `meta.json` listing the trim sheet's material in `materials`; plus each of the trim
+  sheet's PNGs with its `meta.json` (`usage`) in `art/texture/<id>/`, where the cook reads
+  textures; the `.blend` and the trim sheet's painter file.
 - **Review** as brief A, plus a run of eight walls in a row to check the variants don't repeat.
+
+Until it is commissioned, the pilot kit is made in house (`LicenseRef-thirdfold-original`) by
+`scripts/make-stone-halls-art.ts` (docs/ASSETS.md, "The stone-halls pilot kit"): the trim sheet
+(`ashlar-trim`: albedo, normal and ORM painted at 2048², strips of coursed ashlar, dressed stone,
+rubble, paving, oak, iron and leaded glass in the ashlar, stone, flagstone, planks and slate ramps)
+and 37 pieces in every role the greybox kit fills but the roofs and the plank and terracotta floors,
+procedural rather than sculpted, delivered the way this brief asks. The three wall variants here
+are `ashlar-wall-a`/`-b`, `-cracked` and `-niche`, and the cap `ashlar-coping`. A commission
+replaces it role by role; `stone-halls-greybox` stays the fallback.
 
 The four characters' minis (#276) get their brief once these two are accepted.
 

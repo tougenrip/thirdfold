@@ -7,7 +7,7 @@ import { catalogModule, loadCatalog, readCatalog, removedIds, staleCatalog } fro
 import { buildAssets } from './pipeline';
 
 // One test builds every asset: a few seconds.
-vi.setConfig({ testTimeout: 30_000 });
+vi.setConfig({ testTimeout: 60_000 });
 
 const crate = { name: 'Crate', category: 'storage', w: 1, h: 1, blocks: 'movement' };
 const catalogOf = (props: Record<string, unknown>, aliases: Record<string, unknown> = {}) =>

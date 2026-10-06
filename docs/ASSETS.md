@@ -400,7 +400,8 @@ has no cap piece`).
 
 #### Greybox kits (#261)
 
-Every built-in environment has a greybox kit of the same id, built from part lists: procedural,
+Every built-in environment has a greybox kit of the same id (stone halls' is `stone-halls-greybox`,
+the fallback under the pilot kit, below), built from part lists: procedural,
 thirdfold-original (`assets/models/kit/_provenance.json`), and the permanent fallback that authored
 kits replace role by role (the stone-halls pilot, #263; CC0 pieces, #262). `plain` stays empty:
 every role procedural, for tables with no environment.
@@ -420,14 +421,14 @@ every role procedural, for tables with no environment.
   stone halls add `cap.battlement`, `crenellation`, `buttress`, `pinnacle`, `tower.corner` and
   `arch`, the cavern `arch`. `wall.straight` has two weighted variants.
 
-  | Kit           | Walls                                    | Boundary            | Roof              | Floor tiles                                          |
-  | ------------- | ---------------------------------------- | ------------------- | ----------------- | ---------------------------------------------------- |
-  | `village`     | plaster on a stone footing; timber frame | palisade of logs    | thatch, gable 45° | cobble, wood (planks)                                |
-  | `stone-halls` | coursed ashlar; with a string course     | crenellated curtain | slate, gable 40°  | plain, flagstone, stone (flags); wood (planks); tile |
-  | `cavern`      | rough rubble; ancient coursed stone      | heaped rocks        | none              | stone (hewn flags)                                   |
-  | `living-cave` | sinew with ribs; swollen sinew           | sinew posts         | none              | none                                                 |
-  | `railcar`     | panelled planks; boarded                 | iron rail           | tin, gable 15°    | plain, wood (planks); grating                        |
-  | `ghost-town`  | adobe; weathered boards                  | picket fence        | boards, gable 22° | wood (boardwalk)                                     |
+  | Kit                   | Walls                                    | Boundary            | Roof              | Floor tiles                                          |
+  | --------------------- | ---------------------------------------- | ------------------- | ----------------- | ---------------------------------------------------- |
+  | `village`             | plaster on a stone footing; timber frame | palisade of logs    | thatch, gable 45° | cobble, wood (planks)                                |
+  | `stone-halls-greybox` | coursed ashlar; with a string course     | crenellated curtain | slate, gable 40°  | plain, flagstone, stone (flags); wood (planks); tile |
+  | `cavern`              | rough rubble; ancient coursed stone      | heaped rocks        | none              | stone (hewn flags)                                   |
+  | `living-cave`         | sinew with ribs; swollen sinew           | sinew posts         | none              | none                                                 |
+  | `railcar`             | panelled planks; boarded                 | iron rail           | tin, gable 15°    | plain, wood (planks); grating                        |
+  | `ghost-town`          | adobe; weathered boards                  | picket fence        | boards, gable 22° | wood (boardwalk)                                     |
 
   Each floor has three tiles and one broken tile, but the railcar's `grating` (one tile, no broken
   one); stone halls also tile `tile` (terracotta slabs) and the railcar `grating`, the floor ids
@@ -448,6 +449,81 @@ every role procedural, for tables with no environment.
 - **Not yet:** the per-vertex surface-layer attribute (each part's surface, sampled from the
   environment's arrays in world space) needs the validator, the GLB writer and the kit material
   (#252) together; until then pieces carry their surface's colour as vertex colour.
+
+#### The stone-halls pilot kit (#263)
+
+`assets/kits/stone-halls.json` is the first textured kit: an in-house pilot
+(`LicenseRef-thirdfold-original`), made by script the way the great bell's was (#196), until
+docs/ART.md's brief B is commissioned. It covers every role the greybox kit fills but the six roof
+roles and the `wood` and `tile` floors, which stay the greybox's (`stone-halls-greybox.json`, the
+fallback, with the same roles and floors).
+
+- **Made by a script**, the same bytes every run under Node 22:
+
+  ```bash
+  npx tsx scripts/make-kits.ts                                                   # the greybox kits
+  npx -y node@22 node_modules/tsx/dist/cli.mjs scripts/make-stone-halls-art.ts   # art/ + the kit
+  npm run assets:cook && npx -y node@22 node_modules/tsx/dist/cli.mjs server/assets/build.ts
+  ```
+
+  `scripts/stone-halls/trim.ts` paints the trim sheet, `pieces.ts` models the pieces, `build.ts`
+  UVs, colours and checks them. The script writes `art/texture/ashlar-trim-{albedo,normal,orm}/`
+  (2048² PNG and `meta.json` with its `usage`) and `art/kit/<id>/` (`<id>.glb` as a Blender export
+  would be: one `body` mesh, positions, normals, UVs and vertex colours, a material named
+  `ashlar-trim` with no textures; `meta.json` with `materials: ["ashlar-trim"]` and `lockBorder`),
+  then the kit: the greybox kit's JSON with the pilot's pieces in every role they fill. The PNGs
+  and GLBs are gitignored (`/art/kit/*/*`, `/art/texture/*/*`); only the `meta.json` files are
+  committed, so re-cooking needs the script run first.
+
+- **The trim sheet** is one texture set at 512 px per unit (a 4 × 4 u repeat), shared by every
+  piece, in strips that tile along u: ashlar (2 u of coursed blocks, a wall's height), dressed stone
+  (copings, frames, mouldings, voussoirs), rubble, paving, oak boards, and iron beside leaded glass.
+  It cooks to `ashlar-trim-albedo` (ETC1S, sRGB), `-normal` and `-orm` (UASTC, linear) at the 512 px
+  base, with 1K and 2K variants in `variants/` and the asset store, worn through the manifest
+  material `ashlar-trim` (`assets/materials.json`, `cells` 4). A kit piece embeds no texture: its
+  cooked `meta.json` carries `materials`, which `pipeline-models.ts` checks against `materials.json`
+  and puts in `ModelEntry.materials`, so `tableBudget` counts the sheet once per table and the
+  textures go in the `core` pack.
+- **Pieces** (37), each a role's variant within its envelope (`envelopeProblem` in the script,
+  then `parseKit` in the build) and under the kit's 1,500 triangles, cooked with LODs where a piece
+  has 300 or more:
+  - walls: `ashlar-wall-a` and `-b` (two windows on the sheet's courses), `-cracked` (weight 0.5),
+    `-niche` (0.3); `ashlar-wall-outer`, `ashlar-retaining` (rubble below the floor),
+    `ashlar-curtain` (the crenellated boundary);
+  - tops and feet: `ashlar-coping` (`cap`), `ashlar-battlement`, `ashlar-crenels`, `ashlar-plinth`;
+  - openings: `ashlar-arch`, `ashlar-window` (a pointed head), `ashlar-window-sill`,
+    `leaded-glass`, `ashlar-door-frame`, `oak-door`;
+  - stairs, drops and bridges: `ashlar-step`, `ashlar-stair-side`, `stone-balustrade`,
+    `rubble-face`, `rubble-corner`, `flag-deck`, `ashlar-pier`;
+  - corners: `ashlar-post-end`, `-l`, `-t`, `-x`, `ashlar-buttress`, `stone-pinnacle`,
+    `ashlar-turret`;
+  - floors `plain`, `flagstone` and `stone`: `flagstone-a` to `-d`, `flagstone-broken-a` and `-b`.
+
+  Coursed walls are built from the sheet's own course layout (`COURSES`, `CUTS`): an ashlar face
+  maps by where it stands on the wall, so each block's face shows the block painted for it and the
+  joints fall on the gaps; other faces map planar per part at the sheet's density. Each vertex also
+  carries the sheet's mean colour over its face times the occlusion part lists bake (`bake.ts`):
+  the walls, tiles and stairs draw vertex colours today (#252's kit material), and wear the sheet
+  itself once a kit material samples it by UV (not yet: the walls' material uses world mapping;
+  the GLBs carry no tangents, as their material has no normal map).
+
+- **A commission replaces it** role by role through the same paths: deliver `art/kit/<id>/<id>.glb`
+  and `meta.json` (provenance `LicenseRef-thirdfold-commissioned`, `materials`) per piece and the
+  trim sheet's PNGs in `art/texture/<id>/`, cook, then point the role in
+  `assets/kits/stone-halls.json` at the new ids (and stop running the pilot script, which rewrites
+  that file). The greybox kit stays the fallback.
+- **Budgets.** The sheet is 314 kB at the base (albedo 37, normal 195, ORM 82), 1,012 kB more at
+  1K and 3,015 kB at 2K; the 37 cooked pieces are 132 to 1,012 triangles and 323 kB together. Per
+  stone-halls table, from `npm run assets` (desktop held at medium, mobile at low):
+
+  | Table                         | Download low | Download medium | GPU medium | Mobile GPU |
+  | ----------------------------- | ------------ | --------------- | ---------- | ---------- |
+  | hollow-bell/monastery         | 5,032 kB     | 15,003 kB       | 47,713 kB  | 48,038 kB  |
+  | example/cellar                | 4,063 kB     | 14,034 kB       | 45,243 kB  | 39,529 kB  |
+  | (stone-halls), an empty table | 3,757 kB     | 13,728 kB       | 44,624 kB  | 37,527 kB  |
+
+  The monastery was 13,595 kB at medium with the greybox kit; it now fits 15 MB with 357 kB to
+  spare, so a commissioned sheet must not be heavier at 1K (its normal map, 671 kB, is most of it).
 
 ### Audio
 
@@ -475,7 +551,9 @@ any other GLB or KTX2 source. Nothing cooks per pull request.
 meta), and optionally `swing`, `setPiece`, `textureSize` (the largest side; bigger maps are halved
 until they fit), `lods` (per level `{ ratio, error, screenSize }` over the defaults), `lockBorder`
 (kit pieces, so simplified seams stay closed), `ramp` and `detail` (a CC0 bridge prop's colour
-maps recoloured to the palette before encoding, see "CC0 bridge props") and, for a texture, `usage`. The export follows
+maps recoloured to the palette before encoding, see "CC0 bridge props"), `materials` (a kit
+piece's manifest materials, its trim sheet, copied into the cooked meta; #263) and, for a texture,
+`usage`. The export follows
 docs/ART.md section 17. A model is cooked in this order:
 
 1. Checked: only the allowed extensions, no skins, animations, cameras or shape keys, objects
