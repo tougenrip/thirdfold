@@ -84,9 +84,12 @@ describe('stairs', () => {
 		}
 		expect(wrong).toEqual([]);
 		// The gallery stair's first riser, between x 14 (the nave) and 15: the kit's nosing, at the
-		// upper floor, over the nave's edge band.
+		// upper floor, over the nave's edge band. Since the pilot kit (#263) the step is `ashlar-step`
+		// (scripts/stone-halls/pieces.ts), whose nosing's top is NOSING_DROP under its pivot (the
+		// greybox step's was flush with it): the piece's own geometry, not the ground's.
+		const NOSING_DROP = 0.005;
 		const edge = gridToWorld(grid, { x: 15, y: 9 });
-		expect(topAt(meshes(), edge.x - 0.5 - 0.035, edge.z)).toBeCloseTo(STEP_HEIGHT, 3);
+		expect(topAt(meshes(), edge.x - 0.5 - 0.035, edge.z)).toBeCloseTo(STEP_HEIGHT - NOSING_DROP, 3);
 		// A balustrade on the north edge of x 17 (level 3 over the nave): its rail over the edge.
 		const rail = () => {
 			const c = gridToWorld(grid, { x: 17, y: 9 });
