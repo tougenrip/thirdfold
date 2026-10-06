@@ -1963,7 +1963,7 @@ matrices, the repeats and lifts, the kit's variants and caps, `mn-tower-w` (the 
 `WALL_HEIGHT` above it, its retaining piece down to the ledge), and on every fixture scene and
 view that no box reaches into a walkable cell's `TOKEN_DISK` below `FIGURE_CLEAR`.
 
-**Batches.** Per 16x16 chunk with walls, one `BatchedMesh` per material: the built-in pieces in
+**Batches.** (Replaced after #264 by a table-wide InstancedMesh per piece key: "The kit piece pools" below.) Per 16x16 chunk with walls, one `BatchedMesh` per material: the built-in pieces in
 the environment's wall look (the surface kind's `batched` variant), a kit's in their baked colours
 (the same with `vertexColors`, white). `addGeometry` once per piece key a batch uses (vertex and
 index space grown 1.5x), instance ids reused across rebuilds (`setGeometryIdAt`, `setMatrixAt`),
@@ -2691,30 +2691,82 @@ the Hollow's GM on medium) and its main thread a median of 4.6 ms (at most 13.8)
 - **No server re-measure.** M70 adds no per-viewer server state, so `server/perf/sync.ts` was not
   run again.
 
-### The WebGPU wall path: InstancedMesh
+### The kit piece pools (the switch)
 
 The issue's rule is to switch WebGPU to an InstancedMesh per piece geometry when walls take more
-than a quarter of the WebGPU budget on any of the five tables. They take up to 3.8 times that,
-on four of the five, so **WebGPU switches**; WebGL2 keeps its BatchedMesh (24 to 42 kit draws).
-The same frames drawn as an InstancedMesh per piece per chunk would draw 72 to 144 kit draws
-instead of 608 to 1,896 (8 to 18 times fewer), ref-8's frame 1,988 → about 200, the village's
-1,659 → about 400. Render bundles (#334) would cut the encoding but not the count.
+than a quarter of the WebGPU budget on any of the five tables. They took up to 3.8 times that, on
+four of the five (the table above), so kit pieces are now InstancedMeshes, **on both backends**
+(after 8576e6d): one path is simpler than two (three's `BatchedMesh` and `batch.ts` are gone, the
+renderer chunk 403.8 → 399.5 kB gz), and WebGL2 draws about what it did (below).
 
-What the switch must keep (not done here; the walls are as they were):
+- **Pools.** `piece-pool.ts` `PiecePool`: one InstancedMesh per piece key (a role's built-in
+  piece or a kit's variant) for the whole table, in that key's material: the walls' pool (the
+  built-in pieces in the wall look, a kit's in its colours or on its sheet, a material per sheet
+  and no limit on sheets), the door leaves' (a mesh per leaf variant, on `PICK_LAYER`, in a group
+  tagged `doors`) and the window panes' (three meshes: dark outer halves and every inner half in
+  the dark material, lit outer halves in the lit one). The keys come with the kit (`make`); a
+  key's mesh is made the first time it has instances and kept, hidden while it has none, until
+  another kit. A table's draws are the keys drawn times the passes, whatever its size.
+- **Programs.** `materials/piece.ts` `pieceMesh` makes every piece mesh, the pools' and the
+  warm-up's stand-ins (`kindGallery`, the walls' `gallery`), with at least `PIECE_MIN` (1,025)
+  instances. r186 reads up to 64 KiB of instance matrices as a uniform array sized in the shader
+  (so each capacity was its own program, which is why #254's tiles never grow their pool); past
+  it, as a vertex attribute, the same code at any size. So making a key's mesh, or making it again
+  larger when a key outgrows it (half again what it needs), compiles nothing; each new mesh is a
+  node state of its own (r186 keys an InstancedMesh's render object by its uuid). The cost is
+  memory: the test world's heap 67.3 → 75.4 MB.
+- **The `piece` variant** (was `batched`): three's instance colour is the seed's shade (6%), and
+  the highlight is the w of the instance tint (`TINT_ATTRIBUTE`, 1 lit), hatched as before. A piece
+  mesh reads position, normal, colour or uv, the tint, the instance colour and the matrix: at most
+  7 of WebGPU's 8 vertex buffers (`kind-layers.svelte.spec.ts`).
+- **Dirty chunks.** `WallLayer` keeps each chunk's `wallInstances` and which of them each key
+  draws; a sync rebuilds only the chunks `dirtyPieceChunks` names, then refills only the keys
+  those chunks had or have (a key's mesh is filled from every chunk's list, in chunk order).
+  `stats()` counts chunks with pieces and their instances as before.
+- **Doors.** A sync puts each leaf in a slot of its key's mesh; a swing writes that slot's matrix
+  and the mesh's bounds. Picks hit the leaf mesh and map the instance to its door
+  (`userData.owners`). Roof fades, the picking proxy and the sheets are as they were.
+- **What it gives up.** A table-wide mesh is culled whole, not piece by piece, so close views draw
+  every wall piece in every pass: ref-8's GM close on WebGPU medium 377k → 726k triangles, the
+  heaviest frame of all still the monastery's overview on high, 933k (2M budget). GPU time held
+  (below).
 
-- **Programs.** r186 gives each new InstancedMesh a vertex stage of its own, so the meshes are a
-  pool made with the kit, as the floor tiles' (#254): one per piece variant and material for the
-  table, never per chunk and never grown, a mesh with no pieces kept at one instance of zero
-  scale. Table-wide meshes also put the draw count at pieces × passes whatever the table's size.
-- **The instance list.** `wallInstances` already gives each piece's key, matrix and seed, and
-  the batch's instance colour (the seed's shade, alpha 0 for the erase highlight) becomes an
-  instance attribute, as `addInstanceTints` does for tiles.
-- **Doors and window glass.** The same, though they are 30 and 264 draws at worst: the leaves
-  swing per instance (a matrix write) and the panes' two materials are two pools.
+After (6 October 2026, the same machine, poses and harness as the table above; the GM's overview,
+the shadow redrawn):
 
-To re-measure after a change to the kit pieces (more batches per chunk, a new kit, the switch):
-rebuild, then run the two commands above. The kit textures' sheet batches (cf8794d) are in these
-numbers; every count is the same as before they were merged.
+| Table      | Backend, tier | Draws (steady) | Shadow pass | Kit draws | Triangles |
+| ---------- | ------------- | -------------- | ----------- | --------- | --------- |
+| village    | WebGL2 low    | 203 (128)      | 75          | 24        | 379,002   |
+| village    | WebGL2 medium | 301 (226)      | 75          | 36        | 584,148   |
+| village    | WebGPU low    | 201 (126)      | 75          | 24        | 378,430   |
+| village    | WebGPU medium | 297 (222)      | 75          | 36        | 583,004   |
+| monastery  | WebGL2 low    | 159 (103)      | 56          | 36        | 451,564   |
+| monastery  | WebGL2 medium | 243 (187)      | 56          | 54        | 899,020   |
+| monastery  | WebGPU low    | 159 (103)      | 56          | 36        | 451,564   |
+| monastery  | WebGPU medium | 243 (187)      | 56          | 54        | 900,692   |
+| hollow     | WebGL2 low    | 166 (107)      | 59          | 22        | 436,644   |
+| hollow     | WebGL2 medium | 246 (187)      | 59          | 33        | 665,682   |
+| hollow     | WebGPU low    | 162 (103)      | 59          | 22        | 436,072   |
+| hollow     | WebGPU medium | 238 (179)      | 59          | 33        | 664,538   |
+| ref-8      | WebGL2 low    | 85 (61)        | 24          | 22        | 430,238   |
+| ref-8      | WebGL2 medium | 129 (105)      | 24          | 33        | 785,124   |
+| ref-8      | WebGPU low    | 83 (59)        | 24          | 22        | 429,666   |
+| ref-8      | WebGPU medium | 125 (101)      | 24          | 33        | 783,980   |
+| outdoor-64 | WebGL2 low    | 66 (62)        | 4           | 0         | 157,884   |
+| outdoor-64 | WebGL2 medium | 100 (96)       | 4           | 0         | 249,834   |
+| outdoor-64 | WebGPU low    | 58 (54)        | 4           | 0         | 155,508   |
+| outdoor-64 | WebGPU medium | 84 (80)        | 4           | 0         | 245,082   |
+
+- **WebGPU.** `BUDGETS=1` passes all 160 runs (it failed 75): the heaviest frame 1,988 → 297
+  draws (the village's GM, medium), kit draws at most 1,896 → 54 (budget 500). GPU time's median
+  over the runs 5.0 → 5.0 ms (most 9.5 → 9.5), the main thread's 5.5 → 4.7 ms (most 29.0 → 11.1).
+- **WebGL2.** Within every budget, as before: the heaviest frame 307 → 301 draws, kit draws at most
+  42 → 54 (the monastery has more keys than a chunk had materials), triangles 934k → 933k at most.
+  GPU time's median 6.1 → 6.2 ms, the main thread's 8.2 → 8.5 ms (both within the runs' noise).
+  The test world draws 165 → 185 in the perf gate (one chunk: two batches became a mesh per key).
+
+To re-measure after a change to the kit pieces (a new kit, more keys): rebuild, then run the two
+commands above.
 
 ## Modules
 
@@ -2753,7 +2805,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                                                                                                             |
 | `world/`                              | The world's shape (M69), the cliffs (`cliffs.ts`, #241), what lies beyond the grid (`beyond.ts`, `recipes.ts`, #244); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer |
 | `world-layer.ts`                      | `WorldLayer`: the shader grid's twins per chunk (#245), the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the void's floor (#243), the shape it is built from                                      |
-| layer modules                         | `tokens.ts`, `walls.ts` (kit walls, #252; its `roofs.ts`, #257), `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                               |
+| layer modules                         | `tokens.ts`, `walls.ts` (kit walls, #252; its `roofs.ts`, #257; `piece-pool.ts`, the kit pieces' InstancedMeshes, M70), `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                        |
 
 ## Quality tiers
 

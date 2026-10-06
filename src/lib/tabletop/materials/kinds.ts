@@ -6,7 +6,7 @@
 // adds no program.
 
 import * as THREE from 'three/webgpu';
-import { batchColor, positionWorld, uniform } from 'three/tsl';
+import { positionWorld, uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
 import { dropLift } from './drop';
 import { flickerNode } from './flicker';
@@ -252,10 +252,10 @@ export interface Variant {
 	/** Terrain and rock: the world's chunks, dropping in by a start per vertex (#249, drop.ts). */
 	dropped: boolean;
 	/**
-	 * For a BatchedMesh whose colours are set (#252, the walls): its highlight is one minus the
-	 * instance colour's alpha (opaque kinds never use alpha), glowing `HIGHLIGHT` with a hatch.
+	 * A kit piece in a pool (#252, M70: an InstancedMesh, piece.ts): three's instance colour shades
+	 * it, and its tint's w (`TINT_ATTRIBUTE`) is its highlight, glowing `HIGHLIGHT` with a hatch.
 	 */
-	batched: boolean;
+	piece: boolean;
 	/**
 	 * Surface: a roof (#257), whose fog, darkness and sky are read at its `aRoofCell` (a known cell
 	 * outside it) instead of the cells under it (world-modify.ts).
@@ -268,7 +268,7 @@ export interface Variant {
 	sheet: boolean;
 }
 
-/** A batched instance's highlight (#252): a warm glow below bloom, hatched for colour-blind eyes. */
+/** A kit piece's highlight (#252): a warm glow below bloom, hatched for colour-blind eyes. */
 export const HIGHLIGHT = { color: [0.89, 0.48, 0.42], strength: 0.45, stripes: 3 } as const;
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
@@ -280,12 +280,12 @@ const param = (name: keyof Params, type: string) => tsl.materialReference(`param
  */
 function tintOf(kind: ShaderKind, variant: Variant): N {
 	const own = param('tint', 'color');
-	if (variant.batched) {
+	if (variant.piece) {
 		// Diagonal stripes across the world, half as bright between them.
 		const w = positionWorld as unknown as N;
 		const across = w.x.add(w.y).add(w.z).mul(HIGHLIGHT.stripes);
 		const hatch = tsl.smoothstep(0.45, 0.55, across.fract());
-		const on = (batchColor as unknown as N).w.oneMinus();
+		const on = tsl.attribute(TINT_ATTRIBUTE, 'vec4').w;
 		const glow = tsl.vec3(...HIGHLIGHT.color).mul(HIGHLIGHT.strength * 0.5);
 		return own.add(glow.mul(on).mul(hatch.add(1)));
 	}
@@ -433,7 +433,7 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 		['local', 'o'],
 		['antiTiled', 'a'],
 		['dropped', 'd'],
-		['batched', 'b'],
+		['piece', 'b'],
 		['roof', 'r'],
 		['sheet', 's']
 	];

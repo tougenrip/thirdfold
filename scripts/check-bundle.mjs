@@ -108,8 +108,10 @@ const BUDGETS = {
 	// → the GridLights' cell lookup at the centroid (two varyings, grid-light-node.ts); 403.0 kB.
 	// → 403.7: kit textures (M70: kit pieces on their trim sheet by UV, the surface kind's `sheet`
 	// variant, a batch per sheet, `sheetOf`, sheeted floor tiles); 403.7 kB measured after the merge. → 404.0: the
-	// perf tags (#264, `tagged` in perf.ts); 403.8 kB measured.
-	renderer: { total: 404_000 },
+	// perf tags (#264, `tagged` in perf.ts); 403.8 kB measured. → 399.6: kit pieces as a pool of
+	// InstancedMeshes on both backends (M70 after #264: piece-pool.ts, the surface kind's `piece`
+	// variant; three's BatchedMesh and batch.ts gone, about 4.3 kB); 399.5 kB measured.
+	renderer: { total: 399_600 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
