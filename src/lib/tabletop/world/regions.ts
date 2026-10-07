@@ -34,6 +34,22 @@ export interface OneWideRun {
 	along: 'x' | 'y';
 }
 
+/**
+ * A raised run at most `BRIDGE_WIDTH` cells wide (#256): slices across it, each one or two known
+ * cells joined side by side with an open drop of two levels or more (or the void) beyond both ends,
+ * chained along `along` by cells within one level of each other; at least `BRIDGE_SLICES` long.
+ * Its ends may meet any ground. A wider strip is a terrace, not a bridge.
+ */
+export interface BridgeRun {
+	/** The slices from one end to the other, each from its `sideA` end (north or west) across. */
+	slices: number[][];
+	along: 'x' | 'y';
+}
+
+/** How wide a bridge may be (the Hollow's causeway is two), and how few slices make one. */
+export const BRIDGE_WIDTH = 2;
+export const BRIDGE_SLICES = 2;
+
 /** Water cells joined edge to edge at one level. */
 export interface WaterBody {
 	cells: number[];
@@ -49,6 +65,7 @@ export interface VoidRegion {
 export interface Regions {
 	stairs: StairRun[];
 	oneWide: OneWideRun[];
+	bridges: BridgeRun[];
 	water: WaterBody[];
 	voids: VoidRegion[];
 }
@@ -57,6 +74,7 @@ export function regionsOf(shape: WorldShape): Regions {
 	return {
 		stairs: stairRuns(shape),
 		oneWide: oneWideRuns(shape),
+		bridges: bridgeRuns(shape),
 		water: components(shape, (i) => shape.floor[i] === WATER, true).map((cells) => ({
 			cells,
 			level: shape.levels[cells[0]]
@@ -136,6 +154,63 @@ function oneWideRuns(s: WorldShape): OneWideRun[] {
 			)
 				cells.push(j);
 			runs.push({ cells, along });
+		}
+	}
+	return runs;
+}
+
+function bridgeRuns(s: WorldShape): BridgeRun[] {
+	const runs: BridgeRun[] = [];
+	const n = s.grid.width * s.grid.height;
+	// An open drop: a walled side (a stair or a walk along a wall, like the gallery's) is no bridge's.
+	const drop = (i: number, j: number) =>
+		j >= 0 &&
+		isKnown(s, j) &&
+		(s.floor[j] === VOID || s.levels[j] + 2 <= s.levels[i]) &&
+		!walled(s, i, j);
+	const joined = (i: number, j: number) =>
+		j >= 0 && isGround(s, j) && Math.abs(s.levels[i] - s.levels[j]) <= 1 && !walled(s, i, j);
+	for (const along of ['x', 'y'] as const) {
+		// Slices run across `along`: from the north (or west) end toward the south (or east).
+		const [sideA, sideB, ahead] = along === 'y' ? [3, 1, 2] : [0, 2, 1];
+		const slice = new Int32Array(n).fill(-1); // each cell's slice, by its first cell
+		const slices = new Map<number, number[]>();
+		for (let i = 0; i < n; i++) {
+			if (!isGround(s, i) || !drop(i, step(s, i, sideA))) continue;
+			const cells = [i];
+			while (!drop(cells[cells.length - 1], step(s, cells[cells.length - 1], sideB))) {
+				const last = cells[cells.length - 1];
+				const next = step(s, last, sideB);
+				if (cells.length === BRIDGE_WIDTH || !joined(last, next)) break;
+				cells.push(next);
+			}
+			const last = cells[cells.length - 1];
+			if (!drop(last, step(s, last, sideB))) continue;
+			slices.set(i, cells);
+			for (const c of cells) slice[c] = i;
+		}
+		// The slice after another: the first whose cell lies ahead of one of its own, joined.
+		const after = (cells: number[]) => {
+			for (const c of cells) {
+				const j = step(s, c, ahead);
+				if (j >= 0 && slice[j] >= 0 && joined(c, j)) return slice[j];
+			}
+			return -1;
+		};
+		const hasBefore = new Set<number>();
+		for (const cells of slices.values()) {
+			const next = after(cells);
+			if (next >= 0) hasBefore.add(next);
+		}
+		for (const [start, cells] of slices) {
+			if (hasBefore.has(start)) continue;
+			const run = [cells];
+			const seen = new Set([start]);
+			for (let k = after(cells); k >= 0 && !seen.has(k); k = after(slices.get(k)!)) {
+				seen.add(k);
+				run.push(slices.get(k)!);
+			}
+			if (run.length >= BRIDGE_SLICES) runs.push({ slices: run, along });
 		}
 	}
 	return runs;

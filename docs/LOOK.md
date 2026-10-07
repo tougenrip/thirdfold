@@ -601,6 +601,37 @@ sets refs 1 (top) and 6 (bottom) side by side: M67, the M68 branch before this p
   it light: surface detail (local contrast is half the references'), the torch room's lit
   foreground and both skies' indigo at the horizon rows, which the close poses fill with lit wall.
 
+## Milestone 70: architecture kits (#117)
+
+Kit walls, frames, arcades and doors, floor tiles, stair pieces, bridges and balustrades, roofs with
+hips, caps, chimneys and dormers, roofs that fade over rooms the viewer is in, glazed windows that
+glow after dusk, and the stone halls' in-house pilot kit on its ashlar trim sheet. The strip is
+`docs/look/m70/`; `docs/look/m70-before-after.png` sets every pairing side by side, M69 left and
+M70 right. The owner's art review signed it off.
+
+| Reference | band | m69   | m70   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.123 | 0.128 |
+| 2         | dusk | 0.291 | 0.315 |
+| 3         | dark | 0.114 | 0.135 |
+| 4         | dark | 0.102 | 0.090 |
+| 6         | dark | 0.119 | 0.099 |
+| 7         | day  | 0.108 | 0.108 |
+| 8         | dusk | 0.240 | 0.233 |
+
+- **The night gate (6), the dungeon (4) and the town at dusk (8) move toward their references**:
+  the gate's palisade and gatehouse are kit pieces, the dungeon's walls stand on whole-edge cores,
+  and the town's houses are roofed, their windows lit.
+- **The torch room (1)** moves a little away: its walls now show the ashlar sheet's courses, more
+  local contrast than the plain walls had, at the reference's warmth.
+- **The monastery (2) and the crimson stair (3) move away for what now stands over them, not for
+  colour**: roofs close the nave and the halls from the GM's overview (a roof fades only where the
+  viewer looks into it, #259), so the lit interiors no longer show; the crimson stair gains
+  balustrades along its drops. The owner accepted both.
+- **Still missing**: the roofs, stairs, bridges and cliffs keep vertex colours (only walls, doors
+  and floor tiles wear a trim sheet); dormers' glass doesn't glow; the kits beyond the stone halls'
+  pilot are greybox until #263's commission.
+
 ## Sky targets (#213)
 
 The skies' colours (`assets/skies/`, docs/ASSETS.md) and where each comes from. The references'

@@ -1299,7 +1299,7 @@ describe('custom tables over the wire', () => {
 		expect(seen[19 * welcome.room.grid.width + 19]).toBe(0);
 	});
 
-	it('sends the floors after the void (#248) only where each viewer has explored', async () => {
+	it('sends the floors after the void (#248, #254) only where each viewer has explored', async () => {
 		const { gm, pip, playerId, welcome } = await tableWithPip();
 		const sam = await connect();
 		sam.send({ type: 'join', roomId: welcome.room.id, name: 'Sam', role: 'spectator' });
@@ -1314,14 +1314,16 @@ describe('custom tables over the wire', () => {
 		});
 		await pip.until('token_upserted');
 		const { width, height } = welcome.room.grid;
-		const cobble = FLOOR_IDS.indexOf('cobble');
-		gm.send({ type: 'floor_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, floor: 'cobble' });
-		const full = decodeFloor((await gm.until('floor_update')).floor!, width * height)!;
-		expect(full.every((v) => v === cobble)).toBe(true);
-		for (const viewer of [pip, sam]) {
-			const seen = decodeFloor((await viewer.until('floor_update')).floor!, width * height)!;
-			expect(seen[1 * width + 1]).toBe(cobble);
-			expect(seen[19 * width + 19]).toBe(0);
+		for (const id of ['cobble', 'tile', 'grating'] as const) {
+			const byte = FLOOR_IDS.indexOf(id);
+			gm.send({ type: 'floor_set', from: { x: 0, y: 0 }, to: { x: 19, y: 19 }, floor: id });
+			const full = decodeFloor((await gm.until('floor_update')).floor!, width * height)!;
+			expect(full.every((v) => v === byte)).toBe(true);
+			for (const viewer of [pip, sam]) {
+				const seen = decodeFloor((await viewer.until('floor_update')).floor!, width * height)!;
+				expect(seen[1 * width + 1]).toBe(byte);
+				expect(seen[19 * width + 19]).toBe(0);
+			}
 		}
 	});
 

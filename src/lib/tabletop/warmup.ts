@@ -64,8 +64,11 @@ export async function warmUp(
 	const all = (items: readonly THREE.Object3D[], scene: THREE.Scene) =>
 		Promise.all(items.map((item) => renderer.compileAsync(item, camera, scene)));
 	const size = isSoftware(gpuInfo(renderer).adapter) ? 1 : CHUNK;
+	const depths = drawDepths(renderer);
+	depths.warming = true;
 	const compile = (async () => {
-		for (const { scene, items, targets } of batches) {
+		for (const { scene, items: given, targets } of batches) {
+			const items = unlit(given);
 			for (let i = 0; i < items.length; i += size) {
 				const chunk = items.slice(i, i + size);
 				if (timedOut) return;
@@ -107,7 +110,64 @@ export async function warmUp(
 	// for the wrong targets, aborting the frame): finish that compile first. The compile puts the
 	// renderer's state back as it ends, before this resumes (it awaited the same promise first).
 	await inFlight.catch(() => {});
+	depths.warming = false;
 	return done;
+}
+
+/** Three's render contexts (r186, a private field): one per target, outputs and call depth. */
+export interface RenderContexts {
+	get(target?: object | null, mrt?: object | null, depth?: number): unknown;
+}
+
+/**
+ * Compiles in the render contexts frames draw in. Three keys a render context, and with it every
+ * graph built in it (each InstancedMesh's its own, by uuid), by the depth of the render call as
+ * well as the target and outputs: the passes draw nested in the pipeline's render (the scene pass
+ * at depth 2), while `compileAsync` asks at depth 0, so every graph a warm-up built was built
+ * again on the first frame. This records the depth each target and outputs were last drawn at and,
+ * while `warming`, hands compiles that context.
+ */
+export class DrawDepths {
+	warming = false;
+	private readonly depths = new WeakMap<object, Map<object | null, number>>();
+
+	constructor(contexts: RenderContexts) {
+		const get = contexts.get.bind(contexts);
+		contexts.get = (target = null, mrt = null, depth) => {
+			const drawn = target ? this.depths.get(target) : undefined;
+			if (depth === undefined) depth = (this.warming && drawn?.get(mrt)) || 0;
+			else if (target && depth >= 0)
+				(drawn ?? this.depths.set(target, new Map()).get(target)!).set(mrt, depth);
+			return get(target, mrt, depth);
+		};
+	}
+}
+
+const installed = new WeakMap<object, DrawDepths>();
+
+/** `renderer`'s draw depths, recorded from the first call on. */
+export function drawDepths(renderer: THREE.WebGPURenderer): DrawDepths {
+	let d = installed.get(renderer);
+	if (!d) {
+		const { _renderContexts } = renderer as unknown as { _renderContexts: RenderContexts };
+		installed.set(renderer, (d = new DrawDepths(_renderContexts)));
+	}
+	return d;
+}
+
+/**
+ * `items` without their lights: a light compiled as an item is listed twice in the lights the
+ * scene's draws share (as an item, then from the target scene), and three keeps the lights' key
+ * for the rest of the warm-up, so every graph built meanwhile keys on lights no frame draws with
+ * and is built again on the next draw. A group holding a light gives its other children instead.
+ */
+export function unlit(items: readonly THREE.Object3D[]): THREE.Object3D[] {
+	const lit = (o: THREE.Object3D) => {
+		let found = false;
+		o.traverse((c) => (found ||= (c as THREE.Light).isLight === true));
+		return found;
+	};
+	return items.flatMap((o) => ((o as THREE.Light).isLight ? [] : lit(o) ? unlit(o.children) : [o]));
 }
 
 /** A stand-in for the warm-up's gallery: never culled, since it stands nowhere in particular. */

@@ -14,6 +14,7 @@ import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import { entryLight, fragmentCell, load, towardNode, type GridLight } from './grid-light-node';
 import type { N } from './tsl';
+import { roofLit } from './world-modify';
 
 const t = T as unknown as Record<string, N & ((...args: unknown[]) => N)>;
 
@@ -229,8 +230,11 @@ class HeroLightNode extends THREE.PointLightNode {
 	 * The slot's entry as the GridLights draw it (only on the cells that list it), times its fade
 	 * and the light's colour node: its cube's shadow where the object takes shadows, else 1.
 	 */
-	setupDirect() {
+	setupDirect(builder: THREE.NodeBuilder) {
 		const hero = (this as unknown as { light: HeroLight }).light;
+		// A roof (#257) takes no point light (grid-light-node.ts).
+		if (roofLit(builder))
+			return { lightDirection: t.vec3(0, 1, 0), lightColor: t.vec3(0) } as never;
 		const colorNode = (this as unknown as { colorNode: N }).colorNode;
 		const grid = hero.grid;
 		const k = grid.k;

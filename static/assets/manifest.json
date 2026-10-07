@@ -375,6 +375,6359 @@
 				}
 			}
 		},
+		"ashlar-arch": {
+			"file": "models/ashlar-arch.de5c789e.glb",
+			"sha256": "de5c789e208d72435df062d9efb927984924f44d872cac8892fe05e9a4b27a35",
+			"bytes": 16312,
+			"kind": "kit",
+			"triangles": 572,
+			"bounds": {
+				"min": [
+					-0.493,
+					0.005,
+					-0.066
+				],
+				"max": [
+					0.493,
+					1.993,
+					0.066
+				]
+			},
+			"gpuBytes": 18279,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 286,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 84,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-battlement": {
+			"file": "models/ashlar-battlement.962ced29.glb",
+			"sha256": "962ced297fb1dbb88c524f1e4753a674fbeb47b0832b80824faf64562a95c3ca",
+			"bytes": 12004,
+			"kind": "kit",
+			"triangles": 396,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.46,
+					-0.095
+				],
+				"max": [
+					0.5,
+					2,
+					0.345
+				]
+			},
+			"gpuBytes": 11132,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 198,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 58,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-buttress": {
+			"file": "models/ashlar-buttress.be1fefbd.glb",
+			"sha256": "be1fefbdc69fe31a7b6a3bc87233530cd639cea560d93eb8ecd620a9a0fd9e10",
+			"bytes": 5236,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.1,
+					0.007,
+					-0.1
+				],
+				"max": [
+					0.1,
+					1.835,
+					0.3
+				]
+			},
+			"gpuBytes": 4896,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-coping": {
+			"file": "models/ashlar-coping.a38d929d.glb",
+			"sha256": "a38d929dffa82d2a06a8ff70ce18a13c0880f16c9cb2eeba29e1d348e489609a",
+			"bytes": 3552,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.88,
+					-0.098
+				],
+				"max": [
+					0.5,
+					1.997,
+					0.098
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-crenels": {
+			"file": "models/ashlar-crenels.89fd8a88.glb",
+			"sha256": "89fd8a882001af63fbbad7a3565f33966de58e97dab965d04713cf0d3ab8ef04",
+			"bytes": 3976,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.44,
+					1.68,
+					-0.075
+				],
+				"max": [
+					0.44,
+					2,
+					0.075
+				]
+			},
+			"gpuBytes": 2880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-curtain": {
+			"file": "models/ashlar-curtain.59668f2d.glb",
+			"sha256": "59668f2d8d7b0943a716491393fee01a6374de8a39a46ac2abb3ff91bc0cde4f",
+			"bytes": 20376,
+			"kind": "kit",
+			"triangles": 924,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.005,
+					-0.066
+				],
+				"max": [
+					0.5,
+					1.998,
+					0.339
+				]
+			},
+			"gpuBytes": 25940,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 462,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 138,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-door-frame": {
+			"file": "models/ashlar-door-frame.cca5abf6.glb",
+			"sha256": "cca5abf6298d40a5c231b3593b69efae5c370a8b9bc0425366d36fe89ff2d9a0",
+			"bytes": 12256,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.066
+				],
+				"max": [
+					0.5,
+					2,
+					0.066
+				]
+			},
+			"gpuBytes": 12393,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 220,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 66,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-pier": {
+			"file": "models/ashlar-pier.85b06ce4.glb",
+			"sha256": "85b06ce462a1d0bcb0e57be7567da32c6a31dbe54f85c79493bf74255899ba14",
+			"bytes": 11032,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.4,
+					-2,
+					-0.4
+				],
+				"max": [
+					0.4,
+					-0.2,
+					0.4
+				]
+			},
+			"gpuBytes": 8672,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 154,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 46,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-plinth": {
+			"file": "models/ashlar-plinth.66b835a5.glb",
+			"sha256": "66b835a5f6caf9e59a2f665134f3b7c7fc8ec89f444e4e771f0583a471f5c59e",
+			"bytes": 3924,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.066
+				],
+				"max": [
+					0.5,
+					0.4,
+					0.066
+				]
+			},
+			"gpuBytes": 2880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-post-end": {
+			"file": "models/ashlar-post-end.c1448e00.glb",
+			"sha256": "c1448e004c17498b4e1623a43035f3d1eaa3a36a6976f73903a5b4377575517e",
+			"bytes": 13372,
+			"kind": "kit",
+			"triangles": 380,
+			"bounds": {
+				"min": [
+					-0.185,
+					0,
+					-0.185
+				],
+				"max": [
+					0.185,
+					2.15,
+					0.185
+				]
+			},
+			"gpuBytes": 11660,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 190,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 56,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-post-l": {
+			"file": "models/ashlar-post-l.e2f322ea.glb",
+			"sha256": "e2f322eae3ee3979b40e3282c24fe90e066df6a923e66024db6d1015d9821937",
+			"bytes": 11524,
+			"kind": "kit",
+			"triangles": 352,
+			"bounds": {
+				"min": [
+					-0.185,
+					0,
+					-0.185
+				],
+				"max": [
+					0.185,
+					2.01,
+					0.185
+				]
+			},
+			"gpuBytes": 9902,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 176,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 52,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-post-t": {
+			"file": "models/ashlar-post-t.731f0ff2.glb",
+			"sha256": "731f0ff2b554d83ce4e94544e880f64688530feb453b708a5526243146b6c2f1",
+			"bytes": 12192,
+			"kind": "kit",
+			"triangles": 352,
+			"bounds": {
+				"min": [
+					-0.185,
+					0,
+					-0.185
+				],
+				"max": [
+					0.185,
+					2,
+					0.185
+				]
+			},
+			"gpuBytes": 11254,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 176,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 52,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-post-x": {
+			"file": "models/ashlar-post-x.628bae2a.glb",
+			"sha256": "628bae2aa7f361a63073d81da25779f073baa63ff00e415421a8215446882339",
+			"bytes": 14968,
+			"kind": "kit",
+			"triangles": 424,
+			"bounds": {
+				"min": [
+					-0.185,
+					0,
+					-0.185
+				],
+				"max": [
+					0.185,
+					2.15,
+					0.185
+				]
+			},
+			"gpuBytes": 14722,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 212,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 62,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-retaining": {
+			"file": "models/ashlar-retaining.510ab804.glb",
+			"sha256": "510ab804a024e665ddbd5ff092101465e5068b1e4810c2132a799084809aa04d",
+			"bytes": 19392,
+			"kind": "kit",
+			"triangles": 836,
+			"bounds": {
+				"min": [
+					-0.5,
+					-1.995,
+					-0.33
+				],
+				"max": [
+					0.5,
+					0,
+					0.065
+				]
+			},
+			"gpuBytes": 23525,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 418,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 124,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-stair-side": {
+			"file": "models/ashlar-stair-side.abbd5d69.glb",
+			"sha256": "abbd5d69347ef4e151d88252db2de34e84890f7423a6884f74bea79ac49483d1",
+			"bytes": 10872,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.795,
+					-0.066
+				],
+				"max": [
+					0.5,
+					0,
+					0.066
+				]
+			},
+			"gpuBytes": 8672,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 154,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 46,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-step": {
+			"file": "models/ashlar-step.0558dc5b.glb",
+			"sha256": "0558dc5b147bd9740c21a58346d8fe14ffd2bb6f3b7ae21b025655b4f1b49039",
+			"bytes": 3660,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.39,
+					-0.235
+				],
+				"max": [
+					0.5,
+					-0.005,
+					0.065
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-turret": {
+			"file": "models/ashlar-turret.8a614f1c.glb",
+			"sha256": "8a614f1cc79f500094613a175235e4cc05fbf1d7985e85af42914a48b4b6814b",
+			"bytes": 26036,
+			"kind": "kit",
+			"triangles": 1008,
+			"bounds": {
+				"min": [
+					0.007,
+					0,
+					0
+				],
+				"max": [
+					0.933,
+					2,
+					0.94
+				]
+			},
+			"gpuBytes": 31477,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 504,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 150,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-wall-a": {
+			"file": "models/ashlar-wall-a.145f3ee7.glb",
+			"sha256": "145f3ee7233be1eee5866196c0471827719dbbab8e6ae7ebde85b348bf64fec7",
+			"bytes": 19916,
+			"kind": "kit",
+			"triangles": 924,
+			"bounds": {
+				"min": [
+					-0.495,
+					0.005,
+					-0.066
+				],
+				"max": [
+					0.495,
+					1.995,
+					0.066
+				]
+			},
+			"gpuBytes": 26016,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 462,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 138,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-wall-b": {
+			"file": "models/ashlar-wall-b.55fccb38.glb",
+			"sha256": "55fccb38449b071f808fde2af00cf0ae69a6bc051658e74136ec282284185b62",
+			"bytes": 17316,
+			"kind": "kit",
+			"triangles": 748,
+			"bounds": {
+				"min": [
+					-0.495,
+					0.005,
+					-0.066
+				],
+				"max": [
+					0.495,
+					1.995,
+					0.066
+				]
+			},
+			"gpuBytes": 21065,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 374,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 112,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-wall-cracked": {
+			"file": "models/ashlar-wall-cracked.f1559c68.glb",
+			"sha256": "f1559c687879f64438d5248660453ebb596ef2d5e3776041cea96be9596ac9e8",
+			"bytes": 18204,
+			"kind": "kit",
+			"triangles": 792,
+			"bounds": {
+				"min": [
+					-0.495,
+					0.005,
+					-0.066
+				],
+				"max": [
+					0.495,
+					1.995,
+					0.066
+				]
+			},
+			"gpuBytes": 22295,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 396,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 118,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-wall-niche": {
+			"file": "models/ashlar-wall-niche.dccc6513.glb",
+			"sha256": "dccc651359a716d9305295f511be53d872008310e46a82687006cee82647a12d",
+			"bytes": 18708,
+			"kind": "kit",
+			"triangles": 836,
+			"bounds": {
+				"min": [
+					-0.495,
+					0.005,
+					-0.066
+				],
+				"max": [
+					0.495,
+					1.995,
+					0.066
+				]
+			},
+			"gpuBytes": 23525,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 418,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 124,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-wall-outer": {
+			"file": "models/ashlar-wall-outer.14c7ecc1.glb",
+			"sha256": "14c7ecc1a25a9f8755d97f9d1e6e5c9e4aa709c1275b23325c218943dc942211",
+			"bytes": 16568,
+			"kind": "kit",
+			"triangles": 660,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.005,
+					-0.066
+				],
+				"max": [
+					0.5,
+					1.995,
+					0.335
+				]
+			},
+			"gpuBytes": 18574,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 330,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 98,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-window-sill": {
+			"file": "models/ashlar-window-sill.5692f4f4.glb",
+			"sha256": "5692f4f4897c89fdee9bffb3d04e46ba4bf7cd0a9ad09f8df6644d1b67f975d0",
+			"bytes": 18588,
+			"kind": "kit",
+			"triangles": 836,
+			"bounds": {
+				"min": [
+					-0.495,
+					-1.995,
+					-0.066
+				],
+				"max": [
+					0.495,
+					0.85,
+					0.066
+				]
+			},
+			"gpuBytes": 23525,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 418,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 124,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ashlar-window": {
+			"file": "models/ashlar-window.9b112570.glb",
+			"sha256": "9b11257011a1947630330f79507eb94fa6df2dd6d24ebbd3620ceffa078e3127",
+			"bytes": 21732,
+			"kind": "kit",
+			"triangles": 1012,
+			"bounds": {
+				"min": [
+					-0.495,
+					0.007,
+					-0.066
+				],
+				"max": [
+					0.495,
+					1.993,
+					0.066
+				]
+			},
+			"gpuBytes": 28476,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 506,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 150,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"cavern-arch": {
+			"file": "models/cavern-arch.3a9ef7e6.glb",
+			"sha256": "3a9ef7e6813c8c9debea9c1f3bf6348e7cfb70d0fc6fed3d7f3e06d8d93c2e08",
+			"bytes": 7880,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.065
+				],
+				"max": [
+					0.5,
+					2,
+					0.065
+				]
+			},
+			"gpuBytes": 6480,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-bridge-deck": {
+			"file": "models/cavern-bridge-deck.bd63e95e.glb",
+			"sha256": "bd63e95e0a1073847f95f7115c258e7b87a05127bcfdf3bcd2f07d335a16e5ca",
+			"bytes": 4496,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.3,
+					-0.5
+				],
+				"max": [
+					0.5,
+					0,
+					0.5
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-bridge-pier": {
+			"file": "models/cavern-bridge-pier.ce95ec54.glb",
+			"sha256": "ce95ec5434cfdf59b8b58cb49a8038e4f5c1dcae3997d1edad3e2f8d011319de",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.4,
+					-2,
+					-0.4
+				],
+				"max": [
+					0.4,
+					-0.2,
+					0.4
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-cap": {
+			"file": "models/cavern-cap.65e349ed.glb",
+			"sha256": "65e349ed1aef5d62fcdb16f44e1f9246e1f9a00971c67bf5e8c4f58b1b63d1d0",
+			"bytes": 2244,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.88,
+					-0.1
+				],
+				"max": [
+					0.5,
+					2,
+					0.1
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-cliff-corner": {
+			"file": "models/cavern-cliff-corner.5cff84ea.glb",
+			"sha256": "5cff84eaee7a693e1d7c098787b19c89e0d383525ef093c8786315dc71fd0503",
+			"bytes": 3392,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.3,
+					-2,
+					-0.3
+				],
+				"max": [
+					0.362,
+					0,
+					0.362
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-cliff-face": {
+			"file": "models/cavern-cliff-face.bceaa3be.glb",
+			"sha256": "bceaa3be2ec526ecfd1e79bde5223569468cc20509c08ac88cb0cc4fc79b31ba",
+			"bytes": 14720,
+			"kind": "kit",
+			"triangles": 528,
+			"bounds": {
+				"min": [
+					-0.489,
+					-1.989,
+					-0.318
+				],
+				"max": [
+					0.49,
+					-0.01,
+					0.061
+				]
+			},
+			"gpuBytes": 12960,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-door-frame": {
+			"file": "models/cavern-door-frame.7dd4c55e.glb",
+			"sha256": "7dd4c55e87d64bb0d273336b03135a3bce5beea7e34b6a735a9223537806306d",
+			"bytes": 5620,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-door-leaf": {
+			"file": "models/cavern-door-leaf.2b9ba4ea.glb",
+			"sha256": "2b9ba4ea522a4c2bd548e84d6240d55ae3c969003f9e30d81df9f8d8de4787b6",
+			"bytes": 15176,
+			"kind": "kit",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.395,
+					0,
+					-0.07
+				],
+				"max": [
+					0.395,
+					1.74,
+					0.07
+				]
+			},
+			"gpuBytes": 13380,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-hewn-a": {
+			"file": "models/cavern-hewn-a.5a4a0d19.glb",
+			"sha256": "5a4a0d19657a568a29ab253abafce4a806d0f2e0a52cb66c43309089286cdbd0",
+			"bytes": 5692,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.107,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-hewn-b": {
+			"file": "models/cavern-hewn-b.ddbf91a9.glb",
+			"sha256": "ddbf91a9800e1db03a684ea6646f52e3604e86a2acd5acb31f192ae2c8172137",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-hewn-broken": {
+			"file": "models/cavern-hewn-broken.9afa3026.glb",
+			"sha256": "9afa302612ab3a31e909c632772b664049d93ed588beff877685ae49b0505c4f",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.194,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.486
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-hewn-c": {
+			"file": "models/cavern-hewn-c.023d2d17.glb",
+			"sha256": "023d2d17152b1df1b0818cd561ff0005c284286e024c33804fc25efeaaabc5ce",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					0,
+					0.485
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-plinth": {
+			"file": "models/cavern-plinth.9bcee61f.glb",
+			"sha256": "9bcee61fad33041e8d2e6854efe8c79c8ced4e273bf05c8180b07c3772c7b11f",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.38,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-post-end": {
+			"file": "models/cavern-post-end.e968fdc5.glb",
+			"sha256": "e968fdc58cb9eec98e795075ecade6a2d557a560c072024da9269a4b9e9f62cd",
+			"bytes": 4552,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-post-l": {
+			"file": "models/cavern-post-l.1064ee5d.glb",
+			"sha256": "1064ee5dec0984256727be1662b0a46bb1d5ba647e4a6e1b9e3c47aa6347e145",
+			"bytes": 3408,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-post-t": {
+			"file": "models/cavern-post-t.db813976.glb",
+			"sha256": "db8139768932271b0643147f807f72af809e9e498697b83c4f1e168bfe97e9e3",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-post-x": {
+			"file": "models/cavern-post-x.9eaa371b.glb",
+			"sha256": "9eaa371b1b917331badf0309cee964f5e4d19d889dd9441c487d25e5319627de",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-railing": {
+			"file": "models/cavern-railing.e3769cdc.glb",
+			"sha256": "e3769cdc409637039a2fbf16572e3a7ffbeb673abc0a2ae9cb70e5d3af799194",
+			"bytes": 23264,
+			"kind": "kit",
+			"triangles": 664,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.09,
+					-0.06
+				],
+				"max": [
+					0.5,
+					1,
+					0.06
+				]
+			},
+			"gpuBytes": 21120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-stair-riser": {
+			"file": "models/cavern-stair-riser.5bc1e61a.glb",
+			"sha256": "5bc1e61abda1cd5148c2b2194403b4911f9019576d4ddb17f1a06957e097dacb",
+			"bytes": 3400,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.39,
+					-0.23
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-stair-side": {
+			"file": "models/cavern-stair-side.7d191b4f.glb",
+			"sha256": "7d191b4f1a3ef85363036448340143bcf1c5dd2aefa64110696779f482a6e6f0",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.8,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-wall-ancient": {
+			"file": "models/cavern-wall-ancient.97de4624.glb",
+			"sha256": "97de4624cb808751d3a00a145a37c4862fa6433639c781997db14dae90425b5e",
+			"bytes": 13524,
+			"kind": "kit",
+			"triangles": 484,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 11880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-wall-boundary": {
+			"file": "models/cavern-wall-boundary.b915ca96.glb",
+			"sha256": "b915ca96e6f353c0e59c7fbc4b3d190e998cf054de7e805b16af53bec7b08191",
+			"bytes": 11332,
+			"kind": "kit",
+			"triangles": 396,
+			"bounds": {
+				"min": [
+					-0.49,
+					0.011,
+					-0.064
+				],
+				"max": [
+					0.489,
+					1.39,
+					0.301
+				]
+			},
+			"gpuBytes": 9720,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-wall-outer": {
+			"file": "models/cavern-wall-outer.4baadcac.glb",
+			"sha256": "4baadcacf12ce972a097e2b0d28881b8c32917fc65d45c834f1304ec2a1dbc6d",
+			"bytes": 4488,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.35
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-wall-retaining": {
+			"file": "models/cavern-wall-retaining.b9afc9e6.glb",
+			"sha256": "b9afc9e685927881f2df5707e0c6421092cc85d0330767c81b546ea6fd64e844",
+			"bytes": 13524,
+			"kind": "kit",
+			"triangles": 484,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.27
+				],
+				"max": [
+					0.5,
+					0,
+					0.029
+				]
+			},
+			"gpuBytes": 11880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-wall-rough": {
+			"file": "models/cavern-wall-rough.08788409.glb",
+			"sha256": "08788409e972da7b1e910ac62b6629fec0a425044ba7438fac093a29d3dd26b5",
+			"bytes": 18036,
+			"kind": "kit",
+			"triangles": 660,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.067
+				],
+				"max": [
+					0.5,
+					2,
+					0.069
+				]
+			},
+			"gpuBytes": 16200,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-window-frame": {
+			"file": "models/cavern-window-frame.6779f133.glb",
+			"sha256": "6779f133fe3cdbf3efdea6930f08915fa45dfb183d6082ba5da8ca4716f01981",
+			"bytes": 9028,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-window-glass": {
+			"file": "models/cavern-window-glass.b6991713.glb",
+			"sha256": "b69917131787b8df234e31dcd07924e68468b744922293b06d4918bb7a7316b8",
+			"bytes": 4556,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.33,
+					0.85,
+					-0.02
+				],
+				"max": [
+					0.33,
+					1.65,
+					0.02
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"cavern-window-sill": {
+			"file": "models/cavern-window-sill.adacd781.glb",
+			"sha256": "adacd781648da26fd1f6cdfcfd111ce45df0efb1769796e92ae5b0b58c780bf5",
+			"bytes": 3376,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.85,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"flag-deck": {
+			"file": "models/flag-deck.bc709ad1.glb",
+			"sha256": "bc709ad15ca7c5d01fd11bf71bcf4913546b4ed42c86ffa5348e8a9486bf7c24",
+			"bytes": 4308,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.3,
+					-0.495
+				],
+				"max": [
+					0.5,
+					-0.002,
+					0.495
+				]
+			},
+			"gpuBytes": 3600,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"flagstone-a": {
+			"file": "models/flagstone-a.569ee8af.glb",
+			"sha256": "569ee8af55de56df9d392b3090310426b69e11cdd7b32cae5157cff53ac4f960",
+			"bytes": 3936,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 2880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"flagstone-b": {
+			"file": "models/flagstone-b.4c1216ac.glb",
+			"sha256": "4c1216accba02a62dcf357059dec18186bd7007df4ee45233060d4c266ee2de6",
+			"bytes": 3668,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.003,
+					0.485
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"flagstone-broken-a": {
+			"file": "models/flagstone-broken-a.2ae2c8c0.glb",
+			"sha256": "2ae2c8c00fa2cbbb7aaa0edacb6e4f422143853fc6a7c8943b9720017501ccb3",
+			"bytes": 3692,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.183,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"flagstone-broken-b": {
+			"file": "models/flagstone-broken-b.9f49a1ff.glb",
+			"sha256": "9f49a1ff55ac3a33f254ce5725c63798d207f52ea66e649927cdfa8d85c68691",
+			"bytes": 3748,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.204,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.487
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"flagstone-c": {
+			"file": "models/flagstone-c.4020fcb5.glb",
+			"sha256": "4020fcb5c6f47f2b6690b9bc9e119db893aebc36f953d466735ed2b8f12ae49b",
+			"bytes": 3660,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"flagstone-d": {
+			"file": "models/flagstone-d.cbadf28e.glb",
+			"sha256": "cbadf28ef2519732ce3275af11c269245f7eefb50844119a49edfd4e78a34509",
+			"bytes": 3668,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.106,
+					-0.485
+				],
+				"max": [
+					0.485,
+					0,
+					0.485
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"ghost-town-boardwalk-a": {
+			"file": "models/ghost-town-boardwalk-a.0da61ff2.glb",
+			"sha256": "0da61ff27c1d4af1b4b5e943b71fb7acfd3dc7c517d5155e06abfd1348821aa5",
+			"bytes": 5692,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-boardwalk-b": {
+			"file": "models/ghost-town-boardwalk-b.802c919b.glb",
+			"sha256": "802c919be7ee74af45a5859f2a61773a61beff1479702ac6d6398e3d94d6cf2b",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.076,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-boardwalk-broken": {
+			"file": "models/ghost-town-boardwalk-broken.ff9a4874.glb",
+			"sha256": "ff9a48741e99e0cc6e27415f11e328ae0010085e1a93d93e935941f2c4090689",
+			"bytes": 6820,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.15,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.004,
+					0.486
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-boardwalk-c": {
+			"file": "models/ghost-town-boardwalk-c.d7f69193.glb",
+			"sha256": "d7f691934304c1e0a66f1158e1f1d19ad49fa94181d84057bd1f7a5eb34345f0",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.486,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-bridge-deck": {
+			"file": "models/ghost-town-bridge-deck.a7e8ba7b.glb",
+			"sha256": "a7e8ba7b207e41e353769648d376faaf670177c28177d63c0a8306a516ce4153",
+			"bytes": 9016,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.29,
+					-0.5
+				],
+				"max": [
+					0.5,
+					0,
+					0.5
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-bridge-pier": {
+			"file": "models/ghost-town-bridge-pier.0c134191.glb",
+			"sha256": "0c134191f159a69157c4dede33c9ed4360c43c36cff50d6a17001bb91e151015",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.4,
+					-2,
+					-0.4
+				],
+				"max": [
+					0.4,
+					-0.2,
+					0.4
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-cap": {
+			"file": "models/ghost-town-cap.0a36a4b1.glb",
+			"sha256": "0a36a4b1156aaae58f4f6727ef50b2427ba36b92f248a70a24d37531b391b8ab",
+			"bytes": 2244,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.88,
+					-0.1
+				],
+				"max": [
+					0.5,
+					2,
+					0.1
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-cliff-corner": {
+			"file": "models/ghost-town-cliff-corner.33131886.glb",
+			"sha256": "3313188688103cc5f13c7f3830bbb22c6bf8a8b181e2da04b4c17a27309bd51c",
+			"bytes": 3392,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.3,
+					-2,
+					-0.3
+				],
+				"max": [
+					0.362,
+					0,
+					0.362
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-cliff-face": {
+			"file": "models/ghost-town-cliff-face.85184f20.glb",
+			"sha256": "85184f20bff31996d25d82eb38c34d172067069415c3f3db31fdf12eadbee95d",
+			"bytes": 12464,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.49,
+					-1.99,
+					-0.32
+				],
+				"max": [
+					0.49,
+					-0.01,
+					0.06
+				]
+			},
+			"gpuBytes": 10800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-door-frame": {
+			"file": "models/ghost-town-door-frame.9660ea0d.glb",
+			"sha256": "9660ea0d8de5cc6e9f01c986a415913e268372c09dd6a68015833e8492ebdc5f",
+			"bytes": 5620,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-door-leaf": {
+			"file": "models/ghost-town-door-leaf.4179fb01.glb",
+			"sha256": "4179fb01fcc15a0f6f5e8b9cdf44b29d9e35539823d442fcef8c1b56ffeeefc0",
+			"bytes": 15176,
+			"kind": "kit",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.395,
+					0,
+					-0.07
+				],
+				"max": [
+					0.395,
+					1.74,
+					0.07
+				]
+			},
+			"gpuBytes": 13380,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-plinth": {
+			"file": "models/ghost-town-plinth.f4e8622d.glb",
+			"sha256": "f4e8622dd3aad6932bcef7fbab48bdcfe0f9a296de7e3f0f9d16a079382f5a3a",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.38,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-post-end": {
+			"file": "models/ghost-town-post-end.20754320.glb",
+			"sha256": "20754320a4b3a70ce2b07b6b57968719e91d7ad6dbf64d94f2102cab45f0b515",
+			"bytes": 4552,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-post-l": {
+			"file": "models/ghost-town-post-l.c1c149e8.glb",
+			"sha256": "c1c149e8f46d1323bccb15ae34e9e90d0912b29a6a77a8b92a12ce15ee6462c7",
+			"bytes": 3408,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-post-t": {
+			"file": "models/ghost-town-post-t.9f5a7202.glb",
+			"sha256": "9f5a72025a9dac5d4cad018830da678e004f2170f7179011867e75d7cd8f3f73",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-post-x": {
+			"file": "models/ghost-town-post-x.055e7f4a.glb",
+			"sha256": "055e7f4ab6d6e5bd355417b336a38ce0d332638f023c30abfad39f3a3175ea83",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-railing": {
+			"file": "models/ghost-town-railing.c35a9e46.glb",
+			"sha256": "c35a9e469f860b4f29c7099a54ed0e87c5dbcb286990848d1f5002b1be1cf105",
+			"bytes": 23264,
+			"kind": "kit",
+			"triangles": 664,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.09,
+					-0.06
+				],
+				"max": [
+					0.5,
+					1,
+					0.06
+				]
+			},
+			"gpuBytes": 21120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-roof-chimney": {
+			"file": "models/ghost-town-roof-chimney.4309cd66.glb",
+			"sha256": "4309cd6610ec8ebb5d6fa01326b2224cf58627fff843054bf982145eb9466aae",
+			"bytes": 3424,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					0.02,
+					1.8,
+					-0.18
+				],
+				"max": [
+					0.38,
+					3.48,
+					0.18
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-roof-corner": {
+			"file": "models/ghost-town-roof-corner.77f981ef.glb",
+			"sha256": "77f981ef9a7b40e143fbb94845e451d598bc8c9dab4b0ecdc688f79ce0b5a176",
+			"bytes": 6784,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.839,
+					-0.5
+				],
+				"max": [
+					0.7,
+					2.405,
+					0.7
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-roof-dormer": {
+			"file": "models/ghost-town-roof-dormer.58687e66.glb",
+			"sha256": "58687e66fa637828cc2262e2e5c581fcaba28d49fb910e6910a106419ced80ae",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.42,
+					2.05,
+					-0.075
+				],
+				"max": [
+					0.42,
+					2.857,
+					0.475
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-roof-eave": {
+			"file": "models/ghost-town-roof-eave.532f2a00.glb",
+			"sha256": "532f2a00f62f32fde2d99a6a7e1f498b6f82d2be4fb6bb0edf924b8f55adb255",
+			"bytes": 2260,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.841,
+					-0.512
+				],
+				"max": [
+					0.5,
+					2.395,
+					0.712
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-roof-hip": {
+			"file": "models/ghost-town-roof-hip.bce40d6e.glb",
+			"sha256": "bce40d6eb3158a6e483c6c158d9d15fd463a4af73661d265e06dc55b75cd158e",
+			"bytes": 7940,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.7,
+					1.839,
+					-0.7
+				],
+				"max": [
+					0.7,
+					2.272,
+					0.7
+				]
+			},
+			"gpuBytes": 6480,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-roof-ridge": {
+			"file": "models/ghost-town-roof-ridge.8f2e7f1f.glb",
+			"sha256": "8f2e7f1f46861dfd1963911cc38319317104b7744ae03b81218d54205cc6ed48",
+			"bytes": 4520,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.841,
+					-0.713
+				],
+				"max": [
+					0.5,
+					2.272,
+					0.713
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-stair-riser": {
+			"file": "models/ghost-town-stair-riser.c9b9d66a.glb",
+			"sha256": "c9b9d66a40f6a9751cbc005e4bf58e8c6116ef64dbfdb33ca6ee9b8936d06ceb",
+			"bytes": 3400,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.39,
+					-0.23
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-stair-side": {
+			"file": "models/ghost-town-stair-side.7ed9ed12.glb",
+			"sha256": "7ed9ed12deccae7a0592b20c7768043f16a714b54024e3277314debb4f6283d6",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.8,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-wall-adobe": {
+			"file": "models/ghost-town-wall-adobe.118014c1.glb",
+			"sha256": "118014c132c64f8d51eba5a018a5e62f9a81de39c59e4984ee9a9251db6d4a7c",
+			"bytes": 4488,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-wall-boards": {
+			"file": "models/ghost-town-wall-boards.0d750993.glb",
+			"sha256": "0d750993cf24848ad73aea43cbd65f52f038868b9c76b286436f46e0083f8e1c",
+			"bytes": 7880,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 6480,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-wall-boundary": {
+			"file": "models/ghost-town-wall-boundary.0c6e9783.glb",
+			"sha256": "0c6e9783d955f7c4791dade70f3ec4e384cd1c58c964063e0ee6cd4e2e0b5549",
+			"bytes": 9044,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					0.01
+				],
+				"max": [
+					0.5,
+					1.1,
+					0.095
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-wall-outer": {
+			"file": "models/ghost-town-wall-outer.cdd51332.glb",
+			"sha256": "cdd51332b5cfff6c11136e2b9a4403ffdc91126ca0dda9a8a7864e727cf30578",
+			"bytes": 4488,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.35
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-wall-retaining": {
+			"file": "models/ghost-town-wall-retaining.f1abc07c.glb",
+			"sha256": "f1abc07cf134c254623cfc6540af878fa37ca29a132c476929f0f858e6c582ca",
+			"bytes": 13524,
+			"kind": "kit",
+			"triangles": 484,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.27
+				],
+				"max": [
+					0.5,
+					0,
+					0.026
+				]
+			},
+			"gpuBytes": 11880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-window-frame": {
+			"file": "models/ghost-town-window-frame.1853f5b1.glb",
+			"sha256": "1853f5b12c364fa5a1ecd9b4f1fbf3998c06278729b5d2b94474aba92753e253",
+			"bytes": 9028,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-window-glass": {
+			"file": "models/ghost-town-window-glass.60bd4325.glb",
+			"sha256": "60bd4325431d3fb177026096927b2e1950c386bd3ba67a3b0846902054419906",
+			"bytes": 4556,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.33,
+					0.85,
+					-0.02
+				],
+				"max": [
+					0.33,
+					1.65,
+					0.02
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"ghost-town-window-sill": {
+			"file": "models/ghost-town-window-sill.eac41b85.glb",
+			"sha256": "eac41b858246acc8912eaa6431135c09a8a69192bbff810d35dd65f65251ab4d",
+			"bytes": 3376,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.85,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"leaded-glass": {
+			"file": "models/leaded-glass.c3a61836.glb",
+			"sha256": "c3a61836f331e03f492756ace7aeb5446c2be95984498ac9068f3280267f2531",
+			"bytes": 10276,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.332,
+					0.848,
+					-0.015
+				],
+				"max": [
+					0.332,
+					1.653,
+					0.015
+				]
+			},
+			"gpuBytes": 8672,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 154,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 46,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"living-cave-bridge-deck": {
+			"file": "models/living-cave-bridge-deck.a1c2d6bc.glb",
+			"sha256": "a1c2d6bc07448e2be8c242ef6b279c17fcbac6c02a7709a903fab907cde83255",
+			"bytes": 5628,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.3,
+					-0.5
+				],
+				"max": [
+					0.5,
+					0,
+					0.5
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-bridge-pier": {
+			"file": "models/living-cave-bridge-pier.db0e8ca4.glb",
+			"sha256": "db0e8ca4fbff62aa450c8c1a4a83906c510349d39b75ea0f6b11cf196b362294",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.4,
+					-2,
+					-0.4
+				],
+				"max": [
+					0.4,
+					-0.2,
+					0.4
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-cap": {
+			"file": "models/living-cave-cap.25785c72.glb",
+			"sha256": "25785c72c68357002a26bc2e5b333c8af64c1a4724e40d9d9daa548457fc4c79",
+			"bytes": 2244,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.88,
+					-0.1
+				],
+				"max": [
+					0.5,
+					2,
+					0.1
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-cliff-corner": {
+			"file": "models/living-cave-cliff-corner.c6d1fa32.glb",
+			"sha256": "c6d1fa32512ee9b7deb39728c3b9f094eeb65b2617a3459bdcff7fa2c6b17f7d",
+			"bytes": 3392,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.3,
+					-2,
+					-0.3
+				],
+				"max": [
+					0.362,
+					0,
+					0.362
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-cliff-face": {
+			"file": "models/living-cave-cliff-face.97fded58.glb",
+			"sha256": "97fded58aefacacb8e6cd4ca4a6b9da1ad86d5c11d5f722f817ed5438ed177f8",
+			"bytes": 12464,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.489,
+					-1.987,
+					-0.315
+				],
+				"max": [
+					0.49,
+					-0.011,
+					0.061
+				]
+			},
+			"gpuBytes": 10800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-door-frame": {
+			"file": "models/living-cave-door-frame.b17d637a.glb",
+			"sha256": "b17d637a452aaae3e42d624c6a21591bf9ec882323133c7295e4029906baaf0c",
+			"bytes": 5620,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-door-leaf": {
+			"file": "models/living-cave-door-leaf.ebeb9e9e.glb",
+			"sha256": "ebeb9e9e2a9aca1f6966bcadd4f5dfbcf6dd247d484644aa23e52a788e14640f",
+			"bytes": 15176,
+			"kind": "kit",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.395,
+					0,
+					-0.07
+				],
+				"max": [
+					0.395,
+					1.74,
+					0.07
+				]
+			},
+			"gpuBytes": 13380,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-plinth": {
+			"file": "models/living-cave-plinth.44cdf8e7.glb",
+			"sha256": "44cdf8e723bd4f9abda71f09c04a507677a12bc259fae683b8af1bfcf75db6dc",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.38,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-post-end": {
+			"file": "models/living-cave-post-end.ff1c9e89.glb",
+			"sha256": "ff1c9e893474c61ebeb727f6348c1fd4caed561f6f728a1670b946d69832370a",
+			"bytes": 4552,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-post-l": {
+			"file": "models/living-cave-post-l.1ab8ff54.glb",
+			"sha256": "1ab8ff546d683d9ecb3498934dc46f31df41bd319678262146d944e7d68d26f7",
+			"bytes": 3408,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-post-t": {
+			"file": "models/living-cave-post-t.7dde19b6.glb",
+			"sha256": "7dde19b6da90e608fe56fdf6f027d59f5ae9b5c17e48c4b8e88e3a1440c9dbdb",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-post-x": {
+			"file": "models/living-cave-post-x.71b52051.glb",
+			"sha256": "71b52051f93de782f93fbe80e639abc1777a92da3d8ff66adf588fcc8551a2f4",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-railing": {
+			"file": "models/living-cave-railing.4321ca00.glb",
+			"sha256": "4321ca001a83175210b2958f98f721888b574e69ba5f0333bf69a3dbc59cba97",
+			"bytes": 23264,
+			"kind": "kit",
+			"triangles": 664,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.09,
+					-0.06
+				],
+				"max": [
+					0.5,
+					1,
+					0.06
+				]
+			},
+			"gpuBytes": 21120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-stair-riser": {
+			"file": "models/living-cave-stair-riser.14ee5f29.glb",
+			"sha256": "14ee5f29de5454b03a473f0a170631ae67244bcc8ec2c94fe7aa6ca2a92544e8",
+			"bytes": 3400,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.39,
+					-0.23
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-stair-side": {
+			"file": "models/living-cave-stair-side.51265131.glb",
+			"sha256": "51265131fdfed3f44f3d93920172966147cc4f43ffce03af0fdf9725e0fd54ac",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.8,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-wall-boundary": {
+			"file": "models/living-cave-wall-boundary.70d628eb.glb",
+			"sha256": "70d628eb0b13a389dd0085bfad44b9b4095512b91030df91e4e6ffc89afff685",
+			"bytes": 17188,
+			"kind": "kit",
+			"triangles": 476,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.02
+				],
+				"max": [
+					0.5,
+					1.8,
+					0.18
+				]
+			},
+			"gpuBytes": 15300,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-wall-outer": {
+			"file": "models/living-cave-wall-outer.1046e19f.glb",
+			"sha256": "1046e19f5c43be5d64c235a4d0ef4e7dca839d710c40e88dba3aa60e336109e2",
+			"bytes": 4488,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.35
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-wall-retaining": {
+			"file": "models/living-cave-wall-retaining.71dad967.glb",
+			"sha256": "71dad9675bdbb48de339961d44a28bfdbc6fb8f65075d97d5cda90d797445127",
+			"bytes": 13524,
+			"kind": "kit",
+			"triangles": 484,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.27
+				],
+				"max": [
+					0.5,
+					0,
+					0.03
+				]
+			},
+			"gpuBytes": 11880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-wall-sinew": {
+			"file": "models/living-cave-wall-sinew.e7b1ad35.glb",
+			"sha256": "e7b1ad3514a94111f3312ffd6ff6242d8223bdbee30e58fbd46410de25428700",
+			"bytes": 17148,
+			"kind": "kit",
+			"triangles": 476,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.065
+				],
+				"max": [
+					0.5,
+					2,
+					0.065
+				]
+			},
+			"gpuBytes": 15300,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-wall-swollen": {
+			"file": "models/living-cave-wall-swollen.76f822c9.glb",
+			"sha256": "76f822c93b9adc2b7055c6040cd05ae27a12851b91ed106caa1ea24676472fa3",
+			"bytes": 27352,
+			"kind": "kit",
+			"triangles": 892,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 25072,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-window-frame": {
+			"file": "models/living-cave-window-frame.90e9a214.glb",
+			"sha256": "90e9a2149915533fab19beea0b7b42aafb8c534ac9d702753b8746532067c604",
+			"bytes": 9028,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-window-glass": {
+			"file": "models/living-cave-window-glass.9bb1845e.glb",
+			"sha256": "9bb1845e683b207933c41f8aa6bba8bf3ac122bbb2a35a20654c10e8e9f9a216",
+			"bytes": 4556,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.33,
+					0.85,
+					-0.02
+				],
+				"max": [
+					0.33,
+					1.65,
+					0.02
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"living-cave-window-sill": {
+			"file": "models/living-cave-window-sill.fc898170.glb",
+			"sha256": "fc8981709f9584bad3b48a07451d637013883cba6dbb1a22f2c0042c1bb41c36",
+			"bytes": 3376,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.85,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"oak-door": {
+			"file": "models/oak-door.cd55470c.glb",
+			"sha256": "cd55470caaec786468b8c115445a859015e0e2e38c3ef247d1128fcc41a0eea3",
+			"bytes": 13200,
+			"kind": "kit",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.395,
+					0,
+					-0.066
+				],
+				"max": [
+					0.395,
+					1.74,
+					0.068
+				]
+			},
+			"gpuBytes": 13895,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 248,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 74,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"railcar-bridge-deck": {
+			"file": "models/railcar-bridge-deck.b068d975.glb",
+			"sha256": "b068d9757b8a9f31ca75c17f0e5adde5db37f5bd3c87f1b29555cf6d1a199ff5",
+			"bytes": 9016,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.29,
+					-0.5
+				],
+				"max": [
+					0.5,
+					0,
+					0.5
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-bridge-pier": {
+			"file": "models/railcar-bridge-pier.477256b8.glb",
+			"sha256": "477256b8ca176f14d00c57c7432bc7b3622c3038e90e652bf3922587fd95c1e4",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.4,
+					-2,
+					-0.4
+				],
+				"max": [
+					0.4,
+					-0.2,
+					0.4
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-cap": {
+			"file": "models/railcar-cap.9af8695a.glb",
+			"sha256": "9af8695a56567f1178d2502e73e4f4eeaa67707821450b96712ca4f1451b4004",
+			"bytes": 2244,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.88,
+					-0.1
+				],
+				"max": [
+					0.5,
+					2,
+					0.1
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-cliff-corner": {
+			"file": "models/railcar-cliff-corner.c6b2074c.glb",
+			"sha256": "c6b2074cd1870f337b89487dec1b77c907c77d704344e74001a247c061f93da3",
+			"bytes": 3392,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.3,
+					-2,
+					-0.3
+				],
+				"max": [
+					0.362,
+					0,
+					0.362
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-cliff-face": {
+			"file": "models/railcar-cliff-face.627e38fd.glb",
+			"sha256": "627e38fd3cf411c3b3b79ef4d3191eb58f2c1cb9514859177d3a5deb0c3c302f",
+			"bytes": 12460,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.49,
+					-1.99,
+					-0.301
+				],
+				"max": [
+					0.49,
+					-0.011,
+					0.06
+				]
+			},
+			"gpuBytes": 10800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-door-frame": {
+			"file": "models/railcar-door-frame.3b66658f.glb",
+			"sha256": "3b66658f760901f9c8faefaa7f1db03bc8e4ac179a985f2ce399067c4b022044",
+			"bytes": 5620,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-door-leaf": {
+			"file": "models/railcar-door-leaf.89ab001e.glb",
+			"sha256": "89ab001e028302afb483ab81c00ad1d193cc50b7b1975fabdf95b33b67020aa6",
+			"bytes": 15176,
+			"kind": "kit",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.395,
+					0,
+					-0.07
+				],
+				"max": [
+					0.395,
+					1.74,
+					0.07
+				]
+			},
+			"gpuBytes": 13380,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-grating-a": {
+			"file": "models/railcar-grating-a.e923b115.glb",
+			"sha256": "e923b1152655616f087d7bcbb0c1dea26565c572bd72b4a995803e4afd2a2a90",
+			"bytes": 12468,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.33,
+					-0.485
+				],
+				"max": [
+					0.485,
+					0,
+					0.485
+				]
+			},
+			"gpuBytes": 10800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-planks-a": {
+			"file": "models/railcar-planks-a.27197def.glb",
+			"sha256": "27197defcaa469150adb49107188012cf83038dc297942e0a6f9395da5d81595",
+			"bytes": 5692,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-planks-b": {
+			"file": "models/railcar-planks-b.bc6d4132.glb",
+			"sha256": "bc6d4132bf63071187a9e3c4d1fff0cb5eeaa00a4d1ab4f309c284416753b879",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.076,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-planks-broken": {
+			"file": "models/railcar-planks-broken.21346333.glb",
+			"sha256": "2134633361bf1d72f7f277e11672225cc65197761dadc4ca86c7b97eadcb993b",
+			"bytes": 6820,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.15,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.004,
+					0.486
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-planks-c": {
+			"file": "models/railcar-planks-c.c680cdd7.glb",
+			"sha256": "c680cdd7d61cf1afdec04dfee238366e324a92582d79a6456727030c6888767a",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.486,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-plinth": {
+			"file": "models/railcar-plinth.6dacf8fc.glb",
+			"sha256": "6dacf8fca71d968d27424daad7347c9aeb852fbd47141a2f37daec467aa78769",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.38,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-post-end": {
+			"file": "models/railcar-post-end.b7513221.glb",
+			"sha256": "b751322192ec8d905306cda8fcddec6c3a8df1cd4bb535956a4bc15abb44049d",
+			"bytes": 4552,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-post-l": {
+			"file": "models/railcar-post-l.2f840dcf.glb",
+			"sha256": "2f840dcff0d690e34c9b9fdbba31534f895622efa67394637bbf4bec9a6be2c7",
+			"bytes": 3408,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-post-t": {
+			"file": "models/railcar-post-t.dd15779a.glb",
+			"sha256": "dd15779a9a9a39c2283374a61f869caef18a5a3c60b806f3814ef2d1ae5a62d4",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-post-x": {
+			"file": "models/railcar-post-x.d6389c10.glb",
+			"sha256": "d6389c1027dee475fb951aa6ef0c76287a60e5a1a629dae6332d8522c92e88c2",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-railing": {
+			"file": "models/railcar-railing.a70d0771.glb",
+			"sha256": "a70d07714f3fcd53cc81ebeea4ce25cc52d41407cd8be6ac2900db316da6995c",
+			"bytes": 23264,
+			"kind": "kit",
+			"triangles": 664,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.09,
+					-0.06
+				],
+				"max": [
+					0.5,
+					1,
+					0.06
+				]
+			},
+			"gpuBytes": 21120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-roof-chimney": {
+			"file": "models/railcar-roof-chimney.5537c830.glb",
+			"sha256": "5537c8306d2fd7d7ecd56fa2f8c374bd824288bf0d83a101ae1a16c2108547b2",
+			"bytes": 3424,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					0.02,
+					1.8,
+					-0.18
+				],
+				"max": [
+					0.38,
+					3.48,
+					0.18
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-roof-corner": {
+			"file": "models/railcar-roof-corner.e8b63f94.glb",
+			"sha256": "e8b63f94c470c6b89c762ccfe0328df71464aa23e35fd55fef6f9062ad9539a3",
+			"bytes": 6784,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.888,
+					-0.5
+				],
+				"max": [
+					0.62,
+					2.268,
+					0.62
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-roof-dormer": {
+			"file": "models/railcar-roof-dormer.9db58fab.glb",
+			"sha256": "9db58fab81e03ef00cb4271f236c798f64dfc307bf96e1ae68a68934c0179104",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.42,
+					2.05,
+					-0.075
+				],
+				"max": [
+					0.42,
+					2.857,
+					0.475
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-roof-eave": {
+			"file": "models/railcar-roof-eave.23de0112.glb",
+			"sha256": "23de01123995fc5063a831f36fcf0f59d7ff20eeaae18262763148766729cafb",
+			"bytes": 2256,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.889,
+					-0.509
+				],
+				"max": [
+					0.5,
+					2.263,
+					0.629
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-roof-hip": {
+			"file": "models/railcar-roof-hip.8d3232af.glb",
+			"sha256": "8d3232af35511decca9fe10122b81f82a2d0031ee3b107e912486bcc715ae27f",
+			"bytes": 7944,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.62,
+					1.888,
+					-0.62
+				],
+				"max": [
+					0.62,
+					2.204,
+					0.62
+				]
+			},
+			"gpuBytes": 6480,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-roof-ridge": {
+			"file": "models/railcar-roof-ridge.04d886c4.glb",
+			"sha256": "04d886c4362418e8c19e703b1c977d1b52ac0d9e232dd98a29a6933339666dac",
+			"bytes": 4516,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.89,
+					-0.629
+				],
+				"max": [
+					0.5,
+					2.204,
+					0.629
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-stair-riser": {
+			"file": "models/railcar-stair-riser.f0ca09b0.glb",
+			"sha256": "f0ca09b000ab75242c7551b7d26845c9f555b92940c856c899bf5e34dc0e710f",
+			"bytes": 3400,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.39,
+					-0.23
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-stair-side": {
+			"file": "models/railcar-stair-side.42e3b1f2.glb",
+			"sha256": "42e3b1f23d28dbca73ef2001f5fdf7dbdb3aa54543101b46583b04b8cb78216a",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.8,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-wall-boarded": {
+			"file": "models/railcar-wall-boarded.d135361d.glb",
+			"sha256": "d135361d043fe0d6abf6a59a6c358f292af648215c2b8c7da7883280c4d02754",
+			"bytes": 9008,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-wall-boundary": {
+			"file": "models/railcar-wall-boundary.2db0c922.glb",
+			"sha256": "2db0c9223c9a80f130184ce7005bc6509c8a2b81196ab27eb1cc88d260063bf4",
+			"bytes": 6788,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					0
+				],
+				"max": [
+					0.5,
+					1.1,
+					0.06
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-wall-outer": {
+			"file": "models/railcar-wall-outer.db1c7f5e.glb",
+			"sha256": "db1c7f5e28545c2e483036d5ce8a752e67b5e946770b897840b9a8025dbbedc5",
+			"bytes": 4488,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.35
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-wall-panelled": {
+			"file": "models/railcar-wall-panelled.f7aa701c.glb",
+			"sha256": "f7aa701c4934a993f6320188500e6f9ca276082c90ebb990a6fa1aa722860ba5",
+			"bytes": 9008,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-wall-retaining": {
+			"file": "models/railcar-wall-retaining.f42c05ca.glb",
+			"sha256": "f42c05ca925c320e645ca53fcc2a280eda6e9fab3927c498424624662ba5323f",
+			"bytes": 13524,
+			"kind": "kit",
+			"triangles": 484,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.27
+				],
+				"max": [
+					0.5,
+					0,
+					0.03
+				]
+			},
+			"gpuBytes": 11880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-window-frame": {
+			"file": "models/railcar-window-frame.c36053b4.glb",
+			"sha256": "c36053b48bef7603d295e11d512463ef751a154f76d4c6d317ae3c7c8a63fe61",
+			"bytes": 9028,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-window-glass": {
+			"file": "models/railcar-window-glass.378084a8.glb",
+			"sha256": "378084a830804e257a2da2cd86b9da16731c9949ba1d9533bd0bd2762a23c4a9",
+			"bytes": 4556,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.33,
+					0.85,
+					-0.02
+				],
+				"max": [
+					0.33,
+					1.65,
+					0.02
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"railcar-window-sill": {
+			"file": "models/railcar-window-sill.c3ec4e17.glb",
+			"sha256": "c3ec4e17c8484c1cbdd46b621f8529b30b9b0d4f36161272b4e2f61f3dce49e5",
+			"bytes": 3376,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.85,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"rubble-corner": {
+			"file": "models/rubble-corner.c93af0d8.glb",
+			"sha256": "c93af0d84fb57211669b4e6b61388e6d721966cc5130bf3f5b68eee015cb6ed9",
+			"bytes": 4080,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.319,
+					-2,
+					-0.32
+				],
+				"max": [
+					0.352,
+					0,
+					0.352
+				]
+			},
+			"gpuBytes": 2880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"rubble-face": {
+			"file": "models/rubble-face.87791e87.glb",
+			"sha256": "87791e8742cb42a0afeccc6852edf06d1ce8c59f3729659a8ce073d7e2b2a514",
+			"bytes": 17008,
+			"kind": "kit",
+			"triangles": 660,
+			"bounds": {
+				"min": [
+					-0.5,
+					-1.995,
+					-0.33
+				],
+				"max": [
+					0.5,
+					-0.005,
+					0.061
+				]
+			},
+			"gpuBytes": 18574,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 330,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 98,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"stone-balustrade": {
+			"file": "models/stone-balustrade.bafdeb20.glb",
+			"sha256": "bafdeb20f778f285c6ec310974c1a7797b12bf003055ec0dc9c0e15143eeec3d",
+			"bytes": 13264,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.065
+				],
+				"max": [
+					0.5,
+					1,
+					0.065
+				]
+			},
+			"gpuBytes": 12393,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"lods": [
+				{
+					"triangles": 220,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 66,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"stone-halls-arch": {
+			"file": "models/stone-halls-arch.3cd0578a.glb",
+			"sha256": "3cd0578a6bc7c61c29aa45ba28eaae9ddb67ad99ff95f2b0bd473d3c0f914892",
+			"bytes": 7880,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.065
+				],
+				"max": [
+					0.5,
+					2,
+					0.065
+				]
+			},
+			"gpuBytes": 6480,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-battlement": {
+			"file": "models/stone-halls-battlement.1bd6b87c.glb",
+			"sha256": "1bd6b87cfc48a6bbf9e482a87e9d3bd4a1bf1b0df782e410aa3bff059e32a9f6",
+			"bytes": 9024,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.45,
+					-0.02
+				],
+				"max": [
+					0.5,
+					2,
+					0.28
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-bridge-deck": {
+			"file": "models/stone-halls-bridge-deck.00b9e555.glb",
+			"sha256": "00b9e5557afa285d484f95c4fc125a0707983f6226ef62ea6cf687e0098dea33",
+			"bytes": 4496,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.3,
+					-0.5
+				],
+				"max": [
+					0.5,
+					0,
+					0.5
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-bridge-pier": {
+			"file": "models/stone-halls-bridge-pier.1828f9f7.glb",
+			"sha256": "1828f9f726e3e4230f05b1d133b1bc633b719497c1707438b79f3077e39ce9cf",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.4,
+					-2,
+					-0.4
+				],
+				"max": [
+					0.4,
+					-0.2,
+					0.4
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-buttress": {
+			"file": "models/stone-halls-buttress.c5f6a548.glb",
+			"sha256": "c5f6a5483df96bf7e38bf6be8d90c9c0fcf8c6a88b1844c714987933ef94f3c1",
+			"bytes": 4556,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.1,
+					0,
+					-0.1
+				],
+				"max": [
+					0.1,
+					1.9,
+					0.3
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-cap": {
+			"file": "models/stone-halls-cap.474d1f00.glb",
+			"sha256": "474d1f003cf6de6ac5fe6a206570d8b9b30757f20af540d72f88338ce800a209",
+			"bytes": 2244,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.88,
+					-0.1
+				],
+				"max": [
+					0.5,
+					2,
+					0.1
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-cliff-corner": {
+			"file": "models/stone-halls-cliff-corner.82244171.glb",
+			"sha256": "822441717f9636f8e88ad4f380d117034978c3e4c1b92f575e8c589bb498b6c1",
+			"bytes": 3392,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.3,
+					-2,
+					-0.3
+				],
+				"max": [
+					0.362,
+					0,
+					0.362
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-cliff-face": {
+			"file": "models/stone-halls-cliff-face.fd1da857.glb",
+			"sha256": "fd1da857b05c66aeec568e736ab22c986047cfffa5e41fd76bd2b9ac8bef1ec1",
+			"bytes": 12464,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.489,
+					-1.987,
+					-0.315
+				],
+				"max": [
+					0.49,
+					-0.011,
+					0.061
+				]
+			},
+			"gpuBytes": 10800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-crenels": {
+			"file": "models/stone-halls-crenels.f235e022.glb",
+			"sha256": "f235e022d88741f8acd5f793c4a42d2f381eff63c43413817d0cc3b5b746b7e4",
+			"bytes": 3404,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.43,
+					1.66,
+					-0.07
+				],
+				"max": [
+					0.43,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-door-frame": {
+			"file": "models/stone-halls-door-frame.eba9833c.glb",
+			"sha256": "eba9833cb66627d57559ec03bc5d02590eb6b1a1a866b94dbd6ad65df4639331",
+			"bytes": 5620,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-door-leaf": {
+			"file": "models/stone-halls-door-leaf.ad34d4c2.glb",
+			"sha256": "ad34d4c2ca80a65f18045d556ce91fb4574336d45417afe4db218421402f9d05",
+			"bytes": 15176,
+			"kind": "kit",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.395,
+					0,
+					-0.07
+				],
+				"max": [
+					0.395,
+					1.74,
+					0.07
+				]
+			},
+			"gpuBytes": 13380,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-flag-a": {
+			"file": "models/stone-halls-flag-a.c3685830.glb",
+			"sha256": "c3685830fe5588751ad77c17879933c5a3dbde8f9db5a43f44547c741121757e",
+			"bytes": 5692,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.107,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-flag-b": {
+			"file": "models/stone-halls-flag-b.ec20021f.glb",
+			"sha256": "ec20021fa0409860a7628dc75ac7fe6a80ff7fe9f1b65633dcf7121265cc58dd",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-flag-broken": {
+			"file": "models/stone-halls-flag-broken.6e900c19.glb",
+			"sha256": "6e900c198608191ed8cb3b103c0e49ef9ac2418a16b965f497f5f11331c859f8",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.194,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.486
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-flag-c": {
+			"file": "models/stone-halls-flag-c.bbf9a24e.glb",
+			"sha256": "bbf9a24e6c9ad19e3f6a57b04af3f72fbaa9238271f05db7a7a69f05ddaf8bd6",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					0,
+					0.485
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-pinnacle": {
+			"file": "models/stone-halls-pinnacle.49c594cd.glb",
+			"sha256": "49c594cd2422351ce8e5043136c87c402254f49477f03f033ec6e33803304e45",
+			"bytes": 5456,
+			"kind": "kit",
+			"triangles": 116,
+			"bounds": {
+				"min": [
+					-0.15,
+					1.5,
+					-0.15
+				],
+				"max": [
+					0.15,
+					2.15,
+					0.15
+				]
+			},
+			"gpuBytes": 4096,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-planks-a": {
+			"file": "models/stone-halls-planks-a.5b9c6424.glb",
+			"sha256": "5b9c642495c1bd79248a5c5df30fbd292b5b2b5375ee705463c7592f026320c4",
+			"bytes": 5692,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-planks-b": {
+			"file": "models/stone-halls-planks-b.4df7dcb6.glb",
+			"sha256": "4df7dcb64db4368c914e732f765f109d81f057fde28f852e2dd94c34d34ae25e",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.076,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-planks-broken": {
+			"file": "models/stone-halls-planks-broken.73953ede.glb",
+			"sha256": "73953ede497d1632d2788191224d41bfe6d2e84fbe2e4ba97057446e4574c004",
+			"bytes": 6820,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.15,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.004,
+					0.486
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-planks-c": {
+			"file": "models/stone-halls-planks-c.308f033b.glb",
+			"sha256": "308f033bbb0551355b1b04c9337be46f0a7aaf32eb03693bd116a497cca5d26c",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.486,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-plinth": {
+			"file": "models/stone-halls-plinth.6ecd3fe0.glb",
+			"sha256": "6ecd3fe0d35332a90dccbcbb93b168f2f9240b6697dbf67bcdfb4dc5a3085708",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.38,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-post-end": {
+			"file": "models/stone-halls-post-end.f1a04d5e.glb",
+			"sha256": "f1a04d5ef98edea717e263f94d2e89631b265f60bc9590d6a23b0872e3eb4a19",
+			"bytes": 6600,
+			"kind": "kit",
+			"triangles": 160,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.15,
+					0.19
+				]
+			},
+			"gpuBytes": 5176,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-post-l": {
+			"file": "models/stone-halls-post-l.ef5bba66.glb",
+			"sha256": "ef5bba6698acae7dfc78c2ec711237958f50e5d6ea3aae85668755ceb411633c",
+			"bytes": 3408,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-post-t": {
+			"file": "models/stone-halls-post-t.60b774af.glb",
+			"sha256": "60b774af515ed3ca73a124798b96014426cb46341984e792437d45e7442e87f6",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-post-x": {
+			"file": "models/stone-halls-post-x.f7535a01.glb",
+			"sha256": "f7535a0174104c87ff63dd5f69ea7da57fc2d85db318f7a7f11ba831b1d5ea97",
+			"bytes": 7732,
+			"kind": "kit",
+			"triangles": 204,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.15,
+					0.19
+				]
+			},
+			"gpuBytes": 6256,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-railing": {
+			"file": "models/stone-halls-railing.cbd23209.glb",
+			"sha256": "cbd2320991fb3df817838e1df667a25592050ac9ab9c4d0ada30feb515d9cb8c",
+			"bytes": 23264,
+			"kind": "kit",
+			"triangles": 664,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.09,
+					-0.06
+				],
+				"max": [
+					0.5,
+					1,
+					0.06
+				]
+			},
+			"gpuBytes": 21120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-roof-chimney": {
+			"file": "models/stone-halls-roof-chimney.420b0dd2.glb",
+			"sha256": "420b0dd232b643dc16b10da28afb1996533476c446a28e0aa97e84525da9b4e7",
+			"bytes": 3424,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					0.02,
+					1.8,
+					-0.18
+				],
+				"max": [
+					0.38,
+					3.48,
+					0.18
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-roof-corner": {
+			"file": "models/stone-halls-roof-corner.3011038e.glb",
+			"sha256": "3011038e925275d0a525d05ce8c1ff9736c8373aa7d4aeeee9803c8be719ccf8",
+			"bytes": 6784,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.753,
+					-0.5
+				],
+				"max": [
+					0.7,
+					2.839,
+					0.7
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-roof-dormer": {
+			"file": "models/stone-halls-roof-dormer.713b347a.glb",
+			"sha256": "713b347a941883281d221960f2d007a6f3f73f735d090b20898aeab4bb23fa62",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.42,
+					2.05,
+					-0.075
+				],
+				"max": [
+					0.42,
+					2.857,
+					0.475
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-roof-eave": {
+			"file": "models/stone-halls-roof-eave.2f689a6a.glb",
+			"sha256": "2f689a6a411805890b62b6b5955192e3439055c06808477155137aaaa5bf0470",
+			"bytes": 2260,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.753,
+					-0.521
+				],
+				"max": [
+					0.5,
+					2.813,
+					0.721
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-roof-hip": {
+			"file": "models/stone-halls-roof-hip.0671541e.glb",
+			"sha256": "0671541e240e48cb8635b1b00f212fb9944c4e86d7a5942ddb7a63c878c764c6",
+			"bytes": 7936,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.7,
+					1.753,
+					-0.7
+				],
+				"max": [
+					0.7,
+					2.49,
+					0.7
+				]
+			},
+			"gpuBytes": 6480,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-roof-ridge": {
+			"file": "models/stone-halls-roof-ridge.9655290d.glb",
+			"sha256": "9655290d90a192b08fe8dfda882050bd35dd000633cb5c67f69b4d65c6aa8c63",
+			"bytes": 4520,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.753,
+					-0.722
+				],
+				"max": [
+					0.5,
+					2.49,
+					0.722
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-stair-riser": {
+			"file": "models/stone-halls-stair-riser.73dc732c.glb",
+			"sha256": "73dc732c3e1a02403fa7c316fc03d015edf121f795966d7c87c779f1bb147cb0",
+			"bytes": 3400,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.39,
+					-0.23
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-stair-side": {
+			"file": "models/stone-halls-stair-side.0266432d.glb",
+			"sha256": "0266432d9b5e7dda3735614158a4a50baaa4271388b3033d429f5cdc73a7629c",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.8,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-tile-a": {
+			"file": "models/stone-halls-tile-a.114f8e36.glb",
+			"sha256": "114f8e36b3ef18a236e0742868ac782c1b6dcd3317a1cde361da7f54e7940bd0",
+			"bytes": 5692,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.107,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-tile-b": {
+			"file": "models/stone-halls-tile-b.9da65e24.glb",
+			"sha256": "9da65e246ed62079825ae7e60bda3be862c72c623cd461da97b434e35e50b8fc",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-tile-broken": {
+			"file": "models/stone-halls-tile-broken.bd5d550a.glb",
+			"sha256": "bd5d550a703c4f9a8d3e7f7406e1dd08e2a6976479f5ffeb9dba3d8b10455f5b",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.194,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.001,
+					0.486
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-tile-c": {
+			"file": "models/stone-halls-tile-c.561001d9.glb",
+			"sha256": "561001d94f473a5024eb9bbe74c6bf385a20ca4499d911a067d704ac4cfd635d",
+			"bytes": 4560,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.105,
+					-0.485
+				],
+				"max": [
+					0.485,
+					0,
+					0.485
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-tower-corner": {
+			"file": "models/stone-halls-tower-corner.be4e0650.glb",
+			"sha256": "be4e06509b680077a88fb3e0c4cd1fe289020ca868893d082b34490daa50d1ef",
+			"bytes": 16088,
+			"kind": "kit",
+			"triangles": 432,
+			"bounds": {
+				"min": [
+					0.007,
+					0,
+					0
+				],
+				"max": [
+					0.933,
+					2.14,
+					0.94
+				]
+			},
+			"gpuBytes": 14220,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-wall-ashlar-a": {
+			"file": "models/stone-halls-wall-ashlar-a.fed3a764.glb",
+			"sha256": "fed3a764c3af851095f67ea97f261107ae7037245e47d5347c323c99d50992d8",
+			"bytes": 15780,
+			"kind": "kit",
+			"triangles": 572,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.069
+				],
+				"max": [
+					0.5,
+					2,
+					0.069
+				]
+			},
+			"gpuBytes": 14040,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-wall-ashlar-b": {
+			"file": "models/stone-halls-wall-ashlar-b.7b5bca42.glb",
+			"sha256": "7b5bca42908537c73f519bddd63a0c75f58e7570df3e114689b081ebc9aefcaa",
+			"bytes": 16908,
+			"kind": "kit",
+			"triangles": 616,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 15120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-wall-boundary": {
+			"file": "models/stone-halls-wall-boundary.ccffea14.glb",
+			"sha256": "ccffea144864c6b2cd1c1ffe9f6f2dfc1145cb642f5c7eec14afb5ad74df7038",
+			"bytes": 5620,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.31
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-wall-outer": {
+			"file": "models/stone-halls-wall-outer.1f3f7751.glb",
+			"sha256": "1f3f77514b649d52f7f0a66f47e6e8b7e81957fd0154afd61873c80e063f3bd6",
+			"bytes": 4488,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.35
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-wall-retaining": {
+			"file": "models/stone-halls-wall-retaining.d0696d1e.glb",
+			"sha256": "d0696d1ef0b4d3212d7856404f5cbc17e806e63a4a1b6771548389fe62c5a576",
+			"bytes": 13524,
+			"kind": "kit",
+			"triangles": 484,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.27
+				],
+				"max": [
+					0.5,
+					0,
+					0.03
+				]
+			},
+			"gpuBytes": 11880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-window-frame": {
+			"file": "models/stone-halls-window-frame.765029a6.glb",
+			"sha256": "765029a6f283fb7593238b66b65d46a76e0532887c6d982fee889e50861aeb34",
+			"bytes": 12416,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 10800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-window-glass": {
+			"file": "models/stone-halls-window-glass.f8b75252.glb",
+			"sha256": "f8b75252172d9cb41db34e69309d8c9634d7be2290a755fc4e9d36452fd2c25e",
+			"bytes": 4556,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.33,
+					0.85,
+					-0.02
+				],
+				"max": [
+					0.33,
+					1.65,
+					0.02
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-halls-window-sill": {
+			"file": "models/stone-halls-window-sill.cc8a6252.glb",
+			"sha256": "cc8a6252476dc21571d0f77d62fceeda385e5b396f0574351bd1ab6cc7dca08d",
+			"bytes": 3376,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.85,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"stone-pinnacle": {
+			"file": "models/stone-pinnacle.25a4e745.glb",
+			"sha256": "25a4e745803285f04b212ac4b6b19feb07273843b7ad39d570feca814ea813c9",
+			"bytes": 4424,
+			"kind": "kit",
+			"triangles": 160,
+			"bounds": {
+				"min": [
+					-0.16,
+					1.5,
+					-0.16
+				],
+				"max": [
+					0.16,
+					2.15,
+					0.16
+				]
+			},
+			"gpuBytes": 2955,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"cooked": true,
+			"materials": [
+				"ashlar-trim"
+			],
+			"pack": "core"
+		},
+		"village-bridge-deck": {
+			"file": "models/village-bridge-deck.94b6d366.glb",
+			"sha256": "94b6d366dfe2072e5ee078ce7885097e0b9e4b5fdd92b9a6c8521798bd96498f",
+			"bytes": 9016,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.29,
+					-0.5
+				],
+				"max": [
+					0.5,
+					0,
+					0.5
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-bridge-pier": {
+			"file": "models/village-bridge-pier.527b69a8.glb",
+			"sha256": "527b69a8f6b17eb54678ffe18aee9d5db487cc1e903921d3699992f780250b23",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.4,
+					-2,
+					-0.4
+				],
+				"max": [
+					0.4,
+					-0.2,
+					0.4
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-cap": {
+			"file": "models/village-cap.92205017.glb",
+			"sha256": "922050179a14a5975e18cdf76ef8e5cacab614d253640abbc03a3552790f21f2",
+			"bytes": 2244,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.88,
+					-0.1
+				],
+				"max": [
+					0.5,
+					2,
+					0.1
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-cliff-corner": {
+			"file": "models/village-cliff-corner.ab9623de.glb",
+			"sha256": "ab9623de90214da3c0c887e0860d170dc59df26cdec79d69d624d79fdb3154dd",
+			"bytes": 3392,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.3,
+					-2,
+					-0.3
+				],
+				"max": [
+					0.362,
+					0,
+					0.362
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-cliff-face": {
+			"file": "models/village-cliff-face.81e83db3.glb",
+			"sha256": "81e83db3ee732e33d25a1014eab025c121bc7969c1dd5e8ef44e085d384b0eb9",
+			"bytes": 12460,
+			"kind": "kit",
+			"triangles": 440,
+			"bounds": {
+				"min": [
+					-0.49,
+					-1.99,
+					-0.301
+				],
+				"max": [
+					0.49,
+					-0.011,
+					0.06
+				]
+			},
+			"gpuBytes": 10800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-cobble-a": {
+			"file": "models/village-cobble-a.fd53e2de.glb",
+			"sha256": "fd53e2de83a0b2715f14b2a2fad90947c505cc33f73b21d06fa33a7df9a7a443",
+			"bytes": 11332,
+			"kind": "kit",
+			"triangles": 396,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.126,
+					-0.484
+				],
+				"max": [
+					0.486,
+					-0.001,
+					0.484
+				]
+			},
+			"gpuBytes": 9720,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-cobble-b": {
+			"file": "models/village-cobble-b.69c91a93.glb",
+			"sha256": "69c91a933c9a9e2b3902daa3bc01070c1d62f70165966f92939f7947ec483c65",
+			"bytes": 11332,
+			"kind": "kit",
+			"triangles": 396,
+			"bounds": {
+				"min": [
+					-0.486,
+					-0.126,
+					-0.484
+				],
+				"max": [
+					0.485,
+					0,
+					0.484
+				]
+			},
+			"gpuBytes": 9720,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-cobble-broken": {
+			"file": "models/village-cobble-broken.f65de4c8.glb",
+			"sha256": "f65de4c8dff91a4eddbd92606a19fcf924193235cb6a1e4f52365bc9dc4bb0be",
+			"bytes": 10208,
+			"kind": "kit",
+			"triangles": 352,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.205,
+					-0.486
+				],
+				"max": [
+					0.486,
+					-0.001,
+					0.487
+				]
+			},
+			"gpuBytes": 8640,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-cobble-c": {
+			"file": "models/village-cobble-c.cca62416.glb",
+			"sha256": "cca62416b5343078f12a6e550ed6648aee679f4623b5de048fccd40ecf660f1b",
+			"bytes": 11332,
+			"kind": "kit",
+			"triangles": 396,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.127,
+					-0.484
+				],
+				"max": [
+					0.486,
+					-0.002,
+					0.484
+				]
+			},
+			"gpuBytes": 9720,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-door-frame": {
+			"file": "models/village-door-frame.bd09a944.glb",
+			"sha256": "bd09a944a5398bf95b092bfee7e806b398455a90c2bd5e26666ca5cdaecb4cf7",
+			"bytes": 5620,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-door-leaf": {
+			"file": "models/village-door-leaf.5c5209fc.glb",
+			"sha256": "5c5209fcf950c53e673d5e761bd398b60fbbd0b91f77fa11f66c31a22f56c62d",
+			"bytes": 15176,
+			"kind": "kit",
+			"triangles": 496,
+			"bounds": {
+				"min": [
+					-0.395,
+					0,
+					-0.07
+				],
+				"max": [
+					0.395,
+					1.74,
+					0.07
+				]
+			},
+			"gpuBytes": 13380,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-planks-a": {
+			"file": "models/village-planks-a.68043c31.glb",
+			"sha256": "68043c3189ead178d7247721ec061977765bc250d9e7303e6a217e585170a1b7",
+			"bytes": 5692,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-planks-b": {
+			"file": "models/village-planks-b.dd6bd0d4.glb",
+			"sha256": "dd6bd0d4792086cdd835b557c5802ad117d754a6d6f530463528948c1a3f3a81",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.076,
+					-0.485
+				],
+				"max": [
+					0.485,
+					-0.002,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-planks-broken": {
+			"file": "models/village-planks-broken.0592018b.glb",
+			"sha256": "0592018bae319e8bedd3b38559353184c73a3539b5677810a2d72895644344a0",
+			"bytes": 6820,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.15,
+					-0.486
+				],
+				"max": [
+					0.485,
+					-0.004,
+					0.486
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-planks-c": {
+			"file": "models/village-planks-c.34b109ed.glb",
+			"sha256": "34b109ed7091c4bd101c6651d3a7027edd260e187429611c08b0a54ce6e1ee48",
+			"bytes": 6824,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.485,
+					-0.077,
+					-0.485
+				],
+				"max": [
+					0.486,
+					-0.001,
+					0.485
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-plinth": {
+			"file": "models/village-plinth.3e5cc5ed.glb",
+			"sha256": "3e5cc5ed705f7d70045341565c33e7aff319a5f2b1dd4b6c3ffdeac082beb61b",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.38,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-post-end": {
+			"file": "models/village-post-end.3fe5d22d.glb",
+			"sha256": "3fe5d22d9562dde9c7f88382c91264af09f65cdbdc8adac9b23816328dc08a4b",
+			"bytes": 4552,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-post-l": {
+			"file": "models/village-post-l.d442811a.glb",
+			"sha256": "d442811a5dbb1454951f8715499c2eddf49a58fbce72ea3786f4d8be4d29ad07",
+			"bytes": 3408,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-post-t": {
+			"file": "models/village-post-t.024eca74.glb",
+			"sha256": "024eca74ce2d6df337a5fae7f9b817740354f9ed01286871519b8fd0fc34452a",
+			"bytes": 4536,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2,
+					0.19
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-post-x": {
+			"file": "models/village-post-x.1eef9088.glb",
+			"sha256": "1eef9088a8905f8126254ede84065a4437338a3ef34df9188bff5c049b0ad084",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.19,
+					0,
+					-0.19
+				],
+				"max": [
+					0.19,
+					2.08,
+					0.19
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-railing": {
+			"file": "models/village-railing.a70d0771.glb",
+			"sha256": "a70d07714f3fcd53cc81ebeea4ce25cc52d41407cd8be6ac2900db316da6995c",
+			"bytes": 23264,
+			"kind": "kit",
+			"triangles": 664,
+			"bounds": {
+				"min": [
+					-0.5,
+					0.09,
+					-0.06
+				],
+				"max": [
+					0.5,
+					1,
+					0.06
+				]
+			},
+			"gpuBytes": 21120,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-roof-chimney": {
+			"file": "models/village-roof-chimney.5da2af5d.glb",
+			"sha256": "5da2af5d5619294e84151146141aa58d1b00a4272b437cfd582de01ff84b1021",
+			"bytes": 3424,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					0.02,
+					1.8,
+					-0.18
+				],
+				"max": [
+					0.38,
+					3.48,
+					0.18
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-roof-corner": {
+			"file": "models/village-roof-corner.f7b9c152.glb",
+			"sha256": "f7b9c152bf5ea1e07bf41dc57a7120b9b1647929283e1209106fade40afdca21",
+			"bytes": 6740,
+			"kind": "kit",
+			"triangles": 220,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.67,
+					-0.5
+				],
+				"max": [
+					0.75,
+					3,
+					0.75
+				]
+			},
+			"gpuBytes": 5400,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-roof-dormer": {
+			"file": "models/village-roof-dormer.01d0bf04.glb",
+			"sha256": "01d0bf041442dff6bc1de8fa0caeebf294fe3402b4deaa2f45f44c9d76070db2",
+			"bytes": 5684,
+			"kind": "kit",
+			"triangles": 176,
+			"bounds": {
+				"min": [
+					-0.42,
+					2.05,
+					-0.075
+				],
+				"max": [
+					0.42,
+					2.857,
+					0.475
+				]
+			},
+			"gpuBytes": 4320,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-roof-eave": {
+			"file": "models/village-roof-eave.f7e9c6b7.glb",
+			"sha256": "f7e9c6b7cf37ce63d66a97e6a54652ff9ce236c3ca2258b45c100778f9cb71e7",
+			"bytes": 2260,
+			"kind": "kit",
+			"triangles": 44,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.669,
+					-0.524
+				],
+				"max": [
+					0.5,
+					2.967,
+					0.774
+				]
+			},
+			"gpuBytes": 1080,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-roof-hip": {
+			"file": "models/village-roof-hip.66bd268c.glb",
+			"sha256": "66bd268c969e369964e2e21320624c7a8d9e03fee59134407b70015e1302ccec",
+			"bytes": 7884,
+			"kind": "kit",
+			"triangles": 264,
+			"bounds": {
+				"min": [
+					-0.75,
+					1.67,
+					-0.75
+				],
+				"max": [
+					0.75,
+					2.57,
+					0.75
+				]
+			},
+			"gpuBytes": 6480,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-roof-ridge": {
+			"file": "models/village-roof-ridge.5f83dac2.glb",
+			"sha256": "5f83dac2558d3c4060c0cadce084dd09820a56ad16f811f53449ef812036939f",
+			"bytes": 4516,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					1.669,
+					-0.774
+				],
+				"max": [
+					0.5,
+					2.57,
+					0.774
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-stair-riser": {
+			"file": "models/village-stair-riser.de5ce6d8.glb",
+			"sha256": "de5ce6d818c40c357a012cba9997eb38f39f8e26301b4efba7da7fb363af030c",
+			"bytes": 3400,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.39,
+					-0.23
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-stair-side": {
+			"file": "models/village-stair-side.4da7ce93.glb",
+			"sha256": "4da7ce930e502b382f5faf0c7ce346a231c6b4f1ee6e3e5efe1a09e8722554ff",
+			"bytes": 3396,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-0.8,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-wall-boundary": {
+			"file": "models/village-wall-boundary.a250c4ad.glb",
+			"sha256": "a250c4ad5abbccc7cdda0b0dc45b29a21ccc09ff9b263e1e92921be7f2e9e86c",
+			"bytes": 44096,
+			"kind": "kit",
+			"triangles": 1168,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.065
+				],
+				"max": [
+					0.5,
+					1.98,
+					0.19
+				]
+			},
+			"gpuBytes": 40940,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-wall-outer": {
+			"file": "models/village-wall-outer.09f1db18.glb",
+			"sha256": "09f1db180ee7adb9d9315190861045043e8287306a912864602f3e856561683f",
+			"bytes": 4488,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.35
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-wall-plaster": {
+			"file": "models/village-wall-plaster.17bfd858.glb",
+			"sha256": "17bfd858ece6efa1f621ade44f7b3943974987b1aa82dcebd50a83b84db62efc",
+			"bytes": 3380,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-wall-retaining": {
+			"file": "models/village-wall-retaining.6aee864a.glb",
+			"sha256": "6aee864a80323e25d834e58372dd785fde3aaaf296999c4234ee7aecec3f8a3c",
+			"bytes": 13524,
+			"kind": "kit",
+			"triangles": 484,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.27
+				],
+				"max": [
+					0.5,
+					0,
+					0.03
+				]
+			},
+			"gpuBytes": 11880,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-wall-timber": {
+			"file": "models/village-wall-timber.830d17f2.glb",
+			"sha256": "830d17f2ea75e56bb1bc949f4299da39b20759f4155efcc4b1a0d274bf84114d",
+			"bytes": 10160,
+			"kind": "kit",
+			"triangles": 352,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 8640,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-window-frame": {
+			"file": "models/village-window-frame.fd7fe9ad.glb",
+			"sha256": "fd7fe9ad2af7b453075e7b2ff79bab775dc29cdc5a3a03287c930f9930864ead",
+			"bytes": 9028,
+			"kind": "kit",
+			"triangles": 308,
+			"bounds": {
+				"min": [
+					-0.5,
+					0,
+					-0.07
+				],
+				"max": [
+					0.5,
+					2,
+					0.07
+				]
+			},
+			"gpuBytes": 7560,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-window-glass": {
+			"file": "models/village-window-glass.378084a8.glb",
+			"sha256": "378084a830804e257a2da2cd86b9da16731c9949ba1d9533bd0bd2762a23c4a9",
+			"bytes": 4556,
+			"kind": "kit",
+			"triangles": 132,
+			"bounds": {
+				"min": [
+					-0.33,
+					0.85,
+					-0.02
+				],
+				"max": [
+					0.33,
+					1.65,
+					0.02
+				]
+			},
+			"gpuBytes": 3240,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
+		"village-window-sill": {
+			"file": "models/village-window-sill.a3142b4d.glb",
+			"sha256": "a3142b4df7fc2ca57fd7ef2a20f40527feb60e59495d0bf5614d1aeba6d8efcf",
+			"bytes": 3376,
+			"kind": "kit",
+			"triangles": 88,
+			"bounds": {
+				"min": [
+					-0.5,
+					-2,
+					-0.07
+				],
+				"max": [
+					0.5,
+					0.85,
+					0.07
+				]
+			},
+			"gpuBytes": 2160,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
 		"child": {
 			"file": "models/child.13a4078a.glb",
 			"sha256": "13a4078a4ae4c267f9e427cc5bb2a2fa2d4d825b6fbc354fc8fd1b11d9bb9046",
@@ -750,29 +7103,51 @@
 			}
 		},
 		"ashes": {
-			"file": "models/ashes.c084c7ca.glb",
-			"sha256": "c084c7ca315ed353c88626a81ad740a9bfa44411f3c2c670ea32e4f1b3ef5280",
-			"bytes": 19388,
+			"file": "models/ashes.21b2096b.glb",
+			"sha256": "21b2096b0a96470d2d2053ac358627e4318da85adf4cd5860579741b8bb0c94c",
+			"bytes": 71596,
 			"kind": "prop",
-			"triangles": 568,
+			"triangles": 1500,
 			"bounds": {
 				"min": [
-					-0.394,
-					-0.01,
-					-0.3
+					-0.4,
+					0,
+					-0.4
 				],
 				"max": [
-					0.394,
-					0.18,
-					0.3
+					0.4,
+					0.214,
+					0.4
 				]
 			},
-			"gpuBytes": 17382,
+			"gpuBytes": 380126,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "Sebastian Platen (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/stone_fire_pit/stone_fire_pit_1k.gltf",
+				"modified": true
 			},
+			"lods": [
+				{
+					"triangles": 746,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 224,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/ashes.c084c7ca.glb",
+				"sha256": "c084c7ca315ed353c88626a81ad740a9bfa44411f3c2c670ea32e4f1b3ef5280",
+				"bytes": 19388,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/ashes.57c24a3e.png",
 				"sha256": "57c24a3e379d5e1eb3d3bd84ea6e12bd2fcf8591d829b88a9f7c1f7e9a8a6b39",
@@ -810,29 +7185,51 @@
 			"pack": "core"
 		},
 		"barrel": {
-			"file": "models/barrel.a5f68e34.glb",
-			"sha256": "a5f68e349db6760ffeec86231f483c2c168ca7239675dcb0b250e71ae87c2bd9",
-			"bytes": 16088,
+			"file": "models/barrel.568bee21.glb",
+			"sha256": "568bee21956d4976ebc15b429d581412a54ef045e57563975f19f404b058efd4",
+			"bytes": 116964,
 			"kind": "prop",
-			"triangles": 432,
+			"triangles": 1736,
 			"bounds": {
 				"min": [
-					-0.364,
+					-0.37,
 					0,
 					-0.37
 				],
 				"max": [
-					0.364,
-					0.9,
+					0.37,
+					0.871,
 					0.37
 				]
 			},
-			"gpuBytes": 14220,
+			"gpuBytes": 471830,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "James Ray Cock (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wine_barrel_01/wine_barrel_01_1k.gltf",
+				"modified": true
 			},
+			"lods": [
+				{
+					"triangles": 1660,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 1656,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/barrel.a5f68e34.glb",
+				"sha256": "a5f68e349db6760ffeec86231f483c2c168ca7239675dcb0b250e71ae87c2bd9",
+				"bytes": 16088,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/barrel.6a46f620.png",
 				"sha256": "6a46f6203e6372ba027a9d99f142f00cf4e5769b6039dd1f579608d1a649eedd",
@@ -844,29 +7241,51 @@
 			}
 		},
 		"bed": {
-			"file": "models/bed.0ed690fa.glb",
-			"sha256": "0ed690fa83676a2bf0f5f60e75321c6580d41fb3989d345a98454e3fea505c2b",
-			"bytes": 5684,
+			"file": "models/bed.f8e9e175.glb",
+			"sha256": "f8e9e175b602e692687bbf9bfd09e56c08cc6c0d6479a10778dae703eeb946e9",
+			"bytes": 106316,
 			"kind": "prop",
-			"triangles": 176,
+			"triangles": 2500,
 			"bounds": {
 				"min": [
 					-0.45,
 					0,
-					-0.96
+					-0.95
 				],
 				"max": [
 					0.45,
-					0.7,
+					0.95,
 					0.95
 				]
 			},
-			"gpuBytes": 4320,
+			"gpuBytes": 466196,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "Kirill Sannikov (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/GothicBed_01/GothicBed_01_1k.gltf",
+				"modified": true
 			},
+			"lods": [
+				{
+					"triangles": 1482,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 1473,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/bed.0ed690fa.glb",
+				"sha256": "0ed690fa83676a2bf0f5f60e75321c6580d41fb3989d345a98454e3fea505c2b",
+				"bytes": 5684,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/bed.d16d6d75.png",
 				"sha256": "d16d6d75edd5cdaba5740af5cf9dc73940fe207452a1f33f067768d9d44fd99c",
@@ -984,11 +7403,11 @@
 			}
 		},
 		"bookshelf": {
-			"file": "models/bookshelf.aca6bc65.glb",
-			"sha256": "aca6bc6531452720c9341141b2fd1187356a4049233e3fff9f6fcd04b5d0f98a",
-			"bytes": 5684,
+			"file": "models/bookshelf.58322fbe.glb",
+			"sha256": "58322fbe666985a6c1dcee249785c2d75932d02f1eded7be5be3e27fe86f0455",
+			"bytes": 80624,
 			"kind": "prop",
-			"triangles": 176,
+			"triangles": 2000,
 			"bounds": {
 				"min": [
 					-0.95,
@@ -998,15 +7417,37 @@
 				"max": [
 					0.95,
 					1.8,
-					0.24
+					0.225
 				]
 			},
-			"gpuBytes": 4320,
+			"gpuBytes": 402398,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "Ulan Cabanilla (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wooden_bookshelf_worn/wooden_bookshelf_worn_1k.gltf",
+				"modified": true
 			},
+			"lods": [
+				{
+					"triangles": 1000,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 300,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/bookshelf.aca6bc65.glb",
+				"sha256": "aca6bc6531452720c9341141b2fd1187356a4049233e3fff9f6fcd04b5d0f98a",
+				"bytes": 5684,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/bookshelf.21c3f2f9.png",
 				"sha256": "21c3f2f91eb3d8f061b303ed18ecdf81080f83f4a6fb9003638330d4c5f6d21a",
@@ -1189,11 +7630,11 @@
 			}
 		},
 		"chair": {
-			"file": "models/chair.48e990a4.glb",
-			"sha256": "48e990a484cbede1e3211ed029bb7b6103fd39f71bd24c39ea404492f6ad017b",
-			"bytes": 7888,
+			"file": "models/chair.5b2dfca5.glb",
+			"sha256": "5b2dfca5d288e042e6123a00c36b4d8de0d969d9009f3a34e14c633937b81c35",
+			"bytes": 59680,
 			"kind": "prop",
-			"triangles": 264,
+			"triangles": 724,
 			"bounds": {
 				"min": [
 					-0.25,
@@ -1206,12 +7647,34 @@
 					0.25
 				]
 			},
-			"gpuBytes": 6480,
+			"gpuBytes": 383882,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "Kuutti Siitonen (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/painted_wooden_chair_01/painted_wooden_chair_01_1k.gltf",
+				"modified": true
 			},
+			"lods": [
+				{
+					"triangles": 362,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 296,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/chair.48e990a4.glb",
+				"sha256": "48e990a484cbede1e3211ed029bb7b6103fd39f71bd24c39ea404492f6ad017b",
+				"bytes": 7888,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/chair.9bafc1ef.png",
 				"sha256": "9bafc1ef1011dbf249887acc4d042187c2f67c864f34e89700c79c8414a2cf22",
@@ -2113,16 +8576,16 @@
 			}
 		},
 		"pew": {
-			"file": "models/pew.36d09bbc.glb",
-			"sha256": "36d09bbc0f95a90ad6f7874b8d1174170deda0b864c0133d1c16fbb465781a70",
-			"bytes": 5688,
+			"file": "models/pew.7dca2cb8.glb",
+			"sha256": "7dca2cb89b45c1cd48dca3db59e2ba3a829886ebd1c948f10ad9fcab29add08e",
+			"bytes": 56868,
 			"kind": "prop",
-			"triangles": 176,
+			"triangles": 630,
 			"bounds": {
 				"min": [
 					-0.9,
-					-0.005,
-					-0.23
+					0,
+					-0.225
 				],
 				"max": [
 					0.9,
@@ -2130,12 +8593,34 @@
 					0.225
 				]
 			},
-			"gpuBytes": 4320,
+			"gpuBytes": 370994,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "Kirill Sannikov (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/painted_wooden_bench/painted_wooden_bench_1k.gltf",
+				"modified": true
 			},
+			"lods": [
+				{
+					"triangles": 314,
+					"screenSize": 0.25
+				},
+				{
+					"triangles": 134,
+					"screenSize": 0.1
+				}
+			],
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/pew.36d09bbc.glb",
+				"sha256": "36d09bbc0f95a90ad6f7874b8d1174170deda0b864c0133d1c16fbb465781a70",
+				"bytes": 5688,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/pew.447c3fd2.png",
 				"sha256": "447c3fd20cb9f8610c6768249194d911f6ea57ce32cfebeb982598f3597e0071",
@@ -2419,29 +8904,47 @@
 			}
 		},
 		"statue": {
-			"file": "models/statue.fbeac885.glb",
-			"sha256": "fbeac885d9d6fe0f808f616765412541fa6f8b9222302c53b2d9a78390e82d0e",
-			"bytes": 17332,
+			"file": "models/statue.6f0b36e9.glb",
+			"sha256": "6f0b36e9cce8611a50fd18d8eb9de11f20189f3194909852162040a862739662",
+			"bytes": 123248,
 			"kind": "prop",
-			"triangles": 540,
+			"triangles": 2998,
 			"bounds": {
 				"min": [
-					-0.4,
-					0,
-					-0.4
+					-0.456,
+					-0.724,
+					-0.64
 				],
 				"max": [
-					0.4,
-					1.5,
-					0.4
+					0.494,
+					0.333,
+					0.31
 				]
 			},
-			"gpuBytes": 15446,
+			"gpuBytes": 469448,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "Benny Weimer (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/gothic_statue/gothic_statue_1k.gltf",
+				"modified": true
 			},
+			"lods": [
+				{
+					"triangles": 1907,
+					"screenSize": 0.25
+				}
+			],
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/statue.fbeac885.glb",
+				"sha256": "fbeac885d9d6fe0f808f616765412541fa6f8b9222302c53b2d9a78390e82d0e",
+				"bytes": 17332,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/statue.20f3abd0.png",
 				"sha256": "20f3abd0c2e531494116e2b924b684d7e35522c51c75004cbedeb58a61b4fa5b",
@@ -2521,11 +9024,11 @@
 			}
 		},
 		"table": {
-			"file": "models/table.30be06f8.glb",
-			"sha256": "30be06f87cc14cd0d5e392a712516c5be1a6b922457f1e7b5aef3feb78308e5b",
-			"bytes": 6816,
+			"file": "models/table.cc04e6a2.glb",
+			"sha256": "cc04e6a26df362f8f3cae4c0d6e8226b14c52807744efe47b3cb17d23f7bb9cc",
+			"bytes": 52484,
 			"kind": "prop",
-			"triangles": 220,
+			"triangles": 196,
 			"bounds": {
 				"min": [
 					-0.95,
@@ -2538,12 +9041,24 @@
 					0.45
 				]
 			},
-			"gpuBytes": 5400,
+			"gpuBytes": 352286,
 			"credit": {
-				"license": "LicenseRef-thirdfold-original",
-				"author": "thirdfold contributors"
+				"license": "CC0-1.0",
+				"author": "Serhii Khromov (Poly Haven)",
+				"source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wooden_table_02/wooden_table_02_1k.gltf",
+				"modified": true
 			},
+			"cooked": true,
 			"pack": "core",
+			"preview": {
+				"file": "previews/table.30be06f8.glb",
+				"sha256": "30be06f87cc14cd0d5e392a712516c5be1a6b922457f1e7b5aef3feb78308e5b",
+				"bytes": 6816,
+				"credit": {
+					"license": "LicenseRef-thirdfold-original",
+					"author": "thirdfold contributors"
+				}
+			},
 			"thumbnail": {
 				"file": "thumbs/table.5a3730d6.png",
 				"sha256": "5a3730d63747e8cda828879d24fdc290b4d43a3246559bc2af6eae1ed542b42a",
@@ -2821,6 +9336,132 @@
 		}
 	},
 	"textures": {
+		"ashlar-trim-albedo": {
+			"file": "textures/ashlar-trim-albedo.3420f590.ktx2",
+			"sha256": "3420f590405c70d8ea25280b04bb7b9d4ea5ed328f2fae45b26025e61001a935",
+			"bytes": 38267,
+			"format": "ktx2",
+			"usage": "albedo",
+			"colorSpace": "srgb",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core",
+			"variants": [
+				{
+					"size": 1024,
+					"file": "textures/ashlar-trim-albedo-1k.7e6ac3fa.ktx2",
+					"sha256": "7e6ac3fa86534d605476568a83abdd0adf73b5ab35140f1fe95698d01c253b9d",
+					"bytes": 108239,
+					"gpuBytes": 1398102,
+					"credit": {
+						"license": "LicenseRef-thirdfold-original",
+						"author": "thirdfold contributors"
+					}
+				},
+				{
+					"size": 2048,
+					"file": "textures/ashlar-trim-albedo-2k.b35df71e.ktx2",
+					"sha256": "b35df71e49cc7ebacca8f5eeca582da8bd3d23f4f0be7c503830b64ff03e9238",
+					"bytes": 312528,
+					"gpuBytes": 5592406,
+					"credit": {
+						"license": "LicenseRef-thirdfold-original",
+						"author": "thirdfold contributors"
+					}
+				}
+			]
+		},
+		"ashlar-trim-normal": {
+			"file": "textures/ashlar-trim-normal.f574af3c.ktx2",
+			"sha256": "f574af3cddcb362ddbaa4fd01022c658874fbd6a8287473e8c0e8edaedd9f2d4",
+			"bytes": 199502,
+			"format": "ktx2",
+			"usage": "normal",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core",
+			"variants": [
+				{
+					"size": 1024,
+					"file": "textures/ashlar-trim-normal-1k.5f95a1ee.ktx2",
+					"sha256": "5f95a1ee572ecee513bbd96bf461c30fc31fbf1824f9ef51e9a18f93aca3dbbf",
+					"bytes": 687108,
+					"gpuBytes": 1398102,
+					"credit": {
+						"license": "LicenseRef-thirdfold-original",
+						"author": "thirdfold contributors"
+					}
+				},
+				{
+					"size": 2048,
+					"file": "textures/ashlar-trim-normal-2k.27c157d1.ktx2",
+					"sha256": "27c157d19ba023487b9d645b3b4c8adfb6f179329ba1fb51765ba6c518d84d77",
+					"bytes": 2114178,
+					"gpuBytes": 5592406,
+					"credit": {
+						"license": "LicenseRef-thirdfold-original",
+						"author": "thirdfold contributors"
+					}
+				}
+			]
+		},
+		"ashlar-trim-orm": {
+			"file": "textures/ashlar-trim-orm.da199bc7.ktx2",
+			"sha256": "da199bc72b5dfe4d911c2199b90e3d06eb78016f4acb76e7cd4ba3f1f84cbda5",
+			"bytes": 83570,
+			"format": "ktx2",
+			"usage": "orm",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 10,
+			"gpuBytes": 349526,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core",
+			"variants": [
+				{
+					"size": 1024,
+					"file": "textures/ashlar-trim-orm-1k.95991002.ktx2",
+					"sha256": "959910026f0e1482b72d886c1ceae929f73d7411aa6ff3fc41f77d43f2cbf230",
+					"bytes": 241025,
+					"gpuBytes": 1398102,
+					"credit": {
+						"license": "LicenseRef-thirdfold-original",
+						"author": "thirdfold contributors"
+					}
+				},
+				{
+					"size": 2048,
+					"file": "textures/ashlar-trim-orm-2k.6867fcf5.ktx2",
+					"sha256": "6867fcf5a892ce8568f3ab6395259992b4cc1d38d7fcba0bd8abd11843fef23d",
+					"bytes": 660349,
+					"gpuBytes": 5592406,
+					"credit": {
+						"license": "LicenseRef-thirdfold-original",
+						"author": "thirdfold contributors"
+					}
+				}
+			]
+		},
 		"cave": {
 			"file": "textures/cave.c1cdbe69.png",
 			"sha256": "c1cdbe69828dfebc4d916483461abd80dc8c9816b18a0d3297128da9f70f1577",
@@ -7482,6 +14123,35 @@
 			"color": "#8a7b66",
 			"roughness": 0.9,
 			"metalness": 0
+		},
+		"thatch": {
+			"color": "#93804f",
+			"roughness": 0.95,
+			"metalness": 0
+		},
+		"slate": {
+			"color": "#5a5f6b",
+			"roughness": 0.8,
+			"metalness": 0
+		},
+		"tin-roof": {
+			"color": "#55525a",
+			"roughness": 0.6,
+			"metalness": 0.3
+		},
+		"roof-boards": {
+			"color": "#6f5f4e",
+			"roughness": 0.9,
+			"metalness": 0
+		},
+		"ashlar-trim": {
+			"color": "#ffffff",
+			"roughness": 0.8,
+			"metalness": 0,
+			"map": "ashlar-trim-albedo",
+			"cells": 4,
+			"normal": "ashlar-trim-normal",
+			"orm": "ashlar-trim-orm"
 		}
 	},
 	"surfaces": {
@@ -7620,6 +14290,7 @@
 					"ashlar"
 				]
 			},
+			"kit": "cavern",
 			"lut": {
 				"agx": {
 					"day": "grade-cavern-day-agx",
@@ -7656,6 +14327,7 @@
 					"planks"
 				]
 			},
+			"kit": "ghost-town",
 			"lut": {
 				"agx": {
 					"day": "grade-ghost-town-day-agx",
@@ -7692,6 +14364,7 @@
 					"cave-rock"
 				]
 			},
+			"kit": "living-cave",
 			"lut": {
 				"agx": {
 					"day": "grade-living-cave-day-agx",
@@ -7728,6 +14401,7 @@
 					"planks"
 				]
 			},
+			"kit": "railcar",
 			"lut": {
 				"agx": {
 					"day": "grade-railcar-day-agx",
@@ -7765,6 +14439,7 @@
 					"ashlar"
 				]
 			},
+			"kit": "stone-halls",
 			"lut": {
 				"agx": {
 					"day": "grade-stone-halls-day-agx",
@@ -7802,6 +14477,7 @@
 					"plaster"
 				]
 			},
+			"kit": "village",
 			"lut": {
 				"agx": {
 					"day": "grade-village-day-agx",
@@ -8798,8 +15474,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 10445778,
-			"gpuBytes": 29703988
+			"bytes": 13329977,
+			"gpuBytes": 35609287
 		},
 		"ghost-town": {
 			"bytes": 104095,
@@ -8820,6 +15496,1486 @@
 		"village": {
 			"bytes": 992479,
 			"gpuBytes": 5068125
+		}
+	},
+	"kits": {
+		"cavern": {
+			"name": "Cavern",
+			"roof": null,
+			"presumeRoofs": false,
+			"pieces": {
+				"wall.straight": [
+					{
+						"model": "cavern-wall-rough"
+					},
+					{
+						"model": "cavern-wall-ancient",
+						"weight": 0.6
+					}
+				],
+				"wall.outer": [
+					{
+						"model": "cavern-wall-outer"
+					}
+				],
+				"wall.retaining": [
+					{
+						"model": "cavern-wall-retaining"
+					}
+				],
+				"wall.boundary": [
+					{
+						"model": "cavern-wall-boundary"
+					}
+				],
+				"cap": [
+					{
+						"model": "cavern-cap"
+					}
+				],
+				"plinth": [
+					{
+						"model": "cavern-plinth"
+					}
+				],
+				"window.frame": [
+					{
+						"model": "cavern-window-frame"
+					}
+				],
+				"window.sill": [
+					{
+						"model": "cavern-window-sill"
+					}
+				],
+				"window.glass": [
+					{
+						"model": "cavern-window-glass"
+					}
+				],
+				"door.frame": [
+					{
+						"model": "cavern-door-frame"
+					}
+				],
+				"door.leaf": [
+					{
+						"model": "cavern-door-leaf"
+					}
+				],
+				"stair.riser": [
+					{
+						"model": "cavern-stair-riser"
+					}
+				],
+				"stair.side": [
+					{
+						"model": "cavern-stair-side"
+					}
+				],
+				"railing": [
+					{
+						"model": "cavern-railing"
+					}
+				],
+				"cliff.face": [
+					{
+						"model": "cavern-cliff-face"
+					}
+				],
+				"cliff.corner": [
+					{
+						"model": "cavern-cliff-corner"
+					}
+				],
+				"bridge.deck": [
+					{
+						"model": "cavern-bridge-deck"
+					}
+				],
+				"bridge.pier": [
+					{
+						"model": "cavern-bridge-pier"
+					}
+				],
+				"post.end": [
+					{
+						"model": "cavern-post-end"
+					}
+				],
+				"post.L": [
+					{
+						"model": "cavern-post-l"
+					}
+				],
+				"post.T": [
+					{
+						"model": "cavern-post-t"
+					}
+				],
+				"post.X": [
+					{
+						"model": "cavern-post-x"
+					}
+				],
+				"arch": [
+					{
+						"model": "cavern-arch"
+					}
+				]
+			},
+			"floors": {
+				"stone": {
+					"tiles": [
+						{
+							"model": "cavern-hewn-a"
+						},
+						{
+							"model": "cavern-hewn-b"
+						},
+						{
+							"model": "cavern-hewn-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "cavern-hewn-broken"
+						}
+					]
+				}
+			}
+		},
+		"ghost-town": {
+			"name": "Ghost town",
+			"roof": {
+				"style": "gable",
+				"pitch": 22,
+				"eave": 0.2,
+				"material": "roof-boards"
+			},
+			"presumeRoofs": true,
+			"pieces": {
+				"wall.straight": [
+					{
+						"model": "ghost-town-wall-adobe"
+					},
+					{
+						"model": "ghost-town-wall-boards",
+						"weight": 0.8
+					}
+				],
+				"wall.outer": [
+					{
+						"model": "ghost-town-wall-outer"
+					}
+				],
+				"wall.retaining": [
+					{
+						"model": "ghost-town-wall-retaining"
+					}
+				],
+				"wall.boundary": [
+					{
+						"model": "ghost-town-wall-boundary"
+					}
+				],
+				"cap": [
+					{
+						"model": "ghost-town-cap"
+					}
+				],
+				"plinth": [
+					{
+						"model": "ghost-town-plinth"
+					}
+				],
+				"window.frame": [
+					{
+						"model": "ghost-town-window-frame"
+					}
+				],
+				"window.sill": [
+					{
+						"model": "ghost-town-window-sill"
+					}
+				],
+				"window.glass": [
+					{
+						"model": "ghost-town-window-glass"
+					}
+				],
+				"door.frame": [
+					{
+						"model": "ghost-town-door-frame"
+					}
+				],
+				"door.leaf": [
+					{
+						"model": "ghost-town-door-leaf"
+					}
+				],
+				"stair.riser": [
+					{
+						"model": "ghost-town-stair-riser"
+					}
+				],
+				"stair.side": [
+					{
+						"model": "ghost-town-stair-side"
+					}
+				],
+				"railing": [
+					{
+						"model": "ghost-town-railing"
+					}
+				],
+				"cliff.face": [
+					{
+						"model": "ghost-town-cliff-face"
+					}
+				],
+				"cliff.corner": [
+					{
+						"model": "ghost-town-cliff-corner"
+					}
+				],
+				"bridge.deck": [
+					{
+						"model": "ghost-town-bridge-deck"
+					}
+				],
+				"bridge.pier": [
+					{
+						"model": "ghost-town-bridge-pier"
+					}
+				],
+				"post.end": [
+					{
+						"model": "ghost-town-post-end"
+					}
+				],
+				"post.L": [
+					{
+						"model": "ghost-town-post-l"
+					}
+				],
+				"post.T": [
+					{
+						"model": "ghost-town-post-t"
+					}
+				],
+				"post.X": [
+					{
+						"model": "ghost-town-post-x"
+					}
+				],
+				"roof.eave": [
+					{
+						"model": "ghost-town-roof-eave"
+					}
+				],
+				"roof.ridge": [
+					{
+						"model": "ghost-town-roof-ridge"
+					}
+				],
+				"roof.hip": [
+					{
+						"model": "ghost-town-roof-hip"
+					}
+				],
+				"roof.corner": [
+					{
+						"model": "ghost-town-roof-corner"
+					}
+				],
+				"roof.chimney": [
+					{
+						"model": "ghost-town-roof-chimney",
+						"sockets": [
+							{
+								"kind": "smoke",
+								"at": [
+									0.2,
+									3.5,
+									0
+								]
+							}
+						]
+					}
+				],
+				"roof.dormer": [
+					{
+						"model": "ghost-town-roof-dormer"
+					}
+				]
+			},
+			"floors": {
+				"wood": {
+					"tiles": [
+						{
+							"model": "ghost-town-boardwalk-a"
+						},
+						{
+							"model": "ghost-town-boardwalk-b"
+						},
+						{
+							"model": "ghost-town-boardwalk-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "ghost-town-boardwalk-broken"
+						}
+					]
+				}
+			}
+		},
+		"living-cave": {
+			"name": "Living cave",
+			"roof": null,
+			"presumeRoofs": false,
+			"pieces": {
+				"wall.straight": [
+					{
+						"model": "living-cave-wall-sinew"
+					},
+					{
+						"model": "living-cave-wall-swollen",
+						"weight": 0.6
+					}
+				],
+				"wall.outer": [
+					{
+						"model": "living-cave-wall-outer"
+					}
+				],
+				"wall.retaining": [
+					{
+						"model": "living-cave-wall-retaining"
+					}
+				],
+				"wall.boundary": [
+					{
+						"model": "living-cave-wall-boundary"
+					}
+				],
+				"cap": [
+					{
+						"model": "living-cave-cap"
+					}
+				],
+				"plinth": [
+					{
+						"model": "living-cave-plinth"
+					}
+				],
+				"window.frame": [
+					{
+						"model": "living-cave-window-frame"
+					}
+				],
+				"window.sill": [
+					{
+						"model": "living-cave-window-sill"
+					}
+				],
+				"window.glass": [
+					{
+						"model": "living-cave-window-glass"
+					}
+				],
+				"door.frame": [
+					{
+						"model": "living-cave-door-frame"
+					}
+				],
+				"door.leaf": [
+					{
+						"model": "living-cave-door-leaf"
+					}
+				],
+				"stair.riser": [
+					{
+						"model": "living-cave-stair-riser"
+					}
+				],
+				"stair.side": [
+					{
+						"model": "living-cave-stair-side"
+					}
+				],
+				"railing": [
+					{
+						"model": "living-cave-railing"
+					}
+				],
+				"cliff.face": [
+					{
+						"model": "living-cave-cliff-face"
+					}
+				],
+				"cliff.corner": [
+					{
+						"model": "living-cave-cliff-corner"
+					}
+				],
+				"bridge.deck": [
+					{
+						"model": "living-cave-bridge-deck"
+					}
+				],
+				"bridge.pier": [
+					{
+						"model": "living-cave-bridge-pier"
+					}
+				],
+				"post.end": [
+					{
+						"model": "living-cave-post-end"
+					}
+				],
+				"post.L": [
+					{
+						"model": "living-cave-post-l"
+					}
+				],
+				"post.T": [
+					{
+						"model": "living-cave-post-t"
+					}
+				],
+				"post.X": [
+					{
+						"model": "living-cave-post-x"
+					}
+				]
+			},
+			"floors": {}
+		},
+		"plain": {
+			"name": "Plain",
+			"roof": null,
+			"presumeRoofs": false,
+			"pieces": {},
+			"floors": {}
+		},
+		"railcar": {
+			"name": "Railcar",
+			"roof": {
+				"style": "gable",
+				"pitch": 15,
+				"eave": 0.12,
+				"material": "tin-roof"
+			},
+			"presumeRoofs": true,
+			"pieces": {
+				"wall.straight": [
+					{
+						"model": "railcar-wall-panelled"
+					},
+					{
+						"model": "railcar-wall-boarded",
+						"weight": 0.5
+					}
+				],
+				"wall.outer": [
+					{
+						"model": "railcar-wall-outer"
+					}
+				],
+				"wall.retaining": [
+					{
+						"model": "railcar-wall-retaining"
+					}
+				],
+				"wall.boundary": [
+					{
+						"model": "railcar-wall-boundary"
+					}
+				],
+				"cap": [
+					{
+						"model": "railcar-cap"
+					}
+				],
+				"plinth": [
+					{
+						"model": "railcar-plinth"
+					}
+				],
+				"window.frame": [
+					{
+						"model": "railcar-window-frame"
+					}
+				],
+				"window.sill": [
+					{
+						"model": "railcar-window-sill"
+					}
+				],
+				"window.glass": [
+					{
+						"model": "railcar-window-glass"
+					}
+				],
+				"door.frame": [
+					{
+						"model": "railcar-door-frame"
+					}
+				],
+				"door.leaf": [
+					{
+						"model": "railcar-door-leaf"
+					}
+				],
+				"stair.riser": [
+					{
+						"model": "railcar-stair-riser"
+					}
+				],
+				"stair.side": [
+					{
+						"model": "railcar-stair-side"
+					}
+				],
+				"railing": [
+					{
+						"model": "railcar-railing"
+					}
+				],
+				"cliff.face": [
+					{
+						"model": "railcar-cliff-face"
+					}
+				],
+				"cliff.corner": [
+					{
+						"model": "railcar-cliff-corner"
+					}
+				],
+				"bridge.deck": [
+					{
+						"model": "railcar-bridge-deck"
+					}
+				],
+				"bridge.pier": [
+					{
+						"model": "railcar-bridge-pier"
+					}
+				],
+				"post.end": [
+					{
+						"model": "railcar-post-end"
+					}
+				],
+				"post.L": [
+					{
+						"model": "railcar-post-l"
+					}
+				],
+				"post.T": [
+					{
+						"model": "railcar-post-t"
+					}
+				],
+				"post.X": [
+					{
+						"model": "railcar-post-x"
+					}
+				],
+				"roof.eave": [
+					{
+						"model": "railcar-roof-eave"
+					}
+				],
+				"roof.ridge": [
+					{
+						"model": "railcar-roof-ridge"
+					}
+				],
+				"roof.hip": [
+					{
+						"model": "railcar-roof-hip"
+					}
+				],
+				"roof.corner": [
+					{
+						"model": "railcar-roof-corner"
+					}
+				],
+				"roof.chimney": [
+					{
+						"model": "railcar-roof-chimney",
+						"sockets": [
+							{
+								"kind": "smoke",
+								"at": [
+									0.2,
+									3.5,
+									0
+								]
+							}
+						]
+					}
+				],
+				"roof.dormer": [
+					{
+						"model": "railcar-roof-dormer"
+					}
+				]
+			},
+			"floors": {
+				"plain": {
+					"tiles": [
+						{
+							"model": "railcar-planks-a"
+						},
+						{
+							"model": "railcar-planks-b"
+						},
+						{
+							"model": "railcar-planks-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "railcar-planks-broken"
+						}
+					]
+				},
+				"wood": {
+					"tiles": [
+						{
+							"model": "railcar-planks-a"
+						},
+						{
+							"model": "railcar-planks-b"
+						},
+						{
+							"model": "railcar-planks-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "railcar-planks-broken"
+						}
+					]
+				},
+				"grating": {
+					"tiles": [
+						{
+							"model": "railcar-grating-a"
+						}
+					],
+					"broken": []
+				}
+			}
+		},
+		"stone-halls-greybox": {
+			"name": "Stone halls (greybox)",
+			"roof": {
+				"style": "gable",
+				"pitch": 40,
+				"eave": 0.2,
+				"material": "slate"
+			},
+			"presumeRoofs": false,
+			"pieces": {
+				"wall.straight": [
+					{
+						"model": "stone-halls-wall-ashlar-a"
+					},
+					{
+						"model": "stone-halls-wall-ashlar-b",
+						"weight": 0.6
+					}
+				],
+				"wall.outer": [
+					{
+						"model": "stone-halls-wall-outer"
+					}
+				],
+				"wall.retaining": [
+					{
+						"model": "stone-halls-wall-retaining"
+					}
+				],
+				"wall.boundary": [
+					{
+						"model": "stone-halls-wall-boundary"
+					}
+				],
+				"cap": [
+					{
+						"model": "stone-halls-cap"
+					}
+				],
+				"plinth": [
+					{
+						"model": "stone-halls-plinth"
+					}
+				],
+				"window.frame": [
+					{
+						"model": "stone-halls-window-frame"
+					}
+				],
+				"window.sill": [
+					{
+						"model": "stone-halls-window-sill"
+					}
+				],
+				"window.glass": [
+					{
+						"model": "stone-halls-window-glass"
+					}
+				],
+				"door.frame": [
+					{
+						"model": "stone-halls-door-frame"
+					}
+				],
+				"door.leaf": [
+					{
+						"model": "stone-halls-door-leaf"
+					}
+				],
+				"stair.riser": [
+					{
+						"model": "stone-halls-stair-riser"
+					}
+				],
+				"stair.side": [
+					{
+						"model": "stone-halls-stair-side"
+					}
+				],
+				"railing": [
+					{
+						"model": "stone-halls-railing"
+					}
+				],
+				"cliff.face": [
+					{
+						"model": "stone-halls-cliff-face"
+					}
+				],
+				"cliff.corner": [
+					{
+						"model": "stone-halls-cliff-corner"
+					}
+				],
+				"bridge.deck": [
+					{
+						"model": "stone-halls-bridge-deck"
+					}
+				],
+				"bridge.pier": [
+					{
+						"model": "stone-halls-bridge-pier"
+					}
+				],
+				"post.end": [
+					{
+						"model": "stone-halls-post-end"
+					}
+				],
+				"post.L": [
+					{
+						"model": "stone-halls-post-l"
+					}
+				],
+				"post.T": [
+					{
+						"model": "stone-halls-post-t"
+					}
+				],
+				"post.X": [
+					{
+						"model": "stone-halls-post-x"
+					}
+				],
+				"roof.eave": [
+					{
+						"model": "stone-halls-roof-eave"
+					}
+				],
+				"roof.ridge": [
+					{
+						"model": "stone-halls-roof-ridge"
+					}
+				],
+				"roof.hip": [
+					{
+						"model": "stone-halls-roof-hip"
+					}
+				],
+				"roof.corner": [
+					{
+						"model": "stone-halls-roof-corner"
+					}
+				],
+				"roof.chimney": [
+					{
+						"model": "stone-halls-roof-chimney",
+						"sockets": [
+							{
+								"kind": "smoke",
+								"at": [
+									0.2,
+									3.5,
+									0
+								]
+							}
+						]
+					}
+				],
+				"roof.dormer": [
+					{
+						"model": "stone-halls-roof-dormer"
+					}
+				],
+				"cap.battlement": [
+					{
+						"model": "stone-halls-battlement"
+					}
+				],
+				"crenellation": [
+					{
+						"model": "stone-halls-crenels"
+					}
+				],
+				"buttress": [
+					{
+						"model": "stone-halls-buttress"
+					}
+				],
+				"pinnacle": [
+					{
+						"model": "stone-halls-pinnacle"
+					}
+				],
+				"tower.corner": [
+					{
+						"model": "stone-halls-tower-corner"
+					}
+				],
+				"arch": [
+					{
+						"model": "stone-halls-arch"
+					}
+				]
+			},
+			"floors": {
+				"plain": {
+					"tiles": [
+						{
+							"model": "stone-halls-flag-a"
+						},
+						{
+							"model": "stone-halls-flag-b"
+						},
+						{
+							"model": "stone-halls-flag-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-flag-broken"
+						}
+					]
+				},
+				"flagstone": {
+					"tiles": [
+						{
+							"model": "stone-halls-flag-a"
+						},
+						{
+							"model": "stone-halls-flag-b"
+						},
+						{
+							"model": "stone-halls-flag-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-flag-broken"
+						}
+					]
+				},
+				"stone": {
+					"tiles": [
+						{
+							"model": "stone-halls-flag-a"
+						},
+						{
+							"model": "stone-halls-flag-b"
+						},
+						{
+							"model": "stone-halls-flag-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-flag-broken"
+						}
+					]
+				},
+				"wood": {
+					"tiles": [
+						{
+							"model": "stone-halls-planks-a"
+						},
+						{
+							"model": "stone-halls-planks-b"
+						},
+						{
+							"model": "stone-halls-planks-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-planks-broken"
+						}
+					]
+				},
+				"tile": {
+					"tiles": [
+						{
+							"model": "stone-halls-tile-a"
+						},
+						{
+							"model": "stone-halls-tile-b"
+						},
+						{
+							"model": "stone-halls-tile-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-tile-broken"
+						}
+					]
+				}
+			}
+		},
+		"stone-halls": {
+			"name": "Stone halls",
+			"roof": {
+				"style": "gable",
+				"pitch": 40,
+				"eave": 0.2,
+				"material": "slate"
+			},
+			"presumeRoofs": false,
+			"pieces": {
+				"wall.straight": [
+					{
+						"model": "ashlar-wall-a"
+					},
+					{
+						"model": "ashlar-wall-b"
+					},
+					{
+						"model": "ashlar-wall-cracked",
+						"weight": 0.5
+					},
+					{
+						"model": "ashlar-wall-niche",
+						"weight": 0.3
+					}
+				],
+				"wall.outer": [
+					{
+						"model": "ashlar-wall-outer"
+					}
+				],
+				"wall.retaining": [
+					{
+						"model": "ashlar-retaining"
+					}
+				],
+				"wall.boundary": [
+					{
+						"model": "ashlar-curtain"
+					}
+				],
+				"cap": [
+					{
+						"model": "ashlar-coping"
+					}
+				],
+				"plinth": [
+					{
+						"model": "ashlar-plinth"
+					}
+				],
+				"window.frame": [
+					{
+						"model": "ashlar-window"
+					}
+				],
+				"window.sill": [
+					{
+						"model": "ashlar-window-sill"
+					}
+				],
+				"window.glass": [
+					{
+						"model": "leaded-glass"
+					}
+				],
+				"door.frame": [
+					{
+						"model": "ashlar-door-frame"
+					}
+				],
+				"door.leaf": [
+					{
+						"model": "oak-door"
+					}
+				],
+				"stair.riser": [
+					{
+						"model": "ashlar-step"
+					}
+				],
+				"stair.side": [
+					{
+						"model": "ashlar-stair-side"
+					}
+				],
+				"railing": [
+					{
+						"model": "stone-balustrade"
+					}
+				],
+				"cliff.face": [
+					{
+						"model": "rubble-face"
+					}
+				],
+				"cliff.corner": [
+					{
+						"model": "rubble-corner"
+					}
+				],
+				"bridge.deck": [
+					{
+						"model": "flag-deck"
+					}
+				],
+				"bridge.pier": [
+					{
+						"model": "ashlar-pier"
+					}
+				],
+				"post.end": [
+					{
+						"model": "ashlar-post-end"
+					}
+				],
+				"post.L": [
+					{
+						"model": "ashlar-post-l"
+					}
+				],
+				"post.T": [
+					{
+						"model": "ashlar-post-t"
+					}
+				],
+				"post.X": [
+					{
+						"model": "ashlar-post-x"
+					}
+				],
+				"roof.eave": [
+					{
+						"model": "stone-halls-roof-eave"
+					}
+				],
+				"roof.ridge": [
+					{
+						"model": "stone-halls-roof-ridge"
+					}
+				],
+				"roof.hip": [
+					{
+						"model": "stone-halls-roof-hip"
+					}
+				],
+				"roof.corner": [
+					{
+						"model": "stone-halls-roof-corner"
+					}
+				],
+				"roof.chimney": [
+					{
+						"model": "stone-halls-roof-chimney",
+						"sockets": [
+							{
+								"kind": "smoke",
+								"at": [
+									0.2,
+									3.5,
+									0
+								]
+							}
+						]
+					}
+				],
+				"roof.dormer": [
+					{
+						"model": "stone-halls-roof-dormer"
+					}
+				],
+				"cap.battlement": [
+					{
+						"model": "ashlar-battlement"
+					}
+				],
+				"crenellation": [
+					{
+						"model": "ashlar-crenels"
+					}
+				],
+				"buttress": [
+					{
+						"model": "ashlar-buttress"
+					}
+				],
+				"pinnacle": [
+					{
+						"model": "stone-pinnacle"
+					}
+				],
+				"tower.corner": [
+					{
+						"model": "ashlar-turret"
+					}
+				],
+				"arch": [
+					{
+						"model": "ashlar-arch"
+					}
+				]
+			},
+			"floors": {
+				"plain": {
+					"tiles": [
+						{
+							"model": "flagstone-a"
+						},
+						{
+							"model": "flagstone-b"
+						},
+						{
+							"model": "flagstone-c"
+						},
+						{
+							"model": "flagstone-d"
+						}
+					],
+					"broken": [
+						{
+							"model": "flagstone-broken-a"
+						},
+						{
+							"model": "flagstone-broken-b"
+						}
+					]
+				},
+				"flagstone": {
+					"tiles": [
+						{
+							"model": "flagstone-a"
+						},
+						{
+							"model": "flagstone-b"
+						},
+						{
+							"model": "flagstone-c"
+						},
+						{
+							"model": "flagstone-d"
+						}
+					],
+					"broken": [
+						{
+							"model": "flagstone-broken-a"
+						},
+						{
+							"model": "flagstone-broken-b"
+						}
+					]
+				},
+				"stone": {
+					"tiles": [
+						{
+							"model": "flagstone-a"
+						},
+						{
+							"model": "flagstone-b"
+						},
+						{
+							"model": "flagstone-c"
+						},
+						{
+							"model": "flagstone-d"
+						}
+					],
+					"broken": [
+						{
+							"model": "flagstone-broken-a"
+						},
+						{
+							"model": "flagstone-broken-b"
+						}
+					]
+				},
+				"wood": {
+					"tiles": [
+						{
+							"model": "stone-halls-planks-a"
+						},
+						{
+							"model": "stone-halls-planks-b"
+						},
+						{
+							"model": "stone-halls-planks-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-planks-broken"
+						}
+					]
+				},
+				"tile": {
+					"tiles": [
+						{
+							"model": "stone-halls-tile-a"
+						},
+						{
+							"model": "stone-halls-tile-b"
+						},
+						{
+							"model": "stone-halls-tile-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "stone-halls-tile-broken"
+						}
+					]
+				}
+			}
+		},
+		"village": {
+			"name": "Village",
+			"roof": {
+				"style": "gable",
+				"pitch": 45,
+				"eave": 0.25,
+				"material": "thatch"
+			},
+			"presumeRoofs": true,
+			"pieces": {
+				"wall.straight": [
+					{
+						"model": "village-wall-plaster"
+					},
+					{
+						"model": "village-wall-timber",
+						"weight": 0.7
+					}
+				],
+				"wall.outer": [
+					{
+						"model": "village-wall-outer"
+					}
+				],
+				"wall.retaining": [
+					{
+						"model": "village-wall-retaining"
+					}
+				],
+				"wall.boundary": [
+					{
+						"model": "village-wall-boundary"
+					}
+				],
+				"cap": [
+					{
+						"model": "village-cap"
+					}
+				],
+				"plinth": [
+					{
+						"model": "village-plinth"
+					}
+				],
+				"window.frame": [
+					{
+						"model": "village-window-frame"
+					}
+				],
+				"window.sill": [
+					{
+						"model": "village-window-sill"
+					}
+				],
+				"window.glass": [
+					{
+						"model": "village-window-glass"
+					}
+				],
+				"door.frame": [
+					{
+						"model": "village-door-frame"
+					}
+				],
+				"door.leaf": [
+					{
+						"model": "village-door-leaf"
+					}
+				],
+				"stair.riser": [
+					{
+						"model": "village-stair-riser"
+					}
+				],
+				"stair.side": [
+					{
+						"model": "village-stair-side"
+					}
+				],
+				"railing": [
+					{
+						"model": "village-railing"
+					}
+				],
+				"cliff.face": [
+					{
+						"model": "village-cliff-face"
+					}
+				],
+				"cliff.corner": [
+					{
+						"model": "village-cliff-corner"
+					}
+				],
+				"bridge.deck": [
+					{
+						"model": "village-bridge-deck"
+					}
+				],
+				"bridge.pier": [
+					{
+						"model": "village-bridge-pier"
+					}
+				],
+				"post.end": [
+					{
+						"model": "village-post-end"
+					}
+				],
+				"post.L": [
+					{
+						"model": "village-post-l"
+					}
+				],
+				"post.T": [
+					{
+						"model": "village-post-t"
+					}
+				],
+				"post.X": [
+					{
+						"model": "village-post-x"
+					}
+				],
+				"roof.eave": [
+					{
+						"model": "village-roof-eave"
+					}
+				],
+				"roof.ridge": [
+					{
+						"model": "village-roof-ridge"
+					}
+				],
+				"roof.hip": [
+					{
+						"model": "village-roof-hip"
+					}
+				],
+				"roof.corner": [
+					{
+						"model": "village-roof-corner"
+					}
+				],
+				"roof.chimney": [
+					{
+						"model": "village-roof-chimney",
+						"sockets": [
+							{
+								"kind": "smoke",
+								"at": [
+									0.2,
+									3.5,
+									0
+								]
+							}
+						]
+					}
+				],
+				"roof.dormer": [
+					{
+						"model": "village-roof-dormer"
+					}
+				]
+			},
+			"floors": {
+				"cobble": {
+					"tiles": [
+						{
+							"model": "village-cobble-a"
+						},
+						{
+							"model": "village-cobble-b"
+						},
+						{
+							"model": "village-cobble-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "village-cobble-broken"
+						}
+					]
+				},
+				"wood": {
+					"tiles": [
+						{
+							"model": "village-planks-a"
+						},
+						{
+							"model": "village-planks-b"
+						},
+						{
+							"model": "village-planks-c"
+						}
+					],
+					"broken": [
+						{
+							"model": "village-planks-broken"
+						}
+					]
+				}
+			}
 		}
 	},
 	"decoders": {

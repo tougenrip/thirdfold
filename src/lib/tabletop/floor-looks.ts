@@ -22,5 +22,7 @@ export const FLOOR_LOOKS: Record<FloorId, { color: number; alpha: number }> = {
 	rock: { color: 0x6f6a62, alpha: 235 },
 	mud: { color: 0x4f3b28, alpha: 230 },
 	snow: { color: 0xe4e8ec, alpha: 230 },
-	gravel: { color: 0x8c8478, alpha: 230 }
+	gravel: { color: 0x8c8478, alpha: 230 },
+	tile: { color: 0xa8705a, alpha: 235 },
+	grating: { color: 0x4a4e52, alpha: 240 }
 };

@@ -80,5 +80,30 @@
 	"weathered-wood": {
 		"color": "#8a7b66",
 		"roughness": 0.9
+	},
+	"thatch": {
+		"color": "#93804f",
+		"roughness": 0.95
+	},
+	"slate": {
+		"color": "#5a5f6b",
+		"roughness": 0.8
+	},
+	"tin-roof": {
+		"color": "#55525a",
+		"roughness": 0.6,
+		"metalness": 0.3
+	},
+	"roof-boards": {
+		"color": "#6f5f4e",
+		"roughness": 0.9
+	},
+	"ashlar-trim": {
+		"color": "#ffffff",
+		"roughness": 0.8,
+		"map": "ashlar-trim-albedo",
+		"cells": 4,
+		"normal": "ashlar-trim-normal",
+		"orm": "ashlar-trim-orm"
 	}
 }

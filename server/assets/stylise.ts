@@ -245,3 +245,35 @@ export function seamError(img: Image): number {
 	}
 	return seam / Math.max(inside, 1);
 }
+
+/**
+ * A model's colour map recoloured to the palette (#262, docs/ART.md "Palette and values"): the
+ * CC0 bridge props' scans softened, their luminance stretched and half posterised through `ramp`
+ * as a surface's is, `detail` of their own hue kept, every value in 30-240; alpha kept.
+ * Deterministic like `stylise`.
+ */
+export function recolour(img: Image, ramp: string[], detail: number): Image {
+	const { width: w, height: h } = img;
+	const size = w * h;
+	const table = rampTable(ramp);
+	const keep = Math.round(clamp(detail, 0, 1) * 256);
+	const [r, g, b] = [0, 1, 2].map((c) => boxBlur(channel(img, c), w, h, SOFTEN));
+	const lum = new Int32Array(size);
+	for (let i = 0; i < size; i++) lum[i] = (54 * r[i] + 183 * g[i] + 19 * b[i] + 128) >> 8;
+	const lo = percentile(lum, 0.02);
+	const hi = Math.max(lo + 1, percentile(lum, 0.98));
+	const STEP = 51;
+	const [lowest, highest] = ALBEDO_RANGE;
+	const out = new Uint8Array(size * 4);
+	for (let i = 0; i < size; i++) {
+		const t0 = clamp(Math.floor(((lum[i] - lo) * 255) / (hi - lo)), 0, 255);
+		const t = (t0 + Math.round(t0 / STEP) * STEP) >> 1;
+		const own = [r[i], g[i], b[i]];
+		for (let c = 0; c < 3; c++) {
+			const v = table[t * 3 + c] * 256 + (own[c] - lum[i]) * keep;
+			out[i * 4 + c] = clamp(Math.round(v / 256), lowest, highest);
+		}
+		out[i * 4 + 3] = img.data[i * 4 + 3];
+	}
+	return { width: w, height: h, data: out };
+}

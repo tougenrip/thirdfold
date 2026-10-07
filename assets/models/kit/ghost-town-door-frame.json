@@ -1,0 +1,8 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [0.1, 2, 0.14], "at": [-0.45, 1, 0], "material": "weathered-wood" },
+		{ "shape": "box", "size": [0.1, 2, 0.14], "at": [0.45, 1, 0], "material": "weathered-wood" },
+		{ "shape": "box", "size": [1, 0.24, 0.14], "at": [0, 1.88, 0], "material": "weathered-wood" },
+		{ "shape": "box", "size": [0.8, 0.04, 0.14], "at": [0, 0.02, 0], "color": "#8a5f48" }
+	]
+}

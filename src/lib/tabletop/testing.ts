@@ -4,10 +4,10 @@
 // fixture's named poses, so the same inputs always draw the same pixels.
 // Fixtures and views are JSON made by server/fixtures (see docs/PERFORMANCE.md).
 
-import type * as THREE from 'three/webgpu';
+import * as THREE from 'three/webgpu';
 import { inject, it } from 'vitest';
 import { page } from 'vitest/browser';
-import { decodeFloor } from '$lib/game/floor';
+import { decodeFloor, FLOOR_IDS } from '$lib/game/floor';
 import type { SquareGrid } from '$lib/game/grid';
 import type { Ambient, Light } from '$lib/game/lights';
 import type { SceneObject } from '$lib/game/objects';
@@ -26,6 +26,7 @@ import { loadModel } from './models';
 import { poseFor, type GridPose } from './poses';
 import { settingsFor, toneMapperFrom, type Tier } from './quality';
 import { createTabletop } from './renderer';
+import { JOINT, type TileSet } from './floor-tiles-layer';
 import type { Tabletop, TabletopEvents } from './types';
 import type { WarmRenderer } from './lobby';
 
@@ -366,4 +367,35 @@ export async function readFrame(
 	ctx.drawImage(bitmap, 0, 0);
 	const { data } = ctx.getImageData(0, 0, width, height);
 	return (x, y) => [...data.slice((y * width + x) * 4, (y * width + x) * 4 + 3)];
+}
+
+/**
+ * A stand-in kit's floor tiles (#254), until #261's greybox kits: slabs with their tops at the
+ * floor, in a few greys, for the default ground and the man-made floors (`useTileSet`).
+ */
+export function testTiles(): TileSet {
+	const slab = (w: number, d: number, h: number, grey: number) => {
+		const g = new THREE.BoxGeometry(w, h, d).translate(0, -h / 2, 0);
+		const n = g.getAttribute('position').count;
+		g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(grey), 3));
+		return g;
+	};
+	const floor = (size: number, greys: number[]) => ({
+		spec: {
+			pitch: { x: size + JOINT, z: size + JOINT },
+			tiles: greys.map(() => 1),
+			broken: [1]
+		},
+		tiles: greys.map((g) => slab(size, size, 0.08, g)),
+		broken: [slab(size * 0.8, size * 0.7, 0.06, 0.5)]
+	});
+	const id = (f: (typeof FLOOR_IDS)[number]) => FLOOR_IDS.indexOf(f);
+	return new Map([
+		[id('plain'), floor(0.6, [0.75, 0.7, 0.8])],
+		[id('stone'), floor(0.6, [0.75, 0.7, 0.8])],
+		[id('flagstone'), floor(0.72, [0.8, 0.72])],
+		[id('cobble'), floor(0.3, [0.65, 0.6])],
+		[id('tile'), floor(0.45, [0.85, 0.6])],
+		[id('grating'), floor(0.5, [0.4])]
+	]);
 }

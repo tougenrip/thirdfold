@@ -84,6 +84,7 @@
 		hoveredObjectId?: string | null;
 		preview?: readonly PreviewItem[];
 		selectedId?: string | null;
+		ownTokens?: readonly string[]; // the viewer's own, whose roofs fade as the selected one's (#259)
 		highlight?: { cell: GridPos; kind: HighlightKind } | null;
 		/** The grid's mode (with the viewer's Grid setting) and explore mode's focus (#245). */
 		gridView?: Parameters<Tabletop['setGridMode']>;
@@ -128,6 +129,7 @@
 		hoveredObjectId = null,
 		preview = [],
 		selectedId = null,
+		ownTokens = [],
 		highlight = null,
 		gridView = ['off'],
 		view = 'tactical',
@@ -409,13 +411,9 @@
 		onDiceThrown?.(diceThrow.seq, ms);
 	});
 
-	$effect(() => {
-		tabletop?.setSelectedProp(selectedPropId);
-	});
+	$effect(() => tabletop?.setSelectedProp(selectedPropId));
 
-	$effect(() => {
-		tabletop?.setHoveredProp(hoveredPropId);
-	});
+	$effect(() => tabletop?.setHoveredProp(hoveredPropId));
 
 	$effect(() => {
 		tabletop?.setHoveredObject(hoveredObjectId);
@@ -428,6 +426,8 @@
 	$effect(() => {
 		tabletop?.setSelected(selectedId);
 	});
+
+	$effect(() => tabletop?.setOwnTokens([...ownTokens]));
 
 	$effect(() => {
 		tabletop?.setHighlight(highlight?.cell ?? null, highlight?.kind ?? 'move');

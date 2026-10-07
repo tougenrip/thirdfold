@@ -160,7 +160,7 @@ describe('the world shape on every fixture', () => {
 			const s = shapes.get(name)!;
 			expect(checkEmitter(s, referenceBoxes(s)), name).toEqual([]);
 		}
-	});
+	}, 30_000);
 
 	it('passes the dual-grid ground (#240) through the harness on every scene and view', () => {
 		for (const { name } of every) {

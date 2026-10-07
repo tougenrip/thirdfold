@@ -4,6 +4,7 @@
 	"ground": "monastery-stone",
 	"walls": "monastery-stone",
 	"sky": "temperate",
+	"kit": "stone-halls",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand", "flagstone"],
 		"walls": ["ashlar"]

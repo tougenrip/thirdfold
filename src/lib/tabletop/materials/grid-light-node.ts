@@ -26,6 +26,7 @@ import { STEP_HEIGHT } from '../ground';
 import { flickerNode } from './flicker';
 import type { GridIndirect } from './lighting-model';
 import type { N } from './tsl';
+import { roofLit } from './world-modify';
 import {
 	BOUNCE_RANGE,
 	CAVITY_PER_SIDE,
@@ -178,6 +179,34 @@ export function falloffNode(dxz: N, reach: N, d3: N, noCore: N | number = 0): N 
 export const load = (texture: THREE.Texture, x: N, layer: N): N =>
 	t.textureLoad(texture, t.ivec2(x, 0)).depth(layer);
 
+/** A world-space varying sampled at the centroid of the pixel's covered samples (`lookupPoint`). */
+const centroid = (node: unknown, name: string): N =>
+	(
+		T.varying(node as never, name) as unknown as { setInterpolation(t: string, s: string): N }
+	).setInterpolation(
+		THREE.InterpolationSamplingType.PERSPECTIVE,
+		THREE.InterpolationSamplingMode.CENTROID
+	);
+const lookupPosition = centroid(T.positionWorld, 'v_cellPosition');
+const worldNormal = centroid(T.normalLocal.transformDirection(T.modelWorldMatrix), 'v_cellNormal');
+/** Up where a geometry has no normals (as `normalLocal` falls back, without its warning). */
+const lookupNormal = T.Fn((builder: { geometry: THREE.BufferGeometry }) =>
+	builder.geometry.hasAttribute('normal') ? worldNormal : T.vec3(0, 1, 0)
+)() as unknown as N;
+
+/**
+ * Where a fragment looks up its cell: `NORMAL_LOOKUP` cells along its geometric normal (turned
+ * with the face shown), from a position and normal sampled at the centroid. Under MSAA a pixel a
+ * face only partly covers is shaded at the pixel's centre, off the triangle, where the position
+ * and normal run on past it: on a thin face seen edge on (a kit wall's mortar joints, #252) they
+ * reached the cell beyond the wall, which lit the far face by the near side's lights. The
+ * centroid lies on the triangle.
+ */
+function lookupPoint(cellSize: N): N {
+	const normal = lookupNormal.normalize().mul(t.faceDirection);
+	return lookupPosition.add(normal.mul(cellSize.mul(NORMAL_LOOKUP)));
+}
+
 /**
  * The fragment's cell on `light`'s grid, looked up a little along its normal (each wall face its
  * own side): in cells (`cell`, a cell's centre at + 0.5), as integers (`c`), and whether it is on
@@ -186,7 +215,7 @@ export const load = (texture: THREE.Texture, x: N, layer: N): N =>
 export function fragmentCell(light: GridLight): { cell: N; c: N; inside: N } {
 	const cellSize = light.cellSize as unknown as N;
 	const gridSize = light.gridSize as unknown as N;
-	const p = t.positionWorld.add(t.normalWorld.mul(cellSize.mul(NORMAL_LOOKUP)));
+	const p = lookupPoint(cellSize);
 	const cell = p.xz.div(cellSize).add(gridSize.mul(0.5)).toVar();
 	const c = t.ivec2(t.floor(cell)).toVar();
 	const inside = c.x
@@ -248,6 +277,8 @@ class GridLightNode extends THREE.AnalyticLightNode<THREE.Light> {
 		const { directDiffuse, directSpecular } = b.context.reflectedLight;
 		directDiffuse.toStack();
 		directSpecular.toStack();
+		// A roof (#257) is lit by the sky, never by the lights its cells under it list.
+		if (roofLit(builder)) return undefined as never;
 		const k = light.k;
 		const model = (b.context as { lightingModel?: { gridIndirect?: GridIndirect } }).lightingModel;
 		if (model && 'gridIndirect' in model) model.gridIndirect = indirectNode(light, load);
@@ -293,7 +324,7 @@ function indirectNode(light: GridLight, load: (t: THREE.Texture, x: N, layer: N)
 	const { int, ivec2, float, floor, fract, mix, min, max, abs, step, smoothstep, vec4 } = t;
 	const cellSize = light.cellSize as unknown as N;
 	const gridSize = light.gridSize as unknown as N;
-	const p = t.positionWorld.add(t.normalWorld.mul(cellSize.mul(NORMAL_LOOKUP)));
+	const p = lookupPoint(cellSize);
 	const cell = p.xz.div(cellSize).add(gridSize.mul(0.5));
 	const last = ivec2(gridSize).sub(1);
 	const fit = (c: N) => max(min(c, last), ivec2(0, 0));

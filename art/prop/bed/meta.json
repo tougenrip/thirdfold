@@ -1,0 +1,41 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Kirill Sannikov (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/GothicBed_01/GothicBed_01_1k.gltf",
+			"sha256": "67df189dd3a645936827f3cc123fb9e97ca9d2201d1e4090762bf477cab82fc0"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/GothicBed_01/GothicBed_01.bin",
+			"sha256": "2276e86480c49dfb63a4671a9637621f88727708cf83342156c157a1d89f747b"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/GothicBed_01/GothicBed_01_diff_1k.png",
+			"sha256": "ae4cf4739116dfcd1fdb76a6e6567fe21d1fda218c5164a1d6544f4930a39846"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/GothicBed_01/GothicBed_01_arm_1k.png",
+			"sha256": "5675e243eda6a67d54a347bbdf5eccf445c9401542ec4b8d2f6aa4028a8fba7a"
+		}
+	],
+	"polyhaven": "https://polyhaven.com/a/GothicBed_01",
+	"fit": [0.9, 0.95, 1.9],
+	"turn": 0,
+	"triangles": 2500,
+	"roughness": 0.8,
+	"ramp": ["#3a2a2a", "#5e4332", "#86623f", "#aa8656"],
+	"detail": 0.25,
+	"textureSize": 512,
+	"lods": [
+		{
+			"error": 0.2
+		},
+		{
+			"error": 0.5
+		}
+	]
+}

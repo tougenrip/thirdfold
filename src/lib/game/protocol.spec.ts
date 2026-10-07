@@ -515,7 +515,16 @@ describe('adventure messages', () => {
 			to,
 			floor: 'void'
 		});
-		for (const floor of ['cobble', 'flagstone', 'rock', 'mud', 'snow', 'gravel']) {
+		for (const floor of [
+			'cobble',
+			'flagstone',
+			'rock',
+			'mud',
+			'snow',
+			'gravel',
+			'tile',
+			'grating'
+		]) {
 			expect(parseClientMessage({ type: 'floor_set', from, to, floor })).toMatchObject({ floor });
 		}
 		for (const floor of ['lava', 3, null, 'toString']) {

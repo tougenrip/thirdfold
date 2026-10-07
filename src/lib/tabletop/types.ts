@@ -11,6 +11,7 @@ import type { SceneObject } from '$lib/game/objects';
 import type { Prop } from '$lib/game/props';
 import type { Token } from '$lib/game/token';
 import type { WorldLook } from '$lib/game/world';
+import type { LayerReports } from './perf-layers';
 import type { FogView } from '$lib/game/visibility';
 import type { DiceThrow } from './dice3d';
 import type { FogMode } from './fog';
@@ -110,6 +111,8 @@ export interface Tabletop {
 	setSelectedProp(propId: string | null): void;
 	setHoveredProp(propId: string | null): void;
 	setSelected(tokenId: string | null): void;
+	/** The viewer's own tokens: a roof over one of them fades (#259), as over the selected one. */
+	setOwnTokens(tokenIds: readonly string[]): void;
 	/**
 	 * How much grid shows (#245, `GridMode`): local UI state, never synced. In explore mode the
 	 * lines show round `focus` (the hovered cell, the selected token's). A uniform write.
@@ -168,6 +171,8 @@ export interface Tabletop {
 	benchmark(frames: number): Promise<Benchmark>;
 	/** Reads the GPU timestamps of the frames since the last call into `stats().gpuMs`. */
 	sampleGpu(): Promise<void>;
+	/** Draws the current view, counting draws by layer and pass, shadows too (perf-layers.ts). */
+	layers(): Promise<LayerReports>;
 	resetStats(): void;
 	/**
 	 * Stops and frees everything. Resolves once the renderer itself is gone: make the next tabletop

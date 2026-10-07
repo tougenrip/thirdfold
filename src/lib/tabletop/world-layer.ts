@@ -23,12 +23,25 @@
 //
 // A cell whose level or floor changes where the viewer knew it drops in (#249): its vertices
 // carry the drop's start (the tops and faces; the void's floor stays where it is).
+//
+// Stairs (#255, world/stairs.ts) are part of the chunks: the shape is built with the walls (a
+// run stops at one, a walled side gets no rail) and `withStairs`, its steps and stringers go in the
+// faces, and its rails and kerbs (`stairTrim`) in the faces' meshes too, so they cost no draw call
+// and no program. A wall's change rebuilds only the chunks whose stairs it changed (`stairDirty`),
+// and so does a new environment whose default ground is built (or not): rails or kerbs. The
+// environment's kit (#261) puts its stair pieces in instead once their models have loaded
+// (stair-kit.ts `StairKit`, baked into the faces' meshes too), and the ground leaves those edges.
+// Bridges (#256, world/bridges.ts) ride on the stairs: their parapets are rails, and their bodies
+// under the deck (world/bridge-mesh.ts `bridgeTrim`, by the chasm for arches over the void) go
+// into the masonry faces' mesh, so they too cost no draw call and no program.
 
 import * as THREE from 'three/webgpu';
 import type { SquareGrid } from '$lib/game/grid';
+import type { SceneObject } from '$lib/game/objects';
 import type { FogView } from '$lib/game/visibility';
 import { cellsDropped, DROP_CELLS, NO_DROP, type Drops } from './drop-in';
 import { wear, type EnvironmentLook } from './environment';
+import { TileLayer } from './floor-tiles-layer';
 import type { FogMode } from './fog';
 import { GridOverlay } from './grid-overlay';
 import { STEP_HEIGHT, type Ground } from './ground';
@@ -48,10 +61,11 @@ import {
 	type KindMaterial
 } from './materials';
 import type { PerfRecorder } from './perf';
+import type { Tier } from './quality';
+import { StairKit } from './stair-kit';
 import { standIn } from './warmup';
+import { EMPTY, fill } from './world-fill';
 import type { Chasm } from './world/chasm';
-import type { CliffMesh } from './world/cliffs';
-import type { GroundMesh } from './world/ground-mesh';
 import type { WorldShape } from './world/shape';
 
 /** The world's builders: their own chunk (world/build.ts), never imported statically here. */
@@ -95,6 +109,8 @@ export interface WorldStats {
 	chunks: number;
 	/** Chunks the last update rebuilt. */
 	lastRebuilt: number;
+	/** Kit floor tiles in the ring (#254): their meshes (draws) and instances. */
+	tiles: { meshes: number; instances: number };
 }
 
 interface Chunk {
@@ -106,8 +122,6 @@ interface Chunk {
 	/** The void's floor (#243): mist, the sea or the moving ground. */
 	bottom: THREE.Mesh;
 }
-
-const EMPTY = new THREE.BufferGeometry();
 
 export class WorldLayer {
 	readonly group = new THREE.Group();
@@ -127,19 +141,29 @@ export class WorldLayer {
 	private picks: Ground | null = null;
 	private cellSize = 1;
 	private inputs: unknown[] = [];
+	/** Whether the environment's default ground is built (`builtGround`): its stairs get rails. */
+	private built = false;
+	/** The environment's kit's stair pieces (#255, #261). */
+	private stairKit = new StairKit(() => this.restair());
 	private lastRebuilt = 0;
 	private standIns: THREE.Mesh[] | null = null;
 	/** Each cell's drop start (#249), and the shape the last drawn frame showed. */
 	private starts = new Float32Array(0);
 	private seen: { frame: number; shape: WorldShape | null } = { frame: -1, shape: null };
+	/** Kit floor tiles in a ring round the camera (#254), and the tiling they were last built from. */
+	private readonly tiles: TileLayer;
+	private tiled: { shape: WorldShape; tiled: Uint8Array } | null = null;
 
 	constructor(
 		private readonly perf: PerfRecorder,
 		private readonly land: WorldGround,
 		private readonly build: WorldBuilders,
-		private readonly drops: Drops
+		private readonly drops: Drops,
+		/** Told when something arrived that changes the picture (a kit's floor tiles or stair pieces). */
+		private readonly onChange: () => void = () => {}
 	) {
-		this.group.add(this.chunkGroup);
+		this.tiles = new TileLayer(onChange);
+		this.group.add(this.chunkGroup, this.tiles.group);
 		this.sides = build.CLIFF_STYLES.map((style) => {
 			const material = createMaterial('rock', {
 				antiTiled: true,
@@ -168,7 +192,8 @@ export class WorldLayer {
 	 * chasm's mist on medium and up, with void on the table), for AMBIENT frames; still under
 	 * reduced motion.
 	 */
-	tick(now: number, reducedMotion: boolean): boolean {
+	tick(now: number, reducedMotion: boolean, target?: THREE.Vector3): boolean {
+		if (target) this.tiles.follow(target); // the tile ring (#254): uniforms and visibility only
 		const { style } = this.chasm;
 		const mist = style === 'chasm' && !!this.top.options.antiTiled;
 		const moving =
@@ -179,31 +204,39 @@ export class WorldLayer {
 
 	/**
 	 * The shape for what the viewer was sent, and the chunks it changed rebuilt. Returns whether
-	 * the explored mask changed (walls follow it: `wallSpans` with `known`).
+	 * the explored mask changed (walls follow it: `wallSpans` with `known`). Of the objects only the
+	 * walls and windows count (stairs stop at them); a door opening rebuilds nothing.
 	 */
 	update(
 		grid: SquareGrid,
 		levels: Uint8Array | null,
 		floor: Uint8Array | null,
 		fog: FogView | null,
-		mode: FogMode
+		mode: FogMode,
+		objects: readonly SceneObject[] = []
 	): boolean {
 		const n = grid.width * grid.height;
 		const fit = (a: Uint8Array | null) => (a?.length === n ? a : null);
 		const explored = fog?.enabled && mode !== 'gm' ? fog.explored : null;
+		const walls = objects.filter((o) => o.kind === 'wall');
+		const wallKey = walls.map((o) => `${o.a.x},${o.a.y},${o.b.x},${o.b.y},${+!!o.window}`).join();
 		const inputs = [grid.width, grid.height, grid.cellSize, fit(levels), fit(floor), explored];
+		inputs.push(wallKey);
 		if (this.shape && inputs.every((v, i) => v === this.inputs[i])) return false;
 		const exploredChanged = !this.shape || explored !== this.inputs[5];
 		this.inputs = inputs;
 		const known = fog ? this.build.knownOf(grid, fog, mode === 'gm') : null;
 		const previous = this.shape;
-		this.shape = this.build.worldShape({
-			grid,
-			levels: fit(levels),
-			floor: fit(floor),
-			objects: [],
-			known
-		});
+		this.shape = this.build.withStairs(
+			this.build.worldShape({
+				grid,
+				levels: fit(levels),
+				floor: fit(floor),
+				objects: walls,
+				known
+			}),
+			this.stairOptions()
+		);
 		const { shape } = this;
 		this.picks = this.build.chasmGround(grid, shape.ground, shape.floor, () => this.chasm);
 		this.dropIn(previous, shape);
@@ -223,6 +256,17 @@ export class WorldLayer {
 		const cellSize = grid?.cellSize ?? 1;
 		this.cellSize = cellSize;
 		const cave = CAVES.has(environment ?? '');
+		this.tiles.setEnvironment(environment ?? null, () => {
+			this.tiled = this.drawn = null; // every chunk again: its tiles and the bed under them
+			this.rebuild();
+			this.onChange();
+		});
+		const built = this.build.builtGround(environment);
+		if (built !== this.built) {
+			this.built = built;
+			this.restair();
+		}
+		this.stairKit.setEnvironment(environment ?? null);
 		wear(this.top, look?.surface ?? null, PLAIN.top);
 		setParams(this.top, { repeat: repeatFor(look?.surface.cells ?? 1, cellSize, STEP_HEIGHT) });
 		this.build.CLIFF_STYLES.forEach((style, i) => {
@@ -253,7 +297,12 @@ export class WorldLayer {
 	}
 
 	stats(): WorldStats {
-		return { chunks: this.chunks.length, lastRebuilt: this.lastRebuilt };
+		return { chunks: this.chunks.length, lastRebuilt: this.lastRebuilt, tiles: this.tiles.stats() };
+	}
+
+	/** The tier's tile ring (#254): none on low. */
+	setTier(tier: Tier): void {
+		this.tiles.setTier(tier);
 	}
 
 	/**
@@ -280,6 +329,7 @@ export class WorldLayer {
 
 	dispose(): void {
 		this.resize(0);
+		this.tiles.dispose();
 		this.standIns?.[0].geometry.dispose();
 		this.grid.dispose();
 		disposeTwins(this.top);
@@ -333,24 +383,71 @@ export class WorldLayer {
 		dropHeight.value = DROP_CELLS * shape.grid.cellSize;
 	}
 
+	/** The stairs' options: the environment's ground and the kit's pieces that have loaded. */
+	private stairOptions() {
+		return { built: this.built, kit: this.stairKit.ready() };
+	}
+
+	/** The stairs again (a new environment, or more of its kit loaded), and the picture. */
+	private restair(): void {
+		if (!this.shape) return;
+		const next = this.build.withStairs(this.shape, this.stairOptions());
+		const same = !this.build.stairDirty(this.shape, next).length;
+		this.shape = next;
+		if (same) return; // a kit model that changed nothing
+		this.rebuild();
+		this.onChange();
+	}
+
 	/** Builds the chunks the shape changed since the drawn one (all of them on a new grid). */
 	private rebuild(): void {
 		const shape = this.shape;
 		if (!shape) return;
 		const drawn = this.drawn?.grid.cellSize === shape.grid.cellSize ? this.drawn : null;
-		const dirty = this.build.dirtyChunks(drawn, shape);
-		const { x, y } = this.build.chunksAcross(shape.grid);
+		// Kit floor tiles (#254): which cells take them, the chunks whose tiles or bed changed; and
+		// the chunks whose stairs changed (#255).
+		const b = this.build;
+		const kit = this.tiles.kit;
+		const tiled = b.tiledCells(shape, kit);
+		const was = this.tiled?.shape.grid.cellSize === shape.grid.cellSize ? this.tiled : null;
+		const bedded = new Set([
+			...b.dirtyChunks(drawn, shape),
+			...b.dirtyTileChunks(was, shape, tiled, 1),
+			...b.stairDirty(drawn, shape)
+		]);
+		const dirty = [...bedded].sort((p, q) => p - q);
+		const { x, y } = b.chunksAcross(shape.grid);
 		this.resize(x * y);
-		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c));
+		this.tiles.layout(shape.grid, x * y, x, b.CHUNK);
+		for (const c of dirty) this.perf.time('world-chunk', () => this.buildChunk(shape, c, tiled));
+		const retiled = b.dirtyTileChunks(was, shape, tiled);
+		const brink = kit.size && retiled.length ? b.brinkCells(shape) : null;
+		for (const c of retiled)
+			this.tiles.fill(c, brink ? b.chunkTiles(shape, kit, tiled, brink, c) : []);
+		this.tiled = { shape, tiled };
 		this.drawn = shape;
 		this.lastRebuilt = dirty.length;
 	}
 
-	private buildChunk(shape: WorldShape, c: number): void {
+	private buildChunk(shape: WorldShape, c: number, tiled: Uint8Array): void {
 		const { top, sides, bottom } = this.build.chunkWorld(shape, c, this.chasm);
+		// Rails and kerbs, the kit's stair pieces (#255) and the bridges' bodies (#256), with the faces.
+		const trim = this.build.stairTrim(shape, c);
+		const body = this.build.bridgeTrim(shape, c, this.chasm);
+		const across = this.build.chunksAcross(shape.grid).x;
+		const n = this.build.CHUNK;
+		const [x0, y0] = [(c % across) * n, Math.floor(c / across) * n];
+		const kit = this.stairKit.chunkPieces(shape, [x0, y0, x0 + n, y0 + n], this.build.styleOf);
 		const chunk = this.chunks[c];
-		fill(chunk.top, top, this.starts);
-		sides.forEach((faces, i) => fill(chunk.sides[i], faces, this.starts));
+		const beds = this.build.tileBeds(shape, tiled, top.positions, top.owners);
+		fill(chunk.top, top, this.starts, false, beds);
+		sides.forEach((faces, i) =>
+			fill(
+				chunk.sides[i],
+				[trim[i], kit[i], body[i]].reduce(this.build.withTrim, faces),
+				this.starts
+			)
+		);
 		fill(chunk.bottom, bottom, null, true);
 		this.grid.follow(chunk.grid, chunk.top);
 	}
@@ -385,42 +482,4 @@ export class WorldLayer {
 			this.chunks.push(c);
 		}
 	}
-}
-
-/**
- * Puts a built mesh in a chunk's geometry: positions, normals, a face's shades (vertex colours),
- * each vertex's drop start (its owner cell's, #249, `starts`; none for the void's floor) and
- * triangles, and for the void's floor the world uv the backdrop's skirt has (`uv`: the same
- * attributes, so the same program); hidden when empty.
- */
-function fill(
-	mesh: THREE.Mesh,
-	data: GroundMesh | CliffMesh,
-	starts: Float32Array | null,
-	uv = false
-): void {
-	if (mesh.geometry !== EMPTY) mesh.geometry.dispose();
-	mesh.visible = data.indices.length > 0;
-	if (!mesh.visible) {
-		mesh.geometry = EMPTY;
-		return;
-	}
-	const g = new THREE.BufferGeometry();
-	g.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
-	g.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
-	if ('colors' in data) g.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
-	if (uv) {
-		const p = data.positions;
-		const uvs = new Float32Array((p.length / 3) * 2);
-		for (let v = 0; v < uvs.length / 2; v++) uvs.set([p[v * 3], -p[v * 3 + 2]], v * 2);
-		g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-	}
-	if (starts)
-		withDrops(
-			g,
-			Float32Array.from(data.owners, (o) => starts[o] ?? NO_DROP)
-		);
-	g.setIndex(new THREE.BufferAttribute(data.indices, 1));
-	g.computeBoundingSphere();
-	mesh.geometry = g;
 }

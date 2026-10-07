@@ -32,14 +32,23 @@ const BUDGETS = {
 	// → 99.3: and main's M69 (the world) beside them, 99,217 B measured.
 	// → 99.6: the Publish section adds versions to adventures shared with a collaborator, and
 	// the library's client learns access and grants (#99), 99,548 B measured.
-	'/builder': { total: 99_600, own: 52_000 },
-	'/credits': { total: 54_000, own: 3_000 },
+	// → 100.0: the manifest's kits and their parser with the roles' envelopes (kit.ts, #250), 99.9 kB
+	// measured. → 100.3: the shared chunk after roof fades (#259: Tabletop.setOwnTokens), just over
+	// 100.0 kB measured.
+	// → 101.3: the rules track's (#99) and main's M70 (#250, #259) together, 101,227 B measured.
+	'/builder': { total: 101_300, own: 52_000 },
+	// 54.0 → 54.8: the same (#250), 54.7 kB measured. → 54.9: beside the rules track's shared
+	// library types (#99), 54,802 B measured.
+	'/credits': { total: 54_900, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
 	// → 51.3: the rules track's shared adventure types beside the sky's (#94–#96), 51,208 B measured.
-	'/dev/assets': { total: 51_300, own: 500 },
-	'/library': { total: 66_000, own: 21_000 },
+	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
+	'/dev/assets': { total: 52_900, own: 500 },
+	// 66.0 → 66.2: the rules track's library client (#98, #99) beside main's M70 kits (#250),
+	// 66,138 B measured.
+	'/library': { total: 66_200, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
 	'/room/[id]': { total: 121_700, own: 76_000 },
@@ -99,8 +108,26 @@ const BUDGETS = {
 	// → 390.0: M69's close deleted the old raised-cell boxes, the play plane, the `LineSegments` grid,
 	// the highlight plane and the `terrain` layer; 389,901 B measured. → 390.2: the M69 load fix
 	// (warm-ups compile in parallel chunks in each pass's context, the floors' box shared);
-	// 390,193 B measured.
-	renderer: { total: 390_300 },
+	// 390,193 B measured. → 396.1: kit walls (#252: three's BatchedMesh, about 4.2 kB of it, the
+	// walls' chunked batches, picking proxy and highlight, the surface kind's `batched` variant).
+	// → kit floor tiles (#254: the tile layer, its ring and the sink and bed in the prop and terrain
+	// graphs) → stairs (#255: walls and the environment's ground read, the stairs' trim and the
+	// kit's stair pieces baked into the faces); set to the merged build's measured size (the owner
+	// raised M70's cap to about 405 kB). → door leaves (#253: one batch, door-leaves.ts and batch.ts)
+	// → roofs (#257: the roof layer, the surface kind's `roof` variant and the sky terms picked per
+	// material); set to the merged build's measured size. → roof fades (#259: the fade map and the
+	// roof variant's dithered mask, the layer's fades on the wall clock, after #258); 401,941 B
+	// measured.
+	// → the GridLights' cell lookup at the centroid (two varyings, grid-light-node.ts); 403.0 kB.
+	// → 403.7: kit textures (M70: kit pieces on their trim sheet by UV, the surface kind's `sheet`
+	// variant, a batch per sheet, `sheetOf`, sheeted floor tiles); 403.7 kB measured after the merge. → 404.0: the
+	// perf tags (#264, `tagged` in perf.ts); 403.8 kB measured. → 399.6: kit pieces as a pool of
+	// InstancedMeshes on both backends (M70 after #264: piece-pool.ts, the surface kind's `piece`
+	// variant; three's BatchedMesh and batch.ts gone, about 4.3 kB); 399.5 kB measured.
+	// → 399.8: warm-ups at the draw depth (warmup.ts, DrawDepths and unlit); 399.7 kB measured.
+	// → 400.0: still texture reads leave WebGL2's update lists (materials/still-textures.ts, the
+	// orbit's main thread 18.6 → 10 ms); 399,836 B measured.
+	renderer: { total: 400_000 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
@@ -110,8 +137,17 @@ const BUDGETS = {
 	// 5,166 B measured. → 7.8: the backdrop beyond the grid (#244: the skirt, the silhouettes and
 	// their recipes); 7,762 B measured. → the cliffs and risers (#241, world/cliffs.ts); set to the
 	// merged build's measured size. → 10.4: the void's chasms (#243, world/chasm.ts and the
-	// ground's void floor); 10,369 B measured.
-	world: { total: 10_400 }
+	// ground's void floor); 10,369 B measured. → 12.4: wall autotiling (#251, world/autotile.ts);
+	// 12,355 B measured. → 13.6: kit walls' instances and built-in pieces (#252, world/wall-batch.ts).
+	// → kit floor tiles (#254, world/floor-tiles.ts) → stairs (#255, world/stairs.ts and the stair
+	// faces in cliffs.ts); set to the merged build's measured size. → 19.5: bridges and balustrades
+	// (#256, world/bridges.ts, world/bridge-mesh.ts and the bridge runs in regions.ts) → window and
+	// door frames, arcades and the built-in leaf (#253) → roofs (#257, world/roofs.ts); set to the
+	// merged build's measured size. → 23.0: hips, wings, caps, chimneys and dormers (#258,
+	// world/roof-mesh.ts); 22,953 B measured. → 23.1: roof fades' rule (#259, world/roof-fade.ts);
+	// 23,016 B measured. → glazed windows (#260, world/glazing.ts); 23,597 B measured. → 23.7:
+	// kit pieces' UVs (M70, `pieceOf`); 23,650 B measured.
+	world: { total: 23_700 }
 };
 /** Only KTX2Loader and the Basis transcoder carry these (#188): never in the renderer's closure. */
 const DECODER_MARKERS = ['Multiple active KTX2 loaders', 'basis_transcoder'];

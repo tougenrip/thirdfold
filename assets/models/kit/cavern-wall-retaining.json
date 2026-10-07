@@ -1,0 +1,65 @@
+{
+	"parts": [
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.286],
+			"at": [-0.25, -1.75, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.296],
+			"at": [0.25, -1.75, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.29],
+			"at": [-0.375, -1.25, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.284],
+			"at": [0, -1.25, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.284],
+			"at": [0.375, -1.25, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.284],
+			"at": [-0.25, -0.75, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.296],
+			"at": [0.25, -0.75, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.288],
+			"at": [-0.375, -0.25, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.48, 0.299],
+			"at": [0, -0.25, -0.12],
+			"material": "cave-rock"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.48, 0.298],
+			"at": [0.375, -0.25, -0.12],
+			"material": "cave-rock"
+		},
+		{ "shape": "box", "size": [1, 2, 0.26], "at": [0, -1, -0.14], "color": "#3f3e46" }
+	]
+}

@@ -7,6 +7,7 @@ import { commands } from 'vitest/browser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GRAIN_MS } from './post';
 import { settingsFor } from './quality';
+import { ROOF_FADE_MS } from './roofs';
 import { SHOT_MS, SHOT_TOTAL, shotFocus } from './shots';
 import {
 	BACKEND,
@@ -109,6 +110,12 @@ describe.skipIf(BACKEND === 'webgpu')('a cinematic shot on a table', () => {
 		const hold = SHOT_MS.go + 500;
 		expect(shotFocus(hold)).toBe(1);
 		await advance(start + hold);
+		// The focus cell is in the smithy, roofed since M70 (#257). In play its roof fades out
+		// (#259) as the camera's pivot comes into the room during the go; here the clock jumps
+		// there, so the fade only starts now: move the clock through it, still in the hold, or
+		// the focus rows would be the roof, above the focus and blurred.
+		expect(shotFocus(hold + ROOF_FADE_MS)).toBe(1);
+		await advance(start + hold + ROOF_FADE_MS);
 		const focused = mounted.pixels();
 		if (WRITE) await writePng('docs/look/m63-dof/shot-hold.png', focused);
 		// The same pose with depth of field switched off, to compare like for like.
@@ -127,7 +134,10 @@ describe.skipIf(BACKEND === 'webgpu')('a cinematic shot on a table', () => {
 		expect(contrast(focused, ...focusRows)).toBeGreaterThan(contrast(sharp, ...focusRows) * 0.8);
 
 		// Long after the shot, on the same frame of the dither: home again, nothing of the blur left.
-		expect(SHOT_TOTAL).toBeLessThan(3 * cycle);
+		expect(SHOT_TOTAL).toBeLessThan(3 * cycle - ROOF_FADE_MS);
+		// The camera comes home on the first frame past the shot, and the smithy's roof fades back
+		// from the next (the roofs read the pivot before the camera moves it): give it its fade.
+		await advance(start + 3 * cycle - ROOF_FADE_MS);
 		await advance(start + 3 * cycle);
 		await settle(t);
 		const after = mounted.pixels();

@@ -103,11 +103,19 @@ const RENDER_SPECS = [
 	'probe-grid',
 	'hero-shadows',
 	'world-layer',
+	'floor-tiles',
 	'beyond',
 	'floor-splat',
 	'grid-overlay',
 	'chasm',
-	'drop-in'
+	'drop-in',
+	'walls',
+	'doors',
+	'stairs',
+	'bridges',
+	'roofs',
+	'window-glow',
+	'kit-textures'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

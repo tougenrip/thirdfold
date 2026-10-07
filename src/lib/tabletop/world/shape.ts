@@ -24,8 +24,8 @@ import { wallSpans, type WallSpan } from './wall-spans';
 
 export { wallSpans, type WallSpan } from './wall-spans';
 
-/** A token's footing: the radius (in cells) round a cell's centre that is flat at its floor. */
-export const TOKEN_DISK = 0.43;
+/** A token's footing (#250: kit.ts holds it, one constant for walls and ground). */
+export { TOKEN_DISK } from '../../assets/kit';
 /** How far (in cells) a decoration may reach into a token's disk. */
 export const INTRUSION = 0.08;
 /** The largest corner rounding (in cells) an emitter may give ground. */
@@ -91,6 +91,24 @@ export interface WorldShape {
 	edges: { ground: EdgeMap; built: EdgeMap };
 	/** The walls' pieces, as `walls.ts` draws them. */
 	walls: WallSpan[];
+	/** Stair runs' marks (#255, stairs.ts `withStairs`), when the shape is drawn with stairs. */
+	stairs?: StairMarks;
+}
+
+/**
+ * What a stair (#255) puts on a unit edge: the ground draws it as a step, a stringer or not at all
+ * (`kit`: a kit piece stands there, or a bridge's side, #256, which bridge-mesh.ts draws).
+ */
+export const STAIR_EDGE = { none: 0, riser: 1, side: 2, kit: 3 } as const;
+
+/** Where the ground draws stairs instead of risers and cliffs (stairs.ts). */
+export interface StairMarks {
+	/** Per unit edge, a `STAIR_EDGE` (`kit`: a kit piece stands there, the ground draws nothing). */
+	edges: EdgeMap;
+	/** A run's steps (its cells but the foot and the head): the ground keeps their corners square. */
+	steps: Uint8Array;
+	/** Bridge cells (#256, non-zero): their corners stay square too, under their parapets. */
+	bridges?: Uint8Array;
 }
 
 /**

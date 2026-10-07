@@ -1,0 +1,77 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [1, 2, 0.1], "at": [0, 1, 0], "color": "#6f6c6a" },
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.123],
+			"at": [-0.25, 0.2, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.13],
+			"at": [0.25, 0.2, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.38, 0.127],
+			"at": [-0.375, 0.6, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.129],
+			"at": [0, 0.6, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.38, 0.123],
+			"at": [0.375, 0.6, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.13],
+			"at": [-0.25, 1, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.122],
+			"at": [0.25, 1, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.38, 0.131],
+			"at": [-0.375, 1.4, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.139],
+			"at": [0, 1.4, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.23, 0.38, 0.126],
+			"at": [0.375, 1.4, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.123],
+			"at": [-0.25, 1.8, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.48, 0.38, 0.133],
+			"at": [0.25, 1.8, 0],
+			"material": "monastery-stone"
+		}
+	]
+}

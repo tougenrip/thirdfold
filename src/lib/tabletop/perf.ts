@@ -475,7 +475,7 @@ export function perfMethods(
 		/** The warm-up under way, if any (renderer.ts): no benchmark frame draws during it. */
 		warming: () => Promise<void>;
 	}
-): Pick<Tabletop, 'stats' | 'resetStats' | 'benchmark' | 'sampleGpu'> {
+): Pick<Tabletop, 'stats' | 'resetStats' | 'benchmark' | 'sampleGpu' | 'layers'> {
 	return {
 		stats: () =>
 			rendererStats(renderer, perf, {
@@ -487,6 +487,12 @@ export function perfMethods(
 			}),
 		resetStats: () => perf.reset(),
 		benchmark: (frames) => benchmark(renderer, perf, draw, frames, warming),
-		sampleGpu: () => sampleGpu(renderer, perf)
+		sampleGpu: () => sampleGpu(renderer, perf),
+		layers: () =>
+			warming().then(async () => (await import('./perf-layers')).layerReports(renderer, draw))
 	};
 }
+
+/** `object`, named as a layer for perf-layers.ts (#264). */
+export const tagged = <T extends THREE.Object3D>(object: T, perfLayer: string): T =>
+	Object.assign(object, { userData: { ...object.userData, perfLayer } });

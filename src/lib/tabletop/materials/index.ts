@@ -6,13 +6,14 @@
 // and world-modify.ts.
 //
 // What is fixed when a material is made (each changes the program, so never toggle it later):
-// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `vertexColors`, and the kind's
+// the kind, `instanced`, `lines`, `grid`, `local`, `antiTiled`, `dropped`, `piece`, `roof`, `sheet`, `vertexColors`, and the kind's
 // `transparent`, `side` and alpha test.
 
 import * as THREE from 'three/webgpu';
 import { SLOT_NAMES, slotDefault, slotProperty, type SlotName } from './defaults';
 import { LIFT_ATTRIBUTE } from './variation';
 import { DROP_ATTRIBUTE } from './drop';
+import { BED_ATTRIBUTE } from './ring';
 import { NO_DROP } from '../drop-in';
 import { KindPhysicalMaterial, KindStandardMaterial } from './lighting-model';
 import {
@@ -36,8 +37,10 @@ export {
 	worldTime
 } from './kinds';
 export { LIFT_ATTRIBUTE } from './variation';
+export { PIECE_MIN, pieceMesh } from './piece';
 export { DROP_ATTRIBUTE, dropHeight, dropNow } from './drop';
 export { liftOf } from './lift';
+export { BED_ATTRIBUTE, ringUniforms } from './ring';
 export { repeatFor } from './tiling';
 export type { Params, ParamsInput, ShaderKind } from './kinds';
 export { SLOTS, SLOT_NAMES, blankTexture, prepareSlotTexture, slotDefault } from './defaults';
@@ -77,6 +80,12 @@ export interface MaterialOptions {
 	dropped?: boolean;
 	/** Multiplies the geometry's vertex colours in (figure bodies, part-list props). */
 	vertexColors?: boolean;
+	/** A kit piece in a pool (#252, piece.ts): its instance colour shades it, its tint's w lights it. */
+	piece?: boolean;
+	/** Surface: a roof (#257), shaded by its `aRoofCell` (`ROOF_CELL_ATTRIBUTE`), which its geometry carries. */
+	roof?: boolean;
+	/** Surface: slots at the geometry's `uv` (a kit's trim sheet, M70), not the world box. */
+	sheet?: boolean;
 	params?: ParamsInput;
 	/** Textures for the kind's slots (see `prepareSlotTexture`); the rest hold their blanks. */
 	slots?: Partial<Record<SlotName, THREE.Texture>>;
@@ -144,7 +153,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		macroTint: 0,
 		macroRoughness: 0,
 		bake: 0,
-		translucency: 0
+		translucency: 0,
+		sink: 0
 	};
 	setParams(material, { ...PARAM_DEFAULTS, ...def.defaults, ...options.params });
 	for (const slot of lines ? [] : SLOT_NAMES)
@@ -156,7 +166,10 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 		grid: def.base === 'basic' && !lines && !!options.grid,
 		local: !!options.local,
 		antiTiled: !!options.antiTiled,
-		dropped: !!options.dropped
+		dropped: !!options.dropped,
+		piece: !!options.piece,
+		roof: !!options.roof,
+		sheet: !!options.sheet
 	});
 	const nodes = material as unknown as Record<string, unknown>;
 	nodes.colorNode = graph.colorNode;
@@ -165,6 +178,8 @@ export function createMaterial(kind: ShaderKind, options: MaterialOptions = {}):
 	nodes.positionNode = graph.positionNode;
 	nodes.castShadowPositionNode = graph.castShadowPositionNode;
 	nodes.outputNode = graph.outputNode;
+	if (graph.maskNode)
+		[nodes.maskNode, nodes.maskShadowNode] = [graph.maskNode, graph.maskShadowNode];
 	for (const [name, node] of Object.entries(graph.lit ?? {})) if (node) nodes[name] = node;
 	return material;
 }
@@ -235,11 +250,22 @@ export function addInstanceTints(geometry: THREE.BufferGeometry, count: number):
 	geometry.setAttribute(LIFT_ATTRIBUTE, new THREE.InstancedBufferAttribute(lift, 2));
 }
 
-/** A per-vertex drop start for a `dropped` material's geometry: none, or `starts` (#249). */
-export function withDrops(geometry: THREE.BufferGeometry, starts?: Float32Array): void {
+/**
+ * A per-vertex drop start for a `dropped` material's geometry: none, or `starts` (#249); and the
+ * bed under floor tiles (`BED_ATTRIBUTE`, #254): none, or `beds`.
+ */
+export function withDrops(
+	geometry: THREE.BufferGeometry,
+	starts?: Float32Array,
+	beds?: Float32Array
+): void {
 	const count = geometry.getAttribute('position').count;
 	const values = starts ?? new Float32Array(count).fill(NO_DROP);
 	geometry.setAttribute(DROP_ATTRIBUTE, new THREE.BufferAttribute(values, 1));
+	geometry.setAttribute(
+		BED_ATTRIBUTE,
+		new THREE.BufferAttribute(beds ?? new Float32Array(count), 1)
+	);
 }
 
 /**

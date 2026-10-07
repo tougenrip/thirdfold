@@ -825,7 +825,11 @@ should be the first thing an upgrade fails.
   swapped by `LightingLayer.setTier` (a new program, as any tier switch makes). M67's pool of 8 (`?off=manylights`) was
   removed at M68's close. Per entry: the rules window, body and core (`falloffNode`, the mirror
   of `lightFalloff`) times three occlusion taps, never below `READABLE_EDGE` on a listed cell, into
-  the lighting model as a direct light (`lightDirection` toward the visual position).
+  the lighting model as a direct light (`lightDirection` toward the visual position). A fragment
+  finds its cell 0.3 cells along its geometric normal (turned with the face shown), from a position
+  and normal sampled at the centroid (`lookupPoint`): under MSAA a pixel a face only partly covers
+  is shaded at its centre, off the triangle, and on a thin face seen edge on (a kit wall's mortar
+  joint, #252) the position and normal ran on into the cell beyond the wall.
 - **One dimming.** The lit kinds light with `KindLightingModel` (`materials/lighting-model.ts`,
   their `KindStandardMaterial` and `KindPhysicalMaterial` bases): its `indirect()` scales the indirect
   light (hemisphere, image light, AO, a mini's clearcoat) by `worldLight` (the rules' light factor
@@ -1575,6 +1579,75 @@ library"): the village has cobble and the stone halls flagstone; everywhere else
 layers wait on the table budgets (each surface is about 2 MB at medium, and every layer an environment
 lists is downloaded with it).
 
+### Kit floor tiles (#254)
+
+Man-made floors (and the default ground, where a kit says so) draw as kit tile meshes near the
+camera, at the kit's own scale and independent of the grid (the owner's gap-12 decision on #254:
+the grid is the shader grid's overlay; no tile seam lines up with a cell edge by design).
+
+- **Floors.** `tile` and `grating` are bytes 14 and 15, after #248's six (no migration; v10 stays
+  forward-only, so older builds refuse a table that uses them), rule-neutral like stone, kerbed in
+  `FLOOR_STYLE`, man-made in `MAN_MADE`, with `FLOOR_LOOKS` tints (no surface layer yet: the tint
+  is their blended fallback) and in `KIT_FLOOR_IDS`. They reach players only on explored cells
+  (`knownFloor`; the multi-client test in `game-server.spec.ts`).
+- **Which cells** (`tiledCells`, `world/floor-tiles.ts`, in the `world` chunk): known, a floor the
+  kit tiles (`KitDef.floors`; `plain` for the default ground), and not void, water, a stair run
+  (#255) or a one-wide raised run (bridge decks, #256), all from the world shape, so from what the
+  viewer was sent.
+- **The lattice.** Each floor's tiles lie on a lattice whose pitch is its first tile piece's
+  footprint plus `JOINT` (0.025 u), anchored in the world at `LATTICE_OFFSET` (0.37 pitch), so a
+  tile's size never depends on the cell's. A slot whose footprint lies on tiled cells of its floor
+  at one level is a whole tile, a quarter turn and variant by its hash (`slotSeed`, the same on every
+  client); one that reaches past them is cut at the cell edges it crosses into a piece per tiled
+  cell (scaled to the rectangle; slivers under `SLIVER` of a pitch left out), so nothing overhangs a
+  drop, another floor or unexplored ground. Pieces on a cell with a cliff or void edge
+  (`brinkCells`) are the floor's broken variants. Tops sit at the floor, sunk by up to `TILE_JITTER`
+  (0.02 cell) by hash; no tilt.
+- **The bed.** `tileBeds` gives each vertex of a chunk's top a flag: 1 where every cell it touches is
+  tiled on its owner's level. The terrain kind's `dropped` graph sinks it by `aBed` x
+  `ringUniforms.bed` (`BED_DEPTH` 0.04 cell, 0 on low) x the ring's fade, so the joints show the
+  ground below the tiles and the bed rises back to the floor at the tiling's edge (no crack).
+- **The ring** (`tile-ring.ts`, mirrored by `materials/ring.ts`): `TILE_RING` low 0, medium 12,
+  high 20 cells, ultra the whole table, round the camera's target; the fade runs over `RING_BAND`
+  (3 cells) inside it. **The fade** is geometric, not a dither: across the band each tile sinks by
+  `params.sink` (`TILE_SINK` 0.12 cell) x (1 - fade) while the ground rises from the bed to its
+  floor, so at the ring's edge every tile is under the ground and nothing pops, on every
+  antialiasing mode. The uniforms move with the target each frame (`TileLayer.follow`, from
+  `WorldLayer.tick`).
+- **Drawn** (`floor-tiles-layer.ts` `TileLayer`, in the renderer chunk): one `InstancedMesh` per
+  variant geometry of the kit, on the instanced prop kind (vertex colours and the bake, as props;
+  `worldModify`'s fog and dark), receiving shadows and casting none, never picked. r186 gives every
+  new `InstancedMesh` a vertex stage of its own, so the meshes are a pool made only with a new kit
+  or a table that needs more room (both warm-ups, `onTiles`), sized for the high ring (or the table)
+  and never shrunk; painting, exploring and moving the camera only repack instance matrices and
+  counts. The pool is packed with the pieces within the ring and `REPACK` (2 cells) of the target,
+  nearest chunks first, again once the target has moved `REPACK` cells; an empty mesh keeps one
+  instance at zero scale, so every mesh is drawn and compiled from the first frame. Draws: one per
+  variant of the kit (the issue's per-chunk meshes would compile at runtime). `stats().world.tiles`
+  reports the meshes and the instances packed.
+- **The kit's tiles** come from the environment's kit (`kitTiles`: each floor's `tiles` and
+  `broken` pieces' `body` at its full level). #261's greybox kits tile the village's cobble and
+  wood, the stone halls' default ground, flagstone, stone, wood and `tile` (so the whole monastery
+  is tiled), the cavern's stone, the railcar's default ground, wood and `grating`, and the ghost
+  town's wood; every other floor keeps the blended ground. `useTileSet` puts a stand-in kit on
+  every table for the specs (`testTiles` in `testing.ts`).
+- **Secrecy.** Tiles are built only from the shape (known floors and levels, explored cells): the
+  invariant harness (`world/tile-invariants.ts` `checkTiles`: every piece on known, tiled cells of
+  its floor at one level, its top within `TILE_TOP_DEPTH` (0.035 cell) below the floor) runs on
+  every fixture view and 60 seeded random tables, fogged and not, and a differential test changes
+  every unexplored cell's floor and level in each player view and gets the same tiles
+  (`floor-tiles.spec.ts`). unexplored-black mounts every case with the stand-in kit.
+- **No compiles.** The sink and the bed are a `params.sink` (0 on props) and an attribute and
+  uniforms in the existing graphs; program-count's sweep runs with the stand-in kit and packs the
+  ring round targets across the test world, and `floor-tiles.svelte.spec.ts` (`RENDER_SPECS`) checks
+  the pool, the packing as the target moves, the bed, painting `tile`, `grating` and the rest, the
+  low tier (no tiles, no bed) and that tiles change the picture, with no program between.
+- **Deviations from #254.** Seams don't read as the grid (the owner's decision); explore mode keeps
+  its grid lines; one mesh per variant, packed round the camera, instead of a mesh per variant per
+  chunk; the fade is a sink, not a dither or alpha-to-coverage; no tilt; no `floor.edge` kerbs (the
+  splat's kerb band stays); the pitch is the first tile piece's; goldens and draw budgets wait for
+  #261's kits and #264.
+
 ### The shader grid (#245)
 
 The grid is a gameplay overlay, never the world's art (docs/LOOK.md, gap 12): antialiased lines
@@ -1631,8 +1704,8 @@ projected onto whatever ground the chunks draw, shown as much as the moment need
   off none), with no program between them.
 - **Deviations.** No fade between modes (#167 faded the lines over 150 ms): the issue asks for a
   mode change to be one frame. The highlight is never dimmed at night; the lines are not darkened
-  either, only faded by the fog. Tile seams standing in for explore-mode lines on tiled floors wait
-  for #254; the held key is #279, modes per camera mode #289.
+  either, only faded by the fog. Explore mode keeps its lines on tiled floors (#254): the owner's
+  gap-12 decision makes the grid an overlay that tile seams never stand in for; the held key is #279, modes per camera mode #289.
 
 ### Void cells as chasms (#243)
 
@@ -1766,6 +1839,984 @@ A prop the GM places, a floor painted and ground raised or lowered fall into pla
   first frames; the shader grid's twins lie at rest and are hidden under a falling top. TRAA has no
   velocity for the lift. No golden at mid-drop (no golden runs during development).
 
+## Wall autotiling (milestone 70, #251)
+
+`world/autotile.ts` (pure, server-tested, exported from `world/build.ts` so it lands in the lazy
+`world` chunk) picks the kit piece for every known wall edge and every grid corner from what the
+viewer was sent. #252 draws them (below) and #253 the openings. CPU only, the
+same on every client, tier and backend.
+
+**Input.** `tileInput(shape, objects, building)`: the world shape (`known`, the continued levels and
+floors), the scene objects and the building context: the viewer's roof footprint (#257, the
+interior mask as sent and presumed roofs), or null when the kit has no roofs. It is read on known
+cells only, so roofs on unexplored ground change nothing. `autotile(input, chunks?)` returns a
+`Map<chunk, WallPieces>` (every chunk by default); `chunkPieces(input, chunk)` one chunk.
+
+**Edge kinds** (`edgeKinds`) follow the rules' precedence whatever the objects' order: a window
+wherever any window covers the edge (`windowEdges`, what sight uses), else a wall, else a door. A
+door on an edge a wall or window also covers is drawn as that wall or window (the rules block there
+anyway; the GM still picks the door through #252's proxy). Ids and object boundaries are never read:
+a wall split in three, cut by `cutWall` or holding a sealed secret door (`<id>-sealed`) tiles exactly
+as one wall. (`shape.edges.built` keeps M69's first-object rule; it draws nothing.)
+
+**Pieces** (`WallPieces`, parallel typed arrays per 16 x 16 chunk, in corner row order: each
+corner's edge east, its edge south, then its post): `role` (an index into `TILE_ROLES`), `site`
+(`SITE.h`, `SITE.v`: the unit edge from corner (x, y) east or south, centred on its midpoint;
+`SITE.corner`: the corner), `x`, `y`, `rotation`, `seed`, `y0`, `y1` (world heights) and `flags`
+(`JAMB`). `rotation` is quarter turns about +Y (θ = r·π/2): a piece's +z face looks S (grid +y,
+world +z) at 0, E at 1, N at 2, W at 3. `seed` is the FNV-1a of the edge's `edgeKey` (`h:x:y`,
+`v:x:y`) or of `c:x:y` (`keySeed`, the same as `fnv1a` over the key's bytes); `variantOf(seed,
+weights)` maps it onto a kit's weighted variants.
+
+| Edge                                     | Pieces                                                                                                                             |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| wall                                     | `wall.straight` on the higher floor, `WALL_HEIGHT` tall                                                                            |
+| wall, one side known void or off-grid    | `wall.outer`, facing the void (thick only toward it)                                                                               |
+| wall, both sides known, neither building | `wall.boundary` (only with a building context, #257)                                                                               |
+| window                                   | `window.frame`; `window.sill` between different floors (`mn-railing`)                                                              |
+| door (open or shut)                      | `door.frame`; the leaf is the door object's (#253)                                                                                 |
+| any, floors differ                       | plus `wall.retaining` from the lower floor to the higher and a `plinth` course (one step under the higher floor), both facing down |
+
+Main pieces face the void, else out of the building, else down a drop, else S or E. Heights come from
+the known sides only.
+
+**Corners.** The mask of known built edges N (`v:x:y-1`), E (`h:x:y`), S (`v:x:y`), W (`h:x-1:y`),
+bits 1, 2, 4, 8 (`ARM`), gives the joint (`jointOf`): none, `end` (one), `straight` (5, 10), `L`,
+`T` (three), `X` (four), and the quarter turns that put the canonical arms there (end: S; L: S and
+E; T: E, S and W; X). Straight corners get no post, which hides every split, so two doors meeting in
+line, a door beside a window, and a sealed door in its wall show no post. Others get `post.end`,
+`post.L`, `post.T` or `post.X`, from the lowest known floor round the corner to the highest top of
+its edges, `JAMB` when an edge is a door.
+
+**Nothing toward unexplored cells.** An edge with no known side is absent; an unexplored side counts
+as walkable (never `wall.outer`, never building, no drop), so the known end of a wall running into
+the dark shows an end post until more is explored. The differential test (`autotile-fixtures.spec.ts`)
+scrambles levels, floors and roofs on every fogged viewer's unexplored cells and adds walls, windows
+and doors between them: every player's and spectator's pieces are byte-identical.
+
+**Clearance** (`checkWallPieces` in `world/wall-invariants.ts`, re-exported by `invariants.ts`): each
+piece's plan envelope (an edge `WALL_HALF_THIN` 0.07 thick each side, `WALL_HALF_THICK` 0.35 on a
+`wall.outer`'s +z face; a post `POST_SIZE` 0.3 square) keeps out of every walkable cell's
+`TOKEN_DISK` (unexplored cells count as walkable, no intrusion allowance), and every piece touches a
+known cell. #250 moves these constants to `src/lib/assets/kit.ts`.
+
+**Dirty chunks.** `dirtyPieceChunks(prev, next)`: the shape's `dirtyChunks`, plus the chunks of the
+corners beside an edge whose kind changed or a cell whose building changed; a property test checks
+every other chunk's pieces are unchanged.
+
+**Tests.** `autotile.spec.ts`: all 16 corner masks (the rotation checked against a geometric turn),
+a lone edge's two ends, splits, overlaps (wall + wall, wall + window either order, door under a
+wall or window, two doors in line, a door beside a window, jambs), `cutWall` and reordering, drops
+of 1, a sill, the void, the border and unexplored void, buildings, the envelope catching a thick wall
+toward walkable ground and a piece with no known side, 20 seeded wall tables (envelope, dirty
+chunks) and the cost. `autotile-fixtures.spec.ts`: every fixture scene and every viewer of every
+committed view (the envelope; one main piece per known built edge; a window wherever the sight rule
+has one; renaming and reordering every object changes nothing), the seeds, the sealed doors
+(`mn-secret-door-sealed` byte-identical to `mn-inner-n`..`mn-inner-s` merged and to the segment
+renamed, no post at (8, 5) or (8, 6), in the scene and every monastery view; `ho-cleft-sealed`
+identical to the island's west wall merged), `mn-tower-w` (a boundary wall on the belfry over a
+retaining piece five levels down to the ledge) and the secrecy differential.
+
+**Cost.** One pass over the objects for the kinds and the built edges' views, then O(corners) per
+chunk. About 1-1.5 ms for about 1,400 built edges (2,950 pieces) on a 64 x 64 table in Node on a
+loaded development machine (the issue's 0.5 ms target is informational).
+
+**Deviations from #251.** Roles are a local `TILE_ROLES` with #250's names until `KIT_ROLES` lands
+(caps are merged into `wall.straight` by #252's pipeline, door leaves are #253's, so neither is
+placed). `wall.retaining` and `plinth` are extra pieces on a drop edge beside its main piece, not
+the main role. Without a building context nothing is `wall.boundary`, so a table with no roofs gets
+straight walls; with one, every wall between two known unroofed cells is a boundary (the
+monastery's tower and ledge walls). #257 settled the context (below, "Roofs"). The seed hash is written out (`keySeed`) rather than
+shared with #181 (which hashes ids, not keys). The cost is above the 0.5 ms target.
+
+## Kit walls (milestone 70, #252)
+
+`walls.ts` draws the pieces autotile picks; its old stretched boxes are gone. Doors swing kit
+leaves since #253 (below).
+
+**Instances.** `world/wall-batch.ts` (pure, in the lazy `world` chunk) turns a chunk's
+`WallPieces` into `WallInstances`: a piece key per instance (`pieceKey(role, variant)`, the role an
+index into `BATCH_ROLES`, autotile's roles plus `cap`; variant -1 is the built-in piece), the unit
+edge it stands on (`edgeIndex`, -1 for a post), its seed and a column-major matrix at #250's pivot:
+the edge's midpoint or the corner, turned by the piece's quarter turns, scaled by the cell size.
+A retaining piece is one wall's height (#261's convention) and repeats down a deeper drop from the
+higher floor; a post runs from the lowest floor round its corner to the highest top, scaled
+vertically to it (`(y1 - y0) / WALL_HEIGHT`). A role the kit fills picks its variant with
+`variantOf(seed, weights)`; a kit's `wall.straight`, `wall.outer` or `wall.boundary` also gets the
+kit's `cap` on top when the kit has one. #261's greybox walls, caps and posts all end at
+`WALL_HEIGHT`, so a kit's cap is lifted `KIT_LIFT.cap` (0.002 cell) and its posts `KIT_LIFT.post`
+(0.004) to keep their tops out of one plane.
+
+**Kits.** `loadEnvironment` loads the environment's kit (`loadKit`, roles in `BATCH_ROLES` only,
+with `arch` and `door.leaf` since #253: stairs, bridges, cliffs and roofs are other
+layers'), each variant's `body` parts merged by
+`pieceOf` into positions, normals, triangles and the vertex colours #261 bakes each part's surface
+into. Since #261 every built-in environment has one, so the built-in tables draw kit pieces.
+
+**The fallback.** A role with no kit variant (every role on `plain`, or a model that failed to
+load) draws `proceduralPiece(role)`, boxes in kit units: walls 0.14 thick with a cap course 0.12
+deep overhanging 0.03 each face (merged: one instance per plain edge), a window frame's sill and
+lintel, a door frame's lintel over the leaf, a plinth one step tall, a retaining piece 0.02 behind
+the plinth's face so the course shows, and 0.3 posts 0.04 over the caps. `wall-batch.spec.ts`
+checks each box against its role's envelope (a merged cap against `cap`'s), the winding, the
+matrices, the repeats and lifts, the kit's variants and caps, `mn-tower-w` (the belfry's floor to
+`WALL_HEIGHT` above it, its retaining piece down to the ledge), and on every fixture scene and
+view that no box reaches into a walkable cell's `TOKEN_DISK` below `FIGURE_CLEAR`.
+
+**Batches.** (Replaced after #264 by a table-wide InstancedMesh per piece key: "The kit piece pools" below.) Per 16x16 chunk with walls, one `BatchedMesh` per material: the built-in pieces in
+the environment's wall look (the surface kind's `batched` variant), a kit's in their baked colours
+(the same with `vertexColors`, white). `addGeometry` once per piece key a batch uses (vertex and
+index space grown 1.5x), instance ids reused across rebuilds (`setGeometryIdAt`, `setMatrixAt`),
+`setInstanceCount` 1.5x when outgrown, `perObjectFrustumCulled` as three sets it, casting and
+receiving. `sync` (objects, the world shape, the ground) rebuilds only `dirtyPieceChunks`' chunks
+(`stats().lastRebuilt`); a new kit or grid clears every batch. Inputs: the renderer's `setGrid`,
+`setTerrain`, `setObjects`, `setFog` (when the explored mask changes), `setFloor` (void makes
+outer walls) and `setInterior` (the building context, so boundary walls). `optimize()` is not
+called: rebuilds reuse ids in place.
+
+**Highlight and picking.** An instance's batch colour is a slight shade by its seed (6%), and its
+alpha the highlight: the `batched` variant adds `HIGHLIGHT` (warm, 0.45, below bloom) times one
+minus `batchColor.w`, hatched by diagonal world stripes (`stripes` 3 a unit), so the erase tool's
+cue is a pattern as well as a colour. Opaque kinds set alpha to 1 after the diffuse, so the alpha
+is free. Picks hit an invisible proxy: one box per unit of wall from `wallSpans` (today's boxes,
+1.14 cells long, two for a window between equal floors) on `PICK_LAYER`, `visible = false`
+(raycasts test layers); the batches are off it.
+
+**Programs.** The `batched` variant, with and without vertex colours, in each anti-tiling, is in
+the lobby's `kindGallery` (a `BatchedMesh` with colours, casting) and in the walls' own warm-up
+stand-ins. Colours exist from construction (`_initColorsTexture`), or a batch without them would
+build another program. Each batch is its own node state (r186 keys it by its matrices texture),
+but the same code: new chunks, growth, a kit, highlights and removals compile nothing
+(`walls.svelte.spec.ts`, by stage code; the first build of a graph may order its functions
+differently, which the lobby absorbs).
+
+**Draws.** WebGL2: one multi-draw per batch per pass (a per-draw loop without
+`WEBGL_multi_draw`), so a chunk costs one or two. WebGPU: one `drawIndexed` per visible instance
+(three's backend), counted in `info`; #264 measures it and may move WebGPU to instanced meshes per
+piece.
+
+**Bundle.** The renderer chunk grew to 396.1 kB gz, of which three's `BatchedMesh` is about 4.2;
+the world chunk to 13.6.
+
+**Specs.** `walls.svelte.spec.ts` (`RENDER_SPECS`): posts at an L and a T and caps mid-edge by
+raycasts onto the batches, a synthetic kit's post, variants and lifted cap, the T keeping the
+built-in post, one chunk rebuilt per edit, batches dropped with their walls, the village's own kit
+drawing every piece of a room (one batch, with colours) with its L post at the corner, the hatched
+warm glow on the hovered wall only, picks by the proxy mid-edge and at a post, and no new shader
+stage throughout.
+
+**Deviations from #252.** The highlight lives in the batch colour's alpha, not a state
+`DataTexture` (R highlight, G #260's seed, B #282): one texture fewer; #260 and #282 add theirs
+when they land. Caps are merged into the built-in wall piece rather than by the pipeline; a kit's
+cap is its own instance. Kit pieces wear their baked vertex colours (no trim-sheet `prop` kind and
+no surface-layer attribute yet, #261's "Not yet"). The low tier draws the same pieces (no kit LOD1
+exists). Posts are scaled to their corner's height, which stretches a kit post's finial where
+floors differ. `worldModify` reads the cell at each fragment, as before, not the cell a face looks
+into. Goldens, look metrics and per-table draw counts are the milestone's close (G1, G2).
+
+## Windows, door frames and leaves (milestone 70, #253)
+
+Openings are wall pieces, and door leaves one more batch; `DOOR_COLOR`, the per-door materials and
+the hinged panel meshes are gone.
+
+**Windows.** Between equal floors a window is `window.frame`: the built-in piece (`proceduralPiece`
+in `world/wall-batch.ts`) is a sill to `SILL` (0.35 of the wall), jambs 0.08 wide inside the edge,
+one mullion 0.04 wide (under 5% of the opening) and a lintel from `LINTEL` (0.8) under the cap, all
+within ±`WALL_HALF_THIN`; the gap between holds the eye's height (`EYE_LEVELS` steps, 1.2 u), so a
+token behind a window shows through it. The greybox kits' frames (#261) open from 0.85 to 1.65 u.
+Rules windows are never glazed. Between different floors (the monastery's gallery railing, the
+belfry's arches) a window stays `window.sill` (the kit's, or the built-in one up to `SILL`): the
+balustrade under it is #256's (`RAIL_TOP` 0.68, baked into the chunk faces), so the gallery shows
+one. The drop below is the edge's retaining piece and plinth as before.
+
+**Arcades.** Autotile flags a framed window whose neighbour in line is one too (`ARCADE` in
+`world/autotile.ts`, from the edge views only, so ids, splits and unexplored ground change
+nothing); `wallInstances` draws the kit's `arch` there when it has one (stone halls, cavern), else
+the frame. `dirtyPieceChunks` marks the corners one edge further along a changed edge's line, whose
+flag it may change.
+
+**Doors.** The frame is `door.frame` (the built-in one jambs and a lintel over the leaf; posts
+beside a door keep their `JAMB` flag). The leaf (`door-leaves.ts` `DoorLeaves`) is the kit's
+`door.leaf` variant (by the edge's `keySeed`) or the built-in brown leaf, whose colour is baked in
+its vertex colours: every leaf of the table is in one `BatchedMesh` in the kit pieces' material (the
+surface kind's `batched` variant with colours, already warmed for the walls), so doors add one
+batch and no material or program. A leaf is drawn only where autotile draws the edge as a door: a
+door under a wall or window shows that, a door with no known side nothing. Its matrix is the edge's
+frame (#250's pivot, on the higher floor, +x from the door's first corner: 0 quarter turns east, 3
+south) times a turn about the leaf's own end (`hingeOf`, its least x), opening toward +z as the old
+panel did. `tick` rewrites only swinging leaves, a quarter turn in `DOOR_SWING_MS` (260) on the
+layer's clock, a reversed swing taking what is left; under reduced motion (`WallLayer` is in the
+renderer's `stillable` list) a swing snaps. Hover is the batch colour's alpha, the walls' hatched
+glow. Picks hit the batch itself on `PICK_LAYER` and map its instance (`batchId`) to the door; a
+new kit drops the leaves' batch, as it does the walls'.
+
+**Secret doors.** A sealed door is a wall until found (autotile reads kinds, not ids: tested by
+#251), and `revealDoor` swaps the wall for the door in one sync, so the rebuild swaps the plain wall
+for the frame and leaf.
+
+**Tests.** `autotile.spec.ts`: the arcade flag (a run, two windows end to end, a lone window, beside
+a wall or a door, across a drop). `wall-batch.spec.ts`: the window's open band round the eye's
+height with only its jambs and a slim mullion across it, the sill's height, the door frame's jambs
+and the leaf; a kit's arch in an arcade, else its frame, and a sill between floors.
+`doors.svelte.spec.ts` (`RENDER_SPECS`): rays through built-in, village and stone-halls windows at
+eye height (open) and through their sills, lintels and jambs (blocked); a leaf at half its angle
+after 130 ms and open at 260 ms on the injected clock, picked shut and open, snapped shut under
+reduced motion, the village's leaf picked and swung, and no new shader stage. The program-count
+sweep swings the test world's door and back; unexplored-is-black counts an open leaf round its
+hinge's corner (the Hollow's player, in the slim set, has a door open).
+
+**Deviations from #253.** The leaves are a `BatchedMesh`, not an `InstancedMesh` per leaf
+geometry: r186 gives every `InstancedMesh` a vertex stage of its own (#255), and the batch shares
+the walls' program. Between floors the balustrade is #256's, not a wall piece. No threshold piece under doors (#254's tiles run to the edge; the greybox frames carry a
+threshold), and no lock marker. The leaf keeps its authored height (the built-in one 0.92 of the
+wall; the greybox leaves 1.74 u). Goldens and per-table draw counts are the milestone's close.
+
+## Stairs (milestone 70, #255)
+
+`world/stairs.ts` (pure, server-tested, in the lazy `world` chunk) builds every stair run
+`regionsOf` finds (#239: a chain of known cells each one level above the last, at least two risers,
+stopped by a wall or window across it) from what the viewer was sent. Stairs are presentation only:
+the rules' levels, `canStep`, sight and the DDA's picks are untouched, and every cell's top stays at
+its floor across its token disk.
+
+**Marks and pieces.** `stairsOf(shape, { kit, built })` returns `Stairs`: per unit edge a mark
+(`STAIR_EDGE` in `shape.ts`: `riser`, `side`, or `kit` where a kit piece stands), the runs' steps
+(their cells but the foot and the head) and `pieces` (`StairPiece`: role, the cell it belongs to, the
+cell across its edge, the direction its +z face looks, the drop in levels, and the kit's model or
+null). `withStairs(shape, options)` puts them on the shape (`WorldShape.stairs`), which is all the
+ground reads:
+
+- **A riser** of a run (every pair of its cells, foot and head included) is the ground's own face
+  between the two cells, drawn by `cliffs.ts` as a **stair** step (`FACE.stair`): each level two half
+  steps, the upper half under the same worn `NOSING` and `RECESS` as #241's riser, then a tread
+  half a level up reaching `HALF_TREAD` (0.07, `WALL_HALF_THIN`) over the lower cell's edge band (outside
+  its 0.43 disk), then the lower half down to the lower floor. The ground already owns the edge, so
+  exactly one of the two draws each step: #241's riser gives way to the stair wherever a run is.
+  The upper cell's top keeps its whole cell at its floor, which is why the intermediate tread lies
+  on the lower side only (0.07 wide, not the issue's 0.14): lowering the upper cell's band would cut
+  its top. The tread and the lower nosing are lighter (1.2, 1.3) than the risers (0.8), so a step
+  reads by shade as well as shape.
+- **A side** of a step down to a lower known neighbour (not across a riser, not walled, not the
+  void) is a **stringer** (`FACE.side`): a flat face down to the neighbour's floor, its top a
+  `SIDE_OUT` (0.03) coping proud of the edge with a lighter `COPING` band, replacing the riser or cliff
+  that was there. A bridge's sides (a step one wide with drops both ways and neither side walled: the
+  Hollow's (38, 9) and (39, 9), and the monastery's outside stair where both its sides drop two or
+  more) are the bridge's since #256 (below); a stair along a wall, like the gallery's, is not one.
+- **Rails** stand on a side whose drop is two levels or more (or the void): a balustrade
+  (`railing`: a plinth, four balusters and a handrail 0.68 high since #256, under a window's sill, all within ±0.05 of the edge) on a
+  man-made step (`MAN_MADE` floors, or the plain floor where the environment's default ground is
+  built: `builtGround`, `stone-halls` and `railcar` for now), else a 0.1 kerb (hewn and earthen
+  steps: the Hollow's). A walled side gets nothing. `stairTrim(shape, chunk)` draws them as boxes
+  with vertex shades, rails in the masonry mesh and kerbs in the earth mesh (`CLIFF_STYLES`).
+- **Square corners.** `tileAt` in `ground-mesh.ts` keeps every tile touching a step square (no
+  rounding or chamfer), so the stair's faces run the whole edge and meet their ends cleanly.
+- **Ends.** A step's free ends taper over `STAIR_TAPER` (0.1), so where a step meets its side the
+  half step closes as a short wedge; two-wide runs join across the middle and taper only outside.
+
+**On the tables.** The monastery's gallery stair (x 15-18, row 9) gets stringers down to the nave
+and rails from x 16 (the drop is 1 at x 15), its south side the nave's wall, nothing; the outside
+stair (x 22-23, rows 10-13, two wide) two risers a step and rails on both outer drops of two or
+more; the tower stair (row 2) is walled both sides: steps only. The Hollow's stairs at y 23 and y 13
+(two wide, cavern rock) get kerbs on their drops; the watch stair onto the high bridge gets steps and
+gives its sides to the high bridge's parapets.
+
+**Kits.** A kit (#250) with `stair.riser`, `stair.side` or `railing` pieces puts a model on those
+pieces (a variant by `keySeed` of the edge and the kit's weights, as #251), and the edge is marked
+`kit`: the ground draws nothing there and `stairTrim` no rail, for the kit's piece to stand in its
+place (a `stair.side` only down to five levels, its envelope's −H; deeper sides stay procedural).
+Every built-in environment's greybox kit (#261) has all three. At the table `stair-kit.ts`
+`StairKit` (in the world layer) loads the environment's kit from the manifest and its stair
+models, and hands a role to `withStairs` only once every variant of it has loaded (`ready`), so
+the procedural steps draw until then and for a model that fails: never nothing. The kit's pieces
+are baked into their chunk's face meshes (`chunkPieces`: each body at its edge pivot on the higher
+floor, turned so +z looks down the stair or out over the side, a side repeated down its drop by its
+own height, #261's convention; its vertex colours doubled as shades over the face's look until
+#252's kit material), owned by their cell: no mesh, draw call or program of their own (r186 gives
+every InstancedMesh a vertex stage of its own, so instanced pieces compiled on every table they
+first appeared on; the program count's table travel caught it). Never picked, casting and receiving. The kit's riser is one riser a level (its own look), not the procedural half
+steps. `rolesNeeded` (`src/lib/assets/kit-needs.ts`) asks a table's kit for `stair.side` wherever a
+step has a lower side and `railing` wherever a built stair has a rail. Kerbs are procedural only.
+
+**Drawing.** The steps and stringers are the chunks' own faces and the rails and kerbs go into the
+faces' meshes (`withTrim`), so stairs add no draw call, no geometry of their own and no program (the
+rock kind with vertex colours, as every face), cast into the cached sun shadow and receive it, and
+are never picked. The world layer builds its shape with the walls and windows (`update(..., objects)`;
+a door opening changes nothing) and the environment's ground (`setLook`), and rebuilds only the
+chunks whose stairs changed (`stairDirty`, beside `dirtyChunks`, the same one-cell margin).
+
+**Secrecy.** Runs, sides and rails come only from known cells: an unexplored neighbour continues the
+stair, so no stringer, rail or drop is drawn toward it, and every piece stands between two known
+cells (tested). Unexplored-is-black counts a rail as standing `TALL.rail` over its step.
+
+**Tests.** `world/stairs.spec.ts`: the monastery's and the Hollow's runs as above; two half steps a
+level with the tops at their floors (rays); every fixture scene and view and 60 seeded random tables,
+fogged and not, through the harness (`checkEmitter` with the trim as decorations, no `INTRUSION`
+allowance, up to `FIGURE_CLEAR`; `checkContinuation`; rays from above never fall through); nothing
+toward an unexplored neighbour; bridges and walls; a synthetic kit taking the pieces with the ground
+leaving their edges; rails by floor and environment; and `stairDirty`. `stairs.svelte.spec.ts` (a
+render spec) draws the monastery: steps at their floors, the stone halls' kit pieces, their nosing and balustrade, a wall taking it
+away rebuilding at most two chunks, a door opening rebuilding none, nothing compiling.
+
+**Deviations from #255.** No instanced stair layer: procedural and kit pieces alike go into the
+chunks' face meshes (no extra draw call or program), until #252's kit drawing can take them over. The intermediate tread is on the
+lower side only (above). Goldens and the closer-shot strip are left for the milestone's rendering PR.
+
+## Bridges and balustrades (milestone 70, #256)
+
+A height field has one floor a cell, so a bridge is a run of raised cells whose sides were cliffs
+down to whatever lies below: the Hollow's high bridge and causeway read as walls standing in the
+lake. `world/bridges.ts` (pure, server-tested, in the lazy `world` chunk) reads bridges and open
+drops off the world's shape, and `world/bridge-mesh.ts` builds their bodies; both from what the
+viewer was sent, presentation only (the rules' levels, `canStep`, sight and the DDA's picks are
+untouched, every top stays at its floor across its token disk).
+
+**Bridges.** `regionsOf(shape).bridges` (`regions.ts` `bridgeRuns`) finds raised runs at most
+`BRIDGE_WIDTH` (2) wide: slices across the run of one or two known cells joined side by side (within a
+level, unwalled) with an open drop of two levels or more, or the void, beyond both ends (a walled
+side is no bridge's: a stair or a walk along a wall), chained along the run, at least
+`BRIDGE_SLICES` (2) long; the ends may meet any ground. A wider strip is a terrace. `bridgesOf`
+marks each cell by what stands under its deck (`UNDER` in the low bits, `ALONG_Y` the run's axis):
+a **pier** every two or three slices by a hash of the slice's first cell (`keySeed`), never at an
+end; an **arch** where every long side of the slice is known void (and the slice is level); else a
+**span**, a solid spandrel down to the floor below. A cell on runs both ways (a corner) takes no
+arch. On the tables: the high bridge, x 32 to 39 on row 9 (its watch stair cells keep their treads),
+the ruins' bridge at y 16 to 21 (not 14 and 15, where the ledge is beside it), the causeway, and the
+monastery's outside stair where both its sides drop two or more (rows 10 to 12). The Hollow has no
+void, so no arch opens there.
+
+**Parapets and bodies.** `stairsOf` (stairs.ts) does the bridges first: a step on a bridge leaves its
+sides to it, each open long side gets a `railing` (the parapet) and its edge is marked `kit`, so the
+ground draws nothing there (`kindOf` in `cliffs.ts` reads the mark before the void's cliff), and the
+bridge cells' corners stay square (`StairMarks.bridges`, read by `tileAt`). `bridgeTrim(shape,
+chunk, chasm)` draws each open side, owned by its cell, in the masonry faces' mesh (a bridge is
+built, whatever its floor): a deck band `DECK` (0.15) deep standing `DECK_OUT` (0.03) proud of the
+edge (its ends closed only against the bridge's own next cells, so nothing lies along an edge of a
+cell it doesn't own); under it a flat spandrel down to the floor below (the void's floor, `chasmY`,
+over the void); a pier's pilaster `PIER_OUT` (0.06) proud of it, 0.44 wide; or over the void an
+arch: jambs `JAMB` (0.12) at each end of the cell, a half-round opening up to `CROWN` (0.1) under
+the deck, its soffit across the cell, the jambs' returns facing into it, and a floor at the void's
+floor, so no ray falls through. Nothing stands over the floor but the parapets, and nothing reaches
+more than 0.07 past an edge (`WALL_HALF_THIN`), so no walkable cell's disk is touched.
+
+**Balustrades.** `dropRails` puts a `railing` on every known edge from a built floor (`builtFloor`:
+`MAN_MADE`, or the plain floor of a `builtGround` environment) down two levels or more, or to the
+void, with no wall or door on it, on the higher cell, except on a stair's step or a bridge, which
+have their own; a window down to a lower floor takes one too (the gallery's `mn-railing`: always the
+procedural one, standing under the window's sill, #253), never a window out to the void (the night
+train's). Natural ground at a drop keeps #241's rim. On the tables: the monastery's ledge (its open
+east edge, y 6 to 9, and its north edge), the gallery's window (x 19, y 2 to 8) and the belfry's open
+edges; the night train's three gangways between cars, both sides; two edges of the ghost town; none
+on the Hollow, the village or the Heart. A one-level step never gets one.
+
+**The rail.** One procedural balustrade for stairs, parapets and drops (`stairTrim`): a plinth, four
+balusters and a handrail, `RAIL_TOP` (0.68) high, under wall-batch.ts' `SILL` (0.7) so it nests
+inside the procedural sill, within ±0.05 of the edge and more than half open, so what the rules
+show past it stays visible. A kit's `railing` (#261's, 1.0 high) takes a parapet's or a drop's place
+once loaded (`StairKit`, baked into the faces' meshes), never a window's.
+
+**Drawing.** Bodies, parapets and balustrades all go into the chunks' face meshes (`withTrim`), so a
+bridge adds no draw call, no mesh and no program (the rock kind with vertex colours), casts into the
+cached sun shadow and receives it, and is never picked; a change rebuilds only its chunks
+(`stairDirty` reads each cell's bridge mark too). The kit's `bridge.deck` and `bridge.pier` are not
+drawn: a cell piece within ±0.5 of its cell stands inside the bridge's solid column, which only an
+arch opens, and the deck's top would lie on the ground's. `rolesNeeded` asks for `railing` wherever a
+bridge or a built drop stands, not for those two.
+
+**Secrecy.** An unexplored side is no drop (`regions.ts` reads only known cells), so no bridge, arch,
+rail or body is drawn toward it, and the void is only known void. Unexplored-is-black counts every
+rail, parapets and balustrades too, as standing `TALL.rail` over its cell.
+
+**Tests.** `world/bridges.spec.ts`: the Hollow's three bridges as above, no arch over its lake;
+arches over void on both sides (a ray passes under the deck, a pier's meets stone), a spandrel with
+walkable ground on one side, nothing toward an unexplored side; the monastery's ledge and gallery
+railed and nothing on a one-level step, no rail on the cavern, village or heart, the train's
+gangways and never its windows; every fixture scene and view and 60 seeded tables of narrow runs over
+ground, water and void, fogged and not, through the harness (`tableWorld` now holds the bodies,
+`checkEmitter` with the parapets as trim, no `INTRUSION` allowance, up to `FIGURE_CLEAR`; no ray
+through; every piece between known cells; arches only over known void); a wall rebuilding only its
+chunks; every body under its deck. `stairs.spec.ts` and `kits.spec.ts` follow (their two-wide
+stair now has a terrace on one side, and the outside stair flies). `bridges.svelte.spec.ts` (a render
+spec) draws the Hollow's high bridge and causeway: decks and tops at their floors, the parapets
+over the edges, the bodies down to the lake, nothing compiling.
+
+**Deviations from #256.** No `InstancedMesh` per piece: bodies and rails are baked into the chunks'
+faces like #255's stairs (r186 compiles a vertex stage per InstancedMesh). The body is procedural
+(above), so a pilaster stands for the pier. Railings are 0.68 high, the issue's sill cap, while
+#261's kit railing stands 1.0. Goldens and the closer-shot strips are left for the milestone's
+rendering PR.
+
+## Roofs (milestone 70, #257)
+
+`world/roofs.ts` (pure, server-tested, in the lazy `world` chunk) works out which cells a viewer
+sees roofed and builds their gables; `roofs.ts` `RoofLayer` draws them, owned by the walls' layer
+(`WallLayer.roofs`), which reads the same things: the objects, the world shape, the interior mask
+as sent and the kit. Presentation only: no wire field, no rule, nothing picked.
+
+**Footprints** (`roofFootprint(shape, objects, interior, presume)`):
+
+- **The GM and fog off** (`known` null): the interior mask itself. Presumption adds nothing (every
+  cell is known, so an enclosure is either all roofed already or has a known unroofed cell).
+- **Players and spectators:** the interior mask on known cells (views send it only there, #203; it
+  is masked to `known` again here), plus, when the kit's `presumeRoofs` is set, presumed cells: the
+  unexplored cells of every enclosure of known walls. An enclosure is a 4-connected flood from an
+  unexplored cell stopped only by a built edge (wall, window or door, open or shut) with a known
+  cell beside it; it is a room only if it never reaches the table's edge, stays within
+  `MAX_ROOM_CELLS` (150), and every known cell in it is roofed in the mask as sent (an explored
+  courtyard drops the presumption). Walls with no known side are never read, so a presumption
+  outlines nothing the walls the viewer was sent don't. The kits of the open air (village,
+  railcar, ghost town) presume (`presumeRoofs` in `scripts/kits/looks.ts`); stone halls has roofs
+  but presumes none, since its dungeons (dungeon-40) are walled rooms with no roof; the caves have
+  no roofs at all. A house seen from one street has walls the player doesn't know yet (its back
+  wall touches no explored cell), so it is roofed once its walls close (walked round, seen from
+  above, or entered), not before. No committed fixture view has a player who did; the specs build
+  one.
+
+**Shape** (`roofRegions`, `roofMesh`): regions are the footprint's 4-connected components (inner
+walls don't split a roof), each split greedily into maximal rectangles (`rectsOf`, in row order: as
+far right, then as far down). (#258 roofs each region by its wings instead, the overlapping maximal
+rectangles, with the greedy split as the fallback; below.) Each rectangle is a gable prism along its long axis (along x on a
+tie): slopes at the kit's pitch from the eave up to a ridge over the middle, the rise capped at
+`MAX_RISE` walls so wide halls flatten rather than tower; the eaves overhang the walls by the kit's
+`eave` on all four sides, held so the eave's edge stays over `FIGURE_CLEAR` (a 60° roof with a 0.5
+eave overhangs less); gables close each end from the eave to the ridge. Where rectangles meet the
+prisms interpenetrate: with one pitch the narrower wing's ridge sits lower, the valley. The eave
+height is the highest floor under the region plus `WALL_HEIGHT`, and a cell whose wall top is lower
+gets an infill band from it up to the eave on its outer sides, which belongs to the roof (and fades
+with it, #259). Every face is drawn both ways (the soffit is seen from inside), as plain
+indexed triangles: a few hundred per house.
+
+**Fog and sky** (the surface kind's `roof` variant, `materials/world-modify.ts`): a roof is exterior
+scenery, so it never reads the cells under it, which may be unexplored. Each region takes one known
+cell outside it (`fogCell`: the known unroofed cell round it nearest its centre, ties by index, else
+a known cell of its own), carried as the per-vertex `aRoofCell`. `worldModify` and `worldEmissive`
+with `face = 'roof'` read the fog, the unseen tint, the reveal fade and the light level there,
+exactly (no soft edge, no noise). The sky's terms (`skySun`, `skyAmbient`), the lit kinds'
+`worldLight` and the scene pass's `worldHidden` are `ByRoof` nodes, which pick the roof's terms when
+the program being built is a roof material's (`roofLit`: `options.roof`) and the cell's own
+otherwise, so the sun reaches a roof over an interior (whose cells the sky map keeps at the indoor
+fill) and the output stage's re-mask never blacks a roof out. The roof variant is its own graph, so
+it never shares a program key with a plain surface. Point lights skip roofs (`GridLightNode` and
+`HeroLightNode` add nothing for a roof's program): the lists a roof's fragment would read are the
+cells' under it, so a torch inside would light the roof's top. Not yet a per-region state texture
+(the issue's "lit if any is visible"): one cell's state stands for the region.
+
+**Roofs never hide what the rules show:** a region the viewer sees into fades out (#259, "Roof
+fades" below) until it is out of sight again. For the GM the visible cells are the party's.
+
+**Drawing:** one `Mesh` per 16x16 chunk (a region belongs to its first cell's chunk) in one material
+per table (the kit's roof material, a manifest colour: thatch, slate, tin, boards; nothing to
+download), casting into the cached sun shadow and receiving, never on `PICK_LAYER`. A chunk is
+rebuilt only when what it draws changed (`roofKey`: eave, fog cell, rectangles and floors), so a
+sight change rebuilds only the chunks whose regions came or went (`stats().built` counts builds).
+The layer redraws with every wall retile (objects, the shape, explored growth, the interior mask)
+and with the kit (`WallLayer.setLook(look, kit, roof)`, from `EnvironmentLook.roof`).
+
+**Programs:** the lobby's gallery and the layer's stand-in compile the roof variant (casting), so
+roofs appearing, a new chunk, another kit's look, raised ground and a sight change compile nothing
+(`roofs.svelte.spec.ts`, and the program-count sweep's roof steps).
+
+**API:** `RoofMesh.region` is each vertex's region index, pieces included (#258, below); the
+fades' key (#259) comes from it.
+
+**The boundary-wall rule, settled (#251).** Autotile's building context (`RoofLayer.update`'s
+result, `tileInput`'s `building`) is the viewer's roof footprint:
+
+- from the first frame wherever the kit presumes roofs (village, railcar, ghost town: public, the
+  same for every viewer, all zero while nothing is roofed);
+- for a kit with roofs that presumes none (stone halls), once the viewer knows a roofed cell (the
+  GM: the mask has one; a player: one explored), as #251 had it for every kit;
+- never for a kit without roofs (the caves, `plain`).
+
+With a context, a wall is `wall.boundary` only when **both** its sides are known and neither is
+roofed (the mask as sent, or presumed). A wall with an unexplored side may be a house's, so it stays
+`wall.straight` until its far side is explored or presumed. Before, a player's village fences
+switched to palisades on their first roofed cell; now the only switches in the open air are at the
+edge of exploration (a fence's far side explored, a house's walls closing into a presumption), as
+an end post becomes an L, and GM and player agree wherever the player knows both sides. A table of
+walls with no roofs painted keeps straight walls on stone halls (a dungeon), and gets palisades and
+yard walls on the village kit, whose walls between open cells are fences. The monastery's players
+still see its tower and ledge walls turn to curtain walls on their first roofed cell (stone halls
+presumes nothing). `dirtyPieceChunks` redraws every chunk when the context comes or goes.
+
+**Secrecy:** `roofs.spec.ts`'s differential test scrambles, for every fogged viewer of every
+committed view, the levels, the floors and the server's whole interior mask on unexplored cells and
+adds walls between unexplored cells: footprints, regions and meshes are identical. Autotile's own
+differential keeps a null context null. Unexplored-is-black stands a roof as high as one may rise
+over its cells and the eave's ring, and adds a village player who walked round a house: its
+presumed roof shows (lit from outside) and every other unexplored cell stays black.
+
+**Tests.** `world/roofs.spec.ts`: GM and presumed footprints; nothing presumed open to the table, at
+its edge, past `MAX_ROOM_CELLS` or with an explored unroofed cell; walls with no known side ignored;
+the greedy rectangles; the gable's ridge and eaves (over `FIGURE_CLEAR`, capped); the infill;
+every fixture scene (the mask exactly); Bellweather's five houses one gable each; a
+player who walked Bellweather's streets presuming its four closed houses (not the open smithy);
+every fixture view; and the differential test. `roofs.svelte.spec.ts` (a render spec): a presumed
+roof drawn and lit over an unexplored room, its ridge, one chunk built per new house, the village's
+thatch, and no new shader stage throughout (the fades' tests are below).
+
+**Deviations from #257.** Roofs live in the walls' layer (they share its inputs), not a separate
+`roofs` tier layer: they are on wherever a kit has roofs. The per-region fog is one known cell's state, not a texture of the whole ring's. No
+world-unit UVs: the roof materials are colours, mapped by the surface kind's world box like the
+walls. No roof predicate in the DDA pick yet (a click on a roof picks the cell under it, which says
+no more than the roof). No posts on open sides (Bellweather's smithy already has end posts where its
+walls stop). Bellweather's and the monastery's roofed parts were already set (their tables' `interior`). Goldens and the
+closer-shot strips are the milestone's close.
+
+## Hips, caps, chimneys and dormers (milestone 70, #258)
+
+`world/roof-mesh.ts` (pure, in the lazy `world` chunk) builds a chunk's roofs; `world/roofs.ts`
+keeps the footprints and regions. Everything below comes from the region's footprint (what the
+viewer was sent, #257), the kit and hashes of cell coordinates, so every client builds the same.
+
+**Wings.** A region is roofed by its wings, `wingsOf`: every maximal rectangle of its cells (one no
+other rectangle of them contains), found in one pass from per-cell runs down and right. They cover
+every cell and overlap where a house turns: an L is two bars, a T two. Past `MAX_WINGS` (12, a
+ragged region) the region falls back to #257's greedy rectangles. Each wing is a prism along its
+long axis at the kit's pitch, `MAX_RISE` and the eave hold as before; the roof is their upper
+envelope, which the depth test draws.
+
+- **Hips** (`style: 'hip'`): each wing's ends are hipped slopes, its ridge running from half its
+  depth in at each end (a square comes to a point), in closed form. For a rectilinear outline at
+  one pitch the hip prisms of the maximal rectangles meet exactly where a straight skeleton puts
+  the hips and valleys: the height at a point is its max-norm distance to the outline (the largest
+  square round it inside the footprint lies in some maximal rectangle, and no rectangle reaches
+  further). So L, T and wider shapes need no skeleton library and nothing lazy beyond the world
+  chunk; where wings overlap, their coplanar faces are the same surface in the same material,
+  colour and fog cell, so nothing shows. `roof-mesh.spec.ts` checks the envelope against the
+  max-norm distance over every cell of a rectangle, an L, a T and a wide L.
+- **Cross-gables** (`style: 'gable'`): the wings' gable prisms cross, each wing's gable standing at
+  the outline where it ends; a narrower wing's ridge sits lower, its valleys where the slopes meet.
+- **Caps**: the kit's `roof.ridge` along each wing's ridge, one per cell, and `roof.hip` down each
+  hip about half a cell apart from the ridge's ends, each only where its wing is the top of the
+  roof (`onTop`, against every wing's height there) and once per spot. A cap's pivot is a one-cell
+  roof's ridge (`WALL_HEIGHT + tan(pitch) / 2` over the cell's centre, where the greybox pieces have
+  theirs); the ridge piece is drawn at `CAP_SCALE` (0.5) across the ridge and up (its slopes keep
+  the pitch, so they lie on the roof's), the hip piece at `CAP_SCALE` all round, both lifted 0.015
+  off the roof. Where a hall's rise is capped by `MAX_RISE`, the piece's steeper slopes sink into
+  the roof and the cap shows on top.
+- **Chimneys**: a wing two or more cells deep has one on its ridge cell of lowest hash when that
+  hash is under `CHIMNEY_ODDS` (0.25: about four in five six-cell houses), `0.35` of a cell down
+  the slope to the side a hash picks, the piece's pivot the same as a cap's. The choice is the
+  wing's ridge cells', not the region's, so a chimney stays put while its wing does: a house seen
+  whole and then with a wing added keeps it (tested). The kit's smoke socket (`KitPiece.sockets`,
+  kind `smoke`) is carried through each chimney's placement into `RoofMesh.smoke` (x y z in world
+  units) for #319; nothing reads it yet.
+- **Dormers**: on a wing longer than `DORMER_RUN` (4) cells, at cells of each long slope over an
+  outer wall (the cell beyond it unroofed), clear of the wing's end cells, the chimney's cell and
+  its neighbours and the last dormer, where a hash is under `DORMER_ODDS` (0.3) and the wing is the
+  top just inside the wall. A dormer's pivot is its wall's eave line (`0, WALL_HEIGHT, 0.5` in its
+  frame, the front toward +z), set on the wing's wall line at the eave height and turned to face
+  out.
+
+`roof.eave` and `roof.corner` are not drawn: the greybox pieces are whole slopes and hipped
+corners for a roof built a cell at a time, which the procedural slopes already are.
+
+**Drawing.** Pieces are baked into the chunk's one roof mesh, with the region's fog cell
+(`aRoofCell`) and region index (#259's fades) on every vertex, so they fade and fog with their roof
+and add no draw. The roof material is now the surface kind's roof variant with vertex colours (in
+the lobby's gallery and the layer's stand-in too, so the program count is unchanged: one roof
+program, as before): the slopes carry white, and a piece its baked colours divided by the roof
+material's linear colour, which the material multiplies back. `loadEnvironment` loads the kit's
+four roof roles beside the walls' (`RoofKit.pieces`; the models were already in every table's
+budget, which counts every piece of its kit, so nothing new is downloaded); a role whose models
+don't load is left out, and a kit without pieces draws plain roofs. The tier table drops nothing
+(the issue allows the low tier to drop chimneys and dormers; they cost a few hundred triangles a
+house).
+
+**Secrecy.** The differential test in `roofs.spec.ts` also builds every viewer's hipped roof with
+every piece (a chimney with a socket) and finds it identical whatever the server holds for
+unexplored cells. Unexplored-is-black stands a roof a wall higher than it may rise, for its
+chimneys.
+
+**Tests.** `world/roof-mesh.spec.ts`: wings (a rectangle, an L, a T, the fallback); a hipped
+rectangle's ridge, eaves and slopes and a square's point; the skeleton's heights on L, T and wide
+houses; cross-gables; caps on every ridge and hip that shows, on the roof and never twice in a
+spot; chimneys by hash, kept as a footprint grows, with their sockets; dormers only on long slopes
+at the eave; Bellweather's five houses capped along their ridges, several with chimneys and some
+with dormers. `roofs.svelte.spec.ts`: the village kit's pieces loaded, drawn and lit from outside,
+a hipped end where the kit says hip, and no new shader stage.
+
+**Deviations from #258.** No straight-skeleton library or lazy chunk: the maximal rectangles give
+the same roof for every rectilinear outline at one pitch (grid outlines always are), so the
+renderer chunk is unchanged and the world chunk grew 1.5 kB. Bellweather's kit stays gable (its
+houses get ridge caps, chimneys and dormers); hip is the kit's switch. No barge boards (no kit
+role for them), no eave or corner trims (see above), no `window.glass` in the dormer: its glass is
+baked in its colours, so #260's glow doesn't reach it yet. No skeleton timing per building (there
+is no skeleton). Goldens and the closer-shot strips are the milestone's close.
+
+## Roof fades (milestone 70, #259)
+
+A roof region dithers out over `ROOF_FADE_MS` (250 ms) and back, so tokens inside a building stay
+seen and clickable and the GM can edit inside one.
+
+**The rule** (`world/roof-fade.ts` `roofFade`, pure, in the `world` chunk) gives each region a target:
+0 when a cell of the viewer's own tokens or of the selected token is in it, when the camera's pivot
+is on a known cell of it, or (fog on) when any of its cells is visible; else `BUILDING_FADE` (0.5) for
+the GM while a build tool is out (the grid's build mode, `setGridMode`); else 1. A presumed roof over
+unexplored ground never fades for the pivot (fading it would show only black); tokens and visible
+cells are explored, so the other rules never open one either. With fog off the visible rule is
+skipped (the rules hide nothing, and roofs would never show). The GM's visible cells are the party's.
+
+**Inputs, all the viewer's own:** the tokens it was sent (`setTokens`), its own tokens' ids
+(`Tabletop.setOwnTokens`, from `RoomView`: the tokens whose `ownerId` is the viewer's seat), the
+selection (`setSelected`), the fog view and mode (`setFog`), the shape's `known` and the camera's
+pivot (`controls.target`, read each frame by `RoofLayer.tick`; a new pivot cell retargets). Nothing
+new goes over the wire, so a player's fades say nothing the player wasn't sent.
+
+**Drawing:** fades live in `ROOF_FADES` (`materials/roof-fade.ts`), a module-wide 128x128 R8 data
+texture (one texel per cell of the largest table, `GRID_LIMITS.maxCells` 100), at each region's key
+cell: its smallest cell, which every vertex carries as `aRoofKey`. The surface kind's `roof` variant
+has a `maskNode`: the fade read there is compared with three's `interleavedGradientNoise` at the
+pixel, and the fragment is discarded below it; so a fade is a screen-door dither with no
+transparency sorting, a half fade a visible pattern (TRAA smooths it on high). `maskShadowNode` is a
+constant true: the shadow pass never masks, so a fade never redraws the cached sun shadow and a room
+keeps its roof's shade, as indoors. `RoofLayer` keeps each fade by key across rebuilds (exploring a
+house doesn't restart it), eases it on the wall clock (`tick(now, pivot)`, from `drawFrame`, an ACTIVE
+frame while any fades, never a shadow redraw), writes only the texels that changed and stops: no
+frame after a fade ends. A region first met already open starts open; under reduced motion every
+fade jumps. A fade rebuilds no chunk and compiles nothing (the warm-up's stand-ins carry `aRoofKey`).
+
+**Secrecy:** a faded roof shows the cells under it as their own materials draw them, so unexplored
+cells stay exactly black (`worldModify`, and the output stage's re-mask from `hidden`, which a
+discarded roof fragment never writes).
+
+**Tests.** `world/roof-fade.spec.ts`: every rule, fog off, the pivot over unexplored ground and the
+GM's building. `roofs.svelte.spec.ts`: a room seen into faded and back over `ROOF_FADE_MS` with
+nothing rebuilt, an own token walking in and out, a selected one, the GM's pivot in and out, the
+GM's building half fade (a player's none), a player's pivot over a presumed roof (it stays), the
+reduced-motion jump, and no new shader stage throughout. The program-count sweep has a fade step;
+unexplored-is-black fades the roof over a partly explored house.
+
+**Deviations from #259.** Roofs were never on the pick layer (#257's deviation), so a faded roof
+takes no click, and an opaque one still passes a click to the cell below (the issue's DDA roof
+predicate waits for one). The GM's build mode includes placing and spawning (`gridModeOf`), so a
+GM placing a token sees roofs half there too. Goldens wait for the milestone's close.
+
+## Window glow (milestone 70, #260)
+
+After dusk most glazed windows on building walls glow and bloom, from the atmosphere curve, without
+lighting anything. Presentation only, built from what the viewer was sent; no wire field.
+
+**Which walls are glazed.** `world/glazing.ts` (pure, in the `world` chunk, server-tested) reads the
+tile input (#251): a **facade** is a `wall` edge (never a rules window or door: those are open gaps
+and never glow) between equal floors, not `outer` or `boundary`, both cells known, exactly one of
+them a building cell (the building context, #257: the interior mask as sent and presumed roofs).
+`GLAZED_SHARE` (0.35) of facades are glazed by `shareOf(keySeed, 1)` (murmur3's finaliser of the
+edge's `keySeed`, so it doesn't follow the kit's variant), and `LIT_SHARE` (0.6) of glazed windows
+light by `shareOf(keySeed, 2)` (`lightsUp`): the same windows on every client, 55-65% over 1,000
+synthetic keys. Bellweather (GM) has 41 glazed windows, 23 lit; ref-8 44 and 27; the monastery 15
+(its painted rooms), the railcar 24, the ghost town 9; tables with no building context have none.
+Rules windows stay `window.frame` and never take a pane.
+
+**How they draw.** `wallInstances` takes the glazed edges and draws each as a `window.frame` (the
+kit's, or the built-in one) instead of `wall.straight`, so its opening is real; `window-glass.ts`
+`WindowGlass` (in `WallLayer`, `walls.glass`) draws a pane in each opening (`paneMesh`: procedural,
+±0.45 by 0.7-1.66, within ±0.01 of the wall's plane, so its edges sit inside both the built-in frame
+and the greybox frames and nothing enters a base disk; the greybox glass colour baked in). Panes are
+two BatchedMeshes in the kit pieces' graph (the surface kind's `batched` variant with colours,
+already warmed by the walls' stand-in): unlit panes, and panes that light, whose material holds
+white in its emissive slot (a 1x1 texture of the slot's own spec, so no program changes) and a 2200
+K warm `emissive`. Both rebuild whole (a few dozen instances) when any wall chunk is dirty or the
+dark areas change. No kit `window.glass` model is loaded: that would be a new download for every
+village table, and the procedural pane is enough for the greybox kits; a kit's glass can replace it
+role by role later.
+
+**The ramp.** `windowGlow(nightGlow)` maps the curve's `nightGlow` (0.5 by day in every sky, 1 at
+night) to 0-1: on the temperate sky 0 until 17:30 (0 at 17:00), a smoothstep to 1 by 19:30 (1 from
+20:00), back down 06:00-08:00, never more than 0.03 in a minute; enclosed skies by their band's
+key (day 0, dusk and dark 1). `AtmosphereLayer.apply` hands `nightGlow` to the walls beside the
+lights (`AtmosphereLights.walls`), so it is written when the world time changes and during the
+hour's tween, never on its own frames; `WindowGlass.setGlow` writes `emissiveIntensity` =
+`GLOW_STRENGTH` (2.5) times it only when it changed. Under reduced motion the hour snaps, and so does
+the glow; nothing flickers.
+
+**Never light, never out of black.** The glow is the kind's emissive term only: no GridLight entry,
+bounce, cavity or probe reads it (the probe bake hides `walls.glass.group` with the tokens and dice,
+so it bakes no glow). Each pane is two halves either side of the wall's plane: only the outer half
+(on the exterior cell's side) of a lit pane glows, the inner half never does, so the glow is outside
+only. `worldEmissive` scales it by the fog of that cell, so a window on explored but unseen ground
+glows dimmed and none glows out of black. A pane whose inside cell is in a dark area the
+viewer was sent (`setDarkness`, the renderer's) is drawn unlit (`litPanes`).
+
+**Tests.** `world/glazing.spec.ts`: the glow 0 from 08:00 to 17:00, 1 from 20:00 to 04:30, the
+ramp monotonic and under 0.03 a minute, enclosed skies by band; the hashes (55-65% lit, identical
+runs, the glazed share); facades (none without context, between buildings, toward unexplored
+ground, on rules windows or doors), dark areas, frames drawn exactly on glazed edges, the pane's
+bounds, Bellweather's windows. `window-glow.svelte.spec.ts` (`RENDER_SPECS`): a village house's lit
+window below 1 at noon and over 1 (warm) at night in a half-float target, the hash's unlit window as
+by day, the floor in front unchanged by the glow, a dark area keeping it dark, and no new shader
+stage. `unexplored-black.svelte.spec.ts`: the village's player who walked into and round a house,
+at 22:00, its lit windows in view, every unexplored cell black. `program-count.svelte.spec.ts`'s
+sky sweep (every-sky half): the test world's walled room roofed at 22:00, a dark area over it and
+back by day.
+
+**Deviations from #260.** Glazed windows are a share of facade units drawn as the kit's window
+frame with a procedural pane, not a glazed wall variant or the kit's `window.glass` model (no new
+download). Exterior-only glow is by geometry (the pane's two halves), not a mask per face. No lanterns or dormers
+glow yet: no kit lantern exists and roofs draw no dormers (#258); light fixtures keep their flames
+(#232). Bloom is shown as HDR over 1 in the scene's half floats (what `post.ts`'s bloom takes), not
+through the post chain. The issue's goldens are the milestone's close.
+
+## Kit textures (milestone 70)
+
+Kit pieces that wear a texture set draw it by their own UVs; until now every kit piece drew its
+baked vertex colours, so #263's ashlar trim sheet never showed. The greybox kits are unchanged.
+
+- **Which pieces.** `sheetOf(model)` (`environment.ts`): the first manifest material a piece's
+  entry names (`ModelEntry.materials`, #263) with its albedo, normal and ORM loaded through
+  `loadTexture`, else the piece's own glTF maps (a CC0 or commissioned piece, #262's kind of
+  textures), else none. One `Look` per material, shared by every piece wearing it, cleared with the
+  environment's KTX2 textures. `pieceOf` keeps a piece's UVs (`PieceMesh.uvs`) and `kitPieces`
+  drops them again from a piece with no sheet, so a greybox piece's geometry is what it was. The
+  cook keeps a piece's `TEXCOORD_0` when its meta names `materials` (docs/ASSETS.md); before M70 the
+  prune dropped them.
+- **The graph.** The surface kind's `sheet` variant (`Variant.sheet`, key `s`): `surfaceMapping`
+  samples the slots at `uv() x params.repeat` (1) instead of the world box, and the normal map in
+  the derivative frame (`uvMapping`), so the pieces need no tangents. Everything else is the
+  `batched` graph's: the instance shade and the erase highlight in the batch colour, macro variation
+  and `worldModify` last. No vertex colours: the pieces' baked colours are the sheet's mean (#263)
+  and would darken it twice. Not anti-tiled (a trim sheet must not be offset), and never twinned on
+  a tier switch.
+- **Batches.** Per chunk a batch per material (`PER_CHUNK` 8: the built-in pieces, the kit's
+  colours, then up to six sheets; a seventh falls back to colours): a kit with one trim sheet, the
+  intended case, adds one batch per chunk, one draw per pass. Its geometry carries UVs (one more
+  vertex buffer, within WebGPU's 8). Door leaves stay one batch, in the kit's leaf's sheet (every
+  leaf of a kit in one material) or its colours.
+- **Floor tiles.** `kitTiles` gives each floor the sheet all its pieces share (or none); such
+  tiles draw in a second material of the same instanced prop graph (it samples at `uv()` already)
+  with the sheet in its slots and their geometry's colours white. No new program.
+- **Not yet.** Stairs, bridges, cliffs and roofs keep their pieces' colours: they are baked into
+  the chunks' rock and roof meshes, which map by the world. Windows' panes stay procedural (#260).
+- **Texture detail.** The sheet's textures are the ones `loadTexture` gives (and tracks), so a
+  Texture detail change refills the same objects at 1K or 2K (`texture-detail.ts`), with no new
+  material or program, as for environment textures.
+- **Warm-up.** The lobby's `kindGallery` has a batch on the `sheet` graph (colours and UVs,
+  casting), and the walls' stand-ins a third, in the kit's first sheet's material (a blank one
+  before any kit), so the first sheeted walls compile nothing.
+- **Bundle and budgets.** The renderer chunk 403.0 to 403.7 kB gz, the world chunk 23.6 to 23.7.
+  The pieces' UVs add 98 kB to the 37 cooked pieces (421 kB), 89 kB on the monastery's table:
+  15,092 of 15,360 kB at medium.
+- **Tests.** `kit-textures.svelte.spec.ts` (`RENDER_SPECS`): the stone halls' walls in a sheet
+  batch with UVs, the sheet in its albedo slot, over 200 of 4,096 pixels unlike the same kit in its
+  colours, another albedo changing the picture and the sheet putting it back, a texture-detail
+  refill of the sheet's own texture changing it, and no new shader stage throughout; the village's
+  and cavern's kits with no sheet or UVs, drawing exactly as the same kit without them.
+- **Deviations.** One material per sheet, not a material per texture set within a piece (a piece
+  wears its first material). The goldens, the look against the reference shots and the owner's
+  sign-off on the look are the milestone's close.
+
+## Kit budgets (milestone 70, #264)
+
+How much the kit-dressed tables draw on both backends, the budgets they are held to, and the
+WebGPU wall path. Measured 6 October 2026 on `tougenrip/m70-kits` at 38464fc (kit textures
+merged), on the RTX 4060 Laptop (Chromium 153, 1920×1080, reduced motion), the GM and a player
+(Ana) at each fixture table's four poses (overview, close, low, dark), every tier the backend runs.
+
+- **The harness.** `thirdfoldPerf.layers()` (`perf-layers.ts`, under `?perf` only) draws the
+  view twice, counting every draw three counts (`info.update`) by layer and pass: once steady, once
+  with the key light's map due again, which is what any change to the table costs (a token
+  moving, `shadowsDirty`). A layer is the nearest `userData.perfLayer` up an object's parents
+  (perf.ts `tagged`: walls, doors, window glass, roofs, floor tiles), else its material's kind
+  (`terrain` the ground's tops, `rock` its faces with the stairs and bridges, `surface` the void's
+  floor and what lies beyond, `mini` the tokens, `prop` the props and light fixtures, `emissive`
+  flames), else `post` for an effect's quad. `perf-layers.ts` is its own chunk, loaded by the
+  first `layers()`: the tags and the import add 121 bytes to the renderer chunk (403,795 of
+  403,800 gz). A pass is the shadow (an orthographic camera), a hero
+  cube (square, 90°), the scene pass (an `emissive` output), the prepass (other outputs) or the
+  overlay (the view's unjittered copy). For each batch it also counts the distinct pieces each
+  pass drew: what an InstancedMesh per piece geometry would draw instead. Hero cubes are redrawn
+  only when a reach changes, so no measured frame has them.
+- **The check.** `scripts/perf-gpu.mjs` with `LAYERS=1` prints the breakdown, and `BUDGETS=1`
+  checks every run against `DRAW_BUDGETS`, `TRIANGLE_BUDGETS` and the kit pieces' share of the
+  WebGPU budget, exiting 1 over any (the worse of the benchmark's frames and the shadowed frame).
+  Local only, like the perf gate; a backend takes a few minutes:
+
+  ```bash
+  npm run build && npx vite preview --port 4173 & npm run server:start &
+  SCENES=village,monastery,hollow,ref-8,outdoor-64 POSES=overview,close,low,dark \
+    TIER=low,medium,high BUDGETS=1 node scripts/perf-gpu.mjs http://localhost:4173 tests/fixtures/scenes webgl2.json
+  PERF_BACKEND=webgpu SCENES=… POSES=… TIER=low,medium,high,ultra BUDGETS=1 node scripts/perf-gpu.mjs …
+  ```
+
+- **Budgets.** Draw calls per frame, shadow passes included: 500 on WebGL2 low (a phone runs low),
+  1,000 on WebGL2 medium and up, 2,000 on WebGPU. Triangles per frame, every pass: 1M on low, 2M
+  on medium and high, 3M on ultra, about twice the heaviest pose. Kit pieces (walls, doors, window
+  glass) at most a quarter of the WebGPU draw budget, 500.
+
+### What the tables draw
+
+The heaviest pose of each (the overview; one WebGL2 high run of the Hollow's low pose drew 240),
+the GM's view, with the shadow redrawn. WebGL2 medium and high draw the same, as do WebGPU
+medium, high and ultra. Kit draws are walls, doors and window glass in all passes.
+
+| Table      | Backend, tier | Draws (steady) | Shadow pass | Kit draws | As InstancedMesh | Triangles |
+| ---------- | ------------- | -------------- | ----------- | --------- | ---------------- | --------- |
+| village    | WebGL2 low    | 207 (130)      | 77          | 28        | 96               | 380,970   |
+| village    | WebGL2 medium | 307 (230)      | 77          | 42        | 144              | 587,100   |
+| village    | WebGPU low    | 1,109 (580)    | 529         | 932       | 96               | 380,398   |
+| village    | WebGPU medium | 1,659 (1,130)  | 529         | 1,398     | 144              | 585,956   |
+| monastery  | WebGL2 low    | 141 (94)       | 47          | 18        | 76               | 452,284   |
+| monastery  | WebGL2 medium | 216 (169)      | 47          | 27        | 114              | 900,100   |
+| monastery  | WebGPU low    | 805 (426)      | 379         | 682       | 76               | 452,284   |
+| monastery  | WebGPU medium | 1,212 (833)    | 379         | 1,023     | 114              | 901,772   |
+| hollow     | WebGL2 low    | 158 (103)      | 55          | 14        | 72               | 436,644   |
+| hollow     | WebGL2 medium | 234 (179)      | 55          | 21        | 108              | 665,682   |
+| hollow     | WebGPU low    | 748 (396)      | 352         | 608       | 72               | 436,072   |
+| hollow     | WebGPU medium | 1,117 (765)    | 352         | 912       | 108              | 664,538   |
+| ref-8      | WebGL2 low    | 85 (61)        | 24          | 22        | 72               | 415,250   |
+| ref-8      | WebGL2 medium | 129 (105)      | 24          | 33        | 108              | 754,092   |
+| ref-8      | WebGPU low    | 1,335 (670)    | 665         | 1,274     | 72               | 414,678   |
+| ref-8      | WebGPU medium | 1,988 (1,323)  | 665         | 1,896     | 108              | 752,948   |
+| outdoor-64 | WebGL2 low    | 66 (62)        | 4           | 0         | 0                | 157,884   |
+| outdoor-64 | WebGL2 medium | 100 (96)       | 4           | 0         | 0                | 249,834   |
+| outdoor-64 | WebGPU low    | 58 (54)        | 4           | 0         | 0                | 155,508   |
+| outdoor-64 | WebGPU medium | 84 (80)        | 4           | 0         | 0                | 245,082   |
+
+The heaviest triangle count is the monastery's GM overview on high, 933,628 (WebGL2 and WebGPU).
+The player's views are lighter on every table but the Hollow and ref-8, where Ana is sent
+nearly or exactly what the GM is: village 101 draws on WebGL2 and 151 on WebGPU, the monastery
+126 and 249. ref-8's GM overview on WebGPU medium, by layer: walls 1,602
+draws (520,776 triangles), window glass 264, doors 30, then nothing over 18; on WebGL2 the same
+walls are 24 draws. WebGPU's GPU time has a median of 5.0 ms over its 160 runs (at most 15.2,
+the Hollow's GM on medium) and its main thread a median of 4.6 ms (at most 13.8); WebGL2's are
+5.9 and 8.8 ms. The per-instance draws cost encoding more than GPU time.
+
+- **Within budget.** Every WebGL2 run on every tier, the heaviest 307 of 1,000 (the village's
+  GM, medium) and 207 of 500 on low. Every triangle count, the heaviest 934k of 2M. Every WebGPU
+  total, but ref-8 sits at 1,988 of 2,000.
+- **Over.** The kit pieces' share on WebGPU: 75 of the 160 WebGPU checks, on every tier, the
+  village, monastery, Hollow and ref-8 for the GM and the Hollow and ref-8 for the player, up to
+  1,896 of 500 (ref-8). WebGPU draws a `BatchedMesh` one `drawIndexed` per visible instance and
+  pass (`WebGPUBackend`'s loop), where WebGL2's `WEBGL_multi_draw` makes one call per batch.
+- **No server re-measure.** M70 adds no per-viewer server state, so `server/perf/sync.ts` was not
+  run again.
+
+### The kit piece pools (the switch)
+
+The issue's rule is to switch WebGPU to an InstancedMesh per piece geometry when walls take more
+than a quarter of the WebGPU budget on any of the five tables. They took up to 3.8 times that, on
+four of the five (the table above), so kit pieces are now InstancedMeshes, **on both backends**
+(after 8576e6d): one path is simpler than two (three's `BatchedMesh` and `batch.ts` are gone, the
+renderer chunk 403.8 → 399.5 kB gz), and WebGL2 draws about what it did (below).
+
+- **Pools.** `piece-pool.ts` `PiecePool`: one InstancedMesh per piece key (a role's built-in
+  piece or a kit's variant) for the whole table, in that key's material: the walls' pool (the
+  built-in pieces in the wall look, a kit's in its colours or on its sheet, a material per sheet
+  and no limit on sheets), the door leaves' (a mesh per leaf variant, on `PICK_LAYER`, in a group
+  tagged `doors`) and the window panes' (three meshes: dark outer halves and every inner half in
+  the dark material, lit outer halves in the lit one). The keys come with the kit (`make`); a
+  key's mesh is made the first time it has instances and kept, hidden while it has none, until
+  another kit. A table's draws are the keys drawn times the passes, whatever its size.
+- **Programs.** `materials/piece.ts` `pieceMesh` makes every piece mesh, the pools' and the
+  warm-up's stand-ins (`kindGallery`, the walls' `gallery`), with at least `PIECE_MIN` (1,025)
+  instances. r186 reads up to 64 KiB of instance matrices as a uniform array sized in the shader
+  (so each capacity was its own program, which is why #254's tiles never grow their pool); past
+  it, as a vertex attribute, the same code at any size. So making a key's mesh, or making it again
+  larger when a key outgrows it (half again what it needs), compiles nothing; each new mesh is a
+  node state of its own (r186 keys an InstancedMesh's render object by its uuid). The cost is
+  memory: the test world's heap 67.3 → 75.4 MB.
+- **The `piece` variant** (was `batched`): three's instance colour is the seed's shade (6%), and
+  the highlight is the w of the instance tint (`TINT_ATTRIBUTE`, 1 lit), hatched as before. A piece
+  mesh reads position, normal, colour or uv, the tint, the instance colour and the matrix: at most
+  7 of WebGPU's 8 vertex buffers (`kind-layers.svelte.spec.ts`).
+- **Dirty chunks.** `WallLayer` keeps each chunk's `wallInstances` and which of them each key
+  draws; a sync rebuilds only the chunks `dirtyPieceChunks` names, then refills only the keys
+  those chunks had or have (a key's mesh is filled from every chunk's list, in chunk order).
+  `stats()` counts chunks with pieces and their instances as before.
+- **Doors.** A sync puts each leaf in a slot of its key's mesh; a swing writes that slot's matrix
+  and the mesh's bounds. Picks hit the leaf mesh and map the instance to its door
+  (`userData.owners`). Roof fades, the picking proxy and the sheets are as they were.
+- **What it gives up.** A table-wide mesh is culled whole, not piece by piece, so close views draw
+  every wall piece in every pass: ref-8's GM close on WebGPU medium 377k → 726k triangles, the
+  heaviest frame of all still the monastery's overview on high, 933k (2M budget). GPU time held
+  (below).
+
+After (6 October 2026, the same machine, poses and harness as the table above; the GM's overview,
+the shadow redrawn):
+
+| Table      | Backend, tier | Draws (steady) | Shadow pass | Kit draws | Triangles |
+| ---------- | ------------- | -------------- | ----------- | --------- | --------- |
+| village    | WebGL2 low    | 203 (128)      | 75          | 24        | 379,002   |
+| village    | WebGL2 medium | 301 (226)      | 75          | 36        | 584,148   |
+| village    | WebGPU low    | 201 (126)      | 75          | 24        | 378,430   |
+| village    | WebGPU medium | 297 (222)      | 75          | 36        | 583,004   |
+| monastery  | WebGL2 low    | 159 (103)      | 56          | 36        | 451,564   |
+| monastery  | WebGL2 medium | 243 (187)      | 56          | 54        | 899,020   |
+| monastery  | WebGPU low    | 159 (103)      | 56          | 36        | 451,564   |
+| monastery  | WebGPU medium | 243 (187)      | 56          | 54        | 900,692   |
+| hollow     | WebGL2 low    | 166 (107)      | 59          | 22        | 436,644   |
+| hollow     | WebGL2 medium | 246 (187)      | 59          | 33        | 665,682   |
+| hollow     | WebGPU low    | 162 (103)      | 59          | 22        | 436,072   |
+| hollow     | WebGPU medium | 238 (179)      | 59          | 33        | 664,538   |
+| ref-8      | WebGL2 low    | 85 (61)        | 24          | 22        | 430,238   |
+| ref-8      | WebGL2 medium | 129 (105)      | 24          | 33        | 785,124   |
+| ref-8      | WebGPU low    | 83 (59)        | 24          | 22        | 429,666   |
+| ref-8      | WebGPU medium | 125 (101)      | 24          | 33        | 783,980   |
+| outdoor-64 | WebGL2 low    | 66 (62)        | 4           | 0         | 157,884   |
+| outdoor-64 | WebGL2 medium | 100 (96)       | 4           | 0         | 249,834   |
+| outdoor-64 | WebGPU low    | 58 (54)        | 4           | 0         | 155,508   |
+| outdoor-64 | WebGPU medium | 84 (80)        | 4           | 0         | 245,082   |
+
+- **WebGPU.** `BUDGETS=1` passes all 160 runs (it failed 75): the heaviest frame 1,988 → 297
+  draws (the village's GM, medium), kit draws at most 1,896 → 54 (budget 500). GPU time's median
+  over the runs 5.0 → 5.0 ms (most 9.5 → 9.5), the main thread's 5.5 → 4.7 ms (most 29.0 → 11.1).
+- **WebGL2.** Within every budget, as before: the heaviest frame 307 → 301 draws, kit draws at most
+  42 → 54 (the monastery has more keys than a chunk had materials), triangles 934k → 933k at most.
+  GPU time's median 6.1 → 6.2 ms, the main thread's 8.2 → 8.5 ms (both within the runs' noise).
+  The test world draws 165 → 185 in the perf gate (one chunk: two batches became a mesh per key).
+
+To re-measure after a change to the kit pieces (a new kit, more keys): rebuild, then run the two
+commands above.
+
+### The orbit's main thread (WebGL2)
+
+On the RTX 4060 Laptop the high tier's orbit on the test world went from about 14 ms a frame at
+M69's close to 18.6-22 ms over M70, past high's 16.7 ms, so the automatic tier stepped down to
+medium after a couple of seconds of play and rebuilt the table. All of it was `draw` (the
+pipeline's render), not the layers' ticks.
+
+- **Where it went.** A CPU profile of the orbit put half the frame in three's per-object node
+  updates: `TextureNode.update` 22% self, `updateForRender` 13%, the texture value getters and
+  `updateReference` 11%. On WebGL2 three gives every texture read a flipY uniform
+  (`GLSLNodeBuilder.isFlipY`), which makes the read an OBJECT update, run for each read of each
+  object drawn, every pass, every frame, with a `texture.updateMatrix()` (a sine and a cosine)
+  inside. A kind's graph reads its data textures in over a hundred places (the GridLight's lists
+  and data, 126 a draw on their own; the cell maps; the floors' arrays): about 280 update nodes a
+  draw and 33,500 texture-node updates a frame on the test world's 201 draws. M70 added none of
+  them; it added draws (floor tiles, piece pools: 165 → 185 in the gate), each paying for all of
+  them, which tipped the frame over. WebGPU has no flipY uniform, so none of this runs there.
+- **The fix.** `materials/still-textures.ts` `quietTextureReads` (from `setUpRenderer`, once)
+  drops from every node builder's update list the texture reads whose flipY could only ever be
+  `false` (not a render target's, framebuffer's or depth texture's, not an ImageBitmap uploaded
+  with `flipY`; our bitmaps are flipped as they decode) and that read through no uv matrix. The
+  uniform keeps its initial `false`, so no pixel and no program changes; render-target reads (the
+  passes, shadow maps, the hero atlas, the sky's PMREM) keep their updates. Tested in
+  `still-textures.spec.ts`.
+- **Before and after** (7 October 2026, the merged branch at 25fb8a4, the same machine; the perf
+  gate's orbit, Ana at the tier the device starts at, high; frame times are main thread):
+
+| Measure                                      | Before             | After                           |
+| -------------------------------------------- | ------------------ | ------------------------------- |
+| WebGL2 gate orbit                            | 52.4 fps, 18.62 ms | 60.6 fps, 9.91 ms (10.41 again) |
+| WebGL2 orbit, repeated (4 runs)              | 18.2-18.6 ms       | 10.4-12.1 ms                    |
+| WebGPU orbit, repeated (runs 2-6)            | 7.2-10.3 ms        | 7.6-10.8 ms                     |
+| WebGL2 kit budgets, main thread median (max) | 9.99 (24.4) ms     | 6.34 (23.7) ms                  |
+| WebGL2 kit budgets, high only, median        | 12.64 ms           | 7.57 ms                         |
+| WebGPU kit budgets, main thread median (max) | 4.42 (11.9) ms     | 4.57 (12.4) ms                  |
+| Test world heap after the table loads (Ana)  | 61.5 MB            | 41.9 MB                         |
+
+Draws, triangles and programs are unchanged on both backends; the kit budgets (120 runs each,
+low, medium and high) are all within after (before, one WebGL2 run of the monastery's GM overview
+on high counted 3.06M triangles once, not repeated after). GPU time's medians: WebGL2 6.0 → 5.6
+ms, WebGPU 4.6 → 4.6 ms. The heap's drop (WebGL2 only; WebGPU's is 30.5 MB either way) held in
+both WebGL2 gate runs after; its cause is not traced.
+
+- **WebGPU's gate orbit** reads 1.9 fps with a 10-11 s frame, before and after: on WebGPU the gate
+  starts orbiting while the table's warm-up still holds frames (the settled frame count stops
+  advancing during `compileAsync`; 56 of 185 draws when the orbit starts), so its first orbit pays
+  for the warm-up. Later orbits on the same page are the repeated row above. A gate fix (waiting
+  for `loads()` and the warm-up) is left to the next gate change.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -1803,7 +2854,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `shape.ts`                            | The pipeline's shape before and after the device is known (`initialShape`, `startingSettings`)                                                                                                                             |
 | `world/`                              | The world's shape (M69), the cliffs (`cliffs.ts`, #241), what lies beyond the grid (`beyond.ts`, `recipes.ts`, #244); `build.ts` is the builders' lazy chunk (`world`), `pick.ts` and `wall-spans.ts` stay in the renderer |
 | `world-layer.ts`                      | `WorldLayer`: the shader grid's twins per chunk (#245), the ground in 16x16-cell chunks (#240) with its cliffs and risers (#241), the void's floor (#243), the shape it is built from                                      |
-| layer modules                         | `tokens.ts`, `walls.ts`, `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                                                                                                                       |
+| layer modules                         | `tokens.ts`, `walls.ts` (kit walls, #252; its `roofs.ts`, #257; `piece-pool.ts`, the kit pieces' InstancedMeshes, M70), `props.ts`, `lighting.ts`, `effects.ts`, `dice3d.ts`; `fog.ts` is `FogMode`                        |
 
 ## Quality tiers
 

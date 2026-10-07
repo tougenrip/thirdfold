@@ -3,7 +3,8 @@
 // every adventure's tables, and the builder's example's, against the manifest
 // instead: every prop has a model, every figure the story puts on a table
 // (people, characters, enemies) has one of its kind, every light's fixture
-// model exists (#232), every table's environment exists, and no table makes a
+// model exists (#232), every table's environment exists, its kit fills every
+// role the table needs (#250, phased in by KIT_PENDING), and no table makes a
 // viewer download or hold more than TABLE_BUDGETS (#193).
 
 import {
@@ -14,6 +15,8 @@ import {
 	type TextureEntry
 } from '../../src/lib/assets/manifest';
 import { TEXTURE_DETAILS, sizeFor, sizesOf, type TextureDetail } from '../../src/lib/assets/detail';
+import { PLAIN_KIT } from '../../src/lib/assets/kit';
+import { rolesNeeded } from '../../src/lib/assets/kit-needs';
 import type { AdventureDef } from '../adventure/define';
 import { FLOOR_IDS } from '../../src/lib/game/floor';
 import { parseSceneFile, type SceneFile } from '../../src/lib/game/scene-file';
@@ -70,8 +73,8 @@ function atDetails(entry: TextureEntry | ModelEntry): { download: PerDetail; gpu
 
 /**
  * Sums the files a table needs, each once however often it is used: the environment's materials'
- * maps, its surfaces, its grades for the tone mapper in use, and the models with their preview and
- * the materials they wear; plus the Basis transcoder once when any of it is KTX2 or cooked.
+ * maps, its surfaces, its grades for the tone mapper in use, its kit's pieces, and the models with
+ * their preview and the materials they wear; plus the Basis transcoder once when any of it is KTX2 or cooked.
  */
 export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 	const textures = new Set<string>();
@@ -97,7 +100,15 @@ export function tableBudget(manifest: Manifest, refs: TableRefs): TableCost {
 		}
 	};
 	let basis = false;
-	for (const id of new Set(refs.models)) {
+	// The environment's kit pieces (#261): a table may draw any of them.
+	const kit = env?.kit ? manifest.kits[env.kit] : undefined;
+	const pieces = kit
+		? [
+				...Object.values(kit.pieces).flat(),
+				...Object.values(kit.floors).flatMap((f) => [...(f?.tiles ?? []), ...(f?.broken ?? [])])
+			].map((p) => p!.model)
+		: [];
+	for (const id of new Set([...refs.models, ...pieces])) {
 		const m = manifest.models[id];
 		if (!m) continue;
 		add(m, m.preview?.bytes ?? 0);
@@ -163,15 +174,27 @@ export const SURFACE_FLOORS = FLOOR_IDS.slice(0, FLOOR_IDS.indexOf('void')).filt
 );
 
 /**
- * What the stories' tables refer to that the manifest lacks, or that goes over a budget, and
- * an environment with surfaces missing one for a floor (a GM may paint any floor anywhere);
- * empty when all is well.
+ * The built-in environments still on the `plain` kit (every role procedural). Empty since every
+ * built-in environment got its greybox kit (#261); an environment may never come back to `plain`,
+ * so role coverage holds for every built-in table.
  */
-export function checkScenes(manifest: Manifest): string[] {
+export const KIT_PENDING: ReadonlySet<string> = new Set<string>();
+
+/**
+ * What the stories' tables refer to that the manifest lacks, or that goes over a budget, an
+ * environment with surfaces missing one for a floor (a GM may paint any floor anywhere), and a
+ * kit missing a role a table needs; empty when all is well.
+ */
+export function checkScenes(manifest: Manifest, pending = KIT_PENDING): string[] {
 	const problems: string[] = [];
 	for (const [id, env] of Object.entries(manifest.environments)) {
 		if (!Object.hasOwn(manifest.skies, env.sky))
 			problems.push(`environment ${id}: no sky "${env.sky}"`);
+		const kit = env.kit ?? PLAIN_KIT;
+		if (kit === PLAIN_KIT && !pending.has(id))
+			problems.push(`environment ${id}: on the plain kit; it needs a kit of its own (#261)`);
+		if (kit !== PLAIN_KIT && pending.has(id))
+			problems.push(`environment ${id}: has the kit "${kit}"; take it off KIT_PENDING`);
 		for (const floor of SURFACE_FLOORS) {
 			if (env.surfaces && !env.surfaces.floors.includes(floor))
 				problems.push(`environment ${id}: no surface for the ${floor} floor`);
@@ -179,7 +202,7 @@ export function checkScenes(manifest: Manifest): string[] {
 	}
 	for (const A of adventures()) {
 		if (typeof A === 'string') problems.push(A);
-		else problems.push(...checkAdventure(manifest, A).map((p) => `${A.id}: ${p}`));
+		else problems.push(...checkAdventure(manifest, A, pending).map((p) => `${A.id}: ${p}`));
 	}
 	return problems;
 }
@@ -260,7 +283,11 @@ function tablesOf(A: AdventureDef): { tables: Table[]; problems: string[] } {
 	return { tables, problems };
 }
 
-function checkAdventure(manifest: Manifest, A: AdventureDef): string[] {
+function checkAdventure(
+	manifest: Manifest,
+	A: AdventureDef,
+	pending: ReadonlySet<string>
+): string[] {
 	const { tables, problems } = tablesOf(A);
 	const model = (id: string | undefined, kind: ModelKind, what: string) => {
 		if (!id) problems.push(`${what} has no model`);
@@ -278,6 +305,7 @@ function checkAdventure(manifest: Manifest, A: AdventureDef): string[] {
 			for (const id of fixturesOf(l)) model(id, 'prop', `${location}: light ${l.id}'s fixture`);
 		for (const over of overBudget(tableBudget(manifest, refs)))
 			problems.push(`${location}: ${over}`);
+		problems.push(...kitProblems(manifest, scene, pending).map((p) => `${location}: ${p}`));
 	}
 	// A sky must exist (a table's above, an effect's here). ponytail: grade ids are syntax only
 	// until the manifest has grade presets (#162).
@@ -291,6 +319,26 @@ function checkAdventure(manifest: Manifest, A: AdventureDef): string[] {
 	for (const id of Object.keys(A.characters)) model(id, 'character', id);
 	for (const def of Object.values(A.enemies)) model(def.model, 'enemy', def.name);
 	return problems;
+}
+
+/**
+ * The roles a table needs that its environment's kit lacks; none while the environment is on
+ * `plain` (every role procedural), which checkScenes allows only while it is on KIT_PENDING.
+ */
+export function kitProblems(
+	manifest: Manifest,
+	scene: SceneFile,
+	pending: ReadonlySet<string> = KIT_PENDING
+): string[] {
+	const env = scene.environment ? manifest.environments[scene.environment] : undefined;
+	const id = env?.kit ?? PLAIN_KIT;
+	// On plain the environment's own check speaks for it (pending, or needing a kit).
+	if (!env || id === PLAIN_KIT || pending.has(scene.environment!)) return [];
+	const kit = manifest.kits[id];
+	if (!kit) return [`no kit "${id}"`];
+	return [...rolesNeeded(scene)]
+		.filter((role) => !kit.pieces[role]?.length)
+		.map((role) => `the kit "${id}" has no ${role} piece`);
 }
 
 /** Every `{ world }` effect's patch in an adventure, wherever its effects sit (tables are functions, skipped). */

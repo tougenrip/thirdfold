@@ -3,7 +3,9 @@
 // (Basis encoding) and needs the pinned encoders, so it never runs per PR;
 // the build only checks and hashes what it wrote.
 //
-//   art/<kind>/<id>/<id>.glb + meta.json   a model (a Blender export, PNG textures embedded)
+//   art/<kind>/<id>/<id>.glb + meta.json   a model (a Blender export, PNG textures embedded; a CC0
+//                                          bridge prop's put together by scripts/fetch-models.ts,
+//                                          its colour maps recoloured through the meta's `ramp`)
 //                                          → assets/models/<kind>/<id>.glb + <id>.meta.json
 //   art/texture/<id>/<id>.png + meta.json  a texture → assets/textures/<id>.ktx2 + <id>.meta.json
 //   art/surfaces/<id>/meta.json            a surface's CC0 set (scripts/fetch-surfaces.mjs), stylised
@@ -14,7 +16,7 @@
 // and 2K as variants into variants/ (never committed), listed in assets/variants.lock.json
 // (cook-variants.ts, variants.ts); a model with textures the same, as whole GLBs.
 //
-// A model is checked, cleaned (dedup, prune), given MikkTSpace tangents where
+// A model is checked, cleaned (dedup, prune; one wearing a manifest material keeps its UVs), given MikkTSpace tangents where
 // it has a normal map, welded, simplified into `<role>_lod1` and `_lod2`,
 // quantised and meshopt-encoded, its textures encoded to KTX2
 // (cook-textures.ts), and the result must pass checkGlb. assets/cook.lock.json
@@ -71,6 +73,8 @@ import {
 import { checkGlb } from './glb';
 import { EXTENSIONS, MESH_NAME } from './gltf-check';
 import { readMeta } from './licence';
+import { decodePng, encodePng } from './png';
+import { recolour } from './stylise';
 import { AssetError, isRecord, json, readJson } from './pipeline-files';
 import { isModelKind } from './models';
 
@@ -374,8 +378,30 @@ async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cook
 	delete root.getAsset().extras;
 	// Blender names mesh data apart from its object: the mesh takes its node's role.
 	for (const node of root.listNodes()) node.getMesh()?.setName(node.getName());
+	// A CC0 bridge prop's colour maps go through its palette ramp (#262).
+	if (meta.ramp) {
+		const colour = new Set(root.listMaterials().flatMap((m) => m.getBaseColorTexture() ?? []));
+		for (const texture of colour) {
+			try {
+				const { width, height, data } = recolour(
+					decodePng(texture.getImage()!),
+					meta.ramp,
+					meta.detail ?? 0.25
+				);
+				texture.setImage(encodePng(width, height, data));
+			} catch (err) {
+				throw new AssetError(
+					source,
+					`recolouring "${texture.getName()}": ${(err as Error).message}`
+				);
+			}
+		}
+	}
 
-	await doc.transform(dedup(), prune());
+	// A piece that wears a manifest material (a kit's trim sheet, M70) keeps its UVs: prune would
+	// drop them, having no texture of its own to sample them.
+	const pruned = () => prune({ keepAttributes: meta.materials !== undefined });
+	await doc.transform(dedup(), pruned());
 	if (root.listMaterials().some((m) => m.getNormalTexture())) {
 		await doc.transform(unweld(), tangents({ generateTangents, overwrite: true }));
 	}
@@ -399,7 +425,7 @@ async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cook
 			previous = count;
 		}
 	}
-	await doc.transform(prune(), meshopt({ encoder: MeshoptEncoder, level: COOK_SETTINGS.meshopt }));
+	await doc.transform(pruned(), meshopt({ encoder: MeshoptEncoder, level: COOK_SETTINGS.meshopt }));
 
 	// Textures to KTX2 by the slots they fill, colour ETC1S, data UASTC: at the 512 px base, and as
 	// whole GLBs with 1K and 2K textures where the source's are that large (texture detail).
@@ -438,6 +464,7 @@ async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cook
 			...(meta.swing !== undefined ? { swing: meta.swing } : {}),
 			...(setPiece ? { setPiece: true } : {}),
 			...(meta.pack !== undefined ? { pack: meta.pack } : {}),
+			...(meta.materials !== undefined ? { materials: meta.materials } : {}),
 			...(screenSizes.length ? { screenSizes } : {})
 		};
 		cooked.outputs.set(`models/${kind}/${id}.glb`, glb);

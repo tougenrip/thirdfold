@@ -1,0 +1,10 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [1.24, 0.113, 1.24], "at": [0, 1.944, 0], "material": "tin-roof" },
+		{ "shape": "box", "size": [0.992, 0.113, 0.992], "at": [0, 1.978, 0], "material": "tin-roof" },
+		{ "shape": "box", "size": [0.744, 0.113, 0.744], "at": [0, 2.011, 0], "material": "tin-roof" },
+		{ "shape": "box", "size": [0.496, 0.113, 0.496], "at": [0, 2.044, 0], "material": "tin-roof" },
+		{ "shape": "box", "size": [0.248, 0.113, 0.248], "at": [0, 2.077, 0], "material": "tin-roof" },
+		{ "shape": "box", "size": [0.16, 0.1, 0.16], "at": [0, 2.154, 0], "color": "#3d4250" }
+	]
+}

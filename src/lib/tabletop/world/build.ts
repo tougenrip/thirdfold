@@ -9,9 +9,26 @@
 // prefetch, so a table never waits on it. What a frame needs at once stays
 // out: the DDA's picks (pick.ts) and the wall spans (wall-spans.ts).
 
-export { chunksAcross, dirtyChunks, knownOf, worldShape } from './shape';
+export { CHUNK, chunksAcross, dirtyChunks, EDGE_BUILT, knownOf, worldShape } from './shape';
 export { chunkGround } from './ground-mesh';
 export { regionsOf } from './regions';
 export { beyondHeightAt, beyondOf, beyondSample, ridgeMesh, skirtMesh } from './beyond';
-export { chunkWorld, CLIFF_STYLES } from './cliffs';
+export { chunkWorld, CLIFF_STYLES, styleOf } from './cliffs';
 export { chasmGround, chasmOf, DEFAULT_CHASM, mistTexels } from './chasm';
+export { autotile, dirtyPieceChunks, keySeed, tileInput, variantOf } from './autotile';
+export {
+	BATCH_ROLES,
+	edgeIndex,
+	pieceOf,
+	proceduralPiece,
+	roleOfKey,
+	VARIANTS,
+	wallInstances
+} from './wall-batch';
+export { brinkCells, chunkTiles, dirtyTileChunks, tileBeds, tiledCells } from './floor-tiles';
+export { builtGround, stairDirty, stairTrim, withStairs, withTrim } from './stairs';
+export { bridgeTrim } from './bridge-mesh';
+export { glazing, litPanes, paneMesh, windowGlow } from './glazing';
+export { roofFootprint, roofKey, roofRegions, roofsByChunk } from './roofs';
+export { ROOF_PIECE_ROLES, roofMesh } from './roof-mesh';
+export { roofFade } from './roof-fade';

@@ -1,0 +1,12 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "James Ray Cock (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wine_barrel_01/wine_barrel_01_1k.gltf",
+			"sha256": "503d3339677217c3241a3cdbc1c803ed1eb82d1a48f51436d1545ec5745ae8d8"
+		},
+		"modified": true
+	},
+	"screenSizes": [0.25, 0.1]
+}

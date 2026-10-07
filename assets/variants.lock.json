@@ -1,5 +1,53 @@
 {
 	"textures": {
+		"ashlar-trim-albedo": [
+			{
+				"size": 1024,
+				"file": "textures/ashlar-trim-albedo-1k.7e6ac3fa.ktx2",
+				"sha256": "7e6ac3fa86534d605476568a83abdd0adf73b5ab35140f1fe95698d01c253b9d",
+				"bytes": 108239,
+				"gpuBytes": 1398102
+			},
+			{
+				"size": 2048,
+				"file": "textures/ashlar-trim-albedo-2k.b35df71e.ktx2",
+				"sha256": "b35df71e49cc7ebacca8f5eeca582da8bd3d23f4f0be7c503830b64ff03e9238",
+				"bytes": 312528,
+				"gpuBytes": 5592406
+			}
+		],
+		"ashlar-trim-normal": [
+			{
+				"size": 1024,
+				"file": "textures/ashlar-trim-normal-1k.5f95a1ee.ktx2",
+				"sha256": "5f95a1ee572ecee513bbd96bf461c30fc31fbf1824f9ef51e9a18f93aca3dbbf",
+				"bytes": 687108,
+				"gpuBytes": 1398102
+			},
+			{
+				"size": 2048,
+				"file": "textures/ashlar-trim-normal-2k.27c157d1.ktx2",
+				"sha256": "27c157d19ba023487b9d645b3b4c8adfb6f179329ba1fb51765ba6c518d84d77",
+				"bytes": 2114178,
+				"gpuBytes": 5592406
+			}
+		],
+		"ashlar-trim-orm": [
+			{
+				"size": 1024,
+				"file": "textures/ashlar-trim-orm-1k.95991002.ktx2",
+				"sha256": "959910026f0e1482b72d886c1ceae929f73d7411aa6ff3fc41f77d43f2cbf230",
+				"bytes": 241025,
+				"gpuBytes": 1398102
+			},
+			{
+				"size": 2048,
+				"file": "textures/ashlar-trim-orm-2k.6867fcf5.ktx2",
+				"sha256": "6867fcf5a892ce8568f3ab6395259992b4cc1d38d7fcba0bd8abd11843fef23d",
+				"bytes": 660349,
+				"gpuBytes": 5592406
+			}
+		],
 		"cave": [
 			{
 				"size": 1024,

@@ -4,6 +4,7 @@
 	"ground": "cave-rock",
 	"walls": "ancient-stone",
 	"sky": "underground",
+	"kit": "cavern",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["ashlar"]

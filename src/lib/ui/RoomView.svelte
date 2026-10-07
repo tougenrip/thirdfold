@@ -1348,6 +1348,7 @@
 					? [...preview, ...beacon, ...lightMark, ...spellArea]
 					: preview}
 				selectedId={selected?.id ?? null}
+				ownTokens={room.tokens.filter((t) => me && t.ownerId === me.id).map((t) => t.id)}
 				{fallen}
 				{floats}
 				{terrain}

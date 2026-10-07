@@ -15,6 +15,7 @@
 //                                       a world look to start from, and its surfaces (#187: surface-<id>-*
 //                                       textures the cook made)
 //   assets/skies/<id>.json              a sky preset (#213), procedural, inline in the manifest (pipeline-skies.ts)
+//   assets/kits/<id>.json               an architecture kit (#250): kit pieces by role, inline (kit.ts)
 //   assets/grades/<environment>.json    its colour grade per band, rendered per tone mapper
 //   assets/audio/<id>.json | .wav | .ogg a sound rendered from a recipe (a bell), or a sound file
 //   <folder>/_provenance.json | <id>.meta.json  where each came from and on what terms (licence.ts)
@@ -47,12 +48,14 @@ import {
 	type EnvironmentDef,
 	type Manifest,
 	type MaterialDef,
+	type ModelEntry,
 	type SkyDef,
 	type SurfaceEntry,
 	type TextureEntry,
 	type TextureUsage
 } from '../../src/lib/assets/manifest';
 import { parseManifest } from '../../src/lib/assets/manifest-parse';
+import { parseKit, PLAIN_KIT, type KitDef } from '../../src/lib/assets/kit';
 import { parseWorldPatch } from '../../src/lib/game/world';
 import { catalogModule, loadCatalog } from './catalog';
 import { buildAudio } from './pipeline-audio';
@@ -124,12 +127,34 @@ function buildMaterials(
 	return materials;
 }
 
-/** assets/environments: the materials of each place's floor, ground and walls, and its sky. */
+/** assets/kits (#250): each kit's pieces by role, every one a kit model inside its role's envelope. */
+function buildKits(
+	dir: string,
+	models: Record<string, ModelEntry>,
+	materials: Record<string, MaterialDef>
+): Record<string, KitDef> {
+	const kits: Record<string, KitDef> = {};
+	const kitDir = path.join(dir, 'kits');
+	for (const name of list(kitDir)) {
+		const source = path.join(kitDir, name);
+		const { id, ext } = idOf(name, kitDir);
+		if (ext !== 'json') throw new AssetError(source, 'kits are .json');
+		provenanceFor(kitDir, id, ext);
+		const parsed = parseKit(readJson(source), models, materials);
+		if (!parsed.ok) throw new AssetError(source, parsed.error);
+		kits[id] = parsed.kit;
+	}
+	if (!kits[PLAIN_KIT]) throw new AssetError(kitDir, `no "${PLAIN_KIT}" kit`);
+	return kits;
+}
+
+/** assets/environments: the materials of each place's floor, ground and walls, its sky and its kit. */
 function buildEnvironments(
 	dir: string,
 	materials: Record<string, MaterialDef>,
 	surfaces: Record<string, SurfaceEntry>,
-	skies: Record<string, SkyDef>
+	skies: Record<string, SkyDef>,
+	kits: Record<string, KitDef>
 ): Record<string, EnvironmentDef> {
 	const environments: Record<string, EnvironmentDef> = {};
 	const envDir = path.join(dir, 'environments');
@@ -161,6 +186,13 @@ function buildEnvironments(
 		}
 		const world = raw.world === undefined ? undefined : parseWorldPatch(raw.world);
 		if (world === null) throw new AssetError(source, '"world" is not a valid look');
+		// Every built-in environment names its kit (`plain` until its greybox kit, #261).
+		const kitOf = () => {
+			if (typeof raw.kit !== 'string' || !Object.hasOwn(kits, raw.kit)) {
+				throw new AssetError(source, '"kit" must name a kit');
+			}
+			return raw.kit;
+		};
 		environments[id] = {
 			name: raw.name,
 			surface: material('surface'),
@@ -170,7 +202,8 @@ function buildEnvironments(
 			...(world ? { world } : {}),
 			...(raw.surfaces !== undefined
 				? { surfaces: { floors: ids('floors'), walls: ids('walls') } }
-				: {})
+				: {}),
+			kit: kitOf()
 		};
 	}
 	return environments;
@@ -206,7 +239,8 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 	const models = await buildModels(dir, emit, materials);
 	const surfaces = buildSurfaces(textures);
 	const skies = buildSkies(dir);
-	const environments = buildEnvironments(dir, materials, surfaces, skies);
+	const kits = buildKits(dir, models, materials);
+	const environments = buildEnvironments(dir, materials, surfaces, skies, kits);
 	buildGrades(dir, emit, environments, textures);
 	const audio = buildAudio(dir, emit);
 
@@ -227,6 +261,7 @@ export async function buildAssets(dir: string): Promise<BuiltAssets> {
 		skies,
 		audio,
 		packs: {},
+		kits,
 		decoders: buildDecoders(files)
 	};
 	assignPacks(manifest);
