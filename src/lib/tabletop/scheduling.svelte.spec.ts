@@ -189,4 +189,44 @@ describe('the render scheduler', () => {
 		await wait(3000);
 		expect(tabletop.stats().frames - before).toBe(0);
 	});
+
+	// Mini motion (#272): a flier bobs at the ambient rate, a picked-up mini settles and stops.
+	for (const reducedMotion of [false, true]) {
+		test(`a flier ${reducedMotion ? 'holds still under reduced motion' : 'bobs only at the ambient rate'}`, async () => {
+			const sidecar = await loadSidecar('ref-7');
+			const view = await loadView('ref-7', 'day', 'gm');
+			const clock = manualClock();
+			const m = await mountFixture(view, sidecar.poses.overview, { reducedMotion, clock });
+			mounted.push(m);
+			const [flier] = view.tokens;
+			m.tabletop.setTokens(view.tokens.map((k) => (k === flier ? { ...k, lift: 1 } : k)));
+			m.tabletop.setSelected(flier.id); // picked up: lifts, tilts and settles
+			await rest(m.tabletop, clock);
+			const before = m.tabletop.stats().frames;
+			await wait(3000);
+			const frames = m.tabletop.stats().frames - before;
+			if (reducedMotion) expect(frames).toBe(0);
+			else {
+				expect(frames).toBeGreaterThan(0);
+				// A frame on its way reads as active (scheduler.ts), so wait to see it between frames.
+				await expect.poll(() => m.tabletop.stats().mode, { timeout: 10_000 }).toBe('ambient');
+				expect(frames).toBeLessThanOrEqual(40); // AMBIENT_MS 80: about 38 in 3 s
+			}
+		});
+	}
+
+	test('a picked-up mini settles, then the table draws nothing (#272)', async () => {
+		const sidecar = await loadSidecar('ref-7');
+		const view = await loadView('ref-7', 'day', 'gm');
+		const clock = manualClock();
+		const m = await mountFixture(view, sidecar.poses.overview, { reducedMotion: false, clock });
+		mounted.push(m);
+		await rest(m.tabletop, clock);
+		m.tabletop.setSelected(view.tokens[0].id);
+		await expect.poll(() => m.tabletop.stats().mode, { timeout: 10_000 }).toBe('active');
+		await rest(m.tabletop, clock);
+		const before = m.tabletop.stats().frames;
+		await wait(3000);
+		expect(m.tabletop.stats().frames - before).toBe(0);
+	});
 });

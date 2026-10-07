@@ -24,6 +24,19 @@ import { FigureBatches } from './figures';
 import type { OverlayLayer } from './overlay';
 import { TurnColumn } from './turn-column';
 import { standIn } from './warmup';
+import {
+	bobs,
+	fall,
+	miniPose,
+	pick,
+	restingMotion,
+	startMove,
+	PICK_LIFT,
+	PICK_TILT,
+	LYING,
+	type MiniMotion,
+	type MiniPose
+} from './mini-motion';
 
 interface Entry {
 	root: THREE.Group;
@@ -37,16 +50,18 @@ interface Entry {
 	lift: number;
 	/** Its base's diameter, cell units (#270: `baseDiameters`). */
 	base: number;
-	/** 0..1 progress of the current move; 1 when at rest. */
-	t: number;
-	/** When the current move began (the layer's clock) and how long it takes, ms. */
-	start: number;
-	duration: number;
+	/** How it hops, lands, is picked up, bobs and tips over (#272). */
+	motion: MiniMotion;
+	/** Something in `motion` still to play: the layer poses it each frame until it rests. */
+	awake: boolean;
+	/** Just come onto the table: a fall shows at once. */
+	fresh: boolean;
+	/** The pick-up's tilt axis, turned toward the camera as it last animated. */
+	tilt: THREE.Vector3;
 }
 
 /** Placeholder figures (0.7-1.24 u) drawn at human height under 2 u walls; #118 replaces it. */
 const FIGURE_SCALE = 1.3;
-const HOP_HEIGHT = 0.45;
 /** How much of a hidden token the GM sees. */
 const HIDDEN_OPACITY = 0.35;
 
@@ -54,12 +69,17 @@ const HIDDEN_OPACITY = 0.35;
 const BASE_TOP = BASE_PROFILE[BASE_PROFILE.length - 1][1];
 const figure = new THREE.Matrix4();
 const scaled = new THREE.Matrix4();
+const toEye = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 
 export class TokenLayer {
 	readonly group = new THREE.Group();
 	private entries = new Map<string, Entry>();
 	private grid: SquareGrid | null = null;
 	private selectedId: string | null = null;
+	private reduced = false;
+	/** A pick-up or squash still playing: frames, but no shadow redraw (#272). */
+	posing = false;
 	/** Every token's base (#265): their rings follow the hover, the selection and the turn. */
 	readonly bases = new BaseLayer(this.group);
 	/** Every token's contact shadow (#271), and the props' (PropLayer is handed it). */
@@ -87,7 +107,7 @@ export class TokenLayer {
 	) {
 		// A model arriving may bring a downed pose, which stands in for tipping over (#273).
 		this.figures = new FigureBatches(this.group, () => {
-			for (const [id, entry] of this.entries) if (entry.fallen) this.placeFigure(id, entry);
+			for (const [id, entry] of this.entries) if (entry.fallen) this.tip(id, entry, true);
 			onModel();
 		});
 		overlay.scene.add(this.column.mesh);
@@ -121,15 +141,17 @@ export class TokenLayer {
 			const lift = (token.lift ?? 0) * STEP_HEIGHT * grid.cellSize;
 			const target = new THREE.Vector3(w.x, (ground?.floorY(token.pos) ?? w.y) + lift, w.z);
 			let entry = this.entries.get(token.id);
-			const created = !entry;
 			if (!entry) {
 				entry = this.create(token, target);
 				changed = true;
 			}
+			const flier = (token.lift ?? 0) > 0;
+			if (entry.motion.flier !== flier) entry.awake = true; // lands from its bob, or takes off
+			entry.motion.flier = flier;
 			entry.hidden = token.hidden === true;
 			const opacity = entry.hidden ? HIDDEN_OPACITY : 1;
 			if (this.figures.set(token.id, token.model ?? null, token.color, opacity)) {
-				if (entry.fallen) this.placeFigure(token.id, entry); // another model, maybe posed
+				if (entry.fallen) this.tip(token.id, entry, true); // another model, maybe posed
 				changed = true;
 			}
 			const size = grid.cellSize * (token.scale ?? 1);
@@ -138,27 +160,23 @@ export class TokenLayer {
 				entry.root.scale.setScalar(size);
 				changed = true;
 			}
-			if (created || resized) this.placeFigure(token.id, entry);
 			const base = bases.get(token.id) ?? SMALL_BASE;
 			if (entry.base !== base || entry.lift !== lift) changed = true;
 			entry.base = base;
 			entry.lift = lift;
 			if (gridChanged || snap) {
-				entry.root.position.copy(target);
 				entry.from.copy(target);
 				entry.to.copy(target);
-				entry.t = 1;
-				this.placeFigure(token.id, entry);
+				entry.motion.moveMs = 0;
+				this.placeMini(token.id, entry, this.clock());
 			} else if (!entry.to.equals(target)) {
-				const cells = entry.root.position.distanceTo(target) / grid.cellSize;
-				entry.from.copy(entry.root.position);
+				const now = this.clock();
+				const at = this.along(entry, miniPose(entry.motion, now, this.reduced));
+				startMove(entry.motion, now, at.distanceTo(target) / grid.cellSize);
+				entry.from.copy(at);
 				entry.to.copy(target);
-				entry.t = 0;
-				entry.start = this.clock();
-				entry.duration = Math.min(180 + cells * 70, 700);
-				changed = true;
-			}
-			this.placeBase(token.id, entry);
+				entry.awake = changed = true;
+			} else this.placeMini(token.id, entry, this.clock()); // a new base size, or lifted (#272)
 		}
 
 		for (const [id, entry] of this.entries) {
@@ -178,6 +196,8 @@ export class TokenLayer {
 
 	setSelected(id: string | null): boolean {
 		if (this.selectedId === id) return false;
+		// The viewer's selected mini is one they may move (RoomView): it is picked up (#272).
+		for (const was of [this.selectedId, id]) this.pickUp(was, was === id);
 		this.selectedId = id;
 		this.bases.setSelected(id);
 		this.labels.set({ selected: id });
@@ -200,26 +220,36 @@ export class TokenLayer {
 		return true;
 	}
 
-	/** Reduced motion: the turn's ring holds steady (#265). */
+	/** Reduced motion: the turn's ring holds steady (#265), minis glide flat and still (#272). */
 	setReducedMotion(still: boolean): void {
+		this.reduced = still;
+		for (const entry of this.entries.values()) entry.awake = true; // into or out of their still pose
 		this.bases.setReducedMotion(still);
 		this.labels.setReducedMotion(still); // floats fade without rising (#268)
 	}
 
-	/** Whether the turn's ring pulses, asking for AMBIENT frames. */
+	/** Whether the turn's ring pulses or a flier bobs (#272), asking for AMBIENT frames. */
 	get pulsing(): boolean {
-		return this.bases.pulsing;
+		if (this.bases.pulsing) return true;
+		for (const entry of this.entries.values()) if (bobs(entry.motion, this.reduced)) return true;
+		return false;
 	}
 
-	/** Lays down the minis in `ids` (fallen characters) and stands the rest up. Returns true if any changed. */
+	/**
+	 * Lays down the minis in `ids` (fallen characters) and stands the rest up: they tip over (#272),
+	 * or show a downed pose (#273); one only just come onto the table lies there already.
+	 * Returns true if any changed.
+	 */
 	setFallen(ids: ReadonlySet<string>): boolean {
 		let changed = false;
 		for (const [id, entry] of this.entries) {
 			const fallen = ids.has(id);
+			const snap = entry.fresh;
+			entry.fresh = false;
 			if (entry.fallen === fallen) continue;
 			entry.fallen = fallen;
 			this.pose(id);
-			this.placeFigure(id, entry);
+			this.tip(id, entry, snap);
 			changed = true;
 		}
 		return changed;
@@ -230,21 +260,24 @@ export class TokenLayer {
 		return this.entries.has(tokenId) && this.labels.float(tokenId, text, color);
 	}
 
-	/** Moves minis to where they are at time `now`. Returns true while any is still moving. */
-	tick(now: number): boolean {
-		let [moving, placed] = [this.labels.tick(now), false];
+	/**
+	 * Poses minis as they are at time `now` (#272), only those still moving, settling or bobbing;
+	 * `eye` is the camera, which a picked-up mini tilts toward. Returns true while any moves from
+	 * cell to cell or tips (what casts a changing shadow); `posing` says whether a pick-up or
+	 * squash still plays.
+	 */
+	tick(now: number, eye?: THREE.Vector3): boolean {
+		let [moving, placed, posing] = [this.labels.tick(now), false, false];
 		for (const [id, entry] of this.entries) {
-			if (entry.t >= 1) continue;
-			entry.t = Math.min((now - entry.start) / entry.duration, 1);
-			const k = entry.t < 0.5 ? 2 * entry.t * entry.t : 1 - (-2 * entry.t + 2) ** 2 / 2;
-			entry.root.position.lerpVectors(entry.from, entry.to, k);
-			const hop = Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
-			entry.root.position.y += hop;
-			this.placeBase(id, entry, hop);
-			this.placeFigure(id, entry);
+			if (!entry.awake && !bobs(entry.motion, this.reduced)) continue;
+			toEye.subVectors(eye ?? entry.to, entry.to).setY(0); // straight overhead: keep the last
+			if (toEye.lengthSq() > 1e-8) entry.tilt.crossVectors(UP, toEye).normalize();
+			const pose = this.placeMini(id, entry, now);
 			placed = true;
-			if (entry.t < 1) moving = true;
+			if (pose.along < 1 || (pose.fall !== 0 && pose.fall !== LYING)) moving = true;
+			else if (pose.busy) posing = true;
 		}
+		this.posing = posing;
 		this.bases.tick(now);
 		if (placed) {
 			this.bases.commit();
@@ -313,9 +346,10 @@ export class TokenLayer {
 			to: at.clone(),
 			lift: 0,
 			base: SMALL_BASE,
-			t: 1,
-			start: 0,
-			duration: 0
+			motion: restingMotion(token.id),
+			awake: false,
+			fresh: true,
+			tilt: new THREE.Vector3(1, 0, 0)
 		};
 		this.entries.set(token.id, entry);
 		return entry;
@@ -334,21 +368,66 @@ export class TokenLayer {
 	}
 
 	/**
-	 * Puts a token's figure where its root is: standing on the base's inner disc, or tipped over
-	 * sideways onto the base when fallen, unless a downed pose shows it (#273). Root is in the
-	 * layer's group, as the batches are.
+	 * Tips a fallen mini over, or stands it up (#272), unless a downed pose shows the fall (#273);
+	 * `snap` puts it there at once (just come onto the table, or another model arrived).
 	 */
-	private placeFigure(id: string, entry: Entry): void {
+	private tip(id: string, entry: Entry, snap: boolean): void {
+		const down = entry.fallen && !this.figures.showsDowned(id);
+		if (fall(entry.motion, down, this.clock(), snap)) entry.awake = true;
+		this.placeMini(id, entry, this.clock());
+	}
+
+	/** Where a move has got to: on its line from `from` to `to`, exactly `to` at rest. */
+	private along(entry: Entry, pose: MiniPose): THREE.Vector3 {
+		if (pose.along >= 1) return entry.to;
+		return toEye.lerpVectors(entry.from, entry.to, pose.along);
+	}
+
+	/**
+	 * Poses a mini at `now` (#272): its root (and so its base, label and carried light) on its way
+	 * between cells, hopping and lifted when picked up, and its figure on top. Puts it to sleep
+	 * once nothing but a bob is left to play.
+	 */
+	private placeMini(id: string, entry: Entry, now: number): MiniPose {
+		const pose = miniPose(entry.motion, now, this.reduced);
+		const { root } = entry;
+		const up = (pose.hop + pose.pick * PICK_LIFT) * root.scale.x; // off the floor: the shadow fades
+		root.position.copy(this.along(entry, pose));
+		root.position.y += up;
+		this.placeBase(id, entry, up);
+		this.placeFigure(id, entry, pose);
+		entry.awake = pose.busy;
+		return pose;
+	}
+
+	/**
+	 * Puts a token's figure where its root is: standing on the base's inner disc, bobbing and
+	 * tilted toward the camera as its pose says, or tipped over sideways onto the base as it falls
+	 * (#272; a downed pose (#273) never tips). Root is in the layer's group, as the batches are;
+	 * the squash is about the figure's feet.
+	 */
+	private placeFigure(id: string, entry: Entry, pose: MiniPose): void {
 		const { root } = entry;
 		root.updateMatrix();
 		const f = FIGURE_SCALE;
-		const tip = entry.fallen && !this.figures.showsDowned(id);
-		figure.makeRotationZ(tip ? Math.PI / 2 : 0);
-		figure.setPosition(tip ? 0.38 * f : 0, tip ? 0.28 * f : 0, 0);
+		const lying = pose.fall / LYING; // the figure's offset onto the base follows its angle
+		const wide = f * (1 + (1 - pose.squash) / 2);
 		// The disc is as high at every base size and figure scale (#270): undo the token's scale.
-		const top = BASE_TOP / f / (root.scale.y / (this.grid?.cellSize ?? 1));
-		figure.multiply(scaled.makeScale(f, f, f)).multiply(scaled.makeTranslation(0, top, 0));
+		const top = BASE_TOP / (root.scale.y / (this.grid?.cellSize ?? 1));
+		figure.makeTranslation(0, pose.bob, 0);
+		if (pose.pick > 0) figure.multiply(scaled.makeRotationAxis(entry.tilt, pose.pick * PICK_TILT));
+		figure
+			.multiply(scaled.makeTranslation(0.38 * f * lying, 0.28 * f * lying, 0))
+			.multiply(scaled.makeRotationZ(pose.fall))
+			.multiply(scaled.makeTranslation(0, top, 0))
+			.multiply(scaled.makeScale(wide, f * pose.squash, wide));
 		this.figures.place(id, figure.premultiply(root.matrix));
+	}
+
+	/** Picks a mini up or puts it down (#272). */
+	private pickUp(id: string | null, on: boolean): void {
+		const entry = id ? this.entries.get(id) : undefined;
+		if (entry && pick(entry.motion, on, this.clock(), this.reduced)) entry.awake = true;
 	}
 
 	/**

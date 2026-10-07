@@ -212,7 +212,7 @@ export async function createTabletop(
 			lightingStale = false;
 			perf.time('lighting', relight);
 		}
-		const tokensMoving = lighting.carry(tokenLayer, tokenLayer.tick(now)); // carried lights too
+		const tokensMoving = lighting.carry(tokenLayer, tokenLayer.tick(now, camera.position)); // lights too
 		const doorsMoving = wallLayer.tick(now);
 		const diceRolling = diceLayer.tick(now);
 		const fx = effects.tick(now);
@@ -233,7 +233,7 @@ export async function createTabletop(
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const revealing = cellMaps.tick(now) || propLayer.drops.active; // reveals (#174), drops (#249)
-		const fading = wallLayer.roofs.tick(now, controls.target); // roofs (#259), never shadows
+		const fading = wallLayer.roofs.tick(now, controls.target) || tokenLayer.posing; // #259, #272: no shadows
 		const moving = casters || turning || revealing || fading || fx.active || shooting;
 		controls.update(); // damped: 'change' while the camera settles, then rendering stops
 		rig.keepAbove(grid, ground, land.heightAt); // tilted to the horizon, never under the ground (#220)
