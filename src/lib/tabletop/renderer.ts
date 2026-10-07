@@ -131,7 +131,7 @@ export async function createTabletop(
 	// Labels drawn before the label font arrived are drawn again in it.
 	void labelFontReady.then(() => {
 		if (disposed) return;
-		tokenLayer.relabel();
+		tokenLayer.labels.redraw();
 		diceLayer.clearLabels();
 		requestRender();
 	});
@@ -388,6 +388,7 @@ export async function createTabletop(
 		},
 		setActive: (tokenId, enemy) => tokenLayer.setActive(tokenId, enemy) && requestRender(),
 		showFloat: (id, text, color) => tokenLayer.float(id, text, color) && requestRender(),
+		setLabels: (state) => tokenLayer.labels.set(state) && requestRender(), // names (#268)
 		setHighlight: (cell, kind) => (worldLayer.grid.setHighlight(cell, kind), requestRender()),
 		setDarkness(next) {
 			wallLayer.setDarkness((darkness = next)); // windows into it stay dark (#260)
@@ -451,10 +452,7 @@ export async function createTabletop(
 			rig.setView(next, frame, clock());
 			requestRender();
 		},
-		setPose(pose) {
-			rig.setPose(pose);
-			requestRender();
-		},
+		setPose: (pose) => (rig.setPose(pose), requestRender()),
 		cameraPose: () => (grid ? rig.pose() : null),
 		setGridPose(pose) {
 			if (grid) rig.setPose(poseFor(grid, ground, pose));

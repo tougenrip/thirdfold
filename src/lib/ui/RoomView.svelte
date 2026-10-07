@@ -69,6 +69,7 @@
 	import GraphicsControls from './GraphicsControls.svelte';
 	import { gridModeOf } from './grid';
 	import { withGridSetting } from '$lib/tabletop/grid-modes';
+	import { FLOAT_COLOURS, SHOW_NAMES_KEY } from '$lib/tabletop/labels';
 	import {
 		loadGraphics,
 		saveGraphics,
@@ -201,6 +202,8 @@
 	/** My character as last seen; undefined until the room has loaded. */
 	let knownCharacter: CharacterId | null | undefined = undefined;
 	let floats = $state<FloatText[]>([]);
+	/** `SHOW_NAMES_KEY` held with the table focused: every name shows (#268). */
+	let namesHeld = $state(false);
 	let floatSeq = 0;
 	let cardTimer: ReturnType<typeof setTimeout> | undefined;
 	// Only rolls that arrive while we're here pop up; history in the snapshot does not.
@@ -519,17 +522,17 @@
 			if (tokenId) floats = [...floats.slice(-19), { id: ++floatSeq, tokenId, text, color }];
 		};
 		if (entry.kind === 'attack') {
-			if (!entry.hit) add(entry.targetId, 'Miss', '#b3a38a');
-			else add(entry.targetId, `-${entry.damage?.total ?? 0}`, '#ff7b6b');
-			if (entry.effect) add(entry.targetId, entry.effect, '#e0a458');
+			if (!entry.hit) add(entry.targetId, 'Miss', FLOAT_COLOURS.miss);
+			else add(entry.targetId, `-${entry.damage?.total ?? 0}`, FLOAT_COLOURS.damage);
+			if (entry.effect) add(entry.targetId, entry.effect, FLOAT_COLOURS.effect);
 		} else if (entry.kind === 'ability') {
 			if (entry.amount !== null && entry.amount !== 0) {
-				const color = entry.amount > 0 ? '#7fc47a' : '#ff9a4d';
+				const color = entry.amount > 0 ? FLOAT_COLOURS.healing : FLOAT_COLOURS.burning;
 				add(entry.targetId, `${entry.amount > 0 ? '+' : ''}${entry.amount}`, color);
 			} else if (!entry.targetId) {
 				// A guard: over the one who raised it.
 				const caster = room.tokens.find((t) => t.ownerId === entry.authorId);
-				add(caster?.id, entry.ability, '#e0a458');
+				add(caster?.id, entry.ability, FLOAT_COLOURS.effect);
 			}
 		}
 	}
@@ -1115,6 +1118,11 @@
 			deleteLight(selectedLight);
 			return;
 		}
+		// Every name while the key is held on the table; the GM's N is still the dark tool (#279).
+		if (!typing && !isGm && event.key.toLowerCase() === SHOW_NAMES_KEY && onTable(event.target)) {
+			namesHeld = true;
+			return;
+		}
 		if (!typing && event.key.startsWith('Arrow') && onTable(event.target) && selected) {
 			const step: Record<string, [number, number]> = {
 				ArrowUp: [0, -1],
@@ -1269,7 +1277,11 @@
 	};
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window
+	onkeydown={onKeydown}
+	onkeyup={(e) => e.key.toLowerCase() === SHOW_NAMES_KEY && (namesHeld = false)}
+	onblur={() => (namesHeld = false)}
+/>
 
 <div class="room" style:--below-bar={barHeight ? `calc(${barHeight}px + 1.25rem)` : null}>
 	{#if room}
@@ -1304,6 +1316,7 @@
 				cue={cuePlay}
 				motion={conn.motion}
 				{active}
+				labels={{ hovered: hover?.tokenId ?? null, held: namesHeld }}
 				{highlight}
 				gridView={[gridMode, [hoverCell, selected?.pos ?? null]]}
 				{view}

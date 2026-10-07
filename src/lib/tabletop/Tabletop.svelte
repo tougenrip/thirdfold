@@ -109,6 +109,8 @@
 		motion?: MotionPlay | null;
 		/** Whose turn it is in a fight, marked over the token. */
 		active?: { tokenId: string; enemy: boolean } | null;
+		/** The names to show besides the selected and active tokens' (#268): hovered, or all. */
+		labels?: { hovered: string | null; held: boolean };
 		/** The viewer's graphics settings (the Graphics menu); read from storage when not given. */
 		graphics?: GraphicsPrefs | null;
 		/** Told the tier and backend the table draws with, whenever they change. */
@@ -148,6 +150,7 @@
 		cue = null,
 		motion = null,
 		active = null,
+		labels = { hovered: null, held: false },
 		graphics = null,
 		onQuality,
 		onClick,
@@ -355,25 +358,15 @@
 		tabletop?.setGrid($state.snapshot(grid));
 	});
 
-	$effect(() => {
-		tabletop?.setTerrain(terrain);
-	});
+	$effect(() => tabletop?.setTerrain(terrain));
 
-	$effect(() => {
-		tabletop?.setFloor(floor);
-	});
+	$effect(() => tabletop?.setFloor(floor));
 
-	$effect(() => {
-		tabletop?.setDarkness(darkness);
-	});
+	$effect(() => tabletop?.setDarkness(darkness));
 
-	$effect(() => {
-		tabletop?.setInterior(interior);
-	});
+	$effect(() => tabletop?.setInterior(interior));
 
-	$effect(() => {
-		tabletop?.setEnvironment(environment);
-	});
+	$effect(() => tabletop?.setEnvironment(environment));
 
 	let lastCue = -1;
 	$effect(() => {
@@ -461,6 +454,11 @@
 	});
 
 	$effect(() => tabletop?.setActive(active?.tokenId ?? null, active?.enemy ?? false));
+
+	$effect(() => {
+		const always = (graphics ?? untrack(() => loadGraphics(localStorage))).names === true;
+		tabletop?.setLabels({ ...labels, always });
+	});
 
 	// After the props: a motion may be for a prop that has only just arrived.
 	let lastMotion = -1;

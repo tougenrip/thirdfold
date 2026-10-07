@@ -88,6 +88,16 @@ describe('the Graphics menu', () => {
 		expect(loadGraphics(localStorage).grid).toBe('off');
 	});
 
+	it('saves Always show names, off by default (#268)', async () => {
+		mount();
+		await userEvent.click(page.getByRole('button', { name: 'Graphics settings' }));
+		const names = page.getByRole('checkbox', { name: 'Always show names' });
+		await expect.element(names).not.toBeChecked();
+		expect(names.element().closest('label')?.title).toMatch(/hold N/);
+		await userEvent.click(names);
+		expect(loadGraphics(localStorage).names).toBe(true);
+	});
+
 	it('forgets an option set back to the value of its preset', async () => {
 		saveGraphics(localStorage, { ...DEFAULT_GRAPHICS, overrides: { aa: 'off' } });
 		mount();

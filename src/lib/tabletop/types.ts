@@ -129,6 +129,8 @@ export interface Tabletop {
 	setActive(tokenId: string | null, enemy: boolean): void;
 	/** Floats combat text (damage, healing, a status) up from a token. */
 	showFloat(tokenId: string, text: string, color: string): void;
+	/** Which names show (#268, labels.ts): hover, the held key, 'Always show names'. Local UI state. */
+	setLabels(state: { hovered?: string | null; held?: boolean; always?: boolean }): void;
 	/** The hovered cell's highlight, its kind told by colour and pattern (move, blocked, place). */
 	setHighlight(cell: GridPos | null, kind: HighlightKind): void;
 	/** Each cell's level (elevation), or null for a flat table. */

@@ -83,6 +83,7 @@ const RENDER_SPECS = [
 	'effects',
 	'grade',
 	'overlay',
+	'label-layer',
 	'focus',
 	'shot-focus',
 	'unexplored-black',

@@ -357,6 +357,13 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 			'token states cleared',
 			() => (t.setSelected(null), t.setFallen([]), t.setActive(null, false), t.setRings(new Map()))
 		],
+		// Names on demand (#268): two instanced sprites always drawn, so showing compiles nothing.
+		['name hovered', () => t.setLabels({ hovered: token.id })],
+		['names held', () => t.setLabels({ hovered: null, held: true })],
+		['names released', () => t.setLabels({ held: false })],
+		['names always', () => t.setLabels({ always: true })],
+		['a float', () => t.showFloat(token.id, '-3', '#ff7b6b')],
+		['names hidden', () => t.setLabels({ always: false })],
 		['prop selected', () => t.setSelectedProp(prop.id)],
 		['prop hovered', () => t.setHoveredProp(prop.id)],
 		['prop states cleared', () => (t.setSelectedProp(null), t.setHoveredProp(null))],
