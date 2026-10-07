@@ -10,7 +10,7 @@
 // way): what is left compiles on draw.
 //
 // Since #180 a warm-up also compiles what only shows later: stand-ins for the
-// one-shot marks and effects (the selection ring and turn marker in the
+// one-shot marks and effects (the selection ring and turn column in the
 // overlay's pass, a die, the toll's dust and shadow; each layer's `gallery`),
 // never the real objects, which a frame drawn after a timed-out warm-up could
 // catch shown; the first frame after draws the stand-ins once, out of sight

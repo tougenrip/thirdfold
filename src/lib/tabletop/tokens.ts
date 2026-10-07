@@ -19,10 +19,10 @@ import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { STEP_HEIGHT, type Ground } from './ground';
 import type { Token } from '$lib/game/token';
 import { LabelLayer } from './label-layer';
-import { LABEL_HEIGHT } from './labels';
 import { BASE_PROFILE } from './bases';
 import { FigureBatches } from './figures';
 import type { OverlayLayer } from './overlay';
+import { TurnColumn } from './turn-column';
 import { standIn } from './warmup';
 
 interface Entry {
@@ -66,12 +66,9 @@ export class TokenLayer {
 	readonly contact = new ContactShadowLayer(this.group);
 	/** The figures, batched by part (#266). */
 	private readonly figures: FigureBatches;
-	/** Whose turn it is in a fight: an arrow over that mini. */
+	/** Whose turn it is in a fight: its ring pulses and a column of light rises from it (#269). */
 	private activeId: string | null = null;
-	private readonly marker = new THREE.Mesh(
-		new THREE.ConeGeometry(0.14, 0.3, 4),
-		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
-	);
+	readonly column = new TurnColumn();
 	private standIns: THREE.Object3D[] | null = null;
 	private readonly under = new THREE.Vector3();
 	readonly rootOf = (id: string) => this.entries.get(id)?.root ?? null; // where a mini is now
@@ -83,7 +80,7 @@ export class TokenLayer {
 	 * floats run on `clock`, the tabletop's (ms), not on frame steps.
 	 */
 	constructor(
-		/** Where labels, floats and the marker draw, untouched by post-processing. */
+		/** Where labels, floats and the turn column draw, untouched by post-processing. */
 		private readonly overlay: OverlayLayer,
 		onModel: () => void = () => {},
 		private readonly clock: () => number = () => performance.now()
@@ -93,9 +90,7 @@ export class TokenLayer {
 			for (const [id, entry] of this.entries) if (entry.fallen) this.placeFigure(id, entry);
 			onModel();
 		});
-		this.marker.rotation.x = Math.PI; // point down at the mini
-		this.marker.visible = false;
-		this.marker.raycast = () => {};
+		overlay.scene.add(this.column.mesh);
 		this.labels = new LabelLayer(overlay, this.rootOf, clock);
 	}
 
@@ -178,7 +173,7 @@ export class TokenLayer {
 		this.bases.commit();
 		this.contact.flush();
 		const named = this.labels.setTokens(tokens);
-		return this.updateRing() || named || changed;
+		return this.updateColumn() || named || changed;
 	}
 
 	setSelected(id: string | null): boolean {
@@ -189,18 +184,19 @@ export class TokenLayer {
 		return true;
 	}
 
-	/** Marks whose turn it is (an enemy's in red), or nobody's. Returns true if anything changed. */
+	/**
+	 * Marks whose turn it is (an enemy's banded red), or nobody's: only a token the viewer was sent
+	 * shows it. Returns true if anything changed.
+	 */
 	setActive(id: string | null, enemy = false): boolean {
-		const color = enemy ? 0xe27a6b : 0xe0a458;
-		const material = this.marker.material as THREE.MeshBasicMaterial;
-		if (this.activeId === id && material.color.getHex() === color) return false;
+		const side = this.column.setEnemy(enemy);
+		if (this.activeId === id && !side) return false;
 		const was = this.activeId;
 		this.activeId = id;
 		for (const t of [was, id]) if (t) this.pose(t);
 		this.bases.setActive(id);
 		this.labels.set({ active: id });
-		material.color.setHex(color);
-		this.updateRing();
+		this.updateColumn();
 		return true;
 	}
 
@@ -254,7 +250,7 @@ export class TokenLayer {
 			this.bases.commit();
 			this.contact.flush();
 		}
-		this.updateRing();
+		this.updateColumn();
 		return moving;
 	}
 
@@ -284,12 +280,12 @@ export class TokenLayer {
 	}
 
 	/**
-	 * A stand-in for the turn marker, which shows on a first turn, for the warm-up to compile in the
+	 * A stand-in for the turn column, which shows on a first turn, for the warm-up to compile in the
 	 * overlay's pass (#180).
 	 */
 	gallery(): THREE.Object3D[] {
 		return (this.standIns ??= [
-			standIn(new THREE.Mesh(this.marker.geometry, this.marker.material)),
+			standIn(new THREE.Mesh(this.column.mesh.geometry, this.column.mesh.material)),
 			...this.labels.gallery()
 		]);
 	}
@@ -300,9 +296,7 @@ export class TokenLayer {
 		this.figures.dispose();
 		this.bases.dispose();
 		this.contact.dispose();
-		this.marker.removeFromParent();
-		this.marker.geometry.dispose();
-		(this.marker.material as THREE.Material).dispose();
+		this.column.dispose();
 	}
 
 	private create(token: Token, at: THREE.Vector3): Entry {
@@ -366,21 +360,17 @@ export class TokenLayer {
 		this.contact.token(id, shadow);
 	}
 
-	/** Keeps the turn arrow over the active mini, even mid-move. */
-	private updateRing(): boolean {
-		const active = this.activeId ? this.entries.get(this.activeId) : undefined;
-		const markerWas = this.marker.visible;
-		this.marker.visible = !!active;
-		if (active) {
-			if (!this.marker.parent) this.overlay.scene.add(this.marker);
-			const size = this.grid?.cellSize ?? 1;
-			this.marker.position.set(
-				active.root.position.x,
-				active.root.position.y + LABEL_HEIGHT * active.root.scale.y + 0.5 * size,
-				active.root.position.z
-			);
-			this.marker.scale.setScalar(size);
-		}
-		return markerWas !== this.marker.visible;
+	/**
+	 * Keeps the turn column on the active mini's base, even mid-move or lifted, as wide as its base
+	 * (#270): shown only while the mini is here.
+	 */
+	private updateColumn(): boolean {
+		const id = this.activeId;
+		const active = id ? this.entries.get(id) : undefined;
+		if (!id || !active) return this.column.place(null);
+		const at = this.under.copy(active.root.position);
+		at.y -= active.lift;
+		const size = ((this.grid?.cellSize ?? 1) * this.bases.diameter(id)) / SMALL_BASE;
+		return this.column.place(at, size);
 	}
 }
