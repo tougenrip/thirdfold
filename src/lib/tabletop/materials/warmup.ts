@@ -69,9 +69,11 @@ function geometryFor(kind: ShaderKind, options: MaterialOptions): THREE.BufferGe
 function sample(kind: ShaderKind, options: MaterialOptions, shadows: boolean): THREE.Object3D {
 	const geometry = geometryFor(kind, options);
 	const material = createMaterial(kind, options);
-	// Token bases (#265, base-layer.ts) and figures (#266) are pool-sized: their matrices an attribute.
-	const n = kind === 'base' || (kind === 'mini' && options.instanced) ? PIECE_MIN : 1;
-	if (kind === 'base') addInstanceTints(geometry, n);
+	// Token bases (#265, base-layer.ts), figures (#266) and contact shadows (#271, the instanced
+	// decal) are pool-sized: their matrices an attribute.
+	const pooled = kind === 'base' || (options.instanced && (kind === 'mini' || kind === 'decal'));
+	const n = pooled ? PIECE_MIN : 1;
+	if (kind === 'base' || (kind === 'decal' && n > 1)) addInstanceTints(geometry, n);
 	const mesh = options.instanced
 		? new THREE.InstancedMesh(geometry, material, n)
 		: new THREE.Mesh(geometry, material);

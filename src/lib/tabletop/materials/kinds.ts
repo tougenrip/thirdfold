@@ -14,6 +14,7 @@ import { floorSurface } from './floors';
 import { gridGraph } from './grid';
 import { roofMask, roofShadowMask } from './roof-fade';
 import { baseGraph } from './base';
+import { contactGraph } from './contact';
 import { bedSink, ringFadeNode } from './ring';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { miniClearcoat, miniRim } from './mini';
@@ -193,6 +194,7 @@ export const KINDS: Record<ShaderKind, KindDef> = {
 		{ base: 'physical', slots: ['albedo'] }
 	),
 	emissive: lit({ roughness: 0.3 }),
+	// Instanced: contact shadows (#271, contact.ts), on the floor before other blended surfaces.
 	decal: lit({ color: 0x000000 }, { transparent: true }),
 	foliage: lit(
 		{ roughness: 0.8, translucency: 0.6 },
@@ -334,6 +336,7 @@ function sinks(kind: ShaderKind): N {
 
 function build(kind: ShaderKind, variant: Variant): Graph {
 	if (kind === 'base') return baseGraph(variant);
+	if (kind === 'decal' && variant.instanced) return contactGraph(); // contact shadows (#271)
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
 	const tint = tintOf(kind, variant);

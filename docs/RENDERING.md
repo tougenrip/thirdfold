@@ -3933,6 +3933,48 @@ and no `AnimationMixer`: a pose is another sculpt, so render-on-demand holds.
 - **Cost.** One more draw per pose in use, only while some figure shows it; the same on every tier
   and backend. Download size grows only for models that ship poses.
 
+## Contact shadows (milestone 71, #271)
+
+Torches cast no shadow (only the sun, the moon and the hero torches do), so at night nothing held a
+mini to the floor. Every token's base and every prop that stands up now sits in a soft dark halo,
+TaleSpire's grounding.
+
+**One draw.** `tabletop/contact.ts` `ContactShadowLayer` is one `InstancedMesh` of flat unit quads
+in the tokens' group, pool-sized (`PIECE_MIN`, so its matrices are an attribute and growing it
+compiles nothing), on the decal kind's instanced variant (`materials/contact.ts` `contactGraph`; the
+decal kind's plain variant is unchanged for #307). Each instance's `aTint` is its strength, width,
+depth and corner softness: a disc under a base, a rounded rectangle (`PROP_SOFT`) under a prop. The
+fragment is black, its alpha `(1 - d / r)^2 × strength × params.opacity` from the quad's rounded core
+outward, alpha-blended, depth-tested and not written, with a polygon offset and `CONTACT_LIFT` (a
+thousandth and a bit of a cell) over the floor, `renderOrder` -1 so it lies under water and glass. It
+ignores the lighting (no torch glints on a shadow), never casts or receives, is never picked and is
+left out of the opaque prepass, so the cached sun shadow and the AO never see it.
+
+**Who gets one.** Pure and server-tested (`contact.spec.ts`): `tokenContact` (the base's drawn
+diameter, #270's `Entry.base` after the overlap shrink, times `TOKEN_SPREAD` 1.25, on the token's
+floor; a hop or a flier's lift shrinks it by up to 30% and fades it by up to 70%) and
+`propContact` (the footprint unturned, turned with the prop, times `PROP_SPREAD` 1.1 and its scale,
+on the highest floor under it, following a glide's or a shake's offset), only for a model at least
+`STANDING` (0.25) cells tall: rugs, water, cracks, paper, hatches, grates and ashes (0.21) get none,
+and a prop gets its halo once its model has arrived. TokenLayer hands in each token as it syncs and
+glides; PropLayer hands in every prop each layout. All of it is what the viewer was sent: a
+GM-hidden token or prop has a halo for the GM only.
+
+**Fog and rules.** The graph ends in `worldModify` like every kind (lit, so no light factor twice):
+on an unexplored cell it is black over black, and blended black never lightens anything. It changes
+no rule. It joins the unexplored-is-black test in every case (slim: crowd-60's and the test world's
+players on low, where it is strongest).
+
+**Strength and the layer.** `params.opacity`, a uniform: `contactStrength` 0.7 on low (no
+screen-space AO; the halo grounds everything alone) and 0.45 on medium and up, where AO shares the
+job. The `contact` layer (on by default, `?off=contact`) hides the mesh. Neither compiles anything;
+the warm-up gallery makes the instanced decal pool-sized like the mesh.
+
+**Cost.** One draw in the scene pass whatever the number of tokens and props; no frames of its own
+(it moves only when a token or prop does), so an idle table still draws nothing.
+
+## Testing the renderer
+
 The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500 viewport, with no
 tester UI around the frame. `src/lib/tabletop/testing.ts` mounts any fixture table
 (`tests/fixtures`, see `docs/PERFORMANCE.md`) as the GM, a fogged player or a spectator sees it, at
