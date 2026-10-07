@@ -81,7 +81,7 @@ describe('the layers on the shader kinds', () => {
 		expect(drawn.length).toBeGreaterThan(20);
 		const kinds = new Set(drawn.map((m) => (m as { kind?: string }).kind));
 		// Rock: the world layer's cliffs and risers (#241).
-		expect(kinds).toEqual(new Set(['surface', 'terrain', 'rock', 'prop', 'mini']));
+		expect(kinds).toEqual(new Set(['surface', 'terrain', 'rock', 'prop', 'mini', 'base']));
 		// WebGPU allows 8 vertex buffers a pipeline (a buffer per attribute, the instance matrix and
 		// colour one each); WebGL2 allows more, so a ninth fails only there (#249's drop start did).
 		const buffers: [string, number][] = [];

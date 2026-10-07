@@ -315,6 +315,8 @@ export interface EnvironmentDef {
 	surfaces?: { floors: string[]; walls: string[] };
 	/** Its architecture kit (#250), an id in the manifest's `kits`; without one, `plain`. */
 	kit?: string;
+	/** The surface on its token bases' discs (#265), one of its own surfaces; without one, slate. */
+	miniBase?: string;
 }
 
 /**

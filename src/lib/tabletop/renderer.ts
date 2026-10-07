@@ -61,8 +61,7 @@ export async function createTabletop(
 	initModels(renderer); // models upload to it; the last table's dispose frees them
 	let shadowsDirty = true;
 	let shadowMapDrawn = false; // a shadow map never drawn reads as garbage: the first frame draws it
-	/** Things moved last frame (shadows change); it was drawn at play (no gallery or loads). */
-	let [wasMoving, steady] = [false, false];
+	let [wasMoving, steady] = [false, false]; // moved last frame (shadows); drawn at play, no gallery or loads
 	const perf = new PerfRecorder();
 	if (options.warm) perf.add('lobby', options.warm.warmupMs);
 	const loop = new RenderScheduler(render, canvas);
@@ -87,8 +86,7 @@ export async function createTabletop(
 		shadowsDirty = warmPending = true;
 		refreshLighting(); // a fixture to draw, or a prop's flame to seat its light on
 	};
-	/** Something new needs its shaders compiled before the next frame (see warmup.ts). */
-	let warmPending = true;
+	let warmPending = true; // new shaders to compile before the next frame (warmup.ts)
 	let warming: Promise<void> = Promise.resolve();
 	const warmCamera = new THREE.PerspectiveCamera(60, 1, 0.1);
 	const tokenLayer = new TokenLayer(overlay, onModel, clock);
@@ -119,9 +117,8 @@ export async function createTabletop(
 	scene.add(sky.group);
 	let lightState: Parameters<Tabletop['setLighting']> = ['day', []]; // band, lights, look
 	let darkness: Uint8Array | null = null;
-	/** The table was just replaced: the next tokens snap into place. */
-	let freshTable = false;
-	const stillable = () => [loop, propLayer, wallLayer, cellMaps, cloud, sky, lighting];
+	let freshTable = false; // the table was just replaced: the next tokens snap into place
+	const stillable = () => [loop, propLayer, wallLayer, cellMaps, cloud, sky, lighting, tokenLayer];
 	for (const l of stillable()) l.setReducedMotion(reducedMotion);
 	const worldLayer = new WorldLayer(perf, land, build, propLayer.drops, onModel); // #240, #254, #255
 	const effects = new EffectsLayer();
@@ -139,8 +136,7 @@ export async function createTabletop(
 		requestRender();
 	});
 	let [levels, ground]: [Uint8Array | null, Ground | null] = [null, null];
-	/** The prop the current cue swings (the bell). */
-	let swinging: string | null = null;
+	let swinging: string | null = null; // the prop the current cue swings (the bell)
 	const shakeOffset = new THREE.Vector3();
 
 	/**
@@ -234,6 +230,7 @@ export async function createTabletop(
 		const shooting = rig.tick(now); // first, so the pivot's readers below see this frame's camera
 		const flickering = lighting.animating(camera, now, controls.target, gallery.due); // #230, #231
 		const drifting = [worldLayer.tick(now, reducedMotion, controls.target), cloud.tick(now)]; // #243, #254
+		drifting.push(tokenLayer.pulsing); // the turn's ring (#265)
 		const turning = atmosphere.tick(now, cellMaps.focusAt(controls.target.x, controls.target.z));
 		atmosphere.frame(now); // the sky's clock, and its capture when due (#216)
 		const revealing = cellMaps.tick(now) || propLayer.drops.active; // reveals (#174), drops (#249)
@@ -268,6 +265,7 @@ export async function createTabletop(
 		land.dress(look, grid);
 		worldLayer.setLook(look, grid, environment);
 		wallLayer.setLook(look?.walls ?? null, look?.kit ?? null, look?.roof ?? null); // roofs: #257
+		tokenLayer.bases.setTop(look?.miniBase ?? null); // the bases' discs (#265)
 		refreshLighting();
 		shadowsDirty = warmPending = true;
 		requestRender();
@@ -379,6 +377,8 @@ export async function createTabletop(
 		setSelected: (id) =>
 			(wallLayer.roofs.setSelected(id), tokenLayer.setSelected(id)) && requestRender(),
 		setOwnTokens: (ids) => wallLayer.roofs.setOwn(ids) && requestRender(),
+		setHoveredToken: (id) => tokenLayer.bases.setHovered(id) && requestRender(),
+		setRings: (rings) => tokenLayer.bases.setRings(rings) && requestRender(),
 		setGridMode: (mode, focus) =>
 			(wallLayer.roofs.setBuilding(mode === 'build'), worldLayer.grid.setMode(mode, focus)) &&
 			requestRender(),

@@ -10,6 +10,7 @@ import {
 	addInstanceTints,
 	createMaterial,
 	pieceMesh,
+	PIECE_MIN,
 	SHADER_KINDS,
 	withBake,
 	withDrops,
@@ -21,6 +22,7 @@ import { ROOF_KEY_ATTRIBUTE } from './roof-fade';
 
 /** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181, #241, #249). */
 function variantsOf(kind: ShaderKind): MaterialOptions[] {
+	if (kind === 'base') return [{ instanced: true }]; // token bases (#265): only ever instanced
 	const world = kind === 'surface' || kind === 'terrain' || kind === 'rock';
 	const out: MaterialOptions[] = [{}];
 	if (world) out.push({ antiTiled: true });
@@ -54,10 +56,16 @@ function geometryFor(options: MaterialOptions): THREE.BufferGeometry {
 function sample(kind: ShaderKind, options: MaterialOptions, shadows: boolean): THREE.Object3D {
 	const geometry = geometryFor(options);
 	const material = createMaterial(kind, options);
+	// Token bases are one pool-sized mesh (#265, base-layer.ts): its matrices an attribute.
+	const n = kind === 'base' ? PIECE_MIN : 1;
+	if (n > 1) addInstanceTints(geometry, n);
 	const mesh = options.instanced
-		? new THREE.InstancedMesh(geometry, material, 1)
+		? new THREE.InstancedMesh(geometry, material, n)
 		: new THREE.Mesh(geometry, material);
-	if (mesh instanceof THREE.InstancedMesh) mesh.setMatrixAt(0, new THREE.Matrix4());
+	if (mesh instanceof THREE.InstancedMesh) {
+		mesh.setMatrixAt(0, new THREE.Matrix4());
+		mesh.count = 1;
+	}
 	mesh.castShadow = mesh.receiveShadow = shadows;
 	mesh.frustumCulled = false;
 	return mesh;

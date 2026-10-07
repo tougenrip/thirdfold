@@ -14266,6 +14266,7 @@
 				]
 			},
 			"kit": "cavern",
+			"miniBase": "stone",
 			"lut": {
 				"agx": {
 					"day": "grade-cavern-day-agx",
@@ -14303,6 +14304,7 @@
 				]
 			},
 			"kit": "ghost-town",
+			"miniBase": "sand",
 			"lut": {
 				"agx": {
 					"day": "grade-ghost-town-day-agx",
@@ -14340,6 +14342,7 @@
 				]
 			},
 			"kit": "living-cave",
+			"miniBase": "dirt",
 			"lut": {
 				"agx": {
 					"day": "grade-living-cave-day-agx",
@@ -14377,6 +14380,7 @@
 				]
 			},
 			"kit": "railcar",
+			"miniBase": "wood",
 			"lut": {
 				"agx": {
 					"day": "grade-railcar-day-agx",
@@ -14415,6 +14419,7 @@
 				]
 			},
 			"kit": "stone-halls",
+			"miniBase": "flagstone",
 			"lut": {
 				"agx": {
 					"day": "grade-stone-halls-day-agx",
@@ -14453,6 +14458,7 @@
 				]
 			},
 			"kit": "village",
+			"miniBase": "grass",
 			"lut": {
 				"agx": {
 					"day": "grade-village-day-agx",

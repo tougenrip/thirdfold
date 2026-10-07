@@ -2,6 +2,7 @@
 // fog, lights, previews) and what it reports back (picks in grid terms).
 // renderer.ts implements it and re-exports these types.
 
+import type { Ring } from './bases';
 import type * as THREE from 'three/webgpu';
 import type { Cue, Shot } from '$lib/game/chat';
 import type { GridEdge, GridPos, SquareGrid } from '$lib/game/grid';
@@ -113,6 +114,10 @@ export interface Tabletop {
 	setSelected(tokenId: string | null): void;
 	/** The viewer's own tokens: a roof over one of them fades (#259), as over the selected one. */
 	setOwnTokens(tokenIds: readonly string[]): void;
+	/** The token under the pointer: its base's ring brightens (#265). */
+	setHoveredToken(tokenId: string | null): void;
+	/** Each token's ring (#265, bases.ts `ringsFor`): its owner's colour and shape twins. */
+	setRings(rings: ReadonlyMap<string, Ring>): void;
 	/**
 	 * How much grid shows (#245, `GridMode`): local UI state, never synced. In explore mode the
 	 * lines show round `focus` (the hovered cell, the selected token's). A uniform write.

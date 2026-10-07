@@ -8,5 +8,6 @@
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["cave-rock"]
-	}
+	},
+	"miniBase": "dirt"
 }

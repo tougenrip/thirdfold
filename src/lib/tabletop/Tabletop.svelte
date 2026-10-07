@@ -62,6 +62,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { textureDetailFrom } from '$lib/assets/detail';
 	import type { Pose } from './shots';
+	import type { Ring } from './bases';
 	import { tick, untrack } from 'svelte';
 
 	interface Props extends Partial<TabletopEvents> {
@@ -85,6 +86,8 @@
 		preview?: readonly PreviewItem[];
 		selectedId?: string | null;
 		ownTokens?: readonly string[]; // the viewer's own, whose roofs fade as the selected one's (#259)
+		hoveredTokenId?: string | null; // its base's ring brightens (#265)
+		rings?: ReadonlyMap<string, Ring>; // each token's ring (#265, `ringsFor`)
 		highlight?: { cell: GridPos; kind: HighlightKind } | null;
 		/** The grid's mode (with the viewer's Grid setting) and explore mode's focus (#245). */
 		gridView?: Parameters<Tabletop['setGridMode']>;
@@ -130,6 +133,8 @@
 		preview = [],
 		selectedId = null,
 		ownTokens = [],
+		hoveredTokenId = null,
+		rings = new Map(),
 		highlight = null,
 		gridView = ['off'],
 		view = 'tactical',
@@ -415,19 +420,17 @@
 
 	$effect(() => tabletop?.setHoveredProp(hoveredPropId));
 
-	$effect(() => {
-		tabletop?.setHoveredObject(hoveredObjectId);
-	});
+	$effect(() => tabletop?.setHoveredObject(hoveredObjectId));
 
 	$effect(() => {
 		tabletop?.setPreview($state.snapshot(preview) as PreviewItem[]);
 	});
 
-	$effect(() => {
-		tabletop?.setSelected(selectedId);
-	});
+	$effect(() => tabletop?.setSelected(selectedId));
 
 	$effect(() => tabletop?.setOwnTokens([...ownTokens]));
+	$effect(() => tabletop?.setHoveredToken(hoveredTokenId));
+	$effect(() => tabletop?.setRings(rings));
 
 	$effect(() => {
 		tabletop?.setHighlight(highlight?.cell ?? null, highlight?.kind ?? 'move');
@@ -443,13 +446,9 @@
 		tabletop?.setReduceFlashing(reducesFlashing(setting, prefersReducedMotion.current));
 	});
 
-	$effect(() => {
-		tabletop?.setView(view);
-	});
+	$effect(() => tabletop?.setView(view));
 
-	$effect(() => {
-		tabletop?.setFallen([...fallen]);
-	});
+	$effect(() => tabletop?.setFallen([...fallen]));
 
 	let floatedId = 0;
 	$effect(() => {
@@ -461,9 +460,7 @@
 		}
 	});
 
-	$effect(() => {
-		tabletop?.setActive(active?.tokenId ?? null, active?.enemy ?? false);
-	});
+	$effect(() => tabletop?.setActive(active?.tokenId ?? null, active?.enemy ?? false));
 
 	// After the props: a motion may be for a prop that has only just arrived.
 	let lastMotion = -1;

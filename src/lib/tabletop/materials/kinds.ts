@@ -13,6 +13,7 @@ import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { gridGraph } from './grid';
 import { roofMask, roofShadowMask } from './roof-fade';
+import { baseGraph } from './base';
 import { bedSink, ringFadeNode } from './ring';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
@@ -33,6 +34,7 @@ export type ShaderKind =
 	| 'rock'
 	| 'prop'
 	| 'mini'
+	| 'base'
 	| 'emissive'
 	| 'decal'
 	| 'foliage'
@@ -45,6 +47,7 @@ export const SHADER_KINDS: readonly ShaderKind[] = [
 	'rock',
 	'prop',
 	'mini',
+	'base',
 	'emissive',
 	'decal',
 	'foliage',
@@ -177,6 +180,17 @@ export const KINDS: Record<ShaderKind, KindDef> = {
 	rock: lit({ roughness: 0.95, ...VARY }),
 	prop: lit({ roughness: 0.75 }),
 	mini: lit({ roughness: 0.45 }, { base: 'physical' }),
+	// Token bases (#265, base.ts): instanced, the environment's surface on the disc (albedo only).
+	base: lit(
+		{
+			color: 0x6b6e72,
+			roughness: 0.7,
+			clearcoat: 0.5,
+			clearcoatRoughness: 0.15,
+			repeat: { x: 0.5, y: 0.5 }
+		},
+		{ base: 'physical', slots: ['albedo'] }
+	),
 	emissive: lit({ roughness: 0.3 }),
 	decal: lit({ color: 0x000000 }, { transparent: true }),
 	foliage: lit(
@@ -315,6 +329,7 @@ function sinks(kind: ShaderKind): N {
 }
 
 function build(kind: ShaderKind, variant: Variant): Graph {
+	if (kind === 'base') return baseGraph(variant);
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
 	const tint = tintOf(kind, variant);
