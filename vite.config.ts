@@ -118,7 +118,8 @@ const RENDER_SPECS = [
 	'window-glow',
 	'kit-textures',
 	'mini-look',
-	'lod'
+	'lod',
+	'ring-colour-vision'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({

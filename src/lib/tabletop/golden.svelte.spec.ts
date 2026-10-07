@@ -5,7 +5,9 @@
 // 800x500 canvas with a frozen clock and reduced motion; the close and low
 // poses draw with depth of field, focused on the pose's pivot. Captures with
 // TRAA, GTAO or depth of field compare by SSIM (tests/visual/ssim.ts), the rest
-// by pixelmatch. Unexplored cells are checked black per tier by
+// by pixelmatch. The mini look-dev pair (#278: ref-7 on grass, ref-1 in torchlight) is taken close
+// and overhead for every viewer and tier, and its close GM frames again as each dichromacy sees
+// them (cvd.ts), for review; ring-colour-vision.svelte.spec.ts measures the rings. Unexplored cells are checked black per tier by
 // unexplored-black.svelte.spec.ts. Only Linux references are committed.
 //
 // They never run with the other tests. CI takes the slim set (`SLIM`, a few
@@ -20,10 +22,13 @@ import { page, server } from 'vitest/browser';
 import { afterEach, describe, expect, inject, it, vi } from 'vitest';
 import {
 	BACKEND,
+	HEIGHT,
+	WIDTH,
 	loadSidecar,
 	loadView,
 	manualClock,
 	mountFixture,
+	readFrame,
 	settle,
 	type Band,
 	type Mounted,
@@ -31,6 +36,7 @@ import {
 	type Viewer
 } from './testing';
 import type { Tier } from './quality';
+import { simulatePixels, type Deficiency } from './cvd';
 
 // Software frames on CI's small runners take seconds since the shader kinds (M64).
 vi.setConfig({ testTimeout: 180_000, hookTimeout: 90_000 });
@@ -49,7 +55,13 @@ interface Shot {
 	tier?: Tier;
 	/** The hour in minutes, over the band's view's own (#208: the presets blend between bands). */
 	time?: number;
+	/** Also the frame as each dichromacy sees it (#278), for human review of the minis' rings. */
+	cvd?: boolean;
 }
+
+/** The mini look-dev pair (#278): ref-7's minis on grass at noon and ref-1's torch room. */
+const MINIS = ['ref-7', 'ref-1'];
+const DEFICIENCIES: Deficiency[] = ['protanopia', 'deuteranopia', 'tritanopia'];
 
 /** Which images are taken: see the table in #132. */
 export const MATRIX: Shot[] = [
@@ -58,7 +70,7 @@ export const MATRIX: Shot[] = [
 		{ fixture, pose: 'overview', band: 'own', viewer: 'player' },
 		{ fixture, pose: 'overview', band: 'own', viewer: 'spectator' },
 		...BANDS.map((band): Shot => ({ fixture, pose: 'overview', band, viewer: 'gm' })),
-		{ fixture, pose: 'close', band: 'own', viewer: 'gm' },
+		{ fixture, pose: 'close', band: 'own', viewer: 'gm', cvd: MINIS.includes(fixture) },
 		{ fixture, pose: 'close', band: 'own', viewer: 'player' },
 		{ fixture, pose: 'low', band: 'own', viewer: 'gm' },
 		{ fixture, pose: 'dark', band: 'dark', viewer: 'gm' },
@@ -75,6 +87,17 @@ export const MATRIX: Shot[] = [
 		]),
 		{ fixture: 'village', pose: 'overview', band: 'own', viewer: 'spectator', tier },
 		{ fixture: 'hollow', pose: 'overview', band: 'own', viewer: 'player', tier }
+	]),
+	// #278: the minis close up with depth of field and from overhead, for every viewer on every
+	// tier (the rest of the three views per tier are above), and their close GM frames as each
+	// dichromacy sees them.
+	...MINIS.flatMap((fixture): Shot[] => [
+		{ fixture, pose: 'close', band: 'own', viewer: 'spectator' },
+		...(['low', 'high'] as const).flatMap((tier): Shot[] => [
+			{ fixture, pose: 'close', band: 'own', viewer: 'player', tier },
+			{ fixture, pose: 'close', band: 'own', viewer: 'spectator', tier },
+			{ fixture, pose: 'overview', band: 'own', viewer: 'spectator', tier }
+		])
 	]),
 	// #208: between the canonical hours, 06:30 a quarter day and 20:30 mostly dusk (both dusk by the rules).
 	...[390, 1230].map((time): Shot => ({
@@ -116,6 +139,7 @@ const SLIM = new Set([
 	'village overview dusk gm 0600',
 	'ref-1 close own gm',
 	'ref-7 close own gm',
+	'ref-1 close own spectator',
 	'village low own gm',
 	'crowd-60 overview own gm',
 	'ref-1 overview own gm low',
@@ -132,6 +156,25 @@ let taken = 0;
 /** Depth of field at the close and low poses, as a shot or Miniature draws them there. */
 const FOCUSED: readonly PoseName[] = ['close', 'low'];
 
+/**
+ * The drawn frame as a dichromat sees it (cvd.ts, Machado 2009), on a 2D canvas in the page to
+ * capture: read as the goldens capture the WebGL2 canvas, or from its screenshot on WebGPU.
+ */
+async function simulated(canvas: HTMLCanvasElement, kind: Deficiency): Promise<HTMLCanvasElement> {
+	const pixel = await readFrame(canvas, WIDTH, HEIGHT);
+	const rgba = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
+	for (let y = 0; y < HEIGHT; y++)
+		for (let x = 0; x < WIDTH; x++) rgba.set([...pixel(x, y), 255], (y * WIDTH + x) * 4);
+	const out = document.createElement('canvas');
+	[out.width, out.height] = [WIDTH, HEIGHT];
+	out.style.cssText = `display:block;width:${WIDTH}px;height:${HEIGHT}px`;
+	out.getContext('2d')!.putImageData(new ImageData(simulatePixels(rgba, kind), WIDTH), 0, 0);
+	document.body.appendChild(out);
+	simulations.push(out);
+	return out;
+}
+const simulations: HTMLCanvasElement[] = [];
+
 const linux = server.platform === 'linux';
 if (import.meta.env.CI && !linux) throw new Error('Golden images are checked on Linux in CI.');
 
@@ -139,6 +182,7 @@ let mounted: Mounted | null = null;
 afterEach(async () => {
 	await mounted?.unmount();
 	mounted = null;
+	for (const c of simulations.splice(0)) c.remove();
 });
 
 describe.skipIf(!linux)('golden images', () => {
@@ -173,12 +217,16 @@ describe.skipIf(!linux)('golden images', () => {
 			await settle(mounted.tabletop);
 			// TRAA's jitter, GTAO's rotations and the bokeh vary a little between runs and drivers.
 			const structural = tier === 'high' || focused;
-			await expect
-				.element(page.elementLocator(mounted.canvas))
-				.toMatchScreenshot(
-					name,
-					structural ? { comparatorName: 'ssim', comparatorOptions: { minScore: 0.98 } } : {}
-				);
+			const options = structural
+				? { comparatorName: 'ssim' as const, comparatorOptions: { minScore: 0.98 } }
+				: {};
+			await expect.element(page.elementLocator(mounted.canvas)).toMatchScreenshot(name, options);
+			// The full set only: a few hundred ms each, from the frame already drawn.
+			if (FULL && shot.cvd)
+				for (const kind of DEFICIENCIES)
+					await expect
+						.element(page.elementLocator(await simulated(mounted.canvas, kind)))
+						.toMatchScreenshot(`${name}-${kind}`, options);
 		});
 	}
 });
