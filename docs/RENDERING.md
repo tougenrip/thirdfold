@@ -2925,6 +2925,73 @@ sent; and the Graphics menu's **Always show names** (`GraphicsPrefs.names`, in
   overlay pass and the atlas follow the renderer's pixel ratio, so labels are crisp at that
   resolution, not above it.
 
+## Dice (milestone 71, #275)
+
+Dice are resin with engraved numerals: one geometry per die kind, UV-mapped into one shared
+numeral atlas, one material for all of them, one `InstancedMesh` per kind. A throw of twelve d20s
+is one draw (plus its shadow draw) where it was about 250, and any mix of kinds is at most eight.
+The throw itself (`landingQuaternion`, `seededRandom(seq * 2654435761)`, `bounce()`, `FLIGHT_S`,
+`REST_S`, `FADE_S`, `DIE_SCALE`, instant under reduced motion, landing on the drawn ground, #247)
+is unchanged, so every client still sees the same throw.
+
+**The atlas** is an asset, `dice-numerals` (`assets/textures/dice-numerals.png`, usage `mask`,
+linear, `LicenseRef-thirdfold-original`): 512 px, 8 × 8 cells of 64 px, glyph coverage white on
+black (the material reads red). `scripts/make-dice-atlas.ts` draws it in headless Chromium in the
+bundled Alegreya 800 (OFL, already on /credits) and writes it with `png.ts`, from the layout in
+`dice-geometry.ts`, so the atlas and the UVs come from one place; run it by hand after a layout
+change, then `npm run assets`. Its cells (`atlasCell(kind, face)`): 0-19 the numerals 1-20 (6 and 9
+dotted: every die that shows them is one they could be misread on, so there are no plain 6 and 9
+cells), 20 the 0, 21-30 the tens 00-90, 31-36 the d6's pip faces, 37-40 the d4's faces, each with
+its three corner numbers, the lowest at the top (`d4Cells`). 41 cells are used.
+
+**UVs** (`buildDieModel`, pure, `dice-geometry.spec.ts`). `facesOf` records each face's triangles;
+`faceUp` (moved here from the layer) gives a numeral's up: axis-aligned on a cube, towards the
+corner of the lowest number on a d4, else towards the farthest corner (a d10 kite's tip).
+`faceInCell` lays the face in its cell centred on its centroid, x right and y up as seen from
+outside, scaled so every corner stays within `CELL_FILL` (0.47 cells) of the centre and, on
+numeral faces, so the face's inscribed circle is `GLYPH_RADIUS` (0.235 cells) where it fits: the
+atlas draws each numeral within that circle, so it never runs over an edge. The tests: every
+face's UVs lie inside its label's cell, wound as in 3D (not mirrored), every numeral cell holds its
+face's label, the glyph circle stays on the face, and each d4 corner's UV is where its number is
+drawn.
+
+**The material** (`materials/dice.ts`, `createDiceMaterial`): a `MeshPhysicalNodeMaterial`.
+
+- Colour: `mix(body, ink, glyph)` from per-instance attributes `aDieBody` and `aDieInk` (not
+  `instanceColor`, which would tint the ink too); the ink is light on dark dice and dark on light
+  ones, by the roller's colour's brightness as before.
+- Engraving: `normalNode = bumpMap(atlas, engrave)`, `engrave` -1.5 (negative cuts in); no normal
+  map ships. If it aliases on distant dice, bake a normal atlas from the glyphs once (the graph
+  stays the same).
+- Resin: `diceLook` uniforms, clearcoat 1 (0 on the low tier, `setDiceTier` from the renderer's
+  `setQuality`), clearcoat roughness 0.08, roughness 0.25, metalness 0. `METAL` (metalness 1,
+  roughness 0.35) is the metal preset's values for the same uniforms, for a later dice-set picker;
+  nothing offers it yet (whether the GM's open rolls use it is left to the art review).
+- Fade: `alphaHash` on the per-instance `aDieFade`, never a `transparent` flip. Without TRAA the
+  half-second fade reads as a stipple.
+- Not a shader kind: a public roll may land over black cells, which `worldModify` would black out.
+  It writes "shown" into the `hidden` attachment (`DICE_SHOWN`, `mrtNode`), as the old material
+  did, so a roll shows over hidden cells (`post.svelte.spec.ts`).
+- The atlas loads once per page (`loadDiceAtlas`, through `fetchAsset`, like the paint maps) into
+  a texture node that holds a blank of the same type, space, wrap and filters until then, so its
+  arrival is a binding, not a program.
+
+**Drawing** (`dice3d.ts`, `DiceLayer`). A kind's mesh is made on its first throw from the layer's
+one material, at the kit pieces' capacity `PIECE_MIN` (1,025) though a throw shows at most
+`MAX_THROWN_DICE` (12): r186 gives an InstancedMesh of 1,024 or fewer a vertex stage of its own
+(its matrices a uniform array), and at 12 each kind's first throw compiled 3 programs (scene,
+prepass and shadow; 24 for a throw of all eight kinds, caught by the program-count sweep); past
+1,024 the matrices are an attribute and every kind is the one program the stand-in compiled. The
+cost is memory only, about 93 kB of matrices and instance attributes per kind thrown. `throw()` and
+`tick(now)` write instance matrices and the fade; a die not yet thrown or already faded gets a zero
+matrix, and the throw is cleared (counts to 0) once every die has faded. Meshes are never culled
+(their instances fly far from where bounds were worked out). The lobby's gallery compiles a d6
+stand-in of the same shape (`DiceLayer.gallery`). `dice()` lists the dice on the table with their
+instance matrices, which `dice3d.spec.ts`'s `reading()` reads: the face whose normal the matrix
+turns up (on the d4, down), as an index into `DIE_LABELS`. The program-count sweep throws a d20 and
+one die of every other kind, then lets them fade, on every tier; a throw and a fade change no
+program.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

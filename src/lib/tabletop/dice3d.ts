@@ -2,19 +2,24 @@
 // Presentation only: the numbers were decided on the server before this
 // runs. No physics engine: a scripted, seeded arc with bounces and a decaying
 // spin that settles into the orientation showing the rolled face, so every
-// client sees the same throw.
+// client sees the same throw. Since #275 they are resin with engraved numerals
+// from one atlas (materials/dice.ts), drawn as one InstancedMesh per kind.
 
 import * as THREE from 'three/webgpu';
-import * as TSL from 'three/tsl';
-import { interleavedGradientNoise, mrt, output, screenCoordinate, uniform, vec4 } from 'three/tsl';
-import { labelFont } from './label-font';
 import { buildDieModel, landingQuaternion, type DieModel } from './dice-geometry';
-import { DIE_LABELS, seededRandom } from './dice-faces';
+import { seededRandom } from './dice-faces';
 import { gridToWorld, worldToGrid, type SquareGrid } from '$lib/game/grid';
 import { VOID } from '$lib/game/floor';
 import { WALL_HEIGHT, type Ground } from './ground';
-import type { DieKind, ThrownDie } from './dice-throw';
-import { worldTexture } from './materials/texture-quality';
+import { MAX_THROWN_DICE, type DieKind, type ThrownDie } from './dice-throw';
+import {
+	createDiceMaterial,
+	DIE_BODY_ATTRIBUTE,
+	DIE_FADE_ATTRIBUTE,
+	DIE_INK_ATTRIBUTE,
+	setDiceTier
+} from './materials/dice';
+import { PIECE_MIN } from './materials/piece';
 import { standIn } from './warmup';
 
 export interface DiceThrow {
@@ -91,8 +96,10 @@ export function landing(
 }
 
 interface ActiveDie {
-	root: THREE.Group;
-	materials: THREE.MeshStandardNodeMaterial[];
+	kind: DieKind;
+	/** Its instance in its kind's mesh. */
+	slot: number;
+	size: number;
 	from: THREE.Vector3;
 	to: THREE.Vector3;
 	restY: number;
@@ -122,52 +129,45 @@ function bounce(t: number): number {
 
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
 
-/**
- * Dice are not the world: they write "shown" into the scene pass's `hidden` attachment (post.ts),
- * so the output stage never blacks them out where they fly over a cell the fog hides (#173).
- * One node for every die, so they share their programs.
- */
-const SHOWN = mrt({ output, hidden: vec4(0, 0, 0, output.a) });
-
-/** How much of a die still shows as it fades (`userData.fade` on each of its meshes, 1 unless fading). */
-const fade = uniform(1).onObjectUpdate(
-	({ object }: { object: THREE.Object3D | null }) => (object?.userData.fade as number) ?? 1
-);
-const Fn = TSL.Fn as unknown as (body: () => THREE.Node) => () => THREE.Node;
-const { Discard, If } = TSL as unknown as Record<'Discard' | 'If', (...args: unknown[]) => void>;
-/**
- * Fades by a screen-door dither against `fade`, as a GM-hidden mini does (materials/hooks.ts):
- * turning `transparent` on to fade would be a program of its own on the first roll's last frames
- * (#180).
- */
-const FADING = Fn(() => {
-	If(interleavedGradientNoise(screenCoordinate.xy).greaterThanEqual(fade), () => Discard());
-	return output;
-})();
-
-/**
- * A die's material. Not a kind (#169): a roll is public and may land over black cells, which the
- * kinds' `worldModify` would black out with no strength to set per material, and dice are flat
- * shaded. Warmed up by the tabletop's gallery (`DiceLayer.gallery`, #180) instead.
- */
-export function dieMaterial(parameters: THREE.MeshStandardMaterialParameters) {
-	const material = new THREE.MeshStandardNodeMaterial(parameters);
-	material.mrtNode = SHOWN;
-	material.outputNode = FADING;
-	return material;
-}
 const smoothstep = (a: number, b: number, t: number) => {
 	const u = Math.min(Math.max((t - a) / (b - a), 0), 1);
 	return u * u * (3 - 2 * u);
 };
 
+/** Dark ink on light dice, light ink on dark ones. */
+const INK = { light: new THREE.Color('#f4ecdc'), dark: new THREE.Color('#1b1612') };
+
+/**
+ * A kind's dice as one InstancedMesh (#275) with the per-instance body, ink and fade the dice
+ * material reads. Its capacity is the kit pieces' `PIECE_MIN` (materials/piece.ts), though a throw
+ * shows at most `MAX_THROWN_DICE`: r186 gives an InstancedMesh of 1,024 or fewer its own vertex
+ * stage (the matrices a uniform array), so every kind's mesh would compile its own programs on its
+ * first throw; past that the matrices are an attribute and all kinds are one program.
+ */
+function diceMesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.InstancedMesh {
+	const n = PIECE_MIN;
+	const each = (size: number) =>
+		new THREE.InstancedBufferAttribute(new Float32Array(n * size), size);
+	geometry.setAttribute(DIE_BODY_ATTRIBUTE, each(3));
+	geometry.setAttribute(DIE_INK_ATTRIBUTE, each(3));
+	geometry.setAttribute(DIE_FADE_ATTRIBUTE, each(1));
+	const mesh = new THREE.InstancedMesh(geometry, material, n);
+	mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+	mesh.castShadow = true;
+	mesh.frustumCulled = false; // its instances fly far from where its bounds were worked out
+	mesh.count = 0;
+	return mesh;
+}
+
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+
 export class DiceLayer {
 	readonly group = new THREE.Group();
 	private models = new Map<DieKind, DieModel>();
-	private labels = new Map<string, THREE.CanvasTexture>();
-	private decal = new THREE.PlaneGeometry(1, 1);
+	private meshes = new Map<DieKind, THREE.InstancedMesh>();
+	private material: THREE.MeshPhysicalNodeMaterial | null = null;
 	private active: ActiveDie[] = [];
-	private standIn: { root: THREE.Group; materials: THREE.Material[] } | null = null;
+	private standIn: THREE.InstancedMesh | null = null;
 
 	/**
 	 * Throws dice from `aim.from` towards `aim.center` (world units; `center.y` the floor there). Each
@@ -176,16 +176,19 @@ export class DiceLayer {
 	 */
 	throw(t: DiceThrow, aim: DiceAim, cellSize: number, instant: boolean, now: number): number {
 		const { center, from, surface = () => center.y } = aim;
-		// A new throw sweeps the previous dice off the table.
-		for (const d of this.active) this.remove(d);
-		this.active = [];
+		this.clear(); // a new throw sweeps the previous dice off the table
 		const rand = seededRandom(t.seq * 2654435761);
 		const size = cellSize * DIE_SCALE;
+		const body = new THREE.Color(t.color);
+		const ink = brightness(t.color) < 0.5 ? INK.light : INK.dark;
 		let longest = 0;
-		t.dice.forEach((die, i) => {
+		t.dice.slice(0, MAX_THROWN_DICE).forEach((die, i) => {
 			const model = this.model(die.kind);
-			const { root, materials } = this.buildDie(die.kind, model, t.color);
-			root.scale.setScalar(size);
+			const mesh = this.mesh(die.kind);
+			const slot = mesh.count++;
+			const attr = (name: string) => mesh.geometry.getAttribute(name) as THREE.BufferAttribute;
+			attr(DIE_BODY_ATTRIBUTE).setXYZ(slot, body.r, body.g, body.b).needsUpdate = true;
+			attr(DIE_INK_ATTRIBUTE).setXYZ(slot, ink.r, ink.g, ink.b).needsUpdate = true;
 			// Golden-angle spiral so dice land near each other without overlapping.
 			const r = cellSize * 1.1 * Math.sqrt(i + 0.3);
 			const a = i * 2.39996 + rand() * 0.6;
@@ -196,8 +199,9 @@ export class DiceLayer {
 			const delay = instant ? 0 : i * 0.06;
 			longest = Math.max(longest, delay + flight);
 			const active: ActiveDie = {
-				root,
-				materials,
+				kind: die.kind,
+				slot,
+				size,
 				from: from.clone().add(spread),
 				to,
 				restY: (spot?.y ?? center.y) + model.inradius * size,
@@ -213,7 +217,6 @@ export class DiceLayer {
 				age: 0
 			};
 			this.pose(active);
-			this.group.add(root);
 			this.active.push(active);
 		});
 		return longest * 1000;
@@ -229,39 +232,66 @@ export class DiceLayer {
 			d.age = (now - d.startedAt) / 1000;
 			this.pose(d);
 		}
-		const gone = this.active.filter((d) => d.age > d.delay + d.flight + REST_S + FADE_S);
-		for (const d of gone) this.remove(d);
-		this.active = this.active.filter((d) => !gone.includes(d));
+		if (this.active.every((d) => this.gone(d))) this.clear();
 		return this.active.length > 0;
 	}
 
-	/** Forgets the drawn face labels, so the next throw draws them in the label font. */
-	clearLabels(): void {
-		if (this.active.length) return;
-		for (const tex of this.labels.values()) tex.dispose();
-		this.labels.clear();
+	/** The dice on the table (faded ones gone), with their instance matrices: what tests read. */
+	dice(): { kind: DieKind; matrix: THREE.Matrix4 }[] {
+		return this.active
+			.filter((d) => !this.gone(d))
+			.map((d) => ({
+				kind: d.kind,
+				matrix: this.meshes.get(d.kind)!.getMatrixAt(d.slot, new THREE.Matrix4())
+			}));
+	}
+
+	/** The low tier's resin has no clearcoat (a uniform). */
+	setTier(tier: string): void {
+		setDiceTier(tier);
 	}
 
 	/** A die for the warm-up to compile (#180): dice otherwise compile on the first roll. */
 	gallery(): THREE.Object3D[] {
-		this.standIn ??= this.buildDie('d6', this.model('d6'), '#ffffff');
-		return [standIn(this.standIn.root)];
+		if (!this.standIn) {
+			const geometry = buildDieModel('d6', 1).geometry;
+			this.standIn = diceMesh(geometry, this.diceMaterial());
+			this.standIn.count = 1;
+			this.standIn.setMatrixAt(0, new THREE.Matrix4());
+			(geometry.getAttribute(DIE_FADE_ATTRIBUTE) as THREE.BufferAttribute).setX(0, 1);
+		}
+		return [standIn(this.standIn)];
 	}
 
 	dispose(): void {
-		for (const d of this.active) this.remove(d);
-		this.active = [];
-		for (const m of this.standIn?.materials ?? []) m.dispose();
+		this.clear();
+		this.material?.dispose();
+		this.standIn?.geometry.dispose();
 		for (const m of this.models.values()) m.geometry.dispose();
-		for (const tex of this.labels.values()) tex.dispose();
-		this.decal.dispose();
+	}
+
+	private gone(d: ActiveDie): boolean {
+		return d.age > d.delay + d.flight + REST_S + FADE_S;
+	}
+
+	private clear(): void {
+		this.active = [];
+		for (const mesh of this.meshes.values()) mesh.count = 0;
 	}
 
 	private pose(d: ActiveDie): void {
+		const mesh = this.meshes.get(d.kind)!;
+		const fade = mesh.geometry.getAttribute(DIE_FADE_ATTRIBUTE) as THREE.BufferAttribute;
+		const fading = d.age - (d.delay + d.flight + REST_S);
+		fade.setX(d.slot, fading > 0 ? Math.max(0, 1 - fading / FADE_S) : 1).needsUpdate = true;
+		mesh.instanceMatrix.needsUpdate = true;
+		if (d.age < d.delay || this.gone(d)) {
+			mesh.setMatrixAt(d.slot, ZERO);
+			return;
+		}
 		const t = d.flight === 0 ? 1 : Math.min(Math.max((d.age - d.delay) / d.flight, 0), 1);
-		d.root.visible = d.age >= d.delay;
 		const k = easeOut(t);
-		d.root.position.set(
+		const at = new THREE.Vector3(
 			d.from.x + (d.to.x - d.from.x) * k,
 			d.restY + (d.from.y - d.restY) * bounce(t),
 			d.from.z + (d.to.z - d.from.z) * k
@@ -269,10 +299,9 @@ export class DiceLayer {
 		const spinning = d.startQ
 			.clone()
 			.premultiply(new THREE.Quaternion().setFromAxisAngle(d.spinAxis, d.spin * easeOut(t)));
-		d.root.quaternion.copy(spinning.slerp(d.endQ, smoothstep(0.5, 0.95, t)));
-		const fading = d.age - (d.delay + d.flight + REST_S);
-		const shown = fading > 0 ? Math.max(0, 1 - fading / FADE_S) : 1;
-		for (const mesh of d.root.children) mesh.userData.fade = shown;
+		const q = spinning.slerp(d.endQ, smoothstep(0.5, 0.95, t));
+		const s = new THREE.Vector3().setScalar(d.size);
+		mesh.setMatrixAt(d.slot, new THREE.Matrix4().compose(at, q, s));
 	}
 
 	private model(kind: DieKind): DieModel {
@@ -281,145 +310,19 @@ export class DiceLayer {
 		return model;
 	}
 
-	private buildDie(
-		kind: DieKind,
-		model: DieModel,
-		color: string
-	): { root: THREE.Group; materials: THREE.MeshStandardNodeMaterial[] } {
-		const body = dieMaterial({
-			color,
-			roughness: 0.35,
-			metalness: 0.05,
-			flatShading: true
-		});
-		const root = new THREE.Group();
-		const mesh = new THREE.Mesh(model.geometry, body);
-		mesh.castShadow = true;
-		root.add(mesh);
-		const materials = [body];
-		const labels = DIE_LABELS[kind];
-		// Dark ink on light dice, light ink on dark ones.
-		const ink = brightness(color) < 0.5 ? '#f4ecdc' : '#1b1612';
-		const decal = (
-			text: string,
-			at: THREE.Vector3,
-			normal: THREE.Vector3,
-			up: THREE.Vector3,
-			size: number
-		) => {
-			const material = dieMaterial({
-				map: this.label(text, kind, ink),
-				transparent: true,
-				depthWrite: false,
-				roughness: 0.6
-			});
-			materials.push(material);
-			const plane = new THREE.Mesh(this.decal, material);
-			const y = up
-				.clone()
-				.sub(normal.clone().multiplyScalar(up.dot(normal)))
-				.normalize();
-			const x = new THREE.Vector3().crossVectors(y, normal);
-			plane.matrix.makeBasis(x, y, normal).scale(new THREE.Vector3(size, size, 1));
-			plane.matrix.setPosition(at.clone().addScaledVector(normal, 0.004));
-			plane.matrixAutoUpdate = false;
-			root.add(plane);
-		};
-
-		model.faces.forEach((face, i) => {
-			const reach = Math.min(...face.corners.map((c) => c.distanceTo(face.centroid)));
-			if (model.readsAtVertex && model.apexes) {
-				// d4: at each corner of each face, the label of the vertex at that corner.
-				for (const corner of face.corners) {
-					const j = model.apexes.findIndex((v) => v.distanceTo(corner) < 1e-4);
-					const toward = corner.clone().sub(face.centroid);
-					decal(
-						labels[j],
-						face.centroid.clone().addScaledVector(toward, 0.55),
-						face.normal,
-						toward,
-						reach * 0.75
-					);
-				}
-				return;
-			}
-			decal(labels[i], face.centroid, face.normal, this.faceUp(kind, face), reach * 1.15);
-		});
-		return { root, materials };
+	private diceMaterial(): THREE.MeshPhysicalNodeMaterial {
+		return (this.material ??= createDiceMaterial());
 	}
 
-	/** Which way is "up" for a face's number: towards its sharpest corner, or axis-aligned on a cube. */
-	private faceUp(kind: DieKind, face: DieModel['faces'][number]): THREE.Vector3 {
-		if (kind === 'd6') {
-			return Math.abs(face.normal.y) > 0.9
-				? new THREE.Vector3(0, 0, -1)
-				: new THREE.Vector3(0, 1, 0);
+	/** A kind's mesh, made on its first throw: the shared material, so it compiles nothing. */
+	private mesh(kind: DieKind): THREE.InstancedMesh {
+		let mesh = this.meshes.get(kind);
+		if (!mesh) {
+			mesh = diceMesh(this.model(kind).geometry, this.diceMaterial());
+			this.meshes.set(kind, mesh);
+			this.group.add(mesh);
 		}
-		const far = face.corners.reduce((a, b) =>
-			b.distanceTo(face.centroid) > a.distanceTo(face.centroid) ? b : a
-		);
-		return far.clone().sub(face.centroid);
-	}
-
-	private label(text: string, kind: DieKind, ink: string): THREE.CanvasTexture {
-		// 6 and 9 get a dot on dice where they could be confused upside down.
-		const shown =
-			(text === '6' || text === '9') && kind !== 'd6' && kind !== 'd4' ? `${text}.` : text;
-		const key = `${ink}|${kind === 'd6' ? `pips:${text}` : shown}`;
-		let tex = this.labels.get(key);
-		if (tex) return tex;
-		const canvas = document.createElement('canvas');
-		canvas.width = canvas.height = 128;
-		const ctx = canvas.getContext('2d')!;
-		ctx.fillStyle = ink;
-		if (kind === 'd6') {
-			// Pips, like a real d6: readable from any side of the table.
-			drawPips(ctx, Number(text));
-			tex = worldTexture(new THREE.CanvasTexture(canvas));
-			tex.colorSpace = THREE.SRGBColorSpace;
-			this.labels.set(key, tex);
-			return tex;
-		}
-		ctx.font = labelFont(700, shown.length > 2 ? 56 : shown.length > 1 ? 66 : 80);
-		ctx.textAlign = 'center';
-		ctx.textBaseline = 'middle';
-		ctx.fillText(shown, 64, 68);
-		tex = worldTexture(new THREE.CanvasTexture(canvas)); // the tier's anisotropy (#179)
-		tex.colorSpace = THREE.SRGBColorSpace;
-		this.labels.set(key, tex);
-		return tex;
-	}
-
-	private remove(d: ActiveDie): void {
-		this.group.remove(d.root);
-		for (const m of d.materials) m.dispose();
-	}
-}
-
-/** Standard pip layouts on a 3×3 grid, for faces 1–6. */
-function drawPips(ctx: CanvasRenderingContext2D, value: number): void {
-	const at = {
-		tl: [34, 34],
-		tr: [94, 34],
-		ml: [34, 64],
-		c: [64, 64],
-		mr: [94, 64],
-		bl: [34, 94],
-		br: [94, 94]
-	};
-	const layouts: Record<number, (keyof typeof at)[]> = {
-		1: ['c'],
-		2: ['tl', 'br'],
-		3: ['tl', 'c', 'br'],
-		4: ['tl', 'tr', 'bl', 'br'],
-		5: ['tl', 'tr', 'c', 'bl', 'br'],
-		6: ['tl', 'tr', 'ml', 'mr', 'bl', 'br']
-	};
-	for (const spot of layouts[value] ?? []) {
-		const [x, y] = at[spot];
-		ctx.beginPath();
-		ctx.arc(x, y, value === 1 ? 17 : 12, 0, Math.PI * 2);
-		ctx.fill();
+		return mesh;
 	}
 }
 

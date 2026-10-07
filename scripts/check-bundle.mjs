@@ -117,8 +117,9 @@ const BUDGETS = {
 	// orbit's main thread 18.6 → 10 ms); 399,836 B measured. → 402.0: token bases (#265: the base
 	// kind's graph, base-layer.ts, the lathe); 401.7 kB measured. → 403.0: names on demand (#268:
 	// label-layer.ts, the atlas and two instanced sprites, replacing the per-token label sprites);
-	// 402.9 kB measured after the merge (M71's cap is about 410 kB).
-	renderer: { total: 403_000 },
+	// 402.9 kB measured after the merge (M71's cap is about 410 kB). → dice as PBR sets (#275: one InstancedMesh per
+	// kind, the dice material, the atlas's UVs; decal canvases and pips gone); 403.1 kB measured after the merge.
+	renderer: { total: 403_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
