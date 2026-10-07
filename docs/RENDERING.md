@@ -4240,6 +4240,12 @@ npm run test:golden:full -- --update
 
 and on WebGPU `npm run test:golden:webgpu -- --update`.
 
+Since M71 the WebGL2 goldens draw on the real GPU (ANGLE over Vulkan on the RTX 4060 Laptop, vite.config's
+`client` project when `THIRDFOLD_GOLDENS` is set), not SwiftShader: they belong to that GPU and driver,
+as the WebGPU set always did, and a driver update can move them. The full WebGL2 set took 32 minutes
+at M71's close (178 images), the slim set 5. The WebGPU set is re-recorded every few milestones, not at
+every close (the owner's process, M71): it was last recorded at M70's close and goes stale until then.
+
 A PR that changes goldens says why, shows the before and after of every changed image in its
 description, and names the milestone gate it serves. Keep the set under about 20 MB: if it grows
 past that, drop the `low` pose and the extra overview bands of the frozen story tables before
