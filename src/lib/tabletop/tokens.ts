@@ -328,6 +328,11 @@ export class TokenLayer {
 		this.figures.setState(id, { downed: entry.fallen, active: id === this.activeId });
 	}
 
+	/** Picks the figures' levels for the camera (#274, figures.ts); true if any changed. */
+	chooseLods(camera: THREE.PerspectiveCamera, viewportPx: number, bias: number): boolean {
+		return this.figures.chooseLods(camera, viewportPx, bias);
+	}
+
 	/**
 	 * Puts a token's figure where its root is: standing on the base's inner disc, or tipped over
 	 * sideways onto the base when fallen, unless a downed pose shows it (#273). Root is in the

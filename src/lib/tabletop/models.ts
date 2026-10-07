@@ -18,7 +18,7 @@
 
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import type { ModelEntry, ModelLod, ToneMapper } from '$lib/assets/manifest';
+import type { ModelEntry, ToneMapper } from '$lib/assets/manifest';
 import {
 	assetUrl,
 	fetchAsset,
@@ -68,14 +68,35 @@ export interface LoadedModel {
 export const partsOf = (model: LoadedModel, role: Role, lod = 0, pose = 0) =>
 	model.parts.filter((p) => p.role === role && p.lod === lod && p.pose === pose);
 
+/** The levels a model has after level 0 (its entry's `lods`; a preview or a part list has none). */
+export const levelsOf = (model: LoadedModel) =>
+	model.preview ? 0 : (model.entry.lods?.length ?? 0);
+
 /**
- * The level to draw at `screenShare` (the model's height over the screen's): the last of the
- * entry's `lods` whose `screenSize` it is below, else 0. Choosing per frame is #274's.
+ * The finest level at or above `lod` that has a body in `pose`: what draws for `lod` (lod.ts, #274).
+ * A pose without levels of its own draws its level 0 (#273), never the plain body.
  */
-export function lodFor(lods: readonly ModelLod[] | undefined, screenShare: number): number {
-	let level = 0;
-	lods?.forEach((l, i) => screenShare < l.screenSize && (level = i + 1));
-	return level;
+export function drawnLevel(model: LoadedModel, lod: number, pose = 0): number {
+	for (let l = Math.min(lod, levelsOf(model)); l > 0; l--)
+		if (partsOf(model, 'body', l, pose).length) return l;
+	return 0;
+}
+
+const radii = new WeakMap<LoadedModel, number>();
+/** The radius about the model's origin holding its full level, in model units (lod.ts). */
+export function modelRadius(model: LoadedModel): number {
+	let r = radii.get(model);
+	if (r === undefined) {
+		r = 0;
+		for (const p of model.parts) {
+			if (p.lod) continue;
+			if (!p.geometry.boundingSphere) p.geometry.computeBoundingSphere();
+			const s = p.geometry.boundingSphere!;
+			r = Math.max(r, s.center.length() + s.radius);
+		}
+		radii.set(model, r);
+	}
+	return r;
 }
 
 // Underscores, never dots: GLTFLoader sanitises `body.pose1` to `bodypose1`, which isn't a role.

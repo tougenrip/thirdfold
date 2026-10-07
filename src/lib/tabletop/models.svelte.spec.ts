@@ -13,7 +13,6 @@ import type { SquareGrid } from '$lib/game/grid';
 import {
 	initModels,
 	loadModel,
-	lodFor,
 	modelNow,
 	parseModel,
 	partsOf,
@@ -136,12 +135,6 @@ describe('the model loader', () => {
 		expect(roleOf('swing_pose1')).toBeNull();
 		expect(roleOf('body001')).toBeNull();
 		expect(roleOf('handle')).toBeNull();
-		const lods = [
-			{ triangles: 100, screenSize: 0.3 },
-			{ triangles: 20, screenSize: 0.1 }
-		];
-		expect([0.5, 0.2, 0.05].map((s) => lodFor(lods, s))).toEqual([0, 1, 2]);
-		expect(lodFor(undefined, 0.01)).toBe(0);
 	});
 
 	it('loads static poses by their underscore names; a dotted name is lost to sanitising (#273)', async () => {

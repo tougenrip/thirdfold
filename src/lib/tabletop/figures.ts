@@ -15,20 +15,31 @@
 // Poses (#273): a model's `body_pose<n>` parts are parts like any other, so a figure in a pose is
 // an instance in that part's batch; a pose change is a removal and an add, never a geometry swap
 // inside a draw, and compiles nothing (the same materials).
+//
+// A model with levels (#274) draws each figure at the level `chooseLods` picks from the camera
+// (lod.ts): a switch is a removal from one part's batch and an add to another's, by the same
+// allocator. Its shadow never switches: the visible batches cast none, and a proxy batch per part
+// at the cheapest level (in the figure's pose), on the `SHADOW_PROXY` layer only the shadow cameras
+// see, holds every figure of the model, so a cached shadow map stays good. A part list (one level)
+// casts itself.
 
 import * as THREE from 'three/webgpu';
 import { createMaterial, PAINT_ATTRIBUTE, PIECE_MIN, TINT_ATTRIBUTE, withBake } from './materials';
 import type { KindMaterial } from './materials';
 import {
+	drawnLevel,
+	levelsOf,
 	loadModel,
 	mergeParts,
 	modelNow,
+	modelRadius,
 	partsOf,
 	type LoadedModel,
 	type ModelPart
 } from './models';
 import { pickable } from './picking';
 import { poseOf, type PoseState } from './mini-poses';
+import { FIGURE_LODS, lodFor, SHADOW_PROXY } from './lod';
 
 /** Swap-remove slots: ids packed in `owners[0..size)`. */
 export class Slots {
@@ -102,7 +113,9 @@ export class Batch {
 		readonly role: 'body' | 'tinted',
 		/** Whether the material is the batch's own (a textured part's), freed with it. */
 		readonly owned: boolean,
-		private readonly parent: THREE.Object3D
+		private readonly parent: THREE.Object3D,
+		/** Casts its own shadow (a part list), none (a level of a model with levels), or is a proxy. */
+		readonly shadow: 'cast' | 'none' | 'proxy' = 'cast'
 	) {
 		this.mesh = this.make(source.clone(), PIECE_MIN);
 	}
@@ -178,7 +191,10 @@ export class Batch {
 		const mesh = pickable(new THREE.InstancedMesh(geometry, this.material, n));
 		if (was) mesh.instanceMatrix.array.set(was.instanceMatrix.array);
 		mesh.count = this.slots.size;
-		mesh.castShadow = mesh.receiveShadow = true;
+		mesh.castShadow = this.shadow !== 'none';
+		mesh.receiveShadow = this.shadow !== 'proxy';
+		// Seen only by the shadow cameras: never drawn, never picked.
+		if (this.shadow === 'proxy') mesh.layers.set(SHADOW_PROXY);
 		mesh.userData.figures = this;
 		mesh.userData.perfLayer = 'figures'; // perf-layers.ts
 		mesh.userData.source = this.source;
@@ -212,8 +228,12 @@ interface Figure {
 	/** What poses it (#273), and the pose drawn (0: the body). */
 	state: PoseState;
 	pose: number;
-	/** The batches it has an instance in. */
+	/** The level asked for (lod.ts), and the one drawn: the finest the model has at or above it. */
+	lod: number;
+	drawn: number;
+	/** The batches it has an instance in: drawn, and its shadow proxies. */
 	batches: Batch[];
+	proxies: Batch[];
 }
 
 /** Where models come from: the asset loader, or a test's own. */
@@ -228,6 +248,8 @@ const PLAIN = 'plain';
 export class FigureBatches {
 	/** Batches by part (the plain miniature under `PLAIN`). */
 	readonly batches = new Map<ModelPart | typeof PLAIN, Batch>();
+	/** Shadow proxies by part: a model with levels, at its cheapest. */
+	readonly proxies = new Map<ModelPart, Batch>();
 	private readonly figures = new Map<string, Figure>();
 	/** Part lists, accents and the plain miniature: one material for all (vertex colours). */
 	private readonly painted = createMaterial('mini', { instanced: true, vertexColors: true });
@@ -256,7 +278,10 @@ export class FigureBatches {
 				matrix,
 				state,
 				pose: 0,
-				batches: []
+				lod: 0,
+				drawn: 0,
+				batches: [],
+				proxies: []
 			};
 			this.figures.set(id, figure);
 			this.dress(id, figure);
@@ -270,8 +295,35 @@ export class FigureBatches {
 			this.dress(id, figure);
 			return true;
 		}
-		if (recolour) for (const b of figure.batches) b.setPaint(id, paintOf(b, figure));
+		if (recolour)
+			for (const b of [...figure.batches, ...figure.proxies]) b.setPaint(id, paintOf(b, figure));
 		return recolour;
+	}
+
+	/**
+	 * Picks each figure's level for `camera` on a view `viewportPx` high, one level coarser per
+	 * `bias` (lod.ts). Returns true if any figure changed level. Run on camera and table changes.
+	 */
+	chooseLods(camera: THREE.PerspectiveCamera, viewportPx: number, bias: number): boolean {
+		const fovY = THREE.MathUtils.degToRad(camera.fov);
+		this.group.updateWorldMatrix(true, false);
+		let changed = false;
+		for (const [id, f] of this.figures) {
+			const model = f.shows;
+			if (!model || !levelsOf(model)) continue;
+			world.multiplyMatrices(this.group.matrixWorld, f.matrix);
+			const radius = modelRadius(model) * world.getMaxScaleOnAxis();
+			const distance = at.setFromMatrixPosition(world).distanceTo(camera.position);
+			f.lod = lodFor(radius, distance, fovY, viewportPx, FIGURE_LODS, f.lod, bias);
+			const drawn = drawnLevel(model, f.lod, f.pose);
+			if (drawn === f.drawn) continue;
+			// Out of the old level's batches and into the new one's; the proxies stay.
+			this.leave(id, f.batches);
+			f.batches = this.wear(id, f, model, drawn);
+			f.drawn = drawn;
+			changed = true;
+		}
+		return changed;
 	}
 
 	/** What `id` is doing, for its model's poses (#273). Returns true if its pose changed. */
@@ -295,7 +347,7 @@ export class FigureBatches {
 		const figure = this.figures.get(id);
 		if (!figure) return;
 		figure.matrix.copy(matrix);
-		for (const b of figure.batches) b.setMatrix(id, matrix);
+		for (const b of [...figure.batches, ...figure.proxies]) b.setMatrix(id, matrix);
 	}
 
 	remove(id: string): void {
@@ -321,8 +373,9 @@ export class FigureBatches {
 	}
 
 	dispose(): void {
-		for (const b of this.batches.values()) b.dispose();
+		for (const b of [...this.batches.values(), ...this.proxies.values()]) b.dispose();
 		this.batches.clear();
+		this.proxies.clear();
 		this.figures.clear();
 		this.painted.dispose();
 	}
@@ -333,13 +386,13 @@ export class FigureBatches {
 		const { model } = figure;
 		const loaded = (figure.shows = model ? this.models.now(model) : null);
 		figure.pose = this.poseFor(figure);
-		const parts = loaded
-			? [...partsOf(loaded, 'body', 0, figure.pose), ...partsOf(loaded, 'accent')]
-			: [PLAIN];
-		for (const part of parts) {
-			const batch = this.batchOf(part as ModelPart | typeof PLAIN);
-			figure.batches.push(batch);
-			batch.add(id, figure.matrix, paintOf(batch, figure));
+		figure.drawn = loaded ? drawnLevel(loaded, figure.lod, figure.pose) : 0;
+		figure.batches = this.wear(id, figure, loaded ?? null, figure.drawn);
+		// Its levels cast nothing: the proxy does, at the cheapest level of its pose (0 for a pose
+		// without levels).
+		if (loaded && levelsOf(loaded)) {
+			const cheapest = drawnLevel(loaded, Infinity, figure.pose);
+			figure.proxies = this.wear(id, figure, loaded, cheapest, true);
 		}
 		// Still coming (or only its preview is here): drawn again at each stage.
 		if (model && (loaded === undefined || loaded?.preview)) {
@@ -360,31 +413,59 @@ export class FigureBatches {
 		return pose && shown && partsOf(shown, 'body', 0, pose).length ? pose : 0;
 	}
 
-	private undress(id: string, figure: Figure): void {
-		for (const b of figure.batches) {
-			b.remove(id);
-			if (b.slots.size > 0) continue;
-			// Empty: freed (a preview's or an old model's part may never come back).
-			b.dispose();
-			for (const [key, other] of this.batches) if (other === b) this.batches.delete(key);
-		}
-		figure.batches = [];
+	/** Adds the figure to the batches of `model`'s parts at `lod` in its pose (or the proxies'). */
+	private wear(
+		id: string,
+		figure: Figure,
+		model: LoadedModel | null,
+		lod: number,
+		proxy = false
+	): Batch[] {
+		const parts = model
+			? [...partsOf(model, 'body', lod, figure.pose), ...partsOf(model, 'accent', lod)]
+			: [PLAIN];
+		const shadow = proxy ? 'proxy' : model && levelsOf(model) ? 'none' : 'cast';
+		return parts.map((part) => {
+			const batch = this.batchOf(part as ModelPart | typeof PLAIN, shadow);
+			batch.add(id, figure.matrix, paintOf(batch, figure));
+			return batch;
+		});
 	}
 
-	private batchOf(part: ModelPart | typeof PLAIN): Batch {
-		let batch = this.batches.get(part);
+	private undress(id: string, figure: Figure): void {
+		this.leave(id, figure.batches);
+		this.leave(id, figure.proxies);
+		figure.batches = [];
+		figure.proxies = [];
+	}
+
+	/** Takes `id` out of `batches`, freeing any left empty (a preview's part may never come back). */
+	private leave(id: string, batches: readonly Batch[]): void {
+		for (const b of batches) {
+			b.remove(id);
+			if (b.slots.size > 0) continue;
+			b.dispose();
+			const map: Map<unknown, Batch> = b.shadow === 'proxy' ? this.proxies : this.batches;
+			for (const [key, other] of map) if (other === b) map.delete(key);
+		}
+	}
+
+	private batchOf(part: ModelPart | typeof PLAIN, shadow: Batch['shadow']): Batch {
+		const map: Map<ModelPart | typeof PLAIN, Batch> =
+			shadow === 'proxy' ? this.proxies : this.batches;
+		let batch = map.get(part);
 		if (batch) return batch;
-		if (part === PLAIN)
-			batch = new Batch(plainGeometry(), this.painted, 'tinted', false, this.group);
+		const { group } = this;
+		if (part === PLAIN) batch = new Batch(plainGeometry(), this.painted, 'tinted', false, group);
 		else if (part.maps) {
 			const material = createMaterial('mini', {
 				instanced: true,
 				params: part.params,
 				slots: part.maps
 			});
-			batch = new Batch(part.geometry, material, roleOf(part), true, this.group);
-		} else batch = new Batch(part.geometry, this.painted, roleOf(part), false, this.group);
-		this.batches.set(part, batch);
+			batch = new Batch(part.geometry, material, roleOf(part), true, group, shadow);
+		} else batch = new Batch(part.geometry, this.painted, roleOf(part), false, group, shadow);
+		map.set(part, batch);
 		return batch;
 	}
 }
@@ -396,4 +477,6 @@ function paintOf(batch: Batch, figure: Figure): number[] {
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
+const world = new THREE.Matrix4();
+const at = new THREE.Vector3();
 const roleOf = (part: ModelPart) => (part.role === 'accent' || part.maps ? 'tinted' : 'body');

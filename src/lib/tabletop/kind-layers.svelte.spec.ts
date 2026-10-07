@@ -174,7 +174,9 @@ describe('the figure batches (#266)', () => {
 		expect(four[0]).toBeGreaterThan(0);
 		expect(await draws(20)).toEqual(four);
 		expect(await draws(60)).toEqual(four);
-	});
+		// Longer than the rest: on SwiftShader the test world's props with levels compile their
+		// pool-sized variant and shadow proxies at load (#274), which put it at about 130 s in this file.
+	}, 240_000);
 });
 
 const SIZE = 32;

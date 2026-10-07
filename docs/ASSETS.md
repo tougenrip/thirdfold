@@ -958,8 +958,11 @@ pixels, so they are made by hand after a model changes, never in CI.
     (`roleOf`; GLTFLoader's `_<n>` suffixes are allowed), with their node transforms applied and
     pieces of one role, level and material merged. Every part gets the same attributes
     (position, normal, uv, colour, as floats; an accent without colour), so textured and part-list
-    models draw with the same programs. Layers draw level 0; `lodFor` picks a level by screen
-    share for #274.
+    models draw with the same programs. Figures and props draw the level the camera calls for
+    (#274, docs/RENDERING.md "LOD (milestone 71, #274)"): `lodFor` in `tabletop/lod.ts` by
+    projected radius against per-kind thresholds (`FIGURE_LODS`, `PROP_LODS`), not the entry's
+    `screenSize`; a level without a `body` falls back to the next finer one (`drawnLevel`).
+    Shadows always come from the cheapest level.
   - A cooked model's glTF maps go into the prop and mini kinds' slots (base colour → albedo,
     normal, metallic-roughness → ORM, emissive), on a material of the same variant, so nothing
     compiles. Its textures are uploaded (`initTexture`) before it is drawn.

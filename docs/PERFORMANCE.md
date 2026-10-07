@@ -1127,3 +1127,65 @@ the number of tokens (`kind-layers.svelte.spec.ts`: 4, 20 and 60 tokens draw the
 on the player's view, #266 alone: WebGL2 8.9 → 7.4 ms, WebGPU 5.5 → 4.7-4.9 ms (two runs of 64
 frames; a 16-frame run read 9.7 ms, noise); with the bases, 6.0 ms on both backends (64 frames).
 The village GM view was not measured.
+
+## The M71 levels of detail (#274)
+
+Figures and props draw the level the camera calls for, and cast through a proxy at their cheapest
+level (docs/RENDERING.md "LOD (milestone 71, #274)"). The tables were measured on the RTX 4060
+Laptop at the medium tier, the head of `m71-minis` (0506fc0, with #269-#273 merged) against this
+branch on it: `SCENES=crowd-60,ref-7,hollow POSES=overview,close LAYERS=1 TIER=medium node
+scripts/perf-gpu.mjs`, with `PERF_BACKEND=webgl` and `webgpu`.
+
+- crowd-60 and ref-7 have no model with levels yet: their part-list minis and props have one
+  level each. Their draws and triangles are the same before and after on both backends: 111 draws
+  for each viewer and pose, with 226,984 triangles on crowd-60 and 88,840 on ref-7.
+- The Hollow has the great bell and the Poly Haven props (#262), which are cooked with levels.
+  These are the GM's numbers:
+
+| Hollow, GM                          | WebGL2 before | WebGL2 after | WebGPU before | WebGPU after |
+| ----------------------------------- | ------------: | -----------: | ------------: | -----------: |
+| overview, steady: draws             |           170 |          170 |           162 |          154 |
+| overview, steady: triangles         |       470,392 |      450,014 |       469,248 |      392,692 |
+| overview, shadow redrawn: triangles |       675,534 |      633,091 |       674,390 |      575,769 |
+| overview, props: draws (triangles)  |  54 (172,158) | 54 (129,715) |  54 (172,158) |  46 (73,537) |
+| close, steady: draws                |           127 |          129 |           119 |          115 |
+| close, steady: triangles            |       376,128 |      362,202 |       374,984 |      327,012 |
+| close, shadow redrawn: triangles    |       581,270 |      545,279 |       580,126 |      510,089 |
+
+- Draws grow only by the levels in use at once. On WebGL2 at the close pose some props are at two
+  levels, which adds 2 draws (one bucket, prepass and scene). The shadow pass draws the same 52
+  calls throughout.
+- On WebGPU fewer props are drawn: a level's bucket holds fewer props than the asset's one mesh
+  did, so its bounds are smaller and more of them are culled off-screen.
+- The two backends' runs reached different levels for some props: each run's poses come in the
+  same order, but hysteresis keeps whatever level a prop had in the band. The props' triangles
+  fall by a quarter (WebGL2) to over a half (WebGPU) at the overview.
+- GPU times on this run were noisy, because SwiftShader render tests ran beside it, so they are
+  not compared.
+
+**CPU per camera change.** The GM orbits each table 40 times between its overview and close
+poses, drawing one frame each time. The table below gives `?perf`'s `lod` timing on WebGL2
+(`performance.now`, 0.1 ms resolution):
+
+| table      | tokens | props | mean ms | max ms |
+| ---------- | -----: | ----: | ------: | -----: |
+| crowd-60   |     60 |     0 |   0.012 |    0.1 |
+| outdoor-64 |      1 |   150 |   0.023 |    0.2 |
+| hollow     |      6 |   243 |   1.228 |    2.5 |
+
+- On crowd-60 and outdoor-64 nothing has levels, so a pass only skips each instance.
+- A pass that switches props lays out the whole prop layer again: matrices, contact halos (#271)
+  and the pool-sized buckets' uploads. That is most of the Hollow's mean.
+- An empty level's bucket is kept, hidden, so a switch back clones no geometry. Before this was
+  done, the Hollow's worst pass was 17.4 ms.
+- No fixture has a cooked figure yet, so figures were timed in Node (`FigureBatches.chooseLods`)
+  with 3,000 figures of one model with levels:
+  - a pass that switches none: 4.2 ms;
+  - all 3,000 switching to a level whose batch is new: 62 ms, mostly the new batch growing from
+    its pool size;
+  - all switching back: 16 ms.
+
+  A figure batch left empty is freed (#266's leak rule), so a switch back makes its batch again.
+  At crowd-60's sixty minis this is well under a millisecond. Keeping empty level batches, as the
+  props do, waits for a table with hundreds of cooked minis, and per-chunk bounds (#334) wait for
+  thousands of props with levels.
