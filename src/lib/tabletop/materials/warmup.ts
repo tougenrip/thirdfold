@@ -9,6 +9,8 @@ import * as THREE from 'three/webgpu';
 import {
 	addInstanceTints,
 	createMaterial,
+	TINT_ATTRIBUTE,
+	PAINT_ATTRIBUTE,
 	pieceMesh,
 	PIECE_MIN,
 	SHADER_KINDS,
@@ -40,15 +42,25 @@ function variantsOf(kind: ShaderKind): MaterialOptions[] {
 	return each;
 }
 
-/** A box with every attribute `kind` may read: normals, uv, vertex colours and the bake. */
+/**
+ * A box with every attribute `kind` may read: normals, uv, vertex colours and the bake. An
+ * instanced mini is a figure batch's shape (#266, figures.ts): colours whatever its variant, a
+ * vec4 paint (tint and opacity) and tint, no lift, a pool's worth of instances.
+ */
 function geometryFor(kind: ShaderKind, options: MaterialOptions): THREE.BufferGeometry {
 	const geometry = withBake(new THREE.BoxGeometry(0.01, 0.01, 0.01));
-	if (options.vertexColors) {
+	const figure = kind === 'mini' && options.instanced;
+	if (options.vertexColors || figure) {
 		const count = geometry.getAttribute('position').count;
 		geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
 	}
-	// An instanced mini's paint is a vec4 (tint and opacity, #266), a prop's a vec3.
-	if (options.instanced) addInstanceTints(geometry, 1, kind === 'mini' ? 4 : 3);
+	if (figure)
+		for (const name of [PAINT_ATTRIBUTE, TINT_ATTRIBUTE])
+			geometry.setAttribute(
+				name,
+				new THREE.InstancedBufferAttribute(new Float32Array(PIECE_MIN * 4).fill(1), 4)
+			);
+	else if (options.instanced) addInstanceTints(geometry, 1);
 	if (options.dropped) withDrops(geometry);
 	return geometry;
 }
@@ -57,9 +69,9 @@ function geometryFor(kind: ShaderKind, options: MaterialOptions): THREE.BufferGe
 function sample(kind: ShaderKind, options: MaterialOptions, shadows: boolean): THREE.Object3D {
 	const geometry = geometryFor(kind, options);
 	const material = createMaterial(kind, options);
-	// Token bases are one pool-sized mesh (#265, base-layer.ts): its matrices an attribute.
-	const n = kind === 'base' ? PIECE_MIN : 1;
-	if (n > 1) addInstanceTints(geometry, n);
+	// Token bases (#265, base-layer.ts) and figures (#266) are pool-sized: their matrices an attribute.
+	const n = kind === 'base' || (kind === 'mini' && options.instanced) ? PIECE_MIN : 1;
+	if (kind === 'base') addInstanceTints(geometry, n);
 	const mesh = options.instanced
 		? new THREE.InstancedMesh(geometry, material, n)
 		: new THREE.Mesh(geometry, material);

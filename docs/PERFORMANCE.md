@@ -1108,3 +1108,22 @@ WebGPU, fresh profile, first table frame per tier: M68 8.8 / 6.8 / 3.4 / 8.5 s (
 ultra), M69 after 3.0 / 2.4 / 1.6 / 2.5 s. With the driver's shader cache off, M69's first frame is
 now 6.2 s against M68's 6.0 s (was 8.0 s). No pixel changes: every change is in when and how
 programs compile, and the floors' shared projection computes the same values.
+
+## The M71 figure batches (#266)
+
+Token figures are instanced batches by figure part (docs/RENDERING.md "Figures (milestone 71,
+#266)"). crowd-60, the GM's and the player's overview, medium tier, RTX 4060 Laptop
+(`SCENES=crowd-60 POSES=overview LAYERS=1 TIER=medium node scripts/perf-gpu.mjs`), the same draws
+on WebGL2 and WebGPU:
+
+| draws                          | before (c6494d1) | #266 alone | with #265's bases | and #268's labels |
+| ------------------------------ | ---------------: | ---------: | ----------------: | ----------------: |
+| figures, frame with the shadow |              360 |         96 |                96 |                96 |
+| frame, steady                  |              462 |        286 |               168 |               110 |
+| frame, shadow redrawn          |              642 |        378 |               201 |               143 |
+
+Figure draws are now 32 batches (sixteen figures, body and accent) times three passes, whatever
+the number of tokens (`kind-layers.svelte.spec.ts`: 4, 20 and 60 tokens draw the same). GPU time
+on the player's view, #266 alone: WebGL2 8.9 → 7.4 ms, WebGPU 5.5 → 4.7-4.9 ms (two runs of 64
+frames; a 16-frame run read 9.7 ms, noise); with the bases, 6.0 ms on both backends (64 frames).
+The village GM view was not measured.
