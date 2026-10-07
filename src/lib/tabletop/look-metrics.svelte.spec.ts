@@ -31,7 +31,8 @@ const TONEMAP = import.meta.env.VITE_LOOK_TONEMAP as string | undefined;
 /** Depth of field on, focused on each pose's pivot (#165): the Miniature option in play. */
 const DOF = !!import.meta.env.VITE_LOOK_DOF;
 // With motion not reduced a table never falls quiet: each render waits settle's full limit.
-vi.setConfig({ testTimeout: DOF ? 600_000 : 300_000 });
+// M71: the pool-sized figure and base batches warm more per fixture, past 5 minutes on SwiftShader.
+vi.setConfig({ testTimeout: 600_000 });
 
 interface Pairing {
 	reference: number;
