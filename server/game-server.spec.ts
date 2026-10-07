@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { AdventureView } from '../src/lib/adventure/adventure';
 import { exampleAdventure } from '../src/lib/adventure/example';
+import { dndExampleAdventure } from '../src/lib/adventure/dnd-example';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ChatMessage } from '../src/lib/game/chat';
@@ -4514,5 +4515,70 @@ describe('validation over the wire (milestone 56)', () => {
 			code: 'invalid_scene',
 			diagnostics: [{ code: 'save.invalid', path: 'adventure' }]
 		});
+	});
+});
+
+describe('D&D adventure authoring over the wire (milestone 57)', () => {
+	const shrine = () => JSON.parse(JSON.stringify(dndExampleAdventure()));
+
+	it('previews, publishes and plays a creator’s fifth edition adventure, checked again before play', async () => {
+		const mira = await connect();
+		// The builder asks: diagnostics, and what the file comes to under its rules.
+		mira.send({ type: 'content_validate', kind: 'adventure', file: shrine() });
+		const checked = await mira.expect('validation');
+		expect(checked.validation).toMatchObject({ ok: true, diagnostics: [] });
+		expect(checked.preview).toMatchObject({
+			rules: { id: 'dnd-5.5e', version: 1 },
+			party: [{ id: 'brakka', name: 'Brakka' }, { id: 'wren' }, { id: 'ilse' }],
+			openParty: true,
+			monsters: [{ kind: 'srd-skeleton', name: 'Skeleton' }]
+		});
+		expect(checked.preview!.content[0]).toMatchObject({ id: 'srd-5.2.1' });
+		expect(checked.preview!.attribution).toContain('SRD 5.2.1');
+		// Monsters to pick from, outside any table.
+		mira.send({
+			type: 'bestiary_search',
+			rules: { id: 'dnd-5.5e', version: 1 },
+			query: 'skeleton'
+		});
+		const found = await mira.expect('monster_search');
+		expect(found.monsters.map((m) => m.kind)).toContain('srd-skeleton');
+		// A party member the rules refuse is named, not published.
+		const bad = shrine();
+		bad.party.wren.choices.class.expertise = ['athletics', 'stealth'];
+		mira.send({ type: 'library_publish', creator: 'Mira', file: bad });
+		expect(await mira.expect('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'character.invalid', path: 'party.wren' })]
+		});
+		mira.send({ type: 'library_publish', creator: 'Mira', file: shrine() });
+		const pub = await mira.expect('library_published');
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', libraryId: pub.adventureId });
+		const started = (await gm.until('room_reset')).room.adventure!;
+		expect(started.rules).toMatchObject({ id: 'dnd-5.5e' });
+		expect(started.characters.map((c) => c.id)).toEqual(['brakka', 'wren', 'ilse']);
+		expect(started.build).toEqual({ rules: 'dnd-5.5e' });
+		pip.send({ type: 'adventure_claim', characterId: 'wren' });
+		await pip.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'wren' && c.playerId !== null)
+		);
+		gm.send({ type: 'adventure_begin' });
+		await gm.until('adventure_update', (m) => m.adventure!.stage === 'playing');
+
+		// Saved and opened again on a new table: the file, its party and Wren's player come back.
+		gm.send({ type: 'scene_save', name: 'Shrine' });
+		const saved = await gm.until('scene_saved');
+		const again = await connect();
+		again.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		const reopened = (await again.expect('welcome')).room.adventure!;
+		expect(reopened.rules).toMatchObject({ id: 'dnd-5.5e' });
+		expect(reopened.chapter).toMatchObject({ id: 'the_shrine' });
+		expect(reopened.characters.find((c) => c.id === 'wren')).toBeTruthy();
 	});
 });

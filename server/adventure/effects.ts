@@ -180,6 +180,26 @@ export function removeEffects(
 	return gone;
 }
 
+/**
+ * Exhaustion on a bearer eases by `levels` (a Long Rest, milestone 57): the
+ * levels go down, and the condition goes at none. Returns how many it lost.
+ */
+export function easeExhaustion(adventure: AdventureState, tokenId: string, levels: number): number {
+	let eased = 0;
+	for (const e of all(adventure)) {
+		if (e.target !== tokenId || !e.mods.conditions?.includes(LEVELLED) || levels <= 0) continue;
+		const now = e.level ?? 1;
+		const less = Math.min(now, levels);
+		eased += less;
+		e.level = now - less;
+	}
+	removeEffects(
+		adventure,
+		(e) => e.target === tokenId && !!e.mods.conditions?.includes(LEVELLED) && (e.level ?? 1) <= 0
+	);
+	return eased;
+}
+
 /** The spell a source concentrates on, if any. */
 export function concentratingOn(adventure: AdventureState | null, source: string): string | null {
 	return (

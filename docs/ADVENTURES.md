@@ -321,6 +321,48 @@ A save whose content doesn't match its id is refused.
 are kept with the story, listed in the Adventure panel, and shown on the
 end screen.
 
+## Fifth edition adventures in the builder
+
+Since milestone 57, an adventure file can be written for the fifth edition rules (SRD 5.2.1). It stays plain data, and the story's flow (chapters, events, people, things, choices, endings) works as it does under the classic rules. Under the classic rules nothing changes: a file without `rules` reads exactly as before.
+
+A file opts in with these fields (`AdventureFile`, all optional):
+
+- **`rules`** `{ id: 'dnd-5.5e', version: 1 }`: the rules it plays by, at their exact version.
+- **`party`**: characters the rules build, by id. Each has the same `choices` a player makes in the character creator, and an optional `intro`. The server builds each with the rules' character builder (level 1 only, checked in full), so a choice the rules don't allow is a `character.invalid` diagnostic at `party.<id>`. Ids `pc-1`, `pc-2`… are kept for characters players build. `src/lib/rules/dnd55e/pregens.ts` holds ready-made builds the builder offers (`DND_PREGENS`).
+- **`openParty`**: players may also build their own characters.
+- **`monsters`**: kinds from the rules' bestiary (`srd-skeleton`) that its fights and spawns may name, as if they were its own enemies. The server makes each one the enemy the table plays (see milestone 51). A kind the table can't play is `ref.missing` at `monsters[i]`.
+- **`characters`** may then be empty: the classic characters have no fifth edition sheet.
+
+Checks name the rules' abilities and skills (`{ stat: 'religion', dc: 10 }`), and `save: true` makes an ability a saving throw. The `hurt` effect takes a `save` (`{ stat: 'dex', dc: 12, half: true }`). Two effects ask the rules for more:
+
+- **`{ rest: 'short' | 'long' }`**: the party rests, outside a fight, each character with at least 1 HP.
+  - A Short Rest spends Hit Point Dice while a character is hurt: each die rolled plus its Constitution modifier, at least 1 HP. It also recharges the features the SRD says it does: one use of Rage, Second Wind, Channel Divinity and Wild Shape, and all Focus Points and Pact Magic slots.
+  - A Long Rest gives back every Hit Point, Hit Point Die and resource, and lowers Exhaustion by a level.
+  - The words are the SRD's (`REST_PHRASES` and `SHORT_REST_RECHARGE` in `server/rules/dnd55e/rests.ts`, checked against the catalog by a test).
+  - Spent Hit Point Dice are kept with the story.
+- **`{ gear: { item, quantity, to? } }`**: an item from the rules' catalog (`srd-5.2.1:weapon:dagger`) goes to the character acting, or to each of the party with `to: 'party'`. It is recorded as found where the party is.
+
+Under the classic rules, saving throws, rests, gear, a party and monsters are problems the builder shows at once. Under rules without rests, gear, a builder or a bestiary, the server names them as `rules.check`.
+
+The server is the only place a file becomes playable (`server/adventure/rules-content.ts`):
+
+- `loadServerAdventure` reads the file with the shared reader.
+- `withRulesContent` then builds the party, finds the monsters, checks rests and gear against the rules, and runs the rules' own checks (`rulesProblems`).
+- Every load goes through it: playing, publishing, validating, collections, the library and reading a save back.
+
+In the builder:
+
+- **D&D template** starts from _The Hillside Shrine_ (`src/lib/adventure/dnd-example.ts`). It has a Religion check, a needle trap with a Dexterity save and a dagger inside, two SRD Skeletons, a Short Rest, a choice and two endings, with a party of three and an open party.
+- The **Rules & party** section:
+  - picks the rules;
+  - adds ready-made characters to the party, and renames them, colours them and writes their introductions;
+  - lets players build their own;
+  - searches the SRD's bestiary on the server (`bestiary_search`, outside any table) and adds monsters;
+  - asks the server what the draft comes to. The `validation` reply carries a `preview` (`AdventurePreview` in `src/lib/adventure/preview.ts`): the rules and the content they read (the SRD catalog by version and build), each party member's title, HP, defence and speed, the monsters as the table plays them, and the SRD's credit.
+- A verb's check offers the rules' abilities and skills, and a saving throw.
+- The effects lists offer a rest and gear.
+- **Play it** plays the draft on a new table. Before play, the server checks it again, as it does on every start and load.
+
 ## Built in as a file: The Last Train to Blackwater
 
 `server/adventures/blackwater/` is an adventure file written in TypeScript

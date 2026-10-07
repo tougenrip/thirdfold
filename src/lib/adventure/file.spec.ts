@@ -126,7 +126,7 @@ describe('adventure files', () => {
 		expect(loaded.problems).toEqual(
 			expect.arrayContaining([
 				'chapter the_mill: no chapter "nowhere"',
-				'characters: pick at least one',
+				'characters: pick at least one, or let players build their own',
 				'object sack: not on the yard table'
 			])
 		);

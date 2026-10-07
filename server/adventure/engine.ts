@@ -119,6 +119,7 @@ import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
 import { BESTIARY_MAX, withBestiary } from './bestiary';
 import { outsidePacks, PACKS_MAX, packInUse, packsOf, withPack } from './packs';
 import { keepCharacter, layPiles, pickUp, putDown, withKept } from './gear';
+import { easeExhaustion } from './effects';
 import {
 	activeOn,
 	addEffect,
@@ -1384,6 +1385,10 @@ export function run(
 			if (spotted) add(spotted);
 		} else if ('remember' in effect) {
 			adventure.said.add(effect.remember);
+		} else if ('rest' in effect) {
+			add(takeRest(room, adventure, effect.rest));
+		} else if ('gear' in effect) {
+			add(giveGear(room, adventure, effect.gear, by));
 		} else if ('reward' in effect) {
 			if (adventure.rewards.includes(effect.reward)) continue;
 			adventure.rewards.push(effect.reward);
@@ -1572,6 +1577,100 @@ export function share(room: Room, actor: Player, clueId: string): Outcomes {
 }
 
 /** Every standing character recovers up to `hp`. */
+/**
+ * The party rests (milestone 57), by the story's rules: every character in
+ * play with at least 1 HP (the SRD's rule for starting a rest), never in a
+ * fight. What it regains and rolls is the rules' to say; the table keeps
+ * the Hit Points, spent Hit Point Dice and resources it comes back with.
+ */
+function takeRest(room: Room, adventure: AdventureState, kind: 'short' | 'long'): Outcome {
+	const rules = rulesOf(adventure);
+	const name = kind === 'long' ? 'a Long Rest' : 'a Short Rest';
+	if (!rules.rests) return { log: [] };
+	if (adventure.encounter)
+		return { log: [postSystem(room, `There is no time for ${name} in the middle of a fight.`)] };
+	const log: ChatMessage[] = [postSystem(room, `The party takes ${name}.`)];
+	for (const c of played(room, adventure)) {
+		if (c.state.dead) continue;
+		if (c.state.hp < 1) {
+			log.push(postSystem(room, `${c.def.name} is too badly hurt to rest.`));
+			continue;
+		}
+		const r = rules.rests.rest(
+			kind,
+			c.def,
+			{ hp: c.state.hp, hitDiceSpent: c.state.hitDiceSpent ?? 0 },
+			diceOf(room)
+		);
+		c.state.hp = Math.max(1, Math.min(c.def.hp, r.hp));
+		c.state.hitDiceSpent = r.hitDiceSpent || undefined;
+		delete c.state.deathSaves;
+		// Resources come back: those marked by hand, and those an action counts in its uses.
+		const tracked = new Map(
+			(rules.card(c.def, c.state.statuses).resources ?? [])
+				.filter((x) => x.trackedBy)
+				.map((x) => [x.id, x.trackedBy!])
+		);
+		const ease = (map: Map<string, number> | undefined, key: string, back: number | 'all') => {
+			const n = map?.get(key);
+			if (!map || n === undefined) return;
+			const left = back === 'all' ? 0 : Math.max(0, n - back);
+			if (left) map.set(key, left);
+			else map.delete(key);
+		};
+		for (const [id, back] of Object.entries(r.regain)) {
+			ease(c.state.resources, id, back);
+			const action = tracked.get(id);
+			if (action) ease(c.state.uses, action, back);
+		}
+		if (c.state.resources?.size === 0) delete c.state.resources;
+		if (r.exhaustion) easeExhaustion(adventure, c.state.tokenId, r.exhaustion);
+		log.push(postSystem(room, r.text));
+	}
+	return { log };
+}
+
+/**
+ * Gear from the rules' catalog (milestone 57): to the character acting (or
+ * the first in play), or with `to: 'party'` to every character in play,
+ * found where the party is. One who can't carry it more goes without, and
+ * the table is told.
+ */
+function giveGear(
+	room: Room,
+	adventure: AdventureState,
+	gear: { item: string; quantity: number; to?: 'party' },
+	by: Doer
+): Outcome {
+	const rules = rulesOf(adventure);
+	const equipment = rules.equipment;
+	if (!equipment) return { log: [] };
+	const A = content(adventure);
+	const everyone = played(room, adventure).filter((c) => !c.state.dead && equipment.has(c.def));
+	const to =
+		gear.to === 'party'
+			? everyone
+			: everyone
+					.filter((c) => c.id === by.me?.id)
+					.slice(0, 1)
+					.concat(by.me ? [] : everyone.slice(0, 1));
+	const where = A.locations[adventure.location]?.name ?? adventure.location;
+	const base = contentOf(adventure.id);
+	const log: ChatMessage[] = [];
+	for (const c of to) {
+		const item = equipment.grant(gear.item, gear.quantity);
+		if (!item.ok) continue;
+		const added = equipment.add(c.def, item.item, { how: 'found', where });
+		if (!added.ok) {
+			log.push(postSystem(room, `${c.def.name} can't carry ${item.name} as well.`));
+			continue;
+		}
+		const kept = keepCharacter(adventure, rules, base, c.id, added.saved);
+		if (kept.ok) log.push(postSystem(room, `${c.def.name} takes ${added.name}.`));
+	}
+	return { log };
+}
+
 function tend(room: Room, adventure: AdventureState, hp: number): ChatMessage[] {
 	const healed = standing(room, adventure).filter((c) => c.state.hp < c.def.hp);
 	for (const c of healed) c.state.hp = Math.min(c.def.hp, c.state.hp + hp);

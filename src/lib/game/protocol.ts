@@ -58,6 +58,7 @@ import {
 import type { CollectionReport } from './collection';
 import { GRANT_ID_PATTERN, parseNewGrant, type NewGrant } from './access';
 import type { UpgradeReview } from '../adventure/versions';
+import type { AdventurePreview } from '../adventure/preview';
 import {
 	CONTENT_KINDS,
 	type ContentKind,
@@ -370,6 +371,12 @@ export type ClientMessage =
 	| { type: 'character_options' }
 	/** GM: monsters the story's rules can bring on, matching a search (name, type or challenge). */
 	| { type: 'monster_search'; query: string }
+	/**
+	 * Anyone, at a table or not (milestone 57: the builder): monsters a
+	 * ruleset's bestiary can play, by name, type or challenge. Replies with
+	 * monster_search.
+	 */
+	| { type: 'bestiary_search'; rules: { id: string; version: number }; query: string }
 	/**
 	 * GM: bring a content pack (homebrew under the story's rules, checked in
 	 * full on the server) to the story, or take one out that nothing uses.
@@ -713,8 +720,8 @@ export type ServerMessage =
 			type: 'character_preview';
 			preview: { ok: true; summary: Record<string, unknown> } | { ok: false; problems: string[] };
 	  }
-	/** What a content_validate found. */
-	| { type: 'validation'; validation: Validation }
+	/** What a content_validate found; for an adventure that reads, what it comes to under its rules. */
+	| { type: 'validation'; validation: Validation; preview?: AdventurePreview }
 	/** A refusal; one of content carries what was found in it (milestone 56). */
 	| { type: 'error'; code: ErrorCode; message: string; diagnostics?: Diagnostic[] };
 
@@ -1363,6 +1370,18 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			return data.op === 'detach' && typeof data.id === 'string' && PACK_ID.test(data.id)
 				? { type: 'adventure_pack', op: 'detach', id: data.id }
 				: null;
+		case 'bestiary_search': {
+			const r = data.rules;
+			if (!isRecord(r) || typeof r.id !== 'string' || !/^[a-z][a-z0-9.-]{0,47}$/.test(r.id))
+				return null;
+			if (!Number.isSafeInteger(r.version) || (r.version as number) < 1) return null;
+			if (typeof data.query !== 'string' || data.query.length > MONSTER_QUERY_MAX) return null;
+			return {
+				type: 'bestiary_search',
+				rules: { id: r.id, version: r.version as number },
+				query: data.query
+			};
+		}
 		case 'monster_search':
 			return typeof data.query === 'string' && data.query.length <= MONSTER_QUERY_MAX
 				? { type: 'monster_search', query: data.query }

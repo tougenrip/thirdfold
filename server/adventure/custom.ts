@@ -8,13 +8,13 @@ import { createHash } from 'node:crypto';
 import {
 	ADVENTURE_FILE_MAX_BYTES,
 	diagnoseAdventureFile,
-	loadAdventureFile,
 	parseAdventureFile,
 	type AdventureFile
 } from '../../src/lib/adventure/file';
 import { diagnostic, type Diagnostic } from '../../src/lib/validation/diagnostics';
 import type { AdventureDef } from './define';
 import { addCustom, customFile } from './registry';
+import { loadServerAdventure } from './rules-content';
 
 /** Custom adventures' ids: `custom-` and a hash of the checked file. */
 export const CUSTOM_ID = /^custom-[0-9a-f]{32}$/;
@@ -56,7 +56,8 @@ export function loadCustomAdventure(raw: unknown, expectId?: string): CustomLoad
 			diagnostics: [diagnostic('save.invalid', 'content', 'does not match its id')]
 		};
 	}
-	const loaded = loadAdventureFile(parsed.file, id);
+	// Checked in full, with what its rules make of it (its party, its monsters).
+	const loaded = loadServerAdventure(parsed.file, id);
 	if (!loaded.ok) return { ok: false, error: loaded.error, diagnostics: loaded.diagnostics };
 	addCustom(loaded.adventure, loaded.file);
 	return { ok: true, adventure: loaded.adventure };

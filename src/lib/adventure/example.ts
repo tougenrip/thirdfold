@@ -11,7 +11,7 @@ import type { Prop } from '../game/props';
 import { blankScene, type SceneFile } from '../game/scene-file';
 import { applyWorldPatch, DEFAULT_WORLD, type WorldPatch } from '../game/world';
 
-function table(
+export function table(
 	name: string,
 	width: number,
 	height: number,
@@ -41,8 +41,8 @@ function table(
 	};
 }
 
-const at = (x: number, y: number): GridPos => ({ x, y });
-const prop = (id: string, assetId: Prop['assetId'], x: number, y: number): Prop => ({
+export const at = (x: number, y: number): GridPos => ({ x, y });
+export const prop = (id: string, assetId: Prop['assetId'], x: number, y: number): Prop => ({
 	id,
 	assetId,
 	pos: { x, y },

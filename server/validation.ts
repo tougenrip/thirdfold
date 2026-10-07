@@ -9,8 +9,6 @@
 // (`content_validate`) and on import, publish, load and session start,
 // where a refusal carries them.
 
-import { diagnoseAdventureFile } from '../src/lib/adventure/file';
-import { ADVENTURE_FILE_MAX_BYTES } from '../src/lib/adventure/file';
 import { COLLECTION_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '../src/lib/game/file-limits';
 import { parseCollectionFile, type CollectionFile } from '../src/lib/game/collection';
 import { parseEntitlements, type Entitlement } from '../src/lib/game/access';
@@ -25,11 +23,10 @@ import {
 	type Validation
 } from '../src/lib/validation/diagnostics';
 import { readAdventure } from './adventure/persist';
+import { loadServerAdventure } from './adventure/rules-content';
 import { resolveCollection, withRules, type Shelves } from './collections';
 import { stillHolds } from './library-access';
-import { CLASSIC } from './rules/classic';
-import { rulesProblems } from './rules';
-import { findRuleset, type RulesetRef } from './rules/ruleset';
+import { findRuleset } from './rules/ruleset';
 
 /** What a check may consult: the library and saved tables, and who asks. */
 export interface ValidateContext {
@@ -74,28 +71,14 @@ export async function validateContent(
 	}
 }
 
-/** An adventure file: its shape and every field, its story, and the rules it names. */
+/**
+ * An adventure file: its shape and every field, its story, and what its
+ * rules make of it (its party, its monsters, rests, gear, checks and saves).
+ */
 export function validateAdventureFile(raw: unknown): Validation {
-	if (sizeOf(raw) > ADVENTURE_FILE_MAX_BYTES)
-		return validationOf('adventure', [
-			diagnostic('schema.value', 'file', `at most ${ADVENTURE_FILE_MAX_BYTES / 1024} KB`)
-		]);
-	const d = diagnoseAdventureFile(raw, 'custom-validate');
-	const diagnostics = [...d.diagnostics];
-	if (d.adventure) {
-		const rules: RulesetRef = d.adventure.rules ?? CLASSIC;
-		if (!findRuleset(rules))
-			diagnostics.push(
-				diagnostic(
-					'rules.unknown',
-					'rules',
-					`this server doesn't have ${rules.id} v${rules.version}`
-				)
-			);
-		else
-			for (const p of rulesProblems(d.adventure)) diagnostics.push(fromProblem(p, 'rules.check'));
-	}
-	return validationOf('adventure', diagnostics, d.format);
+	const loaded = loadServerAdventure(raw, 'custom-validate');
+	if (loaded.ok) return validationOf('adventure', [], loaded.file.version);
+	return validationOf('adventure', loaded.diagnostics, loaded.format);
 }
 
 /** The code of a problem a homebrew pack's reader words. */

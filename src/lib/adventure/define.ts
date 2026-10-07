@@ -91,6 +91,10 @@ export interface Rule {
 }
 
 /** Something that happens to the story or the table. Each has exactly one kind. */
+/** A rest the party takes (milestone 57). */
+export type RestKind = 'short' | 'long';
+export const REST_KINDS: readonly RestKind[] = ['short', 'long'];
+
 export type Effect =
 	/** Narration (or, with a speaker, a line spoken); `private` tells only the character acting. */
 	| { say: string; speaker?: string; private?: true; cue?: Cue; shot?: Shot }
@@ -156,6 +160,16 @@ export type Effect =
 				save?: { stat: string; dc: number; half: boolean };
 			};
 	  }
+	/**
+	 * The party rests (milestone 57), by the story's rules: a Short Rest or a
+	 * Long Rest for every character in play with at least 1 HP, outside a fight.
+	 */
+	| { rest: RestKind }
+	/**
+	 * Gear from the rules' catalog (an SRD item's id) given to the character
+	 * acting, or to every character in play with `to: 'party'`.
+	 */
+	| { gear: { item: string; quantity: number; to?: 'party' } }
 	/** An enemy comes up and joins the fight (the first free cell of `at`). */
 	| { spawn: { kind: string; at: readonly GridPos[]; text: string } }
 	/** The first of these rules whose conditions hold. */

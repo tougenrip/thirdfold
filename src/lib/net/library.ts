@@ -7,6 +7,8 @@ import type { NewGrant } from '$lib/game/access';
 import type { LibraryKind, LibrarySort, MyAdventure, SharedListing } from '$lib/game/library';
 import { saveGmKey } from '$lib/prefs';
 import type { ContentKind, Validation } from '$lib/validation/diagnostics';
+import type { AdventurePreview } from '$lib/adventure/preview';
+import type { MonsterListing } from '$lib/adventure/adventure';
 import { ask } from './ask';
 
 export async function listLibrary(q: {
@@ -66,14 +68,22 @@ export async function validateOnServer(
 	kind: ContentKind,
 	file: unknown,
 	gmKey?: string | null
-): Promise<Validation> {
+): Promise<{ validation: Validation; preview: AdventurePreview | null }> {
 	const reply = await ask(
 		{ type: 'content_validate', kind, file, ...(gmKey ? { gmKey } : {}) },
 		'validation',
 		undefined,
 		15000
 	);
-	return reply.validation;
+	return { validation: reply.validation, preview: reply.preview ?? null };
+}
+
+/** Monsters a ruleset's bestiary can play, by name, type or challenge (milestone 57: the builder). */
+export async function searchBestiary(
+	rules: { id: string; version: number },
+	query: string
+): Promise<MonsterListing[]> {
+	return (await ask({ type: 'bestiary_search', rules, query }, 'monster_search')).monsters;
 }
 
 /** A creator's own items, what others shared with them, and the id others grant to. */

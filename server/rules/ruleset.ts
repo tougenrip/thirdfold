@@ -160,6 +160,36 @@ export interface Bestiary {
 	summary(monsters: readonly string[], levels: readonly number[]): EncounterSummary;
 }
 
+/** What a rest does for one character (milestone 57). */
+export interface RestResult {
+	/** Its Hit Points after the rest. */
+	hp: number;
+	/** Hit Point Dice it has spent after the rest. */
+	hitDiceSpent: number;
+	/** Expended uses of its resources it regains, by resource id: all of them, or so many. */
+	regain: Record<string, number | 'all'>;
+	/** Levels of Exhaustion it loses. */
+	exhaustion: number;
+	/** The dice it rolled (Hit Point Dice spent). */
+	rolls: DiceRoll[];
+	/** What the rest did for it, in the rules' words. */
+	text: string;
+}
+
+/** Rests, under rules that have them (milestone 57). */
+export interface Rests {
+	/**
+	 * A rest for a character in play: what it comes back with. The engine
+	 * asks only for characters with at least 1 Hit Point, outside a fight.
+	 */
+	rest(
+		kind: 'short' | 'long',
+		character: CharacterDef,
+		state: { hp: number; hitDiceSpent: number },
+		roller: DieRoller
+	): RestResult;
+}
+
 /**
  * Content packs (homebrew, milestone 52): a creator's own content for these
  * rules, checked in full and held by an id its content gives, extending the
@@ -293,6 +323,8 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	rollDamage?(dice: string, critical: boolean, roller: DieRoller): DiceRoll;
 	/** The monsters these rules can bring to a table, for rules with a bestiary. */
 	bestiary?: Bestiary;
+	/** What a Short or Long Rest does for a character, under rules that have rests (milestone 57). */
+	rests?: Rests;
 	/** Creators' own content for these rules (homebrew), for rules that take it. */
 	packs?: ContentPacks;
 	/**

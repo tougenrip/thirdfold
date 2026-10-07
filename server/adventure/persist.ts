@@ -144,7 +144,8 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 						...(c.deathSaves ? { deathSaves: { ...c.deathSaves } } : {}),
 						dead: c.dead,
 						...(c.holdReaction ? { holdReaction: true } : {}),
-						...(c.resources?.size ? { resources: entriesOf(c.resources) } : {})
+						...(c.resources?.size ? { resources: entriesOf(c.resources) } : {}),
+						...(c.hitDiceSpent ? { hitDiceSpent: c.hitDiceSpent } : {})
 					}
 				])
 			),
@@ -612,6 +613,9 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 			...(c.holdReaction === undefined
 				? {}
 				: { holdReaction: bool(c.holdReaction, `${def.name}'s reaction`) || undefined }),
+			...(c.hitDiceSpent === undefined
+				? {}
+				: { hitDiceSpent: int(c.hitDiceSpent, 1, 20, `${def.name}'s Hit Point Dice`) }),
 			...(c.resources === undefined
 				? {}
 				: {

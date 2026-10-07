@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { exampleAdventure } from '$lib/adventure/example';
+import { pregenChoices } from '$lib/rules/dnd55e/pregens';
 import { parseSceneFile, SCENE_FILE_VERSION } from '$lib/game/scene-file';
 import { DEFAULT_WORLD } from '$lib/game/world';
 import {
+	addPregen,
+	DND_RULES,
+	withRules,
 	flowOf,
 	formatArea,
 	formatCells,
@@ -13,7 +17,8 @@ import {
 	parseCell,
 	parseCells,
 	parseList,
-	renameKey
+	renameKey,
+	toDraft
 } from './draft';
 
 describe('the builder draft', () => {
@@ -81,5 +86,21 @@ describe('the builder draft', () => {
 			by: 'flour: Keep it for yourselves',
 			kind: 'branch'
 		});
+	});
+});
+
+describe('the rules a draft plays by (milestone 57)', () => {
+	it('switches to the fifth edition and back, keeping only what each rules can play', () => {
+		const dnd = withRules(toDraft(exampleAdventure()), true);
+		expect(dnd).toMatchObject({ rules: DND_RULES, characters: [], openParty: true });
+		expect(addPregen(dnd, pregenChoices('fighter'))).toBe('brakka');
+		expect(addPregen(dnd, pregenChoices('fighter'))).toBe('brakka-2');
+		expect(addPregen(dnd, pregenChoices('nobody'))).toBeNull();
+		expect(Object.keys(dnd.party!)).toEqual(['brakka', 'brakka-2']);
+		dnd.monsters = ['srd-skeleton'];
+		expect(idsOf(dnd).enemies).toContain('srd-skeleton');
+		const classic = withRules(dnd, false);
+		expect(classic.characters.length).toBeGreaterThan(0);
+		expect('rules' in classic || 'party' in classic || 'monsters' in classic).toBe(false);
 	});
 });

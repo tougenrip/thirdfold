@@ -10,7 +10,7 @@
 // creator's own, the creator is a collaborator on it, or it was granted to
 // the collection. A piece the asker may not even know of reads as missing.
 
-import { loadAdventureFile } from '../src/lib/adventure/file';
+import { loadServerAdventure } from './adventure/rules-content';
 import {
 	refName,
 	type AdventureRef,
@@ -71,7 +71,7 @@ function rulesOfAdventure(ref: AdventureRef, copy?: LibraryCopy): RulesetRef | n
 		return found ? (found.rules ?? CLASSIC) : null;
 	}
 	if (!copy) return null;
-	const loaded = loadAdventureFile(copy.file, `library-${ref.library}`);
+	const loaded = loadServerAdventure(copy.file, `library-${ref.library}`);
 	return loaded.ok ? (loaded.adventure.rules ?? CLASSIC) : null;
 }
 
@@ -195,7 +195,7 @@ export async function resolveCollection(
 			continue;
 		}
 		line.title = found.copy.listing.title;
-		const loaded = loadAdventureFile(found.copy.file, `library-${ref.library}`);
+		const loaded = loadServerAdventure(found.copy.file, `library-${ref.library}`);
 		if (!loaded.ok) {
 			Object.assign(line, { status: 'invalid', message: loaded.error });
 			continue;

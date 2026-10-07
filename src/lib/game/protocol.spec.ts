@@ -657,3 +657,13 @@ describe('validation (milestone 56)', () => {
 		expect(parseServerMessage({ ...error, diagnostics: 'many' })).toBeNull();
 	});
 });
+
+describe('authoring (milestone 57)', () => {
+	it('parses a bestiary search by rules, outside a table, and only well-formed ones', () => {
+		const ask = { type: 'bestiary_search', rules: { id: 'dnd-5.5e', version: 1 }, query: 'wolf' };
+		expect(parseClientMessage({ ...ask, extra: 1 })).toEqual(ask);
+		expect(parseClientMessage({ ...ask, rules: { id: 'DnD', version: 1 } })).toBeNull();
+		expect(parseClientMessage({ ...ask, rules: { id: 'dnd-5.5e', version: 0 } })).toBeNull();
+		expect(parseClientMessage({ ...ask, query: 'x'.repeat(500) })).toBeNull();
+	});
+});

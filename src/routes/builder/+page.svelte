@@ -18,7 +18,8 @@
 	import CellsInput from '$lib/builder/CellsInput.svelte';
 	import Diagnostics from '$lib/ui/Diagnostics.svelte';
 	import { validateOnServer } from '$lib/net/library';
-	import type { Validation } from '$lib/validation/diagnostics';
+	import type { Diagnostic, Validation } from '$lib/validation/diagnostics';
+	import type { AdventurePreview } from '$lib/adventure/preview';
 	import {
 		flowOf,
 		formatArea,
@@ -35,6 +36,7 @@
 		storeDraft
 	} from '$lib/builder/draft';
 	import EffectsEditor from '$lib/builder/EffectsEditor.svelte';
+	import { DND_ABILITIES, DND_SKILLS } from '$lib/rules/dnd55e/terms';
 	import ListInput from '$lib/builder/ListInput.svelte';
 	import RulesEditor from '$lib/builder/RulesEditor.svelte';
 	import WhenEditor from '$lib/builder/WhenEditor.svelte';
@@ -58,7 +60,7 @@
 	/** The server's own check of the draft (milestone 56), asked for by the creator. */
 	let serverCheck = $state<
 		| { state: 'asking' }
-		| { state: 'done'; validation: Validation; of: string }
+		| { state: 'done'; validation: Validation; preview: AdventurePreview | null; of: string }
 		| { state: 'failed'; error: string }
 		| null
 	>(null);
@@ -66,8 +68,8 @@
 		serverCheck = { state: 'asking' };
 		const file = $state.snapshot(draft);
 		try {
-			const validation = await validateOnServer('adventure', file, loadGmKey());
-			serverCheck = { state: 'done', validation, of: JSON.stringify(file) };
+			const { validation, preview } = await validateOnServer('adventure', file, loadGmKey());
+			serverCheck = { state: 'done', validation, preview, of: JSON.stringify(file) };
 		} catch (err) {
 			serverCheck = { state: 'failed', error: (err as Error).message };
 		}
@@ -89,6 +91,7 @@
 
 	const SECTIONS = [
 		['overview', 'Overview'],
+		['rules', 'Rules & party'],
 		['scenes', 'Scenes'],
 		['flow', 'Flow'],
 		['people', 'People'],
@@ -185,6 +188,14 @@
 		draft = toDraft(exampleAdventure());
 	}
 
+	async function dndTemplate() {
+		if (!confirm('Start from the fifth edition template? This draft will be replaced.')) return;
+		// Loaded when asked for: the template and its party's choices stay out of the page.
+		const { dndExampleAdventure } = await import('$lib/adventure/dnd-example');
+		draft = toDraft(dndExampleAdventure());
+		section = 'rules';
+	}
+
 	function blank() {
 		if (!confirm('Start a new, empty adventure? This draft will be replaced.')) return;
 		draft = {
@@ -257,11 +268,15 @@
 	let playing = $state(false);
 
 	/** Opens a new table as its GM and starts this adventure there. */
+	/** What the server found when it refused to play the draft. */
+	let playFound = $state<Diagnostic[]>([]);
+
 	async function play() {
 		const name = playName.trim();
 		if (!name) return (error = 'Enter your name to play it.');
 		if (!checked.ok) return (error = 'Fix the problems first (see Check).');
 		error = null;
+		playFound = [];
 		playing = true;
 		saveName(name);
 		const gmKey = loadGmKey();
@@ -272,7 +287,11 @@
 			for (let i = 0; i < 100 && !conn.room?.adventure && !conn.actionError; i++) {
 				await new Promise((r) => setTimeout(r, 50));
 			}
-			if (conn.actionError) throw new Error(conn.actionError.message);
+			if (conn.actionError) {
+				// The server checked it again before play: show what it found, with Check.
+				playFound = conn.actionError.diagnostics ?? [];
+				throw new Error(conn.actionError.message);
+			}
 			if (!conn.room?.adventure) throw new Error('The table did not start the adventure.');
 			handOff(conn);
 			await goto(resolve('/room/[id]', { id: conn.room.id }));
@@ -386,6 +405,7 @@
 		<span class="spacer"></span>
 		<button type="button" onclick={blank}>New</button>
 		<button type="button" onclick={startOver}>Example</button>
+		<button type="button" onclick={dndTemplate}>D&amp;D template</button>
 		<label class="file-button">
 			Open file
 			<input type="file" accept=".json,application/json" hidden onchange={importFile} />
@@ -404,6 +424,9 @@
 	</header>
 
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	{#if error && playFound.length}<div class="found">
+			<Diagnostics diagnostics={playFound} />
+		</div>{/if}
 	{#if notice && !error}<p class="notice" role="status">{notice}</p>{/if}
 
 	<nav aria-label="Parts of the adventure">
@@ -421,7 +444,17 @@
 	</nav>
 
 	<main>
-		{#if section === 'overview'}
+		{#if section === 'rules'}
+			{#await import('$lib/builder/RulesSection.svelte') then { default: RulesSection }}
+				<RulesSection
+					bind:draft
+					preview={serverCheck?.state === 'done' ? serverCheck.preview : null}
+					current={serverCurrent}
+					checking={serverCheck?.state === 'asking'}
+					onCheck={checkOnServer}
+				/>
+			{/await}
+		{:else if section === 'overview'}
 			<section>
 				<h2>Overview</h2>
 				<label class="field">
@@ -432,20 +465,24 @@
 					<span>About (for whoever picks it)</span>
 					<textarea rows="2" bind:value={draft.about} maxlength="600"></textarea>
 				</label>
-				<fieldset>
-					<legend>Characters players choose from</legend>
-					{#each CHARACTER_IDS as c (c)}
-						<label class="check">
-							<input
-								type="checkbox"
-								checked={draft.characters.includes(c)}
-								onchange={(e) =>
-									(draft.characters = toggle(draft.characters, c, e.currentTarget.checked))}
-							/>
-							{CHARACTERS[c].name} <span class="muted">{CHARACTERS[c].tagline}</span>
-						</label>
-					{/each}
-				</fieldset>
+				{#if draft.rules}
+					<p class="muted">The party is built by the rules: see Rules &amp; party.</p>
+				{:else}
+					<fieldset>
+						<legend>Characters players choose from</legend>
+						{#each CHARACTER_IDS as c (c)}
+							<label class="check">
+								<input
+									type="checkbox"
+									checked={draft.characters.includes(c)}
+									onchange={(e) =>
+										(draft.characters = toggle(draft.characters, c, e.currentTarget.checked))}
+								/>
+								{CHARACTERS[c].name} <span class="muted">{CHARACTERS[c].tagline}</span>
+							</label>
+						{/each}
+					</fieldset>
+				{/if}
 				<div class="grid2">
 					<label class="field">
 						<span>It starts at</span>
@@ -1252,21 +1289,46 @@
 										/>
 									</label>
 									<label class="field">
-										<span>Check (stat)</span>
+										<span>{draft.rules ? 'Check or saving throw' : 'Check (stat)'}</span>
 										<select
 											value={verb.check?.stat ?? ''}
 											onchange={(e) =>
 												e.currentTarget.value
 													? (verb.check = {
 															stat: e.currentTarget.value as never,
-															dc: verb.check?.dc ?? 12
+															dc: verb.check?.dc ?? 12,
+															...(verb.check?.save ? { save: true } : {})
 														})
 													: delete verb.check}
 										>
 											<option value="">none</option>
-											{#each STATS as st (st.id)}<option value={st.id}>{st.name}</option>{/each}
+											{#if draft.rules}
+												<optgroup label="Abilities (a check or a saving throw)">
+													{#each DND_ABILITIES as a (a.id)}<option value={a.id}>{a.name}</option
+														>{/each}
+												</optgroup>
+												<optgroup label="Skills (a check)">
+													{#each DND_SKILLS as sk (sk.id)}<option value={sk.id}>{sk.name}</option
+														>{/each}
+												</optgroup>
+											{:else}
+												{#each STATS as st (st.id)}<option value={st.id}>{st.name}</option>{/each}
+											{/if}
 										</select>
 									</label>
+									{#if verb.check && draft.rules && DND_ABILITIES.some((a) => a.id === verb.check?.stat)}
+										<label class="check">
+											<input
+												type="checkbox"
+												checked={!!verb.check.save}
+												onchange={(e) => {
+													if (e.currentTarget.checked) verb.check!.save = true;
+													else delete verb.check!.save;
+												}}
+											/>
+											A saving throw
+										</label>
+									{/if}
 									{#if verb.check}
 										<label class="field"
 											><span>Difficulty</span><input
@@ -1862,6 +1924,10 @@
 
 	.notice {
 		color: var(--ok);
+	}
+
+	.found {
+		margin: 0 0 var(--sp-3);
 	}
 
 	@media (max-width: 40rem) {

@@ -28,7 +28,8 @@ import { builtInAdventures, trackInUse } from './adventure/registry';
 import { findRuleset, trackPacksInUse, type RulesetRef } from './rules/ruleset';
 import { RateLimiter } from './rate-limit';
 import { createHash } from 'node:crypto';
-import { ADVENTURE_FILE_MAX_BYTES, loadAdventureFile } from '../src/lib/adventure/file';
+import { ADVENTURE_FILE_MAX_BYTES } from '../src/lib/adventure/file';
+import { loadServerAdventure, previewOf } from './adventure/rules-content';
 import {
 	LIBRARY_LIMITS,
 	normalizeCreatorName,
@@ -327,6 +328,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'library_revoke':
 			case 'collection_check':
 			case 'content_validate':
+			case 'bestiary_search':
 			case 'games_list':
 				// The library and the open games: at a table or not.
 				void handleLibrary(ws, msg);
@@ -1309,6 +1311,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					| 'library_revoke'
 					| 'collection_check'
 					| 'content_validate'
+					| 'bestiary_search'
 					| 'games_list';
 			}
 		>
@@ -1318,6 +1321,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'library_story' ||
 			msg.type === 'collection_check' ||
 			msg.type === 'content_validate' ||
+			msg.type === 'bestiary_search' ||
 			msg.type === 'games_list';
 		const creatorKey = 'gmKey' in msg && msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws);
 		const limited = browsing
@@ -1337,7 +1341,21 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						owner: msg.gmKey ? keyOwner(msg.gmKey) : null,
 						collection: msg.collection ?? null
 					});
-					return send(ws, { type: 'validation', validation });
+					// An adventure that reads: what it comes to under its rules, for the builder.
+					const loaded =
+						msg.kind === 'adventure' && validation.ok
+							? loadServerAdventure(msg.file, 'custom-validate')
+							: null;
+					const preview = loaded?.ok ? previewOf(loaded.file, loaded.adventure) : null;
+					return send(ws, { type: 'validation', validation, ...(preview ? { preview } : {}) });
+				}
+				case 'bestiary_search': {
+					const bestiary = findRuleset(msg.rules)?.bestiary;
+					return send(ws, {
+						type: 'monster_search',
+						query: msg.query,
+						monsters: bestiary ? bestiary.search(msg.query, adventure.MONSTER_RESULTS) : []
+					});
 				}
 				case 'library_list': {
 					const kind = msg.kind ?? 'adventure';
@@ -1382,7 +1400,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 							story: null,
 							...(may.visible ? { locked: true } : {})
 						});
-					const loaded = loadAdventureFile(copy.file, `library-${msg.id}`);
+					const loaded = loadServerAdventure(copy.file, `library-${msg.id}`);
 					if (!loaded.ok) return send(ws, { type: 'library_story', story: null });
 					return send(ws, {
 						type: 'library_story',
@@ -1576,7 +1594,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		if (kind === 'adventure') {
 			if (size > ADVENTURE_FILE_MAX_BYTES) return refused('That adventure is too large.');
 			// Checked in full, as it would be to play it: only playable adventures are published.
-			const loaded = loadAdventureFile(raw, 'custom-publish');
+			const loaded = loadServerAdventure(raw, 'custom-publish');
 			if (!loaded.ok) return { ok: false, error: loaded.error, diagnostics: loaded.diagnostics };
 			const { title, about } = loaded.file;
 			return { ok: true, item: { title, about: about ?? '', file: loaded.file } };

@@ -38,7 +38,11 @@ const BUDGETS = {
 	// → 101.3: the rules track's (#99) and main's M70 (#250, #259) together, 101,227 B measured.
 	// → 104.1: diagnostics (#101): every code's hint, the diagnostics list and Check on the server,
 	// 104,020 B measured.
-	'/builder': { total: 104_100, own: 52_000 },
+	// → 108.3, own 52.0 → 55.7: fifth edition authoring (#102): the file's rules, party,
+	// monsters, saves, rests and gear in the reader, the rules' abilities and skills for checks,
+	// rests and gear in the effects (the Rules & party section, the template and its pregens load
+	// on demand), and Play it's refusal shown with its diagnostics, 108,422 B measured, 55,792 B own.
+	'/builder': { total: 108_500, own: 55_800 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured. → 54.9: beside the rules track's shared
 	// library types (#99), 54,802 B measured.
 	'/credits': { total: 54_900, own: 3_000 },
@@ -52,7 +56,9 @@ const BUDGETS = {
 	// 66.0 → 66.2: the rules track's library client (#98, #99) beside main's M70 kits (#250),
 	// 66,138 B measured.
 	// → 67.4: a refused publish's diagnostics in the workshop (#101), 67,365 B measured.
-	'/library': { total: 67_400, own: 21_000 },
+	// → 67.7: the library client's bestiary search and the validation preview (#102),
+	// 67,612 B measured.
+	'/library': { total: 67_700, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
 	'/room/[id]': { total: 121_700, own: 76_000 },

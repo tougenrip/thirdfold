@@ -55,6 +55,8 @@ export interface CharacterState {
 	 * Absent when none were marked.
 	 */
 	resources?: Map<string, number>;
+	/** Hit Point Dice spent on Short Rests since its last Long Rest, under rules with rests (milestone 57). */
+	hitDiceSpent?: number;
 }
 
 export interface EnemyState {
