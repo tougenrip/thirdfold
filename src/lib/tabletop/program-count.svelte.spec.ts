@@ -352,6 +352,19 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 			'every token the same figure',
 			() => t.setTokens(home.tokens.map((k) => ({ ...k, model: arriving })))
 		],
+		// Large bases (#270): a base of every size, then one shrunk by a mini beside it.
+		['token large', () => t.setTokens(withToken({ scale: 1.8 }))],
+		['token huge', () => t.setTokens(withToken({ scale: 2.6 }))],
+		['token at the scale cap', () => t.setTokens(withToken({ scale: 3 }))],
+		[
+			'large base shrunk',
+			() =>
+				t.setTokens([
+					...withToken({ scale: 1.8 }),
+					{ ...token, id: 'beside', pos: { x: token.pos.x + 1, y: token.pos.y } }
+				])
+		],
+		['token lifted', () => t.setTokens(withToken({ lift: 2 }))],
 		['tokens back', () => t.setTokens(home.tokens)],
 		// Bases (#265): a ring per seat, an enemy's notched, 'mine' doubled, hovered; the turn's pulses.
 		[

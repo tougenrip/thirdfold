@@ -40,6 +40,7 @@ import { AMBIENTS, LIGHT_LOOK_KEYS, parseLightLook } from '../game/lights';
 import { MOTION_KINDS, SOUNDS } from '../game/motion';
 import { resolveAssetId, type AssetId } from '../game/props';
 import { parseSceneFile, type SavedToken, type SceneFile } from '../game/scene-file';
+import { TOKEN_SCALE } from '../game/token';
 import { ASSET_ID_PATTERN } from '../assets/manifest';
 import { parseWorldPatch, type WorldPatch } from '../game/world';
 
@@ -780,6 +781,13 @@ function enemy(v: unknown, path: string): EnemyFile {
 	if (lightColor !== undefined && (typeof lightColor !== 'string' || !COLOR.test(lightColor))) {
 		bad(`${path}.lightColor`, 'expected #rrggbb');
 	}
+	const scale = e.scale;
+	if (
+		scale !== undefined &&
+		(typeof scale !== 'number' || !(scale >= TOKEN_SCALE.min && scale <= TOKEN_SCALE.max))
+	) {
+		bad(`${path}.scale`, `expected a number from ${TOKEN_SCALE.min} to ${TOKEN_SCALE.max}`);
+	}
 	const toll = opt(e.toll, (x) => {
 		const t = obj(x, `${path}.toll`);
 		return {
@@ -800,6 +808,7 @@ function enemy(v: unknown, path: string): EnemyFile {
 		vision: int(e.vision, `${path}.vision`, 1, 30),
 		light: int(e.light, `${path}.light`, 0, 20),
 		...(lightColor === undefined ? {} : { lightColor: (lightColor as string).toLowerCase() }),
+		...(scale === undefined ? {} : { scale: scale as number }),
 		initiative: int(e.initiative, `${path}.initiative`, -10, 20),
 		hp: hitPoints(e.hp, `${path}.hp`),
 		attacks: list(

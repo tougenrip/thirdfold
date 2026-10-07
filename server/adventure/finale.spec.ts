@@ -69,6 +69,10 @@ const put = (player: Player, pos: GridPos) => {
 };
 const texts = (log: ChatMessage[]) => log.flatMap((m) => ('text' in m ? [m.text] : []));
 const kinds = () => [...(story().encounter?.enemies.values() ?? [])].map((e) => e.kind);
+const scalesOf = (kind: string) =>
+	[...story().encounter!.enemies]
+		.filter(([, e]) => e.kind === kind)
+		.map(([id]) => room.tokens.get(id)?.scale);
 const findTobin = () => ok(interact(room, ana, 'tobin'));
 /** Phase 1: look into the pit. */
 const lookIn = () => {
@@ -337,6 +341,7 @@ describe('phase 4: the party decides what becomes of the Bell', () => {
 		expect(story()).toMatchObject({ stage: 'playing', ending: null });
 		expect(story().encounter?.id).toBe('wrath');
 		expect(kinds()).toEqual(['hand', 'tendril', 'tendril']);
+		expect(scalesOf('hand')).toEqual([2.6]); // a larger base (#270)
 		const won = clearEnemies();
 		expect(texts(won.log)).toContain(
 			'The Hand falls back into the pit, and you bring the Bell down. It cracks with a sound like the end of the world.'

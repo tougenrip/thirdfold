@@ -157,6 +157,8 @@ describe('ending B: Descent', () => {
 		expect(room.props.has(HEART_IDS.heart)).toBe(true);
 		const foes = [...story().encounter!.enemies.values()].map((e) => e.kind);
 		expect(foes).toEqual(['heart', 'tendril', 'tendril']);
+		const heart = [...story().encounter!.enemies].find(([, e]) => e.kind === 'heart')![0];
+		expect(room.tokens.get(heart)?.scale).toBe(2.6); // a larger base (#270)
 		expect(adventureView(room, ana, new Set(), null)!.objectives.map((o) => o.id)).toEqual([
 			'heart'
 		]);

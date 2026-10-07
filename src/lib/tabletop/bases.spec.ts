@@ -7,9 +7,13 @@ import {
 	BANDS,
 	BASE_PALETTE,
 	BASE_PROFILE,
+	BASE_SIZES,
+	baseDiameters,
+	baseSizeFor,
 	EMISSION,
 	ENEMY,
 	NEUTRAL,
+	profileFor,
 	PULSE,
 	ringEmission,
 	ringFor,
@@ -122,5 +126,45 @@ describe('the base profile', () => {
 		// Lathed in this order, the top and the edge face up and out (LatheGeometry's normals).
 		const [a, b] = BASE_PROFILE.slice(-2);
 		expect(b[0] - a[0]).toBeLessThan(0); // inward along the top: its normal points up
+	});
+});
+
+describe('base sizes (#270)', () => {
+	it('picks 0.86, 1.9, 2.9 or 3.9 by scale', () => {
+		expect([undefined, 0.5, 1, 1.49].map(baseSizeFor)).toEqual([0.86, 0.86, 0.86, 0.86]);
+		expect([1.5, 1.8, 2.49].map(baseSizeFor)).toEqual([1.9, 1.9, 1.9]);
+		expect([2.5, 2.6, 3].map(baseSizeFor)).toEqual([2.9, 2.9, 2.9]);
+		expect(baseSizeFor(3.5)).toBe(3.9);
+	});
+
+	const keeper = { id: 'k', pos: { x: 5, y: 5 }, scale: 1.8 };
+	const at = (x: number, y: number, id = 'c') => ({ id, pos: { x, y } });
+
+	it('keeps a large base when nobody stands under it', () => {
+		const d = baseDiameters([keeper, at(5, 7), at(6, 6)]);
+		expect(d.get('k')).toBe(1.9); // two cells off, and diagonal (1.41 > 0.95 + 0.43)
+		expect(d.get('c')).toBe(0.86);
+	});
+
+	it('shrinks to 0.86 with another mini beside it, by distance', () => {
+		expect(baseDiameters([keeper, at(6, 5)]).get('k')).toBe(0.86);
+		const hand = { id: 'h', pos: { x: 5, y: 5 }, scale: 2.6 };
+		expect(baseDiameters([hand, at(6, 6)]).get('h')).toBe(0.86); // 1.41 < 1.45 + 0.43
+		expect(baseDiameters([hand, at(7, 5)]).get('h')).toBe(2.9); // 2 > 1.88
+	});
+
+	it('does not shrink for a mini more than a level above or below', () => {
+		const level = (p: { x: number }) => (p.x === 6 ? 2 : 0);
+		expect(baseDiameters([keeper, at(6, 5)], level).get('k')).toBe(1.9);
+		expect(baseDiameters([keeper, at(6, 5)], (p) => (p.x === 6 ? 1 : 0)).get('k')).toBe(0.86);
+	});
+
+	it("keeps the bands' widths at every size, widening the disc", () => {
+		for (const d of BASE_SIZES) {
+			const p = profileFor(d);
+			expect(p[0][0] * 2).toBeCloseTo(d);
+			expect(p[0][0] - p[3][0]).toBeCloseTo(BASE_PROFILE[0][0] - BASE_PROFILE[3][0]);
+			expect(p.at(-1)![0]).toBe(0);
+		}
 	});
 });
