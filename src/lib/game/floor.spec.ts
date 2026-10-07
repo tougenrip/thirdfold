@@ -15,7 +15,7 @@ import { findPath, isReachable } from './objects';
 import { isSolidCell, obstaclesFor } from './props';
 import { emptyMask, hasLineOfSight } from './visibility';
 
-const NEW: FloorId[] = ['cobble', 'flagstone', 'rock', 'mud', 'snow', 'gravel'];
+const NEW: FloorId[] = ['cobble', 'flagstone', 'rock', 'mud', 'snow', 'gravel', 'tile', 'grating'];
 const grid: SquareGrid = { kind: 'square', cellSize: 1, width: 6, height: 4 };
 
 describe('floors', () => {
@@ -70,7 +70,7 @@ describe('floors', () => {
 		}
 	});
 
-	it('appends six floors after the void, so every older byte keeps its meaning (#248)', () => {
+	it('appends floors after the void, so every older byte keeps its meaning (#248, #254)', () => {
 		expect(FLOOR_IDS.slice(0, VOID + 1)).toEqual([
 			'plain',
 			'stone',
@@ -82,12 +82,12 @@ describe('floors', () => {
 			'void'
 		]);
 		expect(FLOOR_IDS.slice(VOID + 1)).toEqual(NEW);
-		expect(NEW.map((id) => FLOOR_IDS.indexOf(id))).toEqual([8, 9, 10, 11, 12, 13]);
+		expect(NEW.map((id) => FLOOR_IDS.indexOf(id))).toEqual([8, 9, 10, 11, 12, 13, 14, 15]);
 		expect(FLOORS[0].name).toBe('Default ground');
 		const cells = grid.width * grid.height;
-		const every = Uint8Array.from({ length: cells }, (_, i) => i % 14);
+		const every = Uint8Array.from({ length: cells }, (_, i) => i % 16);
 		expect(decodeFloor(encodeFloor(every), cells)).toEqual(every);
-		expect(decodeFloor(encodeFloor(every.map((v) => (v === 13 ? 14 : v))), cells)).toBeNull();
+		expect(decodeFloor(encodeFloor(every.map((v) => (v === 15 ? 16 : v))), cells)).toBeNull();
 		for (const id of NEW) {
 			expect(isFloorId(id)).toBe(true);
 			const floor = withFloor(null, grid, { x: 1, y: 1 }, { x: 2, y: 2 }, id)!;

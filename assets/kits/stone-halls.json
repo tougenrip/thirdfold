@@ -1,0 +1,93 @@
+{
+	"name": "Stone halls",
+	"roof": { "style": "gable", "pitch": 40, "eave": 0.2, "material": "slate" },
+	"presumeRoofs": false,
+	"pieces": {
+		"wall.straight": [
+			{ "model": "ashlar-wall-a" },
+			{ "model": "ashlar-wall-b" },
+			{ "model": "ashlar-wall-cracked", "weight": 0.5 },
+			{ "model": "ashlar-wall-niche", "weight": 0.3 }
+		],
+		"wall.outer": [{ "model": "ashlar-wall-outer" }],
+		"wall.retaining": [{ "model": "ashlar-retaining" }],
+		"wall.boundary": [{ "model": "ashlar-curtain" }],
+		"cap": [{ "model": "ashlar-coping" }],
+		"plinth": [{ "model": "ashlar-plinth" }],
+		"window.frame": [{ "model": "ashlar-window" }],
+		"window.sill": [{ "model": "ashlar-window-sill" }],
+		"window.glass": [{ "model": "leaded-glass" }],
+		"door.frame": [{ "model": "ashlar-door-frame" }],
+		"door.leaf": [{ "model": "oak-door" }],
+		"stair.riser": [{ "model": "ashlar-step" }],
+		"stair.side": [{ "model": "ashlar-stair-side" }],
+		"railing": [{ "model": "stone-balustrade" }],
+		"cliff.face": [{ "model": "rubble-face" }],
+		"cliff.corner": [{ "model": "rubble-corner" }],
+		"bridge.deck": [{ "model": "flag-deck" }],
+		"bridge.pier": [{ "model": "ashlar-pier" }],
+		"post.end": [{ "model": "ashlar-post-end" }],
+		"post.L": [{ "model": "ashlar-post-l" }],
+		"post.T": [{ "model": "ashlar-post-t" }],
+		"post.X": [{ "model": "ashlar-post-x" }],
+		"roof.eave": [{ "model": "stone-halls-roof-eave" }],
+		"roof.ridge": [{ "model": "stone-halls-roof-ridge" }],
+		"roof.hip": [{ "model": "stone-halls-roof-hip" }],
+		"roof.corner": [{ "model": "stone-halls-roof-corner" }],
+		"roof.chimney": [
+			{ "model": "stone-halls-roof-chimney", "sockets": [{ "kind": "smoke", "at": [0.2, 3.5, 0] }] }
+		],
+		"roof.dormer": [{ "model": "stone-halls-roof-dormer" }],
+		"cap.battlement": [{ "model": "ashlar-battlement" }],
+		"crenellation": [{ "model": "ashlar-crenels" }],
+		"buttress": [{ "model": "ashlar-buttress" }],
+		"pinnacle": [{ "model": "stone-pinnacle" }],
+		"tower.corner": [{ "model": "ashlar-turret" }],
+		"arch": [{ "model": "ashlar-arch" }]
+	},
+	"floors": {
+		"plain": {
+			"tiles": [
+				{ "model": "flagstone-a" },
+				{ "model": "flagstone-b" },
+				{ "model": "flagstone-c" },
+				{ "model": "flagstone-d" }
+			],
+			"broken": [{ "model": "flagstone-broken-a" }, { "model": "flagstone-broken-b" }]
+		},
+		"flagstone": {
+			"tiles": [
+				{ "model": "flagstone-a" },
+				{ "model": "flagstone-b" },
+				{ "model": "flagstone-c" },
+				{ "model": "flagstone-d" }
+			],
+			"broken": [{ "model": "flagstone-broken-a" }, { "model": "flagstone-broken-b" }]
+		},
+		"stone": {
+			"tiles": [
+				{ "model": "flagstone-a" },
+				{ "model": "flagstone-b" },
+				{ "model": "flagstone-c" },
+				{ "model": "flagstone-d" }
+			],
+			"broken": [{ "model": "flagstone-broken-a" }, { "model": "flagstone-broken-b" }]
+		},
+		"wood": {
+			"tiles": [
+				{ "model": "stone-halls-planks-a" },
+				{ "model": "stone-halls-planks-b" },
+				{ "model": "stone-halls-planks-c" }
+			],
+			"broken": [{ "model": "stone-halls-planks-broken" }]
+		},
+		"tile": {
+			"tiles": [
+				{ "model": "stone-halls-tile-a" },
+				{ "model": "stone-halls-tile-b" },
+				{ "model": "stone-halls-tile-c" }
+			],
+			"broken": [{ "model": "stone-halls-tile-broken" }]
+		}
+	}
+}

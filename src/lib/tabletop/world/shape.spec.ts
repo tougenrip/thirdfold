@@ -45,14 +45,16 @@ const shapeOf = (over: Partial<ShapeInput> & { grid: SquareGrid }): WorldShape =
 const bytes = (...v: number[]) => Uint8Array.from(v);
 
 describe('world modules', () => {
-	it('import no three.js, only the game rules, ground.ts and each other', () => {
+	it('import no three.js, only the game rules, kit.ts, ground.ts and each other', () => {
 		const files = readdirSync(DIR).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts'));
 		expect(files).toContain('shape.ts');
 		for (const f of files) {
 			const source = readFileSync(path.join(DIR, f), 'utf8');
 			const from = [...source.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
 			for (const m of from)
-				expect(m, f).toMatch(/^(\.\.\/\.\.\/game\/[a-z-]+|\.\.\/ground|\.\/[a-z-]+)$/);
+				expect(m, f).toMatch(
+					/^(\.\.\/\.\.\/game\/[a-z-]+|\.\.\/\.\.\/assets\/kit|\.\.\/ground|\.\/[a-z-]+)$/
+				);
 		}
 	});
 });

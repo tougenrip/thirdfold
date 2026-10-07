@@ -95,7 +95,7 @@ describe('the build', () => {
 			)
 		);
 
-	it('credits every file with an allowlisted licence: the surfaces (#187) as ambientCG or Poly Haven, the rest as ours', () => {
+	it('credits every file with an allowlisted licence: the surfaces (#187) as ambientCG or Poly Haven, the bridge props (#262) as their Poly Haven artists, the rest as ours', () => {
 		const { manifest } = built;
 		const files = [
 			...Object.values(manifest.models),
@@ -103,6 +103,8 @@ describe('the build', () => {
 			...Object.values(manifest.audio)
 		];
 		expect(files.length).toBeGreaterThan(100);
+		const bridged = Object.values(manifest.models).filter((m) => m.credit.license === 'CC0-1.0');
+		expect(bridged.length).toBeGreaterThanOrEqual(8);
 		for (const f of files) {
 			expect(LICENSES).toContain(f.credit.license);
 			expect(f.credit).toEqual(
@@ -115,7 +117,14 @@ describe('the build', () => {
 							),
 							modified: true
 						}
-					: { license: 'LicenseRef-thirdfold-original', author: 'thirdfold contributors' }
+					: bridged.includes(f as (typeof bridged)[number])
+						? {
+								license: 'CC0-1.0',
+								author: expect.stringMatching(/ \(Poly Haven\)$/),
+								source: expect.stringMatching(/^https:\/\/dl\.polyhaven\.org\/file\//),
+								modified: true
+							}
+						: { license: 'LicenseRef-thirdfold-original', author: 'thirdfold contributors' }
 			);
 		}
 	});

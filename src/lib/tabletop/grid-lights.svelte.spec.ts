@@ -456,7 +456,8 @@ describe('GridLights', () => {
 	});
 
 	test("keep the monastery's gallery lamp to the cells it lights, from its balcony", async () => {
-		const view = await loadView('monastery', 'dark', 'gm');
+		// No roofs (#257): the nave's would cover the gallery from above.
+		const view = { ...(await loadView('monastery', 'dark', 'gm')), interior: null };
 		const lamp = view.lights.find((l) => l.id === 'mn-gallery-lamp')!;
 		expect(lamp.on).toBe(true);
 		const pose = { target: lamp.pos, distance: 16, azimuth: 0, elevation: 80 };

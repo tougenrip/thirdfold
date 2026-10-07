@@ -1,0 +1,10 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [1, 2, 0.08], "at": [0, 1, 0], "color": "#5a4040" },
+		{ "shape": "box", "size": [0.185, 2, 0.12], "at": [-0.4, 1, 0], "color": "#6d6152" },
+		{ "shape": "box", "size": [0.185, 2, 0.14], "at": [-0.2, 1, 0], "material": "weathered-wood" },
+		{ "shape": "box", "size": [0.185, 2, 0.12], "at": [0, 1, 0], "material": "weathered-wood" },
+		{ "shape": "box", "size": [0.185, 2, 0.14], "at": [0.2, 1, 0], "color": "#6d6152" },
+		{ "shape": "box", "size": [0.185, 2, 0.12], "at": [0.4, 1, 0], "material": "weathered-wood" }
+	]
+}

@@ -6,12 +6,14 @@
 // adds no program.
 
 import * as THREE from 'three/webgpu';
-import { uniform } from 'three/tsl';
+import { positionWorld, uniform } from 'three/tsl';
 import type { SlotName } from './defaults';
 import { dropLift } from './drop';
 import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { gridGraph } from './grid';
+import { roofMask, roofShadowMask } from './roof-fade';
+import { bedSink, ringFadeNode } from './ring';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
 import { tsl, type N } from './tsl';
 import {
@@ -101,6 +103,11 @@ export interface Params {
 	 * compiles nothing.
 	 */
 	translucency: number;
+	/**
+	 * Instanced props: world units an instance sinks past the tile ring (#254, materials/ring.ts):
+	 * kit floor tiles sink under the ground as they fade out; 0 for every other prop.
+	 */
+	sink: number;
 }
 
 /** What a caller may set: colours and vectors in any form three takes. */
@@ -131,7 +138,8 @@ export const PARAM_DEFAULTS: Required<ParamsInput> = {
 	macroTint: 0,
 	macroRoughness: 0,
 	bake: 1,
-	translucency: 0
+	translucency: 0,
+	sink: 0
 };
 
 /** The tiled kinds' macro variation (#181): gentle, over about a dozen cells. */
@@ -215,6 +223,9 @@ export interface Graph {
 	/** Where the shadow pass puts a vertex: at rest, so a drop-in never redraws a shadow (#249). */
 	castShadowPositionNode: N | null;
 	outputNode: N;
+	/** A roof's fade (#259, roof-fade.ts): discards where false; the shadow pass never does. */
+	maskNode?: N;
+	maskShadowNode?: N;
 	lit: {
 		roughnessNode: N;
 		metalnessNode: N;
@@ -240,7 +251,25 @@ export interface Variant {
 	antiTiled: boolean;
 	/** Terrain and rock: the world's chunks, dropping in by a start per vertex (#249, drop.ts). */
 	dropped: boolean;
+	/**
+	 * A kit piece in a pool (#252, M70: an InstancedMesh, piece.ts): three's instance colour shades
+	 * it, and its tint's w (`TINT_ATTRIBUTE`) is its highlight, glowing `HIGHLIGHT` with a hatch.
+	 */
+	piece: boolean;
+	/**
+	 * Surface: a roof (#257), whose fog, darkness and sky are read at its `aRoofCell` (a known cell
+	 * outside it) instead of the cells under it (world-modify.ts).
+	 */
+	roof: boolean;
+	/**
+	 * Surface: slots at the mesh's uv (times `params.repeat`), not the world box: a kit's trim
+	 * sheet on its pieces (M70, the walls' batches), whose geometry carries `uv`.
+	 */
+	sheet: boolean;
 }
+
+/** A kit piece's highlight (#252): a warm glow below bloom, hatched for colour-blind eyes. */
+export const HIGHLIGHT = { color: [0.89, 0.48, 0.42], strength: 0.45, stripes: 3 } as const;
 
 const param = (name: keyof Params, type: string) => tsl.materialReference(`params.${name}`, type);
 
@@ -251,12 +280,38 @@ const param = (name: keyof Params, type: string) => tsl.materialReference(`param
  */
 function tintOf(kind: ShaderKind, variant: Variant): N {
 	const own = param('tint', 'color');
+	if (variant.piece) {
+		// Diagonal stripes across the world, half as bright between them.
+		const w = positionWorld as unknown as N;
+		const across = w.x.add(w.y).add(w.z).mul(HIGHLIGHT.stripes);
+		const hatch = tsl.smoothstep(0.45, 0.55, across.fract());
+		const on = tsl.attribute(TINT_ATTRIBUTE, 'vec4').w;
+		const glow = tsl.vec3(...HIGHLIGHT.color).mul(HIGHLIGHT.strength * 0.5);
+		return own.add(glow.mul(on).mul(hatch.add(1)));
+	}
 	if (!variant.instanced) return own;
 	const each = tsl.attribute(TINT_ATTRIBUTE, 'vec4');
 	const glow = each.xyz.mul(each.w);
 	if (kind !== 'emissive') return own.add(glow);
 	const paint = tsl.attribute(PAINT_ATTRIBUTE, 'vec3');
 	return own.add(glow.mul(flickerNode(paint.x, paint.y)));
+}
+
+/**
+ * What moves an instanced lifted kind's vertex besides the lift: its drop-in, and for props the
+ * tile ring's sink (`params.sink`, 0 but for floor tiles, #254).
+ */
+function lifts(kind: ShaderKind): N {
+	const drop = dropLift(tsl.attribute(LIFT_ATTRIBUTE, 'vec2').y);
+	if (kind !== 'prop') return drop;
+	const fade = ringFadeNode(tsl.positionLocal.xz);
+	return drop.sub(tsl.vec3(0, param('sink', 'float').mul(fade.oneMinus()), 0));
+}
+
+/** The world's chunks: the drop-in, and on the tops the bed under floor tiles (#254). */
+function sinks(kind: ShaderKind): N {
+	const drop = dropLift();
+	return kind === 'terrain' ? drop.sub(tsl.vec3(0, bedSink(tsl.positionGeometry.xz), 0)) : drop;
 }
 
 function build(kind: ShaderKind, variant: Variant): Graph {
@@ -305,8 +360,9 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				.mul(param('emissiveIntensity', 'float'))
 				.add(tint)
 		: tint;
-	// Rock is the cliffs' and risers' kind (#241): its faces read the cell behind them.
-	const face = kind === 'rock';
+	// Rock is the cliffs' and risers' kind (#241): its faces read the cell behind them; a roof
+	// reads its own cell outside it (#257).
+	const face = kind === 'rock' || (variant.roof && 'roof');
 	const emissive = worldEmissive(glow, face);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
@@ -334,12 +390,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 						0
 					)
 				)
-			: rest &&
-				rest.add(
-					variant.instanced && LIFTED.includes(kind)
-						? dropLift(tsl.attribute(LIFT_ATTRIBUTE, 'vec2').y)
-						: dropLift()
-				);
+			: rest && rest.add(variant.instanced && LIFTED.includes(kind) ? lifts(kind) : sinks(kind));
 	const painted =
 		kind === 'prop' && variant.instanced
 			? colour.mul(tsl.attribute(PAINT_ATTRIBUTE, 'vec3'))
@@ -351,6 +402,8 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 		positionNode: position,
 		castShadowPositionNode: rest,
 		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true, face)),
+		maskNode: variant.roof ? roofMask() : undefined,
+		maskShadowNode: variant.roof ? roofShadowMask() : undefined,
 		lit: {
 			roughnessNode: paintRoughness(
 				kind,
@@ -379,7 +432,10 @@ export function graphFor(kind: ShaderKind, variant: Variant): Graph {
 		['grid', 'g'],
 		['local', 'o'],
 		['antiTiled', 'a'],
-		['dropped', 'd']
+		['dropped', 'd'],
+		['piece', 'b'],
+		['roof', 'r'],
+		['sheet', 's']
 	];
 	const key = `${kind}:${flags.map(([f, c]) => (variant[f] ? c : '')).join('')}`;
 	let graph = graphs.get(key);

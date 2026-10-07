@@ -107,6 +107,8 @@ function tileAt(shape: WorldShape, tx: number, ty: number, voidY: number): Tile 
 		if (x < 0 || y < 0 || x >= w || y >= h) return tile;
 		const i = y * w + x;
 		if ((known && !known[i]) || shape.floor[i] === VOID || tile.h[k] !== tile.v[k]) return tile;
+		// A stair's corners stay square (#255), and a bridge's (#256).
+		if (shape.stairs?.steps[i] || shape.stairs?.bridges?.[i]) return tile;
 		if (MAN_MADE.has(shape.floor[i])) [tile.r, tile.segments] = [BEVEL, 1];
 		cells.push(i);
 	}

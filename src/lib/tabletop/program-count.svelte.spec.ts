@@ -30,7 +30,10 @@
 // and the floors under the torches painted (their colour is the bounce's), data and uniforms only.
 // Strips and panels (#236): the torches as neon bars facing every way, recoloured, mixed with
 // panels and torches, turned, and back. Hero shadow slots (#230): the focus moved so every slot
-// changes hands (a cube drawn for each new holder).
+// changes hands (a cube drawn for each new holder). Kit floor tiles (#254): the stand-in kit's on
+// every table, the floors painted (tile and grating among them) and the ring packed round targets
+// across the table. Roofs (#257): over a room and the whole table, in another kit's look, raised,
+// seen into, faded (#259: an own token inside, the GM's pivot, half while building) and gone.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -40,9 +43,11 @@ import { FLICKERS, LIGHT_KINDS, type Light } from '$lib/game/lights';
 import { BACKDROPS, bandOf, type WorldLook } from '$lib/game/world';
 import { loadManifest } from '$lib/assets/load';
 import { decodeLevels } from '$lib/game/terrain';
+import { roomAround, roomBoundary } from '$lib/game/rooms';
 import { decodeMask, encodeMask } from '$lib/game/visibility';
 import { loadEnvironment } from './environment';
 import { FIXTURES } from './light-model';
+import { useTileSet } from './floor-tiles-layer';
 import { GRID_MODES } from './grid-modes';
 import { loadModel } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
@@ -54,6 +59,7 @@ import {
 	manualClock,
 	mountFixture,
 	shardedIt,
+	testTiles,
 	type FixtureView,
 	type Mounted
 } from './testing';
@@ -84,6 +90,7 @@ let mounted: Mounted | null = null;
 afterEach(async () => {
 	await mounted?.unmount();
 	mounted = null;
+	useTileSet(null);
 	vi.restoreAllMocks();
 });
 
@@ -202,6 +209,10 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	// The world's chunks (#240): every cell raised, a stair across the table, flat, and back.
 	const raised = new Uint8Array(size).map((_, i) => (levels?.[i] ?? 0) + 2);
 	const stair = new Uint8Array(size).map((_, i) => (i % home.grid.width) % 6);
+	const room = new Uint8Array(size).map((_, i) => {
+		const [x, y] = [i % home.grid.width, Math.floor(i / home.grid.width)];
+		return x >= 2 && x < 6 && y >= 2 && y < 5 ? 1 : 0;
+	});
 	const light = (i: number, over: Partial<Light> = {}): Light => ({
 		id: `sweep-${i}`,
 		pos: { x: 2 + (i % 8) * 2, y: 2 + Math.floor(i / 8) * 4 },
@@ -221,6 +232,7 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 	);
 	const cue = (c: 'flash' | 'toll') => () => t.playCue(c, c === 'toll' ? prop.id : null);
 	const corner = { x: home.grid.width - 1, y: home.grid.height - 1 };
+	const pose = t.cameraPose()!;
 	// The tier as mounted, with the fog cloud's layer on or off (#174).
 	const cloud = (on: boolean) => () => {
 		const settings = settingsFor(tier, t.capabilities().backend);
@@ -252,6 +264,42 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 				t.setFloor(floor);
 			}
 		],
+		// Kit floor tiles (#254, the stand-in kit): the ring packed round targets across the table.
+		...[{ x: 1, y: 1 }, corner, { x: 1, y: corner.y }].map((target): Step => [
+			`tiles round ${target.x},${target.y}`,
+			() => t.setGridPose({ target, distance: 12, azimuth: 30, elevation: 50 })
+		]),
+		['tiles round the pose', () => t.setPose(pose)],
+		// Roofs (#257): the kit's over a room, over the whole table, under another kit's look, raised
+		// with the ground, seen into (left out) and gone: geometry, attributes and params only.
+		['roofs over a room', () => t.setInterior(room)],
+		['roofs everywhere', () => t.setInterior(new Uint8Array(size).fill(1))],
+		['roofs in thatch', () => t.setEnvironment('village')],
+		['roofs raised', () => t.setTerrain(raised)],
+		['roofs seen into', () => t.setFog({ ...home.fog, visible: all, explored: all }, 'player')],
+		// Roof fades (#259): an own token inside, the GM's pivot over the room and a build tool out
+		// (half there): texels of the fade map, never a program.
+		[
+			'roofs faded by an own token',
+			() => (t.setOwnTokens([token.id]), t.setTokens(withToken({ pos: { x: 3, y: 3 } })))
+		],
+		[
+			'roofs faded by the GM’s pivot',
+			() => (
+				t.setFog(home.fog, 'gm'),
+				t.setGridPose({ target: { x: 3, y: 3 }, distance: 12, azimuth: 30, elevation: 50 })
+			)
+		],
+		['roofs half while building', () => (t.setPose(pose), t.setGridMode('build'))],
+		[
+			'roofs fades back',
+			() => (t.setGridMode('off'), t.setOwnTokens([]), t.setTokens(home.tokens))
+		],
+		[
+			'roofs back',
+			() => (t.setFog(home.fog, home.fogMode), t.setTerrain(levels), t.setInterior(room))
+		],
+		['roofs gone', () => (t.setInterior(null), t.setEnvironment(home.environment))],
 		['terrain raised', () => t.setTerrain(raised)],
 		['terrain a stair', () => t.setTerrain(stair)],
 		['terrain flat', () => t.setTerrain(null)],
@@ -297,10 +345,19 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		['prop selected', () => t.setSelectedProp(prop.id)],
 		['prop hovered', () => t.setHoveredProp(prop.id)],
 		['prop states cleared', () => (t.setSelectedProp(null), t.setHoveredProp(null))],
-		// Walls take the hover as a tint per instance, a door by swapping to its tinted twin (#172).
+		// Walls and door leaves take the hover as a tint per instance (#252, #253).
 		['wall hovered', () => t.setHoveredObject(wall.id)],
 		['door hovered', () => t.setHoveredObject(door.id)],
 		['hover cleared', () => t.setHoveredObject(null)],
+		// A door's leaf (#253) swung the other way (snapped: the sweep reduces motion), and back.
+		[
+			'door swung',
+			() =>
+				t.setObjects(
+					home.objects.map((o) => (o === door && o.kind === 'door' ? { ...o, open: !o.open } : o))
+				)
+		],
+		['door back', () => t.setObjects(home.objects)],
 		['prop hidden', () => t.setProps(withProp({ hidden: true }))],
 		['prop moved', () => t.setProps(withProp({ pos: { x: prop.pos.x + 1, y: prop.pos.y } }))],
 		['props back', () => t.setProps(home.props)],
@@ -383,9 +440,38 @@ function skySteps(m: Mounted, home: FixtureView, skies: readonly string[]): Step
 		]),
 		['roofed', () => t.setInterior(new Uint8Array(size).fill(1))],
 		['roof off', () => t.setInterior(null)],
+		// Glowing windows (#260): the home table's first walled room roofed, so its walls are
+		// facades with glazed windows, through the night, a dark area over it, and back by day.
+		...windowSteps(t, home, world),
 		['flash, reduced', () => (t.setReduceFlashing(true), flash())],
 		['flash, not reduced', () => (t.setReduceFlashing(false), flash())],
 		['world back', () => t.setLighting(home.ambient, home.lights, home.world)]
+	];
+}
+
+/** The home table's first walled room as a roofed building, at night, dark, and by day (#260). */
+function windowSteps(
+	t: Tabletop,
+	home: FixtureView,
+	world: (over: Partial<WorldLook>) => WorldLook
+): Step[] {
+	const { width: w, height: h } = home.grid;
+	const boundary = roomBoundary(home.objects);
+	let cells: number[] | null = null;
+	for (let i = 0; i < w * h && !cells; i++)
+		cells = roomAround(home.grid, boundary, { x: i % w, y: Math.floor(i / w) });
+	expect(cells, 'a walled room on the home table').not.toBeNull();
+	const house = new Uint8Array(w * h);
+	for (const i of cells!) house[i] = 1;
+	const dark = home.darkness ? decodeMask(home.darkness, w * h) : null;
+	return [
+		[
+			'windows at night',
+			() => (t.setInterior(house), t.setLighting('dark', home.lights, world({ time: 1320 })))
+		],
+		['windows into the dark', () => t.setDarkness(house)],
+		['windows out of the dark', () => t.setDarkness(dark)],
+		['windows by day', () => (t.setLighting('day', home.lights, world({})), t.setInterior(null))]
 	];
 }
 
@@ -531,6 +617,7 @@ async function mountHome(tier: Tier, reducedMotion = true) {
 		for (const id of [f.wall, f.floor]) if (id) models.add(id);
 	const compile = vi.spyOn(THREE.WebGPURenderer.prototype, 'compileAsync');
 	const clock = manualClock();
+	useTileSet(testTiles()); // kit floor tiles on every table (#254), until #261's greybox kits
 	const m = await mountFixture(home, sidecar.poses.overview, { clock, tier, reducedMotion });
 	mounted = m;
 	// Once the table is there: its renderer decodes the KTX2 files (models.ts).

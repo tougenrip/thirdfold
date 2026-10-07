@@ -1,0 +1,58 @@
+{
+	"name": "Village",
+	"roof": { "style": "gable", "pitch": 45, "eave": 0.25, "material": "thatch" },
+	"presumeRoofs": true,
+	"pieces": {
+		"wall.straight": [
+			{ "model": "village-wall-plaster" },
+			{ "model": "village-wall-timber", "weight": 0.7 }
+		],
+		"wall.outer": [{ "model": "village-wall-outer" }],
+		"wall.retaining": [{ "model": "village-wall-retaining" }],
+		"wall.boundary": [{ "model": "village-wall-boundary" }],
+		"cap": [{ "model": "village-cap" }],
+		"plinth": [{ "model": "village-plinth" }],
+		"window.frame": [{ "model": "village-window-frame" }],
+		"window.sill": [{ "model": "village-window-sill" }],
+		"window.glass": [{ "model": "village-window-glass" }],
+		"door.frame": [{ "model": "village-door-frame" }],
+		"door.leaf": [{ "model": "village-door-leaf" }],
+		"stair.riser": [{ "model": "village-stair-riser" }],
+		"stair.side": [{ "model": "village-stair-side" }],
+		"railing": [{ "model": "village-railing" }],
+		"cliff.face": [{ "model": "village-cliff-face" }],
+		"cliff.corner": [{ "model": "village-cliff-corner" }],
+		"bridge.deck": [{ "model": "village-bridge-deck" }],
+		"bridge.pier": [{ "model": "village-bridge-pier" }],
+		"post.end": [{ "model": "village-post-end" }],
+		"post.L": [{ "model": "village-post-l" }],
+		"post.T": [{ "model": "village-post-t" }],
+		"post.X": [{ "model": "village-post-x" }],
+		"roof.eave": [{ "model": "village-roof-eave" }],
+		"roof.ridge": [{ "model": "village-roof-ridge" }],
+		"roof.hip": [{ "model": "village-roof-hip" }],
+		"roof.corner": [{ "model": "village-roof-corner" }],
+		"roof.chimney": [
+			{ "model": "village-roof-chimney", "sockets": [{ "kind": "smoke", "at": [0.2, 3.5, 0] }] }
+		],
+		"roof.dormer": [{ "model": "village-roof-dormer" }]
+	},
+	"floors": {
+		"cobble": {
+			"tiles": [
+				{ "model": "village-cobble-a" },
+				{ "model": "village-cobble-b" },
+				{ "model": "village-cobble-c" }
+			],
+			"broken": [{ "model": "village-cobble-broken" }]
+		},
+		"wood": {
+			"tiles": [
+				{ "model": "village-planks-a" },
+				{ "model": "village-planks-b" },
+				{ "model": "village-planks-c" }
+			],
+			"broken": [{ "model": "village-planks-broken" }]
+		}
+	}
+}

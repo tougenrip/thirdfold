@@ -81,3 +81,12 @@ export const tsl = {
 	vec3: loose(vec3),
 	vec4: loose(vec4)
 };
+
+/**
+ * `cond ? a : b` without a branch: `select` compiles to `if`/`else`, which puts what the branches
+ * read into them, so a texture fetch or derivative there runs in per-fragment control flow, where
+ * GLSL and WGSL leave gradients undefined (on SwiftShader with MSAA, edge pixels then flickered by
+ * a step between draws of the same frame). Here both sides are worked out in uniform flow and
+ * blended by 0 or 1, which gives exactly `a` or `b`.
+ */
+export const pick = (cond: N, a: N, b: N): N => tsl.mix(b, a, cond.select(1, 0));

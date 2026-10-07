@@ -32,6 +32,7 @@ the built files would not match CI's.
 | Materials                        | `assets/materials.json`                                                                | the manifest                       |
 | Textures                         | `assets/textures/<id>.json` (a recipe) or `<id>.png`/`.ktx2` (`<id>.meta.json`: usage) | `textures/<id>.<hash>.png`/`.ktx2` |
 | Environments (how a place looks) | `assets/environments/<id>.json`                                                        | the manifest                       |
+| Architecture kits (#250)         | `assets/kits/<id>.json`                                                                | the manifest (inline)              |
 | Skies (#213)                     | `assets/skies/<id>.json` (with its own `provenance`)                                   | the manifest (inline)              |
 | Colour grades                    | `assets/grades/<environment>.json`                                                     | `textures/grade-….png` (54)        |
 | Audio                            | `assets/audio/<id>.json` (a bell) or `<id>.wav` / `<id>.ogg`                           | `audio/<id>.<hash>.wav\|ogg`       |
@@ -223,7 +224,8 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
   horizon, wears `ground`, #220; there is no rim any more); `sky` names a sky (below), and an optional `world` is a world look
   (a `parseWorldPatch` patch, docs/RENDERING.md "World look") a table there starts from.
   `"surfaces": { "floors", "walls" }` lists its surfaces of the library (#187, below): the floors
-  in layer order, and the walls' (the walls wear the first).
+  in layer order, and the walls' (the walls wear the first). `kit` names its architecture kit
+  (#250, below), required of every built-in environment: its own greybox kit since #261.
   - A scene refers to its environment by id (scene file v8).
   - The GM can change it in the Build panel ("Looks like").
   - What lies beyond the grid (the skirt to the horizon and the far silhouettes, #244) is a
@@ -276,6 +278,263 @@ of two), "colors": [...], "seed": n, "scale": n }`. It builds the same tiling PN
     each, `Grades` in `environment.ts`), and blends the one for the band into the picture
     (`grade.ts`).
 
+### Architecture kits (#250)
+
+A kit is one style's architecture as data: `assets/kits/<id>.json` lists its pieces by role, and
+the world's builders (#251, #252) map each wall, corner, opening, step, drop and roofed cell to a
+role and draw one of its variants. The rules never change with the kit. Every environment names
+one (`"kit"`); a table whose environment has none, or names `plain`, draws every role as a
+procedural box, slab or prism. `src/lib/assets/kit.ts` holds the schema, the roles, the clearance
+constants and `parseKit`, shared by the pipeline, `parseManifest` and `world/shape.ts`.
+
+```json
+{
+	"name": "Stone halls",
+	"roof": { "style": "gable", "pitch": 40, "eave": 0.2, "material": "monastery-stone" },
+	"presumeRoofs": false,
+	"pieces": {
+		"wall.straight": [{ "model": "stone-wall" }, { "model": "stone-wall-cracked", "weight": 0.5 }],
+		"cap": [{ "model": "stone-wall-cap" }]
+	},
+	"floors": { "flagstone": { "tiles": [{ "model": "flag-tile" }], "broken": [] } }
+}
+```
+
+- **Pieces** are manifest models of kind `kit` (`assets/models/kit/`, held to the kit class's
+  limits: 1,500 triangles at LOD0, no texture of their own), 1-8 variants a role, each with an
+  optional `weight` (how often it is picked, 1 when absent) and `sockets` (`{ kind: smoke | flame,
+at: [x, y, z] }`, the shape of #319's model sockets). `roof` (`gable` or `hip`, a pitch of
+  15-60°, an eave of 0-0.5 u, a manifest material) or null; `presumeRoofs` lets a player see a roof
+  over a room closed by walls they know but have not explored (#257; docs/RENDERING.md, "Roofs";
+  the kits of the open air set it, and it gives the walls a building context from the first
+  frame). `floors` gives tiles, broken tiles (near drops) and an optional edge piece
+  per floor id (`plain` is the default ground; not the void; `KIT_FLOOR_IDS`, which lists `tile`
+  and `grating` since #254); a floor without tiles is the blended ground. A tile piece is one tile
+  at its own scale, centred on its pivot with its top at the floor: the lattice it is laid on has
+  its footprint (the first variant's bounds) plus a 0.025 u joint as its pitch, independent of the
+  cell (docs/RENDERING.md, "Kit floor tiles"); broken variants are drawn at cliff and void edges.
+  The edge piece is not drawn yet. Kit and piece ids describe looks (`ashlar-wall-a`), never story roles: the manifest is
+  public, and no sealed door or secret room gets its own piece.
+- **Metrics.** 1 u per cell edge; `wall.straight` exactly `WALL_HEIGHT` (2.0 u) tall over its
+  floor, a `plinth` one `STEP_HEIGHT` (0.4 u); the exterior face is +Z.
+- **Pivots.** A piece's origin is its role's pivot, so the manifest carries no pivot of its own:
+  - an **edge** piece's is the unit edge's midpoint **on the higher floor** beside it, 1 u long
+    along X, +Z toward the void, the table's edge or the lower side;
+  - a **corner** piece's is the grid corner, on the highest floor round it;
+  - a **cell** piece's (tiles, bridge decks and piers, roofs) is the cell's centre on its floor.
+- **Clearance**, the constants in `kit.ts`: a token stands on a disk of `TOKEN_DISK` 0.43 round
+  its cell's centre (one constant for walls and ground; `world/shape.ts` re-exports it), and no
+  kit piece enters a walkable cell's disk below `FIGURE_CLEAR` (1.45 u: 1.3 u figures and a
+  margin). So an edge piece reaches at most `WALL_HALF_THIN` 0.07 toward a walkable or unexplored
+  cell, and up to `WALL_HALF_THICK` 0.35 only toward the void or off the grid (a prop's solid cell
+  doesn't count: props are pushed and pulled); a cap overhangs at most `CAP_OVERHANG` 0.03, only
+  above `FIGURE_CLEAR`; posts are `POST_SIZE` 0.3 square, 0.495 from the nearest cell centre (a
+  0.2 wide buttress projecting 0.3 is 0.447 away); nothing on an edge rises above `WALL_HEIGHT`
+  over the higher floor but a post's finial (`FINIAL` 0.15), and crenels are cut into the wall's
+  top, never merlons above it, so the picture keeps the see-over-walls rule. Thickness is these
+  constants, a kit parameter to retune once the bases are sized (#270).
+- **Roles** (`KIT_ROLES`, closed; an unknown role is refused by name) and where each may lie
+  (`ENVELOPES`, in units about the pivot; T = 0.07, K = 0.35, O = T + 0.03, H = 2.0, S = 0.4,
+  F = 1.45, D = the deepest drop, 40 levels):
+
+  | Role                                                                                | Pivot  | Y             | Z (−interior, +exterior)                          |
+  | ----------------------------------------------------------------------------------- | ------ | ------------- | ------------------------------------------------- |
+  | `wall.straight`, `arch`, `railing`                                                  | edge   | 0 to H        | ±T                                                |
+  | `wall.outer` (toward the void), `wall.boundary` (palisade)                          | edge   | 0 to H        | −T to K                                           |
+  | `wall.retaining` (below the higher floor)                                           | edge   | −H to 0       | −K (buried) to T                                  |
+  | `cap`                                                                               | edge   | F to H        | ±O                                                |
+  | `cap.battlement`, `crenellation`                                                    | edge   | F to H        | −O to K                                           |
+  | `plinth`                                                                            | edge   | 0 to S        | ±T                                                |
+  | `window.frame`, `window.glass`, `door.frame`, `door.leaf`                           | edge   | 0 to H        | ±T (a leaf drawn shut)                            |
+  | `window.sill` (between different floors)                                            | edge   | −H to H       | ±T                                                |
+  | `stair.riser`                                                                       | edge   | −S to 0       | −K to T                                           |
+  | `stair.side`                                                                        | edge   | −H to 0       | −K to T                                           |
+  | `cliff.face` (trim for #241)                                                        | edge   | −D to 0       | −K to T                                           |
+  | `post.end`, `post.L`, `post.T`, `post.X`                                            | corner | 0 to H + 0.15 | clear of the four cells' disks                    |
+  | `buttress`                                                                          | corner | 0 to H        | clear of the four cells' disks                    |
+  | `pinnacle`                                                                          | corner | F to H + 0.15 | clear of the four cells' disks                    |
+  | `tower.corner`                                                                      | corner | 0 to H + 0.15 | clear of three; fills the +X+Z quarter (the void) |
+  | `cliff.corner`                                                                      | corner | −D to 0       | within ±0.5                                       |
+  | `bridge.deck`                                                                       | cell   | −S to 0       | within ±0.5                                       |
+  | `bridge.pier`                                                                       | cell   | −D to 0       | within ±0.5                                       |
+  | `roof.ridge`, `roof.hip`, `roof.eave`, `roof.corner`, `roof.chimney`, `roof.dormer` | cell   | F to 4H       | within ±1 (the eave)                              |
+  | floor `tiles`, `broken`                                                             | cell   | −S to 0       | within ±0.5                                       |
+  | floor `edge`                                                                        | cell   | −H to 0       | within ±0.5                                       |
+
+  Edge pieces lie within ±0.5 along X, corner pieces within ±0.5 (to 1 toward the void for a
+  tower). A piece is checked by its bounds, the box round every vertex through the node
+  transforms (`envelopeProblem`), which is stricter than vertex by vertex and covers the edges
+  between them; a corner piece's box keeps `TOKEN_DISK` from each cell centre round it while it
+  stands between the floor and `FIGURE_CLEAR`. A 0.2-thick `wall.straight` fails the build with
+  `kits/<id>.json: wall.straight "<model>": 0.1 > 0.07 toward -z`.
+
+- **Checked** by `parseKit` in the pipeline (`buildKits`: every piece a known model of kind `kit`
+  inside its role's envelope; a `plain` kit must exist; every environment must name a kit) and
+  again by `parseManifest` (`kits`, read as {} when absent; `EnvironmentDef.kit` optional on the
+  wire, but it must name a kit the manifest has).
+- **Coverage.** `rolesNeeded(scene)` (`src/lib/assets/kit-needs.ts`, pure; #352 reuses it) reads
+  the roles a table asks for from its scene file: a wall's `wall.straight` and `cap`, `wall.outer`
+  toward the void or the table's edge, `plinth` and `wall.retaining` down a drop; a window's frame
+  and glass (and sill between floors); a door's frame and leaf; a post by how built edges meet at
+  each corner (end, L, T, X); a bare one-level step's `stair.riser`, a higher drop's `cliff.face`;
+  roofed cells' ridge, eaves and corners; a stair run's (#255) `stair.side` where a step has a
+  lower side and `railing` where a built stair drops two levels or more, on a bridge's open long
+  sides and at a built floor's open drop (#256; a bridge's body is procedural, so `bridge.deck` and
+  `bridge.pier` aren't asked for yet). Chimneys join it with #257; the roofs draw `roof.ridge`,
+  `roof.hip`, `roof.chimney` and `roof.dormer` (#258, docs/RENDERING.md "Hips, caps, chimneys and
+  dormers": a cap's and a chimney's pivot is a one-cell roof's ridge, a dormer's its wall's eave
+  line). `checkScenes` fails a table whose kit lacks one (`hollow-bell: monastery: the kit "halls"
+has no cap piece`).
+- **Phasing in.** `KIT_PENDING` in `server/assets/scenes.ts` listed the environments still on
+  `plain` while #261 built their kits; it is empty now, so every built-in environment must have a
+  kit of its own covering every role its tables need. `checkScenes` still fails an environment on
+  the list that names a kit ("take it off KIT_PENDING") and one back on `plain` ("it needs a kit
+  of its own").
+- **The clearance invariant.** `src/lib/tabletop/world/kit-clearance.spec.ts` fills every role's
+  envelope to the brim where a kit would put it (walls, outer faces, caps, retaining walls and
+  sills, risers, posts) and runs the world's harness (`checkEmitter` with no `INTRUSION`
+  allowance, up to `FIGURE_CLEAR`) on every fixture scene and view, all 16 ways walls meet at a
+  corner, walkable against void, and drops of 1 and 5. It covers the medium base; large bases
+  (#270) exceed a cell by design.
+- The walls draw from kits since #252 (docs/RENDERING.md, "Kit walls"): `loadEnvironment` loads
+  the wall roles of the environment's kit (`loadKit`: every `body` part of each variant's model as
+  one mesh with its vertex colours, `pieceOf`), and a role the kit lacks, or whose models fail to
+  load, draws its built-in procedural piece, never nothing.
+
+#### Greybox kits (#261)
+
+Every built-in environment has a greybox kit of the same id (stone halls' is `stone-halls-greybox`,
+the fallback under the pilot kit, below), built from part lists: procedural,
+thirdfold-original (`assets/models/kit/_provenance.json`), and the permanent fallback that authored
+kits replace role by role (the stone-halls pilot, #263; CC0 pieces, #262). `plain` stays empty:
+every role procedural, for tables with no environment.
+
+- **Made by a script.** `npx tsx scripts/make-kits.ts` writes `assets/models/kit/<kit>-<piece>.json`
+  and `assets/kits/<kit>.json` (prettier-formatted, the same bytes every run), from
+  `scripts/kits/parts.ts` (boxes, cylinders, cones and spheres; courses of blocks, boards, rubble,
+  openings, pointed heads, floor slabs, roof slopes and terraces), `pieces.ts` (the pieces every
+  kit has, in its colours) and `looks.ts` (each kit's colours, walls, boundary, deck, tiles and own
+  roles). Edit those, run it, then `npm run assets`. Colours follow docs/ART.md's surface ramps;
+  a part may name a manifest material instead (`plaster`, `monastery-stone`, `ancient-stone`,
+  `cave-rock`, `sinew`, `railcar-wall`, `weathered-wood`, and the roofs' `thatch`, `slate`,
+  `tin-roof`, `roof-boards`), whose colour is baked in.
+- **Roles.** Every kit fills every wall, cap, plinth, post (end, L, T, X), window (frame, sill,
+  glass), door (frame, leaf), stair (riser, side), railing, bridge (deck, pier) and cliff (face,
+  corner) role, so a GM's own table finds pieces too; kits with a roof add all six roof roles;
+  stone halls add `cap.battlement`, `crenellation`, `buttress`, `pinnacle`, `tower.corner` and
+  `arch`, the cavern `arch`. `wall.straight` has two weighted variants.
+
+  | Kit                   | Walls                                    | Boundary            | Roof              | Floor tiles                                          |
+  | --------------------- | ---------------------------------------- | ------------------- | ----------------- | ---------------------------------------------------- |
+  | `village`             | plaster on a stone footing; timber frame | palisade of logs    | thatch, gable 45° | cobble, wood (planks)                                |
+  | `stone-halls-greybox` | coursed ashlar; with a string course     | crenellated curtain | slate, gable 40°  | plain, flagstone, stone (flags); wood (planks); tile |
+  | `cavern`              | rough rubble; ancient coursed stone      | heaped rocks        | none              | stone (hewn flags)                                   |
+  | `living-cave`         | sinew with ribs; swollen sinew           | sinew posts         | none              | none                                                 |
+  | `railcar`             | panelled planks; boarded                 | iron rail           | tin, gable 15°    | plain, wood (planks); grating                        |
+  | `ghost-town`          | adobe; weathered boards                  | picket fence        | boards, gable 22° | wood (boardwalk)                                     |
+
+  Each floor has three tiles and one broken tile, but the railcar's `grating` (one tile, no broken
+  one); stone halls also tile `tile` (terracotta slabs) and the railcar `grating`, the floor ids
+  #254 added.
+
+- **Conventions.** A wall piece's core spans the whole edge (x ±0.5), even where its blocks or
+  boards stop short: a core 0.98 long left a crack at every joint through which the far side of
+  the wall, and its lights, showed. Vertical pieces below a floor (retaining walls, sills, cliff faces, piers) are
+  one wall's height (2 u) and repeat down a deeper drop. Roof pieces are one cell from the wall's
+  top: `eave` a slope across the cell falling toward +z, `ridge` both slopes meeting over its
+  centre, `corner` and `hip` stepped terraces (boxes make no triangles) falling toward +x and +z,
+  or all round; `chimney` carries a `smoke` socket for #319.
+- **Budgets.** Pieces are 132 to 1,168 triangles (the palisade); a kit is 23 to 43 pieces, 190 to
+  290 kB to download and 160 to 235 kB on the GPU. `tableBudget` counts the environment's kit with
+  every table, so each built-in table still fits `TABLE_BUDGETS` (the Hollow, the tightest, is
+  14.4 MB of 15 at medium). The manifest grew by 201 entries (220 → 337 kB, 33 → 48 kB gzipped).
+- **Review.** Search `kit` on the turntable (`/dev/assets`, dev only) to view a piece; floor tiles
+  lie below the turntable's floor, so view them through a table once #252 and #254 draw kits.
+  `node scripts/thumbnails.mjs <dev url> --only <id,…> --out <dir>` renders pieces to PNGs.
+- **Not yet:** the per-vertex surface-layer attribute (each part's surface, sampled from the
+  environment's arrays in world space) needs the validator, the GLB writer and the kit material
+  (#252) together; until then pieces carry their surface's colour as vertex colour.
+
+#### The stone-halls pilot kit (#263)
+
+`assets/kits/stone-halls.json` is the first textured kit: an in-house pilot
+(`LicenseRef-thirdfold-original`), made by script the way the great bell's was (#196), until
+docs/ART.md's brief B is commissioned. It covers every role the greybox kit fills but the six roof
+roles and the `wood` and `tile` floors, which stay the greybox's (`stone-halls-greybox.json`, the
+fallback, with the same roles and floors).
+
+- **Made by a script**, the same bytes every run under Node 22:
+
+  ```bash
+  npx tsx scripts/make-kits.ts                                                   # the greybox kits
+  npx -y node@22 node_modules/tsx/dist/cli.mjs scripts/make-stone-halls-art.ts   # art/ + the kit
+  npm run assets:cook && npx -y node@22 node_modules/tsx/dist/cli.mjs server/assets/build.ts
+  ```
+
+  `scripts/stone-halls/trim.ts` paints the trim sheet, `pieces.ts` models the pieces, `build.ts`
+  UVs, colours and checks them. The script writes `art/texture/ashlar-trim-{albedo,normal,orm}/`
+  (2048² PNG and `meta.json` with its `usage`) and `art/kit/<id>/` (`<id>.glb` as a Blender export
+  would be: one `body` mesh, positions, normals, UVs and vertex colours, a material named
+  `ashlar-trim` with no textures; `meta.json` with `materials: ["ashlar-trim"]` and `lockBorder`),
+  then the kit: the greybox kit's JSON with the pilot's pieces in every role they fill. The PNGs
+  and GLBs are gitignored (`/art/kit/*/*`, `/art/texture/*/*`); only the `meta.json` files are
+  committed, so re-cooking needs the script run first.
+
+- **The trim sheet** is one texture set at 512 px per unit (a 4 × 4 u repeat), shared by every
+  piece, in strips that tile along u: ashlar (2 u of coursed blocks, a wall's height), dressed stone
+  (copings, frames, mouldings, voussoirs), rubble, paving, oak boards, and iron beside leaded glass.
+  It cooks to `ashlar-trim-albedo` (ETC1S, sRGB), `-normal` and `-orm` (UASTC, linear) at the 512 px
+  base, with 1K and 2K variants in `variants/` and the asset store, worn through the manifest
+  material `ashlar-trim` (`assets/materials.json`, `cells` 4). A kit piece embeds no texture: its
+  cooked `meta.json` carries `materials`, which `pipeline-models.ts` checks against `materials.json`
+  and puts in `ModelEntry.materials`, so `tableBudget` counts the sheet once per table and the
+  textures go in the `core` pack.
+- **Pieces** (37), each a role's variant within its envelope (`envelopeProblem` in the script,
+  then `parseKit` in the build) and under the kit's 1,500 triangles, cooked with LODs where a piece
+  has 300 or more:
+  - walls: `ashlar-wall-a` and `-b` (two windows on the sheet's courses), `-cracked` (weight 0.5),
+    `-niche` (0.3); `ashlar-wall-outer`, `ashlar-retaining` (rubble below the floor),
+    `ashlar-curtain` (the crenellated boundary);
+  - tops and feet: `ashlar-coping` (`cap`), `ashlar-battlement`, `ashlar-crenels`, `ashlar-plinth`;
+  - openings: `ashlar-arch`, `ashlar-window` (a pointed head), `ashlar-window-sill`,
+    `leaded-glass`, `ashlar-door-frame`, `oak-door`;
+  - stairs, drops and bridges: `ashlar-step`, `ashlar-stair-side`, `stone-balustrade`,
+    `rubble-face`, `rubble-corner`, `flag-deck`, `ashlar-pier`;
+  - corners: `ashlar-post-end`, `-l`, `-t`, `-x`, `ashlar-buttress`, `stone-pinnacle`,
+    `ashlar-turret`;
+  - floors `plain`, `flagstone` and `stone`: `flagstone-a` to `-d`, `flagstone-broken-a` and `-b`.
+
+  Coursed walls are built from the sheet's own course layout (`COURSES`, `CUTS`): an ashlar face
+  maps by where it stands on the wall, so each block's face shows the block painted for it and the
+  joints fall on the gaps; other faces map planar per part at the sheet's density. Each vertex also
+  carries the sheet's mean colour over its face times the occlusion part lists bake (`bake.ts`):
+  since M70 the walls, door leaves and floor tiles wear the sheet itself by UV (docs/RENDERING.md,
+  "Kit textures"), and the colours stay what the stairs, bridges and cliffs draw (baked into the
+  chunks' faces) and what a piece falls back to. The cook keeps a piece's UVs when its `meta.json`
+  names `materials` (`prune({ keepAttributes })`: with no texture of its own a plain prune drops
+  them), so `TEXCOORD_0` is in its GLB; the GLBs carry no tangents (the normal map is mapped in the
+  derivative frame, mapping.ts).
+
+- **A commission replaces it** role by role through the same paths: deliver `art/kit/<id>/<id>.glb`
+  and `meta.json` (provenance `LicenseRef-thirdfold-commissioned`, `materials`) per piece and the
+  trim sheet's PNGs in `art/texture/<id>/`, cook, then point the role in
+  `assets/kits/stone-halls.json` at the new ids (and stop running the pilot script, which rewrites
+  that file). The greybox kit stays the fallback.
+- **Budgets.** The sheet is 314 kB at the base (albedo 37, normal 195, ORM 82), 1,012 kB more at
+  1K and 3,015 kB at 2K; the 37 cooked pieces are 132 to 1,012 triangles and 421 kB together (323 kB
+  before M70 kept their UVs). Per
+  stone-halls table, from `npm run assets` (desktop held at medium, mobile at low):
+
+  | Table                         | Download low | Download medium | GPU medium | Mobile GPU |
+  | ----------------------------- | ------------ | --------------- | ---------- | ---------- |
+  | hollow-bell/monastery         | 5,120 kB     | 15,092 kB       | 47,780 kB  | 48,306 kB  |
+  | example/cellar                | 4,151 kB     | 14,122 kB       | 45,310 kB  | 39,798 kB  |
+  | (stone-halls), an empty table | 3,845 kB     | 13,817 kB       | 44,691 kB  | 37,796 kB  |
+
+  The monastery was 13,595 kB at medium with the greybox kit; it fits 15 MB with 268 kB to spare
+  (357 before M70's UVs added 89 kB to the pieces), so a commissioned sheet must not be heavier at
+  1K (its normal map, 671 kB, is most of it).
+
 ### Audio
 
 - **A bell recipe** is `{ "bell": "great" | "flash" | "hand" | "chime" | "motif", "rate": 8000..48000
@@ -301,7 +560,10 @@ any other GLB or KTX2 source. Nothing cooks per pull request.
 `meta.json` holds the `provenance` (required, docs/ART.md section 13, copied into the cooked
 meta), and optionally `swing`, `setPiece`, `textureSize` (the largest side; bigger maps are halved
 until they fit), `lods` (per level `{ ratio, error, screenSize }` over the defaults), `lockBorder`
-(kit pieces, so simplified seams stay closed) and, for a texture, `usage`. The export follows
+(kit pieces, so simplified seams stay closed), `ramp` and `detail` (a CC0 bridge prop's colour
+maps recoloured to the palette before encoding, see "CC0 bridge props"), `materials` (a kit
+piece's manifest materials, its trim sheet, copied into the cooked meta; #263) and, for a texture,
+`usage`. The export follows
 docs/ART.md section 17. A model is cooked in this order:
 
 1. Checked: only the allowed extensions, no skins, animations, cameras or shape keys, objects
@@ -408,6 +670,56 @@ surfaces change. A floor with no layer keeps its `FLOOR_LOOKS` colour. Since #24
 each fragment are blended from the same arrays, by the height in the albedo's alpha (docs/RENDERING.md,
 "Floors blended per pixel"): no new art and no new texture, the height the stylise step already writes. The walls wear their
 surface's three maps in the wall material's slots.
+
+### CC0 bridge props (#262)
+
+The most-placed props on the built-in tables are textured CC0 models from
+[Poly Haven](https://polyhaven.com/models) (the owner's sources for #262: Poly Haven and ambientCG
+only, and ambientCG has no models), recoloured to the one palette, until authored art replaces them
+(#123, #124). Their ids are unchanged, so saves, adventures and library files load as before; each
+old part list is now the model's preview (`<id>.preview.json`).
+
+1. `art/prop/<id>/meta.json` pins the source: `provenance` (`CC0-1.0`, the artist and "(Poly
+   Haven)", the 1K glTF's URL and SHA-256 as its `source`, `modified: true`) and `maps` (the glTF's
+   buffer, the colour map and the ARM map as 1K PNGs, each URL and SHA-256), with how it is put
+   together (`fit`: the size in cells along x, y and z, a null axis scaled like the smallest given;
+   `turn`: quarter turns about y so its back faces −z like the part lists; `triangles` and `error`:
+   the simplifier's target and error limit; `roughness`), how it is recoloured (`ramp`, `detail`)
+   and cooked (`textureSize` 512, `lods`). Git keeps only the meta (`.gitignore`: `/art/prop/*/*`).
+2. `npx -y node@22 node_modules/tsx/dist/cli.mjs scripts/fetch-models.ts [id...]` fetches each
+   file from Poly Haven or ambientCG and no other host, refuses one whose SHA-256 differs
+   (`--record` writes the hash of a new file whose meta has all zeros), and writes the export the
+   cook expects, `<id>.glb`: one `body` mesh (flattened and joined; one material only), only
+   positions, normals and UVs, simplified, turned, scaled to `fit` with its base at 0 and its
+   footprint centred; its colour map darkened by the scan's occlusion (the ARM map's red, at most
+   20%, docs/ART.md section 4) as its only texture, no metal, the meta's roughness. The same bytes
+   every run under Node 22. By hand only: CI never downloads.
+3. `npm run assets:cook` cooks it like any model, first recolouring its colour maps through the
+   meta's `ramp` (`recolour` in `stylise.ts`: softened, luminance stretched and half posterised
+   through the ramp, `detail` of the scan's own hue, every value in 30-240), so a photo-scan reads
+   as painted in the palette. `stylise.spec.ts` checks every fetched prop's ramp is one of
+   docs/ART.md's surface ramps. `textureSize` 512 means no 1K or 2K variant: one albedo map only
+   (no normal or ORM), to keep each table within `TABLE_BUDGETS`.
+
+| Prop        | Poly Haven model                                                           | Artist           | Triangles (LODs)     | File   | Ramp  |
+| ----------- | -------------------------------------------------------------------------- | ---------------- | -------------------- | ------ | ----- |
+| `pew`       | [painted_wooden_bench](https://polyhaven.com/a/painted_wooden_bench)       | Kirill Sannikov  | 630 (314, 134)       | 56 kB  | wood  |
+| `table`     | [wooden_table_02](https://polyhaven.com/a/wooden_table_02)                 | Serhii Khromov   | 196                  | 51 kB  | wood  |
+| `statue`    | [gothic_statue](https://polyhaven.com/a/gothic_statue)                     | Benny Weimer     | 2,998 (1,907)        | 120 kB | stone |
+| `barrel`    | [wine_barrel_01](https://polyhaven.com/a/wine_barrel_01)                   | James Ray Cock   | 1,736 (1,660, 1,656) | 114 kB | wood  |
+| `bed`       | [GothicBed_01](https://polyhaven.com/a/GothicBed_01)                       | Kirill Sannikov  | 2,500 (1,482, 1,473) | 104 kB | wood  |
+| `chair`     | [painted_wooden_chair_01](https://polyhaven.com/a/painted_wooden_chair_01) | Kuutti Siitonen  | 724 (362, 296)       | 58 kB  | wood  |
+| `ashes`     | [stone_fire_pit](https://polyhaven.com/a/stone_fire_pit)                   | Sebastian Platen | 1,500 (746, 224)     | 70 kB  | stone |
+| `bookshelf` | [wooden_bookshelf_worn](https://polyhaven.com/a/wooden_bookshelf_worn)     | Ulan Cabanilla   | 2,000 (1,000, 300)   | 79 kB  | wood  |
+
+The rest of the most-placed props stay part lists: Poly Haven has no CC0 model that fits a
+gravestone, pillar, rubble pile, cube crate, coffin (and its open look), rope, chains, noticeboard,
+altar, brazier, gear or well, and the chest stays with its open look (`chest-open`) rather than
+swap families when it opens; the lever, the great bell and the heart are story pieces (#332). The
+bed and the table are scaled to their footprints along each axis, so the bed (a double) is narrower
+than modelled. Poly Haven has no modular family that fits the kit roles (#250), so no kit piece is
+bridged: the greybox kits stay. The thumbnails in `assets/thumbnails/` still show the part lists
+until `scripts/thumbnails.mjs` renders them again.
 
 ## Texture detail
 
@@ -560,10 +872,11 @@ textures exist in up to three sizes: a **base** of at most 512 px, always, and *
 each optional until then: a model's `lods` (levels after LOD0, coarsest last, each with its
 triangles and the `screenSize` below which it is drawn; their meshes are `<role>_lod<n>` in the
 same GLB, since three's GLTFLoader strips `.` from names), `cooked`, `materials` (manifest
-materials a kit piece or decor wears), a kit piece's `pivot` and `footprint`, a `preview` model
+materials a kit piece or decor wears), a `preview` model
 and a `thumbnail`; `credit`, required on every file (`{ license, author, source?, modified?, ai? }`, #189);
 `pack` on every file and the `packs` they add up to (#192); `surfaces` (#187) and an
-environment's `surfaces`; `skies` (#213) and an environment's `sky` and `world`; and the KTX2
+environment's `surfaces`; `skies` (#213) and an environment's `sky` and `world`; `kits` (#250)
+and an environment's `kit` (a kit piece's pivot is its role's, so it has none of its own); and the KTX2
 transcoder's folder under `decoders` (#188). Part lists get
 no LODs.
 

@@ -4,6 +4,7 @@
 	"ground": "flesh",
 	"walls": "sinew",
 	"sky": "abyss",
+	"kit": "living-cave",
 	"surfaces": {
 		"floors": ["stone", "wood", "grass", "dirt", "sand"],
 		"walls": ["cave-rock"]

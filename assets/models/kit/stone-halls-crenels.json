@@ -1,0 +1,16 @@
+{
+	"parts": [
+		{
+			"shape": "box",
+			"size": [0.36, 0.34, 0.14],
+			"at": [-0.25, 1.83, 0],
+			"material": "monastery-stone"
+		},
+		{
+			"shape": "box",
+			"size": [0.36, 0.34, 0.14],
+			"at": [0.25, 1.83, 0],
+			"material": "monastery-stone"
+		}
+	]
+}

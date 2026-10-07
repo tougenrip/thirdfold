@@ -177,8 +177,9 @@ export interface AtmosphereLights {
 		uniforms: { exposure: { value: number }; bloomStrength: { value: number } };
 		bloomBase: number;
 	};
-	/** The point lights and flames, which flicker by the night glow. */
+	/** The night glow: the point lights' and flames' flicker, and windows' glow (#260). */
 	lighting: { setGlow(glow: number): void };
+	walls: { setGlow(glow: number): void };
 	/** What draws the sky's captures (#216), where they are timed, and a frame for a late one. */
 	renderer: THREE.WebGPURenderer;
 	perf: { time<T>(label: string, fn: () => T): T };
@@ -482,7 +483,7 @@ export class AtmosphereLayer {
 		u.fogDensity.value = this.low ? 0 : s.fog.density + haze.density * HAZE_DENSITY;
 		u.fogHeight.value = s.fog.height;
 		u.ibl.value = s.ibl;
-		this.lights.lighting.setGlow(s.nightGlow);
+		for (const l of [this.lights.lighting, this.lights.walls]) l.setGlow(s.nightGlow);
 		// Where the dome is hidden (low, #225) the sky is flat: the haze the far ground fades into.
 		skyBackground.copy(fogColor);
 		this.sky.apply(s, fogColor, u.inscatter.value);

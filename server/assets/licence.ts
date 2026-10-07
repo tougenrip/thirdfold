@@ -11,6 +11,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
+	ASSET_ID_PATTERN,
 	LICENSES,
 	type Credit,
 	type License,
@@ -179,6 +180,7 @@ export function checkCredits(manifest: Manifest, adventures: readonly AdventureD
 		material: manifest.materials,
 		surface: manifest.surfaces,
 		environment: manifest.environments,
+		kit: manifest.kits,
 		sky: manifest.skies,
 		audio: manifest.audio,
 		pack: manifest.packs
@@ -193,6 +195,7 @@ export function checkCredits(manifest: Manifest, adventures: readonly AdventureD
 	for (const [id, t] of Object.entries(manifest.textures)) file(`texture ${id}`, t.credit);
 	for (const [id, a] of Object.entries(manifest.audio)) file(`audio ${id}`, a.credit);
 	for (const [id, e] of Object.entries(manifest.environments)) check(`environment ${id}`, e.name);
+	for (const [id, k] of Object.entries(manifest.kits)) check(`kit ${id}`, k.name);
 	for (const [id, s] of Object.entries(manifest.skies)) {
 		check(`sky ${id}`, s.name);
 		file(`sky ${id}`, s.credit);
@@ -211,6 +214,12 @@ export interface ArtMeta {
 	lods?: { ratio?: number; error?: number; screenSize?: number }[];
 	lockBorder?: boolean;
 	usage?: TextureUsage;
+	/** A model's colour maps recoloured through this palette ramp (#262, stylise.ts `recolour`). */
+	ramp?: string[];
+	/** How much of the source's own hue the recolour keeps, 0-1 (0.25 by default). */
+	detail?: number;
+	/** Manifest materials a kit piece wears instead of textures of its own (a trim sheet, #263). */
+	materials?: string[];
 }
 
 export function readMeta(dir: string): ArtMeta {
@@ -225,6 +234,13 @@ export function readMeta(dir: string): ArtMeta {
 	}
 	if (meta.lods !== undefined && !(Array.isArray(meta.lods) && meta.lods.every(isRecord))) {
 		throw new AssetError(file, 'lods must be a list of { ratio, error, screenSize }');
+	}
+	const worn = meta.materials;
+	if (
+		worn !== undefined &&
+		!(Array.isArray(worn) && worn.every((m) => typeof m === 'string' && ASSET_ID_PATTERN.test(m)))
+	) {
+		throw new AssetError(file, 'materials must be a list of material ids');
 	}
 	return meta as unknown as ArtMeta;
 }

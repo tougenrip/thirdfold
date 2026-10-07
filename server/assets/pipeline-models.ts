@@ -70,6 +70,7 @@ export async function buildModels(
 			let translucency: number | undefined;
 			let screenSizes: unknown;
 			let pack = CORE_PACK;
+			let worn: string[] | undefined;
 			try {
 				if (ext === 'json') {
 					const model = readModelSource(readJson(source), known);
@@ -89,6 +90,13 @@ export async function buildModels(
 							if (typeof m.pack !== 'string' || !ASSET_ID_PATTERN.test(m.pack))
 								throw new AssetError(meta, 'a pack is an asset id');
 							pack = m.pack;
+						}
+						// A kit piece's trim sheet comes with the materials it wears (#263).
+						if (isRecord(m) && m.materials !== undefined) {
+							const list = m.materials;
+							if (!Array.isArray(list) || !list.every((x) => typeof x === 'string' && known.has(x)))
+								throw new AssetError(meta, 'materials must name materials in materials.json');
+							worn = list as string[];
 						}
 					}
 				} else throw new Error('models are .json part lists or .glb files');
@@ -123,6 +131,7 @@ export async function buildModels(
 				...(checked.info.cooked ? { cooked: true as const } : {}),
 				...(setPiece ? { setPiece: true as const } : {}),
 				...(translucency ? { translucency } : {}),
+				...(worn ? { materials: worn } : {}),
 				pack
 			};
 		}

@@ -1,0 +1,7 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [1, 0.3, 1], "at": [0, -0.15, 0], "material": "cave-rock" },
+		{ "shape": "box", "size": [1, 0.08, 0.12], "at": [0, -0.04, -0.44], "color": "#3f3e46" },
+		{ "shape": "box", "size": [1, 0.08, 0.12], "at": [0, -0.04, 0.44], "color": "#3f3e46" }
+	]
+}

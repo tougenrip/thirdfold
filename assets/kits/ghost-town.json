@@ -1,0 +1,50 @@
+{
+	"name": "Ghost town",
+	"roof": { "style": "gable", "pitch": 22, "eave": 0.2, "material": "roof-boards" },
+	"presumeRoofs": true,
+	"pieces": {
+		"wall.straight": [
+			{ "model": "ghost-town-wall-adobe" },
+			{ "model": "ghost-town-wall-boards", "weight": 0.8 }
+		],
+		"wall.outer": [{ "model": "ghost-town-wall-outer" }],
+		"wall.retaining": [{ "model": "ghost-town-wall-retaining" }],
+		"wall.boundary": [{ "model": "ghost-town-wall-boundary" }],
+		"cap": [{ "model": "ghost-town-cap" }],
+		"plinth": [{ "model": "ghost-town-plinth" }],
+		"window.frame": [{ "model": "ghost-town-window-frame" }],
+		"window.sill": [{ "model": "ghost-town-window-sill" }],
+		"window.glass": [{ "model": "ghost-town-window-glass" }],
+		"door.frame": [{ "model": "ghost-town-door-frame" }],
+		"door.leaf": [{ "model": "ghost-town-door-leaf" }],
+		"stair.riser": [{ "model": "ghost-town-stair-riser" }],
+		"stair.side": [{ "model": "ghost-town-stair-side" }],
+		"railing": [{ "model": "ghost-town-railing" }],
+		"cliff.face": [{ "model": "ghost-town-cliff-face" }],
+		"cliff.corner": [{ "model": "ghost-town-cliff-corner" }],
+		"bridge.deck": [{ "model": "ghost-town-bridge-deck" }],
+		"bridge.pier": [{ "model": "ghost-town-bridge-pier" }],
+		"post.end": [{ "model": "ghost-town-post-end" }],
+		"post.L": [{ "model": "ghost-town-post-l" }],
+		"post.T": [{ "model": "ghost-town-post-t" }],
+		"post.X": [{ "model": "ghost-town-post-x" }],
+		"roof.eave": [{ "model": "ghost-town-roof-eave" }],
+		"roof.ridge": [{ "model": "ghost-town-roof-ridge" }],
+		"roof.hip": [{ "model": "ghost-town-roof-hip" }],
+		"roof.corner": [{ "model": "ghost-town-roof-corner" }],
+		"roof.chimney": [
+			{ "model": "ghost-town-roof-chimney", "sockets": [{ "kind": "smoke", "at": [0.2, 3.5, 0] }] }
+		],
+		"roof.dormer": [{ "model": "ghost-town-roof-dormer" }]
+	},
+	"floors": {
+		"wood": {
+			"tiles": [
+				{ "model": "ghost-town-boardwalk-a" },
+				{ "model": "ghost-town-boardwalk-b" },
+				{ "model": "ghost-town-boardwalk-c" }
+			],
+			"broken": [{ "model": "ghost-town-boardwalk-broken" }]
+		}
+	}
+}

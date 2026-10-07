@@ -1,0 +1,33 @@
+{
+	"name": "Living cave",
+	"roof": null,
+	"presumeRoofs": false,
+	"pieces": {
+		"wall.straight": [
+			{ "model": "living-cave-wall-sinew" },
+			{ "model": "living-cave-wall-swollen", "weight": 0.6 }
+		],
+		"wall.outer": [{ "model": "living-cave-wall-outer" }],
+		"wall.retaining": [{ "model": "living-cave-wall-retaining" }],
+		"wall.boundary": [{ "model": "living-cave-wall-boundary" }],
+		"cap": [{ "model": "living-cave-cap" }],
+		"plinth": [{ "model": "living-cave-plinth" }],
+		"window.frame": [{ "model": "living-cave-window-frame" }],
+		"window.sill": [{ "model": "living-cave-window-sill" }],
+		"window.glass": [{ "model": "living-cave-window-glass" }],
+		"door.frame": [{ "model": "living-cave-door-frame" }],
+		"door.leaf": [{ "model": "living-cave-door-leaf" }],
+		"stair.riser": [{ "model": "living-cave-stair-riser" }],
+		"stair.side": [{ "model": "living-cave-stair-side" }],
+		"railing": [{ "model": "living-cave-railing" }],
+		"cliff.face": [{ "model": "living-cave-cliff-face" }],
+		"cliff.corner": [{ "model": "living-cave-cliff-corner" }],
+		"bridge.deck": [{ "model": "living-cave-bridge-deck" }],
+		"bridge.pier": [{ "model": "living-cave-bridge-pier" }],
+		"post.end": [{ "model": "living-cave-post-end" }],
+		"post.L": [{ "model": "living-cave-post-l" }],
+		"post.T": [{ "model": "living-cave-post-t" }],
+		"post.X": [{ "model": "living-cave-post-x" }]
+	},
+	"floors": {}
+}

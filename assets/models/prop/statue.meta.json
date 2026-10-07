@@ -1,0 +1,12 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Benny Weimer (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/gothic_statue/gothic_statue_1k.gltf",
+			"sha256": "eecbc67793a1e1efa1359d57fa497cb267fc7a4039823d3feecb6d0fcd2ad2db"
+		},
+		"modified": true
+	},
+	"screenSizes": [0.25]
+}

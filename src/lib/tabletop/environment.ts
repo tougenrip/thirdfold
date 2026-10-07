@@ -16,10 +16,21 @@ import {
 } from '$lib/assets/manifest';
 import { fetchAsset, loadManifest } from '$lib/assets/load';
 import { imageTexture } from './image-texture';
-import { followDetail, ktx2Texture, slotTexture } from './models';
+import {
+	followDetail,
+	ktx2Texture,
+	loadModel,
+	partsOf,
+	slotTexture,
+	type LoadedModel
+} from './models';
 import { setParams, setSlot, type KindMaterial } from './materials';
 import type { Grades } from './grades-load';
 import type { FloorSurfaces } from './materials/floors';
+import type { KitDef } from '$lib/assets/kit';
+import type { WallKit } from './walls';
+import type { RoofKit } from './roofs';
+import type { PieceMesh } from './world/wall-batch';
 
 export { resolveSky } from '$lib/assets/sky-parse';
 
@@ -46,12 +57,18 @@ export interface EnvironmentLook {
 	floors: FloorSurfaces | null;
 	/** 32³ RGBA lookup tables (x red, y green, z blue); null when the environment has no grade. */
 	grades: Grades | null;
+	/** Its architecture kit's pieces (#250, #252), or null when it has none (`plain`). */
+	kit: WallKit | null;
+	/** Its kit's roofs (#257), or null when it has none (caves, `plain`). */
+	roof: RoofKit | null;
 }
 
 /** The size of a grade's lookup table, per side. */
 export const LUT_SIZE = 32;
 
 const textures = new Map<string, Promise<THREE.Texture | null>>();
+/** Trim sheets (M70) by manifest material: their textures are `textures`', freed with them. */
+const sheets = new Map<string, Promise<Look | null>>();
 /** The KTX2 ones among them: transcoded for one device's formats. */
 const transcoded = new Set<string>();
 
@@ -65,6 +82,7 @@ export function releaseEnvironmentTextures(): void {
 		textures.delete(id);
 	}
 	transcoded.clear();
+	sheets.clear();
 	for (const release of releasers) release();
 }
 
@@ -103,6 +121,40 @@ async function look(def: MaterialDef, files: Record<string, TextureEntry>): Prom
 }
 
 /**
+ * The trim sheet a kit piece wears (M70): the first manifest material its entry names (#263), its
+ * albedo, normal and ORM through `loadTexture` (so texture detail swaps them in place), else its
+ * own glTF maps; null for a piece coloured by its vertices alone (the greybox kits), or a sheet
+ * whose albedo fails to load. One Look per material, shared by every piece that wears it.
+ */
+export function sheetOf(model: LoadedModel): Promise<Look | null> {
+	const id = model.entry.materials?.[0];
+	if (!id) {
+		const part = partsOf(model, 'body').find((p) => p.maps?.albedo);
+		if (!part) return Promise.resolve(null);
+		const { albedo, normal, orm } = part.maps!;
+		const p = part.params;
+		const color = new THREE.Color(p.color ?? 0xffffff);
+		const [roughness, metalness] = [p.roughness ?? 1, p.metalness ?? 0];
+		return Promise.resolve({ color, roughness, metalness, map: albedo!, cells: 1, normal, orm });
+	}
+	let loading = sheets.get(id);
+	if (!loading) {
+		loading = loadManifest().then(async ({ materials, textures: files }) => {
+			const def = materials[id];
+			const get = (t?: string) => (t && files[t] ? loadTexture(t, files[t]) : null);
+			const [map, normal, orm] = await Promise.all([
+				get(def?.map),
+				get(def?.normal),
+				get(def?.orm)
+			]);
+			return map ? { ...(await look(def, {})), map, normal, orm } : null;
+		});
+		sheets.set(id, loading);
+	}
+	return loading;
+}
+
+/**
  * An environment's looks, or null if the manifest has no such environment. Its grades for
  * `toneMapper` are loaded with it; another tone mapper's load when asked for (Grades.load).
  */
@@ -114,7 +166,10 @@ export async function loadEnvironment(
 	const env = manifest.environments[id];
 	if (!env) return null;
 	const { surfaces: painted } = env;
-	const [[surface, ground, walls], grades, own] = await Promise.all([
+	const kitDef = manifest.kits[env.kit ?? 'plain'];
+	const roofDef = kitDef?.roof ?? null;
+	const roofLook = roofDef && manifest.materials[roofDef.material];
+	const [[surface, ground, walls], grades, own, kit, roofed, roofPieces] = await Promise.all([
 		Promise.all(
 			[env.surface, env.ground, env.walls].map((m) =>
 				look(manifest.materials[m], manifest.textures)
@@ -125,14 +180,24 @@ export async function loadEnvironment(
 			? import('./grades-load').then((m) => m.gradesOf(id, env.lut!, manifest.textures, toneMapper))
 			: null,
 		// Its painted surfaces (#187), from a chunk only tables that have them load.
-		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null
+		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null,
+		loadKit(kitDef),
+		roofLook ? look(roofLook, manifest.textures) : null,
+		roofDef ? kitPieces(kitDef, 'roofs') : null
 	]);
 	return {
 		surface,
 		ground,
 		walls: own?.walls ? { ...walls, ...own.walls } : walls,
 		floors: own?.floors ?? null,
-		grades
+		grades,
+		kit,
+		roof: roofDef && {
+			roof: roofDef,
+			presume: kitDef!.presumeRoofs,
+			look: roofed,
+			pieces: roofPieces ?? {}
+		}
 	};
 }
 
@@ -152,4 +217,49 @@ export function wear(
 	setSlot(material, 'albedo', look?.map ?? null);
 	setSlot(material, 'normal', look?.normal ?? null);
 	setSlot(material, 'orm', look?.orm ?? null);
+}
+
+/**
+ * A kit's pieces (#250) as the walls draw them: each role's variants, every `body` part of its
+ * model's full level as one mesh; a role whose models don't all load draws procedurally (#252).
+ * Null for a kit with none (`plain`).
+ */
+export async function loadKit(kit: KitDef | undefined): Promise<WallKit | null> {
+	const out = await kitPieces(kit, 'walls');
+	return Object.keys(out).length ? (out as WallKit) : null;
+}
+
+/**
+ * A kit's pieces for the walls (with arches and door leaves, #253) or for the roofs (caps,
+ * chimneys with their smoke sockets and dormers, #258); stairs, bridges and cliffs are other
+ * layers'. A role whose models don't all load is left out.
+ */
+async function kitPieces(kit: KitDef | undefined, of: 'walls' | 'roofs') {
+	const build = await import('./world/build'); // loaded with the table
+	const roles = new Set<string>(of === 'walls' ? build.BATCH_ROLES : build.ROOF_PIECE_ROLES);
+	const entries = Object.entries(kit?.pieces ?? {}).filter(([role]) => roles.has(role));
+	const out: Record<
+		string,
+		{ mesh: PieceMesh; weight: number; smoke?: [number, number, number]; sheet?: Look }[]
+	> = {};
+	await Promise.all(
+		entries.map(async ([role, list]) => {
+			const models = await Promise.all(list.map((p) => loadModel(p.model)));
+			if (models.some((m) => !m)) return;
+			// The walls' pieces wear their trim sheet by UV (M70); roofs keep their baked colours.
+			const worn = await Promise.all(models.map((m) => (of === 'walls' ? sheetOf(m!) : null)));
+			out[role] = models.map((m, i) => {
+				const smoke = list[i].sockets?.find((s) => s.kind === 'smoke')?.at;
+				const mesh = build.pieceOf(partsOf(m!, 'body').map((p) => p.geometry));
+				if (!worn[i]) delete mesh.uvs; // drawn as before: by its vertex colours
+				return {
+					mesh,
+					weight: list[i].weight ?? 1,
+					...(smoke ? { smoke } : {}),
+					...(worn[i] ? { sheet: worn[i] } : {})
+				};
+			});
+		})
+	);
+	return out;
 }

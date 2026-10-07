@@ -1,0 +1,33 @@
+{
+	"provenance": {
+		"license": "CC0-1.0",
+		"author": "Ulan Cabanilla (Poly Haven)",
+		"source": {
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/wooden_bookshelf_worn/wooden_bookshelf_worn_1k.gltf",
+			"sha256": "a1c5b3f1e71ae0b5eb73047e8097bceaa5f17e5d2d0d7ae1b8053d5ec0878fc6"
+		},
+		"modified": true
+	},
+	"maps": [
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/4k/wooden_bookshelf_worn/wooden_bookshelf_worn.bin",
+			"sha256": "170758113b50132380ab46943f6eab18f2714460dead065aae37241a94abf0f9"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/wooden_bookshelf_worn/wooden_bookshelf_worn_diff_1k.png",
+			"sha256": "5fd1b385df3dd4742e63b8c9b4c562ef51abff6e93df482ac2d078602e420a27"
+		},
+		{
+			"url": "https://dl.polyhaven.org/file/ph-assets/Models/png/1k/wooden_bookshelf_worn/wooden_bookshelf_worn_arm_1k.png",
+			"sha256": "72fd9ded9ae8d443ee2676e5c13fce34104239c3e87ce791e56436065857a2a0"
+		}
+	],
+	"polyhaven": "https://polyhaven.com/a/wooden_bookshelf_worn",
+	"fit": [1.9, 1.8, 0.45],
+	"turn": 0,
+	"triangles": 2000,
+	"roughness": 0.8,
+	"ramp": ["#3a2a2a", "#5e4332", "#86623f", "#aa8656"],
+	"detail": 0.25,
+	"textureSize": 512
+}

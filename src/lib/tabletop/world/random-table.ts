@@ -120,3 +120,30 @@ export function cracks(m: EmitterMesh, g: SquareGrid, seed: number, rays = 60): 
 	}
 	return out;
 }
+
+/** A seeded table thick with walls, windows and doors over random levels, void, fog and buildings (#251). */
+export function wallTable(seed: number, width = 40, height = 34) {
+	const rnd = random(seed);
+	const int = (k: number) => Math.floor(rnd() * k);
+	const size = width * height;
+	const levels = Uint8Array.from({ length: size }, () => (rnd() < 0.15 ? int(4) : 0));
+	const floor = Uint8Array.from({ length: size }, () => (rnd() < 0.05 ? VOID : 0));
+	const shift = int(9);
+	const known = Uint8Array.from({ length: size }, (_, i) =>
+		((i % width) + Math.floor(i / width) + shift) % 9 < 6 ? 1 : 0
+	);
+	const building = Uint8Array.from({ length: size }, () => (rnd() < 0.3 ? 1 : 0));
+	const objects: SceneObject[] = [];
+	for (let k = 0; k < 160; k++) {
+		const [x, y, len, kind] = [int(width), int(height), 1 + int(6), int(10)];
+		const across = rnd() < 0.5;
+		const a = { x, y };
+		const b = across ? { x: Math.min(x + len, width), y } : { x, y: Math.min(y + len, height) };
+		if (kind === 0) {
+			const one = across ? { x: x + 1, y } : { x, y: y + 1 };
+			objects.push({ id: `d${k}`, kind: 'door', a, b: one, open: rnd() < 0.5 });
+		} else objects.push({ id: `w${k}`, kind: 'wall', a, b, window: kind === 1 });
+	}
+	const g: SquareGrid = { kind: 'square', cellSize: 1, width, height };
+	return { grid: g, levels, floor, known, building, objects };
+}

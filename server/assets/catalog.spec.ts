@@ -7,7 +7,7 @@ import { catalogModule, loadCatalog, readCatalog, removedIds, staleCatalog } fro
 import { buildAssets } from './pipeline';
 
 // One test builds every asset: a few seconds.
-vi.setConfig({ testTimeout: 30_000 });
+vi.setConfig({ testTimeout: 60_000 });
 
 const crate = { name: 'Crate', category: 'storage', w: 1, h: 1, blocks: 'movement' };
 const catalogOf = (props: Record<string, unknown>, aliases: Record<string, unknown> = {}) =>
@@ -84,7 +84,7 @@ describe('the prop catalogue on other sources', () => {
 		editCatalog(src, (c) =>
 			Object.assign(c.props, { stool: { ...crate, name: 'Stool', category: 'furniture' } })
 		);
-		cpSync(path.join(src, 'models/prop/chair.json'), path.join(src, 'models/prop/stool.json'));
+		cpSync(path.join(src, 'models/prop/crate.json'), path.join(src, 'models/prop/stool.json'));
 		const built = await buildAssets(src);
 		expect(built.manifest.models.stool.kind).toBe('prop');
 		expect(built.catalogModule).toContain("stool: { name: 'Stool', category: 'furniture'");

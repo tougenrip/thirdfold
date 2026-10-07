@@ -66,8 +66,6 @@ describe('the layers on the shader kinds', () => {
 		const ground = groundFor(view.grid, view.terrain ? decodeLevels(view.terrain, size) : null);
 		const table = new WorldGround(new THREE.Group(), build);
 		table.build(worldExtents(view.grid));
-		const walls = new WallLayer();
-		walls.sync(view.objects, view.grid, ground);
 		const props = new PropLayer();
 		props.sync(view.props, view.grid, ground);
 		const overlay = new OverlayLayer();
@@ -75,6 +73,8 @@ describe('the layers on the shader kinds', () => {
 		tokens.sync(view.tokens, view.grid, ground);
 		const world = new WorldLayer(new PerfRecorder(), table, build, props.drops);
 		world.update(view.grid, ground.levels, null, null, 'gm');
+		const walls = new WallLayer(build);
+		walls.sync(view.objects, world.shape!, ground);
 		const layers = [table, walls, props, tokens, world];
 		const drawn = layers.flatMap((l) => materialsOf(l.group));
 		// Doors, raised cells, props and minis are all on the fixture.

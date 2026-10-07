@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><title>thirdfold logo</title>
+<style>body{margin:0;font-family:sans-serif;display:grid;grid-template-columns:1fr 1fr}section{padding:32px;display:grid;gap:24px;align-content:start}
+.d{background:#14100d;color:#f2e6d0}.l{background:#f4ecdc;color:#2a1d12}.row{display:flex;align-items:end;gap:20px}.m{color:#e0a458}
+object{pointer-events:none}</style>
+<section class=d><div class=row><img id=anim src="/brand/thirdfold-mark-animated.svg" height=220><button onclick="const a=document.getElementById('anim');a.src=a.src.split('?')[0]+'?'+Date.now()">Replay</button></div><img src="/brand/thirdfold-logo.svg" height=110><div class=row><img src="/brand/thirdfold-mark.svg" height=170><img src="/brand/thirdfold-mark.svg" height=64><img src="/brand/thirdfold-mark.svg" height=32><img src="/brand/thirdfold-mark.svg" height=16></div>
+<div class=row id=monod></div></section>
+<section class=l><img src="/brand/thirdfold-logo-light.svg" height=110><div class=row><img src="/brand/thirdfold-mark.svg" height=170><img src="/brand/thirdfold-mark.svg" height=64><img src="/brand/thirdfold-mark.svg" height=32></div>
+<div class=row id=monol></div></section>
+<script>
+// Inline the mono files so currentColor follows the page's colour.
+Promise.all(['/brand/thirdfold-mark-mono.svg','/brand/thirdfold-logo-mono.svg'].map(u=>fetch(u).then(r=>r.text()))).then(([m,l])=>{
+ for (const id of ['monod','monol']) { const el=document.getElementById(id);
+  el.innerHTML = `<span style="height:110px;display:block">${l.replaceAll('tf-mono-w',id+'w')}</span><span class=m style="height:90px;display:block">${m.replaceAll('tf-mono',id+'m')}</span>`;
+  el.querySelectorAll('svg').forEach(s=>s.style.height='100%'); }
+});
+</script>

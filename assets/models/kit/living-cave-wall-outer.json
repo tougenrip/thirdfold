@@ -1,0 +1,7 @@
+{
+	"parts": [
+		{ "shape": "box", "size": [1, 2, 0.4], "at": [0, 1, 0.14], "material": "sinew" },
+		{ "shape": "box", "size": [1, 0.45, 0.42], "at": [0, 0.225, 0.14], "color": "#5a2a2e" },
+		{ "shape": "box", "size": [1, 0.08, 0.42], "at": [0, 1.2, 0.14], "color": "#4a1c22" }
+	]
+}

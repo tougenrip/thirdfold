@@ -9,7 +9,7 @@ import { rectCells, type CellMask } from './visibility';
 
 /**
  * The floors, by the byte stored for each cell. `plain` (0) is the table's own surface, shown as
- * "Default ground". Append-only (#248): a save stores the index, so a floor is only ever added at
+ * "Default ground". Append-only (#248, and tile and grating from #254): a save stores the index, so a floor is only ever added at
  * the end, and every floor after `void` is rule-neutral (moved over and seen through like stone).
  */
 export const FLOORS = [
@@ -26,7 +26,9 @@ export const FLOORS = [
 	{ id: 'rock', name: 'Rock' },
 	{ id: 'mud', name: 'Mud' },
 	{ id: 'snow', name: 'Snow' },
-	{ id: 'gravel', name: 'Gravel' }
+	{ id: 'gravel', name: 'Gravel' },
+	{ id: 'tile', name: 'Tile' },
+	{ id: 'grating', name: 'Grating' }
 ] as const;
 
 export type FloorId = (typeof FLOORS)[number]['id'];

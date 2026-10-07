@@ -9,12 +9,15 @@ import * as THREE from 'three/webgpu';
 import {
 	addInstanceTints,
 	createMaterial,
+	pieceMesh,
 	SHADER_KINDS,
 	withBake,
 	withDrops,
 	type MaterialOptions
 } from './index';
 import type { ShaderKind } from './kinds';
+import { ROOF_CELL_ATTRIBUTE } from './world-modify';
+import { ROOF_KEY_ATTRIBUTE } from './roof-fade';
 
 /** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181, #241, #249). */
 function variantsOf(kind: ShaderKind): MaterialOptions[] {
@@ -62,7 +65,7 @@ function sample(kind: ShaderKind, options: MaterialOptions, shadows: boolean): T
 
 /**
  * The gallery: every kind in each of its variants, with and without shadows, plus the local
- * mapping (door panels, #177) and the overlay's lines. Kept, not disposed: disposing its
+ * mapping (door panels, #177), the walls' batches (#252) and trim sheets (M70), roofs (#257) and the overlay's lines. Kept, not disposed: disposing its
  * materials would release the programs the table is to reuse.
  */
 export function kindGallery(): THREE.Object3D[] {
@@ -76,6 +79,47 @@ export function kindGallery(): THREE.Object3D[] {
 		new THREE.Vector3(),
 		new THREE.Vector3(1)
 	]);
+	// Kit pieces (#252, M70): pool-shaped meshes (piece.ts), with colours or not, and a trim sheet's
+	// with UVs on the `sheet` graph.
+	const pieces: MaterialOptions[] = [
+		{ antiTiled: false },
+		{ antiTiled: false, vertexColors: true },
+		{ antiTiled: true },
+		{ antiTiled: true, vertexColors: true },
+		{ sheet: true }
+	];
+	for (const options of pieces) {
+		const box = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+		if (!options.sheet) box.deleteAttribute('uv');
+		const count = box.getAttribute('position').count;
+		const color = new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3);
+		if (options.vertexColors) box.setAttribute('color', color);
+		const mesh = pieceMesh(box, createMaterial('surface', { piece: true, ...options }));
+		mesh.setMatrixAt(0, new THREE.Matrix4());
+		mesh.count = 1;
+		mesh.frustumCulled = false;
+		out.push(mesh);
+	}
+	// Roofs (#257): positions, normals, triangles, the roof cell, the pieces' colours (#258) and the fade's key (#259);
+	// casting and taking shadows.
+	const roof = new THREE.BoxGeometry(0.01, 0.01, 0.01).deleteAttribute('uv');
+	const corners = roof.getAttribute('position').count;
+	roof.setAttribute(
+		ROOF_CELL_ATTRIBUTE,
+		new THREE.BufferAttribute(new Float32Array(corners * 2), 2)
+	);
+	roof.setAttribute(
+		ROOF_KEY_ATTRIBUTE,
+		new THREE.BufferAttribute(new Float32Array(corners * 2), 2)
+	);
+	roof.setAttribute('color', new THREE.BufferAttribute(new Float32Array(corners * 3).fill(1), 3));
+	const roofed = new THREE.Mesh(
+		roof,
+		createMaterial('surface', { roof: true, vertexColors: true })
+	);
+	roofed.castShadow = roofed.receiveShadow = true;
+	roofed.frustumCulled = false;
+	out.push(roofed);
 	const lines = new THREE.LineSegments(points, createMaterial('overlay', { lines: true }));
 	lines.frustumCulled = false;
 	out.push(lines);
