@@ -6,6 +6,7 @@ import { WebSocket } from 'ws';
 import type { AdventureView } from '../src/lib/adventure/adventure';
 import { exampleAdventure } from '../src/lib/adventure/example';
 import { dndExampleAdventure } from '../src/lib/adventure/dnd-example';
+import { pregenChoices } from '../src/lib/rules/dnd55e/pregens';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
 import type { ChatMessage } from '../src/lib/game/chat';
@@ -23,6 +24,7 @@ import { recordOrigins } from './adventure/world';
 import { RoomManager } from './rooms';
 import { examplePack } from './rules/dnd55e/homebrew/example';
 import { MemoryRoomStore } from './room-store';
+import { MemoryCampaignStore } from './campaign-store';
 import { applyScene, exportScene } from './scene-io';
 
 class Queue {
@@ -4580,5 +4582,167 @@ describe('D&D adventure authoring over the wire (milestone 57)', () => {
 		expect(reopened.rules).toMatchObject({ id: 'dnd-5.5e' });
 		expect(reopened.chapter).toMatchObject({ id: 'the_shrine' });
 		expect(reopened.characters.find((c) => c.id === 'wren')).toBeTruthy();
+	});
+});
+
+describe('campaigns over the wire (milestone 58)', () => {
+	it('keeps the campaign open at its table across a server restart', async () => {
+		const roomStore = new MemoryRoomStore();
+		const campaignStore = new MemoryCampaignStore();
+		const options = { port: 0, host: '127.0.0.1', roomStore, campaignStore, roomSaveMs: 0 };
+		await server.close();
+		server = await startGameServer(options);
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const welcome = await gm.expect('welcome');
+		gm.send({ type: 'campaign_create', name: 'Kept Over' });
+		const { campaign } = await gm.until('campaign');
+		expect(campaignStore.records.size).toBe(1);
+		await server.close();
+		server = await startGameServer(options);
+		const back = await connect();
+		back.send({ type: 'resume', roomId: welcome.room.id, sessionToken: welcome.sessionToken });
+		await back.expect('welcome');
+		back.send({ type: 'campaign_list' });
+		expect(await back.until('campaigns')).toMatchObject({
+			campaigns: [{ id: campaign!.id, name: 'Kept Over' }],
+			current: { id: campaign!.id }
+		});
+	});
+
+	it('finishes one D&D adventure, returns to the campaign, and begins the next with the same party', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const ana = await connect();
+		ana.send({ type: 'join', roomId: room.id, name: 'Ana', role: 'player' });
+		await ana.expect('welcome');
+		const ben = await connect();
+		ben.send({ type: 'join', roomId: room.id, name: 'Ben', role: 'player' });
+		await ben.expect('welcome');
+
+		// Only the GM keeps campaigns; theirs are kept by their key.
+		ana.send({ type: 'campaign_list' });
+		expect(await ana.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'campaign_list' });
+		expect(await gm.until('campaigns')).toEqual({
+			type: 'campaigns',
+			campaigns: [],
+			current: null
+		});
+		gm.send({ type: 'campaign_create', name: 'The Long Road' });
+		const begun = (await gm.until('campaign')).campaign!;
+		expect(begun).toMatchObject({
+			name: 'The Long Road',
+			rules: { id: 'dnd-5.5e', version: 1 },
+			roster: [],
+			history: []
+		});
+		expect(begun.content[0]).toMatchObject({ id: 'srd-5.2.1' });
+
+		// The Barrow on Cold Hill, for the campaign: Ana builds her own, Ben plays the Warden.
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const barrow = (await gm.until('room_reset')).room.adventure!;
+		expect(barrow.campaign).toEqual({
+			id: begun.id,
+			name: 'The Long Road',
+			members: [],
+			closed: false
+		});
+		expect((await gm.until('campaign')).campaign!.playing).toMatchObject({
+			title: 'The Barrow on Cold Hill'
+		});
+		ana.send({
+			type: 'adventure_build',
+			choices: { ...pregenChoices('wizard'), name: 'Odile' }
+		});
+		await ana.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'pc-1' && c.playerId !== null)
+		);
+		ben.send({ type: 'adventure_claim', characterId: 'warden' });
+		await ben.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'warden' && c.playerId !== null)
+		);
+		gm.send({ type: 'adventure_begin' });
+		await gm.until('adventure_update', (m) => m.adventure!.stage === 'playing');
+		gm.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		gm.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		await gm.until('adventure_update', (m) => m.adventure!.stage === 'complete');
+
+		// Back to the campaign: a level for both, and both on the roster waiting for the GM.
+		ben.send({ type: 'campaign_close', advance: true });
+		expect(await ben.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'campaign_close', advance: true });
+		const returned = (await gm.until('campaign')).campaign!;
+		expect(returned.playing).toBeNull();
+		expect(returned.roster).toEqual([
+			expect.objectContaining({
+				id: 'pc-1',
+				name: 'Odile',
+				level: 2,
+				player: 'Ana',
+				status: 'pending'
+			}),
+			expect.objectContaining({
+				id: 'pc-2',
+				name: 'The Warden',
+				level: 2,
+				player: 'Ben',
+				status: 'pending'
+			})
+		]);
+		expect(returned.history).toEqual([
+			expect.objectContaining({
+				title: 'The Barrow on Cold Hill',
+				adventure: { builtIn: 'barrow' },
+				outcome: 'complete'
+			})
+		]);
+		await ana.until('adventure_update', (m) => m.adventure!.campaign?.closed === true);
+		// Only once.
+		gm.send({ type: 'campaign_close', advance: true });
+		expect(await gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		for (const character of ['pc-1', 'pc-2']) {
+			gm.send({ type: 'campaign_roster', op: { op: 'approve', character } });
+			await gm.until('campaign', (m) =>
+				m.campaign!.roster.some((e) => e.id === character && e.status === 'active')
+			);
+		}
+
+		// The next adventure, a creator's, for the same campaign: the party comes along at level 2.
+		gm.send({ type: 'adventure_start', file: JSON.parse(JSON.stringify(dndExampleAdventure())) });
+		const shrine = (await gm.until('room_reset')).room.adventure!;
+		expect(shrine.campaign!.members).toEqual([
+			{ id: 'pc-1', player: 'Ana' },
+			{ id: 'pc-2', player: 'Ben' }
+		]);
+		expect(shrine.characters.map((c) => c.id)).toEqual(['brakka', 'wren', 'ilse', 'pc-1', 'pc-2']);
+		// Each is kept for its player.
+		ben.send({ type: 'adventure_claim', characterId: 'pc-1' });
+		expect(await ben.until('error')).toMatchObject({ code: 'forbidden' });
+		ana.send({ type: 'adventure_claim', characterId: 'pc-1' });
+		const playing = await ana.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'pc-1' && c.playerId !== null)
+		);
+		const odile = playing.adventure!.characters.find((c) => c.id === 'pc-1')!;
+		expect(odile.card).toMatchObject({ level: 2, title: 'Elf Wizard 2 (Sage)' });
+
+		// Saved, and continued at another table: the campaign opens with the story.
+		gm.send({ type: 'scene_save', name: 'Shrine' });
+		const saved = await gm.until('scene_saved');
+		const again = await connect();
+		again.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		const reopened = (await again.expect('welcome')).room.adventure!;
+		expect(reopened.campaign).toMatchObject({ id: begun.id, closed: false });
+		// It is open at the first table too: the new one waits until it is put away there.
+		gm.send({ type: 'campaign_open', campaignId: null });
+		await gm.until('campaign', (m) => m.campaign === null);
+		again.send({ type: 'campaign_open', campaignId: begun.id });
+		expect((await again.until('campaign')).campaign).toMatchObject({ id: begun.id });
+		again.send({ type: 'campaign_list' });
+		expect((await again.until('campaigns')).campaigns).toEqual([
+			expect.objectContaining({ id: begun.id, name: 'The Long Road', characters: 2, adventures: 1 })
+		]);
 	});
 });

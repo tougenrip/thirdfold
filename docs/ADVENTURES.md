@@ -565,3 +565,44 @@ What each kind is checked for:
 The validators carry a version and the format versions they read (`VALIDATORS`), so older content stays readable by the validator that reads it.
 
 In the builder, **Check** lists the draft's diagnostics with their hints, and **Check on the server** asks the game server (`content_validate`, open to anyone and changing nothing) for its own verdict and the validator that gave it. Publishing shows the server's diagnostics when it refuses.
+
+## Campaigns
+
+Since milestone 58, a GM can carry a party from one adventure to the next. A campaign is the server's record (`server/campaigns.ts`), and it belongs to the GM's lasting key, the way saves do. It holds:
+
+- **what it plays by**: the rules at their exact version, and the content those rules read (the SRD catalog by its source's hash and build), pinned when the campaign began. Campaigns play by the fifth edition rules: they are the only rules with a `progression` (`Progression` in `server/rules/ruleset.ts`).
+- **a roster**: each character as its rules save it (`{ color, character }`), under its id (`pc-1`, `pc-2`…), with the player it is kept for (their name, or anyone) and where it stands. A character is `active` (it comes along), `pending` (met during an adventure and waiting for the GM's approval), `retired` or `dead`. At most 8 are active.
+- **the story so far**: each adventure it played, with where it came from (built in, a library version or a file), when it began and ended, how it ended, its rewards, and what came of each character.
+- **rewards** earned across adventures.
+
+How a campaign is played:
+
+1. The GM begins a campaign (`campaign_create`) or opens one (`campaign_open`) at a table. A campaign is open at one table at a time.
+2. Every adventure the GM starts there (built in, a file, from the library or from a collection) brings the campaign's active characters into the story as built characters. The adventure must play by the campaign's rules at the same version, and its content must come from the same source. A rebuild of the same source is checked again and named to the GM. Each character is restored and checked in full by the rules' builder (`campaignParty` in `server/adventure/campaign.ts`). The story records the campaign and its members (`AdventureState.campaign`), and a save keeps them. Only the player a character is kept for may take it up. The adventure's own characters, and characters players build, are there as usual.
+3. When the story is over (or left unfinished), outside a fight, the GM returns it to the campaign (`campaign_close`). The server reads the record again and writes it (`closeStory`):
+   - a history entry: `complete`, `defeat` or `abandoned`;
+   - each member's gear and fate as the story left them;
+   - the rest between adventures: every Hit Point, Hit Point Die and resource back;
+   - the fallen, marked dead;
+   - a level by milestone for the survivors of a finished adventure, when the GM asks for it, where the rules can make it without a player's choices. Level 2 needs none. Level 3's subclass is taken when the SRD has one for the class, and every class has exactly one. From level 4 a feat is wanted, so the character stays where it is and the GM is told why.
+   - any other character played whose rules carry it (the adventure's own, or one a player built), put on the roster as `pending` for the GM to approve.
+4. The GM approves, retires and brings back characters, and says who plays each (`campaign_roster`), between adventures or during one.
+
+A story is returned once. The next adventure for the campaign starts only after the one before is returned, unless that one was set up and never begun.
+
+What the wire carries:
+
+- To the GM only: the campaign's view (`CampaignView`), and their list of campaigns (`campaigns`).
+- To everyone: the story's view carries the campaign's name and members (`AdventureView.campaign`). The character choice marks the campaign's characters and whose they are.
+- Never: the records themselves.
+
+The campaign open at a table is kept across a restart of the game server, and continuing a saved story opens its campaign again for its GM.
+
+Campaigns are kept in files (`data/campaigns`, `CAMPAIGNS_DIR`) or in Supabase (`public.campaigns`, migration `20261007120000_campaigns.sql`: RLS on, nothing granted to browser roles). Every record read back is checked whole (`readCampaign`), each character by its rules, so a damaged record is refused rather than half trusted. `npm run data:backup` takes campaigns too.
+
+In the Adventure panel, the GM's **Campaign** section:
+
+- begins, opens, puts away and forgets campaigns;
+- shows the roster with Approve, Retire, Bring back and who plays each;
+- returns the story, with "Survivors advance a level";
+- shows the story so far and the rewards.

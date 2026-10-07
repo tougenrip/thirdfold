@@ -2,6 +2,7 @@
 // directly and the transport can change without touching the rules.
 
 import type { SightCache } from '../src/lib/game/visibility';
+import type { CampaignRecord } from './campaigns';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DEFAULT_GRID, type SquareGrid } from '../src/lib/game/grid';
 import type { ChatMessage } from '../src/lib/game/chat';
@@ -76,6 +77,8 @@ export interface Room {
 	gmOwner?: string;
 	/** The save the table keeps of its story as it goes on (its autosave slot), once made. */
 	autosaveId?: string;
+	/** The campaign the GM opened at this table (milestone 58), as last read or written here. */
+	campaign?: CampaignRecord;
 	/**
 	 * After a load: tokens whose saved owner isn't at the table yet (token id → their
 	 * lowercase name), and what each saved player had explored (and the lights they

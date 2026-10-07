@@ -9,6 +9,7 @@
 import type { VersionsView } from './versions';
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
+import type { CampaignStoryView } from '../game/campaign';
 import type { CollectionView } from '../game/collection';
 import type { Creator } from '../game/library';
 import { hasLineOfSight } from '../game/visibility';
@@ -713,6 +714,8 @@ export interface AdventureView {
 	packs: ContentPackListing[] | null;
 	/** The collection the story was started from (milestone 53), else null. */
 	collection: CollectionView | null;
+	/** The campaign the story is played for (milestone 58), else null. */
+	campaign: CampaignStoryView | null;
 	/**
 	 * What the story plays by, at the versions it found, and the moves made
 	 * between versions (milestone 55): the GM's only, null for anyone else.

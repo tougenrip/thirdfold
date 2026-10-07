@@ -42,7 +42,9 @@ const BUDGETS = {
 	// monsters, saves, rests and gear in the reader, the rules' abilities and skills for checks,
 	// rests and gear in the effects (the Rules & party section, the template and its pregens load
 	// on demand), and Play it's refusal shown with its diagnostics, 108,422 B measured, 55,792 B own.
-	'/builder': { total: 108_500, own: 55_800 },
+	// → 108.6, own 55.9: the shared protocol's campaign messages (#103), 108,503 B measured,
+	// 55,875 B own.
+	'/builder': { total: 108_600, own: 55_900 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured. → 54.9: beside the rules track's shared
 	// library types (#99), 54,802 B measured.
 	'/credits': { total: 54_900, own: 3_000 },
@@ -58,10 +60,13 @@ const BUDGETS = {
 	// → 67.4: a refused publish's diagnostics in the workshop (#101), 67,365 B measured.
 	// → 67.7: the library client's bestiary search and the validation preview (#102),
 	// 67,612 B measured.
-	'/library': { total: 67_700, own: 21_000 },
+	// → 67.8: the shared protocol's campaign messages (#103), 67,706 B measured.
+	'/library': { total: 67_800, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
-	'/room/[id]': { total: 121_700, own: 76_000 },
+	// → 122.1: campaigns (#103): their messages and replies, the story's campaign line and the
+	// character choice's marks (the GM's Campaign section loads on demand), 122,071 B measured.
+	'/room/[id]': { total: 122_100, own: 76_000 },
 	// 360.0 → 360.1: light looks (intensity, still flames, no fixture for a glow), prop paint and
 	// token lift and scale (#201, #202), 360,059 B measured.
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B

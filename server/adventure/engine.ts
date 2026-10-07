@@ -116,6 +116,8 @@ import {
 	type When
 } from './define';
 import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
+import { campaignParty } from './campaign';
+import type { CampaignRecord, StoryResult } from '../campaigns';
 import { BESTIARY_MAX, withBestiary } from './bestiary';
 import { outsidePacks, PACKS_MAX, packInUse, packsOf, withPack } from './packs';
 import { keepCharacter, layPiles, pickUp, putDown, withKept } from './gear';
@@ -135,7 +137,7 @@ import {
 	turnStarts,
 	type EffectSource
 } from './effects';
-import { contentOf, defaultAdventure, findAdventure } from './registry';
+import { builtInAdventures, contentOf, defaultAdventure, findAdventure } from './registry';
 import type {
 	AdventureState,
 	CharacterState,
@@ -392,7 +394,13 @@ function newState(A: AdventureDef, room: Room): AdventureState {
 }
 
 /** GM: sets up an adventure (the server's first, unless another is named). Replaces the table with its first. */
-export function startAdventure(room: Room, actor: Player, id?: string): Outcomes {
+export function startAdventure(
+	room: Room,
+	actor: Player,
+	id?: string,
+	campaign?: CampaignRecord | null,
+	now = new Date()
+): Outcomes {
 	if (actor.role !== 'gm') return GM_ONLY;
 	const A = id === undefined ? defaultAdventure() : findAdventure(id);
 	if (!A) return fail('invalid_message', 'There is no such adventure on this server.');
@@ -400,16 +408,49 @@ export function startAdventure(room: Room, actor: Player, id?: string): Outcomes
 		return fail('invalid_message', 'This adventure needs rules this server does not have.');
 	if (rulesProblems(A).length > 0)
 		return fail('invalid_message', 'This adventure does not fit the rules it names.');
+	// A story played for the campaign goes back to it before the next one begins
+	// (one set up but not begun is only replaced).
+	const open = room.adventure?.campaign;
+	if (
+		campaign &&
+		open &&
+		!open.closed &&
+		open.id === campaign.id &&
+		room.adventure!.stage !== 'choosing'
+	)
+		return fail(
+			'forbidden',
+			`Return ${content(room.adventure!).title} to ${open.name} before the next adventure.`
+		);
+	const party = campaign ? campaignParty(campaign, A) : null;
+	if (party && !party.ok) return fail('invalid_message', party.message);
 	applyScene(room, A.locations[A.start.location].scene());
 	room.adventure = newState(A, room);
-	return {
-		ok: true,
-		reset: true,
-		log: [
-			postSystem(room, `${actor.name} set up ${A.title}.`),
-			appendLog(room, { kind: 'narration', text: A.voice.started })
-		]
-	};
+	const log = [
+		postSystem(room, `${actor.name} set up ${A.title}.`),
+		appendLog(room, { kind: 'narration', text: A.voice.started })
+	];
+	if (campaign && party?.ok) {
+		if (party.built.size) room.adventure.built = party.built;
+		room.adventure.campaign = {
+			id: campaign.id,
+			name: campaign.name,
+			members: party.members,
+			since: now.toISOString(),
+			closed: false
+		};
+		const names = [...party.built.values()].map((b) => b.def.name);
+		log.push(
+			postSystem(
+				room,
+				names.length
+					? `For ${campaign.name}: ${names.join(', ')} ${names.length === 1 ? 'comes' : 'come'} along.`
+					: `For ${campaign.name}: nobody on the roster comes along yet.`
+			),
+			...party.notes.map((text) => postSystem(room, text, 'gm'))
+		);
+	}
+	return { ok: true, reset: true, log };
 }
 
 export function claimCharacter(room: Room, actor: Player, id: string): Outcomes {
@@ -422,6 +463,10 @@ export function claimCharacter(room: Room, actor: Player, id: string): Outcomes 
 	if (adventure.stage === 'complete' || adventure.stage === 'defeat') {
 		return fail('forbidden', 'This story is over.');
 	}
+	// A campaign's character is kept for the player who plays it there.
+	const member = adventure.campaign?.members.find((m) => m.id === id);
+	if (member?.player && member.player.toLowerCase() !== actor.name.toLowerCase())
+		return fail('forbidden', `${def.name} is ${member.player}'s in ${adventure.campaign!.name}.`);
 	const mine = characterOf(room, actor.id);
 	if (mine) return fail('forbidden', `You are already playing ${mine.def.name}.`);
 	const existing = adventure.characters.get(id);
@@ -456,8 +501,8 @@ export function releaseCharacter(room: Room, actor: Player): Outcomes {
 	if (!mine) return fail('forbidden', "You haven't chosen a character.");
 	room.tokens.delete(mine.token.id);
 	adventure.characters.delete(mine.id);
-	// A character the player built goes with them.
-	if (adventure.built?.has(mine.id)) {
+	// A character the player built goes with them (a campaign's stays with the story).
+	if (adventure.built?.has(mine.id) && !adventure.campaign?.members.some((m) => m.id === mine.id)) {
 		const built = new Map(adventure.built);
 		built.delete(mine.id);
 		adventure.built = built;
@@ -4741,6 +4786,7 @@ function restart(room: Room, adventure: AdventureState, actor: Player, now: numb
 	// The same adventure from the same place in the library, and what the table made of it.
 	if (adventure.library) next.library = adventure.library;
 	if (adventure.collection) next.collection = adventure.collection;
+	if (adventure.campaign) next.campaign = adventure.campaign;
 	if (adventure.entitlements) next.entitlements = adventure.entitlements;
 	if (adventure.steps) next.steps = adventure.steps;
 	if (adventure.rated) next.rated = adventure.rated;
@@ -5233,4 +5279,77 @@ function spawn(
 	encounter.order.splice(at, 0, { kind: 'enemy', tokenId: token.id, initiative });
 	log.push(postSystem(room, `${def.name} joins the fight (initiative ${initiative}).`, 'gm'));
 	return { ok: true, log };
+}
+
+// ---------------------------------------------------------------------------
+// Campaigns (milestone 58)
+
+/**
+ * GM: what a story played for a campaign came to, to return to it (the game
+ * server writes it to the campaign's record, then `campaignReturned`): not
+ * mid-fight, and only once.
+ */
+export function campaignStory(
+	room: Room,
+	actor: Player
+): Result<{ story: StoryResult; campaign: string }> {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	const campaign = adventure.campaign;
+	if (!campaign) return fail('forbidden', 'This story isn’t played for a campaign.');
+	if (campaign.closed) return fail('forbidden', `This story is already back in ${campaign.name}.`);
+	if (adventure.encounter) return fail('forbidden', 'Finish the fight first.');
+	const A = content(adventure);
+	const progression = rulesOf(adventure).progression;
+	const characters = [...adventure.characters].map(([id, state]) => {
+		const def = A.characters[id];
+		const owner = room.tokens.get(state.tokenId)?.ownerId;
+		return {
+			id,
+			saved: (def && progression?.savedOf(def)) ?? null,
+			dead: state.dead,
+			player: (owner && room.players.get(owner)?.name) || null
+		};
+	});
+	const outcome =
+		adventure.stage === 'complete'
+			? 'complete'
+			: adventure.stage === 'defeat'
+				? 'defeat'
+				: 'abandoned';
+	return {
+		ok: true,
+		campaign: campaign.id,
+		story: {
+			title: A.title,
+			adventure: adventure.library
+				? { library: adventure.library.id, version: adventure.library.version }
+				: builtInAdventures().some((a) => a.id === A.id)
+					? { builtIn: A.id }
+					: { file: A.id },
+			startedAt: campaign.since,
+			outcome,
+			ending: adventure.ending
+				? (A.endings.names[adventure.ending]?.title ?? adventure.ending)
+				: null,
+			rewards: [...adventure.rewards],
+			members: campaign.members.map((m) => m.id),
+			characters
+		}
+	};
+}
+
+/** The story is back in its campaign: it says so, with what came of the party. */
+export function campaignReturned(room: Room, lines: readonly string[]): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure?.campaign) return NO_ADVENTURE;
+	adventure.campaign = { ...adventure.campaign, closed: true };
+	return {
+		ok: true,
+		log: [
+			postSystem(room, `${content(adventure).title} is written into ${adventure.campaign.name}.`),
+			...lines.map((text) => postSystem(room, text))
+		]
+	};
 }

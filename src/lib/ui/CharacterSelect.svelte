@@ -13,9 +13,18 @@
 		/** For a story whose players may build their own characters. */
 		roomId?: string;
 		creatorReply?: CreatorReply | null;
+		/** This player's name: a campaign's characters are kept for their players. */
+		myName?: string;
 	}
 
-	let { adventure, players, send, roomId = '', creatorReply = null }: Props = $props();
+	let { adventure, players, send, roomId = '', creatorReply = null, myName = '' }: Props = $props();
+
+	/** A character the campaign brought, and the player it is kept for. */
+	const memberOf = (id: string) => adventure.campaign?.members.find((m) => m.id === id) ?? null;
+	const keptFor = (id: string) => {
+		const player = memberOf(id)?.player;
+		return player && player.toLowerCase() !== myName.toLowerCase() ? player : null;
+	};
 
 	/** The rules' character creator, where the story lets players build their own. */
 	const canCreate = $derived(adventure.build?.rules === 'dnd-5.5e' && !!roomId);
@@ -62,16 +71,23 @@
 					{@const id = character.id}
 					{@const c = character.def}
 					{@const taken = takenBy(id)}
+					{@const member = memberOf(id)}
+					{@const kept = keptFor(id)}
 					<li>
 						<button
 							type="button"
 							class="card"
 							style:--char={c.color}
-							disabled={!!taken}
+							disabled={!!taken || !!kept}
 							onclick={() => send({ type: 'adventure_claim', characterId: id })}
 						>
 							<span class="name"><span class="seal" aria-hidden="true"></span>{c.name}</span>
 							{#if character.card.title}<span class="title">{character.card.title}</span>{/if}
+							{#if member}<span class="campaign"
+									>From {adventure.campaign!.name}{member.player
+										? ` · ${member.player}’s`
+										: ''}</span
+								>{/if}
 							<span class="tagline">{c.tagline}</span>
 							<span class="stats num">
 								<span><b>{c.hp}</b> HP</span>
@@ -90,9 +106,11 @@
 							<span class="pick"
 								>{taken
 									? `Taken by ${taken}`
-									: unclaimed(id)
-										? `Take up ${c.name} again`
-										: `Play ${c.name}`}</span
+									: kept
+										? `Kept for ${kept}`
+										: unclaimed(id)
+											? `Take up ${c.name} again`
+											: `Play ${c.name}`}</span
 							>
 						</button>
 					</li>
@@ -208,6 +226,11 @@
 
 	.card:disabled .seal {
 		opacity: 0.5;
+	}
+
+	.campaign {
+		font-size: var(--fs-xs);
+		color: var(--accent);
 	}
 
 	.tagline,

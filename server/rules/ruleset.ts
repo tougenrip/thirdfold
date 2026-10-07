@@ -176,6 +176,27 @@ export interface RestResult {
 	text: string;
 }
 
+/**
+ * Characters carried from adventure to adventure in a campaign (milestone
+ * 58), by their saved form (`Built.saved`): what they are, a full rest
+ * between adventures, and advancement where the rules can make it without
+ * a player's choices. Every result is checked in full by the rules.
+ */
+export interface Progression {
+	/** A character's saved form, when it is one these rules carry (built from their choices). */
+	savedOf(character: CharacterDef): JsonData | null;
+	/** What a saved character is: its id, name, level and title; null when it doesn't read. */
+	describe(saved: JsonData): { id: string; name: string; level: number; title: string } | null;
+	/** The character after the rest between adventures: every Hit Point, Hit Point Die and resource back. */
+	recover(saved: JsonData): JsonData | null;
+	/** One level up, where the rules can make it without a player's choices; else why not. */
+	advance(
+		saved: JsonData
+	): { ok: true; saved: JsonData; level: number; text: string } | { ok: false; problems: string[] };
+	/** The same character under another id (a campaign's roster keeps ids apart). */
+	withId(saved: JsonData, id: string): JsonData | null;
+}
+
 /** Rests, under rules that have them (milestone 57). */
 export interface Rests {
 	/**
@@ -325,6 +346,8 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	bestiary?: Bestiary;
 	/** What a Short or Long Rest does for a character, under rules that have rests (milestone 57). */
 	rests?: Rests;
+	/** Carrying characters from one adventure to the next, under rules with campaigns (milestone 58). */
+	progression?: Progression;
 	/** Creators' own content for these rules (homebrew), for rules that take it. */
 	packs?: ContentPacks;
 	/**

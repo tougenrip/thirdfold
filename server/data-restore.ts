@@ -36,10 +36,11 @@ export async function restoreData(
 		throw new Error('This backup has Supabase tables: set SUPABASE_URL and SUPABASE_SERVICE_KEY.');
 	}
 
-	for (const store of ['scenes', 'rooms', 'library'] as const) {
+	for (const store of ['scenes', 'rooms', 'library', 'campaigns'] as const) {
 		const source = path.join(from, 'files', store);
 		const names = await listFiles(source);
-		if ((names?.length ?? null) !== manifest.files[store]) {
+		// A backup from before a store existed has no entry for it.
+		if ((names?.length ?? null) !== (manifest.files[store] ?? null)) {
 			throw new Error(`${source} does not match the manifest`);
 		}
 		if (names) await cp(source, dirs[store], { recursive: true, filter: (src) => !isTemp(src) });
@@ -47,6 +48,8 @@ export async function restoreData(
 
 	if (manifest.tables && db) {
 		for (const table of TABLES) {
+			// A backup from before a table existed has none of it.
+			if (!Object.hasOwn(manifest.tables, table.name)) continue;
 			const text = await readFile(path.join(from, 'tables', `${table.name}.ndjson`), 'utf8');
 			const rows = text
 				.split('\n')

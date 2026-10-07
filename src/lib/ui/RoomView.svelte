@@ -1474,6 +1474,7 @@
 						adventures={room.adventures}
 						send={act}
 						upgrade={conn.upgradeReply}
+						campaign={conn.campaignReply}
 						onSheet={(id) => {
 							if (id === myCharacter?.id) sheetOpen = true;
 							else sheetFor = id;
@@ -1729,6 +1730,7 @@
 				send={act}
 				roomId={room.id}
 				creatorReply={conn.creatorReply}
+				myName={conn.me?.name ?? ''}
 			/>
 		{/if}
 

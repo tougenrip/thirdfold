@@ -10,7 +10,7 @@
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
 	import { ADVENTURE_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '$lib/game/file-limits';
-	import type { RoomAction, UpgradeReply } from '$lib/net/room-connection.svelte';
+	import type { CampaignReply, RoomAction, UpgradeReply } from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';
 	import { describeRating } from '$lib/ui/rating';
@@ -27,6 +27,8 @@
 		onSheet?(characterId: string): void;
 		/** The latest answer about the story's versions (the GM's). */
 		upgrade?: UpgradeReply | null;
+		/** The GM's campaigns, as the server last told them. */
+		campaign?: CampaignReply | null;
 	}
 
 	let {
@@ -37,7 +39,8 @@
 		send,
 		onError,
 		onSheet,
-		upgrade = null
+		upgrade = null,
+		campaign = null
 	}: Props = $props();
 
 	let narration = $state('');
@@ -176,6 +179,13 @@
 					Part of <a href={resolve(`/library?collection=${set.id}`)}>{set.title}</a>
 					by {set.creator.name} · adventure {set.adventures.findIndex((a) => a.playing) + 1} of {set
 						.adventures.length}
+				</p>
+			{/if}
+			{#if adventure.campaign}
+				<p class="section">
+					For the campaign {adventure.campaign.name}{adventure.campaign.closed
+						? ' · written into it'
+						: ''}
 				</p>
 			{/if}
 			{#if adventure.rules.id !== 'thirdfold-classic'}
@@ -344,6 +354,13 @@
 					</ul>
 				{/if}
 			</details>
+		{/if}
+
+		{#if isGm}
+			<!-- Loaded when shown: only the GM's panel has it. -->
+			{#await import('$lib/ui/CampaignPanel.svelte') then { default: CampaignPanel }}
+				<CampaignPanel {adventure} reply={campaign} {send} />
+			{/await}
 		{/if}
 
 		{#if isGm && adventure.versions}
@@ -589,6 +606,9 @@
 				<a class="build-link" href={resolve('/builder')}>Build your own adventure</a>
 			</div>
 		</details>
+		{#await import('$lib/ui/CampaignPanel.svelte') then { default: CampaignPanel }}
+			<CampaignPanel adventure={null} reply={campaign} {send} />
+		{/await}
 	</section>
 {/if}
 

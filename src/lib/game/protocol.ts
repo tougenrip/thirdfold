@@ -56,6 +56,12 @@ import {
 	type StoryDetail
 } from './library';
 import type { CollectionReport } from './collection';
+import {
+	CAMPAIGN_ID_PATTERN,
+	type CampaignSummary,
+	type CampaignView,
+	type RosterOp
+} from './campaign';
 import { GRANT_ID_PATTERN, parseNewGrant, type NewGrant } from './access';
 import type { UpgradeReview } from '../adventure/versions';
 import type { AdventurePreview } from '../adventure/preview';
@@ -377,6 +383,25 @@ export type ClientMessage =
 	 * monster_search.
 	 */
 	| { type: 'bestiary_search'; rules: { id: string; version: number }; query: string }
+	/**
+	 * GM (milestone 58): their campaigns, and the one open at this table.
+	 * Replies with campaigns.
+	 */
+	| { type: 'campaign_list' }
+	/** GM: begin a campaign (under the fifth edition rules) and open it at this table. Replies with campaign. */
+	| { type: 'campaign_create'; name: string }
+	/** GM: open one of their campaigns at this table, or close it (null). Replies with campaign. */
+	| { type: 'campaign_open'; campaignId: string | null }
+	/**
+	 * GM: return the story to the open campaign: its history, the party's gear
+	 * and fate, a full rest, and a level for the survivors of a finished
+	 * adventure when `advance`. Replies with campaign.
+	 */
+	| { type: 'campaign_close'; advance: boolean }
+	/** GM: change the open campaign's roster. Replies with campaign. */
+	| { type: 'campaign_roster'; op: RosterOp }
+	/** GM: forget one of their campaigns (not the one open here). Replies with campaigns. */
+	| { type: 'campaign_delete'; campaignId: string }
 	/**
 	 * GM: bring a content pack (homebrew under the story's rules, checked in
 	 * full on the server) to the story, or take one out that nothing uses.
@@ -713,6 +738,10 @@ export type ServerMessage =
 	| { type: 'character_options'; rules: string; options: Record<string, unknown> }
 	/** To the GM who searched: the monsters found. */
 	| { type: 'monster_search'; query: string; monsters: MonsterListing[] }
+	/** To the GM who asked: their campaigns, latest first, and the one open at the table. */
+	| { type: 'campaigns'; campaigns: CampaignSummary[]; current: CampaignView | null }
+	/** To the GM: the campaign open at the table as it is now (null: none). */
+	| { type: 'campaign'; campaign: CampaignView | null }
 	/** To the GM who asked: what moving the story to another version would do, or did. */
 	| { type: 'upgrade_review'; review: UpgradeReview; applied: boolean }
 	/** To whoever asked: what the choices come to (the rules' own shape), or what is wrong. */
@@ -1382,6 +1411,29 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				query: data.query
 			};
 		}
+		case 'campaign_list':
+			return { type: 'campaign_list' };
+		case 'campaign_create':
+			return typeof data.name === 'string' && data.name.length <= 200
+				? { type: 'campaign_create', name: data.name }
+				: null;
+		case 'campaign_open':
+			return data.campaignId === null ||
+				(typeof data.campaignId === 'string' && CAMPAIGN_ID_PATTERN.test(data.campaignId))
+				? { type: 'campaign_open', campaignId: data.campaignId }
+				: null;
+		case 'campaign_delete':
+			return typeof data.campaignId === 'string' && CAMPAIGN_ID_PATTERN.test(data.campaignId)
+				? { type: 'campaign_delete', campaignId: data.campaignId }
+				: null;
+		case 'campaign_close':
+			return typeof data.advance === 'boolean'
+				? { type: 'campaign_close', advance: data.advance }
+				: null;
+		case 'campaign_roster': {
+			const op = parseRosterOp(data.op);
+			return op ? { type: 'campaign_roster', op } : null;
+		}
 		case 'monster_search':
 			return typeof data.query === 'string' && data.query.length <= MONSTER_QUERY_MAX
 				? { type: 'monster_search', query: data.query }
@@ -1416,4 +1468,29 @@ function parseCast(
 	const cell = at === null ? null : parseGridPos(at);
 	if (at !== null && !cell) return null;
 	return { slot: slot as number | null, targets: [...targets], at: cell };
+}
+
+/** A GM's roster change, read field by field. */
+function parseRosterOp(value: unknown): RosterOp | null {
+	if (
+		!isRecord(value) ||
+		typeof value.character !== 'string' ||
+		!/^pc-[1-9][0-9]?$/.test(value.character)
+	)
+		return null;
+	const character = value.character;
+	switch (value.op) {
+		case 'approve':
+		case 'retire':
+		case 'restore':
+			return Object.keys(value).length === 2 ? { op: value.op, character } : null;
+		case 'assign': {
+			if (Object.keys(value).length !== 3) return null;
+			if (value.player === null) return { op: 'assign', character, player: null };
+			const player = normalizeName(value.player);
+			return player ? { op: 'assign', character, player } : null;
+		}
+		default:
+			return null;
+	}
 }

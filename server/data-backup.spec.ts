@@ -26,7 +26,8 @@ afterEach(async () => {
 const dirsIn = (root: string): DataDirs => ({
 	scenes: path.join(root, 'scenes'),
 	rooms: path.join(root, 'rooms'),
-	library: path.join(root, 'library')
+	library: path.join(root, 'library'),
+	campaigns: path.join(root, 'campaigns')
 });
 
 /** Every file under a directory, by relative path. */
@@ -92,7 +93,7 @@ describe('data backup and restore', () => {
 
 		const backup = path.join(await temp(), 'b');
 		const manifest = await backupData(backup, live, null);
-		expect(manifest.files).toEqual({ scenes: 2, rooms: 1, library: 2 });
+		expect(manifest.files).toEqual({ scenes: 2, rooms: 1, library: 2, campaigns: null });
 		expect(manifest.tables).toBeNull();
 		expect(manifest.sceneVersions).toEqual({ [SCENE_FILE_VERSION]: 2 });
 		await expect(backupData(backup, live, null)).rejects.toThrow('not empty');
@@ -109,7 +110,7 @@ describe('data backup and restore', () => {
 	it('skips stores that have no directory yet', async () => {
 		const backup = path.join(await temp(), 'b');
 		const manifest = await backupData(backup, dirsIn(await temp()), null);
-		expect(manifest.files).toEqual({ scenes: null, rooms: null, library: null });
+		expect(manifest.files).toEqual({ scenes: null, rooms: null, library: null, campaigns: null });
 		const restored = dirsIn(await temp());
 		await restoreData(backup, restored, null);
 		await expect(readdir(restored.scenes)).rejects.toThrow();
@@ -124,7 +125,9 @@ describe('data backup and restore', () => {
 			live_rooms: [{ id: 'ABCDEF', data: { scene: { version: 10 } } }],
 			library_adventures: [{ id: adventure, title: 'T' }],
 			library_versions: [{ adventure_id: adventure, version: 1, file: {} }],
-			library_ratings: []
+			library_ratings: [],
+			library_grants: [],
+			campaigns: [{ id: id(), owner: 'a'.repeat(64), data: {} }]
 		};
 		const backup = path.join(await temp(), 'b');
 		const manifest = await backupData(backup, dirsIn(await temp()), fakeDb(source));
@@ -133,7 +136,9 @@ describe('data backup and restore', () => {
 			live_rooms: 1,
 			library_adventures: 1,
 			library_versions: 1,
-			library_ratings: 0
+			library_ratings: 0,
+			library_grants: 0,
+			campaigns: 1
 		});
 		expect(manifest.sceneVersions).toEqual({ 9: 1203, 10: 1 });
 

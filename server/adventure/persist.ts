@@ -28,6 +28,8 @@ import {
 	normalizeCreatorName
 } from '../../src/lib/game/library';
 import { parseEntitlements } from '../../src/lib/game/access';
+import { CAMPAIGN_ID_PATTERN, normalizeCampaignName } from '../../src/lib/game/campaign';
+import { normalizeName } from '../../src/lib/game/names';
 import { compareContent, lockOf, readSteps, savedPins } from './lock';
 import { resolveAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
@@ -54,6 +56,7 @@ import type {
 	LastingEffect,
 	Pile,
 	Sentry,
+	StoryCampaign,
 	StoryPack,
 	Statuses,
 	TurnEntry
@@ -171,6 +174,7 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 			...(adventure.collection
 				? { collection: JSON.parse(JSON.stringify(adventure.collection)) }
 				: {}),
+			...(adventure.campaign ? { campaign: JSON.parse(JSON.stringify(adventure.campaign)) } : {}),
 			...(adventure.entitlements?.length
 				? { entitlements: adventure.entitlements.map((e) => ({ ...e })) }
 				: {}),
@@ -661,6 +665,8 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		data.collection === undefined
 			? undefined
 			: collectionSource(data.collection, base.id, library, scope);
+	// The campaign it is played for: its members are among the built characters.
+	const campaign = data.campaign === undefined ? undefined : storyCampaign(data.campaign, built);
 	// The grants its library content was played by (whether they still hold is the game server's to ask).
 	const entitlements =
 		data.entitlements === undefined ? undefined : parseEntitlements(data.entitlements);
@@ -970,6 +976,7 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		...(notes.size ? { notes } : {}),
 		...(library ? { library } : {}),
 		...(collection ? { collection } : {}),
+		...(campaign ? { campaign } : {}),
 		...(entitlements?.length ? { entitlements } : {}),
 		...(steps?.length ? { steps } : {}),
 		decisions,
@@ -1097,6 +1104,46 @@ function collectionSource(
 			packId: p.packId
 		})),
 		tables: file.tables
+	};
+}
+
+/** A story's campaign, read back: well formed, each member a character the story built. */
+function storyCampaign(value: unknown, built: ReadonlyMap<string, BuiltCharacter>): StoryCampaign {
+	const raw = record(value, 'campaign');
+	const name = normalizeCampaignName(raw.name);
+	check(
+		Object.keys(raw).length === 5 &&
+			typeof raw.id === 'string' &&
+			CAMPAIGN_ID_PATTERN.test(raw.id) &&
+			name === raw.name &&
+			typeof raw.since === 'string' &&
+			raw.since.length <= 40 &&
+			!Number.isNaN(Date.parse(raw.since)) &&
+			typeof raw.closed === 'boolean',
+		'campaign'
+	);
+	const members = list(raw.members, 'campaign').map((m) => {
+		const member = record(m, 'campaign');
+		check(
+			Object.keys(member).length === 2 &&
+				typeof member.id === 'string' &&
+				built.has(member.id) &&
+				(member.player === null ||
+					(typeof member.player === 'string' && normalizeName(member.player) === member.player)),
+			'campaign'
+		);
+		return { id: member.id as string, player: member.player as string | null };
+	});
+	check(
+		members.length <= BUILT_MAX && new Set(members.map((m) => m.id)).size === members.length,
+		'campaign'
+	);
+	return {
+		id: raw.id as string,
+		name: name!,
+		members,
+		since: raw.since as string,
+		closed: raw.closed as boolean
 	};
 }
 

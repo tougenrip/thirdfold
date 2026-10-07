@@ -9,6 +9,8 @@ import { restoreRoom, serializeRoom, SupabaseRoomStore } from './room-store';
 import { RoomManager } from './rooms';
 import { SupabaseLibraryStore } from './supabase-library-store';
 import { libraryStoreSuite } from './library-store.suite';
+import { SupabaseCampaignStore } from './campaign-store';
+import { campaignStoreSuite, sampleCampaign } from './campaign-store.suite';
 
 const scene = serializeScene('Crypt', {
 	grid: DEFAULT_GRID,
@@ -325,5 +327,28 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLibraryStore (live Sup
 			score: 9
 		});
 		expect(stars.error).not.toBeNull();
+	});
+});
+
+describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseCampaignStore (live Supabase)', () => {
+	campaignStoreSuite(() => SupabaseCampaignStore.connect(url!, serviceKey!));
+
+	it('keeps campaigns away from the browser key', async () => {
+		const store = SupabaseCampaignStore.connect(url!, serviceKey!);
+		const record = sampleCampaign('f'.repeat(64), 'Hidden');
+		await store.save(record);
+		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
+		const read = await browser.from('campaigns').select('data');
+		expect(read.data ?? []).toEqual([]);
+		const write = await browser
+			.from('campaigns')
+			.insert({ id: '1'.repeat(32), owner: 'f'.repeat(64), data: {} });
+		expect(write.error).not.toBeNull();
+		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+		const bad = await admin
+			.from('campaigns')
+			.insert({ id: '../x', owner: 'f'.repeat(64), data: {} });
+		expect(bad.error).not.toBeNull();
+		await store.remove(record.id, record.owner);
 	});
 });

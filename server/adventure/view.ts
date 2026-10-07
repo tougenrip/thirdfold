@@ -398,6 +398,14 @@ export function adventureView(
 					tables: adventure.collection.tables.map((t) => ({ ...t }))
 				}
 			: null,
+		campaign: adventure.campaign
+			? {
+					id: adventure.campaign.id,
+					name: adventure.campaign.name,
+					members: adventure.campaign.members.map((m) => ({ ...m })),
+					closed: adventure.campaign.closed
+				}
+			: null,
 		library: adventure.library
 			? {
 					id: adventure.library.id,

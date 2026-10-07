@@ -213,6 +213,7 @@ describe('applyRoomUpdate', () => {
 			build: null,
 			packs: null,
 			collection: null,
+			campaign: null,
 			versions: null,
 			library: null,
 			cues: null

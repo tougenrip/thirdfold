@@ -667,3 +667,59 @@ describe('authoring (milestone 57)', () => {
 		expect(parseClientMessage({ ...ask, query: 'x'.repeat(500) })).toBeNull();
 	});
 });
+
+describe('campaign messages (milestone 58)', () => {
+	const id = 'c'.repeat(32);
+	it('reads the GM’s campaign actions, and refuses anything else', () => {
+		expect(parseClientMessage({ type: 'campaign_list' })).toEqual({ type: 'campaign_list' });
+		expect(parseClientMessage({ type: 'campaign_create', name: 'The Long Road' })).toEqual({
+			type: 'campaign_create',
+			name: 'The Long Road'
+		});
+		expect(parseClientMessage({ type: 'campaign_create', name: 7 })).toBeNull();
+		expect(parseClientMessage({ type: 'campaign_open', campaignId: id })).toEqual({
+			type: 'campaign_open',
+			campaignId: id
+		});
+		expect(parseClientMessage({ type: 'campaign_open', campaignId: null })).toEqual({
+			type: 'campaign_open',
+			campaignId: null
+		});
+		expect(parseClientMessage({ type: 'campaign_open', campaignId: '../x' })).toBeNull();
+		expect(parseClientMessage({ type: 'campaign_delete', campaignId: null })).toBeNull();
+		expect(parseClientMessage({ type: 'campaign_close', advance: true })).toEqual({
+			type: 'campaign_close',
+			advance: true
+		});
+		expect(parseClientMessage({ type: 'campaign_close', advance: 'yes' })).toBeNull();
+	});
+
+	it('reads roster changes field by field', () => {
+		const roster = (op: unknown) => parseClientMessage({ type: 'campaign_roster', op });
+		expect(roster({ op: 'approve', character: 'pc-2' })).toEqual({
+			type: 'campaign_roster',
+			op: { op: 'approve', character: 'pc-2' }
+		});
+		expect(roster({ op: 'assign', character: 'pc-2', player: '  Ana ' })).toEqual({
+			type: 'campaign_roster',
+			op: { op: 'assign', character: 'pc-2', player: 'Ana' }
+		});
+		expect(roster({ op: 'assign', character: 'pc-2', player: null })).toMatchObject({
+			op: { player: null }
+		});
+		expect(roster({ op: 'approve', character: 'warden' })).toBeNull();
+		expect(roster({ op: 'approve', character: 'pc-2', extra: 1 })).toBeNull();
+		expect(roster({ op: 'promote', character: 'pc-2' })).toBeNull();
+		expect(roster({ op: 'assign', character: 'pc-2' })).toBeNull();
+	});
+
+	it('checks the campaign replies the browser reads', () => {
+		expect(parseServerMessage({ type: 'campaign', campaign: null })).toMatchObject({
+			type: 'campaign'
+		});
+		expect(parseServerMessage({ type: 'campaigns', campaigns: [], current: null })).toMatchObject({
+			type: 'campaigns'
+		});
+		expect(parseServerMessage({ type: 'campaigns', campaigns: {}, current: null })).toBeNull();
+	});
+});

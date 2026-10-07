@@ -5,6 +5,8 @@ import { SupabaseSceneStore } from './supabase-scene-store';
 import { FileRoomStore, SupabaseRoomStore, type RoomStore } from './room-store';
 import { FileLibraryStore, type LibraryStore } from './library-store';
 import { SupabaseLibraryStore } from './supabase-library-store';
+import { FileCampaignStore, SupabaseCampaignStore } from './campaign-store';
+import type { CampaignStore } from './campaigns';
 
 const port = Number(process.env.GAME_SERVER_PORT ?? 8787);
 const host = process.env.GAME_SERVER_HOST ?? '0.0.0.0';
@@ -40,18 +42,29 @@ function libraryStore(): { store: LibraryStore; where: string } {
 	return { store: new FileLibraryStore(dir), where: dir };
 }
 
+// Campaigns: in Supabase too, else in files.
+function campaignStore(): { store: CampaignStore; where: string } {
+	const url = process.env.SUPABASE_URL;
+	const key = process.env.SUPABASE_SERVICE_KEY;
+	if (url && key) return { store: SupabaseCampaignStore.connect(url, key), where: 'Supabase' };
+	const dir = path.resolve(process.env.CAMPAIGNS_DIR ?? 'data/campaigns');
+	return { store: new FileCampaignStore(dir), where: dir };
+}
+
 const { store, where } = sceneStore();
 const rooms = roomStore();
 const library = libraryStore();
+const campaigns = campaignStore();
 const server = await startGameServer({
 	port,
 	host,
 	sceneStore: store,
 	roomStore: rooms.store,
-	libraryStore: library.store
+	libraryStore: library.store,
+	campaignStore: campaigns.store
 });
 console.info(
-	`[game-server] listening on ws://${host}:${server.port}, scenes in ${where}, rooms in ${rooms.where}, library in ${library.where}`
+	`[game-server] listening on ws://${host}:${server.port}, scenes in ${where}, rooms in ${rooms.where}, library in ${library.where}, campaigns in ${campaigns.where}`
 );
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

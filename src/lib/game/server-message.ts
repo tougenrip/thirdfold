@@ -52,6 +52,8 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 			typeof d.characterId === 'string' && typeof d.rules === 'string' && isRecord(d.details),
 		character_options: (d) => typeof d.rules === 'string' && isRecord(d.options),
 		monster_search: (d) => typeof d.query === 'string' && Array.isArray(d.monsters),
+		campaigns: (d) => Array.isArray(d.campaigns) && (d.current === null || isRecord(d.current)),
+		campaign: (d) => d.campaign === null || isRecord(d.campaign),
 		upgrade_review: (d) => isRecord(d.review) && typeof d.applied === 'boolean',
 		character_preview: (d) => isRecord(d.preview) && typeof d.preview.ok === 'boolean',
 		validation: (d) =>

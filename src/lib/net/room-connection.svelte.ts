@@ -4,6 +4,7 @@
 import { isDiagnostic, type Diagnostic } from '$lib/validation/diagnostics';
 import { GAME_SERVER_URL } from '$lib/api';
 import type { Motion } from '$lib/game/motion';
+import type { CampaignSummary, CampaignView } from '$lib/game/campaign';
 import type {
 	ClientMessage,
 	ErrorCode,
@@ -42,6 +43,13 @@ export type CreatorReply = Extract<
 /** The monsters a GM's search found. */
 export type MonsterReply = Extract<ServerMessage, { type: 'monster_search' }> & { seq: number };
 export type UpgradeReply = Extract<ServerMessage, { type: 'upgrade_review' }> & { seq: number };
+
+/** The GM's campaigns (milestone 58): the latest list, and the campaign open at the table. */
+export interface CampaignReply {
+	seq: number;
+	campaigns: CampaignSummary[] | null;
+	current: CampaignView | null;
+}
 
 /** A character's full sheet, as the server sent it. */
 export type SheetReply = Extract<ServerMessage, { type: 'character_sheet' }> & { seq: number };
@@ -112,6 +120,8 @@ export class RoomConnection {
 	/** The latest review (or move) of the story's versions (the GM's). */
 	upgradeReply = $state<UpgradeReply | null>(null);
 	sheetReply = $state<SheetReply | null>(null);
+	/** The GM's campaigns, as the server last told them. */
+	campaignReply = $state<CampaignReply | null>(null);
 	/** The latest motions to show; `seq` increases so each batch plays once. */
 	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
@@ -261,6 +271,21 @@ export class RoomConnection {
 				return;
 			case 'upgrade_review':
 				this.upgradeReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'campaigns':
+				this.campaignReply = {
+					seq: ++this.errorSeq,
+					campaigns: msg.campaigns,
+					current: msg.current
+				};
+				return;
+			case 'campaign':
+				this.campaignReply = {
+					seq: ++this.errorSeq,
+					// The list is asked for again when it is shown.
+					campaigns: this.campaignReply?.campaigns ?? null,
+					current: msg.campaign
+				};
 				return;
 			default:
 				if (this.room) applyRoomUpdate(this.room, msg);

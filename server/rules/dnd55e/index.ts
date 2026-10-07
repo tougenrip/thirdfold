@@ -38,6 +38,7 @@ import { dndBuilder } from './character/builder';
 import { dndPacks } from './homebrew';
 import { dndEquipment } from './character/equipment';
 import { dndRests } from './rests';
+import { dndProgression } from './character/progression';
 import { readSheet, sheetOf, type Sheet } from './sheet';
 import { dndSpells } from './spells/cast';
 import { attackReasons, conditionDef, dndConditions, exhaustionPenalty } from './conditions';
@@ -293,6 +294,7 @@ export const dnd55e: Ruleset = {
 	builder: dndBuilder(srdCatalog, DND_55E, ATTRIBUTION),
 	equipment: dndEquipment(srdCatalog, DND_55E),
 	rests: dndRests(srdCatalog, DND_55E),
+	progression: dndProgression(srdCatalog, DND_55E),
 	spells: dndSpells(srdCatalog, () => dnd55e.strike),
 	conditions: dndConditions(srdCatalog),
 	saveWith: (bonus, stat, dc, situation, roller, advantage) => {

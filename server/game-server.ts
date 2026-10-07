@@ -40,6 +40,17 @@ import {
 import { parseCollectionFile, type CollectionFile } from '../src/lib/game/collection';
 import { COLLECTION_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '../src/lib/game/file-limits';
 import { creatorIdOf, LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
+import {
+	CAMPAIGN_RULES,
+	campaignSummary,
+	campaignView,
+	changeRoster,
+	closeStory,
+	newCampaign,
+	type CampaignStore
+} from './campaigns';
+import { MemoryCampaignStore } from './campaign-store';
+import { CAMPAIGN_LIMITS } from '../src/lib/game/campaign';
 import { problemsOf, reportOf, resolveCollection, withRules, type Shelves } from './collections';
 import { decide, entitlementOf, stillHolds, type Subject } from './library-access';
 import {
@@ -127,6 +138,8 @@ export interface GameServerOptions {
 	autosaveMs?: number;
 	/** The adventure library (see library-store.ts). Defaults to memory. */
 	libraryStore?: LibraryStore;
+	/** Campaigns (see campaigns.ts and campaign-store.ts). Defaults to memory. */
+	campaignStore?: CampaignStore;
 }
 
 export interface GameServer {
@@ -166,8 +179,17 @@ export async function startGameServer(options: GameServerOptions): Promise<GameS
 	const restored: Room[] = [];
 	for (const raw of options.roomStore ? await options.roomStore.loadAll() : []) {
 		const result = restoreRoom(raw);
-		if (result.ok) restored.push(result.room);
-		else console.warn(`[rooms] skipped a stored room: ${result.error}`);
+		if (!result.ok) {
+			console.warn(`[rooms] skipped a stored room: ${result.error}`);
+			continue;
+		}
+		restored.push(result.room);
+		// The campaign open at the table, read again (it is its GM's, or it stays closed).
+		const campaignId = (raw as { campaignId?: unknown }).campaignId;
+		if (options.campaignStore && typeof campaignId === 'string') {
+			const record = await options.campaignStore.get(campaignId).catch(() => null);
+			if (record && record.owner === result.room.gmOwner) result.room.campaign = record;
+		}
 	}
 	return serve(options, restored);
 }
@@ -201,6 +223,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	);
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
 	const libraryStore = options.libraryStore ?? new MemoryLibraryStore();
+	const campaignStore = options.campaignStore ?? new MemoryCampaignStore();
 	// Browsing the library and the open games: a few asks a second per connection.
 	const browseLimiter = new RateLimiter(10, 2);
 	// Publishing to the library: a handful, then one every 20 s per creator.
@@ -621,6 +644,9 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		const resumed = room.adventure;
 		if (!resumed) return;
 		announce(room, postSystem(room, adventure.resumeNotice(resumed)));
+		// A story played for a campaign opens it again, when the campaign is this GM's.
+		if (resumed.campaign && resumed.campaign.id !== room.campaign?.id)
+			void reopenCampaign(room, resumed.campaign.id);
 		// What the load migrated and checked, for the GM.
 		for (const note of story!.ok ? story!.notes : []) announce(room, postSystem(room, note, 'gm'));
 		// A save made on an enemy's turn picks up with it.
@@ -741,7 +767,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						if (id !== undefined && !builtInAdventures().some((a) => a.id === id)) {
 							return fail('invalid_message', 'There is no such adventure on this server.');
 						}
-						return adventure.startAdventure(room, player, id);
+						return adventure.startAdventure(room, player, id, room.campaign);
 					}
 					if (player.role !== 'gm') return fail('forbidden', 'Only the GM can do that.');
 					if (!sceneLimiter.take(player.id)) {
@@ -751,7 +777,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					const custom = loadCustomAdventure(msg.file);
 					if (!custom.ok)
 						return void sendError(ws, 'invalid_message', custom.error, custom.diagnostics);
-					return adventure.startAdventure(room, player, custom.adventure.id);
+					return adventure.startAdventure(room, player, custom.adventure.id, room.campaign);
 				}
 				case 'adventure_claim':
 					return adventure.claimCharacter(room, player, msg.characterId);
@@ -803,6 +829,183 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		if (!result) return;
 		if (!result.ok) return sendError(ws, result.code, result.message);
 		applyOutcome(room, result);
+		if (msg.type === 'adventure_start') campaignBegun(room);
+	}
+
+	/** The GM's campaign view goes to the GM's sockets only. */
+	function sendCampaign(room: Room): void {
+		const view = room.campaign ? campaignView(room.campaign) : null;
+		for (const [playerId, socket] of sockets.get(room.id) ?? [])
+			if (room.players.get(playerId)?.role === 'gm')
+				send(socket, { type: 'campaign', campaign: view });
+	}
+
+	/** The campaign open at another live table, if it is. */
+	function openElsewhere(room: Room, id: string): Room | null {
+		for (const other of rooms.all()) if (other !== room && other.campaign?.id === id) return other;
+		return null;
+	}
+
+	/** Why the table's campaign can't change now: a story played for it isn't back in it yet. */
+	function unreturned(room: Room): string | null {
+		const story = room.adventure;
+		const open = story?.campaign;
+		if (!story || !open || open.closed || story.stage === 'choosing') return null;
+		return `Return ${adventure.content(story).title} to ${open.name} first.`;
+	}
+
+	/** A story set up for the table's campaign: the campaign notes what it is playing. */
+	function campaignBegun(room: Room): void {
+		const story = room.adventure;
+		const record = room.campaign;
+		if (!story?.campaign || !record || story.campaign.id !== record.id) return;
+		const next = {
+			...record,
+			playing: {
+				room: room.id,
+				title: adventure.content(story).title,
+				since: story.campaign.since
+			}
+		};
+		room.campaign = next;
+		touch(room);
+		sendCampaign(room);
+		campaignStore
+			.save(next)
+			.catch((err) => console.error(`[campaigns] noting a story failed`, err));
+	}
+
+	async function reopenCampaign(room: Room, id: string): Promise<void> {
+		try {
+			const record = await campaignStore.get(id);
+			if (!record || record.owner !== room.gmOwner || openElsewhere(room, id)) return;
+			if (rooms.get(room.id) !== room || room.adventure?.campaign?.id !== id) return;
+			room.campaign = record;
+			touch(room);
+			sendCampaign(room);
+		} catch (err) {
+			console.error('[campaigns] reopening failed', err);
+		}
+	}
+
+	/** Campaigns (milestone 58): the GM's, kept by their key, opened at a table and returned to. */
+	async function handleCampaign(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		msg: Extract<ClientMessage, { type: `campaign_${string}` }>
+	): Promise<void> {
+		if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM keeps campaigns.');
+		const owner = room.gmOwner;
+		if (!owner) return sendError(ws, 'forbidden', 'This table has no GM key to keep campaigns by.');
+		// Beginning a campaign writes a new record; the rest change one the GM already has.
+		const limiter = msg.type === 'campaign_create' ? sceneLimiter : creatorLimiter;
+		if (!limiter.take(player.id)) return sendError(ws, 'rate_limited', 'Give it a moment.');
+		const here = () => rooms.get(room.id) === room;
+		const listing = async () => ({
+			type: 'campaigns' as const,
+			campaigns: (await campaignStore.list(owner)).map(campaignSummary),
+			current: room.campaign ? campaignView(room.campaign) : null
+		});
+		try {
+			switch (msg.type) {
+				case 'campaign_list':
+					return send(ws, await listing());
+				case 'campaign_create': {
+					const busy = unreturned(room);
+					if (busy) return sendError(ws, 'forbidden', busy);
+					if ((await campaignStore.list(owner)).length >= CAMPAIGN_LIMITS.perOwner)
+						return sendError(
+							ws,
+							'limit_reached',
+							`A GM keeps at most ${CAMPAIGN_LIMITS.perOwner} campaigns.`
+						);
+					const made = newCampaign(owner, msg.name, CAMPAIGN_RULES);
+					if (!made.ok) return sendError(ws, 'invalid_name', made.message);
+					await campaignStore.save(made.record);
+					if (!here()) return;
+					room.campaign = made.record;
+					touch(room);
+					sendCampaign(room);
+					return announce(
+						room,
+						postSystem(room, `${player.name} begins the campaign ${made.record.name}.`)
+					);
+				}
+				case 'campaign_open': {
+					const busy = unreturned(room);
+					if (busy && msg.campaignId !== room.campaign?.id) return sendError(ws, 'forbidden', busy);
+					if (msg.campaignId === null) {
+						const was = room.campaign;
+						room.campaign = undefined;
+						touch(room);
+						sendCampaign(room);
+						return was
+							? announce(room, postSystem(room, `${player.name} puts ${was.name} away.`))
+							: undefined;
+					}
+					const record = await campaignStore.get(msg.campaignId);
+					if (!record || record.owner !== owner)
+						return sendError(ws, 'scene_not_found', 'That campaign is not one of yours.');
+					if (!here()) return;
+					if (openElsewhere(room, record.id))
+						return sendError(ws, 'forbidden', `${record.name} is open at another table.`);
+					room.campaign = record;
+					touch(room);
+					sendCampaign(room);
+					return announce(
+						room,
+						postSystem(room, `${player.name} opens the campaign ${record.name}.`)
+					);
+				}
+				case 'campaign_close': {
+					const record = room.campaign;
+					if (!record) return sendError(ws, 'forbidden', 'Open the story’s campaign first.');
+					const story = adventure.campaignStory(room, player);
+					if (!story.ok) return sendError(ws, story.code, story.message);
+					if (story.campaign !== record.id)
+						return sendError(ws, 'forbidden', 'This story is played for another campaign.');
+					const played = room.adventure;
+					const fresh = await campaignStore.get(record.id);
+					if (!fresh || fresh.owner !== owner)
+						return sendError(ws, 'scene_not_found', 'That campaign no longer exists.');
+					const closed = closeStory(fresh, story.story, msg.advance);
+					if (!closed.ok) return sendError(ws, 'invalid_message', closed.message);
+					if (!here() || room.adventure !== played || played?.campaign?.closed) return;
+					await campaignStore.save(closed.returned.record);
+					if (!here() || room.adventure !== played || played?.campaign?.closed) return;
+					room.campaign = closed.returned.record;
+					const returned = adventure.campaignReturned(room, closed.returned.lines);
+					if (!returned.ok) return sendError(ws, returned.code, returned.message);
+					applyOutcome(room, returned);
+					return sendCampaign(room);
+				}
+				case 'campaign_roster': {
+					const record = room.campaign;
+					if (!record) return sendError(ws, 'forbidden', 'Open a campaign first.');
+					const fresh = await campaignStore.get(record.id);
+					if (!fresh || fresh.owner !== owner)
+						return sendError(ws, 'scene_not_found', 'That campaign no longer exists.');
+					const changed = changeRoster(fresh, msg.op);
+					if (!changed.ok) return sendError(ws, 'invalid_message', changed.message);
+					await campaignStore.save(changed.record);
+					if (!here() || room.campaign?.id !== record.id) return;
+					room.campaign = changed.record;
+					touch(room);
+					return sendCampaign(room);
+				}
+				case 'campaign_delete': {
+					if (room.campaign?.id === msg.campaignId || openElsewhere(room, msg.campaignId))
+						return sendError(ws, 'forbidden', 'Put the campaign away at its table first.');
+					if (!(await campaignStore.remove(msg.campaignId, owner)))
+						return sendError(ws, 'scene_not_found', 'That campaign is not one of yours.');
+					return send(ws, await listing());
+				}
+			}
+		} catch (err) {
+			console.error(`[room ${room.id}] ${msg.type} failed`, err);
+			sendError(ws, 'persistence_failed', 'The campaign could not be reached. Try again.');
+		}
 	}
 
 	/** Save/load/import/export. Storage is async, so errors come back as messages, never throws. */
@@ -1168,6 +1371,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'scene_new':
 			case 'scene_share':
 				void handleScene(ws, room, player, msg);
+				return;
+			case 'campaign_list':
+			case 'campaign_create':
+			case 'campaign_open':
+			case 'campaign_close':
+			case 'campaign_roster':
+			case 'campaign_delete':
+				void handleCampaign(ws, room, player, msg);
 				return;
 			case 'chat_send':
 			case 'dice_roll': {
@@ -1685,14 +1896,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		if ('copy' in pick) {
 			const custom = loadCustomAdventure(pick.copy.file);
 			if (!custom.ok) return sendError(ws, 'invalid_message', custom.error, custom.diagnostics);
-			started = adventure.startAdventure(room, player, custom.adventure.id);
+			started = adventure.startAdventure(room, player, custom.adventure.id, room.campaign);
 			if (started.ok)
 				room.adventure!.library = {
 					id: pick.ref.library,
 					version: pick.ref.version,
 					creator: { ...pick.copy.listing.creator }
 				};
-		} else started = adventure.startAdventure(room, player, pick.ref.builtIn);
+		} else started = adventure.startAdventure(room, player, pick.ref.builtIn, room.campaign);
 		if (!started.ok) return sendError(ws, started.code, started.message);
 		applyOutcome(room, started);
 		const begun = adventure.beginCollection(
@@ -1718,6 +1929,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		].filter((e): e is Entitlement => e !== null);
 		if (entitlements.length) room.adventure!.entitlements = entitlements;
 		applyOutcome(room, begun);
+		campaignBegun(room);
 		const counted = [id, ...('copy' in pick ? [pick.ref.library] : [])];
 		for (const item of counted)
 			libraryStore
@@ -1758,7 +1970,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		if (rooms.get(room.id) !== room) return;
 		const custom = loadCustomAdventure(copy.file);
 		if (!custom.ok) return sendError(ws, 'invalid_message', custom.error, custom.diagnostics);
-		const result = adventure.startAdventure(room, player, custom.adventure.id);
+		const result = adventure.startAdventure(room, player, custom.adventure.id, room.campaign);
 		if (!result.ok) return sendError(ws, result.code, result.message);
 		room.adventure!.library = {
 			id,
@@ -1768,6 +1980,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		const entitlement = entitlementOf(id, may!);
 		if (entitlement) room.adventure!.entitlements = [entitlement];
 		applyOutcome(room, result);
+		campaignBegun(room);
 		libraryStore.played(id).catch((err) => console.error('[library] counting a play failed', err));
 	}
 

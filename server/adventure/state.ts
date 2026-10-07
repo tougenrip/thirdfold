@@ -304,6 +304,8 @@ export interface AdventureState {
 	library?: LibrarySource;
 	/** The collection the story was started from, if it was. */
 	collection?: CollectionSource;
+	/** The campaign the story is played for (milestone 58; saved), if it is. */
+	campaign?: StoryCampaign;
 	/**
 	 * The grants its library content was played by, when not public or the
 	 * GM's own (milestone 54): checked again before the story is loaded or
@@ -314,6 +316,20 @@ export interface AdventureState {
 	steps?: VersionStep[];
 	/** The stars each player gave it at this table, by player id (not saved: the library keeps them). */
 	rated?: Map<string, number>;
+}
+
+/**
+ * The campaign a story is played for (milestone 58): which one, the roster
+ * characters it brought (among `built`, under their roster ids) with the
+ * player each is kept for, when it began, and whether it has been returned
+ * to the campaign (its history written; it can't be returned twice).
+ */
+export interface StoryCampaign {
+	id: string;
+	name: string;
+	members: { id: CharacterId; player: string | null }[];
+	since: string;
+	closed: boolean;
 }
 
 /** A content pack a story has: its id, and the public creator id of the GM key that brought it. */
