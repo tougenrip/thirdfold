@@ -19,6 +19,7 @@ import {
 	updateToken
 } from './scene';
 import { diffView, sentFrom, snapshotFor, viewFor } from './views';
+import { baseDiameters } from '../src/lib/tabletop/bases';
 
 function setup() {
 	const rooms = new RoomManager();
@@ -415,5 +416,19 @@ describe("the world's look", () => {
 		const fog = viewFor(byTime.room, byTime.pip).fog;
 		expect(fog).toEqual(viewFor(byBand.room, byBand.pip).fog);
 		expect(fog).not.toEqual(before);
+	});
+});
+
+describe('large bases (#270)', () => {
+	it('a GM-hidden token beside a large creature shrinks its base for the GM only', () => {
+		const { room, gm, pip } = setup();
+		setFog(room, gm, false);
+		const keeper = token(room, gm, 'Keeper', 5, 5);
+		expect(updateToken(room, gm, keeper.id, { scale: 1.8 })).toMatchObject({ ok: true });
+		const lurker = token(room, gm, 'Lurker', 6, 5);
+		expect(updateToken(room, gm, lurker.id, { hidden: true })).toMatchObject({ ok: true });
+		const base = (viewer: Player) => baseDiameters(viewFor(room, viewer).tokens).get(keeper.id);
+		expect(base(gm)).toBe(0.86);
+		expect(base(pip)).toBe(1.9);
 	});
 });

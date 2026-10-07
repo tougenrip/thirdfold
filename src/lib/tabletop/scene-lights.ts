@@ -9,6 +9,7 @@ import type { AtmosphereLayer } from './atmosphere';
 import { STEP_HEIGHT, WALL_HEIGHT } from './ground';
 import { HeroShadows } from './hero-shadows';
 import { DEFAULT_K } from './lighting';
+import { SHADOW_PROXY } from './lod';
 import { GridLight } from './materials/grid-light-node';
 import { SkyHemisphere, SkyLight } from './sky-light';
 import { worldExtents, type Extents } from './world-ground';
@@ -30,6 +31,7 @@ export function createSceneLights(scene: THREE.Scene): BaseLights {
 	scene.add(hemisphere);
 	const sun = new SkyLight(0xffe2b8, 1.6);
 	sun.castShadow = true;
+	sun.shadow.camera.layers.enable(SHADOW_PROXY); // casters' cheapest levels, not what draws (lod.ts, #274)
 	sun.shadow.mapSize.set(2048, 2048);
 	sun.shadow.bias = -0.0005;
 	// Soft PCF: `radius` by tier (quality.ts, `CapabilitiesLayer.set`), read as a uniform.

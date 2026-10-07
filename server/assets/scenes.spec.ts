@@ -107,7 +107,7 @@ describe('tableBudget', () => {
 		expect(cost.mobile).toBe(4000 + 100 + 200 + 70);
 		m.textures.stone = texture(100, 25 * MB, 512, 'ktx2');
 		expect(overBudget(tableBudget(m, { environment: 'yard', models: [] }))).toEqual([
-			'100.0 MB GPU over the mobile 80.0 MB budget'
+			'100.0 MB GPU over the mobile 80 MB budget'
 		]);
 	});
 });
@@ -121,16 +121,16 @@ describe('the budgets', () => {
 	it('name the number and the budget a table goes over, desktop at medium and mobile at low', () => {
 		expect(overBudget({ ...flat(5 * MB, 70 * MB), mobile: 70 * MB })).toEqual([]);
 		expect(overBudget({ ...flat(16.2 * MB, 90 * MB), mobile: 81 * MB })).toEqual([
-			'16.2 MB download over the desktop 15.0 MB budget',
-			'16.2 MB download over the mobile 6.0 MB budget',
-			'81.0 MB GPU over the mobile 80.0 MB budget'
+			'16.2 MB download over the desktop 15.25 MB budget',
+			'16.2 MB download over the mobile 6 MB budget',
+			'81.0 MB GPU over the mobile 80 MB budget'
 		]);
 		const high = flat(5 * MB, 70 * MB);
 		high.gpu.high = 200 * MB; // reported, not held
 		expect(overBudget({ ...high, mobile: 0 })).toEqual([]);
 		high.gpu.medium = 170 * MB;
 		expect(overBudget({ ...high, mobile: 0 })).toEqual([
-			'170.0 MB GPU over the desktop 160.0 MB budget'
+			'170.0 MB GPU over the desktop 160 MB budget'
 		]);
 		expect(TABLE_BUDGETS.desktop.gpu).toBe(160 * MB);
 	});
@@ -188,7 +188,7 @@ describe('checkScenes', () => {
 		m.models.villager = { ...m.models.villager, bytes: 20 * MB };
 		const problems = checkScenes(m);
 		expect(problems).toContainEqual(
-			expect.stringMatching(/^example: \w+: \d+\.\d MB download over the desktop 15\.0 MB budget$/)
+			expect.stringMatching(/^example: \w+: \d+\.\d MB download over the desktop 15\.25 MB budget$/)
 		);
 	});
 });

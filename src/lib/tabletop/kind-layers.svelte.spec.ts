@@ -18,6 +18,7 @@ import {
 	TINT_ATTRIBUTE,
 	withBake
 } from './materials';
+import { loadModel } from './models';
 import { OverlayLayer } from './overlay';
 import { PropLayer } from './props';
 import { WorldGround } from './landscape';
@@ -80,8 +81,9 @@ describe('the layers on the shader kinds', () => {
 		// Doors, raised cells, props and minis are all on the fixture.
 		expect(drawn.length).toBeGreaterThan(20);
 		const kinds = new Set(drawn.map((m) => (m as { kind?: string }).kind));
-		// Rock: the world layer's cliffs and risers (#241).
-		expect(kinds).toEqual(new Set(['surface', 'terrain', 'rock', 'prop', 'mini']));
+		// Rock: the world layer's cliffs and risers (#241); decal: contact shadows (#271).
+		const all = ['surface', 'terrain', 'rock', 'prop', 'mini', 'base', 'decal'];
+		expect(kinds).toEqual(new Set(all));
 		// WebGPU allows 8 vertex buffers a pipeline (a buffer per attribute, the instance matrix and
 		// colour one each); WebGL2 allows more, so a ninth fails only there (#249's drop start did).
 		const buffers: [string, number][] = [];
@@ -137,7 +139,49 @@ describe('the layers on the shader kinds', () => {
 		m.tabletop.setTokens(many(30));
 		await drawn();
 		expect(counts()).toEqual(one);
-	});
+		// The first in the file pays the test world's compiles, its cooked minis' levels among them
+		// (#276): about 80 s alone on SwiftShader, past 120 s with another run beside it.
+	}, 240_000);
+});
+
+describe('the figure batches (#266)', () => {
+	it('draw as many calls for 4, 20 and 60 tokens over four figures, shadows too', async () => {
+		const sidecar = await loadSidecar('test-world');
+		const view = await loadView('test-world', sidecar.ambient, 'gm');
+		const clock = manualClock();
+		const m = await mountFixture(view, sidecar.poses.overview, { clock });
+		mounted = m;
+		const figures = ['warden', 'hound', 'elder', 'pulsing-mass'];
+		await Promise.all(figures.map((id) => loadModel(id)));
+		const [first] = view.tokens;
+		const { width, height } = view.grid;
+		const draws = async (n: number) => {
+			m.tabletop.setTokens(
+				Array.from({ length: n }, (_, i) => ({
+					...first,
+					id: `mini-${i}`,
+					model: figures[i % figures.length],
+					hidden: i % 7 === 3 ? (true as const) : undefined,
+					pos: { x: (i * 3) % width, y: Math.floor((i * 3) / width) % height }
+				}))
+			);
+			clock.set(clock.now() + 30_000);
+			await settle(m.tabletop, 400, 30_000);
+			const { steady, shadowed } = await m.tabletop.layers();
+			const of = (r: typeof steady) =>
+				Object.values(r.passes).reduce((sum, layers) => sum + (layers.figures?.draws ?? 0), 0);
+			return [of(steady), of(shadowed)];
+		};
+		const four = await draws(4);
+		expect(four[0]).toBeGreaterThan(0);
+		// The warden is cooked with two coarser levels (#276): where tokens stand far enough off, each
+		// level is a batch of its own (#274), a call more in each pass, and never more than that.
+		const within = (n: number[]) => n.every((d, i) => d >= four[i] && d <= four[i] + 2);
+		expect(within(await draws(20))).toBe(true);
+		expect(within(await draws(60))).toBe(true);
+		// Longer than the rest: on SwiftShader the test world's props with levels compile their
+		// pool-sized variant and shadow proxies at load (#274), which put it at about 130 s in this file.
+	}, 240_000);
 });
 
 const SIZE = 32;

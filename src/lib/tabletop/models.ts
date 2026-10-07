@@ -1,7 +1,8 @@
 // Models (see src/lib/assets/manifest.ts): loaded on first use, one load per model however many
 // props or tokens use it, and kept while any table is up (#188). A model is parts by role:
 // `body` and `swing` carry their colours as vertex colours or textures, `accent` takes the
-// token's colour; `<role>_lod<n>` meshes are its coarser levels. Until one has loaded, props and
+// token's colour; `<role>_lod<n>` meshes are its coarser levels, and a mini's `body_pose<n>` its
+// static poses (#273), drawn instead of `body`. Until one has loaded, props and
 // tokens show their placeholders.
 //
 // Part lists are plain glTF; cooked models (#186) have meshopt geometry and KTX2 textures,
@@ -17,7 +18,7 @@
 
 import * as THREE from 'three/webgpu';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import type { ModelEntry, ModelLod, ToneMapper } from '$lib/assets/manifest';
+import type { ModelEntry, ToneMapper } from '$lib/assets/manifest';
 import {
 	assetUrl,
 	fetchAsset,
@@ -47,6 +48,8 @@ export interface ModelPart {
 	role: Role;
 	/** 0 is the full model; 1 and up its coarser levels (the entry's `lods`). */
 	lod: number;
+	/** 0 is the plain body; 1 to 3 a mini's static pose (`body_pose<n>`, #273). */
+	pose: number;
 	geometry: THREE.BufferGeometry;
 	/** Its glTF maps by slot, or null for a part coloured by its vertices alone. */
 	maps: Partial<Record<SlotName, THREE.Texture>> | null;
@@ -61,26 +64,49 @@ export interface LoadedModel {
 	preview?: true;
 }
 
-/** A role's parts at level `lod`. */
-export const partsOf = (model: LoadedModel, role: Role, lod = 0) =>
-	model.parts.filter((p) => p.role === role && p.lod === lod);
+/** A role's parts at level `lod`, in pose `pose`. */
+export const partsOf = (model: LoadedModel, role: Role, lod = 0, pose = 0) =>
+	model.parts.filter((p) => p.role === role && p.lod === lod && p.pose === pose);
+
+/** The levels a model has after level 0 (its entry's `lods`; a preview or a part list has none). */
+export const levelsOf = (model: LoadedModel) =>
+	model.preview ? 0 : (model.entry.lods?.length ?? 0);
 
 /**
- * The level to draw at `screenShare` (the model's height over the screen's): the last of the
- * entry's `lods` whose `screenSize` it is below, else 0. Choosing per frame is #274's.
+ * The finest level at or above `lod` that has a body in `pose`: what draws for `lod` (lod.ts, #274).
+ * A pose without levels of its own draws its level 0 (#273), never the plain body.
  */
-export function lodFor(lods: readonly ModelLod[] | undefined, screenShare: number): number {
-	let level = 0;
-	lods?.forEach((l, i) => screenShare < l.screenSize && (level = i + 1));
-	return level;
+export function drawnLevel(model: LoadedModel, lod: number, pose = 0): number {
+	for (let l = Math.min(lod, levelsOf(model)); l > 0; l--)
+		if (partsOf(model, 'body', l, pose).length) return l;
+	return 0;
 }
 
-const ROLE = /^(body|swing|accent|flame)(?:_lod([1-4]))?(?:_\d+)?$/;
+const radii = new WeakMap<LoadedModel, number>();
+/** The radius about the model's origin holding its full level, in model units (lod.ts). */
+export function modelRadius(model: LoadedModel): number {
+	let r = radii.get(model);
+	if (r === undefined) {
+		r = 0;
+		for (const p of model.parts) {
+			if (p.lod) continue;
+			if (!p.geometry.boundingSphere) p.geometry.computeBoundingSphere();
+			const s = p.geometry.boundingSphere!;
+			r = Math.max(r, s.center.length() + s.radius);
+		}
+		radii.set(model, r);
+	}
+	return r;
+}
 
-/** A mesh's role and level from its name as GLTFLoader gives it (`_<n>` made names unique). */
-export function roleOf(name: string): { role: Role; lod: number } | null {
+// Underscores, never dots: GLTFLoader sanitises `body.pose1` to `bodypose1`, which isn't a role.
+const ROLE = /^(body|swing|accent|flame)(?:_pose([1-3]))?(?:_lod([1-4]))?(?:_\d+)?$/;
+
+/** A mesh's role, level and pose from its name as GLTFLoader gives it (`_<n>` made names unique). */
+export function roleOf(name: string): { role: Role; lod: number; pose: number } | null {
 	const match = ROLE.exec(name);
-	return match ? { role: match[1] as Role, lod: Number(match[2] ?? 0) } : null;
+	if (!match || (match[2] && match[1] !== 'body')) return null;
+	return { role: match[1] as Role, lod: Number(match[3] ?? 0), pose: Number(match[2] ?? 0) };
 }
 
 const cache = new Map<string, Promise<LoadedModel | null>>();
@@ -308,12 +334,13 @@ export async function parseModel(entry: ModelEntry, bytes: ArrayBuffer): Promise
 		const role = roleOf(o.name);
 		const material = (Array.isArray(o.material) ? o.material[0] : o.material) as THREE.Material;
 		if (role && role.lod <= levels) {
-			const key = `${role.role}:${role.lod}:${material.uuid}`;
+			const key = `${role.role}:${role.pose}:${role.lod}:${material.uuid}`;
 			let group = groups.get(key);
 			if (!group) groups.set(key, (group = { part: { ...role, ...lookOf(material) }, pieces: [] }));
 			const piece = uniform(o.geometry).applyMatrix4(o.matrixWorld);
-			// An accent takes the token's colour: without vertex colours it matches the plain mini.
-			if (role.role === 'accent') piece.deleteAttribute('color');
+			// An accent takes the token's colour: its vertex colours white, as the plain mini's, so
+			// every figure part has one attribute layout and one program (#266).
+			if (role.role === 'accent') (piece.getAttribute('color').array as Float32Array).fill(1);
 			group.pieces.push(piece);
 		}
 		(o.geometry as THREE.BufferGeometry).dispose();
@@ -323,7 +350,7 @@ export async function parseModel(entry: ModelEntry, bytes: ArrayBuffer): Promise
 		if (o instanceof THREE.Mesh) [o.material].flat().forEach((m: THREE.Material) => m.dispose());
 	});
 	const parts = [...groups.values()].map(({ part, pieces }) => {
-		const geometry = merge(pieces);
+		const geometry = mergeParts(pieces);
 		geometry.computeBoundingSphere();
 		return { ...part, geometry };
 	});
@@ -385,7 +412,7 @@ function floats(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttrib
 }
 
 /** Pieces of one attribute set as one geometry (BufferGeometryUtils would outgrow the chunk). */
-function merge(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
+export function mergeParts(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
 	if (pieces.length === 1) return pieces[0];
 	const out = new THREE.BufferGeometry();
 	for (const [name, { itemSize }] of Object.entries(pieces[0].attributes)) {

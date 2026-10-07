@@ -9,7 +9,10 @@ import * as THREE from 'three/webgpu';
 import {
 	addInstanceTints,
 	createMaterial,
+	TINT_ATTRIBUTE,
+	PAINT_ATTRIBUTE,
 	pieceMesh,
+	PIECE_MIN,
 	SHADER_KINDS,
 	withBake,
 	withDrops,
@@ -21,6 +24,7 @@ import { ROOF_KEY_ATTRIBUTE } from './roof-fade';
 
 /** The variants each kind is made in besides plain and instanced (the layers' own, #172, #177, #181, #241, #249). */
 function variantsOf(kind: ShaderKind): MaterialOptions[] {
+	if (kind === 'base') return [{ instanced: true }]; // token bases (#265): only ever instanced
 	const world = kind === 'surface' || kind === 'terrain' || kind === 'rock';
 	const out: MaterialOptions[] = [{}];
 	if (world) out.push({ antiTiled: true });
@@ -38,26 +42,45 @@ function variantsOf(kind: ShaderKind): MaterialOptions[] {
 	return each;
 }
 
-/** A box with every attribute a kind may read: normals, uv, vertex colours and the bake. */
-function geometryFor(options: MaterialOptions): THREE.BufferGeometry {
+/**
+ * A box with every attribute `kind` may read: normals, uv, vertex colours and the bake. An
+ * instanced mini is a figure batch's shape (#266, figures.ts): colours whatever its variant, a
+ * vec4 paint (tint and opacity) and tint, no lift, a pool's worth of instances.
+ */
+function geometryFor(kind: ShaderKind, options: MaterialOptions): THREE.BufferGeometry {
 	const geometry = withBake(new THREE.BoxGeometry(0.01, 0.01, 0.01));
-	if (options.vertexColors) {
+	const figure = kind === 'mini' && options.instanced;
+	if (options.vertexColors || figure) {
 		const count = geometry.getAttribute('position').count;
 		geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
 	}
-	if (options.instanced) addInstanceTints(geometry, 1);
+	if (figure)
+		for (const name of [PAINT_ATTRIBUTE, TINT_ATTRIBUTE])
+			geometry.setAttribute(
+				name,
+				new THREE.InstancedBufferAttribute(new Float32Array(PIECE_MIN * 4).fill(1), 4)
+			);
+	else if (options.instanced) addInstanceTints(geometry, 1);
 	if (options.dropped) withDrops(geometry);
 	return geometry;
 }
 
 /** A mesh of `kind` made with `options`, casting and taking shadows or not, never culled. */
 function sample(kind: ShaderKind, options: MaterialOptions, shadows: boolean): THREE.Object3D {
-	const geometry = geometryFor(options);
+	const geometry = geometryFor(kind, options);
 	const material = createMaterial(kind, options);
+	// Token bases (#265, base-layer.ts), figures (#266) and contact shadows (#271, the instanced
+	// decal) are pool-sized: their matrices an attribute.
+	const pooled = kind === 'base' || (options.instanced && (kind === 'mini' || kind === 'decal'));
+	const n = pooled ? PIECE_MIN : 1;
+	if (kind === 'base' || (kind === 'decal' && n > 1)) addInstanceTints(geometry, n);
 	const mesh = options.instanced
-		? new THREE.InstancedMesh(geometry, material, 1)
+		? new THREE.InstancedMesh(geometry, material, n)
 		: new THREE.Mesh(geometry, material);
-	if (mesh instanceof THREE.InstancedMesh) mesh.setMatrixAt(0, new THREE.Matrix4());
+	if (mesh instanceof THREE.InstancedMesh) {
+		mesh.setMatrixAt(0, new THREE.Matrix4());
+		mesh.count = 1;
+	}
 	mesh.castShadow = mesh.receiveShadow = shadows;
 	mesh.frustumCulled = false;
 	return mesh;

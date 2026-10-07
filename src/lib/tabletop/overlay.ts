@@ -1,5 +1,5 @@
 // The overlay (milestone 63, #157): everything that shows game state rather
-// than scenery (token labels and floats, the selection ring, the turn marker,
+// than scenery (token labels and floats, the selection ring, the turn column,
 // editor previews, the beacon, and the grid and highlight on twins of the
 // ground, grid-overlay.ts) lives in its own scene, drawn by its own pass after
 // the world and laid over the tone-mapped image (post.ts). So it is never darkened, bloomed, graded, blurred or smeared,
@@ -16,9 +16,14 @@ export class OverlayLayer {
 	/** No background and no fog: it clears to transparent, over the world. */
 	readonly scene = new THREE.Scene();
 	private follows = new Map<THREE.Object3D, THREE.Group>();
+	/** Run before every overlay draw, with what draws it (label-layer.ts lays out its plates). */
+	readonly before: ((renderer: THREE.Renderer, camera: THREE.Camera) => void)[] = [];
 
 	constructor() {
-		this.scene.onBeforeRender = () => this.sync();
+		this.scene.onBeforeRender = (renderer, _scene, camera) => {
+			this.sync();
+			for (const f of this.before) f(renderer as unknown as THREE.Renderer, camera);
+		};
 	}
 
 	/** A group that follows `anchor` (moves, turns and hides with it) until `unfollow`. */
@@ -47,6 +52,7 @@ export class OverlayLayer {
 
 	dispose(): void {
 		this.follows.clear();
+		this.before.length = 0;
 	}
 }
 

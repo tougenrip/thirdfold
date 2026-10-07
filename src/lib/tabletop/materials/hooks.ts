@@ -22,6 +22,7 @@ import type { SlotName } from './defaults';
 import { splatUniforms, type FloorSurface } from './floors';
 import { slotDefault, slotProperty } from './defaults';
 import type { ShaderKind, Variant } from './kinds';
+import { miniAlbedo, miniPaint } from './mini';
 import { biplanar } from './biplanar';
 import { localBox, triplanar, uvMapping, worldBox, type Mapping } from './mapping';
 import { paintedNormal, paintedRoughness } from './paint';
@@ -155,12 +156,22 @@ export const miniOpacity = T.uniform(1).onObjectUpdate(
 );
 
 /**
- * A kind's albedo from its sampled albedo slot and its colour: the ground's on terrain, and times
- * the mini's own colour on minis (#172).
+ * A kind's albedo from its sampled albedo slot and its colour: the ground's on terrain, and on
+ * minis the painted look (#267, mini.ts) over the mini's own colour (#172): an instanced mini's
+ * from its paint (`aPaint` rgb, #266), else the drawn mesh's.
  */
-export function ownAlbedo(kind: ShaderKind, albedo: N, colour: N, floor: FloorSurface | null): N {
+export function ownAlbedo(
+	kind: ShaderKind,
+	variant: Variant,
+	albedo: N,
+	colour: N,
+	floor: FloorSurface | null,
+	orm: N
+): N {
 	if (kind === 'terrain') return tsl.vec4(groundColour(albedo.xyz, colour, floor), albedo.w);
-	return albedo.mul(tsl.vec4(kind === 'mini' ? colour.mul(loose(miniColour)) : colour, 1));
+	if (kind !== 'mini') return albedo.mul(tsl.vec4(colour, 1));
+	const tint = variant.instanced ? miniPaint().xyz : loose(miniColour);
+	return miniAlbedo(albedo, colour, tint, orm);
 }
 
 const Fn = T.Fn as unknown as (body: () => N) => () => N;
@@ -168,14 +179,15 @@ const { Discard, If } = T as unknown as Record<'Discard' | 'If', (...args: unkno
 
 /**
  * A kind's final colour: on minis, a screen-door see-through (hashed alpha, Wyman and McGuire
- * 2017) by `miniOpacity`, so hiding a token never flips `transparent` (a program of its own);
+ * 2017) by the mini's opacity (`aPaint` w when instanced, else `miniOpacity`), so hiding a token never flips `transparent` (a program of its own);
  * noisy without TAA, which is fine for a GM-only state (#172).
  */
-export function ownOutput(kind: ShaderKind, output: N): N {
+export function ownOutput(kind: ShaderKind, variant: Variant, output: N): N {
 	if (kind !== 'mini') return output;
+	const opacity = variant.instanced ? miniPaint().w : loose(miniOpacity);
 	const noise = loose(T.interleavedGradientNoise(T.screenCoordinate.xy));
 	return Fn(() => {
-		If(noise.greaterThanEqual(loose(miniOpacity)), () => {
+		If(noise.greaterThanEqual(opacity), () => {
 			Discard();
 		});
 		return output;

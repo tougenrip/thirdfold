@@ -102,9 +102,34 @@ describe('The adventures’ assets', () => {
 		expect(bell).toMatchObject({ kind: 'prop', swing: { pivot: 2.55, throw: 0.5 } });
 		const checked = await checkGlb(built.files.get(bell.file)!);
 		expect(checked.ok && checked.info.meshes).toEqual(['body', 'swing']);
-		const warden = built.manifest.models.warden;
-		const figure = await checkGlb(built.files.get(warden.file)!);
+		const villager = built.manifest.models.villager;
+		const figure = await checkGlb(built.files.get(villager.file)!);
 		expect(figure.ok && figure.info.meshes).toEqual(['body', 'accent']);
+	});
+
+	it("take the characters' cooked minis (the pilot, #276): a downed pose, LODs of both, a tint mask and no accent", async () => {
+		for (const id of ['warden', 'veil', 'ember', 'saint']) {
+			const mini = built.manifest.models[id];
+			expect(mini).toMatchObject({
+				kind: 'character',
+				cooked: true,
+				poses: { downed: 1 },
+				credit: { license: 'LicenseRef-thirdfold-original' }
+			});
+			const checked = await checkGlb(built.files.get(mini.file)!, LIMITS.figure);
+			if (!checked.ok) throw new Error(checked.error);
+			expect(checked.info.poses).toEqual([1]);
+			expect([...checked.info.meshes].sort()).toEqual(
+				[
+					'body',
+					'body_lod1',
+					'body_lod2',
+					'body_pose1',
+					'body_pose1_lod1',
+					'body_pose1_lod2'
+				].sort()
+			);
+		}
 	});
 
 	it('take the cooked great bell (the pilot, #196) with its LODs, swing, credit and preview', async () => {
@@ -306,6 +331,37 @@ describe('the pipeline on other sources', () => {
 			Buffer.concat([header, Buffer.from(padded), glb.subarray(20 + length)])
 		);
 		await expect(buildAssets(src)).rejects.toThrow(/golem\.glb: extension X is not allowed/);
+	});
+
+	it("builds a mini's static poses from its meta.json, and refuses poses it can't place (#273)", async () => {
+		const src = sources();
+		const tri = (name: string) => ({
+			name,
+			positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+			normals: null,
+			colors: null,
+			indices: new Uint16Array([0, 1, 2])
+		});
+		const dir = path.join(src, 'models', 'character');
+		const provenance = { license: 'LicenseRef-thirdfold-original', author: 'us', modified: false };
+		const put = (meshes: string[], meta: object) => {
+			writeFileSync(path.join(dir, 'poser.glb'), writeGlb(meshes.map(tri)));
+			writeFileSync(path.join(dir, 'poser.meta.json'), JSON.stringify({ provenance, ...meta }));
+		};
+		put(['body', 'body_pose1'], { poses: { downed: 1 } });
+		expect((await buildAssets(src)).manifest.models.poser).toMatchObject({
+			kind: 'character',
+			triangles: 1,
+			poses: { downed: 1 }
+		});
+		put(['body', 'body_pose1'], {});
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: poses: .*\(1\) is for/);
+		put(['body', 'body_pose1'], { poses: { downed: 2 } });
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: poses/);
+		put(['body', 'body_pose1'], { poses: { casting: 1 } });
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: poses/);
+		put(['body', 'body_pose1', 'accent'], { poses: { downed: 1 } });
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: a model with poses has no accent/);
 	});
 
 	it('builds a KTX2 texture checked against its usage', async () => {

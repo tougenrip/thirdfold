@@ -1,0 +1,11 @@
+{
+	"provenance": {
+		"license": "LicenseRef-thirdfold-original",
+		"author": "thirdfold contributors",
+		"modified": false
+	},
+	"poses": {
+		"downed": 1
+	},
+	"screenSizes": [0.25, 0.1]
+}

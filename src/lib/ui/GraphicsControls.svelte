@@ -276,6 +276,17 @@
 					view.
 				</p>
 			</fieldset>
+			<label
+				class="switch"
+				title="Names show on hover, on the selected token and on whose turn it is; hold N on the table to see every name."
+			>
+				<input
+					type="checkbox"
+					checked={graphics.names === true}
+					onchange={(e) => onchange({ ...graphics, names: e.currentTarget.checked })}
+				/>
+				Always show names
+			</label>
 			<label class="switch">
 				<input
 					type="checkbox"

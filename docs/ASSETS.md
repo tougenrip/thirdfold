@@ -165,6 +165,36 @@ it may have materials with KTX2 textures and meshopt-compressed geometry, and no
 Rules). If it swings, put its swing in `<id>.meta.json`. `tests/fixtures/assets/cube-meshopt.glb`
 and `checker.ktx2` are small valid examples (`scripts/make-asset-fixtures.ts` makes them).
 
+#### Static poses for minis (#273)
+
+A figure (a character, NPC or enemy, never a prop) may carry up to three static poses: whole
+sculpts drawn instead of its `body`, never animated (skins and animations stay refused). The
+convention, for the art brief (#276) and any provided or cooked GLB:
+
+- **Mesh and node names.** `body` is the standing figure; `body_pose1`, `body_pose2` and
+  `body_pose3` are the poses, and `body_pose<n>_lod1`/`_lod2` their coarser levels (the cook makes
+  those for you, like any `_lod`). Underscores, never dots: GLTFLoader strips `.` from names, so
+  `body.pose1` would arrive as `bodypose1` and be ignored, and the pipeline refuses it. Only the body
+  has poses (`swing_pose1` is refused), and a model with poses must still have its `body`.
+- **No accent.** A posed model tints through the mini kind's tint mask (ORM alpha, #267) instead,
+  so the pipeline refuses a model with both poses and an `accent` mesh.
+- **What each pose is for.** `<id>.meta.json` (beside a provided GLB, or the art folder's
+  `meta.json` for a cooked one, which the cook carries over) names it in `poses`:
+  `{ "downed": 1, "active": 2 }`. The meanings are the states the client already knows: `downed`
+  (a character down or dead in the viewer's adventure view) and `active` (the token whose turn it
+  is); every pose in the file must have a meaning, and every meaning a pose in the file. More
+  meanings (casting, attacking) come with a state that says so.
+- **The manifest** carries them as `ModelEntry.poses` (`Partial<Record<'downed' | 'active', 1 | 2 |
+3>>`), checked by `readPoses` in the pipeline and by `parseManifest` at the client.
+- **Budgets.** A pose is drawn instead of the body, so each pose at each level is held to the class's
+  triangles on its own (`checkGlb`); bytes and GPU bytes count the whole file.
+- **Part lists** have no poses: a part-list figure keeps tipping over when it falls.
+
+At the table a downed pose stands in for tipping the figure over; a model without one still tips
+(docs/RENDERING.md, "Poses"). The cook simplifies each pose into its own `_lod1` and `_lod2` as it
+does the body (since #276; before it, poses were cooked without levels). The first posed figures
+are the four characters' pilot minis (see "The character minis' pilot").
+
 Every prop in the catalogue (see Catalogue) must have a model. The catalogue says what a prop is
 (footprint, what it blocks); the model only says how it looks.
 
@@ -535,6 +565,69 @@ fallback, with the same roles and floors).
   (357 before M70's UVs added 89 kB to the pieces), so a commissioned sheet must not be heavier at
   1K (its normal map, 671 kB, is most of it).
 
+#### The character minis' pilot (#276)
+
+The four characters (`warden`, `veil`, `ember`, `saint`; both adventures place them by these ids,
+so nothing else changed) are cooked figures: an in-house pilot (`LicenseRef-thirdfold-original`),
+made by script the way the great bell's and the stone-halls kit's were, until docs/ART.md's
+character brief is commissioned. Their part lists are gone: each id has one source.
+
+- **Made by a script**, the same bytes every run under Node 22:
+
+  ```bash
+  npx -y node@22 node_modules/tsx/dist/cli.mjs scripts/make-mini-art.ts   # art/character/<id>/
+  npm run assets:cook && npx -y node@22 node_modules/tsx/dist/cli.mjs server/assets/build.ts
+  ```
+
+  `scripts/minis/mesh.ts` has the shapes (lathes with creases, rounded limbs, chamfered boxes, a
+  lathe made two-sided for hoods and cloaks, each UV'd into charts of its own with a solid for the
+  occlusion bake) and a rig of twelve bones; `body.ts` the shared body, the common paints and the
+  downed pose; `figures.ts` the four: the shield-bearer (kettle helm, plate, a tabard and a round
+  shield, a sword), the quiet blade (hood and cloak open at the front, a wrap across the mouth,
+  twin daggers held forward), the flame-caller (a robe with a brass hem, wild hair, a staff with a
+  caged stone; the fire is VFX, #312) and the pilgrim healer (a wool robe, a mantle and stole, a
+  wide hat with a shell, a staff with a gourd, a book). `paint.ts` packs every part's charts into
+  one atlas and paints it from the standing sculpt, texel by texel: the paint each part asks for
+  there (a hem, a shield's rim, the face's eyes, brows and mouth), grain in world space, a cool
+  wash where the part-list bake (`bake.ts`) finds occlusion, and edge highlights along every open
+  border and convex crease and on faces turned up (docs/ART.md section 7: a textured mini paints
+  its own).
+
+- **What the GLB holds** (as a Blender export would: one material, PNGs embedded): `body`
+  standing and `body_pose1` downed (the meta's `poses: { "downed": 1 }`), both on the same atlas;
+  the downed pose is the standing sculpt bent by the rig (curled on its right side, knees drawn up,
+  a robe or cloak following the legs by its height) and set on the base, with what the figure held
+  laid flat beside it. Albedo and ORM at 256² (painted at 512², boxed down), no normal map; ORM is
+  flat (red 1, so the occlusion is in the albedo only, which keeps it cheap) with the tint mask in
+  alpha on the tabard and shield face, the hood and cloak, the robe and sleeves, and the mantle and
+  stole. No accent. The script checks every pose stays on the base (within 0.53 u of its centre,
+  docs/ART.md section 7) and above it.
+- **The numbers.** About 1.4k to 1.7k triangles a pose (`DETAIL` in `mesh.ts`, 0.65 of each
+  lathe's segments), LODs at 50% and 15% of each pose by the cook; the cooked files are
+  98 to 112 kB each (ember 98, saint 103, veil 106, warden 112 kB; 418 kB together, where the four
+  part lists were 123 kB), about four fifths of it geometry. Not docs/ART.md's
+  3k-6k triangles and 1024² maps: the characters stand on every table, and these are what The
+  Hollow Bell's tables hold at medium once the owner raised the desktop download budget to
+  15.25 MB for them (M71, #276; docs/PERFORMANCE.md, "Asset budgets"). With them, from
+  `npm run assets` (desktop held at medium, mobile at low):
+
+  | Table                   | Download low | Download medium | GPU medium | Mobile GPU |
+  | ----------------------- | ------------ | --------------- | ---------- | ---------- |
+  | hollow-bell/bellweather | 5,411 kB     | 15,529 kB       | 45,190 kB  | 49,807 kB  |
+  | hollow-bell/monastery   | 5,415 kB     | 15,387 kB       | 48,720 kB  | 52,396 kB  |
+  | hollow-bell/hollow      | 5,046 kB     | 15,183 kB       | 48,991 kB  | 45,226 kB  |
+  | blackwater/train        | 4,333 kB     | 12,367 kB       | 39,338 kB  | 39,163 kB  |
+
+  Each table gained about 295 kB to download (Bellweather was 15,234 kB at medium).
+
+Raise `DETAIL`, `ALBEDO_PX` and `ORM_PX` (`make-mini-art.ts`) with that budget; a commission
+must fit it too.
+
+- **A commission replaces it** mini by mini: deliver `art/character/<id>/<id>.glb` (`body`,
+  `body_pose1`, the textures) with its `meta.json` (`LicenseRef-thirdfold-commissioned`,
+  `poses`), cook, and drop that id from `FIGURES` in `figures.ts`.
+- **The turntable** shows a posed model's poses (Pose) and tints a textured mini where its mask is.
+
 ### Audio
 
 - **A bell recipe** is `{ "bell": "great" | "flash" | "hand" | "chime" | "motif", "rate": 8000..48000
@@ -773,6 +866,8 @@ textures exist in up to three sizes: a **base** of at most 512 px, always, and *
       until the checker can decode it, and no `KHR_texture_transform` until the client honours it;
     - no skins, animations, cameras or morph targets; at most 256 nodes, 16 deep, as a tree;
     - meshes, and their nodes, named `body`, `swing` or `accent`, optionally `_lod1` or `_lod2`;
+      a figure's static poses `body_pose1` to `body_pose3` (and their `_lod`s), never beside an
+      `accent`, each named in its `meta.json`'s `poses` (#273);
     - attributes POSITION, NORMAL, TANGENT, TEXCOORD_0 (the only uv set), COLOR_0 and `_BAKE`
       (VEC2 normalised unsigned bytes, see Models from parts), each in the formats its semantic allows (quantised integers only with `KHR_mesh_quantization`), in triangles,
       with unsigned indices;
@@ -836,7 +931,7 @@ textures exist in up to three sizes: a **base** of at most 512 px, always, and *
   kind anywhere), with each model's preview and the materials it wears. When any of it is KTX2 or
   cooked, the Basis transcoder counts once. Each is counted at each texture detail: a variant's
   download after its base (which always loads first) and its GPU bytes instead of the base's.
-  Over `TABLE_BUDGETS` (desktop at medium, the reference tier's: 15 MB download and 160 MB GPU, high reported only; mobile at low, where
+  Over `TABLE_BUDGETS` (desktop at medium, the reference tier's: 15.25 MB download (15 until M71, #276) and 160 MB GPU, high reported only; mobile at low, where
   phones start: 6 MB and 80 MB, KTX2 at RGBA8) the build fails, naming the adventure, the table
   and the number. `npm run assets` prints the report: a row per environment alone, in brackets,
   then a row per table, with its download and GPU bytes at low, medium and high, and its GPU bytes
@@ -928,8 +1023,11 @@ pixels, so they are made by hand after a model changes, never in CI.
     (`roleOf`; GLTFLoader's `_<n>` suffixes are allowed), with their node transforms applied and
     pieces of one role, level and material merged. Every part gets the same attributes
     (position, normal, uv, colour, as floats; an accent without colour), so textured and part-list
-    models draw with the same programs. Layers draw level 0; `lodFor` picks a level by screen
-    share for #274.
+    models draw with the same programs. Figures and props draw the level the camera calls for
+    (#274, docs/RENDERING.md "LOD (milestone 71, #274)"): `lodFor` in `tabletop/lod.ts` by
+    projected radius against per-kind thresholds (`FIGURE_LODS`, `PROP_LODS`), not the entry's
+    `screenSize`; a level without a `body` falls back to the next finer one (`drawnLevel`).
+    Shadows always come from the cheapest level.
   - A cooked model's glTF maps go into the prop and mini kinds' slots (base colour → albedo,
     normal, metallic-roughness → ORM, emissive), on a material of the same variant, so nothing
     compiles. Its textures are uploaded (`initTexture`) before it is drawn.

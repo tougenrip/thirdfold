@@ -66,7 +66,7 @@ async function gain(
 	const translucent: Translucent[] = [];
 	(scene as THREE.Scene | null)?.traverse((o) => {
 		const material = (o as THREE.Mesh).material as Partial<Translucent> | undefined;
-		if (o.userData.assetId === assetId && material?.params?.translucency)
+		if (String(o.userData.bucket).startsWith(`${assetId}:`) && material?.params?.translucency)
 			translucent.push(material as Translucent);
 	});
 	expect(translucent.length).toBeGreaterThan(0);

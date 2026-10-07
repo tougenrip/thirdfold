@@ -13,8 +13,11 @@ import { flickerNode } from './flicker';
 import { floorSurface } from './floors';
 import { gridGraph } from './grid';
 import { roofMask, roofShadowMask } from './roof-fade';
+import { baseGraph } from './base';
+import { contactGraph } from './contact';
 import { bedSink, ringFadeNode } from './ring';
 import { ownAlbedo, ownOutput, paintNormal, paintRoughness, surfaceMapping } from './hooks';
+import { miniClearcoat, miniRim } from './mini';
 import { tsl, type N } from './tsl';
 import {
 	LIFT_ATTRIBUTE,
@@ -33,6 +36,7 @@ export type ShaderKind =
 	| 'rock'
 	| 'prop'
 	| 'mini'
+	| 'base'
 	| 'emissive'
 	| 'decal'
 	| 'foliage'
@@ -45,6 +49,7 @@ export const SHADER_KINDS: readonly ShaderKind[] = [
 	'rock',
 	'prop',
 	'mini',
+	'base',
 	'emissive',
 	'decal',
 	'foliage',
@@ -80,7 +85,7 @@ export interface Params {
 	sway: number;
 	/** Water and surface: how fast its slots slide, in repeats per second (#243's moving ground). */
 	flow: THREE.Vector2;
-	/** Minis: clearcoat (0 until #267) and its roughness, uniforms so leaving 0 compiles nothing. */
+	/** Minis: the varnish (clearcoat, #267) and its roughness, uniforms so 0 compiles nothing. */
 	clearcoat: number;
 	clearcoatRoughness: number;
 	/**
@@ -176,8 +181,20 @@ export const KINDS: Record<ShaderKind, KindDef> = {
 	terrain: lit({ roughness: 0.9, ...VARY }, { slots: ['albedo', 'normal', 'orm'] }),
 	rock: lit({ roughness: 0.95, ...VARY }),
 	prop: lit({ roughness: 0.75 }),
-	mini: lit({ roughness: 0.45 }, { base: 'physical' }),
+	mini: lit({ roughness: 0.45, clearcoat: 0.25, clearcoatRoughness: 0.35 }, { base: 'physical' }),
+	// Token bases (#265, base.ts): instanced, the environment's surface on the disc (albedo only).
+	base: lit(
+		{
+			color: 0x6b6e72,
+			roughness: 0.7,
+			clearcoat: 0.5,
+			clearcoatRoughness: 0.15,
+			repeat: { x: 0.5, y: 0.5 }
+		},
+		{ base: 'physical', slots: ['albedo'] }
+	),
 	emissive: lit({ roughness: 0.3 }),
+	// Instanced: contact shadows (#271, contact.ts), on the floor before other blended surfaces.
 	decal: lit({ color: 0x000000 }, { transparent: true }),
 	foliage: lit(
 		{ roughness: 0.8, translucency: 0.6 },
@@ -203,12 +220,15 @@ export const worldTime = uniform(0);
 /** The name of the per-instance tint an instanced kind reads: rgb, and its strength in w. */
 export const TINT_ATTRIBUTE = 'aTint';
 
-/** The per-instance colour an instanced prop's albedo is multiplied by: a prop's tint (#202), else white. */
+/**
+ * The per-instance colour an instanced prop's albedo is multiplied by: a prop's tint (#202), else
+ * white. An instanced mini's is a vec4 (#266, #267): rgb its tint, w its opacity.
+ */
 export const PAINT_ATTRIBUTE = 'aPaint';
 
 /**
  * The per-vertex bake props and minis read (#190): occlusion by the model's own parts and the
- * floor, and convexity (for #267). Every geometry drawn with those kinds has it (`withBake`), or
+ * floor, and convexity (#267's drybrush; 0.5 flat). Every geometry drawn with those kinds has it (`withBake`), or
  * the graph would differ and compile a program of its own.
  */
 export const BAKE_ATTRIBUTE = 'aBake';
@@ -315,6 +335,8 @@ function sinks(kind: ShaderKind): N {
 }
 
 function build(kind: ShaderKind, variant: Variant): Graph {
+	if (kind === 'base') return baseGraph(variant);
+	if (kind === 'decal' && variant.instanced) return contactGraph(); // contact shadows (#271)
 	const time = worldTime as unknown as N;
 	const def = KINDS[kind];
 	const tint = tintOf(kind, variant);
@@ -363,7 +385,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 	// Rock is the cliffs' and risers' kind (#241): its faces read the cell behind them; a roof
 	// reads its own cell outside it (#257).
 	const face = kind === 'rock' || (variant.roof && 'roof');
-	const emissive = worldEmissive(glow, face);
+	const emissive = worldEmissive(kind === 'mini' ? glow.add(miniRim(variant)) : glow, face);
 	const alpha = albedo.w.mul(param('opacity', 'float'));
 	const macro = VARIED.includes(kind) ? macroOf(param('macroScale', 'float')) : null;
 	const colour = macro
@@ -396,12 +418,12 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 			? colour.mul(tsl.attribute(PAINT_ATTRIBUTE, 'vec3'))
 			: colour;
 	return {
-		colorNode: ownAlbedo(kind, albedo, painted, floor),
+		colorNode: ownAlbedo(kind, variant, albedo, painted, floor, orm),
 		opacityNode: def.transparent || def.alphaTested ? alpha : null,
 		alphaTestNode: def.alphaTested ? param('cutoff', 'float') : null,
 		positionNode: position,
 		castShadowPositionNode: rest,
-		outputNode: ownOutput(kind, worldModify(tsl.output, emissive, true, face)),
+		outputNode: ownOutput(kind, variant, worldModify(tsl.output, emissive, true, face)),
 		maskNode: variant.roof ? roofMask() : undefined,
 		maskShadowNode: variant.roof ? roofShadowMask() : undefined,
 		lit: {
@@ -416,7 +438,7 @@ function build(kind: ShaderKind, variant: Variant): Graph {
 				: orm.x,
 			normalNode: paintNormal(kind, floor ? floor.normal(mapping.normal()) : mapping.normal()),
 			emissiveNode: emissive,
-			clearcoatNode: def.base === 'physical' ? param('clearcoat', 'float') : null,
+			clearcoatNode: def.base === 'physical' ? miniClearcoat(param('clearcoat', 'float')) : null,
 			clearcoatRoughnessNode: def.base === 'physical' ? param('clearcoatRoughness', 'float') : null
 		}
 	};

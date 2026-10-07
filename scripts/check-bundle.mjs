@@ -27,14 +27,17 @@ const BUDGETS = {
 	// → 100.0: the manifest's kits and their parser with the roles' envelopes (kit.ts, #250), 99.9 kB
 	// measured. → 100.3: the shared chunk after roof fades (#259: Tabletop.setOwnTokens), just over
 	// 100.0 kB measured.
-	'/builder': { total: 100_300, own: 52_000 },
+	// → 100.6: EnemyDef.scale and the builder's size field (#270), the manifest's poses (#273).
+	'/builder': { total: 100_600, own: 52_000 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured.
-	'/credits': { total: 54_800, own: 3_000 },
+	// → 55.0: the manifest's `miniBase` (#265); 54.8 kB measured.
+	'/credits': { total: 55_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
 	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
-	'/dev/assets': { total: 52_900, own: 500 },
+	// → 53.0: a figure's poses in the manifest (#273, `readPoses`); 52,925 B measured.
+	'/dev/assets': { total: 53_000, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
@@ -113,8 +116,24 @@ const BUDGETS = {
 	// variant; three's BatchedMesh and batch.ts gone, about 4.3 kB); 399.5 kB measured.
 	// → 399.8: warm-ups at the draw depth (warmup.ts, DrawDepths and unlit); 399.7 kB measured.
 	// → 400.0: still texture reads leave WebGL2's update lists (materials/still-textures.ts, the
-	// orbit's main thread 18.6 → 10 ms); 399,836 B measured.
-	renderer: { total: 400_000 },
+	// orbit's main thread 18.6 → 10 ms); 399,836 B measured. → 402.0: token bases (#265: the base
+	// kind's graph, base-layer.ts, the lathe); 401.7 kB measured. → 403.0: names on demand (#268:
+	// label-layer.ts, the atlas and two instanced sprites, replacing the per-token label sprites);
+	// 402.9 kB measured after the merge (M71's cap is about 410 kB). → dice as PBR sets (#275: one InstancedMesh per
+	// kind, the dice material, the atlas's UVs; decal canvases and pips gone); 403.1 kB measured after the merge.
+	// → the miniature kind's wash, drybrush, varnish and rim (#267, materials/mini.ts); 403.6 kB
+	// measured.
+	// → 405.0: token figures as instanced batches (#266, figures.ts: the swap-remove slots, the merged
+	// plain miniature); 404.7 kB measured. → 405.2: large creatures' bases (#270: a base mesh per
+	// size, the shrink rule, base picking by its centre disc); 405.1 kB measured. → static poses (#273: `poseOf`, the
+	// pose in the figure batches and the fall it stands in for); 405.5 kB measured after the merge.
+	// → 406.7: contact shadows (#271, contact.ts and the instanced decal's graph, materials/contact.ts);
+	// 406.6 kB measured after the merge. → the turn column (#269, turn-column.ts, the cone gone):
+	// 406.7 kB measured after the merge.
+	// → 408.0: levels of detail on the camera (#274: lod.ts, lod-watch.ts, prop buckets and figure batches
+	// per level, shadow proxies); 407,940 B measured, 408.0 kB after the merge.
+	// → 409.1: mini motion (#272, mini-motion.ts: hop, squash, pick-up, bob, tip); 409.0 kB measured, 409.1 kB with #276 (figures.ts keeps emptied textured batches).
+	renderer: { total: 409_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

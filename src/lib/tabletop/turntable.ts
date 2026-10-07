@@ -58,10 +58,11 @@ export function modelList(manifest: Manifest, query = ''): [string, ModelEntry][
 		.sort(([a, x], [b, y]) => x.kind.localeCompare(y.kind) || a.localeCompare(b));
 }
 
-/** Triangles at each level the model carries. */
+/** Triangles at each level the model carries, standing (each pose has as many again, #273). */
 export function trianglesByLod(model: LoadedModel): number[] {
 	const out: number[] = [];
-	for (const p of model.parts) out[p.lod] = (out[p.lod] ?? 0) + (p.geometry.index?.count ?? 0) / 3;
+	for (const p of model.parts.filter((p) => !p.pose))
+		out[p.lod] = (out[p.lod] ?? 0) + (p.geometry.index?.count ?? 0) / 3;
 	return [...out].map((n) => n ?? 0);
 }
 
@@ -95,7 +96,8 @@ export const texturesOf = (model: LoadedModel): TextureFact[] => factsOf(mapsOf(
 export function modelGroup(
 	model: LoadedModel,
 	lod: number,
-	accent = '#b0413e'
+	accent = '#b0413e',
+	pose = 0
 ): { group: THREE.Group; materials: KindMaterial[] } {
 	const group = new THREE.Group();
 	const materials: KindMaterial[] = [];
@@ -115,7 +117,7 @@ export function modelGroup(
 		add(base, createMaterial('mini', { params: { color: 0x1b1612, roughness: 0.6 } }), 0.04);
 		group.userData.base = base;
 	}
-	for (const part of model.parts.filter((p: ModelPart) => p.lod === lod)) {
+	for (const part of model.parts.filter((p: ModelPart) => p.lod === lod && p.pose === pose)) {
 		const accented = part.role === 'accent';
 		if (part.role === 'flame') {
 			// A fixture's flame (#232) glows as a torch's would.
@@ -123,12 +125,15 @@ export function modelGroup(
 			continue;
 		}
 		const params = part.maps ? part.params : accented ? { color: accent } : { roughness: 0.6 };
+		// A textured mini tints where its ORM alpha masks it (#267), with the accent's colour.
+		const tinted = figure && !!part.maps;
 		const material = createMaterial(kind, {
-			vertexColors: !accented,
+			vertexColors: !accented && !tinted,
 			params,
 			slots: part.maps ?? undefined
 		});
-		add(part.geometry, material, lift);
+		const mesh = add(part.geometry, material, lift);
+		if (tinted) mesh.userData.miniColor = new THREE.Color(accent);
 	}
 	return { group, materials };
 }
@@ -144,8 +149,8 @@ export interface Shown {
 
 export interface Turntable {
 	readonly tabletop: Tabletop;
-	/** Shows a model at a level, full or its preview (#192); null if it can't load. */
-	show(id: string, lod: number, preview: boolean): Promise<Shown | null>;
+	/** Shows a model at a level and pose, full or its preview (#192); null if it can't load. */
+	show(id: string, lod: number, preview: boolean, pose?: number): Promise<Shown | null>;
 	/** Shows a surface of the library (#187) on a 3×3-cell floor and a wall; false if it can't load. */
 	showSurface(id: string): Promise<boolean>;
 	/** Each texture shown, at the size drawn now (texture detail swaps it after it loads). */
@@ -242,7 +247,7 @@ export async function createTurntable(
 
 	const turntable: Turntable = {
 		tabletop,
-		async show(id, lod, preview) {
+		async show(id, lod, preview, pose = 0) {
 			const entry = (await loadManifest()).models[id];
 			if (!entry) return null;
 			const before = tabletop.stats().texturesBytes;
@@ -256,7 +261,8 @@ export async function createTurntable(
 			if (!measured.has(key)) measured.set(key, tabletop.stats().texturesBytes - before);
 			clear();
 			const levels = trianglesByLod(model);
-			const made = modelGroup(model, Math.min(lod, levels.length - 1));
+			const posed = model.parts.some((p) => p.pose === pose) ? pose : 0;
+			const made = modelGroup(model, Math.min(lod, levels.length - 1), undefined, posed);
 			current = { ...made, preview: preview ? model : null };
 			shownMaps = mapsOf(model);
 			holder.add(made.group);

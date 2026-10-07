@@ -14,11 +14,17 @@
 // a turn reads the same on every client; motions from the server (a shake,
 // a swing, a landing) play on top. All of it runs on the wall clock
 // (`tick(now)`), only while something is moving; a new prop drops in (#249).
+//
+// A model with levels (#274) is bucketed by level: one set of meshes per asset and level, each
+// prop in the bucket of the level `chooseLods` picked from the camera (lod.ts). The levels cast no
+// shadow; a proxy bucket of every prop of the asset at its cheapest level, on `SHADOW_PROXY`,
+// does, so a level switch never touches a cached shadow map.
 
 import * as THREE from 'three/webgpu';
-import { pickable } from './picking';
 import { cornerToWorld, type SquareGrid } from '$lib/game/grid';
 import { MOTION_MS, type MotionKind } from '$lib/game/motion';
+import { apply, GLIDE_MS, still, type Anim, type Pose } from './prop-motion';
+import { PROP_LODS, lodFor } from './lod';
 import {
 	ASSET_IDS,
 	ASSETS,
@@ -29,11 +35,12 @@ import {
 } from '$lib/game/props';
 import type { Light } from '$lib/game/lights';
 import type { CellMask } from '$lib/game/visibility';
+import { propContact, type Contact, type ContactShadowLayer } from './contact';
 import { Drops, DROP_CELLS, PropDrops } from './drop-in';
 import type { Ground } from './ground';
 import { flameMaterial, flameOf, paintFlame, type FlameLook } from './light-fixtures';
+import { freeBucket, makeBucket, MODEL, type AssetMeshes } from './prop-buckets';
 import {
-	addInstanceTints,
 	createMaterial,
 	dropHeight,
 	dropNow,
@@ -42,37 +49,20 @@ import {
 	PAINT_ATTRIBUTE,
 	setParams,
 	TINT_ATTRIBUTE,
-	withBake,
-	type KindMaterial,
-	type MaterialOptions
+	withBake
 } from './materials';
-import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
+import { drawnLevel, levelsOf, loadModel, modelNow, modelRadius, type LoadedModel } from './models';
+
+const at = new THREE.Vector3();
+const [base, part, out, swing, tilt] = Array.from({ length: 5 }, () => new THREE.Matrix4());
+const turn = new THREE.Quaternion();
+const up = new THREE.Vector3(0, 1, 0);
 
 /** A placeholder's height and colour, until the model has loaded. */
 const PLACEHOLDER_HEIGHT = 0.5;
 const PLACEHOLDER = 0x8a7f70;
 /** How far a swing throws swinging parts when the model doesn't say. */
 const DEFAULT_THROW = 0.4;
-
-/** How long a prop takes to glide to a new place or turn. */
-const GLIDE_MS = 450;
-
-/** How a prop is displaced from where it stands, this frame. */
-interface Pose {
-	dx: number;
-	dy: number;
-	dz: number;
-	/** Extra turn about the vertical (radians). */
-	turn: number;
-	/** Swing of its swinging parts about their pivot (radians). */
-	swing: number;
-}
-
-type Anim =
-	| { kind: 'glide'; start: number; dx: number; dz: number; turn: number }
-	| { kind: MotionKind; start: number; throw: number };
-
-const still = (): Pose => ({ dx: 0, dy: 0, dz: 0, turn: 0, swing: 0 });
 
 /** The emissive tints (colour and strength): selected, hovered, and hidden from the players. */
 const SELECTED = { color: new THREE.Color(0xe0a458), strength: 0.4 };
@@ -82,31 +72,15 @@ const tintColour = new THREE.Color();
 /** What the GM sees a prop hidden from the players as: pale, like a ghost of itself. */
 const GHOST = { color: new THREE.Color(0xb8c6e0), strength: 0.3 };
 
-interface AssetMeshes {
-	parts: { mesh: THREE.InstancedMesh; swings: boolean; flame: boolean }[];
-	/** Materials of its own for textured parts (#188): the shared variant, its maps in the slots. */
-	materials: KindMaterial[];
-	/** Prop id for each instance index. */
-	owners: string[];
-	capacity: number;
-	/** The model these meshes draw, or null for the placeholder. */
-	model: LoadedModel | null;
-}
-
 export class PropLayer {
 	readonly group = new THREE.Group();
-	private placeholder = withBake(new THREE.BoxGeometry(1, 1, 1));
-	/**
-	 * Models: their colours are vertex colours. One material for every asset (#172), and one per
-	 * textured part in the same variant, so a textured model compiles nothing new.
-	 */
-	private static readonly MODEL: MaterialOptions = { instanced: true, vertexColors: true };
-	private material = createMaterial('prop', PropLayer.MODEL);
-	private placeholderMaterial = createMaterial('prop', {
+	readonly placeholder = withBake(new THREE.BoxGeometry(1, 1, 1));
+	readonly material = createMaterial('prop', MODEL);
+	readonly placeholderMaterial = createMaterial('prop', {
 		instanced: true,
 		params: { color: PLACEHOLDER, roughness: 0.9 }
 	});
-	private flameMaterial = flameMaterial();
+	readonly flameMaterial = flameMaterial();
 	/** The renderer's drops and which props drop (#249). */
 	readonly drops: Drops;
 	private dropping: PropDrops;
@@ -119,11 +93,16 @@ export class PropLayer {
 	constructor(
 		private readonly onModel: () => void = () => {},
 		/** The renderer's clock (ms); glides start from it. */
-		private readonly clock: () => number = () => performance.now()
+		private readonly clock: () => number = () => performance.now(),
+		/** Where standing props' contact shadows go (#271): the tokens' layer. */
+		private readonly contact: ContactShadowLayer | null = null
 	) {
 		this.dropping = new PropDrops((this.drops = new Drops(clock, dropNow)));
 	}
-	private meshes = new Map<AssetId, AssetMeshes>();
+	/** Buckets by key: `<asset>:<level>`, or `<asset>:shadow` for the shadow proxy. */
+	private meshes = new Map<string, AssetMeshes>();
+	/** Each prop's level as `lodFor` last gave it. */
+	private lods = new Map<string, number>();
 	private props: readonly Prop[] = [];
 	private selectedId: string | null = null;
 	private hoveredId: string | null = null;
@@ -232,67 +211,129 @@ export class PropLayer {
 		const byAsset = new Map<AssetId, Prop[]>(ASSET_IDS.map((id) => [id, []]));
 		for (const p of props) byAsset.get(p.assetId)?.push(p);
 
-		const base = new THREE.Matrix4();
-		const part = new THREE.Matrix4();
-		const out = new THREE.Matrix4();
-		const turn = new THREE.Quaternion();
-		const up = new THREE.Vector3(0, 1, 0);
-		const swing = new THREE.Matrix4();
-		const tilt = new THREE.Matrix4();
-		for (const [assetId, list] of byAsset) {
-			const meshes = this.ensure(assetId, list.length);
-			if (!meshes) continue;
-			// A placeholder is a box on the unrotated footprint; a model is already in place.
-			const def = ASSETS[assetId];
-			const local = meshes.model
-				? new THREE.Matrix4()
-				: new THREE.Matrix4().compose(
-						new THREE.Vector3(0, PLACEHOLDER_HEIGHT / 2, 0),
-						new THREE.Quaternion(),
-						new THREE.Vector3(def.w * 0.9, PLACEHOLDER_HEIGHT, def.h * 0.9)
-					);
-			const pivot = meshes.model?.entry.swing?.pivot ?? 0;
-			meshes.owners = list.map((p) => p.id);
-			list.forEach((p, i) => {
-				const at = this.centre(p, grid);
-				const pose = this.poses.get(p.id);
-				turn.setFromAxisAngle(up, -p.rotation * (Math.PI / 2) + (pose?.turn ?? 0));
-				// On the highest floor under it (a prop on a balcony stands on the balcony).
-				const floor = ground ? Math.max(...footprintCells(p).map((c) => ground.floorY(c))) : 0;
-				base.compose(
-					new THREE.Vector3(
-						at.x + (pose?.dx ?? 0) * grid.cellSize,
-						floor + (pose?.dy ?? 0) * grid.cellSize,
-						at.z + (pose?.dz ?? 0) * grid.cellSize
-					),
-					turn,
-					new THREE.Vector3().setScalar(grid.cellSize * p.scale)
-				);
-				const angle = (this.swings.get(p.id) ?? 0) + (pose?.swing ?? 0);
-				if (angle) {
-					// Rotate about the pivot: up to it, tilt, back down.
-					swing
-						.makeTranslation(0, pivot, 0)
-						.multiply(tilt.makeRotationX(angle))
-						.multiply(new THREE.Matrix4().makeTranslation(0, -pivot, 0));
-				}
-				const [lift, drop] = [liftOf(assetId, p.pos), this.dropping.startOf(p.id)];
-				for (const { mesh, swings } of meshes.parts) {
-					part.copy(local);
-					if (angle && swings) part.premultiply(swing);
-					mesh.setMatrixAt(i, out.multiplyMatrices(base, part));
-					const at = mesh.geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.BufferAttribute;
-					at.setXY(i, lift, drop);
-				}
-			});
-			for (const { mesh } of meshes.parts) {
-				mesh.count = list.length;
-				mesh.instanceMatrix.needsUpdate = true;
-				mesh.geometry.getAttribute(LIFT_ATTRIBUTE).needsUpdate = true;
-				mesh.computeBoundingSphere();
+		const halos = new Map<string, Contact>();
+		for (const [assetId, all] of byAsset) {
+			if (all.length) this.request(assetId);
+			const model = modelNow(assetId) ?? null;
+			const buckets = new Map<string, { lod: number; proxy: boolean; list: Prop[] }>();
+			for (const p of all) {
+				const lod = model ? drawnLevel(model, this.lods.get(p.id) ?? 0) : 0;
+				const key = `${assetId}:${lod}`;
+				if (!buckets.has(key)) buckets.set(key, { lod, proxy: false, list: [] });
+				buckets.get(key)!.list.push(p);
+			}
+			if (model && levelsOf(model) && all.length)
+				buckets.set(`${assetId}:shadow`, {
+					lod: drawnLevel(model, Infinity),
+					proxy: true,
+					list: all
+				});
+			// A level no prop is at now is kept, empty and hidden, for the camera to come back to: a
+			// switch clones no geometry (an older model's are dropped).
+			for (const [key, m] of this.meshes) {
+				if (m.assetId !== assetId || buckets.has(key)) continue;
+				if (m.model === model) this.write(m, [], grid, ground);
+				else this.drop(key);
+			}
+			for (const [key, { lod, proxy, list }] of buckets) {
+				const meshes = this.ensure(key, assetId, lod, proxy, list.length, model);
+				this.write(meshes, list, grid, ground, proxy ? null : halos);
 			}
 		}
+		this.contact?.setProps(halos);
 		this.paint();
+	}
+
+	/** Writes `list`'s instances into an asset's bucket, and their contact shadows into `halos`. */
+	private write(
+		meshes: AssetMeshes,
+		list: readonly Prop[],
+		grid: SquareGrid,
+		ground: Ground | null,
+		halos: Map<string, Contact> | null = null
+	): void {
+		const { assetId } = meshes;
+		// A placeholder is a box on the unrotated footprint; a model is already in place.
+		const def = ASSETS[assetId];
+		const local = meshes.model
+			? new THREE.Matrix4()
+			: new THREE.Matrix4().compose(
+					new THREE.Vector3(0, PLACEHOLDER_HEIGHT / 2, 0),
+					new THREE.Quaternion(),
+					new THREE.Vector3(def.w * 0.9, PLACEHOLDER_HEIGHT, def.h * 0.9)
+				);
+		const pivot = meshes.model?.entry.swing?.pivot ?? 0;
+		const bounds = meshes.model?.entry.bounds;
+		const height = bounds ? bounds.max[1] - bounds.min[1] : null; // none till it arrives
+		meshes.owners = list.map((p) => p.id);
+		list.forEach((p, i) => {
+			const at = this.centre(p, grid);
+			const pose = this.poses.get(p.id);
+			turn.setFromAxisAngle(up, -p.rotation * (Math.PI / 2) + (pose?.turn ?? 0));
+			// On the highest floor under it (a prop on a balcony stands on the balcony).
+			const floor = ground ? Math.max(...footprintCells(p).map((c) => ground.floorY(c))) : 0;
+			base.compose(
+				new THREE.Vector3(
+					at.x + (pose?.dx ?? 0) * grid.cellSize,
+					floor + (pose?.dy ?? 0) * grid.cellSize,
+					at.z + (pose?.dz ?? 0) * grid.cellSize
+				),
+				turn,
+				new THREE.Vector3().setScalar(grid.cellSize * p.scale)
+			);
+			const halo = halos && propContact(p, grid, ground, height, pose ?? null);
+			if (halo) halos!.set(p.id, halo);
+			const angle = (this.swings.get(p.id) ?? 0) + (pose?.swing ?? 0);
+			if (angle) {
+				// Rotate about the pivot: up to it, tilt, back down.
+				swing
+					.makeTranslation(0, pivot, 0)
+					.multiply(tilt.makeRotationX(angle))
+					.multiply(new THREE.Matrix4().makeTranslation(0, -pivot, 0));
+			}
+			const [lift, drop] = [liftOf(assetId, p.pos), this.dropping.startOf(p.id)];
+			for (const { mesh, swings } of meshes.parts) {
+				part.copy(local);
+				if (angle && swings) part.premultiply(swing);
+				mesh.setMatrixAt(i, out.multiplyMatrices(base, part));
+				const at = mesh.geometry.getAttribute(LIFT_ATTRIBUTE) as THREE.BufferAttribute;
+				at.setXY(i, lift, drop);
+			}
+		});
+		for (const { mesh } of meshes.parts) {
+			mesh.count = list.length;
+			mesh.visible = list.length > 0; // an empty level draws nothing
+			mesh.instanceMatrix.needsUpdate = true;
+			mesh.geometry.getAttribute(LIFT_ATTRIBUTE).needsUpdate = true;
+			mesh.computeBoundingSphere();
+		}
+	}
+
+	/**
+	 * Picks each prop's level for `camera` on a view `viewportPx` high, one level coarser per `bias`
+	 * (lod.ts), and moves those that changed to their level's bucket. True if any did.
+	 */
+	chooseLods(camera: THREE.PerspectiveCamera, viewportPx: number, bias: number): boolean {
+		if (!this.last) return false;
+		const { grid, ground } = this.last;
+		const fovY = THREE.MathUtils.degToRad(camera.fov);
+		const was = this.lods;
+		this.lods = new Map();
+		let changed = false;
+		for (const p of this.props) {
+			const model = modelNow(p.assetId);
+			if (!model || !levelsOf(model)) continue;
+			const c = this.centre(p, grid);
+			at.set(c.x, ground?.floorY(p.pos) ?? 0, c.z);
+			const radius = modelRadius(model) * grid.cellSize * p.scale;
+			const before = was.get(p.id) ?? 0;
+			const distance = at.distanceTo(camera.position);
+			const lod = lodFor(radius, distance, fovY, viewportPx, PROP_LODS, before, bias);
+			this.lods.set(p.id, lod);
+			if (drawnLevel(model, lod) !== drawnLevel(model, before)) changed = true;
+		}
+		if (changed) this.layout(this.props, grid, ground);
+		return changed;
 	}
 
 	/** Swings a hanging prop to `angle` radians (0 is at rest). Returns true if anything moved. */
@@ -328,8 +369,8 @@ export class PropLayer {
 	pick(raycaster: THREE.Raycaster): string | null {
 		const hit = raycaster.intersectObject(this.group, true)[0];
 		if (!hit || hit.instanceId === undefined) return null;
-		const assetId = hit.object.userData.assetId as AssetId | undefined;
-		return (assetId && this.meshes.get(assetId)?.owners[hit.instanceId]) ?? null;
+		const key = hit.object.userData.bucket as string | undefined;
+		return (key && this.meshes.get(key)?.owners[hit.instanceId]) ?? null;
 	}
 
 	dispose(): void {
@@ -340,90 +381,41 @@ export class PropLayer {
 		this.flameMaterial.dispose();
 	}
 
-	/**
-	 * Meshes for an asset with room for `count` props, growing in chunks; none if never
-	 * used. Asks for the asset's model the first time; they are made again when it arrives.
-	 */
-	private ensure(assetId: AssetId, count: number): AssetMeshes | null {
-		let meshes = this.meshes.get(assetId);
-		if (!meshes && count === 0) return null;
-		if (!this.requested.has(assetId)) {
-			this.requested.add(assetId);
-			// Drawn again with its preview, if it has one, then with the model (or the box again).
-			const redraw = () => {
-				this.drop(assetId);
-				if (this.last) this.layout(this.props, this.last.grid, this.last.ground);
-				this.onModel();
-			};
-			void loadModel(assetId, redraw).then(redraw);
-		}
-		const model = modelNow(assetId) ?? null;
+	/** Asks for an asset's model the first time; its buckets are made again when it arrives. */
+	private request(assetId: AssetId): void {
+		if (this.requested.has(assetId)) return;
+		this.requested.add(assetId);
+		// Drawn again with its preview, if it has one, then with the model (or the box again).
+		const redraw = () => {
+			for (const [key, m] of this.meshes) if (m.assetId === assetId) this.drop(key);
+			if (this.last) this.layout(this.props, this.last.grid, this.last.ground);
+			this.onModel();
+		};
+		void loadModel(assetId, redraw).then(redraw);
+	}
+
+	/** A bucket's meshes with room for `count` props (prop-buckets.ts). */
+	private ensure(
+		key: string,
+		assetId: AssetId,
+		lod: number,
+		proxy: boolean,
+		count: number,
+		model: LoadedModel | null
+	): AssetMeshes {
+		let meshes = this.meshes.get(key);
 		if (meshes && meshes.capacity >= count && meshes.model === model) return meshes;
-		this.drop(assetId);
-		const capacity = Math.max(8, Math.ceil(count * 1.5));
-		const materials: KindMaterial[] = [];
-		// A translucent model (#237) draws with materials of its own, in the same variant.
-		const translucency = model?.entry.translucency ?? 0;
-		let plain: KindMaterial | null = null;
-		const materialOf = (part: ModelPart) => {
-			if (!part.maps && !translucency) return this.material;
-			if (!part.maps && plain) return plain;
-			const lift = this.material.params.lift;
-			const params = part.maps ? { ...part.params, lift, translucency } : { lift, translucency };
-			const own = createMaterial('prop', { ...PropLayer.MODEL, params, slots: part.maps ?? {} });
-			materials.push(own);
-			if (!part.maps) plain = own;
-			return own;
-		};
-		const make = (shared: THREE.BufferGeometry, material: THREE.Material, shadows = true) => {
-			// A copy of its own, to carry this mesh's tints and lifts (#172, #181).
-			const geometry = shared.clone();
-			addInstanceTints(geometry, capacity);
-			const mesh = pickable(new THREE.InstancedMesh(geometry, material, capacity));
-			mesh.userData.assetId = assetId;
-			mesh.castShadow = mesh.receiveShadow = shadows;
-			mesh.count = 0;
-			this.group.add(mesh);
-			return mesh;
-		};
-		const parts: AssetMeshes['parts'] = [];
-		if (model) {
-			// Drawn at its full level; choosing a coarser one by distance is #274's.
-			for (const role of ['body', 'swing'] as const)
-				for (const part of partsOf(model, role))
-					parts.push({
-						mesh: make(part.geometry, materialOf(part)),
-						swings: role === 'swing',
-						flame: false
-					});
-			for (const part of partsOf(model, 'flame'))
-				parts.push({
-					mesh: make(part.geometry, this.flameMaterial, false),
-					swings: false,
-					flame: true
-				});
-		} else
-			parts.push({
-				mesh: make(this.placeholder, this.placeholderMaterial),
-				swings: false,
-				flame: false
-			});
-		meshes = { capacity, owners: [], parts, materials, model };
-		this.meshes.set(assetId, meshes);
+		this.drop(key);
+		meshes = makeBucket(this, key, assetId, lod, proxy, count, model);
+		this.meshes.set(key, meshes);
 		return meshes;
 	}
 
-	/** Takes an asset's meshes off the table (the model's own geometry is kept for next time). */
-	private drop(assetId: AssetId): void {
-		const meshes = this.meshes.get(assetId);
+	private drop(key: string): void {
+		const meshes = this.meshes.get(key);
 		if (!meshes) return;
-		for (const { mesh } of meshes.parts) {
-			this.group.remove(mesh);
-			mesh.geometry.dispose(); // its own copy
-			mesh.dispose();
-		}
-		for (const m of meshes.materials) m.dispose(); // not its maps: the model's (models.ts)
-		this.meshes.delete(assetId);
+		freeBucket(meshes);
+		this.meshes.delete(key);
 	}
 
 	/**
@@ -461,37 +453,6 @@ export class PropLayer {
 				tints.needsUpdate = true;
 				paints.needsUpdate = true;
 			}
-		}
-	}
-}
-
-/** Adds an animation's displacement at `t` (0 to 1 through it) to a pose. */
-function apply(pose: Pose, a: Anim, t: number): void {
-	switch (a.kind) {
-		case 'glide': {
-			// Eases out: quick to start, settling into place.
-			const left = (1 - t) ** 3;
-			pose.dx += a.dx * left;
-			pose.dz += a.dz * left;
-			pose.turn += a.turn * left;
-			return;
-		}
-		case 'shake': {
-			const fade = 1 - t;
-			pose.dx += Math.sin(t * 90) * 0.035 * fade;
-			pose.dz += Math.cos(t * 71) * 0.025 * fade;
-			return;
-		}
-		case 'swing':
-			// Thrown, then settling back with a couple of dying bounces.
-			pose.swing += a.throw * Math.exp(-4 * t) * Math.cos(t * Math.PI * 3) * (1 - t);
-			return;
-		case 'land': {
-			// Falls in from a little above and bounces once.
-			const fall = t < 0.6 ? 1 - (t / 0.6) ** 2 : 0;
-			const bounce = t >= 0.6 ? Math.sin(((t - 0.6) / 0.4) * Math.PI) * 0.06 : 0;
-			pose.dy += 0.7 * fall + bounce;
-			return;
 		}
 	}
 }
