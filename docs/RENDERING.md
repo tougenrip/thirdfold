@@ -2768,6 +2768,55 @@ the shadow redrawn):
 To re-measure after a change to the kit pieces (a new kit, more keys): rebuild, then run the two
 commands above.
 
+### The orbit's main thread (WebGL2)
+
+On the RTX 4060 Laptop the high tier's orbit on the test world went from about 14 ms a frame at
+M69's close to 18.6-22 ms over M70, past high's 16.7 ms, so the automatic tier stepped down to
+medium after a couple of seconds of play and rebuilt the table. All of it was `draw` (the
+pipeline's render), not the layers' ticks.
+
+- **Where it went.** A CPU profile of the orbit put half the frame in three's per-object node
+  updates: `TextureNode.update` 22% self, `updateForRender` 13%, the texture value getters and
+  `updateReference` 11%. On WebGL2 three gives every texture read a flipY uniform
+  (`GLSLNodeBuilder.isFlipY`), which makes the read an OBJECT update, run for each read of each
+  object drawn, every pass, every frame, with a `texture.updateMatrix()` (a sine and a cosine)
+  inside. A kind's graph reads its data textures in over a hundred places (the GridLight's lists
+  and data, 126 a draw on their own; the cell maps; the floors' arrays): about 280 update nodes a
+  draw and 33,500 texture-node updates a frame on the test world's 201 draws. M70 added none of
+  them; it added draws (floor tiles, piece pools: 165 → 185 in the gate), each paying for all of
+  them, which tipped the frame over. WebGPU has no flipY uniform, so none of this runs there.
+- **The fix.** `materials/still-textures.ts` `quietTextureReads` (from `setUpRenderer`, once)
+  drops from every node builder's update list the texture reads whose flipY could only ever be
+  `false` (not a render target's, framebuffer's or depth texture's, not an ImageBitmap uploaded
+  with `flipY`; our bitmaps are flipped as they decode) and that read through no uv matrix. The
+  uniform keeps its initial `false`, so no pixel and no program changes; render-target reads (the
+  passes, shadow maps, the hero atlas, the sky's PMREM) keep their updates. Tested in
+  `still-textures.spec.ts`.
+- **Before and after** (7 October 2026, the merged branch at 25fb8a4, the same machine; the perf
+  gate's orbit, Ana at the tier the device starts at, high; frame times are main thread):
+
+| Measure                                      | Before             | After                           |
+| -------------------------------------------- | ------------------ | ------------------------------- |
+| WebGL2 gate orbit                            | 52.4 fps, 18.62 ms | 60.6 fps, 9.91 ms (10.41 again) |
+| WebGL2 orbit, repeated (4 runs)              | 18.2-18.6 ms       | 10.4-12.1 ms                    |
+| WebGPU orbit, repeated (runs 2-6)            | 7.2-10.3 ms        | 7.6-10.8 ms                     |
+| WebGL2 kit budgets, main thread median (max) | 9.99 (24.4) ms     | 6.34 (23.7) ms                  |
+| WebGL2 kit budgets, high only, median        | 12.64 ms           | 7.57 ms                         |
+| WebGPU kit budgets, main thread median (max) | 4.42 (11.9) ms     | 4.57 (12.4) ms                  |
+| Test world heap after the table loads (Ana)  | 61.5 MB            | 41.9 MB                         |
+
+Draws, triangles and programs are unchanged on both backends; the kit budgets (120 runs each,
+low, medium and high) are all within after (before, one WebGL2 run of the monastery's GM overview
+on high counted 3.06M triangles once, not repeated after). GPU time's medians: WebGL2 6.0 → 5.6
+ms, WebGPU 4.6 → 4.6 ms. The heap's drop (WebGL2 only; WebGPU's is 30.5 MB either way) held in
+both WebGL2 gate runs after; its cause is not traced.
+
+- **WebGPU's gate orbit** reads 1.9 fps with a 10-11 s frame, before and after: on WebGPU the gate
+  starts orbiting while the table's warm-up still holds frames (the settled frame count stops
+  advancing during `compileAsync`; 56 of 185 draws when the orbit starts), so its first orbit pays
+  for the warm-up. Later orbits on the same page are the repeated row above. A gate fix (waiting
+  for `loads()` and the warm-up) is left to the next gate change.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
