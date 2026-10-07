@@ -109,6 +109,22 @@ describe('adventure files', () => {
 		});
 	});
 
+	it("parses an enemy's size on the table and refuses one out of range (#270)", () => {
+		const big = json(exampleAdventure());
+		const rat = big.enemies.rat as { scale?: unknown };
+		rat.scale = 1.8;
+		const loaded = loadAdventureFile(big, 'custom-big');
+		if (!loaded.ok) throw new Error(loaded.error);
+		expect(loaded.adventure.enemies.rat.scale).toBe(1.8);
+		for (const scale of [0.2, 3.5, '2', Number.NaN]) {
+			rat.scale = scale;
+			expect(parseAdventureFile(big)).toMatchObject({
+				ok: false,
+				error: expect.stringContaining('enemies.rat.scale')
+			});
+		}
+	});
+
 	it('drops what it does not know', () => {
 		const file = json(exampleAdventure()) as unknown as Record<string, unknown>;
 		const parsed = parseAdventureFile({ ...file, script: 'alert(1)' });

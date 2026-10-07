@@ -2875,6 +2875,50 @@ gone.
   for #267's tier hooks); notches are shading, not cut; larger bases are #270; the figure still
   stands at its old 0.08 u (#266 moves the figures).
 
+## Large creatures (milestone 71, #270)
+
+A large creature is visual scale on one cell: its rules footprint stays one cell (multi-cell sizes
+are the rules track's, #96, which will then pick the base). `Token.scale` (#202, 0.5 to 3) scales
+the figure as before and picks the base (`bases.ts`):
+
+| `Token.scale` | Base diameter (cells) | D&D size              |
+| ------------- | --------------------- | --------------------- |
+| below 1.5     | 0.86                  | Small, Medium (1 in.) |
+| 1.5 to 2.5    | 1.9                   | Large (2 in.)         |
+| 2.5 to 3.5    | 2.9                   | Huge (3 in.)          |
+| 3.5 and up    | 3.9                   | Gargantuan (4 in.)    |
+
+Under today's cap of 3 the 3.9 base is reachable only once the cap rises or the rules' sizes come.
+
+**The shrink rule.** `baseDiameters(tokens, level)` gives every token's drawn diameter: a large base
+shrinks to 0.86 when any other token's base (at its own size) would overlap it, the centres nearer
+than the sum of the two radii and the floors within one level. The figure keeps its scale. It reads
+only the tokens the viewer was sent, so a GM-hidden token beside the Keeper shrinks its base in the
+GM's picture only (`server/views.spec.ts`, "large bases"). At 1.9 a diagonal neighbour leaves the
+base whole (1.41 > 0.95 + 0.43); at 2.9 it does not.
+
+**Drawing.** `BaseLayer` keeps one `InstancedMesh` per diameter in use (at most four, a constant),
+each lathed from `profileFor(diameter)`: the edge, bevel, lip and ring keep their widths and height
+and only the inner disc widens. Every mesh is on the one base material and holds at least
+`PIECE_MIN`, so a new size, a base changing size (it moves to the other mesh's slots: a matrix and
+a tint) or a shrink compiles nothing (`program-count`: "token large", "token huge", "token at the
+scale cap", "large base shrunk", "token lifted"). The small bases' mesh is always in the scene, as
+since #265; a larger size's is drawn only while a token stands on it, so a table with large
+creatures costs at most three more draws a pass. `bases.diameter(id)` (cell units) is what the
+contact shadow (#271) and the turn column (#269) size themselves by. A base sits on its token's
+floor: `Token.lift` raises only the figure (`lift * STEP_HEIGHT * cellSize`).
+
+**Picking.** `TokenLayer.pick` takes a base hit only within `PICK_RADIUS` (0.43 cell, a small
+base's radius) of its token's centre and looks past the rest, figures counting wherever they are
+hit, so a click on a cell under the Keeper's rim reaches that cell and players can step beside it
+(`large-bases.svelte.spec.ts`).
+
+**Content.** `EnemyDef.scale` (and an adventure file's enemy `scale`, parsed and range-checked in
+`file.ts`, checked by `validateAdventure`, "Size on the table" in the builder) is copied onto the
+enemy's token by `enemyToken`; there is no new wire field. The Hollow Bell sets the Keeper at 1.8
+(a 1.9 base) and the Hand and the Heart at 2.6 (2.9). Tokens restored from saves made before this
+keep a small base until they respawn.
+
 ## Labels on demand (milestone 71, #268)
 
 Token names no longer float over every mini. A name shows while its token is hovered, selected or

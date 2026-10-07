@@ -111,3 +111,55 @@ export function ringEmission(
 	}
 	return e;
 }
+
+/**
+ * Base diameters (#270), cell units: Small and Medium, Large, Huge, Gargantuan (D&D's 1, 2, 3 and
+ * 4 inches, a cell 1 inch less its gap). A large creature is visual scale on one cell; the rules
+ * footprint stays one cell (multi-cell rules sizes are #96's, which will then pick the base).
+ */
+export const BASE_SIZES = [0.86, 1.9, 2.9, 3.9] as const;
+export const SMALL_BASE: number = BASE_SIZES[0];
+
+/** The base under a mini of `scale` (`Token.scale`). */
+export function baseSizeFor(scale = 1): number {
+	if (scale < 1.5) return BASE_SIZES[0];
+	if (scale < 2.5) return BASE_SIZES[1];
+	if (scale < 3.5) return BASE_SIZES[2];
+	return BASE_SIZES[3];
+}
+
+/**
+ * The drawn diameter of every token's base, by id: its `baseSizeFor`, except that a large base
+ * shrinks to `SMALL_BASE` when any other token's base (at its own size) would overlap it, the
+ * centres nearer than the two radii and the floors within one level (`level`). Reads only the
+ * tokens given, which must be what this viewer was sent, so a token hidden from a player never
+ * shrinks a base in that player's picture. O(n²) over large tokens only.
+ */
+export function baseDiameters(
+	tokens: readonly Pick<Token, 'id' | 'pos' | 'scale'>[],
+	level: (pos: Token['pos']) => number = () => 0
+): Map<string, number> {
+	const sizes = tokens.map((t) => baseSizeFor(t.scale));
+	const out = new Map<string, number>();
+	tokens.forEach((t, i) => {
+		const own = sizes[i];
+		const covers = (o: (typeof tokens)[number], k: number) =>
+			k !== i &&
+			Math.hypot(o.pos.x - t.pos.x, o.pos.y - t.pos.y) < (own + sizes[k]) / 2 &&
+			Math.abs(level(o.pos) - level(t.pos)) <= 1;
+		out.set(t.id, own > SMALL_BASE && tokens.some(covers) ? SMALL_BASE : own);
+	});
+	return out;
+}
+
+/**
+ * The profile for a base `diameter` across: the edge, bevel, lip and ring keep their widths and
+ * the inner disc takes up the rest, so a large base reads as the same base, only wider.
+ */
+export function profileFor(diameter: number): (readonly [number, number])[] {
+	const grow = (diameter - SMALL_BASE) / 2;
+	return BASE_PROFILE.map(([r, y]) => [r === 0 ? 0 : r + grow, y] as const);
+}
+
+/** The radius of a base's centre disc that picks its token (#270): a small base's, any size. */
+export const PICK_RADIUS = SMALL_BASE / 2;

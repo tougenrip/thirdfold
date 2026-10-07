@@ -117,6 +117,11 @@ describe('carried light (#202)', () => {
 	});
 });
 
+const scalesOf = (kind: string) =>
+	[...story().encounter!.enemies]
+		.filter(([, e]) => e.kind === kind)
+		.map(([id]) => room.tokens.get(id)?.scale);
+
 describe('initiative', () => {
 	it('orders everyone by a server roll, characters first on a tie, and starts with the first', () => {
 		const started = fight();
@@ -134,6 +139,9 @@ describe('initiative', () => {
 			'Initiative: Bell Cultist 21, Bell Cultist 21, The Warden 20, The Saint 20, Bell Keeper 20. Round 1.'
 		);
 		expect(encounter.current).toBe(0);
+		// The Keeper stands on a larger base (#270): its token carries its scale; the cultists none.
+		expect(scalesOf('keeper')).toEqual([1.8]);
+		expect(scalesOf('cultist')).toEqual([undefined, undefined]);
 		expect(started.enemyTurn).toBe(encounter.turn);
 		expect(pendingEnemyTurn(story())).toBe(encounter.turn);
 

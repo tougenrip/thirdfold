@@ -965,6 +965,19 @@
 								/></label
 							>
 							<label class="field"
+								><span>Size on the table</span><input
+									type="number"
+									min="0.5"
+									max="3"
+									step="0.1"
+									title="1 is a person; 1.5 and up stands on a larger base (one cell all the same)"
+									bind:value={
+										() => en.scale ?? 1,
+										(v) => (en.scale = typeof v === 'number' && v !== 1 ? v : undefined)
+									}
+								/></label
+							>
+							<label class="field"
 								><span>Colour</span><input type="color" bind:value={en.color} /></label
 							>
 						</div>

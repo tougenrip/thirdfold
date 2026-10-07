@@ -122,8 +122,9 @@ const BUDGETS = {
 	// → the miniature kind's wash, drybrush, varnish and rim (#267, materials/mini.ts); 403.6 kB
 	// measured.
 	// → 405.0: token figures as instanced batches (#266, figures.ts: the swap-remove slots, the merged
-	// plain miniature); 404.7 kB measured.
-	renderer: { total: 405_000 },
+	// plain miniature); 404.7 kB measured. → 405.2: large creatures' bases (#270: a base mesh per
+	// size, the shrink rule, base picking by its centre disc); 405.1 kB measured.
+	renderer: { total: 405_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

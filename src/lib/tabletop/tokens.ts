@@ -13,6 +13,7 @@
 
 import * as THREE from 'three/webgpu';
 import { BaseLayer } from './base-layer';
+import { baseDiameters, PICK_RADIUS, SMALL_BASE } from './bases';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { STEP_HEIGHT, type Ground } from './ground';
 import type { Token } from '$lib/game/token';
@@ -31,6 +32,10 @@ interface Entry {
 	hidden: boolean;
 	from: THREE.Vector3;
 	to: THREE.Vector3;
+	/** How far the figure stands above its floor (`Token.lift`), world units: the base stays down. */
+	lift: number;
+	/** Its base's diameter, cell units (#270: `baseDiameters`). */
+	base: number;
 	/** 0..1 progress of the current move; 1 when at rest. */
 	t: number;
 	/** When the current move began (the layer's clock) and how long it takes, ms. */
@@ -65,6 +70,7 @@ export class TokenLayer {
 		new THREE.MeshBasicMaterial({ color: 0xe0a458 })
 	);
 	private standIns: THREE.Object3D[] | null = null;
+	private readonly under = new THREE.Vector3();
 	readonly rootOf = (id: string) => this.entries.get(id)?.root ?? null; // where a mini is now
 	/** Names on demand and combat floats (#268), in the overlay. */
 	readonly labels: LabelLayer;
@@ -104,6 +110,8 @@ export class TokenLayer {
 		this.grid = { ...grid };
 		let changed = gridChanged;
 		const seen = new Set<string>();
+		// Large bases (#270), shrunk where another mini stands: only from the tokens this viewer was sent.
+		const bases = baseDiameters(tokens, (p) => ground?.level(p) ?? 0);
 		for (const token of tokens) {
 			seen.add(token.id);
 			const w = gridToWorld(grid, token.pos);
@@ -126,6 +134,10 @@ export class TokenLayer {
 				changed = true;
 			}
 			if (created || resized) this.placeFigure(token.id, entry);
+			const base = bases.get(token.id) ?? SMALL_BASE;
+			if (entry.base !== base || entry.lift !== lift) changed = true;
+			entry.base = base;
+			entry.lift = lift;
 			if (gridChanged || snap) {
 				entry.root.position.copy(target);
 				entry.from.copy(target);
@@ -141,7 +153,7 @@ export class TokenLayer {
 				entry.duration = Math.min(180 + cells * 70, 700);
 				changed = true;
 			}
-			this.bases.place(token.id, entry.root.position, size, entry.hidden);
+			this.placeBase(token.id, entry);
 		}
 
 		for (const [id, entry] of this.entries) {
@@ -217,7 +229,7 @@ export class TokenLayer {
 			entry.root.position.lerpVectors(entry.from, entry.to, k);
 			entry.root.position.y +=
 				Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
-			this.bases.place(id, entry.root.position, entry.root.scale.x, entry.hidden);
+			this.placeBase(id, entry);
 			this.placeFigure(id, entry);
 			placed = true;
 			if (entry.t < 1) moving = true;
@@ -228,14 +240,27 @@ export class TokenLayer {
 		return moving;
 	}
 
-	/** Id of the frontmost mini under the ray, if any. */
+	/**
+	 * Id of the frontmost mini under the ray, if any. A base counts only within `PICK_RADIUS` of its
+	 * token's centre (#270), so a large base's rim over a neighbouring cell leaves that cell (or a mini
+	 * behind it) to be picked; figures count wherever they are hit.
+	 */
 	pick(raycaster: THREE.Raycaster): string | null {
-		const hit = raycaster.intersectObject(this.group, true)[0];
-		if (hit?.object === this.bases.mesh) return this.bases.owner(hit.instanceId);
-		const figure = hit && this.figures.tokenOf(hit);
-		if (figure) return figure;
-		for (let o: THREE.Object3D | null = hit?.object ?? null; o; o = o.parent) {
-			if (typeof o.userData.tokenId === 'string') return o.userData.tokenId;
+		const meshes = this.bases.meshes;
+		const cell = this.grid?.cellSize ?? 1;
+		for (const hit of raycaster.intersectObject(this.group, true)) {
+			if (meshes.includes(hit.object as THREE.InstancedMesh)) {
+				const id = this.bases.owner(hit.object, hit.instanceId);
+				const at = id ? this.entries.get(id)?.root.position : undefined;
+				if (id && at && Math.hypot(hit.point.x - at.x, hit.point.z - at.z) <= PICK_RADIUS * cell)
+					return id;
+				continue;
+			}
+			const figure = this.figures.tokenOf(hit);
+			if (figure) return figure;
+			for (let o: THREE.Object3D | null = hit.object; o; o = o.parent) {
+				if (typeof o.userData.tokenId === 'string') return o.userData.tokenId;
+			}
 		}
 		return null;
 	}
@@ -273,6 +298,8 @@ export class TokenLayer {
 			hidden: false,
 			from: at.clone(),
 			to: at.clone(),
+			lift: 0,
+			base: SMALL_BASE,
 			t: 1,
 			start: 0,
 			duration: 0
@@ -291,8 +318,17 @@ export class TokenLayer {
 		const f = FIGURE_SCALE;
 		figure.makeRotationZ(entry.fallen ? Math.PI / 2 : 0);
 		figure.setPosition(entry.fallen ? 0.38 * f : 0, entry.fallen ? 0.28 * f : 0, 0);
-		figure.multiply(scaled.makeScale(f, f, f)).multiply(scaled.makeTranslation(0, BASE_TOP / f, 0));
+		// The disc is as high at every base size and figure scale (#270): undo the token's scale.
+		const top = BASE_TOP / f / (root.scale.y / (this.grid?.cellSize ?? 1));
+		figure.multiply(scaled.makeScale(f, f, f)).multiply(scaled.makeTranslation(0, top, 0));
 		this.figures.place(id, figure.premultiply(root.matrix));
+	}
+
+	/** Puts `id`'s base under its mini: on the floor however high the figure is lifted (#270). */
+	private placeBase(id: string, entry: Entry): void {
+		const at = this.under.copy(entry.root.position);
+		at.y -= entry.lift;
+		this.bases.place(id, at, this.grid?.cellSize ?? 1, entry.base, entry.hidden);
 	}
 
 	/** Keeps the turn arrow over the active mini, even mid-move. */
@@ -305,7 +341,7 @@ export class TokenLayer {
 			const size = this.grid?.cellSize ?? 1;
 			this.marker.position.set(
 				active.root.position.x,
-				active.root.position.y + (LABEL_HEIGHT + 0.5) * size,
+				active.root.position.y + LABEL_HEIGHT * active.root.scale.y + 0.5 * size,
 				active.root.position.z
 			);
 			this.marker.scale.setScalar(size);

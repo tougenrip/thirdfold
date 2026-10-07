@@ -60,6 +60,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	keeper: {
 		kind: 'keeper',
 		model: 'armored-brute',
+		scale: 1.8,
 		name: 'Bell Keeper',
 		color: '#3b3f5c',
 		armor: 4,
@@ -96,6 +97,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	hand: {
 		kind: 'hand',
 		model: 'giant-hand',
+		scale: 2.6,
 		name: 'The Hollow’s Hand',
 		color: '#6d6478',
 		armor: 2,
@@ -110,6 +112,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 	heart: {
 		kind: 'heart',
 		model: 'pulsing-mass',
+		scale: 2.6,
 		name: 'The Hollow’s Heart',
 		color: '#7a1f2b',
 		armor: 3,
