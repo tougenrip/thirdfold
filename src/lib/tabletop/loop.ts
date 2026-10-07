@@ -3,6 +3,7 @@ import { bindSkyEnv } from './atmosphere';
 import { loadGraphics } from './quality';
 import { registerGridLights } from './materials/grid-light-node';
 import { registerHeroLights } from './materials/hero-light-node';
+import { quietTextureReads } from './materials/still-textures';
 import { registerSkyLights } from './sky-light';
 import type { TabletopOptions } from './types';
 
@@ -135,6 +136,7 @@ export function setUpRenderer(renderer: THREE.WebGPURenderer, options: TabletopO
 	// The point lights' one light (materials/grid-light-node.ts, #228), likewise.
 	registerGridLights(renderer);
 	registerHeroLights(renderer); // the hero shadow slots (#230)
+	quietTextureReads(); // no per-object flipY updates on WebGL2 (still-textures.ts)
 	// A lost WebGL context or WebGPU device: stop drawing (as three's default does, which also
 	// logs an error) and say so, so the tabletop can be rebuilt on a fresh canvas (#150).
 	renderer.onDeviceLost = (info) => {
