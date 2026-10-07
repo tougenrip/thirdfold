@@ -4,18 +4,25 @@
 import * as THREE from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
 import { FigureBatches, Slots, type ModelSource } from './figures';
+import { SHADOW_PROXY } from './lod';
 import { withBake, PAINT_ATTRIBUTE } from './materials';
 import type { LoadedModel, ModelPart } from './models';
 
 /** A part of the model attribute set: position, normal, uv, colour, bake. */
-function part(role: 'body' | 'accent', size: number, textured = false, pose = 0): ModelPart {
+function part(
+	role: 'body' | 'accent',
+	size: number,
+	textured = false,
+	pose = 0,
+	lod = 0
+): ModelPart {
 	const geometry = new THREE.BoxGeometry(size, size, size);
 	const n = geometry.getAttribute('position').count;
 	geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
 	withBake(geometry);
 	return {
 		role,
-		lod: 0,
+		lod,
 		pose,
 		geometry,
 		maps: textured ? { albedo: new THREE.Texture() } : null,
@@ -23,15 +30,28 @@ function part(role: 'body' | 'accent', size: number, textured = false, pose = 0)
 	};
 }
 
-const model = (id: string, parts: ModelPart[]) =>
-	({ entry: { file: id } as unknown as LoadedModel['entry'], parts }) as LoadedModel;
+const model = (id: string, parts: ModelPart[], levels = 0) =>
+	({
+		entry: { file: id, lods: levels ? Array(levels).fill({}) : undefined },
+		parts
+	}) as unknown as LoadedModel;
 
 const MODELS: Record<string, LoadedModel> = {
 	hound: model('hound', [part('body', 0.5)]),
 	warden: model('warden', [part('body', 0.6), part('accent', 0.2)]),
 	statue: model('statue', [part('body', 0.7, true)]),
-	keeper: model('keeper', [part('body', 0.9), part('accent', 0.3)])
+	keeper: model('keeper', [part('body', 0.9), part('accent', 0.3)]),
+	// A cooked figure with two coarser levels (#274).
+	sculpt: model(
+		'sculpt',
+		[0, 1, 2].flatMap((l) => [part('body', 0.9, false, 0, l), part('accent', 0.3, false, 0, l)]),
+		2
+	)
 };
+
+/** Looking from the origin: every figure close enough for level 0, or far enough for level 2. */
+const camera = new THREE.PerspectiveCamera(45, 1);
+const VIEW = { near: 1e5, far: 1 } as const;
 
 /** Every model loaded at once. */
 const loaded: ModelSource = { now: (id) => MODELS[id] ?? null, load: () => Promise.resolve() };
@@ -66,7 +86,9 @@ describe('figure batches', () => {
 		const figures = new FigureBatches(group, () => {}, loaded);
 		const rand = random(266);
 		const ids = Array.from({ length: 24 }, (_, i) => `t${i}`);
-		const models = [null, 'hound', 'warden', 'statue', 'keeper'];
+		const models = [null, 'hound', 'warden', 'statue', 'keeper', 'sculpt'];
+		/** Each figure's level as chooseLods last set it (kept across model changes). */
+		const lodOf = new Map<string, number>();
 		const colours = ['#ff0000', '#00ff00', '#3366ff'];
 		const live = new Map<string, { model: string | null; color: string; opacity: number }>();
 		const pick = <T>(of: readonly T[]) => of[Math.floor(rand() * of.length)];
@@ -78,11 +100,19 @@ describe('figure batches', () => {
 			const id = pick(ids);
 			const now = live.get(id);
 			const op = rand();
-			if (now && op < 0.25) {
+			if (op > 0.9) {
+				// The camera changed: the sculpts move to their level's batches.
+				const view = pick(['near', 'far'] as const);
+				figures.chooseLods(camera, VIEW[view], 0);
+				for (const [tid, f] of live)
+					if (f.model === 'sculpt') lodOf.set(tid, view === 'far' ? 2 : 0);
+			} else if (now && op < 0.25) {
 				figures.remove(id);
 				live.delete(id);
 				placed.delete(id);
+				lodOf.delete(id);
 			} else {
+				if (!now) lodOf.set(id, 0);
 				const next = {
 					model: now && op < 0.5 ? now.model : pick(models),
 					color: pick(colours),
@@ -99,9 +129,28 @@ describe('figure batches', () => {
 
 			// Every batch holds exactly the figures drawn with its part, packed, nothing empty kept.
 			const expected = new Map<ModelPart | 'plain', string[]>();
+			const proxies = new Map<ModelPart, string[]>();
 			for (const [tid, f] of live) {
-				const parts: (ModelPart | 'plain')[] = f.model ? MODELS[f.model].parts : ['plain'];
+				const lod = lodOf.get(tid)!;
+				const parts: (ModelPart | 'plain')[] = f.model
+					? MODELS[f.model].parts.filter((p) => p.lod === (f.model === 'sculpt' ? lod : 0))
+					: ['plain'];
 				for (const p of parts) expected.set(p, [...(expected.get(p) ?? []), tid]);
+				// A sculpt casts through its cheapest level's proxies, whatever level it draws.
+				if (f.model === 'sculpt')
+					for (const p of MODELS.sculpt.parts.filter((q) => q.lod === 2))
+						proxies.set(p, [...(proxies.get(p) ?? []), tid]);
+			}
+			expect(figures.proxies.size).toBe(proxies.size);
+			for (const [key, batch] of figures.proxies) {
+				expect([...batch.slots.owners].sort()).toEqual(proxies.get(key)!.sort());
+				expect(batch.mesh.count).toBe(batch.slots.size);
+				expect(batch.mesh.castShadow).toBe(true);
+				expect(batch.mesh.layers.mask).toBe(1 << SHADOW_PROXY);
+				batch.slots.owners.forEach((tid, i) => {
+					const at = new THREE.Matrix4().fromArray(batch.mesh.instanceMatrix.array, i * 16);
+					expect(at.elements).toEqual((placed.get(tid) ?? new THREE.Matrix4()).elements);
+				});
 			}
 			expect(figures.batches.size).toBe(expected.size);
 			for (const key of expected.keys()) expect(figures.batches.has(key)).toBe(true);
@@ -109,6 +158,11 @@ describe('figure batches', () => {
 				expect(batch.mesh.count).toBe(batch.slots.size);
 				expect([...batch.slots.owners].sort()).toEqual(expected.get(key)!.sort());
 				expect(batch.mesh.parent).toBe(group);
+				// A level of a model with levels casts nothing: its proxy does.
+				expect(batch.mesh.castShadow).toBe(batch.shadow === 'cast');
+				expect(batch.shadow).toBe(
+					key !== 'plain' && MODELS.sculpt.parts.includes(key) ? 'none' : 'cast'
+				);
 				const paint = batch.paints.array;
 				batch.slots.owners.forEach((tid, i) => {
 					const f = live.get(tid)!;
@@ -119,10 +173,11 @@ describe('figure batches', () => {
 				});
 			}
 			// The scene holds only the batches: no orphaned meshes.
-			expect(group.children.length).toBe(figures.batches.size);
+			expect(group.children.length).toBe(figures.batches.size + figures.proxies.size);
 		}
 		for (const id of [...live.keys()]) figures.remove(id);
 		expect(figures.batches.size).toBe(0);
+		expect(figures.proxies.size).toBe(0);
 		expect(group.children).toEqual([]);
 		figures.dispose();
 	});
@@ -176,6 +231,34 @@ describe('figure batches', () => {
 		await Promise.resolve();
 		expect(redraws).toBe(1);
 		expect([...figures.batches.keys()]).toEqual(MODELS.warden.parts);
+		figures.dispose();
+	});
+
+	it('switch levels only when the camera crosses a threshold, keeping the proxies', () => {
+		const figures = new FigureBatches(new THREE.Group(), () => {}, loaded);
+		for (let i = 0; i < 5; i++) {
+			figures.set(`t${i}`, 'sculpt', '#ffffff', 1);
+			figures.place(`t${i}`, new THREE.Matrix4().makeTranslation(i + 1, 0, 0));
+		}
+		const levels = () =>
+			[...figures.batches.keys()].map((k) => (k === 'plain' ? -1 : k.lod)).sort();
+		expect(levels()).toEqual([0, 0]);
+		const proxies = [...figures.proxies.values()];
+		expect(figures.chooseLods(camera, VIEW.near, 0)).toBe(false); // already there: nothing moves
+		expect(figures.chooseLods(camera, VIEW.far, 0)).toBe(true);
+		expect(levels()).toEqual([2, 2]);
+		expect(figures.instances()).toBe(10);
+		expect(figures.chooseLods(camera, VIEW.far, 0)).toBe(false);
+		// The proxies are the same batches throughout, holding every figure.
+		expect([...figures.proxies.values()]).toEqual(proxies);
+		for (const b of proxies) expect(b.slots.size).toBe(5);
+		// The low tier's bias: one level coarser from close up.
+		expect(figures.chooseLods(camera, VIEW.near, 1)).toBe(true);
+		expect(levels()).toEqual([1, 1]);
+		// A part list has one level: it casts itself, with no proxy.
+		figures.set('h', 'hound', '#ffffff', 1);
+		expect(figures.batches.get(MODELS.hound.parts[0])!.mesh.castShadow).toBe(true);
+		expect(figures.proxies.size).toBe(2);
 		figures.dispose();
 	});
 
@@ -252,6 +335,38 @@ describe('figure batches', () => {
 		}
 		for (const id of ['a', 'b', 'h']) figures.remove(id);
 		expect(figures.batches.size).toBe(0);
+		figures.dispose();
+	});
+
+	it('keep a pose at its own level 0 from far off when it has no levels (#273, #274)', () => {
+		// Body at three levels; the downed pose only at level 0.
+		const ranger = {
+			entry: { file: 'ranger', poses: { downed: 1 }, lods: [{}, {}] },
+			parts: [...[0, 1, 2].map((l) => part('body', 0.6, false, 0, l)), part('body', 0.4, false, 1)]
+		} as unknown as LoadedModel;
+		const [body0, , body2, down] = ranger.parts;
+		const group = new THREE.Group();
+		const figures = new FigureBatches(group, () => {}, {
+			now: () => ranger,
+			load: () => Promise.resolve()
+		});
+		figures.set('a', 'ranger', '#ff0000', 1);
+		figures.place('a', new THREE.Matrix4().makeTranslation(3, 0, 0));
+		figures.chooseLods(camera, VIEW.far, 0);
+		expect([...figures.batches.keys()]).toEqual([body2]);
+		expect([...figures.proxies.keys()]).toEqual([body2]);
+		// Downed far off: the pose's own level 0, never the standing body; its proxy too.
+		figures.setState('a', { downed: true, active: false });
+		expect([...figures.batches.keys()]).toEqual([down]);
+		expect([...figures.proxies.keys()]).toEqual([down]);
+		// Close up: nothing to switch to, but the level asked for is kept for when it stands.
+		expect(figures.chooseLods(camera, VIEW.near, 0)).toBe(false);
+		figures.setState('a', { downed: false, active: false });
+		expect([...figures.batches.keys()]).toEqual([body0]);
+		expect(figures.chooseLods(camera, VIEW.far, 0)).toBe(true);
+		expect([...figures.batches.keys()]).toEqual([body2]);
+		figures.remove('a');
+		expect(group.children).toEqual([]);
 		figures.dispose();
 	});
 

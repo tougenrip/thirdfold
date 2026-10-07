@@ -4011,6 +4011,92 @@ active` and `enemy active` steps). The overlay's compose lays it over the pictur
   red for an enemy, hides with nobody's turn, for a token the layer doesn't draw, and when the active
   token is removed. The program-count sweep's turn steps and `unexplored-black` cover the rest.
 
+## LOD (milestone 71, #274)
+
+Cooked models have coarser levels (`<role>_lod1` and `<role>_lod2`, about 0.5 and 0.15 of LOD0's
+triangles; docs/ASSETS.md "Cooking art"). Figures and props now draw the level the camera calls
+for. Part lists have one level, so nothing changes for them.
+
+**Choosing.** `lodFor(radius, distance, fovY, viewportPx, thresholds, current, bias)` in
+`tabletop/lod.ts` is pure and tested in `lod.spec.ts`. It projects the model's bounding radius to
+CSS pixels: `radius / distance × viewportPx / (2 tan(fovY / 2))`. The radius is `modelRadius`
+about the model's origin, times the instance's scale. Then it counts the thresholds the result is
+under:
+
+- `FIGURE_LODS` is [36, 14] px.
+- `PROP_LODS` is [48, 18] px.
+
+These are constants per kind, not manifest data. The manifest's `screenSize` is the cook's
+suggestion and is unused.
+
+A level is left below 0.9 of its threshold and taken back above 1.1, so a camera parked on a
+threshold never flickers. `bias` makes everything one level coarser on the low tier
+(`LodWatch.run`, from the tier). Phones run low or medium by memory, so a medium phone gets no
+bias. A degenerate view (the camera at the instance, or no radius) keeps the finest level the bias
+allows. A level the model lacks draws the next finer one it has (`drawnLevel` in `models.ts`). A
+pose without `_lodN` meshes uses that pose's level 0 (#273).
+
+**When.** `LodWatch` (`lod-watch.ts`) runs before a frame is drawn, once the camera has settled
+for that frame (`controls.update`, `keepAbove`). It runs only if one of these changed:
+
+- the camera's position or field of view;
+- the canvas's height;
+- the bias;
+- the table (`due`: any instrumented update, or a model arriving).
+
+Idle frames are never drawn. An AMBIENT or tweening frame with the camera still costs one
+comparison. Each pass is timed as `lod` in `?perf`'s timings.
+
+**Buckets.**
+
+- Figures (`figures.ts`). Batches stay keyed by `ModelPart`, and a part is one role at one level
+  (and pose). A switch is a removal from one part's batch and an add to another's, through the
+  same swap-remove `Slots`. A batch left empty is freed. `figures.spec.ts`'s churn test now mixes
+  camera changes into its 200 random steps, and checks that every batch and proxy holds exactly
+  its figures.
+- Props (`props.ts`, with buckets in `prop-buckets.ts`). There is one set of meshes per asset and
+  level, keyed `<asset>:<level>` (picks read `userData.bucket`), and each prop goes in its level's
+  set. A bucket left empty is dropped.
+
+Buckets are `InstancedMesh`es rather than `BatchedMesh.setGeometryIdAt`, because WebGPU draws a
+`BatchedMesh` with one call per instance. Draws grow only by the levels in use at once.
+
+A prop bucket of a model with levels is pool-sized, like the figure batches and the kit pools
+(`PIECE_MIN`, 1,025 instances). Below that size three passes an `InstancedMesh`'s matrices as a
+uniform array whose length is written into the shader, so a level's bucket made mid-game at a new
+size would compile a program; at pool size the matrices are an attribute. A level no prop of the
+asset is at any more stays empty and hidden, so the camera can come back to it without cloning a
+geometry.
+
+**Shadows.** A model with levels casts through a proxy:
+
+- There is one proxy per figure part, and one per prop asset, at the model's cheapest level.
+- The proxy holds every instance of the model, in its own order.
+- It sits on layer `SHADOW_PROXY` (2), with `castShadow` on and `receiveShadow` off.
+- The visible levels cast nothing.
+
+Both backends draw shadows through `ShadowNode.updateShadow`, which uses `shadow.camera.layers`
+once that mask has a bit past layer 0. So the sun's shadow camera (`scene-lights.ts`) and each
+hero light's (`HeroLight`) enable layer 0 and `SHADOW_PROXY`. The main camera and the picking
+raycaster (layer `PICK_LAYER`) never see a proxy. A camera move that switches levels therefore
+touches no caster, and the cached sun shadow (#229) and the hero cubes (#230) are not redrawn for
+it. A proxy draws with the same material and attribute layout as the visible levels, so it
+compiles nothing.
+
+**Tests.**
+
+- `lod.spec.ts`: thresholds, hysteresis back and forth, bias, and degenerate distances.
+- `figures.spec.ts`: the churn with levels, a switch only past a threshold, the proxies kept, and
+  a part list casting itself.
+- `lod.svelte.spec.ts` (in `RENDER_SPECS`), on the Hollow's great bell:
+  - its full level close up, a coarser one from the overview, and back again;
+  - the same proxy throughout;
+  - no shadow redraw and no new program;
+  - no frames and no passes at rest.
+
+No cooked figure exists yet, so the browser test uses the bell, and only the Node test covers the
+figures' path.
+
 ## Testing the renderer
 
 The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500 viewport, with no

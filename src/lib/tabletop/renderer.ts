@@ -26,6 +26,7 @@ import { loadEnvironment, type EnvironmentLook } from './environment';
 import type { FogMode } from './fog';
 import type { Ground } from './ground';
 import { labelFontReady } from './label-font';
+import { LodWatch } from './lod-watch';
 import { WorldGround } from './landscape';
 import { LightingLayer, ProbeLayer } from './lighting';
 import { frameOverview, Gallery, warmUp } from './warmup';
@@ -83,7 +84,7 @@ export async function createTabletop(
 	const land = new WorldGround(scene, build); // the ground to the horizon and beyond (#220, #244)
 	/** A model arrived: warm up its shaders, then draw it (shadows too). */
 	const onModel = () => {
-		shadowsDirty = warmPending = true;
+		shadowsDirty = warmPending = lods.due = true;
 		refreshLighting(); // a fixture to draw, or a prop's flame to seat its light on
 	};
 	let warmPending = true; // new shaders to compile before the next frame (warmup.ts)
@@ -96,9 +97,8 @@ export async function createTabletop(
 	let fogState: { fog: FogView | null; mode: FogMode } = { fog: null, mode: 'player' };
 	const cellMaps = new CellMaps(clock); // every material's fog and dark (worldModify, #171, #173)
 	const cloud = new FogCloudLayer(); // #174: over a player's hidden cells, with its layer on
-	scene.add(cloud.group);
 	const diceLayer = new DiceLayer();
-	scene.add(diceLayer.group);
+	scene.add(cloud.group, diceLayer.group);
 	const motion = watchReducedMotion(options.reducedMotion, (reduced) => {
 		reducedMotion = reduced;
 		for (const l of stillable()) l.setReducedMotion(reduced); // instant reveals, a still cloud
@@ -107,10 +107,10 @@ export async function createTabletop(
 	});
 	let reducedMotion = motion.reduced; // read live: a change applies at once, without a reload
 	const propLayer = new PropLayer(onModel, clock, tokenLayer.contact); // its contact shadows (#271)
-	scene.add(propLayer.group);
+	const lods = new LodWatch(camera, canvas, [tokenLayer, propLayer], perf); // levels (#274)
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer(lights.grid, onModel, lights.heroes, requestRender);
-	scene.add(lighting.group);
+	scene.add(propLayer.group, lighting.group);
 	const hooks = { post, lighting, walls: wallLayer, renderer, perf, request: requestRender };
 	const atmosphere = new AtmosphereLayer({ ...lights, ...hooks }, clock, refreshLighting);
 	const { sky } = atmosphere; // the dome, or the horizon's colour on low (#214)
@@ -237,6 +237,7 @@ export async function createTabletop(
 		const moving = casters || turning || revealing || fading || fx.active || shooting;
 		controls.update(); // damped: 'change' while the camera settles, then rendering stops
 		rig.keepAbove(grid, ground, land.heightAt); // tilted to the horizon, never under the ground (#220)
+		lods.run(quality.current.tier); // levels by the camera, never the shadows (#274)
 		shakeOffset.copy(fx.shake); // a shudder from a cue: the camera's offset, this frame only
 		camera.position.add(shakeOffset);
 		const hideGallery = gallery.show(); // drawn once after a warm-up, out of sight (warmup.ts)
@@ -490,7 +491,7 @@ export async function createTabletop(
 	};
 	// Changes to the table redraw the sun's shadows on the next frame; the hour turns the key light,
 	// redrawn by its own rule (AtmosphereLayer.shadowFrame), and lights only when they change.
-	instrument(tabletop, perf, (key) => key === 'setLighting' || (shadowsDirty = true));
+	instrument(tabletop, perf, (key) => key === 'setLighting' || (shadowsDirty = lods.due = true));
 	const unbaked = [tokenLayer, diceLayer, effects, cloud, wallLayer.glass].map((l) => l.group);
 	const probeHooks = { renderer, scene, loop, clock, perf, warm: onModel };
 	new ProbeLayer({ ...probeHooks, spacing: options.probeSpacing }, unbaked).watch(tabletop);

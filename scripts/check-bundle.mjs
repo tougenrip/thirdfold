@@ -130,7 +130,9 @@ const BUDGETS = {
 	// → 406.7: contact shadows (#271, contact.ts and the instanced decal's graph, materials/contact.ts);
 	// 406.6 kB measured after the merge. → the turn column (#269, turn-column.ts, the cone gone):
 	// 406.7 kB measured after the merge.
-	renderer: { total: 406_800 },
+	// → 408.0: levels of detail on the camera (#274: lod.ts, lod-watch.ts, prop buckets and figure batches
+	// per level, shadow proxies); 407,940 B measured.
+	renderer: { total: 408_000 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
