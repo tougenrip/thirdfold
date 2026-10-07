@@ -4097,6 +4097,46 @@ compiles nothing.
 No cooked figure exists yet, so the browser test uses the bell, and only the Node test covers the
 figures' path.
 
+## Mini motion (milestone 71, #272)
+
+Minis move only as whole objects, the way a hand moves a miniature: no skinned animation, so a
+figure stays one instance of its batch (#266) and a mini at rest costs nothing. `mini-motion.ts` is
+pure and server-tested (`mini-motion.spec.ts`): each token's `MiniMotion` records when its move,
+pick-up and fall began, and `miniPose(motion, now, reduced)` gives its pose on the wall clock.
+`TokenLayer.tick(now, eye)` (tokens.ts) poses only the minis still settling or bobbing and writes
+the result into the root (so the base, label, turn column and carried light follow) and the figure's
+instance matrix; nothing touches a material, so no program changes. The contact shadow (#271)
+stays on the floor: `placeBase(id, entry, up)` is handed the hop and pick-up lift, which shrink and
+fade it.
+
+| Motion  | What it does                                                                                                                                                                                                                                 | Moves                      | Reduced motion     |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------ |
+| Hop     | Each move arcs `HOP_MIN`-`HOP_MAX` (0.2-0.35 cell) high by its length, over the move's ease-in-out tween (`moveMs`: 180 ms + 70 ms a cell, at most 700)                                                                                      | root                       | flat glide         |
+| Squash  | On landing the figure's height dips to 0.9 (width 1.05) and back over `SQUASH_MS` (140 ms), about its feet                                                                                                                                   | figure                     | none               |
+| Pick-up | The viewer's selected mini (only ever one they may move, RoomView) lifts `PICK_LIFT` (0.12 cell) and tilts `PICK_TILT` (8°) toward the camera over `PICK_MS` (150 ms), and settles when put down, from wherever it was                       | root (lift), figure (tilt) | none               |
+| Bob     | A flier (`Token.lift > 0`) bobs ±`BOB` (0.03 cell) every `BOB_MS` (2.4 s), its phase a hash of the token id (`phaseOf`)                                                                                                                      | figure                     | steady at its lift |
+| Tip     | A fallen character tips over in `FALL_MS` (350 ms), faster and faster, with one small bounce off the base; revived, it stands up in `STAND_MS` (300 ms). One that has only just come onto the table (a load, a new table) lies there already | figure                     | lies down at once  |
+
+All sizes are in the mini's own size (cells × its scale). The tilt's axis turns toward the camera
+while the mini animates and keeps its lean at rest, so an orbiting camera draws nothing new.
+
+**Frames and shadows.** A move between cells and a tip are casters: they redraw the sun's shadow
+as moves always have, and the frame after they end. A pick-up and a squash are `TokenLayer.posing`:
+ACTIVE frames that leave the shadow alone, so a lifted mini's shadow is the one it had standing until
+something else redraws it. The bob is the one ambient motion: `TokenLayer.pulsing` (with the turn's
+ring, #265) asks for AMBIENT frames only while a flier is on the table and motion is not reduced, and
+the scheduler drops them for a hidden tab and the power saver; it never redraws shadows. Without
+a flier an idle table draws nothing (`scheduling.svelte.spec.ts`: a flier draws at most the ambient
+rate and nothing under reduced motion; a picked-up mini settles and the table stops).
+
+**Secrecy.** Every motion comes from what the viewer already has: the token positions and `lift`
+they were sent, the fallen characters (`setFallen`, from `adventure.characters`) and their own
+selection. Nothing new goes over the wire.
+
+Not done: the frozen-clock goldens the issue lists (mid-hop, a still fallen pose) wait for the
+milestone's golden run. A figure whose model shows a downed pose (#273, `FigureBatches.showsDowned`) never tips: `TokenLayer.tip`
+passes `fallen && !showsDowned` to `fall`, snapping when a posed model arrives late.
+
 ## Testing the renderer
 
 The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500 viewport, with no
