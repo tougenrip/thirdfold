@@ -194,6 +194,18 @@ const CLASSES: [LimitClass, ModelKind, boolean][] = [
 	['setPiece', 'prop', true]
 ];
 
+describe("a figure's poses, in the parser (#273)", () => {
+	it('reads what each pose is for, on figures only', () => {
+		const poses = (kind: string, value: unknown) =>
+			parse((m) => Object.assign(m.models.table, { kind, poses: value }));
+		const ok = poses('character', { downed: 1, active: 3 });
+		expect(ok.ok && ok.manifest.models.table.poses).toEqual({ downed: 1, active: 3 });
+		for (const bad of [{ downed: 4 }, { casting: 1 }, {}, [1], 'downed'])
+			expect(poses('npc', bad)).toMatchObject({ ok: false });
+		expect(poses('prop', { downed: 1 })).toMatchObject({ ok: false });
+	});
+});
+
 describe('the limits per class, in the parser', () => {
 	it.each(CLASSES)('%s: triangles, bytes and GPU bytes', (limitClass, kind, setPiece) => {
 		const limit = LIMITS[limitClass];

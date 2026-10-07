@@ -3859,7 +3859,35 @@ or an accent without colours is the same code. Tuning, the tier's varnish, the h
 the rim where the rules light the cell and not where they keep it dark, black when unexplored, and
 the two programs through those changes.
 
-## Testing the renderer
+## Poses (milestone 71, #273)
+
+A figure model may carry static poses, `body_pose1` to `body_pose3` (naming, budgets and the
+manifest's `ModelEntry.poses` in docs/ASSETS.md, "Static poses for minis"). There is no skinning
+and no `AnimationMixer`: a pose is another sculpt, so render-on-demand holds.
+
+- **Loading.** `roleOf` in `models.ts` reads `body_pose<n>` and `body_pose<n>_lod<m>` (the names as
+  GLTFLoader leaves them: underscores survive its sanitising, dots don't) into `ModelPart.pose`;
+  `partsOf(model, role, lod, pose)` picks them. `models.svelte.spec.ts` loads a glTF whose
+  `body.pose2` comes through as `bodypose2` and is dropped.
+- **Choosing.** `poseOf(state, poses)` (`mini-poses.ts`, pure, server-tested) gives the pose for a
+  `PoseState`: `downed` first, then `active`, and only a pose the model's entry names. The state
+  comes only from what the viewer was sent: `TokenLayer.setFallen` (the fallen characters in the
+  viewer's adventure view) and `setActive` (whose turn it is), which call
+  `FigureBatches.setState`. A preview, or a model still loading, shows its body.
+- **Drawing.** Pose parts are parts like any other, so figure batches (#266) are keyed by
+  (model, role, pose) through the `ModelPart` itself (and by level with #274: a pose with no
+  coarser level draws its own LOD0, never the standing body). A pose change undresses the figure and
+  dresses it again: a swap-remove out of the body's batch and an add to the pose's, freeing a batch
+  left empty, never a geometry swap inside a draw. The materials are the same (the shared
+  vertex-coloured mini, or a textured part's of the same kind and variant), so nothing compiles:
+  `program-count.svelte.spec.ts` gives the arriving figure a downed pose and sends it down and up,
+  and `figures.spec.ts` churns poses and checks every batch stays packed with nothing left behind.
+- **The fall.** When the figure shows its model's downed pose (`FigureBatches.showsDowned`),
+  `TokenLayer.placeFigure` stands it upright: the sculpt is the fall. A model without one, a part
+  list, the placeholder and a preview still tip over; a posed model arriving after its token fell
+  is placed again (the layer's `onModel`).
+- **Cost.** One more draw per pose in use, only while some figure shows it; the same on every tier
+  and backend. Download size grows only for models that ship poses.
 
 The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500 viewport, with no
 tester UI around the frame. `src/lib/tabletop/testing.ts` mounts any fixture table

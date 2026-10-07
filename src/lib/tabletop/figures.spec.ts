@@ -8,7 +8,7 @@ import { withBake, PAINT_ATTRIBUTE } from './materials';
 import type { LoadedModel, ModelPart } from './models';
 
 /** A part of the model attribute set: position, normal, uv, colour, bake. */
-function part(role: 'body' | 'accent', size: number, textured = false): ModelPart {
+function part(role: 'body' | 'accent', size: number, textured = false, pose = 0): ModelPart {
 	const geometry = new THREE.BoxGeometry(size, size, size);
 	const n = geometry.getAttribute('position').count;
 	geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
@@ -16,6 +16,7 @@ function part(role: 'body' | 'accent', size: number, textured = false): ModelPar
 	return {
 		role,
 		lod: 0,
+		pose,
 		geometry,
 		maps: textured ? { albedo: new THREE.Texture() } : null,
 		params: {}
@@ -197,6 +198,76 @@ describe('figure batches', () => {
 		expect(ray(5)).toBe('b');
 		expect(ray(2)).toBeNull();
 		expect(ray(0)).toBeNull();
+		figures.dispose();
+	});
+
+	it('pose a figure by moving it between batches, leaking no slot (#273)', () => {
+		const ranger = {
+			entry: { file: 'ranger', poses: { downed: 1, active: 2 } },
+			parts: [part('body', 0.6), part('body', 0.4, false, 1), part('body', 0.5, true, 2)]
+		} as unknown as LoadedModel;
+		const [body, down, active] = ranger.parts;
+		const source: ModelSource = {
+			now: (id) => (id === 'ranger' ? ranger : (MODELS[id] ?? null)),
+			load: () => Promise.resolve()
+		};
+		const group = new THREE.Group();
+		const figures = new FigureBatches(group, () => {}, source);
+		figures.set('a', 'ranger', '#ff0000', 1);
+		figures.set('b', 'ranger', '#00ff00', 1);
+		figures.set('h', 'hound', '#ffffff', 1);
+		const painted = figures.batches.get(body)!.material;
+		const holders = (p: ModelPart) => [...(figures.batches.get(p)?.slots.owners ?? [])].sort();
+
+		expect(figures.setState('a', { downed: true, active: false })).toBe(true);
+		expect(holders(body)).toEqual(['b']);
+		expect(holders(down)).toEqual(['a']);
+		expect(figures.showsDowned('a')).toBe(true);
+		expect(figures.batches.get(down)!.material).toBe(painted); // nothing new to compile
+		// Down on its turn: still down; the same state again changes nothing.
+		expect(figures.setState('a', { downed: true, active: true })).toBe(false);
+		// A model with no poses keeps its body (and tips over: showsDowned is false).
+		expect(figures.setState('h', { downed: true, active: true })).toBe(false);
+		expect(figures.showsDowned('h')).toBe(false);
+
+		figures.setState('b', { downed: false, active: true });
+		expect(holders(active)).toEqual(['b']);
+		expect(figures.showsDowned('b')).toBe(false);
+		// Revived and the turn passed: both back on the body; the pose batches are freed.
+		figures.setState('a', { downed: false, active: false });
+		figures.setState('b', { downed: false, active: false });
+		expect(holders(body)).toEqual(['a', 'b']);
+		expect(figures.batches.has(down)).toBe(false);
+		expect(figures.batches.has(active)).toBe(false);
+		expect(group.children.length).toBe(figures.batches.size);
+
+		// Churn: every batch stays packed and nothing is left behind.
+		const rand = random(273);
+		for (let step = 0; step < 100; step++) {
+			const id = rand() < 0.5 ? 'a' : 'b';
+			figures.setState(id, { downed: rand() < 0.4, active: rand() < 0.4 });
+			for (const b of figures.batches.values()) expect(b.mesh.count).toBe(b.slots.size);
+			expect(figures.instances()).toBe(3);
+			expect(group.children.length).toBe(figures.batches.size);
+		}
+		for (const id of ['a', 'b', 'h']) figures.remove(id);
+		expect(figures.batches.size).toBe(0);
+		figures.dispose();
+	});
+
+	it("keep a preview's body: the pose waits for the full model", () => {
+		const preview = {
+			entry: { file: 'ranger', poses: { downed: 1 } },
+			parts: [part('body', 0.6)],
+			preview: true
+		} as unknown as LoadedModel;
+		const figures = new FigureBatches(new THREE.Group(), () => {}, {
+			now: () => preview,
+			load: () => new Promise(() => {})
+		});
+		figures.set('a', 'ranger', '#ff0000', 1);
+		expect(figures.setState('a', { downed: true, active: false })).toBe(false);
+		expect(figures.showsDowned('a')).toBe(false);
 		figures.dispose();
 	});
 });

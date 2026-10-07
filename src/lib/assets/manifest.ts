@@ -228,6 +228,25 @@ export interface ModelLod {
 	screenSize: number;
 }
 
+/** What a mini's static pose is for (#273): states the client already knows. */
+export const POSE_MEANINGS = ['downed', 'active'] as const;
+export type PoseMeaning = (typeof POSE_MEANINGS)[number];
+/** Which of a figure's `body_pose<n>` meshes each state shows. */
+export type ModelPoses = Partial<Record<PoseMeaning, 1 | 2 | 3>>;
+
+/** `raw` as poses naming only meanings above and poses in `has`; null if it isn't. */
+export function readPoses(raw: unknown, has: readonly number[]): ModelPoses | null {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+	const out: ModelPoses = {};
+	for (const [meaning, pose] of Object.entries(raw)) {
+		if (!(POSE_MEANINGS as readonly string[]).includes(meaning)) return null;
+		if (pose !== 1 && pose !== 2 && pose !== 3) return null;
+		if (!has.includes(pose)) return null;
+		out[meaning as PoseMeaning] = pose;
+	}
+	return Object.keys(out).length ? out : null;
+}
+
 export interface ModelEntry extends FileInfo {
 	kind: ModelKind;
 	/** At LOD0. */
@@ -240,6 +259,8 @@ export interface ModelEntry extends FileInfo {
 	swing?: { pivot: number; throw: number };
 	/** Levels after LOD0, coarsest last; meshes `<role>_lod<n>` in the same file. */
 	lods?: ModelLod[];
+	/** A figure's static poses by meaning (#273), from its meta.json; meshes `body_pose<n>`. */
+	poses?: ModelPoses;
 	/** A prop held to the set-piece limits (the Hollow's great bell). */
 	setPiece?: true;
 	/** Its materials' `translucency` (#237): how much light behind it shines through, in (0, 1]. */

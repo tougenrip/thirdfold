@@ -1,7 +1,8 @@
 // Models (see src/lib/assets/manifest.ts): loaded on first use, one load per model however many
 // props or tokens use it, and kept while any table is up (#188). A model is parts by role:
 // `body` and `swing` carry their colours as vertex colours or textures, `accent` takes the
-// token's colour; `<role>_lod<n>` meshes are its coarser levels. Until one has loaded, props and
+// token's colour; `<role>_lod<n>` meshes are its coarser levels, and a mini's `body_pose<n>` its
+// static poses (#273), drawn instead of `body`. Until one has loaded, props and
 // tokens show their placeholders.
 //
 // Part lists are plain glTF; cooked models (#186) have meshopt geometry and KTX2 textures,
@@ -47,6 +48,8 @@ export interface ModelPart {
 	role: Role;
 	/** 0 is the full model; 1 and up its coarser levels (the entry's `lods`). */
 	lod: number;
+	/** 0 is the plain body; 1 to 3 a mini's static pose (`body_pose<n>`, #273). */
+	pose: number;
 	geometry: THREE.BufferGeometry;
 	/** Its glTF maps by slot, or null for a part coloured by its vertices alone. */
 	maps: Partial<Record<SlotName, THREE.Texture>> | null;
@@ -61,9 +64,9 @@ export interface LoadedModel {
 	preview?: true;
 }
 
-/** A role's parts at level `lod`. */
-export const partsOf = (model: LoadedModel, role: Role, lod = 0) =>
-	model.parts.filter((p) => p.role === role && p.lod === lod);
+/** A role's parts at level `lod`, in pose `pose`. */
+export const partsOf = (model: LoadedModel, role: Role, lod = 0, pose = 0) =>
+	model.parts.filter((p) => p.role === role && p.lod === lod && p.pose === pose);
 
 /**
  * The level to draw at `screenShare` (the model's height over the screen's): the last of the
@@ -75,12 +78,14 @@ export function lodFor(lods: readonly ModelLod[] | undefined, screenShare: numbe
 	return level;
 }
 
-const ROLE = /^(body|swing|accent|flame)(?:_lod([1-4]))?(?:_\d+)?$/;
+// Underscores, never dots: GLTFLoader sanitises `body.pose1` to `bodypose1`, which isn't a role.
+const ROLE = /^(body|swing|accent|flame)(?:_pose([1-3]))?(?:_lod([1-4]))?(?:_\d+)?$/;
 
-/** A mesh's role and level from its name as GLTFLoader gives it (`_<n>` made names unique). */
-export function roleOf(name: string): { role: Role; lod: number } | null {
+/** A mesh's role, level and pose from its name as GLTFLoader gives it (`_<n>` made names unique). */
+export function roleOf(name: string): { role: Role; lod: number; pose: number } | null {
 	const match = ROLE.exec(name);
-	return match ? { role: match[1] as Role, lod: Number(match[2] ?? 0) } : null;
+	if (!match || (match[2] && match[1] !== 'body')) return null;
+	return { role: match[1] as Role, lod: Number(match[3] ?? 0), pose: Number(match[2] ?? 0) };
 }
 
 const cache = new Map<string, Promise<LoadedModel | null>>();
@@ -308,7 +313,7 @@ export async function parseModel(entry: ModelEntry, bytes: ArrayBuffer): Promise
 		const role = roleOf(o.name);
 		const material = (Array.isArray(o.material) ? o.material[0] : o.material) as THREE.Material;
 		if (role && role.lod <= levels) {
-			const key = `${role.role}:${role.lod}:${material.uuid}`;
+			const key = `${role.role}:${role.pose}:${role.lod}:${material.uuid}`;
 			let group = groups.get(key);
 			if (!group) groups.set(key, (group = { part: { ...role, ...lookOf(material) }, pieces: [] }));
 			const piece = uniform(o.geometry).applyMatrix4(o.matrixWorld);

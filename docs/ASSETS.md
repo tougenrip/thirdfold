@@ -165,6 +165,34 @@ it may have materials with KTX2 textures and meshopt-compressed geometry, and no
 Rules). If it swings, put its swing in `<id>.meta.json`. `tests/fixtures/assets/cube-meshopt.glb`
 and `checker.ktx2` are small valid examples (`scripts/make-asset-fixtures.ts` makes them).
 
+#### Static poses for minis (#273)
+
+A figure (a character, NPC or enemy, never a prop) may carry up to three static poses: whole
+sculpts drawn instead of its `body`, never animated (skins and animations stay refused). The
+convention, for the art brief (#276) and any provided or cooked GLB:
+
+- **Mesh and node names.** `body` is the standing figure; `body_pose1`, `body_pose2` and
+  `body_pose3` are the poses, and `body_pose<n>_lod1`/`_lod2` their coarser levels (the cook makes
+  those for you, like any `_lod`). Underscores, never dots: GLTFLoader strips `.` from names, so
+  `body.pose1` would arrive as `bodypose1` and be ignored, and the pipeline refuses it. Only the body
+  has poses (`swing_pose1` is refused), and a model with poses must still have its `body`.
+- **No accent.** A posed model tints through the mini kind's tint mask (ORM alpha, #267) instead,
+  so the pipeline refuses a model with both poses and an `accent` mesh.
+- **What each pose is for.** `<id>.meta.json` (beside a provided GLB, or the art folder's
+  `meta.json` for a cooked one, which the cook carries over) names it in `poses`:
+  `{ "downed": 1, "active": 2 }`. The meanings are the states the client already knows: `downed`
+  (a character down or dead in the viewer's adventure view) and `active` (the token whose turn it
+  is); every pose in the file must have a meaning, and every meaning a pose in the file. More
+  meanings (casting, attacking) come with a state that says so.
+- **The manifest** carries them as `ModelEntry.poses` (`Partial<Record<'downed' | 'active', 1 | 2 |
+3>>`), checked by `readPoses` in the pipeline and by `parseManifest` at the client.
+- **Budgets.** A pose is drawn instead of the body, so each pose at each level is held to the class's
+  triangles on its own (`checkGlb`); bytes and GPU bytes count the whole file.
+- **Part lists** have no poses: a part-list figure keeps tipping over when it falls.
+
+At the table a downed pose stands in for tipping the figure over; a model without one still tips
+(docs/RENDERING.md, "Poses").
+
 Every prop in the catalogue (see Catalogue) must have a model. The catalogue says what a prop is
 (footprint, what it blocks); the model only says how it looks.
 
@@ -773,6 +801,8 @@ textures exist in up to three sizes: a **base** of at most 512 px, always, and *
       until the checker can decode it, and no `KHR_texture_transform` until the client honours it;
     - no skins, animations, cameras or morph targets; at most 256 nodes, 16 deep, as a tree;
     - meshes, and their nodes, named `body`, `swing` or `accent`, optionally `_lod1` or `_lod2`;
+      a figure's static poses `body_pose1` to `body_pose3` (and their `_lod`s), never beside an
+      `accent`, each named in its `meta.json`'s `poses` (#273);
     - attributes POSITION, NORMAL, TANGENT, TEXCOORD_0 (the only uv set), COLOR_0 and `_BAKE`
       (VEC2 normalised unsigned bytes, see Models from parts), each in the formats its semantic allows (quantised integers only with `KHR_mesh_quantization`), in triangles,
       with unsigned indices;

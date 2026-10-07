@@ -282,7 +282,7 @@ function sourceProblem(doc: Document): string | null {
 	if (!meshNodes.length) return 'no meshes';
 	for (const node of meshNodes) {
 		if (!MESH_NAME.test(node.getName())) {
-			return `object "${node.getName()}" must be named body, swing, accent or flame (or <role>_lod1, _lod2)`;
+			return `object "${node.getName()}" must be named body, swing, accent or flame (or body_pose1 to _pose3; <role>_lod1, _lod2)`;
 		}
 		for (const prim of node.getMesh()!.listPrimitives()) {
 			if (prim.getMode() !== 4) return 'only triangles';
@@ -462,6 +462,7 @@ async function cookModel(dir: string, kind: ModelKind, id: string): Promise<Cook
 		const out = {
 			provenance: meta.provenance,
 			...(meta.swing !== undefined ? { swing: meta.swing } : {}),
+			...(meta.poses !== undefined ? { poses: meta.poses } : {}),
 			...(setPiece ? { setPiece: true } : {}),
 			...(meta.pack !== undefined ? { pack: meta.pack } : {}),
 			...(meta.materials !== undefined ? { materials: meta.materials } : {}),

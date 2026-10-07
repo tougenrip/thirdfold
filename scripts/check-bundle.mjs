@@ -35,7 +35,8 @@ const BUDGETS = {
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
 	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
-	'/dev/assets': { total: 52_900, own: 500 },
+	// → 53.0: a figure's poses in the manifest (#273, `readPoses`); 52,925 B measured.
+	'/dev/assets': { total: 53_000, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
@@ -122,8 +123,9 @@ const BUDGETS = {
 	// → the miniature kind's wash, drybrush, varnish and rim (#267, materials/mini.ts); 403.6 kB
 	// measured.
 	// → 405.0: token figures as instanced batches (#266, figures.ts: the swap-remove slots, the merged
-	// plain miniature); 404.7 kB measured.
-	renderer: { total: 405_000 },
+	// plain miniature); 404.7 kB measured. → 405.3: static poses (#273: `poseOf`, the pose in the
+	// figure batches and the fall it stands in for); 405,000 B measured.
+	renderer: { total: 405_300 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

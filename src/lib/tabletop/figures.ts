@@ -11,6 +11,10 @@
 // slot, so a batch's instances are always its first `count`. A model change, or a placeholder or
 // preview giving way when the model arrives, is a removal and an add; a batch left empty is freed
 // with its geometry copy and, for a textured part, its material.
+//
+// Poses (#273): a model's `body_pose<n>` parts are parts like any other, so a figure in a pose is
+// an instance in that part's batch; a pose change is a removal and an add, never a geometry swap
+// inside a draw, and compiles nothing (the same materials).
 
 import * as THREE from 'three/webgpu';
 import { createMaterial, PAINT_ATTRIBUTE, PIECE_MIN, TINT_ATTRIBUTE, withBake } from './materials';
@@ -24,6 +28,7 @@ import {
 	type ModelPart
 } from './models';
 import { pickable } from './picking';
+import { poseOf, type PoseState } from './mini-poses';
 
 /** Swap-remove slots: ids packed in `owners[0..size)`. */
 export class Slots {
@@ -204,6 +209,9 @@ interface Figure {
 	color: THREE.Color;
 	opacity: number;
 	matrix: THREE.Matrix4;
+	/** What poses it (#273), and the pose drawn (0: the body). */
+	state: PoseState;
+	pose: number;
 	/** The batches it has an instance in. */
 	batches: Batch[];
 }
@@ -239,7 +247,17 @@ export class FigureBatches {
 		let figure = this.figures.get(id);
 		if (!figure) {
 			const matrix = new THREE.Matrix4();
-			figure = { model, shows: null, color: new THREE.Color(color), opacity, matrix, batches: [] };
+			const state = { downed: false, active: false };
+			figure = {
+				model,
+				shows: null,
+				color: new THREE.Color(color),
+				opacity,
+				matrix,
+				state,
+				pose: 0,
+				batches: []
+			};
 			this.figures.set(id, figure);
 			this.dress(id, figure);
 			return true;
@@ -254,6 +272,22 @@ export class FigureBatches {
 		}
 		if (recolour) for (const b of figure.batches) b.setPaint(id, paintOf(b, figure));
 		return recolour;
+	}
+
+	/** What `id` is doing, for its model's poses (#273). Returns true if its pose changed. */
+	setState(id: string, state: PoseState): boolean {
+		const figure = this.figures.get(id);
+		if (!figure) return false;
+		figure.state = { ...state };
+		if (this.poseFor(figure) === figure.pose) return false;
+		this.dress(id, figure);
+		return true;
+	}
+
+	/** Whether `id` shows its model's downed pose, which stands in for tipping it over. */
+	showsDowned(id: string): boolean {
+		const figure = this.figures.get(id);
+		return !!figure?.pose && figure.pose === figure.shows?.entry.poses?.downed;
 	}
 
 	/** Puts `id`'s figure at `matrix` (in the group's space). */
@@ -298,7 +332,10 @@ export class FigureBatches {
 		this.undress(id, figure);
 		const { model } = figure;
 		const loaded = (figure.shows = model ? this.models.now(model) : null);
-		const parts = loaded ? [...partsOf(loaded, 'body'), ...partsOf(loaded, 'accent')] : [PLAIN];
+		figure.pose = this.poseFor(figure);
+		const parts = loaded
+			? [...partsOf(loaded, 'body', 0, figure.pose), ...partsOf(loaded, 'accent')]
+			: [PLAIN];
 		for (const part of parts) {
 			const batch = this.batchOf(part as ModelPart | typeof PLAIN);
 			figure.batches.push(batch);
@@ -314,6 +351,13 @@ export class FigureBatches {
 			};
 			void this.models.load(model, redraw).then(redraw);
 		}
+	}
+
+	/** The pose to draw: the state's, if the model shown has it (a preview has none). */
+	private poseFor(figure: Figure): number {
+		const shown = figure.shows;
+		const pose = shown ? poseOf(figure.state, shown.entry.poses) : 0;
+		return pose && shown && partsOf(shown, 'body', 0, pose).length ? pose : 0;
 	}
 
 	private undress(id: string, figure: Figure): void {

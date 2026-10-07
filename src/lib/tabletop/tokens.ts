@@ -79,7 +79,11 @@ export class TokenLayer {
 		onModel: () => void = () => {},
 		private readonly clock: () => number = () => performance.now()
 	) {
-		this.figures = new FigureBatches(this.group, onModel);
+		// A model arriving may bring a downed pose, which stands in for tipping over (#273).
+		this.figures = new FigureBatches(this.group, () => {
+			for (const [id, entry] of this.entries) if (entry.fallen) this.placeFigure(id, entry);
+			onModel();
+		});
 		this.marker.rotation.x = Math.PI; // point down at the mini
 		this.marker.visible = false;
 		this.marker.raycast = () => {};
@@ -118,7 +122,10 @@ export class TokenLayer {
 			}
 			entry.hidden = token.hidden === true;
 			const opacity = entry.hidden ? HIDDEN_OPACITY : 1;
-			if (this.figures.set(token.id, token.model ?? null, token.color, opacity)) changed = true;
+			if (this.figures.set(token.id, token.model ?? null, token.color, opacity)) {
+				if (entry.fallen) this.placeFigure(token.id, entry); // another model, maybe posed
+				changed = true;
+			}
 			const size = grid.cellSize * (token.scale ?? 1);
 			const resized = entry.root.scale.x !== size;
 			if (resized) {
@@ -170,7 +177,9 @@ export class TokenLayer {
 		const color = enemy ? 0xe27a6b : 0xe0a458;
 		const material = this.marker.material as THREE.MeshBasicMaterial;
 		if (this.activeId === id && material.color.getHex() === color) return false;
+		const was = this.activeId;
 		this.activeId = id;
+		for (const t of [was, id]) if (t) this.pose(t);
 		this.bases.setActive(id);
 		this.labels.set({ active: id });
 		material.color.setHex(color);
@@ -196,6 +205,7 @@ export class TokenLayer {
 			const fallen = ids.has(id);
 			if (entry.fallen === fallen) continue;
 			entry.fallen = fallen;
+			this.pose(id);
 			this.placeFigure(id, entry);
 			changed = true;
 		}
@@ -281,16 +291,25 @@ export class TokenLayer {
 		return entry;
 	}
 
+	/** Shows `id` in its model's pose for what it is doing (#273): down, or on its turn. */
+	private pose(id: string): void {
+		const entry = this.entries.get(id);
+		if (!entry) return;
+		this.figures.setState(id, { downed: entry.fallen, active: id === this.activeId });
+	}
+
 	/**
 	 * Puts a token's figure where its root is: standing on the base's inner disc, or tipped over
-	 * sideways onto the base when fallen. Root is in the layer's group, as the batches are.
+	 * sideways onto the base when fallen, unless a downed pose shows it (#273). Root is in the
+	 * layer's group, as the batches are.
 	 */
 	private placeFigure(id: string, entry: Entry): void {
 		const { root } = entry;
 		root.updateMatrix();
 		const f = FIGURE_SCALE;
-		figure.makeRotationZ(entry.fallen ? Math.PI / 2 : 0);
-		figure.setPosition(entry.fallen ? 0.38 * f : 0, entry.fallen ? 0.28 * f : 0, 0);
+		const tip = entry.fallen && !this.figures.showsDowned(id);
+		figure.makeRotationZ(tip ? Math.PI / 2 : 0);
+		figure.setPosition(tip ? 0.38 * f : 0, tip ? 0.28 * f : 0, 0);
 		figure.multiply(scaled.makeScale(f, f, f)).multiply(scaled.makeTranslation(0, BASE_TOP / f, 0));
 		this.figures.place(id, figure.premultiply(root.matrix));
 	}
