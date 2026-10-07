@@ -64,3 +64,4 @@ src/**/__screenshots__/*
 
 # Data backups (npm run data:backup): session tokens and GM key hashes, keep them like the database
 /backups/
+.grepai/
