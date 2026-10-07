@@ -1,7 +1,6 @@
-// Quality tiers (milestone 62, #147): what a device can do (`Caps`) becomes a starting tier, and
-// each tier one row of settings every effect reads, so no milestone invents its own switch. Pure:
-// no three.js, no DOM (capabilities.ts probes the browser). `?tier=` and `?off=` override for A/B
-// tests and emergencies and are never saved; the viewer's own choice is kept in this browser.
+// Quality tiers (M62, #147): what a device can do (`Caps`) becomes a starting tier, each tier one
+// row of settings every effect reads, so no milestone invents its own switch. Pure (capabilities.ts
+// probes the browser). `?tier=` and `?off=` override for tests and emergencies, never saved.
 
 import { GRADE_TONE_MAPPER, TONE_MAPPERS, type ToneMapper } from '../assets/manifest';
 import { TEXTURE_DETAILS, type TextureDetail } from '../assets/detail';
@@ -58,7 +57,8 @@ export const LAYERS = [
 	'dof',
 	'fogcloud',
 	'bounce',
-	'probes'
+	'probes',
+	'contact'
 ] as const;
 export type Layer = (typeof LAYERS)[number];
 
@@ -215,7 +215,7 @@ const ROWS: Record<Tier, Omit<QualitySettings, 'tier' | 'layers' | 'msaa' | 'con
 };
 
 /** Each layer turns on in the milestone that passes its gates: post-processing, AO and bloom in M63. */
-const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'bounce']);
+const ON = new Set<Layer>(['sky', 'ao', 'bloom', 'lens', 'grade', 'dof', 'bounce', 'contact']);
 const LAYERS_ON = Object.fromEntries(LAYERS.map((l) => [l, ON.has(l)])) as Record<Layer, boolean>;
 
 /** The highest tier a backend can run: WebGL2 caps at high, compat WebGPU at low. */

@@ -40,6 +40,10 @@
 // Glowing windows (#260) are on wherever a kit's houses have facades the viewer knows from both
 // sides: emissive panes dimmed by the fog of the cell in front of them; the village's player at
 // night, who walked into a house, sees its lit windows over 1 (bloom) and black all round.
+// Contact shadows (#271) are on in every case: a halo under every token and standing prop the
+// viewer was sent, black on black over unexplored cells (the carrier's stands on one); crowd-60's
+// player (fifty minis at the edge of what they explored) and the test world's at dusk, both on
+// low, where the halos are strongest, are in the slim set.
 // Names (#268) are on in every case ('Always show names'): only the tokens the viewer was sent are
 // named, each plate is left out like anything else standing (`namesOver`), and none lifts the
 // black round it (the overlay is never bloomed or blurred).
@@ -128,7 +132,9 @@ const SLIM = new Set([
 	'hollow player dark medium cloud',
 	'dungeon-40 player dark medium carrier',
 	'ref-6 player dark medium carrier',
-	'test-world player dusk high probes'
+	'test-world player dusk high probes',
+	'crowd-60 player day low',
+	'test-world player dusk low'
 ]);
 const FULL = inject('unexplored') === 'full';
 

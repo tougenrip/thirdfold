@@ -13,6 +13,7 @@
 
 import * as THREE from 'three/webgpu';
 import { BaseLayer } from './base-layer';
+import { ContactShadowLayer, tokenContact } from './contact';
 import { baseDiameters, PICK_RADIUS, SMALL_BASE } from './bases';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { STEP_HEIGHT, type Ground } from './ground';
@@ -61,6 +62,8 @@ export class TokenLayer {
 	private selectedId: string | null = null;
 	/** Every token's base (#265): their rings follow the hover, the selection and the turn. */
 	readonly bases = new BaseLayer(this.group);
+	/** Every token's contact shadow (#271), and the props' (PropLayer is handed it). */
+	readonly contact = new ContactShadowLayer(this.group);
 	/** The figures, batched by part (#266). */
 	private readonly figures: FigureBatches;
 	/** Whose turn it is in a fight: an arrow over that mini. */
@@ -169,9 +172,11 @@ export class TokenLayer {
 			this.figures.remove(id);
 			this.entries.delete(id);
 			this.bases.remove(id);
+			this.contact.token(id, null);
 			changed = true;
 		}
 		this.bases.commit();
+		this.contact.flush();
 		const named = this.labels.setTokens(tokens);
 		return this.updateRing() || named || changed;
 	}
@@ -237,15 +242,18 @@ export class TokenLayer {
 			entry.t = Math.min((now - entry.start) / entry.duration, 1);
 			const k = entry.t < 0.5 ? 2 * entry.t * entry.t : 1 - (-2 * entry.t + 2) ** 2 / 2;
 			entry.root.position.lerpVectors(entry.from, entry.to, k);
-			entry.root.position.y +=
-				Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
-			this.placeBase(id, entry);
+			const hop = Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
+			entry.root.position.y += hop;
+			this.placeBase(id, entry, hop);
 			this.placeFigure(id, entry);
 			placed = true;
 			if (entry.t < 1) moving = true;
 		}
 		this.bases.tick(now);
-		if (placed) this.bases.commit();
+		if (placed) {
+			this.bases.commit();
+			this.contact.flush();
+		}
 		this.updateRing();
 		return moving;
 	}
@@ -291,6 +299,7 @@ export class TokenLayer {
 		this.entries.clear();
 		this.figures.dispose();
 		this.bases.dispose();
+		this.contact.dispose();
 		this.marker.removeFromParent();
 		this.marker.geometry.dispose();
 		(this.marker.material as THREE.Material).dispose();
@@ -343,11 +352,18 @@ export class TokenLayer {
 		this.figures.place(id, figure.premultiply(root.matrix));
 	}
 
-	/** Puts `id`'s base under its mini: on the floor however high the figure is lifted (#270). */
-	private placeBase(id: string, entry: Entry): void {
+	/**
+	 * Puts `id`'s base under its mini: on the floor however high the figure is lifted (#270), and
+	 * its contact shadow (#271) on the floor under that, fading as the mini hops (`hop`) or flies.
+	 */
+	private placeBase(id: string, entry: Entry, hop = 0): void {
 		const at = this.under.copy(entry.root.position);
 		at.y -= entry.lift;
-		this.bases.place(id, at, this.grid?.cellSize ?? 1, entry.base, entry.hidden);
+		const size = this.grid?.cellSize ?? 1;
+		this.bases.place(id, at, size, entry.base, entry.hidden);
+		const rise = hop + entry.lift;
+		const shadow = tokenContact(at.x, at.y - hop, at.z, entry.base * size, rise, size);
+		this.contact.token(id, shadow);
 	}
 
 	/** Keeps the turn arrow over the active mini, even mid-move. */

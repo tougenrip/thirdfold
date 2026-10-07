@@ -106,7 +106,7 @@ export async function createTabletop(
 		refreshLighting();
 	});
 	let reducedMotion = motion.reduced; // read live: a change applies at once, without a reload
-	const propLayer = new PropLayer(onModel, clock);
+	const propLayer = new PropLayer(onModel, clock, tokenLayer.contact); // its contact shadows (#271)
 	scene.add(propLayer.group);
 	let props: readonly Prop[] = [];
 	const lighting = new LightingLayer(lights.grid, onModel, lights.heroes, requestRender);
@@ -300,6 +300,7 @@ export async function createTabletop(
 	post.set(quality.current); // drawn through from the first frame, so nothing compiles twice
 	atmosphere.setTier(quality.current.tier, quality.current.layers.sky);
 	for (const l of [land, worldLayer]) l.setTier(quality.current.tier); // the tile ring (#254)
+	tokenLayer.contact.setTier(quality.current.tier, quality.current.layers.contact); // #271
 	cloud.setLayer(quality.current.layers.fogcloud, quality.current.tier === 'low');
 	controls.addEventListener('change', requestRender);
 
@@ -475,6 +476,7 @@ export async function createTabletop(
 			post.set(settings);
 			atmosphere.setTier(settings.tier, settings.layers.sky);
 			for (const l of [land, worldLayer, diceLayer]) l.setTier(settings.tier); // dice: #275
+			tokenLayer.contact.setTier(settings.tier, settings.layers.contact); // #271
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
 			const remade = [land, worldLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));

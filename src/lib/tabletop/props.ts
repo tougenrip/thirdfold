@@ -29,6 +29,7 @@ import {
 } from '$lib/game/props';
 import type { Light } from '$lib/game/lights';
 import type { CellMask } from '$lib/game/visibility';
+import { propContact, type Contact, type ContactShadowLayer } from './contact';
 import { Drops, DROP_CELLS, PropDrops } from './drop-in';
 import type { Ground } from './ground';
 import { flameMaterial, flameOf, paintFlame, type FlameLook } from './light-fixtures';
@@ -73,6 +74,11 @@ type Anim =
 	| { kind: MotionKind; start: number; throw: number };
 
 const still = (): Pose => ({ dx: 0, dy: 0, dz: 0, turn: 0, swing: 0 });
+const asPart = (mesh: THREE.InstancedMesh, swings = false, flame = false) => ({
+	mesh,
+	swings,
+	flame
+});
 
 /** The emissive tints (colour and strength): selected, hovered, and hidden from the players. */
 const SELECTED = { color: new THREE.Color(0xe0a458), strength: 0.4 };
@@ -119,7 +125,9 @@ export class PropLayer {
 	constructor(
 		private readonly onModel: () => void = () => {},
 		/** The renderer's clock (ms); glides start from it. */
-		private readonly clock: () => number = () => performance.now()
+		private readonly clock: () => number = () => performance.now(),
+		/** Where standing props' contact shadows go (#271): the tokens' layer. */
+		private readonly contact: ContactShadowLayer | null = null
 	) {
 		this.dropping = new PropDrops((this.drops = new Drops(clock, dropNow)));
 	}
@@ -239,6 +247,7 @@ export class PropLayer {
 		const up = new THREE.Vector3(0, 1, 0);
 		const swing = new THREE.Matrix4();
 		const tilt = new THREE.Matrix4();
+		const halos = new Map<string, Contact>();
 		for (const [assetId, list] of byAsset) {
 			const meshes = this.ensure(assetId, list.length);
 			if (!meshes) continue;
@@ -252,6 +261,8 @@ export class PropLayer {
 						new THREE.Vector3(def.w * 0.9, PLACEHOLDER_HEIGHT, def.h * 0.9)
 					);
 			const pivot = meshes.model?.entry.swing?.pivot ?? 0;
+			const bounds = meshes.model?.entry.bounds;
+			const height = bounds ? bounds.max[1] - bounds.min[1] : null; // none till it arrives
 			meshes.owners = list.map((p) => p.id);
 			list.forEach((p, i) => {
 				const at = this.centre(p, grid);
@@ -268,6 +279,8 @@ export class PropLayer {
 					turn,
 					new THREE.Vector3().setScalar(grid.cellSize * p.scale)
 				);
+				const halo = propContact(p, grid, ground, height, pose ?? null);
+				if (halo) halos.set(p.id, halo);
 				const angle = (this.swings.get(p.id) ?? 0) + (pose?.swing ?? 0);
 				if (angle) {
 					// Rotate about the pivot: up to it, tilt, back down.
@@ -292,6 +305,7 @@ export class PropLayer {
 				mesh.computeBoundingSphere();
 			}
 		}
+		this.contact?.setProps(halos);
 		this.paint();
 	}
 
@@ -391,23 +405,10 @@ export class PropLayer {
 			// Drawn at its full level; choosing a coarser one by distance is #274's.
 			for (const role of ['body', 'swing'] as const)
 				for (const part of partsOf(model, role))
-					parts.push({
-						mesh: make(part.geometry, materialOf(part)),
-						swings: role === 'swing',
-						flame: false
-					});
+					parts.push(asPart(make(part.geometry, materialOf(part)), role === 'swing'));
 			for (const part of partsOf(model, 'flame'))
-				parts.push({
-					mesh: make(part.geometry, this.flameMaterial, false),
-					swings: false,
-					flame: true
-				});
-		} else
-			parts.push({
-				mesh: make(this.placeholder, this.placeholderMaterial),
-				swings: false,
-				flame: false
-			});
+				parts.push(asPart(make(part.geometry, this.flameMaterial, false), false, true));
+		} else parts.push(asPart(make(this.placeholder, this.placeholderMaterial)));
 		meshes = { capacity, owners: [], parts, materials, model };
 		this.meshes.set(assetId, meshes);
 		return meshes;
