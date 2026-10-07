@@ -632,6 +632,34 @@ M70 right. The owner's art review signed it off.
   and floor tiles wear a trim sheet); dormers' glass doesn't glow; the kits beyond the stone halls'
   pilot are greybox until #263's commission.
 
+## Milestone 71: miniatures, bases and dice (#118)
+
+Thick glossy bases with an owner-coloured ring (a notched red rim on enemies, a double ring on the
+viewer's own), figures batched by model on the painted miniature kind (wash, drybrush, varnish and a
+rim light), names only on demand, contact shadows, a light column for the active turn, larger bases
+for large creatures, and the four characters as in-house pilot sculpts (#276 stays open for the
+commission). The strip is `docs/look/m71/`; `docs/look/m71-before-after.png` sets every pairing side
+by side, M70 left and M71 right. The owner's art review signed it off as it is.
+
+| Reference | band | m70   | m71   |
+| --------- | ---- | ----- | ----- |
+| 1         | dark | 0.128 | 0.123 |
+| 2         | dusk | 0.315 | 0.315 |
+| 3         | dark | 0.135 | 0.127 |
+| 4         | dark | 0.090 | 0.089 |
+| 6         | dark | 0.099 | 0.103 |
+| 7         | day  | 0.108 | 0.126 |
+| 8         | dusk | 0.233 | 0.233 |
+
+- **The torch room (1) and the crimson stair (3) move toward their references**: the floating name
+  plates are gone, the warden stands on a lit base, and the rings glow in the dark.
+- **The minis on grass (7) move away**: every mini now stands on a thick base with a dark rim and a
+  light ring, twenty of them together, against the reference's darker, plainer bases; and the four
+  pilot sculpts stand among part-list figures. The grass stays flat until #302.
+- **The night gate (6)** moves a little away: the warden's steel takes the moon-blue rim strongly.
+- **Still missing**: commissioned minis (#276) and the NPC and enemy minis (#330, #331); an active
+  pose; normal maps on the pilots (the budget holds about 1.5k triangles and 256 px maps).
+
 ## Sky targets (#213)
 
 The skies' colours (`assets/skies/`, docs/ASSETS.md) and where each comes from. The references'
