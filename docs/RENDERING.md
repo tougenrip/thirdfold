@@ -151,7 +151,7 @@ with the sun's shadow. A warm-up never holds longer than 1.5 s; what it didn't r
 draw.
 
 Since #180 it also compiles what shows only later, from stand-ins each layer gives (`gallery`: the
-selection ring and turn marker in the overlay's pass, a die, the toll's dust and shadow, the fog
+selection ring and turn column (#269) in the overlay's pass, a die, the toll's dust and shadow, the fog
 cloud), never the real objects, and the first frame after it draws the stand-ins once, a millionth of their size far
 below the table (`Gallery` in `warmup.ts`): a compile can't make a die's shadow-pass material, nor
 a material in the AO's context, which only the scene pass itself sets, and r186 declares a shadowed
@@ -3311,7 +3311,7 @@ passes, in order:
   `uniforms.exposure`; `renderer.toneMappingExposure` stays 1 and `renderer.toneMapping` never
   changes while drawing, since `RenderPipeline` rebuilds when it does.
 - **The overlay** (#157) is everything that shows game state rather than scenery: token labels
-  and floats, the selection ring, the turn marker, highlights, editor previews, the beacon and the
+  and floats, the selection ring, the turn column (#269), highlights, editor previews, the beacon and the
   grid lines. It is its own scene (no background, so its pass clears to transparent), drawn by its
   own pass, and laid over the finished image: straightened, encoded to sRGB without tone mapping
   and mixed by its alpha, as the classic renderer blended it. So nothing the pipeline does to the
@@ -3783,7 +3783,7 @@ program. Data textures (cell maps, LUTs, the slots' blanks) are never registered
 
 A table's warm-up (see "Shader warm-up") compiles its layers and the tabletop gallery's stand-ins
 (`gallery()` on the dice, effects, the fog cloud (`FogCloudLayer.warm`, the same geometry and
-material never hidden) and the tokens' ring and marker). The lobby compiles `kindGallery()`
+material never hidden) and the tokens' ring and turn column). The lobby compiles `kindGallery()`
 (`materials/warmup.ts`): every kind in every variant the layers make (plain and instanced;
 anti-tiled surface and terrain; vertex-coloured prop and mini), casting shadows or not, plus the
 `local` box and the overlay's lines. It is built from `SHADER_KINDS`, so a new kind joins by
@@ -3972,6 +3972,44 @@ the warm-up gallery makes the instanced decal pool-sized like the mesh.
 
 **Cost.** One draw in the scene pass whatever the number of tokens and props; no frames of its own
 (it moves only when a token or prop does), so an idle table still draws nothing.
+
+## The turn column (milestone 71, #269)
+
+Whose turn it is in a fight shows on the mini itself, not as a cone floating over it: the base's
+ring pulses (#265, `ringEmission`'s `PULSE`, steady under reduced motion) and a thin column of light
+rises from the base (`turn-column.ts` `TurnColumn`, owned by `TokenLayer` as `column`).
+
+- **Geometry.** `COLUMN`, the open cylinder the tutorial beacon stands in too (`previews.ts`): one
+  module-level geometry, never disposed. It stands on the base (the mini's position less its
+  `lift`, so a flier's column rises from the floor), its foot as wide as the base, and it is
+  `COLUMN_HEIGHT` (1.6) cells tall on a small base, scaled with it by
+  `cellSize * bases.diameter(id) / SMALL_BASE`: a large creature's base (#270) gets a wider,
+  taller column.
+- **Material.** One `MeshBasicNodeMaterial`, additive, `depthWrite` off, both sides, in the overlay
+  scene, so it is never bloomed, graded or blurred; the ring under it blooms in the scene pass.
+  `uv().y` runs from the foot (0) to the top (1), so it thins out upward (`(1 − y)^1.5`). Colour,
+  bands and `strength` (0.32 at the foot per face) are uniforms: a turn starting, ending, or passing
+  between a character and an enemy changes uniform values only, never a program (the sweep's `token
+active` and `enemy active` steps). The overlay's compose lays it over the picture by its alpha, so
+  it reads as light over a dark world and slightly veils a bright one.
+- **The pattern twin (G6).** A character's turn is amber (`TURN_COLOURS.ally`), an enemy's red and
+  banded: `COLUMN_BANDS` (7) stripes up the column, each dark band taking `BAND_DEPTH` (85%) of it.
+  With the enemy's notched rim (#265), an enemy's turn reads without colour.
+- **Motion and flashing.** The column is static: no flicker, no sweep. Under reduced motion only the
+  ring's pulse stops; nothing flashes, so Reduce flashing has nothing to change. The pulse is under
+  1 Hz (`PULSE.hz` 0.75) either way.
+- **Secrecy.** `setActive(id, enemy)` takes the turn from `RoomView` (`TurnView.tokenId`, null when
+  the viewer wasn't sent that token), and the column stands only on a mini the layer draws: a turn
+  for a token it doesn't have, or one removed, shows nothing. Every unexplored-black case marks its
+  first token's turn as an enemy's, so the banded column is in every case (it stands within
+  `TALL.token`).
+- **Cost.** One draw in the overlay pass during fights only; the same on every tier and backend. It
+  follows the token's tween each tick (`updateColumn`). The turn cone (`marker`, a 4-sided
+  `ConeGeometry` and its `MeshBasicMaterial`) is gone, as is its stand-in in the warm-up gallery,
+  now the column's.
+- **Tests.** `turn-column.spec.ts` (Node): the column stands on the active mini, switches to banded
+  red for an enemy, hides with nobody's turn, for a token the layer doesn't draw, and when the active
+  token is removed. The program-count sweep's turn steps and `unexplored-black` cover the rest.
 
 ## Testing the renderer
 
