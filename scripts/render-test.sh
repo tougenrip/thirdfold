@@ -6,11 +6,11 @@
 #   scripts/render-test.sh src/lib/tabletop/walls.svelte.spec.ts
 #   THIRDFOLD_SHARD=3/18 scripts/render-test.sh src/lib/tabletop/program-count.svelte.spec.ts
 #   RENDER_CMD="npm run test:golden" scripts/render-test.sh
-# RENDER_WAIT (s, default 3600) bounds the wait for the lock, RENDER_TIMEOUT (s, 1800) the run.
+# RENDER_WAIT (s, default 10800) bounds the wait for the lock, RENDER_TIMEOUT (s, 1800) the run.
 set -uo pipefail
 lock=/tmp/thirdfold-render.lock
 exec 9>"$lock"
-if ! flock -w "${RENDER_WAIT:-3600}" 9; then
+if ! flock -w "${RENDER_WAIT:-10800}" 9; then
 	echo "render-test: gave up waiting for $lock" >&2
 	exit 124
 fi
