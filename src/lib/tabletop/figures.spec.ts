@@ -127,7 +127,7 @@ describe('figure batches', () => {
 				}
 			}
 
-			// Every batch holds exactly the figures drawn with its part, packed, nothing empty kept.
+			// Every batch holds exactly the figures drawn with its part, packed.
 			const expected = new Map<ModelPart | 'plain', string[]>();
 			const proxies = new Map<ModelPart, string[]>();
 			for (const [tid, f] of live) {
@@ -152,11 +152,13 @@ describe('figure batches', () => {
 					expect(at.elements).toEqual((placed.get(tid) ?? new THREE.Matrix4()).elements);
 				});
 			}
-			expect(figures.batches.size).toBe(expected.size);
+			// Nothing empty is kept but a textured part's batch, whose program would go with it (#276).
 			for (const key of expected.keys()) expect(figures.batches.has(key)).toBe(true);
 			for (const [key, batch] of figures.batches) {
+				if (!expected.has(key))
+					expect(batch.keep && batch.slots.size === 0 && !batch.mesh.visible).toBe(true);
 				expect(batch.mesh.count).toBe(batch.slots.size);
-				expect([...batch.slots.owners].sort()).toEqual(expected.get(key)!.sort());
+				expect([...batch.slots.owners].sort()).toEqual((expected.get(key) ?? []).sort());
 				expect(batch.mesh.parent).toBe(group);
 				// A level of a model with levels casts nothing: its proxy does.
 				expect(batch.mesh.castShadow).toBe(batch.shadow === 'cast');
@@ -176,10 +178,12 @@ describe('figure batches', () => {
 			expect(group.children.length).toBe(figures.batches.size + figures.proxies.size);
 		}
 		for (const id of [...live.keys()]) figures.remove(id);
-		expect(figures.batches.size).toBe(0);
+		// Only textured parts' batches are kept, empty (#276).
+		expect([...figures.batches.values()].every((b) => b.keep && b.slots.size === 0)).toBe(true);
 		expect(figures.proxies.size).toBe(0);
-		expect(group.children).toEqual([]);
+		expect(group.children.length).toBe(figures.batches.size);
 		figures.dispose();
+		expect(group.children).toEqual([]);
 	});
 
 	it('grow a batch past its pool without losing an instance', () => {
@@ -316,12 +320,13 @@ describe('figure batches', () => {
 		figures.setState('b', { downed: false, active: true });
 		expect(holders(active)).toEqual(['b']);
 		expect(figures.showsDowned('b')).toBe(false);
-		// Revived and the turn passed: both back on the body; the pose batches are freed.
+		// Revived and the turn passed: both back on the body; the part-list pose's batch is freed, the
+		// textured one's kept empty, so its program stays (#276).
 		figures.setState('a', { downed: false, active: false });
 		figures.setState('b', { downed: false, active: false });
 		expect(holders(body)).toEqual(['a', 'b']);
 		expect(figures.batches.has(down)).toBe(false);
-		expect(figures.batches.has(active)).toBe(false);
+		expect(figures.batches.get(active)?.mesh.visible).toBe(false);
 		expect(group.children.length).toBe(figures.batches.size);
 
 		// Churn: every batch stays packed and nothing is left behind.
@@ -334,7 +339,7 @@ describe('figure batches', () => {
 			expect(group.children.length).toBe(figures.batches.size);
 		}
 		for (const id of ['a', 'b', 'h']) figures.remove(id);
-		expect(figures.batches.size).toBe(0);
+		expect([...figures.batches.keys()]).toEqual([active]);
 		figures.dispose();
 	});
 

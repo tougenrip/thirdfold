@@ -929,6 +929,46 @@
 				"models/kit/stone-pinnacle.glb": "25a4e745803285f04b212ac4b6b19feb07273843b7ad39d570feca814ea813c9",
 				"models/kit/stone-pinnacle.meta.json": "d239b12e86dfceeee15f9ba01614686454b7d45e84da81f009abf01ed91a3a93"
 			}
+		},
+		"character/ember": {
+			"sources": {
+				"ember.glb": "7770f1548d851d1c81b28907f1b69a86135fef4640361d6d827245f54fb30b0d",
+				"meta.json": "96bec6dd864bbd714408dd59bf43d3015f79082ce16b157fd20e318047b90ffe"
+			},
+			"outputs": {
+				"models/character/ember.glb": "d99f49de10169334136f7380a65c1f189d5af78e466bfdb6c2b4fced79a51469",
+				"models/character/ember.meta.json": "d870327078098bc9f7b471f0704aee960ec8f58a3b1b5df1e8f38e4b0482bb00"
+			}
+		},
+		"character/saint": {
+			"sources": {
+				"meta.json": "96bec6dd864bbd714408dd59bf43d3015f79082ce16b157fd20e318047b90ffe",
+				"saint.glb": "7f303a4964f7fb5bf051f900dd579a89a4f9d92e52d3c2850a70b2220b8e2c67"
+			},
+			"outputs": {
+				"models/character/saint.glb": "068526084e22ca273b230443db1ddf65cf33913e273d5f922dc1206120d01792",
+				"models/character/saint.meta.json": "d870327078098bc9f7b471f0704aee960ec8f58a3b1b5df1e8f38e4b0482bb00"
+			}
+		},
+		"character/veil": {
+			"sources": {
+				"meta.json": "96bec6dd864bbd714408dd59bf43d3015f79082ce16b157fd20e318047b90ffe",
+				"veil.glb": "f69e5ac688bc0e404d01caac0bd7078beabc9075d5f4fdacc61cf74368e766c6"
+			},
+			"outputs": {
+				"models/character/veil.glb": "20fae915003fa8fcb55c1488c077881c1f58a9043dd274d5fe08c66576832729",
+				"models/character/veil.meta.json": "d870327078098bc9f7b471f0704aee960ec8f58a3b1b5df1e8f38e4b0482bb00"
+			}
+		},
+		"character/warden": {
+			"sources": {
+				"meta.json": "96bec6dd864bbd714408dd59bf43d3015f79082ce16b157fd20e318047b90ffe",
+				"warden.glb": "417f3ba4f80b3371a7c0f938be6fed1a2dd604ddeb72309305fd6a8571c82c71"
+			},
+			"outputs": {
+				"models/character/warden.glb": "0f8785d8e81730886ffb519af08f001416ac0a5e57c19bd3d90bc6221f2bde6b",
+				"models/character/warden.meta.json": "d870327078098bc9f7b471f0704aee960ec8f58a3b1b5df1e8f38e4b0482bb00"
+			}
 		}
 	}
 }

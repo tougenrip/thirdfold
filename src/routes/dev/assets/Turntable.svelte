@@ -33,6 +33,8 @@
 	let id = $state<string | null>(thumb);
 	let surface = $state<string | null>(null);
 	let lod = $state(0);
+	/** A mini's static pose (#273): 0 standing. */
+	let pose = $state(0);
 	let preview = $state(false);
 	let light = $state<LightPreset>('day');
 	let environment = $state<string | null>(null);
@@ -75,9 +77,9 @@
 	$effect(() => {
 		const t = turntable;
 		if (!t || !id || surface) return;
-		const [want, level, lighter] = [id, lod, preview];
+		const [want, level, lighter, posed] = [id, lod, preview, pose];
 		failed = false;
-		void t.show(want, level, lighter).then((s) => {
+		void t.show(want, level, lighter, posed).then((s) => {
 			if (want !== id) return;
 			shown = s;
 			failed = !s;
@@ -220,6 +222,17 @@
 						</select>
 						<span class="muted">the game draws LOD0 until #274</span>
 					</dd>
+					{#if entry.poses}
+						<dt>Pose</dt>
+						<dd>
+							<select bind:value={pose}>
+								<option value={0}>standing</option>
+								{#each Object.entries(entry.poses) as [meaning, n] (meaning)}
+									<option value={n}>{meaning}</option>
+								{/each}
+							</select>
+						</dd>
+					{/if}
 					<dt>Model</dt>
 					<dd>
 						<label

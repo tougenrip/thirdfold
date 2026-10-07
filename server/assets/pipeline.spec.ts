@@ -102,9 +102,34 @@ describe('The adventures’ assets', () => {
 		expect(bell).toMatchObject({ kind: 'prop', swing: { pivot: 2.55, throw: 0.5 } });
 		const checked = await checkGlb(built.files.get(bell.file)!);
 		expect(checked.ok && checked.info.meshes).toEqual(['body', 'swing']);
-		const warden = built.manifest.models.warden;
-		const figure = await checkGlb(built.files.get(warden.file)!);
+		const villager = built.manifest.models.villager;
+		const figure = await checkGlb(built.files.get(villager.file)!);
 		expect(figure.ok && figure.info.meshes).toEqual(['body', 'accent']);
+	});
+
+	it("take the characters' cooked minis (the pilot, #276): a downed pose, LODs of both, a tint mask and no accent", async () => {
+		for (const id of ['warden', 'veil', 'ember', 'saint']) {
+			const mini = built.manifest.models[id];
+			expect(mini).toMatchObject({
+				kind: 'character',
+				cooked: true,
+				poses: { downed: 1 },
+				credit: { license: 'LicenseRef-thirdfold-original' }
+			});
+			const checked = await checkGlb(built.files.get(mini.file)!, LIMITS.figure);
+			if (!checked.ok) throw new Error(checked.error);
+			expect(checked.info.poses).toEqual([1]);
+			expect([...checked.info.meshes].sort()).toEqual(
+				[
+					'body',
+					'body_lod1',
+					'body_lod2',
+					'body_pose1',
+					'body_pose1_lod1',
+					'body_pose1_lod2'
+				].sort()
+			);
+		}
 	});
 
 	it('take the cooked great bell (the pilot, #196) with its LODs, swing, credit and preview', async () => {

@@ -538,7 +538,17 @@ procedural rather than sculpted, delivered the way this brief asks. The three wa
 are `ashlar-wall-a`/`-b`, `-cracked` and `-niche`, and the cap `ashlar-coping`. A commission
 replaces it role by role; `stone-halls-greybox` stays the fallback.
 
-The four characters' minis (#276) get their brief once these two are accepted.
+The four characters' minis (#276) get their brief once these two are accepted. Until then they are
+an in-house pilot (`LicenseRef-thirdfold-original`) made by `scripts/make-mini-art.ts`
+(docs/ASSETS.md, "The character minis' pilot"): the shield-bearer, the quiet blade, the
+flame-caller and the pilgrim healer as sculpts of lathes, limbs and bevelled boxes, each standing
+and downed (`body_pose1`, curled on its side with what it held beside it) on one painted atlas:
+colour blocking, cavities washed cool and edge highlights painted in, the tint mask in ORM alpha
+on a tabard and shield, a hooded cloak, a robe, a mantle and stole. It is lighter than section 7
+asks (about 1.5k triangles a pose, 256² maps, no normal map), because the characters stand on
+every table and that is what the table budgets hold (docs/PERFORMANCE.md, "Asset budgets"); the
+brief must state the same budget, or the owner raise it. The brief also settles the setting: the
+pilot's figures are fantasy, and they ride Blackwater's 1889 train as they are.
 
 ## 17. Blender export checklist
 

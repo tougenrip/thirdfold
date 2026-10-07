@@ -100,7 +100,7 @@ export const COOK_SETTINGS = {
 const TOOLS = ['@gltf-transform/functions', 'meshoptimizer', 'ktx2-encoder', 'three'];
 
 export const LOCK_FILE = 'cook.lock.json';
-const ROLE = /^(body|swing|accent|flame)$/;
+const ROLE = /^(body(_pose[1-3])?|swing|accent|flame)$/;
 const ATTRIBUTES = new Set(['POSITION', 'NORMAL', 'TANGENT', 'TEXCOORD_0', 'COLOR_0']);
 
 interface LockEntry {

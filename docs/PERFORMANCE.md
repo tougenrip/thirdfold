@@ -588,7 +588,7 @@ the roadmap's first-table download and GPU memory budgets. The build fails over 
 
 | Tier    | Download | GPU    | Counted at texture detail                 |
 | ------- | -------- | ------ | ----------------------------------------- |
-| Desktop | 15 MB    | 160 MB | medium (1K), the reference tier's default |
+| Desktop | 15.25 MB | 160 MB | medium (1K), the reference tier's default |
 | Mobile  | 6 MB     | 80 MB  | low (512), what phones start on           |
 
 MB here is 1024 × 1024 bytes, as in the manifest's `LIMITS`. Mobile's download is the roadmap's
@@ -600,6 +600,12 @@ a bound rather than the figure. Each level counts a variant's download after its
 always loads first) and its GPU bytes instead. High (2K) is reported, not held to the budgets:
 see below. These are starting values, confirmed per tier in #155: change them only on purpose,
 with the reason here.
+
+The desktop download was 15 MB until the owner raised it to 15.25 MB (M71, #276, 2026-10-07):
+the four characters' cooked minis (docs/ASSETS.md, "The character minis' pilot") stand on every
+table and outweigh their part lists by about 300 kB, and The Hollow Bell's tables had 126 to
+472 kB to spare at medium. 15.25 MB is the least that holds them (Bellweather 15,529 kB, 87 kB
+spare); the mobile and GPU budgets are unchanged, and every table stays within them.
 
 What is counted is in [ASSETS.md](ASSETS.md#rules-the-pipeline-enforces). Totals with the assets
 of milestone 64 (`npm run assets`; kB of 1024 bytes), and with #190's bevelled, baked part lists
