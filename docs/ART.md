@@ -204,7 +204,7 @@ height in the albedo's alpha.
 
 The usage names and colour spaces are `TextureEntry.usage` and `colorSpace` in manifest v2 (#184),
 which refuses a mismatch. ORM's alpha is free: emissive strength on props, the owner-tint mask on
-minis (white where the player's colour goes, replacing today's `accent` mesh; _target_).
+minis (white where the player's colour goes, replacing today's `accent` mesh; drawn since #267).
 
 Surfaces cook to one KTX2 file per surface and map, assembled into arrays on the client. The
 issue's two-map packing (albedo + height; normal.xy, roughness, AO) is the alternative; the owner
@@ -219,6 +219,16 @@ chooses (#187).
 - Painted like a miniature: strong value separation between skin, cloth and metal, highlights on
   every upward edge, and an owner-tint zone (a sash, a cloak, a shield face) at least 10% of the
   visible surface.
+- **Tint mask** (#267): ORM alpha, 1 (white) where the owner's colour goes, 0 elsewhere. Paint the
+  masked zone in light, low-saturation values: the shader keeps each texel's luminance and replaces
+  its hue with the token's. An ORM without a mask (alpha 255 everywhere) tints the whole figure.
+- **Edge highlights** are painted into a textured mini's albedo: the engine drybrushes only
+  part-list figures, from their baked convexity.
+- **The engine's paint** (`miniLook` in `src/lib/tabletop/materials/mini.ts`, global until the
+  owner asks for per-environment values): wash `washDark` 0.55 (the albedo at full occlusion),
+  drybrush `edgeLight` 0.35 (the most convex edges 35% lighter), varnish clearcoat 0.25 at roughness
+  0.35 (off on the low tier), rim power 3, strength 0.04 by day in warm white (1, 0.92, 0.8) and
+  0.35 at night or in the dark in moon blue (0.45, 0.6, 1), doubled on hover and selection.
 
 ## 8. Kits
 

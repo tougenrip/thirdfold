@@ -38,21 +38,22 @@ function variantsOf(kind: ShaderKind): MaterialOptions[] {
 	return each;
 }
 
-/** A box with every attribute a kind may read: normals, uv, vertex colours and the bake. */
-function geometryFor(options: MaterialOptions): THREE.BufferGeometry {
+/** A box with every attribute `kind` may read: normals, uv, vertex colours and the bake. */
+function geometryFor(kind: ShaderKind, options: MaterialOptions): THREE.BufferGeometry {
 	const geometry = withBake(new THREE.BoxGeometry(0.01, 0.01, 0.01));
 	if (options.vertexColors) {
 		const count = geometry.getAttribute('position').count;
 		geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
 	}
-	if (options.instanced) addInstanceTints(geometry, 1);
+	// An instanced mini's paint is a vec4 (tint and opacity, #266), a prop's a vec3.
+	if (options.instanced) addInstanceTints(geometry, 1, kind === 'mini' ? 4 : 3);
 	if (options.dropped) withDrops(geometry);
 	return geometry;
 }
 
 /** A mesh of `kind` made with `options`, casting and taking shadows or not, never culled. */
 function sample(kind: ShaderKind, options: MaterialOptions, shadows: boolean): THREE.Object3D {
-	const geometry = geometryFor(options);
+	const geometry = geometryFor(kind, options);
 	const material = createMaterial(kind, options);
 	const mesh = options.instanced
 		? new THREE.InstancedMesh(geometry, material, 1)

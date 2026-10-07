@@ -101,7 +101,7 @@ function meshFor(kind: ShaderKind, material: KindMaterial, instanced = false): T
 	// Every geometry props and minis draw has their baked occlusion (models.ts, `withBake`).
 	const geometry = withBake(new THREE.BoxGeometry(0.6, 0.6, 0.6));
 	if (!instanced) return new THREE.Mesh(geometry, material);
-	addInstanceTints(geometry, 2);
+	addInstanceTints(geometry, 2, kind === 'mini' ? 4 : 3);
 	const mesh = new THREE.InstancedMesh(geometry, material, 2);
 	mesh.setMatrixAt(1, new THREE.Matrix4().makeTranslation(0.8, 0, 0));
 	return mesh;
