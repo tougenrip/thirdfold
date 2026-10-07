@@ -129,8 +129,8 @@ const BUDGETS = {
 	// pose in the figure batches and the fall it stands in for); 405.5 kB measured after the merge.
 	// → 406.7: contact shadows (#271, contact.ts and the instanced decal's graph, materials/contact.ts);
 	// 406.6 kB measured after the merge. → the turn column (#269, turn-column.ts, the cone gone):
-	// 406.6 kB measured, no change.
-	renderer: { total: 406_700 },
+	// 406.7 kB measured after the merge.
+	renderer: { total: 406_800 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
