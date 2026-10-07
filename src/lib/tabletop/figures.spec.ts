@@ -3,7 +3,7 @@
 
 import * as THREE from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
-import { FigureBatches, Slots, type ModelSource } from './figures';
+import { FigureBatches, Slots, type Batch, type ModelSource } from './figures';
 import { SHADOW_PROXY } from './lod';
 import { withBake, PAINT_ATTRIBUTE } from './materials';
 import type { LoadedModel, ModelPart } from './models';
@@ -52,6 +52,9 @@ const MODELS: Record<string, LoadedModel> = {
 /** Looking from the origin: every figure close enough for level 0, or far enough for level 2. */
 const camera = new THREE.PerspectiveCamera(45, 1);
 const VIEW = { near: 1e5, far: 1 } as const;
+/** The parts drawn: batches holding a figure (empty ones are kept, #276). */
+const drawn = <K>(batches: Map<K, Batch>) =>
+	[...batches].filter(([, b]) => b.slots.size > 0).map(([k]) => k);
 
 /** Every model loaded at once. */
 const loaded: ModelSource = { now: (id) => MODELS[id] ?? null, load: () => Promise.resolve() };
@@ -141,9 +144,10 @@ describe('figure batches', () => {
 					for (const p of MODELS.sculpt.parts.filter((q) => q.lod === 2))
 						proxies.set(p, [...(proxies.get(p) ?? []), tid]);
 			}
-			expect(figures.proxies.size).toBe(proxies.size);
+			for (const key of proxies.keys()) expect(figures.proxies.has(key)).toBe(true);
 			for (const [key, batch] of figures.proxies) {
-				expect([...batch.slots.owners].sort()).toEqual(proxies.get(key)!.sort());
+				if (!proxies.has(key)) expect(batch.keep && !batch.mesh.visible).toBe(true);
+				expect([...batch.slots.owners].sort()).toEqual((proxies.get(key) ?? []).sort());
 				expect(batch.mesh.count).toBe(batch.slots.size);
 				expect(batch.mesh.castShadow).toBe(true);
 				expect(batch.mesh.layers.mask).toBe(1 << SHADOW_PROXY);
@@ -152,7 +156,7 @@ describe('figure batches', () => {
 					expect(at.elements).toEqual((placed.get(tid) ?? new THREE.Matrix4()).elements);
 				});
 			}
-			// Nothing empty is kept but a textured part's batch, whose program would go with it (#276).
+			// Nothing empty is freed but a preview's batch: a program would go with it (#276).
 			for (const key of expected.keys()) expect(figures.batches.has(key)).toBe(true);
 			for (const [key, batch] of figures.batches) {
 				if (!expected.has(key))
@@ -178,10 +182,10 @@ describe('figure batches', () => {
 			expect(group.children.length).toBe(figures.batches.size + figures.proxies.size);
 		}
 		for (const id of [...live.keys()]) figures.remove(id);
-		// Only textured parts' batches are kept, empty (#276).
-		expect([...figures.batches.values()].every((b) => b.keep && b.slots.size === 0)).toBe(true);
-		expect(figures.proxies.size).toBe(0);
-		expect(group.children.length).toBe(figures.batches.size);
+		// Every batch is kept, empty (#276): none of these is a preview's.
+		const all = [...figures.batches.values(), ...figures.proxies.values()];
+		expect(all.every((b) => b.keep && b.slots.size === 0 && !b.mesh.visible)).toBe(true);
+		expect(group.children.length).toBe(all.length);
 		figures.dispose();
 		expect(group.children).toEqual([]);
 	});
@@ -228,13 +232,13 @@ describe('figure batches', () => {
 		let redraws = 0;
 		const figures = new FigureBatches(new THREE.Group(), () => redraws++, late);
 		figures.set('a', 'warden', '#ff0000', 1);
-		expect([...figures.batches.keys()]).toEqual(['plain']);
+		expect(drawn(figures.batches)).toEqual(['plain']);
 		shelf.ready = MODELS.warden;
 		arrive();
 		await Promise.resolve();
 		await Promise.resolve();
 		expect(redraws).toBe(1);
-		expect([...figures.batches.keys()]).toEqual(MODELS.warden.parts);
+		expect(drawn(figures.batches)).toEqual(MODELS.warden.parts);
 		figures.dispose();
 	});
 
@@ -245,7 +249,9 @@ describe('figure batches', () => {
 			figures.place(`t${i}`, new THREE.Matrix4().makeTranslation(i + 1, 0, 0));
 		}
 		const levels = () =>
-			[...figures.batches.keys()].map((k) => (k === 'plain' ? -1 : k.lod)).sort();
+			drawn(figures.batches)
+				.map((k) => (k === 'plain' ? -1 : k.lod))
+				.sort();
 		expect(levels()).toEqual([0, 0]);
 		const proxies = [...figures.proxies.values()];
 		expect(figures.chooseLods(camera, VIEW.near, 0)).toBe(false); // already there: nothing moves
@@ -320,13 +326,12 @@ describe('figure batches', () => {
 		figures.setState('b', { downed: false, active: true });
 		expect(holders(active)).toEqual(['b']);
 		expect(figures.showsDowned('b')).toBe(false);
-		// Revived and the turn passed: both back on the body; the part-list pose's batch is freed, the
-		// textured one's kept empty, so its program stays (#276).
+		// Revived and the turn passed: both back on the body; the poses' batches kept empty, so
+		// their programs stay (#276).
 		figures.setState('a', { downed: false, active: false });
 		figures.setState('b', { downed: false, active: false });
 		expect(holders(body)).toEqual(['a', 'b']);
-		expect(figures.batches.has(down)).toBe(false);
-		expect(figures.batches.get(active)?.mesh.visible).toBe(false);
+		for (const p of [down, active]) expect(figures.batches.get(p)?.mesh.visible).toBe(false);
 		expect(group.children.length).toBe(figures.batches.size);
 
 		// Churn: every batch stays packed and nothing is left behind.
@@ -339,7 +344,8 @@ describe('figure batches', () => {
 			expect(group.children.length).toBe(figures.batches.size);
 		}
 		for (const id of ['a', 'b', 'h']) figures.remove(id);
-		expect([...figures.batches.keys()]).toEqual([active]);
+		expect(drawn(figures.batches)).toEqual([]);
+		expect(figures.batches.size).toBe(4);
 		figures.dispose();
 	});
 
@@ -358,21 +364,22 @@ describe('figure batches', () => {
 		figures.set('a', 'ranger', '#ff0000', 1);
 		figures.place('a', new THREE.Matrix4().makeTranslation(3, 0, 0));
 		figures.chooseLods(camera, VIEW.far, 0);
-		expect([...figures.batches.keys()]).toEqual([body2]);
-		expect([...figures.proxies.keys()]).toEqual([body2]);
+		expect(drawn(figures.batches)).toEqual([body2]);
+		expect(drawn(figures.proxies)).toEqual([body2]);
 		// Downed far off: the pose's own level 0, never the standing body; its proxy too.
 		figures.setState('a', { downed: true, active: false });
-		expect([...figures.batches.keys()]).toEqual([down]);
-		expect([...figures.proxies.keys()]).toEqual([down]);
+		expect(drawn(figures.batches)).toEqual([down]);
+		expect(drawn(figures.proxies)).toEqual([down]);
 		// Close up: nothing to switch to, but the level asked for is kept for when it stands.
 		expect(figures.chooseLods(camera, VIEW.near, 0)).toBe(false);
 		figures.setState('a', { downed: false, active: false });
-		expect([...figures.batches.keys()]).toEqual([body0]);
+		expect(drawn(figures.batches)).toEqual([body0]);
 		expect(figures.chooseLods(camera, VIEW.far, 0)).toBe(true);
-		expect([...figures.batches.keys()]).toEqual([body2]);
+		expect(drawn(figures.batches)).toEqual([body2]);
 		figures.remove('a');
-		expect(group.children).toEqual([]);
+		expect(group.children.every((c) => !c.visible)).toBe(true);
 		figures.dispose();
+		expect(group.children).toEqual([]);
 	});
 
 	it("keep a preview's body: the pose waits for the full model", () => {
