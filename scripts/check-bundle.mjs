@@ -132,8 +132,8 @@ const BUDGETS = {
 	// 406.7 kB measured after the merge.
 	// → 408.0: levels of detail on the camera (#274: lod.ts, lod-watch.ts, prop buckets and figure batches
 	// per level, shadow proxies); 407,940 B measured, 408.0 kB after the merge.
-	// → 409.1: mini motion (#272, mini-motion.ts: hop, squash, pick-up, bob, tip); 409.0 kB measured.
-	renderer: { total: 409_100 },
+	// → 409.1: mini motion (#272, mini-motion.ts: hop, squash, pick-up, bob, tip); 409.0 kB measured, 409.1 kB with #276 (figures.ts keeps emptied textured batches).
+	renderer: { total: 409_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
