@@ -334,13 +334,28 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		['token without a model', () => t.setTokens(withToken({ model: undefined }))],
 		['token hidden', () => t.setTokens(withToken({ hidden: true }))],
 		['tokens back', () => t.setTokens(home.tokens)],
+		// Bases (#265): a ring per seat, an enemy's notched, 'mine' doubled, hovered; the turn's pulses.
+		[
+			'token rings',
+			() =>
+				t.setRings(
+					new Map(
+						home.tokens.map((k, i) => [
+							k.id,
+							{ colour: i % 8, notched: i % 2 === 0, double: i % 3 === 0 }
+						])
+					)
+				)
+		],
+		['token hovered', () => t.setHoveredToken(token.id)],
+		['token hover cleared', () => t.setHoveredToken(null)],
 		['token selected', () => t.setSelected(token.id)],
 		['token fallen', () => t.setFallen([token.id])],
 		['token active', () => t.setActive(token.id, false)],
 		['enemy active', () => t.setActive(token.id, true)],
 		[
 			'token states cleared',
-			() => (t.setSelected(null), t.setFallen([]), t.setActive(null, false))
+			() => (t.setSelected(null), t.setFallen([]), t.setActive(null, false), t.setRings(new Map()))
 		],
 		['prop selected', () => t.setSelectedProp(prop.id)],
 		['prop hovered', () => t.setHoveredProp(prop.id)],

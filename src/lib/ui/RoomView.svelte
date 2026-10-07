@@ -24,6 +24,7 @@
 	import { decodeLevels } from '$lib/game/terrain';
 	import type { DiceThrow } from '$lib/tabletop/dice3d';
 	import { diceToThrow } from '$lib/tabletop/dice-throw';
+	import { ringsFor } from '$lib/tabletop/bases';
 	import type { CameraView, HighlightKind, Pick, PreviewItem } from '$lib/tabletop/types';
 	import { DEFAULT_LIGHT_RADIUS, LIGHT_COLORS, type Light } from '$lib/game/lights';
 	import {
@@ -285,6 +286,14 @@
 		const up = encounter?.order[encounter.current];
 		return up?.tokenId ? { tokenId: up.tokenId, enemy: up.kind === 'enemy' } : null;
 	});
+	/** Each token's ring (#265): its owner's seat colour, red for the fight's enemies. */
+	const rings = $derived(
+		ringsFor(room?.tokens ?? [], {
+			players: room?.players ?? [],
+			viewer: me?.id ?? null,
+			enemies: new Set(adventure?.encounter?.enemies.map((e) => e.tokenId))
+		})
+	);
 	/** Fallen characters' tokens, drawn lying down. */
 	const fallen = $derived(
 		(adventure?.characters ?? []).flatMap((c) =>
@@ -1283,6 +1292,8 @@
 				preview={beacon.length || selectedLight ? [...preview, ...beacon, ...lightMark] : preview}
 				selectedId={selected?.id ?? null}
 				ownTokens={room.tokens.filter((t) => me && t.ownerId === me.id).map((t) => t.id)}
+				hoveredTokenId={hover?.tokenId ?? null}
+				{rings}
 				{fallen}
 				{floats}
 				{terrain}

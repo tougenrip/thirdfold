@@ -5,13 +5,15 @@
 // loaded (see models.ts); until then, and without one, it is the plain miniature: a torso and a
 // head in its colour.
 //
-// Minis are the mini kind (#172), three materials for every token: bases, figure bodies (vertex
-// colours) and the parts in the token's colour (accents and the plain miniature). Each mesh carries
-// its token's colour and how much of it shows in `userData` (`miniColor`, `mini`), read per draw by
+// Minis are the mini kind (#172), two materials for every token: figure bodies (vertex colours)
+// and the parts in the token's colour (accents and the plain miniature). Each mesh carries its
+// token's colour and how much of it shows in `userData` (`miniColor`, `mini`), read per draw by
 // the kind's per-object uniforms (materials/hooks.ts), so a new token makes no material and hiding
-// one (a screen-door see-through for the GM) compiles nothing.
+// one (a screen-door see-through for the GM) compiles nothing. Bases are one instanced mesh of the
+// base kind for every token (#265, base-layer.ts), each ring in its owner's colour.
 
 import * as THREE from 'three/webgpu';
+import { BaseLayer } from './base-layer';
 import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { STEP_HEIGHT, type Ground } from './ground';
@@ -66,10 +68,8 @@ interface Float {
 }
 
 // Shared by every mini; sized for a 1-unit cell and scaled per grid.
-const baseGeometry = withBake(new THREE.CylinderGeometry(0.42, 0.44, 0.08, 32));
 const bodyGeometry = withBake(new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24));
 const headGeometry = withBake(new THREE.SphereGeometry(0.19, 24, 16));
-const ringGeometry = new THREE.RingGeometry(0.47, 0.56, 48);
 
 function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite {
 	const canvas = document.createElement('canvas');
@@ -110,13 +110,10 @@ export class TokenLayer {
 	private floats: Float[] = [];
 	private grid: SquareGrid | null = null;
 	private selectedId: string | null = null;
-	private readonly ring = new THREE.Mesh(
-		ringGeometry,
-		new THREE.MeshBasicMaterial({ color: 0xe0a458, transparent: true, opacity: 0.95 })
-	);
-	/** Every mini's materials (#172): the base, figure bodies, and parts in the token's colour. */
+	/** Every token's base (#265): their rings follow the hover, the selection and the turn. */
+	readonly bases = new BaseLayer(this.group);
+	/** Every mini's materials (#172): figure bodies, and parts in the token's colour. */
 	private readonly materials = {
-		base: createMaterial('mini', { params: { color: 0x1b1612, roughness: 0.6 } }),
 		figure: createMaterial('mini', { vertexColors: true, params: { roughness: 0.6 } }),
 		coloured: createMaterial('mini')
 	};
@@ -136,14 +133,11 @@ export class TokenLayer {
 	 * floats run on `clock`, the tabletop's (ms), not on frame steps.
 	 */
 	constructor(
-		/** Where labels, floats, the ring and the marker draw, untouched by post-processing. */
+		/** Where labels, floats and the marker draw, untouched by post-processing. */
 		private readonly overlay: OverlayLayer,
 		private readonly onModel: () => void = () => {},
 		private readonly clock: () => number = () => performance.now()
 	) {
-		this.ring.rotation.x = -Math.PI / 2;
-		this.ring.visible = false;
-		this.ring.raycast = () => {};
 		this.marker.rotation.x = Math.PI; // point down at the mini
 		this.marker.visible = false;
 		this.marker.raycast = () => {};
@@ -219,6 +213,7 @@ export class TokenLayer {
 				entry.duration = Math.min(180 + cells * 70, 700);
 				changed = true;
 			}
+			this.bases.place(token.id, entry.root.position, size, entry.hidden);
 		}
 
 		for (const [id, entry] of this.entries) {
@@ -228,15 +223,17 @@ export class TokenLayer {
 			this.overlay.unfollow(entry.root);
 			disposeLabel(entry.label);
 			this.entries.delete(id);
+			this.bases.remove(id);
 			changed = true;
 		}
+		this.bases.commit();
 		return this.updateRing() || changed;
 	}
 
 	setSelected(id: string | null): boolean {
 		if (this.selectedId === id) return false;
 		this.selectedId = id;
-		this.updateRing();
+		this.bases.setSelected(id);
 		return true;
 	}
 
@@ -246,9 +243,20 @@ export class TokenLayer {
 		const material = this.marker.material as THREE.MeshBasicMaterial;
 		if (this.activeId === id && material.color.getHex() === color) return false;
 		this.activeId = id;
+		this.bases.setActive(id);
 		material.color.setHex(color);
 		this.updateRing();
 		return true;
+	}
+
+	/** Reduced motion: the turn's ring holds steady (#265). */
+	setReducedMotion(still: boolean): void {
+		this.bases.setReducedMotion(still);
+	}
+
+	/** Whether the turn's ring pulses, asking for AMBIENT frames. */
+	get pulsing(): boolean {
+		return this.bases.pulsing;
 	}
 
 	/** Lays down the minis in `ids` (fallen characters) and stands the rest up. Returns true if any changed. */
@@ -287,16 +295,20 @@ export class TokenLayer {
 
 	/** Moves minis to where they are at time `now`. Returns true while any is still moving. */
 	tick(now: number): boolean {
-		let moving = this.tickFloats(now);
-		for (const entry of this.entries.values()) {
+		let [moving, placed] = [this.tickFloats(now), false];
+		for (const [id, entry] of this.entries) {
 			if (entry.t >= 1) continue;
 			entry.t = Math.min((now - entry.start) / entry.duration, 1);
 			const k = entry.t < 0.5 ? 2 * entry.t * entry.t : 1 - (-2 * entry.t + 2) ** 2 / 2;
 			entry.root.position.lerpVectors(entry.from, entry.to, k);
 			entry.root.position.y +=
 				Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
+			this.bases.place(id, entry.root.position, entry.root.scale.x, entry.hidden);
+			placed = true;
 			if (entry.t < 1) moving = true;
 		}
+		this.bases.tick(now);
+		if (placed) this.bases.commit();
 		this.updateRing();
 		return moving;
 	}
@@ -304,6 +316,7 @@ export class TokenLayer {
 	/** Id of the frontmost mini under the ray, if any. */
 	pick(raycaster: THREE.Raycaster): string | null {
 		const hit = raycaster.intersectObject(this.group, true)[0];
+		if (hit?.object === this.bases.mesh) return this.bases.owner(hit.instanceId);
 		for (let o: THREE.Object3D | null = hit?.object ?? null; o; o = o.parent) {
 			if (typeof o.userData.tokenId === 'string') return o.userData.tokenId;
 		}
@@ -321,11 +334,11 @@ export class TokenLayer {
 	}
 
 	/**
-	 * Stand-ins for the selection ring and the turn marker, which show on a first click or turn, for
-	 * the warm-up to compile in the overlay's pass (#180).
+	 * A stand-in for the turn marker, which shows on a first turn, for the warm-up to compile in the
+	 * overlay's pass (#180).
 	 */
 	gallery(): THREE.Object3D[] {
-		return (this.standIns ??= [this.ring, this.marker].map((m) =>
+		return (this.standIns ??= [this.marker].map((m) =>
 			standIn(new THREE.Mesh(m.geometry, m.material))
 		));
 	}
@@ -340,9 +353,8 @@ export class TokenLayer {
 		this.entries.clear();
 		for (const m of [...Object.values(this.materials), ...this.textured.values()]) m.dispose();
 		this.textured.clear();
-		this.ring.removeFromParent();
+		this.bases.dispose();
 		this.marker.removeFromParent();
-		(this.ring.material as THREE.Material).dispose();
 		this.marker.geometry.dispose();
 		(this.marker.material as THREE.Material).dispose();
 	}
@@ -352,14 +364,10 @@ export class TokenLayer {
 		root.userData.tokenId = token.id;
 		const look = { opacity: 1 };
 
-		const base = pickable(new THREE.Mesh(baseGeometry, this.materials.base));
-		base.userData.mini = look;
-		base.position.y = 0.04;
-		base.castShadow = base.receiveShadow = true;
 		const figure = new THREE.Group();
 		figure.scale.setScalar(FIGURE_SCALE);
 		const label = makeLabel(token.name);
-		root.add(base, figure);
+		root.add(figure);
 		root.position.copy(at);
 		this.group.add(root);
 		const tag = this.overlay.follow(root);
@@ -467,7 +475,7 @@ export class TokenLayer {
 		this.floats = this.floats.filter((f) => f.tokenId !== tokenId);
 	}
 
-	/** Keeps the selection ring under the selected mini and the turn arrow over the active one, even mid-move. */
+	/** Keeps the turn arrow over the active mini, even mid-move. */
 	private updateRing(): boolean {
 		const active = this.activeId ? this.entries.get(this.activeId) : undefined;
 		const markerWas = this.marker.visible;
@@ -482,18 +490,6 @@ export class TokenLayer {
 			);
 			this.marker.scale.setScalar(size);
 		}
-		const entry = this.selectedId ? this.entries.get(this.selectedId) : undefined;
-		const wasVisible = this.ring.visible;
-		this.ring.visible = !!entry;
-		if (entry) {
-			if (!this.ring.parent) this.overlay.scene.add(this.ring);
-			this.ring.position.set(
-				entry.root.position.x,
-				entry.root.position.y + 0.012,
-				entry.root.position.z
-			);
-			this.ring.scale.setScalar(this.grid?.cellSize ?? 1);
-		}
-		return wasVisible !== this.ring.visible || markerWas !== this.marker.visible;
+		return markerWas !== this.marker.visible;
 	}
 }

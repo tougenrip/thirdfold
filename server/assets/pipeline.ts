@@ -193,6 +193,14 @@ function buildEnvironments(
 			}
 			return raw.kit;
 		};
+		// The token bases' disc (#265): one of its own surfaces, so it costs no download of its own.
+		const own = isRecord(raw.surfaces) ? Object.values(raw.surfaces).flat() : [];
+		if (
+			raw.miniBase !== undefined &&
+			(typeof raw.miniBase !== 'string' || !own.includes(raw.miniBase))
+		) {
+			throw new AssetError(source, '"miniBase" must name one of its surfaces');
+		}
 		environments[id] = {
 			name: raw.name,
 			surface: material('surface'),
@@ -203,7 +211,8 @@ function buildEnvironments(
 			...(raw.surfaces !== undefined
 				? { surfaces: { floors: ids('floors'), walls: ids('walls') } }
 				: {}),
-			kit: kitOf()
+			kit: kitOf(),
+			...(typeof raw.miniBase === 'string' ? { miniBase: raw.miniBase } : {})
 		};
 	}
 	return environments;

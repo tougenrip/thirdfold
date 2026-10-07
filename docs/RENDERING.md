@@ -2817,6 +2817,64 @@ both WebGL2 gate runs after; its cause is not traced.
   for the warm-up. Later orbits on the same page are the repeated row above. A gate fix (waiting
   for `loads()` and the warm-up) is left to the next gate change.
 
+## Bases (milestone 71, #265)
+
+Every token stands on a thick, glossy, bevelled base, all of them instances of one `InstancedMesh`
+(`base-layer.ts` `BaseLayer`, owned by `TokenLayer.bases`), so bases cost one draw plus one per
+shadow pass whatever the number of tokens. The flat selection ring and the per-token cylinder are
+gone.
+
+- **Shape.** `bases.ts` `BASE_PROFILE`, lathed (`LatheGeometry`, 48 segments): 0.86 u across and
+  0.1 u tall, an inner disc, an inset ring, a raised lip and a 45° bevel. Lathe uvs put each
+  profile point at `uv.y = j / 7`, so the shader tells the bands apart by `uv.y` (`BANDS`) and
+  goes round by `uv.x`.
+- **The kind.** A new shader kind, `base` (`materials/base.ts` `baseGraph`, physical), instanced
+  only. The rim and bevel are glossy black (roughness 0.25) with a clearcoat masked to them
+  (`params.clearcoat`, so `useClearcoat` is fixed at build); the disc wears the environment's
+  surface in the albedo slot, laid on the base's own top (`positionGeometry.xz`, one repeat over
+  two cells), so it never slides as a mini glides. `EnvironmentDef.miniBase` names that surface
+  (one of the environment's own surfaces, so it costs no download: village grass, stone halls
+  flagstone, cavern stone, ghost town sand, living cave dirt, railcar wood); without one the disc
+  is slate grey. The ring is TaleWeaver's recipe: albedo the ring colour at 0.31, emission the
+  colour times the instance's strength, through `worldEmissive`, so a ring on a hidden or dimmed
+  cell never glows and anything above 1.0 blooms.
+- **Per instance.** The instanced kinds' `aTint` vec4, read as x the `BASE_PALETTE` index, y the
+  emission, z the shape flags (1 notched, 2 double), w how far the base is see-through (a GM-hidden
+  token: a screen-door discard at `HIDDEN_OPACITY`, never `transparent`). The colours are a
+  uniform array (`basePalette`), not three's instance colour, which would tint the whole base.
+  Hover, selection, a turn, hiding and a ring change are attribute writes (`addUpdateRange`):
+  nothing compiles. Buffers: position, normal, uv, `aTint` and the matrices, 5 of WebGPU's 8.
+- **Slots.** A token takes a slot when it appears and gives it up when it goes, the last slot's
+  token moving into it (swap-remove), so the instances stay packed. The mesh holds at least
+  `PIECE_MIN` (1,025) instances, as the kit pools do: its matrices are then an attribute, so a
+  larger mesh is the same program. The warm-up gallery's base sample is pool-sized for the same
+  reason. Picking maps an instance back to its token (`BaseLayer.owner`).
+- **Rings.** `ringFor` (pure, server-tested in `bases.spec.ts`), from only what the viewer was
+  sent: a player's tokens take their seat's colour, the owner's place among the `player`-role
+  players in join order (the same for every viewer); enemies in the fight at hand
+  (`adventure.encounter.enemies`) are red with 8 notches lit round the lip and bevel; everything
+  else (NPCs, the GM's tokens, sentries outside a fight) neutral off-white. The viewer's own
+  tokens get a double ring (the band's middle left dark). Seats past six repeat; hover shows the
+  name. `RoomView` derives the rings (`ringsFor`) and the hovered token, and `Tabletop.svelte`
+  hands them to `setRings` and `setHoveredToken`. No wire field: seat colours are the client's.
+- **Brightness.** `ringEmission`: 0.26 at rest, 1.0 hovered, 1.6 selected; the token whose turn
+  it is pulses 1.0-1.6 at 0.75 Hz (under three changes a second, WCAG 2.3.1) on AMBIENT frames
+  (`TokenLayer.pulsing`), steady at 1.3 under reduced motion; under the power saver no AMBIENT
+  frames run, so it holds. The turn arrow stays (the lit-base turn indicator is #269).
+- **Colour vision.** `BASE_PALETTE` is Okabe and Ito's six (orange, sky blue, bluish green,
+  yellow, blue, reddish purple), then red (enemies) and off-white (neutral). `cvd.ts` simulates
+  the three dichromacies (Machado 2009) and measures OKLab distance; `bases.spec.ts` holds the six
+  seats and the neutral at least 0.07 apart as they are and under protanopia and deuteranopia
+  (the red is exempt: its notches carry it). The shape twins are the notched rim and the double
+  ring.
+- **Tests.** `program-count.svelte.spec.ts` sweeps rings, hover, selection and turns;
+  `kind-layers.svelte.spec.ts` counts the base among the kinds and its buffers;
+  `unexplored-black.svelte.spec.ts` lights every ring (notched, doubled, hovered, on its turn,
+  selected where no roof fades by it) on every case.
+- **Not yet.** The low tier keeps clearcoat at 0.5 (a tier switch to 0 is a uniform write left
+  for #267's tier hooks); notches are shading, not cut; larger bases are #270; the figure still
+  stands at its old 0.08 u (#266 moves the figures).
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short

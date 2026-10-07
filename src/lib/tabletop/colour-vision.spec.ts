@@ -6,6 +6,7 @@
 // the material colours are the ones on screen.
 
 import { describe, expect, it } from 'vitest';
+import { linear, SIMULATIONS } from './cvd';
 import { HIGHLIGHT } from './previews';
 
 /**
@@ -15,25 +16,6 @@ import { HIGHLIGHT } from './previews';
  * squint. It is also where categorical palettes are usually held apart.
  */
 const MIN_DELTA_E = 20;
-
-/** Machado 2009, severity 1.0, rows of a 3×3 matrix on linear RGB. */
-const SIMULATIONS = {
-	protanopia: [
-		[0.152286, 1.052583, -0.204868],
-		[0.114503, 0.786281, 0.099216],
-		[-0.003882, -0.048116, 1.051998]
-	],
-	deuteranopia: [
-		[0.367322, 0.860646, -0.227968],
-		[0.280085, 0.672501, 0.047413],
-		[-0.01182, 0.04294, 0.968881]
-	],
-	tritanopia: [
-		[1.255528, -0.076749, -0.178779],
-		[-0.078411, 0.930809, 0.147602],
-		[0.004733, 0.691367, 0.3039]
-	]
-};
 
 /**
  * Pairs that fall short today, reported on #157 rather than recoloured here. Since #245 each kind
@@ -45,12 +27,6 @@ const KNOWN_SHORT = new Set([
 	'deuteranopia move/blocked',
 	'deuteranopia blocked/place'
 ]);
-
-const linear = (hex: number) =>
-	[16, 8, 0].map((s) => {
-		const c = ((hex >> s) & 255) / 255;
-		return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-	});
 
 /** Linear sRGB to CIE Lab (D65), clamped to the gamut first as a screen would. */
 function lab(rgb: number[]): number[] {

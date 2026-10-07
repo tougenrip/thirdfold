@@ -456,6 +456,14 @@ async function mountCase(
 	});
 	mounted = m;
 	if (c.partly) m.tabletop.setOwnTokens(view.tokens.filter((t) => t.ownerId).map((t) => t.id));
+	// Token bases (#265): every ring in a colour, notched or doubled, one hovered, one on its turn
+	// and (where no roof fades by it) one selected, all blooming: none may glow onto black.
+	const ids = view.tokens.map((t) => t.id);
+	const ring = (i: number) => ({ colour: i % 8, notched: i % 2 === 0, double: i % 3 === 0 });
+	m.tabletop.setRings(new Map(ids.map((id, i) => [id, ring(i)])));
+	m.tabletop.setActive(ids[0] ?? null, true);
+	m.tabletop.setHoveredToken(ids[1] ?? null);
+	if (!c.roofs) m.tabletop.setSelected(ids[2] ?? null);
 	// The shader grid in full on every chunk's twin (#245), and a hatched highlight on an
 	// unexplored cell: neither may lay anything over black.
 	m.tabletop.setGridMode('build');

@@ -391,6 +391,12 @@ function readEnvironment(
 		}
 		env.kit = v.kit;
 	}
+	if (v.miniBase !== undefined) {
+		if (typeof v.miniBase !== 'string' || !Object.hasOwn(m.surfaces, v.miniBase)) {
+			throw new Invalid(`${what}: unknown miniBase surface`);
+		}
+		env.miniBase = v.miniBase;
+	}
 	return env;
 }
 
