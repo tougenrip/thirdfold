@@ -104,7 +104,12 @@ async function round(): Promise<{ model: LoadedModel; drawn: THREE.Mesh[]; freed
 	layer.sync([{ ...token, vision: 0, light: 0, model: ID }], grid, null, true);
 	const drawn: THREE.Mesh[] = [];
 	layer.group.traverse(
-		(o) => o instanceof THREE.Mesh && o.geometry === model.parts[0]?.geometry && drawn.push(o)
+		// A figure batch draws a copy of the part (figures.ts, #266).
+		(o) =>
+			o instanceof THREE.Mesh &&
+			o.userData.source === model.parts[0]?.geometry &&
+			(o as THREE.InstancedMesh).count === 1 &&
+			drawn.push(o)
 	);
 	const scene = new THREE.Scene().add(layer.group);
 	const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 50);
@@ -207,7 +212,9 @@ describe('the model loader', () => {
 		layer.sync([{ ...token, vision: 0, light: 0, model: STAGED }], grid, null, true);
 		const drawn = () => {
 			const out: THREE.BufferGeometry[] = [];
-			layer.group.traverse((o) => o instanceof THREE.Mesh && out.push(o.geometry));
+			layer.group.traverse(
+				(o) => o instanceof THREE.Mesh && out.push(o.userData.source ?? o.geometry)
+			);
 			return out;
 		};
 		const body = (m: LoadedModel) => partsOf(m, 'body')[0].geometry;

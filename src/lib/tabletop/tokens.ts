@@ -5,11 +5,10 @@
 // loaded (see models.ts); until then, and without one, it is the plain miniature: a torso and a
 // head in its colour.
 //
-// Minis are the mini kind (#172), two materials for every token: figure bodies (vertex colours)
-// and the parts in the token's colour (accents and the plain miniature). Each mesh carries its
-// token's colour and how much of it shows in `userData` (`miniColor`, `mini`), read per draw by
-// the kind's per-object uniforms (materials/hooks.ts), so a new token makes no material and hiding
-// one (a screen-door see-through for the GM) compiles nothing. Bases are one instanced mesh of the
+// Minis are the mini kind (#172). Figures are instanced batches by part (figures.ts, #266), their
+// colour and how much of them shows per instance, so figure draws follow the distinct figures on the
+// table, not the tokens, and hiding one (a screen-door see-through for the GM) compiles nothing.
+// Bases are one instanced mesh of the
 // base kind for every token (#265, base-layer.ts), each ring in its owner's colour.
 
 import * as THREE from 'three/webgpu';
@@ -19,27 +18,17 @@ import { STEP_HEIGHT, type Ground } from './ground';
 import type { Token } from '$lib/game/token';
 import { LabelLayer } from './label-layer';
 import { LABEL_HEIGHT } from './labels';
-import { createMaterial, withBake, type KindMaterial } from './materials';
-import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
+import { BASE_PROFILE } from './bases';
+import { FigureBatches } from './figures';
 import type { OverlayLayer } from './overlay';
-import { pickable } from './picking';
 import { standIn } from './warmup';
 
 interface Entry {
 	root: THREE.Group;
-	/** Torso and head, or the model: tipped over when the character has fallen. */
-	figure: THREE.Group;
-	/** The model it is drawn as, or null for the plain miniature; and what of it is drawn. */
-	model: string | null;
-	shows?: LoadedModel | null;
+	/** Tipped over: a fallen character (figures.ts draws the figure). */
 	fallen: boolean;
 	/** Hidden from the players: the GM sees it see-through. */
 	hidden: boolean;
-	/** The token's colour, which its coloured parts read (their `userData.miniColor`). */
-	colour: THREE.Color;
-	/** How much of the mini shows, which every part reads (its `userData.mini`). */
-	look: { opacity: number };
-	color: string;
 	from: THREE.Vector3;
 	to: THREE.Vector3;
 	/** 0..1 progress of the current move; 1 when at rest. */
@@ -55,9 +44,10 @@ const HOP_HEIGHT = 0.45;
 /** How much of a hidden token the GM sees. */
 const HIDDEN_OPACITY = 0.35;
 
-// Shared by every mini; sized for a 1-unit cell and scaled per grid.
-const bodyGeometry = withBake(new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24));
-const headGeometry = withBake(new THREE.SphereGeometry(0.19, 24, 16));
+/** The base's inner disc, where a figure stands (cell units, bases.ts). */
+const BASE_TOP = BASE_PROFILE[BASE_PROFILE.length - 1][1];
+const figure = new THREE.Matrix4();
+const scaled = new THREE.Matrix4();
 
 export class TokenLayer {
 	readonly group = new THREE.Group();
@@ -66,13 +56,8 @@ export class TokenLayer {
 	private selectedId: string | null = null;
 	/** Every token's base (#265): their rings follow the hover, the selection and the turn. */
 	readonly bases = new BaseLayer(this.group);
-	/** Every mini's materials (#172): figure bodies, and parts in the token's colour. */
-	private readonly materials = {
-		figure: createMaterial('mini', { vertexColors: true, params: { roughness: 0.6 } }),
-		coloured: createMaterial('mini')
-	};
-	/** A textured model part's own material (#188): its variant's, its maps in the slots. */
-	private readonly textured = new Map<ModelPart, KindMaterial>();
+	/** The figures, batched by part (#266). */
+	private readonly figures: FigureBatches;
 	/** Whose turn it is in a fight: an arrow over that mini. */
 	private activeId: string | null = null;
 	private readonly marker = new THREE.Mesh(
@@ -91,9 +76,10 @@ export class TokenLayer {
 	constructor(
 		/** Where labels, floats and the marker draw, untouched by post-processing. */
 		private readonly overlay: OverlayLayer,
-		private readonly onModel: () => void = () => {},
+		onModel: () => void = () => {},
 		private readonly clock: () => number = () => performance.now()
 	) {
+		this.figures = new FigureBatches(this.group, onModel);
 		this.marker.rotation.x = Math.PI; // point down at the mini
 		this.marker.visible = false;
 		this.marker.raycast = () => {};
@@ -125,34 +111,27 @@ export class TokenLayer {
 			const lift = (token.lift ?? 0) * STEP_HEIGHT * grid.cellSize;
 			const target = new THREE.Vector3(w.x, (ground?.floorY(token.pos) ?? w.y) + lift, w.z);
 			let entry = this.entries.get(token.id);
+			const created = !entry;
 			if (!entry) {
 				entry = this.create(token, target);
 				changed = true;
 			}
-			if (entry.color !== token.color) {
-				entry.colour.set(token.color);
-				entry.color = token.color;
-				changed = true;
-			}
-			if (entry.hidden !== (token.hidden === true)) {
-				entry.hidden = token.hidden === true;
-				entry.look.opacity = entry.hidden ? HIDDEN_OPACITY : 1;
-				changed = true;
-			}
-			if (entry.model !== (token.model ?? null)) {
-				this.dress(token.id, entry, token.model ?? null);
-				changed = true;
-			}
+			entry.hidden = token.hidden === true;
+			const opacity = entry.hidden ? HIDDEN_OPACITY : 1;
+			if (this.figures.set(token.id, token.model ?? null, token.color, opacity)) changed = true;
 			const size = grid.cellSize * (token.scale ?? 1);
-			if (entry.root.scale.x !== size) {
+			const resized = entry.root.scale.x !== size;
+			if (resized) {
 				entry.root.scale.setScalar(size);
 				changed = true;
 			}
+			if (created || resized) this.placeFigure(token.id, entry);
 			if (gridChanged || snap) {
 				entry.root.position.copy(target);
 				entry.from.copy(target);
 				entry.to.copy(target);
 				entry.t = 1;
+				this.placeFigure(token.id, entry);
 			} else if (!entry.to.equals(target)) {
 				const cells = entry.root.position.distanceTo(target) / grid.cellSize;
 				entry.from.copy(entry.root.position);
@@ -168,6 +147,7 @@ export class TokenLayer {
 		for (const [id, entry] of this.entries) {
 			if (seen.has(id)) continue;
 			this.group.remove(entry.root);
+			this.figures.remove(id);
 			this.entries.delete(id);
 			this.bases.remove(id);
 			changed = true;
@@ -216,13 +196,7 @@ export class TokenLayer {
 			const fallen = ids.has(id);
 			if (entry.fallen === fallen) continue;
 			entry.fallen = fallen;
-			// Tip the figure over sideways so it lies on its base.
-			entry.figure.rotation.z = fallen ? Math.PI / 2 : 0;
-			entry.figure.position.set(
-				fallen ? 0.38 * FIGURE_SCALE : 0,
-				fallen ? 0.28 * FIGURE_SCALE : 0,
-				0
-			);
+			this.placeFigure(id, entry);
 			changed = true;
 		}
 		return changed;
@@ -244,6 +218,7 @@ export class TokenLayer {
 			entry.root.position.y +=
 				Math.sin(Math.PI * entry.t) * HOP_HEIGHT * (this.grid?.cellSize ?? 1);
 			this.bases.place(id, entry.root.position, entry.root.scale.x, entry.hidden);
+			this.placeFigure(id, entry);
 			placed = true;
 			if (entry.t < 1) moving = true;
 		}
@@ -257,6 +232,8 @@ export class TokenLayer {
 	pick(raycaster: THREE.Raycaster): string | null {
 		const hit = raycaster.intersectObject(this.group, true)[0];
 		if (hit?.object === this.bases.mesh) return this.bases.owner(hit.instanceId);
+		const figure = hit && this.figures.tokenOf(hit);
+		if (figure) return figure;
 		for (let o: THREE.Object3D | null = hit?.object ?? null; o; o = o.parent) {
 			if (typeof o.userData.tokenId === 'string') return o.userData.tokenId;
 		}
@@ -277,8 +254,7 @@ export class TokenLayer {
 	dispose(): void {
 		this.labels.dispose();
 		this.entries.clear();
-		for (const m of [...Object.values(this.materials), ...this.textured.values()]) m.dispose();
-		this.textured.clear();
+		this.figures.dispose();
 		this.bases.dispose();
 		this.marker.removeFromParent();
 		this.marker.geometry.dispose();
@@ -288,23 +264,13 @@ export class TokenLayer {
 	private create(token: Token, at: THREE.Vector3): Entry {
 		const root = new THREE.Group();
 		root.userData.tokenId = token.id;
-		const look = { opacity: 1 };
-
-		const figure = new THREE.Group();
-		figure.scale.setScalar(FIGURE_SCALE);
-		root.add(figure);
 		root.position.copy(at);
 		this.group.add(root);
 
 		const entry: Entry = {
 			root,
-			figure,
-			model: null,
 			fallen: false,
 			hidden: false,
-			colour: new THREE.Color(token.color),
-			look,
-			color: token.color,
 			from: at.clone(),
 			to: at.clone(),
 			t: 1,
@@ -312,63 +278,21 @@ export class TokenLayer {
 			duration: 0
 		};
 		this.entries.set(token.id, entry);
-		this.dress(token.id, entry, token.model ?? null);
 		return entry;
 	}
 
-	/** Draws the mini as `model` if loaded, else as the plain miniature until `model` arrives. */
-	private dress(tokenId: string, entry: Entry, model: string | null): void {
-		entry.model = model;
-		entry.figure.clear();
-		const was = entry.shows;
-		const loaded = (entry.shows = model ? modelNow(model) : null);
-		// A preview nobody shows any more frees its textured materials (#192).
-		if (was?.preview && was !== loaded && ![...this.entries.values()].some((e) => e.shows === was))
-			for (const part of was.parts) {
-				this.textured.get(part)?.dispose();
-				this.textured.delete(part);
-			}
-		const add = (geo: THREE.BufferGeometry, coloured: boolean, y: number, part?: ModelPart) => {
-			const { figure, coloured: tinted } = this.materials;
-			const material = this.materialOf(part) ?? (coloured ? tinted : figure);
-			const mesh = pickable(new THREE.Mesh(geo, material));
-			mesh.userData.mini = entry.look;
-			if (coloured) mesh.userData.miniColor = entry.colour;
-			mesh.position.y = y;
-			mesh.castShadow = mesh.receiveShadow = true;
-			entry.figure.add(mesh);
-		};
-		if (loaded) {
-			// Figures stand on the base.
-			for (const part of partsOf(loaded, 'body')) add(part.geometry, false, 0.08, part);
-			for (const part of partsOf(loaded, 'accent')) add(part.geometry, true, 0.08, part);
-		} else {
-			add(bodyGeometry, true, 0.08 + 0.31);
-			add(headGeometry, true, 0.08 + 0.62 + 0.14);
-		}
-		// Still coming (or only its preview is here): drawn again at each stage.
-		if (model && (loaded === undefined || loaded?.preview)) {
-			const redraw = () => {
-				const now = modelNow(model);
-				if (this.entries.get(tokenId) !== entry || entry.model !== model || now === entry.shows)
-					return;
-				this.dress(tokenId, entry, model);
-				this.onModel();
-			};
-			void loadModel(model, redraw).then(redraw);
-		}
-	}
-
-	/** A textured part's material, made once (figure bodies take their vertex colours too). */
-	private materialOf(part: ModelPart | undefined): KindMaterial | null {
-		if (!part?.maps) return null;
-		let material = this.textured.get(part);
-		if (!material) {
-			const vertexColors = part.role !== 'accent';
-			material = createMaterial('mini', { vertexColors, params: part.params, slots: part.maps });
-			this.textured.set(part, material);
-		}
-		return material;
+	/**
+	 * Puts a token's figure where its root is: standing on the base's inner disc, or tipped over
+	 * sideways onto the base when fallen. Root is in the layer's group, as the batches are.
+	 */
+	private placeFigure(id: string, entry: Entry): void {
+		const { root } = entry;
+		root.updateMatrix();
+		const f = FIGURE_SCALE;
+		figure.makeRotationZ(entry.fallen ? Math.PI / 2 : 0);
+		figure.setPosition(entry.fallen ? 0.38 * f : 0, entry.fallen ? 0.28 * f : 0, 0);
+		figure.multiply(scaled.makeScale(f, f, f)).multiply(scaled.makeTranslation(0, BASE_TOP / f, 0));
+		this.figures.place(id, figure.premultiply(root.matrix));
 	}
 
 	/** Keeps the turn arrow over the active mini, even mid-move. */

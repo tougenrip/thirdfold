@@ -18,6 +18,7 @@ import {
 	TINT_ATTRIBUTE,
 	withBake
 } from './materials';
+import { loadModel } from './models';
 import { OverlayLayer } from './overlay';
 import { PropLayer } from './props';
 import { WorldGround } from './landscape';
@@ -137,6 +138,41 @@ describe('the layers on the shader kinds', () => {
 		m.tabletop.setTokens(many(30));
 		await drawn();
 		expect(counts()).toEqual(one);
+	});
+});
+
+describe('the figure batches (#266)', () => {
+	it('draw as many calls for 4, 20 and 60 tokens over four figures, shadows too', async () => {
+		const sidecar = await loadSidecar('test-world');
+		const view = await loadView('test-world', sidecar.ambient, 'gm');
+		const clock = manualClock();
+		const m = await mountFixture(view, sidecar.poses.overview, { clock });
+		mounted = m;
+		const figures = ['warden', 'hound', 'elder', 'pulsing-mass'];
+		await Promise.all(figures.map((id) => loadModel(id)));
+		const [first] = view.tokens;
+		const { width, height } = view.grid;
+		const draws = async (n: number) => {
+			m.tabletop.setTokens(
+				Array.from({ length: n }, (_, i) => ({
+					...first,
+					id: `mini-${i}`,
+					model: figures[i % figures.length],
+					hidden: i % 7 === 3 ? (true as const) : undefined,
+					pos: { x: (i * 3) % width, y: Math.floor((i * 3) / width) % height }
+				}))
+			);
+			clock.set(clock.now() + 30_000);
+			await settle(m.tabletop, 400, 30_000);
+			const { steady, shadowed } = await m.tabletop.layers();
+			const of = (r: typeof steady) =>
+				Object.values(r.passes).reduce((sum, layers) => sum + (layers.figures?.draws ?? 0), 0);
+			return [of(steady), of(shadowed)];
+		};
+		const four = await draws(4);
+		expect(four[0]).toBeGreaterThan(0);
+		expect(await draws(20)).toEqual(four);
+		expect(await draws(60)).toEqual(four);
 	});
 });
 

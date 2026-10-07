@@ -312,8 +312,9 @@ export async function parseModel(entry: ModelEntry, bytes: ArrayBuffer): Promise
 			let group = groups.get(key);
 			if (!group) groups.set(key, (group = { part: { ...role, ...lookOf(material) }, pieces: [] }));
 			const piece = uniform(o.geometry).applyMatrix4(o.matrixWorld);
-			// An accent takes the token's colour: without vertex colours it matches the plain mini.
-			if (role.role === 'accent') piece.deleteAttribute('color');
+			// An accent takes the token's colour: its vertex colours white, as the plain mini's, so
+			// every figure part has one attribute layout and one program (#266).
+			if (role.role === 'accent') (piece.getAttribute('color').array as Float32Array).fill(1);
 			group.pieces.push(piece);
 		}
 		(o.geometry as THREE.BufferGeometry).dispose();
@@ -323,7 +324,7 @@ export async function parseModel(entry: ModelEntry, bytes: ArrayBuffer): Promise
 		if (o instanceof THREE.Mesh) [o.material].flat().forEach((m: THREE.Material) => m.dispose());
 	});
 	const parts = [...groups.values()].map(({ part, pieces }) => {
-		const geometry = merge(pieces);
+		const geometry = mergeParts(pieces);
 		geometry.computeBoundingSphere();
 		return { ...part, geometry };
 	});
@@ -385,7 +386,7 @@ function floats(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttrib
 }
 
 /** Pieces of one attribute set as one geometry (BufferGeometryUtils would outgrow the chunk). */
-function merge(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
+export function mergeParts(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
 	if (pieces.length === 1) return pieces[0];
 	const out = new THREE.BufferGeometry();
 	for (const [name, { itemSize }] of Object.entries(pieces[0].attributes)) {

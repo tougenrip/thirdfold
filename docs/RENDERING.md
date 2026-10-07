@@ -2992,6 +2992,62 @@ turns up (on the d4, down), as an index into `DIE_LABELS`. The program-count swe
 one die of every other kind, then lets them fade, on every tier; a throw and a fade change no
 program.
 
+## Figures (milestone 71, #266)
+
+Token figures are instanced batches (`src/lib/tabletop/figures.ts`), so their draws follow the
+distinct figures on the table, not the tokens: crowd-60's sixteen figures on 60 tokens draw 32
+batches a pass whatever the crowd's size.
+
+- **Batches.** `FigureBatches` keeps one `Batch` per figure part: each `body` and `accent` part of
+  a model at level 0, and the plain miniature (torso and head merged once, `plainGeometry`, under
+  `'plain'`). A batch is an InstancedMesh of a copy of the part's geometry (the model keeps its own,
+  props draw it too) with at least `PIECE_MIN` (1,025) instances, as the kit pools (piece.ts), so
+  its matrices are a vertex attribute and making a batch, or making it again half as large again
+  when it outgrows its pool, compiles nothing. A batch left empty is freed with its copy (and a
+  textured part's own material); a model's preview giving way to the model frees the preview's.
+- **Slots.** `Slots` is the swap-remove allocator: ids packed in `owners[0..size)`, `slotOf` by id;
+  a removal moves the last instance's matrix, paint and tint into the freed slot. A model change, a
+  placeholder or preview giving way when `loadModel` resolves, is a removal and an add. The same
+  allocator is meant for poses (#273) and LODs (#274); bases (#265, base-layer.ts) keep their own
+  for now.
+- **Per instance.** The matrix (the token's root, then standing on the base's inner disc,
+  `BASE_TOP` from #265's `BASE_PROFILE`, or tipped over when fallen, `TokenLayer.placeFigure`),
+  written only for tokens that moved, with `addUpdateRange`; a
+  batch whose instances moved drops its bounding sphere, which culling and raycasts compute again
+  when next asked. The paint (`PAINT_ATTRIBUTE` `aPaint`, vec4 on figures; props keep their vec3):
+  rgb the tint (white on a vertex-coloured body, the token's colour on an accent, the plain
+  miniature and a textured part, which #267 lays only where its ORM alpha masks it), w how
+  much shows (1, or `HIDDEN_OPACITY` 0.35 for a GM-hidden token). The tint (`TINT_ATTRIBUTE`
+  `aTint`, vec4, 0) is the instanced kinds' glow, kept for #267's rim and hover. Not three's
+  `instanceColor`: the node material multiplies the whole colour by it.
+- **Variants.** Figures are the mini kind's `instanced` variant: `ownAlbedo` and `ownOutput`
+  (hooks.ts) read the paint's rgb and w per instance where the plain variant reads the per-object
+  `miniColour` and `miniOpacity` (the turntable's and the warm-up's plain minis). The
+  hidden ghost is the same hashed see-through (`ownOutput`'s discard), never `transparent`, so
+  hiding and unhiding change a paint only. Part lists, accents and the plain miniature share one
+  material (`vertexColors`); a textured part has its own material with its maps in the slots,
+  `vertexColors` off (#267 keys its look on that). `models.ts` gives an accent white vertex
+  colours instead of deleting them, so every part has one attribute layout: position, normal, uv,
+  colour, the bake, the paint, the tint and the matrix, eight of WebGPU's eight vertex buffers.
+  The warm-up gallery's instanced minis are figure-shaped (pool-sized, vec4 paint and tint).
+- **Picking.** `TokenLayer.pick` raycasts the layer's group; a hit on a batch is
+  `owners[hit.instanceId]` (`FigureBatches.tokenOf`), as a hit on the bases is theirs (#265).
+- **Secrecy.** Only tokens passed to `sync` have instances, so a player's batches hold only what
+  the player was sent; a GM-hidden token is not sent to players at all.
+
+Draws on crowd-60 (RTX 4060 Laptop, medium, the GM's overview, `LAYERS=1`, the frame with the
+sun's shadow redrawn): figures 360 → 96 (two meshes a token in three passes, now 32 batches in the
+shadow, prepass and scene passes), the same on WebGL2 and WebGPU. With #265's bases (3) the frame
+is 642 → 201 draws (steady 462 → 168) against c6494d1, and with #268's labels 143 (steady 110).
+`kind-layers.svelte.spec.ts` holds it: 4, 20 and 60 tokens over four figures draw the same figure
+calls, shadows too.
+
+Tests: `figures.spec.ts` (Node, no GPU: the slots, 200 random adds, removes, recolours, hides and
+model changes with every batch checked after each, growth past the pool, hiding by paint alone, a
+late model replacing the placeholder, picking mid-move), `kind-layers.svelte.spec.ts` (the draws,
+eight buffers), `program-count.svelte.spec.ts` (a token hidden, unhidden, a figure nobody wore
+arriving, every token wearing it) and `models.svelte.spec.ts` (a batch draws a copy of the part).
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
