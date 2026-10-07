@@ -10,7 +10,8 @@
 // Slots are a swap-remove allocator (`Slots`): a removal moves the last instance into the freed
 // slot, so a batch's instances are always its first `count`. A model change, or a placeholder or
 // preview giving way when the model arrives, is a removal and an add; a batch left empty is freed
-// with its geometry copy and, for a textured part, its material.
+// with its geometry copy, but a textured part's is kept (empty, drawing nothing) until the batches
+// go, so its program stays.
 //
 // Poses (#273): a model's `body_pose<n>` parts are parts like any other, so a figure in a pose is
 // an instance in that part's batch; a pose change is a removal and an add, never a geometry swap
@@ -120,10 +121,14 @@ export class Batch {
 		this.mesh = this.make(source.clone(), PIECE_MIN);
 	}
 
+	/** Kept when empty (a textured part of a full model, #276): its program would go with it. */
+	keep = false;
+
 	add(id: string, matrix: THREE.Matrix4, paint: readonly number[]): void {
 		if (this.slots.size >= this.mesh.instanceMatrix.count) this.grow();
 		const i = this.slots.add(id);
 		this.mesh.count = this.slots.size;
+		this.mesh.visible = true;
 		this.setMatrix(id, matrix);
 		this.setPaint(id, paint);
 		this.tints.array.fill(0, i * 4, i * 4 + 4);
@@ -145,6 +150,8 @@ export class Batch {
 			}
 		}
 		this.mesh.count = this.slots.size;
+		// An empty batch kept for its program draws nothing, not even an empty call.
+		this.mesh.visible = this.slots.size > 0;
 		this.mesh.boundingSphere = null;
 	}
 
@@ -426,7 +433,7 @@ export class FigureBatches {
 			: [PLAIN];
 		const shadow = proxy ? 'proxy' : model && levelsOf(model) ? 'none' : 'cast';
 		return parts.map((part) => {
-			const batch = this.batchOf(part as ModelPart | typeof PLAIN, shadow);
+			const batch = this.batchOf(part as ModelPart | typeof PLAIN, shadow, !model?.preview);
 			batch.add(id, figure.matrix, paintOf(batch, figure));
 			return batch;
 		});
@@ -439,18 +446,23 @@ export class FigureBatches {
 		figure.proxies = [];
 	}
 
-	/** Takes `id` out of `batches`, freeing any left empty (a preview's part may never come back). */
+	/**
+	 * Takes `id` out of `batches`, freeing any left empty (a preview's part may never come back),
+	 * but a full model's textured part's (#276, `keep`): its program is its own, and freeing the
+	 * last would drop it, so the next figure of that model (another level, pose or token) would
+	 * compile it again. Kept, it hides, drawing nothing.
+	 */
 	private leave(id: string, batches: readonly Batch[]): void {
 		for (const b of batches) {
 			b.remove(id);
-			if (b.slots.size > 0) continue;
+			if (b.slots.size > 0 || b.keep) continue;
 			b.dispose();
 			const map: Map<unknown, Batch> = b.shadow === 'proxy' ? this.proxies : this.batches;
 			for (const [key, other] of map) if (other === b) map.delete(key);
 		}
 	}
 
-	private batchOf(part: ModelPart | typeof PLAIN, shadow: Batch['shadow']): Batch {
+	private batchOf(part: ModelPart | typeof PLAIN, shadow: Batch['shadow'], full: boolean): Batch {
 		const map: Map<ModelPart | typeof PLAIN, Batch> =
 			shadow === 'proxy' ? this.proxies : this.batches;
 		let batch = map.get(part);
@@ -464,6 +476,7 @@ export class FigureBatches {
 				slots: part.maps
 			});
 			batch = new Batch(part.geometry, material, roleOf(part), true, group, shadow);
+			batch.keep = full;
 		} else batch = new Batch(part.geometry, this.painted, roleOf(part), false, group, shadow);
 		map.set(part, batch);
 		return batch;

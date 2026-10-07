@@ -139,7 +139,9 @@ describe('the layers on the shader kinds', () => {
 		m.tabletop.setTokens(many(30));
 		await drawn();
 		expect(counts()).toEqual(one);
-	});
+		// The first in the file pays the test world's compiles, its cooked minis' levels among them
+		// (#276): about 80 s alone on SwiftShader, past 120 s with another run beside it.
+	}, 240_000);
 });
 
 describe('the figure batches (#266)', () => {
@@ -172,8 +174,11 @@ describe('the figure batches (#266)', () => {
 		};
 		const four = await draws(4);
 		expect(four[0]).toBeGreaterThan(0);
-		expect(await draws(20)).toEqual(four);
-		expect(await draws(60)).toEqual(four);
+		// The warden is cooked with two coarser levels (#276): where tokens stand far enough off, each
+		// level is a batch of its own (#274), a call more in each pass, and never more than that.
+		const within = (n: number[]) => n.every((d, i) => d >= four[i] && d <= four[i] + 2);
+		expect(within(await draws(20))).toBe(true);
+		expect(within(await draws(60))).toBe(true);
 		// Longer than the rest: on SwiftShader the test world's props with levels compile their
 		// pool-sized variant and shadow proxies at load (#274), which put it at about 130 s in this file.
 	}, 240_000);
