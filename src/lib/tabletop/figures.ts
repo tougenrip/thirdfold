@@ -10,8 +10,9 @@
 // Slots are a swap-remove allocator (`Slots`): a removal moves the last instance into the freed
 // slot, so a batch's instances are always its first `count`. A model change, or a placeholder or
 // preview giving way when the model arrives, is a removal and an add; a batch left empty is freed
-// with its geometry copy, but a textured part's is kept (empty, drawing nothing) until the batches
-// go, so its program stays.
+// with its geometry copy only if it is a preview's; any other is kept (empty, drawing nothing)
+// until the batches go, so its program stays: a textured part's is its own, and the part lists'
+// and the plain miniature's shared one goes with the last of them (a table of textured minis only).
 //
 // Poses (#273): a model's `body_pose<n>` parts are parts like any other, so a figure in a pose is
 // an instance in that part's batch; a pose change is a removal and an add, never a geometry swap
@@ -121,7 +122,7 @@ export class Batch {
 		this.mesh = this.make(source.clone(), PIECE_MIN);
 	}
 
-	/** Kept when empty (a textured part of a full model, #276): its program would go with it. */
+	/** Kept when empty (any but a preview's part, #276): its program would go with it. */
 	keep = false;
 
 	add(id: string, matrix: THREE.Matrix4, paint: readonly number[]): void {
@@ -447,9 +448,9 @@ export class FigureBatches {
 	}
 
 	/**
-	 * Takes `id` out of `batches`, freeing any left empty (a preview's part may never come back),
-	 * but a full model's textured part's (#276, `keep`): its program is its own, and freeing the
-	 * last would drop it, so the next figure of that model (another level, pose or token) would
+	 * Takes `id` out of `batches`, freeing a preview's left empty (its part may never come back),
+	 * but keeping any other (#276, `keep`): freeing the last user of a program drops it (a textured
+	 * part's own, or the painted one when a table has only textured minis), so the next figure would
 	 * compile it again. Kept, it hides, drawing nothing.
 	 */
 	private leave(id: string, batches: readonly Batch[]): void {
@@ -476,8 +477,8 @@ export class FigureBatches {
 				slots: part.maps
 			});
 			batch = new Batch(part.geometry, material, roleOf(part), true, group, shadow);
-			batch.keep = full;
 		} else batch = new Batch(part.geometry, this.painted, roleOf(part), false, group, shadow);
+		batch.keep = full;
 		map.set(part, batch);
 		return batch;
 	}
