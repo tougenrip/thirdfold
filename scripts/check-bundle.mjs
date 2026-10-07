@@ -113,8 +113,10 @@ const BUDGETS = {
 	// variant; three's BatchedMesh and batch.ts gone, about 4.3 kB); 399.5 kB measured.
 	// → 399.8: warm-ups at the draw depth (warmup.ts, DrawDepths and unlit); 399.7 kB measured.
 	// → 400.0: still texture reads leave WebGL2's update lists (materials/still-textures.ts, the
-	// orbit's main thread 18.6 → 10 ms); 399,836 B measured.
-	renderer: { total: 400_000 },
+	// orbit's main thread 18.6 → 10 ms); 399,836 B measured. → 400.3: dice as PBR sets (#275: one
+	// InstancedMesh per kind, the dice material's clearcoat, bump and alpha hash, the atlas's UVs; the
+	// per-die decal canvases and pips gone); 400.2 kB measured.
+	renderer: { total: 400_300 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

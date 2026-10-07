@@ -135,7 +135,6 @@ export async function createTabletop(
 	void labelFontReady.then(() => {
 		if (disposed) return;
 		tokenLayer.relabel();
-		diceLayer.clearLabels();
 		requestRender();
 	});
 	let [levels, ground]: [Uint8Array | null, Ground | null] = [null, null];
@@ -477,7 +476,7 @@ export async function createTabletop(
 			quality.set(settings, refine);
 			post.set(settings);
 			atmosphere.setTier(settings.tier, settings.layers.sky);
-			for (const l of [land, worldLayer]) l.setTier(settings.tier);
+			for (const l of [land, worldLayer, diceLayer]) l.setTier(settings.tier); // dice: #275
 			cloud.setLayer(settings.layers.fogcloud, settings.tier === 'low');
 			refreshLighting(); // shows or hides the cloud
 			const remade = [land, worldLayer, wallLayer].map((l) => l.setAntiTiled(settings.antiTile));

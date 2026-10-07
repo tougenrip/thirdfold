@@ -9479,6 +9479,24 @@
 				}
 			]
 		},
+		"dice-numerals": {
+			"file": "textures/dice-numerals.70bec05e.png",
+			"sha256": "70bec05e8d88da996b91116ea149bd1bee59634f10154848753f64bacb9cfb78",
+			"bytes": 11662,
+			"format": "png",
+			"usage": "mask",
+			"colorSpace": "linear",
+			"width": 512,
+			"height": 512,
+			"layers": 1,
+			"levels": 1,
+			"gpuBytes": 1398102,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
 		"earth": {
 			"file": "textures/earth.f2e9e1dd.png",
 			"sha256": "f2e9e1dd1407a10fe30abe599f61be0b3af095d64070fd8ebfbfce4974e0bafe",
@@ -15449,8 +15467,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 13314357,
-			"gpuBytes": 35595487
+			"bytes": 13326019,
+			"gpuBytes": 36993589
 		},
 		"ghost-town": {
 			"bytes": 104095,

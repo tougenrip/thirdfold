@@ -8,7 +8,7 @@ import * as THREE from 'three/webgpu';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeMask, type FogView } from '$lib/game/visibility';
 import { CellMaps } from './cell-maps';
-import { dieMaterial } from './dice3d';
+import { DICE_SHOWN } from './materials/dice';
 import { advanceNodeFrame, createNodeRenderer } from './loop';
 import { GridOverlay } from './grid-overlay';
 import { OverlayLayer } from './overlay';
@@ -391,7 +391,10 @@ describe('the overlay', () => {
 	it('shows dice thrown over a cell the fog hides', async () => {
 		// The west half hidden; a die's material there, glowing white, and the plain world's.
 		westHidden();
-		const die = plane(0, 0.1, dieMaterial({ emissive: 0xffffff }));
+		// The dice material's own mrt (materials/dice.ts) on a glowing white plane.
+		const glowing = new THREE.MeshStandardNodeMaterial({ emissive: 0xffffff });
+		glowing.mrtNode = DICE_SHOWN;
+		const die = plane(0, 0.1, glowing);
 		die.scale.setScalar(0.1);
 		die.position.x = -1.5;
 		const world = plane(0, 0.1, new THREE.MeshBasicMaterial({ color: 0xffffff }));

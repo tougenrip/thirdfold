@@ -602,8 +602,18 @@ function lightSteps(m: Mounted, home: FixtureView, scene: THREE.Scene, tier: Tie
 	];
 }
 
-/** A roll to throw: a d20 showing its last face. */
-const THROW = { seq: 1, dice: [{ kind: 'd20' as const, face: 19 }], color: '#8a2f24' };
+/**
+ * A roll to throw: a d20 showing its last face and one die of every other kind (#275: each kind its
+ * own InstancedMesh on the one dice material, which the warm-up's d6 stand-in compiles).
+ */
+const THROW = {
+	seq: 1,
+	dice: (['d20', 'd4', 'd6', 'd8', 'd10', 'd12', 'd100tens', 'd100units'] as const).map((kind) => ({
+		kind,
+		face: kind === 'd20' ? 19 : 0
+	})),
+	color: '#8a2f24'
+};
 
 async function mountHome(tier: Tier, reducedMotion = true) {
 	const { view: home, sidecar } = await viewOf(HOME);
