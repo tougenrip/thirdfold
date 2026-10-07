@@ -27,7 +27,8 @@ const BUDGETS = {
 	// → 100.0: the manifest's kits and their parser with the roles' envelopes (kit.ts, #250), 99.9 kB
 	// measured. → 100.3: the shared chunk after roof fades (#259: Tabletop.setOwnTokens), just over
 	// 100.0 kB measured.
-	'/builder': { total: 100_300, own: 52_000 },
+	// → 100.6: EnemyDef.scale and the builder's size field (#270), the manifest's poses (#273).
+	'/builder': { total: 100_600, own: 52_000 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured.
 	// → 55.0: the manifest's `miniBase` (#265); 54.8 kB measured.
 	'/credits': { total: 55_000, own: 3_000 },
@@ -35,7 +36,8 @@ const BUDGETS = {
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
 	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
-	'/dev/assets': { total: 52_900, own: 500 },
+	// → 53.0: a figure's poses in the manifest (#273, `readPoses`); 52,925 B measured.
+	'/dev/assets': { total: 53_000, own: 500 },
 	'/library': { total: 66_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
@@ -123,8 +125,9 @@ const BUDGETS = {
 	// measured.
 	// → 405.0: token figures as instanced batches (#266, figures.ts: the swap-remove slots, the merged
 	// plain miniature); 404.7 kB measured. → 405.2: large creatures' bases (#270: a base mesh per
-	// size, the shrink rule, base picking by its centre disc); 405.1 kB measured.
-	renderer: { total: 405_200 },
+	// size, the shrink rule, base picking by its centre disc); 405.1 kB measured. → static poses (#273: `poseOf`, the
+	// pose in the figure batches and the fall it stands in for); 405.5 kB measured after the merge.
+	renderer: { total: 405_600 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

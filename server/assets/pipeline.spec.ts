@@ -308,6 +308,37 @@ describe('the pipeline on other sources', () => {
 		await expect(buildAssets(src)).rejects.toThrow(/golem\.glb: extension X is not allowed/);
 	});
 
+	it("builds a mini's static poses from its meta.json, and refuses poses it can't place (#273)", async () => {
+		const src = sources();
+		const tri = (name: string) => ({
+			name,
+			positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+			normals: null,
+			colors: null,
+			indices: new Uint16Array([0, 1, 2])
+		});
+		const dir = path.join(src, 'models', 'character');
+		const provenance = { license: 'LicenseRef-thirdfold-original', author: 'us', modified: false };
+		const put = (meshes: string[], meta: object) => {
+			writeFileSync(path.join(dir, 'poser.glb'), writeGlb(meshes.map(tri)));
+			writeFileSync(path.join(dir, 'poser.meta.json'), JSON.stringify({ provenance, ...meta }));
+		};
+		put(['body', 'body_pose1'], { poses: { downed: 1 } });
+		expect((await buildAssets(src)).manifest.models.poser).toMatchObject({
+			kind: 'character',
+			triangles: 1,
+			poses: { downed: 1 }
+		});
+		put(['body', 'body_pose1'], {});
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: poses: .*\(1\) is for/);
+		put(['body', 'body_pose1'], { poses: { downed: 2 } });
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: poses/);
+		put(['body', 'body_pose1'], { poses: { casting: 1 } });
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: poses/);
+		put(['body', 'body_pose1', 'accent'], { poses: { downed: 1 } });
+		await expect(buildAssets(src)).rejects.toThrow(/poser\.glb: a model with poses has no accent/);
+	});
+
 	it('builds a KTX2 texture checked against its usage', async () => {
 		const src = sources();
 		cpSync('tests/fixtures/assets/checker.ktx2', path.join(src, 'textures', 'checker.ktx2'));

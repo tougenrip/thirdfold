@@ -22,6 +22,7 @@ import {
 	USAGE_SPACE,
 	VARIANT_PX,
 	limitClass,
+	readPoses,
 	variantId,
 	type Credit,
 	type EnvironmentDef,
@@ -299,6 +300,12 @@ function readModel(
 			throw new Invalid(`${what}: bad swing`);
 		}
 		entry.swing = { pivot: s.pivot, throw: s.throw };
+	}
+	if (v.poses !== undefined) {
+		// A figure's only; the file holds them (the pipeline checked), so any of 1-3 here.
+		const poses = kind === 'prop' ? null : readPoses(v.poses, [1, 2, 3]);
+		if (!poses) throw new Invalid(`${what}: bad poses`);
+		entry.poses = poses;
 	}
 	if (v.lods !== undefined) {
 		// Each level coarser than the one before, and drawn smaller.

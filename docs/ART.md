@@ -213,6 +213,13 @@ chooses (#187).
 ## 7. Minis
 
 - Static poses, no animation. No base: the engine draws it.
+- **Pose variants** (#273): besides the standing `body`, up to three whole sculpts named
+  `body_pose1` to `body_pose3` (underscores, not dots), each its own pose on the same origin and
+  base, within the same triangle budget. Commissions deliver a **downed** pose (lying or slumped on
+  the base, inside its circle), optionally an **active** one (a readied stance for its turn); the
+  art folder's `meta.json` says which is which: `"poses": { "downed": 1, "active": 2 }`. A posed
+  mini has no `accent` mesh: it tints through the mask below. Details in docs/ASSETS.md, "Static
+  poses for minis".
 - Origin at the centre of the base's top face, facing +Z.
 - Stay inside the base's circle, except weapons and cloaks by at most 0.1 u.
 - LOD0 3,000-6,000 triangles for a 1-cell mini; the figure class allows more for hero figures.

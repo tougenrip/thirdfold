@@ -15,6 +15,7 @@ import {
 	loadModel,
 	lodFor,
 	modelNow,
+	parseModel,
 	partsOf,
 	prefetch,
 	releaseModels,
@@ -127,10 +128,12 @@ async function round(): Promise<{ model: LoadedModel; drawn: THREE.Mesh[]; freed
 
 describe('the model loader', () => {
 	it('reads roles and levels from mesh names as GLTFLoader makes them', () => {
-		expect(roleOf('body')).toEqual({ role: 'body', lod: 0 });
-		expect(roleOf('body_1')).toEqual({ role: 'body', lod: 0 });
-		expect(roleOf('swing_lod2')).toEqual({ role: 'swing', lod: 2 });
-		expect(roleOf('accent_lod1_3')).toEqual({ role: 'accent', lod: 1 });
+		expect(roleOf('body')).toEqual({ role: 'body', lod: 0, pose: 0 });
+		expect(roleOf('body_1')).toEqual({ role: 'body', lod: 0, pose: 0 });
+		expect(roleOf('swing_lod2')).toEqual({ role: 'swing', lod: 2, pose: 0 });
+		expect(roleOf('accent_lod1_3')).toEqual({ role: 'accent', lod: 1, pose: 0 });
+		expect(roleOf('body_pose2_lod1_1')).toEqual({ role: 'body', lod: 1, pose: 2 });
+		expect(roleOf('swing_pose1')).toBeNull();
 		expect(roleOf('body001')).toBeNull();
 		expect(roleOf('handle')).toBeNull();
 		const lods = [
@@ -139,6 +142,44 @@ describe('the model loader', () => {
 		];
 		expect([0.5, 0.2, 0.05].map((s) => lodFor(lods, s))).toEqual([0, 1, 2]);
 		expect(lodFor(undefined, 0.01)).toBe(0);
+	});
+
+	it('loads static poses by their underscore names; a dotted name is lost to sanitising (#273)', async () => {
+		// One triangle per mesh, in a glTF of JSON with its buffer inline.
+		const bytes = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+		const names = ['body', 'body_pose1', 'body_pose1_lod1', 'body.pose2'];
+		const gltf = {
+			asset: { version: '2.0' },
+			buffers: [
+				{
+					byteLength: 36,
+					uri: `data:application/octet-stream;base64,${btoa(String.fromCharCode(...new Uint8Array(bytes.buffer)))}`
+				}
+			],
+			bufferViews: [{ buffer: 0, byteLength: 36 }],
+			accessors: [
+				{
+					bufferView: 0,
+					componentType: 5126,
+					count: 3,
+					type: 'VEC3',
+					min: [0, 0, 0],
+					max: [1, 1, 0]
+				}
+			],
+			meshes: names.map((name) => ({ name, primitives: [{ attributes: { POSITION: 0 } }] })),
+			nodes: names.map((name, mesh) => ({ name, mesh })),
+			scenes: [{ nodes: names.map((_, i) => i) }],
+			scene: 0
+		};
+		const data = new TextEncoder().encode(JSON.stringify(gltf)).buffer as ArrayBuffer;
+		const lods = [{ triangles: 1, screenSize: 0.2 }];
+		const model = await parseModel({ lods } as unknown as ModelEntry, data);
+		const shapes = model.parts.map((p) => `${p.role}:${p.pose}:${p.lod}`).sort();
+		// `body.pose2` arrives as `bodypose2`, which isn't a role: hence underscores only.
+		expect(shapes).toEqual(['body:0:0', 'body:1:0', 'body:1:1']);
+		expect(partsOf(model, 'body', 1, 1)).toHaveLength(1);
+		for (const p of model.parts) p.geometry.dispose();
 	});
 
 	it("keeps a part list's baked occlusion (#190)", async () => {

@@ -178,6 +178,8 @@ export interface GlbInfo {
 	triangles: number;
 	/** Triangles at LOD1 and LOD2, when the model has them. */
 	lods: number[];
+	/** The static poses it carries (`body_pose<n>`, #273), rising; [] for none. */
+	poses: number[];
 	/** Around every vertex, through the node transforms. */
 	bounds: { min: [number, number, number]; max: [number, number, number] };
 	textures: Ktx2Info[];
@@ -205,6 +207,7 @@ const io = () =>
 	));
 
 const LOD = /_lod(\d)$/;
+const POSE = /_pose(\d)/;
 const COOKED = new Set(['EXT_meshopt_compression', 'KHR_texture_basisu']);
 
 /** Whether `data` is a model within `limit` (its class's; a prop's by default), and what it holds. */
@@ -245,6 +248,8 @@ export async function checkGlb(data: Uint8Array, limit: Limit = LIMITS.prop): Pr
 	const root = doc.getRoot();
 	const meshes: string[] = [];
 	const levels = [0, 0, 0];
+	// A pose is drawn instead of the body, not beside it: each (pose, level) is held to the limit.
+	const posed = new Map<string, number>();
 	const min: [number, number, number] = [Infinity, Infinity, Infinity];
 	const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
 	const p = [0, 0, 0];
@@ -253,6 +258,7 @@ export async function checkGlb(data: Uint8Array, limit: Limit = LIMITS.prop): Pr
 		if (!mesh) continue;
 		meshes.push(node.getName());
 		const lod = Number(LOD.exec(mesh.getName())?.[1] ?? 0);
+		const pose = Number(POSE.exec(mesh.getName())?.[1] ?? 0);
 		const m = node.getWorldMatrix();
 		for (const prim of mesh.listPrimitives()) {
 			const position = prim.getAttribute('POSITION')!;
@@ -264,7 +270,8 @@ export async function checkGlb(data: Uint8Array, limit: Limit = LIMITS.prop): Pr
 			for (let i = 0; i < array.length; i++) {
 				if (array[i] >= count) return bad('an index past the vertices');
 			}
-			levels[lod] += corners / 3;
+			if (pose) posed.set(`${pose}:${lod}`, (posed.get(`${pose}:${lod}`) ?? 0) + corners / 3);
+			else levels[lod] += corners / 3;
 			for (let i = 0; i < count; i++) {
 				position.getElement(i, p);
 				for (let axis = 0; axis < 3; axis++) {
@@ -308,10 +315,13 @@ export async function checkGlb(data: Uint8Array, limit: Limit = LIMITS.prop): Pr
 		gpuBytes += checked.info.gpuBytes;
 	}
 	// The whole gate here, so an upload gets it too: every level within the class's triangles.
-	for (const [lod, triangles] of levels.entries()) {
+	for (const [key, triangles] of [...levels.entries(), ...posed]) {
 		if (triangles > limit.triangles) {
-			const what = lod ? `LOD ${lod}: ` : '';
-			return bad(`${what}${triangles} triangles is more than ${limit.triangles}`);
+			const [pose, lod] = typeof key === 'number' ? [0, key] : key.split(':').map(Number);
+			const what = (pose ? `pose ${pose} ` : '') + (lod ? `LOD ${lod}` : '');
+			return bad(
+				`${what ? `${what.trim()}: ` : ''}${triangles} triangles is more than ${limit.triangles}`
+			);
 		}
 	}
 	if (gpuBytes > limit.gpuBytes) return bad('too large on the GPU');
@@ -321,6 +331,7 @@ export async function checkGlb(data: Uint8Array, limit: Limit = LIMITS.prop): Pr
 			meshes,
 			triangles: levels[0],
 			lods: levels.slice(1).filter((t) => t > 0),
+			poses: [...new Set([...posed.keys()].map((k) => Number(k.split(':')[0])))].sort(),
 			bounds: { min, max },
 			textures,
 			gpuBytes,

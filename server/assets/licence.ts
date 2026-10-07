@@ -207,6 +207,8 @@ export function checkCredits(manifest: Manifest, adventures: readonly AdventureD
 export interface ArtMeta {
 	provenance: unknown;
 	swing?: unknown;
+	/** A figure's static poses by meaning (#273), checked by the build: `{ downed: 1 }`. */
+	poses?: unknown;
 	setPiece?: boolean;
 	/** The pack it downloads with (#192), checked by the build. */
 	pack?: string;

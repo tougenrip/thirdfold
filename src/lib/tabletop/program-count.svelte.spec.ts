@@ -348,6 +348,27 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 				await loadModel(arriving);
 			}
 		],
+		// Poses (#273): the arrived figure given a downed pose (its body again, as `body_pose1`), so
+		// going down moves it to the pose's batch and standing up moves it back.
+		[
+			'a posed figure down',
+			() => {
+				const model = modelNow(arriving)!;
+				const bodies = model.parts.filter((p) => p.role === 'body' && p.pose === 0);
+				model.parts.push(...bodies.map((p) => ({ ...p, pose: 1 })));
+				model.entry.poses = { downed: 1 };
+				t.setFallen([token.id]);
+			}
+		],
+		[
+			'a posed figure up',
+			() => {
+				t.setFallen([]);
+				const model = modelNow(arriving)!;
+				model.parts = model.parts.filter((p) => p.pose === 0);
+				delete model.entry.poses;
+			}
+		],
 		[
 			'every token the same figure',
 			() => t.setTokens(home.tokens.map((k) => ({ ...k, model: arriving })))
