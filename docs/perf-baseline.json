@@ -10,19 +10,19 @@
 					"geometries": 108,
 					"textures": 89,
 					"programs": 246,
-					"heap": 46351772
+					"heap": 46387792
 				},
 				"Ana": {
 					"geometries": 107,
 					"textures": 89,
 					"programs": 243,
-					"heap": 46337140
+					"heap": 46339616
 				},
 				"Ben": {
 					"geometries": 107,
-					"textures": 89,
+					"textures": 90,
 					"programs": 243,
-					"heap": 46373628
+					"heap": 47392152
 				}
 			},
 			"idleFrames": 0,
@@ -35,13 +35,13 @@
 			"geometries": 107,
 			"textures": 89,
 			"programs": 243,
-			"heap": 46858960
+			"heap": 46869816
 		},
 		"after": {
 			"geometries": 107,
 			"textures": 89,
 			"programs": 243,
-			"heap": 46969800
+			"heap": 46981020
 		}
 	},
 	"remount": {
@@ -49,7 +49,7 @@
 			"geometries": 107,
 			"textures": 91,
 			"programs": 243,
-			"heap": 47062740
+			"heap": 47143360
 		}
 	},
 	"tiers": {

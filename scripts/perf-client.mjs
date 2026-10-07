@@ -103,18 +103,23 @@ async function waitFor(p, fn, arg, timeout = 30_000) {
 /**
  * Waits until the page's tabletop has stopped drawing (a few quiet checks in a row) and every model
  * and texture it started loading has arrived: a model landing after a quiet spell (the cooked minis
- * from the asset host, M71) adds batches and programs, which made the counts differ run to run.
+ * from the asset host, M71) adds batches and programs, which made the counts differ run to run; and
+ * the renderer is not holding frames for a warm-up.
  */
-async function settle(p, quietMs = 600, limitMs = 15_000) {
+async function settle(p, quietMs = 600, limitMs = 30_000) {
 	const start = Date.now();
 	let last = -1;
 	let quietSince = Date.now();
 	while (Date.now() - start < limitMs) {
-		const frames = (await stats(p))?.frames ?? 0;
-		const loading = await p.page.evaluate(() => {
-			const [done, all] = window.thirdfoldPerf?.loads?.() ?? [0, 0];
-			return done < all;
-		});
+		const s = await stats(p);
+		const frames = s?.frames ?? 0;
+		// A warm-up holds frames while it compiles: quiet, but not done.
+		const loading =
+			!!s?.holding ||
+			(await p.page.evaluate(() => {
+				const [done, all] = window.thirdfoldPerf?.loads?.() ?? [0, 0];
+				return done < all;
+			}));
 		if (frames !== last || loading) {
 			last = frames;
 			quietSince = Date.now();
