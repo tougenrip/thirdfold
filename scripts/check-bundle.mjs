@@ -29,7 +29,8 @@ const BUDGETS = {
 	// 100.0 kB measured.
 	'/builder': { total: 100_300, own: 52_000 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured.
-	'/credits': { total: 54_800, own: 3_000 },
+	// → 55.0: the manifest's `miniBase` (#265); 54.8 kB measured.
+	'/credits': { total: 55_000, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
