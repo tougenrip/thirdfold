@@ -409,6 +409,7 @@ export interface GraphicsPrefs {
 	grid: GridSetting;
 	/** Flashes as slow, dimmer fades (#223); `auto` while the device asks for reduced motion. */
 	reduceFlashing: ReduceFlashing;
+	/** 'Always show names' (#268): every name, not only on demand. */ names?: boolean;
 	/** The tier refinement settled on for this device, when `auto`. */
 	measured?: Tier;
 }
@@ -441,7 +442,8 @@ export function loadGraphics(storage: Pick<Storage, 'getItem'>): GraphicsPrefs {
 				? (r.toneMapper as ToneMapper)
 				: GRADE_TONE_MAPPER,
 			grid: readGridSetting(r.grid, r.alwaysGrid),
-			reduceFlashing: readReduceFlashing(r.reduceFlashing)
+			reduceFlashing: readReduceFlashing(r.reduceFlashing),
+			...(r.names === true && { names: true })
 		};
 		if (isTier(r.measured)) prefs.measured = r.measured;
 		return prefs;

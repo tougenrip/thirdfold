@@ -40,6 +40,9 @@
 // Glowing windows (#260) are on wherever a kit's houses have facades the viewer knows from both
 // sides: emissive panes dimmed by the fog of the cell in front of them; the village's player at
 // night, who walked into a house, sees its lit windows over 1 (bloom) and black all round.
+// Names (#268) are on in every case ('Always show names'): only the tokens the viewer was sent are
+// named, each plate is left out like anything else standing (`namesOver`), and none lifts the
+// black round it (the overlay is never bloomed or blurred).
 //
 // CI takes the slim set (`SLIM`, a few cases per tier); every fixture with fog,
 // the player and the spectator, every pose and tier, and the medium tier again
@@ -55,6 +58,7 @@ import { footprintCells } from '$lib/game/props';
 import { decodeLevels } from '$lib/game/terrain';
 import { decodeMask, encodeMask, WALL_LEVELS } from '$lib/game/visibility';
 import { STEP_HEIGHT } from './ground';
+import { LABEL_HEIGHT, LABEL_PX } from './labels';
 import { useTileSet } from './floor-tiles-layer';
 import { decodeFloor, encodeFloor, knownFloor } from '$lib/game/floor';
 import { pastHole } from './world/invariants';
@@ -229,9 +233,12 @@ function samplesFor(
 	grid: SquareGrid,
 	tall: Float32Array,
 	camera: THREE.PerspectiveCamera,
-	hole: ReturnType<typeof pastHole> | null = null
+	hole: ReturnType<typeof pastHole> | null = null,
+	/** The view whose tokens' names cover what lies under them (#268). */
+	named: FixtureView | null = null
 ): Sample[] {
 	const { width: w, height: h, cellSize } = grid;
+	const covered = named ? namesOver(named, camera) : () => false;
 	const toPixel = (v: THREE.Vector3) => {
 		v.project(camera);
 		return { x: ((v.x + 1) / 2) * WIDTH, y: ((1 - v.y) / 2) * HEIGHT, z: v.z };
@@ -265,9 +272,30 @@ function samplesFor(
 			if (!block.every(([bx, by]) => inside(outline, bx, by))) continue;
 			// A hole (the void, #243) shows what its ray falls on to: left out if that was shown.
 			if (hole?.(y * w + x, camera.position)) continue;
+			if (block.some(([bx, by]) => covered(bx, by))) continue;
 			if (!occluded(at, camera.position, grid, tall, top)) out.push({ cell: { x, y }, px, py });
 		}
 	return out;
+}
+
+/**
+ * Whether a pixel is under a token's name (#268): every name shows (`always`), and a name is
+ * something the viewer was sent standing over its token, drawn over whatever lies behind it.
+ * The plate's widest, round its anchor (`LABEL_HEIGHT` cells over the token's floor), and a margin.
+ */
+function namesOver(view: FixtureView, camera: THREE.PerspectiveCamera) {
+	const { grid } = view;
+	const levels = view.terrain ? decodeLevels(view.terrain, grid.width * grid.height) : null;
+	const [hw, hh] = [LABEL_PX.maxWidth / 2 + 3, LABEL_PX.height / 2 + 3];
+	const rects = view.tokens.map((t) => {
+		const at = gridToWorld(grid, t.pos);
+		const floor = (levels?.[t.pos.y * grid.width + t.pos.x] ?? 0) * STEP_HEIGHT;
+		const up = floor + (t.lift ?? 0) * STEP_HEIGHT + LABEL_HEIGHT * (t.scale ?? 1);
+		const v = new THREE.Vector3(at.x, up * grid.cellSize, at.z).project(camera);
+		return { x: ((v.x + 1) / 2) * WIDTH, y: ((1 - v.y) / 2) * HEIGHT, behind: v.z > 1 };
+	});
+	return (x: number, y: number) =>
+		rects.some((r) => !r.behind && Math.abs(x - r.x) <= hw && Math.abs(y - r.y) <= hh);
 }
 
 /** Whether a point is inside a convex outline (either winding). */
@@ -467,6 +495,7 @@ async function mountCase(
 	// The shader grid in full on every chunk's twin (#245), and a hatched highlight on an
 	// unexplored cell: neither may lay anything over black.
 	m.tabletop.setGridMode('build');
+	m.tabletop.setLabels({ always: true }); // every name (#268), held to what the viewer was sent
 	const { width, height } = view.grid;
 	const unexplored = decodeMask(view.fog.explored, width * height).indexOf(0);
 	if (unexplored >= 0)
@@ -601,7 +630,7 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 				m.tabletop.setGridPose(where);
 				const camera = cameraOf(m);
 				const hole = pastHole(view, (i) => tall[i] >= 0);
-				const samples = samplesFor(view.grid, tall, camera, hole);
+				const samples = samplesFor(view.grid, tall, camera, hole, view);
 				if (samples.length < MIN_SAMPLES) {
 					console.info(`${c.label} ${pose}: ${samples.length} samples, left out`);
 					continue;
@@ -674,7 +703,7 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			let checked = 0;
 			for (const pose of poses) {
 				m.tabletop.setGridPose(pose as never);
-				const samples = samplesFor(view.grid, tall, cameraOf(m));
+				const samples = samplesFor(view.grid, tall, cameraOf(m), null, view);
 				if (samples.length < MIN_SAMPLES) {
 					console.info(`${name} ${JSON.stringify(pose)}: ${samples.length} samples, left out`);
 					continue;
@@ -720,7 +749,7 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 				at(px, py).some((v) => v > 0),
 				'the presumed roof shows'
 			).toBe(true);
-			const samples = samplesFor(view.grid, standing(view), camera);
+			const samples = samplesFor(view.grid, standing(view), camera, null, view);
 			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
 			const lit = litAt('village presumed roofs', samples, at);
 			expect(lit.slice(0, 10), `${lit.length} lit pixels`).toEqual([]);
@@ -757,7 +786,7 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 			await converge(m, settings.convergeFrames);
 			const camera = cameraOf(m);
 			const at = await readFrame(m.canvas, WIDTH, HEIGHT);
-			const samples = samplesFor(view.grid, standing(view, house), camera);
+			const samples = samplesFor(view.grid, standing(view, house), camera, null, view);
 			const under = samples.filter((p) => hidden.includes(p.cell.y * w + p.cell.x));
 			expect(under.length, 'unexplored cells under the faded roof sampled').toBeGreaterThan(0);
 			const lit = litAt('village faded roof', samples, at);
@@ -807,7 +836,7 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 				elevation: 60
 			} as never);
 			await converge(m, settings.convergeFrames);
-			const samples = samplesFor(view.grid, standing(view), cameraOf(m));
+			const samples = samplesFor(view.grid, standing(view), cameraOf(m), null, view);
 			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
 			const lit = litAt(
 				'village glowing windows',
@@ -829,7 +858,7 @@ describe(`unexplored cells on ${BACKEND}`, () => {
 				{ kind: 'area', from: { x: 0, y: 0 }, to: { x: width - 1, y: height - 1 }, tone: 'reveal' }
 			]);
 			await converge(m, settings.convergeFrames);
-			const samples = samplesFor(view.grid, standing(view), cameraOf(m));
+			const samples = samplesFor(view.grid, standing(view), cameraOf(m), null, view);
 			expect(samples.length).toBeGreaterThanOrEqual(MIN_SAMPLES);
 			const lit = litAt('dungeon-40 overview', samples, await readFrame(m.canvas, WIDTH, HEIGHT));
 			expect(lit.length).toBeGreaterThan(0);

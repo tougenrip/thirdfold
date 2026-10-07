@@ -16,9 +16,14 @@ export class OverlayLayer {
 	/** No background and no fog: it clears to transparent, over the world. */
 	readonly scene = new THREE.Scene();
 	private follows = new Map<THREE.Object3D, THREE.Group>();
+	/** Run before every overlay draw, with what draws it (label-layer.ts lays out its plates). */
+	readonly before: ((renderer: THREE.Renderer, camera: THREE.Camera) => void)[] = [];
 
 	constructor() {
-		this.scene.onBeforeRender = () => this.sync();
+		this.scene.onBeforeRender = (renderer, _scene, camera) => {
+			this.sync();
+			for (const f of this.before) f(renderer as unknown as THREE.Renderer, camera);
+		};
 	}
 
 	/** A group that follows `anchor` (moves, turns and hides with it) until `unfollow`. */
@@ -47,6 +52,7 @@ export class OverlayLayer {
 
 	dispose(): void {
 		this.follows.clear();
+		this.before.length = 0;
 	}
 }
 

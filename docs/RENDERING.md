@@ -2875,6 +2875,56 @@ gone.
   for #267's tier hooks); notches are shading, not cut; larger bases are #270; the figure still
   stands at its old 0.08 u (#266 moves the figures).
 
+## Labels on demand (milestone 71, #268)
+
+Token names no longer float over every mini. A name shows while its token is hovered, selected or
+taking its turn in a fight; holding **N** with the table focused shows every name the viewer was
+sent; and the Graphics menu's **Always show names** (`GraphicsPrefs.names`, in
+`thirdfold:graphics`, never in room state) keeps them all on.
+
+- **The rule** is `labelsShown(tokens, state)` in `labels.ts` (pure, server-tested in
+  `labels.spec.ts`): the hovered, selected and active ids among the tokens the viewer was sent, or
+  all of them while `held` or `always`. A hidden token a player was never sent has no name to
+  show. `labels.ts` also holds `SHOW_NAMES_KEY`, the plate sizes (`LABEL_PX`, `FLOAT_PX`), the text
+  colour, the plate (`PLATE`, 0.9 opaque) and `FLOAT_COLOURS`, which `RoomView.svelte`'s
+  `floatResult` uses, so the room page imports them without three.js.
+- **The held key.** `RoomView.svelte`'s `onKeydown` sets `namesHeld` on N while the canvas has
+  focus and nobody is typing in a field; the window's `keyup` and `blur` release it. Tab is never
+  taken, so focus moves as before, and the arrow keys still step the selected token. N is still
+  the GM's dark-area tool until #279 moves it, so for now only players and spectators hold it; the
+  GM uses hover or Always show names.
+- **Drawing** is `label-layer.ts` `LabelLayer`, owned by `TokenLayer` (`labels`). Every plate (a
+  name, or a float's text in its colour) is rasterised once into one 1024² atlas canvas at the
+  renderer's pixel ratio, shelf-packed (`Shelves`); a full atlas is cleared and refilled with only
+  what shows now. Names and floats are two instanced `Sprite`s (`Sprite.count`) on
+  `SpriteNodeMaterial`, their anchor, CSS size, alpha and atlas rect in one
+  `InstancedInterleavedBuffer`. `sizeAttenuation` is off and the scale is the CSS size times a
+  `pixel` uniform (2 / (P11 × the canvas's CSS height)), written before each overlay draw
+  (`OverlayLayer.before`), so a plate keeps its pixel size at any zoom and an atlas texel lands on
+  one device pixel; the atlas samples nearest. Both sprites are always drawn with `count` at least
+  2 (unused instances have no size), so a name appearing, the key or a float changes no program and
+  no render object; the warm-up compiles them as they stand, and the gallery has stand-ins sharing
+  their material. Two draws whatever the count (`label-layer.svelte.spec.ts`).
+- **Floats** (damage, healing, a status) use the same atlas and the second sprite: they rise 0.7
+  cells over 1.5 s and fade in their last 40%, stacked 0.35 apart over one mini; under reduced
+  motion they fade without rising. Damage and healing keep their sign as the twin of their colour.
+- **The overlay pass.** Both sprites sit in the overlay's scene with `depthTest` off, after the
+  grade and the output stage, so bloom, depth of field, chromatic aberration, grain and TRAA never
+  touch them; `label-layer.svelte.spec.ts` checks a name's text pixels at DPR 2 come out exactly as
+  drawn alone under all of them, and that glyph edges step from plate to text within a pixel.
+- **Contrast.** Text `#f2e6d0` and every float colour reach 4.5:1 or better on the plate laid over
+  pure white and pure black (`contrastOnPlate`, tested), and a one-device-pixel dark rim edges each
+  plate.
+- **Secrecy.** Labels come only from the tokens the viewer was sent. `unexplored-black` turns
+  Always show names on in every case and leaves out the samples under a plate (`namesOver`), as it
+  does anything else the viewer was sent standing; every other unexplored sample stays black.
+- **Accessibility.** The canvas's `aria-label`, `TokenPanel`, the turn tracker and the action bar
+  still name tokens as before. The tutorial's talk step says "Point at someone to see their name."
+- **Not yet.** Goldens still show the old always-on labels: re-recording them without labels, plus
+  one with the key held, is left for the milestone's golden pass. Under the megapixel cap the
+  overlay pass and the atlas follow the renderer's pixel ratio, so labels are crisp at that
+  resolution, not above it.
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -2901,7 +2951,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                                                                                                             |
 | `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                                                                                                                      |
 | `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                                                                                                                  |
-| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats                                                                                                                                                 |
+| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups, and `before` hooks run before each overlay draw                                                                                                                      |
 | `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)                                                                                            |
 | `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)                                                                                                 |
 | `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                                                                                                                     |

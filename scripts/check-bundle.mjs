@@ -115,8 +115,10 @@ const BUDGETS = {
 	// → 399.8: warm-ups at the draw depth (warmup.ts, DrawDepths and unlit); 399.7 kB measured.
 	// → 400.0: still texture reads leave WebGL2's update lists (materials/still-textures.ts, the
 	// orbit's main thread 18.6 → 10 ms); 399,836 B measured. → 402.0: token bases (#265: the base
-	// kind's graph, base-layer.ts, the lathe); 401.7 kB measured.
-	renderer: { total: 402_000 },
+	// kind's graph, base-layer.ts, the lathe); 401.7 kB measured. → 403.0: names on demand (#268:
+	// label-layer.ts, the atlas and two instanced sprites, replacing the per-token label sprites);
+	// 402.9 kB measured after the merge (M71's cap is about 410 kB).
+	renderer: { total: 403_000 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

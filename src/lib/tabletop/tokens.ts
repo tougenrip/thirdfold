@@ -14,10 +14,11 @@
 
 import * as THREE from 'three/webgpu';
 import { BaseLayer } from './base-layer';
-import { labelFont } from './label-font';
 import { gridToWorld, type SquareGrid } from '$lib/game/grid';
 import { STEP_HEIGHT, type Ground } from './ground';
 import type { Token } from '$lib/game/token';
+import { LabelLayer } from './label-layer';
+import { LABEL_HEIGHT } from './labels';
 import { createMaterial, withBake, type KindMaterial } from './materials';
 import { loadModel, modelNow, partsOf, type LoadedModel, type ModelPart } from './models';
 import type { OverlayLayer } from './overlay';
@@ -38,10 +39,6 @@ interface Entry {
 	colour: THREE.Color;
 	/** How much of the mini shows, which every part reads (its `userData.mini`). */
 	look: { opacity: number };
-	/** In the overlay, following `root`: the label and floats. */
-	tag: THREE.Group;
-	label: THREE.Sprite;
-	name: string;
 	color: string;
 	from: THREE.Vector3;
 	to: THREE.Vector3;
@@ -55,59 +52,16 @@ interface Entry {
 /** Placeholder figures (0.7-1.24 u) drawn at human height under 2 u walls; #118 replaces it. */
 const FIGURE_SCALE = 1.3;
 const HOP_HEIGHT = 0.45;
-const LABEL_HEIGHT = 1.9;
-const FLOAT_MS = 1500;
 /** How much of a hidden token the GM sees. */
 const HIDDEN_OPACITY = 0.35;
-
-interface Float {
-	sprite: THREE.Sprite;
-	tokenId: string;
-	born: number;
-	baseY: number;
-}
 
 // Shared by every mini; sized for a 1-unit cell and scaled per grid.
 const bodyGeometry = withBake(new THREE.CylinderGeometry(0.2, 0.3, 0.62, 24));
 const headGeometry = withBake(new THREE.SphereGeometry(0.19, 24, 16));
 
-function makeLabel(name: string, color = '#f2e6d0', bold = false): THREE.Sprite {
-	const canvas = document.createElement('canvas');
-	canvas.width = 256;
-	canvas.height = 64;
-	const ctx = canvas.getContext('2d')!;
-	ctx.font = bold ? labelFont(800, 40) : labelFont(600, 30);
-	ctx.textAlign = 'center';
-	ctx.textBaseline = 'middle';
-	const width = Math.min(ctx.measureText(name).width + 28, 256);
-	ctx.fillStyle = 'rgba(20, 15, 11, 0.78)';
-	ctx.beginPath();
-	ctx.roundRect((256 - width) / 2, 8, width, 48, 12);
-	ctx.fill();
-	ctx.fillStyle = color;
-	ctx.fillText(name, 128, 33, 232);
-	const texture = new THREE.CanvasTexture(canvas);
-	texture.colorSpace = THREE.SRGBColorSpace;
-	const sprite = new THREE.Sprite(
-		new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })
-	);
-	sprite.scale.set(1.6, 0.4, 1);
-	sprite.position.y = LABEL_HEIGHT;
-	sprite.renderOrder = 1;
-	// Labels are not part of the mini for picking purposes.
-	sprite.raycast = () => {};
-	return sprite;
-}
-
-function disposeLabel(sprite: THREE.Sprite): void {
-	sprite.material.map?.dispose();
-	sprite.material.dispose();
-}
-
 export class TokenLayer {
 	readonly group = new THREE.Group();
 	private entries = new Map<string, Entry>();
-	private floats: Float[] = [];
 	private grid: SquareGrid | null = null;
 	private selectedId: string | null = null;
 	/** Every token's base (#265): their rings follow the hover, the selection and the turn. */
@@ -127,6 +81,8 @@ export class TokenLayer {
 	);
 	private standIns: THREE.Object3D[] | null = null;
 	readonly rootOf = (id: string) => this.entries.get(id)?.root ?? null; // where a mini is now
+	/** Names on demand and combat floats (#268), in the overlay. */
+	readonly labels: LabelLayer;
 
 	/**
 	 * `onModel` is told when a figure's model has arrived and it has been drawn. Moves and
@@ -141,6 +97,7 @@ export class TokenLayer {
 		this.marker.rotation.x = Math.PI; // point down at the mini
 		this.marker.visible = false;
 		this.marker.raycast = () => {};
+		this.labels = new LabelLayer(overlay, this.rootOf, clock);
 	}
 
 	/**
@@ -186,14 +143,6 @@ export class TokenLayer {
 				this.dress(token.id, entry, token.model ?? null);
 				changed = true;
 			}
-			if (entry.name !== token.name) {
-				entry.tag.remove(entry.label);
-				disposeLabel(entry.label);
-				entry.label = makeLabel(token.name);
-				entry.tag.add(entry.label);
-				entry.name = token.name;
-				changed = true;
-			}
 			const size = grid.cellSize * (token.scale ?? 1);
 			if (entry.root.scale.x !== size) {
 				entry.root.scale.setScalar(size);
@@ -218,22 +167,21 @@ export class TokenLayer {
 
 		for (const [id, entry] of this.entries) {
 			if (seen.has(id)) continue;
-			this.dropFloats(id);
 			this.group.remove(entry.root);
-			this.overlay.unfollow(entry.root);
-			disposeLabel(entry.label);
 			this.entries.delete(id);
 			this.bases.remove(id);
 			changed = true;
 		}
 		this.bases.commit();
-		return this.updateRing() || changed;
+		const named = this.labels.setTokens(tokens);
+		return this.updateRing() || named || changed;
 	}
 
 	setSelected(id: string | null): boolean {
 		if (this.selectedId === id) return false;
 		this.selectedId = id;
 		this.bases.setSelected(id);
+		this.labels.set({ selected: id });
 		return true;
 	}
 
@@ -244,6 +192,7 @@ export class TokenLayer {
 		if (this.activeId === id && material.color.getHex() === color) return false;
 		this.activeId = id;
 		this.bases.setActive(id);
+		this.labels.set({ active: id });
 		material.color.setHex(color);
 		this.updateRing();
 		return true;
@@ -252,6 +201,7 @@ export class TokenLayer {
 	/** Reduced motion: the turn's ring holds steady (#265). */
 	setReducedMotion(still: boolean): void {
 		this.bases.setReducedMotion(still);
+		this.labels.setReducedMotion(still); // floats fade without rising (#268)
 	}
 
 	/** Whether the turn's ring pulses, asking for AMBIENT frames. */
@@ -280,22 +230,12 @@ export class TokenLayer {
 
 	/** Floats `text` up from a mini and fades it out, e.g. damage dealt. */
 	float(tokenId: string, text: string, color: string): boolean {
-		const entry = this.entries.get(tokenId);
-		if (!entry) return false;
-		const sprite = makeLabel(text, color, true);
-		sprite.scale.set(1.3, 0.33, 1);
-		// Several at once stack instead of overlapping.
-		const stacked = this.floats.filter((f) => f.tokenId === tokenId).length;
-		sprite.position.y = LABEL_HEIGHT + 0.35 + stacked * 0.35;
-		sprite.renderOrder = 2;
-		entry.tag.add(sprite);
-		this.floats.push({ sprite, tokenId, born: this.clock(), baseY: sprite.position.y });
-		return true;
+		return this.entries.has(tokenId) && this.labels.float(tokenId, text, color);
 	}
 
 	/** Moves minis to where they are at time `now`. Returns true while any is still moving. */
 	tick(now: number): boolean {
-		let [moving, placed] = [this.tickFloats(now), false];
+		let [moving, placed] = [this.labels.tick(now), false];
 		for (const [id, entry] of this.entries) {
 			if (entry.t >= 1) continue;
 			entry.t = Math.min((now - entry.start) / entry.duration, 1);
@@ -323,33 +263,19 @@ export class TokenLayer {
 		return null;
 	}
 
-	/** Draws every name label again (once the label font has loaded). */
-	relabel(): void {
-		for (const entry of this.entries.values()) {
-			entry.tag.remove(entry.label);
-			disposeLabel(entry.label);
-			entry.label = makeLabel(entry.name);
-			entry.tag.add(entry.label);
-		}
-	}
-
 	/**
 	 * A stand-in for the turn marker, which shows on a first turn, for the warm-up to compile in the
 	 * overlay's pass (#180).
 	 */
 	gallery(): THREE.Object3D[] {
-		return (this.standIns ??= [this.marker].map((m) =>
-			standIn(new THREE.Mesh(m.geometry, m.material))
-		));
+		return (this.standIns ??= [
+			standIn(new THREE.Mesh(this.marker.geometry, this.marker.material)),
+			...this.labels.gallery()
+		]);
 	}
 
 	dispose(): void {
-		for (const f of this.floats) disposeLabel(f.sprite);
-		this.floats = [];
-		for (const entry of this.entries.values()) {
-			this.overlay.unfollow(entry.root);
-			disposeLabel(entry.label);
-		}
+		this.labels.dispose();
 		this.entries.clear();
 		for (const m of [...Object.values(this.materials), ...this.textured.values()]) m.dispose();
 		this.textured.clear();
@@ -366,12 +292,9 @@ export class TokenLayer {
 
 		const figure = new THREE.Group();
 		figure.scale.setScalar(FIGURE_SCALE);
-		const label = makeLabel(token.name);
 		root.add(figure);
 		root.position.copy(at);
 		this.group.add(root);
-		const tag = this.overlay.follow(root);
-		tag.add(label);
 
 		const entry: Entry = {
 			root,
@@ -381,9 +304,6 @@ export class TokenLayer {
 			hidden: false,
 			colour: new THREE.Color(token.color),
 			look,
-			tag,
-			label,
-			name: token.name,
 			color: token.color,
 			from: at.clone(),
 			to: at.clone(),
@@ -449,30 +369,6 @@ export class TokenLayer {
 			this.textured.set(part, material);
 		}
 		return material;
-	}
-
-	private tickFloats(now: number): boolean {
-		for (const f of this.floats) {
-			const t = Math.min((now - f.born) / FLOAT_MS, 1);
-			f.sprite.position.y = f.baseY + t * 0.7;
-			f.sprite.material.opacity = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
-		}
-		const done = this.floats.filter((f) => now - f.born >= FLOAT_MS);
-		for (const f of done) {
-			f.sprite.removeFromParent();
-			disposeLabel(f.sprite);
-		}
-		this.floats = this.floats.filter((f) => now - f.born < FLOAT_MS);
-		return this.floats.length > 0;
-	}
-
-	private dropFloats(tokenId: string): void {
-		for (const f of this.floats) {
-			if (f.tokenId !== tokenId) continue;
-			f.sprite.removeFromParent();
-			disposeLabel(f.sprite);
-		}
-		this.floats = this.floats.filter((f) => f.tokenId !== tokenId);
 	}
 
 	/** Keeps the turn arrow over the active mini, even mid-move. */
