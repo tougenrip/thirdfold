@@ -8,6 +8,9 @@
 	} from '$lib/game/library';
 	import type { LibraryOp } from '$lib/game/protocol';
 	import { libraryHome, manageAdventure, publishAdventure } from '$lib/net/library';
+	import { diagnosticsOf } from '$lib/net/ask';
+	import Diagnostics from '$lib/ui/Diagnostics.svelte';
+	import type { Diagnostic } from '$lib/validation/diagnostics';
 	import { loadCreatorName, loadGmKey, saveCreatorName } from '$lib/prefs';
 	import { describePlays, describeRating } from '$lib/ui/rating';
 	import { lastPlayed } from '$lib/ui/when';
@@ -48,6 +51,8 @@
 	let busy = $state(false);
 	let message = $state<string | null>(null);
 	let error = $state<string | null>(null);
+	/** What the server found in content it refused to publish. */
+	let found = $state<Diagnostic[]>([]);
 
 	$effect(() => {
 		const key = gmKey;
@@ -73,6 +78,7 @@
 		if (!ready) return (error = 'Fix the problems first (see Check).');
 		busy = true;
 		error = message = null;
+		found = [];
 		saveCreatorName(name);
 		try {
 			const done = await publishAdventure({
@@ -95,6 +101,7 @@
 			show(await libraryHome(done.gmKey));
 		} catch (err) {
 			error = (err as Error).message;
+			found = diagnosticsOf(err);
 		} finally {
 			busy = false;
 		}
@@ -154,6 +161,7 @@
 	{#if !ready}<p class="muted">Fix the problems in Check to publish it.</p>{/if}
 	{#if message}<p class="ok" role="status">{message}</p>{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<Diagnostics diagnostics={found} />
 
 	<h3>Your adventures</h3>
 	{#if mine === null}

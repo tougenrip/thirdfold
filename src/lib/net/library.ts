@@ -6,6 +6,7 @@ import type { LibraryOp } from '$lib/game/protocol';
 import type { NewGrant } from '$lib/game/access';
 import type { LibraryKind, LibrarySort, MyAdventure, SharedListing } from '$lib/game/library';
 import { saveGmKey } from '$lib/prefs';
+import type { ContentKind, Validation } from '$lib/validation/diagnostics';
 import { ask } from './ask';
 
 export async function listLibrary(q: {
@@ -55,6 +56,24 @@ export async function checkCollection(id: string, version?: number, gmKey?: stri
 		'collection_report'
 	);
 	return { report: reply.report, locked: reply.locked === true };
+}
+
+/**
+ * Checks content the way the server will use it (milestone 56), changing
+ * nothing: a collection as this GM key's creator may include its pieces.
+ */
+export async function validateOnServer(
+	kind: ContentKind,
+	file: unknown,
+	gmKey?: string | null
+): Promise<Validation> {
+	const reply = await ask(
+		{ type: 'content_validate', kind, file, ...(gmKey ? { gmKey } : {}) },
+		'validation',
+		undefined,
+		15000
+	);
+	return reply.validation;
 }
 
 /** A creator's own items, what others shared with them, and the id others grant to. */

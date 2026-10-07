@@ -17,6 +17,9 @@
 		type SharedListing
 	} from '$lib/game/library';
 	import { libraryHome, manageAdventure, publishAdventure } from '$lib/net/library';
+	import { diagnosticsOf } from '$lib/net/ask';
+	import Diagnostics from '$lib/ui/Diagnostics.svelte';
+	import type { Diagnostic } from '$lib/validation/diagnostics';
 	import LibraryAccess from '$lib/ui/LibraryAccess.svelte';
 	import { loadCreatorName, loadGmKey, saveCreatorName } from '$lib/prefs';
 	import { sharedCode } from '$lib/ui/share';
@@ -48,6 +51,8 @@
 	let busy = $state(false);
 	let message = $state<string | null>(null);
 	let error = $state<string | null>(null);
+	/** What the server found in content it refused to publish. */
+	let found = $state<Diagnostic[]>([]);
 
 	// The collection being gathered.
 	let title = $state('');
@@ -118,6 +123,7 @@
 		if (!n) return null;
 		busy = true;
 		error = message = null;
+		found = [];
 		try {
 			const out = await publishAdventure({ gmKey, creator: n, file, kind });
 			gmKey = out.gmKey;
@@ -126,6 +132,7 @@
 			return out.adventureId;
 		} catch (err) {
 			error = (err as Error).message;
+			found = diagnosticsOf(err);
 			return null;
 		} finally {
 			busy = false;
@@ -330,6 +337,7 @@
 
 	{#if message}<p class="ok" role="status">{message}</p>{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<Diagnostics diagnostics={found} />
 
 	{#if creatorId}
 		<p class="muted small">

@@ -41,7 +41,14 @@ import { COLLECTION_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '../src/lib/ga
 import { creatorIdOf, LibraryError, MemoryLibraryStore, type LibraryStore } from './library-store';
 import { problemsOf, reportOf, resolveCollection, withRules, type Shelves } from './collections';
 import { decide, entitlementOf, stillHolds, type Subject } from './library-access';
-import { parseEntitlements, type Entitlement } from '../src/lib/game/access';
+import {
+	diagnostic,
+	firstError,
+	fromProblem,
+	type Diagnostic
+} from '../src/lib/validation/diagnostics';
+import { saveCode, savedEntitlements, validateContent } from './validation';
+import type { Entitlement } from '../src/lib/game/access';
 import { prepareMove, type MoveTarget } from './adventure/upgrade';
 import type { AdventureState } from './adventure/state';
 import { applyScene, catchUpLights, exportScene, reclaim } from './scene-io';
@@ -154,17 +161,6 @@ interface Seat {
 }
 
 /** Starts the game server, first bringing back the live rooms in `options.roomStore`, if any. */
-/**
- * The grants a saved story's library content was played by (milestone 54),
- * read off a scene file before it is parsed in full: whatever is malformed
- * there is left for readAdventure to refuse.
- */
-function savedEntitlements(data: unknown): Entitlement[] {
-	const story = (data as { adventure?: { state?: { entitlements?: unknown } } } | null)?.adventure;
-	const raw = story && typeof story === 'object' ? story.state?.entitlements : undefined;
-	return (raw !== undefined && parseEntitlements(raw)) || [];
-}
-
 export async function startGameServer(options: GameServerOptions): Promise<GameServer> {
 	const restored: Room[] = [];
 	for (const raw of options.roomStore ? await options.roomStore.loadAll() : []) {
@@ -235,8 +231,18 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
 	}
 
-	function sendError(ws: WebSocket, code: ErrorCode, message: string): void {
-		send(ws, { type: 'error', code, message });
+	function sendError(
+		ws: WebSocket,
+		code: ErrorCode,
+		message: string,
+		diagnostics?: readonly Diagnostic[]
+	): void {
+		send(ws, {
+			type: 'error',
+			code,
+			message,
+			...(diagnostics?.length ? { diagnostics: diagnostics.map((d) => ({ ...d })) } : {})
+		});
 	}
 
 	function broadcast(roomId: string, msg: ServerMessage, exceptPlayerId?: string): void {
@@ -320,6 +326,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'library_grant':
 			case 'library_revoke':
 			case 'collection_check':
+			case 'content_validate':
 			case 'games_list':
 				// The library and the open games: at a table or not.
 				void handleLibrary(ws, msg);
@@ -488,7 +495,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			}
 			if (saved === null) return sendError(ws, 'scene_not_found', 'That save no longer exists.');
 			const refused = await withdrawn(saved);
-			if (refused) return sendError(ws, 'forbidden', refused);
+			if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
 		}
 		// The socket may have gone, or been seated, while storage was busy.
 		if (ws.readyState !== ws.OPEN || seats.has(ws)) return;
@@ -504,7 +511,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				loadIntoRoom(room, player, saved, shared ? 'opened' : 'continued');
 			} catch (err) {
 				rooms.remove(room.id);
-				if (err instanceof SceneError) return sendError(ws, err.code, err.message);
+				if (err instanceof SceneError) return sendError(ws, err.code, err.message, err.diagnostics);
 				throw err;
 			}
 			// Continuing from the table's own save keeps saving into it.
@@ -591,11 +598,17 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 
 	function loadIntoRoom(room: Room, player: Player, data: unknown, verb: string): void {
 		const parsed = parseSceneFile(data);
-		if (!parsed.ok) throw new SceneError('invalid_scene', parsed.error);
+		if (!parsed.ok)
+			throw new SceneError('invalid_scene', parsed.error, [
+				fromProblem(parsed.error, 'save.invalid')
+			]);
 		// A story saved with the table comes back with it, checked before anything changes.
 		const saved = parsed.scene.adventure;
 		const story = saved ? readAdventure(saved, parsed.scene) : null;
-		if (story && !story.ok) throw new SceneError('invalid_scene', story.error);
+		if (story && !story.ok)
+			throw new SceneError('invalid_scene', story.error, [
+				diagnostic(saveCode(story.error), 'adventure', story.error)
+			]);
 		applyScene(room, parsed.scene);
 		const ended = room.adventure !== null && !story;
 		room.adventure = story ? story.adventure : null;
@@ -734,7 +747,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					}
 					// A creator's adventure: checked in full, then played like any other.
 					const custom = loadCustomAdventure(msg.file);
-					if (!custom.ok) return fail('invalid_message', custom.error);
+					if (!custom.ok)
+						return void sendError(ws, 'invalid_message', custom.error, custom.diagnostics);
 					return adventure.startAdventure(room, player, custom.adventure.id);
 				}
 				case 'adventure_claim':
@@ -812,7 +826,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					}
 					if (msg.type === 'scene_export') {
 						const refused = await unexportable(room);
-						if (refused) return sendError(ws, 'forbidden', refused);
+						if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
 						return send(ws, { type: 'scene_exported', file });
 					}
 					const sceneId = await sceneStore.save(file, {
@@ -834,14 +848,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						return sendError(ws, 'scene_not_found', 'That saved scene no longer exists.');
 					}
 					const refused = await withdrawn(data);
-					if (refused) return sendError(ws, 'forbidden', refused);
+					if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
 					// The room may have closed while storage was busy.
 					if (rooms.get(room.id) !== room) return;
 					return loadIntoRoom(room, player, data, 'loaded');
 				}
 				case 'scene_import': {
 					const refused = await withdrawn(msg.file);
-					if (refused) return sendError(ws, 'forbidden', refused);
+					if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
 					if (rooms.get(room.id) !== room) return;
 					return loadIntoRoom(room, player, msg.file, 'imported');
 				}
@@ -888,7 +902,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return send(ws, { type: 'scene_list', scenes: await sceneStore.list(room.gmOwner) });
 			}
 		} catch (err) {
-			if (err instanceof SceneError) return sendError(ws, err.code, err.message);
+			if (err instanceof SceneError) return sendError(ws, err.code, err.message, err.diagnostics);
 			console.error(`[room ${room.id}] ${msg.type} failed`, err);
 			sendError(
 				ws,
@@ -1294,6 +1308,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					| 'library_grant'
 					| 'library_revoke'
 					| 'collection_check'
+					| 'content_validate'
 					| 'games_list';
 			}
 		>
@@ -1302,6 +1317,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			msg.type === 'library_list' ||
 			msg.type === 'library_story' ||
 			msg.type === 'collection_check' ||
+			msg.type === 'content_validate' ||
 			msg.type === 'games_list';
 		const creatorKey = 'gmKey' in msg && msg.gmKey ? keyOwner(msg.gmKey) : connectionKey(ws);
 		const limited = browsing
@@ -1314,6 +1330,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			switch (msg.type) {
 				case 'games_list':
 					return send(ws, { type: 'games_list', games: publicGames() });
+				case 'content_validate': {
+					// The same checks a publish, start or load makes, changing nothing.
+					const validation = await validateContent(msg.kind, msg.file, {
+						shelves,
+						owner: msg.gmKey ? keyOwner(msg.gmKey) : null,
+						collection: msg.collection ?? null
+					});
+					return send(ws, { type: 'validation', validation });
+				}
 				case 'library_list': {
 					const kind = msg.kind ?? 'adventure';
 					const found = await libraryStore.list({
@@ -1431,7 +1456,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 						owner,
 						msg.adventureId ?? null
 					);
-					if (!checked.ok) return sendError(ws, 'invalid_message', checked.error);
+					if (!checked.ok)
+						return sendError(ws, 'invalid_message', checked.error, checked.diagnostics);
 					const published = await libraryStore.publish(
 						{ kind: msg.kind ?? 'adventure', owner, creatorName: name, ...checked.item },
 						msg.adventureId
@@ -1484,6 +1510,11 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	 * played by has been revoked, has run out, or its item is gone; null when
 	 * all still hold (or it rests on none).
 	 */
+	/** A refusal on access, as a diagnostic. */
+	function accessDenied(message: string): Diagnostic[] {
+		return [diagnostic('access.denied', 'adventure.entitlements', message)];
+	}
+
 	async function withdrawn(data: unknown): Promise<string | null> {
 		for (const e of savedEntitlements(data)) {
 			const copy = await libraryStore.get(e.item);
@@ -1528,30 +1559,37 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		id: string | null
 	): Promise<
 		| { ok: true; item: { title: string; about: string; file: unknown } }
-		| { ok: false; error: string }
+		| { ok: false; error: string; diagnostics: Diagnostic[] }
 	> {
+		// Every check the builder's content_validate makes, as the publisher.
+		const validation = await validateContent(kind, raw, { shelves, owner, collection: id });
+		if (!validation.ok) {
+			const what = kind === 'pack' ? 'homebrew' : kind;
+			return {
+				ok: false,
+				error: `That ${what} can't be published: ${firstError(validation.diagnostics)}`,
+				diagnostics: validation.diagnostics
+			};
+		}
+		const refused = (error: string) => ({ ok: false as const, error, diagnostics: [] });
 		const size = JSON.stringify(raw).length;
 		if (kind === 'adventure') {
-			if (size > ADVENTURE_FILE_MAX_BYTES)
-				return { ok: false, error: 'That adventure is too large.' };
+			if (size > ADVENTURE_FILE_MAX_BYTES) return refused('That adventure is too large.');
 			// Checked in full, as it would be to play it: only playable adventures are published.
 			const loaded = loadAdventureFile(raw, 'custom-publish');
-			if (!loaded.ok) return { ok: false, error: loaded.error };
+			if (!loaded.ok) return { ok: false, error: loaded.error, diagnostics: loaded.diagnostics };
 			const { title, about } = loaded.file;
 			return { ok: true, item: { title, about: about ?? '', file: loaded.file } };
 		}
 		if (kind === 'pack') {
-			if (size > CONTENT_PACK_MAX_BYTES) return { ok: false, error: 'That homebrew is too large.' };
+			if (size > CONTENT_PACK_MAX_BYTES) return refused('That homebrew is too large.');
 			const declared = (raw as { rules?: unknown }).rules as RulesetRef | undefined;
 			const packs =
 				declared && typeof declared === 'object' ? findRuleset(declared)?.packs : undefined;
-			if (!packs) return { ok: false, error: 'That homebrew is for rules that take none here.' };
+			if (!packs) return refused('That homebrew is for rules that take none here.');
 			const held = packs.hold(raw);
 			if (!held.ok)
-				return {
-					ok: false,
-					error: `That homebrew can't be used: ${held.problems.slice(0, 4).join('; ')}.`
-				};
+				return refused(`That homebrew can't be used: ${held.problems.slice(0, 4).join('; ')}.`);
 			const listing = packs.listing(held.id, { owner: creatorIdOf(owner), visibility: 'table' })!;
 			return {
 				ok: true,
@@ -1562,19 +1600,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				}
 			};
 		}
-		if (size > COLLECTION_FILE_MAX_BYTES)
-			return { ok: false, error: 'That collection is too large.' };
+		if (size > COLLECTION_FILE_MAX_BYTES) return refused('That collection is too large.');
 		const parsed = parseCollectionFile(raw);
 		if (!parsed.ok)
-			return {
-				ok: false,
-				error: `That is not a valid collection: ${parsed.problems.slice(0, 4).join('; ')}.`
-			};
+			return refused(`That is not a valid collection: ${parsed.problems.slice(0, 4).join('; ')}.`);
 		const file = await withRules(shelves, parsed.file, owner, id);
-		if (!file) return { ok: false, error: 'The collection’s first adventure could not be found.' };
+		if (!file) return refused('The collection’s first adventure could not be found.');
 		const { items } = await resolveCollection(shelves, file, owner, id);
 		if (items.some((i) => i.status !== 'ok'))
-			return { ok: false, error: `That collection can't be published: ${problemsOf(items)}` };
+			return refused(`That collection can't be published: ${problemsOf(items)}`);
 		return { ok: true, item: { title: file.title, about: file.about, file } };
 	}
 
@@ -1632,7 +1666,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		let started;
 		if ('copy' in pick) {
 			const custom = loadCustomAdventure(pick.copy.file);
-			if (!custom.ok) return sendError(ws, 'invalid_message', custom.error);
+			if (!custom.ok) return sendError(ws, 'invalid_message', custom.error, custom.diagnostics);
 			started = adventure.startAdventure(room, player, custom.adventure.id);
 			if (started.ok)
 				room.adventure!.library = {
@@ -1705,7 +1739,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 		if (rooms.get(room.id) !== room) return;
 		const custom = loadCustomAdventure(copy.file);
-		if (!custom.ok) return sendError(ws, 'invalid_message', custom.error);
+		if (!custom.ok) return sendError(ws, 'invalid_message', custom.error, custom.diagnostics);
 		const result = adventure.startAdventure(room, player, custom.adventure.id);
 		if (!result.ok) return sendError(ws, result.code, result.message);
 		room.adventure!.library = {
@@ -2037,7 +2071,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 class SceneError extends Error {
 	constructor(
 		readonly code: ErrorCode,
-		message: string
+		message: string,
+		readonly diagnostics: Diagnostic[] = []
 	) {
 		super(message);
 	}

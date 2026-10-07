@@ -33,7 +33,13 @@ import type {
 	When
 } from './define';
 import { AMBUSH } from './define';
-import { validateAdventure } from './validate';
+import { codeOfProblem, validateAdventure } from './validate';
+import {
+	diagnostic,
+	fromProblem,
+	type Diagnostic,
+	type DiagnosticCode
+} from '../validation/diagnostics';
 import { CUES, type Shot } from '../game/chat';
 import type { GridPos } from '../game/grid';
 import { AMBIENTS, LIGHT_LOOK_KEYS, parseLightLook } from '../game/lights';
@@ -141,10 +147,18 @@ export type AdventureFileParse = { ok: true; file: AdventureFile } | { ok: false
 // ---------------------------------------------------------------------------
 // Checking, piece by piece
 
-class Bad extends Error {}
+class Bad extends Error {
+	constructor(
+		readonly path: string,
+		readonly what: string,
+		readonly code: DiagnosticCode
+	) {
+		super(`${path}: ${what}`);
+	}
+}
 
-function bad(path: string, what: string): never {
-	throw new Bad(`${path}: ${what}`);
+function bad(path: string, what: string, code: DiagnosticCode = 'schema.value'): never {
+	throw new Bad(path, what, code);
 }
 
 /** Ids: lower case letters, digits, `-` and `_`, starting with a letter or digit. */
@@ -244,7 +258,7 @@ const state = (v: unknown, path: string): ObjectState => {
 
 function dice(v: unknown, path: string): string {
 	if (typeof v !== 'string' || !/^[0-9d+\- ]{1,24}$/.test(v))
-		bad(path, 'expected dice, e.g. 1d6+2');
+		bad(path, 'expected dice, e.g. 1d6+2', 'dice.invalid');
 	return v;
 }
 
@@ -984,17 +998,104 @@ export const DEFAULT_VOICE: Voice = {
 
 /** Checks an adventure file field by field; anything it doesn't know is dropped. */
 export function parseAdventureFile(raw: unknown): AdventureFileParse {
+	const read = readFile(raw);
+	if (!read.file) return { ok: false, error: `${read.problem.path}: ${read.problem.message}` };
+	// A field the format doesn't name is never dropped quietly (milestone 56).
+	const unknown = unknownFields(raw, read.file);
+	if (unknown.length) return { ok: false, error: `${unknown[0].path}: ${unknown[0].message}` };
+	return { ok: true, file: read.file };
+}
+
+function readFile(raw: unknown):
+	| { file: AdventureFile; problem?: never }
+	| {
+			file?: never;
+			problem: Diagnostic;
+	  } {
 	try {
-		return { ok: true, file: parse(raw) };
+		return { file: parse(raw) };
 	} catch (err) {
-		if (err instanceof Bad) return { ok: false, error: err.message };
+		if (err instanceof Bad) return { problem: diagnostic(err.code, err.path, err.what) };
 		throw err;
 	}
 }
 
+const isPlain = (v: unknown): v is Record<string, unknown> =>
+	typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * The fields in the file that its reading didn't keep: every key of an
+ * object in `raw` missing from the same object as read. A table's scene is
+ * its own versioned format, read (and migrated) by the scene parser.
+ */
+export function unknownFields(raw: unknown, read: unknown, path = ''): Diagnostic[] {
+	if (/^locations\.[^.]+\.scene$/.test(path)) return [];
+	if (Array.isArray(raw) && Array.isArray(read))
+		return raw.flatMap((r, i) => unknownFields(r, read[i], `${path}[${i}]`));
+	if (!isPlain(raw) || !isPlain(read)) return [];
+	return Object.keys(raw).flatMap((k) => {
+		const at = path ? `${path}.${k}` : k;
+		return k in read
+			? unknownFields(raw[k], read[k], at)
+			: [diagnostic('schema.unknown_field', at, 'not a field of an adventure file')];
+	});
+}
+
+/** What the reading of an adventure file found: the file and its adventure when it reads, and every diagnostic. */
+export interface AdventureDiagnosis {
+	file: AdventureFile | null;
+	adventure: AdventureDef | null;
+	diagnostics: Diagnostic[];
+	/** The format version the file says it is in, when it says. */
+	format: number | null;
+}
+
+/**
+ * Everything wrong with an adventure file, as diagnostics (milestone 56):
+ * its format, the first value that doesn't read, every field it doesn't
+ * know, and once it reads, every reference that goes nowhere, bad dice and
+ * what the story lacks.
+ */
+export function diagnoseAdventureFile(raw: unknown, adventureId: string): AdventureDiagnosis {
+	const format =
+		isPlain(raw) && typeof raw.version === 'number' && Number.isInteger(raw.version)
+			? raw.version
+			: null;
+	if (
+		isPlain(raw) &&
+		raw.format === ADVENTURE_FILE_FORMAT &&
+		format !== null &&
+		format > ADVENTURE_FILE_VERSION
+	)
+		return {
+			file: null,
+			adventure: null,
+			format,
+			diagnostics: [
+				diagnostic(
+					'format.newer',
+					'version',
+					`version ${format}; this server reads adventure files up to version ${ADVENTURE_FILE_VERSION}`
+				)
+			]
+		};
+	const read = readFile(raw);
+	if (!read.file) return { file: null, adventure: null, format, diagnostics: [read.problem] };
+	const unknown = unknownFields(raw, read.file);
+	if (unknown.length) return { file: null, adventure: null, format, diagnostics: unknown };
+	const adventure = compileAdventure(read.file, adventureId);
+	return {
+		file: read.file,
+		adventure,
+		format,
+		diagnostics: problemsOf(read.file, adventure).map((p) => fromProblem(p, codeOfProblem(p)))
+	};
+}
+
 function parse(raw: unknown): AdventureFile {
 	const f = obj(raw, 'file');
-	if (f.format !== ADVENTURE_FILE_FORMAT) bad('format', 'not a thirdfold adventure');
+	if (f.format !== ADVENTURE_FILE_FORMAT)
+		bad('format', 'not a thirdfold adventure', 'format.unknown');
 	if (f.version !== ADVENTURE_FILE_VERSION) bad('version', `expected ${ADVENTURE_FILE_VERSION}`);
 	const L = ADVENTURE_LIMITS;
 	const start = obj(f.start, 'start');
@@ -1352,25 +1453,31 @@ export function compileAdventure(file: AdventureFile, id: string): AdventureDef 
 
 export type AdventureLoad =
 	| { ok: true; file: AdventureFile; adventure: AdventureDef }
-	| { ok: false; error: string; problems?: string[] };
+	| { ok: false; error: string; problems?: string[]; diagnostics: Diagnostic[] };
 
 /**
  * Parses, compiles and checks an adventure file: what the builder shows as
  * problems, and what the server requires before it runs one.
  */
 export function loadAdventureFile(raw: unknown, adventureId: string): AdventureLoad {
-	const parsed = parseAdventureFile(raw);
-	if (!parsed.ok) return parsed;
-	const adventure = compileAdventure(parsed.file, adventureId);
-	const problems = problemsOf(parsed.file, adventure);
-	if (problems.length) {
+	const d = diagnoseAdventureFile(raw, adventureId);
+	const errors = d.diagnostics.filter((x) => x.severity === 'error');
+	if (!d.file || !d.adventure)
+		return {
+			ok: false,
+			error: `${errors[0].path}: ${errors[0].message}`,
+			diagnostics: d.diagnostics
+		};
+	if (errors.length) {
+		const problems = errors.map((x) => `${x.path}: ${x.message}`);
 		return {
 			ok: false,
 			error: `The adventure has ${problems.length === 1 ? 'a problem' : `${problems.length} problems`}: ${problems[0]}`,
-			problems
+			problems,
+			diagnostics: d.diagnostics
 		};
 	}
-	return { ok: true, file: parsed.file, adventure };
+	return { ok: true, file: d.file, adventure: d.adventure };
 }
 
 /** Everything wrong with an adventure beyond its shape: references that go nowhere, and what it lacks. */

@@ -1,6 +1,7 @@
 // Browser side of the game connection: opens the socket, enters a room,
 // reconnects with the session token after drops, and exposes reactive state.
 
+import { isDiagnostic, type Diagnostic } from '$lib/validation/diagnostics';
 import { GAME_SERVER_URL } from '$lib/api';
 import type { Motion } from '$lib/game/motion';
 import type {
@@ -51,6 +52,8 @@ export interface ActionError {
 	message: string;
 	/** Increments per error, so repeated identical errors still re-trigger UI. */
 	seq: number;
+	/** What the server found in content it refused (milestone 56). */
+	diagnostics?: Diagnostic[];
 }
 
 export interface ConnectionError {
@@ -223,7 +226,7 @@ export class RoomConnection {
 			case 'error':
 				console.warn(`[room] server error ${msg.code}: ${msg.message}`);
 				if (this.status === 'connected') {
-					this.reportActionError(msg.code, msg.message);
+					this.reportActionError(msg.code, msg.message, msg.diagnostics?.filter(isDiagnostic));
 					return;
 				}
 				this.error = { code: msg.code, message: msg.message };
@@ -285,8 +288,17 @@ export class RoomConnection {
 		}, delay);
 	}
 
-	private reportActionError(code: ActionError['code'], message: string): void {
-		this.actionError = { code, message, seq: ++this.errorSeq };
+	private reportActionError(
+		code: ActionError['code'],
+		message: string,
+		diagnostics?: Diagnostic[]
+	): void {
+		this.actionError = {
+			code,
+			message,
+			seq: ++this.errorSeq,
+			...(diagnostics?.length ? { diagnostics } : {})
+		};
 	}
 
 	private fail(error: ConnectionError): void {

@@ -483,3 +483,43 @@ A story can't be moved:
 - to a version where the story doesn't fit where it is (its chapter is gone, for one).
 
 An adventure that came with a collection moves with the collection. Under a collection, the GM's own homebrew stays and the collection's is what the new version names. Every version of a library item stays readable (`library_story` and `collection_check` take a `version`).
+
+## Validation
+
+Every piece of content goes through one validator before it can reach a live session (milestone 56, `server/validation.ts`). This covers adventure files, homebrew packs, collections, a character a player builds, and saved tables. The builder runs the same checks as you work, and the server runs them again:
+
+- when you publish (`library_publish`);
+- when a GM starts an adventure from a file, the library or a collection;
+- when a saved or exported table is imported, loaded or continued.
+
+A refusal names what was wrong.
+
+Each finding is a **diagnostic** (`src/lib/validation/diagnostics.ts`) with four parts:
+
+- a **code** that never changes meaning (`ref.missing`, `dice.invalid`, `schema.unknown_field`, `dependency.unavailable`, `access.denied`, …; `DIAGNOSTICS` lists every code with a hint on how to fix it);
+- a **severity** (an error stops the content; a warning, such as `version.rebuilt`, is only told);
+- a **path** to where it is, such as `chapters.the_mill.mood`, `enemies.rat.attacks[0].damage`, `chapter the_mill` or `packs[0]`;
+- a **message**.
+
+What each kind is checked for:
+
+- **Adventure file**:
+  - its format and version: a newer one is `format.newer`, never guessed at;
+  - every field and value;
+  - no field thirdfold doesn't know (`schema.unknown_field`): a misspelt field is never dropped silently;
+  - every reference and dice expression (`validateAdventure`);
+  - spawns and things on their tables;
+  - the rules it plays by (`rules.unknown`, `rules.check`).
+- **Homebrew pack**: everything in `docs/HOMEBREW.md` under its rules: unknown fields, markup (`content.markup`), the SRD's names (`content.srd_name`) and newer formats.
+- **Collection**:
+  - its references;
+  - every piece it names, as its creator may include them: `dependency.missing`, `dependency.unavailable`, `dependency.incompatible` or `dependency.invalid` at `adventures[i]`, `packs[i]` or `tables[i]`.
+- **Character**: the choices through its rules' builder (`character.invalid`).
+- **Saved table**:
+  - the scene file at any version this server reads;
+  - its story, read as a load reads it: content from another source is `version.source`, damage is `save.invalid`;
+  - every library grant it rests on still in force (`access.denied`).
+
+The validators carry a version and the format versions they read (`VALIDATORS`), so older content stays readable by the validator that reads it.
+
+In the builder, **Check** lists the draft's diagnostics with their hints, and **Check on the server** asks the game server (`content_validate`, open to anyone and changing nothing) for its own verdict and the validator that gave it. Publishing shows the server's diagnostics when it refuses.

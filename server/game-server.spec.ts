@@ -989,7 +989,8 @@ describe('saving and loading scenes over the wire', () => {
 		});
 		expect(await gm.expect('error')).toMatchObject({
 			code: 'invalid_scene',
-			message: expect.stringMatching(/off the map/)
+			message: expect.stringMatching(/off the map/),
+			diagnostics: [{ code: 'save.invalid', message: expect.stringMatching(/off the map/) }]
 		});
 		gm.send({ type: 'scene_load', sceneId: 'f'.repeat(32) });
 		expect(await gm.expect('error')).toMatchObject({ code: 'scene_not_found' });
@@ -3133,7 +3134,8 @@ describe('permissions over the wire (milestone 54)', () => {
 		later.gm.send({ type: 'scene_load', sceneId: saved.sceneId });
 		expect(await later.gm.until('error')).toMatchObject({
 			code: 'forbidden',
-			message: "The Miller’s Key is no longer shared with you, so this story can't be opened."
+			message: "The Miller’s Key is no longer shared with you, so this story can't be opened.",
+			diagnostics: [{ code: 'access.denied', severity: 'error', path: 'adventure.entitlements' }]
 		});
 		later.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
 		expect(await later.gm.until('error')).toMatchObject({ code: 'forbidden' });
@@ -4413,5 +4415,104 @@ describe("the world's look over the wire", () => {
 		gm.send({ type: 'world_set', patch: { time: 780 } });
 		expect((await pip.c.expect('world_update')).world.time).toBe(780);
 		expect(pip.frames.filter((f) => f.includes('"ambient_update"'))).toHaveLength(1);
+	});
+});
+
+describe('validation over the wire (milestone 56)', () => {
+	const file = () => JSON.parse(JSON.stringify(exampleAdventure()));
+
+	it('checks content for anyone, at a table or not, changing nothing', async () => {
+		const visitor = await connect();
+		visitor.send({ type: 'content_validate', kind: 'adventure', file: file() });
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			kind: 'adventure',
+			ok: true,
+			diagnostics: []
+		});
+		const broken = file();
+		broken.chapters.the_mill.next.on = 'nowhere';
+		broken.chapters.the_mill.mood = 'grim';
+		visitor.send({ type: 'content_validate', kind: 'adventure', file: broken });
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			ok: false,
+			diagnostics: [{ code: 'schema.unknown_field', path: 'chapters.the_mill.mood' }]
+		});
+		visitor.send({
+			type: 'content_validate',
+			kind: 'pack',
+			file: { ...examplePack(), formatVersion: 3 }
+		});
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			kind: 'pack',
+			ok: false,
+			diagnostics: [{ code: 'format.newer' }]
+		});
+		visitor.send({
+			type: 'content_validate',
+			kind: 'collection',
+			file: {
+				format: 'thirdfold-collection',
+				formatVersion: 1,
+				title: 'Gone',
+				about: '',
+				adventures: [{ library: 'a'.repeat(32), version: 1 }],
+				packs: [],
+				tables: []
+			}
+		});
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			ok: false,
+			diagnostics: [{ code: 'dependency.missing', path: 'adventures[0]' }]
+		});
+	});
+
+	it('refuses broken content on publish, start and import with the same diagnostics', async () => {
+		const broken = file();
+		broken.chapters.the_mill.next.on = 'nowhere';
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: broken });
+		expect(await mira.expect('error')).toMatchObject({
+			code: 'invalid_message',
+			message: expect.stringContaining('no event "nowhere"'),
+			diagnostics: [{ code: 'ref.missing', path: 'chapter the_mill' }]
+		});
+		mira.send({
+			type: 'library_publish',
+			kind: 'pack',
+			creator: 'Mira',
+			file: { ...examplePack(), extra: 1 }
+		});
+		expect(await mira.expect('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'schema.unknown_field' })]
+		});
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		await gm.expect('welcome');
+		gm.send({ type: 'adventure_start', file: broken });
+		expect(await gm.until('error')).toMatchObject({
+			code: 'invalid_message',
+			diagnostics: [{ code: 'ref.missing' }]
+		});
+		gm.send({ type: 'adventure_start', adventureId: 'hollow-bell' });
+		await gm.until('room_reset');
+		gm.send({ type: 'scene_export', name: 'Backup' });
+		const saved = (await gm.until('scene_exported')).file as unknown as {
+			adventure: { state: Record<string, unknown> };
+		};
+		// The server checks a save as a load would, before loading it.
+		gm.send({ type: 'content_validate', kind: 'save', file: saved });
+		expect((await gm.until('validation')).validation).toMatchObject({ kind: 'save', ok: true });
+		saved.adventure.state.chapter = 'nowhere';
+		gm.send({ type: 'content_validate', kind: 'save', file: saved });
+		expect((await gm.until('validation')).validation).toMatchObject({
+			ok: false,
+			diagnostics: [{ code: 'save.invalid', path: 'adventure' }]
+		});
+		gm.send({ type: 'scene_import', file: saved });
+		expect(await gm.until('error')).toMatchObject({
+			code: 'invalid_scene',
+			diagnostics: [{ code: 'save.invalid', path: 'adventure' }]
+		});
 	});
 });

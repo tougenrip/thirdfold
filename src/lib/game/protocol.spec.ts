@@ -625,3 +625,35 @@ describe('light looks (#201)', () => {
 		expect(parseClientMessage({ ...create, kind: null })).toBeNull();
 	});
 });
+
+describe('validation (milestone 56)', () => {
+	it('parses a request to check content, and only well-formed ones', () => {
+		const ask = { type: 'content_validate', kind: 'pack', file: { format: 'x' } };
+		expect(parseClientMessage({ ...ask, gmKey: token, extra: 1 })).toEqual({
+			...ask,
+			gmKey: token
+		});
+		expect(parseClientMessage({ ...ask, collection: 'c'.repeat(32) })).toMatchObject({
+			collection: 'c'.repeat(32)
+		});
+		expect(parseClientMessage({ ...ask, kind: 'spell' })).toBeNull();
+		expect(parseClientMessage({ ...ask, file: 'text' })).toBeNull();
+		expect(parseClientMessage({ ...ask, gmKey: 'short' })).toBeNull();
+		expect(parseClientMessage({ ...ask, collection: '../x' })).toBeNull();
+	});
+
+	it('reads a validation, and errors with or without diagnostics', () => {
+		const validation = {
+			kind: 'pack',
+			validator: { id: 'thirdfold-homebrew', version: 1, format: 1 },
+			ok: true,
+			diagnostics: []
+		};
+		expect(parseServerMessage({ type: 'validation', validation })).not.toBeNull();
+		expect(parseServerMessage({ type: 'validation', validation: { ok: true } })).toBeNull();
+		const error = { type: 'error', code: 'invalid_message', message: 'No.' };
+		expect(parseServerMessage(error)).not.toBeNull();
+		expect(parseServerMessage({ ...error, diagnostics: [] })).not.toBeNull();
+		expect(parseServerMessage({ ...error, diagnostics: 'many' })).toBeNull();
+	});
+});

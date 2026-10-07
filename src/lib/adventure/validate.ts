@@ -4,6 +4,7 @@
 // runs, so a mistake in it shows up here rather than mid-story.
 
 import { parseDice } from '../game/dice';
+import type { DiagnosticCode } from '../validation/diagnostics';
 import { AMBUSH, type AdventureDef, type Effect, type Rule, type When } from './define';
 
 /** What is wrong with an adventure's content; empty when nothing is. */
@@ -236,4 +237,18 @@ export function validateAdventure(A: AdventureDef): string[] {
 	}
 	if (A.ward) object(A.ward.object, 'ward');
 	return problems;
+}
+
+/**
+ * The diagnostic code of a problem this file (or the file loader) words:
+ * a reference that goes nowhere, bad dice, a reserved id, something off its
+ * table, or the story's shape.
+ */
+export function codeOfProblem(problem: string): DiagnosticCode {
+	if (/: bad dice "/.test(problem)) return 'dice.invalid';
+	if (/: no [a-z ]+ "/.test(problem)) return 'ref.missing';
+	if (/is the GM's own|a reserved id/.test(problem)) return 'ref.reserved';
+	if (/spawn cell is off the map|: not on the .+ table|: no spawn cells/.test(problem))
+		return 'map.placement';
+	return 'story.structure';
 }

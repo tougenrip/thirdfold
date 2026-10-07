@@ -16,6 +16,9 @@
 	import { NAME_MAX_LENGTH } from '$lib/game/names';
 	import { parseSceneFile, SCENE_FILE_MAX_BYTES } from '$lib/game/scene-file';
 	import CellsInput from '$lib/builder/CellsInput.svelte';
+	import Diagnostics from '$lib/ui/Diagnostics.svelte';
+	import { validateOnServer } from '$lib/net/library';
+	import type { Validation } from '$lib/validation/diagnostics';
 	import {
 		flowOf,
 		formatArea,
@@ -50,8 +53,28 @@
 
 	/** Everything wrong with the draft, checked the way the server will check it. */
 	const checked = $derived(loadAdventureFile($state.snapshot(draft), 'draft'));
-	const problems = $derived(
-		checked.ok ? [] : (checked.problems ?? [checked.error.replace(/^[^:]*: /, '')])
+	const problems = $derived(checked.ok ? [] : checked.diagnostics);
+
+	/** The server's own check of the draft (milestone 56), asked for by the creator. */
+	let serverCheck = $state<
+		| { state: 'asking' }
+		| { state: 'done'; validation: Validation; of: string }
+		| { state: 'failed'; error: string }
+		| null
+	>(null);
+	async function checkOnServer() {
+		serverCheck = { state: 'asking' };
+		const file = $state.snapshot(draft);
+		try {
+			const validation = await validateOnServer('adventure', file, loadGmKey());
+			serverCheck = { state: 'done', validation, of: JSON.stringify(file) };
+		} catch (err) {
+			serverCheck = { state: 'failed', error: (err as Error).message };
+		}
+	}
+	/** Whether the server's answer is about the draft as it is now. */
+	const serverCurrent = $derived(
+		serverCheck?.state === 'done' && serverCheck.of === JSON.stringify($state.snapshot(draft))
 	);
 	const ids = $derived(idsOf(draft));
 	const flow = $derived(flowOf(draft));
@@ -1548,10 +1571,31 @@
 						{problems.length}
 						{problems.length === 1 ? 'thing needs' : 'things need'} fixing before it can be played:
 					</p>
-					<ul class="problems">
-						{#each problems as p (p)}<li>{p}</li>{/each}
-					</ul>
+					<Diagnostics diagnostics={problems} />
 				{/if}
+				<div class="server-check">
+					<button type="button" disabled={serverCheck?.state === 'asking'} onclick={checkOnServer}>
+						Check on the server
+					</button>
+					{#if serverCheck?.state === 'asking'}
+						<span class="muted">Asking the game server…</span>
+					{:else if serverCheck?.state === 'failed'}
+						<span class="error" role="alert">{serverCheck.error}</span>
+					{:else if serverCheck?.state === 'done'}
+						{@const v = serverCheck.validation}
+						<p class:ok={v.ok} role="status">
+							{v.ok
+								? 'The server reads it and would play it.'
+								: `The server found ${v.diagnostics.length} ${v.diagnostics.length === 1 ? 'problem' : 'problems'}.`}
+							<span class="muted"
+								>({v.validator.id} v{v.validator.version}{v.validator.format !== null
+									? `, format ${v.validator.format}`
+									: ''}){serverCurrent ? '' : ' · the draft has changed since'}</span
+							>
+						</p>
+						<Diagnostics diagnostics={v.diagnostics} />
+					{/if}
+				</div>
 				<h3>Rewards the party can earn</h3>
 				{#if rewards.length}
 					<ul>
@@ -1796,8 +1840,20 @@
 		color: var(--accent);
 	}
 
-	.problems li {
-		color: var(--danger);
+	.server-check {
+		display: grid;
+		gap: var(--sp-2);
+		margin: var(--sp-3) 0;
+	}
+	.server-check button {
+		justify-self: start;
+	}
+	.server-check p {
+		margin: 0;
+	}
+	.server-check .muted {
+		color: var(--muted);
+		font-size: var(--fs-xs);
 	}
 
 	.ok {

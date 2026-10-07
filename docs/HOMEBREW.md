@@ -30,6 +30,8 @@ A pack can also go in the library, where a collection can include it (see "Colle
 
 The server checks the pack in full, as it does at a table, and keeps it as read. Publishing it again makes a new version.
 
+When the server refuses a pack, the refusal lists every problem as a diagnostic: a stable code, the path in the pack (`records[2].name`, `formatVersion`), what is wrong and how to fix it. The same check is open to anyone through `content_validate`, which changes nothing. See "Validation" in `docs/ADVENTURES.md`.
+
 ## The format
 
 A pack is plain JSON. No field holds code:

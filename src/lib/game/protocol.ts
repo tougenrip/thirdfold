@@ -58,6 +58,12 @@ import {
 import type { CollectionReport } from './collection';
 import { GRANT_ID_PATTERN, parseNewGrant, type NewGrant } from './access';
 import type { UpgradeReview } from '../adventure/versions';
+import {
+	CONTENT_KINDS,
+	type ContentKind,
+	type Diagnostic,
+	type Validation
+} from '../validation/diagnostics';
 import { MAX_LEVEL } from './terrain';
 import { parseTokenLook, TOKEN_COLOR_PATTERN, type Token } from './token';
 import { MAX_VISION, type FogView } from './visibility';
@@ -328,6 +334,20 @@ export type ClientMessage =
 	| { type: 'library_grant'; gmKey: string; adventureId: string; grant: NewGrant }
 	/** A creator revokes a grant on one of their items. Replies with library_mine. */
 	| { type: 'library_revoke'; gmKey: string; adventureId: string; grantId: string }
+	/**
+	 * Anyone: checks a piece of content the way the server will use it
+	 * (milestone 56): an adventure file, a homebrew pack, a collection (as the
+	 * `gmKey`'s creator may include its pieces, `collection` naming the one it
+	 * becomes a version of), a character's `{ rules, choices }` or a saved
+	 * table. Changes nothing. Replies with validation.
+	 */
+	| {
+			type: 'content_validate';
+			kind: ContentKind;
+			file: unknown;
+			gmKey?: string;
+			collection?: string;
+	  }
 	/** Anyone: the games GMs have listed. */
 	| { type: 'games_list' }
 	/** Player: play this character (one each). */
@@ -693,7 +713,10 @@ export type ServerMessage =
 			type: 'character_preview';
 			preview: { ok: true; summary: Record<string, unknown> } | { ok: false; problems: string[] };
 	  }
-	| { type: 'error'; code: ErrorCode; message: string };
+	/** What a content_validate found. */
+	| { type: 'validation'; validation: Validation }
+	/** A refusal; one of content carries what was found in it (milestone 56). */
+	| { type: 'error'; code: ErrorCode; message: string; diagnostics?: Diagnostic[] };
 
 const SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const ID_MAX_LENGTH = 64;
@@ -1204,6 +1227,17 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 			};
 		case 'library_mine':
 			return isGmKey(data.gmKey) ? { type: 'library_mine', gmKey: data.gmKey } : null;
+		case 'content_validate':
+			if (!CONTENT_KINDS.includes(data.kind as ContentKind) || !isRecord(data.file)) return null;
+			if (data.gmKey !== undefined && !isGmKey(data.gmKey)) return null;
+			if (data.collection !== undefined && !isLibraryId(data.collection)) return null;
+			return {
+				type: 'content_validate',
+				kind: data.kind as ContentKind,
+				file: data.file,
+				...(data.gmKey !== undefined ? { gmKey: data.gmKey } : {}),
+				...(data.collection !== undefined ? { collection: data.collection } : {})
+			};
 		case 'library_publish': {
 			if (typeof data.creator !== 'string' || !isRecord(data.file)) return null;
 			if (data.gmKey !== undefined && !isGmKey(data.gmKey)) return null;

@@ -725,7 +725,9 @@
 	$effect(() => {
 		const err = conn.actionError;
 		if (err) {
-			showToast(err.message);
+			// A refusal of content says how much more was found than its first problem.
+			const more = (err.diagnostics ?? []).filter((d) => d.severity === 'error').length - 1;
+			showToast(more > 0 ? `${err.message} (and ${more} more)` : err.message);
 			play([{ kind: 'ui', sound: 'error' }]);
 		}
 	});

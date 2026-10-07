@@ -36,7 +36,9 @@ const BUDGETS = {
 	// measured. → 100.3: the shared chunk after roof fades (#259: Tabletop.setOwnTokens), just over
 	// 100.0 kB measured.
 	// → 101.3: the rules track's (#99) and main's M70 (#250, #259) together, 101,227 B measured.
-	'/builder': { total: 101_300, own: 52_000 },
+	// → 104.1: diagnostics (#101): every code's hint, the diagnostics list and Check on the server,
+	// 104,020 B measured.
+	'/builder': { total: 104_100, own: 52_000 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured. → 54.9: beside the rules track's shared
 	// library types (#99), 54,802 B measured.
 	'/credits': { total: 54_900, own: 3_000 },
@@ -45,10 +47,12 @@ const BUDGETS = {
 	// → 51.2: the same shared code (#215), 51,128 B measured.
 	// → 51.3: the rules track's shared adventure types beside the sky's (#94–#96), 51,208 B measured.
 	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
-	'/dev/assets': { total: 52_900, own: 500 },
+	// → 53.0: the shared refusal reader's diagnostics (#101), 52,903 B measured.
+	'/dev/assets': { total: 53_000, own: 500 },
 	// 66.0 → 66.2: the rules track's library client (#98, #99) beside main's M70 kits (#250),
 	// 66,138 B measured.
-	'/library': { total: 66_200, own: 21_000 },
+	// → 67.4: a refused publish's diagnostics in the workshop (#101), 67,365 B measured.
+	'/library': { total: 67_400, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
 	'/room/[id]': { total: 121_700, own: 76_000 },
