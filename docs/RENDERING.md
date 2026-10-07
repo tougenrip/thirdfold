@@ -3412,18 +3412,18 @@ M69): WebGL2 on SwiftShader, and WebGPU in the local `client-webgpu` project.
 
 `createMaterial(kind, options)` makes a material; `KINDS` in `kinds.ts` defines each kind.
 
-| Kind     | Base                               | Slots                         | Defaults and extras                                 | First users                         |
-| -------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- | ----------------------------------- |
-| surface  | Standard                           | albedo, normal, ORM, emissive | box mapping in the world, macro variation           | walls, door panels, the table's rim |
-| terrain  | Standard                           | as surface                    | as surface; floors and height from the `ground` map | the table's top, raised ground      |
-| rock     | Standard                           | as surface                    | triplanar in the world (biplanar on low), macro     | cliffs and risers (#241)            |
-| prop     | Standard                           | as surface                    | object space, paint (#178), lift (#181)             | props and placeholder boxes         |
-| mini     | Physical (clearcoat a uniform)     | as surface                    | object space, paint, own colour and see-through     | tokens                              |
-| emissive | Standard                           | as surface                    | the mesh's uv                                       | none yet                            |
-| decal    | Standard, transparent              | as surface                    | the mesh's uv, lift                                 | none yet                            |
-| foliage  | Standard, alpha-tested, both sides | as surface                    | the mesh's uv, sways on `worldTime`                 | none yet                            |
-| water    | Standard, transparent              | as surface                    | the mesh's uv slid on `worldTime`, lift             | none yet                            |
-| overlay  | Basic, or LineBasic (`lines`)      | albedo (lines: none)          | transparent                                         | the fog cloud                       |
+| Kind     | Base                               | Slots                         | Defaults and extras                                                      | First users                         |
+| -------- | ---------------------------------- | ----------------------------- | ------------------------------------------------------------------------ | ----------------------------------- |
+| surface  | Standard                           | albedo, normal, ORM, emissive | box mapping in the world, macro variation                                | walls, door panels, the table's rim |
+| terrain  | Standard                           | as surface                    | as surface; floors and height from the `ground` map                      | the table's top, raised ground      |
+| rock     | Standard                           | as surface                    | triplanar in the world (biplanar on low), macro                          | cliffs and risers (#241)            |
+| prop     | Standard                           | as surface                    | object space, paint (#178), lift (#181)                                  | props and placeholder boxes         |
+| mini     | Physical (clearcoat a uniform)     | as surface                    | object space, paint, own colour and see-through, the painted look (#267) | tokens                              |
+| emissive | Standard                           | as surface                    | the mesh's uv                                                            | none yet                            |
+| decal    | Standard, transparent              | as surface                    | the mesh's uv, lift                                                      | none yet                            |
+| foliage  | Standard, alpha-tested, both sides | as surface                    | the mesh's uv, sways on `worldTime`                                      | none yet                            |
+| water    | Standard, transparent              | as surface                    | the mesh's uv slid on `worldTime`, lift                                  | none yet                            |
+| overlay  | Basic, or LineBasic (`lines`)      | albedo (lines: none)          | transparent                                                              | the fog cloud                       |
 
 - **Fixed at creation**, each a variant with a graph of its own (never toggled later): the kind,
   `instanced` (an `InstancedMesh` whose geometry has the tint and lift attributes,
@@ -3470,7 +3470,7 @@ key. So:
 - **Never toggle** `transparent`, `side`, `alphaTest`, `vertexColors` or `fog` after creation, and
   never let a numeric material property cross 0 at runtime. Foliage cuts by `params.cutoff`
   through `alphaTestNode`; physical features are driven by their node (`clearcoatNode` on
-  `params.clearcoat`, 0 until #267), since three's `useClearcoat` would add a define the moment
+  `params.clearcoat`, the minis' varnish since #267), since three's `useClearcoat` would add a define the moment
   `material.clearcoat` left 0.
 - **Tier differences are separate graphs** chosen when the pipeline is (anti-tiling is the one
   so far); a tier switch that keeps the pipeline swaps materials for their kept twins (see
@@ -3744,6 +3744,64 @@ Short, 6 steps, 33 s) on WebGL2, and again with `PERF_BACKEND=webgpu` (70 s and 
 table came to rest after each step, moves animated, no console errors. The perf gate passed on
 the new baseline, both golden sets (159 each) were re-recorded and the slim set passes against
 them, and the renderer chunk is 356.1 kB gz of its 360 kB.
+
+## The miniature kind (milestone 71, #267)
+
+Every figure reads as a painted miniature: a darker wash in its cavities, a lighter drybrush on
+convex edges, a clearcoat varnish and a fresnel rim that keeps its silhouette off the floor at
+night. It is all in the mini kind's graph (`materials/mini.ts`, called from `ownAlbedo` in
+`hooks.ts` and from `build` in `kinds.ts`), with every value a uniform.
+
+**Inputs.**
+
+- The albedo slot times `params.color`, and the tint: on an instanced mini, `aPaint` rgb (a vec4
+  since #266, w its opacity; white on vertex-coloured bodies, the token's colour on accents, the
+  placeholder and textured parts); on a plain mesh, `miniColour`. Vertex colours are multiplied in
+  after, by three.
+- `aBake` (#190): x the occlusion, y the convexity (0.5 flat). `withBake` gives an unbaked model
+  (1, 0.5), so it is neither washed nor drybrushed.
+- ORM: red the occlusion of a textured mini (times `aBake.x`), alpha its tint mask.
+- `aTint` w (the hover and selection glow's strength) lifts the rim per instance.
+
+**The terms.** Wash: `albedo × mix(1, washDark, 1 − ao)`. Drybrush (vertex-coloured only):
+`albedo × (1 + edgeLight × saturate(2 × (convexity − 0.5)))`, multiplicative so three's vertex
+colour multiply after it changes nothing. Tint: vertex-coloured, times the tint; textured,
+`mix(albedo, tint × luminance(albedo) / luminance(tint), ORM alpha)`, so only masked areas take the
+token's colour at their own value. Varnish: `clearcoatNode = params.clearcoat × varnish`
+(`clearcoat` 0.25, `clearcoatRoughness` 0.35 in `KINDS.mini`). Rim, an emissive before
+`worldEmissive`: `mix(dayColour, nightColour, night) × mix(rimDay, rimNight, night) × (1 + hoverRim
+× aTint.w) × (1 − saturate(n·v))^rimPower × lit`. Paint noise (#178) stays on top, smoothness capped
+at 0.9.
+
+**Uniforms** (`miniLook`, shared by every mini; values in docs/ART.md, "Minis"): `washDark`,
+`edgeLight`, `varnish` (1; 0 on the low tier, set by `applyMaterials` in `capabilities.ts`, the
+lobe still compiled), `rimPower`, `rimDay`, `rimNight`, `rimDayColour`, `rimNightColour`,
+`hoverRim`.
+
+**The rim and the rules.** `worldRim()` (`world-modify.ts`) gives `night`, the shade of the
+fragment's cell over `NIGHT_DARK` (0 by day, 1 at night or in a dark area at any hour), and `lit`:
+1 where the rules don't keep the dark, else the cell's own light level (the visibility map's B,
+exactly, no soft edge) or the flash. So the rim is faint and warm by day, cool and stronger at
+night, and never shows on a mini whose cell no light reaches. It goes through `worldEmissive` and
+`worldModify` like any glow: a hidden cell's mini is exactly black, rim and all. The rim follows
+today's lighting (the band and dark areas through the cell uniforms) rather than being set by
+`AtmosphereLayer`; #218's curves can drive the same uniforms later.
+
+**Exactly two programs.** The figures draw with two mini programs per tier and pass: vertex-coloured
+(part lists, accents, the placeholder) and textured (`vertexColors` off). They are one graph:
+`ByColours` picks the part-list or textured albedo as each material's program is built, by its
+`vertexColors`, which three's own colour multiply already keys programs by, so the split adds no
+variant to warm. (r186 declares a lit graph's uniforms in another order for a further material
+compiled after one of the other kind, vertex colours or not: that was so for the mini kind's plain
+and coloured materials before #267, and is the same with the textured branch taken out; the
+warm-ups cover it, and #266's batches make one material per layout.) The two layouts are fixed by #266's figure geometry: position, normal,
+uv, color, `aBake`, `instanceMatrix`, `aPaint` (vec4) and `aTint` (vec4), WebGPU's eight vertex
+buffers exactly; models.ts fills a missing colour (white) and bake, so a model before #190's bakes
+or an accent without colours is the same code. Tuning, the tier's varnish, the hour, a hover, hiding
+(the screen-door on `aPaint` w) and a baked model arriving change no program.
+`mini-look.svelte.spec.ts` (`RENDER_SPECS`): the wash and drybrush, the textured tint by its mask,
+the rim where the rules light the cell and not where they keep it dark, black when unexplored, and
+the two programs through those changes.
 
 ## Testing the renderer
 

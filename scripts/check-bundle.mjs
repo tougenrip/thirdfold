@@ -119,7 +119,9 @@ const BUDGETS = {
 	// label-layer.ts, the atlas and two instanced sprites, replacing the per-token label sprites);
 	// 402.9 kB measured after the merge (M71's cap is about 410 kB). → dice as PBR sets (#275: one InstancedMesh per
 	// kind, the dice material, the atlas's UVs; decal canvases and pips gone); 403.1 kB measured after the merge.
-	renderer: { total: 403_200 },
+	// → the miniature kind's wash, drybrush, varnish and rim (#267, materials/mini.ts); 403.6 kB
+	// measured.
+	renderer: { total: 403_700 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.
