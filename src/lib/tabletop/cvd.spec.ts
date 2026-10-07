@@ -2,7 +2,7 @@
 // simulations do to colours a dichromat confuses or keeps apart.
 
 import { describe, expect, it } from 'vitest';
-import { linear, oklab, oklabDistance, simulate, type Deficiency } from './cvd';
+import { linear, oklab, oklabDistance, simulate, simulatePixels, type Deficiency } from './cvd';
 
 describe('colour vision', () => {
 	it('puts white and red at their published OKLab values', () => {
@@ -28,5 +28,16 @@ describe('colour vision', () => {
 		expect(hues('deuteranopia')).toBeLessThan(hues(null) / 3);
 		expect(hues('tritanopia')).toBeGreaterThan(hues(null) / 3);
 		expect(oklabDistance(red, green)).toBeGreaterThan(0.2);
+	});
+});
+
+describe('simulated pixels', () => {
+	it('keep greys and alpha, and turn red toward olive under deuteranopia', () => {
+		const out = simulatePixels([128, 128, 128, 255, 255, 0, 0, 7], 'deuteranopia');
+		expect([...out.slice(0, 3)].every((v) => Math.abs(v - 128) <= 1)).toBe(true);
+		expect(out[3]).toBe(255);
+		expect(out[7]).toBe(7);
+		// Red's green rises toward its red: a dichromat sees a dark yellow.
+		expect(out[5]).toBeGreaterThan(out[4] / 2);
 	});
 });

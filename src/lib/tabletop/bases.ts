@@ -50,6 +50,14 @@ export const SEATS = 6;
 export const ENEMY = 6;
 export const NEUTRAL = 7;
 
+/**
+ * The agreed OKLab distance between any two seat colours, or a seat and the neutral grey: 0.07 is
+ * about twice what reads as "the same colour" side by side, and Okabe and Ito's palette keeps above
+ * it for the two common dichromacies (bases.spec.ts). On the drawn picture it holds between seats
+ * under all three (ring-colour-vision.svelte.spec.ts).
+ */
+export const RING_DISTANCE = 0.07;
+
 /** The ring a token wears: a `BASE_PALETTE` index, and its shape twins. */
 export interface Ring {
 	colour: number;

@@ -54,3 +54,27 @@ export function oklabDistance(a: number, b: number, kind: Deficiency | null = nu
 	const [p, q] = [a, b].map((hex) => oklab(kind ? simulate(linear(hex), kind) : linear(hex)));
 	return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
 }
+
+/** Each 8-bit sRGB level in linear light. */
+const LEVELS = Array.from({ length: 256 }, (_, c) => linear(c)[2]);
+/** Linear 0-1 to an 8-bit sRGB level. */
+const encode = (v: number) =>
+	Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055));
+
+/** RGBA pixels (8-bit sRGB, a captured frame's) as a dichromat sees them; alpha kept. */
+export function simulatePixels(
+	rgba: ArrayLike<number>,
+	kind: Deficiency
+): Uint8ClampedArray<ArrayBuffer> {
+	const out = new Uint8ClampedArray(rgba.length);
+	for (let i = 0; i < rgba.length; i += 4) {
+		const s = simulate([LEVELS[rgba[i]], LEVELS[rgba[i + 1]], LEVELS[rgba[i + 2]]], kind);
+		[out[i], out[i + 1], out[i + 2], out[i + 3]] = [
+			encode(s[0]),
+			encode(s[1]),
+			encode(s[2]),
+			rgba[i + 3]
+		];
+	}
+	return out;
+}

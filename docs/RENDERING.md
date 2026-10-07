@@ -4174,11 +4174,28 @@ fixtures keep them; and the probe case of unexplored-black bakes a coarser latti
   mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
   and the spec skips elsewhere; this machine (Linux) is the authority. Diffs land in `.vitest-attachments/`.
   Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts` (below).
+  The mini look-dev pair (#278, `MINIS`: ref-7's minis on grass at noon, ref-1's torch room) is
+  taken close (depth of field, SSIM) and overhead for the GM, the fogged player and the spectator
+  on every tier, and its medium close GM frames again as each dichromacy sees them
+  (`<name>-protanopia`, `-deuteranopia`, `-tritanopia`: the captured pixels through cvd.ts's
+  Machado 2009 simulation, put on a 2D canvas and compared like their base, for human review; a
+  few hundred ms each from the frame already drawn, so in the full set). The slim set has
+  `ref-1 close own spectator`. The rings themselves are measured by
+  `ring-colour-vision.svelte.spec.ts` (a `RENDER_SPECS` file): crowd-60's GM view at its close
+  pose, its tokens handed out among six seats in the test and two made enemies, each token's base
+  centre projected and its ring's near arc sampled; each seat's median colour must keep
+  `RING_DISTANCE` (0.07 OKLab, bases.ts) from every other seat's as drawn and under protan, deutan
+  and tritan simulation, and lie nearest its own palette colour in hue (so the sampler hit the
+  rings; a seat's colour is the median of the largest group of its samples that look alike, since
+  minis and lips in front differ). One pair falls short as drawn and is listed in `KNOWN_SHORT`:
+  bluish green and reddish purple under deuteranopia, 0.053 (0.076 in the palette), reported on
+  #278 rather than recoloured.
+  Enemies are exempt: their notch tells them apart, which the goldens show.
   **When they run:** never with `npm test`. No workflow runs them (the owner's decision at M69): the slim set (`SLIM` in the spec,
-  26 images, `npm run test:golden`) runs on this machine before a rendering PR, beside the
+  28 images, `npm run test:golden`) runs on this machine before a rendering PR, beside the
   renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run test:render`),
   which leave `npm test` too, so CI's verify job stays within minutes.
-  The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
+  The full set (every `MATRIX` image per backend, 20 more with #278: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
   hand, once a rendering PR is ready and agreed, not during development, where the test world and
   the targeted specs are the check.
 

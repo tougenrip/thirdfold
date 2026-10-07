@@ -18,17 +18,11 @@ import {
 	ringEmission,
 	ringFor,
 	ringsFor,
+	RING_DISTANCE,
 	SEATS,
 	type RingContext
 } from './bases';
 import { oklabDistance } from './cvd';
-
-/**
- * OKLab distance between any two seat colours, or a seat and the neutral grey: 0.07 is about
- * twice what reads as "the same colour" side by side, and Okabe and Ito's palette keeps above it
- * for the two common dichromacies.
- */
-const MIN_DISTANCE = 0.07;
 
 const players = [
 	{ id: 'gm', role: 'gm' as const },
@@ -112,7 +106,7 @@ describe('rings', () => {
 					expect(
 						oklabDistance(colours[i], colours[j], kind),
 						`${kind} ${i}/${j}`
-					).toBeGreaterThanOrEqual(MIN_DISTANCE);
+					).toBeGreaterThanOrEqual(RING_DISTANCE);
 	});
 });
 
