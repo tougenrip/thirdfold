@@ -228,11 +228,11 @@ describe('the renderer', () => {
 		const frames = m.tabletop.stats().frames;
 		while (m.tabletop.stats().frames < frames + 3) await wait(50);
 		const layer = throws.mock.contexts[0] as DiceLayer;
-		const [die] = layer.group.children;
+		const die = new THREE.Vector3().setFromMatrixPosition(layer.dice()[0].matrix);
 		const rest = buildDieModel('d20', 1).inradius * 0.9;
-		expect(die.position.y - rest).toBeCloseTo(2, 5); // on the gallery's floor, not the nave's
-		expect(Math.abs(die.position.x - target.x)).toBeLessThan(1.5);
-		const [px, py] = pixelOf(die.position);
+		expect(die.y - rest).toBeCloseTo(2, 5); // on the gallery's floor, not the nave's
+		expect(Math.abs(die.x - target.x)).toBeLessThan(1.5);
+		const [px, py] = pixelOf(die);
 		const [was, now] = [before(px, py), (await readFrame(m.canvas, WIDTH, HEIGHT))(px, py)];
 		expect(now, `the die drawn at ${px}, ${py}`).not.toEqual(was);
 

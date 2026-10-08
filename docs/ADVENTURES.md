@@ -252,6 +252,19 @@ server builds only a legal level 1 character, and it plays like the others
 (its weapons are its attacks). A story that names its own characters in its
 events or lines (as The Hollow Bell does) should leave it off.
 
+An enemy may set `scale` (0.5 to 3, `Token.scale`'s range; 1 when left out):
+how large its figure is drawn. From 1.5 it stands on a larger base (below 1.5
+the 0.86 base, below 2.5 a 1.9 one, from 2.5 a 2.9 one; see
+docs/RENDERING.md, "Large creatures"), which shrinks back to the small base
+while another mini stands where it would cover it. It is visual only: the
+enemy still stands on one cell, and moves, sees and is reached like any other
+(multi-cell sizes belong to the rules track, #96). It reaches clients only as
+its token's `scale`. The Hollow Bell sets the Bell Keeper at 1.8 and the
+Hollow's Hand and Heart at 2.6; the builder's enemy card calls it "Size on
+the table". A token already on the table keeps the scale it was given, so an
+enemy restored from a save made before its adventure set one keeps a small
+base until it spawns again.
+
 ## Checking and testing
 
 `validateAdventure` (`server/adventure/validate.ts`) names every reference

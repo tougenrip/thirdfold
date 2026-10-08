@@ -83,6 +83,7 @@ const RENDER_SPECS = [
 	'effects',
 	'grade',
 	'overlay',
+	'label-layer',
 	'focus',
 	'shot-focus',
 	'unexplored-black',
@@ -115,7 +116,10 @@ const RENDER_SPECS = [
 	'bridges',
 	'roofs',
 	'window-glow',
-	'kit-textures'
+	'kit-textures',
+	'mini-look',
+	'lod',
+	'ring-colour-vision'
 ].map((name) => `src/lib/tabletop/${name}.svelte.spec.ts`);
 
 export default defineConfig({
@@ -158,9 +162,16 @@ export default defineConfig({
 				extends: './vite.config.ts',
 				test: {
 					name: 'client',
-					// Renderer tests and golden images draw with SwiftShader at DPR 1 on
-					// an 800x500 viewport, so pixels never depend on the machine's GPU.
-					browser: browser(['--use-angle=swiftshader', '--enable-unsafe-swiftshader'], true),
+					// Renderer tests draw with SwiftShader at DPR 1 on an 800x500 viewport, so their pixels
+					// never depend on the machine's GPU. The golden images draw on the real GPU since M71
+					// (the RTX 4060 Laptop and its driver are their reference, as for WebGPU's): minutes
+					// instead of an hour on the CPU. THIRDFOLD_GL=vulkan does the same for any run.
+					browser: browser(
+						GOLDENS || process.env.THIRDFOLD_GL === 'vulkan'
+							? ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist']
+							: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+						true
+					),
 					provide: {
 						backend: 'webgl' as const,
 						goldens: GOLDENS ?? 'slim',

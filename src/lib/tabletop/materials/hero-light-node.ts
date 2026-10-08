@@ -15,6 +15,7 @@ import * as T from 'three/tsl';
 import { entryLight, fragmentCell, load, towardNode, type GridLight } from './grid-light-node';
 import type { N } from './tsl';
 import { roofLit } from './world-modify';
+import { SHADOW_PROXY } from '../lod';
 
 const t = T as unknown as Record<string, N & ((...args: unknown[]) => N)>;
 
@@ -86,6 +87,7 @@ export class HeroLight extends THREE.PointLight {
 	) {
 		super(0xffffff, 1, 1, 0);
 		this.castShadow = true;
+		this.shadow.camera.layers.enable(SHADOW_PROXY); // the shadow proxies (lod.ts, #274)
 		this.shadow.autoUpdate = false;
 		this.shadow.mapSize.set(atlas.size, atlas.size);
 	}

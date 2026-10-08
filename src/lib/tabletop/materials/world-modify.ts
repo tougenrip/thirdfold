@@ -22,6 +22,7 @@ import * as THREE from 'three/webgpu';
 import * as T from 'three/tsl';
 import {
 	FLASH_THINS,
+	NIGHT_DARK,
 	cellUniforms,
 	faceCell,
 	groundFlat,
@@ -74,6 +75,10 @@ interface World {
 	light: N;
 	/** The colour the dark takes there: the band's, a dark area's night (#167). */
 	darkTint: N;
+	/** How night-like the dark there is: 0 by day, 1 at night or in a dark area (#267's rim). */
+	night: N;
+	/** 1 where the rules count the cell lit (anywhere not dark), else its own light level (#267). */
+	ruleLit: N;
 }
 
 /** Where a fragment's cell is read: its own, behind its face (#241), or its roof's (#257). */
@@ -223,7 +228,19 @@ function terms(face: CellRead = false): World {
 	const flashed = mix(lit, float(1), u.flash.mul(FLASH_THINS));
 	const light = mix(float(1), flashed, shown);
 	const darkTint = loose(mix(u.nightTint, u.darkTint, notDark));
-	const world = { fog: loose(fog), unseen, light: loose(light), darkTint };
+	// Where the rules keep the dark (night, a dark area), only light lets anyone see: the cell's
+	// own level, exactly (no soft edge), or the flash.
+	const ruleDark = loose(smoothstep(float(NIGHT_DARK - 0.02), float(NIGHT_DARK - 0.005), shade));
+	const ruleLit = mix(float(1), max(texel.z, u.flash), ruleDark.mul(shown));
+	const night = loose(loose(shade).div(NIGHT_DARK)).saturate();
+	const world = {
+		fog: loose(fog),
+		unseen,
+		light: loose(light),
+		darkTint,
+		night,
+		ruleLit: loose(ruleLit)
+	};
 	worlds.set(face, world);
 	return world;
 }
@@ -276,6 +293,15 @@ export function worldModify(output: N, emissive: N, lit = false, face: CellRead 
 
 /** How much of a surface shows in its cell, light times fog: the grid lines fade by it. */
 export const worldShade = (): N => terms().light.mul(terms().fog);
+
+/**
+ * A mini's rim (#267, mini.ts): how night-like its cell's dark is (0 day, 1 night or a dark area),
+ * and whether the rules light it (1 where it isn't dark; else the cell's light level).
+ */
+export const worldRim = (): { night: N; lit: N } => ({
+	night: terms().night,
+	lit: terms().ruleLit
+});
 
 /** How much the fog lets through (1 visible, exactly 0 on a player's hidden cell): the shader grid's (#245). */
 export const worldFog = (): N => terms().fog;

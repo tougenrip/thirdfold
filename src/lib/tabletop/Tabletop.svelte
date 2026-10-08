@@ -62,6 +62,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { textureDetailFrom } from '$lib/assets/detail';
 	import type { Pose } from './shots';
+	import type { Ring } from './bases';
 	import { tick, untrack } from 'svelte';
 
 	interface Props extends Partial<TabletopEvents> {
@@ -85,6 +86,8 @@
 		preview?: readonly PreviewItem[];
 		selectedId?: string | null;
 		ownTokens?: readonly string[]; // the viewer's own, whose roofs fade as the selected one's (#259)
+		hoveredTokenId?: string | null; // its base's ring brightens (#265)
+		rings?: ReadonlyMap<string, Ring>; // each token's ring (#265, `ringsFor`)
 		highlight?: { cell: GridPos; kind: HighlightKind } | null;
 		/** The grid's mode (with the viewer's Grid setting) and explore mode's focus (#245). */
 		gridView?: Parameters<Tabletop['setGridMode']>;
@@ -106,6 +109,8 @@
 		motion?: MotionPlay | null;
 		/** Whose turn it is in a fight, marked over the token. */
 		active?: { tokenId: string; enemy: boolean } | null;
+		/** The names to show besides the selected and active tokens' (#268): hovered, or all. */
+		labels?: { hovered: string | null; held: boolean };
 		/** The viewer's graphics settings (the Graphics menu); read from storage when not given. */
 		graphics?: GraphicsPrefs | null;
 		/** Told the tier and backend the table draws with, whenever they change. */
@@ -130,6 +135,8 @@
 		preview = [],
 		selectedId = null,
 		ownTokens = [],
+		hoveredTokenId = null,
+		rings = new Map(),
 		highlight = null,
 		gridView = ['off'],
 		view = 'tactical',
@@ -143,6 +150,7 @@
 		cue = null,
 		motion = null,
 		active = null,
+		labels = { hovered: null, held: false },
 		graphics = null,
 		onQuality,
 		onClick,
@@ -350,25 +358,15 @@
 		tabletop?.setGrid($state.snapshot(grid));
 	});
 
-	$effect(() => {
-		tabletop?.setTerrain(terrain);
-	});
+	$effect(() => tabletop?.setTerrain(terrain));
 
-	$effect(() => {
-		tabletop?.setFloor(floor);
-	});
+	$effect(() => tabletop?.setFloor(floor));
 
-	$effect(() => {
-		tabletop?.setDarkness(darkness);
-	});
+	$effect(() => tabletop?.setDarkness(darkness));
 
-	$effect(() => {
-		tabletop?.setInterior(interior);
-	});
+	$effect(() => tabletop?.setInterior(interior));
 
-	$effect(() => {
-		tabletop?.setEnvironment(environment);
-	});
+	$effect(() => tabletop?.setEnvironment(environment));
 
 	let lastCue = -1;
 	$effect(() => {
@@ -415,19 +413,17 @@
 
 	$effect(() => tabletop?.setHoveredProp(hoveredPropId));
 
-	$effect(() => {
-		tabletop?.setHoveredObject(hoveredObjectId);
-	});
+	$effect(() => tabletop?.setHoveredObject(hoveredObjectId));
 
 	$effect(() => {
 		tabletop?.setPreview($state.snapshot(preview) as PreviewItem[]);
 	});
 
-	$effect(() => {
-		tabletop?.setSelected(selectedId);
-	});
+	$effect(() => tabletop?.setSelected(selectedId));
 
 	$effect(() => tabletop?.setOwnTokens([...ownTokens]));
+	$effect(() => tabletop?.setHoveredToken(hoveredTokenId));
+	$effect(() => tabletop?.setRings(rings));
 
 	$effect(() => {
 		tabletop?.setHighlight(highlight?.cell ?? null, highlight?.kind ?? 'move');
@@ -443,13 +439,9 @@
 		tabletop?.setReduceFlashing(reducesFlashing(setting, prefersReducedMotion.current));
 	});
 
-	$effect(() => {
-		tabletop?.setView(view);
-	});
+	$effect(() => tabletop?.setView(view));
 
-	$effect(() => {
-		tabletop?.setFallen([...fallen]);
-	});
+	$effect(() => tabletop?.setFallen([...fallen]));
 
 	let floatedId = 0;
 	$effect(() => {
@@ -461,8 +453,11 @@
 		}
 	});
 
+	$effect(() => tabletop?.setActive(active?.tokenId ?? null, active?.enemy ?? false));
+
 	$effect(() => {
-		tabletop?.setActive(active?.tokenId ?? null, active?.enemy ?? false);
+		const always = (graphics ?? untrack(() => loadGraphics(localStorage))).names === true;
+		tabletop?.setLabels({ ...labels, always });
 	});
 
 	// After the props: a motion may be for a prop that has only just arrived.

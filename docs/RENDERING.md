@@ -151,7 +151,7 @@ with the sun's shadow. A warm-up never holds longer than 1.5 s; what it didn't r
 draw.
 
 Since #180 it also compiles what shows only later, from stand-ins each layer gives (`gallery`: the
-selection ring and turn marker in the overlay's pass, a die, the toll's dust and shadow, the fog
+selection ring and turn column (#269) in the overlay's pass, a die, the toll's dust and shadow, the fog
 cloud), never the real objects, and the first frame after it draws the stand-ins once, a millionth of their size far
 below the table (`Gallery` in `warmup.ts`): a compile can't make a die's shadow-pass material, nor
 a material in the AO's context, which only the scene pass itself sets, and r186 declares a shadowed
@@ -2817,6 +2817,281 @@ both WebGL2 gate runs after; its cause is not traced.
   for the warm-up. Later orbits on the same page are the repeated row above. A gate fix (waiting
   for `loads()` and the warm-up) is left to the next gate change.
 
+## Bases (milestone 71, #265)
+
+Every token stands on a thick, glossy, bevelled base, all of them instances of one `InstancedMesh`
+(`base-layer.ts` `BaseLayer`, owned by `TokenLayer.bases`), so bases cost one draw plus one per
+shadow pass whatever the number of tokens. The flat selection ring and the per-token cylinder are
+gone.
+
+- **Shape.** `bases.ts` `BASE_PROFILE`, lathed (`LatheGeometry`, 48 segments): 0.86 u across and
+  0.1 u tall, an inner disc, an inset ring, a raised lip and a 45° bevel. Lathe uvs put each
+  profile point at `uv.y = j / 7`, so the shader tells the bands apart by `uv.y` (`BANDS`) and
+  goes round by `uv.x`.
+- **The kind.** A new shader kind, `base` (`materials/base.ts` `baseGraph`, physical), instanced
+  only. The rim and bevel are glossy black (roughness 0.25) with a clearcoat masked to them
+  (`params.clearcoat`, so `useClearcoat` is fixed at build); the disc wears the environment's
+  surface in the albedo slot, laid on the base's own top (`positionGeometry.xz`, one repeat over
+  two cells), so it never slides as a mini glides. `EnvironmentDef.miniBase` names that surface
+  (one of the environment's own surfaces, so it costs no download: village grass, stone halls
+  flagstone, cavern stone, ghost town sand, living cave dirt, railcar wood); without one the disc
+  is slate grey. The ring is TaleWeaver's recipe: albedo the ring colour at 0.31, emission the
+  colour times the instance's strength, through `worldEmissive`, so a ring on a hidden or dimmed
+  cell never glows and anything above 1.0 blooms.
+- **Per instance.** The instanced kinds' `aTint` vec4, read as x the `BASE_PALETTE` index, y the
+  emission, z the shape flags (1 notched, 2 double), w how far the base is see-through (a GM-hidden
+  token: a screen-door discard at `HIDDEN_OPACITY`, never `transparent`). The colours are a
+  uniform array (`basePalette`), not three's instance colour, which would tint the whole base.
+  Hover, selection, a turn, hiding and a ring change are attribute writes (`addUpdateRange`):
+  nothing compiles. Buffers: position, normal, uv, `aTint` and the matrices, 5 of WebGPU's 8.
+- **Slots.** A token takes a slot when it appears and gives it up when it goes, the last slot's
+  token moving into it (swap-remove), so the instances stay packed. The mesh holds at least
+  `PIECE_MIN` (1,025) instances, as the kit pools do: its matrices are then an attribute, so a
+  larger mesh is the same program. The warm-up gallery's base sample is pool-sized for the same
+  reason. Picking maps an instance back to its token (`BaseLayer.owner`).
+- **Rings.** `ringFor` (pure, server-tested in `bases.spec.ts`), from only what the viewer was
+  sent: a player's tokens take their seat's colour, the owner's place among the `player`-role
+  players in join order (the same for every viewer); enemies in the fight at hand
+  (`adventure.encounter.enemies`) are red with 8 notches lit round the lip and bevel; everything
+  else (NPCs, the GM's tokens, sentries outside a fight) neutral off-white. The viewer's own
+  tokens get a double ring (the band's middle left dark). Seats past six repeat; hover shows the
+  name. `RoomView` derives the rings (`ringsFor`) and the hovered token, and `Tabletop.svelte`
+  hands them to `setRings` and `setHoveredToken`. No wire field: seat colours are the client's.
+- **Brightness.** `ringEmission`: 0.26 at rest, 1.0 hovered, 1.6 selected; the token whose turn
+  it is pulses 1.0-1.6 at 0.75 Hz (under three changes a second, WCAG 2.3.1) on AMBIENT frames
+  (`TokenLayer.pulsing`), steady at 1.3 under reduced motion; under the power saver no AMBIENT
+  frames run, so it holds. The turn arrow stays (the lit-base turn indicator is #269).
+- **Colour vision.** `BASE_PALETTE` is Okabe and Ito's six (orange, sky blue, bluish green,
+  yellow, blue, reddish purple), then red (enemies) and off-white (neutral). `cvd.ts` simulates
+  the three dichromacies (Machado 2009) and measures OKLab distance; `bases.spec.ts` holds the six
+  seats and the neutral at least 0.07 apart as they are and under protanopia and deuteranopia
+  (the red is exempt: its notches carry it). The shape twins are the notched rim and the double
+  ring.
+- **Tests.** `program-count.svelte.spec.ts` sweeps rings, hover, selection and turns;
+  `kind-layers.svelte.spec.ts` counts the base among the kinds and its buffers;
+  `unexplored-black.svelte.spec.ts` lights every ring (notched, doubled, hovered, on its turn,
+  selected where no roof fades by it) on every case.
+- **Not yet.** The low tier keeps clearcoat at 0.5 (a tier switch to 0 is a uniform write left
+  for #267's tier hooks); notches are shading, not cut; larger bases are #270; the figure still
+  stands at its old 0.08 u (#266 moves the figures).
+
+## Large creatures (milestone 71, #270)
+
+A large creature is visual scale on one cell: its rules footprint stays one cell (multi-cell sizes
+are the rules track's, #96, which will then pick the base). `Token.scale` (#202, 0.5 to 3) scales
+the figure as before and picks the base (`bases.ts`):
+
+| `Token.scale` | Base diameter (cells) | D&D size              |
+| ------------- | --------------------- | --------------------- |
+| below 1.5     | 0.86                  | Small, Medium (1 in.) |
+| 1.5 to 2.5    | 1.9                   | Large (2 in.)         |
+| 2.5 to 3.5    | 2.9                   | Huge (3 in.)          |
+| 3.5 and up    | 3.9                   | Gargantuan (4 in.)    |
+
+Under today's cap of 3 the 3.9 base is reachable only once the cap rises or the rules' sizes come.
+
+**The shrink rule.** `baseDiameters(tokens, level)` gives every token's drawn diameter: a large base
+shrinks to 0.86 when any other token's base (at its own size) would overlap it, the centres nearer
+than the sum of the two radii and the floors within one level. The figure keeps its scale. It reads
+only the tokens the viewer was sent, so a GM-hidden token beside the Keeper shrinks its base in the
+GM's picture only (`server/views.spec.ts`, "large bases"). At 1.9 a diagonal neighbour leaves the
+base whole (1.41 > 0.95 + 0.43); at 2.9 it does not.
+
+**Drawing.** `BaseLayer` keeps one `InstancedMesh` per diameter in use (at most four, a constant),
+each lathed from `profileFor(diameter)`: the edge, bevel, lip and ring keep their widths and height
+and only the inner disc widens. Every mesh is on the one base material and holds at least
+`PIECE_MIN`, so a new size, a base changing size (it moves to the other mesh's slots: a matrix and
+a tint) or a shrink compiles nothing (`program-count`: "token large", "token huge", "token at the
+scale cap", "large base shrunk", "token lifted"). The small bases' mesh is always in the scene, as
+since #265; a larger size's is drawn only while a token stands on it, so a table with large
+creatures costs at most three more draws a pass. `bases.diameter(id)` (cell units) is what the
+contact shadow (#271) and the turn column (#269) size themselves by. A base sits on its token's
+floor: `Token.lift` raises only the figure (`lift * STEP_HEIGHT * cellSize`).
+
+**Picking.** `TokenLayer.pick` takes a base hit only within `PICK_RADIUS` (0.43 cell, a small
+base's radius) of its token's centre and looks past the rest, figures counting wherever they are
+hit, so a click on a cell under the Keeper's rim reaches that cell and players can step beside it
+(`large-bases.svelte.spec.ts`).
+
+**Content.** `EnemyDef.scale` (and an adventure file's enemy `scale`, parsed and range-checked in
+`file.ts`, checked by `validateAdventure`, "Size on the table" in the builder) is copied onto the
+enemy's token by `enemyToken`; there is no new wire field. The Hollow Bell sets the Keeper at 1.8
+(a 1.9 base) and the Hand and the Heart at 2.6 (2.9). Tokens restored from saves made before this
+keep a small base until they respawn.
+
+## Labels on demand (milestone 71, #268)
+
+Token names no longer float over every mini. A name shows while its token is hovered, selected or
+taking its turn in a fight; holding **N** with the table focused shows every name the viewer was
+sent; and the Graphics menu's **Always show names** (`GraphicsPrefs.names`, in
+`thirdfold:graphics`, never in room state) keeps them all on.
+
+- **The rule** is `labelsShown(tokens, state)` in `labels.ts` (pure, server-tested in
+  `labels.spec.ts`): the hovered, selected and active ids among the tokens the viewer was sent, or
+  all of them while `held` or `always`. A hidden token a player was never sent has no name to
+  show. `labels.ts` also holds `SHOW_NAMES_KEY`, the plate sizes (`LABEL_PX`, `FLOAT_PX`), the text
+  colour, the plate (`PLATE`, 0.9 opaque) and `FLOAT_COLOURS`, which `RoomView.svelte`'s
+  `floatResult` uses, so the room page imports them without three.js.
+- **The held key.** `RoomView.svelte`'s `onKeydown` sets `namesHeld` on N while the canvas has
+  focus and nobody is typing in a field; the window's `keyup` and `blur` release it. Tab is never
+  taken, so focus moves as before, and the arrow keys still step the selected token. N is still
+  the GM's dark-area tool until #279 moves it, so for now only players and spectators hold it; the
+  GM uses hover or Always show names.
+- **Drawing** is `label-layer.ts` `LabelLayer`, owned by `TokenLayer` (`labels`). Every plate (a
+  name, or a float's text in its colour) is rasterised once into one 1024² atlas canvas at the
+  renderer's pixel ratio, shelf-packed (`Shelves`); a full atlas is cleared and refilled with only
+  what shows now. Names and floats are two instanced `Sprite`s (`Sprite.count`) on
+  `SpriteNodeMaterial`, their anchor, CSS size, alpha and atlas rect in one
+  `InstancedInterleavedBuffer`. `sizeAttenuation` is off and the scale is the CSS size times a
+  `pixel` uniform (2 / (P11 × the canvas's CSS height)), written before each overlay draw
+  (`OverlayLayer.before`), so a plate keeps its pixel size at any zoom and an atlas texel lands on
+  one device pixel; the atlas samples nearest. Both sprites are always drawn with `count` at least
+  2 (unused instances have no size), so a name appearing, the key or a float changes no program and
+  no render object; the warm-up compiles them as they stand, and the gallery has stand-ins sharing
+  their material. Two draws whatever the count (`label-layer.svelte.spec.ts`).
+- **Floats** (damage, healing, a status) use the same atlas and the second sprite: they rise 0.7
+  cells over 1.5 s and fade in their last 40%, stacked 0.35 apart over one mini; under reduced
+  motion they fade without rising. Damage and healing keep their sign as the twin of their colour.
+- **The overlay pass.** Both sprites sit in the overlay's scene with `depthTest` off, after the
+  grade and the output stage, so bloom, depth of field, chromatic aberration, grain and TRAA never
+  touch them; `label-layer.svelte.spec.ts` checks a name's text pixels at DPR 2 come out exactly as
+  drawn alone under all of them, and that glyph edges step from plate to text within a pixel.
+- **Contrast.** Text `#f2e6d0` and every float colour reach 4.5:1 or better on the plate laid over
+  pure white and pure black (`contrastOnPlate`, tested), and a one-device-pixel dark rim edges each
+  plate.
+- **Secrecy.** Labels come only from the tokens the viewer was sent. `unexplored-black` turns
+  Always show names on in every case and leaves out the samples under a plate (`namesOver`), as it
+  does anything else the viewer was sent standing; every other unexplored sample stays black.
+- **Accessibility.** The canvas's `aria-label`, `TokenPanel`, the turn tracker and the action bar
+  still name tokens as before. The tutorial's talk step says "Point at someone to see their name."
+- **Not yet.** Goldens still show the old always-on labels: re-recording them without labels, plus
+  one with the key held, is left for the milestone's golden pass. Under the megapixel cap the
+  overlay pass and the atlas follow the renderer's pixel ratio, so labels are crisp at that
+  resolution, not above it.
+
+## Dice (milestone 71, #275)
+
+Dice are resin with engraved numerals: one geometry per die kind, UV-mapped into one shared
+numeral atlas, one material for all of them, one `InstancedMesh` per kind. A throw of twelve d20s
+is one draw (plus its shadow draw) where it was about 250, and any mix of kinds is at most eight.
+The throw itself (`landingQuaternion`, `seededRandom(seq * 2654435761)`, `bounce()`, `FLIGHT_S`,
+`REST_S`, `FADE_S`, `DIE_SCALE`, instant under reduced motion, landing on the drawn ground, #247)
+is unchanged, so every client still sees the same throw.
+
+**The atlas** is an asset, `dice-numerals` (`assets/textures/dice-numerals.png`, usage `mask`,
+linear, `LicenseRef-thirdfold-original`): 512 px, 8 × 8 cells of 64 px, glyph coverage white on
+black (the material reads red). `scripts/make-dice-atlas.ts` draws it in headless Chromium in the
+bundled Alegreya 800 (OFL, already on /credits) and writes it with `png.ts`, from the layout in
+`dice-geometry.ts`, so the atlas and the UVs come from one place; run it by hand after a layout
+change, then `npm run assets`. Its cells (`atlasCell(kind, face)`): 0-19 the numerals 1-20 (6 and 9
+dotted: every die that shows them is one they could be misread on, so there are no plain 6 and 9
+cells), 20 the 0, 21-30 the tens 00-90, 31-36 the d6's pip faces, 37-40 the d4's faces, each with
+its three corner numbers, the lowest at the top (`d4Cells`). 41 cells are used.
+
+**UVs** (`buildDieModel`, pure, `dice-geometry.spec.ts`). `facesOf` records each face's triangles;
+`faceUp` (moved here from the layer) gives a numeral's up: axis-aligned on a cube, towards the
+corner of the lowest number on a d4, else towards the farthest corner (a d10 kite's tip).
+`faceInCell` lays the face in its cell centred on its centroid, x right and y up as seen from
+outside, scaled so every corner stays within `CELL_FILL` (0.47 cells) of the centre and, on
+numeral faces, so the face's inscribed circle is `GLYPH_RADIUS` (0.235 cells) where it fits: the
+atlas draws each numeral within that circle, so it never runs over an edge. The tests: every
+face's UVs lie inside its label's cell, wound as in 3D (not mirrored), every numeral cell holds its
+face's label, the glyph circle stays on the face, and each d4 corner's UV is where its number is
+drawn.
+
+**The material** (`materials/dice.ts`, `createDiceMaterial`): a `MeshPhysicalNodeMaterial`.
+
+- Colour: `mix(body, ink, glyph)` from per-instance attributes `aDieBody` and `aDieInk` (not
+  `instanceColor`, which would tint the ink too); the ink is light on dark dice and dark on light
+  ones, by the roller's colour's brightness as before.
+- Engraving: `normalNode = bumpMap(atlas, engrave)`, `engrave` -1.5 (negative cuts in); no normal
+  map ships. If it aliases on distant dice, bake a normal atlas from the glyphs once (the graph
+  stays the same).
+- Resin: `diceLook` uniforms, clearcoat 1 (0 on the low tier, `setDiceTier` from the renderer's
+  `setQuality`), clearcoat roughness 0.08, roughness 0.25, metalness 0. `METAL` (metalness 1,
+  roughness 0.35) is the metal preset's values for the same uniforms, for a later dice-set picker;
+  nothing offers it yet (whether the GM's open rolls use it is left to the art review).
+- Fade: `alphaHash` on the per-instance `aDieFade`, never a `transparent` flip. Without TRAA the
+  half-second fade reads as a stipple.
+- Not a shader kind: a public roll may land over black cells, which `worldModify` would black out.
+  It writes "shown" into the `hidden` attachment (`DICE_SHOWN`, `mrtNode`), as the old material
+  did, so a roll shows over hidden cells (`post.svelte.spec.ts`).
+- The atlas loads once per page (`loadDiceAtlas`, through `fetchAsset`, like the paint maps) into
+  a texture node that holds a blank of the same type, space, wrap and filters until then, so its
+  arrival is a binding, not a program.
+
+**Drawing** (`dice3d.ts`, `DiceLayer`). A kind's mesh is made on its first throw from the layer's
+one material, at the kit pieces' capacity `PIECE_MIN` (1,025) though a throw shows at most
+`MAX_THROWN_DICE` (12): r186 gives an InstancedMesh of 1,024 or fewer a vertex stage of its own
+(its matrices a uniform array), and at 12 each kind's first throw compiled 3 programs (scene,
+prepass and shadow; 24 for a throw of all eight kinds, caught by the program-count sweep); past
+1,024 the matrices are an attribute and every kind is the one program the stand-in compiled. The
+cost is memory only, about 93 kB of matrices and instance attributes per kind thrown. `throw()` and
+`tick(now)` write instance matrices and the fade; a die not yet thrown or already faded gets a zero
+matrix, and the throw is cleared (counts to 0) once every die has faded. Meshes are never culled
+(their instances fly far from where bounds were worked out). The lobby's gallery compiles a d6
+stand-in of the same shape (`DiceLayer.gallery`). `dice()` lists the dice on the table with their
+instance matrices, which `dice3d.spec.ts`'s `reading()` reads: the face whose normal the matrix
+turns up (on the d4, down), as an index into `DIE_LABELS`. The program-count sweep throws a d20 and
+one die of every other kind, then lets them fade, on every tier; a throw and a fade change no
+program.
+
+## Figures (milestone 71, #266)
+
+Token figures are instanced batches (`src/lib/tabletop/figures.ts`), so their draws follow the
+distinct figures on the table, not the tokens: crowd-60's sixteen figures on 60 tokens draw 32
+batches a pass whatever the crowd's size.
+
+- **Batches.** `FigureBatches` keeps one `Batch` per figure part: each `body` and `accent` part of
+  a model at level 0, and the plain miniature (torso and head merged once, `plainGeometry`, under
+  `'plain'`). A batch is an InstancedMesh of a copy of the part's geometry (the model keeps its own,
+  props draw it too) with at least `PIECE_MIN` (1,025) instances, as the kit pools (piece.ts), so
+  its matrices are a vertex attribute and making a batch, or making it again half as large again
+  when it outgrows its pool, compiles nothing. A batch left empty is freed with its copy (and a
+  textured part's own material); a model's preview giving way to the model frees the preview's.
+- **Slots.** `Slots` is the swap-remove allocator: ids packed in `owners[0..size)`, `slotOf` by id;
+  a removal moves the last instance's matrix, paint and tint into the freed slot. A model change, a
+  placeholder or preview giving way when `loadModel` resolves, is a removal and an add. The same
+  allocator is meant for poses (#273) and LODs (#274); bases (#265, base-layer.ts) keep their own
+  for now.
+- **Per instance.** The matrix (the token's root, then standing on the base's inner disc,
+  `BASE_TOP` from #265's `BASE_PROFILE`, or tipped over when fallen, `TokenLayer.placeFigure`),
+  written only for tokens that moved, with `addUpdateRange`; a
+  batch whose instances moved drops its bounding sphere, which culling and raycasts compute again
+  when next asked. The paint (`PAINT_ATTRIBUTE` `aPaint`, vec4 on figures; props keep their vec3):
+  rgb the tint (white on a vertex-coloured body, the token's colour on an accent, the plain
+  miniature and a textured part, which #267 lays only where its ORM alpha masks it), w how
+  much shows (1, or `HIDDEN_OPACITY` 0.35 for a GM-hidden token). The tint (`TINT_ATTRIBUTE`
+  `aTint`, vec4, 0) is the instanced kinds' glow, kept for #267's rim and hover. Not three's
+  `instanceColor`: the node material multiplies the whole colour by it.
+- **Variants.** Figures are the mini kind's `instanced` variant: `ownAlbedo` and `ownOutput`
+  (hooks.ts) read the paint's rgb and w per instance where the plain variant reads the per-object
+  `miniColour` and `miniOpacity` (the turntable's and the warm-up's plain minis). The
+  hidden ghost is the same hashed see-through (`ownOutput`'s discard), never `transparent`, so
+  hiding and unhiding change a paint only. Part lists, accents and the plain miniature share one
+  material (`vertexColors`); a textured part has its own material with its maps in the slots,
+  `vertexColors` off (#267 keys its look on that). `models.ts` gives an accent white vertex
+  colours instead of deleting them, so every part has one attribute layout: position, normal, uv,
+  colour, the bake, the paint, the tint and the matrix, eight of WebGPU's eight vertex buffers.
+  The warm-up gallery's instanced minis are figure-shaped (pool-sized, vec4 paint and tint).
+- **Picking.** `TokenLayer.pick` raycasts the layer's group; a hit on a batch is
+  `owners[hit.instanceId]` (`FigureBatches.tokenOf`), as a hit on the bases is theirs (#265).
+- **Secrecy.** Only tokens passed to `sync` have instances, so a player's batches hold only what
+  the player was sent; a GM-hidden token is not sent to players at all.
+
+Draws on crowd-60 (RTX 4060 Laptop, medium, the GM's overview, `LAYERS=1`, the frame with the
+sun's shadow redrawn): figures 360 → 96 (two meshes a token in three passes, now 32 batches in the
+shadow, prepass and scene passes), the same on WebGL2 and WebGPU. With #265's bases (3) the frame
+is 642 → 201 draws (steady 462 → 168) against c6494d1, and with #268's labels 143 (steady 110).
+`kind-layers.svelte.spec.ts` holds it: 4, 20 and 60 tokens over four figures draw the same figure
+calls, shadows too.
+
+Tests: `figures.spec.ts` (Node, no GPU: the slots, 200 random adds, removes, recolours, hides and
+model changes with every batch checked after each, growth past the pool, hiding by paint alone, a
+late model replacing the placeholder, picking mid-move), `kind-layers.svelte.spec.ts` (the draws,
+eight buffers), `program-count.svelte.spec.ts` (a token hidden, unhidden, a figure nobody wore
+arriving, every token wearing it) and `models.svelte.spec.ts` (a batch draws a copy of the part).
+
 ## Modules
 
 `src/lib/tabletop/renderer.ts` creates the scene and implements the `Tabletop` interface as short
@@ -2843,7 +3118,7 @@ delegations; every module in the folder stays under 500 lines (`modules.spec.ts`
 | `post.ts`                             | `Post`: the RenderPipeline per tier (prepass, scene pass, output), its uniforms, `gate`, the warm-up's targets                                                                                                             |
 | `focus.ts`                            | `Focus`: depth of field and tilt-shift over the pipeline's sharp image, aimed each frame; `FrameView`                                                                                                                      |
 | `passes.ts`                           | The pipeline's passes (prepass, overlay, scene), `Stages`, `stagesFor`, the tone mappings                                                                                                                                  |
-| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups for labels and floats                                                                                                                                                 |
+| `overlay.ts`                          | `OverlayLayer`: the overlay's scene, `follow` groups, and `before` hooks run before each overlay draw                                                                                                                      |
 | `materials/`                          | The shader kinds: `createMaterial`, slots and their blanks, the hooks for later looks (#169), the kinds' warm-up gallery (#180)                                                                                            |
 | `cell-maps.ts`                        | `CellMaps`: the `visibility` and `ground` maps and `cellUniforms` that `worldModify` reads (#171), the reveal fades (#174)                                                                                                 |
 | `fog-soft.ts`                         | Soft fog's pure halves: edges, `RevealFades`, the cloud's shape (#174)                                                                                                                                                     |
@@ -3036,7 +3311,7 @@ passes, in order:
   `uniforms.exposure`; `renderer.toneMappingExposure` stays 1 and `renderer.toneMapping` never
   changes while drawing, since `RenderPipeline` rebuilds when it does.
 - **The overlay** (#157) is everything that shows game state rather than scenery: token labels
-  and floats, the selection ring, the turn marker, highlights, editor previews, the beacon and the
+  and floats, the selection ring, the turn column (#269), highlights, editor previews, the beacon and the
   grid lines. It is its own scene (no background, so its pass clears to transparent), drawn by its
   own pass, and laid over the finished image: straightened, encoded to sRGB without tone mapping
   and mixed by its alpha, as the classic renderer blended it. So nothing the pipeline does to the
@@ -3237,18 +3512,18 @@ M69): WebGL2 on SwiftShader, and WebGPU in the local `client-webgpu` project.
 
 `createMaterial(kind, options)` makes a material; `KINDS` in `kinds.ts` defines each kind.
 
-| Kind     | Base                               | Slots                         | Defaults and extras                                 | First users                         |
-| -------- | ---------------------------------- | ----------------------------- | --------------------------------------------------- | ----------------------------------- |
-| surface  | Standard                           | albedo, normal, ORM, emissive | box mapping in the world, macro variation           | walls, door panels, the table's rim |
-| terrain  | Standard                           | as surface                    | as surface; floors and height from the `ground` map | the table's top, raised ground      |
-| rock     | Standard                           | as surface                    | triplanar in the world (biplanar on low), macro     | cliffs and risers (#241)            |
-| prop     | Standard                           | as surface                    | object space, paint (#178), lift (#181)             | props and placeholder boxes         |
-| mini     | Physical (clearcoat a uniform)     | as surface                    | object space, paint, own colour and see-through     | tokens                              |
-| emissive | Standard                           | as surface                    | the mesh's uv                                       | none yet                            |
-| decal    | Standard, transparent              | as surface                    | the mesh's uv, lift                                 | none yet                            |
-| foliage  | Standard, alpha-tested, both sides | as surface                    | the mesh's uv, sways on `worldTime`                 | none yet                            |
-| water    | Standard, transparent              | as surface                    | the mesh's uv slid on `worldTime`, lift             | none yet                            |
-| overlay  | Basic, or LineBasic (`lines`)      | albedo (lines: none)          | transparent                                         | the fog cloud                       |
+| Kind     | Base                               | Slots                         | Defaults and extras                                                      | First users                         |
+| -------- | ---------------------------------- | ----------------------------- | ------------------------------------------------------------------------ | ----------------------------------- |
+| surface  | Standard                           | albedo, normal, ORM, emissive | box mapping in the world, macro variation                                | walls, door panels, the table's rim |
+| terrain  | Standard                           | as surface                    | as surface; floors and height from the `ground` map                      | the table's top, raised ground      |
+| rock     | Standard                           | as surface                    | triplanar in the world (biplanar on low), macro                          | cliffs and risers (#241)            |
+| prop     | Standard                           | as surface                    | object space, paint (#178), lift (#181)                                  | props and placeholder boxes         |
+| mini     | Physical (clearcoat a uniform)     | as surface                    | object space, paint, own colour and see-through, the painted look (#267) | tokens                              |
+| emissive | Standard                           | as surface                    | the mesh's uv                                                            | none yet                            |
+| decal    | Standard, transparent              | as surface                    | the mesh's uv, lift                                                      | none yet                            |
+| foliage  | Standard, alpha-tested, both sides | as surface                    | the mesh's uv, sways on `worldTime`                                      | none yet                            |
+| water    | Standard, transparent              | as surface                    | the mesh's uv slid on `worldTime`, lift                                  | none yet                            |
+| overlay  | Basic, or LineBasic (`lines`)      | albedo (lines: none)          | transparent                                                              | the fog cloud                       |
 
 - **Fixed at creation**, each a variant with a graph of its own (never toggled later): the kind,
   `instanced` (an `InstancedMesh` whose geometry has the tint and lift attributes,
@@ -3295,7 +3570,7 @@ key. So:
 - **Never toggle** `transparent`, `side`, `alphaTest`, `vertexColors` or `fog` after creation, and
   never let a numeric material property cross 0 at runtime. Foliage cuts by `params.cutoff`
   through `alphaTestNode`; physical features are driven by their node (`clearcoatNode` on
-  `params.clearcoat`, 0 until #267), since three's `useClearcoat` would add a define the moment
+  `params.clearcoat`, the minis' varnish since #267), since three's `useClearcoat` would add a define the moment
   `material.clearcoat` left 0.
 - **Tier differences are separate graphs** chosen when the pipeline is (anti-tiling is the one
   so far); a tier switch that keeps the pipeline swaps materials for their kept twins (see
@@ -3508,7 +3783,7 @@ program. Data textures (cell maps, LUTs, the slots' blanks) are never registered
 
 A table's warm-up (see "Shader warm-up") compiles its layers and the tabletop gallery's stand-ins
 (`gallery()` on the dice, effects, the fog cloud (`FogCloudLayer.warm`, the same geometry and
-material never hidden) and the tokens' ring and marker). The lobby compiles `kindGallery()`
+material never hidden) and the tokens' ring and turn column). The lobby compiles `kindGallery()`
 (`materials/warmup.ts`): every kind in every variant the layers make (plain and instanced;
 anti-tiled surface and terrain; vertex-coloured prop and mini), casting shadows or not, plus the
 `local` box and the overlay's lines. It is built from `SHADER_KINDS`, so a new kind joins by
@@ -3570,6 +3845,298 @@ table came to rest after each step, moves animated, no console errors. The perf 
 the new baseline, both golden sets (159 each) were re-recorded and the slim set passes against
 them, and the renderer chunk is 356.1 kB gz of its 360 kB.
 
+## The miniature kind (milestone 71, #267)
+
+Every figure reads as a painted miniature: a darker wash in its cavities, a lighter drybrush on
+convex edges, a clearcoat varnish and a fresnel rim that keeps its silhouette off the floor at
+night. It is all in the mini kind's graph (`materials/mini.ts`, called from `ownAlbedo` in
+`hooks.ts` and from `build` in `kinds.ts`), with every value a uniform.
+
+**Inputs.**
+
+- The albedo slot times `params.color`, and the tint: on an instanced mini, `aPaint` rgb (a vec4
+  since #266, w its opacity; white on vertex-coloured bodies, the token's colour on accents, the
+  placeholder and textured parts); on a plain mesh, `miniColour`. Vertex colours are multiplied in
+  after, by three.
+- `aBake` (#190): x the occlusion, y the convexity (0.5 flat). `withBake` gives an unbaked model
+  (1, 0.5), so it is neither washed nor drybrushed.
+- ORM: red the occlusion of a textured mini (times `aBake.x`), alpha its tint mask.
+- `aTint` w (the hover and selection glow's strength) lifts the rim per instance.
+
+**The terms.** Wash: `albedo × mix(1, washDark, 1 − ao)`. Drybrush (vertex-coloured only):
+`albedo × (1 + edgeLight × saturate(2 × (convexity − 0.5)))`, multiplicative so three's vertex
+colour multiply after it changes nothing. Tint: vertex-coloured, times the tint; textured,
+`mix(albedo, tint × luminance(albedo) / luminance(tint), ORM alpha)`, so only masked areas take the
+token's colour at their own value. Varnish: `clearcoatNode = params.clearcoat × varnish`
+(`clearcoat` 0.25, `clearcoatRoughness` 0.35 in `KINDS.mini`). Rim, an emissive before
+`worldEmissive`: `mix(dayColour, nightColour, night) × mix(rimDay, rimNight, night) × (1 + hoverRim
+× aTint.w) × (1 − saturate(n·v))^rimPower × lit`. Paint noise (#178) stays on top, smoothness capped
+at 0.9.
+
+**Uniforms** (`miniLook`, shared by every mini; values in docs/ART.md, "Minis"): `washDark`,
+`edgeLight`, `varnish` (1; 0 on the low tier, set by `applyMaterials` in `capabilities.ts`, the
+lobe still compiled), `rimPower`, `rimDay`, `rimNight`, `rimDayColour`, `rimNightColour`,
+`hoverRim`.
+
+**The rim and the rules.** `worldRim()` (`world-modify.ts`) gives `night`, the shade of the
+fragment's cell over `NIGHT_DARK` (0 by day, 1 at night or in a dark area at any hour), and `lit`:
+1 where the rules don't keep the dark, else the cell's own light level (the visibility map's B,
+exactly, no soft edge) or the flash. So the rim is faint and warm by day, cool and stronger at
+night, and never shows on a mini whose cell no light reaches. It goes through `worldEmissive` and
+`worldModify` like any glow: a hidden cell's mini is exactly black, rim and all. The rim follows
+today's lighting (the band and dark areas through the cell uniforms) rather than being set by
+`AtmosphereLayer`; #218's curves can drive the same uniforms later.
+
+**Exactly two programs.** The figures draw with two mini programs per tier and pass: vertex-coloured
+(part lists, accents, the placeholder) and textured (`vertexColors` off). They are one graph:
+`ByColours` picks the part-list or textured albedo as each material's program is built, by its
+`vertexColors`, which three's own colour multiply already keys programs by, so the split adds no
+variant to warm. (r186 declares a lit graph's uniforms in another order for a further material
+compiled after one of the other kind, vertex colours or not: that was so for the mini kind's plain
+and coloured materials before #267, and is the same with the textured branch taken out; the
+warm-ups cover it, and #266's batches make one material per layout.) The two layouts are fixed by #266's figure geometry: position, normal,
+uv, color, `aBake`, `instanceMatrix`, `aPaint` (vec4) and `aTint` (vec4), WebGPU's eight vertex
+buffers exactly; models.ts fills a missing colour (white) and bake, so a model before #190's bakes
+or an accent without colours is the same code. Tuning, the tier's varnish, the hour, a hover, hiding
+(the screen-door on `aPaint` w) and a baked model arriving change no program.
+`mini-look.svelte.spec.ts` (`RENDER_SPECS`): the wash and drybrush, the textured tint by its mask,
+the rim where the rules light the cell and not where they keep it dark, black when unexplored, and
+the two programs through those changes.
+
+## Poses (milestone 71, #273)
+
+A figure model may carry static poses, `body_pose1` to `body_pose3` (naming, budgets and the
+manifest's `ModelEntry.poses` in docs/ASSETS.md, "Static poses for minis"). There is no skinning
+and no `AnimationMixer`: a pose is another sculpt, so render-on-demand holds.
+
+- **Loading.** `roleOf` in `models.ts` reads `body_pose<n>` and `body_pose<n>_lod<m>` (the names as
+  GLTFLoader leaves them: underscores survive its sanitising, dots don't) into `ModelPart.pose`;
+  `partsOf(model, role, lod, pose)` picks them. `models.svelte.spec.ts` loads a glTF whose
+  `body.pose2` comes through as `bodypose2` and is dropped.
+- **Choosing.** `poseOf(state, poses)` (`mini-poses.ts`, pure, server-tested) gives the pose for a
+  `PoseState`: `downed` first, then `active`, and only a pose the model's entry names. The state
+  comes only from what the viewer was sent: `TokenLayer.setFallen` (the fallen characters in the
+  viewer's adventure view) and `setActive` (whose turn it is), which call
+  `FigureBatches.setState`. A preview, or a model still loading, shows its body.
+- **Drawing.** Pose parts are parts like any other, so figure batches (#266) are keyed by
+  (model, role, pose) through the `ModelPart` itself (and by level with #274: a pose with no
+  coarser level draws its own LOD0, never the standing body). A pose change undresses the figure and
+  dresses it again: a swap-remove out of the body's batch and an add to the pose's, freeing a batch
+  left empty, never a geometry swap inside a draw. The materials are the same (the shared
+  vertex-coloured mini, or a textured part's of the same kind and variant), so nothing compiles:
+  `program-count.svelte.spec.ts` gives the arriving figure a downed pose and sends it down and up,
+  and `figures.spec.ts` churns poses and checks every batch stays packed with nothing left behind.
+- **The fall.** When the figure shows its model's downed pose (`FigureBatches.showsDowned`),
+  `TokenLayer.placeFigure` stands it upright: the sculpt is the fall. A model without one, a part
+  list, the placeholder and a preview still tip over; a posed model arriving after its token fell
+  is placed again (the layer's `onModel`).
+- **Cost.** One more draw per pose in use, only while some figure shows it; the same on every tier
+  and backend. Download size grows only for models that ship poses.
+
+## Contact shadows (milestone 71, #271)
+
+Torches cast no shadow (only the sun, the moon and the hero torches do), so at night nothing held a
+mini to the floor. Every token's base and every prop that stands up now sits in a soft dark halo,
+TaleSpire's grounding.
+
+**One draw.** `tabletop/contact.ts` `ContactShadowLayer` is one `InstancedMesh` of flat unit quads
+in the tokens' group, pool-sized (`PIECE_MIN`, so its matrices are an attribute and growing it
+compiles nothing), on the decal kind's instanced variant (`materials/contact.ts` `contactGraph`; the
+decal kind's plain variant is unchanged for #307). Each instance's `aTint` is its strength, width,
+depth and corner softness: a disc under a base, a rounded rectangle (`PROP_SOFT`) under a prop. The
+fragment is black, its alpha `(1 - d / r)^2 × strength × params.opacity` from the quad's rounded core
+outward, alpha-blended, depth-tested and not written, with a polygon offset and `CONTACT_LIFT` (a
+thousandth and a bit of a cell) over the floor, `renderOrder` -1 so it lies under water and glass. It
+ignores the lighting (no torch glints on a shadow), never casts or receives, is never picked and is
+left out of the opaque prepass, so the cached sun shadow and the AO never see it.
+
+**Who gets one.** Pure and server-tested (`contact.spec.ts`): `tokenContact` (the base's drawn
+diameter, #270's `Entry.base` after the overlap shrink, times `TOKEN_SPREAD` 1.25, on the token's
+floor; a hop or a flier's lift shrinks it by up to 30% and fades it by up to 70%) and
+`propContact` (the footprint unturned, turned with the prop, times `PROP_SPREAD` 1.1 and its scale,
+on the highest floor under it, following a glide's or a shake's offset), only for a model at least
+`STANDING` (0.25) cells tall: rugs, water, cracks, paper, hatches, grates and ashes (0.21) get none,
+and a prop gets its halo once its model has arrived. TokenLayer hands in each token as it syncs and
+glides; PropLayer hands in every prop each layout. All of it is what the viewer was sent: a
+GM-hidden token or prop has a halo for the GM only.
+
+**Fog and rules.** The graph ends in `worldModify` like every kind (lit, so no light factor twice):
+on an unexplored cell it is black over black, and blended black never lightens anything. It changes
+no rule. It joins the unexplored-is-black test in every case (slim: crowd-60's and the test world's
+players on low, where it is strongest).
+
+**Strength and the layer.** `params.opacity`, a uniform: `contactStrength` 0.7 on low (no
+screen-space AO; the halo grounds everything alone) and 0.45 on medium and up, where AO shares the
+job. The `contact` layer (on by default, `?off=contact`) hides the mesh. Neither compiles anything;
+the warm-up gallery makes the instanced decal pool-sized like the mesh.
+
+**Cost.** One draw in the scene pass whatever the number of tokens and props; no frames of its own
+(it moves only when a token or prop does), so an idle table still draws nothing.
+
+## The turn column (milestone 71, #269)
+
+Whose turn it is in a fight shows on the mini itself, not as a cone floating over it: the base's
+ring pulses (#265, `ringEmission`'s `PULSE`, steady under reduced motion) and a thin column of light
+rises from the base (`turn-column.ts` `TurnColumn`, owned by `TokenLayer` as `column`).
+
+- **Geometry.** `COLUMN`, the open cylinder the tutorial beacon stands in too (`previews.ts`): one
+  module-level geometry, never disposed. It stands on the base (the mini's position less its
+  `lift`, so a flier's column rises from the floor), its foot as wide as the base, and it is
+  `COLUMN_HEIGHT` (1.6) cells tall on a small base, scaled with it by
+  `cellSize * bases.diameter(id) / SMALL_BASE`: a large creature's base (#270) gets a wider,
+  taller column.
+- **Material.** One `MeshBasicNodeMaterial`, additive, `depthWrite` off, both sides, in the overlay
+  scene, so it is never bloomed, graded or blurred; the ring under it blooms in the scene pass.
+  `uv().y` runs from the foot (0) to the top (1), so it thins out upward (`(1 − y)^1.5`). Colour,
+  bands and `strength` (0.32 at the foot per face) are uniforms: a turn starting, ending, or passing
+  between a character and an enemy changes uniform values only, never a program (the sweep's `token
+active` and `enemy active` steps). The overlay's compose lays it over the picture by its alpha, so
+  it reads as light over a dark world and slightly veils a bright one.
+- **The pattern twin (G6).** A character's turn is amber (`TURN_COLOURS.ally`), an enemy's red and
+  banded: `COLUMN_BANDS` (7) stripes up the column, each dark band taking `BAND_DEPTH` (85%) of it.
+  With the enemy's notched rim (#265), an enemy's turn reads without colour.
+- **Motion and flashing.** The column is static: no flicker, no sweep. Under reduced motion only the
+  ring's pulse stops; nothing flashes, so Reduce flashing has nothing to change. The pulse is under
+  1 Hz (`PULSE.hz` 0.75) either way.
+- **Secrecy.** `setActive(id, enemy)` takes the turn from `RoomView` (`TurnView.tokenId`, null when
+  the viewer wasn't sent that token), and the column stands only on a mini the layer draws: a turn
+  for a token it doesn't have, or one removed, shows nothing. Every unexplored-black case marks its
+  first token's turn as an enemy's, so the banded column is in every case (it stands within
+  `TALL.token`).
+- **Cost.** One draw in the overlay pass during fights only; the same on every tier and backend. It
+  follows the token's tween each tick (`updateColumn`). The turn cone (`marker`, a 4-sided
+  `ConeGeometry` and its `MeshBasicMaterial`) is gone, as is its stand-in in the warm-up gallery,
+  now the column's.
+- **Tests.** `turn-column.spec.ts` (Node): the column stands on the active mini, switches to banded
+  red for an enemy, hides with nobody's turn, for a token the layer doesn't draw, and when the active
+  token is removed. The program-count sweep's turn steps and `unexplored-black` cover the rest.
+
+## LOD (milestone 71, #274)
+
+Cooked models have coarser levels (`<role>_lod1` and `<role>_lod2`, about 0.5 and 0.15 of LOD0's
+triangles; docs/ASSETS.md "Cooking art"). Figures and props now draw the level the camera calls
+for. Part lists have one level, so nothing changes for them.
+
+**Choosing.** `lodFor(radius, distance, fovY, viewportPx, thresholds, current, bias)` in
+`tabletop/lod.ts` is pure and tested in `lod.spec.ts`. It projects the model's bounding radius to
+CSS pixels: `radius / distance × viewportPx / (2 tan(fovY / 2))`. The radius is `modelRadius`
+about the model's origin, times the instance's scale. Then it counts the thresholds the result is
+under:
+
+- `FIGURE_LODS` is [36, 14] px.
+- `PROP_LODS` is [48, 18] px.
+
+These are constants per kind, not manifest data. The manifest's `screenSize` is the cook's
+suggestion and is unused.
+
+A level is left below 0.9 of its threshold and taken back above 1.1, so a camera parked on a
+threshold never flickers. `bias` makes everything one level coarser on the low tier
+(`LodWatch.run`, from the tier). Phones run low or medium by memory, so a medium phone gets no
+bias. A degenerate view (the camera at the instance, or no radius) keeps the finest level the bias
+allows. A level the model lacks draws the next finer one it has (`drawnLevel` in `models.ts`). A
+pose without `_lodN` meshes uses that pose's level 0 (#273).
+
+**When.** `LodWatch` (`lod-watch.ts`) runs before a frame is drawn, once the camera has settled
+for that frame (`controls.update`, `keepAbove`). It runs only if one of these changed:
+
+- the camera's position or field of view;
+- the canvas's height;
+- the bias;
+- the table (`due`: any instrumented update, or a model arriving).
+
+Idle frames are never drawn. An AMBIENT or tweening frame with the camera still costs one
+comparison. Each pass is timed as `lod` in `?perf`'s timings.
+
+**Buckets.**
+
+- Figures (`figures.ts`). Batches stay keyed by `ModelPart`, and a part is one role at one level
+  (and pose). A switch is a removal from one part's batch and an add to another's, through the
+  same swap-remove `Slots`. A batch left empty is freed. `figures.spec.ts`'s churn test now mixes
+  camera changes into its 200 random steps, and checks that every batch and proxy holds exactly
+  its figures.
+- Props (`props.ts`, with buckets in `prop-buckets.ts`). There is one set of meshes per asset and
+  level, keyed `<asset>:<level>` (picks read `userData.bucket`), and each prop goes in its level's
+  set. A bucket left empty is dropped.
+
+Buckets are `InstancedMesh`es rather than `BatchedMesh.setGeometryIdAt`, because WebGPU draws a
+`BatchedMesh` with one call per instance. Draws grow only by the levels in use at once.
+
+A prop bucket of a model with levels is pool-sized, like the figure batches and the kit pools
+(`PIECE_MIN`, 1,025 instances). Below that size three passes an `InstancedMesh`'s matrices as a
+uniform array whose length is written into the shader, so a level's bucket made mid-game at a new
+size would compile a program; at pool size the matrices are an attribute. A level no prop of the
+asset is at any more stays empty and hidden, so the camera can come back to it without cloning a
+geometry.
+
+**Shadows.** A model with levels casts through a proxy:
+
+- There is one proxy per figure part, and one per prop asset, at the model's cheapest level.
+- The proxy holds every instance of the model, in its own order.
+- It sits on layer `SHADOW_PROXY` (2), with `castShadow` on and `receiveShadow` off.
+- The visible levels cast nothing.
+
+Both backends draw shadows through `ShadowNode.updateShadow`, which uses `shadow.camera.layers`
+once that mask has a bit past layer 0. So the sun's shadow camera (`scene-lights.ts`) and each
+hero light's (`HeroLight`) enable layer 0 and `SHADOW_PROXY`. The main camera and the picking
+raycaster (layer `PICK_LAYER`) never see a proxy. A camera move that switches levels therefore
+touches no caster, and the cached sun shadow (#229) and the hero cubes (#230) are not redrawn for
+it. A proxy draws with the same material and attribute layout as the visible levels, so it
+compiles nothing.
+
+**Tests.**
+
+- `lod.spec.ts`: thresholds, hysteresis back and forth, bias, and degenerate distances.
+- `figures.spec.ts`: the churn with levels, a switch only past a threshold, the proxies kept, and
+  a part list casting itself.
+- `lod.svelte.spec.ts` (in `RENDER_SPECS`), on the Hollow's great bell:
+  - its full level close up, a coarser one from the overview, and back again;
+  - the same proxy throughout;
+  - no shadow redraw and no new program;
+  - no frames and no passes at rest.
+
+No cooked figure exists yet, so the browser test uses the bell, and only the Node test covers the
+figures' path.
+
+## Mini motion (milestone 71, #272)
+
+Minis move only as whole objects, the way a hand moves a miniature: no skinned animation, so a
+figure stays one instance of its batch (#266) and a mini at rest costs nothing. `mini-motion.ts` is
+pure and server-tested (`mini-motion.spec.ts`): each token's `MiniMotion` records when its move,
+pick-up and fall began, and `miniPose(motion, now, reduced)` gives its pose on the wall clock.
+`TokenLayer.tick(now, eye)` (tokens.ts) poses only the minis still settling or bobbing and writes
+the result into the root (so the base, label, turn column and carried light follow) and the figure's
+instance matrix; nothing touches a material, so no program changes. The contact shadow (#271)
+stays on the floor: `placeBase(id, entry, up)` is handed the hop and pick-up lift, which shrink and
+fade it.
+
+| Motion  | What it does                                                                                                                                                                                                                                 | Moves                      | Reduced motion     |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------ |
+| Hop     | Each move arcs `HOP_MIN`-`HOP_MAX` (0.2-0.35 cell) high by its length, over the move's ease-in-out tween (`moveMs`: 180 ms + 70 ms a cell, at most 700)                                                                                      | root                       | flat glide         |
+| Squash  | On landing the figure's height dips to 0.9 (width 1.05) and back over `SQUASH_MS` (140 ms), about its feet                                                                                                                                   | figure                     | none               |
+| Pick-up | The viewer's selected mini (only ever one they may move, RoomView) lifts `PICK_LIFT` (0.12 cell) and tilts `PICK_TILT` (8°) toward the camera over `PICK_MS` (150 ms), and settles when put down, from wherever it was                       | root (lift), figure (tilt) | none               |
+| Bob     | A flier (`Token.lift > 0`) bobs ±`BOB` (0.03 cell) every `BOB_MS` (2.4 s), its phase a hash of the token id (`phaseOf`)                                                                                                                      | figure                     | steady at its lift |
+| Tip     | A fallen character tips over in `FALL_MS` (350 ms), faster and faster, with one small bounce off the base; revived, it stands up in `STAND_MS` (300 ms). One that has only just come onto the table (a load, a new table) lies there already | figure                     | lies down at once  |
+
+All sizes are in the mini's own size (cells × its scale). The tilt's axis turns toward the camera
+while the mini animates and keeps its lean at rest, so an orbiting camera draws nothing new.
+
+**Frames and shadows.** A move between cells and a tip are casters: they redraw the sun's shadow
+as moves always have, and the frame after they end. A pick-up and a squash are `TokenLayer.posing`:
+ACTIVE frames that leave the shadow alone, so a lifted mini's shadow is the one it had standing until
+something else redraws it. The bob is the one ambient motion: `TokenLayer.pulsing` (with the turn's
+ring, #265) asks for AMBIENT frames only while a flier is on the table and motion is not reduced, and
+the scheduler drops them for a hidden tab and the power saver; it never redraws shadows. Without
+a flier an idle table draws nothing (`scheduling.svelte.spec.ts`: a flier draws at most the ambient
+rate and nothing under reduced motion; a picked-up mini settles and the table stops).
+
+**Secrecy.** Every motion comes from what the viewer already has: the token positions and `lift`
+they were sent, the fallen characters (`setFallen`, from `adventure.characters`) and their own
+selection. Nothing new goes over the wire.
+
+Not done: the frozen-clock goldens the issue lists (mid-hop, a still fallen pose) wait for the
+milestone's golden run. A figure whose model shows a downed pose (#273, `FigureBatches.showsDowned`) never tips: `TokenLayer.tip`
+passes `fallen && !showsDowned` to `fall`, snapping when a posed model arrives late.
+
 ## Testing the renderer
 
 The client test project (`vite.config.ts`) draws with SwiftShader on an 800×500 viewport, with no
@@ -3607,11 +4174,28 @@ fixtures keep them; and the probe case of unexplored-black bakes a coarser latti
   mismatched pixels. Only Linux references are committed (`__screenshots__/golden.svelte.spec.ts/`),
   and the spec skips elsewhere; this machine (Linux) is the authority. Diffs land in `.vitest-attachments/`.
   Unexplored cells are checked exactly black per tier by `unexplored-black.svelte.spec.ts` (below).
+  The mini look-dev pair (#278, `MINIS`: ref-7's minis on grass at noon, ref-1's torch room) is
+  taken close (depth of field, SSIM) and overhead for the GM, the fogged player and the spectator
+  on every tier, and its medium close GM frames again as each dichromacy sees them
+  (`<name>-protanopia`, `-deuteranopia`, `-tritanopia`: the captured pixels through cvd.ts's
+  Machado 2009 simulation, put on a 2D canvas and compared like their base, for human review; a
+  few hundred ms each from the frame already drawn, so in the full set). The slim set has
+  `ref-1 close own spectator`. The rings themselves are measured by
+  `ring-colour-vision.svelte.spec.ts` (a `RENDER_SPECS` file): crowd-60's GM view at its close
+  pose, its tokens handed out among six seats in the test and two made enemies, each token's base
+  centre projected and its ring's near arc sampled; each seat's median colour must keep
+  `RING_DISTANCE` (0.07 OKLab, bases.ts) from every other seat's as drawn and under protan, deutan
+  and tritan simulation, and lie nearest its own palette colour in hue (so the sampler hit the
+  rings; a seat's colour is the median of the largest group of its samples that look alike, since
+  minis and lips in front differ). One pair falls short as drawn and is listed in `KNOWN_SHORT`:
+  bluish green and reddish purple under deuteranopia, 0.053 (0.076 in the palette), reported on
+  #278 rather than recoloured.
+  Enemies are exempt: their notch tells them apart, which the goldens show.
   **When they run:** never with `npm test`. No workflow runs them (the owner's decision at M69): the slim set (`SLIM` in the spec,
-  26 images, `npm run test:golden`) runs on this machine before a rendering PR, beside the
+  28 images, `npm run test:golden`) runs on this machine before a rendering PR, beside the
   renderer's other pixel tests (`RENDER_SPECS` in `vite.config.ts`, `npm run test:render`),
   which leave `npm test` too, so CI's verify job stays within minutes.
-  The full set (159 per backend: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
+  The full set (every `MATRIX` image per backend, 20 more with #278: `npm run test:golden:full`, `npm run test:golden:webgpu`) runs by
   hand, once a rendering PR is ready and agreed, not during development, where the test world and
   the targeted specs are the check.
 
@@ -3655,6 +4239,12 @@ npm run test:golden:full -- --update
 ```
 
 and on WebGPU `npm run test:golden:webgpu -- --update`.
+
+Since M71 the WebGL2 goldens draw on the real GPU (ANGLE over Vulkan on the RTX 4060 Laptop, vite.config's
+`client` project when `THIRDFOLD_GOLDENS` is set), not SwiftShader: they belong to that GPU and driver,
+as the WebGPU set always did, and a driver update can move them. The full WebGL2 set took 32 minutes
+at M71's close (178 images), the slim set 5. The WebGPU set is re-recorded every few milestones, not at
+every close (the owner's process, M71): it was last recorded at M70's close and goes stale until then.
 
 A PR that changes goldens says why, shows the before and after of every changed image in its
 description, and names the milestone gate it serves. Keep the set under about 20 MB: if it grows

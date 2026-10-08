@@ -438,6 +438,11 @@ export interface EnemyDef {
 	light: number;
 	/** The colour of that light, `#rrggbb`; the carried-light default when absent. */
 	lightColor?: string;
+	/**
+	 * How large its figure is drawn (`Token.scale`, `TOKEN_SCALE`'s range), and so its base (#270:
+	 * 1.5 and up a larger base). Visual only: it still stands on one cell.
+	 */
+	scale?: number;
 	/** Added to its d20 for initiative. */
 	initiative: number;
 	/** Hit points for a party of this many characters. */

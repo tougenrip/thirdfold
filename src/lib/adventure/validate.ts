@@ -5,6 +5,7 @@
 
 import { parseDice } from '../game/dice';
 import type { DiagnosticCode } from '../validation/diagnostics';
+import { TOKEN_SCALE } from '../game/token';
 import { AMBUSH, type AdventureDef, type Effect, type Rule, type When } from './define';
 
 /**
@@ -214,6 +215,11 @@ export function validateAdventure(
 		need(e.attacks.length > 0, `${where}: no attacks`);
 		for (const a of e.attacks) dice(a.damage, where);
 		if (e.toll) dice(e.toll.damage, where);
+		const { scale } = e;
+		need(
+			scale === undefined || (scale >= TOKEN_SCALE.min && scale <= TOKEN_SCALE.max),
+			`${where}: scale from ${TOKEN_SCALE.min} to ${TOKEN_SCALE.max}`
+		);
 	}
 	for (const [id, e] of Object.entries(A.encounters)) {
 		const where = `fight ${id}`;

@@ -34,6 +34,7 @@
 // every table, the floors painted (tile and grating among them) and the ring packed round targets
 // across the table. Roofs (#257): over a room and the whole table, in another kit's look, raised,
 // seen into, faded (#259: an own token inside, the GM's pivot, half while building) and gone.
+// Figures (#266): a token hidden and unhidden, a figure nobody wore arriving, every token wearing it.
 
 import * as THREE from 'three/webgpu';
 import { float, vec3 } from 'three/tsl';
@@ -49,7 +50,7 @@ import { loadEnvironment } from './environment';
 import { FIXTURES } from './light-model';
 import { useTileSet } from './floor-tiles-layer';
 import { GRID_MODES } from './grid-modes';
-import { loadModel } from './models';
+import { loadModel, modelNow } from './models';
 import { shaderCounts, shaderStages, type ShaderCounts } from './perf';
 import { aoKind, settingsFor, type Tier } from './quality';
 import type { Tabletop } from './types';
@@ -76,6 +77,8 @@ const ENVIRONMENTS = [
 	'ghost-town',
 	null
 ] as const;
+/** Figures, one of which no table of the sweep wears: it arrives mid-sweep (#266). */
+const ARRIVING = ['pulsing-mass', 'tentacle', 'wide-hat', 'gravedigger'];
 /** The tables the sweep travels between: other sizes and environments than the test world's. */
 const TRAVEL = ['village', 'hollow', 'heart'] as const;
 const HOME = 'test-world';
@@ -101,7 +104,7 @@ async function viewOf(fixture: string, viewer: 'gm' | 'player' = 'gm') {
 }
 
 /** A named change, and how far the held clock moves before its frame (default: past its end). */
-type Step = readonly [name: string, run: () => void, advance?: number];
+type Step = readonly [name: string, run: () => unknown, advance?: number];
 type Clock = ReturnType<typeof manualClock>;
 
 /**
@@ -159,7 +162,7 @@ function sweeper(m: Mounted, renderer: THREE.WebGPURenderer, clock: Clock): Swee
 			const changes: string[] = [];
 			for (const [name, run, advance] of steps) {
 				const [was, stages] = [counts(), shaderStages(renderer)];
-				run();
+				await run();
 				// A step that draws nothing could compile nothing: it would pass without testing.
 				if (!(await drawn(m.tabletop, clock, advance))) changes.push(`${name}: no frame drawn`);
 				const now = counts();
@@ -225,6 +228,8 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		Array.from({ length: n }, (_, i) => light(i, over));
 	const [token] = home.tokens;
 	const withToken = (over: object) => home.tokens.map((k) => (k === token ? { ...k, ...over } : k));
+	// A figure nobody on the table wears yet, loaded during the sweep (#266).
+	const arriving = ARRIVING.find((id) => modelNow(id) === undefined) ?? ARRIVING[0];
 	const [prop] = home.props;
 	const withProp = (over: object) => home.props.map((p) => (p === prop ? { ...p, ...over } : p));
 	const [wall, door] = (['wall', 'door'] as const).map((k) =>
@@ -333,15 +338,85 @@ function homeSteps(m: Mounted, home: FixtureView, tier: Tier): Step[] {
 		['lights back', () => t.setLighting(home.ambient, home.lights)],
 		['token without a model', () => t.setTokens(withToken({ model: undefined }))],
 		['token hidden', () => t.setTokens(withToken({ hidden: true }))],
+		['token unhidden', () => t.setTokens(withToken({ hidden: false }))],
+		// Figures are batches (#266): a hidden one is its paint, a new figure a remove and an add.
+		['token hidden as its figure', () => t.setTokens(withToken({ hidden: true }))],
+		[
+			'a figure arriving',
+			async () => {
+				t.setTokens(withToken({ model: arriving }));
+				await loadModel(arriving);
+			}
+		],
+		// Poses (#273): the arrived figure given a downed pose (its body again, as `body_pose1`), so
+		// going down moves it to the pose's batch and standing up moves it back.
+		[
+			'a posed figure down',
+			() => {
+				const model = modelNow(arriving)!;
+				const bodies = model.parts.filter((p) => p.role === 'body' && p.pose === 0);
+				model.parts.push(...bodies.map((p) => ({ ...p, pose: 1 })));
+				model.entry.poses = { downed: 1 };
+				t.setFallen([token.id]);
+			}
+		],
+		[
+			'a posed figure up',
+			() => {
+				t.setFallen([]);
+				const model = modelNow(arriving)!;
+				model.parts = model.parts.filter((p) => p.pose === 0);
+				delete model.entry.poses;
+			}
+		],
+		[
+			'every token the same figure',
+			() => t.setTokens(home.tokens.map((k) => ({ ...k, model: arriving })))
+		],
+		// Large bases (#270): a base of every size, then one shrunk by a mini beside it.
+		['token large', () => t.setTokens(withToken({ scale: 1.8 }))],
+		['token huge', () => t.setTokens(withToken({ scale: 2.6 }))],
+		['token at the scale cap', () => t.setTokens(withToken({ scale: 3 }))],
+		[
+			'large base shrunk',
+			() =>
+				t.setTokens([
+					...withToken({ scale: 1.8 }),
+					{ ...token, id: 'beside', pos: { x: token.pos.x + 1, y: token.pos.y } }
+				])
+		],
+		['token lifted', () => t.setTokens(withToken({ lift: 2 }))],
 		['tokens back', () => t.setTokens(home.tokens)],
+		// Bases (#265): a ring per seat, an enemy's notched, 'mine' doubled, hovered; the turn's pulses.
+		[
+			'token rings',
+			() =>
+				t.setRings(
+					new Map(
+						home.tokens.map((k, i) => [
+							k.id,
+							{ colour: i % 8, notched: i % 2 === 0, double: i % 3 === 0 }
+						])
+					)
+				)
+		],
+		['token hovered', () => t.setHoveredToken(token.id)],
+		['token hover cleared', () => t.setHoveredToken(null)],
 		['token selected', () => t.setSelected(token.id)],
 		['token fallen', () => t.setFallen([token.id])],
 		['token active', () => t.setActive(token.id, false)],
 		['enemy active', () => t.setActive(token.id, true)],
 		[
 			'token states cleared',
-			() => (t.setSelected(null), t.setFallen([]), t.setActive(null, false))
+			() => (t.setSelected(null), t.setFallen([]), t.setActive(null, false), t.setRings(new Map()))
 		],
+		// Names on demand (#268): two instanced sprites always drawn, so showing compiles nothing.
+		['name hovered', () => t.setLabels({ hovered: token.id })],
+		['names held', () => t.setLabels({ hovered: null, held: true })],
+		['names released', () => t.setLabels({ held: false })],
+		['names always', () => t.setLabels({ always: true })],
+		['a float', () => t.showFloat(token.id, '-3', '#ff7b6b')],
+		['names hidden', () => t.setLabels({ always: false })],
 		['prop selected', () => t.setSelectedProp(prop.id)],
 		['prop hovered', () => t.setHoveredProp(prop.id)],
 		['prop states cleared', () => (t.setSelectedProp(null), t.setHoveredProp(null))],
@@ -602,8 +677,18 @@ function lightSteps(m: Mounted, home: FixtureView, scene: THREE.Scene, tier: Tie
 	];
 }
 
-/** A roll to throw: a d20 showing its last face. */
-const THROW = { seq: 1, dice: [{ kind: 'd20' as const, face: 19 }], color: '#8a2f24' };
+/**
+ * A roll to throw: a d20 showing its last face and one die of every other kind (#275: each kind its
+ * own InstancedMesh on the one dice material, which the warm-up's d6 stand-in compiles).
+ */
+const THROW = {
+	seq: 1,
+	dice: (['d20', 'd4', 'd6', 'd8', 'd10', 'd12', 'd100tens', 'd100units'] as const).map((kind) => ({
+		kind,
+		face: kind === 'd20' ? 19 : 0
+	})),
+	color: '#8a2f24'
+};
 
 async function mountHome(tier: Tier, reducedMotion = true) {
 	const { view: home, sidecar } = await viewOf(HOME);

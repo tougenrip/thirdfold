@@ -69,7 +69,7 @@ export const TUTORIAL: readonly TutorialStep[] = [
 	{
 		id: 'talk',
 		title: 'Talk to someone',
-		text: 'Walk up to one of the villagers and click them. People tell you things, and remember what you ask.'
+		text: 'Point at someone to see their name. Walk up to one of the villagers and click them. People tell you things, and remember what you ask.'
 	},
 	{
 		id: 'sheet',

@@ -312,6 +312,44 @@ describe('checkGlb', () => {
 		);
 	});
 
+	it("takes a mini's static poses, each held to the limit apart, and no pose beside an accent (#273)", async () => {
+		const posed = writeGlb([
+			triangle(),
+			triangle('body_pose1'),
+			triangle('body_pose1_lod1'),
+			triangle('body_pose3'),
+			triangle('body_lod1')
+		]);
+		expect(await checkGlb(posed, { ...LIMITS.prop, triangles: 1 })).toMatchObject({
+			ok: true,
+			info: { triangles: 1, lods: [1], poses: [1, 3] }
+		});
+		expect(await checkGlb(PLAIN)).toMatchObject({ ok: true, info: { poses: [] } });
+		const big = { ...triangle('body_pose2'), indices: new Uint16Array([0, 1, 2, 0, 2, 1]) };
+		expect(await checkGlb(writeGlb([triangle(), big]), { ...LIMITS.prop, triangles: 1 })).toEqual({
+			ok: false,
+			error: 'pose 2: 2 triangles is more than 1'
+		});
+		await refused(
+			writeGlb([triangle(), triangle('body_pose1'), triangle('accent')]),
+			/a model with poses has no accent/
+		);
+		await refused(writeGlb([triangle('body_pose1')]), /a model with poses needs its body/);
+		// Three at most, on the body only, and never dotted (GLTFLoader strips the dot).
+		await refused(
+			writeGlb([triangle(), triangle('body_pose4')]),
+			/mesh "body_pose4" must be named/
+		);
+		await refused(
+			writeGlb([triangle(), triangle('swing_pose1')]),
+			/mesh "swing_pose1" must be named/
+		);
+		await refused(
+			writeGlb([triangle(), triangle('body.pose1')]),
+			/mesh "body\.pose1" must be named/
+		);
+	});
+
 	it('refuses names off the roles, and node trees that are not trees', async () => {
 		await refused(writeGlb([triangle('body.lod1')]), /mesh "body\.lod1" must be named/);
 		await refused(

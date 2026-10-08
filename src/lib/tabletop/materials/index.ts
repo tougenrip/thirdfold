@@ -46,6 +46,7 @@ export type { Params, ParamsInput, ShaderKind } from './kinds';
 export { SLOTS, SLOT_NAMES, blankTexture, prepareSlotTexture, slotDefault } from './defaults';
 export type { SlotName, SlotSpec, SlotType } from './defaults';
 export { loadPaint, paint } from './paint';
+export { miniLook } from './mini';
 export { mipBias, setTextureQuality, worldTexture } from './texture-quality';
 
 /** A material of a shader kind: its values and its slots' textures. */
@@ -234,12 +235,16 @@ export function disposeTwins(material: KindMaterial): void {
  * Gives a geometry what an instanced kind reads per instance: the tint (rgb and strength, all 0)
  * the lift and the drop-in's start (`LIFT_ATTRIBUTE`, (0, none): the layer writes `liftOf` each
  * instance's asset and cell, and its drop's start, #249) and the paint (`PAINT_ATTRIBUTE`, white;
- * props multiply their albedo by it).
+ * props multiply their albedo by it; a mini's is a vec4, `paint` 4, its w the opacity, #267).
  */
-export function addInstanceTints(geometry: THREE.BufferGeometry, count: number): void {
+export function addInstanceTints(
+	geometry: THREE.BufferGeometry,
+	count: number,
+	paint: 3 | 4 = 3
+): void {
 	geometry.setAttribute(
 		PAINT_ATTRIBUTE,
-		new THREE.InstancedBufferAttribute(new Float32Array(count * 3).fill(1), 3)
+		new THREE.InstancedBufferAttribute(new Float32Array(count * paint).fill(1), paint)
 	);
 	geometry.setAttribute(
 		TINT_ATTRIBUTE,

@@ -204,7 +204,7 @@ height in the albedo's alpha.
 
 The usage names and colour spaces are `TextureEntry.usage` and `colorSpace` in manifest v2 (#184),
 which refuses a mismatch. ORM's alpha is free: emissive strength on props, the owner-tint mask on
-minis (white where the player's colour goes, replacing today's `accent` mesh; _target_).
+minis (white where the player's colour goes, replacing today's `accent` mesh; drawn since #267).
 
 Surfaces cook to one KTX2 file per surface and map, assembled into arrays on the client. The
 issue's two-map packing (albedo + height; normal.xy, roughness, AO) is the alternative; the owner
@@ -213,12 +213,29 @@ chooses (#187).
 ## 7. Minis
 
 - Static poses, no animation. No base: the engine draws it.
+- **Pose variants** (#273): besides the standing `body`, up to three whole sculpts named
+  `body_pose1` to `body_pose3` (underscores, not dots), each its own pose on the same origin and
+  base, within the same triangle budget. Commissions deliver a **downed** pose (lying or slumped on
+  the base, inside its circle), optionally an **active** one (a readied stance for its turn); the
+  art folder's `meta.json` says which is which: `"poses": { "downed": 1, "active": 2 }`. A posed
+  mini has no `accent` mesh: it tints through the mask below. Details in docs/ASSETS.md, "Static
+  poses for minis".
 - Origin at the centre of the base's top face, facing +Z.
 - Stay inside the base's circle, except weapons and cloaks by at most 0.1 u.
 - LOD0 3,000-6,000 triangles for a 1-cell mini; the figure class allows more for hero figures.
 - Painted like a miniature: strong value separation between skin, cloth and metal, highlights on
   every upward edge, and an owner-tint zone (a sash, a cloak, a shield face) at least 10% of the
   visible surface.
+- **Tint mask** (#267): ORM alpha, 1 (white) where the owner's colour goes, 0 elsewhere. Paint the
+  masked zone in light, low-saturation values: the shader keeps each texel's luminance and replaces
+  its hue with the token's. An ORM without a mask (alpha 255 everywhere) tints the whole figure.
+- **Edge highlights** are painted into a textured mini's albedo: the engine drybrushes only
+  part-list figures, from their baked convexity.
+- **The engine's paint** (`miniLook` in `src/lib/tabletop/materials/mini.ts`, global until the
+  owner asks for per-environment values): wash `washDark` 0.55 (the albedo at full occlusion),
+  drybrush `edgeLight` 0.35 (the most convex edges 35% lighter), varnish clearcoat 0.25 at roughness
+  0.35 (off on the low tier), rim power 3, strength 0.04 by day in warm white (1, 0.92, 0.8) and
+  0.35 at night or in the dark in moon blue (0.45, 0.6, 1), doubled on hover and selection.
 
 ## 8. Kits
 
@@ -521,7 +538,17 @@ procedural rather than sculpted, delivered the way this brief asks. The three wa
 are `ashlar-wall-a`/`-b`, `-cracked` and `-niche`, and the cap `ashlar-coping`. A commission
 replaces it role by role; `stone-halls-greybox` stays the fallback.
 
-The four characters' minis (#276) get their brief once these two are accepted.
+The four characters' minis (#276) get their brief once these two are accepted. Until then they are
+an in-house pilot (`LicenseRef-thirdfold-original`) made by `scripts/make-mini-art.ts`
+(docs/ASSETS.md, "The character minis' pilot"): the shield-bearer, the quiet blade, the
+flame-caller and the pilgrim healer as sculpts of lathes, limbs and bevelled boxes, each standing
+and downed (`body_pose1`, curled on its side with what it held beside it) on one painted atlas:
+colour blocking, cavities washed cool and edge highlights painted in, the tint mask in ORM alpha
+on a tabard and shield, a hooded cloak, a robe, a mantle and stole. It is lighter than section 7
+asks (about 1.5k triangles a pose, 256² maps, no normal map), because the characters stand on
+every table and that is what the table budgets hold (docs/PERFORMANCE.md, "Asset budgets"); the
+brief must state the same budget, or the owner raise it. The brief also settles the setting: the
+pilot's figures are fantasy, and they ride Blackwater's 1889 train as they are.
 
 ## 17. Blender export checklist
 

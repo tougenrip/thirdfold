@@ -36,7 +36,10 @@ const MB = 1024 * 1024;
  * only deliberately, with the reason in docs/PERFORMANCE.md.
  */
 export const TABLE_BUDGETS = {
-	desktop: { download: 15 * MB, gpu: 160 * MB, detail: 'medium' },
+	// 15.25, not 15 (the owner's decision, M71 #276, 2026-10-07): the four characters' cooked minis
+	// (a standing and a downed pose, LODs, 256² maps) stand on every table and outweigh their part
+	// lists by about 300 kB, which the Hollow Bell's tables didn't have to spare at medium.
+	desktop: { download: 15.25 * MB, gpu: 160 * MB, detail: 'medium' },
 	mobile: { download: 6 * MB, gpu: 80 * MB, detail: 'low' }
 } as const satisfies Record<string, { download: number; gpu: number; detail: TextureDetail }>;
 
@@ -143,8 +146,8 @@ export function overBudget(cost: TableCost): string[] {
 		const download = cost.download[b.detail];
 		const gpu = tier === 'mobile' ? cost.mobile : cost.gpu[b.detail];
 		if (download > b.download)
-			over.push(`${mb(download)} download over the ${tier} ${mb(b.download)} budget`);
-		if (gpu > b.gpu) over.push(`${mb(gpu)} GPU over the ${tier} ${mb(b.gpu)} budget`);
+			over.push(`${mb(download)} download over the ${tier} ${b.download / MB} MB budget`);
+		if (gpu > b.gpu) over.push(`${mb(gpu)} GPU over the ${tier} ${b.gpu / MB} MB budget`);
 	}
 	return over;
 }

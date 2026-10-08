@@ -4,37 +4,34 @@ import type { SquareGrid } from '$lib/game/grid';
 import { VOID } from '$lib/game/floor';
 import { DiceLayer, diceSurface, throwFromView } from './dice3d';
 import { DIE_LABELS } from './dice-faces';
+import { DICE_SHOWN } from './materials/dice';
 import { buildDieModel } from './dice-geometry';
 import { groundFor, STEP_HEIGHT } from './ground';
 import type { DieKind } from './dice-throw';
 
-/** A DiceLayer whose number textures carry their text instead of drawing it (no DOM in Node). */
-function layer() {
-	const l = new DiceLayer();
-	(l as unknown as { label: (text: string, kind: string, ink: string) => THREE.Texture }).label = (
-		text
-	) => {
-		const t = new THREE.Texture();
-		t.userData.text = text;
-		return t;
-	};
-	return l;
+const layer = () => new DiceLayer();
+
+/**
+ * The number a player reads on a landed die, by face index: the face whose normal, turned by the
+ * die's instance matrix, points up (on a d4, down: it is read at the vertex opposite).
+ */
+function reading(l: DiceLayer, which = 0): string {
+	const { kind, matrix } = l.dice()[which];
+	const model = buildDieModel(kind, 1);
+	const turn = new THREE.Matrix3().getNormalMatrix(matrix);
+	const sign = model.readsAtVertex ? -1 : 1;
+	let best = { y: -Infinity, face: -1 };
+	model.faces.forEach((f, face) => {
+		const y = f.normal.clone().applyMatrix3(turn).normalize().y * sign;
+		if (y > best.y) best = { y, face };
+	});
+	expect(best.y, `${kind} lies flat`).toBeGreaterThan(0.999);
+	return DIE_LABELS[kind][best.face];
 }
 
-/** The number a player reads on a landed die: its highest label. */
-function reading(l: DiceLayer): string {
-	const root = l.group.children[0];
-	root.updateMatrixWorld(true);
-	let best = { y: -Infinity, text: '' };
-	for (const child of root.children.slice(1) as THREE.Mesh<
-		THREE.BufferGeometry,
-		THREE.MeshStandardMaterial
-	>[]) {
-		const y = new THREE.Vector3().setFromMatrixPosition(child.matrixWorld).y;
-		if (y > best.y + 1e-6) best = { y, text: child.material.map!.userData.text };
-	}
-	return best.text;
-}
+/** Where a die stands: its instance's position. */
+const placeOf = (l: DiceLayer, which = 0) =>
+	new THREE.Vector3().setFromMatrixPosition(l.dice()[which].matrix);
 
 describe('DiceLayer', () => {
 	const kinds: DieKind[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100tens', 'd100units'];
@@ -68,6 +65,28 @@ describe('DiceLayer', () => {
 		expect(reading(l)).toBe('20');
 	});
 
+	it('draws twelve d20s as one mesh, and any mix as a mesh per kind on one material (#275)', () => {
+		const l = layer();
+		const aim = { center: new THREE.Vector3(), from: new THREE.Vector3(0, 2, 4) };
+		const d20s = Array.from({ length: 12 }, (_, i) => ({ kind: 'd20' as const, face: i }));
+		l.throw({ seq: 4, dice: d20s, color: '#2050d0' }, aim, 1, true, 0);
+		const meshes = () => l.group.children as THREE.InstancedMesh[];
+		expect(meshes().map((m) => m.count)).toEqual([12]);
+		const all = kinds.map((kind) => ({ kind, face: 0 }));
+		l.throw({ seq: 5, dice: all, color: '#2050d0' }, aim, 1, true, 0);
+		expect(meshes()).toHaveLength(8);
+		expect(meshes().map((m) => m.count)).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+		expect(new Set(meshes().map((m) => m.material)).size).toBe(1);
+		// Fading writes the instance attribute; nothing turns transparent.
+		l.tick(3_450); // thrown instantly: resting 3.2 s, then half faded
+		const fade = meshes()[1].geometry.getAttribute('aDieFade');
+		expect(fade.getX(0)).toBeCloseTo(0.5);
+		const material = meshes()[0].material as THREE.MeshPhysicalNodeMaterial;
+		expect([material.transparent, material.alphaHash]).toEqual([false, true]);
+		// Dice show over cells the fog hides: they write "shown" into the hidden attachment.
+		expect(material.mrtNode).toBe(DICE_SHOWN);
+	});
+
 	it('sweeps earlier dice away on a new throw and clears them after resting', () => {
 		const l = layer();
 		l.throw(
@@ -84,7 +103,7 @@ describe('DiceLayer', () => {
 			false,
 			0
 		);
-		expect(l.group.children).toHaveLength(2);
+		expect(l.dice()).toHaveLength(2);
 		l.throw(
 			{ seq: 2, dice: [{ kind: 'd8', face: 0 }], color: '#fff' },
 			{ center: new THREE.Vector3(), from: new THREE.Vector3() },
@@ -92,9 +111,9 @@ describe('DiceLayer', () => {
 			false,
 			0
 		);
-		expect(l.group.children).toHaveLength(1);
+		expect(l.dice()).toHaveLength(1);
 		expect(l.tick(60_000)).toBe(false);
-		expect(l.group.children).toHaveLength(0);
+		expect(l.dice()).toHaveLength(0);
 	});
 });
 
@@ -129,9 +148,9 @@ describe('dice on the ground (#247)', () => {
 				);
 				l.tick(ms + 1);
 				expect(reading(l)).toBe(label);
-				const root = l.group.children[0];
-				expect(surface(root.position.x, root.position.z)).toBe(raised);
-				expect(root.position.y).toBeCloseTo(raised + buildDieModel(kind, 1).inradius * 0.9);
+				const root = placeOf(l);
+				expect(surface(root.x, root.z)).toBe(raised);
+				expect(root.y).toBeCloseTo(raised + buildDieModel(kind, 1).inradius * 0.9);
 			});
 	});
 
@@ -149,10 +168,11 @@ describe('dice on the ground (#247)', () => {
 				0
 			);
 			l.tick(1);
-			for (const root of l.group.children) {
-				const under = surface(root.position.x, root.position.z);
-				expect(under, `seq ${seq} at ${root.position.x}, ${root.position.z}`).not.toBeNull();
-				expect(root.position.y).toBeGreaterThan(under!);
+			for (let i = 0; i < l.dice().length; i++) {
+				const root = placeOf(l, i);
+				const under = surface(root.x, root.z);
+				expect(under, `seq ${seq} at ${root.x}, ${root.z}`).not.toBeNull();
+				expect(root.y).toBeGreaterThan(under!);
 			}
 		}
 	});
@@ -164,7 +184,7 @@ describe('dice on the ground (#247)', () => {
 			const [center, from] = [new THREE.Vector3(-0.5, 0, 0), new THREE.Vector3(0, 4, 4)];
 			l.throw(throwOf(9, dice), { center, from, surface }, 1, true, 0);
 			l.tick(1);
-			return l.group.children.map((r) => r.position.toArray());
+			return l.dice().map((_, i) => placeOf(l, i).toArray());
 		};
 		expect(at()).toEqual(at());
 	});

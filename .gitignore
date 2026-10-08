@@ -48,12 +48,14 @@ src/**/__screenshots__/*
 !/art/surfaces/*/touchup.png
 
 # Generated or fetched art (docs/ASSETS.md): made by a script (the great bell, the stone-halls
-# pilot kit and its trim sheet) or fetched by scripts/fetch-models.ts (the CC0 bridge props, #262);
+# pilot kit and its trim sheet, the characters' pilot minis) or fetched by scripts/fetch-models.ts (the CC0 bridge props, #262);
 # only each meta.json is kept
 /art/prop/*/*
 !/art/prop/*/meta.json
 /art/kit/*/*
 !/art/kit/*/meta.json
+/art/character/*/*
+!/art/character/*/meta.json
 /art/texture/*/*
 !/art/texture/*/meta.json
 
@@ -62,3 +64,4 @@ src/**/__screenshots__/*
 
 # Data backups (npm run data:backup): session tokens and GM key hashes, keep them like the database
 /backups/
+.grepai/

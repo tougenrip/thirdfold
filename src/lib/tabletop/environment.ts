@@ -61,6 +61,8 @@ export interface EnvironmentLook {
 	kit: WallKit | null;
 	/** Its kit's roofs (#257), or null when it has none (caves, `plain`). */
 	roof: RoofKit | null;
+	/** The token bases' disc (#265, `miniBase`): a surface's albedo, or null for slate. */
+	miniBase: THREE.Texture | null;
 }
 
 /** The size of a grade's lookup table, per side. */
@@ -169,22 +171,27 @@ export async function loadEnvironment(
 	const kitDef = manifest.kits[env.kit ?? 'plain'];
 	const roofDef = kitDef?.roof ?? null;
 	const roofLook = roofDef && manifest.materials[roofDef.material];
-	const [[surface, ground, walls], grades, own, kit, roofed, roofPieces] = await Promise.all([
-		Promise.all(
-			[env.surface, env.ground, env.walls].map((m) =>
-				look(manifest.materials[m], manifest.textures)
-			)
-		),
-		// Its grades, from a chunk of their own (grades-load.ts), keeping the renderer's in budget.
-		env.lut
-			? import('./grades-load').then((m) => m.gradesOf(id, env.lut!, manifest.textures, toneMapper))
-			: null,
-		// Its painted surfaces (#187), from a chunk only tables that have them load.
-		painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null,
-		loadKit(kitDef),
-		roofLook ? look(roofLook, manifest.textures) : null,
-		roofDef ? kitPieces(kitDef, 'roofs') : null
-	]);
+	const disc = env.miniBase ? manifest.surfaces[env.miniBase]?.albedo : undefined;
+	const [[surface, ground, walls], grades, own, kit, roofed, roofPieces, miniBase] =
+		await Promise.all([
+			Promise.all(
+				[env.surface, env.ground, env.walls].map((m) =>
+					look(manifest.materials[m], manifest.textures)
+				)
+			),
+			// Its grades, from a chunk of their own (grades-load.ts), keeping the renderer's in budget.
+			env.lut
+				? import('./grades-load').then((m) =>
+						m.gradesOf(id, env.lut!, manifest.textures, toneMapper)
+					)
+				: null,
+			// Its painted surfaces (#187), from a chunk only tables that have them load.
+			painted ? import('./surfaces').then((m) => m.surfacesOf(painted)) : null,
+			loadKit(kitDef),
+			roofLook ? look(roofLook, manifest.textures) : null,
+			roofDef ? kitPieces(kitDef, 'roofs') : null,
+			disc && manifest.textures[disc] ? loadTexture(disc, manifest.textures[disc]) : null
+		]);
 	return {
 		surface,
 		ground,
@@ -197,7 +204,8 @@ export async function loadEnvironment(
 			presume: kitDef!.presumeRoofs,
 			look: roofed,
 			pieces: roofPieces ?? {}
-		}
+		},
+		miniBase
 	};
 }
 

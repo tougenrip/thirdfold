@@ -49,17 +49,23 @@ const BUDGETS = {
 	// → 109.9, own 57.3: Fate Condensed (#105): its rules choice in the Rules section, its skills
 	// for checks and its ready-made characters (the template loads on demand), 109,860 B measured,
 	// 57,224 B own.
-	'/builder': { total: 109_900, own: 57_300 },
+	// → 110.3, own 57.5: the rules track merged with main's M71 (#270, #273: EnemyDef.scale, the
+	// size field, the manifest's poses), 110,224 B measured, 57,437 B own.
+	'/builder': { total: 110_300, own: 57_500 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured. → 54.9: beside the rules track's shared
 	// library types (#99), 54,802 B measured.
-	'/credits': { total: 54_900, own: 3_000 },
+	// → 55.0: the manifest's `miniBase` (#265); 54.8 kB measured.
+	// → 55.1: the rules track's shared types with main's M71 (#265), 55,024 B measured.
+	'/credits': { total: 55_100, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
 	// → 51.3: the rules track's shared adventure types beside the sky's (#94–#96), 51,208 B measured.
 	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
-	// → 53.0: the shared refusal reader's diagnostics (#101), 52,903 B measured.
-	'/dev/assets': { total: 53_000, own: 500 },
+	// → 53.0: the shared refusal reader's diagnostics (#101), 52,903 B measured; main's poses
+	// (#273, `readPoses`) came in after.
+	// → 53.1: the same, merged (#101, #273), 53,094 B measured.
+	'/dev/assets': { total: 53_100, own: 500 },
 	// 66.0 → 66.2: the rules track's library client (#98, #99) beside main's M70 kits (#250),
 	// 66,138 B measured.
 	// → 67.4: a refused publish's diagnostics in the workshop (#101), 67,365 B measured.
@@ -68,7 +74,8 @@ const BUDGETS = {
 	// → 67.8: the shared protocol's campaign messages (#103), 67,706 B measured.
 	// → 67.9: the shared protocol's licensed content messages (#104), 67,883 B measured.
 	// → 68.0: the shared protocol's hand-off message (#105), 67,903 B measured.
-	'/library': { total: 68_000, own: 21_000 },
+	// → 68.1: the rules track merged with main's M71 manifest changes, 68,051 B measured.
+	'/library': { total: 68_100, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
 	// → 122.1: campaigns (#103): their messages and replies, the story's campaign line and the
@@ -78,7 +85,9 @@ const BUDGETS = {
 	// → 123.5: a second rules system (#105): elective turns' hand-off in the turn tracker, Fate dice
 	// in the chat, traits and health as the rules word them on the sheet, the action bar and the
 	// party list, 123,467 B measured.
-	'/room/[id]': { total: 123_500, own: 76_000 },
+	// → 125.1: the rules track (123.5) merged with main's M71 minis (121.7 there: bases, labels,
+	// the turn column, motion and poses), 125,061 B measured.
+	'/room/[id]': { total: 125_100, own: 76_000 },
 	// 360.0 → 360.1: light looks (intensity, still flames, no fixture for a glow), prop paint and
 	// token lift and scale (#201, #202), 360,059 B measured.
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B
@@ -153,8 +162,24 @@ const BUDGETS = {
 	// variant; three's BatchedMesh and batch.ts gone, about 4.3 kB); 399.5 kB measured.
 	// → 399.8: warm-ups at the draw depth (warmup.ts, DrawDepths and unlit); 399.7 kB measured.
 	// → 400.0: still texture reads leave WebGL2's update lists (materials/still-textures.ts, the
-	// orbit's main thread 18.6 → 10 ms); 399,836 B measured.
-	renderer: { total: 400_000 },
+	// orbit's main thread 18.6 → 10 ms); 399,836 B measured. → 402.0: token bases (#265: the base
+	// kind's graph, base-layer.ts, the lathe); 401.7 kB measured. → 403.0: names on demand (#268:
+	// label-layer.ts, the atlas and two instanced sprites, replacing the per-token label sprites);
+	// 402.9 kB measured after the merge (M71's cap is about 410 kB). → dice as PBR sets (#275: one InstancedMesh per
+	// kind, the dice material, the atlas's UVs; decal canvases and pips gone); 403.1 kB measured after the merge.
+	// → the miniature kind's wash, drybrush, varnish and rim (#267, materials/mini.ts); 403.6 kB
+	// measured.
+	// → 405.0: token figures as instanced batches (#266, figures.ts: the swap-remove slots, the merged
+	// plain miniature); 404.7 kB measured. → 405.2: large creatures' bases (#270: a base mesh per
+	// size, the shrink rule, base picking by its centre disc); 405.1 kB measured. → static poses (#273: `poseOf`, the
+	// pose in the figure batches and the fall it stands in for); 405.5 kB measured after the merge.
+	// → 406.7: contact shadows (#271, contact.ts and the instanced decal's graph, materials/contact.ts);
+	// 406.6 kB measured after the merge. → the turn column (#269, turn-column.ts, the cone gone):
+	// 406.7 kB measured after the merge.
+	// → 408.0: levels of detail on the camera (#274: lod.ts, lod-watch.ts, prop buckets and figure batches
+	// per level, shadow proxies); 407,940 B measured, 408.0 kB after the merge.
+	// → 409.1: mini motion (#272, mini-motion.ts: hop, squash, pick-up, bob, tip); 409.0 kB measured, 409.1 kB with #276 (figures.ts keeps emptied textured batches).
+	renderer: { total: 409_200 },
 	decoders: { total: 40_000 },
 	// The probe grid (#235: three's LightProbeGrid, its bake and our node), fetched on high and
 	// ultra only with its layer on; 4.5 kB measured.

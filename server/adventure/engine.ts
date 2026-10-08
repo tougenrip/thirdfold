@@ -2076,6 +2076,7 @@ function enemyToken(A: AdventureDef, kind: string, pos: GridPos): Token {
 		vision: def.vision,
 		light: def.light,
 		...(def.lightColor ? { lightColor: def.lightColor } : {}),
+		...(def.scale !== undefined ? { scale: def.scale } : {}),
 		model: def.model
 	};
 }

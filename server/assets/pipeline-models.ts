@@ -16,6 +16,8 @@ import {
 	MODEL_KINDS,
 	THUMBNAIL_BYTES,
 	limitClass,
+	readPoses,
+	type ModelPoses,
 	type FileInfo,
 	type MaterialDef,
 	type ModelEntry
@@ -69,6 +71,7 @@ export async function buildModels(
 			let setPiece = false;
 			let translucency: number | undefined;
 			let screenSizes: unknown;
+			let posesRaw: unknown;
 			let pack = CORE_PACK;
 			let worn: string[] | undefined;
 			try {
@@ -86,6 +89,7 @@ export async function buildModels(
 						if (isRecord(m) && isRecord(m.swing)) swing = m.swing as ModelEntry['swing'];
 						setPiece = isRecord(m) && m.setPiece === true;
 						if (isRecord(m)) screenSizes = m.screenSizes;
+						if (isRecord(m)) posesRaw = m.poses;
 						if (isRecord(m) && m.pack !== undefined) {
 							if (typeof m.pack !== 'string' || !ASSET_ID_PATTERN.test(m.pack))
 								throw new AssetError(meta, 'a pack is an asset id');
@@ -109,6 +113,17 @@ export async function buildModels(
 			const checked = await checkGlb(glb, limit);
 			if (!checked.ok) throw new AssetError(source, checked.error);
 			const { triangles, bounds, gpuBytes } = checked.info;
+			// Poses (#273): a figure's, each meaning a pose the file has, and every pose meant.
+			let poses: ModelPoses | null = null;
+			if (posesRaw !== undefined || checked.info.poses.length) {
+				poses = kind === 'prop' ? null : readPoses(posesRaw, checked.info.poses);
+				const meant = new Set(Object.values(poses ?? {}));
+				if (!poses || checked.info.poses.some((p) => !meant.has(p as 1 | 2 | 3)))
+					throw new AssetError(
+						source,
+						`poses: a figure's meta.json names what each of its poses (${checked.info.poses.join(', ') || 'none'}) is for: downed or active`
+					);
+			}
 			// Part lists have no LODs: a few hundred triangles need none. A cooked model's meta.json
 			// says below what share of the screen each level is drawn (cook.ts).
 			const lods = checked.info.lods.map((t, i) => ({
@@ -127,6 +142,7 @@ export async function buildModels(
 				gpuBytes,
 				credit,
 				...(swing ? { swing } : {}),
+				...(poses ? { poses } : {}),
 				...(lods.length ? { lods: lods as ModelEntry['lods'] } : {}),
 				...(checked.info.cooked ? { cooked: true as const } : {}),
 				...(setPiece ? { setPiece: true as const } : {}),

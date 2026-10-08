@@ -10,6 +10,7 @@ import * as THREE from 'three/webgpu';
 import { cornerToWorld, gridToWorld, type GridPos, type SquareGrid } from '$lib/game/grid';
 import { unitEdges } from '$lib/game/objects';
 import { groundFor, WALL_HEIGHT, type Ground } from './ground';
+import { COLUMN } from './turn-column';
 import type { HighlightKind, PreviewItem } from './types';
 
 /** The colours that mean move, blocked and place, each with its pattern (G6: colour-vision.spec.ts). */
@@ -177,7 +178,6 @@ export class PreviewLayer {
 	readonly group = new THREE.Group();
 	private box = new THREE.BoxGeometry(1, 1, 1);
 	private corner = new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16);
-	private beaconColumn = new THREE.CylinderGeometry(0.32, 0.42, 1, 24, 1, true);
 	private beaconRing = new THREE.RingGeometry(0.36, 0.48, 32).rotateX(-Math.PI / 2);
 	private materials = {
 		valid: new THREE.MeshBasicMaterial({ color: 0x7fc47a, transparent: true, opacity: 0.55 }),
@@ -213,7 +213,7 @@ export class PreviewLayer {
 
 	constructor() {
 		this.group.renderOrder = 2;
-		const shapes = { corner: this.corner, beacon: this.beaconColumn, beaconRing: this.beaconRing };
+		const shapes = { corner: this.corner, beacon: COLUMN, beaconRing: this.beaconRing };
 		this.pool = new Map(
 			BUCKETS.map((b) => {
 				const geometry = shapes[b as keyof typeof shapes] ?? this.box;
@@ -246,7 +246,7 @@ export class PreviewLayer {
 	dispose(): void {
 		for (const mesh of this.pool.values()) mesh.dispose(); // their instance buffers
 		this.group.clear();
-		for (const g of [this.box, this.corner, this.beaconColumn, this.beaconRing]) g.dispose();
+		for (const g of [this.box, this.corner, this.beaconRing]) g.dispose(); // not the shared column
 		Object.values(this.materials).forEach((m) => m.dispose());
 	}
 }

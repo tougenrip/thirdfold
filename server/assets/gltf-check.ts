@@ -21,11 +21,12 @@ export const EXTENSIONS = new Set([
 ]);
 
 /**
- * A mesh's name, and its node's: its role (`flame` a light fixture's glow, #232), and `_lod<n>`
- * for a coarser level. GLTFLoader strips
+ * A mesh's name, and its node's: its role (`flame` a light fixture's glow, #232), a mini's static
+ * pose (`body_pose1` to `body_pose3`, #273), and `_lod<n>` for a coarser level. GLTFLoader strips
  * `.`, `:`, `/`, `[` and `]` from names, so a dotted name would reach the client changed.
  */
-export const MESH_NAME = /^(body|swing|accent|flame)(_lod[12])?$/;
+export const MESH_NAME = /^(?:body(?:_pose[1-3])?|swing|accent|flame)(?:_lod[12])?$/;
+const POSED = /^body_pose[1-3]/;
 
 export const MAX_JSON_BYTES = 256 * 1024;
 export const MAX_NODES = 256;
@@ -357,7 +358,7 @@ function check(json: Json, binLength: number, limit: Limit): void {
 		onlyKeys(mesh, new Set(['name', 'primitives']), 'mesh');
 		if (typeof mesh.name !== 'string' || !MESH_NAME.test(mesh.name)) {
 			fail(
-				`mesh "${String(mesh.name)}" must be named body, swing, accent or flame (and _lod1 or _lod2)`
+				`mesh "${String(mesh.name)}" must be named body, swing, accent or flame (body_pose1 to _pose3; and _lod1 or _lod2)`
 			);
 		}
 		const primitives = records(mesh.primitives, 'primitives');
@@ -398,6 +399,13 @@ function check(json: Json, binLength: number, limit: Limit): void {
 				}
 			}
 		}
+	}
+
+	// Posed minis tint through the mini kind's mask, never an accent (#273), and pose a body.
+	const names = meshes.map((m) => m.name as string);
+	if (names.some((n) => POSED.test(n))) {
+		if (names.some((n) => n.startsWith('accent'))) fail('a model with poses has no accent');
+		if (!names.includes('body')) fail('a model with poses needs its body');
 	}
 
 	// Nodes: a small tree of transforms, each mesh on a node named for its role.
