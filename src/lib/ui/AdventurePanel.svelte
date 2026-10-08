@@ -6,11 +6,16 @@
 		type CharacterStatus,
 		type ObjectState
 	} from '$lib/adventure/adventure';
-	import { CHARACTERS, STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
+	import { STATUS_IDS, STATUSES, type StatusId } from '$lib/adventure/characters';
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
-	import { ADVENTURE_FILE_MAX_BYTES } from '$lib/game/file-limits';
-	import type { RoomAction } from '$lib/net/room-connection.svelte';
+	import { ADVENTURE_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '$lib/game/file-limits';
+	import type {
+		CampaignReply,
+		RoomAction,
+		SourcesReply,
+		UpgradeReply
+	} from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';
 	import { describeRating } from '$lib/ui/rating';
@@ -23,9 +28,28 @@
 		adventures?: readonly AdventureListing[];
 		send(action: RoomAction): boolean;
 		onError?(message: string): void;
+		/** Opens a party member's character sheet. */
+		onSheet?(characterId: string): void;
+		/** The latest answer about the story's versions (the GM's). */
+		upgrade?: UpgradeReply | null;
+		/** The GM's campaigns, as the server last told them. */
+		campaign?: CampaignReply | null;
+		/** The licensed sources the GM may use, as the server last told them. */
+		sources?: SourcesReply | null;
 	}
 
-	let { adventure, isGm, players, adventures = [], send, onError }: Props = $props();
+	let {
+		adventure,
+		isGm,
+		players,
+		adventures = [],
+		send,
+		onError,
+		onSheet,
+		upgrade = null,
+		campaign = null,
+		sources = null
+	}: Props = $props();
 
 	let narration = $state('');
 	/** The character the GM is adjusting. */
@@ -93,6 +117,43 @@
 		}
 	}
 
+	/** GM: brings a homebrew pack file to the story; the server checks every field of it. */
+	async function addPack(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (file.size > CONTENT_PACK_MAX_BYTES) return onError?.('That homebrew file is too large.');
+		let data: unknown;
+		try {
+			data = JSON.parse(await file.text());
+		} catch {
+			return onError?.('That file is not a homebrew pack (not JSON).');
+		}
+		send({ type: 'adventure_pack', op: 'attach', pack: data });
+	}
+
+	const KIND_LABEL: Record<string, string> = {
+		weapon: 'Weapons',
+		armor: 'Armor',
+		spell: 'Spells',
+		monster: 'Monsters'
+	};
+	const byKind = (records: { kind: string; name: string }[]) =>
+		[...new Set(records.map((r) => r.kind))].map((kind) => ({
+			kind,
+			label: KIND_LABEL[kind] ?? kind,
+			names: records.filter((r) => r.kind === kind).map((r) => r.name)
+		}));
+
+	/** GM: the next adventure of the story's collection, at the version this story started with. */
+	function playFromCollection(entry: number, title: string) {
+		const set = adventure?.collection;
+		if (!set) return;
+		if (confirm(`Start ${title}? This replaces the map and the story on it.`))
+			send({ type: 'adventure_start', collectionId: set.id, version: set.version, entry });
+	}
+
 	function control(op: 'restart' | 'end') {
 		const warning =
 			op === 'restart'
@@ -120,6 +181,27 @@
 					· version {adventure.library.version}
 				</p>
 			{/if}
+			{#if adventure.collection}
+				{@const set = adventure.collection}
+				<p class="section">
+					Part of <a href={resolve(`/library?collection=${set.id}`)}>{set.title}</a>
+					by {set.creator.name} · adventure {set.adventures.findIndex((a) => a.playing) + 1} of {set
+						.adventures.length}
+				</p>
+			{/if}
+			{#if adventure.campaign}
+				<p class="section">
+					For the campaign {adventure.campaign.name}{adventure.campaign.closed
+						? ' · written into it'
+						: ''}
+				</p>
+			{/if}
+			{#if adventure.rules.id !== 'thirdfold-classic'}
+				<p class="section">Rules: {adventure.rules.name}</p>
+				{#if adventure.rules.attribution}
+					<p class="credit">{adventure.rules.attribution}</p>
+				{/if}
+			{/if}
 			<p class="section">
 				Chapter {adventure.chapter.number} of {adventure.chapter.of} ·
 				<span class="stage">{STAGE_LABEL[adventure.stage] ?? adventure.chapter.title}</span>
@@ -143,17 +225,28 @@
 				{#each party as c (c.id)}
 					<li class:downed={c.downed || c.dead}>
 						<div class="member">
-							<span class="swatch" style:background={CHARACTERS[c.id].color}></span>
+							<span class="swatch" style:background={c.def.color}></span>
 							<span class="who">
-								{CHARACTERS[c.id].name}
+								{#if onSheet}<button
+										type="button"
+										class="link"
+										title="Open {c.def.name}'s character sheet"
+										onclick={() => onSheet(c.id)}>{c.def.name}</button
+									>{:else}{c.def.name}{/if}
 								<small>
 									{playerName(c.playerId)}{c.statuses.length
 										? ` · ${c.statuses.map((s) => STATUSES[s.id].name).join(', ')}`
 										: ''}
 								</small>
 							</span>
-							<span class="hp num" title="Hit points">
-								{c.dead ? 'Dead' : c.downed ? 'Down' : `${c.hp}/${c.maxHp}`}
+							<span class="hp num" title={c.health?.name ?? 'Hit points'}>
+								{c.dead
+									? 'Dead'
+									: c.downed
+										? 'Down'
+										: c.health
+											? `${c.health.value}/${c.health.max}`
+											: `${c.hp}/${c.maxHp}`}
 							</span>
 							{#if isGm}
 								<button
@@ -166,7 +259,7 @@
 							{/if}
 						</div>
 						{#if isGm && editing === c.id}
-							<div class="override" aria-label={`Adjust ${CHARACTERS[c.id].name}`}>
+							<div class="override" aria-label={`Adjust ${c.def.name}`}>
 								<div class="row">
 									{#each [-5, -1, 1, 5] as delta (delta)}
 										<button
@@ -248,6 +341,115 @@
 			</details>
 		{/if}
 
+		{#if adventure.collection && (adventure.collection.adventures.length > 1 || adventure.collection.tables.length)}
+			{@const set = adventure.collection}
+			<details class="clues">
+				<summary>Collection: {set.title}</summary>
+				<ol aria-label="Its adventures">
+					{#each set.adventures as a, i (i)}
+						<li>
+							<strong>{a.title}</strong>
+							{#if a.playing}<span class="evidence-kind">playing</span>{:else if isGm}
+								<button type="button" onclick={() => playFromCollection(i, a.title)}>
+									Play this one
+								</button>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+				{#if set.tables.length}
+					<p class="note">Tables that go with it:</p>
+					<ul>
+						{#each set.tables as t (t.code)}
+							<li>
+								<a href={resolve(`/?table=${t.code}`)} target="_blank" rel="noopener">{t.name}</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</details>
+		{/if}
+
+		{#if isGm}
+			<!-- Loaded when shown: only the GM's panel has it. -->
+			{#await import('$lib/ui/CampaignPanel.svelte') then { default: CampaignPanel }}
+				<CampaignPanel {adventure} reply={campaign} {send} />
+			{/await}
+		{/if}
+
+		{#if isGm && adventure.versions}
+			<!-- Loaded when shown: only the GM's panel has it. -->
+			{#await import('$lib/ui/StoryVersions.svelte') then { default: StoryVersions }}
+				<StoryVersions versions={adventure.versions} reply={upgrade} {send} />
+			{/await}
+		{/if}
+
+		{#if adventure.packs && (adventure.packs.length || isGm)}
+			<details class="clues" open={adventure.packs.length > 0 && isGm}>
+				<summary
+					>Homebrew{adventure.packs.some((p) => p.source === 'licensed') ? ' and licensed' : ''} ({adventure
+						.packs.length})</summary
+				>
+				{#if adventure.packs.length}
+					<ul aria-label="Homebrew">
+						{#each adventure.packs as pack (pack.id)}
+							<li class="pack">
+								<strong>{pack.name}</strong>
+								<span class="evidence-kind">{pack.version}</span>
+								<span class="evidence-kind"
+									>{pack.licensed ? `Licensed · ${pack.licensed.publisher}` : 'Homebrew'}</span
+								>
+								{#if pack.creator || pack.license}
+									<p class="credit">
+										{pack.creator ? `by ${pack.creator}` : ''}{pack.creator && pack.license
+											? ' · '
+											: ''}{pack.license ?? ''}
+									</p>
+								{/if}
+								{#if pack.about}<p>{pack.about}</p>{/if}
+								{#if pack.licensed}
+									<p class="credit">{pack.licensed.attribution}</p>
+									{#if pack.licensed.terms.display === 'mechanics'}
+										<p class="credit">Mechanics only: its licence keeps its text back.</p>
+									{/if}
+								{/if}
+								{#each byKind(pack.records) as group (group.kind)}
+									<p class="pack-records"><em>{group.label}:</em> {group.names.join(', ')}</p>
+								{/each}
+								{#if isGm}
+									<button
+										type="button"
+										onclick={() => send({ type: 'adventure_pack', op: 'detach', id: pack.id })}
+									>
+										Put away
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="note">
+						Homebrew adds your own weapons, armor, spells and monsters to the rules’ own, for this
+						story only.
+					</p>
+				{/if}
+				{#if isGm && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
+					<label class="file-offer">
+						Add homebrew from a file…
+						<input type="file" accept=".json,application/json" hidden onchange={addPack} />
+					</label>
+					<!-- Loaded when shown: only the GM's panel has it. -->
+					{#await import('$lib/ui/LicensedSources.svelte') then { default: LicensedSources }}
+						<LicensedSources
+							reply={sources}
+							attached={adventure.packs.flatMap((p) => (p.licensed ? [p.licensed.source] : []))}
+							{send}
+						/>
+					{/await}
+				{/if}
+			</details>
+		{/if}
+
 		{#if adventure.decisions.length}
 			<details class="clues">
 				<summary>Choices made ({adventure.decisions.length})</summary>
@@ -276,7 +478,7 @@
 					<p class="note">
 						{party.length === 0
 							? 'Waiting for players to choose their characters.'
-							: `${party.length} of 4 characters chosen. Begin when everyone is ready.`}
+							: `${party.length} of ${adventure.characters.length} characters chosen. Begin when everyone is ready.`}
 					</p>
 				{/if}
 				{#if adventure.encounter}
@@ -438,6 +640,9 @@
 				<a class="build-link" href={resolve('/builder')}>Build your own adventure</a>
 			</div>
 		</details>
+		{#await import('$lib/ui/CampaignPanel.svelte') then { default: CampaignPanel }}
+			<CampaignPanel adventure={null} reply={campaign} {send} />
+		{/await}
 	</section>
 {/if}
 
@@ -489,6 +694,17 @@
 	header h2 {
 		font-size: var(--fs-md);
 		color: var(--accent);
+	}
+
+	.pack-records {
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-xs);
+	}
+
+	.credit {
+		margin: var(--sp-1) 0 0;
+		font-size: var(--fs-2xs);
+		color: var(--muted);
 	}
 
 	.section {
@@ -546,6 +762,19 @@
 	.edit {
 		padding: var(--sp-1) var(--sp-4);
 		font-size: var(--fs-xs);
+	}
+
+	.party .link {
+		justify-self: start;
+		text-align: left;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
+		cursor: pointer;
 	}
 
 	.party .downed {

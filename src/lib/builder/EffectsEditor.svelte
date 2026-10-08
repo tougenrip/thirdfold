@@ -15,6 +15,12 @@
 		{ kind: 'fight', label: 'Start a fight', make: () => ({ fight: '' }) },
 		{ kind: 'enter', label: 'Go to a chapter', make: () => ({ enter: '' }) },
 		{ kind: 'heal', label: 'Heal the party', make: () => ({ heal: 2 }) },
+		{ kind: 'rest', label: 'The party rests (by the rules)', make: () => ({ rest: 'short' }) },
+		{
+			kind: 'gear',
+			label: 'Give gear (by the rules)',
+			make: () => ({ gear: { item: 'srd-5.2.1:weapon:dagger', quantity: 1 } })
+		},
 		{ kind: 'ambient', label: 'Time of day', make: () => ({ ambient: 'dusk' }) },
 		{ kind: 'world', label: 'Time, sky and weather', make: () => ({ world: { time: 1170 } }) },
 		{ kind: 'light', label: 'A light changes', make: () => ({ light: '', on: true }) },
@@ -215,6 +221,53 @@
 					onchange={(ev) =>
 						patch(i, { heal: Math.max(1, Math.round(ev.currentTarget.valueAsNumber) || 1) })}
 				/>
+			{:else if kind === 'rest' && 'rest' in e}
+				<select
+					aria-label="Rest"
+					value={e.rest}
+					onchange={(ev) => patch(i, { rest: ev.currentTarget.value as 'short' | 'long' })}
+				>
+					<option value="short">Short Rest (Hit Point Dice, some features)</option>
+					<option value="long">Long Rest (everything back)</option>
+				</select>
+			{:else if kind === 'gear' && 'gear' in e}
+				<div class="row">
+					<input
+						aria-label="Item"
+						placeholder="srd-5.2.1:weapon:dagger"
+						value={e.gear.item}
+						onchange={(ev) =>
+							patch(i, { gear: { ...e.gear, item: ev.currentTarget.value.trim() } })}
+					/>
+					<input
+						type="number"
+						min="1"
+						max="99"
+						aria-label="How many"
+						value={e.gear.quantity}
+						onchange={(ev) =>
+							patch(i, {
+								gear: {
+									...e.gear,
+									quantity: Math.max(1, Math.round(ev.currentTarget.valueAsNumber) || 1)
+								}
+							})}
+					/>
+					<label class="check">
+						<input
+							type="checkbox"
+							checked={e.gear.to === 'party'}
+							onchange={(ev) => {
+								patch(i, {
+									gear: ev.currentTarget.checked
+										? { ...e.gear, to: 'party' }
+										: { item: e.gear.item, quantity: e.gear.quantity }
+								});
+							}}
+						/>
+						Each of the party
+					</label>
+				</div>
 			{:else if kind === 'ambient' && 'ambient' in e}
 				<select
 					aria-label="Time of day"

@@ -43,10 +43,28 @@ const SERVER_FIELD_CHECKS: Record<ServerMessage['type'], (d: Record<string, unkn
 		listing_update: (d) => typeof d.listed === 'boolean',
 		library_list: (d) => Array.isArray(d.adventures),
 		library_story: (d) => d.story === null || isRecord(d.story),
-		library_mine: (d) => Array.isArray(d.adventures),
+		collection_report: (d) => d.report === null || isRecord(d.report),
+		library_mine: (d) =>
+			Array.isArray(d.adventures) && Array.isArray(d.shared) && typeof d.creatorId === 'string',
 		library_published: (d) => typeof d.adventureId === 'string' && typeof d.version === 'number',
 		games_list: (d) => Array.isArray(d.games),
-		error: (d) => typeof d.code === 'string' && typeof d.message === 'string'
+		character_sheet: (d) =>
+			typeof d.characterId === 'string' && typeof d.rules === 'string' && isRecord(d.details),
+		character_options: (d) => typeof d.rules === 'string' && isRecord(d.options),
+		monster_search: (d) => typeof d.query === 'string' && Array.isArray(d.monsters),
+		campaigns: (d) => Array.isArray(d.campaigns) && (d.current === null || isRecord(d.current)),
+		campaign: (d) => d.campaign === null || isRecord(d.campaign),
+		content_sources: (d) => Array.isArray(d.sources),
+		upgrade_review: (d) => isRecord(d.review) && typeof d.applied === 'boolean',
+		character_preview: (d) => isRecord(d.preview) && typeof d.preview.ok === 'boolean',
+		validation: (d) =>
+			isRecord(d.validation) &&
+			typeof d.validation.ok === 'boolean' &&
+			Array.isArray(d.validation.diagnostics),
+		error: (d) =>
+			typeof d.code === 'string' &&
+			typeof d.message === 'string' &&
+			(d.diagnostics === undefined || Array.isArray(d.diagnostics))
 	};
 
 /**

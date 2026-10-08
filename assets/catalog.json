@@ -259,6 +259,13 @@
 			"h": 1,
 			"blocks": "none"
 		},
+		"gear-pile": {
+			"name": "Things put down",
+			"category": "items",
+			"w": 1,
+			"h": 1,
+			"blocks": "none"
+		},
 		"paper": {
 			"name": "Paper",
 			"category": "items",

@@ -6,11 +6,15 @@
 // The reach rules below are shared: the server enforces them, the client
 // uses them only to decide which buttons to offer.
 
+import type { LicenceTerms } from '../content/licence';
+import type { VersionsView } from './versions';
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
+import type { CampaignStoryView } from '../game/campaign';
+import type { CollectionView } from '../game/collection';
 import type { Creator } from '../game/library';
 import { hasLineOfSight } from '../game/visibility';
-import type { Action, CharacterId, StatId, StatusId } from './characters';
+import type { Action, CharacterDef, CharacterId, StatusId } from './characters';
 
 /** Which adventure is being played (its own id; see server/adventures). */
 export type AdventureId = string;
@@ -109,6 +113,89 @@ export interface DirectorView {
 	enemies: { kind: string; name: string }[];
 	/** What skipping ahead leads to, or null when it can't (a choice is waiting). */
 	skip: string | null;
+	/** The conditions the story's rules have, for the GM to put on someone (empty under rules without). */
+	conditions: { id: string; name: string }[];
+	/** Who a condition can be put on: the characters in play and the enemies on the table. */
+	bearers: { tokenId: string; name: string }[];
+	/**
+	 * Under rules with a bestiary: the monsters brought into this story (on
+	 * the table or not), and what the GM's own fight comes to as it stands;
+	 * else null.
+	 */
+	bestiary: {
+		monsters: MonsterListing[];
+		/** The enemies on the table waiting for the GM's fight, and how hard it looks. */
+		summary: EncounterSummary | null;
+	} | null;
+}
+
+/**
+ * A content pack a story has (homebrew under its rules, milestone 52), as
+ * the table lists it: what it is, whose, and what it holds. What its records
+ * say reaches a viewer only where the rules offer them (a creation page, a
+ * sheet, the GM's bestiary).
+ */
+export interface ContentPackListing {
+	id: string;
+	name: string;
+	/** The creator's own version of it. */
+	version: string;
+	creator: string | null;
+	license: string | null;
+	about: string | null;
+	/** Its records by kind and name. */
+	records: { kind: string; id: string; name: string }[];
+	access: PackAccess;
+	/** A creator's homebrew, or a licensed source's content (milestone 59). */
+	source: 'homebrew' | 'licensed';
+	/** A licensed source's publisher, credit and terms; null for homebrew. */
+	licensed: { source: string; publisher: string; attribution: string; terms: LicenceTerms } | null;
+}
+
+/** Who a content pack belongs to and who may use it (prepared for milestones 53–55). */
+export interface PackAccess {
+	/** The public creator id of the GM key that brought it to the story (never the key), or null. */
+	owner: string | null;
+	/** `table`: shared with this story's table by its GM, and nobody else. */
+	visibility: 'table';
+}
+
+/**
+ * A monster a GM may bring to the table under the story's rules, as its
+ * source prints it: its kind (the id the table plays it by), name, challenge
+ * and XP, and what of it the table doesn't play yet.
+ */
+export interface MonsterListing {
+	kind: string;
+	name: string;
+	/** e.g. "Small Fey (Goblinoid)". */
+	type: string;
+	challenge: string;
+	xp: number;
+	armorClass: number;
+	hitPoints: number;
+	/** Its attacks as the table plays them, in a line each. */
+	attacks: string[];
+	/** Its traits and actions the table doesn't play yet, by name. */
+	notPlayed: string[];
+	/** Where it comes from: "SRD 5.2.1, Monsters A–Z › Goblins, p. 289". */
+	source: string;
+}
+
+/**
+ * How hard a fight looks by its rules' own guidance: advisory only. The
+ * monsters' total XP against the party's budgets, the band it falls in, and
+ * the assumptions behind it, in words.
+ */
+export interface EncounterSummary {
+	monsters: { name: string; count: number; xp: number }[];
+	xp: number;
+	party: { characters: number; levels: number[] };
+	/** The budgets by difficulty, for this party ("Low", "Moderate", "High"). */
+	budgets: { name: string; xp: number }[];
+	/** Where the total falls: "Below Low", "Low", "Moderate", "High", "Beyond High". */
+	band: string;
+	notes: string[];
 }
 
 /** Where a fight is in its life. Encounters not listed have not started. */
@@ -190,10 +277,161 @@ export const PHYSICAL_ACTIONS: Record<Physical, string> = {
 	trigger: 'Trigger'
 };
 
-/** A check a character must pass: a d20 plus one of its stats, against a difficulty. */
+/**
+ * A check a character must pass: a d20 plus its bonus for `stat`, against a
+ * difficulty. What `stat` may name is the story's ruleset's (the classic
+ * rules: might, agility, wits, spirit); `save` makes it a saving throw, for
+ * rules that tell the two apart.
+ */
 export interface Check {
-	stat: StatId;
+	stat: string;
 	dc: number;
+	save?: boolean;
+}
+
+/** A check as a character would make it, worked out by the story's rules on the server. */
+export interface CheckView extends Check {
+	/** What is rolled, e.g. "Wits" or "Wisdom (Perception)". */
+	label: string;
+	/** This viewer's character's bonus to it; null for a viewer without a character. */
+	bonus: number | null;
+}
+
+/** The rules a story plays by, as the table shows them. */
+export interface RulesInfo {
+	id: string;
+	version: number;
+	name: string;
+	/** Required credit for rules material from an outside source (a licence's attribution), if any. */
+	attribution: string | null;
+}
+
+/** A number on a character's sheet, e.g. an ability or a skill. */
+export interface SheetValue {
+	id: string;
+	name: string;
+	/** What a d20 roll of it adds. */
+	bonus: number;
+	/** The score the bonus comes from, where the rules have one (an ability score). */
+	score: number | null;
+	/** Whether the character's proficiency counts, where the rules have proficiency. */
+	proficient: boolean;
+}
+
+/**
+ * A character's numbers as the story's rules work them out, sent by the
+ * server so no client has to know the rules.
+ */
+export interface CharacterCard {
+	/** Who the character is by the rules, e.g. "Orc Fighter 1 (Soldier)", where the rules say. */
+	title?: string;
+	/** Damage types it has Resistance to, where the rules have them. */
+	resistances?: string[];
+	/** e.g. "Defense" or "Armor Class", and its value now (statuses counted). */
+	defense: { name: string; value: number };
+	level: number | null;
+	proficiency: number | null;
+	/** What checks add, e.g. the four classic stats or six abilities. */
+	stats: SheetValue[];
+	/** Saving throws, for rules that have them. */
+	saves: SheetValue[];
+	/** Skills, for rules that have them. */
+	skills: SheetValue[];
+	/**
+	 * Each action's one-line summary and the part of a turn it takes: `part` as
+	 * `CharacterStatus.spent` lists it ("action", "bonus"), `partName` as players read it.
+	 */
+	actions: { id: string; summary: string; part: string; partName: string }[];
+	/**
+	 * Limited resources the rules give the character (spell slots, Second
+	 * Wind, …), where the rules have them. `trackedBy` names the action whose
+	 * uses count it (the table keeps that count); the rest a player marks by hand.
+	 */
+	resources?: CardResource[];
+	/**
+	 * Whether the rules have a full sheet for this character, which a page
+	 * asks for when it opens it (`character_sheet`): it only changes with the
+	 * character, so it stays out of the live view.
+	 */
+	details?: string;
+	/**
+	 * What the character owns, where the rules keep an inventory: each thing
+	 * with its quantity, where it is equipped and where it came from. It
+	 * changes in play (`adventure_gear`), so it travels with the card.
+	 */
+	inventory?: CardItem[];
+	/** What it carries and can carry, in pounds, where the rules count weight. */
+	carrying?: { weight: number; capacity: number };
+	/**
+	 * What the rules say the character is beyond its numbers (aspects,
+	 * stunts), each with its kind in the rules' words, where the rules have them.
+	 */
+	traits?: { kind: string; name: string; text?: string }[];
+}
+
+/** Something a character owns, as the rules word it. */
+export interface CardItem {
+	/** The entry, to name it in a `GearChange`. */
+	id: string;
+	name: string;
+	quantity: number;
+	/** Where it is equipped, in words ("Worn", "Shield", "In hand"), or null when only carried. */
+	equipped: string | null;
+	/** What it is, in words: "Martial melee weapon", "Heavy armor", "Ammunition". */
+	kind: string;
+	/** What all of it weighs, in pounds. */
+	weight: number;
+	/** Where it came from, in words: "Starting equipment", "Given by The Veil". */
+	source: string;
+	/** Whether it is something to equip (armor, a Shield, a weapon). */
+	equippable: boolean;
+}
+
+/**
+ * A change to what a character carries (message `adventure_gear`), by its
+ * player or the GM; the rules check it and work out what follows from it.
+ */
+export type GearChange =
+	/** Wear armor, carry a Shield, take a weapon in hand. */
+	| { kind: 'equip'; item: string }
+	/** Take it off, or put it away. */
+	| { kind: 'unequip'; item: string }
+	/** Put some of it down where the character stands. */
+	| { kind: 'drop'; item: string; quantity: number }
+	/** Hand some of it to a character beside this one. */
+	| { kind: 'give'; item: string; quantity: number; to: string }
+	/** Pick up something lying beside the character (`AdventureView.piles`). */
+	| { kind: 'take'; pile: string; index: number }
+	/** The GM gives the character something from the rules' catalog. */
+	| { kind: 'grant'; item: string; quantity: number };
+
+/** Things put down on the table, which characters beside them may pick up. */
+export interface PileView {
+	/** The prop that shows it on the table. */
+	id: string;
+	cell: GridPos;
+	items: { index: number; name: string }[];
+}
+
+/** A change to a character's sheet its player (or the GM) may make. */
+export type SheetEdit =
+	/** Rename a character its player built. */
+	| { kind: 'name'; name: string }
+	/** The player's own notes about the character. */
+	| { kind: 'notes'; text: string }
+	/** Mark uses of a resource spent (or restored), where the table doesn't track it itself. */
+	| { kind: 'resource'; resource: string; spent: number }
+	/** Let the table take the character's reaction for it (opportunity attacks), or hold it. */
+	| { kind: 'reaction'; ready: boolean };
+
+/** The most a character's notes may hold, in characters. */
+export const SHEET_NOTES_MAX = 2000;
+
+export interface CardResource {
+	id: string;
+	name: string;
+	max: number;
+	trackedBy: string | null;
 }
 
 /**
@@ -224,17 +462,49 @@ export interface CharacterStatus {
 	tokenId: string | null;
 	hp: number;
 	maxHp: number;
+	/** Its hit points as its rules name and count them (stress boxes clear), where they differ. */
+	health?: { name: string; value: number; max: number };
+	/** What being down means under its rules, where it isn't dying (taken out). */
+	downedText?: string;
 	/** At 0 HP: can't move or act, and dies if not healed in time. */
 	downed: boolean;
 	/** Gone for the rest of the story. */
 	dead: boolean;
 	/** Rounds a downed character has been down. */
 	downedFor: number;
+	/** Its death saving throws while down, under rules that have them; else null. */
+	deathSaves: { successes: number; failures: number; stable: boolean } | null;
+	/**
+	 * Its reaction, under rules that have them: ready (the table takes it for
+	 * an opportunity attack), used since its turn began, or held by its
+	 * player; null under rules without.
+	 */
+	reaction: 'ready' | 'used' | 'held' | null;
 	statuses: ActiveStatus[];
 	/** Uses left this encounter per action id; null means unlimited. */
 	usesLeft: Record<string, number | null>;
 	/** What it carries, by world object. */
 	carrying: { id: string; name: string }[];
+	/** Who the character is (name, colour, actions), as this story defines them. */
+	def: CharacterDef;
+	/** Its numbers by the story's rules. */
+	card: CharacterCard;
+	/** Parts of its turn already spent in the fight at hand ("action", "bonus"). */
+	spent: string[];
+	/** Uses spent of each of its card's resources, by id (those tracked by an action count its uses). */
+	resourcesSpent: Record<string, number>;
+	/** Its player's own notes: sent to its player and the GM only, else null. */
+	notes: string | null;
+	/** Whether this viewer may change the sheet (its player, or the GM). */
+	editable: boolean;
+	/** Whether this viewer may rename it (a character its player built). */
+	renamable: boolean;
+	/** Lasting effects on it (a spell's), as a line each: "Bless: +1d4 to attack rolls and saves". */
+	effects: string[];
+	/** The conditions it holds. */
+	conditions: ConditionMark[];
+	/** The spell it is concentrating on, if any. */
+	concentrating: string | null;
 }
 
 export interface ActiveStatus {
@@ -318,7 +588,7 @@ export interface Interactable {
 		/** What it physically does, if it does something to the thing. */
 		physical: Physical | null;
 		/** A check to pass first, if any. */
-		check: Check | null;
+		check: CheckView | null;
 		/** This viewer's character already tried the check and failed. */
 		tried: boolean;
 		/** It can be done in a fight, on the character's turn, as its action. */
@@ -343,6 +613,28 @@ export interface EnemyStatus {
 	/** What an attack roll must reach to hit it. */
 	defense: number;
 	statuses: ActiveStatus[];
+	/** Lasting effects on it (a spell's), as a line each: "Guiding Bolt: the next attack has advantage". */
+	effects: string[];
+	/** The conditions it holds. */
+	conditions: ConditionMark[];
+}
+
+/** A condition someone holds, as the table shows it: the rules' words, where it came from, and how long it lasts. */
+export interface ConditionMark {
+	id: string;
+	name: string;
+	/** Its rules text. */
+	text: string;
+	/** What its text says that the table doesn't play yet. */
+	notPlayed: string[];
+	/** Exhaustion's level. */
+	level?: number;
+	/** The effect that gives it, and who that comes from ("Hideous Laughter, from the Ember"). */
+	from: string;
+	/** How long it lasts, in words ("until it saves: Wisdom DC 13"). */
+	until: string;
+	/** The effect, for the GM to remove. */
+	effect: string;
 }
 
 /** A place in the turn order, as a viewer sees it. */
@@ -375,6 +667,17 @@ export interface EncounterView {
 	enemies: EnemyStatus[];
 	/** Something the party works toward in this phase of the fight (pulls holding a bell): so far, of how many; else null. */
 	counter: { label: string; count: number; of: number } | null;
+	/**
+	 * Turns go by elective order (its rules have no initiative roll): rounds
+	 * are exchanges, and whoever acts picks who goes next.
+	 */
+	elective: boolean;
+	/**
+	 * Someone is picking who goes next (elective order): the character whose
+	 * turn just ended, who may be picked (places in `order`), whether that
+	 * starts a new exchange, and whether this viewer picks (its player, the GM).
+	 */
+	handoff: { by: CharacterId; options: number[]; fresh: boolean; mine: boolean } | null;
 }
 
 export interface ReadAloud {
@@ -395,6 +698,8 @@ export interface AdventureView {
 	characters: CharacterStatus[];
 	/** Things this viewer knows are there and can do something with now. */
 	interactables: Interactable[];
+	/** Things put down on this table that this viewer has seen, to pick up (rules with equipment). */
+	piles: PileView[];
 	/** GM only: every world object, hidden ones included, with its state. */
 	objects: WorldObject[] | null;
 	encounter: EncounterView | null;
@@ -423,6 +728,24 @@ export interface AdventureView {
 	summary: SessionSummary | null;
 	/** What the party has earned so far, in order. */
 	rewards: string[];
+	/** The rules the story plays by. */
+	rules: RulesInfo;
+	/**
+	 * Whether players may build their own character for this story under its
+	 * rules (the rules' id, for the creation page), else null.
+	 */
+	build: { rules: string } | null;
+	/** The content packs (homebrew) the story has; null under rules that take none. */
+	packs: ContentPackListing[] | null;
+	/** The collection the story was started from (milestone 53), else null. */
+	collection: CollectionView | null;
+	/** The campaign the story is played for (milestone 58), else null. */
+	campaign: CampaignStoryView | null;
+	/**
+	 * What the story plays by, at the versions it found, and the moves made
+	 * between versions (milestone 55): the GM's only, null for anyone else.
+	 */
+	versions: VersionsView | null;
 	/** Where the adventure came from, when it is from the library; null otherwise. */
 	library: LibrarySourceView | null;
 	/** GM only: prepared text to read aloud. */
@@ -464,4 +787,73 @@ export function inActionRange(
 ): boolean {
 	if (action.target === 'self') return true;
 	return inAttackRange(blocked, from, to, Math.max(1, action.range));
+}
+
+/**
+ * The cells of an area that starts at `origin` and is aimed at `aim` (a
+ * spell's cone or cube from its caster), `size` cells long. A cone widens
+ * as it goes, as wide as it is far (half a right angle's worth, about 26.6°
+ * each side of its line), and reaches `size` cells along it. A cube's face
+ * touches the origin: `size` cells square, straight ahead along the nearest
+ * of the eight directions to the aim (centred on that line when it runs
+ * along the grid, cornered on the origin when it runs diagonally). The
+ * origin itself is never in either. A sphere is centred on the aim, `size`
+ * cells in radius (a spell cast at a point). The server and the aiming preview use this
+ * same rule.
+ */
+export function areaCells(
+	origin: GridPos,
+	aim: GridPos,
+	area: { shape: 'cone' | 'cube' | 'sphere'; size: number },
+	bounds: { width: number; height: number }
+): GridPos[] {
+	const cells: GridPos[] = [];
+	const n = area.size;
+	if (area.shape === 'sphere') {
+		// Centred on the cell aimed at: every cell whose centre lies within the radius (and half a cell).
+		for (let y = aim.y - n; y <= aim.y + n; y++)
+			for (let x = aim.x - n; x <= aim.x + n; x++)
+				if (
+					x >= 0 &&
+					y >= 0 &&
+					x < bounds.width &&
+					y < bounds.height &&
+					Math.hypot(x - aim.x, y - aim.y) <= n + 0.5
+				)
+					cells.push({ x, y });
+		return cells;
+	}
+	const dx = aim.x - origin.x;
+	const dy = aim.y - origin.y;
+	if (!dx && !dy) return [];
+	const inside = (x: number, y: number) =>
+		x >= 0 && y >= 0 && x < bounds.width && y < bounds.height && (x !== origin.x || y !== origin.y);
+	if (area.shape === 'cone') {
+		const len = Math.hypot(dx, dy);
+		const ux = dx / len;
+		const uy = dy / len;
+		const half = Math.atan(0.5) + 1e-6;
+		for (let y = origin.y - n; y <= origin.y + n; y++)
+			for (let x = origin.x - n; x <= origin.x + n; x++) {
+				const cx = x - origin.x;
+				const cy = y - origin.y;
+				const along = cx * ux + cy * uy;
+				if (along <= 0 || along > n + 1e-6) continue;
+				const angle = Math.acos(Math.min(1, along / Math.hypot(cx, cy)));
+				if (angle <= half && inside(x, y)) cells.push({ x, y });
+			}
+		return cells;
+	}
+	// The nearest of the eight directions.
+	const octant = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
+	const sx = Math.round(Math.cos((octant * Math.PI) / 4));
+	const sy = Math.round(Math.sin((octant * Math.PI) / 4));
+	const side = (s: number, i: number) => (s === 0 ? i - Math.floor(n / 2) : s * (i + 1));
+	for (let i = 0; i < n; i++)
+		for (let j = 0; j < n; j++) {
+			const x = origin.x + (sx === 0 ? side(0, j) : side(sx, i));
+			const y = origin.y + (sy === 0 ? side(0, j) : side(sy, sx === 0 ? i : j));
+			if (inside(x, y)) cells.push({ x, y });
+		}
+	return cells;
 }

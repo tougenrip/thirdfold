@@ -138,6 +138,120 @@ Enemy behaviours are code (`server/adventure/ai.ts`), chosen by name:
 - `guardian`: keeps to its post by the adventure's `ward`, first for anyone near it; tolls (`toll`) when crowded.
 - `grasp`: rooted, seizes whoever is in reach, weakest first.
 
+## Rules
+
+An adventure plays by one ruleset, named by exact id and version in
+`AdventureDef.rules`; without it, thirdfold's classic rules
+(`thirdfold-classic` v1: four stats, d20 + stat, 10 + armor). A story is
+pinned to its rules when it starts and its saves carry them. The server has
+the rules in code (`server/rules/`); an adventure only names them, and they
+check it before it can start (`rulesProblems`).
+
+Fate Condensed is `fate-condensed` v1 (milestone 60; the selection and
+how it differs are in `SECOND-RULES.md`). Under it:
+
+- characters come from a `party` built by its rules from choices (`name`,
+  `highConcept`, `trouble`, up to three more `aspects`, `skills` rated as a
+  pyramid: one at 4, two at 3, three at 2, four at 1; up to three `stunts`
+  `{ name, skill, action, when }` giving +2; `color`); there are no library
+  characters, open party, bestiary, rests or gear;
+- a check's `stat` is a skill (`"investigate"`) and its `dc` a difficulty on
+  the ladder (2 is Fair); there are no saving throws;
+- an enemy's `armor` is its defence rating (Athletics), an attack's `toHit`
+  its attack rating and its `damage` a weapon rating (`"0"` for none); its
+  hit points are its stress boxes and one more, and its `initiative` its
+  Notice (nobody rolls it: turns are elective);
+- The Drowned Lantern (`src/lib/adventure/fate-example.ts`, the builder's
+  Fate template) is a whole adventure written this way.
+
+The fifth edition rules of the SRD 5.2.1 are `dnd-5.5e` v1. Under them:
+
+- a character's `armor` is its Armor Class, and its `sheet` holds the rest:
+  `level`, `abilities` (`str`, `dex`, `con`, `int`, `wis`, `cha`, scores 1–30),
+  `saves` and `skills` it is proficient in, optionally `expertise` (skills
+  whose proficiency counts twice), `initiative` (its initiative bonus, else
+  Dexterity) and `title` ("Orc Fighter 1 (Soldier)"), `attacks` (the ability
+  each attack action uses) and `bonusActions` (actions that take a bonus
+  action);
+- a check's `stat` is an ability (`"str"`) or a skill (`"perception"`), and
+  `save: true` makes it a saving throw (abilities only);
+- an enemy's `armor` is its Armor Class and an attack's `toHit` its full
+  bonus; an attack with `save: { stat, dc, half }` makes its target save
+  instead of being rolled against; its `saves` (`{ "dex": 2, … }`) are its
+  bonuses when a spell makes it save (0 for an ability it doesn't list), its
+  `immune` the conditions it can't be given (`["poisoned"]`), and an attack's
+  `inflicts` (`{ "conditions": ["frightened"], "ends": "end" }`) the
+  conditions a hit, or a failed save, leaves on its target until the start
+  or end of the attacker's next turn;
+- an attack's `damageType` (`"slashing"`, `"cold"`, one of the SRD's
+  thirteen) is the damage it deals, and an enemy's `damage`
+  (`{ "immune": ["poison"], "resist": ["cold"], "vulnerable": ["radiant"] }`)
+  what it takes none of, half of (rounded down) or double; characters' own
+  resistances come from their species, and their weapons and spells carry
+  their types;
+- the `hurt` effect can carry the same `save`, for a trap or a hazard.
+
+A character built from the catalog casts the spells it has chosen (its
+cantrips and prepared spells) where the table plays them: sixteen SRD spells
+so far (`server/rules/dnd55e/spells/mechanics.ts`), each read from the SRD's
+own words. Every other spell is on its sheet with the reason it isn't cast
+yet. Casting spends a spell slot (one a turn in a fight); slots are kept with
+the story and, until rests come, regained by hand on the sheet. What lingers
+(Bless, Shield of Faith, a Ray of Frost's chill) lasts on the fight and ends
+with it, on its caster's turns, or when the caster's concentration breaks.
+
+The SRD's fifteen conditions are played by these rules (and named where a
+part isn't played yet, such as the Petrified creature's resistance): a
+spell, a monster's attack or the GM puts one on someone, and it lasts until
+its source's turn says, its bearer saves or is hurt, the fight ends, or the
+GM ends it. Conditions are ids in the data: `blinded`, `charmed`,
+`deafened`, `exhaustion`, `frightened`, `grappled`, `incapacitated`,
+`invisible`, `paralyzed`, `petrified`, `poisoned`, `prone`, `restrained`,
+`stunned`, `unconscious`.
+
+Checks in the dark that need sight fail; attacks get advantage or
+disadvantage from the table (unseen, a foe beside an archer, a target taking
+cover); a natural 20 is a critical hit. Every roll's log entry explains how it
+was resolved. The Barrow on Cold Hill (`server/adventures/barrow/`) is written
+for these rules. Adventure files and the builder still use the classic rules
+and character library.
+
+A fifth edition character can be built from the SRD catalog instead of
+written by hand (`server/rules/dnd55e/character/`): a `DndCharacter` stores
+only choices (species and its options, background and its +2/+1, class,
+skills, Expertise, Fighting Style, Weapon Mastery, subclass, ability scores by
+standard array, point buy or roll, feats at the levels that grant them, hit
+points by average or roll), what it owns and its state of play, bound to the
+rules and the catalog it was made from; `readCharacter` checks every choice,
+`deriveCharacter` works out every number, and `tableCharacter` makes the
+`CharacterDef` a table plays. The Barrow's four characters are made this way
+(`server/adventures/barrow/party.ts`), with the adventure's own words,
+colours and figures for them (a `Look`).
+
+Such a character owns its gear (`character/inventory.ts`): catalog weapons,
+armor and ammunition, each entry with a quantity, where it came from
+(starting equipment, found, given by someone, from the GM, recovered) and
+where it is equipped (worn armor, a Shield, weapons in hand). Its Armor Class
+comes from what it wears, its attacks from the weapons in its hands (a
+Versatile weapon alone in them deals its two-handed damage, a weapon it isn't
+trained with adds no Proficiency Bonus, empty hands make an Unarmed Strike),
+and a weapon that fires ammunition spends a piece a shot and gets half back
+when a fight is won. Its player (or the GM) equips, puts away, puts down,
+hands over and picks up things from its sheet and the action bar
+(`adventure_gear`); the server refuses armor the class isn't trained in, more
+than two hands can hold and more than its Carrying Capacity (Strength × 15
+lb.), and in a fight allows only weapons, on the character's own turn, twice.
+What is put down lies in a pile on the table, shown by a `gear-pile` prop; the
+pile is the rules' data, not a world object, and a story's objects can't be
+picked up this way. The GM may give any character something from the SRD.
+
+A story played by rules that can build characters may let players bring
+their own: set `openParty: true` on the adventure (The Barrow does). Players
+then see "Create your own character" beside the story's characters; the
+server builds only a legal level 1 character, and it plays like the others
+(its weapons are its attacks). A story that names its own characters in its
+events or lines (as The Hollow Bell does) should leave it off.
+
 An enemy may set `scale` (0.5 to 3, `Token.scale`'s range; 1 when left out):
 how large its figure is drawn. From 1.5 it stands on a larger base (below 1.5
 the 0.86 base, below 2.5 a 1.9 one, from 2.5 a 2.9 one; see
@@ -237,6 +351,48 @@ A save whose content doesn't match its id is refused.
 are kept with the story, listed in the Adventure panel, and shown on the
 end screen.
 
+## Fifth edition adventures in the builder
+
+Since milestone 57, an adventure file can be written for the fifth edition rules (SRD 5.2.1). It stays plain data, and the story's flow (chapters, events, people, things, choices, endings) works as it does under the classic rules. Under the classic rules nothing changes: a file without `rules` reads exactly as before.
+
+A file opts in with these fields (`AdventureFile`, all optional):
+
+- **`rules`** `{ id: 'dnd-5.5e', version: 1 }`: the rules it plays by, at their exact version.
+- **`party`**: characters the rules build, by id. Each has the same `choices` a player makes in the character creator, and an optional `intro`. The server builds each with the rules' character builder (level 1 only, checked in full), so a choice the rules don't allow is a `character.invalid` diagnostic at `party.<id>`. Ids `pc-1`, `pc-2`… are kept for characters players build. `src/lib/rules/dnd55e/pregens.ts` holds ready-made builds the builder offers (`DND_PREGENS`).
+- **`openParty`**: players may also build their own characters.
+- **`monsters`**: kinds from the rules' bestiary (`srd-skeleton`) that its fights and spawns may name, as if they were its own enemies. The server makes each one the enemy the table plays (see milestone 51). A kind the table can't play is `ref.missing` at `monsters[i]`.
+- **`characters`** may then be empty: the classic characters have no fifth edition sheet.
+
+Checks name the rules' abilities and skills (`{ stat: 'religion', dc: 10 }`), and `save: true` makes an ability a saving throw. The `hurt` effect takes a `save` (`{ stat: 'dex', dc: 12, half: true }`). Two effects ask the rules for more:
+
+- **`{ rest: 'short' | 'long' }`**: the party rests, outside a fight, each character with at least 1 HP.
+  - A Short Rest spends Hit Point Dice while a character is hurt: each die rolled plus its Constitution modifier, at least 1 HP. It also recharges the features the SRD says it does: one use of Rage, Second Wind, Channel Divinity and Wild Shape, and all Focus Points and Pact Magic slots.
+  - A Long Rest gives back every Hit Point, Hit Point Die and resource, and lowers Exhaustion by a level.
+  - The words are the SRD's (`REST_PHRASES` and `SHORT_REST_RECHARGE` in `server/rules/dnd55e/rests.ts`, checked against the catalog by a test).
+  - Spent Hit Point Dice are kept with the story.
+- **`{ gear: { item, quantity, to? } }`**: an item from the rules' catalog (`srd-5.2.1:weapon:dagger`) goes to the character acting, or to each of the party with `to: 'party'`. It is recorded as found where the party is.
+
+Under the classic rules, saving throws, rests, gear, a party and monsters are problems the builder shows at once. Under rules without rests, gear, a builder or a bestiary, the server names them as `rules.check`.
+
+The server is the only place a file becomes playable (`server/adventure/rules-content.ts`):
+
+- `loadServerAdventure` reads the file with the shared reader.
+- `withRulesContent` then builds the party, finds the monsters, checks rests and gear against the rules, and runs the rules' own checks (`rulesProblems`).
+- Every load goes through it: playing, publishing, validating, collections, the library and reading a save back.
+
+In the builder:
+
+- **D&D template** starts from _The Hillside Shrine_ (`src/lib/adventure/dnd-example.ts`). It has a Religion check, a needle trap with a Dexterity save and a dagger inside, two SRD Skeletons, a Short Rest, a choice and two endings, with a party of three and an open party.
+- The **Rules & party** section:
+  - picks the rules;
+  - adds ready-made characters to the party, and renames them, colours them and writes their introductions;
+  - lets players build their own;
+  - searches the SRD's bestiary on the server (`bestiary_search`, outside any table) and adds monsters;
+  - asks the server what the draft comes to. The `validation` reply carries a `preview` (`AdventurePreview` in `src/lib/adventure/preview.ts`): the rules and the content they read (the SRD catalog by version and build), each party member's title, HP, defence and speed, the monsters as the table plays them, and the SRD's credit.
+- A verb's check offers the rules' abilities and skills, and a saving throw.
+- The effects lists offer a rest and gear.
+- **Play it** plays the draft on a new table. Before play, the server checks it again, as it does on every start and load.
+
 ## Built in as a file: The Last Train to Blackwater
 
 `server/adventures/blackwater/` is an adventure file written in TypeScript
@@ -288,3 +444,195 @@ where it came from (`AdventureState.library`, saved), and the panel credits its
 creator. When the story is over, everyone who played it (players with a
 character, and the GM unless it is their own) can give it 1-5 stars
 (`adventure_rate`), once each; rating again replaces their stars.
+
+## Collections
+
+A collection is a campaign's set of pieces, published to the library like an adventure (milestone 53, `src/lib/game/collection.ts`). It holds no content of its own. It names each piece where it lives:
+
+- an adventure that comes with thirdfold, by id (`{ "builtIn": "barrow" }`);
+- a library adventure or homebrew pack, by id and exact version (`{ "library": "<id>", "version": 2 }`);
+- a shared table, by its Share table code and a name.
+
+It also names the rules all of them play by. The server fills these in from the first adventure, so a page never claims them.
+
+```json
+{
+	"format": "thirdfold-collection",
+	"formatVersion": 1,
+	"title": "Cold Hill Campaign",
+	"about": "The barrow, and what lies beyond.",
+	"rules": { "id": "dnd-5.5e", "version": 1 },
+	"adventures": [{ "builtIn": "barrow" }],
+	"packs": [{ "library": "<pack id>", "version": 1 }],
+	"tables": [{ "code": "<shared table code>", "name": "The crossroads" }]
+}
+```
+
+**Making one.** The library page's "Your homebrew and collections" publishes homebrew packs from a file and gathers a collection from the adventures that come with thirdfold, your own published adventures and packs, and shared tables. Versions are pinned to the latest at the time. Packs, collections and adventures are three kinds of the same library item (`LibraryKind`), with the same versions, GM-key ownership, listing, plays and removal.
+
+**Checking.** `server/collections.ts` `resolveCollection` looks each piece up and checks it the way it would be played:
+
+- an adventure is loaded;
+- a pack is held by the collection's rules;
+- a table must be one of the shared ones;
+- every adventure must play by the collection's rules.
+
+A library piece may be used when the collection may include it (see "Access and sharing" below): it is public, its creator's own, its creator is a collaborator on it, or it was granted to this collection. The `CollectionReport` gives every piece a status: ready, missing, unavailable (taken out of the library, or restricted and not shared with the collection), doesn't fit (other rules) or broken. A collection is published only when every piece is ready, and checked again each time anyone looks inside (`collection_check`) or a GM runs it.
+
+**Running it.** `adventure_start` with `collectionId` starts its first adventure (or `entry`), with its homebrew attached and credited to whoever published each pack. The story keeps the collection as `AdventureState.collection`: its id and version, its adventures and which one this is, and the packs and tables as they were found. The Adventure panel shows it, and the GM can start its other adventures at the same version.
+
+A save carries the collection, the adventure's file and the packs as written. Reading it back checks that the story is the adventure the collection says and that every one of its packs is among the story's. A saved session therefore names exactly the set it started with, even if the creator later changes or removes a piece in the library. Milestone 55 completes pinning for whole dependency graphs.
+
+## Access and sharing
+
+Every library item (an adventure, a homebrew pack or a collection) has an access level and may be shared (milestone 54, `src/lib/game/access.ts`). The server decides every request against them (`server/library-access.ts` `decide`); the page only shows what it is told.
+
+| Access     | Who finds it                             | Who opens, plays and includes it         |
+| ---------- | ---------------------------------------- | ---------------------------------------- |
+| Public     | anyone, in the library                   | anyone                                   |
+| Restricted | anyone, in the library                   | its owner, and whoever it is shared with |
+| Private    | its owner, and whoever it is shared with | the same                                 |
+
+Its owner (the GM key that published it) may do anything with it. Sharing is a **grant** of a role to:
+
+- **a creator**, by their public creator id (shown under "Your homebrew and collections"). A _member_ may find, open and play it. A _collaborator_ may also add versions (published under the owner's name), put it in their own collections and export what they play.
+- **a collection**, by its library id: anyone who runs that collection plays it there, and nowhere else.
+- **a table**, by its room code, for at most a day: whoever runs that table plays it.
+
+A grant records who gave it and when, may run out (a table's always does), and is revoked rather than deleted, so its history stays on the item. At most 50 are in force on one item.
+
+What each request needs:
+
+| Request                                                        | Needs                                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `library_list`                                                 | the item listed (public or restricted)                             |
+| `library_story`, `collection_check` (with the asker's `gmKey`) | read: public, owner or a grant                                     |
+| `adventure_start` (`libraryId`, `collectionId`)                | use, by the table's GM key or room                                 |
+| a piece of a collection                                        | include: public, owner, collaborator, or granted to the collection |
+| `library_publish` with an id                                   | publish: owner or collaborator                                     |
+| `library_manage`, `library_grant`, `library_revoke`            | owner                                                              |
+| `scene_export` of a story                                      | every grant it was played by is still the GM's own as collaborator |
+
+Whatever the asker may not know of reads exactly as something that isn't there (`adventure_not_found`, a null report), so guessing ids reveals nothing. A restricted item says it is shared with chosen GMs (`locked`).
+
+**Revoking.** A story records the grants its library content was played by (`AdventureState.entitlements`: the item, the grant and its role; saved with the story). A table already playing goes on. A save of it, though, only opens again (`scene_load`, `scene_import`, Continue) while every one of those grants is in force, and only a collaborator exports. A story played from public content, or its owner's own, rests on no grant and loads as it always did.
+
+Creators manage all of it from the library page: each published item's **Access and sharing** sets its level, lists its grants with Revoke, and shares it. **Shared with you** lists what others shared with this creator, to run.
+
+## Versions
+
+Every story is pinned to what it plays by (milestone 55, `src/lib/adventure/versions.ts`). A publisher's update never changes a story under way or its saves; a story moves to another version only when its GM asks.
+
+**What is pinned.** Each piece is held at an exact version, and a save carries the story's lock (`state.lock`, worked out by `lockOf` in `server/adventure/lock.ts`):
+
+| Piece                                    | Pinned by                                                                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Rules                                    | id and exact version (`AdventureState.rules`)                                                                           |
+| Content the rules read (the SRD catalog) | its source's SHA-256 and its build (a hash of the catalog's files)                                                      |
+| A built-in adventure                     | its id and the version of its saved state; it changes only with a thirdfold release, through that state's migrations    |
+| A creator's adventure                    | its content (the id is a hash of the file, and a save carries the file), with the library item and version it came from |
+| Homebrew                                 | its content (the pack's id is a hash of it, and a save carries the pack)                                                |
+| A collection                             | its library id and version, with the version of each piece it found                                                     |
+
+**Loading.** A save's lock is compared with what this server has:
+
+- **Content from another source** refuses the save, saying which content and what to do: open it on a server with the same source.
+- **The same source rebuilt** (the catalog re-imported) loads. Every character is checked against the new build, and the GM is told what was migrated.
+- **Saves from before locks** read as they always did; their next save carries a lock.
+
+**Moving a story.** In the Adventure panel's **Versions**, the GM sees the lock and looks for a newer version of the story's library adventure, or of the collection it was started from (`adventure_upgrade`, op `review`). Before anything changes, the server does three things:
+
+- finds the version in the library, as a start would (access, grants, the collection's pieces);
+- saves the story and reads it back with that content in place, with every check a load makes (`prepareMove` in `server/adventure/upgrade.ts`): its chapter and location, its people, every character, its homebrew;
+- reports what changes section by section (title, description, chapters, places, characters, people, things, clues, events, choices, enemies, fights and the rest), the homebrew it adds and drops, and anything that stops the move.
+
+Moving (op `apply`) puts the story in place for everyone, records the step (`AdventureState.steps`: what moved, from and to, whether it went back, when), and the next save is pinned to the new version. Moving back is the same move to an earlier version, which the library still keeps.
+
+A story can't be moved:
+
+- mid-fight, while a mechanism is playing out, or while a choice is pending;
+- to a version that no longer reads;
+- to a version where the story doesn't fit where it is (its chapter is gone, for one).
+
+An adventure that came with a collection moves with the collection. Under a collection, the GM's own homebrew stays and the collection's is what the new version names. Every version of a library item stays readable (`library_story` and `collection_check` take a `version`).
+
+## Validation
+
+Every piece of content goes through one validator before it can reach a live session (milestone 56, `server/validation.ts`). This covers adventure files, homebrew packs, collections, a character a player builds, and saved tables. The builder runs the same checks as you work, and the server runs them again:
+
+- when you publish (`library_publish`);
+- when a GM starts an adventure from a file, the library or a collection;
+- when a saved or exported table is imported, loaded or continued.
+
+A refusal names what was wrong.
+
+Each finding is a **diagnostic** (`src/lib/validation/diagnostics.ts`) with four parts:
+
+- a **code** that never changes meaning (`ref.missing`, `dice.invalid`, `schema.unknown_field`, `dependency.unavailable`, `access.denied`, …; `DIAGNOSTICS` lists every code with a hint on how to fix it);
+- a **severity** (an error stops the content; a warning, such as `version.rebuilt`, is only told);
+- a **path** to where it is, such as `chapters.the_mill.mood`, `enemies.rat.attacks[0].damage`, `chapter the_mill` or `packs[0]`;
+- a **message**.
+
+What each kind is checked for:
+
+- **Adventure file**:
+  - its format and version: a newer one is `format.newer`, never guessed at;
+  - every field and value;
+  - no field thirdfold doesn't know (`schema.unknown_field`): a misspelt field is never dropped silently;
+  - every reference and dice expression (`validateAdventure`);
+  - spawns and things on their tables;
+  - the rules it plays by (`rules.unknown`, `rules.check`).
+- **Homebrew pack**: everything in `docs/HOMEBREW.md` under its rules: unknown fields, markup (`content.markup`), the SRD's names (`content.srd_name`) and newer formats.
+- **Collection**:
+  - its references;
+  - every piece it names, as its creator may include them: `dependency.missing`, `dependency.unavailable`, `dependency.incompatible` or `dependency.invalid` at `adventures[i]`, `packs[i]` or `tables[i]`.
+- **Character**: the choices through its rules' builder (`character.invalid`).
+- **Saved table**:
+  - the scene file at any version this server reads;
+  - its story, read as a load reads it: content from another source is `version.source`, damage is `save.invalid`;
+  - every library grant it rests on still in force (`access.denied`).
+
+The validators carry a version and the format versions they read (`VALIDATORS`), so older content stays readable by the validator that reads it.
+
+In the builder, **Check** lists the draft's diagnostics with their hints, and **Check on the server** asks the game server (`content_validate`, open to anyone and changing nothing) for its own verdict and the validator that gave it. Publishing shows the server's diagnostics when it refuses.
+
+## Campaigns
+
+Since milestone 58, a GM can carry a party from one adventure to the next. A campaign is the server's record (`server/campaigns.ts`), and it belongs to the GM's lasting key, the way saves do. It holds:
+
+- **what it plays by**: the rules at their exact version, and the content those rules read (the SRD catalog by its source's hash and build), pinned when the campaign began. Campaigns play by the fifth edition rules: they are the only rules with a `progression` (`Progression` in `server/rules/ruleset.ts`).
+- **a roster**: each character as its rules save it (`{ color, character }`), under its id (`pc-1`, `pc-2`…), with the player it is kept for (their name, or anyone) and where it stands. A character is `active` (it comes along), `pending` (met during an adventure and waiting for the GM's approval), `retired` or `dead`. At most 8 are active.
+- **the story so far**: each adventure it played, with where it came from (built in, a library version or a file), when it began and ended, how it ended, its rewards, and what came of each character.
+- **rewards** earned across adventures.
+
+How a campaign is played:
+
+1. The GM begins a campaign (`campaign_create`) or opens one (`campaign_open`) at a table. A campaign is open at one table at a time.
+2. Every adventure the GM starts there (built in, a file, from the library or from a collection) brings the campaign's active characters into the story as built characters. The adventure must play by the campaign's rules at the same version, and its content must come from the same source. A rebuild of the same source is checked again and named to the GM. Each character is restored and checked in full by the rules' builder (`campaignParty` in `server/adventure/campaign.ts`). The story records the campaign and its members (`AdventureState.campaign`), and a save keeps them. Only the player a character is kept for may take it up. The adventure's own characters, and characters players build, are there as usual.
+3. When the story is over (or left unfinished), outside a fight, the GM returns it to the campaign (`campaign_close`). The server reads the record again and writes it (`closeStory`):
+   - a history entry: `complete`, `defeat` or `abandoned`;
+   - each member's gear and fate as the story left them;
+   - the rest between adventures: every Hit Point, Hit Point Die and resource back;
+   - the fallen, marked dead;
+   - a level by milestone for the survivors of a finished adventure, when the GM asks for it, where the rules can make it without a player's choices. Level 2 needs none. Level 3's subclass is taken when the SRD has one for the class, and every class has exactly one. From level 4 a feat is wanted, so the character stays where it is and the GM is told why.
+   - any other character played whose rules carry it (the adventure's own, or one a player built), put on the roster as `pending` for the GM to approve.
+4. The GM approves, retires and brings back characters, and says who plays each (`campaign_roster`), between adventures or during one.
+
+A story is returned once. The next adventure for the campaign starts only after the one before is returned, unless that one was set up and never begun.
+
+What the wire carries:
+
+- To the GM only: the campaign's view (`CampaignView`), and their list of campaigns (`campaigns`).
+- To everyone: the story's view carries the campaign's name and members (`AdventureView.campaign`). The character choice marks the campaign's characters and whose they are.
+- Never: the records themselves.
+
+The campaign open at a table is kept across a restart of the game server, and continuing a saved story opens its campaign again for its GM.
+
+Campaigns are kept in files (`data/campaigns`, `CAMPAIGNS_DIR`) or in Supabase (`public.campaigns`, migration `20261007120000_campaigns.sql`: RLS on, nothing granted to browser roles). Every record read back is checked whole (`readCampaign`), each character by its rules, so a damaged record is refused rather than half trusted. `npm run data:backup` takes campaigns too.
+
+In the Adventure panel, the GM's **Campaign** section:
+
+- begins, opens, puts away and forgets campaigns;
+- shows the roster with Approve, Retire, Bring back and who plays each;
+- returns the story, with "Survivors advance a level";
+- shows the story so far and the rewards.

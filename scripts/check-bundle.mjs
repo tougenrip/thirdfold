@@ -20,28 +20,75 @@ const BUDGETS = {
 	// measured.
 	// 97.4 → 97.5: the sky's resolver and the canonical hours, now used by the renderer, stay in the
 	// shared chunk with the manifest's parser (#215), 97,479 B measured.
+	// 97.6 → 98.2: the rules track's adventure-file fields (an enemy's immunities and damage traits,
+	// what its attacks inflict, damage types; #94–#96) beside the sky's, 98,159 B measured.
+	// → 98.4: the library's client learns collections and homebrew packs (kinds, collection_check;
+	// #98), shared with the builder's Publish section, 98,392 B measured.
 	// 97.5 → 98.2: GridLights' sources and sight cache (#228) keep the shared chunk of the grid's,
 	// objects' and visibility's code larger (the renderer now uses `SightCache` and `asObstacles`
 	// from it), 98,180 B measured. → 98.4: the shared chunk after M68's close (the pool's removal
 	// and the hero slots' assignment moving out of light-model.ts) measures just over 98.3 kB.
+	// → 99.2: both of those together, once main's M68 is merged into the rules track, 99,159 B measured.
+	// → 99.3: and main's M69 (the world) beside them, 99,217 B measured.
+	// → 99.6: the Publish section adds versions to adventures shared with a collaborator, and
+	// the library's client learns access and grants (#99), 99,548 B measured.
 	// → 100.0: the manifest's kits and their parser with the roles' envelopes (kit.ts, #250), 99.9 kB
 	// measured. → 100.3: the shared chunk after roof fades (#259: Tabletop.setOwnTokens), just over
 	// 100.0 kB measured.
-	// → 100.6: EnemyDef.scale and the builder's size field (#270), the manifest's poses (#273).
-	'/builder': { total: 100_600, own: 52_000 },
-	// 54.0 → 54.8: the same (#250), 54.7 kB measured.
+	// → 101.3: the rules track's (#99) and main's M70 (#250, #259) together, 101,227 B measured.
+	// → 104.1: diagnostics (#101): every code's hint, the diagnostics list and Check on the server,
+	// 104,020 B measured.
+	// → 108.3, own 52.0 → 55.7: fifth edition authoring (#102): the file's rules, party,
+	// monsters, saves, rests and gear in the reader, the rules' abilities and skills for checks,
+	// rests and gear in the effects (the Rules & party section, the template and its pregens load
+	// on demand), and Play it's refusal shown with its diagnostics, 108,422 B measured, 55,792 B own.
+	// → 108.6, own 55.9: the shared protocol's campaign messages (#103), 108,503 B measured,
+	// 55,875 B own.
+	// → 108.7, own 56.1: the shared protocol's licensed content messages and the creator's
+	// "Licensed: …" labels (#104), 108,692 B measured, 56,067 B own.
+	// → 109.9, own 57.3: Fate Condensed (#105): its rules choice in the Rules section, its skills
+	// for checks and its ready-made characters (the template loads on demand), 109,860 B measured,
+	// 57,224 B own.
+	// → 110.3, own 57.5: the rules track merged with main's M71 (#270, #273: EnemyDef.scale, the
+	// size field, the manifest's poses), 110,224 B measured, 57,437 B own.
+	'/builder': { total: 110_300, own: 57_500 },
+	// 54.0 → 54.8: the same (#250), 54.7 kB measured. → 54.9: beside the rules track's shared
+	// library types (#99), 54,802 B measured.
 	// → 55.0: the manifest's `miniBase` (#265); 54.8 kB measured.
-	'/credits': { total: 55_000, own: 3_000 },
+	// → 55.1: the rules track's shared types with main's M71 (#265), 55,024 B measured.
+	'/credits': { total: 55_100, own: 3_000 },
 	// Dev only (#194): in production the page is a 404 and the turntable is not in the build.
 	// 50.0 → 51.1: the sky presets' parser in the manifest's (#213), 50,980 B measured.
 	// → 51.2: the same shared code (#215), 51,128 B measured.
+	// → 51.3: the rules track's shared adventure types beside the sky's (#94–#96), 51,208 B measured.
 	// → 52.8: the manifest's kits (#250), 52.7 kB measured.
-	// → 53.0: a figure's poses in the manifest (#273, `readPoses`); 52,925 B measured.
-	'/dev/assets': { total: 53_000, own: 500 },
-	'/library': { total: 66_000, own: 21_000 },
+	// → 53.0: the shared refusal reader's diagnostics (#101), 52,903 B measured; main's poses
+	// (#273, `readPoses`) came in after.
+	// → 53.1: the same, merged (#101, #273), 53,094 B measured.
+	// → 53.3: CI's build of the same came out over 53,100 B; 200 B of room for its gzip.
+	'/dev/assets': { total: 53_300, own: 500 },
+	// 66.0 → 66.2: the rules track's library client (#98, #99) beside main's M70 kits (#250),
+	// 66,138 B measured.
+	// → 67.4: a refused publish's diagnostics in the workshop (#101), 67,365 B measured.
+	// → 67.7: the library client's bestiary search and the validation preview (#102),
+	// 67,612 B measured.
+	// → 67.8: the shared protocol's campaign messages (#103), 67,706 B measured.
+	// → 67.9: the shared protocol's licensed content messages (#104), 67,883 B measured.
+	// → 68.0: the shared protocol's hand-off message (#105), 67,903 B measured.
+	// → 68.1: the rules track merged with main's M71 manifest changes, 68,051 B measured.
+	'/library': { total: 68_100, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
-	'/room/[id]': { total: 121_700, own: 76_000 },
+	// → 122.1: campaigns (#103): their messages and replies, the story's campaign line and the
+	// character choice's marks (the GM's Campaign section loads on demand), 122,071 B measured.
+	// → 122.7: licensed content (#104): its messages, the sources reply and the packs' licensed
+	// badges, credit and terms (the GM's list of sources loads on demand), 122,608 B measured.
+	// → 123.5: a second rules system (#105): elective turns' hand-off in the turn tracker, Fate dice
+	// in the chat, traits and health as the rules word them on the sheet, the action bar and the
+	// party list, 123,467 B measured.
+	// → 125.1: the rules track (123.5) merged with main's M71 minis (121.7 there: bases, labels,
+	// the turn column, motion and poses), 125,061 B measured.
+	'/room/[id]': { total: 125_100, own: 76_000 },
 	// 360.0 → 360.1: light looks (intensity, still flames, no fixture for a glow), prop paint and
 	// token lift and scale (#201, #202), 360,059 B measured.
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B

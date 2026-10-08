@@ -2,7 +2,11 @@
 // builds one (the builder, /builder) and shares it. It is the content
 // structure of define.ts with everything a file can't hold made plain:
 // tables are scene files, an enemy's hit points are a base plus so many per
-// character, and characters are picked from the character library.
+// character, and characters are picked from the character library or,
+// under rules with a character builder (milestone 57), made by those rules
+// from a creator's choices (`party`), with monsters from the rules'
+// bestiary (`monsters`); the game server builds those (see
+// server/adventure/rules-content.ts), so this file only checks their shape.
 //
 // A file is untrusted input, like an uploaded scene: `parseAdventureFile`
 // checks every field (and drops anything it doesn't know), `compileAdventure`
@@ -32,8 +36,14 @@ import type {
 	Voice,
 	When
 } from './define';
-import { AMBUSH } from './define';
-import { validateAdventure } from './validate';
+import { AMBUSH, REST_KINDS } from './define';
+import { codeOfProblem, validateAdventure } from './validate';
+import {
+	diagnostic,
+	fromProblem,
+	type Diagnostic,
+	type DiagnosticCode
+} from '../validation/diagnostics';
 import { CUES, type Shot } from '../game/chat';
 import type { GridPos } from '../game/grid';
 import { AMBIENTS, LIGHT_LOOK_KEYS, parseLightLook } from '../game/lights';
@@ -96,6 +106,23 @@ export interface EncounterFile extends Omit<EncounterDef, 'foes' | 'more'> {
 	more?: { if: When; foes: { kind: string; hp?: HitPoints }[] }[];
 }
 
+/**
+ * A character the adventure's rules build from a creator's choices (the
+ * same choices a player makes in the character creator), as plain data the
+ * rules check on the server.
+ */
+export interface PartyMember {
+	choices: PlainJson;
+	/** How the character is introduced in this story. */
+	intro?: string;
+}
+
+export type PlainJson =
+	null | boolean | number | string | PlainJson[] | { [key: string]: PlainJson };
+
+/** Limits on a party member's choices: as plain and as small as a creator's choices are. */
+export const PARTY_LIMITS = { members: 8, depth: 5, entries: 24, text: 200 } as const;
+
 export interface NpcFile extends Omit<NpcDef, 'id' | 'token'> {
 	/** Its token's id on the table; `npc-<id>` if left out. */
 	token?: string;
@@ -107,8 +134,19 @@ export interface AdventureFile {
 	title: string;
 	/** A line or two for whoever picks it. */
 	about: string;
-	/** The characters players choose from (the character library's ids). */
+	/**
+	 * The rules it plays by, by exact id and version (milestone 57);
+	 * thirdfold's classic rules when absent.
+	 */
+	rules?: { id: string; version: number };
+	/** The characters players choose from (the classic character library's ids). */
 	characters: string[];
+	/** Characters its rules build from a creator's choices, by id (rules with a character builder). */
+	party?: Record<string, PartyMember>;
+	/** Whether players may also build their own characters under its rules. */
+	openParty?: boolean;
+	/** Monsters from its rules' bestiary its fights may use, by kind (`srd-goblin-warrior`). */
+	monsters?: string[];
 	/** How each character is introduced in this story, when not in the library's words. */
 	intros?: Record<string, string>;
 	start: { location: string; chapter: string; arrival: Effect[] };
@@ -142,10 +180,18 @@ export type AdventureFileParse = { ok: true; file: AdventureFile } | { ok: false
 // ---------------------------------------------------------------------------
 // Checking, piece by piece
 
-class Bad extends Error {}
+class Bad extends Error {
+	constructor(
+		readonly path: string,
+		readonly what: string,
+		readonly code: DiagnosticCode
+	) {
+		super(`${path}: ${what}`);
+	}
+}
 
-function bad(path: string, what: string): never {
-	throw new Bad(`${path}: ${what}`);
+function bad(path: string, what: string, code: DiagnosticCode = 'schema.value'): never {
+	throw new Bad(path, what, code);
 }
 
 /** Ids: lower case letters, digits, `-` and `_`, starting with a letter or digit. */
@@ -245,7 +291,7 @@ const state = (v: unknown, path: string): ObjectState => {
 
 function dice(v: unknown, path: string): string {
 	if (typeof v !== 'string' || !/^[0-9d+\- ]{1,24}$/.test(v))
-		bad(path, 'expected dice, e.g. 1d6+2');
+		bad(path, 'expected dice, e.g. 1d6+2', 'dice.invalid');
 	return v;
 }
 
@@ -404,6 +450,8 @@ export const EFFECT_KINDS = [
 	'world',
 	'hurt',
 	'spawn',
+	'rest',
+	'gear',
 	'rules'
 ] as const;
 
@@ -516,7 +564,19 @@ function effect(v: unknown, path: string, depth: number): Effect {
 					near: id(h.near, `${at}.near`),
 					within: int(h.within, `${at}.within`, 0, 20),
 					dice: dice(h.dice, `${at}.dice`),
-					text: text(h.text, `${at}.text`, 200)
+					text: text(h.text, `${at}.text`, 200),
+					...(h.save === undefined
+						? {}
+						: (() => {
+								const sv = obj(h.save, `${at}.save`);
+								return {
+									save: {
+										stat: statId(sv.stat, `${at}.save.stat`),
+										dc: int(sv.dc, `${at}.save.dc`, 1, 40),
+										half: sv.half === true
+									}
+								};
+							})())
 				}
 			};
 		}
@@ -530,6 +590,18 @@ function effect(v: unknown, path: string, depth: number): Effect {
 				}
 			};
 		}
+		case 'rest':
+			return { rest: oneOf(e.rest, REST_KINDS, at) };
+		case 'gear': {
+			const g = obj(e.gear, at);
+			return {
+				gear: {
+					item: itemId(g.item, `${at}.item`),
+					quantity: int(g.quantity ?? 1, `${at}.quantity`, 1, 99),
+					...(g.to === undefined ? {} : { to: oneOf(g.to, ['party'] as const, `${at}.to`) })
+				}
+			};
+		}
 		case 'rules':
 			return { rules: rules(e.rules, at, depth + 1) };
 	}
@@ -539,6 +611,8 @@ function effect(v: unknown, path: string, depth: number): Effect {
 // The adventure
 
 const STAT_IDS = STATS.map((s) => s.id);
+/** A monster kind from a ruleset's bestiary: the SRD's (`srd-…`) or a homebrew pack's (`hb-…`). */
+export const MONSTER_KIND = /^(srd|hb|lc)-[a-z0-9-]{1,80}$/;
 const OBJECT_KINDS = [
 	'npc',
 	'door',
@@ -556,9 +630,56 @@ const OBJECT_KINDS = [
 ] as const;
 const BEHAVIORS: readonly Behavior[] = ['rush', 'skirmish', 'guardian', 'grasp'];
 
+/** A stat a check names: any the story's rules know (checked against them on the server, and for the classic rules here). */
+function statId(v: unknown, path: string): string {
+	if (typeof v !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(v)) bad(path, 'expected a stat id');
+	return v as string;
+}
+
 function check(v: unknown, path: string) {
 	const c = obj(v, path);
-	return { stat: oneOf(c.stat, STAT_IDS, `${path}.stat`), dc: int(c.dc, `${path}.dc`, 1, 40) };
+	return {
+		stat: statId(c.stat, `${path}.stat`),
+		dc: int(c.dc, `${path}.dc`, 1, 40),
+		...(c.save === true ? { save: true } : {})
+	};
+}
+
+/** A creator's choices for a party member: plain JSON, bounded, with no markup. */
+function plainJson(v: unknown, path: string, depth = 0): PlainJson {
+	const L = PARTY_LIMITS;
+	if (v === null || typeof v === 'boolean') return v;
+	if (typeof v === 'number') {
+		if (!Number.isFinite(v)) bad(path, 'expected a number');
+		return v;
+	}
+	if (typeof v === 'string') {
+		if (v.length > L.text || /[<>{}]/.test(v))
+			bad(path, `expected plain text of at most ${L.text} characters`);
+		return v;
+	}
+	if (depth >= L.depth) bad(path, 'nested too deep');
+	if (Array.isArray(v)) {
+		if (v.length > L.entries) bad(path, `at most ${L.entries} entries`);
+		return v.map((x, i) => plainJson(x, `${path}[${i}]`, depth + 1));
+	}
+	if (typeof v !== 'object') bad(path, 'expected plain data');
+	const o = v as Record<string, unknown>;
+	const keys = Object.keys(o);
+	if (keys.length > L.entries) bad(path, `at most ${L.entries} fields`);
+	const out: Record<string, PlainJson> = {};
+	for (const k of keys) {
+		if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,31}$/.test(k)) bad(`${path}.${k}`, 'expected a field name');
+		out[k] = plainJson(o[k], `${path}.${k}`, depth + 1);
+	}
+	return out;
+}
+
+/** A catalog item's id, as the rules name it (`srd-5.2.1:weapon:shortsword`). */
+function itemId(v: unknown, path: string): string {
+	if (typeof v !== 'string' || !/^[a-z0-9][a-z0-9.:-]{2,95}$/.test(v))
+		bad(path, 'expected an item id from the rules’ catalog');
+	return v as string;
 }
 
 function parseObject(v: unknown, path: string): ObjectDef {
@@ -816,18 +937,88 @@ function enemy(v: unknown, path: string): EnemyFile {
 			`${path}.attacks`,
 			(a, p) => {
 				const attack = obj(a, p);
+				const inflicts = opt(attack.inflicts, (x) => {
+					const i = obj(x, `${p}.inflicts`);
+					if (i.ends !== 'start' && i.ends !== 'end') bad(`${p}.inflicts.ends`, 'start or end');
+					return {
+						conditions: list(
+							i.conditions,
+							`${p}.inflicts.conditions`,
+							(v, q) => {
+								if (typeof v !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(v))
+									bad(q, 'expected a condition id');
+								return v as string;
+							},
+							4
+						),
+						ends: i.ends as 'start' | 'end'
+					};
+				});
 				return {
 					name: name(attack.name, `${p}.name`),
 					range: int(attack.range, `${p}.range`, 1, 20),
 					toHit: int(attack.toHit, `${p}.toHit`, -5, 20),
-					damage: dice(attack.damage, `${p}.damage`)
+					damage: dice(attack.damage, `${p}.damage`),
+					...(attack.damageType === undefined
+						? {}
+						: { damageType: damageType(attack.damageType, `${p}.damageType`) }),
+					...(inflicts ? { inflicts } : {})
 				};
 			},
 			2
 		),
 		behavior: oneOf(e.behavior, BEHAVIORS, `${path}.behavior`),
-		...(toll ? { toll } : {})
+		...(toll ? { toll } : {}),
+		...(e.saves === undefined ? {} : { saves: saves(e.saves, `${path}.saves`) }),
+		...(e.immune === undefined
+			? {}
+			: {
+					immune: list(
+						e.immune,
+						`${path}.immune`,
+						(v, p) => {
+							if (typeof v !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(v))
+								bad(p, 'expected a condition id');
+							return v as string;
+						},
+						16
+					)
+				}),
+		...(e.damage === undefined ? {} : { damage: damageTraits(e.damage, `${path}.damage`) })
 	};
+}
+
+/** A damage type, in the rules' words ("cold"). */
+function damageType(v: unknown, path: string): string {
+	if (typeof v !== 'string' || !/^[a-z][a-z-]{0,23}$/.test(v)) bad(path, 'expected a damage type');
+	return v as string;
+}
+
+/** What damage an enemy shrugs off, halves or takes double, by type. */
+function damageTraits(
+	v: unknown,
+	path: string
+): { immune?: string[]; resist?: string[]; vulnerable?: string[] } {
+	const d = obj(v, path);
+	for (const k of Object.keys(d))
+		if (!['immune', 'resist', 'vulnerable'].includes(k)) bad(`${path}.${k}`, 'unknown field');
+	const out: { immune?: string[]; resist?: string[]; vulnerable?: string[] } = {};
+	for (const k of ['immune', 'resist', 'vulnerable'] as const)
+		if (d[k] !== undefined) out[k] = list(d[k], `${path}.${k}`, damageType, 13);
+	return out;
+}
+
+/** An enemy's saving throw bonuses: up to six stats, each a whole number. */
+function saves(v: unknown, path: string): Record<string, number> {
+	const s = obj(v, path);
+	const out: Record<string, number> = {};
+	const keys = Object.keys(s);
+	if (keys.length > 6) bad(path, 'at most six saving throws');
+	for (const k of keys.slice(0, 6)) {
+		if (!/^[a-z][a-z0-9-]{0,31}$/.test(k)) bad(`${path}.${k}`, 'expected a stat id');
+		else out[k] = int(s[k], `${path}.${k}`, -5, 20);
+	}
+	return out;
 }
 
 function npc(v: unknown, path: string): NpcFile {
@@ -923,17 +1114,104 @@ export const DEFAULT_VOICE: Voice = {
 
 /** Checks an adventure file field by field; anything it doesn't know is dropped. */
 export function parseAdventureFile(raw: unknown): AdventureFileParse {
+	const read = readFile(raw);
+	if (!read.file) return { ok: false, error: `${read.problem.path}: ${read.problem.message}` };
+	// A field the format doesn't name is never dropped quietly (milestone 56).
+	const unknown = unknownFields(raw, read.file);
+	if (unknown.length) return { ok: false, error: `${unknown[0].path}: ${unknown[0].message}` };
+	return { ok: true, file: read.file };
+}
+
+function readFile(raw: unknown):
+	| { file: AdventureFile; problem?: never }
+	| {
+			file?: never;
+			problem: Diagnostic;
+	  } {
 	try {
-		return { ok: true, file: parse(raw) };
+		return { file: parse(raw) };
 	} catch (err) {
-		if (err instanceof Bad) return { ok: false, error: err.message };
+		if (err instanceof Bad) return { problem: diagnostic(err.code, err.path, err.what) };
 		throw err;
 	}
 }
 
+const isPlain = (v: unknown): v is Record<string, unknown> =>
+	typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * The fields in the file that its reading didn't keep: every key of an
+ * object in `raw` missing from the same object as read. A table's scene is
+ * its own versioned format, read (and migrated) by the scene parser.
+ */
+export function unknownFields(raw: unknown, read: unknown, path = ''): Diagnostic[] {
+	if (/^locations\.[^.]+\.scene$/.test(path)) return [];
+	if (Array.isArray(raw) && Array.isArray(read))
+		return raw.flatMap((r, i) => unknownFields(r, read[i], `${path}[${i}]`));
+	if (!isPlain(raw) || !isPlain(read)) return [];
+	return Object.keys(raw).flatMap((k) => {
+		const at = path ? `${path}.${k}` : k;
+		return k in read
+			? unknownFields(raw[k], read[k], at)
+			: [diagnostic('schema.unknown_field', at, 'not a field of an adventure file')];
+	});
+}
+
+/** What the reading of an adventure file found: the file and its adventure when it reads, and every diagnostic. */
+export interface AdventureDiagnosis {
+	file: AdventureFile | null;
+	adventure: AdventureDef | null;
+	diagnostics: Diagnostic[];
+	/** The format version the file says it is in, when it says. */
+	format: number | null;
+}
+
+/**
+ * Everything wrong with an adventure file, as diagnostics (milestone 56):
+ * its format, the first value that doesn't read, every field it doesn't
+ * know, and once it reads, every reference that goes nowhere, bad dice and
+ * what the story lacks.
+ */
+export function diagnoseAdventureFile(raw: unknown, adventureId: string): AdventureDiagnosis {
+	const format =
+		isPlain(raw) && typeof raw.version === 'number' && Number.isInteger(raw.version)
+			? raw.version
+			: null;
+	if (
+		isPlain(raw) &&
+		raw.format === ADVENTURE_FILE_FORMAT &&
+		format !== null &&
+		format > ADVENTURE_FILE_VERSION
+	)
+		return {
+			file: null,
+			adventure: null,
+			format,
+			diagnostics: [
+				diagnostic(
+					'format.newer',
+					'version',
+					`version ${format}; this server reads adventure files up to version ${ADVENTURE_FILE_VERSION}`
+				)
+			]
+		};
+	const read = readFile(raw);
+	if (!read.file) return { file: null, adventure: null, format, diagnostics: [read.problem] };
+	const unknown = unknownFields(raw, read.file);
+	if (unknown.length) return { file: null, adventure: null, format, diagnostics: unknown };
+	const adventure = compileAdventure(read.file, adventureId);
+	return {
+		file: read.file,
+		adventure,
+		format,
+		diagnostics: problemsOf(read.file, adventure).map((p) => fromProblem(p, codeOfProblem(p)))
+	};
+}
+
 function parse(raw: unknown): AdventureFile {
 	const f = obj(raw, 'file');
-	if (f.format !== ADVENTURE_FILE_FORMAT) bad('format', 'not a thirdfold adventure');
+	if (f.format !== ADVENTURE_FILE_FORMAT)
+		bad('format', 'not a thirdfold adventure', 'format.unknown');
 	if (f.version !== ADVENTURE_FILE_VERSION) bad('version', `expected ${ADVENTURE_FILE_VERSION}`);
 	const L = ADVENTURE_LIMITS;
 	const start = obj(f.start, 'start');
@@ -943,9 +1221,55 @@ function parse(raw: unknown): AdventureFile {
 		version: ADVENTURE_FILE_VERSION,
 		title: name(f.title, 'title'),
 		about: f.about === undefined ? '' : text(f.about, 'about', 600),
-		characters: list(f.characters, 'characters', (c, p) =>
+		...(f.rules === undefined
+			? {}
+			: (() => {
+					const r = obj(f.rules, 'rules');
+					if (typeof r.id !== 'string' || !/^[a-z][a-z0-9.-]{0,47}$/.test(r.id))
+						bad('rules.id', 'expected a ruleset id');
+					return {
+						rules: { id: r.id as string, version: int(r.version, 'rules.version', 1, 999) }
+					};
+				})()),
+		characters: list(f.characters ?? [], 'characters', (c, p) =>
 			oneOf(c, CHARACTER_IDS as readonly string[], p)
 		),
+		...(f.party === undefined
+			? {}
+			: {
+					party: dict(
+						f.party,
+						'party',
+						(m, p, k) => {
+							if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(k))
+								bad(p, 'a character’s id is lowercase letters, digits and hyphens');
+							if (/^pc-\d+$/.test(k)) bad(p, 'ids pc-1, pc-2… are for characters players build');
+							const member = obj(m, p);
+							return {
+								choices: plainJson(member.choices, `${p}.choices`),
+								...(member.intro === undefined
+									? {}
+									: { intro: text(member.intro, `${p}.intro`, 600) })
+							};
+						},
+						PARTY_LIMITS.members
+					)
+				}),
+		...(f.openParty === true ? { openParty: true } : {}),
+		...(f.monsters === undefined
+			? {}
+			: {
+					monsters: list(
+						f.monsters,
+						'monsters',
+						(m, p) => {
+							if (typeof m !== 'string' || !MONSTER_KIND.test(m))
+								bad(p, 'expected a monster kind from the rules’ bestiary (srd-…)');
+							return m as string;
+						},
+						ADVENTURE_LIMITS.enemies
+					)
+				}),
 		...(f.intros === undefined
 			? {}
 			: {
@@ -1235,6 +1559,8 @@ export function compileAdventure(file: AdventureFile, id: string): AdventureDef 
 		title: file.title,
 		about: file.about,
 		version: 1,
+		...(file.rules ? { rules: { ...file.rules } } : {}),
+		...(file.openParty ? { openParty: true } : {}),
 		characters: Object.fromEntries(
 			file.characters.map((c) => [
 				c,
@@ -1291,31 +1617,99 @@ export function compileAdventure(file: AdventureFile, id: string): AdventureDef 
 
 export type AdventureLoad =
 	| { ok: true; file: AdventureFile; adventure: AdventureDef }
-	| { ok: false; error: string; problems?: string[] };
+	| { ok: false; error: string; problems?: string[]; diagnostics: Diagnostic[] };
 
 /**
  * Parses, compiles and checks an adventure file: what the builder shows as
  * problems, and what the server requires before it runs one.
  */
 export function loadAdventureFile(raw: unknown, adventureId: string): AdventureLoad {
-	const parsed = parseAdventureFile(raw);
-	if (!parsed.ok) return parsed;
-	const adventure = compileAdventure(parsed.file, adventureId);
-	const problems = problemsOf(parsed.file, adventure);
-	if (problems.length) {
+	const d = diagnoseAdventureFile(raw, adventureId);
+	const errors = d.diagnostics.filter((x) => x.severity === 'error');
+	if (!d.file || !d.adventure)
+		return {
+			ok: false,
+			error: `${errors[0].path}: ${errors[0].message}`,
+			diagnostics: d.diagnostics
+		};
+	if (errors.length) {
+		const problems = errors.map((x) => `${x.path}: ${x.message}`);
 		return {
 			ok: false,
 			error: `The adventure has ${problems.length === 1 ? 'a problem' : `${problems.length} problems`}: ${problems[0]}`,
-			problems
+			problems,
+			diagnostics: d.diagnostics
 		};
 	}
-	return { ok: true, file: parsed.file, adventure };
+	return { ok: true, file: d.file, adventure: d.adventure };
 }
+
+/** Every check and saving throw an adventure file asks for, and where. */
+export function checksOf(file: AdventureFile): { stat: string; save: boolean; at: string }[] {
+	const out: { stat: string; save: boolean; at: string }[] = [];
+	for (const o of file.objects)
+		for (const v of o.verbs)
+			if (v.check)
+				out.push({ stat: v.check.stat, save: !!v.check.save, at: `object ${o.id}: ${v.id}` });
+	for (const sign of file.signs)
+		if (sign.check)
+			out.push({ stat: sign.check.stat, save: !!sign.check.save, at: `sign ${sign.id}` });
+	for (const e of ruleEffectsOf(file))
+		if ('hurt' in e && e.hurt.save) out.push({ stat: e.hurt.save.stat, save: true, at: 'hurt' });
+	return out;
+}
+
+/**
+ * The effects in an adventure file that ask its rules for something: rests,
+ * gear and hurts (with their saves), wherever they are (nested rules too).
+ */
+export function ruleEffectsOf(
+	file: AdventureFile
+): Extract<Effect, { rest: unknown } | { gear: unknown } | { hurt: unknown }>[] {
+	const out: Extract<Effect, { rest: unknown } | { gear: unknown } | { hurt: unknown }>[] = [];
+	const walk = (node: unknown) => {
+		if (typeof node !== 'object' || node === null) return;
+		if (Array.isArray(node)) {
+			for (const x of node) walk(x);
+			return;
+		}
+		const o = node as Record<string, unknown>;
+		if (typeof o.rest === 'string' || isRecordValue(o.gear) || isRecordValue(o.hurt))
+			out.push(o as never);
+		for (const [k, v] of Object.entries(o)) if (k !== 'scene' && k !== 'choices') walk(v);
+	};
+	walk(file);
+	return out;
+}
+
+const isRecordValue = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Everything wrong with an adventure beyond its shape: references that go nowhere, and what it lacks. */
 function problemsOf(file: AdventureFile, adventure: AdventureDef): string[] {
-	const problems = validateAdventure(adventure);
-	if (file.characters.length === 0) problems.push('characters: pick at least one');
+	const problems = validateAdventure(adventure, { enemies: file.monsters ?? [] });
+	const party = Object.keys(file.party ?? {});
+	if (file.characters.length === 0 && party.length === 0 && !file.openParty)
+		problems.push('characters: pick at least one, or let players build their own');
+	for (const id of party)
+		if (file.characters.includes(id))
+			problems.push(`party ${id}: a character with this id is already picked`);
+	if (!file.rules) {
+		// Under thirdfold's classic rules: classic stats, no saving throws, no party built by rules.
+		if (party.length || file.openParty || file.monsters?.length)
+			problems.push(
+				'rules: pick rules with a character builder and a bestiary for a party or monsters'
+			);
+		for (const { stat, save, at } of checksOf(file)) {
+			if (save) problems.push(`${at}: the classic rules have no saving throws`);
+			else if (!STAT_IDS.includes(stat as (typeof STAT_IDS)[number]))
+				problems.push(`${at}: no stat "${stat}" in the classic rules`);
+		}
+		for (const e of ruleEffectsOf(file))
+			if ('rest' in e || 'gear' in e)
+				problems.push(
+					`${'rest' in e ? 'rest' : 'gear'}: the classic rules have no ${'rest' in e ? 'rests' : 'gear'}`
+				);
+	}
 	for (const [k, l] of Object.entries(file.locations)) {
 		if (l.spawn.length === 0) problems.push(`location ${k}: no spawn cells`);
 		const g = l.scene.grid;

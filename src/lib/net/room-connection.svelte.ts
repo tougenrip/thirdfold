@@ -1,8 +1,11 @@
 // Browser side of the game connection: opens the socket, enters a room,
 // reconnects with the session token after drops, and exposes reactive state.
 
+import { isDiagnostic, type Diagnostic } from '$lib/validation/diagnostics';
 import { GAME_SERVER_URL } from '$lib/api';
 import type { Motion } from '$lib/game/motion';
+import type { CampaignSummary, CampaignView } from '$lib/game/campaign';
+import type { LicensedSourceView } from '$lib/content/licence';
 import type {
 	ClientMessage,
 	ErrorCode,
@@ -32,12 +35,40 @@ export type SceneReply = Extract<
 	seq: number;
 };
 
+/** A character creator's answer (what may be chosen, what choices come to), tagged so each is handled once. */
+export type CreatorReply = Extract<
+	ServerMessage,
+	{ type: 'character_options' | 'character_preview' }
+> & { seq: number };
+
+/** The monsters a GM's search found. */
+export type MonsterReply = Extract<ServerMessage, { type: 'monster_search' }> & { seq: number };
+export type UpgradeReply = Extract<ServerMessage, { type: 'upgrade_review' }> & { seq: number };
+
+/** The GM's campaigns (milestone 58): the latest list, and the campaign open at the table. */
+export interface CampaignReply {
+	seq: number;
+	campaigns: CampaignSummary[] | null;
+	current: CampaignView | null;
+}
+
+/** The licensed sources the GM may use (milestone 59). */
+export interface SourcesReply {
+	seq: number;
+	sources: LicensedSourceView[];
+}
+
+/** A character's full sheet, as the server sent it. */
+export type SheetReply = Extract<ServerMessage, { type: 'character_sheet' }> & { seq: number };
+
 /** A rejected action (e.g. an illegal move). The connection itself is fine. */
 export interface ActionError {
 	code: ErrorCode | 'offline';
 	message: string;
 	/** Increments per error, so repeated identical errors still re-trigger UI. */
 	seq: number;
+	/** What the server found in content it refused (milestone 56). */
+	diagnostics?: Diagnostic[];
 }
 
 export interface ConnectionError {
@@ -90,6 +121,16 @@ export class RoomConnection {
 	error = $state<ConnectionError | null>(null);
 	actionError = $state<ActionError | null>(null);
 	sceneReply = $state<SceneReply | null>(null);
+	creatorReply = $state<CreatorReply | null>(null);
+	/** The latest monster search's answer (the GM's). */
+	monsterReply = $state<MonsterReply | null>(null);
+	/** The latest review (or move) of the story's versions (the GM's). */
+	upgradeReply = $state<UpgradeReply | null>(null);
+	sheetReply = $state<SheetReply | null>(null);
+	/** The GM's campaigns, as the server last told them. */
+	campaignReply = $state<CampaignReply | null>(null);
+	/** The licensed sources the GM may use here, as the server last told them. */
+	sourcesReply = $state<SourcesReply | null>(null);
 	/** The latest motions to show; `seq` increases so each batch plays once. */
 	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
@@ -204,7 +245,7 @@ export class RoomConnection {
 			case 'error':
 				console.warn(`[room] server error ${msg.code}: ${msg.message}`);
 				if (this.status === 'connected') {
-					this.reportActionError(msg.code, msg.message);
+					this.reportActionError(msg.code, msg.message, msg.diagnostics?.filter(isDiagnostic));
 					return;
 				}
 				this.error = { code: msg.code, message: msg.message };
@@ -226,6 +267,37 @@ export class RoomConnection {
 			case 'scene_list':
 			case 'scene_shared':
 				this.sceneReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'character_sheet':
+				this.sheetReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'character_options':
+			case 'character_preview':
+				this.creatorReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'monster_search':
+				this.monsterReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'upgrade_review':
+				this.upgradeReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'content_sources':
+				this.sourcesReply = { seq: ++this.errorSeq, sources: msg.sources };
+				return;
+			case 'campaigns':
+				this.campaignReply = {
+					seq: ++this.errorSeq,
+					campaigns: msg.campaigns,
+					current: msg.current
+				};
+				return;
+			case 'campaign':
+				this.campaignReply = {
+					seq: ++this.errorSeq,
+					// The list is asked for again when it is shown.
+					campaigns: this.campaignReply?.campaigns ?? null,
+					current: msg.campaign
+				};
 				return;
 			default:
 				if (this.room) applyRoomUpdate(this.room, msg);
@@ -253,8 +325,17 @@ export class RoomConnection {
 		}, delay);
 	}
 
-	private reportActionError(code: ActionError['code'], message: string): void {
-		this.actionError = { code, message, seq: ++this.errorSeq };
+	private reportActionError(
+		code: ActionError['code'],
+		message: string,
+		diagnostics?: Diagnostic[]
+	): void {
+		this.actionError = {
+			code,
+			message,
+			seq: ++this.errorSeq,
+			...(diagnostics?.length ? { diagnostics } : {})
+		};
 	}
 
 	private fail(error: ConnectionError): void {

@@ -4,11 +4,19 @@
 // runs, so a mistake in it shows up here rather than mid-story.
 
 import { parseDice } from '../game/dice';
+import type { DiagnosticCode } from '../validation/diagnostics';
 import { TOKEN_SCALE } from '../game/token';
 import { AMBUSH, type AdventureDef, type Effect, type Rule, type When } from './define';
 
-/** What is wrong with an adventure's content; empty when nothing is. */
-export function validateAdventure(A: AdventureDef): string[] {
+/**
+ * What is wrong with an adventure's content; empty when nothing is.
+ * `known.enemies` names enemy kinds that come from elsewhere (an adventure
+ * file's `monsters`, the rules' bestiary, which only the server holds).
+ */
+export function validateAdventure(
+	A: AdventureDef,
+	known: { enemies?: readonly string[] } = {}
+): string[] {
 	const problems: string[] = [];
 	const has = (record: object, id: string) => Object.hasOwn(record, id);
 	const need = (ok: unknown, what: string) => {
@@ -26,8 +34,9 @@ export function validateAdventure(A: AdventureDef): string[] {
 		need(objectIds.has(id), `${where}: no object "${id}"`);
 	const encounter = (id: string, where: string) =>
 		need(id === AMBUSH || has(A.encounters, id), `${where}: no fight "${id}"`);
+	const elsewhere = new Set(known.enemies ?? []);
 	const enemy = (kind: string, where: string) =>
-		need(has(A.enemies, kind), `${where}: no enemy "${kind}"`);
+		need(has(A.enemies, kind) || elsewhere.has(kind), `${where}: no enemy "${kind}"`);
 	const dice = (expression: string, where: string) =>
 		need(parseDice(expression).ok, `${where}: bad dice "${expression}"`);
 	const scenes = Object.values(A.locations).map((l) => l.scene());
@@ -242,4 +251,18 @@ export function validateAdventure(A: AdventureDef): string[] {
 	}
 	if (A.ward) object(A.ward.object, 'ward');
 	return problems;
+}
+
+/**
+ * The diagnostic code of a problem this file (or the file loader) words:
+ * a reference that goes nowhere, bad dice, a reserved id, something off its
+ * table, or the story's shape.
+ */
+export function codeOfProblem(problem: string): DiagnosticCode {
+	if (/: bad dice "/.test(problem)) return 'dice.invalid';
+	if (/: no [a-z ]+ "/.test(problem)) return 'ref.missing';
+	if (/is the GM's own|a reserved id/.test(problem)) return 'ref.reserved';
+	if (/spawn cell is off the map|: not on the .+ table|: no spawn cells/.test(problem))
+		return 'map.placement';
+	return 'story.structure';
 }

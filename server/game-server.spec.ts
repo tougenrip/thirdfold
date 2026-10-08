@@ -5,8 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { AdventureView } from '../src/lib/adventure/adventure';
 import { exampleAdventure } from '../src/lib/adventure/example';
+import { dndExampleAdventure } from '../src/lib/adventure/dnd-example';
+import { pregenChoices } from '../src/lib/rules/dnd55e/pregens';
 import { decodeFloor, FLOOR_IDS } from '../src/lib/game/floor';
 import { decodeLevels } from '../src/lib/game/terrain';
+import type { ChatMessage } from '../src/lib/game/chat';
 import { decodeMask } from '../src/lib/game/visibility';
 import type { ServerMessage } from '../src/lib/game/protocol';
 import type { SquareGrid } from '../src/lib/game/grid';
@@ -19,7 +22,13 @@ import { BESIDE_PIT, BY_TOBIN, HOLLOW_SPAWN, hollowScene } from './adventures/ho
 import { HOLLOW_BELL } from './adventures/hollow-bell/index';
 import { recordOrigins } from './adventure/world';
 import { RoomManager } from './rooms';
+import { examplePack } from './rules/dnd55e/homebrew/example';
 import { MemoryRoomStore } from './room-store';
+import { MemoryCampaignStore } from './campaign-store';
+import { MemoryLicenceStore } from './licensed/licence-store';
+import { keyOwner } from './gm-keys';
+import { creatorIdOf } from './library-store';
+import { installedSource, installSources } from './licensed/sources';
 import { applyScene, exportScene } from './scene-io';
 
 class Queue {
@@ -987,7 +996,8 @@ describe('saving and loading scenes over the wire', () => {
 		});
 		expect(await gm.expect('error')).toMatchObject({
 			code: 'invalid_scene',
-			message: expect.stringMatching(/off the map/)
+			message: expect.stringMatching(/off the map/),
+			diagnostics: [{ code: 'save.invalid', message: expect.stringMatching(/off the map/) }]
 		});
 		gm.send({ type: 'scene_load', sceneId: 'f'.repeat(32) });
 		expect(await gm.expect('error')).toMatchObject({ code: 'scene_not_found' });
@@ -1490,7 +1500,12 @@ describe("creators' adventures over the wire", () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });
 		const { room } = await gm.expect('welcome');
-		expect(room.adventures.map((a) => a.id)).toEqual(['hollow-bell', 'blackwater']);
+		expect(room.adventures.map((a) => a.id)).toEqual([
+			'hollow-bell',
+			'blackwater',
+			'barrow',
+			'drowned-lantern'
+		]);
 		expect(room.adventures[1]).toMatchObject({
 			title: 'The Last Train to Blackwater',
 			about: expect.stringContaining('1889')
@@ -2828,6 +2843,1342 @@ describe('the library and open games over the wire', () => {
 	});
 });
 
+describe('collections over the wire', () => {
+	it('publishes homebrew and a collection, checks what it names, starts it and resolves it again from a save', async () => {
+		// A creator publishes a homebrew pack, then a collection of the Barrow with it.
+		const mira = await connect();
+		mira.send({ type: 'library_publish', kind: 'pack', creator: 'Mira', file: examplePack() });
+		const pack = await mira.expect('library_published');
+		const gmKey = pack.gmKey!;
+		expect((await mira.expect('library_mine')).adventures).toMatchObject([
+			{ id: pack.adventureId, kind: 'pack', title: 'The Cold Hill Armory 1.0' }
+		]);
+		const draft = (adventures: unknown[]) => ({
+			format: 'thirdfold-collection',
+			formatVersion: 1,
+			title: 'Cold Hill Campaign',
+			about: 'The barrow, and what lies beyond.',
+			adventures,
+			packs: [{ library: pack.adventureId, version: 1 }],
+			tables: []
+		});
+		// One that mixes rules is refused, saying why.
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey,
+			creator: 'Mira',
+			file: draft([{ builtIn: 'barrow' }, { builtIn: 'hollow-bell' }])
+		});
+		expect((await mira.until('error')).message).toContain(
+			'The Hollow Bell plays by Thirdfold Classic, not Fifth Edition (SRD 5.2.1).'
+		);
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey,
+			creator: 'Mira',
+			file: draft([{ builtIn: 'barrow' }])
+		});
+		const set = await mira.until('library_published');
+
+		// Anyone finds it among the collections (not among the adventures) and checks it.
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		gm.send({ type: 'library_list', kind: 'collection', query: 'cold hill' });
+		const listed = await gm.until('library_list');
+		expect(listed.adventures.map((l) => [l.id, l.kind])).toEqual([[set.adventureId, 'collection']]);
+		expect(listed.builtIn).toEqual([]);
+		gm.send({ type: 'collection_check', id: set.adventureId });
+		const { report } = await gm.until('collection_report');
+		expect(report).toMatchObject({
+			title: 'Cold Hill Campaign',
+			rules: { id: 'dnd-5.5e', version: 1 },
+			creator: { name: 'Mira' },
+			ok: true
+		});
+		expect(report!.items.map((i) => [i.kind, i.status])).toEqual([
+			['rules', 'ok'],
+			['adventure', 'ok'],
+			['pack', 'ok']
+		]);
+
+		// The GM starts it: the Barrow, with the pack, and the story knows its collection.
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', collectionId: set.adventureId });
+		const started = await pip.until('adventure_update', (m) => !!m.adventure?.collection);
+		expect(started.adventure!.id).toBe('barrow');
+		expect(started.adventure!.collection).toMatchObject({
+			id: set.adventureId,
+			version: 1,
+			title: 'Cold Hill Campaign',
+			adventures: [{ title: 'The Barrow on Cold Hill', playing: true }],
+			packs: ['The Cold Hill Armory 1.0']
+		});
+		const packIds = started.adventure!.packs!.map((p) => p.id);
+		expect(packIds).toEqual([expect.stringMatching(/^hb-[0-9a-f]{16}$/)]);
+
+		// Saved and loaded, it is the same collection with the same homebrew.
+		gm.send({ type: 'scene_save', name: 'Cold Hill campaign' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = await pip.until('room_reset');
+		expect(back.room.adventure!.collection).toEqual(started.adventure!.collection);
+		expect(back.room.adventure!.packs!.map((p) => p.id)).toEqual(packIds);
+		// The pinned version still resolves to the same set.
+		gm.send({ type: 'collection_check', id: set.adventureId, version: 1 });
+		expect((await gm.until('collection_report')).report!.ok).toBe(true);
+
+		// Once its creator takes the pack out of the library, the collection says so and won't start for others.
+		mira.send({ type: 'library_manage', gmKey, adventureId: pack.adventureId, op: 'unlist' });
+		await mira.until('library_mine');
+		const other = await connect();
+		other.send({ type: 'create', name: 'Otto' });
+		await other.expect('welcome');
+		other.send({ type: 'collection_check', id: set.adventureId });
+		const after = (await other.until('collection_report')).report!;
+		expect(after.ok).toBe(true);
+		// (Still its creator's to use, and the collection is the creator's.)
+		expect(after.items[2]).toMatchObject({ status: 'ok' });
+		mira.send({ type: 'library_manage', gmKey, adventureId: pack.adventureId, op: 'remove' });
+		await mira.until('library_mine');
+		other.send({ type: 'collection_check', id: set.adventureId });
+		const gone = (await other.until('collection_report')).report!;
+		expect(gone.ok).toBe(false);
+		expect(gone.items[2]).toMatchObject({ kind: 'pack', status: 'missing' });
+		other.send({ type: 'adventure_start', collectionId: set.adventureId });
+		expect((await other.until('error')).message).toMatch(
+			/^This collection can't be started: No pack/
+		);
+		// The saved story still loads: it carries what it was started with.
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		expect((await gm.until('room_reset')).room.adventure!.collection?.id).toBe(set.adventureId);
+	});
+});
+
+describe('permissions over the wire (milestone 54)', () => {
+	const file = () => JSON.parse(JSON.stringify(exampleAdventure()));
+	async function gmAt(name: string, gmKey?: string) {
+		const gm = await connect();
+		gm.send({ type: 'create', name, ...(gmKey ? { gmKey } : {}) });
+		const welcome = await gm.expect('welcome');
+		return { gm, room: welcome.room, gmKey: welcome.gmKey! };
+	}
+
+	it('keeps restricted and private content from guessed ids and forged requests, and plays it by grants', async () => {
+		// Mira publishes two adventures: one restricted (licensed), one private.
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const licensed = await mira.expect('library_published');
+		const key = licensed.gmKey!;
+		await mira.expect('library_mine');
+		mira.send({ type: 'library_publish', gmKey: key, creator: 'Mira', file: file() });
+		const secret = await mira.until('library_published');
+		mira.send({
+			type: 'library_manage',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			op: 'restrict'
+		});
+		await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.id === licensed.adventureId && a.access === 'restricted')
+		);
+		mira.send({
+			type: 'library_manage',
+			gmKey: key,
+			adventureId: secret.adventureId,
+			op: 'unlist'
+		});
+		const own = await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.id === secret.adventureId && a.access === 'private')
+		);
+		expect(own.creatorId).toMatch(/^[0-9a-f]{16}$/);
+
+		// Otto: a GM with a key of his own.
+		const otto = await gmAt('Otto');
+		otto.gm.send({ type: 'library_mine', gmKey: otto.gmKey });
+		const ottoMine = await otto.gm.until('library_mine');
+		expect(ottoMine).toMatchObject({ adventures: [], shared: [] });
+
+		// The restricted one is listed for anyone; the private one isn't.
+		otto.gm.send({ type: 'library_list', query: 'miller' });
+		const listed = (await otto.gm.until('library_list')).adventures;
+		expect(listed.find((l) => l.id === licensed.adventureId)?.access).toBe('restricted');
+		expect(listed.some((l) => l.id === secret.adventureId)).toBe(false);
+
+		// Opening: locked for the restricted one; the private one is as if it weren't there.
+		otto.gm.send({ type: 'library_story', id: licensed.adventureId, gmKey: otto.gmKey });
+		expect(await otto.gm.until('library_story')).toMatchObject({ story: null, locked: true });
+		otto.gm.send({ type: 'library_story', id: secret.adventureId, gmKey: otto.gmKey });
+		const hidden = await otto.gm.until('library_story');
+		expect(hidden.story).toBeNull();
+		expect(hidden.locked).toBeUndefined();
+		otto.gm.send({ type: 'library_story', id: 'f'.repeat(32) });
+		expect(await otto.gm.until('library_story')).toEqual({ type: 'library_story', story: null });
+
+		// Starting: refused, and a private id answers exactly like a made-up one.
+		otto.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		expect(await otto.gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			message: expect.stringContaining('shared only with those its creator chooses')
+		});
+		otto.gm.send({ type: 'adventure_start', libraryId: secret.adventureId });
+		const guessed = await otto.gm.until('error');
+		const other = await gmAt('Otto again', otto.gmKey);
+		other.gm.send({ type: 'adventure_start', libraryId: 'f'.repeat(32) });
+		const madeUp = await other.gm.until('error');
+		expect({ ...guessed }).toEqual({ ...madeUp });
+		expect(guessed.code).toBe('adventure_not_found');
+		// Neither a collection id where an adventure should be, nor the reverse.
+		other.gm.send({ type: 'collection_check', id: secret.adventureId, gmKey: otto.gmKey });
+		expect((await other.gm.until('collection_report')).report).toBeNull();
+
+		// Forged requests: managing, granting, revoking and versioning someone else's.
+		otto.gm.send({
+			type: 'library_manage',
+			gmKey: otto.gmKey,
+			adventureId: licensed.adventureId,
+			op: 'list'
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		otto.gm.send({
+			type: 'library_grant',
+			gmKey: otto.gmKey,
+			adventureId: licensed.adventureId,
+			grant: { target: { kind: 'creator', id: ottoMine.creatorId }, role: 'collaborator' }
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: file(),
+			adventureId: licensed.adventureId
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: file(),
+			adventureId: secret.adventureId
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'adventure_not_found' });
+		// A grant can't be forged in the message either: a collaborator is a person, a table's grant runs out.
+		otto.gm.send({
+			type: 'library_grant',
+			gmKey: otto.gmKey,
+			adventureId: licensed.adventureId,
+			grant: { target: { kind: 'room', id: otto.room.id }, role: 'collaborator' }
+		} as never);
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'invalid_message' });
+
+		// Mira shares the licensed one with Otto to play.
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			grant: {
+				target: { kind: 'creator', id: ottoMine.creatorId },
+				role: 'member',
+				note: 'For Otto’s group'
+			}
+		});
+		const granted = await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.id === licensed.adventureId && a.grants.length === 1)
+		);
+		const memberGrant = granted.adventures.find((a) => a.id === licensed.adventureId)!.grants[0];
+		expect(memberGrant).toMatchObject({
+			target: { kind: 'creator', id: ottoMine.creatorId },
+			role: 'member',
+			by: own.creatorId,
+			revoked: null,
+			note: 'For Otto’s group'
+		});
+		otto.gm.send({ type: 'library_mine', gmKey: otto.gmKey });
+		expect((await otto.gm.until('library_mine')).shared).toMatchObject([
+			{ id: licensed.adventureId, role: 'member', access: 'restricted', creator: { name: 'Mira' } }
+		]);
+		otto.gm.send({ type: 'library_story', id: licensed.adventureId, gmKey: otto.gmKey });
+		expect((await otto.gm.until('library_story')).story?.listing.id).toBe(licensed.adventureId);
+		// Still not his to version or take away.
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: file(),
+			adventureId: licensed.adventureId
+		});
+		expect(await otto.gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// He plays it at his table: saves it, but can't export it.
+		const table = await gmAt('Otto’s table', otto.gmKey);
+		table.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		const playing = await table.gm.until('room_reset');
+		expect(playing.room.adventure!.library!.id).toBe(licensed.adventureId);
+		table.gm.send({ type: 'scene_export', name: 'Miller' });
+		expect(await table.gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			message: expect.stringContaining('shared with you to play, not to take away')
+		});
+		table.gm.send({ type: 'scene_save', name: 'Miller' });
+		const saved = await table.gm.until('scene_saved');
+		table.gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		expect((await table.gm.until('room_reset')).room.adventure!.library!.id).toBe(
+			licensed.adventureId
+		);
+
+		// Mira revokes: the table plays on, but the save no longer opens and nothing new starts.
+		mira.send({
+			type: 'library_revoke',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			grantId: memberGrant.id
+		});
+		const revoked = await mira.until('library_mine', (m) =>
+			m.adventures.some((a) => a.grants.some((g) => g.id === memberGrant.id && g.revoked !== null))
+		);
+		expect(revoked.adventures.find((a) => a.id === licensed.adventureId)!.grants).toHaveLength(1);
+		const later = await gmAt('Otto, later', otto.gmKey);
+		later.gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		expect(await later.gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			message: "The Miller’s Key is no longer shared with you, so this story can't be opened.",
+			diagnostics: [{ code: 'access.denied', severity: 'error', path: 'adventure.entitlements' }]
+		});
+		later.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		expect(await later.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		const resume = await connect();
+		resume.send({ type: 'create', name: 'Otto', gmKey: otto.gmKey, continueFrom: saved.sceneId });
+		expect(await resume.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// As a collaborator he may add a version (under Mira's name) and take what he starts away.
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: licensed.adventureId,
+			grant: { target: { kind: 'creator', id: ottoMine.creatorId }, role: 'collaborator' }
+		});
+		await mira.until('library_mine');
+		otto.gm.send({
+			type: 'library_publish',
+			gmKey: otto.gmKey,
+			creator: 'Otto',
+			file: { ...file(), about: 'Revised with Otto.' },
+			adventureId: licensed.adventureId
+		});
+		expect(await otto.gm.until('library_published')).toMatchObject({
+			adventureId: licensed.adventureId,
+			version: 2
+		});
+		otto.gm.send({ type: 'library_list', query: 'miller' });
+		expect(
+			(await otto.gm.until('library_list')).adventures.find((l) => l.id === licensed.adventureId)
+		).toMatchObject({ version: 2, about: 'Revised with Otto.', creator: { name: 'Mira' } });
+		const again = await gmAt('Otto, again', otto.gmKey);
+		again.gm.send({ type: 'adventure_start', libraryId: licensed.adventureId });
+		await again.gm.until('room_reset');
+		again.gm.send({ type: 'scene_export', name: 'Miller' });
+		const exported = await again.gm.until('scene_exported');
+		expect(JSON.stringify(exported.file)).toContain('entitlements');
+
+		// A table's grant: anyone GMing that room plays the private one, for a while.
+		const gemma = await gmAt('Gemma');
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: secret.adventureId,
+			grant: { target: { kind: 'room', id: gemma.room.id }, role: 'member', hours: 2 }
+		});
+		const roomGrant = (await mira.until('library_mine')).adventures.find(
+			(a) => a.id === secret.adventureId
+		)!.grants[0];
+		expect(Date.parse(roomGrant.expires!) - Date.parse(roomGrant.at)).toBe(2 * 3600_000);
+		gemma.gm.send({ type: 'adventure_start', libraryId: secret.adventureId });
+		expect((await gemma.gm.until('room_reset')).room.adventure!.library!.id).toBe(
+			secret.adventureId
+		);
+		// Only that room.
+		const elsewhere = await gmAt('Gemma elsewhere');
+		elsewhere.gm.send({ type: 'adventure_start', libraryId: secret.adventureId });
+		expect(await elsewhere.gm.until('error')).toMatchObject({ code: 'adventure_not_found' });
+	});
+
+	it('lets a collection carry restricted homebrew by a grant to that collection', async () => {
+		// Mira's armory, restricted.
+		const mira = await connect();
+		mira.send({ type: 'library_publish', kind: 'pack', creator: 'Mira', file: examplePack() });
+		const pack = await mira.expect('library_published');
+		const key = pack.gmKey!;
+		await mira.expect('library_mine');
+		mira.send({
+			type: 'library_manage',
+			gmKey: key,
+			adventureId: pack.adventureId,
+			op: 'restrict'
+		});
+		await mira.until('library_mine');
+
+		// Otto curates a campaign; with the armory it can't be published yet.
+		const otto = await connect();
+		const draft = (packs: unknown[]) => ({
+			format: 'thirdfold-collection',
+			formatVersion: 1,
+			title: 'Cold Hill with Mira’s armory',
+			adventures: [{ builtIn: 'barrow' }],
+			packs,
+			tables: []
+		});
+		const armory = [{ library: pack.adventureId, version: 1 }];
+		otto.send({
+			type: 'library_publish',
+			kind: 'collection',
+			creator: 'Otto',
+			file: draft(armory)
+		});
+		expect((await otto.expect('error')).message).toContain(
+			'shared only with those its creator chooses'
+		);
+		otto.send({ type: 'library_publish', kind: 'collection', creator: 'Otto', file: draft([]) });
+		const set = await otto.until('library_published');
+		const ottoKey = set.gmKey!;
+
+		// Mira grants the armory to that collection; its next version carries it.
+		mira.send({
+			type: 'library_grant',
+			gmKey: key,
+			adventureId: pack.adventureId,
+			grant: { target: { kind: 'collection', id: set.adventureId }, role: 'member' }
+		});
+		await mira.until('library_mine');
+		otto.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey: ottoKey,
+			creator: 'Otto',
+			file: draft(armory),
+			adventureId: set.adventureId
+		});
+		expect(await otto.until('library_published')).toMatchObject({ version: 2 });
+
+		// Gemma, who was granted nothing herself, runs the campaign with the armory.
+		const gemma = await gmAt('Gemma');
+		gemma.gm.send({ type: 'collection_check', id: set.adventureId });
+		const report = (await gemma.gm.until('collection_report')).report!;
+		expect(report.ok).toBe(true);
+		gemma.gm.send({ type: 'adventure_start', collectionId: set.adventureId });
+		const started = await gemma.gm.until('adventure_update', (m) => !!m.adventure?.collection);
+		expect(started.adventure!.packs!.map((p) => p.name)).toEqual(['The Cold Hill Armory']);
+		// She plays it here; it doesn't leave with her.
+		gemma.gm.send({ type: 'scene_export', name: 'Campaign' });
+		expect(await gemma.gm.until('error')).toMatchObject({ code: 'forbidden' });
+		// The armory alone, outside the collection, is still not hers.
+		gemma.gm.send({ type: 'library_list', kind: 'pack', query: 'armory' });
+		expect(
+			(await gemma.gm.until('library_list')).adventures.find((l) => l.id === pack.adventureId)
+				?.access
+		).toBe('restricted');
+	});
+
+	it('keeps public content and the SRD open to everyone, as before', async () => {
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: file() });
+		const published = await mira.expect('library_published');
+		const otto = await gmAt('Otto');
+		otto.gm.send({ type: 'library_story', id: published.adventureId });
+		expect((await otto.gm.until('library_story')).story?.listing).toMatchObject({
+			access: 'public'
+		});
+		otto.gm.send({ type: 'adventure_start', libraryId: published.adventureId });
+		await otto.gm.until('room_reset');
+		// Public content leaves with its table, as it always could, resting on no grant.
+		otto.gm.send({ type: 'scene_export', name: 'Public' });
+		const out = await otto.gm.until('scene_exported');
+		expect(JSON.stringify(out.file)).not.toContain('entitlements');
+		// Built-in adventures under the SRD rules start for any GM, keyless or not.
+		const keyless = await gmAt('Barrow GM');
+		keyless.gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const barrow = await keyless.gm.until('room_reset');
+		expect(barrow.room.adventure!.rules?.attribution).toBeTruthy();
+	});
+});
+
+describe('versions over the wire (milestone 55)', () => {
+	const v1 = () => JSON.parse(JSON.stringify(exampleAdventure()));
+	const v2 = () => {
+		const f = v1();
+		f.about = 'Now with more flour.';
+		f.clues.flour = { title: 'Flour on the stair', text: 'Small prints.', kind: 'environment' };
+		return f;
+	};
+
+	it('keeps a story on its version through a publisher’s update, and moves it only when the GM asks', async () => {
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: v1() });
+		const pub = await mira.expect('library_published');
+		const key = pub.gmKey!;
+		await mira.expect('library_mine');
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', libraryId: pub.adventureId });
+		const started = (await gm.until('room_reset')).room.adventure!;
+		expect(started.library).toMatchObject({ version: 1 });
+		// The GM sees what the story is pinned to; a player doesn't.
+		expect(started.versions).toMatchObject({
+			lock: {
+				rules: { id: 'thirdfold-classic', version: 1 },
+				content: [],
+				adventure: { kind: 'file', library: { id: pub.adventureId, version: 1 } },
+				packs: [],
+				collection: null
+			},
+			steps: [],
+			movable: { adventure: true, collection: false }
+		});
+		expect((await pip.until('room_reset')).room.adventure!.versions).toBeNull();
+
+		// The creator publishes version 2: the story under way, and its save, stay on version 1.
+		mira.send({
+			type: 'library_publish',
+			gmKey: key,
+			creator: 'Mira',
+			file: v2(),
+			adventureId: pub.adventureId
+		});
+		expect(await mira.until('library_published')).toMatchObject({ version: 2 });
+		// Every version stays readable.
+		gm.send({ type: 'library_story', id: pub.adventureId, version: 1 });
+		expect((await gm.until('library_story')).story!.listing).toMatchObject({
+			version: 1,
+			about: v1().about
+		});
+		gm.send({ type: 'scene_save', name: 'Mill' });
+		const saved = await gm.until('scene_saved');
+		const reopened = await connect();
+		reopened.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		expect((await reopened.expect('welcome')).room.adventure!.library).toMatchObject({
+			version: 1
+		});
+
+		// A player can't ask; the GM reviews the latest version.
+		pip.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		const reviewed = await gm.until('upgrade_review');
+		expect(reviewed).toMatchObject({
+			applied: false,
+			review: { from: 1, to: 2, rollback: false, ok: true, problems: [] }
+		});
+		expect(reviewed.review.changes).toContainEqual({
+			section: 'Clues',
+			added: ['flour'],
+			removed: [],
+			changed: []
+		});
+		// A collection move on a story from no collection is refused, saying why.
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'collection' });
+		expect((await gm.until('error')).message).toBe('This story wasn’t started from a collection.');
+
+		// Applied: everyone gets the story on version 2, and a save keeps it there.
+		gm.send({ type: 'adventure_upgrade', op: 'apply', what: 'adventure', version: 2 });
+		const moved = (await pip.until('room_reset')).room.adventure!;
+		expect(moved.library).toMatchObject({ version: 2 });
+		await pip.untilNotice('Gemma moved the story to version 2 of The Miller’s Key.');
+		const gmView = (await gm.until('room_reset')).room.adventure!;
+		expect(gmView.versions!.steps).toMatchObject([{ from: 1, to: 2, rollback: false }]);
+		expect((await gm.until('upgrade_review')).applied).toBe(true);
+		gm.send({ type: 'scene_save', name: 'Mill 2' });
+		const saved2 = await gm.until('scene_saved');
+
+		// Continued from that save on another day: version 2, and back to version 1, which the library still keeps.
+		const later = await connect();
+		later.send({ type: 'create', name: 'Gemma', gmKey: gmKey, continueFrom: saved2.sceneId });
+		const resumed = (await later.expect('welcome')).room.adventure!;
+		expect(resumed.library).toMatchObject({ version: 2 });
+		later.send({ type: 'adventure_upgrade', op: 'apply', what: 'adventure', version: 1 });
+		expect(
+			(await later.until('room_reset')).room.adventure!.versions!.steps.map((s) => s.rollback)
+		).toEqual([false, true]);
+		expect(await later.until('upgrade_review')).toMatchObject({
+			applied: true,
+			review: { rollback: true, to: 1 }
+		});
+		// A version that isn't there.
+		later.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure', version: 9 });
+		expect((await later.until('error')).message).toBe(
+			'That version of the adventure is not in the library.'
+		);
+	});
+
+	it('moves a story to its collection’s next version, with the homebrew that version names', async () => {
+		const mira = await connect();
+		mira.send({ type: 'library_publish', kind: 'pack', creator: 'Mira', file: examplePack() });
+		const pack = await mira.expect('library_published');
+		const key = pack.gmKey!;
+		await mira.expect('library_mine');
+		const draft = (packs: unknown[]) => ({
+			format: 'thirdfold-collection',
+			formatVersion: 1,
+			title: 'Cold Hill Campaign',
+			adventures: [{ builtIn: 'barrow' }],
+			packs,
+			tables: []
+		});
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey: key,
+			creator: 'Mira',
+			file: draft([{ library: pack.adventureId, version: 1 }])
+		});
+		const set = await mira.until('library_published');
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		await gm.expect('welcome');
+		gm.send({ type: 'adventure_start', collectionId: set.adventureId });
+		const started = await gm.until('adventure_update', (m) => !!m.adventure?.collection);
+		expect(started.adventure!.packs!.map((p) => p.name)).toEqual(['The Cold Hill Armory']);
+		expect(started.adventure!.versions!.movable).toEqual({ adventure: false, collection: true });
+		// Its adventure moves with the collection, not alone.
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		expect((await gm.until('error')).message).toMatch(/move the collection instead/);
+
+		// Version 2 of the collection drops the armory.
+		mira.send({
+			type: 'library_publish',
+			kind: 'collection',
+			gmKey: key,
+			creator: 'Mira',
+			file: draft([]),
+			adventureId: set.adventureId
+		});
+		await mira.until('library_published');
+		gm.send({ type: 'adventure_upgrade', op: 'review', what: 'collection' });
+		const review = (await gm.until('upgrade_review')).review;
+		expect(review).toMatchObject({
+			what: 'collection',
+			from: 1,
+			to: 2,
+			ok: true,
+			changes: [],
+			packs: { added: [], removed: ['The Cold Hill Armory'] }
+		});
+		gm.send({ type: 'adventure_upgrade', op: 'apply', what: 'collection' });
+		const moved = (await gm.until('room_reset')).room.adventure!;
+		expect(moved.collection).toMatchObject({ version: 2, packs: [] });
+		expect(moved.packs).toEqual([]);
+		expect(moved.versions!.lock.collection).toMatchObject({ version: 2 });
+	});
+});
+
+describe('fifth edition rules over the wire', () => {
+	beforeEach(async () => {
+		// Every die rolls its highest face: every d20 is a natural 20.
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 0,
+			mechanismDelayScale: 0,
+			patrolMs: 0
+		});
+	});
+
+	const untilLog = <K extends ChatMessage['kind']>(client: TestClient, kind: K) =>
+		client
+			.until('chat', (m) => m.message.kind === kind)
+			.then((m) => m.message as Extract<ChatMessage, { kind: K }>);
+
+	it('resolves checks, saves and attacks by the rules on the server, the same for GM and player', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const reset = await pip.until('room_reset');
+		const story = reset.room.adventure!;
+		expect(story).toMatchObject({
+			title: 'The Barrow on Cold Hill',
+			rules: { id: 'dnd-5.5e', version: 1, name: 'Fifth Edition (SRD 5.2.1)' }
+		});
+		expect(story.rules.attribution).toContain('Creative Commons Attribution 4.0');
+		expect(story.characters.find((c) => c.id === 'veil')?.card).toMatchObject({
+			defense: { name: 'Armor Class', value: 14 },
+			proficiency: 2
+		});
+
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		const veil = await pip.until('token_upserted', (m) => m.token.name === 'The Veil');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		const move = (to: { x: number; y: number }) =>
+			pip.send({ type: 'token_move', tokenId: veil.token.id, to });
+
+		// An Investigation check: d20 (20) + Intelligence (+1) + proficiency (+2).
+		move({ x: 5, y: 10 });
+		pip.send({ type: 'adventure_interact', targetId: 'carvings', verb: 'examine' });
+		for (const client of [pip, gm]) {
+			expect(await untilLog(client, 'check')).toMatchObject({
+				authorName: 'The Veil',
+				stat: 'Intelligence (Investigation)',
+				roll: { expression: '1d20+3', total: 23 },
+				dc: 12,
+				success: true,
+				explain: 'd20 20 +3 = 23 vs DC 12: success'
+			});
+		}
+
+		// A Strength (Athletics) check (not proficient) to force the door, then in over the
+		// threshold unwarned (the ward was never shared): a Dexterity save against the darts.
+		move({ x: 7, y: 8 });
+		pip.send({ type: 'adventure_interact', targetId: 'barrow-door', verb: 'force' });
+		expect(await untilLog(pip, 'check')).toMatchObject({
+			stat: 'Strength (Athletics)',
+			roll: { expression: '1d20', total: 20 }
+		});
+		expect((await untilLog(gm, 'check')).stat).toBe('Strength (Athletics)');
+		await pip.until('adventure_update', (m) => m.adventure?.chapter.id === 'inside');
+		pip.send({ type: 'door_toggle', objectId: 'barrow-door' });
+		await pip.until('objects_changed');
+		move({ x: 7, y: 7 });
+		const save = await untilLog(gm, 'check');
+		expect(save).toMatchObject({
+			authorName: 'The Veil',
+			stat: 'Dexterity saving throw',
+			save: true,
+			roll: { total: 25 },
+			success: true
+		});
+		expect(await untilLog(pip, 'check')).toEqual(save);
+		// Half of 2d6 (12) on a made save.
+		const hurt = await pip.until(
+			'chat',
+			(m) => m.message.kind === 'narration' && m.message.text.startsWith('Darts')
+		);
+		expect(hurt.message).toMatchObject({
+			text: 'Darts from the lintel strike The Veil: 6 damage.'
+		});
+
+		// Deeper in, the guardians wake. Initiative: the Veil (20 + 3 Dexterity + 2 from Alert) goes first.
+		move({ x: 9, y: 4 });
+		const fight = await pip.until('adventure_update', (m) => !!m.adventure?.encounter);
+		const order = fight.adventure!.encounter!.order;
+		expect(order[0]).toMatchObject({ characterId: 'veil', initiative: 25 });
+		const guard = fight.adventure!.encounter!.enemies.find((e) => e.name === 'Barrow Guard')!;
+		pip.send({ type: 'adventure_act', actionId: 'shortsword', targetId: guard.tokenId });
+		const attack = await untilLog(gm, 'attack');
+		expect(attack).toMatchObject({
+			authorName: 'The Veil',
+			attack: 'Shortsword',
+			defense: 15,
+			hit: true,
+			critical: true,
+			damage: { expression: '2d6+3', total: 15 }
+		});
+		expect(attack.explain).toContain('vs AC 15: critical hit');
+		expect(await untilLog(pip, 'attack')).toEqual(attack);
+	});
+
+	it('lets a player build a legal character and play it, and refuses what the rules or seats do not allow', async () => {
+		const srd = (kind: string, slug: string) => `srd-5.2.1:${kind}:${slug}`;
+		const fighter = {
+			name: 'Kestra',
+			color: '#c0392b',
+			species: { id: srd('species', 'goliath'), options: { ancestry: 'stone' }, feat: null },
+			background: { id: srd('background', 'soldier'), increases: { str: 2, con: 1 } },
+			class: {
+				id: srd('class', 'fighter'),
+				skills: ['perception', 'survival'],
+				expertise: [],
+				fightingStyle: srd('feat', 'great-weapon-fighting'),
+				weaponMasteries: [
+					srd('weapon', 'greatsword'),
+					srd('weapon', 'javelin'),
+					srd('weapon', 'longbow')
+				]
+			},
+			abilities: {
+				method: 'standard-array',
+				base: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 }
+			},
+			armor: { worn: srd('armor', 'chain-mail'), shield: false },
+			weapons: [srd('weapon', 'greatsword')]
+		};
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId: pipId } = await pip.expect('welcome');
+		const sid = await connect();
+		sid.send({ type: 'join', roomId: room.id, name: 'Sid', role: 'spectator' });
+		await sid.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const reset = await pip.until('room_reset');
+		expect(reset.room.adventure!.build).toEqual({ rules: 'dnd-5.5e' });
+
+		// The creation page asks what it may offer, and what its choices come to.
+		pip.send({ type: 'character_options' });
+		const offered = await pip.until('character_options');
+		expect(offered.rules).toBe('dnd-5.5e');
+		expect((offered.options.classes as { name: string }[]).map((c) => c.name)).toContain('Fighter');
+		pip.send({ type: 'character_preview', choices: fighter });
+		expect((await pip.until('character_preview')).preview).toMatchObject({
+			ok: true,
+			// d10 + Constitution 2; chain mail 16.
+			summary: { title: 'Goliath Fighter 1 (Soldier)', hp: 12, armorClass: 16, speed: 35 }
+		});
+
+		// What the rules don't allow, and seats that may not build, are refused, and nothing changes.
+		pip.send({
+			type: 'adventure_build',
+			choices: { ...fighter, weapons: [srd('weapon', 'vorpal-sword')] }
+		});
+		expect(await pip.until('error')).toMatchObject({
+			code: 'invalid_message',
+			message: `That character can't be made: no weapon "srd-5.2.1:weapon:vorpal-sword".`
+		});
+		pip.send({
+			type: 'adventure_build',
+			choices: { ...fighter, abilities: { method: 'rolled', base: fighter.abilities.base } }
+		});
+		expect((await pip.until('error')).message).toContain('standard array or point buy');
+		sid.send({ type: 'adventure_build', choices: fighter });
+		expect(await sid.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_build', choices: fighter });
+		expect(await gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// A legal character comes to the table as the player's, for everyone to see.
+		pip.send({ type: 'adventure_build', choices: fighter });
+		const token = await gm.until('token_upserted', (m) => m.token.name === 'Kestra');
+		expect(token.token).toMatchObject({ ownerId: pipId, model: 'warden', color: '#c0392b' });
+		const update = await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.some((c) => c.id === 'pc-1' && c.inPlay)
+		);
+		expect(update.adventure!.characters.find((c) => c.id === 'pc-1')!.card).toMatchObject({
+			title: 'Goliath Fighter 1 (Soldier)',
+			defense: { name: 'Armor Class', value: 16 }
+		});
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+		// It moves as the player's token.
+		pip.send({
+			type: 'token_move',
+			tokenId: token.token.id,
+			to: { x: token.token.pos.x, y: token.token.pos.y - 1 }
+		});
+		expect(await gm.until('token_moved', (m) => m.tokenId === token.token.id)).toBeTruthy();
+		// One character each.
+		pip.send({ type: 'adventure_build', choices: { ...fighter, name: 'Kestra Again' } });
+		expect((await pip.until('error')).message).toBe('You are already playing Kestra.');
+	});
+
+	it('shows every seat the same sheet, and keeps a player’s edits through a reconnect', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { sessionToken } = await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'ember' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Ember');
+
+		// The full sheet on request, the same for the player and the GM.
+		pip.send({ type: 'character_sheet', characterId: 'ember' });
+		const mine = await pip.until('character_sheet');
+		gm.send({ type: 'character_sheet', characterId: 'ember' });
+		const theirs = await gm.until('character_sheet');
+		expect(mine).toEqual(theirs);
+		expect(mine.details).toMatchObject({ choices: { class: 'Wizard', species: 'Elf' } });
+
+		// A spell slot marked and notes written by the player: the GM sees both.
+		pip.send({
+			type: 'adventure_sheet',
+			characterId: 'ember',
+			edit: { kind: 'resource', resource: 'spell-slots-1', spent: 1 }
+		});
+		const marked = await gm.until(
+			'adventure_update',
+			(m) =>
+				!!m.adventure?.characters.some(
+					(c) => c.id === 'ember' && c.resourcesSpent['spell-slots-1'] === 1
+				)
+		);
+		expect(marked.adventure!.characters.find((c) => c.id === 'ember')!.notes).toBe('');
+		pip.send({
+			type: 'adventure_sheet',
+			characterId: 'ember',
+			edit: { kind: 'notes', text: 'Wards first.' }
+		});
+		await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.some((c) => c.id === 'ember' && c.notes === 'Wards first.')
+		);
+		// The GM may not rename a story's own character; nobody else may touch the sheet.
+		gm.send({
+			type: 'adventure_sheet',
+			characterId: 'ember',
+			edit: { kind: 'name', name: 'Blaze' }
+		});
+		expect(await gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// Pip drops and comes back: the edits are still there.
+		pip.ws.close();
+		const again = await connect();
+		again.send({ type: 'resume', roomId: room.id, sessionToken });
+		const back = await again.expect('welcome');
+		const ember = back.room.adventure!.characters.find((c) => c.id === 'ember')!;
+		expect(ember).toMatchObject({
+			resourcesSpent: { 'spell-slots-1': 1 },
+			notes: 'Wards first.',
+			editable: true
+		});
+	});
+
+	it('changes Armor Class with what a character wears, shows what it puts down, and keeps it all through a reconnect', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { sessionToken } = await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		const warden = (m: { adventure?: AdventureView | null }) =>
+			m.adventure?.characters.find((c) => c.id === 'warden');
+
+		// The Shield comes off: the GM sees the Armor Class the rules work out.
+		pip.send({
+			type: 'adventure_gear',
+			characterId: 'warden',
+			change: { kind: 'unequip', item: 'item-2' }
+		});
+		const off = await gm.until('adventure_update', (m) => warden(m)?.card.defense.value === 17);
+		expect(warden(off)!.card.inventory!.find((i) => i.name === 'Shield')!.equipped).toBeNull();
+		// The rules' own data never goes out.
+		expect(warden(off)!.def.sheet).toBeUndefined();
+
+		// The Longsword put down: a pile prop on the Warden's cell, and a pile to pick up.
+		pip.send({
+			type: 'adventure_gear',
+			characterId: 'warden',
+			change: { kind: 'drop', item: 'item-3', quantity: 1 }
+		});
+		const dropped = await gm.until('adventure_update', (m) => !!m.adventure?.piles.length);
+		expect(dropped.adventure!.piles[0].items).toEqual([{ index: 0, name: 'Longsword' }]);
+		expect(warden(dropped)!.def.actions.map((a) => a.id)).toEqual([
+			'unarmed-strike',
+			'second-wind',
+			// What every character can do under the fifth edition rules.
+			'dash',
+			'disengage',
+			'dodge',
+			'help',
+			'first-aid'
+		]);
+
+		// A player can't conjure gear, nor change another's.
+		pip.send({
+			type: 'adventure_gear',
+			characterId: 'warden',
+			change: { kind: 'grant', item: 'srd-5.2.1:weapon:greataxe', quantity: 1 }
+		});
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// Pip drops and comes back: the Warden is as it was left, the Longsword still on the ground.
+		pip.ws.close();
+		const again = await connect();
+		again.send({ type: 'resume', roomId: room.id, sessionToken });
+		const back = await again.expect('welcome');
+		const mine = back.room.adventure!.characters.find((c) => c.id === 'warden')!;
+		expect(mine.card.defense.value).toBe(17);
+		expect(mine.card.inventory!.map((i) => i.name)).toEqual(['Chain Mail', 'Shield']);
+		expect(back.room.adventure!.piles).toHaveLength(1);
+		expect(back.room.props.some((p) => p.assetId === 'gear-pile')).toBe(true);
+	});
+
+	it('lets the GM put a condition on a character, which everyone sees with the rules’ words', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// Only the GM rules; a malformed ruling is no message at all.
+		pip.send({
+			type: 'adventure_effect',
+			op: { kind: 'apply', target: warden.token.id, condition: 'poisoned', rounds: null }
+		});
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({
+			type: 'adventure_effect',
+			op: { kind: 'apply', target: warden.token.id, condition: 'poisoned', rounds: 0 }
+		} as never);
+		expect(await gm.until('error')).toMatchObject({ code: 'invalid_message' });
+
+		gm.send({
+			type: 'adventure_effect',
+			op: { kind: 'apply', target: warden.token.id, condition: 'poisoned', rounds: null }
+		});
+		const seen = await pip.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.find((c) => c.id === 'warden')?.conditions.length
+		);
+		const mark = seen.adventure!.characters.find((c) => c.id === 'warden')!.conditions[0];
+		expect(mark).toMatchObject({
+			id: 'poisoned',
+			name: 'Poisoned',
+			from: 'from the GM',
+			until: 'until the GM removes it'
+		});
+		expect(mark.text).toContain('Disadvantage on attack rolls and ability checks');
+		gm.send({ type: 'adventure_effect', op: { kind: 'remove', effect: mark.effect } });
+		await pip.until(
+			'adventure_update',
+			(m) => m.adventure?.characters.find((c) => c.id === 'warden')?.conditions.length === 0
+		);
+	});
+
+	it('plays a fight from initiative to victory for two players, kept through a save and load', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		const quinn = await connect();
+		quinn.send({ type: 'join', roomId: room.id, name: 'Quinn', role: 'player' });
+		await quinn.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		await quinn.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'veil' });
+		const veil = await pip.until('token_upserted', (m) => m.token.name === 'The Veil');
+		quinn.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await quinn.until('token_upserted', (m) => m.token.name === 'The Warden');
+		gm.send({ type: 'adventure_begin' });
+		await quinn.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// The GM starts the guardians' fight: initiative is rolled on the server, the same for all.
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'encounter_start', encounter: 'guardians' }
+		});
+		const started = await quinn.until('adventure_update', (m) => !!m.adventure?.encounter);
+		const order = started.adventure!.encounter!.order;
+		// The Veil: 20 + Dexterity 3 + Alert 2; the Shade 20 + 2; the Warden and the Guard after.
+		expect(order.map((t) => [t.name, t.initiative])).toEqual([
+			['The Veil', 25],
+			['Cold Shade', 22],
+			['The Warden', 21],
+			['Barrow Guard', 20]
+		]);
+		expect(started.adventure!.characters.find((c) => c.id === 'warden')!.reaction).toBe('ready');
+
+		// Saved mid-fight and loaded again: everyone is back in the same fight.
+		gm.send({ type: 'scene_save', name: 'Cold Hill, mid-fight' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = await pip.until('room_reset');
+		expect(back.room.adventure!.encounter).toMatchObject({ round: 1, current: 0 });
+		expect(back.room.adventure!.encounter!.order).toEqual(order);
+		// The GM sees every foe.
+		const reset = await gm.until('room_reset');
+		const foes = reset.room.adventure!.encounter!.enemies;
+		const at = (name: string) => {
+			const id = foes.find((e) => e.name === name)!.tokenId;
+			return reset.room.tokens.find((t) => t.id === id)!;
+		};
+		const shade = at('Cold Shade');
+		const guard = at('Barrow Guard');
+
+		// The GM sets the scene: each character beside its foe.
+		gm.send({
+			type: 'token_move',
+			tokenId: veil.token.id,
+			to: { x: shade.pos.x, y: shade.pos.y + 1 }
+		});
+		await pip.until('token_moved', (m) => m.tokenId === veil.token.id);
+		gm.send({
+			type: 'token_move',
+			tokenId: warden.token.id,
+			to: { x: guard.pos.x - 1, y: guard.pos.y }
+		});
+		await quinn.until('token_moved', (m) => m.tokenId === warden.token.id);
+
+		// Not the Warden's turn yet.
+		quinn.send({ type: 'adventure_act', actionId: 'longsword', targetId: guard.id });
+		expect(await quinn.until('error')).toMatchObject({ code: 'not_your_turn' });
+
+		// The Veil's shortsword: a critical hit (2d6 + 3 = 15) fells the Shade, for everyone.
+		pip.send({ type: 'adventure_act', actionId: 'shortsword', targetId: shade.id });
+		expect(await untilLog(quinn, 'attack')).toMatchObject({
+			authorName: 'The Veil',
+			critical: true,
+			outcome: 'The Cold Shade falls.'
+		});
+		await pip.until('token_deleted', (m) => m.tokenId === shade.id);
+		pip.send({ type: 'adventure_end_turn' });
+
+		// The Shade is gone from the order: the Warden is up, and its longsword ends the fight.
+		await quinn.until(
+			'adventure_update',
+			(m) => m.adventure?.encounter?.order[m.adventure.encounter.current]?.name === 'The Warden'
+		);
+		quinn.send({ type: 'adventure_act', actionId: 'longsword', targetId: guard.id });
+		const blow = await pip.until(
+			'chat',
+			(m) => m.message.kind === 'attack' && m.message.authorName === 'The Warden'
+		);
+		expect(blow.message).toMatchObject({ outcome: 'The Barrow Guard falls.' });
+		for (const client of [pip, quinn, gm]) {
+			await client.until('adventure_update', (m) => m.adventure?.encounter === null);
+			const won = await client.until(
+				'chat',
+				(m) => 'text' in m.message && m.message.text.startsWith('The guard folds back')
+			);
+			expect(won.message.kind).toBe('narration');
+		}
+	});
+
+	it('lets the GM build an SRD encounter, run it, and pick it up again after a reconnect', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { sessionToken } = await pip.expect('welcome');
+		const quinn = await connect();
+		quinn.send({ type: 'join', roomId: room.id, name: 'Quinn', role: 'player' });
+		await quinn.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		await quinn.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'warden' });
+		const warden = await pip.until('token_upserted', (m) => m.token.name === 'The Warden');
+		quinn.send({ type: 'adventure_claim', characterId: 'saint' });
+		await quinn.until('token_upserted', (m) => m.token.name === 'The Saint');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// Only the GM searches the SRD's monsters.
+		pip.send({ type: 'monster_search', query: 'wolf' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'monster_search', query: 'wolf' });
+		const found = await gm.until('monster_search');
+		const wolf = found.monsters.find((m) => m.name === 'Wolf')!;
+		expect(wolf).toMatchObject({ kind: 'srd-wolf', challenge: '1/4', xp: 50 });
+
+		// Placed for the GM's fight, beside the Warden: it waits, and the GM reads the summary.
+		gm.send({ type: 'token_move', tokenId: warden.token.id, to: { x: 3, y: 10 } });
+		await pip.until('token_moved', (m) => m.tokenId === warden.token.id);
+		const at = { x: 4, y: 10 };
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'spawn', kind: wolf.kind, pos: at, waiting: true }
+		});
+		const placed = await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.director?.bestiary?.summary
+		);
+		expect(placed.adventure!.encounter).toBeNull();
+		// Two level 1 characters: a Low budget of 100 XP, and one Wolf is 50.
+		expect(placed.adventure!.director!.bestiary!.summary).toMatchObject({
+			xp: 50,
+			band: 'Below Low',
+			party: { characters: 2, levels: [1, 1] }
+		});
+
+		// The GM starts it; the Wolf takes its turns by the rules (every die rolls high here).
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'encounter_start', encounter: 'ambush' }
+		});
+		const fight = await pip.until('adventure_update', (m) => !!m.adventure?.encounter);
+		expect(fight.adventure!.encounter!.order.map((t) => t.name)).toEqual(
+			expect.arrayContaining(['The Warden', 'Wolf'])
+		);
+		const bite = await pip.until(
+			'chat',
+			(m) => m.message.kind === 'attack' && m.message.authorName === 'Wolf'
+		);
+		expect(bite.message).toMatchObject({ attack: 'Bite', critical: true });
+
+		// Pip drops and comes back: the same fight, the Wolf in it.
+		pip.ws.close();
+		const again = await connect();
+		again.send({ type: 'resume', roomId: room.id, sessionToken });
+		const back = await again.expect('welcome');
+		const order = back.room.adventure!.encounter!.order;
+		expect(order.map((t) => t.name)).toEqual(expect.arrayContaining(['The Warden', 'Wolf']));
+		// Its critical bite (2d6 + 2 = 14) downed the Warden, whose death save (a 20) brought it back with 1 HP.
+		expect(back.room.adventure!.characters.find((c) => c.id === 'warden')).toMatchObject({
+			hp: 1,
+			downed: false
+		});
+		expect(back.room.log.some((m) => m.kind === 'check' && m.stat === 'Death saving throw')).toBe(
+			true
+		);
+	});
+
+	it('lets the GM bring homebrew to the story: a player builds from it, and a save keeps it', async () => {
+		const srd = (kind: string, slug: string) => `srd-5.2.1:${kind}:${slug}`;
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		const { playerId: pipId } = await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+
+		// Only the GM brings homebrew, and a broken pack is refused with what is wrong.
+		pip.send({ type: 'adventure_pack', op: 'attach', pack: examplePack() });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'adventure_pack', op: 'attach', pack: { ...examplePack(), formatVersion: 9 } });
+		expect((await gm.until('error')).message).toContain('only format version 1 is read');
+		gm.send({ type: 'adventure_pack', op: 'attach', pack: examplePack() });
+		const listed = await pip.until('adventure_update', (m) => !!m.adventure?.packs?.length);
+		const pack = listed.adventure!.packs![0];
+		expect(pack).toMatchObject({ name: 'The Cold Hill Armory', version: '1.0' });
+		expect(
+			(
+				await pip.until(
+					'chat',
+					(m) => m.message.kind === 'system' && m.message.text.includes('homebrew')
+				)
+			).message
+		).toMatchObject({
+			text: 'The GM brings homebrew to the story: The Cold Hill Armory 1.0 (5 things).'
+		});
+
+		// The creator offers it, labelled; a player builds with it.
+		pip.send({ type: 'character_options' });
+		const offered = (await pip.until('character_options')).options as {
+			weapons: { id: string; homebrew?: string }[];
+		};
+		const blade = `${pack.id}:weapon:barrow-blade`;
+		expect(offered.weapons.find((w) => w.id === blade)?.homebrew).toBe('The Cold Hill Armory 1.0');
+		pip.send({
+			type: 'adventure_build',
+			choices: {
+				name: 'Brann',
+				color: '#c0392b',
+				species: { id: srd('species', 'orc'), options: {}, feat: null },
+				background: { id: srd('background', 'soldier'), increases: { str: 2, con: 1 } },
+				class: {
+					id: srd('class', 'fighter'),
+					skills: ['perception', 'survival'],
+					expertise: [],
+					fightingStyle: srd('feat', 'defense'),
+					weaponMasteries: [blade, srd('weapon', 'longsword'), srd('weapon', 'javelin')]
+				},
+				abilities: {
+					method: 'standard-array',
+					base: { str: 15, dex: 14, con: 13, int: 8, wis: 12, cha: 10 }
+				},
+				armor: { worn: `${pack.id}:armor:ringed-hide`, shield: false },
+				weapons: [blade, srd('weapon', 'javelin')]
+			}
+		});
+		const token = await gm.until('token_upserted', (m) => m.token.name === 'Brann');
+		expect(token.token.ownerId).toBe(pipId);
+		const built = await gm.until(
+			'adventure_update',
+			(m) => !!m.adventure?.characters.some((c) => c.id === 'pc-1' && c.inPlay)
+		);
+		const brann = built.adventure!.characters.find((c) => c.id === 'pc-1')!;
+		expect(brann.card).toMatchObject({ defense: { name: 'Armor Class', value: 16 } });
+		expect(brann.def.actions[0].name).toBe('Barrow Blade');
+
+		// In use, it can't be put away; saved and loaded, it is all still there.
+		gm.send({ type: 'adventure_pack', op: 'detach', id: pack.id });
+		expect((await gm.until('error')).message).toBe(
+			'That homebrew is in use: Brann carries or knows something from it.'
+		);
+		gm.send({ type: 'scene_save', name: 'Cold Hill, homebrew' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = await pip.until('room_reset');
+		expect(back.room.adventure!.packs!.map((p) => p.id)).toEqual([pack.id]);
+		expect(back.room.adventure!.characters.find((c) => c.id === 'pc-1')!.def.actions[0].name).toBe(
+			'Barrow Blade'
+		);
+	});
+
+	it('casts a spell by the rules: a slot spent and kept, a bad aim refused', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await pip.until('room_reset');
+		pip.send({ type: 'adventure_claim', characterId: 'saint' });
+		const saint = await pip.until('token_upserted', (m) => m.token.name === 'The Saint');
+		gm.send({ type: 'adventure_begin' });
+		await pip.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// A slot beyond any level is no aim at all.
+		pip.send({
+			type: 'adventure_act',
+			actionId: 'cure-wounds',
+			targetId: saint.token.id,
+			cast: { slot: 12, targets: [], at: null }
+		} as never);
+		expect(await pip.expect('error')).toMatchObject({ code: 'invalid_message' });
+		// Bless needs a fight.
+		pip.send({ type: 'adventure_act', actionId: 'bless', targetId: saint.token.id });
+		expect(await pip.expect('error')).toMatchObject({ code: 'forbidden' });
+
+		// Cure Wounds on herself, with a level 1 slot: 2d8 (16) + Charisma (+3).
+		pip.send({
+			type: 'adventure_act',
+			actionId: 'cure-wounds',
+			targetId: null,
+			cast: { slot: 1, targets: [saint.token.id], at: null }
+		});
+		expect(await untilLog(gm, 'ability')).toMatchObject({
+			ability: 'Cure Wounds',
+			roll: { total: 19 }
+		});
+		const update = await pip.until(
+			'adventure_update',
+			(m) =>
+				m.adventure?.characters.find((c) => c.id === 'saint')?.resourcesSpent['spell-slots-1'] === 1
+		);
+		expect(update.adventure!.characters.find((c) => c.id === 'saint')!.def.actions).toContainEqual(
+			expect.objectContaining({ id: 'bless', kind: 'boon' })
+		);
+	});
+});
+
 describe('token and prop looks over the wire (#202)', () => {
 	it("sends a token's and a prop's look to whoever sees them, never a hidden token's", async () => {
 		const gm = await connect();
@@ -3076,5 +4427,610 @@ describe("the world's look over the wire", () => {
 		gm.send({ type: 'world_set', patch: { time: 780 } });
 		expect((await pip.c.expect('world_update')).world.time).toBe(780);
 		expect(pip.frames.filter((f) => f.includes('"ambient_update"'))).toHaveLength(1);
+	});
+});
+
+describe('validation over the wire (milestone 56)', () => {
+	const file = () => JSON.parse(JSON.stringify(exampleAdventure()));
+
+	it('checks content for anyone, at a table or not, changing nothing', async () => {
+		const visitor = await connect();
+		visitor.send({ type: 'content_validate', kind: 'adventure', file: file() });
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			kind: 'adventure',
+			ok: true,
+			diagnostics: []
+		});
+		const broken = file();
+		broken.chapters.the_mill.next.on = 'nowhere';
+		broken.chapters.the_mill.mood = 'grim';
+		visitor.send({ type: 'content_validate', kind: 'adventure', file: broken });
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			ok: false,
+			diagnostics: [{ code: 'schema.unknown_field', path: 'chapters.the_mill.mood' }]
+		});
+		visitor.send({
+			type: 'content_validate',
+			kind: 'pack',
+			file: { ...examplePack(), formatVersion: 3 }
+		});
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			kind: 'pack',
+			ok: false,
+			diagnostics: [{ code: 'format.newer' }]
+		});
+		visitor.send({
+			type: 'content_validate',
+			kind: 'collection',
+			file: {
+				format: 'thirdfold-collection',
+				formatVersion: 1,
+				title: 'Gone',
+				about: '',
+				adventures: [{ library: 'a'.repeat(32), version: 1 }],
+				packs: [],
+				tables: []
+			}
+		});
+		expect((await visitor.expect('validation')).validation).toMatchObject({
+			ok: false,
+			diagnostics: [{ code: 'dependency.missing', path: 'adventures[0]' }]
+		});
+	});
+
+	it('refuses broken content on publish, start and import with the same diagnostics', async () => {
+		const broken = file();
+		broken.chapters.the_mill.next.on = 'nowhere';
+		const mira = await connect();
+		mira.send({ type: 'library_publish', creator: 'Mira', file: broken });
+		expect(await mira.expect('error')).toMatchObject({
+			code: 'invalid_message',
+			message: expect.stringContaining('no event "nowhere"'),
+			diagnostics: [{ code: 'ref.missing', path: 'chapter the_mill' }]
+		});
+		mira.send({
+			type: 'library_publish',
+			kind: 'pack',
+			creator: 'Mira',
+			file: { ...examplePack(), extra: 1 }
+		});
+		expect(await mira.expect('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'schema.unknown_field' })]
+		});
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		await gm.expect('welcome');
+		gm.send({ type: 'adventure_start', file: broken });
+		expect(await gm.until('error')).toMatchObject({
+			code: 'invalid_message',
+			diagnostics: [{ code: 'ref.missing' }]
+		});
+		gm.send({ type: 'adventure_start', adventureId: 'hollow-bell' });
+		await gm.until('room_reset');
+		gm.send({ type: 'scene_export', name: 'Backup' });
+		const saved = (await gm.until('scene_exported')).file as unknown as {
+			adventure: { state: Record<string, unknown> };
+		};
+		// The server checks a save as a load would, before loading it.
+		gm.send({ type: 'content_validate', kind: 'save', file: saved });
+		expect((await gm.until('validation')).validation).toMatchObject({ kind: 'save', ok: true });
+		saved.adventure.state.chapter = 'nowhere';
+		gm.send({ type: 'content_validate', kind: 'save', file: saved });
+		expect((await gm.until('validation')).validation).toMatchObject({
+			ok: false,
+			diagnostics: [{ code: 'save.invalid', path: 'adventure' }]
+		});
+		gm.send({ type: 'scene_import', file: saved });
+		expect(await gm.until('error')).toMatchObject({
+			code: 'invalid_scene',
+			diagnostics: [{ code: 'save.invalid', path: 'adventure' }]
+		});
+	});
+});
+
+describe('D&D adventure authoring over the wire (milestone 57)', () => {
+	const shrine = () => JSON.parse(JSON.stringify(dndExampleAdventure()));
+
+	it('previews, publishes and plays a creator’s fifth edition adventure, checked again before play', async () => {
+		const mira = await connect();
+		// The builder asks: diagnostics, and what the file comes to under its rules.
+		mira.send({ type: 'content_validate', kind: 'adventure', file: shrine() });
+		const checked = await mira.expect('validation');
+		expect(checked.validation).toMatchObject({ ok: true, diagnostics: [] });
+		expect(checked.preview).toMatchObject({
+			rules: { id: 'dnd-5.5e', version: 1 },
+			party: [{ id: 'brakka', name: 'Brakka' }, { id: 'wren' }, { id: 'ilse' }],
+			openParty: true,
+			monsters: [{ kind: 'srd-skeleton', name: 'Skeleton' }]
+		});
+		expect(checked.preview!.content[0]).toMatchObject({ id: 'srd-5.2.1' });
+		expect(checked.preview!.attribution).toContain('SRD 5.2.1');
+		// Monsters to pick from, outside any table.
+		mira.send({
+			type: 'bestiary_search',
+			rules: { id: 'dnd-5.5e', version: 1 },
+			query: 'skeleton'
+		});
+		const found = await mira.expect('monster_search');
+		expect(found.monsters.map((m) => m.kind)).toContain('srd-skeleton');
+		// A party member the rules refuse is named, not published.
+		const bad = shrine();
+		bad.party.wren.choices.class.expertise = ['athletics', 'stealth'];
+		mira.send({ type: 'library_publish', creator: 'Mira', file: bad });
+		expect(await mira.expect('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'character.invalid', path: 'party.wren' })]
+		});
+		mira.send({ type: 'library_publish', creator: 'Mira', file: shrine() });
+		const pub = await mira.expect('library_published');
+
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', libraryId: pub.adventureId });
+		const started = (await gm.until('room_reset')).room.adventure!;
+		expect(started.rules).toMatchObject({ id: 'dnd-5.5e' });
+		expect(started.characters.map((c) => c.id)).toEqual(['brakka', 'wren', 'ilse']);
+		expect(started.build).toEqual({ rules: 'dnd-5.5e' });
+		pip.send({ type: 'adventure_claim', characterId: 'wren' });
+		await pip.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'wren' && c.playerId !== null)
+		);
+		gm.send({ type: 'adventure_begin' });
+		await gm.until('adventure_update', (m) => m.adventure!.stage === 'playing');
+
+		// Saved and opened again on a new table: the file, its party and Wren's player come back.
+		gm.send({ type: 'scene_save', name: 'Shrine' });
+		const saved = await gm.until('scene_saved');
+		const again = await connect();
+		again.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		const reopened = (await again.expect('welcome')).room.adventure!;
+		expect(reopened.rules).toMatchObject({ id: 'dnd-5.5e' });
+		expect(reopened.chapter).toMatchObject({ id: 'the_shrine' });
+		expect(reopened.characters.find((c) => c.id === 'wren')).toBeTruthy();
+	});
+});
+
+describe('campaigns over the wire (milestone 58)', () => {
+	it('keeps the campaign open at its table across a server restart', async () => {
+		const roomStore = new MemoryRoomStore();
+		const campaignStore = new MemoryCampaignStore();
+		const options = { port: 0, host: '127.0.0.1', roomStore, campaignStore, roomSaveMs: 0 };
+		await server.close();
+		server = await startGameServer(options);
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const welcome = await gm.expect('welcome');
+		gm.send({ type: 'campaign_create', name: 'Kept Over' });
+		const { campaign } = await gm.until('campaign');
+		expect(campaignStore.records.size).toBe(1);
+		await server.close();
+		server = await startGameServer(options);
+		const back = await connect();
+		back.send({ type: 'resume', roomId: welcome.room.id, sessionToken: welcome.sessionToken });
+		await back.expect('welcome');
+		back.send({ type: 'campaign_list' });
+		expect(await back.until('campaigns')).toMatchObject({
+			campaigns: [{ id: campaign!.id, name: 'Kept Over' }],
+			current: { id: campaign!.id }
+		});
+	});
+
+	it('finishes one D&D adventure, returns to the campaign, and begins the next with the same party', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const ana = await connect();
+		ana.send({ type: 'join', roomId: room.id, name: 'Ana', role: 'player' });
+		await ana.expect('welcome');
+		const ben = await connect();
+		ben.send({ type: 'join', roomId: room.id, name: 'Ben', role: 'player' });
+		await ben.expect('welcome');
+
+		// Only the GM keeps campaigns; theirs are kept by their key.
+		ana.send({ type: 'campaign_list' });
+		expect(await ana.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'campaign_list' });
+		expect(await gm.until('campaigns')).toEqual({
+			type: 'campaigns',
+			campaigns: [],
+			current: null
+		});
+		gm.send({ type: 'campaign_create', name: 'The Long Road' });
+		const begun = (await gm.until('campaign')).campaign!;
+		expect(begun).toMatchObject({
+			name: 'The Long Road',
+			rules: { id: 'dnd-5.5e', version: 1 },
+			roster: [],
+			history: []
+		});
+		expect(begun.content[0]).toMatchObject({ id: 'srd-5.2.1' });
+
+		// The Barrow on Cold Hill, for the campaign: Ana builds her own, Ben plays the Warden.
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const barrow = (await gm.until('room_reset')).room.adventure!;
+		expect(barrow.campaign).toEqual({
+			id: begun.id,
+			name: 'The Long Road',
+			members: [],
+			closed: false
+		});
+		expect((await gm.until('campaign')).campaign!.playing).toMatchObject({
+			title: 'The Barrow on Cold Hill'
+		});
+		ana.send({
+			type: 'adventure_build',
+			choices: { ...pregenChoices('wizard'), name: 'Odile' }
+		});
+		await ana.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'pc-1' && c.playerId !== null)
+		);
+		ben.send({ type: 'adventure_claim', characterId: 'warden' });
+		await ben.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'warden' && c.playerId !== null)
+		);
+		gm.send({ type: 'adventure_begin' });
+		await gm.until('adventure_update', (m) => m.adventure!.stage === 'playing');
+		gm.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		gm.send({ type: 'adventure_direct', direction: { op: 'skip' } });
+		await gm.until('adventure_update', (m) => m.adventure!.stage === 'complete');
+
+		// Back to the campaign: a level for both, and both on the roster waiting for the GM.
+		ben.send({ type: 'campaign_close', advance: true });
+		expect(await ben.until('error')).toMatchObject({ code: 'forbidden' });
+		gm.send({ type: 'campaign_close', advance: true });
+		const returned = (await gm.until('campaign')).campaign!;
+		expect(returned.playing).toBeNull();
+		expect(returned.roster).toEqual([
+			expect.objectContaining({
+				id: 'pc-1',
+				name: 'Odile',
+				level: 2,
+				player: 'Ana',
+				status: 'pending'
+			}),
+			expect.objectContaining({
+				id: 'pc-2',
+				name: 'The Warden',
+				level: 2,
+				player: 'Ben',
+				status: 'pending'
+			})
+		]);
+		expect(returned.history).toEqual([
+			expect.objectContaining({
+				title: 'The Barrow on Cold Hill',
+				adventure: { builtIn: 'barrow' },
+				outcome: 'complete'
+			})
+		]);
+		await ana.until('adventure_update', (m) => m.adventure!.campaign?.closed === true);
+		// Only once.
+		gm.send({ type: 'campaign_close', advance: true });
+		expect(await gm.until('error')).toMatchObject({ code: 'forbidden' });
+
+		for (const character of ['pc-1', 'pc-2']) {
+			gm.send({ type: 'campaign_roster', op: { op: 'approve', character } });
+			await gm.until('campaign', (m) =>
+				m.campaign!.roster.some((e) => e.id === character && e.status === 'active')
+			);
+		}
+
+		// The next adventure, a creator's, for the same campaign: the party comes along at level 2.
+		gm.send({ type: 'adventure_start', file: JSON.parse(JSON.stringify(dndExampleAdventure())) });
+		const shrine = (await gm.until('room_reset')).room.adventure!;
+		expect(shrine.campaign!.members).toEqual([
+			{ id: 'pc-1', player: 'Ana' },
+			{ id: 'pc-2', player: 'Ben' }
+		]);
+		expect(shrine.characters.map((c) => c.id)).toEqual(['brakka', 'wren', 'ilse', 'pc-1', 'pc-2']);
+		// Each is kept for its player.
+		ben.send({ type: 'adventure_claim', characterId: 'pc-1' });
+		expect(await ben.until('error')).toMatchObject({ code: 'forbidden' });
+		ana.send({ type: 'adventure_claim', characterId: 'pc-1' });
+		const playing = await ana.until('adventure_update', (m) =>
+			m.adventure!.characters.some((c) => c.id === 'pc-1' && c.playerId !== null)
+		);
+		const odile = playing.adventure!.characters.find((c) => c.id === 'pc-1')!;
+		expect(odile.card).toMatchObject({ level: 2, title: 'Elf Wizard 2 (Sage)' });
+
+		// Saved, and continued at another table: the campaign opens with the story.
+		gm.send({ type: 'scene_save', name: 'Shrine' });
+		const saved = await gm.until('scene_saved');
+		const again = await connect();
+		again.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		const reopened = (await again.expect('welcome')).room.adventure!;
+		expect(reopened.campaign).toMatchObject({ id: begun.id, closed: false });
+		// It is open at the first table too: the new one waits until it is put away there.
+		gm.send({ type: 'campaign_open', campaignId: null });
+		await gm.until('campaign', (m) => m.campaign === null);
+		again.send({ type: 'campaign_open', campaignId: begun.id });
+		expect((await again.until('campaign')).campaign).toMatchObject({ id: begun.id });
+		again.send({ type: 'campaign_list' });
+		expect((await again.until('campaigns')).campaigns).toEqual([
+			expect.objectContaining({ id: begun.id, name: 'The Long Road', characters: 2, adventures: 1 })
+		]);
+	});
+});
+
+describe('licensed content over the wire (milestone 59)', () => {
+	it('keeps a licensed source to the GMs granted it, on its terms, told apart from homebrew', async () => {
+		installSources(path.resolve('content/licensed-example'));
+		const licences = new MemoryLicenceStore();
+		const scenes = new MemorySceneStore();
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			licenceStore: licences,
+			sceneStore: scenes
+		});
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await gm.until('room_reset');
+
+		// Not granted: not listed, and not taken up.
+		gm.send({ type: 'content_sources' });
+		expect((await gm.until('content_sources')).sources).toEqual([]);
+		gm.send({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		expect(await gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			diagnostics: [expect.objectContaining({ code: 'licence.denied' })]
+		});
+		pip.send({ type: 'content_sources' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// The operator grants it to this GM (by their public creator id).
+		const creator = creatorIdOf(keyOwner(gmKey!));
+		const grant = await licences.grant('clockwork-arsenal', creator, { by: 'Operator' });
+		gm.send({ type: 'content_sources' });
+		const [listed] = (await gm.until('content_sources')).sources;
+		expect(listed).toMatchObject({
+			id: 'clockwork-arsenal',
+			publisher: 'Example Press',
+			hypothetical: true,
+			usable: true,
+			terms: { display: 'mechanics', uses: { export: false, reference: false } },
+			counts: { weapon: 1, armor: 1, spell: 1, monster: 1 }
+		});
+		gm.send({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		const attached = await pip.until('adventure_update', (m) => !!m.adventure?.packs?.length);
+		const pack = attached.adventure!.packs![0];
+		expect(pack).toMatchObject({
+			name: 'Clockwork Arsenal',
+			creator: 'Example Press',
+			source: 'licensed',
+			licensed: { source: 'clockwork-arsenal', publisher: 'Example Press' }
+		});
+		expect(pack.id).toMatch(/^lc-/);
+		await pip.until(
+			'chat',
+			(m) =>
+				m.message.kind === 'system' && m.message.text.startsWith('Clockwork Arsenal is a trademark')
+		);
+
+		// The creator offers its gear marked as licensed, not homebrew.
+		pip.send({ type: 'character_options' });
+		const offered = (await pip.until('character_options')).options as {
+			weapons: { id: string; homebrew?: string; licensed?: string }[];
+		};
+		expect(offered.weapons.find((w) => w.id === `${pack.id}:weapon:spring-pike`)).toMatchObject({
+			licensed: 'Clockwork Arsenal 1.0, Example Press'
+		});
+		expect(
+			offered.weapons.find((w) => w.id === `${pack.id}:weapon:spring-pike`)?.homebrew
+		).toBeUndefined();
+
+		// Its monsters are found as licensed, by the GM.
+		gm.send({ type: 'monster_search', query: 'brass hound' });
+		const found = (await gm.until('monster_search')).monsters;
+		expect(found).toContainEqual(
+			expect.objectContaining({
+				kind: `${pack.id}-brass-hound`,
+				source: 'Licensed: Clockwork Arsenal 1.0'
+			})
+		);
+
+		// Its terms keep the story on this server: no export, and a save holds only a reference.
+		gm.send({ type: 'scene_export', name: 'Arsenal' });
+		expect(await gm.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.terms' })]
+		});
+		gm.send({ type: 'scene_save', name: 'Arsenal' });
+		const saved = await gm.until('scene_saved');
+		const file = (await scenes.load(saved.sceneId)) as {
+			adventure: { state: { packs: unknown[]; credits: string[] } };
+		};
+		expect(file.adventure.state.packs).toEqual([
+			{
+				owner: creator,
+				licensed: {
+					source: 'clockwork-arsenal',
+					version: '1.0',
+					sha256: installedSource('clockwork-arsenal')!.sha256,
+					grant: grant.id
+				}
+			}
+		]);
+		expect(file.adventure.state.credits).toContain(
+			installedSource('clockwork-arsenal')!.file.attribution
+		);
+		expect(JSON.stringify(file)).not.toContain('wound spring');
+
+		// Published content may not name it.
+		const naming = JSON.parse(JSON.stringify(dndExampleAdventure()));
+		naming.monsters.push(`${pack.id}-brass-hound`);
+		gm.send({ type: 'library_publish', creator: 'Gemma', gmKey, file: naming });
+		expect(await gm.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.terms' })]
+		});
+
+		// Revoked: the save no longer opens for this GM, and the validator says why.
+		await licences.revoke(grant.id);
+		const again = await connect();
+		again.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		expect(await again.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.denied' })]
+		});
+		gm.send({ type: 'content_validate', kind: 'save', file, gmKey });
+		expect((await gm.until('validation')).validation.diagnostics).toEqual([
+			expect.objectContaining({ code: 'licence.denied' })
+		]);
+
+		// Granted again, then withdrawn under "finish": a story under way goes on, nothing new takes it up.
+		await licences.grant('clockwork-arsenal', creator, { by: 'Operator' });
+		await licences.setStatus('clockwork-arsenal', 'withdrawn', 'The publisher asked.');
+		const onward = await connect();
+		onward.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		const reopened = (await onward.expect('welcome')).room.adventure!;
+		expect(reopened.packs!.map((p) => p.source)).toEqual(['licensed']);
+		onward.send({ type: 'content_sources' });
+		expect((await onward.until('content_sources')).sources).toEqual([]);
+		onward.send({ type: 'adventure_pack', op: 'detach', id: pack.id });
+		await onward.until('adventure_update', (m) => !m.adventure?.packs?.length);
+		onward.send({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		expect(await onward.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.withdrawn' })]
+		});
+	});
+});
+
+describe('a second rules system over the wire (milestone 60)', () => {
+	beforeEach(async () => {
+		// Every die rolls its highest face: every Fate die shows +.
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 0,
+			mechanismDelayScale: 0,
+			patrolMs: 0
+		});
+	});
+
+	const untilLog = <K extends ChatMessage['kind']>(client: TestClient, kind: K) =>
+		client
+			.until('chat', (m) => m.message.kind === kind)
+			.then((m) => m.message as Extract<ChatMessage, { kind: K }>);
+
+	it('runs a Fate Condensed story for two players, with elective turns, through a save, beside a D&D one', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		expect(room.adventures.map((a) => a.id)).toContain('drowned-lantern');
+		const ana = await connect();
+		ana.send({ type: 'join', roomId: room.id, name: 'Ana', role: 'player' });
+		await ana.expect('welcome');
+		const ben = await connect();
+		ben.send({ type: 'join', roomId: room.id, name: 'Ben', role: 'player' });
+		await ben.expect('welcome');
+
+		gm.send({ type: 'adventure_start', adventureId: 'drowned-lantern' });
+		const story = (await ana.until('room_reset')).room.adventure!;
+		expect(story.rules).toMatchObject({ id: 'fate-condensed', version: 1, name: 'Fate Condensed' });
+		expect(story.rules.attribution).toContain('Evil Hat Productions');
+		const card = story.characters.find((c) => c.id === 'ida')!;
+		expect(card.card).toMatchObject({ defense: { name: 'Defend (Athletics)', value: 3 } });
+		expect(card.def.stats).toBeUndefined();
+
+		ana.send({ type: 'adventure_claim', characterId: 'ida' });
+		const ida = await ana.until('token_upserted', (m) => m.token.name === 'Ida Brann');
+		ben.send({ type: 'adventure_claim', characterId: 'wren' });
+		const wren = await ben.until('token_upserted', (m) => m.token.name === 'Wren Holloway');
+		gm.send({ type: 'adventure_begin' });
+		await ana.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// An overcome: + + + + on Wren's Fair (+2) Investigate against Fair (+2).
+		ben.send({ type: 'token_move', tokenId: wren.token.id, to: { x: 7, y: 8 } });
+		ben.send({ type: 'adventure_interact', targetId: 'lantern', verb: 'examine' });
+		for (const client of [ben, gm])
+			expect(await untilLog(client, 'check')).toMatchObject({
+				stat: 'Investigate',
+				roll: { expression: '4dF+2', total: 6 },
+				dc: 2,
+				success: true
+			});
+		await ana.until('adventure_update', (m) => m.adventure?.chapter.id === 'the_chapel');
+
+		// The GM starts the fight: no initiative roll, the party first, Ida (Good Notice) before Wren.
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'encounter_start', encounter: 'wights' }
+		});
+		const fight = (await ana.until('adventure_update', (m) => !!m.adventure?.encounter)).adventure!
+			.encounter!;
+		expect(fight.elective).toBe(true);
+		expect(fight.order[fight.current]).toMatchObject({ characterId: 'ida' });
+		const [w1, w2] = fight.enemies.map((e) => e.tokenId);
+		gm.send({ type: 'token_move', tokenId: ida.token.id, to: { x: 10, y: 6 } });
+		await ana.until('token_moved', (m) => m.tokenId === ida.token.id);
+
+		// Ida's Great (+4) Fight, + + + +, against the wight's Average (+1) Athletics, + + + +: a 3-shift hit.
+		ana.send({ type: 'adventure_act', actionId: 'fight', targetId: w1 });
+		const attack = await untilLog(gm, 'attack');
+		expect(attack).toMatchObject({
+			authorName: 'Ida Brann',
+			toHit: { expression: '4dF+4', total: 8 },
+			defense: 5,
+			hit: true,
+			damage: { total: 3 }
+		});
+		expect(await untilLog(ana, 'attack')).toEqual(attack);
+
+		// Her turn ends; she picks who goes next, and nobody else may.
+		ana.send({ type: 'adventure_end_turn' });
+		const picking = (await ana.until('adventure_update', (m) => !!m.adventure?.encounter?.handoff))
+			.adventure!.encounter!;
+		expect(picking.handoff).toMatchObject({ by: 'ida', mine: true, fresh: false });
+		const benSees = (await ben.until('adventure_update', (m) => !!m.adventure?.encounter?.handoff))
+			.adventure!.encounter!.handoff!;
+		expect(benSees.mine).toBe(false);
+		const wightAt = picking.order.findIndex((t) => t.tokenId === w2);
+		expect(picking.handoff!.options).toContain(wightAt);
+		ben.send({ type: 'adventure_handoff', index: wightAt });
+		expect(await ben.until('error')).toMatchObject({ code: 'not_your_turn' });
+		ben.send({ type: 'adventure_act', actionId: 'shoot', targetId: w2 });
+		expect(await ben.until('error')).toMatchObject({
+			code: 'not_your_turn',
+			message: 'Ida Brann is picking who goes next.'
+		});
+
+		// She hands over to the wight; it takes its turn, then its side hands to Wren, the last to go.
+		ana.send({ type: 'adventure_handoff', index: wightAt });
+		const wrensTurn = (
+			await ben.until(
+				'adventure_update',
+				(m) =>
+					m.adventure?.encounter?.order[m.adventure.encounter.current]?.characterId === 'wren' &&
+					!m.adventure.encounter.handoff
+			)
+		).adventure!;
+		expect(wrensTurn.encounter!.round).toBe(1);
+
+		// Saved and loaded: the story keeps its rules.
+		gm.send({ type: 'scene_save', name: 'Fen' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = (await ana.until('room_reset')).room.adventure!;
+		expect(back.rules.id).toBe('fate-condensed');
+		expect(back.encounter?.elective).toBe(true);
+
+		// The same server runs a fifth edition story at another table.
+		const other = await connect();
+		other.send({ type: 'create', name: 'Dana' });
+		await other.expect('welcome');
+		other.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const barrow = (await other.until('room_reset')).room.adventure!;
+		expect(barrow.rules.id).toBe('dnd-5.5e');
+		expect(barrow.characters[0].card.saves.length).toBe(6);
 	});
 });

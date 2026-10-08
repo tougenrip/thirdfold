@@ -7,12 +7,14 @@
 import { createHash } from 'node:crypto';
 import {
 	ADVENTURE_FILE_MAX_BYTES,
-	loadAdventureFile,
+	diagnoseAdventureFile,
 	parseAdventureFile,
 	type AdventureFile
 } from '../../src/lib/adventure/file';
+import { diagnostic, type Diagnostic } from '../../src/lib/validation/diagnostics';
 import type { AdventureDef } from './define';
 import { addCustom, customFile } from './registry';
+import { loadServerAdventure } from './rules-content';
 
 /** Custom adventures' ids: `custom-` and a hash of the checked file. */
 export const CUSTOM_ID = /^custom-[0-9a-f]{32}$/;
@@ -21,7 +23,8 @@ export function customId(file: AdventureFile): string {
 	return `custom-${createHash('sha256').update(JSON.stringify(file)).digest('hex').slice(0, 32)}`;
 }
 
-export type CustomLoad = { ok: true; adventure: AdventureDef } | { ok: false; error: string };
+export type CustomLoad =
+	{ ok: true; adventure: AdventureDef } | { ok: false; error: string; diagnostics: Diagnostic[] };
 
 /**
  * Checks an adventure file (its shape, its references, its size) and makes
@@ -30,16 +33,32 @@ export type CustomLoad = { ok: true; adventure: AdventureDef } | { ok: false; er
  */
 export function loadCustomAdventure(raw: unknown, expectId?: string): CustomLoad {
 	if (JSON.stringify(raw).length > ADVENTURE_FILE_MAX_BYTES) {
-		return { ok: false, error: 'That adventure is too large.' };
+		return {
+			ok: false,
+			error: 'That adventure is too large.',
+			diagnostics: [
+				diagnostic('schema.value', 'file', `at most ${ADVENTURE_FILE_MAX_BYTES / 1024} KB`)
+			]
+		};
 	}
 	const parsed = parseAdventureFile(raw);
-	if (!parsed.ok) return { ok: false, error: `That is not a valid adventure: ${parsed.error}.` };
+	if (!parsed.ok)
+		return {
+			ok: false,
+			error: `That is not a valid adventure: ${parsed.error}.`,
+			diagnostics: diagnoseAdventureFile(raw, 'custom-check').diagnostics
+		};
 	const id = customId(parsed.file);
 	if (expectId !== undefined && id !== expectId) {
-		return { ok: false, error: 'The saved adventure does not match its content.' };
+		return {
+			ok: false,
+			error: 'The saved adventure does not match its content.',
+			diagnostics: [diagnostic('save.invalid', 'content', 'does not match its id')]
+		};
 	}
-	const loaded = loadAdventureFile(parsed.file, id);
-	if (!loaded.ok) return { ok: false, error: loaded.error };
+	// Checked in full, with what its rules make of it (its party, its monsters).
+	const loaded = loadServerAdventure(parsed.file, id);
+	if (!loaded.ok) return { ok: false, error: loaded.error, diagnostics: loaded.diagnostics };
 	addCustom(loaded.adventure, loaded.file);
 	return { ok: true, adventure: loaded.adventure };
 }

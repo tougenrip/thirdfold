@@ -1,0 +1,98 @@
+{
+	"format": "thirdfold-homebrew",
+	"formatVersion": 1,
+	"name": "Clockwork Arsenal",
+	"version": "1.0",
+	"rules": { "id": "dnd-5.5e", "version": 1 },
+	"base": {
+		"source": "srd-5.2.1",
+		"version": "5.2.1",
+		"sha256": "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87"
+	},
+	"creator": "Example Press",
+	"about": "Wound-spring weapons, plated coats, a sparking cantrip and a brass hound, made up to show how licensed content is used.",
+	"license": "Example Press Partner Licence 1.0 (hypothetical)",
+	"records": [
+		{
+			"kind": "weapon",
+			"slug": "spring-pike",
+			"name": "Spring Pike",
+			"text": "A pike whose head is driven forward by a wound spring in its haft.",
+			"category": "martial",
+			"type": "melee",
+			"damage": "1d10",
+			"damageType": "Piercing",
+			"properties": ["Heavy", "Reach", "Two-Handed"],
+			"mastery": "Push",
+			"weight": 12,
+			"cost": 40
+		},
+		{
+			"kind": "armor",
+			"slug": "gearplate",
+			"name": "Gearplate",
+			"text": "Overlapping plates on a frame of small cogs that turn as the wearer moves.",
+			"category": "medium",
+			"base": 14,
+			"stealthDisadvantage": true,
+			"weight": 30,
+			"cost": 120
+		},
+		{
+			"kind": "spell",
+			"slug": "coil-spark",
+			"name": "Coil Spark",
+			"text": "A spark jumps from a coil of wire in your hand to a creature within range. Make a ranged spell attack. On a hit, the target takes 1d10 Lightning damage. The damage grows at levels 5, 11 and 17.",
+			"level": 0,
+			"school": "Evocation",
+			"classes": ["Sorcerer", "Wizard"],
+			"castingTime": "Action",
+			"range": "60 feet",
+			"duration": "Instantaneous",
+			"concentration": false,
+			"components": { "verbal": true, "somatic": true, "material": "a coil of copper wire" },
+			"mechanics": {
+				"resolve": "attack",
+				"attack": "ranged",
+				"damage": { "dice": "1d10", "type": "Lightning" },
+				"targets": { "count": 1, "perSlot": 0, "side": "enemy" },
+				"cantrip": true
+			}
+		},
+		{
+			"kind": "monster",
+			"slug": "brass-hound",
+			"name": "Brass Hound",
+			"text": "A dog of riveted brass, wound by a key between its shoulders, that runs down whatever its keeper points at.",
+			"size": "Medium",
+			"type": "Construct",
+			"alignment": "Unaligned",
+			"armorClass": 15,
+			"hitPoints": 22,
+			"speed": 40,
+			"abilities": { "str": 14, "dex": 14, "con": 14, "int": 3, "wis": 12, "cha": 1 },
+			"challenge": "1",
+			"darkvision": 60,
+			"immune": ["poison"],
+			"conditionImmune": ["poisoned", "frightened"],
+			"traits": [
+				{
+					"name": "Wound Down",
+					"text": "When the hound starts its turn with no one in sight, it settles and stops until it hears a sound."
+				}
+			],
+			"attacks": [
+				{
+					"name": "Bite",
+					"kind": "melee",
+					"toHit": 4,
+					"reach": 5,
+					"damage": "1d8+2",
+					"damageType": "Piercing",
+					"prone": true
+				}
+			],
+			"multiattack": { "attack": "Bite", "times": 2 }
+		}
+	]
+}

@@ -9,6 +9,10 @@ import { restoreRoom, serializeRoom, SupabaseRoomStore } from './room-store';
 import { RoomManager } from './rooms';
 import { SupabaseLibraryStore } from './supabase-library-store';
 import { libraryStoreSuite } from './library-store.suite';
+import { SupabaseCampaignStore } from './campaign-store';
+import { campaignStoreSuite, sampleCampaign } from './campaign-store.suite';
+import { SupabaseLicenceStore } from './licensed/licence-store';
+import { licenceStoreSuite } from './licensed/licence-store.suite';
 
 const scene = serializeScene('Crypt', {
 	grid: DEFAULT_GRID,
@@ -219,13 +223,39 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLibraryStore (live Sup
 			about: '',
 			file: {}
 		});
+		await store.grant(id, owner, {
+			target: { kind: 'creator', id: '1'.repeat(16) },
+			role: 'member'
+		});
 		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
-		for (const table of ['library_adventures', 'library_versions', 'library_ratings']) {
+		for (const table of [
+			'library_adventures',
+			'library_versions',
+			'library_ratings',
+			'library_grants'
+		]) {
 			const read = await browser.from(table).select('*');
 			expect(read.data ?? []).toEqual([]);
 		}
 		const write = await browser.from('library_adventures').update({ plays: 999 }).eq('id', id);
 		expect(write.error).not.toBeNull();
+		// Nobody grants themselves anything from a browser.
+		const forged = await browser.from('library_grants').insert({
+			id: '2'.repeat(32),
+			adventure_id: id,
+			target_kind: 'creator',
+			target_id: '3'.repeat(16),
+			role: 'collaborator',
+			granted_by: '0'.repeat(16),
+			granted_at: new Date().toISOString()
+		});
+		expect(forged.error).not.toBeNull();
+		const unrestrict = await browser
+			.from('library_adventures')
+			.update({ restricted: false })
+			.eq('id', id);
+		expect(unrestrict.error).not.toBeNull();
+		expect((await store.get(id))?.grants).toHaveLength(1);
 		const play = await browser.rpc('library_play', { target: id });
 		expect(play.error).not.toBeNull();
 		const rate = await browser.rpc('library_rate', { target: id, who: owner, score: 5 });
@@ -241,6 +271,44 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLibraryStore (live Sup
 		});
 		expect(publish.error).not.toBeNull();
 		expect((await store.get(id))?.listing).toMatchObject({ plays: 0, version: 1, rating: null });
+		await store.remove(id, owner);
+	});
+
+	it('rejects grants that are not grants at the database too', async () => {
+		const store = SupabaseLibraryStore.connect(url!, serviceKey!);
+		const owner = 'e'.repeat(64);
+		const { id } = await store.publish({
+			owner,
+			creatorName: 'M',
+			title: 'G',
+			about: '',
+			file: {}
+		});
+		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+		const row = {
+			adventure_id: id,
+			target_kind: 'creator',
+			target_id: '3'.repeat(16),
+			role: 'member',
+			granted_by: '0'.repeat(16),
+			granted_at: new Date().toISOString()
+		};
+		const bad = [
+			{ ...row, id: 'x' },
+			{ ...row, id: '4'.repeat(32), target_id: 'nope' },
+			// A table is never a collaborator, and its grant always runs out.
+			{ ...row, id: '5'.repeat(32), target_kind: 'room', target_id: 'ABC234', expires_at: null },
+			{
+				...row,
+				id: '6'.repeat(32),
+				target_kind: 'collection',
+				target_id: '7'.repeat(32),
+				role: 'collaborator'
+			},
+			{ ...row, id: '8'.repeat(32), role: 'owner' }
+		];
+		for (const b of bad)
+			expect((await admin.from('library_grants').insert(b)).error).not.toBeNull();
 		await store.remove(id, owner);
 	});
 
@@ -261,5 +329,42 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLibraryStore (live Sup
 			score: 9
 		});
 		expect(stars.error).not.toBeNull();
+	});
+});
+
+describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseCampaignStore (live Supabase)', () => {
+	campaignStoreSuite(() => SupabaseCampaignStore.connect(url!, serviceKey!));
+
+	it('keeps campaigns away from the browser key', async () => {
+		const store = SupabaseCampaignStore.connect(url!, serviceKey!);
+		const record = sampleCampaign('f'.repeat(64), 'Hidden');
+		await store.save(record);
+		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
+		const read = await browser.from('campaigns').select('data');
+		expect(read.data ?? []).toEqual([]);
+		const write = await browser
+			.from('campaigns')
+			.insert({ id: '1'.repeat(32), owner: 'f'.repeat(64), data: {} });
+		expect(write.error).not.toBeNull();
+		const admin = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+		const bad = await admin
+			.from('campaigns')
+			.insert({ id: '../x', owner: 'f'.repeat(64), data: {} });
+		expect(bad.error).not.toBeNull();
+		await store.remove(record.id, record.owner);
+	});
+});
+
+describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLicenceStore (live Supabase)', () => {
+	licenceStoreSuite(() => SupabaseLicenceStore.connect(url!, serviceKey!));
+
+	it('keeps licence grants away from the browser key', async () => {
+		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
+		expect((await browser.from('licensed_grants').select('*')).data ?? []).toEqual([]);
+		expect((await browser.from('licensed_status').select('*')).data ?? []).toEqual([]);
+		const write = await browser
+			.from('licensed_status')
+			.insert({ source: 'sneaky', status: 'active', note: '' });
+		expect(write.error).not.toBeNull();
 	});
 });

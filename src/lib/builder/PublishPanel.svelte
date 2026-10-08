@@ -1,8 +1,16 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { LIBRARY_LIMITS, normalizeCreatorName, type MyAdventure } from '$lib/game/library';
+	import {
+		LIBRARY_LIMITS,
+		normalizeCreatorName,
+		type MyAdventure,
+		type SharedListing
+	} from '$lib/game/library';
 	import type { LibraryOp } from '$lib/game/protocol';
-	import { listMine, manageAdventure, publishAdventure } from '$lib/net/library';
+	import { libraryHome, manageAdventure, publishAdventure } from '$lib/net/library';
+	import { diagnosticsOf } from '$lib/net/ask';
+	import Diagnostics from '$lib/ui/Diagnostics.svelte';
+	import type { Diagnostic } from '$lib/validation/diagnostics';
 	import { loadCreatorName, loadGmKey, saveCreatorName } from '$lib/prefs';
 	import { describePlays, describeRating } from '$lib/ui/rating';
 	import { lastPlayed } from '$lib/ui/when';
@@ -36,24 +44,33 @@
 	let gmKey = $state(loadGmKey());
 	let creator = $state(loadCreatorName());
 	let mine = $state<MyAdventure[] | null>(null);
+	/** Adventures other creators made this one a collaborator on: theirs to add versions to too. */
+	let collaborating = $state<SharedListing[]>([]);
 	/** '' publishes a new adventure; else the id of the one this is a new version of. */
 	let target = $state('');
 	let busy = $state(false);
 	let message = $state<string | null>(null);
 	let error = $state<string | null>(null);
+	/** What the server found in content it refused to publish. */
+	let found = $state<Diagnostic[]>([]);
 
 	$effect(() => {
 		const key = gmKey;
 		if (!key) return void (mine = []);
-		listMine(key).then(
-			(list) => {
-				mine = list;
+		libraryHome(key).then(
+			(home) => {
+				show(home);
 				const last = lastPublished();
-				if (last && list.some((a) => a.id === last)) target = last;
+				if (last && [...mine!, ...collaborating].some((a) => a.id === last)) target = last;
 			},
 			(err: Error) => (error = err.message)
 		);
 	});
+
+	function show(home: { mine: MyAdventure[]; shared: SharedListing[] }) {
+		mine = home.mine.filter((a) => a.kind === 'adventure');
+		collaborating = home.shared.filter((a) => a.kind === 'adventure' && a.role === 'collaborator');
+	}
 
 	async function publish() {
 		const name = normalizeCreatorName(creator);
@@ -61,6 +78,7 @@
 		if (!ready) return (error = 'Fix the problems first (see Check).');
 		busy = true;
 		error = message = null;
+		found = [];
 		saveCreatorName(name);
 		try {
 			const done = await publishAdventure({
@@ -80,9 +98,10 @@
 				done.version === 1
 					? `Published “${title}”. Anyone can find it in the library now.`
 					: `Published version ${done.version} of “${title}”. New games get it; games under way keep theirs.`;
-			mine = await listMine(done.gmKey);
+			show(await libraryHome(done.gmKey));
 		} catch (err) {
 			error = (err as Error).message;
+			found = diagnosticsOf(err);
 		} finally {
 			busy = false;
 		}
@@ -95,7 +114,7 @@
 		}
 		error = message = null;
 		try {
-			mine = await manageAdventure(gmKey, a.id, op);
+			mine = await manageAdventure(gmKey, a.id, op, 'adventure');
 			if (op === 'remove' && target === a.id) target = '';
 		} catch (err) {
 			error = (err as Error).message;
@@ -128,6 +147,11 @@
 				{#each mine ?? [] as a (a.id)}
 					<option value={a.id}>as version {a.version + 1} of “{a.title}”</option>
 				{/each}
+				{#each collaborating as a (a.id)}
+					<option value={a.id}
+						>as version {a.version + 1} of {a.creator.name}’s “{a.title}” (you collaborate)</option
+					>
+				{/each}
 			</select>
 		</label>
 		<button class="primary" type="button" disabled={busy || !ready} onclick={publish}>
@@ -137,6 +161,7 @@
 	{#if !ready}<p class="muted">Fix the problems in Check to publish it.</p>{/if}
 	{#if message}<p class="ok" role="status">{message}</p>{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<Diagnostics diagnostics={found} />
 
 	<h3>Your adventures</h3>
 	{#if mine === null}
@@ -152,7 +177,11 @@
 						<span class="muted">
 							version {a.version} · {lastPlayed(a.publishedAt)} · {describeRating(a.rating)} · {describePlays(
 								a.plays
-							)}{a.listed ? '' : ' · not in the library'}
+							)}{a.access === 'private'
+								? ' · not in the library'
+								: a.access === 'restricted'
+									? ' · shared with chosen GMs'
+									: ''}
 						</span>
 					</span>
 					<span class="actions">
@@ -172,7 +201,8 @@
 		</ul>
 		<p class="muted">
 			<a href={resolve(`/library?creator=${mine[0].creator.id}`)}>Your page in the library</a>
-			· Adventures taken out of the library can still be run by you.
+			· Adventures taken out of the library can still be run by you. Restrict one, or share it with chosen
+			GMs, under “Your homebrew and collections” in the library.
 		</p>
 	{/if}
 	{#if !gmKey}

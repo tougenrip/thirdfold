@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AdventureView } from '$lib/adventure/adventure';
+	import type { AdventureView, MonsterListing } from '$lib/adventure/adventure';
 	import { parseDice } from '$lib/game/dice';
 	import { lightKindName, type Ambient, type Light } from '$lib/game/lights';
 	import type { WorldLook } from '$lib/game/world';
@@ -25,9 +25,12 @@
 		tool: BuildTool;
 		/** The enemy kind the GM is placing, if any. */
 		spawning: string | null;
+		/** The latest monster search's results, under rules with a bestiary. */
+		monsters?: MonsterListing[] | null;
 		send(action: RoomAction): boolean;
 		onTool(tool: BuildTool): void;
-		onSpawn(kind: string | null): void;
+		/** Place an enemy: `hold` keeps it for the GM's own fight; `name` names a monster not yet in the story. */
+		onSpawn(kind: string | null, hold?: boolean, name?: string | null): void;
 		onSelectToken(tokenId: string): void;
 		/** Selects a light for the light inspector. */
 		onEditLight(lightId: string): void;
@@ -46,6 +49,7 @@
 		fogShared,
 		tool,
 		spawning,
+		monsters = null,
 		send,
 		onTool,
 		onSpawn,
@@ -63,6 +67,34 @@
 	let encounterId = $state('');
 	let enemyKind = $state('');
 	let dice = $state('1d20');
+	let monsterQuery = $state('');
+	/** Placed monsters wait for the GM's fight instead of spotting the party. */
+	let hold = $state(true);
+	const bestiary = $derived(director?.bestiary ?? null);
+	const summary = $derived(bestiary?.summary ?? null);
+	const gmFight = $derived(director?.encounters.find((e) => e.id === 'ambush'));
+	function searchMonsters(event: SubmitEvent) {
+		event.preventDefault();
+		send({ type: 'monster_search', query: monsterQuery.trim() });
+	}
+	let bearer = $state('');
+	let conditionId = $state('');
+	/** Rounds of the bearer's own turns, or empty for until removed. */
+	let rounds = $state('');
+	/** Every condition held at the table, with whom it is on. */
+	const held = $derived([
+		...adventure.characters.flatMap((c) => c.conditions.map((m) => ({ ...m, on: c.def.name }))),
+		...(encounter?.enemies ?? []).flatMap((e) => e.conditions.map((m) => ({ ...m, on: e.name })))
+	]);
+	function putCondition() {
+		const n = rounds.trim() === '' ? null : Number(rounds);
+		if (n !== null && (!Number.isInteger(n) || n < 1 || n > 100))
+			return onError('Rounds: a whole number from 1 to 100, or empty for until removed.');
+		send({
+			type: 'adventure_effect',
+			op: { kind: 'apply', target: bearer, condition: conditionId, rounds: n }
+		});
+	}
 
 	const VIEW_TOOLS: { tool: BuildTool; label: string }[] = [
 		{ tool: 'reveal', label: 'Reveal area' },
@@ -79,6 +111,10 @@
 		if (!fights.some((e) => e.id === encounterId)) encounterId = fights[0]?.id ?? '';
 		const kinds = director?.enemies ?? [];
 		if (!kinds.some((e) => e.kind === enemyKind)) enemyKind = kinds[0]?.kind ?? '';
+		const bearers = director?.bearers ?? [];
+		if (!bearers.some((b) => b.tokenId === bearer)) bearer = bearers[0]?.tokenId ?? '';
+		const conditions = director?.conditions ?? [];
+		if (!conditions.some((c) => c.id === conditionId)) conditionId = conditions[0]?.id ?? '';
 	});
 
 	const direct = (direction: Direction) => send({ type: 'adventure_direct', direction });
@@ -200,6 +236,89 @@
 		{/if}
 	</div>
 
+	{#if bestiary}
+		<div class="section">
+			<h3 class="section-title">Monsters</h3>
+			<form class="row pick" onsubmit={searchMonsters} role="search">
+				<label>
+					<span class="visually-hidden">Find a monster</span>
+					<input
+						type="search"
+						maxlength="40"
+						placeholder="Name, type or challenge"
+						bind:value={monsterQuery}
+					/>
+				</label>
+				<button type="submit">Find</button>
+			</form>
+			<label class="check">
+				<input type="checkbox" bind:checked={hold} />
+				Hold them for my fight (they spot nobody until it starts)
+			</label>
+			{#if monsters}
+				{#if monsters.length === 0}
+					<p class="note">No monster the table plays matches that.</p>
+				{:else}
+					<ul class="list monsters">
+						{#each monsters as m (m.kind)}
+							<li>
+								<details>
+									<summary>
+										<span>{m.name}</span>
+										<span class="muted num">CR {m.challenge} · {m.xp} XP</span>
+									</summary>
+									<p class="note">
+										{m.type} · AC {m.armorClass} · {m.hitPoints} HP
+									</p>
+									<ul class="lines">
+										{#each m.attacks as a (a)}<li>{a}</li>{/each}
+									</ul>
+									{#if m.notPlayed.length}
+										<p class="note">Not played yet: {m.notPlayed.join(', ')}</p>
+									{/if}
+									<p class="note source">{m.source}</p>
+								</details>
+								<button
+									type="button"
+									class="small"
+									aria-pressed={spawning === m.kind}
+									onclick={() => onSpawn(spawning === m.kind ? null : m.kind, hold, m.name)}
+								>
+									{spawning === m.kind ? 'Cancel' : 'Place'}
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{/if}
+			{#if summary}
+				<div class="summary" aria-label="How the fight looks">
+					<p class="num">
+						<strong>{summary.band}</strong> · {summary.xp} XP for {summary.party.characters}
+						{summary.party.characters === 1 ? 'character' : 'characters'}
+					</p>
+					<p class="note num">
+						{summary.monsters.map((m) => `${m.count} × ${m.name} (${m.xp} XP)`).join(', ')}
+					</p>
+					<p class="note num">
+						Budgets: {summary.budgets.map((b) => `${b.name} ${b.xp}`).join(' · ')}
+					</p>
+					<ul class="lines">
+						{#each summary.notes as n (n)}<li class="note">{n}</li>{/each}
+					</ul>
+					{#if !encounter && gmFight}
+						<button
+							type="button"
+							onclick={() => direct({ op: 'encounter_start', encounter: gmFight.id })}
+						>
+							Start my fight
+						</button>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	{#if director.people.length}
 		<div class="section">
 			<h3 class="section-title">People here</h3>
@@ -213,6 +332,55 @@
 					</li>
 				{/each}
 			</ul>
+		</div>
+	{/if}
+
+	{#if director.conditions.length}
+		<div class="section">
+			<h3 class="section-title">Conditions</h3>
+			<div class="row pick">
+				<label>
+					<span class="visually-hidden">Who</span>
+					<select bind:value={bearer} disabled={director.bearers.length === 0}>
+						{#each director.bearers as b (b.tokenId)}
+							<option value={b.tokenId}>{b.name}</option>
+						{/each}
+					</select>
+				</label>
+				<label>
+					<span class="visually-hidden">Condition</span>
+					<select bind:value={conditionId}>
+						{#each director.conditions as c (c.id)}
+							<option value={c.id}>{c.name}</option>
+						{/each}
+					</select>
+				</label>
+			</div>
+			<div class="row pick">
+				<label>
+					<span class="note">Rounds (empty: until removed)</span>
+					<input type="number" min="1" max="100" bind:value={rounds} />
+				</label>
+				<button type="button" disabled={!bearer} onclick={putCondition}>Apply</button>
+			</div>
+			{#if held.length}
+				<ul class="list">
+					{#each held as m (m.effect + m.id)}
+						<li>
+							<span title={m.until}>{m.on}: {m.name}{m.level ? ` ${m.level}` : ''}</span>
+							<span class="muted">{m.from}</span>
+							<button
+								type="button"
+								class="small danger"
+								onclick={() =>
+									send({ type: 'adventure_effect', op: { kind: 'remove', effect: m.effect } })}
+							>
+								End
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 		</div>
 	{/if}
 
@@ -422,6 +590,50 @@
 
 	summary {
 		cursor: pointer;
+		font-size: var(--fs-xs);
+	}
+	.monsters li {
+		align-items: start;
+	}
+
+	.monsters li > button {
+		flex: none;
+	}
+
+	.monsters details {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.monsters summary {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--sp-4);
+		cursor: pointer;
+	}
+
+	.lines {
+		margin: var(--sp-2) 0;
+		padding-left: var(--sp-8);
+		font-size: var(--fs-xs);
+	}
+
+	.source {
+		font-style: italic;
+	}
+
+	.summary {
+		display: grid;
+		gap: var(--sp-2);
+		padding: var(--sp-4);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-sm);
+	}
+
+	.check {
+		display: flex;
+		gap: var(--sp-2);
+		align-items: center;
 		font-size: var(--fs-xs);
 	}
 </style>

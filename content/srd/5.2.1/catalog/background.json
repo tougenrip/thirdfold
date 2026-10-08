@@ -1,0 +1,126 @@
+[
+	{
+		"id": "srd-5.2.1:background:acolyte",
+		"kind": "background",
+		"name": "Acolyte",
+		"data": {
+			"abilities": [
+				"Intelligence",
+				"Wisdom",
+				"Charisma"
+			],
+			"feat": "Magic Initiate (Cleric)",
+			"skills": [
+				"Insight",
+				"Religion"
+			],
+			"tool": "Calligrapher’s Supplies",
+			"equipment": "Choose A or B: (A) Calligrapher’s Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 GP; or (B) 50 GP"
+		},
+		"text": "Ability Scores: Intelligence, Wisdom, Charisma\n\nFeat: Magic Initiate (Cleric) (see “Feats”)\n\nSkill Proficiencies: Insight and Religion\n\nTool Proficiency: Calligrapher’s Supplies\n\nEquipment: Choose A or B: (A) Calligrapher’s Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 GP; or (B) 50 GP",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Character Origins",
+				"Character Backgrounds",
+				"Acolyte"
+			],
+			"pages": [
+				83
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:background:criminal",
+		"kind": "background",
+		"name": "Criminal",
+		"data": {
+			"abilities": [
+				"Dexterity",
+				"Constitution",
+				"Intelligence"
+			],
+			"feat": "Alert",
+			"skills": [
+				"Sleight of Hand",
+				"Stealth"
+			],
+			"tool": "Thieves’ Tools",
+			"equipment": "Choose A or B: (A) 2 Daggers, Thieves’ Tools, Crowbar, 2 Pouches, Traveler’s Clothes, 16 GP; or (B) 50 GP"
+		},
+		"text": "Ability Scores: Dexterity, Constitution, Intelligence\n\nFeat: Alert (see “Feats”)\n\nSkill Proficiencies: Sleight of Hand and Stealth\n\nTool Proficiency: Thieves’ Tools\n\nEquipment: Choose A or B: (A) 2 Daggers, Thieves’ Tools, Crowbar, 2 Pouches, Traveler’s Clothes, 16 GP; or (B) 50 GP",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Character Origins",
+				"Character Backgrounds",
+				"Criminal"
+			],
+			"pages": [
+				83
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:background:sage",
+		"kind": "background",
+		"name": "Sage",
+		"data": {
+			"abilities": [
+				"Constitution",
+				"Intelligence",
+				"Wisdom"
+			],
+			"feat": "Magic Initiate (Wizard)",
+			"skills": [
+				"Arcana",
+				"History"
+			],
+			"tool": "Calligrapher’s Supplies",
+			"equipment": "Choose A or B: (A) Quarterstaff, Calligrapher’s Supplies, Book (history), Parchment (8 sheets), Robe, 8 GP; or (B) 50 GP"
+		},
+		"text": "Ability Scores: Constitution, Intelligence, Wisdom\n\nFeat: Magic Initiate (Wizard) (see “Feats”)\n\nSkill Proficiencies: Arcana and History\n\nTool Proficiency: Calligrapher’s Supplies\n\nEquipment: Choose A or B: (A) Quarterstaff, Calligrapher’s Supplies, Book (history), Parchment (8 sheets), Robe, 8 GP; or (B) 50 GP",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Character Origins",
+				"Character Backgrounds",
+				"Sage"
+			],
+			"pages": [
+				83
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:background:soldier",
+		"kind": "background",
+		"name": "Soldier",
+		"data": {
+			"abilities": [
+				"Strength",
+				"Dexterity",
+				"Constitution"
+			],
+			"feat": "Savage Attacker",
+			"skills": [
+				"Athletics",
+				"Intimidation"
+			],
+			"tool": "Choose one kind of Gaming Set (see “Equipment”)",
+			"equipment": "Choose A or B: (A) Spear, Shortbow, 20 Arrows, Gaming Set (same as above), Healer’s Kit, Quiver, Traveler’s Clothes, 14 GP; or (B) 50 GP"
+		},
+		"text": "Ability Scores: Strength, Dexterity, Constitution\n\nFeat: Savage Attacker (see “Feats”)\n\nSkill Proficiencies: Athletics and Intimidation\n\nTool Proficiency: Choose one kind of Gaming Set (see “Equipment”)\n\nEquipment: Choose A or B: (A) Spear, Shortbow, 20 Arrows, Gaming Set (same as above), Healer’s Kit, Quiver, Traveler’s Clothes, 14 GP; or (B) 50 GP",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Character Origins",
+				"Character Backgrounds",
+				"Soldier"
+			],
+			"pages": [
+				83
+			]
+		}
+	}
+]

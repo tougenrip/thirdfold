@@ -3,10 +3,11 @@
 // "x,y", lists written with commas). Pure, so it is tested without a page.
 
 import { exampleAdventure } from '$lib/adventure/example';
-import type { AdventureFile } from '$lib/adventure/file';
+import type { AdventureFile, PlainJson } from '$lib/adventure/file';
 import type { Effect, Rule, When } from '$lib/adventure/define';
 import { blankScene, type SceneFile } from '$lib/game/scene-file';
 import type { GridPos } from '$lib/game/grid';
+import { CHARACTER_IDS } from '$lib/adventure/characters';
 
 const STORAGE_KEY = 'thirdfold:builder';
 
@@ -191,7 +192,8 @@ export function idsOf(file: AdventureFile) {
 		objects: [...file.objects.map((o) => o.id), ...Object.keys(file.npcs)],
 		decisions: Object.keys(file.decisions),
 		encounters: Object.keys(file.encounters),
-		enemies: Object.keys(file.enemies),
+		// The file's own enemies, and monsters from its rules' bestiary.
+		enemies: [...Object.keys(file.enemies), ...(file.monsters ?? [])],
 		lights: sceneIds(file, (s) => s.lights),
 		props: sceneIds(file, (s) => s.props)
 	};
@@ -204,3 +206,52 @@ function sceneIds(file: AdventureFile, of: (s: SceneFile) => { id: string }[] | 
 }
 
 export type Ids = ReturnType<typeof idsOf>;
+
+/** The fifth edition rules (SRD 5.2.1), as an adventure file names them. */
+export const DND_RULES = { id: 'dnd-5.5e', version: 1 } as const;
+
+/** Fate Condensed (milestone 60), as an adventure file names it. */
+export const FATE_RULES = { id: 'fate-condensed', version: 1 } as const;
+
+/** The rules a draft may play by. */
+export type RulesChoice = 'classic' | 'dnd' | 'fate';
+
+/** Which rules a draft plays by. */
+export function rulesChoiceOf(draft: Draft): RulesChoice {
+	return draft.rules?.id === DND_RULES.id
+		? 'dnd'
+		: draft.rules?.id === FATE_RULES.id
+			? 'fate'
+			: 'classic';
+}
+
+/**
+ * The draft under other rules (milestones 57 and 60): the fifth edition's
+ * and Fate's take a party their rules build (the classic characters have
+ * no sheet for them), and a party built under other rules goes; only the
+ * fifth edition has an open party and a bestiary. The classic rules' take
+ * the classic characters back, and lose a party, open party and monsters
+ * they can't play.
+ */
+export function withRules(draft: Draft, to: RulesChoice): Draft {
+	if (to === rulesChoiceOf(draft)) return draft;
+	const { rules: _r, party: _p, openParty: _o, monsters: _m, characters: _c, ...rest } = draft;
+	void [_r, _p, _o, _m, _c];
+	if (to === 'dnd')
+		return { ...rest, characters: [], rules: { ...DND_RULES }, openParty: draft.openParty ?? true };
+	if (to === 'fate') return { ...rest, characters: [], rules: { ...FATE_RULES } };
+	return { ...rest, characters: [...CHARACTER_IDS] };
+}
+
+/** A ready-made character's choices added to the party under an id of its own (its name's, made unique). */
+export function addPregen(draft: Draft, choices: { name: string } | null): string | null {
+	if (!choices) return null;
+	const party = (draft.party ??= {});
+	// A character's id: lowercase letters, digits and hyphens (the rules' own rule for ids).
+	const taken = new Set([...Object.keys(party), ...draft.characters]);
+	const base = idFrom(choices.name).replace(/_/g, '-').slice(0, 28) || 'hero';
+	let id = base;
+	for (let n = 2; taken.has(id) || /^pc-\d+$/.test(id); n++) id = `${base}-${n}`;
+	party[id] = { choices: choices as unknown as PlainJson };
+	return id;
+}

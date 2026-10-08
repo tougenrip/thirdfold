@@ -230,6 +230,65 @@ describe('library messages', () => {
 		expect(
 			parseClientMessage({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'sell' })
 		).toBeNull();
+		expect(
+			parseClientMessage({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'restrict' })
+		).toEqual({ type: 'library_manage', gmKey: key, adventureId: lib, op: 'restrict' });
+		// Opening one with a key: what was shared with its holder.
+		expect(parseClientMessage({ type: 'library_story', id: lib, gmKey: key })).toEqual({
+			type: 'library_story',
+			id: lib,
+			gmKey: key
+		});
+		expect(parseClientMessage({ type: 'library_story', id: lib, gmKey: 'x' })).toBeNull();
+		expect(parseClientMessage({ type: 'library_story', id: lib, version: 2 })).toEqual({
+			type: 'library_story',
+			id: lib,
+			version: 2
+		});
+		// Moving a story to another version (milestone 55).
+		expect(
+			parseClientMessage({ type: 'adventure_upgrade', op: 'review', what: 'adventure', x: 1 })
+		).toEqual({ type: 'adventure_upgrade', op: 'review', what: 'adventure' });
+		expect(
+			parseClientMessage({ type: 'adventure_upgrade', op: 'apply', what: 'collection', version: 3 })
+		).toEqual({ type: 'adventure_upgrade', op: 'apply', what: 'collection', version: 3 });
+		for (const bad of [
+			{ op: 'force', what: 'adventure' },
+			{ op: 'apply', what: 'rules' },
+			{ op: 'apply', what: 'adventure', version: 0 }
+		])
+			expect(parseClientMessage({ type: 'adventure_upgrade', ...bad })).toBeNull();
+		// Grants: checked whole; a collaborator is a person, a table's grant runs out.
+		const grant = { target: { kind: 'creator', id: 'e'.repeat(16) }, role: 'member', x: 1 };
+		expect(
+			parseClientMessage({ type: 'library_grant', gmKey: key, adventureId: lib, grant })
+		).toBeNull();
+		const plain = { target: grant.target, role: grant.role };
+		expect(
+			parseClientMessage({ type: 'library_grant', gmKey: key, adventureId: lib, grant: plain })
+		).toEqual({ type: 'library_grant', gmKey: key, adventureId: lib, grant: plain });
+		expect(
+			parseClientMessage({
+				type: 'library_grant',
+				gmKey: key,
+				adventureId: lib,
+				grant: { target: { kind: 'room', id: 'ABC234' }, role: 'member' }
+			})
+		).toMatchObject({ grant: { hours: 24 } });
+		expect(
+			parseClientMessage({
+				type: 'library_grant',
+				gmKey: key,
+				adventureId: lib,
+				grant: { target: { kind: 'room', id: 'ABC234' }, role: 'collaborator' }
+			})
+		).toBeNull();
+		expect(
+			parseClientMessage({ type: 'library_revoke', gmKey: key, adventureId: lib, grantId: lib })
+		).toEqual({ type: 'library_revoke', gmKey: key, adventureId: lib, grantId: lib });
+		expect(
+			parseClientMessage({ type: 'library_revoke', gmKey: key, adventureId: lib, grantId: '1' })
+		).toBeNull();
 		expect(parseClientMessage({ type: 'games_list' })).toEqual({ type: 'games_list' });
 		expect(parseClientMessage({ type: 'room_listing', listed: true })).toEqual({
 			type: 'room_listing',
@@ -564,5 +623,139 @@ describe('light looks (#201)', () => {
 		expect(parseClientMessage(create)).toEqual(create);
 		expect(parseClientMessage({ ...create, kind: 'laser' })).toBeNull();
 		expect(parseClientMessage({ ...create, kind: null })).toBeNull();
+	});
+});
+
+describe('validation (milestone 56)', () => {
+	it('parses a request to check content, and only well-formed ones', () => {
+		const ask = { type: 'content_validate', kind: 'pack', file: { format: 'x' } };
+		expect(parseClientMessage({ ...ask, gmKey: token, extra: 1 })).toEqual({
+			...ask,
+			gmKey: token
+		});
+		expect(parseClientMessage({ ...ask, collection: 'c'.repeat(32) })).toMatchObject({
+			collection: 'c'.repeat(32)
+		});
+		expect(parseClientMessage({ ...ask, kind: 'spell' })).toBeNull();
+		expect(parseClientMessage({ ...ask, file: 'text' })).toBeNull();
+		expect(parseClientMessage({ ...ask, gmKey: 'short' })).toBeNull();
+		expect(parseClientMessage({ ...ask, collection: '../x' })).toBeNull();
+	});
+
+	it('reads a validation, and errors with or without diagnostics', () => {
+		const validation = {
+			kind: 'pack',
+			validator: { id: 'thirdfold-homebrew', version: 1, format: 1 },
+			ok: true,
+			diagnostics: []
+		};
+		expect(parseServerMessage({ type: 'validation', validation })).not.toBeNull();
+		expect(parseServerMessage({ type: 'validation', validation: { ok: true } })).toBeNull();
+		const error = { type: 'error', code: 'invalid_message', message: 'No.' };
+		expect(parseServerMessage(error)).not.toBeNull();
+		expect(parseServerMessage({ ...error, diagnostics: [] })).not.toBeNull();
+		expect(parseServerMessage({ ...error, diagnostics: 'many' })).toBeNull();
+	});
+});
+
+describe('authoring (milestone 57)', () => {
+	it('parses a bestiary search by rules, outside a table, and only well-formed ones', () => {
+		const ask = { type: 'bestiary_search', rules: { id: 'dnd-5.5e', version: 1 }, query: 'wolf' };
+		expect(parseClientMessage({ ...ask, extra: 1 })).toEqual(ask);
+		expect(parseClientMessage({ ...ask, rules: { id: 'DnD', version: 1 } })).toBeNull();
+		expect(parseClientMessage({ ...ask, rules: { id: 'dnd-5.5e', version: 0 } })).toBeNull();
+		expect(parseClientMessage({ ...ask, query: 'x'.repeat(500) })).toBeNull();
+	});
+});
+
+describe('campaign messages (milestone 58)', () => {
+	const id = 'c'.repeat(32);
+	it('reads the GM’s campaign actions, and refuses anything else', () => {
+		expect(parseClientMessage({ type: 'campaign_list' })).toEqual({ type: 'campaign_list' });
+		expect(parseClientMessage({ type: 'campaign_create', name: 'The Long Road' })).toEqual({
+			type: 'campaign_create',
+			name: 'The Long Road'
+		});
+		expect(parseClientMessage({ type: 'campaign_create', name: 7 })).toBeNull();
+		expect(parseClientMessage({ type: 'campaign_open', campaignId: id })).toEqual({
+			type: 'campaign_open',
+			campaignId: id
+		});
+		expect(parseClientMessage({ type: 'campaign_open', campaignId: null })).toEqual({
+			type: 'campaign_open',
+			campaignId: null
+		});
+		expect(parseClientMessage({ type: 'campaign_open', campaignId: '../x' })).toBeNull();
+		expect(parseClientMessage({ type: 'campaign_delete', campaignId: null })).toBeNull();
+		expect(parseClientMessage({ type: 'campaign_close', advance: true })).toEqual({
+			type: 'campaign_close',
+			advance: true
+		});
+		expect(parseClientMessage({ type: 'campaign_close', advance: 'yes' })).toBeNull();
+	});
+
+	it('reads roster changes field by field', () => {
+		const roster = (op: unknown) => parseClientMessage({ type: 'campaign_roster', op });
+		expect(roster({ op: 'approve', character: 'pc-2' })).toEqual({
+			type: 'campaign_roster',
+			op: { op: 'approve', character: 'pc-2' }
+		});
+		expect(roster({ op: 'assign', character: 'pc-2', player: '  Ana ' })).toEqual({
+			type: 'campaign_roster',
+			op: { op: 'assign', character: 'pc-2', player: 'Ana' }
+		});
+		expect(roster({ op: 'assign', character: 'pc-2', player: null })).toMatchObject({
+			op: { player: null }
+		});
+		expect(roster({ op: 'approve', character: 'warden' })).toBeNull();
+		expect(roster({ op: 'approve', character: 'pc-2', extra: 1 })).toBeNull();
+		expect(roster({ op: 'promote', character: 'pc-2' })).toBeNull();
+		expect(roster({ op: 'assign', character: 'pc-2' })).toBeNull();
+	});
+
+	it('checks the campaign replies the browser reads', () => {
+		expect(parseServerMessage({ type: 'campaign', campaign: null })).toMatchObject({
+			type: 'campaign'
+		});
+		expect(parseServerMessage({ type: 'campaigns', campaigns: [], current: null })).toMatchObject({
+			type: 'campaigns'
+		});
+		expect(parseServerMessage({ type: 'campaigns', campaigns: {}, current: null })).toBeNull();
+	});
+});
+
+describe('licensed content messages (milestone 59)', () => {
+	it('reads a GM taking up an installed licensed source by its id, and asking which they may use', () => {
+		expect(
+			parseClientMessage({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' })
+		).toEqual({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		expect(
+			parseClientMessage({ type: 'adventure_pack', op: 'licensed', source: '../x' })
+		).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_pack', op: 'licensed', pack: {} })).toBeNull();
+		expect(parseClientMessage({ type: 'content_sources' })).toEqual({ type: 'content_sources' });
+		// A licensed pack is put away like homebrew, by its lc- id.
+		expect(
+			parseClientMessage({ type: 'adventure_pack', op: 'detach', id: 'lc-0123456789abcdef' })
+		).toMatchObject({ op: 'detach' });
+		expect(parseServerMessage({ type: 'content_sources', sources: [] })).toMatchObject({
+			type: 'content_sources'
+		});
+	});
+});
+
+describe('elective turns (milestone 60)', () => {
+	it('reads a hand-off by place in the order, and nothing else', () => {
+		expect(parseClientMessage({ type: 'adventure_handoff', index: 2 })).toEqual({
+			type: 'adventure_handoff',
+			index: 2
+		});
+		for (const index of [-1, 1.5, '2', 64, null])
+			expect(parseClientMessage({ type: 'adventure_handoff', index })).toBeNull();
+	});
+
+	it('still reads the messages that carry nothing', () => {
+		for (const type of ['adventure_begin', 'adventure_release', 'adventure_end_turn'])
+			expect(parseClientMessage({ type })).toEqual({ type });
 	});
 });

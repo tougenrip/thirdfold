@@ -47,6 +47,8 @@ export interface LiveRoom {
 	/** Whose saves the table's are (a GM key's hash), and its autosave slot. */
 	gmOwner?: string;
 	autosaveId?: string;
+	/** The campaign open at the table (milestone 58), read again from its store on a restart. */
+	campaignId?: string;
 }
 
 export interface RoomStore {
@@ -78,7 +80,8 @@ export function serializeRoom(room: Room, now = new Date()): LiveRoom {
 		listed: room.listed,
 		pausedForGm: room.pausedForGm === true,
 		...(room.gmOwner ? { gmOwner: room.gmOwner } : {}),
-		...(room.autosaveId ? { autosaveId: room.autosaveId } : {})
+		...(room.autosaveId ? { autosaveId: room.autosaveId } : {}),
+		...(room.campaign ? { campaignId: room.campaign.id } : {})
 	};
 }
 

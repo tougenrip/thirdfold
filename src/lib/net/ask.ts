@@ -5,6 +5,22 @@
 import { GAME_SERVER_URL } from '$lib/api';
 import type { ClientMessage, ServerMessage } from '$lib/game/protocol';
 import { parseServerMessage } from '$lib/game/server-message';
+import { isDiagnostic, type Diagnostic } from '$lib/validation/diagnostics';
+
+/** A refusal, with what the server found in the content it refused (milestone 56). */
+export class AskError extends Error {
+	constructor(
+		message: string,
+		readonly diagnostics: Diagnostic[] = []
+	) {
+		super(message);
+	}
+}
+
+/** What a refusal found, when it was one of content. */
+export function diagnosticsOf(err: unknown): Diagnostic[] {
+	return err instanceof AskError ? err.diagnostics : [];
+}
 
 export function ask<T extends ServerMessage['type']>(
 	message: ClientMessage,
@@ -40,7 +56,8 @@ export function ask<T extends ServerMessage['type']>(
 			}
 			const msg = parseServerMessage(data);
 			if (msg?.type === answer) done(() => resolve(msg as Extract<ServerMessage, { type: T }>));
-			else if (msg?.type === 'error') done(() => reject(new Error(msg.message)));
+			else if (msg?.type === 'error')
+				done(() => reject(new AskError(msg.message, (msg.diagnostics ?? []).filter(isDiagnostic))));
 		};
 		ws.onclose = () => done(() => reject(new Error('Cannot reach the game server.')));
 	});

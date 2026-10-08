@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { asset, resolve } from '$app/paths';
-	import { canReach, inActionRange } from '$lib/adventure/adventure';
-	import { actionOf, CHARACTERS, type CharacterId } from '$lib/adventure/characters';
+	import { areaCells, canReach, inActionRange } from '$lib/adventure/adventure';
+	import { actionOf, type CharacterId } from '$lib/adventure/characters';
 	import type { ChatMessage } from '$lib/game/chat';
 	import { formatBreakdown } from '$lib/game/dice';
 	import { gridDistance, type GridPos } from '$lib/game/grid';
@@ -43,7 +43,6 @@
 	import ActionBar from './ActionBar.svelte';
 	import AudioControls from './AudioControls.svelte';
 	import AdventurePanel from './AdventurePanel.svelte';
-	import DirectorPanel from './DirectorPanel.svelte';
 	import Decision from './Decision.svelte';
 	import BuildPanel, { type BuildTool, type LightDraft, type PropDraft } from './BuildPanel.svelte';
 	import CharacterSelect from './CharacterSelect.svelte';
@@ -61,10 +60,8 @@
 		type TutorialProgress
 	} from './tutorial';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
-	import SectionEnd from './SectionEnd.svelte';
 	import PropInspector from './PropInspector.svelte';
 	import ChatPanel from './ChatPanel.svelte';
-	import ScenePanel from './ScenePanel.svelte';
 	import TokenPanel, { type TokenDraft } from './TokenPanel.svelte';
 	import GraphicsControls from './GraphicsControls.svelte';
 	import { gridModeOf } from './grid';
@@ -156,6 +153,10 @@
 	let placing = $state<TokenDraft | null>(null);
 	/** GM: the kind of enemy the next click on the table brings on. */
 	let spawning = $state<string | null>(null);
+	/** What is being placed is held for the GM's own fight (it spots nobody until the GM starts it). */
+	let spawnHold = $state(false);
+	/** Its name, for a monster not yet in the story. */
+	let spawnName = $state<string | null>(null);
 	let hover = $state<Pick | null>(null);
 	/** First corner of the wall being drawn. */
 	let wallStart = $state<GridPos | null>(null);
@@ -196,7 +197,11 @@
 	let dismissedEnd = $state<string | null>(null);
 	/** An action of my character waiting for a target. */
 	let targeting = $state<string | null>(null);
+	/** The slot level a spell being aimed is cast with (the action bar's choice); null for the lowest. */
+	let castSlot = $state<number | null>(null);
 	let sheetOpen = $state(false);
+	/** Another party member's sheet, opened from the party list (the GM's, or a player's look). */
+	let sheetFor = $state<string | null>(null);
 	/** The character just taken, to introduce. */
 	let introFor = $state<CharacterId | null>(null);
 	/** My character as last seen; undefined until the room has loaded. */
@@ -269,6 +274,15 @@
 	/** The GM's seat has no connection right now. */
 	const gmAway = $derived(!!room?.players.some((p) => p.role === 'gm' && !p.connected));
 	const adventure = $derived(room?.adventure ?? null);
+	/** The others in play, whom a character may hand things to. */
+	function partyFor(id: string): { id: string; name: string }[] {
+		return (adventure?.characters ?? [])
+			.filter((c) => c.inPlay && c.id !== id && !c.dead)
+			.map((c) => ({ id: c.id, name: c.def.name }));
+	}
+	const sheetShown = $derived(
+		(sheetFor && adventure?.characters.find((c) => c.id === sheetFor && c.inPlay)) || null
+	);
 	const myCharacter = $derived(
 		(me && adventure?.characters.find((c) => c.inPlay && c.playerId === me.id)) || null
 	);
@@ -475,7 +489,15 @@
 
 	type AdventureTarget =
 		| { kind: 'interact'; id: string; verb: string; name: string; inReach: boolean }
-		| { kind: 'act'; actionId: string; id: string; name: string; inReach: boolean };
+		| {
+				kind: 'act';
+				actionId: string;
+				id: string | null;
+				name: string;
+				inReach: boolean;
+				/** A spell: its slot, and the cell an area is aimed at. */
+				cast?: { slot: number | null; at: GridPos | null };
+		  };
 
 	/**
 	 * What clicking a pick would make my character do, if anything: the action
@@ -485,15 +507,33 @@
 	function adventureTarget(pick: Pick | null): AdventureTarget | null {
 		if (!pick || !room || !adventure || !myCharacter || !myCharacterToken || isGm) return null;
 		if (myCharacter.downed || myCharacter.dead) return null;
-		const def = CHARACTERS[myCharacter.id];
+		const def = myCharacter.def;
 		const token = pick.tokenId ? room.tokens.find((t) => t.id === pick.tokenId) : undefined;
 		const enemy = token && adventure.encounter?.enemies.find((e) => e.tokenId === token.id);
 		const ally = token && adventure.characters.find((c) => c.tokenId === token.id && !c.dead);
 		const aimed = targeting ? actionOf(def, targeting) : undefined;
+		// An area spell is aimed at a cell: whatever stands there, or nothing.
+		if (aimed?.cast?.area && pick.cell) {
+			return {
+				kind: 'act',
+				actionId: aimed.id,
+				id: null,
+				name: aimed.name,
+				inReach: true,
+				cast: { slot: castSlot, at: pick.cell }
+			};
+		}
 		if (aimed && token && (aimed.target === 'enemy' ? enemy : ally)) {
 			const name = `${aimed.name} on ${enemy ? `the ${token.name}` : token.name}`;
 			const inReach = inActionRange(blocked, myCharacterToken.pos, token.pos, aimed);
-			return { kind: 'act', actionId: aimed.id, id: token.id, name, inReach };
+			return {
+				kind: 'act',
+				actionId: aimed.id,
+				id: token.id,
+				name,
+				inReach,
+				...(aimed.cast ? { cast: { slot: castSlot, at: null } } : {})
+			};
 		}
 		if (token && enemy) {
 			const basic = def.actions[0];
@@ -523,7 +563,7 @@
 		};
 		if (entry.kind === 'attack') {
 			if (!entry.hit) add(entry.targetId, 'Miss', FLOAT_COLOURS.miss);
-			else add(entry.targetId, `-${entry.damage?.total ?? 0}`, FLOAT_COLOURS.damage);
+			else add(entry.targetId, `-${entry.taken ?? entry.damage?.total ?? 0}`, FLOAT_COLOURS.damage);
 			if (entry.effect) add(entry.targetId, entry.effect, FLOAT_COLOURS.effect);
 		} else if (entry.kind === 'ability') {
 			if (entry.amount !== null && entry.amount !== 0) {
@@ -594,7 +634,7 @@
 	const hint = $derived.by(() => {
 		if (placing) return `Click an empty cell to place ${placing.name}. Esc to cancel.`;
 		if (spawning) {
-			const name = adventure?.director?.enemies.find((e) => e.kind === spawning)?.name;
+			const name = spawnName ?? adventure?.director?.enemies.find((e) => e.kind === spawning)?.name;
 			return `Click an empty cell to bring on ${name ?? 'the enemy'}. Esc to stop.`;
 		}
 		if (tool === 'wall') {
@@ -697,7 +737,9 @@
 	$effect(() => {
 		const err = conn.actionError;
 		if (err) {
-			showToast(err.message);
+			// A refusal of content says how much more was found than its first problem.
+			const more = (err.diagnostics ?? []).filter((d) => d.severity === 'error').length - 1;
+			showToast(more > 0 ? `${err.message} (and ${more} more)` : err.message);
 			play([{ kind: 'ui', sound: 'error' }]);
 		}
 	});
@@ -911,7 +953,12 @@
 			if (tokenAt(room.tokens, pick.cell)) return showToast('That cell is taken.');
 			act({
 				type: 'adventure_direct',
-				direction: { op: 'spawn', kind: spawning, pos: pick.cell }
+				direction: {
+					op: 'spawn',
+					kind: spawning,
+					pos: pick.cell,
+					...(spawnHold ? { waiting: true } : {})
+				}
 			});
 			return;
 		}
@@ -1048,7 +1095,14 @@
 			}
 			act(
 				target.kind === 'act'
-					? { type: 'adventure_act', actionId: target.actionId, targetId: target.id }
+					? {
+							type: 'adventure_act',
+							actionId: target.actionId,
+							targetId: target.id,
+							...(target.cast
+								? { cast: { slot: target.cast.slot, targets: [], at: target.cast.at } }
+								: {})
+						}
 					: { type: 'adventure_interact', targetId: target.id, verb: target.verb }
 			);
 			targeting = null;
@@ -1213,6 +1267,18 @@
 			learned('inspect');
 		}
 	});
+	/** Where an area spell being aimed would land, under the pointer. */
+	const spellArea = $derived.by((): PreviewItem[] => {
+		const aimed = targeting && myCharacter ? actionOf(myCharacter.def, targeting) : undefined;
+		const area = aimed?.cast?.area;
+		if (!area || !hoverCell || !myCharacterToken || !room) return [];
+		return areaCells(myCharacterToken.pos, hoverCell, area, room.grid).map((at) => ({
+			kind: 'area',
+			from: at,
+			to: at,
+			tone: 'invalid'
+		}));
+	});
 	/** Onboarding's glow on the table, while the player is being shown to it. */
 	/** The light being edited, marked on its cell. */
 	const lightMark = $derived<PreviewItem[]>(
@@ -1301,7 +1367,9 @@
 				{hoveredPropId}
 				fogMode={isGm ? 'gm' : 'player'}
 				{hoveredObjectId}
-				preview={beacon.length || selectedLight ? [...preview, ...beacon, ...lightMark] : preview}
+				preview={beacon.length || selectedLight || spellArea.length
+					? [...preview, ...beacon, ...lightMark, ...spellArea]
+					: preview}
 				selectedId={selected?.id ?? null}
 				ownTokens={room.tokens.filter((t) => me && t.ownerId === me.id).map((t) => t.id)}
 				hoveredTokenId={hover?.tokenId ?? null}
@@ -1378,40 +1446,46 @@
 			</div>
 			{#if isGm && adventure && adventure.stage !== 'choosing'}
 				<div class="panel">
-					<DirectorPanel
-						{adventure}
-						paused={room.paused}
-						ambient={room.ambient}
-						world={room.world}
-						environment={room.environment}
-						lights={room.lights}
-						fogEnabled={room.fog.enabled}
-						fogShared={room.fog.shared}
-						{tool}
-						{spawning}
-						send={act}
-						onTool={setTool}
-						onSpawn={(kind) => {
-							setTool('select');
-							spawning = kind;
-						}}
-						onSelectToken={(id) => {
-							setTool('select');
-							selectedId = id;
-						}}
-						onEditLight={(id) => {
-							setTool('select');
-							selectedLightId = id;
-						}}
-						onFogAll={(reveal) =>
-							act({
-								type: 'fog_area',
-								from: { x: 0, y: 0 },
-								to: { x: room.grid.width - 1, y: room.grid.height - 1 },
-								reveal
-							})}
-						onError={showToast}
-					/>
+					<!-- The GM's Direct panel is only needed once play begins, so it loads then. -->
+					{#await import('./DirectorPanel.svelte') then { default: DirectorPanel }}
+						<DirectorPanel
+							{adventure}
+							paused={room.paused}
+							ambient={room.ambient}
+							world={room.world}
+							environment={room.environment}
+							lights={room.lights}
+							fogEnabled={room.fog.enabled}
+							fogShared={room.fog.shared}
+							{tool}
+							{spawning}
+							send={act}
+							onTool={setTool}
+							monsters={conn.monsterReply?.monsters ?? null}
+							onSpawn={(kind, hold = false, name = null) => {
+								setTool('select');
+								spawning = kind;
+								spawnHold = hold;
+								spawnName = name;
+							}}
+							onSelectToken={(id) => {
+								setTool('select');
+								selectedId = id;
+							}}
+							onEditLight={(id) => {
+								setTool('select');
+								selectedLightId = id;
+							}}
+							onFogAll={(reveal) =>
+								act({
+									type: 'fog_area',
+									from: { x: 0, y: 0 },
+									to: { x: room.grid.width - 1, y: room.grid.height - 1 },
+									reveal
+								})}
+							onError={showToast}
+						/>
+					{/await}
 				</div>
 			{/if}
 
@@ -1423,6 +1497,13 @@
 						players={room.players}
 						adventures={room.adventures}
 						send={act}
+						upgrade={conn.upgradeReply}
+						campaign={conn.campaignReply}
+						sources={conn.sourcesReply}
+						onSheet={(id) => {
+							if (id === myCharacter?.id) sheetOpen = true;
+							else sheetFor = id;
+						}}
 					/>
 				</div>
 			{/if}
@@ -1510,12 +1591,15 @@
 						<span class="section-title">Scenes and saves</span>
 						<span class="current">{room.sceneName}</span>
 					</summary>
-					<ScenePanel
-						sceneName={room.sceneName}
-						reply={conn.sceneReply}
-						send={act}
-						onError={showToast}
-					/>
+					<!-- The GM's own panel: loaded apart, so players never download it. -->
+					{#await import('./ScenePanel.svelte') then { default: ScenePanel }}
+						<ScenePanel
+							sceneName={room.sceneName}
+							reply={conn.sceneReply}
+							send={act}
+							onError={showToast}
+						/>
+					{/await}
 				</details>
 			{/if}
 
@@ -1565,14 +1649,32 @@
 
 		{#if myCharacter && (introFor === myCharacter.id || sheetOpen)}
 			<CharacterSheet
-				character={CHARACTERS[myCharacter.id]}
+				character={myCharacter.def}
+				card={myCharacter.card}
 				status={myCharacter}
 				intro={introFor === myCharacter.id}
+				send={act}
+				sheetReply={conn.sheetReply}
+				party={partyFor(myCharacter.id)}
+				gm={isGm}
 				onClose={() => {
 					introFor = null;
 					sheetOpen = false;
 				}}
 			/>
+		{:else if sheetShown}
+			{#key sheetShown.id}
+				<CharacterSheet
+					character={sheetShown.def}
+					card={sheetShown.card}
+					status={sheetShown}
+					send={act}
+					sheetReply={conn.sheetReply}
+					party={partyFor(sheetShown.id)}
+					gm={isGm}
+					onClose={() => (sheetFor = null)}
+				/>
+			{/key}
 		{/if}
 
 		{#if rollCard}
@@ -1605,7 +1707,7 @@
 							>{rollCard.authorName} · {rollCard.attack} → {rollCard.targetName}</span
 						>
 						<span class="big num" class:miss={!rollCard.hit}>
-							{rollCard.hit ? `${rollCard.damage?.total ?? 0}` : 'Miss'}
+							{rollCard.hit ? `${rollCard.taken ?? rollCard.damage?.total ?? 0}` : 'Miss'}
 						</span>
 						<span class="how">
 							{rollCard.toHit.total} vs {rollCard.defense}{rollCard.hit ? ' · hit, damage' : ''}
@@ -1628,7 +1730,7 @@
 		{#if learning && adventure && myCharacter && tutorial.stage === 'welcome' && introFor === null && !sheetOpen}
 			<Welcome
 				{adventure}
-				characterName={CHARACTERS[myCharacter.id].name}
+				characterName={myCharacter.def.name}
 				onLearn={() => setTutorial({ ...tutorial, stage: 'tutorial' })}
 				onSkip={() => setTutorial({ ...tutorial, stage: 'done' })}
 			/>
@@ -1647,18 +1749,28 @@
 		{/if}
 
 		{#if adventure && me.role === 'player' && !myCharacter && adventure.stage !== 'complete' && adventure.stage !== 'defeat'}
-			<CharacterSelect {adventure} players={room.players} send={act} />
+			<CharacterSelect
+				{adventure}
+				players={room.players}
+				send={act}
+				roomId={room.id}
+				creatorReply={conn.creatorReply}
+				myName={conn.me?.name ?? ''}
+			/>
 		{/if}
 
 		{#if adventure && endKey && dismissedEnd !== endKey}
-			<SectionEnd
-				{adventure}
-				players={room.players}
-				me={me.id}
-				{isGm}
-				send={act}
-				onClose={() => (dismissedEnd = endKey)}
-			/>
+			<!-- The end screen is shown once a story is over, so it loads then. -->
+			{#await import('./SectionEnd.svelte') then { default: SectionEnd }}
+				<SectionEnd
+					{adventure}
+					players={room.players}
+					me={me.id}
+					{isGm}
+					send={act}
+					onClose={() => (dismissedEnd = endKey)}
+				/>
+			{/await}
 		{/if}
 	{:else}
 		<div class="loading" role="status">
@@ -1704,8 +1816,9 @@
 			{/if}
 			{#if adventure?.encounter}
 				{@const encounter = adventure.encounter}
-				<ol class="encounter" aria-label={`Round ${encounter.round}, turn order`}>
-					<li class="round num">Round {encounter.round}</li>
+				{@const roundName = encounter.elective ? 'Exchange' : 'Round'}
+				<ol class="encounter" aria-label={`${roundName} ${encounter.round}, turn order`}>
+					<li class="round num">{roundName} {encounter.round}</li>
 					{#if encounter.counter}
 						<li class="counter">
 							{encounter.counter.label}
@@ -1716,24 +1829,53 @@
 						{@const foe = t.tokenId
 							? encounter.enemies.find((e) => e.tokenId === t.tokenId)
 							: undefined}
+						{@const marks =
+							foe?.conditions ??
+							adventure.characters.find((c) => c.id === t.characterId)?.conditions ??
+							[]}
 						<li
 							class="turn"
 							class:enemy={t.kind === 'enemy'}
 							class:current={i === encounter.current}
 							class:out={t.out}
 							aria-current={i === encounter.current ? 'true' : undefined}
-							title={`Initiative ${t.initiative}`}
+							title={encounter.elective ? t.name : `Initiative ${t.initiative}`}
 						>
-							<span class="init">{t.initiative}</span>
-							{t.name}
+							{#if !encounter.elective}<span class="init">{t.initiative}</span>{/if}
+							{#if encounter.handoff?.mine && encounter.handoff.options.includes(i)}
+								<button
+									class="pick"
+									type="button"
+									title={`${t.name} goes next`}
+									onclick={() => act({ type: 'adventure_handoff', index: i })}>{t.name}</button
+								>
+							{:else}
+								{t.name}
+							{/if}
 							{#if foe}
 								<span class="foe-hp"
 									><span style:transform={`scaleX(${foe.hp / foe.maxHp})`}></span></span
 								>
 								<span class="foe-num num">{foe.hp}/{foe.maxHp}</span>
 							{/if}
+							{#each marks as m (m.effect + m.id)}
+								<span class="mark" title={`${m.name}: ${m.until} (${m.from})`}
+									>{m.name}{m.level ? ` ${m.level}` : ''}</span
+								>
+							{/each}
 						</li>
 					{/each}
+					{#if encounter.handoff}
+						{@const by = adventure.characters.find((c) => c.id === encounter.handoff?.by)}
+						<li class="handoff" role="status">
+							{#if encounter.handoff.mine}
+								{encounter.handoff.fresh ? 'Who starts the next exchange?' : 'Who goes next?'}
+								Pick a name.
+							{:else}
+								{by?.def.name ?? 'Someone'} picks who goes next.
+							{/if}
+						</li>
+					{/if}
 				</ol>
 			{/if}
 			{#if adventure && endKey && dismissedEnd === endKey}
@@ -1789,6 +1931,7 @@
 						tokens={room.tokens}
 						{blocked}
 						{targeting}
+						bind:slot={castSlot}
 						onTargeting={(id) => (targeting = id)}
 						onSheet={() => (sheetOpen = true)}
 						send={act}
@@ -2169,6 +2312,20 @@
 		border: 1px solid transparent;
 		font-variant-numeric: tabular-nums;
 	}
+	.encounter .pick {
+		padding: 0 var(--sp-1);
+		font: inherit;
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-sm);
+		background: none;
+		color: var(--accent);
+		cursor: pointer;
+		pointer-events: auto;
+	}
+	.encounter .handoff {
+		color: var(--accent);
+		font-size: var(--fs-xs);
+	}
 	.encounter .turn.enemy {
 		color: var(--danger);
 	}
@@ -2259,6 +2416,15 @@
 		font-size: var(--fs-xs);
 		color: var(--muted);
 	}
+	.turn .mark {
+		font-size: var(--fs-2xs);
+		padding: 0 var(--sp-2);
+		border-radius: var(--radius-pill);
+		border: 1px solid var(--danger);
+		color: var(--danger);
+		cursor: help;
+	}
+
 	.foe-num {
 		font-size: var(--fs-xs);
 	}

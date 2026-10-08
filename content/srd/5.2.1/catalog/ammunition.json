@@ -1,0 +1,122 @@
+[
+	{
+		"id": "srd-5.2.1:ammunition:arrows",
+		"kind": "ammunition",
+		"name": "Arrows",
+		"data": {
+			"type": "Arrow",
+			"kind": null,
+			"amount": 20,
+			"storage": "Quiver",
+			"weight": "1 lb.",
+			"cost": "1 GP"
+		},
+		"text": "Arrows: Ammunition (Arrow). 20 for 1 GP, stored in a Quiver. Weight: 1 lb.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Adventuring Gear"
+			],
+			"pages": [
+				96
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:ammunition:bolts",
+		"kind": "ammunition",
+		"name": "Bolts",
+		"data": {
+			"type": "Bolt",
+			"kind": null,
+			"amount": 20,
+			"storage": "Case",
+			"weight": "1½ lb.",
+			"cost": "1 GP"
+		},
+		"text": "Bolts: Ammunition (Bolt). 20 for 1 GP, stored in a Case. Weight: 1½ lb.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Adventuring Gear"
+			],
+			"pages": [
+				96
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:ammunition:bullets-firearm",
+		"kind": "ammunition",
+		"name": "Bullets, Firearm",
+		"data": {
+			"type": "Bullet",
+			"kind": "firearm",
+			"amount": 10,
+			"storage": "Pouch",
+			"weight": "2 lb.",
+			"cost": "3 GP"
+		},
+		"text": "Bullets, Firearm: Ammunition (Bullet). 10 for 3 GP, stored in a Pouch. Weight: 2 lb.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Adventuring Gear"
+			],
+			"pages": [
+				96
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:ammunition:bullets-sling",
+		"kind": "ammunition",
+		"name": "Bullets, Sling",
+		"data": {
+			"type": "Bullet",
+			"kind": "sling",
+			"amount": 20,
+			"storage": "Pouch",
+			"weight": "1½ lb.",
+			"cost": "4 CP"
+		},
+		"text": "Bullets, Sling: Ammunition (Bullet). 20 for 4 CP, stored in a Pouch. Weight: 1½ lb.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Adventuring Gear"
+			],
+			"pages": [
+				96
+			]
+		}
+	},
+	{
+		"id": "srd-5.2.1:ammunition:needles",
+		"kind": "ammunition",
+		"name": "Needles",
+		"data": {
+			"type": "Needle",
+			"kind": null,
+			"amount": 50,
+			"storage": "Pouch",
+			"weight": "1 lb.",
+			"cost": "1 GP"
+		},
+		"text": "Needles: Ammunition (Needle). 50 for 1 GP, stored in a Pouch. Weight: 1 lb.",
+		"provenance": {
+			"source": "srd-5.2.1",
+			"section": [
+				"Equipment",
+				"Adventuring Gear"
+			],
+			"pages": [
+				96
+			]
+		}
+	}
+]

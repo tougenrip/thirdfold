@@ -7971,6 +7971,31 @@
 			"translucency": 0.9,
 			"pack": "core"
 		},
+		"gear-pile": {
+			"file": "models/gear-pile.702aad0f.glb",
+			"sha256": "702aad0f4dfd5221698c6980607298eea7f3b9d0adf135810117523403dd5524",
+			"bytes": 15620,
+			"kind": "prop",
+			"triangles": 464,
+			"bounds": {
+				"min": [
+					-0.25,
+					0,
+					-0.23
+				],
+				"max": [
+					0.31,
+					0.26,
+					0.23
+				]
+			},
+			"gpuBytes": 13800,
+			"credit": {
+				"license": "LicenseRef-thirdfold-original",
+				"author": "thirdfold contributors"
+			},
+			"pack": "core"
+		},
 		"gear": {
 			"file": "models/gear.7b4ba4f8.glb",
 			"sha256": "7b4ba4f81e777c5cdce1628e78575558622af8bbaa37eeebe0ebdfb927c36e8b",
@@ -15529,8 +15554,8 @@
 			"gpuBytes": 5004059
 		},
 		"core": {
-			"bytes": 13628183,
-			"gpuBytes": 37956079
+			"bytes": 13643803,
+			"gpuBytes": 37969879
 		},
 		"ghost-town": {
 			"bytes": 104095,
