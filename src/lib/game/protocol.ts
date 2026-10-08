@@ -56,6 +56,7 @@ import {
 	type StoryDetail
 } from './library';
 import type { CollectionReport } from './collection';
+import { LICENSED_SOURCE_ID, type LicensedSourceView } from '../content/licence';
 import {
 	CAMPAIGN_ID_PATTERN,
 	type CampaignSummary,
@@ -408,6 +409,10 @@ export type ClientMessage =
 	 */
 	| { type: 'adventure_pack'; op: 'attach'; pack: unknown }
 	| { type: 'adventure_pack'; op: 'detach'; id: string }
+	/** GM (milestone 59): bring an installed licensed source to the story, if this GM may use it. */
+	| { type: 'adventure_pack'; op: 'licensed'; source: string }
+	/** GM: the licensed sources installed on this server that they may use. Replies with content_sources. */
+	| { type: 'content_sources' }
 	/** Anyone at the table: what these choices would come to, or what is wrong with them. Changes nothing. */
 	| { type: 'character_preview'; choices: CharacterChoicesData }
 	/** GM: characters are chosen, start playing. */
@@ -501,8 +506,8 @@ export type Direction =
 	  };
 
 /** The longest monster search. */
-/** A content pack's id: `hb-` and 16 hex digits. */
-const PACK_ID = /^hb-[0-9a-f]{16}$/;
+/** A content pack's id: `hb-` (homebrew) or `lc-` (licensed) and 16 hex digits. */
+const PACK_ID = /^(?:hb|lc)-[0-9a-f]{16}$/;
 
 export const MONSTER_QUERY_MAX = 40;
 
@@ -738,6 +743,8 @@ export type ServerMessage =
 	| { type: 'character_options'; rules: string; options: Record<string, unknown> }
 	/** To the GM who searched: the monsters found. */
 	| { type: 'monster_search'; query: string; monsters: MonsterListing[] }
+	/** To the GM who asked: the licensed sources installed here that they may use. */
+	| { type: 'content_sources'; sources: LicensedSourceView[] }
 	/** To the GM who asked: their campaigns, latest first, and the one open at the table. */
 	| { type: 'campaigns'; campaigns: CampaignSummary[]; current: CampaignView | null }
 	/** To the GM: the campaign open at the table as it is now (null: none). */
@@ -1396,6 +1403,10 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				return isRecord(data.pack)
 					? { type: 'adventure_pack', op: 'attach', pack: data.pack }
 					: null;
+			if (data.op === 'licensed')
+				return typeof data.source === 'string' && LICENSED_SOURCE_ID.test(data.source)
+					? { type: 'adventure_pack', op: 'licensed', source: data.source }
+					: null;
 			return data.op === 'detach' && typeof data.id === 'string' && PACK_ID.test(data.id)
 				? { type: 'adventure_pack', op: 'detach', id: data.id }
 				: null;
@@ -1413,6 +1424,8 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 		}
 		case 'campaign_list':
 			return { type: 'campaign_list' };
+		case 'content_sources':
+			return { type: 'content_sources' };
 		case 'campaign_create':
 			return typeof data.name === 'string' && data.name.length <= 200
 				? { type: 'campaign_create', name: data.name }

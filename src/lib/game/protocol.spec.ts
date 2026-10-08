@@ -723,3 +723,23 @@ describe('campaign messages (milestone 58)', () => {
 		expect(parseServerMessage({ type: 'campaigns', campaigns: {}, current: null })).toBeNull();
 	});
 });
+
+describe('licensed content messages (milestone 59)', () => {
+	it('reads a GM taking up an installed licensed source by its id, and asking which they may use', () => {
+		expect(
+			parseClientMessage({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' })
+		).toEqual({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		expect(
+			parseClientMessage({ type: 'adventure_pack', op: 'licensed', source: '../x' })
+		).toBeNull();
+		expect(parseClientMessage({ type: 'adventure_pack', op: 'licensed', pack: {} })).toBeNull();
+		expect(parseClientMessage({ type: 'content_sources' })).toEqual({ type: 'content_sources' });
+		// A licensed pack is put away like homebrew, by its lc- id.
+		expect(
+			parseClientMessage({ type: 'adventure_pack', op: 'detach', id: 'lc-0123456789abcdef' })
+		).toMatchObject({ op: 'detach' });
+		expect(parseServerMessage({ type: 'content_sources', sources: [] })).toMatchObject({
+			type: 'content_sources'
+		});
+	});
+});

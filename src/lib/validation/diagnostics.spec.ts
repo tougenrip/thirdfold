@@ -69,7 +69,7 @@ describe('diagnostics', () => {
 		expect(warned).toMatchObject({
 			kind: 'save',
 			ok: true,
-			validator: { id: VALIDATORS.save.id, version: 1, format: 10 }
+			validator: { id: VALIDATORS.save.id, version: 2, format: 10 }
 		});
 		const failed = validationOf(
 			'adventure',

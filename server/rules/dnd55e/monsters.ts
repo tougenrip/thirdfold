@@ -25,15 +25,19 @@ import type { Bestiary } from '../ruleset';
 import type { Catalog, RecordOf } from './catalog';
 import { CONDITIONS } from './conditions';
 import { heldPack, homebrewMonster } from './homebrew/registry';
+import { isHomebrewId } from '../../../src/lib/rules/dnd55e/homebrew';
 import { DAMAGE_TYPES } from './sheet';
 
 const FEET_PER_CELL = 5;
 /** Kinds the table plays SRD monsters by: `srd-<slug>`. */
 const PREFIX = 'srd-';
 const slugOf = (id: string) => id.slice(id.lastIndexOf(':') + 1);
-/** A monster's kind: `srd-<slug>`, or a homebrew one's `hb-<pack hash>-<slug>` (milestone 52). */
+/**
+ * A monster's kind: `srd-<slug>`, or a content pack's `hb-<pack hash>-<slug>`
+ * (homebrew, milestone 52) or `lc-<pack hash>-<slug>` (licensed, milestone 59).
+ */
 export const kindOf = (id: string) =>
-	id.startsWith('hb-') ? `${id.slice(0, id.indexOf(':'))}-${slugOf(id)}` : `${PREFIX}${slugOf(id)}`;
+	isHomebrewId(id) ? `${id.slice(0, id.indexOf(':'))}-${slugOf(id)}` : `${PREFIX}${slugOf(id)}`;
 
 /** A stat block read for the table: the enemy it plays as (null when none of it can be played), and its listing. */
 export interface Monster {
@@ -232,9 +236,11 @@ export function readMonster(record: RecordOf<'monster'>): Monster {
 			hitPoints: hp,
 			attacks: [...new Set(attacks)].map(line),
 			notPlayed: [...new Set(notPlayed)],
-			source: p.source.startsWith('hb-')
-				? `Homebrew: ${p.section[0]}`
-				: `SRD 5.2.1, ${p.section.join(' › ')}, p. ${p.pages.join(', ')}`
+			source: p.source.startsWith('lc-')
+				? `Licensed: ${p.section[0]}`
+				: p.source.startsWith('hb-')
+					? `Homebrew: ${p.section[0]}`
+					: `SRD 5.2.1, ${p.section.join(' › ')}, p. ${p.pages.join(', ')}`
 		}
 	};
 }

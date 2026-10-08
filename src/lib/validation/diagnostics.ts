@@ -38,7 +38,13 @@ export const DIAGNOSTICS = {
 		'It was made with different content from the rules’ source: open it on a server with the same source.',
 	'version.rebuilt': 'Nothing to do: the content was rebuilt and everything was checked again.',
 	'character.invalid': 'Change the choice it names: the rules don’t allow it.',
-	'save.invalid': 'The saved table is damaged where it says; an earlier save may still open.'
+	'save.invalid': 'The saved table is damaged where it says; an earlier save may still open.',
+	'licence.missing':
+		'Open it on a server that has that licensed source installed, at the same version.',
+	'licence.withdrawn': 'Its publisher withdrew the source: it can no longer be used here.',
+	'licence.denied': 'Ask the server’s operator to grant you the licensed source.',
+	'licence.terms':
+		'The source’s licence doesn’t allow this: keep the story on this server, or leave its content out.'
 } as const;
 export type DiagnosticCode = keyof typeof DIAGNOSTICS;
 export const DIAGNOSTIC_CODES = Object.keys(DIAGNOSTICS) as DiagnosticCode[];
@@ -79,7 +85,8 @@ export const VALIDATORS: Record<ContentKind, { id: string; version: number; read
 	pack: { id: 'thirdfold-homebrew', version: 1, reads: [1] },
 	collection: { id: 'thirdfold-collection', version: 1, reads: [1] },
 	character: { id: 'thirdfold-character', version: 1, reads: [1] },
-	save: { id: 'thirdfold-scene', version: 1, reads: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
+	// Version 2 (milestone 59) also checks the licensed sources a saved story uses.
+	save: { id: 'thirdfold-scene', version: 2, reads: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
 };
 
 /** At most this many diagnostics are reported for one piece of content. */

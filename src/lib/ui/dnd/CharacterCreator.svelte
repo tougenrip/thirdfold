@@ -529,7 +529,9 @@
 											? ' · Concentration'
 											: ''}{sp.why ? ' · not at the table yet' : ''}{sp.homebrew
 											? ` · Homebrew: ${sp.homebrew}`
-											: ''}</span
+											: sp.licensed
+												? ` · Licensed: ${sp.licensed}`
+												: ''}</span
 									>
 									<span class="rules">{sp.text}</span></label
 								>
@@ -555,7 +557,11 @@
 								<option value={a.id}
 									>{a.name} (AC {a.armorClass}{a.strength
 										? `, Strength ${a.strength}`
-										: ''}){a.homebrew ? ` · Homebrew: ${a.homebrew}` : ''}</option
+										: ''}){a.homebrew
+										? ` · Homebrew: ${a.homebrew}`
+										: a.licensed
+											? ` · Licensed: ${a.licensed}`
+											: ''}</option
 								>
 							{/each}
 						</select>
@@ -580,7 +586,11 @@
 								{w.name}
 								<span class="meta"
 									>{w.damage}
-									{w.damageType.toLowerCase()}{w.homebrew ? ` · Homebrew: ${w.homebrew}` : ''}</span
+									{w.damageType.toLowerCase()}{w.homebrew
+										? ` · Homebrew: ${w.homebrew}`
+										: w.licensed
+											? ` · Licensed: ${w.licensed}`
+											: ''}</span
 								></label
 							>
 						{/each}

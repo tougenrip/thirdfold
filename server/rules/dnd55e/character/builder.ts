@@ -20,7 +20,7 @@ import type {
 import type { Built, CharacterBuilder, JsonData, RulesetRef } from '../../ruleset';
 import { packOfId } from '../../../../src/lib/rules/dnd55e/homebrew';
 import { withHomebrew, type Catalog } from '../catalog';
-import { heldPack } from '../homebrew/registry';
+import { heldLicence, heldPack } from '../homebrew/registry';
 import { ABILITIES, abilityName, SKILLS, type Ability } from '../core';
 import type { ClassData, WeaponData } from '../srd/records';
 import { unsupported } from '../spells/mechanics';
@@ -109,11 +109,19 @@ const signed = (n: number) => (n < 0 ? `${n}` : `+${n}`);
 const article = (word: string) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 const firstParagraph = (text: string) => text.split('\n\n')[0].slice(0, 600);
 
-/** Where a homebrew record comes from, for a creation page: its pack by name and version. */
-function homebrewOf(id: string): { homebrew?: string } {
+/**
+ * Where a content pack's record comes from, for a creation page: a homebrew
+ * pack by name and version, or a licensed source by name, version and
+ * publisher (milestone 59), so the two are never confused.
+ */
+function homebrewOf(id: string): { homebrew?: string; licensed?: string } {
 	const pack = packOfId(id);
 	const held = pack ? heldPack(pack) : undefined;
-	return held ? { homebrew: `${held.pack.name} ${held.pack.version}` } : {};
+	if (!held) return {};
+	const licence = heldLicence(pack!);
+	return licence
+		? { licensed: `${licence.name} ${licence.version}, ${licence.publisher}` }
+		: { homebrew: `${held.pack.name} ${held.pack.version}` };
 }
 
 /** What a creation page may offer, from the catalog. */

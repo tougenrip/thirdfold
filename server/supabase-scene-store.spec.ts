@@ -11,6 +11,8 @@ import { SupabaseLibraryStore } from './supabase-library-store';
 import { libraryStoreSuite } from './library-store.suite';
 import { SupabaseCampaignStore } from './campaign-store';
 import { campaignStoreSuite, sampleCampaign } from './campaign-store.suite';
+import { SupabaseLicenceStore } from './licensed/licence-store';
+import { licenceStoreSuite } from './licensed/licence-store.suite';
 
 const scene = serializeScene('Crypt', {
 	grid: DEFAULT_GRID,
@@ -350,5 +352,19 @@ describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseCampaignStore (live Su
 			.insert({ id: '../x', owner: 'f'.repeat(64), data: {} });
 		expect(bad.error).not.toBeNull();
 		await store.remove(record.id, record.owner);
+	});
+});
+
+describe.skipIf(!url || !serviceKey || !anonKey)('SupabaseLicenceStore (live Supabase)', () => {
+	licenceStoreSuite(() => SupabaseLicenceStore.connect(url!, serviceKey!));
+
+	it('keeps licence grants away from the browser key', async () => {
+		const browser = createClient(url!, anonKey!, { auth: { persistSession: false } });
+		expect((await browser.from('licensed_grants').select('*')).data ?? []).toEqual([]);
+		expect((await browser.from('licensed_status').select('*')).data ?? []).toEqual([]);
+		const write = await browser
+			.from('licensed_status')
+			.insert({ source: 'sneaky', status: 'active', note: '' });
+		expect(write.error).not.toBeNull();
 	});
 });

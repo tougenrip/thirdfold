@@ -36,7 +36,7 @@ export async function restoreData(
 		throw new Error('This backup has Supabase tables: set SUPABASE_URL and SUPABASE_SERVICE_KEY.');
 	}
 
-	for (const store of ['scenes', 'rooms', 'library', 'campaigns'] as const) {
+	for (const store of ['scenes', 'rooms', 'library', 'campaigns', 'licences'] as const) {
 		const source = path.join(from, 'files', store);
 		const names = await listFiles(source);
 		// A backup from before a store existed has no entry for it.

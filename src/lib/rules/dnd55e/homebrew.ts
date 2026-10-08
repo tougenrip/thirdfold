@@ -182,7 +182,14 @@ export interface HomebrewPack {
 	records: HomebrewRecord[];
 }
 
-/** Homebrew records' ids: the pack's id, the kind and the slug. */
-export const HOMEBREW_PACK_ID = /^hb-[0-9a-f]{16}$/;
-export const isHomebrewId = (id: string) => /^hb-[0-9a-f]{16}:/.test(id);
+/**
+ * Content packs' ids: `hb-` for a creator's homebrew, `lc-` for a licensed
+ * source's (milestone 59, src/lib/content/licence.ts), then 16 hex digits of
+ * the pack's content hash. A record's id is the pack's id, the kind and the
+ * slug, so an id always says which kind of source it comes from.
+ */
+export const HOMEBREW_PACK_ID = /^(?:hb|lc)-[0-9a-f]{16}$/;
+export const isHomebrewId = (id: string) => /^(?:hb|lc)-[0-9a-f]{16}:/.test(id);
 export const packOfId = (id: string) => (isHomebrewId(id) ? id.slice(0, 19) : null);
+/** A licensed source's pack, record or monster kind. */
+export const isLicensedId = (id: string) => id.startsWith('lc-');

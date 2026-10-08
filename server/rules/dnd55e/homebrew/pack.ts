@@ -64,10 +64,32 @@ const isObject = (v: unknown): v is Raw => typeof v === 'object' && v !== null &
 const titled = (s: string) => s[0].toUpperCase() + s.slice(1);
 const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
 
-/** The pack's id: `hb-` and the start of the SHA-256 of the pack as read. */
-export function packId(pack: HomebrewPack): string {
-	return `hb-${createHash('sha256').update(JSON.stringify(pack)).digest('hex').slice(0, 16)}`;
+/**
+ * The pack's id: `hb-` (a creator's homebrew) or `lc-` (a licensed source's
+ * content, milestone 59) and the start of the SHA-256 of the pack as read.
+ */
+export function packId(pack: HomebrewPack, licensedBy?: string): string {
+	// A licensed source's id goes into its hash too: two sources never share an id.
+	const hashed = licensedBy ? { source: licensedBy, pack } : pack;
+	const hex = createHash('sha256').update(JSON.stringify(hashed)).digest('hex').slice(0, 16);
+	return `${licensedBy ? 'lc' : 'hb'}-${hex}`;
 }
+
+/**
+ * A licensed source's content is read as a pack is, under its terms
+ * (milestone 59): its ids start `lc-`, its publisher's marks may appear
+ * nowhere in it, and with `display: 'mechanics'` its own words (records'
+ * descriptions and traits' text) are left out of what the table holds.
+ */
+export interface LicensedRead {
+	/** The source, as `<id>@<version>`. */
+	source: string;
+	display: 'full' | 'mechanics';
+	trademarks: readonly string[];
+}
+
+/** What a record shows instead of words its licence keeps back. */
+export const WITHHELD_TEXT = 'Not shown under its licence.';
 
 /** What the SRD it extends allows: its classes, schools, masteries, challenge ratings and names. */
 function srdTerms(catalog: Catalog) {
@@ -91,7 +113,7 @@ function srdTerms(catalog: Catalog) {
 }
 
 /** Reads a pack; every problem is named by where it is. */
-export function readPack(raw: unknown, catalog: Catalog): PackRead {
+export function readPack(raw: unknown, catalog: Catalog, licensed?: LicensedRead): PackRead {
 	const problems: string[] = [];
 	let size: number;
 	try {
@@ -723,15 +745,49 @@ export function readPack(raw: unknown, catalog: Catalog): PackRead {
 		...(license ? { license } : {}),
 		records
 	};
-	return compilePack(pack, terms.challenge);
+	if (!licensed) return compilePack(pack, terms.challenge, packId(pack));
+	// The marks stay out of the content; the words stay out where the licence says so.
+	const marks = licensed.trademarks.map((m) => m.toLowerCase());
+	for (const r of pack.records) {
+		const words = [
+			r.name,
+			r.text ?? '',
+			...(r.kind === 'monster' ? (r.traits ?? []).flatMap((t) => [t.name, t.text]) : [])
+		]
+			.join(' ')
+			.toLowerCase();
+		for (const [i, mark] of marks.entries())
+			if (words.includes(mark))
+				problems.push(
+					`${r.kind} ${r.slug}: names the publisher's mark "${licensed.trademarks[i]}"`
+				);
+	}
+	if (problems.length) return { ok: false, problems };
+	const id = packId(pack, licensed.source);
+	if (licensed.display === 'full') return compilePack(pack, terms.challenge, id);
+	const shown: HomebrewPack = {
+		...pack,
+		...(pack.about ? { about: WITHHELD_TEXT } : {}),
+		records: pack.records.map((r) => {
+			const rest = { ...r };
+			delete rest.text;
+			return r.kind === 'monster' && r.traits
+				? ({
+						...rest,
+						traits: r.traits.map((t) => ({ name: t.name, text: WITHHELD_TEXT }))
+					} as typeof r)
+				: (rest as typeof r);
+		})
+	};
+	return compilePack(shown, terms.challenge, id);
 }
 
 /** A checked pack's records as the catalog holds them, its spells' mechanics and its monsters. */
 function compilePack(
 	pack: HomebrewPack,
-	challenge: ReadonlyMap<string, { xp: number; pb: number }>
+	challenge: ReadonlyMap<string, { xp: number; pb: number }>,
+	id: string
 ): PackRead {
-	const id = packId(pack);
 	const records: SrdRecord[] = [];
 	const mechanics = new Map<string, SpellMechanics>();
 	const monsters = new Map<string, Monster>();

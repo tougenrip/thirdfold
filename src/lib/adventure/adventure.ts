@@ -6,6 +6,7 @@
 // The reach rules below are shared: the server enforces them, the client
 // uses them only to decide which buttons to offer.
 
+import type { LicenceTerms } from '../content/licence';
 import type { VersionsView } from './versions';
 import { gridDistance, type GridPos } from '../game/grid';
 import type { Blockers } from '../game/objects';
@@ -145,6 +146,10 @@ export interface ContentPackListing {
 	/** Its records by kind and name. */
 	records: { kind: string; id: string; name: string }[];
 	access: PackAccess;
+	/** A creator's homebrew, or a licensed source's content (milestone 59). */
+	source: 'homebrew' | 'licensed';
+	/** A licensed source's publisher, credit and terms; null for homebrew. */
+	licensed: { source: string; publisher: string; attribution: string; terms: LicenceTerms } | null;
 }
 
 /** Who a content pack belongs to and who may use it (prepared for milestones 53–55). */

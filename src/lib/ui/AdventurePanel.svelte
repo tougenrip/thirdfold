@@ -10,7 +10,12 @@
 	import { NARRATION_MAX_LENGTH } from '$lib/game/chat';
 	import type { AdventureListing, PublicPlayer } from '$lib/game/protocol';
 	import { ADVENTURE_FILE_MAX_BYTES, CONTENT_PACK_MAX_BYTES } from '$lib/game/file-limits';
-	import type { CampaignReply, RoomAction, UpgradeReply } from '$lib/net/room-connection.svelte';
+	import type {
+		CampaignReply,
+		RoomAction,
+		SourcesReply,
+		UpgradeReply
+	} from '$lib/net/room-connection.svelte';
 	import type { LibraryListing } from '$lib/game/library';
 	import { listLibrary } from '$lib/net/library';
 	import { describeRating } from '$lib/ui/rating';
@@ -29,6 +34,8 @@
 		upgrade?: UpgradeReply | null;
 		/** The GM's campaigns, as the server last told them. */
 		campaign?: CampaignReply | null;
+		/** The licensed sources the GM may use, as the server last told them. */
+		sources?: SourcesReply | null;
 	}
 
 	let {
@@ -40,7 +47,8 @@
 		onError,
 		onSheet,
 		upgrade = null,
-		campaign = null
+		campaign = null,
+		sources = null
 	}: Props = $props();
 
 	let narration = $state('');
@@ -372,13 +380,19 @@
 
 		{#if adventure.packs && (adventure.packs.length || isGm)}
 			<details class="clues" open={adventure.packs.length > 0 && isGm}>
-				<summary>Homebrew ({adventure.packs.length})</summary>
+				<summary
+					>Homebrew{adventure.packs.some((p) => p.source === 'licensed') ? ' and licensed' : ''} ({adventure
+						.packs.length})</summary
+				>
 				{#if adventure.packs.length}
 					<ul aria-label="Homebrew">
 						{#each adventure.packs as pack (pack.id)}
 							<li class="pack">
 								<strong>{pack.name}</strong>
 								<span class="evidence-kind">{pack.version}</span>
+								<span class="evidence-kind"
+									>{pack.licensed ? `Licensed · ${pack.licensed.publisher}` : 'Homebrew'}</span
+								>
 								{#if pack.creator || pack.license}
 									<p class="credit">
 										{pack.creator ? `by ${pack.creator}` : ''}{pack.creator && pack.license
@@ -387,6 +401,12 @@
 									</p>
 								{/if}
 								{#if pack.about}<p>{pack.about}</p>{/if}
+								{#if pack.licensed}
+									<p class="credit">{pack.licensed.attribution}</p>
+									{#if pack.licensed.terms.display === 'mechanics'}
+										<p class="credit">Mechanics only: its licence keeps its text back.</p>
+									{/if}
+								{/if}
 								{#each byKind(pack.records) as group (group.kind)}
 									<p class="pack-records"><em>{group.label}:</em> {group.names.join(', ')}</p>
 								{/each}
@@ -412,6 +432,14 @@
 						Add homebrew from a file…
 						<input type="file" accept=".json,application/json" hidden onchange={addPack} />
 					</label>
+					<!-- Loaded when shown: only the GM's panel has it. -->
+					{#await import('$lib/ui/LicensedSources.svelte') then { default: LicensedSources }}
+						<LicensedSources
+							reply={sources}
+							attached={adventure.packs.flatMap((p) => (p.licensed ? [p.licensed.source] : []))}
+							{send}
+						/>
+					{/await}
 				{/if}
 			</details>
 		{/if}

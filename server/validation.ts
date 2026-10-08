@@ -26,6 +26,9 @@ import { readAdventure } from './adventure/persist';
 import { loadServerAdventure } from './adventure/rules-content';
 import { resolveCollection, withRules, type Shelves } from './collections';
 import { stillHolds } from './library-access';
+import { creatorIdOf } from './library-store';
+import type { LicenceStore } from './licensed/licence-store';
+import { openRefused, savedLicences } from './licensed/policy';
 import { findRuleset } from './rules/ruleset';
 
 /** What a check may consult: the library and saved tables, and who asks. */
@@ -35,6 +38,8 @@ export interface ValidateContext {
 	owner: string | null;
 	/** For a collection already in the library: its id (what it may include depends on it). */
 	collection?: string | null;
+	/** Who may use which licensed source (milestone 59): a save is checked against it too. */
+	licences?: LicenceStore;
 }
 
 type Raw = Record<string, unknown>;
@@ -261,8 +266,19 @@ export async function validateSave(raw: unknown, ctx: ValidateContext): Promise<
 	if (!parsed.ok) return validationOf('save', [fromProblem(parsed.error, 'save.invalid')], format);
 	const diagnostics: Diagnostic[] = [];
 	if (parsed.scene.adventure) {
+		// Licensed content first: what a save may not open says why, before its story is read.
+		const licence = ctx.licences
+			? await openRefused(
+					ctx.licences,
+					savedLicences(raw),
+					ctx.owner ? creatorIdOf(ctx.owner) : null
+				)
+			: null;
+		if (licence) diagnostics.push(licence);
 		const story = readAdventure(parsed.scene.adventure, parsed.scene);
-		if (!story.ok) {
+		if (!story.ok && licence?.code === 'licence.missing') {
+			// Said already.
+		} else if (!story.ok) {
 			const code: DiagnosticCode = /made from another source|which this server doesn't have/.test(
 				story.error
 			)

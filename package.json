@@ -17,6 +17,7 @@
 		"assets:publish": "tsx server/assets/store.ts publish",
 		"assets:pull": "tsx server/assets/store.ts pull",
 		"data:backup": "tsx server/data-backup.ts",
+		"licensed": "tsx server/licensed/cli.ts",
 		"data:restore": "tsx server/data-restore.ts",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",

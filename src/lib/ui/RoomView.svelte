@@ -1475,6 +1475,7 @@
 						send={act}
 						upgrade={conn.upgradeReply}
 						campaign={conn.campaignReply}
+						sources={conn.sourcesReply}
 						onSheet={(id) => {
 							if (id === myCharacter?.id) sheetOpen = true;
 							else sheetFor = id;

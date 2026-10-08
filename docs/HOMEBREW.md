@@ -156,3 +156,5 @@ A character built from a pack carries those ids, so it names exactly the pack it
 Only the GM who added a pack, at that table, shares it. The story records the GM's public creator id (never the key) and `visibility: "table"`.
 
 A pack published to the library can be public, restricted or private, and shared with chosen creators, collections or tables (see "Access and sharing" in `docs/ADVENTURES.md`). A collection carries a restricted pack only when its creator collaborates on it or the pack was granted to that collection.
+
+A publisher's catalog is not homebrew. Licensed content (milestone 59) uses the same record format, but is installed by the server's operator with its terms and read under them, with ids of its own (`lc-…`): see `docs/LICENSED.md`.

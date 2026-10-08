@@ -1,10 +1,10 @@
 // Backs up every place the game server keeps data, before a deploy that bumps the scene file
-// (docs/RENDERING.md, "Scene-file policy"): saves, live rooms, the library and campaigns.
+// (docs/RENDERING.md, "Scene-file policy"): saves, live rooms, the library, campaigns and licence grants.
 //
 //   npm run data:backup                  into backups/<ISO time>/
 //   npm run data:backup -- <dir>         into <dir>
 //
-// Files come from SCENES_DIR, ROOMS_DIR, LIBRARY_DIR and CAMPAIGNS_DIR (the defaults of server/index.ts) into
+// Files come from SCENES_DIR, ROOMS_DIR, LIBRARY_DIR, CAMPAIGNS_DIR and LICENCES_DIR (the defaults of server/index.ts) into
 // <dir>/files/; with SUPABASE_URL and SUPABASE_SERVICE_KEY set, each table is paged out into
 // <dir>/tables/<table>.ndjson. manifest.json says what was taken. A backup holds session tokens
 // and GM key hashes: keep it like the database. `npm run data:restore` puts it back.
@@ -19,6 +19,7 @@ export interface DataDirs {
 	rooms: string;
 	library: string;
 	campaigns: string;
+	licences: string;
 }
 
 /** The tables, parents before children (restore order), with their primary keys. */
@@ -29,7 +30,9 @@ export const TABLES = [
 	{ name: 'library_versions', key: ['adventure_id', 'version'] },
 	{ name: 'library_ratings', key: ['adventure_id', 'rater'] },
 	{ name: 'library_grants', key: ['id'] },
-	{ name: 'campaigns', key: ['id'] }
+	{ name: 'campaigns', key: ['id'] },
+	{ name: 'licensed_grants', key: ['id'] },
+	{ name: 'licensed_status', key: ['source'] }
 ] as const;
 
 export interface BackupManifest {
@@ -51,7 +54,8 @@ export function dataDirs(env = process.env): DataDirs {
 		scenes: path.resolve(env.SCENES_DIR ?? 'data/scenes'),
 		rooms: path.resolve(env.ROOMS_DIR ?? 'data/rooms'),
 		library: path.resolve(env.LIBRARY_DIR ?? 'data/library'),
-		campaigns: path.resolve(env.CAMPAIGNS_DIR ?? 'data/campaigns')
+		campaigns: path.resolve(env.CAMPAIGNS_DIR ?? 'data/campaigns'),
+		licences: path.resolve(env.LICENCES_DIR ?? 'data/licences')
 	};
 }
 
@@ -82,7 +86,7 @@ export async function backupData(
 	const seen = (v: unknown) => versions.set(v, (versions.get(v) ?? 0) + 1);
 
 	const files = {} as BackupManifest['files'];
-	for (const store of ['scenes', 'rooms', 'library', 'campaigns'] as const) {
+	for (const store of ['scenes', 'rooms', 'library', 'campaigns', 'licences'] as const) {
 		const names = await listFiles(dirs[store]);
 		files[store] = names?.length ?? null;
 		if (!names) continue;
@@ -91,7 +95,13 @@ export async function backupData(
 			filter: (src) => !isTemp(src)
 		});
 		for (const name of names) {
-			if (store === 'library' || store === 'campaigns' || name.endsWith('.meta.json')) continue;
+			if (
+				store === 'library' ||
+				store === 'campaigns' ||
+				store === 'licences' ||
+				name.endsWith('.meta.json')
+			)
+				continue;
 			const data = JSON.parse(await readFile(path.join(dirs[store], name), 'utf8'));
 			seen(store === 'scenes' ? data?.version : data?.scene?.version);
 		}

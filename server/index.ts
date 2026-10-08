@@ -7,6 +7,8 @@ import { FileLibraryStore, type LibraryStore } from './library-store';
 import { SupabaseLibraryStore } from './supabase-library-store';
 import { FileCampaignStore, SupabaseCampaignStore } from './campaign-store';
 import type { CampaignStore } from './campaigns';
+import { installSources } from './licensed/sources';
+import { licenceStoreFromEnv } from './licensed/cli';
 
 const port = Number(process.env.GAME_SERVER_PORT ?? 8787);
 const host = process.env.GAME_SERVER_HOST ?? '0.0.0.0';
@@ -55,16 +57,22 @@ const { store, where } = sceneStore();
 const rooms = roomStore();
 const library = libraryStore();
 const campaigns = campaignStore();
+// Licensed sources the operator installed (docs/LICENSED.md), and who may use them.
+const licensedDir = path.resolve(process.env.LICENSED_DIR ?? 'content/licensed');
+const sources = installSources(licensedDir);
+for (const skipped of sources.skipped) console.warn(`[licensed] skipped ${skipped}`);
+const licences = licenceStoreFromEnv();
 const server = await startGameServer({
 	port,
 	host,
 	sceneStore: store,
 	roomStore: rooms.store,
 	libraryStore: library.store,
-	campaignStore: campaigns.store
+	campaignStore: campaigns.store,
+	licenceStore: licences.store
 });
 console.info(
-	`[game-server] listening on ws://${host}:${server.port}, scenes in ${where}, rooms in ${rooms.where}, library in ${library.where}, campaigns in ${campaigns.where}`
+	`[game-server] listening on ws://${host}:${server.port}, scenes in ${where}, rooms in ${rooms.where}, library in ${library.where}, campaigns in ${campaigns.where}, ${sources.installed.length} licensed source(s) from ${licensedDir}, licences in ${licences.where}`
 );
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

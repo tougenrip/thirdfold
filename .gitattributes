@@ -1,0 +1,3 @@
+# Licensed sources are pinned by their content hash (docs/LICENSED.md): keep LF line endings.
+content/licensed/** text eol=lf
+content/licensed-example/** text eol=lf

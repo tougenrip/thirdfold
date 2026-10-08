@@ -117,6 +117,7 @@ import {
 } from './define';
 import { BUILT_MAX, nextBuiltId, withBuilt } from './built';
 import { campaignParty } from './campaign';
+import type { InstalledSource } from '../licensed/sources';
 import type { CampaignRecord, StoryResult } from '../campaigns';
 import { BESTIARY_MAX, withBestiary } from './bestiary';
 import { outsidePacks, PACKS_MAX, packInUse, packsOf, withPack } from './packs';
@@ -5017,6 +5018,59 @@ export function attachPack(room: Room, actor: Player, raw: unknown): Outcomes {
 	};
 }
 
+/**
+ * GM: brings an installed licensed source to the story (milestone 59). The
+ * game server has already checked the source is installed and not
+ * withdrawn and that this GM may use it (`grant`: the operator's grant it
+ * rests on, null for an open source); this reads it under its terms.
+ */
+export function attachLicensed(
+	room: Room,
+	actor: Player,
+	source: InstalledSource,
+	grant: string | null
+): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	if (actor.role !== 'gm') return GM_ONLY;
+	const packs = rulesOf(adventure).packs;
+	const { file } = source;
+	if (
+		!packs?.holdLicensed ||
+		file.rules.id !== adventure.rules.id ||
+		file.rules.version !== adventure.rules.version
+	)
+		return fail('forbidden', `${file.name} is for other rules than this story's.`);
+	if (adventure.stage === 'complete' || adventure.stage === 'defeat')
+		return fail('forbidden', 'This story is over.');
+	if ((adventure.packs?.length ?? 0) >= PACKS_MAX)
+		return fail('limit_reached', `A story has at most ${PACKS_MAX} homebrew packs.`);
+	const held = packs.holdLicensed({ file, content: source.content });
+	if (!held.ok)
+		return fail(
+			'invalid_message',
+			`${file.name} can't be used: ${held.problems.slice(0, 3).join('; ')}.`
+		);
+	if (packsOf(adventure).includes(held.id))
+		return fail('forbidden', `The story already has ${file.name}.`);
+	const owner = room.gmOwner ? creatorIdOf(room.gmOwner) : null;
+	withPack(adventure, {
+		id: held.id,
+		owner,
+		licence: { source: file.id, version: file.version, sha256: source.sha256, grant }
+	});
+	return {
+		ok: true,
+		log: [
+			postSystem(
+				room,
+				`The GM brings licensed content to the story: ${file.name} ${file.version}, by ${file.publisher}.`
+			),
+			postSystem(room, file.attribution)
+		]
+	};
+}
+
 /** GM: takes a content pack out of the story, when nothing in it uses the pack. */
 export function detachPack(room: Room, actor: Player, id: string): Outcomes {
 	const adventure = room.adventure;
@@ -5031,7 +5085,12 @@ export function detachPack(room: Room, actor: Player, id: string): Outcomes {
 	if (!adventure.packs.length) delete adventure.packs;
 	return {
 		ok: true,
-		log: [postSystem(room, `The GM puts away homebrew: ${listing?.name ?? 'a pack'}.`)]
+		log: [
+			postSystem(
+				room,
+				`The GM puts away ${listing?.source === 'licensed' ? 'licensed content' : 'homebrew'}: ${listing?.name ?? 'a pack'}.`
+			)
+		]
 	};
 }
 

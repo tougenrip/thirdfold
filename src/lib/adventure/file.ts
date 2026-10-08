@@ -611,7 +611,7 @@ function effect(v: unknown, path: string, depth: number): Effect {
 
 const STAT_IDS = STATS.map((s) => s.id);
 /** A monster kind from a ruleset's bestiary: the SRD's (`srd-…`) or a homebrew pack's (`hb-…`). */
-export const MONSTER_KIND = /^(srd|hb)-[a-z0-9-]{1,80}$/;
+export const MONSTER_KIND = /^(srd|hb|lc)-[a-z0-9-]{1,80}$/;
 const OBJECT_KINDS = [
 	'npc',
 	'door',

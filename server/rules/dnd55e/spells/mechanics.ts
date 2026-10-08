@@ -17,6 +17,7 @@ import type { EffectMods } from '../../ruleset';
 import type { Ability } from '../core';
 import type { SpellData } from '../srd/records';
 import { homebrewMechanics } from '../homebrew/registry';
+import { isHomebrewId } from '../../../../src/lib/rules/dnd55e/homebrew';
 
 /** A cone or cube from the caster (`feet` long), or a sphere around a point in range (`feet` of radius). */
 export type Area = { shape: 'cone' | 'cube' | 'sphere'; feet: number };
@@ -301,7 +302,7 @@ export function mechanicsOf(id: string): SpellMechanics | undefined {
 /** Why a spell isn't cast at the table, or null when it is. */
 export function unsupported(id: string, data: SpellData): string | null {
 	if (mechanicsOf(id)) return null;
-	if (id.startsWith('hb-')) return 'Its homebrew pack gives it no mechanics: listed, not cast.';
+	if (isHomebrewId(id)) return 'Its content pack gives it no mechanics: listed, not cast.';
 	const time = data.castingTime;
 	if (!CASTING_TIMES[time.replace(/ or Ritual$/, '')])
 		return time.startsWith('Reaction')

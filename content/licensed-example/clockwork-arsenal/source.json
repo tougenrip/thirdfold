@@ -1,0 +1,29 @@
+{
+	"format": "thirdfold-licensed-source",
+	"formatVersion": 1,
+	"id": "clockwork-arsenal",
+	"name": "Clockwork Arsenal",
+	"publisher": "Example Press",
+	"version": "1.0",
+	"about": "A hypothetical licensed catalog, made up for thirdfold's tests and docs: no real publisher, product or agreement stands behind it.",
+	"rules": { "id": "dnd-5.5e", "version": 1 },
+	"attribution": "Clockwork Arsenal is a trademark of Example Press, used under licence. Its content is used by permission of Example Press and is not covered by the SRD's CC-BY-4.0 licence. (Hypothetical: Example Press is made up.)",
+	"trademarks": ["Clockwork Arsenal", "Example Press"],
+	"terms": {
+		"licence": { "name": "Example Press Partner Licence 1.0 (hypothetical)", "url": null },
+		"entitlement": "granted",
+		"uses": { "export": false, "reference": false },
+		"display": "mechanics",
+		"withdrawal": "finish"
+	},
+	"provenance": {
+		"suppliedBy": "thirdfold (made up for tests)",
+		"received": "2026-10-08",
+		"agreement": "None: hypothetical",
+		"hypothetical": true
+	},
+	"content": {
+		"file": "content.json",
+		"sha256": "ebba533f82dc325eb53e9c586340f30363e7babb1db07095713aebb71b6d9f49"
+	}
+}

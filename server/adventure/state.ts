@@ -6,6 +6,7 @@
 // Who plays a character is not stored here: it is whoever owns the
 // character's token, so the GM reassigning or removing the token just works.
 
+import type { LicenceUse } from '../../src/lib/content/licence';
 import type {
 	AdventureStage,
 	EncounterState,
@@ -336,4 +337,10 @@ export interface StoryCampaign {
 export interface StoryPack {
 	id: string;
 	owner: string | null;
+	/**
+	 * A licensed source's (milestone 59): which source, its version and
+	 * content hash, and the operator's grant it was taken up by. Saves keep
+	 * this reference, never the content.
+	 */
+	licence?: LicenceUse;
 }

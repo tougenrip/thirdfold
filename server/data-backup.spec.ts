@@ -27,7 +27,8 @@ const dirsIn = (root: string): DataDirs => ({
 	scenes: path.join(root, 'scenes'),
 	rooms: path.join(root, 'rooms'),
 	library: path.join(root, 'library'),
-	campaigns: path.join(root, 'campaigns')
+	campaigns: path.join(root, 'campaigns'),
+	licences: path.join(root, 'licences')
 });
 
 /** Every file under a directory, by relative path. */
@@ -93,7 +94,13 @@ describe('data backup and restore', () => {
 
 		const backup = path.join(await temp(), 'b');
 		const manifest = await backupData(backup, live, null);
-		expect(manifest.files).toEqual({ scenes: 2, rooms: 1, library: 2, campaigns: null });
+		expect(manifest.files).toEqual({
+			scenes: 2,
+			rooms: 1,
+			library: 2,
+			campaigns: null,
+			licences: null
+		});
 		expect(manifest.tables).toBeNull();
 		expect(manifest.sceneVersions).toEqual({ [SCENE_FILE_VERSION]: 2 });
 		await expect(backupData(backup, live, null)).rejects.toThrow('not empty');
@@ -110,7 +117,13 @@ describe('data backup and restore', () => {
 	it('skips stores that have no directory yet', async () => {
 		const backup = path.join(await temp(), 'b');
 		const manifest = await backupData(backup, dirsIn(await temp()), null);
-		expect(manifest.files).toEqual({ scenes: null, rooms: null, library: null, campaigns: null });
+		expect(manifest.files).toEqual({
+			scenes: null,
+			rooms: null,
+			library: null,
+			campaigns: null,
+			licences: null
+		});
 		const restored = dirsIn(await temp());
 		await restoreData(backup, restored, null);
 		await expect(readdir(restored.scenes)).rejects.toThrow();
@@ -127,7 +140,9 @@ describe('data backup and restore', () => {
 			library_versions: [{ adventure_id: adventure, version: 1, file: {} }],
 			library_ratings: [],
 			library_grants: [],
-			campaigns: [{ id: id(), owner: 'a'.repeat(64), data: {} }]
+			campaigns: [{ id: id(), owner: 'a'.repeat(64), data: {} }],
+			licensed_grants: [],
+			licensed_status: []
 		};
 		const backup = path.join(await temp(), 'b');
 		const manifest = await backupData(backup, dirsIn(await temp()), fakeDb(source));
@@ -138,7 +153,9 @@ describe('data backup and restore', () => {
 			library_versions: 1,
 			library_ratings: 0,
 			library_grants: 0,
-			campaigns: 1
+			campaigns: 1,
+			licensed_grants: 0,
+			licensed_status: 0
 		});
 		expect(manifest.sceneVersions).toEqual({ 9: 1203, 10: 1 });
 

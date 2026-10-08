@@ -5,6 +5,7 @@ import { isDiagnostic, type Diagnostic } from '$lib/validation/diagnostics';
 import { GAME_SERVER_URL } from '$lib/api';
 import type { Motion } from '$lib/game/motion';
 import type { CampaignSummary, CampaignView } from '$lib/game/campaign';
+import type { LicensedSourceView } from '$lib/content/licence';
 import type {
 	ClientMessage,
 	ErrorCode,
@@ -49,6 +50,12 @@ export interface CampaignReply {
 	seq: number;
 	campaigns: CampaignSummary[] | null;
 	current: CampaignView | null;
+}
+
+/** The licensed sources the GM may use (milestone 59). */
+export interface SourcesReply {
+	seq: number;
+	sources: LicensedSourceView[];
 }
 
 /** A character's full sheet, as the server sent it. */
@@ -122,6 +129,8 @@ export class RoomConnection {
 	sheetReply = $state<SheetReply | null>(null);
 	/** The GM's campaigns, as the server last told them. */
 	campaignReply = $state<CampaignReply | null>(null);
+	/** The licensed sources the GM may use here, as the server last told them. */
+	sourcesReply = $state<SourcesReply | null>(null);
 	/** The latest motions to show; `seq` increases so each batch plays once. */
 	motion = $state<{ seq: number; motions: Motion[] } | null>(null);
 	me = $derived(this.room?.players.find((p) => p.id === this.playerId) ?? null);
@@ -271,6 +280,9 @@ export class RoomConnection {
 				return;
 			case 'upgrade_review':
 				this.upgradeReply = { ...msg, seq: ++this.errorSeq };
+				return;
+			case 'content_sources':
+				this.sourcesReply = { seq: ++this.errorSeq, sources: msg.sources };
 				return;
 			case 'campaigns':
 				this.campaignReply = {

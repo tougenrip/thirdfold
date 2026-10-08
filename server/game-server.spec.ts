@@ -25,6 +25,10 @@ import { RoomManager } from './rooms';
 import { examplePack } from './rules/dnd55e/homebrew/example';
 import { MemoryRoomStore } from './room-store';
 import { MemoryCampaignStore } from './campaign-store';
+import { MemoryLicenceStore } from './licensed/licence-store';
+import { keyOwner } from './gm-keys';
+import { creatorIdOf } from './library-store';
+import { installedSource, installSources } from './licensed/sources';
 import { applyScene, exportScene } from './scene-io';
 
 class Queue {
@@ -4744,5 +4748,152 @@ describe('campaigns over the wire (milestone 58)', () => {
 		expect((await again.until('campaigns')).campaigns).toEqual([
 			expect.objectContaining({ id: begun.id, name: 'The Long Road', characters: 2, adventures: 1 })
 		]);
+	});
+});
+
+describe('licensed content over the wire (milestone 59)', () => {
+	it('keeps a licensed source to the GMs granted it, on its terms, told apart from homebrew', async () => {
+		installSources(path.resolve('content/licensed-example'));
+		const licences = new MemoryLicenceStore();
+		const scenes = new MemorySceneStore();
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			licenceStore: licences,
+			sceneStore: scenes
+		});
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room, gmKey } = await gm.expect('welcome');
+		const pip = await connect();
+		pip.send({ type: 'join', roomId: room.id, name: 'Pip', role: 'player' });
+		await pip.expect('welcome');
+		gm.send({ type: 'adventure_start', adventureId: 'barrow' });
+		await gm.until('room_reset');
+
+		// Not granted: not listed, and not taken up.
+		gm.send({ type: 'content_sources' });
+		expect((await gm.until('content_sources')).sources).toEqual([]);
+		gm.send({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		expect(await gm.until('error')).toMatchObject({
+			code: 'forbidden',
+			diagnostics: [expect.objectContaining({ code: 'licence.denied' })]
+		});
+		pip.send({ type: 'content_sources' });
+		expect(await pip.until('error')).toMatchObject({ code: 'forbidden' });
+
+		// The operator grants it to this GM (by their public creator id).
+		const creator = creatorIdOf(keyOwner(gmKey!));
+		const grant = await licences.grant('clockwork-arsenal', creator, { by: 'Operator' });
+		gm.send({ type: 'content_sources' });
+		const [listed] = (await gm.until('content_sources')).sources;
+		expect(listed).toMatchObject({
+			id: 'clockwork-arsenal',
+			publisher: 'Example Press',
+			hypothetical: true,
+			usable: true,
+			terms: { display: 'mechanics', uses: { export: false, reference: false } },
+			counts: { weapon: 1, armor: 1, spell: 1, monster: 1 }
+		});
+		gm.send({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		const attached = await pip.until('adventure_update', (m) => !!m.adventure?.packs?.length);
+		const pack = attached.adventure!.packs![0];
+		expect(pack).toMatchObject({
+			name: 'Clockwork Arsenal',
+			creator: 'Example Press',
+			source: 'licensed',
+			licensed: { source: 'clockwork-arsenal', publisher: 'Example Press' }
+		});
+		expect(pack.id).toMatch(/^lc-/);
+		await pip.until(
+			'chat',
+			(m) =>
+				m.message.kind === 'system' && m.message.text.startsWith('Clockwork Arsenal is a trademark')
+		);
+
+		// The creator offers its gear marked as licensed, not homebrew.
+		pip.send({ type: 'character_options' });
+		const offered = (await pip.until('character_options')).options as {
+			weapons: { id: string; homebrew?: string; licensed?: string }[];
+		};
+		expect(offered.weapons.find((w) => w.id === `${pack.id}:weapon:spring-pike`)).toMatchObject({
+			licensed: 'Clockwork Arsenal 1.0, Example Press'
+		});
+		expect(
+			offered.weapons.find((w) => w.id === `${pack.id}:weapon:spring-pike`)?.homebrew
+		).toBeUndefined();
+
+		// Its monsters are found as licensed, by the GM.
+		gm.send({ type: 'monster_search', query: 'brass hound' });
+		const found = (await gm.until('monster_search')).monsters;
+		expect(found).toContainEqual(
+			expect.objectContaining({
+				kind: `${pack.id}-brass-hound`,
+				source: 'Licensed: Clockwork Arsenal 1.0'
+			})
+		);
+
+		// Its terms keep the story on this server: no export, and a save holds only a reference.
+		gm.send({ type: 'scene_export', name: 'Arsenal' });
+		expect(await gm.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.terms' })]
+		});
+		gm.send({ type: 'scene_save', name: 'Arsenal' });
+		const saved = await gm.until('scene_saved');
+		const file = (await scenes.load(saved.sceneId)) as {
+			adventure: { state: { packs: unknown[]; credits: string[] } };
+		};
+		expect(file.adventure.state.packs).toEqual([
+			{
+				owner: creator,
+				licensed: {
+					source: 'clockwork-arsenal',
+					version: '1.0',
+					sha256: installedSource('clockwork-arsenal')!.sha256,
+					grant: grant.id
+				}
+			}
+		]);
+		expect(file.adventure.state.credits).toContain(
+			installedSource('clockwork-arsenal')!.file.attribution
+		);
+		expect(JSON.stringify(file)).not.toContain('wound spring');
+
+		// Published content may not name it.
+		const naming = JSON.parse(JSON.stringify(dndExampleAdventure()));
+		naming.monsters.push(`${pack.id}-brass-hound`);
+		gm.send({ type: 'library_publish', creator: 'Gemma', gmKey, file: naming });
+		expect(await gm.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.terms' })]
+		});
+
+		// Revoked: the save no longer opens for this GM, and the validator says why.
+		await licences.revoke(grant.id);
+		const again = await connect();
+		again.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		expect(await again.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.denied' })]
+		});
+		gm.send({ type: 'content_validate', kind: 'save', file, gmKey });
+		expect((await gm.until('validation')).validation.diagnostics).toEqual([
+			expect.objectContaining({ code: 'licence.denied' })
+		]);
+
+		// Granted again, then withdrawn under "finish": a story under way goes on, nothing new takes it up.
+		await licences.grant('clockwork-arsenal', creator, { by: 'Operator' });
+		await licences.setStatus('clockwork-arsenal', 'withdrawn', 'The publisher asked.');
+		const onward = await connect();
+		onward.send({ type: 'create', name: 'Gemma', gmKey, continueFrom: saved.sceneId });
+		const reopened = (await onward.expect('welcome')).room.adventure!;
+		expect(reopened.packs!.map((p) => p.source)).toEqual(['licensed']);
+		onward.send({ type: 'content_sources' });
+		expect((await onward.until('content_sources')).sources).toEqual([]);
+		onward.send({ type: 'adventure_pack', op: 'detach', id: pack.id });
+		await onward.until('adventure_update', (m) => !m.adventure?.packs?.length);
+		onward.send({ type: 'adventure_pack', op: 'licensed', source: 'clockwork-arsenal' });
+		expect(await onward.until('error')).toMatchObject({
+			diagnostics: [expect.objectContaining({ code: 'licence.withdrawn' })]
+		});
 	});
 });

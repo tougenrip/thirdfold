@@ -50,6 +50,17 @@ import {
 	type CampaignStore
 } from './campaigns';
 import { MemoryCampaignStore } from './campaign-store';
+import { MemoryLicenceStore, type LicenceStore } from './licensed/licence-store';
+import {
+	exportRefused,
+	mayUse,
+	openRefused,
+	referenceRefused,
+	savedLicences,
+	type MayUse
+} from './licensed/policy';
+import { installedSource, installedSources, type InstalledSource } from './licensed/sources';
+import type { LicensedSourceView } from '../src/lib/content/licence';
 import { CAMPAIGN_LIMITS } from '../src/lib/game/campaign';
 import { problemsOf, reportOf, resolveCollection, withRules, type Shelves } from './collections';
 import { decide, entitlementOf, stillHolds, type Subject } from './library-access';
@@ -140,6 +151,12 @@ export interface GameServerOptions {
 	libraryStore?: LibraryStore;
 	/** Campaigns (see campaigns.ts and campaign-store.ts). Defaults to memory. */
 	campaignStore?: CampaignStore;
+	/**
+	 * Who may use which installed licensed source, and which are withdrawn
+	 * (licensed/licence-store.ts). Defaults to memory. The sources themselves
+	 * are installed with `installSources` (server/index.ts, from LICENSED_DIR).
+	 */
+	licenceStore?: LicenceStore;
 }
 
 export interface GameServer {
@@ -184,6 +201,21 @@ export async function startGameServer(options: GameServerOptions): Promise<GameS
 			continue;
 		}
 		restored.push(result.room);
+		// A licensed source withdrawn under terms that stop its stories, or no longer granted to
+		// this GM, sets the story aside (milestone 59); the table stays, and so do the GM's saves.
+		const story = result.room.adventure;
+		const licences = (story?.packs ?? []).flatMap((p) => (p.licence ? [p.licence] : []));
+		if (story && licences.length) {
+			const refused = await openRefused(
+				options.licenceStore ?? new MemoryLicenceStore(),
+				licences,
+				result.room.gmOwner ? creatorIdOf(result.room.gmOwner) : null
+			).catch(() => null);
+			if (refused) {
+				result.room.adventure = null;
+				postSystem(result.room, `The story was set aside: ${refused.message}`, 'gm');
+			}
+		}
 		// The campaign open at the table, read again (it is its GM's, or it stays closed).
 		const campaignId = (raw as { campaignId?: unknown }).campaignId;
 		if (options.campaignStore && typeof campaignId === 'string') {
@@ -224,6 +256,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	const sceneStore = options.sceneStore ?? new MemorySceneStore();
 	const libraryStore = options.libraryStore ?? new MemoryLibraryStore();
 	const campaignStore = options.campaignStore ?? new MemoryCampaignStore();
+	const licenceStore = options.licenceStore ?? new MemoryLicenceStore();
 	// Browsing the library and the open games: a few asks a second per connection.
 	const browseLimiter = new RateLimiter(10, 2);
 	// Publishing to the library: a handful, then one every 20 s per creator.
@@ -519,8 +552,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				return sendError(ws, 'persistence_failed', 'That save could not be opened. Try again.');
 			}
 			if (saved === null) return sendError(ws, 'scene_not_found', 'That save no longer exists.');
-			const refused = await withdrawn(saved);
-			if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
+			const refused = await withdrawn(saved, owner);
+			if (refused) return sendError(ws, 'forbidden', refused.message, [refused]);
 		}
 		// The socket may have gone, or been seated, while storage was busy.
 		if (ws.readyState !== ws.OPEN || seats.has(ws)) return;
@@ -740,6 +773,10 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		}
 		if (msg.type === 'adventure_upgrade') {
 			void moveStory(ws, room, player, msg);
+			return;
+		}
+		if (msg.type === 'adventure_pack' && msg.op === 'licensed') {
+			void attachSource(ws, room, player, msg.source);
 			return;
 		}
 		// Talking, narration and picking characters add to the log, so they share the chat rate limit.
@@ -1031,7 +1068,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					}
 					if (msg.type === 'scene_export') {
 						const refused = await unexportable(room);
-						if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
+						if (refused) return sendError(ws, 'forbidden', refused.message, [refused]);
 						return send(ws, { type: 'scene_exported', file });
 					}
 					const sceneId = await sceneStore.save(file, {
@@ -1052,15 +1089,15 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					if (data === null) {
 						return sendError(ws, 'scene_not_found', 'That saved scene no longer exists.');
 					}
-					const refused = await withdrawn(data);
-					if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
+					const refused = await withdrawn(data, room.gmOwner ?? null);
+					if (refused) return sendError(ws, 'forbidden', refused.message, [refused]);
 					// The room may have closed while storage was busy.
 					if (rooms.get(room.id) !== room) return;
 					return loadIntoRoom(room, player, data, 'loaded');
 				}
 				case 'scene_import': {
-					const refused = await withdrawn(msg.file);
-					if (refused) return sendError(ws, 'forbidden', refused, accessDenied(refused));
+					const refused = await withdrawn(msg.file, room.gmOwner ?? null);
+					if (refused) return sendError(ws, 'forbidden', refused.message, [refused]);
 					if (rooms.get(room.id) !== room) return;
 					return loadIntoRoom(room, player, msg.file, 'imported');
 				}
@@ -1372,6 +1409,9 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'scene_share':
 				void handleScene(ws, room, player, msg);
 				return;
+			case 'content_sources':
+				void contentSources(ws, room, player);
+				return;
 			case 'campaign_list':
 			case 'campaign_create':
 			case 'campaign_open':
@@ -1550,7 +1590,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					const validation = await validateContent(msg.kind, msg.file, {
 						shelves,
 						owner: msg.gmKey ? keyOwner(msg.gmKey) : null,
-						collection: msg.collection ?? null
+						collection: msg.collection ?? null,
+						licences: licenceStore
 					});
 					// An adventure that reads: what it comes to under its rules, for the builder.
 					const loaded =
@@ -1744,7 +1785,23 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		return [diagnostic('access.denied', 'adventure.entitlements', message)];
 	}
 
-	async function withdrawn(data: unknown): Promise<string | null> {
+	/**
+	 * Why a saved story can't be opened by the GM of `owner` (a GM key's
+	 * hash): a library grant it rests on no longer holds (milestone 54), or a
+	 * licensed source it uses can't be used by them now (milestone 59).
+	 */
+	async function withdrawn(data: unknown, owner: string | null): Promise<Diagnostic | null> {
+		const licence = await openRefused(
+			licenceStore,
+			savedLicences(data),
+			owner ? creatorIdOf(owner) : null
+		);
+		if (licence) return licence;
+		const library = await libraryWithdrawn(data);
+		return library ? accessDenied(library)[0] : null;
+	}
+
+	async function libraryWithdrawn(data: unknown): Promise<string | null> {
 		for (const e of savedEntitlements(data)) {
 			const copy = await libraryStore.get(e.item);
 			if (!stillHolds(copy, e))
@@ -1760,7 +1817,12 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 	 * isn't a collaborator's (theirs to take away) goes no further than this
 	 * server's saves.
 	 */
-	async function unexportable(room: Room): Promise<string | null> {
+	async function unexportable(room: Room): Promise<Diagnostic | null> {
+		// A licensed source's terms may keep its stories on this server (milestone 59).
+		const licence = exportRefused(
+			(room.adventure?.packs ?? []).flatMap((p) => (p.licence ? [p.licence] : []))
+		);
+		if (licence) return licence;
 		const creator = room.gmOwner ? creatorIdOf(room.gmOwner) : null;
 		for (const e of room.adventure?.entitlements ?? []) {
 			const copy = await libraryStore.get(e.item);
@@ -1771,7 +1833,9 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				grant.target.kind !== 'creator' ||
 				grant.target.id !== creator
 			)
-				return `${copy?.listing.title ?? 'This story'} was shared with you to play, not to take away: save it here instead.`;
+				return accessDenied(
+					`${copy?.listing.title ?? 'This story'} was shared with you to play, not to take away: save it here instead.`
+				)[0];
 		}
 		return null;
 	}
@@ -1791,7 +1855,12 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 		| { ok: false; error: string; diagnostics: Diagnostic[] }
 	> {
 		// Every check the builder's content_validate makes, as the publisher.
-		const validation = await validateContent(kind, raw, { shelves, owner, collection: id });
+		const validation = await validateContent(kind, raw, {
+			shelves,
+			owner,
+			collection: id,
+			licences: licenceStore
+		});
 		if (!validation.ok) {
 			const what = kind === 'pack' ? 'homebrew' : kind;
 			return {
@@ -1800,6 +1869,14 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 				diagnostics: validation.diagnostics
 			};
 		}
+		// Licensed content may be named only where its licence allows references (milestone 59).
+		const reference = referenceRefused(raw, packOfSource);
+		if (reference)
+			return {
+				ok: false,
+				error: `That ${kind === 'pack' ? 'homebrew' : kind} can't be published: ${reference.message}`,
+				diagnostics: [reference]
+			};
 		const refused = (error: string) => ({ ok: false as const, error, diagnostics: [] });
 		const size = JSON.stringify(raw).length;
 		if (kind === 'adventure') {
@@ -1935,6 +2012,89 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			libraryStore
 				.played(item)
 				.catch((err) => console.error('[library] counting a play failed', err));
+	}
+
+	/** A GM's public creator id at this table, or null without a GM key. */
+	const creatorOf = (room: Room) => (room.gmOwner ? creatorIdOf(room.gmOwner) : null);
+
+	/** The id an installed source's content is held under (it is held as its rules read it). */
+	function packOfSource(source: InstalledSource): string | null {
+		const held = findRuleset(source.file.rules)?.packs?.holdLicensed?.({
+			file: source.file,
+			content: source.content
+		});
+		return held?.ok ? held.id : null;
+	}
+
+	/**
+	 * GM: the licensed sources installed here that they may use (milestone 59):
+	 * a source granted to nobody here, or withdrawn, isn't listed.
+	 */
+	async function contentSources(ws: WebSocket, room: Room, player: Player): Promise<void> {
+		if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM brings content.');
+		if (!creatorLimiter.take(player.id))
+			return sendError(ws, 'rate_limited', 'Slow down a little.');
+		try {
+			const sources: LicensedSourceView[] = [];
+			for (const source of installedSources()) {
+				const may = await mayUse(licenceStore, source, creatorOf(room));
+				if (!may.ok) continue;
+				const { file } = source;
+				const records = (source.content as { records?: { kind?: unknown }[] }).records ?? [];
+				const counts: Record<string, number> = {};
+				for (const r of records)
+					if (typeof r.kind === 'string') counts[r.kind] = (counts[r.kind] ?? 0) + 1;
+				sources.push({
+					id: file.id,
+					name: file.name,
+					publisher: file.publisher,
+					version: file.version,
+					about: file.about,
+					attribution: file.attribution,
+					terms: structuredClone(file.terms),
+					hypothetical: file.provenance.hypothetical,
+					counts,
+					usable:
+						!!room.adventure &&
+						room.adventure.rules.id === file.rules.id &&
+						room.adventure.rules.version === file.rules.version
+				});
+			}
+			send(ws, { type: 'content_sources', sources });
+		} catch (err) {
+			console.error('[licensed] listing failed', err);
+			sendError(ws, 'persistence_failed', 'The licence records could not be read. Try again.');
+		}
+	}
+
+	/** GM: brings an installed licensed source to the story, when they may use it. */
+	async function attachSource(
+		ws: WebSocket,
+		room: Room,
+		player: Player,
+		id: string
+	): Promise<void> {
+		if (player.role !== 'gm') return sendError(ws, 'forbidden', 'Only the GM can do that.');
+		if (!sceneLimiter.take(player.id))
+			return sendError(ws, 'rate_limited', 'Give it a moment before trying again.');
+		const source = installedSource(id);
+		if (!source) return sendError(ws, 'invalid_message', 'There is no such licensed source here.');
+		let may: MayUse;
+		try {
+			may = await mayUse(licenceStore, source, creatorOf(room));
+		} catch (err) {
+			console.error('[licensed] checking failed', err);
+			return sendError(
+				ws,
+				'persistence_failed',
+				'The licence records could not be read. Try again.'
+			);
+		}
+		if (!may.ok) return sendError(ws, 'forbidden', may.diagnostic.message, [may.diagnostic]);
+		if (rooms.get(room.id) !== room) return;
+		const result = adventure.attachLicensed(room, player, source, may.grant);
+		if (!result.ok) return sendError(ws, result.code, result.message);
+		applyOutcome(room, result);
 	}
 
 	/** GM: sets up an adventure from the library (its latest version, or `version`). */

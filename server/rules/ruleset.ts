@@ -27,6 +27,7 @@ import type { AdventureDef, EnemyDef } from '../../src/lib/adventure/define';
 import type { RollMode } from '../../src/lib/game/chat';
 import { parseDice, rollDice, type DiceRoll, type DieRoller } from '../../src/lib/game/dice';
 import type { Cover } from '../../src/lib/game/cover';
+import type { LicensedSourceFile } from '../../src/lib/content/licence';
 import type { CharacterState, Statuses } from '../adventure/state';
 
 export type { Cover };
@@ -227,6 +228,20 @@ export interface ContentPacks {
 	content(id: string): JsonData | null;
 	/** The pack an id comes from (a record's, or an enemy kind's), or null for the rules' own. */
 	packOf(id: string): string | null;
+	/**
+	 * Reads and holds a licensed source's content under its terms (milestone
+	 * 59): its id (`lc-…`), or everything wrong with it. The source comes
+	 * from the server's installed sources, never from a client.
+	 */
+	holdLicensed?(
+		source: LicensedContent
+	): { ok: true; id: string } | { ok: false; problems: string[] };
+}
+
+/** A licensed source's content and the terms it is read under. */
+export interface LicensedContent {
+	file: LicensedSourceFile;
+	content: unknown;
 }
 
 /** What harm a creature shrugs off, halves or takes double, by damage type (the rules' ids). */

@@ -30,6 +30,8 @@ import {
 import { parseEntitlements } from '../../src/lib/game/access';
 import { CAMPAIGN_ID_PATTERN, normalizeCampaignName } from '../../src/lib/game/campaign';
 import { normalizeName } from '../../src/lib/game/names';
+import { LICENSED_SOURCE_ID, type LicenceUse } from '../../src/lib/content/licence';
+import { installedSource } from '../licensed/sources';
 import { compareContent, lockOf, readSteps, savedPins } from './lock';
 import { resolveAssetId, type Rotation } from '../../src/lib/game/props';
 import type { SavedStory, SceneFile } from '../../src/lib/game/scene-file';
@@ -82,15 +84,22 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 	const statuses = (s: Statuses) => entriesOf(s);
 	const A = contentOf(adventure.id);
 	const content = fileOf(A.id);
-	// Rules from a licensed source travel with the credit it requires (read back from the rules, not the file).
+	// Rules from a licensed source travel with the credit it requires (read back from the rules, not the file),
+	// and so does every licensed source the story uses (milestone 59).
 	const attribution = findRuleset(adventure.rules)?.attribution;
+	const credits = [
+		...(attribution ? [attribution] : []),
+		...(adventure.packs ?? []).flatMap((p) =>
+			p.licence ? [installedSource(p.licence.source)?.file.attribution ?? p.licence.source] : []
+		)
+	];
 	return {
 		id: A.id,
 		version: A.version,
 		...(content ? { content: JSON.parse(JSON.stringify(content)) } : {}),
 		state: {
 			rules: { ...adventure.rules },
-			...(attribution ? { credits: [attribution] } : {}),
+			...(credits.length ? { credits } : {}),
 			stage: adventure.stage,
 			chapter: adventure.chapter,
 			location: adventure.location,
@@ -102,13 +111,20 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 					}
 				: {}),
 			...(adventure.bestiary?.length ? { bestiary: [...adventure.bestiary] } : {}),
-			// Homebrew travels as written, so the save brings it back wherever it is loaded.
+			// Homebrew travels as written, so the save brings it back wherever it is loaded;
+			// a licensed source only as a reference to the source installed on the server.
 			...(adventure.packs?.length
 				? {
-						packs: adventure.packs.map((p) => ({
-							owner: p.owner,
-							pack: JSON.parse(JSON.stringify(findRuleset(adventure.rules)!.packs!.content(p.id)))
-						}))
+						packs: adventure.packs.map((p) =>
+							p.licence
+								? { owner: p.owner, licensed: { ...p.licence } }
+								: {
+										owner: p.owner,
+										pack: JSON.parse(
+											JSON.stringify(findRuleset(adventure.rules)!.packs!.content(p.id))
+										)
+									}
+						)
 					}
 				: {}),
 			...(adventure.kept?.size
@@ -525,11 +541,32 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 		for (const raw of saved) {
 			const entry = record(raw, 'homebrew');
 			check(
-				Object.keys(entry).every((k) => k === 'owner' || k === 'pack') &&
+				Object.keys(entry).length === 2 &&
+					('pack' in entry || 'licensed' in entry) &&
 					(entry.owner === null ||
 						(typeof entry.owner === 'string' && CREATOR_ID.test(entry.owner))),
 				'homebrew'
 			);
+			if ('licensed' in entry) {
+				// A licensed source comes back from what this server has installed, exactly as it was.
+				const licence = licenceUse(entry.licensed);
+				const installed = installedSource(licence.source);
+				check(
+					!!installed &&
+						installed.file.version === licence.version &&
+						installed.sha256 === licence.sha256,
+					`licensed content ${licence.source} ${licence.version}`
+				);
+				const held = ruleset.packs!.holdLicensed?.({
+					file: installed!.file,
+					content: installed!.content
+				});
+				check(held?.ok, `licensed content ${licence.source}`);
+				const id = (held as { id: string }).id;
+				check(!packs.some((p) => p.id === id), 'homebrew');
+				packs.push({ id, owner: entry.owner as string | null, licence });
+				continue;
+			}
 			const held = ruleset.packs!.hold(entry.pack);
 			check(held.ok, 'homebrew');
 			const id = (held as { id: string }).id;
@@ -1104,6 +1141,28 @@ function collectionSource(
 			packId: p.packId
 		})),
 		tables: file.tables
+	};
+}
+
+/** A story's hold on a licensed source, read back: well formed (the game server checks it still holds). */
+export function licenceUse(value: unknown): LicenceUse {
+	const raw = record(value, 'licensed content');
+	check(
+		Object.keys(raw).length === 4 &&
+			typeof raw.source === 'string' &&
+			LICENSED_SOURCE_ID.test(raw.source) &&
+			typeof raw.version === 'string' &&
+			raw.version.length <= 16 &&
+			typeof raw.sha256 === 'string' &&
+			/^[0-9a-f]{64}$/.test(raw.sha256) &&
+			(raw.grant === null || (typeof raw.grant === 'string' && /^[0-9a-f]{32}$/.test(raw.grant))),
+		'licensed content'
+	);
+	return {
+		source: raw.source as string,
+		version: raw.version as string,
+		sha256: raw.sha256 as string,
+		grant: raw.grant as string | null
 	};
 }
 
