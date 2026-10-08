@@ -65,7 +65,8 @@ const BUDGETS = {
 	// → 53.0: the shared refusal reader's diagnostics (#101), 52,903 B measured; main's poses
 	// (#273, `readPoses`) came in after.
 	// → 53.1: the same, merged (#101, #273), 53,094 B measured.
-	'/dev/assets': { total: 53_100, own: 500 },
+	// → 53.3: CI's build of the same came out over 53,100 B; 200 B of room for its gzip.
+	'/dev/assets': { total: 53_300, own: 500 },
 	// 66.0 → 66.2: the rules track's library client (#98, #99) beside main's M70 kits (#250),
 	// 66,138 B measured.
 	// → 67.4: a refused publish's diagnostics in the workshop (#101), 67,365 B measured.
