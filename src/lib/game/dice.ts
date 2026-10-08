@@ -1,4 +1,5 @@
-// Dice expressions such as `1d20+5`, `2d6 - 1`, `d%`, `4d6+1d4+2`.
+// Dice expressions such as `1d20+5`, `2d6 - 1`, `d%`, `4d6+1d4+2`, and Fate
+// (Fudge) dice, `4dF`: each shows −1, 0 or +1.
 // Parsed by a small hand-written tokenizer: input is never evaluated as code.
 // Rolling takes the random source as a parameter so the server can supply a
 // secure one and tests a deterministic one.
@@ -7,10 +8,13 @@ export type Sign = 1 | -1;
 
 export type DiceTerm =
 	| { kind: 'dice'; sign: Sign; count: number; sides: number }
+	| { kind: 'fudge'; sign: Sign; count: number }
 	| { kind: 'flat'; sign: Sign; value: number };
 
 export type RolledTerm =
 	| { kind: 'dice'; sign: Sign; count: number; sides: number; rolls: number[] }
+	/** Fate dice: each roll is −1, 0 or +1. */
+	| { kind: 'fudge'; sign: Sign; count: number; rolls: number[] }
 	| { kind: 'flat'; sign: Sign; value: number };
 
 export interface DiceRoll {
@@ -37,10 +41,10 @@ export const DICE_LIMITS = {
 	flat: 10_000
 } as const;
 
-// One term with an optional leading sign: `NdS`, `dS`, `Nd%` or a plain number.
+// One term with an optional leading sign: `NdS`, `dS`, `Nd%`, `NdF` or a plain number.
 // Whitespace is allowed between parts but never inside a number, so `1d20 5`
 // is an error rather than `1d205`. Anchored with bounded quantifiers only.
-const TERM = /^\s*([+-]?)\s*(?:(\d{0,3})\s*d\s*(\d{1,4}|%)|(\d{1,5}))\s*/;
+const TERM = /^\s*([+-]?)\s*(?:(\d{0,3})\s*d\s*(\d{1,4}|%|f)|(\d{1,5}))\s*/;
 
 /** Validates and normalises a dice expression without rolling it. */
 export function parseDice(input: unknown): ParseResult {
@@ -67,15 +71,22 @@ export function parseDice(input: unknown): ParseResult {
 			terms.push({ kind: 'flat', sign, value });
 		} else {
 			const count = m[2] === '' ? 1 : Number(m[2]);
-			const sides = m[3] === '%' ? 100 : Number(m[3]);
 			if (count < 1) return { ok: false, error: 'Roll at least one die.' };
-			if (sides < 2 || sides > DICE_LIMITS.sides) {
-				return { ok: false, error: `Dice need between 2 and ${DICE_LIMITS.sides} sides.` };
+			if (m[3] === 'f') {
+				dice += count;
+				if (dice > DICE_LIMITS.dice)
+					return { ok: false, error: `At most ${DICE_LIMITS.dice} dice per roll.` };
+				terms.push({ kind: 'fudge', sign, count });
+			} else {
+				const sides = m[3] === '%' ? 100 : Number(m[3]);
+				if (sides < 2 || sides > DICE_LIMITS.sides) {
+					return { ok: false, error: `Dice need between 2 and ${DICE_LIMITS.sides} sides.` };
+				}
+				dice += count;
+				if (dice > DICE_LIMITS.dice)
+					return { ok: false, error: `At most ${DICE_LIMITS.dice} dice per roll.` };
+				terms.push({ kind: 'dice', sign, count, sides });
 			}
-			dice += count;
-			if (dice > DICE_LIMITS.dice)
-				return { ok: false, error: `At most ${DICE_LIMITS.dice} dice per roll.` };
-			terms.push({ kind: 'dice', sign, count, sides });
 		}
 		if (terms.length > DICE_LIMITS.terms)
 			return { ok: false, error: 'Too many terms in one roll.' };
@@ -87,7 +98,14 @@ export function formatExpression(terms: readonly DiceTerm[]): string {
 	return terms
 		.map((t, i) => {
 			const sign = t.sign === -1 ? '-' : i === 0 ? '' : '+';
-			return sign + (t.kind === 'dice' ? `${t.count}d${t.sides}` : `${t.value}`);
+			return (
+				sign +
+				(t.kind === 'dice'
+					? `${t.count}d${t.sides}`
+					: t.kind === 'fudge'
+						? `${t.count}dF`
+						: `${t.value}`)
+			);
 		})
 		.join('');
 }
@@ -99,7 +117,10 @@ export function rollDice(terms: readonly DiceTerm[], roll: DieRoller): DiceRoll 
 			total += t.sign * t.value;
 			return { ...t };
 		}
-		const rolls = Array.from({ length: t.count }, () => roll(t.sides));
+		// A Fate die is a d3 read as −1, 0, +1.
+		const rolls = Array.from({ length: t.count }, () =>
+			t.kind === 'fudge' ? roll(3) - 2 : roll(t.sides)
+		);
 		total += t.sign * rolls.reduce((a, b) => a + b, 0);
 		return { ...t, rolls };
 	});
@@ -111,7 +132,13 @@ export function formatBreakdown(roll: DiceRoll): string {
 	return roll.terms
 		.map((t, i) => {
 			const sign = t.sign === -1 ? '- ' : i === 0 ? '' : '+ ';
+			if (t.kind === 'fudge') return `${sign}[${t.rolls.map(fudgeFace).join(' ')}]`;
 			return sign + (t.kind === 'dice' ? `[${t.rolls.join(', ')}]` : `${t.value}`);
 		})
 		.join(' ');
+}
+
+/** A Fate die's face as printed: +, − or 0. */
+export function fudgeFace(value: number): string {
+	return value > 0 ? '+' : value < 0 ? '−' : '0';
 }

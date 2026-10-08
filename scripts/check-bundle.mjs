@@ -46,7 +46,10 @@ const BUDGETS = {
 	// 55,875 B own.
 	// → 108.7, own 56.1: the shared protocol's licensed content messages and the creator's
 	// "Licensed: …" labels (#104), 108,692 B measured, 56,067 B own.
-	'/builder': { total: 108_700, own: 56_100 },
+	// → 109.9, own 57.3: Fate Condensed (#105): its rules choice in the Rules section, its skills
+	// for checks and its ready-made characters (the template loads on demand), 109,860 B measured,
+	// 57,224 B own.
+	'/builder': { total: 109_900, own: 57_300 },
 	// 54.0 → 54.8: the same (#250), 54.7 kB measured. → 54.9: beside the rules track's shared
 	// library types (#99), 54,802 B measured.
 	'/credits': { total: 54_900, own: 3_000 },
@@ -64,14 +67,18 @@ const BUDGETS = {
 	// 67,612 B measured.
 	// → 67.8: the shared protocol's campaign messages (#103), 67,706 B measured.
 	// → 67.9: the shared protocol's licensed content messages (#104), 67,883 B measured.
-	'/library': { total: 67_900, own: 21_000 },
+	// → 68.0: the shared protocol's hand-off message (#105), 67,903 B measured.
+	'/library': { total: 68_000, own: 21_000 },
 	// 121.0 → 121.7: the blocked-storage guard, the manifest's versioned URL and the table's loading
 	// cover (TableLoading.svelte), 121,687 B measured.
 	// → 122.1: campaigns (#103): their messages and replies, the story's campaign line and the
 	// character choice's marks (the GM's Campaign section loads on demand), 122,071 B measured.
 	// → 122.7: licensed content (#104): its messages, the sources reply and the packs' licensed
 	// badges, credit and terms (the GM's list of sources loads on demand), 122,608 B measured.
-	'/room/[id]': { total: 122_700, own: 76_000 },
+	// → 123.5: a second rules system (#105): elective turns' hand-off in the turn tracker, Fate dice
+	// in the chat, traits and health as the rules word them on the sheet, the action bar and the
+	// party list, 123,467 B measured.
+	'/room/[id]': { total: 123_500, own: 76_000 },
 	// 360.0 → 360.1: light looks (intensity, still flames, no fixture for a glow), prop paint and
 	// token lift and scale (#201, #202), 360,059 B measured.
 	// 360.1 → 360.4: the lighting presets blended by the hour (time-blend.ts, #208), 360,326 B

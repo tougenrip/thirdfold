@@ -743,3 +743,19 @@ describe('licensed content messages (milestone 59)', () => {
 		});
 	});
 });
+
+describe('elective turns (milestone 60)', () => {
+	it('reads a hand-off by place in the order, and nothing else', () => {
+		expect(parseClientMessage({ type: 'adventure_handoff', index: 2 })).toEqual({
+			type: 'adventure_handoff',
+			index: 2
+		});
+		for (const index of [-1, 1.5, '2', 64, null])
+			expect(parseClientMessage({ type: 'adventure_handoff', index })).toBeNull();
+	});
+
+	it('still reads the messages that carry nothing', () => {
+		for (const type of ['adventure_begin', 'adventure_release', 'adventure_end_turn'])
+			expect(parseClientMessage({ type })).toEqual({ type });
+	});
+});

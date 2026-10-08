@@ -37,6 +37,7 @@
 	} from '$lib/builder/draft';
 	import EffectsEditor from '$lib/builder/EffectsEditor.svelte';
 	import { DND_ABILITIES, DND_SKILLS } from '$lib/rules/dnd55e/terms';
+	import { FATE_SKILLS } from '$lib/rules/fate/core';
 	import ListInput from '$lib/builder/ListInput.svelte';
 	import RulesEditor from '$lib/builder/RulesEditor.svelte';
 	import WhenEditor from '$lib/builder/WhenEditor.svelte';
@@ -45,6 +46,8 @@
 	import { loadGmKey, loadName, saveName } from '$lib/prefs';
 
 	let draft = $state<Draft>(loadDraft());
+	/** The draft plays by Fate Condensed (milestone 60): checks are overcomes with its skills. */
+	const fate = $derived(draft.rules?.id === 'fate-condensed');
 
 	// Kept in this browser as it is edited (a moment after each change).
 	$effect(() => {
@@ -193,6 +196,13 @@
 		// Loaded when asked for: the template and its party's choices stay out of the page.
 		const { dndExampleAdventure } = await import('$lib/adventure/dnd-example');
 		draft = toDraft(dndExampleAdventure());
+		section = 'rules';
+	}
+
+	async function fateTemplate() {
+		if (!confirm('Start from the Fate Condensed template? This draft will be replaced.')) return;
+		const { fateExampleAdventure } = await import('$lib/adventure/fate-example');
+		draft = toDraft(fateExampleAdventure());
 		section = 'rules';
 	}
 
@@ -406,6 +416,7 @@
 		<button type="button" onclick={blank}>New</button>
 		<button type="button" onclick={startOver}>Example</button>
 		<button type="button" onclick={dndTemplate}>D&amp;D template</button>
+		<button type="button" onclick={fateTemplate}>Fate template</button>
 		<label class="file-button">
 			Open file
 			<input type="file" accept=".json,application/json" hidden onchange={importFile} />
@@ -1289,7 +1300,13 @@
 										/>
 									</label>
 									<label class="field">
-										<span>{draft.rules ? 'Check or saving throw' : 'Check (stat)'}</span>
+										<span
+											>{fate
+												? 'Overcome (skill)'
+												: draft.rules
+													? 'Check or saving throw'
+													: 'Check (stat)'}</span
+										>
 										<select
 											value={verb.check?.stat ?? ''}
 											onchange={(e) =>
@@ -1302,7 +1319,10 @@
 													: delete verb.check}
 										>
 											<option value="">none</option>
-											{#if draft.rules}
+											{#if fate}
+												{#each FATE_SKILLS as sk (sk.id)}<option value={sk.id}>{sk.name}</option
+													>{/each}
+											{:else if draft.rules}
 												<optgroup label="Abilities (a check or a saving throw)">
 													{#each DND_ABILITIES as a (a.id)}<option value={a.id}>{a.name}</option
 														>{/each}
@@ -1316,7 +1336,7 @@
 											{/if}
 										</select>
 									</label>
-									{#if verb.check && draft.rules && DND_ABILITIES.some((a) => a.id === verb.check?.stat)}
+									{#if verb.check && draft.rules && !fate && DND_ABILITIES.some((a) => a.id === verb.check?.stat)}
 										<label class="check">
 											<input
 												type="checkbox"

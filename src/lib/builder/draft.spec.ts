@@ -1,3 +1,4 @@
+import { FATE_PREGENS } from '../rules/fate/core';
 import { describe, expect, it } from 'vitest';
 import { exampleAdventure } from '$lib/adventure/example';
 import { pregenChoices } from '$lib/rules/dnd55e/pregens';
@@ -6,6 +7,8 @@ import { DEFAULT_WORLD } from '$lib/game/world';
 import {
 	addPregen,
 	DND_RULES,
+	FATE_RULES,
+	rulesChoiceOf,
 	withRules,
 	flowOf,
 	formatArea,
@@ -91,7 +94,7 @@ describe('the builder draft', () => {
 
 describe('the rules a draft plays by (milestone 57)', () => {
 	it('switches to the fifth edition and back, keeping only what each rules can play', () => {
-		const dnd = withRules(toDraft(exampleAdventure()), true);
+		const dnd = withRules(toDraft(exampleAdventure()), 'dnd');
 		expect(dnd).toMatchObject({ rules: DND_RULES, characters: [], openParty: true });
 		expect(addPregen(dnd, pregenChoices('fighter'))).toBe('brakka');
 		expect(addPregen(dnd, pregenChoices('fighter'))).toBe('brakka-2');
@@ -99,8 +102,19 @@ describe('the rules a draft plays by (milestone 57)', () => {
 		expect(Object.keys(dnd.party!)).toEqual(['brakka', 'brakka-2']);
 		dnd.monsters = ['srd-skeleton'];
 		expect(idsOf(dnd).enemies).toContain('srd-skeleton');
-		const classic = withRules(dnd, false);
+		const classic = withRules(dnd, 'classic');
 		expect(classic.characters.length).toBeGreaterThan(0);
 		expect('rules' in classic || 'party' in classic || 'monsters' in classic).toBe(false);
+	});
+
+	it('switches to Fate Condensed: a party its rules build, no open party or bestiary (milestone 60)', () => {
+		const dnd = withRules(toDraft(exampleAdventure()), 'dnd');
+		addPregen(dnd, pregenChoices('fighter'));
+		dnd.monsters = ['srd-skeleton'];
+		const fate = withRules(dnd, 'fate');
+		expect(fate).toMatchObject({ rules: FATE_RULES, characters: [] });
+		expect('party' in fate || 'openParty' in fate || 'monsters' in fate).toBe(false);
+		expect(rulesChoiceOf(fate)).toBe('fate');
+		expect(addPregen(fate, FATE_PREGENS[0].choices)).toBe('ida-brann');
 	});
 });

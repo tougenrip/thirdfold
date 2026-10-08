@@ -177,6 +177,7 @@ const PAUSED_ACTIONS = new Set<ClientMessage['type']>([
 	'adventure_interact',
 	'adventure_act',
 	'adventure_end_turn',
+	'adventure_handoff',
 	'adventure_decide',
 	'adventure_sense',
 	'adventure_share',
@@ -845,6 +846,8 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 					return adventure.act(room, player, msg.actionId, msg.targetId, rollDie, msg.cast);
 				case 'adventure_end_turn':
 					return adventure.endTurn(room, player);
+				case 'adventure_handoff':
+					return adventure.handOff(room, player, msg.index);
 				case 'adventure_effect':
 					return adventure.ruleEffect(room, player, msg.op);
 				case 'adventure_narrate':
@@ -1482,6 +1485,7 @@ function serve(options: GameServerOptions, restored: Room[]): Promise<GameServer
 			case 'adventure_effect':
 			case 'adventure_object':
 			case 'adventure_end_turn':
+			case 'adventure_handoff':
 			case 'adventure_narrate':
 			case 'adventure_cue':
 			case 'adventure_decide':

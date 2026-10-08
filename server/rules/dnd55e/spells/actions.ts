@@ -134,7 +134,7 @@ export function casterActions(
 				target: mech.targets.side === 'ally' ? 'ally' : 'enemy',
 				// A cone or cube runs from the caster; a sphere is aimed at a point within the spell's range.
 				range: area && area.shape !== 'sphere' ? area.size : range,
-				stat: 'wits',
+				stat: casting.ability,
 				...(dice ? { dice } : mech.heal ? { dice: `${mech.heal.dice}${signed(numbers.mod)}` } : {}),
 				uses: null,
 				cast: {

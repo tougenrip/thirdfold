@@ -77,8 +77,8 @@ export interface Action {
 	target: 'enemy' | 'ally' | 'self';
 	/** Reach in cells (0 for self). Beyond 1 it needs a clear line. */
 	range: number;
-	/** The stat behind it: attack rolls add 2 + this stat. */
-	stat: StatId;
+	/** The stat behind it, as its rules name it (classic: attack rolls add 2 + this stat); none for a maneuver. */
+	stat?: string;
 	/** Damage (attack) or healing (heal) dice. */
 	dice?: string;
 	/** The kind of damage it deals, in its rules' words ("slashing"), where the rules have kinds. */
@@ -133,7 +133,8 @@ export interface CharacterDef {
 	light: number;
 	/** The colour of that light, `#rrggbb`; the carried-light default when absent. */
 	lightColor?: string;
-	stats: Record<StatId, number>;
+	/** The classic rules' four stats; other rules keep theirs in `sheet`. */
+	stats?: Record<StatId, number>;
 	/** The first is the character's basic attack. */
 	actions: readonly Action[];
 	/** What a story's ruleset needs beyond the above (e.g. ability scores); absent under the classic rules. */
@@ -317,9 +318,14 @@ export function defenseFor(armor: number): number {
 	return 10 + armor;
 }
 
+/** A classic stat of a character's (0 for one it lacks or rules that have none). */
+export function statOf(character: Pick<CharacterDef, 'stats'>, stat: string): number {
+	return character.stats?.[stat as StatId] ?? 0;
+}
+
 /** A character's attack bonus for an action: 2 plus the action's stat. */
 export function toHitFor(character: CharacterDef, action: Action): number {
-	return 2 + character.stats[action.stat];
+	return 2 + (action.stat ? statOf(character, action.stat) : 0);
 }
 
 export function actionOf(character: CharacterDef, actionId: string): Action | undefined {

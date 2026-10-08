@@ -1500,7 +1500,12 @@ describe("creators' adventures over the wire", () => {
 		const gm = await connect();
 		gm.send({ type: 'create', name: 'Gemma' });
 		const { room } = await gm.expect('welcome');
-		expect(room.adventures.map((a) => a.id)).toEqual(['hollow-bell', 'blackwater', 'barrow']);
+		expect(room.adventures.map((a) => a.id)).toEqual([
+			'hollow-bell',
+			'blackwater',
+			'barrow',
+			'drowned-lantern'
+		]);
 		expect(room.adventures[1]).toMatchObject({
 			title: 'The Last Train to Blackwater',
 			about: expect.stringContaining('1889')
@@ -4895,5 +4900,137 @@ describe('licensed content over the wire (milestone 59)', () => {
 		expect(await onward.until('error')).toMatchObject({
 			diagnostics: [expect.objectContaining({ code: 'licence.withdrawn' })]
 		});
+	});
+});
+
+describe('a second rules system over the wire (milestone 60)', () => {
+	beforeEach(async () => {
+		// Every die rolls its highest face: every Fate die shows +.
+		await server.close();
+		server = await startGameServer({
+			port: 0,
+			host: '127.0.0.1',
+			rollDie: (sides) => sides,
+			enemyTurnDelayMs: 0,
+			mechanismDelayScale: 0,
+			patrolMs: 0
+		});
+	});
+
+	const untilLog = <K extends ChatMessage['kind']>(client: TestClient, kind: K) =>
+		client
+			.until('chat', (m) => m.message.kind === kind)
+			.then((m) => m.message as Extract<ChatMessage, { kind: K }>);
+
+	it('runs a Fate Condensed story for two players, with elective turns, through a save, beside a D&D one', async () => {
+		const gm = await connect();
+		gm.send({ type: 'create', name: 'Gemma' });
+		const { room } = await gm.expect('welcome');
+		expect(room.adventures.map((a) => a.id)).toContain('drowned-lantern');
+		const ana = await connect();
+		ana.send({ type: 'join', roomId: room.id, name: 'Ana', role: 'player' });
+		await ana.expect('welcome');
+		const ben = await connect();
+		ben.send({ type: 'join', roomId: room.id, name: 'Ben', role: 'player' });
+		await ben.expect('welcome');
+
+		gm.send({ type: 'adventure_start', adventureId: 'drowned-lantern' });
+		const story = (await ana.until('room_reset')).room.adventure!;
+		expect(story.rules).toMatchObject({ id: 'fate-condensed', version: 1, name: 'Fate Condensed' });
+		expect(story.rules.attribution).toContain('Evil Hat Productions');
+		const card = story.characters.find((c) => c.id === 'ida')!;
+		expect(card.card).toMatchObject({ defense: { name: 'Defend (Athletics)', value: 3 } });
+		expect(card.def.stats).toBeUndefined();
+
+		ana.send({ type: 'adventure_claim', characterId: 'ida' });
+		const ida = await ana.until('token_upserted', (m) => m.token.name === 'Ida Brann');
+		ben.send({ type: 'adventure_claim', characterId: 'wren' });
+		const wren = await ben.until('token_upserted', (m) => m.token.name === 'Wren Holloway');
+		gm.send({ type: 'adventure_begin' });
+		await ana.until('adventure_update', (m) => m.adventure?.stage === 'playing');
+
+		// An overcome: + + + + on Wren's Fair (+2) Investigate against Fair (+2).
+		ben.send({ type: 'token_move', tokenId: wren.token.id, to: { x: 7, y: 8 } });
+		ben.send({ type: 'adventure_interact', targetId: 'lantern', verb: 'examine' });
+		for (const client of [ben, gm])
+			expect(await untilLog(client, 'check')).toMatchObject({
+				stat: 'Investigate',
+				roll: { expression: '4dF+2', total: 6 },
+				dc: 2,
+				success: true
+			});
+		await ana.until('adventure_update', (m) => m.adventure?.chapter.id === 'the_chapel');
+
+		// The GM starts the fight: no initiative roll, the party first, Ida (Good Notice) before Wren.
+		gm.send({
+			type: 'adventure_direct',
+			direction: { op: 'encounter_start', encounter: 'wights' }
+		});
+		const fight = (await ana.until('adventure_update', (m) => !!m.adventure?.encounter)).adventure!
+			.encounter!;
+		expect(fight.elective).toBe(true);
+		expect(fight.order[fight.current]).toMatchObject({ characterId: 'ida' });
+		const [w1, w2] = fight.enemies.map((e) => e.tokenId);
+		gm.send({ type: 'token_move', tokenId: ida.token.id, to: { x: 10, y: 6 } });
+		await ana.until('token_moved', (m) => m.tokenId === ida.token.id);
+
+		// Ida's Great (+4) Fight, + + + +, against the wight's Average (+1) Athletics, + + + +: a 3-shift hit.
+		ana.send({ type: 'adventure_act', actionId: 'fight', targetId: w1 });
+		const attack = await untilLog(gm, 'attack');
+		expect(attack).toMatchObject({
+			authorName: 'Ida Brann',
+			toHit: { expression: '4dF+4', total: 8 },
+			defense: 5,
+			hit: true,
+			damage: { total: 3 }
+		});
+		expect(await untilLog(ana, 'attack')).toEqual(attack);
+
+		// Her turn ends; she picks who goes next, and nobody else may.
+		ana.send({ type: 'adventure_end_turn' });
+		const picking = (await ana.until('adventure_update', (m) => !!m.adventure?.encounter?.handoff))
+			.adventure!.encounter!;
+		expect(picking.handoff).toMatchObject({ by: 'ida', mine: true, fresh: false });
+		const benSees = (await ben.until('adventure_update', (m) => !!m.adventure?.encounter?.handoff))
+			.adventure!.encounter!.handoff!;
+		expect(benSees.mine).toBe(false);
+		const wightAt = picking.order.findIndex((t) => t.tokenId === w2);
+		expect(picking.handoff!.options).toContain(wightAt);
+		ben.send({ type: 'adventure_handoff', index: wightAt });
+		expect(await ben.until('error')).toMatchObject({ code: 'not_your_turn' });
+		ben.send({ type: 'adventure_act', actionId: 'shoot', targetId: w2 });
+		expect(await ben.until('error')).toMatchObject({
+			code: 'not_your_turn',
+			message: 'Ida Brann is picking who goes next.'
+		});
+
+		// She hands over to the wight; it takes its turn, then its side hands to Wren, the last to go.
+		ana.send({ type: 'adventure_handoff', index: wightAt });
+		const wrensTurn = (
+			await ben.until(
+				'adventure_update',
+				(m) =>
+					m.adventure?.encounter?.order[m.adventure.encounter.current]?.characterId === 'wren' &&
+					!m.adventure.encounter.handoff
+			)
+		).adventure!;
+		expect(wrensTurn.encounter!.round).toBe(1);
+
+		// Saved and loaded: the story keeps its rules.
+		gm.send({ type: 'scene_save', name: 'Fen' });
+		const saved = await gm.until('scene_saved');
+		gm.send({ type: 'scene_load', sceneId: saved.sceneId });
+		const back = (await ana.until('room_reset')).room.adventure!;
+		expect(back.rules.id).toBe('fate-condensed');
+		expect(back.encounter?.elective).toBe(true);
+
+		// The same server runs a fifth edition story at another table.
+		const other = await connect();
+		other.send({ type: 'create', name: 'Dana' });
+		await other.expect('welcome');
+		other.send({ type: 'adventure_start', adventureId: 'barrow' });
+		const barrow = (await other.until('room_reset')).room.adventure!;
+		expect(barrow.rules.id).toBe('dnd-5.5e');
+		expect(barrow.characters[0].card.saves.length).toBe(6);
 	});
 });

@@ -4,10 +4,12 @@
 import type { AdventureDef } from '../../src/lib/adventure/define';
 import { CLASSIC } from './classic';
 import './dnd55e';
+import './fate';
 import { findRuleset } from './ruleset';
 
 export { CLASSIC } from './classic';
 export { DND_55E } from './dnd55e';
+export { FATE_RULES } from './fate';
 
 /** What is wrong with an adventure under the rules it names (or that it names rules this server lacks). */
 export function rulesProblems(A: AdventureDef): string[] {

@@ -3,14 +3,23 @@
 	import type { AdventurePreview } from '$lib/adventure/preview';
 	import { searchBestiary } from '$lib/net/library';
 	import { DND_PREGENS, pregenChoices } from '$lib/rules/dnd55e/pregens';
-	import { addPregen, DND_RULES, withRules, type Draft } from './draft';
+	import { FATE_PREGENS } from '$lib/rules/fate/core';
+	import {
+		addPregen,
+		DND_RULES,
+		rulesChoiceOf,
+		withRules,
+		type Draft,
+		type RulesChoice
+	} from './draft';
 
 	/**
-	 * The rules an adventure plays by and what they bring (milestone 57): the
-	 * fifth edition's party, built by the rules from ready-made choices,
-	 * whether players may bring their own, and monsters from the SRD's
-	 * bestiary. The server builds and checks all of it; `preview` is what it
-	 * made of the draft the last time the creator asked.
+	 * The rules an adventure plays by and what they bring (milestones 57 and
+	 * 60): the fifth edition's or Fate Condensed's party, built by the rules
+	 * from ready-made choices; under the fifth edition, whether players may
+	 * bring their own, and monsters from the SRD's bestiary. The server builds
+	 * and checks all of it; `preview` is what it made of the draft the last
+	 * time the creator asked.
 	 */
 	interface Props {
 		draft: Draft;
@@ -23,25 +32,35 @@
 
 	let { draft = $bindable(), preview, current, checking, onCheck }: Props = $props();
 
-	const dnd = $derived(draft.rules?.id === DND_RULES.id);
+	const choice = $derived(rulesChoiceOf(draft));
+	const dnd = $derived(choice === 'dnd');
 	const party = $derived(Object.entries(draft.party ?? {}));
 
-	type Choices = { name?: string; color?: string; class?: { id?: string } };
+	type Choices = { name?: string; color?: string; class?: { id?: string }; highConcept?: string };
 	const choicesOf = (id: string) => (draft.party![id].choices ?? {}) as Choices;
-	const classOf = (id: string) => (choicesOf(id).class?.id ?? '').split(':').pop() ?? '';
+	const classOf = (id: string) =>
+		choicesOf(id).highConcept ?? (choicesOf(id).class?.id ?? '').split(':').pop() ?? '';
 
-	function switchRules(toDnd: boolean) {
-		if (toDnd === dnd) return;
-		if (
-			!toDnd &&
-			party.length &&
-			!confirm('Go back to the classic rules? The party and monsters go.')
-		)
-			return;
-		draft = withRules(draft, toDnd);
+	function switchRules(to: RulesChoice) {
+		if (to === choice) return;
+		if (party.length && !confirm('Switch rules? The party and monsters go.')) return;
+		draft = withRules(draft, to);
 	}
 
+	// Ready-made characters under the draft's rules.
+	const pregens = $derived(
+		choice === 'fate'
+			? FATE_PREGENS.map((p) => ({ id: p.id, label: p.choices.name }))
+			: DND_PREGENS.map((p) => ({ id: p.id, label: p.label }))
+	);
 	let pregen = $state(DND_PREGENS[0].id);
+	$effect(() => {
+		if (!pregens.some((p) => p.id === pregen)) pregen = pregens[0]?.id ?? '';
+	});
+	const pregenOf = (id: string) =>
+		choice === 'fate'
+			? (FATE_PREGENS.find((p) => p.id === id)?.choices ?? null)
+			: pregenChoices(id);
 
 	// Monsters: searched in the rules' bestiary on the server.
 	let query = $state('');
@@ -81,23 +100,30 @@
 	<fieldset>
 		<legend>It plays by</legend>
 		<label class="check">
-			<input type="radio" checked={!dnd} onchange={() => switchRules(false)} />
+			<input type="radio" checked={choice === 'classic'} onchange={() => switchRules('classic')} />
 			thirdfold’s classic rules <span class="muted">(the classic characters, four stats)</span>
 		</label>
 		<label class="check">
-			<input type="radio" checked={dnd} onchange={() => switchRules(true)} />
+			<input type="radio" checked={dnd} onchange={() => switchRules('dnd')} />
 			Fifth edition (SRD 5.2.1)
 			<span class="muted">(abilities and skills, saving throws, rests, gear, SRD monsters)</span>
 		</label>
+		<label class="check">
+			<input type="radio" checked={choice === 'fate'} onchange={() => switchRules('fate')} />
+			Fate Condensed
+			<span class="muted"
+				>(skills on the ladder, Fate dice, stress and consequences, foes you write)</span
+			>
+		</label>
 	</fieldset>
 
-	{#if !dnd}
+	{#if choice === 'classic'}
 		<p class="muted">The classic characters are picked in the Overview.</p>
 	{:else}
 		<h3>The party</h3>
 		<p class="muted">
-			Characters the rules build from these choices, level 1, checked by the server. Rename them,
-			give them a colour and an introduction.
+			Characters the rules build from these choices, checked by the server. Rename them, give them a
+			colour and an introduction.
 		</p>
 		{#each party as [id] (id)}
 			{@const c = choicesOf(id)}
@@ -150,12 +176,17 @@
 		{/each}
 		<div class="row">
 			<select aria-label="A ready-made character" bind:value={pregen}>
-				{#each DND_PREGENS as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
+				{#each pregens as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
 			</select>
-			<button type="button" onclick={() => addPregen(draft, pregenChoices(pregen))}
+			<button
+				type="button"
+				disabled={!pregenOf(pregen)}
+				onclick={() => addPregen(draft, pregenOf(pregen) as { name: string } | null)}
 				>Add to the party</button
 			>
 		</div>
+	{/if}
+	{#if dnd}
 		<label class="check">
 			<input
 				type="checkbox"

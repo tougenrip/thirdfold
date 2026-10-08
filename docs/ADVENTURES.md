@@ -147,6 +147,23 @@ pinned to its rules when it starts and its saves carry them. The server has
 the rules in code (`server/rules/`); an adventure only names them, and they
 check it before it can start (`rulesProblems`).
 
+Fate Condensed is `fate-condensed` v1 (milestone 60; the selection and
+how it differs are in `SECOND-RULES.md`). Under it:
+
+- characters come from a `party` built by its rules from choices (`name`,
+  `highConcept`, `trouble`, up to three more `aspects`, `skills` rated as a
+  pyramid: one at 4, two at 3, three at 2, four at 1; up to three `stunts`
+  `{ name, skill, action, when }` giving +2; `color`); there are no library
+  characters, open party, bestiary, rests or gear;
+- a check's `stat` is a skill (`"investigate"`) and its `dc` a difficulty on
+  the ladder (2 is Fair); there are no saving throws;
+- an enemy's `armor` is its defence rating (Athletics), an attack's `toHit`
+  its attack rating and its `damage` a weapon rating (`"0"` for none); its
+  hit points are its stress boxes and one more, and its `initiative` its
+  Notice (nobody rolls it: turns are elective);
+- The Drowned Lantern (`src/lib/adventure/fate-example.ts`, the builder's
+  Fate template) is a whole adventure written this way.
+
 The fifth edition rules of the SRD 5.2.1 are `dnd-5.5e` v1. Under them:
 
 - a character's `armor` is its Armor Class, and its `sheet` holds the rest:

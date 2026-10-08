@@ -88,8 +88,14 @@
 
 		<dl class="vitals num">
 			<div>
-				<dt>HP</dt>
-				<dd>{status ? `${status.hp}/${status.maxHp}` : character.hp}</dd>
+				<dt>{status?.health?.name ?? 'HP'}</dt>
+				<dd>
+					{status?.health
+						? `${status.health.value}/${status.health.max}`
+						: status
+							? `${status.hp}/${status.maxHp}`
+							: character.hp}
+				</dd>
 			</div>
 			<div>
 				<dt>{card.defense.name}</dt>
@@ -148,6 +154,30 @@
 			{/if}
 		{/if}
 
+		{#if card.traits?.length}
+			<ul class="traits" aria-label="Traits">
+				{#each card.traits as t, i (i)}
+					<li>
+						<span class="section-title">{t.kind}</span>
+						<strong>{t.name}</strong>
+						{#if t.text}<span class="summary">{t.text}</span>{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if card.resources?.length && !details}
+			<h3 class="section-title">Resources</h3>
+			<ul class="traits">
+				{#each card.resources as r (r.id)}
+					{@const used = status?.resourcesSpent[r.id] ?? 0}
+					<li class:spent={used >= r.max}>
+						<strong>{r.name}</strong>
+						<span class="summary">{used >= r.max ? 'Taken' : 'Open'}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
 		<h3 class="section-title">Actions</h3>
 		<ul class="actions">
 			{#each character.actions as action (action.id)}
@@ -173,6 +203,8 @@
 			<ul class="conditions">
 				{#if status.dead}
 					<li><strong>Dead.</strong> Gone for the rest of this section.</li>
+				{:else if status.downed && status.downedText}
+					<li><strong>Down.</strong> {status.downedText}</li>
 				{:else if status.downed}
 					<li>
 						<strong>Down.</strong> Can't move or act. Dies after {roundsLeft} more
@@ -192,6 +224,22 @@
 </div>
 
 <style>
+	.traits {
+		list-style: none;
+		margin: 0 0 var(--sp-3);
+		padding: 0;
+		display: grid;
+		gap: var(--sp-1);
+	}
+	.traits li {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--sp-2);
+		align-items: baseline;
+	}
+	.traits .spent {
+		opacity: 0.7;
+	}
 	.backdrop {
 		position: absolute;
 		inset: 0;

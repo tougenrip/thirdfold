@@ -291,9 +291,21 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	): TestResult;
 	// Combat resolution
 	initiativeBonus(character: CharacterDef): number;
+	/**
+	 * How turns go round in a fight: by `initiative` (rolled once, highest
+	 * first, the default), or `elective` (no roll: one side goes first, and
+	 * whoever has acted picks who goes next among those who haven't).
+	 */
+	turnOrder?: 'initiative' | 'elective';
+	/** An initiative roll with this bonus (under rules that roll for it). */
+	initiative(bonus: number, roller: DieRoller): DiceRoll;
 	attackBonus(character: CharacterDef, action: Action): number;
-	/** What an attack must reach to hit something with this armor and these statuses. */
-	defense(armor: number, statuses: Statuses): number;
+	/**
+	 * What an attack must reach to hit something with this armor and these
+	 * statuses; `character` when the defender is one, for rules that defend
+	 * with something on its sheet (a skill).
+	 */
+	defense(armor: number, statuses: Statuses, character?: CharacterDef): number;
 	/** An attack roll with a bonus against a defense, and its damage on a hit. */
 	strike(
 		bonus: number,
@@ -327,6 +339,28 @@ export interface Ruleset extends RulesetRef, RulesetInfo {
 	): Downed | null;
 	/** Most turns a character can spend down (a save's bound). */
 	downedLimit: number;
+	/**
+	 * Harm about to land on a character, for rules that soak some of it
+	 * another way (consequences): what still comes off its hit points, and
+	 * what was done instead. `state` may be changed (a consequence marked).
+	 */
+	absorb?(
+		state: CharacterState,
+		character: CharacterDef,
+		amount: number
+	): { amount: number; note?: string };
+	/**
+	 * A character's hit points as these rules name and count them (stress
+	 * boxes clear), for rules that don't call them hit points.
+	 */
+	health?(
+		state: CharacterState,
+		character: CharacterDef
+	): { name: string; value: number; max: number };
+	/** What being down means under these rules, for rules where it isn't dying ("Taken out: …"). */
+	downedWords?: string;
+	/** What a won fight's end gives a character back (stress cleared), in a line; null when nothing. */
+	conflictEnds?(state: CharacterState, character: CharacterDef): string | null;
 	// Characters
 	/** A character's numbers as players see them. */
 	card(character: CharacterDef, statuses: Statuses): CharacterCard;

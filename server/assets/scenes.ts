@@ -316,7 +316,8 @@ function checkAdventure(
 			problems.push(`a world effect names no sky "${look.sky}"`);
 	}
 	for (const npc of Object.values(A.npcs)) model(npc.model, 'npc', npc.name);
-	for (const id of Object.keys(A.characters)) model(id, 'character', id);
+	// A character stands as its own figure (`model`), else as the model named for it.
+	for (const [id, def] of Object.entries(A.characters)) model(def.model ?? id, 'character', id);
 	for (const def of Object.values(A.enemies)) model(def.model, 'enemy', def.name);
 	return problems;
 }

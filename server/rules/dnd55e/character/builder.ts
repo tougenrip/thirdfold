@@ -422,7 +422,7 @@ export function actionsOf(
 			kind: 'attack',
 			target: 'enemy',
 			range,
-			stat: ability === 'dex' ? 'agility' : 'might',
+			stat: ability,
 			dice: damage,
 			damageType: w.data.damageType.toLowerCase(),
 			uses: null
@@ -438,7 +438,7 @@ export function actionsOf(
 			kind: 'attack',
 			target: 'enemy',
 			range: 1,
-			stat: 'might',
+			stat: 'str',
 			dice: `${Math.max(0, 1 + derived.modifiers.str)}`,
 			damageType: 'bludgeoning',
 			uses: null
@@ -453,7 +453,7 @@ export function actionsOf(
 			kind: 'heal',
 			target: 'self',
 			range: 0,
-			stat: 'might',
+			stat: 'con',
 			dice: `1d10+${character.level}`,
 			uses: secondWind.max
 		});
@@ -467,7 +467,7 @@ export function actionsOf(
 			kind: 'heal',
 			target: 'ally',
 			range: 1,
-			stat: 'spirit',
+			stat: 'cha',
 			dice: `${5 * character.level}`,
 			uses: 1
 		});
@@ -510,7 +510,6 @@ export function tableCharacter(
 			color,
 			vision: look.vision ?? VISION,
 			light: look.light ?? TORCH,
-			stats: { might: 0, agility: 0, wits: 0, spirit: 0 },
 			model: look.model ?? FIGURES[klass] ?? 'warden',
 			actions,
 			attacks,

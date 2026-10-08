@@ -239,8 +239,14 @@
 										: ''}
 								</small>
 							</span>
-							<span class="hp num" title="Hit points">
-								{c.dead ? 'Dead' : c.downed ? 'Down' : `${c.hp}/${c.maxHp}`}
+							<span class="hp num" title={c.health?.name ?? 'Hit points'}>
+								{c.dead
+									? 'Dead'
+									: c.downed
+										? 'Down'
+										: c.health
+											? `${c.health.value}/${c.health.max}`
+											: `${c.hp}/${c.maxHp}`}
 							</span>
 							{#if isGm}
 								<button
@@ -472,7 +478,7 @@
 					<p class="note">
 						{party.length === 0
 							? 'Waiting for players to choose their characters.'
-							: `${party.length} of 4 characters chosen. Begin when everyone is ready.`}
+							: `${party.length} of ${adventure.characters.length} characters chosen. Begin when everyone is ready.`}
 					</p>
 				{/if}
 				{#if adventure.encounter}

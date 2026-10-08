@@ -210,7 +210,7 @@ const action = (
 	about: string,
 	target: Action['target'],
 	range: number
-): Action => ({ id, name, about, kind: 'maneuver', target, range, stat: 'wits', uses: null });
+): Action => ({ id, name, about, kind: 'maneuver', target, range, uses: null });
 
 /** What every creature can do with its action: the Rules Glossary's Dash, Disengage, Dodge and Help. */
 export const MANEUVERS: readonly Maneuver[] = [

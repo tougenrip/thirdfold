@@ -210,20 +210,36 @@ export type Ids = ReturnType<typeof idsOf>;
 /** The fifth edition rules (SRD 5.2.1), as an adventure file names them. */
 export const DND_RULES = { id: 'dnd-5.5e', version: 1 } as const;
 
+/** Fate Condensed (milestone 60), as an adventure file names it. */
+export const FATE_RULES = { id: 'fate-condensed', version: 1 } as const;
+
+/** The rules a draft may play by. */
+export type RulesChoice = 'classic' | 'dnd' | 'fate';
+
+/** Which rules a draft plays by. */
+export function rulesChoiceOf(draft: Draft): RulesChoice {
+	return draft.rules?.id === DND_RULES.id
+		? 'dnd'
+		: draft.rules?.id === FATE_RULES.id
+			? 'fate'
+			: 'classic';
+}
+
 /**
- * The draft under other rules (milestone 57): the fifth edition's take a
- * party its rules build (the classic characters have no sheet for them);
- * the classic rules' take the classic characters back, and lose a party,
- * open party and monsters they can't play.
+ * The draft under other rules (milestones 57 and 60): the fifth edition's
+ * and Fate's take a party their rules build (the classic characters have
+ * no sheet for them), and a party built under other rules goes; only the
+ * fifth edition has an open party and a bestiary. The classic rules' take
+ * the classic characters back, and lose a party, open party and monsters
+ * they can't play.
  */
-export function withRules(draft: Draft, dnd: boolean): Draft {
-	if (dnd) {
-		const { characters: _gone, ...rest } = draft;
-		void _gone;
+export function withRules(draft: Draft, to: RulesChoice): Draft {
+	if (to === rulesChoiceOf(draft)) return draft;
+	const { rules: _r, party: _p, openParty: _o, monsters: _m, characters: _c, ...rest } = draft;
+	void [_r, _p, _o, _m, _c];
+	if (to === 'dnd')
 		return { ...rest, characters: [], rules: { ...DND_RULES }, openParty: draft.openParty ?? true };
-	}
-	const { rules: _r, party: _p, openParty: _o, monsters: _m, ...rest } = draft;
-	void [_r, _p, _o, _m];
+	if (to === 'fate') return { ...rest, characters: [], rules: { ...FATE_RULES } };
 	return { ...rest, characters: [...CHARACTER_IDS] };
 }
 

@@ -175,7 +175,7 @@ export const HEAVY_HIT = 8;
 
 function diceIn(roll: { terms: readonly { kind: string; rolls?: readonly number[] }[] }): number {
 	const n = roll.terms.reduce(
-		(sum, t) => sum + (t.kind === 'dice' ? (t.rolls?.length ?? 0) : 0),
+		(sum, t) => sum + (t.kind === 'flat' ? 0 : (t.rolls?.length ?? 0)),
 		0
 	);
 	return Math.max(1, Math.min(n, 6));

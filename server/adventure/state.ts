@@ -131,6 +131,11 @@ export interface Encounter {
 	pulled?: boolean;
 	/** Lasting effects saved by milestone 48 on the fight: read into `AdventureState.effects`. */
 	effects?: LastingEffect[];
+	/**
+	 * Under elective turn order (milestone 60): the character whose turn just
+	 * ended (`order[current]`) is picking who goes next; nobody acts meanwhile.
+	 */
+	handoff?: true;
 }
 
 /** Who an effect comes from: a character's id, an enemy's token, the GM, or the story itself. */

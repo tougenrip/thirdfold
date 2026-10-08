@@ -362,6 +362,11 @@ export interface CharacterCard {
 	inventory?: CardItem[];
 	/** What it carries and can carry, in pounds, where the rules count weight. */
 	carrying?: { weight: number; capacity: number };
+	/**
+	 * What the rules say the character is beyond its numbers (aspects,
+	 * stunts), each with its kind in the rules' words, where the rules have them.
+	 */
+	traits?: { kind: string; name: string; text?: string }[];
 }
 
 /** Something a character owns, as the rules word it. */
@@ -457,6 +462,10 @@ export interface CharacterStatus {
 	tokenId: string | null;
 	hp: number;
 	maxHp: number;
+	/** Its hit points as its rules name and count them (stress boxes clear), where they differ. */
+	health?: { name: string; value: number; max: number };
+	/** What being down means under its rules, where it isn't dying (taken out). */
+	downedText?: string;
 	/** At 0 HP: can't move or act, and dies if not healed in time. */
 	downed: boolean;
 	/** Gone for the rest of the story. */
@@ -658,6 +667,17 @@ export interface EncounterView {
 	enemies: EnemyStatus[];
 	/** Something the party works toward in this phase of the fight (pulls holding a bell): so far, of how many; else null. */
 	counter: { label: string; count: number; of: number } | null;
+	/**
+	 * Turns go by elective order (its rules have no initiative roll): rounds
+	 * are exchanges, and whoever acts picks who goes next.
+	 */
+	elective: boolean;
+	/**
+	 * Someone is picking who goes next (elective order): the character whose
+	 * turn just ended, who may be picked (places in `order`), whether that
+	 * starts a new exchange, and whether this viewer picks (its player, the GM).
+	 */
+	handoff: { by: CharacterId; options: number[]; fresh: boolean; mine: boolean } | null;
 }
 
 export interface ReadAloud {

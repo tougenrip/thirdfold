@@ -8,19 +8,21 @@ import {
 	BLEED_OUT_ROUNDS,
 	defenseFor,
 	STATS,
+	statOf,
 	STATUSES,
 	summarizeAction,
 	toHitFor,
+	type CharacterDef,
 	type StatId
 } from '../../src/lib/adventure/characters';
-import { registerRuleset, roll, testsOf, type Ruleset, type RulesetRef } from './ruleset';
+import { registerRuleset, roll, signed, testsOf, type Ruleset, type RulesetRef } from './ruleset';
 
 export const CLASSIC: RulesetRef = { id: 'thirdfold-classic', version: 1 };
 
 const isStat = (stat: string): stat is StatId => STATS.some((s) => s.id === stat);
 const statName = (stat: string) => STATS.find((s) => s.id === stat)?.name ?? stat;
-const bonusOf = (character: { stats: Record<StatId, number> }, stat: string) =>
-	isStat(stat) ? character.stats[stat] : 0;
+const bonusOf = (character: CharacterDef, stat: string) =>
+	isStat(stat) ? statOf(character, stat) : 0;
 
 export const classic: Ruleset = {
 	...CLASSIC,
@@ -41,7 +43,8 @@ export const classic: Ruleset = {
 			explain: `${rolled.total} vs ${dc}: ${success ? 'success' : 'failure'}`
 		};
 	},
-	initiativeBonus: (character) => character.stats.agility,
+	initiativeBonus: (character) => statOf(character, 'agility'),
+	initiative: (bonus, roller) => roll(`1d20${bonus ? signed(bonus) : ''}`, roller),
 	attackBonus: toHitFor,
 	defense: (armor, statuses) => defenseFor(armor + (statuses.has('guarded') ? 2 : 0)),
 	// A natural 20 always hits, a natural 1 never does.
@@ -77,7 +80,7 @@ export const classic: Ruleset = {
 			stats: STATS.map((s) => ({
 				id: s.id,
 				name: s.name,
-				bonus: character.stats[s.id],
+				bonus: statOf(character, s.id),
 				score: null,
 				proficient: false
 			})),

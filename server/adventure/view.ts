@@ -16,6 +16,7 @@ import {
 import type {
 	AdventureView,
 	ConditionMark,
+	EncounterView,
 	Objective,
 	SessionSummary
 } from '../../src/lib/adventure/adventure';
@@ -31,6 +32,7 @@ import {
 	content,
 	counterOf,
 	directorOptions,
+	electiveOptions,
 	endingAnswer,
 	objectCells,
 	objectState,
@@ -40,7 +42,7 @@ import {
 	usesLeft,
 	verbsFor
 } from './engine';
-import type { AdventureState, LastingEffect, Statuses } from './state';
+import type { AdventureState, CharacterState, Encounter, LastingEffect, Statuses } from './state';
 import { actionOfVerb, objectDef } from './world';
 import { packsView } from './packs';
 import { rulesInfo } from '../rules/ruleset';
@@ -96,6 +98,36 @@ function firstFind(room: Room, adventure: AdventureState): AdventureView['firstF
 		return { objectId: def.id, cells, clueId: def.firstFind };
 	}
 	return null;
+}
+
+/** A character not yet in play, for rules that word its health from its state. */
+const EMPTY_STATE: CharacterState = {
+	tokenId: '',
+	hp: 0,
+	statuses: new Map(),
+	uses: new Map(),
+	downedFor: 0,
+	dead: false
+};
+
+/** Who is picking who goes next, and from whom (elective turn order). */
+function handoffOf(
+	room: Room,
+	adventure: AdventureState,
+	encounter: Encounter,
+	viewer: Player
+): EncounterView['handoff'] {
+	const by = encounter.order[encounter.current];
+	if (!encounter.handoff || by?.kind !== 'character') return null;
+	const { options, fresh } = electiveOptions(room, adventure, encounter);
+	const state = adventure.characters.get(by.id);
+	const owner = state && room.tokens.get(state.tokenId)?.ownerId;
+	return {
+		by: by.id,
+		options: options.map((o) => encounter.order.indexOf(o)),
+		fresh,
+		mine: viewer.role === 'gm' || (!!owner && owner === viewer.id)
+	};
 }
 
 const listStatuses = (statuses: Statuses) => [...statuses].map(([id, rounds]) => ({ id, rounds }));
@@ -163,7 +195,13 @@ export function adventureView(
 				tokenId: token && tokenIds.has(token.id) ? token.id : null,
 				hp: token && state ? state.hp : maxHp,
 				maxHp,
+				...(rules.health
+					? {
+							health: rules.health(state ?? { ...EMPTY_STATE, hp: maxHp }, def)
+						}
+					: {}),
 				downed: !!token && !!state && state.hp <= 0 && !state.dead,
+				...(rules.downedWords ? { downedText: rules.downedWords } : {}),
 				dead: !!token && !!state && state.dead,
 				downedFor: state?.downedFor ?? 0,
 				statuses: token && state ? listStatuses(state.statuses) : [],
@@ -308,6 +346,8 @@ export function adventureView(
 			}),
 			current: encounter.current,
 			counter: counterOf(adventure),
+			elective: rules.turnOrder === 'elective',
+			handoff: handoffOf(room, adventure, encounter, viewer),
 			acted: [...encounter.acted].filter((key) => !key.includes(':')),
 			moved: Object.fromEntries(encounter.moved),
 			speed: encounter.speed,

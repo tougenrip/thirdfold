@@ -239,6 +239,7 @@ export function saveAdventure(adventure: AdventureState): SavedStory {
 					? { turnSpeed: adventure.encounter.turnSpeed }
 					: {}),
 				...(adventure.encounter.reacted?.size ? { reacted: [...adventure.encounter.reacted] } : {}),
+				...(adventure.encounter.handoff ? { handoff: true } : {}),
 				acted: [...adventure.encounter.acted],
 				moved: entriesOf(adventure.encounter.moved),
 				enemies: Object.fromEntries(
@@ -532,6 +533,8 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 	const tokenIds = new Set(scene.tokens.map((t) => t.id));
 	// Stories saved before rulesets played by the classic rules; a story keeps the rules it was pinned to.
 	const rules = data.rules === undefined ? { ...CLASSIC } : rulesRef(data.rules);
+	// Bound to its adventure's rules system (milestone 60): it may be pinned to an older version, never to other rules.
+	check(rules.id === (base.rules ?? CLASSIC).id, 'rules other than its adventure’s');
 	const ruleset = findRuleset(rules)!;
 	// Homebrew first, checked again in full: what follows may use it, and only it.
 	const packs: StoryPack[] = [];
@@ -894,6 +897,10 @@ function read(base: AdventureDef, data: Record<string, unknown>, scene: SceneFil
 						)
 					}),
 			enemies,
+			...(e.handoff === undefined
+				? {}
+				: (check(e.handoff === true && up.kind === 'character', 'turn order'),
+					{ handoff: true as const })),
 			turn: int(e.turn, 1, 1_000_000, 'turn'),
 			...(e.finale === undefined
 				? {}

@@ -1792,8 +1792,9 @@
 			{/if}
 			{#if adventure?.encounter}
 				{@const encounter = adventure.encounter}
-				<ol class="encounter" aria-label={`Round ${encounter.round}, turn order`}>
-					<li class="round num">Round {encounter.round}</li>
+				{@const roundName = encounter.elective ? 'Exchange' : 'Round'}
+				<ol class="encounter" aria-label={`${roundName} ${encounter.round}, turn order`}>
+					<li class="round num">{roundName} {encounter.round}</li>
 					{#if encounter.counter}
 						<li class="counter">
 							{encounter.counter.label}
@@ -1814,10 +1815,19 @@
 							class:current={i === encounter.current}
 							class:out={t.out}
 							aria-current={i === encounter.current ? 'true' : undefined}
-							title={`Initiative ${t.initiative}`}
+							title={encounter.elective ? t.name : `Initiative ${t.initiative}`}
 						>
-							<span class="init">{t.initiative}</span>
-							{t.name}
+							{#if !encounter.elective}<span class="init">{t.initiative}</span>{/if}
+							{#if encounter.handoff?.mine && encounter.handoff.options.includes(i)}
+								<button
+									class="pick"
+									type="button"
+									title={`${t.name} goes next`}
+									onclick={() => act({ type: 'adventure_handoff', index: i })}>{t.name}</button
+								>
+							{:else}
+								{t.name}
+							{/if}
 							{#if foe}
 								<span class="foe-hp"
 									><span style:transform={`scaleX(${foe.hp / foe.maxHp})`}></span></span
@@ -1831,6 +1841,17 @@
 							{/each}
 						</li>
 					{/each}
+					{#if encounter.handoff}
+						{@const by = adventure.characters.find((c) => c.id === encounter.handoff?.by)}
+						<li class="handoff" role="status">
+							{#if encounter.handoff.mine}
+								{encounter.handoff.fresh ? 'Who starts the next exchange?' : 'Who goes next?'}
+								Pick a name.
+							{:else}
+								{by?.def.name ?? 'Someone'} picks who goes next.
+							{/if}
+						</li>
+					{/if}
 				</ol>
 			{/if}
 			{#if adventure && endKey && dismissedEnd === endKey}
@@ -2266,6 +2287,20 @@
 		border-radius: var(--radius-pill);
 		border: 1px solid transparent;
 		font-variant-numeric: tabular-nums;
+	}
+	.encounter .pick {
+		padding: 0 var(--sp-1);
+		font: inherit;
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-sm);
+		background: none;
+		color: var(--accent);
+		cursor: pointer;
+		pointer-events: auto;
+	}
+	.encounter .handoff {
+		color: var(--accent);
+		font-size: var(--fs-xs);
 	}
 	.encounter .turn.enemy {
 		color: var(--danger);

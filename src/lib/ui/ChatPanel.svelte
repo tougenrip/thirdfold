@@ -5,7 +5,7 @@
 		type ChatMessage,
 		type LogAudience
 	} from '$lib/game/chat';
-	import { parseDice, STANDARD_DICE } from '$lib/game/dice';
+	import { fudgeFace, parseDice, STANDARD_DICE } from '$lib/game/dice';
 	import type { RoomAction } from '$lib/net/room-connection.svelte';
 
 	interface Props {
@@ -149,6 +149,12 @@
 												class:max={r === t.sides}
 												class:min={r === 1}
 												title={`d${t.sides}`}>{r}</span
+											>
+										{/each}
+									{:else if t.kind === 'fudge'}
+										{#each t.rolls as r, j (j)}
+											<span class="die num" class:max={r > 0} class:min={r < 0} title="Fate die"
+												>{fudgeFace(r)}</span
 											>
 										{/each}
 									{:else}

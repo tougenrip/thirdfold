@@ -117,6 +117,7 @@ export const dnd55e: Ruleset = {
 			roller
 		});
 	},
+	initiative: classic.initiative,
 	initiativeBonus: (character) => {
 		const sheet = sheetOf(character);
 		return sheet.initiative ?? mod(sheet, 'dex');

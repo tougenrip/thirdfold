@@ -2225,11 +2225,17 @@ export function startEncounter(
 		c.state.statuses.clear();
 	}
 	const dice = diceOf(room);
+	const rules = rulesOf(adventure);
+	const elective = rules.turnOrder === 'elective';
 	const rolled: { entry: TurnEntry; name: string; bonus: number; order: number }[] = [];
 	for (const c of played(room, adventure)) {
-		const bonus = rulesOf(adventure).initiativeBonus(c.def);
+		const bonus = rules.initiativeBonus(c.def);
 		rolled.push({
-			entry: { kind: 'character', id: c.id, initiative: roll(`1d20+${bonus}`, dice).total },
+			entry: {
+				kind: 'character',
+				id: c.id,
+				initiative: elective ? bonus : rules.initiative(bonus, dice).total
+			},
 			name: c.def.name,
 			bonus,
 			order: rolled.length
@@ -2237,7 +2243,7 @@ export function startEncounter(
 	}
 	for (const [tokenId, enemy] of enemies) {
 		const bonus = A.enemies[enemy.kind].initiative;
-		const total = roll(bonus ? `1d20+${bonus}` : '1d20', dice).total;
+		const total = elective ? bonus : rules.initiative(bonus, dice).total;
 		rolled.push({
 			entry: { kind: 'enemy', tokenId, initiative: total },
 			name: A.enemies[enemy.kind].name,
@@ -2245,14 +2251,25 @@ export function startEncounter(
 			order: rolled.length
 		});
 	}
-	// Highest first; on a tie the characters go first, then the quicker.
-	rolled.sort(
-		(a, b) =>
-			b.entry.initiative - a.entry.initiative ||
-			Number(b.entry.kind === 'character') - Number(a.entry.kind === 'character') ||
-			b.bonus - a.bonus ||
-			a.order - b.order
-	);
+	if (elective) {
+		// No roll: the side that has the moment goes first (the watch that spotted
+		// someone, else the party), its most alert first; then whoever acts picks.
+		const first = spotted ? 'enemy' : 'character';
+		rolled.sort(
+			(a, b) =>
+				Number(b.entry.kind === first) - Number(a.entry.kind === first) ||
+				b.bonus - a.bonus ||
+				a.order - b.order
+		);
+	} else
+		// Highest first; on a tie the characters go first, then the quicker.
+		rolled.sort(
+			(a, b) =>
+				b.entry.initiative - a.entry.initiative ||
+				Number(b.entry.kind === 'character') - Number(a.entry.kind === 'character') ||
+				b.bonus - a.bonus ||
+				a.order - b.order
+		);
 	const encounter: Encounter = {
 		id,
 		round: 1,
@@ -2283,7 +2300,9 @@ export function startEncounter(
 			: []),
 		postSystem(
 			room,
-			`Initiative: ${rolled.map((r) => `${r.name} ${r.entry.initiative}`).join(', ')}. Round 1.`
+			elective
+				? `${rolled[0].name} goes first; whoever acts picks who goes next. Exchange 1.`
+				: `Initiative: ${rolled.map((r) => `${r.name} ${r.entry.initiative}`).join(', ')}. Round 1.`
 		)
 	];
 	return merge({ log }, advance(room, adventure, encounter));
@@ -2305,10 +2324,62 @@ function turnOf(encounter: Encounter | null): TurnEntry | null {
 	return encounter?.order[encounter.current] ?? null;
 }
 
-/** Whether it is this character's turn. */
+/** Whether it is this character's turn (not while someone is picking who goes next). */
 function isTurnOf(encounter: Encounter, id: string): boolean {
 	const entry = turnOf(encounter);
-	return entry?.kind === 'character' && entry.id === id;
+	return !encounter.handoff && entry?.kind === 'character' && entry.id === id;
+}
+
+/** Whether a turn entry can still take a turn: a foe still in the fight, a character standing. */
+function stillIn(
+	room: Room,
+	adventure: AdventureState,
+	encounter: Encounter,
+	t: TurnEntry
+): boolean {
+	if (t.kind === 'enemy') return encounter.enemies.has(t.tokenId) && room.tokens.has(t.tokenId);
+	const state = adventure.characters.get(t.id);
+	return !!state && !state.dead && state.hp > 0 && room.tokens.has(state.tokenId);
+}
+
+/**
+ * Under elective turn order, who may go next: those yet to act this
+ * exchange, or (when everyone has) anyone still in the fight, to start the
+ * next one (`fresh`).
+ */
+export function electiveOptions(
+	room: Room,
+	adventure: AdventureState,
+	encounter: Encounter
+): { options: TurnEntry[]; fresh: boolean } {
+	const alive = (t: TurnEntry) => stillIn(room, adventure, encounter, t);
+	const rest = encounter.order.slice(encounter.current + 1).filter(alive);
+	return rest.length
+		? { options: rest, fresh: false }
+		: { options: encounter.order.filter(alive), fresh: true };
+}
+
+const sameEntry = (a: TurnEntry, b: TurnEntry) =>
+	a.kind === 'character'
+		? b.kind === 'character' && a.id === b.id
+		: b.kind === 'enemy' && a.tokenId === b.tokenId;
+
+/** The foes' side picks for itself: one of its own still to act, else the first who is. */
+function autoPick(options: TurnEntry[], leaving: TurnEntry | null): TurnEntry {
+	return options.find((t) => t.kind === (leaving?.kind ?? 'character')) ?? options[0];
+}
+
+/** The picked entry goes next: right after this turn, or first in the next exchange. */
+function goNext(encounter: Encounter, picked: TurnEntry, fresh: boolean): void {
+	const i = encounter.order.findIndex((t) => sameEntry(t, picked));
+	if (i < 0) return;
+	const [entry] = encounter.order.splice(i, 1);
+	if (i <= encounter.current) encounter.current--;
+	if (fresh) {
+		encounter.order.unshift(entry);
+		// Everyone has gone: the next step starts a new exchange, with it.
+		encounter.current = encounter.order.length - 1;
+	} else encounter.order.splice(encounter.current + 1, 0, entry);
 }
 
 /**
@@ -2318,13 +2389,20 @@ function isTurnOf(encounter: Encounter, id: string): boolean {
  * instead, dying after BLEED_OUT_ROUNDS of its turns. An enemy's turn is
  * returned as `enemyTurn` for the game server to run after a pause.
  */
-function advance(room: Room, adventure: AdventureState, encounter: Encounter): Outcome {
+function advance(
+	room: Room,
+	adventure: AdventureState,
+	encounter: Encounter,
+	picked?: TurnEntry
+): Outcome {
 	const A = content(adventure);
 	const rules = rulesOf(adventure);
+	const elective = rules.turnOrder === 'elective';
 	const log: ChatMessage[] = [];
-	// The turn that ends: its bearer's saves against what holds it, and what its effects last until.
 	const leaving = turnOf(encounter);
-	if (leaving) {
+	// The turn that ends (unless it already did, and someone picked who goes next): its
+	// bearer's saves against what holds it, and what its effects last until.
+	if (leaving && !picked) {
 		const key = leaving.kind === 'character' ? leaving.id : leaving.tokenId;
 		const bearer =
 			leaving.kind === 'character'
@@ -2333,6 +2411,30 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 		if (bearer && room.tokens.has(bearer)) log.push(...endOfTurnSaves(room, bearer, diceOf(room)));
 		log.push(...effectsEnded(room, turnEnds(adventure, key)));
 	}
+	delete encounter.handoff;
+	if (elective && leaving) {
+		// Elective order: whoever just acted picks who goes next; a player picks for their character.
+		const { options, fresh } = electiveOptions(room, adventure, encounter);
+		if (!picked && options.length > 1 && leaving.kind === 'character') {
+			const state = adventure.characters.get(leaving.id);
+			const owner = state && room.tokens.get(state.tokenId)?.ownerId;
+			if (owner && state && !state.dead && state.hp > 0) {
+				encounter.handoff = true;
+				const name = A.characters[leaving.id]?.name ?? leaving.id;
+				log.push(
+					postSystem(
+						room,
+						fresh
+							? `${name} picks who starts exchange ${encounter.round + 1}.`
+							: `${name} picks who goes next.`
+					)
+				);
+				return { log };
+			}
+		}
+		const next = picked ?? (options.length ? autoPick(options, leaving) : undefined);
+		if (next) goNext(encounter, next, fresh);
+	}
 	for (let tries = 0; tries <= encounter.order.length * 2; tries++) {
 		encounter.current++;
 		if (encounter.current >= encounter.order.length) {
@@ -2340,7 +2442,7 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 			encounter.round++;
 			encounter.acted.clear();
 			encounter.moved.clear();
-			log.push(postSystem(room, `Round ${encounter.round}.`));
+			log.push(postSystem(room, `${elective ? 'Exchange' : 'Round'} ${encounter.round}.`));
 			if (encounter.finale) {
 				log.push(...roundOfPhase(room, adventure, encounter));
 				if (standing(room, adventure).length === 0) {
@@ -2415,7 +2517,9 @@ function advance(room: Room, adventure: AdventureState, encounter: Encounter): O
 
 /** Defense against attacks, counting a guard and what lingers. */
 function characterDefense(rules: Ruleset, c: Played, adventure: AdventureState | null): number {
-	return rules.defense(c.def.armor, c.state.statuses) + modsOn(adventure, c.token.id).defense;
+	return (
+		rules.defense(c.def.armor, c.state.statuses, c.def) + modsOn(adventure, c.token.id).defense
+	);
 }
 
 /**
@@ -2581,12 +2685,18 @@ function maneuver(
 		encounter.speed += more;
 		log.push(postSystem(room, `${name} can move ${more} more ${more === 1 ? 'cell' : 'cells'}.`));
 	}
+	// A maneuver with a check and no one to steady (creating an advantage) lands only when it succeeds.
+	if (m.check && !m.stabilize) {
+		const check = rollCheck(room, actor, me, m.action.name, m.check, roller);
+		log.push(check.entry);
+		if (!check.success) return { ok: true, log };
+	}
 	if (m.effect)
 		log.push(
 			...putEffect(room, m.effect, { kind: 'character', id: me.id, name }, target.id, me.token.id)
 				.log
 		);
-	if (m.check && ally) {
+	if (m.check && m.stabilize && ally) {
 		const check = rollCheck(room, actor, me, m.action.name, m.check, roller);
 		log.push(check.entry);
 		if (check.success && m.stabilize) {
@@ -2953,7 +3063,9 @@ function turnName(room: Room, encounter: Encounter): string {
 
 /** Why it isn't this character's turn: whose it is. */
 function notYourTurn(room: Room, encounter: Encounter): string {
-	return `It's ${turnName(room, encounter)}'s turn.`;
+	return encounter.handoff
+		? `${turnName(room, encounter)} is picking who goes next.`
+		: `It's ${turnName(room, encounter)}'s turn.`;
 }
 
 function attackEnemy(
@@ -3306,12 +3418,15 @@ function victory(room: Room, adventure: AdventureState): Outcome {
 		c.state.deathSaves = undefined;
 	}
 	if (fallen.length) log.push(say(room, A.voice.revive));
+	const rules = rulesOf(adventure);
 	for (const c of played(room, adventure)) {
 		c.state.statuses.clear();
 		c.state.uses.clear();
+		// What the end of a conflict gives back, under rules that say (stress clears).
+		const back = c.state.dead ? null : rules.conflictEnds?.(c.state, c.def);
+		if (back) log.push(postSystem(room, `${c.def.name}: ${back}`));
 	}
 	// What can be recovered after a fight (half the ammunition shot), under rules that say so.
-	const rules = rulesOf(adventure);
 	if (rules.equipment)
 		for (const c of played(room, adventure)) {
 			const back = rules.equipment.recover(c.def);
@@ -3364,8 +3479,56 @@ export function passAwayTurn(room: Room, turn: number): Outcome | null {
 	if (!adventure || !encounter || encounter.turn !== turn || entry?.kind !== 'character')
 		return null;
 	const name = content(adventure).characters[entry.id]?.name ?? entry.id;
+	if (encounter.handoff) {
+		const pick = autoPick(electiveOptions(room, adventure, encounter).options, entry);
+		const log = [postSystem(room, `${name}'s player is away; the fight moves on.`)];
+		return merge({ log }, advance(room, adventure, encounter, pick));
+	}
 	const log = [postSystem(room, `${name}'s player is away; their turn passes.`)];
 	return merge({ log }, advance(room, adventure, encounter));
+}
+
+/**
+ * Under elective turn order: the player whose character just acted (or the
+ * GM) picks who goes next, by its place in the order: one still to act this
+ * exchange, or anyone still in the fight to start the next.
+ */
+export function handOff(room: Room, actor: Player, index: number): Outcomes {
+	const adventure = room.adventure;
+	if (!adventure) return NO_ADVENTURE;
+	const encounter = adventure.encounter;
+	if (!encounter?.handoff) return fail('forbidden', 'Nobody is picking who goes next.');
+	const entry = turnOf(encounter);
+	if (entry?.kind !== 'character') return fail('forbidden', 'Nobody is picking who goes next.');
+	const A = content(adventure);
+	const name = A.characters[entry.id]?.name ?? entry.id;
+	const state = adventure.characters.get(entry.id);
+	const owner = state && room.tokens.get(state.tokenId)?.ownerId;
+	if (actor.role !== 'gm' && actor.id !== owner)
+		return fail('not_your_turn', `${name}'s player picks who goes next.`);
+	const pick = Number.isInteger(index) ? encounter.order[index] : undefined;
+	if (!pick) return fail('token_not_found', 'Pick someone in the fight.');
+	const { options, fresh } = electiveOptions(room, adventure, encounter);
+	const pickName =
+		pick.kind === 'character'
+			? (A.characters[pick.id]?.name ?? pick.id)
+			: (room.tokens.get(pick.tokenId)?.name ?? 'that foe');
+	if (!options.some((o) => sameEntry(o, pick)))
+		return fail(
+			'forbidden',
+			stillIn(room, adventure, encounter, pick)
+				? `${pickName} has already gone this exchange.`
+				: `${pickName} is out of the fight.`
+		);
+	const log = [
+		postSystem(
+			room,
+			fresh
+				? `${name} picks ${pickName} to start the next exchange.`
+				: `${name} hands over to ${pickName}.`
+		)
+	];
+	return { ok: true, ...merge({ log }, advance(room, adventure, encounter, pick)) };
 }
 
 /** The enemy whose turn the game server should run, if it is an enemy's turn (after loading a save). */
@@ -3968,8 +4131,13 @@ function standUp(
 function wound(room: Room, target: Played, amount: number, critical = false): string | undefined {
 	if (target.state.dead || amount <= 0) return undefined;
 	const before = target.state.hp;
+	// Rules that soak harm another way (consequences) take their share first.
+	const soaked =
+		before > 0 ? rulesOf(room.adventure!).absorb?.(target.state, target.def, amount) : undefined;
+	if (soaked) amount = soaked.amount;
+	const note = soaked?.note ? `${target.def.name} ${soaked.note}` : undefined;
 	target.state.hp = Math.max(0, before - amount);
-	if (target.state.hp > 0) return undefined;
+	if (target.state.hp > 0) return note;
 	const already = before <= 0;
 	const downed = rulesOf(room.adventure!).downedDamage?.(target.state, {
 		overflow: already ? amount : amount - before,
@@ -3986,7 +4154,7 @@ function wound(room: Room, target: Played, amount: number, critical = false): st
 	}
 	if (already) return downed?.explain ? `${target.def.name}: ${downed.explain}.` : undefined;
 	target.state.downedFor = 0;
-	return `${target.def.name} falls!`;
+	return `${note ? `${note} ` : ''}${target.def.name} falls!`;
 }
 
 const NO_TRAITS: DamageTraits = { immune: [], resist: [], vulnerable: [] };
@@ -4704,6 +4872,12 @@ export function control(
 		case 'end_turn': {
 			const encounter = adventure.encounter;
 			if (!encounter) return fail('forbidden', 'There is no turn to end outside a fight.');
+			if (encounter.handoff) {
+				// Someone was picking who goes next: the GM moves the fight on as the foes would.
+				const pick = autoPick(electiveOptions(room, adventure, encounter).options, null);
+				const log = [postSystem(room, `${actor.name} moves the fight on.`)];
+				return { ok: true, ...merge({ log }, advance(room, adventure, encounter, pick)) };
+			}
 			const log = [postSystem(room, `${actor.name} ended ${turnName(room, encounter)}'s turn.`)];
 			return { ok: true, ...merge({ log }, advance(room, adventure, encounter)) };
 		}

@@ -259,7 +259,11 @@
 	/** A condition's marker, explained: how long, where from, and the rules' words. */
 	const conditionTitle = (c: ConditionMark) =>
 		`${c.name}: ${c.until} (${c.from}).\n\n${c.text}${c.notPlayed.length ? `\n\nNot played yet: ${c.notPlayed.join('; ')}.` : ''}`;
-	const hpPercent = $derived(Math.round((100 * character.hp) / character.maxHp));
+	// Health as its rules count it (stress boxes clear), else hit points.
+	const health = $derived(
+		character.health ?? { name: 'HP', value: character.hp, max: character.maxHp }
+	);
+	const hpPercent = $derived(Math.round((100 * health.value) / Math.max(1, health.max)));
 </script>
 
 <section class="bar" class:down={!able} aria-label="Your character" style:--char={def.color}>
@@ -271,13 +275,16 @@
 		<span
 			class="hp"
 			role="meter"
-			aria-label="Hit points"
-			aria-valuenow={character.hp}
+			aria-label={character.health ? health.name : 'Hit points'}
+			aria-valuenow={health.value}
 			aria-valuemin="0"
-			aria-valuemax={character.maxHp}
+			aria-valuemax={health.max}
 		>
 			<span class="fill" style:transform={`scaleX(${hpPercent / 100})`}></span>
-			<span class="label">{character.hp}/{character.maxHp} HP</span>
+			<span class="label"
+				>{health.value}/{health.max}
+				{character.health ? health.name.toLowerCase() : 'HP'}</span
+			>
 		</span>
 		{#each character.statuses as s (s.id)}
 			<span class="chip" title={STATUSES[s.id].about}>{STATUSES[s.id].name}</span>

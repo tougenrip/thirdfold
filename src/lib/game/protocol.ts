@@ -431,6 +431,8 @@ export type ClientMessage =
 	  }
 	/** Player, in an encounter: your character is done for this round. */
 	| { type: 'adventure_end_turn' }
+	/** Under elective turn order: who goes next, by place in the fight's order. */
+	| { type: 'adventure_handoff'; index: number }
 	/** GM: put a condition on someone, or end a lasting effect. */
 	| { type: 'adventure_effect'; op: EffectOp }
 	/** GM: narrate to the table. */
@@ -1332,6 +1334,12 @@ export function parseClientMessage(data: unknown): ClientMessage | null {
 				: null;
 		case 'games_list':
 			return { type: 'games_list' };
+		case 'adventure_handoff':
+			return Number.isInteger(data.index) &&
+				(data.index as number) >= 0 &&
+				(data.index as number) < 64
+				? { type: 'adventure_handoff', index: data.index as number }
+				: null;
 		case 'adventure_release':
 		case 'adventure_begin':
 		case 'adventure_end_turn':

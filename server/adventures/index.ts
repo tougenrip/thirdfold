@@ -4,6 +4,12 @@
 import type { AdventureDef } from '../adventure/define';
 import { BARROW } from './barrow';
 import { BLACKWATER } from './blackwater';
+import { DROWNED_LANTERN } from './drowned-lantern';
 import { HOLLOW_BELL } from './hollow-bell';
 
-export const ADVENTURES: readonly AdventureDef[] = [HOLLOW_BELL, BLACKWATER, BARROW];
+export const ADVENTURES: readonly AdventureDef[] = [
+	HOLLOW_BELL,
+	BLACKWATER,
+	BARROW,
+	DROWNED_LANTERN
+];

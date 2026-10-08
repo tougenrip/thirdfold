@@ -32,6 +32,9 @@ describe('parseDice', () => {
 		['d%', '1d100'],
 		['4d6+1d4+2', '4d6+1d4+2'],
 		['-1d4', '-1d4'],
+		['4dF', '4dF'],
+		['4df+3', '4dF+3'],
+		['dF-1', '1dF-1'],
 		['7', '7']
 	])('reads %j as %s', (input, expression) => {
 		const r = parseDice(input);
@@ -53,6 +56,9 @@ describe('parseDice', () => {
 		`1d${DICE_LIMITS.sides + 1}`,
 		`${DICE_LIMITS.dice + 1}d6`,
 		'60d6+60d6',
+		'0dF',
+		`${DICE_LIMITS.dice + 1}dF`,
+		'1dFF',
 		'1d20+',
 		'1d20 5',
 		'2d6*3',
@@ -83,6 +89,19 @@ describe('parseDice', () => {
 });
 
 describe('rollDice', () => {
+	it('reads Fate dice as −1, 0 or +1 each', () => {
+		const roll = rollDice(terms('4dF+2'), fixed(1, 2, 3, 3));
+		expect(roll.terms[0]).toMatchObject({ kind: 'fudge', rolls: [-1, 0, 1, 1] });
+		expect(roll.total).toBe(3);
+		expect(formatBreakdown(roll)).toBe('[− 0 + +] + 2');
+	});
+
+	it('asks for a d3 for each Fate die', () => {
+		const sides: number[] = [];
+		rollDice(terms('4dF'), (s) => (sides.push(s), 2));
+		expect(sides).toEqual([3, 3, 3, 3]);
+	});
+
 	it('adds dice and modifiers with signs', () => {
 		const roll = rollDice(terms('2d6+1d4-3'), fixed(5, 2, 4));
 		expect(roll.total).toBe(5 + 2 + 4 - 3);
